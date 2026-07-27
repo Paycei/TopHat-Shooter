@@ -15,20 +15,30 @@ import raylib
 import particle_types      # Vector2f + ops
 import types               # KeyAction (kaMoveUp .. kaLegendary)
 import settings            # globalSettings
-import render_context      # getVirtualMousePosition
+import render_context      # getWorldMousePosition + re-exported gamepad_input
 
 when defined(mobile):
   import mobile_controls
 
 proc keyMoveVector(): Vector2f =
-  ## Raw WASD/keybind sum (un-normalized; callers normalize). Matches the old
-  ## inline block in player.nim:243-247 and the dash block in main.nim.
+  ## Raw keyboard + gamepad movement sum (un-normalized; callers clamp). The
+  ## analog stick is added rather than snapped so partial deflection keeps its
+  ## magnitude and the player can walk slowly.
   let kb = globalSettings.keybinds
   var d = newVector2f(0, 0)
   if isKeyDown(kb[kaMoveUp]): d.y -= 1
   if isKeyDown(kb[kaMoveDown]): d.y += 1
   if isKeyDown(kb[kaMoveLeft]): d.x -= 1
   if isKeyDown(kb[kaMoveRight]): d.x += 1
+  if isGamepadActive():
+    let ls = leftStick()
+    d.x += ls.x
+    d.y += ls.y
+    let gb = globalSettings.gamepadBinds
+    if isGamepadBindDown(gb, kaMoveUp): d.y -= 1
+    if isGamepadBindDown(gb, kaMoveDown): d.y += 1
+    if isGamepadBindDown(gb, kaMoveLeft): d.x -= 1
+    if isGamepadBindDown(gb, kaMoveRight): d.x += 1
   d
 
 proc getMoveVector*(): Vector2f =
@@ -47,10 +57,17 @@ proc abilityDirection*(): Vector2f =
     keyMoveVector()
 
 proc getAimTarget*(playerPos: Vector2f): Vector2f =
-  ## Virtual-canvas point the player is aiming at; shootDir = target - playerPos.
-  ## Desktop: the mouse cursor (identical to game.nim:1634). Mobile: a point
+  ## WORLD-space point the player is aiming at; shootDir = target - playerPos.
+  ## World, not virtual: in the widescreen HUD layout the gameplay world is
+  ## offset inside the wider virtual canvas, so a virtual point would be skewed
+  ## by the gutter width.
+  ##
+  ## Desktop: the mouse cursor (getWorldMousePosition already resolves to the
+  ## gamepad aim point when a pad is the active device). Mobile: a point
   ## MobileAimReach ahead of the player along the aim stick (playerPos itself
-  ## when not aiming, i.e. zero direction -> no shot).
+  ## when not aiming, i.e. zero direction -> no shot). Note game.nim owns the
+  ## assisted firing aim point (see stickAimPoint); this is the plain
+  ## projection used for wall placement and other non-firing targeting.
   when defined(mobile):
     let dir = mobileAimVector()
     if dir.length() > 0:
@@ -58,43 +75,47 @@ proc getAimTarget*(playerPos: Vector2f): Vector2f =
     else:
       playerPos
   else:
-    let m = getVirtualMousePosition()
+    let m = getWorldMousePosition()
     newVector2f(m.x, m.y)
 
 proc isFiring*(wallPlacementMode: bool): bool =
-  ## Whether the player is shooting this frame. Desktop mirrors game.nim:1648-1649
-  ## (left-mouse unless placing a wall, or the shoot key). Mobile auto-fires while
-  ## the aim stick is held.
+  ## Whether the player is shooting this frame. Desktop: left-mouse or the shoot
+  ## key or the gamepad fire bind (all suppressed while placing a wall). Mobile
+  ## auto-fires while the aim stick is held.
   when defined(mobile):
     mobileIsAiming()
   else:
     (isMouseButtonDown(Left) and not wallPlacementMode) or
-      isKeyDown(globalSettings.keybinds[kaShoot])
+      isKeyDown(globalSettings.keybinds[kaShoot]) or
+      (not wallPlacementMode and gamepadFireDown(globalSettings.gamepadBinds))
 
 proc abilityPressed*(): bool =
-  ## Legendary/ability activation edge (main.nim:1410).
+  ## Legendary/ability activation edge.
   when defined(mobile):
     mobileAbilityPressed()
   else:
-    isKeyPressed(globalSettings.keybinds[kaLegendary])
+    isKeyPressed(globalSettings.keybinds[kaLegendary]) or
+      isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)
 
 proc placeWallHeld*(): bool =
-  ## Wall preview is shown while held (main.nim:1394).
+  ## Wall preview is shown while held.
   when defined(mobile):
     mobileWallHeld()
   else:
-    isKeyDown(globalSettings.keybinds[kaPlaceWall])
+    isKeyDown(globalSettings.keybinds[kaPlaceWall]) or
+      isGamepadBindDown(globalSettings.gamepadBinds, kaPlaceWall)
 
 proc placeWallReleased*(): bool =
-  ## Wall is placed on release (main.nim:1398).
+  ## Wall is placed on release.
   when defined(mobile):
     mobileWallReleased()
   else:
-    isKeyReleased(globalSettings.keybinds[kaPlaceWall])
+    isKeyReleased(globalSettings.keybinds[kaPlaceWall]) or
+      isGamepadBindReleased(globalSettings.gamepadBinds, kaPlaceWall)
 
 proc pausePressed*(): bool =
-  ## Pause edge (main.nim:1614). Desktop: Escape.
+  ## Pause edge. Desktop: Escape (via isBackPressed) or the pad's Start button.
   when defined(mobile):
     mobilePausePressed()
   else:
-    isKeyPressed(Escape)
+    isBackPressed() or isGamepadStartPressed()

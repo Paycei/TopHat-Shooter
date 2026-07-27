@@ -6,7 +6,7 @@
 ## Touch ONLY these places:
 ##   1. types.nim        -> add the EnemyType variant
 ##   2. enemy_config.nim -> add a block in getEnemyConfig  (stats, attack, movement, speedScaling)
-##                      -> add ONE entry in allEnemyDefs   (introductionDifficulty, fadeOutDifficulty, spawnWeight)
+##                       -> add ONE entry in allEnemyDefs   (introductionDifficulty, fadeOutDifficulty, spawnWeight)
 ##   3. enemy.nim        -> add the update case in updateEnemy
 ##   4. localization.nim -> add tkEnemyXName / tkEnemyXDesc keys + both-language strings
 
@@ -146,9 +146,7 @@ proc pickSpawnType*(difficulty: float32): EnemyType =
       roll -= w
   return etCircle  # unreachable in practice
 
-#  Per-enemy stat and behaviour configuration 
-
-# ENEMY CONFIGURATION DEFINITIONS
+# Per-enemy stat and behaviour configuration
 proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   ## Returns the complete configuration for a given enemy type
   case enemyType

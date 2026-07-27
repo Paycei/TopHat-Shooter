@@ -2,7 +2,7 @@
 ## All icons drawn programmatically using shapes with depth and polish
 
 import raylib, rlgl, math
-import ../types
+import ../types, ../utils
 
 type
   CurrencyIconType* = enum
@@ -152,8 +152,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Motion lines
     for i in 0..2:
       let offset = i * 3
-      drawLine(int32(cx - 16 - offset), cy, int32(cx - 11 - offset), cy, Color(r: color.r, g: color.g, b: color.b, a: uint8(100 - i * 30)))
-      drawLine(int32(cx + 11 + offset), cy, int32(cx + 16 + offset), cy, Color(r: color.r, g: color.g, b: color.b, a: uint8(100 - i * 30)))
+      drawLine(int32(cx - 16 - offset), cy, int32(cx - 11 - offset), cy, withAlpha(color, uint8(100 - i * 30)))
+      drawLine(int32(cx + 11 + offset), cy, int32(cx + 16 + offset), cy, withAlpha(color, uint8(100 - i * 30)))
 
   of puRotatingShield:
     # Ornate shield with layered protection
@@ -161,13 +161,13 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircle(Vector2(x: cx.float32, y: cy.float32), rad + 2, Color(r: 0, g: 0, b: 0, a: 60))
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad, color)
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad - 2, color)
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad - 4, Color(r: color.r, g: color.g, b: color.b, a: 150))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad - 4, withAlpha(color, 150))
     # Shield sectors
     for i in 0..3:
       let angle = i.float32 * PI / 2 + PI / 4
       drawCircleSector(Vector2(x: cx.float32, y: cy.float32), rad - 6,
                       angle * 180 / PI - 15, angle * 180 / PI + 15, 8,
-                      Color(r: color.r, g: color.g, b: color.b, a: 120))
+                      withAlpha(color, 120))
     # Center emblem
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 5, color)
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 7, color)
@@ -179,7 +179,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for glowRad in countdown(int(rad + 4), int(rad), 2):
       drawRing(Vector2(x: cx.float32, y: cy.float32),
               glowRad.float32 - 1, glowRad.float32, 0, 360, 20,
-              Color(r: color.r, g: color.g, b: color.b, a: uint8(30)))
+              withAlpha(color, uint8(30)))
     # Star shape with inner detail
     for i in 0..<points:
       let angle1 = i.float32 * 2 * PI / points.float32 - PI/2
@@ -211,7 +211,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
             Color(r: min(color.r + 60, 255), g: min(color.g + 60, 255), b: min(color.b + 60, 255), a: color.a))
     # Target reticle
     drawCircleLines(Vector2(x: (cx - 10).float32, y: cy.float32), 8, color)
-    drawCircleLines(Vector2(x: (cx - 10).float32, y: cy.float32), 5, Color(r: color.r, g: color.g, b: color.b, a: 150))
+    drawCircleLines(Vector2(x: (cx - 10).float32, y: cy.float32), 5, withAlpha(color, 150))
     # Crosshair
     drawLine(cx - 10, cy - 11, cx - 10, cy - 9, color)
     drawLine(cx - 10, cy + 9, cx - 10, cy + 11, color)
@@ -220,9 +220,9 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   of puMultiShot:
     # Triple diverging beams with energy trails
     let beamColors = [
-      Color(r: color.r, g: color.g, b: color.b, a: 200),
-      Color(r: color.r, g: color.g, b: color.b, a: 255),
-      Color(r: color.r, g: color.g, b: color.b, a: 200)
+      withAlpha(color, 200),
+      withAlpha(color, 255),
+      withAlpha(color, 200)
     ]
     # Draw beams with gradient effect
     for i in 0..2:
@@ -269,7 +269,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircle(Vector2(x: (cx - 3).float32, y: (cy - 2).float32), 3, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 200))
     drawCircle(Vector2(x: (cx + 4).float32, y: (cy + 4).float32), 2, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 150))
     # Drip effect
-    drawCircle(Vector2(x: cx.float32, y: (cy + int32(rad * 0.7) + 3).float32), 2, Color(r: color.r, g: color.g, b: color.b, a: 180))
+    drawCircle(Vector2(x: cx.float32, y: (cy + int32(rad * 0.7) + 3).float32), 2, withAlpha(color, 180))
 
   of puRapidFire, puOvercharge:
     # Lightning bolt with energy
@@ -278,7 +278,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let offset = i * 2
       drawLine(Vector2(x: (cx + offset).float32, y: (cy - 12).float32),
                Vector2(x: (cx + 4 + offset).float32, y: (cy - 2).float32), float32(4 - i),
-               Color(r: color.r, g: color.g, b: color.b, a: uint8(60 - i * 15)))
+               withAlpha(color, uint8(60 - i * 15)))
     # Main bolt
     drawLine(Vector2(x: (cx + 2).float32, y: (cy - 12).float32),
              Vector2(x: (cx + 4).float32, y: (cy - 2).float32), 4, color)
@@ -311,8 +311,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircle(Vector2(x: (cx - 7).float32, y: (cy - 6).float32), 3, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 200))
     drawCircle(Vector2(x: (cx + 3).float32, y: (cy - 6).float32), 2, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 150))
     # Pulse rings
-    drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 4, Color(r: color.r, g: color.g, b: color.b, a: 60))
-    drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 2, Color(r: color.r, g: color.g, b: color.b, a: 100))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 4, withAlpha(color, 60))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 2, withAlpha(color, 100))
 
   of puSpeedBoost:
     # Athletic shoe with motion
@@ -331,7 +331,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Speed lines
     for i in 0..2:
       let xOff = int32(-14 - i * 4)
-      drawLine(int32(cx + xOff), int32(cy - int32(2 + i * 2)), int32(cx + xOff + 6), int32(cy - int32(2 + i * 2)), Color(r: color.r, g: color.g, b: color.b, a: uint8(120 - i * 30)))
+      drawLine(int32(cx + xOff), int32(cy - int32(2 + i * 2)), int32(cx + xOff + 6), int32(cy - int32(2 + i * 2)), withAlpha(color, uint8(120 - i * 30)))
   of puCriticalHit:
     # Detailed sword with gleam
     # Shadow
@@ -360,7 +360,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Pulsing curse halo
     let cp = (sin(getTime() * 4.0) * 0.5 + 0.5).float32
     drawCircleLines(cx, cy - 2, rad + 1.0 + cp * 2.0,
-                    Color(r: bright.r, g: bright.g, b: bright.b, a: uint8(70 + cp * 70)))
+                    withAlpha(bright, uint8(70 + cp * 70)))
     # Cranium
     drawCircle(Vector2(x: cx.float32, y: (cy - 3).float32), rad * 0.85, color)
     drawCircleLines(cx, cy - 3, rad * 0.85, dark)
@@ -421,7 +421,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       drawCircle(Vector2(x: cx.float32, y: yOff.float32), 8, color)
       # Edge detail
       drawCircleLines(Vector2(x: cx.float32, y: yOff.float32), 8, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
-      drawCircleLines(Vector2(x: cx.float32, y: yOff.float32), 6, Color(r: color.r, g: color.g, b: color.b, a: 200))
+      drawCircleLines(Vector2(x: cx.float32, y: yOff.float32), 6, withAlpha(color, 200))
       # Symbol
       if i == 0:  # Top coin gets the symbol
         drawText("$", cx - 4, yOff - 6, 12, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 255))
@@ -456,7 +456,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Pulse rings
     for i in 1..3:
       drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad + i.float32 * 2,
-                     Color(r: color.r, g: color.g, b: color.b, a: uint8(100 - i * 25)))
+                     withAlpha(color, uint8(100 - i * 25)))
     # Circle background
     drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), rad, Color(r: 0, g: 0, b: 0, a: 60))
     drawCircle(Vector2(x: cx.float32, y: cy.float32), rad, Color(r: 255, g: 255, b: 255, a: 255))
@@ -480,7 +480,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
         let xOffset = int32(-j * 3)
         let alpha = uint8(baseAlpha - j * 40 - i * 10)
         drawLine(cx - 12 + xOffset, yy, cx - 12 + xOffset + lineLength, yy,
-                Color(r: color.r, g: color.g, b: color.b, a: alpha))
+                withAlpha(color, alpha))
       # Arrow tip
       drawLine(cx + 8, yy, cx + 4, yy - 3, color)
       drawLine(cx + 8, yy, cx + 4, yy + 3, color)
@@ -488,7 +488,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for i in 0..2:
       let alpha = uint8(60 - i * 15)
       drawCircle(Vector2(x: (cx - 6 - i * 3).float32, y: cy.float32), 4,
-                Color(r: color.r, g: color.g, b: color.b, a: alpha))
+                withAlpha(color, alpha))
 
   of puBulletRicochet:
     # Bouncing trajectory with impact points
@@ -500,9 +500,9 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for i, pos in [(cx - 4, cy - 8), (cx + 4, cy)]:
       drawCircle(Vector2(x: pos[0].float32, y: pos[1].float32), 4, color)
       drawCircleLines(Vector2(x: pos[0].float32, y: pos[1].float32), 6,
-                     Color(r: color.r, g: color.g, b: color.b, a: 150))
+                     withAlpha(color, 150))
       drawCircleLines(Vector2(x: pos[0].float32, y: pos[1].float32), 8,
-                     Color(r: color.r, g: color.g, b: color.b, a: 80))
+                     withAlpha(color, 80))
     # Arrowhead at end
     drawLine(Vector2(x: (cx + 12).float32, y: (cy - 8).float32), Vector2(x: (cx + 8).float32, y: (cy - 6).float32), 2.0, color)
     drawLine(Vector2(x: (cx + 12).float32, y: (cy - 8).float32), Vector2(x: (cx + 10).float32, y: (cy - 11).float32), 2.0, color)
@@ -585,7 +585,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let angle = i.float32 * 2 * PI / 5
       let petalX = cx.float32 + cos(angle) * 5
       let petalY = cy.float32 - 6 + sin(angle) * 5
-      drawCircle(Vector2(x: petalX, y: petalY), 3, Color(r: color.r, g: color.g, b: color.b, a: 200))
+      drawCircle(Vector2(x: petalX, y: petalY), 3, withAlpha(color, 200))
     # Center highlight
     drawCircle(Vector2(x: (cx - 2).float32, y: (cy - 8).float32), 2,
               Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 255))
@@ -619,7 +619,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let alpha = uint8(80 - i * 15)
       drawLine(Vector2(x: (cx + 3 + glowOffset).float32, y: (cy - 12).float32),
               Vector2(x: (cx + 1 + glowOffset).float32, y: (cy - 3).float32), float32(5 - i),
-              Color(r: color.r, g: color.g, b: color.b, a: alpha))
+              withAlpha(color, alpha))
     # Main bolt
     drawLine(Vector2(x: (cx + 3).float32, y: (cy - 12).float32),
             Vector2(x: (cx + 1).float32, y: (cy - 3).float32), 5, color)
@@ -673,7 +673,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let dropY = int32(cy + 11 + i * 4)
       let dropSize = 3 - i
       drawCircle(Vector2(x: cx.float32, y: dropY.float32), dropSize.float32,
-                Color(r: color.r, g: color.g, b: color.b, a: uint8(200 - i * 50)))
+                withAlpha(color, uint8(200 - i * 50)))
 
   of puFireBullets, puFireAura, puFireOrb, puFireMastery:
     # Layered flame with heat shimmer
@@ -713,18 +713,18 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       # Main arc
       drawCircleSector(Vector2(x: (cx + offsetX).float32, y: cy.float32),
                       rad * 0.7, startAngle, endAngle, 12,
-                      Color(r: color.r, g: color.g, b: color.b, a: uint8(180 - i * 40)))
+                      withAlpha(color, uint8(180 - i * 40)))
       # Secondary smaller arcs
       drawCircleSector(Vector2(x: (cx + offsetX).float32, y: (cy - 4).float32),
                       rad * 0.4, startAngle, endAngle, 8,
-                      Color(r: color.r, g: color.g, b: color.b, a: uint8(120 - i * 30)))
+                      withAlpha(color, uint8(120 - i * 30)))
     # Wind particles/leaves
     for i in 0..4:
       let particleAngle = i.float32 * 0.8
       let particleX = cx + int32(cos(particleAngle) * (rad + 5))
       let particleY = cy + int32(sin(particleAngle) * 8)
       drawCircle(Vector2(x: particleX.float32, y: particleY.float32), 2,
-                Color(r: color.r, g: color.g, b: color.b, a: 200))
+                withAlpha(color, 200))
 
   of puTimeWarp:
     # Ornate clock with roman numerals
@@ -733,7 +733,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Clock face
     drawCircle(Vector2(x: cx.float32, y: cy.float32), rad, Color(r: 30, g: 35, b: 45, a: 255))
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad, color)
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad - 2, Color(r: color.r, g: color.g, b: color.b, a: 150))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad - 2, withAlpha(color, 150))
     # Hour marks
     for i in 0..11:
       let angle = i.float32 * PI / 6 - PI / 2
@@ -765,28 +765,28 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
         let spiralY = cy.float32 + sin(angle) * dist
         let dotSize = 3 - i div 3
         drawCircle(Vector2(x: spiralX, y: spiralY), dotSize.float32,
-                  Color(r: color.r, g: color.g, b: color.b, a: uint8(255 - i * 20)))
+                  withAlpha(color, uint8(255 - i * 20)))
     # Accretion disk rings
     for i in 1..3:
       let ringRad = rad * (0.3 + i.float32 * 0.25)
       drawCircleLines(Vector2(x: cx.float32, y: cy.float32), ringRad,
-                     Color(r: color.r, g: color.g, b: color.b, a: uint8(150 - i * 30)))
+                     withAlpha(color, uint8(150 - i * 30)))
 
   of puPhaseShift:
     # Ghost/transparent figure phasing
     # Solid form (leaving)
     drawCircle(Vector2(x: (cx - 6).float32, y: (cy - 4).float32), 6,
-              Color(r: color.r, g: color.g, b: color.b, a: 180))
+              withAlpha(color, 180))
     drawRectangle(cx - 12, cy + 2, 12, 10,
-                 Color(r: color.r, g: color.g, b: color.b, a: 180))
+                 withAlpha(color, 180))
     # Phasing forms (middle states)
     for i in 1..2:
       let phaseX = int32(cx - 6 + i * 6)
       let alpha = uint8(120 - i * 40)
       drawCircle(Vector2(x: phaseX.float32, y: (cy - 4).float32), 6,
-                Color(r: color.r, g: color.g, b: color.b, a: alpha))
+                withAlpha(color, alpha))
       drawRectangle(phaseX - 6, cy + 2, 12, 10,
-                   Color(r: color.r, g: color.g, b: color.b, a: alpha))
+                   withAlpha(color, alpha))
     # Arriving form (more solid)
     drawCircle(Vector2(x: (cx + 6).float32, y: (cy - 4).float32), 6, color)
     drawCircleLines(Vector2(x: (cx + 6).float32, y: (cy - 4).float32), 6,
@@ -799,7 +799,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let particleX = int32(cx - 12 + i * 4)
       let particleY = int32(cy + (if i mod 2 == 0: -2 else: 0))
       drawCircle(Vector2(x: particleX.float32, y: particleY.float32), 1,
-                Color(r: color.r, g: color.g, b: color.b, a: uint8(100 + i * 20)))
+                withAlpha(color, uint8(100 + i * 20)))
   of puEchoShots:
     # Radio waves/echo visualization
     # Central source
@@ -811,7 +811,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let alpha = uint8(200 - i * 30)
       let thickness = max(3 - i div 2, 1).float32
       drawRing(Vector2(x: cx.float32, y: cy.float32), ringRad - thickness/2, ringRad + thickness/2, 0, 360, 36,
-               Color(r: color.r, g: color.g, b: color.b, a: alpha))
+               withAlpha(color, alpha))
     # Directional wave indicators
     for i in 0..3:
       let angle = i.float32 * PI / 2
@@ -862,7 +862,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.9, Color(r: 40, g: 50, b: 70, a: 255))
     # Shield rim
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.9, color)
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.8, Color(r: color.r, g: color.g, b: color.b, a: 200))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.8, withAlpha(color, 200))
     # Shield boss (center)
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 5, color)
     drawCircle(Vector2(x: (cx - 2).float32, y: (cy - 2).float32), 2,
@@ -902,11 +902,11 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let trailX = cx.float32 + cos(angle) * (rad * 0.6)
       let trailY = cy.float32 + sin(angle) * (rad * 0.6)
       drawLine(Vector2(x: trailX, y: trailY), Vector2(x: bulletX, y: bulletY), 2.0,
-              Color(r: color.r, g: color.g, b: color.b, a: 150))
+              withAlpha(color, 150))
     # Pulse rings
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.5, color)
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.7,
-                   Color(r: color.r, g: color.g, b: color.b, a: 150))
+                   withAlpha(color, 150))
 
   of puWallTurrets:
     # Wall with turret on top
@@ -945,8 +945,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 9, Color(r: max(color.r - 35, 0), g: max(color.g - 35, 0), b: max(color.b - 35, 0), a: 255))
     drawCircle(Vector2(x: (cx - 4).float32, y: (cy - 4).float32), 3, Color(r: min(color.r + 110, 255), g: min(color.g + 110, 255), b: min(color.b + 110, 255), a: 200))
     drawCircle(Vector2(x: (cx - 2).float32, y: (cy - 2).float32), 1, Color(r: 255, g: 255, b: 255, a: 180))
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 14, Color(r: color.r, g: color.g, b: color.b, a: 100))
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 17, Color(r: color.r, g: color.g, b: color.b, a: 50))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 14, withAlpha(color, 100))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 17, withAlpha(color, 50))
 
   of puPulseArmor:
     # Chest armor with outward pulse wave
@@ -958,9 +958,9 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawLine(cx, cy - 5, cx - 4, cy + 2, Color(r: max(color.r - 30, 0), g: max(color.g - 30, 0), b: max(color.b - 30, 0), a: 255))
     drawLine(cx, cy - 5, cx + 4, cy + 2, Color(r: max(color.r - 30, 0), g: max(color.g - 30, 0), b: max(color.b - 30, 0), a: 255))
     drawCircle(Vector2(x: cx.float32, y: (cy - 1).float32), 3, Color(r: min(color.r + 160, 255), g: min(color.g + 160, 255), b: min(color.b + 160, 255), a: 255))
-    drawCircleLines(Vector2(x: cx.float32, y: (cy - 1).float32), 8, Color(r: color.r, g: color.g, b: color.b, a: 190))
-    drawCircleLines(Vector2(x: cx.float32, y: (cy - 1).float32), 13, Color(r: color.r, g: color.g, b: color.b, a: 120))
-    drawCircleLines(Vector2(x: cx.float32, y: (cy - 1).float32), 18, Color(r: color.r, g: color.g, b: color.b, a: 55))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy - 1).float32), 8, withAlpha(color, 190))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy - 1).float32), 13, withAlpha(color, 120))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy - 1).float32), 18, withAlpha(color, 55))
 
   of puFortified:
     # Castle battlement tower
@@ -1008,8 +1008,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawRectangle(figX - 2, figHeadY + 3, 5, 2, Color(r: min(color.r + 60, 255), g: min(color.g + 60, 255), b: min(color.b + 60, 255), a: 255))
     let tCX = float32(cx + 7)
     let tCY = float32(cy - 5)
-    drawCircleLines(Vector2(x: tCX, y: tCY), 9.5, Color(r: color.r, g: color.g, b: color.b, a: 210))
-    drawCircleLines(Vector2(x: tCX, y: tCY), 6.5, Color(r: color.r, g: color.g, b: color.b, a: 150))
+    drawCircleLines(Vector2(x: tCX, y: tCY), 9.5, withAlpha(color, 210))
+    drawCircleLines(Vector2(x: tCX, y: tCY), 6.5, withAlpha(color, 150))
     drawLine(int32(tCX - 13), int32(tCY), int32(tCX - 7), int32(tCY), color)
     drawLine(int32(tCX + 7), int32(tCY), int32(tCX + 13), int32(tCY), color)
     drawLine(int32(tCX), int32(tCY - 13), int32(tCX), int32(tCY - 7), color)
@@ -1021,7 +1021,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let dotX = float32(figX) + t * (tCX - float32(figX))
       let dotY = float32(figHeadY) + t * (tCY - float32(figHeadY))
       drawCircle(Vector2(x: dotX, y: dotY), 1.2,
-                Color(r: color.r, g: color.g, b: color.b, a: uint8(180 - i * 30)))
+                withAlpha(color, uint8(180 - i * 30)))
   of puCelestialVeil:
     # Glowing veil: outer ring + translucent inner dome + star glint
     let glowColor = Color(r: min(color.r + 40, 255), g: min(color.g + 40, 255), b: 255, a: 180)
@@ -1046,8 +1046,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Explosion burst: concentric rings + radiating sparks
     drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.55, Color(r: 255, g: 80, b: 20, a: 200))
     drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.35, Color(r: 255, g: 200, b: 60, a: 240))
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.75, Color(r: color.r, g: color.g, b: color.b, a: 180))
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad, Color(r: color.r, g: color.g, b: color.b, a: 90))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.75, withAlpha(color, 180))
+    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad, withAlpha(color, 90))
     for i in 0..5:
       let angle = i.float32 * PI / 3.0
       let x1 = cx.float32 + cos(angle) * rad * 0.75
@@ -1062,13 +1062,13 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for i in 1..3:
       let r = rad * float32(i) * 0.33
       let alpha = uint8(200 - i * 50)
-      drawCircleLines(Vector2(x: cx.float32, y: cy.float32), r, Color(r: color.r, g: color.g, b: color.b, a: alpha))
+      drawCircleLines(Vector2(x: cx.float32, y: cy.float32), r, withAlpha(color, alpha))
     # Small dots on outermost ring
     for i in 0..5:
       let angle = i.float32 * PI / 3.0
       let dx = cx.float32 + cos(angle) * rad
       let dy = cy.float32 + sin(angle) * rad
-      drawCircle(Vector2(x: dx, y: dy), 2, Color(r: color.r, g: color.g, b: color.b, a: 160))
+      drawCircle(Vector2(x: dx, y: dy), 2, withAlpha(color, 160))
 
   of puBloodPact:
     # Heart shape with crack/sacrifice line
@@ -1103,7 +1103,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let px = cx.float32 + cos(angle) * r
       let py = cy.float32 + sin(angle) * r
       let a = uint8(220 - i * 25)
-      drawCircle(Vector2(x: px, y: py), 2.5 - t * 1.0, Color(r: color.r, g: color.g, b: color.b, a: a))
+      drawCircle(Vector2(x: px, y: py), 2.5 - t * 1.0, withAlpha(color, a))
     # Arrow tip at center
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 4, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 230))
 
@@ -1174,9 +1174,9 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     let shadow = Color(r: 0,   g: 0,   b: 0,   a: 60)
     # Horn body, thick arc curving from top-left to bottom-right
     drawCircleLines(Vector2(x: (cx - 2).float32, y: cy.float32), rad * 0.85, gold)
-    drawCircleLines(Vector2(x: (cx - 2).float32, y: cy.float32), rad * 0.75, Color(r: gold.r, g: gold.g, b: gold.b, a: 160))
+    drawCircleLines(Vector2(x: (cx - 2).float32, y: cy.float32), rad * 0.75, withAlpha(gold, 160))
     # Opening of the horn (wide end, right side), filled wedge hint
-    drawCircle(Vector2(x: (cx + int32(rad * 0.6)).float32, y: (cy - int32(rad * 0.2)).float32), rad * 0.28, Color(r: gold.r, g: gold.g, b: gold.b, a: 90))
+    drawCircle(Vector2(x: (cx + int32(rad * 0.6)).float32, y: (cy - int32(rad * 0.2)).float32), rad * 0.28, withAlpha(gold, 90))
     # Three bouncing consumable dots spilling out (health=green, coin=gold, speed=cyan)
     let dotColors = [
       Color(r: 80,  g: 230, b: 80,  a: 255),   # health green
@@ -1210,7 +1210,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let offX: int32  = if row mod 3 == 0: -2 else: 2
       drawRectangle(cx - lineW div 2 + offX, gy, lineW,     2, glitch)
       drawRectangle(cx - lineW div 2 + offX + lineW - 4, gy, 4, 2, dark)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 5, Color(r: glitch.r, g: glitch.g, b: glitch.b, a: 80))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 5, withAlpha(glitch, 80))
 
   of puTimeSurge:
     # Clock face with a lightning strike through it
@@ -1254,7 +1254,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let rInner = rad * (float32(i) / 4.5'f32)
       let alpha  = uint8(60 + i * 38)
       drawCircle(Vector2(x: cx.float32, y: cy.float32), rInner,
-                 Color(r: rc.r, g: rc.g, b: rc.b, a: alpha))
+                 withAlpha(rc, alpha))
     # Small bright core dot
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 3,
                Color(r: min(rc.r + 120, 255), g: min(rc.g + 120, 255), b: min(rc.b + 120, 255), a: 255))
@@ -1270,7 +1270,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
         let gx: int32 = cx - gridOff + int32(col) * (cellSize + 1)
         let gy: int32 = cy - gridOff + int32(row) * (cellSize + 1)
         let alpha: uint8 = if row == 1 and col == 1: 220 else: 120
-        drawRectangle(gx, gy, cellSize, cellSize, Color(r: sec.r, g: sec.g, b: sec.b, a: alpha))
+        drawRectangle(gx, gy, cellSize, cellSize, withAlpha(sec, alpha))
         drawRectangle(gx, gy, cellSize, 1, bright)
     # Coin glyph in center cell
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 4, Color(r: 255, g: 215, b: 0, a: 240))
@@ -1281,8 +1281,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     let cc = color
     let warn = Color(r: 255, g: 60, b: 60, a: 255)
     # Three HP bar segments, last one blinking-red
-    drawRectangle(cx - 12, cy - 2, 6, 10, Color(r: cc.r, g: cc.g, b: cc.b, a: 180))
-    drawRectangle(cx - 4, cy - 2, 6, 10, Color(r: cc.r, g: cc.g, b: cc.b, a: 110))
+    drawRectangle(cx - 12, cy - 2, 6, 10, withAlpha(cc, 180))
+    drawRectangle(cx - 4, cy - 2, 6, 10, withAlpha(cc, 110))
     drawRectangle(cx + 4, cy - 2, 6, 10, warn)
     # Exclamation mark above bar
     drawRectangle(cx + 6, cy - 13, 3, 7, warn)
@@ -1307,8 +1307,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     let dim = Color(r: ltc.r div 2, g: ltc.g div 2, b: ltc.b div 2, a: 180)
     # Signal strength bars (4 bars, rightmost full brightness)
     drawRectangle(cx - 10, cy + 4,  4, 4, dim)
-    drawRectangle(cx - 4,  cy,      4, 8, Color(r: ltc.r, g: ltc.g, b: ltc.b, a: 140))
-    drawRectangle(cx + 2,  cy - 5,  4, 13, Color(r: ltc.r, g: ltc.g, b: ltc.b, a: 200))
+    drawRectangle(cx - 4,  cy,      4, 8, withAlpha(ltc, 140))
+    drawRectangle(cx + 2,  cy - 5,  4, 13, withAlpha(ltc, 200))
     drawRectangle(cx + 8,  cy - 10, 4, 18, ltc)
     # Small heartbeat line above bars
     drawLine(cx - 12, cy - 14, cx - 8, cy - 14, Color(r: 255, g: 80, b: 80, a: 200))
@@ -1335,7 +1335,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for i in 1..3:
       let ri = float32(i * 4)
       let alpha = uint8(200 - i * 40)
-      drawCircleLines(Vector2(x: cx.float32, y: cy.float32), ri, Color(r: corc.r, g: corc.g, b: corc.b, a: alpha))
+      drawCircleLines(Vector2(x: cx.float32, y: cy.float32), ri, withAlpha(corc, alpha))
     # Corrupted center with offset artifact
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 4, corc)
     drawRectangle(cx + 2, cy - 5, 4, 3, Color(r: 0, g: 0, b: 0, a: 180))
@@ -1347,15 +1347,15 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   of puRoomEcho:
     # Room outline with echo ripple bullets inside
     let rec = color
-    let dim = Color(r: rec.r, g: rec.g, b: rec.b, a: 100)
+    let dim = withAlpha(rec, 100)
     # Room outline
     drawRectangleLines(cx - 12, cy - 12, 24, 20, dim)
     # Door gap at bottom
     drawRectangle(cx - 4, cy + 8, 8, 2, Color(r: 0, g: 0, b: 0, a: 255))
     # Echo bullet trail, 3 dots diminishing to the right
     drawCircle(Vector2(x: (cx - 4).float32, y: (cy - 2).float32), 4, rec)
-    drawCircle(Vector2(x: (cx + 2).float32, y: (cy - 2).float32), 3, Color(r: rec.r, g: rec.g, b: rec.b, a: 180))
-    drawCircle(Vector2(x: (cx + 7).float32, y: (cy - 2).float32), 2, Color(r: rec.r, g: rec.g, b: rec.b, a: 100))
+    drawCircle(Vector2(x: (cx + 2).float32, y: (cy - 2).float32), 3, withAlpha(rec, 180))
+    drawCircle(Vector2(x: (cx + 7).float32, y: (cy - 2).float32), 2, withAlpha(rec, 100))
 
   of puChainReaction:
     # Three dots with arcing lines between them + coin glint
@@ -1364,8 +1364,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircle(Vector2(x: (cx - 9).float32, y: (cy + 4).float32), 4, crc)
     drawCircle(Vector2(x: cx.float32, y: (cy - 6).float32), 4, crc)
     drawCircle(Vector2(x: (cx + 9).float32, y: (cy + 4).float32), 4, crc)
-    drawLine(cx - 5, cy + 2, cx - 2, cy - 4, Color(r: crc.r, g: crc.g, b: crc.b, a: 180))
-    drawLine(cx + 2, cy - 4, cx + 5, cy + 2, Color(r: crc.r, g: crc.g, b: crc.b, a: 180))
+    drawLine(cx - 5, cy + 2, cx - 2, cy - 4, withAlpha(crc, 180))
+    drawLine(cx + 2, cy - 4, cx + 5, cy + 2, withAlpha(crc, 180))
     # Coin symbol above center
     drawCircle(Vector2(x: cx.float32, y: (cy - 14).float32), 4, gold)
     drawCircle(Vector2(x: cx.float32, y: (cy - 14).float32), 2, Color(r: 255, g: 240, b: 120, a: 200))
@@ -1375,7 +1375,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     let ke = color
     let bright = Color(r: min(ke.r + 80, 255), g: min(ke.g + 80, 255), b: min(ke.b + 80, 255), a: 255)
     drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), 13, Color(r: 0, g: 0, b: 0, a: 70))
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 13, Color(r: ke.r, g: ke.g, b: ke.b, a: 80))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 13, withAlpha(ke, 80))
     drawCircleLines(Vector2(x: cx.float32, y: cy.float32), 13, ke)
     # ">" prompt glyph
     drawLine(cx - 5, cy - 6, cx + 3, cy, ke)
@@ -1387,13 +1387,13 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   of puDataHarvest:
     # XP orbs streaming upward into a collector, with a gain chevron on top.
     let dh = color
-    let dim = Color(r: dh.r, g: dh.g, b: dh.b, a: 110)
+    let dim = withAlpha(dh, 110)
     # Three small orbs rising toward the center, diminishing downward.
     drawCircle(Vector2(x: (cx - 7).float32, y: (cy + 9).float32), 2, dim)
-    drawCircle(Vector2(x: (cx + 6).float32, y: (cy + 6).float32), 2, Color(r: dh.r, g: dh.g, b: dh.b, a: 160))
+    drawCircle(Vector2(x: (cx + 6).float32, y: (cy + 6).float32), 2, withAlpha(dh, 160))
     drawCircle(Vector2(x: cx.float32, y: (cy + 3).float32), 3, dh)
     # Bright core orb being collected.
-    drawCircle(Vector2(x: cx.float32, y: (cy - 2).float32), 5, Color(r: dh.r, g: dh.g, b: dh.b, a: 90))
+    drawCircle(Vector2(x: cx.float32, y: (cy - 2).float32), 5, withAlpha(dh, 90))
     drawCircle(Vector2(x: cx.float32, y: (cy - 2).float32), 3.5, dh)
     drawCircle(Vector2(x: cx.float32, y: (cy - 2).float32), 1.6, Color(r: 230, g: 255, b: 245, a: 230))
     # Upward "gain" chevron above the orb.
@@ -1425,7 +1425,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
       let alpha = uint8(80 - i * 15)
       drawLine(Vector2(x: (cx + 3 + glowOffset).float32, y: (cy - 12).float32),
               Vector2(x: (cx + 1 + glowOffset).float32, y: (cy - 3).float32), float32(5 - i),
-              Color(r: color.r, g: color.g, b: color.b, a: alpha))
+              withAlpha(color, alpha))
     drawLine(Vector2(x: (cx + 3).float32, y: (cy - 12).float32),
             Vector2(x: (cx + 1).float32, y: (cy - 3).float32), 5, color)
     drawLine(Vector2(x: (cx + 1).float32, y: (cy - 3).float32),
@@ -1446,7 +1446,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
             Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
     for i in 0..2:
       let xOff = int32(-14 - i * 4)
-      drawLine(int32(cx + xOff), int32(cy - 2 - i * 2), int32(cx + xOff + 6), int32(cy - 2 - i * 2), Color(r: color.r, g: color.g, b: color.b, a: uint8(120 - i * 30)))
+      drawLine(int32(cx + xOff), int32(cy - 2 - i * 2), int32(cx + xOff + 6), int32(cy - 2 - i * 2), withAlpha(color, uint8(120 - i * 30)))
 
   of 3: # Max Health + (Heart)
     drawCircle(Vector2(x: (cx - 4).float32, y: (cy - 1).float32), 6, Color(r: 0, g: 0, b: 0, a: 60))
@@ -1458,7 +1458,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
                 Vector2(x: cx.float32, y: (cy + 12).float32), color)
     drawCircle(Vector2(x: (cx - 7).float32, y: (cy - 6).float32), 3, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 200))
     drawCircle(Vector2(x: (cx + 3).float32, y: (cy - 6).float32), 2, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 150))
-    drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 4, Color(r: color.r, g: color.g, b: color.b, a: 60))
+    drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 4, withAlpha(color, 60))
 
   of 4: # Bullet Speed + (Rocket)
     drawTriangle(Vector2(x: (cx + 1).float32, y: (cy - 9).float32),

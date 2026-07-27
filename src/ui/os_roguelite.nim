@@ -1,5 +1,6 @@
 import raylib, math, strutils
-import ../types, ../roguelite, ../powerup_data, ../dungeon, ../localization, ../render_context, icon_drawing
+import ../types, ../roguelite, ../powerup_data, ../dungeon, ../localization, ../render_context, ../utils, icon_drawing, ui_helpers
+export ui_helpers
 
 # Unlock card grid constants
 
@@ -36,9 +37,6 @@ const
   CardGap = RogueliteCardGap
   TitleBarH = RogueliteTitleBarH
   CloseButtonSize = RogueliteCloseButtonSize
-
-proc softColor(base: Color, alpha: uint8): Color =
-  Color(r: base.r, g: base.g, b: base.b, a: alpha)
 
 proc drawSoftFill(x, y, w, h: int32, topColor, bottomColor: Color) =
   let bands: int32 = 8
@@ -166,17 +164,17 @@ proc locKitRequirement(kit: RogueliteStarterKit): string =
     t("roguelite_cost") & " " & $starterKitCost(kit) & " " & t("roguelite_shards_short")
 
 proc drawBackdrop(game: Game, accent: Color) =
-  drawRectangle(0, 0, game.screenWidth, game.screenHeight, Color(r: 5, g: 9, b: 16, a: 255))
-  for x in countup(0, game.screenWidth, 48):
-    drawLine(x.int32, 0, x.int32, game.screenHeight, Color(r: 24, g: 42, b: 58, a: 80))
-  for y in countup(0, game.screenHeight, 48):
-    drawLine(0, y.int32, game.screenWidth, y.int32, Color(r: 24, g: 42, b: 58, a: 70))
-  let cx = game.screenWidth div 2
-  let cy = game.screenHeight div 2
+  drawRectangle(0, 0, getVirtualScreenWidth(), getVirtualScreenHeight(), Color(r: 5, g: 9, b: 16, a: 255))
+  for x in countup(0, getVirtualScreenWidth(), 48):
+    drawLine(x.int32, 0, x.int32, getVirtualScreenHeight(), Color(r: 24, g: 42, b: 58, a: 80))
+  for y in countup(0, getVirtualScreenHeight(), 48):
+    drawLine(0, y.int32, getVirtualScreenWidth(), y.int32, Color(r: 24, g: 42, b: 58, a: 70))
+  let cx = getVirtualScreenWidth() div 2
+  let cy = getVirtualScreenHeight() div 2
   for i in 0..3:
-    drawCircleLines(cx, cy, (150 + i * 72).float32, softColor(accent, uint8(34 - i * 6)))
-  drawLine(cx - 380, cy, cx + 380, cy, softColor(accent, 38))
-  drawLine(cx, cy - 260, cx, cy + 260, softColor(accent, 38))
+    drawCircleLines(cx, cy, (150 + i * 72).float32, withAlpha(accent, uint8(34 - i * 6)))
+  drawLine(cx - 380, cy, cx + 380, cy, withAlpha(accent, 38))
+  drawLine(cx, cy - 260, cx, cy + 260, withAlpha(accent, 38))
 
 proc drawThemeGlyph(cx, cy: int32, theme: DungeonFloorTheme, color: Color) =
   ## Large card glyph for each floor theme, desktop-OS flavored.
@@ -185,20 +183,20 @@ proc drawThemeGlyph(cx, cy: int32, theme: DungeonFloorTheme, color: Color) =
     for i in 0..2:
       let ix = i.int32
       drawLine(cx - 16 + ix * 11, cy - 15, cx - 5 + ix * 11, cy + 15, color)
-    drawRectangleLines(cx - 18, cy - 14, 36, 28, softColor(color, 180))
+    drawRectangleLines(cx - 18, cy - 14, 36, 28, withAlpha(color, 180))
   of dftRecycleBin:
     drawRectangleLines(cx - 12, cy - 8, 24, 24, color)
     drawLine(cx - 16, cy - 12, cx + 16, cy - 12, color)
     drawLine(cx - 4, cy - 17, cx + 4, cy - 17, color)
-    drawLine(cx - 5, cy - 2, cx - 5, cy + 10, softColor(color, 200))
-    drawLine(cx, cy - 2, cx, cy + 10, softColor(color, 200))
-    drawLine(cx + 5, cy - 2, cx + 5, cy + 10, softColor(color, 200))
+    drawLine(cx - 5, cy - 2, cx - 5, cy + 10, withAlpha(color, 200))
+    drawLine(cx, cy - 2, cx, cy + 10, withAlpha(color, 200))
+    drawLine(cx + 5, cy - 2, cx + 5, cy + 10, withAlpha(color, 200))
   of dftRegistry:
     drawLine(cx - 14, cy - 14, cx - 14, cy + 14, color)
     for i in 0..2:
       let iy = cy - 12 + i.int32 * 12
       drawLine(cx - 14, iy, cx - 2, iy, color)
-      drawRectangleLines(cx - 2, iy - 5, 16, 10, softColor(color, 210))
+      drawRectangleLines(cx - 2, iy - 5, 16, 10, withAlpha(color, 210))
   of dftNetwork:
     drawCircleLines(cx - 13, cy + 10, 6'f32, color)
     drawCircleLines(cx + 14, cy + 6, 6'f32, color)
@@ -207,18 +205,18 @@ proc drawThemeGlyph(cx, cy: int32, theme: DungeonFloorTheme, color: Color) =
     drawLine(cx + 10, cy + 2, cx + 4, cy - 8, color)
     drawLine(cx - 7, cy + 11, cx + 8, cy + 8, color)
   of dftKernel:
-    drawRectangleLines(cx - 16, cy - 16, 32, 32, softColor(color, 160))
+    drawRectangleLines(cx - 16, cy - 16, 32, 32, withAlpha(color, 160))
     drawRectangleLines(cx - 10, cy - 10, 20, 20, color)
     drawRectangle(cx - 4, cy - 4, 8, 8, color)
   of dftCache:
-    drawRectangleLines(cx - 16, cy - 12, 22, 18, softColor(color, 150))
+    drawRectangleLines(cx - 16, cy - 12, 22, 18, withAlpha(color, 150))
     drawRectangleLines(cx - 8, cy - 5, 22, 18, color)
   of dftCorruptedSector:
     drawRectangleLines(cx - 14, cy - 12, 28, 24, color)
     drawRectangle(cx - 18, cy - 4, 12, 4, color)
-    drawRectangle(cx + 4, cy + 2, 14, 4, softColor(color, 170))
-    drawRectangle(cx - 6, cy - 16, 10, 3, softColor(color, 170))
-    drawLine(cx - 10, cy + 16, cx + 12, cy + 16, softColor(color, 120))
+    drawRectangle(cx + 4, cy + 2, 14, 4, withAlpha(color, 170))
+    drawRectangle(cx - 6, cy - 16, 10, 3, withAlpha(color, 170))
+    drawLine(cx - 10, cy + 16, cx + 12, cy + 16, withAlpha(color, 120))
 
 proc drawKitGlyph(cx, cy: int32, kit: RogueliteStarterKit, color: Color,
                   compact: bool = false) =
@@ -234,14 +232,14 @@ proc drawKitGlyph(cx, cy: int32, kit: RogueliteStarterKit, color: Color,
     for i in 0..2:
       let ix = i.int32
       drawLine(cx - s + ix * ((s * 2) div 3), cy - s + 2, cx - s + 4 + ix * ((s * 2) div 3), cy + s - 2, color)
-    drawRectangleLines(cx - s - 1, cy - s div 2 - 2, (s + 1) * 2, s + 4, softColor(color, 180))
+    drawRectangleLines(cx - s - 1, cy - s div 2 - 2, (s + 1) * 2, s + 4, withAlpha(color, 180))
   of rskArcanist:
     # Arcane triangle
     drawTriangle(
       Vector2(x: cx.float32, y: (cy - s - 1).float32),
       Vector2(x: (cx - s).float32, y: (cy + s - 3).float32),
       Vector2(x: (cx + s).float32, y: (cy + s - 3).float32),
-      softColor(color, 85))
+      withAlpha(color, 85))
     drawTriangleLines(
       Vector2(x: cx.float32, y: (cy - s - 1).float32),
       Vector2(x: (cx - s).float32, y: (cy + s - 3).float32),
@@ -256,60 +254,8 @@ proc drawSurgeGlyph(cx, cy: int32, color: Color, compact: bool = false) =
 
 proc drawMeter(x, y, w, h: int32, value: float32, color: Color) =
   drawRectangle(x, y, w, h, Color(r: 30, g: 36, b: 48, a: 255))
-  drawRectangle(x, y, int32(w.float32 * clamp(value, 0.0'f32, 1.0'f32)), h, softColor(color, 210))
-  drawRectangleLines(x, y, w, h, softColor(color, 210))
-
-type TextAlign = enum
-  taLeft, taCenter, taRight
-
-proc bestFitFontSize(text: string, maxWidth, preferredSize: int32, minSize: int32 = 9): int32 =
-  result = preferredSize
-  if maxWidth <= 0:
-    return
-  while result > minSize and measureText(text, result) > maxWidth:
-    dec result
-
-proc drawTextFit(text: string, x, y, maxWidth, fontSize: int32, color: Color,
-                 minSize: int32 = 9, align: TextAlign = taLeft): int32 {.discardable.} =
-  result = bestFitFontSize(text, maxWidth, fontSize, minSize)
-  let textW = measureText(text, result)
-  let drawX = case align
-    of taLeft: x
-    of taCenter: x + max(0'i32, (maxWidth - textW) div 2)
-    of taRight: x + max(0'i32, maxWidth - textW)
-  drawText(text, drawX, y, result, color)
-
-proc drawCenteredTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: Color,
-                          minSize: int32 = 9): int32 {.discardable.} =
-  drawTextFit(text, x, y, maxWidth, fontSize, color, minSize, taCenter)
-
-proc wrapTextLines(text: string, maxWidth, fontSize: int32): seq[string] =
-  let words = text.splitWhitespace()
-  if words.len == 0:
-    return @[]
-
-  var currentLine = ""
-  for word in words:
-    let candidate = if currentLine.len == 0: word else: currentLine & " " & word
-    if currentLine.len == 0 or measureText(candidate, fontSize) <= maxWidth:
-      currentLine = candidate
-    else:
-      result.add(currentLine)
-      currentLine = word
-
-  if currentLine.len > 0:
-    result.add(currentLine)
-
-proc bestWrapFontSize(text: string, maxWidth, preferredSize, maxLines: int32,
-                      minSize: int32 = 9): int32 =
-  result = preferredSize
-  if maxWidth <= 0:
-    return
-  while result > minSize:
-    let lines = wrapTextLines(text, maxWidth, result)
-    if lines.len <= maxLines.int:
-      break
-    dec result
+  drawRectangle(x, y, int32(w.float32 * clamp(value, 0.0'f32, 1.0'f32)), h, withAlpha(color, 210))
+  drawRectangleLines(x, y, w, h, withAlpha(color, 210))
 
 proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
                      color: Color, maxLines: int32 = 3, lineGap: int32 = 5,
@@ -332,7 +278,7 @@ proc drawBetaBanner*(game: Game) =
   ## Centered translucent BETA banner drawn at the top of the screen.
   ## Signals to players that the roguelite mode is work-in-progress.
   let bannerW: int32 = 260
-  let bannerX: int32 = (game.screenWidth - bannerW) div 2
+  let bannerX: int32 = (getVirtualScreenWidth() - bannerW) div 2
   let bannerY: int32 = 8
   let pulse = (sin(game.time * 2.0'f32) * 0.5'f32 + 0.5'f32)
   let textAlpha = uint8(160 + int(pulse * 40.0'f32))
@@ -350,7 +296,7 @@ proc drawCloseButton(x, y: int32, color: Color, hovered: bool = false) =
   drawRectangle(x, y, CloseButtonSize, CloseButtonSize, bg)
   drawRectangleLines(rectAt(x, y, CloseButtonSize, CloseButtonSize),
                      if hovered: 2 else: 1,
-                     if hovered: Color(r: 255, g: 110, b: 110, a: 255) else: softColor(color, 180))
+                     if hovered: Color(r: 255, g: 110, b: 110, a: 255) else: withAlpha(color, 180))
   drawLine(x + 8, y + 8, x + CloseButtonSize - 8, y + CloseButtonSize - 8, lineColor)
   drawLine(x + CloseButtonSize - 8, y + 8, x + 8, y + CloseButtonSize - 8, lineColor)
 
@@ -359,22 +305,22 @@ proc drawStatChip*(x, y, w, h: int32, label, value: string, color: Color,
   drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 90))
   drawSoftFill(x, y, w, h, Color(r: 26, g: 36, b: 54, a: 244),
                Color(r: 12, g: 18, b: 30, a: 244))
-  drawRectangle(x, y, w, 2, softColor(color, 145))
-  drawRectangle(x, y, 5, h, softColor(color, 215))
-  drawRectangleLines(rectAt(x, y, w, h), 1, softColor(color, 135))
+  drawRectangle(x, y, w, 2, withAlpha(color, 145))
+  drawRectangle(x, y, 5, h, withAlpha(color, 215))
+  drawRectangleLines(rectAt(x, y, w, h), 1, withAlpha(color, 135))
   let textX = if icon == ciNone: x + 14 else: x + 46
   let textW = w - (textX - x) - 12
   if icon != ciNone:
-    drawCircle(Vector2(x: (x + 24).float32, y: (y + h div 2).float32), 17, softColor(color, 26))
-    drawCircleLines(x + 24, y + h div 2, 17.0'f32, softColor(color, 75))
+    drawCircle(Vector2(x: (x + 24).float32, y: (y + h div 2).float32), 17, withAlpha(color, 26))
+    drawCircleLines(x + 24, y + h div 2, 17.0'f32, withAlpha(color, 75))
     drawCurrencyIcon(x + 24, y + h div 2, 24, icon)
   drawTextFit(label, textX, y + 7, textW, 10, Color(r: 156, g: 172, b: 196, a: 255), 8)
   drawTextFit(value, textX, y + 22, textW, 19, color, 10)
 
 proc drawPill(x, y, w, h: int32, label: string, color: Color, filled: bool = false) =
   drawRectangle(x, y, w, h,
-                if filled: softColor(color, 70) else: Color(r: 19, g: 25, b: 36, a: 225))
-  drawRectangleLines(rectAt(x, y, w, h), 1, softColor(color, 170))
+                if filled: withAlpha(color, 70) else: Color(r: 19, g: 25, b: 36, a: 225))
+  drawRectangleLines(rectAt(x, y, w, h), 1, withAlpha(color, 170))
   let fontSize = bestFitFontSize(label, w - 8, 12, 8)
   discard drawCenteredTextFit(label, x + 4, y + (h - fontSize) div 2, w - 8, 12, color, 8)
 
@@ -438,7 +384,7 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
   drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 85))
   drawRectangle(x, y, w, h, Color(r: 20, g: 25, b: 37, a: 245))
   drawRectangle(x + 5, y + 5, w - 10, h - 10, Color(r: 95, g: 39, b: 26, a: glowAlpha))
-  drawRectangle(x, y, 5, h, softColor(heatColor, 230))
+  drawRectangle(x, y, 5, h, withAlpha(heatColor, 230))
   drawRectangleLines(x, y, w, h, Color(r: 255, g: 130, b: 80, a: 220))
 
   if game.rogueliteHeatPulseTimer > 0:
@@ -448,9 +394,9 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
                      else: Color(r: 120, g: 210, b: 255, a: 255)
     drawRectangleLines(Rectangle(x: (x - 2).float32, y: (y - 2).float32,
                                  width: (w + 4).float32, height: (h + 4).float32),
-                       3, softColor(pulseColor, pulseAlpha))
+                       3, withAlpha(pulseColor, pulseAlpha))
     drawTextFit(if game.rogueliteHeatPulseDirection >= 0: "+HEAT" else: "-HEAT",
-                x + w - 194, y + 14, 74, 15, softColor(pulseColor, pulseAlpha))
+                x + w - 194, y + 14, 74, 15, withAlpha(pulseColor, pulseAlpha))
 
   drawCurrencyIcon(x + 29, y + 22, 24, ciHeat)
   drawTextFit(t("roguelite_heat") & " " & $selectedHeat,
@@ -499,7 +445,7 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
       let ringAlpha = uint8(max(0, min(180, int(pulseT * 180.0'f32))))
       drawCircleLines(px + RogueliteHeatPipW div 2, pipY + RogueliteHeatPipH div 2,
                       22.0'f32 + (1.0'f32 - pulseT) * 13.0'f32,
-                      softColor(pipColor, ringAlpha))
+                      withAlpha(pipColor, ringAlpha))
 
   let meterX = x + 300
   let meterY = y + 54
@@ -623,20 +569,20 @@ proc drawPanel*(x, y, w, h: int32, title: string, color: Color, closeHovered: bo
                Color(r: 8, g: 13, b: 24, a: 250))
   drawRectangle(x + 10, y + 10, w - 20, h - 20, Color(r: 11, g: 18, b: 30, a: 52))
   drawScanlines(x + 8, y + 8, w - 16, h - 16, Color(r: 255, g: 255, b: 255, a: 6))
-  drawCircuitLines(x + 14, y + 50, w - 28, h - 94, softColor(color, 24))
+  drawCircuitLines(x + 14, y + 50, w - 28, h - 94, withAlpha(color, 24))
   if not omitTitleBar:
     drawSoftFill(x, y, w, TitleBarH, Color(r: 36, g: 54, b: 74, a: 255),
                  Color(r: 18, g: 27, b: 42, a: 255))
-    drawRectangle(x, y + TitleBarH - 3, w, 3, softColor(color, 150))
+    drawRectangle(x, y + TitleBarH - 3, w, 3, withAlpha(color, 150))
   else:
     drawRectangle(x + 16, y + 13, w - 32, 34, Color(r: 16, g: 25, b: 40, a: 220))
-    drawRectangle(x + 16, y + 45, w - 32, 2, softColor(color, 150))
+    drawRectangle(x + 16, y + 45, w - 32, 2, withAlpha(color, 150))
     drawTextFit(title, x + 30, y + 21, w - 60, 18, color)
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32), 2, softColor(color, 230))
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32), 2, withAlpha(color, 230))
   drawRectangleLines(Rectangle(x: (x + 5).float32, y: (y + 5).float32,
                                width: (w - 10).float32, height: (h - 10).float32),
-                     1, softColor(color, 70))
-  drawCornerBrackets(x + 8, y + 8, w - 16, h - 16, 28, 2, softColor(color, 185))
+                     1, withAlpha(color, 70))
+  drawCornerBrackets(x + 8, y + 8, w - 16, h - 16, 28, 2, withAlpha(color, 185))
   if not omitTitleBar:
     drawTextFit(title, x + 18, y + 12, w - CloseButtonSize - 56, 18, color)
     drawCloseButton(x + w - CloseButtonSize - 10, y + (TitleBarH - CloseButtonSize) div 2,
@@ -698,7 +644,7 @@ proc drawFamilyGlyph(cx, cy: int32, family: RoguelitePowerFamily, color: Color,
     let flameBottom: int32 = if compact: 8 else: 10
     drawTriangle(Vector2(x: cx.float32, y: (cy - triTop).float32),
                  Vector2(x: (cx - flameW).float32, y: (cy + flameBottom).float32),
-                 Vector2(x: (cx + flameW).float32, y: (cy + flameBottom).float32), softColor(color, 80))
+                 Vector2(x: (cx + flameW).float32, y: (cy + flameBottom).float32), withAlpha(color, 80))
     drawTriangleLines(Vector2(x: cx.float32, y: (cy - triTop).float32),
                       Vector2(x: (cx - flameW).float32, y: (cy + flameBottom).float32),
                       Vector2(x: (cx + flameW).float32, y: (cy + flameBottom).float32), color)
@@ -713,7 +659,7 @@ proc drawFamilyGlyph(cx, cy: int32, family: RoguelitePowerFamily, color: Color,
     drawCircleLines(cx - orbOffset, cy + 1, orbRadius.float32, color)
     drawCircleLines(cx + orbOffset, cy + 1, orbRadius.float32, color)
     drawCircle(Vector2(x: cx.float32, y: (cy - (if compact: 7 else: 10)).float32),
-               (if compact: 4 else: 4).float32, softColor(color, 160))
+               (if compact: 4 else: 4).float32, withAlpha(color, 160))
   of rpfLightning:
     let topY: int32 = if compact: 9 else: 11
     let leftX: int32 = if compact: 5 else: 6
@@ -736,10 +682,10 @@ proc drawFamilyGlyph(cx, cy: int32, family: RoguelitePowerFamily, color: Color,
     let radius: int32 = if compact: 6 else: 8
     let halfW: int32 = if compact: 5 else: 7
     let midY: int32 = if compact: 2 else: 3
-    drawCircle(Vector2(x: cx.float32, y: (cy + dropY).float32), radius.float32, softColor(color, 80))
+    drawCircle(Vector2(x: cx.float32, y: (cy + dropY).float32), radius.float32, withAlpha(color, 80))
     drawTriangle(Vector2(x: cx.float32, y: (cy - triTop).float32),
                  Vector2(x: (cx - halfW).float32, y: (cy + midY).float32),
-                 Vector2(x: (cx + halfW).float32, y: (cy + midY).float32), softColor(color, 110))
+                 Vector2(x: (cx + halfW).float32, y: (cy + midY).float32), withAlpha(color, 110))
     drawCircleLines(cx, cy + dropY, radius.float32, color)
 
 proc drawCategoryGlyph(cx, cy: int32, category: RogueliteUnlockCategory, color: Color,
@@ -762,7 +708,7 @@ proc drawCategoryGlyph(cx, cy: int32, category: RogueliteUnlockCategory, color: 
     let half: int32 = if compact: 8 else: 10
     drawTriangle(Vector2(x: cx.float32, y: (cy - top).float32),
                  Vector2(x: (cx - half).float32, y: (cy + half).float32),
-                 Vector2(x: (cx + half).float32, y: (cy + half).float32), softColor(color, 70))
+                 Vector2(x: (cx + half).float32, y: (cy + half).float32), withAlpha(color, 70))
     drawTriangleLines(Vector2(x: cx.float32, y: (cy - top).float32),
                       Vector2(x: (cx - half).float32, y: (cy + half).float32),
                       Vector2(x: (cx + half).float32, y: (cy + half).float32), color)
@@ -799,11 +745,11 @@ proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, color: Col
   if hovered:
     drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 105))
   drawSoftFill(x, y, w, h, bgTop, bgBottom)
-  drawRectangle(x, y, w, 2, softColor(color, if active or hovered: 155 else: 80))
+  drawRectangle(x, y, w, 2, withAlpha(color, if active or hovered: 155 else: 80))
   drawRectangleLines(rectAt(x, y, w, h), if active or hovered: 2 else: 1,
                     if active or hovered: color else: Color(r: 82, g: 92, b: 108, a: 255))
   if active:
-    drawCornerBrackets(x + 4, y + 4, w - 8, h - 8, 10, 1, softColor(color, 150))
+    drawCornerBrackets(x + 4, y + 4, w - 8, h - 8, 10, 1, withAlpha(color, 150))
   let fontSize = bestFitFontSize(label, w - 14, 15, 9)
   discard drawCenteredTextFit(label, x + 7, y + (h - fontSize) div 2, w - 14, 15,
                               if active or hovered: color else: LightGray, 9)
@@ -812,7 +758,7 @@ proc drawShopButton*(x, y, w, h: int32, label: string, time: float32,
                      hasDeal: bool, hovered: bool = false) =
   ## High-emphasis entry point to the Shard Unlocks shop. Unlike drawSmallButton
   ## this one is gold, breathes with a glow halo, carries a shard icon, and pops a
-  ## red "!" badge when something is affordable — so it stops reading as just one
+  ## red "!" badge when something is affordable, so it stops reading as just one
   ## of three equal-weight footer buttons.
   let gold = Color(r: 255, g: 210, b: 90, a: 255)
   let pulse = sin(time * 4.0'f32) * 0.5'f32 + 0.5'f32          # 0..1
@@ -821,22 +767,22 @@ proc drawShopButton*(x, y, w, h: int32, label: string, time: float32,
   for i in countdown(3, 1):
     let pad = i.int32 * 3
     let a = uint8(clamp(baseGlow - i * 12, 0, 255))
-    drawRectangleLines(rectAt(x - pad, y - pad, w + pad * 2, h + pad * 2), 1, softColor(gold, a))
+    drawRectangleLines(rectAt(x - pad, y - pad, w + pad * 2, h + pad * 2), 1, withAlpha(gold, a))
   # Drop shadow + warm body.
   drawRectangle(x + 3, y + 4, w, h, Color(r: 0, g: 0, b: 0, a: 130))
   let bgTop = if hovered: Color(r: 96, g: 72, b: 26, a: 255) else: Color(r: 74, g: 56, b: 22, a: 255)
   let bgBottom = if hovered: Color(r: 58, g: 41, b: 14, a: 255) else: Color(r: 44, g: 32, b: 12, a: 255)
   drawSoftFill(x, y, w, h, bgTop, bgBottom)
   drawScanlines(x + 4, y + 4, w - 8, h - 8, Color(r: 255, g: 255, b: 255, a: 6))
-  drawRectangle(x, y, w, 3, softColor(gold, 235))
+  drawRectangle(x, y, w, 3, withAlpha(gold, 235))
   drawRectangleLines(rectAt(x, y, w, h), if hovered: 3 else: 2,
-                     softColor(gold, uint8(clamp(195 + int(pulse * 55.0'f32), 0, 255))))
-  drawCornerBrackets(x + 4, y + 4, w - 8, h - 8, 12, 1, softColor(gold, 175))
+                     withAlpha(gold, uint8(clamp(195 + int(pulse * 55.0'f32), 0, 255))))
+  drawCornerBrackets(x + 4, y + 4, w - 8, h - 8, 12, 1, withAlpha(gold, 175))
   # Shard icon, left.
   let iconCX = x + 26
   let iconCY = y + h div 2
   drawCircle(Vector2(x: iconCX.float32, y: iconCY.float32), 15.0'f32,
-             softColor(gold, uint8(28 + int(pulse * 30.0'f32))))
+             withAlpha(gold, uint8(28 + int(pulse * 30.0'f32))))
   drawCurrencyIcon(iconCX, iconCY, 22, ciDataShards)
   # Label.
   let fontSize = bestFitFontSize(label, w - 56, 16, 9)
@@ -865,10 +811,10 @@ proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected, u
                  else: Color(r: 14, g: 20, b: 32, a: 255)
   drawSoftFill(x, y, CardW, CardH, bgTop, bgBottom)
   drawScanlines(x + 6, y + 6, CardW - 12, CardH - 12, Color(r: 255, g: 255, b: 255, a: 5))
-  drawRectangle(x, y, CardW, 76, softColor(color, if selected: 42 elif hovered: 34 else: 24))
-  drawRectangle(x, y, CardW, 3, softColor(color, if selected: 220 else: 125))
+  drawRectangle(x, y, CardW, 76, withAlpha(color, if selected: 42 elif hovered: 34 else: 24))
+  drawRectangle(x, y, CardW, 3, withAlpha(color, if selected: 220 else: 125))
   drawRectangleLines(rectAt(x, y, CardW, CardH), if selected: 3 elif hovered: 2 else: 1, color)
-  drawCornerBrackets(x + 7, y + 7, CardW - 14, CardH - 14, 18, 1, softColor(color, if selected: 155 else: 82))
+  drawCornerBrackets(x + 7, y + 7, CardW - 14, CardH - 14, 18, 1, withAlpha(color, if selected: 155 else: 82))
   # Emblem medallion: fills the otherwise-empty mid-body so cards read as
   # deliberate panels rather than mostly blank. Drawn before the text/pills so
   # those stay crisp on top; faint + slowly rotating to add life without noise.
@@ -877,19 +823,19 @@ proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected, u
     let emblemCY = y + 176
     let baseA: uint8 = if selected: 26 elif hovered: 18 else: 11
     let lineA: uint8 = if selected: 95 elif hovered: 60 else: 36
-    drawCircle(Vector2(x: emblemCX.float32, y: emblemCY.float32), 34.0'f32, softColor(color, baseA))
-    drawCircleLines(emblemCX, emblemCY, 34.0'f32, softColor(color, lineA))
-    drawCircleLines(emblemCX, emblemCY, 27.0'f32, softColor(color, uint8(lineA.int * 2 div 3)))
+    drawCircle(Vector2(x: emblemCX.float32, y: emblemCY.float32), 34.0'f32, withAlpha(color, baseA))
+    drawCircleLines(emblemCX, emblemCY, 34.0'f32, withAlpha(color, lineA))
+    drawCircleLines(emblemCX, emblemCY, 27.0'f32, withAlpha(color, uint8(lineA.int * 2 div 3)))
     for i in 0..<8:
       let a = (i.float32 / 8.0'f32) * (PI.float32 * 2.0'f32) + game.time * 0.4'f32
       let r1 = 38.0'f32
       let r2 = 43.0'f32
       drawLine((emblemCX.float32 + cos(a) * r1).int32, (emblemCY.float32 + sin(a) * r1).int32,
                (emblemCX.float32 + cos(a) * r2).int32, (emblemCY.float32 + sin(a) * r2).int32,
-               softColor(color, uint8(lineA.int * 3 div 4)))
-    drawKitGlyph(emblemCX, emblemCY, kit, softColor(color, if unlocked: 235 else: 150))
-  drawCircle(Vector2(x: (x + CardW - 44).float32, y: (y + 40).float32), 24, softColor(color, 28))
-  drawCircleLines(x + CardW - 44, y + 40, 24.0'f32, softColor(color, 100))
+               withAlpha(color, uint8(lineA.int * 3 div 4)))
+    drawKitGlyph(emblemCX, emblemCY, kit, withAlpha(color, if unlocked: 235 else: 150))
+  drawCircle(Vector2(x: (x + CardW - 44).float32, y: (y + 40).float32), 24, withAlpha(color, 28))
+  drawCircleLines(x + CardW - 44, y + 40, 24.0'f32, withAlpha(color, 100))
   drawKitGlyph(x + CardW - 44, y + 40, kit, color)
   drawTextFit(locStarterName(kit), x + 18, y + 18, CardW - 92, 24, if unlocked: White else: Gray)
   let status = if unlocked: t("roguelite_unlocked") else: t("roguelite_locked")
@@ -906,7 +852,7 @@ proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected, u
     let pillColor = Color(r: 255, g: 210, b: 110, a: 255)
     # Pill background
     drawRectangle(pillX, pillY, pillW, pillH, Color(r: 19, g: 25, b: 36, a: 225))
-    drawRectangleLines(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: pillH.float32), 1, softColor(pillColor, 170))
+    drawRectangleLines(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: pillH.float32), 1, withAlpha(pillColor, 170))
     # Draw shard icon + amount
     let costVal = starterKitCost(kit)
     if costVal == 0:
@@ -926,11 +872,11 @@ proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected, u
              Color(r: 100, g: 255, b: 170, a: 255), true)
 
 proc drawRogueliteSetup*(game: Game) =
-  let x = (game.screenWidth - PanelW) div 2
-  let y = (game.screenHeight - PanelH) div 2
+  let x = (getVirtualScreenWidth() - PanelW) div 2
+  let y = (getVirtualScreenHeight() - PanelH) div 2
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
-  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(game.screenWidth, game.screenHeight))
+  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(getVirtualScreenWidth(), getVirtualScreenHeight()))
   drawBackdrop(game, Color(r: 0, g: 220, b: 255, a: 255))
   drawPanel(x, y, PanelW, PanelH, t("roguelite_setup_title"), Color(r: 0, g: 220, b: 255, a: 255), closeHovered)
 
@@ -992,15 +938,15 @@ proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, floorB
   let accent = themeAccent(theme)
   let color = if selected: Color(r: 0, g: 220, b: 255, a: 255)
               elif hovered: Color(r: 130, g: 225, b: 255, a: 255)
-              else: softColor(accent, 220)
+              else: withAlpha(accent, 220)
   let def = themeDef(theme)
   if hovered:
     drawRectangle(x + 4, y + 4, CardW, CardH, Color(r: 0, g: 0, b: 0, a: 115))
   drawRectangle(x, y, CardW, CardH,
                 if hovered: Color(r: 28, g: 38, b: 56, a: 255) else: Color(r: 22, g: 28, b: 42, a: 255))
-  drawRectangle(x, y, CardW, 76, softColor(accent, 34))
+  drawRectangle(x, y, CardW, 76, withAlpha(accent, 34))
   drawRectangleLines(rectAt(x, y, CardW, CardH), if selected: 3 elif hovered: 2 else: 1, color)
-  drawCircle(Vector2(x: (x + CardW - 42).float32, y: (y + 40).float32), 18, softColor(accent, 36))
+  drawCircle(Vector2(x: (x + CardW - 42).float32, y: (y + 40).float32), 18, withAlpha(accent, 36))
   drawThemeGlyph(x + CardW - 42, y + 40, theme, accent)
   drawTextFit(themeName(theme), x + 16, y + 16, CardW - 82, 21, White)
   drawPill(x + 16, y + 47, 92, 22, t("roguelite_floor"), accent, false)
@@ -1048,15 +994,15 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
   # Shadow + dark crimson body with a brighter header band and top accent rule.
   drawRectangle(x + 6, y + 9, w, h, Color(r: 0, g: 0, b: 0, a: 160))
   drawRectangle(x, y, w, h, Color(r: 26, g: 8, b: 14, a: if hovered: 255 else: 248))
-  drawRectangle(x, y, w, 96, softColor(crimson, if hovered: 44 else: 32))
+  drawRectangle(x, y, w, 96, withAlpha(crimson, if hovered: 44 else: 32))
   drawRectangle(x, y, w, 4, crimson)
 
   # Pulsing crimson border, inner gold trim, and corner brackets.
   drawRectangleLines(rectAt(x, y, w, h), 3,
-                     Color(r: crimson.r, g: crimson.g, b: crimson.b, a: borderA))
-  drawRectangleLines(rectAt(x + 4, y + 4, w - 8, h - 8), 1, softColor(gold, 110))
+                     withAlpha(crimson, borderA))
+  drawRectangleLines(rectAt(x + 4, y + 4, w - 8, h - 8), 1, withAlpha(gold, 110))
   drawCornerBrackets(x + 10, y + 10, w - 20, h - 20, 28, 2,
-                     softColor(gold, uint8(120.0'f32 + pulse * 110.0'f32)))
+                     withAlpha(gold, uint8(120.0'f32 + pulse * 110.0'f32)))
 
   # FINAL BOSS pill.
   drawPill(x + 22, y + 24, 158, 32, t("dungeon_final_floor_label"), crimson, true)
@@ -1065,7 +1011,7 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
   let glyphX = x + w - 74
   let glyphY = y + 62
   drawCircle(Vector2(x: glyphX.float32, y: glyphY.float32), 30.0'f32 + pulse * 6.0'f32,
-             softColor(crimson, 34))
+             withAlpha(crimson, 34))
   drawThemeGlyph(glyphX, glyphY, FinalFloorTheme, accent)
 
   # Boss label + name.
@@ -1083,11 +1029,11 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
                             a: uint8(170.0'f32 + pulse * 80.0'f32)))
 
 proc drawRogueliteFloorSelect*(game: Game) =
-  let x = (game.screenWidth - PanelW) div 2
-  let y = (game.screenHeight - PanelH) div 2
+  let x = (getVirtualScreenWidth() - PanelW) div 2
+  let y = (getVirtualScreenHeight() - PanelH) div 2
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
-  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(game.screenWidth, game.screenHeight))
+  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(getVirtualScreenWidth(), getVirtualScreenHeight()))
   drawBackdrop(game, Color(r: 0, g: 220, b: 255, a: 255))
   drawPanel(x, y, PanelW, PanelH, t("dungeon_floor_select_title"), Color(r: 0, g: 220, b: 255, a: 255), closeHovered)
 
@@ -1110,7 +1056,7 @@ proc drawRogueliteFloorSelect*(game: Game) =
   drawProgressRail(run, x + 120, y + 132, 680)
 
   if isFinalDungeonFloor(run):
-    let cardRect = finalBossCardRect(game.screenWidth.int32, game.screenHeight.int32)
+    let cardRect = finalBossCardRect(getVirtualScreenWidth().int32, getVirtualScreenHeight().int32)
     drawFinalBossCard(game, cardRect,
                       canHover and checkCollisionPointRec(mousePos, cardRect))
   else:
@@ -1164,9 +1110,9 @@ proc drawRogueliteEndButton(rect: Rectangle, label: string, color: Color, highli
   let h = rect.height.int32
   drawRectangle(x + 3, y + 4, w, h, Color(r: 0, g: 0, b: 0, a: 90))
   drawSoftFill(x, y, w, h,
-    (if highlighted: softColor(color, 80) else: Color(r: 22, g: 30, b: 44, a: 245)),
-    (if highlighted: softColor(color, 32) else: Color(r: 12, g: 18, b: 30, a: 245)))
-  drawRectangleLines(rectAt(x, y, w, h), 2, softColor(color, if highlighted: 255 else: 150))
+    (if highlighted: withAlpha(color, 80) else: Color(r: 22, g: 30, b: 44, a: 245)),
+    (if highlighted: withAlpha(color, 32) else: Color(r: 12, g: 18, b: 30, a: 245)))
+  drawRectangleLines(rectAt(x, y, w, h), 2, withAlpha(color, if highlighted: 255 else: 150))
   let fs = bestFitFontSize(label, w - 24, 20, 12)
   discard drawCenteredTextFit(label, x + 12, y + (h - fs) div 2, w - 24, fs,
     (if highlighted: Color(r: 255, g: 255, b: 255, a: 255) else: color))
@@ -1179,8 +1125,8 @@ proc drawRogueliteVictory*(game: Game) =
   let run = game.rogueliteRun
   let accent = Color(r: 120, g: 255, b: 180, a: 255)   # "system secured" green
   drawBackdrop(game, accent)
-  let x = (game.screenWidth - PanelW) div 2
-  let y = (game.screenHeight - PanelH) div 2
+  let x = (getVirtualScreenWidth() - PanelW) div 2
+  let y = (getVirtualScreenHeight() - PanelH) div 2
   let isFirstWin = run.endlessLoop == 0
   let title = if isFirstWin: t("roguelite_victory_title") else: t("roguelite_loop_cleared_title")
   drawPanel(x, y, PanelW, PanelH, title, accent, omitTitleBar = true)
@@ -1227,7 +1173,7 @@ proc drawRogueliteVictory*(game: Game) =
       px += pillW + 10
 
   # Decision buttons
-  let rects = rogueliteVictoryButtonRects(game.screenWidth.int32, game.screenHeight.int32)
+  let rects = rogueliteVictoryButtonRects(getVirtualScreenWidth().int32, getVirtualScreenHeight().int32)
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
   let contHi = game.selectedVictoryButton == 0 or
@@ -1337,7 +1283,7 @@ proc drawUnlockCardStatus(x, y: int, isPurchased, canBuy: bool,
   # Dim overlay, two-pass for a subtle depth gradient (top lighter, bottom darker)
   if canBuy:
     drawRectangle(x.int32, (y + cH - 44).int32, cW, 44, Color(r: 0, g: 0, b: 0, a: 44))
-    drawRectangle(x.int32, y.int32, cW, 3, softColor(statusColor, 135))
+    drawRectangle(x.int32, y.int32, cW, 3, withAlpha(statusColor, 135))
   else:
     drawRectangle(x.int32, y.int32, cW, cH div 2, Color(r: 0, g: 0, b: 0, a: 66))
     drawRectangle(x.int32, (y + cH div 2).int32, cW, cH div 2, Color(r: 0, g: 0, b: 0, a: 116))
@@ -1354,10 +1300,10 @@ proc drawUnlockCardStatus(x, y: int, isPurchased, canBuy: bool,
   drawSoftFill(pillX, pillY, pillW, pillH, pillFill,
                if canBuy: Color(r: 23, g: 22, b: 18, a: 238)
                else: Color(r: 11, g: 13, b: 20, a: 238))
-  drawLine(pillX + 2, pillY + 1, pillX + pillW - 3, pillY + 1, softColor(statusColor, 55))
+  drawLine(pillX + 2, pillY + 1, pillX + pillW - 3, pillY + 1, withAlpha(statusColor, 55))
   drawRectangleLines(Rectangle(x: pillX.float32, y: pillY.float32,
                                width: pillW.float32, height: pillH.float32),
-                     1.5'f32, softColor(statusColor, 180))
+                     1.5'f32, withAlpha(statusColor, 180))
 
   drawUnlockCostPill(pillX, pillY, pillW, pillH, profile, category, index,
                      if canBuy: t("roguelite_buy_unlock") else: t("roguelite_locked"),
@@ -1392,29 +1338,29 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
 
   # Header zone tint
   let hdrAlpha: uint8 = if isPurchased: 48 elif canBuy: 42 elif isSelected: 36 elif isHovered: 26 else: 16
-  drawRectangle(x, y, cW, 72, softColor(itemColor, hdrAlpha))
+  drawRectangle(x, y, cW, 72, withAlpha(itemColor, hdrAlpha))
 
   # Top accent stripe (3 px)
   let stripeAlpha: uint8 = if isPurchased: 230 elif canBuy: 215 elif isSelected: 205 elif isHovered: 155 else: 95
-  drawRectangle(x, y, cW, 3, softColor(itemColor, stripeAlpha))
+  drawRectangle(x, y, cW, 3, withAlpha(itemColor, stripeAlpha))
   drawCornerBrackets(x + 6, y + 6, cW - 12, cH - 12, 13, 1,
-                     softColor(itemColor, if isSelected or canBuy: 120 else: 52))
+                     withAlpha(itemColor, if isSelected or canBuy: 120 else: 52))
 
   # Glyph halos
   let cx = x + cW div 2
   let cy = y + 42
   if isPurchased:
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 27, softColor(itemColor, 18))
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 20, softColor(itemColor, 42))
-    drawCircleLines(cx, cy, 20.5'f32, softColor(itemColor, 105))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 27, withAlpha(itemColor, 18))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 20, withAlpha(itemColor, 42))
+    drawCircleLines(cx, cy, 20.5'f32, withAlpha(itemColor, 105))
   elif isSelected:
     let p = sin(time * 4.5'f32) * 0.4'f32 + 0.6'f32
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 25, softColor(itemColor, uint8(20.0'f32 * p)))
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 18, softColor(itemColor, 38))
-    drawCircleLines(cx, cy, 19.0'f32, softColor(itemColor, uint8(135.0'f32 * p)))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 25, withAlpha(itemColor, uint8(20.0'f32 * p)))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 18, withAlpha(itemColor, 38))
+    drawCircleLines(cx, cy, 19.0'f32, withAlpha(itemColor, uint8(135.0'f32 * p)))
   elif isHovered:
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 22, softColor(itemColor, 20))
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), 16, softColor(itemColor, 42))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 22, withAlpha(itemColor, 20))
+    drawCircle(Vector2(x: cx.float32, y: cy.float32), 16, withAlpha(itemColor, 42))
   else:
     drawCircle(Vector2(x: cx.float32, y: cy.float32), 17, Color(r: 45, g: 48, b: 62, a: 170))
 
@@ -1435,7 +1381,7 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
     let by = y + 5
     let bw: int32 = 40
     let bh: int32 = 15
-    drawRectangle(bx, by, bw, bh, softColor(Color(r: 0, g: 195, b: 128, a: 255), 200))
+    drawRectangle(bx, by, bw, bh, withAlpha(Color(r: 0, g: 195, b: 128, a: 255), 200))
     # Tiny top highlight on badge
     drawLine(bx + 2, by + 1, bx + bw - 3, by + 1, Color(r: 255, g: 255, b: 255, a: 38))
     let ot = "OWNED"
@@ -1444,7 +1390,7 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
 
   # Hairline divider below header
   let divAlpha: uint8 = if isPurchased: 72 elif isSelected or isHovered: 52 else: 28
-  drawLine(x + 10, y + 74, x + cW - 10, y + 74, softColor(itemColor, divAlpha))
+  drawLine(x + 10, y + 74, x + cW - 10, y + 74, withAlpha(itemColor, divAlpha))
 
   # Name
   let name = locUnlockName(profile, category, index)
@@ -1475,7 +1421,7 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
   # Card border
   let bColor = if isSelected: itemColor
                elif isHovered: Color(r: 122, g: 128, b: 148, a: 255)
-               elif isPurchased: softColor(itemColor, 52)
+               elif isPurchased: withAlpha(itemColor, 52)
                else: Color(r: 55, g: 58, b: 74, a: 255)
   let bThick = if isSelected: 2.5'f32 elif isHovered: 2.0'f32 else: 1.5'f32
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: cW.float32, height: cH.float32),
@@ -1486,7 +1432,7 @@ proc drawUnlockCard*(profile: RogueliteProfile, category: RogueliteUnlockCategor
     let p = sin(time * 4.5'f32) * 0.5'f32 + 0.5'f32
     drawRectangleLines(Rectangle(x: (x - 2).float32, y: (y - 2).float32,
                                   width: (cW + 4).float32, height: (cH + 4).float32),
-                       1.5'f32, softColor(itemColor, uint8(58.0'f32 * p)))
+                       1.5'f32, withAlpha(itemColor, uint8(58.0'f32 * p)))
 
 proc drawUnlockTabs*(panelX, panelY, panelW, tabH: int32, activeCategory: int) =
   ## Draw 4 category tabs at the top of the unlock grid area.
@@ -1498,17 +1444,17 @@ proc drawUnlockTabs*(panelX, panelY, panelW, tabH: int32, activeCategory: int) =
     let tx = panelX + idx.int32 * tabW
     let ty = panelY
     let accent = categoryColor(cat)
-    let tabColorTop = if active: softColor(accent, 64)
+    let tabColorTop = if active: withAlpha(accent, 64)
                       else: Color(r: 28, g: 32, b: 44, a: 255)
     let tabColorBottom = if active: Color(r: 27, g: 31, b: 45, a: 255)
                          else: Color(r: 18, g: 23, b: 34, a: 255)
     drawSoftFill(tx + 2, ty, tabW - 4, tabH, tabColorTop, tabColorBottom)
     drawRectangleLines(tx + 2, ty, tabW - 4, tabH,
-                       if active: softColor(accent, 180) else: Color(r: 54, g: 62, b: 78, a: 255))
+                       if active: withAlpha(accent, 180) else: Color(r: 54, g: 62, b: 78, a: 255))
     drawCategoryGlyph(tx + 24, ty + tabH div 2, cat, if active: accent else: Color(r: 112, g: 124, b: 146, a: 255), true)
     if active:
       drawRectangle(tx + 2, ty + tabH - 4, tabW - 4, 4, accent)
-      drawCornerBrackets(tx + 7, ty + 5, tabW - 14, tabH - 10, 10, 1, softColor(accent, 145))
+      drawCornerBrackets(tx + 7, ty + 5, tabW - 14, tabH - 10, 10, 1, withAlpha(accent, 145))
     let catLabel = locCategoryName(cat)
     let fs: int32 = 12
     let labelW = measureText(catLabel, fs)
@@ -1571,8 +1517,8 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
                Color(r: 17, g: 23, b: 36, a: 238),
                Color(r: 9, g: 13, b: 23, a: 238))
   drawRectangleLines(panelX + 14, gridY - 8, PanelW - 28, gridH + infoPanelH + 16,
-                     softColor(catColor, 80))
-  drawLine(panelX + 24, gridY - 1, panelX + PanelW - 24, gridY - 1, softColor(catColor, 115))
+                     withAlpha(catColor, 80))
+  drawLine(panelX + 24, gridY - 1, panelX + PanelW - 24, gridY - 1, withAlpha(catColor, 115))
 
   # Scroll hint, shown inside the grid area, bottom-right, only when scrollable
   if maxScroll > 0:
@@ -1616,15 +1562,15 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
     drawRectangle(sbX, gridY + 8, sbW, gridH - 16, Color(r: 20, g: 24, b: 34, a: 255))
     let thumbH = max(30.0'f32, (gridH.float32 / totalContentH.float32) * gridH.float32)
     let thumbY = (gridY + 8).float32 + (clampedScroll / maxScroll) * ((gridH - 16).float32 - thumbH)
-    drawRectangle(sbX, thumbY.int32, sbW, thumbH.int32, softColor(catColor, 200))
+    drawRectangle(sbX, thumbY.int32, sbW, thumbH.int32, withAlpha(catColor, 200))
 
   # Info panel
   let infoPanelY = gridY + gridH
   drawSoftFill(panelX + 14, infoPanelY, PanelW - 28, infoPanelH,
                Color(r: 31, g: 38, b: 54, a: 252),
                Color(r: 17, g: 23, b: 36, a: 252))
-  drawLine(panelX + 14, infoPanelY, panelX + PanelW - 14, infoPanelY, softColor(catColor, 145))
-  drawCornerBrackets(panelX + 22, infoPanelY + 8, PanelW - 44, infoPanelH - 16, 16, 1, softColor(catColor, 95))
+  drawLine(panelX + 14, infoPanelY, panelX + PanelW - 14, infoPanelY, withAlpha(catColor, 145))
+  drawCornerBrackets(panelX + 22, infoPanelY + 8, PanelW - 44, infoPanelH - 16, 16, 1, withAlpha(catColor, 95))
 
   let selName = locUnlockName(profile, category, selectedItem)
   let selDesc = locUnlockDescription(category, selectedItem)
@@ -1632,8 +1578,8 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
   # Glyph
   let glyphCX = panelX + 42
   let glyphCY = infoPanelY + infoPanelH div 2
-  drawCircle(Vector2(x: glyphCX.float32, y: glyphCY.float32), 23, softColor(catColor, 34))
-  drawCircleLines(glyphCX, glyphCY, 23.0'f32, softColor(catColor, 105))
+  drawCircle(Vector2(x: glyphCX.float32, y: glyphCY.float32), 23, withAlpha(catColor, 34))
+  drawCircleLines(glyphCX, glyphCY, 23.0'f32, withAlpha(catColor, 105))
   drawUnlockGlyph(profile, category, selectedItem.int32, glyphCX, glyphCY, catColor, false)
 
   # Name + description + status
@@ -1689,16 +1635,16 @@ proc drawUnlocksContent*(game: Game, panelX, panelY: int32,
   drawSoftFill(panelX + 42, ctrlBarY, PanelW - 84, 32,
                Color(r: 30, g: 38, b: 54, a: 235),
                Color(r: 16, g: 22, b: 34, a: 235))
-  drawRectangleLines(panelX + 42, ctrlBarY, PanelW - 84, 32, softColor(accent, 130))
+  drawRectangleLines(panelX + 42, ctrlBarY, PanelW - 84, 32, withAlpha(accent, 130))
   drawCenteredTextFit(t("roguelite_unlock_shop_controls"), panelX + 58, ctrlBarY + 10,
                       PanelW - 116, 13, LightGray)
 
 proc drawRogueliteUnlocks*(game: Game, categoryIndex: int = 0, itemIndex: int = 0) =
-  let x = (game.screenWidth - PanelW) div 2
-  let y = (game.screenHeight - PanelH) div 2
+  let x = (getVirtualScreenWidth() - PanelW) div 2
+  let y = (getVirtualScreenHeight() - PanelH) div 2
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
-  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(game.screenWidth, game.screenHeight))
+  let closeHovered = canHover and checkCollisionPointRec(mousePos, rogueliteCloseButtonRect(getVirtualScreenWidth(), getVirtualScreenHeight()))
   let accent = Color(r: 255, g: 215, b: 0, a: 255)
   drawBackdrop(game, Color(r: 255, g: 215, b: 0, a: 255))
   drawPanel(x, y, PanelW, PanelH, t("roguelite_unlocks_title"), accent, closeHovered)

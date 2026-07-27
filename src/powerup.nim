@@ -313,11 +313,11 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.shieldHealths = @[]
     player.shieldRegenTimers = @[]
 
-    # Health increases with level: 3 HP, 4 HP, 5 HP
+    # Health increases with level: 100 HP, 250 HP, 400 HP
     let shieldHealth = case powerUp.level
-      of 1: 3.0
-      of 2: 4.0
-      else: 5.0
+      of 1: 1.0
+      of 2: 2.5
+      else: 4.0
     player.shieldMaxHealth = shieldHealth
 
     for i in 0..<shieldCount:
@@ -389,14 +389,14 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   of puFortified:
     # Fortified reduces damage taken + increases max HP
     let hpBonus = case powerUp.level
-      of 1: 3.5   # +350 HP
-      of 2: 7.0  # +700 HP
-      else: 10.5  # +1050 HP
+      of 1: 2.5   # +250 HP
+      of 2: 5.0  # +500 HP
+      else: 7.5  # +750 HP
     player.maxHp += hpBonus
     player.hp += hpBonus
   of puCelestialVeil:
-    # Celestial Veil - absorbs 1 hit per wave
-    player.celestialVeilActive = true
+    # Celestial Veil - absorbs 2 hits per wave
+    player.celestialVeilCharges = 2
   of puVolatile:
     # Volatile (Legendary passive) - flag set, logic handled in game.nim bullet-hit and death
     player.hasVolatile = true

@@ -269,6 +269,16 @@ proc calculateDerivedMetrics*() =
 # LAST RUN STORAGE
 var lastCompletedRun*: RunStatistics = nil
 
+proc cloneRunStatistics*(src: RunStatistics): RunStatistics =
+  ## Value-copy of a run's stats. Every field is a value type (seq/Table/string/
+  ## scalars), so a single object assignment deep-copies the whole record. Used so
+  ## the "last run" snapshot cannot keep mutating when the same run object keeps
+  ## accumulating (the checkpoint-continue path resumes into currentRunStats).
+  if src.isNil:
+    return nil
+  result = RunStatistics()
+  result[] = src[]
+
 proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool) =
   if currentRunStats.isNil:
     return
@@ -591,7 +601,7 @@ proc updateRunDuration*(dt: float32) =
 proc saveLastCompletedRun*() =
   ## Store a copy of the current run for viewing (save to disk handled externally)
   if not currentRunStats.isNil:
-    lastCompletedRun = currentRunStats
+    lastCompletedRun = cloneRunStatistics(currentRunStats)
     echo "[Stats] Last run saved to memory"
 
 proc loadLastCompletedRun*(loadedStats: RunStatistics) =
@@ -615,6 +625,26 @@ proc clearLastCompletedRun*() =
 # Game Lifecycle
 proc initializeRunTracking*(game: Game) =
   startNewRun(game.mode)
+  game.showRunStatsGraphs = true
+
+proc resumeRunTracking*(game: Game) =
+  ## Keep accumulating into the CURRENT run's statistics instead of starting a
+  ## fresh record. Used by the game-over "Continue" path: resuming from the last
+  ## boss-block checkpoint continues the same run, so kills, power-ups collected,
+  ## damage and time must carry over rather than reset to zero.
+  ##
+  ## Falls back to a fresh record when there is nothing live to resume (the
+  ## checkpoint is being continued in a later session, so the stats died with the
+  ## process) or when the mode does not match.
+  if currentRunStats.isNil or currentRunStats.gameMode != game.mode:
+    startNewRun(game.mode)
+  else:
+    # finalizeRunTracking stamped this run as ended when the player died; the run
+    # is live again, so clear the terminal markers. lastCompletedRun already holds
+    # its own copy (cloneRunStatistics), so it keeps showing the death snapshot.
+    currentRunStats.endTime = ""
+    currentRunStats.died = false
+    echo "[Stats] Run resumed from checkpoint - carrying accumulated stats"
   game.showRunStatsGraphs = true
 
 proc finalizeRunTracking*(game: Game) =

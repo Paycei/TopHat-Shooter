@@ -1,8 +1,8 @@
 ## Settings Backend Module
 ## Handles settings initialization, state management, and application
 
-from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, saveSettings, loadSettings
-from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, PowerUpType
+from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, saveSettings, loadSettings
+from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds
 import raylib, strutils
 import sound, localization
 
@@ -16,8 +16,10 @@ proc isPowerUpDiscovered*(pt: PowerUpType): bool =
   if globalSettings.isNil: return true
   $pt in globalSettings.discoveredPowerUps
 
-proc initSettings*(): Settings =
-  ## Initialize settings with default values and load from save file
+proc newDefaultSettings*(): Settings =
+  ## Fresh Settings object holding only the built-in defaults (no disk access,
+  ## no global registration). Used both at first boot and to wipe leftover
+  ## state before loading a different profile's settings file.
   result = Settings(
     fpsLimit: 60,
     volume: 0.5,
@@ -34,6 +36,10 @@ proc initSettings*(): Settings =
     showArenaVignette: true,
     showLowHealthVignette: true,
     showHints: true,
+    # Phones are 16:9 or taller, so the widescreen canvas letterboxes far less
+    # of the display and moves the touch buttons off the gameplay world into the
+    # side gutters. Desktop keeps the classic 4:3 default.
+    hudLayout: when defined(mobile): hlWidescreen else: hlClassic,
     showEnemyLabels: true,
     language: "english",  # Default language is English
     playerSkin: 0,  # Default to first skin (skDefault)
@@ -45,30 +51,34 @@ proc initSettings*(): Settings =
     cubeSkin: 0,         # Default to first cube skin (cskDefault)
     pvpNickname: "Player",  # Default nickname for PvP
     exitConfirmEnabled: true,  # Exit confirm dialogs enabled by default
-    keybinds: [
-      kaMoveUp:    KeyboardKey.W,
-      kaMoveDown:  KeyboardKey.S,
-      kaMoveLeft:  KeyboardKey.A,
-      kaMoveRight: KeyboardKey.D,
-      kaShoot:     KeyboardKey.Space,
-      kaPlaceWall: KeyboardKey.E,
-      kaLegendary: KeyboardKey.Q
-    ]
-    ,
+    keybinds: defaultKeybinds,
+    gamepadBinds: defaultGamepadBinds,
+    preferredGamepad: -1,  # Auto: use the first detected controller
+    aimAssistEnabled: true,
     rogueliteUnlocked: false,
     survivalUnlocked: false
   )
-  globalSettings = result
 
-  # Try to load saved settings
-  discard loadSettings(result)
-
-  # Apply loaded language setting
+proc reloadSettingsFromDisk*(settings: Settings) =
+  ## Reset `settings` to defaults in place, then load the active profile's
+  ## settings file over them and apply its language. In-place so every holder
+  ## of the ref (globalSettings, the window manager, ...) sees the new values.
+  ## Fields missing from the file (or a missing file) stay at their defaults,
+  ## which is what makes profile switching safe: nothing leaks from the
+  ## previously loaded profile.
+  settings[] = newDefaultSettings()[]
+  discard loadSettings(settings)
   try:
-    setLanguage(parseEnum[Language](result.language))
+    setLanguage(parseEnum[Language](settings.language))
   except:
     setLanguage(English)
-    result.language = "english"
+    settings.language = "english"
+
+proc initSettings*(): Settings =
+  ## Initialize settings with default values and load from save file
+  result = newDefaultSettings()
+  globalSettings = result
+  reloadSettingsFromDisk(result)
 
 proc applySettings*(settings: Settings) =
   ## Apply settings to the game engine and systems

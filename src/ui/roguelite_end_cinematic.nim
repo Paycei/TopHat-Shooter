@@ -6,9 +6,7 @@
 ## and a climb back to the surface with the recovered cores in hand.
 
 import raylib, rlgl, math
-import particle_types
-import background_fx, ../shapes, ../localization, ../sound,
-       cinematic_common, cutscene
+import particle_types, background_fx, ../shapes, ../localization, ../sound, cinematic_common, cutscene
 
 const
   RogAccent* = Color(r: 255, g: 190, b: 70, a: 255)   # recovered-data amber/gold
@@ -281,6 +279,7 @@ proc newRogueliteEndCutscene*(): Cutscene =
     drawBackdropProc = rogueliteBackdrop,
     swayAmp          = 1.0'f32,
     musicTrack       = mtMenu,
+    cornerTag        = t(tkLorePlayback),
   )
 
 # Legacy-style wrappers so main.nim mirrors the endgame-cinematic call sites.

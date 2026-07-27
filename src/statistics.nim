@@ -1,5 +1,4 @@
-import json, times
-import os
+import json, times, os
 import save_system, types
 
 type

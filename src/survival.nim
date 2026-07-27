@@ -1,13 +1,11 @@
 # SURVIVAL MODE - Time Survival specific logic
 
 import raylib, random, math
-import types, enemy, particle_pool, localization
+import types, enemy, particle_pool, localization, utils
 
-# During a boss fight survivalTime (and thus difficulty) is frozen at the boss's
-# spawn value, which lands on an integer (boss N spawns at difficulty N*2). Enemy
-# introductionDifficulty thresholds are also integers, so spawning ambient enemies
-# at `difficulty - 0.5` drops exactly the type whose introduction coincides with
-# this boss's difficulty — i.e. nothing the player hasn't already seen debuts mid-boss.
+# During a boss fight difficulty is frozen at the boss's spawn value (an integer);
+# introduction thresholds are also integers, so spawning at `difficulty - 0.5`
+# guarantees no enemy type debuts mid-boss.
 const SurvivalBossRosterEpsilon = 0.5'f32
 
 proc spawnSurvivalEnemies*(game: Game) =
@@ -68,7 +66,14 @@ proc spawnSurvivalEnemies*(game: Game) =
                            newest.pos.y + sin(angle) * dist,
                            newest.color, 3)
 
-proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
+# Fixed vertical footprint of the survival HUD card. Must mirror the layout
+# constants inside drawSurvivalHUD (padY + timerSize + vGap + barH + padY).
+# game.nim uses SurvivalHudBottomY to start boss health bars below the timer.
+const
+  SurvivalHudPanelY*: int32 = 8
+  SurvivalHudBottomY*: int32 = SurvivalHudPanelY + 9 + 30 + 7 + 12 + 9
+
+proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: bool = false) =
   ## Top-center survival HUD: a single rounded "OS card" holding the survived-time
   ## stopwatch on top and the run level + XP progress bar below it (Vampire-
   ## Survivors-style leveling: kills fill the bar, which opens a power-up draft).
@@ -129,22 +134,23 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   let contentW = max(timerRowW, barRowW)
   let panelW = contentW + padX * 2
   let panelH = padY + timerSize + vGap + barH + padY
-  let panelX = screenWidth div 2 - panelW div 2
-  const panelY: int32 = 8
+  let panelX = if alignRight: screenWidth - panelW - 8
+               else: screenWidth div 2 - panelW div 2
+  const panelY: int32 = SurvivalHudPanelY
 
   # --- Card background ----------------------------------------------------
   let panelRect = Rectangle(x: panelX.float32, y: panelY.float32,
                             width: panelW.float32, height: panelH.float32)
   drawRectangleRounded(panelRect, 0.32'f32, 6, Color(r: 8, g: 18, b: 28, a: 205))
   drawRectangleRoundedLines(panelRect, 0.32'f32, 6, 1.5'f32,
-                            Color(r: accent.r, g: accent.g, b: accent.b, a: 150))
+                            withAlpha(accent, 150))
 
   # --- Row 1: stopwatch icon + MM:SS.CC -----------------------------------
   let timerRowX = panelX + (panelW - timerRowW) div 2
   let timerY = panelY + padY
   let cx = (timerRowX + clockR).float32
   let cy = (timerY + timerSize div 2).float32
-  let faintAccent = Color(r: accent.r, g: accent.g, b: accent.b, a: 90)
+  let faintAccent = withAlpha(accent, 90)
   # Crown: a little button + stem on top so the icon reads as a handheld stopwatch.
   drawRectangle((cx - 2.0).int32, (cy - clockR.float32 - 4.0).int32, 4, 4, accent)
   drawCircle(Vector2(x: cx, y: cy - clockR.float32 - 4.5), 2.0'f32, accent)
@@ -156,7 +162,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
     let ta = q.float32 * (PI.float32 / 2.0)
     drawLine(Vector2(x: cx + cos(ta) * (clockR.float32 - 2.4), y: cy + sin(ta) * (clockR.float32 - 2.4)),
              Vector2(x: cx + cos(ta) * (clockR.float32 - 0.6), y: cy + sin(ta) * (clockR.float32 - 0.6)),
-             1.0'f32, Color(r: accent.r, g: accent.g, b: accent.b, a: 130))
+             1.0'f32, withAlpha(accent, 130))
   # Hand sweeps once per minute of survival time; since survivalTime freezes during
   # a boss, the hand visibly stops there (reinforced by the gray-out + pause glyph).
   let handAng = (clampedT mod 60.0) / 60.0 * (PI.float32 * 2.0) - PI.float32 / 2.0
@@ -170,7 +176,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   let digitsX = timerRowX + clockBox + (timerSlotW - timerDigitsW) div 2
   if not bossActive:
     drawText(timeStr, digitsX, timerY - 1, timerSize,
-             Color(r: accent.r, g: accent.g, b: accent.b, a: 55))
+             withAlpha(accent, 55))
   drawText(timeStr, digitsX + 1, timerY + 1, timerSize, inkShadow)
   drawText(timeStr, digitsX, timerY, timerSize, digitColor)
   # Centiseconds: smaller + dimmer, baseline-aligned under the big digits.
@@ -178,7 +184,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   let centiY = timerY + (timerSize - centiSize)
   drawText(centiStr, centiX + 1, centiY + 1, centiSize, inkShadow)
   drawText(centiStr, centiX, centiY, centiSize,
-           Color(r: digitColor.r, g: digitColor.g, b: digitColor.b, a: 175))
+           withAlpha(digitColor, 175))
   # Pause glyph (two bars) past the centiseconds while the clock is frozen by a boss.
   if bossActive:
     let pbX = centiX + centiSlotW + 8
@@ -191,7 +197,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   let divY = (timerY + timerSize + vGap div 2).float32
   drawLine(Vector2(x: (panelX + padX).float32, y: divY),
            Vector2(x: (panelX + panelW - padX).float32, y: divY),
-           1.0'f32, Color(r: accent.r, g: accent.g, b: accent.b, a: 55))
+           1.0'f32, withAlpha(accent, 55))
 
   # --- Row 2: level label + XP bar ----------------------------------------
   let barRowX = panelX + (panelW - barRowW) div 2
@@ -213,4 +219,6 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   if waveProgress > 0.6 and not game.bossWaveManager.active:
     let banner = t(tkGameWaveAnnouncementMain)
     let bannerW = measureText(banner, 25)
-    drawText(banner, screenWidth div 2 - bannerW div 2, panelY + panelH + 6, 25, Red)
+    let bannerX = if alignRight: panelX + panelW div 2 - bannerW div 2
+                  else: screenWidth div 2 - bannerW div 2
+    drawText(banner, bannerX, panelY + panelH + 6, 25, Red)

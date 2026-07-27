@@ -2,8 +2,7 @@
 ## OS-themed window for player and bullet customization with tabs
 
 import raylib, rlgl, math, strformat, strutils
-import particle_types
-import os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound
+import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils
 
 type
   ShopTab* = enum
@@ -15,6 +14,7 @@ type
     stDesktopBg      # Desktop background skins tab
     stCubeSkins      # Cube skins tab
     stSecret         # Secret items tab (victory-unlocked cosmetics)
+    stPacks          # Cosmetic packs tab (discounted theme bundles)
 
   ShopWindow* = ref object
     window*: OSWindow
@@ -56,11 +56,15 @@ const
   TAB_HEIGHT = 40
   PREVIEW_BOX_WIDTH = 420
   PREVIEW_BOX_HEIGHT = 360
-  SHOP_TAB_COUNT = 8
+  SHOP_TAB_COUNT = 9
   SECRET_CARD_W = 240
   SECRET_CARD_H = 220
   SECRET_CARD_GAP = 40
   SECRET_ITEM_COUNT = 3  # 0 = kernel tophat, 1 = orbital cube, 2 = cheater hat
+  PACK_CARD_W = 236      # Packs tab: bundle cards (wider than skin cards)
+  PACK_CARD_H = 156
+  PACK_CARD_PAD = 16
+  PACK_HEADER_H = 46
 
 proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow =
   let windowWidth = 820
@@ -469,14 +473,14 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
     let trailRadius = bulletRadius * (1.0 - i.float32 * 0.15)
     let trailAlpha = uint8((1.0 - i.float32 * 0.2) * float32(trailColor.a))
     drawCircle(Vector2(x: trailX, y: centerY), trailRadius,
-              Color(r: trailColor.r, g: trailColor.g, b: trailColor.b, a: trailAlpha))
+              withAlpha(trailColor, trailAlpha))
 
   # Glow
   for i in 0..2:
     let glowRadius = bulletRadius + (i.float32 + 1) * 3.0
     let glowAlpha = uint8((1.0 - i.float32 / 3.0) * float32(glowColor.a))
     drawCircle(Vector2(x: centerX, y: centerY), glowRadius,
-              Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: glowAlpha))
+              withAlpha(glowColor, glowAlpha))
 
   # Main bullet
   drawCircle(Vector2(x: centerX, y: centerY), bulletRadius, primaryColor)
@@ -794,11 +798,11 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
     let nodeColor = bgData.accentColor
     let accentColor = bgData.primaryColor
     drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
-                 Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: 70), 0.7)
+                 withAlpha(accentColor, 70), 0.7)
     drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
-                 Color(r: nodeColor.r, g: nodeColor.g, b: nodeColor.b, a: 56), 0.55)
+                 withAlpha(nodeColor, 56), 0.55)
     drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
-                 Color(r: bgData.primaryColor.r, g: bgData.primaryColor.g, b: bgData.primaryColor.b, a: 46), 0.5)
+                 withAlpha(bgData.primaryColor, 46), 0.5)
 
     # Signature theme effects so the card shows the real background look
     drawDesktopBgThemeFx(bgType, SKIN_BOX_WIDTH.int32, previewH.int32, time)
@@ -807,7 +811,7 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
       let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
       let alpha = uint8(26 + i * 9)
       drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
-                      Color(r: accentColor.r, g: accentColor.g, b: accentColor.b, a: alpha))
+                      withAlpha(accentColor, alpha))
 
     # Draw the wallpaper cube using the currently equipped cube skin so the
     # preview matches the full desktop. Prefer the running desktop's time
@@ -919,7 +923,151 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWindow]): bool =
+# ---- Cosmetic Packs tab ----
+# The Packs tab is a special (non-CosmeticKind) tab like the Secret tab: it
+# early-returns in both update and draw and reuses hoveredSkin/scrollOffset.
+
+proc packCount(): int = ord(high(CosmeticPackId)) + 1
+
+proc packGridMetrics(contentX, contentY, contentWidth, contentHeight: int):
+    tuple[columns, gridLeft, gridTop, gridHeight: int] =
+  ## Shared layout so the update hit-test and the draw agree on card positions.
+  let columns = max(1, contentWidth div (PACK_CARD_W + PACK_CARD_PAD))
+  let gridLeft = contentX + (contentWidth - (columns * PACK_CARD_W + (columns - 1) * PACK_CARD_PAD)) div 2
+  let gridTop = contentY + TAB_HEIGHT + PACK_HEADER_H
+  let gridHeight = contentHeight - TAB_HEIGHT - PACK_HEADER_H
+  (columns, gridLeft, gridTop, gridHeight)
+
+proc packCardXY(gridLeft, gridTop, columns, index, scrollInt: int): tuple[x, y: int] =
+  let col = index mod columns
+  let row = index div columns
+  (gridLeft + col * (PACK_CARD_W + PACK_CARD_PAD),
+   gridTop + row * (PACK_CARD_H + PACK_CARD_PAD) - scrollInt)
+
+proc packMemberColor(member: CosmeticPackMember, time: float32): Color =
+  ## Representative swatch colour for a pack member.
+  case member.kind
+  of ckPlayerSkin: getSkinColors(SkinType(member.index), time).primary
+  of ckBulletSkin: getBulletSkinColors(BulletSkinType(member.index), time).primary
+  of ckParticle:   getParticleSkinColors(ParticleSkinType(member.index), time).primary
+  else:            Color(r: 200, g: 200, b: 200, a: 255)
+
+proc drawPackCard(shop: ShopWindow, x, y: int, id: CosmeticPackId) =
+  let pack = allCosmeticPacks[id]
+  let profile = shop.rogueliteProfile
+  let owned = packIsOwned(profile, id)
+  let ownedCount = packOwnedCount(profile, id)
+  let total = packMemberCount(id)
+  let isHovered = shop.hoveredSkin == ord(id)
+  let accent = Color(r: pack.accent.r, g: pack.accent.g, b: pack.accent.b, a: 255)
+
+  let bg = if owned: Color(r: 30, g: 44, b: 34, a: 255)
+           elif isHovered: Color(r: 52, g: 52, b: 64, a: 255)
+           else: Color(r: 38, g: 38, b: 48, a: 255)
+  drawRectangle(x.int32, y.int32, PACK_CARD_W.int32, PACK_CARD_H.int32, bg)
+  drawRectangle(x.int32, y.int32, 5, PACK_CARD_H.int32, accent)  # accent stripe
+
+  let borderColor = if owned: Color(r: 90, g: 200, b: 120, a: 255)
+                    elif isHovered: accent
+                    else: Color(r: 80, g: 80, b: 100, a: 255)
+  let borderThick = if isHovered or owned: 3.0'f32 else: 2.0'f32
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+                               width: PACK_CARD_W.float32, height: PACK_CARD_H.float32),
+                     borderThick, borderColor)
+
+  # Title + subtitle
+  drawText(t(pack.nameKey), (x + 14).int32, (y + 10).int32, 17, White)
+  drawText(t("pack_includes"), (x + 14).int32, (y + 32).int32, 10, Color(r: 160, g: 160, b: 175, a: 255))
+
+  # Member swatches, with an owned marker on any already-unlocked member
+  let swY = y + 66
+  let swR = 13.0'f32
+  var swX = x + 26
+  for m in pack.members:
+    drawCircle(Vector2(x: swX.float32, y: swY.float32), swR + 2.0'f32, Color(r: 0, g: 0, b: 0, a: 120))
+    drawCircle(Vector2(x: swX.float32, y: swY.float32), swR, packMemberColor(m, shop.animationTime))
+    drawCircleLines(swX.int32, swY.int32, swR, Color(r: 255, g: 255, b: 255, a: 60))
+    if cosmeticIsUnlocked(profile, m.kind, m.index):
+      drawCircle(Vector2(x: (swX + 9).float32, y: (swY - 9).float32), 6.0'f32, Color(r: 40, g: 180, b: 90, a: 255))
+      drawText("+", (swX + 6).int32, (swY - 16).int32, 12, White)
+    swX += 42
+
+  # -40% deal badge
+  if not owned:
+    let pct = int(round((1.0'f32 - PackDiscount) * 100.0'f32))
+    let badge = "-" & $pct & "%"
+    let bw = measureText(badge, 13).int + 12
+    let bx = x + PACK_CARD_W - bw - 10
+    drawRectangle(bx.int32, (y + 8).int32, bw.int32, 20, Color(r: 220, g: 60, b: 60, a: 255))
+    drawText(badge, (bx + 6).int32, (y + 10).int32, 13, White)
+
+  drawRectangle((x + 12).int32, (y + 94).int32, (PACK_CARD_W - 24).int32, 1, Color(r: 70, g: 70, b: 85, a: 255))
+
+  if owned:
+    let ot = t("pack_owned")
+    let ow = measureText(ot, 15)
+    drawText(ot, (x + (PACK_CARD_W - ow) div 2).int32, (y + 120).int32, 15, Color(r: 110, g: 220, b: 140, a: 255))
+    return
+
+  # Struck-through retail of the members being bought, then the discounted price.
+  let retail = packUnownedRetail(profile, id)
+  let price = packPrice(profile, id)
+  let canAfford = canAffordPack(profile, id)
+
+  let retailText = cosmeticCostLabel(retail)
+  drawText(retailText, (x + 14).int32, (y + 104).int32, 11, Color(r: 150, g: 150, b: 160, a: 255))
+  let rtw = measureText(retailText, 11)
+  drawRectangle((x + 14).int32, (y + 110).int32, rtw, 1, Color(r: 190, g: 90, b: 90, a: 255))
+
+  let priceText = cosmeticCostLabel(price)
+  let priceColor = if canAfford: Color(r: 255, g: 215, b: 90, a: 255) else: Color(r: 200, g: 110, b: 110, a: 255)
+  drawText(priceText, (x + 14).int32, (y + 122).int32, 15, priceColor)
+
+  if ownedCount > 0:
+    let note = $ownedCount & "/" & $total
+    let nw = measureText(note, 11)
+    drawText(note, (x + PACK_CARD_W - nw - 12).int32, (y + 126).int32, 11, Color(r: 160, g: 160, b: 175, a: 255))
+
+proc drawPacksTabContent(shop: ShopWindow, contentX, contentY, contentWidth, contentHeight: int) =
+  ## The PACKS tab: a scrollable grid of discounted theme-bundle cards.
+  let headerY = contentY + TAB_HEIGHT
+  drawText(t("shop_customize_packs"), (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
+
+  if not shop.rogueliteProfile.isNil:
+    let balanceY = headerY + 15
+    let balanceX = contentX + contentWidth - 238
+    drawCurrencyIcon(balanceX.int32, balanceY.int32, 16, ciDataShards)
+    drawText($shop.rogueliteProfile.dataShards, (balanceX + 12).int32, (balanceY - 6).int32, 12, Gold)
+    drawCurrencyIcon((balanceX + 72).int32, balanceY.int32, 16, ciCore)
+    drawText($shop.rogueliteProfile.cores, (balanceX + 84).int32, (balanceY - 6).int32, 12,
+             Color(r: 255, g: 130, b: 80, a: 255))
+  elif shop.statusTimer <= 0:
+    drawText(t("roguelite_no_profile"), (contentX + contentWidth - 150).int32, (headerY + 12).int32, 12, Red)
+  if shop.statusTimer > 0 and shop.statusMessage.len > 0:
+    drawText(shop.statusMessage, (contentX + contentWidth - 180).int32, (headerY + 31).int32, 11,
+             Color(r: 255, g: 210, b: 110, a: 255))
+
+  let (columns, gridLeft, gridTop, gridHeight) = packGridMetrics(contentX, contentY, contentWidth, contentHeight)
+  let scrollInt = int(round(shop.scrollOffset))
+  let total = packCount()
+
+  beginVirtualScissorMode(contentX.int32, gridTop.int32, contentWidth.int32, gridHeight.int32)
+  for i in 0..<total:
+    let (cx, cy) = packCardXY(gridLeft, gridTop, columns, i, scrollInt)
+    if cy + PACK_CARD_H > gridTop - 10 and cy < gridTop + gridHeight + 10:
+      drawPackCard(shop, cx, cy, CosmeticPackId(i))
+  endScissorMode()
+
+  if shop.maxScrollOffset > 0:
+    let sbX = contentX + contentWidth - 15
+    drawRectangle(sbX.int32, gridTop.int32, 10, gridHeight.int32, Color(r: 40, g: 40, b: 50, a: 255))
+    let rows = (total + columns - 1) div columns
+    let totalH = (rows * (PACK_CARD_H + PACK_CARD_PAD) + 10).float32
+    let thumbH = max(30.0'f32, (gridHeight.float32 / totalH) * gridHeight.float32)
+    let thumbY = gridTop.float32 + (shop.scrollOffset / shop.maxScrollOffset) * (gridHeight.float32 - thumbH)
+    drawRectangle(sbX.int32, thumbY.int32, 10, thumbH.int32, Color(r: 255, g: 150, b: 50, a: 200))
+
+proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
   ## Update shop window. Returns true if window should close
   if shop.isNil or shop.window.isNil:
     return true
@@ -938,7 +1086,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
 
   updateOSWindow(shop.window, dt)
 
-  let shouldClose = handleOSWindowInput(shop.window, 1024, 768, allWindows)
+  let shouldClose = handleOSWindowInput(shop.window, screenWidth, screenHeight, allWindows)
   if shouldClose:
     shop.window.visible = false
     return true
@@ -992,8 +1140,12 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
         shop.currentTab = stCubeSkins
         shop.scrollOffset = 0.0
         shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 7 and mouseX < contentX + contentWidth:
+      elif mouseX >= contentX + tabWidth * 7 and mouseX < contentX + tabWidth * 8:
         shop.currentTab = stSecret
+        shop.scrollOffset = 0.0
+        shop.scrollVelocity = 0.0
+      elif mouseX >= contentX + tabWidth * 8 and mouseX < contentX + contentWidth:
+        shop.currentTab = stPacks
         shop.scrollOffset = 0.0
         shop.scrollVelocity = 0.0
 
@@ -1038,6 +1190,63 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
         shop.statusMessage =
           if toggledOn: t("shop_equipped") else: t("secret_tophat_unequipped")
         shop.statusTimer = 1.2
+    if isTopmost and isKeyPressed(Escape):
+      shop.window.visible = false
+      return true
+    return false
+
+  # The PACKS tab sells discounted theme bundles with its own card grid and
+  # purchase flow, so handle it here and skip the CosmeticKind grid machinery.
+  if shop.currentTab == stPacks:
+    shop.hoveredSkin = -1
+    let (columns, gridLeft, gridTop, gridHeight) = packGridMetrics(contentX, contentY, contentWidth, contentHeight)
+    let total = packCount()
+    let rows = (total + columns - 1) div columns
+    let totalH = rows * (PACK_CARD_H + PACK_CARD_PAD) + 10
+    shop.maxScrollOffset = max(0.0, totalH.float32 - gridHeight.float32)
+
+    let inGrid = mouseX >= contentX and mouseX < contentX + contentWidth and
+                 mouseY >= gridTop and mouseY < gridTop + gridHeight
+    if inGrid and not shop.window.dragging and isTopmost:
+      let wheel = getPointerWheelMove()
+      if wheel != 0:
+        shop.scrollVelocity += -wheel * 400.0'f32
+    if abs(shop.scrollVelocity) > 0.001'f32:
+      shop.scrollOffset += shop.scrollVelocity * dt
+      if shop.scrollOffset < 0.0'f32:
+        shop.scrollOffset = 0.0'f32
+        shop.scrollVelocity = 0.0'f32
+      elif shop.scrollOffset > shop.maxScrollOffset:
+        shop.scrollOffset = shop.maxScrollOffset
+        shop.scrollVelocity = 0.0'f32
+      else:
+        shop.scrollVelocity *= clamp(1.0'f32 - dt * 8.0'f32, 0.0'f32, 1.0'f32)
+    let scrollInt = int(round(shop.scrollOffset))
+
+    for i in 0..<total:
+      let (cx, cy) = packCardXY(gridLeft, gridTop, columns, i, scrollInt)
+      if cy + PACK_CARD_H > gridTop and cy < gridTop + gridHeight and isTopmost and
+         mouseX >= cx and mouseX < cx + PACK_CARD_W and mouseY >= cy and mouseY < cy + PACK_CARD_H:
+        shop.hoveredSkin = i
+
+    let activate = isTopmost and not shop.window.dragging and shop.hoveredSkin >= 0 and
+                   (shop.window.handledClickThisFrame or isKeyPressed(Enter))
+    if activate:
+      let id = CosmeticPackId(shop.hoveredSkin)
+      if shop.rogueliteProfile.isNil:
+        shop.statusMessage = t("roguelite_no_profile")
+        shop.statusTimer = 1.6
+      elif packIsOwned(shop.rogueliteProfile, id):
+        shop.statusMessage = t("pack_owned")
+        shop.statusTimer = 1.2
+      elif purchasePack(shop.rogueliteProfile, id):
+        playSound(stBuy)
+        shop.statusMessage = t("roguelite_unlocked")
+        shop.statusTimer = 1.6
+      else:
+        shop.statusMessage = t("roguelite_not_enough_shards")
+        shop.statusTimer = 1.6
+
     if isTopmost and isKeyPressed(Escape):
       shop.window.visible = false
       return true
@@ -1109,7 +1318,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, allWindows: openArray[OSWi
 
   # Handle wheel -> add to scroll velocity (inertial scrolling)
   if inGridArea and not shop.window.dragging and isTopmost:
-    let wheelMove = getMouseWheelMove()
+    let wheelMove = getPointerWheelMove()
     if wheelMove != 0:
       shop.scrollVelocity += -wheelMove * 400.0'f32
 
@@ -1462,9 +1671,24 @@ proc drawShopWindow*(shop: ShopWindow) =
   let tab8LabelX = contentX + tabWidth * 7 + (tabWidth - measureText(tab8Label, 12)) div 2
   drawText(tab8Label, tab8LabelX.int32, (tabY + 13).int32, 12, if tab8Active: White else: Gray)
 
+  # Packs tab, green "deal" underline instead of the shop's orange
+  let tab9Active = shop.currentTab == stPacks
+  let tab9Color = if tab9Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
+  drawRectangle((contentX + tabWidth * 8).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab9Color)
+  if tab9Active:
+    drawRectangle((contentX + tabWidth * 8).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 90, g: 220, b: 120, a: 255))
+  let tab9Label = t("shop_tab_packs")
+  let tab9LabelX = contentX + tabWidth * 8 + (tabWidth - measureText(tab9Label, 12)) div 2
+  drawText(tab9Label, tab9LabelX.int32, (tabY + 13).int32, 12, if tab9Active: White else: Gray)
+
   # The SECRET tab draws its own single-card layout instead of the grid.
   if shop.currentTab == stSecret:
     drawSecretTabContent(shop, contentX, contentY, contentWidth, contentHeight)
+    return
+
+  # The PACKS tab draws its own bundle-card grid instead of the CosmeticKind grid.
+  if shop.currentTab == stPacks:
+    drawPacksTabContent(shop, contentX, contentY, contentWidth, contentHeight)
     return
 
   # Draw header
@@ -1618,6 +1842,8 @@ proc drawShopWindow*(shop: ShopWindow) =
         drawCubeSkinPreview(boxX, boxY, cubeType, shop.animationTime, isSelected, isHovered, isUnlocked, canBuy, cost, costText)
       of stSecret:
         discard  # Handled by drawSecretTabContent (early return above)
+      of stPacks:
+        discard  # Handled by drawPacksTabContent (early return above)
 
     # Focus ring for keyboard navigation (drawn over card)
     if vIndex == shop.focusIndex:

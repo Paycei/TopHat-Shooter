@@ -1,6 +1,6 @@
 # Package
 
-version       = "6.0.0"
+version       = "6.1.0"
 author        = "Paycei"
 description   = "TopHat-ShooterOS"
 license       = "Apache 2.0"
@@ -23,7 +23,7 @@ task WinReleaseMin, "Build the game for release, optimized for size":
   exec "nim c --cc:vcc -d:danger --mm:orc --opt:size --parallelBuild:0 --app:gui --panics:on --passC:\"/O1 /Os /Oi /GS- /fp:fast /GL /Gy /Gw\" --passL:\"/link /LTCG /OPT:REF /OPT:ICF\" --passL:icono.res -o:TopHatShooterOS.exe src/main.nim"
 
 task LinuxRelease, "Build the game for release":
-  exec "nim c -d:danger --mm:orc --opt:speed --parallelBuild:0 --app:gui --panics:on --passC:\"-flto -march=native -ffast-math\" --passL:\"-flto -s\" -o:TopHatShooterOS src/main.nim"
+  exec "nim c -d:danger --mm:orc --opt:speed --parallelBuild:0 --app:gui --panics:on --passC:\"-flto -march=native -ffast-math\" --passL:\"-flto -s\" -o:TopHatShooterOS-linux-x86_64 src/main.nim"
 
 # ---------------------------------------------------------------------------
 # Android (mobile) build. See android/README.md and CLAUDE.md.

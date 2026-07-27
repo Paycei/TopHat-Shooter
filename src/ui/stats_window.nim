@@ -2,7 +2,7 @@
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
 import raylib, math, strutils, std/tables, algorithm
-import os_window, ../statistics, ../run_statistics, ../types, ../powerup_data, ../localization, ui_constants, ../render_context
+import os_window, ../statistics, ../run_statistics, ../types, ../powerup_data, ../localization, ui_constants, ../render_context, ../utils
 
 type
   StatsTab* = enum
@@ -222,7 +222,7 @@ proc drawMiniGraph*(x, y, width, height: int, title: string,
     let y2Px = graphY.float32 + y2Norm * graphHeight.float32
 
     drawLine(Vector2(x: x1Px, y: y1Px), Vector2(x: x2Px, y: y2Px),
-            3, Color(r: color.r, g: color.g, b: color.b, a: 60))
+            3, withAlpha(color, 60))
     drawLine(Vector2(x: x1Px, y: y1Px), Vector2(x: x2Px, y: y2Px),
             2, color)
 

@@ -10,6 +10,7 @@ type
     stAudio
     stControls
     stGameplay
+    stCinematics
 
   SettingsResetAction* = enum
     sraNone
@@ -46,6 +47,14 @@ type
     replayRogueliteEndingRequested*: bool
     replaySurvivalEndingRequested*: bool
 
+    # Set when the user clicks one of the mode-intro replays in the Cinematics tab
+    # (each offered once that mode's intro cutscene has been seen).
+    replayWaveIntroRequested*: bool
+    replaySurvivalIntroRequested*: bool
+    replayRogueliteIntroRequested*: bool
+    replaySandboxIntroRequested*: bool
+    replayPvPIntroRequested*: bool
+
     # Destructive reset confirmation state
     pendingReset*: SettingsResetAction
     resetConfirmTimer*: float32
@@ -54,6 +63,8 @@ type
 
     # Keybind rebinding state (-1 = not rebinding, else = KeyAction ordinal being captured)
     rebindingAction*: int
+    # Same, but capturing a gamepad button for the pad-bind column
+    rebindingGamepadAction*: int
 
 proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
                         stats: Statistics = nil,
@@ -90,11 +101,17 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     replayEndingRequested: false,
     replayRogueliteEndingRequested: false,
     replaySurvivalEndingRequested: false,
+    replayWaveIntroRequested: false,
+    replaySurvivalIntroRequested: false,
+    replayRogueliteIntroRequested: false,
+    replaySandboxIntroRequested: false,
+    replayPvPIntroRequested: false,
     pendingReset: sraNone,
     resetConfirmTimer: 0.0,
     resetStatus: "",
     resetStatusTimer: 0.0,
-    rebindingAction: -1
+    rebindingAction: -1,
+    rebindingGamepadAction: -1
   )
 
 proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) =
@@ -227,45 +244,81 @@ proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rect
     else: 0
   Rectangle(
     x: (contentX + 40 + idx * (ButtonWidth + ButtonGap)).float32,
-    y: (contentY + 335).float32,
+    y: (contentY + 370).float32,
     width: ButtonWidth.float32,
     height: ButtonHeight.float32
   )
 
-proc replayIntroButtonRect(contentX, contentY: int): Rectangle =
+# Cinematics tab: replayable cutscene gallery. Each entry is gated behind the
+# same "seen once" flag that governs its first play, so locked entries render
+# greyed and inert until unlocked.
+
+type
+  ReplayCine = enum
+    rcLoreIntro, rcWaveEnding, rcRogueliteEnding, rcSurvivalEnding,
+    rcWaveIntro, rcSurvivalIntro, rcRogueliteIntro, rcSandboxIntro, rcPvPIntro
+
+proc replayCineLayout(rc: ReplayCine): tuple[col, rowY: int] =
+  ## (column, y-offset from the tab content origin) for each button.
+  case rc
+  of rcLoreIntro:       (0, 45)
+  of rcWaveEnding:      (1, 45)
+  of rcRogueliteEnding: (0, 85)
+  of rcSurvivalEnding:  (1, 85)
+  of rcWaveIntro:       (0, 165)
+  of rcSurvivalIntro:   (1, 165)
+  of rcRogueliteIntro:  (0, 205)
+  of rcSandboxIntro:    (1, 205)
+  of rcPvPIntro:        (0, 245)
+
+proc replayCineRect(rc: ReplayCine, contentX, contentY: int): Rectangle =
+  let (col, rowY) = replayCineLayout(rc)
   Rectangle(
-    x: (contentX + 40).float32,
-    y: (contentY + 250).float32,
+    x: (contentX + 40 + col * 210).float32,
+    y: (contentY + rowY).float32,
     width: 200.float32,
     height: 32.float32
   )
 
-proc replayEndingButtonRect(contentX, contentY: int): Rectangle =
-  ## Sits beside "Replay Intro"; only shown once the game has been beaten.
-  Rectangle(
-    x: (contentX + 40 + 210).float32,
-    y: (contentY + 250).float32,
-    width: 200.float32,
-    height: 32.float32
-  )
+proc replayCineLabel(rc: ReplayCine): string =
+  case rc
+  of rcLoreIntro:       t(tkSettingsReplayIntro)
+  of rcWaveEnding:      t(tkSettingsReplayEnding)
+  of rcRogueliteEnding: t(tkSettingsReplayRogueliteEnding)
+  of rcSurvivalEnding:  t(tkSettingsReplaySurvivalEnding)
+  of rcWaveIntro:       t(tkSettingsReplayWaveIntro)
+  of rcSurvivalIntro:   t(tkSettingsReplaySurvivalIntro)
+  of rcRogueliteIntro:  t(tkSettingsReplayRogueliteIntro)
+  of rcSandboxIntro:    t(tkSettingsReplaySandboxIntro)
+  of rcPvPIntro:        t(tkSettingsReplayPvPIntro)
 
-proc replayRogueliteEndingButtonRect(contentX, contentY: int): Rectangle =
-  ## Second replay row; only shown once the roguelite outro has been seen.
-  Rectangle(
-    x: (contentX + 40).float32,
-    y: (contentY + 250 + 40).float32,
-    width: 200.float32,
-    height: 32.float32
-  )
+proc replayCineUnlocked(rc: ReplayCine, s: Settings): bool =
+  ## The lore intro is always replayable; everything else follows its "seen" flag.
+  if s == nil: return rc == rcLoreIntro
+  case rc
+  of rcLoreIntro:       true
+  of rcWaveEnding:      s.hasSeenEnding
+  of rcRogueliteEnding: s.hasSeenRogueliteEnding
+  of rcSurvivalEnding:  s.hasSeenSurvivalEnding
+  of rcWaveIntro:       s.hasSeenWaveModeIntro
+  of rcSurvivalIntro:   s.hasSeenSurvivalIntro
+  of rcRogueliteIntro:  s.hasSeenRogueliteIntro
+  of rcSandboxIntro:    s.hasSeenSandboxIntro
+  of rcPvPIntro:        s.hasSeenPvPIntro
 
-proc replaySurvivalEndingButtonRect(contentX, contentY: int): Rectangle =
-  ## Beside "Replay Roguelite"; only shown once the survival outro has been seen.
-  Rectangle(
-    x: (contentX + 40 + 210).float32,
-    y: (contentY + 250 + 40).float32,
-    width: 200.float32,
-    height: 32.float32
-  )
+proc requestReplayCine(settingsWin: SettingsWindow, rc: ReplayCine) =
+  ## Route a click on an unlocked entry into the matching request flag; main.nim
+  ## consumes these via the window manager and enters the cutscene.
+  case rc
+  of rcLoreIntro:       settingsWin.replayIntroRequested = true
+  of rcWaveEnding:      settingsWin.replayEndingRequested = true
+  of rcRogueliteEnding: settingsWin.replayRogueliteEndingRequested = true
+  of rcSurvivalEnding:  settingsWin.replaySurvivalEndingRequested = true
+  of rcWaveIntro:       settingsWin.replayWaveIntroRequested = true
+  of rcSurvivalIntro:   settingsWin.replaySurvivalIntroRequested = true
+  of rcRogueliteIntro:  settingsWin.replayRogueliteIntroRequested = true
+  of rcSandboxIntro:    settingsWin.replaySandboxIntroRequested = true
+  of rcPvPIntro:        settingsWin.replayPvPIntroRequested = true
 
 proc resetActionLabel(action: SettingsResetAction): string =
   case action
@@ -275,9 +328,11 @@ proc resetActionLabel(action: SettingsResetAction): string =
   else: ""
 
 proc drawSettingsButton(rect: Rectangle, label: string, hovered: bool, danger: bool,
-                        confirming: bool = false) =
+                        confirming: bool = false, disabled: bool = false) =
   let bg =
-    if confirming:
+    if disabled:
+      Color(r: 34, g: 34, b: 44, a: 255)
+    elif confirming:
       Color(r: 135, g: 64, b: 22, a: 255)
     elif danger and hovered:
       Color(r: 120, g: 38, b: 50, a: 255)
@@ -288,7 +343,9 @@ proc drawSettingsButton(rect: Rectangle, label: string, hovered: bool, danger: b
     else:
       Color(r: 60, g: 60, b: 80, a: 255)
   let border =
-    if confirming:
+    if disabled:
+      Color(r: 60, g: 60, b: 72, a: 255)
+    elif confirming:
       Gold
     elif danger:
       Color(r: 255, g: 95, b: 105, a: 255)
@@ -304,7 +361,7 @@ proc drawSettingsButton(rect: Rectangle, label: string, hovered: bool, danger: b
   drawText(label,
            rect.x.int32 + (rect.width.int32 - textWidth) div 2,
            rect.y.int32 + (rect.height.int32 - fontSize) div 2,
-           fontSize, White)
+           fontSize, if disabled: Color(r: 110, g: 110, b: 124, a: 255) else: White)
 
 proc resetLifetimeProgress(settingsWin: SettingsWindow): bool =
   result = true
@@ -423,6 +480,16 @@ proc nextRenderResolutionMode(mode: RenderResolutionMode): RenderResolutionMode 
   of rrmDisabled: rrmEnabled
   of rrmEnabled: rrmFullscreenOnly
   of rrmFullscreenOnly: rrmDisabled
+
+proc getHudLayoutLabel(mode: HudLayout): string =
+  case mode
+  of hlClassic: t(tkSettingsHudLayoutClassic)
+  of hlWidescreen: t(tkSettingsHudLayoutWidescreen)
+
+proc nextHudLayout(mode: HudLayout): HudLayout =
+  case mode
+  of hlClassic: hlWidescreen
+  of hlWidescreen: hlClassic
 
 proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -552,6 +619,39 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                              mousePos.y <= (yPos + 25).float32
   drawCheckbox(lowHpVignetteCheckX, yPos, 25, settingsWin.settings.showLowHealthVignette, lowHpVignetteHovered)
   drawText(t(tkSettingsLowHealthVignetteDesc), (lowHpVignetteCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
+
+  # HUD layout cycle button
+  drawText(t(tkSettingsHudLayout), (contentX + 40).int32, yPos.int32, 18, White)
+  let hudLayoutButtonX = contentX + 320
+  let hudLayoutButtonY = yPos - 5
+  let hudLayoutButtonWidth = 220
+  let hudLayoutButtonHeight = 35
+  let hudLayoutHovered = mousePos.x >= hudLayoutButtonX.float32 and
+                         mousePos.x <= (hudLayoutButtonX + hudLayoutButtonWidth).float32 and
+                         mousePos.y >= hudLayoutButtonY.float32 and
+                         mousePos.y <= (hudLayoutButtonY + hudLayoutButtonHeight).float32
+
+  let hudLayoutBgColor = if hudLayoutHovered:
+    Color(r: 80, g: 80, b: 100, a: 255)
+  else:
+    Color(r: 60, g: 60, b: 80, a: 255)
+
+  drawRectangle(hudLayoutButtonX.int32, hudLayoutButtonY.int32,
+                hudLayoutButtonWidth.int32, hudLayoutButtonHeight.int32, hudLayoutBgColor)
+  drawRectangleLines(Rectangle(x: hudLayoutButtonX.float32, y: hudLayoutButtonY.float32,
+                                width: hudLayoutButtonWidth.float32, height: hudLayoutButtonHeight.float32),
+                    1, if hudLayoutHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+
+  let hudLayoutText = getHudLayoutLabel(settingsWin.settings.hudLayout)
+  let hudLayoutTextWidth = measureText(hudLayoutText, 16)
+  drawText("<", hudLayoutButtonX.int32 + 10, yPos.int32, 18, LightGray)
+  drawText(hudLayoutText,
+          (hudLayoutButtonX + (hudLayoutButtonWidth - hudLayoutTextWidth) div 2).int32,
+          yPos.int32, 16, White)
+  drawText(">", (hudLayoutButtonX + hudLayoutButtonWidth - 25).int32, yPos.int32, 18, LightGray)
+
+  drawText(t(tkSettingsHudLayoutDesc), (contentX + 40).int32, (yPos + 21).int32, 14, LightGray)
 
 proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -602,13 +702,46 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
   drawText(t(tkSettingsMusicDesc), (contentX + 40).int32,
           (musicSliderY + sliderHeight + 4).int32, 12, Color(r: 120, g: 120, b: 150, a: 255))
 
+proc controllerSelectorLabel(preferred: int): string =
+  ## Text shown on the controller cycle button for the current selection.
+  let pads = availableGamepads()
+  if pads.len == 0:
+    return t(tkSettingsControllerNone)
+  if preferred < 0:
+    return t(tkSettingsControllerAuto)
+  var name = ""
+  for p in pads:
+    if p.index.int == preferred:
+      name = p.name
+  if name.len == 0:
+    # Selected pad isn't currently connected; still show the retained choice.
+    return "Pad " & $preferred & " (?)"
+  if name.len > 20:
+    name = name[0 ..< 20]
+  "Pad " & $preferred & ": " & name
+
+proc nextControllerSelection(preferred: int): int =
+  ## Cycle order: Auto (-1), then each connected pad index, wrapping back.
+  var choices = @[-1]
+  for p in availableGamepads():
+    choices.add(p.index.int)
+  var ci = 0
+  for i, c in choices:
+    if c == preferred:
+      ci = i
+      break
+  choices[(ci + 1) mod choices.len]
+
 proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
-  var yPos = contentY + 15
+  # Vertical budget is tight (tab content is ~405px): every spacing constant here
+  # is mirrored by hardcoded offsets in handleSettingsInput (bondingButtonY,
+  # padSelY, kbYBase, the 23px row stride, resetBtnY). Change both together.
+  var yPos = contentY + 12
 
   # Section: Input Method
   drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionInputMethod), '>',
                    Color(r: 200, g: 100, b: 255, a: 255))
-  yPos += 35
+  yPos += 30
 
   let mousePos = getVirtualMousePosition()
 
@@ -642,19 +775,55 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
           yPos.int32, 16, White)
   drawText(">", (bondingButtonX + bondingButtonWidth - 25).int32, yPos.int32, 18, LightGray)
 
-  yPos += 35
+  yPos += 30
   drawText(t(tkSettingsMouseBondingDesc), bondingButtonX.int32, yPos.int32, 14, LightGray)
-  yPos += 25
+  yPos += 20
+
+  # Controller selector: cycle Auto -> each connected pad. Same cycle-button
+  # geometry as mouse bonding above. Inserting this row shifts the keybind grid
+  # down by 50px, mirrored by kbYBase in handleSettingsInput.
+  drawText(t(tkSettingsController), (contentX + 40).int32, yPos.int32, 18, White)
+  let padSelX = contentX + 320
+  let padSelY = yPos - 5
+  let padSelW = 260
+  let padSelH = 35
+  let padSelHovered = mousePos.x >= padSelX.float32 and
+                      mousePos.x <= (padSelX + padSelW).float32 and
+                      mousePos.y >= padSelY.float32 and
+                      mousePos.y <= (padSelY + padSelH).float32
+  let padSelBg = if padSelHovered: Color(r: 80, g: 80, b: 100, a: 255)
+                 else: Color(r: 60, g: 60, b: 80, a: 255)
+  drawRectangle(padSelX.int32, padSelY.int32, padSelW.int32, padSelH.int32, padSelBg)
+  drawRectangleLines(Rectangle(x: padSelX.float32, y: padSelY.float32,
+                                width: padSelW.float32, height: padSelH.float32),
+                    1, if padSelHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+  let padSelText = controllerSelectorLabel(settingsWin.settings.preferredGamepad)
+  let padSelTextW = measureText(padSelText, 16)
+  drawText("<", padSelX.int32 + 10, yPos.int32, 18, LightGray)
+  drawText(padSelText, (padSelX + (padSelW - padSelTextW) div 2).int32, yPos.int32, 16, White)
+  drawText(">", (padSelX + padSelW - 25).int32, yPos.int32, 18, LightGray)
+  yPos += 30
+  drawText(t(tkSettingsControllerDesc), (contentX + 40).int32, yPos.int32, 14, LightGray)
+  yPos += 20
 
   # Keybindings section
-  yPos += 10
+  yPos += 6
   drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionKeybindings), '#',
                    Color(r: 100, g: 255, b: 200, a: 255))
-  yPos += 35
+  yPos += 30
 
   let kbBtnW = 120
   let kbBtnH = 22
   let kbBtnX = contentX + contentW - kbBtnW - 20
+  let padBtnX = kbBtnX - kbBtnW - 10
+  # Column mini-headers, drawn in the gap above the rows so the row layout
+  # (mirrored by the click handling in handleSettingsInput) doesn't shift.
+  let keyHdr = t(tkGamepadColumnKey)
+  let padHdr = t(tkGamepadColumnPad)
+  drawText(padHdr, (padBtnX + (kbBtnW - measureText(padHdr, 12)) div 2).int32,
+           (yPos - 17).int32, 12, Color(r: 130, g: 130, b: 160, a: 255))
+  drawText(keyHdr, (kbBtnX + (kbBtnW - measureText(keyHdr, 12)) div 2).int32,
+           (yPos - 17).int32, 12, Color(r: 130, g: 130, b: 160, a: 255))
   let kbActions = [
     (t(tkKeybindMoveUp),    kaMoveUp),
     (t(tkKeybindMoveDown),  kaMoveDown),
@@ -688,7 +857,27 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     let keyFg    = if isRebinding: Color(r: 255, g: 220, b: 100, a: 255) else: White
     let keyTextW = measureText(keyText, 13)
     drawText(keyText, (kbBtnX + (kbBtnW - keyTextW) div 2).int32, (yPos + 4).int32, 13, keyFg)
-    yPos += 24
+
+    # Gamepad-bind column (same row geometry, one button-width to the left)
+    let isPadRebinding = settingsWin.rebindingGamepadAction == action.ord
+    let padHovered = not isPadRebinding and
+                     mousePos.x >= padBtnX.float32 and mousePos.x <= (padBtnX + kbBtnW).float32 and
+                     mousePos.y >= btnY.float32 and mousePos.y <= (btnY + kbBtnH).float32
+    let padBg     = if isPadRebinding: Color(r: 180, g: 100, b: 0, a: 255)
+                    elif padHovered: Color(r: 80, g: 80, b: 100, a: 255)
+                    else: Color(r: 45, g: 45, b: 65, a: 255)
+    let padBorder = if isPadRebinding: Color(r: 255, g: 180, b: 0, a: 255)
+                    elif padHovered: Gold
+                    else: Color(r: 100, g: 100, b: 120, a: 255)
+    drawRectangle(padBtnX.int32, btnY.int32, kbBtnW.int32, kbBtnH.int32, padBg)
+    drawRectangleLines(Rectangle(x: padBtnX.float32, y: btnY.float32,
+                                  width: kbBtnW.float32, height: kbBtnH.float32), 1, padBorder)
+    let padText  = if isPadRebinding: t(tkGamepadPressAnyButton)
+                   else: gamepadBindLabel(settingsWin.settings.gamepadBinds[action])
+    let padFg    = if isPadRebinding: Color(r: 255, g: 220, b: 100, a: 255) else: White
+    let padTextW = measureText(padText, 13)
+    drawText(padText, (padBtnX + (kbBtnW - padTextW) div 2).int32, (yPos + 4).int32, 13, padFg)
+    yPos += 23
 
   # Reset to defaults button
   yPos += 6
@@ -708,10 +897,13 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   let resetText  = t(tkKeybindResetDefaults)
   let resetTextW = measureText(resetText, 14)
   drawText(resetText, (resetBtnX + (resetBtnW - resetTextW) div 2).int32, (yPos + 5).int32, 14, White)
-  yPos += 32
+  yPos += 30
 
   # Fixed-key note
   drawText(t(tkKeybindNonRebindableNote), (contentX + 20).int32, yPos.int32, 12,
+           Color(r: 130, g: 130, b: 160, a: 255))
+  yPos += 14
+  drawText(t(tkGamepadReservedNote), (contentX + 20).int32, yPos.int32, 12,
            Color(r: 130, g: 130, b: 160, a: 255))
 
 proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
@@ -755,6 +947,17 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                            mousePos.y <= (yPos + 25).float32
   drawCheckbox(exitConfirmCheckX, yPos, 25, settingsWin.settings.exitConfirmEnabled, exitConfirmHovered)
   drawText(t(tkSettingsExitConfirmDesc), (exitConfirmCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
+
+  # Gamepad aim assist (cone snap onto the nearest enemy when stick-aiming)
+  drawText(t(tkSettingsAimAssist), (contentX + 40).int32, yPos.int32, 18, White)
+  let aimAssistCheckX = contentX + 320
+  let aimAssistHovered = mousePos.x >= aimAssistCheckX.float32 and
+                         mousePos.x <= (aimAssistCheckX + 25).float32 and
+                         mousePos.y >= yPos.float32 and
+                         mousePos.y <= (yPos + 25).float32
+  drawCheckbox(aimAssistCheckX, yPos, 25, settingsWin.settings.aimAssistEnabled, aimAssistHovered)
+  drawText(t(tkSettingsAimAssistDesc), (aimAssistCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 50
 
   # Section: Localization
@@ -794,26 +997,8 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
 
   yPos += 45
 
-  # Replay the opening story cinematic
-  block:
-    let rect = replayIntroButtonRect(contentX, contentY)
-    let hovered = checkCollisionPointRec(mousePos, rect)
-    drawSettingsButton(rect, t(tkSettingsReplayIntro), hovered, false)
-    # Replay the endgame cinematic, only offered once the game has been beaten.
-    if settingsWin.settings != nil and settingsWin.settings.hasSeenEnding:
-      let endRect = replayEndingButtonRect(contentX, contentY)
-      let endHovered = checkCollisionPointRec(mousePos, endRect)
-      drawSettingsButton(endRect, t(tkSettingsReplayEnding), endHovered, false)
-    # Second row: per-mode outros, each offered once that ending has been seen.
-    if settingsWin.settings != nil and settingsWin.settings.hasSeenRogueliteEnding:
-      let rogRect = replayRogueliteEndingButtonRect(contentX, contentY)
-      let rogHovered = checkCollisionPointRec(mousePos, rogRect)
-      drawSettingsButton(rogRect, t(tkSettingsReplayRogueliteEnding), rogHovered, false)
-    if settingsWin.settings != nil and settingsWin.settings.hasSeenSurvivalEnding:
-      let surRect = replaySurvivalEndingButtonRect(contentX, contentY)
-      let surHovered = checkCollisionPointRec(mousePos, surRect)
-      drawSettingsButton(surRect, t(tkSettingsReplaySurvivalEnding), surHovered, false)
-  yPos += 82
+  # (Cinematic replays now live in their own Cinematics tab.)
+  yPos += 50
 
   drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionDataManagement), '!',
                    Color(r: 255, g: 95, b: 105, a: 255))
@@ -830,7 +1015,28 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     let statusWidth = measureText(settingsWin.resetStatus, 14)
     drawText(settingsWin.resetStatus,
              (contentX + (contentW - statusWidth) div 2).int32,
-             (contentY + 344).int32, 14, LightGray)
+             (contentY + 379).int32, 14, LightGray)
+
+proc drawCinematicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
+  ## Gallery of every replayable cutscene, split into Story and Mode Intros.
+  ## Unlocked entries are clickable; locked ones render greyed and inert.
+  let mousePos = getVirtualMousePosition()
+  let s = settingsWin.settings
+
+  # Section: Story cinematics (lore intro + the three endings).
+  drawSectionHeader(contentX + 20, contentY + 15, contentW - 40,
+                    t(tkSettingsSectionStory), 'S', Color(r: 120, g: 200, b: 255, a: 255))
+
+  # Section: per-mode opening cutscenes.
+  drawSectionHeader(contentX + 20, contentY + 135, contentW - 40,
+                    t(tkSettingsSectionModeIntros), 'M', Color(r: 200, g: 160, b: 255, a: 255))
+
+  for rc in ReplayCine:
+    let rect = replayCineRect(rc, contentX, contentY)
+    let unlocked = replayCineUnlocked(rc, s)
+    let hovered = unlocked and checkCollisionPointRec(mousePos, rect)
+    drawSettingsButton(rect, replayCineLabel(rc), hovered, false,
+                       confirming = false, disabled = not unlocked)
 
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                           screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] =
@@ -865,10 +1071,10 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   if not settingsWin.window.minimized and settingsWin.window.handledClickThisFrame and isTopmost:
     let tabY = settingsWin.window.y + TITLE_BAR_HEIGHT + 10
     let tabHeight = 35
-    let tabWidth = 140
+    let tabWidth = 118
     var tabX = contentX
 
-    for tab in [stGraphics, stAudio, stControls, stGameplay]:
+    for tab in [stGraphics, stAudio, stControls, stGameplay, stCinematics]:
       if mousePos.x >= tabX.float32 and mousePos.x <= (tabX + tabWidth).float32 and
          mousePos.y >= tabY.float32 and mousePos.y <= (tabY + tabHeight).float32:
         settingsWin.currentTab = tab
@@ -881,6 +1087,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     if isKeyPressed(Two): settingsWin.currentTab = stAudio
     if isKeyPressed(Three): settingsWin.currentTab = stControls
     if isKeyPressed(Four): settingsWin.currentTab = stGameplay
+    if isKeyPressed(Five): settingsWin.currentTab = stCinematics
 
   var fullscreenToggle = false
   var settingsChanged = false
@@ -974,6 +1181,16 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.settings.showLowHealthVignette = not settingsWin.settings.showLowHealthVignette
         settingsChanged = true
 
+      let hudLayoutButtonX = contentX + 320
+      let hudLayoutButtonY = contentY + 360
+      let hudLayoutButtonWidth = 220
+      let hudLayoutButtonHeight = 35
+      if mousePos.x >= hudLayoutButtonX.float32 and mousePos.x <= (hudLayoutButtonX + hudLayoutButtonWidth).float32 and
+         mousePos.y >= hudLayoutButtonY.float32 and mousePos.y <= (hudLayoutButtonY + hudLayoutButtonHeight).float32:
+        settingsWin.settings.hudLayout = nextHudLayout(settingsWin.settings.hudLayout)
+        playSound(stMenuSelect)
+        settingsChanged = true
+
     # Keyboard input for FPS text box
     if settingsWin.editingFPS:
       let key = getCharPressed()
@@ -1012,14 +1229,14 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       settingsWin.draggingVolume = true
 
     # Continue dragging or handle click
-    if settingsWin.draggingVolume or (isMouseButtonDown(Left) and volumeHovered):
+    if settingsWin.draggingVolume or (isPointerDown() and volumeHovered):
       settingsWin.draggingVolume = true
       let relativeX = mousePos.x - volumeSliderX.float32
       settingsWin.settings.volume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
       setGameVolume(settingsWin.settings.volume)
 
     # Stop dragging on release
-    if settingsWin.draggingVolume and not isMouseButtonDown(Left):
+    if settingsWin.draggingVolume and not isPointerDown():
       settingsWin.draggingVolume = false
       settingsChanged = true  # Only save when slider is released
 
@@ -1035,18 +1252,18 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       settingsWin.draggingMusic = true
 
     # Continue dragging or handle click
-    if settingsWin.draggingMusic or (isMouseButtonDown(Left) and musicHovered):
+    if settingsWin.draggingMusic or (isPointerDown() and musicHovered):
       settingsWin.draggingMusic = true
       let relativeX = mousePos.x - volumeSliderX.float32
       settingsWin.settings.musicVolume = clamp(relativeX / sliderWidth.float32, 0.0, 1.0)
       setMusicVolume(settingsWin.settings.musicVolume)
 
-    if settingsWin.draggingMusic and not isMouseButtonDown(Left):
+    if settingsWin.draggingMusic and not isPointerDown():
       settingsWin.draggingMusic = false
       settingsChanged = true  # Only save when slider is released
 
     # Mouse wheel adjusts the slider under the cursor
-    let wheelMove = getMouseWheelMove()
+    let wheelMove = getPointerWheelMove()
     if wheelMove != 0.0'f32:
       let hoverTol = 12.0'f32
       if mousePos.x >= volumeSliderX.float32 and mousePos.x <= (volumeSliderX + sliderWidth).float32 and
@@ -1065,7 +1282,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     if settingsWin.window.handledClickThisFrame:
       # Mouse bonding mode selector
       let bondingButtonX = contentX + 320
-      let bondingButtonY = contentY + 45
+      let bondingButtonY = contentY + 37
       let bondingButtonWidth = 220
       let bondingButtonHeight = 35
       if mousePos.x >= bondingButtonX.float32 and mousePos.x <= (bondingButtonX + bondingButtonWidth).float32 and
@@ -1074,37 +1291,51 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-      # Keybind buttons: kbYBase mirrors drawControlsTab layout
-      let kbYBase = contentY + 155
+      # Controller selector cycle button (drawn just below mouse bonding)
+      let padSelX = contentX + 320
+      let padSelY = contentY + 87
+      let padSelW = 260
+      let padSelH = 35
+      if mousePos.x >= padSelX.float32 and mousePos.x <= (padSelX + padSelW).float32 and
+         mousePos.y >= padSelY.float32 and mousePos.y <= (padSelY + padSelH).float32:
+        settingsWin.settings.preferredGamepad = nextControllerSelection(settingsWin.settings.preferredGamepad)
+        playSound(stMenuSelect)
+        settingsChanged = true
+
+      # Keybind buttons: kbYBase mirrors drawControlsTab layout (the controller
+      # selector row above pushes the grid down 50px from its pre-selector 128).
+      let kbYBase = contentY + 178
       let contentW = settingsWin.window.width - WINDOW_PADDING * 2
       let kbBtnW = 120
       let kbBtnH = 22
       let kbBtnX = contentX + contentW - kbBtnW - 20
+      let padBtnX = kbBtnX - kbBtnW - 10
       for action in KeyAction:
-        let rowY = kbYBase + action.ord * 24
+        let rowY = kbYBase + action.ord * 23
         if mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + kbBtnW).float32 and
            mousePos.y >= rowY.float32 and mousePos.y <= (rowY + kbBtnH).float32:
           settingsWin.rebindingAction = action.ord
+          settingsWin.rebindingGamepadAction = -1
+          playSound(stMenuSelect)
+          break
+        if mousePos.x >= padBtnX.float32 and mousePos.x <= (padBtnX + kbBtnW).float32 and
+           mousePos.y >= rowY.float32 and mousePos.y <= (rowY + kbBtnH).float32:
+          settingsWin.rebindingGamepadAction = action.ord
+          settingsWin.rebindingAction = -1
           playSound(stMenuSelect)
           break
 
       # Reset keybinds to defaults button
-      let resetBtnY = kbYBase + 7 * 24 + 6
+      let resetBtnY = kbYBase + 7 * 23 + 6
       let resetBtnX = contentX + 20
       let resetBtnW = 160
       let resetBtnH = 26
       if mousePos.x >= resetBtnX.float32 and mousePos.x <= (resetBtnX + resetBtnW).float32 and
          mousePos.y >= resetBtnY.float32 and mousePos.y <= (resetBtnY + resetBtnH).float32:
-        settingsWin.settings.keybinds = [
-          kaMoveUp:    KeyboardKey.W,
-          kaMoveDown:  KeyboardKey.S,
-          kaMoveLeft:  KeyboardKey.A,
-          kaMoveRight: KeyboardKey.D,
-          kaShoot:     KeyboardKey.Space,
-          kaPlaceWall: KeyboardKey.E,
-          kaLegendary: KeyboardKey.Q
-        ]
+        settingsWin.settings.keybinds = defaultKeybinds
+        settingsWin.settings.gamepadBinds = defaultGamepadBinds
         settingsWin.rebindingAction = -1
+        settingsWin.rebindingGamepadAction = -1
         playSound(stMenuSelect)
         settingsChanged = true
 
@@ -1118,6 +1349,21 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.settings.keybinds[KeyAction(settingsWin.rebindingAction)] = key
         settingsWin.rebindingAction = -1
         settingsChanged = true
+
+  # Gamepad button capture for the pad-bind column. A (click), B (back) and
+  # Start (pause) are reserved by the input layer and rejected as binds; B or
+  # Escape cancels. suppressBackThisFrame keeps the cancelling B press from
+  # also registering as "back" and closing the window.
+  if settingsWin.currentTab == stControls and settingsWin.rebindingGamepadAction >= 0 and isTopmost:
+    suppressBackThisFrame()
+    let btn = gamepadAnyButtonPressed()
+    if isKeyPressed(KeyboardKey.Escape) or btn == GamepadButton.RightFaceRight:
+      settingsWin.rebindingGamepadAction = -1
+    elif btn notin [GamepadButton.Unknown, GamepadButton.RightFaceDown,
+                    GamepadButton.MiddleRight]:
+      settingsWin.settings.gamepadBinds[KeyAction(settingsWin.rebindingGamepadAction)] = btn
+      settingsWin.rebindingGamepadAction = -1
+      settingsChanged = true
 
   # Handle Gameplay tab interactions
   if settingsWin.currentTab == stGameplay and isTopmost:
@@ -1146,9 +1392,17 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.settings.exitConfirmEnabled = not settingsWin.settings.exitConfirmEnabled
         settingsChanged = true
 
+      # Aim assist checkbox (25x25 hit area)
+      let aimAssistCheckX = contentX + 320
+      let aimAssistCheckY = contentY + 155
+      if mousePos.x >= aimAssistCheckX.float32 and mousePos.x <= (aimAssistCheckX + 25).float32 and
+         mousePos.y >= aimAssistCheckY.float32 and mousePos.y <= (aimAssistCheckY + 25).float32:
+        settingsWin.settings.aimAssistEnabled = not settingsWin.settings.aimAssistEnabled
+        settingsChanged = true
+
       # Language selector button
       let langButtonX = contentX + 320
-      let langButtonY = contentY + 200
+      let langButtonY = contentY + 235
       let langButtonWidth = 200
       let langButtonHeight = 35
       if mousePos.x >= langButtonX.float32 and mousePos.x <= (langButtonX + langButtonWidth).float32 and
@@ -1161,32 +1415,20 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-      # Replay intro button
-      if checkCollisionPointRec(mousePos, replayIntroButtonRect(contentX, contentY)):
-        settingsWin.replayIntroRequested = true
-        playSound(stMenuSelect)
-
-      # Replay ending button (only active once the game has been beaten)
-      if settingsWin.settings != nil and settingsWin.settings.hasSeenEnding and
-         checkCollisionPointRec(mousePos, replayEndingButtonRect(contentX, contentY)):
-        settingsWin.replayEndingRequested = true
-        playSound(stMenuSelect)
-
-      # Per-mode outro replays (only active once each has been seen)
-      if settingsWin.settings != nil and settingsWin.settings.hasSeenRogueliteEnding and
-         checkCollisionPointRec(mousePos, replayRogueliteEndingButtonRect(contentX, contentY)):
-        settingsWin.replayRogueliteEndingRequested = true
-        playSound(stMenuSelect)
-
-      if settingsWin.settings != nil and settingsWin.settings.hasSeenSurvivalEnding and
-         checkCollisionPointRec(mousePos, replaySurvivalEndingButtonRect(contentX, contentY)):
-        settingsWin.replaySurvivalEndingRequested = true
-        playSound(stMenuSelect)
-
       for action in [sraAllData, sraAdvancements, sraRogueliteData]:
         let rect = resetButtonRect(action, contentX, contentY)
         if checkCollisionPointRec(mousePos, rect):
           settingsWin.requestResetAction(action)
+          break
+
+  # Handle Cinematics tab interactions
+  if settingsWin.currentTab == stCinematics and isTopmost:
+    if settingsWin.window.handledClickThisFrame:
+      for rc in ReplayCine:
+        if replayCineUnlocked(rc, settingsWin.settings) and
+           checkCollisionPointRec(mousePos, replayCineRect(rc, contentX, contentY)):
+          settingsWin.requestReplayCine(rc)
+          playSound(stMenuSelect)
           break
 
   # Save settings if changed
@@ -1213,16 +1455,17 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
   # Draw tab headers
   let tabY = contentY
   let tabHeight = 35
-  let tabWidth = 140
+  let tabWidth = 118
   let mousePos = getVirtualMousePosition()
 
   var tabX = contentX
-  for tab in [stGraphics, stAudio, stControls, stGameplay]:
+  for tab in [stGraphics, stAudio, stControls, stGameplay, stCinematics]:
     let tabName = case tab
       of stGraphics: t(tkSettingsTabGraphics)
       of stAudio: t(tkSettingsTabAudio)
       of stControls: t(tkSettingsTabControls)
       of stGameplay: t(tkSettingsTabGameplay)
+      of stCinematics: t(tkSettingsTabCinematics)
 
     let isActive = settingsWin.currentTab == tab
     let isHovered = mousePos.x >= tabX.float32 and
@@ -1253,6 +1496,8 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
     drawControlsTab(settingsWin, contentX, tabContentY, contentW, tabContentH)
   of stGameplay:
     drawGameplayTab(settingsWin, contentX, tabContentY, contentW, tabContentH)
+  of stCinematics:
+    drawCinematicsTab(settingsWin, contentX, tabContentY, contentW, tabContentH)
 
   # Draw resize indicator
   drawResizeIndicator(settingsWin.window)

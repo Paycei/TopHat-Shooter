@@ -76,6 +76,10 @@ type
     tkSettingsLowHealthVignetteDesc = "settings_low_health_vignette_desc"
     tkSettingsShowHints = "settings_show_hints"
     tkSettingsShowHintsDesc = "settings_show_hints_desc"
+    tkSettingsHudLayout = "settings_hud_layout"
+    tkSettingsHudLayoutDesc = "settings_hud_layout_desc"
+    tkSettingsHudLayoutClassic = "settings_hud_layout_classic"
+    tkSettingsHudLayoutWidescreen = "settings_hud_layout_widescreen"
     tkSettingsShowEnemyLabels = "settings_show_enemy_labels"
     tkSettingsShowEnemyLabelsDesc = "settings_show_enemy_labels_desc"
     tkSettingsExitConfirm = "settings_exit_confirm"
@@ -85,6 +89,11 @@ type
     tkSettingsReplayEnding = "settings_replay_ending"
     tkSettingsReplayRogueliteEnding = "settings_replay_roguelite_ending"
     tkSettingsReplaySurvivalEnding = "settings_replay_survival_ending"
+    tkSettingsReplayWaveIntro = "settings_replay_wave_intro"
+    tkSettingsReplaySurvivalIntro = "settings_replay_survival_intro"
+    tkSettingsReplayRogueliteIntro = "settings_replay_roguelite_intro"
+    tkSettingsReplaySandboxIntro = "settings_replay_sandbox_intro"
+    tkSettingsReplayPvPIntro = "settings_replay_pvp_intro"
     tkSettingsBackToMenu = "settings_back_to_menu"
     tkSettingsSectionDataManagement = "settings_section_data_management"
     tkSettingsResetAllData = "settings_reset_all_data"
@@ -99,7 +108,10 @@ type
     tkSettingsTabAudio = "settings_tab_audio"
     tkSettingsTabControls = "settings_tab_controls"
     tkSettingsTabGameplay = "settings_tab_gameplay"
+    tkSettingsTabCinematics = "settings_tab_cinematics"
 
+    tkSettingsSectionStory = "settings_section_story"
+    tkSettingsSectionModeIntros = "settings_section_mode_intros"
     tkSettingsSectionDisplay = "settings_section_display"
     tkSettingsSectionVolumeControl = "settings_section_volume_control"
     tkSettingsSectionInputMethod = "settings_section_input_method"
@@ -133,10 +145,21 @@ type
     tkKeybindPressAnyKey = "keybind_press_any_key"
     tkKeybindResetDefaults = "keybind_reset_defaults"
     tkKeybindNonRebindableNote = "keybind_non_rebindable_note"
+    tkGamepadColumnKey = "gamepad_column_key"
+    tkGamepadColumnPad = "gamepad_column_pad"
+    tkGamepadPressAnyButton = "gamepad_press_any_button"
+    tkGamepadReservedNote = "gamepad_reserved_note"
+    tkSettingsAimAssist = "settings_aim_assist"
+    tkSettingsAimAssistDesc = "settings_aim_assist_desc"
+    tkSettingsController = "settings_controller"
+    tkSettingsControllerDesc = "settings_controller_desc"
+    tkSettingsControllerAuto = "settings_controller_auto"
+    tkSettingsControllerNone = "settings_controller_none"
 
     # Intro / Lore Cinematic
     tkLoreTitleCardSub = "lore_title_card_sub"
     tkLoreLive = "lore_live"
+    tkLorePlayback = "lore_playback"
     tkLoreControlsFF = "lore_controls_ff"
     tkLoreControlsFFActive = "lore_controls_ff_active"
     tkLoreRecBreach = "lore_rec_breach"
@@ -263,6 +286,10 @@ type
     tkSurvivalLockedDesc = "survival_locked_desc"
     tkRogueliteLockedDesc = "roguelite_locked_desc"
     tkGameModeUnlocked = "game_mode_unlocked"
+    tkResumeRunTitle = "resume_run_title"
+    tkResumeRunBody = "resume_run_body"
+    tkResumeContinue = "resume_continue"
+    tkResumeNewRun = "resume_new_run"
     tkRogueliteUnlockedNotif = "roguelite_unlocked_notif"
     tkSurvivalUnlockedNotif = "survival_unlocked_notif"
     tkStatsAvgCombo = "stats_avg_combo"
@@ -1110,6 +1137,7 @@ type
     # System Messages
     tkSystemDefensiveProcesses = "system_defensive_processes"
     tkSystemPressAnyKey = "system_press_any_key"
+    tkBiosFastBoot = "bios_fast_boot"
     tkSystemNoStatistics = "system_no_statistics"
     tkSystemPressESCToReturn = "system_press_esc_to_return"
 
@@ -1291,6 +1319,10 @@ type
     tkConfirmCancelBtn = "confirm_cancel_btn"
     tkConfirmQuitBtn = "confirm_quit_btn"
     tkConfirmExitBtn = "confirm_exit_btn"
+    tkConfirmCheckpointTitle = "confirm_checkpoint_title"
+    tkConfirmCheckpointRestartBody = "confirm_checkpoint_restart_body"
+    tkConfirmCheckpointSub = "confirm_checkpoint_sub"
+    tkConfirmRestartBtn = "confirm_restart_btn"
 
     # Wave Celebration (d_enhancements)
     tkWaveClearedText = "wave_cleared_text"
@@ -1682,6 +1714,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_low_health_vignette_desc": "(red warning when HP is low)",
     "settings_show_hints": "Show Hints:",
     "settings_show_hints_desc": "(E: Wall, ESC: Pause)",
+    "settings_hud_layout": "HUD Layout:",
+    "settings_hud_layout_desc": "(Widescreen adds side UI bands)",
+    "settings_hud_layout_classic": "Classic (4:3)",
+    "settings_hud_layout_widescreen": "Widescreen (16:9)",
     "settings_show_enemy_labels": "Show Enemy Labels:",
     "settings_show_enemy_labels_desc": "(name tags above enemies)",
     "settings_exit_confirm": "Exit Confirm:",
@@ -1691,10 +1727,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_replay_ending": "Replay Ending",
     "settings_replay_roguelite_ending": "Replay Roguelite",
     "settings_replay_survival_ending": "Replay Survival",
+    "settings_replay_wave_intro": "Wave Intro",
+    "settings_replay_survival_intro": "Survival Intro",
+    "settings_replay_roguelite_intro": "Roguelite Intro",
+    "settings_replay_sandbox_intro": "Sandbox Intro",
+    "settings_replay_pvp_intro": "PvP Intro",
     "settings_back_to_menu": "Press ESC to return to menu",
 
     "lore_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT LOG",
     "lore_live": "LIVE",
+    "lore_playback": "PLAY",
     "lore_controls_ff": "HOLD ENTER: X2  |  HOLD SPACE: SKIP",
     "lore_controls_ff_active": "HOLD ENTER: 2X ACTIVE  |  HOLD SPACE: SKIP",
     "lore_rec_breach": "REC 00: SYSTEM BREACH",
@@ -1783,7 +1825,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_audio": "Audio",
     "settings_tab_controls": "Controls",
     "settings_tab_gameplay": "Gameplay",
+    "settings_tab_cinematics": "Cinematics",
 
+    "settings_section_story": "STORY CINEMATICS",
+    "settings_section_mode_intros": "MODE INTROS",
     "settings_section_display": "DISPLAY",
     "settings_section_volume_control": "VOLUME CONTROL",
     "settings_section_input_method": "INPUT METHOD",
@@ -1817,6 +1862,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "keybind_press_any_key": "Press any key...",
     "keybind_reset_defaults": "Reset to Defaults",
     "keybind_non_rebindable_note": "ESC: Pause  |  F11: Fullscreen  (fixed)",
+    "gamepad_column_key": "Key",
+    "gamepad_column_pad": "Pad",
+    "gamepad_press_any_button": "Press a button...",
+    "gamepad_reserved_note": "Pad: A = click, B = back, Start = pause (fixed)",
+    "settings_aim_assist": "Aim Assist",
+    "settings_aim_assist_desc": "Gamepad aim snaps to nearby enemies",
+    "settings_controller": "Controller",
+    "settings_controller_desc": "Which detected gamepad controls the game",
+    "settings_controller_auto": "Auto (first detected)",
+    "settings_controller_none": "No controller detected",
 
     # Game UI
     "game_pause": "PAUSED",
@@ -1939,9 +1994,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Powerup Descriptions
     "powerup_double_shot_desc": "Fire additional burst after 0.08s (-15% dmg per bullet, -25% fire rate)",
-    "powerup_rotating_shield_desc1": "3 shields (30% coverage, 300 HP, 6s respawn)",
-    "powerup_rotating_shield_desc2": "3 shields (35% coverage, 400 HP, 5s respawn)",
-    "powerup_rotating_shield_desc3": "3 shields (40% coverage, 500 HP, 3s respawn)",
+    "powerup_rotating_shield_desc1": "3 shields (30% coverage, 100 HP, 6s respawn)",
+    "powerup_rotating_shield_desc2": "3 shields (35% coverage, 250 HP, 5s respawn)",
+    "powerup_rotating_shield_desc3": "3 shields (40% coverage, 400 HP, 3s respawn)",
     "powerup_magical_bullets_desc": "Bullets track nearest enemy",
     "powerup_piercing_shots_desc1": "Bullets pierce 1 enemy (-33% damage per pierce)",
     "powerup_piercing_shots_desc2": "Bullets pierce 2 enemies (-33% damage per pierce)",
@@ -1950,18 +2005,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_explosive_bullets_desc1": "Bullets explode (50% bullet dmg, small radius)",
     "powerup_explosive_bullets_desc2": "Bullets explode (50% bullet dmg, medium radius)",
     "powerup_explosive_bullets_desc3": "Bullets explode (50% bullet dmg, large radius)",
-    "powerup_life_steal_desc1": "Heal 50 HP per 12 kills",
-    "powerup_life_steal_desc2": "Heal 50 HP per 9 kills",
-    "powerup_life_steal_desc3": "Heal 50 HP per 6 kills",
+    "powerup_life_steal_desc1": "Heal 100 HP per 10 kills",
+    "powerup_life_steal_desc2": "Heal 100 HP per 7 kills",
+    "powerup_life_steal_desc3": "Heal 100 HP per 5 kills",
     "powerup_rapid_fire_desc": "Spin-up: hold fire to ramp fire rate up to +30% faster",
     "powerup_max_health_desc": "Juggernaut: +2% damage per 100 max HP, including base HP (up to +40%)",
     "powerup_speed_boost_desc": "Momentum: deal up to +25% damage while moving",
-    "powerup_bullet_speed_desc": "Lightspeed: each shot fires an instant tracer beam that hits the first enemy in line for 75% damage",
+    "powerup_bullet_speed_desc": "Lightspeed: each shot fires an instant tracer beam that hits the first enemy in line for 50% damage",
     "powerup_lucky_coins_desc": "Doubles all coins collected",
     "powerup_wall_master_desc": "Walls have +250% HP turrets have +100% damage",
-    "powerup_regeneration_desc1": "Regen 150-250 HP per wave",
-    "powerup_regeneration_desc2": "Regen 250-450 HP per wave",
-    "powerup_regeneration_desc3": "Regen 350-650 HP per wave",
+    "powerup_regeneration_desc1": "Regen 150 HP + 3% max HP per wave",
+    "powerup_regeneration_desc2": "Regen 250 HP + 5% max HP per wave",
+    "powerup_regeneration_desc3": "Regen 350 HP + 7% max HP per wave",
     "powerup_dodge_chance_desc1": "15% chance to dodge hits",
     "powerup_dodge_chance_desc2": "20% chance to dodge hits",
     "powerup_dodge_chance_desc3": "30% chance to dodge hits",
@@ -1974,9 +2029,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_ricochet_desc1": "Bullets ricochet once (50% damage per ricochet)",
     "powerup_bullet_ricochet_desc2": "Bullets ricochet twice (50% damage per ricochet)",
     "powerup_bullet_ricochet_desc3": "Bullets ricochet 3 times (50% damage per ricochet)",
-    "powerup_slow_field_desc1": "Slow enemies 30% in 188 radius (40 dmg/s)",
-    "powerup_slow_field_desc2": "Slow enemies 45% in 250 radius (40 dmg/s)",
-    "powerup_slow_field_desc3": "Slow enemies 55% in 313 radius (40 dmg/s)",
+    "powerup_slow_field_desc1": "Pulse: slow enemies 30% in 288 radius",
+    "powerup_slow_field_desc2": "Pulse: slow enemies 45% in 374 radius",
+    "powerup_slow_field_desc3": "Pulse: slow enemies 55% in 460 radius",
     "powerup_rage_desc1": "+5% dmg per 10% HP lost",
     "powerup_rage_desc2": "+8% dmg per 10% HP lost",
     "powerup_rage_desc3": "+12% dmg per 10% HP lost",
@@ -1995,27 +2050,27 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_frost_shots_desc1": "Bullets slow enemies 25% (permanent)",
     "powerup_frost_shots_desc2": "Bullets slow enemies 40% (permanent)",
     "powerup_frost_shots_desc3": "Bullets slow enemies 60% (permanent)",
-    "powerup_poison_shot_desc1": "Bullets poison ({0}, 4s)",
-    "powerup_poison_shot_desc2": "Bullets poison ({0}, 5s)",
-    "powerup_poison_shot_desc3": "Bullets poison ({0}, 6s)",
+    "powerup_poison_shot_desc1": "Bullets poison ({0}, 4s, stacks over time)",
+    "powerup_poison_shot_desc2": "Bullets poison ({0}, 5s, stacks over time)",
+    "powerup_poison_shot_desc3": "Bullets poison ({0}, 6s, stacks over time)",
     "powerup_fire_bullets_desc1": "Bullets burn ({0}, 2s)",
     "powerup_fire_bullets_desc2": "Bullets burn ({0}, 3s)",
     "powerup_fire_bullets_desc3": "Bullets burn ({0}, 4s)",
     "powerup_wind_bullets_desc1": "Bullets knock back enemies (weak push, +50 damage)",
     "powerup_wind_bullets_desc2": "Bullets knock back enemies (medium push, +50 damage)",
     "powerup_wind_bullets_desc3": "Bullets knock back enemies (strong push, +50 damage)",
-    "powerup_fire_aura_desc1": "Burn enemies {0} in 188 radius (2s)",
-    "powerup_fire_aura_desc2": "Burn enemies {0} in 250 radius (3s)",
-    "powerup_fire_aura_desc3": "Burn enemies {0} in 313 radius (4s)",
-    "powerup_lightning_aura_desc1": "Zap enemies {0} in 188 radius (chains 1x)",
-    "powerup_lightning_aura_desc2": "Zap enemies {0} in 250 radius (chains 2x)",
-    "powerup_lightning_aura_desc3": "Zap enemies {0} in 313 radius (chains 3x)",
-    "powerup_poison_aura_desc1": "Poison enemies {0} in 188 radius (6s duration)",
-    "powerup_poison_aura_desc2": "Poison enemies {0} in 250 radius (8s duration)",
-    "powerup_poison_aura_desc3": "Poison enemies {0} in 313 radius (10s duration)",
-    "powerup_wind_aura_desc1": "Push enemies away in 188 radius (weak, 30 dmg/s)",
-    "powerup_wind_aura_desc2": "Push enemies away in 250 radius (medium, 30 dmg/s)",
-    "powerup_wind_aura_desc3": "Push enemies away in 313 radius (strong, 30 dmg/s)",
+    "powerup_fire_aura_desc1": "Pulse-burn enemies {0} in 238 radius (2s)",
+    "powerup_fire_aura_desc2": "Pulse-burn enemies {0} in 309 radius (3s)",
+    "powerup_fire_aura_desc3": "Pulse-burn enemies {0} in 380 radius (4s)",
+    "powerup_lightning_aura_desc1": "Arc storm {0} in 223 radius (chains 1x)",
+    "powerup_lightning_aura_desc2": "Arc storm {0} in 289 radius (chains 2x)",
+    "powerup_lightning_aura_desc3": "Arc storm {0} in 356 radius (chains 3x)",
+    "powerup_poison_aura_desc1": "Pulse-poison {0} in 253 radius (6s, stacks over time)",
+    "powerup_poison_aura_desc2": "Pulse-poison {0} in 328 radius (8s, stacks over time)",
+    "powerup_poison_aura_desc3": "Pulse-poison {0} in 404 radius (10s, stacks over time)",
+    "powerup_wind_aura_desc1": "Gust every 3s: blast enemies away in 270 radius",
+    "powerup_wind_aura_desc2": "Gust every 2.6s: blast enemies away in 351 radius",
+    "powerup_wind_aura_desc3": "Gust every 2.2s: blast enemies away in 432 radius",
     "powerup_time_warp_desc": "Slow time 50% for 3.5s (2 uses/wave, 10s cd)",
     "powerup_gravity_well_desc": "Pull enemies in 300 radius. grants a 10% HP shield (5s delay to regen, regens 5%/s)",
     "powerup_phase_shift_desc": "Dash forward (5s cd, 0.5s invuln, scales with speed)",
@@ -2043,22 +2098,22 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_arcane_bullets_desc1": "Bullets enhanced with arcane power (+20% bullet damage, arcane)",
     "powerup_arcane_bullets_desc2": "Bullets enhanced with arcane power (+40% bullet damage, arcane)",
     "powerup_arcane_bullets_desc3": "Bullets enhanced with arcane power (+60% bullet damage, arcane)",
-    "powerup_arcane_aura_desc1": "Arcane aura {0} in 188 radius, arcane",
-    "powerup_arcane_aura_desc2": "Arcane aura {0} in 250 radius, arcane",
-    "powerup_arcane_aura_desc3": "Arcane aura {0} in 313 radius, arcane",
-    "powerup_fire_mastery_desc": "Fire effects: +150% dmg, +100% duration, +35% slow",
-    "powerup_poison_mastery_desc": "Poison effects: +150% dmg, +100% duration, +30% slow",
-    "powerup_frost_mastery_desc": "Frost effects: +150% dmg, +100% duration, +20% slow",
-    "powerup_arcane_mastery_desc": "Arcane bullets: +50% dmg + piercing, aura/orbs: +100% dmg",
+    "powerup_arcane_aura_desc1": "Arcane pulse {0} in 200 radius, arcane",
+    "powerup_arcane_aura_desc2": "Arcane pulse {0} in 260 radius, arcane",
+    "powerup_arcane_aura_desc3": "Arcane pulse {0} in 320 radius, arcane",
+    "powerup_fire_mastery_desc": "Fire effects: +150% dmg, +50% duration, +45% slow",
+    "powerup_poison_mastery_desc": "Poison effects: +150% dmg, +200% duration, +40% slow",
+    "powerup_frost_mastery_desc": "Frost effects: +25% slow (up to 85%), orbs chill 55%",
+    "powerup_arcane_mastery_desc": "Arcane effects: +75% dmg, bullets also pierce",
     "powerup_lightning_mastery_desc": "Lightning effects: +150% dmg, +25% slow, +1 chain, +50% range",
-    "powerup_wind_mastery_desc": "Wind effects: +150% dmg, +40% slow, stronger push",
+    "powerup_wind_mastery_desc": "Wind effects: +150% dmg, +45% slow, 3.5x push",
     "powerup_parry_desc": "Active: Invincible for 0.5s, bounce enemy bullets (5s cooldown)",
     "powerup_blood_orb_desc1": "4 blood orbs ({0} dmg/hit, 1.75% lifesteal)",
     "powerup_blood_orb_desc2": "8 blood orbs ({0} dmg/hit, 2.25% lifesteal)",
     "powerup_blood_orb_desc3": "12 blood orbs ({0} dmg/hit, 3% lifesteal)",
-    "powerup_blood_aura_desc1": "Blood aura {0} in 188 radius, heal 2.5% dealt",
-    "powerup_blood_aura_desc2": "Blood aura {0} in 250 radius, heal 5% dealt",
-    "powerup_blood_aura_desc3": "Blood aura {0} in 313 radius, heal 7.5% dealt",
+    "powerup_blood_aura_desc1": "Blood pulse {0} in 210 radius, heal 2.5% dealt",
+    "powerup_blood_aura_desc2": "Blood pulse {0} in 273 radius, heal 5% dealt",
+    "powerup_blood_aura_desc3": "Blood pulse {0} in 336 radius, heal 7.5% dealt",
     "powerup_blood_mastery_desc": "Blood effects: +100% dmg, +100% lifesteal",
     "powerup_radial_burst_desc1": "Fire 8 bullets in a circle every 3.5s (uses player damage)",
     "powerup_radial_burst_desc2": "Fire 10 bullets in a circle every 3.0s (uses player damage)",
@@ -2072,9 +2127,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_heavy_rounds_desc1": "Bullets 15% larger with slight knockback",
     "powerup_heavy_rounds_desc2": "Bullets 25% larger with increased knockback",
     "powerup_heavy_rounds_desc3": "Bullets 35% larger with strong knockback",
-    "powerup_fortified_desc1": "Reduce damage taken by 10% and gain 350 max HP",
-    "powerup_fortified_desc2": "Reduce damage taken by 20% and gain 700 (+350) max HP",
-    "powerup_fortified_desc3": "Reduce damage taken by 30% and gain 1050 (+350) max HP",
+    "powerup_fortified_desc1": "Reduce damage taken by 10% and gain 250 max HP",
+    "powerup_fortified_desc2": "Reduce damage taken by 20% and gain 500 (+250) max HP",
+    "powerup_fortified_desc3": "Reduce damage taken by 30% and gain 750 (+250) max HP",
     "powerup_special_rounds_desc1": "Every 4th bullet deals +75% bonus damage",
     "powerup_special_rounds_desc2": "Every 3th bullet deals +75% bonus damage",
     "powerup_special_rounds_desc3": "Every 2rd bullet deals +75% bonus damage",
@@ -2084,7 +2139,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_curse_desc1": "Curse 25% of enemies, deal +30% damage to cursed foes (greatly reduced vs bosses)",
     "powerup_curse_desc2": "Curse 35% of enemies, deal +45% damage to cursed foes (greatly reduced vs bosses)",
     "powerup_curse_desc3": "Curse 50% of enemies, deal +60% damage to cursed foes (greatly reduced vs bosses)",
-    "powerup_celestial_veil_desc": "Absorb 1 hit per wave, resets at the start of each wave",
+    "powerup_celestial_veil_desc": "Nullifies 2 hits per wave, resets at the start of each wave",
     "powerup_volatile": "Volatile",
     "powerup_volatile_desc": "Enemies with 2+ elemental effects take +50% bullet dmg, on death they pulse their active elements to nearby foes",
     "powerup_resonance": "Resonance",
@@ -2092,7 +2147,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_resonance_desc2": "Bullets hitting enemies with active DoTs deal bonus damage equal to 30% of their combined elemental DPS",
     "powerup_resonance_desc3": "Bullets hitting enemies with active DoTs deal bonus damage equal to 40% of their combined elemental DPS",
     "powerup_blood_pact": "Blood Pact",
-    "powerup_blood_pact_desc": "Sacrifice 30% of your current HP to unleash a blood nova, hitting EVERY enemy for 25% of its max HP plus bonus damage. Bosses resist it. 3s cooldown",
+    "powerup_blood_pact_desc": "Sacrifice 20% of your current HP to unleash a blood nova, hitting EVERY enemy for 25% of its max HP + 2.5 damage per HP sacrificed. Bosses resist 60% of it. 3s cooldown",
     "powerup_conduit": "Conduit",
     "powerup_conduit_desc": "Detonate all active DoTs on enemies for 3x their remaining tick damage, then clear the effects. 15s cooldown",
     "powerup_aftershock": "Aftershock",
@@ -2121,12 +2176,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # System Messages
     "system_defensive_processes": "All defensive processes have been terminated.",
     "system_press_any_key": "Press almost any key to continue...",
+    "bios_fast_boot": "Press any key to fast boot",
     "system_no_statistics": "No statistics available",
     "system_press_esc_to_return": "Press ESC to return",
 
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "v6.0 Edition",
+    "loading_subtitle": "v6.1 Edition",
     "loading_initializing": "Initializing...",
     "loading_generating_sound": "Generating sound",
     "loading_generating_music": "Generating music",
@@ -2156,7 +2212,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memory",  # label only; live "<used> / <total> GB" appended in code
     "os_network": "Network: Connected",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[v6.0 Edition]",
+    "os_edition": "[v6.1 Edition]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "NET",
 
@@ -2315,7 +2371,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_threats_eliminated": "Threats Eliminated:",
     "game_over_resources_collected": "Resources Collected:",
     "game_over_mission_duration": "Mission Duration:",
-    "game_over_continue": "> CONTINUE",
+    "game_over_continue": "CONTINUE (WAVE",
     "game_over_save_log": "[S] SAVE LOG",
     "game_over_critical_failure": "CRITICAL SYSTEM FAILURE",
     "game_over_error_msg": "Your system has encountered a critical error and needs to reboot.",
@@ -2504,6 +2560,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "skin_void_desc": "Dark purple void energy",
     "skin_plasma": "Plasma Core",
     "skin_plasma_desc": "Electric blue-purple plasma",
+    "skin_stars": "Starfall",
+    "skin_stars_desc": "Twinkling white-gold sparkle",
+    "skin_lightning": "Storm Surge",
+    "skin_lightning_desc": "Crackling electric blue",
 
     # Bullet Skins
     "bullet_default": "System Default",
@@ -2530,6 +2590,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "bullet_void_desc": "Dark purple void energy",
     "bullet_plasma": "Plasma Core",
     "bullet_plasma_desc": "Electric blue-purple plasma",
+    "bullet_stars": "Starfall",
+    "bullet_stars_desc": "Twinkling white-gold shots",
+    "bullet_lightning": "Storm Surge",
+    "bullet_lightning_desc": "Crackling electric bolts",
 
     # Shapes
     "shape_hexagon": "Hexagon",
@@ -2579,6 +2643,43 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "particle_lightning_desc": "Electric yellow bolts",
     "particle_void": "Void Energy",
     "particle_void_desc": "Dark dimensional rifts",
+    "particle_amethyst": "Crystal Bloom",
+    "particle_amethyst_desc": "Violet crystal shimmer",
+    "particle_matrix": "Code Rain",
+    "particle_matrix_desc": "Cascading green data",
+
+    # Cosmetic Packs (discounted theme trios)
+    "shop_tab_packs": "PACKS",
+    "shop_customize_packs": "Theme Bundles -- 40% Off",
+    "pack_owned": "OWNED",
+    "pack_buy": "BUY BUNDLE",
+    "pack_includes": "Player + Bullet + Particle",
+    "pack_gold": "Gold Bundle",
+    "pack_gold_desc": "Every Golden Aura cosmetic",
+    "pack_ice": "Ice Bundle",
+    "pack_ice_desc": "Every Ice Crystal cosmetic",
+    "pack_shadow": "Shadow Bundle",
+    "pack_shadow_desc": "Every Shadow Ops cosmetic",
+    "pack_rainbow": "Rainbow Bundle",
+    "pack_rainbow_desc": "Every Rainbow Wave cosmetic",
+    "pack_void": "Void Bundle",
+    "pack_void_desc": "Every Void Walker cosmetic",
+    "pack_plasma": "Plasma Bundle",
+    "pack_plasma_desc": "Every Plasma Core cosmetic",
+    "pack_sunset": "Sunset Bundle",
+    "pack_sunset_desc": "Sunset skins with a flame trail",
+    "pack_emerald": "Emerald Bundle",
+    "pack_emerald_desc": "Emerald skins with a toxic trail",
+    "pack_neon_pink": "Neon Pink Bundle",
+    "pack_neon_pink_desc": "Neon Pink skins with heart bursts",
+    "pack_amethyst": "Amethyst Bundle",
+    "pack_amethyst_desc": "Every Amethyst cosmetic",
+    "pack_matrix": "Matrix Bundle",
+    "pack_matrix_desc": "Every Matrix Code cosmetic",
+    "pack_stars": "Starfall Bundle",
+    "pack_stars_desc": "Every Starfall cosmetic",
+    "pack_lightning": "Storm Bundle",
+    "pack_lightning_desc": "Every Storm Surge cosmetic",
 
     # Legendary Panel
     "legendary_panel_title": "LEGENDARY",
@@ -2728,7 +2829,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_fire_aura": "Fire Aura - Fire damage over time aura",
     "help_lightning_aura": "Lightning Aura - Lightning chains between enemies",
     "help_poison_aura": "Poison Aura - Poison damage over time aura",
-    "help_wind_aura": "Wind Aura - Pushes enemies away",
+    "help_wind_aura": "Wind Aura - Periodic gust that blasts enemies away",
     "help_arcane_aura": "Arcane Aura - Enhanced arcane damage aura",
     "help_blood_aura": "Blood Aura - Damage aura with lifesteal",
     "help_time_warp": "Time Warp - Slow down time globally",
@@ -2752,7 +2853,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_special_rounds": "Special Rounds - Every 5th bullet deals bonus damage",
     "help_giant_slayer": "Giant Slayer - Bonus damage vs high-HP enemies",
     "help_curse": "Curse - Curses random enemies so you deal bonus damage to them",
-    "help_celestial_veil": "Celestial Veil - Absorb one hit per wave",
+    "help_celestial_veil": "Celestial Veil - Nullifies two hits per wave",
     "help_volatile": "Volatile - Enemies with 2+ DoTs take +50% dmg",
     "help_resonance": "Resonance - Bullets on DoT targets deal elemental bonus",
     "help_blood_pact": "Blood Pact - Sacrifice HP to blast every enemy for a share of its max HP",
@@ -3078,7 +3179,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_relics_none": "No relics this run.",
     "roguelite_continue_endless": "Continue (Endless Loop)",
     "roguelite_cash_out": "Cash Out",
-    "roguelite_victory_controls": "[SPACE] continue    [ESC] cash out    [←/→] switch    [ENTER] confirm",
+    "roguelite_victory_controls": "[SPACE] continue    [ESC] cash out    [←/->] switch    [ENTER] confirm",
     "dungeon_floor_boss": "Floor Boss",
     "dungeon_final_floor_label": "FINAL BOSS",
     "dungeon_final_floor_desc": "The stack ends here. No sectors left to roll, only the last process. Step into the arena and face the Omega Entity.",
@@ -3260,6 +3361,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_cancel_btn": "[ESC] CANCEL",
     "confirm_quit_btn": "[Q] QUIT",
     "confirm_exit_btn": "[Q] EXIT",
+    "confirm_checkpoint_title": "CHECKPOINT AVAILABLE",
+    "confirm_checkpoint_restart_body": "Restart from wave 1?",
+    "confirm_checkpoint_sub": "You can still CONTINUE from your last checkpoint.",
+    "confirm_restart_btn": "[R] RESTART",
 
     # Common
     "common_on": "ON",
@@ -3349,41 +3454,42 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Settings
     "settings_replay_mode_intros": "Replay Mode Intros",
 
-    # Mode intro: wave-based
-    "mode_intro_wave_title": "THREAT RESPONSE",
+    # Mode intro: wave-based (Act 1-2 live open; the ending archive is
+    # "ARCHIVE PLAYBACK // INCIDENT RESOLVED", this is the same incident, live)
+    "mode_intro_wave_title": "LIVE DISPATCH // THREAT RESPONSE",
     "mode_intro_wave_rec1":  "RADAR SWEEP",
-    "mode_intro_wave_1a":    "BREACH DETECTED ON SECTOR 7",
+    "mode_intro_wave_1a":    "THE BREACH IS OPEN. THE FLOOD POURS IN.",
     "mode_intro_wave_1b":    "WAVE-DEFENSE PROTOCOL ACTIVATED",
     "mode_intro_wave_rec2":  "DEPLOYMENT",
-    "mode_intro_wave_2a":    "SURVIVE EVERY WAVE, OPERATOR",
-    "mode_intro_wave_2b":    "THE KERNEL IS COUNTING ON YOU",
+    "mode_intro_wave_2a":    "EVERY WAVE LEARNS. EVERY WAVE GETS CLOSER.",
+    "mode_intro_wave_2b":    "HOLD THE LINE, OPERATOR.",
 
-    # Mode intro: time survival
-    "mode_intro_surv_title": "ENDURANCE PROTOCOL",
+    # Mode intro: time survival (Act 4 live open of "THE LONG WATCH")
+    "mode_intro_surv_title": "LIVE DISPATCH // THE LONG WATCH",
     "mode_intro_surv_rec1":  "COUNTDOWN",
-    "mode_intro_surv_1a":    "UPTIME CHALLENGE INITIALIZED",
-    "mode_intro_surv_1b":    "HOW LONG CAN YOU HOLD THE LINE?",
+    "mode_intro_surv_1a":    "THE ROOT IS PURGED. THE FLOOD STILL COMES.",
+    "mode_intro_surv_1b":    "THE LONG WATCH BEGINS.",
     "mode_intro_surv_rec2":  "UPTIME LOG",
-    "mode_intro_surv_2a":    "EVERY SECOND OF SURVIVAL IS LOGGED",
-    "mode_intro_surv_2b":    "BEAT YOUR RECORD. BREAK THE LIMIT.",
+    "mode_intro_surv_2a":    "EVERY SECOND OF UPTIME IS LOGGED.",
+    "mode_intro_surv_2b":    "NO RELIEF IS COMING. HOLD ANYWAY.",
 
-    # Mode intro: roguelite
-    "mode_intro_rogue_title": "SECTOR SWEEP",
-    "mode_intro_rogue_rec1":  "DUNGEON MAP",
-    "mode_intro_rogue_1a":    "SECTOR INFILTRATION MODULE ARMED",
-    "mode_intro_rogue_1b":    "EXPLORE FLOORS, CLAIM RELICS",
+    # Mode intro: roguelite (Act 3 live open of "DEEP RECOVERY")
+    "mode_intro_rogue_title": "LIVE DISPATCH // DEEP RECOVERY",
+    "mode_intro_rogue_rec1":  "STACK MAP",
+    "mode_intro_rogue_1a":    "THE SURFACE IS SECURE. THE ROT STILL PULSES BELOW.",
+    "mode_intro_rogue_1b":    "DESCEND THE STACK, SECTOR BY SECTOR.",
     "mode_intro_rogue_rec2":  "RELIC SCAN",
-    "mode_intro_rogue_2a":    "KERNEL PROCESSES AVAILABLE FOR HARVEST",
-    "mode_intro_rogue_2b":    "DISCOVER COMBINATIONS. REACH THE ROOT.",
+    "mode_intro_rogue_2a":    "RECOVER LOST KERNEL PROCESSES. CLAIM RELICS.",
+    "mode_intro_rogue_2b":    "FIND WHAT THE ROOT GREW FROM.",
 
-    # Mode intro: sandbox
-    "mode_intro_sandbox_title": "UNRESTRICTED ENV",
+    # Mode intro: sandbox (non-canon, outside the incident archive)
+    "mode_intro_sandbox_title": "OFF THE RECORD // TEST ENVIRONMENT",
     "mode_intro_sandbox_rec1":  "INIT SEQUENCE",
     "mode_intro_sandbox_1a":    "TEST ENVIRONMENT ACTIVE",
     "mode_intro_sandbox_1b":    "WARNING: NO GUARDRAILS. PROCEED FREELY.",
 
-    # Mode intro: pvp
-    "mode_intro_pvp_title": "HOSTILE NODE",
+    # Mode intro: pvp (non-canon, outside the incident archive)
+    "mode_intro_pvp_title": "EXTERNAL FEED // HOSTILE NODE",
     "mode_intro_pvp_rec1":  "NETWORK SCAN",
     "mode_intro_pvp_1a":    "HOSTILE NODE DETECTED",
     "mode_intro_pvp_1b":    "MULTI-AGENT CONFLICT PROTOCOL ENGAGED",
@@ -3430,9 +3536,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_chain_reaction":       "CHAIN_REACT.dll",
     "powerup_kernel_exploit":       "KERNEL_EXPLOIT.sys",
     # Stage 5 roguelite-exclusive descriptions
-    "powerup_corrupted_core_desc1": "Elite kills grant +1 max HP.",
-    "powerup_corrupted_core_desc2": "Elite kills grant +1.5 max HP.",
-    "powerup_corrupted_core_desc3": "Elite kills grant +2 max HP.",
+    "powerup_corrupted_core_desc1": "Elite kills grant +100 max HP.",
+    "powerup_corrupted_core_desc2": "Elite kills grant +150 max HP.",
+    "powerup_corrupted_core_desc3": "Elite kills grant +200 max HP.",
     "powerup_room_echo_desc1":      "Room clear grants 8 charged bullets dealing +60% damage.",
     "powerup_room_echo_desc2":      "Room clear grants 12 charged bullets dealing +60% damage.",
     "powerup_room_echo_desc3":      "Room clear grants 16 charged bullets dealing +60% damage.",
@@ -3444,6 +3550,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_data_harvest_desc1":   "Enemies grant +25% XP. +25% pickup range.",
     "powerup_data_harvest_desc2":   "Enemies grant +50% XP. +50% pickup range.",
     "powerup_data_harvest_desc3":   "Enemies grant +100% XP. +100% pickup range.",
+    "resume_run_title":        "SAVED RUN FOUND",
+    "resume_run_body":         "Continue your saved run or start a new one?",
+    "resume_continue":         "CONTINUE",
+    "resume_new_run":          "NEW RUN",
     "new_process_installed":   "NEW PROCESS DISCOVERED"
   }.toTable,
 
@@ -3517,6 +3627,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_low_health_vignette_desc": "(aviso rojo con poca vida)",
     "settings_show_hints": "Consejos:",
     "settings_show_hints_desc": "(E: Muro, ESC: Pausa)",
+    "settings_hud_layout": "Diseño del HUD:",
+    "settings_hud_layout_desc": "(Panorámico añade paneles laterales)",
+    "settings_hud_layout_classic": "Clásico (4:3)",
+    "settings_hud_layout_widescreen": "Panorámico (16:9)",
     "settings_show_enemy_labels": "Etiquetas:",
     "settings_show_enemy_labels_desc": "(nombres sobre enemigos)",
     "settings_exit_confirm": "Confirmar Salida:",
@@ -3526,10 +3640,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_replay_ending": "Volver a ver final",
     "settings_replay_roguelite_ending": "Volver a ver roguelite",
     "settings_replay_survival_ending": "Volver a ver supervivencia",
+    "settings_replay_wave_intro": "Intro Oleadas",
+    "settings_replay_survival_intro": "Intro Supervivencia",
+    "settings_replay_roguelite_intro": "Intro Roguelite",
+    "settings_replay_sandbox_intro": "Intro Sandbox",
+    "settings_replay_pvp_intro": "Intro JcJ",
     "settings_back_to_menu": "ESC para volver",
 
     "lore_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE",
     "lore_live": "EN VIVO",
+    "lore_playback": "PLAY",
     "lore_controls_ff": "ENTER: X2  |  ESPACIO: SALTAR",
     "lore_controls_ff_active": "ENTER: X2 ACTIVO  |  ESPACIO: SALTAR",
     "lore_rec_breach": "REC 00: BRECHA DEL SISTEMA",
@@ -3618,7 +3738,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_audio": "Audio",
     "settings_tab_controls": "Controles",
     "settings_tab_gameplay": "Juego",
+    "settings_tab_cinematics": "Cinemáticas",
 
+    "settings_section_story": "CINEMÁTICAS DE HISTORIA",
+    "settings_section_mode_intros": "INTROS DE MODO",
     "settings_section_display": "PANTALLA",
     "settings_section_volume_control": "VOLUMEN",
     "settings_section_input_method": "ENTRADA",
@@ -3652,6 +3775,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "keybind_press_any_key": "Pulsa cualquier tecla...",
     "keybind_reset_defaults": "Restaurar Valores",
     "keybind_non_rebindable_note": "ESC: Pausa  |  F11: Pantalla completa  (fijos)",
+    "gamepad_column_key": "Tecla",
+    "gamepad_column_pad": "Mando",
+    "gamepad_press_any_button": "Pulsa un boton...",
+    "gamepad_reserved_note": "Mando: A = clic, B = atras, Start = pausa (fijos)",
+    "settings_aim_assist": "Asistencia de Apuntado",
+    "settings_aim_assist_desc": "El apuntado con mando se ajusta a enemigos cercanos",
+    "settings_controller": "Mando",
+    "settings_controller_desc": "Que mando detectado controla el juego",
+    "settings_controller_auto": "Auto (primero detectado)",
+    "settings_controller_none": "Ningun mando detectado",
 
     # Game UI
     "game_pause": "PAUSA",
@@ -3774,9 +3907,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Powerup Descriptions
     "powerup_double_shot_desc": "Disparar ráfaga adicional después de 0.08s (-15% daño por bala, -25% cadencia)",
-    "powerup_rotating_shield_desc1": "3 escudos (30% cobertura, 300 HP, 6s reaparición)",
-    "powerup_rotating_shield_desc2": "3 escudos (35% cobertura, 400 HP, 5s reaparición)",
-    "powerup_rotating_shield_desc3": "3 escudos (40% cobertura, 500 HP, 3s reaparición)",
+    "powerup_rotating_shield_desc1": "3 escudos (30% cobertura, 100 HP, 6s reaparición)",
+    "powerup_rotating_shield_desc2": "3 escudos (35% cobertura, 250 HP, 5s reaparición)",
+    "powerup_rotating_shield_desc3": "3 escudos (40% cobertura, 400 HP, 3s reaparición)",
     "powerup_magical_bullets_desc": "Las balas rastrean al enemigo más cercano",
     "powerup_piercing_shots_desc1": "Balas perforan 1 enemigo (-33% daño por perforación)",
     "powerup_piercing_shots_desc2": "Balas perforan 2 enemigos (-33% daño por perforación)",
@@ -3785,18 +3918,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_explosive_bullets_desc1": "Balas explotan (50% daño bala, radio pequeño)",
     "powerup_explosive_bullets_desc2": "Balas explotan (50% daño bala, radio mediano)",
     "powerup_explosive_bullets_desc3": "Balas explotan (50% daño bala, radio grande)",
-    "powerup_life_steal_desc1": "Restaura 100 HP cada 20 bajas",
-    "powerup_life_steal_desc2": "Restaura 100 HP cada 15 bajas",
-    "powerup_life_steal_desc3": "Restaura 100 HP cada 10 bajas",
+    "powerup_life_steal_desc1": "Restaura 100 HP cada 10 bajas",
+    "powerup_life_steal_desc2": "Restaura 100 HP cada 7 bajas",
+    "powerup_life_steal_desc3": "Restaura 100 HP cada 5 bajas",
     "powerup_rapid_fire_desc": "Sobrecarga: mantén el disparo para acelerar la cadencia hasta +30%",
     "powerup_max_health_desc": "Coloso: +2% de daño por cada 100 HP máx, incluyendo HP base (máx +40%)",
     "powerup_speed_boost_desc": "Impulso: hasta +25% de daño en movimiento",
-    "powerup_bullet_speed_desc": "Lightspeed: cada disparo lanza un rayo trazador instantáneo que golpea al primer enemigo en línea por 75% de daño",
+    "powerup_bullet_speed_desc": "Lightspeed: cada disparo lanza un rayo trazador instantáneo que golpea al primer enemigo en línea por 50% de daño",
     "powerup_lucky_coins_desc": "Duplica todas las monedas recogidas",
     "powerup_wall_master_desc": "Los muros ganan +250% de HP y las torretas +100% de daño",
-    "powerup_regeneration_desc1": "Regenera 150-250 HP por oleada",
-    "powerup_regeneration_desc2": "Regenera 250-450 HP por oleada",
-    "powerup_regeneration_desc3": "Regenera 350-650 HP por oleada",
+    "powerup_regeneration_desc1": "Regenera 150 HP + 3% de vida máxima por oleada",
+    "powerup_regeneration_desc2": "Regenera 250 HP + 5% de vida máxima por oleada",
+    "powerup_regeneration_desc3": "Regenera 350 HP + 7% de vida máxima por oleada",
     "powerup_dodge_chance_desc1": "15% de probabilidad de esquivar golpes",
     "powerup_dodge_chance_desc2": "20% de probabilidad de esquivar golpes",
     "powerup_dodge_chance_desc3": "30% de probabilidad de esquivar golpes",
@@ -3809,18 +3942,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_bullet_ricochet_desc1": "Balas rebotan 1 vez (50% daño por rebote)",
     "powerup_bullet_ricochet_desc2": "Balas rebotan 2 veces (50% daño por rebote)",
     "powerup_bullet_ricochet_desc3": "Balas rebotan 3 veces (50% daño por rebote)",
-    "powerup_slow_field_desc1": "Ralentiza a los enemigos un 30% en radio 188 (40 daño/s)",
-    "powerup_slow_field_desc2": "Ralentiza a los enemigos un 45% en radio 250 (40 daño/s)",
-    "powerup_slow_field_desc3": "Ralentiza a los enemigos un 55% en radio 313 (40 daño/s)",
+    "powerup_slow_field_desc1": "Pulso: ralentiza un 30% en radio 288",
+    "powerup_slow_field_desc2": "Pulso: ralentiza un 45% en radio 374",
+    "powerup_slow_field_desc3": "Pulso: ralentiza un 55% en radio 460",
     "powerup_rage_desc1": "+5% daño por 10% HP perdido",
     "powerup_rage_desc2": "+8% daño por 10% HP perdido",
     "powerup_rage_desc3": "+12% daño por 10% HP perdido",
     "powerup_berserker_desc1": "+5% cadencia por 10% HP perdido",
     "powerup_berserker_desc2": "+8% cadencia por 10% HP perdido",
     "powerup_berserker_desc3": "+12% cadencia por 10% HP perdido",
-    "powerup_thorns_desc1": "Refleja el 50% del daño al atacante",
-    "powerup_thorns_desc2": "Refleja el 100% del daño al atacante",
-    "powerup_thorns_desc3": "Refleja el 200% del daño al atacante",
+    "powerup_thorns_desc1": "Refleja el 100% del daño al atacante",
+    "powerup_thorns_desc2": "Refleja el 200% del daño al atacante",
+    "powerup_thorns_desc3": "Refleja el 300% del daño al atacante",
     "powerup_bullet_split_desc1": "Las balas se dividen en 2 fragmentos que solo hacen daño",
     "powerup_bullet_split_desc2": "Las balas se dividen en 3 fragmentos que solo hacen daño",
     "powerup_bullet_split_desc3": "Las balas se dividen en 4 fragmentos que solo hacen daño",
@@ -3830,27 +3963,27 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_frost_shots_desc1": "Balas ralentizan enemigos 25% (permanente)",
     "powerup_frost_shots_desc2": "Balas ralentizan enemigos 40% (permanente)",
     "powerup_frost_shots_desc3": "Balas ralentizan enemigos 60% (permanente)",
-    "powerup_poison_shot_desc1": "Balas envenenan ({0} daño/s, 4s)",
-    "powerup_poison_shot_desc2": "Balas envenenan ({0} daño/s, 5s)",
-    "powerup_poison_shot_desc3": "Balas envenenan ({0} daño/s, 6s)",
+    "powerup_poison_shot_desc1": "Balas envenenan ({0} daño/s, 4s, acumulable)",
+    "powerup_poison_shot_desc2": "Balas envenenan ({0} daño/s, 5s, acumulable)",
+    "powerup_poison_shot_desc3": "Balas envenenan ({0} daño/s, 6s, acumulable)",
     "powerup_fire_bullets_desc1": "Balas queman ({0} daño/s, 2s)",
     "powerup_fire_bullets_desc2": "Balas queman ({0} daño/s, 3s)",
     "powerup_fire_bullets_desc3": "Balas queman ({0} daño/s, 4s)",
     "powerup_wind_bullets_desc1": "Balas empujan enemigos (empuje débil, +50 de daño)",
     "powerup_wind_bullets_desc2": "Balas empujan enemigos (empuje medio, +50 de daño)",
     "powerup_wind_bullets_desc3": "Balas empujan enemigos (empuje fuerte, +50 de daño)",
-    "powerup_fire_aura_desc1": "Quemar enemigos {0} daño/s en radio 188 (2s)",
-    "powerup_fire_aura_desc2": "Quemar enemigos {0} daño/s en radio 250 (3s)",
-    "powerup_fire_aura_desc3": "Quemar enemigos {0} daño/s en radio 313 (4s)",
-    "powerup_lightning_aura_desc1": "Electrocutar {0} daño/s en radio 188 (encadena 1x)",
-    "powerup_lightning_aura_desc2": "Electrocutar {0} daño/s en radio 250 (encadena 2x)",
-    "powerup_lightning_aura_desc3": "Electrocutar {0} daño/s en radio 313 (encadena 3x)",
-    "powerup_poison_aura_desc1": "Veneno {0} daño/s en radio 188 (duración 6s)",
-    "powerup_poison_aura_desc2": "Veneno {0} daño/s en radio 250 (duración 8s)",
-    "powerup_poison_aura_desc3": "Veneno {0} daño/s en radio 313 (duración 10s)",
-    "powerup_wind_aura_desc1": "Empujar enemigos en radio 188 (débil, 30 daño/s)",
-    "powerup_wind_aura_desc2": "Empujar enemigos en radio 250 (medio, 30 daño/s)",
-    "powerup_wind_aura_desc3": "Empujar enemigos en radio 313 (fuerte, 30 daño/s)",
+    "powerup_fire_aura_desc1": "Pulso de fuego {0} daño/s en radio 238 (2s)",
+    "powerup_fire_aura_desc2": "Pulso de fuego {0} daño/s en radio 309 (3s)",
+    "powerup_fire_aura_desc3": "Pulso de fuego {0} daño/s en radio 380 (4s)",
+    "powerup_lightning_aura_desc1": "Tormenta {0} daño/s en radio 223 (encadena 1x)",
+    "powerup_lightning_aura_desc2": "Tormenta {0} daño/s en radio 289 (encadena 2x)",
+    "powerup_lightning_aura_desc3": "Tormenta {0} daño/s en radio 356 (encadena 3x)",
+    "powerup_poison_aura_desc1": "Pulso de veneno {0} daño/s en radio 253 (6s, acumulable)",
+    "powerup_poison_aura_desc2": "Pulso de veneno {0} daño/s en radio 328 (8s, acumulable)",
+    "powerup_poison_aura_desc3": "Pulso de veneno {0} daño/s en radio 404 (10s, acumulable)",
+    "powerup_wind_aura_desc1": "Ráfaga cada 3s: empuja enemigos en radio 270",
+    "powerup_wind_aura_desc2": "Ráfaga cada 2.6s: empuja enemigos en radio 351",
+    "powerup_wind_aura_desc3": "Ráfaga cada 2.2s: empuja enemigos en radio 432",
     "powerup_time_warp_desc": "Ralentiza el tiempo un 50% durante 3.5 s (2 usos/oleada, 10 s de recarga)",
     "powerup_gravity_well_desc": "Atrae a los enemigos en un radio de 300. Otorga un escudo del 10% de vida (5s de retardo antes de regenerar, 5%/s)",
     "powerup_phase_shift_desc": "Dash hacia delante (5 s cd, 0.5 s invuln., escala con velocidad)",
@@ -3878,48 +4011,48 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_arcane_bullets_desc1": "Balas arcanas mejoradas (+20% daño de bala, arcano)",
     "powerup_arcane_bullets_desc2": "Balas arcanas mejoradas (+40% daño de bala, arcano)",
     "powerup_arcane_bullets_desc3": "Balas arcanas mejoradas (+60% daño de bala, arcano)",
-    "powerup_arcane_aura_desc1": "Aura arcana {0} daño/s en radio 188, arcano",
-    "powerup_arcane_aura_desc2": "Aura arcana {0} daño/s en radio 250, arcano",
-    "powerup_arcane_aura_desc3": "Aura arcana {0} daño/s en radio 313, arcano",
-    "powerup_fire_mastery_desc": "Fuego: +150% daño, +100% duración y +35% ralentización",
-    "powerup_poison_mastery_desc": "Veneno: +150% daño, +100% duración y +30% ralentización",
-    "powerup_frost_mastery_desc": "Escarcha: +150% daño, +100% duración y +20% ralentización",
-    "powerup_arcane_mastery_desc": "Balas arcanas: +50% daño + perforación, aura/orbes: +100% daño",
+    "powerup_arcane_aura_desc1": "Pulso arcano {0} daño/s en radio 200, arcano",
+    "powerup_arcane_aura_desc2": "Pulso arcano {0} daño/s en radio 260, arcano",
+    "powerup_arcane_aura_desc3": "Pulso arcano {0} daño/s en radio 320, arcano",
+    "powerup_fire_mastery_desc": "Fuego: +150% daño, +50% duración y +45% ralentización",
+    "powerup_poison_mastery_desc": "Veneno: +150% daño, +200% duración y +40% ralentización",
+    "powerup_frost_mastery_desc": "Escarcha: +25% ralentización (hasta 85%) y orbes que enfrían 55%",
+    "powerup_arcane_mastery_desc": "Arcano: +75% daño y las balas perforan",
     "powerup_lightning_mastery_desc": "Rayo: +150% daño, +25% ralentización, +1 cadena y +50% de alcance",
-    "powerup_wind_mastery_desc": "Viento: +150% daño, +40% ralentización y empuje más fuerte",
+    "powerup_wind_mastery_desc": "Viento: +150% daño, +45% ralentización y empuje x3.5",
     "powerup_parry_desc": "Activo: invulnerable 0.5 s y rebota balas enemigas (5 s de recarga)",
     "powerup_blood_orb_desc1": "4 orbes sangre ({0}, 1.75% robo vida)",
     "powerup_blood_orb_desc2": "8 orbes sangre ({0}, 2.25% robo vida)",
     "powerup_blood_orb_desc3": "12 orbes sangre ({0}, 3% robo vida)",
-    "powerup_blood_aura_desc1": "Aura de sangre: {0} daño/s en radio 188 y cura un 2.5% del daño infligido",
-    "powerup_blood_aura_desc2": "Aura de sangre: {0} daño/s en radio 250 y cura un 5% del daño infligido",
-    "powerup_blood_aura_desc3": "Aura de sangre: {0} daño/s en radio 313 y cura un 7.5% del daño infligido",
+    "powerup_blood_aura_desc1": "Pulso de sangre: {0} daño/s en radio 210 y cura un 2.5% del daño infligido",
+    "powerup_blood_aura_desc2": "Pulso de sangre: {0} daño/s en radio 273 y cura un 5% del daño infligido",
+    "powerup_blood_aura_desc3": "Pulso de sangre: {0} daño/s en radio 336 y cura un 7.5% del daño infligido",
     "powerup_blood_mastery_desc": "Sangre: +100% daño y +100% robo de vida",
     "powerup_radial_burst_desc1": "Dispara 8 balas en círculo cada 3.5 s (usa tu daño)",
     "powerup_radial_burst_desc2": "Dispara 10 balas en círculo cada 3.0 s (usa tu daño)",
     "powerup_radial_burst_desc3": "Dispara 14 balas en círculo cada 2.0 s (usa tu daño)",
-    "powerup_wall_turrets_desc1": "Los muros disparan (100 + {0} [30%] daño, 1.5 s recarga, 400px rango)",
-    "powerup_wall_turrets_desc2": "Los muros disparan más rápido (100 + {0} [30%] daño, 1.0 s recarga, 500px rango)",
-    "powerup_wall_turrets_desc3": "Los muros disparan doble (100 + {0} [30%] daño ×2, 1.0 s recarga, 600px rango)",
+    "powerup_wall_turrets_desc1": "Los muros disparan (100 + {0} [30%] daño, 1.5 s recarga, 350px rango)",
+    "powerup_wall_turrets_desc2": "Los muros disparan más rápido (100 + {0} [30%] daño, 1.0 s recarga, 425px rango)",
+    "powerup_wall_turrets_desc3": "Los muros disparan doble (100 + {0} [30%] daño x2, 1.0 s recarga, 500px rango)",
     "powerup_pulse_armor_desc1": "Al recibir daño, empuja enemigos cercanos (sin daño, +1% maxHP escalado)",
     "powerup_pulse_armor_desc2": "Onda empuja más lejos e inflige 200 + 1% maxHP daño",
     "powerup_pulse_armor_desc3": "Onda empuja aún más lejos e inflige 400 + 1% maxHP daño",
     "powerup_heavy_rounds_desc1": "Balas 15% más grandes con ligero retroceso",
     "powerup_heavy_rounds_desc2": "Balas 25% más grandes con retroceso aumentado",
     "powerup_heavy_rounds_desc3": "Balas 35% más grandes con fuerte retroceso",
-    "powerup_fortified_desc1": "Reduce el daño recibido un 15% y te da 350 HP máximos",
-    "powerup_fortified_desc2": "Reduce el daño recibido un 25% y te da 700 (+350) HP máximos",
-    "powerup_fortified_desc3": "Reduce el daño recibido un 35% y te da 1050 (+350) HP máximos",
-    "powerup_special_rounds_desc1": "Cada 5.ª bala causa +75% de daño extra",
-    "powerup_special_rounds_desc2": "Cada 4.ª bala causa +75% de daño extra",
-    "powerup_special_rounds_desc3": "Cada 3.ª bala causa +75% de daño extra",
+    "powerup_fortified_desc1": "Reduce el daño recibido un 10% y te da 250 HP máximos",
+    "powerup_fortified_desc2": "Reduce el daño recibido un 20% y te da 500 (+250) HP máximos",
+    "powerup_fortified_desc3": "Reduce el daño recibido un 30% y te da 750 (+250) HP máximos",
+    "powerup_special_rounds_desc1": "Cada 4ª bala causa +75% de daño extra",
+    "powerup_special_rounds_desc2": "Cada 3ª bala causa +75% de daño extra",
+    "powerup_special_rounds_desc3": "Cada 2ª bala causa +75% de daño extra",
     "powerup_giant_slayer_desc1": "Inflige daño extra igual al 2.5% del HP actual del enemigo (0.5% vs jefes)",
     "powerup_giant_slayer_desc2": "Inflige daño extra igual al 4% del HP actual del enemigo (0.8% vs jefes)",
     "powerup_giant_slayer_desc3": "Inflige daño extra igual al 6% del HP actual del enemigo (1.2% vs jefes)",
     "powerup_curse_desc1": "Maldice al 25% de los enemigos, inflige +30% de daño a los malditos (muy reducido contra jefes)",
     "powerup_curse_desc2": "Maldice al 35% de los enemigos, inflige +45% de daño a los malditos (muy reducido contra jefes)",
     "powerup_curse_desc3": "Maldice al 50% de los enemigos, inflige +60% de daño a los malditos (muy reducido contra jefes)",
-    "powerup_celestial_veil_desc": "Absorbe 1 golpe por oleada, se reinicia al empezar cada oleada",
+    "powerup_celestial_veil_desc": "Anula 2 golpes por oleada, se reinicia al empezar cada oleada",
     "powerup_volatile": "Volátil",
     "powerup_volatile_desc": "Enemigos con 2+ efectos elementales reciben +50% daño de bala, al morir, propagan sus elementos cerca",
     "powerup_resonance": "Resonancia",
@@ -3927,7 +4060,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_resonance_desc2": "Tus balas infligen daño extra igual al 30% del DPS elemental combinado si el objetivo tiene DoTs",
     "powerup_resonance_desc3": "Tus balas infligen daño extra igual al 40% del DPS elemental combinado si el objetivo tiene DoTs",
     "powerup_blood_pact": "Pacto de Sangre",
-    "powerup_blood_pact_desc": "Sacrifica el 30% de tu HP actual para desatar una nova de sangre que golpea a CADA enemigo por el 25% de su HP máximo más daño extra. Los jefes la resisten. Recarga 3 s",
+    "powerup_blood_pact_desc": "Sacrifica el 20% de tu HP actual para desatar una nova de sangre que golpea a CADA enemigo por el 25% de su HP máximo + 2.5 daño por HP sacrificado. Los jefes la resisten en un 60%. Recarga 3 s",
     "powerup_conduit": "Conducto",
     "powerup_conduit_desc": "Detona todos los DoTs activos por 3x su daño restante y luego los elimina. Recarga 15 s",
     "powerup_aftershock": "Réplica",
@@ -4019,7 +4152,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_threats_eliminated": "Amenazas Eliminadas:",
     "game_over_resources_collected": "Recursos Recopilados:",
     "game_over_mission_duration": "Duración de la Misión:",
-    "game_over_continue": "> CONTINUAR",
+    "game_over_continue": "CONTINUAR (OLEADA",
     "game_over_save_log": "[G] GUARDAR REGISTRO",
     "game_over_critical_failure": "FALLO CRÍTICO DEL SISTEMA",
     "game_over_error_msg": "Tu sistema ha encontrado un error crítico y necesita reiniciarse.",
@@ -4208,6 +4341,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "skin_void_desc": "Energía púrpura del vacío",
     "skin_plasma": "Plasma",
     "skin_plasma_desc": "Plasma azul violáceo",
+    "skin_stars": "Lluvia Estelar",
+    "skin_stars_desc": "Destello blanco dorado",
+    "skin_lightning": "Tormenta",
+    "skin_lightning_desc": "Azul eléctrico crepitante",
 
     # Bullet Skins
     "bullet_default": "Sistema base",
@@ -4234,6 +4371,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "bullet_void_desc": "Energía púrpura del vacío",
     "bullet_plasma": "Plasma",
     "bullet_plasma_desc": "Plasma azul violáceo",
+    "bullet_stars": "Lluvia Estelar",
+    "bullet_stars_desc": "Disparos blanco dorados",
+    "bullet_lightning": "Tormenta",
+    "bullet_lightning_desc": "Rayos eléctricos crepitantes",
 
     # Shapes
     "shape_hexagon": "Hexágono",
@@ -4283,6 +4424,43 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "particle_lightning_desc": "Chispas eléctricas amarillas",
     "particle_void": "Vacío",
     "particle_void_desc": "Grietas oscuras dimensionales",
+    "particle_amethyst": "Flor de Cristal",
+    "particle_amethyst_desc": "Brillo de cristal violeta",
+    "particle_matrix": "Lluvia de Código",
+    "particle_matrix_desc": "Datos verdes en cascada",
+
+    # Cosmetic Packs (paquetes tematicos con descuento)
+    "shop_tab_packs": "PAQUETES",
+    "shop_customize_packs": "Paquetes Tematicos -- 40% Off",
+    "pack_owned": "OBTENIDO",
+    "pack_buy": "COMPRAR PAQUETE",
+    "pack_includes": "Jugador + Bala + Particula",
+    "pack_gold": "Paquete Dorado",
+    "pack_gold_desc": "Todos los cosmeticos Dorados",
+    "pack_ice": "Paquete Cristal",
+    "pack_ice_desc": "Todos los cosmeticos Cristal",
+    "pack_shadow": "Paquete Sombra",
+    "pack_shadow_desc": "Todos los cosmeticos Sombra",
+    "pack_rainbow": "Paquete Arcoiris",
+    "pack_rainbow_desc": "Todos los cosmeticos Arcoiris",
+    "pack_void": "Paquete Vacio",
+    "pack_void_desc": "Todos los cosmeticos Vacio",
+    "pack_plasma": "Paquete Plasma",
+    "pack_plasma_desc": "Todos los cosmeticos Plasma",
+    "pack_sunset": "Paquete Atardecer",
+    "pack_sunset_desc": "Atardecer con estela de fuego",
+    "pack_emerald": "Paquete Esmeralda",
+    "pack_emerald_desc": "Esmeralda con estela toxica",
+    "pack_neon_pink": "Paquete Rosa Neon",
+    "pack_neon_pink_desc": "Rosa Neon con corazones",
+    "pack_amethyst": "Paquete Amatista",
+    "pack_amethyst_desc": "Todos los cosmeticos Amatista",
+    "pack_matrix": "Paquete Matrix",
+    "pack_matrix_desc": "Todos los cosmeticos Matrix",
+    "pack_stars": "Paquete Estelar",
+    "pack_stars_desc": "Todos los cosmeticos Estelares",
+    "pack_lightning": "Paquete Tormenta",
+    "pack_lightning_desc": "Todos los cosmeticos Tormenta",
 
     # Legendary Panel
     "legendary_panel_title": "LEGENDARIO",
@@ -4432,7 +4610,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_fire_aura": "Aura de Fuego - Aura de daño de fuego continuo",
     "help_lightning_aura": "Aura de Rayo - Rayos se encadenan entre enemigos",
     "help_poison_aura": "Aura de Veneno - Aura de daño venenoso continuo",
-    "help_wind_aura": "Aura de Viento - Empuja enemigos lejos",
+    "help_wind_aura": "Aura de Viento - Ráfaga periódica que empuja enemigos",
     "help_arcane_aura": "Aura Arcana - Aura de daño arcano mejorada",
     "help_blood_aura": "Aura de Sangre - Aura de daño con robo de vida",
     "help_time_warp": "Deformación de Tiempo - Ralentiza el tiempo globalmente",
@@ -4456,7 +4634,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_special_rounds": "Balas Especiales - La 5.ª bala causa daño extra",
     "help_giant_slayer": "Matador de Gigantes - Daño extra vs enemigos con mucho HP",
     "help_curse": "Maldición - Maldice enemigos al azar para infligirles daño extra",
-    "help_celestial_veil": "Velo Celestial - Absorbe un golpe por oleada",
+    "help_celestial_veil": "Velo Celestial - Anula dos golpes por oleada",
     "help_volatile": "Volátil - Enemigos con 2+ DoTs sufren +50% daño",
     "help_resonance": "Resonancia - Balas en objetivos DoT causan bono elemental",
     "help_blood_pact": "Pacto de Sangre - Sacrifica HP para golpear a cada enemigo por parte de su HP máximo",
@@ -4644,6 +4822,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # System Messages
     "system_defensive_processes": "Todos los procesos defensivos han sido terminados.",
     "system_press_any_key": "Presiona cualquier tecla para continuar...",
+    "bios_fast_boot": "Presiona cualquier tecla para arranque rápido",
     "system_no_statistics": "No hay estadísticas disponibles",
     "system_press_esc_to_return": "Presiona ESC para volver",
 
@@ -4679,7 +4858,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_memory": "Memoria",  # label only; live "<used> / <total> GB" appended in code
     "os_network": "Red: Conectada",
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[Edición v6.0]",
+    "os_edition": "[Edición v6.1]",
     "os_tophat_button": "TopHat",
     "os_net_indicator": "RED",
 
@@ -4912,7 +5091,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "roguelite_relics_none": "Sin reliquias esta ejecución.",
     "roguelite_continue_endless": "Continuar (Bucle Infinito)",
     "roguelite_cash_out": "Retirarse",
-    "roguelite_victory_controls": "[ESPACIO] continuar    [ESC] retirarse    [←/→] cambiar    [ENTER] confirmar",
+    "roguelite_victory_controls": "[ESPACIO] continuar    [ESC] retirarse    [←/->] cambiar    [ENTER] confirmar",
     "dungeon_floor_boss": "Jefe del Piso",
     "dungeon_final_floor_label": "JEFE FINAL",
     "dungeon_final_floor_desc": "La pila termina aquí. No quedan sectores que sortear, solo el último proceso. Entra a la arena y enfréntate a la Entidad Omega.",
@@ -5094,6 +5273,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_cancel_btn": "[ESC] CANCELAR",
     "confirm_quit_btn": "[Q] SALIR",
     "confirm_exit_btn": "[Q] VOLVER",
+    "confirm_checkpoint_title": "PUNTO DE CONTROL DISPONIBLE",
+    "confirm_checkpoint_restart_body": "¿Reiniciar desde la oleada 1?",
+    "confirm_checkpoint_sub": "Todavía puedes CONTINUAR desde tu último punto de control.",
+    "confirm_restart_btn": "[R] REINICIAR",
 
     # Common
     "common_on": "ACT.",
@@ -5149,6 +5332,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Desktop
     "desktop_net": "RED",
     "desktop_advancement_unlocked": "Logro desbloqueado",
+    "desktop_mode_locked": "MODO BLOQUEADO:",
+    "survival_locked_desc": "Desbloquea Supervivencia en Tiempo derrotando el modo Roguelite.",
+    "roguelite_locked_desc": "Desbloquea Roguelite derrotando el jefe de la Ola 20 en Modo de Olas.",
     "game_mode_unlocked": "NUEVO MODO DESBLOQUEADO:",
     "roguelite_unlocked_notif": "¡El Modo Roguelite ya está disponible en el escritorio!",
     "survival_unlocked_notif": "¡El Modo Supervivencia ya está disponible en el escritorio!",
@@ -5181,46 +5367,46 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_replay_mode_intros": "Repetir Intros de Modo",
 
     # Mode intro: wave-based
-    "mode_intro_wave_title": "RESPUESTA A AMENAZA",
+    "mode_intro_wave_title": "EN DIRECTO // RESPUESTA A AMENAZA",
     "mode_intro_wave_rec1":  "BARRIDO DE RADAR",
-    "mode_intro_wave_1a":    "BRECHA DETECTADA EN SECTOR 7",
+    "mode_intro_wave_1a":    "LA BRECHA ESTÁ ABIERTA. LA CORRUPCIÓN IRRUMPE.",
     "mode_intro_wave_1b":    "PROTOCOLO DE DEFENSA POR OLEADAS ACTIVADO",
     "mode_intro_wave_rec2":  "DESPLIEGUE",
-    "mode_intro_wave_2a":    "SOBREVIVE CADA OLEADA, OPERADOR",
-    "mode_intro_wave_2b":    "EL KERNEL CUENTA CONTIGO",
+    "mode_intro_wave_2a":    "CADA OLEADA APRENDE. CADA OLEADA SE ACERCA.",
+    "mode_intro_wave_2b":    "AGUANTA LA LÍNEA, OPERADOR.",
 
     # Mode intro: time survival
-    "mode_intro_surv_title": "PROTOCOLO DE RESISTENCIA",
+    "mode_intro_surv_title": "EN DIRECTO // LA LARGA VIGILIA",
     "mode_intro_surv_rec1":  "CUENTA REGRESIVA",
-    "mode_intro_surv_1a":    "DESAFÍO DE TIEMPO DE ACTIVIDAD INICIADO",
-    "mode_intro_surv_1b":    "¿CUÁNTO TIEMPO PUEDES AGUANTAR?",
+    "mode_intro_surv_1a":    "LA RAÍZ FUE PURGADA. LA MAREA SIGUE LLEGANDO.",
+    "mode_intro_surv_1b":    "LA LARGA VIGILIA COMIENZA.",
     "mode_intro_surv_rec2":  "REGISTRO DE TIEMPO",
-    "mode_intro_surv_2a":    "CADA SEGUNDO DE SUPERVIVENCIA SE REGISTRA",
-    "mode_intro_surv_2b":    "SUPERA TU RÉCORD. ROMPE EL LÍMITE.",
+    "mode_intro_surv_2a":    "CADA SEGUNDO DE ACTIVIDAD QUEDA REGISTRADO.",
+    "mode_intro_surv_2b":    "NO VENDRÁN REFUERZOS. AGUANTA IGUAL.",
 
     # Mode intro: roguelite
-    "mode_intro_rogue_title": "BARRIDO DE SECTOR",
-    "mode_intro_rogue_rec1":  "MAPA DE MAZMORRA",
-    "mode_intro_rogue_1a":    "MÓDULO DE INFILTRACIÓN DE SECTOR ARMADO",
-    "mode_intro_rogue_1b":    "EXPLORA PISOS, RECLAMA RELIQUIAS",
+    "mode_intro_rogue_title": "EN DIRECTO // RECUPERACIÓN PROFUNDA",
+    "mode_intro_rogue_rec1":  "MAPA DE LA PILA",
+    "mode_intro_rogue_1a":    "LA SUPERFICIE ESTÁ ASEGURADA. LA PODREDUMBRE AÚN LATE ABAJO.",
+    "mode_intro_rogue_1b":    "DESCIENDE LA PILA, SECTOR A SECTOR.",
     "mode_intro_rogue_rec2":  "ESCANEO DE RELIQUIA",
-    "mode_intro_rogue_2a":    "PROCESOS DEL KERNEL DISPONIBLES PARA COSECHAR",
-    "mode_intro_rogue_2b":    "DESCUBRE COMBINACIONES. LLEGA A LA RAÍZ.",
+    "mode_intro_rogue_2a":    "RECUPERA PROCESOS PERDIDOS DEL KERNEL. RECLAMA RELIQUIAS.",
+    "mode_intro_rogue_2b":    "ENCUENTRA AQUELLO DE LO QUE NACIÓ LA RAÍZ.",
 
     # Mode intro: sandbox
-    "mode_intro_sandbox_title": "ENTORNO SIN RESTRICCIONES",
+    "mode_intro_sandbox_title": "FUERA DE REGISTRO // ENTORNO DE PRUEBAS",
     "mode_intro_sandbox_rec1":  "SECUENCIA DE INICIO",
     "mode_intro_sandbox_1a":    "ENTORNO DE PRUEBAS ACTIVO",
     "mode_intro_sandbox_1b":    "ADVERTENCIA: SIN LIMITACIONES. PROCEDE LIBREMENTE.",
 
     # Mode intro: pvp
-    "mode_intro_pvp_title": "NODO HOSTIL",
+    "mode_intro_pvp_title": "SEÑAL EXTERNA // NODO HOSTIL",
     "mode_intro_pvp_rec1":  "ESCANEO DE RED",
     "mode_intro_pvp_1a":    "NODO HOSTIL DETECTADO",
     "mode_intro_pvp_1b":    "PROTOCOLO DE CONFLICTO MULTI-AGENTE ACTIVADO",
     "mode_intro_pvp_rec2":  "BLOQUEO DE ADVERSARIO",
     "mode_intro_pvp_2a":    "FIRMA DEL ADVERSARIO CONFIRMADA",
-    "mode_intro_pvp_2b":    "ELIMINA O SERAS ELIMINADO.",
+    "mode_intro_pvp_2b":    "ELIMINA O SERÁS ELIMINADO.",
     # Mode-exclusive power-up names
     "powerup_glitch_field":    "CAMPO_FALLO.dll",
     "powerup_time_surge":      "OLEADA_TEMPORAL.exe",
@@ -5261,9 +5447,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_chain_reaction":       "REACCION_CADENA.dll",
     "powerup_kernel_exploit":       "EXPLOIT_KERNEL.sys",
     # Stage 5 roguelite-exclusive descriptions
-    "powerup_corrupted_core_desc1": "Eliminar élites otorga +1 HP máximo.",
-    "powerup_corrupted_core_desc2": "Eliminar élites otorga +1,5 HP máximo.",
-    "powerup_corrupted_core_desc3": "Eliminar élites otorga +2 HP máximo.",
+    "powerup_corrupted_core_desc1": "Eliminar élites otorga +100 HP máximo.",
+    "powerup_corrupted_core_desc2": "Eliminar élites otorga +150 HP máximo.",
+    "powerup_corrupted_core_desc3": "Eliminar élites otorga +200 HP máximo.",
     "powerup_room_echo_desc1":      "Al limpiar una sala, obtén 8 balas cargadas con +60% de daño.",
     "powerup_room_echo_desc2":      "Al limpiar una sala, obtén 12 balas cargadas con +60% de daño.",
     "powerup_room_echo_desc3":      "Al limpiar una sala, obtén 16 balas cargadas con +60% de daño.",
@@ -5275,6 +5461,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_data_harvest_desc1":   "Los enemigos otorgan +25% de XP. +25% de rango de recogida.",
     "powerup_data_harvest_desc2":   "Los enemigos otorgan +50% de XP. +50% de rango de recogida.",
     "powerup_data_harvest_desc3":   "Los enemigos otorgan +100% de XP. +100% de rango de recogida.",
+    "resume_run_title":        "PARTIDA GUARDADA ENCONTRADA",
+    "resume_run_body":         "Continuar tu partida guardada o empezar una nueva?",
+    "resume_continue":         "CONTINUAR",
+    "resume_new_run":          "NUEVA PARTIDA",
     "new_process_installed":   "NUEVO PROCESO DESCUBIERTO"
   }.toTable
 }.toTable

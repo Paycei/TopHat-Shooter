@@ -18,6 +18,8 @@ type
     bskMatrix,       # Green matrix style
     bskVoid,         # Dark purple void
     bskPlasma,       # Blue/purple plasma
+    bskStars,        # White-gold twinkle (completes the Stars trio)
+    bskLightning,    # Electric blue crackle (completes the Lightning trio)
 
   BulletSkinData* = object
     name*: string
@@ -153,6 +155,26 @@ proc initializeBulletSkins*() =
     isUnlocked: true
   )
 
+  bulletSkinDatabase[bskStars] = BulletSkinData(
+    name: t("bullet_stars"),
+    description: t("bullet_stars_desc"),
+    primaryColor: Color(r: 255, g: 240, b: 140, a: 255),
+    glowColor: Color(r: 255, g: 255, b: 200, a: 100),
+    trailColor: Color(r: 220, g: 190, b: 90, a: 150),
+    isAnimated: true,
+    isUnlocked: true
+  )
+
+  bulletSkinDatabase[bskLightning] = BulletSkinData(
+    name: t("bullet_lightning"),
+    description: t("bullet_lightning_desc"),
+    primaryColor: Color(r: 120, g: 190, b: 255, a: 255),
+    glowColor: Color(r: 200, g: 230, b: 255, a: 100),
+    trailColor: Color(r: 90, g: 140, b: 255, a: 150),
+    isAnimated: true,
+    isUnlocked: true
+  )
+
 proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primary, glow, trail: Color] =
   ## Get the colors for a bullet skin, applying animations if needed
   let skin = bulletSkinDatabase[skinType]
@@ -200,6 +222,22 @@ proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primar
       Color(r: blueVal, g: blueVal, b: purpleVal, a: 255),
       Color(r: uint8(150 + oscillation * 50), g: uint8(150 + oscillation * 50), b: 255, a: 100),
       Color(r: uint8(150 - oscillation * 50), g: 50, b: purpleVal, a: 150)
+    )
+  of bskStars:
+    # Warm white-gold twinkle
+    let twinkle = sin(time * 4.5) * 0.5 + 0.5
+    return (
+      Color(r: 255, g: uint8(225 + twinkle * 30), b: uint8(120 + twinkle * 70), a: 255),
+      Color(r: 255, g: 255, b: uint8(190 + twinkle * 50), a: 100),
+      Color(r: uint8(210 + twinkle * 30), g: uint8(180 + twinkle * 30), b: 90, a: 150)
+    )
+  of bskLightning:
+    # Erratic electric-blue crackle
+    let crackle = 0.75 + 0.25 * sin(time * 13.0) * sin(time * 4.7)
+    return (
+      Color(r: uint8(90.0 * crackle), g: uint8(170.0 * crackle), b: 255, a: 255),
+      Color(r: 200, g: 230, b: 255, a: uint8(80 + 40.0 * crackle)),
+      Color(r: uint8(70.0 * crackle), g: uint8(130.0 * crackle), b: 255, a: 150)
     )
   else:
     return (skin.primaryColor, skin.glowColor, skin.trailColor)

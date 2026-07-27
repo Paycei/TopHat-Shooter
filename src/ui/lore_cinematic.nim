@@ -4,8 +4,7 @@
 ## assembles a Cutscene from the generic framework in cutscene.nim.
 
 import raylib, rlgl, math
-import particle_types
-import background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene
+import particle_types, background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene
 
 const
   LoreAccent = Color(r: 0, g: 230, b: 230, a: 255)
@@ -221,6 +220,7 @@ proc newLoreCutscene*(): Cutscene =
     drawBackdropProc  = loreBackdrop,
     swayAmp           = 1.2'f32,
     musicTrack        = mtBoss,
+    cornerTag         = t(tkLorePlayback),
   )
 
 # Keep legacy proc names so main.nim doesn't need patching until Stage 2 migration.

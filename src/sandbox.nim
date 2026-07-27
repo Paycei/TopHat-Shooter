@@ -1,7 +1,7 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
 import raylib, std/strutils, random
-import types, enemy, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing
+import types, enemy, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
 
 const
   SIDEBAR_WIDTH = 300
@@ -191,7 +191,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
       drawRectangleLines(Rectangle(x: (iconX - 3).float32, y: (iconY - 3).float32,
                                    width: (POWERUP_ICON_SIZE + 6).float32,
                                    height: (POWERUP_ICON_SIZE + 6).float32),
-                         1, Color(r: accent.r, g: accent.g, b: accent.b, a: 180))
+                         1, withAlpha(accent, 180))
       if discovered:
         drawPowerUpIcon(iconX, iconY, POWERUP_ICON_SIZE, powerType, accent)
       else:
@@ -348,16 +348,21 @@ proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int
              Color(r: 200, g: 220, b: 255, a: 100))
 
 proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
+  # The sidebar is a screen-edge UI panel: anchor it to the VIRTUAL screen edge
+  # (in widescreen the world is narrower than the virtual screen, so the world
+  # width would put it in the wrong place). The passed screenWidth is kept for
+  # world spawn bounds only.
+  let viewW = getVirtualScreenWidth()
   if not game.sandboxSidebarOpen:
     # Draw toggle button when closed
-    let toggleX = screenWidth - 50
+    let toggleX = viewW - 50
     let toggleY = screenHeight div 2 - 30
     drawRectangle(toggleX, toggleY, 40, 60, Color(r: 50, g: 50, b: 50, a: 200))
     drawText(t(tkSandboxToggle), toggleX + 8, toggleY + 18, 24, White)
     return
 
   # Draw sidebar background
-  let sidebarX = screenWidth - SIDEBAR_WIDTH
+  let sidebarX = viewW - SIDEBAR_WIDTH
   drawRectangle(sidebarX, 0, SIDEBAR_WIDTH, screenHeight, Color(r: 40, g: 40, b: 40, a: 230))
 
   # Draw close button
@@ -422,14 +427,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
       # Spawn enemy from side of screen
-      let side = rand(3)
-      var spawnX, spawnY: float32
-      case side
-      of 0: spawnX = rand(screenWidth.int).float32; spawnY = -30
-      of 1: spawnX = screenWidth.float32 + 30; spawnY = rand(screenHeight.int).float32
-      of 2: spawnX = rand(screenWidth.int).float32; spawnY = screenHeight.float32 + 30
-      else: spawnX = -30; spawnY = rand(screenHeight.int).float32
-
+      let (spawnX, spawnY) = randomEdgeSpawnPos(screenWidth, screenHeight)
       let enemy = newEnemy(spawnX, spawnY, game.difficulty, enemyType, game)
       game.enemies.add(enemy)
       return
@@ -441,14 +439,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     # Spawn 10 random enemies
     for i in 0..<10:
-      let side = rand(3)
-      var spawnX, spawnY: float32
-      case side
-      of 0: spawnX = rand(screenWidth.int).float32; spawnY = -30
-      of 1: spawnX = screenWidth.float32 + 30; spawnY = rand(screenHeight.int).float32
-      of 2: spawnX = rand(screenWidth.int).float32; spawnY = screenHeight.float32 + 30
-      else: spawnX = -30; spawnY = rand(screenHeight.int).float32
-
+      let (spawnX, spawnY) = randomEdgeSpawnPos(screenWidth, screenHeight)
       let randomType = enemyTypes[rand(enemyTypes.len - 1)]
       let enemy = newEnemy(spawnX, spawnY, game.difficulty, randomType, game)
       game.enemies.add(enemy)
@@ -463,8 +454,10 @@ proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, 
   for bossId in 1..12:
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
-      # Spawn the selected boss
-      let boss = spawnBoss(screenWidth, screenHeight, game.difficulty, game.bossCount, bossId * 5)
+      # Spawn the selected boss. The synthetic wave must be a real boss wave
+      # (bossId * BossWaveInterval): spawnBoss returns nil for non-boss waves,
+      # and a hardcoded stride desyncs the boss identity from the button.
+      let boss = spawnBoss(screenWidth, screenHeight, game.difficulty, game.bossCount, bossId * BossWaveInterval)
       game.enemies.add(boss)
       return
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
@@ -579,9 +572,9 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
 proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
   if not game.sandboxSidebarOpen:
     # Check toggle button click
-    if isMouseButtonPressed(Left):
+    if isPointerPressed():
       let mousePos = getVirtualMousePosition()
-      let toggleX = screenWidth - 50
+      let toggleX = getVirtualScreenWidth() - 50
       let toggleY = screenHeight div 2 - 30
       if mousePos.x >= toggleX.float32 and mousePos.x <= (toggleX + 40).float32 and
          mousePos.y >= toggleY.float32 and mousePos.y <= (toggleY + 60).float32:
@@ -591,13 +584,13 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
   clampSandboxScroll(game, screenHeight)
 
   # Handle scrolling
-  let mouseWheel = getMouseWheelMove()
+  let mouseWheel = getPointerWheelMove()
   if mouseWheel != 0:
     game.sandboxScrollOffset -= (mouseWheel * SCROLL_SPEED).int32
     clampSandboxScroll(game, screenHeight)
 
-  # Scrollbar drag
-  let sidebarXSb = screenWidth - SIDEBAR_WIDTH
+  # Scrollbar drag (screen-edge UI: anchor to the virtual screen edge)
+  let sidebarXSb = getVirtualScreenWidth() - SIDEBAR_WIDTH
   let contentStartYSb: int32 = 45 + TAB_HEIGHT + 5
   let maxScrollSb = maxSandboxScrollOffset(game.sandboxSelectedTab, screenHeight)
   let contentHSb = sandboxContentHeight(game.sandboxSelectedTab)
@@ -608,7 +601,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
                      int32(trackHSb.float32 * (trackHSb.float32 / contentHSb.float32)))
   let thumbRangeSb = trackHSb - thumbHSb
 
-  if isMouseButtonPressed(Left):
+  if isPointerPressed():
     let mpSb = getVirtualMousePosition()
     if maxScrollSb > 0 and
        mpSb.x >= trackXSb.float32 and mpSb.x <= (trackXSb + SCROLLBAR_WIDTH).float32 and
@@ -618,10 +611,10 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       game.sandboxScrollbarDragging = true
       game.sandboxScrollbarDragOffsetY = mpSb.y - thumbYSb
 
-  if isMouseButtonReleased(Left):
+  if isPointerReleased():
     game.sandboxScrollbarDragging = false
 
-  if game.sandboxScrollbarDragging and isMouseButtonDown(Left):
+  if game.sandboxScrollbarDragging and isPointerDown():
     let mpDrag = getVirtualMousePosition()
     if maxScrollSb > 0 and thumbRangeSb > 0:
       let newThumbY = mpDrag.y - game.sandboxScrollbarDragOffsetY - trackYSb.float32
@@ -629,9 +622,11 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
       clampSandboxScroll(game, screenHeight)
   # End scrollbar drag
 
-  if isMouseButtonPressed(Left):
+  if isPointerPressed():
     let mousePos = getVirtualMousePosition()
-    let sidebarX = screenWidth - SIDEBAR_WIDTH
+    # Screen-edge UI: anchor to the virtual screen edge. The screenWidth param is
+    # forwarded to the tab click handlers below purely for world spawn bounds.
+    let sidebarX = getVirtualScreenWidth() - SIDEBAR_WIDTH
 
     # Only process clicks within the sidebar area
     if mousePos.x < sidebarX.float32:

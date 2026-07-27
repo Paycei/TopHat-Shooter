@@ -3,6 +3,7 @@
 
 import raylib, algorithm, sequtils
 import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import ../gamepad_input
 
 type
   WindowID* = enum
@@ -145,9 +146,23 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.roguelite.window.visible = false
   wm.changelog.window.visible = false
 
+proc relayoutWindows*(wm: WindowManager, screenWidth, screenHeight: int) =
+  ## React to a virtual-resolution change (classic <-> widescreen). Only the
+  ## X axis / width changes across the toggle (height stays 768), so closed
+  ## windows are re-centered horizontally (preserving each window's intended
+  ## vertical position) and open windows are only re-clamped -- mirroring the
+  ## drag clamp in handleOSWindowInput -- so a dragged window is never yanked
+  ## yet also never stranded off-screen.
+  for window in wm.getAllWindows():
+    if window.visible:
+      window.x = max(0, min(window.x, screenWidth - window.width))
+      window.y = max(0, min(window.y, screenHeight - 100))
+    else:
+      window.x = (screenWidth - window.width) div 2
+
 proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
-  if not isMouseButtonPressed(Left):
+  if not isPointerPressed():
     return false
 
   # Get visible windows sorted by z-order (highest first)
@@ -217,6 +232,11 @@ type
     replayEnding*: bool  # True when user clicked "Replay Ending" in settings
     replayRogueliteEnding*: bool  # True when user clicked "Replay Roguelite" in settings
     replaySurvivalEnding*: bool   # True when user clicked "Replay Survival" in settings
+    replayWaveIntro*: bool        # True when user clicked "Wave Intro" in settings
+    replaySurvivalIntro*: bool    # True when user clicked "Survival Intro" in settings
+    replayRogueliteIntro*: bool   # True when user clicked "Roguelite Intro" in settings
+    replaySandboxIntro*: bool     # True when user clicked "Sandbox Intro" in settings
+    replayPvPIntro*: bool         # True when user clicked "PvP Intro" in settings
 
 proc updateAllWindows*(wm: WindowManager, dt: float32,
                        screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
@@ -232,6 +252,11 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   result.replayEnding = false
   result.replayRogueliteEnding = false
   result.replaySurvivalEnding = false
+  result.replayWaveIntro = false
+  result.replaySurvivalIntro = false
+  result.replayRogueliteIntro = false
+  result.replaySandboxIntro = false
+  result.replayPvPIntro = false
 
   let visibleWindows = wm.getVisibleWindows()
 
@@ -259,12 +284,27 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       if wm.settings.replaySurvivalEndingRequested:
         result.replaySurvivalEnding = true
         wm.settings.replaySurvivalEndingRequested = false
+      if wm.settings.replayWaveIntroRequested:
+        result.replayWaveIntro = true
+        wm.settings.replayWaveIntroRequested = false
+      if wm.settings.replaySurvivalIntroRequested:
+        result.replaySurvivalIntro = true
+        wm.settings.replaySurvivalIntroRequested = false
+      if wm.settings.replayRogueliteIntroRequested:
+        result.replayRogueliteIntro = true
+        wm.settings.replayRogueliteIntroRequested = false
+      if wm.settings.replaySandboxIntroRequested:
+        result.replaySandboxIntro = true
+        wm.settings.replaySandboxIntroRequested = false
+      if wm.settings.replayPvPIntroRequested:
+        result.replayPvPIntro = true
+        wm.settings.replayPvPIntroRequested = false
 
     elif window == wm.stats.window:
       discard updateStatsWindow(wm.stats, dt, screenWidth, screenHeight, visibleWindows)
 
     elif window == wm.shop.window:
-      result.shopClosed = updateShopWindow(wm.shop, dt, visibleWindows)
+      result.shopClosed = updateShopWindow(wm.shop, dt, screenWidth, screenHeight, visibleWindows)
       if result.shopClosed:
         wm.shop.window.visible = false
 

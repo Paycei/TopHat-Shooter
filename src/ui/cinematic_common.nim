@@ -7,11 +7,8 @@
 ## so the outro reads as a sibling of the intro.
 
 import raylib, rlgl, math, strutils
-import particle_types
-import background_fx, ../types, ../settings, ../save_system, ../skins, ../shapes,
-       ../bullet_skins, ../bullet_shapes, ../enemy, ../enemy_config, icon_drawing
+import particle_types, background_fx, ../types, ../settings, ../save_system, ../skins, ../shapes, ../bullet_skins, ../bullet_shapes, ../enemy, ../enemy_config, icon_drawing, ../utils
 
-# ---------------------------------------------------------------------------
 # Maths / colour helpers
 
 proc clamp01*(v: float32): float32 =
@@ -32,7 +29,6 @@ proc fractCoord*(value: float32): float32 =
 
 proc colorA*(color: Color, alpha: float32): Color = withAlpha(color, alpha)  # delegate to utils.withAlpha
 
-# ---------------------------------------------------------------------------
 # Equipped cosmetics (mirrors what the player has selected in the shop)
 
 proc equippedSkin*(): SkinType =
@@ -171,7 +167,6 @@ proc drawRealBossModel*(x, y, radius, time: float32, screenWidth, screenHeight: 
   boss.spawnTimer = 0
   drawEnemy(boss)
 
-# ---------------------------------------------------------------------------
 # Text / atmosphere
 
 proc drawCenteredText*(text: string, x, y: int32, size: int32, color: Color) =
@@ -209,10 +204,10 @@ proc drawDataRain*(screenWidth, screenHeight: int32, time, intensity: float32,
     let y = ((time * speed + col.float32 * 47.0'f32) mod (screenHeight.float32 + 140.0'f32)) - 120.0'f32
     let alpha = alphaByte(intensity * (55.0'f32 + (col mod 5).float32 * 24.0'f32))
     let digit = if (col + time.int) mod 2 == 0: "1" else: "0"
-    drawText(digit, x, y.int32, 14, Color(r: color.r, g: color.g, b: color.b, a: alpha))
+    drawText(digit, x, y.int32, 14, withAlpha(color, alpha))
     if col mod 5 == 0:
       drawRectangle(x, (y + 20.0'f32).int32, 2, 46,
-                    Color(r: color.r, g: color.g, b: color.b, a: alphaByte(intensity * 24.0'f32)))
+                    withAlpha(color, alphaByte(intensity * 24.0'f32)))
     inc col
 
 proc drawTapeChange*(screenWidth, screenHeight: int32, local: float32,
@@ -243,7 +238,6 @@ proc drawTapeChange*(screenWidth, screenHeight: int32, local: float32,
   drawRectangle(0, 0, screenWidth, screenHeight,
                 Color(r: 210, g: 245, b: 245, a: alphaByte(intensity * intensity * 60.0'f32)))
 
-# ---------------------------------------------------------------------------
 # Recorder chrome (the "playback feed" UI around the scene)
 
 proc drawCinematicOverlay*(screenWidth, screenHeight: int32,
@@ -275,7 +269,7 @@ proc drawCinematicOverlay*(screenWidth, screenHeight: int32,
   drawRectangle(0, 0, screenWidth, barH, Black)
   drawRectangle(0, screenHeight - barH, screenWidth, barH, Black)
 
-  drawShopIcon(24, 15, 22, iconIndex, Color(r: accent.r, g: accent.g, b: accent.b, a: 185))
+  drawShopIcon(24, 15, 22, iconIndex, withAlpha(accent, 185))
   drawText(shotLabel, 54, 18, 14, Color(r: 160, g: 220, b: 220, a: 155))
   drawRectangle(screenWidth - 86, 23, 10, 10, Color(r: 255, g: 40, b: 60, a: 220))
   drawText(liveText, screenWidth - 70, 17, 16, Color(r: 255, g: 210, b: 220, a: 180))
@@ -286,7 +280,7 @@ proc drawCinematicOverlay*(screenWidth, screenHeight: int32,
   drawRectangle(progressX, progressY, progressW, 2, Color(r: 60, g: 85, b: 100, a: 150))
   let cursorX = progressX + int32(progressW.float32 * clamp01(time / totalDuration))
   drawRectangle(progressX, progressY, cursorX - progressX, 2,
-                Color(r: accent.r, g: accent.g, b: accent.b, a: 210))
+                withAlpha(accent, 210))
 
   let controlText = if fastForwardActive: controlsActiveText else: controlsText
   drawCenteredText(controlText, screenWidth div 2, screenHeight - 34, 14,
@@ -308,7 +302,7 @@ proc drawCinematicOverlay*(screenWidth, screenHeight: int32,
   let barW = skipBoxW - 80
   drawRectangle(barX, barY, barW, 8, Color(r: 25, g: 35, b: 45, a: 210))
   drawRectangle(barX, barY, int32(barW.float32 * skipProgress), 8,
-                Color(r: accent.r, g: accent.g, b: accent.b, a: 225))
+                withAlpha(accent, 225))
   drawRectangleLines(barX, barY, barW, 8, Color(r: 70, g: 120, b: 130, a: 190))
 
   drawFilmGrain(screenWidth, screenHeight, time, 24.0'f32)

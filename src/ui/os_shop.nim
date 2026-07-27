@@ -5,12 +5,16 @@ import raylib, math, strutils
 import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context
 
 const
-  SHOP_WIDTH = 950
-  SHOP_HEIGHT = 600
-  TITLE_BAR_HEIGHT = 45
-  ITEM_HEIGHT = 60
-  ITEM_SPACING = 6
-  SIDEBAR_WIDTH: int32 = 280
+  SHOP_BASE_WIDTH: int32 = 950     # classic (4:3) width -- do not change
+  SHOP_MAX_GROWTH: int32 = 300     # widescreen cap -> 1250 wide, ~58px gutters
+  SHOP_HEIGHT: int32 = 600
+  TITLE_BAR_HEIGHT: int32 = 45
+  ITEM_HEIGHT: int32 = 60
+  ITEM_SPACING: int32 = 6
+  SIDEBAR_BASE_WIDTH: int32 = 280
+  CLOSE_BTN_SIZE: int32 = 28
+  BUY_BTN_W: int32 = 220
+  BUY_BTN_H: int32 = 38
   SHOP_COST_MULTIPLIER = 1.8'f32
   SHOP_DAMAGE_GAIN = 0.32'f32
   SHOP_DAMAGE_SCALE = 1.06'f32
@@ -21,6 +25,72 @@ const
   SHOP_HEALTH_GAIN_BASE = 6
   SHOP_BULLET_SPEED_GAIN = 10.0'f32
   SHOP_WALL_GAIN = 10
+  # Base costs per shop slot (damage, fire rate, move speed, max hp, bullet
+  # speed, walls). Shared by initShopItems and the sandbox wave-average
+  # simulation so the two can never disagree.
+  SHOP_BASE_COSTS = [13, 13, 10, 14, 9, 18]
+
+type
+  ShopLayout* = object
+    ## Resolved geometry of the in-game shop for the current virtual resolution.
+    ## `shopLayout()` is the single source of truth: the draw pass here and the
+    ## click hit-testing in main.nim both read it, so the two can never disagree
+    ## the way the old duplicated const blocks could.
+    winX*, winY*, winW*, winH*: int32
+    closeX*, closeY*, closeSize*: int32
+    sidebarX*, sidebarY*, sidebarW*, sidebarH*: int32
+    itemsX*, itemsY*, itemW*: int32      # itemsY is the top of the first row
+    headerX*, headerY*: int32            # "Available purchases" label
+    bottomY*: int32
+    buyX*, buyY*, buyW*, buyH*: int32
+
+proc shopLayout*(): ShopLayout =
+  ## Widescreen (16:9) hands the panel ~300 extra pixels. 40% goes to the active-
+  ## upgrades sidebar (whose wrapped power-up descriptions are the most cramped
+  ## element on this screen) and the remaining 60% to the purchase rows. In
+  ## classic the growth term is 0, so every number collapses to the original
+  ## hand-tuned layout.
+  let grow = min(getExtraVirtualWidth(), SHOP_MAX_GROWTH)
+
+  result.winW = SHOP_BASE_WIDTH + grow
+  result.winH = SHOP_HEIGHT
+  result.winX = (getVirtualScreenWidth() - result.winW) div 2
+  result.winY = (getVirtualScreenHeight() - result.winH) div 2
+
+  result.closeSize = CLOSE_BTN_SIZE
+  result.closeX = result.winX + result.winW - result.closeSize - 10
+  result.closeY = result.winY + (TITLE_BAR_HEIGHT - result.closeSize) div 2
+
+  result.sidebarX = result.winX + 10
+  result.sidebarY = result.winY + TITLE_BAR_HEIGHT + 10
+  result.sidebarW = SIDEBAR_BASE_WIDTH + (grow * 2) div 5
+  result.sidebarH = result.winH - TITLE_BAR_HEIGHT - 85  # leaves room for the bottom panel
+
+  result.itemsX = result.sidebarX + result.sidebarW + 15
+  result.headerX = result.itemsX
+  result.headerY = result.sidebarY + 10
+  result.itemsY = result.headerY + 35
+  result.itemW = result.winW - result.sidebarW - 40
+
+  result.bottomY = result.winY + result.winH - 65
+  result.buyW = BUY_BTN_W
+  result.buyH = BUY_BTN_H
+  result.buyX = result.winX + result.winW - result.buyW - 20
+  result.buyY = result.bottomY + 12
+
+proc itemRect*(l: ShopLayout, i: int): Rectangle =
+  ## Clickable/hover rect of shop row `i` (0..5).
+  Rectangle(x: l.itemsX.float32,
+            y: float32(l.itemsY + int32(i) * (ITEM_HEIGHT + ITEM_SPACING)),
+            width: l.itemW.float32, height: ITEM_HEIGHT.float32)
+
+proc closeRect*(l: ShopLayout): Rectangle =
+  Rectangle(x: l.closeX.float32, y: l.closeY.float32,
+            width: l.closeSize.float32, height: l.closeSize.float32)
+
+proc buyRect*(l: ShopLayout): Rectangle =
+  Rectangle(x: l.buyX.float32, y: l.buyY.float32,
+            width: l.buyW.float32, height: l.buyH.float32)
 
 proc shopFitText(text: string, maxWidth, fontSize: int32,
                  minSize: int32 = 8): tuple[text: string, size: int32] =
@@ -80,12 +150,12 @@ proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
   result = int32(lines.len) * lineHeight
 
 proc initShopItems*(): array[6, ShopItem] =
-  result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: 13, bought: 0)
-  result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: 13, bought: 0)
-  result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: 10, bought: 0)
-  result[3] = ShopItem(name: t(tkShopMaxHealthPlus), description: t(tkShopMaxHealthPlusDesc), baseCost: 14, bought: 0)
-  result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: 9, bought: 0)
-  result[5] = ShopItem(name: t(tkShopWallX4), description: t(tkShopWallX4Desc), baseCost: 18, bought: 0)
+  result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: SHOP_BASE_COSTS[0], bought: 0)
+  result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: SHOP_BASE_COSTS[1], bought: 0)
+  result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: SHOP_BASE_COSTS[2], bought: 0)
+  result[3] = ShopItem(name: t(tkShopMaxHealthPlus), description: t(tkShopMaxHealthPlusDesc), baseCost: SHOP_BASE_COSTS[3], bought: 0)
+  result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: SHOP_BASE_COSTS[4], bought: 0)
+  result[5] = ShopItem(name: t(tkShopWallX4), description: t(tkShopWallX4Desc), baseCost: SHOP_BASE_COSTS[5], bought: 0)
 
 proc getCurrentCost*(item: ShopItem): int =
   result = (item.baseCost.float32 * pow(SHOP_COST_MULTIPLIER.float32, item.bought.float32)).int
@@ -117,45 +187,83 @@ proc applyShopPurchaseEffect*(game: Game, index: int, purchaseNumber: int, healH
   else:
     discard
 
+proc waveEnemyCoinEstimate(wave: int): float32 =
+  ## Expected coins from a single non-boss kill at `wave`: the per-tier spawn
+  ## roll tables in spawnWaveEnemies (game.nim) folded with enemyCoinValue's
+  ## per-type payouts (coin.nim). One entry per 5-wave roster tier; the last
+  ## entry covers waves 56+ where the roster stops changing.
+  const tierAvg = [1.0'f32, 1.0, 1.4, 1.85, 2.2, 2.35,
+                   2.9, 3.0, 3.1, 3.4, 3.95, 4.7]
+  tierAvg[min((wave - 1) div 5, tierAvg.high)]
+
 proc sandboxWaveAverageConfig*(base: SandboxConfig, wave: int): SandboxConfig =
   ## Estimate the stat loadout a typical player would have *entering* `wave`,
-  ## starting from `base` (the wave-1 baseline stats). This recreates the two
-  ## real progression effects that compound over a run:
-  ##   1. Shop purchases — a typical player buys ~1.2 upgrades per wave, spread
-  ##      round-robin across the 6 upgrade types, using the real gain curves.
-  ##   2. The 1.012x-per-wave passive stat scaling applied in startWave.
-  ## It is an approximation (real spending varies), but every number flows through
-  ## the same formulas the live game uses, so the result is a believable build.
+  ## starting from `base` (the wave-1 baseline stats). Rather than assuming a
+  ## fixed number of shop purchases, this replays the run wave by wave with the
+  ## real progression formulas, so late-wave builds stay honest:
+  ##   1. startWave's 1.012x passive scaling is applied once per wave *before*
+  ##      that wave's shopping, so (like a real run) early purchases compound
+  ##      for the rest of the run while late purchases barely do.
+  ##   2. Coin income follows the real enemy-count curve, the spawn-mix coin
+  ##      averages, and boss bounties (~90% of drops collected).
+  ##   3. Shop purchases are constrained by that budget and the real 1.8x cost
+  ##      curve: always buy the cheapest affordable upgrade, which keeps the
+  ##      six upgrade tracks at roughly equal cost tiers (balanced spending).
+  ## Still an approximation (elites, combo bonuses, and spending taste vary),
+  ## but every stat gain flows through the live game's own formulas and every
+  ## purchase had to be paid for at the real price.
   result = base
   let w = max(1, wave)
-
-  # 1. Simulated shop purchases (~1.2 per wave since wave 1).
-  let totalPurchases = int(float32(w - 1) * 1.2'f32)
+  var coins = base.coins.float32
   var bought: array[6, int]
-  for i in 0 ..< totalPurchases:
-    let slot = i mod 6
-    inc bought[slot]
-    let purchaseNumber = bought[slot]
-    case slot
-    of 0: result.damage += shopDamageGain(purchaseNumber)
-    of 1: result.fireRate = applyFireRateDiminished(result.fireRate,
-            SHOP_FIRE_RATE_GAIN, SHOP_FIRE_RATE_EXPONENT, SHOP_FIRE_RATE_CAP)
-    of 2: result.speed += SHOP_MOVE_SPEED_GAIN
-    of 3: result.maxHp += shopHealthGain(purchaseNumber).float32
-    of 4: result.bulletSpeed = addBulletSpeedDiminished(result.bulletSpeed, SHOP_BULLET_SPEED_GAIN)
-    of 5: result.walls += SHOP_WALL_GAIN
-    else: discard
 
-  # 2. Passive per-wave scaling (mirrors the loop in startWave).
-  let scaling = pow(1.012'f32, float32(w - 1))
-  result.maxHp *= scaling
-  result.damage *= scaling
-  result.speed *= scaling
-  result.bulletSpeed = multiplyBulletSpeedDiminished(result.bulletSpeed, scaling)
-  result.fireRate /= scaling   # lower = faster, so divide
+  for n in 1 ..< w:
+    # startWave's per-wave scaling for wave n (mirrors game.nim).
+    const waveScaling = 1.012'f32
+    result.maxHp *= waveScaling
+    result.damage *= waveScaling
+    result.speed *= waveScaling
+    result.bulletSpeed = multiplyBulletSpeedDiminished(result.bulletSpeed, waveScaling)
+    result.fireRate /= waveScaling   # lower = faster, so divide
 
-  # Some leftover spending money so the shop is usable on entry.
-  result.coins = base.coins + w * 5
+    # Income from clearing wave n: enemy count mirrors calculateWaveEnemyCount
+    # (game.nim), boss waves spawn 25% of normal but pay the boss bounty.
+    var enemyCount = 8.0'f32 + 3.0'f32 * pow(float32(n - 1), 0.6'f32)
+    let isBossWave = n mod BossWaveInterval == 0
+    if isBossWave:
+      enemyCount *= 0.25'f32
+    var income = enemyCount * waveEnemyCoinEstimate(n)
+    if isBossWave:
+      income += float32(50 + (n div BossWaveInterval) * 10)   # enemyCoinValue's boss payout
+    coins += income * 0.9'f32   # some drops expire uncollected
+
+    # Shop between waves: buy the cheapest affordable upgrade until broke,
+    # at the real getCurrentCost price (baseCost * 1.8^bought).
+    while true:
+      var slot = 0
+      var slotCost = high(int)
+      for s in 0 ..< 6:
+        let cost = int(SHOP_BASE_COSTS[s].float32 *
+                       pow(SHOP_COST_MULTIPLIER, bought[s].float32))
+        if cost < slotCost:
+          slot = s
+          slotCost = cost
+      if slotCost.float32 > coins:
+        break
+      coins -= slotCost.float32
+      inc bought[slot]
+      case slot
+      of 0: result.damage += shopDamageGain(bought[0])
+      of 1: result.fireRate = applyFireRateDiminished(result.fireRate,
+              SHOP_FIRE_RATE_GAIN, SHOP_FIRE_RATE_EXPONENT, SHOP_FIRE_RATE_CAP)
+      of 2: result.speed += SHOP_MOVE_SPEED_GAIN
+      of 3: result.maxHp += shopHealthGain(bought[3]).float32
+      of 4: result.bulletSpeed = addBulletSpeedDiminished(result.bulletSpeed, SHOP_BULLET_SPEED_GAIN)
+      of 5: result.walls += SHOP_WALL_GAIN
+      else: discard
+
+  # Whatever wasn't spent is the pocket money the build enters the wave with.
+  result.coins = coins.int
   result.startWave = w
 
 proc drawModernShopButton(x, y, width, height: int32, text: string,
@@ -251,8 +359,8 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
     drawText(badgeText, badgeX + 5, badgeY + 3, 10, badgeText2Color)
 
 proc drawShop*(game: Game) =
-  let screenWidth = game.screenWidth
-  let screenHeight = game.screenHeight
+  let screenWidth = getVirtualScreenWidth()
+  let screenHeight = getVirtualScreenHeight()
 
   # Animated scan lines effect
   for i in 0..<(screenHeight div 4):
@@ -274,42 +382,45 @@ proc drawShop*(game: Game) =
             radius.float32, (radius + 60).float32, 0, 360, 32,
             Color(r: 0, g: 0, b: 0, a: alpha))
 
-  # Window position
-  let windowX = (screenWidth - SHOP_WIDTH) div 2
-  let windowY = (screenHeight - SHOP_HEIGHT) div 2
+  # Window position (widens in 16:9 -- see shopLayout)
+  let L = shopLayout()
+  let windowX = L.winX
+  let windowY = L.winY
+  let windowW = L.winW
+  let windowH = L.winH
 
   # Window shadow
   for i in 1..4:
-    let offset = i * 2
+    let offset = int32(i * 2)
     let alpha = uint8(50 - i * 8)
-    drawRectangle((windowX + offset).int32, (windowY + offset).int32,
-                 SHOP_WIDTH, SHOP_HEIGHT,
+    drawRectangle(windowX + offset, windowY + offset,
+                 windowW, windowH,
                  Color(r: 0, g: 0, b: 0, a: alpha))
 
   # Window background
-  drawRectangle(windowX, windowY, SHOP_WIDTH, SHOP_HEIGHT,
+  drawRectangle(windowX, windowY, windowW, windowH,
                Color(r: 26, g: 32, b: 44, a: 255))
 
   # Grid texture
-  for i in 0..<(SHOP_HEIGHT div 40):
+  for i in 0..<(windowH div 40):
     let lineY = windowY + int32(i * 40)
-    drawRectangle(windowX, lineY, SHOP_WIDTH, int32(1),
+    drawRectangle(windowX, lineY, windowW, int32(1),
                  Color(r: 30, g: 36, b: 48, a: 255))
 
   # Window borders
   drawRectangleLines(Rectangle(x: windowX.float32, y: windowY.float32,
-                                width: SHOP_WIDTH.float32, height: SHOP_HEIGHT.float32),
+                                width: windowW.float32, height: windowH.float32),
                     4, Color(r: 0, g: 180, b: 255, a: 255))
   drawRectangleLines(Rectangle(x: (windowX + 2).float32, y: (windowY + 2).float32,
-                                width: (SHOP_WIDTH - 4).float32, height: (SHOP_HEIGHT - 4).float32),
+                                width: (windowW - 4).float32, height: (windowH - 4).float32),
                     1, Color(r: 60, g: 75, b: 95, a: 255))
 
   # Title bar
-  drawRectangle(windowX, windowY, SHOP_WIDTH, TITLE_BAR_HEIGHT,
+  drawRectangle(windowX, windowY, windowW, TITLE_BAR_HEIGHT,
                Color(r: 40, g: 52, b: 70, a: 255))
-  drawRectangle(windowX, windowY, SHOP_WIDTH, 2,
+  drawRectangle(windowX, windowY, windowW, 2,
                Color(r: 80, g: 100, b: 130, a: 255))
-  drawRectangle(windowX, windowY + TITLE_BAR_HEIGHT - 1, SHOP_WIDTH, 1,
+  drawRectangle(windowX, windowY + TITLE_BAR_HEIGHT - 1, windowW, 1,
                Color(r: 0, g: 140, b: 200, a: 255))
 
   # Title text
@@ -319,10 +430,10 @@ proc drawShop*(game: Game) =
   drawText(titleText, windowX + 15, windowY + 11, 22, titleColor)
 
   # Close button
-  let buttonSize = 28
-  let closeButtonY = windowY + int32((TITLE_BAR_HEIGHT - buttonSize) div 2)
-  let closeX = windowX + SHOP_WIDTH - int32(buttonSize) - 10
-  drawRectangle(closeX, closeButtonY, int32(buttonSize), int32(buttonSize),
+  let buttonSize = L.closeSize
+  let closeButtonY = L.closeY
+  let closeX = L.closeX
+  drawRectangle(closeX, closeButtonY, buttonSize, buttonSize,
                Color(r: 220, g: 50, b: 50, a: 255))
   drawRectangleLines(Rectangle(x: closeX.float32, y: closeButtonY.float32,
                                 width: buttonSize.float32, height: buttonSize.float32),
@@ -330,23 +441,24 @@ proc drawShop*(game: Game) =
   drawText("X", closeX + 8, closeButtonY + 5, 18, White)
 
   # Sidebar for owned upgrades
-  let sidebarX = windowX + 10
-  let sidebarY = windowY + TITLE_BAR_HEIGHT + 10
-  let sidebarHeight: int32 = SHOP_HEIGHT - TITLE_BAR_HEIGHT - 85  # Account for reduced bottom panel
+  let sidebarX = L.sidebarX
+  let sidebarY = L.sidebarY
+  let sidebarWidth = L.sidebarW
+  let sidebarHeight = L.sidebarH
   let HEADER_H: int32 = 35
   let contentAreaY  = sidebarY + HEADER_H
   let contentAreaH  = sidebarHeight - HEADER_H
   let SCROLLBAR_W: int32 = 6
-  let contentInnerW: int32 = SIDEBAR_WIDTH - SCROLLBAR_W - 2  # leave room for scrollbar
+  let contentInnerW: int32 = sidebarWidth - SCROLLBAR_W - 2  # leave room for scrollbar
 
-  drawRectangle(sidebarX, sidebarY, SIDEBAR_WIDTH, sidebarHeight,
+  drawRectangle(sidebarX, sidebarY, sidebarWidth, sidebarHeight,
                Color(r: 30, g: 38, b: 52, a: 255))
   drawRectangleLines(Rectangle(x: sidebarX.float32, y: sidebarY.float32,
-                                width: SIDEBAR_WIDTH.float32, height: sidebarHeight.float32),
+                                width: sidebarWidth.float32, height: sidebarHeight.float32),
                     1, Color(r: 0, g: 140, b: 200, a: 255))
 
   # Sidebar header (drawn above scissor region so it is always visible)
-  drawRectangle(sidebarX, sidebarY, SIDEBAR_WIDTH, HEADER_H,
+  drawRectangle(sidebarX, sidebarY, sidebarWidth, HEADER_H,
                Color(r: 40, g: 50, b: 65, a: 255))
   drawText("[L] " & t(tkShopActiveUpgrades), sidebarX + 10, sidebarY + 9, 16,
           Color(r: 150, g: 200, b: 255, a: 255))
@@ -372,15 +484,15 @@ proc drawShop*(game: Game) =
   # mouse-wheel scroll when cursor is over the sidebar
   let mp = getVirtualMousePosition()
   let sidebarRect = Rectangle(x: sidebarX.float32, y: contentAreaY.float32,
-                               width: SIDEBAR_WIDTH.float32, height: contentAreaH.float32)
+                               width: sidebarWidth.float32, height: contentAreaH.float32)
   if checkCollisionPointRec(mp, sidebarRect):
-    let wheel = getMouseWheelMove()
+    let wheel = getPointerWheelMove()
     if wheel != 0.0:
       game.shopSidebarScroll = clamp(game.shopSidebarScroll - int32(wheel * 20.0),
                                       0'i32, maxScroll)
 
   # scissor clip the scrollable content
-  beginVirtualScissorMode(sidebarX, contentAreaY, SIDEBAR_WIDTH - SCROLLBAR_W - 1, contentAreaH)
+  beginVirtualScissorMode(sidebarX, contentAreaY, sidebarWidth - SCROLLBAR_W - 1, contentAreaH)
 
   var upgradeY: int32 = contentAreaY + 8 - game.shopSidebarScroll
 
@@ -398,7 +510,7 @@ proc drawShop*(game: Game) =
 
       drawText("> " & name, upgradeX, upgradeY, 14, rarityColor)
       let levelWidth = measureText(levelText, 11)
-      drawText(levelText, sidebarX + SIDEBAR_WIDTH - SCROLLBAR_W - levelWidth - 10, upgradeY + 2, 11,
+      drawText(levelText, sidebarX + sidebarWidth - SCROLLBAR_W - levelWidth - 10, upgradeY + 2, 11,
               Color(r: 100, g: 200, b: 255, a: 255))
       upgradeY += 18
 
@@ -412,7 +524,7 @@ proc drawShop*(game: Game) =
 
   # scrollbar
   if maxScroll > 0:
-    let sbX = sidebarX + SIDEBAR_WIDTH - SCROLLBAR_W - 1
+    let sbX = sidebarX + sidebarWidth - SCROLLBAR_W - 1
     let sbTrackH = contentAreaH
     drawRectangle(sbX, contentAreaY, SCROLLBAR_W, sbTrackH,
                  Color(r: 20, g: 28, b: 40, a: 200))
@@ -425,58 +537,48 @@ proc drawShop*(game: Game) =
     # top/bottom fade hints when content overflows
     if game.shopSidebarScroll > 0:
       for i in 0'i32..7'i32:
-        drawRectangle(sidebarX, contentAreaY + i, SIDEBAR_WIDTH - SCROLLBAR_W - 1, 1,
+        drawRectangle(sidebarX, contentAreaY + i, sidebarWidth - SCROLLBAR_W - 1, 1,
                      Color(r: 30, g: 38, b: 52, a: uint8(200 - i * 25)))
     if game.shopSidebarScroll < maxScroll:
       for i in 0'i32..7'i32:
         let fy = contentAreaY + contentAreaH - 1 - i
-        drawRectangle(sidebarX, fy, SIDEBAR_WIDTH - SCROLLBAR_W - 1, 1,
+        drawRectangle(sidebarX, fy, sidebarWidth - SCROLLBAR_W - 1, 1,
                      Color(r: 30, g: 38, b: 52, a: uint8(200 - i * 25)))
 
   # Re-draw the header border line on top of any content that bled through
-  drawRectangle(sidebarX, sidebarY + HEADER_H - 1, SIDEBAR_WIDTH, 1,
+  drawRectangle(sidebarX, sidebarY + HEADER_H - 1, sidebarWidth, 1,
                Color(r: 0, g: 100, b: 160, a: 180))
 
   # Shop items area
-  let shopX = sidebarX + SIDEBAR_WIDTH + 15
-  let shopY = sidebarY + 10
-  let shopWidth = SHOP_WIDTH - SIDEBAR_WIDTH - 40
-
-  drawText("v " & t(tkShopAvailablePurchases), shopX, shopY, 16,
+  drawText("v " & t(tkShopAvailablePurchases), L.headerX, L.headerY, 16,
           Color(r: 200, g: 220, b: 240, a: 255))
-
-  let itemsStartY = shopY + 35
 
   # Mouse hover detection
   if game.mouseMovedRecently and not game.keyboardUsedRecently:
     let mousePos = getVirtualMousePosition()
 
     for i in 0..5:
-      let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
-      let itemRect = Rectangle(x: shopX.float32, y: itemY.float32,
-                              width: shopWidth.float32, height: ITEM_HEIGHT.float32)
-
-      if checkCollisionPointRec(mousePos, itemRect):
+      if checkCollisionPointRec(mousePos, L.itemRect(i)):
         game.selectedShopItem = i
 
   # Draw shop items with programmatic icons
   for i in 0..5:
-    let itemY = itemsStartY + i * (ITEM_HEIGHT + ITEM_SPACING)
+    let r = L.itemRect(i)
     let item = game.shopItems[i]
     let cost = getCurrentCost(item)
     let canAfford = game.player.coins >= cost
     let isSelected = i == game.selectedShopItem
 
     # Draw item button
-    drawModernShopButton(shopX, itemY.int32, shopWidth, ITEM_HEIGHT,
+    drawModernShopButton(r.x.int32, r.y.int32, r.width.int32, r.height.int32,
                         item.name, cost, canAfford, isSelected,
                         game.time, i, item.description, item.bought)
 
   # Bottom panel with controls - reduced height
-  let bottomY = windowY + SHOP_HEIGHT - 65
-  drawRectangle(windowX, bottomY, SHOP_WIDTH, 65,
+  let bottomY = L.bottomY
+  drawRectangle(windowX, bottomY, windowW, 65,
                Color(r: 30, g: 38, b: 52, a: 255))
-  drawRectangle(windowX, bottomY, SHOP_WIDTH, 2,
+  drawRectangle(windowX, bottomY, windowW, 2,
                Color(r: 0, g: 140, b: 200, a: 255))
 
   # Control instructions with modern styling
@@ -500,10 +602,10 @@ proc drawShop*(game: Game) =
   let selectedCost = getCurrentCost(selectedItem)
   let canBuy = game.player.coins >= selectedCost
 
-  let buyButtonWidth: int32 = 220
-  let buyButtonHeight: int32 = 38
-  let buyButtonX: int32 = (windowX + SHOP_WIDTH - buyButtonWidth - 20).int32
-  let buyButtonY: int32 = bottomY + 12
+  let buyButtonWidth = L.buyW
+  let buyButtonHeight = L.buyH
+  let buyButtonX = L.buyX
+  let buyButtonY = L.buyY
 
   # Calculate position for centered credits counter
   # Position it between the "ESC Continue" text (around x=300) and the buy button

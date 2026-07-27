@@ -58,24 +58,31 @@ proc joyRadius(): float32 =
   ## roughly DPI-independent across phones.
   max(70.0'f32, getScreenHeight().float32 * 0.13'f32)
 
-# --- On-screen action buttons, in virtual 1024x768 coordinates ---------------
+# --- On-screen action buttons, in virtual-canvas coordinates -----------------
+# Anchored to the live virtual size rather than a hardcoded 1024x768: the HUD
+# layout setting switches the canvas between 1024 (classic 4:3) and 1366
+# (widescreen 16:9), and mobile defaults to widescreen. Hardcoding would leave
+# the buttons 342px short of the right edge, floating over the gameplay world.
+# Anchored this way they land in the widescreen gutter, clear of the action.
 const
   BtnSize = 96.0'f32
   BtnMargin = 24.0'f32
-  VW = 1024.0'f32
-  VH = 768.0'f32
+
+proc virtualW(): float32 = getVirtualScreenWidth().float32
+proc virtualH(): float32 = getVirtualScreenHeight().float32
 
 proc pauseBtnRect(): Rectangle =
-  Rectangle(x: VW - BtnSize - BtnMargin, y: BtnMargin, width: BtnSize, height: BtnSize)
+  Rectangle(x: virtualW() - BtnSize - BtnMargin, y: BtnMargin,
+            width: BtnSize, height: BtnSize)
 
 proc abilityBtnRect(): Rectangle =
   ## Bottom-right, above the wall button.
-  Rectangle(x: VW - BtnSize - BtnMargin, y: VH - BtnSize - BtnMargin,
+  Rectangle(x: virtualW() - BtnSize - BtnMargin, y: virtualH() - BtnSize - BtnMargin,
             width: BtnSize, height: BtnSize)
 
 proc wallBtnRect(): Rectangle =
   ## Left of the ability button.
-  Rectangle(x: VW - BtnSize * 2 - BtnMargin * 2, y: VH - BtnSize - BtnMargin,
+  Rectangle(x: virtualW() - BtnSize * 2 - BtnMargin * 2, y: virtualH() - BtnSize - BtnMargin,
             width: BtnSize, height: BtnSize)
 
 proc pointInRect(p: Vector2, r: Rectangle): bool =

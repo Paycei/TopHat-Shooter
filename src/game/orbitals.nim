@@ -1,6 +1,5 @@
-import raylib, rlgl, math, tables, types, player, particle_pool, particle_types, powerup
-import game/combat
-import game/bullets
+import raylib, rlgl, math, tables
+import types, player, particle_pool, particle_types, powerup, game/combat, game/bullets
 from run_statistics import trackPowerUpDamage, trackPowerUpHealing
 
 # ORBITAL WEAPONS SYSTEM
@@ -22,13 +21,21 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   if orb.elementType == etArcane:
     actualBaseDamage *= 1.5  # +50% base damage
 
-  # Apply Arcane Mastery bonus for Arcane orbs
-  if orb.elementType == etArcane and game.player.hasArcaneMastery:
-    actualBaseDamage *= 2.0  # +100% damage
-
-  # Apply Wind Mastery bonus for Wind orbs
-  if orb.elementType == etWind and game.player.hasWindMastery:
-    actualBaseDamage *= 2.5  # +150% damage
+  # Mastery bonus for the elements whose orb payoff is the impact damage itself.
+  # Fire/poison orbs get their +150% through the DoT (applyMasteryDoT below) and
+  # blood's mastery pays out as lifesteal, so neither is boosted twice here.
+  # Mastery bonus for the orbs whose payoff is the impact damage itself. Arcane
+  # is capped at +75% (see ArcaneMasteryDmgMult). Fire/poison get theirs through
+  # the DoT, and frost/blood masteries pay out as chill and lifesteal instead.
+  let orbMasteryMult = case orb.elementType
+    of etArcane:
+      if game.player.hasArcaneMastery: ArcaneMasteryDmgMult else: 1.0'f32
+    of etWind:
+      if game.player.hasWindMastery: MasteryDamageMult else: 1.0'f32
+    of etLightning:
+      if game.player.hasLightningMastery: MasteryDamageMult else: 1.0'f32
+    else: 1.0'f32
+  actualBaseDamage *= orbMasteryMult
 
   # Use passed-in stats for crit calculation (avoids recomputing per orb hit)
   let damageWithCrit = applyCriticalHitFromStats(stats, actualBaseDamage)
@@ -87,9 +94,9 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
   case orb.elementType
   of etPoison:
     let poisonDmg = 0.3 + game.player.damage * 0.2
-    applyMasteryDoT(enemy, etPoison, poisonDmg, 4.0,
+    applyMasteryDoT(enemy, etPoison, poisonDmg, 5.0,
                     game.player.hasPoisonMastery,
-                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                    masteryDmgMult = PoisonMasteryDmgMult, masteryDurMult = PoisonMasteryDurMult,
                     masterySlowAmount = 0.40, source = "orb")
 
     # Green particles
@@ -97,10 +104,10 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
                    Color(r: 100, g: 255, b: 100, a: 255), 5)
 
   of etFire:
-    let fireDmg = 0.4 + game.player.damage * 0.2
+    let fireDmg = 0.6 + game.player.damage * 0.25
     applyMasteryDoT(enemy, etFire, fireDmg, 2.0,
                     game.player.hasFireMastery,
-                    masteryDmgMult = 3.5, masteryDurMult = 2.0,
+                    masteryDmgMult = FireMasteryDmgMult, masteryDurMult = FireMasteryDurMult,
                     masterySlowAmount = 0.45, source = "orb")
 
     # Orange/red particles
@@ -110,6 +117,10 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
   of etLightning:
     # Lightning: Chain to nearby enemies
     let chainRange = 80.0
+    # The chains are computed from the raw orb damage (not the mastery-boosted
+    # impact value in applyOrbDamage), so the +150% has to be applied here too.
+    let chainBase = baseDamage * 0.7 *
+      (if game.player.hasLightningMastery: MasteryDamageMult else: 1.0'f32)
 
     var nearestDist = chainRange + 1.0
     var nearestEnemy: Enemy = nil
@@ -128,14 +139,14 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
 
     # Apply chain damage
     if nearestEnemy != nil:
-      let chainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
+      let chainDamageWithCrit = applyCriticalHitFromStats(stats, chainBase)
       let chainDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
 
       # Track lightning orb chain damage, belongs to puChainLightning regardless of trigger source
       trackPowerUpDamage(game, puChainLightning, chainDamage)
 
       game.showDamage(nearestEnemy.pos, chainDamage, fromPlayer = true,
-                      isCritical = chainDamageWithCrit > baseDamage * 0.7, damageType = dtLightning)
+                      isCritical = chainDamageWithCrit > chainBase, damageType = dtLightning)
 
       # Apply slow if has Lightning Mastery
       if game.player.hasLightningMastery:
@@ -159,14 +170,14 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
               secondNearestEnemy = other
 
         if secondNearestEnemy != nil:
-          let secondChainDamageWithCrit = applyCriticalHitFromStats(stats, baseDamage * 0.7)
+          let secondChainDamageWithCrit = applyCriticalHitFromStats(stats, chainBase)
           let secondChainDamage = damageEnemy(secondNearestEnemy, secondChainDamageWithCrit)
 
           # Track second chain damage, belongs to puChainLightning regardless of trigger source
           trackPowerUpDamage(game, puChainLightning, secondChainDamage)
 
           game.showDamage(secondNearestEnemy.pos, secondChainDamage, fromPlayer = true,
-                          isCritical = secondChainDamageWithCrit > baseDamage * 0.7, damageType = dtLightning)
+                          isCritical = secondChainDamageWithCrit > chainBase, damageType = dtLightning)
 
           secondNearestEnemy.slowTimer = 0.2
           if secondNearestEnemy.slowAmount < 0.25:
@@ -191,7 +202,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     let bossResistance = if enemy.isBoss: 0.1 else: 1.0
 
     if game.player.hasWindMastery:
-      pushForce *= 2.5  # +150% stronger
+      pushForce *= 3.5  # +250% stronger
 
     enemy.pos.x += pushDir.x * pushForce * dt * bossResistance
     enemy.pos.y += pushDir.y * pushForce * dt * bossResistance
@@ -203,8 +214,8 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     # Apply slow only with Wind Mastery
     if game.player.hasWindMastery:
       enemy.slowTimer = 0.2
-      if enemy.slowAmount < 0.40:
-        enemy.slowAmount = 0.40  # 40% slow
+      if enemy.slowAmount < 0.45:
+        enemy.slowAmount = 0.45  # 45% slow
 
     # Cyan particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
@@ -216,7 +227,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     var frostSlow = 0.3  # Base 30%
 
     if game.player.hasFrostMastery:
-      frostSlow = 0.5  # 50% with mastery
+      frostSlow = 0.55  # 55% with mastery
 
     if enemy.slowAmount < frostSlow:
       enemy.slowAmount = frostSlow

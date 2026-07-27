@@ -185,24 +185,16 @@ proc unlockCount*(category: RogueliteUnlockCategory): int =
   of rucChallengeTiers: 2
 
 proc starterByUnlockIndex*(index: int): RogueliteStarterKit =
-  case clamp(index, 0, 2)
-  of 0: rskOperator
-  of 1: rskBulwark
-  else: rskArcanist
+  ## Unlock order is the declaration order, so derive it instead of restating it.
+  RogueliteStarterKit(clamp(index, 0, ord(high(RogueliteStarterKit))))
 
 proc familyByUnlockIndex*(index: int): RoguelitePowerFamily =
-  case clamp(index, 0, 8)
-  of 0: rpfCore
-  of 1: rpfShield
-  of 2: rpfArcane
-  of 3: rpfFire
-  of 4: rpfFrost
-  of 5: rpfPoison
-  of 6: rpfLightning
-  of 7: rpfWind
-  else: rpfBlood
+  ## Unlock order is the declaration order, so derive it instead of restating it.
+  RoguelitePowerFamily(clamp(index, 0, ord(high(RoguelitePowerFamily))))
 
 proc relicByUnlockIndex*(index: int): RogueliteRelicType =
+  ## NOT ordinal-aligned: this is a deliberate display order, not the enum order
+  ## (index 2 is rrtDraftCache while ord 3 is rrtEliteDividend). Keep it explicit.
   case clamp(index, 0, 4)
   of 0: rrtDiscountProtocol
   of 1: rrtShardMagnet
@@ -842,6 +834,8 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of skRainbow: makeCost(190, 4)
     of skVoid: makeCost(230, 10)
     of skPlasma: makeCost(250, 12)
+    of skStars: makeCost(150, 2)
+    of skLightning: makeCost(180, 4)
   of ckBulletSkin:
     case BulletSkinType(index)
     of bskDefault: makeCost(0)
@@ -856,6 +850,8 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of bskRainbow: makeCost(150, 3)
     of bskVoid: makeCost(190, 9)
     of bskPlasma: makeCost(210, 10)
+    of bskStars: makeCost(120, 2)
+    of bskLightning: makeCost(150, 3)
   of ckPlayerShape:
     case ShapeType(index)
     of shHexagon: makeCost(0)
@@ -884,6 +880,8 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of pskLightning: makeCost(175, 4)
     of pskRainbow: makeCost(205, 9)
     of pskVoid: makeCost(240, 11)
+    of pskAmethyst: makeCost(58)
+    of pskMatrix: makeCost(130, 2)
   of ckDesktopBg:
     case DesktopBgType(index)
     of dbgDefault: makeCost(0)
@@ -940,6 +938,138 @@ proc purchaseCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
   addCosmeticUnlock(profile, kind, index)
   if not saveRogueliteProfile(profile):
     echo "Warning: Cosmetic unlock was applied, but the roguelite profile could not be saved."
+  true
+
+# Cosmetic pack bundles
+#
+# A pack is a curated theme "trio" -- one player skin + one bullet skin + one
+# particle effect -- sold together at a markdown vs buying each member solo.
+# Packs add NO new persisted state: buying one just unlocks its members through
+# the same per-kind unlock lists that `purchaseCosmetic` uses. A pack counts as
+# owned once every member is unlocked, and it only ever charges for the members
+# the player does not already own (still discounted), so partial owners are
+# never double-charged.
+
+const PackDiscount* = 0.6'f32   # pay 60% of retail -> a 40% markdown
+
+type
+  CosmeticPackId* = enum
+    cpGold, cpIce, cpShadow, cpRainbow, cpVoid, cpPlasma,
+    cpSunset, cpEmerald, cpNeonPink, cpAmethyst, cpMatrix, cpStars, cpLightning
+
+  CosmeticPackMember* = tuple[kind: CosmeticKind, index: int]
+
+  CosmeticPack* = object
+    id*: CosmeticPackId
+    nameKey*: string                  # localization key, resolved via t() at draw time
+    descKey*: string
+    accent*: tuple[r, g, b: uint8]     # card theming colour
+    members*: seq[CosmeticPackMember]
+
+const allCosmeticPacks*: array[CosmeticPackId, CosmeticPack] = [
+  cpGold: CosmeticPack(id: cpGold, nameKey: "pack_gold", descKey: "pack_gold_desc",
+    accent: (255'u8, 215'u8, 0'u8),
+    members: @[(ckPlayerSkin, ord(skGold)), (ckBulletSkin, ord(bskGold)), (ckParticle, ord(pskGold))]),
+  cpIce: CosmeticPack(id: cpIce, nameKey: "pack_ice", descKey: "pack_ice_desc",
+    accent: (150'u8, 220'u8, 255'u8),
+    members: @[(ckPlayerSkin, ord(skIce)), (ckBulletSkin, ord(bskIce)), (ckParticle, ord(pskIce))]),
+  cpShadow: CosmeticPack(id: cpShadow, nameKey: "pack_shadow", descKey: "pack_shadow_desc",
+    accent: (120'u8, 120'u8, 150'u8),
+    members: @[(ckPlayerSkin, ord(skShadow)), (ckBulletSkin, ord(bskShadow)), (ckParticle, ord(pskShadow))]),
+  cpRainbow: CosmeticPack(id: cpRainbow, nameKey: "pack_rainbow", descKey: "pack_rainbow_desc",
+    accent: (255'u8, 80'u8, 180'u8),
+    members: @[(ckPlayerSkin, ord(skRainbow)), (ckBulletSkin, ord(bskRainbow)), (ckParticle, ord(pskRainbow))]),
+  cpVoid: CosmeticPack(id: cpVoid, nameKey: "pack_void", descKey: "pack_void_desc",
+    accent: (130'u8, 70'u8, 190'u8),
+    members: @[(ckPlayerSkin, ord(skVoid)), (ckBulletSkin, ord(bskVoid)), (ckParticle, ord(pskVoid))]),
+  cpPlasma: CosmeticPack(id: cpPlasma, nameKey: "pack_plasma", descKey: "pack_plasma_desc",
+    accent: (150'u8, 120'u8, 255'u8),
+    members: @[(ckPlayerSkin, ord(skPlasma)), (ckBulletSkin, ord(bskPlasma)), (ckParticle, ord(pskPlasma))]),
+  cpSunset: CosmeticPack(id: cpSunset, nameKey: "pack_sunset", descKey: "pack_sunset_desc",
+    accent: (255'u8, 120'u8, 20'u8),
+    members: @[(ckPlayerSkin, ord(skSunset)), (ckBulletSkin, ord(bskSunset)), (ckParticle, ord(pskFire))]),
+  cpEmerald: CosmeticPack(id: cpEmerald, nameKey: "pack_emerald", descKey: "pack_emerald_desc",
+    accent: (0'u8, 220'u8, 110'u8),
+    members: @[(ckPlayerSkin, ord(skEmerald)), (ckBulletSkin, ord(bskEmerald)), (ckParticle, ord(pskToxic))]),
+  cpNeonPink: CosmeticPack(id: cpNeonPink, nameKey: "pack_neon_pink", descKey: "pack_neon_pink_desc",
+    accent: (255'u8, 60'u8, 180'u8),
+    members: @[(ckPlayerSkin, ord(skNeonPink)), (ckBulletSkin, ord(bskNeonPink)), (ckParticle, ord(pskHearts))]),
+  cpAmethyst: CosmeticPack(id: cpAmethyst, nameKey: "pack_amethyst", descKey: "pack_amethyst_desc",
+    accent: (170'u8, 80'u8, 255'u8),
+    members: @[(ckPlayerSkin, ord(skAmethyst)), (ckBulletSkin, ord(bskAmethyst)), (ckParticle, ord(pskAmethyst))]),
+  cpMatrix: CosmeticPack(id: cpMatrix, nameKey: "pack_matrix", descKey: "pack_matrix_desc",
+    accent: (0'u8, 230'u8, 70'u8),
+    members: @[(ckPlayerSkin, ord(skMatrix)), (ckBulletSkin, ord(bskMatrix)), (ckParticle, ord(pskMatrix))]),
+  cpStars: CosmeticPack(id: cpStars, nameKey: "pack_stars", descKey: "pack_stars_desc",
+    accent: (255'u8, 225'u8, 120'u8),
+    members: @[(ckPlayerSkin, ord(skStars)), (ckBulletSkin, ord(bskStars)), (ckParticle, ord(pskStars))]),
+  cpLightning: CosmeticPack(id: cpLightning, nameKey: "pack_lightning", descKey: "pack_lightning_desc",
+    accent: (120'u8, 190'u8, 255'u8),
+    members: @[(ckPlayerSkin, ord(skLightning)), (ckBulletSkin, ord(bskLightning)), (ckParticle, ord(pskLightning))]),
+]
+
+proc packMembers*(id: CosmeticPackId): seq[CosmeticPackMember] =
+  allCosmeticPacks[id].members
+
+proc packMemberCount*(id: CosmeticPackId): int =
+  allCosmeticPacks[id].members.len
+
+proc applyDiscount(cost: CosmeticCost, factor: float32): CosmeticCost =
+  makeCost(max(0, int(round(cost.dataShards.float32 * factor))),
+           max(0, int(round(cost.cores.float32 * factor))))
+
+proc packFullRetail*(id: CosmeticPackId): CosmeticCost =
+  ## Sum of every member's individual price (the struck-through "before" price).
+  for m in allCosmeticPacks[id].members:
+    let c = cosmeticCost(m.kind, m.index)
+    result.dataShards += c.dataShards
+    result.cores += c.cores
+
+proc packUnownedRetail*(profile: RogueliteProfile, id: CosmeticPackId): CosmeticCost =
+  ## Retail sum of only the members the player does not yet own.
+  for m in allCosmeticPacks[id].members:
+    if not cosmeticIsUnlocked(profile, m.kind, m.index):
+      let c = cosmeticCost(m.kind, m.index)
+      result.dataShards += c.dataShards
+      result.cores += c.cores
+
+proc packPrice*(profile: RogueliteProfile, id: CosmeticPackId): CosmeticCost =
+  ## What the player pays right now: discounted price of the unowned members.
+  applyDiscount(packUnownedRetail(profile, id), PackDiscount)
+
+proc packOwnedCount*(profile: RogueliteProfile, id: CosmeticPackId): int =
+  for m in allCosmeticPacks[id].members:
+    if cosmeticIsUnlocked(profile, m.kind, m.index): inc result
+
+proc packIsOwned*(profile: RogueliteProfile, id: CosmeticPackId): bool =
+  packOwnedCount(profile, id) >= allCosmeticPacks[id].members.len
+
+proc canAffordPack*(profile: RogueliteProfile, id: CosmeticPackId): bool =
+  if profile.isNil or packIsOwned(profile, id):
+    return false
+  let price = packPrice(profile, id)
+  profile.dataShards >= price.dataShards and profile.cores >= price.cores
+
+proc purchasePack*(profile: RogueliteProfile, id: CosmeticPackId): bool =
+  ## Buy every not-yet-owned member of the pack at the discounted price in one
+  ## transaction: deduct once, unlock all, save once. False if already fully
+  ## owned or unaffordable.
+  if profile.isNil:
+    return false
+  ensureBaseCosmeticUnlocks(profile)
+  if packIsOwned(profile, id):
+    return false
+  if not canAffordPack(profile, id):
+    return false
+
+  let price = packPrice(profile, id)
+  profile.dataShards -= price.dataShards
+  profile.cores -= price.cores
+  for m in allCosmeticPacks[id].members:
+    if not cosmeticIsUnlocked(profile, m.kind, m.index):
+      addCosmeticUnlock(profile, m.kind, m.index)
+  if not saveRogueliteProfile(profile):
+    echo "Warning: Cosmetic pack unlock was applied, but the roguelite profile could not be saved."
   true
 
 proc sanitizeEquippedCosmetics*(settings: Settings,

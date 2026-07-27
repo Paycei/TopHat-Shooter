@@ -1,7 +1,7 @@
 ## PvP Game Mode Logic
 ## Handles multiplayer player vs player combat with optional team support
 
-import raylib, math, times, strutils, sequtils
+import raylib, rlgl, math, times, strutils, sequtils
 import types, player, bullet, wall, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, ui/background_fx
 
 const
@@ -381,13 +381,36 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
   if isKeyDown(kb[kaMoveLeft]): moveDir.x -= 1
   if isKeyDown(kb[kaMoveRight]): moveDir.x += 1
 
-  if moveDir.length() > 0:
+  if isGamepadActive():
+    let ls = leftStick()
+    moveDir.x += ls.x
+    moveDir.y += ls.y
+    let gb = globalSettings.gamepadBinds
+    if isGamepadBindDown(gb, kaMoveUp): moveDir.y -= 1
+    if isGamepadBindDown(gb, kaMoveDown): moveDir.y += 1
+    if isGamepadBindDown(gb, kaMoveLeft): moveDir.x -= 1
+    if isGamepadBindDown(gb, kaMoveRight): moveDir.x += 1
+
+  # Clamp instead of normalize so partial stick deflection keeps its magnitude
+  if moveDir.length() > 1:
     moveDir = moveDir.normalize()
 
-  let mousePos = getVirtualMousePosition()
+  var mousePos = getWorldMousePosition()
+  if isGamepadActive():
+    # Twin-stick aim at a fixed radius. Deliberately NO aim assist in PvP:
+    # snapping onto other players would be a fairness problem. Walls are
+    # placed at the same stick-aimed point.
+    let dir = aimDir()
+    const AimPointRadius = 240.0'f32
+    let localPos = pvp.players[pvp.localPlayerIndex].pos
+    mousePos = Vector2(x: localPos.x + dir.x * AimPointRadius,
+                       y: localPos.y + dir.y * AimPointRadius)
+    setGamepadAimPointWorld(mousePos)
 
   # Toggle wall-placement mode with wall key, right-click cancels it
-  if isKeyPressed(globalSettings.keybinds[kaPlaceWall]) and pvp.players[pvp.localPlayerIndex].walls > 0:
+  if (isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or
+      isGamepadBindPressed(globalSettings.gamepadBinds, kaPlaceWall)) and
+     pvp.players[pvp.localPlayerIndex].walls > 0:
     pvp.wallPlacementMode = not pvp.wallPlacementMode
   if isMouseButtonPressed(Right) and pvp.wallPlacementMode:
     pvp.wallPlacementMode = false
@@ -396,8 +419,10 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
     pvp.wallPlacementMode = false
 
   # In wall-placement mode: left-click places a wall instead of shooting
-  let placingWall = pvp.wallPlacementMode and isMouseButtonPressed(Left)
-  let shooting    = (not pvp.wallPlacementMode) and isMouseButtonDown(Left)
+  let placingWall = pvp.wallPlacementMode and isPointerPressed()
+  let shooting    = (not pvp.wallPlacementMode) and
+                    (isMouseButtonDown(Left) or
+                     gamepadFireDown(globalSettings.gamepadBinds))
 
   result = PlayerInput(
     tick: pvp.serverTick,
@@ -1658,6 +1683,19 @@ proc drawPvP*(pvp: PvPGameState) =
       getTeamColor(PvPTeam(pvp.playerTeamAssignments[pvp.localPlayerIndex]))
     else:
       Color(r: 0, g: 200, b: 255, a: 255)
+
+  # World pass: everything below draws in gameplay WORLD space (fixed 1024x768,
+  # pvp.screenWidth/Height). In widescreen the world is centered inside the wider
+  # virtual screen, so translate by the world view offset and clip to the world
+  # rect (spawns/effects in the gutters stay hidden). The networked world size
+  # must never depend on the local interface layout, so this offset is purely a
+  # local presentation shift. In classic mode worldOffX is 0 (behavior-neutral).
+  let worldOffX = getWorldViewOffsetX()
+  if worldOffX > 0:
+    beginVirtualScissorMode(worldOffX.int32, 0, pvp.screenWidth, pvp.screenHeight)
+  pushMatrix()
+  translatef(worldOffX, 0, 0)
+
   drawSharedBackdrop(pvp.screenWidth, pvp.screenHeight, pvp.gameTime * 0.8,
                      Color(r: 5, g: 7, b: 16, a: 255),
                      Color(r: 18, g: 15, b: 30, a: 255),
@@ -1737,7 +1775,7 @@ proc drawPvP*(pvp: PvPGameState) =
     drawCircleLines(localPlayer.pos.x.int32, localPlayer.pos.y.int32,
                     WALL_PLACEMENT_RANGE, Color(r: 180, g: 180, b: 255, a: 60))
     # Ghost wall at cursor, green if placeable, red if not
-    let mousePos = getVirtualMousePosition()
+    let mousePos = getWorldMousePosition()
     let cursorPos = newVector2f(mousePos.x, mousePos.y)
     let inRange = distance(cursorPos, localPlayer.pos) <= WALL_PLACEMENT_RANGE
     let validPos = isValidWallPlacement(cursorPos, localPlayer.pos, pvp.walls, @[], 25)
@@ -1836,6 +1874,14 @@ proc drawPvP*(pvp: PvPGameState) =
     let damageText = $dn.damage.int
     drawText(damageText, dn.pos.x.int32 - 10, dn.pos.y.int32, 20, textColor)
 
+  # End world pass: HUD/overlays below draw in VIRTUAL screen space (no world
+  # offset, no clip), anchored to the full virtual width/height.
+  popMatrix()
+  if worldOffX > 0:
+    endScissorMode()
+  let viewW = getVirtualScreenWidth()
+  let viewH = getVirtualScreenHeight()
+
   # Draw HUD - TEAM MODE or FREE-FOR-ALL
   if pvp.teamsEnabled:
     # Team mode: Show team scores
@@ -1853,7 +1899,7 @@ proc drawPvP*(pvp: PvPGameState) =
         scoreText &= "  |  "
       scoreText &= $team & ": " & $pvp.teamScores[team].kills
 
-    let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 3))
+    let scoreX = max(10, viewW div 2 - (scoreText.len * 3).int32)
     drawText(scoreText, scoreX.int32, 10, 20, White)
   else:
     # Free-for-all: Show individual scores
@@ -1870,7 +1916,7 @@ proc drawPvP*(pvp: PvPGameState) =
                    (if disconnected: " (left)" else: "")
 
     # Center the text based on its length (rough approximation)
-    let scoreX = max(10, pvp.screenWidth div 2 - (scoreText.len * 4))
+    let scoreX = max(10, viewW div 2 - (scoreText.len * 4).int32)
     drawText(scoreText, scoreX.int32, 10, 20, White)
 
   # Time, use only ASCII so raylib's default bitmap font can render it
@@ -1882,7 +1928,7 @@ proc drawPvP*(pvp: PvPGameState) =
     let seconds = (timeRemaining.int mod 60)
     $minutes & ":" & (if seconds < 10: "0" else: "") & $seconds
   let timeTextW = measureText(timeText, 20)
-  let timeX = pvp.screenWidth div 2 - timeTextW div 2
+  let timeX = viewW div 2 - timeTextW div 2
   let timeY = 35
   # Background pill for readability on any background
   drawRectangle((timeX - 6).int32, (timeY - 3).int32, (timeTextW + 12).int32, 26,
@@ -1906,12 +1952,12 @@ proc drawPvP*(pvp: PvPGameState) =
     let wallLabelW = measureText(wallLabel, 20)
     let pillColor = if modeActive: Color(r: 0, g: 60, b: 20, a: 200)
                     else: Color(r: 0, g: 0, b: 0, a: 140)
-    drawRectangle(8, pvp.screenHeight - 38, wallLabelW + 14, 28, pillColor)
+    drawRectangle(8, viewH - 38, wallLabelW + 14, 28, pillColor)
     if modeActive:
-      drawRectangleLines(Rectangle(x: 8, y: (pvp.screenHeight - 38).float32,
+      drawRectangleLines(Rectangle(x: 8, y: (viewH - 38).float32,
                                    width: (wallLabelW + 14).float32, height: 28), 1,
                          Color(r: 80, g: 255, b: 80, a: 200))
-    drawText(wallLabel, 15, pvp.screenHeight - 32, 20,
+    drawText(wallLabel, 15, viewH - 32, 20,
              if wallCount > 0: Color(r: 100, g: 220, b: 100, a: 255)
              else: Color(r: 180, g: 180, b: 180, a: 160))
 
@@ -1921,15 +1967,18 @@ proc drawPvP*(pvp: PvPGameState) =
     let countdownText = if countdownValue > 0: $countdownValue else: "FIGHT!"
     let textWidth = measureText(countdownText, 80)
 
-    drawRectangle(0, 0, pvp.screenWidth, pvp.screenHeight,
+    drawRectangle(0, 0, viewW, viewH,
                  Color(r: 0, g: 0, b: 0, a: 150))
     drawText(countdownText,
-            pvp.screenWidth div 2 - textWidth div 2,
-            pvp.screenHeight div 2 - 40,
+            viewW div 2 - textWidth div 2,
+            viewH div 2 - 40,
             80, Yellow)
 
-    # Draw arrow pointing to local player with "YOU" label
+    # Draw arrow pointing to local player with "YOU" label. The arrow anchors to
+    # a WORLD entity (player position) but is drawn in the HUD pass, so shift its
+    # X by the world view offset to line up with the on-screen player.
     let localPlayer = pvp.players[pvp.localPlayerIndex]
+    let arrowX = localPlayer.pos.x + worldOffX
 
     # Use team color if teams enabled, otherwise bright green
     let arrowColor = if pvp.teamsEnabled and localPlayer.teamId != ptNone:
@@ -1945,16 +1994,16 @@ proc drawPvP*(pvp: PvPGameState) =
     let youText = "YOU"
     let youWidth = measureText(youText, 30)
     drawText(youText,
-            localPlayer.pos.x.int32 - youWidth div 2,
+            arrowX.int32 - youWidth div 2,
             (arrowY - 40).int32,
             30, arrowColor)
 
     # Draw downward pointing arrow (triangle)
     let arrowSize = 20.0
-    let arrowTipX = localPlayer.pos.x
+    let arrowTipX = arrowX
     let arrowTipY = arrowY + arrowSize
-    let arrowLeftX = localPlayer.pos.x - arrowSize * 0.6
-    let arrowRightX = localPlayer.pos.x + arrowSize * 0.6
+    let arrowLeftX = arrowX - arrowSize * 0.6
+    let arrowRightX = arrowX + arrowSize * 0.6
     let arrowTopY = arrowY
 
     drawTriangle(
@@ -2018,11 +2067,11 @@ proc drawPvP*(pvp: PvPGameState) =
       else:
         Red
 
-    drawRectangle(0, 0, pvp.screenWidth, pvp.screenHeight,
+    drawRectangle(0, 0, viewW, viewH,
                  Color(r: 0, g: 0, b: 0, a: 200))
     drawText(winnerText,
-            pvp.screenWidth div 2 - textWidth div 2,
-            pvp.screenHeight div 2 - 100,
+            viewW div 2 - textWidth div 2,
+            viewH div 2 - 100,
             textSize,
             textColor)
 
@@ -2031,8 +2080,8 @@ proc drawPvP*(pvp: PvPGameState) =
       let reasonSize: int32 = 20
       let reasonWidth = measureText(pvp.gameOverReason, reasonSize)
       drawText(pvp.gameOverReason,
-              pvp.screenWidth div 2 - reasonWidth div 2,
-              pvp.screenHeight div 2 - 40,
+              viewW div 2 - reasonWidth div 2,
+              viewH div 2 - 40,
               reasonSize,
               Color(r: 200, g: 200, b: 200, a: 255))
 
@@ -2067,13 +2116,13 @@ proc drawPvP*(pvp: PvPGameState) =
 
     let scoreWidth = measureText(scoreText, 24)
     drawText(scoreText,
-            pvp.screenWidth div 2 - scoreWidth div 2,
-            pvp.screenHeight div 2 + 10,
+            viewW div 2 - scoreWidth div 2,
+            viewH div 2 + 10,
             24, White)
 
     let returnText = "Press ESC to return to menu"
     let returnWidth = measureText(returnText, 20)
     drawText(returnText,
-            pvp.screenWidth div 2 - returnWidth div 2,
-            pvp.screenHeight div 2 + 50,
+            viewW div 2 - returnWidth div 2,
+            viewH div 2 + 50,
             20, White)

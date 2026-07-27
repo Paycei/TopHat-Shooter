@@ -2,8 +2,7 @@
 ## Defines available player shapes and rendering functions
 
 import raylib, math
-import particle_types
-import localization, cube_skins, utils
+import particle_types, localization, cube_skins, utils
 
 type
   ShapeType* = enum
@@ -137,7 +136,7 @@ proc drawRogueliteClassCosmetic*(pos: Vector2f, radius: float32, time: float32,
   let es  = radius * 0.42'f32                                   # emblem half-extent
   case kit
   of 1:
-    # OPERATOR — a tiny recon reticle: a small ring, a center dot, and four ticks.
+    # OPERATOR: a tiny recon reticle: a small ring, a center dot, and four ticks.
     let green = Color(r: 90, g: 235, b: 170, a: 205)
     drawCircle(Vector2(x: ex, y: ey), es * 0.78'f32, Color(r: 90, g: 235, b: 170, a: 45))
     drawCircleLines(ex.int32, ey.int32, es * 0.55'f32, green)
@@ -148,7 +147,7 @@ proc drawRogueliteClassCosmetic*(pos: Vector2f, radius: float32, time: float32,
                Vector2(x: ex + cos(a) * es * 0.92'f32, y: ey + sin(a) * es * 0.92'f32),
                max(1.0'f32, radius * 0.05'f32), green)
   of 2:
-    # BULWARK — a tiny steel shield crest with a center seam and a stud.
+    # BULWARK: a tiny steel shield crest with a center seam and a stud.
     let steel  = Color(r: 168, g: 184, b: 208, a: 215)
     let steelHi = Color(r: 214, g: 226, b: 244, a: 230)
     let topL = Vector2(x: ex - es * 0.55'f32, y: ey - es * 0.55'f32)
@@ -161,7 +160,7 @@ proc drawRogueliteClassCosmetic*(pos: Vector2f, radius: float32, time: float32,
     drawCircle(Vector2(x: ex, y: ey - es * 0.18'f32), max(1.0'f32, radius * 0.06'f32),
                Color(r: 248, g: 200, b: 110, a: 230))
   of 3:
-    # ARCANIST — a tiny arcane rune: a diamond outline with a soft glow and core.
+    # ARCANIST: a tiny arcane rune: a diamond outline with a soft glow and core.
     let line = Color(r: 210, g: 160, b: 255, a: 210)
     drawCircle(Vector2(x: ex, y: ey), es * 0.7'f32, Color(r: 190, g: 120, b: 255, a: 45))
     let up = Vector2(x: ex, y: ey - es * 0.7'f32)
@@ -223,7 +222,7 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
       rotZ[i] = -x * say + z2 * cay
       pts[i] = Vector2(x: center.x + x3 * size, y: center.y + y2 * size)
     drawCircle(center, size * 1.9'f32,
-               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 36))
+               withAlpha(glowColor, 36))
     type D20Face = object
       corners: array[3, int]
       depth: float32
@@ -253,7 +252,7 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
     # silhouette would mud together at the cube's edge thickness.
     for e in d20Edges:
       drawLine(pts[e[0]], pts[e[1]], 1.2'f32,
-               Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 55))
+               withAlpha(glowColor, 55))
       drawLine(pts[e[0]], pts[e[1]], 0.75'f32, edgeColor)
     return
 
@@ -285,12 +284,12 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
     let x3 = x * cay + z2 * say
     pts[i] = Vector2(x: center.x + x3 * size, y: center.y + y2 * size)
   let shellGlow = if skin == cskDefault:
-    Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 36)
+    withAlpha(glowColor, 36)
   else:
-    Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 52)
+    withAlpha(glowColor, 52)
   drawCircle(center, size * 2.0'f32, shellGlow)
   drawCircle(center, size * 1.35'f32,
-             Color(r: edgeColor.r, g: edgeColor.g, b: edgeColor.b, a: 18))
+             withAlpha(edgeColor, 18))
 
   type MiniFace = object
     corners: array[4, int]
@@ -369,7 +368,7 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
 
   for e in edges:
     drawLine(pts[e[0]], pts[e[1]], 2.6'f32,
-             Color(r: glowColor.r, g: glowColor.g, b: glowColor.b, a: 110))
+             withAlpha(glowColor, 110))
     drawLine(pts[e[0]], pts[e[1]], 1.2'f32, edgeColor)
 
   # Companion Cube skin: a soft-pink heart on a light disc at the centre of
@@ -463,7 +462,7 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
         let ny = face.normalY
         let nz = face.normalZ
         # Canonical "up": side faces point their hearts toward the top ring; the
-        # top/bottom faces (normal ±Y) fall back to +Z. right = up × normal keeps
+        # top/bottom faces (normal ±Y) fall back to +Z. right = up x normal keeps
         # a uniform handedness, so a camera-facing face projects to positive area.
         var ux, uy, uz: float32
         if abs(ny) < 0.5'f32:
@@ -587,7 +586,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let layerRadius = outerGlowRadius + i.float32 * 4.0
       let layerAlpha = uint8((1.0 - i.float32 / 3.0) * glowIntensity * 50)
       drawCircle(Vector2(x: pos.x, y: pos.y), layerRadius,
-                Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
+                withAlpha(baseColor, layerAlpha))
 
     # CIRCUIT TRACES (inner glow layer)
     let numTraces = 6
@@ -656,7 +655,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
         let vx = pos.x + cos(angle) * layerRadius
         let vy = pos.y + sin(angle) * layerRadius
         drawCircle(Vector2(x: vx, y: vy), 8.0,
-                  Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
+                  withAlpha(baseColor, layerAlpha))
 
     # 2. ENERGY LINES between vertices
     let numInnerTraces = 3
@@ -726,7 +725,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
         let vx = pos.x + cos(angle) * layerSize
         let vy = pos.y + sin(angle) * layerSize
         drawCircle(Vector2(x: vx, y: vy), 8.0,
-                  Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
+                  withAlpha(baseColor, layerAlpha))
 
     # 2. ENERGY LINES connecting corners
     for i in 0..3:
@@ -800,7 +799,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let layerRadius = outerGlowRadius + i.float32 * 3.5
       let layerAlpha = uint8((1.0 - i.float32 / 4.0) * glowIntensity * 60)
       drawCircle(Vector2(x: pos.x, y: pos.y), layerRadius,
-                Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: layerAlpha))
+                withAlpha(baseColor, layerAlpha))
 
     # 2. ROTATING ENERGY RINGS (orbital layers)
     let numRings = 3

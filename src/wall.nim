@@ -1,7 +1,5 @@
-import std/math
-import raylib
-import particle_types
-import types, powerup, bullet, particle_pool
+import std/math, raylib
+import particle_types, types, powerup, bullet, particle_pool, utils
 
 proc newWall*(x, y: float32, player: Player): Wall =
   # Calculate HP based on WallMaster powerup
@@ -156,7 +154,7 @@ proc drawWall*(wall: Wall, player: Player) =
     drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, body)
     drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, tint)
     drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius * 0.55'f32,
-                    Color(r: tint.r, g: tint.g, b: tint.b, a: 120))
+                    withAlpha(tint, 120))
     # Damage cue: once chipped, show a shrinking HP bar so the player can read
     # that these obstacles are destructible (and, in boss rooms, re-forming).
     if wall.hp < wall.maxHp:

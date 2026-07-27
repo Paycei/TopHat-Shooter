@@ -2,14 +2,22 @@
 ## Centralized attack execution, movement, and special behaviors
 
 import raylib, random, math, tables, strutils
-import particle_types
-import types, enemy_config, bullet, wall, run_statistics
+import particle_types, types, enemy_config, bullet, wall, run_statistics
 
 const
   EnemyInertiaAcceleration* = 4.5'f32
   EnemyInertiaBraking* = 1.4'f32
   EnemyInertiaReferenceRadius* = 10.5'f32
   BossInertiaReferenceRadius* = 50.0'f32
+
+proc randomEdgeSpawnPos*(screenWidth, screenHeight: int32,
+                         margin: float32 = 30): tuple[x, y: float32] =
+  ## Random point just outside a random screen edge (shared spawn pattern).
+  case rand(3)
+  of 0: (rand(screenWidth.int).float32, -margin)
+  of 1: (screenWidth.float32 + margin, rand(screenHeight.int).float32)
+  of 2: (rand(screenWidth.int).float32, screenHeight.float32 + margin)
+  else: (-margin, rand(screenHeight.int).float32)
 
 proc approachVelocity*(current, target: Vector2f, acceleration, dt: float32): Vector2f =
   ## Framerate-independent velocity easing shared by enemy movement patterns.
@@ -266,7 +274,7 @@ proc chasePlayer*(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed
 
 # UNIFORM SPATIAL HASH GRID: proximity-query acceleration
 #
-# Purpose: replace the O(n²) / O(bullets × enemies) "scan every enemy" loops in
+# Purpose: replace the O(n²) / O(bullets x enemies) "scan every enemy" loops in
 # game.nim with O(n) neighbourhood queries. A bullet only ever collides with an
 # enemy a few pixels away. This grid buckets enemy indices by screen cell so a query
 # returns only the handful of enemies in the cells overlapping a small AABB.

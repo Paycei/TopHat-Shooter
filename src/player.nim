@@ -1,6 +1,5 @@
 import raylib, math, random, std/deques
-import particle_types
-import types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, utils, input_intent
+import particle_types, types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, utils, input_intent
 
 const
   PlayerAcceleration = 7.0'f32
@@ -120,6 +119,7 @@ proc newPlayer*(x, y: float32): Player =
     radialBurstTimer: 0.0,
     pulseArmorCooldown: 0.0,
     pulseArmorTriggered: false,
+    auraPulsePrimed: {},  # aura timers phase-offset on first tick, see updatePlayerAuras
     skinType: 0,  # Default skin (skDefault)
     bulletSkinType: 0,
     bulletShapeType: 0,
@@ -238,10 +238,14 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.outOfCombatSpeedBoost:
     currentSpeed *= 1.25  # Roguelite out-of-combat bonus
 
-  # Movement intent (WASD on desktop, left virtual joystick on mobile).
+  # Movement intent: WASD + gamepad on desktop, left virtual joystick on mobile.
+  # All device reads live behind input_intent so this call site stays one line.
   var moveDir = getMoveVector()
 
-  if moveDir.length() > 0:
+  # Clamp instead of always normalizing: keyboard input still normalizes the
+  # diagonal, while partial analog stick deflection keeps its magnitude so the
+  # player can walk slowly.
+  if moveDir.length() > 1:
     moveDir = moveDir.normalize()
   let targetVel = moveDir * currentSpeed
   let inertiaScale = playerInertiaSizeScale(player)
@@ -460,7 +464,7 @@ proc drawPlayer*(player: Player) =
     let shieldAlpha = 80 + (sin(getTime() * 4.0) * 40).int
     let shieldRadius = player.radius * 1.4 * shieldPulse
     drawCircle(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
-              Color(r: Cyan.r, g: Cyan.g, b: Cyan.b, a: shieldAlpha.uint8))
+              withAlpha(Cyan, shieldAlpha.uint8))
     drawCircleLines(player.pos.x.int32, player.pos.y.int32, shieldRadius, Cyan)
     # Draw shield hit counter
     let hitsText = $player.shieldHits
@@ -479,7 +483,7 @@ proc drawPlayer*(player: Player) =
                     Color(r: 170, g: 110, b: 255, a: lineAlpha))
 
   # Celestial Veil, soft translucent ring around the player while the charge is ready.
-  if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
+  if player.celestialVeilCharges > 0 and hasPowerUp(player, puCelestialVeil):
     let veilPulse   = 0.5 + 0.5 * sin(time * 3.0)
     let veilRadius  = player.radius * 1.65 + veilPulse * 3.0
     let veilAlpha   = uint8(40 + (veilPulse * 30).int)
@@ -531,7 +535,7 @@ proc drawPlayer*(player: Player) =
     glowIntensity = 0.8 + pulse * 0.2
     # Extra glow layers
     drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
-              Color(r: Cyan.r, g: Cyan.g, b: Cyan.b, a: phaseAlpha.uint8))
+              withAlpha(Cyan, phaseAlpha.uint8))
     drawText(t(tkPlayerPhase), (player.pos.x - 30).int32, (player.pos.y - 40).int32, 14, Cyan)
   # Parry active visual effect - white/silver shield
   elif player.parryActive:
@@ -569,14 +573,14 @@ proc drawPlayer*(player: Player) =
         let trailX = player.pos.x - player.vel.x * i.float32 * 0.012
         let trailY = player.pos.y - player.vel.y * i.float32 * 0.012
         drawCircle(Vector2(x: trailX, y: trailY), player.radius * trailScale,
-                  Color(r: baseColor.r, g: baseColor.g, b: baseColor.b, a: trailAlpha))
+                  withAlpha(baseColor, trailAlpha))
 
   # Draw player using selected shape
   let shapeType = player.shapeType.ShapeType
   drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
                   time, rotation, pulse, glowIntensity)
 
-  # Secret cosmetic: the kernel's tophat, earned by clearing wave 60.
+  # Secret cosmetic: the kernel's tophat, earned by clearing the final boss wave.
   # Band and outline take the player's current body color so the hat
   # matches the equipped skin (and status tints like invincibility gold).
   if player.wearsTophat:
@@ -621,7 +625,7 @@ proc drawPlayer*(player: Player) =
       # Alternate primary/secondary skin colors so both show in motion
       let pColor = if i mod 2 == 0: baseColor else: secondaryColor
       drawCircle(Vector2(x: px, y: py), 1.8,
-                Color(r: pColor.r, g: pColor.g, b: pColor.b, a: particleAlpha))
+                withAlpha(pColor, particleAlpha))
 
   # Speed boost indicator (motion trails)
   if player.speedBoostTimer > 0:
@@ -921,7 +925,7 @@ proc drawPlayer*(player: Player) =
       else:
         discard  # etNone or other unknown types
 
-proc takeDamage*(player: Player, damage: float32): bool =
+proc takeDamageRaw(player: Player, damage: float32): bool =
   ## Returns true if player died (HP reached 0 or below), false otherwise
   player.lastDamageAvoided = 0.0  # Reset each call
   # Shield boost absorbs hits first
@@ -946,9 +950,9 @@ proc takeDamage*(player: Player, damage: float32): bool =
     player.lastDamageAvoided = damage
     return false
 
-  # Celestial Veil - absorb 1 hit per wave
-  if player.celestialVeilActive and hasPowerUp(player, puCelestialVeil):
-    player.celestialVeilActive = false
+  # Celestial Veil - absorb 2 hits per wave
+  if player.celestialVeilCharges > 0 and hasPowerUp(player, puCelestialVeil):
+    player.celestialVeilCharges = player.celestialVeilCharges - 1
     player.lastDamageAvoided = damage
     player.lastDamageEvent = deCelestialVeil  # Signal "veil blocked"
     return false
@@ -1018,6 +1022,13 @@ proc takeDamage*(player: Player, damage: float32): bool =
 
   # Return true if HP reached 0 or below (death condition)
   return player.hp <= 0
+
+proc takeDamage*(player: Player, damage: float32): bool =
+  ## Single intake point for all PvE damage to the player. The profile
+  ## difficulty scales here so every source (contact, bullets, lasers,
+  ## meteors, explosions) is covered without touching each call site.
+  ## PvP has its own damage path and is intentionally unaffected.
+  takeDamageRaw(player, damage * difficultyEnemyDamageMult())
 
 proc heal*(player: Player, amount: float32) =
   player.hp += amount * player.healPowerMult

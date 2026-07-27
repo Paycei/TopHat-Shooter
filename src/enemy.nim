@@ -1,5 +1,5 @@
 ﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers, boss_weakpoints, effects
-import particle_types
+import particle_types, utils
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
   # Get enemy configuration
@@ -8,8 +8,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   # Calculate scaled stats
   let stats = getScaledEnemyStats(config, difficulty)
 
-  # Enforce minimum HP of 0.01
-  let finalHp = max(stats.hp, 0.01)
+  # Enforce minimum HP of 0.01 (profile difficulty scales HP for every enemy)
+  let finalHp = max(stats.hp * difficultyEnemyHpMult(), 0.01)
 
   # Create base enemy with config values
   result = Enemy(
@@ -168,8 +168,10 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       else:
         discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
-    of etCube:
-      # Get config for this enemy type
+    of etCube, etOctagon, etPentagon:
+      # Identical movement + ranged-fire loop for all three. What makes them play
+      # differently (Octagon's rapid fire with inaccuracy, Pentagon's slow sniper
+      # shot) lives entirely in their enemy config, not here.
       let config = getEnemyConfig(enemy.enemyType)
 
       # Update timers
@@ -460,72 +462,6 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
       if not hitWall:
         enemy.pos = nextPos
-
-    of etOctagon:
-      # Get config for this enemy type
-      let config = getEnemyConfig(enemy.enemyType)
-
-      # Update timers
-      enemy.shootTimer += dt
-
-      # Check screen entry
-      checkScreenEntry(enemy, game)
-
-      # Determine next position
-      var nextPos: Vector2f
-      if not enemy.hasEnteredScreen:
-        # Force entry toward screen center
-        nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
-      else:
-        # Maintain optimal distance from player
-        nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
-      nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
-
-      # Check collisions
-      let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
-      let hitBoundary = checkScreenBoundaryCollision(enemy, nextPos, game, config)
-
-      # Apply movement if no collisions
-      if not hitWall and not hitBoundary:
-        enemy.pos = nextPos
-      else:
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
-
-      # Rapid fire with inaccuracy (uses config values)
-      executeRangedAttack(enemy, playerPos, game)
-
-    of etPentagon:
-      # Get config for this enemy type
-      let config = getEnemyConfig(enemy.enemyType)
-
-      # Update timers
-      enemy.shootTimer += dt
-
-      # Check screen entry
-      checkScreenEntry(enemy, game)
-
-      # Determine next position
-      var nextPos: Vector2f
-      if not enemy.hasEnteredScreen:
-        # Force entry toward screen center
-        nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
-      else:
-        # Maintain optimal distance from player
-        nextPos = maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config)
-      nextPos = nextInertialEnemyPos(enemy, nextPos, dt)
-
-      # Check collisions
-      let hitWall = checkWallCollision(enemy, nextPos, walls, currentTime, game)
-      let hitBoundary = checkScreenBoundaryCollision(enemy, nextPos, game, config)
-
-      # Apply movement if no collisions
-      if not hitWall and not hitBoundary:
-        enemy.pos = nextPos
-      else:
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
-
-      # Powerful pentagon sniper shot (uses config values)
-      executeRangedAttack(enemy, playerPos, game)
 
     of etTrickster:
       # Fake warning + teleport behavior, two phase:
@@ -822,24 +758,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
       # Screen boundary check - keep ranged enemies inside once entered
       # Allow movement toward screen when off-screen, prevent leaving when inside
-      if enemy.hasEnteredScreen:
-        let isOffScreen = nextPos.x < enemy.radius or nextPos.x > game.screenWidth.float32 - enemy.radius or
-                         nextPos.y < enemy.radius or nextPos.y > game.screenHeight.float32 - enemy.radius
-
-        if isOffScreen:
-          # Calculate direction toward screen center
-          let screenCenterX = game.screenWidth.float32 / 2.0
-          let screenCenterY = game.screenHeight.float32 / 2.0
-          let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
-          let movementDir = (nextPos - enemy.pos).normalize()
-
-          # Calculate dot product to see if movement is toward center
-          let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
-
-          # Only block movement if it's moving away from center (dot < 0)
-          # Allow movement if it's toward center (dot >= 0)
-          if dotProduct < 0:
-            canMove = false
+      if checkScreenBoundaryCollision(enemy, nextPos, game, config):
+        canMove = false
 
       if canMove:
         enemy.pos = nextPos
@@ -876,7 +796,7 @@ proc drawCustomBoss*(enemy: Enemy) =
   let r  = enemy.radius
   # How far the boss has ascended through its phases. The per-boss "ascension"
   # overlay at the end of this proc uses it to make the boss look progressively
-  # more powerful (extra crowns, satellites, rings, …) each phase. 0 = base form.
+  # more powerful (extra crowns, satellites, rings, ...) each phase. 0 = base form.
   let phaseLvl = max(0, enemy.currentPhaseIndex)
   let pf = phaseLvl.float32
 
@@ -1547,7 +1467,7 @@ proc drawBossPhaseTransition*(enemy: Enemy) =
     ## Expanding ring over the burst that fades as it grows.
     if burst > 0.0'f32:
       ringT(r + burst*extra, thick,
-            Color(r: col.r, g: col.g, b: col.b, a: a((1.0'f32 - burst) * col.a.float32)))
+            withAlpha(col, a((1.0'f32 - burst) * col.a.float32)))
 
   # Shared white-hot core flare at the snap moment.
   if flash > 0.05'f32:
@@ -1822,8 +1742,8 @@ proc drawBossPhaseTransition*(enemy: Enemy) =
       let d = r*0.2 + (r+90.0)*(1.0'f32 - gather)
       drawLine(Vector2(x: cx+cos(ang)*d, y: cy+sin(ang)*d),
                Vector2(x: cx+cos(ang)*(d+10.0), y: cy+sin(ang)*(d+10.0)), 2.0,
-               Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: a(220.0*gather)))
-    shock(150.0, 3.0, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 220))
+               withAlpha(enemy.color, a(220.0*gather)))
+    shock(150.0, 3.0, withAlpha(enemy.color, 220))
 
 proc getThreatColor(level: int): Color =
   case clamp(level, 0, 5)
@@ -1847,11 +1767,11 @@ proc drawThreatAura(enemy: Enemy) =
   let baseRadius = enemy.radius + 6.0 + level.float32 * 3.0 + pulse * (2.0 + level.float32)
 
   drawCircle(Vector2(x: cx, y: cy), baseRadius + 7.0,
-             Color(r: color.r, g: color.g, b: color.b, a: uint8(18 + level * 8)))
+             withAlpha(color, uint8(18 + level * 8)))
   for ring in 0..1:
     let ringRadius = baseRadius + ring.float32 * (5.0 + level.float32)
     let alpha = uint8(max(35, 150 - ring * 45 - level * 8))
-    drawCircleLines(cx.int32, cy.int32, ringRadius, Color(r: color.r, g: color.g, b: color.b, a: alpha))
+    drawCircleLines(cx.int32, cy.int32, ringRadius, withAlpha(color, alpha))
 
   let spokeCount = 6 + level * 2
   for i in 0..<spokeCount:
@@ -1863,7 +1783,7 @@ proc drawThreatAura(enemy: Enemy) =
       Vector2(x: cx + cos(angle) * inner, y: cy + sin(angle) * inner),
       Vector2(x: cx + cos(angle) * outer, y: cy + sin(angle) * outer),
       if level >= 4: 2.4 else: 1.4,
-      Color(r: color.r, g: color.g, b: color.b, a: alpha))
+      withAlpha(color, alpha))
 
   if level >= 3:
     let pipCount = min(5, level)
@@ -1871,30 +1791,110 @@ proc drawThreatAura(enemy: Enemy) =
     let pipY = cy - enemy.radius - 19.0 - level.float32 * 2.0
     for i in 0..<pipCount:
       let px = cx - totalW / 2.0 + i.float32 * 8.0
-      drawRectangle(px.int32, pipY.int32, 5, 5, Color(r: color.r, g: color.g, b: color.b, a: 230))
+      drawRectangle(px.int32, pipY.int32, 5, 5, withAlpha(color, 230))
       drawRectangleLines(px.int32, pipY.int32, 5, 5, Color(r: 255, g: 255, b: 255, a: 150))
+
+proc drawOmegaGlyph*(cx, cy, r, thick: float32, col: Color) =
+  ## A programmatic Ω: a ring open at the bottom (raylib ring angles: 0 deg =
+  ## +x, clockwise on screen, so the 45..135 gap faces down) plus two
+  ## outward-running feet at the arc ends. Used by the Omega Entity's warning
+  ## sigils, eruption brands and final-form halo.
+  drawRing(Vector2(x: cx, y: cy), r - thick, r + thick, 135.0, 405.0, 24, col)
+  let f = r * 0.7071'f32
+  drawLine(Vector2(x: cx - f, y: cy + f), Vector2(x: cx - f - r * 0.55'f32, y: cy + f),
+           thick * 2.0, col)
+  drawLine(Vector2(x: cx + f, y: cy + f), Vector2(x: cx + f + r * 0.55'f32, y: cy + f),
+           thick * 2.0, col)
+
+proc drawOmegaFinalFormHalo(enemy: Enemy) =
+  ## Boss 12's final-phase presence: a pulsing double ring with three Omega
+  ## glyphs orbiting the body. While the boss channels the judgement
+  ## (megaCastTimer > 0) the halo flares - rings brighten, the glyphs whirl,
+  ## and charge rays rush inward - so the mega-cast is unmissable even before
+  ## the first quadrant washes in.
+  let t = getTime().float32
+  let channeling = enemy.megaCastTimer > 0.0'f32
+  let p = float32(sin(t * (if channeling: 12.0 else: 5.0))) * 0.5'f32 + 0.5'f32
+  let haloR = enemy.radius + 20.0'f32 + p * 6.0'f32
+  let baseA = if channeling: uint8(200.0 + p * 55.0) else: uint8(110.0 + p * 50.0)
+  drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, haloR,
+                  Color(r: 255'u8, g: 60'u8, b: 255'u8, a: baseA))
+  drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, haloR + 7.0'f32,
+                  Color(r: 255'u8, g: 220'u8, b: 255'u8, a: (baseA div 2).uint8))
+  let spin = t * (if channeling: 2.6'f32 else: 1.0'f32)
+  for k in 0 ..< 3:
+    let ang = spin + k.float32 * (PI * 2.0 / 3.0)
+    drawOmegaGlyph(enemy.pos.x + cos(ang) * haloR,
+                   enemy.pos.y + sin(ang) * haloR - 2.0'f32,
+                   8.0'f32, 1.5'f32,
+                   Color(r: 255'u8, g: 200'u8, b: 255'u8, a: baseA))
+  if channeling:
+    # Judgement charge: rays race inward toward the halo while the cast holds.
+    let rush = (t * 2.2'f32) mod 1.0'f32
+    for k in 0 ..< 8:
+      let ang = k.float32 * PI * 0.25'f32 + spin * 0.5'f32
+      let outer = haloR + 34.0'f32 - rush * 24.0'f32
+      drawLine(Vector2(x: enemy.pos.x + cos(ang) * outer,
+                       y: enemy.pos.y + sin(ang) * outer),
+               Vector2(x: enemy.pos.x + cos(ang) * (outer - 9.0'f32),
+                       y: enemy.pos.y + sin(ang) * (outer - 9.0'f32)),
+               2.0, Color(r: 255'u8, g: 240'u8, b: 255'u8, a: uint8(220.0'f32 * (1.0'f32 - rush))))
 
 proc drawEnemy*(enemy: Enemy) =
   ## Draws an enemy based on its type. Bosses are forwarded to drawCustomBoss.
   # Spawn ring: expanding coloured circle that fades out as the enemy materialises
   if enemy.spawnRingTimer > 0:
-    let t = enemy.spawnRingTimer / 0.45'f32          # 1.0 (just spawned) → 0.0 (faded)
+    let t = enemy.spawnRingTimer / 0.45'f32          # 1.0 (just spawned) -> 0.0 (faded)
     let ringRadius = enemy.radius * (1.0'f32 + (1.0'f32 - t) * 1.2'f32)
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius,
-                    Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: uint8(t * 200.0'f32)))
+                    withAlpha(enemy.color, uint8(t * 200.0'f32)))
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius * 0.72'f32,
                     Color(r: 255, g: 255, b: 255, a: uint8(t * 90.0'f32)))
 
   # Status effect overlays: pulsing coloured ring tied to active DoT / slow state
   let st = getTime()
   if hasActiveEffect(enemy, etFire):
+    # Burning: hot body glow + flickering flame wedges licking off the top,
+    # deliberately louder and faster than poison so the two DoTs read apart
     let p = float32(sin(st * 8.0) * 0.5 + 0.5)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 3.0'f32 + p * 2.0'f32,
-                    Color(r: 255, g: uint8(80.0'f32 + p * 80.0'f32), b: 0, a: uint8(120.0'f32 + p * 80.0'f32)))
+    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius,
+               Color(r: 255, g: 120, b: 0, a: uint8(35.0'f32 + p * 20.0'f32)))
+    let seed = float32(enemy.id mod 7)
+    for i in 0..3:
+      let fi = i.float32
+      let flick = float32(sin(st * (9.0 + fi * 2.3) + seed + fi * 1.7) * 0.5 + 0.5)
+      let ang = float32(-PI / 2.0) + (fi - 1.5'f32) * 0.55'f32 +
+                float32(sin(st * 5.0 + fi * 2.1)) * 0.15'f32
+      let bx = enemy.pos.x + cos(ang) * enemy.radius * 0.9'f32
+      let by = enemy.pos.y + sin(ang) * enemy.radius * 0.9'f32
+      let h = 6.0'f32 + flick * 8.0'f32
+      let w = 2.5'f32 + flick * 2.0'f32
+      let flameCol = if i mod 2 == 0:
+        Color(r: 255, g: 150, b: 0, a: uint8(150.0'f32 + flick * 90.0'f32))
+      else:
+        Color(r: 255, g: 220, b: 60, a: uint8(120.0'f32 + flick * 90.0'f32))
+      drawTriangle(Vector2(x: bx, y: by - h),
+                   Vector2(x: bx - w, y: by),
+                   Vector2(x: bx + w, y: by), flameCol)
   if hasActiveEffect(enemy, etPoison):
-    let p = float32(sin(st * 4.0) * 0.5 + 0.5)
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 3.0'f32 + p * 2.0'f32,
-                    Color(r: 30, g: uint8(180.0'f32 + p * 60.0'f32), b: 30, a: uint8(110.0'f32 + p * 80.0'f32)))
+    # Poisoned: sickly green body tint + slow toxic bubbles drifting upward,
+    # calm and drippy in contrast to fire's rapid flicker. Tint and bubble
+    # count intensify as poison stacks ramp toward the cap.
+    let stackFrac = clamp(enemy.poisonStacks / poisonStackCap(enemy), 0.0'f32, 1.0'f32)
+    drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius,
+               Color(r: 60, g: 220, b: 60, a: uint8(50.0'f32 + stackFrac * 45.0'f32)))
+    let pseed = float32(enemy.id mod 11)
+    let bubbleCount = 2 + int(stackFrac * 3.0'f32)
+    for i in 0..bubbleCount:
+      let fi = i.float32
+      let cycle = float32((st * 0.55 + fi * 0.37 + pseed * 0.13) mod 1.0)
+      let ang = pseed + fi * 2.4'f32
+      let bx = enemy.pos.x + cos(ang) * enemy.radius * 0.6'f32 +
+               float32(sin(st * 2.0 + fi)) * 2.0'f32
+      let by = enemy.pos.y + enemy.radius * 0.4'f32 - cycle * (enemy.radius * 1.6'f32 + 10.0'f32)
+      let bubbleA = uint8((1.0'f32 - cycle) * 180.0'f32)
+      drawCircleLines(bx.int32, by.int32, 2.0'f32 + cycle * 2.5'f32,
+                      Color(r: 120, g: 255, b: 120, a: bubbleA))
   if hasActiveEffect(enemy, etLightning):
     let p = float32(sin(st * 10.0) * 0.5 + 0.5)
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 4.0'f32 + p * 2.0'f32,
@@ -1924,6 +1924,10 @@ proc drawEnemy*(enemy: Enemy) =
                     Color(r: 200, g: 110, b: 240, a: uint8(50 + cp * 60)))
 
   if enemy.isBoss:
+    # Omega Entity final form: the halo sits under the body so the boss
+    # visibly ascends when the last phase begins.
+    if enemy.bossDefinitionID == 12 and enemy.currentPhaseIndex >= 3:
+      drawOmegaFinalFormHalo(enemy)
     # Boss drawing
     drawCustomBoss(enemy)
 
@@ -1944,7 +1948,7 @@ proc drawEnemy*(enemy: Enemy) =
       let r  = enemy.radius
       # Soft outer glow
       drawCircle(Vector2(x: cx, y: cy), r + 7 + pulse * 3,
-                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: uint8(30 + pulse * 25)))
+                withAlpha(enemy.color, uint8(30 + pulse * 25)))
       # Quivering spike crown (8 short radiating lines driven by velocity + time)
       let numSpikes = 8
       let velLen = sqrt(enemy.vel.x * enemy.vel.x + enemy.vel.y * enemy.vel.y)
@@ -1972,7 +1976,7 @@ proc drawEnemy*(enemy: Enemy) =
           drawCircle(
             Vector2(x: cx + tailDir.x * tf * r * 0.55, y: cy + tailDir.y * tf * r * 0.55),
             r * (1.0'f32 - tf * 0.22'f32),
-            Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: uint8(55 - ti * 15)))
+            withAlpha(enemy.color, uint8(55 - ti * 15)))
       # Main body
       drawCircle(Vector2(x: cx, y: cy), r, enemy.color)
       # Dark-tinted rim (same hue, much darker, no white)
@@ -1992,7 +1996,7 @@ proc drawEnemy*(enemy: Enemy) =
       let cy = enemy.pos.y
       # Soft glow halo
       drawCircle(Vector2(x: cx, y: cy), s + 9,
-                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
+                withAlpha(enemy.color, 28))
       # Main filled square
       drawRectangle((cx - s).int32, (cy - s).int32,
                     (s * 2).int32, (s * 2).int32, enemy.color)
@@ -2198,7 +2202,7 @@ proc drawEnemy*(enemy: Enemy) =
       let rot = t * 0.35  # slow rotation
       # Soft outer glow
       drawCircle(Vector2(x: cx, y: cy), r + 8,
-                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
+                withAlpha(enemy.color, 28))
       # Filled hex body, triangle fan gives visual weight to the wireframe
       for i in 0..<6:
         let fa0 = i.float32       * PI / 3.0'f32 + rot
@@ -2207,7 +2211,7 @@ proc drawEnemy*(enemy: Enemy) =
           Vector2(x: cx, y: cy),
           Vector2(x: cx + cos(fa0) * r, y: cy + sin(fa0) * r),
           Vector2(x: cx + cos(fa1) * r, y: cy + sin(fa1) * r),
-          Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 55))
+          withAlpha(enemy.color, 55))
       # Outer hexagon (slowly rotating)
       for i in 0..<6:
         let a0 = i.float32       * PI / 3.0 + rot
@@ -2222,14 +2226,14 @@ proc drawEnemy*(enemy: Enemy) =
         let a1 = (i + 1).float32 * PI / 3.0 - rot + PI / 6.0
         drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
                  Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
-                 2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
+                 2, withAlpha(enemy.color, 180))
       # 6 spokes: outer vertex -> inner vertex
       for i in 0..<6:
         let ao = i.float32 * PI / 3.0 + rot
         let ai = i.float32 * PI / 3.0 - rot + PI / 6.0
         drawLine(Vector2(x: cx + cos(ao) * r,  y: cy + sin(ao) * r),
                  Vector2(x: cx + cos(ai) * ir, y: cy + sin(ai) * ir),
-                 1, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 90))
+                 1, withAlpha(enemy.color, 90))
       # Bright center core, tinted, not raw white
       drawCircle(Vector2(x: cx, y: cy), r * 0.18,
                 Color(r: uint8(min(255, enemy.color.r.int + 80)), g: uint8(min(255, enemy.color.g.int + 80)), b: uint8(min(255, enemy.color.b.int + 80)), a: 230))
@@ -2338,7 +2342,7 @@ proc drawEnemy*(enemy: Enemy) =
           let thy2 = trailY + sin(rotAngle - i.float32 * 0.3) * trailLength
 
           drawLine(Vector2(x: thx1, y: thy1), Vector2(x: thx2, y: thy2), 2,
-                  Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: trailAlpha))
+                  withAlpha(enemy.color, trailAlpha))
 
     of etDiamond:
       let cx = enemy.pos.x
@@ -2346,7 +2350,7 @@ proc drawEnemy*(enemy: Enemy) =
       let r  = enemy.radius
       # Soft glow halo
       drawCircle(Vector2(x: cx, y: cy), r + 8,
-                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 30))
+                withAlpha(enemy.color, 30))
       # Spinning jewel, rotate 4 vertices by time
       let dRot = float32(getTime() * 0.4)
       let dv1 = Vector2(x: cx + cos(-PI/2.0'f32 + dRot) * r, y: cy + sin(-PI/2.0'f32 + dRot) * r)
@@ -2399,7 +2403,7 @@ proc drawEnemy*(enemy: Enemy) =
       let r  = enemy.radius
       # Soft glow
       drawCircle(Vector2(x: cx, y: cy), r + 7,
-                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
+                withAlpha(enemy.color, 28))
       # Outer octagon
       for i in 0..<8:
         let a0 = i.float32       * PI / 4.0
@@ -2415,7 +2419,7 @@ proc drawEnemy*(enemy: Enemy) =
         let a1 = (i + 1).float32 * PI / 4.0 + PI / 8.0 + rot
         drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
                  Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
-                 2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
+                 2, withAlpha(enemy.color, 180))
       # 8 radial spokes: center -> outer vertex, dark-tinted, not white
       for i in 0..<8:
         let a = i.float32 * PI / 4.0
@@ -2445,7 +2449,7 @@ proc drawEnemy*(enemy: Enemy) =
       let r  = enemy.radius
       # Soft outer glow
       drawCircle(Vector2(x: cx, y: cy), r + 8,
-                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 28))
+                withAlpha(enemy.color, 28))
       # Outer pentagon, counter-rotates opposite to inner for gear-within-gear read
       let rot2 = float32(-t * 0.18)
       for i in 0..<5:
@@ -2462,7 +2466,7 @@ proc drawEnemy*(enemy: Enemy) =
         let a1 = (i + 1).float32 * PI * 2.0 / 5.0 + rot
         drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
                  Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
-                 2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 180))
+                 2, withAlpha(enemy.color, 180))
       # 5 spokes from center to outer vertices, dark-tinted
       for i in 0..<5:
         let a = i.float32 * PI * 2.0 / 5.0 - PI / 2.0
@@ -2519,7 +2523,7 @@ proc drawEnemy*(enemy: Enemy) =
         let ir = r * 0.48
         drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
                  Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir),
-                 2, Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: 160))
+                 2, withAlpha(enemy.color, 160))
       # Filled center
       drawCircle(Vector2(x: cx, y: cy), r * 0.32, enemy.color)
       # Tinted core, not white
@@ -2600,11 +2604,11 @@ proc drawEnemy*(enemy: Enemy) =
       # Pulsing translucent fill (ghost body, not fully solid)
       let bodyAlpha = uint8(140 + sin(t * 2.0) * 30)
       drawCircle(Vector2(x: cx, y: cy), r,
-                Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: bodyAlpha))
+                withAlpha(enemy.color, bodyAlpha))
       # Outer wispy ring, fades in and out
       let wispAlpha = uint8((sin(t * 1.5) * 0.4 + 0.6) * 90)
       drawCircleLines(cx.int32, cy.int32, r + 6,
-                     Color(r: enemy.color.r, g: enemy.color.g, b: enemy.color.b, a: wispAlpha))
+                     withAlpha(enemy.color, wispAlpha))
       # Inner concentric rings (ghostly depth)
       drawCircleLines(cx.int32, cy.int32, r * 0.65,
                      Color(r: 180, g: 180, b: 255, a: uint8(60 + sin(t * 3.0) * 30)))
@@ -2650,9 +2654,9 @@ proc drawEnemy*(enemy: Enemy) =
       # Outer magical aura
       let auraPulse = sin(t * 3.0) * 0.4 + 0.6
       drawCircle(Vector2(x: cx, y: cy), r + 16 + auraPulse * 5,
-                Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: uint8(22 * auraPulse)))
+                withAlpha(glowCol, uint8(22 * auraPulse)))
       drawCircle(Vector2(x: cx, y: cy), r + 9 + auraPulse * 3,
-                Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: uint8(38 * auraPulse)))
+                withAlpha(glowCol, uint8(38 * auraPulse)))
 
       # Ground magic circle, drawn before robe body so it appears as a floor projection
       let circleRot = float32(-t * 0.6)
@@ -2664,11 +2668,11 @@ proc drawEnemy*(enemy: Enemy) =
         drawLine(
           Vector2(x: cx + cos(ca0) * cgr,        y: cgy + sin(ca0) * cgr * 0.28'f32),
           Vector2(x: cx + cos(ca1) * cgr,        y: cgy + sin(ca1) * cgr * 0.28'f32),
-          1, Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: 35))
+          1, withAlpha(glowCol, 35))
         drawLine(
           Vector2(x: cx, y: cgy),
           Vector2(x: cx + cos(ca0) * cgr * 0.6'f32, y: cgy + sin(ca0) * cgr * 0.28'f32 * 0.6'f32),
-          1, Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: 25))
+          1, withAlpha(glowCol, 25))
 
       # Robe body (filled circle, slightly larger at bottom)
       # Bottom robe hem, slightly wider oval hint via two offset circles
@@ -2677,7 +2681,7 @@ proc drawEnemy*(enemy: Enemy) =
       drawCircle(Vector2(x: cx, y: cy), r, bodyCol)
       # Robe hem dark edge (no white, dark tinted border)
       drawCircleLines(cx.int32, cy.int32, r,
-                     Color(r: robeCol.r, g: robeCol.g, b: robeCol.b, a: 200))
+                     withAlpha(robeCol, 200))
 
       # Pointy wizard hat
       # Hat brim: a flattened circle behind the tip
@@ -2736,7 +2740,7 @@ proc drawEnemy*(enemy: Enemy) =
       # Orb at tip, teal glowing sphere
       let orbPulse = sin(t * 4.5) * 0.35 + 0.65
       drawCircle(Vector2(x: staffTipX, y: staffTipY), r * 0.19 + orbPulse * 2,
-                Color(r: orbCol.r, g: orbCol.g, b: orbCol.b, a: uint8(60 * orbPulse)))
+                withAlpha(orbCol, uint8(60 * orbPulse)))
       drawCircle(Vector2(x: staffTipX, y: staffTipY), r * 0.16, orbCol)
       drawCircle(Vector2(x: staffTipX - r * 0.04, y: staffTipY - r * 0.04),
                 r * 0.06, Color(r: 255, g: 255, b: 255, a: 200))  # specular
@@ -2756,7 +2760,7 @@ proc drawEnemy*(enemy: Enemy) =
                    2, accentCol)
         # Glow dot behind rune
         drawCircle(Vector2(x: rx, y: ry), r * 0.08,
-                  Color(r: glowCol.r, g: glowCol.g, b: glowCol.b, a: 120))
+                  withAlpha(glowCol, 120))
 
       # Rising magic sparks
       for i in 0..3:
@@ -2767,7 +2771,7 @@ proc drawEnemy*(enemy: Enemy) =
         let spY  = cy - r * 0.3 - frac * r * 1.2
         let spA  = uint8((1.0 - frac) * 180)
         drawCircle(Vector2(x: spX, y: spY), r * 0.06 * (1.0 - frac * 0.5),
-                  Color(r: orbCol.r, g: orbCol.g, b: orbCol.b, a: spA))
+                  withAlpha(orbCol, spA))
 
       # Eyes (two small bright dots on the body)
       let eyeY   = cy - r * 0.15
@@ -2786,18 +2790,13 @@ proc drawEnemy*(enemy: Enemy) =
       if enemy.shootTimer > 2.0:
         let chargeGlow = sin((enemy.shootTimer - 2.0) * 10.0) * 0.5 + 0.5
         drawCircleLines(cx.int32, cy.int32, r + 7,
-                       Color(r: orbCol.r, g: orbCol.g, b: orbCol.b, a: uint8(160 * chargeGlow)))
+                       withAlpha(orbCol, uint8(160 * chargeGlow)))
 
     of etEnvironment:
       discard  # Environmental objects have no draw logic here
 
-# --- Shared attack-warning telegraph vocabulary -----------------------------
-# Every telegraph derives its fade, pulse and danger build-up the SAME way, so
-# the whole warning system reads as one visual language. Branches still pick
-# their own shapes and per-archetype colours (red = laser, orange = dash,
-# purple = teleport, green = summon, yellow = lightning), but the *timing* of
-# alpha and intensity is standardized through these helpers instead of being
-# hand-recomputed per branch.
+# Shared attack-warning telegraph vocabulary: unified fade/pulse/build-up
+# timing via these helpers; branches only pick shapes and per-archetype colors.
 
 proc warningPulse(): float32 {.inline.} =
   ## Shared "breathing" pulse used so telegraphs feel alive. Range ~5..15.
@@ -2864,7 +2863,7 @@ proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
              Vector2(x: impact.x + fromDir.x * streakLen * f1,
                      y: impact.y + fromDir.y * streakLen * f1),
              2.0'f32 + radius * 0.05'f32,
-             Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: a))
+             withAlpha(baseCol, a))
 
   # 2) Arrowhead at the impact pointing the way the rock travels (scales w/ size).
   let headLen = 12.0'f32 + radius * 0.45'f32
@@ -2887,7 +2886,7 @@ proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
   # 4) Impact zone: pulsing target ring + center dot mark the exact landing point.
   let impactR = ringR + pulse * 0.35'f32
   drawCircleLines(impact.x.int32, impact.y.int32, impactR,
-                 Color(r: baseCol.r, g: baseCol.g, b: baseCol.b, a: urgency))
+                 withAlpha(baseCol, urgency))
   drawCircle(Vector2(x: impact.x, y: impact.y), 3.0'f32 + pulse * 0.22'f32,
             Color(r: 255, g: 190, b: 90, a: urgency))
 
@@ -2918,6 +2917,10 @@ proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
 proc drawAttackWarning*(warning: AttackWarning) =
   let alpha = fadeAlpha(warning)
   let pulse = warningPulse()
+  # Sampled once: getTime() is an FFI call and several branches used it inside
+  # per-marker loops, which also made markers in one telegraph animate from
+  # slightly different clocks. One sample keeps each telegraph self-consistent.
+  let nowT = getTime()
 
   case warning.attackType
   of awtCross:
@@ -2954,7 +2957,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 50.0 + pulse,
                    Color(r: 255, g: 100, b: 0, a: alpha))
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 70.0 + pulse,
-                   Color(r: 255, g: 100, b: 0, a: (alpha div 2).uint8))
+                   Color(r: 255, g: 100, b: 0, a: (alpha div 2)))
   of awtFake:
     # Generic fallback fake, kept for safety
     drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse,
@@ -2991,13 +2994,13 @@ proc drawAttackWarning*(warning: AttackWarning) =
                4, Color(r: 180'u8, g: 0'u8, b: 255'u8, a: alpha))
       drawLine(Vector2(x: cx + cos(a0) * innerR, y: cy + sin(a0) * innerR),
                Vector2(x: cx + cos(a1) * innerR, y: cy + sin(a1) * innerR),
-               2, Color(r: 220'u8, g: 80'u8, b: 255'u8, a: (alpha div 2).uint8))
+               2, Color(r: 220'u8, g: 80'u8, b: 255'u8, a: (alpha div 2)))
     # Spokes
     for i in 0..<6:
       let a = i.float32 * PI / 3.0 + PI / 6.0
       drawLine(Vector2(x: cx + cos(a) * innerR, y: cy + sin(a) * innerR),
                Vector2(x: cx + cos(a) * outerR,  y: cy + sin(a) * outerR),
-               1, Color(r: 200'u8, g: 50'u8, b: 255'u8, a: (alpha div 2).uint8))
+               1, Color(r: 200'u8, g: 50'u8, b: 255'u8, a: (alpha div 2)))
     # Center dot
     drawCircle(Vector2(x: cx, y: cy), 5.0 + pulse * 0.3,
                Color(r: 255'u8, g: 150'u8, b: 255'u8, a: alpha))
@@ -3009,7 +3012,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     let sz = 30.0 + pulse * 0.6
     # Outer glow circle
     drawCircleLines(cx.int32, cy.int32, sz + 8,
-                   Color(r: 255'u8, g: 140'u8, b: 0'u8, a: (alpha div 2).uint8))
+                   Color(r: 255'u8, g: 140'u8, b: 0'u8, a: (alpha div 2)))
     # Diamond outline
     drawLine(Vector2(x: cx,      y: cy - sz), Vector2(x: cx + sz, y: cy),
              3, Color(r: 255'u8, g: 140'u8, b: 0'u8, a: alpha))
@@ -3049,7 +3052,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                      Color(r: 60'u8, g: 80'u8, b: 255'u8, a: ringAlpha))
     # Rotating 4-petal cross inside the rings
     let crossLen = 18.0 + pulse * 0.3
-    let rot = getTime() * 3.0
+    let rot = nowT * 3.0
     for i in 0..<4:
       let a = rot + i.float32 * PI / 2.0
       drawLine(Vector2(x: cx, y: cy),
@@ -3077,10 +3080,10 @@ proc drawAttackWarning*(warning: AttackWarning) =
       let diagLen = sz * 0.6
       drawLine(Vector2(x: cx + cos(a) * gap,     y: cy + sin(a) * gap),
                Vector2(x: cx + cos(a) * diagLen, y: cy + sin(a) * diagLen),
-               1, Color(r: 180'u8, g: 255'u8, b: 240'u8, a: (alpha div 2).uint8))
+               1, Color(r: 180'u8, g: 255'u8, b: 240'u8, a: (alpha div 2)))
     # Outer ring
     drawCircleLines(cx.int32, cy.int32, sz,
-                   Color(r: 120'u8, g: 220'u8, b: 210'u8, a: (alpha div 2).uint8))
+                   Color(r: 120'u8, g: 220'u8, b: 210'u8, a: (alpha div 2)))
 
   of awtBossLaser:
     # Boss laser warning with accurate beam visualization
@@ -3110,7 +3113,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
           Vector2(x: startX, y: startY),
           Vector2(x: endX, y: endY),
           3,
-          Color(r: 255, g: 200, b: 100, a: (alpha div 2).uint8)
+          Color(r: 255, g: 200, b: 100, a: (alpha div 2))
         )
 
         # Draw danger markers along the beam path
@@ -3118,11 +3121,11 @@ proc drawAttackWarning*(warning: AttackWarning) =
           let markerDist = 40.0 + (warning.laserLength - 40.0) * (i.float32 / 4.0) * 0.7
           let markerX = warning.pos.x + cos(angle) * markerDist
           let markerY = warning.pos.y + sin(angle) * markerDist
-          let markerSize = 6.0 + sin(getTime() * 15.0 + i.float32) * 2.0
+          let markerSize = 6.0 + sin(nowT * 15.0 + i.float32) * 2.0
           drawCircle(
             Vector2(x: markerX, y: markerY),
             markerSize,
-            Color(r: 255, g: 0, b: 0, a: (alpha div 2).uint8)
+            Color(r: 255, g: 0, b: 0, a: (alpha div 2))
           )
       else:
         # Cross pattern: Draw in both directions (extends through center)
@@ -3145,7 +3148,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
           Vector2(x: startX, y: startY),
           Vector2(x: endX, y: endY),
           3,
-          Color(r: 255, g: 200, b: 100, a: (alpha div 2).uint8)
+          Color(r: 255, g: 200, b: 100, a: (alpha div 2))
         )
 
         # Draw danger markers along the beam path (both sides)
@@ -3154,15 +3157,15 @@ proc drawAttackWarning*(warning: AttackWarning) =
           let markerDist = warning.laserLength * (i.float32 / 2.0) * 0.7
           let markerX = warning.pos.x + cos(angle) * markerDist
           let markerY = warning.pos.y + sin(angle) * markerDist
-          let markerSize = 6.0 + sin(getTime() * 15.0 + i.float32) * 2.0
+          let markerSize = 6.0 + sin(nowT * 15.0 + i.float32) * 2.0
           drawCircle(
             Vector2(x: markerX, y: markerY),
             markerSize,
-            Color(r: 255, g: 0, b: 0, a: (alpha div 2).uint8)
+            Color(r: 255, g: 0, b: 0, a: (alpha div 2))
           )
 
     # Draw central danger indicator at boss position
-    let centralPulse = sin(getTime() * 12.0) * 0.3 + 0.7
+    let centralPulse = sin(nowT * 12.0) * 0.3 + 0.7
     drawCircleLines(
       warning.pos.x.int32, warning.pos.y.int32,
       50.0 + pulse * 1.5,
@@ -3211,7 +3214,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       Vector2(x: warning.pos.x, y: warning.pos.y),
       Vector2(x: endX, y: endY),
       3,
-      Color(r: 255, g: 200, b: 50, a: (alpha div 2).uint8)
+      Color(r: 255, g: 200, b: 50, a: (alpha div 2))
     )
 
     # Draw pulsing danger markers along the beam path
@@ -3220,16 +3223,16 @@ proc drawAttackWarning*(warning: AttackWarning) =
       let markerDist = maxDist * (i.float32 / markerCount.float32)
       let markerX = warning.pos.x + cos(angle) * markerDist
       let markerY = warning.pos.y + sin(angle) * markerDist
-      let markerSize = 8.0 + sin(getTime() * 15.0 + i.float32 * 0.8) * 3.0
+      let markerSize = 8.0 + sin(nowT * 15.0 + i.float32 * 0.8) * 3.0
       drawCircle(
         Vector2(x: markerX, y: markerY),
         markerSize,
-        Color(r: 255, g: 50, b: 0, a: (alpha div 2).uint8)
+        Color(r: 255, g: 50, b: 0, a: (alpha div 2))
       )
 
     # Draw target crosshair at the locked coordinates
     let targetSize = 20.0 + pulse * 0.8
-    let targetAlpha = uint8((sin(getTime() * 12.0) * 0.3 + 0.7) * alpha.float32)
+    let targetAlpha = uint8((sin(nowT * 12.0) * 0.3 + 0.7) * alpha.float32)
 
     # Crosshair lines
     drawLine(
@@ -3273,18 +3276,40 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # Teleport warning - shows where boss will appear
     let warningMode = warning.laserPattern  # Contains the teleport mode
 
-    # Base pulsing circle for all teleport warnings
-    drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse * 2,
-                   Color(r: 150, g: 100, b: 255, a: alpha))
-    drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 60.0 + pulse,
-                   Color(r: 150, g: 100, b: 255, a: (alpha div 2).uint8))
+    if warning.isBossTeleportTarget:
+      # THE BOSS BODY ARRIVES HERE - unmistakably distinct from the echo
+      # points: a body-sized ring (laserLength carries the boss radius) that
+      # fills in as arrival nears, plus four rays collapsing onto it.
+      let bossR = max(30.0'f32, warning.laserLength)
+      let arrive = warningProgress(warning)     # 0 -> 1 as the boss lands
+      drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y), bossR,
+                 Color(r: 180'u8, g: 90'u8, b: 255'u8, a: uint8(20.0 + arrive * 70.0)))
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, bossR + 4.0 + pulse * 2.0,
+                      Color(r: 220'u8, g: 140'u8, b: 255'u8, a: alpha))
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32,
+                      bossR * (1.0'f32 - arrive) + 6.0'f32,
+                      Color(r: 255'u8, g: 255'u8, b: 255'u8, a: alpha))
+      for k in 0 ..< 4:
+        let ang = nowT.float32 * 2.0'f32 + k.float32 * PI * 0.5'f32
+        let outer = bossR + 34.0'f32 - arrive * 26.0'f32
+        drawLine(Vector2(x: warning.pos.x + cos(ang) * outer,
+                         y: warning.pos.y + sin(ang) * outer),
+                 Vector2(x: warning.pos.x + cos(ang) * (outer - 12.0'f32),
+                         y: warning.pos.y + sin(ang) * (outer - 12.0'f32)),
+                 2.5, Color(r: 255'u8, g: 200'u8, b: 255'u8, a: alpha))
+    else:
+      # Echo point: bullets will spawn here, but the boss will not.
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse * 2,
+                     Color(r: 150, g: 100, b: 255, a: alpha))
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 60.0 + pulse,
+                     Color(r: 150, g: 100, b: 255, a: (alpha div 2)))
 
     # Mode-specific visual effects
     case warningMode
     of "afterimage_burst":
       # Ghost shimmer effect
       drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, 30.0 + pulse * 1.5,
-                     Color(r: 100, g: 200, b: 255, a: (alpha div 2).uint8))
+                     Color(r: 100, g: 200, b: 255, a: (alpha div 2)))
       # Ghost glyph
       drawText("*", (warning.pos.x - 5).int32, (warning.pos.y - 8).int32, 20,
               Color(r: 150, g: 100, b: 255, a: alpha))
@@ -3297,7 +3322,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                        Color(r: 200, g: 100, b: 255, a: ringAlpha))
     of "dimensional_rift":
       let cx = warning.pos.x; let cy = warning.pos.y
-      let t = getTime()
+      let t = nowT
       let progress = warningProgress(warning)  # 0->1 as warning expires
 
       # Tear: a jagged fracture line across the rift centre
@@ -3359,7 +3384,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
         # Thin trailing spoke from centre to each outer-layer shard
         if layer == 0:
           drawLine(Vector2(x: cx, y: cy), Vector2(x: sx, y: sy),
-                  1, Color(r: sCol.r, g: sCol.g, b: sCol.b, a: uint8(alpha.float32 * 0.25'f32)))
+                  1, withAlpha(sCol, uint8(alpha.float32 * 0.25'f32)))
 
       # Void core, deep black circle with a glowing rim
       let coreR = 9.0'f32 + progress * 5.0'f32 + sin(t * 8.0'f32) * 1.5'f32
@@ -3372,24 +3397,24 @@ proc drawAttackWarning*(warning: AttackWarning) =
     of "chaos_blink", "reality_shift":
       # Chaotic swirl pattern
       for i in 0..11:
-        let angle = i.float32 * (PI * 2.0 / 12.0) + getTime() * 3.0
+        let angle = i.float32 * (PI * 2.0 / 12.0) + nowT * 3.0
         let swrlX = warning.pos.x + cos(angle) * (35.0 + pulse)
         let swrlY = warning.pos.y + sin(angle) * (35.0 + pulse)
-        let chaosAlpha = uint8((alpha.float32 * (0.5 + sin(getTime() * 10.0 + i.float32) * 0.5)).uint8.clamp(0, 255))
+        let chaosAlpha = uint8((alpha.float32 * (0.5 + sin(nowT * 10.0 + i.float32) * 0.5)).uint8.clamp(0, 255))
         drawCircle(Vector2(x: swrlX, y: swrlY), 4.0 + pulse * 0.2,
                   Color(r: uint8(150 + rand(100)), g: uint8(100 + rand(100)),
                         b: uint8(150 + rand(100)), a: chaosAlpha))
     else:
       # Default warning pattern
       for i in 0..3:
-        let angle = i.float32 * (PI / 2.0) + getTime()
+        let angle = i.float32 * (PI / 2.0) + nowT
         let sparkX = warning.pos.x + cos(angle) * (25.0 + pulse)
         let sparkY = warning.pos.y + sin(angle) * (25.0 + pulse)
         drawCircle(Vector2(x: sparkX, y: sparkY), 3.0,
                   Color(r: 150, g: 100, b: 255, a: alpha))
 
     # Center danger indicator
-    let centerPulse = sin(getTime() * 15.0) * 0.3 + 0.7
+    let centerPulse = sin(nowT * 15.0) * 0.3 + 0.7
     drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y), 8.0 + pulse * centerPulse,
               Color(r: 255, g: 100, b: 200, a: uint8(alpha.float32 * centerPulse)))
 
@@ -3456,7 +3481,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       drawCircleLines(tx.int32, ty.int32, 18.0'f32 + pulse,
                      Color(r: 255'u8, g: 80'u8, b: 0'u8, a: alpha))
       drawCircleLines(tx.int32, ty.int32, 10.0'f32,
-                     Color(r: 255'u8, g: 200'u8, b: 80'u8, a: (alpha div 2).uint8))
+                     Color(r: 255'u8, g: 200'u8, b: 80'u8, a: (alpha div 2)))
 
     # Origin ring at boss position
     drawCircleLines(cx.int32, cy.int32, 16.0'f32 + pulse * 0.5'f32,
@@ -3506,7 +3531,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     let r2 = 46.0 + pulse * 1.2
     drawCircleLines(cx.int32, cy.int32, r1, Color(r: 255'u8, g: 50'u8, b: 50'u8, a: alpha))
     drawCircleLines(cx.int32, cy.int32, r2,
-                   Color(r: 255'u8, g: 80'u8, b: 0'u8, a: (alpha div 2).uint8))
+                   Color(r: 255'u8, g: 80'u8, b: 0'u8, a: (alpha div 2)))
     for i in 0..<8:
       let a = i.float32 * PI / 4.0
       drawLine(Vector2(x: cx + cos(a) * (r1 - 6), y: cy + sin(a) * (r1 - 6)),
@@ -3536,7 +3561,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
   of awtBossChain:
     # Rotating zigzag lightning spokes, chain lightning cue
     let cx = warning.pos.x; let cy = warning.pos.y
-    let rot = getTime() * 2.0
+    let rot = nowT * 2.0
     for i in 0..<4:
       let a = rot + i.float32 * PI / 2.0
       let mid = newVector2f(cx + cos(a) * (20.0 + pulse), cy + sin(a) * (20.0 + pulse))
@@ -3551,12 +3576,12 @@ proc drawAttackWarning*(warning: AttackWarning) =
   of awtBossSummon:
     # Spinning summoning circle with 6 rune-spokes and orbiting dots
     let cx = warning.pos.x; let cy = warning.pos.y
-    let rot = getTime() * 2.0
+    let rot = nowT * 2.0
     let outerR = 40.0 + pulse
     drawCircleLines(cx.int32, cy.int32, outerR,
                    Color(r: 100'u8, g: 255'u8, b: 80'u8, a: alpha))
     drawCircleLines(cx.int32, cy.int32, 24.0 + pulse * 0.5,
-                   Color(r: 100'u8, g: 255'u8, b: 80'u8, a: (alpha div 2).uint8))
+                   Color(r: 100'u8, g: 255'u8, b: 80'u8, a: (alpha div 2)))
     for i in 0..<6:
       let a = rot + i.float32 * PI / 3.0
       drawLine(Vector2(x: cx, y: cy),
@@ -3574,8 +3599,31 @@ proc drawAttackWarning*(warning: AttackWarning) =
     let r  = warning.bulletRadius
     let progress = warningProgress(warning)
     if warning.lifetime <= TeslaStrikeActive:
-      drawCircle(Vector2(x: cx, y: cy), r, Color(r: 255'u8, g: 255'u8, b: 200'u8, a: 150'u8))
+      let fade = clamp(warning.lifetime / TeslaStrikeActive, 0.35'f32, 1.0'f32)
+      # burst: 0 at impact -> 1 as the flash dies; drives the outward FX.
+      let burst = 1.0'f32 - clamp(warning.lifetime / TeslaStrikeActive, 0.0'f32, 1.0'f32)
+      # The bolt itself: a white-hot column from the sky in a golden sheath.
+      drawLine(Vector2(x: cx, y: 0), Vector2(x: cx, y: cy), 10.0 * fade,
+               Color(r: 255'u8, g: 240'u8, b: 140'u8, a: uint8(120.0 * fade)))
+      drawLine(Vector2(x: cx, y: 0), Vector2(x: cx, y: cy), 3.0,
+               Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(230.0 * fade)))
+      # Ground flash: hot disc, white core, expanding shockwave ring.
+      drawCircle(Vector2(x: cx, y: cy), r, Color(r: 255'u8, g: 255'u8, b: 200'u8, a: uint8(150.0 * fade)))
+      drawCircle(Vector2(x: cx, y: cy), r * 0.45,
+                 Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(220.0 * fade)))
       drawCircleLines(cx.int32, cy.int32, r, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
+      drawCircleLines(cx.int32, cy.int32, r + burst * r * 1.4,
+                      Color(r: 255'u8, g: 235'u8, b: 120'u8, a: uint8(200.0 * fade)))
+      # Jagged residual arcs snapping outward from the strike point.
+      for k in 0..<6:
+        let ang = k.float32 * PI / 3.0 + burst * 0.8
+        let mid = Vector2(x: cx + cos(ang + 0.35) * r * (0.9 + burst * 0.8),
+                          y: cy + sin(ang + 0.35) * r * (0.9 + burst * 0.8))
+        let fin = Vector2(x: cx + cos(ang) * r * (1.2 + burst * 1.6),
+                          y: cy + sin(ang) * r * (1.2 + burst * 1.6))
+        drawLine(Vector2(x: cx, y: cy), mid, 2.0,
+                 Color(r: 255'u8, g: 255'u8, b: 170'u8, a: uint8(220.0 * fade)))
+        drawLine(mid, fin, 1.5, Color(r: 255'u8, g: 255'u8, b: 220'u8, a: uint8(180.0 * fade)))
     else:
       let a2 = rampAlpha(warning, 60.0, 170.0)
       drawLine(Vector2(x: cx, y: 0), Vector2(x: cx, y: cy), 2,
@@ -3584,7 +3632,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
                      Color(r: 255'u8, g: 235'u8, b: 70'u8, a: a2))
       drawCircleLines(cx.int32, cy.int32, r * 0.66,
                      Color(r: 255'u8, g: 255'u8, b: 160'u8, a: (a2 div 2).uint8))
-      let rot = getTime() * 3.0
+      let rot = nowT * 3.0
       for k in 0..<8:
         let ang = rot + k.float32 * PI / 4.0
         drawLine(Vector2(x: cx + cos(ang) * r * 0.8, y: cy + sin(ang) * r * 0.8),
@@ -3598,7 +3646,30 @@ proc drawAttackWarning*(warning: AttackWarning) =
     let a = Vector2(x: warning.pos.x, y: warning.pos.y)
     let b = Vector2(x: warning.targetPos.x, y: warning.targetPos.y)
     if warning.lifetime <= ArcBeamActive:
-      drawLine(a, b, half * 2.0, Color(r: 255'u8, g: 255'u8, b: 200'u8, a: 130'u8))
+      let fade = clamp(warning.lifetime / ArcBeamActive, 0.35'f32, 1.0'f32)
+      # Triple-layer wall with a live bolt zigzagging inside the kill band.
+      drawLine(a, b, half * 2.8, Color(r: 255'u8, g: 230'u8, b: 90'u8, a: uint8(70.0 * fade)))
+      drawLine(a, b, half * 2.0, Color(r: 255'u8, g: 255'u8, b: 200'u8, a: uint8(130.0 * fade)))
+      drawLine(a, b, 3.0, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(255.0 * fade)))
+      let dx = warning.targetPos.x - warning.pos.x
+      let dy = warning.targetPos.y - warning.pos.y
+      let segLen = sqrt(dx * dx + dy * dy)
+      if segLen > 1.0:
+        let nx = -dy / segLen
+        let ny = dx / segLen
+        let t = nowT * 30.0
+        const BoltSteps = 8
+        var prev = a
+        for s in 1 .. BoltSteps:
+          let f = s.float32 / BoltSteps.float32
+          let off = (if s == BoltSteps: 0.0 else: sin(t + s.float * 2.7) * half * 0.8)
+          let p = Vector2(x: warning.pos.x + dx * f + nx * off,
+                          y: warning.pos.y + dy * f + ny * off)
+          drawLine(prev, p, 2.0, Color(r: 255'u8, g: 250'u8, b: 180'u8, a: uint8(230.0 * fade)))
+          prev = p
+      # Endpoint nodes blaze while the wall is live.
+      drawCircle(a, 4.0 + 5.0 * fade, Color(r: 255'u8, g: 255'u8, b: 220'u8, a: uint8(240.0 * fade)))
+      drawCircle(b, 4.0 + 5.0 * fade, Color(r: 255'u8, g: 255'u8, b: 220'u8, a: uint8(240.0 * fade)))
     else:
       let a2 = rampAlpha(warning, 45.0, 160.0)
       drawLine(a, b, half * 2.0, Color(r: 255'u8, g: 230'u8, b: 80'u8, a: (a2 div 5).uint8))
@@ -3614,7 +3685,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # as fire nears. The live lethal beam is drawn ungated by drawRicochetLaserBeam.
     if warning.ricochetPath.len >= 2 and warning.lifetime > RicochetLaserActive:
       let progress = warningProgress(warning)  # 0 -> 1 toward fire
-      let pulse = (sin(getTime() * 12.0) * 0.5 + 0.5).float32
+      let pulse = (sin(nowT * 12.0) * 0.5 + 0.5).float32
       let a2 = rampAlpha(warning, 70.0, 185.0)
       let bandA = uint8(clamp((30.0 + progress * 90.0) * (0.7 + pulse * 0.3), 0.0, 255.0))
       # Colour ramps from cyan to hot white/red as the shot becomes imminent.
@@ -3638,7 +3709,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       let totalLen = polylineLength(warning.ricochetPath)
       if totalLen > 1.0:
         const DASH_SPACING = 46.0'f32
-        let march = (getTime() * 320.0).float32 mod DASH_SPACING
+        let march = (nowT * 320.0).float32 mod DASH_SPACING
         var d = march
         let dashA = uint8(clamp(120.0 + progress * 135.0, 0.0, 255.0))
         while d < totalLen:
@@ -3669,9 +3740,30 @@ proc drawAttackWarning*(warning: AttackWarning) =
     let r  = warning.bulletRadius
     let progress = warningProgress(warning)  # 0 -> 1 toward collapse
     if warning.lifetime <= VoidRiftActive:
-      drawCircle(Vector2(x: cx, y: cy), r, Color(r: 150'u8, g: 40'u8, b: 220'u8, a: 150'u8))
+      let fade = clamp(warning.lifetime / VoidRiftActive, 0.35'f32, 1.0'f32)
+      # burst: 0 at detonation -> 1 as the tear closes; drives the outward FX.
+      let burst = 1.0'f32 - clamp(warning.lifetime / VoidRiftActive, 0.0'f32, 1.0'f32)
+      drawCircle(Vector2(x: cx, y: cy), r, Color(r: 150'u8, g: 40'u8, b: 220'u8, a: uint8(150.0 * fade)))
+      # The dark heart of the rift, ringed in white-hot light.
+      drawCircle(Vector2(x: cx, y: cy), r * 0.35 * fade + 4.0,
+                 Color(r: 12'u8, g: 0'u8, b: 24'u8, a: uint8(255.0 * fade)))
       drawCircleLines(cx.int32, cy.int32, r, Color(r: 235'u8, g: 200'u8, b: 255'u8, a: 255'u8))
-      drawCircleLines(cx.int32, cy.int32, r * 0.5, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 220'u8))
+      drawCircleLines(cx.int32, cy.int32, r * 0.5, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(220.0 * fade)))
+      # Detonation rings tearing outward through local space.
+      drawCircleLines(cx.int32, cy.int32, r * (1.0'f32 + burst * 1.5'f32),
+                      Color(r: 235'u8, g: 200'u8, b: 255'u8, a: uint8(220.0 * fade)))
+      drawCircleLines(cx.int32, cy.int32, r * (0.6'f32 + burst * 1.9'f32),
+                      Color(r: 180'u8, g: 90'u8, b: 255'u8, a: uint8(140.0 * fade)))
+      # Spiral arms whipping around the core as the rift rips open.
+      let rot = nowT * 6.0
+      for k in 0..<4:
+        let ang = rot + k.float * PI / 2.0
+        let m = Vector2(x: cx + cos(ang) * r * 0.5, y: cy + sin(ang) * r * 0.5)
+        let e = Vector2(x: cx + cos(ang + 0.7) * r * (1.0 + burst * 0.8),
+                        y: cy + sin(ang + 0.7) * r * (1.0 + burst * 0.8))
+        drawLine(Vector2(x: cx, y: cy), m, 2.5,
+                 Color(r: 220'u8, g: 150'u8, b: 255'u8, a: uint8(230.0 * fade)))
+        drawLine(m, e, 1.5, Color(r: 255'u8, g: 220'u8, b: 255'u8, a: uint8(170.0 * fade)))
     else:
       let a2 = rampAlpha(warning, 55.0, 175.0)
       drawCircleLines(cx.int32, cy.int32, r,
@@ -3679,7 +3771,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       let collapseR = r * (1.0 - progress * 0.7)
       drawCircleLines(cx.int32, cy.int32, collapseR,
                      Color(r: 220'u8, g: 150'u8, b: 255'u8, a: a2))
-      let rot = getTime() * 1.5
+      let rot = nowT * 1.5
       for k in 0..<6:
         let ang = rot + k.float32 * PI / 3.0
         let inner = newVector2f(cx + cos(ang) * collapseR * 0.4, cy + sin(ang) * collapseR * 0.4)
@@ -3688,6 +3780,397 @@ proc drawAttackWarning*(warning: AttackWarning) =
                  1.5, Color(r: 200'u8, g: 120'u8, b: 255'u8, a: a2))
       drawCircle(Vector2(x: cx, y: cy), 5.0 + (1.0 - progress) * 4.0,
                  Color(r: 30'u8, g: 0'u8, b: 50'u8, a: a2))
+
+  of awtOrbitalSweep:
+    # Orbital Commander scan corridor, wind-up only. The whole arena is going
+    # to be raked by a moving wall EXCEPT one clear lane, so the telegraph
+    # tints the doomed band on either side of the lane, brackets the lane with
+    # bright edges, and parks a blinking satellite at the entry edge with
+    # chevrons showing the travel direction. The live wall is drawn ungated.
+    if warning.lifetime > OrbitalSweepActive:
+      let sw = getScreenWidth().float32
+      let sh = getScreenHeight().float32
+      let ang = warning.bulletSpreadAngle
+      let u = newVector2f(-sin(ang), cos(ang))   # along the wall
+      let gapHalf = warning.bulletRadius
+      let urgency = clamp(1.0'f32 - (warning.lifetime - OrbitalSweepActive) /
+                          OrbitalSweepTelegraph, 0.0'f32, 1.0'f32)
+      let pulse = (sin(nowT * 9.0) * 0.5 + 0.5).float32
+      let fillA = uint8(clamp(10.0 + urgency * 34.0 * (0.75 + pulse * 0.25), 0.0, 255.0))
+      let edgeA = uint8(clamp(70.0 + urgency * 185.0, 0.0, 255.0))
+      # Lane centre line passes through entry centre + u * gapOffset, parallel
+      # to travel. Sweeps are axis-aligned, so the danger tint is two rects.
+      let gapOffset = if warning.laserAngles.len > 0: warning.laserAngles[0] else: 0.0'f32
+      let laneC = warning.pos + u * gapOffset
+      # Danger is signalled in red (the doomed band gets the tint + red rim
+      # lines); the safe lane is simply the untinted strip left between them.
+      let danger = Color(r: 255'u8, g: 45'u8, b: 45'u8, a: fillA)
+      let rim = Color(r: 255'u8, g: 85'u8, b: 60'u8, a: edgeA)
+      if abs(u.x) < 0.01'f32:
+        # Vertical wall, horizontal lane at laneC.y.
+        let lo = clamp(laneC.y - gapHalf, 0.0'f32, sh)
+        let hi = clamp(laneC.y + gapHalf, 0.0'f32, sh)
+        drawRectangle(0, 0, sw.int32, lo.int32, danger)
+        drawRectangle(0, hi.int32, sw.int32, (sh - hi).int32, danger)
+        drawLine(Vector2(x: 0, y: lo), Vector2(x: sw, y: lo), 2.0, rim)
+        drawLine(Vector2(x: 0, y: hi), Vector2(x: sw, y: hi), 2.0, rim)
+      else:
+        # Horizontal wall, vertical lane at laneC.x.
+        let lo = clamp(laneC.x - gapHalf, 0.0'f32, sw)
+        let hi = clamp(laneC.x + gapHalf, 0.0'f32, sw)
+        drawRectangle(0, 0, lo.int32, sh.int32, danger)
+        drawRectangle(hi.int32, 0, (sw - hi).int32, sh.int32, danger)
+        drawLine(Vector2(x: lo, y: 0), Vector2(x: lo, y: sh), 2.0, rim)
+        drawLine(Vector2(x: hi, y: 0), Vector2(x: hi, y: sh), 2.0, rim)
+      # Satellite parked at the entry edge: body + solar panels,
+      # blinking harder as the scan approaches.
+      let dirV = newVector2f(cos(ang), sin(ang))
+      let sat = warning.pos + dirV * 26.0'f32
+      let satA = uint8(clamp(120.0 + urgency * 135.0 * pulse, 0.0, 255.0))
+      drawCircle(Vector2(x: sat.x, y: sat.y), 9.0,
+                 Color(r: 200'u8, g: 170'u8, b: 255'u8, a: satA))
+      for side in [-1.0'f32, 1.0'f32]:
+        let p0 = sat + u * (side * 10.0'f32)
+        let p1 = sat + u * (side * 24.0'f32)
+        drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y), 6.0,
+                 Color(r: 120'u8, g: 140'u8, b: 255'u8, a: satA))
+      # Travel-direction chevrons: rows of arrows spread along the WHOLE entry
+      # edge, marching in the sweep direction, so which way the wall will move
+      # reads at a glance from anywhere on screen. The safe lane is kept
+      # chevron-free so "stand here" stays unambiguous.
+      let march = ((nowT * 90.0) mod 90.0).float32
+      let halfSpan = warning.bulletSpeed
+      let chevA = uint8(clamp(60.0 + urgency * 180.0, 0.0, 255.0))
+      let chev = Color(r: 255'u8, g: 210'u8, b: 140'u8, a: chevA)
+      var s = -halfSpan
+      while s <= halfSpan:
+        if abs(s - gapOffset) > gapHalf + 14.0'f32:
+          for row in 0 .. 1:
+            let base = warning.pos + u * s +
+                       dirV * (20.0'f32 + row.float32 * 90.0'f32 + march)
+            let tip = base + dirV * 12.0'f32
+            for side in [-1.0'f32, 1.0'f32]:
+              let tail = base - dirV * 2.0'f32 + u * (side * 10.0'f32)
+              drawLine(Vector2(x: tail.x, y: tail.y), Vector2(x: tip.x, y: tip.y),
+                       3.0, chev)
+        s += 120.0'f32
+
+  of awtFissure:
+    # Juggernaut marching fissure. Each step is a cracked ground disc that
+    # brightens as its own pop nears; a jagged crack line points at the NEXT
+    # step so the march direction reads. Later steps have proportionally longer
+    # lifetimes (the stagger), so the chain visually "lights up" in sequence.
+    if warning.lifetime > FissureActive:
+      let cx = warning.pos.x; let cy = warning.pos.y
+      let r = warning.bulletRadius
+      # Urgency keys off time-to-pop, not total lifetime, so every step in the
+      # chain ramps identically as its own eruption approaches.
+      let toPop = warning.lifetime - FissureActive
+      let urgency = clamp(1.0'f32 - toPop / FissureTelegraph, 0.0'f32, 1.0'f32)
+      let a2 = uint8(clamp(45.0 + urgency * 165.0, 0.0, 255.0))
+      drawCircleLines(cx.int32, cy.int32, r,
+                      Color(r: 255'u8, g: 120'u8, b: 40'u8, a: a2))
+      drawCircleLines(cx.int32, cy.int32, r * 0.55,
+                      Color(r: 255'u8, g: 170'u8, b: 80'u8, a: (a2 div 2).uint8))
+      # Radial cracks, deterministic per step index so they don't flicker.
+      for k in 0..<5:
+        let ang = warning.bulletCount.float32 * 1.7 + k.float32 * (PI * 2.0) / 5.0
+        let inner = Vector2(x: cx + cos(ang) * r * 0.2, y: cy + sin(ang) * r * 0.2)
+        let outer = Vector2(x: cx + cos(ang + 0.2) * r * 0.95,
+                            y: cy + sin(ang + 0.2) * r * 0.95)
+        drawLine(inner, outer, 1.5, Color(r: 230'u8, g: 100'u8, b: 30'u8, a: a2))
+
+  of awtFissureChaser:
+    # Invisible pursuer: only the eruptions it drops are ever drawn.
+    discard
+
+  of awtPrismRays:
+    # Prism Architect refraction cascade. Generation 0 (bulletCount == 0) is
+    # the primary: boss feed beam + finite ray star, each ray its own hue.
+    # Minis (bulletCount > 0) idle as a dim seed diamond at their ray end
+    # until the primary has fired, then ignite a shorter telegraph of their
+    # own star. No connector is drawn from the spent primary focus, the wake
+    # must READ as shelter. Lethal pass is ungated in drawSignatureAttackActive.
+    if warning.ricochetPath.len >= 3 and warning.lifetime > PrismRayActive:
+      let isMini = warning.bulletCount > 0
+      let focus = warning.ricochetPath[1]
+      if isMini and warning.lifetime > PrismMiniTelegraph + PrismRayActive:
+        # Beat one still playing: the mini is only a dormant seed.
+        let rot = nowT * 1.2
+        var prev = Vector2(x: focus.x + cos(rot) * 6.0, y: focus.y + sin(rot) * 6.0)
+        for k in 1..4:
+          let ang = rot + k.float32 * PI / 2.0
+          let next = Vector2(x: focus.x + cos(ang) * 6.0, y: focus.y + sin(ang) * 6.0)
+          drawLine(prev, next, 1.5, Color(r: 210'u8, g: 190'u8, b: 230'u8, a: 90'u8))
+          prev = next
+      else:
+        # Urgency measured against this star's own wind-up window, so minis
+        # ramp 0 -> 1 across their short ignite rather than the full lifetime.
+        let telegraph = if isMini: PrismMiniTelegraph else: PrismRayTelegraph
+        let progress = clamp(1.0'f32 - (warning.lifetime - PrismRayActive) / telegraph,
+                             0.0'f32, 1.0'f32)
+        let a2 = uint8(clamp(50.0'f32 + progress * 170.0'f32, 0.0'f32, 255.0'f32))
+        let halfW = warning.laserLength
+        let origin = warning.ricochetPath[0]
+        let dirAng = arctan2(focus.y - origin.y, focus.x - origin.x)
+        if not isMini:
+          # Feed beam: a white core wrapped in chromatic-aberration fringes
+          # (red/blue ghosts offset across the beam), with a charge pulse
+          # travelling toward the focus.
+          let px = -sin(dirAng) * 3.0'f32
+          let py = cos(dirAng) * 3.0'f32
+          drawLine(Vector2(x: origin.x + px, y: origin.y + py),
+                   Vector2(x: focus.x + px, y: focus.y + py),
+                   halfW * 0.7, Color(r: 255'u8, g: 60'u8, b: 60'u8, a: (a2 div 4).uint8))
+          drawLine(Vector2(x: origin.x - px, y: origin.y - py),
+                   Vector2(x: focus.x - px, y: focus.y - py),
+                   halfW * 0.7, Color(r: 60'u8, g: 90'u8, b: 255'u8, a: (a2 div 4).uint8))
+          drawLine(Vector2(x: origin.x, y: origin.y), Vector2(x: focus.x, y: focus.y),
+                   halfW, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: (a2 div 3).uint8))
+          let pulseT = (nowT * 1.6) mod 1.0
+          drawCircle(Vector2(x: origin.x + (focus.x - origin.x) * pulseT,
+                             y: origin.y + (focus.y - origin.y) * pulseT),
+                     4.0 + progress * 3.0, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: a2))
+        # Refracted rays, one hue per ray, FANNING OPEN from the feed axis like
+        # a peacock tail: fully spread by half the wind-up, so the true lethal
+        # angles are on show for the rest of it.
+        let openT = min(1.0'f32, progress * 2.0'f32)
+        for k in 2 ..< warning.ricochetPath.len:
+          let e = warning.ricochetPath[k]
+          let dxr = e.x - focus.x
+          let dyr = e.y - focus.y
+          let rayLen = sqrt(dxr * dxr + dyr * dyr)
+          let finalAng = arctan2(dyr, dxr)
+          let swing = arctan2(sin(finalAng - dirAng), cos(finalAng - dirAng))
+          let ang = dirAng + swing * openT
+          let ep = Vector2(x: focus.x + cos(ang) * rayLen, y: focus.y + sin(ang) * rayLen)
+          let hue = (k - 2).float32 * (PI * 2.0) / (warning.ricochetPath.len - 2).float32
+          let col = Color(
+            r: uint8(128.0 + 127.0 * sin(hue)),
+            g: uint8(128.0 + 127.0 * sin(hue + 2.094)),
+            b: uint8(128.0 + 127.0 * sin(hue + 4.188)), a: a2)
+          drawLine(Vector2(x: focus.x, y: focus.y), ep,
+                   halfW * 2.0 * (0.4 + progress * 0.6), withAlpha(col, (a2 div 4).uint8))
+          drawLine(Vector2(x: focus.x, y: focus.y), ep, 1.5, col)
+        # Charge rings converging on the prism: they shrink into the focus and
+        # brighten as they arrive, selling "light being gathered".
+        let t = nowT
+        let gatherR = if isMini: 55.0 else: 90.0
+        for ring in 0..2:
+          let shrink = 1.0 - ((t * 0.9 + ring.float / 3.0) mod 1.0)
+          let rr = 14.0 + shrink * gatherR
+          let ra = uint8(clamp((1.0 - shrink) * a2.float * 0.7, 0.0, 255.0))
+          drawCircleLines(focus.x.int32, focus.y.int32, rr.float32,
+                          Color(r: 255'u8, g: 240'u8, b: 255'u8, a: ra))
+        # The prism itself: two counter-rotating diamonds (minis run smaller),
+        # spinning faster as the strike nears.
+        let prismR = if isMini: 7.0 else: 12.0
+        let spin = t * (2.0 + progress.float * 4.0)
+        for layer in 0..1:
+          let lr = prismR * (1.0 + layer.float * 0.6)
+          let rot = if layer == 0: spin else: -spin * 0.7 + PI / 4.0
+          let la = if layer == 0: a2 else: (a2 div 2).uint8
+          var prev = Vector2(x: focus.x + cos(rot) * lr, y: focus.y + sin(rot) * lr)
+          for k in 1..4:
+            let ang = rot + k.float * PI / 2.0
+            let next = Vector2(x: focus.x + cos(ang) * lr, y: focus.y + sin(ang) * lr)
+            drawLine(prev, next, 2.0, Color(r: 255'u8, g: 240'u8, b: 255'u8, a: la))
+            prev = next
+
+  of awtClockSweep:
+    # Timekeeper clock sweep, wind-up only: the hands fade in at their starting
+    # angles around the frozen pivot, with a clock-face ring and tick marks. An
+    # arrow arc shows which way they will sweep. Live hands are drawn ungated.
+    if warning.lifetime > ClockSweepActive:
+      let cx = warning.pos.x; let cy = warning.pos.y
+      let reach = warning.bulletRadius
+      let a2 = rampAlpha(warning, 45.0, 160.0)
+      drawCircleLines(cx.int32, cy.int32, 40.0,
+                      Color(r: 120'u8, g: 240'u8, b: 240'u8, a: a2))
+      for k in 0..<12:
+        let ang = k.float32 * PI / 6.0
+        drawLine(Vector2(x: cx + cos(ang) * 34.0, y: cy + sin(ang) * 34.0),
+                 Vector2(x: cx + cos(ang) * 40.0, y: cy + sin(ang) * 40.0),
+                 1.5, Color(r: 120'u8, g: 240'u8, b: 240'u8, a: a2))
+      for hand in 0 ..< max(1, warning.laserCount):
+        let ang = clockSweepHandAngle(warning, hand)
+        drawLine(Vector2(x: cx, y: cy),
+                 Vector2(x: cx + cos(ang) * reach, y: cy + sin(ang) * reach),
+                 warning.laserLength * 2.0,
+                 Color(r: 0'u8, g: 200'u8, b: 200'u8, a: (a2 div 4).uint8))
+        drawLine(Vector2(x: cx, y: cy),
+                 Vector2(x: cx + cos(ang) * reach, y: cy + sin(ang) * reach),
+                 2.0, Color(r: 150'u8, g: 255'u8, b: 255'u8, a: a2))
+      # Sweep-direction cue: three chevron dots leading off the first hand.
+      # Tick casts space them a full escapement snap apart, so the length of
+      # each jerk is readable before the hands go live.
+      let lead = clockSweepHandAngle(warning, 0)
+      let sweepSign = (if warning.bulletSpeed >= 0: 1.0'f32 else: -1.0'f32)
+      let chevStep = (if warning.laserPattern in ["tick", "rewind"]:
+                        abs(warning.bulletSpeed) * ClockTickPeriod
+                      else: 0.12'f32)
+      for c in 1..3:
+        let ang = lead + sweepSign * c.float32 * chevStep
+        drawCircle(Vector2(x: cx + cos(ang) * 90.0, y: cy + sin(ang) * 90.0),
+                   (4 - c).float32 + 1.0, Color(r: 200'u8, g: 255'u8, b: 255'u8, a: a2))
+      # Rewind cast: amber counter-chevrons on a wider ring warn that the
+      # sweep will freeze and come back the other way.
+      if warning.laserPattern == "rewind":
+        for c in 1..3:
+          let ang = lead - sweepSign * c.float32 * 0.12'f32
+          drawCircle(Vector2(x: cx + cos(ang) * 120.0, y: cy + sin(ang) * 120.0),
+                     (4 - c).float32 + 1.0, Color(r: 255'u8, g: 200'u8, b: 110'u8, a: a2))
+
+  of awtChaosWeave:
+    # Chaos Weaver, wind-up only. Two warning kinds share the type:
+    # - threads (ricochetPath >= 2): a faint "pattern" line shows the full run
+    #   from the start, then a bright NEEDLE stitches the shimmering thread
+    #   along it, and the finished thread pulls taut just before the snap.
+    # - knots (laserPattern == "knot"): a tightening marker at a thread
+    #   crossing; its ring CONTRACTS toward the tear (expansion is reserved
+    #   for the lethal window, per the house rule).
+    # The taut lethal snap / knot tear are drawn ungated in
+    # drawSignatureAttackActive.
+    if warning.lifetime > ChaosWeaveActive:
+      if warning.laserPattern == "knot":
+        let toTear = warning.lifetime - ChaosWeaveActive
+        let span = max(0.1'f32, warning.maxLifetime - ChaosWeaveActive)
+        let urgency = clamp(1.0'f32 - toTear / span, 0.0'f32, 1.0'f32)
+        let pulse = (sin(nowT * (6.0 + urgency * 14.0)) * 0.5 + 0.5).float32
+        let a2 = uint8(60.0 + urgency * 160.0)
+        # Contracting ring: the knot cinches tight as the tear approaches.
+        let ringR = 26.0'f32 - urgency * 16.0'f32
+        drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, ringR,
+                        Color(r: 255'u8, g: 120'u8, b: 255'u8, a: a2))
+        drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y),
+                   4.0 + pulse * 2.5,
+                   Color(r: 255'u8, g: 170'u8, b: 255'u8, a: a2))
+        # Rotating cross of thread stubs - reads as the two strands knotted.
+        let spin = nowT.float32 * (1.0'f32 + urgency * 3.0'f32)
+        for k in 0 ..< 4:
+          let ang = spin + k.float32 * PI * 0.5'f32
+          drawLine(Vector2(x: warning.pos.x + cos(ang) * 6.0,
+                           y: warning.pos.y + sin(ang) * 6.0),
+                   Vector2(x: warning.pos.x + cos(ang) * ringR,
+                           y: warning.pos.y + sin(ang) * ringR),
+                   1.5, Color(r: 220'u8, g: 110'u8, b: 255'u8, a: (a2 div 2).uint8))
+      elif warning.ricochetPath.len >= 2:
+        let toSnap = warning.lifetime - ChaosWeaveActive
+        let a2 = rampAlpha(warning, 40.0, 170.0)
+        # Faint pattern line + edge pins: the full run is honest from frame one.
+        for s in 0 ..< warning.ricochetPath.len - 1:
+          let p0 = warning.ricochetPath[s]
+          let p1 = warning.ricochetPath[s + 1]
+          drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                   1.0, Color(r: 200'u8, g: 80'u8, b: 220'u8, a: 45'u8))
+        for pin in [warning.ricochetPath[0], warning.ricochetPath[^1]]:
+          drawCircle(Vector2(x: pin.x, y: pin.y), 4.0,
+                     Color(r: 255'u8, g: 140'u8, b: 255'u8, a: 120'u8))
+        if toSnap <= ChaosWeaveTautPause + ChaosWeaveNeedleTime:
+          # Needle phase: the laid portion of the thread grows behind the
+          # needle head; the shimmering hue-cycled strand only exists where
+          # the needle has already been.
+          let stitchFrac = clamp(
+            1.0'f32 - (toSnap - ChaosWeaveTautPause) / ChaosWeaveNeedleTime,
+            0.0'f32, 1.0'f32)
+          let totalLen = polylineLength(warning.ricochetPath)
+          let laid = ricochetSweptPath(warning.ricochetPath, stitchFrac * totalLen)
+          let taut = toSnap <= ChaosWeaveTautPause
+          let t = nowT * 6.0
+          if laid.len >= 2:
+            for s in 0 ..< laid.len - 1:
+              let p0 = laid[s]
+              let p1 = laid[s + 1]
+              let hue = t + s.float32 * 0.9
+              var col = Color(
+                r: uint8(150.0 + 105.0 * sin(hue)),
+                g: uint8(60.0 + 50.0 * sin(hue + 2.0)),
+                b: uint8(150.0 + 105.0 * sin(hue + 4.0)), a: a2)
+              if taut:
+                # Drawn taut: the strand blanches white-hot and thickens.
+                col = Color(r: 255'u8, g: 220'u8, b: 255'u8, a: a2)
+              drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                       warning.laserLength * 2.0,
+                       withAlpha(col, (a2 div 5).uint8))
+              drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                       (if taut: 3.0'f32 else: 1.8'f32), col)
+          if not taut and laid.len >= 1:
+            # The needle head: a hot white bead with a short spark fan.
+            let head = laid[^1]
+            drawCircle(Vector2(x: head.x, y: head.y), 10.0,
+                       Color(r: 255'u8, g: 160'u8, b: 255'u8, a: 70'u8))
+            drawCircle(Vector2(x: head.x, y: head.y), 4.5,
+                       Color(r: 255'u8, g: 250'u8, b: 255'u8, a: 255'u8))
+            for k in 0 ..< 3:
+              let ang = nowT.float32 * 9.0'f32 + k.float32 * (PI * 2.0 / 3.0)
+              drawLine(Vector2(x: head.x, y: head.y),
+                       Vector2(x: head.x + cos(ang) * 12.0, y: head.y + sin(ang) * 12.0),
+                       1.5, Color(r: 255'u8, g: 200'u8, b: 255'u8, a: 180'u8))
+          if taut:
+            # Kink pins flare while the thread strains against them.
+            for v in warning.ricochetPath:
+              drawCircle(Vector2(x: v.x, y: v.y), 3.5,
+                         Color(r: 255'u8, g: 240'u8, b: 255'u8, a: a2))
+
+  of awtOmegaQuadrant:
+    # Omega Entity judgement, wind-up only. Warnings for every beat exist
+    # from the cast, but laserLength carries each one's SHOW window (one beat)
+    # so only the UPCOMING beat is drawn - three doomed quadrants rising red
+    # plus one gold "shelter" guide (non-lethal, marks where to be). The
+    # spared finale (laserPattern == "spared") telegraphs in doom-gold: the
+    # last refuge expires.
+    if warning.laserPattern == "shelter":
+      # The gold pocket: calm inviting outline, tightening as the beat nears.
+      let showWindow = max(0.1'f32, warning.laserLength)
+      if warning.lifetime <= showWindow:
+        let urgency = clamp(1.0'f32 - warning.lifetime / showWindow, 0.0'f32, 1.0'f32)
+        let pulse = (sin(nowT * 6.0) * 0.5 + 0.5).float32
+        let hx = warning.targetPos.x; let hy = warning.targetPos.y
+        let inset = 14.0'f32 + (1.0'f32 - urgency) * 26.0'f32
+        let lineA = uint8(clamp(90.0 + urgency * 120.0 + pulse * 40.0, 0.0, 255.0))
+        drawRectangle((warning.pos.x - hx).int32, (warning.pos.y - hy).int32,
+                      (hx * 2.0).int32, (hy * 2.0).int32,
+                      Color(r: 255'u8, g: 215'u8, b: 120'u8, a: uint8(10.0 + urgency * 16.0)))
+        drawRectangleLines(Rectangle(x: warning.pos.x - hx + inset,
+                                     y: warning.pos.y - hy + inset,
+                                     width: (hx - inset) * 2.0'f32,
+                                     height: (hy - inset) * 2.0'f32),
+                           3.0, Color(r: 255'u8, g: 225'u8, b: 150'u8, a: lineA))
+        drawOmegaGlyph(warning.pos.x, warning.pos.y - 6.0, 20.0'f32 + pulse * 4.0'f32,
+                       2.0, Color(r: 255'u8, g: 235'u8, b: 180'u8, a: lineA))
+    elif warning.lifetime > OmegaQuadActive and
+         warning.lifetime <= OmegaQuadActive + max(0.1'f32, warning.laserLength):
+      let spared = warning.laserPattern == "spared"
+      let showWindow = max(0.1'f32, warning.laserLength)
+      let hx = warning.targetPos.x; let hy = warning.targetPos.y
+      let x0 = (warning.pos.x - hx).int32; let y0 = (warning.pos.y - hy).int32
+      let w2 = (hx * 2.0).int32; let h2 = (hy * 2.0).int32
+      let toPop = warning.lifetime - OmegaQuadActive
+      let urgency = clamp(1.0'f32 - toPop / showWindow, 0.0'f32, 1.0'f32)
+      let pulse = (sin(nowT * 10.0) * 0.5 + 0.5).float32
+      let fillA = uint8(clamp(14.0 + urgency * 46.0 * (0.75 + pulse * 0.25), 0.0, 255.0))
+      let lineA = uint8(clamp(60.0 + urgency * 180.0, 0.0, 255.0))
+      let fillCol = if spared: Color(r: 255'u8, g: 180'u8, b: 60'u8, a: fillA)
+                    else: Color(r: 255'u8, g: 40'u8, b: 70'u8, a: fillA)
+      let lineCol = if spared: Color(r: 255'u8, g: 210'u8, b: 120'u8, a: lineA)
+                    else: Color(r: 255'u8, g: 90'u8, b: 110'u8, a: lineA)
+      drawRectangle(x0, y0, w2, h2, fillCol)
+      drawRectangleLines(Rectangle(x: x0.float32, y: y0.float32,
+                                   width: w2.float32, height: h2.float32),
+                         3.0, lineCol)
+      # Rotating Omega sigil: the Entity's mark of judgement. It tightens
+      # (slows and shrinks) as the pop approaches.
+      let sigilR = 46.0'f32 - urgency * 14.0'f32
+      let spin = nowT.float32 * (0.8'f32 + urgency * 1.6'f32)
+      drawCircleLines(warning.pos.x.int32, warning.pos.y.int32, sigilR + 10.0,
+                      withAlpha(lineCol, (lineA div 3).uint8))
+      for k in 0 ..< 3:
+        let ang = spin + k.float32 * (PI * 2.0 / 3.0)
+        drawCircle(Vector2(x: warning.pos.x + cos(ang) * (sigilR + 10.0),
+                           y: warning.pos.y + sin(ang) * (sigilR + 10.0)),
+                   3.0, lineCol)
+      drawOmegaGlyph(warning.pos.x, warning.pos.y - 6.0, sigilR * 0.55'f32, 2.0,
+                     withAlpha(lineCol, (lineA div 2 + lineA div 4).uint8))
 
   of awtNone:
     # Unassigned/placeholder warning: nothing to telegraph. No `else` branch on
@@ -3732,6 +4215,360 @@ proc drawRicochetLaserBeam*(warning: AttackWarning) =
                Color(r: 200'u8, g: 245'u8, b: 255'u8, a: 130'u8))
     drawCircle(Vector2(x: head.x, y: head.y), halfW * 0.6 + 3.0,
                Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
+
+proc drawSignatureAttackActive*(warning: AttackWarning) =
+  ## Live lethal pass for the bosses 7-12 signature attacks, drawn ungated
+  ## (independent of the showHints telegraph gate) so the kill moment is always
+  ## visible - with hints off the wind-up telegraph is hidden, but the actual
+  ## strike must never be an invisible hit. Mirrors drawRicochetLaserBeam.
+  case warning.attackType
+  of awtOrbitalSweep:
+    if warning.lifetime <= OrbitalSweepActive:
+      let c = orbitalSweepCenter(warning)
+      let ang = warning.bulletSpreadAngle
+      let u = newVector2f(-sin(ang), cos(ang))
+      let halfSpan = warning.bulletSpeed
+      let gapHalf = warning.bulletRadius
+      let gapOffset = if warning.laserAngles.len > 0: warning.laserAngles[0] else: 0.0'f32
+      let halfThick = warning.laserLength
+      let dirV = newVector2f(cos(ang), sin(ang))  # travel direction
+      # The wall in two lethal segments with the safe gap between them, each
+      # drawn in three layers with an ion afterglow trailing behind the sweep.
+      let segs = [(-halfSpan, gapOffset - gapHalf), (gapOffset + gapHalf, halfSpan)]
+      for (s0, s1) in segs:
+        if s1 <= s0: continue
+        let a0 = c + u * s0
+        let b0 = c + u * s1
+        for ghost in 1..3:
+          let ga = a0 - dirV * (ghost.float32 * 10.0'f32)
+          let gb = b0 - dirV * (ghost.float32 * 10.0'f32)
+          drawLine(Vector2(x: ga.x, y: ga.y), Vector2(x: gb.x, y: gb.y),
+                   halfThick * 2.0,
+                   Color(r: 160'u8, g: 100'u8, b: 255'u8, a: uint8(70 - ghost * 18)))
+        drawLine(Vector2(x: a0.x, y: a0.y), Vector2(x: b0.x, y: b0.y),
+                 halfThick * 3.2, Color(r: 160'u8, g: 100'u8, b: 255'u8, a: 70'u8))
+        drawLine(Vector2(x: a0.x, y: a0.y), Vector2(x: b0.x, y: b0.y),
+                 halfThick * 2.0, Color(r: 160'u8, g: 100'u8, b: 255'u8, a: 140'u8))
+        drawLine(Vector2(x: a0.x, y: a0.y), Vector2(x: b0.x, y: b0.y),
+                 4.0, Color(r: 240'u8, g: 225'u8, b: 255'u8, a: 255'u8))
+      # Leading-edge crackle: sparks flickering just ahead of the beam face.
+      let t = getTime() * 20.0
+      var s = -halfSpan
+      while s <= halfSpan:
+        if abs(s - gapOffset) > gapHalf + 8.0'f32:
+          let jitter = sin(t + s * 0.13).float32
+          let p0 = c + u * s + dirV * halfThick
+          let p1 = c + u * (s + jitter * 6.0'f32) + dirV * (halfThick + 8.0'f32 + jitter.abs * 6.0'f32)
+          drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y), 1.5,
+                   Color(r: 230'u8, g: 210'u8, b: 255'u8, a: uint8(150.0 + jitter * 80.0)))
+        s += 46.0'f32
+      # Red end-caps on the lethal segments keep the gap crisp while the wall
+      # moves (red marks danger; the dark slot between them is the way through).
+      let capPulse = (sin(getTime() * 10.0) * 0.5 + 0.5).float32
+      for edge in [gapOffset - gapHalf, gapOffset + gapHalf]:
+        let p = c + u * edge
+        drawCircle(Vector2(x: p.x, y: p.y), 6.0 + capPulse * 2.5,
+                   Color(r: 255'u8, g: 85'u8, b: 60'u8, a: 255'u8))
+      # The kill-satellite rides the wall centre-line ahead of the beam:
+      # body, blinking beacon, and solar panels spread along the wall axis.
+      let sat = c + dirV * 18.0'f32
+      drawCircle(Vector2(x: sat.x, y: sat.y), 8.0,
+                 Color(r: 220'u8, g: 200'u8, b: 255'u8, a: 255'u8))
+      drawCircle(Vector2(x: sat.x, y: sat.y), 3.0 + capPulse * 2.0,
+                 Color(r: 255'u8, g: 90'u8, b: 90'u8, a: 255'u8))
+      for side in [-1.0'f32, 1.0'f32]:
+        let p0 = sat + u * (side * 10.0'f32)
+        let p1 = sat + u * (side * 22.0'f32)
+        drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y), 5.0,
+                 Color(r: 120'u8, g: 140'u8, b: 255'u8, a: 230'u8))
+  of awtFissure:
+    if warning.lifetime <= FissureActive:
+      let cx = warning.pos.x; let cy = warning.pos.y
+      let r = warning.bulletRadius
+      let fade = clamp(warning.lifetime / FissureActive, 0.35'f32, 1.0'f32)
+      # burst: 0 at eruption -> 1 as it settles; drives the outward FX.
+      let burst = 1.0'f32 - clamp(warning.lifetime / FissureActive, 0.0'f32, 1.0'f32)
+      drawCircle(Vector2(x: cx, y: cy), r,
+                 Color(r: 255'u8, g: 130'u8, b: 40'u8, a: uint8(160.0 * fade)))
+      drawCircle(Vector2(x: cx, y: cy), r * 0.45,
+                 Color(r: 255'u8, g: 235'u8, b: 190'u8, a: uint8(220.0 * fade)))
+      drawCircleLines(cx.int32, cy.int32, r,
+                      Color(r: 255'u8, g: 230'u8, b: 180'u8, a: 255'u8))
+      # Ground shockwave racing out from the blowout.
+      drawCircleLines(cx.int32, cy.int32, r * (1.0'f32 + burst * 1.2'f32),
+                      Color(r: 255'u8, g: 180'u8, b: 90'u8, a: uint8(200.0 * fade)))
+      # Ember spokes thrown from the crack (deterministic per step index).
+      for k in 0..<7:
+        let ang = warning.bulletCount.float32 * 1.7 + k.float32 * (PI * 2.0) / 7.0
+        let inner = Vector2(x: cx + cos(ang) * r * 0.3, y: cy + sin(ang) * r * 0.3)
+        let outer = Vector2(x: cx + cos(ang) * r * (1.0 + burst * 0.9),
+                            y: cy + sin(ang) * r * (1.0 + burst * 0.9))
+        drawLine(inner, outer, 2.0,
+                 Color(r: 255'u8, g: 200'u8, b: 80'u8, a: uint8(210.0 * fade)))
+        drawCircle(outer, 2.5 * fade,
+                   Color(r: 255'u8, g: 160'u8, b: 60'u8, a: uint8(230.0 * fade)))
+  of awtFissureChaser:
+    # The pursuing crack head is invisible by design: the player only ever
+    # sees the trail of telegraphed eruptions it drops (which are lethal and
+    # carry their own warnings), never the pursuer itself.
+    discard
+  of awtPrismRays:
+    if warning.lifetime <= PrismRayActive and warning.ricochetPath.len >= 3:
+      let focus = warning.ricochetPath[1]
+      let halfW = warning.laserLength
+      let fade = clamp(warning.lifetime / PrismRayActive, 0.35'f32, 1.0'f32)
+      # burst: 0 at ignition -> 1 as the flash dies; drives the outward FX.
+      let burst = 1.0'f32 - clamp(warning.lifetime / PrismRayActive, 0.0'f32, 1.0'f32)
+      let glowA = uint8(150.0'f32 * fade)
+      let coreA = uint8(255.0'f32 * fade)
+      let isMini = warning.bulletCount > 0
+      if not isMini:
+        # Only the primary's feed beam is lethal; a mini's feed vertex is
+        # cosmetic and drawing it hot would make the safe wake look deadly.
+        let origin = warning.ricochetPath[0]
+        drawLine(Vector2(x: origin.x, y: origin.y), Vector2(x: focus.x, y: focus.y),
+                 halfW * 3.5, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: (glowA div 2).uint8))
+        drawLine(Vector2(x: origin.x, y: origin.y), Vector2(x: focus.x, y: focus.y),
+                 halfW * 2.0, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: glowA))
+      # Rays in three layers: wide rainbow halo, tight rainbow body, white-hot
+      # core, plus a glint burning at each ray tip.
+      for k in 2 ..< warning.ricochetPath.len:
+        let e = warning.ricochetPath[k]
+        let hue = (k - 2).float32 * (PI * 2.0) / (warning.ricochetPath.len - 2).float32
+        let col = Color(
+          r: uint8(128.0 + 127.0 * sin(hue)),
+          g: uint8(128.0 + 127.0 * sin(hue + 2.094)),
+          b: uint8(128.0 + 127.0 * sin(hue + 4.188)), a: glowA)
+        drawLine(Vector2(x: focus.x, y: focus.y), Vector2(x: e.x, y: e.y),
+                 halfW * 4.0, withAlpha(col, (glowA div 3).uint8))
+        drawLine(Vector2(x: focus.x, y: focus.y), Vector2(x: e.x, y: e.y),
+                 halfW * 2.0, col)
+        drawLine(Vector2(x: focus.x, y: focus.y), Vector2(x: e.x, y: e.y),
+                 3.0, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: coreA))
+        drawCircle(Vector2(x: e.x, y: e.y), 4.0 + 3.0 * fade,
+                   Color(r: 255'u8, g: 255'u8, b: 255'u8, a: coreA))
+      # Shockwave rings racing out from the focus as the light discharges.
+      let waveMax = if isMini: 70.0'f32 else: 150.0'f32
+      drawCircleLines(focus.x.int32, focus.y.int32, 14.0'f32 + burst * waveMax,
+                      Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(210.0 * fade)))
+      drawCircleLines(focus.x.int32, focus.y.int32, 14.0'f32 + burst * waveMax * 0.55'f32,
+                      Color(r: 255'u8, g: 220'u8, b: 255'u8, a: uint8(120.0 * fade)))
+      # The prism shatters: its diamond expands and whirls apart with the burst.
+      let shardR = (if isMini: 9.0 else: 14.0) * (1.0 + burst.float * 2.2)
+      let rot = getTime() * 8.0
+      var prev = Vector2(x: focus.x + cos(rot) * shardR, y: focus.y + sin(rot) * shardR)
+      for k in 1..4:
+        let ang = rot + k.float * PI / 2.0
+        let next = Vector2(x: focus.x + cos(ang) * shardR, y: focus.y + sin(ang) * shardR)
+        drawLine(prev, next, 2.5, Color(r: 255'u8, g: 240'u8, b: 255'u8, a: coreA))
+        prev = next
+      drawCircle(Vector2(x: focus.x, y: focus.y), (if isMini: 9.0 else: 14.0) * fade + 4.0,
+                 Color(r: 255'u8, g: 255'u8, b: 255'u8, a: coreA))
+  of awtClockSweep:
+    if warning.lifetime <= ClockSweepActive:
+      let cx = warning.pos.x; let cy = warning.pos.y
+      let reach = warning.bulletRadius
+      let elapsed = ClockSweepActive - warning.lifetime
+      let freezeAt = ClockSweepActive * ClockRewindPoint
+      let isRewind = warning.laserPattern == "rewind"
+      let holding = isRewind and elapsed > freezeAt and
+                    elapsed <= freezeAt + ClockRewindHold
+      let reversed = isRewind and elapsed > freezeAt + ClockRewindHold
+      let isTick = warning.laserPattern == "tick"
+      # Both tick and rewind casts move in escapement snaps. The tick clock is
+      # segment-local for rewind (restarts after the freeze); -1 marks frozen.
+      let tickLocalT =
+        if isRewind:
+          (if elapsed <= freezeAt: elapsed
+           elif holding: -1.0'f32
+           else: elapsed - (freezeAt + ClockRewindHold))
+        elif isTick: elapsed
+        else: -1.0'f32
+      let tickFrac = (tickLocalT / ClockTickPeriod) -
+                     floor(tickLocalT / ClockTickPeriod)
+      let snapping = tickLocalT >= 0.0'f32 and tickFrac < ClockTickMove
+      # Once time flows backward the whole mechanism shifts to amber.
+      let br = (if reversed: 255'u8 else: 80'u8)
+      let bg = (if reversed: 190'u8 else: 230'u8)
+      let bb = (if reversed: 90'u8 else: 230'u8)
+      for hand in 0 ..< max(1, warning.laserCount):
+        let ang = clockSweepHandAngle(warning, hand)
+        let tip = Vector2(x: cx + cos(ang) * reach, y: cy + sin(ang) * reach)
+        # Motion-blur ghosts sample the shared angle function slightly in the
+        # past, so the blur trails honestly through the freeze and reversal.
+        for g in 1..3:
+          let ga = clockSweepHandAngle(warning, hand, g.float32 * 0.05'f32)
+          let gtip = Vector2(x: cx + cos(ga) * reach, y: cy + sin(ga) * reach)
+          drawLine(Vector2(x: cx, y: cy), gtip, warning.laserLength * 2.0,
+                   Color(r: br, g: bg, b: bb, a: uint8(70 - g * 18)))
+        if isTick or isRewind:
+          # Escapement preview: a faint line marks where this hand parks after
+          # the NEXT snap, so the jump is dodged on information, not reflex.
+          # During the rewind freeze this points where the hand rewinds TO.
+          let na = clockSweepHandAngle(warning, hand, -ClockTickPeriod)
+          drawLine(Vector2(x: cx, y: cy),
+                   Vector2(x: cx + cos(na) * reach, y: cy + sin(na) * reach),
+                   1.5, Color(r: 150'u8, g: 255'u8, b: 255'u8, a: 70'u8))
+        drawLine(Vector2(x: cx, y: cy), tip, warning.laserLength * 3.2,
+                 Color(r: br, g: bg, b: bb, a: 70'u8))
+        drawLine(Vector2(x: cx, y: cy), tip, warning.laserLength * 2.0,
+                 Color(r: br, g: bg, b: bb, a: 130'u8))
+        drawLine(Vector2(x: cx, y: cy), tip, 3.0,
+                 Color(r: 220'u8, g: 255'u8, b: 255'u8, a: 255'u8))
+        if snapping:
+          # The jerk itself flares white for the duration of the snap.
+          drawLine(Vector2(x: cx, y: cy), tip, warning.laserLength * 2.6,
+                   Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 110'u8))
+        # White-hot glint scything along at the hand's tip.
+        drawCircle(tip, 6.0, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 230'u8))
+      # The frozen instant: the clock stops dead - a white flare and an amber
+      # ring hang at the pivot until time lurches backward.
+      if holding:
+        let hp = clamp((elapsed - freezeAt) / ClockRewindHold, 0.0'f32, 1.0'f32)
+        drawCircle(Vector2(x: cx, y: cy), 26.0 + hp * 10.0,
+                   Color(r: 255'u8, g: 255'u8, b: 255'u8,
+                         a: uint8(160.0'f32 * (1.0'f32 - hp * 0.5'f32))))
+        drawCircleLines(cx.int32, cy.int32, 40.0'f32 + hp * 55.0'f32,
+                        Color(r: 255'u8, g: 210'u8, b: 130'u8,
+                              a: uint8(220.0'f32 * (1.0'f32 - hp))))
+      # Rewind finale wind-up: the clock is about to STRIKE. The 12 tick rays
+      # charge amber and lengthen; the chime bullets (game.nim) fire along
+      # exactly these rays when the sweep expires.
+      if reversed and warning.lifetime < ClockChimeWindup:
+        let cp = 1.0'f32 - warning.lifetime / ClockChimeWindup
+        for k in 0..<12:
+          let ca = k.float32 * PI / 6.0
+          drawLine(Vector2(x: cx + cos(ca) * 24.0, y: cy + sin(ca) * 24.0),
+                   Vector2(x: cx + cos(ca) * (40.0'f32 + cp * 55.0'f32),
+                           y: cy + sin(ca) * (40.0'f32 + cp * 55.0'f32)),
+                   2.0 + cp * 2.5,
+                   Color(r: 255'u8, g: 210'u8, b: 130'u8,
+                         a: uint8(80.0'f32 + 170.0'f32 * cp)))
+        drawCircleLines(cx.int32, cy.int32, 24.0'f32 + cp * 8.0'f32,
+                        Color(r: 255'u8, g: 230'u8, b: 170'u8,
+                              a: uint8(120.0'f32 + 130.0'f32 * cp)))
+      # Pivot: hub, clock-face ring, and tick marks flicking past the hands.
+      drawCircle(Vector2(x: cx, y: cy), 9.0,
+                 Color(r: 230'u8, g: 255'u8, b: 255'u8, a: 255'u8))
+      drawCircleLines(cx.int32, cy.int32, 20.0'f32,
+                      Color(r: br, g: bg, b: bb, a: 200'u8))
+      for k in 0..<12:
+        let tka = k.float32 * PI / 6.0
+        drawLine(Vector2(x: cx + cos(tka) * 16.0, y: cy + sin(tka) * 16.0),
+                 Vector2(x: cx + cos(tka) * 20.0, y: cy + sin(tka) * 20.0),
+                 1.5, Color(r: br, g: bg, b: bb, a: 180'u8))
+  of awtChaosWeave:
+    if warning.lifetime <= ChaosWeaveActive:
+      let fade = clamp(warning.lifetime / ChaosWeaveActive, 0.35'f32, 1.0'f32)
+      # burst: 0 at the snap -> 1 as the threads die; drives the kink sparks.
+      let burst = 1.0'f32 - clamp(warning.lifetime / ChaosWeaveActive, 0.0'f32, 1.0'f32)
+      let glowA = uint8(140.0'f32 * fade)
+      let coreA = uint8(255.0'f32 * fade)
+      if warning.laserPattern == "knot":
+        # Knot tear: the cinched crossing rips open - a white flash, an
+        # expanding shred ring, and radial thread-ends whipping outward
+        # alongside the real bullets it releases.
+        let cx = warning.pos.x
+        let cy = warning.pos.y
+        drawCircle(Vector2(x: cx, y: cy), 10.0'f32 * fade + burst * 6.0'f32,
+                   Color(r: 255'u8, g: 255'u8, b: 255'u8, a: coreA))
+        drawCircleLines(cx.int32, cy.int32, 12.0'f32 + burst * 46.0'f32,
+                        Color(r: 255'u8, g: 130'u8, b: 255'u8, a: glowA))
+        drawCircleLines(cx.int32, cy.int32, 6.0'f32 + burst * 30.0'f32,
+                        Color(r: 255'u8, g: 200'u8, b: 255'u8, a: coreA))
+        for k in 0 ..< 6:
+          let ang = k.float32 * PI / 3.0'f32 + 0.3'f32
+          let inner = 8.0'f32 + burst * 20.0'f32
+          let outer = inner + 10.0'f32 + burst * 18.0'f32
+          drawLine(Vector2(x: cx + cos(ang) * inner, y: cy + sin(ang) * inner),
+                   Vector2(x: cx + cos(ang) * outer, y: cy + sin(ang) * outer),
+                   2.0, Color(r: 255'u8, g: 150'u8, b: 255'u8, a: glowA))
+      elif warning.ricochetPath.len >= 2:
+        # Plucked-string vibration: each segment's bright core bows around a
+        # displaced midpoint, oscillating hard at the snap and settling as the
+        # thread dies (amplitude rides 1 - burst).
+        let vibAmp = 8.0'f32 * (1.0'f32 - burst)
+        let vibT = getTime() * 45.0
+        for s in 0 ..< warning.ricochetPath.len - 1:
+          let p0 = warning.ricochetPath[s]
+          let p1 = warning.ricochetPath[s + 1]
+          # Alternate segment hues so the weave reads as braided strands.
+          let hot = if s mod 2 == 0: Color(r: 255'u8, g: 70'u8, b: 255'u8, a: glowA)
+                    else: Color(r: 170'u8, g: 60'u8, b: 255'u8, a: glowA)
+          drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                   warning.laserLength * 3.4,
+                   withAlpha(hot, (glowA div 2).uint8))
+          drawLine(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+                   warning.laserLength * 2.0, hot)
+          # Bowed white core: midpoint displaced perpendicular to the segment.
+          let seg = p1 - p0
+          let segLen = max(0.001'f32, sqrt(seg.x * seg.x + seg.y * seg.y))
+          let nx = -seg.y / segLen
+          let ny = seg.x / segLen
+          let bow = sin(vibT + s.float32 * 2.3).float32 * vibAmp
+          let mid = Vector2(x: (p0.x + p1.x) * 0.5'f32 + nx * bow,
+                            y: (p0.y + p1.y) * 0.5'f32 + ny * bow)
+          drawLine(Vector2(x: p0.x, y: p0.y), mid, 2.5,
+                   Color(r: 255'u8, g: 230'u8, b: 255'u8, a: coreA))
+          drawLine(mid, Vector2(x: p1.x, y: p1.y), 2.5,
+                   Color(r: 255'u8, g: 230'u8, b: 255'u8, a: coreA))
+        # Vertex nodes flare and throw sparks where the thread kinks.
+        for i, v in warning.ricochetPath:
+          drawCircle(Vector2(x: v.x, y: v.y), 3.5 + 4.0 * fade,
+                     Color(r: 255'u8, g: 240'u8, b: 255'u8, a: coreA))
+          for k in 0..<3:
+            let ang = i.float32 * 2.1 + k.float32 * (PI * 2.0) / 3.0
+            let sp = Vector2(x: v.x + cos(ang) * (6.0 + burst * 16.0),
+                             y: v.y + sin(ang) * (6.0 + burst * 16.0))
+            drawLine(Vector2(x: v.x, y: v.y), sp, 1.5,
+                     Color(r: 255'u8, g: 150'u8, b: 255'u8, a: uint8(180.0 * fade)))
+  of awtOmegaQuadrant:
+    if warning.laserPattern != "shelter" and warning.lifetime <= OmegaQuadActive:
+      let spared = warning.laserPattern == "spared"
+      let hx = warning.targetPos.x; let hy = warning.targetPos.y
+      let x0f = warning.pos.x - hx; let y0f = warning.pos.y - hy
+      let w2f = hx * 2.0'f32; let h2f = hy * 2.0'f32
+      let fade = clamp(warning.lifetime / OmegaQuadActive, 0.4'f32, 1.0'f32)
+      # burst: 0 at detonation -> 1 as it dies; drives the imploding frame.
+      let burst = 1.0'f32 - clamp(warning.lifetime / OmegaQuadActive, 0.0'f32, 1.0'f32)
+      let washCol = if spared: Color(r: 255'u8, g: 190'u8, b: 70'u8, a: uint8(120.0'f32 * fade))
+                    else: Color(r: 255'u8, g: 70'u8, b: 100'u8, a: uint8(120.0'f32 * fade))
+      drawRectangle(x0f.int32, y0f.int32, w2f.int32, h2f.int32, washCol)
+      drawRectangleLines(Rectangle(x: x0f, y: y0f, width: w2f, height: h2f),
+                         4.0, Color(r: 255'u8, g: 220'u8, b: 230'u8, a: uint8(255.0'f32 * fade)))
+      # A second frame rushes inward as the quadrant consumes itself.
+      let inset = burst * min(hx, hy) * 0.45'f32
+      drawRectangleLines(Rectangle(x: x0f + inset, y: y0f + inset,
+                                   width: w2f - inset * 2.0'f32,
+                                   height: h2f - inset * 2.0'f32),
+                         3.0, Color(r: 255'u8, g: 240'u8, b: 245'u8, a: uint8(200.0'f32 * fade)))
+      # Corner-to-corner cross flash + a white flare at the quadrant's heart.
+      let crossA = uint8(150.0'f32 * fade)
+      drawLine(Vector2(x: x0f, y: y0f), Vector2(x: x0f + w2f, y: y0f + h2f),
+               3.0, Color(r: 255'u8, g: 200'u8, b: 215'u8, a: crossA))
+      drawLine(Vector2(x: x0f + w2f, y: y0f), Vector2(x: x0f, y: y0f + h2f),
+               3.0, Color(r: 255'u8, g: 200'u8, b: 215'u8, a: crossA))
+      drawCircle(Vector2(x: warning.pos.x, y: warning.pos.y),
+                 16.0'f32 * fade + burst * 14.0'f32,
+                 Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(210.0'f32 * fade)))
+      # The Entity's mark, branded outward by the blast: an expanding Omega.
+      # The spared-quadrant finale brands bigger and rings twice - the whole
+      # judgement closes on this beat.
+      let glyphCol = if spared: Color(r: 255'u8, g: 230'u8, b: 150'u8, a: uint8(230.0'f32 * fade))
+                     else: Color(r: 255'u8, g: 180'u8, b: 200'u8, a: uint8(230.0'f32 * fade))
+      let glyphR = if spared: 28.0'f32 + burst * 64.0'f32
+                   else: 22.0'f32 + burst * 34.0'f32
+      drawOmegaGlyph(warning.pos.x, warning.pos.y - 6.0, glyphR,
+                     (if spared: 3.5'f32 else: 2.5'f32), glyphCol)
+      if spared:
+        drawCircleLines(warning.pos.x.int32, warning.pos.y.int32,
+                        glyphR + 26.0'f32 + burst * 60.0'f32,
+                        Color(r: 255'u8, g: 220'u8, b: 140'u8, a: uint8(180.0'f32 * fade)))
+        drawCircleLines(warning.pos.x.int32, warning.pos.y.int32,
+                        glyphR + 14.0'f32 + burst * 34.0'f32,
+                        Color(r: 255'u8, g: 245'u8, b: 200'u8, a: uint8(220.0'f32 * fade)))
+  else:
+    discard
 
 proc drawLaser*(laser: Laser) =
   # Calculate alpha based on lifetime with accelerated fade
@@ -3923,33 +4760,25 @@ proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Ga
   ## may spawn from how strong they are. Survival passes a value just below the
   ## current difficulty during a boss fight so no enemy type debuts mid-boss, while
   ## keeping the stat scaling of the live difficulty.
-  let side = rand(3)
-  var x, y: float32
-
-  case side
-  of 0: x = rand(screenWidth.int).float32; y = -30
-  of 1: x = screenWidth.float32 + 30; y = rand(screenHeight.int).float32
-  of 2: x = rand(screenWidth.int).float32; y = screenHeight.float32 + 30
-  else: x = -30; y = rand(screenHeight.int).float32
-
+  let (x, y) = randomEdgeSpawnPos(screenWidth, screenHeight)
   let typeDifficulty = if rosterDifficulty < 0.0'f32: difficulty else: rosterDifficulty
   newEnemy(x, y, difficulty, pickSpawnType(typeDifficulty), game)
 
 proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
-  ## Spawns a boss - either custom (waves 1-60) or random (after wave 60)
+  ## Spawns a boss - either custom (bosses 1-12) or random (past the campaign)
   ##
-  ## CUSTOM BOSSES (every 5 waves):
+  ## CUSTOM BOSSES (every BossWaveInterval waves):
   ##   - Use definitions from boss_definitions.nim
   ##   - HP-based phase system
   ##   - Unique attack patterns and abilities per boss
   ##
-  ## Boss 12 (The Final Sentinel) repeats after wave 60 with increased stats
+  ## Boss 12 (The Final Sentinel) repeats past the campaign with increased stats
   ##
-  # Check if this should be a custom boss (every 5 waves)
+  # Check if this should be a custom boss (every BossWaveInterval waves)
   let useCustomBoss = isBossWave(waveNumber)
 
   if useCustomBoss:
-    # CUSTOM BOSS CREATION (Waves 1-60, every 5 waves)
+    # CUSTOM BOSS CREATION (waves 5-60, every BossWaveInterval waves)
     # Custom bosses use the advanced definition system from boss_definitions.nim
     # They have HP-based phases (defined in BossDefinition) and don't transform
     let bossDef = getBossForWave(waveNumber)
@@ -3982,8 +4811,9 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       startX = centerX; startY = -100
       targetX = centerX; targetY = centerY - orbitLandRadius
 
-    # Create boss with custom stats
-    let scaledHP = getScaledBossHP(bossDef, waveNumber)
+    # Create boss with custom stats (profile difficulty scales the total pool,
+    # so phase HP pools derived from it inherit the multiplier too)
+    let scaledHP = getScaledBossHP(bossDef, waveNumber) * difficultyEnemyHpMult()
     let phaseHpPools = getBossPhaseHpPools(bossDef, scaledHP)
     let firstPhaseHp =
       if phaseHpPools.len > 0: phaseHpPools[0]
@@ -4076,7 +4906,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
   if enemy.isBoss:
     return
 
-  # Elite chance: ramps from 2% → 12% by wave 29, then continues +1%/wave to cap 32%
+  # Elite chance: ramps from 2% -> 12% by wave 29, then continues +1%/wave to cap 32%
   let baseChance = min(2 + (waveNumber.float32 * 0.35).int, 12)
   let lateBonus = max(0, waveNumber - 28)
   let eliteChance = min(baseChance + lateBonus, 32)
@@ -4106,7 +4936,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
     # Waves 55+: 65% chance for a dual-effect elite
     if rand(99) < 65: 2 else: 1
   elif statWave >= 35:
-    # Waves 35–54: 35% chance for a dual-effect elite
+    # Waves 35-54: 35% chance for a dual-effect elite
     if rand(99) < 35: 2 else: 1
   else:
     # Waves 1-34: Single effect
@@ -4275,7 +5105,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
                        float32(sin(gameTime * 3.0 + idx.float32) * 3.0)
       let alpha = uint8((210.0'f32 - i.float32 * 55.0'f32) * float32(pulseIntensity))
       drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius,
-        Color(r: auraColor.r, g: auraColor.g, b: auraColor.b, a: alpha))
+        withAlpha(auraColor, alpha))
 
   # Draw health bar for Tank elites (above shield bar if present)
   if etTank in enemy.eliteTypes:
@@ -4370,7 +5200,7 @@ proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) =
     let outlineR = enemy.radius + 1.5'f32 + idx.float32 * 3.0'f32
     let outlineA = uint8((230.0'f32 - idx.float32 * 40.0'f32) * pulseIntensity)
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, outlineR,
-      Color(r: col.r, g: col.g, b: col.b, a: outlineA))
+      withAlpha(col, outlineA))
 
   # Layer B: rotating orbit crown (6 bright dots per type, second type counter-rotates)
   for idx, eType in enemy.eliteTypes:
@@ -4382,7 +5212,7 @@ proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) =
       drawCircle(
         Vector2(x: enemy.pos.x + cos(ang) * orbitR, y: enemy.pos.y + sin(ang) * orbitR),
         2.6'f32 + pulseIntensity * 1.2'f32,
-        Color(r: col.r, g: col.g, b: col.b, a: uint8(210.0'f32 * pulseIntensity)))
+        withAlpha(col, uint8(210.0'f32 * pulseIntensity)))
 
   # Layer C: type icon above the head, side-by-side for dual types
   let iconS = 5.0'f32
@@ -4428,7 +5258,7 @@ proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) =
     of etShielded:
       # Circle outline
       drawCircleLines(iconX.int32, iconY.int32, iconS,
-                      Color(r: col.r, g: col.g, b: col.b, a: 255))
+                      withAlpha(col, 255))
     of etNone:
       discard
 

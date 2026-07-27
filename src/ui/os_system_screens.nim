@@ -2,7 +2,7 @@
 ## Game Over as Modern System Crash, Victory as System Secured
 
 import raylib, math
-import ../types, ../localization
+import ../types, ../localization, ../render_context
 
 const
   SCREEN_WIDTH = 900
@@ -11,9 +11,14 @@ const
   BUTTON_HEIGHT = 48
   STAT_LINE_HEIGHT = 32
 
+type ButtonAccent = enum
+  baNeutral,  # standard blue/grey styling
+  baGreen,    # positive action (e.g. Continue from checkpoint)
+  baRed       # destructive/leaving action (e.g. Exit)
+
 proc drawModernButton(x, y, width, height: int32, text: string,
                      hotkey: string = "", isPrimary: bool = false,
-                     time: float32 = 0.0) =
+                     time: float32 = 0.0, accent: ButtonAccent = baNeutral) =
   ## Draw a modern styled button for system screens
 
   # Button shadow
@@ -21,10 +26,16 @@ proc drawModernButton(x, y, width, height: int32, text: string,
                Color(r: 0, g: 0, b: 0, a: 100))
 
   # Button background
-  let bgColor = if isPrimary:
-    Color(r: 0, g: 140, b: 255, a: 255)
-  else:
-    Color(r: 55, g: 70, b: 90, a: 255)
+  let bgColor = case accent
+    of baNeutral:
+      if isPrimary: Color(r: 0, g: 140, b: 255, a: 255)
+      else: Color(r: 55, g: 70, b: 90, a: 255)
+    of baGreen:
+      if isPrimary: Color(r: 0, g: 155, b: 75, a: 255)
+      else: Color(r: 0, g: 105, b: 55, a: 255)
+    of baRed:
+      if isPrimary: Color(r: 175, g: 45, b: 45, a: 255)
+      else: Color(r: 115, g: 32, b: 36, a: 255)
 
   drawRectangle(x, y, width, height, bgColor)
 
@@ -33,11 +44,17 @@ proc drawModernButton(x, y, width, height: int32, text: string,
                Color(r: 255, g: 255, b: 255, a: 40))
 
   # Border with pulse for primary
-  let borderColor = if isPrimary:
-    let pulse = sin(time * 4.0) * 0.3 + 0.7
-    Color(r: 0, g: 200, b: 255, a: uint8(220 * pulse))
-  else:
-    Color(r: 100, g: 130, b: 160, a: 255)
+  let pulse = sin(time * 4.0) * 0.3 + 0.7
+  let borderColor = case accent
+    of baNeutral:
+      if isPrimary: Color(r: 0, g: 200, b: 255, a: uint8(220 * pulse))
+      else: Color(r: 100, g: 130, b: 160, a: 255)
+    of baGreen:
+      if isPrimary: Color(r: 60, g: 255, b: 140, a: uint8(220 * pulse))
+      else: Color(r: 40, g: 190, b: 100, a: 255)
+    of baRed:
+      if isPrimary: Color(r: 255, g: 110, b: 110, a: uint8(220 * pulse))
+      else: Color(r: 210, g: 80, b: 80, a: 255)
 
   let borderWidth = if isPrimary: 2.5 else: 2.0
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
@@ -95,11 +112,13 @@ proc composeDeathCause(game: Game): tuple[verb: string, killer: string, isBoss: 
     return (t(tkDeathUnknown), "", false)
   return (t(verbKey), game.deathSourceName, game.deathSourceWasBoss)
 
-proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
-  ## Draw the enhanced Game Over screen as a modern system crash
-  ## selectedButton: 0=Restart, 1=Stats, 2=Exit
-  let screenWidth = game.screenWidth
-  let screenHeight = game.screenHeight
+proc drawSystemCrash*(game: Game, selectedButton: int = 0,
+                      showContinue: bool = false, continueWave: int = 1) =
+  ## Draw the enhanced Game Over screen as a modern system crash.
+  ## Without a checkpoint: 0=Restart, 1=Stats, 2=Exit.
+  ## With a checkpoint (showContinue): 0=Continue, 1=Restart, 2=Stats, 3=Exit.
+  let screenWidth = getVirtualScreenWidth()
+  let screenHeight = getVirtualScreenHeight()
 
   # Animated scan lines effect
   for i in 0..<(screenHeight div 4):
@@ -219,25 +238,38 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
           Color(r: 255, g: 215, b: 0, a: 255))
   yOffset += STAT_LINE_HEIGHT
 
-  # Action buttons section - Positioned at bottom with proper spacing
+  # Action buttons section - Positioned at bottom with proper spacing.
+  # A death-surviving block checkpoint prepends a "Continue (Wave N)" button,
+  # shifting the other three indices up by one; the layout narrows to fit four.
   let buttonY = windowY + SCREEN_HEIGHT - 100  # 100px from bottom (plenty of space now)
-  let buttonSpacing = 40
-  let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
+  let buttonSpacing = if showContinue: 24 else: 40
+  let buttonW = if showContinue: 200 else: BUTTON_WIDTH
+  let buttonCount = if showContinue: 4 else: 3
+  let idxOff = if showContinue: 1 else: 0
+  let totalButtonWidth = buttonW * buttonCount + buttonSpacing * (buttonCount - 1)
   let buttonsX = (screenWidth - totalButtonWidth) div 2
 
-  # Restart button (0) - Highlight if selected
-  drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  t(tkGameOverRestartSystem), "[R] [SPACE]", selectedButton == 0, game.time)
+  if showContinue:
+    # Continue button (0)
+    drawModernButton(int32(buttonsX), buttonY, int32(buttonW), int32(BUTTON_HEIGHT),
+                    t(tkGameOverContinue) & " " & $continueWave & ")", "[C]",
+                    selectedButton == 0, game.time, baGreen)
 
-  # View Stats button (1) - Highlight if selected
-  let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
-  drawModernButton(int32(statsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  t(tkGameOverViewLogs), "[V] [TAB]", selectedButton == 1, game.time)
+  # Restart button
+  let restartX = buttonsX + idxOff * (buttonW + buttonSpacing)
+  drawModernButton(int32(restartX), buttonY, int32(buttonW), int32(BUTTON_HEIGHT),
+                  t(tkGameOverRestartSystem), "[R] [SPACE]", selectedButton == idxOff, game.time)
 
-  # Exit button (2) - Highlight if selected
-  let exitX = statsX + BUTTON_WIDTH + buttonSpacing
-  drawModernButton(int32(exitX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  t(tkGameOverExit), "[ESC] [Q]", selectedButton == 2, game.time)
+  # View Stats button
+  let statsX = restartX + buttonW + buttonSpacing
+  drawModernButton(int32(statsX), buttonY, int32(buttonW), int32(BUTTON_HEIGHT),
+                  t(tkGameOverViewLogs), "[V] [TAB]", selectedButton == idxOff + 1, game.time)
+
+  # Exit button
+  let exitX = statsX + buttonW + buttonSpacing
+  drawModernButton(int32(exitX), buttonY, int32(buttonW), int32(BUTTON_HEIGHT),
+                  t(tkGameOverExit), "[ESC] [Q]", selectedButton == idxOff + 2, game.time,
+                  baRed)
 
   # Footer warning text
   let footerY = windowY + SCREEN_HEIGHT - 35
@@ -252,8 +284,8 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0) =
 proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   ## Draw the wave-60 final-boss Victory screen as "system secured".
   ## selectedButton: 0=Continue Endless, 1=View Stats, 2=Return to Menu
-  let screenWidth = game.screenWidth
-  let screenHeight = game.screenHeight
+  let screenWidth = getVirtualScreenWidth()
+  let screenHeight = getVirtualScreenHeight()
 
   # Animated background particles (success effect)
   for i in 0..30:

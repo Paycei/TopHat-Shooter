@@ -12,9 +12,37 @@ type
 
   KeyBindings* = array[KeyAction, KeyboardKey]
 
-# Timing for the Chain Reactor's telegraphed electricity attacks. Shared so the
-# warning-update logic (game.nim) and the telegraph drawing (enemy.nim) agree on
-# exactly when the dodge window ends and the strike becomes lethal.
+  # Gamepad binds mirror KeyBindings over the same actions. GamepadButton.Unknown
+  # is the "unbound" sentinel. A (click/confirm), B (back), Start (pause) and the
+  # sticks/dpad-cursor are reserved by the input layer and never appear here.
+  GamepadBindings* = array[KeyAction, GamepadButton]
+
+const
+  defaultKeybinds*: KeyBindings = [
+    kaMoveUp:    KeyboardKey.W,
+    kaMoveDown:  KeyboardKey.S,
+    kaMoveLeft:  KeyboardKey.A,
+    kaMoveRight: KeyboardKey.D,
+    kaShoot:     KeyboardKey.Space,
+    kaPlaceWall: KeyboardKey.E,
+    kaLegendary: KeyboardKey.Q
+  ]
+
+  defaultGamepadBinds*: GamepadBindings = [
+    kaMoveUp:    GamepadButton.LeftFaceUp,     # dpad; the left stick is always-on analog
+    kaMoveDown:  GamepadButton.LeftFaceDown,
+    kaMoveLeft:  GamepadButton.LeftFaceLeft,
+    kaMoveRight: GamepadButton.LeftFaceRight,
+    kaShoot:     GamepadButton.RightTrigger2,  # RT (right stick also autofires)
+    kaPlaceWall: GamepadButton.RightFaceLeft,  # X
+    kaLegendary: GamepadButton.RightFaceUp     # Y
+  ]
+
+# Telegraphed-attack timing. Lives here so the warning-update logic (game.nim)
+# and the telegraph drawing (enemy.nim) agree on exactly when each dodge window
+# ends and the attack becomes lethal.
+
+# Chain Reactor electricity attacks:
 const
   TeslaStrikeTelegraph* = 0.95'f32  # dodge window before a ground strike lands
   TeslaStrikeActive*    = 0.18'f32  # how long the strike zone stays lethal
@@ -23,27 +51,78 @@ const
   VoidRiftTelegraph*    = 1.75'f32   # dodge window before a Void Dancer rift collapses
   VoidRiftActive*       = 0.25'f32  # how long the collapsing rift zone stays lethal
 
-# Timing for The Laser Architect's (boss 4) ricochet beam. The path is traced
-# once when the warning spawns, telegraphed for the full wind-up, then the whole
-# polyline goes lethal for a short active flash. Shared by the warning-update
-# logic (game.nim) and the telegraph drawing (enemy.nim).
+# Laser Architect (boss 4) ricochet beam: path traced once at warning spawn,
+# telegraphed for the full wind-up, then the whole polyline flashes lethal.
 const
-  RicochetLaserTelegraph* = 2.5'f32   # long dodge window: see the whole bounce path
-  RicochetLaserActive*    = 0.55'f32  # how long the traced beam stays lethal/visible
-  RicochetLaserSweep*     = 0.22'f32  # extremely quick: time for the beam-front to race the whole path
+  RicochetLaserTelegraph* = 2.0'f32   # long dodge window: see the whole bounce path
+  RicochetLaserActive*    = 0.5'f32  # how long the traced beam stays lethal/visible
+  RicochetLaserSweep*     = 0.15'f32  # extremely quick: time for the beam-front to race the whole path
   RicochetLaserHalfWidth* = 14.0'f32  # half-thickness of the lethal beam (px)
-  MegaCastDamageTaken*    = 0.4'f32   # fraction of damage a boss takes while channelling a mega special
+  MegaCastDamageTaken*    = 0.3'f32   # fraction of damage a boss takes while channelling a mega special
+
+# Bosses 7-12 signature attacks:
+const
+  OrbitalSweepTelegraph* = 1.7'f32   # Orbital Commander: scan corridor shown before the wall enters
+  OrbitalSweepActive*    = 3.0'f32   # time the satellite wall takes to cross the whole arena
+  OrbitalSweepHalfThick* = 24.0'f32  # half-thickness of the moving energy wall (px)
+  OrbitalSweepStagger*   = 1.6'f32   # delay between walls when a volley sends several
+  FissureTelegraph*      = 1.0'f32   # Juggernaut: dodge window before the FIRST fissure pop
+  FissureActive*         = 0.22'f32  # each eruption's lethal window
+  FissureStagger*        = 0.16'f32  # delay between successive pops as the crack marches
+  FissureChaseSpeed*     = 150.0'f32 # phase-3 chaser crack speed (just below base player speed)
+  FissureChaseInterval*  = 0.55'f32  # seconds between eruptions the chaser drops as it travels
+  FissureChasePopWarn*   = 0.4'f32   # chaser-dropped eruptions pop much faster than chain steps
+  PrismRayTelegraph*     = 1.6'f32   # Prism Architect: wind-up showing feed beam + refracted star
+  PrismRayActive*        = 0.4'f32   # refracted rays' lethal flash
+  PrismMiniTelegraph*    = 0.9'f32   # cascade beat two: mini prisms' shorter ignite wind-up
+  PrismMiniStagger*      = 0.12'f32  # per-mini extra delay so beat two ripples around the ring
+  ClockSweepTelegraph*   = 1.4'f32   # Timekeeper: hands fade in before they go lethal
+  ClockSweepActive*      = 2.8'f32   # hands rotate while lethal; move with the gap
+  ClockSweepHalfWidth*   = 12.0'f32  # half-thickness of each clock-hand beam (px)
+  ClockRewindPoint*      = 0.45'f32  # rewind cast: fraction of the active sweep before time freezes
+  ClockRewindHold*       = 0.25'f32  # seconds the hands hang frozen before rewinding
+  ClockRewindFactor*     = 1.6'f32   # rewind sweep speed multiplier (the way back is faster)
+  ClockTickPeriod*       = 0.35'f32  # tick cast: seconds per escapement tick
+  ClockTickMove*         = 0.30'f32  # fraction of each tick period the hands spend snapping
+  ClockChimeWindup*      = 0.6'f32   # rewind finale: seconds the 12 tick rays glow before the strike
+  ClockChimeSpeed*       = 190.0'f32 # chime bullet speed along the 12 tick rays
+  ChaosWeaveTelegraph*   = 1.6'f32   # Chaos Weaver: jagged threads shimmer before snapping taut
+  ChaosWeaveActive*      = 0.35'f32  # threads' lethal flash
+  ChaosWeaveStagger*     = 0.5'f32   # per-thread extra lifetime: threads snap in stitch order
+  ChaosWeaveNeedleTime*  = 0.9'f32   # the needle stitches each thread over this window
+  ChaosWeaveTautPause*   = 0.35'f32  # fully-stitched thread pulls taut before the snap
+  ChaosKnotDelay*        = 0.4'f32   # thread crossings tear open this long after the last snap
+  ChaosKnotBullets*      = 6         # slow bullets released per torn knot
+  ChaosKnotMax*          = 4         # hard cap on knots per weave (density guard)
+  ChaosKnotBulletSpeed*  = 120.0'f32 # torn-knot bullet speed (slow, dodgeable ring)
+  OmegaQuadTelegraph*    = 1.5'f32   # Omega Entity: window to reach the FIRST shelter (gates open)
+  OmegaQuadActive*       = 0.35'f32  # each eruption's lethal window
+  OmegaQuadStagger*      = 1.0'f32   # the judgement heartbeat: seconds between beats
+  OmegaQuadBeats*        = 4         # migration beats before the final shelter is judged
+  OmegaJudgeGrid*        = 3         # Omega phase: 3x3 cells, 8 erupt per beat
+  OmegaLessonBeats*      = 2         # Beta/Gamma rehearsal: fewer hops, same rules
+  OmegaLessonGrid*       = 2         # rehearsal grid: the four quadrants
+  OmegaLessonStagger*    = 1.4'f32   # rehearsal heartbeat: slower, time to read the gold
+  OmegaEmberCount*       = 8         # slow ember bullets hurled by the vacated shelter's eruption
+  OmegaEmberSpeed*       = 150.0'f32 # ember drift speed (weavable debris, not a wall)
 
 type
   GameState* = enum
-    gsSplash, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
+    gsSplash, gsProfileSelect, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
     gsRogueliteFloorSelect, gsDeathSequence, gsVictory, gsEndgameCinematic, gsCutscene,
     gsRogueliteVictory, gsRogueliteEndCinematic, gsSurvivalEndCinematic
 
+  GameDifficulty* = enum
+    ## Per-profile difficulty picked when a save profile is created.
+    ## The on-disk form is the value string ("easy"/"medium"/"hard"/"nightmare").
+    ## Nightmare additionally disables the death-surviving block checkpoint
+    ## (see difficultyAllowsContinue below), so every death restarts at wave 1.
+    gdEasy = "easy", gdMedium = "medium", gdHard = "hard", gdNightmare = "nightmare"
+
   CutsceneContinuation* = enum
-    cscMenu,       ## after cutscene → gsMenu (intro, settings replays)
-    cscVictory,    ## after cutscene → gsVictory (first endgame win)
-    cscLaunchGame  ## after cutscene → startLoadingAnimation + pendingGameMode
+    cscMenu,       ## after cutscene -> gsMenu (intro, settings replays)
+    cscVictory,    ## after cutscene -> gsVictory (first endgame win)
+    cscLaunchGame  ## after cutscene -> startLoadingAnimation + pendingGameMode
 
   GameMode* = enum
     gmWaveBased,
@@ -145,7 +224,7 @@ type
     puBulletRicochet,  # Bullets ricochet off enemies
     puBulletSpeed,     # Faster bullets
     puBulletSplit,     # Bullets split on impact
-    puCelestialVeil,   # LEGENDARY: Absorb 1 hit per wave
+    puCelestialVeil,   # LEGENDARY: Absorb 2 hits per wave
     puChainLightning,  # Damage chains between enemies
     puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
     puCriticalHit,     # Random critical damage
@@ -410,6 +489,13 @@ type
     awtArcBeam          # Chain Reactor lightning wall (ArcBeam timing)
     awtRicochetLaser    # Laser Architect bouncing beam (RicochetLaser timing)
     awtVoidRift         # Void Dancer collapsing dimensional tear (VoidRift timing)
+    awtOrbitalSweep     # Orbital Commander scan: a moving satellite wall crosses the arena, one safe lane (OrbitalSweep timing)
+    awtFissure          # Juggernaut ground crack: staggered eruptions marching at the player (Fissure timing)
+    awtFissureChaser    # Juggernaut phase-3 crack head: pursues the player forever, dropping awtFissure pops (FissureChase timing)
+    awtPrismRays        # Prism Architect focal beam that splits into a lethal ray star (PrismRay timing)
+    awtClockSweep       # Timekeeper rotating clock-hand beams (ClockSweep timing)
+    awtChaosWeave       # Chaos Weaver jagged arena-spanning threads (ChaosWeave timing)
+    awtOmegaQuadrant    # Omega Entity sequential quadrant detonations (OmegaQuad timing)
 
   AttackWarning* = ref object
     pos*: Vector2f
@@ -447,6 +533,11 @@ type
     etArcane,      # Purple - enhanced damage + magical effect
     etBlood,       # Dark red - damage + lifesteal
     etNone         # No element (shouldn't happen)
+
+  AuraSlot* = enum
+    ## One slot per player aura power-up. Each slot owns its own pulse timer so
+    ## stacked auras fire on staggered beats instead of all landing together.
+    asSlow, asFire, asLightning, asPoison, asWind, asArcane, asBlood
 
   RotatingOrb* = ref object
     angle*: float32                    # Current angle around player
@@ -535,6 +626,10 @@ type
     radialBurstTimer*: float32  # Timer for periodic radial burst
     pulseArmorCooldown*: float32  # Cooldown after triggering shockwave (always >= 0)
     pulseArmorTriggered*: bool  # Set by takeDamage; consumed next frame in game.nim
+    auraPulseTimers*: array[AuraSlot, float32]  # Per-aura countdown to its next pulse
+    auraFlashTimers*: array[AuraSlot, float32]  # Per-aura countdown after a pulse; drives the ring flash
+    auraPulsePrimed*: set[AuraSlot]  # Slots whose first pulse has been phase-offset already
+    auraPulseSeq*: array[AuraSlot, int32]  # Bumped on every pulse; enemies store the last one that swept them
     teamId*: PvPTeam  # Team assignment for PvP mode (ptNone for free-for-all)
     skinType*: int  # Current equipped skinHost
     bulletSkinType*: int  # Current equipped bullet skin
@@ -546,7 +641,7 @@ type
     hasOrbitalCube*: bool  # Secret orbital-cube cosmetic (Escape Velocity advancement reward)
     rogueliteCosmetic*: int  # Run-scoped class emblem: 0 = none, else ord(RogueliteStarterKit)+1
     cubeSkinType*: int  # Equipped desktop-cube skin (colors the orbital cube companion)
-    celestialVeilActive*: bool  # True if Celestial Veil can still absorb a hit this wave
+    celestialVeilCharges*: int  # Number of Celestial Veil charges left this wave (decremented when a hit is absorbed)
     # Volatile (Legendary passive)
     hasVolatile*: bool          # Enemies with 2+ DoTs take +50% dmg and spread on death
     # Resonance (Normal passive)
@@ -677,6 +772,7 @@ type
 
   Enemy* = ref object
     id*: int                      # Unique identifier for tracking bullet hits
+    auraWaveHitSeq*: array[AuraSlot, int32]  # Last aura pulse (per slot) whose wavefront already hit this enemy
     pos*: Vector2f
     vel*: Vector2f
     knockbackVel*: Vector2f       # Residual knockback impulse (Pulse Armor etc.); decays independently of chase AI
@@ -728,8 +824,8 @@ type
     shieldHp*: float32  # For shielded elites
     maxShieldHp*: float32  # Maximum shield HP
     diamondShieldActive*: bool  # 1-hit shield for diamond enemies (like Celestial Veil)
-    hitFlashTimer*: float32    # countdown from 0.10 → 0 on bullet hit; drives white body flash
-    spawnRingTimer*: float32   # countdown from 0.45 → 0 on spawn; drives expanding ring pop-in
+    hitFlashTimer*: float32    # countdown from 0.10 -> 0 on bullet hit; drives white body flash
+    spawnRingTimer*: float32   # countdown from 0.45 -> 0 on spawn; drives expanding ring pop-in
     regenTimer*: float32  # For regenerative elites
     spawnedByBoss*: bool  # True if spawned by boss summon attack
     rotation*: float32  # Current rotation angle in radians
@@ -781,6 +877,8 @@ type
     windowWasOpen*: bool            # Tracks vulnerability-window open->close edge for heal-on-ignore
     auraAcc*: DamageAccumulator
     contactAcc*: DamageAccumulator
+    dotAccs*: array[ElementType, DamageAccumulator]  # Per-element DoT tick display, so fire/poison numbers stay separate and keep their own color
+    poisonStacks*: float32        # Ramp built while poisoned (effects.nim); boosts poison tick damage up to a cap, resets when poison fully expires
     damageTuning*: float32  # Dungeon: attack-damage compression factor (0 or 1 = untouched)
 
   Bullet* = ref object
@@ -1284,6 +1382,38 @@ type
     comebackBonusActive*: bool  # True while the +10% comeback stat bonus is in effect
     comebackEndWave*: int        # Wave number at which the comeback bonus expires (copied from settings on run start)
 
+# Selected difficulty of the active save profile. Set at boot / on profile
+# switch (main.nim) and read by the spawn/damage choke points below. Medium is
+# the pre-difficulty-system balance, so its multipliers are exactly 1.0.
+var currentDifficulty* = gdMedium
+
+# Wave-mode boss cadence: a boss spawns on every wave that is a multiple of this
+# (waves 5, 10, ... 60 for the 12-boss campaign). All cadence math -- isBossWave,
+# the wavesUntilBoss countdown, boss bounty, shop income estimates -- routes
+# through this constant rather than hardcoding the interval.
+const BossWaveInterval* = 5
+
+proc difficultyEnemyHpMult*(): float32 =
+  case currentDifficulty
+  of gdEasy: 0.75'f32
+  of gdMedium: 1.0'f32
+  of gdHard: 1.35'f32
+  of gdNightmare: 1.5'f32
+
+proc difficultyEnemyDamageMult*(): float32 =
+  case currentDifficulty
+  of gdEasy: 0.70'f32
+  of gdMedium: 1.0'f32
+  of gdHard: 1.30'f32
+  of gdNightmare: 1.5'f32
+
+proc difficultyAllowsContinue*(): bool =
+  ## Whether the death-surviving block checkpoint ("Continue (Wave N)") exists on
+  ## this profile. Nightmare has no second chances: dying always means a fresh
+  ## run from wave 1. Gated at the run_save.nim write/read choke points so every
+  ## consumer (game-over screen, resume prompt) loses the option at once.
+  currentDifficulty != gdNightmare
+
 proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
                        duration: float32, sourceEnemyId: int = -1): AttackWarning =
   ## The one base constructor every warning flows through. `ref object` fields
@@ -1499,6 +1629,61 @@ proc polylineLength*(path: seq[Vector2f]): float32 =
   for s in 0 ..< path.len - 1:
     result += distance(path[s], path[s + 1])
 
+proc orbitalSweepCenter*(warning: AttackWarning): Vector2f =
+  ## Centre of the Orbital Commander's moving scan wall as a pure function of
+  ## the warning's remaining lifetime: parked at the entry edge (pos) through
+  ## the telegraph, then travelling linearly to the exit edge (targetPos) over
+  ## the active window. Shared by the render (enemy.nim) and the lethal hit
+  ## test (game.nim) so the drawn wall and the damaging wall never drift.
+  let progress = clamp((OrbitalSweepActive - warning.lifetime) / OrbitalSweepActive,
+                       0.0'f32, 1.0'f32)
+  warning.pos + (warning.targetPos - warning.pos) * progress
+
+proc escapementTime*(t: float32): float32 =
+  ## Warps continuous seconds into Timekeeper escapement seconds: time only
+  ## advances during the first ClockTickMove of each ClockTickPeriod, then
+  ## holds - so anything driven by it moves in discrete snaps while covering
+  ## the same total span on average.
+  let whole = floor(t / ClockTickPeriod)
+  let frac = t - whole * ClockTickPeriod
+  (whole + clamp(frac / (ClockTickPeriod * ClockTickMove), 0.0'f32, 1.0'f32)) *
+    ClockTickPeriod
+
+proc clockSweepHandAngle*(warning: AttackWarning, hand: int,
+                          lifetimeOffset: float32 = 0.0'f32): float32 =
+  ## Angle of the Timekeeper clock hand `hand` as a pure function of the
+  ## warning's remaining lifetime. Shared by the telegraph/live render
+  ## (enemy.nim) and the lethal hit test (game.nim) so they can never drift.
+  ## During the telegraph (lifetime > ClockSweepActive) the hands hold their
+  ## starting angle; once active they sweep at bulletSpeed rad/s. Tick casts
+  ## (laserPattern == "tick", phase 2) snap forward in discrete escapement
+  ## jerks. Rewind casts (laserPattern == "rewind", phase 3) tick forward
+  ## until ClockRewindPoint, freeze for ClockRewindHold, then tick BACKWARD
+  ## with ClockRewindFactor-times bigger snaps. `lifetimeOffset` samples the
+  ## angle as it was that many seconds earlier (motion-blur ghosts) or later
+  ## when negative (next-snap preview).
+  let elapsedActive = clamp(ClockSweepActive - (warning.lifetime + lifetimeOffset),
+                            0.0'f32, ClockSweepActive)
+  let base = warning.bulletSpreadAngle +
+             hand.float32 * (PI.float32 * 2.0'f32 / max(1, warning.laserCount).float32)
+  if warning.laserPattern == "rewind":
+    let freezeAt = ClockSweepActive * ClockRewindPoint
+    let resumeAt = freezeAt + ClockRewindHold
+    let swept =
+      if elapsedActive <= freezeAt:
+        warning.bulletSpeed * escapementTime(elapsedActive)
+      elif elapsedActive <= resumeAt:
+        warning.bulletSpeed * escapementTime(freezeAt)
+      else:
+        warning.bulletSpeed * escapementTime(freezeAt) -
+          warning.bulletSpeed * ClockRewindFactor *
+            escapementTime(elapsedActive - resumeAt)
+    base + swept
+  elif warning.laserPattern == "tick":
+    base + warning.bulletSpeed * escapementTime(elapsedActive)
+  else:
+    base + warning.bulletSpeed * elapsedActive
+
 proc ricochetSweptPath*(path: seq[Vector2f], frontDist: float32): seq[Vector2f] =
   ## The first `frontDist` units of `path`, ending at the exact beam-front point.
   ## Used to animate the ricochet beam "advancing" along its bounce route: the
@@ -1534,3 +1719,13 @@ proc elementColor*(elementType: ElementType): Color =
   of etArcane: Color(r: 200, g: 100, b: 255, a: 255)
   of etBlood: Color(r: 255, g: 50, b: 50, a: 255)
   of etNone: White
+
+proc elementDamageType*(elementType: ElementType): DamageType =
+  ## Damage-number color category for each element's DoT ticks.
+  case elementType
+  of etPoison: dtPoison
+  of etFire: dtFire
+  of etLightning: dtLightning
+  of etFrost: dtFrost
+  of etArcane: dtArcane
+  else: dtDefault

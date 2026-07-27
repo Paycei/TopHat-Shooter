@@ -3,6 +3,7 @@
 
 import raylib, strutils, math
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
+import ../gamepad_input
 
 const
   HELP_LINE_HEIGHT* = 18
@@ -369,7 +370,7 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
     help.scrollOffset = max(0, help.outputLines.len - 15)  # Scroll to bottom
 
   # Handle scrolling with mouse wheel
-  let wheel = getMouseWheelMove()
+  let wheel = getPointerWheelMove()
   if wheel != 0:
     help.scrollOffset = clamp(help.scrollOffset - int(wheel * 3), 0,
                               max(0, help.outputLines.len - 15))

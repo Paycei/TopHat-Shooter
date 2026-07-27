@@ -6,9 +6,7 @@
 ## in cutscene.nim so it shares the same archive chrome.
 
 import raylib, rlgl, math
-import particle_types
-import background_fx, ../types, ../localization, ../sound,
-       cinematic_common, cutscene
+import particle_types, background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene
 
 const
   SurAccent* = Color(r: 255, g: 120, b: 50, a: 255)   # ember-orange "long watch"
@@ -250,6 +248,7 @@ proc newSurvivalEndCutscene*(): Cutscene =
     drawBackdropProc = survivalBackdrop,
     swayAmp          = 1.0'f32,
     musicTrack       = mtMenu,
+    cornerTag        = t(tkLorePlayback),
   )
 
 # Legacy-style wrappers so main.nim mirrors the endgame-cinematic call sites.

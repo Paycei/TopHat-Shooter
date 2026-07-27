@@ -1,7 +1,5 @@
-import raylib, rlgl, random, math, types, settings, save_system, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite
-import game/bullets
-import ui/icon_drawing
-import utils
+import raylib, rlgl, random, math
+import types, settings, save_system, run_save, suspend, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite, game/bullets, ui/icon_drawing, utils
 export utils
 
 const DEATH_SLOW_DURATION* = 1.1'f32
@@ -259,6 +257,10 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   if isPvPMode(game.mode):
     game.state = gsGameOver
     return
+
+  # Death ends the run: the checkpoint save is no longer resumable.
+  deleteRunSave()
+  deleteSuspendSnapshot()  # ...and the exact snapshot with it.
 
   # Save the death wave for the comeback mechanic on the next wave-based run.
   if game.mode == gmWaveBased and not game.cheatsUsed and not globalSettings.isNil:
