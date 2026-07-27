@@ -18,6 +18,14 @@
 
 import raylib, math, types
 
+when defined(mobile):
+  # Re-exported so the touch behaviour reaches every module that already sees
+  # the pointer wrappers through render_context, with no import churn. touch_ui
+  # is itself a leaf, so this does not break the "gamepad_input imports nothing
+  # heavy" rule that lets render_context re-export it.
+  import touch_ui
+  export touch_ui
+
 type
   ActiveInputDevice* = enum
     adMouse
@@ -137,8 +145,22 @@ proc padButtonDown(b: GamepadButton): bool =
 proc padButtonReleased(b: GamepadButton): bool =
   activePad >= 0 and isGamepadButtonReleased(activePad, b)
 
-proc isPointerPressed*(): bool =
+proc isPointerDragStart*(): bool =
+  ## The frame the pointer goes DOWN, before tap-vs-drag has been resolved.
+  ## Identical to isPointerPressed on desktop; the two diverge on mobile, where
+  ## isPointerPressed waits for release. Anything that begins a drag (window
+  ## title bars, sliders, scrollbar thumbs) must start from this instead, or it
+  ## would never see the press that starts the drag.
   isMouseButtonPressed(MouseButton.Left) or padButtonPressed(GamepadButton.RightFaceDown)
+
+proc isPointerPressed*(): bool =
+  when defined(mobile):
+    # Touch semantics: the click commits on release, and only if the finger
+    # didn't travel. Without this, dragging a list to scroll it would also
+    # activate whatever row the drag started on.
+    touchTapPressed() or padButtonPressed(GamepadButton.RightFaceDown)
+  else:
+    isMouseButtonPressed(MouseButton.Left) or padButtonPressed(GamepadButton.RightFaceDown)
 
 proc isPointerDown*(): bool =
   isMouseButtonDown(MouseButton.Left) or padButtonDown(GamepadButton.RightFaceDown)
@@ -157,7 +179,59 @@ proc suppressBackThisFrame*() =
 proc isBackPressed*(): bool =
   if isKeyPressed(KeyboardKey.Escape):
     return true
+  when defined(mobile):
+    # The on-screen back chip (and the hardware back key where it survives
+    # raylib's Android handler). Drives every existing back handler for free:
+    # window close, pause cancel, run-stats exit, victory/game-over screens.
+    if touchBackPressed():
+      return true
   not backSuppressed and padButtonPressed(GamepadButton.RightFaceRight)
+
+# --- text entry -------------------------------------------------------------
+# Thin shims so text fields don't have to know whether the characters come from
+# a physical keyboard or the on-screen one. Desktop keeps the raylib calls
+# verbatim, so routing through these is a no-op refactor there.
+
+proc pollCharPressed*(): int32 =
+  ## Next typed character, 0 when there are none. Same drain-loop contract as
+  ## raylib's getCharPressed.
+  when defined(mobile):
+    result = pollVkChar()
+    # Fall through to the real keyboard too: `-d:mobile` runs on desktop for
+    # testing, where typing is far quicker than clicking the on-screen keys.
+    if result == 0:
+      result = getCharPressed()
+  else:
+    getCharPressed()
+
+proc pollBackspacePressed*(): bool =
+  ## Backspace edge, including the on-screen keyboard's auto-repeat. Callers
+  ## keep their own repeat handling for the physical key.
+  when defined(mobile):
+    pollVkBackspace() or isKeyPressed(KeyboardKey.Backspace)
+  else:
+    isKeyPressed(KeyboardKey.Backspace)
+
+proc pollEnterPressed*(): bool =
+  ## Enter edge, including the on-screen keyboard's ENTER/OK key. Text fields
+  ## that *commit* on Enter (the FPS cap, the help terminal's command line) are
+  ## unusable on mobile without it.
+  when defined(mobile):
+    pollVkEnter() or isKeyPressed(KeyboardKey.Enter)
+  else:
+    isKeyPressed(KeyboardKey.Enter)
+
+when not defined(mobile):
+  type TextInputKind* = enum
+    tikText
+    tikNumeric
+
+  proc setTextInputActive*(active: bool, kind: TextInputKind = tikText) =
+    ## No-op on desktop: there is a real keyboard. Text fields call this
+    ## unconditionally so the mobile branch needs no call-site guards.
+    discard
+
+  proc textInputActive*(): bool = false
 
 proc isGamepadStartPressed*(): bool =
   padButtonPressed(GamepadButton.MiddleRight)
@@ -177,6 +251,10 @@ proc getPointerWheelMove*(): float32 =
   ## dpad up/down as scroll. Returned in wheel "notches" so existing
   ## scroll-speed math at call sites keeps working.
   result = getMouseWheelMove()
+  when defined(mobile):
+    # Drag-to-scroll + flick momentum, expressed in the same notch units, so
+    # all nine existing scroll call sites become touch-scrollable unmodified.
+    result += touchWheelMove()
   if isGamepadActive() and cursorMode == cmMenuCursor:
     let rs = rightStick()
     result -= rs.y * StickScrollNotchesPerSec * frameDt

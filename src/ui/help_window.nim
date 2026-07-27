@@ -350,8 +350,12 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
     help.window.visible = false
     return -1
 
+  # The whole window is a typed-command REPL, so the on-screen keyboard is
+  # always up while it is open rather than being tied to a focused field.
+  setTextInputActive(true, tikText)
+
   # Handle text input with safety checks
-  let key = getCharPressed()
+  let key = pollCharPressed()
   if key > 0 and key < 256:  # Valid ASCII range
     let ch = char(key)
     # Only accept printable ASCII characters and limit input length
@@ -359,11 +363,11 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
       help.currentInput.add(ch)
 
   # Handle backspace
-  if isKeyPressed(Backspace) and help.currentInput.len > 0:
+  if pollBackspacePressed() and help.currentInput.len > 0:
     help.currentInput.setLen(help.currentInput.len - 1)
 
   # Handle enter - execute command
-  if isKeyPressed(Enter):
+  if pollEnterPressed():
     if help.currentInput.len > 0:
       executeCommand(help, help.currentInput)
       help.currentInput = ""

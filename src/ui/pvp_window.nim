@@ -570,7 +570,12 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
       pvpWin.selectionEnd = activeText[].len
 
   # Character input
-  var key = getCharPressed()
+  # The on-screen keyboard is the only way to fill these fields on Android:
+  # NativeActivity never raises a soft keyboard, so getCharPressed stays silent
+  # and PvP could not be joined at all. Numeric layout for IP/port.
+  setTextInputActive(pvpWin.editingNickname or pvpWin.editingIP or pvpWin.editingPort,
+                     if pvpWin.editingNickname: tikText else: tikNumeric)
+  var key = pollCharPressed()
   while key > 0:
     if activeText != nil and pvpWin.selectionStart >= 0 and pvpWin.selectionEnd >= 0 and pvpWin.selectionStart != pvpWin.selectionEnd:
       let newCursor = deleteSelection(activeText[], pvpWin.selectionStart, pvpWin.selectionEnd)
@@ -618,10 +623,10 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
           pvpWin.cursorPos = clamp(pvpWin.cursorPos, 0, pvpWin.inputPort.len)
           pvpWin.inputPort = pvpWin.inputPort[0..<pvpWin.cursorPos] & ch & pvpWin.inputPort[pvpWin.cursorPos..^1]
           pvpWin.cursorPos += 1
-    key = getCharPressed()
+    key = pollCharPressed()
 
   # Backspace with repeat
-  let backspacePressed = isKeyPressed(Backspace)
+  let backspacePressed = pollBackspacePressed()
   let backspaceDown = isKeyDown(Backspace)
   var shouldDelete = false
   if backspacePressed:

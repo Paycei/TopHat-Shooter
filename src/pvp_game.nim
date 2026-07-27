@@ -2,7 +2,7 @@
 ## Handles multiplayer player vs player combat with optional team support
 
 import raylib, rlgl, math, times, strutils, sequtils
-import types, player, bullet, wall, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, ui/background_fx
+import types, player, bullet, wall, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, input_intent, ui/background_fx
 
 const
   PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
@@ -374,55 +374,51 @@ proc startCountdown*(pvp: PvPGameState) =
     pvp.networkManager.sendPacket(packet)
 
 proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
-  var moveDir = newVector2f(0, 0)
-  let kb = globalSettings.keybinds
-  if isKeyDown(kb[kaMoveUp]): moveDir.y -= 1
-  if isKeyDown(kb[kaMoveDown]): moveDir.y += 1
-  if isKeyDown(kb[kaMoveLeft]): moveDir.x -= 1
-  if isKeyDown(kb[kaMoveRight]): moveDir.x += 1
-
-  if isGamepadActive():
-    let ls = leftStick()
-    moveDir.x += ls.x
-    moveDir.y += ls.y
-    let gb = globalSettings.gamepadBinds
-    if isGamepadBindDown(gb, kaMoveUp): moveDir.y -= 1
-    if isGamepadBindDown(gb, kaMoveDown): moveDir.y += 1
-    if isGamepadBindDown(gb, kaMoveLeft): moveDir.x -= 1
-    if isGamepadBindDown(gb, kaMoveRight): moveDir.x += 1
+  ## Everything here goes through `input_intent`, the same seam single-player
+  ## uses, so PvP is playable on touch without a mobile-specific control path.
+  let localPos = pvp.players[pvp.localPlayerIndex].pos
+  let hasWalls = pvp.players[pvp.localPlayerIndex].walls > 0
 
   # Clamp instead of normalize so partial stick deflection keeps its magnitude
+  var moveDir = getMoveVector()
   if moveDir.length() > 1:
     moveDir = moveDir.normalize()
 
-  var mousePos = getWorldMousePosition()
+  let aimTarget = getAimTarget(localPos)
+  var mousePos = Vector2(x: aimTarget.x, y: aimTarget.y)
   if isGamepadActive():
     # Twin-stick aim at a fixed radius. Deliberately NO aim assist in PvP:
     # snapping onto other players would be a fairness problem. Walls are
     # placed at the same stick-aimed point.
     let dir = aimDir()
     const AimPointRadius = 240.0'f32
-    let localPos = pvp.players[pvp.localPlayerIndex].pos
     mousePos = Vector2(x: localPos.x + dir.x * AimPointRadius,
                        y: localPos.y + dir.y * AimPointRadius)
     setGamepadAimPointWorld(mousePos)
 
-  # Toggle wall-placement mode with wall key, right-click cancels it
-  if (isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or
-      isGamepadBindPressed(globalSettings.gamepadBinds, kaPlaceWall)) and
-     pvp.players[pvp.localPlayerIndex].walls > 0:
-    pvp.wallPlacementMode = not pvp.wallPlacementMode
-  if isMouseButtonPressed(Right) and pvp.wallPlacementMode:
-    pvp.wallPlacementMode = false
-  # Auto-exit mode when player runs out of walls
-  if pvp.players[pvp.localPlayerIndex].walls <= 0:
-    pvp.wallPlacementMode = false
+  var placingWall: bool
+  when defined(mobile):
+    # Hold-to-preview / release-to-place, i.e. exactly the single-player wall
+    # button the player already learned in PvE. The desktop toggle is avoided
+    # here because cancelling it would need a second on-screen button, and the
+    # release edge has to be read before the mode is recomputed from the hold.
+    placingWall = placeWallReleased() and hasWalls
+    pvp.wallPlacementMode = placeWallHeld() and hasWalls
+  else:
+    # Toggle wall-placement mode with wall key, right-click cancels it
+    if placeWallPressed() and hasWalls:
+      pvp.wallPlacementMode = not pvp.wallPlacementMode
+    if isMouseButtonPressed(Right) and pvp.wallPlacementMode:
+      pvp.wallPlacementMode = false
+    # In wall-placement mode: left-click places a wall instead of shooting
+    placingWall = pvp.wallPlacementMode and isPointerPressed()
 
-  # In wall-placement mode: left-click places a wall instead of shooting
-  let placingWall = pvp.wallPlacementMode and isPointerPressed()
-  let shooting    = (not pvp.wallPlacementMode) and
-                    (isMouseButtonDown(Left) or
-                     gamepadFireDown(globalSettings.gamepadBinds))
+  # Auto-exit mode when player runs out of walls
+  if not hasWalls:
+    pvp.wallPlacementMode = false
+    placingWall = false
+
+  let shooting = isFiring(pvp.wallPlacementMode)
 
   result = PlayerInput(
     tick: pvp.serverTick,

@@ -4,6 +4,14 @@
 import raylib, strutils, math
 import ../types, ../powerup, ../localization, ui_constants, ../render_context, ../powerup_data, icon_drawing, ../utils
 
+when defined(mobile):
+  import ../mobile_controls  # MobileActionBarHeight (bottom-right button band)
+
+const MobileBottomInset =
+  when defined(mobile): MobileActionBarHeight else: 0'i32
+  ## Extra clearance for bottom-anchored HUD panels so the on-screen ability and
+  ## wall buttons don't sit on top of them.
+
 const
   DBG_FULL_W = 200        # classic debug panel width
   DBG_GUTTER_W = 171      # widescreen: must fit inside the 171px gutter
@@ -712,9 +720,10 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
   else:
     legendaryPanelPos.x.int32
   var actualY: int32 = if alignRightGutter:
-    screenHeight - qContentHeight - 10'i32
+    screenHeight - qContentHeight - 10'i32 - MobileBottomInset
   elif legendaryPanelPos.y < 0:
-    screenHeight - qContentHeight - 10'i32  # Default bottom position
+    # Default bottom position
+    screenHeight - qContentHeight - 10'i32 - MobileBottomInset
   else:
     legendaryPanelPos.y.int32
 

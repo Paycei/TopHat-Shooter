@@ -10,7 +10,7 @@
 ## itself stays in game.nim and only reads the counters/state armed here.
 
 import raylib, random, math, tables
-import gamepad_input, particle_types, types, roguelite, powerup, particle, sound, localization, boss_definitions, settings, coin, utils
+import gamepad_input, particle_types, types, roguelite, powerup, particle, sound, localization, boss_definitions, settings, coin, utils, input_intent
 
 const
   DoorZoneWidth* = 120'f32   # Length of the door opening along the edge
@@ -1021,8 +1021,7 @@ proc updateDungeon*(game: Game, dt: float32): bool =
     if pickup.taken: continue
     if distance(game.player.pos, pickup.pos) < PickupRadius + game.player.radius:
       if pickup.costCredits > 0:
-        if game.player.coins >= pickup.costCredits and
-           (isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or isKeyPressed(Enter) or isGamepadBindPressed(globalSettings.gamepadBinds, kaPlaceWall)):
+        if game.player.coins >= pickup.costCredits and interactPressed():
           game.player.coins -= pickup.costCredits
           applyPickup(game, room, pickup)
       else:
@@ -1031,8 +1030,7 @@ proc updateDungeon*(game: Game, dt: float32): bool =
   # Shop terminal opens the existing shop UI. Returning true skips the rest
   # of this frame's gameplay update so the E press can't double as the
   # wall-placement toggle.
-  if room.kind == drkShop and playerOnShopTerminal(game) and
-     (isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or isKeyPressed(Enter) or isGamepadBindPressed(globalSettings.gamepadBinds, kaPlaceWall)):
+  if room.kind == drkShop and playerOnShopTerminal(game) and interactPressed():
     game.state = gsShop
     game.shopSidebarScroll = 0
     playSound(stMenuSelect)

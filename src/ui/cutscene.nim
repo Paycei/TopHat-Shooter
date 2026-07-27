@@ -9,6 +9,11 @@
 import raylib, rlgl, math
 import ../localization, ../sound, cinematic_common
 
+when defined(mobile):
+  const MobileSkipHold* = 1.5'f32
+    ## Shorter than the desktop 3.0s hold: touch has no fast-forward to fall
+    ## back on, so the skip is the only way out and shouldn't feel like a wait.
+
 type
   CutsceneDrawProc*    = proc(local, duration: float32, sw, sh: int32, alpha: float32)
   CutsceneShakeProc*   = proc(time, local, duration, alpha: float32): float32
@@ -61,11 +66,15 @@ proc newCutscene*(shots: seq[CutsceneShot],
                   cornerTag: string = ""): Cutscene =
   var total = 0.0'f32
   for s in shots: total += s.duration
+  # Every cinematic factory takes the 3.0s default; capping here rather than
+  # editing nine call sites keeps the mobile hold in one place.
+  let holdRequired = when defined(mobile): min(skipHoldRequired, MobileSkipHold)
+                     else: skipHoldRequired
   Cutscene(
     shots: shots, totalDuration: total, accentColor: accentColor,
     titleCardText: titleCardText, titleCardSub: titleCardSub, cornerTag: cornerTag,
     drawBackdropProc: drawBackdropProc, swayAmp: swayAmp,
-    skipHoldRequired: skipHoldRequired, fastForwardMult: fastForwardMult,
+    skipHoldRequired: holdRequired, fastForwardMult: fastForwardMult,
     musicTrack: musicTrack,
     time: 0, complete: false, scanlineOffset: 0, frame: 0,
     fastForwardActive: false, skipHoldTimer: 0, lastShotPlayed: -1
@@ -90,12 +99,26 @@ proc shotFade*(local, duration: float32): float32 =
 # ---------------------------------------------------------------------------
 
 proc updateCutscene*(c: Cutscene, dt: float32) =
+  ## The single input path for every cinematic in the game (the lore intro, the
+  ## three endgame outros, and the five mode intros all route through here), so
+  ## the mobile branch below is what makes all of them skippable at once.
   if c.complete: return
-  c.fastForwardActive = isKeyDown(Enter)
-  if isKeyDown(Space):
-    c.skipHoldTimer = min(c.skipHoldRequired, c.skipHoldTimer + dt)
+  when defined(mobile):
+    # Hold anywhere on screen to skip. No fast-forward: it needs a second
+    # simultaneous input to be worth anything, and a cinematic is not the place
+    # to teach a two-finger gesture. MobileSkipHold shortens the hold to
+    # compensate for losing it.
+    c.fastForwardActive = false
+    if isMouseButtonDown(MouseButton.Left):
+      c.skipHoldTimer = min(c.skipHoldRequired, c.skipHoldTimer + dt)
+    else:
+      c.skipHoldTimer = 0.0'f32
   else:
-    c.skipHoldTimer = 0.0'f32
+    c.fastForwardActive = isKeyDown(Enter)
+    if isKeyDown(Space):
+      c.skipHoldTimer = min(c.skipHoldRequired, c.skipHoldTimer + dt)
+    else:
+      c.skipHoldTimer = 0.0'f32
   if c.skipHoldTimer >= c.skipHoldRequired:
     c.complete = true; return
   let playbackDt = dt * (if c.fastForwardActive: c.fastForwardMult else: 1.0'f32)
@@ -143,7 +166,13 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) =
                        c.fastForwardActive, c.skipHoldTimer, c.skipHoldRequired,
                        c.totalDuration, shot.label,
                        (if c.cornerTag.len > 0: c.cornerTag else: t(tkLoreLive)),
-                       t(tkLoreControlsFF), t(tkLoreControlsFFActive),
+                       # Naming Enter/Space would be nonsense on a phone. Both
+                       # slots get the same string because fastForwardActive is
+                       # always false on mobile.
+                       (when defined(mobile): t(tkLoreControlsTouch)
+                        else: t(tkLoreControlsFF)),
+                       (when defined(mobile): t(tkLoreControlsTouch)
+                        else: t(tkLoreControlsFFActive)),
                        shot.iconIndex, glitchHot, c.accentColor)
 
   # Opening title card: slides in and out over the first ~2 s.

@@ -388,7 +388,9 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
   let ddst = sqrt((mp.x-cubeCX)*(mp.x-cubeCX) + (mp.y-cubeCY)*(mp.y-cubeCY))
   let overCube = ddst <= (CubeDragRadius + cubeSize * 2.0)
 
-  if isPointerPressed() and overCube and not mouseOverWindow and
+  # Drag-start, not tap: on touch isPointerPressed only fires on release, which
+  # is far too late to grab something the finger is already moving.
+  if isPointerDragStart() and overCube and not mouseOverWindow and
      not desktop.cubeEscaping:
     desktop.cubeDragging  = true
     desktop.cubeDragLastX = mp.x

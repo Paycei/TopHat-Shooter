@@ -601,7 +601,8 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
                      int32(trackHSb.float32 * (trackHSb.float32 / contentHSb.float32)))
   let thumbRangeSb = trackHSb - thumbHSb
 
-  if isPointerPressed():
+  # Drag-start, not tap: the thumb has to be grabbed on the down frame.
+  if isPointerDragStart():
     let mpSb = getVirtualMousePosition()
     if maxScrollSb > 0 and
        mpSb.x >= trackXSb.float32 and mpSb.x <= (trackXSb + SCROLLBAR_WIDTH).float32 and

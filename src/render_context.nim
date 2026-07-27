@@ -43,6 +43,15 @@ proc updateRenderInputTransform*(scale, offsetX, offsetY: float32,
   currentRenderOffsetY = offsetY
   currentVirtualWidth = virtualWidth.float32
   currentVirtualHeight = virtualHeight.float32
+  when defined(mobile):
+    # touch_ui is a leaf (gamepad_input imports it, and this module imports
+    # gamepad_input), so it cannot read the transform back out of here. Push it
+    # instead, from the one place the transform ever changes.
+    setTouchViewport(TouchViewport(scale: currentRenderScale,
+                                   offsetX: currentRenderOffsetX,
+                                   offsetY: currentRenderOffsetY,
+                                   virtualW: currentVirtualWidth,
+                                   virtualH: currentVirtualHeight))
 
 proc getRenderScale*(): float32 =
   ## Physical-pixels-per-virtual-pixel (the letterbox scale). A screen-space

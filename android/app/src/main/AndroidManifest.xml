@@ -3,20 +3,31 @@
 
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
 
+    <!-- PvP is LAN/direct-IP UDP (src/network/network.nim). Without INTERNET the
+         socket() call fails with EACCES before any packet is sent. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:hasCode="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+        android:theme="@style/GameTheme">
 
         <!-- NativeActivity loads libmain.so (android.app.lib_name = "main").
-             Landscape-locked to match the 4:3 virtual canvas + touch layout. -->
+             Landscape-locked to match the 16:9 virtual canvas (settings.nim
+             defaults hudLayout to hlWidescreen = 1366x768 on mobile) + the
+             twin-stick touch layout.
+             Notch handling lives in @style/GameTheme
+             (windowLayoutInDisplayCutoutMode) — it is a theme attribute, not a
+             manifest one. -->
         <activity
             android:name="android.app.NativeActivity"
             android:exported="true"
             android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|uiMode|navigation"
             android:launchMode="singleTask"
+            android:resizeableActivity="false"
             android:screenOrientation="landscape">
             <meta-data
                 android:name="android.app.lib_name"

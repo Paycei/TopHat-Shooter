@@ -52,6 +52,31 @@ const
   MIN_WINDOW_WIDTH* = 400
   MIN_WINDOW_HEIGHT* = 300
 
+# Chrome buttons (close / minimize / restore).
+#
+# TITLE_BAR_HEIGHT stays 30 on every platform: 62 call sites across 15 modules
+# derive their content offsets from it, and growing it would push every window's
+# content down and overflow the tall ones (stats is 700 of 768). So mobile keeps
+# the same bar and instead spreads the buttons out and gives each one a hit area
+# much larger than its glyph -- which is where the touch problem actually was.
+const
+  CHROME_BTN_SIZE* = when defined(mobile): 24 else: 20
+    ## Drawn size of the button square.
+  CHROME_BTN_HIT_W* = when defined(mobile): 46 else: 20
+    ## Hit width. Horizontal is the axis a thumb misses on, and unlike height it
+    ## isn't capped by the title bar.
+  CHROME_BTN_HIT_H* = when defined(mobile): TITLE_BAR_HEIGHT else: 20
+  CLOSE_BTN_INSET* = when defined(mobile): 34 else: 25
+    ## Distance from the window's right edge to the button's left edge.
+  MIN_BTN_INSET* = when defined(mobile): 84 else: 50
+    ## Far enough from close that the two hit areas cannot overlap.
+
+proc chromeBtnHitRect(winX, winY, inset: int): Rectangle =
+  ## Hit area centred on the drawn button, so it can be wider than the glyph.
+  let pad = (CHROME_BTN_HIT_W - CHROME_BTN_SIZE) div 2
+  Rectangle(x: (winX - inset - pad).float32, y: winY.float32,
+            width: CHROME_BTN_HIT_W.float32, height: CHROME_BTN_HIT_H.float32)
+
 proc newOSWindow*(title: string, x, y, width, height: int,
                  iconColor: Color, windowType: OSWindowType, resizable: bool = true): OSWindow =
   result = OSWindow(
@@ -199,39 +224,19 @@ proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindo
 proc isPointInCloseButton*(window: OSWindow, mouseX, mouseY: float32): bool =
   if not window.visible or window.minimized:
     return false
-
-  let buttonX = window.x + window.width - 25
-  let buttonY = window.y + 5
-  let buttonSize = 20
-
-  result = mouseX >= buttonX.float32 and
-           mouseX <= (buttonX + buttonSize).float32 and
-           mouseY >= buttonY.float32 and
-           mouseY <= (buttonY + buttonSize).float32
+  checkCollisionPointRec(Vector2(x: mouseX, y: mouseY),
+    chromeBtnHitRect(window.x + window.width, window.y, CLOSE_BTN_INSET))
 
 proc isPointInMinimizeButton*(window: OSWindow, mouseX, mouseY: float32): bool =
   if not window.visible:
     return false
-
-  # If minimized, check for restore button (in full-width title bar)
-  if window.minimized:
-    let buttonX = window.x + window.savedWidth - 25
-    let buttonY = window.y + 5
-    let buttonSize = 20
-
-    result = mouseX >= buttonX.float32 and
-             mouseX <= (buttonX + buttonSize).float32 and
-             mouseY >= buttonY.float32 and
-             mouseY <= (buttonY + buttonSize).float32
-  else:
-    let buttonX = window.x + window.width - 50
-    let buttonY = window.y + 5
-    let buttonSize = 20
-
-    result = mouseX >= buttonX.float32 and
-             mouseX <= (buttonX + buttonSize).float32 and
-             mouseY >= buttonY.float32 and
-             mouseY <= (buttonY + buttonSize).float32
+  # When minimized this is the restore button, which sits in the full-width
+  # title bar and so measures from savedWidth.
+  let rightEdge = if window.minimized: window.x + window.savedWidth
+                  else: window.x + window.width
+  let inset = if window.minimized: CLOSE_BTN_INSET else: MIN_BTN_INSET
+  checkCollisionPointRec(Vector2(x: mouseX, y: mouseY),
+    chromeBtnHitRect(rightEdge, window.y, inset))
 
 proc getResizeEdge*(window: OSWindow, mouseX, mouseY: float32): int =
   ## Returns which edge is being hovered for resizing
@@ -295,7 +300,13 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
       window.resizeEdge = 0
     return false
 
-  if isPointerPressed():
+  # Two pointer signals, identical on desktop (both are the mouse-down frame) but
+  # distinct on touch: a drag has to be *started* on press, while a button press
+  # must only *commit* once the gesture is known to be a tap and not a scroll.
+  let dragStart = isPointerDragStart()
+  let tapped = isPointerPressed()
+
+  if dragStart or tapped:
     let clickOnThisWindowArea = if window.minimized:
       isPointInTitleBar(window, mousePos.x, mousePos.y)
     else:
@@ -333,12 +344,15 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
     if not window.focused:
       bringWindowToFront(window, allWindows)
 
+    let onCloseButton = isPointInCloseButton(window, mousePos.x, mousePos.y)
+    let onMinimizeButton = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
+
     # Handle close button
-    if isPointInCloseButton(window, mousePos.x, mousePos.y):
+    if tapped and onCloseButton:
       return true
 
     # Handle minimize/restore button
-    if isPointInMinimizeButton(window, mousePos.x, mousePos.y):
+    if tapped and onMinimizeButton:
       if window.minimized:
         startRestoreAnimation(window)
       else:
@@ -348,19 +362,23 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
       window.resizeEdge = 0
       return false
 
-    # Handle resize edges
-    let edge = getResizeEdge(window, mousePos.x, mousePos.y)
-    if edge > 0:
-      window.resizing = true
-      window.resizeEdge = edge
-      return false
+    # The chrome buttons sit *inside* the title bar, so a press on one must not
+    # also begin a drag: on touch the drag branch above would then swallow the
+    # release frame and the button could never fire.
+    if dragStart and not onCloseButton and not onMinimizeButton:
+      # Handle resize edges
+      let edge = getResizeEdge(window, mousePos.x, mousePos.y)
+      if edge > 0:
+        window.resizing = true
+        window.resizeEdge = edge
+        return false
 
-    # Handle title bar dragging
-    if isPointInTitleBar(window, mousePos.x, mousePos.y):
-      window.dragging = true
-      window.dragOffsetX = int(mousePos.x) - window.x
-      window.dragOffsetY = int(mousePos.y) - window.y
-      return false
+      # Handle title bar dragging
+      if isPointInTitleBar(window, mousePos.x, mousePos.y):
+        window.dragging = true
+        window.dragOffsetX = int(mousePos.x) - window.x
+        window.dragOffsetY = int(mousePos.y) - window.y
+        return false
 
   return false
 
@@ -397,23 +415,24 @@ proc drawWindowChrome*(window: OSWindow) =
             Color(r: 0, g: 200, b: 255, a: 255))
 
     # Restore button
-    let buttonSize = 20
-    let buttonY = window.y + 5
-    let restoreX = window.x + window.savedWidth - 25
+    let buttonSize = CHROME_BTN_SIZE
+    let buttonY = window.y + (TITLE_BAR_HEIGHT - buttonSize) div 2
+    let restoreX = window.x + window.savedWidth - CLOSE_BTN_INSET
+    let glyphInset = buttonSize div 4
+    let glyphSize = buttonSize div 2
 
     let mousePos = getVirtualMousePosition()
-    let hoverRestore = mousePos.x >= restoreX.float32 and
-                       mousePos.x <= (restoreX + buttonSize).float32 and
-                       mousePos.y >= buttonY.float32 and
-                       mousePos.y <= (buttonY + buttonSize).float32
+    let hoverRestore = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
 
     drawRectangle(restoreX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
                  if hoverRestore: Color(r: 100, g: 200, b: 100, a: 255)
                  else: Color(r: 60, g: 60, b: 70, a: 255))
-    drawRectangle((restoreX + 5).int32, (buttonY + 5).int32, 10, 10,
+    drawRectangle((restoreX + glyphInset).int32, (buttonY + glyphInset).int32,
+                 glyphSize.int32, glyphSize.int32,
                  Color(r: 200, g: 200, b: 200, a: 255))
-    drawRectangleLines(Rectangle(x: (restoreX + 5).float32, y: (buttonY + 5).float32,
-                                  width: 10.0, height: 10.0),
+    drawRectangleLines(Rectangle(x: (restoreX + glyphInset).float32,
+                                 y: (buttonY + glyphInset).float32,
+                                 width: glyphSize.float32, height: glyphSize.float32),
                       1, White)
     return
 
@@ -467,27 +486,30 @@ proc drawWindowChrome*(window: OSWindow) =
           Color(r: 0, g: 200, b: 255, a: 255))
 
   # Window buttons
-  let buttonSize = 20
-  let buttonY = window.y + 5
+  let buttonSize = CHROME_BTN_SIZE
+  let buttonY = window.y + (TITLE_BAR_HEIGHT - buttonSize) div 2
 
   # Close button
-  let closeX = window.x + window.width - 25
+  let closeX = window.x + window.width - CLOSE_BTN_INSET
   let mousePos = getVirtualMousePosition()
   let hoverClose = isPointInCloseButton(window, mousePos.x, mousePos.y)
 
   drawRectangle(closeX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
                if hoverClose: Color(r: 255, g: 80, b: 80, a: 255)
                else: Color(r: 60, g: 60, b: 70, a: 255))
-  drawText("X", (closeX + 6).int32, (buttonY + 2).int32, 16, White)
+  let xWidth = measureText("X", 16)
+  drawText("X", (closeX + (buttonSize - xWidth) div 2).int32,
+           (buttonY + (buttonSize - 16) div 2).int32, 16, White)
 
   # Minimize button
-  let minX = window.x + window.width - 50
+  let minX = window.x + window.width - MIN_BTN_INSET
   let hoverMin = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
 
   drawRectangle(minX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
                if hoverMin: Color(r: 100, g: 150, b: 200, a: 255)
                else: Color(r: 60, g: 60, b: 70, a: 255))
-  drawRectangle((minX + 5).int32, (buttonY + 14).int32, 10, 2, White)
+  drawRectangle((minX + buttonSize div 4).int32, (buttonY + buttonSize - 6).int32,
+               (buttonSize div 2).int32, 2, White)
 
 proc drawResizeIndicator*(window: OSWindow) =
   ## Draw resize indicators on edges

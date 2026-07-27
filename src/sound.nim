@@ -18,6 +18,10 @@ type
   # Progress callback: proc(progress: float32, message: string)
   AssetGenerationCallback* = proc(progress: float32, message: string) {.closure.}
 
+  TrackProgressCallback* = proc(frac: float32) {.closure.}
+    ## Sub-asset progress within a single music track, 0..1. Set around each
+    ## generation by preGenerateAllAssets; see composeTrack.
+
   SoundSystem* = ref object
     enabled*: bool
     masterVolume*: float32
@@ -43,6 +47,11 @@ const
   MUSIC_CACHE_VERSION = "v4"
   SOUND_CACHE_VERSION = "v2"  # bump when any create* synthesis changes
 
+var trackProgressHook: TrackProgressCallback = nil
+  ## Non-nil only while a music track is being synthesized. A global rather than
+  ## a parameter because composeTrack sits under four track factories and
+  ## loadOrGenerateMusic, none of which otherwise care about progress.
+
 proc expectedMusicCacheBytes(): int64 =
   int64(44 + int(MUSIC_DURATION * SAMPLE_RATE.float32) * 2)
 
@@ -61,12 +70,22 @@ proc getCacheDir(): string =
     result = $nimAndroidInternalDataPath() / "shooteros_music_cache"
   else:
     result = getTempDir() / "shooteros_music_cache"
+  # Never raise out of here: getCacheDir sits on the boot path (isSoundCached /
+  # isMusicCached call it before the audio device is even up), and on Android a
+  # too-early GetAndroidApp() makes the path unwritable. Failing soft just means
+  # the cache misses and sounds are re-synthesized.
   if not dirExists(result):
-    createDir(result)
+    try:
+      createDir(result)
+    except CatchableError:
+      discard
   # Delete old cache folder if it exists
   let oldCacheDir = getTempDir() / "tophat_sound_cache"
-  if dirExists(oldCacheDir):
-    removeDir(oldCacheDir)
+  try:
+    if dirExists(oldCacheDir):
+      removeDir(oldCacheDir)
+  except CatchableError:
+    discard
 
 proc getSoundCacheFile(soundType: SoundType): string =
   let cacheDir = getCacheDir()
@@ -1374,8 +1393,16 @@ proc scheduleDrums(spec: TrackSpec, barLen, beat: float32,
         events.add((barStart + beat * 3.0'f32 + j.float32 * beat * 0.25'f32,
                     pvSnare, vol * (0.40'f32 + 0.12'f32 * j.float32)))
 
+proc reportTrackProgress(frac: float32) =
+  if not trackProgressHook.isNil:
+    trackProgressHook(clamp(frac, 0.0'f32, 1.0'f32))
+
 proc composeTrack(spec: TrackSpec, filename: string,
                   outputGain: float32): Music =
+  ## Synthesizes one 48-second track (~4.2 MB of samples). On a phone this is
+  ## seconds of solid CPU, so it reports sub-asset progress at every stage
+  ## boundary: without that the loading screen would paint "generating <track>"
+  ## once and then sit frozen through the whole track, four times over.
   let beat = 60.0'f32 / spec.bpm
   let barLen = beat * 4.0
   let numBars = spec.intensity.len
@@ -1391,20 +1418,29 @@ proc composeTrack(spec: TrackSpec, filename: string,
     renderPadBar(spec, samples, tones, barStart, barLen, inten)
     renderBassBar(spec, samples, chord, barStart, barLen, beat, inten)
     renderArpBar(spec, samples, tones, barStart, barLen, beat, inten)
+    # The per-bar loop is the long pole, so it gets most of the progress span.
+    reportTrackProgress((bar + 1).float32 / numBars.float32 * 0.65'f32)
 
   renderMelody(spec, samples, barLen, beat)
+  reportTrackProgress(0.75)
 
   var drumEvents: seq[DrumEvent] = @[]
   var kicks: seq[float32] = @[]
   scheduleDrums(spec, barLen, beat, drumEvents, kicks)
+  reportTrackProgress(0.80)
 
   applySidechainPump(samples, kicks, spec.pumpDepth)
+  reportTrackProgress(0.86)
 
   for event in drumEvents:
     renderPercussionHit(samples, event.time, event.vol, event.voice)
+  reportTrackProgress(0.92)
 
   applySingleEcho(samples, spec.echoDelay, spec.echoMix)
+  reportTrackProgress(0.96)
+
   result = finishMusic(samples, filename, outputGain)
+  reportTrackProgress(1.0)
 
 proc mn(semi: int, start, dur: float32, accent: float32 = 0.0): MelodyNote =
   MelodyNote(semi: semi, start: start, dur: dur, accent: accent)
@@ -1603,33 +1639,38 @@ proc preGenerateAllAssets*(verbose: bool = true, callback: AssetGenerationCallba
     echo "=========================================="
 
   var assetsGenerated = 0
-  let assetsToGenerate = totalAssets - cached.total
+  let assetsToGenerate = max(1, totalAssets - cached.total)
+  # Progress reported as the span [done/total, (done+1)/total) for the asset
+  # currently being generated. The counter used to be incremented inside the
+  # `if verbose` branch, which pinned progress at 0 for any non-verbose caller.
+  let span = 1.0'f32 / assetsToGenerate.float32
 
   for soundType in SoundType:
     if not isSoundCached(soundType):
+      let base = assetsGenerated.float32 * span
+      inc assetsGenerated
       if verbose:
-        inc assetsGenerated
-        let progress = (assetsGenerated.float32 / assetsToGenerate.float32 * 100.0).int
-        echo "[", progress, "%] Generating sound: ", soundType, "..."
-
+        echo "[", (base * 100.0).int, "%] Generating sound: ", soundType, "..."
       if not callback.isNil:
-        let prog = assetsGenerated.float32 / assetsToGenerate.float32
-        callback(prog, t(tkLoadingGeneratingSound) & ": " & $soundType)
-
+        callback(base, t(tkLoadingGeneratingSound) & ": " & $soundType)
+      # Sound effects are short; one repaint each is plenty.
       discard loadOrGenerateSound(soundType)
 
   for track in MusicTrack:
     if not isMusicCached(track):
+      let base = assetsGenerated.float32 * span
+      inc assetsGenerated
       if verbose:
-        inc assetsGenerated
-        let progress = (assetsGenerated.float32 / assetsToGenerate.float32 * 100.0).int
-        echo "[", progress, "%] Generating music: ", track, "..."
-
+        echo "[", (base * 100.0).int, "%] Generating music: ", track, "..."
+      let label = t(tkLoadingGeneratingMusic) & ": " & $track
       if not callback.isNil:
-        let prog = assetsGenerated.float32 / assetsToGenerate.float32
-        callback(prog, t(tkLoadingGeneratingMusic) & ": " & $track)
-
+        callback(base, label)
+        # Repaint from inside the track synthesis too -- a 48s track is the one
+        # step long enough to look like a hang on mobile hardware.
+        trackProgressHook = proc(frac: float32) =
+          callback(base + span * frac, label)
       discard loadOrGenerateMusic(track)
+      trackProgressHook = nil
 
   if verbose:
     echo "=========================================="

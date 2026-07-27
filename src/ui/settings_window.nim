@@ -1,8 +1,22 @@
-﻿## OS-Themed Settings Control Panel
+## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
 import raylib, strutils
 import ../sound, ../save_system, os_window, ../localization, ../render_context, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types
+
+proc checkboxHit*(p: Vector2, x, y: int): bool =
+  ## Hit test for the 25x25 checkboxes this window is built from. On mobile the
+  ## target grows well past the drawn box -- 25px is roughly half a fingertip.
+  ## Height stays under the 35px row pitch so a tap can't toggle two rows, and
+  ## the extra width grows symmetrically into empty gutter on both sides.
+  const
+    w = when defined(mobile): 46 else: 25
+    h = when defined(mobile): 33 else: 25
+  const
+    dx = (w - 25) div 2
+    dy = (h - 25) div 2
+  checkCollisionPointRec(p, Rectangle(x: (x - dx).float32, y: (y - dy).float32,
+                                      width: w.float32, height: h.float32))
 
 type
   SettingsTab* = enum
@@ -503,10 +517,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(t(tkSettingsFullscreen), (contentX + 40).int32, yPos.int32, 18, White)
   let fsCheckX = contentX + 320
   let mousePos = getVirtualMousePosition()
-  let fsHovered = mousePos.x >= fsCheckX.float32 and
-                  mousePos.x <= (fsCheckX + 25).float32 and
-                  mousePos.y >= yPos.float32 and
-                  mousePos.y <= (yPos + 25).float32
+  let fsHovered = checkboxHit(mousePos, fsCheckX, yPos)
   drawCheckbox(fsCheckX, yPos, 25, settingsWin.settings.fullscreen, fsHovered)
   drawText(t(tkSettingsFullscreenToggle), (fsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 40
@@ -570,10 +581,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # VSync
   drawText(t(tkSettingsVSync), (contentX + 40).int32, yPos.int32, 18, White)
   let vsyncCheckX = contentX + 320
-  let vsyncHovered = mousePos.x >= vsyncCheckX.float32 and
-                     mousePos.x <= (vsyncCheckX + 25).float32 and
-                     mousePos.y >= yPos.float32 and
-                     mousePos.y <= (yPos + 25).float32
+  let vsyncHovered = checkboxHit(mousePos, vsyncCheckX, yPos)
   drawCheckbox(vsyncCheckX, yPos, 25, settingsWin.settings.vsyncEnabled, vsyncHovered)
   drawText(t(tkSettingsVSyncDesc), (vsyncCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
@@ -581,20 +589,14 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Show FPS Counter
   drawText(t(tkSettingsShowFps), (contentX + 40).int32, yPos.int32, 18, White)
   let fpsCheckX = contentX + 320
-  let fpsCheckHovered = mousePos.x >= fpsCheckX.float32 and
-                        mousePos.x <= (fpsCheckX + 25).float32 and
-                        mousePos.y >= yPos.float32 and
-                        mousePos.y <= (yPos + 25).float32
+  let fpsCheckHovered = checkboxHit(mousePos, fpsCheckX, yPos)
   drawCheckbox(fpsCheckX, yPos, 25, settingsWin.settings.showFPS, fpsCheckHovered)
   yPos += 35
 
   # Debug Panel
   drawText(t(tkSettingsDebugPanel), (contentX + 40).int32, yPos.int32, 18, White)
   let debugCheckX = contentX + 320
-  let debugHovered = mousePos.x >= debugCheckX.float32 and
-                     mousePos.x <= (debugCheckX + 25).float32 and
-                     mousePos.y >= yPos.float32 and
-                     mousePos.y <= (yPos + 25).float32
+  let debugHovered = checkboxHit(mousePos, debugCheckX, yPos)
   drawCheckbox(debugCheckX, yPos, 25, settingsWin.settings.showDebugStats, debugHovered)
   drawText(t(tkSettingsDebugPanelDesc), (debugCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
@@ -602,10 +604,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Arena vignette
   drawText(t(tkSettingsArenaVignette), (contentX + 40).int32, yPos.int32, 18, White)
   let arenaVignetteCheckX = contentX + 320
-  let arenaVignetteHovered = mousePos.x >= arenaVignetteCheckX.float32 and
-                             mousePos.x <= (arenaVignetteCheckX + 25).float32 and
-                             mousePos.y >= yPos.float32 and
-                             mousePos.y <= (yPos + 25).float32
+  let arenaVignetteHovered = checkboxHit(mousePos, arenaVignetteCheckX, yPos)
   drawCheckbox(arenaVignetteCheckX, yPos, 25, settingsWin.settings.showArenaVignette, arenaVignetteHovered)
   drawText(t(tkSettingsArenaVignetteDesc), (arenaVignetteCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
@@ -613,10 +612,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Low HP vignette
   drawText(t(tkSettingsLowHealthVignette), (contentX + 40).int32, yPos.int32, 18, White)
   let lowHpVignetteCheckX = contentX + 320
-  let lowHpVignetteHovered = mousePos.x >= lowHpVignetteCheckX.float32 and
-                             mousePos.x <= (lowHpVignetteCheckX + 25).float32 and
-                             mousePos.y >= yPos.float32 and
-                             mousePos.y <= (yPos + 25).float32
+  let lowHpVignetteHovered = checkboxHit(mousePos, lowHpVignetteCheckX, yPos)
   drawCheckbox(lowHpVignetteCheckX, yPos, 25, settingsWin.settings.showLowHealthVignette, lowHpVignetteHovered)
   drawText(t(tkSettingsLowHealthVignetteDesc), (lowHpVignetteCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
@@ -919,10 +915,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Show Hints
   drawText(t(tkSettingsShowHints), (contentX + 40).int32, yPos.int32, 18, White)
   let hintsCheckX = contentX + 320
-  let hintsHovered = mousePos.x >= hintsCheckX.float32 and
-                     mousePos.x <= (hintsCheckX + 25).float32 and
-                     mousePos.y >= yPos.float32 and
-                     mousePos.y <= (yPos + 25).float32
+  let hintsHovered = checkboxHit(mousePos, hintsCheckX, yPos)
   drawCheckbox(hintsCheckX, yPos, 25, settingsWin.settings.showHints, hintsHovered)
   drawText(t(tkSettingsShowHintsDesc), (hintsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
@@ -930,10 +923,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Show Enemy Labels
   drawText(t(tkSettingsShowEnemyLabels), (contentX + 40).int32, yPos.int32, 18, White)
   let labelsCheckX = contentX + 320
-  let labelsHovered = mousePos.x >= labelsCheckX.float32 and
-                      mousePos.x <= (labelsCheckX + 25).float32 and
-                      mousePos.y >= yPos.float32 and
-                      mousePos.y <= (yPos + 25).float32
+  let labelsHovered = checkboxHit(mousePos, labelsCheckX, yPos)
   drawCheckbox(labelsCheckX, yPos, 25, settingsWin.settings.showEnemyLabels, labelsHovered)
   drawText(t(tkSettingsShowEnemyLabelsDesc), (labelsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
@@ -941,10 +931,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Exit Confirm Dialogs
   drawText(t(tkSettingsExitConfirm), (contentX + 40).int32, yPos.int32, 18, White)
   let exitConfirmCheckX = contentX + 320
-  let exitConfirmHovered = mousePos.x >= exitConfirmCheckX.float32 and
-                           mousePos.x <= (exitConfirmCheckX + 25).float32 and
-                           mousePos.y >= yPos.float32 and
-                           mousePos.y <= (yPos + 25).float32
+  let exitConfirmHovered = checkboxHit(mousePos, exitConfirmCheckX, yPos)
   drawCheckbox(exitConfirmCheckX, yPos, 25, settingsWin.settings.exitConfirmEnabled, exitConfirmHovered)
   drawText(t(tkSettingsExitConfirmDesc), (exitConfirmCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
@@ -952,10 +939,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   # Gamepad aim assist (cone snap onto the nearest enemy when stick-aiming)
   drawText(t(tkSettingsAimAssist), (contentX + 40).int32, yPos.int32, 18, White)
   let aimAssistCheckX = contentX + 320
-  let aimAssistHovered = mousePos.x >= aimAssistCheckX.float32 and
-                         mousePos.x <= (aimAssistCheckX + 25).float32 and
-                         mousePos.y >= yPos.float32 and
-                         mousePos.y <= (yPos + 25).float32
+  let aimAssistHovered = checkboxHit(mousePos, aimAssistCheckX, yPos)
   drawCheckbox(aimAssistCheckX, yPos, 25, settingsWin.settings.aimAssistEnabled, aimAssistHovered)
   drawText(t(tkSettingsAimAssistDesc), (aimAssistCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 50
@@ -1099,8 +1083,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       let fsCheckY = contentY + 50
 
       # Fullscreen checkbox (25x25 hit area)
-      if mousePos.x >= fsCheckX.float32 and mousePos.x <= (fsCheckX + 25).float32 and
-         mousePos.y >= fsCheckY.float32 and mousePos.y <= (fsCheckY + 25).float32:
+      if checkboxHit(mousePos, fsCheckX, fsCheckY):
         settingsWin.settings.fullscreen = not settingsWin.settings.fullscreen
         fullscreenToggle = true
         settingsChanged = true
@@ -1142,8 +1125,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       # VSync checkbox
       let vsyncCheckX = contentX + 320
       let vsyncCheckY = contentY + 190
-      if mousePos.x >= vsyncCheckX.float32 and mousePos.x <= (vsyncCheckX + 25).float32 and
-         mousePos.y >= vsyncCheckY.float32 and mousePos.y <= (vsyncCheckY + 25).float32:
+      if checkboxHit(mousePos, vsyncCheckX, vsyncCheckY):
         settingsWin.settings.vsyncEnabled = not settingsWin.settings.vsyncEnabled
         if settingsWin.settings.vsyncEnabled:
           setWindowState(flags(VsyncHint))
@@ -1154,30 +1136,26 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       # Show FPS checkbox (25x25 hit area)
       let fpsCheckX = contentX + 320
       let fpsCheckY = contentY + 225
-      if mousePos.x >= fpsCheckX.float32 and mousePos.x <= (fpsCheckX + 25).float32 and
-         mousePos.y >= fpsCheckY.float32 and mousePos.y <= (fpsCheckY + 25).float32:
+      if checkboxHit(mousePos, fpsCheckX, fpsCheckY):
         settingsWin.settings.showFPS = not settingsWin.settings.showFPS
         settingsChanged = true
 
       # Debug checkbox (25x25 hit area)
       let debugCheckX = contentX + 320
       let debugCheckY = contentY + 260
-      if mousePos.x >= debugCheckX.float32 and mousePos.x <= (debugCheckX + 25).float32 and
-         mousePos.y >= debugCheckY.float32 and mousePos.y <= (debugCheckY + 25).float32:
+      if checkboxHit(mousePos, debugCheckX, debugCheckY):
         settingsWin.settings.showDebugStats = not settingsWin.settings.showDebugStats
         settingsChanged = true
 
       let arenaVignetteCheckX = contentX + 320
       let arenaVignetteCheckY = contentY + 295
-      if mousePos.x >= arenaVignetteCheckX.float32 and mousePos.x <= (arenaVignetteCheckX + 25).float32 and
-         mousePos.y >= arenaVignetteCheckY.float32 and mousePos.y <= (arenaVignetteCheckY + 25).float32:
+      if checkboxHit(mousePos, arenaVignetteCheckX, arenaVignetteCheckY):
         settingsWin.settings.showArenaVignette = not settingsWin.settings.showArenaVignette
         settingsChanged = true
 
       let lowHpVignetteCheckX = contentX + 320
       let lowHpVignetteCheckY = contentY + 330
-      if mousePos.x >= lowHpVignetteCheckX.float32 and mousePos.x <= (lowHpVignetteCheckX + 25).float32 and
-         mousePos.y >= lowHpVignetteCheckY.float32 and mousePos.y <= (lowHpVignetteCheckY + 25).float32:
+      if checkboxHit(mousePos, lowHpVignetteCheckX, lowHpVignetteCheckY):
         settingsWin.settings.showLowHealthVignette = not settingsWin.settings.showLowHealthVignette
         settingsChanged = true
 
@@ -1193,14 +1171,15 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
 
     # Keyboard input for FPS text box
     if settingsWin.editingFPS:
-      let key = getCharPressed()
+      setTextInputActive(true, tikNumeric)
+      let key = pollCharPressed()
       if key > 0:
         let ch = char(key)
         if ch in '0'..'9' and settingsWin.settings.inputBuffer.len < 4:
           settingsWin.settings.inputBuffer.add(ch)
-      if isKeyPressed(Backspace) and settingsWin.settings.inputBuffer.len > 0:
+      if pollBackspacePressed() and settingsWin.settings.inputBuffer.len > 0:
         settingsWin.settings.inputBuffer.setLen(settingsWin.settings.inputBuffer.len - 1)
-      if isKeyPressed(Enter) and settingsWin.settings.inputBuffer.len > 0:
+      if pollEnterPressed() and settingsWin.settings.inputBuffer.len > 0:
         try:
           let newFps = parseInt(settingsWin.settings.inputBuffer)
           if newFps >= 1 and newFps <= 9999:
@@ -1262,8 +1241,11 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       settingsWin.draggingMusic = false
       settingsChanged = true  # Only save when slider is released
 
-    # Mouse wheel adjusts the slider under the cursor
-    let wheelMove = getPointerWheelMove()
+    # Mouse wheel adjusts the slider under the cursor. Suppressed on mobile:
+    # there the wheel *is* drag-to-scroll, so dragging the panel with a thumb
+    # that happens to pass over a slider would silently change the volume.
+    # Touch adjusts the sliders by dragging them directly (isPointerDown above).
+    let wheelMove = when defined(mobile): 0.0'f32 else: getPointerWheelMove()
     if wheelMove != 0.0'f32:
       let hoverTol = 12.0'f32
       if mousePos.x >= volumeSliderX.float32 and mousePos.x <= (volumeSliderX + sliderWidth).float32 and
@@ -1312,7 +1294,11 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       let padBtnX = kbBtnX - kbBtnW - 10
       for action in KeyAction:
         let rowY = kbYBase + action.ord * 23
-        if mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + kbBtnW).float32 and
+        # The keyboard column is inert on mobile: capture reads getKeyPressed(),
+        # which no touch can ever satisfy, so entering rebind mode there would
+        # be a dead end with no way back out. The pad column below still works.
+        if (when defined(mobile): false else: true) and
+           mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + kbBtnW).float32 and
            mousePos.y >= rowY.float32 and mousePos.y <= (rowY + kbBtnH).float32:
           settingsWin.rebindingAction = action.ord
           settingsWin.rebindingGamepadAction = -1
@@ -1371,32 +1357,28 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       # Show hints checkbox (25x25 hit area)
       let hintsCheckX = contentX + 320
       let hintsCheckY = contentY + 50
-      if mousePos.x >= hintsCheckX.float32 and mousePos.x <= (hintsCheckX + 25).float32 and
-         mousePos.y >= hintsCheckY.float32 and mousePos.y <= (hintsCheckY + 25).float32:
+      if checkboxHit(mousePos, hintsCheckX, hintsCheckY):
         settingsWin.settings.showHints = not settingsWin.settings.showHints
         settingsChanged = true
 
       # Show enemy labels checkbox (25x25 hit area)
       let labelsCheckX = contentX + 320
       let labelsCheckY = contentY + 85
-      if mousePos.x >= labelsCheckX.float32 and mousePos.x <= (labelsCheckX + 25).float32 and
-         mousePos.y >= labelsCheckY.float32 and mousePos.y <= (labelsCheckY + 25).float32:
+      if checkboxHit(mousePos, labelsCheckX, labelsCheckY):
         settingsWin.settings.showEnemyLabels = not settingsWin.settings.showEnemyLabels
         settingsChanged = true
 
       # Exit confirm checkbox (25x25 hit area)
       let exitConfirmCheckX = contentX + 320
       let exitConfirmCheckY = contentY + 120
-      if mousePos.x >= exitConfirmCheckX.float32 and mousePos.x <= (exitConfirmCheckX + 25).float32 and
-         mousePos.y >= exitConfirmCheckY.float32 and mousePos.y <= (exitConfirmCheckY + 25).float32:
+      if checkboxHit(mousePos, exitConfirmCheckX, exitConfirmCheckY):
         settingsWin.settings.exitConfirmEnabled = not settingsWin.settings.exitConfirmEnabled
         settingsChanged = true
 
       # Aim assist checkbox (25x25 hit area)
       let aimAssistCheckX = contentX + 320
       let aimAssistCheckY = contentY + 155
-      if mousePos.x >= aimAssistCheckX.float32 and mousePos.x <= (aimAssistCheckX + 25).float32 and
-         mousePos.y >= aimAssistCheckY.float32 and mousePos.y <= (aimAssistCheckY + 25).float32:
+      if checkboxHit(mousePos, aimAssistCheckX, aimAssistCheckY):
         settingsWin.settings.aimAssistEnabled = not settingsWin.settings.aimAssistEnabled
         settingsChanged = true
 

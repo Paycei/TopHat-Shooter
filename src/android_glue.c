@@ -12,6 +12,9 @@
  * Compiled only on Android via {.compile.} guarded by `when defined(android)`.
  */
 #include <android_native_app_glue.h>
+/* AWINDOW_FLAG_* live here; native_activity.h declares
+ * ANativeActivity_setWindowFlags but does not pull in the flag enum. */
+#include <android/window.h>
 
 extern struct android_app *GetAndroidApp(void);
 
@@ -22,4 +25,19 @@ const char *nimAndroidInternalDataPath(void) {
         return app->activity->internalDataPath;
     }
     return ".";
+}
+
+/* Keep the display awake for the whole session.
+ *
+ * raylib's Android backend only sets AWINDOW_FLAG_FULLSCREEN. The game
+ * auto-fires from the aim stick, so a player holding still touches nothing for
+ * long stretches and the screen dims and locks mid-run. KEEP_SCREEN_ON is a
+ * window flag, not a permission, so no manifest entry is needed.
+ */
+void nimAndroidKeepScreenOn(void) {
+    struct android_app *app = GetAndroidApp();
+    if (app != NULL && app->activity != NULL) {
+        ANativeActivity_setWindowFlags(app->activity,
+                                       AWINDOW_FLAG_KEEP_SCREEN_ON, 0);
+    }
 }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fullscreen, no title bar, and allowed to draw into the notch area.
+         windowLayoutInDisplayCutoutMode is a *theme* attribute — there is no
+         android:layoutInDisplayCutoutMode manifest attribute, so this cannot be
+         set on <activity>. Needs API 27+; minSdk is 29, so no values-v27 split.
+
+         shortEdges lets the render surface extend under a cutout. The game
+         letterboxes internally (main.updateRenderScale), so the playfield is
+         never occluded — only the black bars sit under the notch. -->
+    <style name="GameTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

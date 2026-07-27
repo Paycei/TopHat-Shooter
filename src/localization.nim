@@ -162,6 +162,7 @@ type
     tkLorePlayback = "lore_playback"
     tkLoreControlsFF = "lore_controls_ff"
     tkLoreControlsFFActive = "lore_controls_ff_active"
+    tkLoreControlsTouch = "lore_controls_touch"
     tkLoreRecBreach = "lore_rec_breach"
     tkLoreRecSwarm = "lore_rec_swarm"
     tkLoreRecAwaken = "lore_rec_awaken"
@@ -731,6 +732,7 @@ type
     tkGameWaveAnnouncementMain = "game_wave_announcement_main"
     tkGameInstructionsWall = "game_instructions_wall"
     tkGameWallPlace = "game_wall_place"
+    tkGameWallPlaceTouch = "game_wall_place_touch"
     tkGameWallPlaceRemaining = "game_wall_place_remaining"
     tkGameGetReady = "game_get_ready"
     tkGameBossWavePrefix = "game_boss_wave_prefix"
@@ -1739,6 +1741,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_playback": "PLAY",
     "lore_controls_ff": "HOLD ENTER: X2  |  HOLD SPACE: SKIP",
     "lore_controls_ff_active": "HOLD ENTER: 2X ACTIVE  |  HOLD SPACE: SKIP",
+    "lore_controls_touch": "HOLD ANYWHERE: SKIP",
     "lore_rec_breach": "REC 00: SYSTEM BREACH",
     "lore_rec_swarm": "REC 01: HOSTILE PROCESS FLOOD",
     "lore_rec_awaken": "REC 02: TOPHAT KERNEL WAKE",
@@ -2899,6 +2902,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_wave_announcement_main": "*** WAVE ***",
     "game_instructions_wall": "E: Wall | ESC: Pause",
     "game_wall_place": "[Release E] Place Wall",
+    "game_wall_place_touch": "[Release] Place Wall",
     "game_wall_place_remaining": "remaining",
     "game_get_ready": "GET READY!",
     "game_boss_wave_prefix": "BOSS WAVE ",
@@ -3651,6 +3655,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_playback": "PLAY",
     "lore_controls_ff": "ENTER: X2  |  ESPACIO: SALTAR",
     "lore_controls_ff_active": "ENTER: X2 ACTIVO  |  ESPACIO: SALTAR",
+    "lore_controls_touch": "MANTEN PULSADO: SALTAR",
     "lore_rec_breach": "REC 00: BRECHA DEL SISTEMA",
     "lore_rec_swarm": "REC 01: AVALANCHA DE PROCESOS",
     "lore_rec_awaken": "REC 02: DESPERTAR DEL KERNEL",
@@ -4679,6 +4684,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_wave_announcement_main": "*** OLEADA ***",
     "game_instructions_wall": "E: Muro | ESC: Pausa",
     "game_wall_place": "[Soltar E] Colocar Muro",
+    "game_wall_place_touch": "[Soltar] Colocar Muro",
     "game_wall_place_remaining": "restantes",
     "game_get_ready": "¡PREPÁRATE!",
     "game_boss_wave_prefix": "OLEADA DE JEFE ",

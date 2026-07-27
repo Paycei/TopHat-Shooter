@@ -519,13 +519,13 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   )
 
   # Start dragging
-  if isPointerPressed() and checkCollisionPointRec(mousePos, headerRect):
+  if isPointerDragStart() and checkCollisionPointRec(mousePos, headerRect):
     # Check if clicking on minimize button area (right side of header)
     let minimizeButtonX = panelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - 12
     let minimizeButtonRect = Rectangle(
       x: minimizeButtonX.float32,
       y: (yOffset + COMBINED_PANEL_PADDING).float32,
-      width: 16,
+      width: (when defined(mobile): 44 else: 16),
       height: COMBINED_TITLE_HEIGHT.float32
     )
 
@@ -533,12 +533,16 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
       # Toggle minimize
       leftPanelMinimized = not leftPanelMinimized
     else:
-      # Start dragging
-      leftPanelDragging = true
-      leftPanelDragOffset = Vector2(
-        x: mousePos.x - panelX.float32,
-        y: mousePos.y - yOffset.float32
-      )
+      # Repositioning the HUD is a mouse convenience that becomes a hazard on
+      # touch: the panel sits in the left half, where the move joystick spawns,
+      # so a mis-aimed thumb would drag the HUD instead of steering -- and it
+      # clamps only to the screen, so it can be parked right on top of a stick.
+      when not defined(mobile):
+        leftPanelDragging = true
+        leftPanelDragOffset = Vector2(
+          x: mousePos.x - panelX.float32,
+          y: mousePos.y - yOffset.float32
+        )
 
   # Update dragging
   if leftPanelDragging:

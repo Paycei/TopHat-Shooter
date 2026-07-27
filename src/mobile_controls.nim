@@ -42,6 +42,12 @@ type
     baseScreen: Vector2  ## origin where the finger first landed (screen px)
     curScreen: Vector2   ## current finger position (screen px)
 
+const
+  ButtonFlashTime = 0.14'f32
+    ## How long the pause/ability buttons stay lit after a tap. They are edge
+    ## triggered, so without this they would never render as pressed and a tap
+    ## would give no confirmation at all.
+
 var
   moveStick: VJoystick
   aimStick: VJoystick
@@ -52,6 +58,8 @@ var
   wallJustReleased = false
   wallIsHeld = false
   prevIds: seq[int32] = @[]
+  abilityFlash: float32 = 0
+  pauseFlash: float32 = 0
 
 proc joyRadius(): float32 =
   ## Floating-joystick travel radius, scaled to screen height so sensitivity is
@@ -67,6 +75,13 @@ proc joyRadius(): float32 =
 const
   BtnSize = 96.0'f32
   BtnMargin = 24.0'f32
+
+const MobileActionBarHeight* = (BtnSize + BtnMargin * 2).int32
+  ## Height of the bottom-right band the ability + wall buttons occupy, margin
+  ## included. HUD elements that bottom-anchor into the right gutter (the
+  ## legendary ability strip) must reserve this much or they end up drawn
+  ## underneath the buttons. Exported so the reserve and the button layout can
+  ## never drift apart.
 
 proc virtualW(): float32 = getVirtualScreenWidth().float32
 proc virtualH(): float32 = getVirtualScreenHeight().float32
@@ -113,6 +128,8 @@ proc updateMobileControls*(dt: float32) =
   abilityJustPressed = false
   pauseJustPressed = false
   wallJustReleased = false
+  abilityFlash = max(0.0'f32, abilityFlash - dt)
+  pauseFlash = max(0.0'f32, pauseFlash - dt)
 
   let midX = getScreenWidth().float32 / 2.0'f32
 
@@ -124,11 +141,17 @@ proc updateMobileControls*(dt: float32) =
     let v = screenToVirtual(screen)
     if pointInRect(v, pauseBtnRect()):
       pauseJustPressed = true
+      pauseFlash = ButtonFlashTime
     elif pointInRect(v, abilityBtnRect()):
       abilityJustPressed = true
+      abilityFlash = ButtonFlashTime
     elif pointInRect(v, wallBtnRect()):
-      wallOwnerId = id
-      wallIsHeld = true
+      # Only the first finger owns the button. Without this guard a second
+      # finger landing on it would overwrite wallOwnerId and strand the first,
+      # leaving the wall preview stuck on until some unrelated touch ended.
+      if wallOwnerId < 0:
+        wallOwnerId = id
+        wallIsHeld = true
     elif screen.x < midX and not moveStick.active:
       moveStick = VJoystick(active: true, id: id, baseScreen: screen, curScreen: screen)
     elif screen.x >= midX and not aimStick.active:
@@ -150,6 +173,21 @@ proc updateMobileControls*(dt: float32) =
     wallOwnerId = -1
 
   prevIds = ids
+
+proc resetMobileControls*() =
+  ## Drop all touch state. Call when gameplay is interrupted by a state that
+  ## doesn't run updateMobileControls (pause, power-up select, shop): a finger
+  ## lifted while the update loop is not running would otherwise leave a stick
+  ## or -- worse -- the wall button latched on, and the latch survives until
+  ## some unrelated touch happens to end.
+  moveStick.active = false
+  aimStick.active = false
+  wallOwnerId = -1
+  wallIsHeld = false
+  abilityJustPressed = false
+  pauseJustPressed = false
+  wallJustReleased = false
+  prevIds.setLen(0)
 
 # --- Vector queries used by input_intent -------------------------------------
 
@@ -207,12 +245,12 @@ proc drawMobileControls*() =
   drawStick(aimStick, Color(r: 255, g: 170, b: 90, a: 255))
 
   # Pause button: two vertical bars.
-  drawActionButton(pauseBtnRect(), false, proc(cx, cy: float32) =
+  drawActionButton(pauseBtnRect(), pauseFlash > 0, proc(cx, cy: float32) =
     drawRectangle((cx - 14).int32, (cy - 16).int32, 9, 32, White)
     drawRectangle((cx + 5).int32, (cy - 16).int32, 9, 32, White))
 
   # Ability button: a bright gem/dot (avoids triangle winding/cull concerns).
-  drawActionButton(abilityBtnRect(), false, proc(cx, cy: float32) =
+  drawActionButton(abilityBtnRect(), abilityFlash > 0, proc(cx, cy: float32) =
     drawCircle(Vector2(x: cx, y: cy), 20, Color(r: 255, g: 230, b: 120, a: 255)))
 
   # Wall button: a small slab; brighter while held.

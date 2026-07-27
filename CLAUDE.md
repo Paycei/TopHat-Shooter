@@ -16,9 +16,21 @@ nimble androidLib     # cross-compile libmain.so per ABI (needs ANDROID_NDK)
 nimble android        # androidLib + gradle -> Android APK (needs SDK+JDK+gradle)
 ```
 
-Verify the mobile build without a phone: `nim check --mm:orc -d:mobile src/main.nim`
-(touch controls compile-check), and `nim c -r -d:mobile src/main.nim` runs it on
-desktop with the mouse acting as a single touch point. See "Mobile / Android port".
+Verify the mobile build without a phone — **all three** configurations, since
+`-d:mobile` and `defined(android)` are independent flags and neither check sees
+the other's branches:
+
+```powershell
+nim check --mm:orc src/main.nim                 # desktop
+nim check --mm:orc -d:mobile src/main.nim       # touch controls + touch UI
+nim check --os:android --cpu:arm64 -d:mobile -d:android --mm:orc --app:lib `
+  -d:AndroidNdk:"$env:ANDROID_NDK" src/main.nim # Android-only branches
+```
+
+`nim c -r -d:mobile src/main.nim` runs it on desktop with the mouse acting as a
+single touch point — enough to exercise the whole menu layer, the virtual
+keyboard and cinematic skip, but not twin-stick or multi-finger cases. See
+"Mobile / Android port".
 
 **There is no test suite.** The primary correctness check is compilation:
 
@@ -76,28 +88,66 @@ changes port to mobile automatically. Two independent compile flags:
   a phone.
 - `defined(android)` — auto-set by `--os:android`; guards platform specifics.
 
-Key modules and the rule for keeping the port cheap:
-- `src/input_intent.nim` is the **single seam** between input devices and
-  gameplay. Gameplay asks for *intents* (`getMoveVector`, `getAimTarget`,
-  `isFiring`, `abilityPressed`, `placeWallHeld/Released`, `pausePressed`). On
-  desktop each returns exactly the old inline behavior; on `-d:mobile` it reads
-  `src/mobile_controls.nim`. Only **three** gameplay call-sites consume it
-  (player movement `player.nim`, aim/fire `game.nim`, ability/wall/pause
-  `main.nim`) — keep that surface small. A new power-up/enemy/boss needs **zero**
-  mobile work. Add to `input_intent` only when introducing a genuinely new
-  *input action*; add a `when defined(android)` guard only for a genuinely new
-  *desktop-only API* call.
-- `src/mobile_controls.nim` (`when defined(mobile)`) owns all touch state: two
-  floating joysticks (left move, right aim/auto-fire) + pause/ability/wall
-  buttons, drawn from `main.nim`'s `gsPlaying` branch. It must never import
-  game/player (would cycle through `input_intent`).
-- `render_context.screenToVirtual` / `getVirtualTouchPosition` map touch (and
-  mouse) through the letterbox into the virtual 1024×768 canvas.
+There are **two seams**, and no other module reads raw touch. Adding a
+`when defined(mobile)` branch anywhere else is almost always the wrong fix —
+look for the seam that already covers the case first.
+
+**Gameplay — `src/input_intent.nim`.** Gameplay asks for *intents*
+(`getMoveVector`, `getAimTarget`, `isFiring`, `abilityPressed`,
+`placeWallHeld/Pressed/Released`, `interactPressed`, `pausePressed`). On desktop
+each returns exactly the old inline behavior; on `-d:mobile` it reads
+`src/mobile_controls.nim`. Consumers are `player.nim` (movement), `game.nim`
+(aim/fire), `main.nim` (ability/wall/pause), `pvp_game.nim` (all of its input)
+and `dungeon.nim` (`interactPressed`) — keep that surface small. A new
+power-up/enemy/boss needs **zero** mobile work. Add to `input_intent` only when
+introducing a genuinely new *input action*; add a `when defined(android)` guard
+only for a genuinely new *desktop-only API* call.
+
+**Menus — `src/touch_ui.nim`.** Drag-to-scroll with flick momentum,
+tap-vs-drag disambiguation, the on-screen back chip, and the virtual keyboard.
+It is wired into `src/gamepad_input.nim`'s existing wrappers, so every UI call
+site inherits touch behaviour unmodified:
+- `getPointerWheelMove()` += `touchWheelMove()` → every scrollable list scrolls.
+- `isPointerPressed()` fires on *release*, and only if the finger didn't travel.
+  **Anything that starts a drag must use `isPointerDragStart()` instead** (window
+  title bars, the desktop cube, scrollbar thumbs, the HUD panel) — the release
+  edge is far too late to grab something.
+- `isBackPressed()` picks up the back chip; `pollCharPressed` /
+  `pollBackspacePressed` / `pollEnterPressed` / `setTextInputActive` bridge text
+  fields to the virtual keyboard (no-ops on desktop).
+
+Both touch modules are leaves. `touch_ui` must **not** import `render_context`
+(`render_context` → `gamepad_input` → `touch_ui` would cycle); it receives the
+letterbox transform via `setTouchViewport`, pushed from
+`updateRenderInputTransform`. `mobile_controls` must never import game/player
+(would cycle through `input_intent`). Both draw with plain raylib calls in
+virtual coordinates, since the draw pass is already in virtual space.
+
+`main.nim` drives them: `updateMobileControls` in the `gsPlaying`/`gsPvPPlaying`
+branches (with `resetMobileControls` on the way out, so nothing stays latched),
+and `updateTouchUI` once per frame before the state machine. The touch back chip
+and the keyboard are drawn from `drawCustomCursor`, which is repurposed on mobile
+— it is the one hook every state's draw branch already calls, and it runs last.
+Other pieces:
+- `render_context.screenToVirtual` maps touch (and mouse) through the letterbox
+  into the virtual canvas (1024×768 classic, 1366×768 widescreen — mobile
+  defaults to widescreen, see `settings.nim`).
+- Cinematics: `ui/cutscene.nim`'s `updateCutscene` is the single input path for
+  all nine of them. On mobile it is hold-anywhere-1.5s to skip, no fast-forward.
+- HUD elements that bottom-anchor into the right gutter must reserve
+  `MobileActionBarHeight` (`mobile_controls.nim`) or they draw underneath the
+  on-screen ability/wall buttons — see `drawLegendaryPowerUpsPanel` and
+  `legendaryReserve` in `game.nim`.
 - Platform gating: saves + synthesized-sound cache write to Android internal
   storage via `src/android_glue.c` (`getAppDataPath` in `save_system.nim`,
-  `getCacheDir` in `sound.nim`). Discord and `applyWindowMode` are no-ops on
-  Android. The Android C entry point (`main` → `NimMain` → game) is the
+  `getCacheDir` in `sound.nim`); the same shim provides `nimAndroidKeepScreenOn`.
+  Discord, `applyWindowMode`, `hideCursor`, mouse bonding and the live
+  HUD-layout window resize are all no-ops/guarded on Android. `main.nim`
+  checkpoints the run on a timer (Android kills backgrounded processes without
+  unwinding the loop) and clamps the resume `dt` spike into `gsPaused`. The
+  Android C entry point (`main` → `NimMain` → game) is the
   `when defined(android)` block at the bottom of `main.nim`.
+- **Not ported:** the 3D boss fight (`gs3DBoss`, `game3d/`) is keyboard-only.
 - `config.nims` locates Nimble deps by the **host** env (`OS=Windows_NT`), not
   `hostOS`/`defined(windows)` — those follow `--os` during cross-compilation.
 - Build project lives in `android/` (gradle + manifest + vector icon; no Java).

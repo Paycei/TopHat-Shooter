@@ -81,9 +81,11 @@ proc getAimTarget*(playerPos: Vector2f): Vector2f =
 proc isFiring*(wallPlacementMode: bool): bool =
   ## Whether the player is shooting this frame. Desktop: left-mouse or the shoot
   ## key or the gamepad fire bind (all suppressed while placing a wall). Mobile
-  ## auto-fires while the aim stick is held.
+  ## auto-fires while the aim stick is held -- but not while the wall button is
+  ## held, otherwise the player keeps firing through their own wall preview and
+  ## can never line a wall up in peace.
   when defined(mobile):
-    mobileIsAiming()
+    mobileIsAiming() and not wallPlacementMode
   else:
     (isMouseButtonDown(Left) and not wallPlacementMode) or
       isKeyDown(globalSettings.keybinds[kaShoot]) or
@@ -96,6 +98,14 @@ proc abilityPressed*(): bool =
   else:
     isKeyPressed(globalSettings.keybinds[kaLegendary]) or
       isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)
+
+proc placeWallPressed*(): bool =
+  ## Wall-key press EDGE. Single-player wants hold/release (preview then place);
+  ## PvP's desktop control is a mode toggle, which needs the edge instead.
+  ## Mobile has no toggle path -- it uses hold/release there too -- so this is
+  ## desktop-only and deliberately has no touch branch.
+  isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or
+    isGamepadBindPressed(globalSettings.gamepadBinds, kaPlaceWall)
 
 proc placeWallHeld*(): bool =
   ## Wall preview is shown while held.
@@ -112,6 +122,20 @@ proc placeWallReleased*(): bool =
   else:
     isKeyReleased(globalSettings.keybinds[kaPlaceWall]) or
       isGamepadBindReleased(globalSettings.gamepadBinds, kaPlaceWall)
+
+proc interactPressed*(): bool =
+  ## "Use the thing I'm standing on" -- the dungeon's paid pedestals and shop
+  ## terminal. A distinct action from wall placement even though it shares the
+  ## key on desktop, which is why it belongs here rather than being spelled out
+  ## at each call site: on mobile there is no Enter key, so it maps to a tap of
+  ## the wall button (its release edge), and without that mapping a mobile
+  ## player cannot buy a pedestal or open a dungeon shop at all.
+  when defined(mobile):
+    mobileWallReleased()
+  else:
+    isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or
+      isKeyPressed(Enter) or
+      isGamepadBindPressed(globalSettings.gamepadBinds, kaPlaceWall)
 
 proc pausePressed*(): bool =
   ## Pause edge. Desktop: Escape (via isBackPressed) or the pad's Start button.

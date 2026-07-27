@@ -76,6 +76,10 @@ when defined(android):
   # Nim's writeFile bypasses raylib's internalDataPath prefixing.
   {.compile: "android_glue.c".}
   proc nimAndroidInternalDataPath(): cstring {.importc.}
+  proc nimAndroidKeepScreenOn*() {.importc.}
+    ## Sets AWINDOW_FLAG_KEEP_SCREEN_ON on the NativeActivity window. Lives here
+    ## rather than in a mobile module because this is the file that compiles
+    ## android_glue.c; main calls it once after initWindow.
 
 # Save profiles: every save file lives inside one of MaxProfileSlots per-profile
 # folders (<root>/profiles/<slot>/), the same isolation idea as the debug/release

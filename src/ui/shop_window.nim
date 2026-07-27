@@ -1302,14 +1302,15 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
 
   # Handle text input when search is focused
   if shop.searchFocused and isTopmost:
-    let key = getCharPressed()
+    setTextInputActive(true, tikText)
+    let key = pollCharPressed()
     if key > 0 and key < 256:
       let ch = char(key)
       if ch >= ' ' and ch <= '~' and shop.searchQuery.len < 60:
         shop.searchQuery.add(ch)
-    if isKeyPressed(Backspace) and shop.searchQuery.len > 0:
+    if pollBackspacePressed() and shop.searchQuery.len > 0:
       shop.searchQuery.setLen(shop.searchQuery.len - 1)
-    if isKeyPressed(Enter):
+    if pollEnterPressed():
       shop.searchFocused = false
 
   # Check if mouse is in grid area for wheel and hover

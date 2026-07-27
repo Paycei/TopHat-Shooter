@@ -198,6 +198,33 @@ const
   targetFPS = 60
   MOUSE_MOVEMENT_THRESHOLD = 2.0  # Minimum pixel movement to count as "mouse moved"
 
+when defined(mobile):
+  const GameplayTouchStates = {gsPlaying, gsPvPPlaying}
+    ## The states that drive mobile_controls. Leaving one must clear its state.
+
+  const TouchBackStates = {gsPaused, gsRunStats, gsShop, gsPowerUpSelect,
+                           gsRogueliteFloorSelect, gsGameOver, gsVictory,
+                           gsRogueliteVictory, gsProfileSelect, gsLanguageSelect}
+    ## Where the on-screen back chip is armed: fullscreen overlay states whose
+    ## only cancel path was Escape. Excluded on purpose -- gsMenu (the chip's
+    ## top-left corner is the OS-desktop icon grid; its windows close via their
+    ## own buttons), gsPlaying/gsPvPPlaying (mobile_controls already draws a
+    ## pause button), and the cinematics (hold-anywhere to skip, see cutscene).
+
+  const ResumeStallThreshold = 0.5'f32
+    ## A frame longer than this can't be a real frame (it's 30x the 60 FPS
+    ## budget) -- it means the app was backgrounded and raylib blocked the loop.
+
+when defined(android):
+  const
+    AndroidCheckpointInterval = 45.0'f32
+      ## Hard backstop between run checkpoints; bounds how much progress an
+      ## OS-initiated process kill can cost.
+    AndroidCheckpointMinGap = 5.0'f32
+      ## Debounce for the opportunistic "just left gsPlaying" checkpoint, so
+      ## rapid state churn (shop -> countdown -> playing) doesn't serialize the
+      ## whole simulation every second.
+
 # Virtual screen (desktop / menus / render target) size. Height is fixed at 768;
 # width switches with the HUD layout setting: 1024 classic (4:3), 1366 widescreen
 # (16:9). These are vars because the setting can toggle live.
@@ -364,6 +391,15 @@ proc markKeyboardUsed*(game: Game) =
 
 proc drawCustomCursor*(time: float32) =
   ## Draw custom crosshair cursor (only when system cursor is hidden)
+  when defined(mobile):
+    # There is no pointer to draw on touch: the emulated cursor never leaves the
+    # last tap, so the crosshair would just sit there. Reuse the hook -- it is
+    # the one call every state's draw branch already makes, and it runs last, so
+    # it is exactly the right place and z-order for the on-screen back chip and
+    # the virtual keyboard, both of which must sit above the window layer.
+    drawVirtualKeyboard()
+    drawTouchBackButton()
+    return
   let mousePos = getVirtualMousePosition()
   let cursorPulse = sin(time * 8.0) * 2 + 8
 
@@ -481,6 +517,10 @@ proc main() =
   initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v6.1 Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
+  when defined(android):
+    # The aim stick auto-fires, so a player who holds still touches the screen
+    # for minutes at a time; without this the display dims and locks mid-run.
+    nimAndroidKeepScreenOn()
   hideCursor()  # Hide default cursor for custom cursor
 
   # Apply initial window mode after the window exists.
@@ -556,6 +596,14 @@ proc main() =
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
   var appliedHudLayout = settings.hudLayout  # Last virtual-resolution applied to the window/pipeline
+
+  when defined(mobile):
+    var mobilePrevState = gsSplash  # matches currentGame.state at first entry
+
+  when defined(android):
+    # See the checkpoint block in the frame loop.
+    var androidCheckpointTimer = 0.0'f32
+    var androidPrevState = gsSplash
 
   # Initialize global Discord client (persists across game sessions)
   # Wrapped in try-catch to handle Discord connection failures gracefully.
@@ -811,18 +859,53 @@ proc main() =
       appliedHudLayout = settings.hudLayout
       screenWidth = virtualWidthFor(settings.hudLayout)
       rebuildRenderTarget(getRenderSupersampleScale())
-      if not settings.fullscreen:
-        setWindowSize(screenWidth, screenHeight)
-        let monitor = getCurrentMonitor()
-        let monitorWidth = getMonitorWidth(monitor)
-        let monitorHeight = getMonitorHeight(monitor)
-        setWindowPosition((monitorWidth - screenWidth) div 2,
-                          (monitorHeight - screenHeight) div 2)
+      # Same hazard applyWindowMode guards against: Android owns a single
+      # fullscreen surface, so resizing/repositioning it would shrink the game
+      # into a corner. Only the virtual canvas changes there; the per-frame
+      # updateRenderScale re-fits the letterbox to the unchanged surface.
+      when not defined(android):
+        if not settings.fullscreen:
+          setWindowSize(screenWidth, screenHeight)
+          let monitor = getCurrentMonitor()
+          let monitorWidth = getMonitorWidth(monitor)
+          let monitorHeight = getMonitorHeight(monitor)
+          setWindowPosition((monitorWidth - screenWidth) div 2,
+                            (monitorHeight - screenHeight) div 2)
       updateRenderScale()
       if not globalWindowManager.isNil:
         globalWindowManager.relayoutWindows(screenWidth, screenHeight)
 
-    let dt = getFrameTime()
+    var dt = getFrameTime()
+
+    when defined(mobile):
+      # Backgrounding: raylib's Android backend blocks inside pollInputEvents
+      # while the activity is paused, so the first frame after resume reports
+      # the entire time spent in the background. Feeding that to updateGame
+      # fast-forwards physics, spawns and timers by however long the user was
+      # away. Clamp it, and don't drop the player back into a live arena.
+      if dt > ResumeStallThreshold:
+        dt = 1.0'f32 / targetFPS.float32
+        if currentGame.state == gsPlaying and not globalConfirmActive:
+          currentGame.state = gsPaused
+
+    when defined(android):
+      # Android kills backgrounded NativeActivity processes outright, so the
+      # shutdown checkpoint at the bottom of main() is never reached and the run
+      # is lost on every app switch. Checkpoint on a timer instead. Both calls
+      # are self-guarding no-ops for unsupported modes/states (run_save.nim:268,
+      # suspend.nim:187). Prefer flushing just after the player leaves the hot
+      # loop -- the shop/wave-cleared/pause screens are where a serialization
+      # hitch costs nothing -- with the interval as a hard backstop.
+      androidCheckpointTimer += dt
+      let leftHotLoop = androidPrevState == gsPlaying and
+                        currentGame.state != gsPlaying
+      if not currentGame.isNil and
+         ((leftHotLoop and androidCheckpointTimer >= AndroidCheckpointMinGap) or
+          androidCheckpointTimer >= AndroidCheckpointInterval):
+        androidCheckpointTimer = 0.0'f32
+        saveRunState(currentGame)
+        suspendGame(currentGame)
+      androidPrevState = currentGame.state
 
     # Gamepad layer: device arbitration + virtual cursor. Must run before the
     # state machine so every getVirtualMousePosition() this frame agrees on the
@@ -848,6 +931,33 @@ proc main() =
     # Update render scale every frame in case window was resized
     updateRenderScale()
 
+    when defined(mobile):
+      # Menu-layer touch gestures. Must run before the state machine so every
+      # pointer wrapper queried this frame agrees. Visibility is armed first
+      # because updateTouchUI needs to know whether a tap landed on the back
+      # chip or should fall through to the UI underneath, and it is keyed off
+      # the state that was actually on screen when the finger went down.
+      # Touch has no hover, and the emulated cursor only "moves" while a finger
+      # is down. Several handlers gate their *click* tests on this flag, not
+      # just their highlights (os_desktop.nim, os_task_manager.nim,
+      # isMenuClickValid above), so leaving it to the movement heuristic makes
+      # taps intermittently do nothing. Forced here rather than in
+      # updateMouseTracking because only 8 of the 23 states call that.
+      if not currentGame.isNil:
+        currentGame.mouseMovedRecently = true
+        currentGame.keyboardUsedRecently = false
+
+      setTouchBackVisible(currentGame.state in TouchBackStates)
+      updateTouchUI(dt)
+
+      # updateMobileControls only runs in the gameplay states, so a finger
+      # lifted after leaving one is never observed and its stick/button stays
+      # latched. Clear on the way out.
+      if currentGame.state notin GameplayTouchStates and
+         mobilePrevState in GameplayTouchStates:
+        resetMobileControls()
+      mobilePrevState = currentGame.state
+
     # Update music stream (required for continuous playback)
     updateMusic()
 
@@ -859,8 +969,12 @@ proc main() =
       fullscreenToggleRequested = true
 
     # ALWAYS hide system cursor - we always use custom cursor
-    hideCursor()
-    updateInGameMouseBonding(settings, currentGame.state)
+    when not defined(mobile):
+      # There is no system cursor to hide on touch, and mouse bonding calls
+      # setMousePosition, which would fight the touch-synthesized cursor
+      # position raylib maintains from touch point 0.
+      hideCursor()
+      updateInGameMouseBonding(settings, currentGame.state)
 
     case currentGame.state
     of gsSplash:
@@ -3306,8 +3420,14 @@ proc main() =
       else:
         playMusic(mtBoss)  # Intense music for PvP
 
+      when defined(mobile):
+        # Same twin-stick controls as single-player; capturePlayerInput reads
+        # them through input_intent. Must run before updatePvP so this frame's
+        # captured input is current.
+        updateMobileControls(dt)
+
       # Check for pause (visual only - game continues running)
-      if isBackPressed() and not currentPvPGame.gameOver:
+      if (isBackPressed() or pausePressed()) and not currentPvPGame.gameOver:
         currentGame.state = gsPaused
 
       # Update Discord Rich Presence (throttled internally to prevent lag)
@@ -3349,6 +3469,8 @@ proc main() =
 
       beginGameDrawing()
       drawPvP(currentPvPGame)
+      when defined(mobile):
+        drawMobileControls()
       drawCustomCursor(currentPvPGame.gameTime)
       endGameDrawing()
 

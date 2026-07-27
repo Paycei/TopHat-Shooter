@@ -5668,7 +5668,12 @@ proc drawGame*(game: Game) =
     # combo card then the legendary strip are bottom-anchored so the persistent
     # cards can never collide with the dynamic top stack.
     # Bottom stack is fixed first so the boss band knows how much room it has.
-    const legendaryReserve: int32 = 192   # legendary strip max height + margin
+    # Legendary strip max height + margin. On mobile the strip itself is pushed
+    # up by MobileActionBarHeight (os_debug_panel) to clear the on-screen
+    # ability/wall buttons, so the reserve has to grow by the same amount or the
+    # combo card would be drawn on top of it.
+    const legendaryReserve: int32 =
+      192'i32 + (when defined(mobile): MobileActionBarHeight else: 0'i32)
     const comboCardH: int32 = 70
     const transientBand: int32 = 150      # room reserved for the tallest transient
     let comboCardY = vh - legendaryReserve - comboCardH - 6'i32
@@ -5751,12 +5756,21 @@ proc drawGame*(game: Game) =
     drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = false)
 
   # Instructions only for non-legendary keys, hidden when the shop overlay is active
-  if game.state != gsShop:
-    let instrText = if game.wallPlacementMode and game.player.walls > 0:
-      t(tkGameWallPlace) & "  (" & $game.player.walls & " " & t(tkGameWallPlaceRemaining) & ")"
+  let inWallMode = game.wallPlacementMode and game.player.walls > 0
+  # On touch the idle hint names keys that don't exist ("E: Wall | ESC: Pause")
+  # and it draws in the bottom-left, exactly where the move joystick spawns. The
+  # on-screen buttons already say everything it did, so it is dropped entirely;
+  # the wall-mode hint stays, because "release to place" plus the remaining
+  # count is real feedback, but it loses the key name.
+  let showInstr = game.state != gsShop and
+                  (when defined(mobile): inWallMode else: true)
+  if showInstr:
+    let instrText = if inWallMode:
+      (when defined(mobile): t(tkGameWallPlaceTouch) else: t(tkGameWallPlace)) &
+        "  (" & $game.player.walls & " " & t(tkGameWallPlaceRemaining) & ")"
     else:
       t(tkGameInstructionsWall)
-    let instrColor = if game.wallPlacementMode and game.player.walls > 0:
+    let instrColor = if inWallMode:
       Color(r: 180, g: 230, b: 180, a: 255)
     else:
       LightGray
@@ -5770,7 +5784,7 @@ proc drawGame*(game: Game) =
       let cardH: int32 = 8 + iLines.len.int32 * lineH
       let cardX: int32 = 4
       let cardY: int32 = vh - 6 - cardH
-      let accent = if game.wallPlacementMode and game.player.walls > 0:
+      let accent = if inWallMode:
         Color(r: 120, g: 220, b: 140, a: 200)
       else:
         Color(r: 0, g: 220, b: 255, a: 200)
@@ -5784,7 +5798,7 @@ proc drawGame*(game: Game) =
         drawText(ln, cardX + 8, iy, 14, instrColor)
         iy += lineH
     else:
-      if game.wallPlacementMode and game.player.walls > 0:
+      if inWallMode:
         let hintW = measureText(instrText, 16)
         drawText(instrText, vw div 2 - hintW div 2, vh - 25, 16, instrColor)
       else:
