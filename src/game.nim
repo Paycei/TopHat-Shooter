@@ -1464,7 +1464,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
       if auraWaveCatches(game.player, enemy, slot, front):
         enemy.slowTimer = holdTime
         enemy.slowAmount = slowPercent
-        let slowChipDamage = damageEnemy(enemy, chipDamage)
+        let slowChipDamage = damageEnemy(enemy, chipDamage, consumesDiamondShield = false)
         if slowChipDamage > 0:
           accumulateAndShowAuraDamage(game, enemy, slowChipDamage, dtFrost, false)
         if fxBudget > 0:
@@ -1539,7 +1539,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
       if enemy notin processedEnemies:
         # Apply initial damage with crit chance using centralized stats
         let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, lightningDamage)
-        let actualDamage = damageEnemy(enemy, damageWithCrit)
+        let actualDamage = damageEnemy(enemy, damageWithCrit, consumesDiamondShield = false)
         processedEnemies.add(enemy)
 
         # Track lightning aura damage for statistics
@@ -1586,7 +1586,8 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
             markAuraWaveHit(game.player, nearestEnemy, slot)
             # Apply chained damage (same as initial) with crit chance using centralized stats
             let (chainDamageWithCrit, chainWasCrit) = applyCriticalHitWithFlag(stats, lightningDamage)
-            let chainedDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
+            let chainedDamage = damageEnemy(nearestEnemy, chainDamageWithCrit,
+                                            consumesDiamondShield = false)
             processedEnemies.add(nearestEnemy)
 
             # Track chained lightning damage for statistics
@@ -1628,7 +1629,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     for enemy in game.enemies:
       if auraWaveCatches(game.player, enemy, slot, front):
         let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(arcaneStats, arcaneDamage)
-        let actualDamage = damageEnemy(enemy, damageWithCrit)
+        let actualDamage = damageEnemy(enemy, damageWithCrit, consumesDiamondShield = false)
 
         # Track arcane aura damage for statistics
         trackPowerUpDamage(game, puArcaneAura, actualDamage)
@@ -1706,7 +1707,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
         enemy.knockbackVel = awayFromPlayer * (pushForce * proximity * resistance)
 
         let dmg = if enemy.isBoss: gustDamage * 0.25'f32 else: gustDamage
-        let windDamage = damageEnemy(enemy, dmg)
+        let windDamage = damageEnemy(enemy, dmg, consumesDiamondShield = false)
         if windDamage > 0:
           trackPowerUpDamage(game, puWindAura, windDamage)
           if game.player.hasWindMastery:
@@ -1769,7 +1770,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
       if auraWaveCatches(game.player, enemy, slot, front):
         # Apply blood damage with crit chance using centralized stats
         let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(bloodStats, bloodDamage)
-        let actualDamage = damageEnemy(enemy, damageWithCrit)
+        let actualDamage = damageEnemy(enemy, damageWithCrit, consumesDiamondShield = false)
 
         # Track blood aura damage for statistics
         trackPowerUpDamage(game, puBloodAura, actualDamage)
@@ -2344,7 +2345,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           accumulateAndShowAuraDamage(game, enemy, 0.01, dtHitCount, false)
         0.0'f32
       else:
-        damageEnemy(enemy, effectDamage)
+        damageEnemy(enemy, effectDamage, consumesDiamondShield = false)
       let trackedTickDamage = poisonTickDamage + fireTickDamage
 
       # Track DoT damage for power-up statistics; attribute each element's tick

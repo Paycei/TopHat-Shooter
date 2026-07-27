@@ -276,8 +276,20 @@ proc getHeavyRoundsSizeMultiplier*(level: int): float32 =
   of 2: 1.2
   else: 1.25
 
+proc getFortifiedMaxHpBonus*(level: int): float32 =
+  ## TOTAL max-HP granted by Fortified at the given level (250/500/750 displayed).
+  ## Cumulative, not per-level: an upgrade must apply the difference between two
+  ## calls, never the whole value again.
+  case level
+  of 0: 0.0
+  of 1: 2.5   # +250 HP
+  of 2: 5.0   # +500 HP
+  else: 7.5   # +750 HP
+
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   let previousHeavyRoundsLevel = getPowerUpLevel(player, puHeavyRounds)
+  let previousFortifiedLevel = getPowerUpLevel(player, puFortified)
+  let previousRecursionLevel = getPowerUpLevel(player, puRecursion)
 
   # Apply immediate stat bonuses for new powerup types
   case powerUp.powerType
@@ -387,11 +399,13 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
         getHeavyRoundsSizeMultiplier(powerUp.level)
     player.baseRadius *= sizeBonus
   of puFortified:
-    # Fortified reduces damage taken + increases max HP
-    let hpBonus = case powerUp.level
-      of 1: 2.5   # +250 HP
-      of 2: 5.0  # +500 HP
-      else: 7.5  # +750 HP
+    # Fortified reduces damage taken + increases max HP.
+    # This block runs on every pickup, upgrades included, so grant only the
+    # delta over what the previous level already gave. Adding the full total
+    # each time stacked 2.5 + 5.0 + 7.5 = 15.0 by level 3, double the 7.5
+    # (+750 HP) the tooltips promise.
+    let hpBonus = getFortifiedMaxHpBonus(powerUp.level) -
+                  getFortifiedMaxHpBonus(previousFortifiedLevel)
     player.maxHp += hpBonus
     player.hp += hpBonus
   of puCelestialVeil:
@@ -433,7 +447,15 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Recursion: immediate damage bonus for the current run. The matching
     # permanent, cross-run accumulation onto the roguelite profile happens in
     # installPowerUp (which has game/profile context).
-    player.damage *= (1.0'f32 + recursionDamageBonusForLevel(powerUp.level))
+    #
+    # Grant only the rung(s) climbed by THIS pickup. The level values are
+    # cumulative totals, and this block runs on every pickup, so multiplying by
+    # the full total each time compounded a same-run L1 -> L2 -> L3 climb into
+    # 1.08 * 1.14 * 1.20 = 1.48x instead of the 1.20x the level is worth. The
+    # ratio also stops a pickup from re-granting rungs that startRogueliteRun
+    # already applied permanently via profile.recursionDamageBonus.
+    player.damage *= (1.0'f32 + recursionDamageBonusForLevel(powerUp.level)) /
+                     (1.0'f32 + recursionDamageBonusForLevel(previousRecursionLevel))
   of puSectorProtocol:
     # SectorProtocol: kills grant +1 coin; new floors grant +15 coins (flag in game.nim)
     player.hasSectorProtocol = true
@@ -540,33 +562,29 @@ proc drawPowerUpSelectionExhausted*(game: Game) =
                       game.time, game.screenWidth - 250, game.screenHeight - 180)
 
 # SLOT MACHINE ROLL ANIMATION SYSTEM
-proc generateRandomPowerUpExcluding(player: Player, isLegendary: bool, excludeType: PowerUpType): PowerUp =
+proc generateRandomPowerUpExcluding(mode: GameMode, allowed: set[RoguelitePowerFamily],
+                                    isLegendary: bool, excludeType: PowerUpType): PowerUp =
   ## Generate a random power-up for the roll animation display, excluding a specific type.
   ## Pool membership comes directly from the registry, no separate list to keep in sync.
+  ##
+  ## Filler is display-only, but it still honours the same mode and power-family
+  ## gates as isOfferable, otherwise the reel advertises power-ups this run can
+  ## never hand out (roguelite-only entries spinning past in wave mode, or
+  ## families the profile has not unlocked). The level cap is deliberately NOT
+  ## applied: an already-maxed power-up is a fine thing to see scroll by.
+  let rarity = if isLegendary: prLegendary else: prCommon
   var availableTypes: seq[PowerUpType]
-  if isLegendary:
-    for t in legendaryPool:
-      if t != excludeType:
-        availableTypes.add(t)
-  else:
-    for t in normalPool:
-      if t != excludeType:
-        availableTypes.add(t)
+  for t in (if isLegendary: legendaryPool else: normalPool):
+    let def = allPowerUpDefs[t]
+    if t != excludeType and def.family in allowed and
+        (def.allowedModes == {} or mode in def.allowedModes):
+      availableTypes.add(t)
 
   if availableTypes.len == 0:
-    # Fallback if all types excluded (shouldn't happen)
-    if isLegendary:
-      let t = legendaryPool[rand(legendaryPool.high)]
-      return PowerUp(powerType: t, level: 1, rarity: prLegendary)
-    else:
-      let t = normalPool[rand(normalPool.high)]
-      return PowerUp(powerType: t, level: 1, rarity: prCommon)
+    # Everything else is gated out for this run; the real result is always valid.
+    return PowerUp(powerType: excludeType, level: 1, rarity: rarity)
 
-  let t = availableTypes[rand(availableTypes.high)]
-  if isLegendary:
-    result = PowerUp(powerType: t, level: 1, rarity: prLegendary)
-  else:
-    result = PowerUp(powerType: t, level: 1, rarity: prCommon)
+  PowerUp(powerType: availableTypes[rand(availableTypes.high)], level: 1, rarity: rarity)
 
 proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
   ## Update the slot machine roll animation.
@@ -656,6 +674,14 @@ proc initPowerUpRollAnimation*(game: Game) =
 
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
 
+  # Same gates the real draft uses, so the reel filler can only show power-ups
+  # this run is actually able to offer.
+  let allowedFamilies =
+    if game.mode == gmRoguelite and game.rogueliteProfile != nil:
+      game.rogueliteProfile.unlockedPowerFamilies
+    else:
+      {rpfCore..rpfBlood}
+
   let listLengths: array[3, int] =
     if isLegendary: [3, 6, 10]
     else:           [2, 5, 7]
@@ -670,7 +696,8 @@ proc initPowerUpRollAnimation*(game: Game) =
 
     for _ in 0..<listLength:
       game.rollPowerUpList[i].add(
-        generateRandomPowerUpExcluding(game.player, isLegendary, game.powerUpChoices[i].powerType))
+        generateRandomPowerUpExcluding(game.mode, allowedFamilies, isLegendary,
+                                       game.powerUpChoices[i].powerType))
 
     # Final entry is always this slot's actual result
     game.rollPowerUpList[i].add(game.powerUpChoices[i])

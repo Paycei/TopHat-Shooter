@@ -260,6 +260,12 @@ proc checkWallCollision*(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], 
         wall.takeDamage(1.0)
         trackWallDamaged(game)
         enemy.hp -= 1.0
+        # Enforce minimum health of 0.01, matching the inline copies in
+        # enemy.nim. updateEnemy reports death as `hp >= 0.01`, so without this
+        # floor a wall grinds the enemy all the way down and hands the player a
+        # full kill (coins, XP, combo) for parking it against a wall.
+        if enemy.hp < 0.01:
+          enemy.hp = 0.01
         enemy.lastWallDamageTime = currentTime
       return true
 
