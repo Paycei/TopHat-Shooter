@@ -1558,6 +1558,8 @@ proc main() =
           globalWindowManager.openWindow(widAdvancements)
         of 11: # PATCHLOG.txt - Open Changelog Window
           globalWindowManager.openWindow(widChangelog)
+        of 12: # CREDITS.nfo - Open Credits / Support Window
+          globalWindowManager.openWindow(widCredits)
         else: discard
 
       # Handle icon execution from help window commands
@@ -1641,6 +1643,10 @@ proc main() =
           of 10: # Advncmnts.exe
             refreshAdvancementProfile()
             globalWindowManager.openWindow(widAdvancements)
+          of 11: # PATCHLOG.txt
+            globalWindowManager.openWindow(widChangelog)
+          of 12: # CREDITS.nfo
+            globalWindowManager.openWindow(widCredits)
           else: discard
 
       # Update Discord Rich Presence (throttled internally to prevent lag)

@@ -18,6 +18,7 @@ type
     diRoguelite     # Roguelite mode (Roguelite.exe) - 9
     diAdvancements  # Persistent advancement viewer (Advncmnts.exe) - 10
     diChangelog     # Patch notes / changelog viewer (PATCHLOG.txt) - 11
+    diCredits       # Credits + support the project (CREDITS.nfo) - 12
 
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -122,6 +123,7 @@ proc getIconName(iconType: DesktopIconType): string =
   of diRoguelite: t(tkDesktopIconRoguelite)
   of diAdvancements: t(tkDesktopIconAdvancements)
   of diChangelog: t(tkDesktopIconChangelog)
+  of diCredits: t(tkDesktopIconCredits)
 
 proc bestDesktopLabelFontSize(text: string, maxWidth, preferredSize: int32,
                               minSize: int32 = ICON_LABEL_MIN_SIZE): int32 =
@@ -179,7 +181,12 @@ proc newOSDesktop*(): OSDesktop =
                   iconColor: Color(r: 255, g: 180, b: 80, a: 255)),
       DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5,
                   selected: false, name: getIconName(diQuit),
-                  iconColor: Color(r: 255, g: 100, b: 100, a: 255))
+                  iconColor: Color(r: 255, g: 100, b: 100, a: 255)),
+      # Third column: the two full columns above are already as tall as the
+      # desktop allows (a 7th row would collide with the taskbar).
+      DesktopIcon(iconType: diCredits, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
+                  selected: false, name: getIconName(diCredits),
+                  iconColor: Color(r: 255, g: 110, b: 160, a: 255))
     ],
     selectedIcon: 0,
     time: 0,
@@ -962,6 +969,31 @@ proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
     drawLine(Vector2(x: starX - 5, y: starY), Vector2(x: starX + 5, y: starY), 2, bright)
     drawLine(Vector2(x: starX, y: starY - 5), Vector2(x: starX, y: starY + 5), 2, bright)
     drawCircle(Vector2(x: starX, y: starY), 1.5, White)
+
+  of diCredits:
+    # Terminal panel with a beating heart: credits + "support the project"
+    let panelX = centerX - 18
+    let panelY = centerY - 15
+    drawRectangle(panelX.int32, panelY.int32, 36, 30, Color(r: 14, g: 18, b: 30, a: 255))
+    drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+                                 width: 36.0, height: 30.0), 2, accent)
+    # Title bar of the "window"
+    drawRectangle(panelX.int32, panelY.int32, 36, 6, dim)
+    for i in 0..<3:
+      drawCircle(Vector2(x: (panelX + 5 + i * 6).float32, y: (panelY + 3).float32),
+                 1.4, Color(r: 240, g: 240, b: 250, a: 220))
+    # Heart, gently beating so the icon reads as a "thanks / support" affordance
+    let beat = 1.0'f32 + sin(time * 3.2) * 0.09'f32
+    let hx = centerX.float32
+    let hy = (centerY + 2).float32
+    let lobe = 4.6'f32 * beat
+    drawCircle(Vector2(x: hx - lobe * 0.85, y: hy - lobe * 0.5), lobe, bright)
+    drawCircle(Vector2(x: hx + lobe * 0.85, y: hy - lobe * 0.5), lobe, bright)
+    drawTriangle(Vector2(x: hx - lobe * 1.72, y: hy - lobe * 0.15),
+                 Vector2(x: hx, y: hy + lobe * 2.05),
+                 Vector2(x: hx + lobe * 1.72, y: hy - lobe * 0.15), bright)
+    drawCircle(Vector2(x: hx - lobe * 0.7, y: hy - lobe * 0.75), lobe * 0.3,
+               Color(r: 255, g: 255, b: 255, a: 180))
   # Locked overlay for modes that are gated by progression
   var isLocked = false
   case icon.iconType
@@ -2268,14 +2300,32 @@ proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: in
              Color(r: 235, g: 245, b: 255, a: alpha))
     inc j
 
+# Desktop grid shape for keyboard navigation. One entry per column, in the same
+# order the icons are appended in newOSDesktop -- bump the matching count when an
+# icon is added or the new icon is keyboard-unreachable.
+const DESKTOP_COL_COUNTS = [6, 6, 1]
+
+proc iconGridPos(index: int): tuple[col, row: int] =
+  ## Map a flat icon index onto its (column, row) slot.
+  var remaining = index
+  for c in 0 ..< DESKTOP_COL_COUNTS.len:
+    if remaining < DESKTOP_COL_COUNTS[c]:
+      return (c, remaining)
+    remaining -= DESKTOP_COL_COUNTS[c]
+  (DESKTOP_COL_COUNTS.len - 1, DESKTOP_COL_COUNTS[^1] - 1)
+
+proc iconGridIndex(col, row: int): int =
+  ## Inverse of iconGridPos, clamping the row into the target column's length.
+  let c = clamp(col, 0, DESKTOP_COL_COUNTS.len - 1)
+  result = 0
+  for i in 0 ..< c:
+    result += DESKTOP_COL_COUNTS[i]
+  result += clamp(row, 0, DESKTOP_COL_COUNTS[c] - 1)
+
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
-  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements
+  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements, 11=Changelog, 12=Credits
   ## Returns -1 if no action
   ## Note: Window occlusion should be handled by the calling code
-
-  # Column layout constants
-  const COL0_COUNT = 6   # indices 0-5
-  const COL1_COUNT = 6   # indices 6-11
 
   # Get mouse position
   let mousePos = getVirtualMousePosition()
@@ -2319,37 +2369,32 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
 
   # Keyboard navigation, arrow keys AND WASD, with full 2D grid support.
   # Moving any direction marks keyboard as in-use so the mouse won't jump the cursor.
-  let col = if desktop.selectedIcon < COL0_COUNT: 0 else: 1
-  let row = if col == 0: desktop.selectedIcon else: desktop.selectedIcon - COL0_COUNT
+  let (col, row) = iconGridPos(desktop.selectedIcon)
+  let colLen = DESKTOP_COL_COUNTS[col]
 
   if isKeyPressed(Down) or isKeyPressed(S):
-    let colLen = if col == 0: COL0_COUNT else: COL1_COUNT
-    desktop.selectedIcon = if col == 0: (row + 1) mod colLen
-                           else: (row + 1) mod colLen + COL0_COUNT
+    desktop.selectedIcon = iconGridIndex(col, (row + 1) mod colLen)
     game.keyboardUsedRecently = true
     game.mouseMovedRecently = false
     return -1
 
   if isKeyPressed(Up) or isKeyPressed(W):
-    let colLen = if col == 0: COL0_COUNT else: COL1_COUNT
-    desktop.selectedIcon = if col == 0: (row - 1 + colLen) mod colLen
-                           else: (row - 1 + colLen) mod colLen + COL0_COUNT
+    desktop.selectedIcon = iconGridIndex(col, (row - 1 + colLen) mod colLen)
     game.keyboardUsedRecently = true
     game.mouseMovedRecently = false
     return -1
 
   if isKeyPressed(Right) or isKeyPressed(D):
-    if col == 0:
-      # Switch to column 1, clamp row to column 1's length
-      desktop.selectedIcon = min(row, COL1_COUNT - 1) + COL0_COUNT
+    if col < DESKTOP_COL_COUNTS.len - 1:
+      # Next column to the right, clamping the row to that column's length
+      desktop.selectedIcon = iconGridIndex(col + 1, row)
       game.keyboardUsedRecently = true
       game.mouseMovedRecently = false
     return -1
 
   if isKeyPressed(Left) or isKeyPressed(A):
-    if col == 1:
-      # Switch to column 0 at the same row
-      desktop.selectedIcon = row
+    if col > 0:
+      desktop.selectedIcon = iconGridIndex(col - 1, row)
       game.keyboardUsedRecently = true
       game.mouseMovedRecently = false
     return -1

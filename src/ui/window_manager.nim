@@ -2,7 +2,7 @@
 ## Centralized window handling with state management
 
 import raylib, algorithm, sequtils
-import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 import ../gamepad_input
 
 type
@@ -16,6 +16,7 @@ type
     widAdvancements
     widRoguelite
     widChangelog
+    widCredits
 
   WindowManager* = ref object
     settings*: SettingsWindow
@@ -27,6 +28,7 @@ type
     advancements*: AdvancementsWindow
     roguelite*: RogueliteWindow
     changelog*: ChangelogWindow
+    credits*: CreditsWindow
     nextZOrder: int
 
 proc newWindowManager*(screenWidth, screenHeight: int,
@@ -53,6 +55,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
                                         rogueliteProfile),
     roguelite: newRogueliteWindow(screenWidth, screenHeight, rogueliteProfile),
     changelog: newChangelogWindow(screenWidth, screenHeight),
+    credits: newCreditsWindow(screenWidth, screenHeight),
     nextZOrder: 1
   )
 
@@ -66,6 +69,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.advancements.window.visible = false
   result.roguelite.window.visible = false
   result.changelog.window.visible = false
+  result.credits.window.visible = false
 
 proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
   ## Get all windows in a single sequence
@@ -78,7 +82,8 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.sandbox.window,
     wm.advancements.window,
     wm.roguelite.window,
-    wm.changelog.window
+    wm.changelog.window,
+    wm.credits.window
   ]
 
 proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
@@ -109,6 +114,7 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widChangelog:
     window = wm.changelog.window
     wm.changelog.scrollOffset = 0  # Always open scrolled to the top
+  of widCredits: window = wm.credits.window
 
   window.visible = true
   window.minimized = false
@@ -133,6 +139,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widAdvancements: wm.advancements.window.visible = false
   of widRoguelite: wm.roguelite.window.visible = false
   of widChangelog: wm.changelog.window.visible = false
+  of widCredits: wm.credits.window.visible = false
 
 proc closeAllWindows*(wm: WindowManager) =
   ## Close all open desktop windows (e.g. when starting a game)
@@ -145,6 +152,7 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.advancements.window.visible = false
   wm.roguelite.window.visible = false
   wm.changelog.window.visible = false
+  wm.credits.window.visible = false
 
 proc relayoutWindows*(wm: WindowManager, screenWidth, screenHeight: int) =
   ## React to a virtual-resolution change (classic <-> widescreen). Only the
@@ -354,6 +362,9 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
     elif window == wm.changelog.window:
       updateChangelogWindow(wm.changelog, dt, screenWidth, screenHeight, visibleWindows)
 
+    elif window == wm.credits.window:
+      updateCreditsWindow(wm.credits, dt, screenWidth, screenHeight, visibleWindows)
+
 proc drawAllWindows*(wm: WindowManager, game: Game) =
   ## Draw all visible windows in z-order
   var visibleWindows = wm.getAllWindows().filterIt(it.visible)
@@ -389,3 +400,5 @@ proc drawAllWindows*(wm: WindowManager, game: Game) =
       drawRogueliteWindow(wm.roguelite, game)
     elif window == wm.changelog.window:
       drawChangelogWindow(wm.changelog)
+    elif window == wm.credits.window:
+      drawCreditsWindow(wm.credits)

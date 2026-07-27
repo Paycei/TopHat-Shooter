@@ -60,6 +60,9 @@ let changelog: seq[ChangelogVersion] = @[
       ChangelogEntry(category: clcNew,
         en: "A fourth save profile slot, so there is exactly one slot per difficulty.",
         es: "Una cuarta ranura de perfil, de modo que hay exactamente una ranura por dificultad."),
+      ChangelogEntry(category: clcNew,
+        en: "New Credits.nfo desktop icon: a scrolling credits window with a SUPPORT panel linking to GitHub Sponsors, Ko-fi and Buy Me a Coffee. You can also open it by typing 'credits' in the terminal.",
+        es: "Nuevo icono de escritorio Credits.nfo: una ventana de creditos con desplazamiento y un panel de APOYO con enlaces a GitHub Sponsors, Ko-fi y Buy Me a Coffee. Tambien puedes abrirla escribiendo 'credits' en la terminal."),
 
       # --- Reworks and quality of life ---
       ChangelogEntry(category: clcImproved,
@@ -92,6 +95,12 @@ let changelog: seq[ChangelogVersion] = @[
       ChangelogEntry(category: clcImproved,
         en: "Boss laser beams now use one shared duration formula with a hard cap, so no beam can lock a lane down longer than intended.",
         es: "Los rayos de los jefes ahora usan una unica formula de duracion con tope maximo, asi que ningun rayo puede bloquear un carril mas tiempo del previsto."),
+      ChangelogEntry(category: clcImproved,
+        en: "New default settings: the widescreen 16:9 HUD and render resolution scaling are now on out of the box. Both can still be switched back in Settings.",
+        es: "Nuevos ajustes por defecto: el HUD panoramico 16:9 y el escalado de resolucion de render vienen activados de serie. Ambos se pueden volver a cambiar en Ajustes."),
+      ChangelogEntry(category: clcImproved,
+        en: "The power-up slot machine reel now only spins through power-ups this run can actually offer, instead of teasing mode-exclusive or locked entries.",
+        es: "El carrete de la maquina tragaperras de potenciadores ahora solo pasa por potenciadores que esta partida puede ofrecer, en vez de mostrar entradas exclusivas de otro modo o bloqueadas."),
 
       # --- Tuning ---
       ChangelogEntry(category: clcBalance,
@@ -137,7 +146,22 @@ let changelog: seq[ChangelogVersion] = @[
         es: "Se corrigio que las partidas retomadas perdieran en silencio la penalizacion de tamaño de Balas Pesadas y dejaran el bono de remontada activo para siempre."),
       ChangelogEntry(category: clcFixed,
         en: "Fixed a single wind gust hitting the same enemy repeatedly as its own knockback pushed it back through the wavefront.",
-        es: "Se corrigio que una sola ráfaga de viento golpeara al mismo enemigo varias veces porque su propio empuje lo devolvia a traves del frente de onda.")
+        es: "Se corrigio que una sola ráfaga de viento golpeara al mismo enemigo varias veces porque su propio empuje lo devolvia a traves del frente de onda."),
+      ChangelogEntry(category: clcFixed,
+        en: "Fixed wall placement in the widescreen layout: walls landed offset from the cursor and could be dropped outside the arena. Placement now follows the ghost preview exactly and refuses spots outside the play area.",
+        es: "Se corrigio la colocacion de muros en el diseno panoramico: los muros aparecian desplazados respecto al cursor y podian colocarse fuera del escenario. La colocacion ahora sigue exactamente la vista previa y rechaza posiciones fuera del area de juego."),
+      ChangelogEntry(category: clcFixed,
+        en: "Fixed Fortified granting double the max HP it advertises: upgrading it re-applied the whole bonus, reaching +1500 HP at level 3 instead of +750.",
+        es: "Se corrigio que Fortificado otorgara el doble de la vida maxima que anuncia: al mejorarlo se volvia a aplicar el bono completo, llegando a +1500 HP en el nivel 3 en vez de +750."),
+      ChangelogEntry(category: clcFixed,
+        en: "Fixed Recursion compounding when levelled up in the same run: a level 1 to 3 climb gave about +48% damage instead of the +20% the level is worth.",
+        es: "Se corrigio que Recursion se acumulara al subir de nivel en la misma partida: pasar de nivel 1 a 3 daba cerca de +48% de daño en vez del +20% que vale el nivel."),
+      ChangelogEntry(category: clcFixed,
+        en: "Fixed Diamond enemies losing their one-hit shield to a passive aura or damage-over-time tick the moment they drifted into range, which erased the mechanic for aura builds. Only a real hit spends it now.",
+        es: "Se corrigio que los enemigos Diamante perdieran su escudo de un golpe por un aura pasiva o un tic de daño con el tiempo nada mas entrar en rango, lo que anulaba la mecanica en builds de aura. Ahora solo lo gasta un impacto real."),
+      ChangelogEntry(category: clcFixed,
+        en: "Fixed enemies ground down against a wall handing out a full kill: wall damage can no longer finish an enemy off, so it cannot be farmed for coins, XP and combo.",
+        es: "Se corrigio que los enemigos desgastados contra un muro contaran como muerte completa: el daño del muro ya no puede rematar a un enemigo, asi que no se puede farmear por monedas, XP y combo.")
     ]
   ),
   ChangelogVersion(

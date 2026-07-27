@@ -309,6 +309,10 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconAdvancements), Color(r: 90, g: 220, b: 255, a: 255))
       help.pendingIconExecution = 10
 
+    of "credits", "credits.nfo", "about", "support":
+      help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconCredits), Color(r: 255, g: 110, b: 160, a: 255))
+      help.pendingIconExecution = 12  # diCredits = 12
+
     of "sandbox", "sandbox.exe":
       help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconSandbox), Color(r: 255, g: 165, b: 0, a: 255))
       help.pendingIconExecution = 7  # diSandbox = 7

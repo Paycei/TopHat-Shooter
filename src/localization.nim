@@ -29,6 +29,19 @@ type
     tkDesktopIconRoguelite = "desktop_icon_roguelite"
     tkDesktopIconAdvancements = "desktop_icon_advancements"
     tkDesktopIconChangelog = "desktop_icon_changelog"
+    tkDesktopIconCredits = "desktop_icon_credits"
+
+    # Credits window
+    tkCreditsWindowTitle = "credits_window_title"
+    tkCreditsHeader = "credits_header"
+    tkCreditsRole = "credits_role"
+    tkCreditsBuiltWith = "credits_built_with"
+    tkCreditsThanks = "credits_thanks"
+    tkCreditsThanksBody = "credits_thanks_body"
+    tkCreditsLicense = "credits_license"
+    tkSupportTitle = "support_title"
+    tkSupportBlurb = "support_blurb"
+    tkSupportNote = "support_note"
 
     # Changelog window
     tkChangelogWindowTitle = "changelog_window_title"
@@ -1667,6 +1680,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_roguelite": "ROOTMAP.db",
     "desktop_icon_advancements": "ASCEND.db",
     "desktop_icon_changelog": "PATCHLOG.txt",
+    "desktop_icon_credits": "CREDITS.nfo",
+
+    # Credits window
+    "credits_window_title": "Credits - About",
+    "credits_header": "Credits",
+    "credits_role": "Design & Programming",
+    "credits_built_with": "Built With",
+    "credits_thanks": "Thanks",
+    "credits_thanks_body": "Everyone who played, reported bugs and suggested ideas.",
+    "credits_license": "Licensed under Apache 2.0",
+    "support_title": "Support the Project",
+    "support_blurb": "TopHat-ShooterOS is free and open source. Support is optional and never gates any feature.",
+    "support_note": "Links open in your browser.",
 
     # Changelog window
     "changelog_window_title": "Patch Notes - Changelog",
@@ -3579,6 +3605,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_roguelite": "ROOTMAP_ALPHA.db",
     "desktop_icon_advancements": "ASCEND.db",
     "desktop_icon_changelog": "PARCHES.txt",
+    "desktop_icon_credits": "CREDITOS.nfo",
+
+    # Credits window
+    "credits_window_title": "Creditos - Acerca de",
+    "credits_header": "Creditos",
+    "credits_role": "Diseno y Programacion",
+    "credits_built_with": "Hecho Con",
+    "credits_thanks": "Gracias",
+    "credits_thanks_body": "A todos los que jugaron, reportaron errores y sugirieron ideas.",
+    "credits_license": "Bajo licencia Apache 2.0",
+    "support_title": "Apoya el Proyecto",
+    "support_blurb": "TopHat-ShooterOS es gratuito y de codigo abierto. Apoyar es opcional y nunca bloquea ninguna funcion.",
+    "support_note": "Los enlaces se abren en tu navegador.",
 
     # Changelog window
     "changelog_window_title": "Notas del Parche - Cambios",
