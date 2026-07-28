@@ -63,6 +63,12 @@ let changelog: seq[ChangelogVersion] = @[
       ChangelogEntry(category: clcNew,
         en: "New Credits.nfo desktop icon: a scrolling credits window with a SUPPORT panel linking to GitHub Sponsors, Ko-fi and Buy Me a Coffee. You can also open it by typing 'credits' in the terminal.",
         es: "Nuevo icono de escritorio Credits.nfo: una ventana de creditos con desplazamiento y un panel de APOYO con enlaces a GitHub Sponsors, Ko-fi y Buy Me a Coffee. Tambien puedes abrirla escribiendo 'credits' en la terminal."),
+      ChangelogEntry(category: clcNew,
+        en: "New Mythic rarity, one step above Legendary: reserved for one-shot feats that a whole run can void, and it pays out 400 Data Shards and 3 Cores.",
+        es: "Nueva rareza Mitica, un escalon por encima de Legendaria: reservada para hazañas de una sola vez que toda una partida puede anular, y paga 400 Fragmentos de Datos y 3 Nucleos."),
+      ChangelogEntry(category: clcNew,
+        en: "New Mythic advancement, Flawless Kernel: clear wave mode from wave 1 to the twelfth boss without dying once. Pressing CONTINUE at any point voids it for that run, and so does using cheats.",
+        es: "Nuevo logro Mitico, Nucleo Impecable: completa el modo oleadas desde la oleada 1 hasta el duodecimo jefe sin morir ni una vez. Pulsar CONTINUAR en cualquier momento lo anula en esa partida, igual que usar trucos."),
 
       # --- Reworks and quality of life ---
       ChangelogEntry(category: clcImproved,
@@ -101,6 +107,24 @@ let changelog: seq[ChangelogVersion] = @[
       ChangelogEntry(category: clcImproved,
         en: "The power-up slot machine reel now only spins through power-ups this run can actually offer, instead of teasing mode-exclusive or locked entries.",
         es: "El carrete de la maquina tragaperras de potenciadores ahora solo pasa por potenciadores que esta partida puede ofrecer, en vez de mostrar entradas exclusivas de otro modo o bloqueadas."),
+      ChangelogEntry(category: clcImproved,
+        en: "The desktop icons were redrawn so each one reads at a glance: Survival is a sweeping stopwatch, Settings a turning cog, Shop a shopping bag, Advancements a trophy, PvP crossed swords, Roguelite a branching route map ending on a boss node, Quit a proper power symbol and Help a manual instead of a second document.",
+        es: "Se redibujaron los iconos del escritorio para que cada uno se entienda de un vistazo: Supervivencia es un cronometro en marcha, Ajustes un engranaje giratorio, Tienda una bolsa de compra, Logros un trofeo, PvP espadas cruzadas, Roguelite un mapa de rutas que termina en un nodo de jefe, Salir un simbolo de encendido de verdad y Ayuda un manual en vez de un segundo documento."),
+      ChangelogEntry(category: clcImproved,
+        en: "Icons also picked up small animations and darker backing outlines, so they stay legible over a busy wallpaper: thruster streaks on Play, bubbles rising in the Sandbox flask, and bullet points on the changelog page.",
+        es: "Los iconos tambien ganaron pequeñas animaciones y contornos oscuros de fondo, para que sigan siendo legibles sobre un fondo de pantalla cargado: estelas de propulsor en Jugar, burbujas subiendo en el matraz del Sandbox y viñetas en la pagina del registro de cambios."),
+      ChangelogEntry(category: clcImproved,
+        en: "Credits.nfo now sits in the bottom-right corner of the desktop instead of starting a third column, and it stays anchored there when you switch between the 4:3 and 16:9 HUD layouts.",
+        es: "Credits.nfo ahora se situa en la esquina inferior derecha del escritorio en vez de empezar una tercera columna, y se mantiene anclado ahi al cambiar entre los diseños de HUD 4:3 y 16:9."),
+      ChangelogEntry(category: clcImproved,
+        en: "Advancements are now sorted by rarity. Each category lists Bronze first up to Mythic, with a header per rarity showing how many of that group you have unlocked.",
+        es: "Los logros ahora se ordenan por rareza. Cada categoria lista de Bronce hasta Mitico, con una cabecera por rareza que muestra cuantos de ese grupo llevas desbloqueados."),
+      ChangelogEntry(category: clcImproved,
+        en: "The advancements window gained a rarity legend in the sidebar with your overall progress per rarity, and each entry now shows its Data Shard payout right on the card.",
+        es: "La ventana de logros gano una leyenda de rareza en la barra lateral con tu progreso global por rareza, y cada entrada muestra ahora su pago en Fragmentos de Datos en la propia tarjeta."),
+      ChangelogEntry(category: clcImproved,
+        en: "The advancement detail panel now shows its category and how far along that rarity you are, and the list scrolls smoothly with a scrollbar that reflects how much is left below.",
+        es: "El panel de detalle de logros ahora muestra su categoria y cuanto llevas de esa rareza, y la lista se desplaza con suavidad con una barra que refleja cuanto queda por debajo."),
 
       # --- Tuning ---
       ChangelogEntry(category: clcBalance,
@@ -161,7 +185,10 @@ let changelog: seq[ChangelogVersion] = @[
         es: "Se corrigio que los enemigos Diamante perdieran su escudo de un golpe por un aura pasiva o un tic de daño con el tiempo nada mas entrar en rango, lo que anulaba la mecanica en builds de aura. Ahora solo lo gasta un impacto real."),
       ChangelogEntry(category: clcFixed,
         en: "Fixed enemies ground down against a wall handing out a full kill: wall damage can no longer finish an enemy off, so it cannot be farmed for coins, XP and combo.",
-        es: "Se corrigio que los enemigos desgastados contra un muro contaran como muerte completa: el daño del muro ya no puede rematar a un enemigo, asi que no se puede farmear por monedas, XP y combo.")
+        es: "Se corrigio que los enemigos desgastados contra un muro contaran como muerte completa: el daño del muro ya no puede rematar a un enemigo, asi que no se puede farmear por monedas, XP y combo."),
+      ChangelogEntry(category: clcFixed,
+        en: "Fixed advancement descriptions running underneath the progress bar on their cards; the cards are taller now and the text has room.",
+        es: "Se corrigio que las descripciones de los logros quedaran por debajo de la barra de progreso en sus tarjetas; ahora las tarjetas son mas altas y el texto tiene espacio.")
     ]
   ),
   ChangelogVersion(
