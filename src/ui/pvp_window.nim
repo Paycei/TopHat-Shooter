@@ -482,6 +482,10 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
     fieldHeight = 38
 
   if activeText != nil:
+    # The cursor is an index into the focused field and every insert slices the
+    # string at it, so a stale index from a previously focused (or since edited)
+    # field must never survive into the insert paths below.
+    pvpWin.cursorPos = clamp(pvpWin.cursorPos, 0, activeText[].len)
     let mousePos = getVirtualMousePosition()
     if isPointerPressed():
       let cursorPos = getTextCursorPos(activeText[], fieldX, fieldY, fontSize, fieldHeight, mousePos.x, mousePos.y)
@@ -497,14 +501,38 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
                            (mousePos.y - pvpWin.mouseDownPos.y) * (mousePos.y - pvpWin.mouseDownPos.y))
         if dragDist > 3.0:
           pvpWin.selectionEnd = cursorPos
-    if isPointerReleased():
+    # End of a selection drag. Only a drag that actually SELECTED something may
+    # move the cursor -- a collapsed selection leaves it exactly where the click
+    # that started the drag put it.
+    #
+    # This is the "types backwards" bug. It used to run on every release
+    # ANYWHERE, and a resolved click leaves both selection ends at -1, so the
+    # next release read -1 == -1 and assigned cursorPos = -1; the insert paths
+    # clamp that to 0 and every further character went to the FRONT of the
+    # field. On desktop it needs a second click to trigger, and the join screen
+    # is where it bites -- its three fields never unfocus, so: click a field,
+    # type, click any empty spot in the window, keep typing. On touch,
+    # isPointerPressed fires on release, so every virtual key tap was one of
+    # those releases and the field reversed from the second character on.
+    # Clearing on `not isPointerDown()` matters just as much: the click handler
+    # arms isDragging from a press whose release this block may never see (on
+    # touch it has already happened), leaving it armed indefinitely with a stale
+    # click index ready to overwrite the caret on some later click.
+    # isDragging is only ever armed from a hit that produced a valid index, so
+    # inside this guard the selection ends are known good and a collapsed one
+    # still places the caret exactly as before.
+    if pvpWin.isDragging and (isPointerReleased() or not isPointerDown()):
       pvpWin.isDragging = false
-      if pvpWin.selectionStart == pvpWin.selectionEnd:
-        pvpWin.cursorPos = pvpWin.selectionStart
+      if pvpWin.selectionStart >= 0 and pvpWin.selectionEnd >= 0:
+        if pvpWin.selectionStart == pvpWin.selectionEnd:
+          pvpWin.cursorPos = pvpWin.selectionStart
+          pvpWin.selectionStart = -1
+          pvpWin.selectionEnd = -1
+        else:
+          pvpWin.cursorPos = max(pvpWin.selectionStart, pvpWin.selectionEnd)
+      else:
         pvpWin.selectionStart = -1
         pvpWin.selectionEnd = -1
-      else:
-        pvpWin.cursorPos = max(pvpWin.selectionStart, pvpWin.selectionEnd)
 
   let ctrlPressed = isKeyDown(LeftControl) or isKeyDown(RightControl)
   let cmdPressed = isKeyDown(LeftSuper) or isKeyDown(RightSuper)
@@ -575,6 +603,8 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
   # and PvP could not be joined at all. Numeric layout for IP/port.
   setTextInputActive(pvpWin.editingNickname or pvpWin.editingIP or pvpWin.editingPort,
                      if pvpWin.editingNickname: tikText else: tikNumeric)
+  if activeText != nil:
+    setTextInputPreview(activeText[])
   var key = pollCharPressed()
   while key > 0:
     if activeText != nil and pvpWin.selectionStart >= 0 and pvpWin.selectionEnd >= 0 and pvpWin.selectionStart != pvpWin.selectionEnd:

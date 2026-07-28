@@ -115,8 +115,36 @@ site inherits touch behaviour unmodified:
   title bars, the desktop cube, scrollbar thumbs, the HUD panel) — the release
   edge is far too late to grab something.
 - `isBackPressed()` picks up the back chip; `pollCharPressed` /
-  `pollBackspacePressed` / `pollEnterPressed` / `setTextInputActive` bridge text
-  fields to the virtual keyboard (no-ops on desktop).
+  `pollBackspacePressed` / `pollEnterPressed` / `setTextInputActive` /
+  `setTextInputPreview` bridge text fields to the virtual keyboard (no-ops on
+  desktop).
+
+The **virtual keyboard** has four contracts that are easy to break by accident:
+- `setTextInputActive(true, …)` **latches for the frame** — `false` never clears
+  another window's `true`, and first caller wins. Every visible window is
+  updated each frame and more than one calls it unconditionally, so plain
+  assignment let a window that ran later in the loop veto the focused field's
+  request. Hiding the panel is done by *not calling it*, which the per-frame
+  reset in `updateTouchUI` handles.
+- `getVirtualMousePosition()` **masks a pointer parked on the panel**, reporting
+  the last position outside it (`touchKeyboardMaskPointer`). The menu layer
+  decides topmost/hover/click ownership from the pointer *position*
+  (`isWindowTopmostAtPoint`), and on touch the pointer is the last finger — so
+  unmasked, the first keystroke moved the pointer off the window, its input
+  block stopped running, and the keyboard vanished mid-word. Any new
+  keyboard-adjacent overlay must extend `vkOverlayTop` the same way.
+- Keys fire **per touch point** (`vkUpdateTouchKeys`), not off the emulated
+  mouse: Android keeps `MOUSE_LEFT` down while *any* finger is down, so a second
+  thumb produces no mouse press edge and its keystroke would be lost. Desktop
+  GLFW never fills the touch array (`getTouchPointCount()` stays 0), which is
+  what makes the mouse fallback the right path there — don't "simplify" it away.
+- `isPointerDragStart/Down/Released` are suppressed for keyboard-owned gestures
+  (`touchKeyboardOwnsPointer`). A text field must never move its caret on a bare
+  release edge — the `pvp_window` caret bug ("types backwards") was exactly that:
+  a release with a collapsed selection assigning `cursorPos = -1`.
+- DONE latches the panel closed while the field keeps focus, so the reopen chip
+  (top-right, mirroring the back chip) is the only way back; without it that
+  state is unrecoverable.
 
 Both touch modules are leaves. `touch_ui` must **not** import `render_context`
 (`render_context` → `gamepad_input` → `touch_ui` would cycle); it receives the

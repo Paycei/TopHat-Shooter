@@ -137,9 +137,16 @@ proc getVirtualMousePosition*(): Vector2 =
   ## is the active device this is the gamepad virtual cursor (menu mode) or the
   ## gameplay aim point, so the entire mouse-driven UI works from the pad.
   if isGamepadActive():
-    gamepadCursorPos()
-  else:
-    getRealVirtualMousePosition()
+    return gamepadCursorPos()
+  result = getRealVirtualMousePosition()
+  when defined(mobile):
+    # Hide a pointer parked on the on-screen keyboard, reporting the last
+    # position outside it instead. Every "is this window topmost / is the cursor
+    # in my field" test in the menu layer reads this, and on touch the pointer
+    # follows the finger onto the keyboard the moment you type -- which used to
+    # make the owning window drop out of focus mid-word. Gameplay is unaffected:
+    # the keyboard only exists in the menu states.
+    result = touchKeyboardMaskPointer(result)
 
 proc getWorldMousePosition*(): Vector2 =
   ## The pointer position in gameplay WORLD coords (virtual pointer minus the

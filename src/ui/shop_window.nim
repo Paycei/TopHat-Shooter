@@ -1303,11 +1303,16 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
   # Handle text input when search is focused
   if shop.searchFocused and isTopmost:
     setTextInputActive(true, tikText)
-    let key = pollCharPressed()
-    if key > 0 and key < 256:
-      let ch = char(key)
-      if ch >= ' ' and ch <= '~' and shop.searchQuery.len < 60:
-        shop.searchQuery.add(ch)
+    setTextInputPreview(shop.searchQuery)
+    # Drained in a loop -- one poll per frame dropped everything raylib had
+    # already queued behind the first character.
+    var key = pollCharPressed()
+    while key > 0:
+      if key < 256:
+        let ch = char(key)
+        if ch >= ' ' and ch <= '~' and shop.searchQuery.len < 60:
+          shop.searchQuery.add(ch)
+      key = pollCharPressed()
     if pollBackspacePressed() and shop.searchQuery.len > 0:
       shop.searchQuery.setLen(shop.searchQuery.len - 1)
     if pollEnterPressed():

@@ -354,28 +354,40 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
     help.window.visible = false
     return -1
 
-  # The whole window is a typed-command REPL, so the on-screen keyboard is
-  # always up while it is open rather than being tied to a focused field.
-  setTextInputActive(true, tikText)
+  # The terminal is a typed-command REPL with no focusable field of its own, so
+  # the window itself is the field -- and only while it is the one you are
+  # looking at. Ungated, a backgrounded or minimized terminal still consumed
+  # every keystroke (the poll procs pop from a shared queue), starving the
+  # focused window's text field, e.g. the shop's search box; on mobile it also
+  # held the on-screen keyboard open for that other window's field.
+  if help.window.focused and not help.window.minimized:
+    setTextInputActive(true, tikText)
+    # The prompt sits at the bottom of the window, under the keyboard panel on a
+    # phone, so echo it in the strip above the panel.
+    setTextInputPreview("$ " & help.currentInput)
 
-  # Handle text input with safety checks
-  let key = pollCharPressed()
-  if key > 0 and key < 256:  # Valid ASCII range
-    let ch = char(key)
-    # Only accept printable ASCII characters and limit input length
-    if ch >= ' ' and ch <= '~' and help.currentInput.len < 100:
-      help.currentInput.add(ch)
+    # Handle text input with safety checks. Drained in a loop: raylib queues
+    # several characters per frame when typing fast, and one call per frame
+    # silently dropped the rest.
+    var key = pollCharPressed()
+    while key > 0:
+      if key < 256:  # Valid ASCII range
+        let ch = char(key)
+        # Only accept printable ASCII characters and limit input length
+        if ch >= ' ' and ch <= '~' and help.currentInput.len < 100:
+          help.currentInput.add(ch)
+      key = pollCharPressed()
 
-  # Handle backspace
-  if pollBackspacePressed() and help.currentInput.len > 0:
-    help.currentInput.setLen(help.currentInput.len - 1)
+    # Handle backspace
+    if pollBackspacePressed() and help.currentInput.len > 0:
+      help.currentInput.setLen(help.currentInput.len - 1)
 
-  # Handle enter - execute command
-  if pollEnterPressed():
-    if help.currentInput.len > 0:
-      executeCommand(help, help.currentInput)
-      help.currentInput = ""
-    help.scrollOffset = max(0, help.outputLines.len - 15)  # Scroll to bottom
+    # Handle enter - execute command
+    if pollEnterPressed():
+      if help.currentInput.len > 0:
+        executeCommand(help, help.currentInput)
+        help.currentInput = ""
+      help.scrollOffset = max(0, help.outputLines.len - 15)  # Scroll to bottom
 
   # Handle scrolling with mouse wheel
   let wheel = getPointerWheelMove()

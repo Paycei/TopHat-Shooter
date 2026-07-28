@@ -66,6 +66,16 @@ const
   VkUnitW = 106.0'f32      ## width of a one-unit key
   VkBackRepeatDelay = 0.40'f32
   VkBackRepeatRate = 0.07'f32
+  VkPreviewH = 40.0'f32
+    ## Height of the strip drawn directly above the panel, echoing the focused
+    ## field's text. The panel eats the bottom ~40% of a 768-tall canvas, and
+    ## some fields live under it (the help terminal's prompt sits at y~594), so
+    ## without this you would be typing blind.
+  VkChipW = 112.0'f32
+  VkChipH = 56.0'f32
+    ## The "reopen keyboard" chip, shown when a field still has focus but the
+    ## panel was closed with DONE. Without it that state is a trap: the field
+    ## keeps requesting input every frame, so the dismiss latch never clears.
 
 type
   TextInputKind* = enum
@@ -108,7 +118,31 @@ var
   vkEnterQueued = false
   vkBackHeldTime: float32 = 0
   vkBackDown = false
+  vkBackKeyRect = Rectangle(x: 0, y: 0, width: 0, height: 0)
+    ## Hit rect of the backspace key that armed the repeat, so the repeat stops
+    ## when the finger slides off it instead of running until the touch ends.
+  vkOverlayTop: float32 = 1e9
+    ## Virtual y of the top of everything the keyboard occludes (preview strip
+    ## included). 1e9 while it is hidden, so every "is the pointer on the
+    ## keyboard" test below is simply `y >= vkOverlayTop` and costs nothing when
+    ## there is no keyboard. Recomputed once per frame.
+  vkChipVisible = false     ## the reopen chip is on screen this frame
+  vkPreview = ""            ## focused field's text, echoed above the panel
+  vkPreviewNext = ""
+  vkHasPreview = false
+  vkHasPreviewNext = false
+  vkTouchIds: seq[int32] = @[]
+    ## Touch ids seen last frame. Keys fire per *touch point*, not off the
+    ## emulated mouse: Android holds MOUSE_LEFT down while any finger is down,
+    ## so a second thumb landing while the first is still on a key produces no
+    ## mouse press edge at all and its keystroke would simply vanish.
   gestureOnKeyboard = false ## the live gesture started on the keyboard panel
+  keyboardOwnsPointer = false
+    ## Like gestureOnKeyboard, but stays true through the release frame, so the
+    ## press/release wrappers can suppress a whole keyboard-owned gesture.
+  lastPointerOffKeyboard = Vector2(x: 0, y: 0)
+    ## Last pointer position that was NOT on the keyboard. Reported in place of
+    ## the real one while typing -- see touchKeyboardMaskPointer.
 
 proc setTouchViewport*(v: TouchViewport) =
   vp = v
@@ -159,11 +193,35 @@ proc drawTouchBackButton*() =
 
 proc setTextInputActive*(active: bool, kind: TextInputKind = tikText) =
   ## Called by whichever text field currently has focus, every frame it has it.
-  ## Simply not calling it is equivalent to passing false; either way the
-  ## keyboard re-arms, so a field closed with "done" reopens when refocused.
-  vkRequested = active
-  if active:
-    vkKind = kind
+  ## Simply not calling it is equivalent to passing false.
+  ##
+  ## The request LATCHES for the frame: `false` never clears a `true` from
+  ## another window. It has to, because every visible window is updated each
+  ## frame and several call this unconditionally -- pvp_window passes
+  ## `editingNickname or editingIP or editingPort`, which used to overwrite the
+  ## shop's or the help terminal's request with `false` purely because it ran
+  ## later in the loop, and the keyboard would never appear. The per-frame reset
+  ## in updateTouchUI is what makes "stop calling it" still hide the panel.
+  ##
+  ## First caller wins, and window_manager updates windows topmost-first, so the
+  ## front-most field picks the layout.
+  if active and not vkRequested:
+    vkRequested = true
+    if kind != vkKind:
+      # A different *kind* of field took focus: treat that as new focus and
+      # clear the dismiss latch, so DONE on the nickname doesn't leave the IP
+      # field with no keyboard.
+      vkKind = kind
+      vkDismissed = false
+
+proc setTextInputPreview*(text: string) =
+  ## Optional: the current contents of the focused field, echoed in a strip
+  ## above the panel. Fields that sit under the keyboard (the help terminal's
+  ## prompt) are otherwise invisible while being typed into. First caller wins,
+  ## matching setTextInputActive.
+  if not vkHasPreviewNext:
+    vkHasPreviewNext = true
+    vkPreviewNext = text
 
 proc textInputActive*(): bool =
   ## Whether the keyboard is on screen. Callers should not need this; it exists
@@ -187,7 +245,9 @@ proc vkRows(): seq[seq[VKey]] =
     for i, row in VkTextRows:
       var keys: seq[VKey] = @[]
       if i == 3:
-        keys.add VKey(label: (if vkShift: "^" else: "v"), action: vkaShift, units: 1.5)
+        # Constant label, lit while armed. The old "^"/"v" pair read as two more
+        # letters sitting in the middle of the QWERTY block.
+        keys.add VKey(label: "SHIFT", action: vkaShift, units: 1.5)
       for c in row:
         let shown = if vkShift and c in {'a'..'z'}: char(c.ord - 32) else: c
         keys.add VKey(label: $shown, ch: shown.int32, action: vkaChar, units: 1.0)
@@ -228,27 +288,103 @@ proc vkPressKey(key: VKey) =
   of vkaEnter: vkEnterQueued = true
   of vkaDone: vkDismissed = true
 
-proc vkHandlePress(p: Vector2): bool =
-  ## Route a press inside the panel. Returns true if the panel consumed it --
-  ## including presses that hit the panel background between keys, so a clumsy
+proc vkChipRect(): Rectangle =
+  ## Top-right, mirroring the back chip at top-left -- deliberately NOT bottom
+  ## anchored, where it would sit on the desktop taskbar.
+  Rectangle(x: vp.virtualW - BackBtnMargin - VkChipW, y: BackBtnMargin,
+            width: VkChipW, height: VkChipH)
+
+proc vkHitKey(p: Vector2) =
+  ## Fire the key under `p`, if any. Presses that land on the panel background
+  ## between keys do nothing but are still consumed by the caller, so a clumsy
   ## tap never falls through and activates the UI underneath.
   let rows = vkRows()
-  if not pointInRect(p, vkPanelRect(rows)):
-    return false
   for r in 0 ..< rows.len:
     for k in 0 ..< rows[r].len:
-      if pointInRect(p, vkKeyRect(rows, r, k)):
+      let rect = vkKeyRect(rows, r, k)
+      if pointInRect(p, rect):
         vkPressKey(rows[r][k])
-        vkBackDown = rows[r][k].action == vkaBack
-        vkBackHeldTime = 0
+        if rows[r][k].action == vkaBack:
+          vkBackDown = true
+          vkBackKeyRect = rect
+          vkBackHeldTime = 0
+        return
+
+proc anyPointerInRect(r: Rectangle): bool =
+  ## Is any live pointer inside `r`? Prefers the touch array (so the finger that
+  ## actually owns the key is the one that counts, not whichever one the
+  ## emulated mouse happens to be tracking) and falls back to the held mouse on
+  ## desktop, where the touch array is never populated.
+  let n = getTouchPointCount()
+  if n > 0:
+    for i in 0'i32 ..< n:
+      if pointInRect(screenToVirtualLocal(getTouchPosition(i)), r):
         return true
-  true
+    return false
+  isMouseButtonDown(MouseButton.Left) and
+    pointInRect(screenToVirtualLocal(getMousePosition()), r)
+
+proc vkUpdateTouchKeys(): bool =
+  ## Fire a key for every finger that went down on the panel this frame, and
+  ## return whether the touch API reported any points at all -- which is how the
+  ## mouse path knows to stand down. On Android each finger arrives here with
+  ## its own stable id, so two-thumb typing works; desktop GLFW never fills the
+  ## touch array (`pointCount` stays 0 there), so this returns false and the
+  ## mouse press edge remains the only source, keeping `-d:mobile` on desktop a
+  ## faithful single-finger simulator.
+  let n = getTouchPointCount()
+  var live: seq[int32] = @[]
+  for i in 0'i32 ..< n:
+    let id = getTouchPointId(i)
+    live.add id
+    var isNew = true
+    for prev in vkTouchIds:
+      if prev == id:
+        isNew = false
+        break
+    # Fingers already down when the keyboard opened are not fresh presses.
+    if isNew and vkActive:
+      let p = screenToVirtualLocal(getTouchPosition(i))
+      if p.y >= vkOverlayTop:
+        vkHitKey(p)
+  vkTouchIds = live
+  n > 0
 
 proc drawVirtualKeyboard*() =
   ## Draw inside the virtual-canvas pass, above the window layer.
+  if vkChipVisible:
+    let c = vkChipRect()
+    drawRectangleRounded(c, 0.35, 8, Color(r: 40, g: 46, b: 66, a: 190))
+    drawRectangleRoundedLines(c, 0.35, 8, 2.0, Color(r: 180, g: 200, b: 255, a: 210))
+    # A keyboard glyph: three rows of keys, drawn rather than written so it
+    # needs no localization (same reasoning as the back chevron).
+    let gx = c.x + 22
+    let gy = c.y + 16
+    for row in 0 ..< 3:
+      for col in 0 ..< 5:
+        drawRectangle(Rectangle(x: gx + col.float32 * 14, y: gy + row.float32 * 10,
+                                width: 10, height: 7), White)
+    drawRectangle(Rectangle(x: gx + 14, y: gy + 30, width: 38, height: 7), White)
   if not vkActive: return
   let rows = vkRows()
   let panel = vkPanelRect(rows)
+  if vkHasPreview:
+    # Echo of the focused field, so a field hidden behind the panel is still
+    # readable. Right-aligned once the text outgrows the strip, which keeps the
+    # caret -- the end you are typing at -- on screen.
+    let strip = Rectangle(x: 0, y: panel.y - VkPreviewH,
+                          width: vp.virtualW, height: VkPreviewH)
+    drawRectangle(strip, Color(r: 10, g: 14, b: 22, a: 240))
+    const previewSize = 22'i32
+    let textW = measureText(vkPreview, previewSize).float32
+    let avail = vp.virtualW - 32
+    let tx = if textW > avail: 16 - (textW - avail) else: 16.0'f32
+    let ty = strip.y + (VkPreviewH - previewSize.float32) / 2
+    drawText(vkPreview, tx.int32, ty.int32, previewSize,
+             Color(r: 220, g: 235, b: 255, a: 255))
+    drawRectangle(Rectangle(x: tx + textW + 3, y: ty, width: 3,
+                            height: previewSize.float32),
+                  Color(r: 0, g: 210, b: 255, a: 255))
   drawRectangle(panel, Color(r: 16, g: 20, b: 30, a: 240))
   drawLine(Vector2(x: panel.x, y: panel.y),
            Vector2(x: panel.x + panel.width, y: panel.y), 2.0,
@@ -298,27 +434,51 @@ proc updateTouchUI*(dt: float32) =
   # the state machine, i.e. after this runs, so it is always one frame behind --
   # which is invisible, and keeps the whole thing free of ordering constraints.
   vkActive = vkRequested and not vkDismissed
+  vkChipVisible = vkRequested and vkDismissed
   if not vkRequested:
     # Focus lost (or never taken): re-arm, so the next field to take focus gets
     # a keyboard even if the previous one was closed with "done".
     vkDismissed = false
   vkRequested = false
-  if not vkActive:
+  vkPreview = vkPreviewNext
+  vkHasPreview = vkHasPreviewNext
+  vkPreviewNext = ""
+  vkHasPreviewNext = false
+  if vkActive:
+    vkOverlayTop = vkPanelRect(vkRows()).y
+    if vkHasPreview:
+      # The strip is opaque too, so it occludes -- and consumes -- like the panel.
+      vkOverlayTop -= VkPreviewH
+  else:
+    vkOverlayTop = 1e9
     vkShift = false
     vkBackDown = false
     vkChars.setLen(0)
+    # Edges must not survive the panel that produced them, or a stale ENTER
+    # lands in whatever field takes focus next.
+    vkBackQueued = false
+    vkEnterQueued = false
+
+  # Per-finger key presses (Android). Runs unconditionally so the id set stays
+  # current even while the keyboard is hidden; it only fires keys when active.
+  let touchDrivesKeys = vkUpdateTouchKeys()
 
   let down = isMouseButtonDown(MouseButton.Left)
   let cur = screenToVirtualLocal(getMousePosition())
+  if cur.y < vkOverlayTop and not (vkChipVisible and pointInRect(cur, vkChipRect())):
+    lastPointerOffKeyboard = cur
 
-  # Backspace auto-repeat while the key is held.
-  if vkActive and vkBackDown and down:
+  # Backspace auto-repeat, only while a pointer is still on the key itself. Held
+  # against `down` alone it kept firing after the finger slid off, which on a
+  # phone is most of the way to wiping the field.
+  if vkActive and vkBackDown and anyPointerInRect(vkBackKeyRect):
     vkBackHeldTime += dt
     if vkBackHeldTime >= VkBackRepeatDelay:
       vkBackQueued = true
       vkBackHeldTime = VkBackRepeatDelay - VkBackRepeatRate
-  elif not down:
+  else:
     vkBackDown = false
+    vkBackHeldTime = 0
 
   if down and not pointerWasDown:
     # Touch down: a new gesture cancels any glide still running.
@@ -329,7 +489,15 @@ proc updateTouchUI*(dt: float32) =
     scrollAccum = 0
     # Keys fire on press, not release: a keyboard has to feel immediate, and it
     # is the one surface where a press can't be meant as the start of a scroll.
-    gestureOnKeyboard = vkActive and vkHandlePress(cur)
+    gestureOnKeyboard = false
+    if vkChipVisible and pointInRect(cur, vkChipRect()):
+      vkDismissed = false
+      gestureOnKeyboard = true
+    elif vkActive and cur.y >= vkOverlayTop:
+      gestureOnKeyboard = true
+      if not touchDrivesKeys:
+        vkHitKey(cur)
+    keyboardOwnsPointer = gestureOnKeyboard
   elif down and gestureOnKeyboard:
     discard  # the panel owns this gesture; no scrolling, no tap
   elif down:
@@ -364,7 +532,9 @@ proc updateTouchUI*(dt: float32) =
         tapPressed = true
     gestureIsDrag = false
   else:
-    # Idle: glide.
+    # Idle: glide. The keyboard's claim on the pointer outlives the gesture by
+    # exactly one frame (the release frame above), and is dropped here.
+    keyboardOwnsPointer = false
     if flickVelocity != 0:
       scrollAccum += flickVelocity * dt
       flickVelocity *= pow(0.5'f32, dt * FlickDecay)
@@ -401,6 +571,28 @@ proc touchDragActive*(): bool =
   ## The pointer is currently scrolling. Hover/selection code can use this to
   ## avoid highlighting whatever the finger happens to be sliding over.
   gestureIsDrag
+
+proc touchKeyboardOwnsPointer*(): bool =
+  ## True for every frame of a gesture that started on the keyboard overlay,
+  ## including its release frame. The pointer wrappers suppress press/down/
+  ## release for these, so tapping a key can't also grab a window title bar, a
+  ## scrollbar thumb or a slider that happens to sit under the panel.
+  keyboardOwnsPointer
+
+proc touchKeyboardMaskPointer*(raw: Vector2): Vector2 =
+  ## Report the last position that wasn't on the keyboard, in place of one that
+  ## is. This is what keeps a field alive while you type into it: the menu layer
+  ## decides "is this window topmost / was this click mine" from the pointer
+  ## POSITION (isWindowTopmostAtPoint), and on touch the pointer is wherever the
+  ## last finger landed. Unmasked, the first key tap moves the pointer onto the
+  ## panel, the owning window stops being topmost, its input block stops running
+  ## -- so it stops calling setTextInputActive -- and the keyboard vanishes one
+  ## frame later with the keystroke still queued. Masking makes the whole menu
+  ## layer see a pointer that never left the field.
+  if raw.y >= vkOverlayTop or (vkChipVisible and pointInRect(raw, vkChipRect())):
+    lastPointerOffKeyboard
+  else:
+    raw
 
 proc touchBackPressed*(): bool =
   ## The on-screen back chip was tapped, or the hardware back key fired.

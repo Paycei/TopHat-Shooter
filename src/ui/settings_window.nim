@@ -1172,11 +1172,16 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     # Keyboard input for FPS text box
     if settingsWin.editingFPS:
       setTextInputActive(true, tikNumeric)
-      let key = pollCharPressed()
-      if key > 0:
-        let ch = char(key)
-        if ch in '0'..'9' and settingsWin.settings.inputBuffer.len < 4:
-          settingsWin.settings.inputBuffer.add(ch)
+      setTextInputPreview(settingsWin.settings.inputBuffer)
+      # Drained in a loop -- one poll per frame dropped everything raylib had
+      # already queued behind the first character.
+      var key = pollCharPressed()
+      while key > 0:
+        if key > 0 and key < 256:
+          let ch = char(key)
+          if ch in '0'..'9' and settingsWin.settings.inputBuffer.len < 4:
+            settingsWin.settings.inputBuffer.add(ch)
+        key = pollCharPressed()
       if pollBackspacePressed() and settingsWin.settings.inputBuffer.len > 0:
         settingsWin.settings.inputBuffer.setLen(settingsWin.settings.inputBuffer.len - 1)
       if pollEnterPressed() and settingsWin.settings.inputBuffer.len > 0:

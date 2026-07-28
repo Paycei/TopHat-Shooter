@@ -145,13 +145,22 @@ proc padButtonDown(b: GamepadButton): bool =
 proc padButtonReleased(b: GamepadButton): bool =
   activePad >= 0 and isGamepadButtonReleased(activePad, b)
 
+proc pointerOnVirtualKeyboard(): bool =
+  ## Mobile only: the live gesture belongs to the on-screen keyboard, so the raw
+  ## mouse edges it synthesizes must not reach the UI underneath.
+  when defined(mobile):
+    touchKeyboardOwnsPointer()
+  else:
+    false
+
 proc isPointerDragStart*(): bool =
   ## The frame the pointer goes DOWN, before tap-vs-drag has been resolved.
   ## Identical to isPointerPressed on desktop; the two diverge on mobile, where
   ## isPointerPressed waits for release. Anything that begins a drag (window
   ## title bars, sliders, scrollbar thumbs) must start from this instead, or it
   ## would never see the press that starts the drag.
-  isMouseButtonPressed(MouseButton.Left) or padButtonPressed(GamepadButton.RightFaceDown)
+  (isMouseButtonPressed(MouseButton.Left) and not pointerOnVirtualKeyboard()) or
+    padButtonPressed(GamepadButton.RightFaceDown)
 
 proc isPointerPressed*(): bool =
   when defined(mobile):
@@ -163,10 +172,12 @@ proc isPointerPressed*(): bool =
     isMouseButtonPressed(MouseButton.Left) or padButtonPressed(GamepadButton.RightFaceDown)
 
 proc isPointerDown*(): bool =
-  isMouseButtonDown(MouseButton.Left) or padButtonDown(GamepadButton.RightFaceDown)
+  (isMouseButtonDown(MouseButton.Left) and not pointerOnVirtualKeyboard()) or
+    padButtonDown(GamepadButton.RightFaceDown)
 
 proc isPointerReleased*(): bool =
-  isMouseButtonReleased(MouseButton.Left) or padButtonReleased(GamepadButton.RightFaceDown)
+  (isMouseButtonReleased(MouseButton.Left) and not pointerOnVirtualKeyboard()) or
+    padButtonReleased(GamepadButton.RightFaceDown)
 
 proc suppressBackThisFrame*() =
   ## Called by the settings rebind capture so the B press that cancels a capture
@@ -229,6 +240,10 @@ when not defined(mobile):
   proc setTextInputActive*(active: bool, kind: TextInputKind = tikText) =
     ## No-op on desktop: there is a real keyboard. Text fields call this
     ## unconditionally so the mobile branch needs no call-site guards.
+    discard
+
+  proc setTextInputPreview*(text: string) =
+    ## No-op on desktop: the field itself is never covered there.
     discard
 
   proc textInputActive*(): bool = false
