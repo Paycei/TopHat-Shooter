@@ -258,6 +258,10 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
     game.state = gsGameOver
     return
 
+  # Sticky for the rest of the run: voids the Flawless Kernel advancement even
+  # if the player resumes from the block checkpoint.
+  game.runHadDeath = true
+
   # Death ends the run: the checkpoint save is no longer resumable.
   deleteRunSave()
   deleteSuspendSnapshot()  # ...and the exact snapshot with it.

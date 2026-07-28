@@ -296,6 +296,7 @@ proc saveRunState*(game: Game, file: string = RunSaveFile,
     "version": RunSaveVersion,
     "mode": $game.mode,
     "cheatsUsed": game.cheatsUsed,
+    "runHadDeath": game.runHadDeath,
     "time": game.time,
     "shopBought": shopBought,
     "player": playerToJson(game.player)
@@ -365,6 +366,11 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
 
   try:
     game.cheatsUsed = j.getOrDefault("cheatsUsed").getBool(false)
+    # Sticky death flag. Saves from before this field existed default to false;
+    # that is safe for the normal run save (death deletes it), and the block
+    # checkpoint path re-flags it at the call site since resuming one means the
+    # player died.
+    game.runHadDeath = j.getOrDefault("runHadDeath").getBool(false)
     game.time = j.getOrDefault("time").getFloat(0.0).float32
     if j.hasKey("player"):
       applyPlayerJson(game.player, j["player"])

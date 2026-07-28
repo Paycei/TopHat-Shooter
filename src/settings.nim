@@ -1,7 +1,7 @@
 ## Settings Backend Module
 ## Handles settings initialization, state management, and application
 
-from save_system import Settings, mbmWhileShooting, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, saveSettings, loadSettings
+from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, saveSettings, loadSettings
 from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds
 import raylib, strutils
 import sound, localization
@@ -29,17 +29,17 @@ proc newDefaultSettings*(): Settings =
     editingVolume: false,
     editingMusicVolume: false,
     fullscreen: false,
-    renderResolutionMode: rrmFullscreenOnly,
+    renderResolutionMode: rrmEnabled,
     showFPS: false,
     mouseBondingMode: mbmWhileShooting,
     showDebugStats: true,
     showArenaVignette: true,
     showLowHealthVignette: true,
     showHints: true,
-    # Phones are 16:9 or taller, so the widescreen canvas letterboxes far less
-    # of the display and moves the touch buttons off the gameplay world into the
-    # side gutters. Desktop keeps the classic 4:3 default.
-    hudLayout: when defined(mobile): hlWidescreen else: hlClassic,
+    # Widescreen everywhere: on phones (16:9 or taller) it also letterboxes far
+    # less of the display and moves the touch buttons off the gameplay world
+    # into the side gutters.
+    hudLayout: hlWidescreen,
     showEnemyLabels: true,
     language: "english",  # Default language is English
     playerSkin: 0,  # Default to first skin (skDefault)

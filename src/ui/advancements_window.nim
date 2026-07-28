@@ -10,15 +10,60 @@ type
     rogueliteProfile*: RogueliteProfile  # Persistent wallet credited by claims
     currentCategory*: AdvancementCategory
     selectedId*: string
-    scrollOffset*: int
+    scrollOffset*: int  ## list scroll in pixels (rows have mixed heights)
     animTime*: float32
 
 const
   SidebarWidth = 178
   ListWidth = 390
   HeaderHeight = 78
-  CardHeight = 72
+  # Card body is CardHeight - 8. It has to fit the title (16), a two-line
+  # description (2x12 + 4 gap) and the progress bar row without them colliding,
+  # which the old 72 did not -- descriptions ran under the bar.
+  CardHeight = 86
   Gap = 12
+  TierHeaderHeight = 24
+  TierHeaderGap = 10
+  LegendHeight = 130
+  ScrollStep = 48
+
+type
+  AdvRowKind = enum
+    arkTierHeader
+    arkCard
+
+  AdvRow = object
+    kind: AdvRowKind
+    tier: AdvancementTier
+    defIndex: int  ## index into the category's definition seq; -1 for headers
+    y: int         ## offset from the top of the scrolled content
+    h: int
+
+proc buildRows(defs: seq[AdvancementDefinition]): seq[AdvRow] =
+  ## Single source of truth for list geometry. Both the update pass (hit tests,
+  ## scrolling, keyboard nav) and the draw pass walk this seq, so the two can't
+  ## drift apart the way parallel hand-computed layouts do.
+  ## `defs` arrives already sorted by rarity, so a tier change means a new group.
+  var y = 0
+  for i, def in defs:
+    if i == 0 or def.tier != defs[i - 1].tier:
+      if i > 0:
+        y += TierHeaderGap
+      result.add(AdvRow(kind: arkTierHeader, tier: def.tier, defIndex: -1,
+                        y: y, h: TierHeaderHeight))
+      y += TierHeaderHeight + 4
+    result.add(AdvRow(kind: arkCard, tier: def.tier, defIndex: i,
+                      y: y, h: CardHeight - 8))
+    y += CardHeight
+
+proc contentHeight(rows: seq[AdvRow]): int =
+  if rows.len == 0: 0 else: rows[^1].y + rows[^1].h
+
+proc rowForDef(rows: seq[AdvRow], defIndex: int): AdvRow =
+  for row in rows:
+    if row.kind == arkCard and row.defIndex == defIndex:
+      return row
+  AdvRow(kind: arkCard, defIndex: -1, y: 0, h: 0)
 
 proc tierColor*(tier: AdvancementTier): Color =
   case tier
@@ -30,6 +75,8 @@ proc tierColor*(tier: AdvancementTier): Color =
     Color(r: 255, g: 210, b: 70, a: 255)
   of atLegendary:
     Color(r: 120, g: 220, b: 255, a: 255)
+  of atMythic:
+    Color(r: 235, g: 110, b: 255, a: 255)
 
 proc claimPulse(animTime: float32): float32 =
   ## 0..1 breathing curve used to draw attention to claimable rewards.
@@ -242,10 +289,27 @@ proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
   let descLineCount = min(descLines.len, 2)
   let listDescEnd = (listY + 31) + descLineCount * (12 + 6)
   let cardStartY = max(listY + 52, listDescEnd + 10)
-  let listH = bodyH - (cardStartY - listY)
-  let maxVisible = max(1, listH div CardHeight)
+  let listH = bodyH - (cardStartY - listY) - 8
   let defs = definitionsForCategory(advWin.currentCategory)
-  advWin.scrollOffset = clamp(advWin.scrollOffset, 0, max(0, defs.len - maxVisible))
+  let rows = buildRows(defs)
+  let maxScroll = max(0, rows.contentHeight() - listH)
+  advWin.scrollOffset = clamp(advWin.scrollOffset, 0, maxScroll)
+
+  proc scrollToDef(index: int) =
+    ## Keep the keyboard selection inside the viewport, pulling the tier header
+    ## in with the first card of a group so the row never looks orphaned.
+    let row = rows.rowForDef(index)
+    if row.defIndex < 0:
+      return
+    let top = (if row.y >= TierHeaderHeight + 4 and index > 0 and
+                  defs[index].tier != defs[index - 1].tier:
+                 row.y - TierHeaderHeight - 4
+               else: row.y)
+    if top < advWin.scrollOffset:
+      advWin.scrollOffset = top
+    elif row.y + row.h > advWin.scrollOffset + listH:
+      advWin.scrollOffset = row.y + row.h - listH
+    advWin.scrollOffset = clamp(advWin.scrollOffset, 0, maxScroll)
 
   if topmost:
     if isKeyPressed(KeyboardKey.One): advWin.currentCategory = acCombat
@@ -254,37 +318,25 @@ proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
     if isKeyPressed(KeyboardKey.Four): advWin.currentCategory = acMastery
     if isKeyPressed(KeyboardKey.Five): advWin.currentCategory = acRoguelite
 
-    if isKeyPressed(KeyboardKey.Down):
+    if defs.len > 0 and (isKeyPressed(KeyboardKey.Down) or isKeyPressed(KeyboardKey.Up)):
       var selectedIndex = 0
       for i, def in defs:
         if def.id == advWin.selectedId:
           selectedIndex = i
           break
-      selectedIndex = min(defs.high, selectedIndex + 1)
-      if defs.len > 0:
-        advWin.selectedId = defs[selectedIndex].id
-        if selectedIndex >= advWin.scrollOffset + maxVisible:
-          advWin.scrollOffset = selectedIndex - maxVisible + 1
-
-    if isKeyPressed(KeyboardKey.Up):
-      var selectedIndex = 0
-      for i, def in defs:
-        if def.id == advWin.selectedId:
-          selectedIndex = i
-          break
-      selectedIndex = max(0, selectedIndex - 1)
-      if defs.len > 0:
-        advWin.selectedId = defs[selectedIndex].id
-        if selectedIndex < advWin.scrollOffset:
-          advWin.scrollOffset = selectedIndex
+      selectedIndex =
+        if isKeyPressed(KeyboardKey.Down): min(defs.high, selectedIndex + 1)
+        else: max(0, selectedIndex - 1)
+      advWin.selectedId = defs[selectedIndex].id
+      scrollToDef(selectedIndex)
 
     let listRect = Rectangle(x: (listX + 8).float32, y: cardStartY.float32,
                              width: (ListWidth - 16).float32, height: listH.float32)
     if checkCollisionPointRec(mousePos, listRect):
       let wheel = getPointerWheelMove()
       if wheel != 0:
-        advWin.scrollOffset = clamp(advWin.scrollOffset - int(wheel),
-                                    0, max(0, defs.len - maxVisible))
+        advWin.scrollOffset = clamp(advWin.scrollOffset - int(wheel * ScrollStep.float32),
+                                    0, maxScroll)
 
   if advWin.window.handledClickThisFrame and topmost:
     let sidebarX = contentX
@@ -300,14 +352,19 @@ proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
         break
       catY += 44
 
-    var cardY = cardStartY
-    for i in advWin.scrollOffset..<min(defs.len, advWin.scrollOffset + maxVisible):
-      let rect = Rectangle(x: (listX + 8).float32, y: cardY.float32,
-                           width: (ListWidth - 16).float32, height: (CardHeight - 8).float32)
+    for row in rows:
+      if row.kind != arkCard:
+        continue
+      let rowY = cardStartY + row.y - advWin.scrollOffset
+      # Clipped-away rows must not be clickable, or the list would swallow
+      # clicks meant for the panels above and below it.
+      if rowY + row.h <= cardStartY or rowY >= cardStartY + listH:
+        continue
+      let rect = Rectangle(x: (listX + 8).float32, y: rowY.float32,
+                           width: (ListWidth - 16).float32, height: row.h.float32)
       if checkCollisionPointRec(mousePos, rect):
-        advWin.selectedId = defs[i].id
+        advWin.selectedId = defs[row.defIndex].id
         break
-      cardY += CardHeight
 
     let detailX = listX + ListWidth + Gap
     let detailW = contentW - SidebarWidth - ListWidth - Gap * 2
@@ -332,6 +389,37 @@ proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
           advWin.saveClaimedProfiles()
 
   false
+
+proc drawTierDiamond(cx, cy: int, size: float32, color: Color, filled: bool) =
+  ## Small rotated square used as the rarity glyph (a poly with 4 sides is a
+  ## diamond when rotated 45 degrees).
+  let center = Vector2(x: cx.float32, y: cy.float32)
+  if filled:
+    drawPoly(center, 4, size, 45.0'f32, color)
+  drawPolyLines(center, 4, size, 45.0'f32, 1.5'f32, color)
+
+proc drawTierGroupHeader(x, y, w, h: int, tier: AdvancementTier,
+                         totals: tuple[unlocked, total, unclaimed: int],
+                         pulse: float32) =
+  ## Section divider that opens each rarity group in the list.
+  let c = tierColor(tier)
+  drawRectangleGradientH(x.int32, y.int32, w.int32, h.int32,
+                         withAlpha(c, 40), withAlpha(c, 0))
+  drawRectangle(x.int32, y.int32, 3, h.int32, c)
+  drawTierDiamond(x + 16, y + h div 2, 4.5'f32, c, totals.unlocked >= totals.total)
+  let label = tierName(tier).toUpperAscii()
+  drawText(label, (x + 26).int32, (y + (h - 12) div 2).int32, 12, c)
+  let count = $totals.unlocked & " / " & $totals.total
+  let cw = measureText(count, 11)
+  drawText(count, (x + w - 10 - cw).int32, (y + (h - 11) div 2).int32, 11,
+           if totals.unclaimed > 0: Color(r: 255, g: 210, b: 70, a: 255)
+           elif totals.unlocked >= totals.total: c
+           else: Color(r: 140, g: 155, b: 175, a: 255))
+  if totals.unclaimed > 0:
+    drawCircle(Vector2(x: (x + w - 18 - cw).float32, y: (y + h div 2).float32),
+               3.0'f32 + pulse * 1.5'f32, Color(r: 255, g: 210, b: 70, a: 255))
+  # Hairline under the label ties the group to the cards below it.
+  drawRectangle(x.int32, (y + h - 1).int32, w.int32, 1, withAlpha(c, 70))
 
 proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
                          x, y, width, height: int, selected, hovered: bool) =
@@ -358,20 +446,32 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
     drawRectangleLines(Rectangle(x: (x - 1).float32, y: (y - 1).float32,
                                  width: (width + 2).float32, height: (height + 2).float32),
                        2, withAlpha(accent, 35 + int(70.0'f32 * pulse)))
-  drawRectangle(x.int32, y.int32, 4, height.int32, accent)
+  # Untouched entries keep the rarity hue but at low alpha, so a group's
+  # completed cards pop out of the stripe column at a glance.
+  let untouched = not entry.unlocked and entry.progress <= 0.0'f32
+  drawRectangle(x.int32, y.int32, 4, height.int32,
+                if untouched: withAlpha(accent, 90) else: accent)
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
                      if claimable or selected or hovered: 2 else: 1, border)
 
-  discard drawTextFit(def.name, (x + 12).int32, (y + 8).int32, (width - 120).int32, 16,
+  discard drawTextFit(def.name, (x + 12).int32, (y + 8).int32, (width - 136).int32, 16,
                       if hovered or selected: White else: Color(r: 220, g: 228, b: 240, a: 255), 11)
   drawTierChip(x + width - 72, y + 8, 64, 16, def.tier, false)
+  # Payout preview sits between the title and the tier chip so the value of a
+  # rarity is readable without opening the detail panel.
+  let payout = "+" & $def.rewardShards
+  let payoutW = measureText(payout, 11)
+  drawText(payout, (x + width - 78 - payoutW).int32, (y + 10).int32, 11,
+           if entry.claimed: Color(r: 90, g: 160, b: 120, a: 255)
+           elif claimable: Color(r: 255, g: 210, b: 70, a: 255)
+           else: Color(r: 132, g: 146, b: 166, a: 255))
   discard drawWrappedText(def.description, x + 12, y + 30, width - 26, 12,
                           if hovered: Color(r: 185, g: 198, b: 215, a: 255)
                           else: Color(r: 165, g: 178, b: 195, a: 255), 2, 4, 10)
 
   let barX = x + 12
-  let barY = y + height - 15
+  let barY = y + height - 16
   let barW = width - 88
   let ratio = advancementPercent(entry, def)
   drawProgressBar(barX, barY, barW, 8, ratio, accent, entry.unlocked, pulse)
@@ -476,6 +576,32 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
       drawCircle(dotPos, 4.0'f32, gold)
     catY += 44
 
+  # Rarity legend pinned to the bottom of the sidebar: the same ordering the
+  # list is sorted by, doubling as a global per-tier completion readout.
+  let legendY = bodyY + bodyH - LegendHeight - 8
+  drawRectangle((contentX + 9).int32, (legendY - 10).int32, (SidebarWidth - 18).int32, 1,
+                Color(r: 62, g: 74, b: 96, a: 255))
+  drawText(t(tkAdvTierLegend).toUpperAscii(), (contentX + 10).int32, legendY.int32, 11,
+           Color(r: 120, g: 220, b: 255, a: 255))
+  var tierY = legendY + 18
+  for tier in allAdvancementTiers():
+    let totals = advWin.profile.tierTotals(tier)
+    let complete = totals.total > 0 and totals.unlocked >= totals.total
+    let c = tierColor(tier)
+    drawTierDiamond(contentX + 15, tierY + 5, 4.0'f32, c, complete)
+    drawText(tierName(tier), (contentX + 25).int32, tierY.int32, 11, c)
+    let count = $totals.unlocked & "/" & $totals.total
+    let cw = measureText(count, 11)
+    drawText(count, (contentX + SidebarWidth - 10 - cw).int32, tierY.int32, 11,
+             if totals.unclaimed > 0: Color(r: 255, g: 210, b: 70, a: 255)
+             elif complete: c
+             else: Color(r: 150, g: 165, b: 185, a: 255))
+    let ratio = if totals.total > 0: totals.unlocked.float32 / totals.total.float32
+                else: 0.0'f32
+    drawProgressBar(contentX + 10, tierY + 14, SidebarWidth - 20, 3, ratio, c,
+                    complete, pulse)
+    tierY += 22
+
   let listX = contentX + SidebarWidth + Gap
   let listY = bodyY
   drawPanel(listX, listY, ListWidth, bodyH, categoryName(advWin.currentCategory))
@@ -485,28 +611,47 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
 
   let defs = definitionsForCategory(advWin.currentCategory)
   let cardStartY = max(listY + 52, listDescEnd + 10)
-  let listH = bodyH - (cardStartY - listY)
-  let maxVisible = max(1, listH div CardHeight)
-  advWin.scrollOffset = clamp(advWin.scrollOffset, 0, max(0, defs.len - maxVisible))
-  var cardY = cardStartY
-  for i in advWin.scrollOffset..<min(defs.len, advWin.scrollOffset + maxVisible):
-    let cardRect = Rectangle(x: (listX + 8).float32, y: cardY.float32,
-                             width: (ListWidth - 16).float32,
-                             height: (CardHeight - 8).float32)
-    let hovered = canHover and checkCollisionPointRec(mousePos, cardRect)
-    drawAdvancementCard(advWin, defs[i], listX + 8, cardY, ListWidth - 16,
-                        CardHeight - 8, defs[i].id == advWin.selectedId, hovered)
-    cardY += CardHeight
+  let listH = bodyH - (cardStartY - listY) - 8
+  let rows = buildRows(defs)
+  let totalH = rows.contentHeight()
+  let maxScroll = max(0, totalH - listH)
+  advWin.scrollOffset = clamp(advWin.scrollOffset, 0, maxScroll)
 
-  if defs.len > maxVisible:
-    let scrollRatio = advWin.scrollOffset.float32 / max(1, defs.len - maxVisible).float32
+  # Clip to the viewport so partially scrolled rows are cut cleanly at the
+  # panel edges instead of spilling over the header and the window border.
+  beginVirtualScissorMode((listX + 4).int32, cardStartY.int32,
+                          (ListWidth - 8).int32, listH.int32)
+  for row in rows:
+    let rowY = cardStartY + row.y - advWin.scrollOffset
+    if rowY + row.h <= cardStartY or rowY >= cardStartY + listH:
+      continue
+    case row.kind
+    of arkTierHeader:
+      drawTierGroupHeader(listX + 8, rowY, ListWidth - 16, row.h, row.tier,
+                          advWin.profile.categoryTierTotals(advWin.currentCategory, row.tier),
+                          pulse)
+    of arkCard:
+      let def = defs[row.defIndex]
+      let cardRect = Rectangle(x: (listX + 8).float32, y: rowY.float32,
+                               width: (ListWidth - 16).float32, height: row.h.float32)
+      let hovered = canHover and checkCollisionPointRec(mousePos, cardRect)
+      drawAdvancementCard(advWin, def, listX + 8, rowY, ListWidth - 16, row.h,
+                          def.id == advWin.selectedId, hovered)
+  endScissorMode()
+
+  if totalH > listH:
     let trackX = listX + ListWidth - 8
     let trackY = cardStartY
-    let trackH = listH - 8
+    let trackH = listH
+    # Thumb length tracks the visible fraction, so a long category reads as
+    # long -- the old fixed 34px thumb hid how much was below the fold.
+    let thumbH = max(26, int(trackH.float32 * listH.float32 / totalH.float32))
+    let scrollRatio = advWin.scrollOffset.float32 / maxScroll.float32
     drawRectangle(trackX.int32, trackY.int32, 3, trackH.int32,
                   Color(r: 45, g: 52, b: 68, a: 255))
-    drawRectangle(trackX.int32, (trackY + int(scrollRatio * (trackH - 34).float32)).int32,
-                  3, 34, Color(r: 0, g: 210, b: 255, a: 255))
+    drawRectangle(trackX.int32,
+                  (trackY + int(scrollRatio * (trackH - thumbH).float32)).int32,
+                  3, thumbH.int32, Color(r: 0, g: 210, b: 255, a: 255))
 
   let detailX = listX + ListWidth + Gap
   let detailW = contentW - SidebarWidth - ListWidth - Gap * 2
@@ -538,6 +683,24 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
              if entry.claimed: Color(r: 90, g: 255, b: 150, a: 255)
              elif entry.unlocked: Color(r: 255, g: 210, b: 70, a: 255)
              else: Color(r: 190, g: 220, b: 235, a: 255))
+    infoY += 26
+    drawText(t(tkAdvCategoryLabel), (detailX + 14).int32, infoY.int32, 13, LightGray)
+    drawText(categoryName(selectedDef.category), (detailX + 95).int32, infoY.int32, 13,
+             Color(r: 210, g: 220, b: 235, a: 255))
+
+    # Rarity context: where this entry's tier stands across the whole set, so
+    # the payout above reads as "this is what this rarity is worth".
+    let tierProgress = advWin.profile.tierTotals(selectedDef.tier)
+    infoY += 26
+    drawText(t(tkAdvTierLegend), (detailX + 14).int32, infoY.int32, 13, LightGray)
+    drawText(tierName(selectedDef.tier) & "  " & $tierProgress.unlocked & " / " &
+             $tierProgress.total, (detailX + 95).int32, infoY.int32, 13, accent)
+    let tierRatio = if tierProgress.total > 0:
+                      tierProgress.unlocked.float32 / tierProgress.total.float32
+                    else: 0.0'f32
+    drawProgressBar(detailX + 14, infoY + 22, detailW - 28, 6, tierRatio, accent,
+                    tierProgress.total > 0 and tierProgress.unlocked >= tierProgress.total,
+                    pulse)
 
     if entry.unlockedAt.len > 0:
       drawText(t(tkAdvUnlockedAt), (detailX + 14).int32, (bodyY + bodyH - 88).int32, 12, LightGray)

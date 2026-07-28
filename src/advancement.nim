@@ -17,6 +17,7 @@ type
     atSilver
     atGold
     atLegendary
+    atMythic  ## Above Legendary: one-shot feats that a whole run can void.
 
   AdvancementDefinition* = object
     id*: string
@@ -44,6 +45,7 @@ const
   AdvancementRogueliteSectorsPerAct = 3
   CubeEscapeAdvancementId* = "mastery_escape_velocity"
   CheaterAdvancementId* = "mastery_cheater"
+  FlawlessWaveAdvancementId* = "survival_flawless_kernel"
 
 proc saveAdvancements*(profile: AdvancementProfile): bool
 
@@ -72,6 +74,19 @@ proc tierName*(tier: AdvancementTier): string =
   of atSilver: "Silver"
   of atGold: "Gold"
   of atLegendary: "Legendary"
+  of atMythic: "Mythic"
+
+proc tierRank*(tier: AdvancementTier): int =
+  ## Rarity ordering used to sort advancement lists: Bronze -> Legendary.
+  case tier
+  of atBronze: 0
+  of atSilver: 1
+  of atGold: 2
+  of atLegendary: 3
+  of atMythic: 4
+
+proc allAdvancementTiers*(): array[5, AdvancementTier] =
+  [atBronze, atSilver, atGold, atLegendary, atMythic]
 
 proc rewardShards*(tier: AdvancementTier): int =
   ## Data Shard payout for claiming an unlocked advancement.
@@ -81,12 +96,14 @@ proc rewardShards*(tier: AdvancementTier): int =
   of atSilver: 40
   of atGold: 90
   of atLegendary: 200
+  of atMythic: 400
 
 proc rewardCores*(tier: AdvancementTier): int =
-  ## Rare-currency payout; only Legendary advancements pay Cores so the
-  ## Heat 2+ core economy isn't trivialized.
+  ## Rare-currency payout; only Legendary and Mythic advancements pay Cores so
+  ## the Heat 2+ core economy isn't trivialized.
   case tier
   of atLegendary: 1
+  of atMythic: 3
   else: 0
 
 proc rewardShards*(def: AdvancementDefinition): int = rewardShards(def.tier)
@@ -245,6 +262,14 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
       category: acSurvival,
       tier: atLegendary,
       target: 90.0'f32,
+    ),
+    AdvancementDefinition(
+      id: FlawlessWaveAdvancementId,
+      name: "Flawless Kernel",
+      description: "Clear wave mode start to finish without dying once - no Continue.",
+      category: acSurvival,
+      tier: atMythic,
+      target: 1.0'f32,
     ),
 
     AdvancementDefinition(
@@ -485,10 +510,14 @@ proc getAdvancementEntry*(profile: AdvancementProfile, id: string): AdvancementE
   AdvancementEntry(id: id, progress: 0.0, unlocked: false, claimed: false, unlockedAt: "")
 
 proc definitionsForCategory*(category: AdvancementCategory): seq[AdvancementDefinition] =
+  ## Ordered by rarity (Bronze -> Legendary); within a tier the registry order
+  ## is preserved, so the difficulty ramp inside each tier still reads left to
+  ## right as authored. Bucketing keeps the sort stable without an extra import.
   result = @[]
-  for def in getAdvancementDefinitions():
-    if def.category == category:
-      result.add(def)
+  for tier in allAdvancementTiers():
+    for def in getAdvancementDefinitions():
+      if def.category == category and def.tier == tier:
+        result.add(def)
 
 proc advancementPercent*(entry: AdvancementEntry, def: AdvancementDefinition): float32 =
   if def.target <= 0:
@@ -541,6 +570,33 @@ proc categoryTotals*(profile: AdvancementProfile,
                      category: AdvancementCategory): tuple[unlocked, total, unclaimed: int] =
   for def in getAdvancementDefinitions():
     if def.category != category:
+      continue
+    inc result.total
+    let entry = profile.getAdvancementEntry(def.id)
+    if entry.unlocked:
+      inc result.unlocked
+      if not entry.claimed:
+        inc result.unclaimed
+
+proc categoryTierTotals*(profile: AdvancementProfile,
+                         category: AdvancementCategory,
+                         tier: AdvancementTier): tuple[unlocked, total, unclaimed: int] =
+  ## Per-tier rollup inside one category, for the grouped list headers.
+  for def in getAdvancementDefinitions():
+    if def.category != category or def.tier != tier:
+      continue
+    inc result.total
+    let entry = profile.getAdvancementEntry(def.id)
+    if entry.unlocked:
+      inc result.unlocked
+      if not entry.claimed:
+        inc result.unclaimed
+
+proc tierTotals*(profile: AdvancementProfile,
+                 tier: AdvancementTier): tuple[unlocked, total, unclaimed: int] =
+  ## Rollup of one rarity tier across every category, for the sidebar legend.
+  for def in getAdvancementDefinitions():
+    if def.tier != tier:
       continue
     inc result.total
     let entry = profile.getAdvancementEntry(def.id)
@@ -656,9 +712,10 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.highestHeat.float32
   of "roguelite_victory_kernel":
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.wins.float32
-  of CubeEscapeAdvancementId, CheaterAdvancementId:
-    # Event-driven (desktop easter egg), never derived from stats; unlocked
-    # via unlockAdvancementDirectly. Returning 0 keeps sync from touching it.
+  of CubeEscapeAdvancementId, CheaterAdvancementId, FlawlessWaveAdvancementId:
+    # Event-driven (desktop easter egg, cheat use, flawless wave-mode clear),
+    # never derived from stats; unlocked via unlockAdvancementDirectly.
+    # Returning 0 keeps sync from touching it.
     0.0'f32
   else:
     0.0'f32

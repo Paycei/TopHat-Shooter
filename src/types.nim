@@ -1347,6 +1347,8 @@ type
     waveInProgress*: bool
     waveStartTime*: float32  # Track when current wave started for statistics
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
+    runHadDeath*: bool  # Sticky: the run has died at least once (or resumed a block checkpoint after dying)
+    flawlessWaveVictory*: bool  # One-shot: wave mode was just beaten with runHadDeath still false (consumed in main.nim)
     cheatRogueliteSkipFloor*: bool  # Roguelite cheat: request to complete the current floor (consumed in main.nim)
     cheatRogueliteDirectFloorSelect*: bool  # Roguelite cheat: after the post-skip draft, jump straight to floor select instead of an (often unreachable) exit portal (consumed in main.nim)
     lastMousePos*: Vector2f  # Track mouse position to detect movement
