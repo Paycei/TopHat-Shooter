@@ -354,24 +354,33 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
     help.window.visible = false
     return -1
 
-  # Handle text input with safety checks
-  let key = getCharPressed()
-  if key > 0 and key < 256:  # Valid ASCII range
-    let ch = char(key)
-    # Only accept printable ASCII characters and limit input length
-    if ch >= ' ' and ch <= '~' and help.currentInput.len < 100:
-      help.currentInput.add(ch)
+  # The terminal is a typed-command REPL with no focusable field of its own, so
+  # the window itself is the field -- and only while it is the one you are
+  # looking at. Ungated, a backgrounded or minimized terminal still consumed
+  # every keystroke (getCharPressed pops from a shared queue), starving the
+  # focused window's text field, e.g. the shop's search box.
+  if help.window.focused and not help.window.minimized:
+    # Drained in a loop: raylib queues several characters per frame when typing
+    # fast, and one call per frame silently dropped the rest.
+    var key = getCharPressed()
+    while key > 0:
+      if key < 256:  # Valid ASCII range
+        let ch = char(key)
+        # Only accept printable ASCII characters and limit input length
+        if ch >= ' ' and ch <= '~' and help.currentInput.len < 100:
+          help.currentInput.add(ch)
+      key = getCharPressed()
 
-  # Handle backspace
-  if isKeyPressed(Backspace) and help.currentInput.len > 0:
-    help.currentInput.setLen(help.currentInput.len - 1)
+    # Handle backspace
+    if isKeyPressed(Backspace) and help.currentInput.len > 0:
+      help.currentInput.setLen(help.currentInput.len - 1)
 
-  # Handle enter - execute command
-  if isKeyPressed(Enter):
-    if help.currentInput.len > 0:
-      executeCommand(help, help.currentInput)
-      help.currentInput = ""
-    help.scrollOffset = max(0, help.outputLines.len - 15)  # Scroll to bottom
+    # Handle enter - execute command
+    if isKeyPressed(Enter):
+      if help.currentInput.len > 0:
+        executeCommand(help, help.currentInput)
+        help.currentInput = ""
+      help.scrollOffset = max(0, help.outputLines.len - 15)  # Scroll to bottom
 
   # Handle scrolling with mouse wheel
   let wheel = getPointerWheelMove()
