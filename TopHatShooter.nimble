@@ -57,7 +57,9 @@ proc androidAbiInfo(abi: string): tuple[cpu, triple: string] =
   of "x86":         (cpu: "i386",  triple: "i686-linux-android")
   else:             (cpu: "arm64", triple: "aarch64-linux-android")
 
-task androidLib, "Cross-compile libmain.so for each ABI (needs ANDROID_NDK)":
+proc buildAndroidLibs(release: bool) =
+  ## Cross-compiles libmain.so per ABI. `release` adds LTO + dead-code stripping
+  ## on top of the flags the debug lib already uses (-d:danger --opt:speed).
   let ndk = androidNdkRoot()
   if ndk.len == 0:
     echo "ERROR: set ANDROID_NDK (or ANDROID_NDK_HOME / ANDROID_NDK_ROOT) to your NDK path."
@@ -68,27 +70,57 @@ task androidLib, "Cross-compile libmain.so for each ABI (needs ANDROID_NDK)":
   let hostTag = androidHostTag()
   let clangSuffix = if hostTag.startsWith("windows"): ".cmd" else: ""
   let binDir = ndk / "toolchains" / "llvm" / "prebuilt" / hostTag / "bin"
+  # LTO across the whole (single) translation unit set + drop unreached sections and
+  # the symbol table. --strip-all is what keeps the shipped .so small; there is no
+  # separate debug-symbol upload step, so nothing needs them.
+  let extraFlags =
+    if release:
+      " --parallelBuild:0" &
+      " --passC:\"-flto -ffunction-sections -fdata-sections -fomit-frame-pointer\"" &
+      " --passL:\"-flto -Wl,--gc-sections -Wl,--strip-all -Wl,-O2\""
+    else: ""
   for rawAbi in abis:
     let abi = rawAbi.strip()
     let info = androidAbiInfo(abi)
     let clang = binDir / (info.triple & api & "-clang" & clangSuffix)
     let outDir = thisDir() / "android" / "app" / "src" / "main" / "jniLibs" / abi
     mkDir(outDir)
-    echo "[androidLib] ", abi, "  cc=", clang
+    echo "[androidLib", (if release: ":release" else: ""), "] ", abi, "  cc=", clang
     exec "nim c --os:android --cpu:" & info.cpu &
       " --cc:clang --clang.exe:\"" & clang & "\" --clang.linkerexe:\"" & clang & "\"" &
       " -d:mobile -d:android -d:danger --mm:orc --opt:speed --app:lib --panics:on" &
-      " -d:AndroidNdk:\"" & ndk & "\"" &
+      " -d:AndroidNdk:\"" & ndk & "\"" & extraFlags &
       " -o:\"" & (outDir / "libmain.so") & "\" src/main.nim"
 
-task android, "Build the Android APK (needs ANDROID_NDK, Android SDK, JDK, gradle)":
-  androidLibTask()
+proc gradleCommand(): string =
   # Prefer the pinned Gradle 8.7 wrapper (AGP 8.5.2 needs Gradle 8.7 + JDK 17-21);
   # fall back to GRADLE env or system `gradle` if the wrapper isn't present.
-  let androidDir = thisDir() / "android"
-  let wrapper = androidDir / (when defined(windows): "gradlew.bat" else: "gradlew")
-  let gradleCmd = if fileExists(wrapper): wrapper
-                  else: getEnv("GRADLE", "gradle")
-  withDir(androidDir):
-    exec "\"" & gradleCmd & "\" assembleDebug"
+  let wrapper = thisDir() / "android" / (when defined(windows): "gradlew.bat" else: "gradlew")
+  if fileExists(wrapper): wrapper else: getEnv("GRADLE", "gradle")
+
+task androidLib, "Cross-compile libmain.so for each ABI (needs ANDROID_NDK)":
+  buildAndroidLibs(release = false)
+
+task androidReleaseLib, "Cross-compile an optimized, stripped libmain.so per ABI":
+  buildAndroidLibs(release = true)
+
+task android, "Build the Android APK (needs ANDROID_NDK, Android SDK, JDK, gradle)":
+  buildAndroidLibs(release = false)
+  withDir(thisDir() / "android"):
+    exec "\"" & gradleCommand() & "\" assembleDebug"
   echo "APK -> android/app/build/outputs/apk/debug/app-debug.apk"
+
+task androidRelease, "Build the optimized release Android APK (signed if a keystore is configured)":
+  # Same codebase as `nimble android`, but the native lib gets LTO + stripping and
+  # the APK is built with the `release` build type (not debuggable, zipaligned).
+  # Signing: android/keystore.properties or the ANDROID_KEYSTORE* env vars; without
+  # them gradle emits app-release-unsigned.apk. See android/README.md.
+  buildAndroidLibs(release = true)
+  withDir(thisDir() / "android"):
+    exec "\"" & gradleCommand() & "\" assembleRelease"
+  let outDir = thisDir() / "android" / "app" / "build" / "outputs" / "apk" / "release"
+  if fileExists(outDir / "app-release.apk"):
+    echo "APK -> android/app/build/outputs/apk/release/app-release.apk (signed)"
+  else:
+    echo "APK -> android/app/build/outputs/apk/release/app-release-unsigned.apk"
+    echo "      No keystore configured; sign it with apksigner before installing."

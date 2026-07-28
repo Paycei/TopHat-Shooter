@@ -2,5 +2,9 @@
 build/
 app/build/
 local.properties
+# Release signing config + keystores (never commit these)
+keystore.properties
+*.jks
+*.keystore
 # Built native libs (produced by `nimble androidLib`)
 app/src/main/jniLibs/*/libmain.so

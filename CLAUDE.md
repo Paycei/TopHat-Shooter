@@ -13,7 +13,9 @@ nimble WinRelease     # optimized MSVC build -> TopHatShooterOS.exe (Windows, ne
 nimble WinReleaseMin  # release optimized for size
 nimble LinuxRelease   # optimized Linux build
 nimble androidLib     # cross-compile libmain.so per ABI (needs ANDROID_NDK)
-nimble android        # androidLib + gradle -> Android APK (needs SDK+JDK+gradle)
+nimble android        # androidLib + gradle -> debug APK (needs SDK+JDK+gradle)
+nimble androidReleaseLib  # same, but LTO + --gc-sections + --strip-all
+nimble androidRelease     # androidReleaseLib + gradle assembleRelease -> release APK
 ```
 
 Verify the mobile build without a phone — **all three** configurations, since
@@ -178,7 +180,10 @@ Other pieces:
   working `app-debug.apk` (verified). Known-good toolchain: NDK r30, JDK 21, a
   **pinned Gradle 8.7 wrapper** (`android/gradlew` — the system Gradle 9.x + JDK
   25 can't run AGP 8.5.2), AGP 8.5.2, compileSdk 34. On-device runtime is not yet
-  verified. Details + gotchas in `android/README.md`.
+  verified. `nimble androidRelease` adds LTO/stripping to the lib and the
+  `release` build type; it signs the APK only if `android/keystore.properties`
+  (or the `ANDROID_KEYSTORE*` env vars) exists, otherwise it emits
+  `app-release-unsigned.apk`. Details + gotchas in `android/README.md`.
 
 ## Adding a power-up (the main content-extension workflow)
 

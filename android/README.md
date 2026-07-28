@@ -64,6 +64,55 @@ nimble android
 
 Install: `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`.
 
+### Release build
+
+```bash
+nimble androidRelease   # optimized lib + `release` build type
+# -> android/app/build/outputs/apk/release/app-release.apk  (signed)
+#    ...or app-release-unsigned.apk if no keystore is configured
+```
+
+It differs from `nimble android` in two places:
+
+- **The native lib** (`nimble androidReleaseLib`, run for you) adds `-flto`,
+  `-ffunction-sections -fdata-sections` + `-Wl,--gc-sections` and
+  `-Wl,--strip-all` on top of the `-d:danger --opt:speed` the debug lib already
+  uses. ~4.2 MB vs ~4.9 MB for arm64-v8a. AGP then logs *"Unable to strip the
+  following libraries … libmain.so"* — that is expected and harmless: the linker
+  already stripped it, so there is nothing left for AGP to remove.
+- **The APK** uses the `release` build type: `debuggable false`,
+  `jniDebuggable false`, zipaligned, `debugSymbolLevel 'none'`. `minifyEnabled`
+  stays off — there is no bytecode to shrink (`hasCode=false`).
+
+Both tasks write to the same `jniLibs/<abi>/libmain.so`, so they clobber each
+other's lib — which is harmless, because each one recompiles it before invoking
+gradle. Never run bare `gradlew assembleRelease` after a debug build; you'd
+package the unoptimized lib.
+
+**Signing.** `assembleRelease` works without a keystore but produces
+`app-release-unsigned.apk`, which Android will not install. To get a signed APK,
+create `android/keystore.properties` (git-ignored):
+
+```properties
+storeFile=C:/keys/tophat.jks
+storePassword=...
+keyAlias=tophat
+keyPassword=...
+```
+
+`storeFile` may be absolute or relative to `android/`. The env vars
+`ANDROID_KEYSTORE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
+`ANDROID_KEY_PASSWORD` are used as fallbacks for CI. Generate a key with:
+
+```bash
+keytool -genkeypair -v -keystore tophat.jks -keyalg RSA -keysize 2048 \
+        -validity 10000 -alias tophat
+```
+
+Keep that keystore forever — Android identifies app updates by signature, and
+losing it means the app can never be updated in place. Bump `versionCode` in
+`app/build.gradle` for each release you distribute.
+
 ## Notes / things to verify on-device
 
 The build is **verified to produce a working APK** with the toolchain above:
@@ -82,8 +131,8 @@ on-device runtime (no device was attached at build time). Sideload with
   that path resolves.
 - **ABI filters.** `app/build.gradle` `abiFilters` must include every ABI you
   built a `libmain.so` for (and vice-versa).
-- **Release signing.** `nimble android` builds the *debug* APK. For a release
-  APK add a signing config and run `gradle assembleRelease` + `apksigner`.
+- **Release signing.** `nimble android` builds the *debug* APK; `nimble
+  androidRelease` builds the optimized one (see "Release build" above).
 - **Toolchain triple / API level.** `AndroidApiLevel = 29` in
   `TopHatShooter.nimble`; the NDK clang is `<triple><api>-clang`. Adjust if your
   NDK layout differs.

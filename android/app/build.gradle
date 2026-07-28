@@ -5,6 +5,26 @@ plugins {
     id 'com.android.application' version '8.5.2'
 }
 
+// Optional release signing. Supply either android/keystore.properties (git-ignored):
+//     storeFile=C:/keys/tophat.jks
+//     storePassword=...
+//     keyAlias=tophat
+//     keyPassword=...
+// or the env vars ANDROID_KEYSTORE / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS /
+// ANDROID_KEY_PASSWORD. With neither, `assembleRelease` still succeeds and emits
+// app-release-unsigned.apk (installable only after signing it yourself).
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def ksPath = keystoreProps.getProperty('storeFile') ?: System.getenv('ANDROID_KEYSTORE')
+def ksFile = (ksPath != null && !ksPath.isEmpty()) ? rootProject.file(ksPath) : null
+def hasSigning = ksFile != null && ksFile.exists()
+if (ksFile != null && !hasSigning) {
+    logger.warn("WARNING: keystore '${ksFile}' not found - release APK will be unsigned.")
+}
+
 android {
     namespace 'com.paycei.tophatshooter'
     compileSdk 34
@@ -13,7 +33,7 @@ android {
         applicationId 'com.paycei.tophatshooter'
         minSdk 29          // matches AndroidApiLevel in TopHatShooter.nimble
         targetSdk 34
-        versionCode 2
+        versionCode 3
         versionName '6.1.0'
         ndk {
             // Keep in sync with the ABIs you built (ANDROID_ABIS). Only ABIs with
@@ -29,9 +49,30 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasSigning) {
+            release {
+                storeFile ksFile
+                storePassword keystoreProps.getProperty('storePassword') ?: System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias keystoreProps.getProperty('keyAlias') ?: System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword keystoreProps.getProperty('keyPassword') ?: System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // No Java/Kotlin bytecode to shrink (hasCode=false) - all the size and
+            // speed work happens in the native lib, see `nimble androidRelease`.
             minifyEnabled false
+            debuggable false
+            jniDebuggable false
+            zipAlignEnabled true
+            // libmain.so is already stripped by the linker; don't ship a symbol table.
+            ndk { debugSymbolLevel 'none' }
+            if (hasSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
