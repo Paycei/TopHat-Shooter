@@ -111,7 +111,12 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
   resetBossWeakPointForPhase(enemy, bossDef.weakPoint, enemy.currentPhaseIndex)
 
 proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool =
-  if not enemy.isBoss or enemy.hp > 0.0'f32 or enemy.bossDefinitionID <= 0:
+  ## Breaks a boss into its next phase once the current phase pool is spent.
+  ## The depletion test must match the death test in `updateEnemy`
+  ## (`hp >= EnemyMinAliveHp`): a stricter `hp > 0` check left float residue in
+  ## (0, EnemyMinAliveHp) reading as dead-but-not-advanceable, which killed
+  ## bosses outright instead of transitioning them.
+  if not enemy.isBoss or enemy.hp >= EnemyMinAliveHp or enemy.bossDefinitionID <= 0:
     return false
 
   let bossDef = getBossDefinition(enemy.bossDefinitionID)

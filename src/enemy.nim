@@ -780,9 +780,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   if enemy.enemyType == etStar and enemy.hitCount >= enemy.requiredHits:
     return false
 
-  # Enemies with exactly 0.01 HP are still alive (minimum health)
+  # Enemies with exactly EnemyMinAliveHp are still alive (minimum health)
   # They die when hit again (hp becomes <= 0)
-  return enemy.hp >= 0.01
+  return enemy.hp >= EnemyMinAliveHp
 
 proc drawCustomBoss*(enemy: Enemy) =
   ## Redesigned boss visuals

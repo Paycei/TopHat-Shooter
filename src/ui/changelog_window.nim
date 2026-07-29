@@ -160,6 +160,9 @@ let changelog: seq[ChangelogVersion] = @[
 
       # --- Fixes ---
       ChangelogEntry(category: clcFixed,
+        en: "Fixed bosses sometimes dying outright when a phase health bar ran out instead of changing to their next phase.",
+        es: "Se corrigio que los jefes murieran a veces de golpe al agotarse la barra de vida de una fase en vez de pasar a su siguiente fase."),
+      ChangelogEntry(category: clcFixed,
         en: "Fixed the Last Run stats screen changing under you: it now stores its own snapshot instead of tracking a run that kept updating.",
         es: "Se corrigio que la pantalla de estadisticas de la ultima partida cambiara sola: ahora guarda su propia instantanea en vez de seguir una partida que se seguia actualizando."),
       ChangelogEntry(category: clcFixed,
@@ -168,6 +171,9 @@ let changelog: seq[ChangelogVersion] = @[
       ChangelogEntry(category: clcFixed,
         en: "Fixed resumed runs silently dropping Heavy Rounds' size penalty and leaving the comeback bonus permanently active.",
         es: "Se corrigio que las partidas retomadas perdieran en silencio la penalizacion de tamaño de Balas Pesadas y dejaran el bono de remontada activo para siempre."),
+      ChangelogEntry(category: clcFixed,
+        en: "Fixed aura tints still being drawn at the old, smaller radius: the coloured area now fills the whole aura out to its border, and wind, arcane and blood auras got the same tinted body the others already had.",
+        es: "Se corrigio que los tintes de las auras se dibujaran aun con el radio antiguo, mas pequeno: el area coloreada ahora llena toda el aura hasta su borde, y las auras de viento, arcana y sangre recibieron el mismo cuerpo tenido que ya tenian las demas."),
       ChangelogEntry(category: clcFixed,
         en: "Fixed a single wind gust hitting the same enemy repeatedly as its own knockback pushed it back through the wavefront.",
         es: "Se corrigio que una sola ráfaga de viento golpeara al mismo enemigo varias veces porque su propio empuje lo devolvia a traves del frente de onda."),
