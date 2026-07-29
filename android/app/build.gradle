@@ -34,7 +34,7 @@ android {
         minSdk 29          // matches AndroidApiLevel in TopHatShooter.nimble
         targetSdk 34
         versionCode 3
-        versionName '6.1.0'
+        versionName '6.1.1'
         ndk {
             // Keep in sync with the ABIs you built (ANDROID_ABIS). Only ABIs with
             // a matching libmain.so under jniLibs will actually run.
