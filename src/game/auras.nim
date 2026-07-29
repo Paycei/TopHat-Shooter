@@ -374,6 +374,18 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
   let burst = (if flash > 0.001: clamp(1.0'f32 - elapsed / 0.15'f32, 0.0'f32, 1.0'f32)
                else: 0.0'f32)
 
+  # Body fill: the ground the aura actually covers, drawn at its true radius so
+  # the tinted area and the border can never disagree. It lives here rather than
+  # in drawPlayer precisely because this proc is the only one that knows the
+  # radius - the old per-aura copies in drawPlayer hardcoded the pre-rework
+  # radii and left a too-small disc floating inside the correct ring.
+  # Kept faint: several stacked auras fill on top of each other.
+  let bodyAlpha = uint8(clamp(config.coreColor.a.float32 * 0.55 * (0.85 + 0.15 * pulse),
+                              0.0'f32, 255.0'f32))
+  drawCircle(Vector2(x: pos.x, y: pos.y), config.radius,
+             Color(r: config.ringColor.r, g: config.ringColor.g,
+                   b: config.ringColor.b, a: bodyAlpha))
+
   # Draw core glow (common to all auras); firing briefly kicks it
   let coreAlpha = uint8(min(255.0'f32, config.coreColor.a.float32 * (1.0 + burst * 2.0)))
   drawCircle(Vector2(x: pos.x, y: pos.y),
