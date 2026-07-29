@@ -1506,6 +1506,13 @@ const
   # `drawBossPhaseTransition` are driven by how much of it has elapsed.
   BossPhaseTransitionDuration* = 2.3'f32
 
+  # Single definition of "still alive": an enemy lives while hp >= this value.
+  # Everything that asks "is this depleted?" must use the same threshold --
+  # a boss whose phase pool stopped inside (0, EnemyMinAliveHp) used to read as
+  # dead to the update loop while the phase-advance check still saw hp > 0,
+  # which killed the boss instead of breaking it into its next phase.
+  EnemyMinAliveHp* = 0.01'f32
+
 proc diminishedBulletSpeedGain*(currentSpeed, gain: float32): float32 =
   ## Keeps early bullet-speed gains intact, then tapers later gains smoothly.
   if gain <= 0.0:

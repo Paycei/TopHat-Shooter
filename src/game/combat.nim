@@ -50,8 +50,15 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
     if enemy.invulnerabilityTimer > 0:
       return 0.0'f32
 
-    let dealt = min(damage, max(enemy.hp, 0.0'f32))
+    var dealt = min(damage, max(enemy.hp, 0.0'f32))
     enemy.hp -= dealt
+    # A hit that falls just short of the phase pool leaves an exact float residue
+    # (subtraction of nearby values is exact), so the boss can sit at e.g. 0.00006
+    # HP: below the alive threshold but not at zero. Flush that sliver into the
+    # hit so the pool reads as cleanly spent.
+    if enemy.hp > 0.0'f32 and enemy.hp < EnemyMinAliveHp:
+      dealt += enemy.hp
+      enemy.hp = 0.0'f32
     return dealt
 
   enemy.hp -= damage

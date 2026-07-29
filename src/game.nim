@@ -2410,6 +2410,15 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         enemy.knockbackVel = newVector2f(0, 0)
 
     if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
+      # Safety net for the boss phase invariant: any damage path that emptied the
+      # phase pool after the tryAdvanceBossPhase check above -- including damage
+      # dealt inside updateEnemy itself -- must break the boss into its next
+      # phase, never be read as a defeat while phases remain.
+      if enemy.isBoss and tryAdvanceBossPhase(game, enemy):
+        game.enemies[enemyIdx] = enemy
+        enemyIdx += 1
+        continue
+
       # Enemy died - show any accumulated aura/DoT damage before death
       flushAccumulatedAuraDamage(game, enemy)
       flushAccumulatedDotDamage(game, enemy)
@@ -3158,10 +3167,14 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           # at 0 HP may still have phases left, and full defeat bookkeeping
           # (bossDefeated, wave flow, rewards) lives in the main enemy update
           # loop, so a contact kill must funnel through it instead.
-          if enemy.hp <= 0:
-            if enemy.isBoss:
+          # The boss arm uses the alive threshold, not `<= 0`, so a phase pool
+          # left with sub-threshold float residue still breaks into the next
+          # phase instead of reaching the update loop looking defeated.
+          if enemy.isBoss:
+            if enemy.hp < EnemyMinAliveHp:
               discard tryAdvanceBossPhase(game, enemy)
-            else:
+          else:
+            if enemy.hp <= 0:
               # Flush any accumulated contact damage before death
               flushAccumulatedContactDamage(game, enemy)
               game.enemies.delete(enemyIdx)

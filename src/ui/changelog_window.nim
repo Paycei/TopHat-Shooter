@@ -160,6 +160,9 @@ let changelog: seq[ChangelogVersion] = @[
 
       # --- Fixes ---
       ChangelogEntry(category: clcFixed,
+        en: "Fixed bosses sometimes dying outright when a phase health bar ran out instead of changing to their next phase.",
+        es: "Se corrigio que los jefes murieran a veces de golpe al agotarse la barra de vida de una fase en vez de pasar a su siguiente fase."),
+      ChangelogEntry(category: clcFixed,
         en: "Fixed the Last Run stats screen changing under you: it now stores its own snapshot instead of tracking a run that kept updating.",
         es: "Se corrigio que la pantalla de estadisticas de la ultima partida cambiara sola: ahora guarda su propia instantanea en vez de seguir una partida que se seguia actualizando."),
       ChangelogEntry(category: clcFixed,
