@@ -378,10 +378,12 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
     # Restore the shop price/gain curves. Counters only: the purchases they paid
     # for are already part of the restored player stats (re-applying the effects
     # here would double them).
-    let shopBought = j.getOrDefault("shopBought")
-    if shopBought.kind == JArray:
-      for i in 0 ..< min(shopBought.len, game.shopItems.len):
-        game.shopItems[i].bought = max(0, shopBought[i].getInt(0))
+    # getElems() rather than a raw `.kind` test: getOrDefault returns nil for a
+    # missing key, and reading .kind off that nil segfaults. Saves written before
+    # shopBought existed have no such key, so this must stay nil-tolerant.
+    let shopBought = j.getOrDefault("shopBought").getElems()
+    for i in 0 ..< min(shopBought.len, game.shopItems.len):
+      game.shopItems[i].bought = max(0, shopBought[i].getInt(0))
 
     case game.mode
     of gmWaveBased:
@@ -433,14 +435,16 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
         died: false,
         awaitingVictoryScreen: false
       )
-      for th in rj.getOrDefault("usedThemes"):
+      # .getElems() on each: iterating a JsonNode reads .kind, which segfaults
+      # when the key is absent (getOrDefault yields nil, not an empty array).
+      for th in rj.getOrDefault("usedThemes").getElems():
         run.usedThemes.incl(parseTheme(th.getStr()))
       var idx = 0
-      for th in rj.getOrDefault("nextThemeChoices"):
+      for th in rj.getOrDefault("nextThemeChoices").getElems():
         if idx < 3:
           run.nextThemeChoices[idx] = parseTheme(th.getStr())
           inc idx
-      for r in rj.getOrDefault("relics"):
+      for r in rj.getOrDefault("relics").getElems():
         run.relics.add(makeRelic(parseRelic(r.getStr())))
 
       game.rogueliteRun = run
@@ -468,7 +472,10 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
         floor.mapRevealed = fj.getOrDefault("mapRevealed").getBool(false)
         floor.compassFound = fj.getOrDefault("compassFound").getBool(false)
         let roomsJson = fj.getOrDefault("rooms")
-        if roomsJson.kind == JArray and roomsJson.len == floor.rooms.len:
+        # isNil first: getOrDefault yields nil for a missing key and .kind would
+        # segfault on it. A save with no "rooms" falls to the else and bails.
+        if not roomsJson.isNil and roomsJson.kind == JArray and
+           roomsJson.len == floor.rooms.len:
           for ri in 0 ..< floor.rooms.len:
             let room = floor.rooms[ri]
             let rjson = roomsJson[ri]
@@ -477,7 +484,7 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
             room.seen = rjson.getOrDefault("seen").getBool(room.seen)
             room.locked = rjson.getOrDefault("locked").getBool(room.locked)
             let pj = rjson.getOrDefault("pickupsTaken")
-            if pj.kind == JArray and pj.len == room.pickups.len:
+            if not pj.isNil and pj.kind == JArray and pj.len == room.pickups.len:
               for pi in 0 ..< room.pickups.len:
                 room.pickups[pi].taken = pj[pi].getBool(false)
         else:

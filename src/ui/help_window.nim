@@ -230,13 +230,13 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpBossEvery60Sec), White)
       help.addOutput("", White)
       help.addOutput(t(tkHelpBossMechanics), Color(r: 255, g: 200, b: 50, a: 255))
-      help.addOutput("  - Unique attack patterns", White)
-      help.addOutput("  - Multiple phases as HP decreases", White)
-      help.addOutput("  - Higher HP and damage than normal enemies", White)
-      help.addOutput("  - Speed and damage increase with each phase", White)
+      help.addOutput("  " & t(tkHelpBossMechPatterns), White)
+      help.addOutput("  " & t(tkHelpBossMechPhases), White)
+      help.addOutput("  " & t(tkHelpBossMechStats), White)
+      help.addOutput("  " & t(tkHelpBossMechScaling), White)
       help.addOutput("", White)
       help.addOutput(t(tkHelpBossAttacks), Color(r: 255, g: 200, b: 50, a: 255))
-      help.addOutput("  - Refer to individual boss entries below for specifics", White)
+      help.addOutput("  " & t(tkHelpBossAttacksRefer), White)
       help.addOutput("", White)
       # List all bosses with short descriptions
       for id in 1..12:
