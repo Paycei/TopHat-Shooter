@@ -866,6 +866,7 @@ type
     reflectShieldActive*: bool      # Body shots are reflected/blocked while this is up
     reflectShieldTimer*: float32    # Time remaining on the current reflect shield
     reflectShieldCooldown*: float32  # Time until the next reflect shield raises
+    reflectShieldWarnTimer*: float32  # >0 while the shield is charging up (text-free telegraph); 0 otherwise
     bossStallTimer*: float32        # Time the current weak-point objective has gone unbroken
     bossEnrageLevel*: float32       # 0 = calm; ramps while the objective is ignored (faster attacks)
     addsGateActive*: bool           # True while living boss-summoned adds make the boss damage-immune
@@ -925,6 +926,7 @@ type
     isFromBulletSplit*: bool  # True if this bullet was created by Bullet Split
     isRicochet*: bool  # True if this bullet has already ricocheted at least once
     isParried*: bool  # True if this was an enemy bullet bounced back by Parry
+    isShieldReflected*: bool  # True if a boss overload shield turned this player bullet back on its owner
     colorOverride*: Color  # Custom bullet color (alpha=0 means use default coloring)
     bulletSkin*: int  # Bullet skin typeHost
     ownerPlayerIndex*: int  # For PvP: which player shot this bullet (-1 for non-PvP)
