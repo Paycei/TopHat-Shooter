@@ -1185,14 +1185,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "satellite_barrage"
             ),
             BossAttack(
-              # Orbital Scan finale: two crosswise walls with tighter gaps.
+              # Orbital Scan finale: the signature attack takes over the last
+              # phase - three walls per volley (rake, crosswise, reverse) and a
+              # short enough cooldown that the next scan telegraphs while the
+              # last wall is still clearing the arena. The base gap is trimmed
+              # because the 3-wall volley bonus widens every lane by +70%.
               attackType: bapMeteor,  # nominal; routed by specialData
               damage: 14.0,
-              cooldown: 9.0,
+              cooldown: 6.5,
               projectileSpeed: 0.0,
-              projectileCount: 2,
+              projectileCount: 3,
               spreadAngle: 0.0,
-              durationOrRadius: 72.0,
+              durationOrRadius: 62.0,
               specialData: "orbital_sweep"
             ),
             BossAttack(

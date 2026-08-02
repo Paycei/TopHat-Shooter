@@ -41,11 +41,23 @@ const
 # commit history since the last release tag (Release552), not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
+    titleEn: "Version 6.2",
+    titleEs: "Version 6.2",
+    subtitleEn: "Changes since v6.1.1",
+    subtitleEs: "Cambios desde v6.1.1",
+    latest: true,
+    entries: @[
+      # --- Tuning ---
+      ChangelogEntry(category: clcBalance,
+        en: "The Orbital Commander's final phase now belongs to its Orbital Scan: three walls per volley instead of two, arriving from three different edges (rake, crosswise, then a reverse rake), and the next scan starts telegraphing while the last wall is still crossing. The safe lane is a touch wider to compensate.",
+        es: "La fase final del Comandante Orbital ahora gira en torno a su Escaneo Orbital: tres muros por descarga en vez de dos, llegando desde tres bordes distintos (barrido, transversal y barrido inverso), y el siguiente escaneo empieza a avisarse mientras el ultimo muro aun cruza. El carril seguro es algo mas ancho para compensar.")
+    ]
+  ),
+  ChangelogVersion(
     titleEn: "Version 6.1",
     titleEs: "Version 6.1",
     subtitleEn: "Changes since v6.0",
     subtitleEs: "Cambios desde v6.0",
-    latest: true,
     entries: @[
       # --- Headline features ---
       ChangelogEntry(category: clcNew,
