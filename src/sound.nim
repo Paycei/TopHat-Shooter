@@ -1,4 +1,5 @@
 import raylib, math, random, os, streams, strutils
+import std/atomics
 import localization
 
 # Raylib's playSound restarts a Sound that is already playing, cutting its
@@ -14,9 +15,6 @@ type
 
   MusicTrack* = enum
     mtMenu, mtWave, mtPowerUp, mtBoss
-
-  # Progress callback: proc(progress: float32, message: string)
-  AssetGenerationCallback* = proc(progress: float32, message: string) {.closure.}
 
   SoundSystem* = ref object
     enabled*: bool
@@ -151,7 +149,7 @@ proc writeWavFile(filename: string, samples: seq[int16], sampleRate: uint32) =
     if not stream.isNil:
       stream.close()
 
-proc createLaserShoot(filename: string): Sound =
+proc createLaserShoot(filename: string) =
   # Tight sci-fi "pew": pitch-swept core with light FM, a fast-fading bright
   # harmonic, a small sub thump and a filtered attack tick. Phase accumulation
   # keeps the sweep clean, and soft saturation adds body. Built to be heard
@@ -195,9 +193,8 @@ proc createLaserShoot(filename: string): Sound =
     samples[i] = int16(clamp(value * 32767.0 * 0.5, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createImpactHit(filename: string): Sound =
+proc createImpactHit(filename: string) =
   # Punchy drum-like impact: a pitch-swept thump (phase-accumulated, like an
   # 808 kick), a mid knock for definition and a lowpass-filtered crack burst
   # instead of raw white noise. Soft saturation glues the layers together.
@@ -236,9 +233,8 @@ proc createImpactHit(filename: string): Sound =
     samples[i] = int16(clamp(value * 32767.0 * 0.72, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createEnemyDeath(filename: string): Sound =
+proc createEnemyDeath(filename: string) =
   # Satisfying destruction "zap-drop": a clean phase-accumulated dive from
   # high to sub frequencies with a tracking sub octave, plus lowpass-filtered
   # debris crackle. Shorter than before (0.45 s) so dense kill chains stay
@@ -284,9 +280,8 @@ proc createEnemyDeath(filename: string): Sound =
     samples[i] = int16(clamp(value * 32767.0 * 0.7, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createPlayerHit(filename: string): Sound =
+proc createPlayerHit(filename: string) =
   # Intense, attention-grabbing damage sound
   let sampleRate: uint32 = 44100
   let duration = 0.35
@@ -349,9 +344,8 @@ proc createPlayerHit(filename: string): Sound =
     samples[i] = int16(clamp(distorted * 32767.0 * 0.65, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createCoinPickup(filename: string): Sound =
+proc createCoinPickup(filename: string) =
   # Pleasant, rewarding coin collection sound
   let sampleRate: uint32 = 44100
   let duration = 0.32
@@ -408,9 +402,8 @@ proc createCoinPickup(filename: string): Sound =
     samples[i] = int16(clamp((value + sparkle) * 32767.0 * 0.48, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createPowerUp(filename: string): Sound =
+proc createPowerUp(filename: string) =
   # Exciting, rewarding power-up with rising energy
   let sampleRate: uint32 = 44100
   let duration = 0.75
@@ -464,9 +457,8 @@ proc createPowerUp(filename: string): Sound =
     samples[i] = int16(clamp(value * 32767.0 * 0.5, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createBossSpawn(filename: string): Sound =
+proc createBossSpawn(filename: string) =
   # Epic, ominous boss entrance with dramatic build
   let sampleRate: uint32 = 44100
   let duration = 2.0
@@ -534,9 +526,8 @@ proc createBossSpawn(filename: string): Sound =
     samples[i] = int16(clamp(value * 32767.0 * 0.7, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createExplosion(filename: string): Sound =
+proc createExplosion(filename: string) =
   # Cinematic boom built around a closing lowpass filter: the noise starts
   # bright (the blast) and darkens into a low rumble as it decays, the way
   # real explosions bloom. Underneath sits a phase-accumulated sub drop and
@@ -583,9 +574,8 @@ proc createExplosion(filename: string): Sound =
     samples[i] = int16(clamp(value * 32767.0 * 0.68, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createWallPlace(filename: string): Sound =
+proc createWallPlace(filename: string) =
   # Solid, satisfying placement sound
   let sampleRate: uint32 = 44100
   let duration = 0.2
@@ -617,9 +607,8 @@ proc createWallPlace(filename: string): Sound =
     samples[i] = int16(value * 32767.0 * 0.5)
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createTeleport(filename: string): Sound =
+proc createTeleport(filename: string) =
   # Advanced sci-fi teleportation effect
   let sampleRate: uint32 = 44100
   let duration = 0.6
@@ -678,9 +667,8 @@ proc createTeleport(filename: string): Sound =
     samples[i] = int16(clamp(value * 32767.0 * 0.48, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createMenuNav(filename: string): Sound =
+proc createMenuNav(filename: string) =
   # Clean, quick menu navigation beep
   let sampleRate: uint32 = 44100
   let duration = 0.05
@@ -702,9 +690,8 @@ proc createMenuNav(filename: string): Sound =
     samples[i] = int16(value * 32767.0 * 0.35)
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createMenuSelect(filename: string): Sound =
+proc createMenuSelect(filename: string) =
   # Confirming selection sound - two-tone
   let sampleRate: uint32 = 44100
   let duration = 0.2
@@ -731,9 +718,8 @@ proc createMenuSelect(filename: string): Sound =
     samples[i] = int16(value * 32767.0 * 0.4)
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createWaveComplete(filename: string): Sound =
+proc createWaveComplete(filename: string) =
   # Triumphant, celebratory fanfare with rich harmonies
   let sampleRate: uint32 = 44100
   let duration = 1.2
@@ -795,9 +781,8 @@ proc createWaveComplete(filename: string): Sound =
     samples[i] = int16(clamp((value + sparkle + texture) * 32767.0 * 0.52, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createShield(filename: string): Sound =
+proc createShield(filename: string) =
   # Energy shield activation with pulsing
   let sampleRate: uint32 = 44100
   let duration = 0.4
@@ -831,9 +816,8 @@ proc createShield(filename: string): Sound =
     samples[i] = int16(value * 32767.0 * 0.45)
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createGameOverSound(filename: string): Sound =
+proc createGameOverSound(filename: string) =
   let sampleRate: uint32 = 44100
   let duration = 2.5
   let frameCount = int(sampleRate.float32 * duration)
@@ -858,9 +842,8 @@ proc createGameOverSound(filename: string): Sound =
     samples[i] = int16(clamp(value * 32767.0, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
-proc createBuySound(filename: string): Sound =
+proc createBuySound(filename: string) =
   # Satisfying two-tone "cha-ching" purchase confirmation
   let sampleRate: uint32 = 44100
   let duration = 0.4
@@ -909,32 +892,38 @@ proc createBuySound(filename: string): Sound =
     samples[i] = int16(clamp((value + sparkle) * 32767.0 * 0.52, -32767.0, 32767.0))
 
   writeWavFile(filename, samples, sampleRate)
-  result = loadSound(filename)
 
 # SOUND LOADING WITH CACHE
-proc loadOrGenerateSound(soundType: SoundType): Sound =
+proc generateSoundFile(soundType: SoundType) =
+  ## Synthesise the WAV for `soundType` if it isn't cached yet. Pure CPU work
+  ## plus a file write: no raylib, so the background generator thread may call
+  ## this. Loading the result into the audio device stays on the main thread.
   let cacheFile = getSoundCacheFile(soundType)
-
   if fileExists(cacheFile):
-    return loadSound(cacheFile)
+    return
 
   case soundType
-  of stShoot: result = createLaserShoot(cacheFile)
-  of stEnemyHit: result = createImpactHit(cacheFile)
-  of stEnemyDeath: result = createEnemyDeath(cacheFile)
-  of stPlayerHit: result = createPlayerHit(cacheFile)
-  of stCoinPickup: result = createCoinPickup(cacheFile)
-  of stPowerUp: result = createPowerUp(cacheFile)
-  of stBossSpawn: result = createBossSpawn(cacheFile)
-  of stExplosion: result = createExplosion(cacheFile)
-  of stWallPlace: result = createWallPlace(cacheFile)
-  of stTeleport: result = createTeleport(cacheFile)
-  of stMenuNav: result = createMenuNav(cacheFile)
-  of stMenuSelect: result = createMenuSelect(cacheFile)
-  of stWaveComplete: result = createWaveComplete(cacheFile)
-  of stShield: result = createShield(cacheFile)
-  of stGameOver: result = createGameOverSound(cacheFile)
-  of stBuy: result = createBuySound(cacheFile)
+  of stShoot: createLaserShoot(cacheFile)
+  of stEnemyHit: createImpactHit(cacheFile)
+  of stEnemyDeath: createEnemyDeath(cacheFile)
+  of stPlayerHit: createPlayerHit(cacheFile)
+  of stCoinPickup: createCoinPickup(cacheFile)
+  of stPowerUp: createPowerUp(cacheFile)
+  of stBossSpawn: createBossSpawn(cacheFile)
+  of stExplosion: createExplosion(cacheFile)
+  of stWallPlace: createWallPlace(cacheFile)
+  of stTeleport: createTeleport(cacheFile)
+  of stMenuNav: createMenuNav(cacheFile)
+  of stMenuSelect: createMenuSelect(cacheFile)
+  of stWaveComplete: createWaveComplete(cacheFile)
+  of stShield: createShield(cacheFile)
+  of stGameOver: createGameOverSound(cacheFile)
+  of stBuy: createBuySound(cacheFile)
+
+proc loadOrGenerateSound(soundType: SoundType): Sound =
+  ## Main thread only (touches the audio device).
+  generateSoundFile(soundType)
+  result = loadSound(getSoundCacheFile(soundType))
 
 # ============================================================================
 # PROCEDURAL MUSIC ENGINE (v4)
@@ -1187,8 +1176,10 @@ proc applySidechainPump(samples: var seq[float32], kicks: seq[float32],
       samples[i] *= 1.0 - depth * exp(-dt * 16.0)
 
 proc finishMusic(samples: var seq[float32], filename: string,
-                 outputGain: float32): Music =
+                 outputGain: float32) =
   ## Light mastering: fade protection, warm saturation, and final limiting.
+  ## Writes the WAV only -- no raylib call -- so it is safe to run on the
+  ## asset-generation worker thread.
   let fadeSamples = int(0.035 * SAMPLE_RATE.float32)
   var samples16 = newSeq[int16](samples.len)
 
@@ -1204,7 +1195,6 @@ proc finishMusic(samples: var seq[float32], filename: string,
     samples16[i] = int16(clamp(limited * 32767.0, -32767.0, 32767.0))
 
   writeWavFile(filename, samples16, SAMPLE_RATE)
-  result = loadMusicStream(filename)
 
 # ARRANGEMENT
 
@@ -1363,7 +1353,7 @@ proc scheduleDrums(spec: TrackSpec, barLen, beat: float32,
                     pvSnare, vol * (0.40'f32 + 0.12'f32 * j.float32)))
 
 proc composeTrack(spec: TrackSpec, filename: string,
-                  outputGain: float32): Music =
+                  outputGain: float32) =
   let beat = 60.0'f32 / spec.bpm
   let barLen = beat * 4.0
   let numBars = spec.intensity.len
@@ -1392,14 +1382,14 @@ proc composeTrack(spec: TrackSpec, filename: string,
     renderPercussionHit(samples, event.time, event.vol, event.voice)
 
   applySingleEcho(samples, spec.echoDelay, spec.echoMix)
-  result = finishMusic(samples, filename, outputGain)
+  finishMusic(samples, filename, outputGain)
 
 proc mn(semi: int, start, dur: float32, accent: float32 = 0.0): MelodyNote =
   MelodyNote(semi: semi, start: start, dur: dur, accent: accent)
 
 # TRACK DEFINITIONS
 
-proc createMenuMusic(filename: string): Music =
+proc createMenuMusic(filename: string) =
   ## Calm lo-fi loop in C major: Cmaj7 - Am7 - Fmaj7 - G7, soft bell lead.
   let spec = TrackSpec(
     bpm: 90.0,                    # 18 bars in 48 s
@@ -1429,9 +1419,9 @@ proc createMenuMusic(filename: string): Music =
     drumVol: 0.025, arpStepBeats: 0.5, pumpDepth: 0.0,
     echoDelay: 0.50, echoMix: 0.09)
 
-  result = composeTrack(spec, filename, 0.92)
+  composeTrack(spec, filename, 0.92)
 
-proc createWaveMusic(filename: string): Music =
+proc createWaveMusic(filename: string) =
   ## Driving combat loop in D minor: Dm - Bb - F - C with a supersaw lead.
   let spec = TrackSpec(
     bpm: 140.0,                   # 28 bars in 48 s
@@ -1467,9 +1457,9 @@ proc createWaveMusic(filename: string): Music =
     drumVol: 0.085, arpStepBeats: 0.25, pumpDepth: 0.45,
     echoDelay: 0.321, echoMix: 0.06)
 
-  result = composeTrack(spec, filename, 0.88)
+  composeTrack(spec, filename, 0.88)
 
-proc createPowerUpMusic(filename: string): Music =
+proc createPowerUpMusic(filename: string) =
   ## Uplifting reward loop in C major: C - G - Am - F with bright plucks.
   let spec = TrackSpec(
     bpm: 110.0,                   # 22 bars in 48 s
@@ -1500,9 +1490,9 @@ proc createPowerUpMusic(filename: string): Music =
     drumVol: 0.05, arpStepBeats: 0.5, pumpDepth: 0.25,
     echoDelay: 0.409, echoMix: 0.07)
 
-  result = composeTrack(spec, filename, 0.90)
+  composeTrack(spec, filename, 0.90)
 
-proc createBossMusic(filename: string): Music =
+proc createBossMusic(filename: string) =
   ## Relentless boss loop in E phrygian: Em - F - Em - D, double-kick drums.
   let spec = TrackSpec(
     bpm: 160.0,                   # 32 bars in 48 s
@@ -1541,20 +1531,28 @@ proc createBossMusic(filename: string): Music =
     drumVol: 0.10, arpStepBeats: 0.25, pumpDepth: 0.5,
     echoDelay: 0.281, echoMix: 0.05)
 
-  result = composeTrack(spec, filename, 0.86)
+  composeTrack(spec, filename, 0.86)
+
 # MUSIC LOADING AND SYSTEM MANAGEMENT
 
-proc loadOrGenerateMusic(track: MusicTrack): Music =
-  let cacheFile = getMusicCacheFile(track)
-
+proc generateMusicFile(track: MusicTrack) =
+  ## Synthesise a track's WAV if it isn't cached. Thread-safe (no raylib);
+  ## this is the expensive one -- ~2.1M samples of pads/bass/arp/lead/drums
+  ## per track -- which is why it runs off the main thread.
   if isMusicCached(track):
-    return loadMusicStream(cacheFile)
+    return
 
+  let cacheFile = getMusicCacheFile(track)
   case track
-  of mtMenu: result = createMenuMusic(cacheFile)
-  of mtWave: result = createWaveMusic(cacheFile)
-  of mtPowerUp: result = createPowerUpMusic(cacheFile)
-  of mtBoss: result = createBossMusic(cacheFile)
+  of mtMenu: createMenuMusic(cacheFile)
+  of mtWave: createWaveMusic(cacheFile)
+  of mtPowerUp: createPowerUpMusic(cacheFile)
+  of mtBoss: createBossMusic(cacheFile)
+
+proc loadOrGenerateMusic(track: MusicTrack): Music =
+  ## Main thread only (opens an audio stream).
+  generateMusicFile(track)
+  result = loadMusicStream(getMusicCacheFile(track))
 
 proc cleanStaleCacheFiles() =
   ## Remove WAVs from older sound versions (pre-versioning files have no
@@ -1570,83 +1568,144 @@ proc cleanStaleCacheFiles() =
       except OSError:
         discard
 
-# PRE-GENERATION SYSTEM
-proc preGenerateAllAssets*(verbose: bool = true, callback: AssetGenerationCallback = nil) =
+# ASYNCHRONOUS PRE-GENERATION
+#
+# Synthesising the four music tracks is by far the slowest thing the game ever
+# does (~2.1M samples each, several seconds in a debug build). Doing it inline
+# froze the window: no endDrawing() ran, so nothing animated and Windows marked
+# the process "Not Responding". Instead a worker thread writes the WAVs while
+# the main thread keeps rendering the loading screen at full frame rate.
+#
+# Thread-safety contract: the worker only runs pure synthesis + FileStream
+# writes. Every raylib/audio-device call (loadSound, loadMusicStream) stays on
+# the main thread and happens after joinThread. Progress is published through
+# atomics only -- no strings cross the thread boundary, so the localized labels
+# are built main-side from the published enum ordinals.
+
+var
+  genThread: Thread[void]
+  genThreadActive = false    # main thread only
+  genPending = 0             # assets the worker was asked to synthesise
+  genCompleted: Atomic[int]
+  genCurrentIsMusic: Atomic[bool]
+  genCurrentOrd: Atomic[int]
+  genDone: Atomic[bool]
+
+proc assetGenWorker() {.thread.} =
+  try:
+    for soundType in SoundType:
+      if not isSoundCached(soundType):
+        genCurrentIsMusic.store(false)
+        genCurrentOrd.store(soundType.ord)
+        generateSoundFile(soundType)
+        genCompleted.atomicInc()
+
+    for track in MusicTrack:
+      if not isMusicCached(track):
+        genCurrentIsMusic.store(true)
+        genCurrentOrd.store(track.ord)
+        generateMusicFile(track)
+        genCompleted.atomicInc()
+  except CatchableError:
+    discard
+  genDone.store(true)
+
+proc startAssetGeneration*(): int =
+  ## Begin synthesising any missing WAVs on a worker thread and return how many
+  ## assets need generating (0 = everything was cached, no thread spawned).
   cleanStaleCacheFiles()
   let cached = countCachedAssets()
   let totalAssets = SoundType.high.ord + 1 + MusicTrack.high.ord + 1
+  genPending = totalAssets - cached.total
+  genCompleted.store(0)
+  genDone.store(genPending == 0)
+  genCurrentOrd.store(0)
+  genCurrentIsMusic.store(false)
 
-  if cached.total == totalAssets:
-    if verbose:
-      echo "All ", totalAssets, " assets already cached"
-    if not callback.isNil:
-      callback(1.0, t(tkLoadingCached))
-    return
+  if genPending == 0:
+    echo "All ", totalAssets, " audio assets already cached"
+    return 0
 
-  if verbose:
-    echo "=========================================="
-    echo "Pre-generating game assets..."
-    echo "Cached: ", cached.sounds, "/", SoundType.high.ord + 1, " sounds, ",
-         cached.music, "/", MusicTrack.high.ord + 1, " music tracks"
-    echo "=========================================="
+  echo "Generating ", genPending, " audio assets in the background (",
+       cached.sounds, "/", SoundType.high.ord + 1, " sounds, ",
+       cached.music, "/", MusicTrack.high.ord + 1, " tracks cached)"
+  createThread(genThread, assetGenWorker)
+  genThreadActive = true
+  result = genPending
 
-  var assetsGenerated = 0
-  let assetsToGenerate = totalAssets - cached.total
+proc assetGenPending*(): int = genPending
+proc assetGenBusy*(): bool = genThreadActive and not genDone.load()
+proc assetGenCompleted*(): int = genCompleted.load()
+proc assetGenOnMusic*(): bool = genCurrentIsMusic.load()
 
-  for soundType in SoundType:
-    if not isSoundCached(soundType):
-      if verbose:
-        inc assetsGenerated
-        let progress = (assetsGenerated.float32 / assetsToGenerate.float32 * 100.0).int
-        echo "[", progress, "%] Generating sound: ", soundType, "..."
+proc assetGenProgress*(): float32 =
+  ## 0..1 across the assets that actually needed generating.
+  if genPending <= 0: 1.0'f32
+  else: clamp(genCompleted.load().float32 / genPending.float32, 0.0, 1.0)
 
-      if not callback.isNil:
-        let prog = assetsGenerated.float32 / assetsToGenerate.float32
-        callback(prog, t(tkLoadingGeneratingSound) & ": " & $soundType)
+proc assetGenLabel*(): string =
+  ## Localized description of the asset currently being synthesised. Main
+  ## thread only: it reads the shared string tables via t().
+  let ord = genCurrentOrd.load()
+  if genCurrentIsMusic.load():
+    let track = MusicTrack(clamp(ord, 0, MusicTrack.high.ord))
+    t(tkLoadingGeneratingMusic) & ": " & extractFilename(getMusicCacheFile(track))
+  else:
+    let soundType = SoundType(clamp(ord, 0, SoundType.high.ord))
+    t(tkLoadingGeneratingSound) & ": " & extractFilename(getSoundCacheFile(soundType))
 
-      discard loadOrGenerateSound(soundType)
+proc finishAssetGeneration*() =
+  ## Block until the worker is done. Cheap when assetGenBusy() is already false,
+  ## but it must be called before shutting the window down so the thread can't
+  ## outlive the process' file handles.
+  if genThreadActive:
+    joinThread(genThread)
+    genThreadActive = false
+    echo "Audio asset generation complete: ", getCacheDir()
 
-  for track in MusicTrack:
-    if not isMusicCached(track):
-      if verbose:
-        inc assetsGenerated
-        let progress = (assetsGenerated.float32 / assetsToGenerate.float32 * 100.0).int
-        echo "[", progress, "%] Generating music: ", track, "..."
+# INCREMENTAL LOAD INTO THE AUDIO DEVICE
+var soundLoadCursor = 0
 
-      if not callback.isNil:
-        let prog = assetsGenerated.float32 / assetsToGenerate.float32
-        callback(prog, t(tkLoadingGeneratingMusic) & ": " & $track)
+proc soundLoadProgress*(): float32 =
+  clamp(soundLoadCursor.float32 / (SoundType.high.ord + 1).float32, 0.0, 1.0)
 
-      discard loadOrGenerateMusic(track)
+proc soundLoadLabel*(): string =
+  let idx = clamp(soundLoadCursor, 0, SoundType.high.ord)
+  t(tkLoadingLoadingSounds) & ": " & extractFilename(getSoundCacheFile(SoundType(idx)))
 
-  if verbose:
-    echo "=========================================="
-    echo "  Asset generation complete!"
-    echo "  Total assets: ", totalAssets
-    echo "  Cache location: ", getCacheDir()
-    echo "=========================================="
-
-  if not callback.isNil:
-    callback(1.0, t(tkLoadingComplete))
-
-proc generateAllSounds(sys: SoundSystem) =
+proc loadSoundsStep*(sys: SoundSystem, budget: int = 2): bool =
+  ## Load up to `budget` sounds (plus their voice aliases) into the audio
+  ## device and report whether every sound is loaded. Splitting this across
+  ## frames keeps the loading screen animating instead of stalling on the
+  ## last stretch of startup.
+  if sys == nil or not sys.initialized:
+    return true
   if sys.soundsGenerated:
-    return
+    return true
 
-  echo "Loading procedural sounds into memory..."
-  try:
-    for st in SoundType:
+  var loaded = 0
+  while soundLoadCursor <= SoundType.high.ord and loaded < budget:
+    let st = SoundType(soundLoadCursor)
+    try:
       sys.cachedSounds[st] = loadOrGenerateSound(st)
       for voice in 0..<MAX_SOUND_VOICES:
         sys.soundVoices[st][voice] = loadSoundAlias(sys.cachedSounds[st])
+    except CatchableError as e:
+      echo "ERROR loading sound ", st, ": ", e.msg
+    inc soundLoadCursor
+    inc loaded
+
+  if soundLoadCursor > SoundType.high.ord:
     sys.soundsGenerated = true
     echo "All sounds loaded successfully!"
-  except Exception as e:
-    echo "ERROR loading sounds: ", e.msg
-    sys.soundsGenerated = false
+    return true
+  false
 
 # SYSTEM INITIALIZATION AND MANAGEMENT
-proc initSoundSystem*(callback: AssetGenerationCallback = nil): SoundSystem =
+proc initSoundSystem*(): SoundSystem =
+  ## Opens the audio device only. Asset generation and sound loading are driven
+  ## by the caller (see startAssetGeneration / loadSoundsStep) so the loading
+  ## screen stays interactive.
   echo "Initializing sound system..."
   try:
     initAudioDevice()
@@ -1664,15 +1723,15 @@ proc initSoundSystem*(callback: AssetGenerationCallback = nil): SoundSystem =
     )
 
     globalSoundSystem = result
-    preGenerateAllAssets(verbose = true, callback = callback)
-    generateAllSounds(result)
-
     echo "Sound system initialized!"
   except Exception as e:
     echo "ERROR initializing sound system: ", e.msg
     return SoundSystem(enabled: false, masterVolume: 0.5, musicVolume: 0.5, initialized: false)
 
 proc closeSoundSystem*(sys: SoundSystem) =
+  # The generator thread writes into the temp cache; never tear the process
+  # down underneath it.
+  finishAssetGeneration()
   if sys != nil and sys.initialized:
     closeAudioDevice()
     echo "Sound system closed"

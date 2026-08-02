@@ -482,29 +482,65 @@ proc main() =
   updateRenderSupersampleState(settings)
   updateRenderScale()
 
-  # Create loading screen
-  var loadingScreen = newLoadingScreen()
+  # Audio startup. initSoundSystem only opens the device; the expensive WAV
+  # synthesis runs on a worker thread (startAssetGeneration) while this loop
+  # keeps drawing, so the window never stops responding. Everything that talks
+  # to the audio device (loadSoundsStep) stays here on the main thread.
+  let soundSystem = initSoundSystem()
+  let pendingAssets = startAssetGeneration()
+  let totalSounds = SoundType.high.ord + 1
 
-  # Initialize sound system with loading screen callback
-  var loadingScreenShown = false  # Only draw once we've seen partial progress
-  proc updateLoadingProgress(progress: float32, message: string) =
-    loadingScreen.setProgress(progress, message)
+  if pendingAssets == 0:
+    # Nothing to synthesise: loading the cached WAVs takes a few milliseconds,
+    # so don't flash a loading screen for it.
+    while not loadSoundsStep(soundSystem, totalSounds):
+      discard
+  else:
+    # Weight the bar so background synthesis owns most of it; pushing the
+    # finished WAVs into the audio device is the short tail.
+    const GenerationWeight = 0.9'f32
+    const CompleteHold = 0.45'f32  # let the filled bar be seen before it closes
 
-    # If the very first callback is already at 1.0, everything was cached,
-    # skip drawing entirely so the loading screen never flickers on screen.
-    if progress >= 1.0 and not loadingScreenShown:
-      return
-    loadingScreenShown = true
+    var loadingScreen = newLoadingScreen()
+    loadingScreen.setAssetCounts(0, pendingAssets)
+    var soundsLoaded = false
+    var completeHold = 0.0'f32
 
-    # Draw loading screen
-    let dt = getFrameTime()
-    loadingScreen.update(dt)
+    while true:
+      let dt = getFrameTime()
+      loadingScreen.update(dt)
 
-    beginGameDrawing()
-    loadingScreen.draw(screenWidth, screenHeight)
-    endGameDrawing()
+      if assetGenBusy():
+        loadingScreen.setStage(if assetGenOnMusic(): lsMusic else: lsSfx)
+        loadingScreen.setAssetCounts(assetGenCompleted(), pendingAssets)
+        loadingScreen.setProgress(assetGenProgress() * GenerationWeight,
+                                  assetGenLabel())
+      elif not soundsLoaded:
+        finishAssetGeneration()
+        loadingScreen.setStage(lsMemory)
+        loadingScreen.setAssetCounts(pendingAssets, pendingAssets)
+        loadingScreen.setProgress(
+          GenerationWeight + soundLoadProgress() * (1.0'f32 - GenerationWeight),
+          soundLoadLabel())
+        soundsLoaded = loadSoundsStep(soundSystem, 2)
+      else:
+        loadingScreen.setProgress(1.0, t(tkLoadingComplete))
+        completeHold += dt
+        if completeHold >= CompleteHold:
+          break
 
-  discard initSoundSystem(updateLoadingProgress)
+      beginGameDrawing()
+      loadingScreen.draw(screenWidth, screenHeight)
+      endGameDrawing()
+
+      if windowShouldClose():
+        break
+
+    # Whichever way the loop ended, the worker must be joined and the sounds
+    # must exist before anything can play them.
+    finishAssetGeneration()
+    while not loadSoundsStep(soundSystem, totalSounds):
+      discard
 
   # Initialize all cosmetic databases (single source of truth: initializeAllCosmetics).
   initializeAllCosmetics()

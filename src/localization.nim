@@ -943,6 +943,12 @@ type
     tkLoadingComplete = "loading_complete"
     tkLoadingHint = "loading_hint"
     tkLoadingCached = "loading_cached"
+    tkLoadingLoadingSounds = "loading_loading_sounds"
+    tkLoadingStageSfx = "loading_stage_sfx"
+    tkLoadingStageMusic = "loading_stage_music"
+    tkLoadingStageMemory = "loading_stage_memory"
+    tkLoadingAssets = "loading_assets"
+    tkLoadingCacheNote = "loading_cache_note"
 
     # Cheat Menu Buttons
     tkCheatCloseInstruction = "cheat_close_instruction"
@@ -1629,8 +1635,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "gamepad_column_pad": "Pad",
     "gamepad_press_any_button": "Press a button...",
     "gamepad_reserved_note": "Pad: A = click, B = back, Start = pause (fixed)",
-    "settings_aim_assist": "Aim Assist",
-    "settings_aim_assist_desc": "Gamepad aim snaps to nearby enemies",
+    "settings_aim_assist": "Aim Assist (Gamepad):",
+    "settings_aim_assist_desc": "Stick aim snaps to nearby enemies",
     "settings_controller": "Controller",
     "settings_controller_desc": "Which detected gamepad controls the game",
     "settings_controller_auto": "Auto (first detected)",
@@ -1930,6 +1936,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "loading_complete": "Asset generation complete!",
     "loading_hint": "Generating procedural audio assets",
     "loading_cached": "All assets loaded from cache",
+    "loading_loading_sounds": "Loading sound",
+    "loading_stage_sfx": "SFX",
+    "loading_stage_music": "MUSIC",
+    "loading_stage_memory": "MEMORY",
+    "loading_assets": "assets",
+    "loading_cache_note": "First run only - generated audio is cached for next time",
 
     # Cheat Menu Buttons
     "cheat_close_instruction": "Press ESC or click X to close",
@@ -3297,8 +3309,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "gamepad_column_pad": "Mando",
     "gamepad_press_any_button": "Pulsa un botón...",
     "gamepad_reserved_note": "Mando: A = clic, B = atras, Start = pausa (fijos)",
-    "settings_aim_assist": "Asistencia de Apuntado",
-    "settings_aim_assist_desc": "El apuntado con mando se ajusta a enemigos cercanos",
+    "settings_aim_assist": "Asistencia (Mando):",
+    "settings_aim_assist_desc": "Ajusta la mira al enemigo cercano",
     "settings_controller": "Mando",
     "settings_controller_desc": "Que mando detectado controla el juego",
     "settings_controller_auto": "Auto (primero detectado)",
@@ -4158,6 +4170,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "loading_complete": "¡Generación de assets completa!",
     "loading_hint": "Generando assets de audio procedurales",
     "loading_cached": "Todos los assets cargados desde caché",
+    "loading_loading_sounds": "Cargando sonido",
+    "loading_stage_sfx": "SFX",
+    "loading_stage_music": "MÚSICA",
+    "loading_stage_memory": "MEMORIA",
+    "loading_assets": "recursos",
+    "loading_cache_note": "Solo la primera vez - el audio generado se guarda en caché",
 
     # Cheat Menu Buttons
     "cheat_close_instruction": "Presiona ESC o haz clic en X para cerrar",

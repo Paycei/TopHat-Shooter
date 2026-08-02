@@ -47,6 +47,14 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.1.1",
     latest: true,
     entries: @[
+      # --- Startup ---
+      ChangelogEntry(category: clcFixed,
+        en: "The first-launch audio setup no longer freezes the game. Building the four music tracks used to lock the window for several seconds at a time -- nothing animated and Windows could mark the game as not responding. The audio is now built in the background while the loading screen keeps running at full frame rate.",
+        es: "La preparación de audio del primer arranque ya no congela el juego. Crear las cuatro pistas de música bloqueaba la ventana durante varios segundos seguidos -- nada se animaba y Windows podía marcar el juego como que no responde. Ahora el audio se crea en segundo plano mientras la pantalla de carga sigue funcionando a pleno rendimiento."),
+      ChangelogEntry(category: clcImproved,
+        en: "Redesigned loading screen: an audio_setup.exe window with SFX / MUSIC / MEMORY stage badges, an asset counter, the file being built right now, a smoothly filling progress bar and a live audio meter. It also notes that this only happens on the first run, since the generated audio is cached afterwards.",
+        es: "Pantalla de carga rediseñada: una ventana audio_setup.exe con distintivos de fase SFX / MÚSICA / MEMORIA, un contador de recursos, el archivo que se está creando, una barra de progreso que se llena con suavidad y un medidor de audio en vivo. Además avisa de que esto solo ocurre en el primer arranque, porque el audio generado queda en caché."),
+
       # --- Tuning ---
       ChangelogEntry(category: clcBalance,
         en: "The Orbital Commander's final phase now belongs to its Orbital Scan: three walls per volley instead of two, arriving from three different edges (rake, crosswise, then a reverse rake), and the next scan starts telegraphing while the last wall is still crossing. The safe lane is a touch wider to compensate.",
