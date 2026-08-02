@@ -58,6 +58,7 @@ const allPowerUpDefs*: array[PowerUpType, PowerUpDef] = [
   puBulletRicochet:   PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:140,g:220,b:200,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puBulletSpeed:      PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:200,g:200,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puBulletSplit:      PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:180,g:140,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
+  puBulwark:          PowerUpDef(pool: puppNormal,    family: rpfShield,    group: pugNone,    maxLevel: 3, color: Color(r:170,g:195,b:210,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puCelestialVeil:    PowerUpDef(pool: puppLegendary, family: rpfShield,    group: pugNone,    maxLevel: 1, color: Color(r:180,g:200,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmWaveBased, gmRoguelite}),
   puChainLightning:   PowerUpDef(pool: puppNormal,    family: rpfLightning, group: pugBullet,  maxLevel: 3, color: Color(r:255,g:255,b: 80,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puConduit:          PowerUpDef(pool: puppLegendary, family: rpfLightning, group: pugNone,    maxLevel: 1, color: Color(r:160,g:120,b:255,a:255), inLegendaryPanel: true,  isElementalOrb: false),
@@ -261,6 +262,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
   of puPulseArmor: t(tkPowerupPulseArmor)
   of puHeavyRounds: t(tkPowerupHeavyRounds)
   of puFortified: t(tkPowerupFortified)
+  of puBulwark: t(tkPowerupBulwark)
   of puSpecialRounds: t(tkPowerupSpecialRounds)
   of puGiantSlayer: t(tkPowerupGiantSlayer)
   of puCelestialVeil: t(tkPowerupCelestialVeil)
@@ -416,6 +418,11 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 1: t(tkPowerupFortifiedDesc1)
     of 2: t(tkPowerupFortifiedDesc2)
     else: t(tkPowerupFortifiedDesc3)
+  of puBulwark:
+    case level
+    of 1: t(tkPowerupBulwarkDesc1)
+    of 2: t(tkPowerupBulwarkDesc2)
+    else: t(tkPowerupBulwarkDesc3)
   of puFrostMastery:
     t(tkPowerupFrostMasteryDesc)
   of puFrostOrb:

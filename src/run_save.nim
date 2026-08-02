@@ -83,6 +83,9 @@ proc playerToJson(p: Player): JsonNode =
 
   result = %* {
     "hp": p.hp, "maxHp": p.maxHp,
+    # Without the baseline, a resumed run counts its whole HP pool as "invested"
+    # and hands Juggernaut its capped bonus for free.
+    "baselineMaxHp": p.baselineMaxHp,
     "baseRadius": p.baseRadius,
     "speed": p.speed, "baseSpeed": p.baseSpeed,
     "damage": p.damage, "bulletDamageMult": p.bulletDamageMult,
@@ -133,6 +136,13 @@ proc applyPlayerJson(p: Player, j: JsonNode) =
     if j.hasKey(key): field = j[key].getBool()
 
   f("hp", p.hp); f("maxHp", p.maxHp)
+  if j.hasKey("baselineMaxHp"):
+    p.baselineMaxHp = j["baselineMaxHp"].getFloat().float32
+  else:
+    # Pre-rework save: invested HP can't be told apart from automatic growth any
+    # more, so credit none of it. Leaving the fresh 9.0 default here would hand a
+    # late-wave resume the capped Juggernaut bonus for free.
+    p.baselineMaxHp = p.maxHp
   # baseRadius is permanently grown by Heavy Rounds, so it is build state, not a
   # constant: without it a resumed run silently drops that power-up's drawback.
   f("baseRadius", p.baseRadius)

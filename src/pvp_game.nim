@@ -288,6 +288,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     let player = newPlayer(spawnPos.x, spawnPos.y)
     player.hp = config.startHp
     player.maxHp = config.startHp
+    player.baselineMaxHp = config.startHp  # Match rules HP: nothing invested yet
     player.coins = config.startCoins
     player.walls = config.startWalls
     player.damage = config.startDamage

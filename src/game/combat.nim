@@ -140,11 +140,17 @@ proc calculateCombatStats*(player: Player): CombatStats =
     let speedRatio = min(player.vel.length() / player.baseSpeed, 1.0'f32)
     result.damage *= 1.0'f32 + speedRatio * 0.25'f32
 
-  # Max Health (Legendary) - Juggernaut: convert vitality into raw power.
-  # +2% damage per 1.0 max HP (i.e. per 100 displayed HP), counting base HP too,
-  # capped at +40%. Base 9 HP alone -> ~+18%; stacking Fortified pushes to the cap.
-  if hasPowerUp(player, puMaxHealth):
-    result.damage *= 1.0'f32 + min(player.maxHp * 0.02'f32, 0.40'f32)
+  # Max Health (Legendary) - Juggernaut: convert *invested* vitality into raw
+  # power. The starting pool and every automatic max-HP grant are excluded
+  # (juggernautInvestedHp), so all this pays out at pickup is its own plating
+  # grant, and only a build that actually buys HP reaches the cap -- paying for
+  # it in move speed over in player.nim. See the block comment in powerup.nim.
+  result.damage *= 1.0'f32 + juggernautDamageBonus(player)
+
+  # Bulwark - plating holds while you are unhurt: the full bonus at max HP,
+  # scaling straight down with the HP fraction as hits crack it open. The exact
+  # inverse of Rage/Crisis Mode above, so stacking both mostly cancels out.
+  result.damage *= 1.0'f32 + bulwarkDamageBonus(player)
 
   # Fire rate boost consumable
   if player.fireRateBoostTimer > 0:

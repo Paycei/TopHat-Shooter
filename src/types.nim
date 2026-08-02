@@ -224,6 +224,7 @@ type
     puBulletRicochet,  # Bullets ricochet off enemies
     puBulletSpeed,     # Faster bullets
     puBulletSplit,     # Bullets split on impact
+    puBulwark,         # Damage scales with the HP fraction still intact (plating breaks as you get hurt)
     puCelestialVeil,   # LEGENDARY: Absorb 2 hits per wave
     puChainLightning,  # Damage chains between enemies
     puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
@@ -251,7 +252,7 @@ type
     puLightningOrb,    # Lightning elemental orb
     puLuckyCoins,      # Doubles coins collected
     puMagicalBullets,  # Bullets track enemies
-    puMaxHealth,       # Increase max HP
+    puMaxHealth,       # LEGENDARY: Juggernaut -- invested max HP becomes damage, at the cost of move speed
     puMultiShot,       # Shoots in 3 directions
     puNova,            # LEGENDARY active: freeze all player bullets for 2s, then release at 1.5x speed
     puOvercharge,      # Bullets gain power over distance
@@ -282,18 +283,18 @@ type
     puWindBullets,     # Bullets push enemies backwards
     puWindMastery,     # LEGENDARY: Enhance all wind effects (damage, duration, slow)
     puWindOrb,         # Wind elemental orb
-    # Mode-exclusive power-ups (Stage 4)
+    # Mode-exclusive power-ups
     puGlitchField,          # Bullets slow enemies (roguelite only)
     puTimeSurge,            # Kills extend fire rate boost timer (survival only)
     puLastStand,            # LEGENDARY: near-death invulnerability (survival only)
     puRecursion,            # Flat damage bonus on pickup (roguelite only)
     puSectorProtocol,       # LEGENDARY: kills/floors grant bonus coins (roguelite only)
-    # Survival-exclusive power-ups (Stage 5)
+    # Survival-exclusive power-ups
     puCrisisMode,           # Below 30% HP: bonus damage (survival only)
     puAdaptiveFirewall,     # Taking a hit boosts fire rate for 3s (survival only)
     puLastTransmission,     # Chance to heal 0.5 HP on kill (survival only)
     puKillChain,            # LEGENDARY: 5 kills in 3s triggers shockwave (survival only)
-    # Roguelite-exclusive power-ups (Stage 5)
+    # Roguelite-exclusive power-ups
     puCorruptedCore,        # Elite kills grant max HP (roguelite only)
     puRoomEcho,             # Room clear charges next N bullets with bonus damage (roguelite only)
     puChainReaction,        # Kills have chance to drop bonus coin (roguelite only)
@@ -554,6 +555,12 @@ type
     baseRadius*: float32
     hp*: float32
     maxHp*: float32
+    # Shadow of maxHp tracking only the HP the player never chose: the starting
+    # pool plus every automatic grant (per-wave scaling, level-up gains). Shop
+    # health, Fortified and the like deliberately do NOT touch it, so
+    # `maxHp - baselineMaxHp` is exactly the vitality the build invested in --
+    # which is what Juggernaut converts into damage (see powerup.nim).
+    baselineMaxHp*: float32
     speed*: float32
     baseSpeed*: float32
     damage*: float32

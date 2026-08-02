@@ -97,6 +97,7 @@ proc applyLevelUpStatBoost*(player: Player) =
   const LevelDamageMult = 1.04'f32    # +4% damage, compounding
   const LevelHealFraction = 0.25'f32  # heal a quarter of the (new) max HP
   player.maxHp += LevelMaxHpGain
+  player.baselineMaxHp += LevelMaxHpGain  # Automatic gain: never feeds Juggernaut
   player.damage *= LevelDamageMult
   heal(player, player.maxHp * LevelHealFraction)
 
@@ -337,6 +338,9 @@ proc startWave*(game: Game) =
 
   # Apply multiplicative scaling to current stats (preserves all upgrades)
   game.player.maxHp *= waveScaling
+  # The free share scales with it, so surviving waves never converts into
+  # Juggernaut damage on its own (see Player.baselineMaxHp).
+  game.player.baselineMaxHp *= waveScaling
   game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)  # Scale current HP but cap at maxHp
   game.player.damage *= waveScaling
   game.player.speed *= waveScaling

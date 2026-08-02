@@ -976,6 +976,23 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawRectangle(cx - 6, cy - 1, 3, 5, Color(r: 18, g: 22, b: 32, a: 255))
     drawRectangle(cx + 3, cy - 1, 3, 5, Color(r: 18, g: 22, b: 32, a: 255))
 
+  of puBulwark:
+    # Riveted armour plate, cracked down one side: the bonus is whatever plating
+    # is still intact, so the icon shows both halves of that story.
+    let plateLight = Color(r: min(color.r + 50, 255), g: min(color.g + 50, 255), b: min(color.b + 50, 255), a: 255)
+    let plateDark = Color(r: 20, g: 24, b: 34, a: 255)
+    drawRectangle(cx - 9, cy - 12, 20, 26, Color(r: 0, g: 0, b: 0, a: 70))
+    drawRectangle(cx - 11, cy - 14, 20, 26, color)
+    drawRectangle(cx - 11, cy - 14, 20, 3, plateLight)          # top bevel
+    drawRectangle(cx - 11, cy - 14, 2, 26, withAlpha(plateLight, 180))  # left bevel
+    for ry in 0..1:
+      for rx in 0..1:
+        drawCircle(Vector2(x: float32(cx - 7 + rx * 12), y: float32(cy - 10 + ry * 18)), 1.6, plateDark)
+    # Fracture: a zigzag splitting the right third of the plate
+    drawLine(cx + 5, cy - 14, cx + 1, cy - 5, plateDark)
+    drawLine(cx + 1, cy - 5, cx + 6, cy + 2, plateDark)
+    drawLine(cx + 6, cy + 2, cx + 2, cy + 12, plateDark)
+
   of puSpecialRounds:
     # Bullet with a star insignia on the shell
     drawRectangle(cx - 5, cy - 8, 11, 15, Color(r: 0, g: 0, b: 0, a: 70))

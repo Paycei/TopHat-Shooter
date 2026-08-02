@@ -752,6 +752,7 @@ proc applyRoomScaling(game: Game) =
   ## uncleared combat/elite/boss room, and also refreshes per-wave abilities.
   let waveScaling: float32 = 1.012
   game.player.maxHp *= waveScaling
+  game.player.baselineMaxHp *= waveScaling  # Free growth, excluded from Juggernaut
   game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)
   game.player.damage *= waveScaling
   game.player.speed *= waveScaling
