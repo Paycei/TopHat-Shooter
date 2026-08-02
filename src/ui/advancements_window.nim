@@ -484,7 +484,7 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
     for off in 0..1:
       drawLine((cx - 4).int32, (cy + off).int32, (cx - 1).int32, (cy + 4 + off).int32, check)
       drawLine((cx - 1).int32, (cy + 4 + off).int32, (cx + 4).int32, (cy - 4 + off).int32, check)
-    drawText("DONE", (x + width - 52).int32, (barY - 3).int32, 11, check)
+    drawText(t(tkAdvDone), (x + width - 52).int32, (barY - 3).int32, 11, check)
   else:
     let pct = $int(ratio * 100.0'f32) & "%"
     drawText(pct, (x + width - 58).int32, (barY - 3).int32, 12, statusColor(entry))

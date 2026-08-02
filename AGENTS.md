@@ -61,16 +61,16 @@ nim check --mm:orc src/main.nim
 
 - All user-facing text goes through `t(key)` in `src/localization.nim`.
 - English and Spanish string tables must stay in sync when adding or changing text.
-- Saves are JSON in `src/save_system.nim`, with hand-written parse procs for enums and other serialised values.
+- Saves are JSON in `src/save_system.nim`. Enums serialise as their Nim symbol name and parse back through the generic `parseEnumOr(s, default)`, so new enum values need no parse branch; renaming an existing value is what silently resets saved data.
 - Player, bullet, cube, particle, and desktop-background skins are registry-driven.
-- Skin modules follow the pattern `enum -> registry entry -> localization keys -> exhaustive render branch -> save parse branch`.
+- Skin modules follow the pattern `enum -> registry entry -> localization keys -> exhaustive render branch`.
 - Exhaustive `case` statements are a safety net here; adding enum values should trigger compile-time coverage checks.
 - `float32` is the pervasive numeric type across gameplay and rendering code.
 - `Player`, `Enemy`, and `Bullet` are `ref object`s, so mutating a local reference mutates the shared instance.
 
 ## Useful Patterns
 
-- For power-ups, follow the recipe in `src/powerup_data.nim` and `src/powerup.nim`: add the enum value, registry entry, render branch, localization keys, save parse branch, and effect implementation.
+- For power-ups, follow the recipe in `src/powerup_data.nim` and `src/powerup.nim`: add the enum value, registry entry, render branch, localization keys, and effect implementation.
 - For cosmetics, mirror the existing registry pattern used by `skins.nim`, `bullet_skins.nim`, `cube_skins.nim`, `particle_skins.nim`, and `desktop_bg_skins.nim`.
 - For UI work, prefer the existing desktop/window modules instead of introducing parallel UI systems.
 - For gameplay logic, check `src/game.nim` first before assuming the behavior lives elsewhere.

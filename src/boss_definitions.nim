@@ -120,7 +120,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss1Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Awakening",
+          name: t(tkBoss1Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 1.0,
           damageMultiplier: 1.0,
@@ -150,7 +150,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Spiral Rage",
+          name: t(tkBoss1Phase2),
           hpThreshold: 0.35,
           speedMultiplier: 0.975,
           damageMultiplier: 1.0,
@@ -194,7 +194,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss2Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Legion's Call",
+          name: t(tkBoss2Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 0.9,
           damageMultiplier: 1.0,
@@ -263,7 +263,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Swarm Commander",
+          name: t(tkBoss2Phase2),
           hpThreshold: 0.6,
           speedMultiplier: 1.0,
           damageMultiplier: 1.2,
@@ -344,7 +344,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss3Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Orbital Strike",
+          name: t(tkBoss3Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 0.95,  # NERFED from 1.05
           damageMultiplier: 1.05,  # small general buff: was 1.0
@@ -387,7 +387,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Cataclysm",
+          name: t(tkBoss3Phase2),
           hpThreshold: 0.5,
           speedMultiplier: 1.0,  # NERFED from 1.1
           damageMultiplier: 1.25,  # small general buff: was 1.2 (NERFED from 1.5)
@@ -430,7 +430,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Apocalypse",
+          name: t(tkBoss3Phase3),
           hpThreshold: 0.25,
           speedMultiplier: 1.1,
           damageMultiplier: 1.35,  # small general buff: was 1.3
@@ -487,7 +487,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss4Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Blueprint",
+          name: t(tkBoss4Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 1.0,
           damageMultiplier: 1.0,
@@ -527,7 +527,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Construction",
+          name: t(tkBoss4Phase2),
           hpThreshold: 0.65,
           speedMultiplier: 1.175,  # NERFED from 1.33
           damageMultiplier: 1.2,  # NERFED from 1.33
@@ -576,7 +576,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Masterpiece",
+          name: t(tkBoss4Phase3),
           hpThreshold: 0.3,
           speedMultiplier: 1.175,  # NERFED from 1.3
           damageMultiplier: 1.2,  # NERFED from 1.3
@@ -664,7 +664,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss5Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Phase Walk",
+          name: t(tkBoss5Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 0.9,  # NERFED from 1.0
           damageMultiplier: 0.9,  # NERFED from 1.0
@@ -716,7 +716,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Shadow Realm",
+          name: t(tkBoss5Phase2),
           hpThreshold: 0.6,
           speedMultiplier: 1.1,
           damageMultiplier: 1.1,  # NERFED from 1.3
@@ -776,7 +776,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Void Ascension",
+          name: t(tkBoss5Phase3),
           hpThreshold: 0.35,
           speedMultiplier: 1.1,  # NERFED from 1.2
           damageMultiplier: 1.1,  # NERFED from 1.5
@@ -869,7 +869,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss6Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Charging",
+          name: t(tkBoss6Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 0.8,
           damageMultiplier: 0.85,
@@ -912,7 +912,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "High Voltage",
+          name: t(tkBoss6Phase2),
           hpThreshold: 0.55,
           speedMultiplier: 1.15,  # Faster, more erratic
           damageMultiplier: 1.2,
@@ -967,7 +967,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Overload",
+          name: t(tkBoss6Phase3),
           hpThreshold: 0.3,
           speedMultiplier: 1.2,
           damageMultiplier: 1.3,
@@ -1035,7 +1035,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss7Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Satellite Deploy",
+          name: t(tkBoss7Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 0.75,
           damageMultiplier: 0.9,
@@ -1091,7 +1091,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Full Deployment",
+          name: t(tkBoss7Phase2),
           hpThreshold: 0.6,
           speedMultiplier: 1.0,
           damageMultiplier: 1.2,
@@ -1155,7 +1155,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Orbital Supremacy",
+          name: t(tkBoss7Phase3),
           hpThreshold: 0.35,
           speedMultiplier: 1.15,
           damageMultiplier: 1.3,
@@ -1185,14 +1185,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "satellite_barrage"
             ),
             BossAttack(
-              # Orbital Scan finale: two crosswise walls with tighter gaps.
+              # Orbital Scan finale: the signature attack takes over the last
+              # phase - three walls per volley (rake, crosswise, reverse) and a
+              # short enough cooldown that the next scan telegraphs while the
+              # last wall is still clearing the arena. The base gap is trimmed
+              # because the 3-wall volley bonus widens every lane by +70%.
               attackType: bapMeteor,  # nominal; routed by specialData
               damage: 14.0,
-              cooldown: 9.0,
+              cooldown: 6.5,
               projectileSpeed: 0.0,
-              projectileCount: 2,
+              projectileCount: 3,
               spreadAngle: 0.0,
-              durationOrRadius: 72.0,
+              durationOrRadius: 62.0,
               specialData: "orbital_sweep"
             ),
             BossAttack(
@@ -1233,7 +1237,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss8Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Warmup",
+          name: t(tkBoss8Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 0.8,
           damageMultiplier: 0.9,
@@ -1288,7 +1292,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Bloodrage",
+          name: t(tkBoss8Phase2),
           hpThreshold: 0.65,
           speedMultiplier: 0.9,  # NERFED from 1.1
           damageMultiplier: 1.3,
@@ -1353,7 +1357,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Unstoppable",
+          name: t(tkBoss8Phase3),
           hpThreshold: 0.3,
           speedMultiplier: 1.1,  # NERFED from 1.2
           damageMultiplier: 1.5,
@@ -1434,7 +1438,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss9Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "First Refraction",
+          name: t(tkBoss9Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 0.8,
           damageMultiplier: 0.9,
@@ -1480,7 +1484,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Spectrum Array",
+          name: t(tkBoss9Phase2),
           hpThreshold: 0.67,
           speedMultiplier: 1.1,
           damageMultiplier: 1.2,
@@ -1523,7 +1527,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Pure Brilliance",
+          name: t(tkBoss9Phase3),
           hpThreshold: 0.33,
           speedMultiplier: 1.2,
           damageMultiplier: 1.25,
@@ -1594,7 +1598,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss10Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Temporal Echo",
+          name: t(tkBoss10Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 0.7,
           damageMultiplier: 1.0,
@@ -1640,7 +1644,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Time Fracture",
+          name: t(tkBoss10Phase2),
           hpThreshold: 0.65,
           speedMultiplier: 1.2,
           damageMultiplier: 1.1,
@@ -1698,7 +1702,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Time Collapse",
+          name: t(tkBoss10Phase3),
           hpThreshold: 0.4,
           speedMultiplier: 1.3,  # Fast blinking
           damageMultiplier: 1.3,
@@ -1780,7 +1784,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss11Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Discord",
+          name: t(tkBoss11Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 1.05,  # NERFED from 1.3
           damageMultiplier: 0.9,  # NERFED from 1.0
@@ -1838,7 +1842,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Entropy",
+          name: t(tkBoss11Phase2),
           hpThreshold: 0.6,
           speedMultiplier: 1.1,  # NERFED from 1.6
           damageMultiplier: 1.2,  # NERFED from 1.5
@@ -1896,7 +1900,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Pure Chaos",
+          name: t(tkBoss11Phase3),
           hpThreshold: 0.35,
           speedMultiplier: 1.175,  # NERFED from 2.0
           damageMultiplier: 1.4,  # NERFED from 2.0
@@ -1965,7 +1969,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       description: t(tkBoss12Desc),
       phases: @[
         BossPhaseDefinition(
-          name: "Alpha Phase",
+          name: t(tkBoss12Phase1),
           hpThreshold: 1.0,
           speedMultiplier: 0.9,  # NERFED from 1.0
           damageMultiplier: 0.9,  # NERFED from 1.0
@@ -2009,7 +2013,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Beta Phase",
+          name: t(tkBoss12Phase2),
           hpThreshold: 0.7,
           speedMultiplier: 1.1,  # NERFED from 1.3
           damageMultiplier: 1.15,  # NERFED from 1.3
@@ -2066,7 +2070,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Gamma Phase",
+          name: t(tkBoss12Phase3),
           hpThreshold: 0.5,
           speedMultiplier: 1.15,  # NERFED from 1.5
           damageMultiplier: 1.25,  # NERFED from 1.6
@@ -2138,7 +2142,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           ]
         ),
         BossPhaseDefinition(
-          name: "Omega Phase",
+          name: t(tkBoss12Phase4),
           hpThreshold: 0.2,
           speedMultiplier: 1.2,
           damageMultiplier: 1.5,

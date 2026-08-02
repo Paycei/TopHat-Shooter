@@ -253,9 +253,13 @@ proc spawnOrbitalSweepInto*(warnings: var seq[AttackWarning], particlePool: Part
   const MARGIN = 60.0'f32  # wall starts/ends fully off-screen
 
   let baseHeading = rand(3)  # 0 right, 1 left, 2 down, 3 up
+  # Heading offsets per wall in a volley. +2 is the perpendicular axis (the
+  # order is right/left/down/up, so stepping by 2 changes axis); +1 reverses
+  # the current axis. So a 3-wall volley reads rake -> crosswise -> reverse
+  # rake, three distinct entry edges instead of repeating the first.
+  const HEADING_OFFSETS = [0, 2, 1]
   for k in 0 ..< sweeps:
-    # Follow-up walls turn 90 degrees so a volley rakes the arena crosswise.
-    let heading = (baseHeading + k * (if sweeps > 1: 1 else: 0) * 2) mod 4
+    let heading = (baseHeading + (if sweeps > 1: HEADING_OFFSETS[k] else: 0)) mod 4
     var startC, endC: Vector2f
     var travelAngle: float32
     var halfSpan: float32

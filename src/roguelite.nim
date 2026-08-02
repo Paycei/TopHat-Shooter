@@ -363,7 +363,9 @@ proc parseEnumSet[T: enum](j: JsonNode): set[T] =
   ## skipping any unknown member (so stale ids in old profiles are dropped, not
   ## collapsed to a default). Unifies the previous per-enum set parsers.
   result = {}
-  if j.kind != JArray: return
+  # isNil first: callers pass j.getOrDefault(...), which is nil (not an empty
+  # array) when the key is absent, and reading .kind off nil segfaults.
+  if j.isNil or j.kind != JArray: return
   for item in j:
     try:
       result.incl(parseEnum[T](item.getStr()))

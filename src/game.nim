@@ -3997,25 +3997,29 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               if game.bullets[k].isEcho and game.bullets[k].parentBulletId == bullet.bulletId:
                 game.bullets.delete(k)
 
-          # Heavy Rounds knockback effect
+          # Heavy Rounds knockback effect. Like the Wind Aura gust and Pulse Armor,
+          # this feeds enemy.knockbackVel (a launch speed that coasts to a stop on its
+          # own timeline) rather than nudging pos directly -- a per-frame-sized nudge
+          # here worked out to under 3px, which was invisible on a 15-20px enemy.
+          # The integrator + exponential decay + screen clamp all live in
+          # updateEnemiesAndBossAttacks, so there is nothing to clamp at this site.
           if not bullet.isEcho and hasPowerUp(game.player, puHeavyRounds):
             let heavyLevel = getPowerUpLevel(game.player, puHeavyRounds)
             let knockbackForce = case heavyLevel
-              of 1: 50.0   # Slight knockback
-              of 2: 100.0  # Increased knockback
-              else: 150.0  # Strong knockback
+              of 1: 130.0'f32  # Slight knockback
+              of 2: 210.0'f32  # Increased knockback
+              else: 300.0'f32  # Strong knockback
 
             # Calculate knockback direction (away from bullet trajectory)
             let pushDir = bullet.vel.normalize()
-            let bossResistance = if target.isBoss: 0.2 else: 1.0
+            let bossResistance = if target.isBoss: 0.2'f32 else: 1.0'f32
+            let launch = pushDir * (knockbackForce * bossResistance)
 
-            # Apply knockback to enemy
-            target.pos.x += pushDir.x * knockbackForce * 0.016 * bossResistance
-            target.pos.y += pushDir.y * knockbackForce * 0.016 * bossResistance
-
-            # Clamp to screen boundaries - enemies can't be pushed through borders
-            target.pos.x = clamp(target.pos.x, target.radius, game.screenWidth.float32 - target.radius)
-            target.pos.y = clamp(target.pos.y, target.radius, game.screenHeight.float32 - target.radius)
+            # Never accumulate, and never cancel a stronger shove already in flight
+            # (a Wind Aura gust launches at 420-1540): the bigger impulse wins, so
+            # rapid fire can't stack into a stun-lock or stomp an aura pulse.
+            if launch.length() > target.knockbackVel.length():
+              target.knockbackVel = launch
 
           # Special Rounds stun effect
           if not bullet.isEcho and bullet.isSpecialRound:
