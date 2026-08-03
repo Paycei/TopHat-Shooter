@@ -41,20 +41,12 @@ const
 # commit history since the last release tag (Release552), not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
-    titleEn: "Version 6.2",
-    titleEs: "Versión 6.2",
-    subtitleEn: "Changes since v6.1.1",
-    subtitleEs: "Cambios desde v6.1.1",
+    titleEn: "Version 6.2.1",
+    titleEs: "Versión 6.2.1",
+    subtitleEn: "Changes since v6.2",
+    subtitleEs: "Cambios desde v6.2",
     latest: true,
     entries: @[
-      # --- Startup ---
-      ChangelogEntry(category: clcFixed,
-        en: "The first-launch audio setup no longer freezes the game. Building the four music tracks used to lock the window for several seconds at a time -- nothing animated and Windows could mark the game as not responding. The audio is now built in the background while the loading screen keeps running at full frame rate.",
-        es: "La preparación de audio del primer arranque ya no congela el juego. Crear las cuatro pistas de música bloqueaba la ventana durante varios segundos seguidos -- nada se animaba y Windows podía marcar el juego como que no responde. Ahora el audio se crea en segundo plano mientras la pantalla de carga sigue funcionando a pleno rendimiento."),
-      ChangelogEntry(category: clcImproved,
-        en: "Redesigned loading screen: an audio_setup.exe window with SFX / MUSIC / MEMORY stage badges, an asset counter, the file being built right now, a smoothly filling progress bar and a live audio meter. It also notes that this only happens on the first run, since the generated audio is cached afterwards.",
-        es: "Pantalla de carga rediseñada: una ventana audio_setup.exe con distintivos de fase SFX / MÚSICA / MEMORIA, un contador de recursos, el archivo que se está creando, una barra de progreso que se llena con suavidad y un medidor de audio en vivo. Además avisa de que esto solo ocurre en el primer arranque, porque el audio generado queda en caché."),
-
       # --- Effects ---
       ChangelogEntry(category: clcImproved,
         en: "Aftershock is finally something you can see. The shockwave now draws the actual corridor you ran through: a bright crest rolls backwards along your path exactly the way the damage resolves, leaving a glowing swath and a trail of sparks behind it, and every enemy it catches bursts at the point on the path that hit them. Before this, a wide loop just made enemies fly away from nothing.",
@@ -81,7 +73,25 @@ let changelog: seq[ChangelogVersion] = @[
         es: "Los escudos de sobrecarga de los jefes ahora te devuelven tu propia bala. En vez de soltar un proyectil genérico, el caparazón atrapa el disparo que hiciste -- mismo aspecto, misma forma, mismo elemento y comportamiento explosivo o perforante --, lo gira y lo manda de vuelta por la línea por la que llegó. Viaja mucho más despacio de lo que llegó, así que puedes apartarte, y golpea con la mitad del daño de esa misma bala, con un tope para que ningún disparo pueda acabar contigo. Tus propios muros lo detienen, y una Parada lo reenvía directo al jefe."),
       ChangelogEntry(category: clcImproved,
         en: "Boss overload shields now telegraph themselves. Six shards fall inward onto the shell's future corners while a ring closes around the boss, landing exactly as the shield snaps up, so you get a moment to hold fire instead of finding out by eating your own shot. A returned bullet is also ringed with a pulsing cyan cage and spinning spokes, so you can pick it out of the crossfire. Both cues are purely visual and always shown, even with hints turned off.",
-        es: "Los escudos de sobrecarga de los jefes ahora se avisan. Seis fragmentos caen hacia dentro sobre las futuras esquinas del caparazón mientras un anillo se cierra alrededor del jefe, y ambos llegan justo cuando el escudo se levanta, así que tienes un momento para dejar de disparar en vez de enterarte comiéndote tu propio disparo. La bala devuelta también lleva una jaula cian que late y radios que giran, para que puedas distinguirla en medio del fuego cruzado. Ambas señales son puramente visuales y se muestran siempre, incluso con las pistas desactivadas."),
+        es: "Los escudos de sobrecarga de los jefes ahora se avisan. Seis fragmentos caen hacia dentro sobre las futuras esquinas del caparazón mientras un anillo se cierra alrededor del jefe, y ambos llegan justo cuando el escudo se levanta, así que tienes un momento para dejar de disparar en vez de enterarte comiéndote tu propio disparo. La bala devuelta también lleva una jaula cian que late y radios que giran, para que puedas distinguirla en medio del fuego cruzado. Ambas señales son puramente visuales y se muestran siempre, incluso con las pistas desactivadas.")
+    ]
+  ),
+  ChangelogVersion(
+    titleEn: "Version 6.2",
+    titleEs: "Versión 6.2",
+    subtitleEn: "Changes since v6.1.1",
+    subtitleEs: "Cambios desde v6.1.1",
+    latest: false,
+    entries: @[
+      # --- Startup ---
+      ChangelogEntry(category: clcFixed,
+        en: "The first-launch audio setup no longer freezes the game. Building the four music tracks used to lock the window for several seconds at a time -- nothing animated and Windows could mark the game as not responding. The audio is now built in the background while the loading screen keeps running at full frame rate.",
+        es: "La preparación de audio del primer arranque ya no congela el juego. Crear las cuatro pistas de música bloqueaba la ventana durante varios segundos seguidos -- nada se animaba y Windows podía marcar el juego como que no responde. Ahora el audio se crea en segundo plano mientras la pantalla de carga sigue funcionando a pleno rendimiento."),
+      ChangelogEntry(category: clcImproved,
+        en: "Redesigned loading screen: an audio_setup.exe window with SFX / MUSIC / MEMORY stage badges, an asset counter, the file being built right now, a smoothly filling progress bar and a live audio meter. It also notes that this only happens on the first run, since the generated audio is cached afterwards.",
+        es: "Pantalla de carga rediseñada: una ventana audio_setup.exe con distintivos de fase SFX / MÚSICA / MEMORIA, un contador de recursos, el archivo que se está creando, una barra de progreso que se llena con suavidad y un medidor de audio en vivo. Además avisa de que esto solo ocurre en el primer arranque, porque el audio generado queda en caché."),
+
+      # --- Tuning ---
       ChangelogEntry(category: clcBalance,
         en: "The Orbital Commander's final phase now belongs to its Orbital Scan: three walls per volley instead of two, arriving from three different edges (rake, crosswise, then a reverse rake), and the next scan starts telegraphing while the last wall is still crossing. The safe lane is a touch wider to compensate.",
         es: "La fase final del Comandante Orbital ahora gira en torno a su Escaneo Orbital: tres muros por descarga en vez de dos, llegando desde tres bordes distintos (barrido, transversal y barrido inverso), y el siguiente escaneo empieza a avisarse mientras el último muro aún cruza. El carril seguro es algo más ancho para compensar."),
