@@ -1053,6 +1053,19 @@ type
     lifetime*: float32       # Remaining display time
     maxLifetime*: float32
     segments*: seq[Vector2f] # Pre-computed jagged waypoints (including start & end)
+    color*: Color            # Glow tint; the core stays near-white (chain lightning
+                             # is pale blue, Blood Pact tethers are red, etc.)
+
+  PathShockwave* = ref object
+    ## A shockwave that sweeps along a recorded polyline instead of expanding
+    ## from a point. Aftershock traces the corridor the player just ran through,
+    ## so a plain circular ring cannot show where the damage landed - the crest
+    ## travels back along the path while the swath behind it glows and fades.
+    points*: seq[Vector2f]   # Ordered path; index 0 is the OLDEST position
+    width*: float32          # Half-width of the damaging corridor
+    lifetime*: float32       # Remaining display time
+    maxLifetime*: float32
+    color*: Color
 
   ShockwaveRing* = ref object
     ## An expanding ring that snaps out to a target radius and holds there
@@ -1386,6 +1399,7 @@ type
     deathSequenceTimeScale*: float32  # Current playback time scale during death sequence
     lightningBolts*: seq[LightningBolt]  # Active lightning arc visuals
     shockwaveRings*: seq[ShockwaveRing]  # Active AoE-blast boundary rings (Star death, etc.)
+    pathShockwaves*: seq[PathShockwave]  # Active path-swept blast corridors (Aftershock)
     confirmQuitPending*: bool  # True while the quit-confirmation dialog is open
     pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
     confirmQuitFrameGuard*: float32  # Short guard so Q-open and Q-confirm can't fire on the same frame

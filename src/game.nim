@@ -1946,11 +1946,20 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
 
   # Nova freeze expiry: when novaActive becomes false, release bullets
   if not game.player.novaActive:
+    const NovaColor = Color(r: 200, g: 200, b: 255, a: 255)
+    var released = 0
     for bullet in game.bullets:
       if bullet.isFrozenByNova and bullet.fromPlayer:
         bullet.vel = bullet.vel * 1.5
         bullet.isFrozenByNova = false
         bullet.isFromNova = true  # Mark for damage tracking
+        # Launch flash on each bullet: the whole point of Nova is the volley
+        # firing at once, which is invisible if only the player flashes.
+        spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, NovaColor, 6)
+        inc released
+    if released > 0:
+      spawnShockwaveRing(game, game.player.pos, 300.0'f32, NovaColor)
+      addShake(game.dopamine.screenShake, siLarge, NovaColor)
 
   # Radial Burst power-up - periodic circle of bullets
   if hasPowerUp(game.player, puRadialBurst):
@@ -2075,6 +2084,9 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
 
   # Animate/expire AoE blast boundary rings (Star death, etc.)
   updateShockwaveRings(game, dt)
+
+  # Animate/expire path-swept blast corridors (Aftershock)
+  updatePathShockwaves(game, dt)
 
   updatePlayerFiring(game, dt)
 
@@ -3480,6 +3492,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
     # Nova: frozen player bullets don't move or expire
     if bullet.isFrozenByNova and bullet.fromPlayer:
+      # Suspended bullets are otherwise indistinguishable from stuck ones. A
+      # sparse frost mote (probabilistic, so the cost stays flat regardless of
+      # how many bullets are held) sells "held in stasis, still charged".
+      if rand(1.0) < 3.0 * dt:
+        spawnTrailParticlePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                 Color(r: 200, g: 220, b: 255, a: 255), 2)
       i += 1
       continue
 
@@ -3736,6 +3754,17 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             finalDamage = bullet.damage * (1.0 + bonusMultiplier)
             overchargeExtraDamage = finalDamage - bullet.damage
 
+            # Overcharge only tints the bullet in flight; the payoff moment (a
+            # near-capped long shot landing) had no impact feedback at all.
+            # Gated at 60% of the cap so ordinary close-range hits stay clean.
+            if bonusMultiplier > maxBonus * 0.6:
+              let chargeFrac = float32(bonusMultiplier / maxBonus)
+              spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                   Color(r: 255, g: 200, b: 80, a: 255),
+                                   int(4.0 + chargeFrac * 8.0))
+              spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                   18.0'f32 + chargeFrac * 22.0'f32)
+
           # Use the bullet's stored crit status (rolled when bullet was created)
           let isCrit = bullet.wasCrit
           let weakCoreHit = bossWeakPointCoreHit(target, bullet.pos, bullet.radius)
@@ -3872,6 +3901,11 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               # Show Giant Slayer damage number in distinct color (purple/arcane)
               if giantSlayerDamage > 0:
                 showDamage(game, target.pos, giantSlayerDamage, true, false, dtArcane)
+                # Arcane shards biting into the target. Kept small because this
+                # fires on EVERY bullet hit - it has to read without burying the
+                # bullet's own impact effect.
+                spawnExplosionPooled(game.particlePool, target.pos.x, target.pos.y,
+                                     Color(r: 190, g: 110, b: 255, a: 255), 4)
 
             # Curse: cursed enemies take a % of this hit's damage as bonus damage.
             # Based on actualDamage, which already includes mitigation and the direct
@@ -3891,6 +3925,11 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               trackPowerUpDamage(game, puCurse, curseDamage)
               if curseDamage > 0:
                 showDamage(game, target.pos, curseDamage, true, false, dtArcane)
+                # The cursed marker ring already sits on the enemy; this is the
+                # ring visibly cracking on each hit that cashes the curse in.
+                spawnExplosiveRingPooled(game.particlePool, target.pos.x, target.pos.y,
+                                         target.radius + 12.0'f32, 1,
+                                         Color(r: 150, g: 60, b: 220, a: 255))
 
             # GlitchField: chance to scramble enemy navigation (slow them)
             if game.player.glitchChance > 0 and not target.isBoss and actualDamage > 0:
@@ -5116,6 +5155,9 @@ proc drawGame*(game: Game) =
 
   # Draw AoE blast boundary rings under the sparks so the lethal edge reads clearly
   drawShockwaveRings(game)
+
+  # Draw Aftershock's swept corridor at the same layer as the rings
+  drawPathShockwaves(game)
 
   # Draw attack warnings (before everything else so they're visible)
   if globalSettings == nil or globalSettings.showHints:

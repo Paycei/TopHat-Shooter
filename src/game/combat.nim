@@ -372,8 +372,14 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
   game.showDamage(targetEnemy.pos, actualDamage, fromPlayer = true,
                   isCritical = reflectDamageWithCrit > reflectDamageBase, damageType = dtDefault)
 
-  # Visual feedback
-  spawnExplosionPooled(game.particlePool, targetEnemy.pos.x, targetEnemy.pos.y, Red,
-                if reflectType == "boss": 8 elif reflectType == "contact": 6 else: 5)
+  # Visual feedback: thorns are a REFLECTION, so the burst reads outward from
+  # the enemy as a spike ring rather than as another generic hit puff. The
+  # boss/contact/bullet split keeps the loudness proportional to the reflection.
+  let thornColor = Color(r: 130, g: 225, b: 100, a: 255)
+  spawnExplosionPooled(game.particlePool, targetEnemy.pos.x, targetEnemy.pos.y, thornColor,
+                if reflectType == "boss": 10 elif reflectType == "contact": 8 else: 6)
+  spawnExplosiveRingPooled(game.particlePool, targetEnemy.pos.x, targetEnemy.pos.y,
+                           targetEnemy.radius + (if reflectType == "boss": 24.0'f32 else: 14.0'f32),
+                           if reflectType == "boss": 2 else: 1, thornColor)
 
   return actualDamage
