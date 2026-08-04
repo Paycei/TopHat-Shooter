@@ -1304,6 +1304,10 @@ type
     currencyIndicators*: seq[CurrencyIndicator]
     perkIndicators*: seq[PerkIndicator]
     time*: float32
+    runEndTime*: float32    # game.time frozen when the run ended; 0 = still running.
+                            # `time` keeps ticking on the ending screens because it
+                            # drives their animations, so anything reporting how long
+                            # the run lasted must read runElapsedTime() instead.
     frameCount*: int  # Frame counter for satellite optimizations
     perfUpdateMs*: float32  # Smoothed wall-clock ms spent in updateGame (debug overlay)
     perfDrawMs*: float32    # Smoothed wall-clock ms spent in drawGame   (debug overlay)
@@ -1417,6 +1421,27 @@ var currentDifficulty* = gdMedium
 # the wavesUntilBoss countdown, boss bounty, shop income estimates -- routes
 # through this constant rather than hardcoding the interval.
 const BossWaveInterval* = 5
+
+proc runElapsedTime*(game: Game): float32 =
+  ## How long the run actually lasted. On the game-over / victory screens
+  ## `game.time` keeps advancing (it drives their particles, glows and cursor),
+  ## so every "mission duration" readout and every stat write has to go through
+  ## here or it counts the time the player spent reading the screen.
+  if game.runEndTime > 0.0'f32: game.runEndTime else: game.time
+
+proc freezeRunTime*(game: Game) =
+  ## Stops the run clock the moment a run ends. Idempotent, so the one-time
+  ## ending-screen setup blocks can call it without guarding.
+  if game.runEndTime <= 0.0'f32:
+    game.runEndTime = game.time
+
+proc resumeRunTime*(game: Game) =
+  ## Un-freezes the clock when a finished run continues into endless play.
+  ## The paused stretch on the ending screen is discarded, so the resumed run
+  ## carries on from where it stopped.
+  if game.runEndTime > 0.0'f32:
+    game.time = game.runEndTime
+    game.runEndTime = 0.0'f32
 
 proc difficultyEnemyHpMult*(): float32 =
   case currentDifficulty

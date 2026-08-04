@@ -654,7 +654,7 @@ proc finalizeRunTracking*(game: Game) =
     elif game.mode == gmRoguelite and game.rogueliteRun != nil:
       game.rogueliteRun.totalRoomsCleared
     else:
-      int(game.time / 60)
+      int(runElapsedTime(game) / 60)
   let finalScore = game.player.kills
   if game.mode == gmRoguelite and game.rogueliteRun != nil and not currentRunStats.isNil:
     currentRunStats.rogueliteFloorReached = game.rogueliteRun.floorNumber

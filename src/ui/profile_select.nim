@@ -373,11 +373,9 @@ proc drawProfileSelect*(state: ProfileSelectState, screenWidth, screenHeight: in
   of psmDifficulty:
     drawScreenFrame(screenWidth, screenHeight,
                     "Select Difficulty", "Selecciona dificultad")
-    drawCenteredText("Profile " & $state.targetSlot & " / Perfil " & $state.targetSlot,
-                     screenWidth div 2,
-                     (screenHeight.float32 * 0.5'f32 - 150.0'f32).int32, 18,
-                     Color(r: 0, g: 210, b: 255, a: 220))
     let cards = difficultyCardRects(screenWidth, screenHeight)
+    # The recommendation banner owns the strip above the cards, so the profile
+    # label moved below them (see the end of this branch).
     for d in GameDifficulty:
       let rect = cards[d]
       let hovered = checkCollisionPointRec(mousePos, rect)
@@ -417,6 +415,47 @@ proc drawProfileSelect*(state: ProfileSelectState, screenWidth, screenHeight: in
       drawCenteredText("[" & $(ord(d) + 1) & "]  Click / Clic", cx,
                        (rect.y + rect.height - 32.0'f32).int32, 14,
                        Color(r: 130, g: 150, b: 170, a: 220))
+    # One banner spanning the two beginner cards, pulsing so it is the first
+    # thing the eye lands on, with a chevron dropping onto each card it covers.
+    block:
+      const
+        TagEn = "RECOMMENDED FOR NEW PLAYERS"
+        TagEs = "Recomendado para jugadores nuevos"
+      let easyRect = cards[gdEasy]
+      let normRect = cards[gdMedium]
+      let bannerH = 44.0'f32
+      let bannerX = easyRect.x
+      let bannerW = normRect.x + normRect.width - easyRect.x
+      let bannerY = easyRect.y - bannerH - 12.0'f32
+      # Squared sine reads as a heartbeat rather than a lazy fade in/out.
+      let beat = pow(sin(time * 2.6'f32) * 0.5'f32 + 0.5'f32, 2.0'f32)
+      let accent = Color(r: 120, g: 235, b: 145, a: 255)
+      drawRectangle(bannerX.int32, bannerY.int32, bannerW.int32, bannerH.int32,
+                    Color(r: accent.r, g: accent.g, b: accent.b,
+                          a: uint8(26.0'f32 + beat * 46.0'f32)))
+      drawRectangleLines(Rectangle(x: bannerX, y: bannerY,
+                                   width: bannerW, height: bannerH),
+                         1.0'f32 + beat * 2.0'f32,
+                         Color(r: accent.r, g: accent.g, b: accent.b,
+                               a: uint8(145.0'f32 + beat * 110.0'f32)))
+      let bcx = (bannerX + bannerW / 2.0'f32).int32
+      drawCenteredText(TagEn, bcx, (bannerY + 5.0'f32).int32, 16,
+                       Color(r: 255, g: 255, b: 255,
+                             a: uint8(195.0'f32 + beat * 60.0'f32)))
+      drawCenteredText(TagEs, bcx, (bannerY + 26.0'f32).int32, 13, accent)
+      for d in [gdEasy, gdMedium]:
+        let ccx = cards[d].x + cards[d].width / 2.0'f32
+        let cy = bannerY + bannerH + 1.0'f32 + beat * 3.0'f32
+        # Wound so raylib's back-face cull keeps it visible (left, tip, right).
+        drawTriangle(Vector2(x: ccx - 9.0'f32, y: cy),
+                     Vector2(x: ccx, y: cy + 9.0'f32),
+                     Vector2(x: ccx + 9.0'f32, y: cy),
+                     Color(r: accent.r, g: accent.g, b: accent.b,
+                           a: uint8(120.0'f32 + beat * 135.0'f32)))
+    drawCenteredText("Profile " & $state.targetSlot & " / Perfil " & $state.targetSlot,
+                     screenWidth div 2,
+                     (screenHeight.float32 * 0.5'f32 + 168.0'f32).int32, 16,
+                     Color(r: 0, g: 210, b: 255, a: 220))
     drawCenteredText("[ESC] Back / Volver", screenWidth div 2,
-                     (screenHeight.float32 * 0.5'f32 + 200.0'f32).int32, 16,
+                     (screenHeight.float32 * 0.5'f32 + 196.0'f32).int32, 16,
                      Color(r: 130, g: 150, b: 170, a: 220))

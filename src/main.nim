@@ -752,7 +752,8 @@ proc main() =
 
       # Survival's score is its progression clock (which pauses during bosses), so it
       # matches the HUD the player watched; other modes report real elapsed time.
-      let timeForStats = if isTimeSurvivalMode(game.mode): game.survivalTime else: game.time
+      let timeForStats = if isTimeSurvivalMode(game.mode): game.survivalTime
+                         else: runElapsedTime(game)
       updateStatsForMode(stats, game.mode, scoreReached, timeForStats,
                          game.player.kills, coinsForStats, bossesKilled)
 
@@ -2939,6 +2940,10 @@ proc main() =
         endGameDrawing()
 
     of gsGameOver:
+      # The run is over: stop the clock before anything reports its duration.
+      # gsGameOver does not advance `time` itself, but gsRunStats (reachable from
+      # here via View Stats) does, so without this the duration grows on return.
+      freezeRunTime(currentGame)
       # Stop music and play game over sound once
       if not currentGame.gameOverSoundPlayed:
         stopMusic()
@@ -3248,6 +3253,10 @@ proc main() =
     of gsVictory:
       # One-time congratulations screen shown after the wave-60 final boss.
       # Three choices: continue endlessly, view detailed stats, or return to menu.
+      # `time` has to keep running (it drives this screen's particles and glows),
+      # so the run clock is frozen separately -- otherwise the reported mission
+      # duration climbs while the player reads their own results.
+      freezeRunTime(currentGame)
       currentGame.time += dt
       updateMouseTracking(currentGame)
 
@@ -3320,8 +3329,11 @@ proc main() =
 
       case victoryAction
       of 0:
-        # Continue endlessly: re-arm the queued power-up reward and resume play
+        # Continue endlessly: re-arm the queued power-up reward and resume play.
+        # The run clock restarts from where it stopped, so the time spent parked
+        # on this screen is not billed to the run.
         playSound(stMenuSelect)
+        resumeRunTime(currentGame)
         initPowerUpRollAnimation(currentGame)
         currentGame.state = gsPowerUpSelect
       of 1:
@@ -3353,6 +3365,9 @@ proc main() =
       # banked. Two choices: push deeper into the endless loop, or cash out and
       # return to the roguelite hub. selectedVictoryButton: 0=continue, 1=cash out.
       playMusic(mtMenu)
+      # Same as the wave-mode victory screen: animations keep running, the run
+      # clock does not (this screen can be parked on indefinitely).
+      freezeRunTime(currentGame)
       currentGame.time += dt
       updateMouseTracking(currentGame)
       tickDesktopToasts(osDesktop, dt)
@@ -3388,6 +3403,7 @@ proc main() =
         # Push deeper: roll into the next endless loop and take the queued post-boss
         # draft (prepared in game.nim) as this floor's reward.
         playSound(stMenuSelect)
+        resumeRunTime(currentGame)
         if currentGame.rogueliteRun != nil:
           rogueliteContinueEndless(currentGame.rogueliteRun)
         initPowerUpRollAnimation(currentGame)
