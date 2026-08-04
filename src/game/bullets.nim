@@ -48,8 +48,9 @@ const
 # COMMON HELPER FUNCTIONS FOR POWER-UP CALCULATIONS
 
 # Lightning visuals moved to src/fx.nim (forwarding stubs kept)
-proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2f) =
-  fx.spawnLightningBoltInto(game.lightningBolts, fromPos, toPos)
+proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2f,
+                         color: Color = fx.DEFAULT_BOLT_COLOR) =
+  fx.spawnLightningBoltInto(game.lightningBolts, fromPos, toPos, color)
 
 proc updateLightningBolts*(game: var Game, dt: float32) =
   fx.updateLightningBolts(game.lightningBolts, dt)
@@ -66,6 +67,17 @@ proc updateShockwaveRings*(game: var Game, dt: float32) =
 
 proc drawShockwaveRings*(game: Game) =
   fx.drawShockwaveRings(game.shockwaveRings)
+
+# Path-swept blast corridors (Aftershock), forwarding stubs
+proc spawnPathShockwave*(game: var Game, points: seq[Vector2f], width: float32,
+                         color: Color) =
+  fx.spawnPathShockwaveInto(game.pathShockwaves, points, width, color)
+
+proc updatePathShockwaves*(game: var Game, dt: float32) =
+  fx.updatePathShockwaves(game.pathShockwaves, dt)
+
+proc drawPathShockwaves*(game: Game) =
+  fx.drawPathShockwaves(game.pathShockwaves)
 
 proc getExplosionRadius*(level: int): float32 =
   ## Standard explosion radius for explosive bullets

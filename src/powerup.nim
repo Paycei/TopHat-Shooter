@@ -13,6 +13,58 @@ proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
       return p.level
   return 0
 
+# --- Juggernaut (puMaxHealth) ------------------------------------------------
+# The legendary trades vitality for violence, and violence for mobility. Two
+# rules keep it from being free damage:
+#   1. Only *invested* max HP counts. maxHp inflates on its own every wave and
+#      every level-up, so the untouched share is mirrored in baselineMaxHp and
+#      subtracted here -- picking Juggernaut with a stock HP pool is worth 0%.
+#   2. The plating has weight. Whatever damage bonus is active costs move speed
+#      proportionally, so the same investment that maxes the damage also maxes
+#      the slowdown (and caps Momentum, which pays for velocity, below its own
+#      ceiling). Both helpers live here because combat.nim reads the damage side
+#      and player.nim reads the speed side.
+
+const
+  JuggernautDamagePerHp* = 0.03'f32  ## +3% damage per 1.0 invested max HP (= 100 displayed HP)
+  JuggernautDamageCap*   = 0.45'f32  ## Ceiling on that bonus (+45%)
+  JuggernautSpeedCost*   = 0.40'f32  ## Move speed lost per point of damage bonus (up to -18%)
+  JuggernautPlatingHp*   = 3.0'f32   ## Max HP the plating itself bolts on (counts as invested)
+
+proc juggernautInvestedHp*(player: Player): float32 {.inline.} =
+  ## Max HP the build actually bought/earned, with automatic growth excluded.
+  max(0.0'f32, player.maxHp - player.baselineMaxHp)
+
+proc juggernautDamageBonus*(player: Player): float32 =
+  ## Fractional damage bonus from Juggernaut (0 when the power-up isn't owned).
+  if not hasPowerUp(player, puMaxHealth):
+    return 0.0'f32
+  min(juggernautInvestedHp(player) * JuggernautDamagePerHp, JuggernautDamageCap)
+
+proc juggernautSpeedMult*(player: Player): float32 =
+  ## Movement multiplier paid for the bonus above. 1.0 without the power-up.
+  1.0'f32 - juggernautDamageBonus(player) * JuggernautSpeedCost
+
+# --- Bulwark (puBulwark) -----------------------------------------------------
+
+proc bulwarkMaxBonus*(level: int): float32 {.inline.} =
+  ## Damage bonus at completely intact plating (full HP), by level.
+  case level
+  of 0: 0.0'f32
+  of 1: 0.12'f32
+  of 2: 0.18'f32
+  else: 0.25'f32
+
+proc bulwarkDamageBonus*(player: Player): float32 =
+  ## Bulwark scales with the *fraction* of HP still intact, not the raw pool, so
+  ## it can't ride the automatic max-HP inflation the way old Juggernaut did.
+  ## Full HP pays in full; every hit strips plating, healing welds it back on.
+  let level = getPowerUpLevel(player, puBulwark)
+  if level <= 0 or player.maxHp <= 0:
+    return 0.0'f32
+  let intact = clamp(player.hp / player.maxHp, 0.0'f32, 1.0'f32)
+  bulwarkMaxBonus(level) * intact
+
 proc isOfferable*(player: Player, pt: PowerUpType,
                   allowed: set[RoguelitePowerFamily],
                   mode: GameMode): bool {.inline.} =
@@ -298,9 +350,14 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # sustained-fire spin-up (up to +30% faster) handled in game.nim/combat.nim.
     discard
   of puMaxHealth:
-    # Juggernaut (Legendary): no flat HP grant. The effect is the max-HP-scaled
-    # damage bonus in calculateCombatStats (which counts base HP too).
-    discard
+    # Juggernaut (Legendary): bolt on the plating itself. Deliberately NOT mirrored
+    # into baselineMaxHp, so it counts as invested and the legendary is worth a
+    # self-contained +9% damage / -3.6% speed the moment it lands -- without it,
+    # picking this on a build that never bought HP would do nothing at all. The
+    # rest of the bonus is earned by investing further (see the block comment at
+    # the top of this file); calculateCombatStats reads it.
+    player.maxHp += JuggernautPlatingHp
+    player.hp += JuggernautPlatingHp
   of puSpeedBoost:
     # Momentum (Legendary): no flat move-speed stat. The effect is the
     # move-while-firing damage bonus (up to +25%) in calculateCombatStats.

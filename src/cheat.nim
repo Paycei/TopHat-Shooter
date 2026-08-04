@@ -252,6 +252,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   game.player.damage = 1.0
   game.player.bulletSpeed = 325.0
   game.player.maxHp = 9.0
+  game.player.baselineMaxHp = 9.0  # Back to "nothing invested" alongside maxHp
   game.player.hp = min(game.player.hp, game.player.maxHp)
 
   # Reapply shop purchases for damage, health, speed, fire rate, and bullet speed

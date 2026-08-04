@@ -52,6 +52,7 @@ proc newPlayer*(x, y: float32): Player =
     baseRadius: 14,
     hp: 9,
     maxHp: 9,
+    baselineMaxHp: 9,   # Free HP so far; grows only with automatic gains (see types.nim)
     speed: 177.5,
     baseSpeed: 177.5,
     damage: 1,
@@ -237,6 +238,10 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     currentSpeed *= 1.4  # 40% speed boost
   if player.outOfCombatSpeedBoost:
     currentSpeed *= 1.25  # Roguelite out-of-combat bonus
+  # Juggernaut plating weighs the player down in proportion to the damage it is
+  # granting. Deliberately applied to the movement speed only, not baseSpeed, so
+  # Momentum's vel/baseSpeed ratio can no longer reach 1.0 while wearing it.
+  currentSpeed *= juggernautSpeedMult(player)
 
   # Movement intent: WASD + gamepad on desktop, left virtual joystick on mobile.
   # All device reads live behind input_intent so this call site stays one line.

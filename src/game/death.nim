@@ -215,6 +215,7 @@ proc removeComebackBonus*(game: Game) =
   game.comebackBonusActive = false
   game.comebackEndWave = 0
   game.player.maxHp -= ComebackHpBonus
+  game.player.baselineMaxHp -= ComebackHpBonus  # Handout, not investment
   game.player.hp = min(game.player.hp, game.player.maxHp)
   game.player.damage -= ComebackDmgBonus
   game.player.baseSpeed -= ComebackSpeedBonus
@@ -230,6 +231,7 @@ proc applyComebackBonus*(game: Game) =
   game.comebackBonusActive = true
   game.comebackEndWave = globalSettings.lastDeathWave
   game.player.maxHp += ComebackHpBonus
+  game.player.baselineMaxHp += ComebackHpBonus  # Handout, not investment
   game.player.hp = game.player.maxHp
   game.player.damage += ComebackDmgBonus
   game.player.baseSpeed += ComebackSpeedBonus
@@ -296,6 +298,7 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
   updateDopamine(game.dopamine, worldDt)
   updateLightningBolts(game, worldDt)
   updateShockwaveRings(game, worldDt)
+  updatePathShockwaves(game, worldDt)
 
   var i = 0
   while i < game.attackWarnings.len:

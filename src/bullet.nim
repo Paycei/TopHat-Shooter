@@ -270,7 +270,13 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
   var glowColor: Color
   var trailColor: Color
 
-  if bullet.fromPlayer and not bullet.isEcho:
+  # A shot the boss overload shield turned around is still the player's bullet
+  # (owner flipped, everything else intact), so it keeps the player's skin, shape
+  # and trail rather than becoming a generic pink enemy pellet. The "it's coming
+  # for you now" signal is the hostile ring added in the glow pass below.
+  let usesPlayerLook = (bullet.fromPlayer or bullet.isShieldReflected) and not bullet.isEcho
+
+  if usesPlayerLook:
     # Use bullet skin colors for player bullets
     let skinType = BulletSkinType(bullet.bulletSkin)
     let (primary, glow, trail) = getBulletSkinColors(skinType, gameTime)
@@ -341,7 +347,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
 
   # Draw bullet trail for player bullets (showcases skin colors)
   # Reduce trail for explosive bullets to improve performance
-  if bullet.fromPlayer and not bullet.isEcho and bullet.vel.length() > 0:
+  if usesPlayerLook and bullet.vel.length() > 0:
     let maxTrailSegments = if bullet.isExplosive: 2 else: 3  # Fewer trail segments for explosive
     for i in 0..maxTrailSegments:
       let trailOffset = (i.float32 + 1) * 5.0
@@ -368,7 +374,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
   elif bullet.isBossBullet and bullet.bossBulletShape > 0:
     # Boss bullets with a unique shape shape + glow already handled together
     drawBossBulletShape(bullet, color, glowColor, gameTime)
-  elif bullet.fromPlayer and not bullet.isEcho and bullet.bulletShape > 0:
+  elif usesPlayerLook and bullet.bulletShape > 0:
     # Player cosmetic bullet shape
     let travelAngle = arctan2(bullet.vel.y, bullet.vel.x)
     drawPlayerBulletShape(bullet.pos, bullet.radius,
@@ -379,7 +385,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
 
   # Blood bullets: Add dripping blood effect
-  if hasBloodBullets and bullet.fromPlayer and not bullet.isEcho:
+  if hasBloodBullets and usesPlayerLook:
     # Create 2-3 blood drips trailing behind the bullet
     for i in 0..2:
       let dripOffset = i.float32 * 4.0 + 3.0
@@ -395,7 +401,33 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                 faded(Color(r: 100, g: 20, b: 20, a: dripAlpha)))
 
   # Add glow effect
-  if not bullet.fromPlayer:
+  if bullet.isShieldReflected:
+    # Turned by a boss overload shield: the player's own glow, wrapped in a
+    # counter-rotating cyan cage plus a pulsing danger ring. No text - the ring
+    # breathing at the bullet is the whole warning that this one bites back.
+    for i in 0..1:
+      let glowRadius = bullet.radius + 2.0 + i.float32 * 2.0
+      let glowAlpha = uint8(float32(glowColor.a) * (1.0 - i.float32 * 0.4))
+      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
+                     withAlpha(glowColor, glowAlpha))
+    let pulse = sin(gameTime * 9.0 + bullet.pos.x * 0.05) * 0.5 + 0.5
+    let ringA = uint8(clamp(140.0 + pulse * 115.0, 0.0, 255.0))
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32,
+                   bullet.radius + 4.0 + pulse * 2.5,
+                   faded(Color(r: 120, g: 210, b: 255, a: ringA)))
+    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32,
+                   bullet.radius + 7.5 + pulse * 3.5,
+                   faded(Color(r: 90, g: 180, b: 255, a: uint8(ringA.int div 2))))
+    # Four spokes spinning against the travel direction: reads as "captured".
+    let spin = -gameTime * 4.5
+    for i in 0..3:
+      let a = spin + i.float32 * PI * 0.5
+      let inner = Vector2(x: bullet.pos.x + cos(a) * (bullet.radius + 3.0),
+                          y: bullet.pos.y + sin(a) * (bullet.radius + 3.0))
+      let outer = Vector2(x: bullet.pos.x + cos(a) * (bullet.radius + 8.0 + pulse * 2.0),
+                          y: bullet.pos.y + sin(a) * (bullet.radius + 8.0 + pulse * 2.0))
+      drawLine(inner, outer, 1.5'f32, faded(Color(r: 170, g: 230, b: 255, a: ringA)))
+  elif not bullet.fromPlayer:
     # Sniper bullets get strong red glow
     if bullet.sourceEnemyType == etSniper:
       # Multiple red glow rings for sniper bullets
@@ -457,7 +489,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                    faded(Color(r: 150, g: 50, b: 200, a: 100)))
 
   # Special Round visual effect - golden glow with sparkles
-  if bullet.isSpecialRound and bullet.fromPlayer:
+  if bullet.isSpecialRound and usesPlayerLook:
     # Main golden glow
     drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    faded(Color(r: 255, g: 215, b: 0, a: 255)))

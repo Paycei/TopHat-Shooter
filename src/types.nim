@@ -249,6 +249,7 @@ type
     puBulletRicochet,  # Bullets ricochet off enemies
     puBulletSpeed,     # Faster bullets
     puBulletSplit,     # Bullets split on impact
+    puBulwark,         # Damage scales with the HP fraction still intact (plating breaks as you get hurt)
     puCelestialVeil,   # LEGENDARY: Absorb 2 hits per wave
     puChainLightning,  # Damage chains between enemies
     puConduit,         # LEGENDARY active: detonate all active DoTs for 3x burst damage
@@ -276,7 +277,7 @@ type
     puLightningOrb,    # Lightning elemental orb
     puLuckyCoins,      # Doubles coins collected
     puMagicalBullets,  # Bullets track enemies
-    puMaxHealth,       # Increase max HP
+    puMaxHealth,       # LEGENDARY: Juggernaut -- invested max HP becomes damage, at the cost of move speed
     puMultiShot,       # Shoots in 3 directions
     puNova,            # LEGENDARY active: freeze all player bullets for 2s, then release at 1.5x speed
     puOvercharge,      # Bullets gain power over distance
@@ -307,18 +308,18 @@ type
     puWindBullets,     # Bullets push enemies backwards
     puWindMastery,     # LEGENDARY: Enhance all wind effects (damage, duration, slow)
     puWindOrb,         # Wind elemental orb
-    # Mode-exclusive power-ups (Stage 4)
+    # Mode-exclusive power-ups
     puGlitchField,          # Bullets slow enemies (roguelite only)
     puTimeSurge,            # Kills extend fire rate boost timer (survival only)
     puLastStand,            # LEGENDARY: near-death invulnerability (survival only)
     puRecursion,            # Flat damage bonus on pickup (roguelite only)
     puSectorProtocol,       # LEGENDARY: kills/floors grant bonus coins (roguelite only)
-    # Survival-exclusive power-ups (Stage 5)
+    # Survival-exclusive power-ups
     puCrisisMode,           # Below 30% HP: bonus damage (survival only)
     puAdaptiveFirewall,     # Taking a hit boosts fire rate for 3s (survival only)
     puLastTransmission,     # Chance to heal 0.5 HP on kill (survival only)
     puKillChain,            # LEGENDARY: 5 kills in 3s triggers shockwave (survival only)
-    # Roguelite-exclusive power-ups (Stage 5)
+    # Roguelite-exclusive power-ups
     puCorruptedCore,        # Elite kills grant max HP (roguelite only)
     puRoomEcho,             # Room clear charges next N bullets with bonus damage (roguelite only)
     puChainReaction,        # Kills have chance to drop bonus coin (roguelite only)
@@ -579,6 +580,12 @@ type
     baseRadius*: float32
     hp*: float32
     maxHp*: float32
+    # Shadow of maxHp tracking only the HP the player never chose: the starting
+    # pool plus every automatic grant (per-wave scaling, level-up gains). Shop
+    # health, Fortified and the like deliberately do NOT touch it, so
+    # `maxHp - baselineMaxHp` is exactly the vitality the build invested in --
+    # which is what Juggernaut converts into damage (see powerup.nim).
+    baselineMaxHp*: float32
     speed*: float32
     baseSpeed*: float32
     damage*: float32
@@ -891,6 +898,7 @@ type
     reflectShieldActive*: bool      # Body shots are reflected/blocked while this is up
     reflectShieldTimer*: float32    # Time remaining on the current reflect shield
     reflectShieldCooldown*: float32  # Time until the next reflect shield raises
+    reflectShieldWarnTimer*: float32  # >0 while the shield is charging up (text-free telegraph); 0 otherwise
     bossStallTimer*: float32        # Time the current weak-point objective has gone unbroken
     bossEnrageLevel*: float32       # 0 = calm; ramps while the objective is ignored (faster attacks)
     addsGateActive*: bool           # True while living boss-summoned adds make the boss damage-immune
@@ -950,6 +958,7 @@ type
     isFromBulletSplit*: bool  # True if this bullet was created by Bullet Split
     isRicochet*: bool  # True if this bullet has already ricocheted at least once
     isParried*: bool  # True if this was an enemy bullet bounced back by Parry
+    isShieldReflected*: bool  # True if a boss overload shield turned this player bullet back on its owner
     colorOverride*: Color  # Custom bullet color (alpha=0 means use default coloring)
     bulletSkin*: int  # Bullet skin typeHost
     ownerPlayerIndex*: int  # For PvP: which player shot this bullet (-1 for non-PvP)
@@ -1069,6 +1078,19 @@ type
     lifetime*: float32       # Remaining display time
     maxLifetime*: float32
     segments*: seq[Vector2f] # Pre-computed jagged waypoints (including start & end)
+    color*: Color            # Glow tint; the core stays near-white (chain lightning
+                             # is pale blue, Blood Pact tethers are red, etc.)
+
+  PathShockwave* = ref object
+    ## A shockwave that sweeps along a recorded polyline instead of expanding
+    ## from a point. Aftershock traces the corridor the player just ran through,
+    ## so a plain circular ring cannot show where the damage landed - the crest
+    ## travels back along the path while the swath behind it glows and fades.
+    points*: seq[Vector2f]   # Ordered path; index 0 is the OLDEST position
+    width*: float32          # Half-width of the damaging corridor
+    lifetime*: float32       # Remaining display time
+    maxLifetime*: float32
+    color*: Color
 
   ShockwaveRing* = ref object
     ## An expanding ring that snaps out to a target radius and holds there
@@ -1307,6 +1329,10 @@ type
     currencyIndicators*: seq[CurrencyIndicator]
     perkIndicators*: seq[PerkIndicator]
     time*: float32
+    runEndTime*: float32    # game.time frozen when the run ended; 0 = still running.
+                            # `time` keeps ticking on the ending screens because it
+                            # drives their animations, so anything reporting how long
+                            # the run lasted must read runElapsedTime() instead.
     frameCount*: int  # Frame counter for satellite optimizations
     perfUpdateMs*: float32  # Smoothed wall-clock ms spent in updateGame (debug overlay)
     perfDrawMs*: float32    # Smoothed wall-clock ms spent in drawGame   (debug overlay)
@@ -1402,6 +1428,7 @@ type
     deathSequenceTimeScale*: float32  # Current playback time scale during death sequence
     lightningBolts*: seq[LightningBolt]  # Active lightning arc visuals
     shockwaveRings*: seq[ShockwaveRing]  # Active AoE-blast boundary rings (Star death, etc.)
+    pathShockwaves*: seq[PathShockwave]  # Active path-swept blast corridors (Aftershock)
     confirmQuitPending*: bool  # True while the quit-confirmation dialog is open
     pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
     confirmQuitFrameGuard*: float32  # Short guard so Q-open and Q-confirm can't fire on the same frame
@@ -1419,6 +1446,27 @@ var currentDifficulty* = gdMedium
 # the wavesUntilBoss countdown, boss bounty, shop income estimates -- routes
 # through this constant rather than hardcoding the interval.
 const BossWaveInterval* = 5
+
+proc runElapsedTime*(game: Game): float32 =
+  ## How long the run actually lasted. On the game-over / victory screens
+  ## `game.time` keeps advancing (it drives their particles, glows and cursor),
+  ## so every "mission duration" readout and every stat write has to go through
+  ## here or it counts the time the player spent reading the screen.
+  if game.runEndTime > 0.0'f32: game.runEndTime else: game.time
+
+proc freezeRunTime*(game: Game) =
+  ## Stops the run clock the moment a run ends. Idempotent, so the one-time
+  ## ending-screen setup blocks can call it without guarding.
+  if game.runEndTime <= 0.0'f32:
+    game.runEndTime = game.time
+
+proc resumeRunTime*(game: Game) =
+  ## Un-freezes the clock when a finished run continues into endless play.
+  ## The paused stretch on the ending screen is discarded, so the resumed run
+  ## carries on from where it stopped.
+  if game.runEndTime > 0.0'f32:
+    game.time = game.runEndTime
+    game.runEndTime = 0.0'f32
 
 proc difficultyEnemyHpMult*(): float32 =
   case currentDifficulty

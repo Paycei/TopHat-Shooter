@@ -41,11 +41,58 @@ const
 # commit history since the last release tag (Release552), not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
+    titleEn: "Version 6.2.1",
+    titleEs: "Versión 6.2.1",
+    subtitleEn: "Changes since v6.2",
+    subtitleEs: "Cambios desde v6.2",
+    latest: true,
+    entries: @[
+      # --- Effects ---
+      ChangelogEntry(category: clcImproved,
+        en: "Aftershock is finally something you can see. The shockwave now draws the actual corridor you ran through: a bright crest rolls backwards along your path exactly the way the damage resolves, leaving a glowing swath and a trail of sparks behind it, and every enemy it catches bursts at the point on the path that hit them. Before this, a wide loop just made enemies fly away from nothing.",
+        es: "Réplica por fin se ve. La onda ahora dibuja el pasillo por el que corriste de verdad: una cresta brillante recorre tu recorrido hacia atrás igual que se resuelve el daño, dejando una estela luminosa y un rastro de chispas, y cada enemigo alcanzado revienta en el punto exacto del recorrido que lo tocó. Antes, dar una vuelta amplia solo hacía que los enemigos salieran volando sin motivo visible."),
+      ChangelogEntry(category: clcImproved,
+        en: "Conduit now detonates where the damage actually lands. Each burning, poisoned or frozen enemy pops with a burst in that element's own colour, a ring sized to how much damage it had banked, and an arc of energy running back to you. The damage numbers are colour-coded per element too, so a target carrying several damage-over-time effects reads as several payloads going off at once instead of one anonymous flash at your feet.",
+        es: "Conducto ahora detona donde el daño cae de verdad. Cada enemigo ardiendo, envenenado o congelado estalla con una explosión del color de su propio elemento, un anillo del tamaño del daño acumulado y un arco de energía que vuelve hasta ti. Los números de daño también van coloreados por elemento, así que un objetivo con varios efectos por tiempo se lee como varias cargas estallando a la vez en lugar de un fogonazo anónimo a tus pies."),
+      ChangelogEntry(category: clcImproved,
+        en: "Blood Pact and Nova got their impact back. The pact opens two blood-red rings around you and snaps a tether to every victim, each of which bursts where it stands. Nova marks each bullet as it is caught, keeps the held rounds shimmering in mid-air so they no longer look stuck, and flashes every one of them as the volley launches.",
+        es: "Pacto de Sangre y Nova recuperan su impacto. El pacto abre dos anillos rojo sangre a tu alrededor y lanza un lazo a cada víctima, y cada una revienta donde está. Nova marca cada bala al atraparla, mantiene los proyectiles retenidos brillando en el aire para que ya no parezcan atascados, y hace destellar a todos al salir la descarga."),
+      ChangelogEntry(category: clcImproved,
+        en: "Several quiet power-ups now show their work. Giant Slayer scatters arcane shards on the target, Curse cracks its purple ring open on every hit that cashes it in, Overcharge lands a golden impact once a shot is near its full charge, and Thorns throws a green spike ring outward from whatever hit you instead of a plain red puff.",
+        es: "Varias mejoras silenciosas ahora enseñan lo que hacen. Matagigantes esparce fragmentos arcanos sobre el objetivo, Maldición rompe su anillo morado en cada golpe que la cobra, Sobrecarga deja un impacto dorado cuando el disparo llega casi a plena carga, y Espinas lanza un anillo verde de púas desde lo que te golpeó en vez de una simple nube roja."),
+
+      # --- Tuning ---
+      ChangelogEntry(category: clcBalance,
+        en: "Juggernaut reworked: it no longer hands out its damage for free. Your starting health pool and every automatic gain -- the health you pick up just by clearing waves or levelling up -- no longer count, so only max HP you actually bought (shop upgrades, Fortified, Corrupted Core) is converted, at +3% damage per 100 up to +45%. Picking it up bolts 300 max HP of plating onto you to start that off, and the plating has weight: it slows you by up to 18%, scaling with however much damage it is currently granting. Wearing it also caps how much Momentum can pay you, since you can no longer reach full speed.",
+        es: "Coloso rediseñado: ya no regala su daño. Tu vida inicial y todo lo que ganas de forma automática -- la vida que sale sola al superar oleadas o subir de nivel -- dejan de contar, así que solo se convierte el HP máximo que compraste de verdad (mejoras de tienda, Fortificado, Núcleo Corrupto), a +3% de daño por cada 100 y hasta +45%. Al cogerlo te instala 300 HP máx de blindaje para arrancar, y ese blindaje pesa: te ralentiza hasta un 18%, en proporción al daño que te esté dando en ese momento. Llevarlo también limita lo que puede pagarte Momento, porque ya no alcanzas la velocidad máxima."),
+      ChangelogEntry(category: clcNew,
+        en: "New power-up -- Bulwark: your damage rises with how much of your health bar is still intact, up to +25% at full HP and falling away as you take hits. Healing welds the plating back on. It is the exact opposite of Rage and Crisis Mode, so taking those alongside it mostly cancels out.",
+        es: "Nueva mejora -- Baluarte: tu daño sube según lo intacta que esté tu barra de vida, hasta +25% con la vida llena y bajando a medida que recibes golpes. Curarte vuelve a soldar el blindaje. Es justo lo contrario de Furia y Modo Crisis, así que llevarlas junto a él se cancela casi del todo."),
+      ChangelogEntry(category: clcBalance,
+        en: "Boss overload shields now throw your actual bullet back at you. Instead of spitting out a generic pellet, the shell catches the shot you fired -- same skin, same shape, same element and explosive or piercing behaviour -- flips it around and sends it home along the line it came in on. It travels far slower than it arrived, so you can step out of the way, and it hits for half of that bullet's own damage, capped so no single round can take you out. Your own walls will stop it, and a Parry sends it straight back at the boss.",
+        es: "Los escudos de sobrecarga de los jefes ahora te devuelven tu propia bala. En vez de soltar un proyectil genérico, el caparazón atrapa el disparo que hiciste -- mismo aspecto, misma forma, mismo elemento y comportamiento explosivo o perforante --, lo gira y lo manda de vuelta por la línea por la que llegó. Viaja mucho más despacio de lo que llegó, así que puedes apartarte, y golpea con la mitad del daño de esa misma bala, con un tope para que ningún disparo pueda acabar contigo. Tus propios muros lo detienen, y una Parada lo reenvía directo al jefe."),
+      ChangelogEntry(category: clcImproved,
+        en: "Boss overload shields now telegraph themselves. Six shards fall inward onto the shell's future corners while a ring closes around the boss, landing exactly as the shield snaps up, so you get a moment to hold fire instead of finding out by eating your own shot. A returned bullet is also ringed with a pulsing cyan cage and spinning spokes, so you can pick it out of the crossfire. Both cues are purely visual and always shown, even with hints turned off.",
+        es: "Los escudos de sobrecarga de los jefes ahora se avisan. Seis fragmentos caen hacia dentro sobre las futuras esquinas del caparazón mientras un anillo se cierra alrededor del jefe, y ambos llegan justo cuando el escudo se levanta, así que tienes un momento para dejar de disparar en vez de enterarte comiéndote tu propio disparo. La bala devuelta también lleva una jaula cian que late y radios que giran, para que puedas distinguirla en medio del fuego cruzado. Ambas señales son puramente visuales y se muestran siempre, incluso con las pistas desactivadas."),
+
+      # --- Interface ---
+      ChangelogEntry(category: clcImproved,
+        en: "The difficulty picker now carries a pulsing banner across the Easy and Normal cards marking them as the recommended starting point, so creating a profile is not a blind guess between four cards.",
+        es: "El selector de dificultad ahora lleva un cartel palpitante sobre las tarjetas Facil y Normal que las marca como el punto de partida recomendado, para que crear un perfil no sea adivinar a ciegas entre cuatro tarjetas."),
+      ChangelogEntry(category: clcFixed,
+        en: "The [OK] badge in the top-right corner of the victory screen no longer spills outside its box; it is sized to fit and centred.",
+        es: "El distintivo [OK] de la esquina superior derecha de la pantalla de victoria ya no se sale de su recuadro; ahora se ajusta al tamaño y queda centrado."),
+      ChangelogEntry(category: clcFixed,
+        en: "The mission duration on the ending screens no longer keeps counting while you sit there reading your own results. The run clock now stops the moment the run does, and that frozen time is what gets written to your lifetime statistics. Continuing into endless play from the victory screen picks the clock back up where it stopped, so the pause is not billed to the run either.",
+        es: "La duración de la misión en las pantallas de final ya no sigue subiendo mientras te quedas leyendo tus propios resultados. El reloj de la partida ahora se detiene justo cuando termina la partida, y ese tiempo congelado es el que se guarda en tus estadísticas totales. Si continúas al modo infinito desde la pantalla de victoria, el reloj sigue desde donde se paró, así que la pausa tampoco se le cobra a la partida.")
+    ]
+  ),
+  ChangelogVersion(
     titleEn: "Version 6.2",
     titleEs: "Versión 6.2",
     subtitleEn: "Changes since v6.1.1",
     subtitleEs: "Cambios desde v6.1.1",
-    latest: true,
+    latest: false,
     entries: @[
       # --- Startup ---
       ChangelogEntry(category: clcFixed,

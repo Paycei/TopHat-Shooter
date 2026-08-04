@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import particle_types, game/combat, game/death, types, settings, effects, game, player, input_intent, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, input_intent, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
 
 when defined(mobile):
   import mobile_controls  # updateMobileControls / drawMobileControls hooks
@@ -838,7 +838,8 @@ proc main() =
 
       # Survival's score is its progression clock (which pauses during bosses), so it
       # matches the HUD the player watched; other modes report real elapsed time.
-      let timeForStats = if isTimeSurvivalMode(game.mode): game.survivalTime else: game.time
+      let timeForStats = if isTimeSurvivalMode(game.mode): game.survivalTime
+                         else: runElapsedTime(game)
       updateStatsForMode(stats, game.mode, scoreReached, timeForStats,
                          game.player.kills, coinsForStats, bossesKilled)
 
@@ -2088,10 +2089,15 @@ proc main() =
               BLOOD_PACT_ENEMY_FRAC = 0.25'f32   # share of a normal enemy's max HP per cast
               BLOOD_PACT_BOSS_FRAC  = 0.03'f32   # bosses only take a small share
               BLOOD_PACT_BONUS_MULT = 2.5'f32    # bonus damage per point of HP sacrificed
+            const
+              BloodBright = Color(r: 235, g: 40, b: 40, a: 255)
+              BloodDeep   = Color(r: 130, g: 0, b: 25, a: 255)
+              BloodPactMaxTethers = 12  # a packed wave would otherwise be a red mesh
             let sacrifice = currentGame.player.hp * 0.2
             currentGame.player.hp = max(0.1, currentGame.player.hp - sacrifice)
             let bonus = sacrifice * BLOOD_PACT_BONUS_MULT
 
+            var tethersDrawn = 0
             for enemy in currentGame.enemies:
               if enemy.isBoss and enemy.invulnerabilityTimer > 0:
                 continue  # respect phase-transition invulnerability
@@ -2101,19 +2107,39 @@ proc main() =
               trackPowerUpDamage(currentGame, puBloodPact, dealt)
               showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
 
+              # The pact reaches every enemy at once, so the hit has to be shown
+              # ON each enemy - a burst at the player alone reads as "nothing
+              # happened" when the victims are across the arena.
+              spawnExplosionPooled(currentGame.particlePool, enemy.pos.x, enemy.pos.y,
+                                   BloodBright, if enemy.isBoss: 26 else: 14)
+              if tethersDrawn < BloodPactMaxTethers:
+                spawnLightningBolt(currentGame, currentGame.player.pos, enemy.pos, BloodBright)
+                inc tethersDrawn
+
             currentGame.player.bloodPactCooldown = 3.0
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
-                          Color(r: 220, g: 30, b: 30, a: 255), 60)
+            # Self-inflicted detonation at the caster: a deep core plus two rings
+            # so the sacrifice reads as an outward pulse, not a puff of smoke.
+            spawnNovaExplosionPooled(currentGame.particlePool,
+                                     currentGame.player.pos.x, currentGame.player.pos.y,
+                                     95.0'f32, BloodBright, BloodDeep)
+            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x,
+                                 currentGame.player.pos.y, BloodDeep, 40)
+            spawnShockwaveRing(currentGame, currentGame.player.pos, 150.0'f32, BloodBright)
+            spawnShockwaveRing(currentGame, currentGame.player.pos, 275.0'f32, BloodDeep)
+            addShake(currentGame.dopamine.screenShake, siLarge, BloodDeep)
             anyActivated = true
 
         # Conduit - detonate all active DoTs for 3x remaining tick damage
         if hasPowerUp(currentGame.player, puConduit) and currentGame.player.conduitCooldown <= 0:
+          const ConduitMaxArcs = 14  # cap the tethers, not the damage
           var totalDetonated = 0.0
+          var arcsDrawn = 0
           for enemy in currentGame.enemies:
             var elementsToDetonate: seq[ElementType] = @[]
             for et, ae in enemy.activeEffects.pairs:
               if ae.primary.isActive and ae.primary.remainingDuration > 0:
                 elementsToDetonate.add(et)
+            var enemyBurst = 0.0'f32
             for et in elementsToDetonate:
               var ae = enemy.activeEffects[et]
               var burstDmg = ae.primary.remainingDuration * ae.primary.damagePerSec * 3.0
@@ -2123,17 +2149,48 @@ proc main() =
                 enemy.poisonStacks = 0
               let dealt = applyEnemyHpDamage(enemy, burstDmg)
               trackPowerUpDamage(currentGame, puConduit, dealt)
-              showDamage(currentGame, enemy.pos, dealt, true, false, dtFire)
+              # Color the number by the element that actually detonated, so a
+              # multi-element stack reads as several distinct payloads popping.
+              showDamage(currentGame, enemy.pos, dealt, true, false, elementDamageType(et))
               totalDetonated += dealt
+              enemyBurst += dealt
+
+              # One burst per detonated element, tinted to that element: this is
+              # what makes "your DoTs just exploded" legible at a glance.
+              let ec = elementColor(et)
+              spawnExplosionPooled(currentGame.particlePool, enemy.pos.x, enemy.pos.y, ec, 16)
+              spawnExplosiveRingPooled(currentGame.particlePool, enemy.pos.x, enemy.pos.y,
+                                       enemy.radius + 26.0'f32, 2, ec)
+
               ae.primary.isActive = false
               ae.primary.remainingDuration = 0
               ae.primary.damagePerSec = 0
               ae.fallback.remainingDuration = 0
               enemy.activeEffects[et] = ae
+
+            if enemyBurst > 0:
+              # Ring size scales with how much this target had banked, so the
+              # juicy targets visibly pop harder than the near-expired ones.
+              let ringR = clamp(enemy.radius + 30.0'f32 + enemyBurst * 0.35'f32,
+                                40.0'f32, 150.0'f32)
+              spawnShockwaveRing(currentGame, enemy.pos, ringR,
+                                 Color(r: 160, g: 120, b: 255, a: 255))
+              if arcsDrawn < ConduitMaxArcs:
+                # The player is the conduit; the arc shows the discharge path.
+                spawnLightningBolt(currentGame, currentGame.player.pos, enemy.pos,
+                                   Color(r: 180, g: 150, b: 255, a: 255))
+                inc arcsDrawn
+
           if totalDetonated > 0:
             currentGame.player.conduitCooldown = 15.0
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
-                          Color(r: 100, g: 200, b: 100, a: 255), 25)
+            spawnNovaExplosionPooled(currentGame.particlePool,
+                                     currentGame.player.pos.x, currentGame.player.pos.y,
+                                     70.0'f32,
+                                     Color(r: 160, g: 120, b: 255, a: 255),
+                                     Color(r: 235, g: 225, b: 255, a: 255))
+            addShake(currentGame.dopamine.screenShake,
+                     if arcsDrawn >= 4: siLarge else: siMedium,
+                     Color(r: 160, g: 120, b: 255, a: 255))
             anyActivated = true
 
         # Aftershock - shockwave traces backward along last 2s of movement path
@@ -2143,6 +2200,7 @@ proc main() =
             const shockwaveWidth = 50.0
             let baseDamage = currentGame.player.damage * 2.0
             const knockbackForce = 200.0
+            const AftershockColor = Color(r: 120, g: 195, b: 255, a: 255)
             var hitEnemyIds: seq[int] = @[]
 
             # Trace backward through path segments
@@ -2170,16 +2228,43 @@ proc main() =
                                          else: segNorm * -1.0
                       enemy.vel.x += awayFromPath.x * knockbackForce
                       enemy.vel.y += awayFromPath.y * knockbackForce
+                      # Burst at the point on the path that actually caught them,
+                      # plus a ring on the enemy, so the knockback has a cause.
+                      spawnExplosionPooled(currentGame.particlePool, closest.x, closest.y,
+                                           AftershockColor, 10)
+                      spawnShockwaveRing(currentGame, enemy.pos,
+                                         enemy.radius + 34.0'f32, AftershockColor)
               segIdx -= 1
+
+            # The corridor IS the ability - without drawing it, a player who has
+            # run a wide loop just sees enemies fly away from nothing. Feed the
+            # sampled path (oldest first) to a swept shockwave; the crest then
+            # retraces the route backwards exactly like the damage resolution.
+            var pathPoints: seq[Vector2f] = @[]
+            for p in history:
+              pathPoints.add(p)
+            spawnPathShockwave(currentGame, pathPoints, shockwaveWidth, AftershockColor)
+
+            # Sparks seeded along the corridor give the swath texture and keep it
+            # alive after the crest has passed. Every other sample keeps the cost
+            # bounded (the history holds at most 40 points).
+            for idx in countup(0, pathPoints.len - 1, 2):
+              spawnTrailParticlePooled(currentGame.particlePool,
+                                       pathPoints[idx].x, pathPoints[idx].y,
+                                       AftershockColor, 4)
 
             currentGame.player.aftershockCooldown = 14.0
             currentGame.player.aftershockPosHistory.clear()
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
-                          Color(r: 100, g: 180, b: 255, a: 255), 20)
+            spawnNovaExplosionPooled(currentGame.particlePool,
+                                     currentGame.player.pos.x, currentGame.player.pos.y,
+                                     shockwaveWidth + 20.0'f32, AftershockColor,
+                                     Color(r: 240, g: 250, b: 255, a: 255))
+            addShake(currentGame.dopamine.screenShake, siLarge, AftershockColor)
             anyActivated = true
 
         # Nova - freeze all player bullets for 2 seconds, release at 1.5x speed
         if hasPowerUp(currentGame.player, puNova) and currentGame.player.novaCooldown <= 0 and not currentGame.player.novaActive:
+          const NovaColor = Color(r: 200, g: 200, b: 255, a: 255)
           currentGame.player.novaActive = true
           currentGame.player.novaFreezeTimer = 2.0
           currentGame.player.novaCooldown = 16.0
@@ -2187,8 +2272,17 @@ proc main() =
           for bullet in currentGame.bullets:
             if bullet.fromPlayer:
               bullet.isFrozenByNova = true
-          spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
-                        Color(r: 200, g: 200, b: 255, a: 255), 30)
+              # Mark the moment of capture on each bullet, otherwise the freeze
+              # is a state change with no on-screen event at all.
+              spawnExplosionPooled(currentGame.particlePool, bullet.pos.x, bullet.pos.y,
+                                   NovaColor, 4)
+          spawnNovaExplosionPooled(currentGame.particlePool,
+                                   currentGame.player.pos.x, currentGame.player.pos.y,
+                                   80.0'f32, NovaColor,
+                                   Color(r: 255, g: 255, b: 255, a: 255))
+          # A wide, slow ring reads as the freeze field sweeping outward.
+          spawnShockwaveRing(currentGame, currentGame.player.pos, 320.0'f32, NovaColor)
+          addShake(currentGame.dopamine.screenShake, siMedium, NovaColor)
           anyActivated = true
 
         # Play sound if any ability was activated
@@ -3003,6 +3097,10 @@ proc main() =
         endGameDrawing()
 
     of gsGameOver:
+      # The run is over: stop the clock before anything reports its duration.
+      # gsGameOver does not advance `time` itself, but gsRunStats (reachable from
+      # here via View Stats) does, so without this the duration grows on return.
+      freezeRunTime(currentGame)
       # Stop music and play game over sound once
       if not currentGame.gameOverSoundPlayed:
         stopMusic()
@@ -3312,6 +3410,10 @@ proc main() =
     of gsVictory:
       # One-time congratulations screen shown after the wave-60 final boss.
       # Three choices: continue endlessly, view detailed stats, or return to menu.
+      # `time` has to keep running (it drives this screen's particles and glows),
+      # so the run clock is frozen separately -- otherwise the reported mission
+      # duration climbs while the player reads their own results.
+      freezeRunTime(currentGame)
       currentGame.time += dt
       updateMouseTracking(currentGame)
 
@@ -3384,8 +3486,11 @@ proc main() =
 
       case victoryAction
       of 0:
-        # Continue endlessly: re-arm the queued power-up reward and resume play
+        # Continue endlessly: re-arm the queued power-up reward and resume play.
+        # The run clock restarts from where it stopped, so the time spent parked
+        # on this screen is not billed to the run.
         playSound(stMenuSelect)
+        resumeRunTime(currentGame)
         initPowerUpRollAnimation(currentGame)
         currentGame.state = gsPowerUpSelect
       of 1:
@@ -3417,6 +3522,9 @@ proc main() =
       # banked. Two choices: push deeper into the endless loop, or cash out and
       # return to the roguelite hub. selectedVictoryButton: 0=continue, 1=cash out.
       playMusic(mtMenu)
+      # Same as the wave-mode victory screen: animations keep running, the run
+      # clock does not (this screen can be parked on indefinitely).
+      freezeRunTime(currentGame)
       currentGame.time += dt
       updateMouseTracking(currentGame)
       tickDesktopToasts(osDesktop, dt)
@@ -3452,6 +3560,7 @@ proc main() =
         # Push deeper: roll into the next endless loop and take the queued post-boss
         # draft (prepared in game.nim) as this floor's reward.
         playSound(stMenuSelect)
+        resumeRunTime(currentGame)
         if currentGame.rogueliteRun != nil:
           rogueliteContinueEndless(currentGame.rogueliteRun)
         initPowerUpRollAnimation(currentGame)

@@ -101,6 +101,7 @@ proc applyLevelUpStatBoost*(player: Player) =
   const LevelDamageMult = 1.04'f32    # +4% damage, compounding
   const LevelHealFraction = 0.25'f32  # heal a quarter of the (new) max HP
   player.maxHp += LevelMaxHpGain
+  player.baselineMaxHp += LevelMaxHpGain  # Automatic gain: never feeds Juggernaut
   player.damage *= LevelDamageMult
   heal(player, player.maxHp * LevelHealFraction)
 
@@ -341,6 +342,9 @@ proc startWave*(game: Game) =
 
   # Apply multiplicative scaling to current stats (preserves all upgrades)
   game.player.maxHp *= waveScaling
+  # The free share scales with it, so surviving waves never converts into
+  # Juggernaut damage on its own (see Player.baselineMaxHp).
+  game.player.baselineMaxHp *= waveScaling
   game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)  # Scale current HP but cap at maxHp
   game.player.damage *= waveScaling
   game.player.speed *= waveScaling
@@ -1957,11 +1961,20 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
 
   # Nova freeze expiry: when novaActive becomes false, release bullets
   if not game.player.novaActive:
+    const NovaColor = Color(r: 200, g: 200, b: 255, a: 255)
+    var released = 0
     for bullet in game.bullets:
       if bullet.isFrozenByNova and bullet.fromPlayer:
         bullet.vel = bullet.vel * 1.5
         bullet.isFrozenByNova = false
         bullet.isFromNova = true  # Mark for damage tracking
+        # Launch flash on each bullet: the whole point of Nova is the volley
+        # firing at once, which is invisible if only the player flashes.
+        spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, NovaColor, 6)
+        inc released
+    if released > 0:
+      spawnShockwaveRing(game, game.player.pos, 300.0'f32, NovaColor)
+      addShake(game.dopamine.screenShake, siLarge, NovaColor)
 
   # Radial Burst power-up - periodic circle of bullets
   if hasPowerUp(game.player, puRadialBurst):
@@ -2086,6 +2099,9 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
 
   # Animate/expire AoE blast boundary rings (Star death, etc.)
   updateShockwaveRings(game, dt)
+
+  # Animate/expire path-swept blast corridors (Aftershock)
+  updatePathShockwaves(game, dt)
 
   updatePlayerFiring(game, dt)
 
@@ -3491,6 +3507,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
     # Nova: frozen player bullets don't move or expire
     if bullet.isFrozenByNova and bullet.fromPlayer:
+      # Suspended bullets are otherwise indistinguishable from stuck ones. A
+      # sparse frost mote (probabilistic, so the cost stays flat regardless of
+      # how many bullets are held) sells "held in stasis, still charged".
+      if rand(1.0) < 3.0 * dt:
+        spawnTrailParticlePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                 Color(r: 200, g: 220, b: 255, a: 255), 2)
       i += 1
       continue
 
@@ -3695,16 +3717,34 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
         if target.isBoss and target.reflectShieldActive and
             target.weakPoint.exposedTimer <= 0 and not bullet.isEcho and
             checkBulletEnemyCollision(bullet, target):
-          let dir = (game.player.pos - bullet.pos).normalize()
-          # Parried shots rocket back at 150% of their incoming speed (220 floor keeps slow shots dangerous).
-          bullet.vel = dir * max(220.0'f32, bullet.vel.length() * 1.5'f32)
+          # The shell turns the literal projectile around rather than spawning a
+          # stand-in: same Bullet object, so element, explosive/piercing flags,
+          # cosmetic skin and shape all survive the trip back. Only ownership,
+          # heading and the two balance knobs below change.
+          let incoming = bullet.vel.length()
+          let backDir =
+            if incoming > 0.001'f32: bullet.vel.normalize() * -1.0'f32
+            else: (game.player.pos - bullet.pos).normalize()
+          bullet.vel = backDir * clamp(incoming * REFLECT_SHIELD_SPEED_MULT,
+                                       REFLECT_SHIELD_SPEED_MIN, REFLECT_SHIELD_SPEED_MAX)
           bullet.fromPlayer = false
-          bullet.damage = REFLECT_SHIELD_DAMAGE
+          bullet.isShieldReflected = true
+          # Keeps its own damage at half strength, floored so pea-shooters still
+          # sting and capped so a crit Overcharge round can't one-shot its owner.
+          bullet.damage = clamp(bullet.damage * REFLECT_SHIELD_DAMAGE_MULT,
+                                REFLECT_SHIELD_DAMAGE,
+                                max(REFLECT_SHIELD_DAMAGE,
+                                    game.player.maxHp * REFLECT_SHIELD_DAMAGE_CAP))
           bullet.sourceEnemyId = target.id
           bullet.sourceEnemyPos = target.pos
           bullet.isParried = false
+          # A shot that has already been in the air for a while would expire before
+          # finishing the now much slower trip home, so refresh its clock.
+          bullet.lifetime = max(bullet.lifetime, REFLECT_SHIELD_BULLET_LIFE)
+          # Impact burst on the shell: cyan flash plus a shockwave marking the turn.
           spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                               Color(r: 120, g: 200, b: 255, a: 255), 6)
+                               Color(r: 120, g: 200, b: 255, a: 255), 14)
+          spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y, 26.0'f32)
           break  # leave hitEnemy false so the reflected shot survives as an enemy bullet
 
         if checkBulletEnemyCollision(bullet, target):
@@ -3728,6 +3768,17 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
             finalDamage = bullet.damage * (1.0 + bonusMultiplier)
             overchargeExtraDamage = finalDamage - bullet.damage
+
+            # Overcharge only tints the bullet in flight; the payoff moment (a
+            # near-capped long shot landing) had no impact feedback at all.
+            # Gated at 60% of the cap so ordinary close-range hits stay clean.
+            if bonusMultiplier > maxBonus * 0.6:
+              let chargeFrac = float32(bonusMultiplier / maxBonus)
+              spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                   Color(r: 255, g: 200, b: 80, a: 255),
+                                   int(4.0 + chargeFrac * 8.0))
+              spawnShockwavePooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                   18.0'f32 + chargeFrac * 22.0'f32)
 
           # Use the bullet's stored crit status (rolled when bullet was created)
           let isCrit = bullet.wasCrit
@@ -3865,6 +3916,11 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               # Show Giant Slayer damage number in distinct color (purple/arcane)
               if giantSlayerDamage > 0:
                 showDamage(game, target.pos, giantSlayerDamage, true, false, dtArcane)
+                # Arcane shards biting into the target. Kept small because this
+                # fires on EVERY bullet hit - it has to read without burying the
+                # bullet's own impact effect.
+                spawnExplosionPooled(game.particlePool, target.pos.x, target.pos.y,
+                                     Color(r: 190, g: 110, b: 255, a: 255), 4)
 
             # Curse: cursed enemies take a % of this hit's damage as bonus damage.
             # Based on actualDamage, which already includes mitigation and the direct
@@ -3884,6 +3940,11 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               trackPowerUpDamage(game, puCurse, curseDamage)
               if curseDamage > 0:
                 showDamage(game, target.pos, curseDamage, true, false, dtArcane)
+                # The cursed marker ring already sits on the enemy; this is the
+                # ring visibly cracking on each hit that cashes the curse in.
+                spawnExplosiveRingPooled(game.particlePool, target.pos.x, target.pos.y,
+                                         target.radius + 12.0'f32, 1,
+                                         Color(r: 150, g: 60, b: 220, a: 255))
 
             # GlitchField: chance to scramble enemy navigation (slow them)
             if game.player.glitchChance > 0 and not target.isBoss and actualDamage > 0:
@@ -4187,6 +4248,9 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           bullet.vel = bounceDir * bullet.vel.length()
           bullet.fromPlayer = true  # Mark as player bullet so it can damage enemies
           bullet.isParried = true  # Mark for statistics tracking
+          # A shot the overload shield turned on us can be parried straight back;
+          # clear the marker so it renders as the player's bullet again.
+          bullet.isShieldReflected = false
 
           # Visual effect for parry bounce
           spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
@@ -5122,6 +5186,9 @@ proc drawGame*(game: Game) =
   # Draw AoE blast boundary rings under the sparks so the lethal edge reads clearly
   drawShockwaveRings(game)
 
+  # Draw Aftershock's swept corridor at the same layer as the rings
+  drawPathShockwaves(game)
+
   # Draw attack warnings (before everything else so they're visible)
   if globalSettings == nil or globalSettings.showHints:
     for warning in game.attackWarnings:
@@ -5301,6 +5368,48 @@ proc drawGame*(game: Game) =
           drawText(gt, enemy.pos.x.int32 - measureText(gt, 10) div 2,
                    (enemy.pos.y - enemy.radius - 26.0).int32, 10,
                    Color(r: 255, g: 200, b: 90, a: 235))
+
+      # Overload shield wind-up: purely visual, no text, and deliberately drawn
+      # ungated by showHints - it is the only cue that firing into the body is
+      # about to be punished, so hiding it behind the hint toggle would make the
+      # reflect feel random. Six shards fall inward onto the hex shell's future
+      # vertices while a ring closes around the boss; both land exactly as the
+      # shield snaps up, so the wind-up reads as the shield assembling itself.
+      if enemy.reflectShieldWarnTimer > 0 and not enemy.reflectShieldActive:
+        let charge = clamp(1.0'f32 - enemy.reflectShieldWarnTimer / REFLECT_SHIELD_WARNING,
+                           0.0'f32, 1.0'f32)
+        let shellRad = enemy.radius + 16.0'f32
+        let spin = game.time * 1.4'f32
+        # Flicker hard over the final quarter so the "now" moment is unmistakable.
+        let urgency = if charge > 0.75: sin(game.time * 30.0) * 0.5 + 0.5 else: 0.0'f32
+        let baseA = 60.0'f32 + charge * 150.0'f32 + urgency * 55.0'f32
+        let warnA = uint8(clamp(baseA, 0.0'f32, 255.0'f32))
+
+        # Closing ring: sweeps a full turn over the wind-up, so how much arc is
+        # left is literally how much time is left.
+        drawRing(Vector2(x: enemy.pos.x, y: enemy.pos.y),
+                 shellRad + 22.0'f32 * (1.0'f32 - charge),
+                 shellRad + 22.0'f32 * (1.0'f32 - charge) + 2.5'f32,
+                 -90.0'f32, -90.0'f32 + 360.0'f32 * charge, 48,
+                 Color(r: 90, g: 200, b: 255, a: warnA))
+
+        # Converging shards, aimed at the six vertices the live shell will use.
+        let dropDist = 46.0'f32 * (1.0'f32 - charge)
+        for v in 0..5:
+          let a = spin + v.float32 * PI / 3.0
+          let dir = Vector2f(x: cos(a), y: sin(a))
+          let tip  = Vector2(x: enemy.pos.x + dir.x * (shellRad + dropDist),
+                             y: enemy.pos.y + dir.y * (shellRad + dropDist))
+          let tail = Vector2(x: enemy.pos.x + dir.x * (shellRad + dropDist + 12.0'f32),
+                             y: enemy.pos.y + dir.y * (shellRad + dropDist + 12.0'f32))
+          drawLine(tail, tip, 2.0'f32 + charge * 2.0'f32,
+                   Color(r: 140, g: 225, b: 255, a: warnA))
+          drawCircle(tip, 2.0'f32 + charge * 2.0'f32,
+                     Color(r: 200, g: 245, b: 255, a: warnA))
+
+        # Faint inner bloom that swells into the shell's fill.
+        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), shellRad,
+                   Color(r: 90, g: 200, b: 255, a: uint8(charge * 26.0'f32)))
 
       # Overload shield: rotating cyan hex shell that bounces body shots back.
       if enemy.reflectShieldActive:

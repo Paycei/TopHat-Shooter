@@ -132,7 +132,19 @@ proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool =
 const
   REFLECT_SHIELD_DURATION  = 1.8'f32   # how long the overload shield stays up
   REFLECT_SHIELD_INTERVAL  = 9.0'f32   # gap between overload shields
-  REFLECT_SHIELD_DAMAGE*     = 2.0'f32  # damage a reflected shot does to the player
+  REFLECT_SHIELD_WARNING*  = 1.2'f32   # text-free telegraph before the shield snaps up (inside the interval, so cadence is unchanged)
+  # The shield turns the player's *own* projectile around: same object, same
+  # element/explosive/skin/shape, direction mirrored, owner flipped. Because the
+  # shot keeps its own damage instead of a flat value, it is halved and hard-capped
+  # so a crit Overcharge build can't delete itself, and it crawls home slowly
+  # enough to be sidestepped.
+  REFLECT_SHIELD_DAMAGE*      = 2.0'f32  # floor: damage a reflected shot does to the player
+  REFLECT_SHIELD_DAMAGE_MULT* = 0.5'f32  # reflected shot keeps half of its own damage
+  REFLECT_SHIELD_DAMAGE_CAP*  = 0.3'f32  # ...but never more than this fraction of the player's max HP
+  REFLECT_SHIELD_SPEED_MULT*  = 0.35'f32  # returned at about a third of its incoming speed
+  REFLECT_SHIELD_SPEED_MIN*   = 80.0'f32  # never so slow it hangs in the air forever
+  REFLECT_SHIELD_SPEED_MAX*   = 220.0'f32  # hard ceiling so fast builds don't get fast shots back
+  REFLECT_SHIELD_BULLET_LIFE* = 4.0'f32  # lifetime refresh, so the slow trip home isn't cut short
   ENRAGE_STALL_THRESHOLD   = 5.0'f32   # seconds of ignoring an open objective before enrage builds
   ENRAGE_RAMP_PER_SEC      = 0.5'f32   # enrage growth once stalling
   ENRAGE_MAX*               = 1.2'f32   # cap: attacks fire up to (1 + this)x as fast
@@ -161,6 +173,7 @@ proc updateBossMechanics*(game: var Game, enemy: Enemy, dt: float32) =
   # so the player always has a clear "do the mechanic" path.
   if enemy.reflectShieldActive:
     enemy.reflectShieldTimer -= dt
+    enemy.reflectShieldWarnTimer = 0
     # A vulnerability window always takes priority - drop the shield so the
     # player gets a clean window to burst the body.
     if enemy.reflectShieldTimer <= 0 or inWindow:
@@ -168,9 +181,22 @@ proc updateBossMechanics*(game: var Game, enemy: Enemy, dt: float32) =
       enemy.reflectShieldCooldown = REFLECT_SHIELD_INTERVAL
   elif not inWindow and not invuln and not enemy.addsGateActive:
     enemy.reflectShieldCooldown -= dt
+    # Charge-up telegraph: the last REFLECT_SHIELD_WARNING seconds of the gap
+    # drive a purely visual wind-up (see the draw block in game.nim), so "stop
+    # firing into the body" is readable without any on-screen text.
+    enemy.reflectShieldWarnTimer =
+      if enemy.reflectShieldCooldown <= REFLECT_SHIELD_WARNING:
+        max(0.0'f32, enemy.reflectShieldCooldown)
+      else:
+        0.0'f32
     if enemy.reflectShieldCooldown <= 0:
       enemy.reflectShieldActive = true
       enemy.reflectShieldTimer = REFLECT_SHIELD_DURATION
+      enemy.reflectShieldWarnTimer = 0
+  else:
+    # Window/invuln/adds-gate froze the cooldown: drop the telegraph too, or it
+    # would sit at a near-zero value on screen promising a shield that isn't coming.
+    enemy.reflectShieldWarnTimer = 0
 
   # Enrage on stall: if the objective is open and being ignored, attacks speed up.
   let objectiveOpen = enemy.weakPoint.enabled and enemy.weakPoint.targets.len > 0 and

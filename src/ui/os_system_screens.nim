@@ -216,9 +216,11 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
           Color(r: 150, g: 180, b: 220, a: 255))
   yOffset += 30
 
-  # Format time
-  let minutes = (game.time / 60.0).int
-  let seconds = (game.time mod 60.0).int
+  # Format time. runElapsedTime, not game.time: the run clock is frozen when the
+  # run ends, while game.time keeps driving this screen's animations.
+  let runTime = runElapsedTime(game)
+  let minutes = (runTime / 60.0).int
+  let seconds = (runTime mod 60.0).int
   let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" &
                  (if seconds < 10: "0" else: "") & $seconds
 
@@ -349,7 +351,14 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   drawRectangleLines(Rectangle(x: iconBoxX.float32, y: yOffset.float32,
                                 width: 100.0, height: 100.0),
                     2, Color(r: 0, g: 200, b: 100, a: 255))
-  drawText("[OK]", iconBoxX + 25, yOffset + 20, 60,
+  # "[OK]" at a fixed size/offset overflowed the right edge of the 100px box.
+  # Shrink until it fits the inner width, then center it in both axes.
+  var iconSize = 60'i32
+  while iconSize > 12'i32 and measureText("[OK]", iconSize) > 84'i32:
+    iconSize -= 2'i32
+  let iconTextW = measureText("[OK]", iconSize)
+  drawText("[OK]", iconBoxX + (100'i32 - iconTextW) div 2'i32,
+          yOffset + (100'i32 - iconSize) div 2'i32, iconSize,
           Color(r: 100, g: 255, b: 150, a: 255))
 
   yOffset += 110
@@ -387,9 +396,10 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
           Color(r: 150, g: 220, b: 180, a: 255))
   yOffset += 32
 
-  # Format time
-  let minutes = (game.time / 60.0).int
-  let seconds = (game.time mod 60.0).int
+  # Format time (frozen at run end -- see the note on the game-over screen).
+  let runTime = runElapsedTime(game)
+  let minutes = (runTime / 60.0).int
+  let seconds = (runTime mod 60.0).int
   let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" &
                  (if seconds < 10: "0" else: "") & $seconds
 

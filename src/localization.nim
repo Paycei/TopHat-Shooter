@@ -750,6 +750,7 @@ type
     tkPowerupPulseArmor = "powerup_pulse_armor"
     tkPowerupHeavyRounds = "powerup_heavy_rounds"
     tkPowerupFortified = "powerup_fortified"
+    tkPowerupBulwark = "powerup_bulwark"
     tkPowerupSpecialRounds = "powerup_special_rounds"
     tkPowerupGiantSlayer = "powerup_giant_slayer"
     tkPowerupCurse = "powerup_curse"
@@ -892,6 +893,9 @@ type
     tkPowerupFortifiedDesc1 = "powerup_fortified_desc1"
     tkPowerupFortifiedDesc2 = "powerup_fortified_desc2"
     tkPowerupFortifiedDesc3 = "powerup_fortified_desc3"
+    tkPowerupBulwarkDesc1 = "powerup_bulwark_desc1"
+    tkPowerupBulwarkDesc2 = "powerup_bulwark_desc2"
+    tkPowerupBulwarkDesc3 = "powerup_bulwark_desc3"
     tkPowerupSpecialRoundsDesc1 = "powerup_special_rounds_desc1"
     tkPowerupSpecialRoundsDesc2 = "powerup_special_rounds_desc2"
     tkPowerupSpecialRoundsDesc3 = "powerup_special_rounds_desc3"
@@ -1744,6 +1748,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_pulse_armor": "Pulse Armor",
     "powerup_heavy_rounds": "Heavy Rounds",
     "powerup_fortified": "Fortified",
+    "powerup_bulwark": "Bulwark",
     "powerup_special_rounds": "Special Rounds",
     "powerup_giant_slayer": "Giant Slayer",
     "powerup_curse": "Curse",
@@ -1766,7 +1771,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_life_steal_desc2": "Heal 100 HP per 7 kills",
     "powerup_life_steal_desc3": "Heal 100 HP per 5 kills",
     "powerup_rapid_fire_desc": "Spin-up: hold fire to ramp fire rate up to +30% faster",
-    "powerup_max_health_desc": "Juggernaut: +2% damage per 100 max HP, including base HP (up to +40%)",
+    "powerup_max_health_desc": "Juggernaut: bolts on 300 max HP, then +3% damage per 100 max HP gained from upgrades (up to +45%) -- the plating costs up to 18% move speed",
     "powerup_speed_boost_desc": "Momentum: deal up to +25% damage while moving",
     "powerup_bullet_speed_desc": "Lightspeed: each shot fires an instant tracer beam that hits the first enemy in line for 50% damage",
     "powerup_lucky_coins_desc": "Doubles all coins collected",
@@ -1887,6 +1892,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_fortified_desc1": "Reduce damage taken by 10% and gain 250 max HP",
     "powerup_fortified_desc2": "Reduce damage taken by 20% and gain 500 (+250) max HP",
     "powerup_fortified_desc3": "Reduce damage taken by 30% and gain 750 (+250) max HP",
+    "powerup_bulwark_desc1": "Intact plating: up to +12% damage at full HP, fading as you lose HP",
+    "powerup_bulwark_desc2": "Intact plating: up to +18% damage at full HP, fading as you lose HP",
+    "powerup_bulwark_desc3": "Intact plating: up to +25% damage at full HP, fading as you lose HP",
     "powerup_special_rounds_desc1": "Every 4th bullet deals +75% bonus damage",
     "powerup_special_rounds_desc2": "Every 3th bullet deals +75% bonus damage",
     "powerup_special_rounds_desc3": "Every 2rd bullet deals +75% bonus damage",
@@ -3420,6 +3428,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_pulse_armor": "Armadura de Pulso",
     "powerup_heavy_rounds": "Balas Pesadas",
     "powerup_fortified": "Fortificado",
+    "powerup_bulwark": "Baluarte",
     "powerup_special_rounds": "Balas Especiales",
     "powerup_giant_slayer": "Matador de Gigantes",
     "powerup_curse": "Maldición",
@@ -3442,7 +3451,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_life_steal_desc2": "Restaura 100 HP cada 7 bajas",
     "powerup_life_steal_desc3": "Restaura 100 HP cada 5 bajas",
     "powerup_rapid_fire_desc": "Sobrecarga: mantén el disparo para acelerar la cadencia hasta +30%",
-    "powerup_max_health_desc": "Coloso: +2% de daño por cada 100 HP máx, incluyendo HP base (máx +40%)",
+    "powerup_max_health_desc": "Coloso: te instala 300 HP máx y luego +3% de daño por cada 100 HP máx ganados con mejoras (máx +45%) -- el blindaje te quita hasta un 18% de velocidad",
     "powerup_speed_boost_desc": "Impulso: hasta +25% de daño en movimiento",
     "powerup_bullet_speed_desc": "Lightspeed: cada disparo lanza un rayo trazador instantáneo que golpea al primer enemigo en línea por 50% de daño",
     "powerup_lucky_coins_desc": "Duplica todas las monedas recogidas",
@@ -3563,6 +3572,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_fortified_desc1": "Reduce el daño recibido un 10% y te da 250 HP máximos",
     "powerup_fortified_desc2": "Reduce el daño recibido un 20% y te da 500 (+250) HP máximos",
     "powerup_fortified_desc3": "Reduce el daño recibido un 30% y te da 750 (+250) HP máximos",
+    "powerup_bulwark_desc1": "Blindaje intacto: hasta +12% de daño con la vida llena, se pierde al recibir daño",
+    "powerup_bulwark_desc2": "Blindaje intacto: hasta +18% de daño con la vida llena, se pierde al recibir daño",
+    "powerup_bulwark_desc3": "Blindaje intacto: hasta +25% de daño con la vida llena, se pierde al recibir daño",
     "powerup_special_rounds_desc1": "Cada 4ª bala causa +75% de daño extra",
     "powerup_special_rounds_desc2": "Cada 3ª bala causa +75% de daño extra",
     "powerup_special_rounds_desc3": "Cada 2ª bala causa +75% de daño extra",
