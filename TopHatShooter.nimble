@@ -1,6 +1,6 @@
 # Package
 
-version       = "6.2.1"
+version       = "6.2.2"
 author        = "Paycei"
 description   = "TopHat-ShooterOS"
 license       = "Apache 2.0"
@@ -8,7 +8,7 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 2.2.10"
+requires "nim >= 2.2.12"
 requires "naylib == 26.08.0"
 requires "flatty >= 0.4.0"
 requires "supersnappy >= 2.1.4"

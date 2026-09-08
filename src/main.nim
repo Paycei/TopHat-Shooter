@@ -16,7 +16,7 @@ var
   globalConfirmFrameGuard  = 0.0'f32  # Prevents Q from instantly confirming on dialog open
   globalConfirmMouseGuard  = 0.0'f32  # anti-accident cooldown before mouse/button click is accepted
 
-const DEFAULT_CONFIRM_COOLDOWN = 1.0'f32  # standard anti-accident window (seconds)
+const DEFAULT_CONFIRM_COOLDOWN = 1.5'f32  # standard anti-accident window (seconds)
 
 proc showGlobalConfirm(ctx: ConfirmDialogContext, cooldown: float32 = DEFAULT_CONFIRM_COOLDOWN) =
   ## `cooldown` is the seconds the YES button stays greyed out / counts down before it
