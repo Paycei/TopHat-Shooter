@@ -41,11 +41,34 @@ const
 # commit history since the last release tag (Release552), not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
+    titleEn: "Version 6.2.2",
+    titleEs: "Versión 6.2.2",
+    subtitleEn: "Changes since v6.2.1",
+    subtitleEs: "Cambios desde v6.2.1",
+    latest: true,
+    entries: @[
+      # --- Tuning ---
+      ChangelogEntry(category: clcBalance,
+        en: "Giant Slayer hits harder across all three levels: it now shaves 3%, 5.5% and 8% of an enemy's current health per hit, up from 2.5%, 4% and 6%. Its much smaller bite against bosses is unchanged, so it stays a crowd-clearing pick rather than a boss melter.",
+        es: "Matagigantes pega más fuerte en sus tres niveles: ahora arranca el 3%, 5.5% y 8% de la vida actual del enemigo por golpe, frente al 2.5%, 4% y 6% anteriores. Su mordisco mucho menor contra jefes no cambia, así que sigue siendo una elección para limpiar hordas y no para fundir jefes."),
+
+      # --- Interface ---
+      ChangelogEntry(category: clcImproved,
+        en: "Confirmation dialogs stop making you wait. The YES button now unlocks after one second instead of two -- still long enough to catch an accidental key, short enough that quitting or resetting on purpose no longer feels like a punishment.",
+        es: "Los diálogos de confirmación ya no te hacen esperar tanto. El botón SÍ se desbloquea tras un segundo en vez de dos: sigue siendo suficiente para frenar una tecla accidental, pero salir o reiniciar a propósito ya no se siente como un castigo."),
+
+      # --- Fixes ---
+      ChangelogEntry(category: clcFixed,
+        en: "Fixed the background audio setup crashing the Windows release build on first launch. The progress counter used a threading instruction the Windows compiler builds incorrectly; it now uses a plain counter, so the first run generates its sounds and music without falling over.",
+        es: "Corregido un fallo por el que la preparación de audio en segundo plano rompia la versión de Windows en el primer arranque. El contador de progreso usaba una instrucción de hilos que el compilador de Windows genera mal; ahora usa un contador normal, así que el primer arranque crea sus sonidos y su música sin caerse.")
+    ]
+  ),
+  ChangelogVersion(
     titleEn: "Version 6.2.1",
     titleEs: "Versión 6.2.1",
     subtitleEn: "Changes since v6.2",
     subtitleEs: "Cambios desde v6.2",
-    latest: true,
+    latest: false,
     entries: @[
       # --- Effects ---
       ChangelogEntry(category: clcImproved,

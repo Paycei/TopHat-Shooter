@@ -1603,6 +1603,12 @@ proc cleanStaleCacheFiles() =
 # the main thread and happens after joinThread. Progress is published through
 # atomics only -- no strings cross the thread boundary, so the localized labels
 # are built main-side from the published enum ordinals.
+#
+# genCompleted is incremented with store(load() + 1) rather than atomicInc():
+# this worker is the only writer (the main thread only load()s it), so the
+# read-modify-write does not need to be atomic as a unit. It also sidesteps a
+# broken std/atomics fetchAdd() on the MSVC branch (Nim 2.2.12), which is what
+# nimble WinRelease builds with -- `nimble debug` uses gcc and never hits it.
 
 var
   genThread: Thread[void]
@@ -1620,14 +1626,14 @@ proc assetGenWorker() {.thread.} =
         genCurrentIsMusic.store(false)
         genCurrentOrd.store(soundType.ord)
         generateSoundFile(soundType)
-        genCompleted.atomicInc()
+        genCompleted.store(genCompleted.load() + 1)
 
     for track in MusicTrack:
       if not isMusicCached(track):
         genCurrentIsMusic.store(true)
         genCurrentOrd.store(track.ord)
         generateMusicFile(track)
-        genCompleted.atomicInc()
+        genCompleted.store(genCompleted.load() + 1)
   except CatchableError:
     discard
   genDone.store(true)

@@ -17,7 +17,7 @@ TopHat-ShooterOS is a fast, chaotic bullet-heaven built with Nim + Raylib.
 
 **Features**
 
-- Modes: Waves (wave-based) and Survival (coming soon).
+- Modes: Waves (wave-based), Roguelite (beta!) and Survival.
 - 60+ power-ups, 13 enemy types, and 12 bosses.
 - Permanent upgrade shop, consumables, and deployable walls.
 - Builds for Windows, Linux and Android using Nim.
