@@ -3871,9 +3871,9 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
                 not bossIsInvulnerable:
               let giantSlayerLevel = getPowerUpLevel(game.player, puGiantSlayer)
               var percentDamage = case giantSlayerLevel
-                of 1: 0.025  # 2.5% of current HP vs normal enemies
-                of 2: 0.04   # 4% of current HP vs normal enemies
-                else: 0.06   # 6% of current HP vs normal enemies
+                of 1: 0.03   # 3% of current HP vs normal enemies
+                of 2: 0.055  # 5.5% of current HP vs normal enemies
+                else: 0.08   # 8% of current HP vs normal enemies
 
               # Giant Slayer hunts the rank-and-file: heavy against normal enemies,
               # but far weaker against bosses.
