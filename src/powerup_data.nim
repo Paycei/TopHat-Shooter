@@ -644,3 +644,25 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     of 1: t(tkPowerupDataHarvestDesc1)
     of 2: t(tkPowerupDataHarvestDesc2)
     else: t(tkPowerupDataHarvestDesc3)
+
+# ---------------------------------------------------------------------------
+# Power-up draft reel timing.
+#
+# Lives here rather than in powerup.nim because BOTH the simulation
+# (powerup.nim: updatePowerUpRollAnimation) and the renderer
+# (ui/os_powerup_installer.nim: motion blur + per-slot lock flash) need these
+# numbers, and powerup.nim imports the installer -- so the installer cannot
+# import back. The renderer previously kept its own copy of the stop times with
+# a "must match powerup.nim exactly" comment; that is now structurally
+# impossible to desync.
+# ---------------------------------------------------------------------------
+const
+  PowerUpRollCardHeight* = 380.0'f32  ## Must match CARD_HEIGHT in os_powerup_installer.nim
+  RollSharedSpeed*       = 1400.0'f32 ## px/s during the constant phase
+  RollBrakeDuration*     = 0.45'f32   ## seconds of cubic ease-out before a slot locks
+  RollUnlockDelay*       = 0.12'f32   ## beat after the last slot settles before input opens
+
+proc rollStopTimes*(isLegendary: bool): array[3, float32] =
+  ## When each of the three reels locks, in seconds from the start of the roll.
+  if isLegendary: [1.1'f32, 1.7'f32, 2.4'f32]
+  else:           [0.6'f32, 0.85'f32, 1.15'f32]

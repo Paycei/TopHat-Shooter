@@ -356,7 +356,8 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     if effect.hasMastery:
       healPercent *= 2.0  # +100% lifesteal
 
-    let healAmount = 0.01 + effect.baseDamage * healPercent
+    # Per-hit heal, density-normalised (see densityHealScale).
+    let healAmount = (0.01 + effect.baseDamage * healPercent) * densityHealScale(game)
     # heal() applies the player's healPowerMult; attribute base vs multiplier separately
     heal(game.player, healAmount)
     if healAmount > 0.01:

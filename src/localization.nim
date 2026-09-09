@@ -125,6 +125,7 @@ type
     tkKeybindShoot = "keybind_shoot"
     tkKeybindPlaceWall = "keybind_place_wall"
     tkKeybindLegendary = "keybind_legendary"
+    tkKeybindDash = "keybind_dash"
     tkKeybindPressAnyKey = "keybind_press_any_key"
     tkKeybindResetDefaults = "keybind_reset_defaults"
     tkKeybindNonRebindableNote = "keybind_non_rebindable_note"
@@ -1632,6 +1633,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "keybind_shoot": "Shoot",
     "keybind_place_wall": "Place Wall / Interact",
     "keybind_legendary": "Legendary Ability",
+    "keybind_dash": "Dash",
     "keybind_press_any_key": "Press any key...",
     "keybind_reset_defaults": "Reset to Defaults",
     "keybind_non_rebindable_note": "ESC: Pause  |  F11: Fullscreen  (fixed)",
@@ -3310,6 +3312,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "keybind_shoot": "Disparar",
     "keybind_place_wall": "Colocar Muro / Interactuar",
     "keybind_legendary": "Habilidad Legendaria",
+    "keybind_dash": "Impulso",
     "keybind_press_any_key": "Pulsa cualquier tecla...",
     "keybind_reset_defaults": "Restaurar Valores",
     "keybind_non_rebindable_note": "ESC: Pausa  |  F11: Pantalla completa  (fijos)",

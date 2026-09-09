@@ -443,11 +443,8 @@ proc drawOSPowerUpInstaller*(game: Game) =
   let screenHeight = getVirtualScreenHeight()
   let isLegendary  = game.powerUpChoices[0].rarity == prLegendary
 
-  # Stop times: must match powerup.nim exactly
-  let stopTimes: array[3, float32] = [
-    if isLegendary: 2.0'f32 else: 1.5'f32,
-    if isLegendary: 3.0'f32 else: 2.5'f32,
-    if isLegendary: 4.5'f32 else: 3.5'f32]
+  # Shared with powerup.nim's roll simulation via powerup_data (single source).
+  let stopTimes = rollStopTimes(isLegendary)
 
   # Per-slot: how many seconds since it locked (-1 = still rolling)
   var tSinceLock: array[3, float32]
@@ -462,7 +459,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
     if game.rollAnimationActive:
       max(game.rollSpeed[0], max(game.rollSpeed[1], game.rollSpeed[2]))
     else: 0.0'f32
-  let speedFrac = clamp(maxSpeed / 1000.0'f32, 0.0'f32, 1.0'f32)
+  let speedFrac = clamp(maxSpeed / RollSharedSpeed, 0.0'f32, 1.0'f32)
 
   # Background overlay
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 180))

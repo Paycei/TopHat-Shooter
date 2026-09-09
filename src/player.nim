@@ -2,6 +2,14 @@ import raylib, math, random, std/deques
 import gamepad_input, particle_types, types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings, utils
 
 const
+  # BASE DASH tuning. A burst of speed, not a teleport: the player keeps control
+  # of where they end up, and the short invulnerability rewards dashing THROUGH
+  # a threat rather than away from it.
+  DashSpeedMult*    = 3.4'f32   ## multiple of current speed during the burst
+  DashDuration*     = 0.16'f32  ## seconds of burst
+  DashCooldownTime* = 1.2'f32   ## seconds between dashes
+  DashInvulnTime*   = 0.20'f32  ## i-frames granted on dash start (outlasts burst)
+
   PlayerAcceleration = 7.0'f32
   PlayerBraking = 1.8'f32
   PlayerInertiaReferenceRadius = 14.0'f32
@@ -31,7 +39,15 @@ proc refreshPlayerSize(player: Player) =
   # Base collection aura, widened by DATA_HARVEST.dll. This single assignment is
   # the source of truth for pickup range (coins, XP orbs, and consumables all
   # test against player.auraRadius), so the bonus applies everywhere at once.
-  player.auraRadius = player.radius * 3.5 * dataHarvestRangeMult(player)
+  #
+  # Widened from 3.5x to 6.0x radius. At 3.5x the aura was ~52 px on a 1024x768
+  # field, so drops outside a very tight ring had to be driven over one at a
+  # time -- which makes loot a movement TAX rather than a reward. A generous
+  # base pull turns kills into a continuous stream of things flying at you,
+  # which is the second-to-second feedback loop the mode was missing. The
+  # Magnet consumable (ctMagnet) is still meaningfully better: it pulls from
+  # anywhere on the field, not just a wider ring.
+  player.auraRadius = player.radius * 6.0 * dataHarvestRangeMult(player)
 
 proc orbCoreColor(elementType: ElementType, base: Color): Color =
   case elementType
@@ -92,7 +108,7 @@ proc newPlayer*(x, y: float32): Player =
     lastDamageEvent: deNone,
     rageStacks: 0,
     critCharge: 0,
-    auraRadius: 50.0,  # Invisible coin collection aura
+    auraRadius: 90.0,  # Invisible pickup aura (refreshPlayerSize owns it after frame 1)
     doubleShotDelay: 0,
     rapidFireSpinup: 0,  # Minigun spin-up meter (RapidFire legendary)
     bulletCounter: 0,  # Track bullets fired for special rounds power-up
@@ -183,6 +199,12 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.phaseShiftCooldown -= dt
   if player.phaseShiftInvulnTimer > 0:
     player.phaseShiftInvulnTimer -= dt
+  if player.dashCooldown > 0:
+    player.dashCooldown -= dt
+  if player.dashTimer > 0:
+    player.dashTimer -= dt
+    if player.dashTimer < 0:
+      player.dashTimer = 0
 
   # Update Parry power-up timers
   if player.parryActive:
@@ -266,10 +288,41 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # player can walk slowly.
   if moveDir.length() > 1:
     moveDir = moveDir.normalize()
-  let targetVel = moveDir * currentSpeed
+
+  # ---- BASE DASH ----
+  # Fires on a held-direction if there is one, otherwise on the last facing, so
+  # a standing dash still goes somewhere sensible. The direction is locked at
+  # the start of the burst: mid-dash steering would turn it into a speed boost
+  # and lose the committed, readable arc that makes a dash feel like a dash.
+  if player.dashCooldown <= 0 and player.dashTimer <= 0:
+    let dashPressed =
+      isKeyPressed(globalSettings.keybinds[kaDash]) or
+      (isGamepadActive() and isGamepadBindPressed(globalSettings.gamepadBinds, kaDash))
+    if dashPressed:
+      var d = moveDir
+      if d.length() < 0.01'f32:
+        # Standing still: dash along current travel, else straight up.
+        d = if player.vel.length() > 1.0'f32: player.vel.normalize()
+            else: newVector2f(0, -1)
+      else:
+        d = d.normalize()
+      player.dashDir     = d
+      player.dashTimer   = DashDuration
+      player.dashCooldown = DashCooldownTime
+      # I-frames outlast the burst slightly so dashing THROUGH a contact hitbox
+      # is a real, reliable option rather than a coin flip on frame timing.
+      player.invincibilityTimer = max(player.invincibilityTimer, DashInvulnTime)
+
   let inertiaScale = playerInertiaSizeScale(player)
-  let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
-  player.vel = approachVelocity(player.vel, targetVel, acceleration, dt)
+  if player.dashTimer > 0:
+    # During the burst, drive velocity directly. Bypassing the acceleration
+    # curve is the point: the dash must feel instant, and the heavier the
+    # player's build the more it should stand out from their normal handling.
+    player.vel = player.dashDir * (currentSpeed * DashSpeedMult)
+  else:
+    let targetVel = moveDir * currentSpeed
+    let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
+    player.vel = approachVelocity(player.vel, targetVel, acceleration, dt)
 
   # Calculate next position
   let nextPos = player.pos + player.vel * dt

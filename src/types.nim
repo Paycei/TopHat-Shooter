@@ -9,6 +9,7 @@ type
     kaShoot
     kaPlaceWall
     kaLegendary
+    kaDash
 
   KeyBindings* = array[KeyAction, KeyboardKey]
 
@@ -25,7 +26,8 @@ const
     kaMoveRight: KeyboardKey.D,
     kaShoot:     KeyboardKey.Space,
     kaPlaceWall: KeyboardKey.E,
-    kaLegendary: KeyboardKey.Q
+    kaLegendary: KeyboardKey.Q,
+    kaDash:      KeyboardKey.LeftShift
   ]
 
   defaultGamepadBinds*: GamepadBindings = [
@@ -35,7 +37,8 @@ const
     kaMoveRight: GamepadButton.LeftFaceRight,
     kaShoot:     GamepadButton.RightTrigger2,  # RT (right stick also autofires)
     kaPlaceWall: GamepadButton.RightFaceLeft,  # X
-    kaLegendary: GamepadButton.RightFaceUp     # Y
+    kaLegendary: GamepadButton.RightFaceUp,    # Y
+    kaDash:      GamepadButton.LeftTrigger2    # LT
   ]
 
 # Telegraphed-attack timing. Lives here so the warning-update logic (game.nim)
@@ -613,6 +616,14 @@ type
     phaseShiftCooldown*: float32
     phaseShiftInvulnTimer*: float32
     lastPhaseShiftPos*: Vector2f
+    # BASE DASH -- available from wave 1, unlike the power-up abilities above.
+    # A run used to start with exactly two verbs (move, shoot) and stay there
+    # until a legendary happened to be offered; the dash is the third verb every
+    # run owns. Deliberately a burst of speed with brief i-frames rather than a
+    # teleport, so it reads as movement skill instead of a get-out-of-jail card.
+    dashTimer*: float32        ## remaining dash burst (0 = not dashing)
+    dashCooldown*: float32     ## time until the next dash is available
+    dashDir*: Vector2f         ## locked-in direction for the current dash
     rotatingOrbs*: seq[RotatingOrb]
     orbRotationAngle*: float32  # Base rotation angle for all orbs
     hasFireMastery*: bool
@@ -1201,14 +1212,26 @@ type
     rewards*: seq[MicroReward]
 
   SlowMotionType* = enum
-    smtNone, smtKill, smtBossKill, smtPowerUp, smtWaveComplete
+    smtNone, smtKill, smtBossKill, smtPowerUp, smtWaveComplete,
+    smtResume        ## easing back into a live battlefield after a modal
 
   SlowMotion* = object
+    ## World-time juice. Two independent layers, combined by `worldTimeScale`:
+    ##   * slow motion -- a soft, medium-length dilation for big moments (boss
+    ##     kills, wave clears). `active`/`timeScale`/`duration`.
+    ##   * hit stop    -- a hard, 2-4 frame freeze on impact, the primitive that
+    ##     makes a hit read as WEIGHT rather than as a number changing.
+    ## Both timers are ticked with REAL dt (see `updateSlowMo`); decaying them
+    ## with the dt they themselves scale would latch the freeze on forever.
     active*: bool
     timeScale*: float32
     duration*: float32
     maxDuration*: float32
     slowType*: SlowMotionType
+    hitStopTimer*: float32     ## Remaining hard freeze, in real seconds
+    hitStopScale*: float32     ## World dt multiplier while frozen (near 0)
+    rampToNormal*: bool        ## interpolate timeScale -> 1.0 across the duration
+                               ## instead of holding it flat and snapping back
 
   WaveStats* = object
     waveNumber*: int
@@ -1291,7 +1314,8 @@ type
     coins*: seq[Coin]
     xpOrbs*: seq[XpOrb]  # Roguelite-only experience particles
     pendingLevelDrafts*: int  # Roguelite: level-up power-up drafts queued at room clear
-    survivalLevelDraftActive*: bool  # Survival: current draft is a level-up (return to play, not shop)
+    levelDraftActive*: bool  # Current draft is an XP level-up (return to play, not the shop).
+                             # Set by survival and wave mode; roguelite routes via the dungeon.
     survivalTime*: float32  # Survival: progression clock; pauses during boss fights (unlike game.time)
     consumables*: seq[Consumable]
     walls*: seq[Wall]
@@ -1327,6 +1351,16 @@ type
     recentPowerUp*: PowerUp
     recentPowerUpTimer*: float32
     recentPowerUpMaxTimer*: float32
+    # Draft input gating. Every menu key on the power-up screen is ALSO a
+    # gameplay key (Space = shoot, E = place wall, A/D = move, mouse = fire), and
+    # XP level drafts open mid-combat, so the player's hands are usually already
+    # on those inputs when the modal appears. Without gating, the shot they were
+    # firing skips the reel and can pick a card in the same breath.
+    draftInputGrace*: float32   ## blocks ALL draft input right after it opens
+    draftAwaitRelease*: bool    ## then requires a clean release before accepting
+    draftResumeTimer*: float32  ## post-draft re-entry beat (see beginDraftResume)
+    levelDraftDelay*: float32   ## telegraph beat between banking a level and
+                                ## actually opening its draft (see bankRunLevelUps)
     rollAnimationActive*: bool
     rollAnimationTimer*: float32
     rollSpeed*: array[3, float32]       # Current scroll speed px/s (used by renderer for motion blur)
@@ -1442,6 +1476,58 @@ proc resumeRunTime*(game: Game) =
   if game.runEndTime > 0.0'f32:
     game.time = game.runEndTime
     game.runEndTime = 0.0'f32
+
+# ---------------------------------------------------------------------------
+# Wave density curve.
+#
+# Lives here, next to the difficulty choke points, because EVERY per-enemy
+# reward channel has to normalise against it -- coins (coin.nim), XP
+# (xp_orb.nim), elite rolls (enemy.nim) and consumable rolls (game.nim) all sit
+# below game.nim in the DAG and could not reach it there.
+#
+# That reach is the whole point. Wave mode fields roughly four times as many
+# enemies as it used to, and every reward in the game is granted PER ENEMY, so
+# quadrupling the head count quadrupled the entire economy: coins, consumables,
+# XP (and therefore power-ups), and elites all scaled with it. Rebating enemy
+# hit points alone kept the fight the right length while making the payout four
+# times too large. A wave should cost and pay roughly what it always did; only
+# the number of bodies it is divided into changed.
+# ---------------------------------------------------------------------------
+
+proc calculateWaveEnemyCount*(waveNumber: int): int =
+  ## Enemy count per wave: uncapped, and growing much faster than it used to.
+  ##
+  ## This deliberately reverses the older design ("few beefy threats, not a
+  ## mowable swarm", 8 / ~19 / ~35 / ~55 at waves 1 / 10 / 40 / 100), which was
+  ## the main reason the game read as flat: a wave-40 fight was ~35 enemies
+  ## TOTAL, so the screen was never full and killing things never produced a
+  ## visible swathe. The pleasure of this genre is deleting a CROWD.
+  ##   wave 1 -> 10, wave 10 -> ~46, wave 40 -> ~123, wave 100 -> ~244
+  result = int(10 + 6.5 * pow(float(waveNumber - 1), 0.78))
+
+proc legacyWaveEnemyCount*(waveNumber: int): float =
+  ## The pre-swarm density curve, kept ONLY as the reference point that
+  ## waveDensityRebate normalises against. Never used for spawning.
+  8 + 3.0 * pow(float(waveNumber - 1), 0.6)
+
+proc waveDensityRebate*(waveNumber: int): float32 =
+  ## Per-enemy multiplier that keeps a wave's TOTAL output -- hit points, coins,
+  ## XP, consumable rolls, elite rolls -- near what the old, sparser design
+  ## produced, now that waves contain several times as many bodies.
+  ##
+  ## Apply this to any quantity granted PER ENEMY. Skipping it on a channel
+  ## silently multiplies that channel by the density factor, which is how a run
+  ## ended up with 27k coins, 686 consumables and 99 power-ups.
+  ## Per-enemy *threat* is the deliberate exception: contact damage is only
+  ## half-rebated, because a crowd is supposed to be more dangerous than the
+  ## handful it replaced -- that is where the difficulty moved to.
+  ##
+  ## Expressed as a ratio of the two curves rather than a magic constant, so
+  ## retuning calculateWaveEnemyCount retunes every channel with it. The floor
+  ## stops very late waves from rounding rewards away entirely.
+  let ratio = legacyWaveEnemyCount(waveNumber) /
+              max(1.0, float(calculateWaveEnemyCount(waveNumber)))
+  result = max(0.30'f32, float32(ratio))
 
 proc difficultyEnemyHpMult*(): float32 =
   case currentDifficulty

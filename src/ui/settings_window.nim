@@ -832,6 +832,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     (t(tkKeybindShoot),     kaShoot),
     (t(tkKeybindPlaceWall), kaPlaceWall),
     (t(tkKeybindLegendary), kaLegendary),
+    (t(tkKeybindDash),      kaDash),
   ]
 
   for (label, action) in kbActions:
@@ -1329,8 +1330,13 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
           playSound(stMenuSelect)
           break
 
-      # Reset keybinds to defaults button
-      let resetBtnY = kbYBase + 7 * 23 + 6
+      # Reset keybinds to defaults button.
+      # Row count is derived from KeyAction, not hardcoded: this was `7 * 23`,
+      # which silently mis-placed the hit box the moment a new bindable action
+      # was added (the draw pass flows with yPos, so only the CLICK target moved
+      # out from under the button). Nothing in the compiler catches that.
+      let kbRowCount = KeyAction.high.ord + 1
+      let resetBtnY = kbYBase + kbRowCount * 23 + 6
       let resetBtnX = contentX + 20
       let resetBtnW = 160
       let resetBtnH = 26

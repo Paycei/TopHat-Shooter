@@ -337,6 +337,65 @@ proc hasMouseMoved*(game: Game): bool =
   let dy = abs(currentPos.y - game.lastMousePos.y)
   result = (dx > MOUSE_MOVEMENT_THRESHOLD or dy > MOUSE_MOVEMENT_THRESHOLD)
 
+const DraftReleaseTimeout = 0.6'f32
+  ## Seconds after which the draft screen accepts input even if a gameplay input
+  ## is still held, measured from when the modal opened.
+  ##
+  ## Short on purpose. Now that draftGameplayInputHeld covers movement too,
+  ## "still holding something" is the COMMON case -- plenty of players circle
+  ## with a direction held the whole time -- so a long valve would stall the
+  ## screen on almost every level-up and become its own annoyance. It does not
+  ## need to be long to work: a held mouse button cannot select anything anyway
+  ## (selection is edge-triggered), and by ~0.9 s from open the player has
+  ## unmistakably seen the modal. This only has to outlast input buffered
+  ## across the transition, which the grace already absorbs.
+
+proc draftGameplayInputHeld(): bool =
+  ## True while the player still has their hands on the game.
+  ##
+  ## The question this answers is "has the player disengaged from driving?",
+  ## NOT "are they holding a key the menu happens to read". Those are different,
+  ## and the difference matters: someone holding W when a level-up fires has not
+  ## disengaged at all, even though the draft screen ignores W. Gate on the
+  ## narrow reading and it opens while they are still steering, so their next
+  ## input -- a strafe, a shot -- lands in the menu they had not registered yet.
+  ##
+  ## So this covers EVERY movement and combat input, on both devices: all four
+  ## movement binds and their literal WASD/arrow spellings, shoot, wall, dash,
+  ## legendary, the mouse button, and both analog sticks (leftStick already
+  ## applies a radial deadzone; rightStick is used rather than aimDir because
+  ## aimDir latches its last direction and would never read as released).
+  ##
+  ## The overlap is what forces this: Space is the default shoot bind, E places
+  ## walls, A/D move AND navigate cards, and the mouse button fires. Because
+  ## `isKeyPressed` only reports a rising edge, a player mashing fire mid-fight
+  ## lands a fresh edge inside the modal a frame or two after it appears --
+  ## edge-detection alone cannot tell that apart from a deliberate menu press.
+  ## Bounded by DraftReleaseTimeout so a permanent hold can never lock anyone out.
+  let kb = globalSettings.keybinds
+  let gb = globalSettings.gamepadBinds
+  if isPointerDown(): return true
+  # Literal menu/movement spellings
+  if isKeyDown(Enter) or isKeyDown(E) or isKeyDown(Space) or isKeyDown(R) or
+     isKeyDown(Left) or isKeyDown(Right) or isKeyDown(Up) or isKeyDown(Down) or
+     isKeyDown(W) or isKeyDown(A) or isKeyDown(S) or isKeyDown(D):
+    return true
+  # The player's actual binds, whatever they rebound them to
+  for action in [kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight,
+                 kaShoot, kaPlaceWall, kaDash, kaLegendary]:
+    if isKeyDown(kb[action]):
+      return true
+  if isGamepadActive():
+    for action in [kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight,
+                   kaShoot, kaPlaceWall, kaDash, kaLegendary]:
+      if isGamepadBindDown(gb, action):
+        return true
+    let ls = leftStick()
+    let rs = rightStick()
+    if ls.x != 0 or ls.y != 0 or rs.x != 0 or rs.y != 0:
+      return true
+  false
+
 proc updateMouseTracking*(game: Game) =
   ## Updates mouse position tracking and resets keyboard flag if mouse moved
   let currentPos = getVirtualMousePosition()
@@ -2808,11 +2867,19 @@ proc main() =
           else:
             currentGame.cheatRogueliteDirectFloorSelect = false
             currentGame.state = gsPlaying
-        elif isTimeSurvivalMode(currentGame.mode) and currentGame.survivalLevelDraftActive:
-          # Survival mid-run level-up draft: resume into the same battlefield,
-          # not the shop (the shop is reserved for the post-boss draft below).
-          currentGame.survivalLevelDraftActive = false
+            beginDraftResume(currentGame)
+        elif currentGame.levelDraftActive:
+          # Mid-run XP level-up draft (survival or wave mode): resume into the
+          # same battlefield, not the shop. The shop stays reserved for the
+          # wave-boundary / post-boss draft below.
+          #
+          # This is the disorienting exit -- the fight is still running and the
+          # player has been looking at a menu -- so it gets the re-entry beat
+          # (time ramp + i-frames + a locate-me pulse). Exits to the shop or to
+          # floor select do not need it: nothing is chasing the player there.
+          currentGame.levelDraftActive = false
           currentGame.state = gsPlaying
+          beginDraftResume(currentGame)
         else:
           currentGame.state = gsShop
           currentGame.shopSidebarScroll = 0
@@ -2826,7 +2893,16 @@ proc main() =
       if isPowerUpPoolExhausted(currentGame.player, isLegendaryRound, allowedFamiliesForDraft, currentGame.mode):
         playMusic(mtPowerUp)
 
-        if not globalConfirmActive:
+        # Same input gate as the normal draft below: this screen can also open
+        # mid-combat, and its Continue button is one keypress from dismissing it.
+        currentGame.draftInputGrace -= dt
+        if currentGame.draftAwaitRelease and
+           (not draftGameplayInputHeld() or
+            currentGame.draftInputGrace <= -DraftReleaseTimeout):
+          currentGame.draftAwaitRelease = false
+
+        if not globalConfirmActive and currentGame.draftInputGrace <= 0 and
+           not currentGame.draftAwaitRelease:
           if isKeyPressed(Enter) or isKeyPressed(E) or isKeyPressed(Space):
             continueAfterDraft()
 
@@ -2857,11 +2933,51 @@ proc main() =
         # Update roll animation
         updatePowerUpRollAnimation(currentGame, dt)
 
+        # ---- DRAFT INPUT GATE ----
+        # XP level drafts open mid-combat, so this screen routinely appears
+        # under a player who is holding fire and steering. Every key it reads is
+        # also a gameplay key, so without a gate the shot already in flight
+        # skips the reel and can pick a card in the same breath.
+        #
+        # Two stages: a short grace that swallows input buffered across the
+        # transition, then a release requirement -- the gate stays shut until
+        # the gameplay controls are actually let go. Both must clear before ANY
+        # draft input (skip, navigate, or select) is accepted.
+        # The counter runs on past zero so it doubles as "time this modal has been
+        # open", which backs the release timeout below.
+        currentGame.draftInputGrace -= dt
+        if currentGame.draftAwaitRelease and
+           (not draftGameplayInputHeld() or
+            currentGame.draftInputGrace <= -DraftReleaseTimeout):
+          # Timeout safety: a player who holds fire continuously (entirely normal
+          # in this game) would otherwise never satisfy the release condition and
+          # would find the draft screen permanently unresponsive.
+          currentGame.draftAwaitRelease = false
+        let draftInputReady = currentGame.draftInputGrace <= 0 and
+                              not currentGame.draftAwaitRelease
+
+        # Skip the reel: a deliberate confirm/navigate/click snaps it to the
+        # result instead of being swallowed. Players see this animation many
+        # times per run, so it must never be a wall -- but it must also not
+        # evaporate the moment it appears, which is what the gate above buys.
+        var justSkippedRoll = false
+        if currentGame.rollAnimationActive and not globalConfirmActive and
+           draftInputReady:
+          if isKeyPressed(Enter) or isKeyPressed(E) or isKeyPressed(Space) or
+             isKeyPressed(Left) or isKeyPressed(Right) or
+             isKeyPressed(A) or isKeyPressed(D) or
+             isPointerPressed() or isGamepadConfirmPressed():
+            skipPowerUpRollAnimation(currentGame)
+            justSkippedRoll = true
+
         # Update mouse tracking
         updateMouseTracking(currentGame)
 
-        # Only allow input after animation completes and confirm dialog is not open
-        if currentGame.canSelectPowerUp and not globalConfirmActive:
+        # Only allow input after animation completes and confirm dialog is not open.
+        # `justSkippedRoll` swallows the keypress that performed the skip, so the
+        # Enter that reveals the cards cannot also pick one in the same frame.
+        if currentGame.canSelectPowerUp and not globalConfirmActive and
+           not justSkippedRoll and draftInputReady:
           # Navigate power-up choices with keyboard
           if isKeyPressed(Left) or isKeyPressed(A):
             currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3

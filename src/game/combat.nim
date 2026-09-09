@@ -246,6 +246,24 @@ proc showCurrency*(game: Game, pos: Vector2f, amount: int,
     return
   game.currencyIndicators.add(newCurrencyIndicator(pos.x, pos.y, amount, kind))
 
+proc densityHealScale*(game: Game): float32 =
+  ## Density normalisation for healing that is granted PER HIT or PER KILL.
+  ##
+  ## The same trap as coins and XP, and the one that actually decided runs.
+  ## Blood Bullets heals per bullet hit, Blood Aura per enemy in the aura, Life
+  ## Steal every N kills -- all three scale with how many bodies are on screen,
+  ## so wave mode's ~4x head count handed those builds a silent 4x buff nobody
+  ## picked. A measured wave-61 run healed 9,842 from power-ups against 5,967
+  ## total damage taken: the player out-healed everything the game could do to
+  ## them, before counting 222 health pickups.
+  ##
+  ## Incoming threat is deliberately only HALF rebated for density, so healing
+  ## must be fully rebated or the two drift apart every single wave.
+  ## puHealPower is intentionally NOT scaled here -- it is a multiplier on these
+  ## base amounts, so it follows automatically.
+  if game.mode == gmWaveBased: waveDensityRebate(game.currentWave)
+  else: 1.0'f32
+
 proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) =
   ## Centralized helper for floating "+SHIELD" / "+SPEED" style consumable
   ## pickup indicators.

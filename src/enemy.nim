@@ -4892,7 +4892,8 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       activeEffects: default(array[ElementType, ActiveEffect])
     )
 
-proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
+proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
+                chanceScale: float32 = 1.0'f32) =
   ## Converts a regular enemy into an elite with enhanced stats and special abilities
   ## Elite chance increases with wave number, but the midgame ramp is kept gentler.
   ## Dual-modifier elites are delayed so waves 20-35 do not suddenly feel boss-like.
@@ -4907,10 +4908,20 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1) =
     return
 
   # Elite chance: ramps from 2% -> 12% by wave 29, then continues +1%/wave to cap 32%
+  #
+  # `chanceScale` is the caller's density normalisation. The chance is rolled
+  # PER ENEMY, so wave mode's ~4x head count turned a 32% cap into four times as
+  # many elites in absolute terms -- a measured run had 1,197 elites out of
+  # 5,514 kills. An elite that shows up a fifth of the time is not an elite, it
+  # is the baseline, and each one pays double XP and extra coins on top. Scaling
+  # the chance keeps elites-per-WAVE where it was, which is the quantity the
+  # ramp above was actually tuned against. Rolled out of 1000 so a scaled-down
+  # chance keeps resolution instead of collapsing to whole percents.
   let baseChance = min(2 + (waveNumber.float32 * 0.35).int, 12)
   let lateBonus = max(0, waveNumber - 28)
   let eliteChance = min(baseChance + lateBonus, 32)
-  if rand(99) >= eliteChance:
+  let scaledChance = int(eliteChance.float32 * 10.0'f32 * clamp(chanceScale, 0.0'f32, 1.0'f32))
+  if rand(999) >= scaledChance:
     return
 
   let statWave = if scalingWave >= 0: scalingWave else: waveNumber

@@ -23,29 +23,37 @@ proc newScreenShake*(): ScreenShake =
 
 proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity,
                tint: Color = Color(r: 0, g: 0, b: 0, a: 0)) =
-  ## Add screen shake with specified intensity and optional color tint (SUBTLE)
+  ## Add screen shake with specified intensity and optional color tint.
+  ##
+  ## These used to be tuned "SUBTLE": a kill moved the camera 0.6-1.0 px and a
+  ## BOSS kill 2.5-4.0 px. On the 1024x768 world that is at or below the
+  ## threshold of perception -- the shake was computed, translated, and drawn,
+  ## and the player saw nothing. The scale below is roughly 3.5x the old one,
+  ## which puts a regular kill at ~3 px (felt, not distracting) and a boss kill
+  ## at ~12 px (unmistakable). Durations are stretched slightly to match, since
+  ## a 0.08 s shake is only ~5 frames and reads as a single jolt.
   case intensity
   of siNone:
     return
   of siSmall:
-    shake.intensity = max(shake.intensity, float32(rand(0.2..0.4)))
-    shake.duration = 0.04
+    shake.intensity = max(shake.intensity, float32(rand(0.9..1.6)))
+    shake.duration = 0.06
   of siMedium:
-    shake.intensity = max(shake.intensity, float32(rand(0.6..1.0)))
-    shake.duration = 0.08
+    shake.intensity = max(shake.intensity, float32(rand(2.2..3.4)))
+    shake.duration = 0.11
   of siLarge:
-    shake.intensity = max(shake.intensity, float32(rand(1.2..1.8)))
-    shake.duration = 0.12
+    shake.intensity = max(shake.intensity, float32(rand(4.5..6.5)))
+    shake.duration = 0.17
   of siMassive:
-    shake.intensity = max(shake.intensity, float32(rand(2.5..4.0)))
-    shake.duration = 0.2
+    shake.intensity = max(shake.intensity, float32(rand(9.0..13.0)))
+    shake.duration = 0.3
     shake.decayRate = 0.5  # Slow decay for dramatic effect
   of siCritical:
-    shake.intensity = max(shake.intensity, float32(rand(0.5..0.8)) * 1.5)
-    shake.duration = 0.06
+    shake.intensity = max(shake.intensity, float32(rand(1.8..2.8)) * 1.5)
+    shake.duration = 0.09
   of siPowerUp:
-    shake.intensity = max(shake.intensity, 1.5)
-    shake.duration = 0.15
+    shake.intensity = max(shake.intensity, 5.0)
+    shake.duration = 0.2
 
   shake.maxDuration = shake.duration
   shake.tintColor = tint
@@ -209,52 +217,105 @@ proc updateRewards*(tracker: var MicroRewardTracker, dt: float32) =
 
 # SLOW-MOTION SYSTEM
 
+const
+  HitStopScaleNormal* = 0.06'f32   ## near-freeze; not 0 so trails/particles creep
+  HitStopScaleHeavy*  = 0.02'f32   ## boss / elite impacts bite harder
+
 proc newSlowMotion*(): SlowMotion =
   result = SlowMotion(
     active: false,
     timeScale: 1.0,
     duration: 0,
     maxDuration: 0,
-    slowType: smtNone
+    slowType: smtNone,
+    hitStopTimer: 0,
+    hitStopScale: 1.0,
+    rampToNormal: false
   )
 
 proc activateSlowMo*(slowMo: var SlowMotion, slowType: SlowMotionType) =
-  ## Activate slow motion effect
+  ## Activate the soft slow-motion layer.
+  ##
+  ## NOTE: there is deliberately no per-kill case here any more. A 0.15 s / 0.5x
+  ## dilation on EVERY kill sounds good until the horde arrives: at five kills a
+  ## second the window is re-armed before it expires and the game simply runs at
+  ## half speed forever. Regular kills use `triggerHitStop` instead -- a freeze
+  ## short enough to overlap harmlessly. Slow motion is reserved for moments that
+  ## are, by construction, rare.
+  slowMo.rampToNormal = false
   case slowType
-  of smtNone:
+  of smtNone, smtKill:
     return
-  of smtKill:
-    slowMo.timeScale = 0.5
-    slowMo.duration = 0.15
   of smtBossKill:
-    slowMo.timeScale = 0.25
-    slowMo.duration = 0.5
+    slowMo.timeScale = 0.3
+    slowMo.duration = 0.55
   of smtPowerUp:
-    slowMo.timeScale = 0.01
-    slowMo.duration = 0.1
+    slowMo.timeScale = 0.15
+    slowMo.duration = 0.12
   of smtWaveComplete:
-    slowMo.timeScale = 0.5
+    slowMo.timeScale = 0.45
     slowMo.duration = 0.3
+  of smtResume:
+    # Easing back in after a modal. Ramped rather than flat: dropping the player
+    # into a live battlefield at full speed is disorienting, and a flat slow that
+    # SNAPS back is worse -- the snap is its own second surprise. Starting slow
+    # and accelerating smoothly to normal gives the eye time to find the player
+    # and read the threats before the fight resumes at speed.
+    slowMo.timeScale = 0.28
+    slowMo.duration = 0.85
+    slowMo.rampToNormal = true
 
   slowMo.maxDuration = slowMo.duration
   slowMo.active = true
   slowMo.slowType = slowType
 
-proc updateSlowMo*(slowMo: var SlowMotion, dt: float32): float32 =
-  ## Update slow motion, returns modified delta time
+proc triggerHitStop*(slowMo: var SlowMotion, duration: float32,
+                     scale: float32 = HitStopScaleNormal) =
+  ## Freeze the world for `duration` real seconds.
+  ##
+  ## Hit stop is the cheapest weight primitive in action games: holding the
+  ## simulation for 2-4 frames on impact lets the eye register the hit before
+  ## the world moves on. Overlapping calls take the LONGER freeze and the
+  ## HARDER scale rather than summing, so a screen full of simultaneous kills
+  ## produces one crisp freeze instead of a compounding stutter.
+  if duration > slowMo.hitStopTimer:
+    slowMo.hitStopTimer = duration
+  slowMo.hitStopScale = min(slowMo.hitStopScale, scale)
+
+proc updateSlowMo*(slowMo: var SlowMotion, realDt: float32) =
+  ## Tick both time layers. MUST be fed real, unscaled dt: decaying these timers
+  ## with the dt they scale is what makes a freeze latch on permanently.
+  if slowMo.hitStopTimer > 0:
+    slowMo.hitStopTimer -= realDt
+    if slowMo.hitStopTimer <= 0:
+      slowMo.hitStopTimer = 0
+      slowMo.hitStopScale = 1.0
   if slowMo.active:
-    slowMo.duration -= dt
+    slowMo.duration -= realDt
     if slowMo.duration <= 0:
       slowMo.active = false
+      slowMo.duration = 0
       slowMo.timeScale = 1.0
-      return dt
-    return dt * slowMo.timeScale
-  return dt
+      slowMo.slowType = smtNone
+      slowMo.rampToNormal = false
 
-proc getTimeScale*(slowMo: SlowMotion): float32 =
+proc worldTimeScale*(slowMo: SlowMotion): float32 =
+  ## Combined multiplier the simulation should apply to its delta time.
+  ## Hit stop dominates slow motion while it is running.
+  if slowMo.hitStopTimer > 0:
+    return slowMo.hitStopScale
   if slowMo.active:
+    if slowMo.rampToNormal and slowMo.maxDuration > 0:
+      # Ease from timeScale up to 1.0 as the window elapses. Quadratic so most
+      # of the slow sits at the START, where the re-orientation actually happens.
+      let elapsed = clamp(1.0'f32 - slowMo.duration / slowMo.maxDuration, 0.0'f32, 1.0'f32)
+      let eased = elapsed * elapsed
+      return slowMo.timeScale + (1.0'f32 - slowMo.timeScale) * eased
     return slowMo.timeScale
   return 1.0
+
+proc getTimeScale*(slowMo: SlowMotion): float32 =
+  worldTimeScale(slowMo)
 
 # WAVE STATS TRACKER
 
@@ -314,7 +375,11 @@ proc newDopamineState*(): DopamineState =
   )
 
 proc updateDopamine*(dopamine: var DopamineState, dt: float32) =
+  ## Fed REAL dt. Every timer in here is presentation-time, not world-time:
+  ## shake decay, combo windows and reward banners must keep running at normal
+  ## speed while the world itself is frozen or dilated.
   dopamine.currentTime += dt
+  updateSlowMo(dopamine.slowMotion, dt)
   updateShake(dopamine.screenShake, dt)
   updateCombo(dopamine.comboSystem, dt, dopamine.currentTime)
   updateRewards(dopamine.microRewards, dt)
