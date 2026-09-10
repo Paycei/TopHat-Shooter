@@ -3,6 +3,7 @@
 
 import raylib, math
 import ../types, ../powerup_data, ../localization, ../render_context
+import ui_helpers
 
 const
   TASK_MANAGER_WIDTH = 700
@@ -291,7 +292,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
 
   # Content area
   let contentY = tabY + TAB_HEIGHT + 10
-  let contentHeight = TASK_MANAGER_HEIGHT - TITLE_BAR_HEIGHT - TAB_HEIGHT - 120
+  let contentHeight = TASK_MANAGER_HEIGHT - TITLE_BAR_HEIGHT - TAB_HEIGHT - 165
 
   case selectedTab
   of tmtProcesses:
@@ -304,6 +305,14 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   # Bottom buttons
   let buttonY = windowY + TASK_MANAGER_HEIGHT - 80
   let buttonsStartX = windowX + (TASK_MANAGER_WIDTH - 600) div 2
+
+  # Lives panel between the tab content and the buttons. Wave mode only: it is
+  # the only mode with a continue budget, and an always-empty panel in survival
+  # or a roguelite floor would read as a bug rather than "not applicable here".
+  if game.mode == gmWaveBased:
+    drawLivesPanel(windowX + 20, buttonY - LivesPanelHeight - 14,
+                   TASK_MANAGER_WIDTH.int32 - 40, game.livesUsed,
+                   difficultyMaxLives(), UnlimitedLives, game.time)
 
   # Check mouse hover for buttons
   let exitHovered = mouseSupported and isMouseOverRect(mousePos, buttonsStartX, buttonY, 180, BUTTON_HEIGHT)

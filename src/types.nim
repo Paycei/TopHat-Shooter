@@ -118,8 +118,10 @@ type
   GameDifficulty* = enum
     ## Per-profile difficulty picked when a save profile is created.
     ## The on-disk form is the value string ("easy"/"medium"/"hard"/"nightmare").
-    ## Nightmare additionally disables the death-surviving block checkpoint
-    ## (see difficultyAllowsContinue below), so every death restarts at wave 1.
+    ## Difficulty also sets the wave-mode lives budget -- how many times a run may
+    ## continue from the death-surviving block checkpoint (see difficultyMaxLives
+    ## below): unlimited / 3 / 1 / 0. Nightmare's 0 is what makes every death
+    ## there restart at wave 1.
     gdEasy = "easy", gdMedium = "medium", gdHard = "hard", gdNightmare = "nightmare"
 
   CutsceneContinuation* = enum
@@ -1383,6 +1385,9 @@ type
     waveStartTime*: float32  # Track when current wave started for statistics
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
     runHadDeath*: bool  # Sticky: the run has died at least once (or resumed a block checkpoint after dying)
+    livesUsed*: int  # Wave mode: continues already spent this run (see difficultyMaxLives)
+    lifeLostTimer*: float32  # Counts down while the "life lost" animation owns the countdown screen
+    lifeLostSoundStage*: int  # How far that animation's sound cues have fired (0 none, 1 crack, 2 shatter)
     flawlessWaveVictory*: bool  # One-shot: wave mode was just beaten with runHadDeath still false (consumed in main.nim)
     cheatRogueliteSkipFloor*: bool  # Roguelite cheat: request to complete the current floor (consumed in main.nim)
     cheatRogueliteDirectFloorSelect*: bool  # Roguelite cheat: after the post-skip draft, jump straight to floor select instead of an (often unreachable) exit portal (consumed in main.nim)
@@ -1455,6 +1460,24 @@ var currentDifficulty* = gdMedium
 # the wavesUntilBoss countdown, boss bounty, shop income estimates -- routes
 # through this constant rather than hardcoding the interval.
 const BossWaveInterval* = 5
+
+# Sentinel for an unmetered lives budget (Easy). Kept distinct from a large
+# number so the meter UI can branch on it instead of trying to render an
+# unbounded row of glyphs.
+const UnlimitedLives* = -1
+
+# "Life lost" animation, played over the reorientation countdown when a run
+# resumes from its block checkpoint. Phase boundaries are fractions of the total
+# so the shape of the animation survives a retune of the duration; the drawing
+# code and the sound cues in main.nim read the same constants, which is what
+# keeps the crack sound on the crack.
+const
+  LifeLostAnimDuration* = 2.8'f32
+  LifeLostCrackStart*   = 0.13'f32  # platter spins down and a fracture creeps across it
+  LifeLostShatterStart* = 0.38'f32  # the platter gives way and the save scatters
+  LifeLostSettleStart*  = 0.58'f32  # camera starts pulling back off the dead platter
+  LifeLostRevealEnd*    = 0.76'f32  # the full row of slots has arrived; count reads out
+  LifeLostFadeStart*    = 0.90'f32  # overlay dissolves into the countdown
 
 proc runElapsedTime*(game: Game): float32 =
   ## How long the run actually lasted. On the game-over / victory screens
@@ -1543,12 +1566,37 @@ proc difficultyEnemyDamageMult*(): float32 =
   of gdHard: 1.30'f32
   of gdNightmare: 1.5'f32
 
+proc difficultyMaxLives*(): int =
+  ## Continues ("lives") a wave-mode run gets on this profile, or UnlimitedLives
+  ## for an unmetered budget. This is the single source of truth for the lives
+  ## system: the checkpoint gate, the meters and the spend path all derive from
+  ## it, so retuning a tier here retunes every consumer at once.
+  ##
+  ## Naming note: this is the "lives" budget throughout the code, but the UI
+  ## calls one a RESTORE POINT, because that is what spending one does -- it
+  ## restores a saved system state off disk. See ui/ui_helpers.nim.
+  case currentDifficulty
+  of gdEasy: UnlimitedLives
+  of gdMedium: 3
+  of gdHard: 1
+  of gdNightmare: 0
+
+proc livesRemaining*(used: int): int =
+  ## Lives still available after `used` continues, or UnlimitedLives when the
+  ## budget is unmetered. Clamped at 0 so a checkpoint written under a more
+  ## generous difficulty can never report a negative count.
+  let maxLives = difficultyMaxLives()
+  if maxLives == UnlimitedLives: UnlimitedLives
+  else: max(0, maxLives - used)
+
 proc difficultyAllowsContinue*(): bool =
   ## Whether the death-surviving block checkpoint ("Continue (Wave N)") exists on
-  ## this profile. Nightmare has no second chances: dying always means a fresh
-  ## run from wave 1. Gated at the run_save.nim write/read choke points so every
-  ## consumer (game-over screen, resume prompt) loses the option at once.
-  currentDifficulty != gdNightmare
+  ## this profile at all. Nightmare has no second chances: its lives budget is 0,
+  ## so dying always means a fresh run from wave 1. Gated at the run_save.nim
+  ## write/read choke points so every consumer (game-over screen, resume prompt)
+  ## loses the option at once. A run that has merely SPENT its lives is stopped
+  ## further down, by hasBlockCheckpoint's remaining-lives check.
+  difficultyMaxLives() != 0
 
 proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
                        duration: float32, sourceEnemyId: int = -1): AttackWarning =

@@ -6170,8 +6170,17 @@ proc drawGameOver*(game: Game) =
   # Use the new OS-style system crash screen. A wave-mode block checkpoint that
   # survived death adds a leading "Continue (Wave N)" option.
   let showContinue = game.mode == gmWaveBased and hasBlockCheckpoint()
-  drawSystemCrash(game, game.selectedGameOverButton, showContinue, blockCheckpointWave())
+  # The meter has to agree with the Continue button, so it counts the restore
+  # points of the run that button would resume. Normally that is this run (the
+  # checkpoint is written by it and carries the same counter), but a checkpoint
+  # left behind by an abandoned run belongs to that run, not the wave-1 one that
+  # just died.
+  let livesUsed = if blockCheckpointExists(): blockCheckpointLivesUsed()
+                  else: game.livesUsed
+  drawSystemCrash(game, game.selectedGameOverButton, showContinue,
+                  blockCheckpointWave(), livesUsed)
 
 proc drawVictory*(game: Game) =
   # OS-style "system secured" congratulations screen (wave-60 final boss cleared)
-  drawSystemSecured(game, game.selectedVictoryButton)
+  # The meter here shows this run's own: winning is not resuming anything.
+  drawSystemSecured(game, game.selectedVictoryButton, game.livesUsed)

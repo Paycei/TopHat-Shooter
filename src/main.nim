@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers
 
 # Global quit-confirmation dialog
 
@@ -1211,6 +1211,14 @@ proc main() =
             # Reaching this path means the run save was deleted by a death, so
             # the run is no longer flawless.
             currentGame.runHadDeath = true
+            # Same act as the game-over screen's Continue, just reached via the
+            # desktop, so it costs a life on the same terms. Skipping it here
+            # would make "die -> Exit -> Play -> Resume" a free continue.
+            consumeContinueLife(currentGame)
+            # The life-lost animation plays over the countdown, which doubles as
+            # the reorientation beat a resumed wave-21 run wants anyway.
+            currentGame.state = gsCountdown
+            currentGame.countdownTimer = 3.0
             initializeRunTracking(currentGame)
           else:
             deleteRunSave()
@@ -2693,61 +2701,85 @@ proc main() =
       # Keep wave music during countdown
       playMusic(mtWave)
 
-      # Countdown timer
-      currentGame.countdownTimer -= dt
+      # A pending life-lost animation owns the screen first: the countdown holds
+      # where it is until the spent restore point has finished breaking up.
+      if currentGame.lifeLostTimer > 0:
+        currentGame.lifeLostTimer = max(0.0'f32, currentGame.lifeLostTimer - dt)
+        let lifeLostP = 1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration
+        # Three dedicated cues, fired off the same phase constants the drawing
+        # reads, so each one lands on the beat it describes: the drive being
+        # addressed, the platter coasting down, and the break itself.
+        if currentGame.lifeLostSoundStage < 1:
+          playSound(stRestoreAccess)
+          currentGame.lifeLostSoundStage = 1
+        if currentGame.lifeLostSoundStage < 2 and lifeLostP >= LifeLostCrackStart:
+          playSound(stRestoreSpinDown)
+          currentGame.lifeLostSoundStage = 2
+        if currentGame.lifeLostSoundStage < 3 and lifeLostP >= LifeLostShatterStart:
+          playSound(stRestoreShatter)
+          currentGame.lifeLostSoundStage = 3
+      else:
+        currentGame.countdownTimer -= dt
 
-      if currentGame.countdownTimer <= 0:
-        currentGame.state = gsPlaying
+        if currentGame.countdownTimer <= 0:
+          currentGame.state = gsPlaying
 
       beginGameDrawing()
       drawGame(currentGame)
 
-      # Draw stylish countdown overlay
-      let countdownValue = max(currentGame.countdownTimer, 0.0)
-      let pulse = 1.0 + sin(currentGame.countdownTimer * 10) * 0.1
-      let alpha = uint8(200.0 * (countdownValue + 0.1))
-
-      # Dark overlay that fades out
-      drawRectangle(0, 0, screenWidth, screenHeight,
-                   Color(r: 0, g: 0, b: 0, a: alpha))
-
-      # Countdown text with scale pulse
-      let textSize = (120 * pulse).int32
-      # Always show numeric countdown
-      let countdownText = formatFloat(countdownValue, ffDecimal, 1)
-      let textWidth = measureText(countdownText, textSize)
-
-      # Glow effect - draw multiple times with offset
-      for i in 1..3:
-        let glowAlpha = uint8(50.0 * (4 - i).float)
-        let glowSize = textSize + i * 4
-        let glowWidth = measureText(countdownText, glowSize.int32)
-        drawText(countdownText,
-                (screenWidth div 2 - glowWidth div 2).int32,
-                (screenHeight div 2 - glowSize div 2).int32,
-                glowSize.int32,
-                Color(r: 255, g: 200, b: 0, a: glowAlpha))
-
-      # Main text
-      let textColor = if countdownValue > 0.5:
-        Color(r: 255, g: 255, b: 100, a: 255)
+      # While a life is being spent the shatter owns the screen; the countdown
+      # numerals are held back so the two do not fight over the centre.
+      if currentGame.lifeLostTimer > 0:
+        drawLifeLostOverlay(screenWidth, screenHeight, currentGame.livesUsed,
+                            difficultyMaxLives(), UnlimitedLives,
+                            1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration)
       else:
-        Color(r: 100, g: 255, b: 100, a: 255)
+        # Draw stylish countdown overlay
+        let countdownValue = max(currentGame.countdownTimer, 0.0)
+        let pulse = 1.0 + sin(currentGame.countdownTimer * 10) * 0.1
+        let alpha = uint8(200.0 * (countdownValue + 0.1))
 
-      drawText(countdownText,
-              screenWidth div 2 - textWidth div 2,
-              screenHeight div 2 - textSize div 2,
-              textSize,
-              textColor)
+        # Dark overlay that fades out
+        drawRectangle(0, 0, screenWidth, screenHeight,
+                     Color(r: 0, g: 0, b: 0, a: alpha))
 
-      # Subtitle
-      let subtitle = "READY?"
-      let subWidth = measureText(subtitle, 40)
-      drawText(subtitle,
-              screenWidth div 2 - subWidth div 2,
-              screenHeight div 2 + 80,
-              40,
-              Color(r: 255, g: 255, b: 100, a: alpha))
+        # Countdown text with scale pulse
+        let textSize = (120 * pulse).int32
+        # Always show numeric countdown
+        let countdownText = formatFloat(countdownValue, ffDecimal, 1)
+        let textWidth = measureText(countdownText, textSize)
+
+        # Glow effect - draw multiple times with offset
+        for i in 1..3:
+          let glowAlpha = uint8(50.0 * (4 - i).float)
+          let glowSize = textSize + i * 4
+          let glowWidth = measureText(countdownText, glowSize.int32)
+          drawText(countdownText,
+                  (screenWidth div 2 - glowWidth div 2).int32,
+                  (screenHeight div 2 - glowSize div 2).int32,
+                  glowSize.int32,
+                  Color(r: 255, g: 200, b: 0, a: glowAlpha))
+
+        # Main text
+        let textColor = if countdownValue > 0.5:
+          Color(r: 255, g: 255, b: 100, a: 255)
+        else:
+          Color(r: 100, g: 255, b: 100, a: 255)
+
+        drawText(countdownText,
+                screenWidth div 2 - textWidth div 2,
+                screenHeight div 2 - textSize div 2,
+                textSize,
+                textColor)
+
+        # Subtitle
+        let subtitle = "READY?"
+        let subWidth = measureText(subtitle, 40)
+        drawText(subtitle,
+                screenWidth div 2 - subWidth div 2,
+                screenHeight div 2 + 80,
+                40,
+                Color(r: 255, g: 255, b: 100, a: alpha))
 
       if currentGame.mode == gmRoguelite:
         drawBetaBanner(currentGame)
@@ -3109,6 +3141,12 @@ proc main() =
           # collected, kills, damage, time) instead of zeroing them.
           # Pressing Continue is what voids the Flawless Kernel advancement.
           currentGame.runHadDeath = true
+          # Spend a life and write the new count back to the checkpoint, so the
+          # budget shrinks even if the next death arrives before the next boss
+          # block would have rewritten the file.
+          consumeContinueLife(currentGame)
+          currentGame.state = gsCountdown
+          currentGame.countdownTimer = 3.0
           resumeRunTracking(currentGame)
         else:
           # Checkpoint failed to apply: fall back to a fresh run.

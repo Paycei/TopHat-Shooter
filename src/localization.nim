@@ -288,6 +288,15 @@ type
     tkGameOverResourcesCollected = "game_over_resources_collected"
     tkGameOverMissionDuration = "game_over_mission_duration"
     tkGameOverContinue = "game_over_continue"
+
+    # Restore points -- the player-facing name for the wave-mode lives budget
+    # (see difficultyMaxLives). A "life" here is a saved system state that
+    # Continue restores off disk, so the UI calls it what it is.
+    tkRestorePointsLabel = "restore_points_label"
+    tkRestorePointsUnlimited = "restore_points_unlimited"
+    tkRestorePointsNone = "restore_points_none"
+    tkRestorePointsLast = "restore_points_last"
+    tkRestorePointLost = "restore_point_lost"
     tkGameOverCriticalFailure = "game_over_critical_failure"
     tkGameOverErrorMsg = "game_over_error_msg"
     tkGameOverSessionDiagnostics = "game_over_session_diagnostics"
@@ -2095,6 +2104,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Resources Collected:",
     "game_over_mission_duration": "Mission Duration:",
     "game_over_continue": "CONTINUE (WAVE",
+    "restore_points_label": "RESTORE POINTS",
+    "restore_points_unlimited": "UNLIMITED",
+    "restore_points_none": "NONE LEFT",
+    "restore_points_last": "LAST ONE",
+    "restore_point_lost": "RESTORE POINT SPENT",
     "game_over_critical_failure": "CRITICAL SYSTEM FAILURE",
     "game_over_error_msg": "Your system has encountered a critical error and needs to reboot.",
     "game_over_session_diagnostics": "=== SESSION DIAGNOSTICS ===",
@@ -3669,6 +3683,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Recursos Recopilados:",
     "game_over_mission_duration": "Duración de la Misión:",
     "game_over_continue": "CONTINUAR (OLEADA",
+    "restore_points_label": "PUNTOS DE RESTAURACIÓN",
+    "restore_points_unlimited": "ILIMITADOS",
+    "restore_points_none": "NINGUNO",
+    "restore_points_last": "EL ÚLTIMO",
+    "restore_point_lost": "PUNTO DE RESTAURACIÓN GASTADO",
     "game_over_critical_failure": "FALLO CRÍTICO DEL SISTEMA",
     "game_over_error_msg": "Tu sistema ha encontrado un error crítico y necesita reiniciarse.",
     "game_over_session_diagnostics": "=== DIAGNÓSTICO DE SESIÓN ===",
@@ -4598,7 +4617,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_exit_title": "CONFIRMAR VUELTA",
     "confirm_quit_body": "¿Cerrar TopHat-ShooterOS?",
     "confirm_exit_body": "¿Volver al menú principal?",
-    "confirm_unsaved": "El progreso no guardado se perderá.",
+    "confirm_unsaved": "El progreso se guardará.",
     "confirm_cancel_btn": "[ESC] CANCELAR",
     "confirm_quit_btn": "[Q] SALIR",
     "confirm_exit_btn": "[Q] VOLVER",

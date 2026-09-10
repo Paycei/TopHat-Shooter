@@ -11,7 +11,9 @@ type
   SoundType* = enum
     stShoot, stEnemyHit, stEnemyDeath, stPlayerHit, stCoinPickup, stPowerUp,
     stBossSpawn, stExplosion, stWallPlace, stTeleport, stMenuNav, stMenuSelect,
-    stWaveComplete, stShield, stGameOver, stBuy
+    stWaveComplete, stShield, stGameOver, stBuy,
+    # Restore-point animation cues (see ui/ui_helpers.drawLifeLostOverlay)
+    stRestoreAccess, stRestoreSpinDown, stRestoreShatter
 
   MusicTrack* = enum
     mtMenu, mtWave, mtPowerUp, mtBoss
@@ -73,6 +75,9 @@ proc getSoundCacheFile(soundType: SoundType): string =
     of stShield: "shield"
     of stGameOver: "gameover"
     of stBuy: "buy"
+    of stRestoreAccess: "restoreaccess"
+    of stRestoreSpinDown: "restorespindown"
+    of stRestoreShatter: "restoreshatter"
   result = cacheDir / (soundName & "_" & SOUND_CACHE_VERSION & ".wav")
 
 proc getMusicCacheFile(track: MusicTrack): string =
@@ -893,6 +898,146 @@ proc createBuySound(filename: string) =
 
   writeWavFile(filename, samples, sampleRate)
 
+proc createRestoreAccess(filename: string) =
+  ## Restore point coming up on screen: a drive being addressed. Two rising seek
+  ## blips over a platter humming up to speed, with a head tick on the front.
+  let sampleRate: uint32 = 44100
+  let duration = 0.28
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  var humPhase = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Platter spinning up: the hum climbs from a stall to running speed.
+    let humFreq = 70.0 + progress * 95.0
+    humPhase += 2.0 * PI * humFreq / sampleRate.float32
+    let hum = (sin(humPhase) * 0.5 + sin(humPhase * 2.0) * 0.18) * progress * 0.5
+
+    # Two seek blips, the second a step higher. Half sine + half square gives
+    # them the digital edge the rest of the OS chrome has.
+    var blip = 0.0
+    for b in 0..1:
+      let age = t - (0.06 + b.float32 * 0.105)
+      if age >= 0.0 and age < 0.055:
+        let bp = age / 0.055
+        let raw = sin(2.0 * PI * (1500.0 + b.float32 * 520.0) * (1.0 + bp * 0.35) * age)
+        let square = if raw >= 0.0: 1.0 else: -1.0
+        blip += (raw * 0.6 + square * 0.4) * exp(-bp * 7.0) * 0.34
+
+    # Head tick on the very front.
+    let tick = if t < 0.012: rand(-1.0..1.0) * (1.0 - t / 0.012) * 0.22 else: 0.0
+
+    let envelope = min(1.0, progress * 18.0) * (1.0 - progress * progress * 0.55)
+    let value = (hum + blip + tick) * envelope
+    # Louder than its short blips suggest it needs: this is the quietest cue of
+    # the three and has to stay audible under the wave music behind the overlay.
+    samples[i] = int16(clamp(value * 32767.0 * 0.68, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createRestoreSpinDown(filename: string) =
+  ## The platter losing power: the motor whine coasts down, the rotation flutter
+  ## slows WITH it (so the ear hears the disc turning slower rather than just
+  ## getting quieter), bearing rumble underneath, and brittle ticks as the
+  ## surface starts to give.
+  let sampleRate: uint32 = 44100
+  let duration = 0.95
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  var motorPhase = 0.0
+  var wobblePhase = 0.0
+  var subPhase = 0.0
+  var rumble = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Motor whine: exponential coast-down that never quite reaches zero.
+    let motorFreq = 60.0 + 390.0 * exp(-progress * 3.1)
+    motorPhase += 2.0 * PI * motorFreq / sampleRate.float32
+    let motor = sin(motorPhase) * 0.55 + sin(motorPhase * 2.0) * 0.2 +
+                sin(motorPhase * 3.0) * 0.08
+
+    # Rotation flutter: an amplitude wobble whose RATE decays on the same curve
+    # as the motor, which is what sells "spinning down" over "fading out".
+    let wobbleRate = 3.0 + 26.0 * exp(-progress * 3.1)
+    wobblePhase += 2.0 * PI * wobbleRate / sampleRate.float32
+    let wobble = 1.0 + sin(wobblePhase) * 0.32
+
+    # Bearing rumble: one-pole low-passed noise.
+    rumble = rumble * 0.986 + rand(-1.0..1.0) * 0.014
+
+    subPhase += 2.0 * PI * (46.0 + 20.0 * exp(-progress * 2.4)) / sampleRate.float32
+    let sub = sin(subPhase) * 0.3
+
+    # Brittle ticks across the back half: the fracture starting to travel.
+    var tick = 0.0
+    for k in 0..3:
+      let age = t - (0.42 + k.float32 * 0.13)
+      if age >= 0.0 and age < 0.03:
+        let kp = age / 0.03
+        tick += sin(2.0 * PI * (2600.0 + k.float32 * 700.0) * age) *
+                exp(-kp * 16.0) * 0.3
+
+    let envelope = min(1.0, progress * 14.0) * (1.0 - progress * 0.35)
+    let value = (motor * wobble * 0.5 + rumble * 2.4 + sub + tick) * envelope
+    samples[i] = int16(clamp(value * 32767.0 * 0.44, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createRestoreShatter(filename: string) =
+  ## The platter giving way: a hard broadband snap, a glassy inharmonic ring,
+  ## the sub weight of it letting go, and the save scattering as bit-crushed
+  ## data blips falling away into silence.
+  let sampleRate: uint32 = 44100
+  let duration = 0.8
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  var thumpPhase = 0.0
+
+  # Deliberately inharmonic, so it reads as breaking rather than as a chord.
+  const partials = [2170.0, 3110.0, 4690.0, 6230.0]
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Transient: broadband snap, gone in 25 ms.
+    let snap = if t < 0.025:
+      rand(-1.0..1.0) * exp(-(t / 0.025) * 5.0) * 0.85
+    else:
+      0.0
+
+    # Glassy ring, each partial decaying at its own rate.
+    var glass = 0.0
+    for n in 0..partials.high:
+      glass += sin(2.0 * PI * partials[n] * t) *
+               exp(-t * (14.0 + n.float32 * 7.0)) * (0.26 - n.float32 * 0.05)
+
+    thumpPhase += 2.0 * PI * (120.0 * exp(-progress * 5.0) + 38.0) / sampleRate.float32
+    let thump = sin(thumpPhase) * exp(-progress * 6.0) * 0.5
+
+    # Data scatter: blips falling in pitch across the tail, quantised to a
+    # handful of levels so they read as digital debris and not as sparkle.
+    var scatter = 0.0
+    for k in 0..7:
+      let age = t - (0.06 + k.float32 * 0.075)
+      if age >= 0.0 and age < 0.05:
+        let kp = age / 0.05
+        let raw = sin(2.0 * PI * (2400.0 - k.float32 * 210.0) * age)
+        let crushed = floor(raw * 3.0) / 3.0
+        scatter += crushed * exp(-kp * 9.0) * (0.16 - k.float32 * 0.012)
+
+    let envelope = 1.0 - progress * progress * 0.6
+    let value = (snap + glass + thump + scatter) * envelope
+    samples[i] = int16(clamp(value * 32767.0 * 0.46, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
 # SOUND LOADING WITH CACHE
 proc generateSoundFile(soundType: SoundType) =
   ## Synthesise the WAV for `soundType` if it isn't cached yet. Pure CPU work
@@ -919,6 +1064,9 @@ proc generateSoundFile(soundType: SoundType) =
   of stShield: createShield(cacheFile)
   of stGameOver: createGameOverSound(cacheFile)
   of stBuy: createBuySound(cacheFile)
+  of stRestoreAccess: createRestoreAccess(cacheFile)
+  of stRestoreSpinDown: createRestoreSpinDown(cacheFile)
+  of stRestoreShatter: createRestoreShatter(cacheFile)
 
 proc loadOrGenerateSound(soundType: SoundType): Sound =
   ## Main thread only (touches the audio device).
@@ -1756,7 +1904,11 @@ proc pitchVariation(soundType: SoundType): float32 =
   of stShield: 0.05
   of stCoinPickup, stTeleport, stPlayerHit: 0.04
   of stMenuNav: 0.02
-  of stPowerUp, stBossSpawn, stMenuSelect, stWaveComplete, stGameOver, stBuy: 0.0
+  # Composed one-shots keep their exact pitch. The restore-point cues are a
+  # scripted three-beat sequence, so any wobble between them would break the
+  # illusion that they are one continuous event.
+  of stPowerUp, stBossSpawn, stMenuSelect, stWaveComplete, stGameOver, stBuy,
+     stRestoreAccess, stRestoreSpinDown, stRestoreShatter: 0.0
 
 proc panSpread(soundType: SoundType): float32 =
   ## Random stereo offset for battlefield sounds; UI and jingles stay centered.
