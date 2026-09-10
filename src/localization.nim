@@ -2915,7 +2915,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_exit_title": "CONFIRM EXIT",
     "confirm_quit_body": "Close TopHat-ShooterOS?",
     "confirm_exit_body": "Return to main menu?",
-    "confirm_unsaved": "Unsaved progress will be lost.",
+    "confirm_unsaved": "Your progress will be saved.",
     "confirm_cancel_btn": "[ESC] CANCEL",
     "confirm_quit_btn": "[Q] QUIT",
     "confirm_exit_btn": "[Q] EXIT",

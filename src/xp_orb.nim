@@ -11,6 +11,15 @@ import particle_types, types, particle_pool, sound, powerup, particle
 const
   XpBaseToLevel* = 10      # XP needed to clear level 1
   XpPerLevelStep* = 6      # added to the threshold for each subsequent level
+  XpLongRunQuadratic* = 4  ## `longRun` curve: extra cost per level, squared.
+                           ## This carries wave mode's density normalisation on
+                           ## its own. Orbs drop at full value so every kill
+                           ## still pays out visibly; levels get more expensive
+                           ## instead, which lands ~19 levels over a 60-wave run
+                           ## rather than the ~67 an unnormalised curve produced.
+                           ## Solved against the actual per-wave XP income, so
+                           ## retuning calculateWaveEnemyCount means re-solving
+                           ## this. Roguelite/survival never apply it.
   XpOrbPullSpeed = 320.0   # homing speed in px/s (slightly snappier than coins)
   XpOrbLifetime = 18.0     # seconds before an uncollected orb fades out
   XpLootMargin = 50.0      # keep drops this far from the screen edge (cf. coin.nim)
@@ -34,7 +43,7 @@ proc xpRequiredForLevel*(level: int, longRun: bool = false): int =
   result = XpBaseToLevel + max(0, level - 1) * XpPerLevelStep
   if longRun:
     let n = max(0, level - 1)
-    result += (n * n * 3) div 2
+    result += n * n * XpLongRunQuadratic
 
 proc enemyXpValue*(enemy: Enemy): int =
   ## Small per-enemy XP grant, shaped like enemyCoinValue but smaller magnitudes.
@@ -117,15 +126,22 @@ proc dropEnemyXp*(game: Game, enemy: Enemy) =
   ## that the wave-boundary drafts cannot provide.
   if game.mode notin {gmWaveBased, gmRoguelite, gmTimeSurvival}: return
   if enemy.spawnedByBoss: return
-  var xpScale = dataHarvestMultiplier(game.player)
-  # Density normalisation (wave mode). XP is the channel this mattered most on:
-  # levels drive the power-up drafts, so ~4x the bodies became ~2x the levels
-  # (sub-linear only because thresholds rise), and a measured wave-61 run drew
-  # 99 power-ups. Bosses keep their full lump -- one boss is not a crowd.
-  if game.mode == gmWaveBased and not enemy.isBoss:
-    xpScale *= waveDensityRebate(game.currentWave)
-  let total = int(enemyXpValue(enemy).float32 * xpScale)
-  if total <= 0: return
+  let base = enemyXpValue(enemy)
+  if base <= 0: return   # etEnvironment and friends are worth nothing by design
+  # EVERY scoring enemy drops an orb. The floor of 1 is load-bearing, not
+  # defensive: density normalisation was briefly applied to this VALUE, and
+  # because the result is truncated to an int it silently zeroed the drop for
+  # every cheap enemy -- circles paid nothing from wave 1, and past wave 40 only
+  # snipers and mages dropped at all. That deleted the moment-to-moment feedback
+  # the orbs exist to provide.
+  #
+  # XP is the one reward channel with TWO sides: what an enemy gives and what a
+  # level costs. Only the second is a balance lever; the first is feedback. So
+  # the density normalisation lives entirely in xpRequiredForLevel's `longRun`
+  # curve, which reaches the same level pacing without ever silencing a kill.
+  # (Coins, consumables and elites have no matching cost curve, which is why
+  # they are normalised on the grant side instead -- see waveDensityRebate.)
+  let total = max(1, int(base.float32 * dataHarvestMultiplier(game.player)))
   let clamped = clampXpDrop(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
   if enemy.isBoss:
     # Spread the boss XP across several orbs around the death point.

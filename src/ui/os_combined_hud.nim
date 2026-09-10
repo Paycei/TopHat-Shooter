@@ -13,6 +13,7 @@ const
   COMBINED_TITLE_HEIGHT = 18
   COMBINED_MAX_POWERUPS_VISIBLE = 3
   COMBINED_POWERUP_OVERFLOW_HEIGHT = 14
+  COMBINED_XP_BAR_HEIGHT = 12       # one drawLevelXpBar row (label 9 + 2 shadow/pad)
   HEADER_BG_COLOR = Color(r: 0, g: 100, b: 120, a: 60)
   ACCENT_COLOR = Color(r: 0, g: 220, b: 255, a: 255)
 
@@ -67,15 +68,19 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
     0
 
   let waveInfoHeight = if (game.mode == gmWaveBased):
-    if game.waveInProgress and not game.bossWaveManager.active: 35
-    elif game.bossWaveManager.active or game.bossWaveManager.coinActive: 32
-    else: 28
+    # Every wave-mode branch also draws a LV/XP bar row, so it is added to all
+    # three budgets. Miss it and the bar hangs below the panel border whenever
+    # nothing else extends the panel -- i.e. exactly when there are no power-ups.
+    COMBINED_XP_BAR_HEIGHT + (
+      if game.waveInProgress and not game.bossWaveManager.active: 35
+      elif game.bossWaveManager.active or game.bossWaveManager.coinActive: 32
+      else: 28)
   else:
     0
 
   let rogueliteInfoHeight = if game.mode == gmRoguelite and game.rogueliteRun != nil:
     # Separator + title + route + LV/XP bar + shards + relics lines.
-    var h: int32 = 47 + 12  # +12 for the LV/XP bar line added below the route
+    var h: int32 = 47 + COMBINED_XP_BAR_HEIGHT  # LV/XP bar line below the route
     if game.rogueliteRun.floor != nil:
       # Minimap rows: must match the cell/gap constants in the drawing block below.
       var minGY = DungeonGridSize
@@ -295,7 +300,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
     # dungeon has.
     if game.mode == gmWaveBased:
       drawLevelXpBar(game, panelX, panelW, yOffset)
-      yOffset += max(12'i32, 9 + 2)
+      yOffset += COMBINED_XP_BAR_HEIGHT
 
     if game.bossWaveManager.active:
       drawText("[X] " & t(tkGameBossFight), panelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
@@ -344,7 +349,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
 
     # Level + XP bar (shared with wave mode -- see drawLevelXpBar).
     drawLevelXpBar(game, panelX, panelW, yOffset)
-    yOffset += max(12'i32, 9 + 2)
+    yOffset += COMBINED_XP_BAR_HEIGHT
 
     # Floor minimap: filled = visited, outline = seen, everything if map found.
     if run.floor != nil:

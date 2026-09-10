@@ -166,7 +166,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   let bodyW = measureText(bodyStr, 18)
   drawText(bodyStr, dx + (DW - bodyW) div 2, dy + tbH + 28, 18, White)
 
-  let subStr = "Unsaved progress will be lost."
+  let subStr = "Your progress will be saved."
   let subW = measureText(subStr, 13)
   drawText(subStr, dx + (DW - subW) div 2, dy + tbH + 58, 13,
            Color(r: 200, g: 150, b: 150, a: 255))
