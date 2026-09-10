@@ -279,7 +279,6 @@ type
     tkStatsPowerUpBreakdown = "stats_power_up_breakdown"
     tkStatsTimeline = "stats_timeline"
     tkStatsEffectivenessRanking = "stats_effectiveness_ranking"
-    tkStatsRank = "stats_rank"
     tkStatsPowerUp = "stats_power_up"
     tkStatsNoDamageData = "stats_no_damage_data"
 
@@ -1306,6 +1305,10 @@ type
     tkStatsHealthConsumable = "stats_health_consumable"
     tkStatsNoHealingData = "stats_no_healing_data"
     tkStatsTotalEarned = "stats_total_earned"
+    tkStatsHealingRanking = "stats_healing_ranking"
+    tkStatsHealingColumnLabel = "stats_healing_column_label"
+    tkStatsSourceColumnLabel = "stats_source_column_label"
+    tkStatsTotalHealed = "stats_total_healed"
 
     # Desktop
     tkDesktopNet = "desktop_net"
@@ -2083,7 +2086,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_power_up_breakdown": "POWER-UP BREAKDOWN",
     "stats_timeline": "TIMELINE",
     "stats_effectiveness_ranking": "EFFECTIVENESS RANKING",
-    "stats_rank": "RANK",
     "stats_power_up": "POWER-UP",
     "stats_no_damage_data": "No damage data available",
 
@@ -2976,6 +2978,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_health_consumable": "Health Consumable",
     "stats_no_healing_data": "No healing data",
     "stats_total_earned": "Total Earned",
+    "stats_healing_ranking": "HEALING SOURCES",
+    "stats_healing_column_label": "HEALED",
+    "stats_source_column_label": "SOURCE",
+    "stats_total_healed": "Total healed",
 
     # Desktop
     "desktop_net": "NET",
@@ -3654,7 +3660,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_power_up_breakdown": "DESGLOSE DE MEJORAS",
     "stats_timeline": "LÍNEA DE TIEMPO",
     "stats_effectiveness_ranking": "CLASIFICACIÓN DE EFECTIVIDAD",
-    "stats_rank": "RANGO",
     "stats_power_up": "MEJORA",
     "stats_no_damage_data": "Sin datos de daño disponibles",
 
@@ -4654,6 +4659,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_health_consumable": "Consumible de Salud",
     "stats_no_healing_data": "Sin datos de curación",
     "stats_total_earned": "Total Ganado",
+    "stats_healing_ranking": "FUENTES DE CURACIÓN",
+    "stats_healing_column_label": "CURADO",
+    "stats_source_column_label": "FUENTE",
+    "stats_total_healed": "Curación total",
 
     # Desktop
     "desktop_net": "RED",

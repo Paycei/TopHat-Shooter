@@ -16,6 +16,39 @@ type
     currentTab*: StatsTab
     stats*: Statistics
     animTime*: float32  # For animations
+    ## One scroll offset per list in the Power-Ups tab, in pixels:
+    ## 0 = timeline, 1 = damage ranking, 2 = healing sources. Indexed so the
+    ## wheel handler can clamp all three in a single loop against
+    ## powerUpListGeometry / powerUpRowCounts.
+    powerUpScroll*: array[3, int]
+
+  ## Geometry of one scrollable list in the Power-Ups tab. Computed by
+  ## powerUpListGeometry so the wheel hit-test (update) and the rendering (draw)
+  ## can never disagree about where a list actually lives on screen.
+  PowerUpListGeom* = object
+    panelX*, panelY*, panelW*, panelH*: int
+    listY*, listH*: int      # inner viewport, below the pinned column header
+    footerY*, footerH*: int  # pinned total row at the panel bottom (0 = none)
+
+const
+  PowerUpRowHeight = 18
+  PowerUpScrollStep = PowerUpRowHeight * 3  # one wheel notch = three rows
+  ## Column offsets inside a ranking panel, measured back from its right edge.
+  ## The numeric columns are right-aligned at fixed insets and the name column
+  ## takes whatever is left, because the widest power-up name is 164px at 13px
+  ## ("PROTOCOLO_SECTOR.exe" in Spanish) and a fixed left-aligned value column
+  ## narrow enough to fit three columns would have been overwritten by it.
+  RankColInset = 12       # left edge of the "1." rank marker
+  NameColInset = 40       # left edge of the name/source column
+  PercentColRight = 14    # right edge of the share-of-total percentage
+  ValueColRight = 59      # right edge of the damage/healing figure
+  ValueColMaxWidth = 46   # widest figure ("999.9K") plus its gutter
+  ScrollbarInset = 6      # left edge of the 3px scrollbar track
+  LevelTagWidth = 36      # right-hand "Lvl 3" slot in the timeline panel
+  ## Height of the "POWER-UP BREAKDOWN" title plus the summary line above the
+  ## three panels. Shared by the layout and the draw pass so moving one cannot
+  ## silently overlap the other.
+  PowerUpHeaderBlockH = 85
 
 # HELPER PROCS (FORMATTING)
 proc formatPercent*(value: float32): string =
@@ -42,6 +75,101 @@ proc getQualityColor*(value: float32, threshold: float32 = 50.0): Color =
   else:
     return Color(r: 255, g: 80, b: 80, a: 255)
 
+# POWER-UP TAB DATA + GEOMETRY
+# Both the update pass (wheel hit-testing, scroll clamping) and the draw pass
+# need the same three lists and the same three rectangles. They are built here
+# once per call rather than inlined into the draw proc, so the two passes cannot
+# drift apart -- a scrollbar that clamps against a different row count than the
+# one being drawn is the classic way these lists end up unreachable at the end.
+
+proc buildDamageRanking*(runStats: RunStatistics): seq[(PowerUpType, float32)] =
+  ## Power-ups that dealt damage this run, highest first.
+  result = @[]
+  for ptype, damage in runStats.powerUps.damageContribution:
+    if damage > 0:
+      result.add((ptype, damage))
+  if result.len > 1:
+    result.sort(proc (a, b: (PowerUpType, float32)): int = cmp(b[1], a[1]))
+
+proc buildHealingSources*(runStats: RunStatistics): seq[(string, float32)] =
+  ## Every source that restored HP this run, highest first. Power-up healing is
+  ## tracked exactly (recordPowerUpHealing); health consumables are reconstructed
+  ## from the pickup count times the same formula the pickup itself uses.
+  result = @[]
+  for ptype, amount in runStats.powerUps.healingContribution:
+    if amount > 0:
+      result.add((getPowerUpName(ptype), amount))
+  let consumableHealing = float32(runStats.resources.healthConsumablesUsed) *
+                          (0.75'f32 + 0.025'f32 * runStats.finalMaxHP)
+  if consumableHealing > 0:
+    result.add((t(tkStatsHealthConsumable), consumableHealing))
+  if result.len > 1:
+    result.sort(proc (a, b: (string, float32)): int = cmp(b[1], a[1]))
+
+proc powerUpListGeometry*(window: OSWindow): array[3, PowerUpListGeom] =
+  ## Three equal columns -- timeline, damage ranking, healing sources -- filling
+  ## the tab body below the title/summary header block.
+  let contentX = window.x + WINDOW_PADDING
+  let contentY = window.y + TITLE_BAR_HEIGHT + 10
+  let contentW = window.width - WINDOW_PADDING * 2
+  let contentH = window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING
+  let tabContentY = contentY + 35 + 10
+  let tabContentH = contentH - 35 - 20
+
+  let panelY = tabContentY + PowerUpHeaderBlockH
+  let panelH = max(120, tabContentY + tabContentH - 12 - panelY)
+  let colW = (contentW - 48) div 3
+
+  for i in 0 .. 2:
+    # The two ranking panels pin a column header at the top and a total at the
+    # bottom; the timeline scrolls its whole body.
+    let headerH = if i == 0: 0 else: 20
+    let footerH = if i == 0: 0 else: 22
+    let listY = panelY + 36 + headerH
+    let listH = max(PowerUpRowHeight, panelH - 36 - headerH - footerH - 8)
+    result[i] = PowerUpListGeom(
+      panelX: contentX + 12 + i * (colW + 12),
+      panelY: panelY,
+      panelW: colW,
+      panelH: panelH,
+      listY: listY,
+      listH: listH,
+      # Derived from the list bottom, not the panel bottom, so the footer's
+      # divider rule can never be drawn over the last visible row.
+      footerY: listY + listH + 6,
+      footerH: footerH)
+
+proc powerUpRowCounts*(runStats: RunStatistics): array[3, int] =
+  ## Row count of each list, used to derive the maximum scroll offset.
+  if runStats.isNil:
+    return [0, 0, 0]
+  [runStats.powerUps.powerUpsChosen.len,
+   buildDamageRanking(runStats).len,
+   buildHealingSources(runStats).len]
+
+proc rankingColumns*(g: PowerUpListGeom):
+    tuple[rankX, nameX, nameMax, valueRight, percentRight, scrollbarX: int] =
+  ## Column x-positions shared by the damage and healing ranking panels. Both
+  ## panels are the same table shape, so the offsets live here once -- and the
+  ## layout can be checked without rendering a frame.
+  let valueRight = g.panelX + g.panelW - ValueColRight
+  (rankX: g.panelX + RankColInset,
+   nameX: g.panelX + NameColInset,
+   nameMax: valueRight - ValueColMaxWidth - (g.panelX + NameColInset),
+   valueRight: valueRight,
+   percentRight: g.panelX + g.panelW - PercentColRight,
+   scrollbarX: g.panelX + g.panelW - ScrollbarInset)
+
+proc timelineColumns*(g: PowerUpListGeom):
+    tuple[timeX, nameX, nameMax, levelRight, scrollbarX: int] =
+  ## Column x-positions for the pick-timeline panel.
+  let levelRight = g.panelX + g.panelW - PercentColRight
+  (timeX: g.panelX + 10,
+   nameX: g.panelX + 48,
+   nameMax: levelRight - LevelTagWidth - (g.panelX + 48),
+   levelRight: levelRight,
+   scrollbarX: g.panelX + g.panelW - ScrollbarInset)
+
 proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWindow =
   let windowWidth = 1000
   let windowHeight = 700
@@ -61,7 +189,8 @@ proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWi
     window: osWin,
     currentTab: stLifetime,
     stats: stats,
-    animTime: 0
+    animTime: 0,
+    powerUpScroll: [0, 0, 0]
   )
 
 proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
@@ -81,6 +210,31 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
     if isKeyPressed(Two): statsWin.currentTab = stLastRun
     if isKeyPressed(Three): statsWin.currentTab = stPowerUps
     if isKeyPressed(Four): statsWin.currentTab = stRoguelite
+
+  # Power-Up tab list scrolling. The wheel is not a click, so this runs outside
+  # the handledClickThisFrame gate -- but it still has to respect stacking order,
+  # or scrolling a window buried under another would steal the gesture.
+  if not statsWin.window.minimized and statsWin.currentTab == stPowerUps and
+     hasLastRunStats():
+    let runStats = getLastRunStats()
+    let geoms = powerUpListGeometry(statsWin.window)
+    let counts = powerUpRowCounts(runStats)
+    let wheelPos = getVirtualMousePosition()
+    let wheel = getPointerWheelMove()
+    let overWindow = isWindowTopmostAtPoint(statsWin.window, wheelPos.x, wheelPos.y,
+                                            allWindows)
+    for i in 0 .. 2:
+      let g = geoms[i]
+      let maxScroll = max(0, counts[i] * PowerUpRowHeight - g.listH)
+      if wheel != 0 and overWindow:
+        # Hit-test the whole panel, not just the clipped viewport, so the wheel
+        # still works when the pointer sits over the pinned header or footer.
+        let panelRect = Rectangle(x: g.panelX.float32, y: g.panelY.float32,
+                                  width: g.panelW.float32, height: g.panelH.float32)
+        if checkCollisionPointRec(wheelPos, panelRect):
+          statsWin.powerUpScroll[i] =
+            statsWin.powerUpScroll[i] - int(wheel * PowerUpScrollStep.float32)
+      statsWin.powerUpScroll[i] = clamp(statsWin.powerUpScroll[i], 0, maxScroll)
 
   # Only process content clicks if THIS window handled the click in handleOSWindowInput
   if not statsWin.window.minimized and statsWin.window.handledClickThisFrame:
@@ -166,6 +320,42 @@ proc drawStatPanel*(x, y, width, height: int, title: string) =
   drawRectangle(x.int32, y.int32, width.int32, 28,
                Color(r: 35, g: 35, b: 45, a: 255))
   drawText(title, (x + 8).int32, (y + 6).int32, 14, Color(r: 0, g: 180, b: 255, a: 255))
+
+proc fitText*(text: string, maxWidth: int, fontSize: int32 = 13): string =
+  ## Text truncated with ".." until it fits maxWidth. Guards the name columns:
+  ## a long power-up name (or a wider Spanish translation of a future one) must
+  ## never smear across the right-aligned figures next to it. ASCII ".." rather
+  ## than a single ellipsis character because the raylib default font stops at
+  ## U+00FF and has no ellipsis glyph.
+  if maxWidth <= 0:
+    return ""
+  if measureText(text, fontSize) <= maxWidth.int32:
+    return text
+  var cut = text.len
+  while cut > 0:
+    dec cut
+    # Never cut inside a multi-byte UTF-8 sequence -- the Spanish tables carry
+    # accented characters and half a codepoint renders as garbage.
+    while cut > 0 and (text[cut].uint8 and 0xC0'u8) == 0x80'u8:
+      dec cut
+    let candidate = text[0 ..< cut] & ".."
+    if measureText(candidate, fontSize) <= maxWidth.int32:
+      return candidate
+  result = ""
+
+proc drawListScrollbar*(x, y, height: int, scrollOffset, contentHeight, viewportHeight: int) =
+  ## Thin track + proportional thumb along a list's right edge. Nothing is drawn
+  ## when everything already fits, so short lists stay visually clean.
+  if contentHeight <= viewportHeight or height <= 0:
+    return
+  let maxScroll = max(1, contentHeight - viewportHeight)
+  # Thumb length is the visible fraction, so a long list reads as long instead of
+  # hiding how much is still below the fold behind a fixed-size thumb.
+  let thumbH = max(20, int(height.float32 * viewportHeight.float32 / contentHeight.float32))
+  let travel = max(0, height - thumbH)
+  let thumbY = y + int(travel.float32 * (clamp(scrollOffset, 0, maxScroll).float32 / maxScroll.float32))
+  drawRectangle(x.int32, y.int32, 3, height.int32, Color(r: 40, g: 40, b: 55, a: 255))
+  drawRectangle(x.int32, thumbY.int32, 3, thumbH.int32, Color(r: 0, g: 180, b: 255, a: 220))
 
 proc drawStatLine*(x, y: int, label: string, value: string, valueColor: Color = White) =
   ## Draw a single stat line
@@ -588,9 +778,10 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
   of stPowerUps:
     if hasLastRun:
       let runStats = getLastRunStats()
+      # Title + summary fill the top PowerUpHeaderBlockH pixels of the tab body;
+      # powerUpListGeometry starts the panels immediately below that.
       var y = tabContentY + 20
 
-      # Header with summary
       drawText(t(tkStatsPowerUpBreakdown), (contentX + 20).int32, y.int32, 24, Color(r: 255, g: 200, b: 50, a: 255))
       y += 30
 
@@ -598,108 +789,160 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                        $runStats.powerUps.legendaryPowerUps & " " & t(tkStatsLegendaryCount) & " | " &
                        $runStats.powerUps.commonPowerUps & " " & t(tkStatsCommonCount)
       drawText(summaryText, (contentX + 20).int32, y.int32, 16, LightGray)
-      y += 35
 
-      # Two columns: Timeline and Effectiveness
-      let col1Width = (contentW - 36) div 2
-      let col1X = contentX + 12
-      let col2X = col1X + col1Width + 12
+      # Three independently scrollable columns: what was picked, what it dealt,
+      # and what it healed. Geometry comes from the same proc the wheel handler
+      # uses, so hit-testing and rendering stay in lockstep.
+      let geoms = powerUpListGeometry(statsWin.window)
+      let headerColor = Color(r: 0, g: 180, b: 255, a: 255)
+      let healColor = Color(r: 80, g: 255, b: 160, a: 255)
 
-      # Power-Up Timeline
-      drawStatPanel(col1X, y, col1Width, 400, t(tkStatsTimeline))
-      var lineY = y + 36
+      # --- Column 1: pick timeline ---------------------------------------
+      block timelineColumn:
+        let g = geoms[0]
+        drawStatPanel(g.panelX, g.panelY, g.panelW, g.panelH, t(tkStatsTimeline))
+        let picks = runStats.powerUps.powerUpsChosen
+        if picks.len == 0:
+          drawText(t(tkStatsNoPowerUpsSelected), (g.panelX + 10).int32, g.listY.int32, 14, Gray)
+          break timelineColumn
 
-      if runStats.powerUps.powerUpsChosen.len > 0:
-        for i, choice in runStats.powerUps.powerUpsChosen:
-          if lineY > y + 380: break
+        let col = timelineColumns(g)
+        let contentH = picks.len * PowerUpRowHeight
+        let scroll = clamp(statsWin.powerUpScroll[0], 0, max(0, contentH - g.listH))
 
-          let timestamp = formatDuration(choice[0])
+        beginVirtualScissorMode((g.panelX + 2).int32, g.listY.int32,
+                                (g.panelW - 4).int32, g.listH.int32)
+        for i, choice in picks:
+          let rowY = g.listY + i * PowerUpRowHeight - scroll
+          if rowY + PowerUpRowHeight <= g.listY or rowY >= g.listY + g.listH:
+            continue
           let powerup = choice[1]
-          let powerupName = getPowerUpName(powerup.powerType)
-
           let rarityColor = if powerup.rarity == prLegendary: Gold else: White
+          drawText(formatDuration(choice[0]), col.timeX.int32, rowY.int32, 13, LightGray)
+          drawText(fitText(getPowerUpName(powerup.powerType), col.nameMax),
+                  col.nameX.int32, rowY.int32, 13, rarityColor)
+          let levelText = t(tkStatsLevelPrefix) & $powerup.level
+          drawText(levelText, (col.levelRight - measureText(levelText, 13)).int32,
+                  rowY.int32, 13, Orange)
+        endScissorMode()
 
-          drawText(timestamp, (col1X + 10).int32, lineY.int32, 13, LightGray)
-          drawText(powerupName, (col1X + 80).int32, lineY.int32, 13, rarityColor)
-          drawText(t(tkStatsLevelPrefix) & $powerup.level, (col1X + col1Width - 50).int32, lineY.int32, 13, Orange)
-          lineY += 18
-      else:
-        drawText(t(tkStatsNoPowerUpsSelected), (col1X + 10).int32, lineY.int32, 14, Gray)
+        drawListScrollbar(col.scrollbarX, g.listY, g.listH, scroll, contentH, g.listH)
 
-      # Effectiveness Ranking
-      drawStatPanel(col2X, y, col1Width, 400, t(tkStatsEffectivenessRanking))
-      lineY = y + 36
+      # --- Column 2: damage contribution ---------------------------------
+      block damageColumn:
+        let g = geoms[1]
+        drawStatPanel(g.panelX, g.panelY, g.panelW, g.panelH, t(tkStatsEffectivenessRanking))
+        let ranking = buildDamageRanking(runStats)
+        if ranking.len == 0:
+          drawText(t(tkStatsNoDamageData), (g.panelX + 10).int32, (g.panelY + 36).int32, 14, Gray)
+          break damageColumn
 
-      # Sort by damage contribution
-      var contributions: seq[(PowerUpType, float32)] = @[]
-      for ptype, damage in runStats.powerUps.damageContribution:
-        contributions.add((ptype, damage))
+        let col = rankingColumns(g)
+        let headerY = g.panelY + 36
+        drawText("#", col.rankX.int32, headerY.int32, 12, headerColor)
+        drawText(fitText(t(tkStatsPowerUp), col.nameMax, 12), col.nameX.int32, headerY.int32, 12, headerColor)
+        let dmgHeader = t(tkStatsDamageColumnLabel)
+        drawText(dmgHeader, (col.valueRight - measureText(dmgHeader, 12)).int32,
+                headerY.int32, 12, headerColor)
 
-      # Sort by damage (descending) using efficient built-in sort
-      if contributions.len > 1:
-        contributions.sort(proc (a, b: (PowerUpType, float32)): int =
-          cmp(b[1], a[1])  # Descending order: b[1] compared to a[1]
-        )
+        var totalDamage = 0.0'f32
+        for entry in ranking:
+          totalDamage += entry[1]
 
-      if contributions.len > 0:
-        drawText(t(tkStatsRank), (col2X + 10).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
-        drawText(t(tkStatsPowerUp), (col2X + 50).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
-        drawText(t(tkStatsDamageColumnLabel), (col2X + 180).int32, lineY.int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
-        lineY += 20
+        let contentH = ranking.len * PowerUpRowHeight
+        let scroll = clamp(statsWin.powerUpScroll[1], 0, max(0, contentH - g.listH))
 
-        var sumContrib = 0.0'f32
-        for contrib in contributions:
-          sumContrib += contrib[1]
-
-        for i, contrib in contributions:
-          if lineY > y + 380: break
-
+        beginVirtualScissorMode((g.panelX + 2).int32, g.listY.int32,
+                                (g.panelW - 4).int32, g.listH.int32)
+        for i, entry in ranking:
+          let rowY = g.listY + i * PowerUpRowHeight - scroll
+          if rowY + PowerUpRowHeight <= g.listY or rowY >= g.listY + g.listH:
+            continue
           let rank = i + 1
-          let ptype = contrib[0]
-          let damage = contrib[1]
-          let percent = if sumContrib > 0: (damage / sumContrib) * 100.0 else: 0.0
-
+          let percent = if totalDamage > 0: (entry[1] / totalDamage) * 100.0 else: 0.0
           let medalColor = case rank
             of 1: Gold
             of 2: Color(r: 192, g: 192, b: 192, a: 255)
             of 3: Color(r: 205, g: 127, b: 50, a: 255)
             else: White
 
-          drawText($rank & ".", (col2X + 15).int32, lineY.int32, 13, medalColor)
-          drawText(getPowerUpName(ptype), (col2X + 50).int32, lineY.int32, 13, White)
-          # Multiply damage by BALANCE_MULTIPLIER for display (keep as large number)
-          drawText(formatLargeNumber(damage * BALANCE_MULTIPLIER), (col2X + 180).int32, lineY.int32, 13, Color(r: 0, g: 180, b: 255, a: 255))
-          drawText(formatPercent(percent), (col2X + col1Width - 50).int32, lineY.int32, 13,
-                  getQualityColor(percent, 10.0))
+          drawText($rank & ".", col.rankX.int32, rowY.int32, 13, medalColor)
+          drawText(fitText(getPowerUpName(entry[0]), col.nameMax), col.nameX.int32, rowY.int32, 13, White)
+          # Damage is stored in internal units; BALANCE_MULTIPLIER scales it to
+          # the same numbers the floating damage text shows in-game.
+          let valueText = formatLargeNumber(entry[1] * BALANCE_MULTIPLIER)
+          drawText(valueText, (col.valueRight - measureText(valueText, 13)).int32,
+                  rowY.int32, 13, headerColor)
+          let percentText = formatPercent(percent)
+          drawText(percentText, (col.percentRight - measureText(percentText, 13)).int32,
+                  rowY.int32, 13, getQualityColor(percent, 10.0))
+        endScissorMode()
 
-          lineY += 18
-      else:
-        drawText(t(tkStatsNoDamageData), (col2X + 10).int32, lineY.int32, 14, Gray)
+        drawListScrollbar(col.scrollbarX, g.listY, g.listH, scroll, contentH, g.listH)
 
-      # Healing Sources sub-section
-      lineY += 28
-      drawText(t(tkStatsHealingSources), (col2X + 10).int32, lineY.int32, 14, Color(r: 80, g: 255, b: 160, a: 255))
-      lineY += 20
+        drawRectangle((g.panelX + 8).int32, (g.footerY - 5).int32,
+                     (g.panelW - 16).int32, 1, Color(r: 70, g: 70, b: 90, a: 255))
+        drawText(t(tkStatsTotal), col.rankX.int32, (g.footerY + 3).int32, 13, LightGray)
+        let damageTotalText = formatLargeNumber(totalDamage * BALANCE_MULTIPLIER)
+        drawText(damageTotalText, (col.percentRight - measureText(damageTotalText, 13)).int32,
+                (g.footerY + 3).int32, 13, headerColor)
 
-      # Build combined list: power-up healing + health consumable healing
-      var healList: seq[(string, float32)] = @[]
-      for ptype, amount in runStats.powerUps.healingContribution:
-        if amount > 0:
-          healList.add((getPowerUpName(ptype), amount))
-      let consumableHealing = float32(runStats.resources.healthConsumablesUsed) *
-                              (0.75'f32 + 0.025'f32 * runStats.finalMaxHP)
-      if consumableHealing > 0:
-        healList.add((t(tkStatsHealthConsumable), consumableHealing))
-      healList.sort(proc(a, b: (string, float32)): int = cmp(b[1], a[1]))
+      # --- Column 3: healing sources -------------------------------------
+      block healingColumn:
+        let g = geoms[2]
+        drawStatPanel(g.panelX, g.panelY, g.panelW, g.panelH, t(tkStatsHealingRanking))
+        let healList = buildHealingSources(runStats)
+        if healList.len == 0:
+          drawText(t(tkStatsNoHealingData), (g.panelX + 10).int32, (g.panelY + 36).int32, 14, Gray)
+          break healingColumn
 
-      if healList.len > 0:
-        for hc in healList:
-          if lineY > tabContentY + tabContentH - 20: break
-          drawText(hc[0], (col2X + 10).int32, lineY.int32, 13, Color(r: 80, g: 255, b: 160, a: 255))
-          drawText(formatLargeNumber(hc[1] * BALANCE_MULTIPLIER), (col2X + 180).int32, lineY.int32, 13, Color(r: 80, g: 255, b: 160, a: 255))
-          lineY += 18
-      else:
-        drawText(t(tkStatsNoHealingData), (col2X + 10).int32, lineY.int32, 13, Gray)
+        let col = rankingColumns(g)
+        let headerY = g.panelY + 36
+        drawText("#", col.rankX.int32, headerY.int32, 12, healColor)
+        drawText(fitText(t(tkStatsSourceColumnLabel), col.nameMax, 12), col.nameX.int32, headerY.int32, 12, healColor)
+        let healHeader = t(tkStatsHealingColumnLabel)
+        drawText(healHeader, (col.valueRight - measureText(healHeader, 12)).int32,
+                headerY.int32, 12, healColor)
+
+        var totalHealing = 0.0'f32
+        for entry in healList:
+          totalHealing += entry[1]
+
+        let contentH = healList.len * PowerUpRowHeight
+        let scroll = clamp(statsWin.powerUpScroll[2], 0, max(0, contentH - g.listH))
+
+        beginVirtualScissorMode((g.panelX + 2).int32, g.listY.int32,
+                                (g.panelW - 4).int32, g.listH.int32)
+        for i, entry in healList:
+          let rowY = g.listY + i * PowerUpRowHeight - scroll
+          if rowY + PowerUpRowHeight <= g.listY or rowY >= g.listY + g.listH:
+            continue
+          let rank = i + 1
+          let percent = if totalHealing > 0: (entry[1] / totalHealing) * 100.0 else: 0.0
+          let medalColor = case rank
+            of 1: Gold
+            of 2: Color(r: 192, g: 192, b: 192, a: 255)
+            of 3: Color(r: 205, g: 127, b: 50, a: 255)
+            else: White
+
+          drawText($rank & ".", col.rankX.int32, rowY.int32, 13, medalColor)
+          drawText(fitText(entry[0], col.nameMax), col.nameX.int32, rowY.int32, 13, White)
+          let valueText = formatLargeNumber(entry[1] * BALANCE_MULTIPLIER)
+          drawText(valueText, (col.valueRight - measureText(valueText, 13)).int32,
+                  rowY.int32, 13, healColor)
+          let percentText = formatPercent(percent)
+          drawText(percentText, (col.percentRight - measureText(percentText, 13)).int32,
+                  rowY.int32, 13, getQualityColor(percent, 10.0))
+        endScissorMode()
+
+        drawListScrollbar(col.scrollbarX, g.listY, g.listH, scroll, contentH, g.listH)
+
+        drawRectangle((g.panelX + 8).int32, (g.footerY - 5).int32,
+                     (g.panelW - 16).int32, 1, Color(r: 70, g: 70, b: 90, a: 255))
+        drawText(t(tkStatsTotalHealed), col.rankX.int32, (g.footerY + 3).int32, 13, LightGray)
+        let healTotalText = formatLargeNumber(totalHealing * BALANCE_MULTIPLIER)
+        drawText(healTotalText, (col.percentRight - measureText(healTotalText, 13)).int32,
+                (g.footerY + 3).int32, 13, healColor)
     else:
       let y = tabContentY + tabContentH div 2 - 20
       drawText(t(tkGameNoPowerUpData),
