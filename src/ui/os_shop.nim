@@ -16,13 +16,26 @@ const
   BUY_BTN_W: int32 = 220
   BUY_BTN_H: int32 = 38
   SHOP_COST_MULTIPLIER = 1.8'f32
-  SHOP_DAMAGE_GAIN = 0.32'f32
-  SHOP_DAMAGE_SCALE = 1.06'f32
-  SHOP_FIRE_RATE_GAIN = 0.075'f32
-  SHOP_FIRE_RATE_EXPONENT = 0.42'f32
+  # Damage per purchase grows with SHOP_DAMAGE_SCALE (>1), so later buys stay
+  # meaningful -- but that same compounding is what runs the DPS curve away in
+  # deep runs, so a nerf moves the scale together with the flat gain.
+  SHOP_DAMAGE_GAIN = 0.30'f32
+  SHOP_DAMAGE_SCALE = 1.055'f32
+  # Fire rate diminishes on its own (applyFireRateDiminished in types.nim): a
+  # HIGHER exponent steepens the falloff once fireRate drops below the 0.415
+  # pivot, trimming deep stacks while barely touching the first purchase.
+  SHOP_FIRE_RATE_GAIN = 0.072'f32
+  SHOP_FIRE_RATE_EXPONENT = 0.44'f32
   SHOP_FIRE_RATE_CAP = 0.09'f32
   SHOP_MOVE_SPEED_GAIN = 15.0'f32
-  SHOP_HEALTH_GAIN_BASE = 6
+  # Max-HP per purchase. Measured against the other slots, this was the shop's
+  # clear outlier: ~3x more base-multiples per coin than damage at every
+  # purchase depth, because the gain ACCELERATED (6 + n) on a base pool of only
+  # 9 HP, so the first buy alone was +78% max HP for 14 coins. Seven purchases
+  # were +70 HP -- around two thirds of the entire pre-scaling pool, and the
+  # main reason a built player stopped being killable. The growth term is now
+  # halved so deep stacks flatten out; the first purchase is barely touched.
+  SHOP_HEALTH_GAIN_BASE = 5
   SHOP_BULLET_SPEED_GAIN = 10.0'f32
   SHOP_WALL_GAIN = 10
   # Base costs per shop slot (damage, fire rate, move speed, max hp, bullet
@@ -164,7 +177,7 @@ proc shopDamageGain*(purchaseNumber: int): float32 =
   SHOP_DAMAGE_GAIN * pow(SHOP_DAMAGE_SCALE, max(0, purchaseNumber - 1).float32)
 
 proc shopHealthGain*(purchaseNumber: int): int =
-  SHOP_HEALTH_GAIN_BASE + purchaseNumber
+  SHOP_HEALTH_GAIN_BASE + purchaseNumber div 2
 
 proc applyShopPurchaseEffect*(game: Game, index: int, purchaseNumber: int, healHealth: bool = true) =
   case index

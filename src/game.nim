@@ -609,8 +609,19 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         # the handful it replaced. Half-rebate means a swarm IS meaningfully
         # more threatening than the old sparse wave -- that is where the
         # difficulty moved to -- without being a wall.
-        let densityDmgRebate = 0.5'f32 + 0.5'f32 * waveDensityRebate(wave)
-        let dmgScale = pow(1.005'f32, statWave) * densityDmgRebate
+        # Threat growth. Raised from 1.005 after measurement: at wave 40 the old
+        # curve left per-enemy damage at 0.77x its BASE value (1.005^34.6 = 1.19,
+        # times the density rebate) while the player's max HP had grown ~16x.
+        # A measured run took 337 hits averaging 4.2 damage against a 147 HP
+        # pool -- 2.9% of the bar per hit, i.e. no hit ever mattered. Enemies
+        # need to scale as a threat even though they are deliberately NOT
+        # scaling as hit points (see the 1.006 HP curve above).
+        #
+        # The density rebate is also less generous now: two thirds of per-enemy
+        # damage is kept rather than half, because a crowd is where the
+        # difficulty was moved to and it was not landing hard enough.
+        let densityDmgRebate = 0.65'f32 + 0.35'f32 * waveDensityRebate(wave)
+        let dmgScale = pow(1.012'f32, statWave) * densityDmgRebate
         enemy.contactDamage *= dmgScale
         enemy.rangedDamage *= dmgScale
 
@@ -2659,8 +2670,25 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         if game.player.hasBountiful:
           game.player.bountifulKillCounter += 1
 
-          # Every 15th kill: jackpot burst, 3 consumables scattered around the enemy
-          if game.player.bountifulKillCounter >= 15:
+          # Every Nth kill: jackpot burst, 3 consumables scattered around the enemy.
+          #
+          # The interval is density-normalised (wave mode), the same way Life
+          # Steal's is, and for the same reason: this fires on a KILL COUNT, so
+          # the ~4x head count made it fire ~4x per wave. It is also the reason
+          # the earlier drop-CHANCE rebate barely moved anything -- a measured
+          # wave-40 run collected 503 consumables and this guaranteed path
+          # produced 486 of them (97%), which dwarfed the random rolls the
+          # rebate was scaling. Stretching the interval instead of shrinking the
+          # payout keeps the jackpot a jackpot: still 3 pickups and the full
+          # golden burst, just at the per-wave rate the power-up was tuned for.
+          var bountifulInterval = 15
+          let bountifulScale =
+            if game.mode == gmWaveBased: waveDensityRebate(game.currentWave)
+            else: 1.0'f32
+          if bountifulScale > 0.0'f32:
+            bountifulInterval = max(bountifulInterval,
+                                    int(bountifulInterval.float32 / bountifulScale))
+          if game.player.bountifulKillCounter >= bountifulInterval:
             game.player.bountifulKillCounter = 0
             for j in 0..<3:
               let scatter = float32(j) * (PI * 2.0'f32 / 3.0'f32)
