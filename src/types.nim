@@ -1034,6 +1034,17 @@ type
     fromPlayer*: bool       # True if player dealt damage, false if enemy dealt damage
     isCritical*: bool       # True for critical hits (larger, different color)
     damageType*: DamageType # Type of damage for color coding
+    # --- Randomized arc (rolled in particle.nim, stepped by stepFloatMotion).
+    # Every floating label gets its own launch, weight and wobble so two hits
+    # on the same target never trace the same path.
+    gravity*: float32       # Downward pull, jittered per label
+    drag*: float32          # Horizontal damping base, applied per 60fps frame
+    rotation*: float32      # Current tilt in degrees
+    spin*: float32          # Tilt velocity in deg/s, decays as the arc settles
+    swayPhase*: float32     # Wobble phase offset so labels never drift in sync
+    swaySpeed*: float32     # Wobble frequency in rad/s
+    swayAmount*: float32    # Wobble amplitude in px/s
+    sizeScale*: float32     # Per-label size jitter
 
   CurrencyIndicatorKind* = enum
     cikCredits,
@@ -1048,6 +1059,17 @@ type
     lifetime*: float32
     maxLifetime*: float32
     kind*: CurrencyIndicatorKind
+    # --- Randomized arc (rolled in particle.nim, stepped by stepFloatMotion).
+    # Every floating label gets its own launch, weight and wobble so two hits
+    # on the same target never trace the same path.
+    gravity*: float32       # Downward pull, jittered per label
+    drag*: float32          # Horizontal damping base, applied per 60fps frame
+    rotation*: float32      # Current tilt in degrees
+    spin*: float32          # Tilt velocity in deg/s, decays as the arc settles
+    swayPhase*: float32     # Wobble phase offset so labels never drift in sync
+    swaySpeed*: float32     # Wobble frequency in rad/s
+    swayAmount*: float32    # Wobble amplitude in px/s
+    sizeScale*: float32     # Per-label size jitter
 
   PerkIndicator* = ref object
     ## Floating "+SHIELD" / "+SPEED" style label shown when the player picks up
@@ -1058,6 +1080,17 @@ type
     color*: Color            # Tint for the text
     lifetime*: float32       # How long the indicator has existed
     maxLifetime*: float32    # Total duration before disappearing
+    # --- Randomized arc (rolled in particle.nim, stepped by stepFloatMotion).
+    # Every floating label gets its own launch, weight and wobble so two hits
+    # on the same target never trace the same path.
+    gravity*: float32       # Downward pull, jittered per label
+    drag*: float32          # Horizontal damping base, applied per 60fps frame
+    rotation*: float32      # Current tilt in degrees
+    spin*: float32          # Tilt velocity in deg/s, decays as the arc settles
+    swayPhase*: float32     # Wobble phase offset so labels never drift in sync
+    swaySpeed*: float32     # Wobble frequency in rad/s
+    swayAmount*: float32    # Wobble amplitude in px/s
+    sizeScale*: float32     # Per-label size jitter
 
   LightningBolt* = ref object
     ## A short-lived jagged lightning arc drawn between two world positions.
