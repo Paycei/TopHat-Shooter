@@ -159,7 +159,8 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
   # Stage pills + asset counter
   var pillX = contentX
   let stageOrd = screen.stage.ord
-  for i, label in [t(tkLoadingStageSfx), t(tkLoadingStageMusic), t(tkLoadingStageMemory)]:
+  for i, label in [t(tkLoadingStageSfx), t(tkLoadingStageMusic),
+                   t(tkLoadingStageMemory)]:
     let state = if i < stageOrd: 2 elif i == stageOrd: 1 else: 0
     pillX += drawStagePill(pillX, y, label, state, screen.animTime) + 8
 

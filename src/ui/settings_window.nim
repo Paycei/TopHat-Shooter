@@ -732,29 +732,78 @@ proc nextControllerSelection(preferred: int): int =
       break
   choices[(ci + 1) mod choices.len]
 
+# --- Controls tab layout -------------------------------------------------
+# The Controls tab is the tallest tab and its vertical budget (~405px of tab
+# content) is fully spent, so the row offsets are computed ONCE here and read by
+# both the draw pass and the click handling. Previously both sides hardcoded the
+# same numbers and drifted apart; keep every offset in this proc.
+const
+  ClKbBtnW* = 120
+  ClKbBtnH* = 20
+  ClKbRowStride* = 22
+  ClResetBtnW* = 160
+  ClResetBtnH* = 26
+  ClBondingBtnW* = 220
+  ClBondingBtnH* = 35
+  ClPadSelW* = 260
+  ClPadSelH* = 35
+
+type
+  ControlsLayout* = object
+    inputHeaderY*: int
+    bondingLabelY*: int
+    bondingDescY*: int
+    padLabelY*: int
+    padDescY*: int
+    kbHeaderY*: int
+    kbRowsY*: int
+    resetY*: int
+    note1Y*: int
+    note2Y*: int
+
+proc controlsLayout*(contentY: int): ControlsLayout =
+  var y = contentY + 10
+  result.inputHeaderY = y
+  y += 28
+  result.bondingLabelY = y
+  # 24/24 rather than 30/18: the caption has to read as belonging to the row
+  # ABOVE it, so the gap under it must be the larger of the two.
+  y += 24
+  result.bondingDescY = y
+  y += 24
+  result.padLabelY = y
+  y += 24
+  result.padDescY = y
+  y += 24
+  result.kbHeaderY = y
+  y += 28
+  result.kbRowsY = y
+  y += (KeyAction.high.ord + 1) * ClKbRowStride + 6
+  result.resetY = y
+  y += ClResetBtnH + 4
+  result.note1Y = y
+  y += 14
+  result.note2Y = y
+
 proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
-  # Vertical budget is tight (tab content is ~405px): every spacing constant here
-  # is mirrored by hardcoded offsets in handleSettingsInput (bondingButtonY,
-  # padSelY, kbYBase, the 23px row stride, resetBtnY). Change both together.
-  var yPos = contentY + 12
-
-  # Section: Input Method
-  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionInputMethod), '>',
-                   Color(r: 200, g: 100, b: 255, a: 255))
-  yPos += 30
-
+  # All vertical offsets come from controlsLayout so the click handling in
+  # handleSettingsInput reads the exact same numbers.
+  let lay = controlsLayout(contentY)
   let mousePos = getVirtualMousePosition()
 
+  # Section: Input Method
+  drawSectionHeader(contentX + 20, lay.inputHeaderY, contentW - 40,
+                   t(tkSettingsSectionInputMethod), '>',
+                   Color(r: 200, g: 100, b: 255, a: 255))
+
   # Mouse Bonding
-  drawText(t(tkSettingsMouseBonding), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsMouseBonding), (contentX + 40).int32, lay.bondingLabelY.int32, 18, White)
   let bondingButtonX = contentX + 320
-  let bondingButtonY = yPos - 5
-  let bondingButtonWidth = 220
-  let bondingButtonHeight = 35
+  let bondingButtonY = lay.bondingLabelY - 5
   let bondingHovered = mousePos.x >= bondingButtonX.float32 and
-                       mousePos.x <= (bondingButtonX + bondingButtonWidth).float32 and
+                       mousePos.x <= (bondingButtonX + ClBondingBtnW).float32 and
                        mousePos.y >= bondingButtonY.float32 and
-                       mousePos.y <= (bondingButtonY + bondingButtonHeight).float32
+                       mousePos.y <= (bondingButtonY + ClBondingBtnH).float32
 
   let bondingBgColor = if bondingHovered:
     Color(r: 80, g: 80, b: 100, a: 255)
@@ -762,68 +811,61 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     Color(r: 60, g: 60, b: 80, a: 255)
 
   drawRectangle(bondingButtonX.int32, bondingButtonY.int32,
-                bondingButtonWidth.int32, bondingButtonHeight.int32, bondingBgColor)
+                ClBondingBtnW.int32, ClBondingBtnH.int32, bondingBgColor)
   drawRectangleLines(Rectangle(x: bondingButtonX.float32, y: bondingButtonY.float32,
-                                width: bondingButtonWidth.float32, height: bondingButtonHeight.float32),
+                                width: ClBondingBtnW.float32, height: ClBondingBtnH.float32),
                     1, if bondingHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
 
   let bondingModeText = getMouseBondingModeLabel(settingsWin.settings.mouseBondingMode)
   let bondingTextWidth = measureText(bondingModeText, 16)
-  drawText("<", bondingButtonX.int32 + 10, yPos.int32, 18, LightGray)
+  drawText("<", bondingButtonX.int32 + 10, lay.bondingLabelY.int32, 18, LightGray)
   drawText(bondingModeText,
-          (bondingButtonX + (bondingButtonWidth - bondingTextWidth) div 2).int32,
-          yPos.int32, 16, White)
-  drawText(">", (bondingButtonX + bondingButtonWidth - 25).int32, yPos.int32, 18, LightGray)
+          (bondingButtonX + (ClBondingBtnW - bondingTextWidth) div 2).int32,
+          lay.bondingLabelY.int32, 16, White)
+  drawText(">", (bondingButtonX + ClBondingBtnW - 25).int32, lay.bondingLabelY.int32, 18, LightGray)
 
-  yPos += 30
-  drawText(t(tkSettingsMouseBondingDesc), bondingButtonX.int32, yPos.int32, 14, LightGray)
-  yPos += 20
+  # Drawn under the LABEL, not under the button: the tightened row spacing puts
+  # the controller cycle button directly below the bonding button.
+  drawText(t(tkSettingsMouseBondingDesc), (contentX + 40).int32, lay.bondingDescY.int32, 14, LightGray)
 
   # Controller selector: cycle Auto -> each connected pad. Same cycle-button
-  # geometry as mouse bonding above. Inserting this row shifts the keybind grid
-  # down by 50px, mirrored by kbYBase in handleSettingsInput.
-  drawText(t(tkSettingsController), (contentX + 40).int32, yPos.int32, 18, White)
+  # geometry as mouse bonding above.
+  drawText(t(tkSettingsController), (contentX + 40).int32, lay.padLabelY.int32, 18, White)
   let padSelX = contentX + 320
-  let padSelY = yPos - 5
-  let padSelW = 260
-  let padSelH = 35
+  let padSelY = lay.padLabelY - 5
   let padSelHovered = mousePos.x >= padSelX.float32 and
-                      mousePos.x <= (padSelX + padSelW).float32 and
+                      mousePos.x <= (padSelX + ClPadSelW).float32 and
                       mousePos.y >= padSelY.float32 and
-                      mousePos.y <= (padSelY + padSelH).float32
+                      mousePos.y <= (padSelY + ClPadSelH).float32
   let padSelBg = if padSelHovered: Color(r: 80, g: 80, b: 100, a: 255)
                  else: Color(r: 60, g: 60, b: 80, a: 255)
-  drawRectangle(padSelX.int32, padSelY.int32, padSelW.int32, padSelH.int32, padSelBg)
+  drawRectangle(padSelX.int32, padSelY.int32, ClPadSelW.int32, ClPadSelH.int32, padSelBg)
   drawRectangleLines(Rectangle(x: padSelX.float32, y: padSelY.float32,
-                                width: padSelW.float32, height: padSelH.float32),
+                                width: ClPadSelW.float32, height: ClPadSelH.float32),
                     1, if padSelHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
   let padSelText = controllerSelectorLabel(settingsWin.settings.preferredGamepad)
   let padSelTextW = measureText(padSelText, 16)
-  drawText("<", padSelX.int32 + 10, yPos.int32, 18, LightGray)
-  drawText(padSelText, (padSelX + (padSelW - padSelTextW) div 2).int32, yPos.int32, 16, White)
-  drawText(">", (padSelX + padSelW - 25).int32, yPos.int32, 18, LightGray)
-  yPos += 30
-  drawText(t(tkSettingsControllerDesc), (contentX + 40).int32, yPos.int32, 14, LightGray)
-  yPos += 20
+  drawText("<", padSelX.int32 + 10, lay.padLabelY.int32, 18, LightGray)
+  drawText(padSelText, (padSelX + (ClPadSelW - padSelTextW) div 2).int32,
+           lay.padLabelY.int32, 16, White)
+  drawText(">", (padSelX + ClPadSelW - 25).int32, lay.padLabelY.int32, 18, LightGray)
+  drawText(t(tkSettingsControllerDesc), (contentX + 40).int32, lay.padDescY.int32, 14, LightGray)
 
   # Keybindings section
-  yPos += 6
-  drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionKeybindings), '#',
+  drawSectionHeader(contentX + 20, lay.kbHeaderY, contentW - 40,
+                   t(tkSettingsSectionKeybindings), '#',
                    Color(r: 100, g: 255, b: 200, a: 255))
-  yPos += 30
 
-  let kbBtnW = 120
-  let kbBtnH = 22
-  let kbBtnX = contentX + contentW - kbBtnW - 20
-  let padBtnX = kbBtnX - kbBtnW - 10
+  let kbBtnX = contentX + contentW - ClKbBtnW - 20
+  let padBtnX = kbBtnX - ClKbBtnW - 10
   # Column mini-headers, drawn in the gap above the rows so the row layout
-  # (mirrored by the click handling in handleSettingsInput) doesn't shift.
+  # (shared with handleSettingsInput via controlsLayout) doesn't shift.
   let keyHdr = t(tkGamepadColumnKey)
   let padHdr = t(tkGamepadColumnPad)
-  drawText(padHdr, (padBtnX + (kbBtnW - measureText(padHdr, 12)) div 2).int32,
-           (yPos - 17).int32, 12, Color(r: 130, g: 130, b: 160, a: 255))
-  drawText(keyHdr, (kbBtnX + (kbBtnW - measureText(keyHdr, 12)) div 2).int32,
-           (yPos - 17).int32, 12, Color(r: 130, g: 130, b: 160, a: 255))
+  drawText(padHdr, (padBtnX + (ClKbBtnW - measureText(padHdr, 12)) div 2).int32,
+           (lay.kbRowsY - 15).int32, 12, Color(r: 130, g: 130, b: 160, a: 255))
+  drawText(keyHdr, (kbBtnX + (ClKbBtnW - measureText(keyHdr, 12)) div 2).int32,
+           (lay.kbRowsY - 15).int32, 12, Color(r: 130, g: 130, b: 160, a: 255))
   let kbActions = [
     (t(tkKeybindMoveUp),    kaMoveUp),
     (t(tkKeybindMoveDown),  kaMoveDown),
@@ -835,12 +877,13 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     (t(tkKeybindDash),      kaDash),
   ]
 
+  var yPos = lay.kbRowsY
   for (label, action) in kbActions:
     let isRebinding = settingsWin.rebindingAction == action.ord
     let btnY = yPos
     let btnHovered = not isRebinding and
-                     mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + kbBtnW).float32 and
-                     mousePos.y >= btnY.float32 and mousePos.y <= (btnY + kbBtnH).float32
+                     mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + ClKbBtnW).float32 and
+                     mousePos.y >= btnY.float32 and mousePos.y <= (btnY + ClKbBtnH).float32
 
     let btnBg     = if isRebinding: Color(r: 180, g: 100, b: 0, a: 255)
                     elif btnHovered: Color(r: 80, g: 80, b: 100, a: 255)
@@ -849,62 +892,58 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                     elif btnHovered: Gold
                     else: Color(r: 100, g: 100, b: 120, a: 255)
 
-    drawText(label, (contentX + 30).int32, (yPos + 4).int32, 14, LightGray)
-    drawRectangle(kbBtnX.int32, btnY.int32, kbBtnW.int32, kbBtnH.int32, btnBg)
+    drawText(label, (contentX + 30).int32, (yPos + 3).int32, 14, LightGray)
+    drawRectangle(kbBtnX.int32, btnY.int32, ClKbBtnW.int32, ClKbBtnH.int32, btnBg)
     drawRectangleLines(Rectangle(x: kbBtnX.float32, y: btnY.float32,
-                                  width: kbBtnW.float32, height: kbBtnH.float32), 1, btnBorder)
+                                  width: ClKbBtnW.float32, height: ClKbBtnH.float32), 1, btnBorder)
     let keyText  = if isRebinding: t(tkKeybindPressAnyKey)
                    else: $settingsWin.settings.keybinds[action]
     let keyFg    = if isRebinding: Color(r: 255, g: 220, b: 100, a: 255) else: White
     let keyTextW = measureText(keyText, 13)
-    drawText(keyText, (kbBtnX + (kbBtnW - keyTextW) div 2).int32, (yPos + 4).int32, 13, keyFg)
+    drawText(keyText, (kbBtnX + (ClKbBtnW - keyTextW) div 2).int32, (yPos + 3).int32, 13, keyFg)
 
     # Gamepad-bind column (same row geometry, one button-width to the left)
     let isPadRebinding = settingsWin.rebindingGamepadAction == action.ord
     let padHovered = not isPadRebinding and
-                     mousePos.x >= padBtnX.float32 and mousePos.x <= (padBtnX + kbBtnW).float32 and
-                     mousePos.y >= btnY.float32 and mousePos.y <= (btnY + kbBtnH).float32
+                     mousePos.x >= padBtnX.float32 and mousePos.x <= (padBtnX + ClKbBtnW).float32 and
+                     mousePos.y >= btnY.float32 and mousePos.y <= (btnY + ClKbBtnH).float32
     let padBg     = if isPadRebinding: Color(r: 180, g: 100, b: 0, a: 255)
                     elif padHovered: Color(r: 80, g: 80, b: 100, a: 255)
                     else: Color(r: 45, g: 45, b: 65, a: 255)
     let padBorder = if isPadRebinding: Color(r: 255, g: 180, b: 0, a: 255)
                     elif padHovered: Gold
                     else: Color(r: 100, g: 100, b: 120, a: 255)
-    drawRectangle(padBtnX.int32, btnY.int32, kbBtnW.int32, kbBtnH.int32, padBg)
+    drawRectangle(padBtnX.int32, btnY.int32, ClKbBtnW.int32, ClKbBtnH.int32, padBg)
     drawRectangleLines(Rectangle(x: padBtnX.float32, y: btnY.float32,
-                                  width: kbBtnW.float32, height: kbBtnH.float32), 1, padBorder)
+                                  width: ClKbBtnW.float32, height: ClKbBtnH.float32), 1, padBorder)
     let padText  = if isPadRebinding: t(tkGamepadPressAnyButton)
                    else: gamepadBindLabel(settingsWin.settings.gamepadBinds[action])
     let padFg    = if isPadRebinding: Color(r: 255, g: 220, b: 100, a: 255) else: White
     let padTextW = measureText(padText, 13)
-    drawText(padText, (padBtnX + (kbBtnW - padTextW) div 2).int32, (yPos + 4).int32, 13, padFg)
-    yPos += 23
+    drawText(padText, (padBtnX + (ClKbBtnW - padTextW) div 2).int32, (yPos + 3).int32, 13, padFg)
+    yPos += ClKbRowStride
 
   # Reset to defaults button
-  yPos += 6
   let resetBtnX = contentX + 20
-  let resetBtnW = 160
-  let resetBtnH = 26
   let resetHovered = mousePos.x >= resetBtnX.float32 and
-                     mousePos.x <= (resetBtnX + resetBtnW).float32 and
-                     mousePos.y >= yPos.float32 and
-                     mousePos.y <= (yPos + resetBtnH).float32
+                     mousePos.x <= (resetBtnX + ClResetBtnW).float32 and
+                     mousePos.y >= lay.resetY.float32 and
+                     mousePos.y <= (lay.resetY + ClResetBtnH).float32
   let resetBg = if resetHovered: Color(r: 80, g: 80, b: 100, a: 255)
                 else: Color(r: 50, g: 50, b: 70, a: 255)
-  drawRectangle(resetBtnX.int32, yPos.int32, resetBtnW.int32, resetBtnH.int32, resetBg)
-  drawRectangleLines(Rectangle(x: resetBtnX.float32, y: yPos.float32,
-                                width: resetBtnW.float32, height: resetBtnH.float32),
+  drawRectangle(resetBtnX.int32, lay.resetY.int32, ClResetBtnW.int32, ClResetBtnH.int32, resetBg)
+  drawRectangleLines(Rectangle(x: resetBtnX.float32, y: lay.resetY.float32,
+                                width: ClResetBtnW.float32, height: ClResetBtnH.float32),
                     1, if resetHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
   let resetText  = t(tkKeybindResetDefaults)
   let resetTextW = measureText(resetText, 14)
-  drawText(resetText, (resetBtnX + (resetBtnW - resetTextW) div 2).int32, (yPos + 5).int32, 14, White)
-  yPos += 30
+  drawText(resetText, (resetBtnX + (ClResetBtnW - resetTextW) div 2).int32,
+           (lay.resetY + 6).int32, 14, White)
 
-  # Fixed-key note
-  drawText(t(tkKeybindNonRebindableNote), (contentX + 20).int32, yPos.int32, 12,
+  # Fixed-key notes
+  drawText(t(tkKeybindNonRebindableNote), (contentX + 20).int32, lay.note1Y.int32, 12,
            Color(r: 130, g: 130, b: 160, a: 255))
-  yPos += 14
-  drawText(t(tkGamepadReservedNote), (contentX + 20).int32, yPos.int32, 12,
+  drawText(t(tkGamepadReservedNote), (contentX + 20).int32, lay.note2Y.int32, 12,
            Color(r: 130, g: 130, b: 160, a: 255))
 
 proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
@@ -1285,63 +1324,55 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   # Handle Controls tab interactions
   if settingsWin.currentTab == stControls and isTopmost:
     if settingsWin.window.handledClickThisFrame:
+      # Same layout the draw pass uses - no hardcoded offsets here.
+      let lay = controlsLayout(contentY)
+
       # Mouse bonding mode selector
       let bondingButtonX = contentX + 320
-      let bondingButtonY = contentY + 37
-      let bondingButtonWidth = 220
-      let bondingButtonHeight = 35
-      if mousePos.x >= bondingButtonX.float32 and mousePos.x <= (bondingButtonX + bondingButtonWidth).float32 and
-         mousePos.y >= bondingButtonY.float32 and mousePos.y <= (bondingButtonY + bondingButtonHeight).float32:
+      let bondingButtonY = lay.bondingLabelY - 5
+      if mousePos.x >= bondingButtonX.float32 and mousePos.x <= (bondingButtonX + ClBondingBtnW).float32 and
+         mousePos.y >= bondingButtonY.float32 and mousePos.y <= (bondingButtonY + ClBondingBtnH).float32:
         settingsWin.settings.mouseBondingMode = nextMouseBondingMode(settingsWin.settings.mouseBondingMode)
         playSound(stMenuSelect)
         settingsChanged = true
 
       # Controller selector cycle button (drawn just below mouse bonding)
       let padSelX = contentX + 320
-      let padSelY = contentY + 87
-      let padSelW = 260
-      let padSelH = 35
-      if mousePos.x >= padSelX.float32 and mousePos.x <= (padSelX + padSelW).float32 and
-         mousePos.y >= padSelY.float32 and mousePos.y <= (padSelY + padSelH).float32:
+      let padSelY = lay.padLabelY - 5
+      if mousePos.x >= padSelX.float32 and mousePos.x <= (padSelX + ClPadSelW).float32 and
+         mousePos.y >= padSelY.float32 and mousePos.y <= (padSelY + ClPadSelH).float32:
         settingsWin.settings.preferredGamepad = nextControllerSelection(settingsWin.settings.preferredGamepad)
         playSound(stMenuSelect)
         settingsChanged = true
 
-      # Keybind buttons: kbYBase mirrors drawControlsTab layout (the controller
-      # selector row above pushes the grid down 50px from its pre-selector 128).
-      let kbYBase = contentY + 178
+      # Keybind buttons
       let contentW = settingsWin.window.width - WINDOW_PADDING * 2
-      let kbBtnW = 120
-      let kbBtnH = 22
-      let kbBtnX = contentX + contentW - kbBtnW - 20
-      let padBtnX = kbBtnX - kbBtnW - 10
+      let kbBtnX = contentX + contentW - ClKbBtnW - 20
+      let padBtnX = kbBtnX - ClKbBtnW - 10
       for action in KeyAction:
-        let rowY = kbYBase + action.ord * 23
-        if mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + kbBtnW).float32 and
-           mousePos.y >= rowY.float32 and mousePos.y <= (rowY + kbBtnH).float32:
+        let rowY = lay.kbRowsY + action.ord * ClKbRowStride
+        if mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + ClKbBtnW).float32 and
+           mousePos.y >= rowY.float32 and mousePos.y <= (rowY + ClKbBtnH).float32:
           settingsWin.rebindingAction = action.ord
           settingsWin.rebindingGamepadAction = -1
           playSound(stMenuSelect)
           break
-        if mousePos.x >= padBtnX.float32 and mousePos.x <= (padBtnX + kbBtnW).float32 and
-           mousePos.y >= rowY.float32 and mousePos.y <= (rowY + kbBtnH).float32:
+        if mousePos.x >= padBtnX.float32 and mousePos.x <= (padBtnX + ClKbBtnW).float32 and
+           mousePos.y >= rowY.float32 and mousePos.y <= (rowY + ClKbBtnH).float32:
           settingsWin.rebindingGamepadAction = action.ord
           settingsWin.rebindingAction = -1
           playSound(stMenuSelect)
           break
 
       # Reset keybinds to defaults button.
-      # Row count is derived from KeyAction, not hardcoded: this was `7 * 23`,
-      # which silently mis-placed the hit box the moment a new bindable action
-      # was added (the draw pass flows with yPos, so only the CLICK target moved
-      # out from under the button). Nothing in the compiler catches that.
-      let kbRowCount = KeyAction.high.ord + 1
-      let resetBtnY = kbYBase + kbRowCount * 23 + 6
+      # Its Y comes from controlsLayout, which derives the row block from
+      # KeyAction itself: this was once `7 * 23` and silently mis-placed the hit
+      # box the moment a new bindable action was added (the draw pass flowed
+      # with yPos, so only the CLICK target moved out from under the button).
+      # Nothing in the compiler catches that.
       let resetBtnX = contentX + 20
-      let resetBtnW = 160
-      let resetBtnH = 26
-      if mousePos.x >= resetBtnX.float32 and mousePos.x <= (resetBtnX + resetBtnW).float32 and
-         mousePos.y >= resetBtnY.float32 and mousePos.y <= (resetBtnY + resetBtnH).float32:
+      if mousePos.x >= resetBtnX.float32 and mousePos.x <= (resetBtnX + ClResetBtnW).float32 and
+         mousePos.y >= lay.resetY.float32 and mousePos.y <= (lay.resetY + ClResetBtnH).float32:
         settingsWin.settings.keybinds = defaultKeybinds
         settingsWin.settings.gamepadBinds = defaultGamepadBinds
         settingsWin.rebindingAction = -1

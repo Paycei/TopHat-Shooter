@@ -545,6 +545,7 @@ proc main() =
   # synthesis runs on a worker thread (startAssetGeneration) while this loop
   # keeps drawing, so the window never stops responding. Everything that talks
   # to the audio device (loadSoundsStep) stays here on the main thread.
+  # Every sound and every music track is finished before the game starts.
   let soundSystem = initSoundSystem()
   let pendingAssets = startAssetGeneration()
   let totalSounds = SoundType.high.ord + 1

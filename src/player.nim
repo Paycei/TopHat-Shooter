@@ -2,13 +2,13 @@ import raylib, math, random, std/deques
 import gamepad_input, particle_types, types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings, utils
 
 const
-  # BASE DASH tuning. A burst of speed, not a teleport: the player keeps control
-  # of where they end up, and the short invulnerability rewards dashing THROUGH
-  # a threat rather than away from it.
+  # BASE DASH tuning. A burst of speed, not a teleport and not an i-frame
+  # window: the dash grants no invulnerability, so it has to be aimed at empty
+  # space rather than fired through a threat. The long cooldown makes each one
+  # a committed read of the field instead of a panic button held on tap.
   DashSpeedMult*    = 3.4'f32   ## multiple of current speed during the burst
   DashDuration*     = 0.16'f32  ## seconds of burst
-  DashCooldownTime* = 1.2'f32   ## seconds between dashes
-  DashInvulnTime*   = 0.20'f32  ## i-frames granted on dash start (outlasts burst)
+  DashCooldownTime* = 2.5'f32   ## seconds between dashes
 
   PlayerAcceleration = 7.0'f32
   PlayerBraking = 1.8'f32
@@ -309,9 +309,6 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       player.dashDir     = d
       player.dashTimer   = DashDuration
       player.dashCooldown = DashCooldownTime
-      # I-frames outlast the burst slightly so dashing THROUGH a contact hitbox
-      # is a real, reliable option rather than a coin flip on frame timing.
-      player.invincibilityTimer = max(player.invincibilityTimer, DashInvulnTime)
 
   let inertiaScale = playerInertiaSizeScale(player)
   if player.dashTimer > 0:
