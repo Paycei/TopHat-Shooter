@@ -1951,7 +1951,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "v6.2 Edition",
+    "loading_subtitle": "v6.3 Edition",
     "loading_initializing": "Initializing...",
     "loading_generating_sound": "Generating sound",
     "loading_generating_music": "Generating music",
@@ -1982,7 +1982,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_system_monitor": "System Monitor",
     "os_memory": "Memory",  # label only; live "<used> / <total> GB" appended in code
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[v6.2 Edition]",
+    "os_edition": "[v6.3 Edition]",
     "os_tophat_button": "TopHat",
 
     # Stats Labels
@@ -4202,7 +4202,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "Edición v6.2",
+    "loading_subtitle": "Edición v6.3",
     "loading_initializing": "Inicializando...",
     "loading_generating_sound": "Generando sonido",
     "loading_generating_music": "Generando música",
@@ -4233,7 +4233,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_system_monitor": "Monitor del Sistema",
     "os_memory": "Memoria",  # label only; live "<used> / <total> GB" appended in code
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[Edición v6.2]",
+    "os_edition": "[Edición v6.3]",
     "os_tophat_button": "TopHat",
 
     # Stats Labels

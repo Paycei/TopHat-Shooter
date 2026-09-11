@@ -41,10 +41,10 @@ const
 # commit history since the last release tag (Release552), not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
-    titleEn: "Version 6.2.2",
-    titleEs: "Versión 6.2.2",
-    subtitleEn: "Changes since v6.2.1",
-    subtitleEs: "Cambios desde v6.2.1",
+    titleEn: "Version 6.3.0",
+    titleEs: "Versión 6.3.0",
+    subtitleEn: "Changes since v6.2.2",
+    subtitleEs: "Cambios desde v6.2.2",
     latest: true,
     entries: @[
       # --- Game feel ---
@@ -112,9 +112,6 @@ let changelog: seq[ChangelogVersion] = @[
       ChangelogEntry(category: clcBalance,
         en: "The shop's Damage and Fire Rate upgrades were pulled back slightly. Both compounded faster than intended over a long run -- damage especially, since each purchase paid more than the last, so a deep stack outran anything the waves could put in front of it. A first purchase is worth about what it always was; ten purchases in your damage output is down roughly 9%, and twenty in roughly 15%. Movement speed, bullet speed and walls are untouched.",
         es: "Las mejoras de Daño y Cadencia de la tienda bajan un poco. Las dos se acumulaban más rápido de lo previsto en partidas largas -- el daño sobre todo, porque cada compra pagaba más que la anterior, así que una inversión grande se escapaba de todo lo que las oleadas podían ponerle delante. Una primera compra vale casi lo mismo que siempre; con diez compras tu daño baja alrededor de un 9%, y con veinte alrededor de un 15%. Velocidad de movimiento, velocidad de bala y muros no se tocan."),
-      ChangelogEntry(category: clcBalance,
-        en: "Giant Slayer hits harder across all three levels: it now shaves 3%, 5.5% and 8% of an enemy's current health per hit, up from 2.5%, 4% and 6%. Its much smaller bite against bosses is unchanged, so it stays a crowd-clearing pick rather than a boss melter.",
-        es: "Matagigantes pega más fuerte en sus tres niveles: ahora arranca el 3%, 5.5% y 8% de la vida actual del enemigo por golpe, frente al 2.5%, 4% y 6% anteriores. Su mordisco mucho menor contra jefes no cambia, así que sigue siendo una elección para limpiar hordas y no para fundir jefes."),
 
       # --- Interface ---
       ChangelogEntry(category: clcNew,
@@ -123,9 +120,6 @@ let changelog: seq[ChangelogVersion] = @[
       ChangelogEntry(category: clcNew,
         en: "The stats lists scroll. All three columns of the Power-Ups tab take the mouse wheel, each one on its own, with a scrollbar that shows how much is still below the fold. A long run picks up dozens of power-ups and the timeline only ever showed the first twenty-odd of them; the rest are now reachable rather than quietly cut off.",
         es: "Las listas de estadísticas se desplazan. Las tres columnas de la pestaña de Mejoras responden a la rueda del ratón, cada una por separado, con una barra que muestra cuánto queda por debajo. Una partida larga recoge decenas de mejoras y la línea de tiempo solo mostraba las primeras veinte y pico; el resto ya se puede alcanzar en vez de quedar cortado en silencio."),
-      ChangelogEntry(category: clcImproved,
-        en: "Confirmation dialogs stop making you wait. The YES button now unlocks after one second instead of two -- still long enough to catch an accidental key, short enough that quitting or resetting on purpose no longer feels like a punishment.",
-        es: "Los diálogos de confirmación ya no te hacen esperar tanto. El botón SÍ se desbloquea tras un segundo en vez de dos: sigue siendo suficiente para frenar una tecla accidental, pero salir o reiniciar a propósito ya no se siente como un castigo."),
 
       ChangelogEntry(category: clcFixed,
         en: "The Controls settings stopped running off the bottom of the panel. The tab had grown a controller selector and a second column of gamepad binds since its spacing was last set, and the two lines listing the fixed keys and the reserved controller buttons ended up printed past the edge of the panel, cut in half or missing entirely. The whole tab was retightened to fit, and its rows and buttons now come from a single shared layout, so the clickable area of every keybind button lines up with where the button is drawn. The two captions under the input selectors also sit with the row they describe instead of floating between two of them.",
@@ -138,9 +132,6 @@ let changelog: seq[ChangelogVersion] = @[
 
       # --- Fixes ---
       ChangelogEntry(category: clcFixed,
-        en: "Fixed the background audio setup crashing the Windows release build on first launch. The progress counter used a threading instruction the Windows compiler builds incorrectly; it now uses a plain counter, so the first run generates its sounds and music without falling over.",
-        es: "Corregido un fallo por el que la preparación de audio en segundo plano rompia la versión de Windows en el primer arranque. El contador de progreso usaba una instrucción de hilos que el compilador de Windows genera mal; ahora usa un contador normal, así que el primer arranque crea sus sonidos y su música sin caerse."),
-      ChangelogEntry(category: clcFixed,
         en: "Slow motion never actually ran. Every kill was meant to trigger a moment of dilated time, but the effect was switched on and then never ticked, so it did nothing at all and quietly stayed on forever after your first kill. Time effects now run properly, and regular kills use a short freeze instead, which holds up when a whole crowd dies at once.",
         es: "La cámara lenta nunca llegó a funcionar. Cada muerte debía provocar un instante de tiempo dilatado, pero el efecto se activaba y luego nunca avanzaba, así que no hacía nada y se quedaba encendido para siempre tras tu primera baja. Los efectos de tiempo ya funcionan bien, y las muertes normales usan un congelado corto, que aguanta cuando muere una multitud entera a la vez."),
       ChangelogEntry(category: clcFixed,
@@ -152,6 +143,29 @@ let changelog: seq[ChangelogVersion] = @[
       ChangelogEntry(category: clcFixed,
         en: "The level and experience bar no longer hangs outside the status panel in Wave mode. The panel sizes itself to its contents, and the level row was never counted, so with no processes installed to pad the panel out the bar spilled past the bottom border.",
         es: "La barra de nivel y experiencia ya no se sale del panel de estado en modo Oleadas. El panel se ajusta a su contenido y la fila de nivel nunca se contaba, así que sin procesos instalados que alargaran el panel la barra se salía por debajo del borde.")
+    ]
+  ),
+  ChangelogVersion(
+    titleEn: "Version 6.2.2",
+    titleEs: "Versión 6.2.2",
+    subtitleEn: "Changes since v6.2.1",
+    subtitleEs: "Cambios desde v6.2.1",
+    latest: false,
+    entries: @[
+      # --- Tuning ---
+      ChangelogEntry(category: clcBalance,
+        en: "Giant Slayer hits harder across all three levels: it now shaves 3%, 5.5% and 8% of an enemy's current health per hit, up from 2.5%, 4% and 6%. Its much smaller bite against bosses is unchanged, so it stays a crowd-clearing pick rather than a boss melter.",
+        es: "Matagigantes pega más fuerte en sus tres niveles: ahora arranca el 3%, 5.5% y 8% de la vida actual del enemigo por golpe, frente al 2.5%, 4% y 6% anteriores. Su mordisco mucho menor contra jefes no cambia, así que sigue siendo una elección para limpiar hordas y no para fundir jefes."),
+
+      # --- Interface ---
+      ChangelogEntry(category: clcImproved,
+        en: "Confirmation dialogs stop making you wait. The YES button now unlocks after one second instead of two -- still long enough to catch an accidental key, short enough that quitting or resetting on purpose no longer feels like a punishment.",
+        es: "Los diálogos de confirmación ya no te hacen esperar tanto. El botón SÍ se desbloquea tras un segundo en vez de dos: sigue siendo suficiente para frenar una tecla accidental, pero salir o reiniciar a propósito ya no se siente como un castigo."),
+
+      # --- Fixes ---
+      ChangelogEntry(category: clcFixed,
+        en: "Fixed the background audio setup crashing the Windows release build on first launch. The progress counter used a threading instruction the Windows compiler builds incorrectly; it now uses a plain counter, so the first run generates its sounds and music without falling over.",
+        es: "Corregido un fallo por el que la preparación de audio en segundo plano rompia la versión de Windows en el primer arranque. El contador de progreso usaba una instrucción de hilos que el compilador de Windows genera mal; ahora usa un contador normal, así que el primer arranque crea sus sonidos y su música sin caerse.")
     ]
   ),
   ChangelogVersion(
