@@ -8,3 +8,4 @@ nimble.paths
 nimbledeps
 *.zip
 /.claude
+/ship/

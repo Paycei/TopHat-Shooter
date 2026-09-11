@@ -12,7 +12,19 @@ nimble debug          # nim c -r --mm:orc -d:debug src/main.nim  (build + run, t
 nimble WinRelease     # optimized MSVC build -> TopHatShooterOS.exe (Windows, needs VC++ Build Tools)
 nimble WinReleaseMin  # release optimized for size
 nimble LinuxRelease   # optimized Linux build
+nimble ship           # all three release artifacts -> ship/ (see tools/ship.ps1)
 ```
+
+`nimble ship` is the release pipeline: it runs the three build tasks above and stages
+`ship/TopHatShooterOS-Installer_<ver>.exe` (WinRelease + niminst/Inno Setup),
+`ship/TopHatShooterOS-PORTABLE.zip` (WinReleaseMin), `ship/TopHatShooterOS-linux-x86_64.tar.gz`
+(LinuxRelease, built inside WSL) and `SHA256SUMS.txt`. It never duplicates compiler flags —
+the `.nimble` tasks stay the single source of truth — and it takes the version from
+`TopHatShooter.nimble`, syncing `TopHatShooter.ini` so the installer can't be stamped stale.
+Everything (MSVC, niminst, Inno Setup, a WSL distro with Nim, `nim check`) is verified before
+the first compile. The script takes no arguments. Note the two Windows tasks share
+one output path (`TopHatShooterOS.exe`), so they can never run concurrently; the script builds
+the portable one first so the *speed*-optimized exe is what's left in the repo root.
 
 **There is no test suite.** The primary correctness check is compilation:
 
