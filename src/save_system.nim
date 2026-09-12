@@ -59,7 +59,6 @@ type
     cheaterHatEquipped*: bool   # Whether the cheater hat is worn in-game
     rogueliteUnlocked*: bool    # Unlock flag: allows Roguelite mode from menu
     survivalUnlocked*: bool     # Unlock flag: allows Time Survival mode from menu
-    lastDeathWave*: int         # Wave the player died on last non-cheated wave-based run (0 = none)
     keybinds*: KeyBindings      # Rebindable keyboard controls
     gamepadBinds*: GamepadBindings  # Rebindable gamepad controls (same actions)
     preferredGamepad*: int      # Chosen pad index, -1 = auto (first detected)
@@ -282,7 +281,6 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "cheaterHatEquipped": settings.cheaterHatEquipped,
     "rogueliteUnlocked": settings.rogueliteUnlocked,
     "survivalUnlocked": settings.survivalUnlocked,
-    "lastDeathWave": settings.lastDeathWave,
     "hasSeenWaveModeIntro": settings.hasSeenWaveModeIntro,
     "hasSeenSurvivalIntro": settings.hasSeenSurvivalIntro,
     "hasSeenRogueliteIntro": settings.hasSeenRogueliteIntro,
@@ -422,9 +420,6 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("survivalUnlocked"):
     settings.survivalUnlocked = jsonNode["survivalUnlocked"].getBool()
-
-  if jsonNode.hasKey("lastDeathWave"):
-    settings.lastDeathWave = jsonNode["lastDeathWave"].getInt()
 
   if jsonNode.hasKey("hasSeenWaveModeIntro"):
     settings.hasSeenWaveModeIntro = jsonNode["hasSeenWaveModeIntro"].getBool()

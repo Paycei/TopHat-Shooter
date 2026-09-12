@@ -1489,8 +1489,6 @@ type
     pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
     confirmQuitFrameGuard*: float32  # Short guard so Q-open and Q-confirm can't fire on the same frame
     wallPlacementMode*: bool   # Whether the player is in wall-placement mode (E toggles, RMB/walls=0 exits)
-    comebackBonusActive*: bool  # True while the +10% comeback stat bonus is in effect
-    comebackEndWave*: int        # Wave number at which the comeback bonus expires (copied from settings on run start)
 
 # Selected difficulty of the active save profile. Set at boot / on profile
 # switch (main.nim) and read by the spawn/damage choke points below. Medium is

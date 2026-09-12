@@ -186,7 +186,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss2Name),
       bossID: 2,
-      baseHP: 300.0,  # durability buff: was 220 -> 250; was dying too fast off its add-clear windows, now a tankier wall to grind through while clearing the legion
+      baseHP: 300.0,
       baseSpeed: 65.0,
       baseDamage: 1,
       baseRadius: 50.0,
@@ -336,7 +336,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss3Name),
       bossID: 3,
-      baseHP: 400.0,  # small general buff: +10% pool (was 300)
+      baseHP: 400.0,
       baseSpeed: 65.0,
       baseDamage: 2,
       baseRadius: 48.0,

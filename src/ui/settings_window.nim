@@ -394,7 +394,6 @@ proc resetProgressSettings(settings: Settings): bool =
   settings.cheaterHatEquipped = false
   settings.rogueliteUnlocked = false
   settings.survivalUnlocked = false
-  settings.lastDeathWave = 0
   settings.hasSeenWaveModeIntro = false
   settings.hasSeenSurvivalIntro = false
   settings.hasSeenRogueliteIntro = false

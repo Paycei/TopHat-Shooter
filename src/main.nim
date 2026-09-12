@@ -1208,7 +1208,7 @@ proc main() =
             initializeRunTracking(currentGame)  # checkpoint resume: fresh stats
           elif pendingResume and applyBlockCheckpoint(currentGame):
             # No live run save, but a death-surviving block checkpoint exists:
-            # resume from the last cleared boss block. No comeback bonus here.
+            # resume from the last cleared boss block.
             # Reaching this path means the run save was deleted by a death, so
             # the run is no longer flawless.
             currentGame.runHadDeath = true
@@ -1225,7 +1225,6 @@ proc main() =
             deleteRunSave()
             deleteBlockCheckpoint()  # fresh run: discard the block checkpoint too
             deleteSuspendSnapshot()
-            applyComebackBonus(currentGame)
             currentGame.state = gsPlaying
             initializeRunTracking(currentGame)
           statsSavedThisGame = false
@@ -3136,7 +3135,6 @@ proc main() =
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, gmWaveBased)
-        # Resume the saved block; NO comeback bonus on this path.
         if applyBlockCheckpoint(currentGame):
           # Same run, resumed: keep the accumulated run statistics (power-ups
           # collected, kills, damage, time) instead of zeroing them.
@@ -3172,7 +3170,6 @@ proc main() =
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
-        applyComebackBonus(currentGame)
         if previousMode == gmRoguelite:
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
@@ -3353,7 +3350,6 @@ proc main() =
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)
-        applyComebackBonus(currentGame)
         if previousMode == gmRoguelite:
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile

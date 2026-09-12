@@ -707,9 +707,6 @@ proc completeBossWave*(game: Game) =
   game.currentWave += 1
   game.wavesUntilBoss -= 1
 
-  if game.comebackBonusActive and game.currentWave >= game.comebackEndWave:
-    removeComebackBonus(game)
-
   # Golden pulse on boss defeat
   spawnWavePulse(game.osBackground,
     game.screenWidth.float32 / 2.0,
@@ -2326,8 +2323,6 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
             # Advance wave counters so the next wave uses the next wave number
             game.currentWave += 1
             game.wavesUntilBoss -= 1
-            if game.comebackBonusActive and game.currentWave >= game.comebackEndWave:
-              removeComebackBonus(game)
 
           # Power-ups are offered on a subset of waves, not every wave. Note
           # game.currentWave was just incremented, so this reads the *upcoming*
@@ -5976,37 +5971,6 @@ proc drawGame*(game: Game) =
   # generic banner would flash "WAVE 1" on every room; suppress it there.
   let showWaveBanner = game.waveInProgress and game.mode != gmRoguelite and showHints
 
-  # Comeback-bonus label. Classic: small pulsing strip top-center. Widescreen:
-  # a wrapped, accent-edged card in the left gutter. Factored out so each layout
-  # branch can call it at the correct point in its own draw order (classic keeps
-  # its original z-order: after the boss intro, before the boss bars).
-  proc drawComebackBonus() =
-    if not game.comebackBonusActive:
-      return
-    let pulse = (sin(game.time * 2.5) * 0.15 + 0.85).float32
-    let alpha = uint8(clamp(pulse * 230.0, 0.0, 255.0))
-    let cbLabel = t(tkComebackBonusActive) & " (" & t(tkComebackBonusUntil) & " " & $game.comebackEndWave & ")"
-    let cbFontSize: int32 = 13
-    if hudLayout == hlWidescreen:
-      # Left-gutter wrapped card (below the border HUD, above the bottom hints).
-      let cardW: int32 = min(leftGutterW - 8, 163'i32)
-      let cardX: int32 = 4
-      let cardY: int32 = 560
-      let cbLines = wrapTextLines(cbLabel, cardW - 8, cbFontSize)
-      let cardH: int32 = 6 + cbLines.len.int32 * (cbFontSize + 3)
-      drawRectangle(cardX, cardY, cardW, cardH, Color(r: 8, g: 18, b: 12, a: uint8(clamp(pulse * 170.0, 0.0, 255.0))))
-      drawRectangle(cardX, cardY, 2, cardH, Color(r: 80, g: 220, b: 100, a: alpha))
-      var cbTy = cardY + 3
-      for ln in cbLines:
-        drawText(ln, cardX + 4, cbTy, cbFontSize, Color(r: 80, g: 220, b: 100, a: alpha))
-        cbTy += cbFontSize + 3
-    else:
-      let cbW = measureText(cbLabel, cbFontSize)
-      let cbX = vw div 2 - cbW div 2
-      let cbY: int32 = 6
-      drawRectangle(cbX - 6, cbY - 2, cbW + 12, cbFontSize + 6, Color(r: 0, g: 0, b: 0, a: uint8(clamp(pulse * 140.0, 0.0, 255.0))))
-      drawText(cbLabel, cbX, cbY, cbFontSize, Color(r: 80, g: 220, b: 100, a: alpha))
-
   if hudLayout == hlWidescreen:
     # ---- WIDESCREEN RIGHT-GUTTER COLUMN (top-to-bottom via a running cursor) --
     # Top stack (dynamic): survival timer card owns the very top; boss bars flow
@@ -6071,7 +6035,6 @@ proc drawGame*(game: Game) =
       drawDebugPanel(game, vw, 2, anchorLeftDefault = true)
 
     drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = true)
-    drawComebackBonus()
   else:
     # ---- CLASSIC HUD (unchanged) ----
     if showHints:
@@ -6080,7 +6043,6 @@ proc drawGame*(game: Game) =
       drawWaveStartBanner(game.currentWave, waveAge, vw, vh, isBossNext)
     drawWaveCelebration(game.dopamine.waveCelebration, vw, vh)
     drawBossIntroduction(game.dopamine.bossIntro, vw, vh)
-    drawComebackBonus()
     if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
       var nextBossBarY = if isTimeSurvivalMode(game.mode): SurvivalHudBottomY + 6'i32
                          else: 10'i32

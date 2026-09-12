@@ -325,12 +325,6 @@ proc saveRunState*(game: Game, file: string = RunSaveFile,
     root["bossCount"] = %game.bossCount
     root["rerollCost"] = %game.rerollCost
     root["hasWonGame"] = %game.hasWonGame
-    # The comeback bonus is a temporary stat loan that the wave-advance path
-    # pays back once currentWave reaches comebackEndWave. Its stat half rides
-    # along in the player snapshot, so dropping the bookkeeping half here would
-    # leave nothing to trigger removeComebackBonus -- the loan turns permanent.
-    root["comebackBonusActive"] = %game.comebackBonusActive
-    root["comebackEndWave"] = %game.comebackEndWave
   of gmTimeSurvival:
     root["survivalTime"] = %game.survivalTime
     root["bossTimer"] = %game.bossTimer
@@ -414,8 +408,6 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
       game.bossCount = j.getOrDefault("bossCount").getInt(0)
       game.rerollCost = j.getOrDefault("rerollCost").getInt(0)
       game.hasWonGame = j.getOrDefault("hasWonGame").getBool(false)
-      game.comebackBonusActive = j.getOrDefault("comebackBonusActive").getBool(false)
-      game.comebackEndWave = j.getOrDefault("comebackEndWave").getInt(0)
       game.waveInProgress = false
       game.waveEnemiesRemaining = 0
       game.bossWaveManager = BossWaveManager(active: false, coinActive: false)

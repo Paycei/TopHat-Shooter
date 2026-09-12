@@ -202,46 +202,6 @@ proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
     return (getEnemyConfig(sourceType).name, false)
   return ("", false)
 
-# Comeback mechanic: fixed additive deltas applied to a fresh player at run start.
-# Using additive amounts (not a percentage reversal at expiry) guarantees shop/power-up
-# purchases made during the run are not affected when the bonus is removed.
-const ComebackHpBonus    = 9.0'f32   * 0.1'f32  # +0.9
-const ComebackDmgBonus   = 1.0'f32   * 0.1'f32  # +0.1
-const ComebackSpeedBonus = 177.5'f32 * 0.1'f32  # +17.75
-const ComebackFrBonus    = 0.4275'f32 * 0.1'f32  # 0.04275 subtracted (lower = faster)
-const ComebackBsBonus    = 325.0'f32 * 0.1'f32  # +32.5
-
-proc removeComebackBonus*(game: Game) =
-  game.comebackBonusActive = false
-  game.comebackEndWave = 0
-  game.player.maxHp -= ComebackHpBonus
-  game.player.baselineMaxHp -= ComebackHpBonus  # Handout, not investment
-  game.player.hp = min(game.player.hp, game.player.maxHp)
-  game.player.damage -= ComebackDmgBonus
-  game.player.baseSpeed -= ComebackSpeedBonus
-  game.player.speed -= ComebackSpeedBonus
-  game.player.fireRate += ComebackFrBonus
-  game.player.bulletSpeed -= ComebackBsBonus
-
-proc applyComebackBonus*(game: Game) =
-  if globalSettings.isNil or globalSettings.lastDeathWave <= 0:
-    return
-  if game.mode != gmWaveBased:
-    return
-  game.comebackBonusActive = true
-  game.comebackEndWave = globalSettings.lastDeathWave
-  game.player.maxHp += ComebackHpBonus
-  game.player.baselineMaxHp += ComebackHpBonus  # Handout, not investment
-  game.player.hp = game.player.maxHp
-  game.player.damage += ComebackDmgBonus
-  game.player.baseSpeed += ComebackSpeedBonus
-  game.player.speed += ComebackSpeedBonus
-  game.player.fireRate -= ComebackFrBonus
-  game.player.bulletSpeed += ComebackBsBonus
-  # Consume the stored death wave so restarts don't re-apply it indefinitely
-  globalSettings.lastDeathWave = 0
-  discard saveSettings(globalSettings)
-
 proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
                                source: Enemy = nil, sourceType: EnemyType = etEnvironment) =
   ## Starts the delayed singleplayer death playback before the game-over screen.
@@ -273,11 +233,6 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   # Death ends the run: the checkpoint save is no longer resumable.
   deleteRunSave()
   deleteSuspendSnapshot()  # ...and the exact snapshot with it.
-
-  # Save the death wave for the comeback mechanic on the next wave-based run.
-  if game.mode == gmWaveBased and not game.cheatsUsed and not globalSettings.isNil:
-    globalSettings.lastDeathWave = game.currentWave
-    discard saveSettings(globalSettings)
 
   game.state = gsDeathSequence
   game.transitioning = false

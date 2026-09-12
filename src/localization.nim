@@ -1345,10 +1345,6 @@ type
     tkCheatConsDoubleCoin = "cheat_cons_double_coin"
     tkCheatConsLifesteal = "cheat_cons_lifesteal"
 
-    # Comeback mechanic
-    tkComebackBonusActive = "comeback_bonus_active"
-    tkComebackBonusUntil = "comeback_bonus_until"
-
     # Mode intro cutscenes: wave-based
     tkModeIntroWaveTitle = "mode_intro_wave_title"
     tkModeIntroWaveRec1  = "mode_intro_wave_rec1"
@@ -3030,10 +3026,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_cons_damage": "Damage Boost",
     "cheat_cons_double_coin": "Double Coin",
     "cheat_cons_lifesteal": "Lifesteal",
-
-    # Comeback mechanic
-    "comeback_bonus_active": "COMEBACK +10%",
-    "comeback_bonus_until": "until wave",
 
     # Mode intro: wave-based (Act 1-2 live open; the ending archive is
     # "ARCHIVE PLAYBACK // INCIDENT RESOLVED", this is the same incident, live)
@@ -4718,10 +4710,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_cons_damage": "Impulso de Daño",
     "cheat_cons_double_coin": "Moneda Doble",
     "cheat_cons_lifesteal": "Robo de Vida",
-
-    # Comeback mechanic
-    "comeback_bonus_active": "REGRESO +10%",
-    "comeback_bonus_until": "hasta oleada",
 
     # Mode intro: wave-based
     "mode_intro_wave_title": "EN DIRECTO // RESPUESTA A AMENAZA",
