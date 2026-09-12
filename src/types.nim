@@ -626,6 +626,9 @@ type
     dashTimer*: float32        ## remaining dash burst (0 = not dashing)
     dashCooldown*: float32     ## time until the next dash is available
     dashDir*: Vector2f         ## locked-in direction for the current dash
+    dashReadyFlash*: float32   ## counts down after the cooldown hits 0; drives the "recharged" snap
+                               ## (a draw pass can only see the cooldown's VALUE, never the frame it
+                               ## crossed zero, so the moment has to be recorded by the update)
     rotatingOrbs*: seq[RotatingOrb]
     orbRotationAngle*: float32  # Base rotation angle for all orbs
     hasFireMastery*: bool

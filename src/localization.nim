@@ -342,6 +342,8 @@ type
     tkHUDWave = "hud_wave"
     tkHUDUptime = "hud_uptime"
     tkHUDThreats = "hud_threats"
+    tkHUDDash = "hud_dash"
+    tkHUDDashReady = "hud_dash_ready"
 
     # Debug Panel
     tkDebugPanelDiagnostics = "debug_panel_diagnostics"
@@ -2154,6 +2156,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_wave": "WAVE:",
     "hud_uptime": "UPTIME:",
     "hud_threats": "THREATS:",
+    "hud_dash": "DASH",
+    "hud_dash_ready": "READY",
 
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNOSTICS",
@@ -3733,6 +3737,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_wave": "OLEADA:",
     "hud_uptime": "TIEMPO DE ACTIVIDAD:",
     "hud_threats": "AMENAZAS:",
+    "hud_dash": "IMPULSO",
+    "hud_dash_ready": "LISTO",
 
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNÓSTICOS",

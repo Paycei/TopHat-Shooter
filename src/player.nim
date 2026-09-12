@@ -9,6 +9,7 @@ const
   DashSpeedMult*    = 3.4'f32   ## multiple of current speed during the burst
   DashDuration*     = 0.16'f32  ## seconds of burst
   DashCooldownTime* = 2.5'f32   ## seconds between dashes
+  DashReadyFlashTime* = 0.35'f32 ## how long the "recharged" snap plays on the player
 
   PlayerAcceleration = 7.0'f32
   PlayerBraking = 1.8'f32
@@ -201,6 +202,16 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.phaseShiftInvulnTimer -= dt
   if player.dashCooldown > 0:
     player.dashCooldown -= dt
+    if player.dashCooldown <= 0:
+      # Snap to exactly 0 and arm the recharged flash. The cooldown alone can't
+      # carry this: it stops ticking here, so by the next frame "ready" and
+      # "ready for ten seconds" look identical to the renderer.
+      player.dashCooldown = 0
+      player.dashReadyFlash = DashReadyFlashTime
+  if player.dashReadyFlash > 0:
+    player.dashReadyFlash -= dt
+    if player.dashReadyFlash < 0:
+      player.dashReadyFlash = 0
   if player.dashTimer > 0:
     player.dashTimer -= dt
     if player.dashTimer < 0:
@@ -309,6 +320,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       player.dashDir     = d
       player.dashTimer   = DashDuration
       player.dashCooldown = DashCooldownTime
+      player.dashReadyFlash = 0  # a dash fired on the same frame it recharged must not keep flashing
 
   let inertiaScale = playerInertiaSizeScale(player)
   if player.dashTimer > 0:
@@ -504,6 +516,46 @@ proc drawPlayer*(player: Player) =
       let gy = player.pos.y + sin(glintAngle) * veilRadius
       drawCircle(Vector2(x: gx, y: gy), 2.5,
                  Color(r: 255, g: 255, b: 255, a: uint8(160 + (veilPulse * 80).int)))
+
+  # BASE DASH charge ring. The dash is the one ability every run owns, so its
+  # state has to be readable without looking away from the fight -- a HUD row
+  # alone asks the player to glance at the corner mid-dodge, which is exactly
+  # when they cannot. A thin arc wrapped on the body answers "now or not yet?"
+  # where the eyes already are, and draws NOTHING once the charge is ready, so
+  # the indicator only exists while it still has something to say.
+  # Radius clears the PvP team-indicator ring at radius + 5, the only OTHER
+  # persistently-drawn ring on the body; the optional legendary halos it can
+  # brush (veil, shield) are differently coloured and conditional.
+  let dashRingRadius = player.radius + 8.5'f32
+  let dashCenter = Vector2(x: player.pos.x, y: player.pos.y)
+  if player.dashTimer > 0:
+    # Spending the charge: a bright ring blown outward over the burst.
+    let burst = clamp(1.0'f32 - player.dashTimer / DashDuration, 0.0'f32, 1.0'f32)
+    let r = dashRingRadius + burst * 11.0'f32
+    let a = uint8(clamp((1.0'f32 - burst) * 210.0'f32, 0.0'f32, 255.0'f32))
+    drawRing(dashCenter, r - 1.5'f32, r + 1.5'f32, 0.0, 360.0, 32,
+             Color(r: 150, g: 240, b: 255, a: a))
+  elif player.dashCooldown > 0:
+    let progress = clamp(1.0'f32 - player.dashCooldown / DashCooldownTime, 0.0'f32, 1.0'f32)
+    # Empty track: dim enough to read as "spent" at a glance, present enough
+    # that the arc has something to fill against.
+    drawRing(dashCenter, dashRingRadius - 1.5'f32, dashRingRadius + 1.5'f32,
+             0.0, 360.0, 32, Color(r: 70, g: 120, b: 150, a: 45))
+    # The arc closes clockwise from the top and brightens as it fills, so the
+    # colour alone reads as "nearly back" in peripheral vision.
+    drawRing(dashCenter, dashRingRadius - 1.5'f32, dashRingRadius + 1.5'f32,
+             -90.0, -90.0 + 360.0'f32 * progress, 40,
+             Color(r: uint8(40.0'f32 + 50.0'f32 * progress),
+                   g: uint8(140.0'f32 + 105.0'f32 * progress),
+                   b: uint8(190.0'f32 + 65.0'f32 * progress),
+                   a: uint8(150.0'f32 + 85.0'f32 * progress)))
+  elif player.dashReadyFlash > 0:
+    # Recharged: one short outward snap. This is the cue the player actually
+    # acts on, so it has to pop rather than simply stop being dim.
+    let k = clamp(player.dashReadyFlash / DashReadyFlashTime, 0.0'f32, 1.0'f32)
+    let r = dashRingRadius + (1.0'f32 - k) * 8.0'f32
+    drawRing(dashCenter, r - 1.5'f32, r + 1.5'f32, 0.0, 360.0, 32,
+             Color(r: 190, g: 255, b: 245, a: uint8(clamp(k * 230.0'f32, 0.0'f32, 255.0'f32))))
 
   # Dodge flash effect, takeDamage sets lastDamageEvent = deDodged as a one-frame signal.
   if player.lastDamageEvent == deDodged and player.hp > 0:
