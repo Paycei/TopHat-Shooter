@@ -458,7 +458,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         # Waves 6-10: Introduce PENTAGON
         if roll < 40: enemyType = etPentagon
         elif roll < 75: enemyType = etCircle
-        else: enemyType = etCircle  # Keep it simple
+        else: enemyType = etCircle
 
       elif wave <= 15:
         # Waves 11-15: Introduce TRIANGLE
@@ -468,7 +468,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
 
       elif wave <= 20:
         # Waves 16-20: Introduce CUBE
-        if roll < 25: enemyType = etCube
+        if roll < 20: enemyType = etCube
         elif roll < 40: enemyType = etCircle
         elif roll < 65: enemyType = etPentagon
         else: enemyType = etTriangle
