@@ -65,9 +65,13 @@ var
   dashCooldownRatio: float32 = 0
     ## 0 = ready, 1 = just used. Pushed in by main.nim rather than read from the
     ## player: this module must not import types/player (input_intent imports it
-    ## and player imports input_intent), and the button is the only dash
-    ## cooldown readout the game has -- desktop players learn the 2.5s rhythm by
-    ## feel, but a touch player tapping a dead button has nothing to learn from.
+    ## and player imports input_intent).
+    ##
+    ## The charge ring on the player body and the HUD dash row already say when
+    ## the dash is back; this repeats it on the button because the button is the
+    ## one place a touch player's attention is when they reach for it, and an
+    ## un-greyed button that swallows the tap and does nothing reads as a broken
+    ## control rather than a cooling one.
   dashAvailable = false
     ## Whether the mode running right now even has a base dash. PvP does not --
     ## it never calls updatePlayer, so the dash lives entirely in single-player.

@@ -112,7 +112,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss1Name),
       bossID: 1,
-      baseHP: 125.0,
+      baseHP: 150.0,
       baseSpeed: 50.0,
       baseDamage: 1,
       baseRadius: 45.0,
@@ -186,7 +186,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss2Name),
       bossID: 2,
-      baseHP: 250.0,  # durability buff: was 220 -> 250; was dying too fast off its add-clear windows, now a tankier wall to grind through while clearing the legion
+      baseHP: 300.0,  # durability buff: was 220 -> 250; was dying too fast off its add-clear windows, now a tankier wall to grind through while clearing the legion
       baseSpeed: 65.0,
       baseDamage: 1,
       baseRadius: 50.0,
@@ -336,7 +336,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss3Name),
       bossID: 3,
-      baseHP: 330.0,  # small general buff: +10% pool (was 300)
+      baseHP: 400.0,  # small general buff: +10% pool (was 300)
       baseSpeed: 65.0,
       baseDamage: 2,
       baseRadius: 48.0,
@@ -479,7 +479,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss4Name),
       bossID: 4,
-      baseHP: 500.0,
+      baseHP: 600.0,
       baseSpeed: 65.0,
       baseDamage: 2,
       baseRadius: 52.0,
@@ -861,7 +861,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss6Name),
       bossID: 6,
-      baseHP: 1100.0,
+      baseHP: 1250.0,
       baseSpeed: 60.0,
       baseDamage: 3,
       baseRadius: 55.0,
@@ -1027,7 +1027,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss7Name),
       bossID: 7,
-      baseHP: 1400.0,
+      baseHP: 1600.0,
       baseSpeed: 50.0,
       baseDamage: 3,
       baseRadius: 58.0,
@@ -1229,7 +1229,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss8Name),
       bossID: 8,
-      baseHP: 1750.0,
+      baseHP: 2000.0,
       baseSpeed: 40.0,
       baseDamage: 4,
       baseRadius: 60.0,
@@ -1430,7 +1430,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss9Name),
       bossID: 9,
-      baseHP: 2000.0,
+      baseHP: 2500.0,
       baseSpeed: 55.0,
       baseDamage: 4,
       baseRadius: 56.0,
@@ -1590,7 +1590,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss10Name),
       bossID: 10,
-      baseHP: 2600.0,
+      baseHP: 3000.0,
       baseSpeed: 55.0,
       baseDamage: 5,
       baseRadius: 62.0,
@@ -1776,7 +1776,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss11Name),
       bossID: 11,
-      baseHP: 3100.0,
+      baseHP: 3500.0,
       baseSpeed: 60.0,
       baseDamage: 5,
       baseRadius: 58.0,
@@ -1961,7 +1961,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss12Name),
       bossID: 12,
-      baseHP: 3500.0,
+      baseHP: 4000.0,
       baseSpeed: 60.0,  # NERFED from 85.0
       baseDamage: 6,
       baseRadius: 70.0,

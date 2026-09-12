@@ -8,8 +8,10 @@
 ## is a no-op refactor. On `-d:mobile` the same procs read the touch controls
 ## instead — so a new power-up / enemy / boss needs zero mobile-specific work.
 ##
-## Only three gameplay call-sites consume this today (player movement, game
-## aim/fire, main.nim ability/wall/pause); keep that surface small.
+## The consumers are player.nim (movement + dash), game.nim (aim/fire),
+## main.nim (ability/wall/pause), pvp_game.nim (all of its input) and
+## dungeon.nim (interact); keep that surface small. Add a proc here only for a
+## genuinely new *input action* -- a new power-up, enemy or boss needs none.
 
 import raylib
 import particle_types      # Vector2f + ops

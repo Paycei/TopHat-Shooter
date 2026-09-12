@@ -3,6 +3,7 @@
 
 import raylib, rlgl, math
 import ../types, ../localization, ../powerup_data, ../roguelite, ../dungeon, ui_constants, ../render_context, icon_drawing, ../utils, ui_helpers
+from ../player import DashCooldownTime
 
 const
   COMBINED_PANEL_WIDTH = 238
@@ -14,6 +15,7 @@ const
   COMBINED_MAX_POWERUPS_VISIBLE = 3
   COMBINED_POWERUP_OVERFLOW_HEIGHT = 14
   COMBINED_XP_BAR_HEIGHT = 12       # one drawLevelXpBar row (label 9 + 2 shadow/pad)
+  COMBINED_DASH_ROW_HEIGHT = 13     # one drawDashRow line (bar 5 + label 9 - overlap)
   HEADER_BG_COLOR = Color(r: 0, g: 100, b: 120, a: 60)
   ACCENT_COLOR = Color(r: 0, g: 220, b: 255, a: 255)
 
@@ -51,6 +53,72 @@ proc drawLevelXpBar(game: Game, panelX, panelW, yOffset: int32) =
   drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
                                width: barW.float32, height: barH.float32),
                      1, Color(r: 120, g: 220, b: 190, a: 160))
+
+proc drawDashRow(game: Game, panelX, panelW, yOffset: int32) =
+  ## DASH recharge strip: glyph + label on the left, a thin bar, and either the
+  ## remaining seconds or READY on the right.
+  ##
+  ## The legendary [Q] panel can never host this. That panel only exists once a
+  ## legendary ability is installed, while the dash is a base verb owned from
+  ## wave 1, so the one ability every run always has would have been the only
+  ## one with no cooldown readout anywhere.
+  const labelSize: int32 = 9
+  const barH: int32 = 5
+  let cd = game.player.dashCooldown
+  let ready = cd <= 0.0'f32
+  let progress = if ready: 1.0'f32
+                 else: clamp(1.0'f32 - cd / DashCooldownTime, 0.0'f32, 1.0'f32)
+  let pulse = 0.5'f32 + 0.5'f32 * sin(game.time * 4.0'f32)
+
+  # Glyph token, same vocabulary as the [#] / [*] stats row above.
+  let glyphColor = if ready: Color(r: 120, g: 255, b: 225, a: 255)
+                   else: Color(r: 90, g: 140, b: 170, a: 220)
+  drawText("[>]", panelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, labelSize,
+          Color(r: 0, g: 0, b: 0, a: 100))
+  drawText("[>]", panelX + COMBINED_PANEL_PADDING + 5, yOffset, labelSize, glyphColor)
+
+  let label = t(tkHUDDash)
+  let labelX = panelX + COMBINED_PANEL_PADDING + 24
+  drawText(label, labelX, yOffset, labelSize,
+          if ready: Color(r: 200, g: 245, b: 255, a: 255)
+          else: Color(r: 140, g: 165, b: 185, a: 230))
+
+  # Right-hand readout: exact seconds while recharging (one decimal, rounded up
+  # so it never shows 0.0 while still spent), READY once it is back. Formatted
+  # by hand to keep this module free of a strutils dependency.
+  let rightText = if ready:
+    t(tkHUDDashReady)
+  else:
+    let tenths = max(1, int(ceil(cd * 10.0'f32)))
+    $(tenths div 10) & "." & $(tenths mod 10) & "s"
+  let rightW = measureText(rightText, labelSize)
+
+  # Bar fills whatever is left between the label and the readout.
+  let barX = labelX + measureText(label, labelSize) + 6
+  let barRight = panelX + panelW - COMBINED_PANEL_PADDING - rightW - 5
+  let barW = max(10'i32, barRight - barX)
+  let barY = yOffset + 2
+
+  drawRectangle(barX, barY, barW, barH, Color(r: 10, g: 20, b: 30, a: 110))
+  let fillW = int32(barW.float32 * progress)
+  if fillW > 0:
+    let fillColor = if ready:
+      Color(r: uint8(80.0'f32 + 60.0'f32 * pulse), g: 255,
+            b: uint8(200.0'f32 + 55.0'f32 * pulse), a: 235)
+    else:
+      Color(r: uint8(40.0'f32 + 50.0'f32 * progress),
+            g: uint8(140.0'f32 + 105.0'f32 * progress),
+            b: uint8(190.0'f32 + 65.0'f32 * progress), a: 220)
+    drawRectangle(barX, barY, fillW, barH, fillColor)
+  drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
+                               width: barW.float32, height: barH.float32),
+                    1, Color(r: 0, g: 220, b: 255, a: if ready: 150 else: 90))
+
+  let rightX = panelX + panelW - COMBINED_PANEL_PADDING - rightW
+  drawText(rightText, rightX + 1, yOffset + 1, labelSize, Color(r: 0, g: 0, b: 0, a: 120))
+  drawText(rightText, rightX, yOffset, labelSize,
+          if ready: Color(r: uint8(140.0'f32 + 100.0'f32 * pulse), g: 255, b: 225, a: 255)
+          else: Color(r: 170, g: 200, b: 220, a: 235))
 
 proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32,
                          showMinimizeIcon: bool): int32 {.discardable.} =
@@ -98,7 +166,8 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32,
   else:
     0
 
-  let totalHeight = 82 + powerUpHeight + waveInfoHeight + rogueliteInfoHeight +
+  let totalHeight = 82 + COMBINED_DASH_ROW_HEIGHT + powerUpHeight + waveInfoHeight +
+                    rogueliteInfoHeight +
                     (if powerUpHeight > 0: COMBINED_SECTION_SPACING else: 0)
 
   # Main panel background - more transparent and colorful
@@ -209,6 +278,10 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32,
   drawText($game.player.powerUps.len, panelX + panelW - 27, yOffset, 10, Color(r: 255, g: 255, b: 255, a: 255))
 
   yOffset += 14
+
+  # DASH RECHARGE (always present -- the dash is owned from wave 1 in every mode)
+  drawDashRow(game, panelX, panelW, yOffset)
+  yOffset += COMBINED_DASH_ROW_HEIGHT
 
   # WAVE INFO (if applicable)
   if (game.mode == gmWaveBased):
