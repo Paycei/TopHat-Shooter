@@ -47,7 +47,7 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.2.2",
     latest: true,
     entries: @[
-      # --- Game feel ---
+      # Game feel
       ChangelogEntry(category: clcNew,
         en: "You can dash. Tap Shift (or LT on a controller) for a short burst of speed in the direction you are moving, on a 2.5 second cooldown. It grants no invulnerability: the dash moves you out of the way, it does not let you pass through a hit, so it has to be aimed at open space and spent deliberately rather than mashed. It is available from the very first wave rather than waiting on a lucky legendary, so a real dodge is now something you can always do instead of something you might unlock. The charge is never a guess: a thin ring wraps your character and sweeps closed as it refills, snaps outward the instant it is back, and disappears once you are holding it, while the status panel carries a DASH bar with the exact seconds left. Rebindable in Settings > Controls.",
         es: "Ya puedes impulsarte. Pulsa Shift (o LT en el mando) para un empujón corto de velocidad en la dirección en la que te mueves, con 2.5 segundos de espera. No otorga invulnerabilidad: el impulso te aparta del peligro, no te deja atravesar un golpe, así que hay que apuntarlo a un hueco libre y gastarlo con criterio en vez de aporrearlo. Está disponible desde la primera oleada en vez de depender de una legendaria afortunada, así que esquivar de verdad ya es algo que siempre puedes hacer y no algo que quizás desbloquees. La carga nunca es una suposición: un anillo fino rodea a tu personaje y se va cerrando mientras se recarga, da un destello hacia fuera en cuanto vuelve a estar lista, y desaparece mientras la tienes guardada, y el panel de estado incluye una barra de IMPULSO con los segundos exactos que faltan. Reasignable en Ajustes > Controles."),
@@ -55,8 +55,8 @@ let changelog: seq[ChangelogVersion] = @[
         en: "Hits have weight now. Killing something freezes the game for a few frames, elites bite harder, and a boss going down gets a heavy freeze followed by a long slow-motion dwell. Taking a hit yourself freezes too. Screen shake was also raised roughly three and a half times across the board: a kill used to move the camera less than a pixel and a boss kill about four, which was at or below the point where the eye can register it at all.",
         es: "Los golpes ahora pesan. Matar algo congela el juego unos fotogramas, las élites muerden más fuerte, y la caída de un jefe recibe un congelado duro seguido de una cámara lenta larga. Recibir un golpe también congela. La sacudida de pantalla también subió unas tres veces y media: matar movía la cámara menos de un píxel y matar a un jefe unos cuatro, justo en el límite donde el ojo ya no lo percibe."),
       ChangelogEntry(category: clcImproved,
-        en: "Damage numbers spray instead of stacking. Every floating number -- damage, healing, coins, experience, buff pickups -- used to launch straight up at the same speed with only a little sideways jitter, so a burst of hits on one enemy piled into a single unreadable column. Each one now gets its own launch angle and speed, its own weight, drift, tilt and size, and consecutive hits are thrown to alternating sides, so a stream of damage fans out like a fountain. Criticals are thrown harder but in a narrower arc, so they stay near the hit where you are already looking. The numbers also punch in oversized on the frame they appear and hold full brightness for the first half of their life instead of fading from the moment they spawn, which makes them far easier to read in a crowd.",
-        es: "Los números de daño se dispersan en vez de amontonarse. Cada número flotante -- daño, curación, monedas, experiencia, objetos recogidos -- salía disparado hacia arriba a la misma velocidad con solo un poco de variación lateral, así que una ráfaga de golpes sobre un enemigo se apilaba en una columna ilegible. Ahora cada uno recibe su propio ángulo y velocidad de salida, su propio peso, deriva, inclinación y tamaño, y los golpes consecutivos se lanzan a lados alternos, de modo que un chorro de daño se abre como una fuente. Los críticos salen con más fuerza pero en un arco más estrecho, así que se quedan cerca del impacto, donde ya estás mirando. Los números además aparecen de golpe con un tamaño mayor y mantienen el brillo completo durante la primera mitad de su vida en vez de desvanecerse desde que salen, lo que los hace mucho más fáciles de leer entre la multitud."),
+        en: "Damage numbers spray instead of stacking. Every floating number: damage, healing, coins, experience, buff pickups and etc used to launch straight up at the same speed with only a little sideways jitter, so a burst of hits on one enemy piled into a single unreadable column. Each one now gets its own launch angle and speed, its own weight, drift, tilt and size, and consecutive hits are thrown to alternating sides, so a stream of damage fans out like a fountain. Criticals are thrown harder but in a narrower arc, so they stay near the hit where you are already looking. The numbers also punch in oversized on the frame they appear and hold full brightness for the first half of their life instead of fading from the moment they spawn, which makes them far easier to read in a crowd.",
+        es: "Los números de daño se dispersan en vez de amontonarse. Cada número flotante: daño, curación, monedas, experiencia, objetos recogidos y etc salía disparado hacia arriba a la misma velocidad con solo un poco de variación lateral, así que una ráfaga de golpes sobre un enemigo se apilaba en una columna ilegible. Ahora cada uno recibe su propio ángulo y velocidad de salida, su propio peso, deriva, inclinación y tamaño, y los golpes consecutivos se lanzan a lados alternos, de modo que un chorro de daño se abre como una fuente. Los críticos salen con más fuerza pero en un arco más estrecho, así que se quedan cerca del impacto, donde ya estás mirando. Los números además aparecen de golpe con un tamaño mayor y mantienen el brillo completo durante la primera mitad de su vida en vez de desvanecerse desde que salen, lo que los hace mucho más fáciles de leer entre la multitud."),
       ChangelogEntry(category: clcImproved,
         en: "The power-up reel stopped being a toll booth. A normal draft now settles in about a second instead of three and a half, and any key or click while it is spinning snaps it straight to the result. Legendary drafts keep a longer roll, since they are rare enough for the flourish to still be worth watching.",
         es: "La ruleta de mejoras dejó de ser un peaje. Una tirada normal se detiene en un segundo aproximadamente en vez de tres y medio, y cualquier tecla o clic mientras gira la lleva directa al resultado. Las tiradas legendarias mantienen un giro largo, porque son lo bastante raras como para que el gesto siga mereciendo la pena."),
@@ -68,10 +68,10 @@ let changelog: seq[ChangelogVersion] = @[
         en: "Level-ups no longer yank you out of the fight. Filling the bar now shows LEVEL UP and lets you play for a beat before the draft screen opens, so it never lands while your hands are still driving. Closing it eases you back in instead of dropping you cold: time ramps up from a crawl to full speed, you get a moment of invulnerability, and a ring pulses on your character so you can find yourself before the wave resumes.",
         es: "Subir de nivel ya no te arranca del combate. Al llenar la barra aparece SUBIÓ DE NIVEL y te deja jugar un instante antes de que se abra la pantalla de mejoras, así que nunca cae con las manos aún en los mandos. Al cerrarla vuelves poco a poco en vez de caer de golpe: el tiempo acelera desde muy lento hasta la velocidad normal, tienes un momento de invulnerabilidad, y un anillo late sobre tu personaje para que te encuentres antes de que la oleada siga."),
       ChangelogEntry(category: clcFixed,
-        en: "The power-up reel stopped skipping itself. Every key the draft screen reads is also a gameplay key -- Space shoots, E places walls, A and D move, and the mouse button fires -- so a shot already in flight when the screen appeared would cancel the animation instantly, and sometimes pick a card straight after. The screen now ignores input for a moment and waits for you to actually let go of the controls before it listens.",
-        es: "La ruleta de mejoras dejó de saltarse sola. Todas las teclas que lee la pantalla de mejoras son también teclas de juego -- Espacio dispara, E coloca muros, A y D mueven, y el botón del ratón dispara -- así que un disparo ya en marcha al aparecer la pantalla cancelaba la animación al instante, y a veces elegía una carta justo después. Ahora la pantalla ignora la entrada un momento y espera a que sueltes de verdad los controles antes de escuchar."),
+        en: "The power-up reel stopped skipping itself. Every key the draft screen reads is also a gameplay key: Space shoots, E places walls, A and D move, and the mouse button fires -- so a shot already in flight when the screen appeared would cancel the animation instantly, and sometimes pick a card straight after. The screen now ignores input for a moment and waits for you to actually let go of the controls before it listens.",
+        es: "La ruleta de mejoras dejó de saltarse sola. Todas las teclas que lee la pantalla de mejoras son también teclas de juego: Espacio dispara, E coloca muros, A y D mueven, y el botón del ratón dispara -- así que un disparo ya en marcha al aparecer la pantalla cancelaba la animación al instante, y a veces elegía una carta justo después. Ahora la pantalla ignora la entrada un momento y espera a que sueltes de verdad los controles antes de escuchar."),
 
-      # --- Wave mode ---
+      # Wave mode
       ChangelogEntry(category: clcNew,
         en: "Wave mode runs carry restore points now. Continuing from the boss-block checkpoint after a death used to be unlimited on every difficulty except Nightmare, which made a checkpoint a formality rather than something you spend. Each run now gets a fixed number of them -- unlimited on Easy, three on Normal, one on Hard, none on Nightmare -- shown as save-state platters in a meter on the pause menu, the death screen and the victory screen, so you always know how much rope you have left. The meter turns red and starts pulsing on your last one. Spending a restore point is not a number quietly moving either: the run holds on a full-screen sequence where the platter you just burned spins down, its write light gutters out, the surface fractures and the save scatters as data shards before the resumed wave counts you back in. On Easy it rebuilds itself, because there the budget never actually runs down. Spending one sticks: the count is written to the checkpoint the moment you continue, so dying again cannot refund it, and resuming a dead run from the desktop costs one on the same terms as the Continue button. When the last is gone the Continue option disappears and the dead platters stay on screen.",
         es: "Las partidas del modo oleadas ahora llevan puntos de restauración. Continuar desde el punto de control de bloque de jefe tras una muerte era ilimitado en todas las dificultades salvo Pesadilla, lo que convertía el punto de control en un trámite y no en algo que se gasta. Cada partida recibe ahora un número fijo -- ilimitados en Fácil, tres en Normal, uno en Difícil, ninguno en Pesadilla -- mostrados como discos de estado guardado en un medidor del menú de pausa, la pantalla de muerte y la de victoria, para que siempre sepas cuánto margen te queda. El medidor se pone rojo y late cuando te queda el último. Gastar un punto tampoco es un número que cambia en silencio: la partida se detiene en una secuencia a pantalla completa donde el disco que acabas de quemar frena, su luz de escritura se apaga, la superficie se agrieta y la copia se dispersa en fragmentos de datos antes de que la cuenta atrás te devuelva a la oleada. En Fácil se reconstruye, porque ahí el margen nunca se agota de verdad. Gastar uno es definitivo: la cuenta se escribe en el punto de control en cuanto continúas, así que volver a morir no lo devuelve, y retomar una partida muerta desde el escritorio cuesta uno igual que el botón de Continuar. Cuando se acaba el último, la opción de Continuar desaparece y los discos muertos se quedan en pantalla."),
@@ -108,12 +108,12 @@ let changelog: seq[ChangelogVersion] = @[
         en: "The shop's Max Health upgrade was the odd one out. Its bonus grew with every purchase on top of an already small starting pool, making it roughly three times more value per coin than any other slot at every depth -- seven purchases alone were about two thirds of a built player's entire health. It now flattens out as you stack it, while the first purchase is almost unchanged.",
         es: "La mejora de Vida Máxima de la tienda desentonaba. Su bonificación crecía con cada compra sobre una reserva inicial ya pequeña, lo que la hacía unas tres veces más rentable por moneda que cualquier otra ranura a cualquier profundidad: solo siete compras eran unos dos tercios de toda la vida de un jugador desarrollado. Ahora se aplana al acumularla, mientras que la primera compra apenas cambia."),
 
-      # --- Tuning ---
+      # Tuning
       ChangelogEntry(category: clcBalance,
         en: "The shop's Damage and Fire Rate upgrades were pulled back slightly. Both compounded faster than intended over a long run -- damage especially, since each purchase paid more than the last, so a deep stack outran anything the waves could put in front of it. A first purchase is worth about what it always was; ten purchases in your damage output is down roughly 9%, and twenty in roughly 15%. Movement speed, bullet speed and walls are untouched.",
         es: "Las mejoras de Daño y Cadencia de la tienda bajan un poco. Las dos se acumulaban más rápido de lo previsto en partidas largas -- el daño sobre todo, porque cada compra pagaba más que la anterior, así que una inversión grande se escapaba de todo lo que las oleadas podían ponerle delante. Una primera compra vale casi lo mismo que siempre; con diez compras tu daño baja alrededor de un 9%, y con veinte alrededor de un 15%. Velocidad de movimiento, velocidad de bala y muros no se tocan."),
 
-      # --- Interface ---
+      # Interface
       ChangelogEntry(category: clcNew,
         en: "Healing has its own column in the stats window. The Power-Ups tab is now three panels -- what you picked, what it damaged, and what it healed -- instead of two, with healing ranked the same way damage is: every source in order, what it restored, and its share of the total, plus a running total at the foot of the column. Health consumables are counted alongside the power-ups, so the column adds up to every point of health you got back over the run. Healing was previously tacked on below the damage ranking, where a run with more than a couple of sources simply ran off the bottom of the panel with no way to see the rest.",
         es: "La curación tiene su propia columna en la ventana de estadísticas. La pestaña de Mejoras ahora son tres paneles -- lo que elegiste, lo que hizo daño y lo que curó -- en vez de dos, con la curación ordenada igual que el daño: cada fuente en orden, cuánto restauró y su porcentaje del total, más un total al pie de la columna. Los consumibles de salud se cuentan junto a las mejoras, así que la columna suma cada punto de vida que recuperaste en la partida. Antes la curación iba pegada debajo de la clasificación de daño, donde una partida con más de un par de fuentes se salía del panel sin manera de ver el resto."),
@@ -125,12 +125,12 @@ let changelog: seq[ChangelogVersion] = @[
         en: "The Controls settings stopped running off the bottom of the panel. The tab had grown a controller selector and a second column of gamepad binds since its spacing was last set, and the two lines listing the fixed keys and the reserved controller buttons ended up printed past the edge of the panel, cut in half or missing entirely. The whole tab was retightened to fit, and its rows and buttons now come from a single shared layout, so the clickable area of every keybind button lines up with where the button is drawn. The two captions under the input selectors also sit with the row they describe instead of floating between two of them.",
         es: "Los ajustes de Controles dejaron de salirse por debajo del panel. La pestaña había ganado un selector de mando y una segunda columna de asignaciones desde la última vez que se fijó su espaciado, y las dos líneas que enumeran las teclas fijas y los botones reservados del mando acababan dibujadas más allá del borde del panel, cortadas por la mitad o directamente ausentes. Se ha reajustado toda la pestaña para que quepa, y sus filas y botones salen ahora de una única distribución compartida, así que la zona pulsable de cada botón de asignación coincide con donde se dibuja. Los dos pies de texto bajo los selectores de entrada también quedan junto a la fila que describen en vez de flotar entre dos de ellas."),
 
-      # --- Startup ---
+      # Startup
       ChangelogEntry(category: clcImproved,
         en: "The first launch got about eight times faster. The four music tracks are composed from scratch the first time you play, and that is by far the slowest thing the game ever does -- it was around thirteen seconds of staring at a loading screen, and most of a minute in a development build. All of it ran on a single core while the rest of the machine sat idle. The synthesiser now spreads each track across every core you have, and a cold first launch finishes in under two seconds. Everything is still fully built and cached before the game starts, exactly as before, and the tracks themselves come out identical to the last byte -- the music you already have cached is still the right music, so nothing is rebuilt.",
         es: "El primer arranque es unas ocho veces más rápido. Las cuatro pistas de música se componen desde cero la primera vez que juegas, y es de lejos lo más lento que hace el juego: eran unos trece segundos mirando una pantalla de carga, y casi un minuto en una versión de desarrollo. Todo ello corría en un solo núcleo mientras el resto de la máquina estaba parada. El sintetizador ahora reparte cada pista entre todos los núcleos disponibles, y un primer arranque en frío termina en menos de dos segundos. Todo se sigue creando y guardando por completo antes de que empiece el juego, igual que antes, y las pistas salen idénticas hasta el último byte: la música que ya tengas en caché sigue siendo la correcta, así que no se vuelve a crear nada."),
 
-      # --- Fixes ---
+      # Fixes
       ChangelogEntry(category: clcFixed,
         en: "Slow motion never actually ran. Every kill was meant to trigger a moment of dilated time, but the effect was switched on and then never ticked, so it did nothing at all and quietly stayed on forever after your first kill. Time effects now run properly, and regular kills use a short freeze instead, which holds up when a whole crowd dies at once.",
         es: "La cámara lenta nunca llegó a funcionar. Cada muerte debía provocar un instante de tiempo dilatado, pero el efecto se activaba y luego nunca avanzaba, así que no hacía nada y se quedaba encendido para siempre tras tu primera baja. Los efectos de tiempo ya funcionan bien, y las muertes normales usan un congelado corto, que aguanta cuando muere una multitud entera a la vez."),
@@ -152,17 +152,17 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.2.1",
     latest: false,
     entries: @[
-      # --- Tuning ---
+      # Tuning
       ChangelogEntry(category: clcBalance,
         en: "Giant Slayer hits harder across all three levels: it now shaves 3%, 5.5% and 8% of an enemy's current health per hit, up from 2.5%, 4% and 6%. Its much smaller bite against bosses is unchanged, so it stays a crowd-clearing pick rather than a boss melter.",
         es: "Matagigantes pega más fuerte en sus tres niveles: ahora arranca el 3%, 5.5% y 8% de la vida actual del enemigo por golpe, frente al 2.5%, 4% y 6% anteriores. Su mordisco mucho menor contra jefes no cambia, así que sigue siendo una elección para limpiar hordas y no para fundir jefes."),
 
-      # --- Interface ---
+      # Interface
       ChangelogEntry(category: clcImproved,
         en: "Confirmation dialogs stop making you wait. The YES button now unlocks after one second instead of two -- still long enough to catch an accidental key, short enough that quitting or resetting on purpose no longer feels like a punishment.",
         es: "Los diálogos de confirmación ya no te hacen esperar tanto. El botón SÍ se desbloquea tras un segundo en vez de dos: sigue siendo suficiente para frenar una tecla accidental, pero salir o reiniciar a propósito ya no se siente como un castigo."),
 
-      # --- Fixes ---
+      # Fixes
       ChangelogEntry(category: clcFixed,
         en: "Fixed the background audio setup crashing the Windows release build on first launch. The progress counter used a threading instruction the Windows compiler builds incorrectly; it now uses a plain counter, so the first run generates its sounds and music without falling over.",
         es: "Corregido un fallo por el que la preparación de audio en segundo plano rompia la versión de Windows en el primer arranque. El contador de progreso usaba una instrucción de hilos que el compilador de Windows genera mal; ahora usa un contador normal, así que el primer arranque crea sus sonidos y su música sin caerse.")
@@ -175,7 +175,7 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.2",
     latest: false,
     entries: @[
-      # --- Effects ---
+      # Effects
       ChangelogEntry(category: clcImproved,
         en: "Aftershock is finally something you can see. The shockwave now draws the actual corridor you ran through: a bright crest rolls backwards along your path exactly the way the damage resolves, leaving a glowing swath and a trail of sparks behind it, and every enemy it catches bursts at the point on the path that hit them. Before this, a wide loop just made enemies fly away from nothing.",
         es: "Réplica por fin se ve. La onda ahora dibuja el pasillo por el que corriste de verdad: una cresta brillante recorre tu recorrido hacia atrás igual que se resuelve el daño, dejando una estela luminosa y un rastro de chispas, y cada enemigo alcanzado revienta en el punto exacto del recorrido que lo tocó. Antes, dar una vuelta amplia solo hacía que los enemigos salieran volando sin motivo visible."),
@@ -189,7 +189,7 @@ let changelog: seq[ChangelogVersion] = @[
         en: "Several quiet power-ups now show their work. Giant Slayer scatters arcane shards on the target, Curse cracks its purple ring open on every hit that cashes it in, Overcharge lands a golden impact once a shot is near its full charge, and Thorns throws a green spike ring outward from whatever hit you instead of a plain red puff.",
         es: "Varias mejoras silenciosas ahora enseñan lo que hacen. Matagigantes esparce fragmentos arcanos sobre el objetivo, Maldición rompe su anillo morado en cada golpe que la cobra, Sobrecarga deja un impacto dorado cuando el disparo llega casi a plena carga, y Espinas lanza un anillo verde de púas desde lo que te golpeó en vez de una simple nube roja."),
 
-      # --- Tuning ---
+      # Tuning
       ChangelogEntry(category: clcBalance,
         en: "Juggernaut reworked: it no longer hands out its damage for free. Your starting health pool and every automatic gain -- the health you pick up just by clearing waves or levelling up -- no longer count, so only max HP you actually bought (shop upgrades, Fortified, Corrupted Core) is converted, at +3% damage per 100 up to +45%. Picking it up bolts 300 max HP of plating onto you to start that off, and the plating has weight: it slows you by up to 18%, scaling with however much damage it is currently granting. Wearing it also caps how much Momentum can pay you, since you can no longer reach full speed.",
         es: "Coloso rediseñado: ya no regala su daño. Tu vida inicial y todo lo que ganas de forma automática -- la vida que sale sola al superar oleadas o subir de nivel -- dejan de contar, así que solo se convierte el HP máximo que compraste de verdad (mejoras de tienda, Fortificado, Núcleo Corrupto), a +3% de daño por cada 100 y hasta +45%. Al cogerlo te instala 300 HP máx de blindaje para arrancar, y ese blindaje pesa: te ralentiza hasta un 18%, en proporción al daño que te esté dando en ese momento. Llevarlo también limita lo que puede pagarte Momento, porque ya no alcanzas la velocidad máxima."),
@@ -203,7 +203,7 @@ let changelog: seq[ChangelogVersion] = @[
         en: "Boss overload shields now telegraph themselves. Six shards fall inward onto the shell's future corners while a ring closes around the boss, landing exactly as the shield snaps up, so you get a moment to hold fire instead of finding out by eating your own shot. A returned bullet is also ringed with a pulsing cyan cage and spinning spokes, so you can pick it out of the crossfire. Both cues are purely visual and always shown, even with hints turned off.",
         es: "Los escudos de sobrecarga de los jefes ahora se avisan. Seis fragmentos caen hacia dentro sobre las futuras esquinas del caparazón mientras un anillo se cierra alrededor del jefe, y ambos llegan justo cuando el escudo se levanta, así que tienes un momento para dejar de disparar en vez de enterarte comiéndote tu propio disparo. La bala devuelta también lleva una jaula cian que late y radios que giran, para que puedas distinguirla en medio del fuego cruzado. Ambas señales son puramente visuales y se muestran siempre, incluso con las pistas desactivadas."),
 
-      # --- Interface ---
+      # Interface
       ChangelogEntry(category: clcImproved,
         en: "The difficulty picker now carries a pulsing banner across the Easy and Normal cards marking them as the recommended starting point, so creating a profile is not a blind guess between four cards.",
         es: "El selector de dificultad ahora lleva un cartel palpitante sobre las tarjetas Facil y Normal que las marca como el punto de partida recomendado, para que crear un perfil no sea adivinar a ciegas entre cuatro tarjetas."),
@@ -222,7 +222,7 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.1.1",
     latest: false,
     entries: @[
-      # --- Startup ---
+      # Startup
       ChangelogEntry(category: clcFixed,
         en: "The first-launch audio setup no longer freezes the game. Building the four music tracks used to lock the window for several seconds at a time -- nothing animated and Windows could mark the game as not responding. The audio is now built in the background while the loading screen keeps running at full frame rate.",
         es: "La preparación de audio del primer arranque ya no congela el juego. Crear las cuatro pistas de música bloqueaba la ventana durante varios segundos seguidos -- nada se animaba y Windows podía marcar el juego como que no responde. Ahora el audio se crea en segundo plano mientras la pantalla de carga sigue funcionando a pleno rendimiento."),
@@ -230,12 +230,12 @@ let changelog: seq[ChangelogVersion] = @[
         en: "Redesigned loading screen: an audio_setup.exe window with SFX / MUSIC / MEMORY stage badges, an asset counter, the file being built right now, a smoothly filling progress bar and a live audio meter. It also notes that this only happens on the first run, since the generated audio is cached afterwards.",
         es: "Pantalla de carga rediseñada: una ventana audio_setup.exe con distintivos de fase SFX / MÚSICA / MEMORIA, un contador de recursos, el archivo que se está creando, una barra de progreso que se llena con suavidad y un medidor de audio en vivo. Además avisa de que esto solo ocurre en el primer arranque, porque el audio generado queda en caché."),
 
-      # --- Tuning ---
+      # Tuning
       ChangelogEntry(category: clcBalance,
         en: "The Orbital Commander's final phase now belongs to its Orbital Scan: three walls per volley instead of two, arriving from three different edges (rake, crosswise, then a reverse rake), and the next scan starts telegraphing while the last wall is still crossing. The safe lane is a touch wider to compensate.",
         es: "La fase final del Comandante Orbital ahora gira en torno a su Escaneo Orbital: tres muros por descarga en vez de dos, llegando desde tres bordes distintos (barrido, transversal y barrido inverso), y el siguiente escaneo empieza a avisarse mientras el último muro aún cruza. El carril seguro es algo más ancho para compensar."),
 
-      # --- Fixes ---
+      # Fixes
       ChangelogEntry(category: clcFixed,
         en: "Fixed a crash when starting Wave mode with a checkpoint saved by an older build. Checkpoints written before the run save started tracking shop purchases were missing that field, and reading it crashed the game instead of skipping it. Older checkpoints now load again, and the same fault was fixed in the roguelite floor and profile loaders.",
         es: "Corregido un cierre inesperado al entrar en el modo Oleadas con un punto de control guardado por una versión anterior. A los puntos de control escritos antes de que la partida guardara las compras de tienda les faltaba ese campo, y leerlo cerraba el juego en vez de omitirlo. Los puntos de control antiguos vuelven a cargarse, y se corrigió el mismo fallo en los cargadores de planta y de perfil del Roguelite."),
@@ -253,7 +253,7 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEn: "Changes since v6.0",
     subtitleEs: "Cambios desde v6.0",
     entries: @[
-      # --- Headline features ---
+      # Headline features
       ChangelogEntry(category: clcNew,
         en: "Checkpoints: clearing a boss block now writes a checkpoint that survives death. The game-over screen offers CONTINUE (WAVE N) to drop straight back into the run instead of starting over.",
         es: "Puntos de control: superar un bloque de jefe ahora guarda un punto de control que sobrevive a la muerte. La pantalla de derrota ofrece CONTINUAR (OLEADA N) para volver directamente a la partida en vez de empezar de cero."),
@@ -276,7 +276,7 @@ let changelog: seq[ChangelogVersion] = @[
         en: "New Mythic advancement, Flawless Kernel: clear wave mode from wave 1 to the twelfth boss without dying once. Pressing CONTINUE at any point voids it for that run, and so does using cheats.",
         es: "Nuevo logro Mítico, Núcleo Impecable: completa el modo oleadas desde la oleada 1 hasta el duodécimo jefe sin morir ni una vez. Pulsar CONTINUAR en cualquier momento lo anula en esa partida, igual que usar trucos."),
 
-      # --- Reworks and quality of life ---
+      # Reworks and quality of life
       ChangelogEntry(category: clcImproved,
         en: "Auras reworked into pulses: instead of a constant field, each aura fires a shockwave that sweeps outward from you on its own beat, hitting every enemy the wavefront reaches.",
         es: "Auras rehechas como pulsos: en vez de un campo constante, cada aura lanza una onda de choque que barre hacia afuera desde ti con su propio ritmo, golpeando a cada enemigo que alcanza el frente de onda."),
@@ -332,7 +332,7 @@ let changelog: seq[ChangelogVersion] = @[
         en: "The advancement detail panel now shows its category and how far along that rarity you are, and the list scrolls smoothly with a scrollbar that reflects how much is left below.",
         es: "El panel de detalle de logros ahora muestra su categoria y cuanto llevas de esa rareza, y la lista se desplaza con suavidad con una barra que refleja cuanto queda por debajo."),
 
-      # --- Tuning ---
+      # Tuning
       ChangelogEntry(category: clcBalance,
         en: "Fire Mastery pulled back from +350% to +150% damage, now in line with the other element masteries.",
         es: "Maestría de Fuego reducida de +350% a +150% de daño, ahora en línea con las demás maestrías elementales."),
@@ -364,7 +364,7 @@ let changelog: seq[ChangelogVersion] = @[
         en: "Power-up offers retimed around the boss cycle: you now get a selection on every wave of a block except the first, plus the guaranteed boss reward.",
         es: "Las ofertas de potenciadores se reajustaron al ciclo de jefes: ahora recibes una selección en cada oleada del bloque salvo la primera, más la recompensa garantizada del jefe."),
 
-      # --- Fixes ---
+      # Fixes
       ChangelogEntry(category: clcFixed,
         en: "Fixed bosses sometimes dying outright when a phase health bar ran out instead of changing to their next phase.",
         es: "Se corrigió que los jefes murieran a veces de golpe al agotarse la barra de vida de una fase en vez de pasar a su siguiente fase."),
@@ -409,7 +409,7 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEn: "Changes since v5.5.2",
     subtitleEs: "Cambios desde v5.5.2",
     entries: @[
-      # --- Headline features ---
+      # Headline features
       ChangelogEntry(category: clcNew,
         en: "Save profiles: three independent slots, each with its own progress and its own difficulty, chosen when the profile is created.",
         es: "Perfiles de guardado: tres ranuras independientes, cada una con su propio progreso y su propia dificultad, elegida al crear el perfil."),
@@ -492,7 +492,7 @@ let changelog: seq[ChangelogVersion] = @[
         en: "More cosmetics, including D&D-themed skins and secret unlockable hats.",
         es: "Más cosméticos, incluyendo aspectos temáticos de D&D y sombreros secretos desbloqueables."),
 
-      # --- Reworks and quality of life ---
+      # Reworks and quality of life
       ChangelogEntry(category: clcImproved,
         en: "Four power-ups reworked into distinct identities and renamed: Overclock (hold fire to ramp your fire rate up to +30%), Juggernaut (+2% damage per 100 max HP, up to +40%), Momentum (up to +25% damage while moving) and Lightspeed (every shot fires an instant tracer beam for 50% damage).",
         es: "Cuatro potenciadores rehechos con identidades propias y renombrados: Sobrecarga (manten el disparo para acelerar la cadencia hasta +30%), Coloso (+2% de daño por cada 100 HP máximos, hasta +40%), Impulso (hasta +25% de daño en movimiento) y Lightspeed (cada disparo lanza un rayo trazador instantaneo por 50% de daño)."),
@@ -542,7 +542,7 @@ let changelog: seq[ChangelogVersion] = @[
         en: "Further refined the destructible-wall system for better placement and feel.",
         es: "Se refinó aún más el sistema de muros destructibles para mejor colocación y sensación."),
 
-      # --- Tuning ---
+      # Tuning
       ChangelogEntry(category: clcBalance,
         en: "Late-game scaling retuned: enemy counts grow on a smoother, uncapped curve and enemies (plus endless bosses past wave 60) gain compounding health and damage, while regular enemies were pulled back so deep waves lean on bosses and elites instead of sheer chip damage.",
         es: "Escalado de fin de partida reajustado: la cantidad de enemigos crece en una curva más suave y sin tope y los enemigos (y los jefes infinitos pasada la oleada 60) ganan vida y daño acumulativos, mientras que los enemigos normales se moderaron para que las oleadas profundas dependan de jefes y elites en vez del desgaste constante."),
@@ -580,7 +580,7 @@ let changelog: seq[ChangelogVersion] = @[
         en: "Healing is now credited to your healing multiplier, so healing stats add up correctly.",
         es: "La curación ahora se atribuye a tu multiplicador de curación, así que las estadísticas de curación cuadran correctamente."),
 
-      # --- Fixes ---
+      # Fixes
       ChangelogEntry(category: clcFixed,
         en: "Fixed bosses occasionally dying at random.",
         es: "Se corrigió que los jefes murieran al azar en ocasiones."),

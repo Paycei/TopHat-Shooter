@@ -1992,7 +1992,7 @@ proc main() =
                         Color(r: 255, g: 255, b: 255, a: 255), 35)
           anyActivated = true
 
-        # Blood Pact - sacrifice 30% current HP to unleash an amplified blood
+        # Blood Pact - sacrifice 25% current HP to unleash an amplified blood
         # nova. Every enemy is hit for a big share of its OWN max HP (so it stays
         # devastating at any wave) plus bonus damage from the blood spent. The
         # damage is NO LONGER split across targets. Bosses resist the nova and
@@ -2002,12 +2002,12 @@ proc main() =
             const
               BLOOD_PACT_ENEMY_FRAC = 0.25'f32   # share of a normal enemy's max HP per cast
               BLOOD_PACT_BOSS_FRAC  = 0.03'f32   # bosses only take a small share
-              BLOOD_PACT_BONUS_MULT = 2.5'f32    # bonus damage per point of HP sacrificed
+              BLOOD_PACT_BONUS_MULT = 1.25'f32   # bonus damage per point of HP sacrificed
             const
               BloodBright = Color(r: 235, g: 40, b: 40, a: 255)
               BloodDeep   = Color(r: 130, g: 0, b: 25, a: 255)
               BloodPactMaxTethers = 12  # a packed wave would otherwise be a red mesh
-            let sacrifice = currentGame.player.hp * 0.2
+            let sacrifice = currentGame.player.hp * 0.25
             currentGame.player.hp = max(0.1, currentGame.player.hp - sacrifice)
             let bonus = sacrifice * BLOOD_PACT_BONUS_MULT
 
