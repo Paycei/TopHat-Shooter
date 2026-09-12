@@ -11,6 +11,9 @@ const
   DashCooldownTime* = 2.5'f32   ## seconds between dashes
   DashReadyFlashTime* = 0.35'f32 ## how long the "recharged" snap plays on the player
 
+  LaserHitInterval* = 0.5'f32   ## minimum time between repeat hits from a laser/beam
+                                 ## hazard while the player keeps standing in it
+
   PlayerAcceleration = 7.0'f32
   PlayerBraking = 1.8'f32
   PlayerInertiaReferenceRadius = 14.0'f32
@@ -169,6 +172,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.speedBoostTimer -= dt
   if player.invincibilityTimer > 0:
     player.invincibilityTimer -= dt
+  if player.laserHitCooldown > 0:
+    player.laserHitCooldown -= dt
   if player.fireRateBoostTimer > 0:
     player.fireRateBoostTimer -= dt
   if player.adaptiveFirewallTimer > 0:

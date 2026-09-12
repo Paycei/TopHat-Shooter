@@ -583,6 +583,9 @@ type
     speedBoostTimer*: float32
     outOfCombatSpeedBoost*: bool  # Roguelite: +25% move speed while no encounter is active
     invincibilityTimer*: float32
+    laserHitCooldown*: float32     # Shared re-hit cooldown for beam/laser hazards: while
+                                    # standing in a laser, damage ticks at most once per
+                                    # LaserHitInterval (0.5s) instead of once per activation.
     fireRateBoostTimer*: float32
     magnetTimer*: float32
     shieldBoostTimer*: float32     # Shield boost duration
@@ -717,6 +720,8 @@ type
     laserActive*: bool
     laserTarget*: Vector2f  # Current player coordinates to target
     laserChargeTime*: float32  # Time to charge before firing
+    activeLaser*: Laser  # Persistent beam instance for the whole firing phase, kept alive
+                         # (not recreated) so hasHitPlayer isn't reset every couple of frames
 
   BossWeakObjectiveKind* = enum
     bwoNone,
@@ -833,6 +838,7 @@ type
     attackExecuteTimer*: float32
     attackPhase*: int  # 0=patrol, 1=warning, 2=execute
     dashCooldown*: float32
+    activeCrossLaser*: Laser  # etCross dash-laser instance, kept alive (not recreated) for the whole dash so hasHitPlayer isn't reset every frame
     fakeWarningTimer*: float32
     clonePositions*: seq[Vector2f]
     cloneTimer*: float32

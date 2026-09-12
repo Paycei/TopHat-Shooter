@@ -1076,7 +1076,9 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                                (w.pos.y + w.targetPos.y) * 0.5'f32,
                                Color(r: 255, g: 255, b: 190, a: 255), 12)
           w.bulletsCreated = true
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0 and
+        # Lasers re-tick every LaserHitInterval while the player stays in the
+        # beam, gated by the shared cooldown rather than a one-shot flag.
+        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0 and
            pointSegmentDistance(game.player.pos, w.pos, w.targetPos) <=
              w.laserLength + game.player.radius:
           if takeDamage(game.player, w.bulletDamage):
@@ -1085,7 +1087,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
           trackPlayerDamage(game, w.bulletDamage, etCircle)
           game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
                           isCritical = false, damageType = dtLightning)
-          w.lasersCreated = true
+          game.player.laserHitCooldown = LaserHitInterval
 
     # VOID RIFT (Void Dancer): telegraph expires -> the dimensional tear collapses,
     # dealing zone damage at the rift and releasing a slow radial spray of void
@@ -1131,8 +1133,9 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
 
     # RICOCHET LASER (boss 4 final phase): telegraph expires -> the beam-front
     # races along the bounce route (RicochetLaserSweep). The swept-so-far portion
-    # is lethal; the player can only be struck ONCE (lasersCreated gate), so being
-    # caught by the leading edge is a single big hit, never a repeated burn.
+    # is lethal; hits are throttled to once per LaserHitInterval via the shared
+    # cooldown (see LaserHitInterval), so lingering in the beam's path can be
+    # struck more than once, but not more than every 0.5s.
     if game.attackWarnings[i].attackType == awtRicochetLaser:
       let w = game.attackWarnings[i]
       if w.lifetime <= RicochetLaserActive and w.ricochetPath.len >= 2:
@@ -1142,7 +1145,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                                Color(r: 200, g: 245, b: 255, a: 255), 14)
           addShake(game.dopamine.screenShake, siMedium)
           w.bulletsCreated = true
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
           # Only test the portion the beam-front has actually reached so far.
           let activeElapsed = RicochetLaserActive - w.lifetime
           let sweepFrac = clamp(activeElapsed / RicochetLaserSweep, 0.0'f32, 1.0'f32)
@@ -1165,13 +1168,14 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
             spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                                  Color(r: 230, g: 250, b: 255, a: 255), 20)
             addShake(game.dopamine.screenShake, siLarge)
-            w.lasersCreated = true
+            game.player.laserHitCooldown = LaserHitInterval
 
     # ORBITAL SWEEP (Orbital Commander): while active, a screen-spanning energy
     # wall travels across the arena (its centre resolved per-frame by
     # orbitalSweepCenter, the same function the render uses). The player is hit
     # if the wall reaches them while they are NOT inside its safe gap - a
-    # moving hazard, tested every frame, one hit max per wall.
+    # moving hazard, tested every frame, throttled by the shared laser cooldown
+    # so lingering in the wall re-ticks every LaserHitInterval.
     if game.attackWarnings[i].attackType == awtOrbitalSweep:
       let w = game.attackWarnings[i]
       if w.lifetime <= OrbitalSweepActive:
@@ -1181,7 +1185,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                                Color(r: 190, g: 150, b: 255, a: 255), 16)
           addShake(game.dopamine.screenShake, siSmall)
           w.bulletsCreated = true
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
           let c = orbitalSweepCenter(w)
           let ang = w.bulletSpreadAngle
           let v = newVector2f(cos(ang), sin(ang))    # travel direction
@@ -1201,7 +1205,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                             isCritical = false, damageType = dtLaser)
             spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                                  Color(r: 200, g: 160, b: 255, a: 255), 14)
-            w.lasersCreated = true
+            game.player.laserHitCooldown = LaserHitInterval
 
     # SEISMIC FISSURE (Berserker Juggernaut): each step of the marching crack
     # pops when ITS lifetime enters the active window - the per-step stagger is
@@ -1241,7 +1245,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                    if w.bulletCount == 0: siLarge else: siSmall,
                    Color(r: 235, g: 210, b: 255, a: 255))
           w.bulletsCreated = true
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
           let focus = w.ricochetPath[1]
           var hit = w.bulletCount == 0 and
                     pointSegmentDistance(game.player.pos, w.ricochetPath[0], focus) <=
@@ -1259,11 +1263,12 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
             trackPlayerDamage(game, w.bulletDamage, etCircle)
             game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
                             isCritical = false, damageType = dtLaser)
-            w.lasersCreated = true
+            game.player.laserHitCooldown = LaserHitInterval
 
     # CLOCK SWEEP (Timekeeper): while active the hands rotate around the frozen
     # pivot (angles recomputed from lifetime via clockSweepHandAngle, the same
-    # function the render uses). Being caught by a hand is a single big hit.
+    # function the render uses). Being caught by a hand re-ticks every
+    # LaserHitInterval via the shared laser cooldown, same as other beams.
     if game.attackWarnings[i].attackType == awtClockSweep:
       let w = game.attackWarnings[i]
       if w.lifetime <= ClockSweepActive:
@@ -1305,7 +1310,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
           spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y,
                                Color(r: 255, g: 210, b: 130, a: 255), 24)
           addShake(game.dopamine.screenShake, siMedium)
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
           for hand in 0 ..< max(1, w.laserCount):
             let ang = clockSweepHandAngle(w, hand)
             let tip = newVector2f(w.pos.x + cos(ang) * w.bulletRadius,
@@ -1318,7 +1323,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
               trackPlayerDamage(game, w.bulletDamage, etCircle)
               game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
                               isCritical = false, damageType = dtFrost)
-              w.lasersCreated = true
+              game.player.laserHitCooldown = LaserHitInterval
               break
 
     # CHAOS WEAVE (Chaos Weaver): threads snap taut and lethal in stitch order
@@ -1358,7 +1363,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                                  Color(r: 255, g: 90, b: 255, a: 255), 4)
           addShake(game.dopamine.screenShake, siSmall)
           w.bulletsCreated = true
-        if not w.lasersCreated and game.player.invincibilityTimer <= 0:
+        if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
           var hit = false
           for s in 0 ..< w.ricochetPath.len - 1:
             if pointSegmentDistance(game.player.pos, w.ricochetPath[s], w.ricochetPath[s + 1]) <=
@@ -1372,7 +1377,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
             trackPlayerDamage(game, w.bulletDamage, etCircle)
             game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
                             isCritical = false, damageType = dtArcane)
-            w.lasersCreated = true
+            game.player.laserHitCooldown = LaserHitInterval
 
     # OMEGA JUDGEMENT (Omega Entity): every heartbeat three quadrants erupt
     # and the gold shelter hops (lifetimes encode the beats, like the
@@ -1441,8 +1446,10 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
   while j < game.lasers.len:
     game.lasers[j].lifetime -= dt
 
-    # Check if player is hit by laser (only once per laser)
-    if not game.lasers[j].hasHitPlayer and game.player.invincibilityTimer <= 0:
+    # Check if player is hit by laser (throttled to once per LaserHitInterval
+    # via the shared laserHitCooldown, so standing in a beam ticks damage
+    # repeatedly instead of just once for however long the beam lives).
+    if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
       let laser = game.lasers[j]
 
       # Transform player position into laser's local space (accounting for rotation)
@@ -1484,6 +1491,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
         game.showDamage(game.player.pos, laser.damage.float32, fromPlayer = false,
                         isCritical = false, damageType = dtLaser)
 
+        game.player.laserHitCooldown = LaserHitInterval
         game.lasers[j].hasHitPlayer = true
 
     # Remove expired lasers
@@ -3480,6 +3488,9 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
           else:
             # Laser cycle complete, deactivate and prepare for next shot
             enemy.satellites[i].laserActive = false
+            # Let the beam expire naturally (lifetime already covers the firing phase)
+            # and drop our reference so the next cycle starts a fresh laser + hit gate.
+            enemy.satellites[i].activeLaser = nil
 
         # Laser active - warning phase then fire
         if enemy.satellites[i].laserActive:
@@ -3519,20 +3530,33 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
 
             # FIRING PHASE (after warning)
             else:
-              # OPTIMIZATION: Only create laser every 2 frames instead of every frame
-              # Lasers last 2 frames so this maintains continuous beam appearance
-              if game.frameCount mod 2 == 0:
-                game.lasers.add(newLaser(
+              # The beam instance is created ONCE for the whole firing phase and then
+              # updated in place every frame below, rather than respawned every couple
+              # of frames. This keeps a single laser object alive (cheap, one entry in
+              # game.lasers) while the player-wide laserHitCooldown (see player.nim)
+              # throttles actual damage to once per LaserHitInterval (0.5s) for as long
+              # as the player stays in the beam.
+              if enemy.satellites[i].activeLaser == nil:
+                let newLaserObj = newLaser(
                   enemy.satellites[i].pos.x,
                   enemy.satellites[i].pos.y,
                   3,                    # direction: 3 = single rotated beam
                   maxScreenDist,        # length: extend all the way across screen
                   12.0,                 # thickness: visible laser beam
                   2,                    # damage
-                  dt * 3.0,             # duration: 3 frames worth for smooth overlap
+                  enemy.satellites[i].shootTimer, # duration: covers the rest of the firing phase
                   targetAngle,          # rotation: angle through target point
                   enemy.enemyType       # enemyType: track source
-                ))
+                )
+                game.lasers.add(newLaserObj)
+                enemy.satellites[i].activeLaser = newLaserObj
+              else:
+                # Keep the existing laser (and its hasHitPlayer flag) in sync.
+                enemy.satellites[i].activeLaser.pos = enemy.satellites[i].pos
+                enemy.satellites[i].activeLaser.rotation = targetAngle
+                enemy.satellites[i].activeLaser.lifetime =
+                  max(enemy.satellites[i].activeLaser.lifetime, enemy.satellites[i].shootTimer)
+                enemy.satellites[i].activeLaser.maxLifetime = enemy.satellites[i].activeLaser.lifetime
 
               # Visual feedback for laser firing - reduced frequency
               if game.frameCount mod 8 == 0:  # Reduced from every 2 frames to every 8

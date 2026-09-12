@@ -1169,7 +1169,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 14.0,
               cooldown: 0.6,
               projectileSpeed: 100.0,
-              projectileCount: 6,  # Eased: fewer satellites = fewer laser sources (was 8)
+              projectileCount: 4,  # Eased further: fewer satellites/laser sources cluttering the arena, leaving room to dodge the Orbital Scan (was 8, then 6)
               spreadAngle: 45.0,
               durationOrRadius: 220.0,
               specialData: "orbital_storm"  # Triple layer orbit

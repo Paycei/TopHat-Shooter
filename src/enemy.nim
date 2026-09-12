@@ -375,18 +375,32 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       of 2:  # Execute attack - DASH with rotation while firing laser
         enemy.attackExecuteTimer -= dt
 
-        # Fire laser CONTINUOUSLY during dash, following the enemy position AND rotation
-        # Laser follows the enemy during the entire dash
-        game.lasers.add(newLaser(
-          enemy.pos.x, enemy.pos.y,
-          2,              # direction: 2 = cross (both horizontal and vertical)
-          120.0,          # length: REDUCED from 200 to 120 (shorter lasers)
-          20.0,           # thickness: width of laser beam
-          1,              # damage
-          dt,             # duration: just this frame, will be recreated next frame
-          enemy.rotation, # rotation: pass the enemy's current rotation
-          enemy.enemyType # enemyType: track which enemy type created this laser
-        ))
+        # Fire laser CONTINUOUSLY during dash, following the enemy position AND rotation.
+        # The laser instance is created ONCE (on entering phase 2) and then updated in
+        # place every frame below, rather than respawned every frame (that used to spam
+        # game.lasers with dozens of short-lived instances per dash). Actual damage is
+        # throttled by the player-wide laserHitCooldown (see player.nim / LaserHitInterval)
+        # to once per 0.5s while the player stays in the beam, instead of gating on this
+        # laser object at all.
+        if enemy.activeCrossLaser == nil:
+          let newLaserObj = newLaser(
+            enemy.pos.x, enemy.pos.y,
+            2,              # direction: 2 = cross (both horizontal and vertical)
+            120.0,          # length: REDUCED from 200 to 120 (shorter lasers)
+            20.0,           # thickness: width of laser beam
+            1,              # damage
+            enemy.attackExecuteTimer + dt, # duration: covers the rest of the dash
+            enemy.rotation, # rotation: pass the enemy's current rotation
+            enemy.enemyType # enemyType: track which enemy type created this laser
+          )
+          game.lasers.add(newLaserObj)
+          enemy.activeCrossLaser = newLaserObj
+        else:
+          # Keep the existing laser (and its hasHitPlayer flag) in sync with the enemy.
+          enemy.activeCrossLaser.pos = enemy.pos
+          enemy.activeCrossLaser.rotation = enemy.rotation
+          enemy.activeCrossLaser.lifetime = max(enemy.activeCrossLaser.lifetime, enemy.attackExecuteTimer + dt)
+          enemy.activeCrossLaser.maxLifetime = enemy.activeCrossLaser.lifetime
 
         # Rotate during dash (clockwise at 12.5 radians per second)
         enemy.rotation += dt * 12.5
@@ -416,6 +430,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.attackExecuteTimer = 0
           enemy.vel = newVector2f(0, 0)
           enemy.rotation = 0.0  # Reset rotation
+          # Let the beam expire naturally (lifetime already covers the dash) and
+          # drop our reference so the next dash starts a fresh laser + hit gate.
+          enemy.activeCrossLaser = nil
       else:
         discard
 

@@ -2588,10 +2588,13 @@ proc bossLaserActiveDuration*(configuredDuration: float32): float32 =
   configuredDuration * LaserActiveDurationScale
 
 proc bossLaserThreatRemaining*(game: Game): float32 =
-  ## Seconds until the arena is free of beam threat: the longest remaining life
-  ## among live lasers, and for beams still in their telegraph, the telegraph
-  ## plus the lethal window it will become. Returns 0 when nothing meaningful is
-  ## pending.
+  ## Seconds until the arena is free of beam-like threat: the longest remaining
+  ## life among live lasers, beam warnings still in their telegraph (telegraph
+  ## plus the lethal window it will become), and any live Orbital Sweep wall.
+  ## The sweep is a moving, one-safe-lane hazard exactly like a beam wall -
+  ## an aimed volley (snipe/barrage) landing on top of it can deny the only
+  ## lane the sweep left open, so it has to feed the same suppression this
+  ## feeds for real beams. Returns 0 when nothing meaningful is pending.
   for laser in game.lasers:
     if laser.lifetime > result:
       result = laser.lifetime
@@ -2600,6 +2603,12 @@ proc bossLaserThreatRemaining*(game: Game): float32 =
       let total = warning.lifetime + bossLaserActiveDuration(warning.laserDuration)
       if total > result:
         result = total
+    elif warning.attackType == awtOrbitalSweep:
+      # warning.lifetime already counts down through telegraph, stagger and
+      # crossing to exactly 0 when the wall is gone, so it doubles directly
+      # as the remaining threat window - no separate formula needed.
+      if warning.lifetime > result:
+        result = warning.lifetime
   if result < LaserThreatFloor:
     result = 0.0
 
