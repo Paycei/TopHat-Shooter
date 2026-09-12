@@ -2,7 +2,7 @@
 ## Handles multiplayer player vs player combat with optional team support
 
 import raylib, rlgl, math, times, strutils, sequtils
-import types, player, bullet, wall, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, input_intent, ui/background_fx
+import types, player, bullet, wall, particle, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, input_intent, ui/background_fx
 
 const
   PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
@@ -1521,18 +1521,12 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         let playerIdx = event.packet.damagedPlayerIndex
         pvp.players[playerIdx].hp = event.packet.newHp
 
-        # Spawn damage number
-        let damageNum = DamageNumber(
-          pos: pvp.players[playerIdx].pos,
-          vel: newVector2f(0, -50),
-          damage: event.packet.damageAmount,
-          lifetime: 0,
-          maxLifetime: 1.0,
-          fromPlayer: false,
-          isCritical: false,
-          damageType: dtDefault
-        )
-        pvp.damageNumbers.add(damageNum)
+        # Spawn damage number. Must go through newDamageNumber: building the
+        # object field-by-field would leave the randomized arc fields at zero,
+        # and a zero drag/sizeScale means no drift and invisible text.
+        pvp.damageNumbers.add(newDamageNumber(
+          pvp.players[playerIdx].pos.x, pvp.players[playerIdx].pos.y,
+          event.packet.damageAmount, fromPlayer = false))
 
       of ptPlayerDeath:
         let playerIdx = event.packet.deadPlayerIndex
@@ -1659,12 +1653,7 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
   # Update damage numbers
   var i = 0
   while i < pvp.damageNumbers.len:
-    let dn = pvp.damageNumbers[i]
-    dn.lifetime += dt
-    dn.pos = dn.pos + dn.vel * dt
-    dn.vel.y += 100 * dt  # Gravity
-
-    if dn.lifetime >= dn.maxLifetime:
+    if not updateDamageNumber(pvp.damageNumbers[i], dt):
       pvp.damageNumbers.delete(i)
     else:
       i += 1

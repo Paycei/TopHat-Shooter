@@ -3,6 +3,7 @@
 
 import raylib, math
 import ../types, ../localization, ../render_context
+import ui_helpers
 
 const
   SCREEN_WIDTH = 900
@@ -113,10 +114,13 @@ proc composeDeathCause(game: Game): tuple[verb: string, killer: string, isBoss: 
   return (t(verbKey), game.deathSourceName, game.deathSourceWasBoss)
 
 proc drawSystemCrash*(game: Game, selectedButton: int = 0,
-                      showContinue: bool = false, continueWave: int = 1) =
+                      showContinue: bool = false, continueWave: int = 1,
+                      livesUsed: int = 0) =
   ## Draw the enhanced Game Over screen as a modern system crash.
   ## Without a checkpoint: 0=Restart, 1=Stats, 2=Exit.
   ## With a checkpoint (showContinue): 0=Continue, 1=Restart, 2=Stats, 3=Exit.
+  ## `livesUsed` counts the continues already spent by the run that the Continue
+  ## button would resume (see drawGameOver), and drives the restore-point meter.
   let screenWidth = getVirtualScreenWidth()
   let screenHeight = getVirtualScreenHeight()
 
@@ -197,7 +201,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
       let tagW = measureText(tag, 13) + 16
       drawRectangle(tagX, yOffset + 35, tagW, 20, Color(r: 255, g: 170, b: 40, a: 255))
       drawText(tag, tagX + 8, yOffset + 37, 13, Color(r: 40, g: 20, b: 0, a: 255))
-  yOffset += bannerH + 18
+  yOffset += bannerH + 10
 
   # Error code line (thin, themed)
   drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, 30,
@@ -208,13 +212,13 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   drawText("[!]", windowX + 40, yOffset + 6, 16, Color(r: 255, g: 200, b: 100, a: 255))
   drawText(t(tkGameOverErrorCode), windowX + 66, yOffset + 8, 14,
           Color(r: 230, g: 235, b: 245, a: 255))
-  yOffset += 46
+  yOffset += 38
 
   # Session diagnostics (the translation already includes the "=== ... ==="
   # decoration, mirroring the victory screen's report header).
   drawText(t(tkGameOverSessionDiagnostics), windowX + 30, yOffset, 16,
           Color(r: 150, g: 180, b: 220, a: 255))
-  yOffset += 30
+  yOffset += 26
 
   # Format time. runElapsedTime, not game.time: the run clock is frozen when the
   # run ends, while game.time keeps driving this screen's animations.
@@ -251,6 +255,13 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   let totalButtonWidth = buttonW * buttonCount + buttonSpacing * (buttonCount - 1)
   let buttonsX = (screenWidth - totalButtonWidth) div 2
 
+  # Lives panel, full width directly above the buttons. Anchored to buttonY
+  # rather than to the flowing yOffset, so adding a diagnostics line above can
+  # never push it down into the button row.
+  if game.mode == gmWaveBased:
+    drawLivesPanel(windowX + 30, buttonY - LivesPanelHeight - 14, SCREEN_WIDTH - 60,
+                   livesUsed, difficultyMaxLives(), UnlimitedLives, game.time)
+
   if showContinue:
     # Continue button (0)
     drawModernButton(int32(buttonsX), buttonY, int32(buttonW), int32(BUTTON_HEIGHT),
@@ -283,9 +294,11 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
           Color(r: 180, g: 190, b: 200, a: 255))
 
-proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
+proc drawSystemSecured*(game: Game, selectedButton: int = 0, livesUsed: int = 0) =
   ## Draw the wave-60 final-boss Victory screen as "system secured".
   ## selectedButton: 0=Continue Endless, 1=View Stats, 2=Return to Menu
+  ## `livesUsed` is this run's own continue count -- a win that spent no lives
+  ## still shows the full row, which is the point of showing it here.
   let screenWidth = getVirtualScreenWidth()
   let screenHeight = getVirtualScreenHeight()
 
@@ -361,18 +374,18 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
           yOffset + (100'i32 - iconSize) div 2'i32, iconSize,
           Color(r: 100, g: 255, b: 150, a: 255))
 
-  yOffset += 110
+  yOffset += 104
 
   # Main victory message
   let successTitle = t(tkVictoryTitle)
   drawText(successTitle, windowX + 30, yOffset, 40,
           Color(r: 100, g: 255, b: 150, a: 255))
-  yOffset += 50
+  yOffset += 46
 
   # Congratulatory subtitle
   drawText(t(tkVictorySubtitle), windowX + 30, yOffset, 18,
           Color(r: 200, g: 255, b: 220, a: 255))
-  yOffset += 36
+  yOffset += 32
 
   # Status box
   drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, 35,
@@ -389,12 +402,12 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   drawText(t(tkVictoryStatus),
           statusTextX, yOffset + 10, 14,
           Color(r: 200, g: 255, b: 220, a: 255))
-  yOffset += 50
+  yOffset += 44
 
   # Final diagnostics header
   drawText(t(tkVictoryReportHeader), windowX + 30, yOffset, 16,
           Color(r: 150, g: 220, b: 180, a: 255))
-  yOffset += 32
+  yOffset += 28
 
   # Format time (frozen at run end -- see the note on the game-over screen).
   let runTime = runElapsedTime(game)
@@ -425,13 +438,17 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
 
   drawStat(windowX + 40, yOffset, t(tkGameOverMissionDuration), timeText, "\\-",
           Color(r: 150, g: 200, b: 255, a: 255))
-  yOffset += 40
+  yOffset += 30
 
   # Action buttons section
   let buttonY = windowY + SCREEN_HEIGHT - 100
   let buttonSpacing = 40
   let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
   let buttonsX = (screenWidth - totalButtonWidth) div 2
+
+  # Lives panel (same anchor as the crash screen, so the ending screens agree)
+  drawLivesPanel(windowX + 30, buttonY - LivesPanelHeight - 14, SCREEN_WIDTH - 60,
+                 livesUsed, difficultyMaxLives(), UnlimitedLives, game.time)
 
   # Continue Endless button (0)
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),

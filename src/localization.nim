@@ -125,6 +125,7 @@ type
     tkKeybindShoot = "keybind_shoot"
     tkKeybindPlaceWall = "keybind_place_wall"
     tkKeybindLegendary = "keybind_legendary"
+    tkKeybindDash = "keybind_dash"
     tkKeybindPressAnyKey = "keybind_press_any_key"
     tkKeybindResetDefaults = "keybind_reset_defaults"
     tkKeybindNonRebindableNote = "keybind_non_rebindable_note"
@@ -279,7 +280,6 @@ type
     tkStatsPowerUpBreakdown = "stats_power_up_breakdown"
     tkStatsTimeline = "stats_timeline"
     tkStatsEffectivenessRanking = "stats_effectiveness_ranking"
-    tkStatsRank = "stats_rank"
     tkStatsPowerUp = "stats_power_up"
     tkStatsNoDamageData = "stats_no_damage_data"
 
@@ -289,6 +289,15 @@ type
     tkGameOverResourcesCollected = "game_over_resources_collected"
     tkGameOverMissionDuration = "game_over_mission_duration"
     tkGameOverContinue = "game_over_continue"
+
+    # Restore points -- the player-facing name for the wave-mode lives budget
+    # (see difficultyMaxLives). A "life" here is a saved system state that
+    # Continue restores off disk, so the UI calls it what it is.
+    tkRestorePointsLabel = "restore_points_label"
+    tkRestorePointsUnlimited = "restore_points_unlimited"
+    tkRestorePointsNone = "restore_points_none"
+    tkRestorePointsLast = "restore_points_last"
+    tkRestorePointLost = "restore_point_lost"
     tkGameOverCriticalFailure = "game_over_critical_failure"
     tkGameOverErrorMsg = "game_over_error_msg"
     tkGameOverSessionDiagnostics = "game_over_session_diagnostics"
@@ -1307,6 +1316,10 @@ type
     tkStatsHealthConsumable = "stats_health_consumable"
     tkStatsNoHealingData = "stats_no_healing_data"
     tkStatsTotalEarned = "stats_total_earned"
+    tkStatsHealingRanking = "stats_healing_ranking"
+    tkStatsHealingColumnLabel = "stats_healing_column_label"
+    tkStatsSourceColumnLabel = "stats_source_column_label"
+    tkStatsTotalHealed = "stats_total_healed"
 
     # Desktop
     tkDesktopNet = "desktop_net"
@@ -1635,6 +1648,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "keybind_shoot": "Shoot",
     "keybind_place_wall": "Place Wall / Interact",
     "keybind_legendary": "Legendary Ability",
+    "keybind_dash": "Dash",
     "keybind_press_any_key": "Press any key...",
     "keybind_reset_defaults": "Reset to Defaults",
     "keybind_non_rebindable_note": "ESC: Pause  |  F11: Fullscreen  (fixed)",
@@ -1940,7 +1954,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "v6.2 Edition",
+    "loading_subtitle": "v6.3 Edition",
     "loading_initializing": "Initializing...",
     "loading_generating_sound": "Generating sound",
     "loading_generating_music": "Generating music",
@@ -1971,7 +1985,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_system_monitor": "System Monitor",
     "os_memory": "Memory",  # label only; live "<used> / <total> GB" appended in code
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[v6.2 Edition]",
+    "os_edition": "[v6.3 Edition]",
     "os_tophat_button": "TopHat",
 
     # Stats Labels
@@ -2084,7 +2098,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_power_up_breakdown": "POWER-UP BREAKDOWN",
     "stats_timeline": "TIMELINE",
     "stats_effectiveness_ranking": "EFFECTIVENESS RANKING",
-    "stats_rank": "RANK",
     "stats_power_up": "POWER-UP",
     "stats_no_damage_data": "No damage data available",
 
@@ -2094,6 +2107,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Resources Collected:",
     "game_over_mission_duration": "Mission Duration:",
     "game_over_continue": "CONTINUE (WAVE",
+    "restore_points_label": "RESTORE POINTS",
+    "restore_points_unlimited": "UNLIMITED",
+    "restore_points_none": "NONE LEFT",
+    "restore_points_last": "LAST ONE",
+    "restore_point_lost": "RESTORE POINT SPENT",
     "game_over_critical_failure": "CRITICAL SYSTEM FAILURE",
     "game_over_error_msg": "Your system has encountered a critical error and needs to reboot.",
     "game_over_session_diagnostics": "=== SESSION DIAGNOSTICS ===",
@@ -2917,7 +2935,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_exit_title": "CONFIRM EXIT",
     "confirm_quit_body": "Close TopHat-ShooterOS?",
     "confirm_exit_body": "Return to main menu?",
-    "confirm_unsaved": "Unsaved progress will be lost.",
+    "confirm_unsaved": "Your progress will be saved.",
     "confirm_cancel_btn": "[ESC] CANCEL",
     "confirm_quit_btn": "[Q] QUIT",
     "confirm_exit_btn": "[Q] EXIT",
@@ -2978,6 +2996,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_health_consumable": "Health Consumable",
     "stats_no_healing_data": "No healing data",
     "stats_total_earned": "Total Earned",
+    "stats_healing_ranking": "HEALING SOURCES",
+    "stats_healing_column_label": "HEALED",
+    "stats_source_column_label": "SOURCE",
+    "stats_total_healed": "Total healed",
 
     # Desktop
     "desktop_net": "NET",
@@ -3315,6 +3337,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "keybind_shoot": "Disparar",
     "keybind_place_wall": "Colocar Muro / Interactuar",
     "keybind_legendary": "Habilidad Legendaria",
+    "keybind_dash": "Impulso",
     "keybind_press_any_key": "Pulsa cualquier tecla...",
     "keybind_reset_defaults": "Restaurar Valores",
     "keybind_non_rebindable_note": "ESC: Pausa  |  F11: Pantalla completa  (fijos)",
@@ -3656,7 +3679,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_power_up_breakdown": "DESGLOSE DE MEJORAS",
     "stats_timeline": "LÍNEA DE TIEMPO",
     "stats_effectiveness_ranking": "CLASIFICACIÓN DE EFECTIVIDAD",
-    "stats_rank": "RANGO",
     "stats_power_up": "MEJORA",
     "stats_no_damage_data": "Sin datos de daño disponibles",
 
@@ -3666,6 +3688,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Recursos Recopilados:",
     "game_over_mission_duration": "Duración de la Misión:",
     "game_over_continue": "CONTINUAR (OLEADA",
+    "restore_points_label": "PUNTOS DE RESTAURACIÓN",
+    "restore_points_unlimited": "ILIMITADOS",
+    "restore_points_none": "NINGUNO",
+    "restore_points_last": "EL ÚLTIMO",
+    "restore_point_lost": "PUNTO DE RESTAURACIÓN GASTADO",
     "game_over_critical_failure": "FALLO CRÍTICO DEL SISTEMA",
     "game_over_error_msg": "Tu sistema ha encontrado un error crítico y necesita reiniciarse.",
     "game_over_session_diagnostics": "=== DIAGNÓSTICO DE SESIÓN ===",
@@ -4181,7 +4208,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Loading Screen
     "loading_title": "TopHat-ShooterOS",
-    "loading_subtitle": "Edición v6.2",
+    "loading_subtitle": "Edición v6.3",
     "loading_initializing": "Inicializando...",
     "loading_generating_sound": "Generando sonido",
     "loading_generating_music": "Generando música",
@@ -4212,7 +4239,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_system_monitor": "Monitor del Sistema",
     "os_memory": "Memoria",  # label only; live "<used> / <total> GB" appended in code
     "os_tophat_os": "TopHat-ShooterOS",
-    "os_edition": "[Edición v6.2]",
+    "os_edition": "[Edición v6.3]",
     "os_tophat_button": "TopHat",
 
     # Stats Labels
@@ -4596,7 +4623,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_exit_title": "CONFIRMAR VUELTA",
     "confirm_quit_body": "¿Cerrar TopHat-ShooterOS?",
     "confirm_exit_body": "¿Volver al menú principal?",
-    "confirm_unsaved": "El progreso no guardado se perderá.",
+    "confirm_unsaved": "El progreso se guardará.",
     "confirm_cancel_btn": "[ESC] CANCELAR",
     "confirm_quit_btn": "[Q] SALIR",
     "confirm_exit_btn": "[Q] VOLVER",
@@ -4657,6 +4684,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_health_consumable": "Consumible de Salud",
     "stats_no_healing_data": "Sin datos de curación",
     "stats_total_earned": "Total Ganado",
+    "stats_healing_ranking": "FUENTES DE CURACIÓN",
+    "stats_healing_column_label": "CURADO",
+    "stats_source_column_label": "FUENTE",
+    "stats_total_healed": "Curación total",
 
     # Desktop
     "desktop_net": "RED",

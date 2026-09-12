@@ -662,17 +662,12 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
 
   game.rollAnimationTimer += deltaTime
 
-  const cardHeight    = 380.0'f32   # Must match CARD_HEIGHT in os_powerup_installer.nim
-  const sharedSpeed   = 1000.0'f32  # px/s during the constant phase
-  const brakeDuration = 1.1'f32     # seconds for the ease-out deceleration
+  const cardHeight    = PowerUpRollCardHeight
+  const sharedSpeed   = RollSharedSpeed
+  const brakeDuration = RollBrakeDuration
 
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
-
-  let stopTimes: array[3, float32] = [
-    if isLegendary: 2.0'f32 else: 1.5'f32,
-    if isLegendary: 3.0'f32 else: 2.5'f32,
-    if isLegendary: 4.5'f32 else: 3.5'f32
-  ]
+  let stopTimes = rollStopTimes(isLegendary)
 
   for i in 0..2:
     let finalIndex    = game.rollPowerUpList[i].len - 1
@@ -710,24 +705,51 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
         game.rollSpeed[i] = (totalDist / brakeDuration) * 3.0'f32 * oneMinusT * oneMinusT
 
   # Unlock selection a moment after the last slot settles
-  if game.rollAnimationTimer >= stopTimes[2] + 0.25'f32:
+  if game.rollAnimationTimer >= stopTimes[2] + RollUnlockDelay:
     game.rollAnimationActive = false
     game.canSelectPowerUp    = true
+
+proc skipPowerUpRollAnimation*(game: Game) =
+  ## Snap all three reels to their results and unlock selection immediately.
+  ##
+  ## The reel is a lovely flourish the first time and a toll booth the twentieth.
+  ## Any input during the roll lands here, so a player who already knows what
+  ## they want never waits on an animation they have seen dozens of times.
+  if not game.rollAnimationActive:
+    return
+  for i in 0..2:
+    game.rollPosition[i] = float32(game.rollPowerUpList[i].len - 1) * PowerUpRollCardHeight
+    game.rollSpeed[i]    = 0.0
+  game.rollAnimationActive = false
+  game.canSelectPowerUp    = true
 
 proc initPowerUpRollAnimation*(game: Game) =
   ## Initialize the slot machine roll animation.
   ##
-  ## List-length guide (cardHeight=380, sharedSpeed=1000, brakeDuration=1.1):
+  ## List-length guide (cardHeight=380, sharedSpeed=1400, brakeDuration=0.45):
   ##   Constant-phase distance = sharedSpeed * (stopTime - brakeDuration)
   ##   Brake-phase distance    = sharedSpeed * brakeDuration * 0.5  (avg speed)
-  ##   Total reachable px      = sharedSpeed * (stopTime - 0.55)
+  ##   Total reachable px      = sharedSpeed * (stopTime - brakeDuration/2)
   ##   Max list length         = floor(total px / 380)
   ##
-  ##   normal    stop times 1.5 / 2.5 / 3.5 s  -> max listLen: 2 / 5 / 7
-  ##   legendary stop times 2.0 / 3.0 / 4.5 s  -> max listLen: 3 / 6 / 10
+  ## Retuned for pace: a normal draft now settles in ~1.15 s instead of ~3.5 s.
+  ## Power-ups are offered on most waves, so the old reel was costing a multi-
+  ## second non-interactive stop several times per run. Legendaries keep a longer
+  ## roll because they are rare enough for the flourish to still land.
+  ##   normal    stop times 0.60 / 0.85 / 1.15 s -> max listLen: 1 / 2 / 3
+  ##   legendary stop times 1.10 / 1.70 / 2.40 s -> max listLen: 3 / 5 / 7
   game.rollAnimationActive = true
   game.rollAnimationTimer  = 0.0
   game.canSelectPowerUp    = false
+
+  # Arm the input gate. Every draft routes through here, so this is the one
+  # place that has to know the modal just opened. The grace swallows input
+  # buffered in the frames around the transition; draftAwaitRelease then holds
+  # the gate shut until the player's hands actually come off the gameplay
+  # controls, which is what stops a held fire button from skipping the reel and
+  # picking a card the instant it lands.
+  game.draftInputGrace   = 0.32'f32
+  game.draftAwaitRelease = true
 
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
 
@@ -740,8 +762,8 @@ proc initPowerUpRollAnimation*(game: Game) =
       {rpfCore..rpfBlood}
 
   let listLengths: array[3, int] =
-    if isLegendary: [3, 6, 10]
-    else:           [2, 5, 7]
+    if isLegendary: [3, 5, 7]
+    else:           [1, 2, 3]
 
   for i in 0..2:
     game.rollPosition[i]      = 0.0

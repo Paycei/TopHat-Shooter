@@ -117,8 +117,14 @@ proc checkAuraCollision*(coin: Coin, player: Player, auraRadius: float32): bool 
   distance(coin.pos, player.pos) < auraRadius
 
 proc moveCoinToPlayer*(coin: Coin, playerPos: Vector2f, dt: float32) =
-  let dir = (playerPos - coin.pos).normalize()
-  let pullSpeed = 300.0
+  ## Accelerating pull: coins start drifting and then snap home. A flat 300 px/s
+  ## was slower than a boosted player, so pulled coins could trail forever
+  ## without ever being collected. Scaling with proximity also gives the pickup
+  ## a satisfying "click" at the end instead of a constant-velocity slide.
+  let toPlayer = playerPos - coin.pos
+  let dist = max(1.0'f32, toPlayer.length())
+  let dir = toPlayer.normalize()
+  let pullSpeed = 300.0'f32 + 420.0'f32 * (1.0'f32 - min(1.0'f32, dist / 140.0'f32))
   coin.pos = coin.pos + dir * pullSpeed * dt
 
 proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int =
@@ -153,6 +159,12 @@ proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty:
 
 proc dropEnemyCoin*(game: Game, enemy: Enemy) =
   var coinValue = enemyCoinValue(enemy, game.mode, game.currentWave, game.difficulty)
+  # Density normalisation (wave mode). Coin value is granted per enemy, so the
+  # ~4x head count would otherwise pay out ~4x per wave -- a measured run earned
+  # 27.5k coins and bought 53 shop upgrades. Bosses are exempt: there is still
+  # exactly one of them, so their lump is not a per-enemy quantity at all.
+  if game.mode == gmWaveBased and not enemy.isBoss:
+    coinValue = max(1, int(coinValue.float32 * waveDensityRebate(game.currentWave)))
   let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
   let requiresBossCoin = enemy.isBoss and game.mode == gmWaveBased
   game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, requiresBossCoin))

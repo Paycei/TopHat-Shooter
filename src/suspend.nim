@@ -116,7 +116,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 2'u32  # bumped: Game gained runHadDeath/flawlessWaveVictory
+  SnapFormatVersion = 3'u32  # bumped: Game gained the wave-mode lives budget + its animation state
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =

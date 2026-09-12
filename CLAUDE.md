@@ -16,7 +16,19 @@ nimble androidLib     # cross-compile libmain.so per ABI (needs ANDROID_NDK)
 nimble android        # androidLib + gradle -> debug APK (needs SDK+JDK+gradle)
 nimble androidReleaseLib  # same, but LTO + --gc-sections + --strip-all
 nimble androidRelease     # androidReleaseLib + gradle assembleRelease -> release APK
+nimble ship           # all three release artifacts -> ship/ (see tools/ship.ps1)
 ```
+
+`nimble ship` is the release pipeline: it runs the three build tasks above and stages
+`ship/TopHatShooterOS-Installer_<ver>.exe` (WinRelease + niminst/Inno Setup),
+`ship/TopHatShooterOS-PORTABLE.zip` (WinReleaseMin), `ship/TopHatShooterOS-linux-x86_64.tar.gz`
+(LinuxRelease, built inside WSL) and `SHA256SUMS.txt`. It never duplicates compiler flags —
+the `.nimble` tasks stay the single source of truth — and it takes the version from
+`TopHatShooter.nimble`, syncing `TopHatShooter.ini` so the installer can't be stamped stale.
+Everything (MSVC, niminst, Inno Setup, a WSL distro with Nim, `nim check`) is verified before
+the first compile. The script takes no arguments. Note the two Windows tasks share
+one output path (`TopHatShooterOS.exe`), so they can never run concurrently; the script builds
+the portable one first so the *speed*-optimized exe is what's left in the repo root.
 
 Verify the mobile build without a phone — **all three** configurations, since
 `-d:mobile` and `defined(android)` are independent flags and neither check sees
@@ -95,12 +107,12 @@ There are **two seams**, and no other module reads raw touch. Adding a
 look for the seam that already covers the case first.
 
 **Gameplay — `src/input_intent.nim`.** Gameplay asks for *intents*
-(`getMoveVector`, `getAimTarget`, `isFiring`, `abilityPressed`,
+(`getMoveVector`, `getAimTarget`, `isFiring`, `abilityPressed`, `dashPressed`,
 `placeWallHeld/Pressed/Released`, `interactPressed`, `pausePressed`). On desktop
 each returns exactly the old inline behavior; on `-d:mobile` it reads
-`src/mobile_controls.nim`. Consumers are `player.nim` (movement), `game.nim`
-(aim/fire), `main.nim` (ability/wall/pause), `pvp_game.nim` (all of its input)
-and `dungeon.nim` (`interactPressed`) — keep that surface small. A new
+`src/mobile_controls.nim`. Consumers are `player.nim` (movement + dash),
+`game.nim` (aim/fire), `main.nim` (ability/wall/pause), `pvp_game.nim` (all of
+its input) and `dungeon.nim` (`interactPressed`) — keep that surface small. A new
 power-up/enemy/boss needs **zero** mobile work. Add to `input_intent` only when
 introducing a genuinely new *input action*; add a `when defined(android)` guard
 only for a genuinely new *desktop-only API* call.
@@ -189,8 +201,18 @@ Other pieces:
   all nine of them. On mobile it is hold-anywhere-1.5s to skip, no fast-forward.
 - HUD elements that bottom-anchor into the right gutter must reserve
   `MobileActionBarHeight` (`mobile_controls.nim`) or they draw underneath the
-  on-screen ability/wall buttons — see `drawLegendaryPowerUpsPanel` and
-  `legendaryReserve` in `game.nim`.
+  on-screen dash/wall/ability buttons — see `drawLegendaryPowerUpsPanel` and
+  `legendaryReserve` in `game.nim`. Those three share **one** row for exactly
+  that reason: a second row would double the band and push the whole bottom HUD
+  stack up again.
+- The **base dash** (`DashCooldownTime` in `player.nim`, Shift / LT on desktop)
+  is the one gameplay action whose mobile button needs state pushed *back into*
+  the touch layer: `setMobileDashState(available, cooldownRatio)` from
+  `main.nim`'s `gsPlaying`/`gsPvPPlaying` branches. `mobile_controls` cannot read
+  the player (it sits under `input_intent`, which `player` imports), and the
+  button is the game's only dash-cooldown readout. `available` is false in PvP,
+  which runs its own movement and never calls `updatePlayer`; the button is then
+  neither drawn nor hit-tested, so its screen area goes back to the aim stick.
 - Platform gating: saves + synthesized-sound cache write to Android internal
   storage via `src/android_glue.c` (`getAppDataPath` in `save_system.nim`,
   `getCacheDir` in `sound.nim`); the same shim provides `nimAndroidKeepScreenOn`.

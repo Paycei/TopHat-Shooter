@@ -1,6 +1,6 @@
 # Package
 
-version       = "6.2.2"
+version       = "6.3.0"
 author        = "Paycei"
 description   = "TopHat-ShooterOS"
 license       = "Apache 2.0"
@@ -24,6 +24,9 @@ task WinReleaseMin, "Build the game for release, optimized for size":
 
 task LinuxRelease, "Build the game for release":
   exec "nim c -d:danger --mm:orc --opt:speed --parallelBuild:0 --app:gui --panics:on --passC:\"-mavx -mtune=generic -ffast-math -fno-stack-protector -ffunction-sections -fdata-sections -flto=auto -Wno-stringop-overflow\" --passL:\"-flto=auto -Wno-stringop-overflow -Wl,--gc-sections -s\" -o:TopHatShooterOS-linux-x86_64 src/main.nim"
+
+task ship, "Build installer + portable zip + Linux tarball into ship/":
+  exec "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/ship.ps1"
 
 # ---------------------------------------------------------------------------
 # Android (mobile) build. See android/README.md and CLAUDE.md.

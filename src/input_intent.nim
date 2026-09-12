@@ -99,6 +99,22 @@ proc abilityPressed*(): bool =
     isKeyPressed(globalSettings.keybinds[kaLegendary]) or
       isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)
 
+proc dashPressed*(): bool =
+  ## Base-dash activation edge (available from wave 1, unlike the legendary
+  ## ability). Desktop: the rebindable dash key (Shift by default) or the pad's
+  ## LT. Mobile: the on-screen dash button -- there is no modifier key to hold
+  ## on a touchscreen, and overloading a joystick gesture (double-tap-to-dash)
+  ## would fire on every stutter-step, so it gets a button of its own.
+  ##
+  ## The cooldown gate stays in player.nim: this answers "did the player ask to
+  ## dash", not "is a dash legal", so the touch layer never has to know the
+  ## tuning constants.
+  when defined(mobile):
+    mobileDashPressed()
+  else:
+    isKeyPressed(globalSettings.keybinds[kaDash]) or
+      (isGamepadActive() and isGamepadBindPressed(globalSettings.gamepadBinds, kaDash))
+
 proc placeWallPressed*(): bool =
   ## Wall-key press EDGE. Single-player wants hold/release (preview then place);
   ## PvP's desktop control is a mode toggle, which needs the edge instead.

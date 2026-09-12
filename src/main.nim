@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, input_intent, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros
+import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, input_intent, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers
 
 when defined(mobile):
   import mobile_controls  # updateMobileControls / drawMobileControls hooks
@@ -399,6 +399,65 @@ proc hasMouseMoved*(game: Game): bool =
   let dy = abs(currentPos.y - game.lastMousePos.y)
   result = (dx > MOUSE_MOVEMENT_THRESHOLD or dy > MOUSE_MOVEMENT_THRESHOLD)
 
+const DraftReleaseTimeout = 0.6'f32
+  ## Seconds after which the draft screen accepts input even if a gameplay input
+  ## is still held, measured from when the modal opened.
+  ##
+  ## Short on purpose. Now that draftGameplayInputHeld covers movement too,
+  ## "still holding something" is the COMMON case -- plenty of players circle
+  ## with a direction held the whole time -- so a long valve would stall the
+  ## screen on almost every level-up and become its own annoyance. It does not
+  ## need to be long to work: a held mouse button cannot select anything anyway
+  ## (selection is edge-triggered), and by ~0.9 s from open the player has
+  ## unmistakably seen the modal. This only has to outlast input buffered
+  ## across the transition, which the grace already absorbs.
+
+proc draftGameplayInputHeld(): bool =
+  ## True while the player still has their hands on the game.
+  ##
+  ## The question this answers is "has the player disengaged from driving?",
+  ## NOT "are they holding a key the menu happens to read". Those are different,
+  ## and the difference matters: someone holding W when a level-up fires has not
+  ## disengaged at all, even though the draft screen ignores W. Gate on the
+  ## narrow reading and it opens while they are still steering, so their next
+  ## input -- a strafe, a shot -- lands in the menu they had not registered yet.
+  ##
+  ## So this covers EVERY movement and combat input, on both devices: all four
+  ## movement binds and their literal WASD/arrow spellings, shoot, wall, dash,
+  ## legendary, the mouse button, and both analog sticks (leftStick already
+  ## applies a radial deadzone; rightStick is used rather than aimDir because
+  ## aimDir latches its last direction and would never read as released).
+  ##
+  ## The overlap is what forces this: Space is the default shoot bind, E places
+  ## walls, A/D move AND navigate cards, and the mouse button fires. Because
+  ## `isKeyPressed` only reports a rising edge, a player mashing fire mid-fight
+  ## lands a fresh edge inside the modal a frame or two after it appears --
+  ## edge-detection alone cannot tell that apart from a deliberate menu press.
+  ## Bounded by DraftReleaseTimeout so a permanent hold can never lock anyone out.
+  let kb = globalSettings.keybinds
+  let gb = globalSettings.gamepadBinds
+  if isPointerDown(): return true
+  # Literal menu/movement spellings
+  if isKeyDown(Enter) or isKeyDown(E) or isKeyDown(Space) or isKeyDown(R) or
+     isKeyDown(Left) or isKeyDown(Right) or isKeyDown(Up) or isKeyDown(Down) or
+     isKeyDown(W) or isKeyDown(A) or isKeyDown(S) or isKeyDown(D):
+    return true
+  # The player's actual binds, whatever they rebound them to
+  for action in [kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight,
+                 kaShoot, kaPlaceWall, kaDash, kaLegendary]:
+    if isKeyDown(kb[action]):
+      return true
+  if isGamepadActive():
+    for action in [kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight,
+                   kaShoot, kaPlaceWall, kaDash, kaLegendary]:
+      if isGamepadBindDown(gb, action):
+        return true
+    let ls = leftStick()
+    let rs = rightStick()
+    if ls.x != 0 or ls.y != 0 or rs.x != 0 or rs.y != 0:
+      return true
+  false
+
 proc updateMouseTracking*(game: Game) =
   ## Updates mouse position tracking and resets keyboard flag if mouse moved
   let currentPos = getVirtualMousePosition()
@@ -541,7 +600,7 @@ proc main() =
   else:
     setConfigFlags(flags(WindowResizable))
 
-  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v6.2 Edition")
+  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v6.3 Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   when defined(android):
@@ -561,6 +620,7 @@ proc main() =
   # synthesis runs on a worker thread (startAssetGeneration) while this loop
   # keeps drawing, so the window never stops responding. Everything that talks
   # to the audio device (loadSoundsStep) stays here on the main thread.
+  # Every sound and every music track is finished before the game starts.
   let soundSystem = initSoundSystem()
   let pendingAssets = startAssetGeneration()
   let totalSounds = SoundType.high.ord + 1
@@ -1309,6 +1369,14 @@ proc main() =
             # Reaching this path means the run save was deleted by a death, so
             # the run is no longer flawless.
             currentGame.runHadDeath = true
+            # Same act as the game-over screen's Continue, just reached via the
+            # desktop, so it costs a life on the same terms. Skipping it here
+            # would make "die -> Exit -> Play -> Resume" a free continue.
+            consumeContinueLife(currentGame)
+            # The life-lost animation plays over the countdown, which doubles as
+            # the reorientation beat a resumed wave-21 run wants anyway.
+            currentGame.state = gsCountdown
+            currentGame.countdownTimer = 3.0
             initializeRunTracking(currentGame)
           else:
             deleteRunSave()
@@ -1919,6 +1987,12 @@ proc main() =
       # Poll touch controls before any input is read this frame (input_intent
       # reads the resulting state). No-op / not compiled on desktop.
       when defined(mobile):
+        # The dash button needs the cooldown pushed to it: mobile_controls must
+        # not import types/player (it sits under input_intent, which player
+        # imports), so the state flows in from here instead.
+        if not currentGame.isNil and not currentGame.player.isNil:
+          setMobileDashState(true,
+            currentGame.player.dashCooldown / DashCooldownTime)
         updateMobileControls(dt)
 
       # Dynamic music based on game state
@@ -2791,61 +2865,85 @@ proc main() =
       # Keep wave music during countdown
       playMusic(mtWave)
 
-      # Countdown timer
-      currentGame.countdownTimer -= dt
+      # A pending life-lost animation owns the screen first: the countdown holds
+      # where it is until the spent restore point has finished breaking up.
+      if currentGame.lifeLostTimer > 0:
+        currentGame.lifeLostTimer = max(0.0'f32, currentGame.lifeLostTimer - dt)
+        let lifeLostP = 1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration
+        # Three dedicated cues, fired off the same phase constants the drawing
+        # reads, so each one lands on the beat it describes: the drive being
+        # addressed, the platter coasting down, and the break itself.
+        if currentGame.lifeLostSoundStage < 1:
+          playSound(stRestoreAccess)
+          currentGame.lifeLostSoundStage = 1
+        if currentGame.lifeLostSoundStage < 2 and lifeLostP >= LifeLostCrackStart:
+          playSound(stRestoreSpinDown)
+          currentGame.lifeLostSoundStage = 2
+        if currentGame.lifeLostSoundStage < 3 and lifeLostP >= LifeLostShatterStart:
+          playSound(stRestoreShatter)
+          currentGame.lifeLostSoundStage = 3
+      else:
+        currentGame.countdownTimer -= dt
 
-      if currentGame.countdownTimer <= 0:
-        currentGame.state = gsPlaying
+        if currentGame.countdownTimer <= 0:
+          currentGame.state = gsPlaying
 
       beginGameDrawing()
       drawGame(currentGame)
 
-      # Draw stylish countdown overlay
-      let countdownValue = max(currentGame.countdownTimer, 0.0)
-      let pulse = 1.0 + sin(currentGame.countdownTimer * 10) * 0.1
-      let alpha = uint8(200.0 * (countdownValue + 0.1))
-
-      # Dark overlay that fades out
-      drawRectangle(0, 0, screenWidth, screenHeight,
-                   Color(r: 0, g: 0, b: 0, a: alpha))
-
-      # Countdown text with scale pulse
-      let textSize = (120 * pulse).int32
-      # Always show numeric countdown
-      let countdownText = formatFloat(countdownValue, ffDecimal, 1)
-      let textWidth = measureText(countdownText, textSize)
-
-      # Glow effect - draw multiple times with offset
-      for i in 1..3:
-        let glowAlpha = uint8(50.0 * (4 - i).float)
-        let glowSize = textSize + i * 4
-        let glowWidth = measureText(countdownText, glowSize.int32)
-        drawText(countdownText,
-                (screenWidth div 2 - glowWidth div 2).int32,
-                (screenHeight div 2 - glowSize div 2).int32,
-                glowSize.int32,
-                Color(r: 255, g: 200, b: 0, a: glowAlpha))
-
-      # Main text
-      let textColor = if countdownValue > 0.5:
-        Color(r: 255, g: 255, b: 100, a: 255)
+      # While a life is being spent the shatter owns the screen; the countdown
+      # numerals are held back so the two do not fight over the centre.
+      if currentGame.lifeLostTimer > 0:
+        drawLifeLostOverlay(screenWidth, screenHeight, currentGame.livesUsed,
+                            difficultyMaxLives(), UnlimitedLives,
+                            1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration)
       else:
-        Color(r: 100, g: 255, b: 100, a: 255)
+        # Draw stylish countdown overlay
+        let countdownValue = max(currentGame.countdownTimer, 0.0)
+        let pulse = 1.0 + sin(currentGame.countdownTimer * 10) * 0.1
+        let alpha = uint8(200.0 * (countdownValue + 0.1))
 
-      drawText(countdownText,
-              screenWidth div 2 - textWidth div 2,
-              screenHeight div 2 - textSize div 2,
-              textSize,
-              textColor)
+        # Dark overlay that fades out
+        drawRectangle(0, 0, screenWidth, screenHeight,
+                     Color(r: 0, g: 0, b: 0, a: alpha))
 
-      # Subtitle
-      let subtitle = "READY?"
-      let subWidth = measureText(subtitle, 40)
-      drawText(subtitle,
-              screenWidth div 2 - subWidth div 2,
-              screenHeight div 2 + 80,
-              40,
-              Color(r: 255, g: 255, b: 100, a: alpha))
+        # Countdown text with scale pulse
+        let textSize = (120 * pulse).int32
+        # Always show numeric countdown
+        let countdownText = formatFloat(countdownValue, ffDecimal, 1)
+        let textWidth = measureText(countdownText, textSize)
+
+        # Glow effect - draw multiple times with offset
+        for i in 1..3:
+          let glowAlpha = uint8(50.0 * (4 - i).float)
+          let glowSize = textSize + i * 4
+          let glowWidth = measureText(countdownText, glowSize.int32)
+          drawText(countdownText,
+                  (screenWidth div 2 - glowWidth div 2).int32,
+                  (screenHeight div 2 - glowSize div 2).int32,
+                  glowSize.int32,
+                  Color(r: 255, g: 200, b: 0, a: glowAlpha))
+
+        # Main text
+        let textColor = if countdownValue > 0.5:
+          Color(r: 255, g: 255, b: 100, a: 255)
+        else:
+          Color(r: 100, g: 255, b: 100, a: 255)
+
+        drawText(countdownText,
+                screenWidth div 2 - textWidth div 2,
+                screenHeight div 2 - textSize div 2,
+                textSize,
+                textColor)
+
+        # Subtitle
+        let subtitle = "READY?"
+        let subWidth = measureText(subtitle, 40)
+        drawText(subtitle,
+                screenWidth div 2 - subWidth div 2,
+                screenHeight div 2 + 80,
+                40,
+                Color(r: 255, g: 255, b: 100, a: alpha))
 
       if currentGame.mode == gmRoguelite:
         drawBetaBanner(currentGame)
@@ -2965,11 +3063,19 @@ proc main() =
           else:
             currentGame.cheatRogueliteDirectFloorSelect = false
             currentGame.state = gsPlaying
-        elif isTimeSurvivalMode(currentGame.mode) and currentGame.survivalLevelDraftActive:
-          # Survival mid-run level-up draft: resume into the same battlefield,
-          # not the shop (the shop is reserved for the post-boss draft below).
-          currentGame.survivalLevelDraftActive = false
+            beginDraftResume(currentGame)
+        elif currentGame.levelDraftActive:
+          # Mid-run XP level-up draft (survival or wave mode): resume into the
+          # same battlefield, not the shop. The shop stays reserved for the
+          # wave-boundary / post-boss draft below.
+          #
+          # This is the disorienting exit -- the fight is still running and the
+          # player has been looking at a menu -- so it gets the re-entry beat
+          # (time ramp + i-frames + a locate-me pulse). Exits to the shop or to
+          # floor select do not need it: nothing is chasing the player there.
+          currentGame.levelDraftActive = false
           currentGame.state = gsPlaying
+          beginDraftResume(currentGame)
         else:
           currentGame.state = gsShop
           currentGame.shopSidebarScroll = 0
@@ -2983,7 +3089,16 @@ proc main() =
       if isPowerUpPoolExhausted(currentGame.player, isLegendaryRound, allowedFamiliesForDraft, currentGame.mode):
         playMusic(mtPowerUp)
 
-        if not globalConfirmActive:
+        # Same input gate as the normal draft below: this screen can also open
+        # mid-combat, and its Continue button is one keypress from dismissing it.
+        currentGame.draftInputGrace -= dt
+        if currentGame.draftAwaitRelease and
+           (not draftGameplayInputHeld() or
+            currentGame.draftInputGrace <= -DraftReleaseTimeout):
+          currentGame.draftAwaitRelease = false
+
+        if not globalConfirmActive and currentGame.draftInputGrace <= 0 and
+           not currentGame.draftAwaitRelease:
           if isKeyPressed(Enter) or isKeyPressed(E) or isKeyPressed(Space):
             continueAfterDraft()
 
@@ -3014,11 +3129,51 @@ proc main() =
         # Update roll animation
         updatePowerUpRollAnimation(currentGame, dt)
 
+        # ---- DRAFT INPUT GATE ----
+        # XP level drafts open mid-combat, so this screen routinely appears
+        # under a player who is holding fire and steering. Every key it reads is
+        # also a gameplay key, so without a gate the shot already in flight
+        # skips the reel and can pick a card in the same breath.
+        #
+        # Two stages: a short grace that swallows input buffered across the
+        # transition, then a release requirement -- the gate stays shut until
+        # the gameplay controls are actually let go. Both must clear before ANY
+        # draft input (skip, navigate, or select) is accepted.
+        # The counter runs on past zero so it doubles as "time this modal has been
+        # open", which backs the release timeout below.
+        currentGame.draftInputGrace -= dt
+        if currentGame.draftAwaitRelease and
+           (not draftGameplayInputHeld() or
+            currentGame.draftInputGrace <= -DraftReleaseTimeout):
+          # Timeout safety: a player who holds fire continuously (entirely normal
+          # in this game) would otherwise never satisfy the release condition and
+          # would find the draft screen permanently unresponsive.
+          currentGame.draftAwaitRelease = false
+        let draftInputReady = currentGame.draftInputGrace <= 0 and
+                              not currentGame.draftAwaitRelease
+
+        # Skip the reel: a deliberate confirm/navigate/click snaps it to the
+        # result instead of being swallowed. Players see this animation many
+        # times per run, so it must never be a wall -- but it must also not
+        # evaporate the moment it appears, which is what the gate above buys.
+        var justSkippedRoll = false
+        if currentGame.rollAnimationActive and not globalConfirmActive and
+           draftInputReady:
+          if isKeyPressed(Enter) or isKeyPressed(E) or isKeyPressed(Space) or
+             isKeyPressed(Left) or isKeyPressed(Right) or
+             isKeyPressed(A) or isKeyPressed(D) or
+             isPointerPressed() or isGamepadConfirmPressed():
+            skipPowerUpRollAnimation(currentGame)
+            justSkippedRoll = true
+
         # Update mouse tracking
         updateMouseTracking(currentGame)
 
-        # Only allow input after animation completes and confirm dialog is not open
-        if currentGame.canSelectPowerUp and not globalConfirmActive:
+        # Only allow input after animation completes and confirm dialog is not open.
+        # `justSkippedRoll` swallows the keypress that performed the skip, so the
+        # Enter that reveals the cards cannot also pick one in the same frame.
+        if currentGame.canSelectPowerUp and not globalConfirmActive and
+           not justSkippedRoll and draftInputReady:
           # Navigate power-up choices with keyboard
           if isKeyPressed(Left) or isKeyPressed(A):
             currentGame.selectedPowerUp = (currentGame.selectedPowerUp - 1 + 3) mod 3
@@ -3150,6 +3305,12 @@ proc main() =
           # collected, kills, damage, time) instead of zeroing them.
           # Pressing Continue is what voids the Flawless Kernel advancement.
           currentGame.runHadDeath = true
+          # Spend a life and write the new count back to the checkpoint, so the
+          # budget shrinks even if the next death arrives before the next boss
+          # block would have rewritten the file.
+          consumeContinueLife(currentGame)
+          currentGame.state = gsCountdown
+          currentGame.countdownTimer = 3.0
           resumeRunTracking(currentGame)
         else:
           # Checkpoint failed to apply: fall back to a fresh run.
@@ -3627,7 +3788,9 @@ proc main() =
       when defined(mobile):
         # Same twin-stick controls as single-player; capturePlayerInput reads
         # them through input_intent. Must run before updatePvP so this frame's
-        # captured input is current.
+        # captured input is current. No dash button: PvP runs its own movement
+        # and never calls updatePlayer, so there is no base dash to offer.
+        setMobileDashState(false, 0.0'f32)
         updateMobileControls(dt)
 
       # Check for pause (visual only - game continues running)

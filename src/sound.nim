@@ -1,4 +1,5 @@
 import raylib, math, random, os, streams, strutils
+import std/cpuinfo
 import std/atomics
 import localization
 
@@ -11,7 +12,9 @@ type
   SoundType* = enum
     stShoot, stEnemyHit, stEnemyDeath, stPlayerHit, stCoinPickup, stPowerUp,
     stBossSpawn, stExplosion, stWallPlace, stTeleport, stMenuNav, stMenuSelect,
-    stWaveComplete, stShield, stGameOver, stBuy
+    stWaveComplete, stShield, stGameOver, stBuy,
+    # Restore-point animation cues (see ui/ui_helpers.drawLifeLostOverlay)
+    stRestoreAccess, stRestoreSpinDown, stRestoreShatter
 
   MusicTrack* = enum
     mtMenu, mtWave, mtPowerUp, mtBoss
@@ -33,6 +36,11 @@ type
 
 var globalSoundSystem*: SoundSystem
 
+# Set at shutdown so the background music worker can bail out instead of
+# composing every remaining track while the player waits for the window to
+# close. Declared up here because composeTrack (far below) checks it too.
+var genCancel: Atomic[bool]
+
 # Musical constants are declared before cache helpers because cache validation
 # depends on the generated WAV length.
 const
@@ -40,6 +48,8 @@ const
   MUSIC_DURATION = 48.0'f32  # Long-form: 48 seconds
   MUSIC_CACHE_VERSION = "v4"
   SOUND_CACHE_VERSION = "v2"  # bump when any create* synthesis changes
+  MaxSynthThreads = 32      # cap: past this the mix is memory-bound, not CPU-bound
+  ChunksPerSynthThread = 6  # oversubscribe chunks so uneven bars still balance
 
 proc expectedMusicCacheBytes(): int64 =
   int64(44 + int(MUSIC_DURATION * SAMPLE_RATE.float32) * 2)
@@ -95,6 +105,9 @@ proc getSoundCacheFile(soundType: SoundType): string =
     of stShield: "shield"
     of stGameOver: "gameover"
     of stBuy: "buy"
+    of stRestoreAccess: "restoreaccess"
+    of stRestoreSpinDown: "restorespindown"
+    of stRestoreShatter: "restoreshatter"
   result = cacheDir / (soundName & "_" & SOUND_CACHE_VERSION & ".wav")
 
 proc getMusicCacheFile(track: MusicTrack): string =
@@ -915,6 +928,146 @@ proc createBuySound(filename: string) =
 
   writeWavFile(filename, samples, sampleRate)
 
+proc createRestoreAccess(filename: string) =
+  ## Restore point coming up on screen: a drive being addressed. Two rising seek
+  ## blips over a platter humming up to speed, with a head tick on the front.
+  let sampleRate: uint32 = 44100
+  let duration = 0.28
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  var humPhase = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Platter spinning up: the hum climbs from a stall to running speed.
+    let humFreq = 70.0 + progress * 95.0
+    humPhase += 2.0 * PI * humFreq / sampleRate.float32
+    let hum = (sin(humPhase) * 0.5 + sin(humPhase * 2.0) * 0.18) * progress * 0.5
+
+    # Two seek blips, the second a step higher. Half sine + half square gives
+    # them the digital edge the rest of the OS chrome has.
+    var blip = 0.0
+    for b in 0..1:
+      let age = t - (0.06 + b.float32 * 0.105)
+      if age >= 0.0 and age < 0.055:
+        let bp = age / 0.055
+        let raw = sin(2.0 * PI * (1500.0 + b.float32 * 520.0) * (1.0 + bp * 0.35) * age)
+        let square = if raw >= 0.0: 1.0 else: -1.0
+        blip += (raw * 0.6 + square * 0.4) * exp(-bp * 7.0) * 0.34
+
+    # Head tick on the very front.
+    let tick = if t < 0.012: rand(-1.0..1.0) * (1.0 - t / 0.012) * 0.22 else: 0.0
+
+    let envelope = min(1.0, progress * 18.0) * (1.0 - progress * progress * 0.55)
+    let value = (hum + blip + tick) * envelope
+    # Louder than its short blips suggest it needs: this is the quietest cue of
+    # the three and has to stay audible under the wave music behind the overlay.
+    samples[i] = int16(clamp(value * 32767.0 * 0.68, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createRestoreSpinDown(filename: string) =
+  ## The platter losing power: the motor whine coasts down, the rotation flutter
+  ## slows WITH it (so the ear hears the disc turning slower rather than just
+  ## getting quieter), bearing rumble underneath, and brittle ticks as the
+  ## surface starts to give.
+  let sampleRate: uint32 = 44100
+  let duration = 0.95
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  var motorPhase = 0.0
+  var wobblePhase = 0.0
+  var subPhase = 0.0
+  var rumble = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Motor whine: exponential coast-down that never quite reaches zero.
+    let motorFreq = 60.0 + 390.0 * exp(-progress * 3.1)
+    motorPhase += 2.0 * PI * motorFreq / sampleRate.float32
+    let motor = sin(motorPhase) * 0.55 + sin(motorPhase * 2.0) * 0.2 +
+                sin(motorPhase * 3.0) * 0.08
+
+    # Rotation flutter: an amplitude wobble whose RATE decays on the same curve
+    # as the motor, which is what sells "spinning down" over "fading out".
+    let wobbleRate = 3.0 + 26.0 * exp(-progress * 3.1)
+    wobblePhase += 2.0 * PI * wobbleRate / sampleRate.float32
+    let wobble = 1.0 + sin(wobblePhase) * 0.32
+
+    # Bearing rumble: one-pole low-passed noise.
+    rumble = rumble * 0.986 + rand(-1.0..1.0) * 0.014
+
+    subPhase += 2.0 * PI * (46.0 + 20.0 * exp(-progress * 2.4)) / sampleRate.float32
+    let sub = sin(subPhase) * 0.3
+
+    # Brittle ticks across the back half: the fracture starting to travel.
+    var tick = 0.0
+    for k in 0..3:
+      let age = t - (0.42 + k.float32 * 0.13)
+      if age >= 0.0 and age < 0.03:
+        let kp = age / 0.03
+        tick += sin(2.0 * PI * (2600.0 + k.float32 * 700.0) * age) *
+                exp(-kp * 16.0) * 0.3
+
+    let envelope = min(1.0, progress * 14.0) * (1.0 - progress * 0.35)
+    let value = (motor * wobble * 0.5 + rumble * 2.4 + sub + tick) * envelope
+    samples[i] = int16(clamp(value * 32767.0 * 0.44, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createRestoreShatter(filename: string) =
+  ## The platter giving way: a hard broadband snap, a glassy inharmonic ring,
+  ## the sub weight of it letting go, and the save scattering as bit-crushed
+  ## data blips falling away into silence.
+  let sampleRate: uint32 = 44100
+  let duration = 0.8
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  var thumpPhase = 0.0
+
+  # Deliberately inharmonic, so it reads as breaking rather than as a chord.
+  const partials = [2170.0, 3110.0, 4690.0, 6230.0]
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Transient: broadband snap, gone in 25 ms.
+    let snap = if t < 0.025:
+      rand(-1.0..1.0) * exp(-(t / 0.025) * 5.0) * 0.85
+    else:
+      0.0
+
+    # Glassy ring, each partial decaying at its own rate.
+    var glass = 0.0
+    for n in 0..partials.high:
+      glass += sin(2.0 * PI * partials[n] * t) *
+               exp(-t * (14.0 + n.float32 * 7.0)) * (0.26 - n.float32 * 0.05)
+
+    thumpPhase += 2.0 * PI * (120.0 * exp(-progress * 5.0) + 38.0) / sampleRate.float32
+    let thump = sin(thumpPhase) * exp(-progress * 6.0) * 0.5
+
+    # Data scatter: blips falling in pitch across the tail, quantised to a
+    # handful of levels so they read as digital debris and not as sparkle.
+    var scatter = 0.0
+    for k in 0..7:
+      let age = t - (0.06 + k.float32 * 0.075)
+      if age >= 0.0 and age < 0.05:
+        let kp = age / 0.05
+        let raw = sin(2.0 * PI * (2400.0 - k.float32 * 210.0) * age)
+        let crushed = floor(raw * 3.0) / 3.0
+        scatter += crushed * exp(-kp * 9.0) * (0.16 - k.float32 * 0.012)
+
+    let envelope = 1.0 - progress * progress * 0.6
+    let value = (snap + glass + thump + scatter) * envelope
+    samples[i] = int16(clamp(value * 32767.0 * 0.46, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
 # SOUND LOADING WITH CACHE
 proc generateSoundFile(soundType: SoundType) =
   ## Synthesise the WAV for `soundType` if it isn't cached yet. Pure CPU work
@@ -941,6 +1094,9 @@ proc generateSoundFile(soundType: SoundType) =
   of stShield: createShield(cacheFile)
   of stGameOver: createGameOverSound(cacheFile)
   of stBuy: createBuySound(cacheFile)
+  of stRestoreAccess: createRestoreAccess(cacheFile)
+  of stRestoreSpinDown: createRestoreSpinDown(cacheFile)
+  of stRestoreShatter: createRestoreShatter(cacheFile)
 
 proc loadOrGenerateSound(soundType: SoundType): Sound =
   ## Main thread only (touches the audio device).
@@ -1094,22 +1250,119 @@ proc voiceEnvelope(kind: InstrumentKind, progress, durSec: float32): float32 =
     else:
       result = 1.0
 
-proc renderVoice(samples: var seq[float32], freq, startSec, durSec: float32,
-                 kind: InstrumentKind, volume: float32) =
-  if freq <= 0.0 or durSec <= 0.0:
-    return
+# PARALLEL VOICE RENDERING
+#
+# Synthesis used to run note-by-note: each voice looped over its own sample
+# range and did `samples[i] += ...`. That is ~90% of the cost of building a
+# track and it was pinned to one core.
+#
+# Notes overlap in time, so splitting the *notes* across threads would have two
+# threads writing the same sample. Instead the split is by OUTPUT SAMPLE RANGE:
+# every note is collected into a flat event list first, then each thread owns a
+# disjoint slice of `samples` and renders the part of every event that lands
+# inside its slice. No two threads ever touch the same index, so no locking and
+# no atomics are needed on the hot path.
+#
+# This is also why the output is bit-identical to the old serial code rather
+# than merely equivalent: a sample accumulates its contributions in event-list
+# order either way, and the list is built in the same order the old code made
+# its calls. Float addition is not associative, so preserving that order is
+# what lets the existing cache version stand -- players keep the tracks they
+# already have.
 
-  let startSample = max(0, int(startSec * SAMPLE_RATE.float32))
-  let endSample = min(int((startSec + durSec) * SAMPLE_RATE.float32),
-                      samples.len)
-  if startSample >= endSample:
-    return
+type
+  VoiceEvent = object
+    freq, startSec, durSec, volume: float32
+    kind: InstrumentKind
 
-  for i in startSample..<endSample:
+  ChunkPlan = object
+    ## How one parallel stage carves `totalLen` samples up between threads.
+    ## Chunks are handed out strided, not as one contiguous block each: a track
+    ## opens quiet and peaks in the middle, so contiguous blocks would leave the
+    ## threads holding the intro idle while the middle ones still grind.
+    totalLen, chunkCount, chunkSize: int
+    firstChunk, threadStride: int
+
+  RenderSlice = object
+    plan: ChunkPlan
+    samples: ptr UncheckedArray[float32]
+    events: ptr UncheckedArray[VoiceEvent]
+    eventCount: int
+
+  DrumSlice = object
+    plan: ChunkPlan
+    samples: ptr UncheckedArray[float32]
+    hits: ptr UncheckedArray[DrumEvent]
+    hitCount: int
+
+  MasterSlice = object
+    plan: ChunkPlan
+    samples: ptr UncheckedArray[float32]
+    output: ptr UncheckedArray[int16]
+    fadeSamples: int
+    outputGain: float32
+
+iterator chunks(plan: ChunkPlan): tuple[lo, hi: int] =
+  ## Yields this thread's share of the sample range, cancellation-aware.
+  var chunk = plan.firstChunk
+  while chunk < plan.chunkCount and not genCancel.load():
+    let lo = chunk * plan.chunkSize
+    let hi = min(lo + plan.chunkSize, plan.totalLen)
+    if lo < hi:
+      yield (lo, hi)
+    chunk += plan.threadStride
+
+proc planChunks(totalLen, threadCount, thread: int): ChunkPlan =
+  # Several chunks per thread so a thread that draws a sparse stretch of the
+  # track comes back for more instead of finishing early.
+  let chunkCount = threadCount * ChunksPerSynthThread
+  ChunkPlan(totalLen: totalLen, chunkCount: chunkCount,
+            chunkSize: (totalLen + chunkCount - 1) div chunkCount,
+            firstChunk: thread, threadStride: threadCount)
+
+proc synthThreadCount(): int = clamp(countProcessors(), 1, MaxSynthThreads)
+
+proc addVoice(events: var seq[VoiceEvent], freq, startSec, durSec: float32,
+              kind: InstrumentKind, volume: float32) {.inline.} =
+  events.add VoiceEvent(freq: freq, startSec: startSec, durSec: durSec,
+                        kind: kind, volume: volume)
+
+proc renderEventInto(s: ptr UncheckedArray[float32], totalLen: int,
+                     ev: VoiceEvent, lo, hi: int) {.inline.} =
+  ## Render just the part of `ev` that falls inside samples[lo..<hi].
+  if ev.freq <= 0.0 or ev.durSec <= 0.0:
+    return
+  let startSample = max(0, int(ev.startSec * SAMPLE_RATE.float32))
+  let endSample = min(int((ev.startSec + ev.durSec) * SAMPLE_RATE.float32),
+                      totalLen)
+  let a = max(startSample, lo)
+  let b = min(endSample, hi)
+  if a >= b:
+    return
+  for i in a..<b:
     let t = i.float32 / SAMPLE_RATE.float32
-    let progress = (t - startSec) / durSec
-    samples[i] += instrumentWave(kind, freq, t, progress) *
-                  voiceEnvelope(kind, progress, durSec) * volume
+    let progress = (t - ev.startSec) / ev.durSec
+    s[i] += instrumentWave(ev.kind, ev.freq, t, progress) *
+            voiceEnvelope(ev.kind, progress, ev.durSec) * ev.volume
+
+proc renderSliceWorker(slice: RenderSlice) {.thread.} =
+  for (lo, hi) in slice.plan.chunks:
+    for e in 0..<slice.eventCount:
+      renderEventInto(slice.samples, slice.plan.totalLen, slice.events[e], lo, hi)
+
+proc renderVoices(samples: var seq[float32], events: seq[VoiceEvent]) =
+  ## Mix every collected voice into `samples`, across all available cores.
+  if events.len == 0 or samples.len == 0:
+    return
+  let threadCount = synthThreadCount()
+  let sp = cast[ptr UncheckedArray[float32]](addr samples[0])
+  let ep = cast[ptr UncheckedArray[VoiceEvent]](addr events[0])
+  var threads = newSeq[Thread[RenderSlice]](threadCount)
+  for k in 0..<threadCount:
+    createThread(threads[k], renderSliceWorker, RenderSlice(
+      plan: planChunks(samples.len, threadCount, k),
+      samples: sp, events: ep, eventCount: events.len))
+  joinThreads(threads)
 
 # PERCUSSION
 
@@ -1118,8 +1371,10 @@ proc deterministicNoise(sampleIndex: int): float32 {.inline.} =
   let x = sin((sampleIndex.float32 + 1.0) * 12.9898) * 43758.5453
   (x - floor(x)) * 2.0 - 1.0
 
-proc renderPercussionHit(samples: var seq[float32], startTime: float32,
-                         volume: float32, voice: PercussionVoice) =
+proc renderPercussionInto(s: ptr UncheckedArray[float32], totalLen: int,
+                          startTime: float32, volume: float32,
+                          voice: PercussionVoice, lo, hi: int) =
+  ## Render just the part of one drum hit that falls inside samples[lo..<hi].
   let duration = case voice
     of pvKick: 0.22'f32
     of pvSnare: 0.16'f32
@@ -1130,12 +1385,19 @@ proc renderPercussionHit(samples: var seq[float32], startTime: float32,
 
   let startSample = max(0, int(startTime * SAMPLE_RATE.float32))
   let endSample = min(startSample + int(duration * SAMPLE_RATE.float32),
-                      samples.len)
-  if startSample >= endSample:
+                      totalLen)
+  let a = max(startSample, lo)
+  let b = min(endSample, hi)
+  if a >= b:
     return
 
-  var lastNoise = 0.0'f32
-  for i in startSample..<endSample:
+  # highNoise is a one-sample difference, so resuming mid-hit needs the sample
+  # just before `a` -- deterministicNoise is a pure function of the index, so
+  # that value can simply be recomputed. At the true start of a hit the serial
+  # code had no previous sample and used 0; matching that exactly is what keeps
+  # a chunk-split hit bit-identical to an unsplit one.
+  var lastNoise = if a > startSample: deterministicNoise(a - 1) else: 0.0'f32
+  for i in a..<b:
     let hitSample = i - startSample
     let t = hitSample.float32 / SAMPLE_RATE.float32
     let progress = t / duration
@@ -1171,7 +1433,27 @@ proc renderPercussionHit(samples: var seq[float32], startTime: float32,
                      sin(2.0 * PI * 6100.0 * t) * 0.08)
       value = (noise * 0.48 + highNoise * 0.20 + shimmer) * exp(-progress * 4.8)
 
-    samples[i] += value * volume
+    s[i] += value * volume
+
+proc drumSliceWorker(slice: DrumSlice) {.thread.} =
+  for (lo, hi) in slice.plan.chunks:
+    for h in 0..<slice.hitCount:
+      let hit = slice.hits[h]
+      renderPercussionInto(slice.samples, slice.plan.totalLen, hit.time,
+                           hit.vol, hit.voice, lo, hi)
+
+proc renderDrums(samples: var seq[float32], hits: seq[DrumEvent]) =
+  if hits.len == 0 or samples.len == 0:
+    return
+  let threadCount = synthThreadCount()
+  let sp = cast[ptr UncheckedArray[float32]](addr samples[0])
+  let hp = cast[ptr UncheckedArray[DrumEvent]](addr hits[0])
+  var threads = newSeq[Thread[DrumSlice]](threadCount)
+  for k in 0..<threadCount:
+    createThread(threads[k], drumSliceWorker, DrumSlice(
+      plan: planChunks(samples.len, threadCount, k),
+      samples: sp, hits: hp, hitCount: hits.len))
+  joinThreads(threads)
 
 # EFFECTS AND MASTERING
 
@@ -1197,6 +1479,20 @@ proc applySidechainPump(samples: var seq[float32], kicks: seq[float32],
       let dt = (i - startSample).float32 / SAMPLE_RATE.float32
       samples[i] *= 1.0 - depth * exp(-dt * 16.0)
 
+proc masterSliceWorker(slice: MasterSlice) {.thread.} =
+  ## Per-sample limiting is a pure map, so each thread owns its own output
+  ## range and nothing is shared.
+  let total = slice.plan.totalLen
+  for (lo, hi) in slice.plan.chunks:
+    for i in lo..<hi:
+      var value = slice.samples[i]
+      if i < slice.fadeSamples:
+        value *= i.float32 / slice.fadeSamples.float32
+      if total - i < slice.fadeSamples:
+        value *= (total - i).float32 / slice.fadeSamples.float32
+      let limited = tanh(value * 1.18) * slice.outputGain
+      slice.output[i] = int16(clamp(limited * 32767.0, -32767.0, 32767.0))
+
 proc finishMusic(samples: var seq[float32], filename: string,
                  outputGain: float32) =
   ## Light mastering: fade protection, warm saturation, and final limiting.
@@ -1204,23 +1500,24 @@ proc finishMusic(samples: var seq[float32], filename: string,
   ## asset-generation worker thread.
   let fadeSamples = int(0.035 * SAMPLE_RATE.float32)
   var samples16 = newSeq[int16](samples.len)
+  if samples.len > 0:
+    let threadCount = synthThreadCount()
+    var threads = newSeq[Thread[MasterSlice]](threadCount)
+    for k in 0..<threadCount:
+      createThread(threads[k], masterSliceWorker, MasterSlice(
+        plan: planChunks(samples.len, threadCount, k),
+        samples: cast[ptr UncheckedArray[float32]](addr samples[0]),
+        output: cast[ptr UncheckedArray[int16]](addr samples16[0]),
+        fadeSamples: fadeSamples, outputGain: outputGain))
+    joinThreads(threads)
 
-  for i in 0..<samples.len:
-    var value = samples[i]
-
-    if i < fadeSamples:
-      value *= i.float32 / fadeSamples.float32
-    if samples.len - i < fadeSamples:
-      value *= (samples.len - i).float32 / fadeSamples.float32
-
-    let limited = tanh(value * 1.18) * outputGain
-    samples16[i] = int16(clamp(limited * 32767.0, -32767.0, 32767.0))
-
+  if genCancel.load():
+    return
   writeWavFile(filename, samples16, SAMPLE_RATE)
 
 # ARRANGEMENT
 
-proc renderPadBar(spec: TrackSpec, samples: var seq[float32],
+proc renderPadBar(spec: TrackSpec, events: var seq[VoiceEvent],
                   tones: seq[int], barStart, barLen, inten: float32) =
   if spec.padVol <= 0.0:
     return
@@ -1228,15 +1525,15 @@ proc renderPadBar(spec: TrackSpec, samples: var seq[float32],
   for idx in 0..<tones.len:
     let vol = spec.padVol * (0.55 + 0.45 * inten) *
               (if idx == 0: 1.0'f32 else: 0.8'f32)
-    renderVoice(samples, semiFreq(spec.tonic, tones[idx]),
+    addVoice(events, semiFreq(spec.tonic, tones[idx]),
                 barStart, barLen, ikPad, vol)
 
   # Octave shimmer when the track is running hot
   if inten > 0.7:
-    renderVoice(samples, semiFreq(spec.tonic, tones[0] + 12),
+    addVoice(events, semiFreq(spec.tonic, tones[0] + 12),
                 barStart, barLen, ikPad, spec.padVol * 0.5)
 
-proc renderBassBar(spec: TrackSpec, samples: var seq[float32],
+proc renderBassBar(spec: TrackSpec, events: var seq[VoiceEvent],
                    chord: BarChord, barStart, barLen, beat, inten: float32) =
   if spec.bassVol <= 0.0:
     return
@@ -1245,13 +1542,13 @@ proc renderBassBar(spec: TrackSpec, samples: var seq[float32],
 
   if inten < 0.35:
     # Sparse: one held root per bar
-    renderVoice(samples, rootFreq, barStart, barLen * 0.92, ikBass,
+    addVoice(events, rootFreq, barStart, barLen * 0.92, ikBass,
                 spec.bassVol * 0.8)
   elif inten < 0.7:
     # Moderate: quarter-note pulse with a fifth pickup
     for step in 0..3:
       let freq = if step == 3: rootFreq * 1.4983'f32 else: rootFreq
-      renderVoice(samples, freq, barStart + step.float32 * beat,
+      addVoice(events, freq, barStart + step.float32 * beat,
                   beat * 0.85, ikBass, spec.bassVol * 0.9)
   else:
     # Driving eighth notes with octave jumps at peak intensity
@@ -1262,10 +1559,10 @@ proc renderBassBar(spec: TrackSpec, samples: var seq[float32],
       elif step == 6:
         freq = rootFreq * 1.4983
       let vol = spec.bassVol * (if step mod 2 == 0: 1.0'f32 else: 0.75'f32)
-      renderVoice(samples, freq, barStart + step.float32 * beat * 0.5,
+      addVoice(events, freq, barStart + step.float32 * beat * 0.5,
                   beat * 0.42, ikBass, vol)
 
-proc renderArpBar(spec: TrackSpec, samples: var seq[float32],
+proc renderArpBar(spec: TrackSpec, events: var seq[VoiceEvent],
                   tones: seq[int], barStart, barLen, beat, inten: float32) =
   if spec.arpVol <= 0.0 or inten < 0.45:
     return
@@ -1284,12 +1581,12 @@ proc renderArpBar(spec: TrackSpec, samples: var seq[float32],
   while pos < barStart + barLen - 0.01:
     let k = idx mod cycle
     let j = if k < arpSemis.len: k else: cycle - k
-    renderVoice(samples, semiFreq(spec.tonic, arpSemis[j]), pos,
+    addVoice(events, semiFreq(spec.tonic, arpSemis[j]), pos,
                 step * 0.85, ikPluck, spec.arpVol * (0.7 + 0.3 * inten))
     pos += step
     inc idx
 
-proc renderMelody(spec: TrackSpec, samples: var seq[float32],
+proc renderMelody(spec: TrackSpec, events: var seq[VoiceEvent],
                   barLen, beat: float32) =
   let numBars = spec.intensity.len
   let phraseLen = spec.phraseBars.float32 * barLen
@@ -1305,12 +1602,12 @@ proc renderMelody(spec: TrackSpec, samples: var seq[float32],
 
       let vol = spec.leadVol * (0.65 + 0.35 * inten) * (1.0 + note.accent * 0.3)
       let freq = semiFreq(spec.tonic, note.semi)
-      renderVoice(samples, freq, noteStart, note.dur * beat * 0.95,
+      addVoice(events, freq, noteStart, note.dur * beat * 0.95,
                   spec.melodyInstr, vol)
 
       # Octave doubling at peak intensity for extra width
       if inten > 0.85:
-        renderVoice(samples, freq * 2.0, noteStart, note.dur * beat * 0.95,
+        addVoice(events, freq * 2.0, noteStart, note.dur * beat * 0.95,
                     spec.melodyInstr, vol * 0.35)
     phraseStart += phraseLen
 
@@ -1381,18 +1678,30 @@ proc composeTrack(spec: TrackSpec, filename: string,
   let numBars = spec.intensity.len
   var samples = newSeq[float32](int(MUSIC_DURATION * SAMPLE_RATE.float32))
 
-  # Melodic layers first so the sidechain pump only affects them
+  # Collect every melodic note first (cheap), then mix them all in one parallel
+  # pass. Building the list in the old call order is what keeps the mix
+  # bit-identical -- see the note above renderVoices.
+  var events: seq[VoiceEvent] = @[]
   for bar in 0..<numBars:
     let barStart = bar.float32 * barLen
     let inten = spec.intensity[bar]
     let chord = spec.progression[bar mod spec.progression.len]
     let tones = chordSemis(chord)
 
-    renderPadBar(spec, samples, tones, barStart, barLen, inten)
-    renderBassBar(spec, samples, chord, barStart, barLen, beat, inten)
-    renderArpBar(spec, samples, tones, barStart, barLen, beat, inten)
+    renderPadBar(spec, events, tones, barStart, barLen, inten)
+    renderBassBar(spec, events, chord, barStart, barLen, beat, inten)
+    renderArpBar(spec, events, tones, barStart, barLen, beat, inten)
+  renderMelody(spec, events, barLen, beat)
 
-  renderMelody(spec, samples, barLen, beat)
+  # Cancellation is checked here and inside the render workers: returning
+  # before finishMusic writes no file at all, so a half-composed track can
+  # never be mistaken for a cached one (isMusicCached also size-checks, which
+  # covers a torn write).
+  if genCancel.load():
+    return
+  renderVoices(samples, events)
+  if genCancel.load():
+    return
 
   var drumEvents: seq[DrumEvent] = @[]
   var kicks: seq[float32] = @[]
@@ -1400,8 +1709,7 @@ proc composeTrack(spec: TrackSpec, filename: string,
 
   applySidechainPump(samples, kicks, spec.pumpDepth)
 
-  for event in drumEvents:
-    renderPercussionHit(samples, event.time, event.vol, event.voice)
+  renderDrums(samples, drumEvents)
 
   applySingleEcho(samples, spec.echoDelay, spec.echoMix)
   finishMusic(samples, filename, outputGain)
@@ -1571,11 +1879,6 @@ proc generateMusicFile(track: MusicTrack) =
   of mtPowerUp: createPowerUpMusic(cacheFile)
   of mtBoss: createBossMusic(cacheFile)
 
-proc loadOrGenerateMusic(track: MusicTrack): Music =
-  ## Main thread only (opens an audio stream).
-  generateMusicFile(track)
-  result = loadMusicStream(getMusicCacheFile(track))
-
 proc cleanStaleCacheFiles() =
   ## Remove WAVs from older sound versions (pre-versioning files have no
   ## "_v" suffix; outdated versions have a different one) so they don't
@@ -1593,10 +1896,15 @@ proc cleanStaleCacheFiles() =
 # ASYNCHRONOUS PRE-GENERATION
 #
 # Synthesising the four music tracks is by far the slowest thing the game ever
-# does (~2.1M samples each, several seconds in a debug build). Doing it inline
-# froze the window: no endDrawing() ran, so nothing animated and Windows marked
-# the process "Not Responding". Instead a worker thread writes the WAVs while
-# the main thread keeps rendering the loading screen at full frame rate.
+# does. Doing it inline froze the window: no endDrawing() ran, so nothing
+# animated and Windows marked the process "Not Responding". A worker thread
+# writes the WAVs instead, while the main thread keeps the loading screen at
+# full frame rate. Everything is finished before the game starts -- the worker
+# is joined at the end of the loading screen, so gameplay never races it.
+#
+# The synthesis itself is parallel across cores (see renderVoices), which is
+# what makes waiting for the whole set reasonable: a cold cache is a beat, not
+# the better part of a minute.
 #
 # Thread-safety contract: the worker only runs pure synthesis + FileStream
 # writes. Every raylib/audio-device call (loadSound, loadMusicStream) stays on
@@ -1618,10 +1926,17 @@ var
   genCurrentIsMusic: Atomic[bool]
   genCurrentOrd: Atomic[int]
   genDone: Atomic[bool]
+  genMusicReady: Atomic[int] # bitmask, bit i set = MusicTrack(i)'s WAV exists
+
+proc isMusicReady(track: MusicTrack): bool =
+  ## True once the track's WAV is on disk and safe for loadMusicStream.
+  (genMusicReady.load() and (1 shl track.ord)) != 0
 
 proc assetGenWorker() {.thread.} =
   try:
     for soundType in SoundType:
+      if genCancel.load():
+        break
       if not isSoundCached(soundType):
         genCurrentIsMusic.store(false)
         genCurrentOrd.store(soundType.ord)
@@ -1629,10 +1944,14 @@ proc assetGenWorker() {.thread.} =
         genCompleted.store(genCompleted.load() + 1)
 
     for track in MusicTrack:
+      if genCancel.load():
+        break
       if not isMusicCached(track):
         genCurrentIsMusic.store(true)
         genCurrentOrd.store(track.ord)
         generateMusicFile(track)
+        if isMusicCached(track):
+          genMusicReady.store(genMusicReady.load() or (1 shl track.ord))
         genCompleted.store(genCompleted.load() + 1)
   except CatchableError:
     discard
@@ -1649,13 +1968,22 @@ proc startAssetGeneration*(): int =
   genDone.store(genPending == 0)
   genCurrentOrd.store(0)
   genCurrentIsMusic.store(false)
+  genCancel.store(false)
+
+  # Seed the readiness mask from whatever survived in the cache; the worker
+  # adds each track as it finishes writing it.
+  var ready = 0
+  for track in MusicTrack:
+    if isMusicCached(track):
+      ready = ready or (1 shl track.ord)
+  genMusicReady.store(ready)
 
   if genPending == 0:
     echo "All ", totalAssets, " audio assets already cached"
     return 0
 
-  echo "Generating ", genPending, " audio assets in the background (",
-       cached.sounds, "/", SoundType.high.ord + 1, " sounds, ",
+  echo "Generating ", genPending, " audio assets on ", synthThreadCount(),
+       " threads (", cached.sounds, "/", SoundType.high.ord + 1, " sounds, ",
        cached.music, "/", MusicTrack.high.ord + 1, " tracks cached)"
   createThread(genThread, assetGenWorker)
   genThreadActive = true
@@ -1683,13 +2011,20 @@ proc assetGenLabel*(): string =
     t(tkLoadingGeneratingSound) & ": " & extractFilename(getSoundCacheFile(soundType))
 
 proc finishAssetGeneration*() =
-  ## Block until the worker is done. Cheap when assetGenBusy() is already false,
-  ## but it must be called before shutting the window down so the thread can't
-  ## outlive the process' file handles.
+  ## Block until BOTH phases are done. Never call this during startup -- that
+  ## would reintroduce the music stall this whole system exists to avoid. It is
+  ## for shutdown only, so the worker can't outlive the process' file handles.
   if genThreadActive:
     joinThread(genThread)
     genThreadActive = false
     echo "Audio asset generation complete: ", getCacheDir()
+
+proc abortAssetGeneration() =
+  ## Shutdown path: tell the worker to stop at the next bar instead of
+  ## finishing the track it is on, then join. Without this, closing the window
+  ## during first-run generation would hang on the rest of the soundtrack.
+  genCancel.store(true)
+  finishAssetGeneration()
 
 # INCREMENTAL LOAD INTO THE AUDIO DEVICE
 var soundLoadCursor = 0
@@ -1759,7 +2094,7 @@ proc initSoundSystem*(): SoundSystem =
 proc closeSoundSystem*(sys: SoundSystem) =
   # The generator thread writes into the temp cache; never tear the process
   # down underneath it.
-  finishAssetGeneration()
+  abortAssetGeneration()
   if sys != nil and sys.initialized:
     closeAudioDevice()
     echo "Sound system closed"
@@ -1778,7 +2113,11 @@ proc pitchVariation(soundType: SoundType): float32 =
   of stShield: 0.05
   of stCoinPickup, stTeleport, stPlayerHit: 0.04
   of stMenuNav: 0.02
-  of stPowerUp, stBossSpawn, stMenuSelect, stWaveComplete, stGameOver, stBuy: 0.0
+  # Composed one-shots keep their exact pitch. The restore-point cues are a
+  # scripted three-beat sequence, so any wobble between them would break the
+  # illusion that they are one continuous event.
+  of stPowerUp, stBossSpawn, stMenuSelect, stWaveComplete, stGameOver, stBuy,
+     stRestoreAccess, stRestoreSpinDown, stRestoreShatter: 0.0
 
 proc panSpread(soundType: SoundType): float32 =
   ## Random stereo offset for battlefield sounds; UI and jingles stay centered.
@@ -1843,45 +2182,68 @@ proc toggleSound*() =
   if globalSoundSystem != nil:
     globalSoundSystem.enabled = not globalSoundSystem.enabled
 
-proc playMusic*(track: MusicTrack) =
-  if globalSoundSystem == nil or not globalSoundSystem.enabled:
-    return
-
+proc ensureMusicLoaded(sys: SoundSystem, track: MusicTrack): bool =
+  ## Main thread only (opens an audio stream). True once the track is in the
+  ## audio device. Deliberately never synthesises inline: if the worker has not
+  ## written the WAV yet this just answers "not yet" and the caller retries on
+  ## a later frame, which is what keeps the frame loop off the synthesiser.
+  if sys.musicGenerated[track]:
+    return true
+  if not isMusicReady(track):
+    return false
   try:
-    if globalSoundSystem.trackPlaying and globalSoundSystem.currentTrack != track:
-      stopMusicStream(globalSoundSystem.cachedMusic[globalSoundSystem.currentTrack])
-      globalSoundSystem.trackPlaying = false
+    sys.cachedMusic[track] = loadMusicStream(getMusicCacheFile(track))
+    sys.musicGenerated[track] = true
+    result = true
+  except CatchableError:
+    result = false
 
-    if not globalSoundSystem.musicGenerated[track]:
-      globalSoundSystem.cachedMusic[track] = loadOrGenerateMusic(track)
-      globalSoundSystem.musicGenerated[track] = true
-
-    if not globalSoundSystem.trackPlaying or globalSoundSystem.currentTrack != track:
-      setMusicVolume(globalSoundSystem.cachedMusic[track], globalSoundSystem.musicVolume)
-      playMusicStream(globalSoundSystem.cachedMusic[track])
-      globalSoundSystem.currentTrack = track
-      globalSoundSystem.trackPlaying = true
-  except:
+proc switchToTrack(sys: SoundSystem, track: MusicTrack) =
+  ## Assumes the track is already loaded. Stops whatever is playing first.
+  try:
+    if sys.trackPlaying:
+      stopMusicStream(sys.cachedMusic[sys.currentTrack])
+      sys.trackPlaying = false
+    setMusicVolume(sys.cachedMusic[track], sys.musicVolume)
+    playMusicStream(sys.cachedMusic[track])
+    sys.currentTrack = track
+    sys.trackPlaying = true
+  except CatchableError:
     discard
 
+proc playMusic*(track: MusicTrack) =
+  ## Startup has already generated and cached every track, so this is just a
+  ## load-and-play. If a track is somehow missing it stays silent rather than
+  ## synthesising inline the way this used to -- that path could freeze a
+  ## gameplay frame for seconds.
+  let sys = globalSoundSystem
+  if sys == nil or not sys.enabled:
+    return
+  if not ensureMusicLoaded(sys, track):
+    return
+  if not sys.trackPlaying or sys.currentTrack != track:
+    switchToTrack(sys, track)
+
 proc updateMusic*() =
-  if globalSoundSystem == nil or not globalSoundSystem.enabled or not globalSoundSystem.trackPlaying:
+  let sys = globalSoundSystem
+  if sys == nil or not sys.enabled or not sys.trackPlaying:
     return
   try:
-    updateMusicStream(globalSoundSystem.cachedMusic[globalSoundSystem.currentTrack])
+    updateMusicStream(sys.cachedMusic[sys.currentTrack])
     # Manually restart if music stopped (seamless looping)
-    if not isMusicStreamPlaying(globalSoundSystem.cachedMusic[globalSoundSystem.currentTrack]):
-      seekMusicStream(globalSoundSystem.cachedMusic[globalSoundSystem.currentTrack], 0.0)
-      playMusicStream(globalSoundSystem.cachedMusic[globalSoundSystem.currentTrack])
+    if not isMusicStreamPlaying(sys.cachedMusic[sys.currentTrack]):
+      seekMusicStream(sys.cachedMusic[sys.currentTrack], 0.0)
+      playMusicStream(sys.cachedMusic[sys.currentTrack])
   except:
     discard
 
 proc stopMusic*() =
-  if globalSoundSystem == nil or not globalSoundSystem.trackPlaying:
+  let sys = globalSoundSystem
+  if sys == nil or not sys.trackPlaying:
     return
   try:
-    stopMusicStream(globalSoundSystem.cachedMusic[globalSoundSystem.currentTrack])
-    globalSoundSystem.trackPlaying = false
+    stopMusicStream(sys.cachedMusic[sys.currentTrack])
+    sys.trackPlaying = false
   except:
     discard
 

@@ -10,8 +10,8 @@
 ##   - Right half of the physical screen -> floating AIM joystick; auto-fires
 ##     while held.
 ##   - Fixed on-screen buttons (in virtual 1024x768 coords): pause, ability
-##     (legendary), place-wall. Buttons are hit-tested first and consume their
-##     touch so they never spawn a joystick.
+##     (legendary), place-wall, dash. Buttons are hit-tested first and consume
+##     their touch so they never spawn a joystick.
 ##
 ## Coordinate spaces (see the note in render_context.screenToVirtual):
 ##   touch input is in physical-screen pixels; joystick vectors are computed in
@@ -57,9 +57,23 @@ var
   pauseJustPressed = false
   wallJustReleased = false
   wallIsHeld = false
+  dashJustPressed = false
   prevIds: seq[int32] = @[]
   abilityFlash: float32 = 0
   pauseFlash: float32 = 0
+  dashFlash: float32 = 0
+  dashCooldownRatio: float32 = 0
+    ## 0 = ready, 1 = just used. Pushed in by main.nim rather than read from the
+    ## player: this module must not import types/player (input_intent imports it
+    ## and player imports input_intent), and the button is the only dash
+    ## cooldown readout the game has -- desktop players learn the 2.5s rhythm by
+    ## feel, but a touch player tapping a dead button has nothing to learn from.
+  dashAvailable = false
+    ## Whether the mode running right now even has a base dash. PvP does not --
+    ## it never calls updatePlayer, so the dash lives entirely in single-player.
+    ## Defaults to off and is pushed true each frame by the gsPlaying branch, so
+    ## a mode that forgets to push gets no button rather than a dead one that
+    ## also eats the aim stick's touches.
 
 proc joyRadius(): float32 =
   ## Floating-joystick travel radius, scaled to screen height so sensitivity is
@@ -77,11 +91,15 @@ const
   BtnMargin = 24.0'f32
 
 const MobileActionBarHeight* = (BtnSize + BtnMargin * 2).int32
-  ## Height of the bottom-right band the ability + wall buttons occupy, margin
-  ## included. HUD elements that bottom-anchor into the right gutter (the
+  ## Height of the bottom-right band the dash + wall + ability buttons occupy,
+  ## margin included. HUD elements that bottom-anchor into the right gutter (the
   ## legendary ability strip) must reserve this much or they end up drawn
   ## underneath the buttons. Exported so the reserve and the button layout can
   ## never drift apart.
+  ##
+  ## The three buttons share ONE row on purpose: stacking the dash above them
+  ## would double this band and push the legendary strip and the combo card a
+  ## further 144px up a screen that is already short on vertical room.
 
 proc virtualW(): float32 = getVirtualScreenWidth().float32
 proc virtualH(): float32 = getVirtualScreenHeight().float32
@@ -98,6 +116,13 @@ proc abilityBtnRect(): Rectangle =
 proc wallBtnRect(): Rectangle =
   ## Left of the ability button.
   Rectangle(x: virtualW() - BtnSize * 2 - BtnMargin * 2, y: virtualH() - BtnSize - BtnMargin,
+            width: BtnSize, height: BtnSize)
+
+proc dashBtnRect(): Rectangle =
+  ## Left of the wall button -- the third slot in the same bottom row, so the
+  ## band height (MobileActionBarHeight) is unchanged and no bottom-anchored HUD
+  ## element has to move.
+  Rectangle(x: virtualW() - BtnSize * 3 - BtnMargin * 3, y: virtualH() - BtnSize - BtnMargin,
             width: BtnSize, height: BtnSize)
 
 proc pointInRect(p: Vector2, r: Rectangle): bool =
@@ -128,8 +153,10 @@ proc updateMobileControls*(dt: float32) =
   abilityJustPressed = false
   pauseJustPressed = false
   wallJustReleased = false
+  dashJustPressed = false
   abilityFlash = max(0.0'f32, abilityFlash - dt)
   pauseFlash = max(0.0'f32, pauseFlash - dt)
+  dashFlash = max(0.0'f32, dashFlash - dt)
 
   let midX = getScreenWidth().float32 / 2.0'f32
 
@@ -152,6 +179,14 @@ proc updateMobileControls*(dt: float32) =
       if wallOwnerId < 0:
         wallOwnerId = id
         wallIsHeld = true
+    elif dashAvailable and pointInRect(v, dashBtnRect()):
+      # Edge-only, like the ability button: the dash is a one-shot burst, so
+      # there is no held state to track and a resting thumb can't re-trigger it.
+      # The touch is still consumed either way, so a tap on a cooling-down dash
+      # never falls through and spawns an aim joystick under the thumb.
+      if dashCooldownRatio <= 0.0'f32:
+        dashJustPressed = true
+        dashFlash = ButtonFlashTime
     elif screen.x < midX and not moveStick.active:
       moveStick = VJoystick(active: true, id: id, baseScreen: screen, curScreen: screen)
     elif screen.x >= midX and not aimStick.active:
@@ -187,6 +222,8 @@ proc resetMobileControls*() =
   abilityJustPressed = false
   pauseJustPressed = false
   wallJustReleased = false
+  dashJustPressed = false
+  dashAvailable = false
   prevIds.setLen(0)
 
 # --- Vector queries used by input_intent -------------------------------------
@@ -211,6 +248,15 @@ proc mobileAbilityPressed*(): bool = abilityJustPressed
 proc mobilePausePressed*(): bool = pauseJustPressed
 proc mobileWallHeld*(): bool = wallIsHeld
 proc mobileWallReleased*(): bool = wallJustReleased
+proc mobileDashPressed*(): bool = dashJustPressed
+
+proc setMobileDashState*(available: bool, cooldownRatio: float32) =
+  ## Push whether a dash button should exist this frame and, if so, its cooldown
+  ## as 0 (ready) .. 1 (just spent) so the button can render a sweep. Called from
+  ## main.nim's gameplay branch; see the notes on dashCooldownRatio and
+  ## dashAvailable for why this is pushed rather than read.
+  dashAvailable = available
+  dashCooldownRatio = clamp(cooldownRatio, 0.0'f32, 1.0'f32)
 
 # --- Rendering ---------------------------------------------------------------
 
@@ -256,3 +302,34 @@ proc drawMobileControls*() =
   # Wall button: a small slab; brighter while held.
   drawActionButton(wallBtnRect(), wallIsHeld, proc(cx, cy: float32) =
     drawRectangle((cx - 20).int32, (cy - 8).int32, 40, 16, Color(r: 200, g: 150, b: 90, a: 255)))
+
+  # Dash button: a double chevron pointing right (the universal "boost" glyph),
+  # dimmed to grey while cooling down so readiness is legible at a glance
+  # without reading a number. Absent entirely in modes with no base dash.
+  if not dashAvailable: return
+  let dashReady = dashCooldownRatio <= 0.0'f32
+  let dashRect = dashBtnRect()
+  drawActionButton(dashRect, dashFlash > 0, proc(cx, cy: float32) =
+    let tint =
+      if dashReady: Color(r: 140, g: 240, b: 255, a: 255)
+      else: Color(r: 120, g: 130, b: 150, a: 180)
+    for k in 0 .. 1:
+      # Each chevron is two thick lines meeting at a point, drawn rather than
+      # filled: drawTriangle is winding-order sensitive and a mirrored glyph is
+      # exactly where that bites.
+      let ox = cx - 16.0'f32 + k.float32 * 18.0'f32
+      drawLine(Vector2(x: ox - 8, y: cy - 14), Vector2(x: ox + 6, y: cy), 5.0'f32, tint)
+      drawLine(Vector2(x: ox + 6, y: cy), Vector2(x: ox - 8, y: cy + 14), 5.0'f32, tint))
+
+  # Cooldown sweep: a dark veil pinned to the TOP of the button whose height is
+  # the remaining cooldown, so it retreats upward and the button visibly refills
+  # from the bottom as the dash comes back. Drawn after the glyph so it dims it,
+  # inset by the border stroke so it can't overhang the rounded corners, and
+  # skipped entirely when ready so the ready state costs nothing.
+  if not dashReady:
+    const veilInset = 3.0'f32
+    let veilH = max(0.0'f32,
+                    (dashRect.height - veilInset * 2) * dashCooldownRatio)
+    drawRectangle((dashRect.x + veilInset).int32, (dashRect.y + veilInset).int32,
+                  (dashRect.width - veilInset * 2).int32, veilH.int32,
+                  Color(r: 8, g: 12, b: 24, a: 150))

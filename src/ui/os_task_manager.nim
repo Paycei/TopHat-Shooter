@@ -3,6 +3,7 @@
 
 import raylib, math
 import ../types, ../powerup_data, ../localization, ../render_context
+import ui_helpers
 
 const
   TASK_MANAGER_WIDTH = 700
@@ -166,7 +167,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   let bodyW = measureText(bodyStr, 18)
   drawText(bodyStr, dx + (DW - bodyW) div 2, dy + tbH + 28, 18, White)
 
-  let subStr = "Unsaved progress will be lost."
+  let subStr = "Your progress will be saved."
   let subW = measureText(subStr, 13)
   drawText(subStr, dx + (DW - subW) div 2, dy + tbH + 58, 13,
            Color(r: 200, g: 150, b: 150, a: 255))
@@ -291,7 +292,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
 
   # Content area
   let contentY = tabY + TAB_HEIGHT + 10
-  let contentHeight = TASK_MANAGER_HEIGHT - TITLE_BAR_HEIGHT - TAB_HEIGHT - 120
+  let contentHeight = TASK_MANAGER_HEIGHT - TITLE_BAR_HEIGHT - TAB_HEIGHT - 165
 
   case selectedTab
   of tmtProcesses:
@@ -304,6 +305,14 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   # Bottom buttons
   let buttonY = windowY + TASK_MANAGER_HEIGHT - 80
   let buttonsStartX = windowX + (TASK_MANAGER_WIDTH - 600) div 2
+
+  # Lives panel between the tab content and the buttons. Wave mode only: it is
+  # the only mode with a continue budget, and an always-empty panel in survival
+  # or a roguelite floor would read as a bug rather than "not applicable here".
+  if game.mode == gmWaveBased:
+    drawLivesPanel(windowX + 20, buttonY - LivesPanelHeight - 14,
+                   TASK_MANAGER_WIDTH.int32 - 40, game.livesUsed,
+                   difficultyMaxLives(), UnlimitedLives, game.time)
 
   # Check mouse hover for buttons
   let exitHovered = mouseSupported and isMouseOverRect(mousePos, buttonsStartX, buttonY, 180, BUTTON_HEIGHT)

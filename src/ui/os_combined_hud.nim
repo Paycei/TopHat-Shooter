@@ -13,6 +13,7 @@ const
   COMBINED_TITLE_HEIGHT = 18
   COMBINED_MAX_POWERUPS_VISIBLE = 3
   COMBINED_POWERUP_OVERFLOW_HEIGHT = 14
+  COMBINED_XP_BAR_HEIGHT = 12       # one drawLevelXpBar row (label 9 + 2 shadow/pad)
   HEADER_BG_COLOR = Color(r: 0, g: 100, b: 120, a: 60)
   ACCENT_COLOR = Color(r: 0, g: 220, b: 255, a: 255)
 
@@ -21,6 +22,35 @@ var leftPanelMinimized* = false
 var leftPanelPos* = Vector2(x: 10, y: 2)  # Default position
 var leftPanelDragging* = false
 var leftPanelDragOffset* = Vector2(x: 0, y: 0)
+
+proc drawLevelXpBar(game: Game, panelX, panelW, yOffset: int32) =
+  ## "LV n" label on the left, a thin XP progress bar filling the rest.
+  ##
+  ## Shared by the roguelite dungeon panel and wave mode. Wave mode grew an XP
+  ## bar when run-leveling was extended to it: without a visible bar the orbs
+  ## are just floating litter, because the reward loop only reads as a reward
+  ## once the player can see it accumulating toward something.
+  let lvlLabel = t("roguelite_level") & " " & $game.player.rogueliteLevel
+  const lvlSize: int32 = 9
+  drawText(lvlLabel, panelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, lvlSize,
+          Color(r: 0, g: 0, b: 0, a: 130))
+  drawText(lvlLabel, panelX + COMBINED_PANEL_PADDING + 6, yOffset, lvlSize,
+          Color(r: 150, g: 255, b: 210, a: 255))
+  let labelW = measureText(lvlLabel, lvlSize)
+  let barX = panelX + COMBINED_PANEL_PADDING + 6 + labelW + 6
+  let barRight = panelX + panelW - COMBINED_PANEL_PADDING - 6
+  let barW = max(10'i32, barRight - barX)
+  const barH: int32 = 6
+  let barY = yOffset + (lvlSize - barH) div 2
+  drawRectangle(barX, barY, barW, barH, Color(r: 10, g: 30, b: 25, a: 180))
+  let ratio = clamp(game.player.xp.float32 /
+                    max(1, game.player.xpToNextLevel).float32, 0.0, 1.0)
+  let fillW = int32(barW.float32 * ratio)
+  if fillW > 0:
+    drawRectangle(barX, barY, fillW, barH, Color(r: 90, g: 255, b: 170, a: 230))
+  drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
+                               width: barW.float32, height: barH.float32),
+                     1, Color(r: 120, g: 220, b: 190, a: 160))
 
 proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32,
                          showMinimizeIcon: bool): int32 {.discardable.} =
@@ -43,15 +73,19 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32,
     0
 
   let waveInfoHeight = if (game.mode == gmWaveBased):
-    if game.waveInProgress and not game.bossWaveManager.active: 35
-    elif game.bossWaveManager.active or game.bossWaveManager.coinActive: 32
-    else: 28
+    # Every wave-mode branch also draws a LV/XP bar row, so it is added to all
+    # three budgets. Miss it and the bar hangs below the panel border whenever
+    # nothing else extends the panel -- i.e. exactly when there are no power-ups.
+    COMBINED_XP_BAR_HEIGHT + (
+      if game.waveInProgress and not game.bossWaveManager.active: 35
+      elif game.bossWaveManager.active or game.bossWaveManager.coinActive: 32
+      else: 28)
   else:
     0
 
   let rogueliteInfoHeight = if game.mode == gmRoguelite and game.rogueliteRun != nil:
     # Separator + title + route + LV/XP bar + shards + relics lines.
-    var h: int32 = 47 + 12  # +12 for the LV/XP bar line added below the route
+    var h: int32 = 47 + COMBINED_XP_BAR_HEIGHT  # LV/XP bar line below the route
     if game.rogueliteRun.floor != nil:
       # Minimap rows: must match the cell/gap constants in the drawing block below.
       var minGY = DungeonGridSize
@@ -267,6 +301,12 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32,
 
       yOffset += 8
 
+    # Wave mode earns power-ups from XP levels now, so it needs the same bar the
+    # dungeon has.
+    if game.mode == gmWaveBased:
+      drawLevelXpBar(game, panelX, panelW, yOffset)
+      yOffset += COMBINED_XP_BAR_HEIGHT
+
     if game.bossWaveManager.active:
       drawText("[X] " & t(tkGameBossFight), panelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
               Color(r: 0, g: 0, b: 0, a: 130))
@@ -312,30 +352,9 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32,
             panelX + COMBINED_PANEL_PADDING + 6, yOffset, routeSize, White)
     yOffset += max(12'i32, routeSize + 2)
 
-    # Level + XP bar: "LV n" label on the left, a thin progress bar filling the rest.
-    block xpBar:
-      let lvlLabel = t("roguelite_level") & " " & $game.player.rogueliteLevel
-      const lvlSize: int32 = 9
-      drawText(lvlLabel, panelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, lvlSize,
-              Color(r: 0, g: 0, b: 0, a: 130))
-      drawText(lvlLabel, panelX + COMBINED_PANEL_PADDING + 6, yOffset, lvlSize,
-              Color(r: 150, g: 255, b: 210, a: 255))
-      let labelW = measureText(lvlLabel, lvlSize)
-      let barX = panelX + COMBINED_PANEL_PADDING + 6 + labelW + 6
-      let barRight = panelX + panelW - COMBINED_PANEL_PADDING - 6
-      let barW = max(10'i32, barRight - barX)
-      const barH: int32 = 6
-      let barY = yOffset + (lvlSize - barH) div 2
-      drawRectangle(barX, barY, barW, barH, Color(r: 10, g: 30, b: 25, a: 180))
-      let ratio = clamp(game.player.xp.float32 /
-                        max(1, game.player.xpToNextLevel).float32, 0.0, 1.0)
-      let fillW = int32(barW.float32 * ratio)
-      if fillW > 0:
-        drawRectangle(barX, barY, fillW, barH, Color(r: 90, g: 255, b: 170, a: 230))
-      drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
-                                   width: barW.float32, height: barH.float32),
-                         1, Color(r: 120, g: 220, b: 190, a: 160))
-    yOffset += max(12'i32, 9 + 2)
+    # Level + XP bar (shared with wave mode -- see drawLevelXpBar).
+    drawLevelXpBar(game, panelX, panelW, yOffset)
+    yOffset += COMBINED_XP_BAR_HEIGHT
 
     # Floor minimap: filled = visited, outline = seen, everything if map found.
     if run.floor != nil:

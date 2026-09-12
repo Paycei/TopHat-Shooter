@@ -1,8 +1,8 @@
 import raylib, math, random
 import particle_types, types, particle_pool, sound, powerup, particle
 
-## Experience orbs for the run-leveling modes (roguelite + time-survival). This
-## module is a deliberate sibling of
+## Experience orbs for the run-leveling modes (wave, roguelite + time-survival).
+## This module is a deliberate sibling of
 ## `coin.nim`: XP orbs drop on enemy death, auto-home to the player through the
 ## collection aura (and from anywhere while a Magnet consumable is active), and
 ## on pickup add to the player's run XP. It imports only low-level modules and
@@ -11,6 +11,15 @@ import particle_types, types, particle_pool, sound, powerup, particle
 const
   XpBaseToLevel* = 10      # XP needed to clear level 1
   XpPerLevelStep* = 6      # added to the threshold for each subsequent level
+  XpLongRunQuadratic* = 4  ## `longRun` curve: extra cost per level, squared.
+                           ## This carries wave mode's density normalisation on
+                           ## its own. Orbs drop at full value so every kill
+                           ## still pays out visibly; levels get more expensive
+                           ## instead, which lands ~19 levels over a 60-wave run
+                           ## rather than the ~67 an unnormalised curve produced.
+                           ## Solved against the actual per-wave XP income, so
+                           ## retuning calculateWaveEnemyCount means re-solving
+                           ## this. Roguelite/survival never apply it.
   XpOrbPullSpeed = 320.0   # homing speed in px/s (slightly snappier than coins)
   XpOrbLifetime = 18.0     # seconds before an uncollected orb fades out
   XpLootMargin = 50.0      # keep drops this far from the screen edge (cf. coin.nim)
@@ -19,9 +28,22 @@ proc clampXpDrop(x, y: float32, sw, sh: int32): tuple[x, y: float32] =
   result.x = clamp(x, XpLootMargin, sw.float32 - XpLootMargin)
   result.y = clamp(y, XpLootMargin, sh.float32 - XpLootMargin)
 
-proc xpRequiredForLevel*(level: int): int =
+proc xpRequiredForLevel*(level: int, longRun: bool = false): int =
   ## Steady, escalating curve: ~one level per room early, slowing later.
-  XpBaseToLevel + max(0, level - 1) * XpPerLevelStep
+  ##
+  ## `longRun` adds a quadratic term for modes that run for dozens of waves
+  ## rather than a handful of rooms. The linear curve was tuned for a roguelite
+  ## floor, where a run ends long before the threshold matters; wave mode plays
+  ## 60 waves, and because levels grow with the SQUARE ROOT of total XP, even a
+  ## fully density-normalised XP income still produced ~37 levels there. Each
+  ## level is a power-up draft and a permanent stat bundle, so that alone
+  ## outpaced every other progression channel combined.
+  ##
+  ## Roguelite and survival keep the original linear curve untouched.
+  result = XpBaseToLevel + max(0, level - 1) * XpPerLevelStep
+  if longRun:
+    let n = max(0, level - 1)
+    result += n * n * XpLongRunQuadratic
 
 proc enemyXpValue*(enemy: Enemy): int =
   ## Small per-enemy XP grant, shaped like enemyCoinValue but smaller magnitudes.
@@ -94,13 +116,32 @@ proc dataHarvestMultiplier(player: Player): float32 =
   else: 2.0
 
 proc dropEnemyXp*(game: Game, enemy: Enemy) =
-  ## Drop XP orb(s) at the dead enemy's position in the run-leveling modes
-  ## (roguelite + time-survival). Bosses split their lump into a small cluster
-  ## for a satisfying shower of orbs.
-  if game.mode notin {gmRoguelite, gmTimeSurvival}: return
+  ## Drop XP orb(s) at the dead enemy's position in the run-leveling modes.
+  ## Bosses split their lump into a small cluster for a satisfying shower of orbs.
+  ##
+  ## Wave mode was added to this set deliberately. It previously had NO
+  ## second-to-second reward loop at all: every reward was deferred to a wave
+  ## boundary, so the actual moment-to-moment game gave the player nothing back
+  ## for a kill except a number. Orbs streaming in on every kill are the drip
+  ## that the wave-boundary drafts cannot provide.
+  if game.mode notin {gmWaveBased, gmRoguelite, gmTimeSurvival}: return
   if enemy.spawnedByBoss: return
-  let total = int(enemyXpValue(enemy).float32 * dataHarvestMultiplier(game.player))
-  if total <= 0: return
+  let base = enemyXpValue(enemy)
+  if base <= 0: return   # etEnvironment and friends are worth nothing by design
+  # EVERY scoring enemy drops an orb. The floor of 1 is load-bearing, not
+  # defensive: density normalisation was briefly applied to this VALUE, and
+  # because the result is truncated to an int it silently zeroed the drop for
+  # every cheap enemy -- circles paid nothing from wave 1, and past wave 40 only
+  # snipers and mages dropped at all. That deleted the moment-to-moment feedback
+  # the orbs exist to provide.
+  #
+  # XP is the one reward channel with TWO sides: what an enemy gives and what a
+  # level costs. Only the second is a balance lever; the first is feedback. So
+  # the density normalisation lives entirely in xpRequiredForLevel's `longRun`
+  # curve, which reaches the same level pacing without ever silencing a kill.
+  # (Coins, consumables and elites have no matching cost curve, which is why
+  # they are normalised on the grant side instead -- see waveDensityRebate.)
+  let total = max(1, int(base.float32 * dataHarvestMultiplier(game.player)))
   let clamped = clampXpDrop(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
   if enemy.isBoss:
     # Spread the boss XP across several orbs around the death point.

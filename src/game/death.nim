@@ -251,6 +251,12 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   # Record the killer exactly once. The guard above is the latch: same-frame
   # corpse hits and death-playback collisions re-enter here but return early,
   # so the first (true killing) call is the one that sticks.
+  # Hand the death sequence a clean world clock. From here on updateDopamine is
+  # fed the sequence's own scaled dt, so any hit stop still running would decay
+  # in slowed time and could survive into a Continue; the sequence drives its
+  # own dilation via deathSequenceTimeScale and wants no juice layer on top.
+  game.dopamine.slowMotion = newSlowMotion()
+
   game.deathCause = cause
   let killer = resolveKillerName(game, cause, source, sourceType)
   game.deathSourceName = killer.name

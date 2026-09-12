@@ -37,6 +37,7 @@ proc getRunSavePath*(file: string = RunSaveFile): string =
 var bcCachePath = ""      # "" = nothing cached yet
 var bcCacheExists = false
 var bcCacheWave = 1
+var bcCacheLivesUsed = 0
 
 proc invalidateBlockCheckpointCache*() =
   bcCachePath = ""
@@ -307,6 +308,11 @@ proc saveRunState*(game: Game, file: string = RunSaveFile,
     "mode": $game.mode,
     "cheatsUsed": game.cheatsUsed,
     "runHadDeath": game.runHadDeath,
+    # Continues spent so far. This is the ONE durable home of the lives budget:
+    # death deletes the normal run save but leaves the block checkpoint, so
+    # without this counter riding along in the checkpoint every Continue would
+    # restore a run that had never spent anything.
+    "livesUsed": game.livesUsed,
     "time": game.time,
     "shopBought": shopBought,
     "player": playerToJson(game.player)
@@ -381,6 +387,9 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
     # checkpoint path re-flags it at the call site since resuming one means the
     # player died.
     game.runHadDeath = j.getOrDefault("runHadDeath").getBool(false)
+    # Saves from before the lives system default to 0 spent, which is the
+    # generous reading -- an in-flight run keeps its full budget.
+    game.livesUsed = max(0, j.getOrDefault("livesUsed").getInt(0))
     game.time = j.getOrDefault("time").getFloat(0.0).float32
     if j.hasKey("player"):
       applyPlayerJson(game.player, j["player"])
@@ -535,20 +544,66 @@ proc refreshBlockCheckpointCache() =
   let j = loadRunSaveJson(BlockCheckpointFile)
   bcCacheExists = j != nil
   bcCacheWave = if j.isNil: 1 else: j.getOrDefault("currentWave").getInt(1)
+  bcCacheLivesUsed = if j.isNil: 0 else: max(0, j.getOrDefault("livesUsed").getInt(0))
   bcCachePath = path
+
+proc blockCheckpointExists*(): bool =
+  ## Raw file presence, ignoring the difficulty and lives gates. Used by the
+  ## game-over screen to decide WHOSE lives to show: a checkpoint on disk is the
+  ## run that Continue would resume, so its counter is the one at stake even
+  ## once it has been spent down to zero and the button is gone.
+  refreshBlockCheckpointCache()
+  bcCacheExists
+
+proc blockCheckpointLivesUsed*(): int =
+  ## Continues already spent by the run held in the block checkpoint. 0 when
+  ## there is no checkpoint (a run that has not continued has spent nothing).
+  refreshBlockCheckpointCache()
+  if bcCacheExists: bcCacheLivesUsed else: 0
 
 proc hasBlockCheckpoint*(): bool =
   ## Nightmare answers "no" even if a file somehow exists (e.g. a checkpoint left
   ## behind by an older build), so the Continue option can never come back.
+  ## A run that has spent its whole lives budget answers "no" the same way, which
+  ## is what turns the budget into a real limit rather than a display.
   if not difficultyAllowsContinue():
     return false
   refreshBlockCheckpointCache()
-  bcCacheExists
+  if not bcCacheExists:
+    return false
+  livesRemaining(bcCacheLivesUsed) != 0
 
 proc blockCheckpointWave*(): int =
   ## Wave the block checkpoint resumes at, or 1 if there is no valid checkpoint.
   refreshBlockCheckpointCache()
   bcCacheWave
+
+proc consumeContinueLife*(game: Game) =
+  ## Spend one life on a run that has just resumed its block checkpoint, and
+  ## patch the new count straight back into the checkpoint file.
+  ##
+  ## The write-back is the whole point: applyBlockCheckpoint has just restored
+  ## livesUsed FROM that file, so bumping it only in memory would be undone the
+  ## moment the player died again before reaching the next boss block -- the
+  ## same checkpoint would reload with the old count and the budget would never
+  ## run out. Patching just this one key (rather than re-serializing the game)
+  ## keeps the rest of the checkpoint byte-identical to what was verified good.
+  inc game.livesUsed
+  # Arm the "life lost" animation. Doing it here rather than at the two call
+  # sites means every way of spending a life is animated by construction -- the
+  # game-over Continue button and the desktop's resume-a-dead-run both land
+  # here, and a third path added later would too.
+  game.lifeLostTimer = LifeLostAnimDuration
+  game.lifeLostSoundStage = 0
+  let j = loadRunSaveJson(BlockCheckpointFile)
+  if j.isNil:
+    return
+  j["livesUsed"] = %game.livesUsed
+  invalidateBlockCheckpointCache()
+  try:
+    writeFile(getRunSavePath(BlockCheckpointFile), j.pretty())
+  except CatchableError:
+    echo "Warning: could not write run save"
 
 proc applyBlockCheckpoint*(game: Game): bool =
   ## Restore the block checkpoint onto a freshly constructed wave-mode Game.

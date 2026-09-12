@@ -82,7 +82,11 @@ proc cleanupGame*(game: Game) =
   game.coins = @[]
   game.xpOrbs = @[]
   game.pendingLevelDrafts = 0
-  game.survivalLevelDraftActive = false
+  game.levelDraftActive = false
+  game.draftResumeTimer = 0
+  game.levelDraftDelay = 0
+  game.draftInputGrace = 0
+  game.draftAwaitRelease = false
   game.survivalTime = 0
   game.consumables = @[]
   game.walls = @[]
@@ -96,13 +100,24 @@ proc cleanupGame*(game: Game) =
     game.player.rotatingOrbs = @[]
 
 proc applyLevelUpStatBoost*(player: Player) =
-  ## Roguelite per-level reward: a small balanced stat bundle plus a partial heal.
+  ## Per-level reward in every run-leveling mode (wave, roguelite, survival):
+  ## a small balanced stat bundle plus a partial heal.
+  ##
+  ## The damage step DECAYS with level instead of being a flat +4% compounding.
+  ## A flat 4% is fine over a roguelite floor, but wave mode can reach 100+
+  ## levels in a long run, where 1.04^100 is a ~50x damage multiplier on its own
+  ## -- enough to erase elites and bosses, not just trash. Decaying the step
+  ## keeps early levels feeling generous (~+3.9%) while the total stays bounded
+  ## and sane deep into a run (~5x by level 100 rather than ~50x).
   const LevelMaxHpGain = 2.0'f32      # +max HP (radius/aura scale follow via refreshPlayerSize)
-  const LevelDamageMult = 1.04'f32    # +4% damage, compounding
   const LevelHealFraction = 0.25'f32  # heal a quarter of the (new) max HP
+  const LevelDamageStep = 0.04'f32    # headline per-level damage gain, before decay
+  const LevelDamageHalfLife = 25.0'f32 # levels at which the step is halved
+  let levelDamageMult = 1.0'f32 + LevelDamageStep /
+    (1.0'f32 + max(0.0'f32, player.rogueliteLevel.float32) / LevelDamageHalfLife)
   player.maxHp += LevelMaxHpGain
   player.baselineMaxHp += LevelMaxHpGain  # Automatic gain: never feeds Juggernaut
-  player.damage *= LevelDamageMult
+  player.damage *= levelDamageMult
   heal(player, player.maxHp * LevelHealFraction)
 
 proc bankRunLevelUps*(game: Game) =
@@ -112,25 +127,36 @@ proc bankRunLevelUps*(game: Game) =
   ## subsequent frames, so this proc never changes game.state.
   ##
   ## Roguelite calls this once per ROOM clear (levels never cash in mid-fight);
-  ## time-survival calls it every frame, so survival levels pop the instant the
-  ## XP bar fills (Vampire-Survivors style).
-  if game.mode notin {gmRoguelite, gmTimeSurvival}: return
+  ## time-survival and wave mode call it every frame, so levels pop the instant
+  ## the XP bar fills (Vampire-Survivors style).
+  if game.mode notin {gmWaveBased, gmRoguelite, gmTimeSurvival}: return
   # Survival: freeze leveling during a boss fight. The XP bar may fill to 100%,
   # but the level-up (and its draft) is deferred until the boss is dead. XP earned
   # past the threshold while the boss lives is discarded, the bar caps at full, so
   # at most one level is banked the instant the boss falls.
-  if isTimeSurvivalMode(game.mode) and game.bossWaveManager.isBossActive():
+  if (isTimeSurvivalMode(game.mode) or game.mode == gmWaveBased) and
+     game.bossWaveManager.isBossActive():
     game.player.xp = min(game.player.xp, game.player.xpToNextLevel)
     return
   var levelsGained = 0
   while game.player.xp >= game.player.xpToNextLevel:
     game.player.xp -= game.player.xpToNextLevel
     inc game.player.rogueliteLevel
-    game.player.xpToNextLevel = xpRequiredForLevel(game.player.rogueliteLevel)
+    # Wave mode is a 60-wave marathon, not a short floor run: it uses the
+    # steepened curve so levels decelerate instead of compounding all run.
+    game.player.xpToNextLevel = xpRequiredForLevel(
+      game.player.rogueliteLevel, longRun = game.mode == gmWaveBased)
     applyLevelUpStatBoost(game.player)
     inc levelsGained
   if levelsGained > 0:
     game.pendingLevelDrafts += levelsGained
+    # Telegraph beat before the modal actually opens. The banner, sound and
+    # burst below fire immediately, but the draft itself waits ~0.7 s of live
+    # play. Without this the modal lands on the same frame the bar fills, which
+    # is why a mid-wave level-up felt like being yanked out of the game: the
+    # player had no notice, so their hands were still driving and shooting.
+    # Now they see LEVEL UP, take their fingers off, and the screen follows.
+    game.levelDraftDelay = max(game.levelDraftDelay, 0.7'f32)
     # Juice: one sound, burst, and banner summarizing the room's level gains.
     playSound(stPowerUp)
     spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
@@ -147,14 +173,18 @@ proc checkPendingLevelDraft*(game: Game) =
   ## following draft. Because the sim is frozen between consecutive drafts, the
   ## whole stack resolves before the player can re-enter combat.
   ##
-  ## Survival shares this path but flags the draft (survivalLevelDraftActive) so
+  ## Survival shares this path but flags the draft (levelDraftActive) so
   ## continueAfterDraft routes back to play rather than the post-boss shop, and
   ## draws from all power families since survival has no per-run unlock set.
-  if game.mode notin {gmRoguelite, gmTimeSurvival} or game.state != gsPlaying: return
-  # Survival: never open a level-up draft while a boss is alive, leveling is
-  # deferred until the fight ends (matches the XP freeze in bankRunLevelUps).
-  if isTimeSurvivalMode(game.mode) and game.bossWaveManager.isBossActive(): return
+  if game.mode notin {gmWaveBased, gmRoguelite, gmTimeSurvival} or
+     game.state != gsPlaying: return
+  # Survival / wave: never open a level-up draft while a boss is alive; leveling
+  # is deferred until the fight ends (matches the XP freeze in bankRunLevelUps).
+  if (isTimeSurvivalMode(game.mode) or game.mode == gmWaveBased) and
+     game.bossWaveManager.isBossActive(): return
   if game.pendingLevelDrafts <= 0: return
+  # Hold for the telegraph beat armed in bankRunLevelUps.
+  if game.levelDraftDelay > 0: return
   dec game.pendingLevelDrafts
   let families = if game.mode == gmRoguelite:
     unlockedFamilySet(game.rogueliteProfile)
@@ -164,11 +194,43 @@ proc checkPendingLevelDraft*(game: Game) =
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
   initializeRerollCost(game)
-  if isTimeSurvivalMode(game.mode):
-    game.survivalLevelDraftActive = true
-    saveRunState(game)  # Survival autosave checkpoint at each level draft.
+  if isTimeSurvivalMode(game.mode) or game.mode == gmWaveBased:
+    # Flag the draft as a level-up so continueAfterDraft resumes into the same
+    # battlefield instead of routing to the between-wave shop.
+    game.levelDraftActive = true
+    saveRunState(game)  # Autosave checkpoint at each level draft.
     deleteSuspendSnapshot()  # Boundary reached: the pre-exit snapshot is stale.
   game.state = gsPowerUpSelect
+
+proc beginDraftResume*(game: var Game) =
+  ## Re-entry beat after a draft hands the player back to a LIVE battlefield.
+  ##
+  ## XP level drafts open mid-wave, so closing one drops the player straight
+  ## back into a fight that carried on in their head but not on screen: they do
+  ## not know where they are, what is near them, or what just changed. Three
+  ## things fix that, and they are cheap:
+  ##   * time ramps back up from ~28% instead of snapping to full speed, so the
+  ##     eye gets a beat to re-read the board (smtResume);
+  ##   * a short grace of invulnerability, so re-orienting is not punished by a
+  ##     contact hit landed during the frame the modal closed;
+  ##   * a ring pulse centred on the PLAYER, which answers "where am I" before
+  ##     the player has to hunt for their own sprite in a crowd.
+  ## The wave-boundary draft does not need this -- it exits to the shop.
+  # Nothing to ease back into if another queued draft opens next frame -- a
+  # multi-level-up chains its drafts one per frame, and ramping time back up
+  # between them would just stutter. The last one in the chain does the beat.
+  if game.pendingLevelDrafts > 0:
+    return
+  const ResumeInvuln = 0.9'f32
+  game.draftResumeTimer = 0.9'f32
+  activateSlowMo(game.dopamine.slowMotion, smtResume)
+  game.player.invincibilityTimer = max(game.player.invincibilityTimer, ResumeInvuln)
+  # Two concentric rings: the outer one sweeps wide enough to sit clear of the
+  # crowd, the inner one lands on the player themselves.
+  spawnShockwaveRing(game, game.player.pos, 150.0'f32,
+                     Color(r: 120, g: 255, b: 210, a: 255))
+  spawnShockwaveRing(game, game.player.pos, 62.0'f32,
+                     Color(r: 210, g: 255, b: 240, a: 255))
 
 proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin: int = 0, playerShape: int = 0, particleSkin: int = 0, bulletShape: int = 0): Game =
   let defaultMode = gmWaveBased  # Default to wave-based mode
@@ -294,12 +356,6 @@ proc setGameMode*(game: Game, mode: GameMode) =
     game.wavesUntilBoss = BossWaveInterval - 1
 
 # Waves
-proc calculateWaveEnemyCount(waveNumber: int): int =
-  ## Enemy count per wave: uncapped but decelerating, pairing with the compounding
-  ## late-game HP buff in spawnWaveEnemies (few beefy threats, not a mowable swarm).
-  ##   wave 1 -> 8, wave 10 -> ~19, wave 40 -> ~35, wave 100 -> ~55
-  result = int(8 + 3.0 * pow(float(waveNumber - 1), 0.6))
-
 proc startWave*(game: Game) =
   # Death-surviving block checkpoint, written at the START of each boss block
   # (waves 5, 9, 13, ... for a BossWaveInterval of 4 -- wavesUntilBoss is only
@@ -336,9 +392,24 @@ proc startWave*(game: Game) =
   # Mark wave start for combo tracking
   startWaveCombo(game.dopamine.comboSystem)
 
-  # PLAYER SCALING: Multiply current stats by 1.2% per wave (preserves shop purchases and power-ups)
-  # This applies scaling multiplicatively to whatever stats the player has built up
-  let waveScaling: float32 = 1.012  # 1.2% increase per wave
+  # PLAYER SCALING: compounding per-wave growth on top of shop purchases and
+  # power-ups (this multiplies whatever the player has already built).
+  #
+  # This used to be 1.012, deliberately tuned to cancel against the enemies'
+  # own 1.015 per-wave HP compounding. Cancelling curves is what "balanced but
+  # not fun" feels like from the inside: wave 40 plays exactly like wave 10 with
+  # bigger numbers on both sides, and forty waves of investment buy no felt
+  # change. The player's curve is now clearly steeper than the enemies' (see
+  # spawnWaveEnemies' 1.006), so power visibly compounds and things that took a
+  # clip at wave 10 pop in one hit at wave 40. Difficulty is restored through
+  # DENSITY and new enemy types instead of enemy hit points.
+  #
+  # Kept at a moderate 1.5% rather than a bigger number because wave mode now
+  # ALSO levels from XP orbs (applyLevelUpStatBoost, ~+4% damage per level, on
+  # the order of one level per wave). These two channels multiply, so the auto
+  # scaling is the floor that guarantees growth even in a bad draft run, and the
+  # levels are where most of the escape velocity comes from.
+  let waveScaling: float32 = 1.015  # 1.5% increase per wave
 
   # Apply multiplicative scaling to current stats (preserves all upgrades)
   game.player.maxHp *= waveScaling
@@ -517,15 +588,44 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       # with no threshold, ceiling, or kink anywhere. Wave mode only, roguelite and
       # survival scale through their own spawn paths.
       block:
-        # Tankier: ~1.5% extra HP per wave, compounding. Stars are hit-count based
-        # (placeholder maxHp), so their durability is left to requiredHits.
+        # Slight per-wave HP compounding, kept WELL under the player's own 2.2%
+        # so builds outgrow enemies on purpose. This was 1.015, which almost
+        # exactly cancelled the player's old 1.012 and produced a treadmill.
+        # Late waves are meant to let a built player delete regular enemies --
+        # that one-tap is the payoff for the whole run, not a bug. Pressure now
+        # comes from how MANY arrive (calculateWaveEnemyCount) and from elites
+        # and bosses, which keep their own multipliers.
+        # Stars are hit-count based (placeholder maxHp), so their durability is
+        # left to requiredHits.
         if enemy.enemyType != etStar:
-          let hpScale = pow(1.015'f32, statWave)
+          # Per-wave compounding, then the density rebate that pays for the much
+          # larger head count (see waveDensityRebate).
+          let hpScale = pow(1.006'f32, statWave) * waveDensityRebate(wave)
           enemy.maxHp *= hpScale
           enemy.hp *= hpScale
         # Stronger: ~0.5% extra damage per wave so the survivors that now reach the
         # player keep pace as genuine threats instead of harmless chip damage.
-        let dmgScale = pow(1.005'f32, statWave)
+        #
+        # Partially rebated for density, but only HALFWAY (unlike HP, which is
+        # rebated in full). Waves now field roughly four times as many bodies,
+        # so leaving per-enemy damage untouched would quadruple incoming
+        # pressure; rebating it fully would make a crowd no more dangerous than
+        # the handful it replaced. Half-rebate means a swarm IS meaningfully
+        # more threatening than the old sparse wave -- that is where the
+        # difficulty moved to -- without being a wall.
+        # Threat growth. Raised from 1.005 after measurement: at wave 40 the old
+        # curve left per-enemy damage at 0.77x its BASE value (1.005^34.6 = 1.19,
+        # times the density rebate) while the player's max HP had grown ~16x.
+        # A measured run took 337 hits averaging 4.2 damage against a 147 HP
+        # pool -- 2.9% of the bar per hit, i.e. no hit ever mattered. Enemies
+        # need to scale as a threat even though they are deliberately NOT
+        # scaling as hit points (see the 1.006 HP curve above).
+        #
+        # The density rebate is also less generous now: two thirds of per-enemy
+        # damage is kept rather than half, because a crowd is where the
+        # difficulty was moved to and it was not landing hard enough.
+        let densityDmgRebate = 0.65'f32 + 0.35'f32 * waveDensityRebate(wave)
+        let dmgScale = pow(1.012'f32, statWave) * densityDmgRebate
         enemy.contactDamage *= dmgScale
         enemy.rangedDamage *= dmgScale
 
@@ -542,8 +642,11 @@ proc spawnWaveEnemies*(game: Game, count: int) =
         enemy.radius = max(enemy.radius - girthCut, enemy.radius * 0.5'f32)
         enemy.collisionRadius = enemy.radius * 0.4'f32
 
-      # Elite chance still rolls on the raw wave; stat bonuses use the softened wave.
-      makeElite(enemy, wave, scalingWave = statWave.int)
+      # Elite chance still rolls on the raw wave; stat bonuses use the softened
+      # wave. The density rebate scales the CHANCE so elites-per-wave survives
+      # the swarm rework (see makeElite).
+      makeElite(enemy, wave, scalingWave = statWave.int,
+                chanceScale = waveDensityRebate(wave))
       game.enemies.add(enemy)
       game.waveEnemiesRemaining -= 1
 
@@ -1801,7 +1904,10 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
           spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                                getAuraPulseColor(puBloodAura), 5)
 
-    # Apply accumulated healing to player (scaled by healPowerMult)
+    # Apply accumulated healing to player (scaled by healPowerMult).
+    # Density-normalised first: totalHealing accumulates across every enemy
+    # standing in the aura, so it scales directly with crowd size.
+    totalHealing *= densityHealScale(game)
     if totalHealing > 0:
       let actualHeal = totalHealing * game.player.healPowerMult
       game.player.hp = min(game.player.hp + actualHeal, game.player.maxHp)
@@ -2128,19 +2234,24 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
       else:
         game.currentWave
 
-      var spawnCount = if cadenceWave <= 3: 1
-                       elif cadenceWave <= 8: (if rand(100) < 50: 1 else: 2)
-                       elif cadenceWave <= 15: (if rand(100) < 30: 2 elif rand(100) < 70: 3 else: 4)
-                       elif cadenceWave <= 25: (if rand(100) < 35: 2 elif rand(100) < 75: 3 else: 4)
-                       else: (if rand(100) < 15: 3 elif rand(100) < 45: 4 elif rand(100) < 75: 5 else: 6)
+      # Bodies per spawn tick. Raised across the board to match the much larger
+      # wave budgets in calculateWaveEnemyCount -- without this the extra enemies
+      # would just make waves LONGER instead of DENSER, which is the opposite of
+      # the intent. Early waves still ramp gently so wave 1 teaches the controls.
+      var spawnCount = if cadenceWave <= 2: 2
+                       elif cadenceWave <= 5: (if rand(100) < 50: 2 else: 3)
+                       elif cadenceWave <= 10: (if rand(100) < 40: 3 else: 4)
+                       elif cadenceWave <= 18: (if rand(100) < 35: 4 elif rand(100) < 75: 5 else: 6)
+                       elif cadenceWave <= 30: (if rand(100) < 30: 5 elif rand(100) < 70: 6 else: 8)
+                       else: (if rand(100) < 25: 7 elif rand(100) < 60: 9 else: 11)
 
-      var baseSpawnRate = if cadenceWave <= 3: 1.0
-                          elif cadenceWave <= 7: 1.1
-                          elif cadenceWave <= 12: 1.15
-                          else: 1.2
+      var baseSpawnRate = if cadenceWave <= 3: 0.85
+                          elif cadenceWave <= 7: 0.8
+                          elif cadenceWave <= 12: 0.75
+                          else: 0.7
 
       # Wave enemies spawn faster (shorter delay between spawn ticks).
-      baseSpawnRate *= 0.65
+      baseSpawnRate *= 0.55
 
       if game.mode == gmRoguelite and game.rogueliteRun != nil and
          game.rogueliteRun.floor != nil:
@@ -2237,7 +2348,13 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
           #
           # Other modes have no 5-wave boss cycle, so they keep the every-2 rule.
           shouldOfferPowerUp =
-            if game.mode == gmWaveBased: (game.currentWave mod BossWaveInterval) >= 2
+            # Wave mode now earns most of its power-ups from XP levels mid-wave,
+            # so the wave-BOUNDARY draft is pulled back from 3-in-5 waves to the
+            # run of waves right before a boss. Two reward channels firing at the
+            # old rate would just be two toll booths; the boundary draft is now
+            # the "prepare for the boss" beat, and the level drafts carry the
+            # continuous progression.
+            if game.mode == gmWaveBased: game.wavesUntilBoss <= 1
             else: (game.currentWave mod 2) == 0
 
         # Calculate final wave stats
@@ -2472,8 +2589,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       if not enemy.spawnedByBoss:
         dropEnemyCoin(game, enemy)
 
-      # Run-leveling modes (roguelite + survival): enemies also drop auto-homing
-      # XP orbs (dropEnemyXp guards mode + spawnedByBoss internally).
+      # Run-leveling modes (wave, roguelite + survival): enemies also drop
+      # auto-homing XP orbs (dropEnemyXp guards mode + spawnedByBoss internally).
       dropEnemyXp(game, enemy)
 
       # Elite Explosive death effect
@@ -2556,12 +2673,37 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # Cornucopia (puBountiful): increased drop rate + kill-milestone drops
         let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
         let consumableDifficulty = if game.mode == gmWaveBased: 1.0 else: game.difficulty
+        # Density normalisation (wave mode). Drop CHANCE is per enemy, so the
+        # ~4x head count quadrupled pickups: a measured run collected 686
+        # consumables, 222 of them health, which is most of why the player was
+        # unkillable. Rolls use a 0..999 range so the scaled chance keeps
+        # useful resolution instead of rounding to whole percents.
+        let consumableDropScale =
+          if game.mode == gmWaveBased: waveDensityRebate(game.currentWave)
+          else: 1.0'f32
 
         if game.player.hasBountiful:
           game.player.bountifulKillCounter += 1
 
-          # Every 15th kill: jackpot burst, 3 consumables scattered around the enemy
-          if game.player.bountifulKillCounter >= 15:
+          # Every Nth kill: jackpot burst, 3 consumables scattered around the enemy.
+          #
+          # The interval is density-normalised (wave mode), the same way Life
+          # Steal's is, and for the same reason: this fires on a KILL COUNT, so
+          # the ~4x head count made it fire ~4x per wave. It is also the reason
+          # the earlier drop-CHANCE rebate barely moved anything -- a measured
+          # wave-40 run collected 503 consumables and this guaranteed path
+          # produced 486 of them (97%), which dwarfed the random rolls the
+          # rebate was scaling. Stretching the interval instead of shrinking the
+          # payout keeps the jackpot a jackpot: still 3 pickups and the full
+          # golden burst, just at the per-wave rate the power-up was tuned for.
+          var bountifulInterval = 15
+          let bountifulScale =
+            if game.mode == gmWaveBased: waveDensityRebate(game.currentWave)
+            else: 1.0'f32
+          if bountifulScale > 0.0'f32:
+            bountifulInterval = max(bountifulInterval,
+                                    int(bountifulInterval.float32 / bountifulScale))
+          if game.player.bountifulKillCounter >= bountifulInterval:
             game.player.bountifulKillCounter = 0
             for j in 0..<3:
               let scatter = float32(j) * (PI * 2.0'f32 / 3.0'f32)
@@ -2583,12 +2725,12 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
             addShake(game.dopamine.screenShake, siMedium, jackpotGold)
 
           # Base 30% drop chance for all other kills
-          elif rand(99) < 30:
+          elif rand(999) < int(300.0'f32 * consumableDropScale):
             game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
 
         else:
           # Regular enemies have 15% chance to drop a consumable
-          if rand(99) < 15:
+          if rand(999) < int(150.0'f32 * consumableDropScale):
             # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
             game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
 
@@ -2603,16 +2745,24 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       recordKill(game.dopamine.realTimeStats)
 
       if enemy.isBoss:
-        # Boss kill - MASSIVE effects
+        # Boss kill - MASSIVE effects: a hard bite of hit stop to punctuate the
+        # last hit, then the long slow-motion dwell to savour it.
         addShake(game.dopamine.screenShake, siMassive)
+        triggerHitStop(game.dopamine.slowMotion, 0.13'f32, HitStopScaleHeavy)
         activateSlowMo(game.dopamine.slowMotion, smtBossKill)
         # Record kill with high damage for stats
         let bossKillHp = if enemy.bossTotalMaxHp > 0.0'f32: enemy.bossTotalMaxHp else: enemy.maxHp
         recordKill(game.dopamine.waveStats, bossKillHp)
       else:
-        # Regular enemy kill - standard effects
+        # Regular enemy kill - standard effects. Hit stop, NOT slow motion: see
+        # activateSlowMo's note on why a per-kill dilation latches the game into
+        # permanent half speed once the horde shows up. Elites get a longer,
+        # harder freeze so they read as a bigger deal than a circle popping.
         addShake(game.dopamine.screenShake, siMedium)
-        activateSlowMo(game.dopamine.slowMotion, smtKill)
+        if enemy.isElite:
+          triggerHitStop(game.dopamine.slowMotion, 0.065'f32, HitStopScaleHeavy)
+        else:
+          triggerHitStop(game.dopamine.slowMotion, 0.035'f32)
         recordKill(game.dopamine.waveStats, 0)  # Don't track individual enemy damage for non-bosses
 
       # Track combo and award bonus coins (but not for boss minions)
@@ -2633,10 +2783,17 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       if hasPowerUp(game.player, puLifeSteal):
         let level = getPowerUpLevel(game.player, puLifeSteal)
         game.player.killsSinceLastHeal += 1
-        let healsPerKills = case level
+        var healsPerKills = case level
           of 1: 10
           of 2: 7
           else: 5
+        # Density normalisation by stretching the INTERVAL, not the heal: the
+        # power-up promises "heal every N kills", and with ~4x the bodies that
+        # fired four times as often. Scaling the interval keeps the advertised
+        # heal intact while restoring its per-wave rate.
+        let lsScale = densityHealScale(game)
+        if lsScale > 0.0'f32:
+          healsPerKills = max(healsPerKills, int(healsPerKills.float32 / lsScale))
 
         if game.player.killsSinceLastHeal >= healsPerKills:
           heal(game.player, 1.0)  # Heal 100 HP
@@ -2667,7 +2824,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           of 1: 12
           of 2: 18
           else: 25
-        if rand(99) < healChance:
+        # Per-kill roll: density-normalised out of 1000 to keep resolution.
+        if rand(999) < int(healChance.float32 * 10.0'f32 * densityHealScale(game)):
           heal(game.player, 0.5)
           # Attribute base healing to Last Transmission and bonus to puHealPower
           trackPowerUpHealing(game, puLastTransmission, 0.5)
@@ -4424,7 +4582,9 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
   if game.mode == gmRoguelite:
     updateGameXpOrbs(game, dt)
     checkPendingLevelDraft(game)
-  elif isTimeSurvivalMode(game.mode):
+  elif isTimeSurvivalMode(game.mode) or game.mode == gmWaveBased:
+    # Survival and wave mode have no room-clear boundary, so levels bank
+    # continuously and the draft opens the instant the XP bar fills.
     updateGameXpOrbs(game, dt)
     bankRunLevelUps(game)
     checkPendingLevelDraft(game)
@@ -4669,11 +4829,22 @@ proc updateGame*(game: var Game, dt: float32) =
   # Update real-time stats power level
   calculatePowerLevel(game.dopamine.realTimeStats, game.player)
 
-  # Time Warp effect - apply slow to delta time for enemies/bullets
-  var effectiveDt = dt
+  # WORLD TIME PIPELINE
+  # Three layers feed the simulation's delta time, combined here once:
+  #   juiceScale  -- hit stop / slow motion (d_systems). Ticked on REAL dt inside
+  #                  updateDopamine above, so a freeze always ends.
+  #   simDt       -- the world clock. Everything the player perceives as "the
+  #                  game moving" runs on this, INCLUDING their own bullets, so
+  #                  an impact freeze reads as weight rather than as input lag.
+  #   effectiveDt -- simDt with Time Warp's enemy-only slow layered on top.
+  # Presentation timers (game.time, HUD, shake, combo) deliberately stay on the
+  # raw dt so the UI never stutters with the world.
+  let juiceScale = worldTimeScale(game.dopamine.slowMotion)
+  let simDt = dt * juiceScale
+  var effectiveDt = simDt
   if game.player.timeWarpActive:
     let slowFactor = 0.5  # 50% slow = 50% speed (single level)
-    effectiveDt = dt * slowFactor
+    effectiveDt = simDt * slowFactor
 
   # Handle boss spawn warning timer (non-blocking)
   if game.bossSpawnTimer > 0:
@@ -4743,13 +4914,31 @@ proc updateGame*(game: var Game, dt: float32) =
       # 90s first boss sits at ~difficulty 2 (~wave-10 tier) instead of the old 6.
       game.difficulty = (game.survivalTime / SurvivalDifficultyRamp) * modeDef.difficultyScale
 
-  updateAttackWarningsAndLasers(game, dt, effectiveDt)
-  updatePlayerAndAuras(game, dt, effectiveDt)
-  updateEnemySpawning(game, dt, effectiveDt)
-  updateEnemiesAndBossAttacks(game, dt, effectiveDt)
-  updateBossSatellites(game, dt, effectiveDt)
-  updateBulletsAndHits(game, dt, effectiveDt)
-  updateProjectilesAndCleanup(game, dt, effectiveDt)
+  # Getting hit should have weight too, not just dealing damage. Rather than
+  # touching all ~20 takeDamage() call sites, watch the HP delta across the whole
+  # simulation block: one freeze per frame in which the player actually lost
+  # meaningful health. The fractional gate keeps chip/DoT ticks from stuttering
+  # the game continuously, and death is excluded because the death sequence owns
+  # its own time scale (deathSequenceTimeScale).
+  let hpBeforeSim = game.player.hp
+  updateAttackWarningsAndLasers(game, simDt, effectiveDt)
+  updatePlayerAndAuras(game, simDt, effectiveDt)
+  updateEnemySpawning(game, simDt, effectiveDt)
+  updateEnemiesAndBossAttacks(game, simDt, effectiveDt)
+  updateBossSatellites(game, simDt, effectiveDt)
+  updateBulletsAndHits(game, simDt, effectiveDt)
+  updateProjectilesAndCleanup(game, simDt, effectiveDt)
+
+  # Real dt on purpose: the re-entry highlight should last a fixed wall-clock
+  # beat rather than stretching along with the smtResume ramp it accompanies.
+  if game.draftResumeTimer > 0:
+    game.draftResumeTimer = max(0.0'f32, game.draftResumeTimer - dt)
+  if game.levelDraftDelay > 0:
+    game.levelDraftDelay = max(0.0'f32, game.levelDraftDelay - dt)
+
+  let hpLost = hpBeforeSim - game.player.hp
+  if game.player.hp > 0 and hpLost > max(1.0'f32, game.player.maxHp * 0.005'f32):
+    triggerHitStop(game.dopamine.slowMotion, 0.075'f32, HitStopScaleHeavy)
 
 # Draw
 proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
@@ -5256,8 +5445,10 @@ proc drawGame*(game: Game) =
   # Draw coins
   drawGameCoins(game)
 
-  # Draw roguelite XP orbs
-  if game.mode == gmRoguelite:
+  # Draw XP orbs. This was gated to gmRoguelite alone, which meant survival
+  # updated, homed and collected orbs that were never rendered -- an invisible
+  # pickup loop. Every mode that drops orbs must also draw them.
+  if game.mode in {gmWaveBased, gmRoguelite, gmTimeSurvival}:
     drawGameXpOrbs(game)
 
   # Draw consumables
@@ -5514,6 +5705,20 @@ proc drawGame*(game: Game) =
   # Draw player
   if playerVisible:
     drawPlayer(game.player)
+
+    # Re-entry highlight: a bright pulsing ring on the player for the beat after
+    # a mid-combat draft closes. The shockwave rings from beginDraftResume
+    # expand and leave, which draws the EYE outward; this stays put and answers
+    # "which one of these is me" while the world is still ramping back to speed.
+    if game.draftResumeTimer > 0:
+      let rp = clamp(game.draftResumeTimer / 0.9'f32, 0.0'f32, 1.0'f32)
+      let pulse = 0.55'f32 + 0.45'f32 * sin(game.time * 16.0'f32)
+      let ringA = uint8(clamp(230.0'f32 * rp * pulse, 0.0'f32, 255.0'f32))
+      let ringR = game.player.radius + 10.0'f32 + (1.0'f32 - rp) * 6.0'f32
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringR,
+                      Color(r: 140, g: 255, b: 215, a: ringA))
+      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringR + 3.0'f32,
+                      Color(r: 140, g: 255, b: 215, a: uint8(ringA.int div 2)))
 
   # Foreground particles, such as player muzzle bursts, render over the player.
   drawParticlePoolLayer(game.particlePool, plForeground)
@@ -6009,8 +6214,17 @@ proc drawGameOver*(game: Game) =
   # Use the new OS-style system crash screen. A wave-mode block checkpoint that
   # survived death adds a leading "Continue (Wave N)" option.
   let showContinue = game.mode == gmWaveBased and hasBlockCheckpoint()
-  drawSystemCrash(game, game.selectedGameOverButton, showContinue, blockCheckpointWave())
+  # The meter has to agree with the Continue button, so it counts the restore
+  # points of the run that button would resume. Normally that is this run (the
+  # checkpoint is written by it and carries the same counter), but a checkpoint
+  # left behind by an abandoned run belongs to that run, not the wave-1 one that
+  # just died.
+  let livesUsed = if blockCheckpointExists(): blockCheckpointLivesUsed()
+                  else: game.livesUsed
+  drawSystemCrash(game, game.selectedGameOverButton, showContinue,
+                  blockCheckpointWave(), livesUsed)
 
 proc drawVictory*(game: Game) =
   # OS-style "system secured" congratulations screen (wave-60 final boss cleared)
-  drawSystemSecured(game, game.selectedVictoryButton)
+  # The meter here shows this run's own: winning is not resuming anything.
+  drawSystemSecured(game, game.selectedVictoryButton, game.livesUsed)
