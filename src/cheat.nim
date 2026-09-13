@@ -230,13 +230,11 @@ proc applyPermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType, level
 proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   # Capture the live speed BEFORE the rebuild below. The rebuild reconstructs speed
   # from base + shop + remaining power-ups only, so it would discard any manual speed
-  # set via the cheat menu (applyStatCheat). Instead we surgically remove just the
-  # deleted power-up's contribution: puSpeedBoost is the only speed power-up and it
-  # applies as a trailing multiply (*1.33), so dividing it back out is exact and also
-  # preserves base/shop/other-power-ups/manual overrides. Factor is 1.0 for any other
-  # power-up (no speed effect), leaving the current speed untouched.
+  # set via the cheat menu (applyStatCheat). No power-up currently applies a speed
+  # multiplier in applyPowerUp (Momentum/puSpeedBoost included -- its effect is
+  # entirely the stack-based damage/crit bonus in calculateCombatStats, not a stat
+  # change), so preRemovalSpeed is carried through unscaled and simply restored below.
   let preRemovalSpeed = game.player.speed
-  let removedSpeedFactor = (if powerUpType == puSpeedBoost: 1.33'f32 else: 1.0'f32)
 
   # Find and remove the power-up from player's list
   for i in countdown(game.player.powerUps.len - 1, 0):
@@ -269,12 +267,11 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   for powerUp in game.player.powerUps:
     applyPowerUp(game.player, powerUp)
 
-  # Override the rebuilt speed with the surgically-adjusted value so manual speed
-  # cheats survive removal (see preRemovalSpeed note above). For the non-cheated case
-  # this equals exactly what the rebuild produced.
-  let adjustedSpeed = preRemovalSpeed / removedSpeedFactor
-  game.player.speed = adjustedSpeed
-  game.player.baseSpeed = adjustedSpeed
+  # Restore the surgically-preserved speed so manual speed cheats survive removal
+  # (see preRemovalSpeed note above). For the non-cheated case this equals exactly
+  # what the rebuild produced.
+  game.player.speed = preRemovalSpeed
+  game.player.baseSpeed = preRemovalSpeed
 
   playSound(stMenuSelect)
 

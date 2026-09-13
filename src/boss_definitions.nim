@@ -1488,7 +1488,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.67,
           speedMultiplier: 1.1,
           damageMultiplier: 1.2,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.2,
           color: Color(r: 200, g: 150, b: 255, a: 255),
           visualEffect: "aura",
           specialBehavior: "prism_array",  # Figure-8 patterns
@@ -1530,8 +1530,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: t(tkBoss9Phase3),
           hpThreshold: 0.33,
           speedMultiplier: 1.2,
-          damageMultiplier: 1.25,
-          defenseMultiplier: 1.0,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.1,
           color: Color(r: 255, g: 255, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "light_cascade",  # Sweeping arc movements
@@ -1786,16 +1786,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: t(tkBoss11Phase1),
           hpThreshold: 1.0,
-          speedMultiplier: 1.05,  # NERFED from 1.3
-          damageMultiplier: 0.9,  # NERFED from 1.0
-          defenseMultiplier: 1.2,  # NERFED from 1.3
+          speedMultiplier: 1.05,
+          damageMultiplier: 0.9,
+          defenseMultiplier: 1.1,
           color: Color(r: 180, g: 0, b: 180, a: 255),
           visualEffect: "pulse",
           specialBehavior: "chaotic_movement",
           attacks: @[
             BossAttack(
               attackType: bapBarrage,
-              damage: 19.5,  # NERFED from 2.0
+              damage: 19.5,
               cooldown: 3.5,  # demoted: the chaos weave leads, spray fills gaps
               projectileSpeed: 170.0,  # NERFED from 200.0
               projectileCount: 12,  # NERFED from 15
@@ -1805,7 +1805,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTeleport,
-              damage: 22.0,  # NERFED from 3.0
+              damage: 22.0,
               cooldown: 4.0,
               projectileSpeed: 0.0,
               projectileCount: 0,
@@ -1844,9 +1844,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: t(tkBoss11Phase2),
           hpThreshold: 0.6,
-          speedMultiplier: 1.1,  # NERFED from 1.6
-          damageMultiplier: 1.2,  # NERFED from 1.5
-          defenseMultiplier: 1.0,  # NERFED from 1.1
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.0,
           color: Color(r: 200, g: 40, b: 200, a: 255),
           visualEffect: "aura",
           specialBehavior: "entropy_field",
@@ -1902,9 +1902,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: t(tkBoss11Phase3),
           hpThreshold: 0.35,
-          speedMultiplier: 1.175,  # NERFED from 2.0
-          damageMultiplier: 1.4,  # NERFED from 2.0
-          defenseMultiplier: 0.85,  # NERFED from 0.9
+          speedMultiplier: 1.2,
+          damageMultiplier: 1.4,
+          defenseMultiplier: 0.95,
           color: Color(r: 255, g: 100, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "total_chaos",
@@ -1962,7 +1962,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       name: t(tkBoss12Name),
       bossID: 12,
       baseHP: 4000.0,
-      baseSpeed: 60.0,  # NERFED from 85.0
+      baseSpeed: 60.0,
       baseDamage: 6,
       baseRadius: 70.0,
       color: Color(r: 255, g: 50, b: 50, a: 255),

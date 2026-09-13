@@ -1,5 +1,5 @@
 import raylib, rlgl, random
-import types, particle, particle_pool, particle_types, powerup, run_statistics, boss_weakpoints, ui/os_background
+import types, particle, particle_pool, particle_types, powerup, run_statistics, boss_weakpoints, ui/os_background, player
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
@@ -132,13 +132,21 @@ proc calculateCombatStats*(player: Player): CombatStats =
       let damageBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
       result.damage *= damageBonus
 
-  # Speed Boost (Legendary) - Momentum: the faster you move, the harder you hit.
-  # Scales 0 -> +25% damage as movement speed climbs to baseline; rewards the
-  # constant kiting that the bullet-heaven loop is built around. vel can exceed
-  # baseSpeed (the +33% boost, consumables), so the ratio is clamped to 1.0.
-  if hasPowerUp(player, puSpeedBoost) and player.baseSpeed > 0:
-    let speedRatio = min(player.vel.length() / player.baseSpeed, 1.0'f32)
-    result.damage *= 1.0'f32 + speedRatio * 0.25'f32
+  # Speed Boost (Legendary) - Momentum: discrete stacks built by sustained fast
+  # travel (see momentumStacks/momentumBuildTimer/momentumDecayTimer updates in
+  # player.nim), not a live vel/baseSpeed ratio. The old ratio sat near 1.0
+  # almost the whole run because dodging already keeps velocity near baseSpeed,
+  # so it read as a flat +25% buff. Stacks decay when the player stops moving,
+  # so standing still to line up a shot or getting slowed/frozen has a real,
+  # visible cost. Holding all 5 stacks also grants a fragile crit-chance window
+  # that drops the instant a stack is lost.
+  if hasPowerUp(player, puSpeedBoost):
+    result.damage *= 1.0'f32 + player.momentumStacks.float32 * MomentumDamagePerStack
+    if player.momentumStacks >= MomentumMaxStacks:
+      result.hasCrit = true
+      result.critChance += MomentumMaxCritBonus
+      if result.critMultiplier < 2.0'f32:
+        result.critMultiplier = 2.0'f32
 
   # Max Health (Legendary) - Juggernaut: convert *invested* vitality into raw
   # power. The starting pool and every automatic max-HP grant are excluded

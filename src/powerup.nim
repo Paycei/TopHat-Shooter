@@ -359,8 +359,11 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.maxHp += JuggernautPlatingHp
     player.hp += JuggernautPlatingHp
   of puSpeedBoost:
-    # Momentum (Legendary): no flat move-speed stat. The effect is the
-    # move-while-firing damage bonus (up to +25%) in calculateCombatStats.
+    # Momentum (Legendary): no flat stat here either. The effect is entirely
+    # the stack-based damage/crit bonus in calculateCombatStats, driven by
+    # momentumStacks/momentumBuildTimer/momentumDecayTimer, which player.nim
+    # updates every frame from sustained movement speed. See the block comment
+    # by those constants in player.nim for the full design rationale.
     discard
   of puBulletSpeed:
     # Lightspeed Tracer (Legendary): no bullet-speed stat -- the whole effect is

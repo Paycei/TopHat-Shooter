@@ -14,6 +14,20 @@ const
   LaserHitInterval* = 0.5'f32   ## minimum time between repeat hits from a laser/beam
                                  ## hazard while the player keeps standing in it
 
+  # Momentum (Legendary, puSpeedBoost) tuning. Discrete stacks instead of a
+  # continuous vel/baseSpeed ratio: the old version was full most of the time
+  # because dodging already keeps velocity near baseSpeed, so it read as a flat
+  # +25% damage buff wearing a movement costume. Stacks force a real choice
+  # instead -- sustained fast travel pays off, but standing still to line up a
+  # shot, tanking a hit, or getting slowed/frozen costs real, visible damage.
+  MomentumMaxStacks*      = 5
+  MomentumStackTime*      = 0.5'f32  ## seconds above threshold to gain one stack
+  MomentumDecayGrace*     = 0.5'f32  ## seconds below threshold before stacks start dropping
+  MomentumDecayTime*      = 0.5'f32  ## seconds below threshold to lose one stack, after grace
+  MomentumSpeedThreshold* = 0.6'f32  ## fraction of baseSpeed counted as "moving with intent"
+  MomentumDamagePerStack* = 0.04'f32 ## +4% damage per stack (20% at max)
+  MomentumMaxCritBonus*   = 20       ## +20% crit chance while holding all 5 stacks
+
   PlayerAcceleration = 7.0'f32
   PlayerBraking = 1.8'f32
   PlayerInertiaReferenceRadius = 14.0'f32
@@ -112,6 +126,9 @@ proc newPlayer*(x, y: float32): Player =
     lastDamageEvent: deNone,
     rageStacks: 0,
     critCharge: 0,
+    momentumStacks: 0,
+    momentumBuildTimer: 0,
+    momentumDecayTimer: 0,
     auraRadius: 90.0,  # Invisible pickup aura (refreshPlayerSize owns it after frame 1)
     doubleShotDelay: 0,
     rapidFireSpinup: 0,  # Minigun spin-up meter (RapidFire legendary)
@@ -337,6 +354,31 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     let targetVel = moveDir * currentSpeed
     let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
     player.vel = approachVelocity(player.vel, targetVel, acceleration, dt)
+
+  # Momentum (Legendary) - build a stack every MomentumStackTime seconds spent
+  # above the speed threshold; below it, wait out the grace period and then
+  # lose stacks at the same rate. Read against baseSpeed (not currentSpeed) so
+  # slows/freezes that reduce currentSpeed can't quietly keep the threshold
+  # trivial to clear.
+  if hasPowerUp(player, puSpeedBoost) and player.baseSpeed > 0:
+    if player.vel.length() >= player.baseSpeed * MomentumSpeedThreshold:
+      player.momentumDecayTimer = 0
+      player.momentumBuildTimer += dt
+      while player.momentumBuildTimer >= MomentumStackTime and player.momentumStacks < MomentumMaxStacks:
+        player.momentumBuildTimer -= MomentumStackTime
+        player.momentumStacks += 1
+      if player.momentumStacks >= MomentumMaxStacks:
+        player.momentumBuildTimer = 0  # don't bank progress past the cap
+    else:
+      player.momentumBuildTimer = 0
+      if player.momentumStacks > 0:
+        player.momentumDecayTimer += dt
+        while player.momentumDecayTimer >= MomentumDecayGrace + MomentumDecayTime and player.momentumStacks > 0:
+          player.momentumDecayTimer -= MomentumDecayTime
+          player.momentumStacks -= 1
+        if player.momentumStacks <= 0:
+          player.momentumStacks = 0
+          player.momentumDecayTimer = 0
 
   # Calculate next position
   let nextPos = player.pos + player.vel * dt

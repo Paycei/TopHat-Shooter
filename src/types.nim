@@ -610,6 +610,13 @@ type
     lastDamageEvent*: DamageEvent  # One-frame categorical signal set by takeDamage, consumed by drawPlayer
     rageStacks*: int
     critCharge*: float32
+    # Momentum (Legendary, puSpeedBoost): discrete stacks built by sustained fast
+    # movement, lost the same way if it stops. Updated each frame in player.nim's
+    # updatePlayer (right after player.vel is finalized); consumed in
+    # game/combat.nim's calculateCombatStats for the damage/crit bonus.
+    momentumStacks*: int          # 0..MomentumMaxStacks
+    momentumBuildTimer*: float32  # Counts up toward the next stack while above threshold
+    momentumDecayTimer*: float32  # Grace period before stacks start dropping while below threshold
     auraRadius*: float32  # Invisible coin collection aura
     doubleShotDelay*: float32  # Timer for double-shot rapid succession
     bulletCounter*: int  # Counter for special rounds powerup
