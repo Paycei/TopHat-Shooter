@@ -206,7 +206,10 @@ proc drawFloatingLabel(text: string, centerX, centerY: float32, fontSize: int32,
 
   stamp(0.0'f32, 0.0'f32, color)
 
-proc drawDamageNumber*(dmgNum: DamageNumber) =
+proc drawDamageNumber*(dmgNum: DamageNumber, scale: float32 = 1.0'f32) =
+  ## `scale` is the player's damage-number size setting. It is applied after the
+  ## readability floor below, so the floor keeps holding the *default* size up
+  ## without overriding someone who deliberately asked for smaller labels.
   let fade = floatFade(dmgNum.lifetime, dmgNum.maxLifetime, 0.45'f32)
   let alpha = (1.0'f32 - fade) * 255.0'f32
   let popScale = floatPop(dmgNum.lifetime, fade,
@@ -295,7 +298,7 @@ proc drawDamageNumber*(dmgNum: DamageNumber) =
 
     fontSize = 20
 
-  let scaledFontSize = int32(max(12.0, fontSize.float32 * popScale))
+  let scaledFontSize = int32(max(12.0, fontSize.float32 * popScale) * scale)
 
   # Multiply damage by BALANCE_MULTIPLIER for display
   let displayDamage = dmgNum.damage * BALANCE_MULTIPLIER

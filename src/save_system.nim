@@ -35,7 +35,11 @@ type
     showLowHealthVignette*: bool
     showHints*: bool
     hudLayout*: HudLayout
+    uiScale*: float32          # Interface scale for the desktop/windows/HUD layer
     showEnemyLabels*: bool
+    showDamageNumbers*: bool   # Floating damage text on hits
+    damageNumberScale*: float32 # Size multiplier for that floating text
+    screenShakeScale*: float32  # Multiplier on all screen shake (0 disables it)
     language*: string
     playerSkin*: int  # Current player skin (stored as int)
     bulletSkin*: int  # Current bullet skin (stored as int)
@@ -69,6 +73,17 @@ type
     hasSeenSandboxIntro*: bool     # First-time sandbox mode intro played
     hasSeenPvPIntro*: bool         # First-time pvp mode intro played
     discoveredPowerUps*: seq[string] # Power-ups seen for the first time (name-serialized)
+
+const
+  ## Bounds for the Interface tab's sliders. They live here (next to Settings
+  ## itself) so the loader, the defaults and the settings UI can't drift apart,
+  ## and so a hand-edited settings.json can never produce an unusable interface.
+  MinUIScale* = 0.70'f32
+  MaxUIScale* = 1.30'f32
+  MinDamageNumberScale* = 0.60'f32
+  MaxDamageNumberScale* = 1.60'f32
+  MinScreenShakeScale* = 0.0'f32
+  MaxScreenShakeScale* = 1.50'f32
 
 # Save profiles: every save file lives inside one of MaxProfileSlots per-profile
 # folders (<root>/profiles/<slot>/), the same isolation idea as the debug/release
@@ -257,7 +272,11 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "showLowHealthVignette": settings.showLowHealthVignette,
     "showHints": settings.showHints,
     "hudLayout": $settings.hudLayout,
+    "uiScale": settings.uiScale,
     "showEnemyLabels": settings.showEnemyLabels,
+    "showDamageNumbers": settings.showDamageNumbers,
+    "damageNumberScale": settings.damageNumberScale,
+    "screenShakeScale": settings.screenShakeScale,
     "language": settings.language,
     "playerSkin": settings.playerSkin,
     "bulletSkin": settings.bulletSkin,
@@ -349,8 +368,23 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
     except ValueError:
       settings.hudLayout = hlClassic
 
+  if jsonNode.hasKey("uiScale"):
+    settings.uiScale = clamp(jsonNode["uiScale"].getFloat().float32,
+                             MinUIScale, MaxUIScale)
+
   if jsonNode.hasKey("showEnemyLabels"):
     settings.showEnemyLabels = jsonNode["showEnemyLabels"].getBool()
+
+  if jsonNode.hasKey("showDamageNumbers"):
+    settings.showDamageNumbers = jsonNode["showDamageNumbers"].getBool()
+
+  if jsonNode.hasKey("damageNumberScale"):
+    settings.damageNumberScale = clamp(jsonNode["damageNumberScale"].getFloat().float32,
+                                       MinDamageNumberScale, MaxDamageNumberScale)
+
+  if jsonNode.hasKey("screenShakeScale"):
+    settings.screenShakeScale = clamp(jsonNode["screenShakeScale"].getFloat().float32,
+                                      MinScreenShakeScale, MaxScreenShakeScale)
 
   if jsonNode.hasKey("language"):
     settings.language = jsonNode["language"].getStr()

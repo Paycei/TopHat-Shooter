@@ -107,10 +107,20 @@ type
     tkSettingsTabControls = "settings_tab_controls"
     tkSettingsTabGameplay = "settings_tab_gameplay"
     tkSettingsTabCinematics = "settings_tab_cinematics"
+    tkSettingsTabInterface = "settings_tab_interface"
 
     tkSettingsSectionStory = "settings_section_story"
     tkSettingsSectionModeIntros = "settings_section_mode_intros"
     tkSettingsSectionDisplay = "settings_section_display"
+    tkSettingsSectionScale = "settings_section_scale"
+    tkSettingsSectionHudElements = "settings_section_hud_elements"
+    tkSettingsUiScale = "settings_ui_scale"
+    tkSettingsUiScaleDesc = "settings_ui_scale_desc"
+    tkSettingsDamageNumbers = "settings_damage_numbers"
+    tkSettingsDamageNumbersDesc = "settings_damage_numbers_desc"
+    tkSettingsDamageNumberSize = "settings_damage_number_size"
+    tkSettingsScreenShake = "settings_screen_shake"
+    tkSettingsScreenShakeDesc = "settings_screen_shake_desc"
     tkSettingsSectionVolumeControl = "settings_section_volume_control"
     tkSettingsSectionInputMethod = "settings_section_input_method"
     tkSettingsSectionAssistance = "settings_section_assistance"
@@ -1626,6 +1636,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_controls": "Controls",
     "settings_tab_gameplay": "Gameplay",
     "settings_tab_cinematics": "Cinematics",
+    "settings_tab_interface": "Interface",
+    "settings_section_scale": "SCALE & FEEL",
+    "settings_section_hud_elements": "HUD ELEMENTS",
+    "settings_ui_scale": "UI Scale:",
+    "settings_ui_scale_desc": "(Desktop, its windows and the in-game status panel)",
+    "settings_damage_numbers": "Damage Numbers:",
+    "settings_damage_numbers_desc": "(Floating damage text on hits)",
+    "settings_damage_number_size": "Label Size:",
+    "settings_screen_shake": "Screen Shake:",
+    "settings_screen_shake_desc": "(0% turns camera shake off completely)",
 
     "settings_section_story": "STORY CINEMATICS",
     "settings_section_mode_intros": "MODE INTROS",
@@ -3312,6 +3332,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_controls": "Controles",
     "settings_tab_gameplay": "Juego",
     "settings_tab_cinematics": "Cinemáticas",
+    "settings_tab_interface": "Interfaz",
+    "settings_section_scale": "ESCALA Y EFECTOS",
+    "settings_section_hud_elements": "ELEMENTOS DEL HUD",
+    "settings_ui_scale": "Escala de interfaz:",
+    "settings_ui_scale_desc": "(Escritorio, sus ventanas y el panel de estado del juego)",
+    "settings_damage_numbers": "Números de daño:",
+    "settings_damage_numbers_desc": "(Texto de daño flotante en los impactos)",
+    "settings_damage_number_size": "Tamaño del texto:",
+    "settings_screen_shake": "Vibración de pantalla:",
+    "settings_screen_shake_desc": "(0% desactiva la vibración por completo)",
 
     "settings_section_story": "CINEMÁTICAS DE HISTORIA",
     "settings_section_mode_intros": "INTROS DE MODO",

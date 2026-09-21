@@ -215,6 +215,23 @@ var globalDiscordClient: DiscordClient = nil
 # Global window manager
 var globalWindowManager: WindowManager = nil
 
+proc desktopUIScale(): float32 =
+  ## Interface scale for the desktop chrome (wallpaper, icons, taskbar). That
+  ## chrome is laid out against whatever viewport it is handed, so it honours
+  ## the player's setting with no ceiling. The OS windows are *not* drawn in
+  ## this layer: each caps itself at the point where it would stop fitting the
+  ## screen (window_manager.windowUIScale), so one oversized window can't hold
+  ## the rest of the interface back.
+  uiScaleOf(globalSettings)
+
+proc desktopUIWidth(): int32 =
+  ## Logical width the desktop chrome lays out in at the current UI scale.
+  (screenWidth.float32 / desktopUIScale()).int32
+
+proc desktopUIHeight(): int32 =
+  ## Logical height the desktop chrome lays out in at the current UI scale.
+  (screenHeight.float32 / desktopUIScale()).int32
+
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
   currentRenderTargetSupersampleScale: float32 = 0.0
@@ -644,6 +661,10 @@ proc main() =
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
   var appliedHudLayout = settings.hudLayout  # Last virtual-resolution applied to the window/pipeline
+  # Last desktop-layer UI scale the windows were laid out for. Starts at 0 (an
+  # impossible scale) so the first frame always lays them out for the saved one,
+  # which is what centers them in the scaled logical viewport after boot.
+  var appliedUIScale = 0.0'f32
 
   # Initialize global Discord client (persists across game sessions)
   # Wrapped in try-catch to handle Discord connection failures gracefully
@@ -910,7 +931,14 @@ proc main() =
                           (monitorHeight - screenHeight) div 2)
       updateRenderScale()
       if not globalWindowManager.isNil:
-        globalWindowManager.relayoutWindows(screenWidth, screenHeight)
+        globalWindowManager.relayoutWindows(desktopUIScale(), screenWidth.int, screenHeight.int)
+
+    # Live UI-scale changes shrink/grow the logical viewport each window lays
+    # out in, so they get the same re-layout the resolution toggle does.
+    if not globalWindowManager.isNil and
+       abs(desktopUIScale() - appliedUIScale) > 0.0001'f32:
+      appliedUIScale = desktopUIScale()
+      globalWindowManager.relayoutWindows(desktopUIScale(), screenWidth.int, screenHeight.int)
 
     let dt = getFrameTime()
 
@@ -1322,21 +1350,27 @@ proc main() =
         pendingGameMode = -1  # Reset pending mode
         pendingResume = false
 
-      # Handle window and desktop input
-      let mousePos = getVirtualMousePosition()
+      # Handle window clicks and check if desktop is blocked. Each window is
+      # hit-tested in its own scale layer (they no longer share one), so the
+      # window manager resolves the pointer per window rather than taking one.
+      # (Skip when the confirm dialog is open so nothing behind it is clickable.)
+      if not globalConfirmActive:
+        discard globalWindowManager.handleWindowClick(desktopUIScale(),
+                                                     screenWidth.int, screenHeight.int)
+      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(
+        desktopUIScale(), screenWidth.int, screenHeight.int)
+
+      # Everything from here until popUIScale is the desktop chrome, hit-tested
+      # in its own coordinates so the pointer and the screen-size getters agree
+      # with how that chrome is drawn below.
+      pushUIScale(desktopUIScale())
 
       # Play click sound for any left-click on the desktop (anywhere)
       if isPointerPressed() and not globalConfirmActive:
         playSound(stMenuNav, 0.6)
 
-      # Handle window clicks and check if desktop is blocked
-      # (skip when the confirm dialog is open so nothing behind it is clickable)
-      if not globalConfirmActive:
-        discard globalWindowManager.handleWindowClick(mousePos)
-      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
-
       # Update OS desktop (after mouseOverWindow is known, so cube drag respects windows)
-      updateOSDesktop(osDesktop, dt, mouseOverWindow, screenWidth, screenHeight)
+      updateOSDesktop(osDesktop, dt, mouseOverWindow, desktopUIWidth(), desktopUIHeight())
 
       # Cube knocked out of orbit by sustained fast spinning: grant the one-time advancement
       if osDesktop.cubeEscapeTriggered:
@@ -1368,8 +1402,11 @@ proc main() =
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
       let action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive: handleDesktopInput(osDesktop, currentGame) else: -1
 
-      # Update all windows
-      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
+      popUIScale()
+
+      # Update all windows (each enters its own scale layer internally)
+      let updateResult = globalWindowManager.updateAllWindows(
+        dt, desktopUIScale(), screenWidth.int, screenHeight.int, currentGame)
 
       # Handle fullscreen toggle from settings
       if updateResult.fullscreenToggle:
@@ -1776,10 +1813,16 @@ proc main() =
           globalDiscordClient = nil
 
       beginGameDrawing()
-      drawOSDesktop(osDesktop, screenWidth, screenHeight)
+      # The desktop chrome is one scaled layer; each window is its own. The
+      # overlays and modal dialogs below stay at full virtual size so they
+      # always cover and center against the real screen.
+      beginUIScaleMode(desktopUIScale())
+      drawOSDesktop(osDesktop, desktopUIWidth(), desktopUIHeight())
+      endUIScaleMode()
 
       # Draw all windows using window manager
-      globalWindowManager.drawAllWindows(currentGame)
+      globalWindowManager.drawAllWindows(currentGame, desktopUIScale(),
+                                         screenWidth.int, screenHeight.int)
 
       # Draw loading overlay on top of everything if active
       drawLoadingOverlay(osDesktop, screenWidth, screenHeight)
@@ -2347,14 +2390,18 @@ proc main() =
       currentGame.mouseMovedRecently = true
 
       # Handle window clicks first (before pause menu interactions)
-      # Skip when either confirm dialog is open so nothing behind it is clickable
-      let mousePos = getVirtualMousePosition()
+      # Skip when either confirm dialog is open so nothing behind it is clickable.
+      # Windows float above the pause menu at the same per-window scale they use
+      # on the desktop, so their input is resolved the same way it is there.
       if not globalConfirmActive and not currentGame.confirmQuitPending:
-        discard globalWindowManager.handleWindowClick(mousePos)
-      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
+        discard globalWindowManager.handleWindowClick(desktopUIScale(),
+                                                     screenWidth.int, screenHeight.int)
+      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(
+        desktopUIScale(), screenWidth.int, screenHeight.int)
 
-      # Update all windows
-      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
+      # Update all windows (each enters its own scale layer internally)
+      let updateResult = globalWindowManager.updateAllWindows(
+        dt, desktopUIScale(), screenWidth.int, screenHeight.int, currentGame)
 
       # Handle fullscreen toggle from settings
       if updateResult.fullscreenToggle:
@@ -2482,8 +2529,9 @@ proc main() =
             currentGame.pauseMenuExitCooldown = 2.0   # countdown shown inside dialog
             playSound(stMenuNav)
 
-      # Draw all windows on top of pause menu
-      globalWindowManager.drawAllWindows(currentGame)
+      # Draw all windows on top of pause menu (each in its own scale layer)
+      globalWindowManager.drawAllWindows(currentGame, desktopUIScale(),
+                                         screenWidth.int, screenHeight.int)
 
       # Alpha banner for roguelite mode
       if currentGame.mode == gmRoguelite:

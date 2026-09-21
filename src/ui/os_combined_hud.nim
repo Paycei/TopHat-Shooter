@@ -596,6 +596,14 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
 
 proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
   ## Draw unified HUD panel combining status and wave/powerup info
+  # Keep the remembered position inside the layer's logical viewport. Changing
+  # the UI scale resizes that viewport under a panel that was dragged to fit the
+  # old one, so this runs every frame rather than only while dragging.
+  leftPanelPos.x = clamp(leftPanelPos.x, 0,
+                         max(0'f32, (getVirtualScreenWidth() - COMBINED_PANEL_WIDTH).float32))
+  leftPanelPos.y = clamp(leftPanelPos.y, 0,
+                         max(0'f32, (getVirtualScreenHeight() - 50).float32))
+
   # Use stored position instead of parameters
   var yOffset = leftPanelPos.y.int32
   let panelX = leftPanelPos.x.int32
@@ -639,9 +647,12 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
         x: mousePos.x - leftPanelDragOffset.x,
         y: mousePos.y - leftPanelDragOffset.y
       )
-      # Clamp to screen bounds
-      leftPanelPos.x = clamp(leftPanelPos.x, 0, (game.screenWidth - COMBINED_PANEL_WIDTH).float32)
-      leftPanelPos.y = clamp(leftPanelPos.y, 0, (game.screenHeight - 50).float32)
+      # Clamp to the layer's logical viewport (which is the world size at the
+      # default UI scale, and smaller/larger at any other).
+      leftPanelPos.x = clamp(leftPanelPos.x, 0,
+                             max(0'f32, (getVirtualScreenWidth() - COMBINED_PANEL_WIDTH).float32))
+      leftPanelPos.y = clamp(leftPanelPos.y, 0,
+                             max(0'f32, (getVirtualScreenHeight() - 50).float32))
     else:
       leftPanelDragging = false
 

@@ -1859,12 +1859,15 @@ proc drawPvP*(pvp: PvPGameState) =
   drawParticlePoolLayer(pvp.particlePool, plBackground)
   drawParticlePoolLayer(pvp.particlePool, plForeground)
 
-  # Draw damage numbers
-  for dn in pvp.damageNumbers:
-    let alpha = uint8((1.0 - dn.lifetime / dn.maxLifetime) * 255)
-    let textColor = Color(r: 255, g: 255, b: 100, a: alpha)
-    let damageText = $dn.damage.int
-    drawText(damageText, dn.pos.x.int32 - 10, dn.pos.y.int32, 20, textColor)
+  # Draw damage numbers (honouring the Interface tab's toggle + size slider,
+  # same as the PvE paths -- PvP rolls its own simpler labels).
+  if showDamageNumbersOf(globalSettings):
+    let dmgFontSize = max(8'i32, int32(20.0'f32 * damageNumberScaleOf(globalSettings)))
+    for dn in pvp.damageNumbers:
+      let alpha = uint8((1.0 - dn.lifetime / dn.maxLifetime) * 255)
+      let textColor = Color(r: 255, g: 255, b: 100, a: alpha)
+      let damageText = $dn.damage.int
+      drawText(damageText, dn.pos.x.int32 - 10, dn.pos.y.int32, dmgFontSize, textColor)
 
   # End world pass: HUD/overlays below draw in VIRTUAL screen space (no world
   # offset, no clip), anchored to the full virtual width/height.

@@ -5430,9 +5430,12 @@ proc drawGame*(game: Game) =
   var shakeOffsetX: float32 = 0
   var shakeOffsetY: float32 = 0
 
+  # The Interface tab's shake slider scales the offset rather than the impulses
+  # in addShake, so it applies to every source at once (and 0% is a true off).
+  let shakeScale = screenShakeScaleOf(globalSettings)
   let shakeOffset = getShakeOffset(game.dopamine.screenShake)
-  shakeOffsetX = shakeOffset.x
-  shakeOffsetY = shakeOffset.y
+  shakeOffsetX = shakeOffset.x * shakeScale
+  shakeOffsetY = shakeOffset.y * shakeScale
 
   # ===================== WORLD PASS =====================
   # Everything drawn here is translated by the world view offset (widescreen
@@ -5832,9 +5835,12 @@ proc drawGame*(game: Game) =
   if game.mode == gmRoguelite:
     drawDungeonOverlay(game)
 
-  # Draw damage numbers (on top of everything except UI)
-  for damageNum in game.damageNumbers:
-    drawDamageNumber(damageNum)
+  # Draw damage numbers (on top of everything except UI). They keep ticking down
+  # either way -- the setting hides the labels, it doesn't change the simulation.
+  if showDamageNumbersOf(globalSettings):
+    let dmgNumScale = damageNumberScaleOf(globalSettings)
+    for damageNum in game.damageNumbers:
+      drawDamageNumber(damageNum, dmgNumScale)
   for currencyIndicator in game.currencyIndicators:
     drawCurrencyIndicator(currencyIndicator)
   for perkIndicator in game.perkIndicators:
@@ -6062,12 +6068,18 @@ proc drawGame*(game: Game) =
   # Update OS-style HUD
   updateOSHUD(game.osHUD, dt)
 
-  # Draw unified combined HUD panel (top-left, almost touching top)
+  # Draw unified combined HUD panel (top-left, almost touching top). The status
+  # panel is the one piece of in-game UI the player can resize: it is drawn and
+  # hit-tested inside the UI-scale layer, so its drag/minimize handling follows
+  # the scale for free. The gutter columns below stay at virtual size, since
+  # they are sized to the letterbox gutters themselves.
   let hudLayout = if globalSettings == nil: hlClassic else: globalSettings.hudLayout
+  beginUIScaleMode(uiScaleOf(globalSettings))
   if hudLayout == hlWidescreen:
     drawBorderHUDPanel(game)
   else:
     drawCombinedHUDPanel(game, 10, 2)
+  endUIScaleMode()
 
   # Right/left gutter geometry (widescreen: world is 1024 wide, centered).
   let rightGutterX = getWorldViewOffsetX().int32 + 1024'i32
