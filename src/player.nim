@@ -1074,9 +1074,9 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   for powerUp in player.powerUps:
     if powerUp.powerType == puFortified:
       let reduction = case powerUp.level
-        of 1: 0.1  # 10% reduction
-        of 2: 0.2  # 20% reduction
-        else: 0.3  # 30% reduction
+        of 1: 0.05  # 5% reduction
+        of 2: 0.1   # 10% reduction
+        else: 0.15  # 15% reduction
       finalDamage *= (1.0 - reduction)
       break
 
