@@ -22,13 +22,13 @@ proc poisonStackMultiplier*(enemy: Enemy): float32 =
 proc nullEffect(et: ElementType): EffectInstance =
   ## Returns a zeroed-out inactive EffectInstance for the given element type.
   EffectInstance(elementType: et, damagePerSec: 0.0, remainingDuration: 0.0,
-                 maxDuration: 0.0, isActive: false, source: "")
+                 maxDuration: 0.0, isActive: false, source: "", hadMastery: false)
 
 # Sistema de gestión de efectos con fallback
 # Previene stacking de efectos iguales pero permite fallback a efecto de menor poder
 
 proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
-                  duration: float32, source: string) =
+                  duration: float32, source: string, hadMastery: bool = false) =
   ## Aplica un efecto al enemigo. Si ya existe uno del mismo tipo:
   ## - Si el nuevo es más fuerte (mayor dps), lo reemplaza y guarda el anterior como fallback
   ## - Si el actual está INACTIVO/terminado, aplica el nuevo igual
@@ -47,7 +47,8 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
         remainingDuration: duration,
         maxDuration: duration,
         isActive: true,
-        source: source
+        source: source,
+        hadMastery: hadMastery
       ),
       fallback: nullEffect(effectType)
     )
@@ -64,7 +65,8 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
             remainingDuration: cur.primary.remainingDuration,
             maxDuration: cur.primary.maxDuration,
             isActive: false,
-            source: cur.primary.source
+            source: cur.primary.source,
+            hadMastery: cur.primary.hadMastery
           )
         else:
           nullEffect(effectType)
@@ -74,7 +76,8 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
         remainingDuration: duration,
         maxDuration: duration,
         isActive: true,
-        source: source
+        source: source,
+        hadMastery: hadMastery
       )
       enemy.activeEffects[effectType] = updated
     elif damagePerSec == cur.primary.damagePerSec and cur.primary.isActive:

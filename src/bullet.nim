@@ -1,5 +1,6 @@
 import raylib, math
 import particle_types, types, bullet_skins, bullet_shapes, utils
+from run_statistics import trackBulletFired
 
 ## Boss ID -> bullet shape index. 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square
 const bossBulletShapeTable = [
@@ -610,13 +611,17 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     original.bulletShape   # Preserve cosmetic bullet shape
   )
 
-  # Copy additional state that needs to be preserved
+  # Copy additional state that needs to be preserved.
+  # NOT copied on purpose: hasCountedHit. A clone is its own projectile that is
+  # counted as its own shot, so it needs its own "has connected yet" flag.
   result.radius = original.radius * radiusMultiplier
   result.travelDistance = original.travelDistance  # Preserve Overcharge progress
   result.bounceCount = original.bounceCount  # Preserve ricochet state
   result.piercedEnemies = original.piercedEnemies  # Preserve pierce state
   result.hasSplit = preventSplit or original.hasSplit  # Preserve split state
   result.echoSpawnCount = original.echoSpawnCount  # Inherit spent echo budget so clones don't reset it
+  result.isFromNova = original.isFromNova  # Nova keeps credit for what its bullets go on to do
+  result.rageMultiplier = original.rageMultiplier  # so Rage keeps its share through clones
 
   # Copy hit enemies list for independent tracking
   for enemyIdx in original.hitEnemies:
@@ -681,6 +686,7 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
     splitBullet.isRicochet = false
 
     game.bullets.add(splitBullet)
+    trackBulletFired(game)
 
 proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f,
                           damageMultiplier: float32 = 0.75) =
@@ -704,6 +710,7 @@ proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f
   ricochetBullet.isRicochet = true  # Mark for statistics tracking
 
   game.bullets.add(ricochetBullet)
+  trackBulletFired(game)
 
 proc createEchoBullet*(game: Game, sourceBullet: Bullet,
                       damageMultiplier: float32 = 0.4, speedMultiplier: float32 = 0.5,
@@ -759,3 +766,4 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
       echoBullet.hitEnemies.add(enemyId)
 
   game.bullets.add(echoBullet)
+  trackBulletFired(game)

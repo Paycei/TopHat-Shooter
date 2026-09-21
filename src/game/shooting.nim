@@ -1,5 +1,5 @@
 import raylib, math
-import types, bullet, particle_skins, particle_types, powerup, sound, d_systems, run_statistics, fx, game/combat, game/bullets
+import types, bullet, particle_skins, particle_types, powerup, sound, run_statistics, fx, game/combat, game/bullets
 
 proc rotateVec(v: Vector2f, angle: float32): Vector2f =
   newVector2f(v.x * cos(angle) - v.y * sin(angle), v.x * sin(angle) + v.y * cos(angle))
@@ -117,7 +117,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # Increment bullet counter for special rounds power-up
     game.player.bulletCounter += 1
 
-    recordShot(game.dopamine.waveStats, false)  # Will be updated to true if hit
 
     # Check for power-ups that modify shooting
     let hasHoming: bool = hasPowerUp(game.player, puMagicalBullets)
@@ -133,18 +132,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     var speed = baseBulletSpeed(game.player)
     var damage = stats.damage  # Already includes Rage bonus
 
-    # Compute rage multiplier at fire time so hit-block can isolate the bonus
-    var rageMultiplier = 1.0'f32
-    for powerUp in game.player.powerUps:
-      if powerUp.powerType == puRage:
-        let hpPercent = game.player.hp / game.player.maxHp
-        let hpLost = 1.0 - hpPercent
-        let bonusPerTenPercent = case powerUp.level
-          of 1: 0.05
-          of 2: 0.08
-          else: 0.12
-        rageMultiplier = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
-        break
+    # Stamped on each bullet so the hit block can isolate Rage's share. Shares
+    # rageDamageMultiplier with calculateCombatStats so the two cannot drift.
+    let rageMultiplier = rageDamageMultiplier(game.player)
 
     # Double-shot bullets deal 15% less damage per bullet
     if hasDoubleShot:
@@ -237,6 +227,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bullet.radius = bulletRadius
         bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
+        assignBulletId(game, bullet)
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
 
@@ -313,6 +304,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bullet.radius = bulletRadius
         bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
+        assignBulletId(game, bullet)
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
     else:
@@ -382,6 +374,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   var speed = baseBulletSpeed(game.player)
   var damage = burstStats.damage * 0.85  # Second bullet reduced by 15%
   var bulletRadius = BASE_PLAYER_BULLET_RADIUS
+  let burstRageMultiplier = rageDamageMultiplier(game.player)
 
   # Apply Arcane Mastery bonus consistently to delayed burst bullets too.
   var arcanePiercing = hasPiercing
@@ -444,6 +437,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       )
       bullet.radius = bulletRadius
       bullet.baseDamagePreCrit = burstBaseDamagePreCrit
+      bullet.rageMultiplier = burstRageMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)
@@ -476,6 +470,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     )
     bullet.radius = bulletRadius
     bullet.baseDamagePreCrit = burstBaseDamagePreCrit
+    bullet.rageMultiplier = burstRageMultiplier
     assignBulletId(game, bullet)
     game.bullets.add(bullet)
     trackBulletFired(game)

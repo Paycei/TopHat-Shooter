@@ -1,6 +1,6 @@
 import raylib, rlgl, random, math
 import types, player, particle_pool, particle_types, effects, powerup, fx, game/combat
-from run_statistics import trackPowerUpDamage, trackPowerUpHealing
+from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, trackHealing
 
 type BulletEffects* = tuple[
   slow: float32,
@@ -26,6 +26,11 @@ const MasteryDamageMult* = 2.5'f32
 # arcane orbs already carry a +50% inherent premium), so its damage bonus is
 # held to +75% instead of the shared +150%.
 const ArcaneMasteryDmgMult* = 1.75'f32
+
+# Blood's mastery splits its budget between damage and lifesteal, so each side
+# only doubles. Named so the damage split in the statistics can read the same
+# number the damage itself is scaled by.
+const BloodMasteryDmgMult* = 2.0'f32
 
 proc windBulletFlatBonus*(player: Player): float32 =
   ## Wind Bullets' own flat damage contribution to a bullet, mastery included.
@@ -209,7 +214,10 @@ proc applyMasteryDoT*(enemy: Enemy, elemType: ElementType,
   if hasMastery:
     dmg *= masteryDmgMult
     dur *= masteryDurMult
-  applyEffect(enemy, elemType, dmg, dur, source)
+  # hasMastery is recorded ON the effect so the tick-time statistics credit the
+  # mastery only for DoTs it actually amplified, rather than reading the player's
+  # current flag against a burn applied before the mastery was picked.
+  applyEffect(enemy, elemType, dmg, dur, source, hasMastery)
   if hasMastery:
     enemy.slowTimer = 0.2
     if enemy.slowAmount < masterySlowAmount:
@@ -324,11 +332,12 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
             let chainDmgWithCrit = applyCriticalHitFromStats(stats, chainDmgBase)
             let actualDamage = damageEnemy(game.enemies[k], chainDmgWithCrit)
 
-            # Track chain lightning damage for statistics
+            # Track chain lightning damage, splitting off the mastery's share.
+            # Keyed off effect.hasMastery -- the flag that actually scaled
+            # chainDmgMult above -- not the player's live mastery state.
             if actualDamage > 0:
-              trackPowerUpDamage(game, puChainLightning, actualDamage)
-              if game.player.hasLightningMastery:
-                trackPowerUpDamage(game, puLightningMastery, actualDamage)
+              trackPowerUpDamageWithMastery(game, puChainLightning, puLightningMastery,
+                                            actualDamage, chainDmgMult)
 
             # Create damage number
             if actualDamage > 0:
@@ -356,21 +365,16 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     if effect.hasMastery:
       healPercent *= 2.0  # +100% lifesteal
 
-    # Per-hit heal, density-normalised (see densityHealScale).
-    let healAmount = (0.01 + effect.baseDamage * healPercent) * densityHealScale(game)
-    # heal() applies the player's healPowerMult; attribute base vs multiplier separately
-    heal(game.player, healAmount)
-    if healAmount > 0.01:
-      # Attribute the base healing to the lifesteal source
-      trackPowerUpHealing(game, puBloodBullets, healAmount)
-      # Attribute any bonus from the global heal multiplier to the heal-power power-up
-      let bonusHealing = healAmount * (game.player.healPowerMult - 1.0)
-      if bonusHealing > 0.001 and hasPowerUp(game.player, puHealPower):
-        trackPowerUpHealing(game, puHealPower, bonusHealing)
+    # Per-hit heal, density-normalised (see densityHealScale). heal() applies the
+    # multiplier and the max-HP clamp and reports what was ACTUALLY restored, so
+    # a hit taken at full HP books nothing instead of inflating lifesteal totals.
+    let restored = heal(game.player, (0.01 + effect.baseDamage * healPercent) *
+                                     densityHealScale(game))
+    trackHealing(game, puBloodBullets, restored)
 
-    if healAmount > 0.01:
+    if restored > 0.01:
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 3)
-      showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
+      showDamage(game, game.player.pos, restored, true, false, dtHeal)
 
 proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float32) =
   ## Apply all bullet effects to an enemy - unified entry point

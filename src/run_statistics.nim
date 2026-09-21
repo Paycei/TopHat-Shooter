@@ -57,14 +57,18 @@ type
     powerUpsChosen*: seq[(float32, PowerUp)]
     totalPowerUps*, commonPowerUps*, legendaryPowerUps*: int
     damageContribution*: Table[PowerUpType, float32]
-    killContribution*: Table[PowerUpType, int]
     mostEffectivePowerUp*, leastEffectivePowerUp*: PowerUpType
     synergyScore*: float32
     elementalCombo*: seq[PowerUpType]
     hasSynergy*: bool
     level1PowerUps*, level2PowerUps*, level3PowerUps*: int
-    healingContribution*: Table[PowerUpType, float32]   # NEW
-    totalHealingFromPowerUps*: float32                  # NEW
+    healingContribution*: Table[PowerUpType, float32]
+    totalHealingFromPowerUps*: float32
+    # Healing that did NOT come from a power-up, tracked exactly rather than
+    # reconstructed from pickup counts, so the healing panel can list every
+    # source without guessing at the formula or the max HP at the time.
+    healingFromConsumables*: float32
+    healingFromLevelUps*: float32
 
   # PERFORMANCE METRICS
   PerformanceStats* = object
@@ -129,7 +133,6 @@ proc initPowerUpStats*(): PowerUpStats =
   PowerUpStats(
     powerUpsChosen: @[],
     damageContribution: initTable[PowerUpType, float32](),
-    killContribution: initTable[PowerUpType, int](),
     elementalCombo: @[],
     healingContribution: initTable[PowerUpType, float32]()
   )
@@ -300,7 +303,15 @@ proc updateDPS*(damage: float32) =
   if currentRunStats.isNil: return
 
   let currentTime = currentRunStats.runDuration
-  currentRunStats.performance.currentDPSWindow.add((currentTime, damage))
+  # Coalesce into the newest 0.1s bucket. Damage now arrives from every source
+  # (aura beats, DoT ticks on every burning enemy, orbital contacts), not just
+  # bullet hits, so one entry per event would push the window into the thousands
+  # and make the delete(0) trim below quadratic every frame.
+  if currentRunStats.performance.currentDPSWindow.len > 0 and
+     currentTime - currentRunStats.performance.currentDPSWindow[^1][0] < 0.1:
+    currentRunStats.performance.currentDPSWindow[^1][1] += damage
+  else:
+    currentRunStats.performance.currentDPSWindow.add((currentTime, damage))
 
   while currentRunStats.performance.currentDPSWindow.len > 0 and
         currentTime - currentRunStats.performance.currentDPSWindow[0][0] > 5.0:
@@ -323,24 +334,48 @@ proc updateDPS*(damage: float32) =
      currentTime - currentRunStats.performance.dpsHistory[^1][0] >= 1.0:
     currentRunStats.performance.dpsHistory.add((currentTime, currentDPS.float32))
 
+var frameDamageDealt*: float32 = 0.0'f32
+  ## Damage dealt since the last takeFrameDamageDealt(). The in-HUD DPS readout
+  ## lives on the per-game dopamine state, which this global-state module cannot
+  ## reach, so updateGame drains this once a frame instead. Without it the HUD
+  ## would still show gun-only DPS while the end-of-run figure covers everything.
+
+proc takeFrameDamageDealt*(): float32 =
+  result = frameDamageDealt
+  frameDamageDealt = 0.0'f32
+
+proc recordDamageDealt*(damage: float32) =
+  ## THE single entry point for "the player dealt damage". Called from
+  ## applyEnemyHpDamage (combat.nim), so auras, DoT ticks, orbitals, explosions,
+  ## thorns, chain lightning and every activated ability land here alongside
+  ## bullet hits -- previously only direct bullet damage was counted, which made
+  ## Damage Dealt and DPS meaningless for anything but a pure gun build.
+  if damage <= 0.0'f32: return
+  frameDamageDealt += damage
+  if currentRunStats.isNil: return
+  currentRunStats.combat.totalDamageDealt += damage
+  updateDPS(damage)
+
 # COMBAT TRACKING
 proc recordShotFired*() =
   if currentRunStats.isNil: return
   currentRunStats.combat.shotsFired += 1
 
-proc recordShotHit*(damage: float32, enemyType: EnemyType, isCrit: bool = false) =
+proc recordShotHit*(damage: float32, enemyType: EnemyType, isCrit: bool = false,
+                    countsAsShot: bool = true) =
+  ## Shot bookkeeping only -- the damage itself is booked by recordDamageDealt at
+  ## the point it is applied. countsAsShot is false for the second and later
+  ## enemies a piercing or ricocheting bullet touches: those are extra contacts
+  ## from one trigger pull, not extra shots that connected.
   if currentRunStats.isNil: return
 
-  currentRunStats.combat.shotsHit += 1
-  currentRunStats.combat.totalDamageDealt += damage
+  if countsAsShot:
+    currentRunStats.combat.shotsHit += 1
+    if isCrit:
+      currentRunStats.combat.criticalHits += 1
 
   if damage > currentRunStats.combat.largestSingleHit:
     currentRunStats.combat.largestSingleHit = damage
-
-  if isCrit:
-    currentRunStats.combat.criticalHits += 1
-
-  updateDPS(damage)
 
 proc recordShotMissed*() =
   if currentRunStats.isNil: return
@@ -555,13 +590,6 @@ proc recordPowerUpDamage*(powerType: PowerUpType, damage: float32) =
     currentRunStats.powerUps.damageContribution[powerType] = 0.0
   currentRunStats.powerUps.damageContribution[powerType] += damage
 
-proc recordPowerUpKill*(powerType: PowerUpType) =
-  if currentRunStats.isNil: return
-
-  if not currentRunStats.powerUps.killContribution.hasKey(powerType):
-    currentRunStats.powerUps.killContribution[powerType] = 0
-  currentRunStats.powerUps.killContribution[powerType] += 1
-
 proc recordPowerUpHealing*(powerType: PowerUpType, amount: float32) =
   if currentRunStats.isNil: return
   if not currentRunStats.powerUps.healingContribution.hasKey(powerType):
@@ -569,8 +597,40 @@ proc recordPowerUpHealing*(powerType: PowerUpType, amount: float32) =
   currentRunStats.powerUps.healingContribution[powerType] += amount
   currentRunStats.powerUps.totalHealingFromPowerUps += amount
 
-proc trackPowerUpHealing*(game: Game, powerType: PowerUpType, amount: float32) =
-  recordPowerUpHealing(powerType, amount)
+proc trackHealing*(game: Game, source: PowerUpType, healed: float32) =
+  ## Books ACTUAL restored HP (the return value of heal()), split between the
+  ## power-up that granted it and puHealPower's multiplier. Deriving the split
+  ## from healPowerMult here means a heal can never be credited twice, can never
+  ## book overheal, and picks up any future source of the multiplier for free.
+  if healed <= 0.0'f32: return
+  let mult = max(1.0'f32, game.player.healPowerMult)
+  let baseShare = healed / mult
+  recordPowerUpHealing(source, baseShare)
+  let bonus = healed - baseShare
+  if bonus > 0.0'f32:
+    recordPowerUpHealing(puHealPower, bonus)
+
+proc trackConsumableHealing*(game: Game, healed: float32) =
+  ## Health pickups are not a power-up, so their base healing gets its own bucket
+  ## instead of being reconstructed in the stats window from a pickup count and a
+  ## duplicated formula (which missed Cornucopia's +40% and used end-of-run maxHp).
+  if currentRunStats.isNil or healed <= 0.0'f32: return
+  let mult = max(1.0'f32, game.player.healPowerMult)
+  let baseShare = healed / mult
+  currentRunStats.powerUps.healingFromConsumables += baseShare
+  let bonus = healed - baseShare
+  if bonus > 0.0'f32:
+    recordPowerUpHealing(puHealPower, bonus)
+
+proc trackLevelUpHealing*(game: Game, healed: float32) =
+  ## The partial heal granted by a run level-up, same split as above.
+  if currentRunStats.isNil or healed <= 0.0'f32: return
+  let mult = max(1.0'f32, game.player.healPowerMult)
+  let baseShare = healed / mult
+  currentRunStats.powerUps.healingFromLevelUps += baseShare
+  let bonus = healed - baseShare
+  if bonus > 0.0'f32:
+    recordPowerUpHealing(puHealPower, bonus)
 
 # PERFORMANCE TRACKING
 proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) =
@@ -625,6 +685,11 @@ proc clearLastCompletedRun*() =
 # Game Lifecycle
 proc initializeRunTracking*(game: Game) =
   startNewRun(game.mode)
+  # A run resumed from a checkpoint keeps its wave/floor progress but lost its
+  # in-memory statistics with the process. Seed the clock from the restored run
+  # time so the per-minute rates (DPS, kills/min) are not divided by the few
+  # minutes played since the resume while the wave counter still reads 30.
+  currentRunStats.runDuration = max(0.0'f32, runElapsedTime(game))
   game.showRunStatsGraphs = true
 
 proc resumeRunTracking*(game: Game) =
@@ -647,7 +712,9 @@ proc resumeRunTracking*(game: Game) =
     echo "[Stats] Run resumed from checkpoint - carrying accumulated stats"
   game.showRunStatsGraphs = true
 
-proc finalizeRunTracking*(game: Game) =
+proc finalizeRunTracking*(game: Game, died: bool) =
+  ## died is false for the wave-60 victory screen and for a banked roguelite cash
+  ## out; it used to be hardcoded true, so every won run was recorded as a death.
   let waveReached =
     if game.mode == gmWaveBased:
       game.currentWave
@@ -666,17 +733,30 @@ proc finalizeRunTracking*(game: Game) =
     currentRunStats.rogueliteRelics = @[]
     for relic in game.rogueliteRun.relics:
       currentRunStats.rogueliteRelics.add(relic.name)
-  endRun(game.player, waveReached, finalScore, game.cheatsUsed, true)
+  endRun(game.player, waveReached, finalScore, game.cheatsUsed, died)
 
 proc hasValidRunStats*(): bool =
   result = not currentRunStats.isNil and currentRunStats.runDuration > 0
 
 # Combat Integration
 proc trackBulletFired*(game: Game) =
+  ## Counts one player projectile. EVERY player bullet must pass through here,
+  ## including the ones spawned by split, ricochet, echo, radial burst and wall
+  ## turrets: their contacts are counted as hits, so leaving them out of the
+  ## fired count is what let accuracy climb past 100%.
   recordShotFired()
+  game.dopamine.waveStats.shotsFired += 1
 
 proc trackBulletHit*(game: Game, bullet: Bullet, enemy: Enemy, damage: float32) =
-  recordShotHit(damage, enemy.enemyType, bullet.wasCrit)
+  ## One trigger pull is one shot however many enemies the bullet goes on to
+  ## touch, so only the first contact counts towards shotsHit (and the crit
+  ## tally). Without this, piercing and ricochet builds report accuracy well
+  ## over 100%.
+  let firstContact = not bullet.hasCountedHit
+  if firstContact:
+    bullet.hasCountedHit = true
+    game.dopamine.waveStats.shotsHit += 1
+  recordShotHit(damage, enemy.enemyType, bullet.wasCrit, countsAsShot = firstContact)
 
   if bullet.isPiercing: recordSpecialMechanic("piercing")
   if bullet.isExplosive: recordSpecialMechanic("explosive")
@@ -687,20 +767,29 @@ proc trackBulletDespawn*(game: Game, bullet: Bullet, hitEnemy: bool) =
   if not hitEnemy and bullet.piercedEnemies == 0 and bullet.lifetime > 0.1:
     recordShotMissed()
 
-proc trackPowerUpKill*(game: Game, powerType: PowerUpType) =
-  recordPowerUpKill(powerType)
-
-proc trackEnemyKilled*(game: Game, enemy: Enemy,
-                       killCredit: PowerUpType = puDoubleShot) =
-  # sentinel: puDoubleShot (ordinal 0) means "no power-up kill credit"
+proc trackEnemyKilled*(game: Game, enemy: Enemy) =
   recordKill(enemy.enemyType, enemy.isElite, enemy.isBoss, game.time, enemy.pos)
-  if killCredit != puDoubleShot:
-    trackPowerUpKill(game, killCredit)
 
-proc trackPlayerDamage*(game: Game, damage: float32, enemyType: EnemyType) =
+const NearDeathHpFraction = 0.15'f32
+  ## Near-death is a FRACTION of max HP. The old absolute "< 10" was written in
+  ## display units (BALANCE_MULTIPLIER = 100) but compared against internal HP,
+  ## whose starting maximum is 9 -- so every hit in the run logged a near-death.
+
+proc trackPlayerDamage*(game: Game, enemyType: EnemyType) =
+  ## Books what the hit ACTUALLY cost, read from player.lastDamageTaken rather
+  ## than the damage that was offered. A hit that was dodged, parried, blocked by
+  ## a shield charge or eaten by Celestial Veil leaves that at 0, so it is
+  ## recorded purely as avoided damage and no longer also lands here -- which is
+  ## what used to break the hit count, the no-damage streak and the kill streak.
+  let damage = game.player.lastDamageTaken
+  if damage <= 0.0'f32:
+    return
+
   recordDamageTaken(damage, enemyType, game.time, game.player.pos)
+  game.dopamine.waveStats.damageTaken += damage
+  game.dopamine.waveStats.isPerfect = false
 
-  if game.player.hp < 10 and game.player.hp > 0:
+  if game.player.hp > 0 and game.player.hp < game.player.maxHp * NearDeathHpFraction:
     recordNearDeath(game.time, game.player.pos)
 
 # Combo and Perfect Wave Integration
@@ -773,6 +862,25 @@ proc trackPowerUpSelection*(game: Game, powerUp: PowerUp) =
 
 proc trackPowerUpDamage*(game: Game, powerType: PowerUpType, damage: float32) =
   recordPowerUpDamage(powerType, damage)
+
+proc trackPowerUpDamageWithMastery*(game: Game, basePower, masteryPower: PowerUpType,
+                                    damage: float32, masteryMult: float32) =
+  ## Splits one hit between the ability and the elemental mastery amplifying it,
+  ## instead of handing the FULL post-mastery damage to both. With
+  ## MasteryDamageMult = 2.5 the old double-credit reported 250% of the hit to the
+  ## aura plus another 250% to the mastery; the mastery's real share is the part
+  ## above 1x, and the ability keeps the rest.
+  ##
+  ## masteryMult of 1.0 means the mastery did not touch this hit (frost/blood orb
+  ## masteries pay out as chill and lifesteal, fire/poison through the DoT), so it
+  ## is credited nothing rather than the whole hit.
+  if damage <= 0.0'f32: return
+  if masteryMult > 1.0'f32:
+    let baseShare = damage / masteryMult
+    recordPowerUpDamage(basePower, baseShare)
+    recordPowerUpDamage(masteryPower, damage - baseShare)
+  else:
+    recordPowerUpDamage(basePower, damage)
 
 # Performance Integration
 proc trackWaveCompletion*(game: Game, waveNumber: int, waveTime: float32) =

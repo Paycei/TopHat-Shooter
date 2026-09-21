@@ -516,12 +516,6 @@ proc powerUpTypeFloatTableToJson(table: Table[PowerUpType, float32]): JsonNode =
   for key, val in table:
     result[$key] = %val
 
-# Helper to convert Table[PowerUpType, int] to JSON
-proc powerUpTypeIntTableToJson(table: Table[PowerUpType, int]): JsonNode =
-  result = newJObject()
-  for key, val in table:
-    result[$key] = %val
-
 # Convert GameEvent to JSON
 proc gameEventToJson(event: GameEvent): JsonNode =
   result = %* {
@@ -642,9 +636,10 @@ proc powerUpStatsToJson(stats: PowerUpStats): JsonNode =
     "commonPowerUps": stats.commonPowerUps,
     "legendaryPowerUps": stats.legendaryPowerUps,
     "damageContribution": powerUpTypeFloatTableToJson(stats.damageContribution),
-    "killContribution": powerUpTypeIntTableToJson(stats.killContribution),
     "healingContribution": powerUpTypeFloatTableToJson(stats.healingContribution),
     "totalHealingFromPowerUps": stats.totalHealingFromPowerUps,
+    "healingFromConsumables": stats.healingFromConsumables,
+    "healingFromLevelUps": stats.healingFromLevelUps,
     "mostEffectivePowerUp": $stats.mostEffectivePowerUp,
     "leastEffectivePowerUp": $stats.leastEffectivePowerUp,
     "synergyScore": stats.synergyScore,
@@ -910,9 +905,8 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
   for key, val in j["damageContribution"]:
     result.damageContribution[parsePowerUpType(key)] = val.getFloat().float32
 
-  # Parse kill contribution table
-  for key, val in j["killContribution"]:
-    result.killContribution[parsePowerUpType(key)] = val.getInt()
+  # "killContribution" is written by older saves only: it was never populated
+  # and never displayed, so it is read past rather than resurrected.
 
   # Parse healing contribution table
   if j.hasKey("healingContribution"):
@@ -920,6 +914,8 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
       result.healingContribution[parsePowerUpType(key)] = val.getFloat().float32
   if j.hasKey("totalHealingFromPowerUps"):
     result.totalHealingFromPowerUps = j["totalHealingFromPowerUps"].getFloat().float32
+  result.healingFromConsumables = j.getOrDefault("healingFromConsumables").getFloat(0.0).float32
+  result.healingFromLevelUps = j.getOrDefault("healingFromLevelUps").getFloat(0.0).float32
 
   result.mostEffectivePowerUp = parsePowerUpType(j["mostEffectivePowerUp"].getStr())
   result.leastEffectivePowerUp = parsePowerUpType(j["leastEffectivePowerUp"].getStr())

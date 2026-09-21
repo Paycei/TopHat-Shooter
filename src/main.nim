@@ -773,12 +773,16 @@ proc main() =
     if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
       globalWindowManager.advancements.profile = advancementProfile
 
-  proc persistRunResults(game: Game) =
+  proc persistRunResults(game: Game, died: bool) =
     ## Finalize and save an ended run: last-run snapshot, lifetime statistics and
     ## advancement sync. Idempotent via statsSavedThisGame so it is safe to call
     ## from both the game-over and victory "return to menu" paths.
+    ##
+    ## `died` separates the two: a wave-60 victory and a banked roguelite cash out
+    ## are wins, and were previously both recorded as deaths in the run record and
+    ## in the lifetime death counter.
     if hasValidRunStats():
-      finalizeRunTracking(game)
+      finalizeRunTracking(game, died)
       saveLastCompletedRun()  # Save to memory
       if not currentRunStats.isNil:
         discard saveLastRunStats(currentRunStats)  # Save to disk
@@ -815,7 +819,7 @@ proc main() =
       let timeForStats = if isTimeSurvivalMode(game.mode): game.survivalTime
                          else: runElapsedTime(game)
       updateStatsForMode(stats, game.mode, scoreReached, timeForStats,
-                         game.player.kills, coinsForStats, bossesKilled)
+                         game.player.kills, coinsForStats, bossesKilled, died)
 
       var saveSuccess = false
       var retries = 0
@@ -3116,7 +3120,7 @@ proc main() =
             globalDiscordClient = nil
 
         # Finalize and persist the run (last-run snapshot, lifetime stats, advancements)
-        persistRunResults(currentGame)
+        persistRunResults(currentGame, died = true)
 
       # Update mouse tracking
       updateMouseTracking(currentGame)
@@ -3414,7 +3418,7 @@ proc main() =
       proc doReturnToMenuFromVictory() =
         # Return to menu: the run ends here, so persist results before leaving
         playSound(stMenuSelect)
-        persistRunResults(currentGame)
+        persistRunResults(currentGame, died = false)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -3564,7 +3568,7 @@ proc main() =
         # to the roguelite hub window (mirrors closing the floor-select).
         playSound(stMenuSelect)
         let preservedHeat = currentGame.selectedRogueliteHeat
-        persistRunResults(currentGame)
+        persistRunResults(currentGame, died = false)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient

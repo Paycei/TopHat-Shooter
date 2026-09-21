@@ -27,9 +27,11 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32,
     if enemy.shieldHp >= result:
       # Shield absorbs all damage
       enemy.shieldHp -= result
+      recordDamageDealt(result)
       result = 0
     else:
       # Shield breaks, remaining damage goes to HP
+      recordDamageDealt(enemy.shieldHp)
       result -= enemy.shieldHp
       enemy.shieldHp = 0
 
@@ -43,6 +45,12 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32,
 
 proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
   ## Applies raw HP damage. Bosses only lose HP from the active phase pool.
+  ##
+  ## Also the single choke point where the run's total damage dealt is recorded:
+  ## every source -- bullets, auras, DoT ticks, orbitals, explosions, thorns,
+  ## chain lightning, Blood Pact, Conduit, Aftershock -- funnels through here, so
+  ## Damage Dealt and the DPS series cover the whole build rather than just the
+  ## gun. Nothing else may add to combat.totalDamageDealt.
   if damage <= 0.0'f32:
     return 0.0'f32
 
@@ -59,9 +67,11 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
     if enemy.hp > 0.0'f32 and enemy.hp < EnemyMinAliveHp:
       dealt += enemy.hp
       enemy.hp = 0.0'f32
+    recordDamageDealt(dealt)
     return dealt
 
   enemy.hp -= damage
+  recordDamageDealt(damage)
   damage
 
 proc damageEnemy*(enemy: Enemy, baseDamage: float32,
@@ -104,6 +114,21 @@ type CombatStats* = object
   critMultiplier*: float32  # Critical hit damage multiplier
   hasCrit*: bool            # Whether player has crit power-up
 
+proc rageDamageMultiplier*(player: Player): float32 =
+  ## Rage's damage multiplier at the current HP. Single source of truth: the
+  ## bullet path stamps it onto each bullet so the hit block can isolate Rage's
+  ## share, and calculateCombatStats applies it to the damage itself.
+  result = 1.0'f32
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puRage:
+      let hpLost = 1.0'f32 - player.hp / player.maxHp
+      let bonusPerTenPercent = case powerUp.level
+        of 1: 0.05'f32  # 5% per 10% HP lost
+        of 2: 0.08'f32  # 8% per 10% HP lost
+        else: 0.12'f32  # 12% per 10% HP lost
+      result = 1.0'f32 + (hpLost * 10.0'f32 * bonusPerTenPercent)
+      break
+
 proc calculateCombatStats*(player: Player): CombatStats =
   ## Calculates all combat stats in one place
   ## Single source of truth for damage, fire rate, crit chance calculations
@@ -121,16 +146,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
     result.damage *= 1.4  # +40% damage
 
   # Rage power-up - damage increases when HP is low
-  for powerUp in player.powerUps:
-    if powerUp.powerType == puRage:
-      let hpPercent = player.hp / player.maxHp
-      let hpLost = 1.0 - hpPercent
-      let bonusPerTenPercent = case powerUp.level
-        of 1: 0.05  # 5% per 10% HP lost
-        of 2: 0.08  # 8% per 10% HP lost
-        else: 0.12  # 12% per 10% HP lost
-      let damageBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
-      result.damage *= damageBonus
+  result.damage *= rageDamageMultiplier(player)
 
   # Speed Boost (Legendary) - Momentum: discrete stacks built by sustained fast
   # travel (see momentumStacks/momentumBuildTimer/momentumDecayTimer updates in

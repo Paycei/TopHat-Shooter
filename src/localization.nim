@@ -1314,6 +1314,7 @@ type
     # Stats window (untranslated leftovers)
     tkStatsHealingSources = "stats_healing_sources"
     tkStatsHealthConsumable = "stats_health_consumable"
+    tkStatsLevelUpHealing = "stats_levelup_healing"
     tkStatsNoHealingData = "stats_no_healing_data"
     tkStatsTotalEarned = "stats_total_earned"
     tkStatsHealingRanking = "stats_healing_ranking"
@@ -2990,6 +2991,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Stats window leftovers
     "stats_healing_sources": "Healing Sources",
     "stats_health_consumable": "Health Consumable",
+    "stats_levelup_healing": "Level Up",
     "stats_no_healing_data": "No healing data",
     "stats_total_earned": "Total Earned",
     "stats_healing_ranking": "HEALING SOURCES",
@@ -4674,6 +4676,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Stats window leftovers
     "stats_healing_sources": "Fuentes de Curación",
     "stats_health_consumable": "Consumible de Salud",
+    "stats_levelup_healing": "Subida de Nivel",
     "stats_no_healing_data": "Sin datos de curación",
     "stats_total_earned": "Total Ganado",
     "stats_healing_ranking": "FUENTES DE CURACIÓN",

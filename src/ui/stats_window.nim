@@ -92,17 +92,20 @@ proc buildDamageRanking*(runStats: RunStatistics): seq[(PowerUpType, float32)] =
     result.sort(proc (a, b: (PowerUpType, float32)): int = cmp(b[1], a[1]))
 
 proc buildHealingSources*(runStats: RunStatistics): seq[(string, float32)] =
-  ## Every source that restored HP this run, highest first. Power-up healing is
-  ## tracked exactly (recordPowerUpHealing); health consumables are reconstructed
-  ## from the pickup count times the same formula the pickup itself uses.
+  ## Every source that restored HP this run, highest first. All of it is now
+  ## measured at the point the HP actually went in (see trackHealing /
+  ## trackConsumableHealing), so no row is reconstructed here. The old estimate
+  ## re-derived consumable healing from a pickup count, which missed
+  ## Cornucopia's +40%, used end-of-run max HP for every pickup, and counted
+  ## pickups collected rather than the HP they really restored.
   result = @[]
   for ptype, amount in runStats.powerUps.healingContribution:
     if amount > 0:
       result.add((getPowerUpName(ptype), amount))
-  let consumableHealing = float32(runStats.resources.healthConsumablesUsed) *
-                          (0.75'f32 + 0.025'f32 * runStats.finalMaxHP)
-  if consumableHealing > 0:
-    result.add((t(tkStatsHealthConsumable), consumableHealing))
+  if runStats.powerUps.healingFromConsumables > 0:
+    result.add((t(tkStatsHealthConsumable), runStats.powerUps.healingFromConsumables))
+  if runStats.powerUps.healingFromLevelUps > 0:
+    result.add((t(tkStatsLevelUpHealing), runStats.powerUps.healingFromLevelUps))
   if result.len > 1:
     result.sort(proc (a, b: (string, float32)): int = cmp(b[1], a[1]))
 

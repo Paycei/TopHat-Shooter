@@ -653,6 +653,9 @@ type
     poisonAccumulator*: float32  # Accumulates fractional poison damage until it reaches 1.0
     poisonSourceType*: EnemyType  # Enemy type that applied the poison (for stats tracking)
     lastDamageAvoided*: float32  # Set by takeDamage when a hit is blocked, read by game.nim to record damageAvoided
+    lastDamageTaken*: float32    # Set by takeDamage to the HP actually lost: 0 when the hit was blocked,
+                                 # dodged or fully absorbed, and net of Fortified/shield mitigation and the
+                                 # difficulty multiplier. Statistics read THIS, not the damage that was offered.
     parryActive*: bool  # True when actively parrying
     parryCooldown*: float32  # Cooldown timer between parries
     parryDuration*: float32  # How long the parry state lasts
@@ -711,6 +714,9 @@ type
     maxDuration*: float32
     isActive*: bool
     source*: string
+    hadMastery*: bool  # Whether the matching elemental mastery was owned when this
+                       # effect was applied. Read at tick time so statistics credit
+                       # the mastery only for the ticks it actually amplified.
 
   ActiveEffect* = object
     primary*: EffectInstance
@@ -969,6 +975,8 @@ type
     isFrozenByNova*: bool  # True while Nova ability has this bullet frozen in place
     isFromNova*: bool      # True if this bullet was released by Nova (for damage tracking)
     rageMultiplier*: float32  # Rage damage multiplier baked in at fire time (1.0 = no bonus)
+    hasCountedHit*: bool      # True once this bullet has been counted as a connecting shot. A piercing
+                              # bullet hits several enemies but is still one shot, so accuracy needs this.
 
   Coin* = ref object
     pos*: Vector2f

@@ -342,14 +342,12 @@ proc recordKill*(stats: var WaveStats, damage: float32) =
   if damage > stats.topDamage:
     stats.topDamage = damage
 
-proc recordShot*(stats: var WaveStats, hit: bool) =
-  stats.shotsFired += 1
-  if hit:
-    stats.shotsHit += 1
-
-proc recordDamageTaken*(stats: var WaveStats, damage: float32) =
-  stats.damageTaken += damage
-  stats.isPerfect = false
+# WaveStats.shotsFired / shotsHit / damageTaken are written by run_statistics
+# (trackBulletFired, trackBulletHit, trackPlayerDamage) so that one code path
+# owns both the run totals and the per-wave ones. The old recordShot/
+# recordDamageTaken pair here was a second writer that nothing ever called with
+# a hit, which is why the celebration screen always reported 0% accuracy and
+# never lost its FLAWLESS tag.
 
 proc recordCoin*(stats: var WaveStats) =
   stats.coinsEarned += 1

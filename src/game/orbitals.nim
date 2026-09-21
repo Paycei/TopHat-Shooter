@@ -1,6 +1,6 @@
 import raylib, rlgl, math, tables
 import types, player, particle_pool, particle_types, powerup, game/combat, game/bullets
-from run_statistics import trackPowerUpDamage, trackPowerUpHealing
+from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, trackHealing
 
 # ORBITAL WEAPONS SYSTEM
 
@@ -41,41 +41,37 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   let damageWithCrit = applyCriticalHitFromStats(stats, actualBaseDamage)
   let actualDamage = damageEnemy(enemy, damageWithCrit)
 
-  # Track statistics for the orb type
-  if hasPowerUp(game.player, puRotatingOrbs):
-    trackPowerUpDamage(game, puRotatingOrbs, actualDamage)
-  else:
-    # Track individual orb type with mastery bonus
-    case orb.elementType
-    of etPoison:
-      trackPowerUpDamage(game, puPoisonOrb, actualDamage)
-      if game.player.hasPoisonMastery:
-        trackPowerUpDamage(game, puPoisonMastery, actualDamage)
-    of etFire:
-      trackPowerUpDamage(game, puFireOrb, actualDamage)
-      if game.player.hasFireMastery:
-        trackPowerUpDamage(game, puFireMastery, actualDamage)
-    of etLightning:
-      trackPowerUpDamage(game, puLightningOrb, actualDamage)
-      if game.player.hasLightningMastery:
-        trackPowerUpDamage(game, puLightningMastery, actualDamage)
-    of etWind:
-      trackPowerUpDamage(game, puWindOrb, actualDamage)
-      if game.player.hasWindMastery:
-        trackPowerUpDamage(game, puWindMastery, actualDamage)
-    of etFrost:
-      trackPowerUpDamage(game, puFrostOrb, actualDamage)
-      if game.player.hasFrostMastery:
-        trackPowerUpDamage(game, puFrostMastery, actualDamage)
-    of etArcane:
-      trackPowerUpDamage(game, puArcaneOrb, actualDamage)
-      if game.player.hasArcaneMastery:
-        trackPowerUpDamage(game, puArcaneMastery, actualDamage)
-    of etBlood:
-      trackPowerUpDamage(game, puBloodOrb, actualDamage)
-      if game.player.hasBloodMastery:
-        trackPowerUpDamage(game, puBloodMastery, actualDamage)
-    of etNone: discard
+  # Track statistics for the orb type.
+  #
+  # The mastery share is derived from orbMasteryMult, the multiplier that was
+  # actually applied above -- so poison/fire/frost/blood masteries (whose payoff
+  # is the DoT, the chill and the lifesteal, and which leave orbMasteryMult at
+  # 1.0) are no longer credited impact damage they did not add.
+  #
+  # With the legendary owned, baseDamage comes from puRotatingOrbs rather than
+  # from any element orb's level, so the legendary is the base earner -- but the
+  # mastery still gets its cut, which the old branch dropped entirely.
+  if orb.elementType != etNone:
+    let masteryPower = case orb.elementType
+      of etPoison: puPoisonMastery
+      of etFire: puFireMastery
+      of etLightning: puLightningMastery
+      of etWind: puWindMastery
+      of etFrost: puFrostMastery
+      of etArcane: puArcaneMastery
+      else: puBloodMastery
+    let basePower =
+      if hasPowerUp(game.player, puRotatingOrbs): puRotatingOrbs
+      else:
+        case orb.elementType
+        of etPoison: puPoisonOrb
+        of etFire: puFireOrb
+        of etLightning: puLightningOrb
+        of etWind: puWindOrb
+        of etFrost: puFrostOrb
+        of etArcane: puArcaneOrb
+        else: puBloodOrb
+    trackPowerUpDamageWithMastery(game, basePower, masteryPower, actualDamage, orbMasteryMult)
 
   # Create damage number
   game.showDamage(enemy.pos, actualDamage, fromPlayer = true,
@@ -248,13 +244,14 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     if game.player.hasBloodMastery:
       lifestealPercent *= 2.0  # 10.0% with mastery
 
-    let healAmount = baseDamage * lifestealPercent
-    game.player.hp = min(game.player.hp + healAmount, game.player.maxHp)
-    if healAmount > 0.0:
-      trackPowerUpHealing(game, puBloodOrb, healAmount)
+    # Goes through heal() like every other lifesteal source: it was the only one
+    # writing hp directly, which silently skipped the player's heal-power
+    # multiplier and booked overheal as healing.
+    let restored = heal(game.player, baseDamage * lifestealPercent)
+    trackHealing(game, puBloodOrb, restored)
 
-    if healAmount > 0.01:
-      game.showDamage(game.player.pos, healAmount, fromPlayer = true,
+    if restored > 0.01:
+      game.showDamage(game.player.pos, restored, fromPlayer = true,
                       isCritical = false, damageType = dtHeal)
 
       # Green healing particles at player

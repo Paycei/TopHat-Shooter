@@ -198,7 +198,13 @@ proc formatTime*(seconds: float32): string =
 
 proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
                          timeSurvived: float32, kills: int, coins: int,
-                         bossesKilled: int) =
+                         bossesKilled: int, died: bool) =
+  ## Only the three real progression modes have lifetime records. Sandbox, PvP
+  ## and the 3D boss used to fall through into the time-survival bucket and
+  ## pollute its games/kills/best-score totals.
+  if mode notin {gmWaveBased, gmRoguelite, gmTimeSurvival}:
+    return
+
   stats.lastPlayDate = $now()
   if stats.firstPlayDate == "":
     stats.firstPlayDate = stats.lastPlayDate
@@ -219,7 +225,10 @@ proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
   modeStats.totalKills += kills
   modeStats.totalCoins += coins
   modeStats.totalTimePlayed += timeSurvived
-  modeStats.totalDeaths += 1
+  # A won run is not a death: this used to count every ending, including the
+  # wave-60 victory and a banked roguelite cash out.
+  if died:
+    modeStats.totalDeaths += 1
   modeStats.bossesDefeated += bossesKilled
 
   if kills > modeStats.bestKills:

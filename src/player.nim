@@ -1025,8 +1025,12 @@ proc drawPlayer*(player: Player) =
         discard  # etNone or other unknown types
 
 proc takeDamageRaw(player: Player, damage: float32): bool =
-  ## Returns true if player died (HP reached 0 or below), false otherwise
+  ## Returns true if player died (HP reached 0 or below), false otherwise.
+  ## Also publishes lastDamageAvoided / lastDamageTaken for the frame: exactly one
+  ## of them is non-zero, so statistics can book a hit as avoided OR taken but
+  ## never both (see trackPlayerDamage).
   player.lastDamageAvoided = 0.0  # Reset each call
+  player.lastDamageTaken = 0.0
   # Shield boost absorbs hits first
   if player.shieldHits > 0:
     player.shieldHits -= 1
@@ -1086,6 +1090,9 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     if absorb > 0.0:
       player.singularityShield -= absorb
       finalDamage -= absorb
+      # Shield HP spent is damage the player did not take. Without this a hit
+      # the singularity swallowed whole counted as neither taken nor avoided.
+      player.lastDamageAvoided = absorb
       # Reset regen timer on damage
       player.singularityShieldRegenTimer = 0.0
       # Mark recent damage for UI/feedback
@@ -1093,11 +1100,13 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     if finalDamage <= 0.0:
       return false
 
+  let hpBefore = player.hp
   player.hp -= finalDamage
 
   # Clamp HP to 0 minimum
   if player.hp < 0:
     player.hp = 0
+  player.lastDamageTaken = hpBefore - player.hp
 
   player.lastDamageEvent = deDamage
   # Reset singularity shield regen timer on any player damage
@@ -1129,9 +1138,15 @@ proc takeDamage*(player: Player, damage: float32): bool =
   ## PvP has its own damage path and is intentionally unaffected.
   takeDamageRaw(player, damage * difficultyEnemyDamageMult())
 
-proc heal*(player: Player, amount: float32) =
+proc heal*(player: Player, amount: float32): float32 {.discardable.} =
+  ## Applies the player's heal-power multiplier and clamps to max HP, returning
+  ## the HP that was ACTUALLY restored. Healing statistics track the return value
+  ## rather than the amount requested, so a heal that lands at full HP is worth
+  ## zero instead of inflating the run's healing total with overheal.
+  let before = player.hp
   player.hp += amount * player.healPowerMult
   if player.hp > player.maxHp: player.hp = player.maxHp
+  player.hp - before
 
 proc activateSpeedBoost*(player: Player) =
   player.speedBoostTimer = 5.0
