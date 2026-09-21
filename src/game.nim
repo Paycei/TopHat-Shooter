@@ -89,6 +89,7 @@ proc cleanupGame*(game: Game) =
   game.attackWarnings = @[]
   game.lasers = @[]
   game.meteorites = @[]
+  game.bossDeathBlasts = @[]
   game.damageNumbers = @[]
   game.currencyIndicators = @[]
 
@@ -854,6 +855,17 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
   while i < game.attackWarnings.len:
     game.attackWarnings[i].lifetime -= dt
 
+    # A dead boss's pending attack goes quiet. Everything below this point
+    # either spawns a hazard or applies damage, and a boss that has just been
+    # blown up must do neither -- so the telegraph only finishes fading (or is
+    # erased by the sweep first, whichever comes sooner).
+    if bossHazardDefused(game, game.attackWarnings[i].sourceEnemyId):
+      if game.attackWarnings[i].lifetime <= 0:
+        game.attackWarnings.delete(i)
+      else:
+        i += 1
+      continue
+
     # Only laser-beam warnings follow their source enemy during wind-up;
     # every other warning is stamped at a fixed world position.
     let warnType = game.attackWarnings[i].attackType
@@ -936,7 +948,8 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
           damage = game.attackWarnings[i].laserDamage,
           duration = reducedDuration,  # Reduced duration
           rotation = angle,
-          enemyType = game.attackWarnings[i].enemyType
+          enemyType = game.attackWarnings[i].enemyType,
+          sourceEnemyId = game.attackWarnings[i].sourceEnemyId
         ))
 
       # Mark lasers as created
@@ -1450,7 +1463,10 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
     # Check if player is hit by laser (throttled to once per LaserHitInterval
     # via the shared laserHitCooldown, so standing in a beam ticks damage
     # repeatedly instead of just once for however long the beam lives).
-    if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
+    # A beam outlives its firer by however long the sweep takes to wash down
+    # its length; for that stretch it is scenery, not a hazard.
+    if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0 and
+       not bossHazardDefused(game, game.lasers[j].sourceEnemyId):
       let laser = game.lasers[j]
 
       # Transform player position into laser's local space (accounting for rotation)
@@ -2412,6 +2428,38 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
       # TIME SURVIVAL MODE: delegate to survival.nim
       spawnSurvivalEnemies(game)
 
+proc detonateBossCorpse(game: var Game, boss: Enemy) =
+  ## A dying boss takes its own attacks with it. The OS kills the process and
+  ## reclaims what it allocated: a deallocation sweep expands from the corpse
+  ## and erases that boss's bullets, beams, meteorites and un-fired telegraphs
+  ## as its edge reaches them (see updateBossDeathBlasts in game/bullets.nim).
+  ##
+  ## It is a CLEAR, not a parting shot. Nothing here deals damage to the
+  ## player, to the boss's surviving minions or to anything else -- winning the
+  ## fight should never be followed by dying to a bullet the boss fired while
+  ## it was still alive.
+  # Reach the furthest corner, plus margin for rocks still falling in from
+  # off-screen, so no hazard is left stranded outside the sweep.
+  let w = game.screenWidth.float32
+  let h = game.screenHeight.float32
+  var reach = 0.0'f32
+  for corner in [newVector2f(0, 0), newVector2f(w, 0),
+                 newVector2f(0, h), newVector2f(w, h)]:
+    reach = max(reach, distance(boss.pos, corner))
+  spawnBossDeathBlast(game, boss.pos, reach + 260.0'f32, boss.id)
+
+  # Core flash at the corpse, in the sweep's own kernel cyan so the detonation
+  # and the wave it launches read as one event rather than two effects.
+  spawnExplosionPooled(game.particlePool, boss.pos.x, boss.pos.y,
+                       BOSS_DEATH_BLAST_COLOR, 48)
+  spawnExplosionPooled(game.particlePool, boss.pos.x, boss.pos.y,
+                       Color(r: 235, g: 255, b: 255, a: 255), 26)
+  spawnShockwavePooled(game.particlePool, boss.pos.x, boss.pos.y,
+                       boss.radius * 3.0'f32)
+  playSound(stExplosion, 1.0)
+  # Pitched-down teleport blip under the blast: the process being unloaded.
+  playSound(stTeleport, 0.5, 0.55)
+
 proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float32) =
   # Update enemies
 
@@ -2741,8 +2789,13 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
       if enemy.isBoss:
         # Boss kill - MASSIVE effects: a hard bite of hit stop to punctuate the
-        # last hit, then the long slow-motion dwell to savour it.
-        addShake(game.dopamine.screenShake, siMassive)
+        # last hit, then the long slow-motion dwell to savour it. Tinted to the
+        # deallocation sweep detonateBossCorpse launches below, so the jolt and
+        # the wave that follows it read as one event. The dwell matters twice
+        # over now: the sweep expands on the slowed world clock, so the player
+        # watches it eat the boss's leftover shots instead of just seeing them
+        # blink out.
+        addShake(game.dopamine.screenShake, siMassive, BOSS_DEATH_BLAST_COLOR)
         triggerHitStop(game.dopamine.slowMotion, 0.13'f32, HitStopScaleHeavy)
         activateSlowMo(game.dopamine.slowMotion, smtBossKill)
         # Record kill with high damage for stats
@@ -2870,6 +2923,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # Check if boss was defeated
       if enemy.isBoss:
         bossDefeated = true
+        detonateBossCorpse(game, enemy)
         # Remember this boss so its full phase layout may be revealed next time.
         if globalStats != nil and not game.cheatsUsed and enemy.bossDefinitionID > 0 and
            not globalStats.hasDefeatedBoss(enemy.bossDefinitionID):
@@ -3539,7 +3593,8 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
                   2,                    # damage
                   enemy.satellites[i].shootTimer, # duration: covers the rest of the firing phase
                   targetAngle,          # rotation: angle through target point
-                  enemy.enemyType       # enemyType: track source
+                  enemy.enemyType,      # enemyType: track source
+                  enemy.id              # sourceEnemyId: the boss the satellite belongs to
                 )
                 game.lasers.add(newLaserObj)
                 enemy.satellites[i].activeLaser = newLaserObj
@@ -4402,8 +4457,11 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           if hitEnemy:
             break
     else:
-      # Enemy bullet hitting player
-      if checkBulletPlayerCollision(bullet, game.player):
+      # Enemy bullet hitting player. A shot whose firer has just been blown up
+      # passes straight through -- it is inert debris waiting for the sweep, and
+      # it is not parryable either, since there is nothing left to parry it at.
+      if checkBulletPlayerCollision(bullet, game.player) and
+         not bossHazardDefused(game, bullet.sourceEnemyId):
         # Parry - bounce bullets back
         if game.player.parryActive:
           # Bounce toward the enemy that shot the bullet
@@ -4524,6 +4582,10 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
   var i = 0
   while i < game.meteorites.len:
     let meteorite = game.meteorites[i]
+    # A rock called down by a boss that has since died still falls and still
+    # cracks the floor; it just cannot hurt anyone on the way down or at the
+    # crater.
+    let rockDefused = bossHazardDefused(game, meteorite.sourceEnemyId)
 
     # Update warning timer
     if meteorite.warningTimer > 0:
@@ -4538,7 +4600,8 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
       meteorite.pos = meteorite.pos + meteorite.vel * dt
 
       # Check collision with player while falling
-      if distance(meteorite.pos, game.player.pos) < meteorite.radius + game.player.radius:
+      if not rockDefused and
+         distance(meteorite.pos, game.player.pos) < meteorite.radius + game.player.radius:
         if takeDamage(game.player, meteorite.damage.float32):
           beginPlayerDeathSequence(game, dcMeteorite, sourceType = etMage)
         trackDamageAvoided(game)
@@ -4588,7 +4651,7 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
         # Impact blast: deal splash damage (50% of the center hit, set at spawn)
         # to the player if caught within the explosion radius. Mage meteorites
         # leave splashDamage at 0, so only the boss rocks blast on landing.
-        if meteorite.splashDamage > 0:
+        if meteorite.splashDamage > 0 and not rockDefused:
           let blastR = meteorite.radius * 3.0'f32
           if distance(impactPos, game.player.pos) < blastR + game.player.radius:
             if takeDamage(game.player, meteorite.splashDamage):
@@ -4965,6 +5028,9 @@ proc updateGame*(game: var Game, dt: float32) =
   updateBossSatellites(game, simDt, effectiveDt)
   updateBulletsAndHits(game, simDt, effectiveDt)
   updateProjectilesAndCleanup(game, simDt, effectiveDt)
+  # Last in the block on purpose: every hazard this frame could spawn already
+  # exists, so a sweep launched this frame sees all of them.
+  updateBossDeathBlasts(game, simDt)
 
   # Real dt on purpose: the re-entry highlight should last a fixed wall-clock
   # beat rather than stretching along with the smtResume ramp it accompanies.
@@ -5489,6 +5555,10 @@ proc drawGame*(game: Game) =
   let hasBloodBullets = hasPowerUp(game.player, puBloodBullets)
   for bullet in game.bullets:
     drawBullet(bullet, hasOvercharge, hasBloodBullets, game.time)
+
+  # Boss deallocation sweep, over the warnings/beams/rocks/bullets it is
+  # clearing so the edge visibly washes across them, under the living actors.
+  drawBossDeathBlasts(game)
 
   # Draw enemies
   for enemy in game.enemies:

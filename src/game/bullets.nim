@@ -84,6 +84,173 @@ proc updatePathShockwaves*(game: var Game, dt: float32) =
 proc drawPathShockwaves*(game: Game) =
   fx.drawPathShockwaves(game.pathShockwaves)
 
+# Boss death blast (deallocation sweep), forwarding stubs.
+# The sweep's colour is re-exported so the detonation game.nim spawns at the
+# corpse can be tinted to match the wave it launches.
+export BOSS_DEATH_BLAST_COLOR
+
+proc spawnBossDeathBlast*(game: var Game, pos: Vector2f, maxRadius: float32,
+                          sourceEnemyId: int,
+                          color: Color = fx.BOSS_DEATH_BLAST_COLOR) =
+  fx.spawnBossDeathBlastInto(game.bossDeathBlasts, pos, maxRadius, sourceEnemyId, color)
+
+proc drawBossDeathBlasts*(game: Game) =
+  fx.drawBossDeathBlasts(game.bossDeathBlasts)
+
+proc blastFreeFizzle(game: var Game, pos: Vector2f, color: Color) =
+  ## The little puff left where the sweep freed one hazard. Angular shards
+  ## rather than a soft puff, so an erased projectile reads as data being
+  ## dropped rather than as something burning up.
+  for i in 0 ..< 5:
+    let angle = rand(TAU).float32
+    let speed = 50.0'f32 + rand(110.0).float32
+    discard game.particlePool.acquireParticleDetailed(
+      pos.x, pos.y, cos(angle) * speed, sin(angle) * speed, color,
+      lifetime = 0.22'f32 + rand(0.16).float32,
+      startSize = 3.5'f32, endSize = 0.0'f32,
+      drag = 4.5'f32, glow = 1.5'f32,
+      style = (if i mod 2 == 0: psShard else: psSpark),
+      layer = plForeground,
+      rotation = angle * 180.0'f32 / PI.float32,
+      spin = (-420.0 + rand(840.0)).float32)
+
+proc bossHazardDefused*(game: Game, sourceEnemyId: int): bool =
+  ## True once a boss-death sweep owns this hazard's firer, which is the moment
+  ## that boss died.
+  ##
+  ## The sweep needs about a second to cross the arena, and a shot it has not
+  ## reached yet would still be a live shot -- so landing the killing blow could
+  ## still cost the player the run, to a bullet fired by something that no
+  ## longer exists. Winning the fight ENDS the fight: from the detonation
+  ## onward every hazard that boss put in the air is inert, and the wave that
+  ## follows is only the visible clean-up.
+  ##
+  ## Ownership is matched by sourceEnemyId rather than by defusing each object,
+  ## so it also covers what a boss's leftovers would go on to produce -- a
+  ## telegraph's lasers, a meteor warning's rocks -- since those inherit the
+  ## same dead firer. Every damage path that reads a hazard's owner consults
+  ## this, which is what makes "a dead boss cannot damage the player" one rule
+  ## rather than a list of special cases.
+  if sourceEnemyId < 0: return false
+  for blast in game.bossDeathBlasts:
+    if blast.sourceEnemyId == sourceEnemyId:
+      return true
+  false
+
+proc blastFreeBeam(game: var Game, laser: Laser, color: Color) =
+  ## A beam is cleared as one object, so its puffs go at the TIPS -- where the
+  ## wave actually caught up with it -- and not back at the dead firer the
+  ## sweep left behind long ago. The arms mirror how drawLaser lays the beam
+  ## out: 0/1 extend both ways on an axis, 2 is a rotated cross, 3 is a single
+  ## arm along the rotation.
+  const Quarter = (PI / 2.0).float32
+  let arms = case laser.direction
+    of 0: @[0.0'f32, PI.float32]
+    of 1: @[Quarter, -Quarter]
+    of 2: @[laser.rotation, laser.rotation + PI.float32,
+            laser.rotation + Quarter, laser.rotation - Quarter]
+    else: @[laser.rotation]
+  for a in arms:
+    blastFreeFizzle(game, newVector2f(laser.pos.x + cos(a) * laser.length,
+                                      laser.pos.y + sin(a) * laser.length), color)
+
+proc blastHasReached(blast: BossDeathBlast, pos: Vector2f,
+                     extra: float32 = 0.0'f32): bool =
+  ## Has the sweep's edge covered this hazard yet? `extra` is the hazard's own
+  ## reach past that point, which is what makes a beam wait until the wave has
+  ## washed past its tip rather than popping the instant the edge leaves its
+  ## firer.
+  ##
+  ## The maxRadius fallback is the guarantee that nothing of the boss survives:
+  ## a hazard can sit -- or a screen-diagonal beam can reach -- well outside the
+  ## arena, where no amount of expansion the player can SEE would ever cover it,
+  ## so the sweep's final step takes whatever is left.
+  distance(pos, blast.pos) + extra <= blast.radius or
+    blast.radius >= blast.maxRadius
+
+proc updateBossDeathBlasts*(game: var Game, dt: float32) =
+  ## Advance every boss-death sweep and erase the hazards its edge has reached.
+  ##
+  ## The wave only ever DELETES. It never calls takeDamage, damageEnemy or any
+  ## other damage path, so it is safe to let it cover the whole arena: the
+  ## player, surviving minions and the boss's reward drops are untouched. Only
+  ## hazards whose sourceEnemyId matches the dead boss are swept, so a minion's
+  ## bullets keep flying and the fight around the corpse continues honestly.
+  var i = 0
+  while i < game.bossDeathBlasts.len:
+    let blast = game.bossDeathBlasts[i]
+
+    # Spent sweep: nothing left to clear, just fade the ring out.
+    if blast.radius >= blast.maxRadius:
+      blast.fadeTimer -= dt
+      if blast.fadeTimer <= 0:
+        game.bossDeathBlasts.delete(i)
+      else:
+        inc i
+      continue
+
+    blast.radius = min(blast.radius + blast.speed * dt, blast.maxRadius)
+
+    # Projectiles: gone the moment the edge passes over them. The test is
+    # ownership plus which way the shot is pointed, NOT isBossBullet -- a shot
+    # the boss's reflect shield turned back on the player keeps its player-fired
+    # shape and only hands over its ownership, and it is every bit as much a
+    # hazard the dead boss put in the air. A bullet the player has since parried
+    # back has fromPlayer set again, so it correctly survives the sweep.
+    var b = 0
+    while b < game.bullets.len:
+      let bullet = game.bullets[b]
+      if not bullet.fromPlayer and bullet.sourceEnemyId == blast.sourceEnemyId and
+         blastHasReached(blast, bullet.pos):
+        blastFreeFizzle(game, bullet.pos, blast.color)
+        game.bullets.delete(b)
+      else:
+        inc b
+
+    # Beams anchor on their firer and reach `length` outward from it, so
+    # clearing one the instant the edge touches its origin would pop every
+    # boss beam at once, and clearing it halfway would leave a floating stub.
+    # Instead a beam goes when the wave has washed past its far tip -- the same
+    # "cleared once the edge arrives" rule, applied to the furthest point the
+    # beam actually occupies.
+    var l = 0
+    while l < game.lasers.len:
+      let laser = game.lasers[l]
+      if laser.sourceEnemyId == blast.sourceEnemyId and
+         blastHasReached(blast, laser.pos, laser.length):
+        blastFreeBeam(game, laser, blast.color)
+        game.lasers.delete(l)
+      else:
+        inc l
+
+    # Meteorites: while a rock is still telegraphing it sits off-screen, so the
+    # edge is tested against the marked impact point instead -- otherwise the
+    # warning circle would outlive the boss and land on an empty arena.
+    var m = 0
+    while m < game.meteorites.len:
+      let rock = game.meteorites[m]
+      let at = if rock.warningTimer > 0: rock.targetPos else: rock.pos
+      if rock.sourceEnemyId == blast.sourceEnemyId and
+         blastHasReached(blast, at):
+        blastFreeFizzle(game, at, blast.color)
+        game.meteorites.delete(m)
+      else:
+        inc m
+
+    # Telegraphs: an un-fired warning is a hazard too -- left alone it would
+    # spawn its lasers or bullets seconds after the boss is already dead.
+    var w = 0
+    while w < game.attackWarnings.len:
+      let warn = game.attackWarnings[w]
+      if warn.sourceEnemyId == blast.sourceEnemyId and
+         blastHasReached(blast, warn.pos):
+        blastFreeFizzle(game, warn.pos, blast.color)
+        game.attackWarnings.delete(w)
+      else:
+        inc w
+
+    inc i
+
 proc getExplosionRadius*(level: int): float32 =
   ## Standard explosion radius for explosive bullets
   case level

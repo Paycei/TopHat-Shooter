@@ -391,7 +391,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             1,              # damage
             enemy.attackExecuteTimer + dt, # duration: covers the rest of the dash
             enemy.rotation, # rotation: pass the enemy's current rotation
-            enemy.enemyType # enemyType: track which enemy type created this laser
+            enemy.enemyType, # enemyType: track which enemy type created this laser
+            enemy.id        # sourceEnemyId: whose beam this is
           )
           game.lasers.add(newLaserObj)
           enemy.activeCrossLaser = newLaserObj
@@ -744,7 +745,8 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
             spawnX = spawnX,
             spawnY = spawnY,
             damage = damage,
-            warningTime = warningTime
+            warningTime = warningTime,
+            sourceEnemyId = enemy.id
           )
           game.meteorites.add(meteorite)
 

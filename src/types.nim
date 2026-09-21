@@ -1147,6 +1147,24 @@ type
     maxLifetime*: float32
     color*: Color
 
+  BossDeathBlast* = ref object
+    ## The deallocation sweep a dying boss leaves behind. The OS reclaims the
+    ## dead process: an edge travels outward from the corpse and ERASES that
+    ## boss's own leftover hazards -- bullets, beams, meteorites, un-fired
+    ## telegraphs -- as it reaches them, so a boss can never land a hit from
+    ## beyond the grave with shots it fired while alive.
+    ##
+    ## It is purely a clear. It deals no damage to the player, to surviving
+    ## minions or to anything else, which is why there is no damage field here
+    ## and no collision code anywhere that reads one.
+    pos*: Vector2f
+    sourceEnemyId*: int      # Only hazards fired by THIS boss are swept away
+    radius*: float32         # Leading edge; everything inside it is already gone
+    maxRadius*: float32      # Where the sweep stops (sized to cover the arena)
+    speed*: float32          # Edge travel speed, px/s
+    fadeTimer*: float32      # Counts down once the edge has reached maxRadius
+    color*: Color
+
   Laser* = ref object
     pos*: Vector2f          # Center position
     direction*: int         # 0=horizontal, 1=vertical, 2=both (cross)
@@ -1158,6 +1176,7 @@ type
     hasHitPlayer*: bool     # Track if already damaged player this laser
     rotation*: float32      # Rotation angle in radians (for rotating lasers)
     enemyType*: EnemyType   # Type of enemy that created this laser
+    sourceEnemyId*: int     # ID of the enemy that fired this beam (-1 = unowned)
 
   Meteorite* = ref object
     pos*: Vector2f          # Current position
@@ -1168,6 +1187,7 @@ type
     warningTimer*: float32  # Time before impact
     maxWarningTime*: float32 # Total warning duration
     splashDamage*: float32  # AoE damage dealt on impact (0 = direct-contact only)
+    sourceEnemyId*: int     # ID of the enemy that called it down (-1 = unowned)
 
   ShopItem* = object
     name*: string
@@ -1500,6 +1520,7 @@ type
     lightningBolts*: seq[LightningBolt]  # Active lightning arc visuals
     shockwaveRings*: seq[ShockwaveRing]  # Active AoE-blast boundary rings (Star death, etc.)
     pathShockwaves*: seq[PathShockwave]  # Active path-swept blast corridors (Aftershock)
+    bossDeathBlasts*: seq[BossDeathBlast]  # Deallocation sweeps clearing a dead boss's hazards
     confirmQuitPending*: bool  # True while the quit-confirmation dialog is open
     pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
     confirmQuitFrameGuard*: float32  # Short guard so Q-open and Q-confirm can't fire on the same frame
@@ -1688,7 +1709,7 @@ proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32
   result.targetPos = newVector2f(targetX, targetY)
   result.fromSatellite = true
 
-proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle): Laser =
+proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle, sourceEnemyId: int = -1): Laser =
   Laser(
     pos: newVector2f(x, y),
     direction: direction,
@@ -1699,10 +1720,11 @@ proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage
     maxLifetime: duration,
     hasHitPlayer: false,
     rotation: rotation,
-    enemyType: enemyType
+    enemyType: enemyType,
+    sourceEnemyId: sourceEnemyId
   )
 
-proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: int, warningTime: float32): Meteorite =
+proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: int, warningTime: float32, sourceEnemyId: int = -1): Meteorite =
   ## Create a new meteorite that falls from the sky
   Meteorite(
     pos: newVector2f(spawnX, spawnY),
@@ -1711,7 +1733,8 @@ proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: i
     radius: 15.0,
     damage: damage,
     warningTimer: warningTime,
-    maxWarningTime: warningTime
+    maxWarningTime: warningTime,
+    sourceEnemyId: sourceEnemyId
   )
 
 proc defaultPvPConfig*(): PvPConfig =

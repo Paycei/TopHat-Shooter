@@ -260,6 +260,7 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
   updateLightningBolts(game, worldDt)
   updateShockwaveRings(game, worldDt)
   updatePathShockwaves(game, worldDt)
+  updateBossDeathBlasts(game, worldDt)
 
   var i = 0
   while i < game.attackWarnings.len:

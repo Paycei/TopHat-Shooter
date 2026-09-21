@@ -1951,7 +1951,7 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
       # Stagger the heights so the cluster lands as a quick drumroll, not a slap.
       let sx = tx + entryDx + (rand(60.0'f32) - 30.0'f32)
       let sy = -140.0'f32 - rand(120.0'f32) - k.float32 * 28.0'f32
-      let m = newMeteorite(tx, ty, sx, sy, rockDamage, warn)
+      let m = newMeteorite(tx, ty, sx, sy, rockDamage, warn, enemy.id)
       m.radius = rockR
       m.splashDamage = rockDamage.float32 * 0.5'f32   # impact blast = 50% of center hit
       game.meteorites.add(m)
@@ -1970,7 +1970,7 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
       let tx = clamp(game.player.pos.x + cos(a) * ringR, 40.0'f32, sw - 40.0'f32)
       let ty = clamp(game.player.pos.y + sin(a) * ringR, sh * 0.18'f32, sh * 0.9'f32)
       # Spawn high above so the rock (and its fire-trail) is visible falling in.
-      let m = newMeteorite(tx, ty, tx, -160.0'f32 - rand(80.0'f32), rockDamage, warn)
+      let m = newMeteorite(tx, ty, tx, -160.0'f32 - rand(80.0'f32), rockDamage, warn, enemy.id)
       m.radius = rockR
       m.splashDamage = rockDamage.float32 * 0.5'f32   # impact blast = 50% of center hit
       game.meteorites.add(m)
