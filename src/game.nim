@@ -4352,8 +4352,11 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             let level = getPowerUpLevel(game.player, puExplosiveBullets)
             let explosionRadius = getExplosionRadius(level)
 
-            # Damage all enemies in radius
+            # Damage all enemies in radius, except the one the bullet hit:
+            # it already took the full direct hit above.
             for k in 0..<game.enemies.len:
+              if game.enemies[k] == target:
+                continue
               let dist = distance(bullet.pos, game.enemies[k].pos)
               if dist < explosionRadius:
                 let explosionDmg = finalDamage * 0.5

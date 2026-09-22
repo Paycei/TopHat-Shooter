@@ -145,7 +145,10 @@ let changelog: seq[ChangelogVersion] = @[
         es: "El botón Restablecer Valores de los ajustes de control vuelve a poder pulsarse. Su zona pulsable estaba fijada a un número concreto de asignaciones, así que añadir la nueva tecla de impulso dejaba el botón dibujado en un sitio y pulsable en otro."),
       ChangelogEntry(category: clcFixed,
         en: "The level and experience bar no longer hangs outside the status panel in Wave mode. The panel sizes itself to its contents, and the level row was never counted, so with no processes installed to pad the panel out the bar spilled past the bottom border.",
-        es: "La barra de nivel y experiencia ya no se sale del panel de estado en modo Oleadas. El panel se ajusta a su contenido y la fila de nivel nunca se contaba, así que sin procesos instalados que alargaran el panel la barra se salía por debajo del borde.")
+        es: "La barra de nivel y experiencia ya no se sale del panel de estado en modo Oleadas. El panel se ajusta a su contenido y la fila de nivel nunca se contaba, así que sin procesos instalados que alargaran el panel la barra se salía por debajo del borde."),
+      ChangelogEntry(category: clcFixed,
+        en: "Explosive Bullets no longer hit the same enemy twice. The blast damaged everything in its radius, including the enemy the bullet had just struck, so that target took the full hit plus another half on top. The explosion now only damages the enemies around it.",
+        es: "Las Balas Explosivas ya no golpean dos veces al mismo enemigo. La explosión dañaba todo lo que había en su radio, incluido el enemigo que la bala acababa de golpear, así que ese objetivo recibía el golpe completo y otra mitad encima. Ahora la explosión solo daña a los enemigos de alrededor.")
     ]
   ),
   ChangelogVersion(
