@@ -1669,8 +1669,8 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
 
 proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
   ## `uiScale` is the in-game interface scale for the HUD pass at the bottom.
-  ## The caller resolves it (game.hudInterfaceScale), because the cap depends on
-  ## the HUD layout's band geometry, which lives with the PvE HUD.
+  ## The caller resolves it (game.hudInterfaceScale), so PvP and PvE HUDs can
+  ## never disagree about it.
   ## Draw PvP game state
   let accentColor =
     if pvp.teamsEnabled and pvp.localPlayerIndex >= 0 and pvp.localPlayerIndex < pvp.playerTeamAssignments.len:
@@ -1695,6 +1695,7 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
   pushMatrix()
   translatef(worldOffX, worldOffY, 0)
   scalef(worldViewScale, worldViewScale, 1.0'f32)
+  applyTextFilterFor(worldViewScale)   # keeps shrunken world labels legible
 
   drawSharedBackdrop(pvp.screenWidth, pvp.screenHeight, pvp.gameTime * 0.8,
                      Color(r: 5, g: 7, b: 16, a: 255),
@@ -1880,12 +1881,13 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
 
   # End world pass: HUD/overlays below draw in VIRTUAL screen space (no world
   # offset, no clip), anchored to the full virtual width/height.
+  applyTextFilterFor(1.0'f32)
   popMatrix()
   if worldClipped:
     endScissorMode()
   # Interface layer: the whole PvP HUD honours the Interface tab's UI scale,
-  # capped by the caller the same way the PvE HUD is so it never grows over the
-  # arena. viewW/viewH below are this layer's logical viewport.
+  # exactly as the PvE HUD does. viewW/viewH below are this layer's logical
+  # viewport.
   let hudScale = max(uiScale, 0.0001'f32)
   beginUIScaleMode(hudScale)
   let viewW = getVirtualScreenWidth()

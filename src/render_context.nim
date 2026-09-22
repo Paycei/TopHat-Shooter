@@ -56,6 +56,34 @@ var
   # and getVirtualMousePosition both honour the active scale, existing UI code
   # that already goes through those adapts with no changes.
   activeUIScale = 1.0'f32
+  # Whether the default font atlas is currently bilinear-filtered; see
+  # applyTextFilterFor. Starts false because raylib loads it point-filtered.
+  fontAtlasSmoothed = false
+
+proc applyTextFilterFor*(drawScale: float32) =
+  ## Pick the default font's texture filter for text about to be drawn under a
+  ## transform of `drawScale` (a UI-scale layer, or the shrunken world view).
+  ##
+  ## The font is a 10px bitmap sampled point-filtered, which only holds up while
+  ## every glyph texel lands on at least one render-target pixel. Once the net
+  ## scale -- this transform times the render target's supersample -- drops
+  ## below 1, point sampling starts skipping whole texel rows and columns, and
+  ## the text garbles ("HUD" reads "HLD", "UI" reads "LI"). Bilinear keeps it
+  ## legible there at the cost of a little softness, so it is used for exactly
+  ## that range; everything at or above 1 keeps the crisp look it always had.
+  ##
+  ## The atlas doubles as raylib's shapes texture, but shapes sample the inside
+  ## of a solid glyph block (inset 1px by raylib for this very reason), so
+  ## filtering never changes how rectangles and lines look.
+  let smooth = drawScale * currentRenderSupersampleScale < 0.999'f32
+  if smooth == fontAtlasSmoothed:
+    return
+  # The filter is read when the batch is *flushed*, not when a glyph is queued,
+  # so everything queued under the old filter has to go out first.
+  drawRenderBatchActive()
+  setTextureFilter(getFontDefault().texture,
+                   if smooth: TextureFilter.Bilinear else: TextureFilter.Point)
+  fontAtlasSmoothed = smooth
 
 proc pushUIScale*(scale: float32) =
   ## Enter a UI layer whose coordinates are virtual pixels divided by `scale`.
@@ -80,8 +108,10 @@ proc beginUIScaleMode*(scale: float32) =
   pushUIScale(scale)
   pushMatrix()
   scalef(activeUIScale, activeUIScale, 1.0'f32)
+  applyTextFilterFor(activeUIScale)
 
 proc endUIScaleMode*() =
+  applyTextFilterFor(1.0'f32)
   popMatrix()
   popUIScale()
 

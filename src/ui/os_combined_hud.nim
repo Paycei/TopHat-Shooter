@@ -7,10 +7,7 @@ from ../player import DashCooldownTime
 
 const
   COMBINED_PANEL_WIDTH = 238
-  BORDER_PANEL_WIDTH* = 171  # widescreen left-gutter width = (1366-1024)/2
-    ## Exported because it is the *widest* thing in either band, so it is what
-    ## decides how far the in-game interface may be scaled before it would stop
-    ## fitting the band and start covering the arena.
+  BORDER_PANEL_WIDTH = 171   # widescreen left-gutter width = (1366-1024)/2
   COMBINED_PANEL_PADDING = 6
   COMBINED_SECTION_SPACING = 6
   COMBINED_ITEM_HEIGHT = 24

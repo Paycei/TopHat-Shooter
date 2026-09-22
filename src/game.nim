@@ -5477,6 +5477,9 @@ proc drawGame*(game: Game) =
     pushMatrix()
     translatef(worldOffX + shakeOffsetX, worldOffY + shakeOffsetY, 0.0'f32)
     scalef(worldViewScale, worldViewScale, 1.0'f32)
+  # A shrunken arena shrinks its labels too; keep them legible (see
+  # applyTextFilterFor). A no-op at the usual world scale of 1.
+  applyTextFilterFor(worldViewScale)
 
   # Update and draw OS-style background
   let dt = getFrameTime()
@@ -6047,6 +6050,7 @@ proc drawGame*(game: Game) =
       drawLine(c4, c1, 2.0'f32, ghostEdge)
 
   # ===================== END WORLD PASS =====================
+  applyTextFilterFor(1.0'f32)
   if worldPassOpen:
     popMatrix()
   if worldScissorOpen:

@@ -176,8 +176,19 @@ proc isPointInWindow*(window: OSWindow, mouseX, mouseY: float32): bool =
            mouseY >= window.y.float32 and
            mouseY <= (window.y + window.height).float32
 
+proc toWindowSpace(src, dst: OSWindow, x, y: float32): Vector2 =
+  ## A point in `src`'s scale layer, re-expressed in `dst`'s. Windows whose UI
+  ## scale was capped differently do not share a coordinate space, so a point
+  ## has to travel out to virtual pixels (times src's scale) and back down (by
+  ## dst's) before it can be tested against another window's rect. A no-op
+  ## whenever the two ended up at the same scale.
+  let k = uiScaleOfWindow(src) / uiScaleOfWindow(dst)
+  Vector2(x: x * k, y: y * k)
+
 proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindows: openArray[OSWindow]): bool =
-  ## Check if this window is the topmost window at the given point
+  ## Check if this window is the topmost window at the given point, which is in
+  ## `window`'s own coordinates (what getVirtualMousePosition returns while that
+  ## window's scale layer is active).
   if not window.visible:
     return false
 
@@ -197,13 +208,14 @@ proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindo
   for otherWindow in allWindows:
     if otherWindow != window and not otherWindow.isNil and otherWindow.visible:
       if otherWindow.zOrder > window.zOrder:
-        # Check if the other window covers this point
+        # Check if the other window covers this point, asked in its own space
         # For minimized windows, only the title bar counts
         # For normal windows, the entire window counts
+        let p = toWindowSpace(window, otherWindow, mouseX, mouseY)
         let otherWindowCoversPoint = if otherWindow.minimized:
-          isPointInTitleBar(otherWindow, mouseX, mouseY)
+          isPointInTitleBar(otherWindow, p.x, p.y)
         else:
-          isPointInWindow(otherWindow, mouseX, mouseY)
+          isPointInWindow(otherWindow, p.x, p.y)
 
         if otherWindowCoversPoint:
           return false
@@ -321,26 +333,22 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
     # Step 2: Find which window should handle this click (highest z-order at this point).
     # `mousePos` is in *this* window's scale layer, and a window whose scale was
     # capped differently does not share that space, so each candidate is asked in
-    # its own coordinates -- the pointer travels out to virtual pixels and back
-    # down by the candidate's scale. Identical to the old single-space test
-    # whenever every window ended up at the same scale (e.g. any scale <= 100%).
+    # its own coordinates (see toWindowSpace). Identical to the old single-space
+    # test whenever every window ended up at the same scale (e.g. any scale <= 100%).
     var windowThatShouldHandle: OSWindow = nil
     var highestZ = -1
-    let virtualX = mousePos.x * uiScaleOfWindow(window)
-    let virtualY = mousePos.y * uiScaleOfWindow(window)
 
     for w in allWindows:
       if w.isNil or not w.visible:
         continue
 
-      let wx = virtualX / uiScaleOfWindow(w)
-      let wy = virtualY / uiScaleOfWindow(w)
+      let p = toWindowSpace(window, w, mousePos.x, mousePos.y)
 
       # Check if this window covers the click point
       let windowCoversClick = if w.minimized:
-        isPointInTitleBar(w, wx, wy)
+        isPointInTitleBar(w, p.x, p.y)
       else:
-        isPointInWindow(w, wx, wy)
+        isPointInWindow(w, p.x, p.y)
 
       if windowCoversClick and w.zOrder > highestZ:
         highestZ = w.zOrder

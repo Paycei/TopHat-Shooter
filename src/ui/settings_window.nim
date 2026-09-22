@@ -1,7 +1,7 @@
 ﻿## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
-import raylib, strutils
+import raylib, strutils, math
 import ../sound, ../save_system, os_window, ../localization, ../render_context, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types
 
 type
@@ -631,6 +631,13 @@ const
     ## here: the interesting values are round percentages, and a 1px slider
     ## wobble re-laying-out every desktop window would be miserable to use.
 
+  IfcSliderSnap = 0.05'f32
+    ## The two sliders land on whole 5% steps, so dragging reads as clean
+    ## percentages and 100% can be found again by hand.
+  IfcSliderGrabPad = 6'f32
+    ## Vertical slack on a slider's hit box: the handle overhangs the bar, and
+    ## grabbing it by that overhang should still count.
+
 proc uiScaleStepIndex(scale: float32): int =
   ## Index of the nearest step, so a value that arrived clamped (or hand-edited)
   ## still lands somewhere the arrows can move away from.
@@ -644,6 +651,29 @@ proc uiScaleStepIndex(scale: float32): int =
 
 proc steppedUIScale(scale: float32, delta: int): float32 =
   UIScaleSteps[clamp(uiScaleStepIndex(scale) + delta, 0, UIScaleSteps.high)]
+
+proc stepperSide(mousePos: Vector2, rect: Rectangle): int =
+  ## Which way a click on a "< value >" stepper moves it: -1 on the left half,
+  ## +1 on the right. Halves rather than just the arrow glyphs, so the targets
+  ## stay generous at every UI scale.
+  if mousePos.x < rect.x + rect.width * 0.5'f32: -1 else: 1
+
+proc sliderHitRect(rect: Rectangle): Rectangle =
+  Rectangle(x: rect.x, y: rect.y - IfcSliderGrabPad,
+            width: rect.width, height: rect.height + IfcSliderGrabPad * 2)
+
+proc snapSlider(v, lo, hi: float32): float32 =
+  ## `v` on the nearest IfcSliderSnap step inside [lo, hi]. Also cleans up a
+  ## value saved before the sliders snapped, the first time it is nudged.
+  clamp(round(v / IfcSliderSnap) * IfcSliderSnap, lo, hi)
+
+proc sliderValue(frac, lo, hi: float32): float32 =
+  ## A slider position (0..1 along the bar) as a snapped value in [lo, hi].
+  snapSlider(lo + frac * (hi - lo), lo, hi)
+
+proc sliderDefaultTick(lo, hi: float32): seq[int] =
+  ## drawSlider's tick list (percent of the bar) marking where 100% sits.
+  @[int((1.0'f32 - lo) / (hi - lo) * 100.0'f32 + 0.5'f32)]
 
 proc interfaceControlRect(ic: InterfaceControl, contentX, contentY, contentW: int): Rectangle =
   ## Geometry of one Interface-tab control, relative to the tab content origin.
@@ -702,19 +732,25 @@ proc toggleInterfaceSetting(settings: Settings, ic: InterfaceControl) =
   of ifcDebugPanel: settings.showDebugStats = not settings.showDebugStats
   else: discard
 
-proc drawCycleButton(rect: Rectangle, label: string, hovered: bool) =
+proc drawCycleButton(rect: Rectangle, label: string, hovered: bool,
+                     hoverSide = 0, canDec = true, canInc = true) =
   ## The "< value >" control the other tabs build inline, shared by the two on
-  ## this tab. Unlike those, the arrows here are live (see the click handler).
+  ## this tab. On a stepper, `hoverSide` (-1 / +1, see stepperSide) lights the
+  ## arrow a click would press, and an arrow with nowhere left to go is dimmed.
   let bg = if hovered: Color(r: 80, g: 80, b: 100, a: 255)
            else: Color(r: 60, g: 60, b: 80, a: 255)
   drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
   drawRectangleLines(rect, 1,
                      if hovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+  template arrowColor(side: int, enabled: bool): Color =
+    if not enabled: Color(r: 85, g: 85, b: 105, a: 255)
+    elif hovered and side == hoverSide: Gold
+    else: LightGray
   let textY = (rect.y + (rect.height - 16) / 2).int32
   let textWidth = measureText(label, 16)
-  drawText("<", (rect.x + 10).int32, textY, 18, LightGray)
+  drawText("<", (rect.x + 10).int32, textY, 18, arrowColor(-1, canDec))
   drawText(label, (rect.x + (rect.width - textWidth.float32) / 2).int32, textY, 16, White)
-  drawText(">", (rect.x + rect.width - 22).int32, textY, 18, LightGray)
+  drawText(">", (rect.x + rect.width - 22).int32, textY, 18, arrowColor(1, canInc))
 
 proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   let mousePos = getVirtualMousePosition()
@@ -729,9 +765,12 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
                     Color(r: 160, g: 140, b: 255, a: 255))
 
   let scaleRect = rectOf(ifcUIScale)
+  let scaleStep = uiScaleStepIndex(s.uiScale)
   drawText(t(tkSettingsUiScale), (contentX + 40).int32, (contentY + 51).int32, 18, White)
   drawCycleButton(scaleRect, $int(s.uiScale * 100.0 + 0.5) & "%",
-                  checkCollisionPointRec(mousePos, scaleRect))
+                  checkCollisionPointRec(mousePos, scaleRect),
+                  hoverSide = stepperSide(mousePos, scaleRect),
+                  canDec = scaleStep > 0, canInc = scaleStep < UIScaleSteps.high)
   drawText(t(tkSettingsUiScaleDesc), (contentX + 40).int32, (contentY + 82).int32,
            13, LightGray)
 
@@ -743,13 +782,18 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
            13, LightGray)
 
   # Both sliders map their [Min..Max] range onto the full bar, so the fill reads
-  # as "where in the allowed range am I", not as the percentage beside it.
+  # as "where in the allowed range am I", not as the percentage beside it. The
+  # tick notch marks where the 100% default sits on each.
   let sizeRect = rectOf(ifcDamageSize)
   let sizeFrac = (s.damageNumberScale - MinDamageNumberScale) /
                  (MaxDamageNumberScale - MinDamageNumberScale)
   drawText(t(tkSettingsDamageNumberSize), (contentX + 40).int32, (contentY + 138).int32, 18, White)
   drawSlider(sizeRect.x.int32, sizeRect.y.int32, IfcSliderWidth, IfcSliderHeight,
-             clamp(sizeFrac, 0.0, 1.0), checkCollisionPointRec(mousePos, sizeRect))
+             clamp(sizeFrac, 0.0, 1.0),
+             settingsWin.draggingDamageSize or
+               checkCollisionPointRec(mousePos, sliderHitRect(sizeRect)),
+             showTicks = true,
+             tickValues = sliderDefaultTick(MinDamageNumberScale, MaxDamageNumberScale))
   drawText($int(s.damageNumberScale * 100.0 + 0.5) & "%",
            (sizeRect.x + IfcSliderWidth.float32 + 12).int32, (contentY + 138).int32, 16, Gold)
 
@@ -758,7 +802,11 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
                   (MaxScreenShakeScale - MinScreenShakeScale)
   drawText(t(tkSettingsScreenShake), (contentX + 40).int32, (contentY + 170).int32, 18, White)
   drawSlider(shakeRect.x.int32, shakeRect.y.int32, IfcSliderWidth, IfcSliderHeight,
-             clamp(shakeFrac, 0.0, 1.0), checkCollisionPointRec(mousePos, shakeRect))
+             clamp(shakeFrac, 0.0, 1.0),
+             settingsWin.draggingScreenShake or
+               checkCollisionPointRec(mousePos, sliderHitRect(shakeRect)),
+             showTicks = true,
+             tickValues = sliderDefaultTick(MinScreenShakeScale, MaxScreenShakeScale))
   drawText($int(s.screenShakeScale * 100.0 + 0.5) & "%",
            (shakeRect.x + IfcSliderWidth.float32 + 12).int32, (contentY + 170).int32, 16, Gold)
   drawText(t(tkSettingsScreenShakeDesc), (contentX + 40).int32, (contentY + 194).int32,
@@ -1347,18 +1395,24 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     template ifaceRect(ic: InterfaceControl): Rectangle =
       interfaceControlRect(ic, contentX, ifaceY, ifaceW)
 
+    let scaleRect = ifaceRect(ifcUIScale)
     let sizeRect = ifaceRect(ifcDamageSize)
     let shakeRect = ifaceRect(ifcScreenShake)
 
+    proc stepUIScale(settings: Settings, delta: int): bool =
+      ## Move the UI scale one stop; false (and silent) when already at the end.
+      let nextScale = steppedUIScale(settings.uiScale, delta)
+      if nextScale == settings.uiScale:
+        return false
+      settings.uiScale = nextScale
+      playSound(stMenuSelect)
+      true
+
     if settingsWin.window.handledClickThisFrame:
-      let scaleRect = ifaceRect(ifcUIScale)
       if checkCollisionPointRec(mousePos, scaleRect):
-        # The "<" arrow steps down; anywhere else on the button steps up.
-        let delta = if mousePos.x < scaleRect.x + 34.0'f32: -1 else: 1
-        let nextScale = steppedUIScale(settingsWin.settings.uiScale, delta)
-        if nextScale != settingsWin.settings.uiScale:
-          settingsWin.settings.uiScale = nextScale
-          playSound(stMenuSelect)
+        # Left half steps down, right half steps up -- drawInterfaceTab lights
+        # the arrow on whichever half the pointer is over.
+        if stepUIScale(settingsWin.settings, stepperSide(mousePos, scaleRect)):
           settingsChanged = true
 
       if checkCollisionPointRec(mousePos, ifaceRect(ifcDamageNumbers)):
@@ -1379,27 +1433,46 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
     # Sliders follow the Audio tab's press/drag/release shape, saving only on
     # release so a drag doesn't rewrite settings.json every frame.
     if settingsWin.window.handledClickThisFrame and
-       checkCollisionPointRec(mousePos, sizeRect):
+       checkCollisionPointRec(mousePos, sliderHitRect(sizeRect)):
       settingsWin.draggingDamageSize = true
     if settingsWin.draggingDamageSize:
       if isPointerDown():
         let frac = clamp((mousePos.x - sizeRect.x) / IfcSliderWidth.float32, 0.0, 1.0)
         settingsWin.settings.damageNumberScale =
-          MinDamageNumberScale + frac * (MaxDamageNumberScale - MinDamageNumberScale)
+          sliderValue(frac, MinDamageNumberScale, MaxDamageNumberScale)
       else:
         settingsWin.draggingDamageSize = false
         settingsChanged = true
 
     if settingsWin.window.handledClickThisFrame and
-       checkCollisionPointRec(mousePos, shakeRect):
+       checkCollisionPointRec(mousePos, sliderHitRect(shakeRect)):
       settingsWin.draggingScreenShake = true
     if settingsWin.draggingScreenShake:
       if isPointerDown():
         let frac = clamp((mousePos.x - shakeRect.x) / IfcSliderWidth.float32, 0.0, 1.0)
         settingsWin.settings.screenShakeScale =
-          MinScreenShakeScale + frac * (MaxScreenShakeScale - MinScreenShakeScale)
+          sliderValue(frac, MinScreenShakeScale, MaxScreenShakeScale)
       else:
         settingsWin.draggingScreenShake = false
+        settingsChanged = true
+
+    # Mouse wheel nudges whichever control is under the pointer, like the Audio
+    # tab's sliders: one scale stop, or one 5% slider step, per notch.
+    let wheel = getPointerWheelMove()
+    if wheel != 0.0'f32:
+      let dir = if wheel > 0.0'f32: 1 else: -1
+      if checkCollisionPointRec(mousePos, scaleRect):
+        if stepUIScale(settingsWin.settings, dir):
+          settingsChanged = true
+      elif checkCollisionPointRec(mousePos, sliderHitRect(sizeRect)):
+        settingsWin.settings.damageNumberScale = snapSlider(
+          settingsWin.settings.damageNumberScale + dir.float32 * IfcSliderSnap,
+          MinDamageNumberScale, MaxDamageNumberScale)
+        settingsChanged = true
+      elif checkCollisionPointRec(mousePos, sliderHitRect(shakeRect)):
+        settingsWin.settings.screenShakeScale = snapSlider(
+          settingsWin.settings.screenShakeScale + dir.float32 * IfcSliderSnap,
+          MinScreenShakeScale, MaxScreenShakeScale)
         settingsChanged = true
 
   # Handle Audio tab interactions

@@ -32,16 +32,27 @@ proc isOverRect(mp: Vector2, x, y, w, h: int32): bool =
   mp.x >= x.float32 and mp.x <= (x + w).float32 and
   mp.y >= y.float32 and mp.y <= (y + h).float32
 
-proc drawGlobalConfirmDialog(sw, sh: int32): int =
+proc overlayUIScaleFor(panelW, panelH: int32): float32
+  ## Defined below with the other interface-scale helpers.
+
+# Both modal dialogs below are drawn *and* hit-tested inside their own UI-scale
+# layer, so they grow and shrink with the rest of the interface. They still
+# cover and centre on the real screen: they size themselves from the layer's
+# viewport, which is rounded up so the backdrop always spans every pixel.
+
+proc drawGlobalConfirmDialog(): int =
   ## Returns 0 = still open, 1 = confirmed (yes), -1 = cancelled (no).
   if not globalConfirmActive: return 0
 
-  let mp = getVirtualMousePosition()
   const DW: int32 = 460; const DH: int32 = 210
   const BW: int32 = 170; const BH: int32 = 42
-  let dx = (sw - DW) div 2; let dy = (sh - DH) div 2
+  beginUIScaleMode(overlayUIScaleFor(DW, DH))
+  defer: endUIScaleMode()
+  let viewW = getVirtualScreenWidth(); let viewH = getVirtualScreenHeight()
+  let mp = getVirtualMousePosition()
+  let dx = (viewW - DW) div 2; let dy = (viewH - DH) div 2
 
-  drawRectangle(0, 0, sw, sh, Color(r: 0, g: 0, b: 0, a: 160))
+  drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 160))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
   drawRectangle(dx, dy, DW, DH, Color(r: 18, g: 22, b: 32, a: 255))
   drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
@@ -130,15 +141,18 @@ var
   resumePromptActive = false
   resumePromptMode   = gmWaveBased  # mode the saved run belongs to
 
-proc drawResumeDialog(sw, sh: int32): int =
+proc drawResumeDialog(): int =
   ## Returns 0 = still open, 1 = Continue (resume), -1 = New Run (fresh).
   if not resumePromptActive: return 0
-  let mp = getVirtualMousePosition()
   const DW: int32 = 480; const DH: int32 = 210
   const BW: int32 = 180; const BH: int32 = 44
-  let dx = (sw - DW) div 2; let dy = (sh - DH) div 2
+  beginUIScaleMode(overlayUIScaleFor(DW, DH))
+  defer: endUIScaleMode()
+  let viewW = getVirtualScreenWidth(); let viewH = getVirtualScreenHeight()
+  let mp = getVirtualMousePosition()
+  let dx = (viewW - DW) div 2; let dy = (viewH - DH) div 2
 
-  drawRectangle(0, 0, sw, sh, Color(r: 0, g: 0, b: 0, a: 170))
+  drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 170))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
   drawRectangle(dx, dy, DW, DH, Color(r: 16, g: 24, b: 34, a: 255))
   drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
@@ -227,9 +241,9 @@ proc desktopUIScale(): float32 =
 proc overlayUIScale(): float32 =
   ## Interface scale for the in-game, full-screen overlays: the pause menu, the
   ## shop, the power-up draft and the end screens. These *replace* the view --
-  ## play is suspended behind them -- so they take the setting uncapped. Anything
-  ## drawn over live gameplay uses game.hudInterfaceScale instead, which keeps it
-  ## off the playfield.
+  ## play is suspended behind them -- so they take the setting as given, capped
+  ## per panel only where it would stop fitting (overlayUIScaleFor). Anything
+  ## drawn over live gameplay uses game.hudInterfaceScale instead.
   ## Every one of them lays itself out from getVirtualScreenWidth/Height, so
   ## drawing *and* hit-testing inside one scale layer is the whole change --
   ## exactly the deal the desktop chrome gets.
@@ -250,6 +264,14 @@ proc overlayUIScaleFor(panelW, panelH: int32): float32 =
   # max(fit, 1.0) so a panel that already overflows at 100% is left alone rather
   # than being shrunk by a setting the player turned *up*.
   min(requested, max(fit, 1.0'f32))
+
+proc drawInGameToasts(desktop: OSDesktop) =
+  ## The desktop's toast stack drawn over a game screen. The desktop draws the
+  ## same toasts inside its own scaled layer, so these take the same scale --
+  ## otherwise an unlock toast changes size depending on where it pops up.
+  beginUIScaleMode(overlayUIScale())
+  drawDesktopToastsOverlay(desktop, getVirtualScreenWidth(), getVirtualScreenHeight())
+  endUIScaleMode()
 
 proc desktopUIWidth(): int32 =
   ## Logical width the desktop chrome lays out in at the current UI scale.
@@ -1870,9 +1892,9 @@ proc main() =
           globalDiscordClient = nil
 
       beginGameDrawing()
-      # The desktop chrome is one scaled layer; each window is its own. The
-      # overlays and modal dialogs below stay at full virtual size so they
-      # always cover and center against the real screen.
+      # The desktop chrome is one scaled layer; each window is its own, and so
+      # is each modal dialog below. Only the loading overlay and the cursor stay
+      # at plain virtual size.
       beginUIScaleMode(desktopUIScale())
       drawOSDesktop(osDesktop, desktopUIWidth(), desktopUIHeight())
       endUIScaleMode()
@@ -1886,14 +1908,14 @@ proc main() =
 
       # Draw quit-confirmation dialog if active (on top of everything)
       if globalConfirmActive:
-        let confirmResult = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let confirmResult = drawGlobalConfirmDialog()
         if confirmResult == 1:
           windowCloseRequested = true  # confirmed quit to desktop
         # confirmResult == -1 means cancelled, dialog already closed
 
       # Resume-run prompt: Continue resumes the saved run, New Run discards it.
       if resumePromptActive:
-        let resumeResult = drawResumeDialog(screenWidth, screenHeight)
+        let resumeResult = drawResumeDialog()
         if resumeResult != 0:
           pendingResume = resumeResult == 1
           if resumeResult == -1:
@@ -2382,10 +2404,9 @@ proc main() =
       # Normal 2D rendering
       drawGame(currentGame)
 
-      # Interface drawn over live gameplay, so it takes the capped HUD scale and
-      # cannot grow into the playfield. The modal dialogs, toasts and cursor
-      # below stay at full virtual size so they always cover and centre against
-      # the real screen, exactly as they do on the desktop.
+      # Interface drawn over live gameplay, so it takes the HUD scale. The modal
+      # dialog and toasts below scale in layers of their own, exactly as they do
+      # on the desktop; the transition fade and the cursor stay at plain size.
       beginUIScaleMode(hudInterfaceScale())
       # Draw sandbox UI if in sandbox mode (it hit-tests inside its own draw)
       if isSandboxMode(currentGame.mode):
@@ -2400,7 +2421,7 @@ proc main() =
       endUIScaleMode()
       # Draw window-close confirmation if triggered via OS close button
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           windowCloseRequested = true
         # r == -1: cancelled, dialog already dismissed
@@ -2415,7 +2436,7 @@ proc main() =
 
       # Desktop toasts overlay (advancement unlocks etc.)
       tickDesktopToasts(osDesktop, dt)
-      drawDesktopToastsOverlay(osDesktop, screenWidth, screenHeight)
+      drawInGameToasts(osDesktop)
 
       # Draw custom cursor during gameplay (after dialogs so it appears on top)
       drawCustomCursor(currentGame.time)
@@ -2606,7 +2627,7 @@ proc main() =
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       # (separate from the in-game quit-to-menu confirm dialog)
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1: windowCloseRequested = true
 
       # Draw quit-confirmation dialog on top of everything if pending
@@ -2728,7 +2749,7 @@ proc main() =
       # the OS close button (cdcQuitToDesktop -> quit app) and the in-screen Q /
       # panel-close exit (cdcQuitToMenu -> abandon back to the roguelite setup).
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           if globalConfirmContext == cdcQuitToDesktop: windowCloseRequested = true
           else: closeRogueliteFloorSelect()
@@ -2821,7 +2842,7 @@ proc main() =
 
       # Draw quit-confirmation dialog on top of everything if triggered by OS close button
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1: windowCloseRequested = true
 
       # Draw custom cursor
@@ -2860,8 +2881,8 @@ proc main() =
       drawGame(currentGame)
 
       # Interface layer: the life-lost overlay, the countdown numerals and their
-      # subtitle are UI over the live arena, so they take the capped HUD scale
-      # and measure against that layer's viewport.
+      # subtitle are UI over the live arena, so they take the HUD scale and
+      # measure against that layer's viewport.
       beginUIScaleMode(hudInterfaceScale())
       let screenWidth = getVirtualScreenWidth()
       let screenHeight = getVirtualScreenHeight()
@@ -2926,7 +2947,7 @@ proc main() =
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(getVirtualScreenWidth(), getVirtualScreenHeight())
+        let r = drawGlobalConfirmDialog()
         if r == 1: windowCloseRequested = true
 
       # Draw custom cursor
@@ -2977,8 +2998,8 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
 
-      # Coin collection continues under this banner, so it is capped like the
-      # rest of the in-game interface.
+      # Coin collection continues under this banner, so it is drawn at the HUD
+      # scale like the rest of the in-game interface.
       beginUIScaleMode(hudInterfaceScale())
       let screenWidth = getVirtualScreenWidth()
 
@@ -3010,7 +3031,7 @@ proc main() =
       # (outside the layer, so it reads the real screen rather than the shadowed
       # interface-layer width above).
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(getVirtualScreenWidth(), getVirtualScreenHeight())
+        let r = drawGlobalConfirmDialog()
         if r == 1: windowCloseRequested = true
 
       endGameDrawing()
@@ -3104,9 +3125,9 @@ proc main() =
           drawBetaBanner(currentGame)
         endUIScaleMode()
         if globalConfirmActive:
-          let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+          let r = drawGlobalConfirmDialog()
           if r == 1: windowCloseRequested = true
-        drawDesktopToastsOverlay(osDesktop, screenWidth, screenHeight)
+        drawInGameToasts(osDesktop)
         drawCustomCursor(currentGame.time)
         endGameDrawing()
 
@@ -3238,10 +3259,10 @@ proc main() =
 
         # Draw quit-confirmation dialog on top of everything if triggered by OS close button
         if globalConfirmActive:
-          let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+          let r = drawGlobalConfirmDialog()
           if r == 1: windowCloseRequested = true
 
-        drawDesktopToastsOverlay(osDesktop, screenWidth, screenHeight)
+        drawInGameToasts(osDesktop)
         drawCustomCursor(currentGame.time)
         endGameDrawing()
 
@@ -3455,7 +3476,7 @@ proc main() =
       # Confirmation dialog: OS close button (quit contexts) or the
       # abandon-checkpoint guard on Restart/Exit.
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           case globalConfirmContext
           of cdcAbandonRestart: doRestart()
@@ -3573,7 +3594,7 @@ proc main() =
         endUIScaleMode()
 
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           case globalConfirmContext
           of cdcPostGameExit: doReturnToMenuFromStats()
@@ -3689,7 +3710,7 @@ proc main() =
       drawVictory(currentGame)
       endUIScaleMode()
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           case globalConfirmContext
           of cdcPostGameExit: doReturnToMenuFromVictory()
