@@ -160,9 +160,12 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasPowerUp(game.player, puWindBullets):
       damage += windBulletFlatBonus(game.player)
 
-    # RoomEcho: charged bullets from room clear deal bonus damage
+    # RoomEcho: charged bullets from room clear deal bonus damage. Stamped on the
+    # bullets like Rage, so the hit block can credit Room Echo its share.
+    var roomEchoMultiplier = 1.0'f32
     if game.player.roomEchoCharges > 0:
-      damage *= 1.6'f32
+      roomEchoMultiplier = 1.6'f32
+      damage *= roomEchoMultiplier
       game.player.roomEchoCharges -= 1
 
     # Check for Special Rounds power-up
@@ -227,6 +230,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bullet.radius = bulletRadius
         bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
+        bullet.roomEchoMultiplier = roomEchoMultiplier
         assignBulletId(game, bullet)
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
@@ -264,6 +268,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       bullet.radius = bulletRadius
       bullet.baseDamagePreCrit = baseDamagePreCrit
       bullet.rageMultiplier = rageMultiplier
+      bullet.roomEchoMultiplier = roomEchoMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
@@ -304,6 +309,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bullet.radius = bulletRadius
         bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
+        bullet.roomEchoMultiplier = roomEchoMultiplier
         assignBulletId(game, bullet)
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
@@ -334,6 +340,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       bullet.radius = bulletRadius
       bullet.baseDamagePreCrit = baseDamagePreCrit
       bullet.rageMultiplier = rageMultiplier
+      bullet.roomEchoMultiplier = roomEchoMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics

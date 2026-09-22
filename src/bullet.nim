@@ -622,6 +622,7 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
   result.echoSpawnCount = original.echoSpawnCount  # Inherit spent echo budget so clones don't reset it
   result.isFromNova = original.isFromNova  # Nova keeps credit for what its bullets go on to do
   result.rageMultiplier = original.rageMultiplier  # so Rage keeps its share through clones
+  result.roomEchoMultiplier = original.roomEchoMultiplier  # same for a Room Echo charged shot
 
   # Copy hit enemies list for independent tracking
   for enemyIdx in original.hitEnemies:

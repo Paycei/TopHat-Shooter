@@ -975,6 +975,7 @@ type
     isFrozenByNova*: bool  # True while Nova ability has this bullet frozen in place
     isFromNova*: bool      # True if this bullet was released by Nova (for damage tracking)
     rageMultiplier*: float32  # Rage damage multiplier baked in at fire time (1.0 = no bonus)
+    roomEchoMultiplier*: float32  # Room Echo charged-shot multiplier baked in at fire time (1.0 = uncharged)
     hasCountedHit*: bool      # True once this bullet has been counted as a connecting shot. A piercing
                               # bullet hits several enemies but is still one shot, so accuracy needs this.
 

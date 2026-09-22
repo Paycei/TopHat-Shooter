@@ -116,7 +116,8 @@ proc applyLevelUpStatBoost*(game: Game) =
   player.maxHp += LevelMaxHpGain
   player.baselineMaxHp += LevelMaxHpGain  # Automatic gain: never feeds Juggernaut
   player.damage *= levelDamageMult
-  trackLevelUpHealing(game, heal(player, player.maxHp * LevelHealFraction))
+  let levelHeal = player.maxHp * LevelHealFraction
+  trackLevelUpHealing(game, levelHeal, heal(player, levelHeal))
 
 proc bankRunLevelUps*(game: Game) =
   ## Cash in any levels the accumulated XP affords in one pass (multi-level),
@@ -1601,6 +1602,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
         enemy.slowAmount = slowPercent
         let slowChipDamage = damageEnemy(enemy, chipDamage, consumesDiamondShield = false)
         if slowChipDamage > 0:
+          trackPowerUpDamage(game, puSlowField, slowChipDamage)
           accumulateAndShowAuraDamage(game, enemy, slowChipDamage, dtFrost, false)
         if fxBudget > 0:
           dec fxBudget
@@ -1887,7 +1889,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     var actualLifestealPercent: float64 = lifestealPercent
     if game.player.hasBloodMastery:
       bloodDamage *= BloodMasteryDmgMult  # +100% damage
-      actualLifestealPercent *= 2.0  # +100% lifesteal
+      actualLifestealPercent *= BloodMasteryLifestealMult  # +100% lifesteal
 
     # The beat is its own display throttle, so the drain heals and shows once
     # per pulse - no global timestamp needed to keep the numbers readable.
@@ -1924,11 +1926,14 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     totalHealing *= densityHealScale(game)
     if totalHealing > 0:
       # heal() owns the multiplier and the max-HP clamp, and reports what was
-      # actually restored -- trackHealing then splits that between the aura and
-      # puHealPower, so a beat that lands at full HP is worth zero rather than
-      # booking overheal.
+      # actually restored -- trackHealing then splits that between the aura, the
+      # mastery and puHealPower, and books a beat that lands on a full bar as
+      # overheal rather than as healing. The heal is damage x lifesteal and the
+      # mastery doubles BOTH, so its multiplier on the heal is the product.
       let restored = heal(game.player, totalHealing)
-      trackHealing(game, puBloodAura, restored)
+      trackHealing(game, puBloodAura, totalHealing, restored,
+        if game.player.hasBloodMastery: BloodMasteryDmgMult * BloodMasteryLifestealMult
+        else: 1.0'f32)
 
       # One healing number per beat
       if restored > 0:
@@ -2306,7 +2311,7 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
             else: (3.5'f32, 0.07'f32)
           let healAmount = flatHeal + maxHpShare * game.player.maxHp
 
-          trackHealing(game, puRegeneration, heal(game.player, healAmount))
+          trackHealing(game, puRegeneration, healAmount, heal(game.player, healAmount))
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
         playSound(stWaveComplete)
 
@@ -2502,6 +2507,12 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         totalTickDamage += elemTickDamage[et]
     let poisonTickDamage = elemTickDamage[etPoison]
     let fireTickDamage = elemTickDamage[etFire]
+    # The effects that are ABOUT to tick, captured before updateEffects: when a
+    # tick expires the primary it promotes the fallback into the same slot, and
+    # reading the slot afterwards credited the tick to an effect from a different
+    # source that had not ticked yet.
+    let poisonEffect = enemy.activeEffects[etPoison].primary
+    let fireEffect = enemy.activeEffects[etFire].primary
 
     let effectDamage = updateEffects(enemy, effectiveDt)
     if effectDamage > 0:
@@ -2523,7 +2534,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         let poisonActualDamage =
           if trackedTickDamage > 0: actualDamage * (poisonTickDamage / trackedTickDamage)
           else: actualDamage
-        let poisonEffect = enemy.activeEffects[etPoison].primary
         var attributed = true
         var poisonOwner = puPoisonAura
         case poisonEffect.source
@@ -2543,7 +2553,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         let fireActualDamage =
           if trackedTickDamage > 0: actualDamage * (fireTickDamage / trackedTickDamage)
           else: actualDamage
-        let fireEffect = enemy.activeEffects[etFire].primary
         var attributed = true
         var fireOwner = puFireAura
         case fireEffect.source
@@ -2779,8 +2788,9 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
       # Lifesteal consumable - heal 50 HP per kill
       if game.player.lifestealTimer > 0:
-        let restored = heal(game.player, 0.5)
-        trackConsumableHealing(game, restored)
+        const LifestealConsumableHeal = 0.5'f32
+        let restored = heal(game.player, LifestealConsumableHeal)
+        trackConsumableHealing(game, LifestealConsumableHeal, restored)
         # Show heal damage number
         if restored > 0:
           showDamage(game, game.player.pos, restored, true, false, dtHeal)
@@ -2844,7 +2854,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           healsPerKills = max(healsPerKills, int(healsPerKills.float32 / lsScale))
 
         if game.player.killsSinceLastHeal >= healsPerKills:
-          trackHealing(game, puLifeSteal, heal(game.player, 1.0))  # Heal 100 HP
+          trackHealing(game, puLifeSteal, 1.0, heal(game.player, 1.0))  # Heal 100 HP
           game.player.killsSinceLastHeal = 0
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 15)
 
@@ -2870,7 +2880,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # Per-kill roll: density-normalised out of 1000 to keep resolution.
         if rand(999) < int(healChance.float32 * 10.0'f32 * densityHealScale(game)):
           let restored = heal(game.player, 0.5)
-          trackHealing(game, puLastTransmission, restored)
+          trackHealing(game, puLastTransmission, 0.5, restored)
           if restored > 0:
             showDamage(game, game.player.pos, restored, true, false, dtHeal)
 
@@ -2915,7 +2925,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           of 2: 1.5'f32
           else: 2.0'f32
         game.player.maxHp += hpGain
-        trackHealing(game, puCorruptedCore, heal(game.player, hpGain))
+        trackHealing(game, puCorruptedCore, hpGain, heal(game.player, hpGain))
         spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                              Color(r: 120, g: 255, b: 120, a: 255), 20)
         showDamage(game, game.player.pos, hpGain, true, false, dtHeal)
@@ -4255,7 +4265,11 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             if bullet.isSpecialRound:
               peelMultiplier(puSpecialRounds, 1.75'f32)
 
-            # 6. Rage, from the multiplier baked in at fire time.
+            # 6. Room Echo's charged shot, from the multiplier baked in at fire
+            #    time (it was applied, and never credited, before this existed).
+            peelMultiplier(puRoomEcho, bullet.roomEchoMultiplier)
+
+            # 7. Rage, from the multiplier baked in at fire time.
             peelMultiplier(puRage, bullet.rageMultiplier)
 
             # Whatever remains belongs to the power-up(s) responsible for this
@@ -4718,7 +4732,7 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
         let restored = heal(game.player, healAmount)
         # Booked exactly (base to the pickup, multiplier share to puHealPower)
         # rather than reconstructed in the stats window from a pickup count.
-        trackConsumableHealing(game, restored)
+        trackConsumableHealing(game, healAmount, restored)
         # Create heal damage number (green, floating up)
         showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
       of ctCoin:

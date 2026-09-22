@@ -1331,6 +1331,8 @@ type
     tkStatsHealingColumnLabel = "stats_healing_column_label"
     tkStatsSourceColumnLabel = "stats_source_column_label"
     tkStatsTotalHealed = "stats_total_healed"
+    tkStatsOverheal = "stats_overheal"
+    tkStatsHealedLabel = "stats_healed_label"
 
     # Desktop
     tkDesktopNet = "desktop_net"
@@ -3018,6 +3020,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_healing_column_label": "HEALED",
     "stats_source_column_label": "SOURCE",
     "stats_total_healed": "Total healed",
+    "stats_overheal": "Overheal",
+    "stats_healed_label": "Healed",
 
     # Desktop
     "desktop_net": "NET",
@@ -4713,6 +4717,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "stats_healing_column_label": "CURADO",
     "stats_source_column_label": "FUENTE",
     "stats_total_healed": "Curación total",
+    "stats_overheal": "Sobrecuración",
+    "stats_healed_label": "Curado",
 
     # Desktop
     "desktop_net": "RED",

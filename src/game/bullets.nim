@@ -31,6 +31,9 @@ const ArcaneMasteryDmgMult* = 1.75'f32
 # only doubles. Named so the damage split in the statistics can read the same
 # number the damage itself is scaled by.
 const BloodMasteryDmgMult* = 2.0'f32
+const BloodMasteryLifestealMult* = 2.0'f32
+  ## The lifesteal half of that budget. Every blood heal reads it, and so does the
+  ## statistics split that credits Blood Mastery its share of the healing.
 
 proc windBulletFlatBonus*(player: Player): float32 =
   ## Wind Bullets' own flat damage contribution to a bullet, mastery included.
@@ -524,20 +527,24 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
 
   of befBlood:
     # Blood: Lifesteal
-    var healPercent = case effect.level
-      of 1: 0.0075  # 0.75%
-      of 2: 0.01    # 1.0%
-      else: 0.01375 # 1.375%
-
-    if effect.hasMastery:
-      healPercent *= 2.0  # +100% lifesteal
+    let baseHealPercent = case effect.level
+      of 1: 0.0075'f32  # 0.75%
+      of 2: 0.01'f32    # 1.0%
+      else: 0.01375'f32 # 1.375%
+    let healPercent =
+      if effect.hasMastery: baseHealPercent * BloodMasteryLifestealMult  # +100% lifesteal
+      else: baseHealPercent
 
     # Per-hit heal, density-normalised (see densityHealScale). heal() applies the
     # multiplier and the max-HP clamp and reports what was ACTUALLY restored, so
     # a hit taken at full HP books nothing instead of inflating lifesteal totals.
-    let restored = heal(game.player, (0.01 + effect.baseDamage * healPercent) *
-                                     densityHealScale(game))
-    trackHealing(game, puBloodBullets, restored)
+    let perHitHeal = (0.01'f32 + effect.baseDamage * healPercent) * densityHealScale(game)
+    let restored = heal(game.player, perHitHeal)
+    # The mastery doubles only the lifesteal term, not the flat 0.01, so its
+    # multiplier on this heal is the ratio against the unmastered figure.
+    let bloodMasteryMult = (0.01'f32 + effect.baseDamage * healPercent) /
+                           (0.01'f32 + effect.baseDamage * baseHealPercent)
+    trackHealing(game, puBloodBullets, perHitHeal, restored, bloodMasteryMult)
 
     if restored > 0.01:
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 3)

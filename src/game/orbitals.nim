@@ -239,16 +239,17 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
 
   of etBlood:
     # Blood: Lifesteal
-    var lifestealPercent = 0.05  # Base 5%
-
-    if game.player.hasBloodMastery:
-      lifestealPercent *= 2.0  # 10.0% with mastery
+    let masteryMult =
+      if game.player.hasBloodMastery: BloodMasteryLifestealMult  # 10.0% with mastery
+      else: 1.0'f32
+    let lifestealPercent = 0.05'f32 * masteryMult  # Base 5%
 
     # Goes through heal() like every other lifesteal source: it was the only one
     # writing hp directly, which silently skipped the player's heal-power
     # multiplier and booked overheal as healing.
-    let restored = heal(game.player, baseDamage * lifestealPercent)
-    trackHealing(game, puBloodOrb, restored)
+    let orbHeal = baseDamage * lifestealPercent
+    let restored = heal(game.player, orbHeal)
+    trackHealing(game, puBloodOrb, orbHeal, restored, masteryMult)
 
     if restored > 0.01:
       game.showDamage(game.player.pos, restored, fromPlayer = true,

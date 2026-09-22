@@ -116,7 +116,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 3'u32  # bumped: Game gained the wave-mode lives budget + its animation state
+  SnapFormatVersion = 4'u32  # bumped: run stats gained overheal tracking, Bullet the Room Echo multiplier
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =
@@ -140,6 +140,9 @@ proc layoutFingerprint(): uint32 =
   mix(sizeof(typeof(default(Player)[])))
   mix(sizeof(typeof(default(Enemy)[])))
   mix(sizeof(typeof(default(Bullet)[])))
+  # The run statistics ride in the same positional flatty stream, so a field
+  # added there shifts every byte after it exactly like a Game field would.
+  mix(sizeof(typeof(default(RunStatistics)[])))
   h
 
 proc getSuspendPath*(): string =

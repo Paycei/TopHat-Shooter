@@ -674,6 +674,9 @@ proc powerUpStatsToJson(stats: PowerUpStats): JsonNode =
     "totalHealingFromPowerUps": stats.totalHealingFromPowerUps,
     "healingFromConsumables": stats.healingFromConsumables,
     "healingFromLevelUps": stats.healingFromLevelUps,
+    "overhealContribution": powerUpTypeFloatTableToJson(stats.overhealContribution),
+    "overhealFromConsumables": stats.overhealFromConsumables,
+    "overhealFromLevelUps": stats.overhealFromLevelUps,
     "mostEffectivePowerUp": $stats.mostEffectivePowerUp,
     "leastEffectivePowerUp": $stats.leastEffectivePowerUp,
     "synergyScore": stats.synergyScore,
@@ -950,6 +953,12 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
     result.totalHealingFromPowerUps = j["totalHealingFromPowerUps"].getFloat().float32
   result.healingFromConsumables = j.getOrDefault("healingFromConsumables").getFloat(0.0).float32
   result.healingFromLevelUps = j.getOrDefault("healingFromLevelUps").getFloat(0.0).float32
+  # Overheal was added later; older saves simply show none.
+  if j.hasKey("overhealContribution"):
+    for key, val in j["overhealContribution"]:
+      result.overhealContribution[parsePowerUpType(key)] = val.getFloat().float32
+  result.overhealFromConsumables = j.getOrDefault("overhealFromConsumables").getFloat(0.0).float32
+  result.overhealFromLevelUps = j.getOrDefault("overhealFromLevelUps").getFloat(0.0).float32
 
   result.mostEffectivePowerUp = parsePowerUpType(j["mostEffectivePowerUp"].getStr())
   result.leastEffectivePowerUp = parsePowerUpType(j["leastEffectivePowerUp"].getStr())

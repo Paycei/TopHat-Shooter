@@ -30,6 +30,13 @@ type
     listY*, listH*: int      # inner viewport, below the pinned column header
     footerY*, footerH*: int  # pinned total row at the panel bottom (0 = none)
 
+  ## One row of the healing panel. `overheal` is the part of the source's output
+  ## that landed on a full HP bar -- shown so a source that heals constantly but
+  ## always too late reads as "redundant", not as "broken".
+  HealingSourceRow* = object
+    name*: string
+    restored*, overheal*: float32
+
 const
   PowerUpRowHeight = 18
   PowerUpScrollStep = PowerUpRowHeight * 3  # one wheel notch = three rows
@@ -49,6 +56,12 @@ const
   ## three panels. Shared by the layout and the draw pass so moving one cannot
   ## silently overlap the other.
   PowerUpHeaderBlockH = 85
+  HealFooterLineH = 16   # the healing panel's second footer line (total overheal)
+  HealMeterPad = 4       # how far a row's output meter extends past its text
+  ## Grey for overheal -- output that was wasted on a full bar. Shared by the row
+  ## meters, the footer line and the tooltip, so the footer label in this colour
+  ## is also the legend for the grey part of the meters.
+  OverhealColor = Color(r: 150, g: 160, b: 170, a: 255)
 
 # HELPER PROCS (FORMATTING)
 proc formatPercent*(value: float32): string =
@@ -91,23 +104,33 @@ proc buildDamageRanking*(runStats: RunStatistics): seq[(PowerUpType, float32)] =
   if result.len > 1:
     result.sort(proc (a, b: (PowerUpType, float32)): int = cmp(b[1], a[1]))
 
-proc buildHealingSources*(runStats: RunStatistics): seq[(string, float32)] =
-  ## Every source that restored HP this run, highest first. All of it is now
+proc buildHealingSources*(runStats: RunStatistics): seq[HealingSourceRow] =
+  ## Every source that healed this run, most HP restored first. All of it is
   ## measured at the point the HP actually went in (see trackHealing /
   ## trackConsumableHealing), so no row is reconstructed here. The old estimate
   ## re-derived consumable healing from a pickup count, which missed
   ## Cornucopia's +40%, used end-of-run max HP for every pickup, and counted
   ## pickups collected rather than the HP they really restored.
+  ##
+  ## A source is listed even if ALL of its output was overheal. That is exactly
+  ## the case the overheal bar exists to explain; filtering on restored > 0 hid
+  ## it and made the power-up look like it did nothing at all.
   result = @[]
-  for ptype, amount in runStats.powerUps.healingContribution:
-    if amount > 0:
-      result.add((getPowerUpName(ptype), amount))
-  if runStats.powerUps.healingFromConsumables > 0:
-    result.add((t(tkStatsHealthConsumable), runStats.powerUps.healingFromConsumables))
-  if runStats.powerUps.healingFromLevelUps > 0:
-    result.add((t(tkStatsLevelUpHealing), runStats.powerUps.healingFromLevelUps))
+  let pu = runStats.powerUps
+  proc addRow(rows: var seq[HealingSourceRow], name: string, restored, overheal: float32) =
+    if restored > 0 or overheal > 0:
+      rows.add(HealingSourceRow(name: name, restored: max(restored, 0.0'f32),
+                                overheal: max(overheal, 0.0'f32)))
+  for ptype in PowerUpType:
+    if pu.healingContribution.hasKey(ptype) or pu.overhealContribution.hasKey(ptype):
+      result.addRow(getPowerUpName(ptype), pu.healingContribution.getOrDefault(ptype),
+                    pu.overhealContribution.getOrDefault(ptype))
+  result.addRow(t(tkStatsHealthConsumable), pu.healingFromConsumables, pu.overhealFromConsumables)
+  result.addRow(t(tkStatsLevelUpHealing), pu.healingFromLevelUps, pu.overhealFromLevelUps)
   if result.len > 1:
-    result.sort(proc (a, b: (string, float32)): int = cmp(b[1], a[1]))
+    result.sort(proc (a, b: HealingSourceRow): int =
+      result = cmp(b.restored, a.restored)
+      if result == 0: result = cmp(b.overheal, a.overheal))
 
 proc powerUpListGeometry*(window: OSWindow): array[3, PowerUpListGeom] =
   ## Three equal columns -- timeline, damage ranking, healing sources -- filling
@@ -125,9 +148,13 @@ proc powerUpListGeometry*(window: OSWindow): array[3, PowerUpListGeom] =
 
   for i in 0 .. 2:
     # The two ranking panels pin a column header at the top and a total at the
-    # bottom; the timeline scrolls its whole body.
+    # bottom; the timeline scrolls its whole body. The healing footer carries a
+    # second line, the run's total overheal.
     let headerH = if i == 0: 0 else: 20
-    let footerH = if i == 0: 0 else: 22
+    let footerH = case i
+      of 0: 0
+      of 1: 22
+      else: 22 + HealFooterLineH
     let listY = panelY + 36 + headerH
     let listH = max(PowerUpRowHeight, panelH - 36 - headerH - footerH - 8)
     result[i] = PowerUpListGeom(
@@ -359,6 +386,41 @@ proc drawListScrollbar*(x, y, height: int, scrollOffset, contentHeight, viewport
   let thumbY = y + int(travel.float32 * (clamp(scrollOffset, 0, maxScroll).float32 / maxScroll.float32))
   drawRectangle(x.int32, y.int32, 3, height.int32, Color(r: 40, g: 40, b: 55, a: 255))
   drawRectangle(x.int32, thumbY.int32, 3, thumbH.int32, Color(r: 0, g: 180, b: 255, a: 220))
+
+proc drawHealingTooltip(row: HealingSourceRow, anchor: Vector2, bounds: OSWindow,
+                        healColor: Color) =
+  ## Exact split behind one healing row: what went in, what hit a full bar, and
+  ## what share of the source's output that overflow was.
+  const
+    FontSize = 13'i32
+    Pad = 6
+    LineH = 16
+    Offset = 14
+  let output = row.restored + row.overheal
+  let wastedPct = if output > 0: row.overheal / output * 100.0'f32 else: 0.0'f32
+  let lines = [
+    (row.name, White),
+    (t(tkStatsHealedLabel) & ": " & formatLargeNumber(row.restored * BALANCE_MULTIPLIER),
+     healColor),
+    (t(tkStatsOverheal) & ": " & formatLargeNumber(row.overheal * BALANCE_MULTIPLIER) &
+       " (" & formatPercent(wastedPct) & ")",
+     OverhealColor)]
+  var w = 0
+  for line in lines:
+    w = max(w, measureText(line[0], FontSize).int)
+  w += Pad * 2
+  let h = (lines.len - 1) * LineH + FontSize.int + Pad * 2
+  # Lower right of the pointer by default, flipped to the other side of it
+  # rather than running off the window's edge.
+  var x = int(anchor.x) + Offset
+  var y = int(anchor.y) + Offset
+  if x + w > bounds.x + bounds.width: x = int(anchor.x) - Offset - w
+  if y + h > bounds.y + bounds.height: y = int(anchor.y) - Offset - h
+  drawRectangle(x.int32, y.int32, w.int32, h.int32, Color(r: 18, g: 18, b: 28, a: 240))
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
+                     1, Color(r: 80, g: 80, b: 100, a: 255))
+  for i in 0 ..< lines.len:
+    drawText(lines[i][0], (x + Pad).int32, (y + Pad + i * LineH).int32, FontSize, lines[i][1])
 
 proc drawStatLine*(x, y: int, label: string, value: string, valueColor: Color = White) =
   ## Draw a single stat line
@@ -908,8 +970,12 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                 headerY.int32, 12, healColor)
 
         var totalHealing = 0.0'f32
+        var totalOverheal = 0.0'f32
+        var maxOutput = 0.0'f32
         for entry in healList:
-          totalHealing += entry[1]
+          totalHealing += entry.restored
+          totalOverheal += entry.overheal
+          maxOutput = max(maxOutput, entry.restored + entry.overheal)
 
         let contentH = healList.len * PowerUpRowHeight
         let scroll = clamp(statsWin.powerUpScroll[2], 0, max(0, contentH - g.listH))
@@ -921,16 +987,34 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           if rowY + PowerUpRowHeight <= g.listY or rowY >= g.listY + g.listH:
             continue
           let rank = i + 1
-          let percent = if totalHealing > 0: (entry[1] / totalHealing) * 100.0 else: 0.0
+          let percent = if totalHealing > 0: (entry.restored / totalHealing) * 100.0 else: 0.0
           let medalColor = case rank
             of 1: Gold
             of 2: Color(r: 192, g: 192, b: 192, a: 255)
             of 3: Color(r: 205, g: 127, b: 50, a: 255)
             else: White
 
+          # Output meter behind the row, scaled to the biggest producer: green
+          # for the HP that went in, grey for what landed on a full bar. A source
+          # that heals constantly but always too late shows as a long grey meter
+          # instead of a bare near-zero figure. Drawn first so the text sits on it.
+          if maxOutput > 0:
+            let meterX = col.rankX - HealMeterPad
+            let meterW = (col.percentRight + HealMeterPad - meterX).float32
+            let healedW = int(meterW * entry.restored / maxOutput)
+            let overW = int(meterW * (entry.restored + entry.overheal) / maxOutput) - healedW
+            let meterY = rowY - 1
+            let meterH = PowerUpRowHeight - 2
+            if healedW > 0:
+              drawRectangle(meterX.int32, meterY.int32, healedW.int32, meterH.int32,
+                            withAlpha(healColor, 60))
+            if overW > 0:
+              drawRectangle((meterX + healedW).int32, meterY.int32, overW.int32, meterH.int32,
+                            withAlpha(OverhealColor, 40))
+
           drawText($rank & ".", col.rankX.int32, rowY.int32, 13, medalColor)
-          drawText(fitText(entry[0], col.nameMax), col.nameX.int32, rowY.int32, 13, White)
-          let valueText = formatLargeNumber(entry[1] * BALANCE_MULTIPLIER)
+          drawText(fitText(entry.name, col.nameMax), col.nameX.int32, rowY.int32, 13, White)
+          let valueText = formatLargeNumber(entry.restored * BALANCE_MULTIPLIER)
           drawText(valueText, (col.valueRight - measureText(valueText, 13)).int32,
                   rowY.int32, 13, healColor)
           let percentText = formatPercent(percent)
@@ -946,6 +1030,20 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         let healTotalText = formatLargeNumber(totalHealing * BALANCE_MULTIPLIER)
         drawText(healTotalText, (col.percentRight - measureText(healTotalText, 13)).int32,
                 (g.footerY + 3).int32, 13, healColor)
+        # Drawn in the bars' muted colour, so this line is also their legend.
+        let overY = g.footerY + 3 + HealFooterLineH
+        drawText(t(tkStatsOverheal), col.rankX.int32, overY.int32, 13, OverhealColor)
+        let overTotalText = formatLargeNumber(totalOverheal * BALANCE_MULTIPLIER)
+        drawText(overTotalText, (col.percentRight - measureText(overTotalText, 13)).int32,
+                overY.int32, 13, OverhealColor)
+
+        # The bar gives the proportion; hovering a row gives the numbers behind it.
+        let pointer = getVirtualMousePosition()
+        if pointer.x >= g.panelX.float32 and pointer.x < (g.panelX + g.panelW).float32 and
+           pointer.y >= g.listY.float32 and pointer.y < (g.listY + g.listH).float32:
+          let hovered = (int(pointer.y) - g.listY + scroll) div PowerUpRowHeight
+          if hovered >= 0 and hovered < healList.len:
+            drawHealingTooltip(healList[hovered], pointer, statsWin.window, healColor)
     else:
       let y = tabContentY + tabContentH div 2 - 20
       drawText(t(tkGameNoPowerUpData),
