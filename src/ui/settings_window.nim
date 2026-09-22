@@ -625,11 +625,11 @@ const
   IfcGridY = 306        # first row of the HUD toggle grid
   IfcGridRowPitch = 30
 
-  UIScaleSteps = [0.70'f32, 0.80'f32, 0.90'f32, 1.00'f32,
-                  1.10'f32, 1.20'f32, 1.30'f32]
-    ## Discrete stops between MinUIScale and MaxUIScale. Stepping beats a slider
-    ## here: the interesting values are round percentages, and a 1px slider
-    ## wobble re-laying-out every desktop window would be miserable to use.
+  UIScaleLabels: array[3, TranslationKey] =
+    [tkSettingsUiScaleSmall, tkSettingsUiScaleDefault, tkSettingsUiScaleBig]
+    ## Names for save_system.UIScalePresets, index for index. A stepper over a
+    ## few named sizes beats a slider: a 1px wobble re-laying-out every desktop
+    ## window would be miserable to use.
 
   IfcSliderSnap = 0.05'f32
     ## The two sliders land on whole 5% steps, so dragging reads as clean
@@ -638,19 +638,8 @@ const
     ## Vertical slack on a slider's hit box: the handle overhangs the bar, and
     ## grabbing it by that overhang should still count.
 
-proc uiScaleStepIndex(scale: float32): int =
-  ## Index of the nearest step, so a value that arrived clamped (or hand-edited)
-  ## still lands somewhere the arrows can move away from.
-  result = 0
-  var best = abs(UIScaleSteps[0] - scale)
-  for i in 1 .. UIScaleSteps.high:
-    let d = abs(UIScaleSteps[i] - scale)
-    if d < best:
-      best = d
-      result = i
-
 proc steppedUIScale(scale: float32, delta: int): float32 =
-  UIScaleSteps[clamp(uiScaleStepIndex(scale) + delta, 0, UIScaleSteps.high)]
+  UIScalePresets[clamp(uiScalePresetIndex(scale) + delta, 0, UIScalePresets.high)]
 
 proc stepperSide(mousePos: Vector2, rect: Rectangle): int =
   ## Which way a click on a "< value >" stepper moves it: -1 on the left half,
@@ -765,12 +754,12 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
                     Color(r: 160, g: 140, b: 255, a: 255))
 
   let scaleRect = rectOf(ifcUIScale)
-  let scaleStep = uiScaleStepIndex(s.uiScale)
+  let scaleStep = uiScalePresetIndex(s.uiScale)
   drawText(t(tkSettingsUiScale), (contentX + 40).int32, (contentY + 51).int32, 18, White)
-  drawCycleButton(scaleRect, $int(s.uiScale * 100.0 + 0.5) & "%",
+  drawCycleButton(scaleRect, t(UIScaleLabels[scaleStep]),
                   checkCollisionPointRec(mousePos, scaleRect),
                   hoverSide = stepperSide(mousePos, scaleRect),
-                  canDec = scaleStep > 0, canInc = scaleStep < UIScaleSteps.high)
+                  canDec = scaleStep > 0, canInc = scaleStep < UIScalePresets.high)
   drawText(t(tkSettingsUiScaleDesc), (contentX + 40).int32, (contentY + 82).int32,
            13, LightGray)
 

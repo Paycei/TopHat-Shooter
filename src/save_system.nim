@@ -80,10 +80,23 @@ const
   ## and so a hand-edited settings.json can never produce an unusable interface.
   MinUIScale* = 0.70'f32
   MaxUIScale* = 1.30'f32
+  UIScalePresets* = [MinUIScale, 1.00'f32, MaxUIScale]
+    ## Small / Default / Big. The only UI scales the game offers; anything else
+    ## (an older save, a hand edit) snaps to the nearest one on load.
   MinDamageNumberScale* = 0.60'f32
   MaxDamageNumberScale* = 1.60'f32
   MinScreenShakeScale* = 0.0'f32
   MaxScreenShakeScale* = 1.50'f32
+
+proc uiScalePresetIndex*(scale: float32): int =
+  ## Index of the UIScalePresets entry nearest `scale`.
+  result = 0
+  for i in 1 .. UIScalePresets.high:
+    if abs(UIScalePresets[i] - scale) < abs(UIScalePresets[result] - scale):
+      result = i
+
+proc snapUIScale*(scale: float32): float32 =
+  UIScalePresets[uiScalePresetIndex(scale)]
 
 # Save profiles: every save file lives inside one of MaxProfileSlots per-profile
 # folders (<root>/profiles/<slot>/), the same isolation idea as the debug/release
@@ -369,8 +382,7 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
       settings.hudLayout = hlClassic
 
   if jsonNode.hasKey("uiScale"):
-    settings.uiScale = clamp(jsonNode["uiScale"].getFloat().float32,
-                             MinUIScale, MaxUIScale)
+    settings.uiScale = snapUIScale(jsonNode["uiScale"].getFloat().float32)
 
   if jsonNode.hasKey("showEnemyLabels"):
     settings.showEnemyLabels = jsonNode["showEnemyLabels"].getBool()

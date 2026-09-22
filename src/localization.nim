@@ -116,6 +116,9 @@ type
     tkSettingsSectionHudElements = "settings_section_hud_elements"
     tkSettingsUiScale = "settings_ui_scale"
     tkSettingsUiScaleDesc = "settings_ui_scale_desc"
+    tkSettingsUiScaleSmall = "settings_ui_scale_small"
+    tkSettingsUiScaleDefault = "settings_ui_scale_default"
+    tkSettingsUiScaleBig = "settings_ui_scale_big"
     tkSettingsDamageNumbers = "settings_damage_numbers"
     tkSettingsDamageNumbersDesc = "settings_damage_numbers_desc"
     tkSettingsDamageNumberSize = "settings_damage_number_size"
@@ -1643,6 +1646,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_section_hud_elements": "HUD ELEMENTS",
     "settings_ui_scale": "UI Scale:",
     "settings_ui_scale_desc": "(Desktop, windows, in-game HUD and menus)",
+    "settings_ui_scale_small": "Small (70%)",
+    "settings_ui_scale_default": "Default (100%)",
+    "settings_ui_scale_big": "Big (130%)",
     "settings_damage_numbers": "Damage Numbers:",
     "settings_damage_numbers_desc": "(Floating damage text on hits)",
     "settings_damage_number_size": "Label Size:",
@@ -3341,6 +3347,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_section_hud_elements": "ELEMENTOS DEL HUD",
     "settings_ui_scale": "Escala de interfaz:",
     "settings_ui_scale_desc": "(Escritorio, ventanas, HUD y menús del juego)",
+    "settings_ui_scale_small": "Pequeña (70%)",
+    "settings_ui_scale_default": "Normal (100%)",
+    "settings_ui_scale_big": "Grande (130%)",
     "settings_damage_numbers": "Números de daño:",
     "settings_damage_numbers_desc": "(Texto de daño flotante en los impactos)",
     "settings_damage_number_size": "Tamaño del texto:",
