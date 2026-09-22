@@ -8,6 +8,12 @@ import ui_helpers
 const
   SCREEN_WIDTH = 900
   SCREEN_HEIGHT = 600
+
+const
+  SystemScreenPanelW* = SCREEN_WIDTH + 20
+  SystemScreenPanelH* = SCREEN_HEIGHT + 20
+    ## Panel size including the 10px frame drawn around it. Exported so the
+    ## game-over / victory callers can cap the UI scale against it.
   BUTTON_WIDTH = 220
   BUTTON_HEIGHT = 48
   STAT_LINE_HEIGHT = 32

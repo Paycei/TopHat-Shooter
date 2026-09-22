@@ -93,6 +93,10 @@ type
     cubeJackGlow*: float32
     # Transient OS-style toasts (stacked)
     toasts*: seq[DesktopToast]
+    # Rows per icon column in the current layout. Set by layoutDesktopIcons from
+    # the logical viewport (which the UI-scale setting shrinks), and read back by
+    # keyboard navigation so it always walks the grid that was actually drawn.
+    gridRows*: int
 
 var
   activeDesktop*: OSDesktop = nil
@@ -113,6 +117,14 @@ const
   DESKTOP_MARGIN_BOTTOM = 28
     ## Gap between the taskbar and the bottom of a corner-anchored icon's hover
     ## box, so hovering the icon never fights the taskbar for the click.
+  ICON_HOVER_BOTTOM = ICON_SIZE + 48
+    ## Distance from an icon's y to the bottom of its hover/label block (see the
+    ## hit box in handleDesktopInput). This, not ICON_SIZE, is what has to clear
+    ## the taskbar for an icon to be fully visible and clickable.
+  DESKTOP_GRID_ROWS = 6
+    ## Rows per column in the designed layout (12 grid icons = two full columns).
+    ## It is a maximum, not a fixed shape: layoutDesktopIcons drops to fewer rows
+    ## -- and spills into more columns -- when the viewport is too short.
 
 proc getIconName(iconType: DesktopIconType): string =
   ## Get the localized name for a desktop icon
@@ -149,20 +161,65 @@ proc drawDesktopLabel(text: string, x, y: int32, selected: bool) =
   drawText(text, drawX + 2, y + 2, fontSize, shadowColor)
   drawText(text, drawX, y, fontSize, textColor)
 
+proc isCornerIcon(iconType: DesktopIconType): bool =
+  ## Icons that are pinned to a screen corner instead of living on the top-left
+  ## grid. They are excluded from the grid flow and from its column arithmetic.
+  iconType == diCredits
+
+proc desktopGridRows(screenHeight: int): int =
+  ## Rows per icon column that actually fit above the taskbar in `screenHeight`
+  ## logical pixels. DESKTOP_GRID_ROWS is the cap, so any viewport with room to
+  ## spare keeps the layout the desktop has always had; the UI-scale setting
+  ## divides that viewport, and at >100% six rows no longer fit, which is what
+  ## used to push the last icons under the taskbar and off the bottom edge.
+  let usable = screenHeight - TASKBAR_HEIGHT - DESKTOP_MARGIN_BOTTOM -
+               DESKTOP_GRID_START_Y - ICON_HOVER_BOTTOM
+  clamp(usable div ICON_SPACING + 1, 1, DESKTOP_GRID_ROWS)
+
 proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
-  ## Re-anchor the screen-relative desktop icons. Every other icon lives on the
-  ## fixed top-left grid, but diCredits is pinned to the bottom-right corner, so
-  ## its slot has to follow the virtual canvas (1024 classic vs 1366 widescreen,
-  ## switchable at runtime from settings).
+  ## Re-flow the desktop icons for the current logical viewport. The grid is
+  ## column-major and fills top-to-bottom, so a shorter viewport simply starts a
+  ## new column sooner rather than running off the bottom. diCredits is not part
+  ## of the grid: it is pinned to the bottom-right corner, so its slot follows
+  ## the virtual canvas (1024 classic vs 1366 widescreen, switchable at runtime)
+  ## as well as the scale.
   if desktop.isNil:
     return
   # The label is wider than the icon and drawn centred on it, so the visual
   # right edge sits half the overhang past the icon box.
   const labelOverhang = (ICON_LABEL_WIDTH - ICON_SIZE) div 2
-  # Hover box runs from y - 10 to y + ICON_SIZE + 48 (see handleDesktopInput).
-  const hoverBottomOffset = ICON_SIZE + 48
+
+  var gridCount = 0
+  for icon in desktop.icons:
+    if not isCornerIcon(icon.iconType):
+      inc gridCount
+
+  var rows = desktopGridRows(screenHeight)
+  # Height is the binding constraint at every scale the setting allows, but if a
+  # viewport were ever too narrow for the columns that implies, growing them
+  # downward beats stacking icons past the right edge.
+  let maxCols = max(1, (screenWidth - DESKTOP_GRID_START_X - ICON_SIZE -
+                        labelOverhang) div ICON_SPACING + 1)
+  if gridCount > rows * maxCols:
+    rows = (gridCount + maxCols - 1) div maxCols
+  # Even the columns out: once the number of columns is settled, use the
+  # shortest rows that still fill them, so 12 icons in 5 fitting rows read as
+  # 4/4/4 rather than 5/5/2. This can only shorten the columns, never lengthen
+  # them past what fits.
+  let cols = max(1, (gridCount + rows - 1) div rows)
+  rows = max(1, (gridCount + cols - 1) div cols)
+  desktop.gridRows = rows
+
+  var slot = 0
+  for icon in desktop.icons.mitems:
+    if isCornerIcon(icon.iconType):
+      continue
+    icon.x = DESKTOP_GRID_START_X + (slot div rows) * ICON_SPACING
+    icon.y = DESKTOP_GRID_START_Y + (slot mod rows) * ICON_SPACING
+    inc slot
+
   let cornerX = screenWidth - DESKTOP_MARGIN_RIGHT - ICON_SIZE - labelOverhang
-  let cornerY = screenHeight - TASKBAR_HEIGHT - DESKTOP_MARGIN_BOTTOM - hoverBottomOffset
+  let cornerY = screenHeight - TASKBAR_HEIGHT - DESKTOP_MARGIN_BOTTOM - ICON_HOVER_BOTTOM
   for icon in desktop.icons.mitems:
     if icon.iconType == diCredits:
       icon.x = max(cornerX, DESKTOP_GRID_START_X)
@@ -207,13 +264,15 @@ proc newOSDesktop*(): OSDesktop =
       DesktopIcon(iconType: diQuit, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 5,
                   selected: false, name: getIconName(diQuit),
                   iconColor: Color(r: 255, g: 100, b: 100, a: 255)),
-      # Bottom-right corner, off the top-left grid. The real position is set by
-      # layoutDesktopIcons (it depends on the current virtual canvas size); this
-      # is just a safe placeholder until that first pass runs.
+      # Bottom-right corner, off the top-left grid. Every position here (this one
+      # and the grid slots above) is a placeholder: layoutDesktopIcons owns the
+      # real coordinates, since they depend on the current logical viewport. The
+      # *order* of this seq is what matters -- it is the grid's fill order.
       DesktopIcon(iconType: diCredits, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
                   selected: false, name: getIconName(diCredits),
                   iconColor: Color(r: 255, g: 110, b: 160, a: 255))
     ],
+    gridRows: DESKTOP_GRID_ROWS,
     selectedIcon: 0,
     time: 0,
     taskbarHeight: TASKBAR_HEIGHT,
@@ -2448,27 +2507,47 @@ proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: in
              Color(r: 235, g: 245, b: 255, a: alpha))
     inc j
 
-# Desktop grid shape for keyboard navigation. One entry per column, in the same
-# order the icons are appended in newOSDesktop -- bump the matching count when an
-# icon is added or the new icon is keyboard-unreachable.
-const DESKTOP_COL_COUNTS = [6, 6, 1]
+# Desktop grid shape for keyboard navigation. It is derived from the layout
+# layoutDesktopIcons actually produced rather than hard-coded, so navigation
+# follows the grid when a short viewport (UI scale above 100%) reflows it into
+# more, shorter columns. Corner-anchored icons each form their own trailing
+# one-slot column, which is how diCredits stays reachable from the keyboard.
+proc desktopGridColumns(desktop: OSDesktop): tuple[rows, gridCount, cols: int] =
+  let rows = max(1, desktop.gridRows)
+  var n = 0
+  for icon in desktop.icons:
+    if not isCornerIcon(icon.iconType):
+      inc n
+  let gridCols = (n + rows - 1) div rows
+  (rows, n, gridCols + (desktop.icons.len - n))
 
-proc iconGridPos(index: int): tuple[col, row: int] =
+proc desktopColLen(desktop: OSDesktop, col: int): int =
+  ## Number of icons in column `col`: the flowed grid columns first, then one
+  ## slot per corner-anchored icon.
+  let (rows, n, _) = desktopGridColumns(desktop)
+  let gridCols = (n + rows - 1) div rows
+  if col < gridCols: min(rows, n - col * rows)
+  else: 1
+
+proc iconGridPos(desktop: OSDesktop, index: int): tuple[col, row: int] =
   ## Map a flat icon index onto its (column, row) slot.
+  let cols = desktopGridColumns(desktop).cols
   var remaining = index
-  for c in 0 ..< DESKTOP_COL_COUNTS.len:
-    if remaining < DESKTOP_COL_COUNTS[c]:
+  for c in 0 ..< cols:
+    let len = desktopColLen(desktop, c)
+    if remaining < len:
       return (c, remaining)
-    remaining -= DESKTOP_COL_COUNTS[c]
-  (DESKTOP_COL_COUNTS.len - 1, DESKTOP_COL_COUNTS[^1] - 1)
+    remaining -= len
+  (max(0, cols - 1), 0)
 
-proc iconGridIndex(col, row: int): int =
+proc iconGridIndex(desktop: OSDesktop, col, row: int): int =
   ## Inverse of iconGridPos, clamping the row into the target column's length.
-  let c = clamp(col, 0, DESKTOP_COL_COUNTS.len - 1)
+  let cols = desktopGridColumns(desktop).cols
+  let c = clamp(col, 0, cols - 1)
   result = 0
   for i in 0 ..< c:
-    result += DESKTOP_COL_COUNTS[i]
-  result += clamp(row, 0, DESKTOP_COL_COUNTS[c] - 1)
+    result += desktopColLen(desktop, i)
+  result += clamp(row, 0, desktopColLen(desktop, c) - 1)
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
   ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements, 11=Changelog, 12=Credits
@@ -2517,32 +2596,33 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
 
   # Keyboard navigation, arrow keys AND WASD, with full 2D grid support.
   # Moving any direction marks keyboard as in-use so the mouse won't jump the cursor.
-  let (col, row) = iconGridPos(desktop.selectedIcon)
-  let colLen = DESKTOP_COL_COUNTS[col]
+  let (col, row) = iconGridPos(desktop, desktop.selectedIcon)
+  let colLen = desktopColLen(desktop, col)
+  let colCount = desktopGridColumns(desktop).cols
 
   if isKeyPressed(Down) or isKeyPressed(S):
-    desktop.selectedIcon = iconGridIndex(col, (row + 1) mod colLen)
+    desktop.selectedIcon = iconGridIndex(desktop, col, (row + 1) mod colLen)
     game.keyboardUsedRecently = true
     game.mouseMovedRecently = false
     return -1
 
   if isKeyPressed(Up) or isKeyPressed(W):
-    desktop.selectedIcon = iconGridIndex(col, (row - 1 + colLen) mod colLen)
+    desktop.selectedIcon = iconGridIndex(desktop, col, (row - 1 + colLen) mod colLen)
     game.keyboardUsedRecently = true
     game.mouseMovedRecently = false
     return -1
 
   if isKeyPressed(Right) or isKeyPressed(D):
-    if col < DESKTOP_COL_COUNTS.len - 1:
+    if col < colCount - 1:
       # Next column to the right, clamping the row to that column's length
-      desktop.selectedIcon = iconGridIndex(col + 1, row)
+      desktop.selectedIcon = iconGridIndex(desktop, col + 1, row)
       game.keyboardUsedRecently = true
       game.mouseMovedRecently = false
     return -1
 
   if isKeyPressed(Left) or isKeyPressed(A):
     if col > 0:
-      desktop.selectedIcon = iconGridIndex(col - 1, row)
+      desktop.selectedIcon = iconGridIndex(desktop, col - 1, row)
       game.keyboardUsedRecently = true
       game.mouseMovedRecently = false
     return -1

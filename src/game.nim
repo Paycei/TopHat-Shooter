@@ -5051,6 +5051,18 @@ proc updateGame*(game: var Game, dt: float32) =
     triggerHitStop(game.dopamine.slowMotion, 0.075'f32, HitStopScaleHeavy)
 
 # Draw
+proc hudInterfaceScale*(): float32 =
+  ## The UI scale the *in-game* interface is drawn at.
+  ##
+  ## Both layouts take the player's setting as given. In widescreen that is safe
+  ## because the bands the HUD lives in are sized from this same number
+  ## (main.hudBandWidth reserves WidescreenGutterWidth * scale on each side, and
+  ## the arena is fitted into what is left), so a column laid out at its designed
+  ## BORDER_PANEL_WIDTH and anchored to a screen edge lands exactly on its band
+  ## at any scale and never reaches over the arena. Classic has no bands -- its
+  ## arena is the whole screen and its HUD floats over it by design.
+  uiScaleOf(globalSettings)
+
 proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
                       alignRight: bool = false, slotH: int32 = 0): int32 =
   let bossDef = getBossDefinition(enemy.bossDefinitionID)
@@ -5064,13 +5076,15 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
   let rowH = 13'i32
   let headerH = 38'i32   # classic horizontal header (widescreen uses its own card)
   # Widescreen right-gutter variant: size the panel to the gutter width so it sits
-  # flush in the side band rather than overlapping the arena.
-  let gutterW = (getVirtualScreenWidth() - game.screenWidth) div 2
-  let panelW = if alignRight: gutterW - 8'i32
-               else: min(520'i32, max(340'i32, game.screenWidth - 80'i32))
+  # flush in the side band rather than overlapping the arena. Both branches read
+  # the *viewport* rather than game.screenWidth (the fixed 1024 world), so they
+  # follow the UI-scale layer this is drawn inside.
+  let viewW = getVirtualScreenWidth()
+  let panelW = if alignRight: WidescreenGutterWidth - 8'i32
+               else: min(520'i32, max(340'i32, viewW - 80'i32))
   let panelH = headerH + rowH * visiblePhases.int32 + 11'i32
-  let panelX = if alignRight: getVirtualScreenWidth() - panelW - 4'i32
-               else: game.screenWidth div 2 - panelW div 2
+  let panelX = if alignRight: viewW - panelW - 4'i32
+               else: viewW div 2 - panelW div 2
   let panelY = topY
   let activeColor =
     if currentPhase < bossDef.phases.len: bossDef.phases[currentPhase].color
@@ -5438,17 +5452,28 @@ proc drawGame*(game: Game) =
   shakeOffsetY = shakeOffset.y * shakeScale
 
   # ===================== WORLD PASS =====================
-  # Everything drawn here is translated by the world view offset (widescreen
-  # gutters) plus screen shake, and clipped to the world rect so nothing bleeds
-  # into the side gutters. The HUD pass below is untranslated (virtual coords).
+  # Everything drawn here is placed by the world view (offset + scale) plus
+  # screen shake, and clipped to the arena rect so nothing bleeds into the HUD
+  # bands. The HUD pass below is untranslated (virtual coords).
+  #
+  # The scale is 1.0 except in widescreen with the interface scaled above 100%,
+  # where the bands widen and the arena is drawn smaller to make room -- shake
+  # stays outside it so a bigger HUD doesn't damp the shake.
   let worldOffX = getWorldViewOffsetX()
-  let worldScissorOpen = worldOffX > 0
+  let worldOffY = getWorldViewOffsetY()
+  let worldViewScale = getWorldViewScale()
+  let worldScissorOpen = worldOffX > 0 or worldOffY > 0
   if worldScissorOpen:
-    beginVirtualScissorMode(worldOffX.int32, 0, game.screenWidth, game.screenHeight)
-  let worldPassOpen = worldOffX != 0 or shakeOffsetX != 0 or shakeOffsetY != 0
+    beginVirtualScissorMode(worldOffX.int32, worldOffY.int32,
+                            int32(game.screenWidth.float32 * worldViewScale),
+                            int32(game.screenHeight.float32 * worldViewScale))
+  let worldPassOpen = worldOffX != 0 or worldOffY != 0 or
+                      worldViewScale != 1.0'f32 or
+                      shakeOffsetX != 0 or shakeOffsetY != 0
   if worldPassOpen:
     pushMatrix()
-    translatef(worldOffX + shakeOffsetX, shakeOffsetY, 0.0'f32)
+    translatef(worldOffX + shakeOffsetX, worldOffY + shakeOffsetY, 0.0'f32)
+    scalef(worldViewScale, worldViewScale, 1.0'f32)
 
   # Update and draw OS-style background
   let dt = getFrameTime()
@@ -6027,8 +6052,12 @@ proc drawGame*(game: Game) =
   # ===================== HUD PASS =====================
   # Untranslated, virtual coords. The HUD stays fixed while the world shakes,
   # and spans the full virtual width so the widescreen gutters are covered.
-  let vw = getVirtualScreenWidth()
-  let vh = getVirtualScreenHeight()
+  #
+  # The damage vignettes below are world feedback rather than interface, so they
+  # stay at full virtual size (hence fullVw/fullVh); the UI-scale layer opens
+  # after them and runs to the end of the proc.
+  let fullVw = getVirtualScreenWidth()
+  let fullVh = getVirtualScreenHeight()
 
   let showLowHealthVignette = globalSettings == nil or globalSettings.showLowHealthVignette
   if showLowHealthVignette and game.osBackground.lowHealthVignetteLevel > 0:
@@ -6047,8 +6076,8 @@ proc drawGame*(game: Game) =
       let bandRect = Rectangle(
         x: inset.float32,
         y: inset.float32,
-        width: max(0, vw - inset * 2).float32,
-        height: max(0, vh - inset * 2).float32
+        width: max(0, fullVw - inset * 2).float32,
+        height: max(0, fullVh - inset * 2).float32
       )
       drawRectangleLines(bandRect, 3, Color(r: 255, g: 0, b: 0, a: bandAlpha))
 
@@ -6056,35 +6085,47 @@ proc drawGame*(game: Game) =
   if game.osBackground.alertLevel > 0:
     let vigAlpha = uint8(game.osBackground.alertLevel * 92)
     let vW: int32 = 160
-    drawRectangleGradientH(0, 0, vW, vh,
+    drawRectangleGradientH(0, 0, vW, fullVh,
       Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-    drawRectangleGradientH(vw - vW, 0, vW, vh,
+    drawRectangleGradientH(fullVw - vW, 0, vW, fullVh,
       Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
-    drawRectangleGradientV(0, 0, vw, vW,
+    drawRectangleGradientV(0, 0, fullVw, vW,
       Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
-    drawRectangleGradientV(0, vh - vW, vw, vW,
+    drawRectangleGradientV(0, fullVh - vW, fullVw, vW,
       Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
 
   # Update OS-style HUD
   updateOSHUD(game.osHUD, dt)
 
-  # Draw unified combined HUD panel (top-left, almost touching top). The status
-  # panel is the one piece of in-game UI the player can resize: it is drawn and
-  # hit-tested inside the UI-scale layer, so its drag/minimize handling follows
-  # the scale for free. The gutter columns below stay at virtual size, since
-  # they are sized to the letterbox gutters themselves.
+  # ---------------- INTERFACE LAYER (UI scale applies from here) -------------
+  # Everything below is the player-facing HUD, so it is drawn *and* hit-tested
+  # inside one UI-scale layer: the status panel, both gutter columns, the
+  # transient cards and the key hint all grow and shrink together. The scale is
+  # hudInterfaceScale, not the raw setting, so widescreen's columns stay inside
+  # their bands instead of spilling over the arena.
+  # vw/vh are re-read here because inside the layer they are its logical
+  # viewport (virtual pixels / scale), which is the space this all lays out in.
   let hudLayout = if globalSettings == nil: hlClassic else: globalSettings.hudLayout
-  beginUIScaleMode(uiScaleOf(globalSettings))
+  let hudScale = hudInterfaceScale()
+  beginUIScaleMode(hudScale)
+  let vw = getVirtualScreenWidth()
+  let vh = getVirtualScreenHeight()
+
+  # Draw unified combined HUD panel (top-left, almost touching top). Classic
+  # floats it over the world (draggable, minimizable); widescreen pins it as the
+  # head of the left gutter column.
   if hudLayout == hlWidescreen:
     drawBorderHUDPanel(game)
   else:
     drawCombinedHUDPanel(game, 10, 2)
-  endUIScaleMode()
 
-  # Right/left gutter geometry (widescreen: world is 1024 wide, centered).
-  let rightGutterX = getWorldViewOffsetX().int32 + 1024'i32
-  let rightGutterW = vw - rightGutterX
-  let leftGutterW = getWorldViewOffsetX().int32
+  # Gutter geometry, in this layer's coordinates. The columns keep their designed
+  # width and hug the screen edges (see WidescreenGutterWidth) instead of tracking
+  # the world's edges, which at 100% is the same line and at any other scale is
+  # what keeps the right-hand column on screen.
+  let leftGutterW = if hudLayout == hlWidescreen: WidescreenGutterWidth else: 0'i32
+  let rightGutterW = leftGutterW
+  let rightGutterX = vw - rightGutterW
 
   let showHints = globalSettings == nil or globalSettings.showHints
   let waveAge = game.time - game.waveStartTime
@@ -6140,8 +6181,13 @@ proc drawGame*(game: Game) =
     # wave clears are demoted to the compact gutter card.
     if game.dopamine.waveCelebration.active and
        isBossWave(game.dopamine.waveCelebration.waveNumber):
-      drawWaveCelebration(game.dopamine.waveCelebration, 1024'i32, vh,
-                          getWorldViewOffsetX().int32)
+      # This one draws a full-width dimming backdrop, so it is given the arena's
+      # own column -- expressed in this layer's coordinates -- and never bleeds
+      # into the bands the rest of the column lives in.
+      drawWaveCelebration(game.dopamine.waveCelebration,
+                          int32(BaseVirtualWidth.float32 * getWorldViewScale() / hudScale),
+                          vh,
+                          int32(getWorldViewOffsetX() / hudScale))
     else:
       tY = drawWaveCelebrationGutter(game.dopamine.waveCelebration, rightGutterX, rightGutterW, tY)
     tY = drawBossIntroductionGutter(game.dopamine.bossIntro, rightGutterX, rightGutterW, tY)
@@ -6221,18 +6267,20 @@ proc drawGame*(game: Game) =
       else:
         drawText(instrText, vw div 2 - 100, vh - 25, 16, instrColor)
 
+  endUIScaleMode()   # closes the interface layer opened before the HUD panel
+
 proc drawDeathSequenceOverlay*(game: Game) =
   # This overlay is drawn AFTER drawGame's world pass has closed, so it runs in
   # raw virtual (screen) space with no world translate. Fullscreen elements must
   # therefore span the virtual view (vw/vh) -- using game.screenWidth (the 1024
   # world) would leave the widescreen gutters uncovered and put the right-edge
-  # vignette mid-screen. Player-centered bursts add worldOffX so they line up
-  # with the player, which the world pass drew shifted into the centered world.
+  # vignette mid-screen. Player-centered bursts go through worldToVirtual so they
+  # line up with the player wherever the world pass actually drew them.
   let vw = getVirtualScreenWidth()
   let vh = getVirtualScreenHeight()
-  let worldOffX = getWorldViewOffsetX()
-  let playerX = game.player.pos.x + worldOffX
-  let playerY = game.player.pos.y
+  let playerPos = worldToVirtual(Vector2(x: game.player.pos.x, y: game.player.pos.y))
+  let playerX = playerPos.x
+  let playerY = playerPos.y
 
   let timer = game.deathSequenceTimer
   let impactFlash = max(0.0'f32, 1.0'f32 - timer / 0.28'f32)

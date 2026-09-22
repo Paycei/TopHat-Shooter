@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers
+import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers
 
 # Global quit-confirmation dialog
 
@@ -206,7 +206,7 @@ proc virtualWidthFor(layout: HudLayout): int32 =
   ## Virtual screen width for a HUD layout: widescreen widens the desktop to 16:9
   ## while the gameplay world stays WorldWidth; classic keeps the world size.
   case layout
-  of hlWidescreen: 1366'i32
+  of hlWidescreen: WidescreenVirtualWidth
   of hlClassic: WorldWidth.int32
 
 # Global Discord client that persists across game sessions
@@ -224,13 +224,43 @@ proc desktopUIScale(): float32 =
   ## the rest of the interface back.
   uiScaleOf(globalSettings)
 
+proc overlayUIScale(): float32 =
+  ## Interface scale for the in-game, full-screen overlays: the pause menu, the
+  ## shop, the power-up draft and the end screens. These *replace* the view --
+  ## play is suspended behind them -- so they take the setting uncapped. Anything
+  ## drawn over live gameplay uses game.hudInterfaceScale instead, which keeps it
+  ## off the playfield.
+  ## Every one of them lays itself out from getVirtualScreenWidth/Height, so
+  ## drawing *and* hit-testing inside one scale layer is the whole change --
+  ## exactly the deal the desktop chrome gets.
+  uiScaleOf(globalSettings)
+
+proc overlayUIScaleFor(panelW, panelH: int32): float32 =
+  ## overlayUIScale, capped so a panel of `panelW` x `panelH` still fits the
+  ## screen -- the same rule window_manager.windowUIScale applies per OS window.
+  ## Scaling down always fits; scaling *up* shrinks the logical viewport the
+  ## panel centres itself in, so past a point its edges run off the screen with
+  ## no way to reach them. Pass the panel's largest possible size, and pass the
+  ## same size from the draw and the hit-test so the two agree.
+  let requested = overlayUIScale()
+  if requested <= 1.0'f32:
+    return requested
+  let fit = min(screenWidth.float32 / max(1'i32, panelW).float32,
+                screenHeight.float32 / max(1'i32, panelH).float32)
+  # max(fit, 1.0) so a panel that already overflows at 100% is left alone rather
+  # than being shrunk by a setting the player turned *up*.
+  min(requested, max(fit, 1.0'f32))
+
 proc desktopUIWidth(): int32 =
   ## Logical width the desktop chrome lays out in at the current UI scale.
-  (screenWidth.float32 / desktopUIScale()).int32
+  ## Rounded up so scaling it back by the same factor always covers the whole
+  ## virtual width -- truncating leaves an unpainted strip at the right edge.
+  ceil(screenWidth.float32 / desktopUIScale()).int32
 
 proc desktopUIHeight(): int32 =
-  ## Logical height the desktop chrome lays out in at the current UI scale.
-  (screenHeight.float32 / desktopUIScale()).int32
+  ## Logical height the desktop chrome lays out in at the current UI scale,
+  ## rounded up for the same reason as the width.
+  ceil(screenHeight.float32 / desktopUIScale()).int32
 
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
@@ -271,6 +301,33 @@ proc updateRenderSupersampleState(settings: Settings) =
     rebuildRenderTarget(targetSupersampleScale)
   setRenderSupersampleScale(targetSupersampleScale)
 
+proc hudBandWidth(): float32 =
+  ## Width reserved on each side of the arena for a widescreen HUD band.
+  ##
+  ## A band holds one HUD column (WidescreenGutterWidth at 100%) and grows with
+  ## the interface scale, so raising the scale gives the HUD more room instead of
+  ## making it reach over the arena. Classic has no bands -- its arena is the
+  ## whole screen and its HUD floats over it by design.
+  let layout = if globalSettings.isNil: hlWidescreen else: globalSettings.hudLayout
+  case layout
+  of hlClassic: 0.0'f32
+  of hlWidescreen: WidescreenGutterWidth.float32 * uiScaleOf(globalSettings)
+
+proc updateWorldView() =
+  ## Place the gameplay world inside the virtual screen: centred, and scaled down
+  ## to whatever the HUD bands leave it. At 100% the bands are exactly the
+  ## letterbox gutters, so the world is drawn 1:1 at the same offset as always --
+  ## the layout every fixed panel was tuned against. Never scaled *up*: the world
+  ## is a fixed-size simulation and the extra room in classic is not the arena's
+  ## to take.
+  let avail = screenWidth.float32 - hudBandWidth() * 2.0'f32
+  let scale = clamp(avail / WorldWidth.float32, 0.25'f32, 1.0'f32)
+  let drawnW = WorldWidth.float32 * scale
+  let drawnH = WorldHeight.float32 * scale
+  setWorldView((screenWidth.float32 - drawnW) * 0.5'f32,
+               (screenHeight.float32 - drawnH) * 0.5'f32,
+               scale)
+
 proc updateRenderScale() =
   ## Calculate letterbox scaling for current window size
   let windowWidth = getScreenWidth()
@@ -289,9 +346,7 @@ proc updateRenderScale() =
   renderOffsetY = (windowHeight.float32 - scaledHeight) / 2.0
   updateRenderInputTransform(renderScale, renderOffsetX, renderOffsetY,
                              screenWidth.int32, screenHeight.int32)
-  # Center the fixed-size world inside the (possibly wider) virtual screen. 0 in
-  # classic mode; the left-gutter width in widescreen mode.
-  setWorldViewOffset(((screenWidth - WorldWidth) div 2).float32)
+  updateWorldView()
 
 proc beginGameDrawing() =
   ## Begin drawing to the virtual render target
@@ -933,12 +988,14 @@ proc main() =
       if not globalWindowManager.isNil:
         globalWindowManager.relayoutWindows(desktopUIScale(), screenWidth.int, screenHeight.int)
 
-    # Live UI-scale changes shrink/grow the logical viewport each window lays
-    # out in, so they get the same re-layout the resolution toggle does.
-    if not globalWindowManager.isNil and
-       abs(desktopUIScale() - appliedUIScale) > 0.0001'f32:
+    # Live UI-scale changes resize the widescreen HUD bands -- which moves and
+    # resizes the world view -- and shrink/grow the logical viewport each window
+    # lays out in, so they get the same re-layout the resolution toggle does.
+    if abs(desktopUIScale() - appliedUIScale) > 0.0001'f32:
       appliedUIScale = desktopUIScale()
-      globalWindowManager.relayoutWindows(desktopUIScale(), screenWidth.int, screenHeight.int)
+      updateWorldView()
+      if not globalWindowManager.isNil:
+        globalWindowManager.relayoutWindows(desktopUIScale(), screenWidth.int, screenHeight.int)
 
     let dt = getFrameTime()
 
@@ -2325,16 +2382,22 @@ proc main() =
       # Normal 2D rendering
       drawGame(currentGame)
 
-      # Draw sandbox UI if in sandbox mode
+      # Interface drawn over live gameplay, so it takes the capped HUD scale and
+      # cannot grow into the playfield. The modal dialogs, toasts and cursor
+      # below stay at full virtual size so they always cover and centre against
+      # the real screen, exactly as they do on the desktop.
+      beginUIScaleMode(hudInterfaceScale())
+      # Draw sandbox UI if in sandbox mode (it hit-tests inside its own draw)
       if isSandboxMode(currentGame.mode):
-        drawSandboxSidebar(currentGame, screenWidth, screenHeight)
+        drawSandboxSidebar(currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
 
       # Draw cheat menu overlay if active
-      drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
+      drawCheatMenu(cheatMenu, currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
 
       # Alpha banner for roguelite mode
       if currentGame.mode == gmRoguelite:
         drawBetaBanner(currentGame)
+      endUIScaleMode()
       # Draw window-close confirmation if triggered via OS close button
       if globalConfirmActive:
         let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
@@ -2488,12 +2551,15 @@ proc main() =
 
       # Draw appropriate game based on context
       if isPvP and not currentPvPGame.isNil:
-        drawPvP(currentPvPGame)
+        drawPvP(currentPvPGame, hudInterfaceScale())
       else:
         drawGame(currentGame)
 
-      # Draw OS-style Task Manager pause menu and handle mouse interactions
+      # Draw OS-style Task Manager pause menu and handle mouse interactions. It
+      # hit-tests inside its own draw, so one scale layer covers both halves.
+      beginUIScaleMode(overlayUIScaleFor(TaskManagerPanelW, TaskManagerPanelH))
       let menuResult = drawOSTaskManager(currentGame, currentGame.pauseMenuTab)
+      endUIScaleMode()
 
       # Handle tab changes from mouse (only if no windows are blocking and no confirm is open)
       if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
@@ -2618,6 +2684,12 @@ proc main() =
           else: closeRogueliteFloorSelect()
 
       if isPointerPressed() and not globalConfirmActive:
+        # Hit-tested in the interface layer the panel is drawn in, so the local
+        # screen size below is that layer's viewport.
+        pushUIScale(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
+        defer: popUIScale()
+        let screenWidth = getVirtualScreenWidth()
+        let screenHeight = getVirtualScreenHeight()
         let mousePos = getVirtualMousePosition()
         const PanelW = 920
         const PanelH = 620
@@ -2648,7 +2720,9 @@ proc main() =
               break
 
       beginGameDrawing()
+      beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
       drawRogueliteFloorSelect(currentGame)
+      endUIScaleMode()
 
       # Draw the confirm dialog on top of everything. Two triggers share it here:
       # the OS close button (cdcQuitToDesktop -> quit app) and the in-screen Q /
@@ -2686,8 +2760,12 @@ proc main() =
           currentGame.shopSidebarScroll = max(0'i32, currentGame.shopSidebarScroll - 40)
           markKeyboardUsed(currentGame)
 
-        # Mouse click handling for shop items
+        # Mouse click handling for shop items. shopLayout() measures the
+        # interface viewport, so the hit-test enters the same scale layer the
+        # panel is drawn in below.
         if isPointerPressed():
+          pushUIScale(overlayUIScaleFor(ShopPanelW, ShopPanelH))
+          defer: popUIScale()
           let mousePos = getVirtualMousePosition()
 
           # Geometry comes straight from os_shop.nim's layout, so widescreen
@@ -2735,9 +2813,11 @@ proc main() =
 
       beginGameDrawing()
       drawGame(currentGame)
+      beginUIScaleMode(overlayUIScaleFor(ShopPanelW, ShopPanelH))
       drawShop(currentGame)
       if currentGame.mode == gmRoguelite:
         drawBetaBanner(currentGame)
+      endUIScaleMode()
 
       # Draw quit-confirmation dialog on top of everything if triggered by OS close button
       if globalConfirmActive:
@@ -2778,6 +2858,13 @@ proc main() =
 
       beginGameDrawing()
       drawGame(currentGame)
+
+      # Interface layer: the life-lost overlay, the countdown numerals and their
+      # subtitle are UI over the live arena, so they take the capped HUD scale
+      # and measure against that layer's viewport.
+      beginUIScaleMode(hudInterfaceScale())
+      let screenWidth = getVirtualScreenWidth()
+      let screenHeight = getVirtualScreenHeight()
 
       # While a life is being spent the shatter owns the screen; the countdown
       # numerals are held back so the two do not fight over the centre.
@@ -2835,10 +2922,11 @@ proc main() =
 
       if currentGame.mode == gmRoguelite:
         drawBetaBanner(currentGame)
+      endUIScaleMode()
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog(getVirtualScreenWidth(), getVirtualScreenHeight())
         if r == 1: windowCloseRequested = true
 
       # Draw custom cursor
@@ -2889,6 +2977,11 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
 
+      # Coin collection continues under this banner, so it is capped like the
+      # rest of the in-game interface.
+      beginUIScaleMode(hudInterfaceScale())
+      let screenWidth = getVirtualScreenWidth()
+
       # Draw appropriate cleared text based on whether it was a boss wave
       let waveText = if isBossWave(currentGame.currentWave):
         "BOSS " & $getCustomBossNumber(currentGame.currentWave) & " CLEARED!"
@@ -2911,10 +3004,13 @@ proc main() =
 
       if currentGame.mode == gmRoguelite:
         drawBetaBanner(currentGame)
+      endUIScaleMode()
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
+      # (outside the layer, so it reads the real screen rather than the shadowed
+      # interface-layer width above).
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog(getVirtualScreenWidth(), getVirtualScreenHeight())
         if r == 1: windowCloseRequested = true
 
       endGameDrawing()
@@ -2991,6 +3087,8 @@ proc main() =
             continueAfterDraft()
 
           if isPointerPressed():
+            pushUIScale(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
+            defer: popUIScale()
             let mousePos = getVirtualMousePosition()
             # Geometry comes straight from os_powerup_installer.nim's layout,
             # which already accounts for the wider 16:9 panel.
@@ -3000,9 +3098,11 @@ proc main() =
               continueAfterDraft()
 
         beginGameDrawing()
+        beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
         drawPowerUpSelectionExhausted(currentGame)
         if currentGame.mode == gmRoguelite:
           drawBetaBanner(currentGame)
+        endUIScaleMode()
         if globalConfirmActive:
           let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
           if r == 1: windowCloseRequested = true
@@ -3080,6 +3180,8 @@ proc main() =
 
           # Mouse hover detection for card selection (only if keyboard not recently used)
           if isPointerPressed() or currentGame.mouseMovedRecently:
+            pushUIScale(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
+            defer: popUIScale()
             let mousePos = getVirtualMousePosition()
             # Card geometry comes straight from os_powerup_installer.nim's layout.
             let L = installerLayout()
@@ -3099,6 +3201,8 @@ proc main() =
 
           # Mouse click to select
           if isPointerPressed():
+            pushUIScale(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
+            defer: popUIScale()
             let mousePos = getVirtualMousePosition()
             # Card / button geometry comes straight from os_powerup_installer.nim.
             let L = installerLayout()
@@ -3126,9 +3230,11 @@ proc main() =
           # this screen without selecting a power-up.
 
         beginGameDrawing()
+        beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
         drawPowerUpSelection(currentGame)
         if currentGame.mode == gmRoguelite:
           drawBetaBanner(currentGame)
+        endUIScaleMode()
 
         # Draw quit-confirmation dialog on top of everything if triggered by OS close button
         if globalConfirmActive:
@@ -3291,17 +3397,20 @@ proc main() =
         requestExit()
 
       # Mouse hover detection for button highlighting. Layout must mirror
-      # drawSystemCrash (narrower buttons/spacing when Continue is present).
+      # drawSystemCrash (narrower buttons/spacing when Continue is present) --
+      # including the interface layer it draws in, so the pointer and the screen
+      # size below both come from that layer.
+      pushUIScale(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
       let mousePos = getVirtualMousePosition()
       const SCREEN_HEIGHT = 600
       const BUTTON_HEIGHT = 48
 
       let goButtonW = if goShowContinue: 200 else: 220
       let goButtonSpacing = if goShowContinue: 24 else: 40
-      let windowY = (screenHeight - SCREEN_HEIGHT) div 2
+      let windowY = (getVirtualScreenHeight() - SCREEN_HEIGHT) div 2
       let buttonY = windowY + SCREEN_HEIGHT - 100
       let totalButtonWidth = goButtonW * goOptionCount + goButtonSpacing * (goOptionCount - 1)
-      let buttonsX = (screenWidth - totalButtonWidth) div 2
+      let buttonsX = (getVirtualScreenWidth() - totalButtonWidth) div 2
 
       proc goButtonRect(slot: int): Rectangle =
         # slot is the on-screen position (0-based) left-to-right.
@@ -3336,8 +3445,12 @@ proc main() =
         elif checkCollisionPointRec(mousePos, exitRect):
           requestExit()
 
+      popUIScale()   # leaves the game-over hit-test layer
+
       beginGameDrawing()
+      beginUIScaleMode(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
       drawGameOver(currentGame)
+      endUIScaleMode()
 
       # Confirmation dialog: OS close button (quit contexts) or the
       # abandon-checkpoint guard on Restart/Exit.
@@ -3367,8 +3480,16 @@ proc main() =
       # Drive the window like the desktop does: reset the per-frame click flag,
       # then let it handle dragging, tab clicks and its close button.
       statsWin.window.handledClickThisFrame = false
-      let statsWindowClosed = updateStatsWindow(statsWin, dt, screenWidth,
-                                                screenHeight, [statsWin.window])
+      # Standalone here, but it is still an OS window: give it the same per-window
+      # scale (and the same capped logical viewport) the window manager hands it
+      # on the desktop, so it is drawn and hit-tested identically in both places.
+      let statsVp = windowViewport(statsWin.window, overlayUIScale(),
+                                   screenWidth.int, screenHeight.int)
+      statsWin.window.uiScale = statsVp.scale
+      pushUIScale(statsVp.scale)
+      let statsWindowClosed = updateStatsWindow(statsWin, dt, statsVp.w,
+                                                statsVp.h, [statsWin.window])
+      popUIScale()
 
       proc doReturnToMenuFromStats() =
         statsWin.window.visible = false
@@ -3429,19 +3550,27 @@ proc main() =
                 1, Color(r: 40, g: 60, b: 80, a: alpha))
 
       if statsWin.window.visible:
+        beginUIScaleMode(statsVp.scale)
         drawStatsWindow(statsWin, currentGame)
+        endUIScaleMode()
         # Controls hint along the bottom edge
+        beginUIScaleMode(overlayUIScale())
         let footerText = t(tkStatsControlsFooter)
         let footerWidth = measureText(footerText, 14)
-        drawText(footerText, (screenWidth.int32 - footerWidth) div 2, screenHeight - 26, 14,
+        drawText(footerText, (getVirtualScreenWidth() - footerWidth) div 2,
+                getVirtualScreenHeight() - 26, 14,
                 Color(r: 0, g: 180, b: 255, a: 255))
+        endUIScaleMode()
       elif currentGame.state == gsRunStats:
         # Fallback if no stats available (skipped on the one frame where the
         # window was just dismissed and we are about to leave this state)
+        beginUIScaleMode(overlayUIScale())
         drawText(t(tkSystemNoStatistics),
-                screenWidth div 2 - 150, screenHeight div 2, 24, Red)
+                getVirtualScreenWidth() div 2 - 150, getVirtualScreenHeight() div 2, 24, Red)
         drawText(t(tkSystemPressESCToReturn),
-                screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
+                getVirtualScreenWidth() div 2 - 120, getVirtualScreenHeight() div 2 + 40,
+                18, LightGray)
+        endUIScaleMode()
 
       if globalConfirmActive:
         let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
@@ -3491,11 +3620,12 @@ proc main() =
       const VIC_SCREEN_HEIGHT = 600
       const VIC_BUTTON_WIDTH = 220
       const VIC_BUTTON_HEIGHT = 48
-      let vicWindowY = (screenHeight - VIC_SCREEN_HEIGHT) div 2
+      pushUIScale(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
+      let vicWindowY = (getVirtualScreenHeight() - VIC_SCREEN_HEIGHT) div 2
       let vicButtonY = vicWindowY + VIC_SCREEN_HEIGHT - 100
       let vicButtonSpacing = 40
       let vicTotalWidth = VIC_BUTTON_WIDTH * 3 + vicButtonSpacing * 2
-      let vicButtonsX = (screenWidth - vicTotalWidth) div 2
+      let vicButtonsX = (getVirtualScreenWidth() - vicTotalWidth) div 2
       let continueRect = Rectangle(x: vicButtonsX.float32, y: vicButtonY.float32,
                                    width: VIC_BUTTON_WIDTH.float32, height: VIC_BUTTON_HEIGHT.float32)
       let vicStatsX = vicButtonsX + VIC_BUTTON_WIDTH + vicButtonSpacing
@@ -3552,8 +3682,12 @@ proc main() =
       else:
         discard
 
+      popUIScale()   # leaves the victory hit-test layer
+
       beginGameDrawing()
+      beginUIScaleMode(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
       drawVictory(currentGame)
+      endUIScaleMode()
       if globalConfirmActive:
         let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
         if r == 1:
@@ -3583,7 +3717,8 @@ proc main() =
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
 
-      let rvRects = rogueliteVictoryButtonRects(screenWidth.int32, screenHeight.int32)
+      pushUIScale(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
+      let rvRects = rogueliteVictoryButtonRects(getVirtualScreenWidth(), getVirtualScreenHeight())
       let rvMousePos = getVirtualMousePosition()
       if checkCollisionPointRec(rvMousePos, rvRects.continueBtn):
         currentGame.selectedVictoryButton = 0
@@ -3629,8 +3764,12 @@ proc main() =
       else:
         discard
 
+      popUIScale()   # leaves the roguelite-victory hit-test layer
+
       beginGameDrawing()
+      beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
       drawRogueliteVictory(currentGame)
+      endUIScaleMode()
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
@@ -3712,7 +3851,7 @@ proc main() =
         continue  # Skip drawing, go to next frame
 
       beginGameDrawing()
-      drawPvP(currentPvPGame)
+      drawPvP(currentPvPGame, hudInterfaceScale())
       drawCustomCursor(currentPvPGame.gameTime)
       endGameDrawing()
 

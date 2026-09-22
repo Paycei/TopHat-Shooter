@@ -77,9 +77,12 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false) =
   # Use stored position - if x is -1, auto-position (right edge, or left edge when
   # anchorLeftDefault so the Border HUD layout keeps it clear of the left panel).
   let sentinelX = debugPanelPos.x < 0
+  # Sizes come from the viewport, not game.screenWidth (the fixed 1024 world):
+  # this panel is drawn inside the HUD's UI-scale layer, where the viewport is
+  # that layer's logical size and the world's width means nothing.
   let actualX = if sentinelX:
     (if anchorLeftDefault: 0.0'f32
-     else: game.screenWidth.float32 - debugPanelW.float32)
+     else: getVirtualScreenWidth().float32 - debugPanelW.float32)
   else:
     debugPanelPos.x
 
@@ -131,8 +134,10 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false) =
         y: mousePos.y - debugPanelDragOffset.y
       )
       # Clamp to world bounds.
-      debugPanelPos.x = clamp(debugPanelPos.x, 0, (game.screenWidth - debugPanelW).float32)
-      debugPanelPos.y = clamp(debugPanelPos.y, 0, (game.screenHeight - 50).float32)
+      debugPanelPos.x = clamp(debugPanelPos.x, 0,
+                              max(0'f32, (getVirtualScreenWidth() - debugPanelW).float32))
+      debugPanelPos.y = clamp(debugPanelPos.y, 0,
+                              max(0'f32, (getVirtualScreenHeight() - 50).float32))
     else:
       debugPanelDragging = false
 
@@ -148,7 +153,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false) =
   finalPanelX = if anchorLeftDefault:
     0'i32
   elif sentinelX2:
-    game.screenWidth - debugPanelW
+    getVirtualScreenWidth() - debugPanelW
   else:
     debugPanelPos.x.int32
 
@@ -702,8 +707,9 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
       inc readyCount
 
   # Calculate actual position
-  # Right gutter starts just past the centered 1024-wide world.
-  let rightGutterX = getWorldViewOffsetX().int32 + 1024'i32
+  # The right gutter column is anchored to the screen edge and keeps its designed
+  # width, so it stays on screen at any UI scale (see WidescreenGutterWidth).
+  let rightGutterX = screenWidth - WidescreenGutterWidth
   # Widescreen: a FIXED right-gutter section, ignoring any stored drag position.
   var actualX: int32 = if alignRightGutter:
     rightGutterX + 4'i32

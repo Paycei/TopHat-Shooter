@@ -1,7 +1,7 @@
 ## OS Window Manager
 ## Centralized window handling with state management
 
-import raylib, algorithm, sequtils
+import raylib, algorithm, sequtils, math
 import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 import ../gamepad_input, ../render_context
 
@@ -180,9 +180,10 @@ proc windowViewport*(window: OSWindow, requested: float32,
                      screenWidth, screenHeight: int):
                      tuple[scale: float32, w, h: int] =
   ## `window`'s own scale plus the logical viewport it lays out and is
-  ## hit-tested in at that scale.
+  ## hit-tested in at that scale. Rounded up, to match what the window's own
+  ## getVirtualScreenWidth/Height report once it is inside that layer.
   let scale = windowUIScale(window, requested, screenWidth, screenHeight)
-  (scale, int(screenWidth.float32 / scale), int(screenHeight.float32 / scale))
+  (scale, ceil(screenWidth.float32 / scale).int, ceil(screenHeight.float32 / scale).int)
 
 proc pointerIn(window: OSWindow, requested: float32,
                screenWidth, screenHeight: int): Vector2 =
@@ -191,6 +192,16 @@ proc pointerIn(window: OSWindow, requested: float32,
   pushUIScale(windowUIScale(window, requested, screenWidth, screenHeight))
   result = getVirtualMousePosition()
   popUIScale()
+
+proc applyWindowScales*(wm: WindowManager, uiScale: float32,
+                        screenWidth, screenHeight: int) =
+  ## Publish every window's resolved scale onto the window itself, before
+  ## anything walks the list. handleOSWindowInput decides which window owns a
+  ## click by testing the *other* windows too, and it can only translate the
+  ## pointer into their spaces if they already know their own scale -- so all of
+  ## them are refreshed up front rather than one per loop iteration.
+  for window in wm.getAllWindows():
+    window.uiScale = windowUIScale(window, uiScale, screenWidth, screenHeight)
 
 proc relayoutWindows*(wm: WindowManager, uiScale: float32,
                       screenWidth, screenHeight: int) =
@@ -205,14 +216,34 @@ proc relayoutWindows*(wm: WindowManager, uiScale: float32,
   ## of it showing the way the drag clamp does: this runs when the viewport
   ## moved underneath the player, not when they dragged a window somewhere on
   ## purpose, so the window should end up usable again.
+  ##
+  ## When the *scale* is what changed, an open window is re-anchored around the
+  ## pointer rather than around its own corner: whatever sat under the cursor
+  ## before sits under it after. That is what makes the Interface tab's own
+  ## UI-scale stepper usable. A control's offset inside its window scales too, so
+  ## pinning only the window corner still slides the button out from under the
+  ## click that moved it -- and the next click on the same spot then lands on the
+  ## other arrow, or misses the button entirely.
+  ##
+  ## Callers run outside any UI-scale layer, so this pointer is in plain virtual
+  ## pixels: the space both the old and the new scale divide.
+  let pointer = getVirtualMousePosition()
   for window in wm.getAllWindows():
+    # The scale this window was laid out at until now. windowUIScale is pure and
+    # applyWindowScales has not run again this frame, so it is still the previous
+    # value when a scale change is what brought us here.
+    let prevScale = uiScaleOfWindow(window)
     let vp = windowViewport(window, uiScale, screenWidth, screenHeight)
     if window.visible:
+      if prevScale != vp.scale:
+        window.x = int(pointer.x / vp.scale - (pointer.x / prevScale - window.x.float32))
+        window.y = int(pointer.y / vp.scale - (pointer.y / prevScale - window.y.float32))
       window.x = max(0, min(window.x, vp.w - window.width))
       window.y = max(0, min(window.y, max(0, vp.h - window.height)))
     else:
       window.x = (vp.w - window.width) div 2
       window.y = max(0, (vp.h - window.height) div 2)
+    window.uiScale = vp.scale
 
 proc handleWindowClick*(wm: WindowManager, uiScale: float32,
                         screenWidth, screenHeight: int): bool =
@@ -315,6 +346,8 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
   result.replayRogueliteIntro = false
   result.replaySandboxIntro = false
   result.replayPvPIntro = false
+
+  wm.applyWindowScales(uiScale, screenWidth, screenHeight)
 
   let visibleWindows = wm.getVisibleWindows()
 
@@ -425,6 +458,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
 proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
                      screenWidth, screenHeight: int) =
   ## Draw all visible windows in z-order, each inside its own scale layer.
+  wm.applyWindowScales(uiScale, screenWidth, screenHeight)
   var visibleWindows = wm.getAllWindows().filterIt(it.visible)
 
   # Sort by z-order (lowest first for drawing)

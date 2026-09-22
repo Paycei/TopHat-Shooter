@@ -43,6 +43,11 @@ const
   # simulation so the two can never disagree.
   SHOP_BASE_COSTS = [13, 13, 10, 14, 9, 18]
 
+const
+  ShopPanelW* = SHOP_BASE_WIDTH + SHOP_MAX_GROWTH
+  ShopPanelH* = SHOP_HEIGHT
+    ## Largest panel this screen can ask for; callers cap the UI scale with it.
+
 type
   ShopLayout* = object
     ## Resolved geometry of the in-game shop for the current virtual resolution.

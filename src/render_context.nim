@@ -31,10 +31,20 @@ var
   currentVirtualHeight = 768.0'f32
   currentRenderSupersampleScale = 1.0'f32
   mouseClipActive = false
-  # Horizontal offset of the gameplay world inside the virtual screen. In classic
-  # (4:3) mode the world fills the virtual screen so this is 0; in widescreen
-  # (16:9) mode the 1024-wide world is centered and this is the left gutter width.
+  # Where the gameplay world is drawn inside the virtual screen, and how large.
+  # The world itself is a fixed WorldWidth x WorldHeight simulation; this is
+  # purely presentation.
+  #
+  # Classic (4:3): the world fills the virtual screen -- offset 0, scale 1.
+  # Widescreen (16:9): the world is centered between the two HUD bands. Those
+  # bands are one HUD column wide and grow with the interface scale, so the
+  # world shrinks to fit whatever is left. That is what lets the HUD get bigger
+  # without ever reaching over the arena. At 100% the bands are exactly the
+  # letterbox gutters and the scale is 1, i.e. the layout everything was tuned
+  # against.
   currentWorldViewOffsetX = 0.0'f32
+  currentWorldViewOffsetY = 0.0'f32
+  currentWorldViewScale = 1.0'f32
   # UI scale: the factor the *interface* layer (desktop, OS windows, in-game HUD)
   # is drawn at on top of the virtual screen. It is only non-1.0 between a
   # pushUIScale/popUIScale pair, so gameplay drawing is never affected.
@@ -83,27 +93,62 @@ proc updateRenderInputTransform*(scale, offsetX, offsetY: float32,
   currentVirtualWidth = virtualWidth.float32
   currentVirtualHeight = virtualHeight.float32
 
-proc setWorldViewOffset*(x: float32) =
-  ## Set the horizontal offset of the gameplay world within the virtual screen.
-  ## Called by main each frame alongside updateRenderInputTransform.
-  currentWorldViewOffsetX = x
+proc setWorldView*(offsetX, offsetY, scale: float32) =
+  ## Place the gameplay world within the virtual screen. Called by main whenever
+  ## the virtual resolution, the HUD layout or the interface scale changes.
+  currentWorldViewOffsetX = offsetX
+  currentWorldViewOffsetY = offsetY
+  currentWorldViewScale = max(scale, 0.0001'f32)
 
 proc getWorldViewOffsetX*(): float32 =
   currentWorldViewOffsetX
+
+proc getWorldViewOffsetY*(): float32 =
+  currentWorldViewOffsetY
+
+proc getWorldViewScale*(): float32 =
+  ## 1.0 whenever the world is drawn at its native size, which is every case
+  ## except widescreen with the interface scaled above 100%.
+  currentWorldViewScale
+
+proc worldToVirtual*(p: Vector2): Vector2 =
+  ## A gameplay world point in virtual screen coordinates -- the inverse of
+  ## getWorldMousePosition. Used by overlays that are drawn after the world pass
+  ## has closed but still have to line up with something in the world.
+  Vector2(x: p.x * currentWorldViewScale + currentWorldViewOffsetX,
+          y: p.y * currentWorldViewScale + currentWorldViewOffsetY)
 
 proc getVirtualScreenWidth*(): int32 =
   ## Full virtual screen width (1024 classic / 1366 widescreen), expressed in
   ## the coordinates of the active UI layer -- so inside a scaled interface
   ## layer this is the *logical* width that layer has to lay out in.
-  (currentVirtualWidth / activeUIScale).int32
+  ##
+  ## Rounded *up*: a layer laid out in W logical pixels is drawn back at
+  ## W * scale, so truncating would leave an unpainted strip along the right
+  ## edge at scales that don't divide evenly. Exact (no-op) at scale 1.0.
+  ceil(currentVirtualWidth / activeUIScale).int32
 
 proc getVirtualScreenHeight*(): int32 =
-  ## Full virtual screen height (768), in active-UI-layer coordinates.
-  (currentVirtualHeight / activeUIScale).int32
+  ## Full virtual screen height (768), in active-UI-layer coordinates. Rounded
+  ## up for the same reason as the width.
+  ceil(currentVirtualHeight / activeUIScale).int32
 
 const BaseVirtualWidth* = 1024'i32
   ## The classic (4:3) virtual width. Every fixed-size panel in the game was laid
   ## out against this, so it is the baseline "no extra room" width.
+
+const WidescreenVirtualWidth* = 1366'i32
+  ## The virtual width the widescreen (16:9) HUD layout switches the canvas to.
+
+const WidescreenGutterWidth* = (WidescreenVirtualWidth - BaseVirtualWidth) div 2
+  ## Width of one letterbox gutter in the widescreen layout (171px), and so the
+  ## designed width of each gutter HUD column.
+  ##
+  ## The columns are laid out against this constant and anchored to the *screen*
+  ## edges rather than to the world's edges, and the band a column sits in is
+  ## this width times the interface scale. So turning the scale up widens the
+  ## bands rather than pushing the columns over the arena -- the world view
+  ## shrinks to fit what is left (see setWorldView).
 
 proc getExtraVirtualWidth*(): int32 =
   ## Horizontal virtual pixels available beyond the classic layout width:
@@ -169,17 +214,19 @@ proc getVirtualMousePosition*(): Vector2 =
     getRealVirtualMousePosition()
 
 proc getWorldMousePosition*(): Vector2 =
-  ## The pointer position in gameplay WORLD coords (virtual pointer minus the
-  ## world view offset). In the left gutter this can go negative; callers expect
-  ## world coordinates, so it is intentionally NOT clamped.
-  result = getVirtualMousePosition()
-  result.x -= currentWorldViewOffsetX
+  ## The pointer position in gameplay WORLD coords: the virtual pointer taken
+  ## back through the world view's offset and scale. Outside the arena this can
+  ## go negative or past the world bounds; callers expect world coordinates, so
+  ## it is intentionally NOT clamped.
+  let p = getVirtualMousePosition()
+  result.x = (p.x - currentWorldViewOffsetX) / currentWorldViewScale
+  result.y = (p.y - currentWorldViewOffsetY) / currentWorldViewScale
 
 proc setGamepadAimPointWorld*(p: Vector2) =
   ## Store a gameplay aim point expressed in WORLD coords. The stored "virtual
-  ## mouse" is uniformly virtual for both mouse and pad, so the offset is added
-  ## back here before handing off to setGamepadAimPoint.
-  setGamepadAimPoint(Vector2(x: p.x + currentWorldViewOffsetX, y: p.y))
+  ## mouse" is uniformly virtual for both mouse and pad, so the world view
+  ## transform is applied here before handing off to setGamepadAimPoint.
+  setGamepadAimPoint(worldToVirtual(p))
 
 proc bondMouseToVirtualViewport*() =
   ## Keep the mouse inside the active virtual viewport.

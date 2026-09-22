@@ -21,6 +21,12 @@ const
   REROLL_BTN_H: int32 = 42
   CLOSE_BTN_SIZE: int32 = 28
 
+const
+  InstallerPanelW* = INSTALLER_BASE_WIDTH + INSTALLER_MAX_GROWTH
+  InstallerPanelH* = INSTALLER_HEIGHT
+    ## Largest panel this screen can ask for. Callers cap the UI scale against
+    ## it so the installer never grows past the edges of the screen.
+
 type
   InstallerLayout* = object
     ## Resolved geometry of the power-up installer for the current virtual

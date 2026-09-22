@@ -350,8 +350,9 @@ proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int
 proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   # The sidebar is a screen-edge UI panel: anchor it to the VIRTUAL screen edge
   # (in widescreen the world is narrower than the virtual screen, so the world
-  # width would put it in the wrong place). The passed screenWidth is kept for
-  # world spawn bounds only.
+  # width would put it in the wrong place). Both parameters are interface sizes
+  # -- pass the UI-scale layer's viewport when drawing inside one. Enemy/boss
+  # spawn bounds come from `game` instead, since they are world extents.
   let viewW = getVirtualScreenWidth()
   if not game.sandboxSidebarOpen:
     # Draw toggle button when closed
@@ -427,7 +428,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
       # Spawn enemy from side of screen
-      let (spawnX, spawnY) = randomEdgeSpawnPos(screenWidth, screenHeight)
+      let (spawnX, spawnY) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
       let enemy = newEnemy(spawnX, spawnY, game.difficulty, enemyType, game)
       game.enemies.add(enemy)
       return
@@ -439,7 +440,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     # Spawn 10 random enemies
     for i in 0..<10:
-      let (spawnX, spawnY) = randomEdgeSpawnPos(screenWidth, screenHeight)
+      let (spawnX, spawnY) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
       let randomType = enemyTypes[rand(enemyTypes.len - 1)]
       let enemy = newEnemy(spawnX, spawnY, game.difficulty, randomType, game)
       game.enemies.add(enemy)
@@ -457,7 +458,8 @@ proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, 
       # Spawn the selected boss. The synthetic wave must be a real boss wave
       # (bossId * BossWaveInterval): spawnBoss returns nil for non-boss waves,
       # and a hardcoded stride desyncs the boss identity from the button.
-      let boss = spawnBoss(screenWidth, screenHeight, game.difficulty, game.bossCount, bossId * BossWaveInterval)
+      let boss = spawnBoss(game.screenWidth, game.screenHeight, game.difficulty,
+                           game.bossCount, bossId * BossWaveInterval)
       game.enemies.add(boss)
       return
     currentY += BUTTON_HEIGHT + BUTTON_SPACING

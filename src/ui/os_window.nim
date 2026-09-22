@@ -45,12 +45,25 @@ type
     startX*, startY*: int
     savedWidth*, savedHeight*: int  # For minimize/restore
 
+    # The UI scale this window is currently drawn and hit-tested at. Each window
+    # gets its own (window_manager.windowUIScale caps the player's setting per
+    # window), so x/y/width/height are in *this window's* logical pixels and are
+    # only comparable with another window's after a trip through both scales.
+    # The window manager refreshes it every frame; 1.0 until it does.
+    uiScale*: float32
+
 const
   TITLE_BAR_HEIGHT* = 30
   WINDOW_BORDER* = 2
   WINDOW_PADDING* = 10
   MIN_WINDOW_WIDTH* = 400
   MIN_WINDOW_HEIGHT* = 300
+
+proc uiScaleOfWindow*(window: OSWindow): float32 =
+  ## `window.uiScale`, guarded against a window the manager has not touched yet
+  ## (and against a 0 that would make the conversions below divide by zero).
+  if window.isNil or window.uiScale <= 0.0'f32: 1.0'f32
+  else: window.uiScale
 
 proc newOSWindow*(title: string, x, y, width, height: int,
                  iconColor: Color, windowType: OSWindowType, resizable: bool = true): OSWindow =
@@ -79,7 +92,8 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     startX: x,
     startY: y,
     savedWidth: width,
-    savedHeight: height
+    savedHeight: height,
+    uiScale: 1.0'f32
   )
 
 proc startSlideInAnimation*(window: OSWindow, screenWidth, screenHeight: int) =
@@ -304,19 +318,29 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
     if not clickOnThisWindowArea:
       return false  # Click is not on this window at all
 
-    # Step 2: Find which window should handle this click (highest z-order at this point)
+    # Step 2: Find which window should handle this click (highest z-order at this point).
+    # `mousePos` is in *this* window's scale layer, and a window whose scale was
+    # capped differently does not share that space, so each candidate is asked in
+    # its own coordinates -- the pointer travels out to virtual pixels and back
+    # down by the candidate's scale. Identical to the old single-space test
+    # whenever every window ended up at the same scale (e.g. any scale <= 100%).
     var windowThatShouldHandle: OSWindow = nil
     var highestZ = -1
+    let virtualX = mousePos.x * uiScaleOfWindow(window)
+    let virtualY = mousePos.y * uiScaleOfWindow(window)
 
     for w in allWindows:
       if w.isNil or not w.visible:
         continue
 
+      let wx = virtualX / uiScaleOfWindow(w)
+      let wy = virtualY / uiScaleOfWindow(w)
+
       # Check if this window covers the click point
       let windowCoversClick = if w.minimized:
-        isPointInTitleBar(w, mousePos.x, mousePos.y)
+        isPointInTitleBar(w, wx, wy)
       else:
-        isPointInWindow(w, mousePos.x, mousePos.y)
+        isPointInWindow(w, wx, wy)
 
       if windowCoversClick and w.zOrder > highestZ:
         highestZ = w.zOrder

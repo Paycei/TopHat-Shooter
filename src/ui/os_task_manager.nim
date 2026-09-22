@@ -8,6 +8,11 @@ import ui_helpers
 const
   TASK_MANAGER_WIDTH = 700
   TASK_MANAGER_HEIGHT = 500
+
+const
+  TaskManagerPanelW* = TASK_MANAGER_WIDTH
+  TaskManagerPanelH* = TASK_MANAGER_HEIGHT
+    ## Panel size, exported so callers can cap the UI scale against it.
   TITLE_BAR_HEIGHT = 35
   TAB_HEIGHT = 35
   BUTTON_HEIGHT = 40

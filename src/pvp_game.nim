@@ -1667,7 +1667,10 @@ proc updatePvP*(pvp: PvPGameState, dt: float32) =
     pvp.lastPingTime = pvp.gameTime
     pvp.networkManager.sendPing(pvp.serverTick)
 
-proc drawPvP*(pvp: PvPGameState) =
+proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
+  ## `uiScale` is the in-game interface scale for the HUD pass at the bottom.
+  ## The caller resolves it (game.hudInterfaceScale), because the cap depends on
+  ## the HUD layout's band geometry, which lives with the PvE HUD.
   ## Draw PvP game state
   let accentColor =
     if pvp.teamsEnabled and pvp.localPlayerIndex >= 0 and pvp.localPlayerIndex < pvp.playerTeamAssignments.len:
@@ -1682,10 +1685,16 @@ proc drawPvP*(pvp: PvPGameState) =
   # must never depend on the local interface layout, so this offset is purely a
   # local presentation shift. In classic mode worldOffX is 0 (behavior-neutral).
   let worldOffX = getWorldViewOffsetX()
-  if worldOffX > 0:
-    beginVirtualScissorMode(worldOffX.int32, 0, pvp.screenWidth, pvp.screenHeight)
+  let worldOffY = getWorldViewOffsetY()
+  let worldViewScale = getWorldViewScale()
+  let worldClipped = worldOffX > 0 or worldOffY > 0
+  if worldClipped:
+    beginVirtualScissorMode(worldOffX.int32, worldOffY.int32,
+                            int32(pvp.screenWidth.float32 * worldViewScale),
+                            int32(pvp.screenHeight.float32 * worldViewScale))
   pushMatrix()
-  translatef(worldOffX, 0, 0)
+  translatef(worldOffX, worldOffY, 0)
+  scalef(worldViewScale, worldViewScale, 1.0'f32)
 
   drawSharedBackdrop(pvp.screenWidth, pvp.screenHeight, pvp.gameTime * 0.8,
                      Color(r: 5, g: 7, b: 16, a: 255),
@@ -1872,8 +1881,13 @@ proc drawPvP*(pvp: PvPGameState) =
   # End world pass: HUD/overlays below draw in VIRTUAL screen space (no world
   # offset, no clip), anchored to the full virtual width/height.
   popMatrix()
-  if worldOffX > 0:
+  if worldClipped:
     endScissorMode()
+  # Interface layer: the whole PvP HUD honours the Interface tab's UI scale,
+  # capped by the caller the same way the PvE HUD is so it never grows over the
+  # arena. viewW/viewH below are this layer's logical viewport.
+  let hudScale = max(uiScale, 0.0001'f32)
+  beginUIScaleMode(hudScale)
   let viewW = getVirtualScreenWidth()
   let viewH = getVirtualScreenHeight()
 
@@ -1972,8 +1986,13 @@ proc drawPvP*(pvp: PvPGameState) =
     # Draw arrow pointing to local player with "YOU" label. The arrow anchors to
     # a WORLD entity (player position) but is drawn in the HUD pass, so shift its
     # X by the world view offset to line up with the on-screen player.
+    # Anchored to a world position, so it is converted into this layer's
+    # coordinates; the gap and bounce below stay in layer units so the marker
+    # grows with the rest of the HUD.
     let localPlayer = pvp.players[pvp.localPlayerIndex]
-    let arrowX = localPlayer.pos.x + worldOffX
+    let arrowAnchor = worldToVirtual(
+      Vector2(x: localPlayer.pos.x, y: localPlayer.pos.y - localPlayer.radius))
+    let arrowX = arrowAnchor.x / hudScale
 
     # Use team color if teams enabled, otherwise bright green
     let arrowColor = if pvp.teamsEnabled and localPlayer.teamId != ptNone:
@@ -1983,7 +2002,7 @@ proc drawPvP*(pvp: PvPGameState) =
 
     # Animated bouncing arrow
     let bounceOffset = sin(pvp.gameTime * 5) * 10
-    let arrowY = localPlayer.pos.y - localPlayer.radius - 50 + bounceOffset
+    let arrowY = arrowAnchor.y / hudScale - 50 + bounceOffset
 
     # Draw "YOU" text above arrow
     let youText = "YOU"
@@ -2121,3 +2140,5 @@ proc drawPvP*(pvp: PvPGameState) =
             viewW div 2 - returnWidth div 2,
             viewH div 2 + 50,
             20, White)
+
+  endUIScaleMode()   # closes the PvP interface layer
