@@ -264,7 +264,12 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   # Lives panel, full width directly above the buttons. Anchored to buttonY
   # rather than to the flowing yOffset, so adding a diagnostics line above can
   # never push it down into the button row.
-  if game.mode == gmWaveBased:
+  # A death in endless (hasWonGame) has no checkpoint to fall back on, so it
+  # gets the offline panel instead of a meter with platters left on it.
+  if game.mode == gmWaveBased and game.hasWonGame:
+    drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
+                            SCREEN_WIDTH - 60, game.time)
+  elif game.mode == gmWaveBased:
     drawLivesPanel(windowX + 30, buttonY - LivesPanelHeight - 14, SCREEN_WIDTH - 60,
                    livesUsed, difficultyMaxLives(), UnlimitedLives, game.time)
 
@@ -300,11 +305,9 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
           Color(r: 180, g: 190, b: 200, a: 255))
 
-proc drawSystemSecured*(game: Game, selectedButton: int = 0, livesUsed: int = 0) =
+proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   ## Draw the wave-60 final-boss Victory screen as "system secured".
   ## selectedButton: 0=Continue Endless, 1=View Stats, 2=Return to Menu
-  ## `livesUsed` is this run's own continue count -- a win that spent no lives
-  ## still shows the full row, which is the point of showing it here.
   let screenWidth = getVirtualScreenWidth()
   let screenHeight = getVirtualScreenHeight()
 
@@ -452,9 +455,12 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0, livesUsed: int = 0)
   let totalButtonWidth = BUTTON_WIDTH * 3 + buttonSpacing * 2
   let buttonsX = (screenWidth - totalButtonWidth) div 2
 
-  # Lives panel (same anchor as the crash screen, so the ending screens agree)
-  drawLivesPanel(windowX + 30, buttonY - LivesPanelHeight - 14, SCREEN_WIDTH - 60,
-                 livesUsed, difficultyMaxLives(), UnlimitedLives, game.time)
+  # Restore-point panel (same anchor as the crash screen, so the ending screens
+  # agree). The win has already dropped the checkpoint, and the endless play the
+  # first button leads into never writes one, so this warns before the choice
+  # rather than showing a budget that no longer applies.
+  drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
+                          SCREEN_WIDTH - 60, game.time)
 
   # Continue Endless button (0)
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),

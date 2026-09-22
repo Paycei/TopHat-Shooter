@@ -236,6 +236,44 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
              if critical or low: Color(r: 255, g: 120, b: 120, a: 255)
              else: Color(r: 120, g: 235, b: 160, a: 255))
 
+proc drawEndlessRestorePanel*(x, y, width: int32, time: float32,
+                              height: int32 = LivesPanelHeight) =
+  ## Stand-in for the meter once a wave run has gone endless (hasWonGame). The
+  ## win deleted the block checkpoint and saveRunState refuses to write a new
+  ## one, so the budget is gone whatever the counter says -- showing the live
+  ## meter there would promise a Continue that can never appear. Same frame and
+  ## anchor as drawLivesPanel so the screens keep their layout; one dead platter
+  ## plus a warning replaces the glyph row.
+  let pulse = sin(time * 3.0) * 0.2 + 0.8
+  drawRectangle(x, y, width, height, Color(r: 46, g: 16, b: 20, a: 255))
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+                               width: width.float32, height: height.float32),
+                     2.0, Color(r: uint8(220.0 * pulse), g: 60, b: 70, a: 255))
+  drawRectangle(x, y, 4'i32, height, Color(r: 190, g: 40, b: 55, a: 255))
+
+  # Centered group: RESTORE POINTS  <dead platter>  OFFLINE -- ...
+  # The warning shrinks to fit: it runs long in Spanish and the pause window's
+  # panel is narrower than the ending screens'.
+  let label = t(tkRestorePointsLabel)
+  let status = t(tkRestorePointsEndless)
+  let labelW = measureText(label, PanelFontSize)
+  let glyphW = int32(PanelIconSize * 2.0)
+  let statusMax = width - 24 - labelW - glyphW - IconLabelGap * 2
+  let statusSize = bestFitFontSize(status, statusMax, PanelFontSize)
+  let statusW = measureText(status, statusSize)
+  let groupW = labelW + IconLabelGap + glyphW + IconLabelGap + statusW
+
+  var cursor = x + (width - groupW) div 2
+  let cy = y.float32 + height.float32 * 0.5
+  drawText(label, cursor, int32(cy) - PanelFontSize div 2, PanelFontSize,
+           Color(r: 190, g: 202, b: 216, a: 255))
+  cursor += labelW + IconLabelGap
+  drawRestorePointIcon(cursor.float32 + PanelIconSize, cy, PanelIconSize,
+                       RpDeadBody, RpDeadAccent, RpDeadLed)
+  cursor += glyphW + IconLabelGap
+  drawText(status, cursor, int32(cy) - statusSize div 2, statusSize,
+           Color(r: 255, g: 120, b: 120, a: 255))
+
 # ---------------------------------------------------------------------------
 # "Restore point spent" animation.
 #

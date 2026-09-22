@@ -310,6 +310,7 @@ type
     tkRestorePointsNone = "restore_points_none"
     tkRestorePointsLast = "restore_points_last"
     tkRestorePointLost = "restore_point_lost"
+    tkRestorePointsEndless = "restore_points_endless"
     tkGameOverCriticalFailure = "game_over_critical_failure"
     tkGameOverErrorMsg = "game_over_error_msg"
     tkGameOverSessionDiagnostics = "game_over_session_diagnostics"
@@ -2136,6 +2137,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "restore_points_none": "NONE LEFT",
     "restore_points_last": "LAST ONE",
     "restore_point_lost": "RESTORE POINT SPENT",
+    "restore_points_endless": "OFFLINE -- ENDLESS HAS NO CONTINUES",
     "game_over_critical_failure": "CRITICAL SYSTEM FAILURE",
     "game_over_error_msg": "Your system has encountered a critical error and needs to reboot.",
     "game_over_session_diagnostics": "=== SESSION DIAGNOSTICS ===",
@@ -2156,7 +2158,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "victory_continue_endless": "CONTINUE ENDLESS",
     "victory_view_stats": "VIEW STATS",
     "victory_return_menu": "RETURN TO MENU",
-    "victory_footer": "[OK] Endless protocol unlocked | How long can you hold the line?",
+    "victory_footer": "[OK] Endless protocol unlocked | No restore points: one death ends the run",
 
     # Game Over "cause of death" lines
     "game_over_cause_label": "CAUSE OF TERMINATION",
@@ -3729,6 +3731,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "restore_points_none": "NINGUNO",
     "restore_points_last": "EL ÚLTIMO",
     "restore_point_lost": "PUNTO DE RESTAURACIÓN GASTADO",
+    "restore_points_endless": "DESACTIVADOS -- INFINITO SIN CONTINUACIONES",
     "game_over_critical_failure": "FALLO CRÍTICO DEL SISTEMA",
     "game_over_error_msg": "Tu sistema ha encontrado un error crítico y necesita reiniciarse.",
     "game_over_session_diagnostics": "=== DIAGNÓSTICO DE SESIÓN ===",
@@ -3749,7 +3752,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "victory_continue_endless": "MODO INFINITO",
     "victory_view_stats": "VER ESTADÍSTICAS",
     "victory_return_menu": "VOLVER AL MENÚ",
-    "victory_footer": "[OK] Protocolo infinito desbloqueado | ¿Cuánto resistirás?",
+    "victory_footer": "[OK] Protocolo infinito desbloqueado | Sin puntos de restauración: una muerte termina la partida",
 
     # Game Over "cause of death" lines
     "game_over_cause_label": "CAUSA DE LA TERMINACIÓN",

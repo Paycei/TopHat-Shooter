@@ -314,7 +314,10 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   # Lives panel between the tab content and the buttons. Wave mode only: it is
   # the only mode with a continue budget, and an always-empty panel in survival
   # or a roguelite floor would read as a bug rather than "not applicable here".
-  if game.mode == gmWaveBased:
+  if game.mode == gmWaveBased and game.hasWonGame:
+    drawEndlessRestorePanel(windowX + 20, buttonY - LivesPanelHeight - 14,
+                            TASK_MANAGER_WIDTH.int32 - 40, game.time)
+  elif game.mode == gmWaveBased:
     drawLivesPanel(windowX + 20, buttonY - LivesPanelHeight - 14,
                    TASK_MANAGER_WIDTH.int32 - 40, game.livesUsed,
                    difficultyMaxLives(), UnlimitedLives, game.time)

@@ -6359,5 +6359,5 @@ proc drawGameOver*(game: Game) =
 
 proc drawVictory*(game: Game) =
   # OS-style "system secured" congratulations screen (wave-60 final boss cleared)
-  # The meter here shows this run's own: winning is not resuming anything.
-  drawSystemSecured(game, game.selectedVictoryButton, game.livesUsed)
+  # No meter here: the win drops the checkpoint and endless never writes one.
+  drawSystemSecured(game, game.selectedVictoryButton)
