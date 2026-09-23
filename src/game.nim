@@ -4208,7 +4208,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
                   of 2: 0.30
                   else: 0.40
                 resonanceBonusDamage = totalDoTDps * resonancePct
-                resonanceBonusDamage *= bossWeakPointDamageMultiplier(target, bwdsPassive)
+                resonanceBonusDamage *= bossPassiveDamageTaken(target)
                 resonanceBonusDamage = applyEnemyHpDamage(target, resonanceBonusDamage)
                 trackPowerUpDamage(game, puResonance, resonanceBonusDamage)
                 if resonanceBonusDamage > 0:
@@ -4231,15 +4231,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
               giantSlayerDamage = target.hp * percentDamage
 
-              # Apply elite modifiers to Giant Slayer damage too
-              if target.isBoss and target.defenseMultiplier > 0:
-                giantSlayerDamage /= target.defenseMultiplier
-
               # Tank elite: 50% damage reduction
               if target.isElite and etTank in target.eliteTypes:
                 giantSlayerDamage *= 0.5  # 50% damage taken
 
-              giantSlayerDamage *= bossWeakPointDamageMultiplier(target, bwdsPassive)
+              # Boss defense, weak-point multiplier and the adds/shield gate
+              giantSlayerDamage *= bossPassiveDamageTaken(target)
 
               # Shielded elite: Giant Slayer damage goes through shield to HP
               giantSlayerDamage = applyEnemyHpDamage(target, giantSlayerDamage)

@@ -1250,7 +1250,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.8,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.2,
+          defenseMultiplier: 1.35,  # late-boss resistance buff: was 1.2
           color: Color(r: 200, g: 0, b: 0, a: 255),
           visualEffect: "pulse",
           specialBehavior: "aggressive_chase",  # Direct pursuit
@@ -1313,7 +1313,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.65,
           speedMultiplier: 0.9,  # NERFED from 1.1
           damageMultiplier: 1.3,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.2375,  # late-boss resistance buff: was 1.1
           color: Color(r: 255, g: 30, b: 0, a: 255),
           visualEffect: "aura",
           specialBehavior: "enraged_assault",  # Aggressive movement
@@ -1380,7 +1380,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.3,
           speedMultiplier: 1.1,  # NERFED from 1.2
           damageMultiplier: 1.5,
-          defenseMultiplier: 0.9,
+          defenseMultiplier: 1.0125,  # late-boss resistance buff: was 0.9
           color: Color(r: 255, g: 0, b: 0, a: 255),
           visualEffect: "glow",
           specialBehavior: "berserk_rampage",  # Maximum aggression
@@ -1463,7 +1463,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.8,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.3,
+          defenseMultiplier: 1.5,  # late-boss resistance buff: was 1.3
           color: Color(r: 255, g: 200, b: 255, a: 255),
           visualEffect: "shield",
           specialBehavior: "prism_defense",  # Geometric movement
@@ -1509,7 +1509,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.67,
           speedMultiplier: 1.1,
           damageMultiplier: 1.2,
-          defenseMultiplier: 1.2,
+          defenseMultiplier: 1.375,  # late-boss resistance buff: was 1.2
           color: Color(r: 200, g: 150, b: 255, a: 255),
           visualEffect: "aura",
           specialBehavior: "prism_array",  # Figure-8 patterns
@@ -1552,7 +1552,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.33,
           speedMultiplier: 1.2,
           damageMultiplier: 1.2,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.275,  # late-boss resistance buff: was 1.1
           color: Color(r: 255, g: 255, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "light_cascade",  # Sweeping arc movements
@@ -1623,7 +1623,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.7,
           damageMultiplier: 1.0,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.3,  # late-boss resistance buff: was 1.1
           color: Color(r: 0, g: 180, b: 180, a: 255),
           visualEffect: "pulse",
           specialBehavior: "slow_time",  # Slow methodical movement
@@ -1669,7 +1669,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.65,
           speedMultiplier: 1.2,
           damageMultiplier: 1.1,
-          defenseMultiplier: 1.2,
+          defenseMultiplier: 1.4,  # late-boss resistance buff: was 1.2
           color: Color(r: 100, g: 220, b: 220, a: 255),  # Brighter cyan
           visualEffect: "aura",
           specialBehavior: "time_distortion",  # Stuttering movement
@@ -1727,7 +1727,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.4,
           speedMultiplier: 1.3,  # Fast blinking
           damageMultiplier: 1.3,
-          defenseMultiplier: 1.2,
+          defenseMultiplier: 1.4,  # late-boss resistance buff: was 1.2
           color: Color(r: 150, g: 255, b: 255, a: 255),  # Bright cyan/white
           visualEffect: "glow",
           specialBehavior: "time_collapse",  # Fast blinking movement
@@ -1809,7 +1809,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 1.05,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.325,  # late-boss resistance buff: was 1.1
           color: Color(r: 180, g: 0, b: 180, a: 255),
           visualEffect: "pulse",
           specialBehavior: "chaotic_movement",
@@ -1867,7 +1867,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.6,
           speedMultiplier: 1.1,
           damageMultiplier: 1.2,
-          defenseMultiplier: 1.0,
+          defenseMultiplier: 1.2,  # late-boss resistance buff: was 1.0
           color: Color(r: 200, g: 40, b: 200, a: 255),
           visualEffect: "aura",
           specialBehavior: "entropy_field",
@@ -1925,7 +1925,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.35,
           speedMultiplier: 1.2,
           damageMultiplier: 1.4,
-          defenseMultiplier: 0.95,
+          defenseMultiplier: 1.15,  # late-boss resistance buff: was 0.95
           color: Color(r: 255, g: 100, b: 255, a: 255),
           visualEffect: "glow",
           specialBehavior: "total_chaos",
@@ -1994,7 +1994,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.9,  # NERFED from 1.0
           damageMultiplier: 0.9,  # NERFED from 1.0
-          defenseMultiplier: 1.3,  # NERFED from 1.5
+          defenseMultiplier: 1.55,  # late-boss resistance buff: was 1.3
           color: Color(r: 255, g: 50, b: 50, a: 255),
           visualEffect: "shield",
           specialBehavior: "balanced_assault",
@@ -2038,7 +2038,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.7,
           speedMultiplier: 1.1,  # NERFED from 1.3
           damageMultiplier: 1.15,  # NERFED from 1.3
-          defenseMultiplier: 1.2,  # NERFED from 1.3
+          defenseMultiplier: 1.45,  # late-boss resistance buff: was 1.2
           color: Color(r: 255, g: 100, b: 0, a: 255),
           visualEffect: "aura",
           specialBehavior: "aggressive_mixed",
@@ -2095,7 +2095,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.5,
           speedMultiplier: 1.15,  # NERFED from 1.5
           damageMultiplier: 1.25,  # NERFED from 1.6
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.325,  # late-boss resistance buff: was 1.1
           color: Color(r: 255, g: 255, b: 0, a: 255),
           visualEffect: "pulse",
           specialBehavior: "adaptive_combat",

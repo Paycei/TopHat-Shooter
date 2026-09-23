@@ -2189,6 +2189,9 @@ proc main() =
                 # Detonating a ramped poison honors the stacks, then consumes them
                 burstDmg *= poisonStackMultiplier(enemy)
                 enemy.poisonStacks = 0
+              # The ticks being detonated were boss-mitigated; the burst must be too,
+              # or a 3x payout ignores every boss resistance and gate.
+              burstDmg *= bossPassiveDamageTaken(enemy)
               let dealt = applyEnemyHpDamage(enemy, burstDmg)
               trackPowerUpDamage(currentGame, puConduit, dealt)
               # Color the number by the element that actually detonated, so a
@@ -2262,7 +2265,7 @@ proc main() =
                     let dist = distance(closest, enemy.pos)
                     if dist <= shockwaveWidth + enemy.radius:
                       hitEnemyIds.add(enemy.id)
-                      let dealt = applyEnemyHpDamage(enemy, baseDamage)
+                      let dealt = applyEnemyHpDamage(enemy, baseDamage * bossPassiveDamageTaken(enemy))
                       trackPowerUpDamage(currentGame, puAftershock, dealt)
                       showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
                       # Knockback away from path

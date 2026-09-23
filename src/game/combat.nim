@@ -3,19 +3,35 @@ import types, particle, particle_pool, particle_types, powerup, run_statistics, 
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
+proc bossPassiveDamageTaken*(enemy: Enemy): float32 =
+  ## Fraction of a non-bullet hit a boss actually takes: phase defense, the
+  ## weak-point body/window multiplier and the adds/shield gate. 1.0 for
+  ## non-bosses. Any damage path that skips damageEnemy() (Conduit, Aftershock,
+  ## on-hit bonuses) must multiply by this, or it ignores every boss resistance.
+  if not enemy.isBoss:
+    return 1.0'f32
+  result = 1.0'f32
+  # Higher defenseMultiplier = MORE defense (takes LESS damage), same as the
+  # bullet path in game.nim.
+  if enemy.defenseMultiplier > 0:
+    result /= enemy.defenseMultiplier
+  result *= bossWeakPointDamageMultiplier(enemy, bwdsPassive)
+  # Boss gate: while adds are alive or the overload shield is up (and no
+  # vulnerability window is open), throttle non-bullet damage too. Otherwise a
+  # DoT/aura/explosion build could chip a sealed boss and skip the mechanic.
+  if enemy.weakPoint.exposedTimer <= 0 and
+      (enemy.addsGateActive or enemy.reflectShieldActive):
+    result *= GATE_DAMAGE_LEAK
+
 proc applyEliteModifiers(enemy: Enemy, baseDamage: float32,
                          consumesDiamondShield: bool = true): float32 =
-  ## Applies elite damage modifiers (tank reduction, shield absorption) and boss defense multiplier
+  ## Applies elite damage modifiers (tank reduction, shield absorption)
   ## Returns the actual damage to apply to enemy HP
   ## Handles multiple elite types for wave 25+ elites
   ##
   ## Note: enemy is a ref object, so field mutations below (e.g. enemy.shieldHp -= ...)
   ## are intentional and persist on the heap even though the parameter is a let binding.
   result = baseDamage
-
-  # Boss defense multiplier: reduces all incoming damage
-  if enemy.isBoss and enemy.defenseMultiplier > 0:
-    result *= enemy.defenseMultiplier
 
   # Tank elite: still durable, but no longer late-midgame mini-bosses.
   # If multiple elites include Tank, apply reduction
@@ -89,14 +105,7 @@ proc damageEnemy*(enemy: Enemy, baseDamage: float32,
     return 0.0
 
   result = applyEliteModifiers(enemy, baseDamage, consumesDiamondShield)
-  result *= bossWeakPointDamageMultiplier(enemy, bwdsPassive)
-
-  # Boss gate: while adds are alive or the overload shield is up (and no
-  # vulnerability window is open), throttle non-bullet damage too. Otherwise a
-  # DoT/aura/explosion build could chip a sealed boss and skip the mechanic.
-  if enemy.isBoss and enemy.weakPoint.exposedTimer <= 0 and
-      (enemy.addsGateActive or enemy.reflectShieldActive):
-    result *= GATE_DAMAGE_LEAK
+  result *= bossPassiveDamageTaken(enemy)
 
   # Stars use hit counter for ALL damage sources
   if enemy.enemyType == etStar:
