@@ -313,6 +313,10 @@ proc saveRunState*(game: Game, file: string = RunSaveFile,
     # without this counter riding along in the checkpoint every Continue would
     # restore a run that had never spent anything.
     "livesUsed": game.livesUsed,
+    # Wave/survival meta-currency tally (display only: the wallet itself was
+    # credited as each reward was earned).
+    "metaShardsEarned": game.metaShardsEarned,
+    "metaCoresEarned": game.metaCoresEarned,
     "time": game.time,
     "shopBought": shopBought,
     "player": playerToJson(game.player)
@@ -384,6 +388,8 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
     # Saves from before the lives system default to 0 spent, which is the
     # generous reading -- an in-flight run keeps its full budget.
     game.livesUsed = max(0, j.getOrDefault("livesUsed").getInt(0))
+    game.metaShardsEarned = max(0, j.getOrDefault("metaShardsEarned").getInt(0))
+    game.metaCoresEarned = max(0, j.getOrDefault("metaCoresEarned").getInt(0))
     game.time = j.getOrDefault("time").getFloat(0.0).float32
     if j.hasKey("player"):
       applyPlayerJson(game.player, j["player"])
@@ -417,6 +423,9 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
 
     of gmTimeSurvival:
       game.survivalTime = j.getOrDefault("survivalTime").getFloat(0.0).float32
+      # Every whole minute up to the restored clock was already paid into the
+      # wallet before this save, so resuming must not pay it again.
+      game.survivalMinutesRewarded = int(game.survivalTime / 60.0'f32)
       game.bossTimer = j.getOrDefault("bossTimer").getFloat(0.0).float32
       game.bossCount = j.getOrDefault("bossCount").getInt(0)
       game.waveInProgress = false

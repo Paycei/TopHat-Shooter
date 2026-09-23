@@ -301,6 +301,7 @@ type
     tkGameOverResourcesCollected = "game_over_resources_collected"
     tkGameOverMissionDuration = "game_over_mission_duration"
     tkGameOverContinue = "game_over_continue"
+    tkGameOverShopCurrencyBanked = "game_over_shop_currency_banked"
 
     # Restore points -- the player-facing name for the wave-mode lives budget
     # (see difficultyMaxLives). A "life" here is a saved system state that
@@ -981,6 +982,7 @@ type
 
     # Cheat Menu Buttons
     tkCheatCloseInstruction = "cheat_close_instruction"
+    tkCheatNoPermanentRewards = "cheat_no_permanent_rewards"
     tkCheatShowingItems = "cheat_showing_items"
 
     # OS Task Manager / System Monitoring
@@ -1995,6 +1997,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cheat Menu Buttons
     "cheat_close_instruction": "Press ESC or click X to close",
+    "cheat_no_permanent_rewards": "Cheated run: no permanent rewards",
     "cheat_showing_items": "Showing",
 
     # OS Task Manager / System Monitoring
@@ -2132,6 +2135,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Resources Collected:",
     "game_over_mission_duration": "Mission Duration:",
     "game_over_continue": "CONTINUE (WAVE",
+    "game_over_shop_currency_banked": "BANKED FOR THE SHOP",
     "restore_points_label": "RESTORE POINTS",
     "restore_points_unlimited": "UNLIMITED",
     "restore_points_none": "NONE LEFT",
@@ -3726,6 +3730,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Recursos Recopilados:",
     "game_over_mission_duration": "Duración de la Misión:",
     "game_over_continue": "CONTINUAR (OLEADA",
+    "game_over_shop_currency_banked": "GUARDADO PARA LA TIENDA",
     "restore_points_label": "PUNTOS DE RESTAURACIÓN",
     "restore_points_unlimited": "ILIMITADOS",
     "restore_points_none": "NINGUNO",
@@ -4264,6 +4269,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cheat Menu Buttons
     "cheat_close_instruction": "Presiona ESC o haz clic en X para cerrar",
+    "cheat_no_permanent_rewards": "Partida con trucos: sin recompensas",
     "cheat_showing_items": "Mostrando",
 
     # OS Task Manager / System Monitoring

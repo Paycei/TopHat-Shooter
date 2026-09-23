@@ -778,7 +778,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       drawStatLine(col1X + 10, lineY, "Health Consumables", $runStats.resources.healthConsumablesUsed, Color(r: 80, g: 255, b: 80, a: 255))
       lineY += 20
       drawStatLine(col1X + 10, lineY, t(tkStatsShopPurchases), $runStats.resources.shopVisits, Color(r: 255, g: 150, b: 50, a: 255))
-      if runStats.gameMode == gmRoguelite:
+      if runStats.gameMode in {gmRoguelite, gmWaveBased, gmTimeSurvival}:
         lineY += 20
         drawStatLine(col1X + 10, lineY, t("roguelite_data_shards"), $runStats.rogueliteShardsEarned, Gold)
 

@@ -11,7 +11,10 @@ const CHEATS_ENABLED* = defined(debug) or RELEASE_CHEATS_ENABLED
 
 # Anti-cheat exemption for development builds. The anti-cheat is just the
 # `game.cheatsUsed` flag, which (when set) withholds every progression unlock
-# (survival mode, kernel tophat, roguelite unlock, run stats, death rewards).
+# (survival mode, kernel tophat, roguelite unlock, run stats, death rewards) and
+# every permanent reward (Data Shards / Cores, banked Recursion damage, roguelite
+# records and advancement progress). The menu's own persistent-write cheats
+# (currency, Discover All) exist only in debug builds for the same reason.
 # Debug builds compile with -d:debug (see `nimble debug`); there the cheat menu
 # is a testing tool, so it must NOT mark the run as cheated or those unlocks
 # would never fire while developing. Release builds keep the anti-cheat active.
@@ -297,7 +300,9 @@ proc discoverAllPowerUpsCheat*(game: var Game) =
   ## Fill the persistent discovery codex with every PowerUpType, keyed the same
   ## way death.nim records a first install (`$powerUp.powerType`), then save so
   ## the "NEW" badge on the selection screen clears for all power-ups.
-  if globalSettings.isNil: return
+  ## Debug builds only: discovery unlocks power-ups in sandbox and the help
+  ## window, which a cheated run must not keep.
+  if ANTICHEAT_ENABLED or globalSettings.isNil: return
   globalSettings.discoveredPowerUps = @[]
   for pt in PowerUpType:
     globalSettings.discoveredPowerUps.add($pt)
@@ -315,7 +320,9 @@ proc undiscoverAllPowerUpsCheat*(game: var Game) =
 proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) =
   ## Adjust the persisted meta currencies (data shards / cores) used to buy
   ## roguelite unlocks, and immediately save so the roguelite window reflects it.
-  if game.rogueliteProfile.isNil: return
+  ## Debug builds only: the currency is permanent, so a player-facing cheat
+  ## could never give it out.
+  if ANTICHEAT_ENABLED or game.rogueliteProfile.isNil: return
   game.rogueliteProfile.dataShards = max(0, game.rogueliteProfile.dataShards + shards)
   game.rogueliteProfile.cores = max(0, game.rogueliteProfile.cores + cores)
   discard saveRogueliteProfile(game.rogueliteProfile)
@@ -337,6 +344,9 @@ proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
   ## re-assert the anti-cheat flag (the menu-open path already sets it, this is
   ## belt-and-suspenders, mirroring the roguelite skip).
   game.survivalTime = max(0.0'f32, game.survivalTime + deltaSeconds)
+  # Skipped minutes are not paid out as Data Shards: only time actually survived is.
+  game.survivalMinutesRewarded = max(game.survivalMinutesRewarded,
+                                     int(game.survivalTime / 60.0'f32))
   if ANTICHEAT_ENABLED:
     game.cheatsUsed = true
   playSound(stMenuSelect)
@@ -398,6 +408,10 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
 
   # Close instruction
   drawText(t(tkCheatCloseInstruction), panelX + 10, panelY + 35, 12, Gray)
+  # Right-aligned on the same line: say up front that nothing permanent survives.
+  if ANTICHEAT_ENABLED and game.cheatsUsed:
+    let notice = t(tkCheatNoPermanentRewards)
+    drawText(notice, panelX + panelWidth - 10 - measureText(notice, 12), panelY + 35, 12, Orange)
 
   # Tab buttons with mouse support. The visible set is mode-dependent, so the
   # bar splits the panel width evenly across however many tabs are present.
@@ -537,16 +551,21 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
   let discX = x + 20
   let undiscX = x + 40 + discBtnW
 
-  # Discover All
+  # Discover All (debug builds only, greyed out otherwise: see discoverAllPowerUpsCheat)
   let discRect = Rectangle(x: discX.float32, y: currentY.float32,
                            width: discBtnW.float32, height: discBtnH.float32)
-  let discHovered = checkCollisionPointRec(getVirtualMousePosition(), discRect)
-  drawRectangle(discX, currentY, discBtnW, discBtnH,
-                if discHovered: Color(r: 0, g: 110, b: 0, a: 255) else: Color(r: 0, g: 75, b: 0, a: 255))
-  drawRectangleLines(discX, currentY, discBtnW, discBtnH, Green)
+  let discHovered = not ANTICHEAT_ENABLED and
+                    checkCollisionPointRec(getVirtualMousePosition(), discRect)
+  let discFill = if ANTICHEAT_ENABLED: Color(r: 45, g: 45, b: 50, a: 255)
+                 elif discHovered: Color(r: 0, g: 110, b: 0, a: 255)
+                 else: Color(r: 0, g: 75, b: 0, a: 255)
+  drawRectangle(discX, currentY, discBtnW, discBtnH, discFill)
+  drawRectangleLines(discX, currentY, discBtnW, discBtnH,
+                     if ANTICHEAT_ENABLED: Gray else: Green)
   let discLabel = t(tkCheatDiscoverAll)
   let discTW = measureText(discLabel, 13)
-  drawText(discLabel, discX + (discBtnW - discTW) div 2, currentY + 9, 13, White)
+  drawText(discLabel, discX + (discBtnW - discTW) div 2, currentY + 9, 13,
+           if ANTICHEAT_ENABLED: Gray else: White)
   if discHovered and isMouseButtonPressed(Left):
     discoverAllPowerUpsCheat(game)
 
@@ -1064,7 +1083,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
 
 proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
   ## Mode-specific cheats for the dungeon roguelite: meta-currency injection (for
-  ## testing the unlock economy), keys, relic grants, and a floor-skip that
+  ## testing the unlock economy; debug builds only), keys, relic grants, and a floor-skip that
   ## replays the floor-boss-defeated flow (see cheatCompleteRogueliteFloor).
   var currentY = y + 10
 
@@ -1111,25 +1130,27 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
   let bh: int32 = 28
   let gap: int32 = 8
 
-  # Data Shards row
-  drawText("Data Shards", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "+100", Color(r: 70, g: 60, b: 0, a: 255), Gold):
-    applyRogueliteCurrencyCheat(game, 100, 0)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+500", Color(r: 70, g: 60, b: 0, a: 255), Gold):
-    applyRogueliteCurrencyCheat(game, 500, 0)
-  if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+1000", Color(r: 70, g: 60, b: 0, a: 255), Gold):
-    applyRogueliteCurrencyCheat(game, 1000, 0)
-  currentY += bh + 10
+  # Currency rows: debug builds only (see applyRogueliteCurrencyCheat).
+  if not ANTICHEAT_ENABLED:
+    # Data Shards row
+    drawText("Data Shards", labelX, currentY + 6, 14, White)
+    if btn(btnStartX, currentY, bw, bh, "+100", Color(r: 70, g: 60, b: 0, a: 255), Gold):
+      applyRogueliteCurrencyCheat(game, 100, 0)
+    if btn(btnStartX + (bw + gap), currentY, bw, bh, "+500", Color(r: 70, g: 60, b: 0, a: 255), Gold):
+      applyRogueliteCurrencyCheat(game, 500, 0)
+    if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+1000", Color(r: 70, g: 60, b: 0, a: 255), Gold):
+      applyRogueliteCurrencyCheat(game, 1000, 0)
+    currentY += bh + 10
 
-  # Cores row
-  drawText("Cores", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "+1", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applyRogueliteCurrencyCheat(game, 0, 1)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applyRogueliteCurrencyCheat(game, 0, 5)
-  if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+10", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applyRogueliteCurrencyCheat(game, 0, 10)
-  currentY += bh + 10
+    # Cores row
+    drawText("Cores", labelX, currentY + 6, 14, White)
+    if btn(btnStartX, currentY, bw, bh, "+1", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+      applyRogueliteCurrencyCheat(game, 0, 1)
+    if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+      applyRogueliteCurrencyCheat(game, 0, 5)
+    if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+10", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+      applyRogueliteCurrencyCheat(game, 0, 10)
+    currentY += bh + 10
 
   # Keys row
   drawText("Keys", labelX, currentY + 6, 14, White)
@@ -1156,8 +1177,12 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
     game.cheatRogueliteSkipFloor = true
   currentY += bh + 16
 
-  drawText("Currency changes are saved to your roguelite profile.",
-           labelX, currentY, 11, Gray)
+  if ANTICHEAT_ENABLED:
+    drawText("Cheated runs keep no shards, cores, Recursion or records.",
+             labelX, currentY, 11, Gray)
+  else:
+    drawText("Debug build: currency changes are saved to your roguelite profile.",
+             labelX, currentY, 11, Gray)
 
 proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
   ## Mode-specific cheats for time-survival: fast-forward the survival clock (the

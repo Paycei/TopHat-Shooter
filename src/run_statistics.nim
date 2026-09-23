@@ -118,7 +118,7 @@ type
     rogueliteRoomsCleared*: int
     rogueliteHeat*: int
     rogueliteEndlessLoop*: int
-    rogueliteShardsEarned*: int
+    rogueliteShardsEarned*: int  # Data Shards earned this run; wave and survival fill it too (key kept for old saves)
     rogueliteStarterKit*: string
     rogueliteRelics*: seq[string]
 
@@ -808,11 +808,15 @@ proc finalizeRunTracking*(game: Game, died: bool) =
     currentRunStats.rogueliteRoomsCleared = game.rogueliteRun.totalRoomsCleared
     currentRunStats.rogueliteHeat = game.rogueliteRun.heat
     currentRunStats.rogueliteEndlessLoop = game.rogueliteRun.endlessLoop
-    currentRunStats.rogueliteShardsEarned = game.rogueliteRun.shardsEarned
+    # A cheated run's shards are discarded at commit, so it reports none.
+    currentRunStats.rogueliteShardsEarned =
+      if game.cheatsUsed: 0 else: game.rogueliteRun.shardsEarned
     currentRunStats.rogueliteStarterKit = $game.rogueliteRun.starterKit
     currentRunStats.rogueliteRelics = @[]
     for relic in game.rogueliteRun.relics:
       currentRunStats.rogueliteRelics.add(relic.name)
+  elif game.mode in {gmWaveBased, gmTimeSurvival} and not currentRunStats.isNil:
+    currentRunStats.rogueliteShardsEarned = game.metaShardsEarned
   endRun(game.player, waveReached, finalScore, game.cheatsUsed, died)
 
 proc hasValidRunStats*(): bool =

@@ -1497,6 +1497,9 @@ type
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
     runHadDeath*: bool  # Sticky: the run has died at least once (or resumed a block checkpoint after dying)
     livesUsed*: int  # Wave mode: continues already spent this run (see difficultyMaxLives)
+    metaShardsEarned*: int  # Wave/survival: Data Shards banked this run. Display tally only; the wallet is credited as each is earned (bankMetaCurrency)
+    metaCoresEarned*: int   # Wave/survival: Cores banked this run (same)
+    survivalMinutesRewarded*: int  # Survival: whole survival-clock minutes already paid out, so a minute pays once
     lifeLostTimer*: float32  # Counts down while the "life lost" animation owns the countdown screen
     lifeLostSoundStage*: int  # How far that animation's sound cues have fired (0 none, 1 crack, 2 shatter)
     flawlessWaveVictory*: bool  # One-shot: wave mode was just beaten with runHadDeath still false (consumed in main.nim)

@@ -33,8 +33,9 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
   # Recursion permanently banks its damage onto the roguelite profile, so the
   # bonus compounds across every future run (applyPowerUp above already granted
   # the current run its share). Persist immediately so the gain survives a quit.
+  # A cheated run keeps the in-run damage but never banks it.
   if powerUp.powerType == puRecursion and game.mode == gmRoguelite and
-     not game.rogueliteProfile.isNil:
+     not game.cheatsUsed and not game.rogueliteProfile.isNil:
     game.rogueliteProfile.recursionDamageBonus += recursionDamageBonusForLevel(powerUp.level)
     # Advance the permanent ladder so future runs (and re-rolls) offer the level
     # above this one, capped at the power-up's max level.

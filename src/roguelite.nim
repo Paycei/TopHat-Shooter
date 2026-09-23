@@ -20,6 +20,12 @@ type
     rucRelics,
     rucChallengeTiers
 
+var activeRogueliteProfile*: RogueliteProfile
+  ## The live Data Shard / Core wallet of the current save profile: the same
+  ## object the shop, settings and advancements windows hold. main.nim keeps it
+  ## current (setActiveRogueliteProfile). Wave and survival games never carry a
+  ## `rogueliteProfile` of their own, so their rewards bank through this.
+
 proc saveRogueliteProfile*(profile: RogueliteProfile): bool
 proc commitRogueliteRunProgress*(game: Game, died: bool): bool
 
@@ -643,9 +649,10 @@ proc completeRogueliteBoss*(game: Game) =
     # endless loop. The endless roll is deferred to rogueliteContinueEndless, called
     # only if the player chooses to push deeper rather than cash out.
     run.completed = true
-    game.rogueliteProfile.wins += 1
-    game.rogueliteProfile.bestEndlessLoop = max(game.rogueliteProfile.bestEndlessLoop,
-                                                run.endlessLoop)
+    if not game.cheatsUsed:  # records feed shard-paying advancements
+      game.rogueliteProfile.wins += 1
+      game.rogueliteProfile.bestEndlessLoop = max(game.rogueliteProfile.bestEndlessLoop,
+                                                  run.endlessLoop)
     discard commitRogueliteRunProgress(game, false)
     # Unlock Survival mode on a legitimate roguelite victory
     if not game.cheatsUsed and not globalSettings.isNil and not globalSettings.survivalUnlocked:
@@ -676,18 +683,66 @@ proc commitRogueliteRunProgress*(game: Game, died: bool): bool =
   if died:
     game.rogueliteProfile.totalRuns += 1
 
-  game.rogueliteProfile.dataShards += game.rogueliteRun.shardsEarned
-  game.rogueliteProfile.cores += game.rogueliteRun.coresEarned
-  game.rogueliteProfile.bestFloor = max(game.rogueliteProfile.bestFloor,
-                                        game.rogueliteRun.floorNumber)
-  game.rogueliteProfile.bestRooms = max(game.rogueliteProfile.bestRooms,
-                                        game.rogueliteRun.totalRoomsCleared)
-  game.rogueliteProfile.bestEndlessLoop = max(game.rogueliteProfile.bestEndlessLoop,
-                                              game.rogueliteRun.endlessLoop)
+  # A cheated run banks nothing: its shards/cores are discarded, and its records
+  # are not written either, since they unlock advancements whose claims pay shards.
+  if not game.cheatsUsed:
+    game.rogueliteProfile.dataShards += game.rogueliteRun.shardsEarned
+    game.rogueliteProfile.cores += game.rogueliteRun.coresEarned
+    game.rogueliteProfile.bestFloor = max(game.rogueliteProfile.bestFloor,
+                                          game.rogueliteRun.floorNumber)
+    game.rogueliteProfile.bestRooms = max(game.rogueliteProfile.bestRooms,
+                                          game.rogueliteRun.totalRoomsCleared)
+    game.rogueliteProfile.bestEndlessLoop = max(game.rogueliteProfile.bestEndlessLoop,
+                                                game.rogueliteRun.endlessLoop)
   game.rogueliteRun.shardsEarned = 0
   game.rogueliteRun.coresEarned = 0
   refreshRogueliteUnlocks(game.rogueliteProfile)
   saveRogueliteProfile(game.rogueliteProfile)
+
+# Wave / Time Survival meta-currency
+#
+# Wave and survival runs pay into the same wallet the cosmetic shop spends from.
+# Roguelite accrues into its RogueliteRun and banks at run end, but these modes
+# have several resume paths (exact snapshot, run-save checkpoint, death-surviving
+# block checkpoint), so each reward is banked the moment it is earned instead:
+# a crash or quit never loses it, and suspend.nim already treats the profile as
+# live state a restore never rolls back.
+#
+# Rough totals, for tuning against a Heat 1 roguelite win (~700 shards, 0 cores):
+#   wave 60 cleared  ~616 shards, ~22 cores
+#   15:00 survival   ~365 shards, ~15 cores (a boss every 90 s of survival clock)
+
+const MetaRewardBossTierCap* = 12
+  ## The wave-60 boss. Endless waves and long survival runs keep paying this tier.
+
+proc waveClearShardReward*(wave: int): int =
+  ## A regular (non-boss) wave cleared: 1 shard early on, 8 by wave 59.
+  1 + max(1, wave) div 8
+
+proc bossShardReward*(bossTier: int): int =
+  ## Boss N is the same fight in wave and survival mode, so it pays the same:
+  ## 12 shards for the first boss, 56 for the final one.
+  8 + 4 * clamp(bossTier, 1, MetaRewardBossTierCap)
+
+proc bossCoreReward*(bossTier: int): int =
+  ## Cores start at boss 3 (wave 15) and top out at 4.
+  clamp(bossTier, 1, MetaRewardBossTierCap) div 3
+
+proc survivalMinuteShardReward*(minute: int): int =
+  ## Each whole minute on the survival clock: 2 shards, +1 every third minute.
+  2 + max(1, minute) div 3
+
+proc bankMetaCurrency*(shards, cores: int): bool =
+  ## Credit the live wallet and save it. False when nothing was credited (no
+  ## active profile, or nothing to bank).
+  let profile = activeRogueliteProfile
+  if profile.isNil or (shards <= 0 and cores <= 0):
+    return false
+  profile.dataShards += max(0, shards)
+  profile.cores += max(0, cores)
+  if not saveRogueliteProfile(profile):
+    echo "Warning: Meta-currency was banked, but the roguelite profile could not be saved."
+  true
 
 proc unlockedFamilySet*(profile: RogueliteProfile): set[RoguelitePowerFamily] =
   if profile.isNil:

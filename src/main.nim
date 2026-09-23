@@ -712,6 +712,7 @@ proc main() =
   let stats = initStatistics()
   discard loadStatistics(stats)
   var rogueliteProfile = loadRogueliteProfile()
+  activeRogueliteProfile = rogueliteProfile
   if sanitizeEquippedCosmetics(settings, rogueliteProfile):
     discard saveSettings(settings)
 
@@ -801,6 +802,7 @@ proc main() =
 
   proc setActiveRogueliteProfile(profile: RogueliteProfile) =
     rogueliteProfile = profile
+    activeRogueliteProfile = profile  # wallet wave/survival rewards bank into
     if sanitizeEquippedCosmetics(settings, profile):
       discard saveSettings(settings)
     if not globalWindowManager.isNil and not globalWindowManager.settings.isNil:
@@ -2381,9 +2383,11 @@ proc main() =
             advancementProfile.recentUnlocks.delete(queueIdx)
           playSound(stPowerUp, 0.9)
 
-      # Mid-run advancement sync: surface unlocks as desktop toasts.
+      # Mid-run advancement sync: surface unlocks as desktop toasts. Skipped for
+      # cheated runs: currentRunStats.cheatsUsed is only set when the run ends.
       if not cheatMenu.active and not globalConfirmActive and
-         not isSandboxMode(currentGame.mode) and not currentRunStats.isNil:
+         not isSandboxMode(currentGame.mode) and not currentGame.cheatsUsed and
+         not currentRunStats.isNil:
         advancementSyncTimer += dt
         if advancementSyncTimer >= 2.0'f32:
           advancementSyncTimer = 0.0'f32

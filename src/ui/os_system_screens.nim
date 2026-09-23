@@ -2,8 +2,8 @@
 ## Game Over as Modern System Crash, Victory as System Secured
 
 import raylib, math
-import ../types, ../localization, ../render_context
-import ui_helpers
+import ../types, ../localization, ../render_context, ../utils
+import ui_helpers, icon_drawing
 
 const
   SCREEN_WIDTH = 900
@@ -94,6 +94,46 @@ proc drawStat(x, y: int32, label, value: string, icon: string = "-",
   drawText(label, x + 30, y + 2, 15, Color(r: 180, g: 190, b: 200, a: 255))
 
   drawText(value, x + 450, y + 2, 15, valueColor)
+
+proc drawShopCurrencyBanked(game: Game, windowX, statsY: int32) =
+  ## Right-hand readout beside the diagnostics rows: the Data Shards / Cores this
+  ## wave or survival run banked into the wallet the cosmetic shop spends from.
+  ## Hidden when nothing was banked (roguelite reports its own on its screens).
+  if game.mode notin {gmWaveBased, gmTimeSurvival} or
+     (game.metaShardsEarned <= 0 and game.metaCoresEarned <= 0):
+    return
+  const
+    panelW = 250'i32
+    headerH = 22'i32
+    rowH = 30'i32
+  # Right-aligned to the content margin; the stat values end well short of it.
+  let x = windowX + SCREEN_WIDTH - 30 - panelW
+  let panelH = headerH + rowH * 2 + 8
+  drawRectangle(x, statsY, panelW, panelH, Color(r: 14, g: 30, b: 52, a: 235))
+  drawRectangle(x, statsY, panelW, headerH, Color(r: 0, g: 90, b: 130, a: 150))
+  drawRectangleLines(Rectangle(x: x.float32, y: statsY.float32,
+                               width: panelW.float32, height: panelH.float32),
+                     1, Color(r: 0, g: 200, b: 255, a: 170))
+  let title = t(tkGameOverShopCurrencyBanked)
+  drawText(title, x + (panelW - measureText(title, 12)) div 2, statsY + 5, 12,
+           Color(r: 170, g: 235, b: 255, a: 255))
+
+  let rows = [
+    (icon: ciDataShards, amount: game.metaShardsEarned, label: t("roguelite_data_shards"),
+     color: Color(r: 0, g: 220, b: 255, a: 255)),
+    (icon: ciCore, amount: game.metaCoresEarned, label: t("roguelite_cores"),
+     color: Color(r: 200, g: 160, b: 255, a: 255))]
+  var rowY = statsY + headerH + 4
+  for row in rows:
+    # A row that banked nothing stays visible but dimmed, so the player still
+    # learns that Cores exist (they start dropping from the wave-15 boss).
+    let alpha: uint8 = if row.amount > 0: 255 else: 110
+    drawCurrencyIcon(x + 22, rowY + rowH div 2, 20, row.icon, alpha)
+    let amountText = "+" & $row.amount
+    drawText(amountText, x + 42, rowY + 6, 18, withAlpha(row.color, alpha))
+    drawText(row.label, x + 42 + measureText(amountText, 18) + 10, rowY + 9, 13,
+             Color(r: 180, g: 190, b: 200, a: alpha))
+    rowY += rowH
 
 proc deathCauseVerbKey(cause: DeathCause): TranslationKey =
   ## Verb phrase describing how the player died.
@@ -234,6 +274,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" &
                  (if seconds < 10: "0" else: "") & $seconds
 
+  drawShopCurrencyBanked(game, windowX, yOffset)
   drawStat(windowX + 40, yOffset, t(tkGameOverWaveReached), $game.currentWave, ">",
           Color(r: 255, g: 200, b: 100, a: 255))
   yOffset += STAT_LINE_HEIGHT
@@ -429,6 +470,7 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   # currentWave is already incremented past the boss wave when we get here,
   # so the cleared-wave count is currentWave - 1 (= 60 for the final boss).
   let wavesCleared = max(0, game.currentWave - 1)
+  drawShopCurrencyBanked(game, windowX, yOffset)
   drawStat(windowX + 40, yOffset, t(tkGameOverWavesSurvived), $wavesCleared, "|-",
           Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += STAT_LINE_HEIGHT

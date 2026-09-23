@@ -729,6 +729,9 @@ proc syncAdvancements*(profile: AdvancementProfile, stats: Statistics,
   if profile.isNil:
     return @[]
   profile.ensureAdvancementEntries()
+  # A cheated run never counts (claims pay shards), just as lifetime stats skip
+  # it. Its record is still saved as the last run, so it has to be filtered here.
+  let lastRun = if not lastRun.isNil and lastRun.cheatsUsed: nil else: lastRun
 
   for def in getAdvancementDefinitions():
     let idx = profile.findEntryIndex(def.id)

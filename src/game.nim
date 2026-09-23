@@ -369,6 +369,7 @@ proc setGameMode*(game: Game, mode: GameMode) =
   game.player.coins = modeDef.playerStartCoins
   game.bossTimer = if isTimeSurvivalMode(mode): TIME_SURVIVAL_BOSS_INTERVAL else: 0.0
   game.survivalTime = 0
+  game.survivalMinutesRewarded = 0
   game.bossWaveManager.clearBossWave()
 
   # Reset wave-specific state if not using waves
@@ -377,6 +378,24 @@ proc setGameMode*(game: Game, mode: GameMode) =
     game.waveInProgress = false
     game.waveEnemiesRemaining = 0
     game.wavesUntilBoss = BossWaveInterval - 1
+
+proc awardMetaCurrency(game: Game, shards: int, cores: int = 0) =
+  ## Wave/survival reward: bank Data Shards / Cores into the profile wallet the
+  ## cosmetic shop spends from, tally them for the end-of-run screens, and float
+  ## the amounts over the player. A cheated run earns nothing from here on (what
+  ## was banked before the cheat menu opened is kept).
+  if game.cheatsUsed or not bankMetaCurrency(shards, cores):
+    return
+  game.metaShardsEarned += max(0, shards)
+  game.metaCoresEarned += max(0, cores)
+  # Kept live (finalizeRunTracking re-syncs it) because the victory screen's
+  # View Stats opens before the run is finalized.
+  if not currentRunStats.isNil:
+    currentRunStats.rogueliteShardsEarned = game.metaShardsEarned
+  if shards > 0:
+    showCurrency(game, game.player.pos + newVector2f(0, -40), shards, cikDataShards)
+  if cores > 0:
+    showCurrency(game, game.player.pos + newVector2f(28, -26), cores, cikCores)
 
 # Waves
 proc startWave*(game: Game) =
@@ -730,6 +749,12 @@ proc completeBossWave*(game: Game) =
   for enemy in game.enemies:
     spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
                   Color(r: 255, g: 50, b: 50, a: 255), 15)
+
+  # Boss bounty. A boss wave never passes through the regular wave-clear payout
+  # (its clear routes here via the boss coin), so this is its only reward.
+  if game.mode == gmWaveBased:
+    let bossTier = max(1, completedWave div BossWaveInterval)
+    awardMetaCurrency(game, bossShardReward(bossTier), bossCoreReward(bossTier))
 
   game.enemies = @[]
   game.bullets = @[]
@@ -2355,6 +2380,10 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
               else: 16
             game.player.roomEchoCharges += charges
         else:
+          # Pay out for the wave just cleared (read before the advance below).
+          if game.mode == gmWaveBased:
+            awardMetaCurrency(game, waveClearShardReward(game.currentWave))
+
           # DON'T advance wave here if we're waiting for boss coin
           # The wave will advance when the boss coin is collected
           if not game.bossWaveManager.isBossCoinActive():
@@ -3535,6 +3564,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
   # Sandbox is excluded: its bosses are spawned freely as a testing tool, so
   # killing one must not pop a power-up draft (or any reward flow).
   if bossDefeated and not shouldUseWaves(game.mode) and game.mode != gmSandbox:
+    # Boss bounty. bossCount was bumped when this boss spawned, so it is the
+    # boss number just beaten, the same fight (and payout) as that wave-mode boss.
+    if isTimeSurvivalMode(game.mode):
+      awardMetaCurrency(game, bossShardReward(game.bossCount), bossCoreReward(game.bossCount))
     # Time survival: a defeated boss is a major milestone, so offer a LEGENDARY
     # draft (isLegendary = true) to match the wave-mode boss reward in
     # completeBossWave, not a common upgrade.
@@ -5076,6 +5109,15 @@ proc updateGame*(game: var Game, dt: float32) =
      not game.bossWaveManager.isBossCoinActive():
     game.survivalTime += dt
     game.bossTimer = max(0.0, game.bossTimer - dt)
+    # Pay each whole minute on the survival clock once. survivalMinutesRewarded is
+    # a high-water mark, so rewinding the clock never re-pays a minute.
+    let minutesSurvived = int(game.survivalTime / 60.0'f32)
+    var minuteShards = 0
+    while game.survivalMinutesRewarded < minutesSurvived:
+      inc game.survivalMinutesRewarded
+      minuteShards += survivalMinuteShardReward(game.survivalMinutesRewarded)
+    if minuteShards > 0:
+      awardMetaCurrency(game, minuteShards)
 
   # Difficulty scaling (not in sandbox mode)
   if not isSandboxMode(game.mode):
