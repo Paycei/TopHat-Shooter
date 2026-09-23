@@ -371,7 +371,10 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
     return
 
   if kind == bwoDashBackPlate:
-    if enemy.weakPoint.lastDashActive and not enemy.isDashing and enemy.weakPoint.targets.len == 0:
+    # A charge combo cracks the plate once, when the Juggernaut is finally
+    # winded: between charges (ccReaim) it is already turning for the next one.
+    if enemy.weakPoint.lastDashActive and not enemy.isDashing and
+       enemy.chargeState != ccReaim and enemy.weakPoint.targets.len == 0:
       spawnBackPlate(enemy, playerPos)
     enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing

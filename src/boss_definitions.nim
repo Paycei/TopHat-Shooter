@@ -1247,13 +1247,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           specialBehavior: "aggressive_chase",  # Direct pursuit
           attacks: @[
             BossAttack(
+              # Charge combo (game/bosses.nim): a real charge, sidestepped not
+              # outrun, hitting for `damage` on contact. One charge here to
+              # teach the lane. For charges durationOrRadius is the TRAVEL
+              # TIME to the aim point (each charge's speed derives from it)
+              # and projectileSpeed is the speed cap. Charge cooldowns only
+              # count the idle time BETWEEN combos (the combo freezes them)
+              # and stay >= the player's 2.5 s dash cooldown, so a saved
+              # dash is always back.
               attackType: bapDash,
               damage: 10.5,
               cooldown: 4.5,
-              projectileSpeed: 450.0,  # Fast charge
+              projectileSpeed: 1100.0,
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 0.0,
+              durationOrRadius: 0.22,
               specialData: "charge_attack"
             ),
             BossAttack(
@@ -1302,14 +1310,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           specialBehavior: "enraged_assault",  # Aggressive movement
           attacks: @[
             BossAttack(
+              # Two charges, the second re-aimed after a short turn: both fit
+              # inside one dash cooldown, so one of them has to be walked.
               attackType: bapDash,
               damage: 14.0,
-              cooldown: 3.0,  # Frequent charges
-              projectileSpeed: 520.0,  # Very fast
+              cooldown: 3.5,
+              projectileSpeed: 1200.0,
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 0.0,
-              specialData: "double_charge"  # Charges twice
+              durationOrRadius: 0.20,
+              specialData: "double_charge"
             ),
             BossAttack(
               attackType: bapPulse,
@@ -1367,14 +1377,16 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           specialBehavior: "berserk_rampage",  # Maximum aggression
           attacks: @[
             BossAttack(
+              # Three charges: the dash is back in time for one more of them,
+              # never for all three. The last one bursts a fire ring.
               attackType: bapDash,
               damage: 14.0,
-              cooldown: 2.0,  # Constant charging
-              projectileSpeed: 600.0,
+              cooldown: 3.0,  # was 2.0: the ~5 s combo itself now freezes every countdown
+              projectileSpeed: 1300.0,
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 0.0,
-              specialData: "rage_charge"  # Triple charge combo
+              durationOrRadius: 0.18,
+              specialData: "rage_charge"
             ),
             BossAttack(
               attackType: bapPulse,

@@ -3090,6 +3090,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
             enemy.pos.x += awayDir.x * pushStrength * dt
             enemy.pos.y += awayDir.y * pushStrength * dt
 
+      # Juggernaut charge combo beats (windup / reaim / winded); a launch here
+      # is moved by the dash block below on this same frame.
+      updateChargeCombo(game, enemy, dt)
+
       # Handle boss dash movement (overrides normal movement)
       if enemy.isDashing:
         enemy.dashDuration -= dt
@@ -3126,6 +3130,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           if enemy.currentPhaseIndex < bossDef.phases.len:
             let endColor = bossDef.phases[enemy.currentPhaseIndex].color
             spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, endColor, 20)
+          endChargeComboCharge(game, enemy)
 
       # Boss smashes through dungeon obstacles. Custom bosses move by directly
       # setting enemy.pos (above) and never run the enemy/wall collision path, so
@@ -3174,7 +3179,9 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       for i in 0..<enemy.attackTimers.len:
         # While channelling a mega special the boss commits fully: every other
         # attack countdown is paused so nothing else fires during the beam.
-        if enemy.megaCastTimer > 0:
+        # A Juggernaut charge combo commits the same way (its own countdown
+        # included), so nothing lands in the lane the player sidesteps into.
+        if enemy.megaCastTimer > 0 or enemy.chargeState != ccIdle:
           break
         # Freeze the summon countdown until every summoned add is dead.
         if livingSummons > 0 and hasSummonPhase and
@@ -3188,9 +3195,9 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         let phase = bossDef.phases[enemy.currentPhaseIndex]
         const WARNING_LEAD_TIME = 0.4'f32
         for i, attack in phase.attacks:
-          # Once a mega cast is underway (including the moment it just started
-          # this frame), suppress every other attack's warning/fire.
-          if enemy.megaCastTimer > 0:
+          # Once a mega cast or charge combo is underway (including the moment
+          # it just started this frame), suppress every other attack's warning/fire.
+          if enemy.megaCastTimer > 0 or enemy.chargeState != ccIdle:
             break
           if i < enemy.attackTimers.len:
             # Show pre-fire warning once per cycle, fires as soon as the timer
@@ -3319,10 +3326,15 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       if enemy.isBoss:
         # Boss deals continuous damage: 10% of the player's max HP per second.
         # Damage applied each tick is DPS * elapsed_time (capped to the intended interval)
+        # A Juggernaut charge that connects hits for the charge's own damage
+        # instead: being run over IS the attack. The shared 0.5 s gate keeps it
+        # to one hit per pass (the body crosses the player in well under that).
+        let chargeImpact = enemy.chargeState == ccCharging and enemy.isDashing
         if game.time - enemy.lastContactDamageTime >= 0.5:
           let elapsed = min(game.time - enemy.lastContactDamageTime, 0.5'f32)
           let bossDps = 0.10'f32 * game.player.maxHp
-          var bossContactDamage = bossDps * elapsed
+          var bossContactDamage = if chargeImpact: enemy.chargeDamage
+                                  else: bossDps * elapsed
 
           # Thorns reflection damage
           discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
@@ -3345,7 +3357,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
           playSound(stPlayerHit, 0.6)
           enemy.lastContactDamageTime = game.time
-          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Red, 10)
+          spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Red,
+                               (if chargeImpact: 24 else: 10))
+          if chargeImpact:
+            addShake(game.dopamine.screenShake, siLarge)
       else:
         # Regular enemies deal contact damage with cooldown
         if game.time - enemy.lastContactDamageTime >= 0.33:  # Contact damage cooldown
@@ -5691,6 +5706,9 @@ proc drawGame*(game: Game) =
                    Vector2(x: enemy.pos.x + cos(a) * (er + 8.0 + elv * 14.0),
                            y: enemy.pos.y + sin(a) * (er + 8.0 + elv * 14.0)),
                    1.5'f32 + elv * 1.5'f32, Color(r: 255, g: 50, b: 30, a: ea))
+
+      # Juggernaut charge wind-up chevrons (ungated: see drawChargeWindup).
+      drawChargeWindup(enemy)
 
       # Adds-gate seal: amber lock ring telling the player to clear the adds first.
       if enemy.addsGateActive and enemy.weakPoint.exposedTimer <= 0:

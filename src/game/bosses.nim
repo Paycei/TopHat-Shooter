@@ -71,6 +71,15 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
   enemy.vel = newVector2f(0, 0)
   enemy.isDashing = false
   enemy.dashDuration = 0
+  # A phase break cancels a charge combo mid-flight; its locked lane goes with
+  # it, or the transition would keep showing a charge that is never coming.
+  enemy.chargeState = ccIdle
+  enemy.chargesLeft = 0
+  enemy.chargeTimer = 0
+  for i in countdown(game.attackWarnings.len - 1, 0):
+    let w = game.attackWarnings[i]
+    if w.attackType == awtBossDash and w.sourceEnemyId == enemy.id:
+      game.attackWarnings.delete(i)
   # Reset enrage so attack timers (seeded to the full invuln duration below) tick
   # at the base rate and only expire once the transition ends, no shots or
   # telegraphs leak into the frozen animation.
@@ -298,6 +307,10 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     return
   if enemy.isDashing:
     enemy.vel = enemy.dashVelocity
+    return
+  if enemy.chargeState == ccWinded:
+    # Spent after a charge combo: rooted to the spot, which is the opening.
+    enemy.vel = newVector2f(0, 0)
     return
 
   let startPos = enemy.pos
@@ -2386,14 +2399,198 @@ proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, ph
       warning.laserLength = enemy.radius
     game.attackWarnings.add(warning)
 
-proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
-  # BERSERKER DASH SYSTEM with multi-charge mechanics
-  # SpecialData modes:
-  # - "charge_attack": Basic charge with screen shake
-  # - "double_charge": Charges twice in rapid succession
-  # - "rage_charge": THREE charges in combo! Maximum aggression!
+# ---------------------------------------------------------------------------
+# Juggernaut charge combo (boss 8). Its charges used to be capped at the
+# player's WALKING speed -- the right call when walking was the only way out of
+# the lane, and why the old charge was a slow shove that left its damage to a
+# row of trail bullets. Every run now owns a dash, so the charge is a real one:
+# too fast to walk away from, and meant to be SIDESTEPPED:
+#   ccWindup -> ccCharging -> (ccReaim -> ccCharging)* -> ccWinded -> ccIdle
+# Each windup/reaim TRACKS the player, then commits for the final
+# JuggernautChargeCommit, aimed part of the way along the player's motion, so
+# the dodge is a reaction to the lock (change direction, or dash) rather than
+# drifting off a lane that was fixed a second earlier. Nothing spawns on the
+# lane at launch, so a late dash is safe. While the combo runs, game.nim
+# freezes every other attack countdown: the Juggernaut does one thing at a
+# time, and the winded beat at the end is the opening.
+# ---------------------------------------------------------------------------
 
-  let dashMode = attack.specialData
+proc chargeComboLength(specialData: string): int =
+  case specialData
+  of "double_charge": 2
+  of "rage_charge": 3
+  else: 1
+
+proc juggernautChargeTarget(start, playerPos: Vector2f, pad: float32,
+                            screenWidth, screenHeight: int32): Vector2f =
+  ## Through the player's spot and JuggernautChargeOvershoot beyond it, so a
+  ## charge that is not sidestepped always connects. Shortened ALONG the line
+  ## to stay on screen: a per-axis clamp would bend the lane off the player.
+  let toPlayer = playerPos - start
+  let d = toPlayer.length()
+  let dir = if d > 0.01'f32: toPlayer * (1.0'f32 / d) else: newVector2f(1, 0)
+  var dist = clamp(d + JuggernautChargeOvershoot,
+                   JuggernautChargeMinDist, JuggernautChargeMaxDist)
+  let maxX = screenWidth.float32 - pad
+  let maxY = screenHeight.float32 - pad
+  if dir.x > 0.0001'f32: dist = min(dist, (maxX - start.x) / dir.x)
+  elif dir.x < -0.0001'f32: dist = min(dist, (pad - start.x) / dir.x)
+  if dir.y > 0.0001'f32: dist = min(dist, (maxY - start.y) / dir.y)
+  elif dir.y < -0.0001'f32: dist = min(dist, (pad - start.y) / dir.y)
+  start + dir * max(dist, 0.0'f32)
+
+proc trackChargeLine(game: Game, enemy: Enemy) =
+  ## While the wind-up tracks, the pending line follows the player's current
+  ## spot (the ungated chevrons point along it). Nothing is locked yet.
+  enemy.pendingDashTarget = juggernautChargeTarget(enemy.pos, game.player.pos, enemy.radius,
+                                                   game.screenWidth, game.screenHeight)
+
+proc beginChargeAim(game: Game, enemy: Enemy, windup: float32) =
+  ## Plants the Juggernaut for a tracking wind-up of `windup` seconds.
+  enemy.pendingDashLocked = true  # holds the body still at pendingDashStart
+  enemy.pendingDashStart = enemy.pos
+  enemy.vel = newVector2f(0, 0)
+  enemy.chargeTimer = windup
+  trackChargeLine(game, enemy)
+
+proc commitChargeLine(game: var Game, enemy: Enemy) =
+  ## Locks the charge's exact line and shows it. The launch never retargets:
+  ## the body runs start -> target exactly as drawn.
+  ##
+  ## The aim leads the player by JuggernautChargeLead of their motion until
+  ## the body would arrive. Half a lead punishes both lazy answers at once:
+  ## carrying on in a straight line leaves them short of the aim point and
+  ## stopping dead leaves them the same distance behind it, both inside the
+  ## body's width. Turning away from the lane, or dashing, gets out.
+  ##
+  ## The speed is locked here too, from a fixed TRAVEL TIME rather than a fixed
+  ## speed: a fixed speed made range the difficulty (a charge from across the
+  ## arena was a stroll to walk off, a re-aim from point blank undodgeable
+  ## with the dash still recharging). Every charge reaches its aim point
+  ## chargeTravel after launch, so the lock-to-impact beat is the same at any
+  ## range -- and learnable.
+  var v = game.player.vel
+  # A dash in progress is not a heading: extrapolating its burst speed would
+  # throw the aim far past where the player ends up once the burst stops.
+  let cap = max(game.player.speed, 1.0'f32)
+  if v.length() > cap:
+    v = v.normalize() * cap
+  let travel = max(enemy.chargeTravel, 0.05'f32)
+  let aim = game.player.pos + v * ((JuggernautChargeCommit + travel) * JuggernautChargeLead)
+  let target = juggernautChargeTarget(enemy.pos, aim, enemy.radius,
+                                      game.screenWidth, game.screenHeight)
+  # Timed to CONTACT, not to the body's centre: the hit lands when the body's
+  # edge reaches the player (the reach below mirrors the boss contact check in
+  # game.nim). Timing the centre made point-blank re-aims connect in half the
+  # beat of a charge from range.
+  let reach = enemy.radius + game.player.radius * 0.9'f32
+  let run = max(distance(enemy.pos, aim) - reach, 1.0'f32)
+  let speed = clamp(run / travel, JuggernautChargeMinSpeed,
+                    max(enemy.chargeSpeed, JuggernautChargeMinSpeed))
+  enemy.pendingDashTarget = target
+  enemy.dashVelocity = (target - enemy.pos).normalize() * speed  # read back by launchCharge
+  var warn = newAttackWarning(enemy.pos.x, enemy.pos.y, awtBossDash,
+                              max(enemy.chargeTimer, 0.01'f32), enemy.id)
+  warn.targetPos = target
+  warn.bulletRadius = enemy.radius  # lane half-width: the render outlines the body's swept lane
+  game.attackWarnings.add(warn)
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 255, g: 230, b: 200, a: 255), 10)
+
+proc beginChargeCombo(game: var Game, enemy: Enemy, attack: BossAttack,
+                      phase: BossPhaseDefinition) =
+  enemy.chargesLeft = chargeComboLength(attack.specialData)
+  # Per-phase data, deliberately NOT scaled to the player's speed: a slow
+  # build is slower at everything, and a charge that slowed down with it
+  # would make the heaviest builds the easiest to dodge with.
+  enemy.chargeSpeed = attack.projectileSpeed
+  enemy.chargeTravel = attack.durationOrRadius
+  enemy.chargeDamage = attack.damage * phase.damageMultiplier
+  enemy.chargeState = ccWindup
+  beginChargeAim(game, enemy, JuggernautChargeWindup)
+  # Other attacks are about to freeze mid-countdown. Re-arm their pre-fire
+  # warnings so whatever fires first after the combo is telegraphed afresh
+  # rather than riding a warning that expired seconds earlier.
+  for fired in enemy.attackWarningFired.mitems:
+    fired = false
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                       Color(r: 255, g: 90, b: 30, a: 255), 12)
+
+proc launchCharge(game: var Game, enemy: Enemy) =
+  let start = enemy.pendingDashStart
+  let target = enemy.pendingDashTarget
+  let dist = distance(start, target)
+  let dir = if dist > 0.01'f32: (target - start).normalize() else: newVector2f(1, 0)
+  let speed = max(enemy.dashVelocity.length(), 1.0'f32)  # locked at commit
+  # The last charge of a multi-charge combo is the big one.
+  let finale = enemy.chargeState == ccReaim and enemy.chargesLeft == 1
+
+  enemy.isDashing = true
+  enemy.pos = start
+  enemy.dashVelocity = dir * speed
+  enemy.vel = enemy.dashVelocity
+  enemy.dashDuration = dist / speed
+  enemy.dashMaxDuration = enemy.dashDuration
+  enemy.dashTargetPos = target
+  enemy.pendingDashLocked = false
+  enemy.chargeState = ccCharging
+  enemy.chargesLeft -= 1
+
+  addShake(game.dopamine.screenShake, siLarge)
+  spawnExplosionPooled(game.particlePool, start.x, start.y,
+                       Color(r: 255, g: 60, b: 0, a: 255), (if finale: 40 else: 24))
+  if finale:
+    for i in 0..<16:
+      let angle = i.float32 * (PI * 2.0 / 16.0)
+      spawnExplosionPooled(game.particlePool,
+                           start.x + cos(angle) * 60.0, start.y + sin(angle) * 60.0,
+                           Color(r: 255, g: 50, b: 0, a: 255), 5)
+
+proc endChargeComboCharge*(game: var Game, enemy: Enemy) =
+  ## Called by game.nim on the frame a charge reaches its locked endpoint.
+  if enemy.chargeState != ccCharging:
+    return
+  addShake(game.dopamine.screenShake, siMedium)
+  if enemy.chargesLeft > 0:
+    enemy.chargeState = ccReaim
+    beginChargeAim(game, enemy, JuggernautChargeReaim)
+  else:
+    # enemy.vel still holds the charge velocity this frame: the back plate
+    # (boss_weakpoints.nim) reads it to crack open on the far side.
+    enemy.chargeState = ccWinded
+    enemy.chargeTimer = JuggernautChargeWinded
+
+proc updateChargeCombo*(game: var Game, enemy: Enemy, dt: float32) =
+  ## Ticks the windup / reaim / winded beats. The charge itself moves through
+  ## the shared boss-dash block in game.nim.
+  case enemy.chargeState
+  of ccIdle, ccCharging:
+    discard
+  of ccWindup, ccReaim:
+    # Pawing the ground: dust kicked up behind the line it is aiming down.
+    let line = enemy.pendingDashTarget - enemy.pendingDashStart
+    if line.length() > 0.01'f32 and (enemy.chargeTimer mod 0.12'f32) < dt:
+      let back = enemy.pos - line.normalize() * (enemy.radius * 0.9'f32)
+      spawnExplosionPooled(game.particlePool, back.x, back.y,
+                           Color(r: 170, g: 100, b: 60, a: 255), 3)
+    let wasTracking = enemy.chargeTimer > JuggernautChargeCommit
+    enemy.chargeTimer -= dt
+    if wasTracking:
+      if enemy.chargeTimer > JuggernautChargeCommit:
+        trackChargeLine(game, enemy)
+      else:
+        commitChargeLine(game, enemy)
+    if enemy.chargeTimer <= 0:
+      launchCharge(game, enemy)
+  of ccWinded:
+    enemy.chargeTimer -= dt
+    if enemy.chargeTimer <= 0:
+      enemy.chargeTimer = 0
+      enemy.chargeState = ccIdle
+
+proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  # Generic boss dash (the Void Dancer's blink-dash, the Timekeeper's lunge).
+  # The Juggernaut's charges never reach this: they run as a charge combo.
   var dashStart = enemy.pos
   var dashTarget: Vector2f
   var dashDist: float32
@@ -2406,11 +2603,7 @@ proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase:
     dashTarget.y = clamp(dashTarget.y, lockedPad, game.screenHeight.float32 - lockedPad)
     dashDist = distance(dashStart, dashTarget)
   else:
-    dashDist = case dashMode
-      of "charge_attack": 350.0'f32
-      of "double_charge": 300.0'f32
-      of "rage_charge":   280.0'f32
-      else:               350.0'f32
+    dashDist = BossDashDistance
     dashTarget = dashStart + toPlayer * dashDist
 
   # Clamp dash target to screen bounds so the boss can't leave the play area
@@ -2431,21 +2624,10 @@ proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase:
   if dashSpeed > game.player.speed:
     dashSpeed = game.player.speed
 
-  # Configure dash visuals based on mode. Distance is locked by the warning
-  # above so execution cannot retarget after the marker appears.
-  let trailColor = case dashMode
-    of "charge_attack":
-      Color(r: 255, g: 50, b: 0, a: 255)  # Single charge, red trail
-    of "double_charge":
-      Color(r: 255, g: 100, b: 0, a: 255)  # Double charge, bright red
-    of "rage_charge":
-      Color(r: 255, g: 0, b: 0, a: 255)  # TRIPLE charge, pure red
-    else:
-      phase.color  # Default
-
+  # Distance is locked by the warning above so execution cannot retarget
+  # after the marker appears.
   let dashTime = dashDist / dashSpeed  # Calculate duration based on speed
 
-  # Set up dash state with charge count
   enemy.isDashing = true
   enemy.pos = dashStart
   enemy.dashVelocity = dashDir * dashSpeed
@@ -2455,14 +2637,9 @@ proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase:
   enemy.dashTargetPos = dashTarget
   enemy.pendingDashLocked = false
 
-  # Store remaining charges (will re-trigger after current dash finishes)
-  # This is handled in boss update logic by checking dashChargesRemaining
-
-  # SCREEN SHAKE based on mode
   addShake(game.dopamine.screenShake, siLarge)
 
-  # Create MORE impressive trail effects for rage charges
-  let trailCount = if dashMode == "rage_charge": 8 elif dashMode == "double_charge": 6 else: 4
+  const trailCount = 4
   for i in 0..<trailCount:
     let trailPos = i.float32 * (dashDist / trailCount.float32)
     game.bullets.add(newBullet(
@@ -2476,22 +2653,7 @@ proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase:
       bulletRadius = attack.bulletRadius
     ))
 
-  # Rage charges get FIRE RING on activation
-  if dashMode == "rage_charge":
-    for i in 0..<16:
-      let angle = i.float32 * (PI * 2.0 / 16.0)
-      let ringX = enemy.pos.x + cos(angle) * 60.0
-      let ringY = enemy.pos.y + sin(angle) * 60.0
-      spawnExplosionPooled(game.particlePool, ringX, ringY,
-                    Color(r: 255, g: 50, b: 0, a: 255), 5)
-
-  # Initial visual explosion with colors
-  let (explosionSize, explosionColor) = case dashMode
-    of "rage_charge": (40, Color(r: 255, g: 0, b: 0, a: 255))
-    of "double_charge": (30, Color(r: 255, g: 100, b: 0, a: 255))
-    else: (20, trailColor)
-
-  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 20)
 
 proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
@@ -2649,6 +2811,9 @@ proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, 
     return
   of "seismic_fissure", "seismic_fissure_chase":
     spawnSeismicFissure(game, enemy, attack, phase)
+    return
+  of "charge_attack", "double_charge", "rage_charge":
+    beginChargeCombo(game, enemy, attack, phase)
     return
   of "prism_refraction":
     spawnPrismRays(game, enemy, attack, phase)

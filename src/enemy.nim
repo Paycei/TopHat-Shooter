@@ -3466,6 +3466,12 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # Full-path dashed arrow from the boss's current position to the computed
     # landing spot (stored in targetPos at warning-creation time).
     # This gives the player a clear read of exactly where the boss will end up.
+    # Juggernaut charges also carry the body's half-width in bulletRadius: the
+    # lane it sweeps is outlined so the sidestep distance is read, not guessed,
+    # and it brightens toward launch instead of fading out (the launch is the
+    # threat, and a fade would hide the lane at the one moment it matters).
+    let laneHalf = warning.bulletRadius
+    let alpha = if laneHalf > 0: rampAlpha(warning, 120.0, 100.0, 220.0) else: alpha
     let cx = warning.pos.x; let cy = warning.pos.y
     let tx = warning.targetPos.x; let ty = warning.targetPos.y
     let dx = tx - cx;             let dy = ty - cy
@@ -3473,6 +3479,14 @@ proc drawAttackWarning*(warning: AttackWarning) =
     if dist > 0.01:
       let nx = dx / dist; let ny = dy / dist  # unit direction
       let perpX = -ny;    let perpY = nx       # perpendicular
+
+      if laneHalf > 0:
+        let edgeCol = Color(r: 255'u8, g: 90'u8, b: 0'u8, a: uint8(alpha.int div 2))
+        for side in [-1.0'f32, 1.0'f32]:
+          let ox = perpX * laneHalf * side
+          let oy = perpY * laneHalf * side
+          drawLine(Vector2(x: cx + ox, y: cy + oy), Vector2(x: tx + ox, y: ty + oy), 2, edgeCol)
+        drawCircleLines(tx.int32, ty.int32, laneHalf, edgeCol)
 
       # Dashed shaft, 6 segments, solid/gap alternating
       let segCount = 6
@@ -4234,6 +4248,44 @@ proc drawRicochetLaserBeam*(warning: AttackWarning) =
                Color(r: 200'u8, g: 245'u8, b: 255'u8, a: 130'u8))
     drawCircle(Vector2(x: head.x, y: head.y), halfW * 0.6 + 3.0,
                Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
+
+proc drawChargeWindup*(enemy: Enemy) =
+  ## Juggernaut charge wind-up, drawn UNGATED by showHints. The locked lane is
+  ## the hint; but a charge too fast to walk away from must always announce
+  ## its direction and its moment, or hints-off turns it into a blind hit.
+  ## Three chevrons ahead of the body swing to follow the player and light one
+  ## by one while it tracks; the moment the lane commits they freeze and flare
+  ## white. That flare means "locked -- move now".
+  if enemy.chargeState notin {ccWindup, ccReaim} or not enemy.pendingDashLocked:
+    return
+  let line = enemy.pendingDashTarget - enemy.pendingDashStart
+  let len = line.length()
+  if len < 0.01'f32:
+    return
+  let d = line * (1.0'f32 / len)
+  let perp = newVector2f(-d.y, d.x)
+  let total = if enemy.chargeState == ccWindup: JuggernautChargeWindup
+              else: JuggernautChargeReaim
+  let tracking = max(total - JuggernautChargeCommit, 0.01'f32)
+  let progress = clamp((total - enemy.chargeTimer) / tracking, 0.0'f32, 1.0'f32)
+  let flare = enemy.chargeTimer <= JuggernautChargeCommit
+  let flicker = (sin(getTime() * 40.0) * 0.5 + 0.5).float32
+  # Set out past the body's spike crown (which lengthens with rage) and backed
+  # by a dark stroke, or the chevrons drown in the Juggernaut's own red glow.
+  let backing = Color(r: 30'u8, g: 0'u8, b: 0'u8, a: 190'u8)
+  for k in 0 ..< 3:
+    let lit = progress >= (k.float32 + 1.0'f32) * 0.25'f32
+    let col =
+      if flare: Color(r: 255'u8, g: 245'u8, b: 220'u8, a: uint8(200.0'f32 + flicker * 55.0'f32))
+      elif lit: Color(r: 255'u8, g: 130'u8, b: 20'u8, a: 245'u8)
+      else: Color(r: 150'u8, g: 30'u8, b: 15'u8, a: 150'u8)
+    let c = enemy.pos + d * (enemy.radius + 34.0'f32 + k.float32 * 22.0'f32)
+    let tip = Vector2(x: c.x + d.x * 9.0'f32, y: c.y + d.y * 9.0'f32)
+    let wingL = c - d * 8.0'f32 + perp * 15.0'f32
+    let wingR = c - d * 8.0'f32 - perp * 15.0'f32
+    for (w, wide, stroke) in [(wingL, 9.0'f32, backing), (wingR, 9.0'f32, backing),
+                              (wingL, 5.0'f32, col), (wingR, 5.0'f32, col)]:
+      drawLine(Vector2(x: w.x, y: w.y), tip, wide, stroke)
 
 proc drawSignatureAttackActive*(warning: AttackWarning) =
   ## Live lethal pass for the bosses 7-12 signature attacks, drawn ungated

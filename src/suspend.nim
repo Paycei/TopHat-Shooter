@@ -116,7 +116,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 4'u32  # bumped: run stats gained overheal tracking, Bullet the Room Echo multiplier
+  SnapFormatVersion = 5'u32  # bumped: Enemy gained the Juggernaut charge-combo state
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =

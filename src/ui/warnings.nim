@@ -731,11 +731,21 @@ proc spawnOmegaQuadrantsInto*(warnings: var seq[AttackWarning], particlePool: Pa
                            Color(r: 255, g: 70, b: 100, a: 255),
                            (if lesson: 8 else: 4))
 
+const BossDashDistance* = 350.0'f32  ## generic boss dash length (the Juggernaut's charges aim their own)
+
+proc isJuggernautCharge*(specialData: string): bool =
+  ## The bapDash modes that run as a charge combo (game/bosses.nim).
+  specialData in ["charge_attack", "double_charge", "rage_charge"]
+
 proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
                                enemy: Enemy, attack: BossAttack) =
   const WARNING_DURATION = 0.45'f32
 
   if attack.specialData in ["thunderstrike", "arc_lattice"]:
+    return
+  # Juggernaut charges lock and telegraph their own lane when the combo starts
+  # (beginChargeCombo, game/bosses.nim), with a longer wind-up than this one.
+  if isJuggernautCharge(attack.specialData):
     return
   if attack.attackType in [bapLaser, bapTeleport, bapMeteor]:
     return
@@ -763,12 +773,7 @@ proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
       let d = sqrt(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y)
       let dir = if d > 0.01: newVector2f(toPlayer.x / d, toPlayer.y / d)
                 else: newVector2f(1.0'f32, 0.0'f32)
-      let dashDist = case attack.specialData
-        of "charge_attack": 350.0'f32
-        of "double_charge": 300.0'f32
-        of "rage_charge":   280.0'f32
-        else:               350.0'f32
-      newVector2f(enemy.pos.x + dir.x * dashDist, enemy.pos.y + dir.y * dashDist)
+      newVector2f(enemy.pos.x + dir.x * BossDashDistance, enemy.pos.y + dir.y * BossDashDistance)
     else:
       player.pos
 

@@ -75,6 +75,22 @@ const
   FissureChaseSpeed*     = 150.0'f32 # phase-3 chaser crack speed (just below base player speed)
   FissureChaseInterval*  = 0.55'f32  # seconds between eruptions the chaser drops as it travels
   FissureChasePopWarn*   = 0.4'f32   # chaser-dropped eruptions pop much faster than chain steps
+  # Juggernaut charges are built around the player's dash (player.nim). The
+  # wind-up TRACKS the player and only commits JuggernautChargeCommit before
+  # launch, aimed part of the way along the player's motion: a lane locked at
+  # the start of a long wind-up is walked off by anyone who is moving at all,
+  # and one aimed at where the player stands is beaten by strafing. The commit
+  # beat is sized so a reacting player can still dash out even at point blank
+  # (reaction ~0.25 s + DashDuration 0.16 s < commit + the boss's travel).
+  JuggernautChargeWindup*    = 0.9'f32   # first charge: tracking + commit
+  JuggernautChargeReaim*     = 0.8'f32   # follow-ups: turn, track, commit, go (lets a triple's 3rd charge meet a recharged dash)
+  JuggernautChargeCommit*    = 0.4'f32   # final beat of either: lane locked and shown
+  JuggernautChargeLead*      = 0.5'f32   # fraction of the player's motion until impact the aim leads by
+  JuggernautChargeMinSpeed*  = 300.0'f32 # floor on the travel-time speed (point-blank charges)
+  JuggernautChargeWinded*    = 0.9'f32   # stands spent after the last charge: the opening
+  JuggernautChargeOvershoot* = 150.0'f32 # a charge runs this far PAST its aim point
+  JuggernautChargeMinDist*   = 240.0'f32
+  JuggernautChargeMaxDist*   = 560.0'f32
   PrismRayTelegraph*     = 1.6'f32   # Prism Architect: wind-up showing feed beam + refracted star
   PrismRayActive*        = 0.4'f32   # refracted rays' lethal flash
   PrismMiniTelegraph*    = 0.9'f32   # cascade beat two: mini prisms' shorter ignite wind-up
@@ -503,6 +519,15 @@ type
     awtChaosWeave       # Chaos Weaver jagged arena-spanning threads (ChaosWeave timing)
     awtOmegaQuadrant    # Omega Entity sequential quadrant detonations (OmegaQuad timing)
 
+  ChargeComboState* = enum
+    ## The Juggernaut's charge combo, one state per beat. While it is anything
+    ## but ccIdle the boss is committed: every other attack countdown is frozen.
+    ccIdle       ## not charging
+    ccWindup     ## first charge: line locked, pawing the ground
+    ccCharging   ## on the move along the locked line (isDashing is true)
+    ccReaim      ## between charges: turned round, next line locked
+    ccWinded     ## combo spent: stands still with its back plate cracked open
+
   AttackWarning* = ref object
     pos*: Vector2f
     attackType*: AttackWarningType
@@ -901,6 +926,14 @@ type
     pendingDashLocked*: bool  # True while a dash warning has locked the next dash line
     pendingDashStart*: Vector2f  # Exact start point shown by the dash warning
     pendingDashTarget*: Vector2f  # Exact endpoint shown by the dash warning
+    # Juggernaut charge combo (boss 8, see JuggernautCharge* consts). Rides on
+    # the dash fields above for the movement itself; these track the combo.
+    chargeState*: ChargeComboState
+    chargesLeft*: int        # charges still owed, counting the one winding up
+    chargeTimer*: float32    # countdown for the current windup / reaim / winded beat
+    chargeSpeed*: float32    # speed CAP for the combo's charges (the def's projectileSpeed)
+    chargeTravel*: float32   # seconds from launch to the aim point; sets each charge's speed
+    chargeDamage*: float32   # body-impact damage of each charge in the combo
     satellites*: seq[OrbitalSatellite]  # Persistent satellites that can be destroyed
     weakPoint*: BossWeakPointState  # Boss objective weak-point state
     invulnerabilityTimer*: float32  # Brief invulnerability during phase transitions
