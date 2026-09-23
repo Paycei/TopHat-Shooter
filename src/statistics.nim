@@ -198,10 +198,18 @@ proc formatTime*(seconds: float32): string =
 
 proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
                          timeSurvived: float32, kills: int, coins: int,
-                         bossesKilled: int, died: bool) =
+                         bossesKilled: int, died: bool,
+                         newGame: bool = true, runKills: int = -1, runCoins: int = -1) =
   ## Only the three real progression modes have lifetime records. Sandbox, PvP
   ## and the 3D boss used to fall through into the time-survival bucket and
   ## pollute its games/kills/best-score totals.
+  ##
+  ## `timeSurvived`, `kills`, `coins` and `bossesKilled` are ADDED to the totals.
+  ## A run resumed with Continue has already been recorded once, so it passes
+  ## only what it earned since then, with `newGame` false so it is not counted
+  ## as another game (or averaged in twice). `runKills` / `runCoins` are the
+  ## whole run's figures for the best-of records; they default to the added
+  ## amounts.
   if mode notin {gmWaveBased, gmRoguelite, gmTimeSurvival}:
     return
 
@@ -209,7 +217,8 @@ proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
   if stats.firstPlayDate == "":
     stats.firstPlayDate = stats.lastPlayDate
 
-  stats.totalGamesPlayed += 1
+  if newGame:
+    stats.totalGamesPlayed += 1
   stats.totalPlayTime += timeSurvived
 
   var modeStats =
@@ -221,7 +230,8 @@ proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
     else:
       addr stats.timeMode
 
-  modeStats.gamesPlayed += 1
+  if newGame:
+    modeStats.gamesPlayed += 1
   modeStats.totalKills += kills
   modeStats.totalCoins += coins
   modeStats.totalTimePlayed += timeSurvived
@@ -231,25 +241,29 @@ proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
     modeStats.totalDeaths += 1
   modeStats.bossesDefeated += bossesKilled
 
-  if kills > modeStats.bestKills:
-    modeStats.bestKills = kills
-  if coins > modeStats.bestCoins:
-    modeStats.bestCoins = coins
+  let bestKillsCandidate = if runKills >= 0: runKills else: kills
+  let bestCoinsCandidate = if runCoins >= 0: runCoins else: coins
+  if bestKillsCandidate > modeStats.bestKills:
+    modeStats.bestKills = bestKillsCandidate
+  if bestCoinsCandidate > modeStats.bestCoins:
+    modeStats.bestCoins = bestCoinsCandidate
 
   if mode == gmTimeSurvival:
     if timeSurvived > modeStats.longestSurvivalTime:
       modeStats.longestSurvivalTime = timeSurvived
       modeStats.bestScore = int(timeSurvived)
-    modeStats.averageSurvivalTime =
-      (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) /
-      float32(modeStats.gamesPlayed)
+    if newGame:
+      modeStats.averageSurvivalTime =
+        (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) /
+        float32(modeStats.gamesPlayed)
   else:
     if scoreReached > modeStats.highestWaveReached:
       modeStats.highestWaveReached = scoreReached
       modeStats.bestScore = scoreReached
-    modeStats.averageWaveReached =
-      (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(scoreReached)) /
-      float32(modeStats.gamesPlayed)
+    if newGame:
+      modeStats.averageWaveReached =
+        (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(scoreReached)) /
+        float32(modeStats.gamesPlayed)
 
 proc markBossDefeated*(stats: Statistics, bossDefinitionID: int) =
   ## Record that the player has defeated this boss at least once. Used to decide

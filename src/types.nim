@@ -778,6 +778,8 @@ type
     laserChargeTime*: float32  # Time to charge before firing
     activeLaser*: Laser  # Persistent beam instance for the whole firing phase, kept alive
                          # (not recreated) so hasHitPlayer isn't reset every couple of frames
+    activeWarning*: AttackWarning  # This satellite's own charge telegraph. Kept per satellite
+                                   # so several charging at once never share one warning.
 
   BossWeakObjectiveKind* = enum
     bwoNone,
@@ -886,7 +888,9 @@ type
     targetPos*: Vector2f
     slowTimer*: float32
     entranceWait*: float32        # Brief wait after arrival before boss begins attacking
-    slowAmount*: float32
+    slowAmount*: float32          # Timed slow (see applySlow); cleared when slowTimer runs out
+    frostSlowAmount*: float32     # Permanent chill from Frost Shots / Frost orbs. Kept apart
+                                  # from the timed slot so a short stun can't erase it.
     activeEffects*: array[ElementType, ActiveEffect]  # Unified effect system, indexed directly by ElementType
     chainLightningCooldown*: float32
 
@@ -1508,6 +1512,8 @@ type
     cameFromPowerUpSelect*: bool
     gameOverSoundPlayed*: bool
     currentWave*: int
+    waveScalingApplied*: int  # Last wave whose startWave player scaling ran; stops a resumed
+                              # mid-wave checkpoint from applying the same wave's scaling twice
     wavesUntilBoss*: int
     waveEnemiesRemaining*: int
     waveEnemiesTotal*: int
@@ -1516,6 +1522,13 @@ type
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
     runHadDeath*: bool  # Sticky: the run has died at least once (or resumed a block checkpoint after dying)
     livesUsed*: int  # Wave mode: continues already spent this run (see difficultyMaxLives)
+    # What the lifetime statistics already hold for this run. A Continue rolls the
+    # run back to its checkpoint after its death was recorded, so the next record
+    # adds only what was earned since then (see persistRunResults in main.nim).
+    statsBaseKills*: int      # player.kills at the last Continue
+    statsBaseTime*: float32   # run clock at the last Continue
+    statsBaseCoins*: int      # run-statistics coin tally already recorded
+    statsBaseBosses*: int     # run-statistics boss kills already recorded
     metaShardsEarned*: int  # Wave/survival: Data Shards banked this run. Display tally only; the wallet is credited as each is earned (bankMetaCurrency)
     metaCoresEarned*: int   # Wave/survival: Cores banked this run (same)
     survivalMinutesRewarded*: int  # Survival: whole survival-clock minutes already paid out, so a minute pays once
@@ -1848,6 +1861,13 @@ proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: i
     sourceEnemyId: sourceEnemyId
   )
 
+proc teamFromInt*(value: int): PvPTeam =
+  ## Team from a raw ordinal (network packets, lobby assignments). A plain
+  ## PvPTeam(value) conversion is unchecked in release builds, so an
+  ## out-of-range value from the wire became an invalid enum.
+  if value < ord(low(PvPTeam)) or value > ord(high(PvPTeam)): ptNone
+  else: PvPTeam(value)
+
 proc defaultPvPConfig*(): PvPConfig =
   ## Returns the default/balanced PvP configuration
   PvPConfig(
@@ -1899,6 +1919,27 @@ proc multiplyBulletSpeedDiminished*(currentSpeed, multiplier: float32): float32 
   if multiplier <= 1.0:
     return currentSpeed * multiplier
   currentSpeed + diminishedBulletSpeedGain(currentSpeed, currentSpeed * (multiplier - 1.0))
+
+proc applySlow*(enemy: Enemy, amount, duration: float32) =
+  ## The one way to apply a timed slow. Every source shares one slot, so the
+  ## strongest active slow wins: a weaker slow never replaces (or cuts short) a
+  ## stronger one that is still running, and an equal one only extends it.
+  if amount <= 0.0'f32 or duration <= 0.0'f32:
+    return
+  if enemy.slowTimer <= 0.0'f32 or amount > enemy.slowAmount:
+    enemy.slowAmount = amount
+    enemy.slowTimer = duration
+  elif amount >= enemy.slowAmount:
+    enemy.slowTimer = max(enemy.slowTimer, duration)
+
+proc applyFrostChill*(enemy: Enemy, amount: float32) =
+  ## Permanent frost slow (Frost Shots, Frost orbs). Only ever strengthens.
+  enemy.frostSlowAmount = max(enemy.frostSlowAmount, amount)
+
+proc effectiveSlow*(enemy: Enemy): float32 =
+  ## Movement slow actually in force: the stronger of the timed slow and the
+  ## permanent frost chill.
+  max(enemy.slowAmount, enemy.frostSlowAmount)
 
 proc applyFireRateDiminished*(currentRate, scalingFactor, exponent, hardCap: float32): float32 =
   ## Applies one fire-rate upgrade step with tunable diminishing returns.

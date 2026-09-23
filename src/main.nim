@@ -840,7 +840,11 @@ proc main() =
     applySettings(settings)
     applyWindowMode(settings.fullscreen)
 
-    stats[] = initStatistics()[]
+    # Reset IN PLACE: resetStatistics keeps `globalStats` pointing at this same
+    # object. Copying a fresh initStatistics() in here instead left globalStats
+    # on the temporary, and the first boss kill then saved that empty object
+    # over stats.json.
+    resetStatistics(stats)
     discard loadStatistics(stats)
 
     let freshRunStats = loadLastRunStats()
@@ -918,8 +922,21 @@ proc main() =
       # matches the HUD the player watched; other modes report real elapsed time.
       let timeForStats = if isTimeSurvivalMode(game.mode): game.survivalTime
                          else: runElapsedTime(game)
-      updateStatsForMode(stats, game.mode, scoreReached, timeForStats,
-                         game.player.kills, coinsForStats, bossesKilled, died)
+
+      # A run resumed with Continue was already recorded when it died: its kills
+      # and clock were rolled back to the checkpoint, and its coin and boss
+      # tallies carried on. Only what it gained past those baselines is new, and
+      # it is still the same game, not another one.
+      let continuedRun = game.livesUsed > 0
+      let baseTime = if isTimeSurvivalMode(game.mode): 0.0'f32 else: game.statsBaseTime
+      updateStatsForMode(stats, game.mode, scoreReached,
+                         max(0.0'f32, timeForStats - baseTime),
+                         max(0, game.player.kills - game.statsBaseKills),
+                         max(0, coinsForStats - game.statsBaseCoins),
+                         max(0, bossesKilled - game.statsBaseBosses),
+                         died,
+                         newGame = not continuedRun,
+                         runKills = game.player.kills, runCoins = coinsForStats)
 
       var saveSuccess = false
       var retries = 0
@@ -944,6 +961,21 @@ proc main() =
           echo "[Advancements] Unlocked ", unlockedAdvancements.len, " advancement(s)"
       else:
         echo "ERROR: Failed to save statistics after ", MAX_RETRIES, " attempts"
+
+  proc isUnresumableWonRun(game: Game): bool =
+    ## A wave run that was won and carried on into endless. saveRunState and
+    ## suspendGame refuse to keep it, so leaving it any way but dying would
+    ## otherwise drop the whole run -- the victory included -- unrecorded.
+    game.mode == gmWaveBased and game.hasWonGame
+
+  proc checkpointLiveRun(game: Game) =
+    ## Leaving a live run for the menu: checkpoint it so it can be resumed, or,
+    ## when it cannot be (see isUnresumableWonRun), record it as ended.
+    if isUnresumableWonRun(game):
+      freezeRunTime(game)
+      persistRunResults(game, died = false)
+    saveRunState(game)
+    suspendGame(game)  # Exact mid-run snapshot (primary resume path).
 
   proc openRunStatsWindow() =
     ## Route the post-run "View Stats" action into the desktop stats window,
@@ -1246,7 +1278,12 @@ proc main() =
         else:
           # The run is over. The "Long Watch" eulogy is the true send-off for a
           # survival death, so close the game once it finishes playing rather than
-          # dropping to the game-over screen.
+          # dropping to the game-over screen. That screen is where a run is
+          # normally persisted, so record it here first or the whole run -- the
+          # longest survival time included -- would never reach the stats.
+          freezeRunTime(currentGame)
+          persistRunResults(currentGame, died = true)
+          currentGame.state = gsGameOver  # recorded: shutdown must not persist it again
           windowCloseRequested = true
 
       beginGameDrawing()
@@ -1305,7 +1342,7 @@ proc main() =
           # Primary resume path: an EXACT snapshot restores the whole live sim
           # (and its run stats). On any failure fall back to the checkpoint.
           var exactResume0 = false
-          if pendingResume and hasSuspendSnapshot():
+          if pendingResume and hasSuspendSnapshot(gmWaveBased):
             if restoreGame(currentGame):
               # Give a brief reorient countdown when dropping back into live play
               # (leave shop / power-up / floor-select states as restored).
@@ -1314,7 +1351,7 @@ proc main() =
                 currentGame.countdownTimer = 3.0
               exactResume0 = true
             else:
-              deleteSuspendSnapshot()
+              deleteSuspendSnapshot(gmWaveBased)
           if exactResume0:
             discard  # snapshot carried the full sim + currentRunStats
           elif pendingResume and applySavedRun(currentGame):
@@ -1335,9 +1372,9 @@ proc main() =
             currentGame.countdownTimer = 3.0
             initializeRunTracking(currentGame)
           else:
-            deleteRunSave()
+            deleteRunSave(gmWaveBased)
             deleteBlockCheckpoint()  # fresh run: discard the block checkpoint too
-            deleteSuspendSnapshot()
+            deleteSuspendSnapshot(gmWaveBased)
             currentGame.state = gsPlaying
             initializeRunTracking(currentGame)
           statsSavedThisGame = false
@@ -1349,21 +1386,21 @@ proc main() =
             currentGame.discordClient = globalDiscordClient
             setGameMode(currentGame, gmTimeSurvival)
             var exactResume1 = false
-            if pendingResume and hasSuspendSnapshot():
+            if pendingResume and hasSuspendSnapshot(gmTimeSurvival):
               if restoreGame(currentGame):
                 if currentGame.state == gsPlaying:
                   currentGame.state = gsCountdown
                   currentGame.countdownTimer = 3.0
                 exactResume1 = true
               else:
-                deleteSuspendSnapshot()
+                deleteSuspendSnapshot(gmTimeSurvival)
             if exactResume1:
               discard
             elif pendingResume and applySavedRun(currentGame):
               initializeRunTracking(currentGame)
             else:
-              deleteRunSave()
-              deleteSuspendSnapshot()
+              deleteRunSave(gmTimeSurvival)
+              deleteSuspendSnapshot(gmTimeSurvival)
               currentGame.state = gsPlaying
               initializeRunTracking(currentGame)
             statsSavedThisGame = false
@@ -1391,7 +1428,7 @@ proc main() =
             # (meta-currency earned after the snapshot is not rolled back) and
             # only the run-scoped state comes from the snapshot.
             var exactResume9 = false
-            if hasSuspendSnapshot():
+            if hasSuspendSnapshot(gmRoguelite):
               if restoreGame(currentGame):
                 if currentGame.state == gsPlaying:
                   currentGame.state = gsCountdown
@@ -1399,15 +1436,15 @@ proc main() =
                 currentGame.selectedRogueliteTheme = 0
                 exactResume9 = true
               else:
-                deleteSuspendSnapshot()
+                deleteSuspendSnapshot(gmRoguelite)
             if exactResume9:
               discard
             elif applySavedRun(currentGame):
               initializeRunTracking(currentGame)
               currentGame.selectedRogueliteTheme = 0
             else:
-              deleteRunSave()
-              deleteSuspendSnapshot()
+              deleteRunSave(gmRoguelite)
+              deleteSuspendSnapshot(gmRoguelite)
               globalWindowManager.openWindow(widRoguelite)
               currentGame.state = gsMenu
             statsSavedThisGame = false
@@ -1419,8 +1456,8 @@ proc main() =
             let selectedIdx9 = clamp(currentGame.selectedRogueliteStarter, 0, starterKits9.high)
             let kit9 = starterKits9[selectedIdx9]
             let heat9 = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
-            deleteRunSave()  # Fresh run of this mode discards any saved run.
-            deleteSuspendSnapshot()
+            deleteRunSave(gmRoguelite)  # Fresh run of this mode discards its own saved run.
+            deleteSuspendSnapshot(gmRoguelite)
             beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
             initializeRunTracking(currentGame)
             generateThemeChoices(currentGame.rogueliteRun, unlockedBossTierOf(currentGame))
@@ -1703,8 +1740,7 @@ proc main() =
             cutsceneContinuation = cscLaunchGame
             pendingModeAfterCutscene = 0
             currentGame.state = gsCutscene
-          elif (hasSavedRun() and loadSavedRunMode() == gmWaveBased) or
-               hasBlockCheckpoint():
+          elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint():
             # Offer resume for a live run save OR a death-surviving block
             # checkpoint (wave mode only).
             resumePromptActive = true
@@ -1720,7 +1756,7 @@ proc main() =
             cutsceneContinuation = cscLaunchGame
             pendingModeAfterCutscene = 1
             currentGame.state = gsCutscene
-          elif hasSavedRun() and loadSavedRunMode() == gmTimeSurvival:
+          elif hasSavedRun(gmTimeSurvival):
             resumePromptActive = true
             resumePromptMode = gmTimeSurvival
           else:
@@ -1768,7 +1804,7 @@ proc main() =
             resetPvPWindow(globalWindowManager.pvp)
             playSound(stMenuSelect)
         of 9:  # Roguelite.exe - Roguelite Mode
-          if settings.rogueliteUnlocked and hasSavedRun() and loadSavedRunMode() == gmRoguelite:
+          if settings.rogueliteUnlocked and hasSavedRun(gmRoguelite):
             resumePromptActive = true
             resumePromptMode = gmRoguelite
           else:
@@ -1804,6 +1840,11 @@ proc main() =
               cutsceneContinuation = cscLaunchGame
               pendingModeAfterCutscene = 0
               currentGame.state = gsCutscene
+            elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint():
+              # Same resume prompt as the desktop icon: launching straight from
+              # here used to start a fresh run and delete the saved one.
+              resumePromptActive = true
+              resumePromptMode = gmWaveBased
             else:
               startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
               pendingGameMode = 0
@@ -1815,6 +1856,9 @@ proc main() =
               cutsceneContinuation = cscLaunchGame
               pendingModeAfterCutscene = 1
               currentGame.state = gsCutscene
+            elif hasSavedRun(gmTimeSurvival):
+              resumePromptActive = true
+              resumePromptMode = gmTimeSurvival
             else:
               startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
               pendingGameMode = 1
@@ -1859,16 +1903,20 @@ proc main() =
               resetPvPWindow(globalWindowManager.pvp)
               playSound(stMenuSelect)
           of 9:  # Roguelite.exe
-            setActiveRogueliteProfile(loadRogueliteProfile())
-            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-            currentGame.discordClient = globalDiscordClient
-            currentGame.rogueliteProfile = rogueliteProfile
-            setGameMode(currentGame, gmRoguelite)
-            currentGame.state = gsMenu
-            currentGame.selectedRogueliteStarter = 0
-            currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
-            globalWindowManager.openWindow(widRoguelite)
-            statsSavedThisGame = false
+            if settings.rogueliteUnlocked and hasSavedRun(gmRoguelite):
+              resumePromptActive = true
+              resumePromptMode = gmRoguelite
+            else:
+              setActiveRogueliteProfile(loadRogueliteProfile())
+              currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+              currentGame.discordClient = globalDiscordClient
+              currentGame.rogueliteProfile = rogueliteProfile
+              setGameMode(currentGame, gmRoguelite)
+              currentGame.state = gsMenu
+              currentGame.selectedRogueliteStarter = 0
+              currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
+              globalWindowManager.openWindow(widRoguelite)
+              statsSavedThisGame = false
           of 10: # Advncmnts.exe
             refreshAdvancementProfile()
             globalWindowManager.openWindow(widAdvancements)
@@ -1921,9 +1969,13 @@ proc main() =
         if resumeResult != 0:
           pendingResume = resumeResult == 1
           if resumeResult == -1:
-            deleteRunSave()          # "New Run" discards the checkpoint,
-            deleteBlockCheckpoint()  # the death-surviving block checkpoint,
-            deleteSuspendSnapshot()  # and the exact snapshot.
+            # "New Run" discards this mode's checkpoint and exact snapshot, and
+            # (wave mode only) the death-surviving block checkpoint. Other
+            # modes' saved runs are left alone.
+            deleteRunSave(resumePromptMode)
+            deleteSuspendSnapshot(resumePromptMode)
+            if resumePromptMode == gmWaveBased:
+              deleteBlockCheckpoint()
           case resumePromptMode
           of gmTimeSurvival:
             startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
@@ -2033,8 +2085,11 @@ proc main() =
             spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
             trackWallPlacement(currentGame, wallPos)
 
-      # Activate ALL legendary power-ups with the legendary key (simultaneous activation)
-      if (isKeyPressed(globalSettings.keybinds[kaLegendary]) or isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)) and not globalConfirmActive:
+      # Activate ALL legendary power-ups with the legendary key (simultaneous activation).
+      # Not while the cheat menu is open: it pauses the game, and abilities fired
+      # then dealt their damage and teleports into a frozen world.
+      if (isKeyPressed(globalSettings.keybinds[kaLegendary]) or isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)) and
+         not globalConfirmActive and not cheatMenu.active:
         var anyActivated = false
 
         # Time Warp - slow down time
@@ -2078,17 +2133,29 @@ proc main() =
           if dashDir.length() > 0:
             # Dash in movement direction
             dashDir = dashDir.normalize()
-            currentGame.player.lastPhaseShiftPos = currentGame.player.pos
-            currentGame.player.pos.x += dashDir.x * dashDistance
-            currentGame.player.pos.y += dashDir.y * dashDistance
+            let shiftStart = currentGame.player.pos
+            currentGame.player.lastPhaseShiftPos = shiftStart
 
-            # Keep player in bounds
-            currentGame.player.pos.x = max(currentGame.player.radius,
-                                           min(currentGame.player.pos.x,
-                                               currentGame.screenWidth.float32 - currentGame.player.radius))
-            currentGame.player.pos.y = max(currentGame.player.radius,
-                                           min(currentGame.player.pos.y,
-                                               currentGame.screenHeight.float32 - currentGame.player.radius))
+            # Land on the farthest point along the dash (in tenths) that is in
+            # bounds and clear of every wall. Teleporting blindly could drop the
+            # player inside a dungeon obstacle, where movement can never leave it.
+            var landing = shiftStart
+            for step in countdown(10, 1):
+              let reach = dashDistance.float32 * step.float32 / 10.0'f32
+              let candidate = newVector2f(
+                clamp(shiftStart.x + dashDir.x * reach, currentGame.player.radius,
+                      currentGame.screenWidth.float32 - currentGame.player.radius),
+                clamp(shiftStart.y + dashDir.y * reach, currentGame.player.radius,
+                      currentGame.screenHeight.float32 - currentGame.player.radius))
+              var blocked = false
+              for w in currentGame.walls:
+                if checkPlayerWallCollision(candidate, currentGame.player.radius, w):
+                  blocked = true
+                  break
+              if not blocked:
+                landing = candidate
+                break
+            currentGame.player.pos = landing
 
             # Record actual distance traveled (post-clamp) for stats
             let actualDashDist = distance(currentGame.player.lastPhaseShiftPos, currentGame.player.pos)
@@ -2145,9 +2212,12 @@ proc main() =
                 continue  # respect phase-transition invulnerability
               let intended = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
                              else: enemy.maxHp * BLOOD_PACT_ENEMY_FRAC + bonus
-              let dealt = applyEnemyHpDamage(enemy, intended)
+              # Bosses resist it like every other non-bullet damage path: phase
+              # defense, the weak-point multiplier and the adds/shield gate.
+              let dealt = applyEnemyHpDamage(enemy, intended * bossPassiveDamageTaken(enemy))
               trackPowerUpDamage(currentGame, puBloodPact, dealt)
-              showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
+              if dealt > 0:
+                showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
 
               # The pact reaches every enemy at once, so the hit has to be shown
               # ON each enemy - a burst at the player alone reads as "nothing
@@ -2196,7 +2266,8 @@ proc main() =
               trackPowerUpDamage(currentGame, puConduit, dealt)
               # Color the number by the element that actually detonated, so a
               # multi-element stack reads as several distinct payloads popping.
-              showDamage(currentGame, enemy.pos, dealt, true, false, elementDamageType(et))
+              if dealt > 0:
+                showDamage(currentGame, enemy.pos, dealt, true, false, elementDamageType(et))
               totalDetonated += dealt
               enemyBurst += dealt
 
@@ -2267,7 +2338,8 @@ proc main() =
                       hitEnemyIds.add(enemy.id)
                       let dealt = applyEnemyHpDamage(enemy, baseDamage * bossPassiveDamageTaken(enemy))
                       trackPowerUpDamage(currentGame, puAftershock, dealt)
-                      showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
+                      if dealt > 0:
+                        showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
                       # Knockback away from path
                       let awayFromPath = if dist > 0.1: (enemy.pos - closest).normalize()
                                          else: segNorm * -1.0
@@ -2532,8 +2604,7 @@ proc main() =
         elif isKeyPressed(Q):  # Quit to main menu, ask first (no cooldown gate Q is intentional)
           if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
             # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
-            saveRunState(currentGame)
-            suspendGame(currentGame)  # Exact mid-run snapshot (primary resume path).
+            checkpointLiveRun(currentGame)
             cleanupGame(currentGame)
             currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
@@ -2610,8 +2681,7 @@ proc main() =
         elif menuResult.exitClicked:
           if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
             # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
-            saveRunState(currentGame)
-            suspendGame(currentGame)  # Exact mid-run snapshot (primary resume path).
+            checkpointLiveRun(currentGame)
             cleanupGame(currentGame)
             currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
@@ -2648,8 +2718,7 @@ proc main() =
               disconnect(currentPvPGame.networkManager, "Player quit to menu")
             cleanup(currentPvPGame.networkManager)
             currentPvPGame = nil
-          saveRunState(currentGame)
-          suspendGame(currentGame)  # Exact mid-run snapshot (primary resume path).
+          checkpointLiveRun(currentGame)
           cleanupGame(currentGame)
           currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
@@ -2693,6 +2762,10 @@ proc main() =
             currentGame.rogueliteRun.coresEarned > 0):
           discard commitRogueliteRunProgress(currentGame, true)
           setActiveRogueliteProfile(currentGame.rogueliteProfile)
+        # The run is abandoned (and its shards were just banked), so its saves
+        # must go too: left on disk, the run could be resumed and banked again.
+        deleteRunSave(gmRoguelite)
+        deleteSuspendSnapshot(gmRoguelite)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -3010,9 +3083,12 @@ proc main() =
       beginUIScaleMode(hudInterfaceScale())
       let screenWidth = getVirtualScreenWidth()
 
-      # Draw appropriate cleared text based on whether it was a boss wave
-      let waveText = if isBossWave(currentGame.currentWave):
-        "BOSS " & $getCustomBossNumber(currentGame.currentWave) & " CLEARED!"
+      # Draw appropriate cleared text based on whether it was a boss wave. The
+      # wave counter has already advanced past the wave just cleared, so testing
+      # currentWave itself labelled the wave BEFORE each boss "BOSS N CLEARED!".
+      let clearedWave = currentGame.currentWave - 1
+      let waveText = if isBossWave(clearedWave):
+        "BOSS " & $getCustomBossNumber(clearedWave) & " CLEARED!"
       else:
         "WAVE CLEARED!"
       let waveTextSize = 48.int32
@@ -3519,8 +3595,16 @@ proc main() =
                                                 statsVp.h, [statsWin.window])
       popUIScale()
 
+      # A won run reaches this screen from the victory screen before it has been
+      # persisted (the game-over path persists on entry), so every way out of
+      # here must record it first or the victory is lost.
+      proc persistIfFromVictory() =
+        if currentGame.previousState == gsVictory:
+          persistRunResults(currentGame, died = false)
+
       proc doReturnToMenuFromStats() =
         statsWin.window.visible = false
+        persistIfFromVictory()
         cleanupGame(currentGame)  # Clean up resources before creating new game
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -3539,6 +3623,7 @@ proc main() =
       # Quick restart
       if not globalConfirmActive and isKeyPressed(R):
         statsWin.window.visible = false
+        persistIfFromVictory()
         let previousMode = currentGame.mode
         let preservedRogueliteHeat =
           if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
@@ -3882,6 +3967,39 @@ proc main() =
       drawPvP(currentPvPGame, hudInterfaceScale())
       drawCustomCursor(currentPvPGame.gameTime)
       endGameDrawing()
+
+  # A run that has ended but was not persisted yet -- the window was closed on
+  # an ending screen or during the death playback -- is recorded now, since
+  # those states are not resumable and the run would otherwise just vanish.
+  # Replays of the ending cinematics run on the idle menu Game and are skipped.
+  if not currentGame.isNil:
+    case currentGame.state
+    of gsDeathSequence:
+      freezeRunTime(currentGame)
+      persistRunResults(currentGame, died = true)
+    of gsSurvivalEndCinematic:
+      if not survivalEndReplayMode:
+        freezeRunTime(currentGame)
+        persistRunResults(currentGame, died = true)
+    of gsVictory, gsRogueliteVictory:
+      persistRunResults(currentGame, died = false)
+    of gsEndgameCinematic:
+      if not endgameReplayMode:
+        persistRunResults(currentGame, died = false)
+    of gsRogueliteEndCinematic:
+      if not rogueliteEndReplayMode:
+        persistRunResults(currentGame, died = false)
+    of gsRunStats:
+      if currentGame.previousState == gsVictory:
+        persistRunResults(currentGame, died = false)
+    of gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared, gsPowerUpSelect:
+      # Live play is normally checkpointed below, but a won run in endless
+      # cannot be, so it is recorded here instead of being lost.
+      if isUnresumableWonRun(currentGame):
+        freezeRunTime(currentGame)
+        persistRunResults(currentGame, died = false)
+    else:
+      discard
 
   # Checkpoint the live run on shutdown so it can be resumed next launch.
   if not currentGame.isNil:

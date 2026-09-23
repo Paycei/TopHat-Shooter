@@ -27,6 +27,11 @@ proc getDeathSequenceTimeScale(timer: float32): float32 =
 
 proc installPowerUp*(game: var Game, powerUp: PowerUp) =
   ## Centralized install feedback so every selected power-up feels like an event.
+  # Level 0 is generatePowerUpChoices' "nothing left to offer" placeholder. It
+  # is never a real pick: installing it would overwrite an owned power-up's
+  # level with 0.
+  if powerUp.level <= 0:
+    return
   applyPowerUp(game.player, powerUp)
   trackPowerUpSelection(game, powerUp)
 
@@ -232,8 +237,8 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   game.runHadDeath = true
 
   # Death ends the run: the checkpoint save is no longer resumable.
-  deleteRunSave()
-  deleteSuspendSnapshot()  # ...and the exact snapshot with it.
+  deleteRunSave(game.mode)
+  deleteSuspendSnapshot(game.mode)  # ...and the exact snapshot with it.
 
   game.state = gsDeathSequence
   game.transitioning = false

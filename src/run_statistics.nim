@@ -767,6 +767,9 @@ proc initializeRunTracking*(game: Game) =
   # time so the per-minute rates (DPS, kills/min) are not divided by the few
   # minutes played since the resume while the wave counter still reads 30.
   currentRunStats.runDuration = max(0.0'f32, runElapsedTime(game))
+  # Fresh counters hold nothing the lifetime statistics have seen yet.
+  game.statsBaseCoins = 0
+  game.statsBaseBosses = 0
   game.showRunStatsGraphs = true
 
 proc resumeRunTracking*(game: Game) =
@@ -780,7 +783,13 @@ proc resumeRunTracking*(game: Game) =
   ## process) or when the mode does not match.
   if currentRunStats.isNil or currentRunStats.gameMode != game.mode:
     startNewRun(game.mode)
+    game.statsBaseCoins = 0
+    game.statsBaseBosses = 0
   else:
+    # The carried counters were already written to the lifetime statistics when
+    # the player died, so only what they gain from here on is new.
+    game.statsBaseCoins = currentRunStats.resources.coinsEarned
+    game.statsBaseBosses = currentRunStats.combat.bossKills
     # finalizeRunTracking stamped this run as ended when the player died; the run
     # is live again, so clear the terminal markers. lastCompletedRun already holds
     # its own copy (cloneRunStatistics), so it keeps showing the death snapshot.

@@ -65,6 +65,13 @@ type
     latency*: float32
     timeoutDisabled*: bool
     hostNickname*: string
+    matchStarted*: bool   ## Host: the game-start signal has gone out. Player
+                          ## indices are frozen from then on (they key every
+                          ## per-player array in the match), and no one may join.
+    hostAddress*: string  ## Client: where the host actually answered from (set by
+    hostPort*: Port       ## its connection accept). remoteAddr is whatever the
+                          ## user typed -- possibly a hostname -- so it can't be
+                          ## compared against a datagram's source.
 
 # Construction
 
@@ -80,7 +87,10 @@ proc newNetworkManager*(): NetworkManager =
     lastReceiveTime: epochTime(),
     latency: 0,
     timeoutDisabled: false,
-    hostNickname: "Player"
+    hostNickname: "Player",
+    matchStarted: false,
+    hostAddress: "",
+    hostPort: Port(0)
   )
 
 proc initHost*(nm: NetworkManager, port: int = DEFAULT_PORT, maxPlayers: int = 2) =
@@ -145,6 +155,7 @@ proc sendGameStart*(nm: NetworkManager, countdownTime: float32 = 3.0,
                     connectedPlayers: seq[ConnectedPlayerInfo] = @[],
                     pvpConfig: PvPConfig = defaultPvPConfig()) =
   if nm.role != nrHost: return
+  nm.matchStarted = true
   var packet = newPacket(ptGameStart)
   packet.countdownTime = countdownTime
   packet.gameConnectedPlayers = connectedPlayers
@@ -176,6 +187,75 @@ proc enableTimeoutCheck*(nm: NetworkManager) =
     for i in 0..<nm.clients.len:
       nm.clients[i].lastReceiveTime = epochTime()
 
+# Roster helpers (host)
+
+type HostCosmeticsCallback = proc(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int]
+
+proc buildRoster(nm: NetworkManager, getCosmeticsCallback: HostCosmeticsCallback): seq[ConnectedPlayerInfo] =
+  var hostCosmetics = (skinType: 0, bulletSkinType: 0, shapeType: 0, particleSkinType: 0)
+  if getCosmeticsCallback != nil:
+    hostCosmetics = getCosmeticsCallback()
+  result.add((index: 0,
+    skinType: hostCosmetics.skinType,
+    bulletSkinType: hostCosmetics.bulletSkinType,
+    shapeType: hostCosmetics.shapeType,
+    particleSkinType: hostCosmetics.particleSkinType,
+    nickname: nm.hostNickname))
+  for client in nm.clients:
+    result.add((index: client.playerIndex,
+      skinType: client.skinType,
+      bulletSkinType: client.bulletSkinType,
+      shapeType: client.shapeType,
+      particleSkinType: client.particleSkinType,
+      nickname: client.nickname))
+
+proc nextFreePlayerIndex(nm: NetworkManager): int =
+  ## Lowest client index (1+) nobody holds. `clients.len + 1` handed out an
+  ## index that was still taken whenever an earlier player had left.
+  result = 1
+  while true:
+    var taken = false
+    for client in nm.clients:
+      if client.playerIndex == result:
+        taken = true
+        break
+    if not taken:
+      return
+    inc result
+
+proc announceRosterAfterLeave(nm: NetworkManager, getCosmeticsCallback: HostCosmeticsCallback) =
+  ## After a client leaves. In the lobby the remaining clients are renumbered
+  ## 1..n and each is told its (possibly new) index: the match sizes its player
+  ## arrays by player count, so a gap left some client's index past the end of
+  ## them. Mid-match the indices key live per-player state, so they stay put
+  ## and only the roster is refreshed.
+  if nm.clients.len == 0:
+    return
+  if not nm.matchStarted:
+    for i in 0..<nm.clients.len:
+      nm.clients[i].playerIndex = i + 1
+  let roster = nm.buildRoster(getCosmeticsCallback)
+  if not nm.matchStarted:
+    for client in nm.clients:
+      var accept = newPacket(ptConnectionAccept)
+      accept.connectionReason = "Player list updated"
+      accept.assignedPlayerIndex = client.playerIndex
+      accept.maxPlayersInRoom = nm.maxPlayers
+      accept.connectedPlayers = roster
+      try:
+        nm.socket.sendTo(client.address, client.port, serialize(accept))
+      except:
+        echo "[NETWORK] Failed to send updated player index to ", client.address, ":", client.port.int
+  else:
+    var updatePacket = newPacket(ptPlayerListUpdate)
+    updatePacket.updatedPlayers = roster
+    let updateData = serialize(updatePacket)
+    for client in nm.clients:
+      try:
+        nm.socket.sendTo(client.address, client.port, updateData)
+      except:
+        echo "[NETWORK] Failed to send player list update to ", client.address, ":", client.port.int
+
 # Poll
 
 proc pollEvents*(nm: NetworkManager,
@@ -198,33 +278,8 @@ proc pollEvents*(nm: NetworkManager,
     nm.isConnected = nm.clients.len > 0
 
     # Send updated player list if anyone disconnected
-    if disconnected.len > 0 and nm.clients.len > 0:
-      var roster: seq[ConnectedPlayerInfo] = @[]
-      var hostCosmetics = (skinType: 0, bulletSkinType: 0, shapeType: 0, particleSkinType: 0)
-      if getCosmeticsCallback != nil:
-        hostCosmetics = getCosmeticsCallback()
-      roster.add((index: 0,
-        skinType: hostCosmetics.skinType,
-        bulletSkinType: hostCosmetics.bulletSkinType,
-        shapeType: hostCosmetics.shapeType,
-        particleSkinType: hostCosmetics.particleSkinType,
-        nickname: nm.hostNickname))
-      for client in nm.clients:
-        roster.add((index: client.playerIndex,
-          skinType: client.skinType,
-          bulletSkinType: client.bulletSkinType,
-          shapeType: client.shapeType,
-          particleSkinType: client.particleSkinType,
-          nickname: client.nickname))
-
-      var updatePacket = newPacket(ptPlayerListUpdate)
-      updatePacket.updatedPlayers = roster
-      let updateData = serialize(updatePacket)
-      for client in nm.clients:
-        try:
-          nm.socket.sendTo(client.address, client.port, updateData)
-        except:
-          echo "[NETWORK] Failed to send player list update after timeout"
+    if disconnected.len > 0:
+      nm.announceRosterAfterLeave(getCosmeticsCallback)
 
   elif nm.role == nrClient and nm.isConnected and not nm.timeoutDisabled:
     if epochTime() - nm.lastReceiveTime > DISCONNECT_TIMEOUT:
@@ -250,7 +305,10 @@ proc pollEvents*(nm: NetworkManager,
       break
 
     processed += 1
-    nm.lastReceiveTime = epochTime()
+    # A client's liveness clock is refreshed below, only by packets that pass
+    # the host-source check; the host tracks each client's clock separately.
+    if nm.role == nrHost:
+      nm.lastReceiveTime = epochTime()
 
     var packet: Packet
     try:
@@ -277,6 +335,18 @@ proc pollEvents*(nm: NetworkManager,
         echo "[NETWORK] Connection denied (version mismatch): host=", NETWORK_VERSION, " client=", packet.version
         continue
 
+      if nm.matchStarted:
+        # Player indices are frozen once the match starts; a joiner would get
+        # an index the match has no slot for.
+        var deny = newPacket(ptConnectionDenied)
+        deny.connectionReason = "Match already in progress"
+        deny.assignedPlayerIndex = -1
+        deny.maxPlayersInRoom = nm.maxPlayers
+        deny.connectedPlayers = @[]
+        nm.socket.sendTo(address, port, serialize(deny))
+        echo "[NETWORK] Connection denied (match in progress): ", address, ":", port.int
+        continue
+
       if nm.clients.len >= nm.maxPlayers - 1:
         var deny = newPacket(ptConnectionDenied)
         deny.connectionReason = "Room is full (" & $nm.clients.len & "/" & $(nm.maxPlayers - 1) & " clients)"
@@ -287,7 +357,7 @@ proc pollEvents*(nm: NetworkManager,
         echo "[NETWORK] Connection denied (full): ", address, ":", port.int
         continue
 
-      let assignedIndex = nm.clients.len + 1
+      let assignedIndex = nm.nextFreePlayerIndex()
       nm.clients.add(ConnectedClient(
         address: address, port: port,
         playerIndex: assignedIndex,
@@ -301,23 +371,7 @@ proc pollEvents*(nm: NetworkManager,
       nm.isConnected = true
 
       # Build player roster for accept packet
-      var roster: seq[ConnectedPlayerInfo] = @[]
-      var hostCosmetics = (skinType: 0, bulletSkinType: 0, shapeType: 0, particleSkinType: 0)
-      if getCosmeticsCallback != nil:
-        hostCosmetics = getCosmeticsCallback()
-      roster.add((index: 0,
-        skinType: hostCosmetics.skinType,
-        bulletSkinType: hostCosmetics.bulletSkinType,
-        shapeType: hostCosmetics.shapeType,
-        particleSkinType: hostCosmetics.particleSkinType,
-        nickname: nm.hostNickname))
-      for client in nm.clients:
-        roster.add((index: client.playerIndex,
-          skinType: client.skinType,
-          bulletSkinType: client.bulletSkinType,
-          shapeType: client.shapeType,
-          particleSkinType: client.particleSkinType,
-          nickname: client.nickname))
+      let roster = nm.buildRoster(getCosmeticsCallback)
 
       var accept = newPacket(ptConnectionAccept)
       accept.connectionReason = "Connection accepted"
@@ -354,6 +408,8 @@ proc pollEvents*(nm: NetworkManager,
         nm.isConnected = true
         nm.lastReceiveTime = epochTime()
         nm.timeoutDisabled = false
+        nm.hostAddress = address
+        nm.hostPort = port
         result.add(NetworkEvent(kind: neConnect,
           connectPlayerIndex: packet.assignedPlayerIndex,
           remoteAddress: address,
@@ -370,12 +426,30 @@ proc pollEvents*(nm: NetworkManager,
     # Regular packets
     if not (nm.isConnected or nm.role == nrHost): continue
 
-    # Update per-client receive time (host only)
     if nm.role == nrHost:
+      # Only connected clients may talk to the host, and only with the packets
+      # a client actually sends. Anything else -- a stranger's datagram, or a
+      # client forging host-only packets such as ptGameOver or ptPlayerDamage
+      # -- used to be passed straight into the match.
+      var senderIdx = -1
       for i in 0..<nm.clients.len:
         if nm.clients[i].address == address and nm.clients[i].port == port:
           nm.clients[i].lastReceiveTime = epochTime()
+          senderIdx = i
           break
+      if senderIdx < 0:
+        continue
+      if packet.kind notin {ptPlayerInput, ptDisconnect, ptPing, ptPong}:
+        continue
+      if packet.kind == ptPlayerInput:
+        # A client drives its own player only, whatever index it claims.
+        packet.input.playerIndex = nm.clients[senderIdx].playerIndex
+    elif nm.role == nrClient:
+      # Only the host speaks to a client. Anyone else's datagram -- a forged
+      # ptGameOver, ptPlayerDamage or ptDisconnect -- is dropped.
+      if address != nm.hostAddress or port != nm.hostPort:
+        continue
+      nm.lastReceiveTime = epochTime()
 
     case packet.kind
     of ptDisconnect:
@@ -391,33 +465,7 @@ proc pollEvents*(nm: NetworkManager,
             nm.isConnected = nm.clients.len > 0
 
             # Send updated player list to all remaining clients
-            if nm.clients.len > 0:
-              var roster: seq[ConnectedPlayerInfo] = @[]
-              var hostCosmetics = (skinType: 0, bulletSkinType: 0, shapeType: 0, particleSkinType: 0)
-              if getCosmeticsCallback != nil:
-                hostCosmetics = getCosmeticsCallback()
-              roster.add((index: 0,
-                skinType: hostCosmetics.skinType,
-                bulletSkinType: hostCosmetics.bulletSkinType,
-                shapeType: hostCosmetics.shapeType,
-                particleSkinType: hostCosmetics.particleSkinType,
-                nickname: nm.hostNickname))
-              for remainingClient in nm.clients:
-                roster.add((index: remainingClient.playerIndex,
-                  skinType: remainingClient.skinType,
-                  bulletSkinType: remainingClient.bulletSkinType,
-                  shapeType: remainingClient.shapeType,
-                  particleSkinType: remainingClient.particleSkinType,
-                  nickname: remainingClient.nickname))
-
-              var updatePacket = newPacket(ptPlayerListUpdate)
-              updatePacket.updatedPlayers = roster
-              let updateData = serialize(updatePacket)
-              for remainingClient in nm.clients:
-                try:
-                  nm.socket.sendTo(remainingClient.address, remainingClient.port, updateData)
-                except:
-                  echo "[NETWORK] Failed to send player list update after disconnect"
+            nm.announceRosterAfterLeave(getCosmeticsCallback)
             break
       else:
         nm.isConnected = false

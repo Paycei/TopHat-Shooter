@@ -217,13 +217,15 @@ proc checkPendingLevelDraft*(game: Game) =
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
   initializeRerollCost(game)
+  game.state = gsPowerUpSelect
   if isTimeSurvivalMode(game.mode) or game.mode == gmWaveBased:
     # Flag the draft as a level-up so continueAfterDraft resumes into the same
     # battlefield instead of routing to the between-wave shop.
     game.levelDraftActive = true
-    saveRunState(game)  # Autosave checkpoint at each level draft.
-    deleteSuspendSnapshot()  # Boundary reached: the pre-exit snapshot is stale.
-  game.state = gsPowerUpSelect
+    # Autosave checkpoint at each level draft. Written after the state switch
+    # so the save counts this open draft as still owed (see saveRunState).
+    saveRunState(game)
+    deleteSuspendSnapshot(game.mode)  # Boundary reached: the pre-exit snapshot is stale.
 
 proc beginDraftResume*(game: var Game) =
   ## Re-entry beat after a draft hands the player back to a LIVE battlefield.
@@ -400,7 +402,7 @@ proc awardMetaCurrency(game: Game, shards: int, cores: int = 0) =
 # Waves
 proc startWave*(game: Game) =
   # Death-surviving block checkpoint, written at the START of each boss block
-  # (waves 5, 9, 13, ... for a BossWaveInterval of 4 -- wavesUntilBoss is only
+  # (waves 6, 11, 16, ... for a BossWaveInterval of 5 -- wavesUntilBoss is only
   # back at its full value on a block's first wave). Two reasons for the timing:
   #   * it runs AFTER the previous boss's reward draft and shop visit, so those
   #     are part of the checkpoint instead of being lost on a Continue;
@@ -457,18 +459,22 @@ proc startWave*(game: Game) =
   # levels are where most of the escape velocity comes from.
   let waveScaling: float32 = 1.015  # 1.5% increase per wave
 
-  # Apply multiplicative scaling to current stats (preserves all upgrades)
-  game.player.maxHp *= waveScaling
-  # The free share scales with it, so surviving waves never converts into
-  # Juggernaut damage on its own (see Player.baselineMaxHp).
-  game.player.baselineMaxHp *= waveScaling
-  game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)  # Scale current HP but cap at maxHp
-  game.player.damage *= waveScaling
-  game.player.speed *= waveScaling
-  game.player.baseSpeed *= waveScaling
-  game.player.bulletSpeed = multiplyBulletSpeedDiminished(game.player.bulletSpeed, waveScaling)
-  # Fire rate gets faster (lower number = faster), so we divide instead of multiply
-  game.player.fireRate /= waveScaling
+  # Once per wave number: a checkpoint written mid-wave (level drafts) already
+  # holds this wave's scaled stats, and resuming it restarts the wave here.
+  if game.waveScalingApplied != game.currentWave:
+    game.waveScalingApplied = game.currentWave
+    # Apply multiplicative scaling to current stats (preserves all upgrades)
+    game.player.maxHp *= waveScaling
+    # The free share scales with it, so surviving waves never converts into
+    # Juggernaut damage on its own (see Player.baselineMaxHp).
+    game.player.baselineMaxHp *= waveScaling
+    game.player.hp = min(game.player.hp * waveScaling, game.player.maxHp)  # Scale current HP but cap at maxHp
+    game.player.damage *= waveScaling
+    game.player.speed *= waveScaling
+    game.player.baseSpeed *= waveScaling
+    game.player.bulletSpeed = multiplyBulletSpeedDiminished(game.player.bulletSpeed, waveScaling)
+    # Fire rate gets faster (lower number = faster), so we divide instead of multiply
+    game.player.fireRate /= waveScaling
 
   # Reset all active ability cooldowns for new wave
   game.player.timeWarpUsesThisWave = 0
@@ -795,6 +801,9 @@ proc completeBossWave*(game: Game) =
   game.powerUpChoices = generatePowerUpChoices(game.player, true, mode = game.mode)
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
+  # Every draft starts at the base reroll price; without this the boss reward
+  # inherited whatever the previous draft's rerolls had driven it up to.
+  initializeRerollCost(game)
 
   # Final boss (boss number 12 = wave 60) beaten for the first time: show the
   # one-time victory screen instead of the power-up select. The power-up reward
@@ -808,9 +817,9 @@ proc completeBossWave*(game: Game) =
     # Raised as a one-shot flag because the advancement profile lives in main().
     if not game.runHadDeath and not game.cheatsUsed:
       game.flawlessWaveVictory = true
-    deleteRunSave()  # Run is won: no longer resumable.
+    deleteRunSave(game.mode)  # Run is won: no longer resumable.
     deleteBlockCheckpoint()  # Won run: drop the block checkpoint too.
-    deleteSuspendSnapshot()  # Drop the exact snapshot too.
+    deleteSuspendSnapshot(game.mode)  # Drop the exact snapshot too.
     # First-ever victory unlocks the secret kernel tophat cosmetic. It is
     # equipped by default (and immediately, so it shows in endless) and can be
     # toggled off in the shop's SECRET tab.
@@ -891,8 +900,7 @@ proc updateBossArenaGameplay(game: var Game, dt: float32) =
 
     if actualDamage > 0.001:
       trackPlayerDamage(game, etEnvironment)
-      game.showDamage(game.player.pos, actualDamage, fromPlayer = false,
-                      isCritical = false, damageType = dtArcane)
+      game.showPlayerDamageTaken(dtArcane)
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                            Color(r: 255, g: 65, b: 55, a: 220), 8)
       playSound(stPlayerHit, 0.38)
@@ -916,11 +924,13 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
         i += 1
       continue
 
-    # Only laser-beam warnings follow their source enemy during wind-up;
-    # every other warning is stamped at a fixed world position.
+    # Only boss laser-beam warnings follow their source enemy during wind-up;
+    # every other warning is stamped at a fixed world position. Satellite laser
+    # warnings are positioned by their own satellite (updateBossSatellites):
+    # snapping them to the boss here made the telegraph flicker between the
+    # boss's centre and the satellite.
     let warnType = game.attackWarnings[i].attackType
-    if game.attackWarnings[i].sourceEnemyId >= 0 and
-       (warnType == awtBossLaser or warnType == awtSatelliteLaser):
+    if game.attackWarnings[i].sourceEnemyId >= 0 and warnType == awtBossLaser:
       for enemy in game.enemies:
         if enemy.id == game.attackWarnings[i].sourceEnemyId:
           game.attackWarnings[i].pos = enemy.pos
@@ -1124,8 +1134,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
             beginPlayerDeathSequence(game, dcHazard)
           trackDamageAvoided(game)
           trackPlayerDamage(game, etCircle)
-          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                          isCritical = false, damageType = dtLightning)
+          game.showPlayerDamageTaken(dtLightning)
           w.lasersCreated = true
 
     # ARC LATTICE: telegraph expires -> a lightning wall segment goes live.
@@ -1149,8 +1158,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
             beginPlayerDeathSequence(game, dcHazard)
           trackDamageAvoided(game)
           trackPlayerDamage(game, etCircle)
-          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                          isCritical = false, damageType = dtLightning)
+          game.showPlayerDamageTaken(dtLightning)
           game.player.laserHitCooldown = LaserHitInterval
 
     # VOID RIFT (Void Dancer): telegraph expires -> the dimensional tear collapses,
@@ -1191,8 +1199,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
             beginPlayerDeathSequence(game, dcHazard)
           trackDamageAvoided(game)
           trackPlayerDamage(game, etCircle)
-          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                          isCritical = false, damageType = dtArcane)
+          game.showPlayerDamageTaken(dtArcane)
           w.lasersCreated = true
 
     # RICOCHET LASER (boss 4 final phase): telegraph expires -> the beam-front
@@ -1226,8 +1233,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
               beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
             trackDamageAvoided(game)
             trackPlayerDamage(game, w.enemyType)
-            game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                            isCritical = false, damageType = dtLaser)
+            game.showPlayerDamageTaken(dtLaser)
             # Impact burst where the beam caught the player.
             spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                                  Color(r: 230, g: 250, b: 255, a: 255), 20)
@@ -1265,8 +1271,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
               beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
             trackDamageAvoided(game)
             trackPlayerDamage(game, etCircle)
-            game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                            isCritical = false, damageType = dtLaser)
+            game.showPlayerDamageTaken(dtLaser)
             spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                                  Color(r: 200, g: 160, b: 255, a: 255), 14)
             game.player.laserHitCooldown = LaserHitInterval
@@ -1289,8 +1294,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
             beginPlayerDeathSequence(game, dcHazard)
           trackDamageAvoided(game)
           trackPlayerDamage(game, etCircle)
-          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                          isCritical = false, damageType = dtExplosion)
+          game.showPlayerDamageTaken(dtExplosion)
           w.lasersCreated = true
 
     # PRISM REFRACTION (Prism Architect): each star (primary AND every cascade
@@ -1325,8 +1329,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
               beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
             trackDamageAvoided(game)
             trackPlayerDamage(game, etCircle)
-            game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                            isCritical = false, damageType = dtLaser)
+            game.showPlayerDamageTaken(dtLaser)
             game.player.laserHitCooldown = LaserHitInterval
 
     # CLOCK SWEEP (Timekeeper): while active the hands rotate around the frozen
@@ -1385,8 +1388,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
                 beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
               trackDamageAvoided(game)
               trackPlayerDamage(game, etCircle)
-              game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                              isCritical = false, damageType = dtFrost)
+              game.showPlayerDamageTaken(dtFrost)
               game.player.laserHitCooldown = LaserHitInterval
               break
 
@@ -1439,8 +1441,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
               beginPlayerDeathSequence(game, dcLaser, sourceType = w.enemyType)
             trackDamageAvoided(game)
             trackPlayerDamage(game, etCircle)
-            game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                            isCritical = false, damageType = dtArcane)
+            game.showPlayerDamageTaken(dtArcane)
             game.player.laserHitCooldown = LaserHitInterval
 
     # OMEGA JUDGEMENT (Omega Entity): every heartbeat three quadrants erupt
@@ -1496,8 +1497,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
             beginPlayerDeathSequence(game, dcHazard)
           trackDamageAvoided(game)
           trackPlayerDamage(game, etCircle)
-          game.showDamage(game.player.pos, w.bulletDamage, fromPlayer = false,
-                          isCritical = false, damageType = dtFire)
+          game.showPlayerDamageTaken(dtFire)
           w.lasersCreated = true
 
     if game.attackWarnings[i].lifetime <= 0:
@@ -1555,8 +1555,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
         trackPlayerDamage(game, laser.enemyType)
 
         # Create damage number for laser damage
-        game.showDamage(game.player.pos, laser.damage.float32, fromPlayer = false,
-                        isCritical = false, damageType = dtLaser)
+        game.showPlayerDamageTaken(dtLaser)
 
         game.player.laserHitCooldown = LaserHitInterval
         game.lasers[j].hasHitPlayer = true
@@ -1647,8 +1646,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
 
     for enemy in game.enemies:
       if auraWaveCatches(game.player, enemy, slot, front):
-        enemy.slowTimer = holdTime
-        enemy.slowAmount = slowPercent
+        applySlow(enemy, slowPercent, holdTime)
         let slowChipDamage = damageEnemy(enemy, chipDamage, consumesDiamondShield = false)
         if slowChipDamage > 0:
           trackPowerUpDamage(game, puSlowField, slowChipDamage)
@@ -1738,9 +1736,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
 
         # Apply slow ONLY if player has Lightning Mastery (held until next beat)
         if game.player.hasLightningMastery:
-          enemy.slowTimer = interval * 1.15
-          if enemy.slowAmount < 0.25:
-            enemy.slowAmount = 0.25  # 25% slow
+          applySlow(enemy, 0.25, interval * 1.15)  # 25% slow
 
         # Visual lightning spark
         if fxBudget > 0:
@@ -1783,9 +1779,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
             accumulateAndShowAuraDamage(game, nearestEnemy, chainedDamage, dtLightning, chainWasCrit)
 
             # Apply 5% slow effect to chained enemy
-            nearestEnemy.slowTimer = interval * 1.15
-            if nearestEnemy.slowAmount < 0.05:
-              nearestEnemy.slowAmount = 0.05
+            applySlow(nearestEnemy, 0.05, interval * 1.15)
 
             # Lightning arc visual
             spawnLightningBolt(game, currentEnemy.pos, nearestEnemy.pos)
@@ -1898,9 +1892,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
 
         # Apply slow ONLY if player has Wind Mastery - held until the next gust
         if game.player.hasWindMastery:
-          enemy.slowTimer = interval * 1.15
-          if enemy.slowAmount < 0.45:
-            enemy.slowAmount = 0.45  # 45% slow
+          applySlow(enemy, 0.45, interval * 1.15)  # 45% slow
 
     # Extra juice, launch frame only: the air burst is the gust leaving the
     # player, so it fires once with the wave rather than every sweep frame.
@@ -2210,8 +2202,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       trackPlayerDamage(game, game.player.poisonSourceType)
 
       # Create damage number for poison damage
-      game.showDamage(game.player.pos, wholeDamage, fromPlayer = false,
-                      isCritical = false, damageType = dtPoison)
+      game.showPlayerDamageTaken(dtPoison)
 
       # Additional safety check: ensure game ends if HP reaches 0
       if game.player.hp <= 0:
@@ -2440,14 +2431,14 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
             game.state = gsPowerUpSelect
           # Autosave checkpoint: room cleared, doors open.
           saveRunState(game)
-          deleteSuspendSnapshot()  # Boundary: the pre-exit snapshot is stale.
+          deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
         else:
           # Transition to wave cleared state for 0.3s to let players collect coins
           game.waveClearedTimer = 0.3
           game.state = gsWaveCleared
           # Autosave checkpoint: wave cleared (about to start the next wave).
           saveRunState(game)
-          deleteSuspendSnapshot()  # Boundary: the pre-exit snapshot is stale.
+          deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
 
           # Store whether we should offer power-up after the timer
           # Store this in cameFromPowerUpSelect as a temporary flag
@@ -2630,15 +2621,9 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
             let elemShare = actualDamage * (elemTickDamage[et] / totalTickDamage)
             accumulateDotDamage(game, enemy, et, elemShare)
 
-    # Update chain lightning cooldown
-    if enemy.chainLightningCooldown > 0:
-      enemy.chainLightningCooldown -= effectiveDt  # Use slowed time
-
-    # Update slow timer (from Chain Lightning stun and other effects)
-    if enemy.slowTimer > 0:
-      enemy.slowTimer -= effectiveDt
-      if enemy.slowTimer <= 0:
-        enemy.slowAmount = 0
+    # (The chain lightning cooldown and slow timer are ticked inside updateEnemy.
+    # They used to be ticked here as well, which ran every slow out at double
+    # speed and halved the chain lightning cooldown.)
 
     if enemy.hitFlashTimer > 0:
       enemy.hitFlashTimer -= dt
@@ -2719,8 +2704,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           trackPlayerDamage(game, enemy.enemyType)
 
           # Create damage number for explosion damage
-          game.showDamage(game.player.pos, eliteExplosionDamage, fromPlayer = false,
-                          isCritical = false, damageType = dtExplosion)
+          game.showPlayerDamageTaken(dtExplosion)
 
         # Create explosion visual
         spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -2746,8 +2730,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           trackPlayerDamage(game, enemy.enemyType)
 
           # Create damage number for boss explosion damage
-          game.showDamage(game.player.pos, explosionDamage, fromPlayer = false,
-                          isCritical = false, damageType = dtExplosion)
+          game.showPlayerDamageTaken(dtExplosion)
 
         # Create MASSIVE explosion visual with multiple layers
         spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -3319,8 +3302,11 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     if enemy.enemyType in [etCube, etHexagon, etOctagon, etPentagon, etPhantom, etDiamond, etMage]:
       let config = getEnemyConfig(enemy.enemyType)
 
-      # Only shoot if enemy has ranged attack configured
-      if config.hasRangedAttack:
+      # Only shoot if enemy has ranged attack configured, and -- like
+      # executeRangedAttack -- never before an enemy that must enter the screen
+      # has done so (otherwise this path fired volleys from off-screen).
+      if config.hasRangedAttack and
+         not (config.requiresScreenEntry and not enemy.hasEnteredScreen):
         let attackConfig = config.attack
         # Per-enemy damage so elite bonuses and dungeon tuning reach bullets
         let enemyBulletDamage = if enemy.rangedDamage > 0: enemy.rangedDamage
@@ -3418,11 +3404,13 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           var bossContactDamage = if chargeImpact: enemy.chargeDamage
                                   else: bossDps * elapsed
 
-          # Thorns reflection damage
-          discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
-
           let playerDied = takeDamage(game.player, bossContactDamage)
           trackDamageAvoided(game)
+
+          # Thorns reflects a hit that landed. Resolved after takeDamage so a hit
+          # that invincibility, a shield charge or a dodge stopped reflects nothing.
+          if game.player.lastDamageTaken > 0:
+            discard applyThornsReflection(game, game.player, bossContactDamage, enemy, "boss")
 
           # Pulse Armor knockback is handled centrally by the trigger block in
           # updateGame (takeDamage above sets the -1 trigger flag).
@@ -3434,8 +3422,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           trackPlayerDamage(game, enemy.enemyType)
 
           # Create damage number for boss contact damage
-          game.showDamage(game.player.pos, bossContactDamage, fromPlayer = false,
-                          isCritical = false, damageType = dtDefault)
+          game.showPlayerDamageTaken(dtDefault)
 
           playSound(stPlayerHit, 0.6)
           enemy.lastContactDamageTime = game.time
@@ -3448,9 +3435,16 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         if game.time - enemy.lastContactDamageTime >= 0.33:  # Contact damage cooldown
           var enemyContactDamage = enemy.contactDamage.float32  # Damage enemy deals to player
 
+          let playerDied = takeDamage(game.player, enemyContactDamage)
+          trackDamageAvoided(game)
+          # Both on-hit effects below need a hit that landed: a touch that
+          # invincibility, a shield charge or a dodge stopped neither poisons the
+          # player nor reflects Thorns damage.
+          let contactLanded = game.player.lastDamageTaken > 0
+
           # Venomous elite effect - applies poison to player
           # Handles multiple elite types (wave 25+)
-          if enemy.isElite and etVenomous in enemy.eliteTypes:
+          if contactLanded and enemy.isElite and etVenomous in enemy.eliteTypes:
             game.player.poisonTimer = 3.0  # 3 seconds of poison
             game.player.poisonDamage = 0.5  # 0.5 DPS = 1.5 total damage
             game.player.poisonAccumulator = 0.0  # Reset accumulator for new poison application
@@ -3458,10 +3452,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
             spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 10)
 
           # Thorns reflection damage - damages enemy but doesn't kill instantly
-          discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
-
-          let playerDied = takeDamage(game.player, enemyContactDamage)
-          trackDamageAvoided(game)
+          if contactLanded:
+            discard applyThornsReflection(game, game.player, enemyContactDamage, enemy, "contact")
 
           # Pulse Armor knockback is handled centrally by the trigger block in
           # updateGame (takeDamage above sets the -1 trigger flag).
@@ -3473,7 +3465,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           trackPlayerDamage(game, enemy.enemyType)
 
           # Create damage number for player taking damage
-          showDamage(game, game.player.pos, enemyContactDamage, false, false, dtDefault)
+          game.showPlayerDamageTaken(dtDefault)
 
           playSound(stPlayerHit, 0.5)
 
@@ -3499,22 +3491,21 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           let contactParticleCount = if contactWasCrit: 8 else: 3
           spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.color, contactParticleCount)
 
-          # Remove enemy if HP reaches 0. Bosses are never deleted here: a boss
-          # at 0 HP may still have phases left, and full defeat bookkeeping
-          # (bossDefeated, wave flow, rewards) lives in the main enemy update
-          # loop, so a contact kill must funnel through it instead.
+          # Enemies are never deleted here. All death bookkeeping -- coins, XP,
+          # the kill count and statistics, combo, lifesteal, the Star and
+          # Explosive-elite death blasts, and for bosses the phase break and
+          # wave flow -- lives in the main enemy update loop, and a contact
+          # kill is picked up there next frame like every other kill (deleting
+          # it here silently threw all of that away).
           # The boss arm uses the alive threshold, not `<= 0`, so a phase pool
           # left with sub-threshold float residue still breaks into the next
           # phase instead of reaching the update loop looking defeated.
           if enemy.isBoss:
             if enemy.hp < EnemyMinAliveHp:
               discard tryAdvanceBossPhase(game, enemy)
-          else:
-            if enemy.hp <= 0:
-              # Flush any accumulated contact damage before death
-              flushAccumulatedContactDamage(game, enemy)
-              game.enemies.delete(enemyIdx)
-              continue
+          elif enemy.hp < EnemyMinAliveHp:
+            # Flush any accumulated contact damage before death
+            flushAccumulatedContactDamage(game, enemy)
 
     enemyIdx += 1
 
@@ -3535,7 +3526,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     markBossRoomCleared(game)
     completeRogueliteBoss(game)
     saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
-    deleteSuspendSnapshot()  # Boundary: the pre-exit snapshot is stale.
+    deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
     if not survivalWasUnlocked and not globalSettings.isNil and globalSettings.survivalUnlocked:
       game.pendingToasts.add(t(tkGameModeUnlocked) & " " & t(tkSurvivalUnlockedNotif))
     let shardDelta = game.rogueliteRun.shardsEarned - prevShards
@@ -3580,6 +3571,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     game.powerUpChoices = generatePowerUpChoices(game.player, true, mode = game.mode)
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
+    initializeRerollCost(game)  # Base price, not the last draft's inflated one
     game.state = gsPowerUpSelect
     # Clear all enemies and bullets for clean screen
     game.enemies = @[]
@@ -3596,7 +3588,7 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
   markBossRoomCleared(game)
   completeRogueliteBoss(game)
   saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
-  deleteSuspendSnapshot()  # Boundary: the pre-exit snapshot is stale.
+  deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
   game.powerUpChoices = generatePowerUpChoices(game.player, true,
                           unlockedFamilySet(game.rogueliteProfile), game.mode)
   game.selectedPowerUp = 0
@@ -3642,6 +3634,7 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
             enemy.satellites[i].laserActive = true
             enemy.satellites[i].laserTarget = game.player.pos
             enemy.satellites[i].laserChargeTime = 0.0
+            enemy.satellites[i].activeWarning = nil  # fresh telegraph for this cycle
             enemy.satellites[i].shootTimer = 4.5 + rand(1.0)  # Time until next laser cycle
           else:
             # Laser cycle complete, deactivate and prepare for next shot
@@ -3649,10 +3642,33 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
             # Let the beam expire naturally (lifetime already covers the firing phase)
             # and drop our reference so the next cycle starts a fresh laser + hit gate.
             enemy.satellites[i].activeLaser = nil
+            enemy.satellites[i].activeWarning = nil
 
         # Laser active - warning phase then fire
         if enemy.satellites[i].laserActive:
           enemy.satellites[i].laserChargeTime += dt
+
+          # WARNING PHASE (first 1.5 seconds). Each satellite owns its telegraph.
+          # Several are often charging at once; looking the warning up by boss id
+          # made them all share the first one found, so only one line was drawn,
+          # from whichever satellite updated last toward another one's target.
+          if enemy.satellites[i].laserChargeTime < 1.5:
+            if enemy.satellites[i].activeWarning == nil:
+              let warning = newSatelliteLaserWarning(
+                enemy.satellites[i].pos.x,
+                enemy.satellites[i].pos.y,
+                enemy.satellites[i].laserTarget.x,
+                enemy.satellites[i].laserTarget.y,
+                1.5 - enemy.satellites[i].laserChargeTime,
+                enemy.id
+              )
+              game.attackWarnings.add(warning)
+              enemy.satellites[i].activeWarning = warning
+            else:
+              # Follow the satellite every frame so the drawn line stays on it
+              enemy.satellites[i].activeWarning.pos = enemy.satellites[i].pos
+          else:
+            enemy.satellites[i].activeWarning = nil  # telegraph is over
 
           # OPTIMIZATION: Only calculate laser geometry every 3 frames during warning
           let shouldUpdateLaser = (game.frameCount mod 3 == 0) or (enemy.satellites[i].laserChargeTime >= 1.5)
@@ -3662,29 +3678,9 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
             let toTarget = (enemy.satellites[i].laserTarget - enemy.satellites[i].pos).normalize()
             let targetAngle = arctan2(toTarget.y, toTarget.x)
 
-            # WARNING PHASE (first 1.5 seconds)
+            # WARNING PHASE: the telegraph is handled above.
             if enemy.satellites[i].laserChargeTime < 1.5:
-              # Update existing warning position to follow satellite, or create new one
-              var warningFound = false
-              for warning in game.attackWarnings:
-                if warning.attackType == awtSatelliteLaser and
-                   warning.sourceEnemyId == enemy.id and
-                   warning.fromSatellite:
-                  # Update warning position to follow satellite
-                  warning.pos = enemy.satellites[i].pos
-                  warningFound = true
-                  break
-
-              # Create new warning if doesn't exist
-              if not warningFound:
-                game.attackWarnings.add(newSatelliteLaserWarning(
-                  enemy.satellites[i].pos.x,
-                  enemy.satellites[i].pos.y,
-                  enemy.satellites[i].laserTarget.x,
-                  enemy.satellites[i].laserTarget.y,
-                  1.5 - enemy.satellites[i].laserChargeTime,
-                  enemy.id
-                ))
+              discard
 
             # FIRING PHASE (after warning)
             else:
@@ -3748,6 +3744,9 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
                       let dealtSatelliteDamage = applyEnemyHpDamage(enemy, satelliteBonusDamage)
                       if dealtSatelliteDamage > 0:
                         showDamage(game, enemy.pos, dealtSatelliteDamage, true, false, dtArcane)
+                    # Its beam and telegraph die with it (the beam used to keep
+                    # firing from the wreck for the rest of its cycle).
+                    retireSatelliteHazards(game, enemy.satellites[i])
                     enemy.satellites.delete(i)
                     # Last satellite down: a snipe reticle already telegraphing
                     # has lost its firing platform (the shot will be skipped),
@@ -4175,10 +4174,9 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             if bossIsInvulnerable:
               actualDamage = 0
 
+            # (applyEnemyHpDamage books damage dealt inside a vulnerability window
+            # for the heal-on-ignore check, for every damage source.)
             actualDamage = applyEnemyHpDamage(target, actualDamage)
-            # Track damage spent inside a vulnerability window for the heal-on-ignore check.
-            if target.isBoss and bossWindowOpen:
-              target.windowDamageDealt += actualDamage
 
             # Volatile: enemies with 2+ active DoTs take +30% bullet damage
             var volatileBonusDamage = 0.0
@@ -4283,8 +4281,9 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             # GlitchField: chance to scramble enemy navigation (slow them)
             if game.player.glitchChance > 0 and not target.isBoss and actualDamage > 0:
               if rand(1.0) < game.player.glitchChance:
-                target.slowTimer  = 0.5'f32
-                target.slowAmount = 0.15'f32  # move at 15% speed
+                # Through applySlow so the glitch never weakens a stronger slow
+                # already on the target (it used to overwrite it outright).
+                applySlow(target, 0.15'f32, 0.5'f32)
 
             # Track bullet hit for statistics. Every bonus applied above is part
             # of what this hit cost the target, so the figure covers all of them
@@ -4444,8 +4443,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             let stunDuration = 0.5
             let baseStunAmount = 0.8  # 80% slow
             let stunAmount = baseStunAmount * (1.0 - target.debuffResistance)
-            target.slowTimer = stunDuration
-            target.slowAmount = max(target.slowAmount, stunAmount)
+            applySlow(target, stunAmount, stunDuration)
 
             # Visual feedback - extra particles in gold color
             spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
@@ -4550,7 +4548,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           # Piercing happens after available ricochets are spent or no ricochet target exists.
           if not didRicochet:
             if bullet.isPiercing:
-              let level = getPowerUpLevel(game.player, puPiercingShots)
+              var level = getPowerUpLevel(game.player, puPiercingShots)
+              # Arcane Mastery makes arcane bullets pierce on its own. Without
+              # this floor the pierce budget came only from Piercing Shots, so
+              # without that power-up the bullet still died on its first hit.
+              if bullet.isArcaneBullet and game.player.hasArcaneMastery:
+                level = max(level, 1)
               bullet.piercedEnemies += 1
               bullet.damage *= 0.67  # Reduce damage by 33% per pierce
               # Level 1 = pierce 1 (hit 2 total), Level 2 = pierce 2 (hit 3 total), etc.
@@ -4628,8 +4631,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
         var bulletDamage = bullet.damage
 
-        # Thorns reflection - damage the originating enemy (the one that shot the bullet)
-        if hasPowerUp(game.player, puThorns):
+        let bulletKilledPlayer = takeDamage(game.player, bulletDamage)
+
+        # Thorns reflection - damage the originating enemy (the one that shot the
+        # bullet). Only for a hit that landed: resolved after takeDamage so a shot
+        # that invincibility, a shield charge or a dodge stopped reflects nothing.
+        if game.player.lastDamageTaken > 0 and hasPowerUp(game.player, puThorns):
           # Find the enemy that shot this bullet using sourceEnemyId
           var sourceEnemy: Enemy = nil
           for enemy in game.enemies:
@@ -4640,7 +4647,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           if sourceEnemy != nil:
             discard applyThornsReflection(game, game.player, bulletDamage, sourceEnemy, "bullet")
 
-        if takeDamage(game.player, bulletDamage):
+        if bulletKilledPlayer:
           # Resolve the real shooter so a minion's bullet isn't blamed on the boss.
           var bulletKiller: Enemy = nil
           for e in game.enemies:
@@ -4671,7 +4678,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
         elif bullet.isPentagon:
           bulletDamageType = dtLaser  # Pentagon bullets use purple/laser color
 
-        showDamage(game, game.player.pos, bulletDamage, false, false, bulletDamageType)
+        game.showPlayerDamageTaken(bulletDamageType)
 
         hitEnemy = true
         spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y, Red, 8)
@@ -4728,7 +4735,7 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
         trackPlayerDamage(game, etMage)
 
         # Create damage number
-        showDamage(game, game.player.pos, meteorite.damage.float32, false, false, dtExplosion)
+        game.showPlayerDamageTaken(dtExplosion)
 
         playSound(stPlayerHit, 0.6)
 
@@ -4776,7 +4783,7 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
               beginPlayerDeathSequence(game, dcMeteorite, sourceType = etMage)
             trackDamageAvoided(game)
             trackPlayerDamage(game, etMage)
-            showDamage(game, game.player.pos, meteorite.splashDamage, false, false, dtExplosion)
+            game.showPlayerDamageTaken(dtExplosion)
             playSound(stPlayerHit, 0.5)
 
         # Remove meteorite after impact
@@ -4834,8 +4841,10 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
         # Booked exactly (base to the pickup, multiplier share to puHealPower)
         # rather than reconstructed in the stats window from a pickup count.
         trackConsumableHealing(game, healAmount, restored)
-        # Create heal damage number (green, floating up)
-        showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
+        # Create heal damage number (green, floating up): what was actually
+        # restored, so a pickup at full HP no longer shows a phantom heal.
+        if restored > 0:
+          showDamage(game, game.player.pos, restored, true, false, dtHeal)
       of ctCoin:
         # Double coin multiplier applies here; Cornucopia gives 8 coins instead of 5
         let baseCoin = if game.player.hasBountiful: 8 else: 5

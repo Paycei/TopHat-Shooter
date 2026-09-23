@@ -253,7 +253,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.conduitCooldown > 0:
     player.conduitCooldown -= dt
   if player.aftershockCooldown > 0:
-    player.aftershockCooldown -= dt
+    player.aftershockCooldown = max(0.0'f32, player.aftershockCooldown - dt)
   if player.novaCooldown > 0:
     player.novaCooldown -= dt
 
@@ -266,15 +266,17 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       player.novaActive = false
       # Note: bullet release (vel *= 1.5, isFrozenByNova = false) done in game.nim
 
-  # Aftershock position history sampling (every 0.05s = 40 samples for 2s of history)
-  if player.aftershockCooldown >= 0:  # always sample (even when cooldown is 0)
-    player.aftershockSampleTimer += dt
-    if player.aftershockSampleTimer >= 0.05:
-      player.aftershockSampleTimer -= 0.05
-      player.aftershockPosHistory.addLast(player.pos)
-      # Keep only the last 40 samples (2 seconds at 0.05s intervals)
-      if player.aftershockPosHistory.len > 40:
-        player.aftershockPosHistory.popFirst()
+  # Aftershock position history sampling (every 0.05s = 40 samples for 2s of
+  # history). Always on: this used to be gated on `cooldown >= 0`, and the
+  # cooldown countdown overshot to a small negative, so after the first cast
+  # the history never refilled and Aftershock silently stopped firing.
+  player.aftershockSampleTimer += dt
+  if player.aftershockSampleTimer >= 0.05:
+    player.aftershockSampleTimer -= 0.05
+    player.aftershockPosHistory.addLast(player.pos)
+    # Keep only the last 40 samples (2 seconds at 0.05s intervals)
+    if player.aftershockPosHistory.len > 40:
+      player.aftershockPosHistory.popFirst()
 
   # Update Pulse Armor cooldown. Clamp at 0 so it never crosses into negative
   # (a negative cooldown used to be misread as the trigger sentinel, causing
@@ -1031,12 +1033,10 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   ## never both (see trackPlayerDamage).
   player.lastDamageAvoided = 0.0  # Reset each call
   player.lastDamageTaken = 0.0
-  # Shield boost absorbs hits first
-  if player.shieldHits > 0:
-    player.shieldHits -= 1
-    player.lastDamageAvoided = damage
-    # Visual/audio feedback happens in game.nim
-    return false
+
+  # Invulnerability states come first: a hit they block must not also spend a
+  # Shield Boost charge (the shield used to be checked first and was burned on
+  # hits that could never have landed).
 
   # Invincibility from consumables
   if player.invincibilityTimer > 0:
@@ -1051,6 +1051,13 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   # Phase Shift invulnerability
   if player.phaseShiftInvulnTimer > 0:
     player.lastDamageAvoided = damage
+    return false
+
+  # Shield boost absorbs the first hits that would actually land
+  if player.shieldHits > 0:
+    player.shieldHits -= 1
+    player.lastDamageAvoided = damage
+    # Visual/audio feedback happens in game.nim
     return false
 
   # Celestial Veil - absorb 2 hits per wave

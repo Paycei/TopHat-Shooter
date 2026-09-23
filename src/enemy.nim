@@ -98,8 +98,9 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
 proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
   # Apply slow field effect
   var effectiveSpeed = getEffectiveSpeed(enemy.speed, game.currentWave)
-  if enemy.slowAmount > 0:
-    effectiveSpeed = effectiveSpeed * (1.0 - enemy.slowAmount)
+  let slow = effectiveSlow(enemy)
+  if slow > 0:
+    effectiveSpeed = effectiveSpeed * (1.0 - slow)
 
   if enemy.isBoss:
     # Boss update logic
@@ -715,8 +716,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Shoot homing magic bullets using centralized system
       executeRangedAttack(enemy, playerPos, game)
 
-      # Summon meteorites periodically using config values
-      if enemy.spawnTimer > config.specialCooldown:
+      # Summon meteorites periodically using config values (only once on screen,
+      # matching the screen-entry rule its bullets follow)
+      if enemy.hasEnteredScreen and enemy.spawnTimer > config.specialCooldown:
         let specialData = parseSpecialData(config.specialData)
         let baseCount = getSpecialInt(specialData, "meteorite_count", 2)
         let randomExtra = getSpecialInt(specialData, "meteorite_count_random", 1)
@@ -1923,9 +1925,10 @@ proc drawEnemy*(enemy: Enemy) =
     let p = float32(sin(st * 5.0) * 0.5 + 0.5)
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 3.0'f32 + p * 2.0'f32,
                     Color(r: 160, g: 0, b: 220, a: uint8(100.0'f32 + p * 90.0'f32)))
-  if enemy.slowAmount > 0.25'f32:
+  let slowShown = effectiveSlow(enemy)
+  if slowShown > 0.25'f32:
     let p = float32(sin(st * 3.0) * 0.5 + 0.5)
-    let frostA = uint8(clamp(enemy.slowAmount * 160.0'f32, 40.0'f32, 160.0'f32))
+    let frostA = uint8(clamp(slowShown * 160.0'f32, 40.0'f32, 160.0'f32))
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 5.0'f32 + p * 2.0'f32,
                     Color(r: 150, g: 220, b: 255, a: frostA))
 
@@ -5165,7 +5168,8 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
       let maxSpeed = 1000.0
       if enemy.speed > maxSpeed:
         enemy.speed = maxSpeed
-      enemy.shootTimer *= 0.7  # Faster shooting
+      # Faster shooting is applied every frame in updateEliteEffects (shootTimer
+      # counts UP, so scaling it here at spawn did nothing).
       if enemy.dashCooldown > 0:
         enemy.dashCooldown *= 0.75
       # Swift elites are smaller
@@ -5434,10 +5438,20 @@ proc updateEliteEffects*(enemy: Enemy, dt: float32) =
   ## Handles multiple elite types (wave 25+)
   if not enemy.isElite:
     return
+  # A killing blow landed last frame is resolved by this frame's death check;
+  # regenerating first would pull the enemy back above the alive threshold.
+  if enemy.hp < EnemyMinAliveHp:
+    return
 
   # Process each elite type effect
   for eType in enemy.eliteTypes:
     case eType
+    of etSwift:
+      # 40% faster attacks: the shoot timers count up toward each type's fire
+      # rate, so an extra 0.4 x dt reaches it 1.4x as often. Phantoms drive
+      # their shots from their own clone cycle and never tick this timer.
+      if enemy.enemyType != etPhantom:
+        enemy.shootTimer += dt * 0.4'f32
     of etRegenerative:
       # Regenerate 5% max HP per second
       enemy.regenTimer += dt

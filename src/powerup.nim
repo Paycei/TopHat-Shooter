@@ -151,51 +151,42 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
     if isMastery:
       hasMastery = true
 
-  # Fill result with selected power-ups (up to 3)
-  for i in 0..2:
-    if i < selectedPowerUps.len:
-      result[i] = selectedPowerUps[i]
-    else:
-      # If we run out, create random power-ups from the CORRECT pool
-      # Make sure to don't violate orb/aura/bullet/mastery pooling
-      var attempts = 0
-      while attempts < 100:  # Prevent infinite loop
-        let randomType = if isLegendary:
-          legendaryPool[rand(legendaryPool.high)]
-        else:
-          normalPool[rand(normalPool.high)]
-
-        # Skip if already at max level or outside allowed families
-        if not player.isOfferable(randomType, allowedPowerFamilies, mode):
-          attempts += 1
-          continue
-
-        let isOrb    = allPowerUpDefs[randomType].group == pugOrb
-        let isAura   = allPowerUpDefs[randomType].group == pugAura
-        let isBullet = allPowerUpDefs[randomType].group == pugBullet
-        let isMastery = allPowerUpDefs[randomType].group == pugMastery
-
-        # Check if this violates our grouping rules
-        if (isOrb and hasOrb) or (isAura and hasAura) or (isBullet and hasBullet) or (isMastery and hasMastery):
-          attempts += 1
-          continue
-
-        let currentLevel = getPowerUpLevel(player, randomType)
-        let nextLevel = if currentLevel == 0: 1 else: currentLevel + 1
-        let rarity = if isLegendary: prLegendary else: prCommon
-        result[i] = PowerUp(powerType: randomType, level: nextLevel, rarity: rarity)
-        if isOrb:
-          hasOrb = true
-        if isAura:
-          hasAura = true
-        if isBullet:
-          hasBullet = true
-        if isMastery:
-          hasMastery = true
+  # Too few picks survived the variety rule: relax it rather than leave a slot
+  # empty, still offering each power-up at most once.
+  if selectedPowerUps.len < 3:
+    for powerUp in availablePowerUps:
+      if selectedPowerUps.len >= 3:
         break
+      var alreadyPicked = false
+      for picked in selectedPowerUps:
+        if picked.powerType == powerUp.powerType:
+          alreadyPicked = true
+          break
+      if not alreadyPicked:
+        selectedPowerUps.add(powerUp)
 
-      # Fallback: pool was partially exhausted with grouping conflicts, leave slot as zero-value.
-      # isPowerUpPoolExhausted prevents reaching gsPowerUpSelect when fully exhausted.
+  # Nothing at all can be offered. The slots still have to carry this draft's
+  # rarity: the draft screen (and reroll) decide which pool to check from
+  # powerUpChoices[0].rarity, and a zero-valued slot reads as prCommon. A spent
+  # LEGENDARY pool then passed the normal-pool exhaustion check and showed three
+  # "Aftershock level 0" cards instead of the exhausted screen. Level 0 marks the
+  # slots as placeholders; installPowerUp refuses them.
+  if selectedPowerUps.len == 0:
+    let placeholderRarity = if isLegendary: prLegendary else: prCommon
+    for i in 0..2:
+      result[i] = PowerUp(powerType: low(PowerUpType), level: 0, rarity: placeholderRarity)
+    return
+
+  # Fewer than three power-ups can be offered at all: repeat the valid ones. An
+  # unfilled slot used to stay zero-valued, which is Aftershock at level 0 -- a
+  # free legendary for whoever picked it.
+  var k = 0
+  while selectedPowerUps.len < 3:
+    selectedPowerUps.add(selectedPowerUps[k])
+    inc k
+
+  for i in 0..2:
+    result[i] = selectedPowerUps[i]
 
 # ROTATING ORBS SYSTEM
 proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType, orbLevel: int = 1): RotatingOrb =
@@ -328,6 +319,22 @@ proc getHeavyRoundsSizeMultiplier*(level: int): float32 =
   of 2: 1.2
   else: 1.25
 
+proc rotatingShieldHealth*(level: int): float32 =
+  ## Health of each Rotating Shield segment (100/250/400 displayed HP, as the
+  ## tooltips say). Single table for both the first pickup and upgrades, which
+  ## used to disagree (upgrades applied 4.0/5.0).
+  case level
+  of 1: 1.0
+  of 2: 2.5
+  else: 4.0
+
+proc rotatingShieldRegenDelay*(level: int): float32 =
+  ## Seconds before a broken segment re-forms (6s / 5s / 3s).
+  case level
+  of 1: 6.0
+  of 2: 5.0
+  else: 3.0
+
 proc getFortifiedMaxHpBonus*(level: int): float32 =
   ## TOTAL max-HP granted by Fortified at the given level (250/500/750 displayed).
   ## Cumulative, not per-level: an upgrade must apply the difference between two
@@ -386,21 +393,15 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.shieldRegenTimers = @[]
 
     # Health increases with level: 100 HP, 250 HP, 400 HP
-    let shieldHealth = case powerUp.level
-      of 1: 1.0
-      of 2: 2.5
-      else: 4.0
+    let shieldHealth = rotatingShieldHealth(powerUp.level)
     player.shieldMaxHealth = shieldHealth
 
     for i in 0..<shieldCount:
       player.shieldHealths.add(shieldHealth)
       player.shieldRegenTimers.add(0.0)
 
-    # Decrease regen delay with upgrades: level 1=7s, level 2=6s, level 3=4s
-    player.shieldRegenDelay = case powerUp.level
-      of 1: 6.0
-      of 2: 5.0
-      else: 3.0
+    # Regen delay shrinks with upgrades: 6s, 5s, 3s
+    player.shieldRegenDelay = rotatingShieldRegenDelay(powerUp.level)
   of puPoisonOrb:
     createElementalOrbs(player, etPoison, powerUp.level)
   of puFireOrb:
@@ -552,11 +553,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       # Apply upgrade bonuses for normal power-ups that have levels
       case powerUp.powerType
       of puRotatingShield:
-        # Update shield health and cooldown based on new level
-        let shieldHealth = case powerUp.level
-          of 1: 3.0
-          of 2: 4.0
-          else: 5.0
+        # Update shield health and cooldown based on new level (same table as
+        # the first pickup above)
+        let shieldHealth = rotatingShieldHealth(powerUp.level)
         player.shieldMaxHealth = shieldHealth
 
         # Restore all shields to new max health
@@ -564,10 +563,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           player.shieldHealths[i] = shieldHealth
 
         # Update regen delay
-        player.shieldRegenDelay = case powerUp.level
-          of 1: 6.0
-          of 2: 5.0
-          else: 3.0
+        player.shieldRegenDelay = rotatingShieldRegenDelay(powerUp.level)
       of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puBloodOrb:
         # Recreate orbs with new level (more orbs of this element)
         let elementType = case powerUp.powerType

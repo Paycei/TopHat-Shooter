@@ -275,7 +275,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
   for i in 0..<maxPlayers:
     # Use manual team assignments if provided, otherwise use automatic assignment
     let team = if teamsEnabled and playerTeamAssignments.len > i:
-      PvPTeam(playerTeamAssignments[i])
+      teamFromInt(playerTeamAssignments[i])
     else:
       assignPlayerToTeam(i, maxPlayers, teamsEnabled)
 
@@ -1131,11 +1131,17 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   ## Reconcile client state with authoritative server state
   ## Server is ALWAYS authoritative - client just renders smoothly
 
+  let localIdx = pvp.localPlayerIndex
+  # The host sends every player slot, and both sides size their slots from the
+  # same roster, so a snapshot shorter than ours is malformed. Drop it rather
+  # than index past its end (unchecked in -d:danger builds).
+  if serverState.players.len < pvp.players.len or
+     localIdx < 0 or localIdx >= pvp.players.len:
+    return
+
   # Sync client's server tick and game time from the authoritative server snapshot
   pvp.serverTick = serverState.tick
   pvp.gameTime = serverState.timestamp
-
-  let localIdx = pvp.localPlayerIndex
 
   # Update all remote players - use interpolation instead of direct snap
   for i in 0..<pvp.players.len:
@@ -1177,7 +1183,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       pvp.players[i].bulletSkinType = serverState.players[i].bulletSkinType
       pvp.players[i].shapeType = serverState.players[i].shapeType
       pvp.players[i].particleSkinType = serverState.players[i].particleSkinType
-      pvp.players[i].teamId = PvPTeam(serverState.players[i].teamId)  # Sync team
+      pvp.players[i].teamId = teamFromInt(serverState.players[i].teamId)  # Sync team
       # Sync nickname if server provides it and we don't have it yet
       if serverState.players[i].nickname.len > 0:
         while pvp.playerNicknames.len <= i:
@@ -1235,7 +1241,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   pvp.players[localIdx].fireRate = serverState.players[localIdx].fireRate
   pvp.players[localIdx].bulletSpeed = serverState.players[localIdx].bulletSpeed
   pvp.players[localIdx].invincibilityTimer = serverState.players[localIdx].invincibilityTimer
-  pvp.players[localIdx].teamId = PvPTeam(serverState.players[localIdx].teamId)
+  pvp.players[localIdx].teamId = teamFromInt(serverState.players[localIdx].teamId)
 
   # Update bullets from server, preserving locally-predicted bullets.
   #
@@ -1458,7 +1464,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         if pvp.teamsEnabled and event.packet.teamAssignments.len > 0:
           echo "[PVP CLIENT] Receiving team assignments from host"
           for i in 0..<min(pvp.players.len, event.packet.teamAssignments.len):
-            let teamId = PvPTeam(event.packet.teamAssignments[i])
+            let teamId = teamFromInt(event.packet.teamAssignments[i])
             pvp.players[i].teamId = teamId
 
             # Update spawn position based on team
@@ -1522,7 +1528,11 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
           i += 1
 
       of ptPlayerDamage:
+        # Indices from the wire are never trusted: out of range they indexed
+        # past the player list (memory corruption in -d:danger builds).
         let playerIdx = event.packet.damagedPlayerIndex
+        if playerIdx < 0 or playerIdx >= pvp.players.len:
+          continue
         pvp.players[playerIdx].hp = event.packet.newHp
 
         # Spawn damage number. Must go through newDamageNumber: building the
@@ -1534,6 +1544,8 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
 
       of ptPlayerDeath:
         let playerIdx = event.packet.deadPlayerIndex
+        if playerIdx < 0 or playerIdx >= pvp.players.len:
+          continue
         pvp.players[playerIdx].hp = 0
         spawnExplosionPooled(pvp.particlePool, pvp.players[playerIdx].pos.x,
                             pvp.players[playerIdx].pos.y, Red, 30)
@@ -1551,7 +1563,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         pvp.walls.add(wall)
 
       of ptWallDestroy:
-        if event.packet.wallIndex < pvp.walls.len:
+        if event.packet.wallIndex >= 0 and event.packet.wallIndex < pvp.walls.len:
           pvp.walls.delete(event.packet.wallIndex)
 
       of ptGameOver:
@@ -1672,9 +1684,13 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
   ## The caller resolves it (game.hudInterfaceScale), so PvP and PvE HUDs can
   ## never disagree about it.
   ## Draw PvP game state
+  # updatePvP already refuses to run with an invalid local index; drawing must
+  # too, since the HUD below indexes the player list with it.
+  if pvp.localPlayerIndex < 0 or pvp.localPlayerIndex >= pvp.players.len:
+    return
   let accentColor =
     if pvp.teamsEnabled and pvp.localPlayerIndex >= 0 and pvp.localPlayerIndex < pvp.playerTeamAssignments.len:
-      getTeamColor(PvPTeam(pvp.playerTeamAssignments[pvp.localPlayerIndex]))
+      getTeamColor(teamFromInt(pvp.playerTeamAssignments[pvp.localPlayerIndex]))
     else:
       Color(r: 0, g: 200, b: 255, a: 255)
 

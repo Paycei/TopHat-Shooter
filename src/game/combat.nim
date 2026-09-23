@@ -70,6 +70,14 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
   if damage <= 0.0'f32:
     return 0.0'f32
 
+  if enemy.enemyType == etStar and not enemy.isBoss:
+    # Stars die by hit count, and their HP is only a placeholder: draining it
+    # here (Blood Pact, Aftershock, Conduit) killed them outright and skipped
+    # the hit-count mechanic. Every damage source counts as one hit instead,
+    # exactly as damageEnemy already does.
+    enemy.hitCount += 1
+    return 0.0'f32
+
   if enemy.isBoss:
     if enemy.invulnerabilityTimer > 0:
       return 0.0'f32
@@ -83,6 +91,11 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
     if enemy.hp > 0.0'f32 and enemy.hp < EnemyMinAliveHp:
       dealt += enemy.hp
       enemy.hp = 0.0'f32
+    # Everything dealt inside an open vulnerability window counts toward using
+    # it (the heal-on-ignore check), not just direct bullet damage: aura, DoT
+    # and orbital builds were being refunded windows they had spent well.
+    if enemy.weakPoint.exposedTimer > 0:
+      enemy.windowDamageDealt += dealt
     recordDamageDealt(dealt)
     return dealt
 
@@ -107,9 +120,12 @@ proc damageEnemy*(enemy: Enemy, baseDamage: float32,
   result = applyEliteModifiers(enemy, baseDamage, consumesDiamondShield)
   result *= bossPassiveDamageTaken(enemy)
 
-  # Stars use hit counter for ALL damage sources
-  if enemy.enemyType == etStar:
+  # Stars use hit counter for ALL damage sources. The hit costs them no HP, so
+  # it reports 0 dealt, like applyEnemyHpDamage: returning the incoming amount
+  # credited power-ups with damage nobody took and floated numbers over Stars.
+  if enemy.enemyType == etStar and not enemy.isBoss:
     enemy.hitCount += 1
+    result = 0.0'f32
   else:
     result = applyEnemyHpDamage(enemy, result)
 
@@ -272,6 +288,16 @@ proc showDamage*(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool,
   ## Centralized helper to create and display damage numbers
   game.damageNumbers.add(newDamageNumber(pos.x, pos.y, damage, fromPlayer, isCritical, damageType))
 
+proc showPlayerDamageTaken*(game: Game, damageType: DamageType = dtDefault) =
+  ## Damage number for the hit takeDamage just resolved, showing what it actually
+  ## cost (player.lastDamageTaken). A hit that invincibility, a shield charge,
+  ## Celestial Veil, a dodge or the Singularity shield swallowed shows nothing,
+  ## instead of the full incoming amount as if it had landed.
+  let taken = game.player.lastDamageTaken
+  if taken > 0.001'f32:
+    game.showDamage(game.player.pos, taken, fromPlayer = false,
+                    isCritical = false, damageType = damageType)
+
 proc showCurrency*(game: Game, pos: Vector2f, amount: int,
                    kind: CurrencyIndicatorKind = cikCredits) =
   ## Centralized helper for floating currency pickup indicators.
@@ -420,8 +446,10 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
   trackPowerUpDamage(game, puThorns, actualDamage)
 
   # Create damage number for thorns reflection
+  # Compared against the pre-crit total: the HP scaling is always added, so
+  # comparing against reflectDamageBase flagged every reflection as a crit.
   game.showDamage(targetEnemy.pos, actualDamage, fromPlayer = true,
-                  isCritical = reflectDamageWithCrit > reflectDamageBase, damageType = dtDefault)
+                  isCritical = reflectDamageWithCrit > reflectDamageWithScaling, damageType = dtDefault)
 
   # Visual feedback: thorns are a REFLECTION, so the burst reads outward from
   # the enemy as a spike ring rather than as another generic hit puff. The

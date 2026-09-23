@@ -670,6 +670,10 @@ proc rogueliteContinueEndless*(run: RogueliteRun) =
   ## inline, now gated behind the victory-screen choice.
   if run.isNil: return
   run.awaitingVictoryScreen = false
+  # The win is banked; the run itself goes on. Left set, `completed` makes every
+  # later save treat the endless run as finished and delete it, so quitting
+  # mid-loop threw the run (and its unbanked shards) away.
+  run.completed = false
   run.endlessLoop += 1
   run.floorNumber = 1
   run.usedThemes = {}

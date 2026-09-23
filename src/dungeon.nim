@@ -782,8 +782,13 @@ proc openDungeonDoors*(game: Game) =
     if n >= 0:
       floor.rooms[n].seen = true
 
-proc enterRoom*(game: Game, roomIdx: int, enteredThrough: DoorDir) =
+proc enterRoom*(game: Game, roomIdx: int, enteredThrough: DoorDir,
+                resumed: bool = false) =
   ## Swap the live arena to the given room. Called mid-transition.
+  ##
+  ## `resumed` re-enters the room a saved run was in. That save already holds
+  ## the player stats this room's scaling produced when it was first entered,
+  ## so applying it again would compound it on every resume.
   let run = game.rogueliteRun
   let floor = run.floor
   floor.currentRoom = roomIdx
@@ -807,14 +812,16 @@ proc enterRoom*(game: Game, roomIdx: int, enteredThrough: DoorDir) =
     case room.kind
     of drkBoss:
       # Boss rooms arm the boss-spawn machinery instead of a normal encounter.
-      applyRoomScaling(game)
+      if not resumed:
+        applyRoomScaling(game)
       game.waveInProgress = true
       game.waveEnemiesTotal = 0
       game.waveEnemiesRemaining = 0
       game.wavesUntilBoss = 0
       game.spawnTimer = 0
     of drkCombat, drkElite:
-      applyRoomScaling(game)
+      if not resumed:
+        applyRoomScaling(game)
       game.waveInProgress = true
       game.waveEnemiesTotal = room.encounterBudget
       game.waveEnemiesRemaining = room.encounterBudget

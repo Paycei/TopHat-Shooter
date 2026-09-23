@@ -6,11 +6,14 @@ from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, tr
 
 proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
                     baseDamage: float32, orbPos: Vector2f, currentTime: float32,
-                    enemyIdx: int, stats: CombatStats): bool =
+                    stats: CombatStats): bool =
   ## Apply damage from orb to enemy and handle hit cooldown
   ## Returns true if damage was applied
 
-  if orb.lastHitTime.getOrDefault(enemyIdx, 0.0) > currentTime - 0.5:
+  # Keyed by the enemy's stable id. It used to be keyed by its index in
+  # game.enemies, which shifts every time an enemy dies, so the cooldown jumped
+  # onto whichever enemy slid into that slot.
+  if orb.lastHitTime.getOrDefault(enemy.id, -1.0) > currentTime - 0.5:
     return false  # Still within 0.5s cooldown
 
   # Calculate actual damage
@@ -78,7 +81,7 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
                   isCritical = damageWithCrit > actualBaseDamage, damageType = dtDefault)
 
   # Record hit time
-  orb.lastHitTime[enemyIdx] = currentTime
+  orb.lastHitTime[enemy.id] = currentTime
 
   return true
 
@@ -146,9 +149,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
 
       # Apply slow if has Lightning Mastery
       if game.player.hasLightningMastery:
-        nearestEnemy.slowTimer = 0.2
-        if nearestEnemy.slowAmount < 0.25:
-          nearestEnemy.slowAmount = 0.25  # 25% slow
+        applySlow(nearestEnemy, 0.25, 0.2)  # 25% slow
 
       # Lightning arc from hit enemy to chained enemy
       spawnLightningBolt(game, enemy.pos, nearestEnemy.pos)
@@ -175,58 +176,48 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
           game.showDamage(secondNearestEnemy.pos, secondChainDamage, fromPlayer = true,
                           isCritical = secondChainDamageWithCrit > chainBase, damageType = dtLightning)
 
-          secondNearestEnemy.slowTimer = 0.2
-          if secondNearestEnemy.slowAmount < 0.25:
-            secondNearestEnemy.slowAmount = 0.25
+          applySlow(secondNearestEnemy, 0.25, 0.2)
 
           # Lightning arc from first chain to second chain
           spawnLightningBolt(game, nearestEnemy.pos, secondNearestEnemy.pos)
 
     # Apply slow to primary target if has Lightning Mastery
     if game.player.hasLightningMastery:
-      enemy.slowTimer = 0.2
-      if enemy.slowAmount < 0.25:
-        enemy.slowAmount = 0.25
+      applySlow(enemy, 0.25, 0.2)
 
     # Yellow particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y, Yellow, 5)
 
   of etWind:
-    # Wind: Knockback
+    # Wind: Knockback, as a single impulse through enemy.knockbackVel (it used
+    # to be a dt-scaled one-frame nudge: a few pixels, and frame-rate dependent).
     let pushDir = (enemy.pos - game.player.pos).normalize()
-    var pushForce = 200.0
-    let bossResistance = if enemy.isBoss: 0.1 else: 1.0
+    var pushForce = 200.0'f32
+    let bossResistance = if enemy.isBoss: 0.1'f32 else: 1.0'f32
 
     if game.player.hasWindMastery:
       pushForce *= 3.5  # +250% stronger
 
-    enemy.pos.x += pushDir.x * pushForce * dt * bossResistance
-    enemy.pos.y += pushDir.y * pushForce * dt * bossResistance
-
-    # Clamp to screen boundaries - enemies can't be pushed through borders
-    enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
-    enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
+    let launch = pushDir * (windHitLaunch(pushForce) * bossResistance)
+    if launch.length() > enemy.knockbackVel.length():
+      enemy.knockbackVel = launch
 
     # Apply slow only with Wind Mastery
     if game.player.hasWindMastery:
-      enemy.slowTimer = 0.2
-      if enemy.slowAmount < 0.45:
-        enemy.slowAmount = 0.45  # 45% slow
+      applySlow(enemy, 0.45, 0.2)  # 45% slow
 
     # Cyan particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
                    Color(r: 200, g: 230, b: 255, a: 255), 5)
 
   of etFrost:
-    # Frost: Permanent slow
-    enemy.slowTimer = 999.0
-    var frostSlow = 0.3  # Base 30%
+    # Frost: Permanent slow, in the frost slot so short slows can't erase it
+    var frostSlow = 0.3'f32  # Base 30%
 
     if game.player.hasFrostMastery:
       frostSlow = 0.55  # 55% with mastery
 
-    if enemy.slowAmount < frostSlow:
-      enemy.slowAmount = frostSlow
+    applyFrostChill(enemy, frostSlow)
 
     # Light blue particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
@@ -312,18 +303,15 @@ proc updateOrbitalWeapons*(game: var Game, dt: float32) =
     let orbPos = newVector2f(orbX, orbY)
 
     # Check collisions with enemies
-    var enemyIdx = 0
     for enemy in game.enemies:
       let dist = distance(orbPos, enemy.pos)
 
       # Check if orb is touching enemy
       if dist < orbRadius + enemy.radius + orbDetectionRange:
         # Apply damage
-        if applyOrbDamage(game, orb, enemy, baseDamage, orbPos, game.time, enemyIdx, orbStats):
+        if applyOrbDamage(game, orb, enemy, baseDamage, orbPos, game.time, orbStats):
           # Apply element-specific effects
           applyOrbEffects(game, orb, enemy, baseDamage, orbPos, dt, orbStats)
-
-      enemyIdx += 1
 
     # Clean up old hit times to prevent memory growth
     var toRemove: seq[int] = @[]

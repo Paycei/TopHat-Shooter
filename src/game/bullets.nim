@@ -254,6 +254,22 @@ proc updateBossDeathBlasts*(game: var Game, dt: float32) =
 
     inc i
 
+const
+  WindHitLaunchScale* = 0.5'f32
+    ## Converts a wind push "force" (windPushForce, the Wind orb's pushForce) into
+    ## the launch speed fed to enemy.knockbackVel. Those forces were tuned as a
+    ## per-frame nudge scaled by dt; as a launch speed that coasts to a stop
+    ## (~speed / 4.2 px of travel, see the decay in game.nim) they are ~14x too
+    ## strong, so they are scaled down here and capped below.
+  WindHitMaxLaunch* = 700.0'f32
+    ## Ceiling on a single wind hit's launch (~170 px), the Wind Aura's own level-3
+    ## gust. Without it Wind Mastery + Heavy Rounds reached 2100 px/s (~500 px per
+    ## bullet) and pinned whole waves against the arena edge.
+
+proc windHitLaunch*(force: float32): float32 =
+  ## Launch speed for one wind hit of the given push force (before boss resistance).
+  min(force * WindHitLaunchScale, WindHitMaxLaunch)
+
 proc getExplosionRadius*(level: int): float32 =
   ## Standard explosion radius for explosive bullets
   case level
@@ -389,9 +405,7 @@ proc applyMasteryDoT*(enemy: Enemy, elemType: ElementType,
   # current flag against a burn applied before the mastery was picked.
   applyEffect(enemy, elemType, dmg, dur, source, hasMastery)
   if hasMastery:
-    enemy.slowTimer = 0.2
-    if enemy.slowAmount < masterySlowAmount:
-      enemy.slowAmount = masterySlowAmount
+    applySlow(enemy, masterySlowAmount, 0.2)
 
 proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
                        bullet: Bullet, dt: float32, stats: CombatStats) =
@@ -399,12 +413,9 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
   ## Uses pre-calculated combat stats for critical hit calculations
   case effect.effectType
   of befFrost:
-    # Frost: Permanent slow (reduced by debuffResistance for bosses)
-    # Only apply if stronger than current slow or current slow expired
-    let newSlowAmount = bullet.slowAmount * (1.0 - enemy.debuffResistance)
-    if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-      enemy.slowTimer = effect.duration
-      enemy.slowAmount = newSlowAmount
+    # Frost: Permanent slow (reduced by debuffResistance for bosses). Kept in
+    # its own slot so a short stun or aura slow can't cut it short.
+    applyFrostChill(enemy, bullet.slowAmount * (1.0 - enemy.debuffResistance))
 
   of befPoison:
     # applyMasteryDoT handles the DoT; slow is applied separately below
@@ -416,9 +427,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     if effect.hasMastery:
       let newSlowAmount = 0.40 * (1.0 - enemy.debuffResistance)
       let actualDur = effect.duration * PoisonMasteryDurMult  # already scaled by masteryDurMult
-      if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-        enemy.slowTimer = actualDur
-        enemy.slowAmount = newSlowAmount
+      applySlow(enemy, newSlowAmount, actualDur)
 
   of befFire:
     applyMasteryDoT(enemy, etFire, effect.baseDamage, effect.duration,
@@ -428,33 +437,29 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     if effect.hasMastery:
       let newSlowAmount = 0.45 * (1.0 - enemy.debuffResistance)
       let actualDur = effect.duration * FireMasteryDurMult
-      if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-        enemy.slowTimer = actualDur
-        enemy.slowAmount = newSlowAmount
+      applySlow(enemy, newSlowAmount, actualDur)
 
   of befWind:
-    # Wind: Knockback
+    # Wind: Knockback. A hit is a single impulse, so it feeds enemy.knockbackVel
+    # (a launch speed that coasts to a stop, integrated and screen-clamped in
+    # game.nim) like Heavy Rounds and the Wind Aura. It used to be a one-frame
+    # position nudge scaled by dt: ~2 px per hit at 60 fps, and weaker still at
+    # higher frame rates.
     let pushDir = (enemy.pos - game.player.pos).normalize()
-    let bossResistance = if enemy.isBoss: 0.1 else: 1.0
+    let bossResistance = if enemy.isBoss: 0.1'f32 else: 1.0'f32
 
     var actualWindForce = bullet.windPushForce
     if effect.hasMastery:
       actualWindForce *= 3.5  # +250% stronger
 
-    # Apply push
-    enemy.pos.x += pushDir.x * actualWindForce * dt * bossResistance
-    enemy.pos.y += pushDir.y * actualWindForce * dt * bossResistance
-
-    # Clamp to screen boundaries - enemies can't be pushed through borders
-    enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
-    enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
+    # Never accumulate, and never cancel a stronger shove already in flight.
+    let launch = pushDir * (windHitLaunch(actualWindForce) * bossResistance)
+    if launch.length() > enemy.knockbackVel.length():
+      enemy.knockbackVel = launch
 
     # Apply slow only with mastery (reduced by debuffResistance for bosses)
     if effect.hasMastery:
-      enemy.slowTimer = 0.2
-      let slowValue = 0.45 * (1.0 - enemy.debuffResistance)
-      if enemy.slowAmount < slowValue:
-        enemy.slowAmount = slowValue  # 45% slow
+      applySlow(enemy, 0.45 * (1.0 - enemy.debuffResistance), 0.2)  # 45% slow
 
     # Visual wind effect particles
     for k in 0..3:
@@ -487,9 +492,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       # Stun primary target (reduced by debuffResistance for bosses)
       # Only apply if stronger than current slow or current slow expired
       let newSlowAmount = 0.99 * (1.0 - enemy.debuffResistance)  # 99% slow = stun (cap to prevent permanent freeze)
-      if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-        enemy.slowTimer = 0.05
-        enemy.slowAmount = newSlowAmount
+      applySlow(enemy, newSlowAmount, 0.05)
       enemy.chainLightningCooldown = 0.3
 
       # Find nearby enemies to chain to
@@ -515,11 +518,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
                         chainDmgWithCrit > chainDmgBase, dtLightning)
 
             game.enemies[k].chainLightningCooldown = 0.3
-            # Only apply stun if stronger than current slow or current slow expired
-            let chainSlowAmount = 0.99 * (1.0 - game.enemies[k].debuffResistance)
-            if chainSlowAmount > game.enemies[k].slowAmount or game.enemies[k].slowTimer <= 0:
-              game.enemies[k].slowTimer = 0.05
-              game.enemies[k].slowAmount = chainSlowAmount
+            applySlow(game.enemies[k], 0.99 * (1.0 - game.enemies[k].debuffResistance), 0.05)
             chained += 1
 
             # Lightning arc visual connecting the two enemies

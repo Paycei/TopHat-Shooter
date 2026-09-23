@@ -29,6 +29,10 @@ proc newCoin*(x, y: float32, value: int = 1, isBoss: bool = false): Coin =
 proc updateCoin*(coin: Coin, dt: float32, totalCoins: int): bool =
   # Coins despawn based on total count, not time
   # Keep coins until there are too many (> 150)
+  # The boss coin is exempt: wave mode only advances once it is picked up, so
+  # letting it fade out with the overflow would leave the run stuck forever.
+  if coin.isBossCoin:
+    return true
   if totalCoins > 150:
     # Start despawning oldest coins (mark with positive lifetime)
     if coin.lifetime < 0:
@@ -191,6 +195,19 @@ proc collectAllCoins*(game: Game) =
 proc updateGameCoins*(game: Game, dt: float32): bool =
   ## Update all coins, handle collection, and magnet/aura movement.
   ## Returns true if a boss coin was collected and completeBossWave should be called.
+  # Recovery: the wave is waiting on a boss coin that no longer exists (a run
+  # saved by an older build, where the coin could fade out). Put one back at
+  # the arena centre so the wave can finish.
+  if game.bossWaveManager.coinActive and shouldUseWaves(game.mode):
+    var bossCoinPresent = false
+    for coin in game.coins:
+      if coin.isBossCoin:
+        bossCoinPresent = true
+        break
+    if not bossCoinPresent:
+      game.coins.add(newCoin(game.screenWidth.float32 / 2, game.screenHeight.float32 / 2,
+                             1, isBoss = true))
+
   var i = 0
   while i < game.coins.len:
     if not updateCoin(game.coins[i], dt, game.coins.len):

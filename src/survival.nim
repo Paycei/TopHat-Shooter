@@ -12,7 +12,8 @@ proc spawnSurvivalEnemies*(game: Game) =
   ## Time-based enemy spawning for Survival mode.
   ## Spawn rate scales with difficulty, every 15 s a brief "wave burst" fires
   ## extra enemies (60 % chance of a double-spawn while waveProgress > 0.6).
-  ## Boss waves double the spawn rate to maintain pressure.
+  ## While a boss is alive the gap between spawns doubles (half the spawn rate,
+  ## and no burst extras), so the fight is about the boss, not the crowd.
 
   # Spawn-rate curve: slows logarithmically as difficulty climbs
   let baseSpawnRate =
@@ -36,7 +37,8 @@ proc spawnSurvivalEnemies*(game: Game) =
   let isWaveActive   = waveProgress > 0.6
 
   var currentSpawnRate = if isWaveActive: waveSpawnRate else: baseSpawnRate
-  # Double spawn pressure while a boss is alive
+  # currentSpawnRate is the delay between spawns, so doubling it HALVES spawn
+  # pressure while a boss is alive
   if game.bossWaveManager.active:
     currentSpawnRate = currentSpawnRate * 2.0
   currentSpawnRate /= difficultySpawnPaceMult()

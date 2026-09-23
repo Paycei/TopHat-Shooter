@@ -9,23 +9,28 @@
 ## Covered modes: gmWaveBased, gmTimeSurvival, gmRoguelite.
 ## Out of scope: gmPvP, gmSandbox, the 3D boss state.
 ##
-## Format: hand-written JSON (mirrors save_system.nim), one file per profile at
-## getAppDataPath()/run_save.json. A `version` int guards the format; on mismatch
-## or parse failure the save is discarded and the run starts fresh.
+## Format: hand-written JSON (mirrors save_system.nim), one file per mode per
+## profile at getAppDataPath()/run_save_<mode>.json, so a run in one mode can
+## never overwrite or discard another mode's saved run. A `version` int guards
+## the format; on mismatch or parse failure the save is discarded and the run
+## starts fresh.
 ##
 ## This module must NEVER import game.nim (that would form an import cycle). It
 ## restores the roguelite floor via dungeon.nim's deterministic generateFloor +
 ## enterRoom, which do not depend on game.nim.
 
 import json, os
-import types, save_system, utils, roguelite, dungeon
+import types, save_system, utils, roguelite, dungeon, powerup
 
 const RunSaveVersion = 1
 
-const RunSaveFile = "run_save.json"
+const LegacyRunSaveFile = "run_save.json"  # pre per-mode single shared file
 const BlockCheckpointFile = "run_checkpoint.json"
 
-proc getRunSavePath*(file: string = RunSaveFile): string =
+proc runSaveFileFor*(mode: GameMode): string =
+  "run_save_" & $mode & ".json"
+
+proc getRunSavePath*(file: string): string =
   getAppDataPath() / file
 
 # Block-checkpoint presence cache. The game-over screen asks "is there a
@@ -42,8 +47,8 @@ var bcCacheLivesUsed = 0
 proc invalidateBlockCheckpointCache*() =
   bcCachePath = ""
 
-proc deleteRunSave*(file: string = RunSaveFile) =
-  ## Remove the current profile's run save, if any.
+proc deleteRunSave*(file: string) =
+  ## Remove one of the current profile's run save files, if present.
   if file == BlockCheckpointFile:
     invalidateBlockCheckpointCache()
   try:
@@ -52,6 +57,10 @@ proc deleteRunSave*(file: string = RunSaveFile) =
       removeFile(path)
   except CatchableError:
     echo "Warning: could not delete run save"
+
+proc deleteRunSave*(mode: GameMode) =
+  ## Remove this mode's run save for the current profile, if any.
+  deleteRunSave(runSaveFileFor(mode))
 
 # ---------------------------------------------------------------------------
 # Small enum parse helpers (name-serialized, like save_system.nim).
@@ -272,12 +281,14 @@ proc rogueliteRunToJson(run: RogueliteRun): JsonNode =
 proc isSupportedRunMode(mode: GameMode): bool =
   mode in {gmWaveBased, gmTimeSurvival, gmRoguelite}
 
-proc saveRunState*(game: Game, file: string = RunSaveFile,
+proc saveRunState*(game: Game, file: string = "",
                    bypassStateGate: bool = false) =
   ## Serialize durable run state for the current mode. No-op for unsupported
   ## modes (PvP / sandbox / 3D boss) or when there is nothing to resume.
+  ## `file` defaults to this mode's own run save.
   if game.isNil or not isSupportedRunMode(game.mode):
     return
+  let file = if file.len > 0: file else: runSaveFileFor(game.mode)
   # Only an actually-live run is resumable. Guards against persisting the idle
   # menu Game (which defaults to gmWaveBased) as a bogus wave-1 save on shutdown.
   # A block-checkpoint write (bypassStateGate) may fire at the boss-completion
@@ -303,6 +314,23 @@ proc saveRunState*(game: Game, file: string = RunSaveFile,
   for item in game.shopItems:
     shopBought.add(%item.bought)
 
+  # Level-up drafts still owed. The draft on screen right now has already been
+  # taken off the queue, so a level draft that is open counts as owed too;
+  # without this, saving mid-draft lost that power-up choice on resume.
+  let levelDraftOpen = game.state == gsPowerUpSelect and
+    (game.levelDraftActive or
+     (game.mode == gmRoguelite and game.powerUpChoices[0].rarity == prCommon))
+  let draftsOwed = max(0, game.pendingLevelDrafts) + (if levelDraftOpen: 1 else: 0)
+
+  # Any OTHER draft open right now: a boss's legendary reward, or wave mode's
+  # between-waves pick. Neither is queued anywhere, so without this a resume
+  # dropped straight back into play and the reward was simply gone.
+  let openDraft =
+    if game.state != gsPowerUpSelect or levelDraftOpen: ""
+    elif game.powerUpChoices[0].rarity == prLegendary: "legendary"
+    elif game.mode == gmWaveBased: "boundary"
+    else: ""
+
   var root = %* {
     "version": RunSaveVersion,
     "mode": $game.mode,
@@ -313,28 +341,49 @@ proc saveRunState*(game: Game, file: string = RunSaveFile,
     # without this counter riding along in the checkpoint every Continue would
     # restore a run that had never spent anything.
     "livesUsed": game.livesUsed,
+    # What the lifetime statistics already hold for a continued run, so the
+    # next record after a resume does not count those kills and time again.
+    "statsBaseKills": game.statsBaseKills,
+    "statsBaseTime": game.statsBaseTime,
     # Wave/survival meta-currency tally (display only: the wallet itself was
     # credited as each reward was earned).
     "metaShardsEarned": game.metaShardsEarned,
     "metaCoresEarned": game.metaCoresEarned,
     "time": game.time,
     "shopBought": shopBought,
+    "pendingLevelDrafts": draftsOwed,
+    "openDraft": openDraft,
     "player": playerToJson(game.player)
   }
 
   case game.mode
   of gmWaveBased:
     root["currentWave"] = %game.currentWave
+    # A checkpoint written mid-wave already carries this wave's player scaling;
+    # recording it stops the resumed startWave from applying it a second time.
+    root["waveScalingApplied"] = %game.waveScalingApplied
     root["wavesUntilBoss"] = %game.wavesUntilBoss
     root["bossCount"] = %game.bossCount
     root["rerollCost"] = %game.rerollCost
     root["hasWonGame"] = %game.hasWonGame
+    # Mid-fight (the boss respawns: bossCount must not count it twice) or boss
+    # dead with its reward coin still on the floor (the wave only ends when that
+    # coin is picked up; without it the resume re-fought a boss already killed).
+    root["bossActive"] = %game.bossWaveManager.active
+    root["bossCoinPending"] = %game.bossWaveManager.coinActive
   of gmTimeSurvival:
     root["survivalTime"] = %game.survivalTime
     root["bossTimer"] = %game.bossTimer
     root["bossCount"] = %game.bossCount
+    # Saved mid-fight: bossCount already counts this boss, and the resume
+    # respawns it, which bumped the count again and skipped a boss tier.
+    root["bossActive"] = %game.bossWaveManager.active
   of gmRoguelite:
     root["roguelite"] = rogueliteRunToJson(game.rogueliteRun)
+    # Theme choices are only rolled when the floor-select screen opens, so a
+    # save taken between floors before that still holds the PREVIOUS floor's
+    # cards. Only a save taken on that screen may keep the ones it shows.
+    root["floorSelectOpen"] = %(game.state == gsRogueliteFloorSelect)
   else: discard
 
   try:
@@ -342,7 +391,7 @@ proc saveRunState*(game: Game, file: string = RunSaveFile,
   except CatchableError:
     echo "Warning: could not write run save"
 
-proc loadRunSaveJson(file: string = RunSaveFile): JsonNode =
+proc loadRunSaveJson(file: string): JsonNode =
   ## Parse the run save, returning nil on any failure or version mismatch.
   try:
     let path = getRunSavePath(file)
@@ -355,22 +404,38 @@ proc loadRunSaveJson(file: string = RunSaveFile): JsonNode =
   except CatchableError:
     return nil
 
-proc hasSavedRun*(file: string = RunSaveFile): bool =
-  loadRunSaveJson(file) != nil
+proc migrateLegacyRunSave() =
+  ## Older builds kept every mode's run in one shared run_save.json. Move it to
+  ## the per-mode file for the mode it records (or drop it if that slot is
+  ## already taken or the file is unreadable).
+  try:
+    let legacy = getRunSavePath(LegacyRunSaveFile)
+    if not fileExists(legacy):
+      return
+    let j = loadRunSaveJson(LegacyRunSaveFile)
+    if not j.isNil:
+      let mode = parseMode(j.getOrDefault("mode").getStr("gmWaveBased"))
+      let dest = getRunSavePath(runSaveFileFor(mode))
+      if not fileExists(dest):
+        moveFile(legacy, dest)
+        return
+    removeFile(legacy)
+  except CatchableError:
+    echo "Warning: could not migrate legacy run save"
 
-proc loadSavedRunMode*(): GameMode =
-  ## Mode of the current saved run, or gmWaveBased if there is no valid save
-  ## (callers should gate on hasSavedRun first).
-  let j = loadRunSaveJson()
-  if j.isNil: return gmWaveBased
-  parseMode(j.getOrDefault("mode").getStr("gmWaveBased"))
+proc hasSavedRun*(mode: GameMode): bool =
+  ## True when `mode` has a valid saved run on the current profile.
+  migrateLegacyRunSave()
+  loadRunSaveJson(runSaveFileFor(mode)) != nil
 
-proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
+proc applySavedRun*(game: Game, file: string = ""): bool =
   ## Restore saved state onto a freshly constructed Game that has already had
   ## newGame + setGameMode(savedMode) applied. Returns false on parse failure or
   ## version/mode mismatch; the caller then deletes the file and starts fresh.
   ## On success the game.state is set to the correct resume entry state.
-  let j = loadRunSaveJson(file)
+  ## `file` defaults to this mode's own run save.
+  migrateLegacyRunSave()
+  let j = loadRunSaveJson(if file.len > 0: file else: runSaveFileFor(game.mode))
   if j.isNil:
     return false
 
@@ -388,9 +453,12 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
     # Saves from before the lives system default to 0 spent, which is the
     # generous reading -- an in-flight run keeps its full budget.
     game.livesUsed = max(0, j.getOrDefault("livesUsed").getInt(0))
+    game.statsBaseKills = max(0, j.getOrDefault("statsBaseKills").getInt(0))
+    game.statsBaseTime = max(0.0, j.getOrDefault("statsBaseTime").getFloat(0.0)).float32
     game.metaShardsEarned = max(0, j.getOrDefault("metaShardsEarned").getInt(0))
     game.metaCoresEarned = max(0, j.getOrDefault("metaCoresEarned").getInt(0))
     game.time = j.getOrDefault("time").getFloat(0.0).float32
+    game.pendingLevelDrafts = max(0, j.getOrDefault("pendingLevelDrafts").getInt(0))
     if j.hasKey("player"):
       applyPlayerJson(game.player, j["player"])
 
@@ -407,6 +475,9 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
     case game.mode
     of gmWaveBased:
       game.currentWave = j.getOrDefault("currentWave").getInt(1)
+      # Saves from before this field existed default to 0: scaling is applied
+      # on resume exactly as it always was.
+      game.waveScalingApplied = j.getOrDefault("waveScalingApplied").getInt(0)
       # Clamped so a save written under a different boss cadence cannot schedule
       # a stale, longer gap before the counter resyncs.
       game.wavesUntilBoss = min(j.getOrDefault("wavesUntilBoss").getInt(BossWaveInterval - 1),
@@ -417,6 +488,15 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
       game.waveInProgress = false
       game.waveEnemiesRemaining = 0
       game.bossWaveManager = BossWaveManager(active: false, coinActive: false)
+      if j.getOrDefault("bossActive").getBool(false):
+        # The resumed wave respawns this boss, which counts it again.
+        game.bossCount = max(0, game.bossCount - 1)
+      elif j.getOrDefault("bossCoinPending").getBool(false):
+        # The boss is already dead: only its reward coin was left. Re-arm the
+        # coin (updateGameCoins puts it back on the floor) so collecting it ends
+        # the wave, instead of restarting the boss wave and fighting it again.
+        # The pending coin also holds off startWave and the boss spawner.
+        game.bossWaveManager.coinActive = true
       # gsPlaying + waveInProgress=false makes updateGame auto-start currentWave
       # through the normal startWave path.
       game.state = gsPlaying
@@ -428,6 +508,12 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
       game.survivalMinutesRewarded = int(game.survivalTime / 60.0'f32)
       game.bossTimer = j.getOrDefault("bossTimer").getFloat(0.0).float32
       game.bossCount = j.getOrDefault("bossCount").getInt(0)
+      if j.getOrDefault("bossActive").getBool(false):
+        # Saved mid-fight: the boss respawns on resume (its timer is still at 0)
+        # and spawning bumps bossCount, so undo this boss's count or the resume
+        # would skip ahead to the next boss tier.
+        game.bossCount = max(0, game.bossCount - 1)
+        game.bossTimer = 0.0'f32
       game.waveInProgress = false
       game.bossWaveManager = BossWaveManager(active: false, coinActive: false)
       game.state = gsPlaying
@@ -472,15 +558,19 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
       game.wavesUntilBoss = 999
 
       if run.pendingFloorSelect or not rj.hasKey("floor"):
-        # Between floors: drop into the floor-select screen with the saved
-        # theme choices (regenerated if the save had none).
+        # Between floors: drop into the floor-select screen.
         run.floor = nil
-        # Regenerate choices only if the saved array was never populated (all
-        # three still at the default theme); otherwise keep what the player saw.
-        if run.nextThemeChoices[0] == run.nextThemeChoices[1] and
-           run.nextThemeChoices[1] == run.nextThemeChoices[2] and
-           run.nextThemeChoices[0] == dftFirewall:
-          generateThemeChoices(run, 1)
+        # The cards are only kept when the save was taken ON that screen (and
+        # were ever rolled): that is what the player saw, and rerolling them
+        # would let a quit reroll the floors. A save taken earlier, e.g. the
+        # boss-clear checkpoint, still holds the previous floor's cards -- the
+        # theme just played among them -- so this floor's are rolled now.
+        let neverRolled =
+          run.nextThemeChoices[0] == run.nextThemeChoices[1] and
+          run.nextThemeChoices[1] == run.nextThemeChoices[2] and
+          run.nextThemeChoices[0] == dftFirewall
+        if neverRolled or not j.getOrDefault("floorSelectOpen").getBool(false):
+          generateThemeChoices(run, unlockedBossTierOf(game))
         game.state = gsRogueliteFloorSelect
       else:
         let fj = rj["floor"]
@@ -516,9 +606,31 @@ proc applySavedRun*(game: Game, file: string = RunSaveFile): bool =
         # enterRoom re-arms a fresh encounter for an un-cleared combat room
         # (mid-encounter runs re-roll from encounterSeed) and simply opens the
         # doors for a cleared one.
-        enterRoom(game, curRoom, ddUp)
+        enterRoom(game, curRoom, ddUp, resumed = true)
     else:
       return false
+
+    # A boss reward or between-waves draft that was open at save time is owed
+    # again (level-up drafts ride along in pendingLevelDrafts instead). The
+    # choices are re-rolled: the save keeps which draft it was, not its cards.
+    let openDraft = j.getOrDefault("openDraft").getStr("")
+    if openDraft in ["legendary", "boundary"]:
+      let families =
+        if game.mode == gmRoguelite: unlockedFamilySet(game.rogueliteProfile)
+        else: {rpfCore..rpfBlood}
+      game.powerUpChoices = generatePowerUpChoices(game.player, openDraft == "legendary",
+                                                   families, game.mode)
+      game.selectedPowerUp = 0
+      initPowerUpRollAnimation(game)
+      initializeRerollCost(game)
+      game.levelDraftActive = false
+      if game.mode == gmRoguelite and not game.rogueliteRun.isNil and
+         game.rogueliteRun.pendingFloorSelect:
+        # The floor boss's reward. Its room is not rebuilt between floors, so
+        # the pick must lead straight to floor select rather than to the boss
+        # room's exit portal.
+        game.cheatRogueliteDirectFloorSelect = true
+      game.state = gsPowerUpSelect
 
     return true
   except CatchableError:
@@ -590,6 +702,11 @@ proc consumeContinueLife*(game: Game) =
   ## run out. Patching just this one key (rather than re-serializing the game)
   ## keeps the rest of the checkpoint byte-identical to what was verified good.
   inc game.livesUsed
+  # The death that led here has already been written to the lifetime statistics,
+  # and the checkpoint has just rolled the kill count and clock back. From here
+  # on only what is gained on top of them is new (see persistRunResults).
+  game.statsBaseKills = game.player.kills
+  game.statsBaseTime = runElapsedTime(game)
   # Arm the "life lost" animation. Doing it here rather than at the two call
   # sites means every way of spending a life is animated by construction -- the
   # game-over Continue button and the desktop's resume-a-dead-run both land

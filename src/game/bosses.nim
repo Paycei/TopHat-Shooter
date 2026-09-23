@@ -61,12 +61,38 @@ proc livingRoyalGuardCount*(game: Game): int =
     if isLivingRoyalGuard(other):
       result += 1
 
+proc retireSatelliteHazards*(game: var Game, sat: OrbitalSatellite) =
+  ## A satellite that is destroyed or dismissed takes its beam and its charge
+  ## telegraph with it. Both live in the shared game lists, so without this a
+  ## destroyed satellite's laser kept firing from where it died for the rest of
+  ## its cycle (several seconds).
+  if sat.activeLaser != nil:
+    for i in countdown(game.lasers.high, 0):
+      if game.lasers[i] == sat.activeLaser:
+        game.lasers.delete(i)
+        break
+  if sat.activeWarning != nil:
+    for i in countdown(game.attackWarnings.high, 0):
+      if game.attackWarnings[i] == sat.activeWarning:
+        game.attackWarnings.delete(i)
+        break
+
 proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinition,
                            nextPhaseIndex: int) =
   if nextPhaseIndex < 0 or nextPhaseIndex >= bossDef.phases.len:
     return
 
   let phase = bossDef.phases[nextPhaseIndex]
+  # The boss's wave-scaled base speed, recovered from its current speed and
+  # phase multiplier. Recomputing it from game.currentWave was wrong outside
+  # wave mode: survival and the dungeon spawn bosses for a boss-block wave while
+  # currentWave stays at 1, so every phase break dropped them to base speed.
+  let currentPhaseMult =
+    if enemy.currentPhaseIndex >= 0 and enemy.currentPhaseIndex < bossDef.phases.len:
+      bossDef.phases[enemy.currentPhaseIndex].speedMultiplier
+    else:
+      1.0'f32
+  let scaledBaseSpeed = enemy.speed / max(currentPhaseMult, 0.01'f32)
   enemy.currentPhaseIndex = nextPhaseIndex
   enemy.maxHp = bossPhaseMaxHp(enemy, nextPhaseIndex, bossDef.phases.len)
   enemy.hp = enemy.maxHp
@@ -109,6 +135,7 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
     for satellite in enemy.satellites:
       spawnExplosionPooled(game.particlePool, satellite.pos.x, satellite.pos.y,
                            Color(r: 100, g: 150, b: 255, a: 255), 12)
+      retireSatelliteHazards(game, satellite)
     enemy.satellites = @[]
 
   # Attacks stay silent for the whole transition, then resume the instant the
@@ -121,7 +148,6 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
     enemy.attackWarningFired.add(false)
 
   # Bosses keep their spawn color across phases (phase recoloring was a legacy mechanic).
-  let scaledBaseSpeed = getScaledBossSpeed(bossDef, game.currentWave)
   enemy.speed = scaledBaseSpeed * phase.speedMultiplier
   enemy.defenseMultiplier = phase.defenseMultiplier
   resetBossBehaviorState(enemy, phase.specialBehavior)

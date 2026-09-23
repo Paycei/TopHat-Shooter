@@ -1,7 +1,7 @@
 ## PvP Lobby Window
 ## Network lobby interface as an OS-style window
 
-import raylib, strutils, net, math
+import raylib, strutils, net, math, algorithm
 import os_window, ../network/network, ../network/network_types, ../types, ../localization, ../render_context
 
 type
@@ -270,6 +270,7 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
         pvpWin.errorMessage = event.reason
   of plsConnected:
     let events = pvpWin.networkManager.pollEvents(getCosmetics)
+    var lobbyLeavers: seq[int] = @[]  # host: pre-renumber indices of clients that left
     for event in events:
       if event.kind == neConnect:
         pvpWin.remoteSkinType = event.remoteSkinType
@@ -288,6 +289,11 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
       elif event.kind == neReceive:
         if event.packet.kind == ptPlayerListUpdate:
           pvpWin.connectedPlayers = event.packet.updatedPlayers
+        elif event.packet.kind == ptConnectionAccept and not pvpWin.isHost:
+          # The host renumbers the lobby when someone leaves, so this client's
+          # player index can change before the match starts.
+          pvpWin.connectedPlayers = event.packet.connectedPlayers
+          pvpWin.assignedPlayerIndex = event.packet.assignedPlayerIndex
         elif event.packet.kind == ptGameStart:
           pvpWin.connectedPlayers = event.packet.gameConnectedPlayers
           pvpWin.teamsEnabled = event.packet.teamsEnabled
@@ -300,11 +306,35 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
           pvpWin.errorMessage = t("pvp_host_disconnected")
         else:
           if pvpWin.isHost:
+            lobbyLeavers.add(event.disconnectPlayerIndex)
+            # Rebuilt from the network layer's client list: in the lobby the
+            # remaining clients have just been renumbered, so filtering the old
+            # entries by index would leave stale numbers behind.
             var newList: seq[ConnectedPlayerInfo] = @[]
-            for cp in pvpWin.connectedPlayers:
-              if cp.index != event.disconnectPlayerIndex:
-                newList.add(cp)
+            if pvpWin.connectedPlayers.len > 0 and pvpWin.connectedPlayers[0].index == 0:
+              newList.add(pvpWin.connectedPlayers[0])
+            for client in pvpWin.networkManager.clients:
+              newList.add((index: client.playerIndex,
+                           skinType: client.skinType,
+                           bulletSkinType: client.bulletSkinType,
+                           shapeType: client.shapeType,
+                           particleSkinType: client.particleSkinType,
+                           nickname: if client.nickname.len > 0: client.nickname
+                                     else: t("pvp_player_num") & $client.playerIndex))
             pvpWin.connectedPlayers = newList
+    # Team picks are stored per player index. In the lobby the network layer
+    # closes the gap each leaver left by renumbering the clients after it, so
+    # their picks have to shift down with them, or everyone behind a leaver
+    # silently changed team. Highest index first: one poll can report several
+    # timeouts, all in pre-renumber indices. (Mid-match indices are frozen.)
+    if lobbyLeavers.len > 0 and not pvpWin.networkManager.matchStarted:
+      lobbyLeavers.sort(Descending)
+      for idx in lobbyLeavers:
+        if idx > 0 and idx < pvpWin.playerTeamAssignments.len:
+          pvpWin.playerTeamAssignments.delete(idx)
+          # Keep one entry per slot; the freed last slot gets its default team.
+          let slot = pvpWin.playerTeamAssignments.len
+          pvpWin.playerTeamAssignments.add((slot mod max(1, pvpWin.numTeams)) + 1)
   else:
     discard
 
@@ -1025,7 +1055,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
         let pIdx = client.playerIndex
         var pTeam = getTeamForPlayer(pIdx, pvpWin.numTeams)
         if pIdx >= 0 and pIdx < pvpWin.playerTeamAssignments.len:
-          pTeam = PvPTeam(pvpWin.playerTeamAssignments[pIdx])
+          pTeam = teamFromInt(pvpWin.playerTeamAssignments[pIdx])
         "> " & nick & "  [" & getTeamName(pTeam) & "]"
       else:
         "> " & nick
@@ -1155,7 +1185,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                (contentX + 30).int32, (contentY + 128).int32, 16,
                Color(r: 255, g: 200, b: 50, a: 255))
       if pvpWin.teamsEnabled and pvpWin.playerTeamAssignments.len > 0:
-        let hTeam = PvPTeam(pvpWin.playerTeamAssignments[0])
+        let hTeam = teamFromInt(pvpWin.playerTeamAssignments[0])
         let hTeamCol = getTeamColor(hTeam)
         let hBX = contentX + 270
         let hBY = contentY + 130
@@ -1179,7 +1209,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
           let pIdx = client.playerIndex
           var pTeam = getTeamForPlayer(pIdx, pvpWin.numTeams)
           if pIdx >= 0 and pIdx < pvpWin.playerTeamAssignments.len:
-            pTeam = PvPTeam(pvpWin.playerTeamAssignments[pIdx])
+            pTeam = teamFromInt(pvpWin.playerTeamAssignments[pIdx])
           let pCol = getTeamColor(pTeam)
           drawText("> " & nick, (contentX + 30).int32, (contentY + yOff).int32, 17, White)
           let pBX = contentX + 270
