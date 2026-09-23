@@ -53,6 +53,14 @@ proc bossPhaseMaxHp*(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 =
 
   max(enemy.maxHp, 0.01'f32)
 
+proc livingRoyalGuardCount*(game: Game): int =
+  ## Royal Guards still standing. They alone hold the Summoner King's seal,
+  ## freeze its next summon and fill its objective pips; the legion's rank and
+  ## file around them never do.
+  for other in game.enemies:
+    if isLivingRoyalGuard(other):
+      result += 1
+
 proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinition,
                            nextPhaseIndex: int) =
   if nextPhaseIndex < 0 or nextPhaseIndex >= bossDef.phases.len:
@@ -118,6 +126,11 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
   enemy.defenseMultiplier = phase.defenseMultiplier
   resetBossBehaviorState(enemy, phase.specialBehavior)
   resetBossWeakPointForPhase(enemy, bossDef.weakPoint, enemy.currentPhaseIndex)
+  # A legion outlives the phase that raised it. Its surviving guards still
+  # hold the seal (and freeze the next summon), so the pips count them rather
+  # than the definition's default.
+  if enemy.summonWaveActive and enemy.weakPoint.kind == bwoSummonSigils:
+    enemy.weakPoint.required = max(1, livingRoyalGuardCount(game))
 
 proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool =
   ## Breaks a boss into its next phase once the current phase pool is spent.
@@ -161,11 +174,10 @@ const
   HEAL_ON_IGNORE_FRAC      = 0.04'f32  # phase HP refunded when a window is wasted
 
 proc bossLivingAddsCount(game: Game, enemy: Enemy): int =
-  ## Count adds that belong to a boss: its orbital satellites plus any enemy it summoned.
-  result = enemy.satellites.len
-  for other in game.enemies:
-    if other.spawnedByBoss and other.hp > 0:
-      result += 1
+  ## Adds that seal a boss's body: its orbital satellites plus the Royal Guards
+  ## of a summoned legion. The rank and file never seal it -- a crowd is
+  ## pressure, not a lock one straggler across the arena can hold shut.
+  enemy.satellites.len + livingRoyalGuardCount(game)
 
 proc updateBossMechanics*(game: var Game, enemy: Enemy, dt: float32) =
   if not enemy.isBoss:
@@ -1820,102 +1832,126 @@ proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase
   # Central explosion (size varies by mode)
   spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, particleColor, explosionSize)
 
-proc execBossAttackSummon(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
-  # Spawn minion enemies around the boss - customizable via specialData
-  # Parse specialData to determine minion types: "minion_circle", "minion_triangle", "minion_mixed"
-  var minionType = etCircle  # Default
-  var useVariation = false
+# ---------------------------------------------------------------------------
+# Summoner King legion (boss 2). Its summon used to be four circles (three
+# triangles in phase two) under a hard cap of 12, and clearing every one of
+# them opened the window. Since waves turned into crowds that was the emptiest
+# moment of its own block, and it lasted a single sweep. The legion is now a
+# crowd, sized like the waves around it, with a few Royal Guards set into it:
+#   * the rank and file die to a hit each and are there to be mowed. They
+#     never seal the King, never freeze his next summon and never fire, and an
+#     ignored crowd is topped up to LegionFodderCap rather than piled higher;
+#   * the Royal Guards are the objective: big, slow, gold, several hits each.
+#     While any stands the King is sealed and his summon countdown frozen,
+#     every living guard throws a spear in the Legion Volley, and the last one
+#     to fall opens the vulnerability window.
+# Phase one MUSTERS the whole legion in a ring around the King. Phase two
+# ENCIRCLES: the rank and file rise in a ring around the player with dashers
+# set into it, while the guards muster at the King's side, so reaching them
+# means cutting a way out of the ring first.
+# ---------------------------------------------------------------------------
 
-  if attack.specialData != "":
-    case attack.specialData
-    of "minion_circle":
-      minionType = etCircle
-    of "minion_triangle":
-      minionType = etTriangle
-    of "minion_cube":
-      minionType = etCube
-    of "minion_pentagon":
-      minionType = etPentagon
-    of "minion_mixed":
-      useVariation = true  # Vary minion types
-    else:
-      minionType = etCircle
+proc legionGuardCount(specialData: string): int =
+  case specialData
+  of "legion_encircle": 3
+  else: 2
 
-  # CAP: Count existing boss-spawned enemies to prevent overwhelming defensive builds
-  var bossSpawnedCount = 0
-  for e in game.enemies:
-    if e.spawnedByBoss:
-      bossSpawnedCount += 1
+proc livingLegionFodderCount(game: Game): int =
+  for other in game.enemies:
+    if other.spawnedByBoss and not other.royalGuard and other.hp > 0:
+      result += 1
 
-  # Maximum boss-spawned enemies allowed at once (configurable cap)
-  const MAX_BOSS_SPAWNED_ENEMIES = 12
+proc legionSlotBlocked(game: Game, pos: Vector2f, radius: float32): bool =
+  ## A slot inside a standing dungeon obstacle would wedge its legionnaire.
+  for wall in game.walls:
+    if wall.hp > 0 and wallOverlapsCircle(wall, pos, radius):
+      return true
 
-  # Calculate how many we can actually spawn
-  let maxToSpawn = max(0, MAX_BOSS_SPAWNED_ENEMIES - bossSpawnedCount)
-  let actualSpawnCount = min(attack.projectileCount, maxToSpawn)
+proc clampToArena(game: Game, pos: Vector2f, pad: float32): Vector2f =
+  newVector2f(clamp(pos.x, pad, game.screenWidth.float32 - pad),
+              clamp(pos.y, pad, game.screenHeight.float32 - pad))
 
-  # Only proceed if we can spawn at least one enemy
-  if actualSpawnCount <= 0:
-    # Skip spawning but still show visual feedback
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 8)
+proc raiseLegionnaire(game: var Game, pos: Vector2f, enemyType: EnemyType, guard: bool) =
+  # Fixed stat difficulty: summons never outscale the fight they belong to.
+  # newEnemy primes each type's movement state (triangles start mid wind-up),
+  # which on a ring 300 px out is the right beat for a first dash.
+  let minion = newEnemy(pos.x, pos.y, LegionMinionDifficulty, enemyType, game)
+  # Boss-spawned: no coins, XP, consumables or combo credit (game.nim death path).
+  minion.spawnedByBoss = true
+  # Summoned inside the arena, so it engages immediately.
+  minion.hasEnteredScreen = true
+  if guard:
+    minion.royalGuard = true
+    minion.maxHp *= LegionGuardHpMult
+    minion.hp = minion.maxHp
+    minion.radius *= LegionGuardRadiusMult
+    minion.collisionRadius = minion.radius * 0.4'f32
+    minion.speed *= LegionGuardSpeedMult
+    minion.contactDamage *= LegionGuardDamageMult
+    minion.color = RoyalGuardGold
   else:
-    for i in 0..<actualSpawnCount:
-      let angle = i.float32 * PI * 2.0 / actualSpawnCount.float32
-      let spawnDist = enemy.radius + 60.0  # Spawn outside boss radius
-      let spawnX = enemy.pos.x + cos(angle) * spawnDist
-      let spawnY = enemy.pos.y + sin(angle) * spawnDist
+    minion.speed *= LegionFodderSpeedMult
+  game.enemies.add(minion)
+  spawnExplosionPooled(game.particlePool, pos.x, pos.y,
+                       (if guard: RoyalGuardGold else: Color(r: 90, g: 230, b: 110, a: 255)),
+                       (if guard: 14 else: 5))
 
-      # Determine this minion's type
-      var thisType = minionType
-      if useVariation:
-        # Vary between circle, triangle, and cube based on index
-        thisType = case i mod 3
-          of 0: etCircle
-          of 1: etTriangle
-          else: etCube
+proc musterRing(game: var Game, center: Vector2f, ringR: float32,
+                fodder, guards: int, fodderType: EnemyType) =
+  ## One ring around `center`, guards spread evenly through it.
+  let total = fodder + guards
+  if total <= 0:
+    return
+  var guardSlots: set[uint8]
+  for k in 0..<guards:
+    guardSlots.incl(uint8(k * total div guards))
+  let spin = rand(PI * 2.0)
+  for i in 0..<total:
+    let a = spin + i.float32 * PI * 2.0 / total.float32
+    let pos = clampToArena(game, center + newVector2f(cos(a), sin(a)) * ringR, 24.0'f32)
+    raiseLegionnaire(game, pos, fodderType, uint8(i) in guardSlots)
 
-      # Create minion with determined type
-      # Use a fixed base difficulty so minions don't become stronger over time
-      let minion = newEnemy(
-        spawnX, spawnY,
-        2.5,  # Fixed difficulty - does NOT scale with time
-        thisType,
-        game
-      )
-      # Mark as boss-spawned so it doesn't drop coins (prevent farming)
-      minion.spawnedByBoss = true
-      # Summoned enemies are already inside the arena, so they should engage immediately.
-      minion.hasEnteredScreen = true
+proc encircleRing(game: var Game, fodder: int) =
+  ## The rank and file on a ring around the player, every fourth slot a
+  ## dasher. The ring is squeezed onto the arena near a wall, so any slot the
+  ## clamp drags closer than LegionEncircleMinGap is dropped: the wall closes
+  ## that side of the ring, and nothing ever rises on top of the player.
+  if fodder <= 0:
+    return
+  let spin = rand(PI * 2.0)
+  for i in 0..<fodder:
+    let a = spin + i.float32 * PI * 2.0 / fodder.float32
+    let raw = game.player.pos + newVector2f(cos(a), sin(a)) * LegionEncircleRadius
+    let pos = clampToArena(game, raw, 24.0'f32)
+    if distance(pos, game.player.pos) < LegionEncircleMinGap or
+       legionSlotBlocked(game, pos, 14.0'f32):
+      continue
+    raiseLegionnaire(game, pos, (if i mod 4 == 3: etTriangle else: etCircle), false)
 
-      case minion.enemyType
-      of etTriangle:
-        # Enter the triangle wind-up state right away instead of spawning "mid-dash".
-        minion.dashCooldown = 0.0
-        minion.dashTimer = 0.35 + rand(0.35)
-      of etDiamond:
-        minion.dashTimer = 0.0
-        minion.dashCooldown = 0.75 + rand(0.5)
-      else:
-        discard
+proc execBossAttackSummon(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+  let guards = legionGuardCount(attack.specialData)
+  let fodder = clamp(LegionFodderCap - livingLegionFodderCount(game), 0, attack.projectileCount)
+  let ringR = enemy.radius + LegionMusterRing
 
-      # NERF: Make boss-summoned minions smaller and slower
-      minion.radius = minion.radius * 1.0  # 35% smaller
-      minion.collisionRadius = minion.collisionRadius * 1.0  # Keep collision consistent
-      minion.speed = minion.speed * 0.70  # 30% slower
+  case attack.specialData
+  of "legion_encircle":
+    encircleRing(game, fodder)
+    musterRing(game, enemy.pos, ringR, 0, guards, etCircle)
+    addShake(game.dopamine.screenShake, siMedium)
+  else:  # "legion_muster"
+    musterRing(game, enemy.pos, ringR, fodder, guards, etCircle)
 
-      game.enemies.add(minion)
+  # The fresh guards are the objective: their count drives the pips, and the
+  # last one down opens the window (game.nim). The summon countdown is frozen
+  # while any guard lives, so none from an earlier legion can still be up here.
+  # Gated to the bwoSummonSigils objective so a future summoner with a different
+  # weak point doesn't get its real objective's required/progress clobbered.
+  if enemy.isBoss and enemy.weakPoint.kind == bwoSummonSigils:
+    enemy.summonWaveActive = true
+    enemy.weakPoint.required = max(1, livingRoyalGuardCount(game))
+    enemy.weakPoint.progress = 0
 
-    # Mark a summoned wave as active. Clearing every add in it opens the boss's
-    # vulnerability window (Summoner King objective). Wave size drives the pips.
-    # Gated to the bwoSummonSigils objective so a future summoner with a different
-    # weak-point doesn't get its real objective's required/progress clobbered.
-    if enemy.isBoss and enemy.weakPoint.kind == bwoSummonSigils:
-      enemy.summonWaveActive = true
-      enemy.weakPoint.required = max(1, actualSpawnCount)
-      enemy.weakPoint.progress = 0
-
-    # Visual feedback for summoning
-    spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
+  spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
 
 proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
   # Falling projectiles from above, screen-wide barrage with a guaranteed dodge gap
@@ -2685,27 +2721,27 @@ proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase
     spawnExplosionPooled(game.particlePool, sat.pos.x, sat.pos.y, bulletColor, 8)
 
 proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
-  # LEGION VOLLEY (Summoner King) - every living summoned add fires a single shot
-  # at the player in unison. This turns ignored adds into active pressure while the
-  # boss is sealed. Single shot per add
-  # keeps the worst case bounded by MAX_BOSS_SPAWNED_ENEMIES. If the wave is already
-  # cleared, the boss fires a fan itself so the attack still does something.
-  var firedFromAdds = 0
+  # LEGION VOLLEY (Summoner King) - every living Royal Guard throws a short
+  # spear of LegionVolleyFan shots at the player in unison, which makes the
+  # guards the priority targets twice over. The rank and file never fire: a
+  # crowd of one-hit bodies is pressure enough, and a shot from each of them
+  # would be a wall. At most three guards stand at once (the summon countdown
+  # is frozen while any lives), so the worst case stays bounded. With no guard
+  # standing, the King fires a fan himself so the attack still does something.
+  let spearStep = LegionVolleySpread.degToRad()
+  var firedFromGuards = 0
   for other in game.enemies:
-    if other.spawnedByBoss and other.hp > 0:
-      let dir = (game.player.pos - other.pos).normalize()
-      game.bullets.add(newBullet(
-        x = other.pos.x, y = other.pos.y, direction = dir,
-        speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
-        fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
-        bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
-        bulletRadius = attack.bulletRadius
-      ))
-      spawnExplosionPooled(game.particlePool, other.pos.x, other.pos.y,
-                           Color(r: 120, g: 230, b: 140, a: 255), 6)
-      firedFromAdds += 1
+    if isLivingRoyalGuard(other):
+      let aim = game.player.pos - other.pos
+      let base = arctan2(aim.y, aim.x)
+      for k in 0..<LegionVolleyFan:
+        let off = (k.float32 - (LegionVolleyFan - 1).float32 * 0.5'f32) * spearStep
+        spawnBossBullet(game, enemy, attack, phase,
+                        newVector2f(cos(base + off), sin(base + off)), origin = other.pos)
+      spawnExplosionPooled(game.particlePool, other.pos.x, other.pos.y, RoyalGuardGold, 8)
+      firedFromGuards += 1
 
-  if firedFromAdds == 0:
+  if firedFromGuards == 0:
     # Fallback: fan from the boss aimed at the player
     let baseAngle = arctan2(toPlayer.y, toPlayer.x)
     let count = max(3, attack.projectileCount)

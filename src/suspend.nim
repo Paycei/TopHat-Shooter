@@ -116,7 +116,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 5'u32  # bumped: Enemy gained the Juggernaut charge-combo state
+  SnapFormatVersion = 6'u32  # bumped: Enemy gained the Summoner King's royalGuard flag
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =

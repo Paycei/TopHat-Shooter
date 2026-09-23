@@ -2869,8 +2869,13 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # activateSlowMo's note on why a per-kill dilation latches the game into
         # permanent half speed once the horde shows up. Elites get a longer,
         # harder freeze so they read as a bigger deal than a circle popping.
+        # A fallen Royal Guard gets the elite bite plus a gold burst: it is
+        # one link of the Summoner King's seal breaking.
         addShake(game.dopamine.screenShake, siMedium)
-        if enemy.isElite:
+        if enemy.royalGuard:
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, RoyalGuardGold, 30)
+          spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.radius * 3.0'f32)
+        if enemy.isElite or enemy.royalGuard:
           triggerHitStop(game.dopamine.slowMotion, 0.065'f32, HitStopScaleHeavy)
         else:
           triggerHitStop(game.dopamine.slowMotion, 0.035'f32)
@@ -3223,22 +3228,20 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       updateBossWeakPoint(enemy, bossDef.weakPoint, game.player.pos, game.screenWidth, game.screenHeight, dt)
       updateBossMechanics(game, enemy, dt)
 
-      # Count this boss's still-living summoned adds. While any survive, the
+      # Count the legion's still-living Royal Guards. While any stand, the
       # summon attack's countdown is frozen, so the loop is: summon -> player
-      # clears the adds -> countdown starts -> countdown ends -> summon again.
-      # This prevents an unkillable pile-up and keeps the adds-gate fair.
-      var livingSummons = 0
-      for other in game.enemies:
-        if other.spawnedByBoss and other.hp > 0:
-          livingSummons += 1
+      # slays the guards -> countdown starts -> countdown ends -> summon again.
+      # The rank and file never hold it (an ignored crowd is capped at the
+      # summon instead), so one straggler can't stall the fight.
+      let livingGuards = livingRoyalGuardCount(game)
       let hasSummonPhase = enemy.currentPhaseIndex < bossDef.phases.len
 
-      # Summoner King: drive the objective from the live add count (single source of
-      # truth - no desync). Pips show how much of the wave is cleared; clearing the
-      # whole wave opens the vulnerability window. Gated to the summon objective.
+      # Summoner King: drive the objective from the live guard count (single
+      # source of truth - no desync). Pips show how many guards have fallen;
+      # the last one opens the vulnerability window. Gated to the summon objective.
       if enemy.summonWaveActive and enemy.weakPoint.kind == bwoSummonSigils:
-        enemy.weakPoint.progress = max(0, enemy.weakPoint.required - livingSummons)
-        if livingSummons == 0:
+        enemy.weakPoint.progress = max(0, enemy.weakPoint.required - livingGuards)
+        if livingGuards == 0:
           let summonWindow = openBossSummonWindow(enemy)
           if summonWindow.opened:
             enemy.summonWaveActive = false
@@ -3259,8 +3262,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # included), so nothing lands in the lane the player sidesteps into.
         if enemy.megaCastTimer > 0 or enemy.chargeState != ccIdle:
           break
-        # Freeze the summon countdown until every summoned add is dead.
-        if livingSummons > 0 and hasSummonPhase and
+        # Freeze the summon countdown until every Royal Guard is dead.
+        if livingGuards > 0 and hasSummonPhase and
             i < bossDef.phases[enemy.currentPhaseIndex].attacks.len and
             bossDef.phases[enemy.currentPhaseIndex].attacks[i].attackType == bapSummon:
           continue
@@ -5726,6 +5729,7 @@ proc drawGame*(game: Game) =
     # Draw elite overlay after body so outline + orbit crown render on top
     if enemy.isElite:
       drawEliteOverlay(enemy, game.time)
+    drawRoyalGuardRegalia(enemy)
     if enemy.isBoss:
       # Mega-cast charge animation: rings converge on the frozen boss, energy
       # spokes spin into it, and a core glow swells toward fire time. Sells the
@@ -5804,6 +5808,9 @@ proc drawGame*(game: Game) =
       # Juggernaut charge wind-up chevrons (ungated: see drawChargeWindup).
       drawChargeWindup(enemy)
 
+      # Summoner King: gold chains to the Royal Guards holding its seal (ungated).
+      drawLegionTethers(enemy, game.enemies)
+
       # Adds-gate seal: amber lock ring telling the player to clear the adds first.
       if enemy.addsGateActive and enemy.weakPoint.exposedTimer <= 0:
         let sp = sin(game.time * 4.0) * 0.5 + 0.5
@@ -5814,7 +5821,8 @@ proc drawGame*(game: Game) =
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sr + 5.0,
                         Color(r: 255, g: 140, b: 20, a: uint8(sa.int div 2)))
         if globalSettings == nil or globalSettings.showHints:
-          let gt = t(tkEnemySealedClearAdds)
+          let gt = if enemy.weakPoint.kind == bwoSummonSigils: t(tkEnemySealedSlayGuards)
+                   else: t(tkEnemySealedClearAdds)
           drawText(gt, enemy.pos.x.int32 - measureText(gt, 10) div 2,
                    (enemy.pos.y - enemy.radius - 26.0).int32, 10,
                    Color(r: 255, g: 200, b: 90, a: 235))

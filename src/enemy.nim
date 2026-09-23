@@ -64,6 +64,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
 
   # Initialize boss-spawned flag (default: false, set to true by boss summon)
   result.spawnedByBoss = false
+  result.royalGuard = false
   result.threatLevel = 0
 
   # Initialize diamond shield (1-hit absorb, like Celestial Veil)
@@ -4286,6 +4287,86 @@ proc drawChargeWindup*(enemy: Enemy) =
     for (w, wide, stroke) in [(wingL, 9.0'f32, backing), (wingR, 9.0'f32, backing),
                               (wingL, 5.0'f32, col), (wingR, 5.0'f32, col)]:
       drawLine(Vector2(x: w.x, y: w.y), tip, wide, stroke)
+
+const RoyalGuardGold* = Color(r: 240, g: 190, b: 50, a: 255)
+
+proc isLivingRoyalGuard*(e: Enemy): bool {.inline.} =
+  ## A Summoner King Royal Guard still standing (see game/bosses.nim).
+  e.royalGuard and e.spawnedByBoss and e.hp > 0
+
+proc drawRoyalGuardRegalia*(enemy: Enemy) =
+  ## Marks a Royal Guard out of the legion around it, drawn ungated like the
+  ## elite overlay: it is the enemy's identity, not a hint. A gold rim, a
+  ## crown over the head, and a health bar once it is hurt, because a guard
+  ## takes several hits and the player needs to see the focus fire landing.
+  if not enemy.royalGuard:
+    return
+  let cx = enemy.pos.x
+  let cy = enemy.pos.y
+  let r = enemy.radius
+  let pulse = (sin(getTime() * 3.0 + enemy.id.float32) * 0.5 + 0.5).float32
+  let gold = RoyalGuardGold
+  let backing = Color(r: 40, g: 25, b: 0, a: 200)
+  drawCircleLines(cx.int32, cy.int32, r + 3.0'f32 + pulse * 2.0'f32,
+                  withAlpha(gold, uint8(150.0'f32 + pulse * 90.0'f32)))
+
+  # Crown: three points on a band, backed by a dark stroke so it reads over
+  # the guard's own gold glow and over the crowd behind it.
+  let cw = max(8.0'f32, r * 0.5'f32)
+  let by = cy - r - 7.0'f32
+  let pts = [Vector2(x: cx - cw, y: by), Vector2(x: cx - cw, y: by - cw * 0.9'f32),
+             Vector2(x: cx - cw * 0.5'f32, y: by - cw * 0.4'f32),
+             Vector2(x: cx, y: by - cw * 1.15'f32),
+             Vector2(x: cx + cw * 0.5'f32, y: by - cw * 0.4'f32),
+             Vector2(x: cx + cw, y: by - cw * 0.9'f32), Vector2(x: cx + cw, y: by)]
+  for (wide, col) in [(5.0'f32, backing), (2.5'f32, gold)]:
+    for i in 0 ..< pts.len - 1:
+      drawLine(pts[i], pts[i + 1], wide, col)
+    drawLine(pts[0], pts[^1], wide, col)
+  for tip in [pts[1], pts[3], pts[5]]:
+    drawCircle(tip, 2.2'f32, Color(r: 255, g: 245, b: 200, a: 255))
+
+  if enemy.maxHp > 0 and enemy.hp < enemy.maxHp:
+    let barW = r * 2.0'f32
+    let barX = cx - r
+    let barY = cy + r + 6.0'f32
+    let frac = clamp(enemy.hp / enemy.maxHp, 0.0'f32, 1.0'f32)
+    drawRectangle(barX.int32, barY.int32, barW.int32, 4, Color(r: 50, g: 35, b: 0, a: 200))
+    drawRectangle(barX.int32, barY.int32, (barW * frac).int32, 4, gold)
+    drawRectangleLines(barX.int32, barY.int32, barW.int32, 4, backing)
+
+proc drawLegionTethers*(boss: Enemy, enemies: seq[Enemy]) =
+  ## Gold chains from a sealed Summoner King to each Royal Guard holding the
+  ## seal, links flowing outward from the King. Ungated: in a crowd of
+  ## legionnaires and wave enemies the chains are what says WHICH bodies break
+  ## the seal, and the seal ring alone cannot point at them.
+  if not boss.addsGateActive or boss.weakPoint.exposedTimer > 0 or
+     boss.weakPoint.kind != bwoSummonSigils:
+    return
+  let t = getTime().float32
+  let alpha = uint8(90.0'f32 + (sin(t * 4.0'f32) * 0.5'f32 + 0.5'f32) * 70.0'f32)
+  const Link = 12.0'f32
+  const Gap = 9.0'f32
+  for guard in enemies:
+    if not isLivingRoyalGuard(guard):
+      continue
+    let line = guard.pos - boss.pos
+    let len = line.length()
+    let span = len - boss.radius - guard.radius - 16.0'f32
+    if span <= Link:
+      continue
+    let d = line * (1.0'f32 / len)
+    let start = boss.pos + d * (boss.radius + 8.0'f32)
+    var s = (t * 40.0'f32) mod (Link + Gap) - (Link + Gap)
+    while s < span:
+      let a = max(s, 0.0'f32)
+      let b = min(s + Link, span)
+      if b > a:
+        let pa = start + d * a
+        let pb = start + d * b
+        drawLine(Vector2(x: pa.x, y: pa.y), Vector2(x: pb.x, y: pb.y), 2.5'f32,
+                 withAlpha(RoyalGuardGold, alpha))
+      s += Link + Gap
 
 proc drawSignatureAttackActive*(warning: AttackWarning) =
   ## Live lethal pass for the bosses 7-12 signature attacks, drawn ungated

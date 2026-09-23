@@ -21,7 +21,7 @@ type
     bapDash,             # Dash attack
     bapBarrage,          # Massive projectile barrage
     bapSnipe,            # Precise aimed shots
-    bapMinionVolley      # Living summoned adds fire at the player in unison (Summoner King)
+    bapMinionVolley      # Living Royal Guards fire at the player in unison (Summoner King)
 
   BossAttack* = object
     attackType*: BossAttackPattern
@@ -90,7 +90,7 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
 
   case bossID
   of 1: spec(bwoSpiralAnchors, 3, 3)
-  of 2: spec(bwoSummonSigils, 3, 3)
+  of 2: spec(bwoSummonSigils, 2, 0)  # Pips count Royal Guards; 2 = phase one's legion (set per summon)
   of 3: spec(bwoMeteorCracks, 2, 2)
   of 4: spec(bwoLaserPrisms, 2, 2)
   of 5: spec(bwoVoidRifts, 1, 3)
@@ -204,14 +204,19 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           specialBehavior: "defensive",
           attacks: @[
             BossAttack(
+              # Legion Muster (game/bosses.nim): a ring of rank and file around
+              # the King with its Royal Guards set into it. projectileCount is
+              # the rank and file; the guard count comes from specialData. The
+              # countdown only ticks once every guard is down, and outlasts the
+              # vulnerability window by a short breath before the next muster.
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 2.5,  # reduced from 4.5: timer only ticks after adds are cleared
+              cooldown: 3.4,
               projectileSpeed: 0.0,
-              projectileCount: 4,
+              projectileCount: 12,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
-              specialData: "minion_circle"
+              specialData: "legion_muster"
             ),
             BossAttack(
               # Generic wave demoted to occasional filler so the themed attacks lead.
@@ -237,13 +242,13 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "royal_sigils"
             ),
             BossAttack(
-              # Legion Volley: short cooldown so the legion pressures the player
-              # while they clear the sealed wave.
+              # Legion Volley: every living Royal Guard throws a short spear of
+              # shots, so the guards are the priority targets twice over.
               attackType: bapMinionVolley,
               damage: 1.0,
-              cooldown: 1.8,
+              cooldown: 2.0,
               projectileSpeed: 165.0,
-              projectileCount: 5,  # fallback fan when no adds are alive
+              projectileCount: 5,  # the King's own fallback fan while no guard is alive
               spreadAngle: 45.0,
               durationOrRadius: 0.0,
               bulletRadius: 8.0
@@ -273,14 +278,18 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           specialBehavior: "summon_frenzy",
           attacks: @[
             BossAttack(
+              # Legion Encirclement: the rank and file rise in a ring around the
+              # PLAYER, dashers set into it, while the guards muster at the
+              # King's side -- cut out of the ring to reach them. The next call
+              # lands as the vulnerability window closes.
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 2.0,  # reduced from 3.75: timer only ticks after adds are cleared
+              cooldown: 3.0,
               projectileSpeed: 0.0,
-              projectileCount: 3,
+              projectileCount: 14,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
-              specialData: "minion_triangle"
+              specialData: "legion_encircle"
             ),
             BossAttack(
               # Generic burst demoted to occasional filler.
@@ -317,10 +326,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "royal_sigils"
             ),
             BossAttack(
-              # Faster Legion Volley to match the tighter phase-2 summon loop.
+              # Faster Legion Volley from the larger phase-2 guard.
               attackType: bapMinionVolley,
               damage: 1.0,
-              cooldown: 1.5,
+              cooldown: 1.7,
               projectileSpeed: 180.0,
               projectileCount: 5,  # fallback fan when no adds are alive
               spreadAngle: 50.0,

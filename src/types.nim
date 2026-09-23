@@ -91,6 +91,23 @@ const
   JuggernautChargeOvershoot* = 150.0'f32 # a charge runs this far PAST its aim point
   JuggernautChargeMinDist*   = 240.0'f32
   JuggernautChargeMaxDist*   = 560.0'f32
+  # Summoner King legion (boss 2, game/bosses.nim). Waves field several times
+  # the bodies they used to (calculateWaveEnemyCount), so a legion of four
+  # circles was the emptiest moment of its own block. The legion is now a
+  # crowd of one-hit rank and file plus a few Royal Guards: the guards alone
+  # hold the seal and fire the Legion Volley, the crowd is pressure around them.
+  LegionMinionDifficulty*  = 2.5'f32   # fixed stat difficulty: summons never outscale the fight
+  LegionFodderCap*         = 28        # rank and file alive at once: an ignored legion tops up, never piles up
+  LegionFodderSpeedMult*   = 0.8'f32   # slower than a wave circle, so a ring closes at a readable pace
+  LegionGuardHpMult*       = 6.0'f32   # a guard takes a few focused hits where the crowd takes one
+  LegionGuardRadiusMult*   = 1.9'f32
+  LegionGuardSpeedMult*    = 0.65'f32
+  LegionGuardDamageMult*   = 1.5'f32
+  LegionMusterRing*        = 60.0'f32  # muster ring sits this far outside the King's body
+  LegionEncircleRadius*    = 300.0'f32 # phase 2 rings the PLAYER at this range...
+  LegionEncircleMinGap*    = 190.0'f32 # ...and drops any slot an arena wall pushed closer than this
+  LegionVolleyFan*         = 3         # shots in each guard's volley spear
+  LegionVolleySpread*      = 10.0'f32  # degrees between the spear's shots
   PrismRayTelegraph*     = 1.6'f32   # Prism Architect: wind-up showing feed beam + refracted star
   PrismRayActive*        = 0.4'f32   # refracted rays' lethal flash
   PrismMiniTelegraph*    = 0.9'f32   # cascade beat two: mini prisms' shorter ignite wind-up
@@ -895,6 +912,7 @@ type
     spawnRingTimer*: float32   # countdown from 0.45 -> 0 on spawn; drives expanding ring pop-in
     regenTimer*: float32  # For regenerative elites
     spawnedByBoss*: bool  # True if spawned by boss summon attack
+    royalGuard*: bool     # Summoner King Royal Guard: holds the seal and fires the Legion Volley
     rotation*: float32  # Current rotation angle in radians
     bossDefinitionID*: int  # Which boss definition this uses
     currentPhaseIndex*: int  # Current phase index
@@ -944,8 +962,8 @@ type
     reflectShieldWarnTimer*: float32  # >0 while the shield is charging up (text-free telegraph); 0 otherwise
     bossStallTimer*: float32        # Time the current weak-point objective has gone unbroken
     bossEnrageLevel*: float32       # 0 = calm; ramps while the objective is ignored (faster attacks)
-    addsGateActive*: bool           # True while living boss-summoned adds make the boss damage-immune
-    summonWaveActive*: bool         # Summoner King: a summoned wave is out; clearing it opens the window
+    addsGateActive*: bool           # True while seal-holding adds (satellites, Royal Guards) make the boss damage-immune
+    summonWaveActive*: bool         # Summoner King: a legion is out; slaying its Royal Guards opens the window
     megaCastTimer*: float32         # >0 while channelling a mega special (boss frozen, other attacks paused, hardened)
     megaCastTotal*: float32         # Full duration of the active mega cast, for animation progress
     ignoreHealPending*: float32     # Queued heal from weak-point targets that expired unhit (applied next frame)

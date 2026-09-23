@@ -1269,6 +1269,7 @@ type
     tkBossThreatLocked = "boss_threat_locked"
     tkBossPhaseFirewall = "boss_phase_firewall"
     tkEnemySealedClearAdds = "enemy_sealed_clear_adds"
+    tkEnemySealedSlayGuards = "enemy_sealed_slay_guards"
     tkEnemyOverloadHoldFire = "enemy_overload_hold_fire"
 
     # Sandbox power-up visuals tab
@@ -2987,6 +2988,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_threat_locked": "LOCKED",
     "boss_phase_firewall": "PHASE FIREWALL",
     "enemy_sealed_clear_adds": "SEALED - CLEAR ADDS",
+    "enemy_sealed_slay_guards": "SEALED - SLAY THE ROYAL GUARD",
     "enemy_overload_hold_fire": "OVERLOAD - HOLD FIRE",
 
     # Sandbox power-up visuals tab
@@ -4690,6 +4692,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_threat_locked": "BLOQUEADA",
     "boss_phase_firewall": "FIREWALL DE FASE",
     "enemy_sealed_clear_adds": "SELLADO - ELIMINA REFUERZOS",
+    "enemy_sealed_slay_guards": "SELLADO - ABATE A LA GUARDIA REAL",
     "enemy_overload_hold_fire": "SOBRECARGA - ALTO EL FUEGO",
 
     # Sandbox power-up visuals tab
