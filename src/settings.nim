@@ -42,6 +42,7 @@ proc newDefaultSettings*(): Settings =
     showDamageNumbers: true,
     damageNumberScale: 1.0,
     screenShakeScale: 1.0,
+    changelogLegacyView: false,  # a page per version
     language: "english",  # Default language is English
     playerSkin: 0,  # Default to first skin (skDefault)
     bulletSkin: 0,  # Default to first bullet skin (bskDefault)

@@ -40,6 +40,7 @@ type
     showDamageNumbers*: bool   # Floating damage text on hits
     damageNumberScale*: float32 # Size multiplier for that floating text
     screenShakeScale*: float32  # Multiplier on all screen shake (0 disables it)
+    changelogLegacyView*: bool  # Patch notes as one long scroll instead of a page per version
     language*: string
     playerSkin*: int  # Current player skin (stored as int)
     bulletSkin*: int  # Current bullet skin (stored as int)
@@ -290,6 +291,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "showDamageNumbers": settings.showDamageNumbers,
     "damageNumberScale": settings.damageNumberScale,
     "screenShakeScale": settings.screenShakeScale,
+    "changelogLegacyView": settings.changelogLegacyView,
     "language": settings.language,
     "playerSkin": settings.playerSkin,
     "bulletSkin": settings.bulletSkin,
@@ -383,6 +385,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("uiScale"):
     settings.uiScale = snapUIScale(jsonNode["uiScale"].getFloat().float32)
+
+  if jsonNode.hasKey("changelogLegacyView"):
+    settings.changelogLegacyView = jsonNode["changelogLegacyView"].getBool()
 
   if jsonNode.hasKey("showEnemyLabels"):
     settings.showEnemyLabels = jsonNode["showEnemyLabels"].getBool()

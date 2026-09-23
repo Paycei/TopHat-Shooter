@@ -113,7 +113,7 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
     wm.roguelite.showUnlocks = false  # Always open to setup view, not shop/unlocks
   of widChangelog:
     window = wm.changelog.window
-    wm.changelog.scrollOffset = 0  # Always open scrolled to the top
+    resetChangelogView(wm.changelog)  # Always open on the newest version, at the top
   of widCredits: window = wm.credits.window
 
   window.visible = true

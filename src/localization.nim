@@ -43,6 +43,7 @@ type
     tkChangelogCatImproved = "changelog_cat_improved"
     tkChangelogCatBalance = "changelog_cat_balance"
     tkChangelogCatFixed = "changelog_cat_fixed"
+    tkChangelogLegacyView = "changelog_legacy_view"
 
     # Settings
     tkSettingsTitle = "settings_title"
@@ -1502,6 +1503,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "changelog_cat_improved": "Improvements",
     "changelog_cat_balance": "Balance",
     "changelog_cat_fixed": "Fixes",
+    "changelog_legacy_view": "Legacy view (all versions on one page)",
 
     # Settings
     "settings_title": "SETTINGS",
@@ -3207,6 +3209,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "changelog_cat_improved": "Mejoras",
     "changelog_cat_balance": "Balance",
     "changelog_cat_fixed": "Correcciones",
+    "changelog_legacy_view": "Vista clásica (todas las versiones en una página)",
 
     # Settings
     "settings_title": "CONFIG",
