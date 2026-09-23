@@ -20,7 +20,7 @@
 ## enterRoom, which do not depend on game.nim.
 
 import json, os
-import types, save_system, utils, roguelite, dungeon, powerup, tutorial
+import particle_types, types, save_system, utils, roguelite, dungeon, powerup, tutorial
 
 const RunSaveVersion = 1
 
@@ -119,6 +119,10 @@ proc playerToJson(p: Player): JsonNode =
     "hasSectorProtocol": p.hasSectorProtocol,
     "celestialVeilCharges": p.celestialVeilCharges,
     "roomEchoCharges": p.roomEchoCharges,
+    # Roguelite patch state that lives on the player. The installed set itself
+    # is rebuilt from the run's patch list (syncPlayerPatches).
+    "rollbackArmed": p.rollbackArmed,
+    "patchBlockCharges": p.patchBlockCharges,
     "corruptedCoreHpAcc": p.corruptedCoreHpAcc,
     "rageStacks": p.rageStacks,
     "hasFireMastery": p.hasFireMastery,
@@ -202,6 +206,8 @@ proc applyPlayerJson(p: Player, j: JsonNode) =
   b("hasSectorProtocol", p.hasSectorProtocol)
   i("celestialVeilCharges", p.celestialVeilCharges)
   i("roomEchoCharges", p.roomEchoCharges)
+  b("rollbackArmed", p.rollbackArmed)
+  i("patchBlockCharges", p.patchBlockCharges)
   f("corruptedCoreHpAcc", p.corruptedCoreHpAcc)
   i("rageStacks", p.rageStacks)
 
@@ -222,11 +228,38 @@ proc applyPlayerJson(p: Player, j: JsonNode) =
 # ---------------------------------------------------------------------------
 # Roguelite run serialization.
 #
-# The dungeon floor geometry is DETERMINISTIC from (run.seed, floorNumber,
-# endlessLoop) via dungeon.generateFloor, so instead of persisting the whole
-# room graph we persist only the mutable per-room progress and regenerate the
-# geometry on load, then overlay the progress by room index.
+# A sector is DETERMINISTIC from (run.seed, floorNumber, endlessLoop) via
+# dungeon.generateFloor: every layer's exits are rolled there. So instead of
+# persisting the sector we persist its theme, the PATH of exits taken, and the
+# live room's progress (flags + its pickups, which hold rolled patches and
+# stall stock). Load regenerates the sector, replays the path, and overlays
+# the live room. "floorFormat" 2 marks this layout; a save without it comes
+# from the old grid dungeon and restarts its sector instead.
 # ---------------------------------------------------------------------------
+const RogueliteFloorFormat = 2
+
+proc parsePickupKind(s: string): DungeonPickupKind = parseEnumOr(s, dpkShardCache)
+
+proc pickupToJson(pk: DungeonPickup): JsonNode =
+  %* {
+    "kind": $pk.kind, "x": pk.pos.x, "y": pk.pos.y, "taken": pk.taken,
+    "patch": $pk.patch, "pu": $pk.powerUp.powerType, "lvl": pk.powerUp.level,
+    "rarity": $pk.powerUp.rarity, "amount": pk.amount, "group": pk.group
+  }
+
+proc jsonToPickup(j: JsonNode): DungeonPickup =
+  DungeonPickup(
+    kind: parsePickupKind(j.getOrDefault("kind").getStr()),
+    pos: newVector2f(j.getOrDefault("x").getFloat().float32, j.getOrDefault("y").getFloat().float32),
+    taken: j.getOrDefault("taken").getBool(false),
+    patch: parseRelic(j.getOrDefault("patch").getStr("rrtNone")),
+    powerUp: PowerUp(powerType: parsePowerType(j.getOrDefault("pu").getStr()),
+                     level: j.getOrDefault("lvl").getInt(0),
+                     rarity: parseRarity(j.getOrDefault("rarity").getStr("prCommon"))),
+    amount: j.getOrDefault("amount").getInt(0),
+    group: j.getOrDefault("group").getInt(0),
+    spawnTimer: PickupSpawnTime)   # already materialized when it was saved
+
 proc rogueliteRunToJson(run: RogueliteRun): JsonNode =
   var relics = newJArray()
   for r in run.relics: relics.add(%($r.relicType))
@@ -239,40 +272,40 @@ proc rogueliteRunToJson(run: RogueliteRun): JsonNode =
   for th in run.nextThemeChoices: themeChoices.add(%($th))
 
   result = %* {
+    "floorFormat": RogueliteFloorFormat,
     "seed": run.seed,
     "starterKit": $run.starterKit,
     "heat": run.heat,
     "floorNumber": run.floorNumber,
     "totalRoomsCleared": run.totalRoomsCleared,
-    "keys": run.keys,
-    "combatRoomsSinceDraft": run.combatRoomsSinceDraft,
     "usedThemes": usedThemes,
     "nextThemeChoices": themeChoices,
     "pendingFloorSelect": run.pendingFloorSelect,
     "relics": relics,
     "shardsEarned": run.shardsEarned,
     "coresEarned": run.coresEarned,
+    "totalShardsBanked": run.totalShardsBanked,
+    "totalCoresBanked": run.totalCoresBanked,
+    "heatUnlocked": run.heatUnlocked,
     "endlessLoop": run.endlessLoop,
     "hasFloor": not run.floor.isNil
   }
 
-  if not run.floor.isNil:
+  if not run.floor.isNil and run.floor.rooms.len > 0:
     let fl = run.floor
-    var rooms = newJArray()
-    for room in fl.rooms:
-      var pickups = newJArray()
-      for pk in room.pickups: pickups.add(%pk.taken)
-      rooms.add(%* {
-        "cleared": room.cleared, "visited": room.visited,
-        "seen": room.seen, "locked": room.locked,
-        "pickupsTaken": pickups
-      })
+    let room = fl.rooms[fl.rooms.high]
+    var path = newJArray()
+    for p in fl.path: path.add(%p)
+    var pickups = newJArray()
+    for pk in room.pickups: pickups.add(pickupToJson(pk))
     result["floor"] = %* {
       "theme": $fl.theme,
-      "currentRoom": fl.currentRoom,
-      "mapRevealed": fl.mapRevealed,
-      "compassFound": fl.compassFound,
-      "rooms": rooms
+      "path": path,
+      "room": {
+        "cleared": room.cleared, "rewardSpawned": room.rewardSpawned,
+        "rewardClaimed": room.rewardClaimed, "restocks": room.restocks,
+        "pickups": pickups
+      }
     }
 
 # ---------------------------------------------------------------------------
@@ -533,13 +566,14 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
         floorNumber: rj.getOrDefault("floorNumber").getInt(1),
         floor: nil,
         totalRoomsCleared: rj.getOrDefault("totalRoomsCleared").getInt(0),
-        keys: rj.getOrDefault("keys").getInt(0),
-        combatRoomsSinceDraft: rj.getOrDefault("combatRoomsSinceDraft").getInt(0),
         usedThemes: {},
         pendingFloorSelect: rj.getOrDefault("pendingFloorSelect").getBool(false),
         relics: @[],
         shardsEarned: rj.getOrDefault("shardsEarned").getInt(0),
         coresEarned: rj.getOrDefault("coresEarned").getInt(0),
+        totalShardsBanked: rj.getOrDefault("totalShardsBanked").getInt(0),
+        totalCoresBanked: rj.getOrDefault("totalCoresBanked").getInt(0),
+        heatUnlocked: rj.getOrDefault("heatUnlocked").getInt(0),
         endlessLoop: rj.getOrDefault("endlessLoop").getInt(0),
         completed: false,
         died: false,
@@ -555,11 +589,16 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
           run.nextThemeChoices[idx] = parseTheme(th.getStr())
           inc idx
       for r in rj.getOrDefault("relics").getElems():
-        run.relics.add(makeRelic(parseRelic(r.getStr())))
+        let patch = parseRelic(r.getStr())
+        if patch != rrtNone and not run.hasRelic(patch):
+          run.relics.add(makeRelic(patch))
 
       game.rogueliteRun = run
       game.player.rogueliteCosmetic = ord(run.starterKit) + 1
       game.wavesUntilBoss = 999
+      # The player's patch mirror is rebuilt from the run's list, the one
+      # source of truth for what is installed.
+      syncPlayerPatches(game)
 
       if run.pendingFloorSelect or not rj.hasKey("floor"):
         # Between floors: drop into the floor-select screen.
@@ -574,43 +613,54 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
           run.nextThemeChoices[1] == run.nextThemeChoices[2] and
           run.nextThemeChoices[0] == dftFirewall
         if neverRolled or not j.getOrDefault("floorSelectOpen").getBool(false):
-          generateThemeChoices(run, unlockedBossTierOf(game))
+          generateThemeChoices(run)
         game.state = gsRogueliteFloorSelect
       else:
         let fj = rj["floor"]
         let theme = parseTheme(fj.getOrDefault("theme").getStr())
-        # Regenerate the deterministic geometry, then overlay saved progress.
-        let floor = generateFloor(game, theme, run.floorNumber)
-        run.floor = floor
         run.usedThemes.incl(theme)
-        floor.mapRevealed = fj.getOrDefault("mapRevealed").getBool(false)
-        floor.compassFound = fj.getOrDefault("compassFound").getBool(false)
-        let roomsJson = fj.getOrDefault("rooms")
-        # isNil first: getOrDefault yields nil for a missing key and .kind would
-        # segfault on it. A save with no "rooms" falls to the else and bails.
-        if not roomsJson.isNil and roomsJson.kind == JArray and
-           roomsJson.len == floor.rooms.len:
-          for ri in 0 ..< floor.rooms.len:
-            let room = floor.rooms[ri]
-            let rjson = roomsJson[ri]
-            room.cleared = rjson.getOrDefault("cleared").getBool(room.cleared)
-            room.visited = rjson.getOrDefault("visited").getBool(room.visited)
-            room.seen = rjson.getOrDefault("seen").getBool(room.seen)
-            room.locked = rjson.getOrDefault("locked").getBool(room.locked)
-            let pj = rjson.getOrDefault("pickupsTaken")
-            if not pj.isNil and pj.kind == JArray and pj.len == room.pickups.len:
-              for pi in 0 ..< room.pickups.len:
-                room.pickups[pi].taken = pj[pi].getBool(false)
-        else:
-          # Geometry drift between versions: cannot safely overlay progress.
-          return false
-        let curRoom = clamp(fj.getOrDefault("currentRoom").getInt(floor.startIdx),
-                            0, floor.rooms.high)
         game.state = gsPlaying
-        # enterRoom re-arms a fresh encounter for an un-cleared combat room
-        # (mid-encounter runs re-roll from encounterSeed) and simply opens the
-        # doors for a cleared one.
-        enterRoom(game, curRoom, ddUp, resumed = true)
+        if rj.getOrDefault("floorFormat").getInt(0) < RogueliteFloorFormat:
+          # A save from the old grid dungeon: its room layout no longer exists.
+          # Keep the run (player, patches, Heat, currencies) and restart the
+          # sector it was in from its start room.
+          startDungeonFloor(game, theme)
+        else:
+          # Regenerate the deterministic sector, replay the exits taken, then
+          # overlay the live room's saved progress.
+          run.floor = generateFloor(game, theme, run.floorNumber)
+          beginSectorRooms(game)
+          let pathJson = fj.getOrDefault("path").getElems()
+          var pathOk = true
+          for k in 1 ..< pathJson.len:
+            let exitIdx = pathJson[k].getInt(-1)
+            if k >= run.floor.layers.len or exitIdx < 0 or
+               exitIdx >= run.floor.layers[k].exits.len:
+              pathOk = false
+              break
+            # Folders behind the live one were finished when the player left them.
+            let prev = run.floor.rooms[run.floor.rooms.high]
+            prev.cleared = true
+            prev.rewardSpawned = true
+            prev.rewardClaimed = true
+            discard appendRoom(game, exitIdx)
+          if not pathOk:
+            startDungeonFloor(game, theme)
+          else:
+            let room = run.floor.rooms[run.floor.rooms.high]
+            let roomJson = fj.getOrDefault("room")
+            if not roomJson.isNil and roomJson.kind == JObject:
+              room.cleared = roomJson.getOrDefault("cleared").getBool(room.cleared)
+              room.rewardSpawned = roomJson.getOrDefault("rewardSpawned").getBool(false)
+              room.rewardClaimed = roomJson.getOrDefault("rewardClaimed").getBool(room.rewardClaimed)
+              room.restocks = roomJson.getOrDefault("restocks").getInt(0)
+              room.pickups = @[]
+              for pk in roomJson.getOrDefault("pickups").getElems():
+                room.pickups.add(jsonToPickup(pk))
+            # enterRoom re-arms a fresh encounter for an un-cleared folder (a
+            # mid-fight save restarts that fight) and leaves a cleared one as
+            # it was, reward and stalls included.
+            enterRoom(game, run.floor.rooms.high, ddDown, resumed = true)
     else:
       return false
 
@@ -619,11 +669,8 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
     # choices are re-rolled: the save keeps which draft it was, not its cards.
     let openDraft = j.getOrDefault("openDraft").getStr("")
     if openDraft in ["legendary", "boundary"]:
-      let families =
-        if game.mode == gmRoguelite: unlockedFamilySet(game.rogueliteProfile)
-        else: {rpfCore..rpfBlood}
       game.powerUpChoices = generatePowerUpChoices(game.player, openDraft == "legendary",
-                                                   families, game.mode)
+                                                   AllPowerFamilies, game.mode)
       game.selectedPowerUp = 0
       initPowerUpRollAnimation(game)
       initializeRerollCost(game)

@@ -1,5 +1,5 @@
 import raylib, random, math, tables
-import types, powerup_data, ui/os_powerup_installer, d_visuals
+import types, powerup_data, patches, ui/os_powerup_installer, d_visuals
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -754,11 +754,7 @@ proc initPowerUpRollAnimation*(game: Game) =
 
   # Same gates the real draft uses, so the reel filler can only show power-ups
   # this run is actually able to offer.
-  let allowedFamilies =
-    if game.mode == gmRoguelite and game.rogueliteProfile != nil:
-      game.rogueliteProfile.unlockedPowerFamilies
-    else:
-      {rpfCore..rpfBlood}
+  let allowedFamilies = AllPowerFamilies
 
   let listLengths: array[3, int] =
     if isLegendary: [3, 5, 7]
@@ -793,12 +789,7 @@ proc attemptRerollPowerUps*(game: Game): bool =
 
   # Generate new power-up choices (same legendary/normal status)
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
-  let allowedFamilies =
-    if game.mode == gmRoguelite and game.rogueliteProfile != nil:
-      game.rogueliteProfile.unlockedPowerFamilies
-    else:
-      {rpfCore..rpfBlood}
-  game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary, allowedFamilies, game.mode)
+  game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary, AllPowerFamilies, game.mode)
 
   # Reset selection to first option
   game.selectedPowerUp = 0
@@ -806,35 +797,21 @@ proc attemptRerollPowerUps*(game: Game): bool =
   # Initialize reroll animation (same as new power-up selection)
   initPowerUpRollAnimation(game)
 
-  # Increase cost for next reroll (adds 25 coins)
-  let rerollStep = if game.mode == gmRoguelite and game.rogueliteRun != nil:
-    var hasDiscount = false
-    var hasDraftCache = false
-    for relic in game.rogueliteRun.relics:
-      if relic.relicType == rrtDiscountProtocol:
-        hasDiscount = true
-      if relic.relicType == rrtDraftCache:
-        hasDraftCache = true
-    var step = if hasDiscount: 20 else: 25
-    if hasDraftCache:
-      step = max(10, step - 5)
-    step
+  # Next reroll: +base each time. Patches only ever exist in roguelite, so
+  # patchPrice is a no-op everywhere else. A free Draft Cache reroll (cost 0)
+  # steps up to the normal base price rather than to base + base.
+  let step = patchPrice(game.player, RerollBaseCost)
+  if game.rerollCost <= 0:
+    game.rerollCost = step
   else:
-    25
-  game.rerollCost += rerollStep
+    game.rerollCost += step
 
   return true
 
 proc initializeRerollCost*(game: Game) =
-  ## Initialize the reroll cost at the start of a power-up selection
-  ## Base cost: 25 coins for first reroll, increases by 25 each time
-  game.rerollCost = 25
-  if game.mode == gmRoguelite and game.rogueliteRun != nil:
-    var hasDraftCache = false
-    for relic in game.rogueliteRun.relics:
-      if relic.relicType == rrtDiscountProtocol:
-        game.rerollCost = 20
-      if relic.relicType == rrtDraftCache:
-        hasDraftCache = true
-    if hasDraftCache:
-      game.rerollCost = max(5, game.rerollCost - 10)
+  ## Initialize the reroll cost at the start of a power-up selection.
+  ## Base cost 25 credits, +25 per reroll. Patches: Discount Protocol takes
+  ## 20% off every reroll; Draft Cache makes each installer's first one free.
+  game.rerollCost = patchPrice(game.player, RerollBaseCost)
+  if hasPatch(game.player, rrtDraftCache):
+    game.rerollCost = 0

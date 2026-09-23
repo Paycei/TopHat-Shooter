@@ -3,6 +3,7 @@
 
 import raylib, math
 import ../types, ../localization, ../render_context, ../utils
+from ../roguelite import RogueliteFloorsToWin
 import ui_helpers, icon_drawing
 
 const
@@ -95,12 +96,25 @@ proc drawStat(x, y: int32, label, value: string, icon: string = "-",
 
   drawText(value, x + 450, y + 2, 15, valueColor)
 
+proc runCurrencyBanked(game: Game): tuple[shards, cores: int] =
+  ## What this run paid into the shared wallet. Roguelite reads its run's
+  ## never-reset tallies plus anything not yet committed, since the death
+  ## commit zeroes the per-commit counters before this screen draws.
+  case game.mode
+  of gmWaveBased, gmTimeSurvival:
+    (game.metaShardsEarned, game.metaCoresEarned)
+  of gmRoguelite:
+    if game.rogueliteRun.isNil: (0, 0)
+    else: (game.rogueliteRun.totalShardsBanked + game.rogueliteRun.shardsEarned,
+           game.rogueliteRun.totalCoresBanked + game.rogueliteRun.coresEarned)
+  else: (0, 0)
+
 proc drawShopCurrencyBanked(game: Game, windowX, statsY: int32) =
   ## Right-hand readout beside the diagnostics rows: the Data Shards / Cores this
-  ## wave or survival run banked into the wallet the cosmetic shop spends from.
-  ## Hidden when nothing was banked (roguelite reports its own on its screens).
-  if game.mode notin {gmWaveBased, gmTimeSurvival} or
-     (game.metaShardsEarned <= 0 and game.metaCoresEarned <= 0):
+  ## run banked into the wallet the cosmetic shop spends from. Hidden when
+  ## nothing was banked.
+  let banked = runCurrencyBanked(game)
+  if banked.shards <= 0 and banked.cores <= 0:
     return
   const
     panelW = 250'i32
@@ -119,9 +133,9 @@ proc drawShopCurrencyBanked(game: Game, windowX, statsY: int32) =
            Color(r: 170, g: 235, b: 255, a: 255))
 
   let rows = [
-    (icon: ciDataShards, amount: game.metaShardsEarned, label: t("roguelite_data_shards"),
+    (icon: ciDataShards, amount: banked.shards, label: t("roguelite_data_shards"),
      color: Color(r: 0, g: 220, b: 255, a: 255)),
-    (icon: ciCore, amount: game.metaCoresEarned, label: t("roguelite_cores"),
+    (icon: ciCore, amount: banked.cores, label: t("roguelite_cores"),
      color: Color(r: 200, g: 160, b: 255, a: 255))]
   var rowY = statsY + headerH + 4
   for row in rows:
@@ -275,8 +289,24 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
                  (if seconds < 10: "0" else: "") & $seconds
 
   drawShopCurrencyBanked(game, windowX, yOffset)
-  drawStat(windowX + 40, yOffset, t(tkGameOverWaveReached), $game.currentWave, ">",
-          Color(r: 255, g: 200, b: 100, a: 255))
+  if game.mode == gmRoguelite and not game.rogueliteRun.isNil:
+    # A roguelite has no waves: report the sector the run reached and how far
+    # into it, plus the patches it had applied.
+    let run = game.rogueliteRun
+    var reached = $run.floorNumber & " / " & $RogueliteFloorsToWin
+    if run.endlessLoop > 0:
+      reached &= "  (+" & $run.endlessLoop & ")"
+    drawStat(windowX + 40, yOffset, t("gameover_sector_reached"), reached, ">",
+            Color(r: 255, g: 200, b: 100, a: 255))
+    yOffset += STAT_LINE_HEIGHT
+    # One row for both, so the diagnostics block keeps its height budget above
+    # the buttons (six rows fit; seven would run into them).
+    drawStat(windowX + 40, yOffset, t("gameover_folders_patches"),
+            $run.totalRoomsCleared & " / " & $run.relics.len, "[/]",
+            Color(r: 120, g: 220, b: 255, a: 255))
+  else:
+    drawStat(windowX + 40, yOffset, t(tkGameOverWaveReached), $game.currentWave, ">",
+            Color(r: 255, g: 200, b: 100, a: 255))
   yOffset += STAT_LINE_HEIGHT
   drawStat(windowX + 40, yOffset, t(tkGameOverSystemUptime), timeText, "[T]",
           Color(r: 150, g: 200, b: 255, a: 255))

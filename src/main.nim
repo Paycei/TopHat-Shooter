@@ -1483,7 +1483,7 @@ proc main() =
             deleteSuspendSnapshot(gmRoguelite)
             beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
             initializeRunTracking(currentGame)
-            generateThemeChoices(currentGame.rogueliteRun, unlockedBossTierOf(currentGame))
+            generateThemeChoices(currentGame.rogueliteRun)
             currentGame.selectedRogueliteTheme = 0
             currentGame.state = gsRogueliteFloorSelect
             statsSavedThisGame = false
@@ -1554,6 +1554,15 @@ proc main() =
         if unlockedDef.id.len > 0:
           showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
                            unlockedDef.name)
+
+      # One-time notice for the roguelite "earn, don't buy" migration: whatever
+      # the old unlock shop cost this profile was credited back on load.
+      if (pendingProfileRefund.shards > 0 or pendingProfileRefund.cores > 0) and
+         osDesktop.toasts.len < MAX_DESKTOP_TOASTS and not globalConfirmActive:
+        showDesktopToast(osDesktop, t("roguelite_refund_toast")
+          .replace("$1", $pendingProfileRefund.shards)
+          .replace("$2", $pendingProfileRefund.cores))
+        pendingProfileRefund = (0, 0)
 
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
       var action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive: handleDesktopInput(osDesktop, currentGame) else: -1
@@ -2116,13 +2125,19 @@ proc main() =
         let wallKey = globalSettings.keybinds[kaPlaceWall]
         let wallBindHeld = isKeyDown(wallKey) or
                            isGamepadBindDown(globalSettings.gamepadBinds, kaPlaceWall)
-        let eHeld = wallBindHeld and currentGame.player.walls > 0
+        # Roguelite: the wall key is also the pedestal/stall key. While one is in
+        # range, or after a press was spent on one (until that key is let go), it
+        # is not a wall key -- placement fires on RELEASE, so without this every
+        # purchase would also drop a wall at the cursor.
+        let interactOwnsKey = currentGame.mode == gmRoguelite and
+          (currentGame.dungeonInteractFocus or currentGame.interactKeyLatch)
+        let eHeld = wallBindHeld and currentGame.player.walls > 0 and not interactOwnsKey
         currentGame.wallPlacementMode = eHeld
 
         # Release wall key places the wall at the current cursor position
         if (isKeyReleased(wallKey) or
             isGamepadBindReleased(globalSettings.gamepadBinds, kaPlaceWall)) and
-           currentGame.player.walls > 0:
+           currentGame.player.walls > 0 and not interactOwnsKey:
           # WORLD coords: the wall lives in the 1024-wide world, which is
           # centered inside the wider virtual screen in widescreen mode. Using
           # the virtual pointer here would skew placement by the gutter width
@@ -2137,6 +2152,10 @@ proc main() =
             currentGame.player.walls -= 1
             spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
             trackWallPlacement(currentGame, wallPos)
+        # The spent [E] press stops owning the key once it is let go (cleared
+        # after the release check above, so that release never places).
+        if currentGame.interactKeyLatch and not wallBindHeld:
+          currentGame.interactKeyLatch = false
 
       # Activate ALL legendary power-ups with the legendary key (simultaneous activation).
       # Not while the cheat menu is open: it pauses the game, and abilities fired
@@ -2563,9 +2582,6 @@ proc main() =
       # Draw cheat menu overlay if active
       drawCheatMenu(cheatMenu, currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
 
-      # Alpha banner for roguelite mode
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
       endUIScaleMode()
       # Draw window-close confirmation if triggered via OS close button
       if globalConfirmActive:
@@ -2608,8 +2624,6 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
       drawDeathSequenceOverlay(currentGame)
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
       endGameDrawing()
 
     of gsPaused:
@@ -2777,9 +2791,6 @@ proc main() =
       globalWindowManager.drawAllWindows(currentGame, desktopUIScale(),
                                          screenWidth.int, screenHeight.int)
 
-      # Alpha banner for roguelite mode
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       # (separate from the in-game quit-to-menu confirm dialog)
@@ -2996,8 +3007,6 @@ proc main() =
       drawGame(currentGame)
       beginUIScaleMode(overlayUIScaleFor(ShopPanelW, ShopPanelH))
       drawShop(currentGame)
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
       endUIScaleMode()
 
       # Draw quit-confirmation dialog on top of everything if triggered by OS close button
@@ -3101,8 +3110,6 @@ proc main() =
                 40,
                 Color(r: 255, g: 255, b: 100, a: alpha))
 
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
       endUIScaleMode()
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
@@ -3186,8 +3193,6 @@ proc main() =
       drawText(waveText, textX, textY, waveTextSize,
               Color(r: 150, g: 255, b: 150, a: 255))
 
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
       endUIScaleMode()
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
@@ -3201,11 +3206,7 @@ proc main() =
 
     of gsPowerUpSelect:
       let isLegendaryRound = currentGame.powerUpChoices[0].rarity == prLegendary
-      let allowedFamiliesForDraft =
-        if currentGame.mode == gmRoguelite and currentGame.rogueliteProfile != nil:
-          currentGame.rogueliteProfile.unlockedPowerFamilies
-        else:
-          {rpfCore..rpfBlood}
+      let allowedFamiliesForDraft = AllPowerFamilies
 
       proc continueAfterDraft() =
         ## Route out of the draft screen. Classic modes visit the between-wave
@@ -3219,7 +3220,7 @@ proc main() =
               # (the cheat can fire from any room), so jump straight to floor
               # select, mirroring what walking into the portal would do.
               currentGame.cheatRogueliteDirectFloorSelect = false
-              generateThemeChoices(currentGame.rogueliteRun, unlockedBossTierOf(currentGame))
+              generateThemeChoices(currentGame.rogueliteRun)
               currentGame.selectedRogueliteTheme = 0
               currentGame.state = gsRogueliteFloorSelect
             else:
@@ -3284,8 +3285,6 @@ proc main() =
         beginGameDrawing()
         beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
         drawPowerUpSelectionExhausted(currentGame)
-        if currentGame.mode == gmRoguelite:
-          drawBetaBanner(currentGame)
         endUIScaleMode()
         if globalConfirmActive:
           let r = drawGlobalConfirmDialog()
@@ -3416,8 +3415,6 @@ proc main() =
         beginGameDrawing()
         beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
         drawPowerUpSelection(currentGame)
-        if currentGame.mode == gmRoguelite:
-          drawBetaBanner(currentGame)
         endUIScaleMode()
 
         # Draw quit-confirmation dialog on top of everything if triggered by OS close button

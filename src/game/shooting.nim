@@ -1,5 +1,5 @@
 import raylib, math
-import types, bullet, particle_skins, particle_types, powerup, sound, run_statistics, fx, game/combat, game/bullets
+import types, bullet, particle_skins, particle_types, powerup, patches, sound, run_statistics, fx, game/combat, game/bullets
 
 proc rotateVec(v: Vector2f, angle: float32): Vector2f =
   newVector2f(v.x * cos(angle) - v.y * sin(angle), v.x * sin(angle) + v.y * cos(angle))
@@ -349,6 +349,38 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # line, once per shot (independent of Multi-/Double-Shot bullet counts).
     if hasPowerUp(game.player, puBulletSpeed):
       fireLightspeedTracer(game, game.player.pos, direction, stats)
+
+    # RAID 1 Mirroring patch: every Nth shot writes a mirrored round straight
+    # behind you -- covering the flank a swarm comes from.
+    if hasPatch(game.player, rrtRaidMirror) and
+       game.player.bulletCounter mod RaidMirrorEvery == 0:
+      let mirror = newBullet(
+        x = game.player.pos.x,
+        y = game.player.pos.y,
+        direction = direction * -1.0'f32,
+        speed = speed,
+        damage = damage,
+        fromPlayer = true,
+        isHoming = hasHoming,
+        isPiercing = arcanePiercing,
+        isExplosive = hasExplosive,
+        hasBounce = hasRicochet,
+        canSplit = hasSplit,
+        slowAmount = slowEffect,
+        poisonDuration = poisonEffect,
+        fireDuration = fireEffect,
+        windPushForce = windEffect,
+        isArcaneBullet = hasArcane,
+        wasCrit = wasCrit,
+        bulletSkin = game.player.bulletSkinType,
+        bulletShape = game.player.bulletShapeType
+      )
+      mirror.radius = bulletRadius
+      mirror.baseDamagePreCrit = baseDamagePreCrit
+      mirror.rageMultiplier = rageMultiplier
+      assignBulletId(game, mirror)
+      game.bullets.add(mirror)
+      trackBulletFired(game)
 
     game.player.lastShot = game.time
 

@@ -819,11 +819,13 @@ proc finalizeRunTracking*(game: Game, died: bool) =
     currentRunStats.rogueliteEndlessLoop = game.rogueliteRun.endlessLoop
     # A cheated run's shards are discarded at commit, so it reports none.
     currentRunStats.rogueliteShardsEarned =
-      if game.cheatsUsed: 0 else: game.rogueliteRun.shardsEarned
+      # banked so far + still unbanked, so it reads right before or after the commit
+      if game.cheatsUsed: 0
+      else: game.rogueliteRun.totalShardsBanked + game.rogueliteRun.shardsEarned
     currentRunStats.rogueliteStarterKit = $game.rogueliteRun.starterKit
     currentRunStats.rogueliteRelics = @[]
     for relic in game.rogueliteRun.relics:
-      currentRunStats.rogueliteRelics.add(relic.name)
+      currentRunStats.rogueliteRelics.add($relic.relicType)
   elif game.mode in {gmWaveBased, gmTimeSurvival} and not currentRunStats.isNil:
     currentRunStats.rogueliteShardsEarned = game.metaShardsEarned
   endRun(game.player, waveReached, finalScore, game.cheatsUsed, died)

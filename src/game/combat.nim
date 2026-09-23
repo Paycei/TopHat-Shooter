@@ -1,5 +1,5 @@
 import raylib, rlgl, random
-import types, particle, particle_pool, particle_types, powerup, run_statistics, boss_weakpoints, ui/os_background, player
+import types, particle, particle_pool, particle_types, powerup, patches, run_statistics, boss_weakpoints, ui/os_background, player
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
@@ -239,6 +239,14 @@ proc calculateCombatStats*(player: Player): CombatStats =
     if powerUp.powerType == puDoubleShot:
       result.fireRate *= 1.25  # 25% slower (higher value = slower)
 
+  # Roguelite patches. Overclock: +35% fire rate until a hit stalls it
+  # (overclockStallTimer, armed in takeDamageRaw). Cryptominer: the mining
+  # rig taxes every shot.
+  if hasPatch(player, rrtOverclock) and player.overclockStallTimer <= 0:
+    result.fireRate /= 1.0'f32 + OverclockFireRateBonus  # lower = faster
+  if hasPatch(player, rrtCryptominer):
+    result.damage *= 1.0'f32 - CryptominerDamagePenalty
+
   # Berserker power-up - fire rate increases when HP is low
   for powerUp in player.powerUps:
     if powerUp.powerType == puBerserker:
@@ -320,8 +328,7 @@ proc densityHealScale*(game: Game): float32 =
   ## must be fully rebated or the two drift apart every single wave.
   ## puHealPower is intentionally NOT scaled here -- it is a multiplier on these
   ## base amounts, so it follows automatically.
-  if game.mode == gmWaveBased: waveDensityRebate(game.currentWave)
-  else: 1.0'f32
+  densityRebate(game)
 
 proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) =
   ## Centralized helper for floating "+SHIELD" / "+SPEED" style consumable

@@ -3,7 +3,8 @@
 
 import raylib, strutils, math
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
-import ../gamepad_input
+import ../gamepad_input, ../patches
+from ../dungeon import rewardFolderName, rewardLabel
 
 const
   HELP_LINE_HEIGHT* = 18
@@ -33,6 +34,7 @@ proc getHelpCommands*(): seq[HelpCommand] =
     ("enemies", t(tkHelpCmdEnemies)),
     ("bosses", t(tkHelpCmdBosses)),
     ("shop", t(tkHelpCmdShop)),
+    ("recovery", t("help_cmd_recovery")),
     ("lore", t(tkHelpCmdLore)),
     ("customize", "Customize player and bullet skins"),
     ("advancements", "Open persistent progression tracker"),
@@ -289,6 +291,33 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput(t(tkHelpShopAccess), Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("  " & t(tkHelpOpensAfterPowerup), White)
       help.addOutput("  " & t(tkHelpAvailableBetweenWaves), White)
+      help.addOutput("", White)
+
+    of "recovery", "roguelite", "patches", "rootmap":
+      # Deep Recovery primer: sectors, folder doors, patches and Heat.
+      let accent = Color(r: 0, g: 220, b: 255, a: 255)
+      let head = Color(r: 255, g: 200, b: 50, a: 255)
+      help.addOutput("", White)
+      help.addOutput("=======================================", accent)
+      help.addOutput("  " & t("help_recovery_topic"), accent)
+      help.addOutput("=======================================", accent)
+      help.addOutput("", White)
+      help.addOutput(t("help_recovery_sectors"), head)
+      help.addOutput(t("help_recovery_sectors_body"), White, -1, 12)
+      help.addOutput("", White)
+      help.addOutput(t("help_recovery_folders"), head)
+      help.addOutput(t("help_recovery_folders_body"), White, -1, 12)
+      for reward in [rrwDraft, rrwPatch, rrwCredits, rrwRepair, rrwShards, rrwShop, rrwQuarantine]:
+        help.addOutput(rewardFolderName(reward) & "  " & rewardLabel(reward), LightGray, -1, 24)
+      help.addOutput("", White)
+      help.addOutput(t("help_recovery_patches"), head)
+      help.addOutput(t("help_recovery_patches_body"), White, -1, 12)
+      for p in AllPatches:
+        help.addOutput(patchKbLabel(p) & "  " & patchName(p), patchAccent(p), -1, 12)
+        help.addOutput(patchDescription(p), LightGray, -1, 24)
+      help.addOutput("", White)
+      help.addOutput(t("help_recovery_heat"), head)
+      help.addOutput(t("help_recovery_heat_body"), White, -1, 12)
       help.addOutput("", White)
 
     of "lore", "archive", "story":

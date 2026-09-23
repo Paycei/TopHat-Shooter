@@ -116,7 +116,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 7'u32  # bumped: OrbitalSatellite gained activeWarning (not covered by the fingerprint)
+  SnapFormatVersion = 8'u32  # bumped: roguelite sectors became reward-door paths (dungeon types rewritten) + patches
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =
@@ -136,6 +136,14 @@ proc layoutFingerprint(): uint32 =
   mix(ord(high(ElementType)))
   mix(ord(high(DungeonFloorTheme)))
   mix(ord(high(RogueliteStarterKit)))
+  mix(ord(high(RogueliteRelicType)))
+  mix(ord(high(RoomReward)))
+  mix(ord(high(DungeonPickupKind)))
+  # The roguelite run graph (sector, rooms, pickups) is snapshotted too.
+  mix(sizeof(typeof(default(RogueliteRun)[])))
+  mix(sizeof(typeof(default(DungeonFloor)[])))
+  mix(sizeof(typeof(default(DungeonRoom)[])))
+  mix(sizeof(typeof(default(DungeonPickup)[])))
   mix(sizeof(typeof(default(Game)[])))
   mix(sizeof(typeof(default(Player)[])))
   mix(sizeof(typeof(default(Enemy)[])))

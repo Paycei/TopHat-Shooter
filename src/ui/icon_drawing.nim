@@ -1567,3 +1567,222 @@ proc drawShopIconTile*(x, y, size: int32, itemIndex: int, enabled, selected: boo
                             withAlpha(accent, if selected: 255 elif enabled: 150 else: 70))
   let pad = max(2'i32, size div 9)
   drawShopIcon(x + pad, y + pad, size - pad * 2, itemIndex, accent)
+
+# ---------------------------------------------------------------------------
+# Roguelite patch icons
+#
+# A patch is a system update, so every icon is the same update shield with a
+# refresh-arrow badge in its corner (the "KB" motif), and the glyph on the
+# shield says what the update does. Same kit and 32-unit grid as the
+# power-up icons; `color` is the patch's category accent.
+# ---------------------------------------------------------------------------
+
+proc iconRefreshBadge(c: Vector2, r: float32, pal: IconPalette) =
+  ## Round badge carrying a clockwise refresh arrow.
+  iconDisc(c, r, pal.pale, pal.ink)
+  iconArc(c, r * 0.56'f32, -160, 110, r * 0.3'f32, pal.deep)
+  iconArrowHead(polar(c, r * 0.56'f32, 128), 200, r * 0.62'f32, pal.deep, pal.deep)
+
+proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) =
+  ## Patch glyph filling the (size x size) box at (x, y).
+  if size <= 0:
+    return
+  let k = size.float32 / IconGrid
+  rlgl.pushMatrix()
+  defer: rlgl.popMatrix()
+  rlgl.translatef(x.float32, y.float32, 0.0'f32)
+  rlgl.scalef(k, k, 1.0'f32)
+
+  let pal = iconPalette(color)
+  let (ink, light, pale, deep) = (pal.ink, pal.light, pal.pale, pal.deep)
+
+  iconShield(15.5, 2.5, 24, 27, pal)
+
+  case patch
+  of rrtNone:
+    discard
+  of rrtDiscountProtocol:
+    # Percent sign: a price cut.
+    iconInkStroke([sv(20.5, 7.5), sv(11, 18.5)], 2.0, pale, ink)
+    iconDisc(sv(11.8, 9.2), 2.1, pale, ink)
+    iconDisc(sv(19.6, 16.8), 2.1, pale, ink)
+  of rrtShardMagnet:
+    # A Data Shard with a magnet's pull lines.
+    iconShard(sv(15.5, 19.5), -8, 12, 6.5, pale, light, ink)
+    iconArc(sv(15.5, 13), 8.5, 200, 250, 1.3, faded(pale, 0.8))
+    iconArc(sv(15.5, 13), 8.5, 290, 340, 1.3, faded(pale, 0.8))
+  of rrtEliteDividend:
+    # Rising bar chart.
+    iconInkRect(9.5, 15, 12.5, 19.5, pale, ink)
+    iconInkRect(14, 11.5, 17, 19.5, pale, ink)
+    iconInkRect(18.5, 7.5, 21.5, 19.5, pale, ink)
+  of rrtEmergencyPatch:
+    iconPlus(sv(15.5, 13), 5.2, pale, ink)
+  of rrtDraftCache:
+    # Installer box with a taped lid.
+    iconInkRect(9.5, 9.5, 21.5, 19, pale, ink)
+    iconRect(9.5, 12, 21.5, 13, deep)
+    iconRect(14.7, 9.5, 16.3, 19, light)
+  of rrtOverclock:
+    # Tachometer pinned near the red line.
+    let c = sv(15.5, 16.5)
+    iconInkArc(c, 6.4, 180, 360, 2.3, pale, ink)
+    iconArc(c, 6.4, 318, 360, 2.3, Color(r: 255, g: 80, b: 70, a: color.a))
+    iconInkStroke([c, polar(c, 6.2, 322)], 1.5, pale, ink)
+    iconDisc(c, 1.8, light, ink)
+  of rrtFirewallRule:
+    # A single brick rule.
+    iconInkRect(9, 8.5, 15, 12.2, pale, ink)
+    iconInkRect(16, 8.5, 22, 12.2, pale, ink)
+    iconInkRect(9, 13.7, 11.8, 17.4, pale, ink)
+    iconInkRect(13.2, 13.7, 19.2, 17.4, pale, ink)
+    iconInkRect(20.6, 13.7, 22, 17.4, pale, ink)
+  of rrtDefragmenter:
+    # Block map, half compacted.
+    for row in 0..1:
+      for col in 0..2:
+        let bx = 9.5'f32 + col.float32 * 4.4'f32
+        let by = 8.5'f32 + row.float32 * 4.8'f32
+        let filled = row == 0 or col == 0
+        iconInkRect(bx, by, bx + 3.2'f32, by + 3.4'f32,
+                    if filled: pale else: deep, ink)
+  of rrtGarbageCollector:
+    # Bin with a lid.
+    iconShape([sv(10.5, 10.5), sv(20.5, 10.5), sv(19.2, 19.5), sv(11.8, 19.5)], pale, ink)
+    iconInkRect(9.5, 8, 21.5, 9.8, light, ink)
+    drawLine(sv(14, 12.5), sv(14.4, 17.5), 1.0, deep)
+    drawLine(sv(17, 12.5), sv(16.6, 17.5), 1.0, deep)
+  of rrtCronJob:
+    # Clock face.
+    let c = sv(15.5, 13.5)
+    iconDisc(c, 6.2, pale, ink)
+    drawLine(c, sv(15.5, 9.2), 1.5, ink)
+    drawLine(c, sv(19, 13.5), 1.5, ink)
+    drawCircle(c, 1.1, deep)
+  of rrtZipBomb:
+    # Zipper teeth with a spark on the pull.
+    drawLine(sv(15.5, 7.5), sv(15.5, 18.5), 1.2, ink)
+    for i in 0..4:
+      let ty = 8.0'f32 + i.float32 * 2.2'f32
+      if i mod 2 == 0: iconInkRect(12.8, ty, 15.5, ty + 1.3'f32, pale, ink)
+      else: iconInkRect(15.5, ty, 18.2, ty + 1.3'f32, pale, ink)
+    iconDisc(sv(15.5, 19.5), 2.0, light, ink)
+    iconImpact(sv(15.5, 19.5), 2.8, 4.8, 5, 200, 140, Color(r: 255, g: 210, b: 90, a: color.a), ink)
+  of rrtRootAccess:
+    # Root prompt: "#_".
+    for gx in [11.5'f32, 14.5'f32]:
+      iconInkStroke([sv(gx, 8.5), sv(gx, 16.5)], 1.3, pale, ink)
+    for gy in [10.8'f32, 14.2'f32]:
+      iconInkStroke([sv(9.5, gy), sv(16.5, gy)], 1.3, pale, ink)
+    iconInkRect(18, 15.5, 22, 17.2, pale, ink)
+  of rrtRollback:
+    # Counter-clockwise arrow back to the last good state.
+    let c = sv(15.5, 13)
+    iconInkArc(c, 5.4, 30, 300, 2.1, pale, ink)
+    iconArrowHead(polar(c, 5.4, 22), -60, 4.2, pale, ink)
+  of rrtCryptominer:
+    # A chip mining a coin.
+    iconInkRect(10, 8.5, 21, 18.5, pal.steel, ink)
+    for py in [10.5'f32, 13.5'f32, 16.5'f32]:
+      drawLine(sv(8, py), sv(10, py), 1.2, ink)
+      drawLine(sv(21, py), sv(23, py), 1.2, ink)
+    iconDisc(sv(15.5, 13.5), 2.9, Color(r: 255, g: 215, b: 60, a: color.a), ink)
+  of rrtRaidMirror:
+    # Two mirrored platters.
+    for cx in [11.8'f32, 19.2'f32]:
+      iconDisc(sv(cx, 13), 3.6, pale, ink)
+      drawCircle(sv(cx, 13), 1.0, ink)
+    drawLine(sv(15.5, 7.5), sv(15.5, 18.5), 0.9, faded(pale, 0.7))
+  of rrtPacketLoss:
+    # A packet stream with one dropped.
+    for px in [9.2'f32, 12.6'f32]:
+      iconInkRect(px, 12, px + 2.2'f32, 14.2, pale, ink)
+    let xc = sv(18.2, 13.1)
+    iconInkStroke([sv(xc.x - 2.4'f32, xc.y - 2.4'f32), sv(xc.x + 2.4'f32, xc.y + 2.4'f32)], 1.5,
+                  Color(r: 255, g: 110, b: 100, a: color.a), ink)
+    iconInkStroke([sv(xc.x + 2.4'f32, xc.y - 2.4'f32), sv(xc.x - 2.4'f32, xc.y + 2.4'f32)], 1.5,
+                  Color(r: 255, g: 110, b: 100, a: color.a), ink)
+
+  iconRefreshBadge(sv(24.5, 24.5), 5.3, pal)
+
+# ---------------------------------------------------------------------------
+# Roguelite folder-reward icons (door labels, HUD breadcrumb)
+# ---------------------------------------------------------------------------
+
+proc drawRoomRewardIcon*(x, y, size: int32, reward: RoomReward, color: Color) =
+  ## What a folder pays, shown on its door: an install package, a patch, a
+  ## credit stack, a restore platter, a shard, a package stall, or a
+  ## quarantine warning.
+  if size <= 0:
+    return
+  case reward
+  of rrwCredits:
+    drawCurrencyIcon(x + size div 2, y + size div 2, size, ciCredits, color.a)
+    return
+  of rrwShards:
+    drawCurrencyIcon(x + size div 2, y + size div 2, size, ciDataShards, color.a)
+    return
+  of rrwPatch:
+    drawPatchIcon(x, y, size, rrtNone, color)
+    return
+  else:
+    discard
+
+  let k = size.float32 / IconGrid
+  rlgl.pushMatrix()
+  defer: rlgl.popMatrix()
+  rlgl.translatef(x.float32, y.float32, 0.0'f32)
+  rlgl.scalef(k, k, 1.0'f32)
+  let pal = iconPalette(color)
+  let (ink, base, light, pale, deep) = (pal.ink, pal.base, pal.light, pal.pale, pal.deep)
+
+  case reward
+  of rrwNone, rrwCredits, rrwShards, rrwPatch:
+    # Plain folder (credits/shards/patch returned above).
+    iconInkRect(4, 10, 28, 26, base, ink)
+    iconInkRect(4, 7, 13, 10, light, ink)
+  of rrwDraft:
+    # Install package: a box with a download arrow dropping into it.
+    iconInkRect(6, 15, 26, 28, base, ink)
+    iconRect(6, 18, 26, 19.3, deep)
+    iconInkStroke([sv(16, 3), sv(16, 11)], 3.2, pale, ink)
+    iconArrowHead(sv(16, 16), 90, 6.5, pale, ink)
+  of rrwRepair:
+    # Restore platter with a plus on its face.
+    iconShadedDisc(sv(16, 16), 12, pal.steel, pal.steelDark, ink)
+    iconArc(sv(16, 16), 9, 0, 360, 1.0, faded(pal.steelLight, 0.6))
+    iconPlus(sv(16, 16), 5.2, base, ink)
+  of rrwShop:
+    # Package with a price tag.
+    iconInkRect(5, 12, 22, 27, base, ink)
+    iconRect(5, 15, 22, 16.3, deep)
+    iconShape([sv(18, 5), sv(26.5, 5), sv(29, 9.5), sv(26.5, 14), sv(18, 14)], pale, ink)
+    drawCircle(sv(20.5, 9.5), 1.2, ink)
+  of rrwQuarantine:
+    # Hazard triangle.
+    iconShape([sv(16, 3.5), sv(29, 27), sv(3, 27)], base, ink)
+    iconFan([sv(16, 8.5), sv(24.5, 24), sv(7.5, 24)], light)
+    iconRect(14.7, 11.5, 17.3, 20, ink)
+    drawCircle(sv(16, 22.2), 1.5, ink)
+
+proc drawServiceIcon*(x, y, size: int32, color: Color) =
+  ## The sector's SERVICE (boss) door: a gear with a hot core.
+  if size <= 0:
+    return
+  let k = size.float32 / IconGrid
+  rlgl.pushMatrix()
+  defer: rlgl.popMatrix()
+  rlgl.translatef(x.float32, y.float32, 0.0'f32)
+  rlgl.scalef(k, k, 1.0'f32)
+  let pal = iconPalette(color)
+  for i in 0..3:
+    drawRectangle(Rectangle(x: 16, y: 16, width: 6.4, height: 27.5),
+                  sv(3.2, 13.75), i.float32 * 45.0'f32, pal.ink)
+  drawCircle(sv(16, 16), 11.3, pal.ink)
+  for i in 0..3:
+    drawRectangle(Rectangle(x: 16, y: 16, width: 4, height: 25),
+                  sv(2, 12.5), i.float32 * 45.0'f32, pal.base)
+  drawCircle(sv(16, 16), 10, pal.base)
+  drawRing(sv(16, 16), 6.2, 7.6, 0, 360, 24, pal.light)
+  drawCircle(sv(16, 16), 4.2, pal.ink)
+  drawCircle(sv(16, 16), 2.6, Color(r: 255, g: 90, b: 70, a: color.a))

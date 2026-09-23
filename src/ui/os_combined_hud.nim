@@ -1,8 +1,8 @@
 ## Combined OS-Style HUD Panel
 ## Merges status and info panels into one compact, non-intrusive display
 
-import raylib, math
-import ../types, ../localization, ../powerup_data, ../roguelite, ../dungeon, ui_constants, ../render_context, icon_drawing, ../utils, ui_helpers
+import raylib, math, strutils
+import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ui_constants, ../render_context, icon_drawing, ../utils, ui_helpers
 from ../player import DashCooldownTime
 
 const
@@ -133,6 +133,132 @@ proc drawDashRow(game: Game, panelX, panelW, yOffset: int32) =
           if ready: Color(r: uint8(140.0'f32 + 100.0'f32 * pulse), g: 255, b: 225, a: 255)
           else: Color(r: 170, g: 200, b: 220, a: 235))
 
+# ---------------------------------------------------------------------------
+# Roguelite sector block: title, folder breadcrumb, progress pips to SERVICE,
+# LV/XP, heat + shards, and the PATCHES icon rows. rogueliteHudHeight and
+# drawRogueliteHudBlock share the row constants below, so the panel's height
+# budget can never drift from what is drawn.
+
+const
+  RogueHudTitleH = 10'i32
+  RogueHudPathH = 12'i32
+  RogueHudPipsH = 12'i32
+  RogueHudShardsH = 11'i32
+  RogueHudPatchIcon = 14'i32
+  RogueHudPatchPitch = 16'i32
+
+proc rogueliteContentW(panelW: int32): int32 =
+  panelW - (COMBINED_PANEL_PADDING * 2) - 6
+
+proc roguelitePatchRows(count: int, contentW: int32): int32 =
+  if count <= 0: return 0
+  let perRow = max(1'i32, contentW div RogueHudPatchPitch)
+  ((count.int32 + perRow - 1) div perRow)
+
+proc rogueliteHudHeight(game: Game, panelW: int32): int32 =
+  result = 3 + RogueHudTitleH + RogueHudPathH + RogueHudPipsH +
+           COMBINED_XP_BAR_HEIGHT + RogueHudShardsH
+  let rows = roguelitePatchRows(game.rogueliteRun.relics.len, rogueliteContentW(panelW))
+  if rows > 0:
+    result += rows * RogueHudPatchPitch + 2
+
+proc patchSpent(game: Game, patch: RogueliteRelicType): bool =
+  ## A patch whose charge is used up right now draws dimmed.
+  case patch
+  of rrtRollback: not game.player.rollbackArmed
+  of rrtOverclock: game.player.overclockStallTimer > 0
+  of rrtFirewallRule: game.waveInProgress and game.player.patchBlockCharges <= 0
+  else: false
+
+proc drawShadowText(text: string, x, y, size: int32, color: Color) =
+  drawText(text, x + 1, y + 1, size, Color(r: 0, g: 0, b: 0, a: 130))
+  drawText(text, x, y, size, color)
+
+proc drawRogueliteHudBlock(game: Game, panelX, panelW: int32, yOffset: var int32) =
+  let run = game.rogueliteRun
+  let contentW = rogueliteContentW(panelW)
+  let textX = panelX + COMBINED_PANEL_PADDING + 6
+
+  drawLine(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
+          Vector2(x: (panelX + panelW - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
+          1, Color(r: 0, g: 200, b: 255, a: 100))
+  yOffset += 3
+
+  # DEEP RECOVERY // SECTOR 2/4
+  var title = t("roguelite_hud_title") & " // " & t("roguelite_sector_upper") & " " &
+              $run.floorNumber & "/" & $RogueliteFloorsToWin
+  if run.endlessLoop > 0:
+    title &= "  +" & $run.endlessLoop
+  let titleSize = bestFitFontSize(title, contentW, 9, 6)
+  drawShadowText(title, textX - 1, yOffset, titleSize, ACCENT_COLOR)
+  yOffset += RogueHudTitleH
+
+  let floor = run.floor
+  if floor.isNil:
+    yOffset += RogueHudPathH + RogueHudPipsH
+  else:
+    # Breadcrumb, trimmed from the LEFT so the folder you are in stays visible.
+    var path = sectorPath(floor)
+    const pathSize: int32 = 9
+    if measureText(path, pathSize) > contentW:
+      # Drop whole leading folders, never half a name.
+      var tail = path
+      while measureText(".." & tail, pathSize) > contentW:
+        let cut = tail.find('\\', 1)
+        if cut < 0: break
+        tail = tail[cut .. ^1]
+      path = ".." & tail
+    drawShadowText(path, textX, yOffset + 1, pathSize, themeAccent(floor.theme))
+    yOffset += RogueHudPathH
+
+    # Progress pips: one per reward layer, then the SERVICE.
+    let layers = sectorRewardLayers(floor)
+    let current = if floor.rooms.len > 0: floor.rooms[floor.rooms.high].layer else: 0
+    var px = textX
+    let py = yOffset + 2
+    for layer in 1..layers:
+      let rect = Rectangle(x: px.float32, y: py.float32, width: 9, height: 6)
+      if layer < current or (layer == current and currentDungeonRoom(run).cleared):
+        drawRectangle(rect, Color(r: 0, g: 200, b: 255, a: 200))
+      elif layer == current:
+        let pulse = uint8(150.0 + sin(game.time * 5.0) * 90.0)
+        drawRectangle(rect, Color(r: 255, g: 255, b: 255, a: pulse))
+      drawRectangleLines(rect, 1, Color(r: 0, g: 200, b: 255, a: 170))
+      px += 12
+    let atBoss = current > layers
+    let service = "> " & t("room_reward_service")
+    drawShadowText(service, px + 2, yOffset, 9,
+                   if atBoss: Color(r: 255, g: 110, b: 90, a: 255)
+                   else: Color(r: 255, g: 150, b: 120, a: 200))
+    yOffset += RogueHudPipsH
+
+  # Level + XP bar (shared with wave mode -- see drawLevelXpBar).
+  drawLevelXpBar(game, panelX, panelW, yOffset)
+  yOffset += COMBINED_XP_BAR_HEIGHT
+
+  var shardText = t("roguelite_heat") & " " & $run.heat & "  " &
+                  t("roguelite_shards") & " +" & $run.shardsEarned
+  if run.coresEarned > 0:
+    shardText &= "  " & t("roguelite_cores_short") & " +" & $run.coresEarned
+  let shardSize = bestFitFontSize(shardText, contentW - 15, 9, 6)
+  drawCurrencyIcon(panelX + COMBINED_PANEL_PADDING + 10, yOffset + 6, 12, ciHeat)
+  drawShadowText(shardText, panelX + COMBINED_PANEL_PADDING + 21, yOffset, shardSize, Gold)
+  yOffset += RogueHudShardsH
+
+  # PATCHES: one icon per applied update, dimmed while its charge is spent.
+  let rows = roguelitePatchRows(run.relics.len, contentW)
+  if rows > 0:
+    let perRow = max(1'i32, contentW div RogueHudPatchPitch)
+    for i, relic in run.relics:
+      let col = i.int32 mod perRow
+      let row = i.int32 div perRow
+      let ix = textX + col * RogueHudPatchPitch
+      let iy = yOffset + 1 + row * RogueHudPatchPitch
+      let accent = patchAccent(relic.relicType)
+      let tint = if patchSpent(game, relic.relicType): withAlpha(accent, 90) else: accent
+      drawPatchIcon(ix, iy, RogueHudPatchIcon, relic.relicType, tint)
+    yOffset += rows * RogueHudPatchPitch + 2
+
 proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimizeIcon: bool) =
   ## Draw the full status/wave/roguelite/power-up content column, parameterized
   ## by plain geometry so both the draggable classic panel and the fixed Border
@@ -160,17 +286,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
     0
 
   let rogueliteInfoHeight = if game.mode == gmRoguelite and game.rogueliteRun != nil:
-    # Separator + title + route + LV/XP bar + shards + relics lines.
-    var h: int32 = 47 + COMBINED_XP_BAR_HEIGHT  # LV/XP bar line below the route
-    if game.rogueliteRun.floor != nil:
-      # Minimap rows: must match the cell/gap constants in the drawing block below.
-      var minGY = DungeonGridSize
-      var maxGY = 0
-      for room in game.rogueliteRun.floor.rooms:
-        minGY = min(minGY, room.gridY)
-        maxGY = max(maxGY, room.gridY)
-      h += (maxGY - minGY + 1).int32 * 13 + 5
-    h
+    rogueliteHudHeight(game, panelW)
   else:
     0
 
@@ -409,117 +525,9 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
               Color(r: 255, g: 215, b: 0, a: pulseAlpha))
       yOffset += 12
 
-  # ROGUELITE DUNGEON INFO + MINIMAP
+  # ROGUELITE SECTOR BLOCK (see drawRogueliteHudBlock)
   if game.mode == gmRoguelite and game.rogueliteRun != nil:
-    let run = game.rogueliteRun
-    let accent = ACCENT_COLOR
-    let contentW: int32 = panelW - (COMBINED_PANEL_PADDING * 2) - 6
-
-    drawLine(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
-            Vector2(x: (panelX + panelW - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
-            1, Color(r: 0, g: 200, b: 255, a: 100))
-    yOffset += 3
-
-    let combatTitle = t("roguelite_combat_title")
-    let combatTitleSize = bestFitFontSize(combatTitle, contentW, 9, 6)
-    drawText(combatTitle,
-            panelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, combatTitleSize,
-            Color(r: 0, g: 0, b: 0, a: 100))
-    drawText(combatTitle,
-            panelX + COMBINED_PANEL_PADDING + 5, yOffset, combatTitleSize, accent)
-    yOffset += max(10'i32, combatTitleSize + 1)
-
-    let route = t("roguelite_floor") & " " & $run.floorNumber & "/" & $RogueliteFloorsToWin &
-                "  " & t("dungeon_keys") & " " & $run.keys
-    let routeSize = bestFitFontSize(route, contentW, 10, 6)
-    drawText(route,
-            panelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, routeSize,
-            Color(r: 0, g: 0, b: 0, a: 130))
-    drawText(route,
-            panelX + COMBINED_PANEL_PADDING + 6, yOffset, routeSize, White)
-    yOffset += max(12'i32, routeSize + 2)
-
-    # Level + XP bar (shared with wave mode -- see drawLevelXpBar).
-    drawLevelXpBar(game, panelX, panelW, yOffset)
-    yOffset += COMBINED_XP_BAR_HEIGHT
-
-    # Floor minimap: filled = visited, outline = seen, everything if map found.
-    if run.floor != nil:
-      let floor = run.floor
-      var minGX = DungeonGridSize
-      var minGY = DungeonGridSize
-      var maxGX = 0
-      var maxGY = 0
-      for room in floor.rooms:
-        minGX = min(minGX, room.gridX)
-        minGY = min(minGY, room.gridY)
-        maxGX = max(maxGX, room.gridX)
-        maxGY = max(maxGY, room.gridY)
-      const cell: int32 = 11
-      const gap: int32 = 2
-      let mapW = (maxGX - minGX + 1).int32 * (cell + gap) - gap
-      let mapX = panelX + COMBINED_PANEL_PADDING +
-                 max(3'i32, (contentW - mapW) div 2)
-      let mapY = yOffset + 2
-      for i, room in floor.rooms:
-        let known = room.visited or room.seen or floor.mapRevealed
-        if not known:
-          continue
-        let cx = mapX + (room.gridX - minGX).int32 * (cell + gap)
-        let cy = mapY + (room.gridY - minGY).int32 * (cell + gap)
-        let isCurrent = i == floor.currentRoom
-        var cellColor = Color(r: 70, g: 95, b: 125, a: 255)
-        case room.kind
-        of drkBoss:
-          if room.visited or floor.mapRevealed or floor.compassFound:
-            cellColor = Color(r: 255, g: 90, b: 90, a: 255)
-        of drkShop:
-          cellColor = Color(r: 255, g: 215, b: 0, a: 255)
-        of drkTreasure:
-          cellColor = Color(r: 190, g: 140, b: 255, a: 255)
-        of drkElite:
-          cellColor = Color(r: 255, g: 150, b: 80, a: 255)
-        else:
-          discard
-        if room.visited or floor.mapRevealed:
-          let fill = if room.cleared or room.kind in {drkStart, drkShop, drkTreasure}:
-            withAlpha(cellColor, 180)
-          else:
-            withAlpha(cellColor, 90)
-          drawRectangle(cx, cy, cell, cell, fill)
-        drawRectangleLines(Rectangle(x: cx.float32, y: cy.float32,
-                                     width: cell.float32, height: cell.float32),
-                           1, cellColor)
-        if isCurrent:
-          let pulse = uint8(180 + sin(game.time * 5.0) * 60)
-          drawRectangleLines(Rectangle(x: (cx - 1).float32, y: (cy - 1).float32,
-                                       width: (cell + 2).float32, height: (cell + 2).float32),
-                             1, Color(r: 255, g: 255, b: 255, a: pulse))
-      yOffset += (maxGY - minGY + 1).int32 * (cell + gap) + 5
-
-    var shardText = t("roguelite_heat") & " " & $run.heat & "  " &
-                    t("roguelite_shards") & " +" & $run.shardsEarned
-    if run.coresEarned > 0:
-      shardText &= "  " & t("roguelite_cores_short") & " +" & $run.coresEarned
-    let shardSize = bestFitFontSize(shardText, contentW - 15, 9, 6)
-    drawCurrencyIcon(panelX + COMBINED_PANEL_PADDING + 10, yOffset + 6, 12, ciHeat)
-    drawText(shardText,
-            panelX + COMBINED_PANEL_PADDING + 22, yOffset + 1, shardSize,
-            Color(r: 0, g: 0, b: 0, a: 130))
-    drawText(shardText,
-            panelX + COMBINED_PANEL_PADDING + 21, yOffset, shardSize, Gold)
-    yOffset += max(11'i32, shardSize + 2)
-
-    let relicText = t("roguelite_relics") & " " & $run.relics.len & "  " &
-                    t("roguelite_endless") & " " & $run.endlessLoop
-    let relicSize = bestFitFontSize(relicText, contentW, 9, 6)
-    drawText(relicText,
-            panelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, relicSize,
-            Color(r: 0, g: 0, b: 0, a: 130))
-    drawText(relicText,
-            panelX + COMBINED_PANEL_PADDING + 6, yOffset, relicSize,
-            Color(r: 150, g: 220, b: 255, a: 255))
-    yOffset += max(11'i32, relicSize + 2)
+    drawRogueliteHudBlock(game, panelX, panelW, yOffset)
 
   # ACTIVE POWER-UPS LIST
   if game.player.powerUps.len > 0:

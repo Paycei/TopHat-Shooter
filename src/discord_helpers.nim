@@ -60,8 +60,8 @@ proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
   elif isRogueliteMode(game.mode):
     let floorNum = if game.rogueliteRun != nil: game.rogueliteRun.floorNumber else: 1
     let rooms = if game.rogueliteRun != nil: game.rogueliteRun.totalRoomsCleared else: 0
-    stateText = &"Floor {floorNum} | {rooms} Rooms | {game.player.kills} Kills"
-    hoverText = &"{PresenceAppName} | Dungeon run"
+    stateText = &"Sector {floorNum} | {rooms} Folders | {game.player.kills} Kills"
+    hoverText = &"{PresenceAppName} | Deep Recovery"
   else:
     stateText = &"{game.player.kills} Kills"
     hoverText = PresenceTagline
@@ -182,7 +182,7 @@ proc updateDiscordForGameOver*(client: DiscordClient, game: Game) =
   var stateText = &"Game Over | {game.player.kills} Kills"
   if isRogueliteMode(game.mode) and game.rogueliteRun != nil:
     let rooms = game.rogueliteRun.totalRoomsCleared
-    stateText = &"Game Over | {rooms} Rooms, {game.player.kills} Kills"
+    stateText = &"Game Over | {rooms} Folders, {game.player.kills} Kills"
 
   let presence = buildPresence(
     detailsText = modeText,

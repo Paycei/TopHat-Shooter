@@ -42,7 +42,6 @@ type
 
 const
   AdvancementProfileVersion* = 1
-  AdvancementRogueliteSectorsPerAct = 3
   CubeEscapeAdvancementId* = "mastery_escape_velocity"
   CheaterAdvancementId* = "mastery_cheater"
   FlawlessWaveAdvancementId* = "survival_flawless_kernel"
@@ -66,7 +65,7 @@ proc categoryDescription*(category: AdvancementCategory): string =
   of acSurvival: "Waves, endurance, no-damage windows, and clutch play."
   of acResources: "Credits, consumables, walls, and economy control."
   of acMastery: "Power-up drafting, legendary installs, and build depth."
-  of acRoguelite: "Sector clears, banked shards, Heat unlocks, and full-run wins."
+  of acRoguelite: "Sector clears, banked shards, Heat earned by winning, and full-run wins."
 
 proc tierName*(tier: AdvancementTier): string =
   case tier
@@ -373,15 +372,15 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "roguelite_first_sector",
       name: "First Sector Clear",
-      description: "Clear any 3-wave roguelite sector.",
+      description: "Shut down the SERVICE at the end of any roguelite sector.",
       category: acRoguelite,
       tier: atBronze,
       target: 1.0'f32,
     ),
     AdvancementDefinition(
       id: "roguelite_act_runner",
-      name: "Act Runner",
-      description: "Clear 5 roguelite sectors across all runs.",
+      name: "Sector Runner",
+      description: "Shut down 5 sector SERVICEs across all roguelite runs.",
       category: acRoguelite,
       tier: atSilver,
       target: 5.0'f32,
@@ -397,7 +396,7 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "roguelite_heat_check",
       name: "Heat Check",
-      description: "Unlock Heat 2 from the roguelite unlock shop.",
+      description: "Win a roguelite run at Heat 1 to unlock Heat 2.",
       category: acRoguelite,
       tier: atSilver,
       target: 2.0'f32,
@@ -405,7 +404,7 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "roguelite_heat_singularity",
       name: "Heat Singularity",
-      description: "Unlock Heat 3, the highest roguelite Heat.",
+      description: "Win at Heat 2 to unlock Heat 3, the highest roguelite Heat.",
       category: acRoguelite,
       tier: atLegendary,
       target: 3.0'f32,
@@ -413,7 +412,7 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "roguelite_victory_kernel",
       name: "Victory Kernel",
-      description: "Defeat the third act boss and complete a roguelite run.",
+      description: "Shut down the final SERVICE and complete a roguelite run.",
       category: acRoguelite,
       tier: atLegendary,
       target: 1.0'f32,
@@ -645,9 +644,11 @@ proc countElementalPowerUps(runStats: RunStatistics): int =
       discard
 
 proc rogueliteSectorsCleared(profile: RogueliteProfile): int =
+  ## Lifetime sector SERVICEs shut down. Profiles from before that counter
+  ## existed fall back to the sectors their best run completed.
   if profile.isNil:
     return 0
-  max(profile.bestRooms, max(0, profile.bestFloor - 1) * AdvancementRogueliteSectorsPerAct)
+  max(profile.sectorsCleared, max(0, profile.bestFloor - 1))
 
 proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
                       lastRun: RunStatistics,

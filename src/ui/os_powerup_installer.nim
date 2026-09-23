@@ -655,7 +655,9 @@ proc drawOSPowerUpInstaller*(game: Game) =
   let rerollHovered = checkCollisionPointRec(mousePos, L.rerollRect())
   drawModernButton(rerollX, buttonY, rerollW, buttonH,
                   t(tkPowerUpRerollOptions), canAfford, canAfford and rerollHovered, game.time)
-  let costText  = $game.rerollCost & " credits"
+  # A cost of 0 is the Draft Cache patch's free reroll.
+  let costText  = if game.rerollCost <= 0: t("reroll_free_patch")
+                  else: $game.rerollCost & " " & t("reroll_credits_unit")
   let costW     = measureText(costText, 12)
   drawText(costText, rerollX + (rerollW - costW) div 2, buttonY + buttonH + 8, 12,
           if canAfford: Color(r: 255, g: 215, b: 0, a: 255) else: Color(r: 120, g: 120, b: 130, a: 255))

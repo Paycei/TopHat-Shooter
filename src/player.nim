@@ -1,5 +1,5 @@
 import raylib, math, random, std/deques
-import gamepad_input, particle_types, types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, settings, utils
+import gamepad_input, particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, ui/ui_constants, settings, utils
 
 const
   # BASE DASH tuning. A burst of speed, not a teleport and not an i-frame
@@ -195,6 +195,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.fireRateBoostTimer -= dt
   if player.adaptiveFirewallTimer > 0:
     player.adaptiveFirewallTimer -= dt
+  if player.overclockStallTimer > 0:
+    player.overclockStallTimer -= dt
   if player.killChainTimer > 0:
     player.killChainTimer -= dt
     if player.killChainTimer <= 0:
@@ -615,6 +617,15 @@ proc drawPlayer*(player: Player) =
   if player.lastDamageEvent == deCelestialVeil and player.hp > 0:
     drawText(t(tkPlayerVeil), (player.pos.x - 20).int32, (player.pos.y - 35).int32, 14,
              Color(r: 200, g: 200, b: 255, a: 255))
+    player.lastDamageEvent = deNone  # Consume flag
+
+  # Patch interceptions (roguelite): same one-frame signal pattern.
+  if player.lastDamageEvent in {dePatchBlocked, deRollback} and player.hp > 0:
+    let label = if player.lastDamageEvent == deRollback: t("patch_fx_rollback")
+                else: t("patch_fx_blocked")
+    let lw = measureText(label, 14)
+    drawText(label, (player.pos.x - lw.float32 / 2).int32, (player.pos.y - 35).int32, 14,
+             Color(r: 120, g: 210, b: 255, a: 255))
     player.lastDamageEvent = deNone  # Consume flag
 
   # PLAYER RENDERING
@@ -1053,6 +1064,15 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     player.lastDamageAvoided = damage
     return false
 
+  # Roguelite patch charges (Firewall Rule: one per combat room; Emergency
+  # Patch: one per SERVICE room). Kept apart from shieldHits, which the Shield
+  # Boost timer zeroes every frame it is not running.
+  if player.patchBlockCharges > 0:
+    player.patchBlockCharges -= 1
+    player.lastDamageAvoided = damage
+    player.lastDamageEvent = dePatchBlocked
+    return false
+
   # Shield boost absorbs the first hits that would actually land
   if player.shieldHits > 0:
     player.shieldHits -= 1
@@ -1119,6 +1139,10 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   # Reset singularity shield regen timer on any player damage
   player.singularityShieldRegenTimer = 0.0
 
+  # Overclock patch: integrity actually lost stalls the fire-rate bonus.
+  if player.lastDamageTaken > 0.0 and hasPatch(player, rrtOverclock):
+    player.overclockStallTimer = OverclockStallTime
+
   # AdaptiveFirewall: fire rate boost after taking damage
   if hasPowerUp(player, puAdaptiveFirewall):
     player.adaptiveFirewallTimer = 3.0'f32
@@ -1133,6 +1157,15 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     player.hp = 1.0'f32
     player.lastStandActivated = true
     player.invincibilityTimer = 3.0'f32
+    return false
+
+  # Rollback patch: once per sector, restore the last good state instead of
+  # crashing. startDungeonFloor re-arms it.
+  if player.hp <= 0 and player.rollbackArmed and hasPatch(player, rrtRollback):
+    player.rollbackArmed = false
+    player.hp = max(1.0'f32, player.maxHp * RollbackRestore)
+    player.invincibilityTimer = max(player.invincibilityTimer, RollbackInvulnTime)
+    player.lastDamageEvent = deRollback
     return false
 
   # Return true if HP reached 0 or below (death condition)

@@ -377,13 +377,31 @@ type
     dftCache,
     dftCorruptedSector
 
+  # --- Roguelite sectors (player-facing: a sector is a directory tree) -----
+  #
+  # A sector ("floor" internally) is a FORWARD path of folders: the start
+  # room, n reward layers, then the boss (the sector's SERVICE). Clearing a
+  # folder opens 2-3 exits, each labelled with the reward the next folder
+  # pays. Every layer's exits are fixed when the sector is generated; the
+  # player's path only records which one was taken, so a save needs just the
+  # theme, the path and the live room's state (see run_save.nim).
+
   DungeonRoomKind* = enum
     drkStart,
     drkCombat,
-    drkElite,
-    drkTreasure,
-    drkShop,
-    drkBoss
+    drkElite,     # /quarantine
+    drkShop,      # /pkg: stalls, no combat
+    drkBoss       # the sector's SERVICE
+
+  RoomReward* = enum
+    rrwNone,        # start room, SERVICE
+    rrwDraft,       # /bin        a power-up install
+    rrwPatch,       # /updates    choose 1 of 3 patches
+    rrwCredits,     # /cache      credits
+    rrwRepair,      # /restore    integrity
+    rrwShards,      # /shards     Data Shards
+    rrwShop,        # /pkg        package stalls
+    rrwQuarantine   # /quarantine elite fight, then a patch choice
 
   DoorDir* = enum
     ddUp,
@@ -392,62 +410,99 @@ type
     ddLeft
 
   DungeonPickupKind* = enum
-    dpkKey,
-    dpkCompass,
-    dpkMap,
-    dpkRelicPedestal,
-    dpkShardCache
+    dpkDraftPackage,   # /bin reward: opens the installer draft on touch
+    dpkPatchPedestal,  # /updates reward: one of a group of 3 patches
+    dpkCreditCache,    # /cache reward
+    dpkRepairKit,      # /restore reward
+    dpkShardCache,     # /shards reward
+    dpkStallPowerUp,   # /pkg: a specific power-up for credits
+    dpkStallPatch,     # /pkg: a patch for credits
+    dpkStallRepair,    # /pkg: integrity for credits
+    dpkStallRestock    # /pkg: reroll the unsold power-up and patch stalls
 
   DungeonPickup* = ref object
     pos*: Vector2f
     kind*: DungeonPickupKind
-    costCredits*: int     # 0 = free on touch
-    taken*: bool
+    taken*: bool             # (stall prices are derived live: see stallPrice in dungeon.nim)
+    patch*: RogueliteRelicType   # pedestal / patch stall
+    powerUp*: PowerUp        # power-up stall (level re-derived at purchase)
+    amount*: int             # credits / shards / repair percent
+    group*: int              # taking one pickup removes the rest of its group (0 = none)
+    spawnTimer*: float32     # materialize animation; claimable once it passes PickupSpawnTime
+
+  DungeonExit* = object
+    dir*: DoorDir
+    reward*: RoomReward
+    kind*: DungeonRoomKind
+    encounterSeed*: int
+    obstacleSeed*: int
+
+  DungeonLayer* = object
+    exits*: seq[DungeonExit]   # the doors that lead INTO this layer
 
   DungeonRoom* = ref object
-    gridX*, gridY*: int
+    layer*: int               # 0 = start, 1..n = reward folders, n+1 = SERVICE
+    exitIdx*: int             # which exit of its layer this room is
     kind*: DungeonRoomKind
-    doors*: set[DoorDir]
-    cleared*: bool        # Encounter finished (start/shop rooms are born cleared)
-    visited*: bool        # Player has entered this room
-    seen*: bool           # Adjacent to a visited room (shows as outline on minimap)
-    locked*: bool         # Treasure rooms need a key to enter
-    encounterBudget*: int # Enemies to spawn on first entry
+    reward*: RoomReward
+    cleared*: bool            # Encounter finished (start/shop rooms are born cleared)
+    rewardSpawned*: bool      # Reward pickups have materialized
+    rewardClaimed*: bool      # Reward collected: the exits open
+    encounterBudget*: int     # Enemies to spawn on first entry
     encounterSeed*: int
-    bfsDepth*: int        # Distance from the start room
     obstacleSeed*: int
+    pulseIndex*: int          # Encounter pulse currently spawning (1-based; 0 = not started)
+    pulseCount*: int          # Pulses this encounter is split into
+    pulseQuota*: int          # Enemies the current pulse may still spawn
+    pulseSize*: int           # Size of the current pulse
+    pulseTimer*: float32      # Delay before the first pulse / stall timer before the next
+    restocks*: int            # /pkg restocks bought
     pickups*: seq[DungeonPickup]
 
   DungeonFloor* = ref object
     theme*: DungeonFloorTheme
     floorNumber*: int
-    rooms*: seq[DungeonRoom]
-    currentRoom*: int
-    startIdx*: int
-    bossIdx*: int
-    mapRevealed*: bool    # Map pickup: full layout visible on minimap
-    compassFound*: bool   # Compass pickup: boss room marked on minimap
+    layers*: seq[DungeonLayer] # [0] start, [1..n] reward layers, [n+1] SERVICE
+    path*: seq[int]            # exit index taken into each layer (path[0] = 0)
+    rooms*: seq[DungeonRoom]   # rooms visited this sector, in order
+    currentRoom*: int          # always rooms.high
 
   RogueliteRelicType* = enum
+    ## Roguelite PATCHES (player-facing: "KB-#### <name>"). Keep the symbol
+    ## names stable and append new values at the end: run saves store
+    ## `$value`, and a renamed value silently drops out of a saved run.
     rrtNone,
     rrtDiscountProtocol,
     rrtShardMagnet,
     rrtEliteDividend,
     rrtEmergencyPatch,
-    rrtDraftCache
+    rrtDraftCache,
+    rrtOverclock,        # +fire rate; a hit stalls it
+    rrtFirewallRule,     # first hit in every combat room is blocked
+    rrtDefragmenter,     # room clears restore integrity
+    rrtGarbageCollector, # loose XP and credits home in from anywhere
+    rrtCronJob,          # periodic radial burst while in combat
+    rrtZipBomb,          # elites detonate on death
+    rrtRootAccess,       # +damage vs bosses/elites, -damage vs the rest
+    rrtRollback,         # once per sector, survive a lethal hit
+    rrtCryptominer,      # kills mine credits, -damage
+    rrtRaidMirror,       # every 3rd shot also fires backward
+    rrtPacketLoss        # some regular enemy bullets are dropped as fired
 
   RogueliteRelic* = object
+    ## A PATCH, as the player sees it (KB-####). The internal name predates the
+    ## rename and stays because saves parse `$relicType`; the display name,
+    ## KB number and description all come from patches.nim via t().
     relicType*: RogueliteRelicType
-    name*: string
-    description*: string
 
   RogueliteProfile* = ref object
     version*: int
     dataShards*: int
     cores*: int
-    unlockedStarterKits*: set[RogueliteStarterKit]
-    unlockedPowerFamilies*: set[RoguelitePowerFamily]
-    unlockedRelics*: set[RogueliteRelicType]
+    # v5 ("earn, don't buy"): boot profiles, power families and patches are
+    # never bought any more, so the old unlockedStarterKits/-PowerFamilies/
+    # -Relics sets, the Wave Surge boss tier and the unlock-shop badge memory
+    # were dropped. Their spend was refunded once at migration (roguelite.nim).
     unlockedPlayerSkins*: seq[string]
     unlockedBulletSkins*: seq[string]
     unlockedPlayerShapes*: seq[string]
@@ -455,8 +510,9 @@ type
     unlockedParticleSkins*: seq[string]
     unlockedDesktopBgs*: seq[string]
     unlockedCubeSkins*: seq[string]
-    unlockedBossTier*: int
-    highestHeat*: int
+    highestHeat*: int                    # Highest Heat unlocked; Heat N+1 is earned
+                                         # by winning a run at Heat N
+    sectorsCleared*: int                 # Lifetime sector SERVICEs shut down
     bestFloor*: int
     bestRooms*: int
     bestEndlessLoop*: int
@@ -470,10 +526,6 @@ type
                                          # for Recursion. Pre-seeded onto the player
                                          # each run so the draft offers the NEXT
                                          # level instead of restarting at 1.
-    seenAffordableUnlocks*: seq[string]  # Stable keys of unlocks the player has
-                                         # already been shown as affordable; gates
-                                         # the shop button's "deal" badge so it only
-                                         # nags about newly-affordable items.
 
   RogueliteRun* = ref object
     seed*: int
@@ -482,14 +534,16 @@ type
     floorNumber*: int                # 1..RogueliteFloorsToWin, resets each endless loop
     floor*: DungeonFloor             # The active generated floor
     totalRoomsCleared*: int
-    keys*: int                       # Opens locked treasure rooms
-    combatRoomsSinceDraft*: int      # Draft offered every 2nd combat/elite clear
     usedThemes*: set[DungeonFloorTheme]
     nextThemeChoices*: array[3, DungeonFloorTheme]
     pendingFloorSelect*: bool
     relics*: seq[RogueliteRelic]
-    shardsEarned*: int
+    shardsEarned*: int               # Unbanked; zeroed each time the run commits
     coresEarned*: int
+    totalShardsBanked*: int          # Never reset: what this run has paid out in
+    totalCoresBanked*: int           # total, for the BSOD and victory screens
+    heatUnlocked*: int               # Heat this run's win unlocked (0 = none)
+    roomDensityWave*: int            # Wave-mode density slot of the live room (see densityWave)
     endlessLoop*: int
     completed*: bool
     died*: bool
@@ -752,6 +806,15 @@ type
     corruptedCoreHpAcc*: float32     # Fractional max-HP accumulator for CorruptedCore
     roomEchoCharges*: int            # Charged bullets remaining from RoomEcho
     rapidFireSpinup*: float32        # [0,1] minigun spin-up from sustained fire (RapidFire legendary)
+    # Roguelite patches (player-facing name for RogueliteRelicType). The run's
+    # authoritative list is RogueliteRun.relics; this set mirrors it so modules
+    # that only see a Player (combat stats, takeDamageRaw, shooting) can test a
+    # patch without reaching the Game. Rebuilt by syncPlayerPatches on restore.
+    patches*: set[RogueliteRelicType]
+    patchBlockCharges*: int          # Firewall Rule / Emergency Patch: hits blocked outright
+    overclockStallTimer*: float32    # Overclock: bonus suspended while > 0
+    rollbackArmed*: bool             # Rollback: a lethal hit is still interceptable this sector
+    cronJobTimer*: float32           # Cron Job: seconds until the next radial burst
 
   EffectInstance* = object
     elementType*: ElementType
@@ -1014,6 +1077,7 @@ type
     parentBulletId*: int  # ID of parent bullet
     bulletId*: int  # Unique ID for this bullet
     isBossBullet*: bool  # True if this bullet was fired by a boss
+    packetChecked*: bool # Packet Loss patch already rolled for this enemy round
     bossBulletShape*: int  # Boss bullet shape: 0=circle,1=diamond,2=triangle,3=star,4=cross,5=square
     bulletShape*: int  # Player cosmetic bullet shape (BulletShapeType ord)
     isArcaneBullet*: bool  # True if this bullet is from arcane bullet power-up
@@ -1107,7 +1171,9 @@ type
     deNone,         # No pending event (idle / already consumed)
     deDodged,       # Player successfully dodged the hit
     deDamage,       # Player took damage (UI/alert signal)
-    deCelestialVeil # Celestial Veil absorbed the hit
+    deCelestialVeil,# Celestial Veil absorbed the hit
+    dePatchBlocked, # A Firewall Rule / Emergency Patch charge blocked the hit
+    deRollback      # Rollback patch caught a lethal hit
 
   DamageNumber* = ref object
     pos*: Vector2f          # Current position
@@ -1572,6 +1638,9 @@ type
     roomTransitionDir*: DoorDir      # Door the player walked through
     bossPortalActive*: bool          # Roguelite: exit portal open in the cleared boss room
     bossPortalTimer*: float32        # Drives the portal spawn + idle animation
+    dungeonInteractFocus*: bool      # Roguelite: a pedestal/stall is in [E] range this frame
+    interactKeyLatch*: bool          # Roguelite: an [E] press was spent on a pickup; wall
+                                     # placement stays suppressed until the key is released
     osBackground*: OSBackgroundState  # Animated background system
     osHUD*: OSHUDState
     pendingToasts*: seq[string]  # Toasts queued by subsystems; drained to desktop toasts each frame
@@ -1667,6 +1736,10 @@ proc resumeRunTime*(game: Game) =
 # the number of bodies it is divided into changed.
 # ---------------------------------------------------------------------------
 
+const AllPowerFamilies* = {low(RoguelitePowerFamily)..high(RoguelitePowerFamily)}
+  ## Every draft pool draws from all families. The roguelite used to gate them
+  ## behind shard purchases; since the "earn, don't buy" rework it doesn't.
+
 proc calculateWaveEnemyCount*(waveNumber: int): int =
   ## Enemy count per wave: uncapped, and growing much faster than it used to.
   ##
@@ -1701,6 +1774,24 @@ proc waveDensityRebate*(waveNumber: int): float32 =
   let ratio = legacyWaveEnemyCount(waveNumber) /
               max(1.0, float(calculateWaveEnemyCount(waveNumber)))
   result = max(0.30'f32, float32(ratio))
+
+proc densityWave*(game: Game): int =
+  ## The wave-curve slot whose swarm density the live fight uses, or 0 when
+  ## the mode has no density rework (no rebate). Wave mode: the wave itself.
+  ## Roguelite: the room's wave-equivalent, set by enterRoom -- NOT
+  ## game.currentWave, which stays 1 for a whole roguelite run.
+  case game.mode
+  of gmWaveBased: max(1, game.currentWave)
+  of gmRoguelite:
+    if game.rogueliteRun.isNil: 1 else: max(1, game.rogueliteRun.roomDensityWave)
+  else: 0
+
+proc densityRebate*(game: Game): float32 =
+  ## waveDensityRebate for the live fight (1.0 in modes without the swarm
+  ## rework). Route every per-enemy grant through this, never through
+  ## game.currentWave directly.
+  let w = densityWave(game)
+  if w <= 0: 1.0'f32 else: waveDensityRebate(w)
 
 # ---------------------------------------------------------------------------
 # Profile difficulty table.

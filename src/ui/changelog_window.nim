@@ -125,6 +125,41 @@ let changelog: seq[ChangelogVersion] = @[
     entries: @[
       # --- New ---
       ChangelogEntry(category: clcNew,
+        headEn: "Roguelite reworked: Deep Recovery",
+        headEs: "Roguelite renovado: Recuperación Profunda",
+        en: points(
+          "Each sector is now a forward path of folders ending in the sector's SERVICE. No more keys, compass, map, treasure room or walking back through empty rooms.",
+          "Clear a folder and its reward appears in the middle of the room. Collect it and 2 or 3 exits open, each showing the folder it leads to and what it pays: /bin power-up, /updates patch, /cache credits, /restore repair, /shards Data Shards, /pkg stalls, /quarantine elite fight.",
+          "Picking a door is picking your build. The status panel shows your path as a breadcrumb (C:\\FIREWALL\\bin\\cache\\) and how many folders are left before the SERVICE.",
+          "Folders are real fights now: crowds arrive in waves inside the room instead of one burst."),
+        es: points(
+          "Cada sector es ahora un camino de carpetas hacia delante que termina en el SERVICIO del sector. Se acabaron las llaves, la brújula, el mapa, la sala del tesoro y volver por salas vacías.",
+          "Limpia una carpeta y su recompensa aparece en el centro de la sala. Recógela y se abren 2 o 3 salidas, cada una con la carpeta a la que lleva y lo que paga: /bin mejora, /updates parche, /cache créditos, /restore reparación, /shards Fragmentos, /pkg puestos, /quarantine combate élite.",
+          "Elegir puerta es elegir tu build. El panel de estado muestra tu camino como una ruta (C:\\FIREWALL\\bin\\cache\\) y cuántas carpetas quedan hasta el SERVICIO.",
+          "Las carpetas ahora son combates de verdad: las multitudes llegan en oleadas dentro de la sala en vez de en una sola ráfaga.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Patches replace relics",
+        headEs: "Los parches sustituyen a las reliquias",
+        en: points(
+          "Relics are now Patches: numbered system updates like KB-3101 Overclock. /updates and /quarantine folders offer 3 and you apply 1. Walk up to one to read what it does.",
+          "11 new patches that change how a run plays, including Overclock, Firewall Rule, Rollback, Cron Job, Zip Bomb, RAID 1 Mirroring and Packet Loss.",
+          "Your applied patches show as icons on the status panel, dimmed while one is spent (a used Rollback, a stalled Overclock).",
+          "Type recovery in the Help terminal for the full list."),
+        es: points(
+          "Las reliquias ahora son Parches: actualizaciones del sistema numeradas como KB-3101 Overclock. Las carpetas /updates y /quarantine ofrecen 3 y aplicas 1. Acércate a uno para leer lo que hace.",
+          "11 parches nuevos que cambian cómo se juega una partida, entre ellos Overclock, Regla de Firewall, Reversión, Tarea Cron, Bomba Zip, Espejo RAID 1 y Pérdida de Paquetes.",
+          "Tus parches aplicados aparecen como iconos en el panel de estado, atenuados mientras uno está gastado (una Reversión usada, un Overclock detenido).",
+          "Escribe recovery en la terminal de Ayuda para ver la lista completa.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Package stalls",
+        headEs: "Puestos de paquetes",
+        en: points(
+          "The roguelite shop is now the /pkg folder: priced stalls in the room selling specific power-ups, a patch, a repair and a restock.",
+          "Walk up to a stall to see what it is and what it costs, then press E to buy. The wave-mode upgrade shop no longer appears in the roguelite."),
+        es: points(
+          "La tienda del roguelite ahora es la carpeta /pkg: puestos con precio en la propia sala que venden mejoras concretas, un parche, una reparación y una reposición.",
+          "Acércate a un puesto para ver qué es y cuánto cuesta, y pulsa E para comprar. La tienda de mejoras del modo oleadas ya no aparece en el roguelite.")),
+      ChangelogEntry(category: clcNew,
         headEn: "Dash",
         headEs: "Impulso",
         en: points(
@@ -144,12 +179,12 @@ let changelog: seq[ChangelogVersion] = @[
           "Every enemy drops experience orbs. Filling the bar on the HUD gives you a power-up draft, roughly once per wave.",
           "Levels get more expensive as the run goes on: about 20 levels over 60 waves.",
           "The old between-wave power-up draft now only appears in the run-up to each boss.",
-          "Roguelite and Time Survival keep their levelling pace."),
+          "Time Survival keeps its levelling pace. The roguelite has its own curve."),
         es: points(
           "Todos los enemigos sueltan orbes de experiencia. Al llenar la barra del HUD eliges una mejora, más o menos una vez por oleada.",
           "Los niveles se encarecen a medida que avanza la partida: unos 20 niveles en 60 oleadas.",
           "La antigua elección de mejora entre oleadas ahora solo aparece antes de cada jefe.",
-          "Roguelite y Supervivencia mantienen su ritmo de niveles.")),
+          "Supervivencia mantiene su ritmo de niveles. El roguelite tiene su propia curva.")),
       ChangelogEntry(category: clcNew,
         headEn: "Wave mode: restore points",
         headEs: "Modo oleadas: puntos de restauración",
@@ -252,6 +287,32 @@ let changelog: seq[ChangelogVersion] = @[
           "El comando 'bosses' ahora muestra el servicio secuestrado detrás de cada jefe.")),
 
       # --- Improvements ---
+      ChangelogEntry(category: clcImproved,
+        headEn: "Roguelite: everything playable from the first run",
+        headEs: "Roguelite: todo disponible desde la primera partida",
+        en: points(
+          "All power-up families and all three boot profiles (Operator, Bulwark, Arcanist) are available from your first run. The roguelite unlock shop is gone.",
+          "Heat is earned: win a run at your highest Heat to unlock the next one.",
+          "Everything you had bought in the old unlock shop is refunded as Data Shards and Cores the first time you load your profile. Heat you already had stays unlocked.",
+          "Data Shards and Cores keep buying cosmetics in the desktop shop."),
+        es: points(
+          "Todas las familias de mejoras y los tres perfiles de arranque (Operador, Baluarte, Arcanista) están disponibles desde tu primera partida. La tienda de desbloqueos del roguelite ha desaparecido.",
+          "El Calor se gana: gana una partida con tu Calor más alto para desbloquear el siguiente.",
+          "Todo lo que compraste en la antigua tienda de desbloqueos se te devuelve en Fragmentos y Núcleos la primera vez que cargas tu perfil. El Calor que ya tenías sigue desbloqueado.",
+          "Los Fragmentos y Núcleos siguen comprando cosméticos en la tienda del escritorio.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Roguelite speaks the OS",
+        headEs: "El roguelite habla el idioma del SO",
+        en: points(
+          "Floors are sectors, rooms are folders, bosses are the sector's SERVICE, and the setup screen is Deep Recovery.",
+          "The BETA banner is gone.",
+          "The crash screen now shows the sector you reached, folders cleared, patches applied and the Data Shards and Cores the run banked.",
+          "The victory screen lists your patches with their icons and what this run paid out."),
+        es: points(
+          "Los pisos ahora son sectores, las salas son carpetas, los jefes son el SERVICIO del sector y la pantalla de ajuste es Recuperación Profunda.",
+          "El cartel de BETA ha desaparecido.",
+          "La pantalla de fallo ahora muestra el sector alcanzado, las carpetas limpiadas, los parches aplicados y los Fragmentos y Núcleos que guardó la partida.",
+          "La pantalla de victoria muestra tus parches con sus iconos y lo que pagó esta partida.")),
       ChangelogEntry(category: clcImproved,
         headEn: "Berserker Juggernaut rework",
         headEs: "Rediseño del Berserker Imparable",
@@ -397,6 +458,21 @@ let changelog: seq[ChangelogVersion] = @[
 
       # --- Balance ---
       ChangelogEntry(category: clcBalance,
+        headEn: "Roguelite pacing",
+        headEs: "Ritmo del roguelite",
+        en: points(
+          "Folders field crowds on the same curve as wave mode, lighter in the first sector. Each enemy is tuned so a folder's total toughness stays close to before.",
+          "The roguelite has its own level curve: about 3 to 4 levels per sector.",
+          "Credits from kills and kill streaks are lower in the roguelite, so a /pkg visit is a choice rather than buying everything.",
+          "SERVICE fights have 25% less HP to make up for the old stat shop.",
+          "Draft Cache now makes the first reroll of every draft free. Emergency Patch now blocks the first hit in every SERVICE room and restores 25% integrity when you shut one down."),
+        es: points(
+          "Las carpetas traen multitudes con la misma curva que el modo oleadas, más ligeras en el primer sector. Cada enemigo se ajusta para que la dureza total de una carpeta se parezca a la de antes.",
+          "El roguelite tiene su propia curva de niveles: unos 3 o 4 niveles por sector.",
+          "Los créditos por bajas y rachas son menores en el roguelite, así que visitar /pkg es elegir en vez de comprarlo todo.",
+          "Los combates de SERVICIO tienen un 25% menos de vida para compensar la antigua tienda de estadísticas.",
+          "Caché de Instalación ahora hace gratis el primer reroll de cada elección. Parche de Emergencia ahora bloquea el primer golpe en cada sala de SERVICIO y restaura un 25% de integridad al apagar uno.")),
+      ChangelogEntry(category: clcBalance,
         headEn: "Waves are crowds",
         headEs: "Las oleadas son multitudes",
         en: points(
@@ -506,6 +582,16 @@ let changelog: seq[ChangelogVersion] = @[
           "En conjunto quedan alrededor de un 40% menos de sus balas en pantalla.")),
 
       # --- Fixes ---
+      ChangelogEntry(category: clcFixed,
+        headEn: "Roguelite: experience from the last kills was banked late",
+        headEs: "Roguelite: la experiencia de las últimas bajas llegaba tarde",
+        en: "Clearing a folder now collects every orb before your level-ups are counted, so the final kills (and a SERVICE's big shower of orbs) count right away instead of a folder or a sector later.",
+        es: "Limpiar una carpeta ahora recoge todos los orbes antes de contar tus subidas de nivel, así que las últimas bajas (y la gran lluvia de orbes de un SERVICIO) cuentan en el acto y no una carpeta o un sector después."),
+      ChangelogEntry(category: clcFixed,
+        headEn: "Roguelite: relic effects that did not work",
+        headEs: "Roguelite: efectos de reliquias que no funcionaban",
+        en: "Emergency Patch's shield charge disappeared a moment after it was granted, and the two reroll discounts did not match their descriptions. Both are fixed as part of the move to patches.",
+        es: "La carga de escudo de Parche de Emergencia desaparecía justo después de darse, y los dos descuentos de reroll no coincidían con su descripción. Ambos se corrigen con el paso a parches."),
       ChangelogEntry(category: clcFixed,
         headEn: "Boss armor worked backwards for most damage types",
         headEs: "La armadura de los jefes funcionaba al revés",

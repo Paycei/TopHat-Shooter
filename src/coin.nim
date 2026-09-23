@@ -1,7 +1,11 @@
 import raylib, math, random
-import particle_types, types, particle, particle_pool, powerup, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions
+import particle_types, types, particle, particle_pool, powerup, patches, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions
 
 const LOOT_MARGIN* = 50.0  # Distance from screen edge
+
+const RogueliteCoinScale* = 0.45'f32
+  ## Roguelite kill-drop credit scale (measured: unscaled drops paid ~1600 of a
+  ## run's ~2400 credits against stalls costing 55-250).
 
 proc clampLootPosition*(x, y: float32, screenWidth, screenHeight: int32): tuple[x, y: float32] =
   ## Clamps a position to be within screen bounds with margin
@@ -167,8 +171,22 @@ proc dropEnemyCoin*(game: Game, enemy: Enemy) =
   # ~4x head count would otherwise pay out ~4x per wave -- a measured run earned
   # 27.5k coins and bought 53 shop upgrades. Bosses are exempt: there is still
   # exactly one of them, so their lump is not a per-enemy quantity at all.
-  if game.mode == gmWaveBased and not enemy.isBoss:
-    coinValue = max(1, int(coinValue.float32 * waveDensityRebate(game.currentWave)))
+  # Roguelite rooms fight on the same density curve (densityWave), but round
+  # STOCHASTICALLY instead of flooring at 1: a pulsed swarm is mostly 1-credit
+  # enemies, and the floor minted a credit from every one of them (measured:
+  # 1000-2600 unspendable credits by the last sector). Wave mode keeps its
+  # floor so every kill there still visibly pays.
+  if densityWave(game) > 0 and not enemy.isBoss:
+    var scaled = coinValue.float32 * densityRebate(game)
+    if game.mode == gmRoguelite:
+      # Credits only buy /pkg stalls and rerolls here (no stat shop), so kill
+      # drops are scaled to what a sector should afford: one or two stalls.
+      scaled *= RogueliteCoinScale
+      coinValue = int(scaled) + (if rand(1.0'f32) < scaled - floor(scaled): 1 else: 0)
+      if coinValue <= 0:
+        return
+    else:
+      coinValue = max(1, int(scaled))
   let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
   let requiresBossCoin = enemy.isBoss and game.mode == gmWaveBased
   game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, requiresBossCoin))
@@ -208,9 +226,13 @@ proc updateGameCoins*(game: Game, dt: float32): bool =
       game.coins.add(newCoin(game.screenWidth.float32 / 2, game.screenHeight.float32 / 2,
                              1, isBoss = true))
 
+  # Roguelite folders vacuum every coin at clear (collectAllCoins), so the
+  # overflow despawn would only ever delete credits a big pulse had earned.
+  let despawnCount = if game.mode == gmRoguelite: 0 else: game.coins.len
+  let magnetAll = game.player.magnetTimer > 0 or hasPatch(game.player, rrtGarbageCollector)
   var i = 0
   while i < game.coins.len:
-    if not updateCoin(game.coins[i], dt, game.coins.len):
+    if not updateCoin(game.coins[i], dt, despawnCount):
       game.coins.delete(i)
       continue
 
@@ -219,7 +241,7 @@ proc updateGameCoins*(game: Game, dt: float32): bool =
       spawnTimedParticlesPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, 18.0,
                          Color(r: 255, g: 215, b: 0, a: 150), 1, dt)
 
-    if game.player.magnetTimer > 0:
+    if magnetAll:
       moveCoinToPlayer(game.coins[i], game.player.pos, dt)
 
     if checkPlayerCollision(game.coins[i], game.player):

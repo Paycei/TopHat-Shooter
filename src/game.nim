@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, algorithm
-import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, ui/ui_helpers, boss_weakpoints
+import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, ui/ui_helpers, boss_weakpoints
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
@@ -167,8 +167,7 @@ proc bankRunLevelUps*(game: Game) =
     inc game.player.rogueliteLevel
     # Wave mode is a 60-wave marathon, not a short floor run: it uses the
     # steepened curve so levels decelerate instead of compounding all run.
-    game.player.xpToNextLevel = xpRequiredForLevel(
-      game.player.rogueliteLevel, longRun = game.mode == gmWaveBased)
+    game.player.xpToNextLevel = xpRequiredForLevel(game.player.rogueliteLevel, game.mode)
     applyLevelUpStatBoost(game)
     inc levelsGained
   if levelsGained > 0:
@@ -209,11 +208,7 @@ proc checkPendingLevelDraft*(game: Game) =
   # Hold for the telegraph beat armed in bankRunLevelUps.
   if game.levelDraftDelay > 0: return
   dec game.pendingLevelDrafts
-  let families = if game.mode == gmRoguelite:
-    unlockedFamilySet(game.rogueliteProfile)
-  else:
-    {rpfCore..rpfBlood}
-  game.powerUpChoices = generatePowerUpChoices(game.player, false, families, game.mode)
+  game.powerUpChoices = generatePowerUpChoices(game.player, false, AllPowerFamilies, game.mode)
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
   initializeRerollCost(game)
@@ -713,19 +708,37 @@ proc spawnDungeonEnemies(game: Game, count: int) =
     return
   let baseDifficulty = dungeonEnemyDifficulty(run, room)
   let eliteRoll = dungeonEliteRoll(run, room)
+  # Folders fight on the wave-mode swarm curve, so they pay for the extra
+  # bodies exactly like a wave does: HP fully rebated, damage only partly
+  # (a crowd is meant to be more dangerous than the handful it replaced).
+  let rebate = densityRebate(game)
+  let dmgRebate = 0.65'f32 + 0.35'f32 * rebate
   for _ in 0..<count:
-    if game.waveEnemiesRemaining <= 0:
+    if game.waveEnemiesRemaining <= 0 or dungeonSpawnAllowance(game) <= 0:
       break
     let enemyType = rollEncounterEnemyType(run, room)
-    let (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
+    # Pulses land at the edges but never on top of the player (who enters at
+    # the bottom door).
+    var (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
+    for _ in 0..5:
+      if distance(newVector2f(x, y), game.player.pos) >= 200.0'f32: break
+      (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
     let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
     # Compress advanced types' stats toward the room threat before elite
     # bonuses so elites scale relative to the tuned baseline. The elite roll
     # only drives the CHANCE; stat magnitudes follow the room's wave
     # equivalent so elite-room guarantees don't inflate elite damage.
     tuneDungeonEnemyStats(enemy, run, room)
+    if enemy.enemyType != etStar:  # stars are hit-count based (see spawnWaveEnemies)
+      enemy.maxHp *= rebate
+      enemy.hp *= rebate
+    enemy.contactDamage *= dmgRebate
+    enemy.rangedDamage *= dmgRebate
+    # The CHANCE scales with density too, so elites per folder survive the
+    # swarm; /quarantine keeps its full roll (elites are its whole point).
     makeElite(enemy, eliteRoll,
-              scalingWave = int(dungeonRoomWaveEquivalent(run, room)))
+              scalingWave = int(dungeonRoomWaveEquivalent(run, room)),
+              chanceScale = (if room.kind == drkElite: 1.0'f32 else: rebate))
     var visualThreat = 1 + (run.floorNumber - 1) + (run.heat div 2) + run.endlessLoop
     if room.kind == drkElite:
       visualThreat += 1
@@ -736,6 +749,7 @@ proc spawnDungeonEnemies(game: Game, count: int) =
     enemy.threatLevel = max(enemy.threatLevel, clamp(visualThreat, 1, 5))
     game.enemies.add(enemy)
     game.waveEnemiesRemaining -= 1
+    consumeDungeonSpawn(game)
 
 proc checkWaveComplete(game: Game): bool =
   # Wave is complete when all enemies are defeated, none remain to spawn,
@@ -2181,6 +2195,40 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
 
       game.player.radialBurstTimer = cooldown
 
+  # Cron Job patch: a scheduled ring of rounds, but only while a fight is on
+  # (the timer holds between folders so it never fires into an empty room).
+  if hasPatch(game.player, rrtCronJob) and game.waveInProgress:
+    game.player.cronJobTimer -= dt
+    if game.player.cronJobTimer <= 0:
+      game.player.cronJobTimer = CronJobInterval
+      var stats = calculateCombatStats(game.player)
+      applyBossArenaCombatBonus(game, stats)
+      for i in 0..<CronJobRounds:
+        let angle = (i.float32 / CronJobRounds.float32) * PI * 2.0 + game.time
+        game.bullets.add(newBullet(
+          x = game.player.pos.x,
+          y = game.player.pos.y,
+          direction = newVector2f(cos(angle), sin(angle)),
+          speed = game.player.bulletSpeed,
+          damage = applyCriticalHitFromStats(stats, stats.damage),
+          fromPlayer = true,
+          isHoming = false,
+          isPiercing = hasPowerUp(game.player, puPiercingShots),
+          isExplosive = hasPowerUp(game.player, puExplosiveBullets),
+          hasBounce = hasPowerUp(game.player, puBulletRicochet),
+          canSplit = hasPowerUp(game.player, puBulletSplit),
+          slowAmount = 0.0,
+          poisonDuration = 0.0,
+          fireDuration = 0.0,
+          windPushForce = 0.0,
+          bulletSkin = game.player.bulletSkinType,
+          bulletShape = game.player.bulletShapeType
+        ))
+        trackBulletFired(game)
+      spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
+                           patchAccent(rrtCronJob), 22)
+      playSound(stShoot, 0.5, 0.8)
+
   # Player poison damage from venomous elites
   # Uses accumulator system to ensure only whole number damage is applied
   if game.player.poisonTimer > 0:
@@ -2323,7 +2371,9 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
 
       if game.spawnTimer > baseSpawnRate and game.waveEnemiesRemaining > 0:
         if game.mode == gmRoguelite:
-          spawnDungeonEnemies(game, spawnCount)
+          # Folders release their encounter in pulses (dungeon.nim
+          # updateRoomPulse); between pulses the allowance is 0.
+          spawnDungeonEnemies(game, min(spawnCount, dungeonSpawnAllowance(game)))
         else:
           spawnWaveEnemies(game, spawnCount)
         game.spawnTimer = 0
@@ -2362,10 +2412,12 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
 
         var shouldOfferPowerUp = false
         if game.mode == gmRoguelite:
-          # Dungeon room cleared: bank coins/shards and open the doors.
-          let outcome = onRoomCleared(game)
-          shouldOfferPowerUp = outcome == dcoDraft
-          # Cash in any levels earned from XP collected during this room.
+          # Folder cleared: vacuum the loot (XP included), pay the folder's
+          # shards and materialize its reward. The exits open once the reward
+          # is claimed (dungeon.nim).
+          onRoomCleared(game)
+          # Cash in the levels this folder's XP earned. The vacuum above
+          # already counted the last kills' orbs.
           bankRunLevelUps(game)
           # RoomEcho: grant charged bullets on room clear
           if hasPowerUp(game.player, puRoomEcho):
@@ -2422,16 +2474,9 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
         # Wave celebration removed from here - now only happens after boss defeat
 
         if game.mode == gmRoguelite:
-          # Stay in the room: doors are open now; the draft (if any) pops
-          # immediately and returns straight to gameplay.
-          if shouldOfferPowerUp:
-            game.powerUpChoices = generatePowerUpChoices(
-              game.player, false, unlockedFamilySet(game.rogueliteProfile), game.mode)
-            game.selectedPowerUp = 0
-            initPowerUpRollAnimation(game)
-            initializeRerollCost(game)
-            game.state = gsPowerUpSelect
-          # Autosave checkpoint: room cleared, doors open.
+          # Stay in the room: level-up drafts (if any) open first, then the
+          # folder's reward waits in the middle of the room.
+          # Autosave checkpoint: folder cleared, reward spawned.
           saveRunState(game)
           deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
         else:
@@ -2769,9 +2814,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # consumables, 222 of them health, which is most of why the player was
         # unkillable. Rolls use a 0..999 range so the scaled chance keeps
         # useful resolution instead of rounding to whole percents.
-        let consumableDropScale =
-          if game.mode == gmWaveBased: waveDensityRebate(game.currentWave)
-          else: 1.0'f32
+        let consumableDropScale = densityRebate(game)
 
         if game.player.hasBountiful:
           game.player.bountifulKillCounter += 1
@@ -2788,9 +2831,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           # payout keeps the jackpot a jackpot: still 3 pickups and the full
           # golden burst, just at the per-wave rate the power-up was tuned for.
           var bountifulInterval = 15
-          let bountifulScale =
-            if game.mode == gmWaveBased: waveDensityRebate(game.currentWave)
-            else: 1.0'f32
+          let bountifulScale = densityRebate(game)
           if bountifulScale > 0.0'f32:
             bountifulInterval = max(bountifulInterval,
                                     int(bountifulInterval.float32 / bountifulScale))
@@ -2871,7 +2912,11 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
       # Track combo and award bonus coins (but not for boss minions)
       if not enemy.spawnedByBoss:
-        let comboBonus = addComboKill(game.dopamine.comboSystem, game.dopamine.currentTime)
+        var comboBonus = addComboKill(game.dopamine.comboSystem, game.dopamine.currentTime)
+        # Roguelite swarms chain streaks constantly, so the streak payout rides
+        # the same credit scale as kill drops (see RogueliteCoinScale).
+        if comboBonus > 0 and game.mode == gmRoguelite:
+          comboBonus = int(round(comboBonus.float32 * RogueliteCoinScale))
         if comboBonus > 0:
           game.player.coins += comboBonus
           trackCoinPickup(game, comboBonus)
@@ -2912,9 +2957,16 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           else: 1.0'f32
         game.player.fireRateBoostTimer = min(game.player.fireRateBoostTimer + surgeBonus, 10.0'f32)
 
-      # SectorProtocol: each kill grants +1 coin
-      if game.player.hasSectorProtocol and not enemy.isBoss:
-        game.player.coins += 1
+      # SectorProtocol: each kill grants +1 coin. Cryptominer patch: likewise.
+      # Both are per-kill grants, so they ride the density rebate -- as a
+      # CHANCE of the whole credit, because int(1 * r) would truncate to 0.
+      if not enemy.isBoss:
+        var minedCredits = 0
+        if game.player.hasSectorProtocol and rand(1.0'f32) < densityRebate(game):
+          inc minedCredits
+        if hasPatch(game.player, rrtCryptominer) and rand(1.0'f32) < densityRebate(game):
+          inc minedCredits
+        game.player.coins += minedCredits
 
       # LastTransmission: chance to heal 0.5 HP on kill
       if hasPowerUp(game.player, puLastTransmission) and not enemy.isBoss:
@@ -2952,6 +3004,22 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           addShake(game.dopamine.screenShake, siMedium, Color(r: 255, g: 120, b: 50, a: 255))
           playSound(stExplosion, 0.8)
 
+      # Zip Bomb patch: an elite process decompresses violently on death.
+      if hasPatch(game.player, rrtZipBomb) and enemy.isElite and not enemy.isBoss:
+        let zipStats = calculateCombatStats(game.player)
+        let zipDamage = zipStats.damage * ZipBombDamageMult
+        for otherEnemy in game.enemies:
+          if otherEnemy == enemy or otherEnemy.hp <= 0:
+            continue
+          if distance(enemy.pos, otherEnemy.pos) <= ZipBombRadius + otherEnemy.radius:
+            let actual = damageEnemy(otherEnemy, zipDamage)
+            game.showDamage(otherEnemy.pos, actual, fromPlayer = true, isCritical = false, damageType = dtDefault)
+        spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                             Color(r: 255, g: 150, b: 70, a: 255), 36)
+        spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, ZipBombRadius)
+        addShake(game.dopamine.screenShake, siSmall, Color(r: 255, g: 150, b: 70, a: 255))
+        playSound(stExplosion, 0.6)
+
       # ChainReaction: chance to drop a bonus coin on kill
       if hasPowerUp(game.player, puChainReaction) and not enemy.isBoss:
         let crLevel = getPowerUpLevel(game.player, puChainReaction)
@@ -2959,7 +3027,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           of 1: 20
           of 2: 30
           else: 40
-        if rand(99) < coinChance:
+        if rand(999) < int(coinChance.float32 * 10.0'f32 * densityRebate(game)):
           let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
           game.coins.add(newCoin(clampedPos.x, clampedPos.y))
 
@@ -3506,10 +3574,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     enemyIdx += 1
 
   if bossDefeated and game.mode == gmRoguelite:
-    # Boss room counts as a completed room: bank levels from XP collected in the
-    # fight. Stat boosts apply now; the queued drafts (pendingLevelDrafts) open
-    # once the player is back in normal play, after the post-boss legendary draft.
-    bankRunLevelUps(game)
     # KernelExploit: boss defeat grants +20% permanent damage
     if hasPowerUp(game.player, puKernelExploit):
       game.player.damage *= 1.20'f32
@@ -3519,7 +3583,13 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     let prevShards = game.rogueliteRun.shardsEarned
     let prevCores  = game.rogueliteRun.coresEarned
     let survivalWasUnlocked = not globalSettings.isNil and globalSettings.survivalUnlocked
+    # Clears the SERVICE room and vacuums its loot, the boss's own XP shower
+    # included, so the banking below counts it (it used to land a sector late).
     markBossRoomCleared(game)
+    # The SERVICE room counts as a completed room: bank its levels. Stat boosts
+    # apply now; the queued drafts (pendingLevelDrafts) open once the player is
+    # back in normal play, after the post-boss legendary draft.
+    bankRunLevelUps(game)
     completeRogueliteBoss(game)
     saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
     deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
@@ -3531,7 +3601,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       showCurrency(game, game.player.pos + newVector2f(0, -40), shardDelta, cikDataShards)
     if coreDelta > 0:
       showCurrency(game, game.player.pos + newVector2f(28, -26), coreDelta, cikCores)
-    game.powerUpChoices = generatePowerUpChoices(game.player, true, unlockedFamilySet(game.rogueliteProfile), game.mode)
+    game.powerUpChoices = generatePowerUpChoices(game.player, true, AllPowerFamilies, game.mode)
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
     initializeRerollCost(game)
@@ -3586,7 +3656,7 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
   saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
   deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
   game.powerUpChoices = generatePowerUpChoices(game.player, true,
-                          unlockedFamilySet(game.rogueliteProfile), game.mode)
+                          AllPowerFamilies, game.mode)
   game.selectedPowerUp = 0
   initPowerUpRollAnimation(game)
   initializeRerollCost(game)
@@ -3771,9 +3841,20 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
   rebuildEnemyGrid(game)
 
   # Update bullets
+  let packetLoss = hasPatch(game.player, rrtPacketLoss)
   var i = 0
   while i < game.bullets.len:
     let bullet = game.bullets[i]
+
+    # Packet Loss patch: some regular enemy rounds never arrive. Rolled once, on
+    # the first frame the round exists; boss attacks are never dropped.
+    if not bullet.fromPlayer and not bullet.packetChecked:
+      bullet.packetChecked = true
+      if packetLoss and not bullet.isBossBullet and rand(1.0'f32) < PacketLossChance:
+        spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                             Color(r: 120, g: 200, b: 255, a: 200), 4)
+        game.bullets.delete(i)
+        continue
 
     # Homing bullet logic
     if bullet.isHoming:
@@ -4116,6 +4197,13 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           else:
             # Apply elite modifiers to damage
             var actualDamage = finalDamage
+
+            # Root Access patch: elevated against privileged targets (bosses,
+            # elites), throttled against everything else. Applied to the landed
+            # share, not finalDamage, so Overcharge's attribution stays exact.
+            if hasPatch(game.player, rrtRootAccess):
+              actualDamage *= (if target.isBoss or target.isElite: 1.0'f32 + RootAccessBonus
+                               else: 1.0'f32 - RootAccessPenalty)
 
             # Higher defenseMultiplier = MORE defense (takes LESS damage)
             # 0.5 = half defense (takes 2x damage), 1.0 = normal, 2.0 = double defense (takes 0.5x damage)
@@ -5041,10 +5129,18 @@ proc updateGame*(game: var Game, dt: float32) =
       disableCursor()  # For mouse look
     return
 
-  # Dungeon crawler layer: room transitions, doors, pedestals, shop terminal.
-  # While a room transition is active the whole simulation pauses (fade frame).
+  # Sector layer: room transitions, exits, rewards and /pkg stalls. While a
+  # room transition is active (or a pickup just opened a modal) the rest of the
+  # simulation pauses this frame. dungeon.nim can't reach installPowerUp or
+  # the savers (death -> run_save -> dungeon), so it hands them back here.
   if game.mode == gmRoguelite and game.state == gsPlaying:
-    if updateDungeon(game, dt):
+    let frame = updateDungeon(game, dt)
+    if frame.install.level > 0:
+      installPowerUp(game, frame.install)
+    if frame.checkpoint:
+      saveRunState(game)
+      deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
+    if frame.pauseSim:
       game.time += dt
       game.frameCount += 1
       return

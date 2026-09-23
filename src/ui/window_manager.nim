@@ -108,9 +108,7 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widPvP: window = wm.pvp.window
   of widSandbox: window = wm.sandbox.window
   of widAdvancements: window = wm.advancements.window
-  of widRoguelite:
-    window = wm.roguelite.window
-    wm.roguelite.showUnlocks = false  # Always open to setup view, not shop/unlocks
+  of widRoguelite: window = wm.roguelite.window
   of widChangelog:
     window = wm.changelog.window
     resetChangelogView(wm.changelog)  # Always open on the newest version, at the top

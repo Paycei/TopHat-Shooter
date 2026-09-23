@@ -1,5 +1,5 @@
 import raylib, math
-import types, sound, gamemode_definitions, powerup, powerup_data, localization, render_context, ui/os_shop, roguelite, settings, save_system
+import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system
 
 # ENABLE/DISABLE CHEATS
 # Release-build toggle: flip to `false` to ship a build with no cheat menu.
@@ -328,11 +328,16 @@ proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) =
   discard saveRogueliteProfile(game.rogueliteProfile)
   playSound(stMenuSelect)
 
-proc applyRogueliteKeysCheat*(game: var Game, keys: int) =
-  ## Keys unlock the locked treasure rooms on the current floor (run-scoped).
-  if game.rogueliteRun.isNil: return
-  game.rogueliteRun.keys = max(0, game.rogueliteRun.keys + keys)
-  playSound(stMenuSelect)
+var cheatPatchPick = succ(rrtNone)
+  ## Patch the roguelite tab's picker currently shows.
+
+proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelicType): bool =
+  ## Apply a patch to the live run. Marks the run cheated in release builds.
+  if game.rogueliteRun.isNil: return false
+  if ANTICHEAT_ENABLED:
+    game.cheatsUsed = true
+  result = installPatch(game, patch)
+  playSound(if result: stPowerUp else: stMenuNav)
 
 proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
   ## Fast-forward (or rewind) the survival clock. In time-survival mode difficulty
@@ -1082,9 +1087,9 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
             x + 20, remainingY, 12, Yellow)
 
 proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
-  ## Mode-specific cheats for the dungeon roguelite: meta-currency injection (for
-  ## testing the unlock economy; debug builds only), keys, relic grants, and a floor-skip that
-  ## replays the floor-boss-defeated flow (see cheatCompleteRogueliteFloor).
+  ## Mode-specific cheats for the roguelite: meta-currency injection (debug
+  ## builds only), patch installs, and a sector-skip that replays the
+  ## SERVICE-defeated flow (see cheatCompleteRogueliteFloor).
   var currentY = y + 10
 
   if game.rogueliteRun.isNil or game.rogueliteProfile.isNil:
@@ -1111,13 +1116,15 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
     result = hovered and isMouseButtonPressed(Left)
 
   # --- Run / profile info -------------------------------------------------
-  drawText("Floor: " & $run.floorNumber & " / " & $RogueliteFloorsToWin &
+  let layer = if run.floor.isNil or run.floor.rooms.len == 0: 0
+              else: run.floor.rooms[run.floor.rooms.high].layer
+  let layers = if run.floor.isNil: 0 else: max(0, run.floor.layers.len - 2)
+  drawText("Sector: " & $run.floorNumber & " / " & $RogueliteFloorsToWin &
+           "    Folder: " & $layer & " / " & $layers &
            "    Endless Loop: " & $run.endlessLoop, x + 20, currentY, 14, White)
   currentY += 22
-  drawText("Heat: " & $run.heat & "    Rooms Cleared: " & $run.totalRoomsCleared,
-           x + 20, currentY, 14, White)
-  currentY += 22
-  drawText("Keys: " & $run.keys & "    Relics: " & $run.relics.len,
+  drawText("Heat: " & $run.heat & "    Folders Cleared: " & $run.totalRoomsCleared &
+           "    Patches: " & $run.relics.len,
            x + 20, currentY, 14, White)
   currentY += 22
   drawText("Data Shards: " & $profile.dataShards & "    Cores: " & $profile.cores,
@@ -1152,25 +1159,35 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
       applyRogueliteCurrencyCheat(game, 0, 10)
     currentY += bh + 10
 
-  # Keys row
-  drawText("Keys", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "+1", Color(r: 60, g: 40, b: 0, a: 255), Orange):
-    applyRogueliteKeysCheat(game, 1)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5", Color(r: 60, g: 40, b: 0, a: 255), Orange):
-    applyRogueliteKeysCheat(game, 5)
-  currentY += bh + 16
+  # Patch picker: < name > [Apply]
+  drawText("Patch", labelX, currentY + 6, 14, White)
+  if btn(btnStartX, currentY, 28, bh, "<", Color(r: 30, g: 40, b: 60, a: 255), SkyBlue):
+    cheatPatchPick = if cheatPatchPick <= succ(rrtNone): high(RogueliteRelicType)
+                     else: pred(cheatPatchPick)
+  let owned = run.hasRelic(cheatPatchPick)
+  let pickLabel = patchKbLabel(cheatPatchPick) & " " & patchName(cheatPatchPick) &
+                  (if owned: " (applied)" else: "")
+  drawText(pickLabel, btnStartX + 36, currentY + 7, 12, if owned: Gray else: White)
+  let applyX = x + width - 20 - 150
+  if btn(applyX - 36, currentY, 28, bh, ">", Color(r: 30, g: 40, b: 60, a: 255), SkyBlue):
+    cheatPatchPick = if cheatPatchPick >= high(RogueliteRelicType): succ(rrtNone)
+                     else: succ(cheatPatchPick)
+  if btn(applyX, currentY, 150, bh, "Apply Patch", Color(r: 60, g: 0, b: 60, a: 255), Magenta):
+    discard applyRoguelitePatchCheat(game, cheatPatchPick)
+  currentY += bh + 12
 
-  # Full-width actions: grant relic + skip floor
+  # Full-width actions: random patch + skip sector
   let wideW = width - 40
-  if btn(labelX, currentY, wideW, bh + 4, "Grant Next Unlocked Relic",
+  if btn(labelX, currentY, wideW, bh + 4, "Apply Random Patch",
          Color(r: 60, g: 0, b: 60, a: 255), Magenta):
-    if grantNextUnlockedRelic(game):
-      playSound(stPowerUp)
+    let pool = rollPatchChoices(run, 1)
+    if pool.len > 0:
+      discard applyRoguelitePatchCheat(game, pool[0])
     else:
       playSound(stMenuNav)
   currentY += bh + 14
 
-  if btn(labelX, currentY, wideW, bh + 4, "Skip Floor (Complete Boss)",
+  if btn(labelX, currentY, wideW, bh + 4, "Skip Sector (Complete SERVICE)",
          Color(r: 80, g: 0, b: 0, a: 255), Red):
     if ANTICHEAT_ENABLED:
       game.cheatsUsed = true
