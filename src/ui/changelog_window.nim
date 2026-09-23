@@ -421,6 +421,17 @@ let changelog: seq[ChangelogVersion] = @[
         headEs: "Se elimina la bonificación de regreso",
         en: "Starting a new Wave mode run after a death no longer grants +10% health, damage, speed, fire rate and bullet speed until you pass the wave you died on.",
         es: "Empezar una nueva partida del modo oleadas tras morir ya no da +10% de vida, daño, velocidad, cadencia y velocidad de bala hasta superar la oleada en la que moriste."),
+      ChangelogEntry(category: clcBalance,
+        headEn: "Octagon Sprayers no longer flood the screen",
+        headEs: "Los Dispersadores ya no inundan la pantalla",
+        en: points(
+          "Octagon Sprayers fire every 0.5 seconds (was 0.4).",
+          "Their slow shots now fade out after 3 seconds instead of 4. They still reach you from their usual distance, but misses no longer drift across the whole arena.",
+          "Together this leaves about 40% fewer of their bullets on screen."),
+        es: points(
+          "Los Dispersadores disparan cada 0.5 segundos (antes 0.4).",
+          "Sus balas lentas ahora se desvanecen tras 3 segundos en lugar de 4. Siguen alcanzándote desde su distancia habitual, pero las que fallan ya no cruzan toda la arena.",
+          "En conjunto quedan alrededor de un 40% menos de sus balas en pantalla.")),
 
       # --- Fixes ---
       ChangelogEntry(category: clcFixed,

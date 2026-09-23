@@ -168,6 +168,8 @@ proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game)
     # Set custom bullet size if specified
     if attack.bulletRadius > 0:
       bullet.radius = attack.bulletRadius
+    if attack.bulletLifetime > 0:
+      bullet.lifetime = attack.bulletLifetime
 
     game.bullets.add(bullet)
 

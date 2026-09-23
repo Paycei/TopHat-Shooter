@@ -31,6 +31,7 @@ type
     randomizeBulletCount*: bool  # Whether to randomize bullet count
     inaccuracyAmount*: float32   # Random spread amount (0.0 = perfect aim)
     bulletRadius*: float32       # Bullet size (0 = use default)
+    bulletLifetime*: float32     # Seconds before the bullet despawns (0 = use default)
 
   EnemyMovementConfig* = object
     ## Configuration for enemy movement behavior
@@ -528,7 +529,8 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
       hasRangedAttack: true,
       attack: EnemyAttackConfig(
-        fireRate: 0.4,        # Very frequent shots
+        fireRate: 0.5,        # Very frequent shots (was 0.4: tuned for the old
+                              # sparse waves, it carpeted the screen in swarms)
         bulletSpeed: 120.0,   # Slow projectiles
         bulletCount: 1,       # Single shot
         spreadAngle: 0.8,     # High inaccuracy (random ±0.4 radians)
@@ -542,7 +544,11 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         bulletCountMax: 0,
         randomizeBulletCount: false,
         inaccuracyAmount: 0.45,  # Reduced inaccuracy - shots land more often
-        bulletRadius: 0.0
+        bulletRadius: 0.0,
+        # ~450px of travel: over twice the 200px Octagons hold from the player,
+        # so every aimed shot still arrives, but misses fade out instead of
+        # drifting across the whole arena at this crawl for the default 4s.
+        bulletLifetime: 3.0
       ),
 
       hasSpecialBehavior: false,

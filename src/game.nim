@@ -3298,8 +3298,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # bullet trail an actual spiral rather than a ring.
       updateBossSpiralStream(game, enemy, dt)
 
-    # Regular enemy shooting (config-driven system)
-    if enemy.enemyType in [etCube, etHexagon, etOctagon, etPentagon, etPhantom, etDiamond, etMage]:
+    # Regular enemy shooting (config-driven system). Octagons are left out: their
+    # fire is owned by executeRangedAttack in updateEnemy, and listing them here
+    # too gave them a second, differently-aimed path that could double-fire.
+    if enemy.enemyType in [etCube, etHexagon, etPentagon, etPhantom, etDiamond, etMage]:
       let config = getEnemyConfig(enemy.enemyType)
 
       # Only shoot if enemy has ranged attack configured, and -- like
@@ -3357,14 +3359,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
                 shootDir = newVector2f(
                   dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
                   dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
-                )
-
-              # Add inaccuracy for Octagon
-              if enemy.enemyType == etOctagon:
-                let inaccuracy = (rand(1.0) - 0.5) * attackConfig.spreadAngle
-                shootDir = newVector2f(
-                  shootDir.x * cos(inaccuracy) - shootDir.y * sin(inaccuracy),
-                  shootDir.x * sin(inaccuracy) + shootDir.y * cos(inaccuracy)
                 )
 
               let bullet = newBullet(
