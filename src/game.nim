@@ -2325,6 +2325,9 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
           heatRank.float32 * RogueliteHeatSpawnRatePerTier +
           run.endlessLoop.float32 * 0.14'f32))
 
+      # Profile difficulty packs the same head count into tighter bursts.
+      baseSpawnRate /= difficultySpawnPaceMult()
+
       if game.spawnTimer > baseSpawnRate and game.waveEnemiesRemaining > 0:
         if game.mode == gmRoguelite:
           spawnDungeonEnemies(game, spawnCount)
@@ -3304,7 +3307,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
                                         phase, bossDef)
               else:
                 executeCustomBossAttack(game, enemy, attack, phase, bossDef)
-              enemy.attackTimers[i] = attack.cooldown
+              enemy.attackTimers[i] = attack.cooldown * difficultyBossCooldownMult()
               enemy.attackWarningFired[i] = false
 
       # Drive any in-flight spiral volley armed by bapSpiral. This emits one step

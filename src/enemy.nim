@@ -20,7 +20,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
     collisionRadius: stats.radius * 0.4,  # 40% of visual size for enemy collision
     hp: finalHp,
     maxHp: finalHp,
-    speed: stats.speed,
+    speed: stats.speed * difficultyEnemySpeedMult(),
     contactDamage: config.contactDamage,
     rangedDamage: if config.hasRangedAttack: config.attack.damage else: 0,
     color: config.baseColor,
@@ -4978,7 +4978,8 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
     var initialAttackWarningFired: seq[bool] = @[]
     if bossDef.phases.len > 0:
       for attack in bossDef.phases[0].attacks:
-        initialAttackTimers.add(attack.cooldown)  # Start with cooldown so attacks don't fire immediately
+        # Start with cooldown so attacks don't fire immediately
+        initialAttackTimers.add(attack.cooldown * difficultyBossCooldownMult())
         initialAttackWarningFired.add(false)
 
     # Apply first phase multipliers to initial stats
@@ -5072,7 +5073,10 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
   let baseChance = min(2 + (waveNumber.float32 * 0.35).int, 12)
   let lateBonus = max(0, waveNumber - 28)
   let eliteChance = min(baseChance + lateBonus, 32)
-  let scaledChance = int(eliteChance.float32 * 10.0'f32 * clamp(chanceScale, 0.0'f32, 1.0'f32))
+  # Profile difficulty multiplies outside the clamp, which only bounds the
+  # caller's density normalisation.
+  let scaledChance = int(eliteChance.float32 * 10.0'f32 * clamp(chanceScale, 0.0'f32, 1.0'f32) *
+                         difficultyEliteChanceMult())
   if rand(999) >= scaledChance:
     return
 

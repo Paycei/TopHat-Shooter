@@ -39,6 +39,7 @@ proc spawnSurvivalEnemies*(game: Game) =
   # Double spawn pressure while a boss is alive
   if game.bossWaveManager.active:
     currentSpawnRate = currentSpawnRate * 2.0
+  currentSpawnRate /= difficultySpawnPaceMult()
 
   if game.spawnTimer > currentSpawnRate:
     # While a boss is alive, lock the type roster to what was already spawning so no

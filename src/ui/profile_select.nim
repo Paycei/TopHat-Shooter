@@ -397,20 +397,27 @@ proc drawProfileSelect*(state: ProfileSelectState, screenWidth, screenHeight: in
       drawCenteredText(name, cx, (rect.y + 38).int32, nameSize, difficultyColor(d))
       drawCenteredText(nameEs, cx, (rect.y + 74).int32, 18,
                        Color(r: 170, g: 185, b: 205, a: 230))
+      # Numbers mirror the difficulty table in types.nim.
+      const NightmareWarningLine = 4  # index of the "NO CONTINUE" line, drawn in the card colour
       let lines = case d
         of gdEasy: @["-25% enemy HP / vida", "-30% enemy damage / daño"]
         of gdMedium: @["The classic balance", "El equilibrio clasico"]
-        of gdHard: @["+35% enemy HP / vida", "+30% enemy damage / daño"]
-        of gdNightmare: @["+50% enemy HP / vida", "+50% enemy damage / daño",
+        of gdHard: @["+40% enemy HP / vida", "+40% enemy damage / daño",
+                     "Faster, denser swarms", "Enjambres mas rapidos"]
+        of gdNightmare: @["+80% enemy HP / vida", "+80% enemy damage / daño",
+                          "Relentless swarms", "Enjambres implacables",
                           "NO CONTINUE / SIN CONTINUAR", "Death = restart at wave 1",
                           "Muerte = reinicio en oleada 1"]
+      # Longer lists switch to a smaller type size; either way the block is
+      # centred in the band between the Spanish name and the click hint.
+      let compact = lines.len > 4
+      let lineSize = if compact: 12'i32 else: 15'i32
+      let lineStep = if compact: 17.0'f32 else: 24.0'f32
+      let blockH = (lines.len - 1).float32 * lineStep + lineSize.float32
+      let lineTop = 160.0'f32 - blockH / 2.0'f32
       for i, line in lines:
-        # The nightmare card carries more lines, in a smaller type size.
-        let lineSize = if d == gdNightmare: 12'i32 else: 15'i32
-        let lineStep = if d == gdNightmare: 21.0'f32 else: 26.0'f32
-        let lineTop = if d == gdNightmare: 112.0'f32 else: 130.0'f32
         drawCenteredText(line, cx, (rect.y + lineTop + i.float32 * lineStep).int32, lineSize,
-                         if d == gdNightmare and i == 2: difficultyColor(d)
+                         if d == gdNightmare and i == NightmareWarningLine: difficultyColor(d)
                          else: Color(r: 200, g: 212, b: 228, a: 240))
       drawCenteredText("[" & $(ord(d) + 1) & "]  Click / Clic", cx,
                        (rect.y + rect.height - 32.0'f32).int32, 14,

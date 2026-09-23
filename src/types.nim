@@ -154,7 +154,8 @@ type
     ## Difficulty also sets the wave-mode lives budget -- how many times a run may
     ## continue from the death-surviving block checkpoint (see difficultyMaxLives
     ## below): unlimited / 3 / 1 / 0. Nightmare's 0 is what makes every death
-    ## there restart at wave 1.
+    ## there restart at wave 1. The combat multipliers live in the difficulty
+    ## table further down (difficultyEnemyHpMult and friends).
     gdEasy = "easy", gdMedium = "medium", gdHard = "hard", gdNightmare = "nightmare"
 
   CutsceneContinuation* = enum
@@ -1683,19 +1684,74 @@ proc waveDensityRebate*(waveNumber: int): float32 =
               max(1.0, float(calculateWaveEnemyCount(waveNumber)))
   result = max(0.30'f32, float32(ratio))
 
+# ---------------------------------------------------------------------------
+# Profile difficulty table.
+#
+# HP and damage alone did not make the upper tiers feel different: the player's
+# power compounds every wave (startWave, level-ups, power-ups), so a flat enemy
+# HP bonus is out-scaled within a few waves and stops being noticed. Hard and
+# Nightmare therefore also change how the fight PLAYS -- enemies that close
+# faster, arrive in tighter bursts, turn elite more often, and bosses that fire
+# more often. Easy and Medium are exactly 1.0 on every lever except HP/damage,
+# so the classic balance is untouched.
+#
+# Each lever is consumed at one choke point, never read ad hoc:
+#   HP          newEnemy / spawnBoss (enemy.nim), game3d
+#   damage      takeDamage (player.nim), game3d
+#   speed       newEnemy (enemy.nim)
+#   spawn pace  updateEnemySpawning (game.nim), spawnSurvivalEnemies
+#   elites      makeElite (enemy.nim)
+#   boss pace   spawnBoss (enemy.nim) + the boss attack-timer reset (game.nim)
+# ---------------------------------------------------------------------------
+
 proc difficultyEnemyHpMult*(): float32 =
   case currentDifficulty
   of gdEasy: 0.75'f32
   of gdMedium: 1.0'f32
-  of gdHard: 1.35'f32
-  of gdNightmare: 1.5'f32
+  of gdHard: 1.40'f32
+  of gdNightmare: 1.80'f32
 
 proc difficultyEnemyDamageMult*(): float32 =
   case currentDifficulty
   of gdEasy: 0.70'f32
   of gdMedium: 1.0'f32
-  of gdHard: 1.30'f32
-  of gdNightmare: 1.5'f32
+  of gdHard: 1.40'f32
+  of gdNightmare: 1.80'f32
+
+proc difficultyEnemySpeedMult*(): float32 =
+  ## Regular-enemy movement speed. Bosses are excluded: their movement is
+  ## choreographed (orbit landing radii, dash lanes), so they get harder through
+  ## difficultyBossCooldownMult instead.
+  case currentDifficulty
+  of gdEasy, gdMedium: 1.0'f32
+  of gdHard: 1.12'f32
+  of gdNightmare: 1.22'f32
+
+proc difficultySpawnPaceMult*(): float32 =
+  ## Divides the delay between spawn ticks. A wave's head count is unchanged
+  ## (every per-enemy reward is normalised against calculateWaveEnemyCount, see
+  ## waveDensityRebate), so this packs the same wave into a shorter window: more
+  ## bodies on screen at once, not a bigger economy.
+  case currentDifficulty
+  of gdEasy, gdMedium: 1.0'f32
+  of gdHard: 1.25'f32
+  of gdNightmare: 1.50'f32
+
+proc difficultyEliteChanceMult*(): float32 =
+  ## Scales the per-enemy elite roll in makeElite.
+  case currentDifficulty
+  of gdEasy, gdMedium: 1.0'f32
+  of gdHard: 1.5'f32
+  of gdNightmare: 2.0'f32
+
+proc difficultyBossCooldownMult*(): float32 =
+  ## Scales every custom-boss attack cooldown (lower = attacks more often).
+  ## Phase-transition silences are left alone, so a boss still resumes exactly
+  ## when its invulnerability ends.
+  case currentDifficulty
+  of gdEasy, gdMedium: 1.0'f32
+  of gdHard: 0.85'f32
+  of gdNightmare: 0.72'f32
 
 proc difficultyMaxLives*(): int =
   ## Continues ("lives") a wave-mode run gets on this profile, or UnlimitedLives
