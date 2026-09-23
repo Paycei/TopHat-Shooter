@@ -323,13 +323,10 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
                                 width: width.float32, height: height.float32),
                     borderWidth, borderColor)
 
-  # Icon - drawn programmatically
-  let iconColor = if canAfford:
-    Color(r: 100, g: 200, b: 255, a: 255)
-  else:
-    Color(r: 80, g: 90, b: 100, a: 255)
-
-  drawShopIcon(x + 8, y + int32(height div 2) - 14, 28, itemIndex, iconColor)
+  # Icon - drawn programmatically on an app-style tile in the slot's own hue
+  const ICON_TILE: int32 = 38
+  drawShopIconTile(x + 6, y + (height - ICON_TILE) div 2, ICON_TILE, itemIndex,
+                   canAfford, isSelected)
 
   # Text color
   let textColor = if not canAfford:

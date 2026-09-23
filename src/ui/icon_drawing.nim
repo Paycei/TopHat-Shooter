@@ -1418,115 +1418,240 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawLine(cx - 6, cy - 9, cx, cy - 14, bright)
     drawLine(cx, cy - 14, cx + 6, cy - 9, bright)
 
+# ---------------------------------------------------------------------------
+# Shop upgrade icons
+# ---------------------------------------------------------------------------
+
+proc mixShade(c, target: Color, t: float32): Color =
+  ## Blend `c` toward `target` by `t` (0..1), keeping c's alpha. Stays inside
+  ## the two colours, so unlike `min(c.r + n, 255)` on a uint8 it can't wrap
+  ## (that wrap is what painted magenta/lime streaks on the old shop icons).
+  Color(r: uint8(c.r.float32 + (target.r.float32 - c.r.float32) * t),
+        g: uint8(c.g.float32 + (target.g.float32 - c.g.float32) * t),
+        b: uint8(c.b.float32 + (target.b.float32 - c.b.float32) * t),
+        a: c.a)
+
+proc sv(x, y: float32): Vector2 {.inline.} = Vector2(x: x, y: y)
+
+proc shopTri(a, b, c: Vector2, col: Color) =
+  ## Winding-safe triangle. raylib culls clockwise triangles, which silently
+  ## dropped the old heart's lower half and the rocket's fins.
+  let cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+  if cross < 0.0'f32: drawTriangle(a, b, c, col)
+  else: drawTriangle(a, c, b, col)
+
+proc shopFan(pts: openArray[Vector2], col: Color) =
+  ## Fill a polygon that is star-shaped around pts[0].
+  for i in 1 ..< pts.len - 1:
+    shopTri(pts[0], pts[i], pts[i + 1], col)
+
+proc shopOutline(pts: openArray[Vector2], thick: float32, col: Color) =
+  ## Closed stroke with round joins. Drawn under a fill, half of it survives
+  ## as a dark rim that keeps the silhouette readable on every row colour.
+  for i in 0 ..< pts.len:
+    drawLine(pts[i], pts[(i + 1) mod pts.len], thick, col)
+    drawCircle(pts[i], thick * 0.5'f32, col)
+
+proc shopRect(x0, y0, x1, y1: float32, col: Color) {.inline.} =
+  drawRectangle(Rectangle(x: x0, y: y0, width: x1 - x0, height: y1 - y0), col)
+
+proc shopBrick(x0, y0, x1, y1: float32, fill, top, bottom: Color) =
+  shopRect(x0, y0, x1, y1, fill)
+  shopRect(x0, y0, x1, y0 + 1.1'f32, top)
+  shopRect(x0, y1 - 1.0'f32, x1, y1, bottom)
+
 proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
-  let cx = x + size div 2
-  let cy = y + size div 2
-  let rad = size.float32 / 2.5
+  ## Shop upgrade glyph, indexed by shop slot: 0 damage, 1 fire rate, 2 move
+  ## speed, 3 max health, 4 bullet speed, 5 walls. Any other index draws a
+  ## gear, which the cinematic recorder overlay relies on. Authored on a
+  ## 32-unit grid and scaled to `size` like drawPowerUpIcon. Every shade is
+  ## derived from `color`: the shop dims it for unaffordable rows and the
+  ## cinematics pass a translucent accent, so no hue may be hard-coded here.
+  if size <= 0:
+    return
+
+  const Grid = 32.0'f32
+  const Edge = 2.6'f32   # ink outline stroke, in grid units
+  let k = size.float32 / Grid
+  rlgl.pushMatrix()
+  defer: rlgl.popMatrix()
+  rlgl.translatef(x.float32, y.float32, 0.0'f32)
+  rlgl.scalef(k, k, 1.0'f32)
+
+  let ink = Color(r: 8, g: 11, b: 18, a: uint8(color.a.int * 220 div 255))
+  let base = color
+  let light = mixShade(color, White, 0.42'f32)
+  let pale = mixShade(color, White, 0.78'f32)
+  let shade = mixShade(color, Black, 0.22'f32)
+  let deep = mixShade(color, Black, 0.45'f32)
 
   case itemIndex
-  of 0: # Damage + (Sword)
-    drawRectangle(cx - 1, cy - 9, 5, 14, Color(r: 0, g: 0, b: 0, a: 60))
-    drawRectangle(cx - 2, cy - 11, 4, 14, color)
-    drawLine(cx, cy - 11, cx, cy + 3, Color(r: min(color.r + 120, 255), g: min(color.g + 120, 255), b: min(color.b + 120, 255), a: 255))
-    drawRectangle(cx - 7, cy + 3, 14, 4, Color(r: min(color.r - 30, 0), g: min(color.g - 30, 0), b: min(color.b - 30, 0), a: color.a))
-    drawRectangle(cx - 7, cy + 3, 14, 2, color)
-    drawRectangle(cx - 3, cy + 7, 6, 7, Color(r: 100, g: 70, b: 50, a: 255))
-    drawRectangle(cx - 3, cy + 8, 6, 1, Color(r: 150, g: 120, b: 90, a: 255))
-    drawRectangle(cx - 3, cy + 11, 6, 1, Color(r: 150, g: 120, b: 90, a: 255))
-    drawCircle(Vector2(x: cx.float32, y: (cy + 15).float32), 3, Color(r: 120, g: 90, b: 60, a: 255))
-    drawLine(cx - 1, cy - 9, cx - 1, cy - 3, Color(r: 255, g: 255, b: 255, a: 180))
+  of 0: # Damage + -- sword angled up-right
+    rlgl.pushMatrix()
+    rlgl.translatef(17.0'f32, 15.5'f32, 0.0'f32)
+    rlgl.rotatef(45.0'f32, 0.0'f32, 0.0'f32, 1.0'f32)
+    let blade = [sv(0, -15), sv(3.2, -10.5), sv(3.2, 4), sv(-3.2, 4), sv(-3.2, -10.5)]
+    shopOutline(blade, Edge, ink)
+    shopRect(-9.3, 2.7, 9.3, 8.8, ink)
+    shopRect(-3.1, 7.0, 3.1, 13.8, ink)
+    drawCircle(sv(0, 14.2), 3.7, ink)
+    # Two-tone blade: the shaded half is the bevel.
+    shopFan(blade, pale)
+    shopFan([sv(0, -15), sv(3.2, -10.5), sv(3.2, 4), sv(0, 4)], light)
+    shopRect(-8, 4, 8, 7.5, base)          # crossguard
+    shopRect(-8, 4, 8, 5.1, light)
+    shopRect(-1.8, 7.5, 1.8, 12.5, deep)   # grip
+    shopRect(-1.8, 9.4, 1.8, 10.3, ink)
+    drawCircle(sv(0, 14.2), 2.4, base)     # pommel
+    drawCircle(sv(-0.6, 13.6), 0.9, pale)
+    rlgl.popMatrix()
 
-  of 1: # Fire Rate + (Lightning)
-    for i in 1..3:
-      let glowOffset = i * 2
-      let alpha = uint8(80 - i * 15)
-      drawLine(Vector2(x: (cx + 3 + glowOffset).float32, y: (cy - 12).float32),
-              Vector2(x: (cx + 1 + glowOffset).float32, y: (cy - 3).float32), float32(5 - i),
-              withAlpha(color, alpha))
-    drawLine(Vector2(x: (cx + 3).float32, y: (cy - 12).float32),
-            Vector2(x: (cx + 1).float32, y: (cy - 3).float32), 5, color)
-    drawLine(Vector2(x: (cx + 1).float32, y: (cy - 3).float32),
-            Vector2(x: (cx + 5).float32, y: cy.float32), 5, color)
-    drawLine(Vector2(x: (cx + 5).float32, y: cy.float32),
-            Vector2(x: (cx - 2).float32, y: (cy + 12).float32), 5, color)
-    drawLine(Vector2(x: (cx + 3).float32, y: (cy - 12).float32),
-            Vector2(x: (cx + 1).float32, y: (cy - 3).float32), 2, Color(r: 255, g: 255, b: 255, a: 255))
-    drawCircle(Vector2(x: (cx + 3).float32, y: (cy - 12).float32), 3, Color(r: 255, g: 255, b: 255, a: 255))
-  of 2: # Move Speed + (Running shoe)
-    drawRectangle(cx - 7, cy - 2, 14, 10, Color(r: 0, g: 0, b: 0, a: 60))
-    drawRectangle(cx - 9, cy - 4, 14, 9, color)
-    drawRectangle(cx - 9, cy - 3, 14, 2, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
-    drawTriangle(Vector2(x: (cx + 5).float32, y: cy.float32),
-                Vector2(x: (cx + 5).float32, y: (cy - 9).float32),
-                Vector2(x: (cx + 14).float32, y: (cy - 5).float32), color)
-    drawLine(Vector2(x: (cx + 5).float32, y: (cy - 9).float32), Vector2(x: (cx + 14).float32, y: (cy - 5).float32), 2,
-            Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
-    for i in 0..2:
-      let xOff = int32(-14 - i * 4)
-      drawLine(int32(cx + xOff), int32(cy - 2 - i * 2), int32(cx + xOff + 6), int32(cy - 2 - i * 2), withAlpha(color, uint8(120 - i * 30)))
+  of 1: # Fire Rate + -- lightning bolt
+    let bolt = [sv(14, 2), sv(23, 2), sv(18.5, 12), sv(25, 12),
+                sv(11, 30), sv(14.5, 18), sv(7, 18)]
+    drawCircleGradient(16, 16, 14.0, withAlpha(base, base.a.int * 70 div 255),
+                       withAlpha(base, 0))
+    shopOutline(bolt, Edge, ink)
+    # Concave, so triangulated by hand rather than fanned.
+    for tri in [[0, 1, 2], [0, 2, 6], [2, 5, 6], [2, 3, 5], [3, 4, 5]]:
+      shopTri(bolt[tri[0]], bolt[tri[1]], bolt[tri[2]], base)
+    drawLine(sv(15, 4.3), sv(9.7, 16.3), 1.6, pale)
+    drawLine(sv(15.6, 20), sv(13.9, 25), 1.3, light)
 
-  of 3: # Max Health + (Heart)
-    drawCircle(Vector2(x: (cx - 4).float32, y: (cy - 1).float32), 6, Color(r: 0, g: 0, b: 0, a: 60))
-    drawCircle(Vector2(x: (cx + 6).float32, y: (cy - 1).float32), 6, Color(r: 0, g: 0, b: 0, a: 60))
-    drawCircle(Vector2(x: (cx - 5).float32, y: (cy - 3).float32), 6, color)
-    drawCircle(Vector2(x: (cx + 5).float32, y: (cy - 3).float32), 6, color)
-    drawTriangle(Vector2(x: (cx - 11).float32, y: (cy - 3).float32),
-                Vector2(x: (cx + 11).float32, y: (cy - 3).float32),
-                Vector2(x: cx.float32, y: (cy + 12).float32), color)
-    drawCircle(Vector2(x: (cx - 7).float32, y: (cy - 6).float32), 3, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 200))
-    drawCircle(Vector2(x: (cx + 3).float32, y: (cy - 6).float32), 2, Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 150))
-    drawCircleLines(Vector2(x: cx.float32, y: (cy + 1).float32), rad + 4, withAlpha(color, 60))
+  of 2: # Move Speed + -- winged boot
+    # Speed streaks trailing the heel.
+    drawLine(sv(2.5, 18), sv(9, 18), 1.8, withAlpha(light, light.a.int * 170 div 255))
+    drawLine(sv(5, 21.5), sv(9.5, 21.5), 1.8, withAlpha(light, light.a.int * 110 div 255))
+    # Wing: each feather's ink overlaps the one above, which separates them.
+    let feathers = [(sv(12.5, 8), sv(3.5, 3.5), 3.0'f32),
+                    (sv(12.5, 10.5), sv(2.8, 8.8), 3.0'f32),
+                    (sv(12.5, 13), sv(4.5, 13.8), 2.6'f32)]
+    for f in feathers:
+      drawLine(f[0], f[1], f[2] + Edge, ink)
+      drawCircle(f[1], (f[2] + Edge) * 0.5'f32, ink)
+      drawLine(f[0], f[1], f[2], pale)
+      drawCircle(f[1], f[2] * 0.5'f32, pale)
+    let boot = [sv(12, 23.5), sv(12, 5), sv(20, 5), sv(20, 14), sv(24, 15.2),
+                sv(27, 17.2), sv(28.5, 20.5), sv(28.5, 23.5)]
+    shopOutline(boot, Edge, ink)
+    shopRect(9.7, 22.2, 30.8, 28.3, ink)
+    shopFan(boot, base)
+    shopRect(11, 23.5, 29.5, 27, deep)     # sole
+    shopRect(11, 23.5, 29.5, 24.5, shade)
+    shopRect(11.2, 4, 20.8, 7.5, light)    # cuff
+    drawLine(sv(16.5, 10), sv(20, 10), 1.3, pale)
+    drawLine(sv(16.5, 13), sv(20, 13), 1.3, pale)
+    drawLine(sv(21, 15.9), sv(23.5, 17), 1.3, pale)
 
-  of 4: # Bullet Speed + (Rocket)
-    drawTriangle(Vector2(x: (cx + 1).float32, y: (cy - 9).float32),
-                Vector2(x: (cx - 3).float32, y: (cy - 1).float32),
-                Vector2(x: (cx + 5).float32, y: (cy - 1).float32), Color(r: 0, g: 0, b: 0, a: 60))
-    drawTriangle(Vector2(x: cx.float32, y: (cy - 11).float32),
-                Vector2(x: (cx - 5).float32, y: (cy - 2).float32),
-                Vector2(x: (cx + 5).float32, y: (cy - 2).float32), color)
-    drawLine(cx - 2, cy - 8, cx - 2, cy - 3, Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 200))
-    drawRectangle(cx - 4, cy - 2, 8, 12, color)
-    drawRectangle(cx - 3, cy - 2, 3, 12, Color(r: min(color.r + 60, 255), g: min(color.g + 60, 255), b: min(color.b + 60, 255), a: 255))
-    drawCircle(Vector2(x: cx.float32, y: (cy + 2).float32), 3, Color(r: 100, g: 180, b: 255, a: 255))
-    drawTriangle(Vector2(x: (cx - 4).float32, y: (cy + 10).float32),
-                Vector2(x: (cx - 8).float32, y: (cy + 14).float32),
-                Vector2(x: (cx - 4).float32, y: (cy + 12).float32), color)
-    drawTriangle(Vector2(x: (cx + 4).float32, y: (cy + 10).float32),
-                Vector2(x: (cx + 8).float32, y: (cy + 14).float32),
-                Vector2(x: (cx + 4).float32, y: (cy + 12).float32), color)
-    drawTriangle(Vector2(x: (cx - 3).float32, y: (cy + 10).float32),
-                Vector2(x: (cx + 3).float32, y: (cy + 10).float32),
-                Vector2(x: cx.float32, y: (cy + 16).float32), Color(r: 255, g: 150, b: 50, a: 255))
-  of 5: # Wall (x5) - Brick wall
-    let brickColor = color
-    let mortarColor = Color(r: max(color.r - 50, 0), g: max(color.g - 50, 0), b: max(color.b - 50, 0), a: 255)
-    drawRectangle(cx - 12, cy - 10, 24, 20, mortarColor)
-    for row in 0..2:
-      let yPos: int32 = cy - 10 + int32(row * 7)
-      let offset: int32 = if row mod 2 == 0: 0 else: 6
-      for col in 0..2:
-        let xPos: int32 = cx - 12 + offset + int32(col * 12)
-        if xPos + 10 <= cx + 12:
-          drawRectangle(xPos + 1, yPos + 1, 10, 5, Color(r: 0, g: 0, b: 0, a: 80))
-          drawRectangle(xPos, yPos, 10, 5, brickColor)
-          drawRectangle(xPos, yPos, 10, 1, Color(r: min(brickColor.r + 60, 255), g: min(brickColor.g + 60, 255), b: min(brickColor.b + 60, 255), a: 255))
-          drawRectangle(xPos, yPos, 1, 5, Color(r: min(brickColor.r + 40, 255), g: min(brickColor.g + 40, 255), b: min(brickColor.b + 40, 255), a: 255))
-    drawRectangleLines(Rectangle(x: (cx - 12).float32, y: (cy - 10).float32, width: 24, height: 20), 2, color)
+  of 3: # Max Health + -- heart with a plus
+    # Classic parametric heart (x = 16 sin^3 t, y = 13cos t - 5cos 2t - ...),
+    # fanned from a point inside both lobes.
+    const Steps = 40
+    var edge: array[Steps, Vector2]
+    for i in 0 ..< Steps:
+      let t = i.float32 / Steps.float32 * 2.0'f32 * PI.float32
+      let st = sin(t)
+      let hx = 16.0'f32 * st * st * st
+      let hy = 13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) -
+               2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)
+      edge[i] = sv(16.0'f32 + hx * 0.8'f32, 16.5'f32 - (hy + 2.5'f32) * 0.8'f32)
+    let mid = sv(16, 16.5)
+    shopOutline(edge, Edge, ink)
+    for i in 0 ..< Steps:
+      shopTri(mid, edge[i], edge[(i + 1) mod Steps], base)
+    drawCircle(sv(9.8, 10.6), 2.6, light)
+    drawCircle(sv(9.2, 10.0), 1.1, pale)
+    shopRect(11.8, 14.6, 21.8, 18.2, deep)  # plus, with a drop shadow
+    shopRect(15.0, 11.4, 18.6, 21.4, deep)
+    shopRect(11, 13.8, 21, 17.2, pale)
+    shopRect(14.3, 10.5, 17.7, 20.5, pale)
 
-  else:
-    # Default gear
-    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 1).float32), rad * 0.6, Color(r: 0, g: 0, b: 0, a: 60))
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.6, color)
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.6,
-                   Color(r: min(color.r + 80, 255), g: min(color.g + 80, 255), b: min(color.b + 80, 255), a: 255))
-    for i in 0..11:
-      let angle = i.float32 * PI / 6
-      let x1 = cx.float32 + cos(angle) * (rad * 0.6)
-      let y1 = cy.float32 + sin(angle) * (rad * 0.6)
-      let x2 = cx.float32 + cos(angle) * rad
-      let y2 = cy.float32 + sin(angle) * rad
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, color)
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1,
-              Color(r: min(color.r + 100, 255), g: min(color.g + 100, 255), b: min(color.b + 100, 255), a: 255))
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), rad * 0.3, Color(r: 30, g: 35, b: 45, a: 255))
-    drawCircleLines(Vector2(x: cx.float32, y: cy.float32), rad * 0.3, color)
+  of 4: # Bullet Speed + -- bullet with speed streaks
+    drawLine(sv(1.5, 16), sv(8.5, 16), 2.2, withAlpha(light, light.a.int * 200 div 255))
+    drawLine(sv(3.5, 11.5), sv(8.5, 11.5), 1.8, withAlpha(light, light.a.int * 130 div 255))
+    drawLine(sv(3.5, 20.5), sv(8.5, 20.5), 1.8, withAlpha(light, light.a.int * 130 div 255))
+    # Body + half-ellipse nose as one outline.
+    var shell: array[11, Vector2]
+    shell[0] = sv(11, 20)
+    shell[1] = sv(11, 12)
+    for j in 0..8:
+      let a = (-90.0'f32 + j.float32 * 22.5'f32) * PI.float32 / 180.0'f32
+      shell[2 + j] = sv(21.0'f32 + 8.5'f32 * cos(a), 16.0'f32 + 4.0'f32 * sin(a))
+    shopOutline(shell, Edge, ink)
+    shopRect(8.7, 9.9, 13.5, 22.1, ink)     # rim
+    shopFan(shell, base)
+    var nose: array[10, Vector2]
+    nose[0] = sv(21, 16)
+    for j in 0..8:
+      nose[1 + j] = shell[2 + j]
+    shopFan(nose, light)                    # copper tip over the casing
+    shopRect(20.4, 12.3, 21.6, 19.7, deep)  # crimp groove
+    shopRect(10, 11.2, 12.2, 20.8, deep)
+    drawLine(sv(13, 13.7), sv(24, 13.7), 1.2, pale)
+
+  of 5: # Wall (x10) -- crenellated brick wall
+    const Merlons = [(3.5'f32, 9.0'f32), (13.25'f32, 18.75'f32), (23.0'f32, 28.5'f32)]
+    # Ink silhouette, then mortar, then bricks on top of it.
+    shopRect(2.2, 8.7, 29.8, 29.8, ink)
+    for m in Merlons:
+      shopRect(m[0] - 1.3'f32, 3.2, m[1] + 1.3'f32, 10, ink)
+    shopRect(3.5, 9, 28.5, 28.5, deep)
+    let warm = mixShade(base, light, 0.35'f32)
+    for m in Merlons:
+      shopBrick(m[0], 4.5, m[1], 9, base, light, shade)
+    shopBrick(3.5, 10, 15.5, 15.5, base, light, shade)
+    shopBrick(16.5, 10, 28.5, 15.5, warm, pale, shade)
+    shopBrick(3.5, 16.5, 9, 22, base, light, shade)
+    shopBrick(10, 16.5, 22, 22, warm, pale, shade)
+    shopBrick(23, 16.5, 28.5, 22, base, light, shade)
+    shopBrick(3.5, 23, 15.5, 28.5, base, light, shade)
+    shopBrick(16.5, 23, 28.5, 28.5, base, light, shade)
+
+  else: # Gear
+    for i in 0..3:
+      drawRectangle(Rectangle(x: 16, y: 16, width: 6.4, height: 27.5),
+                    sv(3.2, 13.75), i.float32 * 45.0'f32, ink)
+    drawCircle(sv(16, 16), 11.3, ink)
+    for i in 0..3:
+      drawRectangle(Rectangle(x: 16, y: 16, width: 4, height: 25),
+                    sv(2, 12.5), i.float32 * 45.0'f32, base)
+    drawCircle(sv(16, 16), 10, base)
+    drawRing(sv(16, 16), 6.2, 7.6, 0, 360, 24, light)
+    drawCircle(sv(16, 16), 4.2, ink)
+
+proc shopIconAccent*(itemIndex: int): Color =
+  ## Signature hue per shop slot, so the rows read apart at a glance.
+  case itemIndex
+  of 0: Color(r: 255, g: 122, b: 72, a: 255)    # damage -- hot orange
+  of 1: Color(r: 255, g: 208, b: 72, a: 255)    # fire rate -- amber
+  of 2: Color(r: 104, g: 232, b: 140, a: 255)   # move speed -- green
+  of 3: Color(r: 255, g: 92, b: 132, a: 255)    # max health -- rose
+  of 4: Color(r: 88, g: 204, b: 255, a: 255)    # bullet speed -- cyan
+  of 5: Color(r: 178, g: 150, b: 255, a: 255)   # walls -- violet
+  else: Color(r: 100, g: 200, b: 255, a: 255)
+
+proc drawShopIconTile*(x, y, size: int32, itemIndex: int, enabled, selected: bool) =
+  ## App-style tile (dark glass square, accent frame) holding a shop glyph.
+  ## Unaffordable rows drop to a dim grey, so the colour itself says whether
+  ## the upgrade can be bought.
+  let accent = if enabled: shopIconAccent(itemIndex)
+               else: Color(r: 118, g: 126, b: 140, a: 150)
+  let fx = x.float32
+  let fy = y.float32
+  let s = size.float32
+  let tile = Rectangle(x: fx, y: fy, width: s, height: s)
+  const Round = 0.22'f32
+  drawRectangleRounded(Rectangle(x: fx + 2, y: fy + 2, width: s, height: s), Round, 6,
+                       Color(r: 0, g: 0, b: 0, a: 90))
+  drawRectangleRounded(tile, Round, 6, Color(r: 12, g: 16, b: 26, a: 255))
+  # Accent light pooling at the top of the glass (the 2px inset keeps the
+  # gradient's square corners inside the tile's rounded ones).
+  drawRectangleGradientV(x + 2, y + 2, size - 4, size div 2,
+                         withAlpha(accent, if enabled: 42 else: 12), withAlpha(accent, 0))
+  if selected and enabled:
+    drawCircleGradient(x + size div 2, y + size div 2, s * 0.46'f32,
+                       withAlpha(accent, 70), withAlpha(accent, 0))
+  drawRectangleRoundedLines(tile, Round, 6, if selected: 2.0'f32 else: 1.5'f32,
+                            withAlpha(accent, if selected: 255 elif enabled: 150 else: 70))
+  let pad = max(2'i32, size div 9)
+  drawShopIcon(x + pad, y + pad, size - pad * 2, itemIndex, accent)
