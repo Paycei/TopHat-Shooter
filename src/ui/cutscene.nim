@@ -6,8 +6,8 @@
 ## Per-cinematic content (the actual shots) lives in the concrete factory modules
 ## (lore_cinematic.nim, endgame_cinematic.nim, mode_intros.nim).
 
-import raylib, rlgl, math
-import ../localization, ../sound, cinematic_common
+import raylib, rlgl, math, strutils
+import ../localization, ../sound, ../gamepad_input, cinematic_common
 
 type
   CutsceneDrawProc*    = proc(local, duration: float32, sw, sh: int32, alpha: float32)
@@ -38,6 +38,7 @@ type
     swayAmp*:       float32    ## default camX/camY idle sway amplitude
     skipHoldRequired*:  float32
     fastForwardMult*:   float32
+    playbackSpeed*:     float32  ## baseline pace; fast-forward multiplies on top
     musicTrack*:    MusicTrack
     ## Runtime state
     time*:             float32
@@ -50,6 +51,12 @@ type
 
 # ---------------------------------------------------------------------------
 
+const
+  CutscenePlaybackSpeed* = 1.2'f32
+    ## Every cinematic plays at this pace. Scaling the clock instead of the shot
+    ## durations keeps each shot's internal beats (captions, staged reveals)
+    ## lined up with its fades. Tune here, not per shot.
+
 proc newCutscene*(shots: seq[CutsceneShot],
                   accentColor: Color,
                   titleCardText, titleCardSub: string,
@@ -58,7 +65,8 @@ proc newCutscene*(shots: seq[CutsceneShot],
                   skipHoldRequired: float32 = 3.0'f32,
                   fastForwardMult: float32 = 2.0'f32,
                   musicTrack: MusicTrack = mtBoss,
-                  cornerTag: string = ""): Cutscene =
+                  cornerTag: string = "",
+                  playbackSpeed: float32 = CutscenePlaybackSpeed): Cutscene =
   var total = 0.0'f32
   for s in shots: total += s.duration
   Cutscene(
@@ -66,7 +74,7 @@ proc newCutscene*(shots: seq[CutsceneShot],
     titleCardText: titleCardText, titleCardSub: titleCardSub, cornerTag: cornerTag,
     drawBackdropProc: drawBackdropProc, swayAmp: swayAmp,
     skipHoldRequired: skipHoldRequired, fastForwardMult: fastForwardMult,
-    musicTrack: musicTrack,
+    playbackSpeed: playbackSpeed, musicTrack: musicTrack,
     time: 0, complete: false, scanlineOffset: 0, frame: 0,
     fastForwardActive: false, skipHoldTimer: 0, lastShotPlayed: -1
   )
@@ -91,14 +99,16 @@ proc shotFade*(local, duration: float32): float32 =
 
 proc updateCutscene*(c: Cutscene, dt: float32) =
   if c.complete: return
-  c.fastForwardActive = isKeyDown(Enter)
-  if isKeyDown(Space):
+  # Keyboard ENTER / pad A fast-forward; keyboard SPACE / pad B hold to skip.
+  c.fastForwardActive = isKeyDown(Enter) or isGamepadConfirmDown()
+  if isKeyDown(Space) or isGamepadBackDown():
     c.skipHoldTimer = min(c.skipHoldRequired, c.skipHoldTimer + dt)
   else:
     c.skipHoldTimer = 0.0'f32
   if c.skipHoldTimer >= c.skipHoldRequired:
     c.complete = true; return
-  let playbackDt = dt * (if c.fastForwardActive: c.fastForwardMult else: 1.0'f32)
+  # The skip hold above stays on real time: "hold 3s" means three real seconds.
+  let playbackDt = dt * c.playbackSpeed * (if c.fastForwardActive: c.fastForwardMult else: 1.0'f32)
   c.time        += playbackDt
   c.scanlineOffset += playbackDt * 118.0'f32
   inc c.frame
@@ -129,7 +139,11 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) =
 
   pushMatrix()
   translatef(camX, camY, 0.0'f32)
+  # Captions inside the shot type out against the shot's own clock.
+  captionClock = local
+  captionShotDuration = duration
   shot.drawProc(local, duration, sW, sH, alpha)
+  captionClock = -1.0'f32
   popMatrix()
 
   drawTapeChange(sW, sH, local, c.frame, c.time)
@@ -139,11 +153,19 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) =
   let fadeA   = alphaByte(max(fadeIn, fadeOut) * 255.0'f32)
 
   let glitchHot = shot.glitchMod > 0 and (c.frame mod shot.glitchMod) < shot.glitchWindow
+  let (controlsText, controlsActiveText) =
+    if isGamepadActive():
+      let ff = gamepadBindLabel(GamepadButton.RightFaceDown)
+      let skip = gamepadBindLabel(GamepadButton.RightFaceRight)
+      (t(tkLoreControlsPad).replace("$1", ff).replace("$2", skip),
+       t(tkLoreControlsPadActive).replace("$1", ff).replace("$2", skip))
+    else:
+      (t(tkLoreControlsFF), t(tkLoreControlsFFActive))
   drawCinematicOverlay(sW, sH, c.time, c.frame, c.scanlineOffset,
                        c.fastForwardActive, c.skipHoldTimer, c.skipHoldRequired,
                        c.totalDuration, shot.label,
                        (if c.cornerTag.len > 0: c.cornerTag else: t(tkLoreLive)),
-                       t(tkLoreControlsFF), t(tkLoreControlsFFActive),
+                       controlsText, controlsActiveText,
                        shot.iconIndex, glitchHot, c.accentColor)
 
   # Opening title card: slides in and out over the first ~2 s.

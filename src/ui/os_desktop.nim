@@ -102,7 +102,7 @@ var
   activeDesktop*: OSDesktop = nil
 
 const
-  ICON_SIZE = 64
+  ICON_SIZE* = 64
   ICON_SPACING = 100
   TASKBAR_HEIGHT = 40
   MAX_DESKTOP_TOASTS* = 5
@@ -895,7 +895,9 @@ proc drawIconDisc(cx, cy, r: float32, fill, edge: Color, thick: float32 = 2.0) =
   drawCircle(v2(cx, cy), r, fill)
   drawRing(v2(cx, cy), r - thick, r, 0.0, 360.0, 32, edge)
 
-proc drawDesktopIcon(icon: DesktopIcon, time: float32, selected: bool) =
+proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
+  ## Tile, glyph and label. Exported so cutscenes can stage the real desktop
+  ## (the lore intro's flood shot corrupts these very icons).
   drawIconTile(icon, time, selected)
 
   # Icon graphic based on type

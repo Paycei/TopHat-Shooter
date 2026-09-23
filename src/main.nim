@@ -124,7 +124,10 @@ proc drawGlobalConfirmDialog(): int =
   if isPointerPressed():
     if noHov:               decision = -1
     elif yesHov and mouseReady: decision = 1
-  if isBackPressed(): decision = -1
+  # Gated on the frame guard too: when ESC/B is what opened the dialog (game
+  # over, victory, run stats), that same press would otherwise cancel it on the
+  # frame it appears.
+  if globalConfirmFrameGuard <= 0.0 and isBackPressed(): decision = -1
   if keyReady:
     if globalConfirmContext == cdcAbandonRestart:
       if isKeyPressed(R): decision = 1
@@ -783,9 +786,12 @@ proc main() =
   # playing; cutsceneContinuation says where to go when it finishes.
   # pendingModeAfterCutscene is the pendingGameMode value staged before a mode-intro
   # cutscene plays (used by cscLaunchGame); -1 when not in use.
+  # pendingIconAfterCutscene is the desktop icon whose first click played a mode
+  # intro (cscDesktopIcon); the desktop re-runs it once the intro ends.
   var activeCutscene: Cutscene = nil
   var cutsceneContinuation: CutsceneContinuation = cscMenu
   var pendingModeAfterCutscene: int = -1
+  var pendingIconAfterCutscene: int = -1
   var osDesktop = newOSDesktop()
   # Expose the running desktop instance so UI previews can match its state
   activeDesktop = osDesktop
@@ -1194,6 +1200,10 @@ proc main() =
         settings.language = $lang
         discard saveSettings(settings)
         playSound(stMenuSelect)
+        # Rebuild now: the startup instance resolved its tape labels and title
+        # card before a language was picked, so they'd stay in the old language
+        # while the captions (looked up per frame) switched.
+        loreCinematic = newLoreCinematic()
         currentGame.state = gsLoreIntro
 
       beginGameDrawing()
@@ -1322,6 +1332,9 @@ proc main() =
             startLoadingAnimation(osDesktop, loadText)
             pendingGameMode = pendingModeAfterCutscene
             pendingModeAfterCutscene = -1
+            currentGame.state = gsMenu
+          of cscDesktopIcon:
+            # pendingIconAfterCutscene is consumed by the desktop dispatch in gsMenu.
             currentGame.state = gsMenu
 
         beginGameDrawing()
@@ -1543,7 +1556,12 @@ proc main() =
                            unlockedDef.name)
 
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
-      let action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive: handleDesktopInput(osDesktop, currentGame) else: -1
+      var action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive: handleDesktopInput(osDesktop, currentGame) else: -1
+      # A first-time mode intro hands its icon click back once it ends, so the
+      # icon now opens its window / launches exactly as a normal click would.
+      if pendingIconAfterCutscene >= 0 and not globalConfirmActive:
+        action = pendingIconAfterCutscene
+        pendingIconAfterCutscene = -1
 
       popUIScale()
 
@@ -1768,8 +1786,8 @@ proc main() =
             settings.hasSeenWaveModeIntro = true
             discard saveSettings(settings)
             activeCutscene = newWaveIntroCutscene()
-            cutsceneContinuation = cscLaunchGame
-            pendingModeAfterCutscene = 0
+            cutsceneContinuation = cscDesktopIcon
+            pendingIconAfterCutscene = 0
             currentGame.state = gsCutscene
           elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint():
             # Offer resume for a live run save OR a death-surviving block
@@ -1784,8 +1802,8 @@ proc main() =
             settings.hasSeenSurvivalIntro = true
             discard saveSettings(settings)
             activeCutscene = newSurvivalIntroCutscene()
-            cutsceneContinuation = cscLaunchGame
-            pendingModeAfterCutscene = 1
+            cutsceneContinuation = cscDesktopIcon
+            pendingIconAfterCutscene = 1
             currentGame.state = gsCutscene
           elif hasSavedRun(gmTimeSurvival):
             resumePromptActive = true
@@ -1817,7 +1835,8 @@ proc main() =
             settings.hasSeenSandboxIntro = true
             discard saveSettings(settings)
             activeCutscene = newSandboxIntroCutscene()
-            cutsceneContinuation = cscMenu  # returns to desktop; user clicks Sandbox again
+            cutsceneContinuation = cscDesktopIcon
+            pendingIconAfterCutscene = 7
             currentGame.state = gsCutscene
           else:
             openWindow(globalWindowManager, widSandbox)
@@ -1828,7 +1847,8 @@ proc main() =
             settings.hasSeenPvPIntro = true
             discard saveSettings(settings)
             activeCutscene = newPvPIntroCutscene()
-            cutsceneContinuation = cscMenu  # returns to desktop; user clicks PvP again
+            cutsceneContinuation = cscDesktopIcon
+            pendingIconAfterCutscene = 8
             currentGame.state = gsCutscene
           else:
             openWindow(globalWindowManager, widPvP)
@@ -1868,8 +1888,8 @@ proc main() =
               settings.hasSeenWaveModeIntro = true
               discard saveSettings(settings)
               activeCutscene = newWaveIntroCutscene()
-              cutsceneContinuation = cscLaunchGame
-              pendingModeAfterCutscene = 0
+              cutsceneContinuation = cscDesktopIcon
+              pendingIconAfterCutscene = 0
               currentGame.state = gsCutscene
             elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint():
               # Same resume prompt as the desktop icon: launching straight from
@@ -1884,8 +1904,8 @@ proc main() =
               settings.hasSeenSurvivalIntro = true
               discard saveSettings(settings)
               activeCutscene = newSurvivalIntroCutscene()
-              cutsceneContinuation = cscLaunchGame
-              pendingModeAfterCutscene = 1
+              cutsceneContinuation = cscDesktopIcon
+              pendingIconAfterCutscene = 1
               currentGame.state = gsCutscene
             elif hasSavedRun(gmTimeSurvival):
               resumePromptActive = true
@@ -1916,7 +1936,8 @@ proc main() =
               settings.hasSeenSandboxIntro = true
               discard saveSettings(settings)
               activeCutscene = newSandboxIntroCutscene()
-              cutsceneContinuation = cscMenu  # returns to desktop; user clicks Sandbox again
+              cutsceneContinuation = cscDesktopIcon
+              pendingIconAfterCutscene = 7
               currentGame.state = gsCutscene
             else:
               openWindow(globalWindowManager, widSandbox)
@@ -1927,7 +1948,8 @@ proc main() =
               settings.hasSeenPvPIntro = true
               discard saveSettings(settings)
               activeCutscene = newPvPIntroCutscene()
-              cutsceneContinuation = cscMenu
+              cutsceneContinuation = cscDesktopIcon
+              pendingIconAfterCutscene = 8
               currentGame.state = gsCutscene
             else:
               openWindow(globalWindowManager, widPvP)

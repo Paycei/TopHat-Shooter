@@ -1,5 +1,6 @@
 import raylib, strutils
-import types, boss_definitions, localization
+from std/unicode import runeLen, runeSubStr
+import types, boss_definitions, localization, utils
 
 type
   DamageDisplayType* = enum
@@ -181,25 +182,93 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
     if celebration.stats.maxCombo > 1:
       drawStat(t(tkWaveCelebMaxCombo), $(celebration.stats.maxCombo) & "x", lineY, statsAlpha)
 
+# TEXT WRAPPING (shared by the fullscreen boss card and the gutter cards)
+proc wrapTextToWidth(text: string, fontSize, maxWidth: int32): seq[string] =
+  ## Greedy word-wrap so a label fits inside a card of the given width.
+  result = @[]
+  var current = ""
+  for word in text.split(' '):
+    if word.len == 0:
+      continue
+    let candidate = if current.len == 0: word else: current & " " & word
+    if measureText(candidate, fontSize) <= maxWidth or current.len == 0:
+      current = candidate
+    else:
+      result.add(current)
+      current = word
+  if current.len > 0:
+    result.add(current)
+
+proc balancedWrap(text: string, fontSize, maxWidth: int32): seq[string] =
+  ## Fewest lines that fit maxWidth, then the narrowest width that keeps that
+  ## count, so a two-line description splits evenly instead of leaving a
+  ## one-word orphan on its last line. Greedy line count only grows as the
+  ## width shrinks, so a binary search finds that width.
+  result = wrapTextToWidth(text, fontSize, maxWidth)
+  if result.len <= 1:
+    return
+  var lo = maxWidth div 3
+  var hi = maxWidth
+  while hi - lo > 4:
+    let mid = (lo + hi) div 2
+    if wrapTextToWidth(text, fontSize, mid).len <= result.len: hi = mid
+    else: lo = mid
+  result = wrapTextToWidth(text, fontSize, hi)
+
 # BOSS INTRODUCTION SYSTEM
+# The card names the boss and, in the lore layer, the TOPHAT service the Root
+# hijacked to make it (boss 12 is the Root itself). The world is frozen while it
+# shows (only the player moves), so keep the lifetime short.
+const
+  BossIntroDuration = 1.8'f32   # card lifetime, seconds
+  BossIntroTextIn = 0.3'f32     # text starts fading in here (phase 1)
+  BossIntroFade = 0.25'f32      # text fade-in and fade-out length
+  BossIntroTagCps = 70.0'f32    # service tag types out at this many chars/s
+
 proc newBossIntroduction*(): BossIntroduction =
   result = BossIntroduction(
     active: false,
     timer: 0,
-    maxTime: 1.5,
+    maxTime: BossIntroDuration,
     bossName: "",
     bossTitle: "",
+    bossTag: "",
+    isRoot: false,
     bossHp: 0,
     phase: 0
   )
 
-proc startIntroduction*(intro: var BossIntroduction, name: string, title: string, hp: float32) =
+proc startIntroduction*(intro: var BossIntroduction, name: string, title: string, hp: float32,
+                        tag: string = "", isRoot: bool = false) =
   intro.active = true
   intro.timer = 0
+  intro.maxTime = BossIntroDuration
   intro.bossName = name
   intro.bossTitle = title
+  intro.bossTag = tag
+  intro.isRoot = isRoot
   intro.bossHp = hp
   intro.phase = 0
+
+proc bossIntroTextAlpha(intro: BossIntroduction): float32 =
+  ## 0..1 text opacity: in from BossIntroTextIn, out over the final BossIntroFade,
+  ## so the card holds at full legibility for most of its life.
+  let fadeIn = clamp((intro.timer - BossIntroTextIn) / BossIntroFade, 0.0'f32, 1.0'f32)
+  let fadeOut = clamp((intro.maxTime - intro.timer) / BossIntroFade, 0.0'f32, 1.0'f32)
+  min(fadeIn, fadeOut)
+
+proc bossIntroTypedTag(intro: BossIntroduction): string =
+  ## The service tag typed out like a terminal readout (rune-safe for accents).
+  let shown = int((intro.timer - BossIntroTextIn) * BossIntroTagCps)
+  intro.bossTag.runeSubStr(0, clamp(shown, 0, intro.bossTag.runeLen))
+
+proc bossIntroPalette(intro: BossIntroduction): tuple[name, tag: Color] =
+  ## Hijacked services read as alarm red with an amber tag; the Root itself
+  ## wears the breach magenta the lore cinematics give it.
+  if intro.isRoot:
+    (Color(r: 255, g: 70, b: 200, a: 255), Color(r: 255, g: 160, b: 235, a: 255))
+  else:
+    (Color(r: 255, g: 100, b: 100, a: 255), Color(r: 255, g: 175, b: 70, a: 255))
 
 proc updateIntroduction*(intro: var BossIntroduction, dt: float32): bool =
   ## Update introduction, returns true if still active
@@ -224,60 +293,51 @@ proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: i
   if not intro.active:
     return
 
-  # Darken screen slightly
-  let vignetteAlpha = if intro.phase == 0:
-    uint8(min(intro.timer * 400.0, 100.0))
-  else:
-    uint8(100)
+  # Darken the frozen world; eases off with the text so the release isn't a hard cut.
+  let dimOut = clamp((intro.maxTime - intro.timer) / BossIntroFade, 0.0'f32, 1.0'f32)
+  let dim = min(intro.timer * 400.0'f32, 100.0'f32) * dimOut
+  drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: clampByteF(dim)))
 
-  drawRectangle(0, 0, screenWidth, screenHeight,
-    Color(r: 0, g: 0, b: 0, a: vignetteAlpha))
+  if intro.phase < 1:
+    return
 
-  # Draw boss name and title if phase 1+
-  if intro.phase >= 1:
-    let nameAlpha = uint8(min((intro.timer - 0.5) * 255.0, 255.0))
-    let centerY = screenHeight div 2
+  let a = bossIntroTextAlpha(intro)
+  let (nameColor, tagColor) = bossIntroPalette(intro)
+  let cx = screenWidth div 2
+  let centerY = screenHeight div 2
 
-    # Boss name - simple, no glitch
-    let nameText = intro.bossName
-    let nameWidth = measureText(nameText, 48.int32)
-    let nameX = (screenWidth div 2) - (nameWidth div 2)
+  # Service tag above the name, flanked by short rules and typed out.
+  if intro.bossTag.len > 0:
+    const tagSize = 16'i32
+    let tagY = centerY - 68
+    let fullW = measureText(intro.bossTag, tagSize)
+    let tagX = cx - fullW div 2
+    let typed = bossIntroTypedTag(intro)
+    drawText(typed, tagX, tagY, tagSize, withAlpha(tagColor, clampByteF(a * 235.0'f32)))
+    let ruleA = clampByteF(a * 150.0'f32)
+    drawRectangle(tagX - 44, tagY + tagSize div 2 - 1, 32, 2, withAlpha(tagColor, ruleA))
+    drawRectangle(tagX + fullW + 12, tagY + tagSize div 2 - 1, 32, 2, withAlpha(tagColor, ruleA))
 
-    # Draw name with simple shadow
-    drawText(nameText, int32(nameX + 2), int32(centerY - 38), 48.int32,
-      Color(r: 0, g: 0, b: 0, a: uint8(nameAlpha div 2)))
+  # Boss name with a drop shadow.
+  let nameW = measureText(intro.bossName, 48'i32)
+  let nameX = cx - nameW div 2
+  drawText(intro.bossName, nameX + 2, centerY - 38, 48'i32,
+    Color(r: 0, g: 0, b: 0, a: clampByteF(a * 128.0'f32)))
+  drawText(intro.bossName, nameX, centerY - 40, 48'i32, withAlpha(nameColor, clampByteF(a * 255.0'f32)))
 
-    drawText(nameText, int32(nameX), int32(centerY - 40), 48.int32,
-      Color(r: 255, g: 100, b: 100, a: nameAlpha))
-
-    # Boss title
-    let titleText = intro.bossTitle
-    let titleWidth = measureText(titleText, 20.int32)
-    let titleX = (screenWidth div 2) - (titleWidth div 2)
-
-    drawText(titleText, titleX, centerY + 20, 20.int32,
-      Color(r: 180, g: 180, b: 180, a: nameAlpha))
+  # Lore description, wrapped so the longer dossier lines stay on screen.
+  const descSize = 20'i32
+  let descLines = balancedWrap(intro.bossTitle, descSize, min(screenWidth - 120, 760'i32))
+  var dy = centerY + 20
+  for ln in descLines:
+    let w = measureText(ln, descSize)
+    drawText(ln, cx - w div 2, dy, descSize, Color(r: 190, g: 190, b: 195, a: clampByteF(a * 255.0'f32)))
+    dy += descSize + 4
 
 # WIDESCREEN GUTTER VARIANTS
 # Compact cards that fit inside a 171px gutter column. They keep the timing /
 # alpha animation logic of the fullscreen versions but drop the fullscreen
 # darken (which would cover the centered gameplay world) and wrap their text.
-proc wrapTextToWidth(text: string, fontSize, maxWidth: int32): seq[string] =
-  ## Greedy word-wrap so a label fits inside a narrow gutter card.
-  result = @[]
-  var current = ""
-  for word in text.split(' '):
-    if word.len == 0:
-      continue
-    let candidate = if current.len == 0: word else: current & " " & word
-    if measureText(candidate, fontSize) <= maxWidth or current.len == 0:
-      current = candidate
-    else:
-      result.add(current)
-      current = word
-  if current.len > 0:
-    result.add(current)
-
 proc drawWaveCelebrationGutter*(celebration: WaveCelebration,
                                 gutterX, gutterW, topY: int32): int32 =
   ## Right-gutter card. Returns the next stack Y (== topY when nothing is drawn).
@@ -344,31 +404,56 @@ proc drawBossIntroductionGutter*(intro: BossIntroduction,
   if intro.phase < 1:
     return topY
 
-  let nameAlpha = uint8(min((intro.timer - 0.5) * 255.0, 255.0))
+  let a = bossIntroTextAlpha(intro)
+  let nameAlpha = clampByteF(a * 255.0'f32)
+  let (nameColor, tagColor) = bossIntroPalette(intro)
   let cardW: int32 = min(gutterW - 8, 163'i32)
   let cardX = gutterX + (gutterW - cardW) div 2
   let cardY: int32 = topY
 
+  # The tag is laid out on its full text so the card height doesn't grow while it
+  # types. Too wide for one line, it breaks after the label so a process name
+  # like "root (uid 0)" never splits.
+  let tagFont: int32 = 11
+  let tagCut = intro.bossTag.find(": ")
+  let tagLines =
+    if intro.bossTag.len == 0: newSeq[string]()
+    elif measureText(intro.bossTag, tagFont) <= cardW - 10: @[intro.bossTag]
+    elif tagCut > 0: @[intro.bossTag[0 .. tagCut], intro.bossTag[tagCut + 2 .. ^1]]
+    else: wrapTextToWidth(intro.bossTag, tagFont, cardW - 10)
   let nameFont: int32 = 22
   let nameLines = wrapTextToWidth(intro.bossName, nameFont, cardW - 10)
   let titleFont: int32 = 13
   let titleLines = wrapTextToWidth(intro.bossTitle, titleFont, cardW - 10)
 
+  let tagH = if tagLines.len > 0: tagLines.len.int32 * (tagFont + 2) + 4'i32 else: 0'i32
   let nameH = nameLines.len.int32 * (nameFont + 3)
   let titleH = titleLines.len.int32 * (titleFont + 2)
-  let cardH = 12'i32 + nameH + 6'i32 + titleH
+  let cardH = 12'i32 + tagH + nameH + 6'i32 + titleH
 
-  drawRectangle(cardX, cardY, cardW, cardH,
-    Color(r: 25, g: 8, b: 8, a: uint8(min(nameAlpha, 200))))
-  drawRectangle(cardX, cardY, 2, cardH, Color(r: 255, g: 100, b: 100, a: nameAlpha))
-  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, Color(r: 255, g: 100, b: 100, a: nameAlpha))
+  let bg = if intro.isRoot: Color(r: 28, g: 6, b: 24, a: 255) else: Color(r: 25, g: 8, b: 8, a: 255)
+  drawRectangle(cardX, cardY, cardW, cardH, withAlpha(bg, clampByteF(a * 200.0'f32)))
+  drawRectangle(cardX, cardY, 2, cardH, withAlpha(nameColor, nameAlpha))
+  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, withAlpha(nameColor, nameAlpha))
 
   var ty = cardY + 6
+  if tagLines.len > 0:
+    # Reveal the typed prefix line by line across the pre-wrapped layout.
+    var remaining = bossIntroTypedTag(intro).runeLen
+    for ln in tagLines:
+      let lnLen = ln.runeLen
+      let shown = ln.runeSubStr(0, clamp(remaining, 0, lnLen))
+      remaining -= lnLen + 1   # +1 for the space the line break consumed
+      let tw = measureText(ln, tagFont)
+      drawText(shown, cardX + (cardW - tw) div 2, ty, tagFont,
+        withAlpha(tagColor, clampByteF(a * 235.0'f32)))
+      ty += tagFont + 2
+    ty += 4
   for ln in nameLines:
     let tw = measureText(ln, nameFont)
     let tx = cardX + (cardW - tw) div 2
     drawText(ln, tx + 1, ty + 1, nameFont, Color(r: 0, g: 0, b: 0, a: uint8(nameAlpha div 2)))
-    drawText(ln, tx, ty, nameFont, Color(r: 255, g: 100, b: 100, a: nameAlpha))
+    drawText(ln, tx, ty, nameFont, withAlpha(nameColor, nameAlpha))
     ty += nameFont + 3
   ty += 6
   for ln in titleLines:

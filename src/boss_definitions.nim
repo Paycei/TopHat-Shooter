@@ -106,6 +106,37 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   of 12: spec(bwoOmegaCycle, 3, 3)
   else: BossWeakPointDefinition(kind: bwoNone)
 
+proc isRootBoss*(bossNumber: int): bool =
+  ## Boss 12 (the Omega Entity) is the Root itself taking form; the other eleven
+  ## are TOPHAT system services it hijacked. Same model the lore cinematics use.
+  bossNumber == 12
+
+proc getBossProcessName*(bossNumber: int): string =
+  ## In-fiction process name of the service the boss was made from.
+  case bossNumber
+  of 1: t(tkBoss1Process)
+  of 2: t(tkBoss2Process)
+  of 3: t(tkBoss3Process)
+  of 4: t(tkBoss4Process)
+  of 5: t(tkBoss5Process)
+  of 6: t(tkBoss6Process)
+  of 7: t(tkBoss7Process)
+  of 8: t(tkBoss8Process)
+  of 9: t(tkBoss9Process)
+  of 10: t(tkBoss10Process)
+  of 11: t(tkBoss11Process)
+  of 12: t(tkBoss12Process)
+  else: ""
+
+proc getBossServiceTag*(bossNumber: int): string =
+  ## "HIJACKED SERVICE: scheduler.exe" line for the boss intro card and Help
+  ## list; "HIJACKER: root (uid 0)" for the Root. Empty for unknown IDs.
+  let process = getBossProcessName(bossNumber)
+  if process.len == 0:
+    return ""
+  let label = if isRootBoss(bossNumber): t(tkBossTagHijacker) else: t(tkBossTagService)
+  label & ": " & process
+
 proc getBossDefinition*(bossNumber: int): BossDefinition =
   case bossNumber
   of 1:  # Wave 5 - THE SPIRAL GUARDIAN

@@ -5087,7 +5087,8 @@ proc updateGame*(game: var Game, dt: float32) =
       let boss = game.enemies[^1]
       let bossDef = getBossDefinition(boss.bossDefinitionID)
       let introBossHp = if boss.bossTotalMaxHp > 0.0'f32: boss.bossTotalMaxHp else: boss.maxHp
-      startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description, introBossHp)
+      startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description, introBossHp,
+                        getBossServiceTag(boss.bossDefinitionID), isRootBoss(boss.bossDefinitionID))
 
       for i in 0..<60:
         let angle = i.float32 * 0.1

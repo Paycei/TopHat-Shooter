@@ -161,7 +161,10 @@ type
   CutsceneContinuation* = enum
     cscMenu,       ## after cutscene -> gsMenu (intro, settings replays)
     cscVictory,    ## after cutscene -> gsVictory (first endgame win)
-    cscLaunchGame  ## after cutscene -> startLoadingAnimation + pendingGameMode
+    cscLaunchGame, ## after cutscene -> startLoadingAnimation + pendingGameMode
+    cscDesktopIcon ## after cutscene -> gsMenu, then re-run the desktop icon that
+                   ## started it (a first-time mode intro): its intro is now seen,
+                   ## so the icon does exactly what a normal click does
 
   GameMode* = enum
     gmWaveBased,
@@ -1402,6 +1405,8 @@ type
     maxTime*: float32
     bossName*: string
     bossTitle*: string
+    bossTag*: string    ## lore line above the name ("HIJACKED SERVICE: ..."); "" = none
+    isRoot*: bool       ## the Root itself (boss 12): card switches to its magenta palette
     bossHp*: float32
     phase*: int
 

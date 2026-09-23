@@ -228,6 +228,28 @@ let changelog: seq[ChangelogVersion] = @[
           "Nada de él pasa a la partida: los créditos, la XP, las eliminaciones, los muros y el HP se reinician al empezar la oleada 1, tanto si lo terminas como si lo saltas.",
           "Repítelo cuando quieras desde Ajustes > Juego. La repetición es una sesión de práctica: nunca toca tu partida guardada, tus estadísticas ni tus recompensas, y te devuelve al escritorio al terminar.",
           "Los perfiles que ya han jugado al modo oleadas no tienen que pasar por él.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Boss lore: the hijacked services",
+        headEs: "Historia de los jefes: los servicios secuestrados",
+        en: points(
+          "Every boss is now part of the story. The first eleven are TOPHAT's own system services that the Root took over: the Summoner King was the process scheduler, the Timekeeper was the system clock, the Chaos Weaver was the entropy pool.",
+          "The Omega Entity is the Root itself, wearing every service it stole.",
+          "The boss intro card names the service each boss was made from, and each boss has a new description that still hints at how it fights."),
+        es: points(
+          "Cada jefe forma parte ahora de la historia. Los once primeros son servicios del propio sistema de TOPHAT que la Raíz tomó: el Rey Invocador era el planificador de procesos, el Cronómetra era el reloj del sistema, el Tejedor del Caos era la reserva de entropía.",
+          "La Entidad Omega es la propia Raíz, vistiendo cada servicio que robó.",
+          "La tarjeta de presentación de cada jefe nombra el servicio del que salió, y cada jefe tiene una descripción nueva que sigue dando pistas de cómo lucha.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Incident archive",
+        headEs: "Archivo del incidente",
+        en: points(
+          "Type 'lore' in the Help terminal to read the story so far, one case file per act.",
+          "Act I is always open. The other three decrypt as you unlock their ending cinematics, and a sealed file tells you how to recover it.",
+          "The 'bosses' command now lists the hijacked service behind every boss."),
+        es: points(
+          "Escribe 'lore' en la terminal de Ayuda para leer la historia hasta ahora, un expediente por acto.",
+          "El Acto I siempre está abierto. Los otros tres se descifran al desbloquear sus cinemáticas finales, y un expediente sellado te dice cómo recuperarlo.",
+          "El comando 'bosses' ahora muestra el servicio secuestrado detrás de cada jefe.")),
 
       # --- Improvements ---
       ChangelogEntry(category: clcImproved,
@@ -339,6 +361,39 @@ let changelog: seq[ChangelogVersion] = @[
         es: points(
           "La música que se crea en el primer arranque ahora se genera en todos los núcleos de la CPU: menos de 2 segundos en vez de unos 13.",
           "El resultado es idéntico, así que la música que ya tengas en caché se conserva.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Opening cinematic and mode intros rebuilt",
+        headEs: "Cinemática inicial e introducciones de modo rehechas",
+        en: points(
+          "The opening cinematic now shows what it says: an unknown host tears through a TopHat-ShooterOS window, the flood pours out and corrupts your actual desktop icons, the caged kernel beams you into existence, and the Root seizes TOPHAT's eleven services one by one.",
+          "Wave mode opens on a radar sweep that finds the eleven hijacked services you will face as bosses.",
+          "Roguelite opens with a real fall through the sector stack, past every floor theme, toward the rot at the bottom.",
+          "PvP gets a third shot, a duel over one contested link, and Sandbox gets a second shot showing how it really works: click a process in the spawn list and it walks in from the edge of the screen."),
+        es: points(
+          "La cinemática inicial ahora muestra lo que cuenta: un host desconocido rasga una ventana de TopHat-ShooterOS, la marea se derrama y corrompe los iconos reales de tu escritorio, el kernel enjaulado te trae a la existencia con un haz y la Raíz se apodera uno a uno de los once servicios de TOPHAT.",
+          "El modo oleadas abre con un barrido de radar que encuentra los once servicios secuestrados que enfrentarás como jefes.",
+          "El roguelite abre con una caída real a través de la pila de sectores, pasando por cada tema de piso, hacia la podredumbre del fondo.",
+          "El PvP suma una tercera toma, un duelo por un único enlace disputado, y el Sandbox suma una segunda toma que muestra cómo funciona de verdad: haz clic en un proceso de la lista y entra caminando desde el borde de la pantalla.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Cinematics polish",
+        headEs: "Cinemáticas pulidas",
+        en: points(
+          "Every cinematic plays about 20% faster. Fast forward still doubles that.",
+          "Captions in every cinematic now type out like a terminal log, with a blinking cursor.",
+          "Controllers can drive every cinematic: hold A to play at 2x, hold B to skip. The on-screen hint switches to your pad's buttons.",
+          "The Time Survival intro has been restaged. Its countdown made no sense for a mode that never ends, so it now opens on an uptime clock counting up while the swarm gathers, then a watch log that just keeps going.",
+          "Story lines were tightened so the acts connect: the intro now warns that every service the Root touches turns on you, and the ending shows those services coming back online."),
+        es: points(
+          "Todas las cinemáticas se reproducen un 20% más rápido. El avance rápido sigue duplicando esa velocidad.",
+          "Los subtítulos de todas las cinemáticas ahora se escriben como un registro de terminal, con un cursor parpadeante.",
+          "El mando controla todas las cinemáticas: mantén A para verlas a x2 y mantén B para saltarlas. La indicación en pantalla muestra los botones de tu mando.",
+          "La introducción de Supervivencia por Tiempo se ha rehecho. Su cuenta regresiva no tenía sentido en un modo que nunca termina, así que ahora abre con un reloj de actividad que sube mientras se reúne el enjambre, y después un registro de vigilia que no se detiene.",
+          "Se ajustaron las frases de la historia para que los actos conecten: la introducción ahora avisa de que cada servicio que toca la Raíz se vuelve contra ti, y el final muestra esos servicios volviendo a estar en línea.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Clearer boss intro card",
+        headEs: "Tarjeta de jefe más legible",
+        en: "The card now reaches full brightness right away instead of only as it vanished, stays up a little longer, and wraps long descriptions evenly.",
+        es: "La tarjeta ahora alcanza su brillo máximo al instante en vez de justo al desaparecer, dura un poco más y reparte las descripciones largas en líneas equilibradas."),
 
       # --- Balance ---
       ChangelogEntry(category: clcBalance,
@@ -533,7 +588,36 @@ let changelog: seq[ChangelogVersion] = @[
         headEn: "Misleading quit warning",
         headEs: "Aviso de salida engañoso",
         en: "Quitting mid-run warned that unsaved progress would be lost, but your run is saved. The dialog now says so.",
-        es: "Al salir a mitad de partida se avisaba de que el progreso no guardado se perdería, pero la partida se guarda. Ahora el diálogo lo dice.")
+        es: "Al salir a mitad de partida se avisaba de que el progreso no guardado se perdería, pero la partida se guarda. Ahora el diálogo lo dice."),
+      ChangelogEntry(category: clcFixed,
+        headEn: "Mode intros now open their mode",
+        headEs: "Las introducciones de modo ya abren su modo",
+        en: points(
+          "The first time you opened Sandbox or PvP, its intro played and then dropped you back on the desktop, so you had to click the icon again. Every mode intro now carries on into its mode when it ends, or when you skip it.",
+          "If you already had a saved run, Wave and Time Survival now offer to resume it after their intro instead of starting a new one."),
+        es: points(
+          "La primera vez que abrías Sandbox o PvP, su introducción se reproducía y te devolvía al escritorio, así que tenías que volver a hacer clic en el icono. Ahora cada introducción de modo continúa hacia su modo al terminar, o al saltarla.",
+          "Si ya tenías una partida guardada, Oleadas y Supervivencia por Tiempo ahora ofrecen continuarla tras su introducción en vez de empezar una nueva.")),
+      ChangelogEntry(category: clcFixed,
+        headEn: "Intro cinematic in the wrong language",
+        headEs: "Cinemática inicial en el idioma equivocado",
+        en: "On a new profile, picking Spanish left the intro's tape labels and title card in English. They now follow the language you choose.",
+        es: "En un perfil nuevo, elegir español dejaba en inglés las etiquetas de cinta y el título de la introducción. Ahora siguen el idioma que eliges."),
+      ChangelogEntry(category: clcFixed,
+        headEn: "Untranslated mode intro text",
+        headEs: "Texto sin traducir en las introducciones",
+        en: "The Sandbox intro's boot lines and the Roguelite intro's sector label are now translated.",
+        es: "Las líneas de arranque de la introducción del Sandbox y la etiqueta de sector de la del Roguelite ahora están traducidas."),
+      ChangelogEntry(category: clcFixed,
+        headEn: "Help terminal cut off long output",
+        headEs: "La terminal de Ayuda cortaba las salidas largas",
+        en: "Scrolling to the bottom now always reaches the last line, even when long entries wrap, and text no longer runs under the scrollbar.",
+        es: "Desplazarse hasta el final ahora siempre llega a la última línea, aunque las entradas largas ocupen varias líneas, y el texto ya no pasa por debajo de la barra de desplazamiento."),
+      ChangelogEntry(category: clcFixed,
+        headEn: "Exit prompt vanished on the game over screen",
+        headEs: "El aviso de salida desaparecía en la pantalla de fin de partida",
+        en: "Pressing Escape on the game over, victory or run stats screen flashed the exit confirmation for a single frame and closed it. It now stays open until you answer.",
+        es: "Pulsar Escape en la pantalla de fin de partida, de victoria o de estadísticas de la partida mostraba la confirmación de salida un solo fotograma y la cerraba. Ahora permanece abierta hasta que respondas.")
     ]
   ),
   ChangelogVersion(

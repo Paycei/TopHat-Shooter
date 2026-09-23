@@ -165,6 +165,15 @@ proc isGamepadStartPressed*(): bool =
 proc isGamepadConfirmPressed*(): bool =
   padButtonPressed(GamepadButton.RightFaceDown)
 
+proc isGamepadConfirmDown*(): bool =
+  ## A held (cutscene fast-forward). Held-state reads, so no edge bookkeeping.
+  padButtonDown(GamepadButton.RightFaceDown)
+
+proc isGamepadBackDown*(): bool =
+  ## B held (cutscene hold-to-skip). Ignores back suppression: that guards the
+  ## single B *press* that cancels a rebind capture, not a deliberate hold.
+  padButtonDown(GamepadButton.RightFaceRight)
+
 proc gamepadNavPressed*(dir: GamepadNavDir): bool =
   case dir
   of gnUp: padButtonPressed(GamepadButton.LeftFaceUp)

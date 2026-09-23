@@ -160,6 +160,8 @@ type
     tkLorePlayback = "lore_playback"
     tkLoreControlsFF = "lore_controls_ff"
     tkLoreControlsFFActive = "lore_controls_ff_active"
+    tkLoreControlsPad = "lore_controls_pad"
+    tkLoreControlsPadActive = "lore_controls_pad_active"
     tkLoreRecBreach = "lore_rec_breach"
     tkLoreRecSwarm = "lore_rec_swarm"
     tkLoreRecAwaken = "lore_rec_awaken"
@@ -178,6 +180,12 @@ type
     tkLoreCounter2 = "lore_counter_2"
     tkLoreDirectiveTitle = "lore_directive_title"
     tkLoreDirectiveSub = "lore_directive_sub"
+    tkLoreBreachAlert = "lore_breach_alert"
+    tkLoreContainment = "lore_containment"
+    tkLoreBoot1 = "lore_boot_1"
+    tkLoreBoot2 = "lore_boot_2"
+    tkLoreBoot3 = "lore_boot_3"
+    tkLoreServicesHijacked = "lore_services_hijacked"
 
     # Endgame / Outro Cinematic
     tkEndTitleCardSub = "end_title_card_sub"
@@ -529,7 +537,25 @@ type
     tkHelpCmdEnemies = "help_cmd_enemies"
     tkHelpCmdBosses = "help_cmd_bosses"
     tkHelpCmdShop = "help_cmd_shop"
+    tkHelpCmdLore = "help_cmd_lore"
     tkHelpCmdLaunchIcons = "help_cmd_launch_icons"
+
+    # Help System - Incident archive ("lore" command)
+    tkHelpLoreTopic = "help_lore_topic"
+    tkHelpLoreIntro = "help_lore_intro"
+    tkHelpLoreAct1Title = "help_lore_act1_title"
+    tkHelpLoreAct1Body = "help_lore_act1_body"
+    tkHelpLoreAct2Title = "help_lore_act2_title"
+    tkHelpLoreAct2Body = "help_lore_act2_body"
+    tkHelpLoreAct2Hint = "help_lore_act2_hint"
+    tkHelpLoreAct3Title = "help_lore_act3_title"
+    tkHelpLoreAct3Body = "help_lore_act3_body"
+    tkHelpLoreAct3Hint = "help_lore_act3_hint"
+    tkHelpLoreAct4Title = "help_lore_act4_title"
+    tkHelpLoreAct4Body = "help_lore_act4_body"
+    tkHelpLoreAct4Hint = "help_lore_act4_hint"
+    tkHelpLoreEncrypted = "help_lore_encrypted"
+    tkHelpLoreFooter = "help_lore_footer"
 
     # Help System - Controls section
     tkHelpMovement = "help_movement"
@@ -1221,6 +1247,23 @@ type
     tkBoss12Name = "boss_12_name"
     tkBoss12Desc = "boss_12_desc"
 
+    # Boss lore: the TOPHAT system service the Root hijacked to make each boss
+    # (boss 12 is the Root itself). Shown on the boss intro card and in Help.
+    tkBossTagService = "boss_tag_service"
+    tkBossTagHijacker = "boss_tag_hijacker"
+    tkBoss1Process = "boss_1_process"
+    tkBoss2Process = "boss_2_process"
+    tkBoss3Process = "boss_3_process"
+    tkBoss4Process = "boss_4_process"
+    tkBoss5Process = "boss_5_process"
+    tkBoss6Process = "boss_6_process"
+    tkBoss7Process = "boss_7_process"
+    tkBoss8Process = "boss_8_process"
+    tkBoss9Process = "boss_9_process"
+    tkBoss10Process = "boss_10_process"
+    tkBoss11Process = "boss_11_process"
+    tkBoss12Process = "boss_12_process"
+
     # Boss phase names (shown in the boss threat panel)
     tkBoss1Phase1 = "boss_1_phase_1"
     tkBoss1Phase2 = "boss_1_phase_2"
@@ -1374,6 +1417,7 @@ type
     tkModeIntroWaveRec2  = "mode_intro_wave_rec2"
     tkModeIntroWave2a    = "mode_intro_wave_2a"
     tkModeIntroWave2b    = "mode_intro_wave_2b"
+    tkModeIntroWaveRoster = "mode_intro_wave_roster"
 
     # Mode intro cutscenes: time survival
     tkModeIntroSurvTitle = "mode_intro_surv_title"
@@ -1383,6 +1427,8 @@ type
     tkModeIntroSurvRec2  = "mode_intro_surv_rec2"
     tkModeIntroSurv2a    = "mode_intro_surv_2a"
     tkModeIntroSurv2b    = "mode_intro_surv_2b"
+    tkModeIntroSurvUptime = "mode_intro_surv_uptime"
+    tkModeIntroSurvLogHeld = "mode_intro_surv_log_held"
 
     # Mode intro cutscenes: roguelite
     tkModeIntroRogueTitle = "mode_intro_rogue_title"
@@ -1392,12 +1438,21 @@ type
     tkModeIntroRogueRec2  = "mode_intro_rogue_rec2"
     tkModeIntroRogue2a    = "mode_intro_rogue_2a"
     tkModeIntroRogue2b    = "mode_intro_rogue_2b"
+    tkModeIntroRogueSector = "mode_intro_rogue_sector"
 
     # Mode intro cutscenes: sandbox
     tkModeIntroSandboxTitle = "mode_intro_sandbox_title"
     tkModeIntroSandboxRec1  = "mode_intro_sandbox_rec1"
     tkModeIntroSandbox1a    = "mode_intro_sandbox_1a"
     tkModeIntroSandbox1b    = "mode_intro_sandbox_1b"
+    tkModeIntroSandboxTerm1 = "mode_intro_sandbox_term_1"
+    tkModeIntroSandboxTerm2 = "mode_intro_sandbox_term_2"
+    tkModeIntroSandboxTerm3 = "mode_intro_sandbox_term_3"
+    tkModeIntroSandboxTerm4 = "mode_intro_sandbox_term_4"
+    tkModeIntroSandboxTerm5 = "mode_intro_sandbox_term_5"
+    tkModeIntroSandboxRec2  = "mode_intro_sandbox_rec2"
+    tkModeIntroSandbox2a    = "mode_intro_sandbox_2a"
+    tkModeIntroSandbox2b    = "mode_intro_sandbox_2b"
 
     # Mode intro cutscenes: pvp
     tkModeIntroPvPTitle = "mode_intro_pvp_title"
@@ -1407,6 +1462,9 @@ type
     tkModeIntroPvPRec2  = "mode_intro_pvp_rec2"
     tkModeIntroPvP2a    = "mode_intro_pvp_2a"
     tkModeIntroPvP2b    = "mode_intro_pvp_2b"
+    tkModeIntroPvPRec3  = "mode_intro_pvp_rec3"
+    tkModeIntroPvP3a    = "mode_intro_pvp_3a"
+    tkModeIntroPvP3b    = "mode_intro_pvp_3b"
     # Mode-exclusive power-up names
     tkPowerupGlitchField    = "powerup_glitch_field"
     tkPowerupTimeSurge      = "powerup_time_surge"
@@ -1457,7 +1515,7 @@ type
     tkPowerupChainReactionDesc2     = "powerup_chain_reaction_desc2"
     tkPowerupChainReactionDesc3     = "powerup_chain_reaction_desc3"
     tkPowerupKernelExploitDesc      = "powerup_kernel_exploit_desc"
-    tkPowerupDataHarvest        = "powerup_data_harvest"
+    tkPowerupDataHarvest            = "powerup_data_harvest"
     tkPowerupDataHarvestDesc1       = "powerup_data_harvest_desc1"
     tkPowerupDataHarvestDesc2       = "powerup_data_harvest_desc2"
     tkPowerupDataHarvestDesc3       = "powerup_data_harvest_desc3"
@@ -1596,6 +1654,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_playback": "PLAY",
     "lore_controls_ff": "HOLD ENTER: X2  |  HOLD SPACE: SKIP",
     "lore_controls_ff_active": "HOLD ENTER: 2X ACTIVE  |  HOLD SPACE: SKIP",
+    "lore_controls_pad": "HOLD $1: X2  |  HOLD $2: SKIP",
+    "lore_controls_pad_active": "HOLD $1: 2X ACTIVE  |  HOLD $2: SKIP",
     "lore_rec_breach": "REC 00: SYSTEM BREACH",
     "lore_rec_swarm": "REC 01: HOSTILE PROCESS FLOOD",
     "lore_rec_awaken": "REC 02: TOPHAT KERNEL WAKE",
@@ -1606,14 +1666,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_breach_2": "The gate is only a door. Something came through it.",
     "lore_swarm_1": "Its corruption pours in: shapes, shards, and hunger.",
     "lore_swarm_2": "Every wave learns. Every wave gets closer.",
-    "lore_awaken_1": "TOPHAT wakes and boots its last trusted process - you.",
+    "lore_awaken_1": "TOPHAT wakes and boots its last trusted process: you.",
     "lore_awaken_2": "The kernel cannot fight while contained. You can.",
     "lore_boss_1": "What came through the breach is older than the OS.",
-    "lore_boss_2": "It runs as root, and it writes every attack you face.",
+    "lore_boss_2": "It runs as root. Every service it touches turns on you.",
     "lore_counter_1": "Your fire becomes patches. Its shards become power.",
     "lore_counter_2": "The system can still be saved.",
     "lore_directive_title": "DEFENSE PROTOCOL: ACTIVE",
     "lore_directive_sub": "Hold the line, operator.",
+    "lore_breach_alert": "INCOMING CONNECTION: UNKNOWN HOST",
+    "lore_containment": "KERNEL CONTAINMENT",
+    "lore_boot_1": "tophat: containment active, kernel locked",
+    "lore_boot_2": "tophat: spawning last trusted process...",
+    "lore_boot_3": "operator: online",
+    "lore_services_hijacked": "SERVICES HIJACKED",
 
     "end_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT RESOLVED",
     "end_rec_fall": "REC 06: THE ROOT PURGED",
@@ -1624,13 +1690,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "end_fall_1": "The Root shatters.",
     "end_fall_2": "Its code unravels back through the breach it crawled from.",
     "end_purge_1": "The corruption recedes, sector by sector.",
-    "end_purge_2": "Clean memory is reclaimed in its wake.",
+    "end_purge_2": "Every service it stole comes back online.",
     "end_restore_1": "TOPHAT kernel restored. Containment stable.",
     "end_restore_2": "Threat level dropping... zero.",
     "end_crown_1": "With the Root gone, its root access falls to you.",
     "end_crown_2": "You wear the crown of the kernel now.",
     "end_signoff_title": "SYSTEM SECURED",
-    "end_signoff_sub": "Threat level zero. Stand down - you have earned the crown.",
+    "end_signoff_sub": "Threat level zero. Stand down, operator. You earned the crown.",
 
     "rog_end_title_card_sub": "ARCHIVE PLAYBACK // DEEP RECOVERY",
     "rog_end_rec_descend": "DELVE 01: SECTOR DESCENT",
@@ -1641,7 +1707,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "rog_end_rec_signoff": "DELVE 06: SURFACE REACHED",
     "rog_end_descend_1": "The surface was secured, but the rot still pulsed below.",
     "rog_end_descend_2": "Crowned now, you descended to end it at the source.",
-    "rog_end_core_1": "At the base of the recursion waited the seed-",
+    "rog_end_core_1": "At the base of the recursion waited the seed:",
     "rog_end_core_2": "the core the Root grew from, older than TOPHAT itself.",
     "rog_end_extract_1": "You tore the seed free, shard by shard,",
     "rog_end_extract_2": "and the endless loop began to unwind.",
@@ -1650,7 +1716,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "rog_end_ascend_1": "Up through the collapsing stack you climbed,",
     "rog_end_ascend_2": "recovered cores burning bright in hand.",
     "rog_end_signoff_title": "SECTOR CLEARED",
-    "rog_end_signoff_sub": "The recursion is broken - but now you know how deep root goes.",
+    "rog_end_signoff_sub": "The recursion is broken. Now you know how deep root goes.",
 
     "sur_end_title_card_sub": "ARCHIVE PLAYBACK // THE LONG WATCH",
     "sur_end_rec_watch": "LOG 01: THE LONG WATCH",
@@ -2285,7 +2351,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_cube_locked_hint": "Earn the 'Escape Velocity' advancement to unlock",
     "secret_cheater_hat_name": "Cheater Hat",
     "secret_cheater_hat_desc": "A very white, very pointy hat for players who know exactly what cd+ does.",
-    "victory_secret_unlocked": "[NEW] SECRET UNLOCKED: KERNEL TOPHAT -- equipped! Toggle it in the Shop's SECRET tab.",
+    "victory_secret_unlocked": "[NEW] SECRET UNLOCKED: KERNEL TOPHAT - equipped! Toggle it in the Shop's SECRET tab.",
 
     # Desktop Background Skins
     "dbg_default": "OS Grid",
@@ -2513,6 +2579,22 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_enemies": "Enemy types and behaviors",
     "help_cmd_bosses": "Boss information",
     "help_cmd_shop": "Shop items and costs",
+    "help_cmd_lore": "Incident archive: the story so far",
+    "help_lore_topic": "INCIDENT ARCHIVE",
+    "help_lore_intro": "Recovered case files on the Root incident. New files decrypt as you recover their recordings.",
+    "help_lore_act1_title": "ACT I: THE BREACH   [REC 00-05]",
+    "help_lore_act1_body": "An unknown server forced the gate of TopHat-ShooterOS, and something came through it: the Root. Its flood poured into memory, and every system service it touched turned hostile. Held in containment, the TOPHAT kernel could not fight, so it booted its last trusted process. You.",
+    "help_lore_act2_title": "ACT II: THE CROWN   [REC 06-10]",
+    "help_lore_act2_body": "Wave after wave, you tore the hijacked services out of the Root's grip until it had nothing left to hide behind and took form itself. It fell. The corruption receded, every stolen service came back online, and the Root's access passed to the one who ended it. The kernel's crown is yours now.",
+    "help_lore_act2_hint": "Recover this file by defeating the wave 60 boss.",
+    "help_lore_act3_title": "ACT III: THE DEEP   [DELVE 01-06]",
+    "help_lore_act3_body": "The surface was secured, but the rot still pulsed below the stack. You descended sector by sector to the seed the Root grew from, older than TOPHAT itself, and in its dying light learned the truth: the breach did not bring the Root. It woke it.",
+    "help_lore_act3_hint": "Recover this file by clearing the final roguelite floor.",
+    "help_lore_act4_title": "ACT IV: THE LONG WATCH   [LOG 01-05]",
+    "help_lore_act4_body": "Long after the crown, the flood returned, and you held the line alone. Every second of uptime was logged. When the last surge found the gap you could not close, no reboot answered, and the kernel's lights went out one by one. SYSTEM HALTED.",
+    "help_lore_act4_hint": "Recover this file by holding out for 15 minutes in Time Survival.",
+    "help_lore_encrypted": "[ENCRYPTED] This file is still sealed.",
+    "help_lore_footer": "Replay recovered recordings in SETTINGS.sys > Cinematics. Type 'bosses' for the hijacked service dossiers.",
     "help_cmd_launch_icons": "Launch desktop icons by name",
 
     # Help System - Controls section
@@ -2939,29 +3021,43 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Boss Names and Descriptions
     "boss_1_name": "The Spiral Guardian",
-    "boss_1_desc": "A mystical entity that weaves spiraling bullet patterns",
+    "boss_1_desc": "TOPHAT's perimeter watchman. The Root rewrote its patrol into endless spiraling barrages.",
     "boss_2_name": "The Summoner King",
-    "boss_2_desc": "Commands an army of minions to overwhelm foes",
+    "boss_2_desc": "The process scheduler, crowned by the Root. It forks hostile minions faster than you can end them.",
     "boss_3_name": "The Meteor Striker",
-    "boss_3_desc": "Rains destruction from above with devastating meteor strikes",
+    "boss_3_desc": "The garbage collector. It used to free dead memory; now it drops it on you as meteors.",
     "boss_4_name": "The Laser Architect",
-    "boss_4_desc": "Constructs deadly laser grids and geometric death traps",
+    "boss_4_desc": "The display compositor. It once drew every window on the desktop; now it draws laser grids around you.",
     "boss_5_name": "The Void Dancer",
-    "boss_5_desc": "Blinks through reality, leaving trails of dark energy",
+    "boss_5_desc": "The memory pager. It swaps itself in and out of existence, leaving trails of unmapped void.",
     "boss_6_name": "The Chain Reactor",
-    "boss_6_desc": "A being of pure electricity that chains devastating arcs between targets",
+    "boss_6_desc": "The interrupt handler. Every signal it catches now arrives as a chain of lightning.",
     "boss_7_name": "The Orbital Commander",
-    "boss_7_desc": "Commands orbital satellites that strike with astronomical precision",
+    "boss_7_desc": "The network uplink. Its relay satellites were built to carry packets; the Root aimed them at you.",
     "boss_8_name": "The Berserker Juggernaut",
-    "boss_8_desc": "An unstoppable force of pure rage that grows stronger as it bleeds",
+    "boss_8_desc": "The out-of-memory killer. The more it bleeds, the harder it charges.",
     "boss_9_name": "The Prism Architect",
-    "boss_9_desc": "Manipulates light itself into geometric prisons of splitting lasers",
+    "boss_9_desc": "The graphics shader pipeline. It bends light into prisms, and every beam it splits is aimed.",
     "boss_10_name": "The Timekeeper",
-    "boss_10_desc": "Bends the flow of time itself, creating paradoxes and temporal rifts",
+    "boss_10_desc": "The system clock. The Root stole its ticks, and now time runs however it says.",
     "boss_11_name": "The Chaos Weaver",
-    "boss_11_desc": "Weaves patterns of pure chaos, unpredictable and devastating",
+    "boss_11_desc": "The entropy pool. It fed the OS its randomness; now it feeds you nothing but chaos.",
     "boss_12_name": "The Omega Entity",
-    "boss_12_desc": "The ultimate challenge - combines all previous boss mechanics",
+    "boss_12_desc": "The Root itself, wearing every service it stole. It fights with all of them at once.",
+    "boss_tag_service": "HIJACKED SERVICE",
+    "boss_tag_hijacker": "HIJACKER",
+    "boss_1_process": "sentinel.sys",
+    "boss_2_process": "scheduler.exe",
+    "boss_3_process": "gc.daemon",
+    "boss_4_process": "compositor.sys",
+    "boss_5_process": "pager.sys",
+    "boss_6_process": "irq_handler.sys",
+    "boss_7_process": "uplink.net",
+    "boss_8_process": "oom_killer.exe",
+    "boss_9_process": "shader.gpu",
+    "boss_10_process": "clock.sys",
+    "boss_11_process": "entropy.pool",
+    "boss_12_process": "root (uid 0)",
 
     # Boss phase names (shown in the boss threat panel)
     "boss_1_phase_1": "Awakening",
@@ -3114,15 +3210,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_wave_rec2":  "DEPLOYMENT",
     "mode_intro_wave_2a":    "EVERY WAVE LEARNS. EVERY WAVE GETS CLOSER.",
     "mode_intro_wave_2b":    "HOLD THE LINE, OPERATOR.",
+    "mode_intro_wave_roster": "COMPROMISED SERVICES",
 
     # Mode intro: time survival (Act 4 live open of "THE LONG WATCH")
     "mode_intro_surv_title": "LIVE DISPATCH // THE LONG WATCH",
-    "mode_intro_surv_rec1":  "COUNTDOWN",
+    "mode_intro_surv_rec1":  "WATCH START",
     "mode_intro_surv_1a":    "THE ROOT IS PURGED. THE FLOOD STILL COMES.",
     "mode_intro_surv_1b":    "THE LONG WATCH BEGINS.",
     "mode_intro_surv_rec2":  "UPTIME LOG",
     "mode_intro_surv_2a":    "EVERY SECOND OF UPTIME IS LOGGED.",
     "mode_intro_surv_2b":    "NO RELIEF IS COMING. HOLD ANYWAY.",
+    "mode_intro_surv_uptime": "UPTIME",
+    "mode_intro_surv_log_held": "LINE HELD",
 
     # Mode intro: roguelite (Act 3 live open of "DEEP RECOVERY")
     "mode_intro_rogue_title": "LIVE DISPATCH // DEEP RECOVERY",
@@ -3132,12 +3231,21 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_rogue_rec2":  "RELIC SCAN",
     "mode_intro_rogue_2a":    "RECOVER LOST KERNEL PROCESSES. CLAIM RELICS.",
     "mode_intro_rogue_2b":    "FIND WHAT THE ROOT GREW FROM.",
+    "mode_intro_rogue_sector": "SECTOR $1",
 
     # Mode intro: sandbox (non-canon, outside the incident archive)
     "mode_intro_sandbox_title": "OFF THE RECORD // TEST ENVIRONMENT",
     "mode_intro_sandbox_rec1":  "INIT SEQUENCE",
     "mode_intro_sandbox_1a":    "TEST ENVIRONMENT ACTIVE",
     "mode_intro_sandbox_1b":    "WARNING: NO GUARDRAILS. PROCEED FREELY.",
+    "mode_intro_sandbox_term_1": "INIT TOPHAT_SANDBOX v0.9 ...",
+    "mode_intro_sandbox_term_2": "LOADING ENV MODULES ........",
+    "mode_intro_sandbox_term_3": "DISABLING SAFETY CHECKS .....",
+    "mode_intro_sandbox_term_4": "UNRESTRICTED ACCESS GRANTED.",
+    "mode_intro_sandbox_term_5": "WARNING: NO GUARDRAILS ACTIVE",
+    "mode_intro_sandbox_rec2":  "SPAWN TOOLS",
+    "mode_intro_sandbox_2a":    "SPAWN ANY PROCESS. TEST ANY BUILD.",
+    "mode_intro_sandbox_2b":    "ONE CLICK, ONE PROCESS. AS MANY AS YOU WANT.",
 
     # Mode intro: pvp (non-canon, outside the incident archive)
     "mode_intro_pvp_title": "EXTERNAL FEED // HOSTILE NODE",
@@ -3147,6 +3255,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_pvp_rec2":  "ADVERSARY LOCK",
     "mode_intro_pvp_2a":    "ADVERSARY SIGNATURE CONFIRMED",
     "mode_intro_pvp_2b":    "ELIMINATE OR BE ELIMINATED.",
+    "mode_intro_pvp_rec3":  "LINK DUEL",
+    "mode_intro_pvp_3a":    "ONE PORT. TWO PROCESSES.",
+    "mode_intro_pvp_3b":    "ONLY ONE KEEPS THE CONNECTION.",
     # Mode-exclusive power-up names
     "powerup_glitch_field":    "GLITCH_FIELD.dll",
     "powerup_time_surge":      "TIME_SURGE.exe",
@@ -3288,7 +3399,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_music": "Música:",
     "settings_sound_effects_desc": "(explosiones, UI, efectos en juego)",
     "settings_music_desc": "(volumen de música de fondo)",
-    "settings_fullscreen": "Pantalla:",
+    "settings_fullscreen": "Pantalla completa:",
     "settings_fullscreen_toggle": "(F11 para cambiar)",
     "settings_render_resolution": "Resolución mejorada (SSAA):",
     "settings_render_resolution_desc": "(mejora la nitidez en pantalla completa)",
@@ -3336,6 +3447,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_playback": "PLAY",
     "lore_controls_ff": "ENTER: X2  |  ESPACIO: SALTAR",
     "lore_controls_ff_active": "ENTER: X2 ACTIVO  |  ESPACIO: SALTAR",
+    "lore_controls_pad": "$1: X2  |  $2: SALTAR",
+    "lore_controls_pad_active": "$1: X2 ACTIVO  |  $2: SALTAR",
     "lore_rec_breach": "REC 00: BRECHA DEL SISTEMA",
     "lore_rec_swarm": "REC 01: AVALANCHA DE PROCESOS",
     "lore_rec_awaken": "REC 02: DESPERTAR DEL KERNEL",
@@ -3349,11 +3462,17 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_awaken_1": "TOPHAT despierta y arranca su último proceso fiable: tú.",
     "lore_awaken_2": "El kernel no puede luchar confinado. Tú sí.",
     "lore_boss_1": "Lo que cruzó la brecha es más antiguo que el SO.",
-    "lore_boss_2": "Corre como root y escribe cada ataque que enfrentas.",
+    "lore_boss_2": "Corre como root. Cada servicio que toca se vuelve contra ti.",
     "lore_counter_1": "Tu fuego son parches. Sus fragmentos, poder.",
     "lore_counter_2": "El sistema aún puede salvarse.",
     "lore_directive_title": "PROTOCOLO DE DEFENSA: ACTIVO",
     "lore_directive_sub": "Aguanta la línea, operador.",
+    "lore_breach_alert": "CONEXIÓN ENTRANTE: HOST DESCONOCIDO",
+    "lore_containment": "CONTENCIÓN DEL KERNEL",
+    "lore_boot_1": "tophat: contención activa, kernel bloqueado",
+    "lore_boot_2": "tophat: iniciando el último proceso fiable...",
+    "lore_boot_3": "operador: en línea",
+    "lore_services_hijacked": "SERVICIOS SECUESTRADOS",
 
     "end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE RESUELTO",
     "end_rec_fall": "REC 06: LA RAÍZ PURGADA",
@@ -3364,13 +3483,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "end_fall_1": "La Raíz se hace pedazos.",
     "end_fall_2": "Su código se deshace de vuelta por la brecha de la que surgió.",
     "end_purge_1": "La corrupción retrocede, sector a sector.",
-    "end_purge_2": "Tras ella se recupera memoria limpia.",
+    "end_purge_2": "Cada servicio que robó vuelve a estar en línea.",
     "end_restore_1": "Kernel TOPHAT restaurado. Contención estable.",
     "end_restore_2": "Nivel de amenaza bajando... cero.",
     "end_crown_1": "Con la Raíz eliminada, su acceso root pasa a ti.",
     "end_crown_2": "Ahora llevas la corona del kernel.",
     "end_signoff_title": "SISTEMA ASEGURADO",
-    "end_signoff_sub": "Nivel de amenaza cero. Descansa: te has ganado la corona.",
+    "end_signoff_sub": "Nivel de amenaza cero. Descansa, operador. Te ganaste la corona.",
 
     "rog_end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // RECUPERACIÓN PROFUNDA",
     "rog_end_rec_descend": "DESCENSO 01: BAJADA DE SECTOR",
@@ -3381,7 +3500,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "rog_end_rec_signoff": "DESCENSO 06: SUPERFICIE ALCANZADA",
     "rog_end_descend_1": "La superficie quedó asegurada, pero la podredumbre aún latía abajo.",
     "rog_end_descend_2": "Ya coronado, descendiste a acabarla en su origen.",
-    "rog_end_core_1": "En el fondo de la recursión aguardaba la semilla-",
+    "rog_end_core_1": "En el fondo de la recursión aguardaba la semilla:",
     "rog_end_core_2": "el núcleo del que nació la Raíz, más antiguo que el propio TOPHAT.",
     "rog_end_extract_1": "Arrancaste la semilla, fragmento a fragmento,",
     "rog_end_extract_2": "y el bucle sin fin comenzó a deshacerse.",
@@ -4144,6 +4263,22 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_enemies": "Tipos de enemigos y comportamientos",
     "help_cmd_bosses": "Información de jefes",
     "help_cmd_shop": "Artículos de tienda y costos",
+    "help_cmd_lore": "Archivo del incidente: la historia hasta ahora",
+    "help_lore_topic": "ARCHIVO DEL INCIDENTE",
+    "help_lore_intro": "Expedientes recuperados del incidente de la Raíz. Los nuevos se descifran al recuperar sus grabaciones.",
+    "help_lore_act1_title": "ACTO I: LA BRECHA   [REC 00-05]",
+    "help_lore_act1_body": "Un servidor desconocido forzó la puerta de TopHat-ShooterOS, y algo la cruzó: la Raíz. Su marea inundó la memoria, y cada servicio del sistema que tocó se volvió hostil. Confinado, el kernel TOPHAT no podía luchar, así que arrancó su último proceso fiable. Tú.",
+    "help_lore_act2_title": "ACTO II: LA CORONA   [REC 06-10]",
+    "help_lore_act2_body": "Oleada tras oleada, arrancaste los servicios secuestrados de las garras de la Raíz hasta que no tuvo tras qué esconderse y tomó forma ella misma. Cayó. La corrupción retrocedió, cada servicio robado volvió a estar en línea, y el acceso de la Raíz pasó a quien la derrotó. La corona del kernel ahora es tuya.",
+    "help_lore_act2_hint": "Recupera este expediente derrotando al jefe de la oleada 60.",
+    "help_lore_act3_title": "ACTO III: LAS PROFUNDIDADES   [DESCENSO 01-06]",
+    "help_lore_act3_body": "La superficie quedó asegurada, pero la podredumbre aún latía bajo la pila. Descendiste sector a sector hasta la semilla de la que nació la Raíz, más antigua que el propio TOPHAT, y en su última luz supiste la verdad: la brecha no trajo a la Raíz. La despertó.",
+    "help_lore_act3_hint": "Recupera este expediente superando el último piso del modo roguelite.",
+    "help_lore_act4_title": "ACTO IV: LA LARGA VIGILIA   [REG 01-05]",
+    "help_lore_act4_body": "Mucho después de la corona, la marea volvió, y sostuviste la línea en solitario. Cada segundo de actividad quedó registrado. Cuando la última oleada halló la brecha que no pudiste cerrar, ningún reinicio respondió, y las luces del kernel se apagaron una a una. SISTEMA DETENIDO.",
+    "help_lore_act4_hint": "Recupera este expediente resistiendo 15 minutos en Supervivencia por Tiempo.",
+    "help_lore_encrypted": "[CIFRADO] Este expediente sigue sellado.",
+    "help_lore_footer": "Vuelve a ver las grabaciones recuperadas en CONFIG.sys > Cinemáticas. Escribe 'bosses' para ver los expedientes de servicios secuestrados.",
     "help_cmd_launch_icons": "Lanzar iconos de escritorio por nombre",
 
     # Help System - Controls section
@@ -4678,29 +4813,43 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Boss Names and Descriptions
     "boss_1_name": "El Guardián Espiral",
-    "boss_1_desc": "Entidad mística que teje patrones de espiral",
+    "boss_1_desc": "El vigía del perímetro de TOPHAT. La Raíz reescribió su patrulla en ráfagas en espiral sin fin.",
     "boss_2_name": "El Rey Invocador",
-    "boss_2_desc": "Abruma con ejércitos de secuaces",
+    "boss_2_desc": "El planificador de procesos, coronado por la Raíz. Genera secuaces hostiles más rápido de lo que puedes acabar con ellos.",
     "boss_3_name": "El Azote Meteórico",
-    "boss_3_desc": "Lluvia de destrucción desde las alturas",
+    "boss_3_desc": "El recolector de basura. Antes liberaba memoria muerta; ahora te la arroja encima como meteoros.",
     "boss_4_name": "El Arquitecto Láser",
-    "boss_4_desc": "Construye trampas letales de rejillas láser",
+    "boss_4_desc": "El compositor de pantalla. Antes dibujaba cada ventana del escritorio; ahora dibuja rejillas láser a tu alrededor.",
     "boss_5_name": "El Danzante del Vacío",
-    "boss_5_desc": "Parpadea entre dimensiones dejando energía oscura",
+    "boss_5_desc": "El paginador de memoria. Entra y sale de la existencia, dejando estelas de vacío sin mapear.",
     "boss_6_name": "El Reactor en Cadena",
-    "boss_6_desc": "Ser de pura electricidad que encadena arcos devastadores",
+    "boss_6_desc": "El gestor de interrupciones. Cada señal que atrapa llega ahora como una cadena de relámpagos.",
     "boss_7_name": "El Comandante Orbital",
-    "boss_7_desc": "Controla satélites que atacan con precisión astronómica",
+    "boss_7_desc": "El enlace de red. Sus satélites repetidores transportaban paquetes; la Raíz los apuntó hacia ti.",
     "boss_8_name": "El Berserker Imparable",
-    "boss_8_desc": "Fuerza de ira pura que se fortalece al sangrar",
+    "boss_8_desc": "El eliminador de memoria agotada. Cuanto más sangra, más fuerte embiste.",
     "boss_9_name": "El Arquitecto Prisma",
-    "boss_9_desc": "Manipula la luz en prisiones geométricas de láseres",
+    "boss_9_desc": "La cadena de sombreado gráfico. Dobla la luz en prismas, y cada haz que divide va apuntado.",
     "boss_10_name": "El Cronómetra",
-    "boss_10_desc": "Dobla el tiempo creando paradojas y grietas temporales",
+    "boss_10_desc": "El reloj del sistema. La Raíz le robó sus ciclos, y ahora el tiempo corre a su antojo.",
     "boss_11_name": "El Tejedor del Caos",
-    "boss_11_desc": "Teje patrones de caos puro, imprevisible y devastador",
+    "boss_11_desc": "La reserva de entropía. Alimentaba al SO de azar; ahora solo te alimenta de caos.",
     "boss_12_name": "La Entidad Omega",
-    "boss_12_desc": "El desafío final: combina todos los mecánicos anteriores",
+    "boss_12_desc": "La propia Raíz, vistiendo cada servicio que robó. Lucha con todos a la vez.",
+    "boss_tag_service": "SERVICIO SECUESTRADO",
+    "boss_tag_hijacker": "SECUESTRADOR",
+    "boss_1_process": "centinela.sys",
+    "boss_2_process": "planificador.exe",
+    "boss_3_process": "recolector.daemon",
+    "boss_4_process": "compositor.sys",
+    "boss_5_process": "paginador.sys",
+    "boss_6_process": "gestor_irq.sys",
+    "boss_7_process": "enlace.net",
+    "boss_8_process": "oom_killer.exe",
+    "boss_9_process": "sombreador.gpu",
+    "boss_10_process": "reloj.sys",
+    "boss_11_process": "azar.pool",
+    "boss_12_process": "root (uid 0)",
 
     # Boss phase names (shown in the boss threat panel)
     "boss_1_phase_1": "Despertar",
@@ -4852,15 +5001,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_wave_rec2":  "DESPLIEGUE",
     "mode_intro_wave_2a":    "CADA OLEADA APRENDE. CADA OLEADA SE ACERCA.",
     "mode_intro_wave_2b":    "AGUANTA LA LÍNEA, OPERADOR.",
+    "mode_intro_wave_roster": "SERVICIOS COMPROMETIDOS",
 
     # Mode intro: time survival
     "mode_intro_surv_title": "EN DIRECTO // LA LARGA VIGILIA",
-    "mode_intro_surv_rec1":  "CUENTA REGRESIVA",
+    "mode_intro_surv_rec1":  "INICIO DE VIGILIA",
     "mode_intro_surv_1a":    "LA RAÍZ FUE PURGADA. LA MAREA SIGUE LLEGANDO.",
     "mode_intro_surv_1b":    "LA LARGA VIGILIA COMIENZA.",
     "mode_intro_surv_rec2":  "REGISTRO DE TIEMPO",
     "mode_intro_surv_2a":    "CADA SEGUNDO DE ACTIVIDAD QUEDA REGISTRADO.",
     "mode_intro_surv_2b":    "NO VENDRÁN REFUERZOS. AGUANTA IGUAL.",
+    "mode_intro_surv_uptime": "ACTIVIDAD",
+    "mode_intro_surv_log_held": "LÍNEA SOSTENIDA",
 
     # Mode intro: roguelite
     "mode_intro_rogue_title": "EN DIRECTO // RECUPERACIÓN PROFUNDA",
@@ -4870,12 +5022,21 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_rogue_rec2":  "ESCANEO DE RELIQUIA",
     "mode_intro_rogue_2a":    "RECUPERA PROCESOS PERDIDOS DEL KERNEL. RECLAMA RELIQUIAS.",
     "mode_intro_rogue_2b":    "ENCUENTRA AQUELLO DE LO QUE NACIÓ LA RAÍZ.",
+    "mode_intro_rogue_sector": "SECTOR $1",
 
     # Mode intro: sandbox
     "mode_intro_sandbox_title": "FUERA DE REGISTRO // ENTORNO DE PRUEBAS",
     "mode_intro_sandbox_rec1":  "SECUENCIA DE INICIO",
     "mode_intro_sandbox_1a":    "ENTORNO DE PRUEBAS ACTIVO",
     "mode_intro_sandbox_1b":    "ADVERTENCIA: SIN LIMITACIONES. PROCEDE LIBREMENTE.",
+    "mode_intro_sandbox_term_1": "INICIANDO TOPHAT_SANDBOX v0.9 ...",
+    "mode_intro_sandbox_term_2": "CARGANDO MÓDULOS DE ENTORNO ...",
+    "mode_intro_sandbox_term_3": "DESACTIVANDO SEGURIDAD ........",
+    "mode_intro_sandbox_term_4": "ACCESO SIN RESTRICCIONES.",
+    "mode_intro_sandbox_term_5": "AVISO: SIN SALVAGUARDAS ACTIVAS",
+    "mode_intro_sandbox_rec2":  "HERRAMIENTAS DE GENERACIÓN",
+    "mode_intro_sandbox_2a":    "GENERA CUALQUIER PROCESO. PRUEBA CUALQUIER CONFIGURACIÓN.",
+    "mode_intro_sandbox_2b":    "UN CLIC, UN PROCESO. TANTOS COMO QUIERAS.",
 
     # Mode intro: pvp
     "mode_intro_pvp_title": "SEÑAL EXTERNA // NODO HOSTIL",
@@ -4885,6 +5046,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_pvp_rec2":  "BLOQUEO DE ADVERSARIO",
     "mode_intro_pvp_2a":    "FIRMA DEL ADVERSARIO CONFIRMADA",
     "mode_intro_pvp_2b":    "ELIMINA O SERÁS ELIMINADO.",
+    "mode_intro_pvp_rec3":  "DUELO DE ENLACE",
+    "mode_intro_pvp_3a":    "UN PUERTO. DOS PROCESOS.",
+    "mode_intro_pvp_3b":    "SOLO UNO CONSERVA LA CONEXIÓN.",
     # Mode-exclusive power-up names
     "powerup_glitch_field":    "CAMPO_FALLO.dll",
     "powerup_time_surge":      "OLEADA_TEMPORAL.exe",

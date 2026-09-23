@@ -9,6 +9,7 @@ const
   HELP_LINE_HEIGHT* = 18
   HELP_ICON_SIZE* = HELP_LINE_HEIGHT - 4
   HELP_ICON_PADDING* = 6
+  HELP_SCROLLBAR_GUTTER = 12  # text wraps short of the scrollbar (6px track + gap)
 
 type
   HelpCommand* = tuple[cmd: string, desc: string]
@@ -32,6 +33,7 @@ proc getHelpCommands*(): seq[HelpCommand] =
     ("enemies", t(tkHelpCmdEnemies)),
     ("bosses", t(tkHelpCmdBosses)),
     ("shop", t(tkHelpCmdShop)),
+    ("lore", t(tkHelpCmdLore)),
     ("customize", "Customize player and bullet skins"),
     ("advancements", "Open persistent progression tracker"),
     ("clear", t(tkHelpClearCommand)),
@@ -238,10 +240,15 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput(t(tkHelpBossAttacks), Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("  " & t(tkHelpBossAttacksRefer), White)
       help.addOutput("", White)
-      # List all bosses with short descriptions
+      # List all bosses as service dossiers: name, hijacked service, lore line.
       for id in 1..12:
         let bd = getBossDefinition(id)
         help.addOutput("  " & bd.name, bd.color)
+        let tag = getBossServiceTag(id)
+        if tag.len > 0:
+          let tagColor = if isRootBoss(id): Color(r: 255, g: 140, b: 230, a: 255)
+                         else: Color(r: 255, g: 175, b: 70, a: 255)
+          help.addOutput("    " & tag, tagColor)
         for line in bd.description.split("\n"):
           help.addOutput("    " & line, White)
         help.addOutput("", White)
@@ -282,6 +289,41 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput(t(tkHelpShopAccess), Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("  " & t(tkHelpOpensAfterPowerup), White)
       help.addOutput("  " & t(tkHelpAvailableBetweenWaves), White)
+      help.addOutput("", White)
+
+    of "lore", "archive", "story":
+      # The incident archive: one case file per act of the saga. Act I is always
+      # readable (the intro plays on every fresh profile); the rest decrypt with
+      # the same "seen" flags that unlock their replays in Settings > Cinematics.
+      let s = globalSettings
+      let archiveColor = Color(r: 120, g: 200, b: 255, a: 255)
+      help.addOutput("", White)
+      help.addOutput("=======================================", archiveColor)
+      help.addOutput("  " & t(tkHelpLoreTopic), archiveColor)
+      help.addOutput("=======================================", archiveColor)
+      help.addOutput("", White)
+      help.addOutput(t(tkHelpLoreIntro), LightGray)
+      help.addOutput("", White)
+      let acts = [
+        (t(tkHelpLoreAct1Title), t(tkHelpLoreAct1Body), "", true,
+         Color(r: 0, g: 230, b: 230, a: 255)),
+        (t(tkHelpLoreAct2Title), t(tkHelpLoreAct2Body), t(tkHelpLoreAct2Hint),
+         s != nil and s.hasSeenEnding, Color(r: 60, g: 235, b: 160, a: 255)),
+        (t(tkHelpLoreAct3Title), t(tkHelpLoreAct3Body), t(tkHelpLoreAct3Hint),
+         s != nil and s.hasSeenRogueliteEnding, Color(r: 255, g: 190, b: 70, a: 255)),
+        (t(tkHelpLoreAct4Title), t(tkHelpLoreAct4Body), t(tkHelpLoreAct4Hint),
+         s != nil and s.hasSeenSurvivalEnding, Color(r: 255, g: 120, b: 50, a: 255)),
+      ]
+      for (title, body, hint, unlocked, accent) in acts:
+        if unlocked:
+          help.addOutput(title, accent)
+          help.addOutput(body, White, -1, 12)
+        else:
+          help.addOutput(title, Color(r: 110, g: 120, b: 135, a: 255))
+          help.addOutput(t(tkHelpLoreEncrypted), Color(r: 150, g: 150, b: 160, a: 255), -1, 12)
+          help.addOutput(hint, Color(r: 120, g: 130, b: 145, a: 255), -1, 12)
+        help.addOutput("", White)
+      help.addOutput(t(tkHelpLoreFooter), LightGray)
       help.addOutput("", White)
 
     # Desktop icon execution commands
@@ -332,6 +374,32 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     help.addOutput(t(tkHelpTypeHelp), LightGray)
     help.addOutput("", White)
 
+proc entryVisualLines(help: HelpWindow, idx: int): int =
+  ## Wrapped line count of one output entry, using the draw pass's geometry.
+  let line = help.outputLines[idx]
+  let contentW = help.window.width - WINDOW_PADDING * 2
+  var availableW: int32 = (contentW - 20 - HELP_SCROLLBAR_GUTTER).int32 - line.indent.int32
+  if line.icon >= 0 or line.icon == -2:
+    availableW = availableW - int32(HELP_ICON_SIZE + HELP_ICON_PADDING)
+  max(1, wrapTextToWidth(line.text, max(availableW, 20'i32), 14'i32).len)
+
+proc bottomScrollOffset*(help: HelpWindow): int =
+  ## First entry to draw so the LAST entry is on screen. Scrolling counts entries
+  ## but long entries wrap onto several lines, so a fixed `len - 15` left the tail
+  ## of paragraph output (the lore archive, long boss dossiers) unreachable.
+  ## `capacity` mirrors drawHelpWindow's stop condition.
+  let contentH = help.window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING * 2
+  let capacity = max(1, (contentH - 78) div HELP_LINE_HEIGHT + 1)
+  var used = 0
+  var start = help.outputLines.len
+  while start > 0:
+    let n = entryVisualLines(help, start - 1)
+    if used + n > capacity:
+      break
+    used += n
+    dec start
+  min(start, max(0, help.outputLines.len - 1))
+
 proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): int =
   ## Returns icon to execute: -1 = none, 0-6 = desktop icon index (6 = sandbox)
   ## Window closing is handled by setting help.window.visible = false
@@ -380,13 +448,13 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
       if help.currentInput.len > 0:
         executeCommand(help, help.currentInput)
         help.currentInput = ""
-      help.scrollOffset = max(0, help.outputLines.len - 15)  # Scroll to bottom
+      help.scrollOffset = bottomScrollOffset(help)  # Scroll to bottom
 
   # Handle scrolling with mouse wheel
   let wheel = getPointerWheelMove()
   if wheel != 0:
     help.scrollOffset = clamp(help.scrollOffset - int(wheel * 3), 0,
-                              max(0, help.outputLines.len - 15))
+                              bottomScrollOffset(help))
 
   return -1  # No icon to execute
 
@@ -426,7 +494,7 @@ proc drawHelpWindow*(help: HelpWindow) =
     let hasPowerUpIcon = line.icon >= 0
     let hasLockIcon = line.icon == -2  # sentinel: undiscovered power-up
     let iconPresent = hasPowerUpIcon or hasLockIcon
-    var availableW: int32 = (contentW - 20).int32 - line.indent.int32
+    var availableW: int32 = (contentW - 20 - HELP_SCROLLBAR_GUTTER).int32 - line.indent.int32
     if iconPresent:
       availableW = availableW - int32(HELP_ICON_SIZE + HELP_ICON_PADDING)
     if availableW < 20.int32:
