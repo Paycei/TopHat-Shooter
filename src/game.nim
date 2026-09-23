@@ -9,6 +9,30 @@ const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricoc
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
 const TIME_SURVIVAL_BOSS_INTERVAL = 90.0  # survival boss every 1.5 min
 const SurvivalDifficultyRamp = 45.0'f32   # seconds of survival per +1 difficulty
+const VOLATILE_COLOR = Color(r: 255, g: 120, b: 30, a: 255)  # Volatile's ember orange (pulse ring, sparks, primed marker)
+
+proc drawVolatilePrimed(enemy: Enemy, time: float32) =
+  ## Volatile "primed" marker: an enemy carrying 2+ elements (so it takes the
+  ## bonus damage and will pulse on death) gets a flickering orbit of arcs,
+  ## one per carried element in that element's colour, around an ember ring.
+  var count = 0
+  for et, ae in enemy.activeEffects:
+    if ae.primary.isActive: inc count
+  if count < 2: return
+  let flick = sin(time * 12.0'f32 + enemy.id.float32) * 0.5'f32 + 0.5'f32
+  let r = enemy.radius + 7.0'f32 + flick * 2.0'f32
+  let center = Vector2(x: enemy.pos.x, y: enemy.pos.y)
+  drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r,
+                  withAlpha(VOLATILE_COLOR, uint8(110.0'f32 + flick * 100.0'f32)))
+  let span = 360.0'f32 / count.float32
+  let spin = time * 140.0'f32
+  var i = 0
+  for et, ae in enemy.activeEffects:
+    if ae.primary.isActive:
+      let start = spin + i.float32 * span
+      drawRing(center, r + 2.0'f32, r + 4.5'f32, start, start + span * 0.6'f32, 12,
+               withAlpha(elementColor(et), 220))
+      inc i
 
 # Spatial-grid acceleration (SpatialGrid is in enemy_helpers.nim): buckets
 # game.enemies by screen cell so the proximity loops run in ~O(n) instead of
@@ -2957,20 +2981,43 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           if ae.primary.isActive:
             activeEffectCount += 1
         if activeEffectCount >= 2:
-          const volatilePulseRadius = 120.0
+          const volatilePulseRadius = 100.0
+          # Cap the tethers drawn per pulse so a packed crowd doesn't turn
+          # into a wall of arcs; every enemy in range is still infected.
+          const volatileMaxTethers = 8
+          var tethers = 0
           for otherEnemy in game.enemies:
             if otherEnemy.id != enemy.id:
               let dist = distance(enemy.pos, otherEnemy.pos)
               if dist <= volatilePulseRadius:
-                # Spread each active element at 60% DPS and 50% duration
+                # Spread each active element at 40% DPS and 40% duration
+                var tetherColor = VOLATILE_COLOR
+                var nth = 0
                 for et, ae in enemy.activeEffects:
                   if ae.primary.isActive:
                     applyEffect(otherEnemy, ae.primary.elementType,
-                                ae.primary.damagePerSec * 0.6,
-                                ae.primary.remainingDuration * 0.5,
+                                ae.primary.damagePerSec * 0.4,
+                                ae.primary.remainingDuration * 0.4,
                                 "volatile_pulse", ae.primary.hadMastery)
+                    # Rotate tether colours through the spread elements so
+                    # the player can see *what* is being passed along.
+                    if nth == tethers mod activeEffectCount:
+                      tetherColor = elementColor(et)
+                    inc nth
+                if tethers < volatileMaxTethers:
+                  spawnLightningBolt(game, enemy.pos, otherEnemy.pos, tetherColor)
+                  spawnExplosionPooled(game.particlePool, otherEnemy.pos.x, otherEnemy.pos.y,
+                                       tetherColor, 6)
+                  inc tethers
+          # Blast ring marks the exact infection radius; one burst per element
+          # that was carried makes the pulse's contents readable at a glance.
+          spawnShockwaveRing(game, enemy.pos, volatilePulseRadius, VOLATILE_COLOR)
           spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
-                        Color(r: 255, g: 150, b: 50, a: 255), 20)
+                        VOLATILE_COLOR, 20)
+          for et, ae in enemy.activeEffects:
+            if ae.primary.isActive:
+              spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
+                                   elementColor(et), 8)
 
       game.enemies.delete(enemyIdx)
       continue
@@ -4094,7 +4141,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             if target.isBoss and bossWindowOpen:
               target.windowDamageDealt += actualDamage
 
-            # Volatile: enemies with 2+ active DoTs take +50% bullet damage
+            # Volatile: enemies with 2+ active DoTs take +30% bullet damage
             var volatileBonusDamage = 0.0
             if game.player.hasVolatile and bullet.fromPlayer and not bullet.isEcho:
               var activeEffectCount = 0
@@ -4102,11 +4149,14 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
                 if ae.primary.isActive:
                   activeEffectCount += 1
               if activeEffectCount >= 2:
-                volatileBonusDamage = actualDamage * 0.5
+                volatileBonusDamage = actualDamage * 0.3
                 volatileBonusDamage = applyEnemyHpDamage(target, volatileBonusDamage)
                 trackPowerUpDamage(game, puVolatile, volatileBonusDamage)
                 if volatileBonusDamage > 0:
                   showDamage(game, target.pos, volatileBonusDamage, true, false, dtArcane)
+                  # Small ember spray so the amplified hit reads as Volatile's.
+                  spawnExplosionPooled(game.particlePool, target.pos.x, target.pos.y,
+                                       VOLATILE_COLOR, 3)
 
             # Resonance: bullets hitting DoT enemies deal bonus damage equal to % of combined DPS
             var resonanceBonusDamage = 0.0
@@ -5629,6 +5679,8 @@ proc drawGame*(game: Game) =
     if enemy.isElite:
       drawEliteAura(enemy, game.time)
     drawEnemy(enemy)
+    if game.player.hasVolatile:
+      drawVolatilePrimed(enemy, game.time)
     # Draw elite overlay after body so outline + orbit crown render on top
     if enemy.isElite:
       drawEliteOverlay(enemy, game.time)

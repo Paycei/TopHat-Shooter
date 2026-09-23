@@ -297,7 +297,7 @@ type
     puSpeedBoost,      # Permanent speed increase
     puThorns,          # Reflect damage to attackers
     puTimeWarp,        # Slow down time globally
-    puVolatile,        # LEGENDARY passive: enemies with 2+ DoTs take +50% dmg, death pulse spreads elements
+    puVolatile,        # LEGENDARY passive: enemies with 2+ DoTs take +30% dmg, death pulse spreads elements
     puWallMaster,      # Place stronger walls and increment turret damage
     puWallTurrets,     # LEGENDARY: Walls become turrets that shoot enemies
     puWindAura,        # Pushes enemies away from player
@@ -704,7 +704,7 @@ type
     cubeSkinType*: int  # Equipped desktop-cube skin (colors the orbital cube companion)
     celestialVeilCharges*: int  # Number of Celestial Veil charges left this wave (decremented when a hit is absorbed)
     # Volatile (Legendary passive)
-    hasVolatile*: bool          # Enemies with 2+ DoTs take +50% dmg and spread on death
+    hasVolatile*: bool          # Enemies with 2+ DoTs take +30% dmg and spread on death
     # Resonance (Normal passive)
     resonanceLevel*: int        # 0 = none, 1/2/3 = 20/30/40% bonus elemental DPS
     # Blood Pact (Legendary active)

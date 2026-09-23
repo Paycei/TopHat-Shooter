@@ -8,7 +8,7 @@ TopHat-ShooterOS is a bullet-heaven game written in Nim with Raylib (via the `na
 
 ```powershell
 nimble install        # fetch dependencies (naylib, flatty, supersnappy)
-nimble debug          # nim c -r --mm:orc -d:debug src/main.nim  (build + run, the dev loop)
+nimble debug          # build + run -> TopHatShooterOS-debug.exe (-d:debug; always enables the cheat menu)
 nimble WinRelease     # optimized MSVC build -> TopHatShooterOS.exe (Windows, needs VC++ Build Tools)
 nimble WinReleaseMin  # release optimized for size
 nimble LinuxRelease   # optimized Linux build
@@ -26,7 +26,7 @@ the first compile. The script takes no arguments. Note the two Windows tasks sha
 one output path (`TopHatShooterOS.exe`), so they can never run concurrently; the script builds
 the portable one first so the *speed*-optimized exe is what's left in the repo root.
 
-**There is no test suite.** The primary correctness check is compilation:
+**There is no real test suite** — only `tests/test_spatial_grid.nim` (`nim r --mm:orc tests/test_spatial_grid.nim`), a brute-force check that `SpatialGrid` queries never drop an in-range enemy; run it when touching the grid in `enemy_helpers.nim`/`game.nim`. The primary correctness check is compilation:
 
 ```powershell
 nim check --mm:orc src/main.nim    # fast type-check without producing a binary
@@ -41,14 +41,14 @@ Always run this after edits. Nim enforces **exhaustive `case` statements over en
 - `src/game.nim` is the gameplay core: `updateGame*` and `drawGame*` (plus the game-over/victory draws), the per-frame system orchestration, the spatial-grid acceleration state (`enemyGrid`, `GRID_*`), game lifecycle (`newGame*`/`setGameMode*`/`cleanupGame*`), and wave flow (`startWave*`/`advanceWave*`). **When in doubt, the top-level frame logic lives here.** It sits at the top of a dependency DAG: it `import`s the gameplay subsystem **modules** under `src/game/` and re-`export`s them, so `main.nim`'s `import game` still sees the whole gameplay API. The subsystems are real importable modules (each with its own `import`s + `*` exports), layered combat → bullets → {auras, death, bosses, orbitals, shooting}:
   - `src/game/combat.nim` — damage/crit/thorns + `showDamage`/`CombatStats` (foundation; nothing else in `game/` is below it).
   - `src/game/bullets.nim` — bullet effects, lightning, `BulletEffects`, aura/explosion radii.
-  - `src/game/auras.nim` — aura config + rendering. `src/game/death.nim` — death sequence, `installPowerUp`, `withAlpha`. `src/game/shooting.nim` — `shootBullet`. `src/game/orbitals.nim` — orbital weapons. `src/game/bosses.nim` — boss AI/mechanics + `executeCustomBossAttack` (per-pattern `execBossAttack*` procs). Boss **wave** flow (`BossWaveManager` accessors + `completeBossWave`/`spawnConfiguredBoss`) lives inline in `game.nim` next to the other wave-flow procs, not in a `game/` module.
+  - `src/game/auras.nim` — aura config + rendering. `src/game/death.nim` — death sequence, `installPowerUp`. `src/game/shooting.nim` — `shootBullet`. `src/game/orbitals.nim` — orbital weapons. `src/game/bosses.nim` — boss AI/mechanics + `executeCustomBossAttack` (per-pattern `execBossAttack*` procs). Boss **wave** flow (`BossWaveManager` accessors + `completeBossWave`/`spawnConfiguredBoss`) lives inline in `game.nim` next to the other wave-flow procs, not in a `game/` module.
   When adding gameplay logic, put it in the matching subsystem module (and `*`-export what `game.nim`/siblings call); a subsystem must never `import game` (that's the one cycle to avoid). Only `main.nim` imports `game`.
 - `src/types.nim` is the single source of truth for the data model: `Game`, `Player`, `Enemy`, `Bullet`, and every enum. `Player`/`Enemy`/`Bullet` are `ref object`s (mutating a local copy mutates the shared instance — no write-back needed). `float32` is the pervasive numeric type.
 
 ### Game modes
 Selected via `GameMode`; each delegates out of `game.nim` where it diverges:
 - `gmWaveBased` (default) and `gmTimeSurvival` (`survival.nim`) — core PvE loop.
-- `gmRoguelite` (`roguelite.nim`, `ui/os_roguelite.nim`) — run-based meta-progression with relics, sectors, and unlockable power families (`RoguelitePowerFamily`).
+- `gmRoguelite` (`roguelite.nim`, `dungeon.nim`, `ui/os_roguelite.nim`) — run-based meta-progression with relics, sectors, and unlockable power families (`RoguelitePowerFamily`). `dungeon.nim` owns floor/room generation and transitions; like the `game/` modules, it must not `import game` (enemy spawning stays in `game.nim`).
 - `gmPvP` (`pvp_game.nim` + `network/`) — networked multiplayer. `flatty` + `supersnappy` are used **only** for PvP packet serialization, not save files.
 - `gmSandbox` (`sandbox.nim`) and a separate 3D boss state (`gs3DBoss`, `game3d/`).
 
