@@ -1463,6 +1463,42 @@ type
     tkPowerupDataHarvestDesc3       = "powerup_data_harvest_desc3"
     # Discovery banner
     tkNewProcessInstalled = "new_process_installed"
+    # First-run tutorial (ORIENTATION.EXE). Bodies carry {placeholders} that
+    # the overlay swaps for the player's live bindings, drawn as keycaps.
+    tkTutorialHeader = "tutorial_header"
+    tkTutorialMoveTitle = "tutorial_move_title"
+    tkTutorialMoveBody = "tutorial_move_body"
+    tkTutorialFireTitle = "tutorial_fire_title"
+    tkTutorialFireBodyKb = "tutorial_fire_body_kb"
+    tkTutorialFireBodyPad = "tutorial_fire_body_pad"
+    tkTutorialDashTitle = "tutorial_dash_title"
+    tkTutorialDashBody = "tutorial_dash_body"
+    tkTutorialTargetsTitle = "tutorial_targets_title"
+    tkTutorialTargetsBody = "tutorial_targets_body"
+    tkTutorialTargetsCount = "tutorial_targets_count"
+    tkTutorialLootTitle = "tutorial_loot_title"
+    tkTutorialLootBody = "tutorial_loot_body"
+    tkTutorialStatusTitle = "tutorial_status_title"
+    tkTutorialStatusBody = "tutorial_status_body"
+    tkTutorialWallsTitle = "tutorial_walls_title"
+    tkTutorialWallsBody = "tutorial_walls_body"
+    tkTutorialReadyTitle = "tutorial_ready_title"
+    tkTutorialReadyBody = "tutorial_ready_body"
+    tkTutorialYou = "tutorial_you"
+    tkTutorialDone = "tutorial_done"
+    tkTutorialNext = "tutorial_next"
+    tkTutorialStartWave = "tutorial_start_wave"
+    tkTutorialFinish = "tutorial_finish"
+    tkTutorialHoldSkip = "tutorial_hold_skip"
+    tkTutorialKeyLeftClick = "tutorial_key_left_click"
+    tkTutorialKeyLeftStick = "tutorial_key_left_stick"
+    tkTutorialKeyRightStick = "tutorial_key_right_stick"
+    tkTutorialLaunching = "tutorial_launching"
+    tkTutorialPracticeComplete = "tutorial_practice_complete"
+    tkSettingsTutorial = "settings_tutorial"
+    tkSettingsReplayTutorial = "settings_replay_tutorial"
+    tkSettingsReplayTutorialDesc = "settings_replay_tutorial_desc"
+    tkSettingsReplayTutorialLocked = "settings_replay_tutorial_locked"
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -3169,7 +3205,41 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "resume_run_body":         "Continue your saved run or start a new one?",
     "resume_continue":         "CONTINUE",
     "resume_new_run":          "NEW RUN",
-    "new_process_installed":   "NEW PROCESS DISCOVERED"
+    "new_process_installed":   "NEW PROCESS DISCOVERED",
+    "tutorial_header":          "ORIENTATION.EXE",
+    "tutorial_move_title":      "MOVE",
+    "tutorial_move_body":       "Welcome, process. Move with {move}. The glowing shape in the middle is you.",
+    "tutorial_fire_title":      "AIM & FIRE",
+    "tutorial_fire_body_kb":    "Aim with the mouse and hold {fire} to shoot.",
+    "tutorial_fire_body_pad":   "Aim with {aim}, it fires on its own. {fire} fires too.",
+    "tutorial_dash_title":      "DASH",
+    "tutorial_dash_body":       "Tap {dash} to dash out of danger. It recharges in a few seconds, watch the DASH row.",
+    "tutorial_targets_title":   "HOSTILE PROCESSES",
+    "tutorial_targets_body":    "Enemies hunt you down, and touching them drains your HP. Destroy them before they get close.",
+    "tutorial_targets_count":   "Destroyed",
+    "tutorial_loot_title":      "LOOT",
+    "tutorial_loot_body":       "Kills drop XP orbs and credits. Move close to pick them up.",
+    "tutorial_status_title":    "STATUS PANEL",
+    "tutorial_status_body":     "HP is your system integrity, and at zero you crash. Below it are your wall charges, credits, dash, wave and LV bar. Fill the LV bar with XP to install a new power-up.",
+    "tutorial_walls_title":     "WALLS",
+    "tutorial_walls_body":      "Hold {wall} to aim a wall, release to place it. Walls block enemies. Here is a free charge, you can buy more in the shop.",
+    "tutorial_ready_title":     "READY",
+    "tutorial_ready_body":      "Clear waves to advance. A boss arrives every {interval} waves; before and after it you pick a power-up and visit the shop. {pause} pauses, {legendary} fires legendary powers.",
+    "tutorial_you":             "YOU",
+    "tutorial_done":            "DONE",
+    "tutorial_next":            "Next",
+    "tutorial_start_wave":      "Start wave 1",
+    "tutorial_finish":          "Finish",
+    "tutorial_hold_skip":       "Hold {key} to skip",
+    "tutorial_key_left_click":  "Left Click",
+    "tutorial_key_left_stick":  "Left Stick",
+    "tutorial_key_right_stick": "Right Stick",
+    "tutorial_launching":       "Launching Orientation...",
+    "tutorial_practice_complete": "Orientation complete",
+    "settings_tutorial":        "Tutorial:",
+    "settings_replay_tutorial": "Replay Tutorial",
+    "settings_replay_tutorial_desc": "Practice run, saves untouched",
+    "settings_replay_tutorial_locked": "Available from the desktop"
   }.toTable,
 
   Spanish: {
@@ -4873,7 +4943,41 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "resume_run_body":         "Continuar tu partida guardada o empezar una nueva?",
     "resume_continue":         "CONTINUAR",
     "resume_new_run":          "NUEVA PARTIDA",
-    "new_process_installed":   "NUEVO PROCESO DESCUBIERTO"
+    "new_process_installed":   "NUEVO PROCESO DESCUBIERTO",
+    "tutorial_header":          "ORIENTACIÓN.EXE",
+    "tutorial_move_title":      "MOVIMIENTO",
+    "tutorial_move_body":       "Bienvenido, proceso. Muévete con {move}: la figura brillante del centro eres tú.",
+    "tutorial_fire_title":      "APUNTAR Y DISPARAR",
+    "tutorial_fire_body_kb":    "Apunta con el ratón y mantén {fire} para disparar.",
+    "tutorial_fire_body_pad":   "Apunta con {aim}: dispara solo. {fire} también dispara.",
+    "tutorial_dash_title":      "IMPULSO",
+    "tutorial_dash_body":       "Pulsa {dash} para impulsarte fuera de peligro. Se recarga en unos segundos: mira la fila IMPULSO.",
+    "tutorial_targets_title":   "PROCESOS HOSTILES",
+    "tutorial_targets_body":    "Los enemigos te persiguen y tocarlos te quita HP. Destrúyelos antes de que se acerquen.",
+    "tutorial_targets_count":   "Destruidos",
+    "tutorial_loot_title":      "BOTÍN",
+    "tutorial_loot_body":       "Las eliminaciones sueltan orbes de XP y créditos. Acércate para recogerlos.",
+    "tutorial_status_title":    "PANEL DE ESTADO",
+    "tutorial_status_body":     "El HP es la integridad del sistema: si llega a cero, el sistema cae. Debajo: cargas de muro, créditos, impulso, oleada y la barra de nivel. Llénala con XP para instalar una nueva mejora.",
+    "tutorial_walls_title":     "MUROS",
+    "tutorial_walls_body":      "Mantén {wall} para apuntar un muro y suéltalo para colocarlo. Los muros bloquean a los enemigos. Aquí tienes una carga gratis: compra más en la tienda.",
+    "tutorial_ready_title":     "LISTO",
+    "tutorial_ready_body":      "Supera oleadas para avanzar. Cada {interval} oleadas llega un jefe; antes y después eliges una mejora y visitas la tienda. {pause} pausa, {legendary} activa los poderes legendarios.",
+    "tutorial_you":             "TÚ",
+    "tutorial_done":            "HECHO",
+    "tutorial_next":            "Siguiente",
+    "tutorial_start_wave":      "Iniciar oleada 1",
+    "tutorial_finish":          "Terminar",
+    "tutorial_hold_skip":       "Mantén {key} para saltar",
+    "tutorial_key_left_click":  "Clic izquierdo",
+    "tutorial_key_left_stick":  "Stick izquierdo",
+    "tutorial_key_right_stick": "Stick derecho",
+    "tutorial_launching":       "Iniciando orientación...",
+    "tutorial_practice_complete": "Orientación completada",
+    "settings_tutorial":        "Tutorial:",
+    "settings_replay_tutorial": "Repetir tutorial",
+    "settings_replay_tutorial_desc": "Práctica, no toca tus partidas",
+    "settings_replay_tutorial_locked": "Disponible desde el escritorio"
   }.toTable
 }.toTable
 

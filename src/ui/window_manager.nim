@@ -326,6 +326,7 @@ type
     replayRogueliteIntro*: bool   # True when user clicked "Roguelite Intro" in settings
     replaySandboxIntro*: bool     # True when user clicked "Sandbox Intro" in settings
     replayPvPIntro*: bool         # True when user clicked "PvP Intro" in settings
+    replayTutorial*: bool         # True when user clicked "Replay Tutorial" in settings
 
 proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
                        screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
@@ -346,6 +347,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
   result.replayRogueliteIntro = false
   result.replaySandboxIntro = false
   result.replayPvPIntro = false
+  result.replayTutorial = false
 
   wm.applyWindowScales(uiScale, screenWidth, screenHeight)
 
@@ -397,6 +399,9 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
       if wm.settings.replayPvPIntroRequested:
         result.replayPvPIntro = true
         wm.settings.replayPvPIntroRequested = false
+      if wm.settings.replayTutorialRequested:
+        result.replayTutorial = true
+        wm.settings.replayTutorialRequested = false
 
     elif window == wm.stats.window:
       discard updateStatsWindow(wm.stats, dt, screenWidth, screenHeight, visibleWindows)

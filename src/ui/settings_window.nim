@@ -58,6 +58,12 @@ type
     replaySandboxIntroRequested*: bool
     replayPvPIntroRequested*: bool
 
+    # Set when the user clicks "Replay Tutorial" (Gameplay tab). Only honored
+    # from the desktop; main.nim clears `replayTutorialAvailable` during a run
+    # so the button reads as unavailable there instead of silently doing nothing.
+    replayTutorialRequested*: bool
+    replayTutorialAvailable*: bool
+
     # Destructive reset confirmation state
     pendingReset*: SettingsResetAction
     resetConfirmTimer*: float32
@@ -111,6 +117,8 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     replayRogueliteIntroRequested: false,
     replaySandboxIntroRequested: false,
     replayPvPIntroRequested: false,
+    replayTutorialRequested: false,
+    replayTutorialAvailable: true,
     pendingReset: sraNone,
     resetConfirmTimer: 0.0,
     resetStatus: "",
@@ -248,6 +256,20 @@ proc drawSectionHeader*(x, y, width: int, title: string, iconChar: char, color: 
   # Title text
   drawText(title, (x + 26).int32, (y + 3).int32, 16,
           Color(r: 0, g: 220, b: 255, a: 255))
+
+const
+  ## Gameplay tab: y of the Tutorial row, relative to tabContentOriginY.
+  TutorialRowY = 155
+
+proc tutorialReplayRect(window: OSWindow): Rectangle =
+  ## "Replay Tutorial" button, shared by the draw pass and the click handler
+  ## (anchored to tabContentOriginY so the two can't disagree).
+  Rectangle(
+    x: (window.x + WINDOW_PADDING + 320).float32,
+    y: (tabContentOriginY(window) + TutorialRowY - 4).float32,
+    width: 200.float32,
+    height: 30.float32
+  )
 
 proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rectangle =
   const
@@ -1153,6 +1175,17 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                          mousePos.y <= (yPos + 25).float32
   drawCheckbox(aimAssistCheckX, yPos, 25, settingsWin.settings.aimAssistEnabled, aimAssistHovered)
   drawText(t(tkSettingsAimAssistDesc), (aimAssistCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
+
+  # Tutorial replay: a practice session, so it's only offered from the desktop.
+  drawText(t(tkSettingsTutorial), (contentX + 40).int32, yPos.int32, 18, White)
+  let tutorialAvailable = settingsWin.replayTutorialAvailable
+  drawText(if tutorialAvailable: t(tkSettingsReplayTutorialDesc) else: t(tkSettingsReplayTutorialLocked),
+           (contentX + 40).int32, (yPos + 21).int32, 12, Color(r: 150, g: 150, b: 175, a: 255))
+  let tutorialRect = tutorialReplayRect(settingsWin.window)
+  drawSettingsButton(tutorialRect, t(tkSettingsReplayTutorial),
+                     tutorialAvailable and checkCollisionPointRec(mousePos, tutorialRect), false,
+                     confirming = false, disabled = not tutorialAvailable)
   yPos += 50
 
   # Section: Localization
@@ -1192,8 +1225,9 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
 
   yPos += 45
 
-  # (Cinematic replays now live in their own Cinematics tab.)
-  yPos += 50
+  # (Cinematic replays now live in their own Cinematics tab.) The gap here keeps
+  # the Data Management header at +300, above the fixed reset-button row.
+  yPos += 15
 
   drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionDataManagement), '!',
                    Color(r: 255, g: 95, b: 105, a: 255))
@@ -1642,9 +1676,15 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.settings.aimAssistEnabled = not settingsWin.settings.aimAssistEnabled
         settingsChanged = true
 
-      # Language selector button
+      # Replay tutorial (consumed by the window manager; main.nim launches it)
+      if settingsWin.replayTutorialAvailable and
+         checkCollisionPointRec(mousePos, tutorialReplayRect(settingsWin.window)):
+        settingsWin.replayTutorialRequested = true
+        playSound(stMenuSelect)
+
+      # Language selector button (moved down a row by the Tutorial row above)
       let langButtonX = contentX + 320
-      let langButtonY = contentY + 200
+      let langButtonY = contentY + 235
       let langButtonWidth = 200
       let langButtonHeight = 35
       if mousePos.x >= langButtonX.float32 and mousePos.x <= (langButtonX + langButtonWidth).float32 and

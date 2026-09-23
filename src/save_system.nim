@@ -73,6 +73,7 @@ type
     hasSeenRogueliteIntro*: bool   # First-time roguelite mode intro played
     hasSeenSandboxIntro*: bool     # First-time sandbox mode intro played
     hasSeenPvPIntro*: bool         # First-time pvp mode intro played
+    hasSeenTutorial*: bool         # First-run tutorial finished or skipped (see tutorial.nim)
     discoveredPowerUps*: seq[string] # Power-ups seen for the first time (name-serialized)
 
 const
@@ -320,6 +321,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "hasSeenRogueliteIntro": settings.hasSeenRogueliteIntro,
     "hasSeenSandboxIntro": settings.hasSeenSandboxIntro,
     "hasSeenPvPIntro": settings.hasSeenPvPIntro,
+    "hasSeenTutorial": settings.hasSeenTutorial,
     "discoveredPowerUps": settings.discoveredPowerUps
   }
   var bindsObj = newJObject()
@@ -486,6 +488,14 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("hasSeenPvPIntro"):
     settings.hasSeenPvPIntro = jsonNode["hasSeenPvPIntro"].getBool()
+
+  if jsonNode.hasKey("hasSeenTutorial"):
+    settings.hasSeenTutorial = jsonNode["hasSeenTutorial"].getBool()
+  else:
+    # Saved before the tutorial existed: a profile that has already played wave
+    # mode doesn't need it forced on its next run (it stays replayable from
+    # Settings). Must run after hasSeenWaveModeIntro is parsed above.
+    settings.hasSeenTutorial = settings.hasSeenWaveModeIntro
 
   if jsonNode.hasKey("discoveredPowerUps"):
     settings.discoveredPowerUps = @[]

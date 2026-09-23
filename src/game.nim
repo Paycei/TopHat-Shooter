@@ -3,7 +3,7 @@ import types, settings, save_system, player, enemy, bullet, consumable, coin, xp
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
-import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting, run_save, suspend, utils
+import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting, run_save, suspend, utils, tutorial
 
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -2266,9 +2266,11 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
     if shouldUseWaves(game.mode):
       # WAVE-BASED MODE: Spawn enemies in defined waves.
       # Roguelite dungeon rooms arm their own encounters in enterRoom, so
-      # only the classic wave modes auto-start waves here.
+      # only the classic wave modes auto-start waves here. The first-run
+      # tutorial holds wave 1 back until it hands the arena over.
       if game.mode != gmRoguelite and not game.waveInProgress and
-         game.bossWaveManager.canStartNewWave() and game.state == gsPlaying:
+         game.bossWaveManager.canStartNewWave() and game.state == gsPlaying and
+         not tutorialHoldsWaves(game):
         # Start a new wave
         startWave(game)
 

@@ -40,7 +40,7 @@
 ## games tolerate re-seeded randomness after a resume.
 
 import os, deques, strutils, tables
-import types, save_system, run_statistics
+import types, save_system, run_statistics, tutorial
 import discord_presence  # DiscordClient (no-op flatty overload)
 import particle_types    # ParticlePool  (no-op flatty overload)
 import flatty, supersnappy
@@ -217,6 +217,9 @@ proc suspendGame*(game: Game) =
   if game.isNil or not isSupportedSuspendMode(game.mode):
     return
   if game.state notin ResumableStates:
+    return
+  # Same exemption as run_save.saveRunState: tutorial sessions never persist.
+  if tutorialSuppressesSaves(game):
     return
   # Never persist a finished/failed run (matches run_save.saveRunState).
   if game.hasWonGame and game.mode == gmWaveBased:

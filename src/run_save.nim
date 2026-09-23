@@ -20,7 +20,7 @@
 ## enterRoom, which do not depend on game.nim.
 
 import json, os
-import types, save_system, utils, roguelite, dungeon, powerup
+import types, save_system, utils, roguelite, dungeon, powerup, tutorial
 
 const RunSaveVersion = 1
 
@@ -287,6 +287,10 @@ proc saveRunState*(game: Game, file: string = "",
   ## modes (PvP / sandbox / 3D boss) or when there is nothing to resume.
   ## `file` defaults to this mode's own run save.
   if game.isNil or not isSupportedRunMode(game.mode):
+    return
+  # A tutorial practice session (or a first run still inside its tutorial) is
+  # never a run to resume -- and must not overwrite the player's real save.
+  if tutorialSuppressesSaves(game):
     return
   let file = if file.len > 0: file else: runSaveFileFor(game.mode)
   # Only an actually-live run is resumable. Guards against persisting the idle

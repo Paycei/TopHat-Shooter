@@ -25,6 +25,15 @@ var leftPanelPos* = Vector2(x: 10, y: 2)  # Default position
 var leftPanelDragging* = false
 var leftPanelDragOffset* = Vector2(x: 0, y: 0)
 
+# Where the status panel's rows landed on the most recent draw, in the HUD
+# layer's coordinates. Published (rather than recomputed) so overlays that point
+# at the panel -- the tutorial's row highlights -- can never drift from the real
+# layout. A zero-width rect means the row wasn't drawn this frame.
+var lastStatusPanelRect*: Rectangle
+var lastStatsRowRect*: Rectangle   ## walls / credits / processes row
+var lastDashRowRect*: Rectangle
+var lastLevelBarRect*: Rectangle   ## LV / XP bar (wave mode and roguelite only)
+
 proc drawLevelXpBar(game: Game, panelX, panelW, yOffset: int32) =
   ## "LV n" label on the left, a thin XP progress bar filling the rest.
   ##
@@ -32,6 +41,8 @@ proc drawLevelXpBar(game: Game, panelX, panelW, yOffset: int32) =
   ## bar when run-leveling was extended to it: without a visible bar the orbs
   ## are just floating litter, because the reward loop only reads as a reward
   ## once the player can see it accumulating toward something.
+  lastLevelBarRect = Rectangle(x: panelX.float32, y: yOffset.float32 - 1,
+                               width: panelW.float32, height: COMBINED_XP_BAR_HEIGHT.float32)
   let lvlLabel = t("roguelite_level") & " " & $game.player.rogueliteLevel
   const lvlSize: int32 = 9
   drawText(lvlLabel, panelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, lvlSize,
@@ -64,6 +75,8 @@ proc drawDashRow(game: Game, panelX, panelW, yOffset: int32) =
   ## one with no cooldown readout anywhere.
   const labelSize: int32 = 9
   const barH: int32 = 5
+  lastDashRowRect = Rectangle(x: panelX.float32, y: yOffset.float32 - 1,
+                              width: panelW.float32, height: COMBINED_DASH_ROW_HEIGHT.float32)
   let cd = game.player.dashCooldown
   let ready = cd <= 0.0'f32
   let progress = if ready: 1.0'f32
@@ -164,6 +177,9 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
   let totalHeight = 82 + COMBINED_DASH_ROW_HEIGHT + powerUpHeight + waveInfoHeight +
                     rogueliteInfoHeight +
                     (if powerUpHeight > 0: COMBINED_SECTION_SPACING else: 0)
+  lastStatusPanelRect = Rectangle(x: panelX.float32, y: yOffset.float32,
+                                  width: panelW.float32, height: totalHeight.float32)
+  lastLevelBarRect = Rectangle()  # re-published below only by the modes that draw it
 
   # Main panel background - more transparent and colorful
   drawRectangle(panelX, yOffset, panelW, totalHeight.int32,
@@ -249,6 +265,9 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
                     1, Color(r: 0, g: 220, b: 255, a: 120))
 
   yOffset += barHeight + 4
+
+  lastStatsRowRect = Rectangle(x: panelX.float32, y: yOffset.float32 - 2,
+                               width: panelW.float32, height: 14)
 
   # Background box for stats - semi-transparent with cyan tint
   drawRectangle(panelX + COMBINED_PANEL_PADDING + 2, yOffset - 1,
@@ -662,6 +681,12 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
 
   # If minimized, only draw header bar
   if leftPanelMinimized:
+    lastStatusPanelRect = Rectangle(x: finalPanelX.float32, y: yOffset.float32,
+                                    width: COMBINED_PANEL_WIDTH.float32,
+                                    height: (COMBINED_PANEL_PADDING + COMBINED_TITLE_HEIGHT).float32)
+    lastStatsRowRect = Rectangle()
+    lastDashRowRect = Rectangle()
+    lastLevelBarRect = Rectangle()
     # Draw minimized panel (just header)
     drawRectangle(finalPanelX, yOffset, COMBINED_PANEL_WIDTH, COMBINED_PANEL_PADDING + COMBINED_TITLE_HEIGHT,
                  Color(r: 5, g: 15, b: 25, a: 45))

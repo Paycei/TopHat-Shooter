@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers
+import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
 
 # Global quit-confirmation dialog
 
@@ -990,6 +990,7 @@ proc main() =
 
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
+  const TutorialPracticeLaunch = 20  # pendingGameMode: the tutorial replayed from settings
   var pendingResume = false  # True when the pending launch should resume a saved run
   var windowCloseRequested = false  # True once the OS close button is clicked
 
@@ -1024,6 +1025,11 @@ proc main() =
         echo "Warning: Failed to save settings to disk"
 
     updateRenderSupersampleState(settings)
+
+    # The tutorial replay is a whole practice session, so Settings only offers
+    # it from the desktop (it greys out when opened from the pause menu).
+    if not globalWindowManager.isNil and not globalWindowManager.settings.isNil:
+      globalWindowManager.settings.replayTutorialAvailable = currentGame.state == gsMenu
 
     # Live HUD-layout (virtual resolution) toggle. When the setting changes,
     # resize the virtual screen + window, rebuild the render target, recenter the
@@ -1377,6 +1383,10 @@ proc main() =
             deleteSuspendSnapshot(gmWaveBased)
             currentGame.state = gsPlaying
             initializeRunTracking(currentGame)
+            if not settings.hasSeenTutorial:
+              # First fresh wave run: ORIENTATION.EXE plays over its opening and
+              # holds wave 1 until it is finished or skipped.
+              startTutorial(currentGame, practice = false)
           statsSavedThisGame = false
         of 1:  # Time Survival Mode
           if not settings.survivalUnlocked:
@@ -1464,6 +1474,21 @@ proc main() =
             currentGame.selectedRogueliteTheme = 0
             currentGame.state = gsRogueliteFloorSelect
             statsSavedThisGame = false
+        of TutorialPracticeLaunch:
+          # The tutorial replayed from settings, as a throwaway wave-mode session
+          # that ends on the desktop. Unlike a fresh wave run it deletes nothing:
+          # the player's saved run, block checkpoint and snapshot stay exactly as
+          # they were (tutorialSuppressesSaves also stops this session writing
+          # any), and cheatsUsed -- the "earns nothing permanent" switch -- keeps
+          # stats, advancements and meta currency out of it.
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmWaveBased)
+          currentGame.cheatsUsed = true
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          startTutorial(currentGame, practice = true)
+          statsSavedThisGame = true  # nothing from this session is ever recorded
         else: discard
         pendingGameMode = -1  # Reset pending mode
         pendingResume = false
@@ -1568,6 +1593,12 @@ proc main() =
           activeCutscene = intro
           cutsceneContinuation = cscMenu
           currentGame.state = gsCutscene
+
+      # Replay the tutorial from settings: a practice session that returns here.
+      if updateResult.replayTutorial and not globalConfirmActive and
+         not osDesktop.loadingActive and pendingGameMode < 0:
+        startLoadingAnimation(osDesktop, t(tkTutorialLaunching))
+        pendingGameMode = TutorialPracticeLaunch
 
       # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame and not globalConfirmActive:
@@ -2412,6 +2443,19 @@ proc main() =
       if (isBackPressed() or isGamepadStartPressed()) and not globalConfirmActive:
         currentGame.state = gsPaused
 
+      # ORIENTATION.EXE: advance the tutorial from what the player just did.
+      # Runs before updateGame so its safety net lands ahead of this frame's
+      # damage. A practice session leaves for the desktop once the frame has
+      # been drawn (see the end of this branch).
+      var tutorialEvent = teNone
+      if not cheatMenu.active and not globalConfirmActive and
+         currentGame.state == gsPlaying and isTutorialActive(currentGame):
+        tutorialEvent = updateTutorial(currentGame, dt)
+        if tutorialEvent != teNone and not settings.hasSeenTutorial:
+          settings.hasSeenTutorial = true
+          discard saveSettings(settings)
+      let leaveTutorialPractice = tutorialEvent != teNone and isTutorialPractice(currentGame)
+
       # Update game (only if cheat menu is not active and confirm dialog is not open)
       if not cheatMenu.active and not globalConfirmActive:
         if isSandboxMode(currentGame.mode):
@@ -2460,9 +2504,11 @@ proc main() =
 
       # Mid-run advancement sync: surface unlocks as desktop toasts. Skipped for
       # cheated runs: currentRunStats.cheatsUsed is only set when the run ends.
+      # Waits out the tutorial too: its practice kills are wiped at the handoff
+      # (restoreFreshRun), so they must not unlock anything first.
       if not cheatMenu.active and not globalConfirmActive and
          not isSandboxMode(currentGame.mode) and not currentGame.cheatsUsed and
-         not currentRunStats.isNil:
+         not isTutorialActive(currentGame) and not currentRunStats.isNil:
         advancementSyncTimer += dt
         if advancementSyncTimer >= 2.0'f32:
           advancementSyncTimer = 0.0'f32
@@ -2482,6 +2528,7 @@ proc main() =
 
       # Normal 2D rendering
       drawGame(currentGame)
+      drawTutorialOverlay(currentGame, hudInterfaceScale())
 
       # Interface drawn over live gameplay, so it takes the HUD scale. The modal
       # dialog and toasts below scale in layers of their own, exactly as they do
@@ -2521,6 +2568,17 @@ proc main() =
       drawCustomCursor(currentGame.time)
 
       endGameDrawing()
+
+      # A practice session ends on the desktop. No checkpointLiveRun: there is
+      # nothing to keep, and the player's real saved run must stay untouched.
+      if leaveTutorialPractice:
+        cleanupGame(currentGame)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        endTutorialSession()
+        if tutorialEvent == teFinished:
+          showDesktopToast(osDesktop, t(tkTutorialPracticeComplete))
 
     of gsDeathSequence:
       updateGame(currentGame, dt)

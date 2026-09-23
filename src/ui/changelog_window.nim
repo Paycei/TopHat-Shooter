@@ -211,6 +211,23 @@ let changelog: seq[ChangelogVersion] = @[
           "Cada fuente de curación aparece ordenada con su parte del total, incluidos los objetos de vida y las subidas de nivel.",
           "La parte gris de cada fila es la sobrecuración: lo que se curó con la barra ya llena. Pasa el ratón por una fila para ver las cifras exactas.",
           "Las tres columnas se desplazan con la rueda del ratón, así que las partidas largas ya no quedan cortadas.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Tutorial: ORIENTATION.EXE",
+        headEs: "Tutorial: ORIENTACIÓN.EXE",
+        en: points(
+          "Your first wave run now opens with a short hands-on tutorial: moving, aiming and firing, the dash, a few practice enemies, loot, the status panel and walls. Wave 1 waits until it is done.",
+          "Every prompt shows your own key bindings, or controller buttons when you play with a pad.",
+          "Hold Tab (Select on a controller) at any time to skip it.",
+          "Nothing from it carries into the run: credits, XP, kills, walls and HP all reset when wave 1 starts, whether you finish it or skip it.",
+          "Replay it whenever you like from Settings > Gameplay. The replay is a practice session: it never touches your saved run, stats or rewards, and it returns you to the desktop when it ends.",
+          "Profiles that have already played wave mode are not made to sit through it."),
+        es: points(
+          "Tu primera partida de oleadas empieza ahora con un tutorial corto y práctico: moverte, apuntar y disparar, el impulso, unos enemigos de práctica, el botín, el panel de estado y los muros. La oleada 1 espera a que termine.",
+          "Cada indicación muestra tus propias teclas, o los botones del mando si juegas con uno.",
+          "Mantén Tab (Select en el mando) en cualquier momento para saltarlo.",
+          "Nada de él pasa a la partida: los créditos, la XP, las eliminaciones, los muros y el HP se reinician al empezar la oleada 1, tanto si lo terminas como si lo saltas.",
+          "Repítelo cuando quieras desde Ajustes > Juego. La repetición es una sesión de práctica: nunca toca tu partida guardada, tus estadísticas ni tus recompensas, y te devuelve al escritorio al terminar.",
+          "Los perfiles que ya han jugado al modo oleadas no tienen que pasar por él.")),
 
       # --- Improvements ---
       ChangelogEntry(category: clcImproved,
