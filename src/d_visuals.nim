@@ -1,4 +1,4 @@
-import raylib, math
+import raylib, math, strutils
 import types, d_systems, localization, utils
 
 proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
@@ -282,6 +282,95 @@ proc drawWaveStartBannerGutter*(waveNumber: int, waveAge: float32,
     drawText(ln, tx, ty, fontSize, accentColor)
     ty += lineH
   return cardY + cardH + 6
+
+# LABEL BANNERS
+# Text-driven cousins of the wave banner, for announcements that are not a
+# wave number (Time Survival's phases, System Events and boss warnings). Driven
+# by `age` (seconds since the announcement) and shown for `duration` seconds.
+
+proc bannerEase(age, duration: float32): float32 =
+  const SLIDE_TIME = 0.22'f32
+  if age < 0 or age > duration:
+    return 0.0'f32
+  clamp(age / SLIDE_TIME, 0.0'f32, 1.0'f32) *
+    clamp((duration - age) / SLIDE_TIME, 0.0'f32, 1.0'f32)
+
+proc wrapBannerText(text: string, maxWidth, fontSize: int32): seq[string] =
+  ## Greedy word wrap (a word wider than the line gets a line of its own).
+  var line = ""
+  for word in text.split(' '):
+    if word.len == 0: continue
+    let candidate = if line.len == 0: word else: line & " " & word
+    if line.len > 0 and measureText(candidate, fontSize) > maxWidth:
+      result.add(line)
+      line = word
+    else:
+      line = candidate
+  if line.len > 0:
+    result.add(line)
+
+proc drawLabelBanner*(title, subtitle: string, age: float32, screenWidth, topY: int32,
+                      accent: Color, duration: float32 = 2.4'f32) =
+  ## A centered pill that drops in under `topY`: a bold title and an optional
+  ## one-line subtitle, edged in `accent`.
+  let ease = bannerEase(age, duration)
+  if ease <= 0.0'f32:
+    return
+  const titleSize: int32 = 24
+  const subSize: int32 = 14
+  let titleW = measureText(title, titleSize)
+  let subW = if subtitle.len > 0: measureText(subtitle, subSize) else: 0'i32
+  let boxW = max(titleW, subW) + 48
+  let boxH: int32 = if subtitle.len > 0: 62 else: 40
+  let boxX = (screenWidth - boxW) div 2
+  let boxY = topY - int32((1.0'f32 - ease) * 16.0'f32)
+  let alpha = ease * 255.0'f32
+  let rect = Rectangle(x: boxX.float32, y: boxY.float32, width: boxW.float32, height: boxH.float32)
+  drawRectangleRounded(rect, 0.3'f32, 6, Color(r: 8, g: 16, b: 26, a: uint8(ease * 215.0'f32)))
+  drawRectangleRoundedLines(rect, 0.3'f32, 6, 2.0'f32, withAlpha(accent, alpha))
+  let tx = boxX + (boxW - titleW) div 2
+  let ty = boxY + 8
+  drawText(title, tx + 1, ty + 1, titleSize, Color(r: 0, g: 0, b: 0, a: uint8(alpha * 0.6'f32)))
+  drawText(title, tx, ty, titleSize, withAlpha(accent, alpha))
+  if subtitle.len > 0:
+    drawText(subtitle, boxX + (boxW - subW) div 2, ty + titleSize + 6, subSize,
+             Color(r: 215, g: 230, b: 240, a: uint8(alpha)))
+
+proc drawLabelBannerGutter*(title, subtitle: string, age: float32,
+                            gutterX, gutterW, topY: int32, accent: Color,
+                            duration: float32 = 2.4'f32): int32 =
+  ## Widescreen right-gutter variant: a card that slides in from the right with
+  ## the title and subtitle wrapped to the gutter. Returns the next stack Y
+  ## (== topY when nothing is drawn).
+  let ease = bannerEase(age, duration)
+  if ease <= 0.0'f32:
+    return topY
+  let alpha = ease * 255.0'f32
+  let cardW: int32 = min(gutterW - 8, 163'i32)
+  const titleSize: int32 = 18
+  const subSize: int32 = 12
+  let titleLines = wrapBannerText(title, cardW - 12, titleSize)
+  let subLines = if subtitle.len > 0: wrapBannerText(subtitle, cardW - 12, subSize) else: @[]
+  let cardH: int32 = 12 + titleLines.len.int32 * (titleSize + 4) +
+                     subLines.len.int32 * (subSize + 3) + (if subLines.len > 0: 4 else: 0)
+  let slideOff = int32((1.0'f32 - ease) * (cardW.float32 + 12.0'f32))
+  let cardX = gutterX + (gutterW - cardW) div 2 + slideOff
+  drawRectangle(cardX, topY, cardW, cardH, Color(r: 8, g: 16, b: 26, a: uint8(ease * 215.0'f32)))
+  drawRectangle(cardX, topY, 2, cardH, withAlpha(accent, alpha))
+  drawRectangle(cardX + cardW - 2, topY, 2, cardH, withAlpha(accent, alpha))
+  var y = topY + 6
+  for ln in titleLines:
+    let lw = measureText(ln, titleSize)
+    drawText(ln, cardX + (cardW - lw) div 2, y, titleSize, withAlpha(accent, alpha))
+    y += titleSize + 4
+  if subLines.len > 0:
+    y += 4
+  for ln in subLines:
+    let lw = measureText(ln, subSize)
+    drawText(ln, cardX + (cardW - lw) div 2, y, subSize,
+             Color(r: 215, g: 230, b: 240, a: uint8(alpha)))
+    y += subSize + 3
+  topY + cardH + 6
 
 # COMBO GUTTER CARD (widescreen)
 # A proper right-gutter section card: big punchy combo count with the existing

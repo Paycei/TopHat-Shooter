@@ -1,5 +1,5 @@
 import raylib, math
-import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system
+import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types
 
 # ENABLE/DISABLE CHEATS
 # Release-build toggle: flip to `false` to ship a build with no cheat menu.
@@ -343,9 +343,10 @@ proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
   ## Fast-forward (or rewind) the survival clock. In time-survival mode difficulty
   ## is recomputed from game.survivalTime every frame (game.difficulty =
   ## survivalTime/SurvivalDifficultyRamp * scale, see updateGame), so this clock is
-  ## the single honest knob for difficulty: bumping it cascades into spawn rate,
-  ## elite tiers and boss difficulty. Reaching 900 s (SURVIVAL_ENDING_MIN_TIME) also
-  ## arms the survival ending on the next death, so this is a progression cheat,
+  ## the single honest knob for difficulty: bumping it cascades into the horde
+  ## density, elite tiers and the boss schedule (a boss whose time has passed
+  ## spawns right away). Reaching 900 s (SURVIVAL_ENDING_MIN_TIME) also arms the
+  ## survival ending on the next death, so this is a progression cheat:
   ## re-assert the anti-cheat flag (the menu-open path already sets it, this is
   ## belt-and-suspenders, mirroring the roguelite skip).
   game.survivalTime = max(0.0'f32, game.survivalTime + deltaSeconds)
@@ -357,12 +358,55 @@ proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
   playSound(stMenuSelect)
 
 proc applySurvivalBossCheat*(game: var Game) =
-  ## Force the next survival boss to spawn as soon as possible by zeroing the boss
-  ## timer (normally a 60 s TIME_SURVIVAL_BOSS_INTERVAL countdown). The actual spawn
-  ## still goes through bossWaveManager.canSpawnBoss(), so this won't stack a boss
-  ## on top of one that's already active.
-  game.bossTimer = 0.0
+  ## Force the next survival boss to spawn now instead of at its scheduled time
+  ## on the survival clock. The spawn still goes through
+  ## bossWaveManager.canSpawnBoss(), so this won't stack a boss on top of one
+  ## that's already active.
+  game.survival.cheatForceBoss = true
   playSound(stBossSpawn)
+
+proc applySurvivalEventCheat*(game: var Game, kind: SurvivalEventKind) =
+  ## Start a System Event right now (replacing any running one). The scheduler
+  ## picks the request up on the next live frame, outside a boss fight.
+  if ANTICHEAT_ENABLED:
+    game.cheatsUsed = true
+  game.survival.cheatEventKind = kind
+  playSound(stMenuSelect)
+
+proc applySurvivalCacheCheat*(game: var Game, tier: SurvivalCacheTier) =
+  ## Drop a Data Cache of `tier` next to the player.
+  if ANTICHEAT_ENABLED:
+    game.cheatsUsed = true
+  let x = clamp(game.player.pos.x + 80.0'f32, 50.0'f32, game.screenWidth.float32 - 50.0'f32)
+  let y = clamp(game.player.pos.y, 50.0'f32, game.screenHeight.float32 - 50.0'f32)
+  game.survival.chests.add(SurvivalChest(pos: newVector2f(x, y), tier: tier, age: 1.0'f32))
+  playSound(stCoinPickup)
+
+proc syncSurvivalCheatClock(game: var Game, clock: float32) =
+  game.survivalTime = max(game.survivalTime, clock)
+  game.survivalMinutesRewarded = max(game.survivalMinutesRewarded,
+                                     int(game.survivalTime / 60.0'f32))
+  game.survival.nextEventClock = game.survivalTime + 30.0'f32
+  if ANTICHEAT_ENABLED:
+    game.cheatsUsed = true
+
+proc applySurvivalSkipPhaseCheat*(game: var Game) =
+  ## Jump the clock to 5 s before the next boss (its warning fires at once).
+  if game.bossWaveManager.active:
+    playSound(stMenuNav)
+    return
+  syncSurvivalCheatClock(game, survivalNextBossTime(game) - 5.0'f32)
+  playSound(stMenuSelect)
+
+proc applySurvivalJumpToFinalCheat*(game: var Game) =
+  ## Skip to 19:55, 5 s before the final boss, with the first three phase
+  ## bosses counted as beaten.
+  if game.bossWaveManager.active or game.survival.victoryAchieved:
+    playSound(stMenuNav)
+    return
+  game.bossCount = max(game.bossCount, SurvivalFinalBoss - 1)
+  syncSurvivalCheatClock(game, survivalBossTime(SurvivalFinalBoss) - 5.0'f32)
+  playSound(stMenuSelect)
 
 proc drawWavesTab(x, y, width, height: int32, game: var Game)
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
@@ -1202,11 +1246,12 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
              labelX, currentY, 11, Gray)
 
 proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
-  ## Mode-specific cheats for time-survival: fast-forward the survival clock (the
-  ## single knob that drives difficulty, since difficulty is recomputed from
-  ## game.time each frame) and force the next boss to spawn. Mirrors the roguelite
+  ## Mode-specific cheats for time-survival: move the survival clock (the knob
+  ## that drives difficulty, the horde and the boss schedule, since difficulty
+  ## is recomputed from game.survivalTime each frame), force bosses and phase
+  ## skips, start System Events and drop Data Caches. Mirrors the roguelite
   ## tab's button helpers and hardcoded-English convention (no localization keys).
-  var currentY = y + 10
+  var currentY = y + 8
 
   # Lighten a button colour on hover using int math so we never overflow uint8.
   proc lighten(c: Color): Color =
@@ -1225,56 +1270,90 @@ proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
     result = hovered and isMouseButtonPressed(Left)
 
   # --- Survival run info --------------------------------------------------
-  # Survival time as MM:SS; the 15:00 mark (SURVIVAL_ENDING_MIN_TIME = 900 s) is
-  # when the survival ending cinematic arms on death, so it's called out below.
-  let totalSecs = max(0, int(game.survivalTime))
-  let mins = totalSecs div 60
-  let secs = totalSecs mod 60
-  let timeStr = (if mins < 10: "0" else: "") & $mins & ":" &
-                (if secs < 10: "0" else: "") & $secs
   # One-decimal difficulty via int math (strutils.formatFloat isn't imported here).
   let diff10 = int(game.difficulty * 10.0)
   let diffStr = $(diff10 div 10) & "." & $(diff10 mod 10)
-  drawText("Survival Time: " & timeStr & "    Difficulty: " & diffStr,
+  let phase = survivalPhase(game)
+  drawText("Clock: " & formatSurvivalClock(game.survivalTime) & "   Phase: " &
+           t(survivalPhaseNameKey(phase)) & "   Difficulty: " & diffStr,
            x + 20, currentY, 14, White)
-  currentY += 22
-  drawText("Bosses Spawned: " & $game.bossCount & "    Next Boss In: " &
-           $int(game.bossTimer) & "s", x + 20, currentY, 14, White)
-  currentY += 22
-  drawText("Enemies Alive: " & $game.enemies.len, x + 20, currentY, 14, White)
-  currentY += 30
+  currentY += 20
+  let nextBoss = game.bossCount + 1
+  let bossLine = if game.bossWaveManager.active: "Boss " & $game.bossCount & " fighting"
+                 else: "Next: boss " & $nextBoss & " at " &
+                       formatSurvivalClock(survivalBossTime(nextBoss))
+  drawText(bossLine & "   Alive: " & $game.enemies.len & " / target " &
+           $int(game.survival.debugTarget) & "   Caches: " & $game.survival.chests.len,
+           x + 20, currentY, 14, White)
+  currentY += 20
+  let ev = game.survival.event
+  let eventLine = if ev.kind == sekNone: "Event: none (next at " &
+                    formatSurvivalClock(game.survival.nextEventClock) & ")"
+                  else: "Event: " & t(survivalEventNameKey(ev.kind)) & " (" &
+                    formatSurvivalClock(ev.elapsed) & " in)"
+  drawText(eventLine, x + 20, currentY, 14, White)
+  currentY += 26
 
   let labelX = x + 20
-  let btnStartX = x + 180
-  let bw: int32 = 80
-  let bh: int32 = 28
-  let gap: int32 = 8
+  let btnStartX = x + 150
+  let rowW = width - 170
+  let bh: int32 = 26
+  let gap: int32 = 6
 
-  # Advance-time row. Difficulty derives from time, so these are the difficulty
-  # cheats; +15:00 jumps straight to the survival-ending threshold for testing.
-  drawText("Advance Time", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "+1 min", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applySurvivalTimeCheat(game, 60.0)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5 min", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applySurvivalTimeCheat(game, 300.0)
-  if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+15 min", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applySurvivalTimeCheat(game, 900.0)
-  currentY += bh + 10
+  proc rowButtonW(count: int32): int32 = (rowW - gap * (count - 1)) div count
 
-  # Rewind-time row (clamped at 0 inside applySurvivalTimeCheat).
-  drawText("Rewind Time", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "-1 min", Color(r: 60, g: 40, b: 0, a: 255), Orange):
-    applySurvivalTimeCheat(game, -60.0)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "-5 min", Color(r: 60, g: 40, b: 0, a: 255), Orange):
-    applySurvivalTimeCheat(game, -300.0)
-  currentY += bh + 16
+  # Time rows. +15:00 jumps straight to the survival-ending threshold.
+  drawText("Clock", labelX, currentY + 6, 14, White)
+  block:
+    let bw = rowButtonW(5)
+    let deltas = [60.0'f32, 300.0, 900.0, -60.0, -300.0]
+    let labels = ["+1 min", "+5 min", "+15 min", "-1 min", "-5 min"]
+    for i in 0..4:
+      let rewind = deltas[i] < 0
+      if btn(btnStartX + i.int32 * (bw + gap), currentY, bw, bh, labels[i],
+             if rewind: Color(r: 60, g: 40, b: 0, a: 255) else: Color(r: 0, g: 60, b: 80, a: 255),
+             if rewind: Orange else: SkyBlue):
+        applySurvivalTimeCheat(game, deltas[i])
+  currentY += bh + 8
 
-  # Full-width action: force the next survival boss to spawn ASAP.
-  let wideW = width - 40
-  if btn(labelX, currentY, wideW, bh + 4, "Spawn Boss Now",
-         Color(r: 80, g: 0, b: 0, a: 255), Red):
-    applySurvivalBossCheat(game)
-  currentY += bh + 16
+  # Boss / phase row.
+  drawText("Bosses", labelX, currentY + 6, 14, White)
+  block:
+    let bw = rowButtonW(3)
+    if btn(btnStartX, currentY, bw, bh, "Spawn Boss Now", Color(r: 80, g: 0, b: 0, a: 255), Red):
+      applySurvivalBossCheat(game)
+    if btn(btnStartX + bw + gap, currentY, bw, bh, "Skip Phase", Color(r: 80, g: 0, b: 0, a: 255), Red):
+      applySurvivalSkipPhaseCheat(game)
+    if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "Jump to Final",
+           Color(r: 80, g: 0, b: 0, a: 255), Red):
+      applySurvivalJumpToFinalCheat(game)
+  currentY += bh + 8
 
-  drawText("Advancing time fast-forwards difficulty; +15 min reaches the ending threshold.",
+  # System Events row.
+  drawText("Events", labelX, currentY + 6, 14, White)
+  block:
+    const kinds = [sekMemoryLeak, sekFirewallBreach, sekUploadZone,
+                   sekCorruptedSector, sekRogueProcess, sekOverclock]
+    const labels = ["Leak", "Breach", "Upload", "Sector", "Rogue", "Clock"]
+    let bw = rowButtonW(6)
+    for i in 0..5:
+      if btn(btnStartX + i.int32 * (bw + gap), currentY, bw, bh, labels[i],
+             Color(r: 40, g: 20, b: 70, a: 255), Color(r: 200, g: 120, b: 255, a: 255)):
+        applySurvivalEventCheat(game, kinds[i])
+  currentY += bh + 8
+
+  # Data Cache row.
+  drawText("Caches", labelX, currentY + 6, 14, White)
+  block:
+    const labels = ["Minor", "Standard", "Rare", "Kernel"]
+    let bw = rowButtonW(4)
+    var i = 0'i32
+    for tier in SurvivalCacheTier:
+      if btn(btnStartX + i * (bw + gap), currentY, bw, bh, labels[i],
+             Color(r: 0, g: 50, b: 30, a: 255), survivalCacheAccent(tier)):
+        applySurvivalCacheCheat(game, tier)
+      inc i
+  currentY += bh + 12
+
+  drawText("Clock moves difficulty and the boss schedule; +15 min reaches the ending threshold.",
            labelX, currentY, 11, Gray)

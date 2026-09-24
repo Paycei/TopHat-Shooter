@@ -45,6 +45,7 @@ const
   CubeEscapeAdvancementId* = "mastery_escape_velocity"
   CheaterAdvancementId* = "mastery_cheater"
   FlawlessWaveAdvancementId* = "survival_flawless_kernel"
+  SurvivalStabilizedAdvancementId* = "survival_system_stabilized"
 
 proc saveAdvancements*(profile: AdvancementProfile): bool
 
@@ -261,6 +262,14 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
       category: acSurvival,
       tier: atLegendary,
       target: 90.0'f32,
+    ),
+    AdvancementDefinition(
+      id: SurvivalStabilizedAdvancementId,
+      name: "System Stabilized",
+      description: "Beat the 20:00 final process in time survival.",
+      category: acSurvival,
+      tier: atLegendary,
+      target: 1.0'f32,
     ),
     AdvancementDefinition(
       id: FlawlessWaveAdvancementId,
@@ -686,7 +695,11 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
   of "survival_five_minutes", "survival_twenty_minutes", "survival_deep_runtime":
     var survived = longestSurvival(stats)
     if liveRun and not lastRun.isNil and lastRun.gameMode == gmTimeSurvival:
-      survived = max(survived, lastRun.runDuration)
+      # The survival clock, not the run's wall time: the clock pauses for boss
+      # fights and drafts, and the lifetime record (longestSurvivalTime) is
+      # measured on it too.
+      survived = max(survived, if lastRun.survivalClock > 0: lastRun.survivalClock
+                               else: lastRun.runDuration)
     survived
   of "survival_clean_window", "survival_phantom_runtime":
     if lastRun.isNil: 0.0'f32 else: lastRun.movement.longestNoDamageStreak
@@ -713,8 +726,10 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.highestHeat.float32
   of "roguelite_victory_kernel":
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.wins.float32
-  of CubeEscapeAdvancementId, CheaterAdvancementId, FlawlessWaveAdvancementId:
-    # Event-driven (desktop easter egg, cheat use, flawless wave-mode clear),
+  of CubeEscapeAdvancementId, CheaterAdvancementId, FlawlessWaveAdvancementId,
+     SurvivalStabilizedAdvancementId:
+    # Event-driven (desktop easter egg, cheat use, flawless wave-mode clear,
+    # survival final boss beaten),
     # never derived from stats; unlocked via unlockAdvancementDirectly.
     # Returning 0 keeps sync from touching it.
     0.0'f32

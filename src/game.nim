@@ -7,7 +7,6 @@ import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbi
 
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
-const TIME_SURVIVAL_BOSS_INTERVAL = 90.0  # survival boss every 1.5 min
 const SurvivalDifficultyRamp = 45.0'f32   # seconds of survival per +1 difficulty
 const VOLATILE_COLOR = Color(r: 255, g: 120, b: 30, a: 255)  # Volatile's ember orange (pulse ring, sparks, primed marker)
 
@@ -108,6 +107,8 @@ proc cleanupGame*(game: Game) =
   game.draftInputGrace = 0
   game.draftAwaitRelease = false
   game.survivalTime = 0
+  game.survival = initSurvivalState()
+  game.survivalVictoryJustEarned = false
   game.consumables = @[]
   game.walls = @[]
   game.attackWarnings = @[]
@@ -364,9 +365,17 @@ proc setGameMode*(game: Game, mode: GameMode) =
 
   # Apply mode-specific starting values
   game.player.coins = modeDef.playerStartCoins
-  game.bossTimer = if isTimeSurvivalMode(mode): TIME_SURVIVAL_BOSS_INTERVAL else: 0.0
+  game.bossTimer = if isTimeSurvivalMode(mode): survivalBossTime(1) else: 0.0
   game.survivalTime = 0
   game.survivalMinutesRewarded = 0
+  game.survival = initSurvivalState()
+  if isTimeSurvivalMode(mode):
+    # Open the run on the "PHASE 1 // BOOT" banner. A resumed run restores
+    # game.time past it, so the banner only shows on a fresh start.
+    game.survival.bannerKind = sbkPhase
+    game.survival.bannerStart = game.time
+    # Survival levels on its own curve (a resume restores the saved threshold).
+    game.player.xpToNextLevel = xpRequiredForLevel(game.player.rogueliteLevel, mode)
   game.bossWaveManager.clearBossWave()
 
   # Reset wave-specific state if not using waves
@@ -375,24 +384,6 @@ proc setGameMode*(game: Game, mode: GameMode) =
     game.waveInProgress = false
     game.waveEnemiesRemaining = 0
     game.wavesUntilBoss = BossWaveInterval - 1
-
-proc awardMetaCurrency(game: Game, shards: int, cores: int = 0) =
-  ## Wave/survival reward: bank Data Shards / Cores into the profile wallet the
-  ## cosmetic shop spends from, tally them for the end-of-run screens, and float
-  ## the amounts over the player. A cheated run earns nothing from here on (what
-  ## was banked before the cheat menu opened is kept).
-  if game.cheatsUsed or not bankMetaCurrency(shards, cores):
-    return
-  game.metaShardsEarned += max(0, shards)
-  game.metaCoresEarned += max(0, cores)
-  # Kept live (finalizeRunTracking re-syncs it) because the victory screen's
-  # View Stats opens before the run is finalized.
-  if not currentRunStats.isNil:
-    currentRunStats.rogueliteShardsEarned = game.metaShardsEarned
-  if shards > 0:
-    showCurrency(game, game.player.pos + newVector2f(0, -40), shards, cikDataShards)
-  if cores > 0:
-    showCurrency(game, game.player.pos + newVector2f(28, -26), cores, cikCores)
 
 # Waves
 proc startWave*(game: Game) =
@@ -2519,13 +2510,19 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
         tuneDungeonBossStats(game.pendingBoss, game.rogueliteRun)
 
     elif isTimeSurvivalMode(game.mode):
-      if game.bossTimer <= 0 and game.bossWaveManager.canSpawnBoss() and game.state == gsPlaying:
+      # Bosses close each 5:00 phase on the survival clock (then every 2:30 in
+      # Overtime). The clock pauses during the fight, so boss k always arrives
+      # at exactly survivalBossTime(k).
+      if game.state == gsPlaying and game.bossWaveManager.canSpawnBoss() and
+         (game.survivalTime >= survivalNextBossTime(game) or game.survival.cheatForceBoss):
+        game.survival.cheatForceBoss = false
         game.bossCount += 1
-        let bossBlockWave = max(BossWaveInterval, game.bossCount * BossWaveInterval)
+        let bossBlockWave = survivalBossBlockWave(game.bossCount)
         let bossDifficulty = max(game.difficulty, (bossBlockWave - 1).float32 / 3.0)
+        prepareSurvivalBossArrival(game)
         spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
-      # TIME SURVIVAL MODE: delegate to survival.nim
-      spawnSurvivalEnemies(game)
+      # TIME SURVIVAL MODE: horde, System Events and caches live in survival.nim
+      updateSurvival(game, dt)
 
 proc detonateBossCorpse(game: var Game, boss: Enemy) =
   ## A dying boss takes its own attacks with it. The OS kills the process and
@@ -2564,6 +2561,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
   var enemyIdx = 0
   var bossDefeated = false
+  var defeatedBossPos = newVector2f(game.screenWidth.float32 * 0.5'f32,
+                                    game.screenHeight.float32 * 0.5'f32)
   while enemyIdx < game.enemies.len:
     var enemy = game.enemies[enemyIdx]
 
@@ -2906,8 +2905,13 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.radius * 3.0'f32)
         if enemy.isElite or enemy.royalGuard:
           triggerHitStop(game.dopamine.slowMotion, 0.065'f32, HitStopScaleHeavy)
-        else:
+        elif not isTimeSurvivalMode(game.mode) or
+             game.time - game.survival.lastKillHitStop >= 0.2'f32:
+          # Survival mows down a horde several kills a second; a freeze per
+          # kill would leave the world stuttering most of the time, so plain
+          # kills there punch at most five times a second.
           triggerHitStop(game.dopamine.slowMotion, 0.035'f32)
+          game.survival.lastKillHitStop = game.time
         recordKill(game.dopamine.waveStats, 0)  # Don't track individual enemy damage for non-bosses
 
       # Track combo and award bonus coins (but not for boss minions)
@@ -2927,6 +2931,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
       # Track enemy kill for statistics
       trackEnemyKilled(game, enemy)
+
+      # Survival: System Event bookkeeping and elite Data Cache drops.
+      if isTimeSurvivalMode(game.mode):
+        onSurvivalEnemyKilled(game, enemy)
 
       # Life steal power-up effect
       if hasPowerUp(game.player, puLifeSteal):
@@ -2951,10 +2959,12 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
       # TimeSurge: each kill extends the fire rate boost timer (survival only)
       if hasPowerUp(game.player, puTimeSurge):
-        let surgeBonus = case getPowerUpLevel(game.player, puTimeSurge)
+        # Density-normalised: the survival horde lands several kills a second,
+        # which would pin the boost at its cap forever.
+        let surgeBonus = densityRebate(game) * (case getPowerUpLevel(game.player, puTimeSurge)
           of 1: 0.5'f32
           of 2: 0.75'f32
-          else: 1.0'f32
+          else: 1.0'f32)
         game.player.fireRateBoostTimer = min(game.player.fireRateBoostTimer + surgeBonus, 10.0'f32)
 
       # SectorProtocol: each kill grants +1 coin. Cryptominer patch: likewise.
@@ -2986,7 +2996,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       if hasPowerUp(game.player, puKillChain) and not enemy.isBoss:
         game.player.killChainCount += 1
         game.player.killChainTimer = 3.0'f32
-        if game.player.killChainCount >= 5:
+        # Density-normalised like the other per-kill grants: 5 kills in 3 s is
+        # routine against the survival horde, so the chain needs more links.
+        let chainLength = max(5, int(5.0'f32 / max(0.01'f32, densityRebate(game))))
+        if game.player.killChainCount >= chainLength:
           game.player.killChainCount = 0
           game.player.killChainTimer = 0
           const killChainRadius = 350.0'f32
@@ -3059,7 +3072,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           game.bossWaveManager.bossDefeated()
         else:
           game.bossWaveManager.clearBossWave()
-          game.bossTimer = TIME_SURVIVAL_BOSS_INTERVAL
+          defeatedBossPos = enemy.pos
 
         # Mode-specific boss defeat handling - NO longer advance wave here
         # Wave will advance when boss coin is collected
@@ -3627,18 +3640,29 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
   # Sandbox is excluded: its bosses are spawned freely as a testing tool, so
   # killing one must not pop a power-up draft (or any reward flow).
   if bossDefeated and not shouldUseWaves(game.mode) and game.mode != gmSandbox:
-    # Boss bounty. bossCount was bumped when this boss spawned, so it is the
-    # boss number just beaten, the same fight (and payout) as that wave-mode boss.
-    if isTimeSurvivalMode(game.mode):
-      awardMetaCurrency(game, bossShardReward(game.bossCount), bossCoreReward(game.bossCount))
+    # Boss bounty and its Kernel Data Cache. bossCount was bumped when this boss
+    # spawned, so it is the boss number just beaten. True for the 20:00 boss.
+    let survivalWon = isTimeSurvivalMode(game.mode) and
+                      onSurvivalBossDefeated(game, defeatedBossPos)
     # Time survival: a defeated boss is a major milestone, so offer a LEGENDARY
     # draft (isLegendary = true) to match the wave-mode boss reward in
-    # completeBossWave, not a common upgrade.
+    # completeBossWave, not a common upgrade. The draft returns straight to the
+    # fight (continueAfterDraft): survival has Data Caches instead of a shop.
     game.powerUpChoices = generatePowerUpChoices(game.player, true, mode = game.mode)
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
     initializeRerollCost(game)  # Base price, not the last draft's inflated one
-    game.state = gsPowerUpSelect
+    if survivalWon:
+      # The final process is down: the run is won. Show the victory screen
+      # first; the legendary draft stays queued, so "Enter Overtime" re-arms
+      # the roll and drops the player straight into it (as wave mode's endless).
+      deleteRunSave(game.mode)          # the pre-final save must not replay the win
+      deleteSuspendSnapshot(game.mode)
+      game.selectedVictoryButton = 0
+      playSound(stWaveComplete)
+      game.state = gsVictory
+    else:
+      game.state = gsPowerUpSelect
     # Clear all enemies and bullets for clean screen
     game.enemies = @[]
     game.bullets = @[]
@@ -5088,6 +5112,17 @@ proc updateGame*(game: var Game, dt: float32) =
 
     return
 
+  # Survival Data Cache reveal: the simulation (and the survival clock) holds
+  # still while the opened cache shows what it installed. Its rewards are
+  # already applied, so this is presentation only.
+  if isTimeSurvivalMode(game.mode) and game.survival.reveal.active:
+    if updateSurvivalCacheReveal(game, dt):
+      beginDraftResume(game)
+    updateParticlePool(game.particlePool, dt)
+    game.time += dt
+    game.frameCount += 1
+    return
+
   # Handle 3D boss state
   if game.state == gs3DBoss:
     if game.game3D != nil:
@@ -5213,7 +5248,10 @@ proc updateGame*(game: var Game, dt: float32) =
      not game.bossWaveManager.isBossActive() and
      not game.bossWaveManager.isBossCoinActive():
     game.survivalTime += dt
-    game.bossTimer = max(0.0, game.bossTimer - dt)
+    if not currentRunStats.isNil:
+      currentRunStats.survivalClock = game.survivalTime
+    # Countdown to the scheduled boss (survivalBossTime), kept for readouts.
+    game.bossTimer = max(0.0'f32, survivalNextBossTime(game) - game.survivalTime)
     # Pay each whole minute on the survival clock once. survivalMinutesRewarded is
     # a high-water mark, so rewinding the clock never re-pays a minute.
     let minutesSurvived = int(game.survivalTime / 60.0'f32)
@@ -5222,6 +5260,9 @@ proc updateGame*(game: var Game, dt: float32) =
       inc game.survivalMinutesRewarded
       minuteShards += survivalMinuteShardReward(game.survivalMinutesRewarded)
     if minuteShards > 0:
+      # Overtime: every minute past the win pays half again.
+      if game.survival.victoryAchieved:
+        minuteShards = int(round(minuteShards.float32 * 1.5'f32))
       awardMetaCurrency(game, minuteShards)
 
   # Difficulty scaling (not in sandbox mode)
@@ -5716,6 +5757,9 @@ proc drawGame*(game: Game) =
   let bgAccent = if game.mode == gmRoguelite and game.rogueliteRun != nil and
                     game.rogueliteRun.floor != nil:
     themeAccent(game.rogueliteRun.floor.theme)
+  elif isTimeSurvivalMode(game.mode):
+    # Each survival phase tints the desktop: cyan Boot to red Kernel Panic.
+    SurvivalPhaseAccent[survivalPhase(game)]
   else:
     Color(r: 0, g: 0, b: 0, a: 0)
   drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight,
@@ -5796,6 +5840,10 @@ proc drawGame*(game: Game) =
   # Draw walls
   for wall in game.walls:
     drawWall(wall, game.player)
+
+  # Survival: event zones and telegraphs, spawn markers, Data Caches
+  if isTimeSurvivalMode(game.mode):
+    drawSurvivalWorldUnder(game)
 
   # Draw coins
   drawGameCoins(game)
@@ -6015,6 +6063,10 @@ proc drawGame*(game: Game) =
       # Draw each satellite as a detailed space-station miniature
       for sat in enemy.satellites:
         drawBossSatellite(sat, game.time, satIsObjective)
+
+  # Survival: overlays that sit on top of the enemies (Rogue Process label)
+  if isTimeSurvivalMode(game.mode):
+    drawSurvivalWorldOver(game)
 
   let playerVisible = game.state != gsDeathSequence
 
@@ -6393,7 +6445,7 @@ proc drawGame*(game: Game) =
     # card below them) can never be overlapped, even with 3 bosses.
     let bossBandBottom = comboCardY - transientBand
 
-    var rgY: int32 = if isTimeSurvivalMode(game.mode): SurvivalHudBottomY + 6'i32 else: 10'i32
+    var rgY: int32 = if isTimeSurvivalMode(game.mode): survivalHudStackBottom(game) + 6'i32 else: 10'i32
     if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
       # Count active bosses (<=3) so each vertical card can be sized to fit.
       var bossCount = 0
@@ -6419,6 +6471,8 @@ proc drawGame*(game: Game) =
     if showWaveBanner:
       tY = drawWaveStartBannerGutter(game.currentWave, waveAge,
                                      rightGutterX, rightGutterW, tY, isBossNext)
+    if isTimeSurvivalMode(game.mode):
+      tY = drawSurvivalBannerGutter(game, rightGutterX, rightGutterW, tY)
     # Boss kills keep the classic fullscreen celebration even in widescreen (drawn
     # over the 1024-wide world column, so it reads exactly like 4:3); only ordinary
     # wave clears are demoted to the compact gutter card.
@@ -6452,6 +6506,8 @@ proc drawGame*(game: Game) =
       drawCombo(game.dopamine.comboSystem, vw, vh, game.dopamine.currentTime)
     if showWaveBanner:
       drawWaveStartBanner(game.currentWave, waveAge, vw, vh, isBossNext)
+    if isTimeSurvivalMode(game.mode):
+      drawSurvivalBanner(game, vw, survivalHudStackBottom(game) + 8'i32)
     drawWaveCelebration(game.dopamine.waveCelebration, vw, vh)
     drawBossIntroduction(game.dopamine.bossIntro, vw, vh)
     if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
@@ -6509,6 +6565,10 @@ proc drawGame*(game: Game) =
         drawText(instrText, vw div 2 - hintW div 2, vh - 25, 16, instrColor)
       else:
         drawText(instrText, vw div 2 - 100, vh - 25, 16, instrColor)
+
+  # Survival Data Cache reveal, over the whole HUD
+  if isTimeSurvivalMode(game.mode):
+    drawSurvivalCacheReveal(game, vw, vh)
 
   endUIScaleMode()   # closes the interface layer opened before the HUD panel
 

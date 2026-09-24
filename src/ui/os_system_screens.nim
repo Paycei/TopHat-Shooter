@@ -2,7 +2,7 @@
 ## Game Over as Modern System Crash, Victory as System Secured
 
 import raylib, math
-import ../types, ../localization, ../render_context, ../utils
+import ../types, ../localization, ../render_context, ../utils, ../survival
 from ../roguelite import RogueliteFloorsToWin
 import ui_helpers, icon_drawing
 
@@ -149,6 +149,14 @@ proc drawShopCurrencyBanked(game: Game, windowX, statsY: int32) =
              Color(r: 180, g: 190, b: 200, a: alpha))
     rowY += rowH
 
+proc survivalBossesBeaten(game: Game): int =
+  ## bossCount counts a boss when it spawns; one still alive is not beaten.
+  max(0, game.bossCount - (if game.bossWaveManager.active: 1 else: 0))
+
+proc survivalEventsCachesText(game: Game): string =
+  $game.survival.eventsCleared & " / " & $game.survival.eventsStarted & "  -  " &
+    $game.survival.cachesOpened
+
 proc deathCauseVerbKey(cause: DeathCause): TranslationKey =
   ## Verb phrase describing how the player died.
   case cause
@@ -289,7 +297,25 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
                  (if seconds < 10: "0" else: "") & $seconds
 
   drawShopCurrencyBanked(game, windowX, yOffset)
-  if game.mode == gmRoguelite and not game.rogueliteRun.isNil:
+  if game.mode == gmTimeSurvival:
+    # Survival reports how far through the 20:00 run it got, on the survival
+    # clock (boss fights and drafts excluded), plus its System Events.
+    drawStat(windowX + 40, yOffset, t(tkSurvivalPhaseReached), survivalPhaseReachedLabel(game), ">",
+            SurvivalPhaseAccent[survivalPhase(game)])
+    yOffset += STAT_LINE_HEIGHT
+    drawStat(windowX + 40, yOffset, t(tkSurvivalTimeSurvived),
+            formatSurvivalClock(game.survivalTime), "[T]", Color(r: 150, g: 200, b: 255, a: 255))
+    yOffset += STAT_LINE_HEIGHT
+    drawStat(windowX + 40, yOffset, t(tkGameOverThreatsEliminated), $game.player.kills, "[X]",
+            Color(r: 255, g: 150, b: 150, a: 255))
+    yOffset += STAT_LINE_HEIGHT
+    drawStat(windowX + 40, yOffset, t(tkVictoryBossesDefeated), $survivalBossesBeaten(game), "[B]",
+            Color(r: 255, g: 180, b: 120, a: 255))
+    yOffset += STAT_LINE_HEIGHT
+    drawStat(windowX + 40, yOffset, t(tkSurvivalEventsCaches), survivalEventsCachesText(game), "[!]",
+            Color(r: 255, g: 215, b: 0, a: 255))
+    yOffset += STAT_LINE_HEIGHT
+  elif game.mode == gmRoguelite and not game.rogueliteRun.isNil:
     # A roguelite has no waves: report the sector the run reached and how far
     # into it, plus the patches it had applied.
     let run = game.rogueliteRun
@@ -307,19 +333,20 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   else:
     drawStat(windowX + 40, yOffset, t(tkGameOverWaveReached), $game.currentWave, ">",
             Color(r: 255, g: 200, b: 100, a: 255))
-  yOffset += STAT_LINE_HEIGHT
-  drawStat(windowX + 40, yOffset, t(tkGameOverSystemUptime), timeText, "[T]",
-          Color(r: 150, g: 200, b: 255, a: 255))
-  yOffset += STAT_LINE_HEIGHT
-  drawStat(windowX + 40, yOffset, t(tkGameOverThreatsEliminated), $game.player.kills, "[X]",
-          Color(r: 255, g: 150, b: 150, a: 255))
-  yOffset += STAT_LINE_HEIGHT
-  drawStat(windowX + 40, yOffset, t(tkVictoryBossesDefeated), $game.bossCount, "[B]",
-          Color(r: 255, g: 180, b: 120, a: 255))
-  yOffset += STAT_LINE_HEIGHT
-  drawStat(windowX + 40, yOffset, t(tkGameOverResourcesCollected), $game.player.coins, "[$]",
-          Color(r: 255, g: 215, b: 0, a: 255))
-  yOffset += STAT_LINE_HEIGHT
+  if game.mode != gmTimeSurvival:
+    yOffset += STAT_LINE_HEIGHT
+    drawStat(windowX + 40, yOffset, t(tkGameOverSystemUptime), timeText, "[T]",
+            Color(r: 150, g: 200, b: 255, a: 255))
+    yOffset += STAT_LINE_HEIGHT
+    drawStat(windowX + 40, yOffset, t(tkGameOverThreatsEliminated), $game.player.kills, "[X]",
+            Color(r: 255, g: 150, b: 150, a: 255))
+    yOffset += STAT_LINE_HEIGHT
+    drawStat(windowX + 40, yOffset, t(tkVictoryBossesDefeated), $game.bossCount, "[B]",
+            Color(r: 255, g: 180, b: 120, a: 255))
+    yOffset += STAT_LINE_HEIGHT
+    drawStat(windowX + 40, yOffset, t(tkGameOverResourcesCollected), $game.player.coins, "[$]",
+            Color(r: 255, g: 215, b: 0, a: 255))
+    yOffset += STAT_LINE_HEIGHT
 
   # Action buttons section - Positioned at bottom with proper spacing.
   # A death-surviving block checkpoint prepends a "Continue (Wave N)" button,
@@ -377,8 +404,11 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
           Color(r: 180, g: 190, b: 200, a: 255))
 
 proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
-  ## Draw the wave-60 final-boss Victory screen as "system secured".
-  ## selectedButton: 0=Continue Endless, 1=View Stats, 2=Return to Menu
+  ## Draw the wave-60 final-boss Victory screen as "system secured" (and, with
+  ## survival text, the 20:00 survival win as "system stabilized").
+  ## selectedButton: 0=Continue Endless / Enter Overtime, 1=View Stats,
+  ## 2=Return to Menu / End Run
+  let survival = game.mode == gmTimeSurvival
   let screenWidth = getVirtualScreenWidth()
   let screenHeight = getVirtualScreenHeight()
 
@@ -457,13 +487,13 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   yOffset += 104
 
   # Main victory message
-  let successTitle = t(tkVictoryTitle)
+  let successTitle = t(if survival: tkSurvivalVictoryTitle else: tkVictoryTitle)
   drawText(successTitle, windowX + 30, yOffset, 40,
           Color(r: 100, g: 255, b: 150, a: 255))
   yOffset += 46
 
   # Congratulatory subtitle
-  drawText(t(tkVictorySubtitle), windowX + 30, yOffset, 18,
+  drawText(t(if survival: tkSurvivalVictorySubtitle else: tkVictorySubtitle), windowX + 30, yOffset, 18,
           Color(r: 200, g: 255, b: 220, a: 255))
   yOffset += 32
 
@@ -479,7 +509,7 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   # Place the label after the measured icon width (+ padding) so the 4-char
   # "[OK]" token can't bleed into the status text.
   let statusTextX = statusIconX + measureText("[OK]", 20) + 14
-  drawText(t(tkVictoryStatus),
+  drawText(t(if survival: tkSurvivalVictoryStatus else: tkVictoryStatus),
           statusTextX, yOffset + 10, 14,
           Color(r: 200, g: 255, b: 220, a: 255))
   yOffset += 44
@@ -501,8 +531,12 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   # so the cleared-wave count is currentWave - 1 (= 60 for the final boss).
   let wavesCleared = max(0, game.currentWave - 1)
   drawShopCurrencyBanked(game, windowX, yOffset)
-  drawStat(windowX + 40, yOffset, t(tkGameOverWavesSurvived), $wavesCleared, "|-",
-          Color(r: 150, g: 255, b: 180, a: 255))
+  if survival:
+    drawStat(windowX + 40, yOffset, t(tkSurvivalTimeSurvived),
+            formatSurvivalClock(game.survivalTime), "|-", Color(r: 150, g: 255, b: 180, a: 255))
+  else:
+    drawStat(windowX + 40, yOffset, t(tkGameOverWavesSurvived), $wavesCleared, "|-",
+            Color(r: 150, g: 255, b: 180, a: 255))
   yOffset += STAT_LINE_HEIGHT
 
   drawStat(windowX + 40, yOffset, t(tkGameOverThreatsEliminated), $game.player.kills, "|-",
@@ -513,8 +547,12 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
           Color(r: 255, g: 180, b: 120, a: 255))
   yOffset += STAT_LINE_HEIGHT
 
-  drawStat(windowX + 40, yOffset, t(tkGameOverResourcesCollected), $game.player.coins, "|-",
-          Color(r: 255, g: 215, b: 0, a: 255))
+  if survival:
+    drawStat(windowX + 40, yOffset, t(tkSurvivalEventsCaches), survivalEventsCachesText(game), "|-",
+            Color(r: 255, g: 215, b: 0, a: 255))
+  else:
+    drawStat(windowX + 40, yOffset, t(tkGameOverResourcesCollected), $game.player.coins, "|-",
+            Color(r: 255, g: 215, b: 0, a: 255))
   yOffset += STAT_LINE_HEIGHT
 
   drawStat(windowX + 40, yOffset, t(tkGameOverMissionDuration), timeText, "\\-",
@@ -531,12 +569,15 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   # agree). The win has already dropped the checkpoint, and the endless play the
   # first button leads into never writes one, so this warns before the choice
   # rather than showing a budget that no longer applies.
-  drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
-                          SCREEN_WIDTH - 60, game.time)
+  # (Survival has no restore points to warn about.)
+  if not survival:
+    drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
+                            SCREEN_WIDTH - 60, game.time)
 
-  # Continue Endless button (0)
+  # Continue Endless / Enter Overtime button (0)
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  t(tkVictoryContinueEndless), "[SPACE]", selectedButton == 0, game.time)
+                  t(if survival: tkSurvivalVictoryOvertime else: tkVictoryContinueEndless),
+                  "[SPACE]", selectedButton == 0, game.time)
 
   # View Stats button (1)
   let statsX = buttonsX + BUTTON_WIDTH + buttonSpacing
@@ -546,7 +587,8 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   # Return to Menu button (2)
   let exitX = statsX + BUTTON_WIDTH + buttonSpacing
   drawModernButton(int32(exitX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),
-                  t(tkVictoryReturnMenu), "[ESC] [Q]", selectedButton == 2, game.time)
+                  t(if survival: tkSurvivalVictoryEndRun else: tkVictoryReturnMenu),
+                  "[ESC] [Q]", selectedButton == 2, game.time)
 
   # Footer success text
   let footerY = windowY + SCREEN_HEIGHT - 35
@@ -562,7 +604,7 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
     drawText(secretText, windowX + (SCREEN_WIDTH - secretWidth) div 2, footerY + 10, 13,
             Color(r: uint8(120 + secretPulse * 135), g: 255, b: 255, a: 255))
   else:
-    let footerText = t(tkVictoryFooter)
+    let footerText = t(if survival: tkSurvivalVictoryFooter else: tkVictoryFooter)
     let footerWidth = measureText(footerText, 13)
     drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
             Color(r: 180, g: 220, b: 190, a: 255))

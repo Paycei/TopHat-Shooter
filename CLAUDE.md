@@ -47,7 +47,7 @@ Always run this after edits. Nim enforces **exhaustive `case` statements over en
 
 ### Game modes
 Selected via `GameMode`; each delegates out of `game.nim` where it diverges:
-- `gmWaveBased` (default) and `gmTimeSurvival` (`survival.nim`) — core PvE loop.
+- `gmWaveBased` (default) and `gmTimeSurvival` — core PvE loop. Survival is a 20:00 run of four phases (Boot/Runtime/Overload/Kernel Panic), each closed by a boss on the survival clock (which pauses during boss fights), then optional Overtime. It has no shop: events, elites and bosses drop Data Caches instead. Everything lives in `survival.nim` (sectioned: data tables and text keys, horde spawner + formations, Data Caches, System Events, the orchestrator `game.nim` calls — `updateSurvival` and the boss/kill hooks — the cache reveal overlay, and the HUD); only the pure boss schedule (`survivalBossTime`, `survivalPhase`, `initSurvivalState`, ...) sits in `types.nim`, because `run_save.nim` needs it. Per-enemy grants are density-normalised through `densityRebate` (`survivalDensityRebate` in `types.nim`). Like the `game/` modules, `survival.nim` must never `import game`; shard payouts go through `awardMetaCurrency` in `coin.nim`.
 - `gmRoguelite` (`roguelite.nim`, `dungeon.nim`, `ui/os_roguelite.nim`) — run-based meta-progression with relics, sectors, and unlockable power families (`RoguelitePowerFamily`). `dungeon.nim` owns floor/room generation and transitions; like the `game/` modules, it must not `import game` (enemy spawning stays in `game.nim`).
 - `gmPvP` (`pvp_game.nim` + `network/`) — networked multiplayer. `flatty` + `supersnappy` are used **only** for PvP packet serialization, not save files.
 - `gmSandbox` (`sandbox.nim`) and a separate 3D boss state (`gs3DBoss`, `game3d/`).

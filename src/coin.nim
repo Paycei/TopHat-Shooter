@@ -1,5 +1,6 @@
 import raylib, math, random
 import particle_types, types, particle, particle_pool, powerup, patches, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions
+from roguelite import bankMetaCurrency
 
 const LOOT_MARGIN* = 50.0  # Distance from screen edge
 
@@ -175,10 +176,15 @@ proc dropEnemyCoin*(game: Game, enemy: Enemy) =
   # STOCHASTICALLY instead of flooring at 1: a pulsed swarm is mostly 1-credit
   # enemies, and the floor minted a credit from every one of them (measured:
   # 1000-2600 unspendable credits by the last sector). Wave mode keeps its
-  # floor so every kill there still visibly pays.
-  if densityWave(game) > 0 and not enemy.isBoss:
+  # floor so every kill there still visibly pays. Survival's horde rounds
+  # stochastically too (no RogueliteCoinScale): its credits only buy rerolls.
+  if (densityWave(game) > 0 or game.mode == gmTimeSurvival) and not enemy.isBoss:
     var scaled = coinValue.float32 * densityRebate(game)
-    if game.mode == gmRoguelite:
+    if game.mode == gmTimeSurvival:
+      coinValue = int(scaled) + (if rand(1.0'f32) < scaled - floor(scaled): 1 else: 0)
+      if coinValue <= 0:
+        return
+    elif game.mode == gmRoguelite:
       # Credits only buy /pkg stalls and rerolls here (no stat shop), so kill
       # drops are scaled to what a sector should afford: one or two stalls.
       scaled *= RogueliteCoinScale
@@ -190,6 +196,24 @@ proc dropEnemyCoin*(game: Game, enemy: Enemy) =
   let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
   let requiresBossCoin = enemy.isBoss and game.mode == gmWaveBased
   game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, requiresBossCoin))
+
+proc awardMetaCurrency*(game: Game, shards: int, cores: int = 0) =
+  ## Wave/survival reward: bank Data Shards / Cores into the profile wallet the
+  ## cosmetic shop spends from, tally them for the end-of-run screens, and float
+  ## the amounts over the player. A cheated run earns nothing from here on (what
+  ## was banked before the cheat menu opened is kept).
+  if game.cheatsUsed or not bankMetaCurrency(shards, cores):
+    return
+  game.metaShardsEarned += max(0, shards)
+  game.metaCoresEarned += max(0, cores)
+  # Kept live (finalizeRunTracking re-syncs it) because the victory screen's
+  # View Stats opens before the run is finalized.
+  if not currentRunStats.isNil:
+    currentRunStats.rogueliteShardsEarned = game.metaShardsEarned
+  if shards > 0:
+    showCurrency(game, game.player.pos + newVector2f(0, -40), shards, cikDataShards)
+  if cores > 0:
+    showCurrency(game, game.player.pos + newVector2f(28, -26), cores, cikCores)
 
 proc collectAllCoins*(game: Game) =
   ## Auto-bank every coin on the floor when the room is cleared, applying the

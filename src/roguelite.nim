@@ -562,7 +562,9 @@ proc commitRogueliteRunProgress*(game: Game, died: bool): bool =
 #
 # Rough totals, for tuning against a Heat 1 roguelite win (~700 shards, 0 cores):
 #   wave 60 cleared  ~616 shards, ~22 cores
-#   15:00 survival   ~365 shards, ~15 cores (a boss every 90 s of survival clock)
+#   20:00 survival   ~600 shards, ~25 cores (4 phase bosses, ~20 System Events,
+#                    4 Rogue Processes, the victory bonus and the minute drip)
+#   15:00 death      ~330 shards, ~12 cores
 
 const MetaRewardBossTierCap* = 12
   ## The wave-60 boss. Endless waves and long survival runs keep paying this tier.
@@ -583,6 +585,33 @@ proc bossCoreReward*(bossTier: int): int =
 proc survivalMinuteShardReward*(minute: int): int =
   ## Each whole minute on the survival clock: 2 shards, +1 every third minute.
   2 + max(1, minute) div 3
+
+const
+  SurvivalVictoryShards* = 100  ## Beating the 20:00 final boss
+  SurvivalVictoryCores* = 5
+
+proc survivalBossTier(bossNumber: int): int =
+  ## Survival fights four phase bosses, which are wave bosses 3 / 6 / 9 / 12;
+  ## Overtime keeps fighting the final one.
+  clamp(bossNumber * 3, 3, MetaRewardBossTierCap)
+
+proc survivalBossShardReward*(bossNumber: int): int =
+  ## Survival boss bounty. There are four bosses instead of the thirteen the
+  ## old 90 s cadence fought by 20:00, so each pays double its wave-mode tier:
+  ## 40 / 64 / 88 / 112, then 84 per Overtime boss.
+  if bossNumber > 4: 84
+  else: 2 * bossShardReward(survivalBossTier(bossNumber))
+
+proc survivalBossCoreReward*(bossNumber: int): int =
+  ## 2 / 4 / 6 / 8 Cores for the phase bosses, 6 per Overtime boss.
+  if bossNumber > 4: 6
+  else: 2 * bossCoreReward(survivalBossTier(bossNumber))
+
+proc survivalEventShardReward*(phaseIndex: int, rogue: bool): int =
+  ## A System Event cleared (3 + 2 per phase) or a Rogue Process killed
+  ## (6 + 3 per phase). phaseIndex is 0 for Boot through 4 for Overtime.
+  let p = clamp(phaseIndex, 0, 4)
+  if rogue: 6 + 3 * p else: 3 + 2 * p
 
 proc bankMetaCurrency*(shards, cores: int): bool =
   ## Credit the live wallet and save it. False when nothing was credited (no

@@ -1292,15 +1292,10 @@ proc main() =
           survivalEndReplayMode = false
           currentGame.state = gsMenu
         else:
-          # The run is over. The "Long Watch" eulogy is the true send-off for a
-          # survival death, so close the game once it finishes playing rather than
-          # dropping to the game-over screen. That screen is where a run is
-          # normally persisted, so record it here first or the whole run -- the
-          # longest survival time included -- would never reach the stats.
-          freezeRunTime(currentGame)
-          persistRunResults(currentGame, died = true)
-          currentGame.state = gsGameOver  # recorded: shutdown must not persist it again
-          windowCloseRequested = true
+          # The run is over: the "Long Watch" eulogy (played only the first time
+          # a run passes 15:00, see game/death.nim) hands over to the normal
+          # crash screen, which freezes the clock and persists the run once.
+          currentGame.state = gsGameOver
 
       beginGameDrawing()
       drawSurvivalEndCinematic(survivalEndCinematic, screenWidth, screenHeight)
@@ -2116,8 +2111,11 @@ proc main() =
         cheatMenu.active = false
         cheatCompleteRogueliteFloor(currentGame)
 
+      # A survival Data Cache reveal pauses the game like the cheat menu does.
+      let survivalRevealOpen = currentGame.survival.reveal.active
+
       # Only process game input if cheat menu is not active and confirm dialog is not open
-      if not cheatMenu.active and not globalConfirmActive:
+      if not cheatMenu.active and not globalConfirmActive and not survivalRevealOpen:
         # Shop removed from gameplay - only accessible during power-up selection
 
         # Wall placement mode: hold E to preview range, release E to place.
@@ -2161,7 +2159,7 @@ proc main() =
       # Not while the cheat menu is open: it pauses the game, and abilities fired
       # then dealt their damage and teleports into a frozen world.
       if (isKeyPressed(globalSettings.keybinds[kaLegendary]) or isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)) and
-         not globalConfirmActive and not cheatMenu.active:
+         not globalConfirmActive and not cheatMenu.active and not survivalRevealOpen:
         var anyActivated = false
 
         # Time Warp - slow down time
@@ -2526,6 +2524,20 @@ proc main() =
       for msg in currentGame.pendingToasts:
         showDesktopToast(osDesktop, msg)
       currentGame.pendingToasts.setLen(0)
+
+      # Survival won (the 20:00 final boss fell on a clean run): game.nim raises
+      # the flag; the advancement profile lives here.
+      if currentGame.survivalVictoryJustEarned:
+        currentGame.survivalVictoryJustEarned = false
+        if unlockAdvancementDirectly(advancementProfile, SurvivalStabilizedAdvancementId):
+          discard saveAdvancements(advancementProfile)
+          if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
+            globalWindowManager.advancements.profile = advancementProfile
+          showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
+                           getAdvancementDefinition(SurvivalStabilizedAdvancementId).name)
+          let queueIdx = advancementProfile.recentUnlocks.find(SurvivalStabilizedAdvancementId)
+          if queueIdx >= 0:
+            advancementProfile.recentUnlocks.delete(queueIdx)
 
       # Mythic flawless clear: game.nim raises the flag the frame wave mode is
       # won with no deaths on record. Event-driven, so syncAdvancements never
@@ -3233,10 +3245,12 @@ proc main() =
             currentGame.cheatRogueliteDirectFloorSelect = false
             currentGame.state = gsPlaying
             beginDraftResume(currentGame)
-        elif currentGame.levelDraftActive:
+        elif currentGame.levelDraftActive or isTimeSurvivalMode(currentGame.mode):
           # Mid-run XP level-up draft (survival or wave mode): resume into the
-          # same battlefield, not the shop. The shop stays reserved for the
-          # wave-boundary / post-boss draft below.
+          # same battlefield, not the shop. The shop stays reserved for wave
+          # mode's wave-boundary / post-boss draft below; survival has no shop
+          # at all (its bosses drop Data Caches), so its post-boss draft
+          # returns to the fight too.
           #
           # This is the disorienting exit -- the fight is still running and the
           # player has been looking at a menu -- so it gets the re-entry beat
@@ -3786,6 +3800,10 @@ proc main() =
         # Return to menu: the run ends here, so persist results before leaving
         playSound(stMenuSelect)
         persistRunResults(currentGame, died = false)
+        if isTimeSurvivalMode(currentGame.mode):
+          # A won survival run ended here, never to be resumed.
+          deleteRunSave(currentGame.mode)
+          deleteSuspendSnapshot(currentGame.mode)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient

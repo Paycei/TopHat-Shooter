@@ -2,7 +2,7 @@
 ## Pause menu styled as system task manager with mouse support
 
 import raylib, math
-import ../types, ../powerup_data, ../localization, ../render_context
+import ../types, ../powerup_data, ../localization, ../render_context, ../survival
 import ui_helpers
 
 const
@@ -114,7 +114,8 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
 
   # Current session stats
   let stats = [
-    ("Wave", $game.currentWave),
+    if game.mode == gmTimeSurvival: ("Phase", survivalPhaseReachedLabel(game))
+    else: ("Wave", $game.currentWave),
     ("Uptime", $(game.time.int div 60) & ":" &
                (if game.time.int mod 60 < 10: "0" else: "") & $(game.time.int mod 60)),
     ("Threats Eliminated", $game.player.kills),

@@ -1045,6 +1045,7 @@ type
     dotAccs*: array[ElementType, DamageAccumulator]  # Per-element DoT tick display, so fire/poison numbers stay separate and keep their own color
     poisonStacks*: float32        # Ramp built while poisoned (effects.nim); boosts poison tick damage up to a cap, resets when poison fully expires
     damageTuning*: float32  # Dungeon: attack-damage compression factor (0 or 1 = untouched)
+    survivalTag*: SurvivalTag  # Survival: spawned by this System Event (stgNone otherwise)
 
   Bullet* = ref object
     pos*: Vector2f
@@ -1511,6 +1512,108 @@ type
     coins*: int
     startWave*: int        # wave the run begins on (also drives the wave-average preview)
 
+  # --- Time Survival ("LASTSTAND.exe") ---------------------------------------
+  # A 20:00 run in four phases, each closed by a boss, then optional Overtime.
+  # Between bosses the horde spawner keeps the screen full and System Events
+  # fire; events, elites and bosses drop Data Caches (free power-up levels).
+  # Logic lives in survival*.nim; persisted by run_save.nim.
+
+  SurvivalPhase* = enum
+    ## The phase is the number of bosses beaten (see survivalPhase in
+    ## the Time Survival schedule below), so it only ever changes after a boss fight.
+    spBoot, spRuntime, spOverload, spKernelPanic, spOvertime
+
+  SurvivalEventKind* = enum
+    sekNone,
+    sekMemoryLeak,      # a torrent of weak, fast enemies pours from one edge
+    sekFirewallBreach,  # a ring of chasers closes in around the player
+    sekUploadZone,      # stand inside a zone until its upload completes
+    sekCorruptedSector, # telegraphed meteors rain around the player
+    sekRogueProcess,    # a champion elite to hunt down before it escapes
+    sekOverclock        # double XP, denser horde
+
+  SurvivalTag* = enum
+    ## Marks enemies spawned by an event so the event can count them.
+    stgNone, stgLeak, stgBreach, stgRogue
+
+  SurvivalCacheTier* = enum
+    sctMinor, sctStandard, sctRare, sctKernel
+
+  SurvivalBannerKind* = enum
+    sbkNone, sbkPhase, sbkEventStart, sbkEventCleared, sbkEventFailed,
+    sbkBossInbound, sbkFinalInbound
+
+  SurvivalPendingSpawn* = object
+    ## An enemy queued to appear after `delay` seconds. In-arena spawns are
+    ## telegraphed with a marker for that time so nothing pops onto the player.
+    pos*: Vector2f
+    enemyType*: EnemyType
+    delay*: float32
+    tag*: SurvivalTag
+    hpMult*: float32
+    speedMult*: float32
+    allowElite*: bool
+    telegraph*: bool
+
+  SurvivalChest* = object
+    ## A Data Cache lying on the floor; walking over it opens it.
+    pos*: Vector2f
+    tier*: SurvivalCacheTier
+    age*: float32
+
+  SurvivalCacheReveal* = object
+    ## The opened cache's reveal overlay. The rewards are already applied when
+    ## it opens; this only shows them (the sim is paused while it is active).
+    active*: bool
+    tier*: SurvivalCacheTier
+    items*: seq[PowerUp]
+    shards*: int
+    walls*: int
+    repaired*: bool
+    timer*: float32
+
+  SurvivalEvent* = object
+    kind*: SurvivalEventKind   # sekNone = no event running
+    elapsed*: float32          # survival-clock seconds since it started
+    warmup*: float32           # telegraph before the event goes live
+    limit*: float32            # live duration / time limit after the warmup
+    edge*: int                 # Memory Leak: 0 top, 1 right, 2 bottom, 3 left
+    emitTimer*: float32
+    spawned*: int              # enemies (or meteors) the event has produced
+    killed*: int               # tagged enemies killed (Memory Leak)
+    emitDone*: bool
+    zonePos*: Vector2f         # Upload Zone centre / Rogue Process spawn point
+    zoneRadius*: float32
+    progress*: float32         # Upload Zone fill, 0..1
+    progressStep*: int         # last 25% step chimed
+    rogueId*: int              # Rogue Process enemy id (-1 before it spawns)
+
+  SurvivalState* = object
+    event*: SurvivalEvent
+    lastEventKind*: SurvivalEventKind
+    nextEventClock*: float32       # survival clock at which the next random event may start
+    formationClock*: float32       # survival clock of the next set-piece formation
+    spawnBudget*: float32          # density spawner's accumulated spawn allowance
+    lastEliteCacheClock*: float32  # elite cache drops are rate-limited
+    nextRogueIndex*: int           # next guaranteed Rogue Process slot
+    bossWarnedIndex*: int          # last boss number whose 10 s warning fired
+    pending*: seq[SurvivalPendingSpawn]
+    chests*: seq[SurvivalChest]
+    reveal*: SurvivalCacheReveal
+    xpMult*: float32               # Overclock doubles XP
+    victoryAchieved*: bool         # final boss beaten: the run is in Overtime
+    lastPhase*: SurvivalPhase      # for the phase-change banner
+    bannerKind*: SurvivalBannerKind
+    bannerEvent*: SurvivalEventKind
+    bannerStart*: float32          # game.time the banner started
+    eventsStarted*: int
+    eventsCleared*: int
+    cachesOpened*: int
+    lastKillHitStop*: float32      # game.time of the last horde kill hit stop
+    debugTarget*: float32          # live density target (cheat tab readout)
+    cheatForceBoss*: bool          # cheat: spawn the next boss now
+    cheatEventKind*: SurvivalEventKind  # cheat: start this event now
+
   Game* = ref object
     state*: GameState
     mode*: GameMode
@@ -1524,6 +1627,8 @@ type
     levelDraftActive*: bool  # Current draft is an XP level-up (return to play, not the shop).
                              # Set by survival and wave mode; roguelite routes via the dungeon.
     survivalTime*: float32  # Survival: progression clock; pauses during boss fights (unlike game.time)
+    survival*: SurvivalState  # Survival: horde, events, caches, phase (see survival.nim)
+    survivalVictoryJustEarned*: bool  # One-shot: the survival final boss fell on a clean run (consumed in main.nim)
     consumables*: seq[Consumable]
     walls*: seq[Wall]
     pendingWallRespawns*: seq[PendingWallRespawn]  # Boss-room obstacles re-forming
@@ -1786,12 +1891,112 @@ proc densityWave*(game: Game): int =
     if game.rogueliteRun.isNil: 1 else: max(1, game.rogueliteRun.roomDensityWave)
   else: 0
 
+proc survivalDensityRebate*(clock: float32): float32 =
+  ## Time Survival's per-enemy multiplier. The horde spawner keeps several
+  ## times as many bodies on screen as the old one-at-a-time trickle, so every
+  ## per-enemy grant (HP, coins, consumables, healing) is scaled down as the
+  ## horde thickens: 0.55 at 0:00, ~0.43 at 10:00, 0.30 from 20:00 on.
+  max(0.30'f32, 0.55'f32 - 0.0125'f32 * (clock / 60.0'f32))
+
 proc densityRebate*(game: Game): float32 =
   ## waveDensityRebate for the live fight (1.0 in modes without the swarm
   ## rework). Route every per-enemy grant through this, never through
   ## game.currentWave directly.
+  if game.mode == gmTimeSurvival:
+    return survivalDensityRebate(game.survivalTime)
   let w = densityWave(game)
   if w <= 0: 1.0'f32 else: waveDensityRebate(w)
+
+# ---------------------------------------------------------------------------
+# Time Survival schedule.
+#
+# A run is four 5-minute phases on the survival clock, each closed by a boss:
+#   Boot 0-5, Runtime 5-10, Overload 10-15, Kernel Panic 15-20.
+# The 20:00 boss is the final one; beating it wins the run and opens Overtime,
+# where a boss arrives every 2:30 forever. The clock pauses during boss fights,
+# so boss k always spawns at exactly survivalBossTime(k). Lives here rather
+# than in survival.nim because run_save.nim (below survival in the DAG) needs
+# it; the tuning tables and the simulation are in survival.nim.
+# ---------------------------------------------------------------------------
+
+const
+  SurvivalPhaseLength* = 300.0'f32     ## Survival-clock seconds per phase
+  SurvivalFinalBoss* = 4               ## Boss number that wins the run (20:00)
+  SurvivalOvertimeBossGap* = 150.0'f32 ## Overtime: a boss every 2:30
+  SurvivalFirstEventClock* = 40.0'f32  ## The first System Event (always Memory Leak)
+  SurvivalBossWarnLead* = 10.0'f32     ## Warning banner this long before a boss
+  SurvivalRogueStale* = 30.0'f32       ## A Rogue slot this far behind is skipped
+  SurvivalSaveFormat* = 2
+    ## run_save.nim's survival block layout. Saves without it (format 1) come
+    ## from the old 90 s boss cadence and have their boss count remapped.
+
+proc survivalBossTime*(bossNumber: int): float32 =
+  ## Survival clock at which boss `bossNumber` (1-based) spawns.
+  if bossNumber <= SurvivalFinalBoss:
+    bossNumber.float32 * SurvivalPhaseLength
+  else:
+    SurvivalFinalBoss.float32 * SurvivalPhaseLength +
+      (bossNumber - SurvivalFinalBoss).float32 * SurvivalOvertimeBossGap
+
+proc survivalBossBlockWave*(bossNumber: int): int =
+  ## The wave-mode boss slot a survival boss uses, which picks the definition
+  ## and its stats: bosses 3 / 6 / 9 / 12 (waves 15 / 30 / 45 / 60), then the
+  ## final boss keeps scaling every Overtime fight.
+  if bossNumber <= SurvivalFinalBoss:
+    bossNumber * 3 * BossWaveInterval
+  else:
+    SurvivalFinalBoss * 3 * BossWaveInterval + (bossNumber - SurvivalFinalBoss) * BossWaveInterval
+
+proc survivalRogueTime*(index: int): float32 =
+  ## The guaranteed Rogue Process of each phase lands at its halfway mark:
+  ## 2:30, 7:30, 12:30, 17:30, then halfway between Overtime bosses.
+  if index < SurvivalFinalBoss:
+    SurvivalPhaseLength * 0.5'f32 + index.float32 * SurvivalPhaseLength
+  else:
+    survivalBossTime(SurvivalFinalBoss) + SurvivalOvertimeBossGap * 0.5'f32 +
+      (index - SurvivalFinalBoss).float32 * SurvivalOvertimeBossGap
+
+proc survivalPhase*(game: Game): SurvivalPhase =
+  ## Bosses beaten so far (a boss that is still alive doesn't count yet), or
+  ## Overtime once the final boss has fallen.
+  if game.survival.victoryAchieved:
+    return spOvertime
+  let beaten = game.bossCount - (if game.bossWaveManager.active: 1 else: 0)
+  SurvivalPhase(clamp(beaten, 0, ord(spKernelPanic)))
+
+proc survivalPhaseIndex*(game: Game): int {.inline.} = ord(survivalPhase(game))
+
+proc survivalPhaseProgress*(game: Game): float32 =
+  ## 0..1 through the current phase (Overtime: 0..1 over its first 8 minutes,
+  ## after which it stays saturated and the per-minute terms keep climbing).
+  let ph = survivalPhase(game)
+  if ph == spOvertime:
+    let since = game.survivalTime - survivalBossTime(SurvivalFinalBoss)
+    return clamp(since / 480.0'f32, 0.0'f32, 1.0'f32)
+  let start = ord(ph).float32 * SurvivalPhaseLength
+  clamp((game.survivalTime - start) / SurvivalPhaseLength, 0.0'f32, 1.0'f32)
+
+proc survivalOvertimeMinutes*(game: Game): float32 =
+  max(0.0'f32, (game.survivalTime - survivalBossTime(SurvivalFinalBoss)) / 60.0'f32)
+
+proc survivalNextBossTime*(game: Game): float32 {.inline.} =
+  survivalBossTime(game.bossCount + 1)
+
+proc initSurvivalState*(): SurvivalState =
+  SurvivalState(
+    event: SurvivalEvent(kind: sekNone, rogueId: -1),
+    lastEventKind: sekNone,
+    nextEventClock: SurvivalFirstEventClock,
+    formationClock: 20.0'f32,
+    spawnBudget: 0.0'f32,
+    lastEliteCacheClock: -999.0'f32,
+    nextRogueIndex: 0,
+    bossWarnedIndex: 0,
+    xpMult: 1.0'f32,
+    lastPhase: spBoot,
+    bannerKind: sbkNone,
+    bannerStart: -999.0'f32,
+    lastKillHitStop: -999.0'f32)
 
 # ---------------------------------------------------------------------------
 # Profile difficulty table.
@@ -1808,7 +2013,7 @@ proc densityRebate*(game: Game): float32 =
 #   HP          newEnemy / spawnBoss (enemy.nim), game3d
 #   damage      takeDamage (player.nim), game3d
 #   speed       newEnemy (enemy.nim)
-#   spawn pace  updateEnemySpawning (game.nim), spawnSurvivalEnemies
+#   spawn pace  updateEnemySpawning (game.nim), survivalRefillRate (survival.nim)
 #   elites      makeElite (enemy.nim)
 #   boss pace   spawnBoss (enemy.nim) + the boss attack-timer reset (game.nim)
 # ---------------------------------------------------------------------------

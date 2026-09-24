@@ -5049,7 +5049,8 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
     )
 
 proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
-                chanceScale: float32 = 1.0'f32) =
+                chanceScale: float32 = 1.0'f32, force: bool = false,
+                forcedEffects: int = 0) =
   ## Converts a regular enemy into an elite with enhanced stats and special abilities
   ## Elite chance increases with wave number, but the midgame ramp is kept gentler.
   ## Dual-modifier elites are delayed so waves 20-35 do not suddenly feel boss-like.
@@ -5058,6 +5059,9 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
   ## `scalingWave` decouples stat magnitude from the chance roll: the dungeon
   ## boosts `waveNumber` to guarantee elites in elite rooms, which must NOT
   ## inflate the wave-calibrated stat bonuses below. Defaults to `waveNumber`.
+  ##
+  ## `force` skips the chance roll and `forcedEffects` (> 0) fixes the number of
+  ## affixes, for scripted elites such as survival's Rogue Process.
 
   # Don't make bosses elite
   if enemy.isBoss:
@@ -5080,7 +5084,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
   # caller's density normalisation.
   let scaledChance = int(eliteChance.float32 * 10.0'f32 * clamp(chanceScale, 0.0'f32, 1.0'f32) *
                          difficultyEliteChanceMult())
-  if rand(999) >= scaledChance:
+  if not force and rand(999) >= scaledChance:
     return
 
   let statWave = if scalingWave >= 0: scalingWave else: waveNumber
@@ -5102,7 +5106,9 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
 
   # Determine number of elite effects based on wave
   # BALANCED: Delay dual-effect elites until later so midgame remains readable.
-  let numEffects = if statWave >= 55:
+  let numEffects = if forcedEffects > 0:
+    forcedEffects
+  elif statWave >= 55:
     # Waves 55+: 65% chance for a dual-effect elite
     if rand(99) < 65: 2 else: 1
   elif statWave >= 35:

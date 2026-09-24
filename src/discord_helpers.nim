@@ -2,7 +2,7 @@
 ## Provides high-level functions to update Discord presence based on game state
 
 import strformat, math
-import discord_presence, types, gamemode_definitions, pvp_game
+import discord_presence, types, gamemode_definitions, pvp_game, survival
 
 const
   PresenceAppName = "TopHat-ShooterOS"
@@ -52,8 +52,9 @@ proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
       stateText = &"Wave {game.currentWave} | {game.player.kills} Kills"
       hoverText = &"{PresenceAppName} | Wave {game.currentWave}"
   elif isTimeSurvivalMode(game.mode):
-    stateText = &"{formatClock(game.time)} | {game.player.kills} Kills"
-    hoverText = &"{PresenceAppName} | Survival run"
+    # The survival clock (boss fights excluded) and the phase it has reached.
+    stateText = &"{formatClock(game.survivalTime)} | {game.player.kills} Kills"
+    hoverText = &"{PresenceAppName} | Survival: {survivalPhaseReachedLabel(game)}"
   elif isSandboxMode(game.mode):
     stateText = &"Sandbox Mode | {game.player.kills} Kills"
     hoverText = &"{PresenceAppName} | Sandbox chaos"

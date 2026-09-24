@@ -415,6 +415,22 @@ proc saveRunState*(game: Game, file: string = "",
     # Saved mid-fight: bossCount already counts this boss, and the resume
     # respawns it, which bumped the count again and skipped a boss tier.
     root["bossActive"] = %game.bossWaveManager.active
+    # Phases / System Events / Data Caches. A running event is not saved (the
+    # resume drops it); a Rogue Process that was live is re-armed instead.
+    let s = game.survival
+    var chests = newJArray()
+    for c in s.chests:
+      chests.add(%* {"t": $c.tier, "x": c.pos.x, "y": c.pos.y})
+    root["survivalFormat"] = %SurvivalSaveFormat
+    root["survivalVictory"] = %s.victoryAchieved
+    root["survivalNextEvent"] = %s.nextEventClock
+    root["survivalLastEvent"] = %($s.lastEventKind)
+    root["survivalNextRogue"] = %s.nextRogueIndex
+    root["survivalRogueActive"] = %(s.event.kind == sekRogueProcess)
+    root["survivalEventsStarted"] = %s.eventsStarted
+    root["survivalEventsCleared"] = %s.eventsCleared
+    root["survivalCachesOpened"] = %s.cachesOpened
+    root["survivalChests"] = chests
   of gmRoguelite:
     root["roguelite"] = rogueliteRunToJson(game.rogueliteRun)
     # Theme choices are only rolled when the floor-select screen opens, so a
@@ -545,14 +561,42 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
       game.survivalMinutesRewarded = int(game.survivalTime / 60.0'f32)
       game.bossTimer = j.getOrDefault("bossTimer").getFloat(0.0).float32
       game.bossCount = j.getOrDefault("bossCount").getInt(0)
-      if j.getOrDefault("bossActive").getBool(false):
-        # Saved mid-fight: the boss respawns on resume (its timer is still at 0)
-        # and spawning bumps bossCount, so undo this boss's count or the resume
-        # would skip ahead to the next boss tier.
+      if j.getOrDefault("survivalFormat").getInt(0) < SurvivalSaveFormat:
+        # A save from the old 90 s boss cadence: its bossCount means nothing on
+        # the 5:00 phase schedule. Count the phase bosses the clock has passed;
+        # any that is overdue simply spawns on resume.
+        game.bossCount = min(SurvivalFinalBoss - 1, int(game.survivalTime / SurvivalPhaseLength))
+      elif j.getOrDefault("bossActive").getBool(false):
+        # Saved mid-fight: the boss respawns on resume (the clock is still at
+        # its spawn time) and spawning bumps bossCount, so undo this boss's
+        # count or the resume would skip ahead to the next boss.
         game.bossCount = max(0, game.bossCount - 1)
-        game.bossTimer = 0.0'f32
+      game.bossTimer = max(0.0'f32, survivalBossTime(game.bossCount + 1) - game.survivalTime)
+      var s = initSurvivalState()
+      s.victoryAchieved = j.getOrDefault("survivalVictory").getBool(false)
+      # The resume drops any running event: hold the next one off briefly.
+      s.nextEventClock = max(j.getOrDefault("survivalNextEvent").getFloat(0.0).float32,
+                             game.survivalTime + 15.0'f32)
+      s.lastEventKind = parseEnumOr(j.getOrDefault("survivalLastEvent").getStr(""), sekNone)
+      s.nextRogueIndex = max(0, j.getOrDefault("survivalNextRogue").getInt(0))
+      if j.getOrDefault("survivalRogueActive").getBool(false):
+        s.nextRogueIndex = max(0, s.nextRogueIndex - 1)   # the hunt re-fires
+      s.eventsStarted = max(0, j.getOrDefault("survivalEventsStarted").getInt(0))
+      s.eventsCleared = max(0, j.getOrDefault("survivalEventsCleared").getInt(0))
+      s.cachesOpened = max(0, j.getOrDefault("survivalCachesOpened").getInt(0))
+      s.formationClock = game.survivalTime + 10.0'f32
+      s.bossWarnedIndex = game.bossCount   # re-warn about the next boss if due
+      for c in j.getOrDefault("survivalChests").getElems():
+        s.chests.add(SurvivalChest(
+          tier: parseEnumOr(c.getOrDefault("t").getStr(""), sctMinor),
+          pos: newVector2f(c.getOrDefault("x").getFloat(0.0).float32,
+                           c.getOrDefault("y").getFloat(0.0).float32),
+          age: 1.0'f32))
+      game.survival = s
       game.waveInProgress = false
       game.bossWaveManager = BossWaveManager(active: false, coinActive: false)
+      # No phase banner on resume: the phase has not changed.
+      game.survival.lastPhase = survivalPhase(game)
       game.state = gsPlaying
 
     of gmRoguelite:

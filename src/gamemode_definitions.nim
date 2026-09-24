@@ -46,7 +46,7 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       usesBosses: true,
       hasTimeLimit: false,
       usesPowerUps: true,
-      usesShop: true,
+      usesShop: false,      # Data Caches (survival.nim) replace the stat shop
       allowsCheats: true,   # Enables the cheat menu's survival-specific tab (cmtSurvival)
       spawnRate: 1.0,
       difficultyScale: 1.0,

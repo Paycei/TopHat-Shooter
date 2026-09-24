@@ -25,8 +25,10 @@ proc getDeathSequenceTimeScale(timer: float32): float32 =
 
   DEATH_FAST_SCALE
 
-proc installPowerUp*(game: var Game, powerUp: PowerUp) =
+proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) =
   ## Centralized install feedback so every selected power-up feels like an event.
+  ## `quiet` skips the per-install card, shake and sound: a survival Data Cache
+  ## installs several at once and shows them on its own reveal overlay.
   # Level 0 is generatePowerUpChoices' "nothing left to offer" placeholder. It
   # is never a real pick: installing it would overwrite an owned power-up's
   # level with 0.
@@ -64,12 +66,14 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
     getPowerUpColor(powerUp.powerType)
   let powerUpName = getPowerUpName(powerUp.powerType)
 
-  game.recentPowerUp = powerUp
-  game.recentPowerUpMaxTimer = if powerUp.rarity == prLegendary: 5.0'f32 else: 4.0'f32
-  game.recentPowerUpTimer = game.recentPowerUpMaxTimer
   # Only toast the first time a power-up is discovered; repeat installs skip the toast.
   if isNewDiscovery:
     game.pendingToasts.add(t(tkNewProcessInstalled) & ": " & powerUpName)
+  if quiet:
+    return
+  game.recentPowerUp = powerUp
+  game.recentPowerUpMaxTimer = if powerUp.rarity == prLegendary: 5.0'f32 else: 4.0'f32
+  game.recentPowerUpTimer = game.recentPowerUpMaxTimer
   addShake(game.dopamine.screenShake, siPowerUp, accent)
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                        accent, if powerUp.rarity == prLegendary: 72 else: 46)
@@ -367,9 +371,12 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
 
   if game.deathSequenceTimer >= DEATH_TOTAL_DURATION:
     game.deathSequenceFadeAlpha = 1.0
-    # A long Time-Survival stand earns the "Long Watch" eulogy before game-over.
-    # The cinematic (owned by main.nim) hands back to gsGameOver when it ends.
-    if game.mode == gmTimeSurvival and game.survivalTime >= SURVIVAL_ENDING_MIN_TIME:
+    # The first long Time-Survival stand earns the "Long Watch" eulogy before
+    # game-over; later ones go straight to the crash screen (it can be replayed
+    # from settings). The cinematic (owned by main.nim) hands back to
+    # gsGameOver when it ends.
+    if game.mode == gmTimeSurvival and game.survivalTime >= SURVIVAL_ENDING_MIN_TIME and
+       not globalSettings.isNil and not globalSettings.hasSeenSurvivalEnding:
       game.state = gsSurvivalEndCinematic
     else:
       game.state = gsGameOver

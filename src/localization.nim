@@ -1558,6 +1558,66 @@ type
     tkSettingsReplayTutorialDesc = "settings_replay_tutorial_desc"
     tkSettingsReplayTutorialLocked = "settings_replay_tutorial_locked"
 
+    # Time Survival: phases, System Events, Data Caches, victory
+    tkSurvivalPhaseBoot = "survival_phase_boot"
+    tkSurvivalPhaseRuntime = "survival_phase_runtime"
+    tkSurvivalPhaseOverload = "survival_phase_overload"
+    tkSurvivalPhaseKernelPanic = "survival_phase_kernel_panic"
+    tkSurvivalPhaseOvertime = "survival_phase_overtime"
+    tkSurvivalPhaseBootDesc = "survival_phase_boot_desc"
+    tkSurvivalPhaseRuntimeDesc = "survival_phase_runtime_desc"
+    tkSurvivalPhaseOverloadDesc = "survival_phase_overload_desc"
+    tkSurvivalPhaseKernelPanicDesc = "survival_phase_kernel_panic_desc"
+    tkSurvivalPhaseOvertimeDesc = "survival_phase_overtime_desc"
+    tkSurvivalPhaseBanner = "survival_phase_banner"
+    tkSurvivalHudBossIn = "survival_hud_boss_in"
+    tkSurvivalHudFinalIn = "survival_hud_final_in"
+    tkSurvivalHudBossLive = "survival_hud_boss_live"
+    tkSurvivalBossInbound = "survival_boss_inbound"
+    tkSurvivalFinalInbound = "survival_final_inbound"
+    tkSurvivalBossInboundSub = "survival_boss_inbound_sub"
+    tkSurvivalEventMemoryLeak = "survival_event_memory_leak"
+    tkSurvivalEventMemoryLeakHint = "survival_event_memory_leak_hint"
+    tkSurvivalEventFirewallBreach = "survival_event_firewall_breach"
+    tkSurvivalEventFirewallBreachHint = "survival_event_firewall_breach_hint"
+    tkSurvivalEventUploadZone = "survival_event_upload_zone"
+    tkSurvivalEventUploadZoneHint = "survival_event_upload_zone_hint"
+    tkSurvivalEventCorruptedSector = "survival_event_corrupted_sector"
+    tkSurvivalEventCorruptedSectorHint = "survival_event_corrupted_sector_hint"
+    tkSurvivalEventRogueProcess = "survival_event_rogue_process"
+    tkSurvivalEventRogueProcessHint = "survival_event_rogue_process_hint"
+    tkSurvivalEventOverclock = "survival_event_overclock"
+    tkSurvivalEventOverclockHint = "survival_event_overclock_hint"
+    tkSurvivalEventCleared = "survival_event_cleared"
+    tkSurvivalEventFailed = "survival_event_failed"
+    tkSurvivalRogueEscaped = "survival_rogue_escaped"
+    tkSurvivalTrackerRemaining = "survival_tracker_remaining"
+    tkSurvivalTrackerPurged = "survival_tracker_purged"
+    tkSurvivalTrackerUploaded = "survival_tracker_uploaded"
+    tkSurvivalTrackerSurvive = "survival_tracker_survive"
+    tkSurvivalTrackerIncoming = "survival_tracker_incoming"
+    tkSurvivalTrackerXpBoost = "survival_tracker_xp_boost"
+    tkSurvivalCacheMinor = "survival_cache_minor"
+    tkSurvivalCacheStandard = "survival_cache_standard"
+    tkSurvivalCacheRare = "survival_cache_rare"
+    tkSurvivalCacheKernel = "survival_cache_kernel"
+    tkSurvivalCacheDecrypted = "survival_cache_decrypted"
+    tkSurvivalCacheNew = "survival_cache_new"
+    tkSurvivalCacheLevel = "survival_cache_level"
+    tkSurvivalCacheLegendary = "survival_cache_legendary"
+    tkSurvivalCacheWalls = "survival_cache_walls"
+    tkSurvivalCacheRepair = "survival_cache_repair"
+    tkSurvivalCacheContinue = "survival_cache_continue"
+    tkSurvivalVictoryTitle = "survival_victory_title"
+    tkSurvivalVictorySubtitle = "survival_victory_subtitle"
+    tkSurvivalVictoryStatus = "survival_victory_status"
+    tkSurvivalVictoryOvertime = "survival_victory_overtime"
+    tkSurvivalVictoryEndRun = "survival_victory_end_run"
+    tkSurvivalVictoryFooter = "survival_victory_footer"
+    tkSurvivalTimeSurvived = "survival_time_survived"
+    tkSurvivalPhaseReached = "survival_phase_reached"
+    tkSurvivalEventsCaches = "survival_events_caches"
+
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
   English: {
@@ -2638,7 +2698,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Help System - Misc
     "help_boss_every_5th": "Wave Mode: Every 5th wave (5, 10, 15...)",
-    "help_boss_every_60_sec": "Survival Mode: Every 60 seconds",
+    "help_boss_every_60_sec": "Survival Mode: Every 5:00 (final boss at 20:00)",
     "help_cost_scaling_formula": "- Shop items have strict purchase caps\n  - Each buy is stronger and costs baseCost * 1.8^bought",
     "help_kill_enemies_to_collect": "- Kill enemies to collect coins",
     "help_elite_drop_more": "- Elite enemies drop more coins",
@@ -2851,7 +2911,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "gamemode_wave_based_name": "Wave-Based",
     "gamemode_wave_based_desc": "Fight through waves of enemies. Defeat bosses every 5 waves for legendary upgrades.",
     "gamemode_time_survival_name": "Time Survival",
-    "gamemode_time_survival_desc": "Survive as long as possible. Difficulty increases over time.",
+    "gamemode_time_survival_desc": "Hold the system for 20:00 across four escalating phases.\nSurvive the horde, clear System Events and crack Data Caches for free upgrades.\nBeat the final process, then push into Overtime.",
     "gamemode_sandbox_name": "Sandbox",
     "gamemode_sandbox_desc": "Test and experiment with enemies, bosses, and game mechanics.",
     "gamemode_pvp_name": "PVP",
@@ -3382,7 +3442,67 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tutorial":        "Tutorial:",
     "settings_replay_tutorial": "Replay Tutorial",
     "settings_replay_tutorial_desc": "Practice run, saves untouched",
-    "settings_replay_tutorial_locked": "Available from the desktop"
+    "settings_replay_tutorial_locked": "Available from the desktop",
+
+    # Time Survival: phases, System Events, Data Caches, victory
+    "survival_phase_boot": "BOOT",
+    "survival_phase_runtime": "RUNTIME",
+    "survival_phase_overload": "OVERLOAD",
+    "survival_phase_kernel_panic": "KERNEL PANIC",
+    "survival_phase_overtime": "OVERTIME",
+    "survival_phase_boot_desc": "The system is waking up. Hold the line.",
+    "survival_phase_runtime_desc": "Processes multiply. Rings start closing in.",
+    "survival_phase_overload_desc": "The system is overheating. Upload zones decay.",
+    "survival_phase_kernel_panic_desc": "Everything is failing. Survive to 20:00.",
+    "survival_phase_overtime_desc": "Past the limit. Every minute pays extra.",
+    "survival_phase_banner": "PHASE $1",
+    "survival_hud_boss_in": "BOSS IN",
+    "survival_hud_final_in": "FINAL IN",
+    "survival_hud_boss_live": "BOSS ACTIVE",
+    "survival_boss_inbound": "BOSS PROCESS INBOUND",
+    "survival_final_inbound": "FINAL PROCESS INBOUND",
+    "survival_boss_inbound_sub": "It arrives in 10 seconds.",
+    "survival_event_memory_leak": "MEMORY LEAK",
+    "survival_event_memory_leak_hint": "Purge 60% of the leak before it floods the screen.",
+    "survival_event_firewall_breach": "FIREWALL BREACH",
+    "survival_event_firewall_breach_hint": "A ring is closing in. Wipe it out in 25 seconds.",
+    "survival_event_upload_zone": "UPLOAD ZONE",
+    "survival_event_upload_zone_hint": "Stand in the zone until the upload completes.",
+    "survival_event_corrupted_sector": "CORRUPTED SECTOR",
+    "survival_event_corrupted_sector_hint": "Meteors incoming. Keep moving.",
+    "survival_event_rogue_process": "ROGUE PROCESS",
+    "survival_event_rogue_process_hint": "Hunt it down before it escapes.",
+    "survival_event_overclock": "OVERCLOCK",
+    "survival_event_overclock_hint": "Double XP. The horde speeds up.",
+    "survival_event_cleared": "CLEARED",
+    "survival_event_failed": "FAILED",
+    "survival_rogue_escaped": "PROCESS ESCAPED",
+    "survival_tracker_remaining": "$1 LEFT",
+    "survival_tracker_purged": "$1% PURGED",
+    "survival_tracker_uploaded": "$1% UPLOADED",
+    "survival_tracker_survive": "SURVIVE",
+    "survival_tracker_incoming": "INCOMING",
+    "survival_tracker_xp_boost": "XP x2",
+    "survival_cache_minor": "MINOR CACHE",
+    "survival_cache_standard": "DATA CACHE",
+    "survival_cache_rare": "RARE CACHE",
+    "survival_cache_kernel": "KERNEL CACHE",
+    "survival_cache_decrypted": "DECRYPTED",
+    "survival_cache_new": "NEW",
+    "survival_cache_level": "LV $1",
+    "survival_cache_legendary": "LEGENDARY",
+    "survival_cache_walls": "+$1 walls",
+    "survival_cache_repair": "System repaired",
+    "survival_cache_continue": "Click or press Enter to continue",
+    "survival_victory_title": "SYSTEM STABILIZED",
+    "survival_victory_subtitle": "You held the system for 20:00 and terminated the final process!",
+    "survival_victory_status": "ALL FOUR PHASES SURVIVED -- OVERTIME AVAILABLE",
+    "survival_victory_overtime": "ENTER OVERTIME",
+    "survival_victory_end_run": "END RUN",
+    "survival_victory_footer": "[OK] Overtime: a boss every 2:30, and every minute pays 50% more",
+    "survival_time_survived": "Time Survived:",
+    "survival_phase_reached": "Phase Reached:",
+    "survival_events_caches": "Events / Caches:"
   }.toTable,
 
   Spanish: {
@@ -4354,7 +4474,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Help System - Misc
     "help_boss_every_5th": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
-    "help_boss_every_60_sec": "Modo Supervivencia: Cada 60 segundos",
+    "help_boss_every_60_sec": "Modo Supervivencia: Cada 5:00 (jefe final a las 20:00)",
     "help_cost_scaling_formula": "- Los objetos de tienda tienen límites estrictos\n  - Cada compra es más fuerte y cuesta costBase * 1.8^comprado",
     "help_kill_enemies_to_collect": "- Mata enemigos para recopilar monedas",
     "help_elite_drop_more": "- Los enemigos élite dejan caer más monedas",
@@ -4675,7 +4795,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "gamemode_wave_based_name": "Por Oleadas",
     "gamemode_wave_based_desc": "Lucha contra oleadas de enemigos. Derrota a los jefes cada 5 oleadas para obtener mejoras legendarias.",
     "gamemode_time_survival_name": "Supervivencia por Tiempo",
-    "gamemode_time_survival_desc": "Sobrevive el mayor tiempo posible. La dificultad aumenta con el tiempo.",
+    "gamemode_time_survival_desc": "Mantén el sistema 20:00 a lo largo de cuatro fases cada vez más duras.\nSobrevive a la horda, supera Eventos del Sistema y abre Cachés de Datos con mejoras gratis.\nDerrota al proceso final y sigue en Tiempo Extra.",
     "gamemode_sandbox_name": "Sandbox",
     "gamemode_sandbox_desc": "Prueba y experimenta con enemigos, jefes y mecánicas del juego.",
     "gamemode_pvp_name": "PVP",
@@ -5205,7 +5325,67 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tutorial":        "Tutorial:",
     "settings_replay_tutorial": "Repetir tutorial",
     "settings_replay_tutorial_desc": "Práctica, no toca tus partidas",
-    "settings_replay_tutorial_locked": "Disponible desde el escritorio"
+    "settings_replay_tutorial_locked": "Disponible desde el escritorio",
+
+    # Time Survival: phases, System Events, Data Caches, victory
+    "survival_phase_boot": "ARRANQUE",
+    "survival_phase_runtime": "EJECUCIÓN",
+    "survival_phase_overload": "SOBRECARGA",
+    "survival_phase_kernel_panic": "PÁNICO DEL KERNEL",
+    "survival_phase_overtime": "TIEMPO EXTRA",
+    "survival_phase_boot_desc": "El sistema está despertando. Resiste.",
+    "survival_phase_runtime_desc": "Los procesos se multiplican. Los anillos se cierran.",
+    "survival_phase_overload_desc": "El sistema se sobrecalienta. Las zonas de subida se degradan.",
+    "survival_phase_kernel_panic_desc": "Todo está fallando. Sobrevive hasta las 20:00.",
+    "survival_phase_overtime_desc": "Más allá del límite. Cada minuto paga más.",
+    "survival_phase_banner": "FASE $1",
+    "survival_hud_boss_in": "JEFE EN",
+    "survival_hud_final_in": "FINAL EN",
+    "survival_hud_boss_live": "JEFE ACTIVO",
+    "survival_boss_inbound": "PROCESO JEFE ENTRANTE",
+    "survival_final_inbound": "PROCESO FINAL ENTRANTE",
+    "survival_boss_inbound_sub": "Llega en 10 segundos.",
+    "survival_event_memory_leak": "FUGA DE MEMORIA",
+    "survival_event_memory_leak_hint": "Purga el 60% de la fuga antes de que inunde la pantalla.",
+    "survival_event_firewall_breach": "BRECHA EN EL FIREWALL",
+    "survival_event_firewall_breach_hint": "Un anillo se cierra. Elimínalo en 25 segundos.",
+    "survival_event_upload_zone": "ZONA DE SUBIDA",
+    "survival_event_upload_zone_hint": "Quédate en la zona hasta que termine la subida.",
+    "survival_event_corrupted_sector": "SECTOR CORRUPTO",
+    "survival_event_corrupted_sector_hint": "Meteoros entrantes. No dejes de moverte.",
+    "survival_event_rogue_process": "PROCESO REBELDE",
+    "survival_event_rogue_process_hint": "Elimínalo antes de que escape.",
+    "survival_event_overclock": "OVERCLOCK",
+    "survival_event_overclock_hint": "XP doble. La horda se intensifica.",
+    "survival_event_cleared": "SUPERADO",
+    "survival_event_failed": "FALLIDO",
+    "survival_rogue_escaped": "EL PROCESO ESCAPÓ",
+    "survival_tracker_remaining": "QUEDAN $1",
+    "survival_tracker_purged": "$1% PURGADO",
+    "survival_tracker_uploaded": "$1% SUBIDO",
+    "survival_tracker_survive": "SOBREVIVE",
+    "survival_tracker_incoming": "ENTRANTE",
+    "survival_tracker_xp_boost": "XP x2",
+    "survival_cache_minor": "CACHÉ MENOR",
+    "survival_cache_standard": "CACHÉ DE DATOS",
+    "survival_cache_rare": "CACHÉ RARA",
+    "survival_cache_kernel": "CACHÉ DEL KERNEL",
+    "survival_cache_decrypted": "DESCIFRADA",
+    "survival_cache_new": "NUEVO",
+    "survival_cache_level": "NV $1",
+    "survival_cache_legendary": "LEGENDARIO",
+    "survival_cache_walls": "+$1 muros",
+    "survival_cache_repair": "Sistema reparado",
+    "survival_cache_continue": "Haz clic o pulsa Enter para continuar",
+    "survival_victory_title": "SISTEMA ESTABILIZADO",
+    "survival_victory_subtitle": "¡Mantuviste el sistema 20:00 y terminaste el proceso final!",
+    "survival_victory_status": "LAS CUATRO FASES SUPERADAS -- TIEMPO EXTRA DISPONIBLE",
+    "survival_victory_overtime": "TIEMPO EXTRA",
+    "survival_victory_end_run": "TERMINAR",
+    "survival_victory_footer": "[OK] Tiempo extra: un jefe cada 2:30 y cada minuto paga un 50% más",
+    "survival_time_survived": "Tiempo Sobrevivido:",
+    "survival_phase_reached": "Fase Alcanzada:",
+    "survival_events_caches": "Eventos / Cachés:"
   }.toTable
 }.toTable
 

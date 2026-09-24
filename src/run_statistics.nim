@@ -121,6 +121,8 @@ type
     rogueliteShardsEarned*: int  # Data Shards earned this run; wave and survival fill it too (key kept for old saves)
     rogueliteStarterKit*: string
     rogueliteRelics*: seq[string]
+    survivalClock*: float32  # Time Survival: the survival clock (boss fights and drafts excluded).
+                             # In-memory only: read by the live advancement sync.
 
 # INITIALIZATION HELPERS
 proc initCombatStats*(): CombatStats =

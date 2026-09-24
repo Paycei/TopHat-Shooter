@@ -20,6 +20,14 @@ const
                            ## Solved against the actual per-wave XP income, so
                            ## retuning calculateWaveEnemyCount means re-solving
                            ## this. Roguelite/survival never apply it.
+  XpSurvivalBase* = 12     ## Time Survival curve: 12 + 8n + 1.5n^2. A strong
+  XpSurvivalStep* = 8      ## build lands ~200 kills a minute in Boot and ~500 in
+  XpSurvivalQuadratic2* = 3 ## Kernel Panic (~7k by 20:00, measured headless);
+                           ## with every orb collected that solves to roughly
+                           ## levels 11 / 19 / 24 / 29 at 5 / 10 / 15 / 20
+                           ## minutes, a few fewer for real orb pickup. The
+                           ## quadratic is in halves (3 = 1.5). Re-solve it if
+                           ## the density targets in survival.nim change.
   XpRogueliteBase* = 18    ## Roguelite curve: cost of the first level...
   XpRogueliteStep* = 15    ## ...and the linear step after it. Sectors fight on
                            ## the wave-mode swarm curve (dungeonDensityWave), so
@@ -45,13 +53,16 @@ proc xpRequiredForLevel*(level: int, mode: GameMode): int =
   ## other progression channel combined.
   ##
   ## Roguelite has its own, steeper linear curve (XpRogueliteBase/-Step), solved
-  ## against its swarm-density sectors. Survival keeps the original linear one.
+  ## against its swarm-density sectors; Time Survival its own gentle quadratic
+  ## against the horde spawner.
   let n = max(0, level - 1)
   case mode
   of gmRoguelite:
     XpRogueliteBase + n * XpRogueliteStep
   of gmWaveBased:
     XpBaseToLevel + n * XpPerLevelStep + n * n * XpLongRunQuadratic
+  of gmTimeSurvival:
+    XpSurvivalBase + n * XpSurvivalStep + (n * n * XpSurvivalQuadratic2) div 2
   else:
     XpBaseToLevel + n * XpPerLevelStep
 
@@ -151,7 +162,10 @@ proc dropEnemyXp*(game: Game, enemy: Enemy) =
   # curve, which reaches the same level pacing without ever silencing a kill.
   # (Coins, consumables and elites have no matching cost curve, which is why
   # they are normalised on the grant side instead -- see waveDensityRebate.)
-  let total = max(1, int(base.float32 * dataHarvestMultiplier(game.player)))
+  var total = max(1, int(base.float32 * dataHarvestMultiplier(game.player)))
+  # Survival's Overclock event doubles XP while it runs.
+  if game.mode == gmTimeSurvival and game.survival.xpMult > 1.0'f32:
+    total = int(total.float32 * game.survival.xpMult)
   let clamped = clampXpDrop(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
   if enemy.isBoss:
     # Spread the boss XP across several orbs around the death point.
