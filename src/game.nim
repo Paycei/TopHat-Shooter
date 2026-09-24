@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, algorithm
-import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, ui/ui_helpers, boss_weakpoints
+import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_legacy_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, ui/ui_helpers, ui/hud_dock, boss_weakpoints
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
@@ -5547,6 +5547,174 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
 
   return panelY + panelH + 6
 
+proc drawLegacyHud(game: Game, hudLayout: HudLayout, hudScale: float32, vw, vh: int32) =
+  ## The pre-rework in-game HUD (Settings > Interface > HUD Style: Legacy), drawn
+  ## inside drawGame's interface layer: the combined STATUS panel, and in
+  ## widescreen the old gutter columns. Kept as it was, except for the survival
+  ## clock (see the right-gutter column below).
+  # Draw unified combined HUD panel (top-left, almost touching top). Classic
+  # floats it over the world (draggable, minimizable); widescreen pins it as the
+  # head of the left gutter column.
+  if hudLayout == hlWidescreen:
+    drawLegacyBorderPanel(game)
+  else:
+    drawLegacyStatusPanel(game, 10, 2)
+
+  # Gutter geometry, in this layer's coordinates. The columns keep their designed
+  # width and hug the screen edges (see WidescreenGutterWidth) instead of tracking
+  # the world's edges, which at 100% is the same line and at any other scale is
+  # what keeps the right-hand column on screen.
+  let leftGutterW = if hudLayout == hlWidescreen: WidescreenGutterWidth else: 0'i32
+  let rightGutterW = leftGutterW
+  let rightGutterX = vw - rightGutterW
+
+  let showHints = globalSettings == nil or globalSettings.showHints
+  let waveAge = game.time - game.waveStartTime
+  let isBossNext = game.wavesUntilBoss == 0
+  # Roguelite rooms reuse the wave machinery but have no wave number, so the
+  # generic banner would flash "WAVE 1" on every room; suppress it there.
+  let showWaveBanner = game.waveInProgress and game.mode != gmRoguelite and showHints
+
+  if hudLayout == hlWidescreen:
+    # ---- WIDESCREEN RIGHT-GUTTER COLUMN (top-to-bottom via a running cursor) --
+    # Top stack (dynamic): survival timer card owns the very top; boss bars flow
+    # beneath it; transient cards (wave banner / celebration / boss intro) flow
+    # beneath the boss bars but are capped into a safe band. Bottom stack (fixed):
+    # combo card then the legendary strip are bottom-anchored so the persistent
+    # cards can never collide with the dynamic top stack.
+    # Bottom stack is fixed first so the boss band knows how much room it has.
+    const legendaryReserve: int32 = 192   # legendary strip max height + margin
+    const comboCardH: int32 = 70
+    const transientBand: int32 = 150      # room reserved for the tallest transient
+    let comboCardY = vh - legendaryReserve - comboCardH - 6'i32
+    # Boss cards must all fit above this line so transients (and thus the combo
+    # card below them) can never be overlapped, even with 3 bosses.
+    let bossBandBottom = comboCardY - transientBand
+
+    # The survival clock is the one departure from the old layout: its card was
+    # wider than the gutter and hung half over the arena, so it uses the
+    # band-sized card here too (with the level row the old card carried).
+    var rgY: int32 = if isTimeSurvivalMode(game.mode):
+                       drawSurvivalDockCard(game, rightGutterX + DockMargin, SurvivalHudPanelY,
+                                            withLevel = true) + 6'i32
+                     else: 10'i32
+    if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
+      # Count active bosses (<=3) so each vertical card can be sized to fit.
+      var bossCount = 0
+      for enemy in game.enemies:
+        if enemy.isBoss and enemy.entranceTimer <= 0:
+          inc bossCount
+          if bossCount >= 3: break
+      if bossCount > 0:
+        const cardGap: int32 = 6
+        let avail = max(bossCount.int32 * 74'i32, bossBandBottom - rgY)
+        let perCard = clamp((avail - (bossCount.int32 - 1) * cardGap) div bossCount.int32,
+                            72'i32, 190'i32)
+        var drawn = 0
+        for enemy in game.enemies:
+          if enemy.isBoss and enemy.entranceTimer <= 0:
+            rgY = drawBossPhaseHud(game, enemy, rgY, alignRight = true, slotH = perCard)
+            inc drawn
+            if drawn >= 3: break
+
+    # Transient cards never start below the boss band, so even the tallest of
+    # them (the multi-line wave-celebration card, ~135px) clears the combo card.
+    var tY = min(rgY, bossBandBottom)
+    if showWaveBanner:
+      tY = drawWaveStartBannerGutter(game.currentWave, waveAge,
+                                     rightGutterX, rightGutterW, tY, isBossNext)
+    if isTimeSurvivalMode(game.mode):
+      tY = drawSurvivalBannerGutter(game, rightGutterX, rightGutterW, tY)
+    # Boss kills keep the classic fullscreen celebration even in widescreen (drawn
+    # over the 1024-wide world column, so it reads exactly like 4:3); only ordinary
+    # wave clears are demoted to the compact gutter card.
+    if game.dopamine.waveCelebration.active and
+       isBossWave(game.dopamine.waveCelebration.waveNumber):
+      # This one draws a full-width dimming backdrop, so it is given the arena's
+      # own column -- expressed in this layer's coordinates -- and never bleeds
+      # into the bands the rest of the column lives in.
+      drawWaveCelebration(game.dopamine.waveCelebration,
+                          int32(BaseVirtualWidth.float32 * getWorldViewScale() / hudScale),
+                          vh,
+                          int32(getWorldViewOffsetX() / hudScale))
+    else:
+      tY = drawWaveCelebrationGutter(game.dopamine.waveCelebration, rightGutterX, rightGutterW, tY)
+    tY = drawBossIntroductionGutter(game.dopamine.bossIntro, rightGutterX, rightGutterW, tY)
+
+    if showHints:
+      drawComboGutterCard(game.dopamine.comboSystem, rightGutterX, rightGutterW,
+                          comboCardY, game.dopamine.currentTime)
+
+    if globalSettings != nil and globalSettings.showDebugStats:
+      drawDebugPanel(game, vw, 2, anchorLeftDefault = true, docked = false)
+
+    drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = true, docked = false)
+  else:
+    # ---- CLASSIC HUD ----
+    if showHints:
+      drawCombo(game.dopamine.comboSystem, vw, vh, game.dopamine.currentTime)
+    if showWaveBanner:
+      drawWaveStartBanner(game.currentWave, waveAge, vw, vh, isBossNext)
+    if isTimeSurvivalMode(game.mode):
+      drawSurvivalBanner(game, vw, survivalHudStackBottom(game) + 8'i32)
+    drawWaveCelebration(game.dopamine.waveCelebration, vw, vh)
+    drawBossIntroduction(game.dopamine.bossIntro, vw, vh)
+    if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
+      var nextBossBarY = if isTimeSurvivalMode(game.mode): SurvivalHudBottomY + 6'i32
+                         else: 10'i32
+      var bossBarCount = 0
+      for enemy in game.enemies:
+        if enemy.isBoss and enemy.entranceTimer <= 0:
+          nextBossBarY = drawBossPhaseHud(game, enemy, nextBossBarY, alignRight = false)
+          bossBarCount += 1
+          if bossBarCount >= 3:
+            break
+    if isTimeSurvivalMode(game.mode):
+      drawSurvivalHUD(game, vw, vh)
+    if globalSettings != nil and globalSettings.showDebugStats:
+      drawDebugPanel(game, vw, 2, anchorLeftDefault = false)
+    drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = false)
+
+  # Instructions only for non-legendary keys, hidden when the shop overlay is active
+  if game.state != gsShop:
+    let instrText = if game.wallPlacementMode and game.player.walls > 0:
+      t(tkGameWallPlace) & "  (" & $game.player.walls & " " & t(tkGameWallPlaceRemaining) & ")"
+    else:
+      t(tkGameInstructionsWall)
+    let instrColor = if game.wallPlacementMode and game.player.walls > 0:
+      Color(r: 180, g: 230, b: 180, a: 255)
+    else:
+      LightGray
+    if hudLayout == hlWidescreen:
+      # A small left-gutter card (subtle bg + accent edge, wrapped text) instead
+      # of bare centered text, consistent with the integrated left column.
+      let cardW: int32 = min(leftGutterW - 8, 163'i32)
+      let textW: int32 = cardW - 12
+      let iLines = wrapTextLines(instrText, textW, 14)
+      let lineH: int32 = 16
+      let cardH: int32 = 8 + iLines.len.int32 * lineH
+      let cardX: int32 = 4
+      let cardY: int32 = vh - 6 - cardH
+      let accent = if game.wallPlacementMode and game.player.walls > 0:
+        Color(r: 120, g: 220, b: 140, a: 200)
+      else:
+        Color(r: 0, g: 220, b: 255, a: 200)
+      drawRectangle(cardX, cardY, cardW, cardH, Color(r: 8, g: 15, b: 25, a: 170))
+      drawRectangle(cardX, cardY, 2, cardH, accent)
+      drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32,
+                                   width: cardW.float32, height: cardH.float32),
+                         1, withAlpha(accent, 70))
+      var iy = cardY + 5
+      for ln in iLines:
+        drawText(ln, cardX + 8, iy, 14, instrColor)
+        iy += lineH
+    else:
+      if game.wallPlacementMode and game.player.walls > 0:
+        let hintW = measureText(instrText, 16)
+        drawText(instrText, vw div 2 - hintW div 2, vh - 25, 16, instrColor)
+      else:
+        drawText(instrText, vw div 2 - 100, vh - 25, 16, instrColor)
+
 proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) =
   ## One boss satellite drawn as a space-station miniature. Pulled out of drawGame
   ## verbatim; it only ever needed the satellite, the clock and the objective flag.
@@ -6353,6 +6521,13 @@ proc drawGame*(game: Game) =
   # after them and runs to the end of the proc.
   let fullVw = getVirtualScreenWidth()
   let fullVh = getVirtualScreenHeight()
+  let hudLayout = if globalSettings == nil: hlClassic else: globalSettings.hudLayout
+  let hudStyle = if globalSettings == nil: hsModern else: globalSettings.hudStyle
+
+  # Modern widescreen: paint the side bands the docked HUD lives in. Before the
+  # vignettes, so damage feedback still washes over the whole screen.
+  if hudLayout == hlWidescreen and hudStyle == hsModern:
+    drawDockBands(game.time)
 
   let showLowHealthVignette = globalSettings == nil or globalSettings.showLowHealthVignette
   if showLowHealthVignette and game.osBackground.lowHealthVignetteLevel > 0:
@@ -6394,58 +6569,76 @@ proc drawGame*(game: Game) =
 
   # ---------------- INTERFACE LAYER (UI scale applies from here) -------------
   # Everything below is the player-facing HUD, so it is drawn *and* hit-tested
-  # inside one UI-scale layer: the status panel, both gutter columns, the
-  # transient cards and the key hint all grow and shrink together. The scale is
+  # inside one UI-scale layer: the status panel, both dock columns, the
+  # transient cards and the key hints all grow and shrink together. The scale is
   # hudInterfaceScale, not the raw setting, so widescreen's columns stay inside
   # their bands instead of spilling over the arena.
   # vw/vh are re-read here because inside the layer they are its logical
   # viewport (virtual pixels / scale), which is the space this all lays out in.
-  let hudLayout = if globalSettings == nil: hlClassic else: globalSettings.hudLayout
   let hudScale = hudInterfaceScale()
   beginUIScaleMode(hudScale)
   let vw = getVirtualScreenWidth()
   let vh = getVirtualScreenHeight()
 
-  # Draw unified combined HUD panel (top-left, almost touching top). Classic
-  # floats it over the world (draggable, minimizable); widescreen pins it as the
-  # head of the left gutter column.
-  if hudLayout == hlWidescreen:
-    drawBorderHUDPanel(game)
-  else:
-    drawCombinedHUDPanel(game, 10, 2)
-
-  # Gutter geometry, in this layer's coordinates. The columns keep their designed
+  # Dock geometry, in this layer's coordinates. The columns keep their designed
   # width and hug the screen edges (see WidescreenGutterWidth) instead of tracking
   # the world's edges, which at 100% is the same line and at any other scale is
   # what keeps the right-hand column on screen.
-  let leftGutterW = if hudLayout == hlWidescreen: WidescreenGutterWidth else: 0'i32
-  let rightGutterW = leftGutterW
+  let rightGutterW = WidescreenGutterWidth
   let rightGutterX = vw - rightGutterW
 
   let showHints = globalSettings == nil or globalSettings.showHints
+  let showDiagnostics = globalSettings != nil and globalSettings.showDebugStats
   let waveAge = game.time - game.waveStartTime
   let isBossNext = game.wavesUntilBoss == 0
   # Roguelite rooms reuse the wave machinery but have no wave number, so the
   # generic banner would flash "WAVE 1" on every room; suppress it there.
   let showWaveBanner = game.waveInProgress and game.mode != gmRoguelite and showHints
 
-  if hudLayout == hlWidescreen:
-    # ---- WIDESCREEN RIGHT-GUTTER COLUMN (top-to-bottom via a running cursor) --
-    # Top stack (dynamic): survival timer card owns the very top; boss bars flow
-    # beneath it; transient cards (wave banner / celebration / boss intro) flow
-    # beneath the boss bars but are capped into a safe band. Bottom stack (fixed):
-    # combo card then the legendary strip are bottom-anchored so the persistent
-    # cards can never collide with the dynamic top stack.
-    # Bottom stack is fixed first so the boss band knows how much room it has.
-    const legendaryReserve: int32 = 192   # legendary strip max height + margin
+  if hudStyle == hsLegacy:
+    drawLegacyHud(game, hudLayout, hudScale, vw, vh)
+  elif hudLayout == hlWidescreen:
+    # ---- LEFT DOCK: the player ---------------------------------------------
+    # Key hints sit on the bottom edge, diagnostics (when enabled) stack on
+    # them, and the STATUS / PROCESSES cards take everything above, so the
+    # processes list grows into whatever height the band has.
+    let playerX = DockMargin
+    var playerBottom = vh - DockMargin
+    if game.state != gsShop:
+      playerBottom = drawControlsDockCard(game, playerX, playerBottom) - DockGap
+    if showDiagnostics:
+      let diagH = debugPanelHeight(game)
+      let statusBottom = DockMargin + statusCardHeight(game) + DockGap
+      # Diagnostics are optional; the processes card keeps room for a few rows.
+      if playerBottom - diagH - DockGap - statusBottom >= 90'i32:
+        drawDebugPanel(game, playerX, playerBottom - diagH, anchorLeftDefault = true)
+        playerBottom -= diagH + DockGap
+    drawPlayerDock(game, playerX, DockMargin, playerBottom)
+
+    # ---- RIGHT DOCK: the run -----------------------------------------------
+    # Top stack (dynamic, via a running cursor): the mode's objective card,
+    # then boss cards, then transient cards (wave banner / celebration / boss
+    # intro) capped into a safe band. Bottom stack (anchored): the [Q] ability
+    # strip on the bottom edge and the combo card on top of it, so the
+    # persistent cards never collide with the dynamic top stack.
+    let runX = rightGutterX + DockMargin
     const comboCardH: int32 = 70
     const transientBand: int32 = 150      # room reserved for the tallest transient
-    let comboCardY = vh - legendaryReserve - comboCardH - 6'i32
+    let abilitiesH = legendaryPanelHeight(game, alignRightGutter = true)
+    let comboCardY = vh - DockMargin - abilitiesH -
+                     (if abilitiesH > 0: DockGap else: 0'i32) - comboCardH
     # Boss cards must all fit above this line so transients (and thus the combo
     # card below them) can never be overlapped, even with 3 bosses.
     let bossBandBottom = comboCardY - transientBand
 
-    var rgY: int32 = if isTimeSurvivalMode(game.mode): survivalHudStackBottom(game) + 6'i32 else: 10'i32
+    var rgY = DockMargin
+    if isTimeSurvivalMode(game.mode):
+      rgY = drawSurvivalDockCard(game, runX, rgY) + DockGap
+    elif game.mode == gmWaveBased:
+      rgY = drawWaveDockCard(game, runX, rgY) + DockGap
+    elif game.mode == gmRoguelite and game.rogueliteRun != nil:
+      rgY = drawRogueliteDockCard(game, runX, rgY) + DockGap
+
     if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
       # Count active bosses (<=3) so each vertical card can be sized to fit.
       var bossCount = 0
@@ -6493,15 +6686,10 @@ proc drawGame*(game: Game) =
       drawComboGutterCard(game.dopamine.comboSystem, rightGutterX, rightGutterW,
                           comboCardY, game.dopamine.currentTime)
 
-    if isTimeSurvivalMode(game.mode):
-      drawSurvivalHUD(game, vw, vh, alignRight = true)
-
-    if globalSettings != nil and globalSettings.showDebugStats:
-      drawDebugPanel(game, vw, 2, anchorLeftDefault = true)
-
     drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = true)
   else:
-    # ---- CLASSIC HUD (unchanged) ----
+    # ---- CLASSIC HUD: everything floats over the arena ----
+    drawCombinedHUDPanel(game, 10, 2)
     if showHints:
       drawCombo(game.dopamine.comboSystem, vw, vh, game.dopamine.currentTime)
     if showWaveBanner:
@@ -6521,50 +6709,14 @@ proc drawGame*(game: Game) =
           if bossBarCount >= 3:
             break
     if isTimeSurvivalMode(game.mode):
-      drawSurvivalHUD(game, vw, vh, alignRight = false)
-    if globalSettings != nil and globalSettings.showDebugStats:
+      drawSurvivalHUD(game, vw, vh)
+    if showDiagnostics:
       drawDebugPanel(game, vw, 2, anchorLeftDefault = false)
     drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = false)
 
-  # Instructions only for non-legendary keys, hidden when the shop overlay is active
-  if game.state != gsShop:
-    let instrText = if game.wallPlacementMode and game.player.walls > 0:
-      t(tkGameWallPlace) & "  (" & $game.player.walls & " " & t(tkGameWallPlaceRemaining) & ")"
-    else:
-      t(tkGameInstructionsWall)
-    let instrColor = if game.wallPlacementMode and game.player.walls > 0:
-      Color(r: 180, g: 230, b: 180, a: 255)
-    else:
-      LightGray
-    if hudLayout == hlWidescreen:
-      # A small left-gutter card (subtle bg + accent edge, wrapped text) instead
-      # of bare centered text, consistent with the integrated left column.
-      let cardW: int32 = min(leftGutterW - 8, 163'i32)
-      let textW: int32 = cardW - 12
-      let iLines = wrapTextLines(instrText, textW, 14)
-      let lineH: int32 = 16
-      let cardH: int32 = 8 + iLines.len.int32 * lineH
-      let cardX: int32 = 4
-      let cardY: int32 = vh - 6 - cardH
-      let accent = if game.wallPlacementMode and game.player.walls > 0:
-        Color(r: 120, g: 220, b: 140, a: 200)
-      else:
-        Color(r: 0, g: 220, b: 255, a: 200)
-      drawRectangle(cardX, cardY, cardW, cardH, Color(r: 8, g: 15, b: 25, a: 170))
-      drawRectangle(cardX, cardY, 2, cardH, accent)
-      drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32,
-                                   width: cardW.float32, height: cardH.float32),
-                         1, withAlpha(accent, 70))
-      var iy = cardY + 5
-      for ln in iLines:
-        drawText(ln, cardX + 8, iy, 14, instrColor)
-        iy += lineH
-    else:
-      if game.wallPlacementMode and game.player.walls > 0:
-        let hintW = measureText(instrText, 16)
-        drawText(instrText, vw div 2 - hintW div 2, vh - 25, 16, instrColor)
-      else:
-        drawText(instrText, vw div 2 - 100, vh - 25, 16, instrColor)
+    # Key hints along the bottom edge, hidden when the shop overlay is active.
+    if game.state != gsShop:
+      drawControlsStrip(game, vw div 2, vh - 22)
 
   # Survival Data Cache reveal, over the whole HUD
   if isTimeSurvivalMode(game.mode):

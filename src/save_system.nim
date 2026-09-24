@@ -18,6 +18,12 @@ type
     hlClassic = "classic"
     hlWidescreen = "widescreen"
 
+  HudStyle* = enum
+    ## Which in-game HUD draws: the docked Modern one or the pre-rework Legacy
+    ## panels. Independent of HudLayout (either style works in either layout).
+    hsModern = "modern"
+    hsLegacy = "legacy"
+
   Settings* = ref object
     fpsLimit*: int32
     volume*: float32
@@ -35,6 +41,7 @@ type
     showLowHealthVignette*: bool
     showHints*: bool
     hudLayout*: HudLayout
+    hudStyle*: HudStyle
     uiScale*: float32          # Interface scale for the desktop/windows/HUD layer
     showEnemyLabels*: bool
     showDamageNumbers*: bool   # Floating damage text on hits
@@ -287,6 +294,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "showLowHealthVignette": settings.showLowHealthVignette,
     "showHints": settings.showHints,
     "hudLayout": $settings.hudLayout,
+    "hudStyle": $settings.hudStyle,
     "uiScale": settings.uiScale,
     "showEnemyLabels": settings.showEnemyLabels,
     "showDamageNumbers": settings.showDamageNumbers,
@@ -384,6 +392,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
       settings.hudLayout = parseEnum[HudLayout](jsonNode["hudLayout"].getStr())
     except ValueError:
       settings.hudLayout = hlClassic
+
+  if jsonNode.hasKey("hudStyle"):
+    settings.hudStyle = parseEnumOr(jsonNode["hudStyle"].getStr(), hsModern)
 
   if jsonNode.hasKey("uiScale"):
     settings.uiScale = snapUIScale(jsonNode["uiScale"].getFloat().float32)

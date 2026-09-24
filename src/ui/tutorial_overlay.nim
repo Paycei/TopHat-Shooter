@@ -44,14 +44,7 @@ proc easeOutCubic(x: float32): float32 =
 # ---------------------------------------------------------------------------
 # Binding labels
 
-proc keyName(k: KeyboardKey): string =
-  ## raylib's symbol name ("LeftShift"), split into words ("Left Shift").
-  if k == KeyboardKey.Null: return "---"
-  let raw = $k
-  for i, c in raw:
-    if i > 0 and c.isUpperAscii and not raw[i - 1].isUpperAscii:
-      result.add ' '
-    result.add c
+proc keyName(k: KeyboardKey): string = keyboardKeyLabel(k)
 
 proc cap(label: string): string = "[" & label & "]"
 

@@ -1,7 +1,7 @@
 ## Settings Backend Module
 ## Handles settings initialization, state management, and application
 
-from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, saveSettings, loadSettings, MinUIScale, MaxUIScale, MinDamageNumberScale, MaxDamageNumberScale, MinScreenShakeScale, MaxScreenShakeScale
+from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, HudStyle, hsModern, hsLegacy, saveSettings, loadSettings, MinUIScale, MaxUIScale, MinDamageNumberScale, MaxDamageNumberScale, MinScreenShakeScale, MaxScreenShakeScale
 from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, kaDash, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds
 import raylib, strutils
 import sound, localization
@@ -37,6 +37,7 @@ proc newDefaultSettings*(): Settings =
     showLowHealthVignette: true,
     showHints: true,
     hudLayout: hlWidescreen,
+    hudStyle: hsModern,
     uiScale: 1.0,             # 100%: the layout every panel was designed against
     showEnemyLabels: true,
     showDamageNumbers: true,

@@ -242,6 +242,15 @@ proc gamepadAnyButtonPressed*(): GamepadButton =
       return b
   GamepadButton.Unknown
 
+proc keyboardKeyLabel*(k: KeyboardKey): string =
+  ## raylib's symbol name ("LeftShift"), split into words ("Left Shift").
+  if k == KeyboardKey.Null: return "---"
+  let raw = $k
+  for i, c in raw:
+    if i > 0 and c in {'A'..'Z'} and raw[i - 1] notin {'A'..'Z'}:
+      result.add ' '
+    result.add c
+
 proc gamepadBindLabel*(b: GamepadButton): string =
   ## Short ASCII label for the Controls tab (Xbox-style names).
   case b

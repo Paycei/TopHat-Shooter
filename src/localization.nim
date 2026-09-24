@@ -80,6 +80,10 @@ type
     tkSettingsHudLayoutDesc = "settings_hud_layout_desc"
     tkSettingsHudLayoutClassic = "settings_hud_layout_classic"
     tkSettingsHudLayoutWidescreen = "settings_hud_layout_widescreen"
+    tkSettingsHudStyle = "settings_hud_style"
+    tkSettingsHudStyleDesc = "settings_hud_style_desc"
+    tkSettingsHudStyleModern = "settings_hud_style_modern"
+    tkSettingsHudStyleLegacy = "settings_hud_style_legacy"
     tkSettingsShowEnemyLabels = "settings_show_enemy_labels"
     tkSettingsShowEnemyLabelsDesc = "settings_show_enemy_labels_desc"
     tkSettingsExitConfirm = "settings_exit_confirm"
@@ -368,6 +372,15 @@ type
     tkHUDThreats = "hud_threats"
     tkHUDDash = "hud_dash"
     tkHUDDashReady = "hud_dash_ready"
+    tkHUDMore = "hud_more"
+    tkHUDBossWave = "hud_boss_wave"
+    tkHUDBossInWaves = "hud_boss_in_waves"
+    tkHUDRunTimer = "hud_run_timer"
+    tkHUDKeys = "hud_keys"
+    tkHUDKeyWall = "hud_key_wall"
+    tkHUDKeyDash = "hud_key_dash"
+    tkHUDKeyAbility = "hud_key_ability"
+    tkHUDKeyPause = "hud_key_pause"
 
     # Debug Panel
     tkDebugPanelDiagnostics = "debug_panel_diagnostics"
@@ -1694,6 +1707,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_hud_layout_desc": "(Widescreen adds side UI bands)",
     "settings_hud_layout_classic": "Classic (4:3)",
     "settings_hud_layout_widescreen": "Widescreen (16:9)",
+    "settings_hud_style": "HUD Style:",
+    "settings_hud_style_desc": "(Legacy restores the previous in-game HUD)",
+    "settings_hud_style_modern": "Modern",
+    "settings_hud_style_legacy": "Legacy",
     "settings_show_enemy_labels": "Show Enemy Labels:",
     "settings_show_enemy_labels_desc": "(name tags above enemies)",
     "settings_exit_confirm": "Exit Confirm:",
@@ -2354,6 +2371,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_threats": "THREATS:",
     "hud_dash": "DASH",
     "hud_dash_ready": "READY",
+    "hud_more": "more",
+    "hud_boss_wave": "BOSS WAVE",
+    "hud_boss_in_waves": "BOSS IN $1",
+    "hud_run_timer": "UPTIME",
+    "hud_keys": "CONTROLS",
+    "hud_key_wall": "Wall",
+    "hud_key_dash": "Dash",
+    "hud_key_ability": "Ability",
+    "hud_key_pause": "Pause",
 
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNOSTICS",
@@ -3579,6 +3605,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_hud_layout_desc": "(Panorámico añade paneles laterales)",
     "settings_hud_layout_classic": "Clásico (4:3)",
     "settings_hud_layout_widescreen": "Panorámico (16:9)",
+    "settings_hud_style": "Estilo del HUD:",
+    "settings_hud_style_desc": "(Anterior restaura el HUD de partida previo)",
+    "settings_hud_style_modern": "Moderno",
+    "settings_hud_style_legacy": "Anterior",
     "settings_show_enemy_labels": "Etiquetas:",
     "settings_show_enemy_labels_desc": "(nombres sobre enemigos)",
     "settings_exit_confirm": "Confirmar Salida:",
@@ -4130,6 +4160,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_threats": "AMENAZAS:",
     "hud_dash": "IMPULSO",
     "hud_dash_ready": "LISTO",
+    "hud_more": "más",
+    "hud_boss_wave": "OLEADA JEFE",
+    "hud_boss_in_waves": "JEFE EN $1",
+    "hud_run_timer": "TIEMPO",
+    "hud_keys": "CONTROLES",
+    "hud_key_wall": "Muro",
+    "hud_key_dash": "Impulso",
+    "hud_key_ability": "Habilidad",
+    "hud_key_pause": "Pausa",
 
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNÓSTICOS",

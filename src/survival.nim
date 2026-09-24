@@ -12,7 +12,8 @@
 import raylib, random, math, strutils
 import particle_types, types, localization, utils, sound, d_systems, d_visuals, roguelite,
        enemy, enemy_config, enemy_helpers, particle_pool, consumable, coin, player, powerup,
-       powerup_data, gamepad_input, game/bullets, game/death, ui/os_background, ui/icon_drawing
+       powerup_data, gamepad_input, game/bullets, game/death, ui/os_background, ui/icon_drawing,
+       ui/hud_dock, ui/ui_helpers
 
 # ============================================================================
 # Data: per-phase tuning, events, caches, text
@@ -1555,6 +1556,7 @@ const
   SurvivalHudBottomY*: int32 = SurvivalHudPanelY + 9 + 30 + 7 + 14 + 6 + 12 + 9
   SurvivalTrackerGap: int32 = 6
   SurvivalTrackerH: int32 = 52
+  SurvivalDockTrackerH: int32 = 46   # widescreen: the event as a docked card
 
 proc survivalHudStackBottom*(game: Game): int32 =
   ## Bottom of the survival HUD stack: the card, plus the event card when an
@@ -1603,11 +1605,68 @@ proc drawSurvivalTracker(game: Game, x, y, w: int32) =
   drawRectangleLines(barX, barY, barW, 7, withAlpha(color, 120))
   drawText(info.detail, barX, y + 36, 11, Color(r: 190, g: 215, b: 230, a: 255))
 
-proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: bool = false) =
-  ## Top-center survival HUD: one rounded "OS card" holding the survived-time
-  ## stopwatch, the phase row (phase name + countdown to the next boss) and
-  ## the run level + XP bar. While a System Event runs, a second card under it
-  ## tracks the event.
+proc drawSurvivalTrackerDock(game: Game, x, y: int32): int32 =
+  ## The running event as a docked card (widescreen right band). Returns the y
+  ## below it.
+  const h = SurvivalDockTrackerH
+  let ev = game.survival.event
+  let color = survivalEventColor(ev.kind)
+  let info = survivalTrackerInfo(game)
+  drawDockCard(x, y, DockCardW, h, color)
+  let cx = x + DockPad
+  let cw = DockContentW
+  let clock = formatSurvivalClock(info.remaining)
+  let clockW = measureText(clock, 10)
+  let urgent = info.remaining <= 5.0'f32 and ev.kind != sekOverclock
+  let pulse = sin(game.time * 10.0'f32) * 0.5'f32 + 0.5'f32
+  drawShadowText(clock, cx + cw - clockW, y + 6, 10,
+                 if urgent: Color(r: 255, g: uint8(90.0'f32 + pulse * 80.0'f32), b: 90, a: 255)
+                 else: DockInk)
+  let name = t(survivalEventNameKey(ev.kind))
+  drawShadowText(name, cx, y + 6, bestFitFontSize(name, cw - clockW - 6, 10, 7), color)
+  drawDockBar(cx, y + 20, cw, 6, info.frac, withAlpha(color, 230), withAlpha(color, 120))
+  drawShadowText(info.detail, cx, y + 31, bestFitFontSize(info.detail, cw, 10, 7),
+                 Color(r: 190, g: 215, b: 230, a: 255))
+  y + h
+
+proc drawStopwatchIcon(cx, cy, r, survivedT: float32, accent, handColor: Color) =
+  ## Handheld stopwatch glyph. The hand sweeps once per minute of survival time;
+  ## since survivalTime freezes during a boss, the hand visibly stops there
+  ## (reinforced by the gray-out + pause glyph at the call sites).
+  # Crown: a little button + stem on top so the icon reads as a stopwatch.
+  drawRectangle((cx - 2.0).int32, (cy - r - 4.0).int32, 4, 4, accent)
+  drawCircle(Vector2(x: cx, y: cy - r - 4.5), 2.0'f32, accent)
+  # Face: dark fill, outer rim, faint inner rim, and 12/3/6/9 tick marks.
+  drawCircle(Vector2(x: cx, y: cy), r + 1.0, Color(r: 6, g: 16, b: 24, a: 220))
+  drawCircleLines(cx.int32, cy.int32, r, accent)
+  drawCircleLines(cx.int32, cy.int32, r - 1.0, withAlpha(accent, 90))
+  for q in 0..<4:
+    let ta = q.float32 * (PI.float32 / 2.0)
+    drawLine(Vector2(x: cx + cos(ta) * (r - 2.4), y: cy + sin(ta) * (r - 2.4)),
+             Vector2(x: cx + cos(ta) * (r - 0.6), y: cy + sin(ta) * (r - 0.6)),
+             1.0'f32, withAlpha(accent, 130))
+  let handAng = (survivedT mod 60.0) / 60.0 * (PI.float32 * 2.0) - PI.float32 / 2.0
+  let handLen = r * 0.72
+  drawLine(Vector2(x: cx, y: cy),
+           Vector2(x: cx + cos(handAng) * handLen, y: cy + sin(handAng) * handLen),
+           2.0'f32, handColor)
+  drawCircle(Vector2(x: cx, y: cy), 1.6'f32, accent)
+
+proc stopwatchReadout(survivedT: float32): tuple[mmss, centis: string] =
+  ## "MM:SS" and ".CC" for the stopwatch. Centiseconds derive from survivalTime,
+  ## so they freeze with everything else during a boss fight.
+  let totalSecs = int(survivedT)
+  let mins = totalSecs div 60
+  let secs = totalSecs mod 60
+  let centis = int(survivedT * 100.0'f32) mod 100
+  ((if mins < 10: "0" else: "") & $mins & ":" & (if secs < 10: "0" else: "") & $secs,
+   "." & (if centis < 10: "0" else: "") & $centis)
+
+proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
+  ## Classic (4:3) survival HUD, top-centre: one rounded "OS card" holding the
+  ## survived-time stopwatch, the phase row (phase name + countdown to the next
+  ## boss) and the run level + XP bar. While a System Event runs, a second card
+  ## under it tracks the event. Widescreen docks drawSurvivalDockCard instead.
 
   const xpFill    = Color(r: 90,  g: 255, b: 170, a: 235)   # XP green
   const xpGold    = Color(r: 255, g: 215, b: 60,  a: 245)   # Overclock
@@ -1648,13 +1707,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: 
   # proportional-width digits change. Centiseconds derive from survivalTime, so
   # they freeze with everything else during a boss fight.
   let clampedT = max(0.0'f32, game.survivalTime)
-  let totalSecs = int(clampedT)
-  let mins = totalSecs div 60
-  let secs = totalSecs mod 60
-  let centis = int(clampedT * 100.0'f32) mod 100
-  let timeStr = (if mins < 10: "0" else: "") & $mins & ":" &
-                (if secs < 10: "0" else: "") & $secs
-  let centiStr = "." & (if centis < 10: "0" else: "") & $centis
+  let (timeStr, centiStr) = stopwatchReadout(clampedT)
   let timerSlotW = measureText("00:00", timerSize)
   let centiSlotW = measureText(".00", centiSize)
   let timerDigitsW = measureText(timeStr, timerSize)
@@ -1672,8 +1725,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: 
   let contentW = max(max(timerRowW, barRowW), phaseRowW)
   let panelW = contentW + padX * 2
   let panelH = padY + timerSize + vGap + phaseRowH + rowGap + barH + padY
-  let panelX = if alignRight: screenWidth - panelW - 8
-               else: screenWidth div 2 - panelW div 2
+  let panelX = screenWidth div 2 - panelW div 2
   const panelY: int32 = SurvivalHudPanelY
 
   # --- Card background ----------------------------------------------------
@@ -1686,29 +1738,8 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: 
   # --- Row 1: stopwatch icon + MM:SS.CC -----------------------------------
   let timerRowX = panelX + (panelW - timerRowW) div 2
   let timerY = panelY + padY
-  let cx = (timerRowX + clockR).float32
-  let cy = (timerY + timerSize div 2).float32
-  let faintAccent = withAlpha(accent, 90)
-  # Crown: a little button + stem on top so the icon reads as a handheld stopwatch.
-  drawRectangle((cx - 2.0).int32, (cy - clockR.float32 - 4.0).int32, 4, 4, accent)
-  drawCircle(Vector2(x: cx, y: cy - clockR.float32 - 4.5), 2.0'f32, accent)
-  # Face: dark fill, outer rim, faint inner rim, and 12/3/6/9 tick marks.
-  drawCircle(Vector2(x: cx, y: cy), clockR.float32 + 1.0, Color(r: 6, g: 16, b: 24, a: 220))
-  drawCircleLines(cx.int32, cy.int32, clockR.float32, accent)
-  drawCircleLines(cx.int32, cy.int32, (clockR - 1).float32, faintAccent)
-  for q in 0..<4:
-    let ta = q.float32 * (PI.float32 / 2.0)
-    drawLine(Vector2(x: cx + cos(ta) * (clockR.float32 - 2.4), y: cy + sin(ta) * (clockR.float32 - 2.4)),
-             Vector2(x: cx + cos(ta) * (clockR.float32 - 0.6), y: cy + sin(ta) * (clockR.float32 - 0.6)),
-             1.0'f32, withAlpha(accent, 130))
-  # Hand sweeps once per minute of survival time; since survivalTime freezes during
-  # a boss, the hand visibly stops there (reinforced by the gray-out + pause glyph).
-  let handAng = (clampedT mod 60.0) / 60.0 * (PI.float32 * 2.0) - PI.float32 / 2.0
-  let handLen = clockR.float32 * 0.72
-  drawLine(Vector2(x: cx, y: cy),
-           Vector2(x: cx + cos(handAng) * handLen, y: cy + sin(handAng) * handLen),
-           2.0'f32, digitColor)
-  drawCircle(Vector2(x: cx, y: cy), 1.6'f32, accent)
+  drawStopwatchIcon((timerRowX + clockR).float32, (timerY + timerSize div 2).float32,
+                    clockR.float32, clampedT, accent, digitColor)
   # MM:SS digits, centred in the fixed slot. An accent glow (live only) + shadow
   # lift them off the card.
   let digitsX = timerRowX + clockBox + (timerSlotW - timerDigitsW) div 2
@@ -1770,6 +1801,124 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32, alignRight: 
   # --- Event card ------------------------------------------------------------
   if survivalEventActive(game):
     drawSurvivalTracker(game, panelX, panelY + panelH + SurvivalTrackerGap, panelW)
+
+proc drawRunTimeline(game: Game, x, y, w: int32, dim: bool) =
+  ## The 20:00 run as four phase segments, each filling as its five minutes
+  ## pass, with a boss notch closing every segment. Overtime has no end, so it
+  ## becomes one segment filling toward the next Overtime boss.
+  const h = 7'i32
+  let pulse = 0.5'f32 + 0.5'f32 * sin(game.time * 5.0'f32)
+  let st = max(0.0'f32, game.survivalTime)
+  if survivalPhase(game) == spOvertime:
+    let color = SurvivalPhaseAccent[spOvertime]
+    let prev = survivalBossTime(max(SurvivalFinalBoss, game.bossCount))
+    let next = survivalBossTime(max(SurvivalFinalBoss, game.bossCount) + 1)
+    let frac = clamp((st - prev) / max(1.0'f32, next - prev), 0.0'f32, 1.0'f32)
+    drawDockBar(x, y, w, h, frac, withAlpha(color, if dim: 110 else: 220), withAlpha(color, 140))
+    return
+  const segs = SurvivalFinalBoss
+  const gap = 3'i32
+  let segW = (w - gap * (segs - 1)) div segs
+  for i in 0..<segs:
+    let color = SurvivalPhaseAccent[SurvivalPhase(i)]
+    let sx = x + i.int32 * (segW + gap)
+    let start = i.float32 * SurvivalPhaseLength
+    let frac = clamp((st - start) / SurvivalPhaseLength, 0.0'f32, 1.0'f32)
+    drawRectangle(sx, y, segW, h, DockTrackBg)
+    let fw = int32(segW.float32 * frac)
+    if fw > 0:
+      drawRectangle(sx, y, fw, h, withAlpha(color, if dim: 110 else: 215))
+    drawRectangleLines(Rectangle(x: sx.float32, y: y.float32, width: segW.float32,
+                                 height: h.float32), 1, withAlpha(color, 130))
+    # Boss notch at the segment's end; lit once that boss is down.
+    let beaten = game.bossCount - (if game.bossWaveManager.active: 1 else: 0) > i
+    let live = not beaten and frac >= 1.0'f32
+    let notch = if beaten: withAlpha(color, 255)
+                elif live: Color(r: 255, g: 255, b: 255, a: uint8(140.0'f32 + 115.0'f32 * pulse))
+                else: withAlpha(color, 110)
+    drawRectangle(sx + segW - 2, y - 2, 2, h + 4, notch)
+
+proc drawSurvivalDockCard*(game: Game, x, y: int32, withLevel: bool = false): int32 =
+  ## Widescreen survival HUD, docked at the top of the right band: the phase,
+  ## the stopwatch, the countdown to the next boss and the run timeline, sized
+  ## to the band. The modern HUD shows the run level and XP bar in its left
+  ## dock; the legacy one has nowhere else for them, so it passes `withLevel`
+  ## to add that row here. A running System Event docks its own card
+  ## underneath. Returns the y below the stack.
+  let bossActive = game.bossWaveManager.active or game.bossWaveManager.coinActive
+  let phase = survivalPhase(game)
+  let phaseColor = SurvivalPhaseAccent[phase]
+  let accent = if bossActive: Color(r: 120, g: 140, b: 150, a: 255) else: phaseColor
+  let digitColor = if bossActive: Color(r: 150, g: 165, b: 175, a: 255)
+                   else: Color(r: 225, g: 246, b: 255, a: 255)
+  const levelRowH = 14'i32
+  let h = DockHeaderH + 6 + 30 + 5 + 13 + 7 + 7 + (if withLevel: levelRowH else: 0'i32)
+  drawDockCard(x, y, DockCardW, h, phaseColor)
+
+  # Header: phase chip + name, "n/4" through the campaign.
+  let right = if phase == spOvertime: "" else: $(ord(phase) + 1) & "/" & $SurvivalFinalBoss
+  let phaseName = t(survivalPhaseNameKey(phase))
+  let top = drawDockHeader(x, y, DockCardW, "", phaseColor, right, DockInk)
+  drawRectangle(x + DockPad, y + 4, 7, 7, phaseColor)
+  let nameW = DockContentW - 12 - measureText(right, 10) - 6
+  drawShadowText(phaseName, x + DockPad + 12, y + 3, bestFitFontSize(phaseName, nameW, 10, 7),
+                 phaseColor)
+
+  let cx = x + DockPad
+  let cw = DockContentW
+  var cy = top + 6
+
+  # Stopwatch: MM:SS against a fixed "00:00" slot, .CC against ".00", so the
+  # card never jitters as the proportional digits change. While a boss holds
+  # the clock the icon becomes a pause glyph.
+  const timerSize = 30'i32
+  const centiSize = 20'i32
+  const iconBox = 24'i32
+  let clampedT = max(0.0'f32, game.survivalTime)
+  let (timeStr, centiStr) = stopwatchReadout(clampedT)
+  let slotW = measureText("00:00", timerSize)
+  let centiW = measureText(".00", centiSize)
+  let rowW = iconBox + slotW + 2 + centiW
+  let rowX = cx + max(0'i32, (cw - rowW) div 2)
+  if bossActive:
+    drawRectangle(rowX + 4, cy + 7, 5, 16, accent)
+    drawRectangle(rowX + 12, cy + 7, 5, 16, accent)
+  else:
+    drawStopwatchIcon((rowX + 9).float32, (cy + 16).float32, 9.0'f32, clampedT, accent, digitColor)
+  let digitsX = rowX + iconBox + (slotW - measureText(timeStr, timerSize)) div 2
+  if not bossActive:
+    drawText(timeStr, digitsX, cy - 1, timerSize, withAlpha(accent, 55))
+  drawShadowText(timeStr, digitsX, cy, timerSize, digitColor)
+  drawShadowText(centiStr, rowX + iconBox + slotW + 2, cy + timerSize - centiSize, centiSize,
+                 withAlpha(digitColor, 175))
+  cy += timerSize + 5
+
+  # Countdown to the next boss (or BOSS ACTIVE).
+  let countdown = survivalCountdownLabel(game)
+  let pulse = sin(game.time * 8.0'f32) * 0.5'f32 + 0.5'f32
+  let cdColor = if countdown.urgent: Color(r: 255, g: uint8(80.0'f32 + pulse * 90.0'f32), b: 80, a: 255)
+                else: Color(r: 190, g: 210, b: 225, a: 255)
+  let cdSize = bestFitFontSize(countdown.text, cw, 10, 7)
+  drawShadowText(countdown.text, cx + (cw - measureText(countdown.text, cdSize)) div 2, cy,
+                 cdSize, cdColor)
+  cy += 13
+
+  drawRunTimeline(game, cx, cy + 2, cw, bossActive)
+  if withLevel:
+    let lvY = cy + 16
+    let overclock = game.survival.event.kind == sekOverclock
+    let gold = Color(r: 255, g: 215, b: 60, a: 245)
+    let label = t("roguelite_level") & " " & $game.player.rogueliteLevel
+    drawShadowText(label, cx, lvY, 10,
+                   if overclock: gold else: Color(r: 150, g: 255, b: 210, a: 255))
+    let barX = cx + measureText(label, 10) + 7
+    drawDockBar(barX, lvY + 2, cx + cw - barX, 6,
+                game.player.xp.float32 / max(1, game.player.xpToNextLevel).float32,
+                if overclock: gold else: Color(r: 90, g: 255, b: 170, a: 235),
+                Color(r: 120, g: 220, b: 190, a: 150))
+  result = y + h
+  if survivalEventActive(game):
+    result = drawSurvivalTrackerDock(game, x, result + DockGap)
 
 proc survivalBannerContent(game: Game): tuple[title, subtitle: string, accent: Color, duration: float32] =
   let s = game.survival

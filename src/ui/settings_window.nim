@@ -80,7 +80,7 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
                         advancementProfile: AdvancementProfile = nil,
                         rogueliteProfile: RogueliteProfile = nil): SettingsWindow =
   let windowWidth = 700
-  let windowHeight = 500
+  let windowHeight = 540   # the Interface tab's HUD section needs the full height
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
 
@@ -529,6 +529,16 @@ proc nextHudLayout(mode: HudLayout): HudLayout =
   of hlClassic: hlWidescreen
   of hlWidescreen: hlClassic
 
+proc getHudStyleLabel(style: HudStyle): string =
+  case style
+  of hsModern: t(tkSettingsHudStyleModern)
+  of hsLegacy: t(tkSettingsHudStyleLegacy)
+
+proc nextHudStyle(style: HudStyle): HudStyle =
+  case style
+  of hsModern: hsLegacy
+  of hsLegacy: hsModern
+
 proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
 
@@ -630,6 +640,7 @@ type
     ifcDamageSize       ## slider
     ifcScreenShake      ## slider
     ifcHudLayout        ## cycle button
+    ifcHudStyle         ## cycle button
     # The HUD toggles below fill a two-column grid; their order is their layout.
     ifcEnemyLabels
     ifcArenaVignette
@@ -644,7 +655,7 @@ const
   IfcButtonWidth = 200
   IfcButtonHeight = 32
   IfcControlX = 300     # every labelled control starts this far into the tab
-  IfcGridY = 306        # first row of the HUD toggle grid
+  IfcGridY = 358        # first row of the HUD toggle grid
   IfcGridRowPitch = 30
 
   UIScaleLabels: array[3, TranslationKey] =
@@ -704,6 +715,9 @@ proc interfaceControlRect(ic: InterfaceControl, contentX, contentY, contentW: in
               width: IfcSliderWidth.float32, height: IfcSliderHeight.float32)
   of ifcHudLayout:
     Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 247).float32,
+              width: IfcButtonWidth.float32, height: IfcButtonHeight.float32)
+  of ifcHudStyle:
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 300).float32,
               width: IfcButtonWidth.float32, height: IfcButtonHeight.float32)
   else:
     let idx = ord(ic) - ord(ifcEnemyLabels)
@@ -833,6 +847,13 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
   drawCycleButton(layoutRect, getHudLayoutLabel(s.hudLayout),
                   checkCollisionPointRec(mousePos, layoutRect))
   drawText(t(tkSettingsHudLayoutDesc), (contentX + 40).int32, (contentY + 283).int32,
+           13, LightGray)
+
+  let styleRect = rectOf(ifcHudStyle)
+  drawText(t(tkSettingsHudStyle), (contentX + 40).int32, (contentY + 307).int32, 18, White)
+  drawCycleButton(styleRect, getHudStyleLabel(s.hudStyle),
+                  checkCollisionPointRec(mousePos, styleRect))
+  drawText(t(tkSettingsHudStyleDesc), (contentX + 40).int32, (contentY + 336).int32,
            13, LightGray)
 
   for ic in ifcEnemyLabels .. ifcDebugPanel:
@@ -1444,6 +1465,11 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
 
       if checkCollisionPointRec(mousePos, ifaceRect(ifcHudLayout)):
         settingsWin.settings.hudLayout = nextHudLayout(settingsWin.settings.hudLayout)
+        playSound(stMenuSelect)
+        settingsChanged = true
+
+      if checkCollisionPointRec(mousePos, ifaceRect(ifcHudStyle)):
+        settingsWin.settings.hudStyle = nextHudStyle(settingsWin.settings.hudStyle)
         playSound(stMenuSelect)
         settingsChanged = true
 

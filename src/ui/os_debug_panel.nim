@@ -2,11 +2,13 @@
 ## System diagnostics and performance metrics
 
 import raylib, strutils, math
-import ../types, ../powerup, ../localization, ui_constants, ../render_context, ../powerup_data, icon_drawing, ../utils
+import ../types, ../powerup, ../localization, ui_constants, ../render_context, ../powerup_data, icon_drawing, ../utils, hud_dock
 
 const
   DBG_FULL_W = 200        # classic debug panel width
-  DBG_GUTTER_W = 171      # widescreen: must fit inside the 171px gutter
+  DBG_GUTTER_W = DockCardW  # widescreen (modern): a card of the left dock
+  DBG_LEGACY_GUTTER_W = WidescreenGutterWidth  # widescreen (legacy): the full gutter
+  DBG_LEGACY_GUTTER_Y = 340'i32  # widescreen (legacy): fixed slot below the status panel
   DEBUG_PANEL_PADDING = 3  # Reduced from 4
   DEBUG_PANEL_BORDER = 1
   DEBUG_SECTION_SPACING = 2  # Reduced from 4
@@ -69,27 +71,72 @@ proc getDisplayStats(player: Player): tuple[damage: float32, fireRate: float32, 
     let fireRateBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
     result.fireRate *= (1.0 / fireRateBonus)
 
-proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false) =
-  ## Draw comprehensive debug and diagnostics panel
-  # Widescreen (anchorLeftDefault) lives in the 171px left gutter, so shrink the
-  # panel to fit; classic keeps its full 200px width.
-  debugPanelW = if anchorLeftDefault: DBG_GUTTER_W else: DBG_FULL_W
+proc countActiveTimers(game: Game): int =
+  if game.player.speedBoostTimer > 0: result += 1
+  if game.player.invincibilityTimer > 0: result += 1
+  if game.player.fireRateBoostTimer > 0: result += 1
+  if game.player.magnetTimer > 0: result += 1
+  if game.player.timeWarpActive: result += 1
+  if game.player.phaseShiftInvulnTimer > 0: result += 1
+  if game.player.parryActive: result += 1
+
+proc debugPanelHeight*(game: Game): int32 =
+  ## Height of the expanded panel this frame. Shared by the draw and by the
+  ## widescreen left dock, which stacks the panel above its key hints.
+  result = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 2  # Header (reduced spacing)
+
+  # FPS/Entity row
+  result += 18
+  # upd/draw timing row
+  result += 16
+
+  let activeTimers = countActiveTimers(game)
+  if activeTimers > 0:
+    # separator(3) + header(12) + rows + section spacing
+    result += int32(15 + (activeTimers * DEBUG_LINE_HEIGHT) + DEBUG_SECTION_SPACING)
+
+  # Always show combat stats: separator(4) + header(14) + 3 lines + trailing 6
+  result += int32(18 + (DEBUG_LINE_HEIGHT * 3) + 4 + DEBUG_SECTION_SPACING)
+
+  # Add height for rage/berserker bonuses if applicable
+  let hpPercent = game.player.hp / game.player.maxHp
+  if hpPercent < 0.7 and (hasPowerUp(game.player, puRage) or hasPowerUp(game.player, puBerserker)):
+    var bonusCount = 0
+    if hasPowerUp(game.player, puRage): bonusCount += 1
+    if hasPowerUp(game.player, puBerserker): bonusCount += 1
+    # separator(4) + header(14) + rows
+    result += int32(18 + (bonusCount * DEBUG_LINE_HEIGHT))
+
+  # Real-time stats section - make it compact (only show 2 most important stats)
+  result += int32(11 + (DEBUG_LINE_HEIGHT * 2) + 4)  # Reduced spacing throughout
+
+  # Add bottom padding so text doesn't sit on border
+  result += 3  # Extra pixels at bottom
+
+proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
+                     docked: bool = true) =
+  ## Draw comprehensive debug and diagnostics panel.
+  ## Classic floats it (draggable, minimizable; x/y are ignored in favour of the
+  ## remembered position). Widescreen (anchorLeftDefault) pins it in the left
+  ## band: as a card of the modern dock with its top at `y` when `docked`, or in
+  ## the legacy HUD's fixed full-gutter slot otherwise.
+  let dockCard = anchorLeftDefault and docked
+  debugPanelW = if dockCard: DBG_GUTTER_W
+                elif anchorLeftDefault: DBG_LEGACY_GUTTER_W
+                else: DBG_FULL_W
   # Use stored position - if x is -1, auto-position (right edge, or left edge when
   # anchorLeftDefault so the Border HUD layout keeps it clear of the left panel).
   let sentinelX = debugPanelPos.x < 0
   # Sizes come from the viewport, not game.screenWidth (the fixed 1024 world):
   # this panel is drawn inside the HUD's UI-scale layer, where the viewport is
   # that layer's logical size and the world's width means nothing.
-  let actualX = if sentinelX:
-    (if anchorLeftDefault: 0.0'f32
-     else: getVirtualScreenWidth().float32 - debugPanelW.float32)
-  else:
-    debugPanelPos.x
+  let pinnedX = if dockCard: DockMargin else: 0'i32
+  let pinnedY = if dockCard: y else: DBG_LEGACY_GUTTER_Y
+  let actualX = if anchorLeftDefault: pinnedX.float32
+                elif sentinelX: getVirtualScreenWidth().float32 - debugPanelW.float32
+                else: debugPanelPos.x
 
-  var yOffset = if sentinelX and anchorLeftDefault:
-    max(debugPanelPos.y.int32, 340'i32)
-  else:
-    debugPanelPos.y.int32
+  var yOffset = if anchorLeftDefault: pinnedY else: debugPanelPos.y.int32
   var finalPanelX = actualX.int32
 
   # Handle dragging
@@ -141,17 +188,12 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false) =
     else:
       debugPanelDragging = false
 
-  # Update positions after potential dragging. Widescreen pins the panel to a
-  # fixed slot in the left gutter (below the border HUD status column).
+  # Update positions after potential dragging. Widescreen pins the panel to
+  # the slot the left dock handed it.
   let sentinelX2 = debugPanelPos.x < 0
-  yOffset = if anchorLeftDefault:
-    340'i32
-  elif sentinelX2:
-    debugPanelPos.y.int32
-  else:
-    debugPanelPos.y.int32
+  yOffset = if anchorLeftDefault: pinnedY else: debugPanelPos.y.int32
   finalPanelX = if anchorLeftDefault:
-    0'i32
+    pinnedX
   elif sentinelX2:
     getVirtualScreenWidth() - debugPanelW
   else:
@@ -192,74 +234,41 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false) =
 
     return  # Don't draw rest of panel
 
-  # Calculate panel height based on content - COMPACT version
-  var contentHeight: int32 = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 2  # Header (reduced spacing)
-
-  # FPS/Entity row
-  contentHeight += 18
-  # upd/draw timing row
-  contentHeight += 16
-
-  # Add height for active timers
-  var activeTimers = 0
-  if game.player.speedBoostTimer > 0: activeTimers += 1
-  if game.player.invincibilityTimer > 0: activeTimers += 1
-  if game.player.fireRateBoostTimer > 0: activeTimers += 1
-  if game.player.magnetTimer > 0: activeTimers += 1
-  if game.player.timeWarpActive: activeTimers += 1
-  if game.player.phaseShiftInvulnTimer > 0: activeTimers += 1
-  if game.player.parryActive: activeTimers += 1
-
-  if activeTimers > 0:
-    # separator(3) + header(12) + rows + section spacing
-    contentHeight += int32(15 + (activeTimers * DEBUG_LINE_HEIGHT) + DEBUG_SECTION_SPACING)
-
-  # Always show combat stats: separator(4) + header(14) + 3 lines + trailing 6
-  contentHeight += int32(18 + (DEBUG_LINE_HEIGHT * 3) + 4 + DEBUG_SECTION_SPACING)
-
-  # Add height for rage/berserker bonuses if applicable
+  let contentHeight = debugPanelHeight(game)
+  let activeTimers = countActiveTimers(game)
   let hpPercent = game.player.hp / game.player.maxHp
-  if hpPercent < 0.7 and (hasPowerUp(game.player, puRage) or hasPowerUp(game.player, puBerserker)):
-    var bonusCount = 0
-    if hasPowerUp(game.player, puRage): bonusCount += 1
-    if hasPowerUp(game.player, puBerserker): bonusCount += 1
-    # separator(4) + header(14) + rows
-    contentHeight += int32(18 + (bonusCount * DEBUG_LINE_HEIGHT))
 
-  var dopamineLines = 0
-  # Streak mechanic removed
-  if dopamineLines > 0:
-    contentHeight += int32(12 + (DEBUG_LINE_HEIGHT * dopamineLines) + 3)  # Reduced spacing
+  if dockCard:
+    # A card of the left dock, like the STATUS and PROCESSES cards above it.
+    drawDockCard(finalPanelX, yOffset, debugPanelW, contentHeight)
+  else:
+    # Main panel background with gradient effect (matching other panels)
+    drawRectangle(finalPanelX, yOffset, debugPanelW, contentHeight,
+                 Color(r: 5, g: 15, b: 25, a: 45))
 
-  # Real-time stats section - make it compact (only show 2 most important stats)
-  contentHeight += int32(11 + (DEBUG_LINE_HEIGHT * 2) + 4)  # Reduced spacing throughout
+    # Cyan accent stripe (left edge in the legacy gutter, to match its status panel).
+    drawRectangle((if anchorLeftDefault: finalPanelX else: finalPanelX + debugPanelW - 2),
+                 yOffset, 2, contentHeight,
+                 Color(r: 0, g: 220, b: 255, a: 180))
 
-  # Add bottom padding so text doesn't sit on border
-  contentHeight += 3  # Extra pixels at bottom
-
-  # Main panel background with gradient effect (matching other panels)
-  drawRectangle(finalPanelX, yOffset, debugPanelW, contentHeight,
-               Color(r: 5, g: 15, b: 25, a: 45))
-
-  # Cyan accent stripe (left edge in widescreen to match the border HUD column).
-  drawRectangle((if anchorLeftDefault: finalPanelX else: finalPanelX + debugPanelW - 2),
-               yOffset, 2, contentHeight,
-               Color(r: 0, g: 220, b: 255, a: 180))
-
-  # Panel border with glow effect (cyan theme matching other panels)
-  drawRectangleLines(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
-                                width: debugPanelW.float32, height: contentHeight.float32),
-                    DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
+    # Panel border with glow effect (cyan theme matching other panels)
+    drawRectangleLines(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
+                                  width: debugPanelW.float32, height: contentHeight.float32),
+                      DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
 
   yOffset += DEBUG_PANEL_PADDING
 
   # SYSTEM DIAGNOSTICS HEADER
-  # Section header bar - same treatment as the border HUD status headers.
-  drawRectangle(finalPanelX, yOffset, debugPanelW - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
-
-  drawText(t(tkDebugPanelDiagnostics), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
-          Color(r: 0, g: 0, b: 0, a: 140))
-  drawText(t(tkDebugPanelDiagnostics), finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
+  if dockCard:
+    # The dock's title strip, flush with the card top like the cards above it.
+    drawDockHeader(finalPanelX, yOffset - DEBUG_PANEL_PADDING, debugPanelW,
+                   t(tkDebugPanelDiagnostics))
+  else:
+    # Section header bar - same treatment as the classic status header.
+    drawRectangle(finalPanelX, yOffset, debugPanelW - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
+    drawText(t(tkDebugPanelDiagnostics), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText(t(tkDebugPanelDiagnostics), finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
 
   # Draw minimize icon (horizontal line) - classic only; widescreen is a plain
   # non-interactive section, so it carries no window affordances.
@@ -608,9 +617,9 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false) =
           1, Color(r: 100, g: 200, b: 255, a: 100))
   yOffset += 3
 
-  drawText(t("debug_panel_run_stats") & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 9,
+  drawText(t(tkDebugPanelRunStats), finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 9,
           Color(r: 0, g: 0, b: 0, a: 130))
-  drawText(t("debug_panel_run_stats") & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
+  drawText(t(tkDebugPanelRunStats), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
           Color(r: 200, g: 220, b: 240, a: 255))
   yOffset += 11
 
@@ -647,44 +656,55 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false) =
   drawText(cpmText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 51,
           yOffset, 9, Color(r: 255, g: 215, b: 0, a: 255))
 
-proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
-                                 alignRightGutter: bool = false) =
-  ## Draw compact legendary Q ability cooldown strip.
-  ## Widescreen (alignRightGutter): 2-column vertical grid confined to the
-  ## right gutter. Classic: single horizontal row (unchanged).
-  var panelWidth: int32 = 220
-
-  # Check if player has any power-ups shown in the legendary panel
-  var hasAnyLegendary = false
-  for pt in legendaryPanelTypes:
-    if hasPowerUp(game.player, pt):
-      hasAnyLegendary = true
-      break
-
-  if not hasAnyLegendary:
-    return
-
-  var abilities: seq[PowerUp] = @[]
+proc legendaryAbilities(game: Game): seq[PowerUp] =
+  ## Installed power-ups that live on the [Q] strip, in install order.
   for powerUp in game.player.powerUps:
-    for pt in legendaryPanelTypes:
-      if powerUp.powerType == pt:
-        abilities.add(powerUp)
-        break
+    if powerUp.powerType in legendaryPanelTypes:
+      result.add(powerUp)
+
+proc legendaryGridCols(shownCount: int, alignRightGutter, docked: bool): int32 =
+  ## Modern widescreen dock: up to four to a row, which is what the card fits.
+  ## Legacy widescreen gutter: two to a row. Classic: a single horizontal row.
+  if alignRightGutter: min(shownCount, if docked: 4 else: 2).int32
+  else: shownCount.int32
+
+proc legendaryExpandedHeight(count: int, alignRightGutter, docked: bool): int32 =
+  let shownCount = min(count, 7)
+  let cols = legendaryGridCols(shownCount, alignRightGutter, docked)
+  let rows = (shownCount.int32 + cols - 1) div cols
+  let iconsBlockH = rows * LEGENDARY_Q_ICON_SIZE + (rows - 1) * LEGENDARY_Q_ICON_GAP
+  (DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 9 +
+   iconsBlockH + LEGENDARY_Q_FOOTER_HEIGHT).int32
+
+proc legendaryPanelHeight*(game: Game, alignRightGutter: bool, docked: bool = true): int32 =
+  ## Height the [Q] strip occupies this frame (0 when there is nothing on it).
+  ## The modern widescreen dock stacks its combo card on top of it.
+  let count = legendaryAbilities(game).len
+  if count == 0:
+    return 0
+  if legendaryPanelMinimized:
+    return DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT
+  legendaryExpandedHeight(count, alignRightGutter, docked)
+
+proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
+                                 alignRightGutter: bool = false, docked: bool = true) =
+  ## Draw compact legendary Q ability cooldown strip.
+  ## Widescreen (alignRightGutter): fixed at the bottom of the right band -- a
+  ## card of the modern dock, four icons to a row, when `docked`; the legacy
+  ## two-column strip otherwise. Classic: a draggable single horizontal row.
+  let abilities = legendaryAbilities(game)
   if abilities.len == 0:
     return
 
+  let dockCard = alignRightGutter and docked
   let shownCount = min(abilities.len, 7)
-  let cols: int32 = if alignRightGutter: 2'i32 else: shownCount.int32
-  let rows: int32 = (shownCount.int32 + cols - 1) div cols
+  let cols = legendaryGridCols(shownCount, alignRightGutter, docked)
+  let rows = (shownCount.int32 + cols - 1) div cols
   let gridWidth = cols * LEGENDARY_Q_ICON_SIZE + (cols - 1) * LEGENDARY_Q_ICON_GAP
   let iconsBlockH = rows * LEGENDARY_Q_ICON_SIZE + (rows - 1) * LEGENDARY_Q_ICON_GAP
-  panelWidth = if alignRightGutter:
-    163'i32
-  else:
-    max(178'i32, gridWidth + LEGENDARY_Q_PADDING * 2 + 10)
-  let qContentHeight: int32 =
-    (DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 9 +
-     iconsBlockH + LEGENDARY_Q_FOOTER_HEIGHT).int32
+  let panelWidth = if alignRightGutter: DockCardW
+                   else: max(178'i32, gridWidth + LEGENDARY_Q_PADDING * 2 + 10)
+  let qContentHeight = legendaryExpandedHeight(abilities.len, alignRightGutter, docked)
 
   var readyCount = 0
   for powerUp in abilities:
@@ -712,12 +732,15 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
   let rightGutterX = screenWidth - WidescreenGutterWidth
   # Widescreen: a FIXED right-gutter section, ignoring any stored drag position.
   var actualX: int32 = if alignRightGutter:
-    rightGutterX + 4'i32
+    rightGutterX + DockMargin
   elif legendaryPanelPos.x < 0:
     screenWidth - panelWidth - 10'i32
   else:
     legendaryPanelPos.x.int32
-  var actualY: int32 = if alignRightGutter:
+  var actualY: int32 = if dockCard:
+    # Sits on the band's bottom edge whether expanded or minimized.
+    screenHeight - legendaryPanelHeight(game, alignRightGutter, docked) - DockMargin
+  elif alignRightGutter:
     screenHeight - qContentHeight - 10'i32
   elif legendaryPanelPos.y < 0:
     screenHeight - qContentHeight - 10'i32  # Default bottom position
@@ -774,6 +797,26 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     else:
       legendaryPanelDragging = false
 
+  let countText = $readyCount & "/" & $abilities.len
+  const gold = Color(r: 255, g: 215, b: 80, a: 255)
+  if dockCard:
+    # A card of the right dock: the dock's frame and title strip in gold, with
+    # the window glyph (minimize / restore) at the right of the strip.
+    drawDockCard(actualX, actualY, panelWidth, qContentHeight, gold,
+                 Color(r: 16, g: 14, b: 8, a: 232))
+    drawDockHeader(actualX, actualY, panelWidth, "[Q] " & t(tkDebugPanelAbilities), gold)
+    let countW = measureText(countText, 10)
+    drawShadowText(countText, actualX + panelWidth - DockPad - 18 - countW, actualY + 3, 10,
+                   Color(r: 255, g: 238, b: 170, a: 235))
+    let glyphX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
+    if legendaryPanelMinimized:
+      drawRectangleLines(Rectangle(x: glyphX.float32, y: (actualY + 3).float32, width: 10, height: 10),
+                         1, Color(r: 255, g: 230, b: 145, a: 255))
+      return
+    drawLine(Vector2(x: glyphX.float32, y: (actualY + 8).float32),
+             Vector2(x: (glyphX + 10).float32, y: (actualY + 8).float32),
+             2, Color(r: 255, g: 230, b: 145, a: 255))
+
   # If minimized, only draw header bar
   if legendaryPanelMinimized:
     drawRectangle(actualX, actualY, panelWidth, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
@@ -791,7 +834,6 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
             Color(r: 0, g: 0, b: 0, a: 140))
     drawText("[Q] " & t(tkDebugPanelAbilities), actualX + DEBUG_PANEL_PADDING + 4, qYOffset + 2, 11,
             Color(r: 255, g: 230, b: 145, a: 255))
-    let countText = $readyCount & "/" & $abilities.len
     let countW = measureText(countText, 10)
     drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW,
              qYOffset + 2, 10, Color(r: 255, g: 238, b: 170, a: 230))
@@ -801,35 +843,35 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
                       1, Color(r: 255, g: 230, b: 145, a: 255))
     return
 
-  drawRectangle(actualX, actualY, panelWidth, qContentHeight,
-                Color(r: 5, g: 15, b: 25, a: 58))
-  drawRectangle(actualX, actualY + qContentHeight - 1, panelWidth, 1,
-                Color(r: 255, g: 215, b: 80, a: 95))
-  drawRectangle(actualX + panelWidth - 2, actualY, 2, qContentHeight,
-                Color(r: 255, g: 215, b: 80, a: 165))
-  drawRectangleLines(Rectangle(x: actualX.float32, y: actualY.float32,
-                                width: panelWidth.float32, height: qContentHeight.float32),
-                    DEBUG_PANEL_BORDER, Color(r: 255, g: 215, b: 80, a: 75))
-
   var qYOffset = actualY + DEBUG_PANEL_PADDING
-  drawRectangle(actualX, qYOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT,
-                Color(r: 120, g: 86, b: 0, a: 55))
-  drawText("[Q] " & t(tkDebugPanelAbilities), actualX + DEBUG_PANEL_PADDING + 5, qYOffset + 3, 11,
-          Color(r: 0, g: 0, b: 0, a: 140))
-  drawText("[Q] " & t(tkDebugPanelAbilities), actualX + DEBUG_PANEL_PADDING + 4, qYOffset + 2, 11,
-          Color(r: 255, g: 230, b: 145, a: 255))
-  let countText = $readyCount & "/" & $abilities.len
-  let countW = measureText(countText, 10)
-  drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW + 1,
-           qYOffset + 3, 10, Color(r: 0, g: 0, b: 0, a: 130))
-  drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW,
-           qYOffset + 2, 10, Color(r: 255, g: 238, b: 170, a: 235))
+  if not dockCard:
+    drawRectangle(actualX, actualY, panelWidth, qContentHeight,
+                  Color(r: 5, g: 15, b: 25, a: 58))
+    drawRectangle(actualX, actualY + qContentHeight - 1, panelWidth, 1,
+                  Color(r: 255, g: 215, b: 80, a: 95))
+    drawRectangle(actualX + panelWidth - 2, actualY, 2, qContentHeight,
+                  Color(r: 255, g: 215, b: 80, a: 165))
+    drawRectangleLines(Rectangle(x: actualX.float32, y: actualY.float32,
+                                  width: panelWidth.float32, height: qContentHeight.float32),
+                      DEBUG_PANEL_BORDER, Color(r: 255, g: 215, b: 80, a: 75))
 
-  let miniIconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
-  let miniIconY = qYOffset + 9
-  drawLine(Vector2(x: miniIconX.float32, y: miniIconY.float32),
-          Vector2(x: (miniIconX + 10).float32, y: miniIconY.float32),
-          2, Color(r: 255, g: 230, b: 145, a: 255))
+    drawRectangle(actualX, qYOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT,
+                  Color(r: 120, g: 86, b: 0, a: 55))
+    drawText("[Q] " & t(tkDebugPanelAbilities), actualX + DEBUG_PANEL_PADDING + 5, qYOffset + 3, 11,
+            Color(r: 0, g: 0, b: 0, a: 140))
+    drawText("[Q] " & t(tkDebugPanelAbilities), actualX + DEBUG_PANEL_PADDING + 4, qYOffset + 2, 11,
+            Color(r: 255, g: 230, b: 145, a: 255))
+    let countW = measureText(countText, 10)
+    drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW + 1,
+             qYOffset + 3, 10, Color(r: 0, g: 0, b: 0, a: 130))
+    drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW,
+             qYOffset + 2, 10, Color(r: 255, g: 238, b: 170, a: 235))
+
+    let miniIconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
+    let miniIconY = qYOffset + 9
+    drawLine(Vector2(x: miniIconX.float32, y: miniIconY.float32),
+            Vector2(x: (miniIconX + 10).float32, y: miniIconY.float32),
+            2, Color(r: 255, g: 230, b: 145, a: 255))
 
   qYOffset += DEBUG_TITLE_HEIGHT + 6
   let iconsTop = qYOffset
