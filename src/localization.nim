@@ -1118,6 +1118,73 @@ type
     tkPvPTeamPurple = "pvp_team_purple"
     tkPvPTeamNone = "pvp_team_none"
 
+    # PvP arena packages (ports & pickups)
+    tkPvPPkgChkdsk = "pvp_pkg_chkdsk"
+    tkPvPPkgFirewall = "pvp_pkg_firewall"
+    tkPvPPkgTurbo = "pvp_pkg_turbo"
+    tkPvPPkgOverclock = "pvp_pkg_overclock"
+    tkPvPPkgFork = "pvp_pkg_fork"
+    tkPvPPkgChkdskBlurb = "pvp_pkg_chkdsk_blurb"
+    tkPvPPkgFirewallBlurb = "pvp_pkg_firewall_blurb"
+    tkPvPPkgTurboBlurb = "pvp_pkg_turbo_blurb"
+    tkPvPPkgOverclockBlurb = "pvp_pkg_overclock_blurb"
+    tkPvPPkgForkBlurb = "pvp_pkg_fork_blurb"
+    tkPvPPortIncoming = "pvp_port_incoming"
+    tkPvPStatPackages = "pvp_stat_packages"
+    tkPvPValueOn = "pvp_value_on"
+
+    # PvP callouts (kill streaks / multi-kills)
+    tkPvPCallFirstBlood = "pvp_call_first_blood"
+    tkPvPCallDouble = "pvp_call_double"
+    tkPvPCallTriple = "pvp_call_triple"
+    tkPvPCallStreak3 = "pvp_call_streak3"
+    tkPvPCallStreak5 = "pvp_call_streak5"
+    tkPvPCallStreak7 = "pvp_call_streak7"
+    tkPvPCallShutdown = "pvp_call_shutdown"
+
+    # PvP in-match HUD
+    tkPvPFeedLeft = "pvp_feed_left"
+    tkPvPTerminatedBy = "pvp_terminated_by"
+    tkPvPRespawningIn = "pvp_respawning_in"
+    tkPvPWallsLabel = "pvp_walls_label"
+    tkPvPPlaceMode = "pvp_place_mode"
+    tkPvPYouMarker = "pvp_you_marker"
+    tkPvPYouDisconnected = "pvp_you_disconnected"
+    tkPvPHintWall = "pvp_hint_wall"
+    tkPvPHintScores = "pvp_hint_scores"
+
+    # PvP scoreboard / match end
+    tkPvPBoardTitle = "pvp_board_title"
+    tkPvPBoardPlayer = "pvp_board_player"
+    tkPvPBoardKills = "pvp_board_kills"
+    tkPvPBoardDeaths = "pvp_board_deaths"
+    tkPvPBoardStreak = "pvp_board_streak"
+    tkPvPBoardBest = "pvp_board_best"
+    tkPvPBoardAcc = "pvp_board_acc"
+    tkPvPBoardDmg = "pvp_board_dmg"
+    tkPvPAwardSharpshooter = "pvp_award_sharpshooter"
+    tkPvPAwardSharpshooterDesc = "pvp_award_sharpshooter_desc"
+    tkPvPAwardUnkillable = "pvp_award_unkillable"
+    tkPvPAwardUnkillableDesc = "pvp_award_unkillable_desc"
+    tkPvPAwardHoarder = "pvp_award_hoarder"
+    tkPvPAwardHoarderDesc = "pvp_award_hoarder_desc"
+    tkPvPAwardUptime = "pvp_award_uptime"
+    tkPvPAwardUptimeDesc = "pvp_award_uptime_desc"
+    tkPvPResultWin = "pvp_result_win"
+    tkPvPResultLose = "pvp_result_lose"
+    tkPvPResultDraw = "pvp_result_draw"
+    tkPvPResultTeamWin = "pvp_result_team_win"
+    tkPvPResultTeamOther = "pvp_result_team_other"
+    tkPvPEndTimeLimit = "pvp_end_time_limit"
+    tkPvPEndOpponentDisconnected = "pvp_end_opponent_disconnected"
+    tkPvPEndOpponentForfeited = "pvp_end_opponent_forfeited"
+    tkPvPEndLastStanding = "pvp_end_last_standing"
+    tkPvPEndHostLeft = "pvp_end_host_left"
+    tkPvPPromptRematch = "pvp_prompt_rematch"
+    tkPvPPromptLeave = "pvp_prompt_leave"
+    tkPvPWaitingHost = "pvp_waiting_host"
+    tkPvPRematchNeedsPlayers = "pvp_rematch_needs_players"
+
     # Play Styles
     tkStatsPlayStyleAggressive = "stats_play_style_aggressive"
     tkStatsPlayStyleDefensive = "stats_play_style_defensive"
@@ -2922,6 +2989,73 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_team_orange": "Orange",
     "pvp_team_purple": "Purple",
     "pvp_team_none": "None",
+
+    # PvP arena packages
+    "pvp_pkg_chkdsk": "CHKDSK.EXE",
+    "pvp_pkg_firewall": "FIREWALL.SYS",
+    "pvp_pkg_turbo": "TURBO.DLL",
+    "pvp_pkg_overclock": "OVERCLOCK.SYS",
+    "pvp_pkg_fork": "FORK.EXE",
+    "pvp_pkg_chkdsk_blurb": "integrity restored",
+    "pvp_pkg_firewall_blurb": "blocks the next hit",
+    "pvp_pkg_turbo_blurb": "move speed x1.4",
+    "pvp_pkg_overclock_blurb": "fire rate x2",
+    "pvp_pkg_fork_blurb": "triple shot",
+    "pvp_port_incoming": "INCOMING",
+    "pvp_stat_packages": "PACKAGES",
+    "pvp_value_on": "ON",
+
+    # PvP callouts
+    "pvp_call_first_blood": "FIRST CRASH",
+    "pvp_call_double": "DOUBLE FAULT",
+    "pvp_call_triple": "TRIPLE FAULT",
+    "pvp_call_streak3": "PRIVILEGE ESCALATION",
+    "pvp_call_streak5": "ROOT ACCESS",
+    "pvp_call_streak7": "KERNEL MODE",
+    "pvp_call_shutdown": "SHUTDOWN",
+
+    # PvP in-match HUD
+    "pvp_feed_left": "left the match",
+    "pvp_terminated_by": "TERMINATED BY",
+    "pvp_respawning_in": "Respawning in",
+    "pvp_walls_label": "Walls",
+    "pvp_place_mode": "PLACE MODE",
+    "pvp_you_marker": "YOU",
+    "pvp_you_disconnected": "You disconnected",
+    "pvp_hint_wall": "Wall",
+    "pvp_hint_scores": "Scores",
+
+    # PvP scoreboard / match end
+    "pvp_board_title": "PROCESS TABLE",
+    "pvp_board_player": "PLAYER",
+    "pvp_board_kills": "KILLS",
+    "pvp_board_deaths": "DEATHS",
+    "pvp_board_streak": "STREAK",
+    "pvp_board_best": "BEST",
+    "pvp_board_acc": "ACC",
+    "pvp_board_dmg": "DMG",
+    "pvp_award_sharpshooter": "SHARPSHOOTER",
+    "pvp_award_sharpshooter_desc": "best accuracy",
+    "pvp_award_unkillable": "UNKILLABLE",
+    "pvp_award_unkillable_desc": "fewest deaths",
+    "pvp_award_hoarder": "HOARDER",
+    "pvp_award_hoarder_desc": "most packages",
+    "pvp_award_uptime": "LONGEST UPTIME",
+    "pvp_award_uptime_desc": "best streak",
+    "pvp_result_win": "YOU WIN!",
+    "pvp_result_lose": "YOU LOSE!",
+    "pvp_result_draw": "DRAW!",
+    "pvp_result_team_win": "YOUR TEAM WINS!",
+    "pvp_result_team_other": "TEAM {team} WINS!",
+    "pvp_end_time_limit": "Time limit reached",
+    "pvp_end_opponent_disconnected": "Opponent disconnected",
+    "pvp_end_opponent_forfeited": "Opponent forfeited",
+    "pvp_end_last_standing": "Last process standing",
+    "pvp_end_host_left": "The host left the match",
+    "pvp_prompt_rematch": "Rematch",
+    "pvp_prompt_leave": "Leave",
+    "pvp_waiting_host": "Waiting for the host to start a rematch...",
+    "pvp_rematch_needs_players": "A rematch needs at least 2 players",
 
     "stats_no_powerups_selected": "No power-ups selected",
     "stats_controls_footer": "[TAB/ESC] Return  [R] Restart  [Q] Menu",
@@ -4820,6 +4954,73 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_team_orange": "Naranja",
     "pvp_team_purple": "Púrpura",
     "pvp_team_none": "Ninguno",
+
+    # PvP arena packages
+    "pvp_pkg_chkdsk": "CHKDSK.EXE",
+    "pvp_pkg_firewall": "FIREWALL.SYS",
+    "pvp_pkg_turbo": "TURBO.DLL",
+    "pvp_pkg_overclock": "OVERCLOCK.SYS",
+    "pvp_pkg_fork": "FORK.EXE",
+    "pvp_pkg_chkdsk_blurb": "integridad restaurada",
+    "pvp_pkg_firewall_blurb": "bloquea el próximo impacto",
+    "pvp_pkg_turbo_blurb": "velocidad x1.4",
+    "pvp_pkg_overclock_blurb": "cadencia de fuego x2",
+    "pvp_pkg_fork_blurb": "disparo triple",
+    "pvp_port_incoming": "ENTRANTE",
+    "pvp_stat_packages": "PAQUETES",
+    "pvp_value_on": "ON",
+
+    # PvP callouts
+    "pvp_call_first_blood": "PRIMER CRASH",
+    "pvp_call_double": "DOBLE FALLO",
+    "pvp_call_triple": "TRIPLE FALLO",
+    "pvp_call_streak3": "ESCALADA DE PRIVILEGIOS",
+    "pvp_call_streak5": "ACCESO ROOT",
+    "pvp_call_streak7": "MODO KERNEL",
+    "pvp_call_shutdown": "APAGADO",
+
+    # PvP in-match HUD
+    "pvp_feed_left": "abandonó la partida",
+    "pvp_terminated_by": "TERMINADO POR",
+    "pvp_respawning_in": "Reapareciendo en",
+    "pvp_walls_label": "Muros",
+    "pvp_place_mode": "MODO COLOCAR",
+    "pvp_you_marker": "TÚ",
+    "pvp_you_disconnected": "Te desconectaste",
+    "pvp_hint_wall": "Muro",
+    "pvp_hint_scores": "Marcador",
+
+    # PvP scoreboard / match end
+    "pvp_board_title": "TABLA DE PROCESOS",
+    "pvp_board_player": "JUGADOR",
+    "pvp_board_kills": "BAJAS",
+    "pvp_board_deaths": "MUERTES",
+    "pvp_board_streak": "RACHA",
+    "pvp_board_best": "MEJOR",
+    "pvp_board_acc": "PREC",
+    "pvp_board_dmg": "DAÑO",
+    "pvp_award_sharpshooter": "FRANCOTIRADOR",
+    "pvp_award_sharpshooter_desc": "mejor precisión",
+    "pvp_award_unkillable": "INMORTAL",
+    "pvp_award_unkillable_desc": "menos muertes",
+    "pvp_award_hoarder": "ACAPARADOR",
+    "pvp_award_hoarder_desc": "más paquetes",
+    "pvp_award_uptime": "MAYOR UPTIME",
+    "pvp_award_uptime_desc": "mejor racha",
+    "pvp_result_win": "¡GANASTE!",
+    "pvp_result_lose": "¡PERDISTE!",
+    "pvp_result_draw": "¡EMPATE!",
+    "pvp_result_team_win": "¡TU EQUIPO GANA!",
+    "pvp_result_team_other": "¡GANA EL EQUIPO {team}!",
+    "pvp_end_time_limit": "Se acabó el tiempo",
+    "pvp_end_opponent_disconnected": "El rival se desconectó",
+    "pvp_end_opponent_forfeited": "El rival abandonó",
+    "pvp_end_last_standing": "Último proceso en pie",
+    "pvp_end_host_left": "El anfitrión abandonó la partida",
+    "pvp_prompt_rematch": "Revancha",
+    "pvp_prompt_leave": "Salir",
+    "pvp_waiting_host": "Esperando a que el anfitrión inicie la revancha...",
+    "pvp_rematch_needs_players": "La revancha necesita al menos 2 jugadores",
 
     # Lifetime Stats Labels
     "stats_no_powerups_selected": "Sin mejoras seleccionadas",

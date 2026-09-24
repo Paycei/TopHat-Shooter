@@ -199,6 +199,7 @@ type
     timeLimit*: float32     ## Match time limit in seconds, 0 = unlimited (default 180)
     snapshotRate*: float32  ## Seconds between server->client state snapshots
     inputRate*: float32     ## Seconds between client->server input packets
+    pickupsEnabled*: bool   ## Arena ports drop packages (default true)
 
   EnemyType* = enum
     etCircle,      # Normal chasers
@@ -2184,7 +2185,8 @@ proc defaultPvPConfig*(): PvPConfig =
     respawnTime: 3.0,
     timeLimit: 180.0,
     snapshotRate: 1.0 / 32.0,   # 32 ticks (Medium)
-    inputRate: 1.0 / 32.0       # match snapshot tick rate
+    inputRate: 1.0 / 32.0,      # match snapshot tick rate
+    pickupsEnabled: true
   )
 
 # Bullet-speed diminishing returns

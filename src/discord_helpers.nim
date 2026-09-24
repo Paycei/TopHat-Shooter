@@ -134,7 +134,7 @@ proc updateDiscordForPvP*(client: DiscordClient, pvpGame: PvPGameState) =
       hoverText = &"{PresenceAppName} | Match complete"
     else:
       detailsText = modeText
-      stateText = pvpGame.gameOverReason
+      stateText = if pvpGame.endReason == erHostLeft: "Host left" else: "Draw"
       hoverText = &"{PresenceAppName} | Match complete"
 
   elif pvpGame.isCountingDown:

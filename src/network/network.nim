@@ -5,8 +5,11 @@ import network_types, ../types
 
 const
   DEFAULT_PORT* = 7777
-  MAX_PACKET_SIZE = 8192
-  NETWORK_VERSION* = "2.1.0"
+  # Receive buffer only (the largest UDP payload). Snapshots carry every live
+  # bullet, and a busy match with FORK.EXE triple shots can pass 8 KB; a smaller
+  # buffer silently truncated those datagrams and they failed to deserialize.
+  MAX_PACKET_SIZE = 65507
+  NETWORK_VERSION* = "2.2.0"
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 100
   PACKET_MAGIC = "THS1"

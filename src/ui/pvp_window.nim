@@ -986,6 +986,12 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       t(tkPvPStatNetQuality), netQualityStr,
       canPrevNet, canNextNet)
 
+    # Arena packages on/off: either button flips it
+    drawStatCell(contentX + 10 + colW * 2, row3Y,
+      t(tkPvPStatPackages),
+      if pvpWin.pvpConfig.pickupsEnabled: t(tkPvPValueOn) else: t(tkPvPValueOff),
+      true, true)
+
     # END GAME STATS
 
     # Buttons
@@ -1465,6 +1471,13 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       let next = min(netPresets.len - 1, curPreset + 1)
       pvpWin.pvpConfig.snapshotRate = netPresets[next][0]
       pvpWin.pvpConfig.inputRate    = netPresets[next][1]
+
+    # Packages toggle, col 2 of the same row: - and + both flip it
+    let pkgColX = contentX + 10 + colWc * 2
+    if my >= ctrlY3.float32 and my <= (ctrlY3 + 22).float32 and
+       ((mx >= pkgColX.float32 and mx <= (pkgColX + 22).float32) or
+        (mx >= (pkgColX + colWc - 24).float32 and mx <= (pkgColX + colWc - 2).float32)):
+      pvpWin.pvpConfig.pickupsEnabled = not pvpWin.pvpConfig.pickupsEnabled
 
     # END GAME STATS click handling
 
