@@ -568,6 +568,15 @@ let changelog: seq[ChangelogVersion] = @[
           "Los combates de SERVICIO tienen un 25% menos de vida para compensar la antigua tienda de estadísticas.",
           "Caché de Instalación ahora hace gratis el primer reroll de cada elección. Parche de Emergencia ahora bloquea el primer golpe en cada sala de SERVICIO y restaura un 25% de integridad al apagar uno.")),
       ChangelogEntry(category: clcBalance,
+        headEn: "CORRUPT_CORE.dll nerfed",
+        headEs: "NÚCLEO_CORRUPTO.dll debilitado",
+        en: points(
+          "Elite kills now grant +10 / +15 / +20 max HP (was +100 / +150 / +200) and no longer heal you for that amount.",
+          "The HP it grants no longer counts as invested HP, so Juggernaut can't convert it."),
+        es: points(
+          "Eliminar élites ahora otorga +10 / +15 / +20 HP máximo (antes +100 / +150 / +200) y ya no te cura esa cantidad.",
+          "El HP que otorga ya no cuenta como HP invertido, así que Juggernaut no puede convertirlo.")),
+      ChangelogEntry(category: clcBalance,
         headEn: "Waves are crowds",
         headEs: "Las oleadas son multitudes",
         en: points(

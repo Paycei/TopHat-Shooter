@@ -840,7 +840,7 @@ type
     adaptiveFirewallTimer*: float32  # Fire rate boost duration after taking damage (AdaptiveFirewall)
     killChainCount*: int             # Consecutive kill counter for KillChain
     killChainTimer*: float32         # Window timer for KillChain kill streak
-    corruptedCoreHpAcc*: float32     # Fractional max-HP accumulator for CorruptedCore
+    corruptedCoreHpAcc*: float32     # Max HP CorruptedCore has granted this run
     roomEchoCharges*: int            # Charged bullets remaining from RoomEcho
     rapidFireSpinup*: float32        # [0,1] minigun spin-up from sustained fire (RapidFire legendary)
     # Roguelite patches (player-facing name for RogueliteRelicType). The run's

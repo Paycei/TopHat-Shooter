@@ -530,7 +530,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.killChainCount = 0
     player.killChainTimer = 0
   of puCorruptedCore:
-    player.corruptedCoreHpAcc = 0
+    discard  # Run total in corruptedCoreHpAcc; kept across level-ups
   of puRoomEcho:
     discard  # Charges granted on room clear in game.nim
   of puChainReaction:

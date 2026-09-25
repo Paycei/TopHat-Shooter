@@ -3102,15 +3102,19 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
           game.coins.add(newCoin(clampedPos.x, clampedPos.y))
 
-      # CorruptedCore: elite kills grant max HP
+      # CorruptedCore: elite kills grant a small, uncapped max-HP bump. It does
+      # NOT heal: the old +1.0-2.0 grant doubled as a heal and, with max HP also
+      # feeding damage scaling, snowballed into a stat stick. The grant counts
+      # as baseline HP so Juggernaut never converts it.
       if hasPowerUp(game.player, puCorruptedCore) and enemy.isElite and not enemy.isBoss:
         let ccLevel = getPowerUpLevel(game.player, puCorruptedCore)
         let hpGain = case ccLevel
-          of 1: 1.0'f32
-          of 2: 1.5'f32
-          else: 2.0'f32
+          of 1: 0.10'f32
+          of 2: 0.15'f32
+          else: 0.20'f32
+        game.player.corruptedCoreHpAcc += hpGain
         game.player.maxHp += hpGain
-        trackHealing(game, puCorruptedCore, hpGain, heal(game.player, hpGain))
+        game.player.baselineMaxHp += hpGain  # Automatic gain: never feeds Juggernaut
         spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                              Color(r: 120, g: 255, b: 120, a: 255), 20)
         showDamage(game, game.player.pos, hpGain, true, false, dtHeal)
