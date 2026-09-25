@@ -251,8 +251,8 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       # flood spawn, legacy process, or the Root), lore line. One roster per
       # mode; the Omega Entity closes each with that mode's kit.
       for (header, first, last) in [(tkHelpRosterWave, 1, 12),
-                                    (tkHelpRosterSurvival, BossForkmother, BossOmegaSurvival),
-                                    (tkHelpRosterRoguelite, BossGatekeeper, BossOmegaRoguelite)]:
+                                    (tkHelpRosterSurvival, 13, 16),
+                                    (tkHelpRosterRoguelite, 17, 23)]:
         help.addOutput("[ " & t(header) & " ]", Color(r: 255, g: 200, b: 50, a: 255))
         help.addOutput("", White)
         for id in first .. last:

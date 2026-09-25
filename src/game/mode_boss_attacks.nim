@@ -8,7 +8,7 @@
 ## game/mode_mechanics.nim resolves frame by frame and mode_visuals.nim draws.
 ## `attack.damage` arrives already scaled by the boss's damageTuning; the
 ## phase multiplier is applied here. How each attack reads the BossAttack
-## fields is written next to its definition in boss_definitions_modes.nim.
+## fields is written next to its definition in boss_definitions.nim.
 
 import raylib, math, random, strutils, algorithm
 import particle_types, types, enemy, bullet, boss_types, particle_pool, d_systems,

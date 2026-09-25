@@ -120,7 +120,7 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
   retireModeBossHazards(game, enemy)
   # The survival Omega's Alpha children only seal Alpha: from Beta on they
   # are ordinary horde.
-  if enemy.bossDefinitionID == BossOmegaSurvival and nextPhaseIndex >= 1:
+  if enemy.bossDefinitionID == 16 and nextPhaseIndex >= 1:
     for other in game.enemies:
       if other.linkId == enemy.id and not other.isBoss:
         other.royalGuard = false

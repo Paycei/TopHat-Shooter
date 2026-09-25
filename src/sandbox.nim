@@ -54,8 +54,8 @@ proc sandboxEnemyTag(et: EnemyType): string =
   else: ""
 
 proc sandboxBossTag(bossId: int): string =
-  if bossId in BossForkmother..BossOmegaSurvival: "[SURV] "
-  elif bossId in BossGatekeeper..BossOmegaRoguelite: "[ROGUE] "
+  if bossId in 13..16: "[SURV] "
+  elif bossId in 17..23: "[ROGUE] "
   else: ""
 
 proc spawnSandboxEnemy(game: Game, enemyType: EnemyType) =

@@ -6219,7 +6219,7 @@ proc drawGame*(game: Game) =
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sr + 5.0,
                         Color(r: 255, g: 140, b: 20, a: uint8(sa.int div 2)))
         if globalSettings == nil or globalSettings.showHints:
-          let gt = if enemy.bossDefinitionID == BossForkmother: t(tkEnemySealedCutChildren)
+          let gt = if enemy.bossDefinitionID == 13: t(tkEnemySealedCutChildren)
                    elif enemy.weakPoint.kind == bwoSummonSigils: t(tkEnemySealedSlayGuards)
                    else: t(tkEnemySealedClearAdds)
           drawText(gt, enemy.pos.x.int32 - measureText(gt, 10) div 2,

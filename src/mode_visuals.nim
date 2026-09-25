@@ -414,7 +414,7 @@ proc drawModeBossBody*(enemy: Enemy) =
   proc glow(radius: float32, c: Color) = drawCircle(v2(cx, cy), radius, c)
 
   case enemy.bossDefinitionID
-  of BossForkmother:
+  of 13:  # The Forkmother
     glow(r + 24 + breathe * 6, withAlpha(col, 35))
     glow(r + 12 + pulse * 4, withAlpha(col, 60))
     # A binary tree rotating out of her body: the processes she forks.
@@ -434,7 +434,7 @@ proc drawModeBossBody*(enemy: Enemy) =
     polyLines(cx, cy, 3, r * 0.5'f32, t * 0.8'f32, 3, Color(r: 255, g: 230, b: 245, a: 230))
     glow(r * 0.2'f32 + pulse * 3, White)
 
-  of BossDispatcher:
+  of 14:  # The Dispatcher
     glow(r + 20 + breathe * 5, withAlpha(col, 35))
     # The queue: tickets circulating on a conveyor ring.
     let slots = 12
@@ -455,7 +455,7 @@ proc drawModeBossBody*(enemy: Enemy) =
     let sweep = cy - r * 0.4'f32 + ((t * 0.6'f32) mod 1.0'f32) * r * 0.8'f32
     drawLine(v2(cx - r * 0.35'f32, sweep), v2(cx + r * 0.35'f32, sweep), 1.5, Color(r: 255, g: 120, b: 0, a: 220))
 
-  of BossThermalRunaway:
+  of 15:  # Thermal Runaway
     # Heat shimmer: flames licking up, a temperature gauge filling as it dies.
     for i in 0..13:
       let a = i.float32 * PI * 2.0 / 14.0 + sin(t * 3.0'f32 + i.float32) * 0.1'f32
@@ -473,7 +473,7 @@ proc drawModeBossBody*(enemy: Enemy) =
     drawRing(v2(cx, cy), r + 2, r + 6, 135.0, 135.0 + 270.0 * clamp(heat, 0.05'f32, 1.0'f32), 32,
              Color(r: 255, g: 60, b: 20, a: 230))
 
-  of BossGatekeeper:
+  of 17:  # The Gatekeeper
     glow(r + 20 + breathe * 5, withAlpha(col, 30))
     # A keep: square wall with crenellations and gate bars.
     let s = r * 0.85'f32
@@ -490,7 +490,7 @@ proc drawModeBossBody*(enemy: Enemy) =
     drawCircle(v2(cx + cos(t * 0.6'f32) * 3, cy - s * 0.45'f32 + sin(t * 0.6'f32) * 3), s * 0.14'f32,
                Color(r: 90, g: 30, b: 0, a: 255))
 
-  of BossCompactor:
+  of 18:  # The Compactor
     glow(r + 18 + breathe * 5, withAlpha(col, 35))
     # A bin: tapered body, ribbed, with a lid that jaws open and shut.
     let w = r * 1.3'f32
@@ -510,7 +510,7 @@ proc drawModeBossBody*(enemy: Enemy) =
       drawCircle(v2(cx + cos(a) * r * 0.3'f32, cy + r * 0.1'f32 + sin(a) * r * 0.3'f32), 3.5,
                  Color(r: 230, g: 255, b: 220, a: 230))
 
-  of BossHive:
+  of 19:  # The Hive
     glow(r + 20 + breathe * 5, withAlpha(col, 35))
     # Honeycomb of keys around a central cell.
     let cell = r * 0.36'f32
@@ -526,7 +526,7 @@ proc drawModeBossBody*(enemy: Enemy) =
         drawPolyLines(v2(px, py), 6, cell, 30.0, darker(col, 3))
     drawCircle(v2(cx, cy), cell * 0.4'f32 + pulse * 2, White)
 
-  of BossRouter:
+  of 20:  # The Router
     glow(r + 18 + breathe * 5, withAlpha(col, 30))
     # Antennas and routing rings with packets orbiting.
     for k in 0..3:
@@ -543,7 +543,7 @@ proc drawModeBossBody*(enemy: Enemy) =
     glow(r * 0.42'f32, col)
     glow(r * 0.18'f32, White)
 
-  of BossSupervisor:
+  of 21:  # The Supervisor
     glow(r + 20 + breathe * 5, withAlpha(col, 30))
     # A rotating grid of memory pages; some flicker out (paged).
     let n = 4
@@ -562,7 +562,7 @@ proc drawModeBossBody*(enemy: Enemy) =
     drawCircleLines(cx.int32, cy.int32, r, lighter(col, 50))
     glow(r * 0.18'f32 + pulse * 2, White)
 
-  of BossMirrorCache:
+  of 22:  # The Mirror Cache
     # A disk platter with a mirrored ghost trailing it.
     let off = newVector2f(sin(t * 1.3'f32), cos(t * 1.1'f32)) * 8.0'f32
     drawCircle(v2(cx - off.x, cy - off.y), r, withAlpha(col, 45))

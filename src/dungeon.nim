@@ -105,7 +105,7 @@ proc themeDef*(theme: DungeonFloorTheme): DungeonThemeDef =
       # Shield walls and turrets dug in behind the obstacles, drivers ramming through.
       roster: @[(etFragment, 30, 0), (etPortGuard, 30, 0), (etSentry, 25, 2),
                 (etDriver, 15, 4)],
-      bossNumber: BossGatekeeper, pressureMod: 1.0, eliteBonus: 0, shardMod: 1.0,
+      bossNumber: 17, pressureMod: 1.0, eliteBonus: 0, shardMod: 1.0,
       obstacleMin: 2, obstacleMax: 4)
   of dftRecycleBin:
     DungeonThemeDef(
@@ -113,7 +113,7 @@ proc themeDef*(theme: DungeonFloorTheme): DungeonThemeDef =
       # Deleted files that won't stay deleted: mimics among the scraps,
       # restorers raising the fallen.
       roster: @[(etFragment, 40, 0), (etMimic, 30, 0), (etRestorer, 30, 2)],
-      bossNumber: BossCompactor, pressureMod: 0.95, eliteBonus: 0, shardMod: 1.0,
+      bossNumber: 18, pressureMod: 0.95, eliteBonus: 0, shardMod: 1.0,
       obstacleMin: 3, obstacleMax: 5)
   of dftRegistry:
     DungeonThemeDef(
@@ -121,7 +121,7 @@ proc themeDef*(theme: DungeonFloorTheme): DungeonThemeDef =
       # Guarded keys: shields up front, restorers behind, the floor rotting.
       roster: @[(etFragment, 25, 0), (etPortGuard, 25, 0), (etRestorer, 25, 2),
                 (etCorruptor, 25, 4)],
-      bossNumber: BossHive, pressureMod: 1.05, eliteBonus: 2, shardMod: 1.1,
+      bossNumber: 19, pressureMod: 1.05, eliteBonus: 2, shardMod: 1.1,
       obstacleMin: 3, obstacleMax: 5)
   of dftNetwork:
     DungeonThemeDef(
@@ -129,7 +129,7 @@ proc themeDef*(theme: DungeonFloorTheme): DungeonThemeDef =
       # Traffic: packets ricocheting off every obstacle, sentries on the hops.
       roster: @[(etFragment, 30, 0), (etPacket, 35, 0), (etSentry, 20, 2),
                 (etMimic, 15, 4)],
-      bossNumber: BossRouter, pressureMod: 1.1, eliteBonus: 3, shardMod: 1.15,
+      bossNumber: 20, pressureMod: 1.1, eliteBonus: 3, shardMod: 1.15,
       obstacleMin: 1, obstacleMax: 3)
   of dftKernel:
     DungeonThemeDef(
@@ -137,7 +137,7 @@ proc themeDef*(theme: DungeonFloorTheme): DungeonThemeDef =
       # Heavy iron: drivers charging through rooted sentries' fire.
       roster: @[(etFragment, 25, 0), (etDriver, 30, 0), (etSentry, 25, 2),
                 (etPortGuard, 20, 4)],
-      bossNumber: BossSupervisor, pressureMod: 1.18, eliteBonus: 4, shardMod: 1.25,
+      bossNumber: 21, pressureMod: 1.18, eliteBonus: 4, shardMod: 1.25,
       obstacleMin: 2, obstacleMax: 4)
   of dftCache:
     DungeonThemeDef(
@@ -145,7 +145,7 @@ proc themeDef*(theme: DungeonFloorTheme): DungeonThemeDef =
       # Stale memory: mimics, bouncing packets, corrupted tiles everywhere.
       roster: @[(etFragment, 25, 0), (etMimic, 30, 0), (etPacket, 25, 2),
                 (etCorruptor, 20, 3)],
-      bossNumber: BossMirrorCache, pressureMod: 1.12, eliteBonus: 3, shardMod: 1.2,
+      bossNumber: 22, pressureMod: 1.12, eliteBonus: 3, shardMod: 1.2,
       obstacleMin: 2, obstacleMax: 4)
   of dftCorruptedSector:
     DungeonThemeDef(
@@ -154,7 +154,7 @@ proc themeDef*(theme: DungeonFloorTheme): DungeonThemeDef =
       roster: @[(etFragment, 16, 0), (etPortGuard, 12, 0), (etMimic, 10, 0),
                 (etPacket, 12, 0), (etSentry, 12, 2), (etRestorer, 10, 2),
                 (etDriver, 14, 2), (etCorruptor, 14, 4)],
-      bossNumber: BossOmegaRoguelite, pressureMod: 1.3, eliteBonus: 8, shardMod: 1.45,
+      bossNumber: 23, pressureMod: 1.3, eliteBonus: 8, shardMod: 1.45,
       obstacleMin: 3, obstacleMax: 5)
 
 proc themeKey(theme: DungeonFloorTheme): string =
@@ -386,12 +386,12 @@ proc dungeonBossNumberFor*(theme: DungeonFloorTheme,
   ## changes its numbers (tuneDungeonBossStats), never which boss it is. Pure
   ## so the theme-select preview can call it before the sector exists.
   if floorNumber >= RogueliteFloorsToWin:
-    BossOmegaRoguelite
+    23
   elif theme == FinalFloorTheme:
     # Only a save from before the final theme was reserved gets here (a
     # corrupted sector mid-run): field a guardian, picked deterministically so
     # a reload never swaps it.
-    BossGatekeeper + (floorNumber + endlessLoop) mod (BossMirrorCache - BossGatekeeper + 1)
+    17 + (floorNumber + endlessLoop) mod 6  # guardians 17..22
   else:
     themeDef(theme).bossNumber
 
@@ -891,7 +891,7 @@ proc spawnRoomObstacles(game: Game, room: DungeonRoom) =
   var count = def.obstacleMin + rng.rand(max(0, def.obstacleMax - def.obstacleMin))
   # The Gatekeeper's searchlights and the Supervisor's page faults are played
   # around cover: their SERVICE rooms always get enough of it.
-  if room.kind == drkBoss and dungeonBossNumber(game) in [BossGatekeeper, BossSupervisor]:
+  if room.kind == drkBoss and dungeonBossNumber(game) in [17, 21]:
     count = max(count, 4)
   let w = game.screenWidth.float32
   let h = game.screenHeight.float32

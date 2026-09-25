@@ -618,7 +618,7 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
   # Boss label + name.
   drawTextFit(t("dungeon_floor_boss"), x + 24, y + 66, w - 150, 15,
               Color(r: 255, g: 150, b: 120, a: 255))
-  drawTextFit(bossName(BossOmegaRoguelite), x + 24, y + 86, w - 150, 30, gold)
+  drawTextFit(bossName(23), x + 24, y + 86, w - 150, 30, gold)
 
   # Flavor description.
   discard drawWrappedText(t("dungeon_final_floor_desc"), x + 24, y + 140, w - 48, 16,

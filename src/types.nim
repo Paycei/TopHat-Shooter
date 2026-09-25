@@ -1875,19 +1875,8 @@ const BossWaveInterval* = 5
 # guardians, and 16 / 23 are the Omega Entity re-armed with each mode's kit.
 # IDs are contiguous so every per-ID table (weak points, bullet shapes, process
 # names) stays a plain lookup.
-const
-  BossForkmother* = 13          ## Survival, Boot phase
-  BossDispatcher* = 14          ## Survival, Runtime phase
-  BossThermalRunaway* = 15      ## Survival, Overload phase
-  BossOmegaSurvival* = 16       ## Survival, Kernel Panic (Omega Entity, survival kit)
-  BossGatekeeper* = 17          ## Roguelite, Firewall guardian
-  BossCompactor* = 18           ## Roguelite, Recycle Bin guardian
-  BossHive* = 19                ## Roguelite, Registry guardian
-  BossRouter* = 20              ## Roguelite, Network guardian
-  BossSupervisor* = 21          ## Roguelite, Kernel guardian
-  BossMirrorCache* = 22         ## Roguelite, Cache guardian
-  BossOmegaRoguelite* = 23      ## Roguelite, final sector (Omega Entity, roguelite kit)
-  MaxBossId* = 23
+
+const MaxBossId* = 23
 
 proc isWaveBossId*(id: int): bool {.inline.} =
   ## The 12-boss wave campaign (what the Full Boss Codex counts).
@@ -1896,7 +1885,7 @@ proc isWaveBossId*(id: int): bool {.inline.} =
 proc isOmegaBoss*(id: int): bool {.inline.} =
   ## Every form of the Omega Entity: the wave finale and its two mode kits.
   ## They share the model, halo, name and the Root's tag.
-  id == 12 or id == BossOmegaSurvival or id == BossOmegaRoguelite
+  id == 12 or id == 16 or id == 23
 
 proc canonicalBossId*(id: int): int {.inline.} =
   ## The ID whose look a boss borrows (the Omega kits wear boss 12's body).
@@ -2069,7 +2058,7 @@ proc survivalBossId*(bossNumber: int): int =
   ## Forkmother, the Dispatcher and Thermal Runaway close Boot / Runtime /
   ## Overload, the Omega Entity's survival kit closes Kernel Panic, and
   ## Overtime rotates through all four (stats come from survivalBossBlockWave).
-  const roster = [BossForkmother, BossDispatcher, BossThermalRunaway, BossOmegaSurvival]
+  const roster = [13, 14, 15, 16]
   if bossNumber <= 0:
     roster[0]
   elif bossNumber <= SurvivalFinalBoss:

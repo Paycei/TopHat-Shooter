@@ -1293,7 +1293,7 @@ proc drawCustomBoss*(enemy: Enemy) =
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.2,
                Color(r: 255, g: 255, b: 255, a: 255))
 
-  of BossForkmother, BossDispatcher, BossThermalRunaway, BossGatekeeper..BossMirrorCache:
+  of 13, 14, 15, 17..22:
     # Survival bosses and roguelite guardians (mode_visuals.nim).
     drawModeBossBody(enemy)
 

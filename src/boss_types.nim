@@ -1,6 +1,6 @@
-## Boss definition data types, split out of boss_definitions.nim so the
-## per-mode roster (boss_definitions_modes.nim) can build definitions
-## without importing the module that dispatches to it.
+## Boss definition data types, split out of boss_definitions.nim so modules
+## like game/mode_boss_attacks.nim can use them without importing the
+## whole boss roster.
 
 import raylib
 import types
