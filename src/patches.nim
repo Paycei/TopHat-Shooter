@@ -28,6 +28,13 @@ type
     pcPerformance,   # changes how the build fights
     pcMaintenance    # economy and upkeep
 
+  PatchStatus* = enum
+    ## What a patch is doing right now, as the HUD and pause menu show it.
+    psPassive,       # always on; nothing to report
+    psReady,         # a charge is waiting to fire
+    psUsed,          # the charge is spent until it re-arms
+    psStalled        # temporarily switched off
+
 const
   AllPatches* = {succ(rrtNone)..high(RogueliteRelicType)}
 
@@ -131,6 +138,39 @@ proc patchAccent*(p: RogueliteRelicType): Color =
 
 proc hasPatch*(player: Player, p: RogueliteRelicType): bool =
   not player.isNil and p in player.patches
+
+const ChargePatches* = {rrtRollback, rrtFirewallRule, rrtOverclock}
+  ## The patches with a live state (exactly the non-passive branches of
+  ## patchStatus). The HUD lists them first so their tag is never hidden.
+
+proc patchStatus*(game: Game, p: RogueliteRelicType): PatchStatus =
+  ## Only the charge patches have a state worth showing; the rest just run.
+  case p
+  of rrtRollback:
+    if game.player.rollbackArmed: psReady else: psUsed
+  of rrtFirewallRule:
+    if game.waveInProgress and game.player.patchBlockCharges <= 0: psUsed else: psReady
+  of rrtOverclock:
+    if game.player.overclockStallTimer > 0: psStalled else: psPassive
+  else: psPassive
+
+proc patchStatusLabel*(s: PatchStatus): string =
+  case s
+  of psPassive: t("patch_status_active")
+  of psReady: t("patch_status_ready")
+  of psUsed: t("patch_status_used")
+  of psStalled: t("patch_status_stalled")
+
+proc patchStatusColor*(s: PatchStatus): Color =
+  case s
+  of psPassive: Color(r: 100, g: 255, b: 100, a: 255)
+  of psReady: Color(r: 120, g: 255, b: 190, a: 255)
+  of psUsed: Color(r: 150, g: 150, b: 165, a: 255)
+  of psStalled: Color(r: 255, g: 165, b: 70, a: 255)
+
+proc patchSpent*(game: Game, p: RogueliteRelicType): bool =
+  ## Drawn dimmed: its charge is gone or it is stalled.
+  patchStatus(game, p) in {psUsed, psStalled}
 
 proc patchPrice*(player: Player, base: int): int =
   ## The ONE Discount Protocol rule, used by draft rerolls and /pkg stalls

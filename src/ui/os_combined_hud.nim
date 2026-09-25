@@ -225,7 +225,7 @@ proc drawDashRow(game: Game, cx, cw, y: int32): int32 =
   y + DashRowH
 
 # ---------------------------------------------------------------------------
-# Processes (installed power-ups)
+# Processes (installed power-ups) and patches (roguelite)
 
 proc drawLevelPips(pu: PowerUp, rightX, y: int32, color: Color): int32 =
   ## Level as filled pips out of the power-up's max, right-aligned at rightX;
@@ -272,13 +272,8 @@ proc drawProcessRow(game: Game, pu: PowerUp, cx, cw, y: int32, fresh: bool, shad
   let pipsW = drawLevelPips(pu, cx + cw, y + (ProcessRowH - 10) div 2, color)
   let nameX = cx + box + 6
   let maxW = cx + cw - pipsW - 6 - nameX
-  let fullName = getPowerUpName(pu.powerType)
-  var name = fullName
-  if measureText(name, 10) > maxW:
-    while name.len > 1 and measureText(name & "..", 10) > maxW:
-      name.setLen(name.len - 1)
-    name = name.strip(leading = false) & ".."
-  drawShadowText(name, nameX, y + (ProcessRowH - 10) div 2, 10,
+  drawShadowText(fitWithEllipsis(getPowerUpName(pu.powerType), maxW, 10), nameX,
+                 y + (ProcessRowH - 10) div 2, 10,
                  if legendary: Color(r: 255, g: 232, b: 145, a: 255) else: DockInk)
 
 proc drawProcessRows(game: Game, cx, cw, y: int32, maxRows: int): int32 =
@@ -302,6 +297,68 @@ proc drawProcessRows(game: Game, cx, cw, y: int32, maxRows: int): int32 =
 
 proc processHeaderText(game: Game): string =
   t(tkHUDProcesses) & " [" & $game.player.powerUps.len & "]"
+
+const PatchCardAccent = Color(r: 120, g: 200, b: 255, a: 255)
+  ## The /updates folder's colour: that is where patches come from.
+
+proc runPatchCount(game: Game): int =
+  if game.mode == gmRoguelite and not game.rogueliteRun.isNil: game.rogueliteRun.relics.len
+  else: 0
+
+proc drawPatchRow(game: Game, patch: RogueliteRelicType, cx, cw, y: int32,
+                  fresh: bool, shade: bool) =
+  ## Same shape as a process row: the patch glyph in its category colour, the
+  ## patch's name, and a READY / USED / STALLED tag for the ones with a charge.
+  ## A spent patch dims, so the tag explains why.
+  let status = patchStatus(game, patch)
+  let spent = status in {psUsed, psStalled}
+  let color = patchAccent(patch)
+  if shade:
+    drawRectangle(cx - 2, y, cw + 4, ProcessRowH, Color(r: 255, g: 255, b: 255, a: 7))
+  let pulse = if fresh: 0.5'f32 + 0.5'f32 * sin(game.time * 6.0'f32) else: 0.0'f32
+  const box = 16'i32
+  let by = y + (ProcessRowH - box) div 2
+  drawRectangle(cx, by, box, box, withAlpha(color, if spent: 18 else: 34 + int(pulse * 40.0'f32)))
+  drawRectangleLines(Rectangle(x: cx.float32, y: by.float32, width: box.float32,
+                               height: box.float32), 1, withAlpha(color, if spent: 80 else: 170))
+  drawPatchIcon(cx + 1, by + 1, box - 2, patch, if spent: withAlpha(color, 90) else: color)
+
+  let textY = y + (ProcessRowH - 10) div 2
+  var tagW = 0'i32
+  if status != psPassive:
+    let tag = patchStatusLabel(status)
+    tagW = measureText(tag, 10)
+    drawShadowText(tag, cx + cw - tagW, textY, 10, patchStatusColor(status))
+  let nameX = cx + box + 6
+  let maxW = cx + cw - nameX - (if tagW > 0: tagW + 6 else: 0)
+  drawShadowText(fitWithEllipsis(patchName(patch), maxW, 10), nameX, textY, 10,
+                 if spent: DockDim else: DockInk)
+
+proc drawPatchRows(game: Game, cx, cw, y: int32, maxRows: int): int32 =
+  ## The run's patches in up to maxRows rows; when they don't all fit the last
+  ## row becomes "+N more" (the pause menu lists them all). Charge patches come
+  ## first, so a READY / USED tag never hides behind the overflow row, then the
+  ## rest; each group newest first. The newest install breathes.
+  let n = runPatchCount(game)
+  if n == 0 or maxRows <= 0:
+    return y
+  let relics = game.rogueliteRun.relics
+  var order: seq[RogueliteRelicType]
+  for i in countdown(n - 1, 0):
+    if relics[i].relicType in ChargePatches: order.add relics[i].relicType
+  for i in countdown(n - 1, 0):
+    if relics[i].relicType notin ChargePatches: order.add relics[i].relicType
+  let newest = relics[^1].relicType
+  let shown = if n > maxRows: max(0, maxRows - 1) else: n
+  var ry = y
+  for i in 0..<shown:
+    drawPatchRow(game, order[i], cx, cw, ry, fresh = order[i] == newest, shade = i mod 2 == 1)
+    ry += ProcessRowH
+  if shown < n:
+    let more = "+" & $(n - shown) & " " & t(tkHUDMore)
+    drawShadowText(more, cx + 22, ry + (ProcessRowH - 10) div 2, 10, DockDim)
+    ry += ProcessRowH
+  ry
 
 # ---------------------------------------------------------------------------
 # Wave block (classic: inside the panel; widescreen: right-dock objective card)
@@ -391,120 +448,159 @@ proc drawWaveDockCard*(game: Game, x, y: int32): int32 =
   y + h
 
 # ---------------------------------------------------------------------------
-# Roguelite sector block: title, folder breadcrumb, progress pips to SERVICE,
-# LV/XP (classic only -- widescreen shows it in the left dock), heat + shards,
-# and the PATCHES icon rows. rogueliteBlockHeight and drawRogueliteBlock share
-# the row constants below, so the height budget can never drift from the draw.
+# Roguelite sector block: the sector's root folder, the breadcrumb, a progress
+# track to SERVICE with its FOLDER n/N caption, LV/XP (classic only --
+# widescreen shows it in the left dock) and labelled heat / shards / cores
+# rows. The run's patches are listed by name in their own card under this one
+# (drawPatchDockCard; classic: right below this block). rogueliteBlockHeight and
+# drawRogueliteBlock share the row constants below, so the height budget can
+# never drift from the draw.
+#
+# Everything here is drawn at 10px or larger: raylib clamps the default font to
+# 10px, so a bestFitFontSize floor below that never shrinks anything and a
+# too-long line just runs off the card.
 
 const
-  RogueHudTitleH = 12'i32
-  RogueHudPathH = 13'i32
-  RogueHudPipsH = 13'i32
-  RogueHudShardsH = 14'i32
-  RogueHudPatchIcon = 14'i32
-  RogueHudPatchPitch = 16'i32
+  RogueHudTitleH = 12'i32       ## classic only: DEEP RECOVERY // SECTOR 2/4
+  RogueHudNameH = 25'i32        ## folder glyph + sector root at 20px
+  RogueHudPathH = 14'i32
+  RogueHudTrackH = 16'i32
+  RogueHudCaptionH = 13'i32     ## FOLDER 2/5 .......... SERVICE
+  RogueHudStatH = 22'i32        ## icon + label + 20px value
 
-proc roguelitePatchRows(count: int, contentW: int32): int32 =
-  if count <= 0: return 0
-  let perRow = max(1'i32, contentW div RogueHudPatchPitch)
-  ((count.int32 + perRow - 1) div perRow)
+  RogueHeatColor = Color(r: 255, g: 150, b: 80, a: 255)
+  RogueShardColor = Color(r: 90, g: 225, b: 255, a: 255)
+  RogueCoreColor = Color(r: 200, g: 160, b: 255, a: 255)
+  RogueServiceColor = Color(r: 255, g: 90, b: 70, a: 255)
 
-proc rogueliteBlockHeight(game: Game, cw: int32, withTitle, withLevel: bool): int32 =
-  result = RogueHudPathH + RogueHudPipsH + RogueHudShardsH
+proc rogueliteStatRows(run: RogueliteRun): int32 =
+  ## Heat and shards always; cores only once the run has earned one.
+  if run.coresEarned > 0: 3 else: 2
+
+proc rogueliteBlockHeight(game: Game, withTitle, withLevel: bool): int32 =
+  result = RogueHudNameH + RogueHudPathH + RogueHudTrackH + RogueHudCaptionH +
+           DividerH + rogueliteStatRows(game.rogueliteRun) * RogueHudStatH
   if withTitle: result += RogueHudTitleH
   if withLevel: result += LevelRowH
-  let rows = roguelitePatchRows(game.rogueliteRun.relics.len, cw)
-  if rows > 0:
-    result += rows * RogueHudPatchPitch + 2
 
-proc patchSpent(game: Game, patch: RogueliteRelicType): bool =
-  ## A patch whose charge is used up right now draws dimmed.
-  case patch
-  of rrtRollback: not game.player.rollbackArmed
-  of rrtOverclock: game.player.overclockStallTimer > 0
-  of rrtFirewallRule: game.waveInProgress and game.player.patchBlockCharges <= 0
-  else: false
-
-proc rogueliteTitle(run: RogueliteRun): string =
-  ## DEEP RECOVERY // SECTOR 2/4
-  result = t("roguelite_hud_title") & " // " & t("roguelite_sector_upper") & " " &
-           $run.floorNumber & "/" & $RogueliteFloorsToWin
+proc rogueliteTitle(run: RogueliteRun, maxW: int32): string =
+  ## DEEP RECOVERY // SECTOR 2/4, or just SECTOR 2/4 when the whole thing
+  ## would overflow `maxW` (Spanish in an endless loop does).
+  result = t("roguelite_sector_upper") & " " & $run.floorNumber & "/" & $RogueliteFloorsToWin
   if run.endlessLoop > 0:
     result &= "  +" & $run.endlessLoop
+  let full = t("roguelite_hud_title") & " // " & result
+  if measureText(full, 10) <= maxW:
+    result = full
+
+proc drawFolderGlyph(x, y: int32, color: Color) =
+  ## A 16x13 folder: a tab on the top-left over a filled body.
+  drawRectangle(x, y, 7, 3, color)
+  drawRectangle(x, y + 2, 16, 11, withAlpha(color, 90))
+  drawRectangleLines(Rectangle(x: x.float32, y: (y + 2).float32, width: 16, height: 11), 1, color)
+  drawRectangle(x + 1, y + 5, 14, 1, withAlpha(color, 150))
+
+proc drawSectorName(floor: DungeonFloor, cx, cw, y: int32) =
+  ## The sector's root folder in big type: the one thing a glance must find.
+  let accent = themeAccent(floor.theme)
+  drawFolderGlyph(cx, y + 4, accent)
+  let name = themeFolder(floor.theme)
+  drawShadowText(name, cx + 22, y, bestFitFontSize(name, cw - 22, 20, 10), accent)
+
+proc drawSectorPath(floor: DungeonFloor, cx, cw, y: int32) =
+  ## Breadcrumb, trimmed from the LEFT so the folder you are in stays visible.
+  var path = sectorPath(floor)
+  if measureText(path, 10) > cw:
+    # Drop whole leading folders, never half a name.
+    var tail = path
+    while measureText(".." & tail, 10) > cw:
+      let cut = tail.find('\\', 1)
+      if cut < 0: break
+      tail = tail[cut .. ^1]
+    path = ".." & tail
+  drawShadowText(path, cx, y, 10, withAlpha(themeAccent(floor.theme), 215))
+
+proc drawSectorTrack(game: Game, floor: DungeonFloor, cx, cw, y: int32) =
+  ## One cell per reward folder, then a red SERVICE cell, spread over the full
+  ## width, with FOLDER n/N under the left end and SERVICE under the right.
+  let run = game.rogueliteRun
+  let layers = sectorRewardLayers(floor)
+  let current = if floor.rooms.len > 0: floor.rooms[floor.rooms.high].layer else: 0
+  let atBoss = current > layers
+  let pulse = 0.5'f32 + 0.5'f32 * sin(game.time * 5.0'f32)
+
+  const cellH = 12'i32
+  const gap = 3'i32
+  let cells = layers.int32 + 1
+  let cellW = max(4'i32, (cw - gap * (cells - 1)) div cells)
+  for i in 0..<cells:
+    let bx = cx + i * (cellW + gap)
+    # The last cell absorbs the rounding so the track ends flush with the card.
+    let w = if i == cells - 1: cx + cw - bx else: cellW
+    let rect = Rectangle(x: bx.float32, y: (y + 1).float32, width: w.float32, height: cellH.float32)
+    let layer = i + 1
+    if layer > layers:
+      # SERVICE
+      drawRectangle(rect, if atBoss: withAlpha(RogueServiceColor, uint8(110.0'f32 + 130.0'f32 * pulse))
+                          else: DockTrackBg)
+      drawRectangleLines(rect, 1, withAlpha(RogueServiceColor, if atBoss: 255 else: 170))
+    else:
+      if layer < current or (layer == current and currentDungeonRoom(run).cleared):
+        drawRectangle(rect, withAlpha(DockAccent, 200))
+        drawRectangle(bx, y + 1, w, 1, Color(r: 255, g: 255, b: 255, a: 70))
+      elif layer == current:
+        drawRectangle(rect, Color(r: 255, g: 255, b: 255, a: uint8(90.0'f32 + 150.0'f32 * pulse)))
+      else:
+        drawRectangle(rect, DockTrackBg)
+      drawRectangleLines(rect, 1, withAlpha(DockAccent, 170))
+
+  let capY = y + RogueHudTrackH
+  let folder = t("roguelite_hud_folder").replace("$1", $clamp(current, 0, layers))
+                                         .replace("$2", $layers)
+  drawShadowText(folder, cx, capY, 10, DockInk)
+  let service = t("room_reward_service")
+  drawShadowText(service, cx + cw - measureText(service, 10), capY, 10,
+                 if atBoss: Color(r: 255, g: uint8(90.0'f32 + 100.0'f32 * pulse), b: 80, a: 255)
+                 else: withAlpha(Color(r: 255, g: 140, b: 115, a: 255), 210))
+
+proc drawRogueStatRow(cx, cw, y: int32, icon: CurrencyIconType, label, value: string,
+                      color: Color): int32 =
+  ## Icon, a small label, and the value in big type on the right.
+  drawCurrencyIcon(cx + 7, y + RogueHudStatH div 2, 15, icon)
+  let valueSize = bestFitFontSize(value, cw - 18 - 6 - measureText(label, 10), 20, 10)
+  let valueW = measureText(value, valueSize)
+  drawShadowText(fitWithEllipsis(label, cw - 18 - 6 - valueW, 10), cx + 18,
+                 y + (RogueHudStatH - 10) div 2, 10, DockDim)
+  drawShadowText(value, cx + cw - valueW, y + (RogueHudStatH - valueSize) div 2, valueSize, color)
+  y + RogueHudStatH
 
 proc drawRogueliteBlock(game: Game, cx, cw, y: int32, withTitle, withLevel: bool): int32 =
   let run = game.rogueliteRun
   var yOffset = y
 
   if withTitle:
-    let title = rogueliteTitle(run)
-    drawShadowText(title, cx, yOffset, bestFitFontSize(title, cw, 10, 7), ACCENT_COLOR)
+    drawShadowText(rogueliteTitle(run, cw), cx, yOffset, 10, ACCENT_COLOR)
     yOffset += RogueHudTitleH
 
   let floor = run.floor
-  if floor.isNil:
-    yOffset += RogueHudPathH + RogueHudPipsH
-  else:
-    # Breadcrumb, trimmed from the LEFT so the folder you are in stays visible.
-    var path = sectorPath(floor)
-    if measureText(path, 10) > cw:
-      # Drop whole leading folders, never half a name.
-      var tail = path
-      while measureText(".." & tail, 10) > cw:
-        let cut = tail.find('\\', 1)
-        if cut < 0: break
-        tail = tail[cut .. ^1]
-      path = ".." & tail
-    drawShadowText(path, cx, yOffset, bestFitFontSize(path, cw, 10, 8), themeAccent(floor.theme))
-    yOffset += RogueHudPathH
-
-    # Progress pips: one per reward layer, then the SERVICE.
-    let layers = sectorRewardLayers(floor)
-    let current = if floor.rooms.len > 0: floor.rooms[floor.rooms.high].layer else: 0
-    var px = cx
-    let py = yOffset + 1
-    for layer in 1..layers:
-      let rect = Rectangle(x: px.float32, y: py.float32, width: 10, height: 7)
-      if layer < current or (layer == current and currentDungeonRoom(run).cleared):
-        drawRectangle(rect, Color(r: 0, g: 200, b: 255, a: 200))
-      elif layer == current:
-        let pulse = uint8(150.0 + sin(game.time * 5.0) * 90.0)
-        drawRectangle(rect, Color(r: 255, g: 255, b: 255, a: pulse))
-      else:
-        drawRectangle(rect, DockTrackBg)
-      drawRectangleLines(rect, 1, Color(r: 0, g: 200, b: 255, a: 170))
-      px += 13
-    let atBoss = current > layers
-    let service = "> " & t("room_reward_service")
-    drawShadowText(service, px + 2, yOffset, bestFitFontSize(service, cx + cw - px - 2, 10, 7),
-                   if atBoss: Color(r: 255, g: 110, b: 90, a: 255)
-                   else: Color(r: 255, g: 150, b: 120, a: 200))
-    yOffset += RogueHudPipsH
+  if not floor.isNil:
+    drawSectorName(floor, cx, cw, yOffset)
+    drawSectorPath(floor, cx, cw, yOffset + RogueHudNameH)
+    drawSectorTrack(game, floor, cx, cw, yOffset + RogueHudNameH + RogueHudPathH)
+  yOffset += RogueHudNameH + RogueHudPathH + RogueHudTrackH + RogueHudCaptionH
 
   if withLevel:
     yOffset = drawLevelRow(game, cx, cw, yOffset)
 
-  var shardText = t("roguelite_heat") & " " & $run.heat & "  " &
-                  t("roguelite_shards") & " +" & $run.shardsEarned
+  drawDivider(cx, cw, yOffset)
+  yOffset += DividerH
+  yOffset = drawRogueStatRow(cx, cw, yOffset, ciHeat, t("roguelite_hud_heat"),
+                             $run.heat, RogueHeatColor)
+  yOffset = drawRogueStatRow(cx, cw, yOffset, ciDataShards, t("roguelite_hud_shards"),
+                             "+" & $run.shardsEarned, RogueShardColor)
   if run.coresEarned > 0:
-    shardText &= "  " & t("roguelite_cores_short") & " +" & $run.coresEarned
-  drawCurrencyIcon(cx + 5, yOffset + 5, 12, ciHeat)
-  drawShadowText(shardText, cx + 15, yOffset, bestFitFontSize(shardText, cw - 15, 10, 6), Gold)
-  yOffset += RogueHudShardsH
-
-  # PATCHES: one icon per applied update, dimmed while its charge is spent.
-  let rows = roguelitePatchRows(run.relics.len, cw)
-  if rows > 0:
-    let perRow = max(1'i32, cw div RogueHudPatchPitch)
-    for i, relic in run.relics:
-      let col = i.int32 mod perRow
-      let row = i.int32 div perRow
-      let ix = cx + col * RogueHudPatchPitch
-      let iy = yOffset + 1 + row * RogueHudPatchPitch
-      let accent = patchAccent(relic.relicType)
-      let tint = if patchSpent(game, relic.relicType): withAlpha(accent, 90) else: accent
-      drawPatchIcon(ix, iy, RogueHudPatchIcon, relic.relicType, tint)
-    yOffset += rows * RogueHudPatchPitch + 2
+    yOffset = drawRogueStatRow(cx, cw, yOffset, ciCore, t("roguelite_hud_cores"),
+                               "+" & $run.coresEarned, RogueCoreColor)
   yOffset
 
 proc drawRogueliteDockCard*(game: Game, x, y: int32): int32 =
@@ -512,7 +608,7 @@ proc drawRogueliteDockCard*(game: Game, x, y: int32): int32 =
   let run = game.rogueliteRun
   if run.isNil:
     return y
-  let h = DockHeaderH + 6 + rogueliteBlockHeight(game, DockContentW, false, false) + 2
+  let h = DockHeaderH + 6 + rogueliteBlockHeight(game, false, false) + 2
   drawDockCard(x, y, DockCardW, h)
   var right = $run.floorNumber & "/" & $RogueliteFloorsToWin
   if run.endlessLoop > 0:
@@ -521,6 +617,37 @@ proc drawRogueliteDockCard*(game: Game, x, y: int32): int32 =
   let top = drawDockHeader(x, y, DockCardW, title, DockAccent, right, DockInk)
   discard drawRogueliteBlock(game, x + DockPad, DockContentW, top + 6,
                              withTitle = false, withLevel = false)
+  y + h
+
+proc drawPatchDockCard*(game: Game, x, y, bottom, floorBottom: int32): int32 =
+  ## Widescreen right-dock PATCHES card, stacked under the SECTOR card: the
+  ## run's patches by name, in as many rows as fit above `bottom` (the caller
+  ## keeps the boss cards' room below that). When that leaves nothing, the
+  ## charge patches (listed first, see drawPatchRows) may still reach down to
+  ## `floorBottom`, so their READY / USED tag survives a cramped boss fight.
+  ## The left dock is the power-ups'. Returns the y below the card, or `y`
+  ## when there is nothing to draw.
+  let n = runPatchCount(game)
+  if n == 0:
+    return y
+  const chrome = DockHeaderH + 6'i32
+  template rowsAbove(limit: int32): int = max(0, int((limit - y - chrome) div ProcessRowH))
+  var charged = 0
+  for relic in game.rogueliteRun.relics:
+    if relic.relicType in ChargePatches: inc charged
+  let essential = if charged == 0: 0
+                  else: min(n, charged + (if n > charged: 1 else: 0))
+  var rows = min(n, rowsAbove(bottom))
+  if rows < essential and rowsAbove(floorBottom) >= essential:
+    rows = essential
+  # A lone row would only say "+N more": not worth squeezing the boss for.
+  if rows <= 0 or (rows == 1 and n > 1):
+    return y
+  let h = chrome + rows.int32 * ProcessRowH
+  drawDockCard(x, y, DockCardW, h, PatchCardAccent)
+  let listTop = drawDockHeader(x, y, DockCardW, t("roguelite_hud_patches"), PatchCardAccent,
+                               $n, DockInk)
+  discard drawPatchRows(game, x + DockPad, DockContentW, listTop + 3, rows)
   y + h
 
 # ---------------------------------------------------------------------------
@@ -538,7 +665,8 @@ proc statusCardHeight*(game: Game): int32 =
 proc drawPlayerDock*(game: Game, x, top, bottom: int32) =
   ## The left dock's STATUS card (pinned to `top`) and PROCESSES card (filling
   ## down to `bottom`, which the caller moves up to make room for whatever it
-  ## docks under it).
+  ## docks under it). The left dock is the power-ups'; a roguelite run's
+  ## patches list in the right dock (drawPatchDockCard).
   let cx = x + DockPad
   let cw = DockContentW
   let statusH = statusCardHeight(game)
@@ -696,8 +824,8 @@ proc drawControlsStrip*(game: Game, centerX, y: int32) =
 # ---------------------------------------------------------------------------
 # Classic floating panel
 
-proc classicProcessRows(game: Game): int =
-  let n = game.player.powerUps.len
+proc classicListRows(n: int): int =
+  ## The newest few, plus a "+N more" row once there are more than that.
   if n > COMBINED_MAX_POWERUPS_VISIBLE: COMBINED_MAX_POWERUPS_VISIBLE + 1 else: n
 
 proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32) =
@@ -714,10 +842,13 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32) =
   if wave:
     totalH += DividerH + WaveBodyH
   if rogue:
-    totalH += DividerH + rogueliteBlockHeight(game, cw, true, true)
-  let procRows = classicProcessRows(game)
+    totalH += DividerH + rogueliteBlockHeight(game, true, true)
+  let procRows = classicListRows(game.player.powerUps.len)
   if procRows > 0:
     totalH += DividerH + ProcessHeaderH + procRows.int32 * ProcessRowH
+  let patchRows = classicListRows(runPatchCount(game))
+  if patchRows > 0:
+    totalH += DividerH + ProcessHeaderH + patchRows.int32 * ProcessRowH
   totalH += 4
 
   lastStatusPanelRect = Rectangle(x: panelX.float32, y: panelY.float32,
@@ -743,6 +874,16 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32) =
   if rogue:
     drawDivider(cx, cw, y)
     y = drawRogueliteBlock(game, cx, cw, y + DividerH, withTitle = true, withLevel = true)
+
+  # Classic has no right column, so the patches ride with the sector block they
+  # sit under in widescreen, above the power-ups.
+  if patchRows > 0:
+    drawDivider(cx, cw, y)
+    y += DividerH
+    drawShadowText(t("roguelite_hud_patches") & " [" & $runPatchCount(game) & "]", cx, y, 10,
+                   PatchCardAccent)
+    y += ProcessHeaderH
+    y = drawPatchRows(game, cx, cw, y, patchRows)
 
   if procRows > 0:
     drawDivider(cx, cw, y)

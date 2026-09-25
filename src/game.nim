@@ -6704,9 +6704,9 @@ proc drawGame*(game: Game) =
     drawPlayerDock(game, playerX, DockMargin, playerBottom)
 
     # ---- RIGHT DOCK: the run -----------------------------------------------
-    # Top stack (dynamic, via a running cursor): the mode's objective card,
-    # then boss cards, then transient cards (wave banner / celebration / boss
-    # intro) capped into a safe band. Bottom stack (anchored): the [Q] ability
+    # Top stack (dynamic, via a running cursor): the mode's objective card
+    # (plus the roguelite's PATCHES card), then boss cards, then transient
+    # cards (wave banner / celebration / boss intro) capped into a safe band. Bottom stack (anchored): the [Q] ability
     # strip on the bottom edge and the combo card on top of it, so the
     # persistent cards never collide with the dynamic top stack.
     let runX = rightGutterX + DockMargin
@@ -6719,6 +6719,14 @@ proc drawGame*(game: Game) =
     # card below them) can never be overlapped, even with 3 bosses.
     let bossBandBottom = comboCardY - transientBand
 
+    # Count active bosses (<=3) so each vertical card can be sized to fit.
+    var bossCount = 0
+    if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
+      for enemy in game.enemies:
+        if enemy.isBoss and enemy.entranceTimer <= 0:
+          inc bossCount
+          if bossCount >= 3: break
+
     var rgY = DockMargin
     if isTimeSurvivalMode(game.mode):
       rgY = drawSurvivalDockCard(game, runX, rgY) + DockGap
@@ -6726,25 +6734,29 @@ proc drawGame*(game: Game) =
       rgY = drawWaveDockCard(game, runX, rgY) + DockGap
     elif game.mode == gmRoguelite and game.rogueliteRun != nil:
       rgY = drawRogueliteDockCard(game, runX, rgY) + DockGap
+      # The run's patches list under the sector, in whatever the boss band
+      # leaves. A SERVICE fight keeps a readable boss card below it, so the
+      # list folds into its "+N more" row rather than squeezing the boss; only
+      # the charge patches may push a boss card down to its 74px minimum.
+      const bossCardReserve: int32 = 126
+      const bossCardMin: int32 = 74
+      let patchBottom = bossBandBottom - bossCount.int32 * (bossCardReserve + DockGap)
+      let patchFloor = bossBandBottom - bossCount.int32 * (bossCardMin + DockGap)
+      let patchEnd = drawPatchDockCard(game, runX, rgY, patchBottom, patchFloor)
+      if patchEnd > rgY:
+        rgY = patchEnd + DockGap
 
-    if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
-      # Count active bosses (<=3) so each vertical card can be sized to fit.
-      var bossCount = 0
+    if bossCount > 0:
+      const cardGap: int32 = 6
+      let avail = max(bossCount.int32 * 74'i32, bossBandBottom - rgY)
+      let perCard = clamp((avail - (bossCount.int32 - 1) * cardGap) div bossCount.int32,
+                          72'i32, 190'i32)
+      var drawn = 0
       for enemy in game.enemies:
         if enemy.isBoss and enemy.entranceTimer <= 0:
-          inc bossCount
-          if bossCount >= 3: break
-      if bossCount > 0:
-        const cardGap: int32 = 6
-        let avail = max(bossCount.int32 * 74'i32, bossBandBottom - rgY)
-        let perCard = clamp((avail - (bossCount.int32 - 1) * cardGap) div bossCount.int32,
-                            72'i32, 190'i32)
-        var drawn = 0
-        for enemy in game.enemies:
-          if enemy.isBoss and enemy.entranceTimer <= 0:
-            rgY = drawBossPhaseHud(game, enemy, rgY, alignRight = true, slotH = perCard)
-            inc drawn
-            if drawn >= 3: break
+          rgY = drawBossPhaseHud(game, enemy, rgY, alignRight = true, slotH = perCard)
+          inc drawn
+          if drawn >= 3: break
 
     # Transient cards never start below the boss band, so even the tallest of
     # them (the multi-line wave-celebration card, ~135px) clears the combo card.

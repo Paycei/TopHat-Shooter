@@ -550,6 +550,28 @@ let changelog: seq[ChangelogVersion] = @[
         headEs: "Tarjeta de jefe más legible",
         en: "The card now reaches full brightness right away instead of only as it vanished, stays up a little longer, and wraps long descriptions evenly.",
         es: "La tarjeta ahora alcanza su brillo máximo al instante en vez de justo al desaparecer, dura un poco más y reparte las descripciones largas en líneas equilibradas."),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Bigger roguelite SECTOR panel",
+        headEs: "Panel de SECTOR del roguelite más grande",
+        en: points(
+          "The sector you are in is now written in big type, with the folder path under it.",
+          "Progress toward the SERVICE is a full-width track with a FOLDER counter, so you can see how far the boss is at a glance.",
+          "Heat, Data Shards and Cores each get their own labelled row with a large number, and they no longer run off the edge of the panel."),
+        es: points(
+          "El sector en el que estás ahora aparece en letra grande, con la ruta de carpetas debajo.",
+          "El avance hacia el SERVICIO es una barra a todo lo ancho con un contador de CARPETA, así que ves de un vistazo cuánto falta para el jefe.",
+          "El Calor, los Fragmentos y los Núcleos tienen cada uno su propia fila con etiqueta y un número grande, y ya no se salen del borde del panel.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Patches you can actually read",
+        headEs: "Parches que por fin se entienden",
+        en: points(
+          "Your patches are now listed by name in their own PATCHES panel on the right, under the SECTOR panel, instead of as a row of unlabelled icons. During a SERVICE fight the list shortens to leave the boss panel its room.",
+          "Rollback, Firewall Rule and Overclock show whether they are READY, USED or STALLED, and always stay at the top of the list.",
+          "The pause menu has a new Patches tab: every installed patch with its KB number, category and full description. Hover one or use UP/DOWN to read it."),
+        es: points(
+          "Tus parches ahora aparecen por nombre en su propio panel de PARCHES a la derecha, debajo del panel de SECTOR, en vez de como una fila de iconos sin etiqueta. Durante un combate contra un SERVICIO la lista se acorta para dejarle espacio al panel del jefe.",
+          "Reversión, Regla de Firewall y Overclock indican si están LISTOS, USADOS o DETENIDOS, y siempre quedan arriba de la lista.",
+          "El menú de pausa tiene una nueva pestaña de Parches: cada parche instalado con su número KB, su categoría y su descripción completa. Pasa el cursor sobre uno o usa ARRIBA/ABAJO para leerlo.")),
 
       # --- Balance ---
       ChangelogEntry(category: clcBalance,

@@ -156,14 +156,6 @@ proc rogueliteHudHeight(game: Game, panelW: int32): int32 =
   if rows > 0:
     result += rows * RogueHudPatchPitch + 2
 
-proc patchSpent(game: Game, patch: RogueliteRelicType): bool =
-  ## A patch whose charge is used up right now draws dimmed.
-  case patch
-  of rrtRollback: not game.player.rollbackArmed
-  of rrtOverclock: game.player.overclockStallTimer > 0
-  of rrtFirewallRule: game.waveInProgress and game.player.patchBlockCharges <= 0
-  else: false
-
 proc drawShadowText(text: string, x, y, size: int32, color: Color) =
   drawText(text, x + 1, y + 1, size, Color(r: 0, g: 0, b: 0, a: 130))
   drawText(text, x, y, size, color)

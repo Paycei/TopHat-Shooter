@@ -32,6 +32,19 @@ proc drawCenteredTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: 
                           minSize: int32 = 9): int32 {.discardable.} =
   drawTextFit(text, x, y, maxWidth, fontSize, color, minSize, taCenter)
 
+proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string =
+  ## `text` cut down (with a trailing "..") until it is at most maxWidth wide.
+  ## Trims whole UTF-8 characters, so an accented letter is never split.
+  result = text
+  if measureText(result, fontSize) <= maxWidth:
+    return
+  while result.len > 1 and measureText(result & "..", fontSize) > maxWidth:
+    var n = result.len - 1
+    while n > 0 and (result[n].uint8 and 0xC0'u8) == 0x80'u8:
+      dec n
+    result.setLen(n)
+  result = result.strip(leading = false) & ".."
+
 proc wrapTextLines*(text: string, maxWidth, fontSize: int32): seq[string] =
   ## Greedy word-wrap to lines no wider than `maxWidth` at `fontSize`.
   let words = text.splitWhitespace()

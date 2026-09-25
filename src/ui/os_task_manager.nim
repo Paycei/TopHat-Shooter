@@ -1,9 +1,9 @@
 ## OS-Style Task Manager (Pause Menu)
 ## Pause menu styled as system task manager with mouse support
 
-import raylib, math
-import ../types, ../powerup_data, ../localization, ../render_context, ../survival
-import ui_helpers
+import raylib, math, strutils
+import ../types, ../powerup_data, ../localization, ../render_context, ../survival, ../patches, ../utils
+import ui_helpers, icon_drawing
 
 const
   TASK_MANAGER_WIDTH = 700
@@ -103,6 +103,134 @@ proc drawProcessesTab(game: Game, x, y, width, height: int32) =
       drawText(statusText, x + 400, yOffset, 12, Color(r: 100, g: 255, b: 100, a: 255))
 
       yOffset += 30
+
+proc taskManagerTabs*(game: Game): seq[TaskManagerTab] =
+  ## The tabs this run shows, left to right. Patches only exist in a roguelite
+  ## run, so only that mode gets their tab.
+  if game.mode == gmRoguelite and not game.rogueliteRun.isNil:
+    @[tmtProcesses, tmtPatches, tmtPerformance]
+  else:
+    @[tmtProcesses, tmtPerformance]
+
+proc stepTaskManagerTab*(game: Game, current: TaskManagerTab, step: int): TaskManagerTab =
+  ## The tab `step` places from `current`, wrapping (Left/Right in the menu).
+  let tabs = taskManagerTabs(game)
+  let at = max(0, tabs.find(current))
+  tabs[(at + step + tabs.len * 2) mod tabs.len]
+
+proc taskManagerTabLabel(tab: TaskManagerTab): string =
+  case tab
+  of tmtProcesses: t("os_tab_processes")
+  of tmtPatches: t("os_tab_patches")
+  of tmtPerformance: t("os_tab_performance")
+  of tmtSettings: ""
+
+var
+  patchTabSelection = 0
+    ## Which installed patch the Patches tab's detail pane is showing.
+  patchTabLastMouse = Vector2(x: -1, y: -1)
+    ## Hover only moves the selection when the pointer actually moves, so a
+    ## cursor resting over the list can't undo every UP/DOWN press.
+
+proc drawPatchDetail(game: Game, patch: RogueliteRelicType, x, y, w, h: int32) =
+  ## Everything about one patch: glyph, name, KB number, category, what it
+  ## does, and (for the charge patches) whether its charge is up.
+  let accent = patchAccent(patch)
+  drawRectangle(x, y, w, h, Color(r: 28, g: 34, b: 46, a: 255))
+  drawRectangle(x, y, 3, h, accent)
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
+                     1, withAlpha(accent, 110))
+
+  const iconSize = 44'i32
+  let ix = x + 16
+  let iy = y + 16
+  drawRectangle(ix - 4, iy - 4, iconSize + 8, iconSize + 8, withAlpha(accent, 30))
+  drawPatchIcon(ix, iy, iconSize, patch, accent)
+
+  let tx = ix + iconSize + 14
+  let tw = x + w - 14 - tx
+  let name = patchName(patch)
+  drawText(fitWithEllipsis(name, tw, 18), tx, iy + 2, 18, White)
+  let kb = patchKbLabel(patch)
+  drawText(kb, tx, iy + 28, 12, Color(r: 140, g: 150, b: 165, a: 255))
+  let category = patchCategoryName(patchCategory(patch)).toUpperAscii
+  drawText(category, tx + measureText(kb, 12) + 12, iy + 28, 12, accent)
+
+  var ly = iy + iconSize + 18
+  drawLine(Vector2(x: (x + 14).float32, y: (ly - 8).float32),
+           Vector2(x: (x + w - 14).float32, y: (ly - 8).float32), 1, Color(r: 60, g: 70, b: 85, a: 255))
+  const descSize = 14'i32
+  for line in wrapTextLines(patchDescription(patch), w - 28, descSize):
+    drawText(line, x + 14, ly, descSize, Color(r: 215, g: 225, b: 235, a: 255))
+    ly += descSize + 6
+
+  let status = patchStatus(game, patch)
+  let label = t("os_status") & ": "
+  let sy = y + h - 26
+  drawText(label, x + 14, sy, 12, LightGray)
+  drawText(patchStatusLabel(status), x + 14 + measureText(label, 12), sy, 12, patchStatusColor(status))
+
+proc drawPatchesTab(game: Game, x, y, width, height: int32, mouseSupported: bool) =
+  ## The run's patches in install order (left), and the one under the cursor
+  ## or the UP/DOWN selection explained in full (right). The HUD only has room
+  ## for names; this is where a player learns what each patch does.
+  let relics = if game.rogueliteRun.isNil: @[] else: game.rogueliteRun.relics
+  var yOffset = y + 10
+  drawText(t("os_installed_patches") & " (" & $relics.len & "):", x + 10, yOffset, 16,
+           Color(r: 0, g: 200, b: 255, a: 255))
+  yOffset += 30
+
+  if relics.len == 0:
+    for line in wrapTextLines(t("os_no_patches"), width - 40, 14):
+      drawText(line, x + 20, yOffset, 14, Gray)
+      yOffset += 20
+    return
+
+  if isKeyPressed(KeyboardKey.Up) or isKeyPressed(KeyboardKey.W) or gamepadNavPressed(gnUp):
+    dec patchTabSelection
+  if isKeyPressed(KeyboardKey.Down) or isKeyPressed(KeyboardKey.S) or gamepadNavPressed(gnDown):
+    inc patchTabSelection
+
+  const rowH = 18'i32
+  const listW = 300'i32
+  let listX = x + 10
+  let shown = min(relics.len, int((y + height - yOffset) div rowH))
+  patchTabSelection = clamp(patchTabSelection, 0, max(0, shown - 1))
+  let mouse = getVirtualMousePosition()
+  let mouseMoved = mouse.x != patchTabLastMouse.x or mouse.y != patchTabLastMouse.y
+  patchTabLastMouse = mouse
+  if mouseSupported and (mouseMoved or isPointerPressed()):
+    for i in 0..<shown:
+      if isMouseOverRect(mouse, listX, yOffset + i.int32 * rowH, listW, rowH):
+        patchTabSelection = i
+
+  let kbW = measureText("KB-0000", 12)
+  for i in 0..<shown:
+    let patch = relics[i].relicType
+    let ry = yOffset + i.int32 * rowH
+    let status = patchStatus(game, patch)
+    let spent = status in {psUsed, psStalled}
+    if i == patchTabSelection:
+      drawRectangle(listX, ry, listW, rowH, Color(r: 0, g: 200, b: 255, a: 45))
+      drawRectangleLines(Rectangle(x: listX.float32, y: ry.float32, width: listW.float32,
+                                   height: rowH.float32), 1, Color(r: 0, g: 200, b: 255, a: 170))
+    elif i mod 2 == 0:
+      drawRectangle(listX, ry, listW, rowH, Color(r: 30, g: 35, b: 45, a: 100))
+    let accent = patchAccent(patch)
+    drawPatchIcon(listX + 4, ry + 1, rowH - 2, patch, if spent: withAlpha(accent, 100) else: accent)
+    drawText(patchKbLabel(patch), listX + 26, ry + 3, 12, Color(r: 120, g: 135, b: 150, a: 255))
+    let statusText = patchStatusLabel(status)
+    let statusW = measureText(statusText, 12)
+    drawText(statusText, listX + listW - 6 - statusW, ry + 3, 12, patchStatusColor(status))
+    let nameX = listX + 26 + kbW + 8
+    drawText(fitWithEllipsis(patchName(patch), listX + listW - 6 - statusW - 8 - nameX, 12),
+             nameX, ry + 3, 12, if spent: Gray else: White)
+
+  let paneX = listX + listW + 10
+  let paneW = x + width - 10 - paneX
+  let paneH = y + height - yOffset - 18
+  drawPatchDetail(game, relics[patchTabSelection].relicType, paneX, yOffset, paneW, paneH)
+  drawText(t("os_patches_hint"), paneX, yOffset + paneH + 5, 10, Color(r: 120, g: 135, b: 150, a: 255))
 
 proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
   ## Draw the Performance tab showing game statistics
@@ -276,41 +404,40 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   drawText(t("os_system_manager"), windowX + 15, windowY + 8, 18,
           Color(r: 0, g: 200, b: 255, a: 255))
 
-  # Tabs (only Processes and Performance)
+  # Tabs: Processes and Performance, plus Patches in a roguelite run.
   let tabY = windowY + TITLE_BAR_HEIGHT
-  let tabWidth = TASK_MANAGER_WIDTH div 2
-
-  # Check mouse hover and clicks for tabs
-  let processesHovered = mouseSupported and isMouseOverRect(mousePos, windowX, tabY, tabWidth.int32, TAB_HEIGHT)
-  let performanceHovered = mouseSupported and isMouseOverRect(mousePos, windowX + tabWidth.int32, tabY, tabWidth.int32, TAB_HEIGHT)
-
-  # Handle tab clicks
-  if mouseSupported and isPointerPressed():
-    if processesHovered:
-      result.newTab = tmtProcesses
-    elif performanceHovered:
-      result.newTab = tmtPerformance
-
-  drawTaskManagerTab(windowX, tabY, tabWidth.int32, "Processes",
-                    selectedTab == tmtProcesses, processesHovered)
-  drawTaskManagerTab(windowX + tabWidth.int32, tabY, tabWidth.int32, "Performance",
-                    selectedTab == tmtPerformance, performanceHovered)
+  let tabs = taskManagerTabs(game)
+  # A tab this run doesn't have (a stale selection) falls back to Processes.
+  let shownTab = if selectedTab in tabs: selectedTab else: tmtProcesses
+  let tabWidth = (TASK_MANAGER_WIDTH div tabs.len).int32
+  for i, tab in tabs:
+    let tx = windowX + i.int32 * tabWidth
+    # The last tab absorbs the rounding so the bar spans the whole window.
+    let tw = if i == tabs.high: windowX + TASK_MANAGER_WIDTH - tx else: tabWidth
+    let hovered = mouseSupported and isMouseOverRect(mousePos, tx, tabY, tw, TAB_HEIGHT)
+    if hovered and isPointerPressed():
+      result.newTab = tab
+    drawTaskManagerTab(tx, tabY, tw, taskManagerTabLabel(tab), shownTab == tab, hovered)
 
   # Content area
   let contentY = tabY + TAB_HEIGHT + 10
   let contentHeight = TASK_MANAGER_HEIGHT - TITLE_BAR_HEIGHT - TAB_HEIGHT - 165
 
-  case selectedTab
-  of tmtProcesses:
-    drawProcessesTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, contentHeight.int32)
-  of tmtPerformance:
-    drawPerformanceTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, contentHeight.int32, game.time)
-  else:
-    discard
-
   # Bottom buttons
   let buttonY = windowY + TASK_MANAGER_HEIGHT - 80
   let buttonsStartX = windowX + (TASK_MANAGER_WIDTH - 600) div 2
+
+  case shownTab
+  of tmtProcesses:
+    drawProcessesTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, contentHeight.int32)
+  of tmtPatches:
+    # No lives panel in a roguelite run, so the list may run down to the buttons.
+    drawPatchesTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, buttonY - 10 - contentY,
+                   mouseSupported)
+  of tmtPerformance:
+    drawPerformanceTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, contentHeight.int32, game.time)
+  of tmtSettings:
+    discard
 
   # Lives panel between the tab content and the buttons. Wave mode only: it is
   # the only mode with a continue budget, and an always-empty panel in survival

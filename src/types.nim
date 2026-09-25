@@ -1414,7 +1414,8 @@ type
   TaskManagerTab* = enum
     tmtProcesses,    # Active power-ups
     tmtPerformance,  # Stats and metrics
-    tmtSettings      # Game settings access
+    tmtSettings,     # Game settings access
+    tmtPatches       # Roguelite: the run's installed patches
 
   BossWaveManager* = object
     active*: bool        # True when a boss is currently spawned

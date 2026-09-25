@@ -2698,14 +2698,18 @@ proc main() =
       # Only handle pause menu controls if no window is blocking interaction
       # and neither confirm dialog is active
       if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
-        # Pause menu navigation - Tab switching (Left/Right or A/D)
-        if isKeyPressed(Left) or isKeyPressed(A) or isKeyPressed(Right) or isKeyPressed(D):
-          currentGame.pauseMenuTab = case currentGame.pauseMenuTab
-            of tmtProcesses: tmtPerformance
-            of tmtPerformance: tmtProcesses
-            else: tmtProcesses
+        # Pause menu navigation - Tab switching (Left/Right, A/D or the D-pad),
+        # cycling through whichever tabs this mode shows.
+        let keyLeft = isKeyPressed(Left) or isKeyPressed(A)
+        let keyRight = isKeyPressed(Right) or isKeyPressed(D)
+        let tabStep = if keyLeft or gamepadNavPressed(gnLeft): -1
+                      elif keyRight or gamepadNavPressed(gnRight): 1
+                      else: 0
+        if tabStep != 0:
+          currentGame.pauseMenuTab = stepTaskManagerTab(currentGame, currentGame.pauseMenuTab, tabStep)
           playSound(stMenuNav)
-          markKeyboardUsed(currentGame)
+          if keyLeft or keyRight:
+            markKeyboardUsed(currentGame)
 
         # Actions
         if isKeyPressed(Space):  # Resume
