@@ -125,6 +125,36 @@ let changelog: seq[ChangelogVersion] = @[
     entries: @[
       # --- New ---
       ChangelogEntry(category: clcNew,
+        headEn: "Time Survival: its own horde and bosses",
+        headEs: "Supervivencia: horda y jefes propios",
+        en: points(
+          "Time Survival no longer borrows the wave-mode enemies. The flood has its own horde of 7 processes that join the fight as the clock runs: Threads, Fork Bombs, Watchdogs, Zombie Processes, Deadlocks, Priority Daemons and Interrupts.",
+          "They are made for a crowd. Fork Bombs split in two when killed, a Zombie Process stands back up unless you walk over its husk, Deadlocks come in pairs joined by a burning tether, a Priority Daemon speeds up everything around it and an Interrupt blows up the horde along with you.",
+          "Three new phase bosses close Boot, Runtime and Overload, and each one fights with the horde. The Forkmother hides her children in the crowd and fires seeds that double on every beat, the Dispatcher marches walls of bodies across the arena for you to shoot through, and Thermal Runaway sets your own footsteps on fire.",
+          "The Omega Entity still closes Kernel Panic, with a new survival kit that ends in Safe Mode: the flood takes everything but one drifting bubble.",
+          "Overtime now rotates through all four bosses."),
+        es: points(
+          "Supervivencia ya no toma prestados los enemigos del modo oleadas. La inundación tiene su propia horda de 7 procesos que se suman al combate según avanza el reloj: Hilos, Bombas Fork, Perros Guardianes, Procesos Zombi, Interbloqueos, Demonios de Prioridad e Interrupciones.",
+          "Están hechos para una multitud. Las Bombas Fork se parten en dos al morir, un Proceso Zombi se vuelve a levantar salvo que pases por encima de su cáscara, los Interbloqueos llegan en parejas unidas por un enlace ardiente, un Demonio de Prioridad acelera todo lo que tiene cerca y una Interrupción hace estallar a la horda contigo.",
+          "Tres jefes de fase nuevos cierran Arranque, Ejecución y Sobrecarga, y cada uno lucha junto a la horda. La Madre Fork esconde a sus hijos entre la multitud y lanza semillas que se duplican a cada compás, el Despachador hace marchar muros de cuerpos por la arena para que te abras paso a tiros, y Fuga Térmica prende fuego a tus propias pisadas.",
+          "La Entidad Omega sigue cerrando Pánico del Kernel, con un repertorio nuevo de supervivencia que termina en Modo Seguro: la inundación lo cubre todo salvo una burbuja a la deriva.",
+          "El tiempo extra ahora rota entre los cuatro jefes.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Roguelite: its own processes and a guardian per folder",
+        headEs: "Roguelite: procesos propios y un guardián por carpeta",
+        en: points(
+          "The folders are held by 8 legacy processes built for rooms: Fragments, Port Guards you have to flank, Sentries that dig in, Mimics posing as files, Restorers that raise the fallen, Packets that ricochet off the walls, armoured Drivers that stun themselves on obstacles and Corruptors that rot the floor.",
+          "Every folder theme has its own guardian, so the theme card tells you who waits at the SERVICE: the Gatekeeper, the Compactor, the Hive, the Router, the Supervisor and the Mirror Cache.",
+          "Each guardian plays with the room. Take cover from the Gatekeeper's searchlights, shred the Compactor's file bombs before the purge, freeze when the Hive audits, cross the Router's packet lanes, watch where the Supervisor pages its obstacles back in and outrun the Mirror Cache's echo of yourself.",
+          "A guardian grows with the sector it appears in. The Corrupted Sector is now reserved for the final sector.",
+          "The final sector's Omega Entity has a new roguelite kit that echoes the guardians and ends in Last Known Good: four doors light up, and only the one labelled with a folder you really walked is safe."),
+        es: points(
+          "Las carpetas están custodiadas por 8 procesos heredados hechos para las salas: Fragmentos, Guardias de Puerto a los que hay que flanquear, Centinelas que se atrincheran, Mímicos disfrazados de archivos, Restauradores que levantan a los caídos, Paquetes que rebotan en los muros, Controladores blindados que se aturden contra los obstáculos y Corruptores que pudren el suelo.",
+          "Cada tema de carpeta tiene su propio guardián, así que la tarjeta del tema te dice quién espera en el SERVICIO: el Guardián, la Compactadora, la Colmena, el Enrutador, el Supervisor y la Caché Espejo.",
+          "Cada guardián juega con la sala. Cúbrete de los haces del Guardián, destruye las bombas de archivos de la Compactadora antes de la purga, quédate quieto cuando la Colmena audita, cruza los carriles de paquetes del Enrutador, vigila dónde vuelve a colocar el Supervisor sus obstáculos y déjate atrás al eco de ti mismo de la Caché Espejo.",
+          "Un guardián crece con el sector en el que aparece. El Sector Corrupto queda reservado para el sector final.",
+          "La Entidad Omega del sector final tiene un repertorio nuevo de roguelite que repite a los guardianes y termina en Última Configuración Válida: se iluminan cuatro puertas y solo es segura la que lleva el nombre de una carpeta por la que pasaste de verdad.")),
+      ChangelogEntry(category: clcNew,
         headEn: "Roguelite reworked: Deep Recovery",
         headEs: "Roguelite renovado: Recuperación Profunda",
         en: points(
@@ -326,6 +356,15 @@ let changelog: seq[ChangelogVersion] = @[
           "El anfitrión puede pulsar Enter (A en mando) para empezar una revancha con la misma sala. Nadie tiene que volver a crear ni unirse a la partida.")),
 
       # --- Improvements ---
+      ChangelogEntry(category: clcImproved,
+        headEn: "Help and Sandbox cover every roster",
+        headEs: "Ayuda y Sandbox cubren todos los repertorios",
+        en: points(
+          "The enemies and bosses pages in the Help terminal now list the wave, survival and roguelite rosters separately, with the tag each boss answers to.",
+          "The Sandbox spawn lists include every new enemy and boss, and Deadlocks spawn there as pairs."),
+        es: points(
+          "Las páginas de enemigos y jefes de la terminal de Ayuda ahora separan los repertorios de oleadas, supervivencia y roguelite, con la etiqueta de cada jefe.",
+          "Las listas del Sandbox incluyen todos los enemigos y jefes nuevos, y los Interbloqueos aparecen allí en parejas.")),
       ChangelogEntry(category: clcImproved,
         headEn: "Roguelite: everything playable from the first run",
         headEs: "Roguelite: todo disponible desde la primera partida",

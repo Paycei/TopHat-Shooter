@@ -1,5 +1,5 @@
 import raylib, math
-import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types
+import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types, enemy_config
 
 # ENABLE/DISABLE CHEATS
 # Release-build toggle: flip to `false` to ship a build with no cheat menu.
@@ -1085,20 +1085,8 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
       t(tkCheatCustomBoss)
     else:
       case enemy.enemyType
-      of etCircle: t(tkEnemyCircleName)
-      of etCube: t(tkEnemyCubeName)
-      of etTriangle: t(tkEnemyTriangleName)
-      of etStar: t(tkEnemyStarName)
-      of etHexagon: t(tkEnemyHexagonName)
-      of etCross: t(tkEnemyCrossName)
-      of etDiamond: t(tkEnemyDiamondName)
-      of etOctagon: t(tkEnemyOctagonName)
-      of etPentagon: t(tkEnemyPentagonName)
-      of etTrickster: t(tkEnemyTricksterName)
-      of etPhantom: t(tkEnemyPhantomName)
-      of etSniper: t(tkEnemySniperName)
-      of etMage: t(tkEnemyMageName)
       of etEnvironment: t(tkCheatEnemyEnvironment)
+      else: getEnemyConfig(enemy.enemyType).name
 
     let nameColor = if enemy.isBoss: Red
                     elif enemy.enemyType == etSniper: Magenta

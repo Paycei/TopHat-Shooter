@@ -65,11 +65,11 @@ type
   DungeonThemeDef* = object
     accent*: Color
     ## Roster entries unlock progressively: an enemy only spawns once the
-    ## room's effective threat reaches its minThreat. Enemy base configs are
-    ## tuned for their wave-mode introduction points (a Pentagon has 10 base
-    ## HP, a Mage 20), so early rooms must stick to the cheap types.
+    ## room's effective threat reaches its minThreat. The folders field the
+    ## roguelite's own legacy processes (etFragment..etCorruptor), written for
+    ## room play: cover, walls and obstacles are part of every behaviour.
     roster*: seq[tuple[enemy: EnemyType, weight: int, minThreat: int]]
-    bossNumber*: int          # Index into boss_definitions
+    bossNumber*: int          # The folder's guardian (boss definition ID)
     pressureMod*: float32     # Scales encounter difficulty
     eliteBonus*: int          # Added to the elite-chance roll input
     shardMod*: float32        # Scales shard rewards
@@ -88,6 +88,11 @@ var focusedPickup = -1
 # ---------------------------------------------------------------------------
 # Themes
 
+const FinalFloorTheme* = dftCorruptedSector
+  ## The single arena that headlines the final sector (the Omega Entity). The
+  ## corrupted sector is the most degraded theme, fitting the run's last
+  ## process, and is reserved for it: it is never offered on sectors 1-3.
+
 proc themeDef*(theme: DungeonFloorTheme): DungeonThemeDef =
   # Threat reference (heat 1): sector 1 rooms sit around threat 1-5,
   # sector 2 ~6-11, sector 3 ~11-17, sector 4 ~16-22.
@@ -97,52 +102,59 @@ proc themeDef*(theme: DungeonFloorTheme): DungeonThemeDef =
   of dftFirewall:
     DungeonThemeDef(
       accent: Color(r: 255, g: 110, b: 48, a: 255),
-      roster: @[(etCircle, 28, 0), (etCube, 26, 0), (etPentagon, 26, 2),
-                (etOctagon, 20, 4)],
-      bossNumber: 3, pressureMod: 1.0, eliteBonus: 0, shardMod: 1.0,
+      # Shield walls and turrets dug in behind the obstacles, drivers ramming through.
+      roster: @[(etFragment, 30, 0), (etPortGuard, 30, 0), (etSentry, 25, 2),
+                (etDriver, 15, 4)],
+      bossNumber: BossGatekeeper, pressureMod: 1.0, eliteBonus: 0, shardMod: 1.0,
       obstacleMin: 2, obstacleMax: 4)
   of dftRecycleBin:
     DungeonThemeDef(
       accent: Color(r: 150, g: 190, b: 140, a: 255),
-      roster: @[(etCircle, 45, 0), (etTriangle, 35, 0), (etStar, 20, 2)],
-      bossNumber: 2, pressureMod: 0.95, eliteBonus: 0, shardMod: 1.0,
+      # Deleted files that won't stay deleted: mimics among the scraps,
+      # restorers raising the fallen.
+      roster: @[(etFragment, 40, 0), (etMimic, 30, 0), (etRestorer, 30, 2)],
+      bossNumber: BossCompactor, pressureMod: 0.95, eliteBonus: 0, shardMod: 1.0,
       obstacleMin: 3, obstacleMax: 5)
   of dftRegistry:
     DungeonThemeDef(
       accent: Color(r: 90, g: 160, b: 255, a: 255),
-      roster: @[(etCube, 26, 0), (etCross, 26, 0), (etPentagon, 24, 2),
-                (etDiamond, 22, 4)],
-      bossNumber: 4, pressureMod: 1.05, eliteBonus: 2, shardMod: 1.1,
+      # Guarded keys: shields up front, restorers behind, the floor rotting.
+      roster: @[(etFragment, 25, 0), (etPortGuard, 25, 0), (etRestorer, 25, 2),
+                (etCorruptor, 25, 4)],
+      bossNumber: BossHive, pressureMod: 1.05, eliteBonus: 2, shardMod: 1.1,
       obstacleMin: 3, obstacleMax: 5)
   of dftNetwork:
     DungeonThemeDef(
       accent: Color(r: 0, g: 220, b: 255, a: 255),
-      roster: @[(etCircle, 22, 0), (etTriangle, 32, 0), (etDiamond, 28, 2),
-                (etSniper, 16, 5)],
-      bossNumber: 7, pressureMod: 1.1, eliteBonus: 3, shardMod: 1.15,
+      # Traffic: packets ricocheting off every obstacle, sentries on the hops.
+      roster: @[(etFragment, 30, 0), (etPacket, 35, 0), (etSentry, 20, 2),
+                (etMimic, 15, 4)],
+      bossNumber: BossRouter, pressureMod: 1.1, eliteBonus: 3, shardMod: 1.15,
       obstacleMin: 1, obstacleMax: 3)
   of dftKernel:
     DungeonThemeDef(
       accent: Color(r: 150, g: 95, b: 235, a: 255),
-      roster: @[(etCube, 24, 0), (etOctagon, 26, 0), (etStar, 30, 2),
-                (etMage, 20, 5)],
-      bossNumber: 8, pressureMod: 1.18, eliteBonus: 4, shardMod: 1.25,
+      # Heavy iron: drivers charging through rooted sentries' fire.
+      roster: @[(etFragment, 25, 0), (etDriver, 30, 0), (etSentry, 25, 2),
+                (etPortGuard, 20, 4)],
+      bossNumber: BossSupervisor, pressureMod: 1.18, eliteBonus: 4, shardMod: 1.25,
       obstacleMin: 2, obstacleMax: 4)
   of dftCache:
     DungeonThemeDef(
       accent: Color(r: 70, g: 215, b: 195, a: 255),
-      roster: @[(etHexagon, 32, 0), (etTrickster, 34, 0), (etPhantom, 34, 3)],
-      bossNumber: 5, pressureMod: 1.12, eliteBonus: 3, shardMod: 1.2,
+      # Stale memory: mimics, bouncing packets, corrupted tiles everywhere.
+      roster: @[(etFragment, 25, 0), (etMimic, 30, 0), (etPacket, 25, 2),
+                (etCorruptor, 20, 3)],
+      bossNumber: BossMirrorCache, pressureMod: 1.12, eliteBonus: 3, shardMod: 1.2,
       obstacleMin: 2, obstacleMax: 4)
   of dftCorruptedSector:
     DungeonThemeDef(
       accent: Color(r: 255, g: 80, b: 200, a: 255),
-      roster: @[(etCircle, 12, 0), (etTriangle, 12, 0), (etCube, 10, 0),
-                (etHexagon, 6, 0), (etPentagon, 10, 2), (etStar, 10, 2),
-                (etCross, 10, 2), (etDiamond, 10, 4), (etOctagon, 10, 4),
-                (etTrickster, 6, 4), (etPhantom, 6, 6), (etSniper, 4, 6),
-                (etMage, 4, 8)],
-      bossNumber: 11, pressureMod: 1.3, eliteBonus: 8, shardMod: 1.45,
+      # The bottom of the stack: every legacy process at once.
+      roster: @[(etFragment, 16, 0), (etPortGuard, 12, 0), (etMimic, 10, 0),
+                (etPacket, 12, 0), (etSentry, 12, 2), (etRestorer, 10, 2),
+                (etDriver, 14, 2), (etCorruptor, 14, 4)],
+      bossNumber: BossOmegaRoguelite, pressureMod: 1.3, eliteBonus: 8, shardMod: 1.45,
       obstacleMin: 3, obstacleMax: 5)
 
 proc themeKey(theme: DungeonFloorTheme): string =
@@ -326,6 +338,14 @@ proc enemyTuningWave(enemyType: EnemyType): float32 =
   of etSniper: 50
   of etPhantom: 51
   of etMage: 56
+  # The survival horde never spawns in a folder.
+  of etThread..etInterrupt: 1
+  # The roguelite roster is written for sector 1 (wave-equivalent ~2-12):
+  # only the tougher types compress, and only in the very first rooms.
+  of etFragment: 1
+  of etPortGuard, etSentry, etMimic: 4
+  of etRestorer, etPacket, etCorruptor: 6
+  of etDriver: 8
   of etEnvironment: 1
 
 proc tuneDungeonEnemyStats*(enemy: Enemy, run: RogueliteRun, room: DungeonRoom) =
@@ -358,52 +378,22 @@ proc dungeonBossDifficulty*(run: RogueliteRun): float32 =
     heatRank.float32 * RogueliteHeatBossDifficultyPerTier +
     run.endlessLoop.float32 * 1.5'f32
 
-proc dungeonBossBand*(floorNumber: int): tuple[lo, hi: int] =
-  ## Non-overlapping per-sector boss bands. The last sector is reserved for the
-  ## 12th (final) boss alone; bosses 1..11 are spread across the earlier
-  ## sectors, so only the starter bosses can headline sector 1 and only the
-  ## final boss can appear in the last one. Assumes the 4-sector / 12-boss layout.
-  if floorNumber >= RogueliteFloorsToWin:
-    (12, 12)
-  else:
-    case floorNumber
-    of 1: (1, 3)
-    of 2: (4, 7)
-    else: (8, 11)
-
-proc themeBossRank(theme: DungeonFloorTheme): tuple[rank, count: int] =
-  ## Difficulty rank of a theme among all themes, ordered by its authored
-  ## bossNumber (0 = easiest theme). Used to spread the themes evenly across a
-  ## sector's boss band instead of clamping their raw bossNumber (which
-  ## saturates every harder theme onto the band's top boss).
-  let mine = themeDef(theme).bossNumber
-  var rank = 0
-  var count = 0
-  for th in DungeonFloorTheme:
-    inc count
-    if themeDef(th).bossNumber < mine:
-      inc rank
-  (rank, count)
-
 proc dungeonBossNumberFor*(theme: DungeonFloorTheme,
                            floorNumber, endlessLoop, heat: int): int =
-  ## Boss that will headline `floorNumber` for `theme`. The theme's difficulty
-  ## rank is mapped proportionally across the sector's exclusive band (see
-  ## dungeonBossBand) so each sector spans its whole boss range, then Heat and
-  ## the endless loop rotate it within the band. Pure so the theme-select
-  ## preview can call it before the sector itself is generated.
-  let band = dungeonBossBand(floorNumber)
-  let span = band.hi - band.lo
-  let (rank, count) = themeBossRank(theme)
-  let themePos = if span <= 0 or count <= 1: 0
-                 else: int(round(rank.float32 / (count - 1).float32 * span.float32))
-  # Wrap the heat/endless nudge *within* the band instead of clamping it:
-  # clamping would saturate every theme onto band.hi and collapse the three
-  # theme cards onto a single boss. (Heat/loop difficulty is applied to the
-  # boss's *stats* in tuneDungeonBossStats, not to which boss headlines.)
-  let slots = span + 1
-  if slots <= 1: band.lo
-  else: band.lo + ((themePos + heatChallengeRank(heat) + endlessLoop) mod slots)
+  ## The SERVICE that will headline `floorNumber` for `theme`: every folder
+  ## theme has its own legacy guardian, and the final sector always fields
+  ## the Omega Entity's roguelite kit. Which sector a guardian appears in only
+  ## changes its numbers (tuneDungeonBossStats), never which boss it is. Pure
+  ## so the theme-select preview can call it before the sector exists.
+  if floorNumber >= RogueliteFloorsToWin:
+    BossOmegaRoguelite
+  elif theme == FinalFloorTheme:
+    # Only a save from before the final theme was reserved gets here (a
+    # corrupted sector mid-run): field a guardian, picked deterministically so
+    # a reload never swaps it.
+    BossGatekeeper + (floorNumber + endlessLoop) mod (BossMirrorCache - BossGatekeeper + 1)
+  else:
+    themeDef(theme).bossNumber
 
 proc dungeonBossNumber*(game: Game): int =
   let run = game.rogueliteRun
@@ -416,53 +406,41 @@ proc dungeonBossWaveEquivalent(run: RogueliteRun): float32 =
   5.0'f32 + (run.floorNumber - 1).float32 * 10.0'f32 +
     heatRank.float32 * 5.0'f32 + run.endlessLoop.float32 * 15.0'f32
 
+const ServiceDamageRef = [1.0'f32, 4.5, 12.0, 14.5]
+  ## Typical attack damage a SERVICE lands in sectors 1-4 (wave slots 5 / 15 /
+  ## 25 / 35): the medians the campaign-boss SERVICEs fought at before the
+  ## roguelite had its own roster, kept so the guardians inherit the tuned
+  ## pressure of each sector rather than the wave curve's.
+
+proc serviceDamageRef(slotWave: float32): float32 =
+  let pos = max(0.0'f32, (slotWave - 5.0'f32) / 10.0'f32)
+  let last = ServiceDamageRef.high
+  if pos >= last.float32:
+    return ServiceDamageRef[last] * pow(1.05'f32, (slotWave - 35.0'f32) / 5.0'f32)
+  let lo = int(floor(pos))
+  ServiceDamageRef[lo] + (ServiceDamageRef[lo + 1] - ServiceDamageRef[lo]) * (pos - lo.float32)
+
 proc tuneDungeonBossStats*(boss: Enemy, run: RogueliteRun) =
-  ## Boss base stats grow steeply with their number (boss 1: 125 base HP,
-  ## boss 12: 3500), so proportional compression can't bridge the gap when a
-  ## themed late-number boss appears in an early sector. Instead, normalize the
-  ## spawned boss to the HP/damage *budget* of the boss that would naturally
-  ## hold this sector's wave slot - it keeps its mechanics, phases, and weak
-  ## points, but fights with sector-appropriate numbers. Attack damage flows
-  ## through damageTuning, applied in executeCustomBossAttack.
+  ## A guardian is authored at the sector-1 budget and may headline any
+  ## sector (its folder theme can be picked anywhere), and the Omega kit is
+  ## authored at the campaign finale. Normalize the spawned boss to the
+  ## sector's slot on the boss curve, up or down: it keeps its mechanics,
+  ## phases and weak points but fights with sector-appropriate HP and attack
+  ## damage (damageTuning, applied in executeCustomBossAttack).
+  ## RogueliteServiceHpScale trims the pool on top: a roguelite build has no
+  ## between-wave stat shop behind it (measured: SERVICEs otherwise ran 2-6 min).
   if boss.isNil or not boss.isBoss or run.isNil:
     return
-  let waveEquivalent = dungeonBossWaveEquivalent(run)
-  let budgetNumber = clamp(int(round(waveEquivalent / 5.0'f32)), 1, 12)
-  # A roguelite build has no between-wave stat shop behind it, so a SERVICE
-  # fights with a trimmed pool (measured: late SERVICEs otherwise ran 2-6 min).
-  proc trimPools(boss: Enemy, factor: float32) =
-    boss.hp *= factor
-    boss.maxHp *= factor
-    boss.bossTotalMaxHp *= factor
-    for i in 0..<boss.bossPhaseHpPools.len:
-      boss.bossPhaseHpPools[i] *= factor
-  if budgetNumber >= boss.bossDefinitionID:
-    boss.damageTuning = 1.0
-    trimPools(boss, RogueliteServiceHpScale)
-    return
-  let actualDef = getBossDefinition(boss.bossDefinitionID)
-  let budgetDef = getBossDefinition(budgetNumber)
-
-  # Same growth curve as getScaledBossHP, anchored at the sector's wave slot.
-  let waveScale = 1.0'f32 +
-    max(0.0'f32, (waveEquivalent - 5.0'f32) / 5.0'f32) * 0.2'f32
-  let targetHp = budgetDef.baseHP * waveScale
-  if boss.bossTotalMaxHp > 0:
-    let hpFactor = clamp(targetHp / boss.bossTotalMaxHp, 0.02'f32, 1.0'f32)
-    boss.hp *= hpFactor
-    boss.maxHp *= hpFactor
-    boss.bossTotalMaxHp *= hpFactor
-    for i in 0..<boss.bossPhaseHpPools.len:
-      boss.bossPhaseHpPools[i] *= hpFactor
-
-  trimPools(boss, RogueliteServiceHpScale)
-
-  let damageFactor = clamp(
-    budgetDef.baseDamage.float32 / max(1.0'f32, actualDef.baseDamage.float32),
-    0.25'f32, 1.0'f32)
-  boss.contactDamage *= damageFactor
-  boss.rangedDamage *= damageFactor
-  boss.damageTuning = damageFactor
+  let slot = dungeonBossWaveEquivalent(run)
+  normalizeBossToSlot(boss, slot, RogueliteServiceHpScale)
+  # Attack damage follows the sector's SERVICE reference instead of the wave
+  # curve (see ServiceDamageRef).
+  let authoredRef = bossSlotDamageRef(bossAuthoredSlotWave(boss.bossDefinitionID).float32)
+  let f = serviceDamageRef(slot) / max(0.01'f32, authoredRef)
+  if boss.damageTuning > 0:
+    boss.contactDamage *= f / boss.damageTuning
+    boss.rangedDamage *= f / boss.damageTuning
+  boss.damageTuning = f
 
 proc rollEncounterEnemyType*(run: RogueliteRun, room: DungeonRoom): EnemyType =
   ## Weighted pick from the sector theme's roster (non-deterministic on
@@ -644,9 +622,6 @@ proc beginSectorRooms*(game: Game) =
 # ---------------------------------------------------------------------------
 # Theme selection between sectors
 
-const FinalFloorTheme* = dftCorruptedSector
-  ## The single arena that headlines the final sector (boss 12). The corrupted
-  ## sector is the most degraded theme, fitting the run's last process.
 
 proc isFinalDungeonFloor*(run: RogueliteRun): bool =
   ## The final sector offers one special "final boss" arena (always boss 12)
@@ -656,21 +631,23 @@ proc isFinalDungeonFloor*(run: RogueliteRun): bool =
 proc generateThemeChoices*(run: RogueliteRun) =
   if run.isNil: return
   if isFinalDungeonFloor(run):
-    # Final sector: no roll. A single fixed arena that always headlines boss
-    # 12. Every slot resolves to it so any selection index lands on the same
-    # theme, and the theme-select UI renders one special card.
+    # Final sector: no roll. A single fixed arena that always headlines the
+    # Omega Entity. Every slot resolves to it so any selection index lands on
+    # the same theme, and the theme-select UI renders one special card.
     for i in 0 .. 2:
       run.nextThemeChoices[i] = FinalFloorTheme
     return
+  # The final sector's theme never rolls here: it belongs to the Omega Entity.
   var pool: seq[DungeonFloorTheme] = @[]
   for theme in DungeonFloorTheme:
-    if theme notin run.usedThemes:
+    if theme notin run.usedThemes and theme != FinalFloorTheme:
       pool.add(theme)
   if pool.len < 3:
     # Endless loops re-open the full pool.
     pool = @[]
     for theme in DungeonFloorTheme:
-      pool.add(theme)
+      if theme != FinalFloorTheme:
+        pool.add(theme)
 
   # Offer 3 themes whose SERVICE bosses are all DISTINCT. Group the pool by
   # the boss each theme maps to in this sector, then draw one theme from 3
@@ -901,12 +878,21 @@ proc wipeRoomEntities*(game: Game) =
   game.pendingBoss = nil
   game.pendingBossTimer = 0
   game.bossSpawnTimer = 0
+  # Roster state tied to the room: corpses a Restorer could raise, husks, the
+  # Hive's freeze.
+  game.modeCombat.corpses = @[]
+  game.modeCombat.husks = @[]
+  game.modeCombat.auditTimer = 0
 
 proc spawnRoomObstacles(game: Game, room: DungeonRoom) =
   ## A few permanent circular obstacles, kept away from doors and the center.
   let def = themeDef(game.rogueliteRun.floor.theme)
   var rng = initRand(room.obstacleSeed)
-  let count = def.obstacleMin + rng.rand(max(0, def.obstacleMax - def.obstacleMin))
+  var count = def.obstacleMin + rng.rand(max(0, def.obstacleMax - def.obstacleMin))
+  # The Gatekeeper's searchlights and the Supervisor's page faults are played
+  # around cover: their SERVICE rooms always get enough of it.
+  if room.kind == drkBoss and dungeonBossNumber(game) in [BossGatekeeper, BossSupervisor]:
+    count = max(count, 4)
   let w = game.screenWidth.float32
   let h = game.screenHeight.float32
   var attempts = 0
@@ -1451,7 +1437,7 @@ proc drawExitDoor(game: Game, ex: DungeonExit, open: bool, bossNumber: int) =
   else:
     drawRoomRewardIcon((cx + 9).int32, (cy + 13).int32, 32, ex.reward, withAlpha(accent, iconA))
   let name = if ex.kind == drkBoss: "/service" else: rewardFolderName(ex.reward)
-  let sub = if ex.kind == drkBoss: t("boss_" & $bossNumber & "_name")
+  let sub = if ex.kind == drkBoss: bossName(bossNumber)
             else: rewardLabel(ex.reward)
   let textX = (cx + 52).int32
   let textW = (cardW - 58).int32

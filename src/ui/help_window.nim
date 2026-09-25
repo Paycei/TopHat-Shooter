@@ -214,13 +214,18 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpEnemiesTopic), Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("", White)
-      for i in ord(low(EnemyType)) .. ord(high(EnemyType)):
-        let et = EnemyType(i)
-        let cfg = getEnemyConfig(et)
-        help.addOutput("  " & cfg.name, cfg.baseColor)
-        for line in cfg.description.split("\n"):
-          help.addOutput("    " & line, White)
+      # Each mode fields its own roster: listed per mode, campaign first.
+      for (header, first, last) in [(tkHelpRosterWave, etCircle, etMage),
+                                    (tkHelpRosterSurvival, etThread, etInterrupt),
+                                    (tkHelpRosterRoguelite, etFragment, etCorruptor)]:
+        help.addOutput("[ " & t(header) & " ]", Color(r: 255, g: 200, b: 50, a: 255))
         help.addOutput("", White)
+        for et in first .. last:
+          let cfg = getEnemyConfig(et)
+          help.addOutput("  " & cfg.name, cfg.baseColor)
+          for line in cfg.description.split("\n"):
+            help.addOutput("    " & line, White)
+          help.addOutput("", White)
 
     of "bosses":
       help.addOutput("", White)
@@ -242,18 +247,25 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput(t(tkHelpBossAttacks), Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("  " & t(tkHelpBossAttacksRefer), White)
       help.addOutput("", White)
-      # List all bosses as service dossiers: name, hijacked service, lore line.
-      for id in 1..12:
-        let bd = getBossDefinition(id)
-        help.addOutput("  " & bd.name, bd.color)
-        let tag = getBossServiceTag(id)
-        if tag.len > 0:
-          let tagColor = if isRootBoss(id): Color(r: 255, g: 140, b: 230, a: 255)
-                         else: Color(r: 255, g: 175, b: 70, a: 255)
-          help.addOutput("    " & tag, tagColor)
-        for line in bd.description.split("\n"):
-          help.addOutput("    " & line, White)
+      # List all bosses as process dossiers: name, tag (hijacked service,
+      # flood spawn, legacy process, or the Root), lore line. One roster per
+      # mode; the Omega Entity closes each with that mode's kit.
+      for (header, first, last) in [(tkHelpRosterWave, 1, 12),
+                                    (tkHelpRosterSurvival, BossForkmother, BossOmegaSurvival),
+                                    (tkHelpRosterRoguelite, BossGatekeeper, BossOmegaRoguelite)]:
+        help.addOutput("[ " & t(header) & " ]", Color(r: 255, g: 200, b: 50, a: 255))
         help.addOutput("", White)
+        for id in first .. last:
+          let bd = getBossDefinition(id)
+          help.addOutput("  " & bd.name, bd.color)
+          let tag = getBossServiceTag(id)
+          if tag.len > 0:
+            let tagColor = if isRootBoss(id): Color(r: 255, g: 140, b: 230, a: 255)
+                           else: Color(r: 255, g: 175, b: 70, a: 255)
+            help.addOutput("    " & tag, tagColor)
+          for line in bd.description.split("\n"):
+            help.addOutput("    " & line, White)
+          help.addOutput("", White)
 
     of "shop":
       help.addOutput("", White)

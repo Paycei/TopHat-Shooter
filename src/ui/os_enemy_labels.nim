@@ -20,10 +20,29 @@ proc getEnemyProcessName*(enemy: Enemy): string =
     of etPhantom: "phantom"
     of etSniper: "railgun"
     of etMage: "summoner"
+    of etThread: "thread"
+    of etForkBomb: "forkbomb"
+    of etWatchdog: "watchdog"
+    of etZombie: "defunct"
+    of etDeadlock: "mutex"
+    of etDaemon: "priorityd"
+    of etInterrupt: "irq"
+    of etFragment: "fragment"
+    of etPortGuard: "portguard"
+    of etSentry: "sentry"
+    of etMimic: "mimic"
+    of etRestorer: "restore"
+    of etPacket: "packet"
+    of etDriver: "driver"
+    of etCorruptor: "badblock"
     of etEnvironment: "environment"
 
   if enemy.isBoss:
     return "CRITICAL_THREAT_" & $enemy.bossDefinitionID & ".exe"
+
+  # A sleeping Mimic passes itself off as a harmless file, label and all.
+  if enemy.enemyType == etMimic and enemy.attackPhase == 0:
+    return "readme_" & $(enemy.id mod 100) & ".txt"
 
   # Add elite prefix if applicable
   var prefix = ""

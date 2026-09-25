@@ -1,7 +1,8 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
 import raylib, std/strutils, random
-import types, enemy, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
+from std/unicode import runeSubStr, runeLen
+import types, enemy, enemy_config, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
 
 const
   SIDEBAR_WIDTH = 300
@@ -29,10 +30,53 @@ proc fitSandboxText(text: string, maxWidth, fontSize: int32,
   if measureText(text, fs) <= maxWidth:
     return (text, fs)
 
+  # Trim whole characters, not bytes: Spanish text is multi-byte UTF-8.
   var fitted = text
   while fitted.len > 0 and measureText(fitted & "...", fs) > maxWidth:
-    fitted = fitted[0..^2]
+    fitted = fitted.runeSubStr(0, fitted.runeLen - 1)
   (fitted & "...", fs)
+
+# One list per spawn tab, shared by the draw pass, the click handler and the
+# scroll height, so the three can never drift apart.
+const
+  SandboxEnemyRoster = [
+    # Wave campaign
+    etCircle, etCube, etTriangle, etStar, etHexagon, etCross, etDiamond,
+    etOctagon, etPentagon, etTrickster, etPhantom, etSniper, etMage,
+    # Survival horde
+    etThread, etForkBomb, etWatchdog, etZombie, etDeadlock, etDaemon, etInterrupt,
+    # Roguelite rooms
+    etFragment, etPortGuard, etSentry, etMimic, etRestorer, etPacket, etDriver, etCorruptor]
+
+proc sandboxEnemyTag(et: EnemyType): string =
+  if et in etThread..etInterrupt: "[SURV] "
+  elif et in etFragment..etCorruptor: "[ROGUE] "
+  else: ""
+
+proc sandboxBossTag(bossId: int): string =
+  if bossId in BossForkmother..BossOmegaSurvival: "[SURV] "
+  elif bossId in BossGatekeeper..BossOmegaRoguelite: "[ROGUE] "
+  else: ""
+
+proc spawnSandboxEnemy(game: Game, enemyType: EnemyType) =
+  ## Spawn one roster enemy the way its own mode would.
+  var (spawnX, spawnY) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
+  if enemyType == etMimic:
+    # A Mimic is found lying in the room, not walking in.
+    spawnX = rand(120.0'f32..(game.screenWidth.float32 - 360.0'f32))
+    spawnY = rand(120.0'f32..(game.screenHeight.float32 - 120.0'f32))
+  let enemy = newEnemy(spawnX, spawnY, game.difficulty, enemyType, game)
+  if enemyType == etThread:
+    enemy.rotation = rand(-70.0'f32..70.0'f32)
+  if enemyType == etMimic:
+    enemy.hasEnteredScreen = true
+  game.enemies.add(enemy)
+  if enemyType == etDeadlock:
+    # Deadlocks come in linked pairs.
+    let partner = newEnemy(spawnX + 60.0'f32, spawnY + 40.0'f32, game.difficulty, etDeadlock, game)
+    partner.linkId = enemy.id
+    enemy.linkId = partner.id
+    game.enemies.add(partner)
 
 proc wrapSandboxText(text: string, maxWidth, fontSize: int32): seq[string] =
   result = @[]
@@ -68,9 +112,9 @@ proc wrapSandboxText(text: string, maxWidth, fontSize: int32): seq[string] =
 proc sandboxContentHeight(selectedTab: int): int32 =
   case selectedTab
   of 0:
-    10'i32 + 25'i32 + 13'i32 * (BUTTON_HEIGHT + BUTTON_SPACING) + 10'i32 + BUTTON_HEIGHT
+    10'i32 + 25'i32 + SandboxEnemyRoster.len.int32 * (BUTTON_HEIGHT + BUTTON_SPACING) + 10'i32 + BUTTON_HEIGHT
   of 1:
-    10'i32 + 25'i32 + 12'i32 * (BUTTON_HEIGHT + BUTTON_SPACING)
+    10'i32 + 25'i32 + MaxBossId.int32 * (BUTTON_HEIGHT + BUTTON_SPACING)
   of 2:
     let powerUpCount = ord(high(PowerUpType)) - ord(low(PowerUpType)) + 1
     10'i32 + 24'i32 + 20'i32 + int32(powerUpCount) * (POWERUP_ITEM_HEIGHT + BUTTON_SPACING)
@@ -100,29 +144,16 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   drawText(t(tkSandboxSpawnEnemies), contentX, currentY, 18, White)
   currentY += 25
 
-  # List all enemy types with spawn buttons
-  let enemyTypes = [
-    ("Circle", etCircle, "Normal chasers"),
-    ("Cube", etCube, "Stationary/slow shooters"),
-    ("Triangle", etTriangle, "Fast dash attackers"),
-    ("Star", etStar, "High HP, needs many hits"),
-    ("Hexagon", etHexagon, "Teleporting chaos enemy"),
-    ("Cross", etCross, "Cross-shaped attack pattern"),
-    ("Diamond", etDiamond, "Shoots while dashing"),
-    ("Octagon", etOctagon, "Many slow projectiles"),
-    ("Pentagon", etPentagon, "Single fast bullet"),
-    ("Trickster", etTrickster, "False warnings, unpredictable"),
-    ("Phantom", etPhantom, "Teleports with fake clones"),
-    ("Sniper", etSniper, "Charges one-shot attack"),
-    ("Mage", etMage, "Summons meteorites")
-  ]
-
-  for (name, enemyType, desc) in enemyTypes:
+  # Every enemy type with a spawn button (wave, then survival, then roguelite).
+  for enemyType in SandboxEnemyRoster:
     if currentY > startY - 50 and currentY < screenHeight - 50:  # Only draw visible items
+      let config = getEnemyConfig(enemyType)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 70, b: 120, a: 255))
       drawRectangleLines(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 100, g: 100, b: 150, a: 255))
-      drawText(name, contentX + 5, currentY + 5, 16, White)
-      drawText(desc, contentX + 5, currentY + 20, 12, Color(r: 180, g: 180, b: 180, a: 255))
+      let (nameText, nameSize) = fitSandboxText(sandboxEnemyTag(enemyType) & config.name, buttonWidth - 10, 16)
+      drawText(nameText, contentX + 5, currentY + 5, nameSize, White)
+      let (descText, descSize) = fitSandboxText(config.description, buttonWidth - 10, 12)
+      drawText(descText, contentX + 5, currentY + 20, descSize, Color(r: 180, g: 180, b: 180, a: 255))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
   currentY += 10
@@ -138,14 +169,16 @@ proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   drawText(t(tkSandboxSpawnBosses), contentX, currentY, 18, White)
   currentY += 25
 
-  for bossId in 1..12:
-    let bossDef = getBossDefinition(bossId)
-
+  for bossId in 1..MaxBossId:
     if currentY > startY - 50 and currentY < screenHeight - 50:
+      let bossDef = getBossDefinition(bossId)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 50, b: 50, a: 255))
       drawRectangleLines(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 80, b: 80, a: 255))
-      drawText($bossId & ". " & bossDef.name, contentX + 5, currentY + 5, 16, Red)
-      drawText(bossDef.description, contentX + 5, currentY + 20, 12, Color(r: 200, g: 150, b: 150, a: 255))
+      let (nameText, nameSize) = fitSandboxText($bossId & ". " & sandboxBossTag(bossId) & bossDef.name,
+                                                buttonWidth - 10, 16)
+      drawText(nameText, contentX + 5, currentY + 5, nameSize, Red)
+      let (descText, descSize) = fitSandboxText(bossDef.description, buttonWidth - 10, 12)
+      drawText(descText, contentX + 5, currentY + 20, descSize, Color(r: 200, g: 150, b: 150, a: 255))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
 proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
@@ -421,16 +454,10 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
   let contentX = sidebarX + SIDEBAR_PADDING
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
 
-  let enemyTypes = [etCircle, etCube, etTriangle, etStar, etHexagon, etCross,
-                    etDiamond, etOctagon, etPentagon, etTrickster, etPhantom, etSniper, etMage]
-
-  for enemyType in enemyTypes:
+  for enemyType in SandboxEnemyRoster:
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
-      # Spawn enemy from side of screen
-      let (spawnX, spawnY) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
-      let enemy = newEnemy(spawnX, spawnY, game.difficulty, enemyType, game)
-      game.enemies.add(enemy)
+      spawnSandboxEnemy(game, enemyType)
       return
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
@@ -440,10 +467,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     # Spawn 10 random enemies
     for i in 0..<10:
-      let (spawnX, spawnY) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
-      let randomType = enemyTypes[rand(enemyTypes.len - 1)]
-      let enemy = newEnemy(spawnX, spawnY, game.difficulty, randomType, game)
-      game.enemies.add(enemy)
+      spawnSandboxEnemy(game, SandboxEnemyRoster[rand(SandboxEnemyRoster.len - 1)])
 
 proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
   let startY: int32 = 45 + TAB_HEIGHT + 5
@@ -452,14 +476,16 @@ proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, 
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
 
   # Check each boss button
-  for bossId in 1..12:
+  for bossId in 1..MaxBossId:
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
-      # Spawn the selected boss. The synthetic wave must be a real boss wave
-      # (bossId * BossWaveInterval): spawnBoss returns nil for non-boss waves,
-      # and a hardcoded stride desyncs the boss identity from the button.
-      let boss = spawnBoss(game.screenWidth, game.screenHeight, game.difficulty,
-                           game.bossCount, bossId * BossWaveInterval)
+      # Spawn the selected boss at the slot its numbers are written for
+      # (wave bosses: their own boss wave). Every boss gets a unique id: the
+      # roster mechanics link minions and hazards to their boss by it.
+      let boss = spawnBossById(game.screenWidth, game.screenHeight, bossId,
+                               bossAuthoredSlotWave(bossId))
+      boss.id = game.nextEnemyId
+      game.nextEnemyId += 1
       game.enemies.add(boss)
       return
     currentY += BUTTON_HEIGHT + BUTTON_SPACING

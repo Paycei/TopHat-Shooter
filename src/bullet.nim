@@ -17,10 +17,21 @@ const bossBulletShapeTable = [
   5,  # 10: Timekeeper        -> square
   3,  # 11: Chaos Weaver      -> star
   4,  # 12: Omega Entity      -> cross
+  2,  # 13: Forkmother        -> triangle (forks)
+  5,  # 14: Dispatcher        -> square (tickets)
+  3,  # 15: Thermal Runaway   -> star (sparks)
+  4,  # 16: Omega (survival)  -> cross
+  5,  # 17: Gatekeeper        -> square
+  1,  # 18: Compactor         -> diamond (shards)
+  1,  # 19: Hive              -> diamond (cells)
+  0,  # 20: Router            -> circle (packets)
+  5,  # 21: Supervisor        -> square (pages)
+  3,  # 22: Mirror Cache      -> star
+  4,  # 23: Omega (roguelite) -> cross
 ]
 
 proc bossBulletShapeFor*(bossId: int): int =
-  if bossId in 1..12: bossBulletShapeTable[bossId] else: 0
+  if bossId in 1..MaxBossId: bossBulletShapeTable[bossId] else: 0
 
 ## Bullets ease their alpha down over the final `BulletFadeOutTime` seconds of
 ## their life, bottoming out at `BulletFadeFloor` (never fully transparent) so

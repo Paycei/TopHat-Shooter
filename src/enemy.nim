@@ -1,5 +1,6 @@
 ﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers, boss_weakpoints, effects
-import particle_types, utils
+import particle_types, utils, mode_enemies, mode_visuals
+export mode_enemies
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
   # Get enemy configuration
@@ -101,6 +102,13 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   let slow = effectiveSlow(enemy)
   if slow > 0:
     effectiveSpeed = effectiveSpeed * (1.0 - slow)
+  # Haste (Priority Daemon aura, Dispatcher boost): refreshed by its source
+  # every frame it applies, so it lapses on its own once that stops.
+  if enemy.hasteTimer > 0:
+    enemy.hasteTimer -= dt
+    effectiveSpeed = effectiveSpeed * (1.0'f32 + enemy.hasteAmount)
+    if enemy.hasteTimer <= 0:
+      enemy.hasteAmount = 0
 
   if enemy.isBoss:
     # Boss update logic
@@ -148,6 +156,9 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   else:
     # Regular enemy updates
     case enemy.enemyType
+    of etThread..etCorruptor:
+      # Survival horde and roguelite room roster (mode_enemies.nim).
+      updateModeEnemy(enemy, playerPos, dt, effectiveSpeed, walls, currentTime, game)
     of etCircle:
       let dir = (playerPos - enemy.pos).normalize()
       var canMove = true
@@ -844,7 +855,7 @@ proc drawCustomBoss*(enemy: Enemy) =
           g: uint8(clamp(abs(sin((h+0.33)*PI*2.0))*255.0, 0.0'f32, 255.0'f32)),
           b: uint8(clamp(abs(sin((h+0.66)*PI*2.0))*255.0, 0.0'f32, 255.0'f32)), a: alpha)
 
-  case enemy.bossDefinitionID
+  case canonicalBossId(enemy.bossDefinitionID)
 
   of 1:  # THE SPIRAL GUARDIAN
     glow(r + 22 + breathe*6, Color(r: 80, g: 20, b: 160, a: 35))
@@ -1282,6 +1293,10 @@ proc drawCustomBoss*(enemy: Enemy) =
     drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.2,
                Color(r: 255, g: 255, b: 255, a: 255))
 
+  of BossForkmother, BossDispatcher, BossThermalRunaway, BossGatekeeper..BossMirrorCache:
+    # Survival bosses and roguelite guardians (mode_visuals.nim).
+    drawModeBossBody(enemy)
+
   else:
     glow(r + 12 + pulse*5, Color(r: 255, g: 255, b: 255, a: 40))
     glow(r, enemy.color)
@@ -1294,7 +1309,7 @@ proc drawCustomBoss*(enemy: Enemy) =
   # Summoner King grows a taller crown, the Berserker bristles with more spikes,
   # etc. Phase 0 (the base form) adds nothing; power escalates with phaseLvl.
   if phaseLvl >= 1:
-    case enemy.bossDefinitionID
+    case canonicalBossId(enemy.bossDefinitionID)
     of 1:  # Spiral Guardian: extra cosmic rings + orbiting stars
       for k in 0 ..< phaseLvl:
         poly(14 + k*4, r + 16 + k.float32*7.0,
@@ -1496,7 +1511,7 @@ proc drawBossPhaseTransition*(enemy: Enemy) =
     drawCircle(Vector2(x: cx, y: cy), r*(0.6 + flash*1.5), Color(r: 255, g: 255, b: 255, a: a(flash*190.0)))
     drawCircle(Vector2(x: cx, y: cy), r*(0.3 + flash*0.7), Color(r: 255, g: 255, b: 255, a: a(flash*255.0)))
 
-  case enemy.bossDefinitionID
+  case canonicalBossId(enemy.bossDefinitionID)
 
   of 1:  # Spiral Guardian: vortex implosion then purple nova
     for arm in 0 ..< 6:
@@ -1949,7 +1964,7 @@ proc drawEnemy*(enemy: Enemy) =
   if enemy.isBoss:
     # Omega Entity final form: the halo sits under the body so the boss
     # visibly ascends when the last phase begins.
-    if enemy.bossDefinitionID == 12 and enemy.currentPhaseIndex >= 3:
+    if isOmegaBoss(enemy.bossDefinitionID) and enemy.currentPhaseIndex >= 3:
       drawOmegaFinalFormHalo(enemy)
     # Boss drawing
     drawCustomBoss(enemy)
@@ -1963,6 +1978,8 @@ proc drawEnemy*(enemy: Enemy) =
   else:
     drawThreatAura(enemy)
     case enemy.enemyType
+    of etThread..etCorruptor:
+      drawModeEnemy(enemy)
     of etCircle:
       let t = getTime()
       let pulse = sin(t * 2.5) * 0.5 + 0.5
@@ -4209,6 +4226,10 @@ proc drawAttackWarning*(warning: AttackWarning) =
       drawOmegaGlyph(warning.pos.x, warning.pos.y - 6.0, sigilR * 0.55'f32, 2.0,
                      withAlpha(lineCol, (lineA div 2 + lineA div 4).uint8))
 
+  of awtEnemyDashLane..awtLastKnownGood:
+    # Survival / Roguelite roster hazards: hint-gated wind-up (mode_visuals.nim).
+    drawModeWarningTelegraph(warning)
+
   of awtNone:
     # Unassigned/placeholder warning: nothing to telegraph. No `else` branch on
     # purpose - the case is exhaustive so adding a new AttackWarningType forces a
@@ -4314,7 +4335,8 @@ proc drawRoyalGuardRegalia*(enemy: Enemy) =
                   withAlpha(gold, uint8(150.0'f32 + pulse * 90.0'f32)))
 
   # Crown: three points on a band, backed by a dark stroke so it reads over
-  # the guard's own gold glow and over the crowd behind it.
+  # the guard's own gold glow and over the crowd behind it. (The Forkmother's
+  # children wear her pink node ring instead, drawn with their body.)
   let cw = max(8.0'f32, r * 0.5'f32)
   let by = cy - r - 7.0'f32
   let pts = [Vector2(x: cx - cw, y: by), Vector2(x: cx - cw, y: by - cw * 0.9'f32),
@@ -4322,12 +4344,13 @@ proc drawRoyalGuardRegalia*(enemy: Enemy) =
              Vector2(x: cx, y: by - cw * 1.15'f32),
              Vector2(x: cx + cw * 0.5'f32, y: by - cw * 0.4'f32),
              Vector2(x: cx + cw, y: by - cw * 0.9'f32), Vector2(x: cx + cw, y: by)]
-  for (wide, col) in [(5.0'f32, backing), (2.5'f32, gold)]:
-    for i in 0 ..< pts.len - 1:
-      drawLine(pts[i], pts[i + 1], wide, col)
-    drawLine(pts[0], pts[^1], wide, col)
-  for tip in [pts[1], pts[3], pts[5]]:
-    drawCircle(tip, 2.2'f32, Color(r: 255, g: 245, b: 200, a: 255))
+  if enemy.linkId <= 0:
+    for (wide, col) in [(5.0'f32, backing), (2.5'f32, gold)]:
+      for i in 0 ..< pts.len - 1:
+        drawLine(pts[i], pts[i + 1], wide, col)
+      drawLine(pts[0], pts[^1], wide, col)
+    for tip in [pts[1], pts[3], pts[5]]:
+      drawCircle(tip, 2.2'f32, Color(r: 255, g: 245, b: 200, a: 255))
 
   if enemy.maxHp > 0 and enemy.hp < enemy.maxHp:
     let barW = r * 2.0'f32
@@ -4722,7 +4745,14 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
         drawCircleLines(warning.pos.x.int32, warning.pos.y.int32,
                         glyphR + 14.0'f32 + burst * 34.0'f32,
                         Color(r: 255'u8, g: 245'u8, b: 200'u8, a: uint8(220.0'f32 * fade)))
-  else:
+  of awtEnemyDashLane..awtLastKnownGood:
+    # Survival / Roguelite roster hazards: lethal states and mechanic tells.
+    drawModeWarningActive(warning)
+  of awtNone..awtVoidRift:
+    # No ungated lethal pass (real bullets/lasers carry it, or the ricochet
+    # beam draws in drawRicochetLaserBeam). Exhaustive on purpose: a new
+    # AttackWarningType must decide here whether its strike is visible with
+    # hints off.
     discard
 
 proc drawLaser*(laser: Laser) =
@@ -4905,38 +4935,17 @@ proc drawLaser*(laser: Laser) =
   else:
     discard
 
-proc spawnEnemy*(screenWidth, screenHeight: int32, difficulty: float32, game: Game,
-                 rosterDifficulty: float32 = -1.0'f32): Enemy =
-  ## Spawn a random enemy off-screen. Enemy *stats* scale with `difficulty`; the
-  ## *type* is chosen by `pickSpawnType` (enemy_data.nim) from the pool gated by
-  ## introductionDifficulty/fadeOutDifficulty/spawnWeight in `allEnemyDefs`.
+proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: int): Enemy =
+  ## Builds boss `bossId` (1..MaxBossId) with the stats of `scalingWave` on the
+  ## boss curve (getScaledBossHP & co.). Never nil. The mode rosters spawn at
+  ## their authored slot (bossAuthoredSlotWave) and are then rescaled by
+  ## normalizeBossToSlot to the slot they actually fight at.
   ##
-  ## `rosterDifficulty` (default -1 = "same as difficulty") decouples which types
-  ## may spawn from how strong they are. Survival passes a value just below the
-  ## current difficulty during a boss fight so no enemy type debuts mid-boss, while
-  ## keeping the stat scaling of the live difficulty.
-  let (x, y) = randomEdgeSpawnPos(screenWidth, screenHeight)
-  let typeDifficulty = if rosterDifficulty < 0.0'f32: difficulty else: rosterDifficulty
-  newEnemy(x, y, difficulty, pickSpawnType(typeDifficulty), game)
-
-proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
-  ## Spawns a boss - either custom (bosses 1-12) or random (past the campaign)
-  ##
-  ## CUSTOM BOSSES (every BossWaveInterval waves):
-  ##   - Use definitions from boss_definitions.nim
-  ##   - HP-based phase system
-  ##   - Unique attack patterns and abilities per boss
-  ##
-  ## Boss 12 (The Final Sentinel) repeats past the campaign with increased stats
-  ##
-  # Check if this should be a custom boss (every BossWaveInterval waves)
-  let useCustomBoss = isBossWave(waveNumber)
-
-  if useCustomBoss:
-    # CUSTOM BOSS CREATION (waves 5-60, every BossWaveInterval waves)
-    # Custom bosses use the advanced definition system from boss_definitions.nim
-    # They have HP-based phases (defined in BossDefinition) and don't transform
-    let bossDef = getBossForWave(waveNumber)
+  ## Custom bosses use the definitions from boss_definitions.nim: HP-based
+  ## phases (pools split by the phase thresholds), per-phase attack kits and
+  ## a weak-point objective. The caller assigns the boss a unique id.
+  block:
+    let bossDef = getBossDefinition(clamp(bossId, 1, MaxBossId))
     let centerX = screenWidth.float32 / 2
     let centerY = screenHeight.float32 / 2
     var targetX, targetY, startX, startY: float32
@@ -4968,21 +4977,22 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
 
     # Create boss with custom stats (profile difficulty scales the total pool,
     # so phase HP pools derived from it inherit the multiplier too)
-    let scaledHP = getScaledBossHP(bossDef, waveNumber) * difficultyEnemyHpMult()
+    let scaledHP = getScaledBossHP(bossDef, scalingWave) * difficultyEnemyHpMult()
     let phaseHpPools = getBossPhaseHpPools(bossDef, scaledHP)
     let firstPhaseHp =
       if phaseHpPools.len > 0: phaseHpPools[0]
       else: scaledHP
-    let scaledSpeed = getScaledBossSpeed(bossDef, waveNumber)
-    let scaledDamage = getScaledBossDamage(bossDef, waveNumber)
+    let scaledSpeed = getScaledBossSpeed(bossDef, scalingWave)
+    let scaledDamage = getScaledBossDamage(bossDef, scalingWave)
 
     # Initialize attack timers for first phase
     var initialAttackTimers: seq[float32] = @[]
     var initialAttackWarningFired: seq[bool] = @[]
     if bossDef.phases.len > 0:
       for attack in bossDef.phases[0].attacks:
-        # Start with cooldown so attacks don't fire immediately
-        initialAttackTimers.add(attack.cooldown * difficultyBossCooldownMult())
+        # Start with cooldown so attacks don't fire immediately; `timer` is the
+        # attack's authored start offset (beat-grid stagger).
+        initialAttackTimers.add(attack.cooldown * difficultyBossCooldownMult() + attack.timer)
         initialAttackWarningFired.add(false)
 
     # Apply first phase multipliers to initial stats
@@ -5048,6 +5058,15 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
       activeEffects: default(array[ElementType, ActiveEffect])
     )
 
+proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
+  ## The wave campaign's boss for `waveNumber` (bosses 1-12 on every
+  ## BossWaveInterval-th wave, boss 12 repeating past the campaign), or nil
+  ## when `waveNumber` is not a boss wave. `difficulty`/`bossCount` are unused
+  ## (stats come from the wave slot) and kept for the existing callers.
+  if not isBossWave(waveNumber):
+    return nil
+  spawnBossById(screenWidth, screenHeight, getCustomBossNumber(waveNumber), waveNumber)
+
 proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
                 chanceScale: float32 = 1.0'f32, force: bool = false,
                 forcedEffects: int = 0) =
@@ -5065,6 +5084,12 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
 
   # Don't make bosses elite
   if enemy.isBoss:
+    return
+  # Roster units whose whole point is to be read at a glance: a Mimic must
+  # pass for a file, boss-spawned units are part of the boss's pattern, and a
+  # reanimated Zombie already paid its bonus.
+  if enemy.enemyType == etMimic or enemy.spawnedByBoss or
+     (enemy.enemyType == etZombie and enemy.generation > 0):
     return
 
   # Elite chance: ramps from 2% -> 12% by wave 29, then continues +1%/wave to cap 32%
@@ -5122,6 +5147,9 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
   # STAR ENEMY RESTRICTION: Stars cannot get Tank, Shielded, or Regenerative (they're already tanky)
   var availableTypes = if enemy.enemyType == etStar:
     @[etSwift, etVenomous, etExplosive]  # Exclude Tank, Shielded, and Regenerative
+  elif enemy.enemyType == etInterrupt:
+    # It already blows up: an Explosive Interrupt would be a double blast.
+    @[etSwift, etTank, etVenomous, etRegenerative, etShielded]
   else:
     @[etSwift, etTank, etVenomous, etExplosive, etRegenerative, etShielded]
 

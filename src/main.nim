@@ -599,6 +599,12 @@ proc initializeAllCosmetics() =
 proc main() =
   randomize()
 
+  when defined(debug):
+    # Wiring the compiler cannot see: untranslated keys and boss IDs whose
+    # per-ID tables (weak point, process name, definition) were missed.
+    for problem in missingTranslations() & bossRosterProblems():
+      echo "[self-check] ", problem
+
   # Save-profile bootstrap: convert pre-profile saves into profile 1, then
   # point the save system at the last-used profile so its settings drive
   # window creation. The profile-select screen shown after the splash can

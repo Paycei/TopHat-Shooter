@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, algorithm
-import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_legacy_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, ui/ui_helpers, ui/hud_dock, boss_weakpoints
+import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_legacy_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, ui/ui_helpers, ui/hud_dock, boss_weakpoints, mode_hazards, mode_visuals, game/mode_mechanics
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
@@ -315,7 +315,7 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     # State tracking for settings return
     previousState: gsMenu,  # Default to menu
     # Enemy ID counter for unique tracking
-    nextEnemyId: 0,  # Start at 0, increment with each enemy created
+    nextEnemyId: 1,  # Start at 1 (0 = "no enemy" for linkId), increment with each enemy created
     # Statistics menu tab
     statsMenuTab: 0,  # 0 = Lifetime, 1 = Last Run
     selectedRogueliteStarter: 0,
@@ -714,7 +714,23 @@ proc spawnDungeonEnemies(game: Game, count: int) =
     for _ in 0..5:
       if distance(newVector2f(x, y), game.player.pos) >= 200.0'f32: break
       (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
+    if enemyType == etMimic:
+      # A Mimic doesn't walk in: it is already lying in the room, posing as a
+      # file, clear of the obstacles and well away from the player.
+      for _ in 0..20:
+        let p = newVector2f(rand(80.0'f32..(game.screenWidth.float32 - 80.0'f32)),
+                            rand(80.0'f32..(game.screenHeight.float32 - 80.0'f32)))
+        var blocked = distance(p, game.player.pos) < 220.0'f32
+        for wall in game.walls:
+          if wall.hp > 0 and wallOverlapsCircle(wall, p, 24.0'f32):
+            blocked = true
+            break
+        if not blocked:
+          (x, y) = (p.x, p.y)
+          break
     let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
+    if enemyType == etMimic:
+      enemy.hasEnteredScreen = true
     # Compress advanced types' stats toward the room threat before elite
     # bonuses so elites scale relative to the tuned baseline. The elite roll
     # only drives the CHANCE; stat magnitudes follow the room's wave
@@ -857,28 +873,41 @@ proc completeBossWave*(game: Game) =
   else:
     game.state = gsPowerUpSelect
 
-proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: int) =
-  let bossNumber = getCustomBossNumber(bossBlockWave)
-
-  # Check if this is Boss #7 (3D boss)
-  if bossNumber == 13: # Disabled for now (7)
-    game.transitioning = true
-    game.fadeAlpha = 0.0
-    game.bossWaveManager.startBossWave()
-    playSound(stBossSpawn)
-  else:
-    # Schedule a pending boss spawn with a short warning period
-    let pending = spawnBoss(game.screenWidth, game.screenHeight,
-              bossDifficulty, game.bossCount, bossBlockWave)
-    game.pendingBoss = pending
-    game.pendingBossTimer = 0.2  # Show warning for 0.2s before adding boss to world
-    # Mark boss wave active so UI shows boss-related hints during the warning
-    game.bossWaveManager.startBossWave()
+proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: int,
+                          bossId = 0) =
+  ## Schedules a boss. Wave mode passes only its boss-block wave (the boss is
+  ## that block's campaign boss). The Survival and Roguelite rosters pass an
+  ## explicit `bossId`: it spawns at its authored slot and, when
+  ## `bossBlockWave` names a different slot (Overtime), is rescaled to it.
+  # (The 3D boss used to hijack boss number 13 here; it is now reachable only
+  # from the sandbox, and 13 is the Forkmother.)
+  let pending =
+    if bossId > 0:
+      let authored = bossAuthoredSlotWave(bossId)
+      let boss = spawnBossById(game.screenWidth, game.screenHeight, bossId, authored)
+      if bossBlockWave > 0 and bossBlockWave != authored:
+        normalizeBossToSlot(boss, bossBlockWave.float32)
+      boss
+    else:
+      spawnBoss(game.screenWidth, game.screenHeight,
+                bossDifficulty, game.bossCount, bossBlockWave)
+  if pending != nil:
+    # Unique id: mode mechanics link minions and hazards to their boss by id.
+    pending.id = game.nextEnemyId
+    game.nextEnemyId += 1
+  game.pendingBoss = pending
+  game.pendingBossTimer = 0.2  # Show warning for 0.2s before adding boss to world
+  # Mark boss wave active so UI shows boss-related hints during the warning
+  game.bossWaveManager.startBossWave()
 
 # Update
 proc currentBossArenaWave(game: Game): int =
   for enemy in game.enemies:
     if enemy.isBoss:
+      # The mode rosters fight on the rotating ring field survival has always
+      # used (slot 15 -> rotating in os_background's tier mod 3).
+      if not isWaveBossId(enemy.bossDefinitionID):
+        return 15
       return max(BossWaveInterval, enemy.bossDefinitionID * BossWaveInterval)
 
   if game.bossWaveManager.isBossActive():
@@ -916,18 +945,30 @@ proc updateBossArenaGameplay(game: var Game, dt: float32) =
 proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: float32) =
   var i = 0
   while i < game.attackWarnings.len:
-    game.attackWarnings[i].lifetime -= dt
+    # Audit Lock freezes every other hazard mid-flight (the audit itself runs).
+    if game.modeCombat.auditTimer <= 0 or game.attackWarnings[i].attackType == awtAuditLock:
+      game.attackWarnings[i].lifetime -= dt
 
     # A dead boss's pending attack goes quiet. Everything below this point
     # either spawns a hazard or applies damage, and a boss that has just been
     # blown up must do neither -- so the telegraph only finishes fading (or is
     # erased by the sweep first, whichever comes sooner).
     if bossHazardDefused(game, game.attackWarnings[i].sourceEnemyId):
+      # A paged-out obstacle still pages back in (quietly), or the room would
+      # lose its cover for good.
+      if game.attackWarnings[i].attackType == awtPageFault:
+        pageInQuietly(game, game.attackWarnings[i])
+      if game.attackWarnings[i].attackType == awtAuditLock:
+        game.modeCombat.auditTimer = 0
       if game.attackWarnings[i].lifetime <= 0:
         game.attackWarnings.delete(i)
       else:
         i += 1
       continue
+
+    # Survival / Roguelite roster hazards resolve in game/mode_mechanics.nim.
+    if game.attackWarnings[i].attackType in awtEnemyDashLane..awtLastKnownGood:
+      resolveModeWarning(game, game.attackWarnings[i], dt)
 
     # Only boss laser-beam warnings follow their source enemy during wind-up;
     # every other warning is stamped at a fixed world position. Satellite laser
@@ -2113,6 +2154,9 @@ proc updatePlayerFiring(game: var Game, dt: float32) =
     if shootDir.length() > 0:
       shootBullet(game, shootDir)
 
+  # The Mirror Cache replays this; the Audit Lock reads the trigger.
+  recordPlayerEcho(game, shootDir, isFiring, dt)
+
 proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   # Update player (with wall collision)
   game.player.outOfCombatSpeedBoost = game.mode == gmRoguelite and not game.waveInProgress
@@ -2268,7 +2312,8 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
         let toPlayer = (game.player.pos - enemy.pos).normalize()
 
         # Check if this is a ranged enemy (gets 50% extra pull)
-        let isRanged = enemy.enemyType in [etCube, etPentagon, etOctagon, etHexagon, etSniper]
+        let isRanged = enemy.enemyType in [etCube, etPentagon, etOctagon, etHexagon, etSniper,
+                                           etWatchdog, etSentry, etDaemon, etRestorer]
         let pullMultiplier = if isRanged: 1.5 else: 1.0
 
         # Apply pull force (stronger when closer)
@@ -2495,19 +2540,18 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
       # BossWaveInterval). This allows debug spawns when wavesUntilBoss is forced
       # to 0 (boss appears for the current boss block: waves 1-5 => boss 1,
       # 6-10 => boss 2, etc.)
-      let bossBlockWave = if game.mode == gmRoguelite and game.rogueliteRun != nil and
-                             game.rogueliteRun.floor != nil:
-        # The floor theme picks the boss; the unlocked tier and endless loop
-        # shift it toward the harder definitions.
-        max(BossWaveInterval, dungeonBossNumber(game) * BossWaveInterval)
-      else:
-        ((game.currentWave - 1) div BossWaveInterval + 1) * BossWaveInterval
-      spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
-      # Compress the scheduled boss's stats toward the floor's threat: the
-      # definition (and spawnBoss's wave scaling) assume its wave-mode slot.
       if game.mode == gmRoguelite and game.rogueliteRun != nil and
-         game.pendingBoss != nil:
-        tuneDungeonBossStats(game.pendingBoss, game.rogueliteRun)
+         game.rogueliteRun.floor != nil:
+        # The sector's theme picks its guardian (the final sector fields the
+        # Omega Entity's roguelite kit); tuneDungeonBossStats then rescales it
+        # from its authored slot to the sector's.
+        let bossId = dungeonBossNumber(game)
+        spawnConfiguredBoss(game, bossDifficulty, bossAuthoredSlotWave(bossId), bossId)
+        if game.pendingBoss != nil:
+          tuneDungeonBossStats(game.pendingBoss, game.rogueliteRun)
+      else:
+        let bossBlockWave = ((game.currentWave - 1) div BossWaveInterval + 1) * BossWaveInterval
+        spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
 
     elif isTimeSurvivalMode(game.mode):
       # Bosses close each 5:00 phase on the survival clock (then every 2:30 in
@@ -2517,10 +2561,15 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
          (game.survivalTime >= survivalNextBossTime(game) or game.survival.cheatForceBoss):
         game.survival.cheatForceBoss = false
         game.bossCount += 1
+        # The flood's own bosses close Boot / Runtime / Overload, the Omega
+        # Entity's survival kit closes Kernel Panic, and Overtime rotates
+        # them at ever later slots (rescaled to the Omega curve there).
         let bossBlockWave = survivalBossBlockWave(game.bossCount)
         let bossDifficulty = max(game.difficulty, (bossBlockWave - 1).float32 / 3.0)
         prepareSurvivalBossArrival(game)
-        spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
+        resetModeCombat(game)
+        spawnConfiguredBoss(game, bossDifficulty, bossBlockWave,
+                            survivalBossId(game.bossCount))
       # TIME SURVIVAL MODE: horde, System Events and caches live in survival.nim
       updateSurvival(game, dt)
 
@@ -2557,6 +2606,10 @@ proc detonateBossCorpse(game: var Game, boss: Enemy) =
   playSound(stTeleport, 0.5, 0.55)
 
 proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float32) =
+  # Survival / Roguelite roster: splits, requests, husks, auras, tethers.
+  # Runs outside the enemy loop because it may delete enemies.
+  updateModeMechanics(game, effectiveDt)
+
   # Update enemies
 
   var enemyIdx = 0
@@ -2901,7 +2954,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # one link of the Summoner King's seal breaking.
         addShake(game.dopamine.screenShake, siMedium)
         if enemy.royalGuard:
-          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, RoyalGuardGold, 30)
+          let burst = if enemy.linkId > 0: Color(r: 255, g: 110, b: 190, a: 255) else: RoyalGuardGold
+          spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, burst, 30)
           spawnShockwavePooled(game.particlePool, enemy.pos.x, enemy.pos.y, enemy.radius * 3.0'f32)
         if enemy.isElite or enemy.royalGuard:
           triggerHitStop(game.dopamine.slowMotion, 0.065'f32, HitStopScaleHeavy)
@@ -2931,6 +2985,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
       # Track enemy kill for statistics
       trackEnemyKilled(game, enemy)
+
+      # Roster death hooks: Fork Bomb splits, Zombie husks, Interrupt pops,
+      # corpses a Restorer can raise.
+      onModeEnemyKilled(game, enemy)
 
       # Survival: System Event bookkeeping and elite Data Cache drops.
       if isTimeSurvivalMode(game.mode):
@@ -4270,6 +4328,19 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               shieldDamage += actualDamage
               actualDamage = 0
 
+            # Roster armour, by where the shot came from: a Port Guard's shield
+            # nullifies frontal hits (flank it); a Driver's ram plate shrugs
+            # them off, and it takes double while stunned.
+            if not target.isBoss and target.enemyType in {etPortGuard, etDriver}:
+              let hitFrom = bullet.pos - bullet.vel.normalize() * 40.0'f32
+              if portGuardBlocks(target, hitFrom):
+                shieldDamage += actualDamage
+                actualDamage = 0
+                spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
+                                     Color(r: 255, g: 220, b: 150, a: 255), 4)
+              else:
+                actualDamage *= modeEnemyDamageTakenMult(target, hitFrom)
+
             let weakDamageSource = if weakCoreHit: bwdsDirectWeakCore else: bwdsDirectBody
             actualDamage *= bossWeakPointDamageMultiplier(target, weakDamageSource)
             # Engagement gates: while adds are alive or the overload shield is up (and
@@ -5199,6 +5270,10 @@ proc updateGame*(game: var Game, dt: float32) =
   if game.player.timeWarpActive:
     let slowFactor = 0.5  # 50% slow = 50% speed (single level)
     effectiveDt = simDt * slowFactor
+  # Audit Lock (the Hive): the whole room freezes - every enemy and enemy
+  # shot - while the player, who must hold still, keeps real time.
+  if game.modeCombat.auditTimer > 0:
+    effectiveDt = 0
 
   # Handle boss spawn warning timer (non-blocking)
   if game.bossSpawnTimer > 0:
@@ -6036,6 +6111,11 @@ proc drawGame*(game: Game) =
   # clearing so the edge visibly washes across them, under the living actors.
   drawBossDeathBlasts(game)
 
+  # Roster ground layer: Zombie husks, Deadlock tethers and the Forkmother's
+  # process-tree lines (ungated: a tether is a hazard).
+  drawHusks(game.modeCombat.husks)
+  drawEnemyTethers(game.enemies)
+
   # Draw enemies
   for enemy in game.enemies:
     # Draw elite aura first (so it appears behind the enemy)
@@ -6139,7 +6219,8 @@ proc drawGame*(game: Game) =
         drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sr + 5.0,
                         Color(r: 255, g: 140, b: 20, a: uint8(sa.int div 2)))
         if globalSettings == nil or globalSettings.showHints:
-          let gt = if enemy.weakPoint.kind == bwoSummonSigils: t(tkEnemySealedSlayGuards)
+          let gt = if enemy.bossDefinitionID == BossForkmother: t(tkEnemySealedCutChildren)
+                   elif enemy.weakPoint.kind == bwoSummonSigils: t(tkEnemySealedSlayGuards)
                    else: t(tkEnemySealedClearAdds)
           drawText(gt, enemy.pos.x.int32 - measureText(gt, 10) div 2,
                    (enemy.pos.y - enemy.radius - 26.0).int32, 10,
@@ -6207,8 +6288,11 @@ proc drawGame*(game: Game) =
                    (enemy.pos.y - enemy.radius - 26.0).int32, 10,
                    Color(r: 150, g: 220, b: 255, a: 235))
 
-    # Draw OS-style enemy labels above each enemy
-    drawEnemyLabel(enemy, showHealthBar = true, enabled = globalSettings.showEnemyLabels)
+    # Draw OS-style enemy labels above each enemy (not on a boss's ballistic
+    # units - fork seeds, payload orbs, marching ranks - which are projectiles
+    # with bodies: a label each would bury the pattern).
+    drawEnemyLabel(enemy, showHealthBar = true,
+                   enabled = globalSettings.showEnemyLabels and not isBallistic(enemy))
 
     # Draw warning indicators for elite/boss enemies
     if globalSettings == nil or globalSettings.showHints:

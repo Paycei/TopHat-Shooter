@@ -1,62 +1,28 @@
 ## Boss Definitions System
 ## Allows complete customization of boss behavior, properties, attacks, and phases
 
-import math, random, raylib
+import math, raylib
 import localization, types
 
-type
-  BossAttackPattern* = enum
-    bapSpiral,           # Shoots bullets in spiral
-    bapBurst,            # Rapid burst fire
-    bapWave,             # Wave pattern
-    bapTargeted,         # Direct shots at player
-    bapCircle,           # Circle of bullets
-    bapLaser,            # Laser beams
-    bapOrbit,            # Orbiting projectiles
-    bapMeteor,           # Falling projectiles
-    bapChain,            # Chain lightning
-    bapPulse,            # Expanding pulse
-    bapTeleport,         # Teleport then attack
-    bapSummon,           # Spawn minions
-    bapDash,             # Dash attack
-    bapBarrage,          # Massive projectile barrage
-    bapSnipe,            # Precise aimed shots
-    bapMinionVolley      # Living Royal Guards fire at the player in unison (Summoner King)
+import boss_types, boss_definitions_modes
+export boss_types
 
-  BossAttack* = object
-    attackType*: BossAttackPattern
-    damage*: float32
-    cooldown*: float32
-    timer*: float32
-    projectileSpeed*: float32
-    projectileCount*: int
-    spreadAngle*: float32
-    durationOrRadius*: float32
-    bulletRadius*: float32     # Bullet size override (0 = use default 6)
-    specialData*: string  # JSON-like data for special mechanics
-
-  BossPhaseDefinition* = object
-    name*: string
-    hpThreshold*: float32      # Enters this phase when HP drops below this %
-    speedMultiplier*: float32
-    damageMultiplier*: float32
-    defenseMultiplier*: float32
-    attacks*: seq[BossAttack]
-    color*: Color
-    visualEffect*: string      # "glow", "aura", "shield", "pulse"
-    specialBehavior*: string
-
-  BossDefinition* = object
-    name*: string
-    bossID*: int
-    baseHP*: float32
-    baseSpeed*: float32
-    baseDamage*: int
-    baseRadius*: float32
-    color*: Color
-    phases*: seq[BossPhaseDefinition]
-    description*: string
-    weakPoint*: BossWeakPointDefinition
+proc bossWeakTier*(bossID: int): int =
+  ## Weak-point resistance tier (1-4). The wave campaign keys it on the boss
+  ## number; the mode rosters map onto the wave boss they stand in for: the
+  ## survival bosses replace bosses 3 / 6 / 9 / 12, the roguelite guardians
+  ## fight at sector budgets (tier 2), and the Omega kits are always tier 4.
+  if bossID in 1..4: 1
+  elif bossID in 5..8: 2
+  elif bossID in 9..11: 3
+  elif isOmegaBoss(bossID): 4
+  else:
+    case bossID
+    of BossForkmother: 1
+    of BossDispatcher: 2
+    of BossThermalRunaway: 3
+    of BossGatekeeper..BossMirrorCache: 2
+    else: 0
 
 proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   # Body damage is heavily resisted; the real damage happens in the weak-point
@@ -65,16 +31,12 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   # because those were the worst offenders for "just shoot to win":
   #   tier 1-4  ~3.6x   tier 5-8  ~6x   tier 9-11 ~11x   tier 12 ~17x
   let (bodyMult, weakMult, exposure) =
-    if bossID in 1..4:
-      (0.55'f32, 1.5'f32, 2.4'f32)
-    elif bossID in 5..8:
-      (0.40'f32, 2.0'f32, 2.2'f32)
-    elif bossID in 9..11:
-      (0.28'f32, 2.5'f32, 2.0'f32)
-    elif bossID == 12:
-      (0.20'f32, 3.0'f32, 1.8'f32)
-    else:
-      (1.0'f32, 1.0'f32, 0.0'f32)
+    case bossWeakTier(bossID)
+    of 1: (0.55'f32, 1.5'f32, 2.4'f32)
+    of 2: (0.40'f32, 2.0'f32, 2.2'f32)
+    of 3: (0.28'f32, 2.5'f32, 2.0'f32)
+    of 4: (0.20'f32, 3.0'f32, 1.8'f32)
+    else: (1.0'f32, 1.0'f32, 0.0'f32)
 
   proc spec(kind: BossWeakObjectiveKind, requiredHits, targetCount: int): BossWeakPointDefinition =
     BossWeakPointDefinition(
@@ -103,13 +65,27 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   of 9: spec(bwoPrismSequence, 3, 3)
   of 10: spec(bwoClockNodes, 2, 4)
   of 11: spec(bwoChaosAnomalies, 3, 3)
-  of 12: spec(bwoOmegaCycle, 3, 3)
+  of 12, BossOmegaSurvival, BossOmegaRoguelite: spec(bwoOmegaCycle, 3, 3)
+  # Mode rosters reuse the generic objectives. The Forkmother's children ARE
+  # her objective (the Summoner King's guard pipeline): the last one down
+  # opens the window.
+  of BossForkmother: spec(bwoSummonSigils, 2, 0)
+  of BossDispatcher: spec(bwoCoilSequence, 3, 3)      # service the dispatch queue in order
+  of BossThermalRunaway: spec(bwoMeteorCracks, 2, 2)  # vent the heat sinks
+  of BossGatekeeper: spec(bwoLaserPrisms, 2, 2)       # shatter the searchlight lenses
+  of BossCompactor: spec(bwoChaosAnomalies, 3, 3)     # shred the stray files
+  of BossHive: spec(bwoPrismSequence, 3, 3)           # read the keys in order
+  of BossRouter: spec(bwoClockNodes, 2, 4)            # hit the relay nodes on their pulse
+  of BossSupervisor: spec(bwoSpiralAnchors, 3, 3)     # knock out the page anchors
+  of BossMirrorCache: spec(bwoVoidRifts, 1, 3)        # find the real copy
   else: BossWeakPointDefinition(kind: bwoNone)
 
 proc isRootBoss*(bossNumber: int): bool =
-  ## Boss 12 (the Omega Entity) is the Root itself taking form; the other eleven
-  ## are TOPHAT system services it hijacked. Same model the lore cinematics use.
-  bossNumber == 12
+  ## The Omega Entity (boss 12 and its two mode kits) is the Root itself
+  ## taking form; the wave bosses are services it hijacked, the survival
+  ## bosses spawn from its flood and the roguelite guardians are legacy
+  ## processes it woke. Same model the lore cinematics use.
+  isOmegaBoss(bossNumber)
 
 proc getBossProcessName*(bossNumber: int): string =
   ## In-fiction process name of the service the boss was made from.
@@ -125,16 +101,31 @@ proc getBossProcessName*(bossNumber: int): string =
   of 9: t(tkBoss9Process)
   of 10: t(tkBoss10Process)
   of 11: t(tkBoss11Process)
-  of 12: t(tkBoss12Process)
+  of 12, BossOmegaSurvival, BossOmegaRoguelite: t(tkBoss12Process)
+  of BossForkmother: t(tkBoss13Process)
+  of BossDispatcher: t(tkBoss14Process)
+  of BossThermalRunaway: t(tkBoss15Process)
+  of BossGatekeeper: t(tkBoss17Process)
+  of BossCompactor: t(tkBoss18Process)
+  of BossHive: t(tkBoss19Process)
+  of BossRouter: t(tkBoss20Process)
+  of BossSupervisor: t(tkBoss21Process)
+  of BossMirrorCache: t(tkBoss22Process)
   else: ""
 
 proc getBossServiceTag*(bossNumber: int): string =
   ## "HIJACKED SERVICE: scheduler.exe" line for the boss intro card and Help
-  ## list; "HIJACKER: root (uid 0)" for the Root. Empty for unknown IDs.
+  ## list; "HIJACKER: root (uid 0)" for the Root, "FLOOD SPAWN" for the
+  ## survival bosses and "LEGACY PROCESS" for the roguelite guardians. Empty
+  ## for unknown IDs.
   let process = getBossProcessName(bossNumber)
   if process.len == 0:
     return ""
-  let label = if isRootBoss(bossNumber): t(tkBossTagHijacker) else: t(tkBossTagService)
+  let label =
+    if isRootBoss(bossNumber): t(tkBossTagHijacker)
+    elif bossNumber in BossForkmother..BossThermalRunaway: t(tkBossTagFloodSpawn)
+    elif bossNumber in BossGatekeeper..BossMirrorCache: t(tkBossTagLegacy)
+    else: t(tkBossTagService)
   label & ": " & process
 
 proc getBossDefinition*(bossNumber: int): BossDefinition =
@@ -2271,12 +2262,20 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  else:  # Boss 13+ (endless) - RANDOM BOSSES
-    # Past the 12-boss campaign, generate random powerful bosses
-    let randomBossType = rand(11) + 1
-    return getBossDefinition(randomBossType)
+  of BossForkmother..MaxBossId:
+    # Survival and Roguelite rosters (boss_definitions_modes.nim).
+    result = getModeBossDefinition(bossNumber)
+
+  else:
+    # Unknown ID: the campaign finale. Deterministic on purpose - this runs
+    # every frame for a live boss, so a random pick would swap its kit.
+    return getBossDefinition(12)
 
   result.weakPoint = bossWeakPointDefinitionFor(result.bossID)
+
+proc bossName*(bossNumber: int): string =
+  ## Display name of any boss ID (the Omega kits share boss 12's name).
+  getBossDefinition(bossNumber).name
 
 # Helper Functions
 
@@ -2373,3 +2372,93 @@ proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): float32 =
   # Endless-only buff (see getScaledBossHP): 1.0 for every campaign boss, compounds past wave 60
   # so endless bosses keep threatening a player stacked with defensive power-ups.
   float32(baseBoss.baseDamage + additionalDamage) * pow(1.05'f32, endlessSteps(waveNumber))
+
+# ---------------------------------------------------------------------------
+# Slot normalization
+#
+# Every boss is authored for one "slot" on the wave-mode boss curve (the wave
+# its numbers were tuned against). The mode rosters then fight at other slots:
+# roguelite guardians at their sector's slot, survival bosses at later Overtime
+# slots. Rather than hand-tuning a copy per slot, the spawned boss is rescaled
+# by the ratio of the curve at the two slots: HP by the campaign's HP budget,
+# attack damage by the campaign's typical attack damage. A boss therefore keeps
+# its mechanics, phases and weak points and just fights with the numbers of the
+# slot it appears in.
+
+const BossSlotDamageRef = [1.0'f32, 1.0, 2.0, 2.5, 6.0, 8.0, 10.5, 14.0, 16.5, 19.0, 22.0, 28.0]
+  ## Median attack damage of wave bosses 1..12 (their slots 5..60): the
+  ## per-slot "how hard does a boss hit here" reference.
+
+proc bossAuthoredSlotWave*(bossId: int): int =
+  ## The wave slot a boss definition's numbers are written for.
+  case bossId
+  of 1..12: bossId * BossWaveInterval
+  of BossForkmother: 15          # stands in for boss 3
+  of BossDispatcher: 30          # boss 6
+  of BossThermalRunaway: 45      # boss 9
+  of BossOmegaSurvival: 60       # boss 12
+  of BossGatekeeper..BossMirrorCache: 5   # sector-1 budget; rescaled per sector
+  of BossOmegaRoguelite: 60
+  else: 60
+
+proc bossSlotHpBudget*(slotWave: float32): float32 =
+  ## Total HP the campaign gives a boss at this slot (the boss holding the
+  ## slot's base HP on getScaledBossHP's curve), before profile difficulty.
+  let w = max(BossWaveInterval.float32, slotWave)
+  let holder = clamp(int(round(w / BossWaveInterval.float32)), 1, 12)
+  let steps = max(0.0'f32, (w - 5.0'f32) / 5.0'f32)
+  let endless = max(0.0'f32, steps - 11.0'f32)
+  getBossDefinition(holder).baseHP * (1.0'f32 + steps * 0.20'f32) * pow(1.08'f32, endless)
+
+proc bossSlotDamageRef*(slotWave: float32): float32 =
+  ## Typical boss attack damage at this slot, interpolated between the
+  ## campaign bosses and compounding like getScaledBossDamage past wave 60.
+  let w = max(BossWaveInterval.float32, slotWave)
+  let pos = w / BossWaveInterval.float32 - 1.0'f32   # 0 at slot 5, 11 at slot 60
+  if pos >= 11.0'f32:
+    return BossSlotDamageRef[11] * pow(1.05'f32, pos - 11.0'f32)
+  let lo = int(floor(pos))
+  let frac = pos - lo.float32
+  BossSlotDamageRef[lo] + (BossSlotDamageRef[min(lo + 1, 11)] - BossSlotDamageRef[lo]) * frac
+
+proc rescaleBossPools*(boss: Enemy, factor: float32) =
+  ## Scale a spawned boss's whole HP budget (current, max, total, and every
+  ## phase pool) by `factor`, keeping the phase proportions.
+  boss.hp *= factor
+  boss.maxHp *= factor
+  boss.bossTotalMaxHp *= factor
+  for i in 0..<boss.bossPhaseHpPools.len:
+    boss.bossPhaseHpPools[i] *= factor
+
+proc normalizeBossToSlot*(boss: Enemy, slotWave: float32, hpScale = 1.0'f32) =
+  ## Rescale a boss spawned at its authored slot so it fights with the HP and
+  ## attack damage of `slotWave` instead (up or down). The spawned pool already
+  ## carries the profile difficulty multiplier, and a ratio keeps it. Attack
+  ## damage flows through damageTuning (executeCustomBossAttack), which also
+  ## scales the minions a boss raises.
+  if boss.isNil or not boss.isBoss:
+    return
+  let authored = bossAuthoredSlotWave(boss.bossDefinitionID).float32
+  let hpFactor = clamp(bossSlotHpBudget(slotWave) / bossSlotHpBudget(authored) * hpScale,
+                       0.02'f32, 50.0'f32)
+  rescaleBossPools(boss, hpFactor)
+  let dmgFactor = clamp(bossSlotDamageRef(slotWave) / bossSlotDamageRef(authored),
+                        0.05'f32, 30.0'f32)
+  boss.contactDamage *= dmgFactor
+  boss.rangedDamage *= dmgFactor
+  boss.damageTuning = dmgFactor
+
+proc bossRosterProblems*(): seq[string] =
+  ## Per-ID wiring the compiler cannot check (boss IDs are plain ints with
+  ## `else` branches everywhere): every ID must resolve to its own definition,
+  ## carry a weak point and a process name. Reported by debug builds at startup.
+  for id in 1..MaxBossId:
+    let def = getBossDefinition(id)
+    if def.bossID != id:
+      result.add("boss " & $id & ": definition reports bossID " & $def.bossID)
+    if def.phases.len == 0:
+      result.add("boss " & $id & ": no phases")
+    if def.weakPoint.kind == bwoNone:
+      result.add("boss " & $id & ": no weak point")
+    if getBossProcessName(id).len == 0:
+      result.add("boss " & $id & ": no process name")

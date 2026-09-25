@@ -172,7 +172,7 @@ proc drawSurvShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
              colorA(SurvAccent, alpha * (if i mod 3 == 0: 200.0'f32 else: 120.0'f32)))
 
   # The flood arriving: more processes circle the edge of the light as time runs.
-  let enemyKinds = [etCircle, etCube, etTriangle, etStar, etCross, etDiamond]
+  let enemyKinds = [etThread, etForkBomb, etThread, etZombie, etWatchdog, etThread, etDeadlock, etInterrupt]
   let arrived = min(12, 3 + int(local * 2.2'f32))
   for i in 0..<arrived:
     let a = i.float32 * PI * 2.0'f32 / 12.0'f32 + local * 0.28'f32

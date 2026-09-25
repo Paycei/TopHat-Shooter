@@ -1301,6 +1301,38 @@ type
     tkEnemyMageName = "enemy_mage_name"
     tkEnemyMageDesc = "enemy_mage_desc"
 
+    # Survival and Roguelite rosters
+    tkEnemyThreadName = "enemy_thread_name"
+    tkEnemyThreadDesc = "enemy_thread_desc"
+    tkEnemyForkBombName = "enemy_fork_bomb_name"
+    tkEnemyForkBombDesc = "enemy_fork_bomb_desc"
+    tkEnemyWatchdogName = "enemy_watchdog_name"
+    tkEnemyWatchdogDesc = "enemy_watchdog_desc"
+    tkEnemyZombieName = "enemy_zombie_name"
+    tkEnemyZombieDesc = "enemy_zombie_desc"
+    tkEnemyDeadlockName = "enemy_deadlock_name"
+    tkEnemyDeadlockDesc = "enemy_deadlock_desc"
+    tkEnemyDaemonName = "enemy_daemon_name"
+    tkEnemyDaemonDesc = "enemy_daemon_desc"
+    tkEnemyInterruptName = "enemy_interrupt_name"
+    tkEnemyInterruptDesc = "enemy_interrupt_desc"
+    tkEnemyFragmentName = "enemy_fragment_name"
+    tkEnemyFragmentDesc = "enemy_fragment_desc"
+    tkEnemyPortGuardName = "enemy_port_guard_name"
+    tkEnemyPortGuardDesc = "enemy_port_guard_desc"
+    tkEnemySentryName = "enemy_sentry_name"
+    tkEnemySentryDesc = "enemy_sentry_desc"
+    tkEnemyMimicName = "enemy_mimic_name"
+    tkEnemyMimicDesc = "enemy_mimic_desc"
+    tkEnemyRestorerName = "enemy_restorer_name"
+    tkEnemyRestorerDesc = "enemy_restorer_desc"
+    tkEnemyPacketName = "enemy_packet_name"
+    tkEnemyPacketDesc = "enemy_packet_desc"
+    tkEnemyDriverName = "enemy_driver_name"
+    tkEnemyDriverDesc = "enemy_driver_desc"
+    tkEnemyCorruptorName = "enemy_corruptor_name"
+    tkEnemyCorruptorDesc = "enemy_corruptor_desc"
+
     # Boss Names and Descriptions
     tkBoss1Name = "boss_1_name"
     tkBoss1Desc = "boss_1_desc"
@@ -1327,6 +1359,30 @@ type
     tkBoss12Name = "boss_12_name"
     tkBoss12Desc = "boss_12_desc"
 
+    # Survival bosses (13-15, 16 = Omega survival kit) and Roguelite
+    # guardians (17-22, 23 = Omega roguelite kit). The Omega kits reuse
+    # boss 12's name.
+    tkBoss13Name = "boss_13_name"
+    tkBoss13Desc = "boss_13_desc"
+    tkBoss14Name = "boss_14_name"
+    tkBoss14Desc = "boss_14_desc"
+    tkBoss15Name = "boss_15_name"
+    tkBoss15Desc = "boss_15_desc"
+    tkBoss16Desc = "boss_16_desc"
+    tkBoss17Name = "boss_17_name"
+    tkBoss17Desc = "boss_17_desc"
+    tkBoss18Name = "boss_18_name"
+    tkBoss18Desc = "boss_18_desc"
+    tkBoss19Name = "boss_19_name"
+    tkBoss19Desc = "boss_19_desc"
+    tkBoss20Name = "boss_20_name"
+    tkBoss20Desc = "boss_20_desc"
+    tkBoss21Name = "boss_21_name"
+    tkBoss21Desc = "boss_21_desc"
+    tkBoss22Name = "boss_22_name"
+    tkBoss22Desc = "boss_22_desc"
+    tkBoss23Desc = "boss_23_desc"
+
     # Boss lore: the TOPHAT system service the Root hijacked to make each boss
     # (boss 12 is the Root itself). Shown on the boss intro card and in Help.
     tkBossTagService = "boss_tag_service"
@@ -1343,6 +1399,15 @@ type
     tkBoss10Process = "boss_10_process"
     tkBoss11Process = "boss_11_process"
     tkBoss12Process = "boss_12_process"
+    tkBoss13Process = "boss_13_process"
+    tkBoss14Process = "boss_14_process"
+    tkBoss15Process = "boss_15_process"
+    tkBoss17Process = "boss_17_process"
+    tkBoss18Process = "boss_18_process"
+    tkBoss19Process = "boss_19_process"
+    tkBoss20Process = "boss_20_process"
+    tkBoss21Process = "boss_21_process"
+    tkBoss22Process = "boss_22_process"
 
     # Boss phase names (shown in the boss threat panel)
     tkBoss1Phase1 = "boss_1_phase_1"
@@ -1380,6 +1445,41 @@ type
     tkBoss12Phase2 = "boss_12_phase_2"
     tkBoss12Phase3 = "boss_12_phase_3"
     tkBoss12Phase4 = "boss_12_phase_4"
+    tkBoss13Phase1 = "boss_13_phase_1"
+    tkBoss13Phase2 = "boss_13_phase_2"
+    tkBoss13Phase3 = "boss_13_phase_3"
+    tkBoss14Phase1 = "boss_14_phase_1"
+    tkBoss14Phase2 = "boss_14_phase_2"
+    tkBoss14Phase3 = "boss_14_phase_3"
+    tkBoss15Phase1 = "boss_15_phase_1"
+    tkBoss15Phase2 = "boss_15_phase_2"
+    tkBoss15Phase3 = "boss_15_phase_3"
+    tkBoss16Phase1 = "boss_16_phase_1"
+    tkBoss16Phase2 = "boss_16_phase_2"
+    tkBoss16Phase3 = "boss_16_phase_3"
+    tkBoss16Phase4 = "boss_16_phase_4"
+    tkBoss17Phase1 = "boss_17_phase_1"
+    tkBoss17Phase2 = "boss_17_phase_2"
+    tkBoss17Phase3 = "boss_17_phase_3"
+    tkBoss18Phase1 = "boss_18_phase_1"
+    tkBoss18Phase2 = "boss_18_phase_2"
+    tkBoss18Phase3 = "boss_18_phase_3"
+    tkBoss19Phase1 = "boss_19_phase_1"
+    tkBoss19Phase2 = "boss_19_phase_2"
+    tkBoss19Phase3 = "boss_19_phase_3"
+    tkBoss20Phase1 = "boss_20_phase_1"
+    tkBoss20Phase2 = "boss_20_phase_2"
+    tkBoss20Phase3 = "boss_20_phase_3"
+    tkBoss21Phase1 = "boss_21_phase_1"
+    tkBoss21Phase2 = "boss_21_phase_2"
+    tkBoss21Phase3 = "boss_21_phase_3"
+    tkBoss22Phase1 = "boss_22_phase_1"
+    tkBoss22Phase2 = "boss_22_phase_2"
+    tkBoss22Phase3 = "boss_22_phase_3"
+    tkBoss23Phase1 = "boss_23_phase_1"
+    tkBoss23Phase2 = "boss_23_phase_2"
+    tkBoss23Phase3 = "boss_23_phase_3"
+    tkBoss23Phase4 = "boss_23_phase_4"
 
     # Common
     tkCommonOn = "common_on"
@@ -1395,6 +1495,23 @@ type
     tkEnemySealedClearAdds = "enemy_sealed_clear_adds"
     tkEnemySealedSlayGuards = "enemy_sealed_slay_guards"
     tkEnemyOverloadHoldFire = "enemy_overload_hold_fire"
+
+    # Survival / Roguelite roster: tags, boss objective hints, signature-attack
+    # banners and Help roster headers
+    tkBossTagFloodSpawn = "boss_tag_flood_spawn"
+    tkBossTagLegacy = "boss_tag_legacy"
+    tkEnemySealedCutChildren = "enemy_sealed_cut_children"
+    tkModeAuditLocked = "mode_audit_locked"
+    tkModeAuditBreach = "mode_audit_breach"
+    tkModeSafeMode = "mode_safe_mode"
+    tkModeRestorePoint = "mode_restore_point"
+    tkModeRestoreRollback = "mode_restore_rollback"
+    tkModeRestoreBroken = "mode_restore_broken"
+    tkModeEmptyTrash = "mode_empty_trash"
+    tkModeLastKnownGood = "mode_last_known_good"
+    tkHelpRosterWave = "help_roster_wave"
+    tkHelpRosterSurvival = "help_roster_survival"
+    tkHelpRosterRoguelite = "help_roster_roguelite"
 
     # Sandbox power-up visuals tab
     tkSandboxPowerupVisuals = "sandbox_powerup_visuals"
@@ -3109,19 +3226,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dungeon_final_floor_desc": "The stack ends here. No sectors left to roll, only the last process. Step into the arena and face the Omega Entity.",
     "dungeon_final_floor_warning": "No more sectors. No turning back.",
     "dungeon_theme_firewall": "Firewall",
-    "dungeon_theme_firewall_desc": "Heat-hardened defense grid. Steady shooters and blockers hold every room.",
+    "dungeon_theme_firewall_desc": "Heat-hardened defense grid. Shielded guards, rooted sentries and armored drivers hold every room.",
     "dungeon_theme_recycle_bin": "Recycle Bin",
-    "dungeon_theme_recycle_bin_desc": "Discarded process swarms. Endless weak chasers backed by tanky stars.",
+    "dungeon_theme_recycle_bin_desc": "Deleted files that refuse to stay deleted. Mimics hide among the scraps and restorers raise the fallen.",
     "dungeon_theme_registry": "Registry",
-    "dungeon_theme_registry_desc": "Ordered killers. Crosses and cubes fire precise, telegraphed volleys.",
+    "dungeon_theme_registry_desc": "Ordered, guarded keys. Shield walls, restorers and corruptors that rot the floor.",
     "dungeon_theme_network": "Network",
-    "dungeon_theme_network_desc": "Hot packet traffic. Dashers, snipers, and hit-and-run strikes.",
+    "dungeon_theme_network_desc": "Hot packet traffic. Ricocheting packets, sentries on every hop and the odd mimic.",
     "dungeon_theme_kernel": "Kernel",
-    "dungeon_theme_kernel_desc": "Deep system space. Heavy units and mage processes with real firepower.",
+    "dungeon_theme_kernel_desc": "Deep system space. Armored drivers charge through the fire of rooted sentries.",
     "dungeon_theme_cache": "Cache",
-    "dungeon_theme_cache_desc": "Mirrored memory. Phantoms, tricksters, and teleporting chaos.",
+    "dungeon_theme_cache_desc": "Mirrored, stale memory. Mimics, bouncing packets and corrupted tiles everywhere.",
     "dungeon_theme_corrupted_sector": "Corrupted Sector",
-    "dungeon_theme_corrupted_sector_desc": "Anything goes. Every process type, more elites, and the biggest payouts.",
+    "dungeon_theme_corrupted_sector_desc": "The bottom of the stack. Every legacy process at once, more elites and the biggest payouts.",
     "roguelite_relics": "Patches",
     "roguelite_unlocked": "OWNED",
     "roguelite_locked": "LOCKED",
@@ -3270,6 +3387,36 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "enemy_sniper_desc": "Deadly enemy that charges a powerful one-shot kill attack",
     "enemy_mage_name": "Mage",
     "enemy_mage_desc": "Magical enemy that summons meteorites and fires homing projectiles",
+    "enemy_thread_name": "Thread",
+    "enemy_thread_desc": "A single thread of the flood. Weak alone, drowning in numbers.",
+    "enemy_fork_bomb_name": "Fork Bomb",
+    "enemy_fork_bomb_desc": "Splits into two Threads when killed, and forks a copy of itself if left alone.",
+    "enemy_watchdog_name": "Watchdog",
+    "enemy_watchdog_desc": "The flood's only gunner. Keeps its distance and barks a slow three-shot fan.",
+    "enemy_zombie_name": "Zombie Process",
+    "enemy_zombie_desc": "Slow and tough. It gets back up once, unless you walk over its husk to reap it.",
+    "enemy_deadlock_name": "Deadlock",
+    "enemy_deadlock_desc": "Spawns as a linked pair. The line between them burns; kill either one to break it.",
+    "enemy_daemon_name": "Priority Daemon",
+    "enemy_daemon_desc": "Hangs back and boosts the speed of every process around it. Kill it first.",
+    "enemy_interrupt_name": "Interrupt",
+    "enemy_interrupt_desc": "Marks a spot, then dashes in and detonates. The blast hurts the horde too.",
+    "enemy_fragment_name": "Fragment",
+    "enemy_fragment_desc": "A shard of a broken file. It moves in short hops; shoot it between them.",
+    "enemy_port_guard_name": "Port Guard",
+    "enemy_port_guard_desc": "Its shield blocks every shot from the front. Circle around to its back.",
+    "enemy_sentry_name": "Sentry",
+    "enemy_sentry_desc": "Walks to a post, roots itself and fires like a turret. Use cover or pick it off.",
+    "enemy_mimic_name": "Mimic",
+    "enemy_mimic_desc": "Lies still as a harmless file until you get close or shoot it. Then it bites.",
+    "enemy_restorer_name": "Restorer",
+    "enemy_restorer_desc": "Channels a beam that brings a fallen process back. Any hit breaks the channel.",
+    "enemy_packet_name": "Packet",
+    "enemy_packet_desc": "Fast dasher that ricochets off walls and obstacles. Read the bounce.",
+    "enemy_driver_name": "Driver",
+    "enemy_driver_desc": "Armored in front. Its charge stuns it against walls and obstacles, leaving it exposed.",
+    "enemy_corruptor_name": "Corruptor",
+    "enemy_corruptor_desc": "Leaves corrupted tiles behind that hurt to stand on. They decay in time.",
 
     # Boss Names and Descriptions
     "boss_1_name": "The Spiral Guardian",
@@ -3296,6 +3443,26 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_11_desc": "The entropy pool. It fed the OS its randomness; now it feeds you nothing but chaos.",
     "boss_12_name": "The Omega Entity",
     "boss_12_desc": "The Root itself, wearing every service it stole. It fights with all of them at once.",
+    "boss_13_name": "The Forkmother",
+    "boss_13_desc": "Spawned by the flood with one instruction: fork(). Her children shield her; hunt them in the crowd, and shoot her seeds before they multiply.",
+    "boss_14_name": "The Dispatcher",
+    "boss_14_desc": "The flood's quartermaster. It lines the horde up in marching ranks; cut yourself a lane through them.",
+    "boss_15_name": "Thermal Runaway",
+    "boss_15_desc": "An overheating flood core. Every step you take leaves burning ground behind: never double back, and lead the horde through the fire.",
+    "boss_16_desc": "The Root, returned for the last watch. It floods the system with everything it has spawned, until only Safe Mode is left.",
+    "boss_17_name": "The Gatekeeper",
+    "boss_17_desc": "A legacy firewall older than TOPHAT, woken by the Root. Its inspection beams sweep the room; the obstacles are your only cover.",
+    "boss_18_name": "The Compactor",
+    "boss_18_desc": "The old undelete utility. It scatters dormant file bombs and empties the bin all at once, so shred them first. It can roll back its own damage.",
+    "boss_19_name": "The Hive",
+    "boss_19_desc": "The configuration file that came before the registry. When it audits the system everything locks: stop moving and stop shooting until the audit ends.",
+    "boss_20_name": "The Router",
+    "boss_20_desc": "A legacy network stack. It lights up links between relays and races packets down them; cross between the trains.",
+    "boss_21_name": "The Supervisor",
+    "boss_21_desc": "The ancient memory manager. It pages the room's obstacles out and back in somewhere else; never stand on a ghost footprint.",
+    "boss_22_name": "The Mirror Cache",
+    "boss_22_desc": "A disk cache that never forgets. It replays your last seconds as a hostile echo that moves and shoots exactly as you did.",
+    "boss_23_desc": "The Root at its origin, older than TOPHAT. It fights with every guardian you passed, then offers one last choice of door.",
     "boss_tag_service": "HIJACKED SERVICE",
     "boss_tag_hijacker": "HIJACKER",
     "boss_1_process": "sentinel.sys",
@@ -3310,6 +3477,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_10_process": "clock.sys",
     "boss_11_process": "entropy.pool",
     "boss_12_process": "root (uid 0)",
+    "boss_13_process": "fork.bomb",
+    "boss_14_process": "dispatch.q",
+    "boss_15_process": "thermal.trip",
+    "boss_17_process": "ipchains",
+    "boss_18_process": "undelete.com",
+    "boss_19_process": "system.ini",
+    "boss_20_process": "winsock.dll",
+    "boss_21_process": "himem.sys",
+    "boss_22_process": "smartdrv.exe",
 
     # Boss phase names (shown in the boss threat panel)
     "boss_1_phase_1": "Awakening",
@@ -3347,6 +3523,41 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_12_phase_2": "Beta Phase",
     "boss_12_phase_3": "Gamma Phase",
     "boss_12_phase_4": "Omega Phase",
+    "boss_13_phase_1": "Parent Process",
+    "boss_13_phase_2": "Process Tree",
+    "boss_13_phase_3": "Fork Storm",
+    "boss_14_phase_1": "Queue",
+    "boss_14_phase_2": "Round Robin",
+    "boss_14_phase_3": "Priority Inversion",
+    "boss_15_phase_1": "Warm Boot",
+    "boss_15_phase_2": "Throttling",
+    "boss_15_phase_3": "Runaway",
+    "boss_16_phase_1": "Alpha: Fork",
+    "boss_16_phase_2": "Beta: Dispatch",
+    "boss_16_phase_3": "Gamma: Throttle",
+    "boss_16_phase_4": "Omega: Safe Mode",
+    "boss_17_phase_1": "Default Deny",
+    "boss_17_phase_2": "Stateful",
+    "boss_17_phase_3": "Lockdown",
+    "boss_18_phase_1": "Recycle",
+    "boss_18_phase_2": "Undelete",
+    "boss_18_phase_3": "Purge",
+    "boss_19_phase_1": "Read",
+    "boss_19_phase_2": "Write-Protect",
+    "boss_19_phase_3": "Hive Lock",
+    "boss_20_phase_1": "Handshake",
+    "boss_20_phase_2": "Congestion",
+    "boss_20_phase_3": "Broadcast Storm",
+    "boss_21_phase_1": "Paging",
+    "boss_21_phase_2": "Thrashing",
+    "boss_21_phase_3": "Page Fault",
+    "boss_22_phase_1": "Cached",
+    "boss_22_phase_2": "Stale",
+    "boss_22_phase_3": "Coherence Lost",
+    "boss_23_phase_1": "Alpha: Inspection",
+    "boss_23_phase_2": "Beta: Audit",
+    "boss_23_phase_3": "Gamma: Page Fault",
+    "boss_23_phase_4": "Omega: Last Known Good",
 
     # Exit Confirm Dialog
     "confirm_quit_title": "CONFIRM QUIT",
@@ -3376,6 +3587,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "enemy_sealed_clear_adds": "SEALED - CLEAR ADDS",
     "enemy_sealed_slay_guards": "SEALED - SLAY THE ROYAL GUARD",
     "enemy_overload_hold_fire": "OVERLOAD - HOLD FIRE",
+    "boss_tag_flood_spawn": "FLOOD SPAWN",
+    "boss_tag_legacy": "LEGACY PROCESS",
+    "enemy_sealed_cut_children": "SHIELDED - KILL HER CHILDREN",
+    "mode_audit_locked": "REGISTRY LOCKED - HOLD STILL",
+    "mode_audit_breach": "WRITE DENIED",
+    "mode_safe_mode": "SAFE MODE",
+    "mode_restore_point": "RESTORE POINT",
+    "mode_restore_rollback": "ROLLED BACK",
+    "mode_restore_broken": "RESTORE FAILED",
+    "mode_empty_trash": "EMPTYING TRASH",
+    "mode_last_known_good": "LAST KNOWN GOOD",
+    "help_roster_wave": "THREAT RESPONSE (waves)",
+    "help_roster_survival": "THE LONG WATCH (survival)",
+    "help_roster_roguelite": "DEEP RECOVERY (roguelite)",
 
     # Sandbox power-up visuals tab
     "sandbox_powerup_visuals": "Power-Up Visuals",
@@ -5073,19 +5298,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "dungeon_final_floor_desc": "La pila termina aquí. No quedan sectores que sortear, solo el último proceso. Entra a la arena y enfréntate a la Entidad Omega.",
     "dungeon_final_floor_warning": "No más sectores. No hay vuelta atrás.",
     "dungeon_theme_firewall": "Cortafuegos",
-    "dungeon_theme_firewall_desc": "Red defensiva endurecida. Tiradores y bloqueadores constantes en cada sala.",
+    "dungeon_theme_firewall_desc": "Red defensiva endurecida. Guardias con escudo, centinelas anclados y controladores blindados en cada sala.",
     "dungeon_theme_recycle_bin": "Papelera",
-    "dungeon_theme_recycle_bin_desc": "Enjambres de procesos desechados. Perseguidores débiles con estrellas tanque.",
+    "dungeon_theme_recycle_bin_desc": "Archivos borrados que se niegan a desaparecer. Mímicos entre los restos y restauradores que levantan a los caídos.",
     "dungeon_theme_registry": "Registro",
-    "dungeon_theme_registry_desc": "Asesinos ordenados. Cruces y cubos con ráfagas precisas.",
+    "dungeon_theme_registry_desc": "Claves ordenadas y vigiladas. Muros de escudos, restauradores y corruptores que pudren el suelo.",
     "dungeon_theme_network": "Red",
-    "dungeon_theme_network_desc": "Tráfico de paquetes. Embestidores, snipers y golpes rápidos.",
+    "dungeon_theme_network_desc": "Tráfico de paquetes al rojo. Paquetes que rebotan, centinelas en cada salto y algún mímico.",
     "dungeon_theme_kernel": "Núcleo",
-    "dungeon_theme_kernel_desc": "Espacio profundo del sistema. Unidades pesadas y magos con potencia real.",
+    "dungeon_theme_kernel_desc": "Espacio profundo del sistema. Controladores blindados cargan entre el fuego de centinelas anclados.",
     "dungeon_theme_cache": "Caché",
-    "dungeon_theme_cache_desc": "Memoria reflejada. Fantasmas, embaucadores y caos teletransportado.",
+    "dungeon_theme_cache_desc": "Memoria reflejada y obsoleta. Mímicos, paquetes que rebotan y casillas corruptas por todas partes.",
     "dungeon_theme_corrupted_sector": "Sector Corrupto",
-    "dungeon_theme_corrupted_sector_desc": "Todo vale. Todos los procesos, más élites y las mayores recompensas.",
+    "dungeon_theme_corrupted_sector_desc": "El fondo de la pila. Todos los procesos heredados a la vez, más élites y las mayores recompensas.",
     "roguelite_relics": "Parches",
     "roguelite_unlocked": "COMPRADO",
     "roguelite_locked": "BLOQUEADO",
@@ -5234,6 +5459,36 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "enemy_sniper_desc": "Carga un disparo letal de un golpe",
     "enemy_mage_name": "Mago",
     "enemy_mage_desc": "Invoca meteoritos y dispara proyectiles teledirigidos",
+    "enemy_thread_name": "Hilo",
+    "enemy_thread_desc": "Un solo hilo de la inundación. Débil a solas, abrumador en número.",
+    "enemy_fork_bomb_name": "Bomba Fork",
+    "enemy_fork_bomb_desc": "Se divide en dos Hilos al morir, y se clona si lo dejas en paz.",
+    "enemy_watchdog_name": "Perro Guardián",
+    "enemy_watchdog_desc": "El único tirador de la inundación. Mantiene la distancia y ladra un abanico lento de tres disparos.",
+    "enemy_zombie_name": "Proceso Zombi",
+    "enemy_zombie_desc": "Lento y resistente. Se levanta una vez, salvo que pases sobre su cáscara para segarla.",
+    "enemy_deadlock_name": "Interbloqueo",
+    "enemy_deadlock_desc": "Aparece en pareja enlazada. La línea entre ambos quema; mata a uno para romperla.",
+    "enemy_daemon_name": "Demonio de Prioridad",
+    "enemy_daemon_desc": "Se queda atrás y acelera a todos los procesos cercanos. Mátalo primero.",
+    "enemy_interrupt_name": "Interrupción",
+    "enemy_interrupt_desc": "Marca un punto, embiste y detona. La explosión también daña a la horda.",
+    "enemy_fragment_name": "Fragmento",
+    "enemy_fragment_desc": "Un trozo de un archivo roto. Avanza a saltos cortos; dispárale entre salto y salto.",
+    "enemy_port_guard_name": "Guardia de Puerto",
+    "enemy_port_guard_desc": "Su escudo bloquea todo disparo frontal. Rodéalo y atácalo por detrás.",
+    "enemy_sentry_name": "Centinela",
+    "enemy_sentry_desc": "Camina hasta su puesto, se ancla y dispara como una torreta. Cúbrete o elimínalo.",
+    "enemy_mimic_name": "Mímico",
+    "enemy_mimic_desc": "Se queda quieto como un archivo inofensivo hasta que te acercas o le disparas. Entonces muerde.",
+    "enemy_restorer_name": "Restaurador",
+    "enemy_restorer_desc": "Canaliza un rayo que devuelve a la vida a un proceso caído. Cualquier impacto lo interrumpe.",
+    "enemy_packet_name": "Paquete",
+    "enemy_packet_desc": "Embestidor veloz que rebota en muros y obstáculos. Lee el rebote.",
+    "enemy_driver_name": "Controlador",
+    "enemy_driver_desc": "Blindado por delante. Su embestida lo aturde contra muros y obstáculos, y queda expuesto.",
+    "enemy_corruptor_name": "Corruptor",
+    "enemy_corruptor_desc": "Deja casillas corruptas a su paso que dañan al pisarlas. Se degradan con el tiempo.",
 
     # Boss Names and Descriptions
     "boss_1_name": "El Guardián Espiral",
@@ -5260,6 +5515,26 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_11_desc": "La reserva de entropía. Alimentaba al SO de azar; ahora solo te alimenta de caos.",
     "boss_12_name": "La Entidad Omega",
     "boss_12_desc": "La propia Raíz, vistiendo cada servicio que robó. Lucha con todos a la vez.",
+    "boss_13_name": "La Madre Fork",
+    "boss_13_desc": "Nacida de la inundación con una sola instrucción: fork(). Sus hijos la protegen; cázalos entre la multitud y dispara a sus semillas antes de que se multipliquen.",
+    "boss_14_name": "El Despachador",
+    "boss_14_desc": "El intendente de la inundación. Forma a la horda en filas que marchan; ábrete un pasillo a tiros.",
+    "boss_15_name": "Fuga Térmica",
+    "boss_15_desc": "Un núcleo de la inundación al rojo vivo. Cada paso que das deja el suelo ardiendo: nunca vuelvas sobre tus pasos y guía a la horda por el fuego.",
+    "boss_16_desc": "La Raíz, de vuelta para la última guardia. Inunda el sistema con todo lo que ha engendrado hasta que solo queda el Modo Seguro.",
+    "boss_17_name": "El Guardián",
+    "boss_17_desc": "Un cortafuegos heredado, más antiguo que TOPHAT, despertado por la Raíz. Sus haces de inspección barren la sala; los obstáculos son tu única cobertura.",
+    "boss_18_name": "La Compactadora",
+    "boss_18_desc": "La vieja utilidad de recuperación. Esparce bombas de archivos dormidas y vacía la papelera de golpe, así que destrúyelas antes. Puede deshacer su propio daño.",
+    "boss_19_name": "La Colmena",
+    "boss_19_desc": "El archivo de configuración anterior al registro. Cuando audita el sistema todo se bloquea: deja de moverte y de disparar hasta que termine.",
+    "boss_20_name": "El Enrutador",
+    "boss_20_desc": "Una pila de red heredada. Ilumina enlaces entre repetidores y lanza paquetes por ellos; cruza entre los trenes.",
+    "boss_21_name": "El Supervisor",
+    "boss_21_desc": "El antiguo gestor de memoria. Saca los obstáculos de la sala y los vuelve a colocar en otro sitio; nunca te quedes sobre una huella fantasma.",
+    "boss_22_name": "La Caché Espejo",
+    "boss_22_desc": "Una caché de disco que nunca olvida. Repite tus últimos segundos como un eco hostil que se mueve y dispara igual que tú.",
+    "boss_23_desc": "La Raíz en su origen, más antigua que TOPHAT. Lucha con cada guardián que dejaste atrás y luego te ofrece una última elección de puerta.",
     "boss_tag_service": "SERVICIO SECUESTRADO",
     "boss_tag_hijacker": "SECUESTRADOR",
     "boss_1_process": "centinela.sys",
@@ -5274,6 +5549,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_10_process": "reloj.sys",
     "boss_11_process": "azar.pool",
     "boss_12_process": "root (uid 0)",
+    "boss_13_process": "fork.bomb",
+    "boss_14_process": "dispatch.q",
+    "boss_15_process": "thermal.trip",
+    "boss_17_process": "ipchains",
+    "boss_18_process": "undelete.com",
+    "boss_19_process": "system.ini",
+    "boss_20_process": "winsock.dll",
+    "boss_21_process": "himem.sys",
+    "boss_22_process": "smartdrv.exe",
 
     # Boss phase names (shown in the boss threat panel)
     "boss_1_phase_1": "Despertar",
@@ -5311,6 +5595,41 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_12_phase_2": "Fase Beta",
     "boss_12_phase_3": "Fase Gamma",
     "boss_12_phase_4": "Fase Omega",
+    "boss_13_phase_1": "Proceso Padre",
+    "boss_13_phase_2": "Árbol de Procesos",
+    "boss_13_phase_3": "Tormenta Fork",
+    "boss_14_phase_1": "Cola",
+    "boss_14_phase_2": "Turno Rotativo",
+    "boss_14_phase_3": "Inversión de Prioridad",
+    "boss_15_phase_1": "Arranque en Caliente",
+    "boss_15_phase_2": "Estrangulamiento",
+    "boss_15_phase_3": "Fuga",
+    "boss_16_phase_1": "Alfa: Fork",
+    "boss_16_phase_2": "Beta: Despacho",
+    "boss_16_phase_3": "Gamma: Estrangulamiento",
+    "boss_16_phase_4": "Omega: Modo Seguro",
+    "boss_17_phase_1": "Denegar por Defecto",
+    "boss_17_phase_2": "Con Estado",
+    "boss_17_phase_3": "Bloqueo Total",
+    "boss_18_phase_1": "Reciclar",
+    "boss_18_phase_2": "Recuperar",
+    "boss_18_phase_3": "Purga",
+    "boss_19_phase_1": "Lectura",
+    "boss_19_phase_2": "Protección contra Escritura",
+    "boss_19_phase_3": "Bloqueo de Colmena",
+    "boss_20_phase_1": "Negociación",
+    "boss_20_phase_2": "Congestión",
+    "boss_20_phase_3": "Tormenta de Difusión",
+    "boss_21_phase_1": "Paginación",
+    "boss_21_phase_2": "Hiperpaginación",
+    "boss_21_phase_3": "Fallo de Página",
+    "boss_22_phase_1": "En Caché",
+    "boss_22_phase_2": "Obsoleto",
+    "boss_22_phase_3": "Coherencia Perdida",
+    "boss_23_phase_1": "Alfa: Inspección",
+    "boss_23_phase_2": "Beta: Auditoría",
+    "boss_23_phase_3": "Gamma: Fallo de Página",
+    "boss_23_phase_4": "Omega: Última Configuración Válida",
 
     # Exit Confirm Dialog
     "confirm_quit_title": "CONFIRMAR SALIDA",
@@ -5340,6 +5659,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "enemy_sealed_clear_adds": "SELLADO - ELIMINA REFUERZOS",
     "enemy_sealed_slay_guards": "SELLADO - ABATE A LA GUARDIA REAL",
     "enemy_overload_hold_fire": "SOBRECARGA - ALTO EL FUEGO",
+    "boss_tag_flood_spawn": "ENGENDRO DE LA INUNDACIÓN",
+    "boss_tag_legacy": "PROCESO HEREDADO",
+    "enemy_sealed_cut_children": "PROTEGIDA - MATA A SUS HIJOS",
+    "mode_audit_locked": "REGISTRO BLOQUEADO - NO TE MUEVAS",
+    "mode_audit_breach": "ESCRITURA DENEGADA",
+    "mode_safe_mode": "MODO SEGURO",
+    "mode_restore_point": "PUNTO DE RESTAURACIÓN",
+    "mode_restore_rollback": "RESTAURADO",
+    "mode_restore_broken": "RESTAURACIÓN FALLIDA",
+    "mode_empty_trash": "VACIANDO PAPELERA",
+    "mode_last_known_good": "ÚLTIMA CONFIGURACIÓN VÁLIDA",
+    "help_roster_wave": "RESPUESTA A AMENAZAS (oleadas)",
+    "help_roster_survival": "LA LARGA GUARDIA (supervivencia)",
+    "help_roster_roguelite": "RECUPERACIÓN PROFUNDA (roguelite)",
 
     # Sandbox power-up visuals tab
     "sandbox_powerup_visuals": "Visuales de Mejoras",
@@ -5646,6 +5979,15 @@ proc t*(key: string): string =
     return translations[English][key]
   else:
     return key  # Return key itself as last resort
+
+proc missingTranslations*(): seq[string] =
+  ## TranslationKey entries absent from a language table. t() silently falls
+  ## back to English and then to the raw key, so the compiler never catches a
+  ## missing string; debug builds report these at startup.
+  for key in TranslationKey:
+    for lang in Language:
+      if not translations.hasKey(lang) or not translations[lang].hasKey($key):
+        result.add($lang & ": " & $key)
 
 # Get translation for a TranslationKey enum
 proc t*(key: TranslationKey): string =

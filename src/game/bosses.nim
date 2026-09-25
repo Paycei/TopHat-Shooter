@@ -1,5 +1,6 @@
 import raylib, rlgl, random, math
-import types, enemy, bullet, boss_definitions, particle_pool, particle_types, d_systems, enemy_helpers, boss_weakpoints, ui/warnings, game/bullets
+import types, enemy, bullet, boss_definitions, particle_pool, particle_types, d_systems, enemy_helpers, boss_weakpoints, ui/warnings, game/bullets, game/mode_boss_attacks, mode_hazards
+export pointSegmentDistance  # beam hit tests (shared with the roster hazards)
 
 const BOSS_PHASE_INVULNERABILITY_DURATION* = BossPhaseTransitionDuration
 
@@ -114,6 +115,16 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
     let w = game.attackWarnings[i]
     if w.attackType == awtBossDash and w.sourceEnemyId == enemy.id:
       game.attackWarnings.delete(i)
+  # Standing roster casts (emitters, beams, echoes, restore points,
+  # mega-casts) end with the phase.
+  retireModeBossHazards(game, enemy)
+  # The survival Omega's Alpha children only seal Alpha: from Beta on they
+  # are ordinary horde.
+  if enemy.bossDefinitionID == BossOmegaSurvival and nextPhaseIndex >= 1:
+    for other in game.enemies:
+      if other.linkId == enemy.id and not other.isBoss:
+        other.royalGuard = false
+        other.linkId = 0
   # Reset enrage so attack timers (seeded to the full invuln duration below) tick
   # at the base rate and only expire once the transition ends, no shots or
   # telegraphs leak into the frozen animation.
@@ -144,7 +155,9 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
   enemy.attackTimers = @[]
   enemy.attackWarningFired = @[]
   for attack in phase.attacks:
-    enemy.attackTimers.add(PHASE_TRANSITION_LEAD)
+    # `timer` is the attack's authored start offset (beat-grid stagger); 0 for
+    # every wave boss, so their kits still resume together.
+    enemy.attackTimers.add(PHASE_TRANSITION_LEAD + attack.timer)
     enemy.attackWarningFired.add(false)
 
   # Bosses keep their spawn color across phases (phase recoloring was a legacy mechanic).
@@ -358,6 +371,15 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
   let centerY = game.screenHeight.float32 / 2.0
 
   case phase.specialBehavior
+  of "anchored":
+    # Gatekeeper: holds the middle of its room, turning in place (its beams do
+    # the sweeping), drifting back if knocked away.
+    let home = newVector2f(centerX, centerY)
+    let d = distance(enemy.pos, home)
+    if d > 12.0'f32:
+      let toHome = (home - enemy.pos).normalize()
+      enemy.pos = enemy.pos + toHome * min(d, enemy.speed * 0.8'f32 * dt)
+
   of "circle_movement":
     # Smooth velocity-based orbiting
     # Calculate target position on circle
@@ -835,17 +857,6 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     elif frameDistance > teleportDistance:
       enemy.vel = newVector2f(0, 0)
 
-proc pointSegmentDistance*(p, a, b: Vector2f): float32 =
-  ## Shortest distance from point p to the segment a-b (for beam hit tests).
-  let abx = b.x - a.x
-  let aby = b.y - a.y
-  let denom = abx * abx + aby * aby
-  let t = if denom > 0.0001'f32:
-            clamp(((p.x - a.x) * abx + (p.y - a.y) * aby) / denom, 0.0'f32, 1.0'f32)
-          else: 0.0'f32
-  let dx = p.x - (a.x + abx * t)
-  let dy = p.y - (a.y + aby * t)
-  sqrt(dx * dx + dy * dy)
 
 proc spawnThunderstrike*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
   warnings.spawnThunderstrikeInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
@@ -2849,9 +2860,17 @@ proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, 
   # (boss definitions assume the player power of their wave-mode slot).
   # Shadowing the attack keeps every pattern below reading tuned damage.
   var attack = attack
-  if enemy.damageTuning > 0.0'f32 and enemy.damageTuning < 1.0'f32:
+  # damageTuning also scales UP: a roguelite guardian in a deep sector, or a
+  # survival boss rotating through Overtime, fights at a later slot than the
+  # one its numbers were authored for (normalizeBossToSlot).
+  if enemy.damageTuning > 0.0'f32 and enemy.damageTuning != 1.0'f32:
     attack.damage *= enemy.damageTuning
   let toPlayer = (game.player.pos - enemy.pos).normalize()
+
+  # Survival / Roguelite roster signatures (game/mode_boss_attacks.nim).
+  if isModeBossAttack(attack.specialData):
+    executeModeBossAttack(game, enemy, attack, phase)
+    return
 
   # Special telegraphed electricity attacks build their own warnings and defer
   # the strike to the warning-update loop; no bullets are spawned here.

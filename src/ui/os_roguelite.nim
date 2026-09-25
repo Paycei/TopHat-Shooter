@@ -1,5 +1,6 @@
 import raylib, math, strutils
 import ../types, ../roguelite, ../patches, ../powerup_data, ../dungeon, ../localization, ../render_context, ../utils, icon_drawing, ui_helpers
+from ../boss_definitions import bossName
 export ui_helpers
 
 const
@@ -554,7 +555,7 @@ proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, floorB
   # Floor boss preview
   drawBossGlyph(x + 33, y + 98, Color(r: 255, g: 120, b: 95, a: 255))
   drawTextFit(t("dungeon_floor_boss"), x + 58, y + 90, CardW - 74, 13, Color(r: 255, g: 150, b: 120, a: 255))
-  drawTextFit(t("boss_" & $floorBossNumber & "_name"), x + 58, y + 107, CardW - 74, 14, Gold)
+  drawTextFit(bossName(floorBossNumber), x + 58, y + 107, CardW - 74, 14, Gold)
 
   drawTextFit(t("roguelite_pressure") & ": " & $(int(def.pressureMod * 100)) & "%", x + 16, y + 139, 116, 13, LightGray)
   drawMeter(x + 136, y + 143, 104, 8, (def.pressureMod - 0.9) / 0.5, accent)
@@ -580,7 +581,7 @@ proc finalBossCardRect*(screenWidth, screenHeight: int32): Rectangle =
 
 proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
   ## The final floor's one-and-only choice: a wide, pulsing crimson/gold card for
-  ## boss 12, deliberately styled apart from the regular theme cards.
+  ## the Omega Entity, deliberately styled apart from the regular theme cards.
   let x = rect.x.int32
   let y = rect.y.int32
   let w = rect.width.int32
@@ -617,7 +618,7 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
   # Boss label + name.
   drawTextFit(t("dungeon_floor_boss"), x + 24, y + 66, w - 150, 15,
               Color(r: 255, g: 150, b: 120, a: 255))
-  drawTextFit(t("boss_12_name"), x + 24, y + 86, w - 150, 30, gold)
+  drawTextFit(bossName(BossOmegaRoguelite), x + 24, y + 86, w - 150, 30, gold)
 
   # Flavor description.
   discard drawWrappedText(t("dungeon_final_floor_desc"), x + 24, y + 140, w - 48, 16,

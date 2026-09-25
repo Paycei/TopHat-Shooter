@@ -116,7 +116,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 8'u32  # bumped: roguelite sectors became reward-door paths (dungeon types rewritten) + patches
+  SnapFormatVersion = 9'u32  # bumped: survival/roguelite rosters (Enemy mode fields, Game.modeCombat, new EnemyType/AttackWarningType values)
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =

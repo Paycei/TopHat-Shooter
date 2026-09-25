@@ -85,6 +85,21 @@ proc enemyXpValue*(enemy: Enemy): int =
       of etPhantom: 3
       of etSniper: 4
       of etMage: 4
+      of etThread: 1
+      of etForkBomb: 2
+      of etWatchdog: 2
+      of etZombie: 3
+      of etDeadlock: 2
+      of etDaemon: 3
+      of etInterrupt: 1
+      of etFragment: 1
+      of etPortGuard: 3
+      of etSentry: 2
+      of etMimic: 3
+      of etRestorer: 3
+      of etPacket: 2
+      of etDriver: 4
+      of etCorruptor: 3
       of etEnvironment: 0
   if enemy.isElite:
     result *= 2

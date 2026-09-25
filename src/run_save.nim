@@ -656,7 +656,11 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
           run.nextThemeChoices[0] == run.nextThemeChoices[1] and
           run.nextThemeChoices[1] == run.nextThemeChoices[2] and
           run.nextThemeChoices[0] == dftFirewall
-        if neverRolled or not j.getOrDefault("floorSelectOpen").getBool(false):
+        # Saves from before the final theme was reserved can offer it early.
+        let staleFinalTheme = not isFinalDungeonFloor(run) and
+          FinalFloorTheme in run.nextThemeChoices
+        if neverRolled or staleFinalTheme or
+           not j.getOrDefault("floorSelectOpen").getBool(false):
           generateThemeChoices(run)
         game.state = gsRogueliteFloorSelect
       else:

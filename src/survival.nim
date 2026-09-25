@@ -11,7 +11,7 @@
 
 import raylib, random, math, strutils
 import particle_types, types, localization, utils, sound, d_systems, d_visuals, roguelite,
-       enemy, enemy_config, enemy_helpers, particle_pool, consumable, coin, player, powerup,
+       enemy, enemy_helpers, particle_pool, consumable, coin, player, powerup,
        powerup_data, gamepad_input, game/bullets, game/death, ui/os_background, ui/icon_drawing,
        ui/hud_dock, ui/ui_helpers
 
@@ -205,10 +205,21 @@ const
   SurvivalRingRadius = 360.0'f32
   SurvivalRingMinGap = 200.0'f32  ## Ring slots dragged closer than this are dropped
   SurvivalMarkerTime* = 0.9'f32   ## Telegraph before an in-arena spawn appears
-  SurvivalBossRosterEpsilon = 0.5'f32
-    ## During a boss fight difficulty is frozen at the boss's spawn value (an
-    ## integer); introduction thresholds are also integers, so picking types at
-    ## `difficulty - 0.5` guarantees no enemy type debuts mid-boss.
+  SurvivalDaemonCap = 4           ## Priority Daemons alive at once (their aura stacks up fast)
+
+  # THE FLOOD'S ROSTER. Survival fields its own horde, built for 100+ bodies:
+  # cheap to read, almost no bullets (fire rate is not density-rebated, so
+  # the Watchdog is the only shooter). Each type debuts on the survival clock.
+  # Unlocks sit strictly between boss times (300 / 600 / 900 / 1200 s): the
+  # clock pauses during a boss fight, so nothing can debut mid-boss.
+  SurvivalRoster: array[7, tuple[enemy: EnemyType, unlock: float32, weight: int]] = [
+    (etThread, 0.0'f32, 26),     # Boot: the fodder that never leaves
+    (etForkBomb, 45.0'f32, 8),   # Boot: kill-priority splitter
+    (etWatchdog, 120.0'f32, 5),  # Boot: the lone gunner
+    (etZombie, 210.0'f32, 6),    # Boot: reap the husk or fight it twice
+    (etDeadlock, 330.0'f32, 4),  # Runtime: a linked pair (counts as two)
+    (etDaemon, 480.0'f32, 3),    # Runtime: hastes the crowd around it
+    (etInterrupt, 630.0'f32, 7)] # Overload: kamikaze that also hits the horde
 
 proc survivalAliveCount*(game: Game): int =
   ## Living non-boss enemies plus queued spawns: what the density target and
@@ -218,29 +229,54 @@ proc survivalAliveCount*(game: Game): int =
     if not e.isBoss:
       inc result
 
-proc rosterDifficulty(game: Game): float32 =
-  if game.bossWaveManager.active: game.difficulty - SurvivalBossRosterEpsilon
-  else: game.difficulty
+const RangedTypes = {etWatchdog}
 
-const RangedTypes = {etCube, etHexagon, etDiamond, etOctagon, etPentagon,
-                     etTrickster, etPhantom, etSniper, etMage}
+proc rosterUnlocked(game: Game, et: EnemyType): bool =
+  for entry in SurvivalRoster:
+    if entry.enemy == et:
+      return game.survivalTime >= entry.unlock
+  false
+
+proc livingOfType(game: Game, et: EnemyType): int =
+  for e in game.enemies:
+    if e.enemyType == et and not e.isBoss and e.hp > 0:
+      inc result
+
+proc pickFromRoster(game: Game, allowed: set[EnemyType]): EnemyType =
+  ## Weighted pick among the unlocked roster entries in `allowed`.
+  var total = 0
+  for entry in SurvivalRoster:
+    if entry.enemy in allowed and game.survivalTime >= entry.unlock:
+      total += entry.weight
+  if total <= 0:
+    return etThread
+  var roll = rand(total - 1)
+  for entry in SurvivalRoster:
+    if entry.enemy notin allowed or game.survivalTime < entry.unlock:
+      continue
+    roll -= entry.weight
+    if roll < 0:
+      return entry.enemy
+  etThread
 
 proc pickRosterType(game: Game): EnemyType =
   ## The live roster, leaning melee: a horde is a crowd of chasers with
-  ## shooters mixed in, not a firing squad. Ranged picks are re-rolled once
-  ## 40% of the time (the new pick stands, whatever it is).
-  result = pickSpawnType(rosterDifficulty(game))
+  ## the odd gunner, not a firing squad. Ranged picks are re-rolled once 40%
+  ## of the time (the new pick stands, whatever it is).
+  const everyone = {etThread..etInterrupt}
+  result = pickFromRoster(game, everyone)
   if result in RangedTypes and rand(99) < 40:
-    result = pickSpawnType(rosterDifficulty(game))
+    result = pickFromRoster(game, everyone)
+  if result == etDaemon and livingOfType(game, etDaemon) >= SurvivalDaemonCap:
+    result = etThread
 
 proc pickFodderType*(game: Game): EnemyType =
   ## Formations are made of melee chasers so they keep their shape as they
-  ## close in: circles, with triangles (dashers) mixed in once they exist.
-  let d = rosterDifficulty(game)
-  if d >= allEnemyDefs[etTriangle].introductionDifficulty and rand(99) < 30:
-    etTriangle
+  ## close in: Threads, with Fork Bombs mixed in from Overload on.
+  if survivalPhaseIndex(game) >= 2 and rosterUnlocked(game, etForkBomb) and rand(99) < 20:
+    etForkBomb
   else:
-    etCircle
+    etThread
 
 proc inArena(game: Game, pos: Vector2f): bool =
   pos.x >= 0 and pos.y >= 0 and
@@ -254,12 +290,8 @@ proc newSurvivalEnemy*(game: Game, pos: Vector2f, enemyType: EnemyType,
   let d = game.difficulty
   result = newEnemy(pos.x, pos.y, d, enemyType, game)
   let rebate = densityRebate(game)
-  if enemyType == etStar:
-    # Stars are hit-count based (placeholder HP): trim the hit count instead.
-    result.requiredHits = max(3, int(result.requiredHits.float32 * (0.4'f32 + 0.6'f32 * rebate)))
-  else:
-    result.maxHp = max(0.01'f32, result.maxHp * rebate * hpMult)
-    result.hp = result.maxHp
+  result.maxHp = max(0.01'f32, result.maxHp * rebate * hpMult)
+  result.hp = result.maxHp
   # Damage is only half-rebated: a crowd is meant to be more dangerous than the
   # handful it replaced (same rule as wave mode).
   let dmgScale = 0.65'f32 + 0.35'f32 * rebate
@@ -277,6 +309,9 @@ proc newSurvivalEnemy*(game: Game, pos: Vector2f, enemyType: EnemyType,
   result.survivalTag = tag
   if inArena(game, pos):
     result.hasEnteredScreen = true
+  if enemyType == etThread:
+    # Stream lane: each Thread keeps its own offset so a swarm arrives as ribbons.
+    result.rotation = rand(-70.0'f32..70.0'f32)
   if allowElite:
     # Survival's wave equivalent is difficulty * 2; the chance is rebated so
     # elites per minute stay where the old spawner had them.
@@ -287,6 +322,15 @@ proc addSurvivalEnemy*(game: Game, pos: Vector2f, enemyType: EnemyType,
                        speedMult: float32 = 1.0'f32, allowElite: bool = true): Enemy {.discardable.} =
   result = newSurvivalEnemy(game, pos, enemyType, tag, hpMult, speedMult, allowElite)
   game.enemies.add(result)
+  if enemyType == etDeadlock:
+    # A Deadlock is always a linked pair: its partner arrives beside it and
+    # the two split to flank the player with the tether between them.
+    let side = newVector2f(rand(-1.0'f32..1.0'f32), rand(-1.0'f32..1.0'f32)).normalize()
+    let partner = newSurvivalEnemy(game, pos + side * 70.0'f32, etDeadlock, tag, hpMult,
+                                   speedMult, allowElite)
+    partner.linkId = result.id
+    result.linkId = partner.id
+    game.enemies.add(partner)
 
 proc queueSurvivalSpawn*(game: Game, pos: Vector2f, enemyType: EnemyType, delay: float32,
                          tag: SurvivalTag = stgNone, hpMult: float32 = 1.0'f32,
@@ -389,9 +433,13 @@ proc survivalRefillRate*(game: Game): float32 =
 proc spawnPack(game: Game, count: int) =
   let anchor = edgePointAwayFromPlayer(game, 40)
   let packType = pickRosterType(game)
+  # A pair of Deadlocks is already a pack.
+  let count = if packType == etDeadlock: 1 else: count
   for i in 0..<count:
     # Mostly one type so the pack reads as a unit, with the odd stray.
-    let et = if i == 0 or rand(99) < 75: packType else: pickRosterType(game)
+    var et = if i == 0 or rand(99) < 75: packType else: pickRosterType(game)
+    if i > 0 and et == etDeadlock:
+      et = etThread
     addSurvivalEnemy(game, edgeScatter(game, anchor, 36), et)
 
 proc updateSurvivalDensity*(game: Game, dt: float32) =
@@ -818,13 +866,10 @@ proc lootPointNearPlayer(game: Game): Vector2f =
   game.player.pos + newVector2f(cos(a), sin(a)) * rand(60.0'f32..90.0'f32)
 
 proc pickRogueType(game: Game): EnemyType =
-  ## The current roster, minus Stars (hit-count based: HP scaling means nothing
-  ## to them).
-  for _ in 0..7:
-    let et = pickSpawnType(game.difficulty)
-    if et notin {etStar, etEnvironment}:
-      return et
-  etCube
+  ## The champion comes from the roster's single-body regulars: a giant Thread
+  ## (a runaway), a Watchdog (a turret) or a Daemon (a crowd accelerator).
+  ## Splitters, pairs, revivers and kamikazes don't make sense as one champion.
+  pickFromRoster(game, {etThread, etWatchdog, etDaemon})
 
 # --- Lifecycle -------------------------------------------------------------------
 
@@ -1002,7 +1047,8 @@ proc updateSurvivalEvent*(game: var Game, dt: float32) =
       while ev.emitTimer <= 0:
         ev.emitTimer += interval
         if survivalAliveCount(game) < SurvivalMaxAlive:
-          let et = if p >= 2 and rand(99) < 30: etTriangle else: etCircle
+          let et = if p >= 2 and rand(99) < 30 and rosterUnlocked(game, etForkBomb): etForkBomb
+                   else: etThread
           let leaked = addSurvivalEnemy(game, leakEmitPoint(game, ev.edge, live / LeakEmitTime), et,
                                         stgLeak, LeakHpMult, leakSpeedMult(p), allowElite = false)
           leaked.contactDamage *= LeakDamageMult

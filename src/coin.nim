@@ -161,6 +161,21 @@ proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty:
       of etPhantom: 7
       of etSniper: 10
       of etMage: 10
+      of etThread: 1
+      of etForkBomb: 2
+      of etWatchdog: 3
+      of etZombie: 3
+      of etDeadlock: 2
+      of etDaemon: 4
+      of etInterrupt: 1
+      of etFragment: 1
+      of etPortGuard: 4
+      of etSentry: 3
+      of etMimic: 5
+      of etRestorer: 4
+      of etPacket: 3
+      of etDriver: 5
+      of etCorruptor: 4
       of etEnvironment: 0
     result = baseValue + waveBonus
   if enemy.isElite:

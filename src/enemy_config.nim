@@ -1,14 +1,18 @@
 ## enemy_config.nim
 ## Single source of truth for all enemy definitions: stats, attack/movement config,
-## spawn-pool membership, difficulty thresholds, and speed scaling.
+## and speed scaling. Which enemies spawn where is each mode's roster.
 ##
 ## Adding a new enemy:
-## Touch ONLY these places:
-##   1. types.nim        -> add the EnemyType variant
+##   1. types.nim        -> add the EnemyType variant (keep etEnvironment last)
 ##   2. enemy_config.nim -> add a block in getEnemyConfig  (stats, attack, movement, speedScaling)
-##                       -> add ONE entry in allEnemyDefs   (introductionDifficulty, fadeOutDifficulty, spawnWeight)
-##   3. enemy.nim        -> add the update case in updateEnemy
+##   3. enemy.nim        -> add the update case in updateEnemy and the draw case in
+##                          drawEnemy (survival/roguelite types delegate to
+##                          mode_enemies.nim / mode_visuals.nim)
 ##   4. localization.nim -> add tkEnemyXName / tkEnemyXDesc keys + both-language strings
+##   5. put it in a roster: wave mode's ladder (spawnWaveEnemies in game.nim),
+##      SurvivalRoster (survival.nim) or a folder theme (themeDef in dungeon.nim)
+## The compiler then lists the remaining exhaustive sites (coin/XP values,
+## dungeon tuning wave, cheat menu, in-world label).
 
 import raylib, math, random
 import types, localization
@@ -82,70 +86,30 @@ type
     # Difficulty scaling
     speedScaling*: float32            ## Speed gained per 1 unit of difficulty
 
-# Spawn-pool registry
+# Survival / Roguelite roster builders. These enemies keep their behaviour in
+# mode_enemies.nim; the config only carries the numbers.
+proc modeMelee(et: EnemyType, name, desc: string, hp, radius, contact: float32,
+               color: Color, speed, speedScaling: float32): EnemyConfig =
+  EnemyConfig(enemyType: et, name: name, description: desc,
+              baseHP: hp, baseRadius: radius, contactDamage: contact, baseColor: color,
+              movement: EnemyMovementConfig(baseSpeed: speed),
+              speedScaling: speedScaling)
 
-type
-  EnemyDef* = object
-    ## Spawn-pool membership for one enemy type.
-    ## Combat stats and behaviour parameters live in EnemyConfig / getEnemyConfig below.
-    introductionDifficulty*: float32  ## Minimum difficulty before this type can appear
-    fadeOutDifficulty*: float32       ## Removed from pool at/above this value; 0 = never
-    spawnWeight*: int                 ## Relative probability weight when active (0 = excluded)
+proc modeRanged(et: EnemyType, name, desc: string, hp, radius, contact: float32,
+                color: Color, speed, speedScaling: float32,
+                optimal, retreat: float32, attack: EnemyAttackConfig): EnemyConfig =
+  result = modeMelee(et, name, desc, hp, radius, contact, color, speed, speedScaling)
+  result.movement.maintainsDistance = true
+  result.movement.optimalDistance = optimal
+  result.movement.retreatDistance = retreat
+  result.hasRangedAttack = true
+  result.attack = attack
+  result.requiresScreenEntry = true
 
-# One entry per EnemyType; named-index syntax keeps the compiler honest.
-#
-# Weight notes
-#
-# Weights are calibrated against the late-game distribution and apply whenever
-# the enemy is active.  Early-game is naturally correct because most types are
-# gated behind introductionDifficulty.
-#
-# Circle uses a large weight (30) so it dominates until Pentagon arrives
-# (diff 3 => ~77 % circle vs original 80 %).  After fade-out at diff 7 the
-# remaining enemies settle into near-equal shares, matching the original tables.
-# Sniper's low weight (2) matches the original 2 % late-pool chance.
-# etEnvironment has weight 0 and is never selected.
-const allEnemyDefs*: array[EnemyType, EnemyDef] = [
-  etCircle:      EnemyDef(introductionDifficulty:  0.0,   fadeOutDifficulty:  7.0, spawnWeight: 30),
-  etCube:        EnemyDef(introductionDifficulty:  5.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
-  etTriangle:    EnemyDef(introductionDifficulty:  5.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
-  etStar:        EnemyDef(introductionDifficulty:  8.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
-  etHexagon:     EnemyDef(introductionDifficulty: 14.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
-  etCross:       EnemyDef(introductionDifficulty:  8.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
-  etDiamond:     EnemyDef(introductionDifficulty: 11.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
-  etOctagon:     EnemyDef(introductionDifficulty: 11.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
-  etPentagon:    EnemyDef(introductionDifficulty:  3.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
-  etTrickster:   EnemyDef(introductionDifficulty: 18.0,   fadeOutDifficulty:  0.0, spawnWeight: 10),
-  etPhantom:     EnemyDef(introductionDifficulty: 23.0,   fadeOutDifficulty:  0.0, spawnWeight: 10),
-  etSniper:      EnemyDef(introductionDifficulty: 23.0,   fadeOutDifficulty:  0.0, spawnWeight:  2),
-  etMage:        EnemyDef(introductionDifficulty: 23.0,   fadeOutDifficulty:  0.0, spawnWeight: 10),
-  etEnvironment: EnemyDef(introductionDifficulty:  0.0,   fadeOutDifficulty:  0.0, spawnWeight:  0),
-]
-
-proc isSpawnable*(et: EnemyType, difficulty: float32): bool {.inline.} =
-  ## True when `et` belongs to the active spawn pool at `difficulty`.
-  let d = allEnemyDefs[et]
-  if d.spawnWeight <= 0: return false
-  if difficulty < d.introductionDifficulty: return false
-  if d.fadeOutDifficulty > 0.0'f32 and difficulty >= d.fadeOutDifficulty: return false
-  return true
-
-proc pickSpawnType*(difficulty: float32): EnemyType =
-  ## Weighted-random pick from the active pool at `difficulty`.
-  ## Falls back to etCircle when the pool is unexpectedly empty.
-  var totalWeight = 0
-  for et in EnemyType:
-    if isSpawnable(et, difficulty):
-      totalWeight += allEnemyDefs[et].spawnWeight
-  if totalWeight == 0:
-    return etCircle
-  var roll = rand(totalWeight - 1)
-  for et in EnemyType:
-    if isSpawnable(et, difficulty):
-      let w = allEnemyDefs[et].spawnWeight
-      if roll < w: return et
-      roll -= w
-  return etCircle  # unreachable in practice
+proc modeFan(fireRate, bulletSpeed: float32, count: int, spread, damage: float32,
+             lifetime = 3.0'f32): EnemyAttackConfig =
+  EnemyAttackConfig(fireRate: fireRate, bulletSpeed: bulletSpeed, bulletCount: count,
+                    spreadAngle: spread, damage: damage, bulletLifetime: lifetime)
 
 # Per-enemy stat and behaviour configuration
 proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
@@ -774,6 +738,74 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       usesHitCount: false,
       speedScaling: 3.0
     )
+
+  # ---- Survival horde (the flood) ----------------------------------------
+  # Built for 100+ bodies on screen: cheap, readable, and almost no bullets
+  # (fire rate is not density-rebated, so only the Watchdog shoots).
+  of etThread:
+    result = modeMelee(etThread, t(tkEnemyThreadName), t(tkEnemyThreadDesc),
+                       0.8, 7.0, 2.0, Color(r: 90, g: 220, b: 255, a: 255), 118.0, 8.0)
+  of etForkBomb:
+    result = modeMelee(etForkBomb, t(tkEnemyForkBombName), t(tkEnemyForkBombDesc),
+                       2.6, 12.0, 2.0, Color(r: 255, g: 120, b: 200, a: 255), 72.0, 5.0)
+  of etWatchdog:
+    result = modeRanged(etWatchdog, t(tkEnemyWatchdogName), t(tkEnemyWatchdogDesc),
+                        2.5, 11.0, 2.0, Color(r: 255, g: 200, b: 80, a: 255), 62.0, 3.0,
+                        280.0, 200.0, modeFan(3.0, 210.0, 3, 0.36, 2.0))
+  of etZombie:
+    result = modeMelee(etZombie, t(tkEnemyZombieName), t(tkEnemyZombieDesc),
+                       4.5, 13.0, 3.0, Color(r: 150, g: 180, b: 110, a: 255), 46.0, 3.0)
+  of etDeadlock:
+    result = modeMelee(etDeadlock, t(tkEnemyDeadlockName), t(tkEnemyDeadlockDesc),
+                       2.0, 10.0, 2.0, Color(r: 255, g: 80, b: 90, a: 255), 88.0, 6.0)
+  of etDaemon:
+    result = modeMelee(etDaemon, t(tkEnemyDaemonName), t(tkEnemyDaemonDesc),
+                       3.0, 11.0, 1.0, Color(r: 190, g: 120, b: 255, a: 255), 58.0, 3.0)
+    result.movement.maintainsDistance = true
+    result.movement.optimalDistance = 320.0
+    result.movement.retreatDistance = 240.0
+  of etInterrupt:
+    result = modeMelee(etInterrupt, t(tkEnemyInterruptName), t(tkEnemyInterruptDesc),
+                       1.4, 10.0, 2.0, Color(r: 255, g: 150, b: 40, a: 255), 92.0, 6.0)
+    result.hasSpecialBehavior = true
+    result.specialBehaviorType = "kamikaze"
+
+  # ---- Roguelite rooms (legacy processes) ---------------------------------
+  # Written for sector 1 (tuneDungeonEnemyStats barely touches them) and
+  # room play: cover, walls and obstacles are part of every behaviour.
+  of etFragment:
+    result = modeMelee(etFragment, t(tkEnemyFragmentName), t(tkEnemyFragmentDesc),
+                       1.2, 8.0, 2.0, Color(r: 200, g: 205, b: 215, a: 255), 150.0, 8.0)
+  of etPortGuard:
+    result = modeMelee(etPortGuard, t(tkEnemyPortGuardName), t(tkEnemyPortGuardDesc),
+                       3.5, 13.0, 2.0, Color(r: 255, g: 130, b: 60, a: 255), 55.0, 3.0)
+  of etSentry:
+    result = modeRanged(etSentry, t(tkEnemySentryName), t(tkEnemySentryDesc),
+                        2.6, 12.0, 2.0, Color(r: 120, g: 200, b: 120, a: 255), 70.0, 3.0,
+                        300.0, 160.0, modeFan(2.4, 200.0, 3, 0.30, 2.0, 3.2))
+  of etMimic:
+    result = modeMelee(etMimic, t(tkEnemyMimicName), t(tkEnemyMimicDesc),
+                       3.0, 12.0, 3.0, Color(r: 235, g: 225, b: 180, a: 255), 125.0, 5.0)
+  of etRestorer:
+    result = modeMelee(etRestorer, t(tkEnemyRestorerName), t(tkEnemyRestorerDesc),
+                       2.8, 11.0, 1.0, Color(r: 110, g: 235, b: 160, a: 255), 62.0, 3.0)
+    result.movement.maintainsDistance = true
+    result.movement.optimalDistance = 260.0
+    result.movement.retreatDistance = 180.0
+  of etPacket:
+    result = modeMelee(etPacket, t(tkEnemyPacketName), t(tkEnemyPacketDesc),
+                       1.6, 9.0, 2.0, Color(r: 0, g: 220, b: 255, a: 255), 60.0, 4.0)
+    result.movement.dashSpeed = 430.0
+  of etDriver:
+    result = modeMelee(etDriver, t(tkEnemyDriverName), t(tkEnemyDriverDesc),
+                       6.0, 15.0, 3.0, Color(r: 160, g: 110, b: 255, a: 255), 50.0, 3.0)
+    result.movement.dashSpeed = 420.0
+  of etCorruptor:
+    result = modeMelee(etCorruptor, t(tkEnemyCorruptorName), t(tkEnemyCorruptorDesc),
+                       3.0, 11.0, 2.0, Color(r: 255, g: 80, b: 200, a: 255), 66.0, 4.0)
+    result.movement.maintainsDistance = true
+    result.movement.optimalDistance = 200.0
+    result.movement.retreatDistance = 120.0
 
   of etEnvironment:  # Non-combat entity, no movement, no attack
     result = EnemyConfig(

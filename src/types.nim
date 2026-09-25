@@ -215,7 +215,24 @@ type
     etPhantom,     # Unpredictable - teleports with fake clones
     etSniper,      # Rare - charges one-shot epic attack with warning
     etMage,        # Summons meteorites and shoots homing magic bullets
-    etEnvironment  # Sentinel: damage from arena hazards, not an enemy
+    # --- Survival horde (the flood). Contiguous: etThread..etInterrupt. ---
+    etThread,      # Fodder: small, fast, streams at the player
+    etForkBomb,    # Splits into two Threads on death, forks itself if ignored
+    etWatchdog,    # The horde's only shooter: slow three-shot fan from range
+    etZombie,      # Leaves a husk that stands back up unless reaped
+    etDeadlock,    # Spawns as a linked pair joined by a lethal tether
+    etDaemon,      # Support aura: hastes the horde around it
+    etInterrupt,   # Kamikaze: marks a spot, dashes, detonates (hurts the horde too)
+    # --- Roguelite rooms (legacy processes). Contiguous: etFragment..etCorruptor. ---
+    etFragment,    # Fodder: stop-and-go hops
+    etPortGuard,   # Front shield blocks shots; flank it
+    etSentry,      # Walks to a post, roots, turret-fires
+    etMimic,       # Dormant file decoy that springs
+    etRestorer,    # Channels a beam that revives a fallen enemy
+    etPacket,      # Dasher that ricochets off walls and obstacles
+    etDriver,      # Armoured charger that stuns itself on obstacles
+    etCorruptor,   # Leaves decaying corrupted floor tiles
+    etEnvironment  # Sentinel: damage from arena hazards, not an enemy (keep LAST)
 
   DeathCause* = enum
     ## How the player was killed, used by the game-over screen to explain the death.
@@ -594,6 +611,25 @@ type
     awtClockSweep       # Timekeeper rotating clock-hand beams (ClockSweep timing)
     awtChaosWeave       # Chaos Weaver jagged arena-spanning threads (ChaosWeave timing)
     awtOmegaQuadrant    # Omega Entity sequential quadrant detonations (OmegaQuad timing)
+    # --- Survival / Roguelite rosters (mode_hazards.nim timing, drawn by
+    # mode_visuals.nim, resolved by game/mode_mechanics.nim). Contiguous:
+    # awtEnemyDashLane..awtLastKnownGood. ---
+    awtEnemyDashLane    # Interrupt target / Packet & Driver lane (non-lethal tell)
+    awtCorruptTile      # Corruptor floor tile: arms, then hurts while stood on
+    awtForkTree         # Forkmother: faint binary tree her seeds will follow (non-lethal)
+    awtMarchLane        # Dispatcher: lane tell; spawns a marching rank on expiry
+    awtHeatEmitter      # Thermal Runaway: follows the player, laying heat nodes
+    awtHeatTrail        # Thermal Runaway: one heat node (arms, then burns player + horde)
+    awtThermalVent      # Thermal Runaway: vent under a crowd (one-shot eruption)
+    awtSafeMode         # Omega (survival): everything outside a drifting bubble floods
+    awtSearchlight      # Gatekeeper: rotating inspection beams, blocked by obstacles
+    awtFileBomb         # Compactor: dormant file bomb (shred it) until the purge
+    awtRestorePoint     # Compactor: HP restore point, rolls back unless broken
+    awtAuditLock        # Hive: the room freezes; moving or shooting is punished
+    awtPacketLink       # Router: lit link, then a train of packets races down it
+    awtPageFault        # Supervisor: ghost footprint where an obstacle pages in
+    awtStaleCopy        # Mirror Cache: echo replaying the player's past movement + shots
+    awtLastKnownGood    # Omega (roguelite): four doors, one real, purge from the centre
 
   ChargeComboState* = enum
     ## The Juggernaut's charge combo, one state per beat. While it is anything
@@ -1047,6 +1083,13 @@ type
     poisonStacks*: float32        # Ramp built while poisoned (effects.nim); boosts poison tick damage up to a cap, resets when poison fully expires
     damageTuning*: float32  # Dungeon: attack-damage compression factor (0 or 1 = untouched)
     survivalTag*: SurvivalTag  # Survival: spawned by this System Event (stgNone otherwise)
+    # Survival / Roguelite rosters (mode_enemies.nim, game/mode_mechanics.nim)
+    linkId*: int            # Enemy id this one is bound to: Deadlock partner, Forkmother child -> mother, 0 = none
+    generation*: int        # Fork seeds: splits left (0 = hatch, -1 = marcher); Zombie: 1 once revived; Packet: bounces left
+    modeTimer*: float32     # Per-type clock of the mode rosters (fork charge, hop, seed flight, tile drop...)
+    hasteAmount*: float32   # Speed bonus fraction (Priority Daemon aura, Dispatcher boost)
+    hasteTimer*: float32    # Seconds of haste left
+    ballisticVel*: Vector2f # Non-zero: flies straight at this velocity (fork seeds, payload orbs, marching ranks)
 
   Bullet* = ref object
     pos*: Vector2f
@@ -1544,6 +1587,45 @@ type
     sbkNone, sbkPhase, sbkEventStart, sbkEventCleared, sbkEventFailed,
     sbkBossInbound, sbkFinalInbound
 
+  CorpseRecord* = object
+    ## A recently killed roguelite enemy a Restorer can bring back.
+    pos*: Vector2f
+    enemyType*: EnemyType
+    maxHp*: float32
+    radius*: float32
+    age*: float32
+    claimedBy*: int        # Restorer id channelling it (0 = free)
+
+  HuskRecord* = object
+    ## A fallen Zombie Process waiting to stand back up (walk over it to reap).
+    pos*: Vector2f
+    maxHp*: float32
+    radius*: float32
+    speed*: float32
+    contactDamage*: float32
+    timer*: float32        # seconds until it reanimates
+    tag*: SurvivalTag
+    fromBoss*: bool
+
+  EchoSample* = object
+    ## One tick of the player's recent history (Mirror Cache replays these).
+    pos*: Vector2f
+    aim*: float32
+    fired*: bool
+
+  ModeCombatState* = object
+    ## Transient, per-frame-derived state of the Survival/Roguelite rosters.
+    ## Value types only (snapshot-safe); cleared whenever the room/horde is.
+    corpses*: seq[CorpseRecord]
+    husks*: seq[HuskRecord]
+    echo*: seq[EchoSample]      # ring buffer, EchoSampleRate Hz
+    echoHead*: int
+    echoClock*: float32
+    echoShotLatch*: bool        # the player fired since the last sample
+    auditTimer*: float32        # > 0: Audit Lock is freezing the room
+    auditOrigin*: Vector2f      # where the player stood when the audit locked
+    auditBreached*: bool        # the player already paid for moving this audit
+
   SurvivalPendingSpawn* = object
     ## An enemy queued to appear after `delay` seconds. In-arena spawns are
     ## telegraphed with a marker for that time so nothing pops onto the player.
@@ -1629,6 +1711,7 @@ type
                              # Set by survival and wave mode; roguelite routes via the dungeon.
     survivalTime*: float32  # Survival: progression clock; pauses during boss fights (unlike game.time)
     survival*: SurvivalState  # Survival: horde, events, caches, phase (see survival.nim)
+    modeCombat*: ModeCombatState  # Survival/Roguelite roster mechanics (husks, corpses, echo, audit)
     survivalVictoryJustEarned*: bool  # One-shot: the survival final boss fell on a clean run (consumed in main.nim)
     consumables*: seq[Consumable]
     walls*: seq[Wall]
@@ -1785,6 +1868,39 @@ var currentDifficulty* = gdMedium
 # the wavesUntilBoss countdown, boss bounty, shop income estimates -- routes
 # through this constant rather than hardcoding the interval.
 const BossWaveInterval* = 5
+
+# Boss definition IDs. 1..12 are the wave-mode campaign (boss 12, the Omega
+# Entity, is the Root itself). Survival and Roguelite field their own rosters
+# on top of it: 13-15 are the survival phase bosses, 17-22 the roguelite folder
+# guardians, and 16 / 23 are the Omega Entity re-armed with each mode's kit.
+# IDs are contiguous so every per-ID table (weak points, bullet shapes, process
+# names) stays a plain lookup.
+const
+  BossForkmother* = 13          ## Survival, Boot phase
+  BossDispatcher* = 14          ## Survival, Runtime phase
+  BossThermalRunaway* = 15      ## Survival, Overload phase
+  BossOmegaSurvival* = 16       ## Survival, Kernel Panic (Omega Entity, survival kit)
+  BossGatekeeper* = 17          ## Roguelite, Firewall guardian
+  BossCompactor* = 18           ## Roguelite, Recycle Bin guardian
+  BossHive* = 19                ## Roguelite, Registry guardian
+  BossRouter* = 20              ## Roguelite, Network guardian
+  BossSupervisor* = 21          ## Roguelite, Kernel guardian
+  BossMirrorCache* = 22         ## Roguelite, Cache guardian
+  BossOmegaRoguelite* = 23      ## Roguelite, final sector (Omega Entity, roguelite kit)
+  MaxBossId* = 23
+
+proc isWaveBossId*(id: int): bool {.inline.} =
+  ## The 12-boss wave campaign (what the Full Boss Codex counts).
+  id in 1..12
+
+proc isOmegaBoss*(id: int): bool {.inline.} =
+  ## Every form of the Omega Entity: the wave finale and its two mode kits.
+  ## They share the model, halo, name and the Root's tag.
+  id == 12 or id == BossOmegaSurvival or id == BossOmegaRoguelite
+
+proc canonicalBossId*(id: int): int {.inline.} =
+  ## The ID whose look a boss borrows (the Omega kits wear boss 12's body).
+  if isOmegaBoss(id): 12 else: id
 
 # Sentinel for an unmetered lives budget (Easy). Kept distinct from a large
 # number so the meter UI can branch on it instead of trying to render an
@@ -1947,6 +2063,19 @@ proc survivalBossBlockWave*(bossNumber: int): int =
     bossNumber * 3 * BossWaveInterval
   else:
     SurvivalFinalBoss * 3 * BossWaveInterval + (bossNumber - SurvivalFinalBoss) * BossWaveInterval
+
+proc survivalBossId*(bossNumber: int): int =
+  ## Which boss definition survival boss `bossNumber` (1-based) fields: the
+  ## Forkmother, the Dispatcher and Thermal Runaway close Boot / Runtime /
+  ## Overload, the Omega Entity's survival kit closes Kernel Panic, and
+  ## Overtime rotates through all four (stats come from survivalBossBlockWave).
+  const roster = [BossForkmother, BossDispatcher, BossThermalRunaway, BossOmegaSurvival]
+  if bossNumber <= 0:
+    roster[0]
+  elif bossNumber <= SurvivalFinalBoss:
+    roster[bossNumber - 1]
+  else:
+    roster[(bossNumber - SurvivalFinalBoss - 1) mod roster.len]
 
 proc survivalRogueTime*(index: int): float32 =
   ## The guaranteed Rogue Process of each phase lands at its halfway mark:

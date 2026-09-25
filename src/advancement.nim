@@ -626,10 +626,17 @@ proc totalBosses(stats: Statistics): int =
   stats.waveMode.bossesDefeated + stats.timeMode.bossesDefeated + stats.rogueliteMode.bossesDefeated
 
 proc uniqueBossesDefeated(stats: Statistics): int =
-  ## Distinct boss definitions cleared at least once. There are 12 unique
+  ## Distinct campaign bosses cleared at least once. There are 12 unique
   ## bosses (one per 5-wave gauntlet up to wave 60); the codex tracks coverage.
+  ## Only the campaign counts: the Survival and Roguelite rosters are extra
+  ## IDs (13+), and an Omega Entity beaten in either mode counts as boss 12.
   if stats.isNil: return 0
-  stats.defeatedBossIDs.len
+  var seen: set[0..12]
+  for id in stats.defeatedBossIDs:
+    let canonical = canonicalBossId(id)
+    if isWaveBossId(canonical):
+      seen.incl(canonical)
+  seen.card
 
 proc highestWave(stats: Statistics): int =
   if stats.isNil: return 0
