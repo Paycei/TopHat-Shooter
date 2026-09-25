@@ -661,6 +661,11 @@ let changelog: seq[ChangelogVersion] = @[
 
       # --- Fixes ---
       ChangelogEntry(category: clcFixed,
+        headEn: "Regeneration no longer offered where it does nothing",
+        headEs: "Regeneración ya no aparece donde no hace nada",
+        en: "Regeneration heals when a wave or folder is cleared, so it had no effect in Time Survival and Sandbox, which have no waves. It is no longer offered in those modes.",
+        es: "Regeneración cura al despejar una oleada o carpeta, así que no tenía efecto en Supervivencia ni en Sandbox, que no tienen oleadas. Ya no se ofrece en esos modos."),
+      ChangelogEntry(category: clcFixed,
         headEn: "PvP: connection and result fixes",
         headEs: "PvP: correcciones de conexión y resultados",
         en: points(

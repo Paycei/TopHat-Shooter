@@ -101,7 +101,7 @@ const allPowerUpDefs*: array[PowerUpType, PowerUpDef] = [
   puRadialBurst:      PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:255,g:180,b: 50,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puRage:             PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:255,g: 60,b: 60,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puRapidFire:        PowerUpDef(pool: puppLegendary, family: rpfCore,      group: pugNone,    maxLevel: 1, color: Color(r:255,g:230,b: 50,a:255), inLegendaryPanel: false, isElementalOrb: false),
-  puRegeneration:     PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r: 60,g:220,b:120,a:255), inLegendaryPanel: false, isElementalOrb: false),
+  puRegeneration:     PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r: 60,g:220,b:120,a:255), inLegendaryPanel: false, isElementalOrb: false, allowedModes: {gmWaveBased, gmRoguelite}),
   puResonance:        PowerUpDef(pool: puppNormal,    family: rpfCore,      group: pugNone,    maxLevel: 3, color: Color(r:140,g:220,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
   # puRotatingOrbs is legendary and NOT in pugOrb / isElementalOrb=false intentionally;
   # it is handled separately everywhere that needs elemental-orb membership.
