@@ -28,6 +28,7 @@ type
     tsLoot     ## collect what they dropped
     tsStatus   ## read: the status panel
     tsWalls    ## place a wall with a lent charge
+    tsSettings ## read: tune the game in Settings
     tsReady    ## read: waves, bosses, pause -- then hand over
 
   TutorialEvent* = enum
@@ -59,7 +60,6 @@ const
   TargetCount* = 3
   LootMinTime = 1.2'f32          ## the loot card never just flashes by...
   LootTimeout = 10.0'f32         ## ...and never waits on an orb forever
-  ReadStepTime* = 9.0'f32        ## read-only cards auto-advance after this
   ReadMinTime* = 0.6'f32         ## Enter can't dismiss a card the instant it appears
   DoneBeat* = 0.75'f32           ## "DONE" flash before the next action step
   SkipHoldTime* = 0.9'f32
@@ -95,8 +95,9 @@ proc tutorialSuppressesSaves*(game: Game): bool =
   not game.isNil and game == state.game and (state.practice or state.active)
 
 proc isRead*(step: TutorialStep): bool =
-  ## Read-only cards advance on Enter / A or a timer instead of an action.
-  step in {tsStatus, tsReady}
+  ## Read-only cards wait for Enter / A instead of an action. They never time
+  ## out: a slow reader must not lose the text mid-sentence.
+  step in {tsStatus, tsSettings, tsReady}
 
 # ---------------------------------------------------------------------------
 # Input probes. These read the same bindings the gameplay code does, so a
@@ -196,7 +197,7 @@ proc enterStep(game: Game, step: TutorialStep) =
     state.wallsBefore = game.walls.len
     if p.walls <= 0:
       p.walls = 1  # lent: restoreFreshRun takes it back
-  of tsStatus, tsReady:
+  of tsStatus, tsSettings, tsReady:
     discard
 
 proc startTutorial*(game: Game, practice: bool) =
@@ -283,10 +284,10 @@ proc updateTutorial*(game: Game, dt: float32): TutorialEvent =
     if p.walls <= 0 and game.walls.len <= state.wallsBefore:
       p.walls = 1
     goalMet = game.walls.len > state.wallsBefore
-  of tsStatus, tsReady:
-    state.progress = clamp(state.stepTime / ReadStepTime, 0.0'f32, 1.0'f32)
-    goalMet = state.stepTime >= ReadStepTime or
-              (state.stepTime >= ReadMinTime and continuePressed())
+  of tsStatus, tsSettings, tsReady:
+    # The bar fills while the card arms, then sits full until it is dismissed.
+    state.progress = clamp(state.stepTime / ReadMinTime, 0.0'f32, 1.0'f32)
+    goalMet = state.stepTime >= ReadMinTime and continuePressed()
 
   if not goalMet:
     return teNone

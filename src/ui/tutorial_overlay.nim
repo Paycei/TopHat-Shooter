@@ -184,6 +184,7 @@ proc stepTitle(step: TutorialStep): string =
   of tsLoot:    t(tkTutorialLootTitle)
   of tsStatus:  t(tkTutorialStatusTitle)
   of tsWalls:   t(tkTutorialWallsTitle)
+  of tsSettings: t(tkTutorialSettingsTitle)
   of tsReady:   t(tkTutorialReadyTitle)
 
 proc stepBody(step: TutorialStep): string =
@@ -195,6 +196,7 @@ proc stepBody(step: TutorialStep): string =
     of tsLoot:    t(tkTutorialLootBody)
     of tsStatus:  t(tkTutorialStatusBody)
     of tsWalls:   t(tkTutorialWallsBody)
+    of tsSettings: t(tkTutorialSettingsBody)
     of tsReady:   t(tkTutorialReadyBody)
   fillBindings(raw)
 
@@ -354,7 +356,7 @@ proc drawCard(game: Game, s: TutorialState) =
   y += 8
 
   # Progress row: a bar toward the step's goal, or, on a read-only card, the
-  # auto-advance timer beside the "continue" prompt.
+  # arming bar beside the "continue" prompt.
   var label = ""
   if s.step.isRead:
     let action = if s.step != TutorialStep.high: t(tkTutorialNext)

@@ -1737,6 +1737,8 @@ type
     tkTutorialStatusBody = "tutorial_status_body"
     tkTutorialWallsTitle = "tutorial_walls_title"
     tkTutorialWallsBody = "tutorial_walls_body"
+    tkTutorialSettingsTitle = "tutorial_settings_title"
+    tkTutorialSettingsBody = "tutorial_settings_body"
     tkTutorialReadyTitle = "tutorial_ready_title"
     tkTutorialReadyBody = "tutorial_ready_body"
     tkTutorialYou = "tutorial_you"
@@ -3811,6 +3813,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "tutorial_status_body":     "HP is your system integrity, and at zero you crash. Below it are your wall charges, credits, dash, wave and LV bar. Fill the LV bar with XP to install a new power-up.",
     "tutorial_walls_title":     "WALLS",
     "tutorial_walls_body":      "Hold {wall} to aim a wall, release to place it. Walls block enemies. Here is a free charge, you can buy more in the shop.",
+    "tutorial_settings_title":  "TUNE YOUR SYSTEM",
+    "tutorial_settings_body":   "Before you start, change your parameters in the Settings menu. Controls, HUD style, UI scale, audio and more are there, from the desktop or with {pause} at any time.",
     "tutorial_ready_title":     "READY",
     "tutorial_ready_body":      "Clear waves to advance. A boss arrives every {interval} waves; before and after it you pick a power-up and visit the shop. {pause} pauses, {legendary} fires legendary powers.",
     "tutorial_you":             "YOU",
@@ -5882,6 +5886,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "tutorial_status_body":     "El HP es la integridad del sistema: si llega a cero, el sistema cae. Debajo: cargas de muro, créditos, impulso, oleada y la barra de nivel. Llénala con XP para instalar una nueva mejora.",
     "tutorial_walls_title":     "MUROS",
     "tutorial_walls_body":      "Mantén {wall} para apuntar un muro y suéltalo para colocarlo. Los muros bloquean a los enemigos. Aquí tienes una carga gratis: compra más en la tienda.",
+    "tutorial_settings_title":  "AJUSTA TU SISTEMA",
+    "tutorial_settings_body":   "Antes de empezar, cambia tus parámetros en el menú de Ajustes. Ahí tienes los controles, el estilo del HUD, la escala de la interfaz, el audio y más, desde el escritorio o con {pause} en cualquier momento.",
     "tutorial_ready_title":     "LISTO",
     "tutorial_ready_body":      "Supera oleadas para avanzar. Cada {interval} oleadas llega un jefe; antes y después eliges una mejora y visitas la tienda. {pause} pausa, {legendary} activa los poderes legendarios.",
     "tutorial_you":             "TÚ",
