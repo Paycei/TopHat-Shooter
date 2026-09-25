@@ -37,18 +37,37 @@ let supportLinks*: seq[SupportLink] = @[
 
 const ProjectRepoUrl* = "https://github.com/Paycei/TopHat-Shooter"
 
-# raylib ships OpenURL on every platform (ShellExecute on Windows, xdg-open on
-# Linux, an Intent on Android) but naylib does not wrap it. Binding it directly
-# reuses naylib's include path and avoids pulling in std/browsers, which would
-# shell out and does nothing useful on Android.
-when SupportEnabled:
+# raylib ships OpenURL on every platform (xdg-open on Linux, an Intent on
+# Android) but naylib does not wrap it. Binding it directly reuses naylib's
+# include path and avoids pulling in std/browsers, which would shell out and
+# does nothing useful on Android.
+#
+# Windows is the exception: raylib runs `explorer "<url>"`, and explorer treats
+# its argument as a path, silently cutting it at MAX_PATH (259 characters). A
+# pre-filled feedback issue is far longer, so there the URL goes through cmd's
+# `start` instead, which passes it on whole. The URL must be fully
+# percent-encoded either way: no quotes, spaces, `&` or `^` can reach cmd.
+when defined(windows):
+  from std/os import execShellCmd
+else:
   proc rlOpenURL(url: cstring) {.importc: "OpenURL", header: "raylib.h".}
+
+proc openExternalUrl*(url: string) =
+  ## Hand `url` to the system browser. Not gated on SupportEnabled: the
+  ## feedback window uses it too. Callers must pass a fully percent-encoded URL.
+  if url.len == 0 or '"' in url or '\'' in url:
+    return
+  when defined(windows):
+    # The empty "" is start's window title; without it the quoted URL would be
+    # taken as the title and nothing would open.
+    discard execShellCmd("start \"\" \"" & url & "\"")
+  else:
+    rlOpenURL(url.cstring)
 
 proc openSupportUrl*(url: string) =
   ## Hand `url` to the system browser. Silently does nothing when support is
   ## compiled out, so a stray call site can never open a donation page.
   when SupportEnabled:
-    if url.len > 0:
-      rlOpenURL(url.cstring)
+    openExternalUrl(url)
   else:
     discard url

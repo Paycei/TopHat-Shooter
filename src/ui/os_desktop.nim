@@ -19,6 +19,7 @@ type
     diAdvancements  # Persistent advancement viewer (Advncmnts.exe) - 10
     diChangelog     # Patch notes / changelog viewer (PATCHLOG.txt) - 11
     diCredits       # Credits + support the project (CREDITS.nfo) - 12
+    diFeedback      # Feedback / bug report form (FEEDBACK.exe) - 13
 
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -142,6 +143,7 @@ proc getIconName(iconType: DesktopIconType): string =
   of diAdvancements: t(tkDesktopIconAdvancements)
   of diChangelog: t(tkDesktopIconChangelog)
   of diCredits: t(tkDesktopIconCredits)
+  of diFeedback: t(tkDesktopIconFeedback)
 
 proc bestDesktopLabelFontSize(text: string, maxWidth, preferredSize: int32,
                               minSize: int32 = ICON_LABEL_MIN_SIZE): int32 =
@@ -164,7 +166,9 @@ proc drawDesktopLabel(text: string, x, y: int32, selected: bool) =
 proc isCornerIcon(iconType: DesktopIconType): bool =
   ## Icons that are pinned to a screen corner instead of living on the top-left
   ## grid. They are excluded from the grid flow and from its column arithmetic.
-  iconType == diCredits
+  ## They stack upward from the bottom-right corner in reverse seq order, so the
+  ## last one in the seq sits in the corner itself.
+  iconType in {diFeedback, diCredits}
 
 proc desktopGridRows(screenHeight: int): int =
   ## Rows per icon column that actually fit above the taskbar in `screenHeight`
@@ -179,8 +183,9 @@ proc desktopGridRows(screenHeight: int): int =
 proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   ## Re-flow the desktop icons for the current logical viewport. The grid is
   ## column-major and fills top-to-bottom, so a shorter viewport simply starts a
-  ## new column sooner rather than running off the bottom. diCredits is not part
-  ## of the grid: it is pinned to the bottom-right corner, so its slot follows
+  ## new column sooner rather than running off the bottom. The corner icons
+  ## (diFeedback over diCredits) are not part of the grid: they are pinned to
+  ## the bottom-right corner, so their slots follow
   ## the virtual canvas (1024 classic vs 1366 widescreen, switchable at runtime)
   ## as well as the scale.
   if desktop.isNil:
@@ -220,10 +225,17 @@ proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
 
   let cornerX = screenWidth - DESKTOP_MARGIN_RIGHT - ICON_SIZE - labelOverhang
   let cornerY = screenHeight - TASKBAR_HEIGHT - DESKTOP_MARGIN_BOTTOM - ICON_HOVER_BOTTOM
+  var cornerCount = 0
+  for icon in desktop.icons:
+    if isCornerIcon(icon.iconType):
+      inc cornerCount
+  var cornerSlot = 0
   for icon in desktop.icons.mitems:
-    if icon.iconType == diCredits:
+    if isCornerIcon(icon.iconType):
+      let above = cornerCount - 1 - cornerSlot
       icon.x = max(cornerX, DESKTOP_GRID_START_X)
-      icon.y = max(cornerY, DESKTOP_GRID_START_Y)
+      icon.y = max(cornerY - above * ICON_SPACING, DESKTOP_GRID_START_Y)
+      inc cornerSlot
 
 proc newOSDesktop*(): OSDesktop =
   result = OSDesktop(
@@ -267,7 +279,11 @@ proc newOSDesktop*(): OSDesktop =
       # Bottom-right corner, off the top-left grid. Every position here (this one
       # and the grid slots above) is a placeholder: layoutDesktopIcons owns the
       # real coordinates, since they depend on the current logical viewport. The
-      # *order* of this seq is what matters -- it is the grid's fill order.
+      # *order* of this seq is what matters -- it is the grid's fill order, and
+      # the corner stack's top-to-bottom order.
+      DesktopIcon(iconType: diFeedback, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
+                  selected: false, name: getIconName(diFeedback),
+                  iconColor: Color(r: 255, g: 130, b: 90, a: 255)),
       DesktopIcon(iconType: diCredits, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
                   selected: false, name: getIconName(diCredits),
                   iconColor: Color(r: 255, g: 110, b: 160, a: 255))
@@ -1203,6 +1219,34 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
                  Vector2(x: hx + lobe * 1.72, y: hy - lobe * 0.15), bright)
     drawCircle(Vector2(x: hx - lobe * 0.7, y: hy - lobe * 0.75), lobe * 0.3,
                Color(r: 255, g: 255, b: 255, a: 180))
+
+  of diFeedback:
+    # A software bug caught in a speech bubble: "tell us what broke". The
+    # beetle's legs twitch so the icon reads as a live critter, not a blob.
+    let bx = centerX.float32
+    let by = centerY.float32 - 2.0'f32
+    let bubble = Rectangle(x: bx - 18, y: by - 14, width: 36, height: 26)
+    drawIconTri(v2(bx - 11, by + 10), v2(bx - 3, by + 10), v2(bx - 13, by + 19),
+                accent)
+    drawRectangleRounded(bubble, 0.35, 6, Color(r: 14, g: 18, b: 30, a: 255))
+    drawRectangleRoundedLines(bubble, 0.35, 6, 2.0, accent)
+    # Legs first so the shell laps over their roots; three per side.
+    let twitch = sin(time * 9.0'f32) * 1.2'f32
+    let legCol = Color(r: 230, g: 236, b: 245, a: 230)
+    for i in 0..2:
+      let ly = by - 4.0'f32 + i.float32 * 4.0'f32
+      let tw = if i == 1: -twitch else: twitch
+      drawLine(v2(bx - 3, ly), v2(bx - 10, ly - 1.5'f32 + tw), 1.6, legCol)
+      drawLine(v2(bx + 3, ly), v2(bx + 10, ly - 1.5'f32 - tw), 1.6, legCol)
+    # Antennae.
+    drawLine(v2(bx - 1.5'f32, by - 8), v2(bx - 5, by - 12), 1.4, legCol)
+    drawLine(v2(bx + 1.5'f32, by - 8), v2(bx + 5, by - 12), 1.4, legCol)
+    # Head and split shell.
+    drawCircle(v2(bx, by - 7), 2.8, dim)
+    drawEllipse(bx.int32, (by + 1).int32, 5.5, 7.0, accent)
+    drawLine(v2(bx, by - 5), v2(bx, by + 8), 1.4, Color(r: 14, g: 18, b: 30, a: 255))
+    drawCircle(v2(bx - 2.4'f32, by - 1), 1.1, bright)
+    drawCircle(v2(bx + 2.4'f32, by + 3), 1.1, bright)
   # Locked overlay for modes that are gated by progression
   var isLocked = false
   case icon.iconType
@@ -2512,8 +2556,9 @@ proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: in
 # Desktop grid shape for keyboard navigation. It is derived from the layout
 # layoutDesktopIcons actually produced rather than hard-coded, so navigation
 # follows the grid when a short viewport (UI scale above 100%) reflows it into
-# more, shorter columns. Corner-anchored icons each form their own trailing
-# one-slot column, which is how diCredits stays reachable from the keyboard.
+# more, shorter columns. The corner-anchored icons (last in the seq) form one
+# trailing column, matching how they are stacked on screen, which is how
+# diFeedback and diCredits stay reachable from the keyboard.
 proc desktopGridColumns(desktop: OSDesktop): tuple[rows, gridCount, cols: int] =
   let rows = max(1, desktop.gridRows)
   var n = 0
@@ -2521,15 +2566,15 @@ proc desktopGridColumns(desktop: OSDesktop): tuple[rows, gridCount, cols: int] =
     if not isCornerIcon(icon.iconType):
       inc n
   let gridCols = (n + rows - 1) div rows
-  (rows, n, gridCols + (desktop.icons.len - n))
+  (rows, n, gridCols + (if desktop.icons.len > n: 1 else: 0))
 
 proc desktopColLen(desktop: OSDesktop, col: int): int =
-  ## Number of icons in column `col`: the flowed grid columns first, then one
-  ## slot per corner-anchored icon.
+  ## Number of icons in column `col`: the flowed grid columns first, then the
+  ## one column holding every corner-anchored icon.
   let (rows, n, _) = desktopGridColumns(desktop)
   let gridCols = (n + rows - 1) div rows
   if col < gridCols: min(rows, n - col * rows)
-  else: 1
+  else: desktop.icons.len - n
 
 proc iconGridPos(desktop: OSDesktop, index: int): tuple[col, row: int] =
   ## Map a flat icon index onto its (column, row) slot.
@@ -2552,7 +2597,7 @@ proc iconGridIndex(desktop: OSDesktop, col, row: int): int =
   result += clamp(row, 0, desktopColLen(desktop, c) - 1)
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
-  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements, 11=Changelog, 12=Credits
+  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements, 11=Changelog, 12=Credits, 13=Feedback
   ## Returns -1 if no action
   ## Note: Window occlusion should be handled by the calling code
 

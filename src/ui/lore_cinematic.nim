@@ -189,7 +189,7 @@ proc newFloodShot(): CutsceneDrawProc =
   ## Built per cutscene so the icon names are resolved in the current language.
   var icons: seq[DesktopIcon]
   for icon in newOSDesktop().icons:
-    if icon.iconType != diCredits and icons.len < 12:
+    if icon.iconType notin {diCredits, diFeedback} and icons.len < 12:
       icons.add(icon)
 
   result = proc(local, duration: float32, screenWidth, screenHeight: int32, alpha: float32) =

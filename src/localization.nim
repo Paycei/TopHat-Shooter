@@ -22,6 +22,7 @@ type
     tkDesktopIconAdvancements = "desktop_icon_advancements"
     tkDesktopIconChangelog = "desktop_icon_changelog"
     tkDesktopIconCredits = "desktop_icon_credits"
+    tkDesktopIconFeedback = "desktop_icon_feedback"
 
     # Credits window
     tkCreditsWindowTitle = "credits_window_title"
@@ -33,6 +34,30 @@ type
     tkSupportTitle = "support_title"
     tkSupportBlurb = "support_blurb"
     tkSupportNote = "support_note"
+
+    # Feedback window
+    tkFeedbackWindowTitle = "feedback_window_title"
+    tkFeedbackIntro = "feedback_intro"
+    tkFeedbackKindBug = "feedback_kind_bug"
+    tkFeedbackKindIdea = "feedback_kind_idea"
+    tkFeedbackKindOther = "feedback_kind_other"
+    tkFeedbackTitleLabel = "feedback_title_label"
+    tkFeedbackTitleHint = "feedback_title_hint"
+    tkFeedbackDetailsLabel = "feedback_details_label"
+    tkFeedbackHintBug = "feedback_hint_bug"
+    tkFeedbackHintIdea = "feedback_hint_idea"
+    tkFeedbackHintOther = "feedback_hint_other"
+    tkFeedbackAttachInfo = "feedback_attach_info"
+    tkFeedbackSend = "feedback_send"
+    tkFeedbackCopy = "feedback_copy"
+    tkFeedbackSave = "feedback_save"
+    tkFeedbackStatusEmpty = "feedback_status_empty"
+    tkFeedbackStatusOpened = "feedback_status_opened"
+    tkFeedbackStatusTruncated = "feedback_status_truncated"
+    tkFeedbackStatusCopied = "feedback_status_copied"
+    tkFeedbackStatusSaved = "feedback_status_saved"
+    tkFeedbackStatusSaveFailed = "feedback_status_save_failed"
+    tkFeedbackNote = "feedback_note"
 
     # Changelog window
     tkChangelogWindowTitle = "changelog_window_title"
@@ -1835,6 +1860,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_advancements": "ASCEND.db",
     "desktop_icon_changelog": "PATCHLOG.txt",
     "desktop_icon_credits": "CREDITS.nfo",
+    "desktop_icon_feedback": "FEEDBACK.exe",
 
     # Credits window
     "credits_window_title": "Credits - About",
@@ -1846,6 +1872,30 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "support_title": "Support the Project",
     "support_blurb": "TopHat-ShooterOS is free and open source. Support is optional and never gates any feature.",
     "support_note": "Links open in your browser.",
+
+    # Feedback window
+    "feedback_window_title": "Feedback - Report a Bug",
+    "feedback_intro": "Found a bug or have an idea? Write it here and send it straight to the project's issue tracker.",
+    "feedback_kind_bug": "Bug",
+    "feedback_kind_idea": "Idea",
+    "feedback_kind_other": "Other",
+    "feedback_title_label": "Title",
+    "feedback_title_hint": "A one-line summary",
+    "feedback_details_label": "Details",
+    "feedback_hint_bug": "What happened? What did you expect? How can it be reproduced?",
+    "feedback_hint_idea": "Describe your idea and how it would make the game better.",
+    "feedback_hint_other": "Anything you want to tell the developer.",
+    "feedback_attach_info": "Attach system info (version, OS, settings; nothing personal)",
+    "feedback_send": "Send on GitHub",
+    "feedback_copy": "Copy report",
+    "feedback_save": "Save to file",
+    "feedback_status_empty": "Write a title or some details first.",
+    "feedback_status_opened": "Opened in your browser. Review it there and submit it.",
+    "feedback_status_truncated": "Too long for a link: the full report was copied, paste it on the page.",
+    "feedback_status_copied": "Report copied to the clipboard.",
+    "feedback_status_saved": "Saved: $1",
+    "feedback_status_save_failed": "Could not save the report.",
+    "feedback_note": "Sending needs a free GitHub account. No account? Copy or save the report and share it however you like.",
 
     # Changelog window
     "changelog_window_title": "Patch Notes - Changelog",
@@ -3910,6 +3960,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_advancements": "ASCEND.db",
     "desktop_icon_changelog": "PARCHES.txt",
     "desktop_icon_credits": "CRÉDITOS.nfo",
+    "desktop_icon_feedback": "COMENTARIOS.exe",
 
     # Credits window
     "credits_window_title": "Créditos - Acerca de",
@@ -3921,6 +3972,30 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "support_title": "Apoya el Proyecto",
     "support_blurb": "TopHat-ShooterOS es gratuito y de codigo abierto. Apoyar es opcional y nunca bloquea ninguna función.",
     "support_note": "Los enlaces se abren en tu navegador.",
+
+    # Feedback window
+    "feedback_window_title": "Comentarios - Reportar un Error",
+    "feedback_intro": "¿Encontraste un error o tienes una idea? Escríbelo aquí y envíalo directo al gestor de incidencias del proyecto.",
+    "feedback_kind_bug": "Error",
+    "feedback_kind_idea": "Idea",
+    "feedback_kind_other": "Otro",
+    "feedback_title_label": "Título",
+    "feedback_title_hint": "Un resumen en una línea",
+    "feedback_details_label": "Detalles",
+    "feedback_hint_bug": "¿Qué pasó? ¿Qué esperabas? ¿Cómo se puede reproducir?",
+    "feedback_hint_idea": "Describe tu idea y cómo mejoraría el juego.",
+    "feedback_hint_other": "Cualquier cosa que quieras contarle al desarrollador.",
+    "feedback_attach_info": "Adjuntar info del sistema (versión, SO, ajustes; nada personal)",
+    "feedback_send": "Enviar en GitHub",
+    "feedback_copy": "Copiar reporte",
+    "feedback_save": "Guardar archivo",
+    "feedback_status_empty": "Escribe primero un título o algunos detalles.",
+    "feedback_status_opened": "Abierto en tu navegador. Revísalo allí y envíalo.",
+    "feedback_status_truncated": "Demasiado largo para un enlace: se copió el reporte completo, pégalo en la página.",
+    "feedback_status_copied": "Reporte copiado al portapapeles.",
+    "feedback_status_saved": "Guardado: $1",
+    "feedback_status_save_failed": "No se pudo guardar el reporte.",
+    "feedback_note": "Enviar requiere una cuenta gratuita de GitHub. ¿Sin cuenta? Copia o guarda el reporte y compártelo como quieras.",
 
     # Changelog window
     "changelog_window_title": "Notas del Parche - Cambios",

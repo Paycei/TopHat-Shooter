@@ -1566,7 +1566,8 @@ proc main() =
         pendingProfileRefund = (0, 0)
 
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
-      var action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive: handleDesktopInput(osDesktop, currentGame) else: -1
+      var action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive and
+                      not globalWindowManager.wantsTextInput(): handleDesktopInput(osDesktop, currentGame) else: -1
       # A first-time mode intro hands its icon click back once it ends, so the
       # icon now opens its window / launches exactly as a normal click would.
       if pendingIconAfterCutscene >= 0 and not globalConfirmActive:
@@ -1886,6 +1887,8 @@ proc main() =
           globalWindowManager.openWindow(widChangelog)
         of 12: # CREDITS.nfo - Open Credits / Support Window
           globalWindowManager.openWindow(widCredits)
+        of 13: # FEEDBACK.exe - Open Feedback / Bug Report Window
+          globalWindowManager.openWindow(widFeedback)
         else: discard
 
       # Handle icon execution from help window commands
@@ -1987,6 +1990,8 @@ proc main() =
             globalWindowManager.openWindow(widChangelog)
           of 12: # CREDITS.nfo
             globalWindowManager.openWindow(widCredits)
+          of 13: # FEEDBACK.exe
+            globalWindowManager.openWindow(widFeedback)
           else: discard
 
       # Update Discord Rich Presence (throttled internally to prevent lag)

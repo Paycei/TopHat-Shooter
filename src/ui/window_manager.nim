@@ -2,7 +2,7 @@
 ## Centralized window handling with state management
 
 import raylib, algorithm, sequtils, math
-import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 import ../gamepad_input, ../render_context
 
 type
@@ -17,6 +17,7 @@ type
     widRoguelite
     widChangelog
     widCredits
+    widFeedback
 
   WindowManager* = ref object
     settings*: SettingsWindow
@@ -29,6 +30,7 @@ type
     roguelite*: RogueliteWindow
     changelog*: ChangelogWindow
     credits*: CreditsWindow
+    feedback*: FeedbackWindow
     nextZOrder: int
 
 proc newWindowManager*(screenWidth, screenHeight: int,
@@ -56,6 +58,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
     roguelite: newRogueliteWindow(screenWidth, screenHeight, rogueliteProfile),
     changelog: newChangelogWindow(screenWidth, screenHeight),
     credits: newCreditsWindow(screenWidth, screenHeight),
+    feedback: newFeedbackWindow(screenWidth, screenHeight),
     nextZOrder: 1
   )
 
@@ -70,6 +73,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.roguelite.window.visible = false
   result.changelog.window.visible = false
   result.credits.window.visible = false
+  result.feedback.window.visible = false
 
 proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
   ## Get all windows in a single sequence
@@ -83,7 +87,8 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.advancements.window,
     wm.roguelite.window,
     wm.changelog.window,
-    wm.credits.window
+    wm.credits.window,
+    wm.feedback.window
   ]
 
 proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
@@ -113,6 +118,9 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
     window = wm.changelog.window
     resetChangelogView(wm.changelog)  # Always open on the newest version, at the top
   of widCredits: window = wm.credits.window
+  of widFeedback:
+    window = wm.feedback.window
+    resetFeedbackView(wm.feedback)  # Keeps the draft, refocuses the form
 
   window.visible = true
   window.minimized = false
@@ -138,6 +146,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widRoguelite: wm.roguelite.window.visible = false
   of widChangelog: wm.changelog.window.visible = false
   of widCredits: wm.credits.window.visible = false
+  of widFeedback: wm.feedback.window.visible = false
 
 proc closeAllWindows*(wm: WindowManager) =
   ## Close all open desktop windows (e.g. when starting a game)
@@ -151,6 +160,7 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.roguelite.window.visible = false
   wm.changelog.window.visible = false
   wm.credits.window.visible = false
+  wm.feedback.window.visible = false
 
 proc windowUIScale*(window: OSWindow, requested: float32,
                     screenWidth, screenHeight: int): float32 =
@@ -306,6 +316,13 @@ proc isMouseOverAnyWindow*(wm: WindowManager, uiScale: float32,
 
   return false
 
+proc wantsTextInput*(wm: WindowManager): bool =
+  ## True while a window's text field owns the keyboard. The desktop's icon
+  ## navigation (WASD/arrows, E/Enter) is otherwise only blocked by the mouse
+  ## hovering a window, so typing "e" with the cursor parked elsewhere would
+  ## launch an icon.
+  wm.feedback.wantsTextInput()
+
 type
   WindowUpdateResult* = object
     fullscreenToggle*: bool
@@ -458,6 +475,9 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
     elif window == wm.credits.window:
       updateCreditsWindow(wm.credits, dt, screenWidth, screenHeight, visibleWindows)
 
+    elif window == wm.feedback.window:
+      updateFeedbackWindow(wm.feedback, dt, screenWidth, screenHeight, visibleWindows)
+
 proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
                      screenWidth, screenHeight: int) =
   ## Draw all visible windows in z-order, each inside its own scale layer.
@@ -500,3 +520,5 @@ proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
       drawChangelogWindow(wm.changelog)
     elif window == wm.credits.window:
       drawCreditsWindow(wm.credits)
+    elif window == wm.feedback.window:
+      drawFeedbackWindow(wm.feedback)

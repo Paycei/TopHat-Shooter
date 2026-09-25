@@ -358,6 +358,19 @@ let changelog: seq[ChangelogVersion] = @[
           "Mantén Tab (Select en mando) durante la partida para ver las bajas, muertes y racha actual de todos.",
           "La pantalla final muestra la tabla de procesos completa: bajas, muertes, mejor racha, precisión y daño, agrupada por equipo en las partidas por equipos, más premios a la mejor precisión, a menos muertes, a más paquetes y al mayor uptime.",
           "El anfitrión puede pulsar Enter (A en mando) para empezar una revancha con la misma sala. Nadie tiene que volver a crear ni unirse a la partida.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "FEEDBACK.exe: report bugs from the desktop",
+        headEs: "COMENTARIOS.exe: reporta errores desde el escritorio",
+        en: points(
+          "A new desktop icon in the bottom-right corner, above CREDITS.nfo, opens a feedback form. You can also type feedback or bug in Help.txt.",
+          "Pick Bug, Idea or Other, write a title and the details, and press Send on GitHub: the report opens in your browser already filled in, ready to submit.",
+          "System info (version, OS and your display and HUD settings) is attached by default so bugs are easier to reproduce. It holds nothing personal and can be switched off.",
+          "No GitHub account? Copy the report to the clipboard or save it as a file and share it however you like. Your draft is kept if you close the window."),
+        es: points(
+          "Un nuevo icono en la esquina inferior derecha del escritorio, encima de CRÉDITOS.nfo, abre un formulario de comentarios. También puedes escribir feedback o bug en Help.txt.",
+          "Elige Error, Idea u Otro, escribe un título y los detalles, y pulsa Enviar en GitHub: el reporte se abre en tu navegador ya rellenado, listo para enviar.",
+          "La info del sistema (versión, SO y tus ajustes de pantalla y HUD) se adjunta por defecto para que los errores sean más fáciles de reproducir. No incluye nada personal y se puede desactivar.",
+          "¿Sin cuenta de GitHub? Copia el reporte al portapapeles o guárdalo como archivo y compártelo como quieras. Tu borrador se conserva si cierras la ventana.")),
 
       # --- Improvements ---
       ChangelogEntry(category: clcImproved,
