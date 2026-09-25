@@ -708,22 +708,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
 
   var readyCount = 0
   for powerUp in abilities:
-    let cooldown = case powerUp.powerType
-      of puTimeWarp: game.player.timeWarpCooldown
-      of puPhaseShift: game.player.phaseShiftCooldown
-      of puParry: game.player.parryCooldown
-      of puBloodPact: game.player.bloodPactCooldown
-      of puConduit: game.player.conduitCooldown
-      of puAftershock: game.player.aftershockCooldown
-      of puNova: game.player.novaCooldown
-      else: 0.0'f32
-    let ready = cooldown <= 0.0'f32 and
-                (case powerUp.powerType
-                 of puTimeWarp: game.player.timeWarpUsesThisWave < game.player.timeWarpMaxUsesPerWave
-                 of puBloodPact: game.player.hp > 1.0'f32
-                 of puNova: not game.player.novaActive
-                 else: true)
-    if ready:
+    if abilityReady(game.player, powerUp.powerType):
       inc readyCount
 
   # Calculate actual position
@@ -885,16 +870,8 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     let iconX = startX + col * (LEGENDARY_Q_ICON_SIZE + LEGENDARY_Q_ICON_GAP)
     let iconY = iconsTop + row * (LEGENDARY_Q_ICON_SIZE + LEGENDARY_Q_ICON_GAP)
     let accent = getPowerUpColor(powerUp.powerType)
-    let cooldown = case powerUp.powerType
-      of puTimeWarp: game.player.timeWarpCooldown
-      of puPhaseShift: game.player.phaseShiftCooldown
-      of puParry: game.player.parryCooldown
-      of puBloodPact: game.player.bloodPactCooldown
-      of puConduit: game.player.conduitCooldown
-      of puAftershock: game.player.aftershockCooldown
-      of puNova: game.player.novaCooldown
-      else: 0.0'f32
-    let active = (powerUp.powerType == puTimeWarp and game.player.timeWarpActive) or
+    let cooldown = abilityCooldown(game.player, powerUp.powerType)
+    let active =(powerUp.powerType == puTimeWarp and game.player.timeWarpActive) or
                  (powerUp.powerType == puPhaseShift and game.player.phaseShiftInvulnTimer > 0.0'f32) or
                  (powerUp.powerType == puParry and game.player.parryActive) or
                  (powerUp.powerType == puNova and game.player.novaActive)
@@ -907,12 +884,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
       of puAftershock: 14.0'f32
       of puNova: 16.0'f32
       else: 1.0'f32
-    let ready = cooldown <= 0.0'f32 and
-                (case powerUp.powerType
-                 of puTimeWarp: game.player.timeWarpUsesThisWave < game.player.timeWarpMaxUsesPerWave
-                 of puBloodPact: game.player.hp > 1.0'f32
-                 of puNova: not game.player.novaActive
-                 else: true)
+    let ready = abilityReady(game.player, powerUp.powerType)
     let pulse = if ready:
       0.5'f32 + 0.5'f32 * sin(game.time * 5.0'f32 + i.float32)
     else:

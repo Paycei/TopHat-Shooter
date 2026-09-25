@@ -183,6 +183,29 @@ proc getPowerUpColor*(pt: PowerUpType): Color {.inline.} =
 proc getPowerUpMaxLevel*(pt: PowerUpType): int {.inline.} =
   allPowerUpDefs[pt].maxLevel
 
+# Active ([Q]) abilities: live state, shared by the [Q] strip and the pause menu
+
+proc abilityCooldown*(player: Player, pt: PowerUpType): float32 =
+  ## Seconds until a [Q] ability can fire again (0 for everything else).
+  case pt
+  of puTimeWarp: player.timeWarpCooldown
+  of puPhaseShift: player.phaseShiftCooldown
+  of puParry: player.parryCooldown
+  of puBloodPact: player.bloodPactCooldown
+  of puConduit: player.conduitCooldown
+  of puAftershock: player.aftershockCooldown
+  of puNova: player.novaCooldown
+  else: 0.0'f32
+
+proc abilityReady*(player: Player, pt: PowerUpType): bool =
+  ## Off cooldown and allowed to fire right now.
+  abilityCooldown(player, pt) <= 0.0'f32 and
+    (case pt
+     of puTimeWarp: player.timeWarpUsesThisWave < player.timeWarpMaxUsesPerWave
+     of puBloodPact: player.hp > 1.0'f32
+     of puNova: not player.novaActive
+     else: true)
+
 proc recursionDamageBonusForLevel*(level: int): float32 {.inline.} =
   ## TOTAL fractional damage bonus for holding Recursion at the given level --
   ## cumulative, not per-rung. Reaching level 3 is worth +20% in all, so an

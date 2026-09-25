@@ -572,6 +572,17 @@ let changelog: seq[ChangelogVersion] = @[
           "Tus parches ahora aparecen por nombre en su propio panel de PARCHES a la derecha, debajo del panel de SECTOR, en vez de como una fila de iconos sin etiqueta. Durante un combate contra un SERVICIO la lista se acorta para dejarle espacio al panel del jefe.",
           "Reversión, Regla de Firewall y Overclock indican si están LISTOS, USADOS o DETENIDOS, y siempre quedan arriba de la lista.",
           "El menú de pausa tiene una nueva pestaña de Parches: cada parche instalado con su número KB, su categoría y su descripción completa. Pasa el cursor sobre uno o usa ARRIBA/ABAJO para leerlo.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Pause menu explains your power-ups",
+        headEs: "El menú de pausa explica tus mejoras",
+        en: points(
+          "The Processes tab now works like the Patches tab: pick a power-up from the list to see its icon, level, what it does right now and what its next level adds.",
+          "Active [Q] abilities show whether they are READY, how long they have left to recharge, or that they are used up for this wave.",
+          "Every power-up is listed now. The old tab stopped after the first six; long lists scroll with the mouse wheel or by moving the selection."),
+        es: points(
+          "La pestaña de Procesos ahora funciona como la de Parches: elige una mejora de la lista para ver su icono, su nivel, lo que hace ahora mismo y lo que añade su siguiente nivel.",
+          "Las habilidades activas [Q] indican si están LISTAS, cuánto les falta para recargarse o si ya se usaron en esta oleada.",
+          "Ahora aparecen todas las mejoras. La pestaña anterior se cortaba tras las seis primeras; las listas largas se desplazan con la rueda del ratón o al mover la selección.")),
 
       # --- Balance ---
       ChangelogEntry(category: clcBalance,

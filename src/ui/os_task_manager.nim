@@ -53,57 +53,6 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
 
   drawText(text, x + (width - textWidth) div 2, y + 10, 14, textColor)
 
-proc drawProcessesTab(game: Game, x, y, width, height: int32) =
-  ## Draw the Processes tab showing active power-ups
-  var yOffset = y + 10
-
-  drawText(t("os_running_processes") & ":", x + 10, yOffset, 16,
-          Color(r: 0, g: 200, b: 255, a: 255))
-  yOffset += 30
-
-  if game.player.powerUps.len == 0:
-    drawText(t("os_no_active_processes"), x + 20, yOffset, 14, Gray)
-  else:
-    # Header
-    drawText(t("os_process_name"), x + 20, yOffset, 12, LightGray)
-    drawText(t("os_version"), x + 300, yOffset, 12, LightGray)
-    drawText(t("os_status"), x + 400, yOffset, 12, LightGray)
-    yOffset += 20
-
-    # Separator line
-    drawLine(Vector2(x: (x + 10).float32, y: yOffset.float32),
-            Vector2(x: (x + width - 10).float32, y: yOffset.float32),
-            1, Color(r: 60, g: 70, b: 85, a: 255))
-    yOffset += 10
-
-    # List active power-ups
-    for i, powerUp in game.player.powerUps:
-      if yOffset > y + height - 30:
-        break  # Don't overflow
-
-      let processName = getPowerUpName(powerUp.powerType)
-      let versionText = "v" & $powerUp.level & ".0"
-      let statusText = "Running"
-
-      # Alternate row background
-      if i mod 2 == 0:
-        drawRectangle(x + 10, yOffset - 5, width - 20, 25,
-                     Color(r: 30, g: 35, b: 45, a: 100))
-
-      # Process icon (colored square)
-      let iconColor = if powerUp.rarity == prLegendary:
-        Color(r: 255, g: 215, b: 0, a: 255)
-      else:
-        Color(r: 0, g: 200, b: 255, a: 255)
-
-      drawRectangle(x + 20, yOffset - 2, 15, 15, iconColor)
-
-      drawText(processName & ".exe", x + 45, yOffset, 12, White)
-      drawText(versionText, x + 300, yOffset, 12, Color(r: 150, g: 150, b: 150, a: 255))
-      drawText(statusText, x + 400, yOffset, 12, Color(r: 100, g: 255, b: 100, a: 255))
-
-      yOffset += 30
-
 proc taskManagerTabs*(game: Game): seq[TaskManagerTab] =
   ## The tabs this run shows, left to right. Patches only exist in a roguelite
   ## run, so only that mode gets their tab.
@@ -125,112 +74,298 @@ proc taskManagerTabLabel(tab: TaskManagerTab): string =
   of tmtPerformance: t("os_tab_performance")
   of tmtSettings: ""
 
-var
-  patchTabSelection = 0
-    ## Which installed patch the Patches tab's detail pane is showing.
-  patchTabLastMouse = Vector2(x: -1, y: -1)
-    ## Hover only moves the selection when the pointer actually moves, so a
-    ## cursor resting over the list can't undo every UP/DOWN press.
+# ---------------------------------------------------------------------------
+# Inspector tabs (Processes, Patches): the entries in a list on the left, the
+# selected one explained in full on the right. Navigation (UP/DOWN, W/S, the
+# D-pad, hover and the wheel), the row and pane frames and the text blocks are
+# shared; each tab only says what goes in its rows and its pane.
 
-proc drawPatchDetail(game: Game, patch: RogueliteRelicType, x, y, w, h: int32) =
-  ## Everything about one patch: glyph, name, KB number, category, what it
-  ## does, and (for the charge patches) whether its charge is up.
-  let accent = patchAccent(patch)
+const
+  InspectorTitleH = 30'i32      ## the tab's own heading line
+  InspectorRowH = 18'i32
+  InspectorListW = 300'i32
+  InspectorHintH = 18'i32       ## the hint line under the pane
+  InspectorIcon = 44'i32        ## the pane's big glyph
+  InspectorAccent = Color(r: 0, g: 200, b: 255, a: 255)
+  InspectorDim = Color(r: 120, g: 135, b: 150, a: 255)
+
+type
+  InspectorNav = object
+    selection: int              ## entry the pane shows
+    scroll: int                 ## first entry in view
+
+  InspectorLayout = object
+    listX, listY, rows: int32   ## `rows` = how many entries fit in view
+    paneX, paneY, paneW, paneH: int32
+
+var
+  processNav, patchNav: InspectorNav
+  inspectorLastMouse = Vector2(x: -1, y: -1)
+    ## Hover only moves the selection when the pointer actually moves: the
+    ## pause menu reports the mouse as live every frame, so a cursor resting
+    ## over the list would otherwise undo every UP/DOWN press.
+
+proc inspectorLayout(x, y, width, height: int32): InspectorLayout =
+  let top = y + 10 + InspectorTitleH
+  result.listX = x + 10
+  result.listY = top
+  result.rows = max(1'i32, (y + height - top) div InspectorRowH)
+  result.paneX = result.listX + InspectorListW + 10
+  result.paneY = top
+  result.paneW = x + width - 10 - result.paneX
+  result.paneH = y + height - top - InspectorHintH
+
+proc drawInspectorTitle(text: string, x, y: int32) =
+  drawText(text, x + 10, y + 10, 16, InspectorAccent)
+
+proc navigateInspector(nav: var InspectorNav, count: int, lay: InspectorLayout,
+                       mouseSupported: bool) =
+  ## One frame of list input: keys move the selection and scroll it into view,
+  ## the wheel scrolls (dragging the selection along), hover picks a row.
+  let visible = lay.rows.int
+  var keyMoved = false
+  if isKeyPressed(KeyboardKey.Up) or isKeyPressed(KeyboardKey.W) or gamepadNavPressed(gnUp):
+    dec nav.selection
+    keyMoved = true
+  if isKeyPressed(KeyboardKey.Down) or isKeyPressed(KeyboardKey.S) or gamepadNavPressed(gnDown):
+    inc nav.selection
+    keyMoved = true
+  nav.selection = clamp(nav.selection, 0, max(0, count - 1))
+  let wheel = getPointerWheelMove()
+  if wheel > 0.0'f32: dec nav.scroll
+  elif wheel < 0.0'f32: inc nav.scroll
+  if keyMoved:
+    if nav.selection < nav.scroll: nav.scroll = nav.selection
+    elif nav.selection >= nav.scroll + visible: nav.scroll = nav.selection - visible + 1
+  nav.scroll = clamp(nav.scroll, 0, max(0, count - visible))
+  if wheel != 0.0'f32:
+    nav.selection = clamp(nav.selection, nav.scroll, min(count, nav.scroll + visible) - 1)
+
+  let mouse = getVirtualMousePosition()
+  let moved = mouse.x != inspectorLastMouse.x or mouse.y != inspectorLastMouse.y
+  inspectorLastMouse = mouse
+  if mouseSupported and (moved or isPointerPressed()):
+    for i in 0..<min(visible, count - nav.scroll):
+      if isMouseOverRect(mouse, lay.listX, lay.listY + i.int32 * InspectorRowH,
+                         InspectorListW, InspectorRowH):
+        nav.selection = nav.scroll + i
+
+proc drawInspectorRowFrame(lay: InspectorLayout, slot: int, selected: bool): int32 =
+  ## Background of the `slot`-th visible row; returns its y.
+  result = lay.listY + slot.int32 * InspectorRowH
+  if selected:
+    drawRectangle(lay.listX, result, InspectorListW, InspectorRowH, withAlpha(InspectorAccent, 45))
+    drawRectangleLines(Rectangle(x: lay.listX.float32, y: result.float32,
+                                 width: InspectorListW.float32, height: InspectorRowH.float32),
+                       1, withAlpha(InspectorAccent, 170))
+  elif slot mod 2 == 0:
+    drawRectangle(lay.listX, result, InspectorListW, InspectorRowH, Color(r: 30, g: 35, b: 45, a: 100))
+
+proc drawInspectorRowText(lay: InspectorLayout, ry: int32, tag, name: string, nameColor: Color,
+                          status: string, statusColor: Color, tagW: int32) =
+  ## A row's text after its 16px glyph: a dim tag column (KB number, version),
+  ## the name, and the status right-aligned.
+  drawText(tag, lay.listX + 26, ry + 3, 12, InspectorDim)
+  let statusW = measureText(status, 12)
+  drawText(status, lay.listX + InspectorListW - 6 - statusW, ry + 3, 12, statusColor)
+  let nameX = lay.listX + 26 + tagW + 8
+  drawText(fitWithEllipsis(name, lay.listX + InspectorListW - 6 - statusW - 8 - nameX, 12),
+           nameX, ry + 3, 12, nameColor)
+
+proc drawInspectorScrollbar(lay: InspectorLayout, count: int, nav: InspectorNav) =
+  if count <= lay.rows.int:
+    return
+  let trackX = lay.listX + InspectorListW + 3
+  let trackH = lay.rows * InspectorRowH
+  drawRectangle(trackX, lay.listY, 3, trackH, Color(r: 40, g: 48, b: 60, a: 255))
+  let thumbH = max(12'i32, trackH * lay.rows div count.int32)
+  let thumbY = lay.listY + (trackH - thumbH) * nav.scroll.int32 div max(1, count - lay.rows.int).int32
+  drawRectangle(trackX, thumbY, 3, thumbH, withAlpha(InspectorAccent, 200))
+
+proc drawInspectorPane(lay: InspectorLayout, accent: Color): tuple[iconX, iconY, textX, textW: int32] =
+  ## The pane's frame and the backdrop of its big glyph. Returns where the
+  ## glyph goes and the column the name / subtitle lines to its right use.
+  let (x, y, w, h) = (lay.paneX, lay.paneY, lay.paneW, lay.paneH)
   drawRectangle(x, y, w, h, Color(r: 28, g: 34, b: 46, a: 255))
   drawRectangle(x, y, 3, h, accent)
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
                      1, withAlpha(accent, 110))
+  result.iconX = x + 16
+  result.iconY = y + 16
+  drawRectangle(result.iconX - 4, result.iconY - 4, InspectorIcon + 8, InspectorIcon + 8,
+                withAlpha(accent, 30))
+  result.textX = result.iconX + InspectorIcon + 14
+  result.textW = x + w - 14 - result.textX
 
-  const iconSize = 44'i32
-  let ix = x + 16
-  let iy = y + 16
-  drawRectangle(ix - 4, iy - 4, iconSize + 8, iconSize + 8, withAlpha(accent, 30))
-  drawPatchIcon(ix, iy, iconSize, patch, accent)
+proc drawInspectorBody(lay: InspectorLayout, blocks: openArray[tuple[caption, text: string, color: Color]],
+                       statusLabel: string, statusColor: Color) =
+  ## Below the glyph: a divider, then each text block (an optional small
+  ## caption over wrapped text), then the status line pinned to the bottom.
+  ## Falls back from 14px to 12px when the blocks would run into the status.
+  let x = lay.paneX + 14
+  let w = lay.paneW - 28
+  let top = lay.paneY + 16 + InspectorIcon + 18
+  let bottom = lay.paneY + lay.paneH - 30
+  drawLine(Vector2(x: x.float32, y: (top - 8).float32),
+           Vector2(x: (x + w).float32, y: (top - 8).float32), 1, Color(r: 60, g: 70, b: 85, a: 255))
 
-  let tx = ix + iconSize + 14
-  let tw = x + w - 14 - tx
-  let name = patchName(patch)
-  drawText(fitWithEllipsis(name, tw, 18), tx, iy + 2, 18, White)
-  let kb = patchKbLabel(patch)
-  drawText(kb, tx, iy + 28, 12, Color(r: 140, g: 150, b: 165, a: 255))
-  let category = patchCategoryName(patchCategory(patch)).toUpperAscii
-  drawText(category, tx + measureText(kb, 12) + 12, iy + 28, 12, accent)
+  var needed = 0'i32
+  for b in blocks:
+    if b.caption.len > 0: needed += 16
+    needed += wrapTextLines(b.text, w, 14).len.int32 * 20 + 6
+  let size = if needed <= bottom - top: 14'i32 else: 12'i32
 
-  var ly = iy + iconSize + 18
-  drawLine(Vector2(x: (x + 14).float32, y: (ly - 8).float32),
-           Vector2(x: (x + w - 14).float32, y: (ly - 8).float32), 1, Color(r: 60, g: 70, b: 85, a: 255))
-  const descSize = 14'i32
-  for line in wrapTextLines(patchDescription(patch), w - 28, descSize):
-    drawText(line, x + 14, ly, descSize, Color(r: 215, g: 225, b: 235, a: 255))
-    ly += descSize + 6
+  var ly = top
+  for b in blocks:
+    if b.caption.len > 0:
+      drawText(b.caption, x, ly, 10, InspectorDim)
+      ly += 16
+    for line in wrapTextLines(b.text, w, size):
+      if ly + size > bottom: break
+      drawText(line, x, ly, size, b.color)
+      ly += size + 6
+    ly += 6
 
-  let status = patchStatus(game, patch)
   let label = t("os_status") & ": "
-  let sy = y + h - 26
-  drawText(label, x + 14, sy, 12, LightGray)
-  drawText(patchStatusLabel(status), x + 14 + measureText(label, 12), sy, 12, patchStatusColor(status))
+  let sy = lay.paneY + lay.paneH - 26
+  drawText(label, x, sy, 12, LightGray)
+  drawText(statusLabel, x + measureText(label, 12), sy, 12, statusColor)
+
+proc drawInspectorHint(lay: InspectorLayout, text: string) =
+  drawText(text, lay.paneX, lay.paneY + lay.paneH + 5, 10, InspectorDim)
+
+proc drawInspectorEmpty(text: string, x, y, width: int32) =
+  var ly = y + 10 + InspectorTitleH
+  for line in wrapTextLines(text, width - 40, 14):
+    drawText(line, x + 20, ly, 14, Gray)
+    ly += 20
+
+# --- Patches -----------------------------------------------------------------
 
 proc drawPatchesTab(game: Game, x, y, width, height: int32, mouseSupported: bool) =
-  ## The run's patches in install order (left), and the one under the cursor
-  ## or the UP/DOWN selection explained in full (right). The HUD only has room
-  ## for names; this is where a player learns what each patch does.
+  ## The run's patches in install order, and the selected one explained in
+  ## full. The HUD only has room for names; this is where a player learns what
+  ## each patch does.
   let relics = if game.rogueliteRun.isNil: @[] else: game.rogueliteRun.relics
-  var yOffset = y + 10
-  drawText(t("os_installed_patches") & " (" & $relics.len & "):", x + 10, yOffset, 16,
-           Color(r: 0, g: 200, b: 255, a: 255))
-  yOffset += 30
-
+  drawInspectorTitle(t("os_installed_patches") & " (" & $relics.len & "):", x, y)
   if relics.len == 0:
-    for line in wrapTextLines(t("os_no_patches"), width - 40, 14):
-      drawText(line, x + 20, yOffset, 14, Gray)
-      yOffset += 20
+    drawInspectorEmpty(t("os_no_patches"), x, y, width)
     return
 
-  if isKeyPressed(KeyboardKey.Up) or isKeyPressed(KeyboardKey.W) or gamepadNavPressed(gnUp):
-    dec patchTabSelection
-  if isKeyPressed(KeyboardKey.Down) or isKeyPressed(KeyboardKey.S) or gamepadNavPressed(gnDown):
-    inc patchTabSelection
-
-  const rowH = 18'i32
-  const listW = 300'i32
-  let listX = x + 10
-  let shown = min(relics.len, int((y + height - yOffset) div rowH))
-  patchTabSelection = clamp(patchTabSelection, 0, max(0, shown - 1))
-  let mouse = getVirtualMousePosition()
-  let mouseMoved = mouse.x != patchTabLastMouse.x or mouse.y != patchTabLastMouse.y
-  patchTabLastMouse = mouse
-  if mouseSupported and (mouseMoved or isPointerPressed()):
-    for i in 0..<shown:
-      if isMouseOverRect(mouse, listX, yOffset + i.int32 * rowH, listW, rowH):
-        patchTabSelection = i
-
-  let kbW = measureText("KB-0000", 12)
-  for i in 0..<shown:
+  let lay = inspectorLayout(x, y, width, height)
+  navigateInspector(patchNav, relics.len, lay, mouseSupported)
+  let tagW = measureText("KB-0000", 12)
+  for slot in 0..<min(lay.rows.int, relics.len - patchNav.scroll):
+    let i = patchNav.scroll + slot
     let patch = relics[i].relicType
-    let ry = yOffset + i.int32 * rowH
     let status = patchStatus(game, patch)
     let spent = status in {psUsed, psStalled}
-    if i == patchTabSelection:
-      drawRectangle(listX, ry, listW, rowH, Color(r: 0, g: 200, b: 255, a: 45))
-      drawRectangleLines(Rectangle(x: listX.float32, y: ry.float32, width: listW.float32,
-                                   height: rowH.float32), 1, Color(r: 0, g: 200, b: 255, a: 170))
-    elif i mod 2 == 0:
-      drawRectangle(listX, ry, listW, rowH, Color(r: 30, g: 35, b: 45, a: 100))
+    let ry = drawInspectorRowFrame(lay, slot, i == patchNav.selection)
     let accent = patchAccent(patch)
-    drawPatchIcon(listX + 4, ry + 1, rowH - 2, patch, if spent: withAlpha(accent, 100) else: accent)
-    drawText(patchKbLabel(patch), listX + 26, ry + 3, 12, Color(r: 120, g: 135, b: 150, a: 255))
-    let statusText = patchStatusLabel(status)
-    let statusW = measureText(statusText, 12)
-    drawText(statusText, listX + listW - 6 - statusW, ry + 3, 12, patchStatusColor(status))
-    let nameX = listX + 26 + kbW + 8
-    drawText(fitWithEllipsis(patchName(patch), listX + listW - 6 - statusW - 8 - nameX, 12),
-             nameX, ry + 3, 12, if spent: Gray else: White)
+    drawPatchIcon(lay.listX + 4, ry + 1, InspectorRowH - 2, patch,
+                  if spent: withAlpha(accent, 100) else: accent)
+    drawInspectorRowText(lay, ry, patchKbLabel(patch), patchName(patch),
+                         if spent: Gray else: White,
+                         patchStatusLabel(status), patchStatusColor(status), tagW)
+  drawInspectorScrollbar(lay, relics.len, patchNav)
 
-  let paneX = listX + listW + 10
-  let paneW = x + width - 10 - paneX
-  let paneH = y + height - yOffset - 18
-  drawPatchDetail(game, relics[patchTabSelection].relicType, paneX, yOffset, paneW, paneH)
-  drawText(t("os_patches_hint"), paneX, yOffset + paneH + 5, 10, Color(r: 120, g: 135, b: 150, a: 255))
+  # Pane: KB number and category under the name, then what it does.
+  let patch = relics[patchNav.selection].relicType
+  let accent = patchAccent(patch)
+  let p = drawInspectorPane(lay, accent)
+  drawPatchIcon(p.iconX, p.iconY, InspectorIcon, patch, accent)
+  drawText(fitWithEllipsis(patchName(patch), p.textW, 18), p.textX, p.iconY + 2, 18, White)
+  let kb = patchKbLabel(patch)
+  drawText(kb, p.textX, p.iconY + 28, 12, Color(r: 140, g: 150, b: 165, a: 255))
+  drawText(patchCategoryName(patchCategory(patch)).toUpperAscii,
+           p.textX + measureText(kb, 12) + 12, p.iconY + 28, 12, accent)
+  let status = patchStatus(game, patch)
+  drawInspectorBody(lay, [(caption: "", text: patchDescription(patch),
+                           color: Color(r: 215, g: 225, b: 235, a: 255))],
+                    patchStatusLabel(status), patchStatusColor(status))
+  drawInspectorHint(lay, t("os_patches_hint"))
+
+# --- Processes (power-ups) -----------------------------------------------------
+
+const
+  LegendaryGold = Color(r: 255, g: 215, b: 0, a: 255)
+  RunningGreen = Color(r: 100, g: 255, b: 100, a: 255)
+  RechargeOrange = Color(r: 255, g: 165, b: 70, a: 255)
+
+proc secondsText(s: float32): string =
+  ## One decimal, rounded up so a spent ability never reads 0.0s.
+  let tenths = max(1, int(ceil(s * 10.0'f32)))
+  $(tenths div 10) & "." & $(tenths mod 10) & "s"
+
+proc processStatus(game: Game, pu: PowerUp): tuple[short, full: string, color: Color] =
+  ## RUNNING for a passive; for a [Q] ability, READY or how long until it is.
+  let pt = pu.powerType
+  if not allPowerUpDefs[pt].inLegendaryPanel:
+    let s = t("os_status_running")
+    return (s, s, RunningGreen)
+  if abilityReady(game.player, pt):
+    let s = t("patch_status_ready")
+    return (s, s, patchStatusColor(psReady))
+  let cd = abilityCooldown(game.player, pt)
+  if cd > 0.0'f32:
+    return (secondsText(cd), t("os_status_recharging").replace("$1", secondsText(cd)), RechargeOrange)
+  # Off cooldown but blocked: Nova still running, Time Warp spent for the wave.
+  let s = if pt == puNova and game.player.novaActive: t("patch_status_active")
+          else: t("patch_status_used")
+  (s, s, patchStatusColor(psUsed))
+
+proc processColor(pu: PowerUp): Color =
+  if pu.rarity == prLegendary: LegendaryGold else: getPowerUpColor(pu.powerType)
+
+proc drawProcessesTab(game: Game, x, y, width, height: int32, mouseSupported: bool) =
+  ## Installed power-ups in install order, and the selected one explained in
+  ## full: its level, what it does now, and what its next level adds.
+  let pus = game.player.powerUps
+  drawInspectorTitle(t("os_running_processes") & " (" & $pus.len & "):", x, y)
+  if pus.len == 0:
+    drawInspectorEmpty(t("os_no_active_processes"), x, y, width)
+    return
+
+  let lay = inspectorLayout(x, y, width, height)
+  navigateInspector(processNav, pus.len, lay, mouseSupported)
+  let tagW = measureText("v0.0", 12)
+  for slot in 0..<min(lay.rows.int, pus.len - processNav.scroll):
+    let i = processNav.scroll + slot
+    let pu = pus[i]
+    let ry = drawInspectorRowFrame(lay, slot, i == processNav.selection)
+    drawPowerUpIcon(lay.listX + 4, ry + 1, InspectorRowH - 2, pu.powerType, processColor(pu))
+    let status = processStatus(game, pu)
+    drawInspectorRowText(lay, ry, "v" & $pu.level & ".0", getPowerUpName(pu.powerType),
+                         if pu.rarity == prLegendary: Color(r: 255, g: 232, b: 145, a: 255) else: White,
+                         status.short, status.color, tagW)
+  drawInspectorScrollbar(lay, pus.len, processNav)
+
+  # Pane: level (or LEGENDARY) and ACTIVE ABILITY under the name, then what it
+  # does at this level and, below max, what the next level brings.
+  let pu = pus[processNav.selection]
+  let pt = pu.powerType
+  let color = processColor(pu)
+  let p = drawInspectorPane(lay, color)
+  drawPowerUpIcon(p.iconX, p.iconY, InspectorIcon, pt, color)
+  drawText(fitWithEllipsis(getPowerUpName(pt), p.textW, 18), p.textX, p.iconY + 2, 18,
+           if pu.rarity == prLegendary: Color(r: 255, g: 232, b: 145, a: 255) else: White)
+  let maxLevel = max(pu.level, getPowerUpMaxLevel(pt))
+  let rank = if pu.rarity == prLegendary: t("os_legendary")
+             else: t("os_level_of").replace("$1", $pu.level).replace("$2", $maxLevel)
+  drawText(rank, p.textX, p.iconY + 28, 12, color)
+  if allPowerUpDefs[pt].inLegendaryPanel:
+    drawText(t("os_active_ability"), p.textX + measureText(rank, 12) + 12, p.iconY + 28, 12,
+             Color(r: 140, g: 150, b: 165, a: 255))
+
+  let damage = game.player.damage
+  var blocks = @[(caption: "", text: getPowerUpDescription(pt, pu.level, damage),
+                  color: Color(r: 215, g: 225, b: 235, a: 255))]
+  if pu.level < maxLevel:
+    blocks.add (caption: t("os_next_level"), text: getPowerUpDescription(pt, pu.level + 1, damage),
+                color: Color(r: 150, g: 165, b: 180, a: 255))
+  let status = processStatus(game, pu)
+  drawInspectorBody(lay, blocks, status.full, status.color)
+  drawInspectorHint(lay, t("os_processes_hint"))
 
 proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
   ## Draw the Performance tab showing game statistics
@@ -427,12 +562,16 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   let buttonY = windowY + TASK_MANAGER_HEIGHT - 80
   let buttonsStartX = windowX + (TASK_MANAGER_WIDTH - 600) div 2
 
+  # The inspector tabs run down to the buttons, or to the lives panel above
+  # them in wave mode.
+  let inspectorBottom = if game.mode == gmWaveBased: buttonY - LivesPanelHeight - 14 - 10
+                        else: buttonY - 10
   case shownTab
   of tmtProcesses:
-    drawProcessesTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, contentHeight.int32)
+    drawProcessesTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, inspectorBottom - contentY,
+                     mouseSupported)
   of tmtPatches:
-    # No lives panel in a roguelite run, so the list may run down to the buttons.
-    drawPatchesTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, buttonY - 10 - contentY,
+    drawPatchesTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, inspectorBottom - contentY,
                    mouseSupported)
   of tmtPerformance:
     drawPerformanceTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, contentHeight.int32, game.time)
