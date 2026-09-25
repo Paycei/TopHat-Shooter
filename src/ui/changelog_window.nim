@@ -229,6 +229,21 @@ let changelog: seq[ChangelogVersion] = @[
           "Un punto gastado no se recupera, aunque vuelvas a morir o retomes la partida desde el escritorio. Sin puntos, la opción Continuar desaparece.",
           "El modo infinito tras la oleada 60 no tiene puntos de restauración: una muerte termina la partida, y ahora las pantallas lo indican.")),
       ChangelogEntry(category: clcNew,
+        headEn: "Roguelite: restore points",
+        headEs: "Roguelite: puntos de restauración",
+        en: points(
+          "The roguelite now has restore points too: 3 on Easy, 1 on Normal, none on Hard or Nightmare.",
+          "Each sector saves one as you enter it. After a death, CONTINUE (SECTOR N) spends a restore point and puts you back at the start of that sector with your build, patches and Heat as they were when you entered it.",
+          "The shards and Cores a death banks stay banked. Continuing does not pay them out a second time.",
+          "The pause menu and the death screen show how many you have left. You can also resume a dead run from the desktop, which spends one the same way.",
+          "Restore points carry over into the endless loop after the final sector."),
+        es: points(
+          "El roguelite ahora también tiene puntos de restauración: 3 en Fácil, 1 en Normal y ninguno en Difícil ni en Pesadilla.",
+          "Cada sector guarda uno al entrar en él. Tras una muerte, CONTINUAR (SECTOR N) gasta un punto de restauración y te devuelve al principio de ese sector con tu build, tus parches y tu Calor tal como estaban al entrar.",
+          "Los fragmentos y Núcleos que guarda una muerte siguen guardados. Continuar no te los vuelve a pagar.",
+          "El menú de pausa y la pantalla de muerte muestran cuántos te quedan. También puedes retomar una partida muerta desde el escritorio, lo que gasta uno igual.",
+          "Los puntos de restauración se mantienen en el bucle infinito tras el sector final.")),
+      ChangelogEntry(category: clcNew,
         headEn: "Data Shards and Cores in every mode",
         headEs: "Fragmentos y Núcleos en todos los modos",
         en: points(

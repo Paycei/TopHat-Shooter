@@ -13,18 +13,22 @@ type ConfirmDialogContext = enum
 var
   globalConfirmActive      = false
   globalConfirmContext     = cdcQuitToMenu
+  globalConfirmRunMode     = gmWaveBased  # Mode of the run an abandon-checkpoint prompt is about
   globalConfirmFrameGuard  = 0.0'f32  # Prevents Q from instantly confirming on dialog open
   globalConfirmMouseGuard  = 0.0'f32  # anti-accident cooldown before mouse/button click is accepted
 
 const DEFAULT_CONFIRM_COOLDOWN = 1.5'f32  # standard anti-accident window (seconds)
 
-proc showGlobalConfirm(ctx: ConfirmDialogContext, cooldown: float32 = DEFAULT_CONFIRM_COOLDOWN) =
+proc showGlobalConfirm(ctx: ConfirmDialogContext, cooldown: float32 = DEFAULT_CONFIRM_COOLDOWN,
+                       runMode: GameMode = gmWaveBased) =
   ## `cooldown` is the seconds the YES button stays greyed out / counts down before it
   ## accepts a click. Pass 0.0 to make confirmation immediate (e.g. the main-menu Quit
   ## icon, where there's no in-progress run to protect). Defaults to the standard window
-  ## so in-game quits keep the anti-accident delay.
+  ## so in-game quits keep the anti-accident delay. `runMode` words the abandon-restart
+  ## prompt: wave mode restarts at wave 1, the roguelite goes back to its setup.
   globalConfirmActive     = true
   globalConfirmContext    = ctx
+  globalConfirmRunMode    = runMode
   globalConfirmFrameGuard = 0.15'f32  # Absorbs the key that opened the dialog
   globalConfirmMouseGuard = max(0.0'f32, cooldown)
 
@@ -70,7 +74,9 @@ proc drawGlobalConfirmDialog(): int =
   let bodyStr = case globalConfirmContext
                 of cdcQuitToDesktop: t(tkConfirmQuitBody)
                 of cdcQuitToMenu, cdcAbandonExit, cdcPostGameExit: t(tkConfirmExitBody)
-                of cdcAbandonRestart: t(tkConfirmCheckpointRestartBody)
+                of cdcAbandonRestart:
+                  if globalConfirmRunMode == gmRoguelite: t(tkConfirmCheckpointNewRunBody)
+                  else: t(tkConfirmCheckpointRestartBody)
   let bW = measureText(bodyStr, 19)
   drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, White)
   # cdcPostGameExit has no subtitle: the run is already over and results are
@@ -908,6 +914,9 @@ proc main() =
       # else reaching here (real game-over, or dying in a later endless loop) is a
       # death. awaitingVictoryScreen is only set while parked on the ending screen.
       discard commitRogueliteRunProgress(game, not game.rogueliteRun.awaitingVictoryScreen)
+      # What was just banked must not come back with a Continue from the
+      # sector's restore point (a no-op when the run has no checkpoint).
+      markCheckpointCurrencyBanked(game)
       setActiveRogueliteProfile(game.rogueliteProfile)
 
     # Save lifetime statistics only once per run
@@ -1393,7 +1402,7 @@ proc main() =
             initializeRunTracking(currentGame)
           else:
             deleteRunSave(gmWaveBased)
-            deleteBlockCheckpoint()  # fresh run: discard the block checkpoint too
+            deleteBlockCheckpoint(gmWaveBased)  # fresh run: discard the block checkpoint too
             deleteSuspendSnapshot(gmWaveBased)
             currentGame.state = gsPlaying
             initializeRunTracking(currentGame)
@@ -1466,9 +1475,21 @@ proc main() =
             elif applySavedRun(currentGame):
               initializeRunTracking(currentGame)
               currentGame.selectedRogueliteTheme = 0
+            elif applyBlockCheckpoint(currentGame):
+              # No live run save, but the sector's death-surviving restore point
+              # is still there: the run died and is picked up at the start of
+              # that sector. Same terms as the crash screen's Continue, so it
+              # spends a restore point ("die -> Exit -> Resume" is no free pass).
+              currentGame.runHadDeath = true
+              consumeContinueLife(currentGame)
+              currentGame.state = gsCountdown
+              currentGame.countdownTimer = 3.0
+              currentGame.selectedRogueliteTheme = 0
+              initializeRunTracking(currentGame)
             else:
               deleteRunSave(gmRoguelite)
               deleteSuspendSnapshot(gmRoguelite)
+              deleteBlockCheckpoint(gmRoguelite)
               globalWindowManager.openWindow(widRoguelite)
               currentGame.state = gsMenu
             statsSavedThisGame = false
@@ -1482,6 +1503,7 @@ proc main() =
             let heat9 = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
             deleteRunSave(gmRoguelite)  # Fresh run of this mode discards its own saved run.
             deleteSuspendSnapshot(gmRoguelite)
+            deleteBlockCheckpoint(gmRoguelite)  # ...and a dead run's restore point.
             beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
             initializeRunTracking(currentGame)
             generateThemeChoices(currentGame.rogueliteRun)
@@ -1800,9 +1822,9 @@ proc main() =
             cutsceneContinuation = cscDesktopIcon
             pendingIconAfterCutscene = 0
             currentGame.state = gsCutscene
-          elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint():
+          elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint(gmWaveBased):
             # Offer resume for a live run save OR a death-surviving block
-            # checkpoint (wave mode only).
+            # checkpoint.
             resumePromptActive = true
             resumePromptMode = gmWaveBased
           else:
@@ -1866,7 +1888,9 @@ proc main() =
             resetPvPWindow(globalWindowManager.pvp)
             playSound(stMenuSelect)
         of 9:  # Roguelite.exe - Roguelite Mode
-          if settings.rogueliteUnlocked and hasSavedRun(gmRoguelite):
+          # A live run save, or a dead run's sector restore point, can be resumed.
+          if settings.rogueliteUnlocked and
+             (hasSavedRun(gmRoguelite) or hasBlockCheckpoint(gmRoguelite)):
             resumePromptActive = true
             resumePromptMode = gmRoguelite
           else:
@@ -1904,7 +1928,7 @@ proc main() =
               cutsceneContinuation = cscDesktopIcon
               pendingIconAfterCutscene = 0
               currentGame.state = gsCutscene
-            elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint():
+            elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint(gmWaveBased):
               # Same resume prompt as the desktop icon: launching straight from
               # here used to start a fresh run and delete the saved one.
               resumePromptActive = true
@@ -1969,7 +1993,8 @@ proc main() =
               resetPvPWindow(globalWindowManager.pvp)
               playSound(stMenuSelect)
           of 9:  # Roguelite.exe
-            if settings.rogueliteUnlocked and hasSavedRun(gmRoguelite):
+            if settings.rogueliteUnlocked and
+               (hasSavedRun(gmRoguelite) or hasBlockCheckpoint(gmRoguelite)):
               resumePromptActive = true
               resumePromptMode = gmRoguelite
             else:
@@ -2038,12 +2063,11 @@ proc main() =
           pendingResume = resumeResult == 1
           if resumeResult == -1:
             # "New Run" discards this mode's checkpoint and exact snapshot, and
-            # (wave mode only) the death-surviving block checkpoint. Other
-            # modes' saved runs are left alone.
+            # its death-surviving block checkpoint (wave mode and the roguelite
+            # have one). Other modes' saved runs are left alone.
             deleteRunSave(resumePromptMode)
             deleteSuspendSnapshot(resumePromptMode)
-            if resumePromptMode == gmWaveBased:
-              deleteBlockCheckpoint()
+            deleteBlockCheckpoint(resumePromptMode)
           case resumePromptMode
           of gmTimeSurvival:
             startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
@@ -2870,6 +2894,11 @@ proc main() =
         selectFloorTheme(currentGame, currentGame.selectedRogueliteTheme)
         currentGame.state = gsCountdown
         currentGame.countdownTimer = 0.5
+        # The sector's restore point: the whole build as it enters the sector,
+        # after the last guardian's reward and this theme pick, so a Continue
+        # replays this same sector with nothing lost. The sector layout is
+        # rebuilt from the run seed. No-op on a profile without a budget.
+        saveBlockCheckpoint(currentGame)
         playSound(stMenuSelect)
 
       proc closeRogueliteFloorSelect() =
@@ -2884,6 +2913,7 @@ proc main() =
         # must go too: left on disk, the run could be resumed and banked again.
         deleteRunSave(gmRoguelite)
         deleteSuspendSnapshot(gmRoguelite)
+        deleteBlockCheckpoint(gmRoguelite)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -3087,7 +3117,7 @@ proc main() =
       # numerals are held back so the two do not fight over the centre.
       if currentGame.lifeLostTimer > 0:
         drawLifeLostOverlay(screenWidth, screenHeight, currentGame.livesUsed,
-                            difficultyMaxLives(), UnlimitedLives,
+                            difficultyMaxLives(currentGame.mode), UnlimitedLives,
                             1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration)
       else:
         # Draw stylish countdown overlay
@@ -3489,9 +3519,9 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
 
-      # A death-surviving wave-mode block checkpoint prepends a "Continue" option,
-      # shifting Restart/Stats/Exit indices up by one (idxOff).
-      let goShowContinue = currentGame.mode == gmWaveBased and hasBlockCheckpoint()
+      # A death-surviving block checkpoint (wave mode, roguelite) prepends a
+      # "Continue" option, shifting Restart/Stats/Exit indices up by one (idxOff).
+      let goShowContinue = hasBlockCheckpoint(currentGame.mode)
       let goOptionCount = if goShowContinue: 4 else: 3
       let goIdxOff = if goShowContinue: 1 else: 0
       let goRestartIdx = goIdxOff
@@ -3500,9 +3530,14 @@ proc main() =
 
       # Nested action helpers (shared by keyboard, gamepad and mouse dispatch).
       proc doContinue() =
+        let mode = currentGame.mode
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
-        setGameMode(currentGame, gmWaveBased)
+        setGameMode(currentGame, mode)
+        if mode == gmRoguelite:
+          # The run resumes on the live wallet the death just banked into.
+          setActiveRogueliteProfile(loadRogueliteProfile())
+          currentGame.rogueliteProfile = rogueliteProfile
         if applyBlockCheckpoint(currentGame):
           # Same run, resumed: keep the accumulated run statistics (power-ups
           # collected, kills, damage, time) instead of zeroing them.
@@ -3510,11 +3545,16 @@ proc main() =
           currentGame.runHadDeath = true
           # Spend a life and write the new count back to the checkpoint, so the
           # budget shrinks even if the next death arrives before the next boss
-          # block would have rewritten the file.
+          # block (or sector) would have rewritten the file.
           consumeContinueLife(currentGame)
           currentGame.state = gsCountdown
           currentGame.countdownTimer = 3.0
+          currentGame.selectedRogueliteTheme = 0
           resumeRunTracking(currentGame)
+        elif mode == gmRoguelite:
+          # Checkpoint failed to apply: a fresh roguelite starts at its setup.
+          globalWindowManager.openWindow(widRoguelite)
+          currentGame.state = gsMenu
         else:
           # Checkpoint failed to apply: fall back to a fresh run.
           currentGame.state = gsPlaying
@@ -3533,8 +3573,7 @@ proc main() =
         # already warned that Continue was still available), exactly like the
         # menu's "New Run". Keeping the file would let a fresh wave-1 run die at
         # wave 2 and still offer "Continue (Wave 21)" from the discarded run.
-        if previousMode == gmWaveBased:
-          deleteBlockCheckpoint()
+        deleteBlockCheckpoint(previousMode)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
@@ -3567,11 +3606,11 @@ proc main() =
       # When a checkpoint is available, Restart/Exit first ask for confirmation so
       # the player can't accidentally lose the chance to continue their run.
       proc requestRestart() =
-        if goShowContinue: showGlobalConfirm(cdcAbandonRestart, 1.0)
+        if goShowContinue: showGlobalConfirm(cdcAbandonRestart, 1.0, currentGame.mode)
         else: doRestart()
 
       proc requestExit() =
-        if goShowContinue: showGlobalConfirm(cdcAbandonExit, 1.0)
+        if goShowContinue: showGlobalConfirm(cdcAbandonExit, 1.0, currentGame.mode)
         elif settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit, cooldown = 0.0'f32)
         else: doExit()
 
@@ -3737,8 +3776,7 @@ proc main() =
           else:
             currentGame.selectedRogueliteHeat
         # Same abandon rule as the game-over Restart button.
-        if previousMode == gmWaveBased:
-          deleteBlockCheckpoint()
+        deleteBlockCheckpoint(previousMode)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)

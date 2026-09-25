@@ -839,7 +839,7 @@ proc completeBossWave*(game: Game) =
     if not game.runHadDeath and not game.cheatsUsed:
       game.flawlessWaveVictory = true
     deleteRunSave(game.mode)  # Run is won: no longer resumable.
-    deleteBlockCheckpoint()  # Won run: drop the block checkpoint too.
+    deleteBlockCheckpoint(game.mode)  # Won run: drop the block checkpoint too.
     deleteSuspendSnapshot(game.mode)  # Drop the exact snapshot too.
     # First-ever victory unlocks the secret kernel tophat cosmetic. It is
     # equipped by default (and immediately, so it shows in endless) and can be
@@ -3668,6 +3668,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     completeRogueliteBoss(game)
     saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
     deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
+    if game.rogueliteRun.completed:
+      # Won: the final sector's restore point must not replay the win. Pushing on
+      # into the endless loop writes a fresh one at its first sector.
+      deleteBlockCheckpoint(game.mode)
     if not survivalWasUnlocked and not globalSettings.isNil and globalSettings.survivalUnlocked:
       game.pendingToasts.add(t(tkGameModeUnlocked) & " " & t(tkSurvivalUnlockedNotif))
     let shardDelta = game.rogueliteRun.shardsEarned - prevShards
@@ -3741,6 +3745,8 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
   completeRogueliteBoss(game)
   saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
   deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
+  if game.rogueliteRun.completed:
+    deleteBlockCheckpoint(game.mode)  # Same win rule as the real boss kill.
   game.powerUpChoices = generatePowerUpChoices(game.player, true,
                           AllPowerFamilies, game.mode)
   game.selectedPowerUp = 0
@@ -6878,18 +6884,19 @@ proc drawDeathSequenceOverlay*(game: Game) =
                   Color(r: 0, g: 0, b: 0, a: uint8(game.deathSequenceFadeAlpha * 255.0'f32)))
 
 proc drawGameOver*(game: Game) =
-  # Use the new OS-style system crash screen. A wave-mode block checkpoint that
-  # survived death adds a leading "Continue (Wave N)" option.
-  let showContinue = game.mode == gmWaveBased and hasBlockCheckpoint()
+  # Use the new OS-style system crash screen. A block checkpoint that survived
+  # death adds a leading "Continue (Wave N)" / "Continue (Sector N)" option
+  # (wave mode and the roguelite; hasBlockCheckpoint is false for the rest).
+  let showContinue = hasBlockCheckpoint(game.mode)
   # The meter has to agree with the Continue button, so it counts the restore
   # points of the run that button would resume. Normally that is this run (the
   # checkpoint is written by it and carries the same counter), but a checkpoint
-  # left behind by an abandoned run belongs to that run, not the wave-1 one that
+  # left behind by an abandoned run belongs to that run, not the fresh one that
   # just died.
-  let livesUsed = if blockCheckpointExists(): blockCheckpointLivesUsed()
+  let livesUsed = if blockCheckpointExists(game.mode): blockCheckpointLivesUsed(game.mode)
                   else: game.livesUsed
   drawSystemCrash(game, game.selectedGameOverButton, showContinue,
-                  blockCheckpointWave(), livesUsed)
+                  blockCheckpointResumePoint(game.mode), livesUsed)
 
 proc drawVictory*(game: Game) =
   # OS-style "system secured" congratulations screen (wave-60 final boss cleared)

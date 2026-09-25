@@ -339,11 +339,12 @@ type
     tkGameOverResourcesCollected = "game_over_resources_collected"
     tkGameOverMissionDuration = "game_over_mission_duration"
     tkGameOverContinue = "game_over_continue"
+    tkGameOverContinueSector = "game_over_continue_sector"
     tkGameOverShopCurrencyBanked = "game_over_shop_currency_banked"
 
-    # Restore points -- the player-facing name for the wave-mode lives budget
-    # (see difficultyMaxLives). A "life" here is a saved system state that
-    # Continue restores off disk, so the UI calls it what it is.
+    # Restore points -- the player-facing name for the wave-mode and roguelite
+    # lives budget (see difficultyMaxLives). A "life" here is a saved system
+    # state that Continue restores off disk, so the UI calls it what it is.
     tkRestorePointsLabel = "restore_points_label"
     tkRestorePointsUnlimited = "restore_points_unlimited"
     tkRestorePointsNone = "restore_points_none"
@@ -1236,6 +1237,7 @@ type
     tkConfirmExitBtn = "confirm_exit_btn"
     tkConfirmCheckpointTitle = "confirm_checkpoint_title"
     tkConfirmCheckpointRestartBody = "confirm_checkpoint_restart_body"
+    tkConfirmCheckpointNewRunBody = "confirm_checkpoint_new_run_body"
     tkConfirmCheckpointSub = "confirm_checkpoint_sub"
     tkConfirmRestartBtn = "confirm_restart_btn"
 
@@ -2566,6 +2568,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Resources Collected:",
     "game_over_mission_duration": "Mission Duration:",
     "game_over_continue": "CONTINUE (WAVE",
+    "game_over_continue_sector": "CONTINUE (SECTOR",
     "game_over_shop_currency_banked": "BANKED FOR THE SHOP",
     "restore_points_label": "RESTORE POINTS",
     "restore_points_unlimited": "UNLIMITED",
@@ -3644,6 +3647,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_exit_btn": "[Q] EXIT",
     "confirm_checkpoint_title": "CHECKPOINT AVAILABLE",
     "confirm_checkpoint_restart_body": "Restart from wave 1?",
+    "confirm_checkpoint_new_run_body": "Start a new run?",
     "confirm_checkpoint_sub": "You can still CONTINUE from your last checkpoint.",
     "confirm_restart_btn": "[R] RESTART",
 
@@ -4566,6 +4570,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Recursos Recopilados:",
     "game_over_mission_duration": "Duración de la Misión:",
     "game_over_continue": "CONTINUAR (OLEADA",
+    "game_over_continue_sector": "CONTINUAR (SECTOR",
     "game_over_shop_currency_banked": "GUARDADO PARA LA TIENDA",
     "restore_points_label": "PUNTOS DE RESTAURACIÓN",
     "restore_points_unlimited": "ILIMITADOS",
@@ -5765,6 +5770,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_exit_btn": "[Q] VOLVER",
     "confirm_checkpoint_title": "PUNTO DE CONTROL DISPONIBLE",
     "confirm_checkpoint_restart_body": "¿Reiniciar desde la oleada 1?",
+    "confirm_checkpoint_new_run_body": "¿Empezar una partida nueva?",
     "confirm_checkpoint_sub": "Todavía puedes CONTINUAR desde tu último punto de control.",
     "confirm_restart_btn": "[R] REINICIAR",
 

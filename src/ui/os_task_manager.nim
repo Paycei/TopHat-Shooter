@@ -563,8 +563,9 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   let buttonsStartX = windowX + (TASK_MANAGER_WIDTH - 600) div 2
 
   # The inspector tabs run down to the buttons, or to the lives panel above
-  # them in wave mode.
-  let inspectorBottom = if game.mode == gmWaveBased: buttonY - LivesPanelHeight - 14 - 10
+  # them in the modes that have one.
+  let showsLives = game.mode in {gmWaveBased, gmRoguelite}
+  let inspectorBottom = if showsLives: buttonY - LivesPanelHeight - 14 - 10
                         else: buttonY - 10
   case shownTab
   of tmtProcesses:
@@ -578,16 +579,17 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   of tmtSettings:
     discard
 
-  # Lives panel between the tab content and the buttons. Wave mode only: it is
-  # the only mode with a continue budget, and an always-empty panel in survival
-  # or a roguelite floor would read as a bug rather than "not applicable here".
+  # Lives panel between the tab content and the buttons. Wave mode and the
+  # roguelite only: they are the modes with a continue budget, and an
+  # always-empty panel in survival would read as a bug rather than "not
+  # applicable here".
   if game.mode == gmWaveBased and game.hasWonGame:
     drawEndlessRestorePanel(windowX + 20, buttonY - LivesPanelHeight - 14,
                             TASK_MANAGER_WIDTH.int32 - 40, game.time)
-  elif game.mode == gmWaveBased:
+  elif showsLives:
     drawLivesPanel(windowX + 20, buttonY - LivesPanelHeight - 14,
                    TASK_MANAGER_WIDTH.int32 - 40, game.livesUsed,
-                   difficultyMaxLives(), UnlimitedLives, game.time)
+                   difficultyMaxLives(game.mode), UnlimitedLives, game.time)
 
   # Check mouse hover for buttons
   let exitHovered = mouseSupported and isMouseOverRect(mousePos, buttonsStartX, buttonY, 180, BUTTON_HEIGHT)

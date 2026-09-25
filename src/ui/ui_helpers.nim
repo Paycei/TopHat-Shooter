@@ -77,10 +77,11 @@ proc bestWrapFontSize*(text: string, maxWidth, preferredSize: int32,
 # ---------------------------------------------------------------------------
 # Restore-point glyph.
 #
-# The wave-mode lives budget (difficultyMaxLives in types.nim) is shown to the
-# player as RESTORE POINTS rather than lives, because that is literally what one
-# is in this fiction: pressing "Continue (Wave 21)" restores a saved system
-# state off disk (run_checkpoint.json), and spending one burns that save.
+# The lives budget of wave mode and the roguelite (difficultyMaxLives in
+# types.nim) is shown to the player as RESTORE POINTS rather than lives, because
+# that is literally what one is in this fiction: pressing "Continue (Wave 21)" or
+# "Continue (Sector 3)" restores a saved system state off disk (the mode's
+# run_checkpoint file), and spending one burns that save.
 #
 # The glyph is a save-state platter -- disc, recessed face, spindle hub and a
 # write LED -- drawn in the shadow / body / bright-core layering that

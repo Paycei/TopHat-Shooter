@@ -182,13 +182,15 @@ proc composeDeathCause(game: Game): tuple[verb: string, killer: string, isBoss: 
   return (t(verbKey), game.deathSourceName, game.deathSourceWasBoss)
 
 proc drawSystemCrash*(game: Game, selectedButton: int = 0,
-                      showContinue: bool = false, continueWave: int = 1,
+                      showContinue: bool = false, continueAt: int = 1,
                       livesUsed: int = 0) =
   ## Draw the enhanced Game Over screen as a modern system crash.
   ## Without a checkpoint: 0=Restart, 1=Stats, 2=Exit.
   ## With a checkpoint (showContinue): 0=Continue, 1=Restart, 2=Stats, 3=Exit.
-  ## `livesUsed` counts the continues already spent by the run that the Continue
-  ## button would resume (see drawGameOver), and drives the restore-point meter.
+  ## `continueAt` is the wave (wave mode) or sector (roguelite) Continue resumes
+  ## at. `livesUsed` counts the continues already spent by the run that the
+  ## Continue button would resume (see drawGameOver), and drives the
+  ## restore-point meter.
   let screenWidth = getVirtualScreenWidth()
   let screenHeight = getVirtualScreenHeight()
 
@@ -296,6 +298,11 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   let timeText = (if minutes < 10: "0" else: "") & $minutes & ":" &
                  (if seconds < 10: "0" else: "") & $seconds
 
+  # The roguelite shows six rows AND the restore-point meter, which does not fit
+  # at the standard spacing (the meter is anchored above the buttons and the
+  # sixth row would run into it), so its rows sit a little closer together.
+  let rowStep: int32 = if game.mode == gmRoguelite: 26 else: STAT_LINE_HEIGHT
+
   drawShopCurrencyBanked(game, windowX, yOffset)
   if game.mode == gmTimeSurvival:
     # Survival reports how far through the 20:00 run it got, on the survival
@@ -324,9 +331,9 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
       reached &= "  (+" & $run.endlessLoop & ")"
     drawStat(windowX + 40, yOffset, t("gameover_sector_reached"), reached, ">",
             Color(r: 255, g: 200, b: 100, a: 255))
-    yOffset += STAT_LINE_HEIGHT
+    yOffset += rowStep
     # One row for both, so the diagnostics block keeps its height budget above
-    # the buttons (six rows fit; seven would run into them).
+    # the meter and the buttons.
     drawStat(windowX + 40, yOffset, t("gameover_folders_patches"),
             $run.totalRoomsCleared & " / " & $run.relics.len, "[/]",
             Color(r: 120, g: 220, b: 255, a: 255))
@@ -334,19 +341,27 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
     drawStat(windowX + 40, yOffset, t(tkGameOverWaveReached), $game.currentWave, ">",
             Color(r: 255, g: 200, b: 100, a: 255))
   if game.mode != gmTimeSurvival:
-    yOffset += STAT_LINE_HEIGHT
+    # A roguelite's bosses are its finished sectors. bossCount can't say so: it
+    # counts a boss when it spawns (so the one that killed you) and is not part
+    # of the roguelite's saves, so a resumed or continued run restarts it at 0.
+    let bossesDefeated =
+      if game.mode == gmRoguelite and not game.rogueliteRun.isNil:
+        game.rogueliteRun.floorNumber - 1 +
+          game.rogueliteRun.endlessLoop * RogueliteFloorsToWin
+      else: game.bossCount
+    yOffset += rowStep
     drawStat(windowX + 40, yOffset, t(tkGameOverSystemUptime), timeText, "[T]",
             Color(r: 150, g: 200, b: 255, a: 255))
-    yOffset += STAT_LINE_HEIGHT
+    yOffset += rowStep
     drawStat(windowX + 40, yOffset, t(tkGameOverThreatsEliminated), $game.player.kills, "[X]",
             Color(r: 255, g: 150, b: 150, a: 255))
-    yOffset += STAT_LINE_HEIGHT
-    drawStat(windowX + 40, yOffset, t(tkVictoryBossesDefeated), $game.bossCount, "[B]",
+    yOffset += rowStep
+    drawStat(windowX + 40, yOffset, t(tkVictoryBossesDefeated), $bossesDefeated, "[B]",
             Color(r: 255, g: 180, b: 120, a: 255))
-    yOffset += STAT_LINE_HEIGHT
+    yOffset += rowStep
     drawStat(windowX + 40, yOffset, t(tkGameOverResourcesCollected), $game.player.coins, "[$]",
             Color(r: 255, g: 215, b: 0, a: 255))
-    yOffset += STAT_LINE_HEIGHT
+    yOffset += rowStep
 
   # Action buttons section - Positioned at bottom with proper spacing.
   # A death-surviving block checkpoint prepends a "Continue (Wave N)" button,
@@ -362,19 +377,23 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   # Lives panel, full width directly above the buttons. Anchored to buttonY
   # rather than to the flowing yOffset, so adding a diagnostics line above can
   # never push it down into the button row.
-  # A death in endless (hasWonGame) has no checkpoint to fall back on, so it
-  # gets the offline panel instead of a meter with platters left on it.
+  # A death in wave-mode endless (hasWonGame) has no checkpoint to fall back on,
+  # so it gets the offline panel instead of a meter with platters left on it.
+  # The roguelite's endless loop keeps its run's budget: it goes on writing a
+  # checkpoint at every sector.
   if game.mode == gmWaveBased and game.hasWonGame:
     drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
                             SCREEN_WIDTH - 60, game.time)
-  elif game.mode == gmWaveBased:
+  elif game.mode in {gmWaveBased, gmRoguelite}:
     drawLivesPanel(windowX + 30, buttonY - LivesPanelHeight - 14, SCREEN_WIDTH - 60,
-                   livesUsed, difficultyMaxLives(), UnlimitedLives, game.time)
+                   livesUsed, difficultyMaxLives(game.mode), UnlimitedLives, game.time)
 
   if showContinue:
     # Continue button (0)
+    let continueLabel = t(if game.mode == gmRoguelite: tkGameOverContinueSector
+                          else: tkGameOverContinue)
     drawModernButton(int32(buttonsX), buttonY, int32(buttonW), int32(BUTTON_HEIGHT),
-                    t(tkGameOverContinue) & " " & $continueWave & ")", "[C]",
+                    continueLabel & " " & $continueAt & ")", "[C]",
                     selectedButton == 0, game.time, baGreen)
 
   # Restart button

@@ -529,7 +529,9 @@ proc commitRogueliteRunProgress*(game: Game, died: bool): bool =
     return false
 
   game.rogueliteRun.died = died
-  if died:
+  # A run that spent a restore point was already counted when it first died;
+  # dying again after the Continue is the same run, not another one.
+  if died and game.livesUsed == 0:
     game.rogueliteProfile.totalRuns += 1
 
   # A cheated run banks nothing: its shards/cores are discarded, and its records

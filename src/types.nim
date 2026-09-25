@@ -151,11 +151,12 @@ type
   GameDifficulty* = enum
     ## Per-profile difficulty picked when a save profile is created.
     ## The on-disk form is the value string ("easy"/"medium"/"hard"/"nightmare").
-    ## Difficulty also sets the wave-mode lives budget -- how many times a run may
-    ## continue from the death-surviving block checkpoint (see difficultyMaxLives
-    ## below): unlimited / 3 / 1 / 0. Nightmare's 0 is what makes every death
-    ## there restart at wave 1. The combat multipliers live in the difficulty
-    ## table further down (difficultyEnemyHpMult and friends).
+    ## Difficulty also sets the lives budget -- how many times a run may continue
+    ## from its death-surviving checkpoint (see difficultyMaxLives below): wave
+    ## mode gets unlimited / 3 / 1 / 0, the roguelite 3 / 1 / 0 / 0. Nightmare's
+    ## 0 is what makes every death there start the run over. The combat
+    ## multipliers live in the difficulty table further down
+    ## (difficultyEnemyHpMult and friends).
     gdEasy = "easy", gdMedium = "medium", gdHard = "hard", gdNightmare = "nightmare"
 
   CutsceneContinuation* = enum
@@ -1782,7 +1783,7 @@ type
     waveStartTime*: float32  # Track when current wave started for statistics
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
     runHadDeath*: bool  # Sticky: the run has died at least once (or resumed a block checkpoint after dying)
-    livesUsed*: int  # Wave mode: continues already spent this run (see difficultyMaxLives)
+    livesUsed*: int  # Wave/roguelite: continues already spent this run (see difficultyMaxLives)
     # What the lifetime statistics already hold for this run. A Continue rolls the
     # run back to its checkpoint after its death was recorded, so the next record
     # adds only what was earned since then (see persistRunResults in main.nim).
@@ -2187,37 +2188,50 @@ proc difficultyBossCooldownMult*(): float32 =
   of gdHard: 0.85'f32
   of gdNightmare: 0.72'f32
 
-proc difficultyMaxLives*(): int =
-  ## Continues ("lives") a wave-mode run gets on this profile, or UnlimitedLives
+proc difficultyMaxLives*(mode: GameMode): int =
+  ## Continues ("lives") a run of `mode` gets on this profile, or UnlimitedLives
   ## for an unmetered budget. This is the single source of truth for the lives
   ## system: the checkpoint gate, the meters and the spend path all derive from
   ## it, so retuning a tier here retunes every consumer at once.
   ##
+  ## Wave mode resumes at the start of its last boss block, the roguelite at the
+  ## start of the sector it died in. A roguelite continue replays a whole sector
+  ## with the build intact, so it is metered tighter and runs out a tier sooner.
+  ## Survival, PvP and the sandbox have no checkpoint to continue from.
+  ##
   ## Naming note: this is the "lives" budget throughout the code, but the UI
   ## calls one a RESTORE POINT, because that is what spending one does -- it
   ## restores a saved system state off disk. See ui/ui_helpers.nim.
-  case currentDifficulty
-  of gdEasy: UnlimitedLives
-  of gdMedium: 3
-  of gdHard: 1
-  of gdNightmare: 0
+  case mode
+  of gmWaveBased:
+    case currentDifficulty
+    of gdEasy: UnlimitedLives
+    of gdMedium: 3
+    of gdHard: 1
+    of gdNightmare: 0
+  of gmRoguelite:
+    case currentDifficulty
+    of gdEasy: 3
+    of gdMedium: 1
+    of gdHard, gdNightmare: 0
+  of gmTimeSurvival, gmSandbox, gmPvP: 0
 
-proc livesRemaining*(used: int): int =
+proc livesRemaining*(used: int, mode: GameMode): int =
   ## Lives still available after `used` continues, or UnlimitedLives when the
   ## budget is unmetered. Clamped at 0 so a checkpoint written under a more
   ## generous difficulty can never report a negative count.
-  let maxLives = difficultyMaxLives()
+  let maxLives = difficultyMaxLives(mode)
   if maxLives == UnlimitedLives: UnlimitedLives
   else: max(0, maxLives - used)
 
-proc difficultyAllowsContinue*(): bool =
-  ## Whether the death-surviving block checkpoint ("Continue (Wave N)") exists on
-  ## this profile at all. Nightmare has no second chances: its lives budget is 0,
-  ## so dying always means a fresh run from wave 1. Gated at the run_save.nim
+proc difficultyAllowsContinue*(mode: GameMode): bool =
+  ## Whether the death-surviving checkpoint ("Continue (Wave N)" / "Continue
+  ## (Sector N)") exists for `mode` on this profile at all. A 0 budget means no
+  ## second chances: dying always means a fresh run. Gated at the run_save.nim
   ## write/read choke points so every consumer (game-over screen, resume prompt)
   ## loses the option at once. A run that has merely SPENT its lives is stopped
   ## further down, by hasBlockCheckpoint's remaining-lives check.
-  difficultyMaxLives() != 0
+  difficultyMaxLives(mode) != 0
 
 proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
                        duration: float32, sourceEnemyId: int = -1): AttackWarning =
