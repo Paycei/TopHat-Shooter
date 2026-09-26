@@ -1967,7 +1967,6 @@ proc startAssetGeneration*(): int =
   genThreadActive = true
   result = genPending
 
-proc assetGenPending*(): int = genPending
 proc assetGenBusy*(): bool = genThreadActive and not genDone.load()
 proc assetGenCompleted*(): int = genCompleted.load()
 proc assetGenOnMusic*(): bool = genCurrentIsMusic.load()
@@ -2153,13 +2152,6 @@ proc setGameVolume*(volume: float32) =
   if globalSoundSystem != nil:
     globalSoundSystem.masterVolume = clamp(volume, 0.0, 1.0)
 
-proc getGameVolume*(): float32 =
-  if globalSoundSystem != nil: globalSoundSystem.masterVolume else: 0.5
-
-proc toggleSound*() =
-  if globalSoundSystem != nil:
-    globalSoundSystem.enabled = not globalSoundSystem.enabled
-
 proc ensureMusicLoaded(sys: SoundSystem, track: MusicTrack): bool =
   ## Main thread only (opens an audio stream). True once the track is in the
   ## audio device. Deliberately never synthesises inline: if the worker has not
@@ -2234,6 +2226,3 @@ proc setMusicVolume*(volume: float32) =
                       globalSoundSystem.musicVolume)
       except:
         discard
-
-proc getMusicVolume*(): float32 =
-  if globalSoundSystem != nil: globalSoundSystem.musicVolume else: 0.5

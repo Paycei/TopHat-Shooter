@@ -5038,7 +5038,6 @@ proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: 
       burstTimer: 0.5,
       lastWallDamageTime: 0,
       entranceTimer: 2.0,
-      entranceWait: 0.0,
       targetPos: newVector2f(targetX, targetY),
       attackWarningTimer: 0,
       attackExecuteTimer: 0,

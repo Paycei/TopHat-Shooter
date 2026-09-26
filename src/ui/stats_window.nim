@@ -1,8 +1,8 @@
 ## OS-Themed Statistics Window
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
-import raylib, math, strutils, std/tables, algorithm
-import os_window, ../statistics, ../run_statistics, ../types, ../powerup_data, ../localization, ui_constants, ../render_context, ../utils
+import raylib, strutils, std/tables, algorithm
+import os_window, ../statistics, ../run_statistics, ../types, ../powerup_data, ../localization, ../render_context, ../utils
 
 type
   StatsTab* = enum
@@ -288,40 +288,6 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
   return false
 
 # VISUAL HELPER PROCEDURES
-
-proc drawSystemBar*(x, y, width, height: int, value: float32, label: string,
-                   maxValue: float32, color: Color, animTime: float32) =
-  let ratio = min(1.0, value / maxValue)
-
-  drawRectangle(x.int32, y.int32, width.int32, height.int32,
-               Color(r: 20, g: 20, b: 30, a: 255))
-
-  let fillWidth = int(width.float32 * ratio)
-  if fillWidth > 0:
-    for i in 0..<fillWidth:
-      let localRatio = i.float32 / width.float32
-      let pulse = sin(animTime * 2.0 + localRatio * 3.14) * 0.15 + 0.85
-      let r = uint8(float32(color.r) * localRatio * pulse)
-      let g = uint8(float32(color.g) * localRatio * pulse)
-      let b = uint8(float32(color.b) * pulse)
-      drawRectangle((x + i).int32, y.int32, 1, height.int32,
-                   Color(r: r, g: g, b: b, a: 200))
-
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
-                                width: width.float32, height: height.float32),
-                    1, Color(r: 80, g: 80, b: 100, a: 255))
-
-  drawText(label, (x + 5).int32, (y + (height - 14) div 2).int32, 14, White)
-
-  let valueText = $int(value) & " / " & $int(maxValue)
-  let textWidth = measureText(valueText, 14)
-  drawText(valueText, (x + width - textWidth - 5).int32,
-          (y + (height - 14) div 2).int32, 14, color)
-
-  let percentText = $int(ratio * 100) & "%"
-  let percentWidth = measureText(percentText, 12)
-  drawText(percentText, (x + width div 2 - percentWidth div 2).int32,
-          (y + height + 3).int32, 12, LightGray)
 
 proc drawMetricCard*(x, y, width, height: int, title: string, value: string,
                     icon: char, color: Color) =

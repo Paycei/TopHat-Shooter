@@ -157,21 +157,6 @@ proc drawMicroRewards*(tracker: MicroRewardTracker) =
       drawText(coinText, x - 10, y - 20, 14.int32,
         Color(r: 255, g: 215, b: 0, a: alpha))
 
-# WAVE STATS SUMMARY
-proc drawWaveStats*(stats: WaveStats, screenWidth, screenHeight: int32) =
-  let x = screenWidth - 250
-  let y = 50.int32
-
-  drawText(t(tkWaveStatsTitle) & " " & $stats.waveNumber, x, y, 20.int32, White)
-  drawText(t(tkWaveStatsKillsLabel) & " " & $stats.kills, x, y + 25, 16.int32,
-    Color(r: 200, g: 200, b: 200, a: 255))
-  drawText(t(tkWaveStatsTimeLabel) & " " & $(int(stats.survivalTime)) & "s", x, y + 45, 16.int32,
-    Color(r: 200, g: 200, b: 200, a: 255))
-
-  if stats.isPerfect:
-    drawText(t(tkWaveStatsFlawless), x, y + 65, 18.int32,
-      Color(r: 255, g: 215, b: 0, a: 255))
-
 # WAVE START BANNER
 # Driven by the game's time elapsed since the wave started (waveAge).
 # Call this every draw frame with waveAge = game.time - game.waveStartTime.

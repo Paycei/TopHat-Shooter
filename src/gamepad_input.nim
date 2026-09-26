@@ -60,9 +60,6 @@ var
 proc activeGamepad*(): int32 =
   activePad
 
-proc activeDevice*(): ActiveInputDevice =
-  device
-
 proc isGamepadActive*(): bool =
   device == adGamepad and activePad >= 0
 
@@ -86,9 +83,6 @@ proc availableGamepads*(): seq[tuple[index: int32, name: string]] =
 
 proc gamepadCursorPos*(): Vector2 =
   cursorPos
-
-proc setGamepadCursorPos*(pos: Vector2) =
-  cursorPos = pos
 
 proc setGamepadAimPoint*(pos: Vector2) =
   ## Gameplay writes the (possibly aim-assisted) world aim point here so the

@@ -6,7 +6,6 @@ const TwoPi = PI * 2.0
 type
   BossWeakPointHitResult* = object
     hit*: bool
-    exposed*: bool
     wrongTarget*: bool
     completed*: bool
     bonusDamage*: float32
@@ -24,9 +23,6 @@ proc effectiveWeakKind(enemy: Enemy): BossWeakObjectiveKind =
     else: bwoChaosAnomalies
   else:
     enemy.weakPoint.kind
-
-proc weakPointCoreRadius*(enemy: Enemy): float32 =
-  max(18.0'f32, enemy.radius * 0.35'f32)
 
 proc initBossWeakPointState*(spec: BossWeakPointDefinition, bossId: int): BossWeakPointState =
   result.enabled = spec.kind != bwoNone

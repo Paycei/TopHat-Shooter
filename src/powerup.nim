@@ -189,16 +189,6 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
     result[i] = selectedPowerUps[i]
 
 # ROTATING ORBS SYSTEM
-proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType, orbLevel: int = 1): RotatingOrb =
-  result = RotatingOrb(
-    angle: angle,
-    radius: radius,
-    elementType: elementType,
-    orbLevel: orbLevel,
-    hitEnemies: @[],
-    lastHitTime: initTable[int, float32]()
-  )
-
 const ORB_ORBIT_RADIUS_BASE = 42.0
 const ORB_ORBIT_RING_GAP    = 34.0
 

@@ -43,9 +43,7 @@ type
     icons*: seq[DesktopIcon]
     selectedIcon*: int
     time*: float32
-    taskbarHeight*: int
     windows*: seq[WindowState]
-    showCursor*: bool
     mousePos*: Vector2
     loadingActive*: bool
     loadingProgress*: float32
@@ -80,10 +78,6 @@ type
     # becomes a die drop that settles on a random face and reports the number.
     cubeDiceMode*: bool         # escape is a dice roll; also holds the cube still at rest after
     cubeDiceResult*: int        # rolled face value (1..6)
-    cubeDiceTQW*: float32       # target orientation quaternion (result face -> camera)
-    cubeDiceTQX*: float32
-    cubeDiceTQY*: float32
-    cubeDiceTQZ*: float32
     cubeDiceResultTimer*: float32  # seconds left to show the big result number
     cubeDiceVelY*: float32      # vertical velocity of the die during the bounce drop
     cubeDiceSpinX*: float32     # per-axis angular velocity while tumbling (rad/s)
@@ -291,9 +285,7 @@ proc newOSDesktop*(): OSDesktop =
     gridRows: DESKTOP_GRID_ROWS,
     selectedIcon: 0,
     time: 0,
-    taskbarHeight: TASKBAR_HEIGHT,
     windows: @[],
-    showCursor: true,
     loadingActive: false,
     loadingProgress: 0.0,
     loadingText: "",
@@ -323,10 +315,6 @@ proc newOSDesktop*(): OSDesktop =
     cubePortalEnterRight: false,
     cubeDiceMode: false,
     cubeDiceResult: 0,
-    cubeDiceTQW: 1.0,
-    cubeDiceTQX: 0.0,
-    cubeDiceTQY: 0.0,
-    cubeDiceTQZ: 0.0,
     cubeDiceResultTimer: 0.0,
     cubeDiceVelY: 0.0,
     cubeDiceSpinX: 0.0,

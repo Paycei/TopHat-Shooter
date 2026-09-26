@@ -245,11 +245,3 @@ proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primar
 proc getBulletSkinData*(skinType: BulletSkinType): BulletSkinData =
   ## Get the data for a specific bullet skin
   return bulletSkinDatabase[skinType]
-
-proc getBulletSkinName*(skinType: BulletSkinType): string =
-  ## Get the display name of a bullet skin
-  return bulletSkinDatabase[skinType].name
-
-proc getBulletSkinDescription*(skinType: BulletSkinType): string =
-  ## Get the description of a bullet skin
-  return bulletSkinDatabase[skinType].description

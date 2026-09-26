@@ -27,7 +27,6 @@ type
     damage*: float32             # Ranged damage
     usesBurst*: bool             # Whether to fire multiple shots in quick succession
     burstCount*: int             # Number of shots in a burst
-    burstDelay*: float32         # Delay between burst shots
     homingStrength*: float32     # 0.0 = no homing, 1.0 = full homing
     isPentagonBullet*: bool      # Special pentagon-shaped bullet
     bulletCountMin*: int         # Minimum bullets (for randomization)
@@ -44,7 +43,6 @@ type
     dashCooldown*: float32       # Cooldown between dashes
     dashDuration*: float32       # How long dash lasts
     teleportCooldown*: float32   # Cooldown between teleports
-    teleportRange*: float32      # Max teleport distance
     maintainsDistance*: bool     # Whether to keep distance from player
     optimalDistance*: float32    # Preferred distance from player
     retreatDistance*: float32    # Distance to start retreating
@@ -76,8 +74,6 @@ type
 
     # Visual configuration
     requiresScreenEntry*: bool    # Must enter screen before attacking
-    trailEffect*: bool            # Shows motion trail
-    glowEffect*: bool             # Pulsing glow effect
 
     # Hit requirements (for star-type enemies)
     usesHitCount*: bool
@@ -133,7 +129,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -142,8 +137,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       hasRangedAttack: false,
       hasSpecialBehavior: false,
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: false,
       usesHitCount: false,
       speedScaling: 10.0
     )
@@ -165,7 +158,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 300.0,
         retreatDistance: 250.0
@@ -180,7 +172,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 2.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: true,  # Special large pentagon bullet
         bulletCountMin: 0,
@@ -192,8 +183,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
       hasSpecialBehavior: false,
       requiresScreenEntry: true,
-      trailEffect: false,
-      glowEffect: true,       # Charge-up glow before firing
       usesHitCount: false,
       speedScaling: 3.0
     )
@@ -215,7 +204,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 2.0,
         dashDuration: 0.3,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -229,8 +217,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "zigzag_pattern|dash_range:150|dash_multiplier:3.0",
 
       requiresScreenEntry: false,
-      trailEffect: true,      # Shows motion trail during dash
-      glowEffect: true,       # Charge-up glow before dash
       usesHitCount: false,
       speedScaling: 10.0
     )
@@ -252,7 +238,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 2.0,
         dashDuration: 0.5,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -266,8 +251,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "dash_range:150",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Pulsing glow + charge glow
       usesHitCount: true,
       baseRequiredHits: 10,    # Base hits required (scales with difficulty)
       speedScaling: 6.0
@@ -290,7 +273,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 250.0,
         retreatDistance: 150.0
@@ -305,7 +287,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 3.5,          # Higher ranged damage
         usesBurst: true,
         burstCount: 3,
-        burstDelay: 0.05,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -317,8 +298,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
       hasSpecialBehavior: false,
       requiresScreenEntry: true,  # Must enter screen before attacking
-      trailEffect: false,
-      glowEffect: false,
       usesHitCount: false,
       speedScaling: 3.0
     )
@@ -340,7 +319,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 2.5,  # Base cooldown (randomized)
-        teleportRange: 200.0,   # Teleport distance from player
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -355,7 +333,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 5.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 2,
@@ -371,8 +348,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "chaotic_shooting",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Teleport warning glow
       usesHitCount: false,
       speedScaling: 8.0
     )
@@ -394,7 +369,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.5,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -408,8 +382,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "warning_duration:1.2|dash_duration:0.5|laser_length:120|rotation_speed:12.5",
 
       requiresScreenEntry: false,
-      trailEffect: true,       # Motion blur during dash
-      glowEffect: true,        # Pulsing warning glow
       usesHitCount: false,
       speedScaling: 4.0
     )
@@ -431,7 +403,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 2.5,    # Randomized 2.5-3.5
         dashDuration: 0.4,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -446,7 +417,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 4.5,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -462,8 +432,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "shoots_on_dash|shoots_periodically",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Dash indicator
       usesHitCount: false,
       speedScaling: 12.0
     )
@@ -485,7 +453,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 200.0,
         retreatDistance: 200.0
@@ -501,7 +468,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 5.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -517,8 +483,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
       hasSpecialBehavior: false,
       requiresScreenEntry: true,
-      trailEffect: false,
-      glowEffect: true,       # Constant firing glow
       usesHitCount: false,
       speedScaling: 3.0
     )
@@ -540,7 +504,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 3.0,  # Randomized 3-5 seconds
-        teleportRange: 150.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -555,7 +518,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 7.5,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -571,8 +533,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "fake_warning:1.0|teleport_shoot",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Mysterious pulse
       usesHitCount: false,
       speedScaling: 5.0
     )
@@ -594,7 +554,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 2.0,  # Randomized 2-3.5 seconds
-        teleportRange: 200.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -609,7 +568,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 5.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -625,8 +583,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "clone_count:3|shoot_from_clones:60%",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Fade effect
       usesHitCount: false,
       speedScaling: 6.0
     )
@@ -648,7 +604,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 500.0,  # Much further away (was 300)
         retreatDistance: 400.0   # Retreat if player gets close (was 225)
@@ -663,7 +618,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 9999.9,       # One-shot kill
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -679,8 +633,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "charge_time:3.0|trigger_range:500|cooldown:2.0|color_shift",  # Trigger range increased to 500 (was 300)
 
       requiresScreenEntry: true,
-      trailEffect: false,
-      glowEffect: true,       # Charging rings
       usesHitCount: false,
       speedScaling: 2.0
     )
@@ -702,7 +654,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 250.0,
         retreatDistance: 180.0
@@ -717,7 +668,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 10.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 1.0,  # Full homing
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -733,8 +683,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "meteorite_count:2|meteorite_count_random:1|warning_time:1.5|damage:3",
 
       requiresScreenEntry: true,
-      trailEffect: false,
-      glowEffect: true,       # Magical aura and casting glow
       usesHitCount: false,
       speedScaling: 3.0
     )
@@ -824,7 +772,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -833,8 +780,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       hasRangedAttack: false,
       hasSpecialBehavior: false,
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: false,
       usesHitCount: false,
       speedScaling: 0.0
     )

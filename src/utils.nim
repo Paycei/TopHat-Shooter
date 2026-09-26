@@ -1,7 +1,7 @@
 ## Shared utility helpers used across multiple modules.
 ## Only depends on the standard library and raylib, no game-state imports.
 
-import raylib, std/strutils
+import raylib, std/[strutils, math]
 
 # Enum parsing
 
@@ -59,3 +59,19 @@ proc darken*(color: Color, amount: int, alpha: int = 255): Color =
     b: clampByte(color.b.int - amount),
     a: clampByte(alpha)
   )
+
+# UI display
+
+# COLORS
+const Cyan* = Color(r: 0, g: 255, b: 255, a: 255)
+
+# BALANCE DISPLAY MULTIPLIER
+# This multiplier is applied to ALL health and damage values shown in the UI
+const BALANCE_MULTIPLIER* = 100
+
+proc formatHealthDisplay*(value: float32): string =
+  ## Format health/damage value for display: multiply by 100 and round to nearest integer
+  ## Example: 2.46 -> "246", 3.0 -> "300", 1.234 -> "123", 1.235 -> "124"
+  let scaled = value * 100.0
+  # Round to nearest integer
+  result = $round(scaled).int

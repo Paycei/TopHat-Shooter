@@ -76,15 +76,6 @@ proc tierName*(tier: AdvancementTier): string =
   of atLegendary: "Legendary"
   of atMythic: "Mythic"
 
-proc tierRank*(tier: AdvancementTier): int =
-  ## Rarity ordering used to sort advancement lists: Bronze -> Legendary.
-  case tier
-  of atBronze: 0
-  of atSilver: 1
-  of atGold: 2
-  of atLegendary: 3
-  of atMythic: 4
-
 proc allAdvancementTiers*(): array[5, AdvancementTier] =
   [atBronze, atSilver, atGold, atLegendary, atMythic]
 
@@ -553,26 +544,12 @@ proc totalClaimed*(profile: AdvancementProfile): int =
     if entry.claimed:
       inc result
 
-proc totalClaimedShards*(profile: AdvancementProfile): int =
-  if profile.isNil: return 0
-  for def in AllAdvancementDefs:
-    let entry = profile.getAdvancementEntry(def.id)
-    if entry.claimed:
-      result += def.rewardShards
-
 proc unclaimedShards*(profile: AdvancementProfile): int =
   if profile.isNil: return 0
   for def in AllAdvancementDefs:
     let entry = profile.getAdvancementEntry(def.id)
     if entry.unlocked and not entry.claimed:
       result += def.rewardShards
-
-proc unclaimedCores*(profile: AdvancementProfile): int =
-  if profile.isNil: return 0
-  for def in AllAdvancementDefs:
-    let entry = profile.getAdvancementEntry(def.id)
-    if entry.unlocked and not entry.claimed:
-      result += def.rewardCores
 
 proc categoryTotals*(profile: AdvancementProfile,
                      category: AdvancementCategory): tuple[unlocked, total, unclaimed: int] =

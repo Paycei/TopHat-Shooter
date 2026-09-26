@@ -164,34 +164,6 @@ proc reserveParticleSlot(pool: ParticlePool): int =
 
   result = -1
 
-proc resetParticle(particle: var Particle, x, y: float32, color: Color, speed: float32) =
-  ## Reset a particle to new values (for reuse)
-  let angle = rand(1.0) * PI * 2.0
-  let velocity = newVector2f(cos(angle) * speed, sin(angle) * speed)
-  let lifetime = 0.35'f32 + rand(0.45).float32
-  let startSize = 2.4'f32 + rand(3.8).float32
-  let style =
-    if rand(1.0) < 0.18: psSpark
-    elif rand(1.0) < 0.35: psShard
-    else: psSoft
-
-  configureParticle(
-    particle,
-    x, y,
-    velocity.x, velocity.y,
-    color,
-    lifetime,
-    startSize,
-    max(0.35'f32, startSize * (0.18'f32 + rand(0.18).float32)),
-    3.0'f32 + rand(4.0).float32,
-    (-18.0 + rand(36.0)).float32,
-    0.8'f32 + rand(0.7).float32,
-    style,
-    plBackground,
-    rand(360.0).float32,
-    (-280.0 + rand(560.0)).float32
-  )
-
 proc acquireParticleDetailed*(pool: ParticlePool, x, y, velX, velY: float32,
                               color: Color, lifetime: float32 = 0.5,
                               startSize: float32 = 3.5, endSize: float32 = 0.5,
@@ -204,14 +176,6 @@ proc acquireParticleDetailed*(pool: ParticlePool, x, y, velX, velY: float32,
   configureParticle(pool.particles[idx], x, y, velX, velY, color,
                     lifetime, startSize, endSize, drag, gravity, glow,
                     style, layer, rotation, spin)
-  pool.spawnedThisFrame += 1
-  true
-
-proc acquireParticle*(pool: ParticlePool, x, y: float32, color: Color, speed: float32): bool =
-  ## Get a particle from the pool and initialize it
-  let idx = reserveParticleSlot(pool)
-  if idx < 0: return false  # pool saturated, drop the spawn
-  resetParticle(pool.particles[idx], x, y, color, speed)
   pool.spawnedThisFrame += 1
   true
 
@@ -329,13 +293,6 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer,
 
 proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer) =
   drawParticlePoolLayer(pool, layer, getScreenWidth().float32, getScreenHeight().float32)
-
-proc drawParticlePool*(pool: ParticlePool) =
-  ## Draw all active particles from the pool
-  let sw = getScreenWidth().float32
-  let sh = getScreenHeight().float32
-  drawParticlePoolLayer(pool, plBackground, sw, sh)
-  drawParticlePoolLayer(pool, plForeground, sw, sh)
 
 proc spawnExplosionPooled*(pool: ParticlePool, x, y: float32, color: Color, count: int = 20) =
   ## Spawn a richer mixed explosion burst using the pool
@@ -561,10 +518,6 @@ proc spawnNovaExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float3
       rotation = angle * 180.0'f32 / PI.float32
     )
 
-proc clearPool*(pool: ParticlePool) =
-  pool.activeCount = 0
-  pool.spawnedThisFrame = 0
-
 proc spawnEnemyDeathBurst*(pool: ParticlePool, x, y: float32,
                            enemyColor: Color, enemyRadius: float32,
                            isBoss: bool = false) =
@@ -644,8 +597,3 @@ proc spawnEnemyDeathBurst*(pool: ParticlePool, x, y: float32,
       glow = 1.8'f32,
       style = psSoft
     )
-
-proc getPoolStats*(pool: ParticlePool): tuple[active: int, capacity: int, usage: float] =
-  result.active = pool.activeCount
-  result.capacity = pool.maxCapacity
-  result.usage = if pool.maxCapacity > 0: pool.activeCount.float / pool.maxCapacity.float else: 0.0

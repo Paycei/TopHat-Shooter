@@ -1,5 +1,5 @@
 import raylib, math, random
-import particle_types, types, localization
+import particle_types, types
 
 type
   ShakeIntensity* = enum
@@ -179,32 +179,8 @@ proc checkPerfectWaveCombo*(combo: var ComboSystem, waveEnemyCount: int): int =
 # MICRO-REWARD TRACKER
 proc newMicroRewardTracker*(): MicroRewardTracker =
   result = MicroRewardTracker(
-    lastKills: 0,
-    lastDamageDealt: 0,
     rewards: @[]
   )
-
-proc checkRewards*(tracker: var MicroRewardTracker, kills: int,
-                   damageDealt: float32, playerPos: Vector2f): seq[MicroReward] =
-  ## Check for micro-rewards and return new ones
-  var newRewards: seq[MicroReward] = @[]
-
-  # Every 10 kills
-  if kills > 0 and kills mod 10 == 0 and kills != tracker.lastKills:
-    newRewards.add(MicroReward(
-      message: t(tkMassacreBonus),
-      coins: 5,
-      displayTimer: 2.0,
-      pos: playerPos
-    ))
-
-  tracker.lastKills = kills
-  tracker.lastDamageDealt = damageDealt
-
-  return newRewards
-
-proc addReward*(tracker: var MicroRewardTracker, reward: MicroReward) =
-  tracker.rewards.add(reward)
 
 proc updateRewards*(tracker: var MicroRewardTracker, dt: float32) =
   var i = 0
@@ -314,9 +290,6 @@ proc worldTimeScale*(slowMo: SlowMotion): float32 =
     return slowMo.timeScale
   return 1.0
 
-proc getTimeScale*(slowMo: SlowMotion): float32 =
-  worldTimeScale(slowMo)
-
 # WAVE STATS TRACKER
 
 proc newWaveStats*(waveNumber: int): WaveStats =
@@ -385,18 +358,6 @@ proc updateDopamine*(dopamine: var DopamineState, dt: float32) =
 
 proc resetWaveStats*(dopamine: var DopamineState, waveNumber: int) =
   dopamine.waveStats = newWaveStats(waveNumber)
-
-proc getPerfectWaveBonus*(stats: WaveStats): int =
-  ## Returns bonus coins for perfect wave
-  if stats.isPerfect and stats.kills > 0:
-    return 30
-  return 0
-
-proc getClutchBonus*(stats: WaveStats, playerHp: float32, maxHp: float32): int =
-  ## Returns bonus coins if survived wave under 10% HP
-  if stats.kills > 0 and playerHp < maxHp * 0.1:
-    return 20
-  return 0
 
 # Add initialization for enhanced features
 import d_enhancements

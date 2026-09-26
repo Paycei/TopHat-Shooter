@@ -2,7 +2,7 @@
 ## System diagnostics and performance metrics
 
 import raylib, strutils, math
-import ../types, ../powerup, ../localization, ui_constants, ../render_context, ../powerup_data, icon_drawing, ../utils, hud_dock
+import ../types, ../powerup, ../localization, ../render_context, ../powerup_data, icon_drawing, ../utils, hud_dock
 
 const
   DBG_FULL_W = 200        # classic debug panel width
@@ -972,15 +972,3 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
            qYOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 125))
   drawText(displayFooter, actualX + panelWidth div 2 - footerW div 2,
            qYOffset, 9, Color(r: 210, g: 220, b: 235, a: 210))
-
-proc drawMinimalDebugInfo*(game: Game, x, y: int32) =
-  ## Draw minimal debug info (just FPS and entity count)
-  let fps = getFPS()
-  let fpsColor = if fps >= 55:
-    Color(r: 150, g: 150, b: 150, a: 200)
-  elif fps >= 30:
-    Color(r: 180, g: 160, b: 100, a: 200)
-  else:
-    Color(r: 180, g: 120, b: 120, a: 200)
-
-  drawText(t("debug_panel_fps") & ": " & $fps, x, y, 16, fpsColor)

@@ -889,54 +889,50 @@ type
   CosmeticPack* = object
     id*: CosmeticPackId
     nameKey*: string                  # localization key, resolved via t() at draw time
-    descKey*: string
     accent*: tuple[r, g, b: uint8]     # card theming colour
     members*: seq[CosmeticPackMember]
 
 const allCosmeticPacks*: array[CosmeticPackId, CosmeticPack] = [
-  cpGold: CosmeticPack(id: cpGold, nameKey: "pack_gold", descKey: "pack_gold_desc",
+  cpGold: CosmeticPack(id: cpGold, nameKey: "pack_gold",
     accent: (255'u8, 215'u8, 0'u8),
     members: @[(ckPlayerSkin, ord(skGold)), (ckBulletSkin, ord(bskGold)), (ckParticle, ord(pskGold))]),
-  cpIce: CosmeticPack(id: cpIce, nameKey: "pack_ice", descKey: "pack_ice_desc",
+  cpIce: CosmeticPack(id: cpIce, nameKey: "pack_ice",
     accent: (150'u8, 220'u8, 255'u8),
     members: @[(ckPlayerSkin, ord(skIce)), (ckBulletSkin, ord(bskIce)), (ckParticle, ord(pskIce))]),
-  cpShadow: CosmeticPack(id: cpShadow, nameKey: "pack_shadow", descKey: "pack_shadow_desc",
+  cpShadow: CosmeticPack(id: cpShadow, nameKey: "pack_shadow",
     accent: (120'u8, 120'u8, 150'u8),
     members: @[(ckPlayerSkin, ord(skShadow)), (ckBulletSkin, ord(bskShadow)), (ckParticle, ord(pskShadow))]),
-  cpRainbow: CosmeticPack(id: cpRainbow, nameKey: "pack_rainbow", descKey: "pack_rainbow_desc",
+  cpRainbow: CosmeticPack(id: cpRainbow, nameKey: "pack_rainbow",
     accent: (255'u8, 80'u8, 180'u8),
     members: @[(ckPlayerSkin, ord(skRainbow)), (ckBulletSkin, ord(bskRainbow)), (ckParticle, ord(pskRainbow))]),
-  cpVoid: CosmeticPack(id: cpVoid, nameKey: "pack_void", descKey: "pack_void_desc",
+  cpVoid: CosmeticPack(id: cpVoid, nameKey: "pack_void",
     accent: (130'u8, 70'u8, 190'u8),
     members: @[(ckPlayerSkin, ord(skVoid)), (ckBulletSkin, ord(bskVoid)), (ckParticle, ord(pskVoid))]),
-  cpPlasma: CosmeticPack(id: cpPlasma, nameKey: "pack_plasma", descKey: "pack_plasma_desc",
+  cpPlasma: CosmeticPack(id: cpPlasma, nameKey: "pack_plasma",
     accent: (150'u8, 120'u8, 255'u8),
     members: @[(ckPlayerSkin, ord(skPlasma)), (ckBulletSkin, ord(bskPlasma)), (ckParticle, ord(pskPlasma))]),
-  cpSunset: CosmeticPack(id: cpSunset, nameKey: "pack_sunset", descKey: "pack_sunset_desc",
+  cpSunset: CosmeticPack(id: cpSunset, nameKey: "pack_sunset",
     accent: (255'u8, 120'u8, 20'u8),
     members: @[(ckPlayerSkin, ord(skSunset)), (ckBulletSkin, ord(bskSunset)), (ckParticle, ord(pskFire))]),
-  cpEmerald: CosmeticPack(id: cpEmerald, nameKey: "pack_emerald", descKey: "pack_emerald_desc",
+  cpEmerald: CosmeticPack(id: cpEmerald, nameKey: "pack_emerald",
     accent: (0'u8, 220'u8, 110'u8),
     members: @[(ckPlayerSkin, ord(skEmerald)), (ckBulletSkin, ord(bskEmerald)), (ckParticle, ord(pskToxic))]),
-  cpNeonPink: CosmeticPack(id: cpNeonPink, nameKey: "pack_neon_pink", descKey: "pack_neon_pink_desc",
+  cpNeonPink: CosmeticPack(id: cpNeonPink, nameKey: "pack_neon_pink",
     accent: (255'u8, 60'u8, 180'u8),
     members: @[(ckPlayerSkin, ord(skNeonPink)), (ckBulletSkin, ord(bskNeonPink)), (ckParticle, ord(pskHearts))]),
-  cpAmethyst: CosmeticPack(id: cpAmethyst, nameKey: "pack_amethyst", descKey: "pack_amethyst_desc",
+  cpAmethyst: CosmeticPack(id: cpAmethyst, nameKey: "pack_amethyst",
     accent: (170'u8, 80'u8, 255'u8),
     members: @[(ckPlayerSkin, ord(skAmethyst)), (ckBulletSkin, ord(bskAmethyst)), (ckParticle, ord(pskAmethyst))]),
-  cpMatrix: CosmeticPack(id: cpMatrix, nameKey: "pack_matrix", descKey: "pack_matrix_desc",
+  cpMatrix: CosmeticPack(id: cpMatrix, nameKey: "pack_matrix",
     accent: (0'u8, 230'u8, 70'u8),
     members: @[(ckPlayerSkin, ord(skMatrix)), (ckBulletSkin, ord(bskMatrix)), (ckParticle, ord(pskMatrix))]),
-  cpStars: CosmeticPack(id: cpStars, nameKey: "pack_stars", descKey: "pack_stars_desc",
+  cpStars: CosmeticPack(id: cpStars, nameKey: "pack_stars",
     accent: (255'u8, 225'u8, 120'u8),
     members: @[(ckPlayerSkin, ord(skStars)), (ckBulletSkin, ord(bskStars)), (ckParticle, ord(pskStars))]),
-  cpLightning: CosmeticPack(id: cpLightning, nameKey: "pack_lightning", descKey: "pack_lightning_desc",
+  cpLightning: CosmeticPack(id: cpLightning, nameKey: "pack_lightning",
     accent: (120'u8, 190'u8, 255'u8),
     members: @[(ckPlayerSkin, ord(skLightning)), (ckBulletSkin, ord(bskLightning)), (ckParticle, ord(pskLightning))]),
 ]
-
-proc packMembers*(id: CosmeticPackId): seq[CosmeticPackMember] =
-  allCosmeticPacks[id].members
 
 proc packMemberCount*(id: CosmeticPackId): int =
   allCosmeticPacks[id].members.len
@@ -944,13 +940,6 @@ proc packMemberCount*(id: CosmeticPackId): int =
 proc applyDiscount(cost: CosmeticCost, factor: float32): CosmeticCost =
   makeCost(max(0, int(round(cost.dataShards.float32 * factor))),
            max(0, int(round(cost.cores.float32 * factor))))
-
-proc packFullRetail*(id: CosmeticPackId): CosmeticCost =
-  ## Sum of every member's individual price (the struck-through "before" price).
-  for m in allCosmeticPacks[id].members:
-    let c = cosmeticCost(m.kind, m.index)
-    result.dataShards += c.dataShards
-    result.cores += c.cores
 
 proc packUnownedRetail*(profile: RogueliteProfile, id: CosmeticPackId): CosmeticCost =
   ## Retail sum of only the members the player does not yet own.

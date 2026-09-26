@@ -30,8 +30,6 @@ type
     musicVolume*: float32
     inputBuffer*: string
     editingFPS*: bool
-    editingVolume*: bool
-    editingMusicVolume*: bool
     fullscreen*: bool
     renderResolutionMode*: RenderResolutionMode
     showFPS*: bool

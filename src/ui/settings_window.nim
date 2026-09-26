@@ -28,10 +28,7 @@ type
     rogueliteProfile*: RogueliteProfile
 
     # UI state
-    hoveredControl*: int  # -1 for none
     editingFPS*: bool
-    editingVolume*: bool
-    editingMusicVolume*: bool
 
     # Slider state
     draggingVolume*: bool
@@ -100,10 +97,7 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     stats: stats,
     advancementProfile: advancementProfile,
     rogueliteProfile: rogueliteProfile,
-    hoveredControl: -1,
     editingFPS: false,
-    editingVolume: false,
-    editingMusicVolume: false,
     draggingVolume: false,
     draggingMusic: false,
     draggingDamageSize: false,

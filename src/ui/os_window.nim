@@ -5,13 +5,6 @@ import raylib, math
 import ../render_context
 
 type
-  WindowAnimation* = enum
-    waNone,         # No animation
-    waSlideIn,      # Sliding in from off-screen
-    waSlideOut,     # Sliding out off-screen
-    waMinimizing,   # Animating to minimized state
-    waRestoring     # Animating from minimized to full
-
   OSWindowType* = enum
     owtSettings
     owtStatistics
@@ -37,12 +30,6 @@ type
     resizing*: bool
     resizeEdge*: int  # 0=none, 1=right, 2=bottom, 3=corner
 
-    # Panel-like animations
-    animation*: WindowAnimation
-    animationTimer*: float32
-    animationDuration*: float32
-    targetX*, targetY*: int
-    startX*, startY*: int
     savedWidth*, savedHeight*: int  # For minimize/restore
 
     # The UI scale this window is currently drawn and hit-tested at. Each window
@@ -84,44 +71,20 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     handledClickThisFrame: false,
     time: 0,
     zOrder: 0,
-    animation: waNone,
-    animationTimer: 0.0,
-    animationDuration: 0.3,
-    targetX: x,
-    targetY: y,
-    startX: x,
-    startY: y,
     savedWidth: width,
     savedHeight: height,
     uiScale: 1.0'f32
   )
 
-proc startSlideInAnimation*(window: OSWindow, screenWidth, screenHeight: int) =
-  ## Start slide-in animation from bottom
-  window.animation = waSlideIn
-  window.animationTimer = 0.0
-  window.startY = screenHeight
-  window.targetY = window.y
-  window.y = window.startY
-
-proc startSlideOutAnimation*(window: OSWindow, screenHeight: int) =
-  ## Start slide-out animation to bottom
-  window.animation = waSlideOut
-  window.animationTimer = 0.0
-  window.startY = window.y
-  window.targetY = screenHeight
-
 proc startMinimizeAnimation*(window: OSWindow) =
   ## Instantly minimize - no animation
   window.minimized = true
-  window.animation = waNone
   window.savedWidth = window.width
   window.savedHeight = window.height
 
 proc startRestoreAnimation*(window: OSWindow) =
   ## Instantly restore - no animation
   window.minimized = false
-  window.animation = waNone
 
 proc bringWindowToFront*(window: OSWindow, allWindows: openArray[OSWindow]) =
   ## Bring this window to the front of all other windows

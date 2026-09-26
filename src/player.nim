@@ -1,5 +1,5 @@
 import raylib, math, random, std/deques
-import gamepad_input, particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, ui/ui_constants, settings, utils
+import gamepad_input, particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, settings, utils
 
 const
   # BASE DASH tuning. A burst of speed, not a teleport and not an i-frame
@@ -125,7 +125,6 @@ proc newPlayer*(x, y: float32): Player =
     regenTimer: 0,
     lastDamageEvent: deNone,
     rageStacks: 0,
-    critCharge: 0,
     momentumStacks: 0,
     momentumBuildTimer: 0,
     momentumDecayTimer: 0,

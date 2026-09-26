@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, algorithm
-import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_hud, ui/os_debug_panel, ui/os_combined_hud, ui/os_legacy_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_constants, ui/ui_helpers, ui/hud_dock, boss_weakpoints, mode_hazards, mode_visuals, game/mode_mechanics
+import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_debug_panel, ui/os_combined_hud, ui/os_legacy_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_helpers, ui/hud_dock, boss_weakpoints, mode_hazards, mode_visuals, game/mode_mechanics
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
@@ -283,7 +283,6 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     screenHeight: screenHeight,
     shopItems: initShopItems(),
     selectedShopItem: 0,
-    menuSelection: 0,
     selectedPowerUp: 0,
     recentPowerUp: PowerUp(powerType: puDoubleShot, level: 0, rarity: prCommon),
     recentPowerUpTimer: 0.0,
@@ -317,7 +316,6 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     # Enemy ID counter for unique tracking
     nextEnemyId: 1,  # Start at 1 (0 = "no enemy" for linkId), increment with each enemy created
     # Statistics menu tab
-    statsMenuTab: 0,  # 0 = Lifetime, 1 = Last Run
     selectedRogueliteStarter: 0,
     selectedRogueliteHeat: RogueliteMinHeat,
     rogueliteHeatPulseTimer: 0.0,
@@ -325,7 +323,6 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     selectedRogueliteTheme: 0,
     # OS-Style Visual System
     osBackground: newOSBackground(),
-    osHUD: newOSHUD(),
     pauseMenuTab: tmtProcesses,  # Default to Processes tab in task manager
     selectedGameOverButton: 0,  # Default to Restart button
     deathSequenceTimer: 0.0,
@@ -6687,9 +6684,6 @@ proc drawGame*(game: Game) =
       Color(r: 255, g: 0, b: 0, a: vigAlpha), Color(r: 0, g: 0, b: 0, a: 0))
     drawRectangleGradientV(0, fullVh - vW, fullVw, vW,
       Color(r: 0, g: 0, b: 0, a: 0), Color(r: 255, g: 0, b: 0, a: vigAlpha))
-
-  # Update OS-style HUD
-  updateOSHUD(game.osHUD, dt)
 
   # ---------------- INTERFACE LAYER (UI scale applies from here) -------------
   # Everything below is the player-facing HUD, so it is drawn *and* hit-tested

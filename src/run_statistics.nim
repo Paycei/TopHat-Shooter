@@ -5,9 +5,8 @@ import particle_types
 type
   # EVENT TRACKING - Time-series events for detailed timeline analysis
   GameEventType* = enum
-    geKill, geDamageTaken, geDamageDealt, gePowerUpChosen, geShopPurchase,
-    geWaveComplete, geBossSpawn, geBossDefeat, geNearDeath, geLegendaryUsed,
-    geWallPlaced, geCoinCollected, geConsumableUsed
+    geKill, geDamageTaken, gePowerUpChosen, geShopPurchase,
+    geWaveComplete, geNearDeath, geLegendaryUsed, geWallPlaced
 
   GameEvent* = object
     timestamp*: float32
@@ -496,10 +495,6 @@ proc recordLegendaryAbility*(abilityType: string, gameTime: float32, playerPos: 
     position: playerPos
   ))
 
-proc recordSuccessfulParry*() =
-  if currentRunStats.isNil: return
-  currentRunStats.movement.successfulParries += 1
-
 proc recordNearDeath*(gameTime: float32, playerPos: Vector2f) =
   if currentRunStats.isNil: return
 
@@ -927,12 +922,6 @@ proc trackTimeWarp*(game: Game, duration: float32) =
 
 proc trackDamageAvoided*(game: Game) =
   recordDamageAvoided(game.player.lastDamageAvoided)
-
-proc trackParry*(game: Game) =
-  recordLegendaryAbility("parry", game.time, game.player.pos)
-
-proc trackParrySuccess*(game: Game) =
-  recordSuccessfulParry()
 
 # Resource Integration
 proc trackCoinPickup*(game: Game, amount: int) =

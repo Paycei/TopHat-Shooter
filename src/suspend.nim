@@ -89,9 +89,6 @@ proc fromFlatty*(s: string, i: var int, x: var RogueliteProfile) = x = nil
 proc toFlatty*(s: var string, x: OSBackgroundState) = discard
 proc fromFlatty*(s: string, i: var int, x: var OSBackgroundState) = discard
 
-proc toFlatty*(s: var string, x: OSHUDState) = discard
-proc fromFlatty*(s: string, i: var int, x: var OSHUDState) = discard
-
 proc toFlatty*(s: var string, x: DopamineState) = discard
 proc fromFlatty*(s: string, i: var int, x: var DopamineState) = discard
 
@@ -116,7 +113,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 9'u32  # bumped: survival/roguelite rosters (Enemy mode fields, Game.modeCombat, new EnemyType/AttackWarningType values)
+  SnapFormatVersion = 11'u32  # bumped: dead-field sweep (Game/Player/Enemy fields, GameEventType values)
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =
@@ -328,7 +325,6 @@ proc restoreGame*(target: var Game): bool =
     restored.rogueliteProfile = target.rogueliteProfile # keep LIVE meta profile
     restored.game3D = nil                               # 3D state never suspended
     restored.osBackground = target.osBackground         # freshly-inited render state
-    restored.osHUD = target.osHUD
     restored.dopamine = target.dopamine
     restored.particlePool = target.particlePool         # cosmetic particle buffers
     restored.screenWidth = target.screenWidth           # match the current window

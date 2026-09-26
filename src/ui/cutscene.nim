@@ -79,10 +79,6 @@ proc newCutscene*(shots: seq[CutsceneShot],
     fastForwardActive: false, skipHoldTimer: 0, lastShotPlayed: -1
   )
 
-proc resetCutscene*(c: Cutscene) =
-  c.time = 0; c.complete = false; c.scanlineOffset = 0; c.frame = 0
-  c.fastForwardActive = false; c.skipHoldTimer = 0; c.lastShotPlayed = -1
-
 proc shotAt*(c: Cutscene, time: float32): tuple[idx: int, local: float32, duration: float32] =
   var cursor = 0.0'f32
   for i, shot in c.shots:

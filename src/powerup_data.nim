@@ -174,9 +174,6 @@ const legendaryPanelTypes* = block:
 
 # Inline lookup helpers
 
-proc getPowerUpFamily*(pt: PowerUpType): RoguelitePowerFamily {.inline.} =
-  allPowerUpDefs[pt].family
-
 proc getPowerUpColor*(pt: PowerUpType): Color {.inline.} =
   allPowerUpDefs[pt].color
 

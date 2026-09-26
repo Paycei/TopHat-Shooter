@@ -34,7 +34,6 @@ type
     connected: bool
     nonce: int
     lastHeartbeat: float
-    connectionAttempted: bool
     lastUpdateTime: float
     # Threading support
     thread: Thread[DiscordClient]
@@ -67,7 +66,6 @@ proc newDiscordClient*(clientId: string): DiscordClient =
     connected: false,
     nonce: 0,
     lastHeartbeat: 0.0,
-    connectionAttempted: false,
     lastUpdateTime: 0.0,
     threadRunning: false,
     hasUpdate: false,
@@ -345,18 +343,6 @@ proc updatePresence*(client: DiscordClient, presence: DiscordRichPresence) =
   client.hasUpdate = true
   release(client.updateLock)
 
-proc clearPresence*(client: DiscordClient) =
-  ## Clear the Discord Rich Presence (non-blocking)
-  if client.isNil or not client.threadRunning:
-    return
-
-  # Queue a clear command
-  let emptyPresence = DiscordRichPresence(clearActivity: true)
-  acquire(client.updateLock)
-  client.pendingPresence = emptyPresence
-  client.hasUpdate = true
-  release(client.updateLock)
-
 proc runCallbacks*(client: DiscordClient) =
   ## No-op for compatibility - thread handles everything
   discard
@@ -391,3 +377,6 @@ proc createPresence*(state: string = "", details: string = "",
   result.partySize = partySize
   result.partyMax = partyMax
   result.buttons = buttons
+
+# Discord application the Rich Presence client registers as.
+const DISCORD_APP_ID* = "1452673894728208462"

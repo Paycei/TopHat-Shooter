@@ -83,40 +83,6 @@ proc rogueliteCloseButtonRect*(screenWidth, screenHeight: int32): Rectangle =
     width: CloseButtonSize.float32,
     height: CloseButtonSize.float32)
 
-proc rogueliteHeatPanelRect*(screenWidth, screenHeight: int32): Rectangle =
-  let panel = roguelitePanelRect(screenWidth, screenHeight)
-  Rectangle(
-    x: panel.x + RogueliteHeatPanelXOffset.float32,
-    y: panel.y + RogueliteHeatPanelYOffset.float32,
-    width: RogueliteHeatPanelW.float32,
-    height: RogueliteHeatPanelH.float32)
-
-proc rogueliteHeatPipRect*(screenWidth, screenHeight: int32, heatLevel: int): Rectangle =
-  let panel = rogueliteHeatPanelRect(screenWidth, screenHeight)
-  let idx = clamp(heatLevel, RogueliteMinHeat, RogueliteMaxHeat) - RogueliteMinHeat
-  Rectangle(
-    x: panel.x + RogueliteHeatPipStartX.float32 +
-       idx.float32 * (RogueliteHeatPipW + RogueliteHeatPipGap).float32,
-    y: panel.y + RogueliteHeatPipY.float32,
-    width: RogueliteHeatPipW.float32,
-    height: RogueliteHeatPipH.float32)
-
-proc rogueliteHeatDecreaseRect*(screenWidth, screenHeight: int32): Rectangle =
-  let panel = rogueliteHeatPanelRect(screenWidth, screenHeight)
-  Rectangle(
-    x: panel.x + panel.width - 112,
-    y: panel.y + 44,
-    width: RogueliteHeatStepButtonW.float32,
-    height: RogueliteHeatStepButtonH.float32)
-
-proc rogueliteHeatIncreaseRect*(screenWidth, screenHeight: int32): Rectangle =
-  let panel = rogueliteHeatPanelRect(screenWidth, screenHeight)
-  Rectangle(
-    x: panel.x + panel.width - 60,
-    y: panel.y + 44,
-    width: RogueliteHeatStepButtonW.float32,
-    height: RogueliteHeatStepButtonH.float32)
-
 proc locStarterName(kit: RogueliteStarterKit): string =
   case kit
   of rskOperator: t("roguelite_kit_operator")

@@ -21,8 +21,6 @@ type
     size*: Vector3f
     color*: Color
     moving*: bool
-    movePath*: seq[Vector3f]
-    pathIndex*: int
     moveSpeed*: float32
     jumpPad*: bool
     jumpForce*: float32
@@ -37,7 +35,6 @@ type
     fromPlayer*: bool
     active*: bool
     isHoming*: bool  # For homing missiles
-    homingTarget*: Vector3f
     homingStrength*: float32
 
   Arena3D* = object
@@ -63,8 +60,6 @@ type
     maxHealth*: float32
     active*: bool
     orbitSpeed*: float32  # Variable orbit speed per satellite
-    laserChargeTimer*: float32  # For laser attacks
-    targetSatelliteIndex*: int  # For inter-satellite lasers
 
   BossClone* = object
     pos*: Vector3f
@@ -82,10 +77,7 @@ type
     phaseTransitionTimer*: float32  # Brief invulnerability during phase changes
     attackPattern*: int  # Current attack pattern index
     patternTimer*: float32  # Timer for pattern rotation
-    shieldActive*: bool  # For Phase 4 shield mechanic
     shieldHealth*: float32
-    maxShieldHealth*: float32
-    clones*: seq[BossClone]  # For Phase 4 afterimages
     teleportTimer*: float32
     gravityWells*: seq[GravityWell]
     berserkModeActive*: bool  # Phase 5 final stand

@@ -2,7 +2,7 @@
 ## Draw enemies with modern process/threat labels
 
 import raylib, math
-import ../types, ui_constants, ../localization
+import ../types, ../utils
 
 proc getEnemyProcessName*(enemy: Enemy): string =
   ## Generate a process name for an enemy based on type
@@ -304,103 +304,3 @@ proc drawEnemyWarningIndicator*(enemy: Enemy) =
     Vector2(x: x + size, y: y - size),       # Top right
     warningColor
   )
-
-proc drawThreatCounter*(screenWidth, screenHeight: int32, threatCount: int) =
-  let counterWidth = 240
-  let counterHeight = 40
-  let counterX = 12
-  let counterY = screenHeight - counterHeight - 12
-
-  # Counter shadow
-  drawRectangle(int32(counterX + 2), int32(counterY + 2), int32(counterWidth), int32(counterHeight),
-               Color(r: 0, g: 0, b: 0, a: 100))
-
-  # Background with threat-level color tint
-  let bgTint = if threatCount > 20:
-    Color(r: 35, g: 20, b: 20, a: 230)
-  elif threatCount > 10:
-    Color(r: 35, g: 30, b: 20, a: 230)
-  else:
-    Color(r: 20, g: 30, b: 25, a: 230)
-
-  drawRectangle(int32(counterX), int32(counterY), int32(counterWidth), int32(counterHeight), bgTint)
-
-  # Top accent bar
-  let accentColor = if threatCount > 20:
-    Color(r: 255, g: 50, b: 50, a: 255)
-  elif threatCount > 10:
-    Color(r: 255, g: 165, b: 0, a: 255)
-  else:
-    Color(r: 100, g: 220, b: 120, a: 255)
-
-  drawRectangle(int32(counterX), int32(counterY), int32(counterWidth), 3, accentColor)
-
-  # Border with glow for high threats
-  let borderWidth = if threatCount > 15: 2.0 else: 1.5
-  drawRectangleLines(Rectangle(x: counterX.float32, y: counterY.float32,
-                                width: counterWidth.float32, height: counterHeight.float32),
-                    borderWidth, accentColor)
-
-  # Animated pulse for high threat levels
-  if threatCount > 15:
-    let pulse = sin(getTime() * 5.0) * 0.3 + 0.7
-    let pulseAlpha = uint8(100 * pulse)
-    drawRectangleLines(
-      Rectangle(x: (counterX - 2).float32, y: (counterY - 2).float32,
-               width: (counterWidth + 4).float32, height: (counterHeight + 4).float32),
-      1, Color(r: 255, g: 100, b: 100, a: pulseAlpha)
-    )
-
-  # Warning icon with animation
-  let iconX = counterX + 12
-  let iconY = counterY + 10
-  let iconPulse = if threatCount > 15: sin(getTime() * 8.0) * 0.3 + 0.7 else: 1.0
-
-  drawText("[!]", int32(iconX), int32(iconY), int32(20),
-          Color(r: uint8(accentColor.r.float32 * iconPulse),
-                g: uint8(accentColor.g.float32 * iconPulse),
-                b: uint8(accentColor.b.float32 * iconPulse),
-                a: 255))
-
-  # Threat count label
-  drawText(t("enemy_active_threats") & ":", int32(iconX + 35), int32(counterY + 8), 12,
-          Color(r: 180, g: 190, b: 200, a: 255))
-
-  # Threat number with emphasis
-  let countText = $threatCount
-  let countWidth = measureText(countText, 20)
-  let countX = counterX + counterWidth - countWidth - 15
-
-  # Shadow for number
-  drawText(countText, int32(countX + 1), int32(counterY + 10), 20,
-          Color(r: 0, g: 0, b: 0, a: 150))
-
-  # Number with color based on threat level
-  let numberColor = if threatCount > 20:
-    Color(r: 255, g: 100, b: 100, a: 255)
-  elif threatCount > 10:
-    Color(r: 255, g: 200, b: 100, a: 255)
-  else:
-    Color(r: 150, g: 255, b: 150, a: 255)
-
-  drawText(countText, int32(countX), int32(counterY + 9), 20, numberColor)
-
-  # Severity indicator bar
-  let barY = counterY + counterHeight - 8
-  let barWidth = counterWidth - 20
-  let barX = counterX + 10
-
-  let severityPercent = min(1.0, threatCount.float32 / 30.0)
-  let barFillWidth = (barWidth.float32 * severityPercent).int32
-
-  # Bar background
-  drawRectangle(int32(barX), int32(barY), int32(barWidth), 4,
-               Color(r: 30, g: 35, b: 40, a: 255))
-
-  # Bar fill
-  drawRectangle(int32(barX), int32(barY), barFillWidth, 4, accentColor)
-
-  # Bar border
-  drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
-                                width: barWidth.float32, height: 4.0),
-                    1, Color(r: 70, g: 80, b: 90, a: 255))

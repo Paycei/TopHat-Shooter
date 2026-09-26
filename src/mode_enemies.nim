@@ -17,9 +17,6 @@ const
   RequestRestorerRevive* = 92    ## Restorer: channel finished, raise the corpse
   RequestFragmentSlam* = 93      ## Fragment: landed its pounce, crash down (mode_mechanics)
 
-proc isModeEnemy*(et: EnemyType): bool {.inline.} =
-  et in etThread..etCorruptor
-
 proc isBallistic*(enemy: Enemy): bool {.inline.} =
   enemy.ballisticVel.x != 0.0'f32 or enemy.ballisticVel.y != 0.0'f32
 
@@ -536,9 +533,6 @@ proc updateDriver(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
     if enemy.attackExecuteTimer <= 0:
       enemy.attackPhase = 0
       enemy.modeTimer = DriverRecover
-
-proc driverStunned*(enemy: Enemy): bool {.inline.} =
-  enemy.enemyType == etDriver and enemy.attackPhase == 3
 
 proc updateCorruptor(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
                      walls: seq[Wall], currentTime: float32, game: var Game) =

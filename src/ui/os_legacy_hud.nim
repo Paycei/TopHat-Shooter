@@ -8,7 +8,7 @@
 ## keeps pointing at the right rows.
 
 import raylib, math, strutils
-import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ui_constants, ../render_context, icon_drawing, ../utils, ui_helpers
+import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../render_context, icon_drawing, ../utils, ui_helpers
 from ../player import DashCooldownTime
 from os_combined_hud import leftPanelMinimized, leftPanelPos, leftPanelDragging,
                             leftPanelDragOffset, lastStatusPanelRect, lastStatsRowRect,

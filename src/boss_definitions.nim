@@ -4,8 +4,6 @@
 import math, raylib
 import localization, types
 
-import boss_types
-export boss_types
 
 proc bossWeakTier*(bossID: int): int =
   ## Weak-point resistance tier (1-4). The wave campaign keys it on the boss
@@ -148,7 +146,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.85,
           color: Color(r: 100, g: 50, b: 200, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "circle_movement",
           attacks: @[
             BossAttack(
@@ -178,7 +175,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 1.1,
           color: Color(r: 150, g: 30, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "aggressive",
           attacks: @[
             BossAttack(
@@ -222,7 +218,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 1.1,  # durability buff: shielded/defensive opening now resists ~10% of body damage (scales window damage equally, so the weak-point gap is preserved)
           color: Color(r: 50, g: 150, b: 50, a: 255),
-          visualEffect: "shield",
           specialBehavior: "defensive",
           attacks: @[
             BossAttack(
@@ -296,7 +291,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.05,  # durability buff: raised from 0.95; kept below the defensive opening (1.1) to preserve the roster's "squishier when enraged" step-down
           color: Color(r: 30, g: 200, b: 30, a: 255),
-          visualEffect: "glow",
           specialBehavior: "summon_frenzy",
           attacks: @[
             BossAttack(
@@ -381,7 +375,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.05,  # small general buff: was 1.0
           defenseMultiplier: 1.05,  # small general buff: was 1.0 (slightly sturdier opening)
           color: Color(r: 255, g: 100, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "circle_player",
           attacks: @[
             BossAttack(
@@ -424,7 +417,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.25,  # small general buff: was 1.2 (NERFED from 1.5)
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 50, b: 0, a: 255),
-          visualEffect: "aura",
           specialBehavior: "meteor_storm",
           attacks: @[
             BossAttack(
@@ -467,7 +459,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.35,  # small general buff: was 1.3
           defenseMultiplier: 1.075,
           color: Color(r: 255, g: 0, b: 0, a: 255),
-          visualEffect: "glow",
           specialBehavior: "enraged",
           attacks: @[
             BossAttack(
@@ -524,7 +515,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 1.2,
           color: Color(r: 0, g: 200, b: 255, a: 255),
-          visualEffect: "shield",
           specialBehavior: "geometric_movement",
           attacks: @[
             BossAttack(
@@ -564,7 +554,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,  # NERFED from 1.33
           defenseMultiplier: 1.1,
           color: Color(r: 0, g: 255, b: 255, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "laser_web",
           attacks: @[
             BossAttack(
@@ -613,7 +602,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,  # NERFED from 1.3
           defenseMultiplier: 1.0,
           color: Color(r: 100, g: 255, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "laser_chaos",
           attacks: @[
             BossAttack(
@@ -701,7 +689,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,  # NERFED from 1.0
           defenseMultiplier: 1.0,
           color: Color(r: 80, g: 0, b: 120, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "teleport_pattern",
           attacks: @[
             BossAttack(
@@ -753,7 +740,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,  # NERFED from 1.3
           defenseMultiplier: 0.9,
           color: Color(r: 120, g: 0, b: 180, a: 255),
-          visualEffect: "aura",
           specialBehavior: "clone_assault",
           attacks: @[
             BossAttack(
@@ -813,7 +799,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,  # NERFED from 1.5
           defenseMultiplier: 1.5,
           color: Color(r: 160, g: 40, b: 220, a: 255),
-          visualEffect: "glow",
           specialBehavior: "reality_break",
           attacks: @[
             BossAttack(
@@ -906,7 +891,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.85,
           defenseMultiplier: 1.35,
           color: Color(r: 255, g: 255, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "electric_buildup",  # Twitchy, charging movement
           attacks: @[
             BossAttack(
@@ -949,7 +933,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.1,
           color: Color(r: 255, g: 255, b: 150, a: 255),
-          visualEffect: "aura",
           specialBehavior: "electric_surge",  # Rapid twitchy movement
           attacks: @[
             BossAttack(
@@ -1004,7 +987,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.3,
           defenseMultiplier: 0.9,
           color: Color(r: 255, g: 255, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "critical_discharge",  # Chaotic electric movement
           attacks: @[
             BossAttack(
@@ -1072,7 +1054,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,
           defenseMultiplier: 1.4,
           color: Color(r: 150, g: 100, b: 255, a: 255),
-          visualEffect: "shield",
           specialBehavior: "orbital_pattern",  # Circular orbital movement
           attacks: @[
             BossAttack(
@@ -1128,7 +1109,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.3,
           color: Color(r: 180, g: 120, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "satellite_swarm",  # Multiple orbital patterns
           attacks: @[
             BossAttack(
@@ -1192,7 +1172,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.3,
           defenseMultiplier: 1.0,
           color: Color(r: 200, g: 150, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "orbital_chaos",  # Complex orbital patterns
           attacks: @[
             BossAttack(
@@ -1274,7 +1253,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,
           defenseMultiplier: 1.35,  # late-boss resistance buff: was 1.2
           color: Color(r: 200, g: 0, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "aggressive_chase",  # Direct pursuit
           attacks: @[
             BossAttack(
@@ -1337,7 +1315,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.3,
           defenseMultiplier: 1.2375,  # late-boss resistance buff: was 1.1
           color: Color(r: 255, g: 30, b: 0, a: 255),
-          visualEffect: "aura",
           specialBehavior: "enraged_assault",  # Aggressive movement
           attacks: @[
             BossAttack(
@@ -1404,7 +1381,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.5,
           defenseMultiplier: 1.0125,  # late-boss resistance buff: was 0.9
           color: Color(r: 255, g: 0, b: 0, a: 255),
-          visualEffect: "glow",
           specialBehavior: "berserk_rampage",  # Maximum aggression
           attacks: @[
             BossAttack(
@@ -1487,7 +1463,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,
           defenseMultiplier: 1.5,  # late-boss resistance buff: was 1.3
           color: Color(r: 255, g: 200, b: 255, a: 255),
-          visualEffect: "shield",
           specialBehavior: "prism_defense",  # Geometric movement
           attacks: @[
             BossAttack(
@@ -1533,7 +1508,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.375,  # late-boss resistance buff: was 1.2
           color: Color(r: 200, g: 150, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "prism_array",  # Figure-8 patterns
           attacks: @[
             BossAttack(
@@ -1576,7 +1550,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.275,  # late-boss resistance buff: was 1.1
           color: Color(r: 255, g: 255, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "light_cascade",  # Sweeping arc movements
           attacks: @[
             BossAttack(
@@ -1647,7 +1620,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 1.3,  # late-boss resistance buff: was 1.1
           color: Color(r: 0, g: 180, b: 180, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "slow_time",  # Slow methodical movement
           attacks: @[
             BossAttack(
@@ -1693,7 +1665,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 1.4,  # late-boss resistance buff: was 1.2
           color: Color(r: 100, g: 220, b: 220, a: 255),  # Brighter cyan
-          visualEffect: "aura",
           specialBehavior: "time_distortion",  # Stuttering movement
           attacks: @[
             BossAttack(
@@ -1751,7 +1722,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.3,
           defenseMultiplier: 1.4,  # late-boss resistance buff: was 1.2
           color: Color(r: 150, g: 255, b: 255, a: 255),  # Bright cyan/white
-          visualEffect: "glow",
           specialBehavior: "time_collapse",  # Fast blinking movement
           attacks: @[
             BossAttack(
@@ -1833,7 +1803,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,
           defenseMultiplier: 1.325,  # late-boss resistance buff: was 1.1
           color: Color(r: 180, g: 0, b: 180, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "chaotic_movement",
           attacks: @[
             BossAttack(
@@ -1891,7 +1860,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.2,  # late-boss resistance buff: was 1.0
           color: Color(r: 200, g: 40, b: 200, a: 255),
-          visualEffect: "aura",
           specialBehavior: "entropy_field",
           attacks: @[
             BossAttack(
@@ -1949,7 +1917,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.4,
           defenseMultiplier: 1.15,  # late-boss resistance buff: was 0.95
           color: Color(r: 255, g: 100, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "total_chaos",
           attacks: @[
             BossAttack(
@@ -2018,7 +1985,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,  # NERFED from 1.0
           defenseMultiplier: 1.55,  # late-boss resistance buff: was 1.3
           color: Color(r: 255, g: 50, b: 50, a: 255),
-          visualEffect: "shield",
           specialBehavior: "balanced_assault",
           attacks: @[
             BossAttack(
@@ -2062,7 +2028,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.15,  # NERFED from 1.3
           defenseMultiplier: 1.45,  # late-boss resistance buff: was 1.2
           color: Color(r: 255, g: 100, b: 0, a: 255),
-          visualEffect: "aura",
           specialBehavior: "aggressive_mixed",
           attacks: @[
             BossAttack(
@@ -2119,7 +2084,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.25,  # NERFED from 1.6
           defenseMultiplier: 1.325,  # late-boss resistance buff: was 1.1
           color: Color(r: 255, g: 255, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -2191,7 +2155,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.5,
           defenseMultiplier: 3.0,
           color: Color(r: 255, g: 0, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "final_form",
           attacks: @[
             BossAttack(
@@ -2309,7 +2272,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.9,
           color: Color(r: 255, g: 90, b: 170, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "defensive",
           attacks: @[
             # children: projectileCount = how many, durationOrRadius = raise ring radius
@@ -2355,7 +2317,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 60, b: 200, a: 255),
-          visualEffect: "aura",
           specialBehavior: "circle_movement",
           attacks: @[
             BossAttack(
@@ -2407,7 +2368,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.1,
           color: Color(r: 255, g: 40, b: 140, a: 255),
-          visualEffect: "glow",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -2467,7 +2427,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.95,
           color: Color(r: 255, g: 170, b: 40, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "defensive",
           attacks: @[
             # ranks: projectileCount = ranks, durationOrRadius = bodies per rank,
@@ -2510,7 +2469,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 140, b: 20, a: 255),
-          visualEffect: "aura",
           specialBehavior: "circle_movement",
           attacks: @[
             BossAttack(
@@ -2554,7 +2512,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.1,
           color: Color(r: 255, g: 100, b: 0, a: 255),
-          visualEffect: "glow",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -2615,7 +2572,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 1.05,
           color: Color(r: 255, g: 90, b: 30, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "balanced_assault",
           attacks: @[
             # trail: durationOrRadius = seconds the emitter tracks the player,
@@ -2659,7 +2615,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 1.1,
           color: Color(r: 255, g: 60, b: 10, a: 255),
-          visualEffect: "aura",
           specialBehavior: "aggressive_mixed",
           attacks: @[
             BossAttack(
@@ -2704,7 +2659,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.15,
           color: Color(r: 255, g: 30, b: 0, a: 255),
-          visualEffect: "glow",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -2774,7 +2728,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,
           defenseMultiplier: 1.55,
           color: Color(r: 255, g: 50, b: 50, a: 255),
-          visualEffect: "shield",
           specialBehavior: "balanced_assault",
           attacks: @[
             BossAttack(
@@ -2817,7 +2770,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.15,
           defenseMultiplier: 1.45,
           color: Color(r: 255, g: 100, b: 0, a: 255),
-          visualEffect: "aura",
           specialBehavior: "aggressive_mixed",
           attacks: @[
             BossAttack(
@@ -2860,7 +2812,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.25,
           defenseMultiplier: 1.325,
           color: Color(r: 255, g: 255, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -2907,7 +2858,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.5,
           defenseMultiplier: 3.0,
           color: Color(r: 255, g: 0, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "final_form",
           attacks: @[
             # safe mode: durationOrRadius = cast seconds, projectileSpeed = bubble
@@ -2973,7 +2923,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.85,
           color: Color(r: 255, g: 110, b: 48, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "anchored",
           attacks: @[
             # inspection: projectileCount = beams, durationOrRadius = sweep seconds,
@@ -3007,7 +2956,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 0.95,
           color: Color(r: 255, g: 80, b: 30, a: 255),
-          visualEffect: "aura",
           specialBehavior: "anchored",
           attacks: @[
             BossAttack(
@@ -3051,7 +2999,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.05,
           color: Color(r: 255, g: 50, b: 20, a: 255),
-          visualEffect: "glow",
           specialBehavior: "anchored",
           attacks: @[
             BossAttack(
@@ -3109,7 +3056,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.85,
           color: Color(r: 150, g: 190, b: 140, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "defensive",
           attacks: @[
             # trash: projectileCount = bombs, durationOrRadius = fuse to the purge,
@@ -3143,7 +3089,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 0.95,
           color: Color(r: 120, g: 210, b: 110, a: 255),
-          visualEffect: "aura",
           specialBehavior: "circle_movement",
           attacks: @[
             BossAttack(
@@ -3188,7 +3133,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.05,
           color: Color(r: 90, g: 230, b: 80, a: 255),
-          visualEffect: "glow",
           specialBehavior: "aggressive_mixed",
           attacks: @[
             BossAttack(
@@ -3247,7 +3191,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.85,
           color: Color(r: 90, g: 160, b: 255, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "geometric_movement",
           attacks: @[
             # audit: durationOrRadius = locked window (the telegraph is fixed)
@@ -3289,7 +3232,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 0.95,
           color: Color(r: 60, g: 120, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "geometric_movement",
           attacks: @[
             BossAttack(
@@ -3330,7 +3272,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.05,
           color: Color(r: 40, g: 80, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -3387,7 +3328,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.85,
           color: Color(r: 0, g: 220, b: 255, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "circle_movement",
           attacks: @[
             # links: projectileCount = links, projectileSpeed = packet speed,
@@ -3430,7 +3370,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 0.95,
           color: Color(r: 0, g: 180, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "circle_movement",
           attacks: @[
             BossAttack(
@@ -3471,7 +3410,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.05,
           color: Color(r: 0, g: 140, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -3528,7 +3466,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.85,
           color: Color(r: 150, g: 95, b: 235, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "balanced_assault",
           attacks: @[
             # page fault: projectileCount = obstacles paged, durationOrRadius =
@@ -3562,7 +3499,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 0.95,
           color: Color(r: 130, g: 70, b: 245, a: 255),
-          visualEffect: "aura",
           specialBehavior: "balanced_assault",
           attacks: @[
             BossAttack(
@@ -3603,7 +3539,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.05,
           color: Color(r: 110, g: 40, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -3660,7 +3595,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.85,
           color: Color(r: 70, g: 215, b: 195, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "circle_player",
           attacks: @[
             # echo: projectileCount = echoes, durationOrRadius = echo lifetime,
@@ -3694,7 +3628,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,
           defenseMultiplier: 0.95,
           color: Color(r: 40, g: 230, b: 200, a: 255),
-          visualEffect: "aura",
           specialBehavior: "circle_player",
           attacks: @[
             BossAttack(
@@ -3735,7 +3668,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.05,
           color: Color(r: 20, g: 255, b: 210, a: 255),
-          visualEffect: "glow",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -3785,7 +3717,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,
           defenseMultiplier: 1.55,
           color: Color(r: 255, g: 50, b: 50, a: 255),
-          visualEffect: "shield",
           specialBehavior: "balanced_assault",
           attacks: @[
             BossAttack(
@@ -3828,7 +3759,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.15,
           defenseMultiplier: 1.45,
           color: Color(r: 255, g: 100, b: 0, a: 255),
-          visualEffect: "aura",
           specialBehavior: "aggressive_mixed",
           attacks: @[
             BossAttack(
@@ -3871,7 +3801,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.25,
           defenseMultiplier: 1.325,
           color: Color(r: 255, g: 255, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -3915,7 +3844,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.5,
           defenseMultiplier: 3.0,
           color: Color(r: 255, g: 0, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "final_form",
           attacks: @[
             # doors: durationOrRadius = seconds to reach the real door
@@ -3994,16 +3922,6 @@ proc getCustomBossNumber*(waveNumber: int): int =
 
   return bossNumber
 
-proc getBossForWave*(waveNumber: int): BossDefinition =
-  ## Gets the appropriate boss definition for a wave number
-  ## Past the 12-boss campaign, uses boss 12 with stats scaled per wave
-  if not isBossWave(waveNumber):
-    # Not a boss wave, return empty definition
-    return BossDefinition()
-
-  let bossNumber = getCustomBossNumber(waveNumber)
-  return getBossDefinition(bossNumber)
-
 proc getBossPhaseHpPools*(boss: BossDefinition, scaledHp: float32): seq[float32] =
   ## Splits total boss HP into one pool per phase using the existing threshold gaps.
   if scaledHp <= 0.0'f32 or boss.phases.len == 0:
@@ -4026,16 +3944,6 @@ proc getBossPhaseHpPools*(boss: BossDefinition, scaledHp: float32): seq[float32]
 
   for weight in weights:
     result.add(max(0.01'f32, scaledHp * (weight / totalWeight)))
-
-proc getCurrentPhase*(boss: BossDefinition, currentHpPercent: float32): BossPhaseDefinition =
-  ## Returns the current phase based on boss HP percentage
-  result = boss.phases[0]  # Default to first phase
-
-  for phase in boss.phases:
-    if currentHpPercent <= phase.hpThreshold:
-      result = phase
-    else:
-      break
 
 # Boss Stats Scaling
 

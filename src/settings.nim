@@ -26,8 +26,6 @@ proc newDefaultSettings*(): Settings =
     musicVolume: 0.5,
     inputBuffer: "60",
     editingFPS: false,
-    editingVolume: false,
-    editingMusicVolume: false,
     fullscreen: false,
     renderResolutionMode: rrmEnabled,
     showFPS: false,

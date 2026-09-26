@@ -747,7 +747,6 @@ type
     regenTimer*: float32
     lastDamageEvent*: DamageEvent  # One-frame categorical signal set by takeDamage, consumed by drawPlayer
     rageStacks*: int
-    critCharge*: float32
     # Momentum (Legendary, puSpeedBoost): discrete stacks built by sustained fast
     # movement, lost the same way if it stops. Updated each frame in player.nim's
     # updatePlayer (right after player.vel is finalized); consumed in
@@ -915,6 +914,60 @@ type
     cooldownDuration*: float32
     targetHitRadius*: float32
 
+  # Boss definition data. The roster itself (getBossDefinition) lives in
+  # boss_definitions.nim.
+  BossAttackPattern* = enum
+    bapSpiral,           # Shoots bullets in spiral
+    bapBurst,            # Rapid burst fire
+    bapWave,             # Wave pattern
+    bapTargeted,         # Direct shots at player
+    bapCircle,           # Circle of bullets
+    bapLaser,            # Laser beams
+    bapOrbit,            # Orbiting projectiles
+    bapMeteor,           # Falling projectiles
+    bapChain,            # Chain lightning
+    bapPulse,            # Expanding pulse
+    bapTeleport,         # Teleport then attack
+    bapSummon,           # Spawn minions
+    bapDash,             # Dash attack
+    bapBarrage,          # Massive projectile barrage
+    bapSnipe,            # Precise aimed shots
+    bapMinionVolley      # Living Royal Guards fire at the player in unison (Summoner King)
+
+  BossAttack* = object
+    attackType*: BossAttackPattern
+    damage*: float32
+    cooldown*: float32
+    timer*: float32
+    projectileSpeed*: float32
+    projectileCount*: int
+    spreadAngle*: float32
+    durationOrRadius*: float32
+    bulletRadius*: float32     # Bullet size override (0 = use default 6)
+    specialData*: string  # JSON-like data for special mechanics
+
+  BossPhaseDefinition* = object
+    name*: string
+    hpThreshold*: float32      # Enters this phase when HP drops below this %
+    speedMultiplier*: float32
+    damageMultiplier*: float32
+    defenseMultiplier*: float32
+    attacks*: seq[BossAttack]
+    color*: Color
+    specialBehavior*: string
+
+  BossDefinition* = object
+    name*: string
+    bossID*: int
+    baseHP*: float32
+    baseSpeed*: float32
+    baseDamage*: int
+    baseRadius*: float32
+    color*: Color
+    phases*: seq[BossPhaseDefinition]
+    description*: string
+    weakPoint*: BossWeakPointDefinition
+
   BossWeakPointTarget* = object
     pos*: Vector2f
     angle*: float32
@@ -991,7 +1044,6 @@ type
     startPos*: Vector2f            # Position at start of entrance animation
     targetPos*: Vector2f
     slowTimer*: float32
-    entranceWait*: float32        # Brief wait after arrival before boss begins attacking
     slowAmount*: float32          # Timed slow (see applySlow); cleared when slowTimer runs out
     frostSlowAmount*: float32     # Permanent chill from Frost Shots / Frost orbs. Kept apart
                                   # from the timed slot so a short stun can't erase it.
@@ -1408,10 +1460,6 @@ type
     bossArenaPlayerX*: float32
     bossArenaPlayerY*: float32
 
-  OSHUDState* = object
-    panelPulse*: float32
-    minimized*: bool
-
   TaskManagerTab* = enum
     tmtProcesses,    # Active power-ups
     tmtPerformance,  # Stats and metrics
@@ -1429,16 +1477,6 @@ type
     maxDuration*: float32
     decayRate*: float32
     tintColor*: Color
-
-  StreakLevel* = enum
-    slNone, slSpree, slRampage, slUnstoppable, slGodlike
-
-  KillStreak* = object
-    kills*: int
-    timer*: float32
-    level*: StreakLevel
-    lastLevelUpTime*: float32
-    displayTimer*: float32
 
   ComboSystem* = object
     killCount*: int
@@ -1459,8 +1497,6 @@ type
     pos*: Vector2f
 
   MicroRewardTracker* = object
-    lastKills*: int
-    lastDamageDealt*: float32
     rewards*: seq[MicroReward]
 
   SlowMotionType* = enum
@@ -1497,11 +1533,6 @@ type
     shotsHit*: int
     isPerfect*: bool
     maxCombo*: int
-
-  CloseCall* = object
-    detected*: bool
-    displayTimer*: float32
-    count*: int
 
   WaveCelebration* = object
     active*: bool
@@ -1741,7 +1772,6 @@ type
     screenHeight*: int32
     shopItems*: array[6, ShopItem]
     selectedShopItem*: int
-    menuSelection*: int
     countdownTimer*: float32
     waveClearedTimer*: float32  # Timer for wave cleared transition
     powerUpChoices*: array[3, PowerUp]
@@ -1805,9 +1835,7 @@ type
     previousState*: GameState  # Track where we came from to return correctly
     nextEnemyId*: int  # Counter for assigning unique IDs to enemies
     showRunStatsGraphs*: bool  # Toggle for showing graphs in run stats screen
-    statsMenuTab*: int  # 0 = Lifetime stats, 1 = Last Run stats
     sandboxSidebarOpen*: bool  # Is the sandbox control sidebar visible
-    sandboxTypingBuffer*: string  # Buffer for detecting "ttt" input
     sandboxSelectedTab*: int  # Current tab in sandbox UI (0=Enemies, 1=Bosses, 2=PowerUps, 3=Controls)
     sandboxScrollOffset*: int32  # Scroll position in sidebar
     sandboxScrollbarDragging*: bool     # True while the user is dragging the scrollbar thumb
@@ -1833,7 +1861,6 @@ type
     interactKeyLatch*: bool          # Roguelite: an [E] press was spent on a pickup; wall
                                      # placement stays suppressed until the key is released
     osBackground*: OSBackgroundState  # Animated background system
-    osHUD*: OSHUDState
     pendingToasts*: seq[string]  # Toasts queued by subsystems; drained to desktop toasts each frame
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
     selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)

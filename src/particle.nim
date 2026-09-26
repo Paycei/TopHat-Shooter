@@ -1,5 +1,5 @@
 import raylib, random, math, strutils
-import particle_types, types, utils, ui/ui_constants, ui/icon_drawing
+import particle_types, types, utils, ui/icon_drawing
 
 ## FLOATING LABEL MOTION
 ##

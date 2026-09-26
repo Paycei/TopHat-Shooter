@@ -20,7 +20,6 @@ type
     speed*: float32
     sprintMultiplier*: float32
     jumpForce*: float32
-    canJump*: bool
     jumpsRemaining*: int
     maxJumps*: int
     weapon*: Weapon3D
@@ -70,7 +69,6 @@ proc newPlayer3D*(startPos: Vector3f, health2D: float32): Player3D =
     speed: 75.0,  # Balanced speed for 3D movement
     sprintMultiplier: 1.5,
     jumpForce: 50.0,
-    canJump: true,
     jumpsRemaining: 2,
     maxJumps: 2,
     weapon: newWeapon3D(),

@@ -571,11 +571,6 @@ proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool =
   if bullet.fromPlayer: return false # Player bullets pass through walls
   wallOverlapsCircle(wall, bullet.pos, bullet.radius)
 
-proc checkShieldCollision*(bullet: Bullet, shieldPos: Vector2f): bool =
-  # Check if enemy bullet hits player's rotating shield
-  if bullet.fromPlayer: return false
-  distance(bullet.pos, shieldPos) < bullet.radius + 6
-
 ## Utility functions for bullet synergies and cloning
 
 proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
@@ -699,30 +694,6 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
 
     game.bullets.add(splitBullet)
     trackBulletFired(game)
-
-proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f,
-                          damageMultiplier: float32 = 0.75) =
-  ## Create a ricochet bullet that inherits ALL properties
-  ## SYNERGY SYSTEM: Ricochet bullets can split, explode, poison, etc.
-  let toTarget = (targetPos - sourceBullet.pos).normalize()
-  let vel = toTarget * sourceBullet.vel.length()
-
-  let ricochetBullet = cloneBullet(
-    sourceBullet,
-    sourceBullet.pos,
-    vel,
-    damageMultiplier,
-    1.0,  # Same speed
-    1.0,  # Same size
-    false  # Can still split
-  )
-
-  # Increment bounce count for the new bullet
-  ricochetBullet.bounceCount += 1
-  ricochetBullet.isRicochet = true  # Mark for statistics tracking
-
-  game.bullets.add(ricochetBullet)
-  trackBulletFired(game)
 
 proc createEchoBullet*(game: Game, sourceBullet: Bullet,
                       damageMultiplier: float32 = 0.4, speedMultiplier: float32 = 0.5,

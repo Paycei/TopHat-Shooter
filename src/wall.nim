@@ -193,9 +193,6 @@ proc takeDamage*(wall: Wall, damage: float32) =
   wall.hp -= damage
   if wall.hp < 0: wall.hp = 0
 
-proc checkEnemyWallCollision*(enemy: Enemy, wall: Wall): bool =
-  wallOverlapsCircle(wall, enemy.pos, enemy.radius)
-
 proc checkPlayerWallCollision*(playerPos: Vector2f, playerRadius: float32, wall: Wall): bool =
   wallOverlapsCircle(wall, playerPos, playerRadius)
 

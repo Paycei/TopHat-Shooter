@@ -15,7 +15,7 @@
 ## classic panel sums up front to size its background.
 
 import raylib, math, strutils
-import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../settings, ui_constants, ../render_context, icon_drawing, ../utils, ui_helpers, hud_dock
+import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../settings, ../render_context, icon_drawing, ../utils, ui_helpers, hud_dock
 from ../player import DashCooldownTime
 
 const

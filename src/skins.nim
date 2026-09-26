@@ -291,11 +291,3 @@ proc getSkinColors*(skinType: SkinType, time: float32): tuple[primary, secondary
 proc getSkinData*(skinType: SkinType): SkinData =
   ## Get the data for a specific skin
   return skinDatabase[skinType]
-
-proc getSkinName*(skinType: SkinType): string =
-  ## Get the display name of a skin
-  return skinDatabase[skinType].name
-
-proc getSkinDescription*(skinType: SkinType): string =
-  ## Get the description of a skin
-  return skinDatabase[skinType].description

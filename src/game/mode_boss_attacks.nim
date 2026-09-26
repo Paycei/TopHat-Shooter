@@ -11,7 +11,7 @@
 ## fields is written next to its definition in boss_definitions.nim.
 
 import raylib, math, random, strutils, algorithm
-import particle_types, types, enemy, bullet, boss_types, particle_pool, d_systems,
+import particle_types, types, enemy, bullet, particle_pool, d_systems,
        mode_hazards, dungeon
 
 const ModeBossAttacks* = [
