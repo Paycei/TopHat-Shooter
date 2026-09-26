@@ -760,6 +760,13 @@ proc drawRogueliteVictory*(game: Game) =
                  t("roguelite_heat") & " " & $run.heatUnlocked,
                  Color(r: 255, g: 150, b: 80, a: pulse), ciHeat)
 
+  # The endless loop the Continue button leads into has no restore points (see
+  # restorePointsOffline), so the same offline warning the wave-mode victory
+  # screen shows sits above the buttons, read before the choice is made.
+  let rects = rogueliteVictoryButtonRects(getVirtualScreenWidth().int32, getVirtualScreenHeight().int32)
+  let warnY = rects.continueBtn.y.int32 - LivesPanelHeight - 14
+  drawEndlessRestorePanel(x + 40, warnY, PanelW - 80, gmRoguelite, game.time)
+
   # Patches applied during the run
   let relicY = curY + 78
   drawText(t("roguelite_relics_carried"), x + 40, relicY, 16,
@@ -776,7 +783,8 @@ proc drawRogueliteVictory*(game: Game) =
       if px + pillW > x + PanelW - 40:
         px = x + 40
         py += 38
-        if py > y + PanelH - 150: break
+        # A 30px row must end clear of the warning panel below.
+        if py + 30 > warnY - 8: break
       let accent = patchAccent(relic.relicType)
       drawPill(px, py, pillW, 30, "", accent)
       drawPatchIcon(px + 4, py + 3, 24, relic.relicType, accent)
@@ -784,7 +792,6 @@ proc drawRogueliteVictory*(game: Game) =
       px += pillW + 10
 
   # Decision buttons
-  let rects = rogueliteVictoryButtonRects(getVirtualScreenWidth().int32, getVirtualScreenHeight().int32)
   let canHover = mouseHoverEnabled(game)
   let mousePos = if canHover: getVirtualMousePosition() else: Vector2()
   let contHi = game.selectedVictoryButton == 0 or

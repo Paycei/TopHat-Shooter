@@ -26,8 +26,9 @@ const RunSaveVersion = 1
 
 const LegacyRunSaveFile = "run_save.json"  # pre per-mode single shared file
 const BlockCheckpointFile = "run_checkpoint.json"
-  ## Wave mode's death-surviving checkpoint. The roguelite has its own file (see
-  ## blockCheckpointFileFor), so a death in one mode never touches the other's.
+  ## Wave mode's death-surviving checkpoint. The roguelite and Time Survival
+  ## have their own files (see blockCheckpointFileFor), so a death in one mode
+  ## never touches another's.
 
 proc runSaveFileFor*(mode: GameMode): string =
   "run_save_" & $mode & ".json"
@@ -35,11 +36,17 @@ proc runSaveFileFor*(mode: GameMode): string =
 proc blockCheckpointFileFor(mode: GameMode): string =
   ## The death-surviving checkpoint of a mode with a restore-point budget, or ""
   ## for a mode that has none. Wave mode keeps the original file name, so a
-  ## checkpoint written before the roguelite had one still loads.
+  ## checkpoint written before the other modes had one still loads.
   case mode
   of gmWaveBased: BlockCheckpointFile
-  of gmRoguelite: "run_checkpoint_" & $mode & ".json"
-  of gmTimeSurvival, gmSandbox, gmPvP: ""
+  of gmRoguelite, gmTimeSurvival: "run_checkpoint_" & $mode & ".json"
+  of gmSandbox, gmPvP: ""
+
+proc isBlockCheckpointFile(file: string): bool =
+  for mode in RestorePointModes:
+    if file == blockCheckpointFileFor(mode):
+      return true
+  false
 
 proc getRunSavePath*(file: string): string =
   getAppDataPath() / file
@@ -54,7 +61,7 @@ proc getRunSavePath*(file: string): string =
 type BlockCheckpointCache = object
   path: string      # "" = nothing cached yet
   exists: bool
-  resumePoint: int  # wave (wave mode) or sector (roguelite) Continue resumes at
+  resumePoint: int  # where Continue resumes: see blockCheckpointResumePoint
   livesUsed: int
 
 var bcCache: array[GameMode, BlockCheckpointCache]
@@ -65,7 +72,7 @@ proc invalidateBlockCheckpointCache*() =
 
 proc deleteRunSave*(file: string) =
   ## Remove one of the current profile's run save files, if present.
-  if file in [blockCheckpointFileFor(gmWaveBased), blockCheckpointFileFor(gmRoguelite)]:
+  if isBlockCheckpointFile(file):
     invalidateBlockCheckpointCache()
   try:
     let path = getRunSavePath(file)
@@ -758,15 +765,20 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
 # "Continue (Sector N)". Written by:
 #   * wave mode at the start of each boss block (startWave in game.nim);
 #   * the roguelite at the start of each sector, once its theme is picked
-#     (startSelectedTheme in main.nim).
-# Both land after the previous boss's reward draft, so a Continue keeps it.
+#     (startSelectedTheme in main.nim);
+#   * Time Survival when a boss's reward draft closes, i.e. at the start of
+#     each phase (continueAfterDraft in main.nim).
+# All land after the previous boss's reward draft, so a Continue keeps it.
+# Play past a win (endless waves, endless loops, Overtime) never writes one:
+# see restorePointsOffline.
 # ---------------------------------------------------------------------------
 proc saveBlockCheckpoint*(game: Game) =
   ## Persist the current run as a death-surviving checkpoint. Uses the
   ## state-gate bypass so it can fire outside the resumable states.
   ## A mode or profile with no lives budget never writes one -- see
-  ## difficultyAllowsContinue.
-  if game.isNil or not difficultyAllowsContinue(game.mode):
+  ## difficultyAllowsContinue -- and neither does a run past its win.
+  if game.isNil or not difficultyAllowsContinue(game.mode) or
+     restorePointsOffline(game):
     return
   invalidateBlockCheckpointCache()
   saveRunState(game, blockCheckpointFileFor(game.mode), bypassStateGate = true)
@@ -780,9 +792,13 @@ proc refreshBlockCheckpointCache(mode: GameMode) =
   bcCache[mode].exists = j != nil
   bcCache[mode].resumePoint =
     if j.isNil: 1
-    elif mode == gmRoguelite:
-      j.getOrDefault("roguelite").getOrDefault("floorNumber").getInt(1)
-    else: j.getOrDefault("currentWave").getInt(1)
+    else:
+      case mode
+      of gmRoguelite: j.getOrDefault("roguelite").getOrDefault("floorNumber").getInt(1)
+      # Whole seconds, rounded down: the clock stops a frame past the boss's
+      # mark (300.01 s), and the label should read 5:00, not 5:01.
+      of gmTimeSurvival: int(j.getOrDefault("survivalTime").getFloat(0.0))
+      else: j.getOrDefault("currentWave").getInt(1)
   bcCache[mode].livesUsed = if j.isNil: 0 else: max(0, j.getOrDefault("livesUsed").getInt(0))
   bcCache[mode].path = path
 
@@ -801,12 +817,12 @@ proc blockCheckpointLivesUsed*(mode: GameMode): int =
   if bcCache[mode].exists: bcCache[mode].livesUsed else: 0
 
 proc hasBlockCheckpoint*(mode: GameMode): bool =
-  ## A profile with no budget for `mode` (Nightmare, and Hard in the roguelite)
-  ## answers "no" even if a file somehow exists (e.g. a checkpoint left behind
-  ## by an older build), so the Continue option can never come back. A run that
-  ## has spent its whole lives budget answers "no" the same way, which is what
-  ## turns the budget into a real limit rather than a display. Modes without a
-  ## budget at all (survival, PvP, sandbox) are always "no".
+  ## A profile with no budget for `mode` (Nightmare, and Hard in the roguelite
+  ## and survival) answers "no" even if a file somehow exists (e.g. a checkpoint
+  ## left behind by an older build), so the Continue option can never come
+  ## back. A run that has spent its whole lives budget answers "no" the same
+  ## way, which is what turns the budget into a real limit rather than a
+  ## display. Modes without a budget at all (PvP, sandbox) are always "no".
   if not difficultyAllowsContinue(mode):
     return false
   refreshBlockCheckpointCache(mode)
@@ -814,9 +830,17 @@ proc hasBlockCheckpoint*(mode: GameMode): bool =
     return false
   livesRemaining(bcCache[mode].livesUsed, mode) != 0
 
+proc canContinueRun*(game: Game): bool =
+  ## Whether the run that just died can be picked up again with a restore
+  ## point: the crash screen's Continue, and anything that must defer to it.
+  ## The offline check is belt and braces for a run past its win: the win
+  ## already deleted its checkpoint and nothing writes a new one.
+  hasBlockCheckpoint(game.mode) and not restorePointsOffline(game)
+
 proc blockCheckpointResumePoint*(mode: GameMode): int =
-  ## Where Continue picks the run up: the wave (wave mode) or sector (roguelite)
-  ## the block checkpoint resumes at, or 1 if there is no valid checkpoint.
+  ## Where Continue picks the run up: the wave (wave mode), sector (roguelite)
+  ## or whole second on the survival clock (Time Survival) the block checkpoint
+  ## resumes at, or 1 if there is no valid checkpoint.
   refreshBlockCheckpointCache(mode)
   bcCache[mode].resumePoint
 
@@ -869,8 +893,10 @@ proc consumeContinueLife*(game: Game) =
   # The death that led here has already been written to the lifetime statistics,
   # and the checkpoint has just rolled the kill count and clock back. From here
   # on only what is gained on top of them is new (see persistRunResults).
+  # Survival's statistics run on the survival clock, not the real one.
   game.statsBaseKills = game.player.kills
-  game.statsBaseTime = runElapsedTime(game)
+  game.statsBaseTime = if game.mode == gmTimeSurvival: game.survivalTime
+                       else: runElapsedTime(game)
   # Arm the "life lost" animation. Doing it here rather than at the two call
   # sites means every way of spending a life is animated by construction -- the
   # game-over Continue button and the desktop's resume-a-dead-run both land

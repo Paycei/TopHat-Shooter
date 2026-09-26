@@ -25,7 +25,7 @@ proc showGlobalConfirm(ctx: ConfirmDialogContext, cooldown: float32 = DEFAULT_CO
   ## accepts a click. Pass 0.0 to make confirmation immediate (e.g. the main-menu Quit
   ## icon, where there's no in-progress run to protect). Defaults to the standard window
   ## so in-game quits keep the anti-accident delay. `runMode` words the abandon-restart
-  ## prompt: wave mode restarts at wave 1, the roguelite goes back to its setup.
+  ## prompt: wave mode restarts at wave 1, the other modes start a new run.
   globalConfirmActive     = true
   globalConfirmContext    = ctx
   globalConfirmRunMode    = runMode
@@ -75,8 +75,8 @@ proc drawGlobalConfirmDialog(): int =
                 of cdcQuitToDesktop: t(tkConfirmQuitBody)
                 of cdcQuitToMenu, cdcAbandonExit, cdcPostGameExit: t(tkConfirmExitBody)
                 of cdcAbandonRestart:
-                  if globalConfirmRunMode == gmRoguelite: t(tkConfirmCheckpointNewRunBody)
-                  else: t(tkConfirmCheckpointRestartBody)
+                  if globalConfirmRunMode == gmWaveBased: t(tkConfirmCheckpointRestartBody)
+                  else: t(tkConfirmCheckpointNewRunBody)
   let bW = measureText(bodyStr, 19)
   drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, White)
   # cdcPostGameExit has no subtitle: the run is already over and results are
@@ -947,17 +947,18 @@ proc main() =
       # A run resumed with Continue was already recorded when it died: its kills
       # and clock were rolled back to the checkpoint, and its coin and boss
       # tallies carried on. Only what it gained past those baselines is new, and
-      # it is still the same game, not another one.
+      # it is still the same game, not another one. statsBaseTime is on the same
+      # clock as timeForStats (consumeContinueLife picks it per mode).
       let continuedRun = game.livesUsed > 0
-      let baseTime = if isTimeSurvivalMode(game.mode): 0.0'f32 else: game.statsBaseTime
       updateStatsForMode(stats, game.mode, scoreReached,
-                         max(0.0'f32, timeForStats - baseTime),
+                         max(0.0'f32, timeForStats - game.statsBaseTime),
                          max(0, game.player.kills - game.statsBaseKills),
                          max(0, coinsForStats - game.statsBaseCoins),
                          max(0, bossesKilled - game.statsBaseBosses),
                          died,
                          newGame = not continuedRun,
-                         runKills = game.player.kills, runCoins = coinsForStats)
+                         runKills = game.player.kills, runCoins = coinsForStats,
+                         runTime = timeForStats)
 
       var saveSuccess = false
       var retries = 0
@@ -1337,7 +1338,7 @@ proc main() =
               of 0: "Launching Wave-Based Mode..."
               of 1: "Launching Time Survival Mode..."
               of 6: "Launching Sandbox Mode..."
-              of 9: "Launching Roguelite Mode..."
+              of 9: "Launching Deep Recovery..."
               else: "Launching..."
             startLoadingAnimation(osDesktop, loadText)
             pendingGameMode = pendingModeAfterCutscene
@@ -1431,9 +1432,19 @@ proc main() =
               discard
             elif pendingResume and applySavedRun(currentGame):
               initializeRunTracking(currentGame)
+            elif pendingResume and applyBlockCheckpoint(currentGame):
+              # The run died, but the restore point its last boss left is
+              # still there. Same terms as the crash screen's Continue: it
+              # spends a restore point.
+              currentGame.runHadDeath = true
+              consumeContinueLife(currentGame)
+              currentGame.state = gsCountdown
+              currentGame.countdownTimer = 3.0
+              initializeRunTracking(currentGame)
             else:
               deleteRunSave(gmTimeSurvival)
               deleteSuspendSnapshot(gmTimeSurvival)
+              deleteBlockCheckpoint(gmTimeSurvival)  # fresh run: a dead run's restore point goes too
               currentGame.state = gsPlaying
               initializeRunTracking(currentGame)
             statsSavedThisGame = false
@@ -1661,7 +1672,7 @@ proc main() =
           pendingModeAfterCutscene = 9
           currentGame.state = gsCutscene
         else:
-          startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
+          startLoadingAnimation(osDesktop, "Launching Deep Recovery...")
           pendingGameMode = 9
 
       # Handle sandbox setup window Start button: show loading screen, then launch.
@@ -1838,7 +1849,7 @@ proc main() =
             cutsceneContinuation = cscDesktopIcon
             pendingIconAfterCutscene = 1
             currentGame.state = gsCutscene
-          elif hasSavedRun(gmTimeSurvival):
+          elif hasSavedRun(gmTimeSurvival) or hasBlockCheckpoint(gmTimeSurvival):
             resumePromptActive = true
             resumePromptMode = gmTimeSurvival
           else:
@@ -1944,7 +1955,7 @@ proc main() =
               cutsceneContinuation = cscDesktopIcon
               pendingIconAfterCutscene = 1
               currentGame.state = gsCutscene
-            elif hasSavedRun(gmTimeSurvival):
+            elif hasSavedRun(gmTimeSurvival) or hasBlockCheckpoint(gmTimeSurvival):
               resumePromptActive = true
               resumePromptMode = gmTimeSurvival
             else:
@@ -2063,8 +2074,8 @@ proc main() =
           pendingResume = resumeResult == 1
           if resumeResult == -1:
             # "New Run" discards this mode's checkpoint and exact snapshot, and
-            # its death-surviving block checkpoint (wave mode and the roguelite
-            # have one). Other modes' saved runs are left alone.
+            # its death-surviving block checkpoint (a no-op for a mode without
+            # one). Other modes' saved runs are left alone.
             deleteRunSave(resumePromptMode)
             deleteSuspendSnapshot(resumePromptMode)
             deleteBlockCheckpoint(resumePromptMode)
@@ -2074,7 +2085,7 @@ proc main() =
             pendingGameMode = 1
           of gmRoguelite:
             if resumeResult == 1:
-              startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
+              startLoadingAnimation(osDesktop, "Launching Deep Recovery...")
               pendingGameMode = 9
             else:
               # Fresh roguelite goes through the setup window.
@@ -3301,9 +3312,18 @@ proc main() =
           # player has been looking at a menu -- so it gets the re-entry beat
           # (time ramp + i-frames + a locate-me pulse). Exits to the shop or to
           # floor select do not need it: nothing is chasing the player there.
+          let survivalBossReward = isTimeSurvivalMode(currentGame.mode) and
+                                   isLegendaryRound and not currentGame.levelDraftActive
           currentGame.levelDraftActive = false
           currentGame.state = gsPlaying
           beginDraftResume(currentGame)
+          if survivalBossReward:
+            # Survival's restore point: a boss has just closed its phase and its
+            # reward is installed, so a Continue picks the run up right here,
+            # Kernel cache still on the floor. Written after the state change,
+            # so the save does not reopen this draft. Overtime (the final boss's
+            # draft onward) writes nothing: saveBlockCheckpoint refuses a won run.
+            saveBlockCheckpoint(currentGame)
         else:
           currentGame.state = gsShop
           currentGame.shopSidebarScroll = 0
@@ -3519,9 +3539,9 @@ proc main() =
       # Update mouse tracking
       updateMouseTracking(currentGame)
 
-      # A death-surviving block checkpoint (wave mode, roguelite) prepends a
+      # A death-surviving block checkpoint (RestorePointModes) prepends a
       # "Continue" option, shifting Restart/Stats/Exit indices up by one (idxOff).
-      let goShowContinue = hasBlockCheckpoint(currentGame.mode)
+      let goShowContinue = canContinueRun(currentGame)
       let goOptionCount = if goShowContinue: 4 else: 3
       let goIdxOff = if goShowContinue: 1 else: 0
       let goRestartIdx = goIdxOff
@@ -3545,7 +3565,7 @@ proc main() =
           currentGame.runHadDeath = true
           # Spend a life and write the new count back to the checkpoint, so the
           # budget shrinks even if the next death arrives before the next boss
-          # block (or sector) would have rewritten the file.
+          # block, sector or survival boss would have rewritten the file.
           consumeContinueLife(currentGame)
           currentGame.state = gsCountdown
           currentGame.countdownTimer = 3.0

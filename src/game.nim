@@ -3669,8 +3669,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
     deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
     if game.rogueliteRun.completed:
-      # Won: the final sector's restore point must not replay the win. Pushing on
-      # into the endless loop writes a fresh one at its first sector.
+      # Won: the final sector's restore point must not replay the win. The
+      # endless loop past it has none (restorePointsOffline).
       deleteBlockCheckpoint(game.mode)
     if not survivalWasUnlocked and not globalSettings.isNil and globalSettings.survivalUnlocked:
       game.pendingToasts.add(t(tkGameModeUnlocked) & " " & t(tkSurvivalUnlockedNotif))
@@ -3724,6 +3724,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # the roll and drops the player straight into it (as wave mode's endless).
       deleteRunSave(game.mode)          # the pre-final save must not replay the win
       deleteSuspendSnapshot(game.mode)
+      # ...and neither may the Kernel Panic restore point. Overtime has none.
+      deleteBlockCheckpoint(game.mode)
       game.selectedVictoryButton = 0
       playSound(stWaveComplete)
       game.state = gsVictory
@@ -6885,9 +6887,9 @@ proc drawDeathSequenceOverlay*(game: Game) =
 
 proc drawGameOver*(game: Game) =
   # Use the new OS-style system crash screen. A block checkpoint that survived
-  # death adds a leading "Continue (Wave N)" / "Continue (Sector N)" option
-  # (wave mode and the roguelite; hasBlockCheckpoint is false for the rest).
-  let showContinue = hasBlockCheckpoint(game.mode)
+  # death adds a leading "Continue (Wave N)" / "(Sector N)" / "(m:ss)" option
+  # (RestorePointModes, and never for a run past its win).
+  let showContinue = canContinueRun(game)
   # The meter has to agree with the Continue button, so it counts the restore
   # points of the run that button would resume. Normally that is this run (the
   # checkpoint is written by it and carries the same counter), but a checkpoint

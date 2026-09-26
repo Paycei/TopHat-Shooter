@@ -374,9 +374,11 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
     # The first long Time-Survival stand earns the "Long Watch" eulogy before
     # game-over; later ones go straight to the crash screen (it can be replayed
     # from settings). The cinematic (owned by main.nim) hands back to
-    # gsGameOver when it ends.
+    # gsGameOver when it ends. It mourns a run that is over, so it waits while
+    # a restore point could still Continue this one.
     if game.mode == gmTimeSurvival and game.survivalTime >= SURVIVAL_ENDING_MIN_TIME and
-       not globalSettings.isNil and not globalSettings.hasSeenSurvivalEnding:
+       not globalSettings.isNil and not globalSettings.hasSeenSurvivalEnding and
+       not canContinueRun(game):
       game.state = gsSurvivalEndCinematic
     else:
       game.state = gsGameOver

@@ -187,8 +187,9 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   ## Draw the enhanced Game Over screen as a modern system crash.
   ## Without a checkpoint: 0=Restart, 1=Stats, 2=Exit.
   ## With a checkpoint (showContinue): 0=Continue, 1=Restart, 2=Stats, 3=Exit.
-  ## `continueAt` is the wave (wave mode) or sector (roguelite) Continue resumes
-  ## at. `livesUsed` counts the continues already spent by the run that the
+  ## `continueAt` is the wave (wave mode), sector (roguelite) or whole second on
+  ## the survival clock (Time Survival) Continue resumes at. `livesUsed` counts
+  ## the continues already spent by the run that the
   ## Continue button would resume (see drawGameOver), and drives the
   ## restore-point meter.
   let screenWidth = getVirtualScreenWidth()
@@ -377,24 +378,25 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   # Lives panel, full width directly above the buttons. Anchored to buttonY
   # rather than to the flowing yOffset, so adding a diagnostics line above can
   # never push it down into the button row.
-  # A death in wave-mode endless (hasWonGame) has no checkpoint to fall back on,
-  # so it gets the offline panel instead of a meter with platters left on it.
-  # The roguelite's endless loop keeps its run's budget: it goes on writing a
-  # checkpoint at every sector.
-  if game.mode == gmWaveBased and game.hasWonGame:
+  # A death past the win (endless waves, an endless loop, Overtime) has no
+  # checkpoint to fall back on, so it gets the offline panel instead of a meter
+  # with platters left on it.
+  if game.mode in RestorePointModes and restorePointsOffline(game):
     drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
-                            SCREEN_WIDTH - 60, game.time)
-  elif game.mode in {gmWaveBased, gmRoguelite}:
+                            SCREEN_WIDTH - 60, game.mode, game.time)
+  elif game.mode in RestorePointModes:
     drawLivesPanel(windowX + 30, buttonY - LivesPanelHeight - 14, SCREEN_WIDTH - 60,
                    livesUsed, difficultyMaxLives(game.mode), UnlimitedLives, game.time)
 
   if showContinue:
-    # Continue button (0)
-    let continueLabel = t(if game.mode == gmRoguelite: tkGameOverContinueSector
-                          else: tkGameOverContinue)
+    # Continue button (0). Survival names the spot on its clock ("5:00"): a
+    # phase name would not fit the button in Spanish.
+    let continueLabel = case game.mode
+      of gmRoguelite: t(tkGameOverContinueSector) & " " & $continueAt & ")"
+      of gmTimeSurvival: t(tkGameOverContinueClock) & formatSurvivalClock(continueAt.float32) & ")"
+      else: t(tkGameOverContinue) & " " & $continueAt & ")"
     drawModernButton(int32(buttonsX), buttonY, int32(buttonW), int32(BUTTON_HEIGHT),
-                    continueLabel & " " & $continueAt & ")", "[C]",
-                    selectedButton == 0, game.time, baGreen)
+                    continueLabel, "[C]", selectedButton == 0, game.time, baGreen)
 
   # Restart button
   let restartX = buttonsX + idxOff * (buttonW + buttonSpacing)
@@ -585,13 +587,11 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   let buttonsX = (screenWidth - totalButtonWidth) div 2
 
   # Restore-point panel (same anchor as the crash screen, so the ending screens
-  # agree). The win has already dropped the checkpoint, and the endless play the
-  # first button leads into never writes one, so this warns before the choice
-  # rather than showing a budget that no longer applies.
-  # (Survival has no restore points to warn about.)
-  if not survival:
-    drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
-                            SCREEN_WIDTH - 60, game.time)
+  # agree). The win has already dropped the checkpoint, and the endless play or
+  # Overtime the first button leads into never writes one, so this warns before
+  # the choice rather than showing a budget that no longer applies.
+  drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
+                          SCREEN_WIDTH - 60, game.mode, game.time)
 
   # Continue Endless / Enter Overtime button (0)
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),

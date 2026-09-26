@@ -564,7 +564,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
 
   # The inspector tabs run down to the buttons, or to the lives panel above
   # them in the modes that have one.
-  let showsLives = game.mode in {gmWaveBased, gmRoguelite}
+  let showsLives = game.mode in RestorePointModes
   let inspectorBottom = if showsLives: buttonY - LivesPanelHeight - 14 - 10
                         else: buttonY - 10
   case shownTab
@@ -579,13 +579,11 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   of tmtSettings:
     discard
 
-  # Lives panel between the tab content and the buttons. Wave mode and the
-  # roguelite only: they are the modes with a continue budget, and an
-  # always-empty panel in survival would read as a bug rather than "not
-  # applicable here".
-  if game.mode == gmWaveBased and game.hasWonGame:
+  # Lives panel between the tab content and the buttons, in the modes with a
+  # continue budget (RestorePointModes).
+  if showsLives and restorePointsOffline(game):
     drawEndlessRestorePanel(windowX + 20, buttonY - LivesPanelHeight - 14,
-                            TASK_MANAGER_WIDTH.int32 - 40, game.time)
+                            TASK_MANAGER_WIDTH.int32 - 40, game.mode, game.time)
   elif showsLives:
     drawLivesPanel(windowX + 20, buttonY - LivesPanelHeight - 14,
                    TASK_MANAGER_WIDTH.int32 - 40, game.livesUsed,

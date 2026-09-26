@@ -153,8 +153,8 @@ type
     ## The on-disk form is the value string ("easy"/"medium"/"hard"/"nightmare").
     ## Difficulty also sets the lives budget -- how many times a run may continue
     ## from its death-surviving checkpoint (see difficultyMaxLives below): wave
-    ## mode gets unlimited / 3 / 1 / 0, the roguelite 3 / 1 / 0 / 0. Nightmare's
-    ## 0 is what makes every death there start the run over. The combat
+    ## mode gets unlimited / 3 / 1 / 0, the roguelite and Time Survival 3 / 1 /
+    ## 0 / 0. Nightmare's 0 is what makes every death there start the run over. The combat
     ## multipliers live in the difficulty table further down
     ## (difficultyEnemyHpMult and friends).
     gdEasy = "easy", gdMedium = "medium", gdHard = "hard", gdNightmare = "nightmare"
@@ -1783,12 +1783,12 @@ type
     waveStartTime*: float32  # Track when current wave started for statistics
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
     runHadDeath*: bool  # Sticky: the run has died at least once (or resumed a block checkpoint after dying)
-    livesUsed*: int  # Wave/roguelite: continues already spent this run (see difficultyMaxLives)
+    livesUsed*: int  # Wave/roguelite/survival: continues already spent this run (see difficultyMaxLives)
     # What the lifetime statistics already hold for this run. A Continue rolls the
     # run back to its checkpoint after its death was recorded, so the next record
     # adds only what was earned since then (see persistRunResults in main.nim).
     statsBaseKills*: int      # player.kills at the last Continue
-    statsBaseTime*: float32   # run clock at the last Continue
+    statsBaseTime*: float32   # stats clock at the last Continue (survival clock in survival, run clock elsewhere)
     statsBaseCoins*: int      # run-statistics coin tally already recorded
     statsBaseBosses*: int     # run-statistics boss kills already recorded
     metaShardsEarned*: int  # Wave/survival: Data Shards banked this run. Display tally only; the wallet is credited as each is earned (bankMetaCurrency)
@@ -1897,6 +1897,12 @@ proc canonicalBossId*(id: int): int {.inline.} =
 # number so the meter UI can branch on it instead of trying to render an
 # unbounded row of glyphs.
 const UnlimitedLives* = -1
+
+const RestorePointModes* = {gmWaveBased, gmRoguelite, gmTimeSurvival}
+  ## Modes that keep a death-surviving checkpoint and show the restore-point
+  ## meter, on every difficulty (a 0 budget reads NONE LEFT rather than
+  ## vanishing), or the offline panel once the run is won (restorePointsOffline).
+  ## Must agree with the non-zero rows of difficultyMaxLives.
 
 # "Life lost" animation, played over the reorientation countdown when a run
 # resumes from its block checkpoint. Phase boundaries are fractions of the total
@@ -2195,9 +2201,11 @@ proc difficultyMaxLives*(mode: GameMode): int =
   ## it, so retuning a tier here retunes every consumer at once.
   ##
   ## Wave mode resumes at the start of its last boss block, the roguelite at the
-  ## start of the sector it died in. A roguelite continue replays a whole sector
-  ## with the build intact, so it is metered tighter and runs out a tier sooner.
-  ## Survival, PvP and the sandbox have no checkpoint to continue from.
+  ## start of the sector it died in, Time Survival at the start of its phase.
+  ## The roguelite and survival replay a whole sector or phase with the build
+  ## intact, so they are metered tighter and run out a tier sooner. PvP and the
+  ## sandbox have no checkpoint to continue from. A run past its win has no
+  ## budget left at all, whatever this says: see restorePointsOffline.
   ##
   ## Naming note: this is the "lives" budget throughout the code, but the UI
   ## calls one a RESTORE POINT, because that is what spending one does -- it
@@ -2209,12 +2217,12 @@ proc difficultyMaxLives*(mode: GameMode): int =
     of gdMedium: 3
     of gdHard: 1
     of gdNightmare: 0
-  of gmRoguelite:
+  of gmRoguelite, gmTimeSurvival:
     case currentDifficulty
     of gdEasy: 3
     of gdMedium: 1
     of gdHard, gdNightmare: 0
-  of gmTimeSurvival, gmSandbox, gmPvP: 0
+  of gmSandbox, gmPvP: 0
 
 proc livesRemaining*(used: int, mode: GameMode): int =
   ## Lives still available after `used` continues, or UnlimitedLives when the
@@ -2232,6 +2240,18 @@ proc difficultyAllowsContinue*(mode: GameMode): bool =
   ## loses the option at once. A run that has merely SPENT its lives is stopped
   ## further down, by hasBlockCheckpoint's remaining-lives check.
   difficultyMaxLives(mode) != 0
+
+proc restorePointsOffline*(game: Game): bool =
+  ## The run has been won and is playing on past it -- wave mode's endless
+  ## waves, the roguelite's endless loops, survival's Overtime. That is bonus
+  ## play with no restore points in any mode: one death ends it. The win
+  ## deletes the checkpoint, saveBlockCheckpoint refuses to write a new one,
+  ## Continue is withheld, and the meters show the offline panel instead.
+  case game.mode
+  of gmWaveBased: game.hasWonGame
+  of gmRoguelite: not game.rogueliteRun.isNil and game.rogueliteRun.endlessLoop > 0
+  of gmTimeSurvival: game.survival.victoryAchieved
+  of gmSandbox, gmPvP: false
 
 proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
                        duration: float32, sourceEnemyId: int = -1): AttackWarning =

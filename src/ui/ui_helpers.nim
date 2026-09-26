@@ -77,11 +77,12 @@ proc bestWrapFontSize*(text: string, maxWidth, preferredSize: int32,
 # ---------------------------------------------------------------------------
 # Restore-point glyph.
 #
-# The lives budget of wave mode and the roguelite (difficultyMaxLives in
-# types.nim) is shown to the player as RESTORE POINTS rather than lives, because
-# that is literally what one is in this fiction: pressing "Continue (Wave 21)" or
-# "Continue (Sector 3)" restores a saved system state off disk (the mode's
-# run_checkpoint file), and spending one burns that save.
+# The lives budget of wave mode, the roguelite and Time Survival
+# (difficultyMaxLives in types.nim) is shown to the player as RESTORE POINTS
+# rather than lives, because that is literally what one is in this fiction:
+# pressing "Continue (Wave 21)", "Continue (Sector 3)" or "Continue (10:00)"
+# restores a saved system state off disk (the mode's run_checkpoint file), and
+# spending one burns that save.
 #
 # The glyph is a save-state platter -- disc, recessed face, spindle hub and a
 # write LED -- drawn in the shadow / body / bright-core layering that
@@ -250,14 +251,16 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
              if critical or low: Color(r: 255, g: 120, b: 120, a: 255)
              else: Color(r: 120, g: 235, b: 160, a: 255))
 
-proc drawEndlessRestorePanel*(x, y, width: int32, time: float32,
+proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
                               height: int32 = LivesPanelHeight) =
-  ## Stand-in for the meter once a wave run has gone endless (hasWonGame). The
-  ## win deleted the block checkpoint and saveRunState refuses to write a new
-  ## one, so the budget is gone whatever the counter says -- showing the live
-  ## meter there would promise a Continue that can never appear. Same frame and
-  ## anchor as drawLivesPanel so the screens keep their layout; one dead platter
-  ## plus a warning replaces the glyph row.
+  ## Stand-in for the meter once a run has been won and plays on past it (see
+  ## restorePointsOffline in types.nim): wave mode's endless waves, the
+  ## roguelite's endless loops, survival's Overtime. The win deleted the block
+  ## checkpoint and nothing writes a new one, so the budget is gone whatever
+  ## the counter says -- showing the live meter there would promise a Continue
+  ## that can never appear. Same frame and anchor as drawLivesPanel so the
+  ## screens keep their layout; one dead platter plus a warning replaces the
+  ## glyph row. `mode` only picks the wording (survival says Overtime).
   let pulse = sin(time * 3.0) * 0.2 + 0.8
   drawRectangle(x, y, width, height, Color(r: 46, g: 16, b: 20, a: 255))
   drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
@@ -265,11 +268,12 @@ proc drawEndlessRestorePanel*(x, y, width: int32, time: float32,
                      2.0, Color(r: uint8(220.0 * pulse), g: 60, b: 70, a: 255))
   drawRectangle(x, y, 4'i32, height, Color(r: 190, g: 40, b: 55, a: 255))
 
-  # Centered group: RESTORE POINTS  <dead platter>  OFFLINE -- ...
+  # Centered group: RESTORE POINTS  <dead platter>  OFFLINE: ...
   # The warning shrinks to fit: it runs long in Spanish and the pause window's
   # panel is narrower than the ending screens'.
   let label = t(tkRestorePointsLabel)
-  let status = t(tkRestorePointsEndless)
+  let status = t(if mode == gmTimeSurvival: tkRestorePointsOvertime
+                 else: tkRestorePointsEndless)
   let labelW = measureText(label, PanelFontSize)
   let glyphW = int32(PanelIconSize * 2.0)
   let statusMax = width - 24 - labelW - glyphW - IconLabelGap * 2

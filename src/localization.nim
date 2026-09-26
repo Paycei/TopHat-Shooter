@@ -340,17 +340,20 @@ type
     tkGameOverMissionDuration = "game_over_mission_duration"
     tkGameOverContinue = "game_over_continue"
     tkGameOverContinueSector = "game_over_continue_sector"
+    tkGameOverContinueClock = "game_over_continue_clock"  # + survival clock "5:00" + ")"
     tkGameOverShopCurrencyBanked = "game_over_shop_currency_banked"
 
-    # Restore points -- the player-facing name for the wave-mode and roguelite
-    # lives budget (see difficultyMaxLives). A "life" here is a saved system
-    # state that Continue restores off disk, so the UI calls it what it is.
+    # Restore points -- the player-facing name for the lives budget of wave
+    # mode, the roguelite and Time Survival (see difficultyMaxLives). A "life"
+    # here is a saved system state that Continue restores off disk, so the UI
+    # calls it what it is.
     tkRestorePointsLabel = "restore_points_label"
     tkRestorePointsUnlimited = "restore_points_unlimited"
     tkRestorePointsNone = "restore_points_none"
     tkRestorePointsLast = "restore_points_last"
     tkRestorePointLost = "restore_point_lost"
     tkRestorePointsEndless = "restore_points_endless"
+    tkRestorePointsOvertime = "restore_points_overtime"
     tkGameOverCriticalFailure = "game_over_critical_failure"
     tkGameOverErrorMsg = "game_over_error_msg"
     tkGameOverSessionDiagnostics = "game_over_session_diagnostics"
@@ -1858,7 +1861,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_sandbox": "LAB.exe",
     "desktop_icon_shop": "CHROMA.db",
     "desktop_icon_pvp": "DUELINK.exe",
-    "desktop_icon_roguelite": "ROOTMAP.db",
+    "desktop_icon_roguelite": "RECOVERY.exe",
     "desktop_icon_advancements": "ASCEND.db",
     "desktop_icon_changelog": "PATCHLOG.txt",
     "desktop_icon_credits": "CREDITS.nfo",
@@ -2569,13 +2572,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_mission_duration": "Mission Duration:",
     "game_over_continue": "CONTINUE (WAVE",
     "game_over_continue_sector": "CONTINUE (SECTOR",
+    "game_over_continue_clock": "CONTINUE (",
     "game_over_shop_currency_banked": "BANKED FOR THE SHOP",
     "restore_points_label": "RESTORE POINTS",
     "restore_points_unlimited": "UNLIMITED",
     "restore_points_none": "NONE LEFT",
     "restore_points_last": "LAST ONE",
     "restore_point_lost": "RESTORE POINT SPENT",
-    "restore_points_endless": "OFFLINE -- ENDLESS HAS NO CONTINUES",
+    "restore_points_endless": "OFFLINE: ENDLESS HAS NO CONTINUES",
+    "restore_points_overtime": "OFFLINE: OVERTIME HAS NO CONTINUES",
     "game_over_critical_failure": "CRITICAL SYSTEM FAILURE",
     "game_over_error_msg": "Your system has encountered a critical error and needs to reboot.",
     "game_over_session_diagnostics": "=== SESSION DIAGNOSTICS ===",
@@ -3730,10 +3735,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_net": "NET",
     "desktop_advancement_unlocked": "Advancement unlocked",
     "desktop_mode_locked": "MODE LOCKED:",
-    "survival_locked_desc": "Unlock Time Survival by beating Roguelite mode.",
-    "roguelite_locked_desc": "Unlock Roguelite by defeating the Wave 20 boss in Wave Mode.",
+    "survival_locked_desc": "Unlock Time Survival by beating Deep Recovery.",
+    "roguelite_locked_desc": "Unlock Deep Recovery by defeating the Wave 20 boss in Wave Mode.",
     "game_mode_unlocked": "NEW MODE UNLOCKED:",
-    "roguelite_unlocked_notif": "Roguelite Mode is now available on the desktop!",
+    "roguelite_unlocked_notif": "Deep Recovery is now available on the desktop!",
     "survival_unlocked_notif": "Time Survival Mode is now available on the desktop!",
 
     # Debug panel runtime stats
@@ -3982,7 +3987,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_sandbox": "LAB.exe",
     "desktop_icon_shop": "CROMAS.db",
     "desktop_icon_pvp": "DUELOS.exe",
-    "desktop_icon_roguelite": "ROOTMAP_ALPHA.db",
+    "desktop_icon_roguelite": "RECOVERY.exe",
     "desktop_icon_advancements": "ASCEND.db",
     "desktop_icon_changelog": "PARCHES.txt",
     "desktop_icon_credits": "CRÉDITOS.nfo",
@@ -4571,13 +4576,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_mission_duration": "Duración de la Misión:",
     "game_over_continue": "CONTINUAR (OLEADA",
     "game_over_continue_sector": "CONTINUAR (SECTOR",
+    "game_over_continue_clock": "CONTINUAR (",
     "game_over_shop_currency_banked": "GUARDADO PARA LA TIENDA",
     "restore_points_label": "PUNTOS DE RESTAURACIÓN",
     "restore_points_unlimited": "ILIMITADOS",
     "restore_points_none": "NINGUNO",
     "restore_points_last": "EL ÚLTIMO",
     "restore_point_lost": "PUNTO DE RESTAURACIÓN GASTADO",
-    "restore_points_endless": "DESACTIVADOS -- INFINITO SIN CONTINUACIONES",
+    "restore_points_endless": "DESACTIVADOS: INFINITO SIN CONTINUACIONES",
+    "restore_points_overtime": "DESACTIVADOS: TIEMPO EXTRA SIN CONTINUACIONES",
     "game_over_critical_failure": "FALLO CRÍTICO DEL SISTEMA",
     "game_over_error_msg": "Tu sistema ha encontrado un error crítico y necesita reiniciarse.",
     "game_over_session_diagnostics": "=== DIAGNÓSTICO DE SESIÓN ===",
@@ -5853,10 +5860,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_net": "RED",
     "desktop_advancement_unlocked": "Logro desbloqueado",
     "desktop_mode_locked": "MODO BLOQUEADO:",
-    "survival_locked_desc": "Desbloquea Supervivencia en Tiempo derrotando el modo Roguelite.",
-    "roguelite_locked_desc": "Desbloquea Roguelite derrotando el jefe de la Ola 20 en Modo de Olas.",
+    "survival_locked_desc": "Desbloquea Supervivencia en Tiempo superando Recuperación Profunda.",
+    "roguelite_locked_desc": "Desbloquea Recuperación Profunda derrotando el jefe de la Ola 20 en Modo de Olas.",
     "game_mode_unlocked": "NUEVO MODO DESBLOQUEADO:",
-    "roguelite_unlocked_notif": "¡El Modo Roguelite ya está disponible en el escritorio!",
+    "roguelite_unlocked_notif": "¡Recuperación Profunda ya está disponible en el escritorio!",
     "survival_unlocked_notif": "¡El Modo Supervivencia ya está disponible en el escritorio!",
 
     # Debug panel runtime stats

@@ -199,7 +199,8 @@ proc formatTime*(seconds: float32): string =
 proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
                          timeSurvived: float32, kills: int, coins: int,
                          bossesKilled: int, died: bool,
-                         newGame: bool = true, runKills: int = -1, runCoins: int = -1) =
+                         newGame: bool = true, runKills: int = -1, runCoins: int = -1,
+                         runTime: float32 = -1.0'f32) =
   ## Only the three real progression modes have lifetime records. Sandbox, PvP
   ## and the 3D boss used to fall through into the time-survival bucket and
   ## pollute its games/kills/best-score totals.
@@ -207,9 +208,9 @@ proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
   ## `timeSurvived`, `kills`, `coins` and `bossesKilled` are ADDED to the totals.
   ## A run resumed with Continue has already been recorded once, so it passes
   ## only what it earned since then, with `newGame` false so it is not counted
-  ## as another game (or averaged in twice). `runKills` / `runCoins` are the
-  ## whole run's figures for the best-of records; they default to the added
-  ## amounts.
+  ## as another game (or averaged in twice). `runKills` / `runCoins` / `runTime`
+  ## are the whole run's figures for the best-of records (runTime: survival's
+  ## longest stand); they default to the added amounts.
   if mode notin {gmWaveBased, gmRoguelite, gmTimeSurvival}:
     return
 
@@ -249,12 +250,13 @@ proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
     modeStats.bestCoins = bestCoinsCandidate
 
   if mode == gmTimeSurvival:
-    if timeSurvived > modeStats.longestSurvivalTime:
-      modeStats.longestSurvivalTime = timeSurvived
-      modeStats.bestScore = int(timeSurvived)
+    let wholeRunTime = if runTime >= 0.0'f32: runTime else: timeSurvived
+    if wholeRunTime > modeStats.longestSurvivalTime:
+      modeStats.longestSurvivalTime = wholeRunTime
+      modeStats.bestScore = int(wholeRunTime)
     if newGame:
       modeStats.averageSurvivalTime =
-        (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + timeSurvived) /
+        (modeStats.averageSurvivalTime * float32(modeStats.gamesPlayed - 1) + wholeRunTime) /
         float32(modeStats.gamesPlayed)
   else:
     if scoreReached > modeStats.highestWaveReached:
