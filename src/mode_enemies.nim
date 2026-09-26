@@ -15,6 +15,7 @@ const
   RequestForkBombFork* = 90      ## Fork Bomb: fork a copy (mode_mechanics)
   RequestInterruptDetonate* = 91 ## Interrupt: blow up where it stands
   RequestRestorerRevive* = 92    ## Restorer: channel finished, raise the corpse
+  RequestFragmentSlam* = 93      ## Fragment: landed its pounce, crash down (mode_mechanics)
 
 proc isModeEnemy*(et: EnemyType): bool {.inline.} =
   et in etThread..etCorruptor
@@ -189,21 +190,99 @@ proc updateInterrupt(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
 # ---------------------------------------------------------------------------
 # Roguelite rooms
 
+proc fragmentMark(enemy: Enemy, playerPos: Vector2f, lead: float32,
+                  walls: seq[Wall], game: Game): Vector2f =
+  ## Where a pounce lands: the player's position `lead` seconds ahead on their
+  ## current heading, pulled in to the longest pounce, kept in the arena, and
+  ## slid back toward the Fragment while it would land inside an obstacle.
+  result = playerPos + game.player.vel * lead
+  let reach = result - enemy.pos
+  let d = reach.length()
+  if d > FragmentLeapRange:
+    result = enemy.pos + reach * (FragmentLeapRange / d)
+  let r = enemy.radius
+  result.x = clamp(result.x, r, game.screenWidth.float32 - r)
+  result.y = clamp(result.y, r, game.screenHeight.float32 - r)
+  for attempt in 0..9:
+    var blocked = false
+    for wall in walls:
+      if wall.hp > 0 and wallOverlapsCircle(wall, result, r):
+        blocked = true
+        break
+    if not blocked: break
+    result = result + (enemy.pos - result) * 0.25'f32
+
 proc updateFragment(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
                     walls: seq[Wall], currentTime: float32, game: var Game) =
-  enemy.modeTimer += dt
-  let cycle = FragmentHopTime + FragmentRestTime
-  if enemy.modeTimer >= cycle:
-    enemy.modeTimer -= cycle
-  if enemy.modeTimer < FragmentHopTime:
-    let toP = playerPos - enemy.pos
-    let d = max(0.001'f32, toP.length())
-    enemy.vel = toP * (speed / d)
-    let nextPos = enemy.pos + enemy.vel * dt
-    if not checkWallCollision(enemy, nextPos, walls, currentTime, game):
-      enemy.pos = nextPos
+  ## Skitters in on short hops. In range it crouches and marks where the
+  ## player is heading (the mark tracks, then locks), then pounces onto the
+  ## mark over any cover and crashes down (RequestFragmentSlam, carried out by
+  ## game/mode_mechanics). Grounded and exposed for a beat after.
+  case enemy.attackPhase
+  of 0:
+    enemy.modeTimer += dt
+    let cycle = FragmentHopTime + FragmentRestTime
+    if enemy.modeTimer >= cycle:
+      enemy.modeTimer -= cycle
+    enemy.attackExecuteTimer -= dt
+    let grounded = enemy.modeTimer >= FragmentHopTime
+    if grounded and enemy.attackExecuteTimer <= 0 and onScreen(enemy, game) and
+       distance(enemy.pos, playerPos) < FragmentPounceRange:
+      enemy.attackPhase = 1
+      enemy.modeTimer = 0
+      enemy.vel = newVector2f(0, 0)
+      enemy.targetPos = fragmentMark(enemy, playerPos,
+                                     FragmentTrackTime + FragmentLockTime + FragmentLeapTime,
+                                     walls, game)
+    elif not grounded:
+      let toP = playerPos - enemy.pos
+      let d = max(0.001'f32, toP.length())
+      enemy.vel = toP * (speed / d)
+      let nextPos = enemy.pos + enemy.vel * dt
+      if not checkWallCollision(enemy, nextPos, walls, currentTime, game):
+        enemy.pos = nextPos
+    else:
+      enemy.vel = enemy.vel * pow(0.02'f32, dt)
+  of 1:
+    # Crouched: the mark leads the player all the way to the impact.
+    enemy.vel = newVector2f(0, 0)
+    enemy.modeTimer += dt
+    enemy.targetPos = fragmentMark(enemy, playerPos,
+                                   max(0.0'f32, FragmentTrackTime - enemy.modeTimer) +
+                                     FragmentLockTime + FragmentLeapTime,
+                                   walls, game)
+    if enemy.modeTimer >= FragmentTrackTime:
+      enemy.attackPhase = 2
+      enemy.modeTimer = 0
+  of 2:
+    # Locked: the mark stays put, whatever the player does now.
+    enemy.vel = newVector2f(0, 0)
+    enemy.modeTimer += dt
+    if enemy.modeTimer >= FragmentLockTime:
+      enemy.attackPhase = 3
+      enemy.modeTimer = 0
+      enemy.startPos = enemy.pos
+  of 3:
+    # Airborne on a fixed clock, over anything in the way. Its body never
+    # lands a contact hit mid-air: the slam is the hit.
+    enemy.modeTimer += dt
+    enemy.lastContactDamageTime = currentTime
+    let k = min(1.0'f32, enemy.modeTimer / FragmentLeapTime)
+    enemy.pos = enemy.startPos + (enemy.targetPos - enemy.startPos) * k
+    enemy.vel = (enemy.targetPos - enemy.startPos) * (1.0'f32 / FragmentLeapTime)
+    if k >= 1.0'f32:
+      enemy.vel = newVector2f(0, 0)
+      enemy.attackPhase = RequestFragmentSlam
+  of 4:
+    # Grounded after the slam.
+    enemy.vel = newVector2f(0, 0)
+    enemy.modeTimer -= dt
+    if enemy.modeTimer <= 0:
+      enemy.attackPhase = 0
+      enemy.modeTimer = 0
+      enemy.attackExecuteTimer = FragmentPounceCooldown + rand(0.5).float32
   else:
-    enemy.vel = enemy.vel * pow(0.02'f32, dt)
+    discard
 
 proc updatePortGuard(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
                      walls: seq[Wall], currentTime: float32, game: var Game) =
@@ -516,7 +595,7 @@ proc updateModeEnemy*(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed:
 
 proc modeEnemyDamageTakenMult*(enemy: Enemy, hitFrom: Vector2f): float32 =
   ## Directional armour of the roster: Port Guards block the front outright
-  ## (handled as a block by the caller, see portGuardBlocks), Drivers take
+  ## (handled as a block by the caller, see shieldBlocksHit), Drivers take
   ## little from the front and double while stunned. `hitFrom` is where the
   ## hit came from (bullet origin side).
   result = 1.0'f32
@@ -531,16 +610,3 @@ proc modeEnemyDamageTakenMult*(enemy: Enemy, hitFrom: Vector2f): float32 =
       while diff < -PI: diff += 2.0'f32 * PI
       if abs(diff) < 1.05'f32:
         return DriverFrontArmor
-
-proc portGuardBlocks*(enemy: Enemy, hitFrom: Vector2f): bool =
-  ## True when a hit arriving from `hitFrom` lands on a Port Guard's shield.
-  if enemy.enemyType != etPortGuard or enemy.hp <= 0:
-    return false
-  let toSrc = hitFrom - enemy.pos
-  if toSrc.length() < 0.001'f32:
-    return false
-  let a = arctan2(toSrc.y, toSrc.x)
-  var diff = a - enemy.rotation
-  while diff > PI: diff -= 2.0'f32 * PI
-  while diff < -PI: diff += 2.0'f32 * PI
-  abs(diff) < PortGuardShieldHalfArc

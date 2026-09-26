@@ -225,7 +225,7 @@ type
     etDaemon,      # Support aura: hastes the horde around it
     etInterrupt,   # Kamikaze: marks a spot, dashes, detonates (hurts the horde too)
     # --- Roguelite rooms (legacy processes). Contiguous: etFragment..etCorruptor. ---
-    etFragment,    # Fodder: stop-and-go hops
+    etFragment,    # Fodder: hops in, then pounces onto a mark leading the player
     etPortGuard,   # Front shield blocks shots; flank it
     etSentry,      # Walks to a post, roots, turret-fires
     etMimic,       # Dormant file decoy that springs

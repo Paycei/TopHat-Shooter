@@ -29,8 +29,16 @@ const
   InterruptBlastRadius* = 72.0'f32
   InterruptDeathBlastRadius* = 48.0'f32  ## Smaller pop when shot before it lands
   InterruptBlastEnemyFrac* = 0.6'f32     ## Share of max HP the blast takes from the horde
-  FragmentHopTime* = 0.35'f32
-  FragmentRestTime* = 0.45'f32
+  FragmentHopTime* = 0.3'f32
+  FragmentRestTime* = 0.25'f32
+  FragmentPounceRange* = 250.0'f32   ## Crouches to pounce once the player is this close
+  FragmentTrackTime* = 0.35'f32      ## Crouched: its landing mark follows where the player is heading
+  FragmentLockTime* = 0.2'f32        ## Mark locked: last beat to change course
+  FragmentLeapTime* = 0.3'f32        ## Fixed flight time, so the slam always lands on the beat
+  FragmentLeapRange* = 280.0'f32     ## Longest pounce (the mark is pulled in past this)
+  FragmentSlamRadius* = 30.0'f32
+  FragmentRecoverTime* = 0.6'f32     ## Grounded after the slam: shoot it now
+  FragmentPounceCooldown* = 1.2'f32
   PortGuardShieldHalfArc* = 1.05'f32  ## Radians each side of the facing that block shots
   PortGuardTurnRate* = 1.4'f32
   SentryPostTimeout* = 3.5'f32
@@ -137,6 +145,20 @@ proc pointSegmentDistance*(p, a, b: Vector2f): float32 =
   let dx = p.x - (a.x + abx * t)
   let dy = p.y - (a.y + aby * t)
   sqrt(dx * dx + dy * dy)
+
+proc portGuardBlocks*(enemy: Enemy, hitFrom: Vector2f): bool =
+  ## True when a hit arriving from `hitFrom` lands on a Port Guard's shield
+  ## (rotation = shield facing).
+  if enemy.enemyType != etPortGuard or enemy.hp <= 0:
+    return false
+  let toSrc = hitFrom - enemy.pos
+  if toSrc.length() < 0.001'f32:
+    return false
+  let a = arctan2(toSrc.y, toSrc.x)
+  var diff = a - enemy.rotation
+  while diff > PI: diff -= 2.0'f32 * PI
+  while diff < -PI: diff += 2.0'f32 * PI
+  abs(diff) < PortGuardShieldHalfArc
 
 proc rayCircleHit(origin, dir: Vector2f, center: Vector2f, radius: float32): float32 =
   ## Distance along the (unit) ray to the circle, or -1 when it misses.

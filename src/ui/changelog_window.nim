@@ -611,6 +611,17 @@ let changelog: seq[ChangelogVersion] = @[
           "La pestaña de Procesos ahora funciona como la de Parches: elige una mejora de la lista para ver su icono, su nivel, lo que hace ahora mismo y lo que añade su siguiente nivel.",
           "Las habilidades activas [Q] indican si están LISTAS, cuánto les falta para recargarse o si ya se usaron en esta oleada.",
           "Ahora aparecen todas las mejoras. La pestaña anterior se cortaba tras las seis primeras; las listas largas se desplazan con la rueda del ratón o al mover la selección.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Roguelite: Fragments pounce",
+        headEs: "Roguelite: los Fragmentos se abalanzan",
+        en: points(
+          "Fragments used to hop so slowly that they died before ever reaching you. They now skitter in fast, and once close they crouch and mark the floor where you are heading, then leap onto the mark and crash down on it.",
+          "The mark follows you while it is amber and locks when it turns red. Change course when it locks: walking on, circling or standing still gets you hit. Stopping short is not always enough.",
+          "They leap over cover, and after the slam they sit grounded for a moment: that is the time to shoot them."),
+        es: points(
+          "Los Fragmentos saltaban tan despacio que morían antes de llegar a ti. Ahora se acercan rápido y, ya cerca, se agachan y marcan el suelo hacia donde vas, luego saltan sobre la marca y se estrellan contra ella.",
+          "La marca te sigue mientras es ámbar y se fija cuando se vuelve roja. Cambia de rumbo cuando se fije: seguir andando, dar vueltas o quedarte quieto hace que te golpee. Frenar no siempre basta.",
+          "Saltan por encima de las coberturas y, tras el golpe, se quedan un momento en el suelo: ese es el momento de dispararles.")),
 
       # --- Balance ---
       ChangelogEntry(category: clcBalance,
@@ -907,7 +918,12 @@ let changelog: seq[ChangelogVersion] = @[
         headEn: "Exit prompt vanished on the game over screen",
         headEs: "El aviso de salida desaparecía en la pantalla de fin de partida",
         en: "Pressing Escape on the game over, victory or run stats screen flashed the exit confirmation for a single frame and closed it. It now stays open until you answer.",
-        es: "Pulsar Escape en la pantalla de fin de partida, de victoria o de estadísticas de la partida mostraba la confirmación de salida un solo fotograma y la cerraba. Ahora permanece abierta hasta que respondas.")
+        es: "Pulsar Escape en la pantalla de fin de partida, de victoria o de estadísticas de la partida mostraba la confirmación de salida un solo fotograma y la cerraba. Ahora permanece abierta hasta que respondas."),
+      ChangelogEntry(category: clcFixed,
+        headEn: "Port Guard shields only stopped bullets",
+        headEs: "El escudo del Guardia de Puerto solo detenía balas",
+        en: "Orbs, auras, chain lightning, explosions, ramming, Thorns and abilities went straight through a Port Guard's shield. While the shield faces you it now negates all of them, burns and lifesteal included. Pushes and slows still land, and hitting it from behind works as before.",
+        es: "Los orbes, las auras, los rayos en cadena, las explosiones, las embestidas, Espinas y las habilidades atravesaban el escudo del Guardia de Puerto. Mientras el escudo te mira, ahora los anula todos, quemaduras y robo de vida incluidos. Los empujes y ralentizaciones siguen funcionando, y golpearlo por detrás funciona como antes.")
     ]
   ),
   ChangelogVersion(

@@ -775,7 +775,7 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
   # room play: cover, walls and obstacles are part of every behaviour.
   of etFragment:
     result = modeMelee(etFragment, t(tkEnemyFragmentName), t(tkEnemyFragmentDesc),
-                       1.2, 8.0, 2.0, Color(r: 200, g: 205, b: 215, a: 255), 150.0, 8.0)
+                       1.2, 8.0, 2.0, Color(r: 200, g: 205, b: 215, a: 255), 240.0, 8.0)
   of etPortGuard:
     result = modeMelee(etPortGuard, t(tkEnemyPortGuardName), t(tkEnemyPortGuardDesc),
                        3.5, 13.0, 2.0, Color(r: 255, g: 130, b: 60, a: 255), 55.0, 3.0)

@@ -2326,6 +2326,8 @@ proc main() =
             for enemy in currentGame.enemies:
               if enemy.isBoss and enemy.invulnerabilityTimer > 0:
                 continue  # respect phase-transition invulnerability
+              if shieldBlocksHit(currentGame, enemy, currentGame.player.pos):
+                continue  # a Port Guard facing the caster takes it on the shield
               let intended = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
                              else: enemy.maxHp * BLOOD_PACT_ENEMY_FRAC + bonus
               # Bosses resist it like every other non-bullet damage path: phase
@@ -2452,7 +2454,9 @@ proc main() =
                     let dist = distance(closest, enemy.pos)
                     if dist <= shockwaveWidth + enemy.radius:
                       hitEnemyIds.add(enemy.id)
-                      let dealt = applyEnemyHpDamage(enemy, baseDamage * bossPassiveDamageTaken(enemy))
+                      let dealt =
+                        if shieldBlocksHit(currentGame, enemy, closest): 0.0'f32
+                        else: applyEnemyHpDamage(enemy, baseDamage * bossPassiveDamageTaken(enemy))
                       trackPowerUpDamage(currentGame, puAftershock, dealt)
                       if dealt > 0:
                         showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)

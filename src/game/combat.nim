@@ -1,7 +1,23 @@
 import raylib, rlgl, random
-import types, particle, particle_pool, particle_types, powerup, patches, run_statistics, boss_weakpoints, ui/os_background, player
+import types, particle, particle_pool, particle_types, powerup, patches, run_statistics, boss_weakpoints, ui/os_background, player, mode_hazards
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
+
+proc shieldBlocksHit*(game: Game, enemy: Enemy, hitFrom: Vector2f): bool =
+  ## A Port Guard's shield negates any player damage arriving from its front,
+  ## not just bullets: orbs, auras, chains, blasts, the ram, Thorns. `hitFrom`
+  ## is where the hit comes from -- the player for anything that emanates from
+  ## them (orbs ride the player's ring, so the guard that faces the player faces
+  ## them too), the blast centre or the previous link for splash and chains.
+  ## When true the caller drops the damage and any DoT or lifesteal riding on
+  ## it; pushes and slows still land, since the shield stops harm, not force.
+  ## Throws the deflection spark on the shield rim.
+  if not portGuardBlocks(enemy, hitFrom):
+    return false
+  let rim = enemy.pos + (hitFrom - enemy.pos).normalize() * enemy.radius
+  spawnExplosionPooled(game.particlePool, rim.x, rim.y,
+                       Color(r: 255, g: 220, b: 150, a: 255), 4)
+  true
 
 proc bossPassiveDamageTaken*(enemy: Enemy): float32 =
   ## Fraction of a non-bullet hit a boss actually takes: phase defense, the
@@ -427,6 +443,8 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
   ## reflectType: "contact" for enemy contact, "bullet" for enemy bullets, "boss" for boss contact
   ## Returns actual damage dealt (after shields/reductions)
   if not hasPowerUp(player, puThorns):
+    return 0.0
+  if shieldBlocksHit(game, targetEnemy, player.pos):
     return 0.0
 
   let thornsLevel = getPowerUpLevel(player, puThorns)

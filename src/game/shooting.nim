@@ -99,7 +99,9 @@ proc fireLightspeedTracer(game: Game, origin, dir: Vector2f, stats: combat.Comba
 
   let tracerBase = stats.damage * TracerDamageMult
   let (tracerDmg, wasCrit) = applyCriticalHitWithFlag(stats, tracerBase)
-  let actual = damageEnemy(bestEnemy, tracerDmg)
+  let actual =
+    if shieldBlocksHit(game, bestEnemy, origin): 0.0'f32
+    else: damageEnemy(bestEnemy, tracerDmg)
   if actual > 0:
     trackPowerUpDamage(game, puBulletSpeed, actual)
     showDamage(game, bestEnemy.pos, actual, fromPlayer = true,

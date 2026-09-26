@@ -231,6 +231,19 @@ proc forkBombFork(game: var Game, bomb: Enemy) =
   game.enemies.add(copy)
   spawnExplosionPooled(game.particlePool, bomb.pos.x, bomb.pos.y, bomb.color, 14)
 
+proc fragmentSlam(game: var Game, frag: Enemy) =
+  ## A Fragment crashing down on its pounce mark.
+  frag.attackPhase = 4
+  frag.modeTimer = FragmentRecoverTime
+  # The slam is this landing's hit: no contact tick on top of it.
+  frag.lastContactDamageTime = game.time
+  spawnShockwavePooled(game.particlePool, frag.pos.x, frag.pos.y, FragmentSlamRadius)
+  spawnExplosionPooled(game.particlePool, frag.pos.x, frag.pos.y, frag.color, 10)
+  if distance(game.player.pos, frag.pos) <= FragmentSlamRadius + game.player.radius * 0.6'f32:
+    if hazardHitPlayer(game, frag.contactDamage, dcContact, dtDefault, source = frag):
+      addShake(game.dopamine.screenShake, siSmall)
+      playSound(stPlayerHit, 0.4)
+
 proc updateModeMechanics*(game: var Game, dt: float32) =
   ## Once per frame, before the enemy loop.
   let mc = addr game.modeCombat
@@ -252,6 +265,8 @@ proc updateModeMechanics*(game: var Game, dt: float32) =
         remove = true
     of RequestRestorerRevive:
       if e.enemyType == etRestorer: reviveCorpse(game, e)
+    of RequestFragmentSlam:
+      if e.enemyType == etFragment: fragmentSlam(game, e)
     else:
       discard
     if not remove and isBallistic(e):

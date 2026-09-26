@@ -201,18 +201,50 @@ proc drawModeEnemy*(enemy: Enemy) =
     drawCircle(v2(cx, cy + r * 0.35'f32), 1.8, Color(r: 40, g: 20, b: 0, a: 255))
 
   of etFragment:
+    # The pounce mark is drawn with the body, never hint-gated: it is the only
+    # tell of the slam. Tracking = a wandering amber ring, locked = a red
+    # ring that fills in as the Fragment comes down on it.
+    var lift = 0.0'f32
+    if enemy.attackPhase in 1..3:
+      let m = enemy.targetPos
+      let locked = enemy.attackPhase >= 2
+      let markCol = if locked: Color(r: 255, g: 80, b: 60, a: 255)
+                    else: Color(r: 255, g: 215, b: 140, a: 255)
+      let fall = if enemy.attackPhase == 3: clamp(enemy.modeTimer / FragmentLeapTime, 0.0'f32, 1.0'f32)
+                 else: 0.0'f32
+      if locked:
+        drawCircle(v2(m.x, m.y), FragmentSlamRadius * (0.3'f32 + 0.7'f32 * fall),
+                   withAlpha(markCol, a8(50.0 + 60.0 * fall)))
+      drawCircleLines(m.x.int32, m.y.int32, FragmentSlamRadius,
+                      withAlpha(markCol, a8(if locked: 235.0 else: 110.0 + pulse * 90.0)))
+      let tick = if locked: 0.0'f32 else: t * 3.0'f32
+      for k in 0..3:
+        let a = tick + k.float32 * PI / 2.0
+        drawLine(v2(m.x + cos(a) * (FragmentSlamRadius - 7.0'f32), m.y + sin(a) * (FragmentSlamRadius - 7.0'f32)),
+                 v2(m.x + cos(a) * (FragmentSlamRadius + 4.0'f32), m.y + sin(a) * (FragmentSlamRadius + 4.0'f32)),
+                 2.0, withAlpha(markCol, 210))
+      if enemy.attackPhase == 3:
+        # Airborne: a shadow on the ground, the shard riding an arc above it.
+        lift = sin(fall * PI) * 26.0'f32
+        drawEllipse(cx.int32, cy.int32, r * (1.0'f32 - lift / 80.0'f32),
+                    r * 0.45'f32, Color(r: 0, g: 0, b: 0, a: 80))
+    # Crouched while it marks: flattened and flaring white on the lock.
+    let crouched = enemy.attackPhase in 1..2
+    let sq = if crouched: 0.72'f32 else: 1.0'f32
+    let bodyY = cy - lift + (if crouched: r * 0.25'f32 else: 0.0'f32)
+    let body = if enemy.attackPhase == 2: lighter(col, 60) else: col
     # A jagged shard that tumbles a little on every hop.
     let spin = enemy.id.float32 * 1.3'f32 + floor(t * 1.4'f32 + enemy.id.float32 * 0.3'f32) * 0.9'f32
     var pts: array[5, Vector2]
     for i in 0..4:
       let a = spin + i.float32 * PI * 2.0 / 5.0
       let rr = r * (if i mod 2 == 0: 1.15'f32 else: 0.7'f32)
-      pts[i] = v2(cx + cos(a) * rr, cy + sin(a) * rr)
+      pts[i] = v2(cx + cos(a) * rr, bodyY + sin(a) * rr * sq)
     for i in 0..4:
-      tri(v2(cx, cy), pts[i], pts[(i + 1) mod 5], col)
+      tri(v2(cx, bodyY), pts[i], pts[(i + 1) mod 5], body)
     for i in 0..4:
       drawLine(pts[i], pts[(i + 1) mod 5], 1.5, darker(col, 3))
-    drawCircle(v2(cx, cy), r * 0.22'f32, White)
+    drawCircle(v2(cx, bodyY), r * 0.22'f32, White)
 
   of etPortGuard:
     drawCircle(v2(cx, cy), r + 4.0'f32, withAlpha(col, 35))

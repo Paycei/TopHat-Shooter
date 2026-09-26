@@ -408,9 +408,14 @@ proc applyMasteryDoT*(enemy: Enemy, elemType: ElementType,
     applySlow(enemy, masterySlowAmount, 0.2)
 
 proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
-                       bullet: Bullet, dt: float32, stats: CombatStats) =
+                       bullet: Bullet, dt: float32, stats: CombatStats,
+                       shielded: bool) =
   ## Apply a single bullet effect to an enemy
-  ## Uses pre-calculated combat stats for critical hit calculations
+  ## Uses pre-calculated combat stats for critical hit calculations.
+  ## `shielded` = a Port Guard's shield took the shot: the burns and the
+  ## lifesteal ride on damage that never landed, so they are dropped.
+  if shielded and effect.effectType in {befPoison, befFire, befBlood}:
+    return
   case effect.effectType
   of befFrost:
     # Frost: Permanent slow (reduced by debuffResistance for bosses). Kept in
@@ -503,7 +508,9 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
           if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
             let chainDmgBase = effect.baseDamage * chainDamage * chainDmgMult
             let chainDmgWithCrit = applyCriticalHitFromStats(stats, chainDmgBase)
-            let actualDamage = damageEnemy(game.enemies[k], chainDmgWithCrit)
+            let actualDamage =
+              if shieldBlocksHit(game, game.enemies[k], enemy.pos): 0.0'f32
+              else: damageEnemy(game.enemies[k], chainDmgWithCrit)
 
             # Track chain lightning damage, splitting off the mastery's share.
             # Keyed off effect.hasMastery -- the flag that actually scaled
@@ -549,7 +556,8 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 3)
       showDamage(game, game.player.pos, restored, true, false, dtHeal)
 
-proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float32) =
+proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float32,
+                         shielded = false) =
   ## Apply all bullet effects to an enemy - unified entry point
   let effects = getBulletEffects(game, bullet)
 
@@ -557,5 +565,5 @@ proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float
   let stats = calculateCombatStats(game.player)
 
   for effect in effects:
-    applyBulletEffect(game, effect, enemy, bullet, dt, stats)
+    applyBulletEffect(game, effect, enemy, bullet, dt, stats, shielded)
 

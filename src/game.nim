@@ -1693,7 +1693,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     for enemy in game.enemies:
       if auraWaveCatches(game.player, enemy, slot, front):
         applySlow(enemy, slowPercent, holdTime)
-        let slowChipDamage = damageEnemy(enemy, chipDamage, consumesDiamondShield = false)
+        let slowChipDamage =
+          if shieldBlocksHit(game, enemy, game.player.pos): 0.0'f32
+          else: damageEnemy(enemy, chipDamage, consumesDiamondShield = false)
         if slowChipDamage > 0:
           trackPowerUpDamage(game, puSlowField, slowChipDamage)
           accumulateAndShowAuraDamage(game, enemy, slowChipDamage, dtFrost, false)
@@ -1720,6 +1722,8 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
 
     for enemy in game.enemies:
       if auraWaveCatches(game.player, enemy, slot, front):
+        if shieldBlocksHit(game, enemy, game.player.pos):
+          continue
         applyMasteryDoT(enemy, etFire, fireDamagePerSec, fireDuration,
                         game.player.hasFireMastery,
                         masteryDmgMult = FireMasteryDmgMult, masteryDurMult = FireMasteryDurMult,
@@ -1769,7 +1773,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
       if enemy notin processedEnemies:
         # Apply initial damage with crit chance using centralized stats
         let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, lightningDamage)
-        let actualDamage = damageEnemy(enemy, damageWithCrit, consumesDiamondShield = false)
+        let actualDamage =
+          if shieldBlocksHit(game, enemy, game.player.pos): 0.0'f32
+          else: damageEnemy(enemy, damageWithCrit, consumesDiamondShield = false)
         processedEnemies.add(enemy)
 
         # Track lightning aura damage, splitting off the mastery's share rather
@@ -1813,8 +1819,10 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
             markAuraWaveHit(game.player, nearestEnemy, slot)
             # Apply chained damage (same as initial) with crit chance using centralized stats
             let (chainDamageWithCrit, chainWasCrit) = applyCriticalHitWithFlag(stats, lightningDamage)
-            let chainedDamage = damageEnemy(nearestEnemy, chainDamageWithCrit,
-                                            consumesDiamondShield = false)
+            let chainedDamage =
+              if shieldBlocksHit(game, nearestEnemy, currentEnemy.pos): 0.0'f32
+              else: damageEnemy(nearestEnemy, chainDamageWithCrit,
+                                consumesDiamondShield = false)
             processedEnemies.add(nearestEnemy)
 
             # Track chained lightning damage (same base/mastery split)
@@ -1852,6 +1860,8 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
 
     for enemy in game.enemies:
       if auraWaveCatches(game.player, enemy, slot, front):
+        if shieldBlocksHit(game, enemy, game.player.pos):
+          continue
         let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(arcaneStats, arcaneDamage)
         let actualDamage = damageEnemy(enemy, damageWithCrit, consumesDiamondShield = false)
 
@@ -1884,6 +1894,8 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
 
     for enemy in game.enemies:
       if auraWaveCatches(game.player, enemy, slot, front):
+        if shieldBlocksHit(game, enemy, game.player.pos):
+          continue
         applyMasteryDoT(enemy, etPoison, poisonDamagePerSec, poisonDuration,
                         game.player.hasPoisonMastery,
                         masteryDmgMult = PoisonMasteryDmgMult, masteryDurMult = PoisonMasteryDurMult,
@@ -1929,7 +1941,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
         enemy.knockbackVel = awayFromPlayer * (pushForce * proximity * resistance)
 
         let dmg = if enemy.isBoss: gustDamage * 0.25'f32 else: gustDamage
-        let windDamage = damageEnemy(enemy, dmg, consumesDiamondShield = false)
+        let windDamage =
+          if shieldBlocksHit(game, enemy, game.player.pos): 0.0'f32
+          else: damageEnemy(enemy, dmg, consumesDiamondShield = false)
         if windDamage > 0:
           trackPowerUpDamageWithMastery(game, puWindAura, puWindMastery, windDamage,
             if game.player.hasWindMastery: MasteryDamageMult else: 1.0'f32)
@@ -1987,6 +2001,8 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
 
     for enemy in game.enemies:
       if auraWaveCatches(game.player, enemy, slot, front):
+        if shieldBlocksHit(game, enemy, game.player.pos):
+          continue
         # Apply blood damage with crit chance using centralized stats
         let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(bloodStats, bloodDamage)
         let actualDamage = damageEnemy(enemy, damageWithCrit, consumesDiamondShield = false)
@@ -2068,7 +2084,7 @@ proc updatePulseArmor(game: var Game) =
           enemy.knockbackVel = awayFromPlayer * launch
 
           # Damage for level 2 and 3 (bosses take reduced damage)
-          if baseDamage > 0:
+          if baseDamage > 0 and not shieldBlocksHit(game, enemy, game.player.pos):
             let dmg = if enemy.isBoss: damage * 0.25'f32 else: damage
             let actualDamage = damageEnemy(enemy, dmg)
             trackPowerUpDamage(game, puPulseArmor, actualDamage)
@@ -3065,7 +3081,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           let chainDamage = chainStats.damage * 1.5'f32
           for otherEnemy in game.enemies:
             let dist = distance(game.player.pos, otherEnemy.pos)
-            if dist <= killChainRadius:
+            if dist <= killChainRadius and
+                not shieldBlocksHit(game, otherEnemy, game.player.pos):
               let actual = damageEnemy(otherEnemy, chainDamage)
               trackPowerUpDamage(game, puKillChain, actual)
               game.showDamage(otherEnemy.pos, actual, fromPlayer = true, isCritical = false, damageType = dtDefault)
@@ -3082,7 +3099,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         for otherEnemy in game.enemies:
           if otherEnemy == enemy or otherEnemy.hp <= 0:
             continue
-          if distance(enemy.pos, otherEnemy.pos) <= ZipBombRadius + otherEnemy.radius:
+          if distance(enemy.pos, otherEnemy.pos) <= ZipBombRadius + otherEnemy.radius and
+              not shieldBlocksHit(game, otherEnemy, enemy.pos):
             let actual = damageEnemy(otherEnemy, zipDamage)
             game.showDamage(otherEnemy.pos, actual, fromPlayer = true, isCritical = false, damageType = dtDefault)
         spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y,
@@ -3158,12 +3176,14 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
                 # Spread each active element at 40% DPS and 40% duration
                 var tetherColor = VOLATILE_COLOR
                 var nth = 0
+                let shielded = shieldBlocksHit(game, otherEnemy, enemy.pos)
                 for et, ae in enemy.activeEffects:
                   if ae.primary.isActive:
-                    applyEffect(otherEnemy, ae.primary.elementType,
-                                ae.primary.damagePerSec * 0.4,
-                                ae.primary.remainingDuration * 0.4,
-                                "volatile_pulse", ae.primary.hadMastery)
+                    if not shielded:
+                      applyEffect(otherEnemy, ae.primary.elementType,
+                                  ae.primary.damagePerSec * 0.4,
+                                  ae.primary.remainingDuration * 0.4,
+                                  "volatile_pulse", ae.primary.hadMastery)
                     # Rotate tether colours through the spread elements so
                     # the player can see *what* is being passed along.
                     if nth == tethers mod activeEffectCount:
@@ -3611,17 +3631,22 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           # Deal contact damage to enemy based on player damage stat, speed, and crits
           let (contactDamageToEnemy, contactWasCrit) = calculateContactDamageToEnemy(game.player, enemy)
 
+          # Ramming a Port Guard's raised shield does nothing to it
+          let rammedShield = shieldBlocksHit(game, enemy, game.player.pos)
+
           # Stars use hit counter for all damage sources
           if enemy.enemyType == etStar:
             enemy.hitCount += 1
-          else:
+          elif not rammedShield:
             discard damageEnemy(enemy, contactDamageToEnemy)
 
           enemy.lastContactDamageTime = game.time
 
           # Accumulate damage for damage number display (shows every 0.5s)
           # Crits shown immediately and in the right color
-          if contactWasCrit:
+          if rammedShield:
+            discard
+          elif contactWasCrit:
             showDamage(game, enemy.pos, contactDamageToEnemy, true, true, dtCritical)
           else:
             accumulateAndShowContactDamage(game, enemy, contactDamageToEnemy)
@@ -4280,6 +4305,9 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           let weakCoreHit = bossWeakPointCoreHit(target, bullet.pos, bullet.radius)
           let bossIsInvulnerable =
             target.isBoss and target.invulnerabilityTimer > 0
+          # A Port Guard's shield took the shot (set below): nothing that rides
+          # on the hit's damage -- on-hit bonuses, burns, lifesteal -- lands.
+          var shieldBlocked = false
 
           if target.enemyType == etStar:
             # Stars use hit counter, show "1" per hit dealt. Still a connecting
@@ -4345,11 +4373,10 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             # them off, and it takes double while stunned.
             if not target.isBoss and target.enemyType in {etPortGuard, etDriver}:
               let hitFrom = bullet.pos - bullet.vel.normalize() * 40.0'f32
-              if portGuardBlocks(target, hitFrom):
+              if shieldBlocksHit(game, target, hitFrom):
+                shieldBlocked = true
                 shieldDamage += actualDamage
                 actualDamage = 0
-                spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
-                                     Color(r: 255, g: 220, b: 150, a: 255), 4)
               else:
                 actualDamage *= modeEnemyDamageTakenMult(target, hitFrom)
 
@@ -4389,7 +4416,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             # Resonance: bullets hitting DoT enemies deal bonus damage equal to % of combined DPS
             var resonanceBonusDamage = 0.0
             if game.player.resonanceLevel > 0 and bullet.fromPlayer and
-                not bullet.isEcho and not bossIsInvulnerable:
+                not bullet.isEcho and not bossIsInvulnerable and not shieldBlocked:
               var totalDoTDps = 0.0
               for et, ae in target.activeEffects:
                 if ae.primary.isActive:
@@ -4409,7 +4436,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
             # Giant Slayer: Deal % of enemy current HP as bonus damage
             var giantSlayerDamage = 0.0
             if not bullet.isEcho and hasPowerUp(game.player, puGiantSlayer) and
-                not bossIsInvulnerable:
+                not bossIsInvulnerable and not shieldBlocked:
               let giantSlayerLevel = getPowerUpLevel(game.player, puGiantSlayer)
               var percentDamage = case giantSlayerLevel
                 of 1: 0.03   # 3% of current HP vs normal enemies
@@ -4641,7 +4668,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
                           Color(r: 255, g: 215, b: 0, a: 255), 15)
 
           # UNIFIED BULLET EFFECT SYSTEM
-          applyBulletEffects(game, bullet, target, dt)
+          applyBulletEffects(game, bullet, target, dt, shielded = shieldBlocked)
 
           # Impact particles + hit flash
           spawnExplosionPooled(game.particlePool, bullet.pos.x, bullet.pos.y,
@@ -4662,7 +4689,8 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
               if game.enemies[k] == target:
                 continue
               let dist = distance(bullet.pos, game.enemies[k].pos)
-              if dist < explosionRadius:
+              if dist < explosionRadius and
+                  not shieldBlocksHit(game, game.enemies[k], bullet.pos):
                 let explosionDmg = finalDamage * 0.5
                 let actualDamage = damageEnemy(game.enemies[k], explosionDmg)
 
