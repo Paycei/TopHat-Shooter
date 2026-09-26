@@ -308,9 +308,9 @@ proc getElementDamage*(level: int): float32 =
   ## Get base damage per hit based on power-up level
   ## Compensated with reduced damage multiplier in game logic
   case level
-  of 1: 3.5
-  of 2: 5.5
-  else: 8.0
+  of 1: 3.0
+  of 2: 5.0
+  else: 7.0
 
 proc getHeavyRoundsSizeMultiplier*(level: int): float32 =
   case level

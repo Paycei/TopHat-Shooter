@@ -638,6 +638,17 @@ let changelog: seq[ChangelogVersion] = @[
           "Eliminar élites ahora otorga +10 / +15 / +20 HP máximo (antes +100 / +150 / +200) y ya no te cura esa cantidad.",
           "El HP que otorga ya no cuenta como HP invertido, así que Juggernaut no puede convertirlo.")),
       ChangelogEntry(category: clcBalance,
+        headEn: "Orbs toned down",
+        headEs: "Orbes debilitados",
+        en: points(
+          "Every orb power-up (Fire, Frost, Poison and the other element orbs, plus the legendary Elemental Orbs) now circles you about 10% slower.",
+          "Orb hits deal 3 / 5 / 7 damage per level (was 3.5 / 5.5 / 8), about 10 to 15% less. Arcane Orbs keep their +50%: 4.5 / 7.5 / 10.5. The burns and poison orbs leave behind are about 10% weaker too.",
+          "Blood Orbs heal 4.5% of their damage (was 5%). Together with the lower damage, that is about 20% less healing."),
+        es: points(
+          "Todas las mejoras de orbes (Orbes de Fuego, Helados, Venenosos y los demás orbes de elemento, además de los legendarios Orbes Elementales) ahora giran a tu alrededor aproximadamente un 10% más despacio.",
+          "Los golpes de orbe hacen 3 / 5 / 7 de daño por nivel (antes 3.5 / 5.5 / 8), entre un 10 y un 15% menos. Los Orbes Arcanos mantienen su +50%: 4.5 / 7.5 / 10.5. Las quemaduras y el veneno que dejan los orbes también son un 10% más débiles.",
+          "Los Orbes de Sangre curan un 4.5% de su daño (antes 5%). Junto con el menor daño, eso es alrededor de un 20% menos de curación.")),
+      ChangelogEntry(category: clcBalance,
         headEn: "Waves are crowds",
         headEs: "Las oleadas son multitudes",
         en: points(

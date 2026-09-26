@@ -92,7 +92,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
 
   case orb.elementType
   of etPoison:
-    let poisonDmg = 0.3 + game.player.damage * 0.2
+    let poisonDmg = 0.25 + game.player.damage * 0.18
     applyMasteryDoT(enemy, etPoison, poisonDmg, 5.0,
                     game.player.hasPoisonMastery,
                     masteryDmgMult = PoisonMasteryDmgMult, masteryDurMult = PoisonMasteryDurMult,
@@ -103,7 +103,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
                    Color(r: 100, g: 255, b: 100, a: 255), 5)
 
   of etFire:
-    let fireDmg = 0.6 + game.player.damage * 0.25
+    let fireDmg = 0.5 + game.player.damage * 0.22
     applyMasteryDoT(enemy, etFire, fireDmg, 2.0,
                     game.player.hasFireMastery,
                     masteryDmgMult = FireMasteryDmgMult, masteryDurMult = FireMasteryDurMult,
@@ -233,7 +233,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     let masteryMult =
       if game.player.hasBloodMastery: BloodMasteryLifestealMult  # 10.0% with mastery
       else: 1.0'f32
-    let lifestealPercent = 0.05'f32 * masteryMult  # Base 5%
+    let lifestealPercent = 0.045'f32 * masteryMult  # Base 4.5%
 
     # Goes through heal() like every other lifesteal source: it was the only one
     # writing hp directly, which silently skipped the player's heal-power
@@ -268,9 +268,9 @@ proc updateOrbitalWeapons*(game: var Game, dt: float32) =
   let orbStats = calculateCombatStats(game.player)
 
   # Calculate base damage
-  let damageScaling = game.player.damage * 0.2
+  let damageScaling = game.player.damage * 0.18
   let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
-    5.0 + damageScaling  # Legendary version
+    4.5 + damageScaling  # Legendary version
   else:
     # For individual orbs, use level-based damage
     var maxDamage = 0.0

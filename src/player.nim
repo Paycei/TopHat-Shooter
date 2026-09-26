@@ -507,7 +507,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.singularityShieldRegenTimer = 0.0
 
   # Update rotating orbs angle
-  player.orbRotationAngle += dt * 2.75  # Rotate orbs around player
+  player.orbRotationAngle += dt * 2.5  # Rotate orbs around player
 
   # Clean up orbs if no orb power-ups are active
   if not hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
