@@ -51,13 +51,6 @@ proc addDashLane(game: var Game, enemy: Enemy, fromPos, toPos: Vector2f, duratio
   w.enemyType = enemy.enemyType
   game.attackWarnings.add(w)
 
-proc findEnemyById(game: Game, id: int): Enemy =
-  if id <= 0: return nil
-  for other in game.enemies:
-    if other.id == id and other.hp > 0:
-      return other
-  nil
-
 proc rangedStep(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed: float32,
                 walls: seq[Wall], currentTime: float32, game: var Game) =
   ## The Cube-style loop: enter the arena, hold range, fire from the config.
@@ -139,18 +132,29 @@ proc updateForkBomb(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
 
 proc updateDeadlock(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
                     walls: seq[Wall], currentTime: float32, game: var Game) =
+  ## A mutex. Every Deadlock is linked to every other one within
+  ## DeadlockMaxTether (the mesh, burned in game/mode_mechanics), so the group
+  ## closes like a lock: each takes a ring slot 150 px around where the player
+  ## is heading, spread evenly from the others. Opposite links run through the
+  ## player, neighbours' links fence them in; killing one opens a gap.
   enemy.modeTimer += dt
-  let partner = findEnemyById(game, enemy.linkId)
-  if partner.isNil:
-    discard moveToward(enemy, playerPos, speed, dt, walls, currentTime, game)
-    return
-  # Each half takes the player's far side from its partner, so the tether
-  # between them is dragged across the player.
-  var side = enemy.pos - partner.pos
-  if side.length() < 1.0'f32:
-    side = newVector2f(1, 0)
-  side = side.normalize()
-  let target = playerPos + side * 150.0'f32
+  let center = playerPos + game.player.vel * 0.5'f32
+  var bearing = enemy.pos - center
+  if bearing.length() < 1.0'f32:
+    bearing = newVector2f(cos(enemy.id.float32), sin(enemy.id.float32))
+  let mine = arctan2(bearing.y, bearing.x)
+  # Slide around the ring, away from the Deadlocks on nearby bearings.
+  var shift = 0.0'f32
+  for o in game.enemies:
+    if o == enemy or o.enemyType != etDeadlock or o.hp <= 0 or o.isBoss: continue
+    if distance(o.pos, center) > 600.0'f32: continue
+    var d = mine - arctan2(o.pos.y - center.y, o.pos.x - center.x)
+    while d > PI: d -= 2.0'f32 * PI
+    while d < -PI: d += 2.0'f32 * PI
+    let away = if d > 0.0'f32 or (d == 0.0'f32 and enemy.id > o.id): 1.0'f32 else: -1.0'f32
+    shift += away * (PI - abs(d))
+  let slot = mine + clamp(shift * 0.5'f32, -1.2'f32, 1.2'f32)
+  let target = center + newVector2f(cos(slot), sin(slot)) * 150.0'f32
   discard moveToward(enemy, target, speed, dt, walls, currentTime, game)
 
 proc updateInterrupt(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,

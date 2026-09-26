@@ -382,35 +382,44 @@ proc drawModeEnemy*(enemy: Enemy) =
     drawCircle(v2(cx, cy), r, col)
 
 proc drawEnemyTethers*(enemies: seq[Enemy]) =
-  ## Deadlock tethers (lethal once armed) and the Forkmother's process-tree
-  ## lines to her children (harmless: they only show where the children are).
-  ## Ungated: a tether is a hazard.
+  ## The Deadlock mesh (a link is lethal once both ends are armed) and the
+  ## Forkmother's process-tree lines to her children (harmless: they only show
+  ## where the children are). Ungated: a link is a hazard.
   let t = getTime().float32
+  # Mesh: every two Deadlocks within DeadlockMaxTether. A link about to form
+  # (up to 60 px beyond reach) shows as a faint dashed line first, so a new
+  # link never appears out of nowhere on top of the player.
+  for i in 0..<enemies.len:
+    let a = enemies[i]
+    if a.enemyType != etDeadlock or a.hp <= 0 or a.isBoss: continue
+    for j in i + 1 ..< enemies.len:
+      let b = enemies[j]
+      if b.enemyType != etDeadlock or b.hp <= 0 or b.isBoss: continue
+      let d = distance(a.pos, b.pos)
+      if d > DeadlockMaxTether + 60.0'f32: continue
+      let armed = a.modeTimer >= DeadlockArmDelay and b.modeTimer >= DeadlockArmDelay
+      if d > DeadlockMaxTether:
+        dashedLine(a.pos, b.pos, 6, 10, 1.0,
+                   Color(r: 255, g: 120, b: 120, a: a8(40.0 + 60.0 * (DeadlockMaxTether + 60.0'f32 - d) / 60.0'f32)),
+                   t * 20.0'f32)
+      elif not armed:
+        dashedLine(a.pos, b.pos, 8, 6, 1.5, Color(r: 255, g: 120, b: 120, a: 150), t * 40.0'f32)
+      else:
+        let flick = sin(t * 30.0'f32 + (a.id + b.id).float32) * 0.5'f32 + 0.5'f32
+        drawLine(v2(a.pos.x, a.pos.y), v2(b.pos.x, b.pos.y), DeadlockTetherHalfWidth * 2.0'f32 + 4.0'f32,
+                 Color(r: 255, g: 40, b: 40, a: a8(60.0 + flick * 40.0)))
+        drawLine(v2(a.pos.x, a.pos.y), v2(b.pos.x, b.pos.y), DeadlockTetherHalfWidth * 2.0'f32,
+                 Color(r: 255, g: 70, b: 70, a: 230))
+        drawLine(v2(a.pos.x, a.pos.y), v2(b.pos.x, b.pos.y), 2.0, Color(r: 255, g: 230, b: 230, a: 255))
   for e in enemies:
-    if e.hp <= 0 or e.linkId <= 0: continue
+    if e.hp <= 0 or e.linkId <= 0 or e.enemyType == etDeadlock: continue
     var partner: Enemy = nil
     for o in enemies:
       if o.id == e.linkId and o.hp > 0:
         partner = o
         break
     if partner.isNil: continue
-    if e.enemyType == etDeadlock:
-      if e.id > partner.id: continue   # draw each pair once
-      let d = distance(e.pos, partner.pos)
-      let armed = e.modeTimer >= DeadlockArmDelay and partner.modeTimer >= DeadlockArmDelay
-      let slack = d > DeadlockMaxTether
-      if slack:
-        dashedLine(e.pos, partner.pos, 6, 10, 1.0, Color(r: 255, g: 120, b: 120, a: 70), t * 20.0'f32)
-      elif not armed:
-        dashedLine(e.pos, partner.pos, 8, 6, 1.5, Color(r: 255, g: 120, b: 120, a: 150), t * 40.0'f32)
-      else:
-        let flick = sin(t * 30.0'f32) * 0.5'f32 + 0.5'f32
-        drawLine(v2(e.pos.x, e.pos.y), v2(partner.pos.x, partner.pos.y), DeadlockTetherHalfWidth * 2.0'f32 + 4.0'f32,
-                 Color(r: 255, g: 40, b: 40, a: a8(60.0 + flick * 40.0)))
-        drawLine(v2(e.pos.x, e.pos.y), v2(partner.pos.x, partner.pos.y), DeadlockTetherHalfWidth * 2.0'f32,
-                 Color(r: 255, g: 70, b: 70, a: 230))
-        drawLine(v2(e.pos.x, e.pos.y), v2(partner.pos.x, partner.pos.y), 2.0, Color(r: 255, g: 230, b: 230, a: 255))
-    elif partner.isBoss:
+    if partner.isBoss:
       # Child -> mother: a thin pink process-tree branch (unless her seal's
       # legion chains already point at it).
       if partner.addsGateActive and partner.weakPoint.kind == bwoSummonSigils and

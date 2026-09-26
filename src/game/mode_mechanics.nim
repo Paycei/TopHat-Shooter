@@ -325,16 +325,24 @@ proc updateModeMechanics*(game: var Game, dt: float32) =
         o.hasteAmount = max(o.hasteAmount, DaemonHaste)
         o.hasteTimer = max(o.hasteTimer, 0.15'f32)
 
-  # Deadlock tethers burn anything that crosses them (the player).
-  for e in game.enemies:
-    if e.enemyType != etDeadlock or e.hp <= 0 or e.linkId <= 0: continue
-    let p = findLiving(game, e.linkId)
-    if p.isNil or e.id > p.id: continue
-    if e.modeTimer < DeadlockArmDelay or p.modeTimer < DeadlockArmDelay: continue
-    if distance(e.pos, p.pos) > DeadlockMaxTether: continue
-    if pointSegmentDistance(game.player.pos, e.pos, p.pos) <= DeadlockTetherHalfWidth + game.player.radius * 0.6'f32:
-      hazardHitPlayer(game, e.contactDamage, dcHazard, dtLaser, source = e,
-                      interval = DeadlockTetherInterval)
+  # The mutex mesh: every two armed Deadlocks within DeadlockMaxTether of each
+  # other are linked, and a link burns the player crossing it. One shared hit
+  # cooldown, so standing in several links at once is still one hit per beat.
+  block mesh:
+    for i in 0..<game.enemies.len:
+      let a = game.enemies[i]
+      if a.enemyType != etDeadlock or a.hp <= 0 or a.isBoss or a.modeTimer < DeadlockArmDelay:
+        continue
+      for j in i + 1 ..< game.enemies.len:
+        let b = game.enemies[j]
+        if b.enemyType != etDeadlock or b.hp <= 0 or b.isBoss or b.modeTimer < DeadlockArmDelay:
+          continue
+        if distance(a.pos, b.pos) > DeadlockMaxTether: continue
+        if pointSegmentDistance(game.player.pos, a.pos, b.pos) <=
+             DeadlockTetherHalfWidth + game.player.radius * 0.6'f32:
+          hazardHitPlayer(game, a.contactDamage, dcHazard, dtLaser, source = a,
+                          interval = DeadlockTetherInterval)
+          break mesh
 
   # Audit Lock countdown (the freeze itself is applied by game.nim).
   if mc.auditTimer > 0:

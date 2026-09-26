@@ -17,8 +17,8 @@ const
   ZombieReanimateTime* = 4.0'f32     ## A husk stands back up after this
   ZombieReapRadius* = 26.0'f32       ## Walk this close to a husk to reap it
   ZombieReviveHpFrac* = 0.5'f32
-  DeadlockArmDelay* = 1.0'f32        ## A fresh pair's tether is harmless this long
-  DeadlockMaxTether* = 380.0'f32     ## Beyond this the tether is overstretched (harmless)
+  DeadlockArmDelay* = 1.0'f32        ## A fresh Deadlock's links are harmless this long
+  DeadlockMaxTether* = 320.0'f32     ## Deadlocks farther apart than this are not linked
   DeadlockTetherHalfWidth* = 5.0'f32
   DeadlockTetherInterval* = 0.5'f32  ## Seconds between tether hits
   DaemonAuraRadius* = 190.0'f32

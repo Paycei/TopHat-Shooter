@@ -221,7 +221,7 @@ type
     etForkBomb,    # Splits into two Threads on death, forks itself if ignored
     etWatchdog,    # The horde's only shooter: slow three-shot fan from range
     etZombie,      # Leaves a husk that stands back up unless reaped
-    etDeadlock,    # Spawns as a linked pair joined by a lethal tether
+    etDeadlock,    # "mutex": arrives in pairs, links to every Deadlock nearby; the mesh closes around the player
     etDaemon,      # Support aura: hastes the horde around it
     etInterrupt,   # Kamikaze: marks a spot, dashes, detonates (hurts the horde too)
     # --- Roguelite rooms (legacy processes). Contiguous: etFragment..etCorruptor. ---

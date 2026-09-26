@@ -612,6 +612,17 @@ let changelog: seq[ChangelogVersion] = @[
           "Las habilidades activas [Q] indican si están LISTAS, cuánto les falta para recargarse o si ya se usaron en esta oleada.",
           "Ahora aparecen todas las mejoras. La pestaña anterior se cortaba tras las seis primeras; las listas largas se desplazan con la rueda del ratón o al mover la selección.")),
       ChangelogEntry(category: clcImproved,
+        headEn: "Time Survival: Deadlocks close the lock",
+        headEs: "Supervivencia: los Interbloqueos cierran el cerrojo",
+        en: points(
+          "Each Deadlock used to link only to its own partner, and the pair trailed behind you, so the line rarely got in your way.",
+          "Now every Deadlock links to every other Deadlock nearby, forming a burning mesh. They spread out around where you are heading, so the links close over you like a lock and fence you in.",
+          "Links form slowly: a faint dashed line shows one about to appear. Standing in several links still costs one hit at a time. Kill a Deadlock and all of its links go with it, so shoot them first when they gather."),
+        es: points(
+          "Cada Interbloqueo solo se enlazaba con su pareja, y la pareja iba detrás de ti, así que la línea casi nunca te estorbaba.",
+          "Ahora cada Interbloqueo se enlaza con todos los que tiene cerca y forman una malla que quema. Se reparten alrededor de hacia donde vas, así que los enlaces se cierran sobre ti como un cerrojo y te encierran.",
+          "Los enlaces se forman poco a poco: una línea discontinua tenue avisa de que uno va a aparecer. Estar dentro de varios enlaces sigue costando un solo golpe cada vez. Mata a un Interbloqueo y desaparecen todos sus enlaces, así que dispárales primero cuando se junten.")),
+      ChangelogEntry(category: clcImproved,
         headEn: "Roguelite: Fragments pounce",
         headEs: "Roguelite: los Fragmentos se abalanzan",
         en: points(
