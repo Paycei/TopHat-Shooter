@@ -393,6 +393,15 @@ let changelog: seq[ChangelogVersion] = @[
 
       # --- Improvements ---
       ChangelogEntry(category: clcImproved,
+        headEn: "Time Survival: Rogue Process arrivals stand out",
+        headEs: "Supervivencia: la llegada del Proceso Rebelde se nota",
+        en: points(
+          "A Rogue Process now drops in on a beam of light over a glowing landing pad, with rings closing in on the spot and a pointer from you to it, so you know where it lands before it does.",
+          "The arena border pulses violet while it arrives. When it lands, the screen flashes, three shockwaves roll out and its name pops up in large letters above it before settling into its usual label."),
+        es: points(
+          "Un Proceso Rebelde ahora cae sobre un haz de luz encima de una zona de aterrizaje brillante, con anillos que se cierran sobre el punto y una flecha desde ti hacia él, así que sabes dónde aterriza antes de que lo haga.",
+          "El borde de la arena pulsa en violeta mientras llega. Al aterrizar, la pantalla destella, se expanden tres ondas de choque y su nombre aparece en letras grandes encima de él antes de quedarse en su etiqueta habitual.")),
+      ChangelogEntry(category: clcImproved,
         headEn: "Help and Sandbox cover every roster",
         headEs: "Ayuda y Sandbox cubren todos los repertorios",
         en: points(

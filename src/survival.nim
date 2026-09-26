@@ -79,7 +79,7 @@ proc survivalEventDuration*(kind: SurvivalEventKind): float32 =
   of sekFirewallBreach: 1.0'f32 + 25.0'f32
   of sekUploadZone: 30.0'f32
   of sekCorruptedSector: 1.5'f32 + 12.0'f32
-  of sekRogueProcess: 1.2'f32 + 45.0'f32
+  of sekRogueProcess: 2.0'f32 + 45.0'f32
   of sekOverclock: 15.0'f32
 
 proc survivalEventColor*(kind: SurvivalEventKind): Color =
@@ -782,8 +782,10 @@ const
   SectorWarmup = 1.5'f32
   SectorTime = 12.0'f32
   SectorRadius = 240.0'f32
-  RogueWarmup = 1.2'f32
+  RogueWarmup = 2.0'f32        # long enough for the drop beam to read through the horde
   RogueLimit = 45.0'f32
+  RogueFlashTime = 0.45'f32    # arena flash when it lands
+  RogueCalloutTime = 2.2'f32   # big name callout over it after it lands
   OverclockTime = 15.0'f32
   RogueColor = Color(r: 220, g: 90, b: 255, a: 255)
 
@@ -991,10 +993,14 @@ proc spawnRogueProcess(game: var Game) =
   game.enemies.add(e)
   ev.rogueId = e.id
   ev.spawned = 1
-  spawnExplosionPooled(game.particlePool, e.pos.x, e.pos.y, RogueColor, 36)
-  spawnShockwaveRing(game, e.pos, 70.0'f32, RogueColor)
-  addShake(game.dopamine.screenShake, siMedium, RogueColor)
-  playSound(stTeleport, 0.8, 0.8)
+  spawnExplosionPooled(game.particlePool, e.pos.x, e.pos.y, RogueColor, 64)
+  spawnExplosionPooled(game.particlePool, e.pos.x, e.pos.y, WHITE, 20)
+  spawnShockwaveRing(game, e.pos, 80.0'f32, RogueColor)
+  spawnShockwaveRing(game, e.pos, 160.0'f32, RogueColor)
+  spawnShockwaveRing(game, e.pos, 260.0'f32, withAlpha(RogueColor, 170))
+  addShake(game.dopamine.screenShake, siLarge, RogueColor)
+  playSound(stBossSpawn, 0.7, 1.7)
+  playSound(stTeleport, 0.9, 0.7)
 
 proc spawnSectorMeteor(game: Game, phaseIndex: int) =
   let w = game.screenWidth.float32
@@ -1285,31 +1291,98 @@ proc drawSurvivalEventsUnder*(game: Game) =
                     withAlpha(color, a))
   of sekRogueProcess:
     if ev.spawned == 0:
+      # Drop telegraph: a beam from the top of the arena onto the spawn point,
+      # widening as the landing nears, over a glowing pad with rings
+      # collapsing into it.
       let prog = clamp(ev.elapsed / max(0.01'f32, ev.warmup), 0.0'f32, 1.0'f32)
+      let cx = ev.zonePos.x.int32
+      let cy = ev.zonePos.y.int32
+      let beamW = int32(4.0'f32 + prog * 22.0'f32)
+      drawRectangleGradientV(cx - beamW div 2, 0, beamW, cy, withAlpha(RogueColor, 0),
+                             withAlpha(RogueColor, int(90.0'f32 + prog * 120.0'f32)))
+      drawRectangle(cx - 1, 0, 2, cy, withAlpha(WHITE, int(60.0'f32 + prog * 140.0'f32)))
+      drawCircleGradient(cx, cy, 40.0'f32 + prog * 50.0'f32,
+                         withAlpha(RogueColor, int(70.0'f32 + prog * 110.0'f32)),
+                         withAlpha(RogueColor, 0))
+      for i in 0..2:
+        let f = (ev.elapsed * 1.6'f32 + i.float32 / 3.0'f32) mod 1.0'f32
+        drawCircleLines(cx, cy, 20.0'f32 + (1.0'f32 - f) * 170.0'f32,
+                        withAlpha(RogueColor, int(40.0'f32 + f * 200.0'f32)))
       let r = 60.0'f32 - prog * 40.0'f32
-      drawCircleLines(ev.zonePos.x.int32, ev.zonePos.y.int32, r,
-                      withAlpha(RogueColor, int(120.0'f32 + pulse * 120.0'f32)))
-      drawCircleLines(ev.zonePos.x.int32, ev.zonePos.y.int32, r * 0.6'f32,
-                      withAlpha(RogueColor, int(80.0'f32 + pulse * 80.0'f32)))
+      drawCircleLines(cx, cy, r, withAlpha(RogueColor, int(120.0'f32 + pulse * 120.0'f32)))
+      drawCircleLines(cx, cy, r * 0.6'f32, withAlpha(RogueColor, int(80.0'f32 + pulse * 80.0'f32)))
   of sekOverclock:
     # Gold heat shimmer along the arena border.
     let a = int(25.0'f32 + pulse * 35.0'f32)
     for edge in 0..3:
       drawEdgeBand(game, edge, withAlpha(color, a), 6)
 
+proc drawRoguePointer(game: Game, target: Vector2f, pulse: float32) =
+  ## A chevron orbiting the player, aimed at the Rogue Process (or where it
+  ## is about to land).
+  let toTarget = target - game.player.pos
+  if toTarget.length() <= 180.0'f32:
+    return
+  let dir = toTarget.normalize()
+  let tip = game.player.pos + dir * (game.player.radius + 34.0'f32)
+  let side = newVector2f(-dir.y, dir.x)
+  let back = tip - dir * 12.0'f32
+  let a = uint8(160.0'f32 + pulse * 95.0'f32)
+  let c = Color(r: RogueColor.r, g: RogueColor.g, b: RogueColor.b, a: a)
+  drawTriangle(Vector2(x: tip.x, y: tip.y),
+               Vector2(x: back.x - side.x * 7.0'f32, y: back.y - side.y * 7.0'f32),
+               Vector2(x: back.x + side.x * 7.0'f32, y: back.y + side.y * 7.0'f32), c)
+  drawTriangle(Vector2(x: tip.x, y: tip.y),
+               Vector2(x: back.x + side.x * 7.0'f32, y: back.y + side.y * 7.0'f32),
+               Vector2(x: back.x - side.x * 7.0'f32, y: back.y - side.y * 7.0'f32), c)
+
 proc drawSurvivalEventsOver*(game: Game) =
-  ## Rogue Process label, HP bar and a pointer from the player to it.
+  ## Rogue Process arrival (border pulse, landing flash, name callout), then
+  ## its label, HP bar and a pointer from the player to it.
   let ev = game.survival.event
-  if ev.kind != sekRogueProcess or ev.spawned == 0:
+  if ev.kind != sekRogueProcess:
+    return
+  let now = getTime().float32
+  let pulse = sin(now * 6.0'f32) * 0.5'f32 + 0.5'f32
+  let live = ev.elapsed - ev.warmup
+  let name = t(tkSurvivalEventRogueProcess)
+  # Arena border pulses from the warning until a second after it lands, so
+  # the arrival reads even while looking away from the spawn point.
+  if live < 1.0'f32:
+    let fade = if live < 0: 1.0'f32 else: 1.0'f32 - live
+    let a = int((60.0'f32 + pulse * 110.0'f32) * fade)
+    for edge in 0..3:
+      drawEdgeBand(game, edge, withAlpha(RogueColor, a), 8)
+      drawEdgeBand(game, edge, withAlpha(RogueColor, a div 3), 22)
+  if ev.spawned == 0:
+    drawRoguePointer(game, ev.zonePos, pulse)
     return
   let rogue = findEnemy(game, ev.rogueId)
   if rogue == nil:
     return
-  let now = getTime().float32
-  let pulse = sin(now * 6.0'f32) * 0.5'f32 + 0.5'f32
-  let name = t(tkSurvivalEventRogueProcess)
-  let nw = measureText(name, 12)
+  # Landing flash: one soft arena-wide wash that fades out (never strobes).
+  if live < RogueFlashTime:
+    let a = int(95.0'f32 * (1.0'f32 - live / RogueFlashTime))
+    drawRectangle(0, 0, game.screenWidth, game.screenHeight, withAlpha(RogueColor, a))
+  # Beacon rings pulse out of it for a few seconds after it lands.
+  if live < RogueCalloutTime + 1.0'f32:
+    for i in 0..1:
+      let f = (live * 1.3'f32 + i.float32 * 0.5'f32) mod 1.0'f32
+      drawCircleLines(rogue.pos.x.int32, rogue.pos.y.int32, rogue.radius + 8.0'f32 + f * 90.0'f32,
+                      withAlpha(RogueColor, int(230.0'f32 * (1.0'f32 - f))))
   let top = rogue.pos.y - rogue.radius - 34.0'f32
+  if live < RogueCalloutTime:
+    # Big name callout: pops in oversized, settles, then fades into the label.
+    let settle = clamp(live / 0.25'f32, 0.0'f32, 1.0'f32)
+    let size = int32(38.0'f32 - 14.0'f32 * settle)
+    let fade = clamp((RogueCalloutTime - live) / 0.5'f32, 0.0'f32, 1.0'f32)
+    let cw = measureText(name, size)
+    let cy = top.int32 - size - 8
+    let cx = clamp(rogue.pos.x.int32 - cw div 2, 4'i32, game.screenWidth - cw - 4)
+    drawText(name, cx + 2, cy + 2, size, withAlpha(BLACK, int(200.0'f32 * fade)))
+    drawText(name, cx, cy, size,
+             withAlpha(if pulse > 0.5'f32: WHITE else: RogueColor, int(255.0'f32 * fade)))
+  let nw = measureText(name, 12)
   drawText(name, rogue.pos.x.int32 - nw div 2, top.int32, 12, RogueColor)
   const barW = 64'i32
   let bx = rogue.pos.x.int32 - barW div 2
@@ -1318,22 +1391,7 @@ proc drawSurvivalEventsOver*(game: Game) =
   let frac = clamp(rogue.hp / max(0.01'f32, rogue.maxHp), 0.0'f32, 1.0'f32)
   drawRectangle(bx, by, int32(barW.float32 * frac), 5, RogueColor)
   drawRectangleLines(bx, by, barW, 5, withAlpha(RogueColor, 180))
-  # Pointer: a chevron orbiting the player, aimed at the rogue.
-  let toRogue = rogue.pos - game.player.pos
-  let dist = toRogue.length()
-  if dist > 180.0'f32:
-    let dir = toRogue.normalize()
-    let tip = game.player.pos + dir * (game.player.radius + 34.0'f32)
-    let side = newVector2f(-dir.y, dir.x)
-    let back = tip - dir * 12.0'f32
-    let a = uint8(160.0'f32 + pulse * 95.0'f32)
-    let c = Color(r: RogueColor.r, g: RogueColor.g, b: RogueColor.b, a: a)
-    drawTriangle(Vector2(x: tip.x, y: tip.y),
-                 Vector2(x: back.x - side.x * 7.0'f32, y: back.y - side.y * 7.0'f32),
-                 Vector2(x: back.x + side.x * 7.0'f32, y: back.y + side.y * 7.0'f32), c)
-    drawTriangle(Vector2(x: tip.x, y: tip.y),
-                 Vector2(x: back.x + side.x * 7.0'f32, y: back.y + side.y * 7.0'f32),
-                 Vector2(x: back.x - side.x * 7.0'f32, y: back.y - side.y * 7.0'f32), c)
+  drawRoguePointer(game, rogue.pos, pulse)
 
 # ============================================================================
 # Orchestrator (called from game.nim)
