@@ -8,7 +8,7 @@ TopHat-ShooterOS is a bullet-heaven game written in Nim with Raylib (via the `na
 
 ```powershell
 nimble install        # fetch dependencies (naylib, flatty, supersnappy)
-nimble debug          # nim c -r --mm:orc -d:debug src/main.nim  (build + run, the dev loop)
+nimble debug          # build + run -> TopHatShooterOS-debug.exe (-d:debug; always enables the cheat menu)
 nimble WinRelease     # optimized MSVC build -> TopHatShooterOS.exe (Windows, needs VC++ Build Tools)
 nimble WinReleaseMin  # release optimized for size
 nimble LinuxRelease   # optimized Linux build
@@ -46,13 +46,13 @@ single touch point — enough to exercise the whole menu layer, the virtual
 keyboard and cinematic skip, but not twin-stick or multi-finger cases. See
 "Mobile / Android port".
 
-**There is no test suite.** The primary correctness check is compilation:
+**There is no real test suite** — only `tests/test_spatial_grid.nim` (`nim r --mm:orc tests/test_spatial_grid.nim`), a brute-force check that `SpatialGrid` queries never drop an in-range enemy (run it when touching the grid in `enemy_helpers.nim`/`game.nim`), and `tests/test_mod_lua.nim` (`nim r --mm:orc tests/test_mod_lua.nim`), the checks of the mod scripting runtime: sandbox, budget and memory guards, errors, natives, userdata (run it when touching `src/modding/lua_bridge.nim`). The primary correctness check is compilation:
 
 ```powershell
 nim check --mm:orc src/main.nim    # fast type-check without producing a binary
 ```
 
-Always run this after edits. Nim enforces **exhaustive `case` statements over enums**, so adding a value to an enum like `PowerUpType` or `EnemyType` produces a compile error at *every* exhaustive switch that doesn't handle it. `nim check` is how you find them all — do not rely on visual inspection. Note the MSVC release path links `icono.res`; do not remove it.
+Always run this after edits. Nim enforces **exhaustive `case` statements over enums**, so adding a value to an enum like `PowerUpType` or `EnemyType` produces a compile error at *every* exhaustive switch that doesn't handle it. `nim check` is how you find them all — do not rely on visual inspection. Note the MSVC release path links `icono.res`; do not remove it. `nim check` does **not** run the backend, so two error classes only show up in a real `nim c`: a closure capturing a `var` parameter, and copying a value whose `=copy` is an error (raylib `Texture`/`Sound`/`Music`, e.g. `for x in seqOfTextures`). After non-trivial changes, also build once (`nim c --mm:orc -d:debug -o:<scratch>/g.exe src/main.nim`).
 
 ## Architecture
 
@@ -61,19 +61,25 @@ Always run this after edits. Nim enforces **exhaustive `case` statements over en
 - `src/game.nim` is the gameplay core: `updateGame*` and `drawGame*` (plus the game-over/victory draws), the per-frame system orchestration, the spatial-grid acceleration state (`enemyGrid`, `GRID_*`), game lifecycle (`newGame*`/`setGameMode*`/`cleanupGame*`), and wave flow (`startWave*`/`advanceWave*`). **When in doubt, the top-level frame logic lives here.** It sits at the top of a dependency DAG: it `import`s the gameplay subsystem **modules** under `src/game/` and re-`export`s them, so `main.nim`'s `import game` still sees the whole gameplay API. The subsystems are real importable modules (each with its own `import`s + `*` exports), layered combat → bullets → {auras, death, bosses, orbitals, shooting}:
   - `src/game/combat.nim` — damage/crit/thorns + `showDamage`/`CombatStats` (foundation; nothing else in `game/` is below it).
   - `src/game/bullets.nim` — bullet effects, lightning, `BulletEffects`, aura/explosion radii.
-  - `src/game/auras.nim` — aura config + rendering. `src/game/death.nim` — death sequence, `installPowerUp`, `withAlpha`. `src/game/shooting.nim` — `shootBullet`. `src/game/orbitals.nim` — orbital weapons. `src/game/bosses.nim` — boss AI/mechanics + `executeCustomBossAttack` (per-pattern `execBossAttack*` procs). Boss **wave** flow (`BossWaveManager` accessors + `completeBossWave`/`spawnConfiguredBoss`) lives inline in `game.nim` next to the other wave-flow procs, not in a `game/` module.
+  - `src/game/auras.nim` — aura config + rendering. `src/game/death.nim` — death sequence, `installPowerUp`. `src/game/shooting.nim` — `shootBullet`. `src/game/orbitals.nim` — orbital weapons. `src/game/bosses.nim` — boss AI/mechanics + `executeCustomBossAttack` (per-pattern `execBossAttack*` procs). Boss **wave** flow (`BossWaveManager` accessors + `completeBossWave`/`spawnConfiguredBoss`) lives inline in `game.nim` next to the other wave-flow procs, not in a `game/` module.
   When adding gameplay logic, put it in the matching subsystem module (and `*`-export what `game.nim`/siblings call); a subsystem must never `import game` (that's the one cycle to avoid). Only `main.nim` imports `game`.
 - `src/types.nim` is the single source of truth for the data model: `Game`, `Player`, `Enemy`, `Bullet`, and every enum. `Player`/`Enemy`/`Bullet` are `ref object`s (mutating a local copy mutates the shared instance — no write-back needed). `float32` is the pervasive numeric type.
 
 ### Game modes
 Selected via `GameMode`; each delegates out of `game.nim` where it diverges:
-- `gmWaveBased` (default) and `gmTimeSurvival` (`survival.nim`) — core PvE loop.
-- `gmRoguelite` (`roguelite.nim`, `ui/os_roguelite.nim`) — run-based meta-progression with relics, sectors, and unlockable power families (`RoguelitePowerFamily`).
-- `gmPvP` (`pvp_game.nim` + `network/`) — networked multiplayer. `flatty` + `supersnappy` are used **only** for PvP packet serialization, not save files.
+- `gmWaveBased` (default) and `gmTimeSurvival` — core PvE loop. Survival is a 20:00 run of four phases (Boot/Runtime/Overload/Kernel Panic), each closed by a boss on the survival clock (which pauses during boss fights), then optional Overtime. It has no shop: events, elites and bosses drop Data Caches instead. Everything lives in `survival.nim` (sectioned: data tables and text keys, horde spawner + formations, Data Caches, System Events, the orchestrator `game.nim` calls — `updateSurvival` and the boss/kill hooks — the cache reveal overlay, and the HUD); only the pure boss schedule (`survivalBossTime`, `survivalPhase`, `initSurvivalState`, ...) sits in `types.nim`, because `run_save.nim` needs it. Per-enemy grants are density-normalised through `densityRebate` (`survivalDensityRebate` in `types.nim`). Like the `game/` modules, `survival.nim` must never `import game`; shard payouts go through `awardMetaCurrency` in `coin.nim`.
+- `gmRoguelite` (`roguelite.nim`, `dungeon.nim`, `ui/os_roguelite.nim`) — run-based meta-progression with relics, sectors, and unlockable power families (`RoguelitePowerFamily`). `dungeon.nim` owns floor/room generation and transitions; like the `game/` modules, it must not `import game` (enemy spawning stays in `game.nim`).
+- `gmPvP` (`pvp_game.nim` + `network/`) — networked multiplayer. `flatty` + `supersnappy` are used **only** for PvP packet serialization, not save files. Host-authoritative: gameplay decisions (hits, kills, package grabs, match end) happen on the host and are broadcast; each has one local-feedback proc (`fxHit`/`fxKill`/`fxPickup`/...) that the host calls where it decides and clients call on receipt. flatty is layout-sensitive, so **any** change to a packet or `*Net` type in `network_types.nim` must bump `NETWORK_VERSION` (mismatched builds are then refused cleanly at connect). Every PvP packet goes out through `pvpPacket` so it carries `matchId` (the rematch generation): receivers drop older ones and a client adopts a newer one. Arena packages/ports (kinds, tuning, `portLayout`, icons) sit in their own section near the top of `pvp_game.nim`. `tickPvP` is the input-agnostic frame step (`updatePvP` = capture + `tickPvP`), which lets a harness drive host + clients over real loopback UDP headlessly.
 - `gmSandbox` (`sandbox.nim`) and a separate 3D boss state (`gs3DBoss`, `game3d/`).
 
+### Enemy & boss rosters (one per mode)
+Wave, Survival and Roguelite each field their **own** enemies and bosses; nothing is shared except the Omega Entity finale.
+- **Enemies.** `EnemyType` is grouped: wave `etCircle..etMage` (picked by the hardcoded ladder in `spawnWaveEnemies`), survival horde `etThread..etInterrupt` (`SurvivalRoster` in `survival.nim`, unlocked on the survival clock), roguelite rooms `etFragment..etCorruptor` (`themeDef().roster` in `dungeon.nim`); `etEnvironment` stays last. The mode rosters' AI lives in `mode_enemies.nim` and their drawing in `mode_visuals.nim` (`updateEnemy`/`drawEnemy` delegate by range). Anything that creates/removes enemies or hurts the player (Fork Bomb splits, Zombie husks, Interrupt blasts, Restorer revives, Fragment slams, fork seeds, tethers, Daemon aura) is raised as an `attackPhase` request or a death hook and carried out by `game/mode_mechanics.nim`, which runs **outside** the enemy loop (`updateModeMechanics`) and is the only place that deletes enemies mid-frame.
+- **Bosses** are plain int IDs (no enum, so the compiler checks none of the per-ID tables): 1-12 wave campaign (`boss_definitions.nim`), 13-15 survival phase bosses, 17-22 roguelite folder guardians (one per theme), 16/23 the Omega Entity's survival/roguelite kits (the mode-roster section of the same file). `canonicalBossId`/`isOmegaBoss` (`types.nim`) make the kits wear boss 12's body. Spawn with `spawnConfiguredBoss(..., bossId)`: a mode boss spawns at its authored slot (`bossAuthoredSlotWave`) and `normalizeBossToSlot` rescales HP/attack damage (`damageTuning`, which scales **up** too) to the slot it fights at (survival Overtime, roguelite sectors via `tuneDungeonBossStats`). Debug builds run `bossRosterProblems()` and `missingTranslations()` at startup: keep them empty.
+- **Roster signature attacks** (specialData routed by `isModeBossAttack` in `executeCustomBossAttack`) are spawned in `game/mode_boss_attacks.nim` as `AttackWarning`s `awtEnemyDashLane..awtLastKnownGood`, whose geometry is a pure function of the warning in `mode_hazards.nim`, resolved by `resolveModeWarning` and drawn by `mode_visuals.nim` (hint-gated telegraph + ungated lethal pass). Every signature must add a new dodge verb; validate difficulty against stand/orbit/jitter/react bots.
+
 ### The OS-desktop UI layer (`src/ui/`)
-The menus are a simulated desktop: `os_desktop.nim` (icons, taskbar, wallpaper) plus a `window_manager.nim` that opens/closes/focuses `OSWindow`s by `WindowID`. Each menu (shop, stats, settings, help, advancements, roguelite, pvp) is a window module. In-game HUD is `os_hud.nim` / `os_combined_hud.nim`. All icons are drawn programmatically in `ui/icon_drawing.nim` (no image assets) — `drawPowerUpIcon` is an exhaustive `case PowerUpType`.
+The menus are a simulated desktop: `os_desktop.nim` (icons, taskbar, wallpaper) plus a `window_manager.nim` that opens/closes/focuses `OSWindow`s by `WindowID`. Each menu (shop, stats, settings, help, advancements, roguelite, pvp) is a window module. The in-game HUD is drawn from `drawGame`'s interface layer in `game.nim` in one of two styles, picked by `Settings.hudStyle` (Settings > Interface > HUD Style). **Modern** (`hsModern`): in 16:9 the two side bands become docks, painted by `ui/hud_dock.nim` (which also owns the shared card/header/bar primitives and the `Dock*` geometry). The left dock is the player column (`drawPlayerDock` + `drawControlsDockCard` in `ui/os_combined_hud.nim`, diagnostics stacked above the key hints). The right dock is the run column (the mode's objective card — `drawWaveDockCard` / `drawSurvivalDockCard` / `drawRogueliteDockCard` — then boss cards, transient cards, combo, [Q] abilities). 4:3 reuses the same row drawers in the floating `drawCombinedHUDPanel`. **Legacy** (`hsLegacy`): the pre-rework HUD, kept in `ui/os_legacy_hud.nim` + `drawLegacyHud` in `game.nim`, with the `docked = false` variants of the diagnostics/[Q] panels. Both styles publish the `last*Rect` row rects that the tutorial highlights. All icons are drawn programmatically in `ui/icon_drawing.nim` (no image assets) — `drawPowerUpIcon` is an exhaustive `case PowerUpType`.
 
 ### "Dopamine"/juice layer (`d_systems.nim`, `d_visuals.nim`, `d_enhancements.nim`)
 Screen shake, combo system, floating damage numbers, and other game-feel feedback, kept separate from core simulation.
@@ -85,7 +91,16 @@ All user-facing text goes through `t(key)`. There are parallel `English` and `Sp
 Saves are **JSON** written with `writeFile`. Enums are serialized as their Nim symbol name (`$value`) and read back by the generic `parseEnumOr(s, default)` (`utils.nim`), which the one-line `parse*` procs in `save_system.nim` wrap — so a new enum value round-trips with **no** parse branch to add. The fallback is still silent, so the thing to preserve is the *name*: renaming an existing enum value (not adding one) is what quietly resets saved data to the default. All save I/O goes through `getAppDataPath()`, which resolves to a **per-profile** folder (`<root>/profiles/<slot>/`) — any new save file becomes per-profile automatically just by living there; `getRootDataPath()` is the shared base holding only the slot index. `switchToProfile(slot)` (`main.nim`) is the reload pattern: shared refs (`settings`, `stats`, ...) are mutated **in place**, reset to defaults first so stale keys from the old profile can't leak into the new one.
 
 ### Difficulty scaling (`types.nim`)
-`GameDifficulty` (`gdEasy`/`gdMedium`/`gdHard`/`gdNightmare`) is fixed per profile at creation and read via the global `currentDifficulty`. Scaling is **not** applied ad hoc at call sites — it goes through exactly two procs, `difficultyEnemyHpMult()`/`difficultyEnemyDamageMult()`, consumed at a small, fixed set of choke points (enemy HP/spawn in `enemy.nim`, the damage wrapper in `player.nim`, and the 3D boss fight in `game3d/`). New damage/HP paths should route through these procs rather than reading `currentDifficulty` directly. `gdNightmare` (+50% HP and damage, speed untouched) also revokes the death-surviving block checkpoint: `difficultyAllowsContinue()` gates `saveBlockCheckpoint`/`hasBlockCheckpoint` in `run_save.nim`, which is what makes the game-over "Continue (Wave N)" option and its resume prompt disappear everywhere at once. There is one profile slot per difficulty (`MaxProfileSlots`).
+`GameDifficulty` (`gdEasy`/`gdMedium`/`gdHard`/`gdNightmare`) is fixed per profile at creation and read via the global `currentDifficulty`. Scaling is **not** applied ad hoc at call sites — it goes through the `difficulty*Mult()` table in `types.nim` (enemy HP, enemy damage, regular-enemy speed, spawn pace, elite chance, boss attack cooldown), each consumed at a fixed choke point listed in the comment above that table (`newEnemy`/`spawnBoss`/`makeElite` in `enemy.nim`, the damage wrapper in `player.nim`, spawn pacing in `game.nim`/`survival.nim`, the boss attack-timer reset in `game.nim`, and the 3D boss fight in `game3d/`). New damage/HP/spawn paths should route through these procs rather than reading `currentDifficulty` directly. Medium is exactly 1.0 on every lever; Easy only differs on HP/damage. The profile-picker cards in `ui/profile_select.nim` quote the numbers, so update them when retuning. `gdNightmare` (+80% HP and damage, the strongest swarm/boss multipliers) also revokes the death-surviving block checkpoint: `difficultyAllowsContinue()` gates `saveBlockCheckpoint`/`hasBlockCheckpoint` in `run_save.nim`, which is what makes the game-over "Continue (Wave N)" option and its resume prompt disappear everywhere at once. There is one profile slot per difficulty (`MaxProfileSlots`).
+
+### Mods (`src/modding/`, MODS.EXE)
+Players load Lua scripts from `<data root>/mods/<folder>/mod.json`. They run on the official **Lua 5.5**, vendored unmodified in `src/modding/lua/` (MIT, see its `LICENSE`; `help licenses` shows it in game) and compiled into the exe by `lua_c.nim` (no DLL): only the core and the sandbox's libraries are kept (no io/os/package/debug). `lua_bridge.nim` is the only code that touches the C API: it gives the mod modules a small value API (`ScriptValue`, `ScriptTable`, `reg`/`checkNum`, `UdClass` userdata, `protectedCall`). Its error discipline is load-bearing: Lua raises with `longjmp`, which must never jump over a Nim frame, so Nim only makes raw, non-raising API calls, natives raise `ScriptError` and their trampoline calls `lua_error` after every Nim scope has ended, and every proc that can exit through `lua_error` is compiled with `stackTrace: off` (a jumped-over debug stack-trace frame corrupts the next Nim exception). The player-facing reference is `mods-sdk/MODDING.md`; the examples under `mods-sdk/examples/` are embedded by `mod_examples.nim` (staticRead) for MODS.EXE's Install Examples — adding an example means listing its files there. Layering: `mod_state` (flags, fingerprint, save-slot tag) and `mod_hooks` (hook lists, typed `mod*` call-site helpers, action queue, entity wrappers) and `mod_assets` (textures, cosmetics) sit LOW and may be imported by gameplay modules; `mod_api`/`mod_loader` sit high and only `main.nim` imports the loader. `reloadMods` runs only from the desktop.
+- **Every run started with a mod loaded is cheated**: `markRunModded` in `setGameMode` (plus `applySavedRun` and an `updateGame` backstop) sets `cheatsUsed` unconditionally, even in debug builds. Modded saves carry `saveSlotTag` in their file names (`_m<fingerprint>[_<mod mode>]`), so a modded session never sees or deletes vanilla saves. PvP refuses mismatched mod fingerprints at connect.
+- **Reserved enum slots**: `puMod00..puMod63` end `PowerUpType` and `etMod00..etMod31` sit just before `etEnvironment`. New built-in power-ups / enemies go **above** those blocks. Each exhaustive case has one `of puMod00..puMod63:` / `of etMod00..etMod31:` branch delegating to the mod registry; anything that *lists* power-ups or enemies must skip unbound slots (`livePowerUps()`, `isEnemyLive`). Slot names are never written to disk: saves use `powerUpSaveName`/`enemySaveName` (`"mod:<id>:<name>"`) and the matching parse procs, which drop unknown entries instead of defaulting.
+- **Hooks**: gameplay code calls a typed helper from `mod_hooks` (`modWaveEnemyCount`, `modEnemyDamaged`, ...), each a no-op when nothing is registered (`hookActive`). Hooks fire inside entity loops, so scripts never add or remove entities directly: spawns/removals go through `queueModAction` and `processModActions` in `game.nim` runs them after the simulation. Never put script values (`ScriptValue`, tables, closures) on snapshotted types (`Game`, `Player`, `Enemy`, `Bullet`): per-run script state is serialized into `game.modRunData` (JSON) before either save layer writes.
+- `getEnemyConfig` and `getBossDefinition` are cached per language (mods patch entries as they fill: `enemyConfigOverride`, `modBossDefs`); `vanillaEnemyConfig`/`vanillaBossDefinition` ignore mods.
+- **Deep field access** (`mod_deep.nim`): scripts read and write every field reachable from `game`/`player`/enemies/bullets (nested objects, refs, seqs, arrays) through fieldPairs-built proxies that re-resolve from their root on each use, so a new field anywhere in the data model is scriptable with no code. Game/Player/Enemy/Bullet refs met on the way become the regular wrappers (keeping their rules, e.g. boss HP read-only). A new field holding **persistent** data (meta progression, profile state) must be added to `ReadOnlyRoots` (or `HiddenFields`), or a modded run could rewrite the player's real progress; tables, deques, pointers, procs and raylib resources are opaque automatically (`isOpaque`).
+- **HUD pieces** are hideable by mods (`hud.hide`, `HudPart` in `mod_hooks`): a new built-in HUD element in `drawGame` gets a `hudHidden(hp...)` guard for the part it belongs to. `main.nim` calls `modOutsideRun` whenever no run is on screen (and flags PvP), so shared code that fires hooks (e.g. `newBullet` -> `bulletSpawn`) never runs scripts against a finished run; mod post-process shaders wrap the final blit in `endGameDrawing`.
 
 ### Controller input (`gamepad_input.nim`)
 A leaf module (imports only raylib/math/types) re-exported through `render_context.nim`, so most modules see its wrappers for free; a few UI modules that don't import `render_context` need `import gamepad_input` directly. UI code should go through the abstraction (`isPointerPressed/Down/Released`, `getPointerWheelMove`, `isBackPressed`) rather than raw mouse/key checks, so it works with both mouse and pad. Reserved, non-rebindable buttons: A=confirm, B=back, Start=pause, sticks/dpad.
@@ -181,38 +196,46 @@ Other pieces:
   wider HUD gutters.
 - **Phone legibility** — the game was laid out for a monitor, and the letterbox
   scale is pinned by the 768-tall canvas, so nothing about the *layout* can make
-  it bigger. Two levers, both mobile-only:
-  - `MobileWorldZoom` (`types.nim`, 1.25×) magnifies the gameplay world about
-    the arena centre, in the `WORLD PASS` matrix in `drawGame`. There is no
-    camera, so an outer band of the arena is permanently off-screen;
+  it bigger. Two levers:
+  - `MobileWorldZoom` (`types.nim`, 1.25×, mobile-only) magnifies the gameplay
+    world about the arena centre, in the `WORLD PASS` matrix in `drawGame`.
+    There is no camera, so an outer band of the arena is permanently off-screen;
     `mobileViewInset` (same file) insets the player clamp in `updatePlayer` by
     exactly that band so the player can never leave view. It returns 0 on
     desktop, which is what keeps both call sites behaviour-neutral there.
-    Deliberately **not** applied to `pvp_game`'s world pass: the arena size is
-    networked and must not depend on the local interface, and both duellists
-    have to stay visible.
-  - `drawBorderHUDPanel` (`ui/os_combined_hud.nim`) magnifies the whole status
-    column with one matrix rather than per-widget font bumps — its ~50 draws are
-    hand-positioned against `BORDER_PANEL_WIDTH`, so scaling uniformly is the
-    only way a label can't drift from its bar. The factor is bounded by the real
-    gutter width *and* by the column height reported back from
-    `drawHUDPanelContent`.
+    The pass publishes the zoom via `render_context.setWorldZoom`, so
+    `worldToVirtual`/`getWorldMousePosition` (tutorial pointers, player-centred
+    bursts) agree with what was drawn. Deliberately **not** applied to
+    `pvp_game`'s world pass: the arena size is networked and must not depend on
+    the local interface, and both duellists have to stay visible.
+  - The interface scale (`settings.uiScale`, Small/Default/Big presets in
+    `save_system.nim`) — the HUD, docks and windows are drawn inside a
+    `beginUIScaleMode` layer, so this grows everything uniformly. Pointer
+    getters divide by the active layer's scale; `screenToVirtual` does not, and
+    the touch controls/keyboard are laid out in that plain space — which is why
+    `drawMobileControls` runs *outside* the HUD layer and the keyboard mask in
+    `getVirtualMousePosition` is applied before the divide.
 - Cinematics: `ui/cutscene.nim`'s `updateCutscene` is the single input path for
   all nine of them. On mobile it is hold-anywhere-1.5s to skip, no fast-forward.
 - HUD elements that bottom-anchor into the right gutter must reserve
-  `MobileActionBarHeight` (`mobile_controls.nim`) or they draw underneath the
-  on-screen dash/wall/ability buttons — see `drawLegendaryPowerUpsPanel` and
-  `legendaryReserve` in `game.nim`. Those three share **one** row for exactly
-  that reason: a second row would double the band and push the whole bottom HUD
-  stack up again.
+  `touchControlsReserve()` (`ui/hud_dock.nim`) or they draw underneath the
+  on-screen dash/wall/ability buttons — see `drawLegendaryPowerUpsPanel` and the
+  combo-card anchor in `game.nim`. It converts `MobileActionBarHeight` (plain
+  virtual px) into the active UI layer's units and is 0 on desktop. Those three
+  buttons share **one** row for exactly that reason: a second row would double
+  the band and push the whole bottom HUD stack up again.
+- Key hints (`drawControlsDockCard`/`drawControlsStrip`) name keyboard/pad keys,
+  so on mobile only their wall-placement prompt is drawn.
 - The **base dash** (`DashCooldownTime` in `player.nim`, Shift / LT on desktop)
   is the one gameplay action whose mobile button needs state pushed *back into*
   the touch layer: `setMobileDashState(available, cooldownRatio)` from
   `main.nim`'s `gsPlaying`/`gsPvPPlaying` branches. `mobile_controls` cannot read
   the player (it sits under `input_intent`, which `player` imports), and the
-  button is the game's only dash-cooldown readout. `available` is false in PvP,
-  which runs its own movement and never calls `updatePlayer`; the button is then
-  neither drawn nor hit-tested, so its screen area goes back to the aim stick.
+  button is the game's only dash-cooldown readout. PvP has the same dash
+  (`capturePlayerInput`, host-synced cooldown), so its branch pushes the local
+  player's state; `available` is false while that player is down, and the
+  button is then neither drawn nor hit-tested, so its area goes back to the aim
+  stick.
 - Platform gating: saves + synthesized-sound cache write to Android internal
   storage via `src/android_glue.c` (`getAppDataPath` in `save_system.nim`,
   `getCacheDir` in `sound.nim`); the same shim provides `nimAndroidKeepScreenOn`.
@@ -239,8 +262,8 @@ Other pieces:
 
 Power-ups are registry-driven — pool membership, exclusivity group, family, color, and max level all derive from one registry entry. The recipe (documented at the top of `powerup_data.nim`):
 
-1. Add the variant to `PowerUpType` in `types.nim`.
-2. Add exactly one entry to `allPowerUpDefs` in `powerup_data.nim`.
+1. Add the variant to `PowerUpType` in `types.nim` (above the reserved `puMod00..puMod63` block).
+2. Add exactly one entry to `vanillaPowerUpDefs` in `powerup_data.nim` (read it everywhere through `powerUpDef(pt)`: mods can override entries at runtime).
 3. Add branches to `getPowerUpName` and `getPowerUpDescription` (both exhaustive).
 4. Add an icon branch to `drawPowerUpIcon` in `ui/icon_drawing.nim` (exhaustive).
 5. Add name + description keys to **both** language tables in `localization.nim`.

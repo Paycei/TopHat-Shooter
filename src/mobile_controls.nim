@@ -73,11 +73,10 @@ var
     ## un-greyed button that swallows the tap and does nothing reads as a broken
     ## control rather than a cooling one.
   dashAvailable = false
-    ## Whether the mode running right now even has a base dash. PvP does not --
-    ## it never calls updatePlayer, so the dash lives entirely in single-player.
-    ## Defaults to off and is pushed true each frame by the gsPlaying branch, so
-    ## a mode that forgets to push gets no button rather than a dead one that
-    ## also eats the aim stick's touches.
+    ## Whether a base dash can be offered right now (false e.g. while the local
+    ## PvP player is down). Defaults to off and is pushed each frame by the
+    ## gsPlaying/gsPvPPlaying branches, so a mode that forgets to push gets no
+    ## button rather than a dead one that also eats the aim stick's touches.
 
 proc joyRadius(): float32 =
   ## Floating-joystick travel radius, scaled to screen height so sensitivity is

@@ -1,7 +1,7 @@
 ## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
-import raylib, strutils
+import raylib, strutils, math
 import ../sound, ../save_system, os_window, ../localization, ../render_context, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types
 
 proc checkboxHit*(p: Vector2, x, y: int): bool =
@@ -21,6 +21,7 @@ proc checkboxHit*(p: Vector2, x, y: int): bool =
 type
   SettingsTab* = enum
     stGraphics
+    stInterface
     stAudio
     stControls
     stGameplay
@@ -41,14 +42,13 @@ type
     rogueliteProfile*: RogueliteProfile
 
     # UI state
-    hoveredControl*: int  # -1 for none
     editingFPS*: bool
-    editingVolume*: bool
-    editingMusicVolume*: bool
 
     # Slider state
     draggingVolume*: bool
     draggingMusic*: bool
+    draggingDamageSize*: bool
+    draggingScreenShake*: bool
 
     # Set when the user clicks "Replay Intro"; consumed by the window manager
     replayIntroRequested*: bool
@@ -69,6 +69,12 @@ type
     replaySandboxIntroRequested*: bool
     replayPvPIntroRequested*: bool
 
+    # Set when the user clicks "Replay Tutorial" (Gameplay tab). Only honored
+    # from the desktop; main.nim clears `replayTutorialAvailable` during a run
+    # so the button reads as unavailable there instead of silently doing nothing.
+    replayTutorialRequested*: bool
+    replayTutorialAvailable*: bool
+
     # Destructive reset confirmation state
     pendingReset*: SettingsResetAction
     resetConfirmTimer*: float32
@@ -85,7 +91,7 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
                         advancementProfile: AdvancementProfile = nil,
                         rogueliteProfile: RogueliteProfile = nil): SettingsWindow =
   let windowWidth = 700
-  let windowHeight = 500
+  let windowHeight = 540   # the Interface tab's HUD section needs the full height
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
 
@@ -105,12 +111,11 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     stats: stats,
     advancementProfile: advancementProfile,
     rogueliteProfile: rogueliteProfile,
-    hoveredControl: -1,
     editingFPS: false,
-    editingVolume: false,
-    editingMusicVolume: false,
     draggingVolume: false,
     draggingMusic: false,
+    draggingDamageSize: false,
+    draggingScreenShake: false,
     replayIntroRequested: false,
     replayEndingRequested: false,
     replayRogueliteEndingRequested: false,
@@ -120,6 +125,8 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     replayRogueliteIntroRequested: false,
     replaySandboxIntroRequested: false,
     replayPvPIntroRequested: false,
+    replayTutorialRequested: false,
+    replayTutorialAvailable: true,
     pendingReset: sraNone,
     resetConfirmTimer: 0.0,
     resetStatus: "",
@@ -127,6 +134,18 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     rebindingAction: -1,
     rebindingGamepadAction: -1
   )
+
+const
+  ## Tab-strip metrics, shared by the draw pass and the click handler. Six tabs
+  ## plus their gaps have to fit the 680px content width of a 700px window.
+  SettingsTabWidth = 105
+  SettingsTabGap = 8
+
+proc tabContentOriginY*(window: OSWindow): int =
+  ## Top of the tab content area -- what drawSettingsWindow passes each tab as
+  ## its `contentY`. Hit-testing has to use the identical value, and
+  ## updateSettingsWindow's own `contentY` is 5px lower than this.
+  window.y + TITLE_BAR_HEIGHT + 55
 
 proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) =
   let bgColor = if isActive:
@@ -246,6 +265,20 @@ proc drawSectionHeader*(x, y, width: int, title: string, iconChar: char, color: 
   drawText(title, (x + 26).int32, (y + 3).int32, 16,
           Color(r: 0, g: 220, b: 255, a: 255))
 
+const
+  ## Gameplay tab: y of the Tutorial row, relative to tabContentOriginY.
+  TutorialRowY = 155
+
+proc tutorialReplayRect(window: OSWindow): Rectangle =
+  ## "Replay Tutorial" button, shared by the draw pass and the click handler
+  ## (anchored to tabContentOriginY so the two can't disagree).
+  Rectangle(
+    x: (window.x + WINDOW_PADDING + 320).float32,
+    y: (tabContentOriginY(window) + TutorialRowY - 4).float32,
+    width: 200.float32,
+    height: 30.float32
+  )
+
 proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rectangle =
   const
     ButtonWidth = 180
@@ -258,7 +291,7 @@ proc resetButtonRect(action: SettingsResetAction, contentX, contentY: int): Rect
     else: 0
   Rectangle(
     x: (contentX + 40 + idx * (ButtonWidth + ButtonGap)).float32,
-    y: (contentY + 370).float32,
+    y: (contentY + 335).float32,
     width: ButtonWidth.float32,
     height: ButtonHeight.float32
   )
@@ -408,7 +441,6 @@ proc resetProgressSettings(settings: Settings): bool =
   settings.cheaterHatEquipped = false
   settings.rogueliteUnlocked = false
   settings.survivalUnlocked = false
-  settings.lastDeathWave = 0
   settings.hasSeenWaveModeIntro = false
   settings.hasSeenSurvivalIntro = false
   settings.hasSeenRogueliteIntro = false
@@ -505,6 +537,16 @@ proc nextHudLayout(mode: HudLayout): HudLayout =
   of hlClassic: hlWidescreen
   of hlWidescreen: hlClassic
 
+proc getHudStyleLabel(style: HudStyle): string =
+  case style
+  of hsModern: t(tkSettingsHudStyleModern)
+  of hsLegacy: t(tkSettingsHudStyleLegacy)
+
+proc nextHudStyle(style: HudStyle): HudStyle =
+  case style
+  of hsModern: hsLegacy
+  of hsLegacy: hsModern
+
 proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
 
@@ -584,70 +626,243 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   let vsyncHovered = checkboxHit(mousePos, vsyncCheckX, yPos)
   drawCheckbox(vsyncCheckX, yPos, 25, settingsWin.settings.vsyncEnabled, vsyncHovered)
   drawText(t(tkSettingsVSyncDesc), (vsyncCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
-  yPos += 35
 
-  # Show FPS Counter
-  drawText(t(tkSettingsShowFps), (contentX + 40).int32, yPos.int32, 18, White)
-  let fpsCheckX = contentX + 320
-  let fpsCheckHovered = checkboxHit(mousePos, fpsCheckX, yPos)
-  drawCheckbox(fpsCheckX, yPos, 25, settingsWin.settings.showFPS, fpsCheckHovered)
-  yPos += 35
+# ---------------------------------------------------------------------------
+# Interface tab
+#
+# Unlike the older tabs -- which repeat the same pixel offsets in their draw
+# proc and again in their click handler -- every control here takes its geometry
+# from interfaceControlRect, so the two passes cannot drift apart.
+# ---------------------------------------------------------------------------
 
-  # Debug Panel
-  drawText(t(tkSettingsDebugPanel), (contentX + 40).int32, yPos.int32, 18, White)
-  let debugCheckX = contentX + 320
-  let debugHovered = checkboxHit(mousePos, debugCheckX, yPos)
-  drawCheckbox(debugCheckX, yPos, 25, settingsWin.settings.showDebugStats, debugHovered)
-  drawText(t(tkSettingsDebugPanelDesc), (debugCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
-  yPos += 35
+type
+  InterfaceControl = enum
+    ifcUIScale          ## cycle button: left edge steps down, the rest steps up
+    ifcDamageNumbers
+    ifcDamageSize       ## slider
+    ifcScreenShake      ## slider
+    ifcHudLayout        ## cycle button
+    ifcHudStyle         ## cycle button
+    # The HUD toggles below fill a two-column grid; their order is their layout.
+    ifcEnemyLabels
+    ifcArenaVignette
+    ifcLowHpVignette
+    ifcShowFps
+    ifcDebugPanel
 
-  # Arena vignette
-  drawText(t(tkSettingsArenaVignette), (contentX + 40).int32, yPos.int32, 18, White)
-  let arenaVignetteCheckX = contentX + 320
-  let arenaVignetteHovered = checkboxHit(mousePos, arenaVignetteCheckX, yPos)
-  drawCheckbox(arenaVignetteCheckX, yPos, 25, settingsWin.settings.showArenaVignette, arenaVignetteHovered)
-  drawText(t(tkSettingsArenaVignetteDesc), (arenaVignetteCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
-  yPos += 35
+const
+  IfcCheckboxSize = 24
+  IfcSliderWidth = 200
+  IfcSliderHeight = 18
+  IfcButtonWidth = 200
+  IfcButtonHeight = 32
+  IfcControlX = 300     # every labelled control starts this far into the tab
+  IfcGridY = 358        # first row of the HUD toggle grid
+  IfcGridRowPitch = 30
 
-  # Low HP vignette
-  drawText(t(tkSettingsLowHealthVignette), (contentX + 40).int32, yPos.int32, 18, White)
-  let lowHpVignetteCheckX = contentX + 320
-  let lowHpVignetteHovered = checkboxHit(mousePos, lowHpVignetteCheckX, yPos)
-  drawCheckbox(lowHpVignetteCheckX, yPos, 25, settingsWin.settings.showLowHealthVignette, lowHpVignetteHovered)
-  drawText(t(tkSettingsLowHealthVignetteDesc), (lowHpVignetteCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
-  yPos += 35
+  UIScaleLabels: array[3, TranslationKey] =
+    [tkSettingsUiScaleSmall, tkSettingsUiScaleDefault, tkSettingsUiScaleBig]
+    ## Names for save_system.UIScalePresets, index for index. A stepper over a
+    ## few named sizes beats a slider: a 1px wobble re-laying-out every desktop
+    ## window would be miserable to use.
 
-  # HUD layout cycle button
-  drawText(t(tkSettingsHudLayout), (contentX + 40).int32, yPos.int32, 18, White)
-  let hudLayoutButtonX = contentX + 320
-  let hudLayoutButtonY = yPos - 5
-  let hudLayoutButtonWidth = 220
-  let hudLayoutButtonHeight = 35
-  let hudLayoutHovered = mousePos.x >= hudLayoutButtonX.float32 and
-                         mousePos.x <= (hudLayoutButtonX + hudLayoutButtonWidth).float32 and
-                         mousePos.y >= hudLayoutButtonY.float32 and
-                         mousePos.y <= (hudLayoutButtonY + hudLayoutButtonHeight).float32
+  IfcSliderSnap = 0.05'f32
+    ## The two sliders land on whole 5% steps, so dragging reads as clean
+    ## percentages and 100% can be found again by hand.
+  IfcSliderGrabPad = 6'f32
+    ## Vertical slack on a slider's hit box: the handle overhangs the bar, and
+    ## grabbing it by that overhang should still count.
 
-  let hudLayoutBgColor = if hudLayoutHovered:
-    Color(r: 80, g: 80, b: 100, a: 255)
+proc steppedUIScale(scale: float32, delta: int): float32 =
+  UIScalePresets[clamp(uiScalePresetIndex(scale) + delta, 0, UIScalePresets.high)]
+
+proc stepperSide(mousePos: Vector2, rect: Rectangle): int =
+  ## Which way a click on a "< value >" stepper moves it: -1 on the left half,
+  ## +1 on the right. Halves rather than just the arrow glyphs, so the targets
+  ## stay generous at every UI scale.
+  if mousePos.x < rect.x + rect.width * 0.5'f32: -1 else: 1
+
+proc sliderHitRect(rect: Rectangle): Rectangle =
+  Rectangle(x: rect.x, y: rect.y - IfcSliderGrabPad,
+            width: rect.width, height: rect.height + IfcSliderGrabPad * 2)
+
+proc snapSlider(v, lo, hi: float32): float32 =
+  ## `v` on the nearest IfcSliderSnap step inside [lo, hi]. Also cleans up a
+  ## value saved before the sliders snapped, the first time it is nudged.
+  clamp(round(v / IfcSliderSnap) * IfcSliderSnap, lo, hi)
+
+proc sliderValue(frac, lo, hi: float32): float32 =
+  ## A slider position (0..1 along the bar) as a snapped value in [lo, hi].
+  snapSlider(lo + frac * (hi - lo), lo, hi)
+
+proc sliderDefaultTick(lo, hi: float32): seq[int] =
+  ## drawSlider's tick list (percent of the bar) marking where 100% sits.
+  @[int((1.0'f32 - lo) / (hi - lo) * 100.0'f32 + 0.5'f32)]
+
+proc interfaceControlRect(ic: InterfaceControl, contentX, contentY, contentW: int): Rectangle =
+  ## Geometry of one Interface-tab control, relative to the tab content origin.
+  let gridColW = (contentW - 80) div 2
+  case ic
+  of ifcUIScale:
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 44).float32,
+              width: IfcButtonWidth.float32, height: IfcButtonHeight.float32)
+  of ifcDamageNumbers:
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 104).float32,
+              width: IfcCheckboxSize.float32, height: IfcCheckboxSize.float32)
+  of ifcDamageSize:
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 138).float32,
+              width: IfcSliderWidth.float32, height: IfcSliderHeight.float32)
+  of ifcScreenShake:
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 170).float32,
+              width: IfcSliderWidth.float32, height: IfcSliderHeight.float32)
+  of ifcHudLayout:
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 247).float32,
+              width: IfcButtonWidth.float32, height: IfcButtonHeight.float32)
+  of ifcHudStyle:
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 300).float32,
+              width: IfcButtonWidth.float32, height: IfcButtonHeight.float32)
   else:
-    Color(r: 60, g: 60, b: 80, a: 255)
+    let idx = ord(ic) - ord(ifcEnemyLabels)
+    Rectangle(x: (contentX + 40 + (idx mod 2) * gridColW).float32,
+              y: (contentY + IfcGridY + (idx div 2) * IfcGridRowPitch).float32,
+              width: IfcCheckboxSize.float32, height: IfcCheckboxSize.float32)
 
-  drawRectangle(hudLayoutButtonX.int32, hudLayoutButtonY.int32,
-                hudLayoutButtonWidth.int32, hudLayoutButtonHeight.int32, hudLayoutBgColor)
-  drawRectangleLines(Rectangle(x: hudLayoutButtonX.float32, y: hudLayoutButtonY.float32,
-                                width: hudLayoutButtonWidth.float32, height: hudLayoutButtonHeight.float32),
-                    1, if hudLayoutHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+proc interfaceToggleLabel(ic: InterfaceControl): string =
+  ## These keys read "Label:" because every other tab puts the label before its
+  ## control. Here the checkbox comes first, so the trailing colon is dropped
+  ## rather than duplicating all five strings in both language tables.
+  result = case ic
+    of ifcEnemyLabels: t(tkSettingsShowEnemyLabels)
+    of ifcArenaVignette: t(tkSettingsArenaVignette)
+    of ifcLowHpVignette: t(tkSettingsLowHealthVignette)
+    of ifcShowFps: t(tkSettingsShowFps)
+    of ifcDebugPanel: t(tkSettingsDebugPanel)
+    else: ""
+  if result.endsWith(":"):
+    result.setLen(result.len - 1)
 
-  let hudLayoutText = getHudLayoutLabel(settingsWin.settings.hudLayout)
-  let hudLayoutTextWidth = measureText(hudLayoutText, 16)
-  drawText("<", hudLayoutButtonX.int32 + 10, yPos.int32, 18, LightGray)
-  drawText(hudLayoutText,
-          (hudLayoutButtonX + (hudLayoutButtonWidth - hudLayoutTextWidth) div 2).int32,
-          yPos.int32, 16, White)
-  drawText(">", (hudLayoutButtonX + hudLayoutButtonWidth - 25).int32, yPos.int32, 18, LightGray)
+proc interfaceToggleValue(settings: Settings, ic: InterfaceControl): bool =
+  case ic
+  of ifcEnemyLabels: settings.showEnemyLabels
+  of ifcArenaVignette: settings.showArenaVignette
+  of ifcLowHpVignette: settings.showLowHealthVignette
+  of ifcShowFps: settings.showFPS
+  of ifcDebugPanel: settings.showDebugStats
+  else: false
 
-  drawText(t(tkSettingsHudLayoutDesc), (contentX + 40).int32, (yPos + 21).int32, 14, LightGray)
+proc toggleInterfaceSetting(settings: Settings, ic: InterfaceControl) =
+  case ic
+  of ifcEnemyLabels: settings.showEnemyLabels = not settings.showEnemyLabels
+  of ifcArenaVignette: settings.showArenaVignette = not settings.showArenaVignette
+  of ifcLowHpVignette: settings.showLowHealthVignette = not settings.showLowHealthVignette
+  of ifcShowFps: settings.showFPS = not settings.showFPS
+  of ifcDebugPanel: settings.showDebugStats = not settings.showDebugStats
+  else: discard
+
+proc drawCycleButton(rect: Rectangle, label: string, hovered: bool,
+                     hoverSide = 0, canDec = true, canInc = true) =
+  ## The "< value >" control the other tabs build inline, shared by the two on
+  ## this tab. On a stepper, `hoverSide` (-1 / +1, see stepperSide) lights the
+  ## arrow a click would press, and an arrow with nowhere left to go is dimmed.
+  let bg = if hovered: Color(r: 80, g: 80, b: 100, a: 255)
+           else: Color(r: 60, g: 60, b: 80, a: 255)
+  drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
+  drawRectangleLines(rect, 1,
+                     if hovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+  template arrowColor(side: int, enabled: bool): Color =
+    if not enabled: Color(r: 85, g: 85, b: 105, a: 255)
+    elif hovered and side == hoverSide: Gold
+    else: LightGray
+  let textY = (rect.y + (rect.height - 16) / 2).int32
+  let textWidth = measureText(label, 16)
+  drawText("<", (rect.x + 10).int32, textY, 18, arrowColor(-1, canDec))
+  drawText(label, (rect.x + (rect.width - textWidth.float32) / 2).int32, textY, 16, White)
+  drawText(">", (rect.x + rect.width - 22).int32, textY, 18, arrowColor(1, canInc))
+
+proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
+  let mousePos = getVirtualMousePosition()
+  let s = settingsWin.settings
+
+  template rectOf(ic: InterfaceControl): Rectangle =
+    interfaceControlRect(ic, contentX, contentY, contentW)
+
+  # --- Section: scale & game feel -------------------------------------------
+  drawSectionHeader(contentX + 20, contentY + 15, contentW - 40,
+                    t(tkSettingsSectionScale), '%',
+                    Color(r: 160, g: 140, b: 255, a: 255))
+
+  let scaleRect = rectOf(ifcUIScale)
+  let scaleStep = uiScalePresetIndex(s.uiScale)
+  drawText(t(tkSettingsUiScale), (contentX + 40).int32, (contentY + 51).int32, 18, White)
+  drawCycleButton(scaleRect, t(UIScaleLabels[scaleStep]),
+                  checkCollisionPointRec(mousePos, scaleRect),
+                  hoverSide = stepperSide(mousePos, scaleRect),
+                  canDec = scaleStep > 0, canInc = scaleStep < UIScalePresets.high)
+  drawText(t(tkSettingsUiScaleDesc), (contentX + 40).int32, (contentY + 82).int32,
+           13, LightGray)
+
+  let dmgRect = rectOf(ifcDamageNumbers)
+  drawText(t(tkSettingsDamageNumbers), (contentX + 40).int32, (contentY + 106).int32, 18, White)
+  drawCheckbox(dmgRect.x.int32, dmgRect.y.int32, IfcCheckboxSize,
+               s.showDamageNumbers, checkCollisionPointRec(mousePos, dmgRect))
+  drawText(t(tkSettingsDamageNumbersDesc), (dmgRect.x + 34).int32, (dmgRect.y + 5).int32,
+           13, LightGray)
+
+  # Both sliders map their [Min..Max] range onto the full bar, so the fill reads
+  # as "where in the allowed range am I", not as the percentage beside it. The
+  # tick notch marks where the 100% default sits on each.
+  let sizeRect = rectOf(ifcDamageSize)
+  let sizeFrac = (s.damageNumberScale - MinDamageNumberScale) /
+                 (MaxDamageNumberScale - MinDamageNumberScale)
+  drawText(t(tkSettingsDamageNumberSize), (contentX + 40).int32, (contentY + 138).int32, 18, White)
+  drawSlider(sizeRect.x.int32, sizeRect.y.int32, IfcSliderWidth, IfcSliderHeight,
+             clamp(sizeFrac, 0.0, 1.0),
+             settingsWin.draggingDamageSize or
+               checkCollisionPointRec(mousePos, sliderHitRect(sizeRect)),
+             showTicks = true,
+             tickValues = sliderDefaultTick(MinDamageNumberScale, MaxDamageNumberScale))
+  drawText($int(s.damageNumberScale * 100.0 + 0.5) & "%",
+           (sizeRect.x + IfcSliderWidth.float32 + 12).int32, (contentY + 138).int32, 16, Gold)
+
+  let shakeRect = rectOf(ifcScreenShake)
+  let shakeFrac = (s.screenShakeScale - MinScreenShakeScale) /
+                  (MaxScreenShakeScale - MinScreenShakeScale)
+  drawText(t(tkSettingsScreenShake), (contentX + 40).int32, (contentY + 170).int32, 18, White)
+  drawSlider(shakeRect.x.int32, shakeRect.y.int32, IfcSliderWidth, IfcSliderHeight,
+             clamp(shakeFrac, 0.0, 1.0),
+             settingsWin.draggingScreenShake or
+               checkCollisionPointRec(mousePos, sliderHitRect(shakeRect)),
+             showTicks = true,
+             tickValues = sliderDefaultTick(MinScreenShakeScale, MaxScreenShakeScale))
+  drawText($int(s.screenShakeScale * 100.0 + 0.5) & "%",
+           (shakeRect.x + IfcSliderWidth.float32 + 12).int32, (contentY + 170).int32, 16, Gold)
+  drawText(t(tkSettingsScreenShakeDesc), (contentX + 40).int32, (contentY + 194).int32,
+           13, LightGray)
+
+  # --- Section: which HUD elements are drawn --------------------------------
+  drawSectionHeader(contentX + 20, contentY + 218, contentW - 40,
+                    t(tkSettingsSectionHudElements), 'H',
+                    Color(r: 100, g: 200, b: 255, a: 255))
+
+  let layoutRect = rectOf(ifcHudLayout)
+  drawText(t(tkSettingsHudLayout), (contentX + 40).int32, (contentY + 254).int32, 18, White)
+  drawCycleButton(layoutRect, getHudLayoutLabel(s.hudLayout),
+                  checkCollisionPointRec(mousePos, layoutRect))
+  drawText(t(tkSettingsHudLayoutDesc), (contentX + 40).int32, (contentY + 283).int32,
+           13, LightGray)
+
+  let styleRect = rectOf(ifcHudStyle)
+  drawText(t(tkSettingsHudStyle), (contentX + 40).int32, (contentY + 307).int32, 18, White)
+  drawCycleButton(styleRect, getHudStyleLabel(s.hudStyle),
+                  checkCollisionPointRec(mousePos, styleRect))
+  drawText(t(tkSettingsHudStyleDesc), (contentX + 40).int32, (contentY + 336).int32,
+           13, LightGray)
+
+  for ic in ifcEnemyLabels .. ifcDebugPanel:
+    let rect = rectOf(ic)
+    drawCheckbox(rect.x.int32, rect.y.int32, IfcCheckboxSize,
+                 interfaceToggleValue(s, ic), checkCollisionPointRec(mousePos, rect))
+    drawText(interfaceToggleLabel(ic), (rect.x + 34).int32, (rect.y + 5).int32, 16, White)
 
 proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -960,14 +1175,6 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(t(tkSettingsShowHintsDesc), (hintsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
   yPos += 35
 
-  # Show Enemy Labels
-  drawText(t(tkSettingsShowEnemyLabels), (contentX + 40).int32, yPos.int32, 18, White)
-  let labelsCheckX = contentX + 320
-  let labelsHovered = checkboxHit(mousePos, labelsCheckX, yPos)
-  drawCheckbox(labelsCheckX, yPos, 25, settingsWin.settings.showEnemyLabels, labelsHovered)
-  drawText(t(tkSettingsShowEnemyLabelsDesc), (labelsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
-  yPos += 35
-
   # Exit Confirm Dialogs
   drawText(t(tkSettingsExitConfirm), (contentX + 40).int32, yPos.int32, 18, White)
   let exitConfirmCheckX = contentX + 320
@@ -982,6 +1189,17 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   let aimAssistHovered = checkboxHit(mousePos, aimAssistCheckX, yPos)
   drawCheckbox(aimAssistCheckX, yPos, 25, settingsWin.settings.aimAssistEnabled, aimAssistHovered)
   drawText(t(tkSettingsAimAssistDesc), (aimAssistCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 35
+
+  # Tutorial replay: a practice session, so it's only offered from the desktop.
+  drawText(t(tkSettingsTutorial), (contentX + 40).int32, yPos.int32, 18, White)
+  let tutorialAvailable = settingsWin.replayTutorialAvailable
+  drawText(if tutorialAvailable: t(tkSettingsReplayTutorialDesc) else: t(tkSettingsReplayTutorialLocked),
+           (contentX + 40).int32, (yPos + 21).int32, 12, Color(r: 150, g: 150, b: 175, a: 255))
+  let tutorialRect = tutorialReplayRect(settingsWin.window)
+  drawSettingsButton(tutorialRect, t(tkSettingsReplayTutorial),
+                     tutorialAvailable and checkCollisionPointRec(mousePos, tutorialRect), false,
+                     confirming = false, disabled = not tutorialAvailable)
   yPos += 50
 
   # Section: Localization
@@ -1021,8 +1239,9 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
 
   yPos += 45
 
-  # (Cinematic replays now live in their own Cinematics tab.)
-  yPos += 50
+  # (Cinematic replays now live in their own Cinematics tab.) The gap here keeps
+  # the Data Management header at +300, above the fixed reset-button row.
+  yPos += 15
 
   drawSectionHeader(contentX + 20, yPos, contentW - 40, t(tkSettingsSectionDataManagement), '!',
                    Color(r: 255, g: 95, b: 105, a: 255))
@@ -1039,7 +1258,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     let statusWidth = measureText(settingsWin.resetStatus, 14)
     drawText(settingsWin.resetStatus,
              (contentX + (contentW - statusWidth) div 2).int32,
-             (contentY + 379).int32, 14, LightGray)
+             (contentY + 344).int32, 14, LightGray)
 
 proc drawCinematicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   ## Gallery of every replayable cutscene, split into Story and Mode Intros.
@@ -1095,23 +1314,23 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   if not settingsWin.window.minimized and settingsWin.window.handledClickThisFrame and isTopmost:
     let tabY = settingsWin.window.y + TITLE_BAR_HEIGHT + 10
     let tabHeight = 35
-    let tabWidth = 118
     var tabX = contentX
 
-    for tab in [stGraphics, stAudio, stControls, stGameplay, stCinematics]:
-      if mousePos.x >= tabX.float32 and mousePos.x <= (tabX + tabWidth).float32 and
+    for tab in SettingsTab:
+      if mousePos.x >= tabX.float32 and mousePos.x <= (tabX + SettingsTabWidth).float32 and
          mousePos.y >= tabY.float32 and mousePos.y <= (tabY + tabHeight).float32:
         settingsWin.currentTab = tab
         break
-      tabX += tabWidth + 10
+      tabX += SettingsTabWidth + SettingsTabGap
 
   # Tab switching with number keys (blocked while editing FPS or capturing a rebind)
   if not settingsWin.window.minimized and not settingsWin.editingFPS and settingsWin.rebindingAction < 0:
     if isKeyPressed(One): settingsWin.currentTab = stGraphics
-    if isKeyPressed(Two): settingsWin.currentTab = stAudio
-    if isKeyPressed(Three): settingsWin.currentTab = stControls
-    if isKeyPressed(Four): settingsWin.currentTab = stGameplay
-    if isKeyPressed(Five): settingsWin.currentTab = stCinematics
+    if isKeyPressed(Two): settingsWin.currentTab = stInterface
+    if isKeyPressed(Three): settingsWin.currentTab = stAudio
+    if isKeyPressed(Four): settingsWin.currentTab = stControls
+    if isKeyPressed(Five): settingsWin.currentTab = stGameplay
+    if isKeyPressed(Six): settingsWin.currentTab = stCinematics
 
   var fullscreenToggle = false
   var settingsChanged = false
@@ -1173,42 +1392,6 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
           clearWindowState(flags(VsyncHint))
         settingsChanged = true
 
-      # Show FPS checkbox (25x25 hit area)
-      let fpsCheckX = contentX + 320
-      let fpsCheckY = contentY + 225
-      if checkboxHit(mousePos, fpsCheckX, fpsCheckY):
-        settingsWin.settings.showFPS = not settingsWin.settings.showFPS
-        settingsChanged = true
-
-      # Debug checkbox (25x25 hit area)
-      let debugCheckX = contentX + 320
-      let debugCheckY = contentY + 260
-      if checkboxHit(mousePos, debugCheckX, debugCheckY):
-        settingsWin.settings.showDebugStats = not settingsWin.settings.showDebugStats
-        settingsChanged = true
-
-      let arenaVignetteCheckX = contentX + 320
-      let arenaVignetteCheckY = contentY + 295
-      if checkboxHit(mousePos, arenaVignetteCheckX, arenaVignetteCheckY):
-        settingsWin.settings.showArenaVignette = not settingsWin.settings.showArenaVignette
-        settingsChanged = true
-
-      let lowHpVignetteCheckX = contentX + 320
-      let lowHpVignetteCheckY = contentY + 330
-      if checkboxHit(mousePos, lowHpVignetteCheckX, lowHpVignetteCheckY):
-        settingsWin.settings.showLowHealthVignette = not settingsWin.settings.showLowHealthVignette
-        settingsChanged = true
-
-      let hudLayoutButtonX = contentX + 320
-      let hudLayoutButtonY = contentY + 360
-      let hudLayoutButtonWidth = 220
-      let hudLayoutButtonHeight = 35
-      if mousePos.x >= hudLayoutButtonX.float32 and mousePos.x <= (hudLayoutButtonX + hudLayoutButtonWidth).float32 and
-         mousePos.y >= hudLayoutButtonY.float32 and mousePos.y <= (hudLayoutButtonY + hudLayoutButtonHeight).float32:
-        settingsWin.settings.hudLayout = nextHudLayout(settingsWin.settings.hudLayout)
-        playSound(stMenuSelect)
-        settingsChanged = true
-
     # Keyboard input for FPS text box
     if settingsWin.editingFPS:
       setTextInputActive(true, tikNumeric)
@@ -1234,6 +1417,105 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         except:
           discard
         settingsWin.editingFPS = false
+
+  # Handle Interface tab interactions
+  if settingsWin.currentTab != stInterface:
+    # A drag that leaves the tab (or the window) must not resume later.
+    settingsWin.draggingDamageSize = false
+    settingsWin.draggingScreenShake = false
+  elif isTopmost:
+    # Geometry comes from the origin drawSettingsWindow hands the tab, so the
+    # click targets land exactly on what was drawn.
+    let ifaceY = tabContentOriginY(settingsWin.window)
+    let ifaceW = settingsWin.window.width - WINDOW_PADDING * 2
+
+    template ifaceRect(ic: InterfaceControl): Rectangle =
+      interfaceControlRect(ic, contentX, ifaceY, ifaceW)
+
+    let scaleRect = ifaceRect(ifcUIScale)
+    let sizeRect = ifaceRect(ifcDamageSize)
+    let shakeRect = ifaceRect(ifcScreenShake)
+
+    proc stepUIScale(settings: Settings, delta: int): bool =
+      ## Move the UI scale one stop; false (and silent) when already at the end.
+      let nextScale = steppedUIScale(settings.uiScale, delta)
+      if nextScale == settings.uiScale:
+        return false
+      settings.uiScale = nextScale
+      playSound(stMenuSelect)
+      true
+
+    if settingsWin.window.handledClickThisFrame:
+      if checkCollisionPointRec(mousePos, scaleRect):
+        # Left half steps down, right half steps up -- drawInterfaceTab lights
+        # the arrow on whichever half the pointer is over.
+        if stepUIScale(settingsWin.settings, stepperSide(mousePos, scaleRect)):
+          settingsChanged = true
+
+      if checkCollisionPointRec(mousePos, ifaceRect(ifcDamageNumbers)):
+        settingsWin.settings.showDamageNumbers = not settingsWin.settings.showDamageNumbers
+        settingsChanged = true
+
+      if checkCollisionPointRec(mousePos, ifaceRect(ifcHudLayout)):
+        settingsWin.settings.hudLayout = nextHudLayout(settingsWin.settings.hudLayout)
+        playSound(stMenuSelect)
+        settingsChanged = true
+
+      if checkCollisionPointRec(mousePos, ifaceRect(ifcHudStyle)):
+        settingsWin.settings.hudStyle = nextHudStyle(settingsWin.settings.hudStyle)
+        playSound(stMenuSelect)
+        settingsChanged = true
+
+      for ic in ifcEnemyLabels .. ifcDebugPanel:
+        if checkCollisionPointRec(mousePos, ifaceRect(ic)):
+          toggleInterfaceSetting(settingsWin.settings, ic)
+          settingsChanged = true
+          break
+
+    # Sliders follow the Audio tab's press/drag/release shape, saving only on
+    # release so a drag doesn't rewrite settings.json every frame.
+    if settingsWin.window.handledClickThisFrame and
+       checkCollisionPointRec(mousePos, sliderHitRect(sizeRect)):
+      settingsWin.draggingDamageSize = true
+    if settingsWin.draggingDamageSize:
+      if isPointerDown():
+        let frac = clamp((mousePos.x - sizeRect.x) / IfcSliderWidth.float32, 0.0, 1.0)
+        settingsWin.settings.damageNumberScale =
+          sliderValue(frac, MinDamageNumberScale, MaxDamageNumberScale)
+      else:
+        settingsWin.draggingDamageSize = false
+        settingsChanged = true
+
+    if settingsWin.window.handledClickThisFrame and
+       checkCollisionPointRec(mousePos, sliderHitRect(shakeRect)):
+      settingsWin.draggingScreenShake = true
+    if settingsWin.draggingScreenShake:
+      if isPointerDown():
+        let frac = clamp((mousePos.x - shakeRect.x) / IfcSliderWidth.float32, 0.0, 1.0)
+        settingsWin.settings.screenShakeScale =
+          sliderValue(frac, MinScreenShakeScale, MaxScreenShakeScale)
+      else:
+        settingsWin.draggingScreenShake = false
+        settingsChanged = true
+
+    # Mouse wheel nudges whichever control is under the pointer, like the Audio
+    # tab's sliders: one scale stop, or one 5% slider step, per notch.
+    let wheel = getPointerWheelMove()
+    if wheel != 0.0'f32:
+      let dir = if wheel > 0.0'f32: 1 else: -1
+      if checkCollisionPointRec(mousePos, scaleRect):
+        if stepUIScale(settingsWin.settings, dir):
+          settingsChanged = true
+      elif checkCollisionPointRec(mousePos, sliderHitRect(sizeRect)):
+        settingsWin.settings.damageNumberScale = snapSlider(
+          settingsWin.settings.damageNumberScale + dir.float32 * IfcSliderSnap,
+          MinDamageNumberScale, MaxDamageNumberScale)
+        settingsChanged = true
+      elif checkCollisionPointRec(mousePos, sliderHitRect(shakeRect)):
+        settingsWin.settings.screenShakeScale = snapSlider(
+          settingsWin.settings.screenShakeScale + dir.float32 * IfcSliderSnap,
+          MinScreenShakeScale, MaxScreenShakeScale)
+        settingsChanged = true
 
   # Handle Audio tab interactions
   if settingsWin.currentTab == stAudio and isTopmost:
@@ -1403,28 +1685,27 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.settings.showHints = not settingsWin.settings.showHints
         settingsChanged = true
 
-      # Show enemy labels checkbox (25x25 hit area)
-      let labelsCheckX = contentX + 320
-      let labelsCheckY = contentY + 85
-      if checkboxHit(mousePos, labelsCheckX, labelsCheckY):
-        settingsWin.settings.showEnemyLabels = not settingsWin.settings.showEnemyLabels
-        settingsChanged = true
-
       # Exit confirm checkbox (25x25 hit area)
       let exitConfirmCheckX = contentX + 320
-      let exitConfirmCheckY = contentY + 120
+      let exitConfirmCheckY = contentY + 85
       if checkboxHit(mousePos, exitConfirmCheckX, exitConfirmCheckY):
         settingsWin.settings.exitConfirmEnabled = not settingsWin.settings.exitConfirmEnabled
         settingsChanged = true
 
       # Aim assist checkbox (25x25 hit area)
       let aimAssistCheckX = contentX + 320
-      let aimAssistCheckY = contentY + 155
+      let aimAssistCheckY = contentY + 120
       if checkboxHit(mousePos, aimAssistCheckX, aimAssistCheckY):
         settingsWin.settings.aimAssistEnabled = not settingsWin.settings.aimAssistEnabled
         settingsChanged = true
 
-      # Language selector button
+      # Replay tutorial (consumed by the window manager; main.nim launches it)
+      if settingsWin.replayTutorialAvailable and
+         checkCollisionPointRec(mousePos, tutorialReplayRect(settingsWin.window)):
+        settingsWin.replayTutorialRequested = true
+        playSound(stMenuSelect)
+
+      # Language selector button (moved down a row by the Tutorial row above)
       let langButtonX = contentX + 320
       let langButtonY = contentY + 235
       let langButtonWidth = 200
@@ -1479,13 +1760,13 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
   # Draw tab headers
   let tabY = contentY
   let tabHeight = 35
-  let tabWidth = 118
   let mousePos = getVirtualMousePosition()
 
   var tabX = contentX
-  for tab in [stGraphics, stAudio, stControls, stGameplay, stCinematics]:
+  for tab in SettingsTab:
     let tabName = case tab
       of stGraphics: t(tkSettingsTabGraphics)
+      of stInterface: t(tkSettingsTabInterface)
       of stAudio: t(tkSettingsTabAudio)
       of stControls: t(tkSettingsTabControls)
       of stGameplay: t(tkSettingsTabGameplay)
@@ -1493,12 +1774,12 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
 
     let isActive = settingsWin.currentTab == tab
     let isHovered = mousePos.x >= tabX.float32 and
-                   mousePos.x <= (tabX + tabWidth).float32 and
+                   mousePos.x <= (tabX + SettingsTabWidth).float32 and
                    mousePos.y >= tabY.float32 and
                    mousePos.y <= (tabY + tabHeight).float32
 
-    drawTab(tabName, tabX, tabY, tabWidth, tabHeight, isActive, isHovered)
-    tabX += tabWidth + 10
+    drawTab(tabName, tabX, tabY, SettingsTabWidth, tabHeight, isActive, isHovered)
+    tabX += SettingsTabWidth + SettingsTabGap
 
   # Draw content area background
   let tabContentY = contentY + tabHeight + 10
@@ -1514,6 +1795,8 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
   case settingsWin.currentTab
   of stGraphics:
     drawGraphicsTab(settingsWin, contentX, tabContentY, contentW, tabContentH)
+  of stInterface:
+    drawInterfaceTab(settingsWin, contentX, tabContentY, contentW, tabContentH)
   of stAudio:
     drawAudioTab(settingsWin, contentX, tabContentY, contentW, tabContentH)
   of stControls:

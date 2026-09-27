@@ -68,9 +68,6 @@ var
 proc activeGamepad*(): int32 =
   activePad
 
-proc activeDevice*(): ActiveInputDevice =
-  device
-
 proc isGamepadActive*(): bool =
   device == adGamepad and activePad >= 0
 
@@ -94,9 +91,6 @@ proc availableGamepads*(): seq[tuple[index: int32, name: string]] =
 
 proc gamepadCursorPos*(): Vector2 =
   cursorPos
-
-proc setGamepadCursorPos*(pos: Vector2) =
-  cursorPos = pos
 
 proc setGamepadAimPoint*(pos: Vector2) =
   ## Gameplay writes the (possibly aim-assisted) world aim point here so the
@@ -254,6 +248,15 @@ proc isGamepadStartPressed*(): bool =
 proc isGamepadConfirmPressed*(): bool =
   padButtonPressed(GamepadButton.RightFaceDown)
 
+proc isGamepadConfirmDown*(): bool =
+  ## A held (cutscene fast-forward). Held-state reads, so no edge bookkeeping.
+  padButtonDown(GamepadButton.RightFaceDown)
+
+proc isGamepadBackDown*(): bool =
+  ## B held (cutscene hold-to-skip). Ignores back suppression: that guards the
+  ## single B *press* that cancels a rebind capture, not a deliberate hold.
+  padButtonDown(GamepadButton.RightFaceRight)
+
 proc gamepadNavPressed*(dir: GamepadNavDir): bool =
   case dir
   of gnUp: padButtonPressed(GamepadButton.LeftFaceUp)
@@ -325,6 +328,15 @@ proc gamepadAnyButtonPressed*(): GamepadButton =
     if isGamepadButtonPressed(activePad, b):
       return b
   GamepadButton.Unknown
+
+proc keyboardKeyLabel*(k: KeyboardKey): string =
+  ## raylib's symbol name ("LeftShift"), split into words ("Left Shift").
+  if k == KeyboardKey.Null: return "---"
+  let raw = $k
+  for i, c in raw:
+    if i > 0 and c in {'A'..'Z'} and raw[i - 1] notin {'A'..'Z'}:
+      result.add ' '
+    result.add c
 
 proc gamepadBindLabel*(b: GamepadButton): string =
   ## Short ASCII label for the Controls tab (Xbox-style names).

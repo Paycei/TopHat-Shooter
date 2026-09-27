@@ -1,5 +1,6 @@
 import raylib, rlgl, random, math
 import types, settings, save_system, run_save, suspend, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite, game/bullets, ui/icon_drawing, utils
+import modding/mod_hooks
 export utils
 
 const DEATH_SLOW_DURATION* = 1.1'f32
@@ -25,16 +26,25 @@ proc getDeathSequenceTimeScale(timer: float32): float32 =
 
   DEATH_FAST_SCALE
 
-proc installPowerUp*(game: var Game, powerUp: PowerUp) =
+proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) =
   ## Centralized install feedback so every selected power-up feels like an event.
+  ## `quiet` skips the per-install card, shake and sound: a survival Data Cache
+  ## installs several at once and shows them on its own reveal overlay.
+  # Level 0 is generatePowerUpChoices' "nothing left to offer" placeholder. It
+  # is never a real pick: installing it would overwrite an owned power-up's
+  # level with 0.
+  if powerUp.level <= 0:
+    return
   applyPowerUp(game.player, powerUp)
   trackPowerUpSelection(game, powerUp)
+  modPowerUpPicked(game, powerUpScriptName(powerUp.powerType), powerUp.level)
 
   # Recursion permanently banks its damage onto the roguelite profile, so the
   # bonus compounds across every future run (applyPowerUp above already granted
   # the current run its share). Persist immediately so the gain survives a quit.
+  # A cheated run keeps the in-run damage but never banks it.
   if powerUp.powerType == puRecursion and game.mode == gmRoguelite and
-     not game.rogueliteProfile.isNil:
+     not game.cheatsUsed and not game.rogueliteProfile.isNil:
     game.rogueliteProfile.recursionDamageBonus += recursionDamageBonusForLevel(powerUp.level)
     # Advance the permanent ladder so future runs (and re-rolls) offer the level
     # above this one, capped at the power-up's max level.
@@ -58,12 +68,14 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp) =
     getPowerUpColor(powerUp.powerType)
   let powerUpName = getPowerUpName(powerUp.powerType)
 
-  game.recentPowerUp = powerUp
-  game.recentPowerUpMaxTimer = if powerUp.rarity == prLegendary: 5.0'f32 else: 4.0'f32
-  game.recentPowerUpTimer = game.recentPowerUpMaxTimer
   # Only toast the first time a power-up is discovered; repeat installs skip the toast.
   if isNewDiscovery:
     game.pendingToasts.add(t(tkNewProcessInstalled) & ": " & powerUpName)
+  if quiet:
+    return
+  game.recentPowerUp = powerUp
+  game.recentPowerUpMaxTimer = if powerUp.rarity == prLegendary: 5.0'f32 else: 4.0'f32
+  game.recentPowerUpTimer = game.recentPowerUpMaxTimer
   addShake(game.dopamine.screenShake, siPowerUp, accent)
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                        accent, if powerUp.rarity == prLegendary: 72 else: 46)
@@ -202,46 +214,6 @@ proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
     return (getEnemyConfig(sourceType).name, false)
   return ("", false)
 
-# Comeback mechanic: fixed additive deltas applied to a fresh player at run start.
-# Using additive amounts (not a percentage reversal at expiry) guarantees shop/power-up
-# purchases made during the run are not affected when the bonus is removed.
-const ComebackHpBonus    = 9.0'f32   * 0.1'f32  # +0.9
-const ComebackDmgBonus   = 1.0'f32   * 0.1'f32  # +0.1
-const ComebackSpeedBonus = 177.5'f32 * 0.1'f32  # +17.75
-const ComebackFrBonus    = 0.4275'f32 * 0.1'f32  # 0.04275 subtracted (lower = faster)
-const ComebackBsBonus    = 325.0'f32 * 0.1'f32  # +32.5
-
-proc removeComebackBonus*(game: Game) =
-  game.comebackBonusActive = false
-  game.comebackEndWave = 0
-  game.player.maxHp -= ComebackHpBonus
-  game.player.baselineMaxHp -= ComebackHpBonus  # Handout, not investment
-  game.player.hp = min(game.player.hp, game.player.maxHp)
-  game.player.damage -= ComebackDmgBonus
-  game.player.baseSpeed -= ComebackSpeedBonus
-  game.player.speed -= ComebackSpeedBonus
-  game.player.fireRate += ComebackFrBonus
-  game.player.bulletSpeed -= ComebackBsBonus
-
-proc applyComebackBonus*(game: Game) =
-  if globalSettings.isNil or globalSettings.lastDeathWave <= 0:
-    return
-  if game.mode != gmWaveBased:
-    return
-  game.comebackBonusActive = true
-  game.comebackEndWave = globalSettings.lastDeathWave
-  game.player.maxHp += ComebackHpBonus
-  game.player.baselineMaxHp += ComebackHpBonus  # Handout, not investment
-  game.player.hp = game.player.maxHp
-  game.player.damage += ComebackDmgBonus
-  game.player.baseSpeed += ComebackSpeedBonus
-  game.player.speed += ComebackSpeedBonus
-  game.player.fireRate -= ComebackFrBonus
-  game.player.bulletSpeed += ComebackBsBonus
-  # Consume the stored death wave so restarts don't re-apply it indefinitely
-  globalSettings.lastDeathWave = 0
-  discard saveSettings(globalSettings)
-
 proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
                                source: Enemy = nil, sourceType: EnemyType = etEnvironment) =
   ## Starts the delayed singleplayer death playback before the game-over screen.
@@ -271,13 +243,8 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   game.runHadDeath = true
 
   # Death ends the run: the checkpoint save is no longer resumable.
-  deleteRunSave()
-  deleteSuspendSnapshot()  # ...and the exact snapshot with it.
-
-  # Save the death wave for the comeback mechanic on the next wave-based run.
-  if game.mode == gmWaveBased and not game.cheatsUsed and not globalSettings.isNil:
-    globalSettings.lastDeathWave = game.currentWave
-    discard saveSettings(globalSettings)
+  deleteRunSave(game.mode, game.modMode)
+  deleteSuspendSnapshot(game.mode, game.modMode)  # ...and the exact snapshot with it.
 
   game.state = gsDeathSequence
   game.transitioning = false
@@ -305,6 +272,7 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
   updateLightningBolts(game, worldDt)
   updateShockwaveRings(game, worldDt)
   updatePathShockwaves(game, worldDt)
+  updateBossDeathBlasts(game, worldDt)
 
   var i = 0
   while i < game.attackWarnings.len:
@@ -405,9 +373,14 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
 
   if game.deathSequenceTimer >= DEATH_TOTAL_DURATION:
     game.deathSequenceFadeAlpha = 1.0
-    # A long Time-Survival stand earns the "Long Watch" eulogy before game-over.
-    # The cinematic (owned by main.nim) hands back to gsGameOver when it ends.
-    if game.mode == gmTimeSurvival and game.survivalTime >= SURVIVAL_ENDING_MIN_TIME:
+    # The first long Time-Survival stand earns the "Long Watch" eulogy before
+    # game-over; later ones go straight to the crash screen (it can be replayed
+    # from settings). The cinematic (owned by main.nim) hands back to
+    # gsGameOver when it ends. It mourns a run that is over, so it waits while
+    # a restore point could still Continue this one.
+    if game.mode == gmTimeSurvival and game.survivalTime >= SURVIVAL_ENDING_MIN_TIME and
+       not globalSettings.isNil and not globalSettings.hasSeenSurvivalEnding and
+       not canContinueRun(game):
       game.state = gsSurvivalEndCinematic
     else:
       game.state = gsGameOver

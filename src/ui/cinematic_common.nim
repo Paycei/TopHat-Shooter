@@ -7,6 +7,7 @@
 ## so the outro reads as a sibling of the intro.
 
 import raylib, rlgl, math, strutils
+from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../settings, ../save_system, ../skins, ../shapes, ../bullet_skins, ../bullet_shapes, ../enemy, ../enemy_config, icon_drawing, ../utils
 
 # Maths / colour helpers
@@ -173,9 +174,35 @@ proc drawCenteredText*(text: string, x, y: int32, size: int32, color: Color) =
   let w = measureText(text, size)
   drawText(text, x - w div 2, y, size, color)
 
+var
+  captionClock* = -1.0'f32
+    ## Local time of the shot being drawn, set by drawCutscene around each shot's
+    ## drawProc so drawSubtitles can type its captions out. Negative = no clock
+    ## (any caller outside the cutscene framework): captions draw fully revealed.
+  captionShotDuration* = 0.0'f32
+    ## Duration of that shot; caps the typing so every caption lands early.
+
+const
+  CaptionStartDelay = 0.3'f32   # first character appears this far into the shot
+  CaptionCharsPerSec = 46.0'f32 # base typing speed
+  CaptionLineGap = 0.2'f32      # pause between finishing one line and starting the next
+  CaptionMaxShare = 0.5'f32     # all lines finish within this share of the shot
+
 proc drawSubtitles*(lines: openArray[string], screenWidth, screenHeight: int32,
                    alpha: float32) =
+  ## Captions type out left to right behind a blinking block cursor, like the
+  ## incident log they are read from. Each line is laid out at its FINAL centered
+  ## position, so the text never slides while it types.
   let baseY = screenHeight - screenHeight div 9 - 76
+  var totalRunes = 0
+  for line in lines: totalRunes += line.runeLen
+  let typing = captionClock >= 0.0'f32
+  # Speed up rather than overrun on long lines: finish by CaptionMaxShare.
+  let budget = captionShotDuration * CaptionMaxShare - CaptionStartDelay -
+               CaptionLineGap * max(0, lines.len - 1).float32
+  let cps = if typing and budget > 0.0'f32: max(CaptionCharsPerSec, totalRunes.float32 / budget)
+            else: CaptionCharsPerSec
+  var lineStart = CaptionStartDelay
   for i, line in lines:
     let size = if i == 0: 22.int32 else: 17.int32
     let color =
@@ -183,7 +210,28 @@ proc drawSubtitles*(lines: openArray[string], screenWidth, screenHeight: int32,
         Color(r: 250, g: 255, b: 255, a: alphaByte(alpha * 245.0'f32))
       else:
         Color(r: 0, g: 225, b: 225, a: alphaByte(alpha * 210.0'f32))
-    drawCenteredText(line, screenWidth div 2, baseY + i.int32 * 27, size, color)
+    let y = baseY + i.int32 * 27
+    if not typing:
+      drawCenteredText(line, screenWidth div 2, y, size, color)
+      continue
+    let runes = line.runeLen
+    let lineEnd = lineStart + runes.float32 / cps
+    let shown = clamp(int((captionClock - lineStart) * cps), 0, runes)
+    if shown > 0:
+      let x = screenWidth div 2 - measureText(line, size) div 2
+      let prefix = line.runeSubStr(0, shown)
+      drawText(prefix, x, y, size, color)
+      # Block cursor while this line types and briefly after it lands.
+      let lingering = captionClock < lineEnd + 0.45'f32
+      let nextStarted = i < lines.high and captionClock >= lineEnd + CaptionLineGap
+      let cursorOn = captionClock < lineEnd or fractCoord(captionClock * 3.2'f32) < 0.6'f32
+      if lingering and not nextStarted and cursorOn:
+        var cx = x + measureText(prefix, size) + 3
+        if prefix.endsWith(' '):
+          # A lone trailing space measures ~0 in this font; add a real gap.
+          cx += max(measureText("a a", size) - measureText("aa", size), size div 4)
+        drawRectangle(cx, y + 2, max(4'i32, size div 2 - 2), size - 3, color)
+    lineStart = lineEnd + CaptionLineGap
 
 proc drawFilmGrain*(screenWidth, screenHeight: int32, time: float32, alpha: float32) =
   var i = 0

@@ -35,7 +35,7 @@ proc drawWatchShot(local, duration: float32, screenWidth, screenHeight: int32,
              colorA(SurAccent, alpha * 130.0'f32))
 
   # The swarm circling at the edge of the light, kept at bay minute after minute.
-  let enemyKinds = [etCircle, etCube, etTriangle, etStar, etCross, etDiamond, etOctagon, etPentagon]
+  let enemyKinds = [etThread, etForkBomb, etZombie, etThread, etWatchdog, etDaemon, etThread, etInterrupt]
   for i in 0..<14:
     let a = i.float32 * PI * 2.0'f32 / 14.0'f32 + local * 0.3'f32
     let r = 150.0'f32 + sin(local * 1.4'f32 + i.float32) * 22.0'f32
@@ -65,7 +65,7 @@ proc drawSurgeShot(local, duration: float32, screenWidth, screenHeight: int32,
                          Color(r: 255, g: 40, b: 20, a: 0), Color(r: 255, g: 40, b: 20, a: vig))
 
   # Enemies rushing the center from all directions.
-  let enemyKinds = [etCircle, etCube, etTriangle, etStar, etCross, etDiamond, etOctagon]
+  let enemyKinds = [etThread, etForkBomb, etThread, etZombie, etInterrupt, etThread, etDeadlock]
   for i in 0..<24:
     let ang = fractCoord(sin(i.float32 * 7.13'f32) * 43758.5453'f32) * PI * 2.0'f32
     let startR = 360.0'f32 + fractCoord(i.float32 * 3.7'f32) * 160.0'f32

@@ -3,6 +3,7 @@
 
 import raylib, math, strutils
 import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context
+import ../modding/mod_hooks
 
 const
   SHOP_BASE_WIDTH: int32 = 950     # classic (4:3) width -- do not change
@@ -42,6 +43,11 @@ const
   # speed, walls). Shared by initShopItems and the sandbox wave-average
   # simulation so the two can never disagree.
   SHOP_BASE_COSTS = [13, 13, 10, 14, 9, 18]
+
+const
+  ShopPanelW* = SHOP_BASE_WIDTH + SHOP_MAX_GROWTH
+  ShopPanelH* = SHOP_HEIGHT
+    ## Largest panel this screen can ask for; callers cap the UI scale with it.
 
 type
   ShopLayout* = object
@@ -318,13 +324,10 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
                                 width: width.float32, height: height.float32),
                     borderWidth, borderColor)
 
-  # Icon - drawn programmatically
-  let iconColor = if canAfford:
-    Color(r: 100, g: 200, b: 255, a: 255)
-  else:
-    Color(r: 80, g: 90, b: 100, a: 255)
-
-  drawShopIcon(x + 8, y + int32(height div 2) - 14, 28, itemIndex, iconColor)
+  # Icon - drawn programmatically on an app-style tile in the slot's own hue
+  const ICON_TILE: int32 = 38
+  drawShopIconTile(x + 6, y + (height - ICON_TILE) div 2, ICON_TILE, itemIndex,
+                   canAfford, isSelected)
 
   # Text color
   let textColor = if not canAfford:
@@ -738,6 +741,8 @@ proc buyShopItem*(game: Game, index: int) =
     # Play error sound (using menu nav sound at lower volume)
     playSound(stMenuNav, 0.3)
     return
+  if modShopBuy(game, index, item.name, cost):
+    return   # a mod handled (or refused) the purchase
 
   # Play purchase sound (using coin pickup)
   playSound(stCoinPickup, 0.8)

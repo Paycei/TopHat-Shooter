@@ -3,12 +3,14 @@
 
 import raylib, strutils, math
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
-import ../gamepad_input
+import ../gamepad_input, ../patches
+from ../dungeon import rewardFolderName, rewardLabel
 
 const
   HELP_LINE_HEIGHT* = 18
   HELP_ICON_SIZE* = HELP_LINE_HEIGHT - 4
   HELP_ICON_PADDING* = 6
+  HELP_SCROLLBAR_GUTTER = 12  # text wraps short of the scrollbar (6px track + gap)
 
 type
   HelpCommand* = tuple[cmd: string, desc: string]
@@ -32,6 +34,9 @@ proc getHelpCommands*(): seq[HelpCommand] =
     ("enemies", t(tkHelpCmdEnemies)),
     ("bosses", t(tkHelpCmdBosses)),
     ("shop", t(tkHelpCmdShop)),
+    ("recovery", t("help_cmd_recovery")),
+    ("lore", t(tkHelpCmdLore)),
+    ("licenses", t(tkHelpCmdLicenses)),
     ("customize", "Customize player and bullet skins"),
     ("advancements", "Open persistent progression tracker"),
     ("clear", t(tkHelpClearCommand)),
@@ -210,13 +215,18 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpEnemiesTopic), Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("=======================================", Color(r: 0, g: 255, b: 255, a: 255))
       help.addOutput("", White)
-      for i in ord(low(EnemyType)) .. ord(high(EnemyType)):
-        let et = EnemyType(i)
-        let cfg = getEnemyConfig(et)
-        help.addOutput("  " & cfg.name, cfg.baseColor)
-        for line in cfg.description.split("\n"):
-          help.addOutput("    " & line, White)
+      # Each mode fields its own roster: listed per mode, campaign first.
+      for (header, first, last) in [(tkHelpRosterWave, etCircle, etMage),
+                                    (tkHelpRosterSurvival, etThread, etInterrupt),
+                                    (tkHelpRosterRoguelite, etFragment, etCorruptor)]:
+        help.addOutput("[ " & t(header) & " ]", Color(r: 255, g: 200, b: 50, a: 255))
         help.addOutput("", White)
+        for et in first .. last:
+          let cfg = getEnemyConfig(et)
+          help.addOutput("  " & cfg.name, cfg.baseColor)
+          for line in cfg.description.split("\n"):
+            help.addOutput("    " & line, White)
+          help.addOutput("", White)
 
     of "bosses":
       help.addOutput("", White)
@@ -238,13 +248,25 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput(t(tkHelpBossAttacks), Color(r: 255, g: 200, b: 50, a: 255))
       help.addOutput("  " & t(tkHelpBossAttacksRefer), White)
       help.addOutput("", White)
-      # List all bosses with short descriptions
-      for id in 1..12:
-        let bd = getBossDefinition(id)
-        help.addOutput("  " & bd.name, bd.color)
-        for line in bd.description.split("\n"):
-          help.addOutput("    " & line, White)
+      # List all bosses as process dossiers: name, tag (hijacked service,
+      # flood spawn, legacy process, or the Root), lore line. One roster per
+      # mode; the Omega Entity closes each with that mode's kit.
+      for (header, first, last) in [(tkHelpRosterWave, 1, 12),
+                                    (tkHelpRosterSurvival, 13, 16),
+                                    (tkHelpRosterRoguelite, 17, 23)]:
+        help.addOutput("[ " & t(header) & " ]", Color(r: 255, g: 200, b: 50, a: 255))
         help.addOutput("", White)
+        for id in first .. last:
+          let bd = getBossDefinition(id)
+          help.addOutput("  " & bd.name, bd.color)
+          let tag = getBossServiceTag(id)
+          if tag.len > 0:
+            let tagColor = if isRootBoss(id): Color(r: 255, g: 140, b: 230, a: 255)
+                           else: Color(r: 255, g: 175, b: 70, a: 255)
+            help.addOutput("    " & tag, tagColor)
+          for line in bd.description.split("\n"):
+            help.addOutput("    " & line, White)
+          help.addOutput("", White)
 
     of "shop":
       help.addOutput("", White)
@@ -284,6 +306,68 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("  " & t(tkHelpAvailableBetweenWaves), White)
       help.addOutput("", White)
 
+    of "recovery", "roguelite", "patches", "rootmap":
+      # Deep Recovery primer: sectors, folder doors, patches and Heat.
+      let accent = Color(r: 0, g: 220, b: 255, a: 255)
+      let head = Color(r: 255, g: 200, b: 50, a: 255)
+      help.addOutput("", White)
+      help.addOutput("=======================================", accent)
+      help.addOutput("  " & t("help_recovery_topic"), accent)
+      help.addOutput("=======================================", accent)
+      help.addOutput("", White)
+      help.addOutput(t("help_recovery_sectors"), head)
+      help.addOutput(t("help_recovery_sectors_body"), White, -1, 12)
+      help.addOutput("", White)
+      help.addOutput(t("help_recovery_folders"), head)
+      help.addOutput(t("help_recovery_folders_body"), White, -1, 12)
+      for reward in [rrwDraft, rrwPatch, rrwCredits, rrwRepair, rrwShards, rrwShop, rrwQuarantine]:
+        help.addOutput(rewardFolderName(reward) & "  " & rewardLabel(reward), LightGray, -1, 24)
+      help.addOutput("", White)
+      help.addOutput(t("help_recovery_patches"), head)
+      help.addOutput(t("help_recovery_patches_body"), White, -1, 12)
+      for p in AllPatches:
+        help.addOutput(patchKbLabel(p) & "  " & patchName(p), patchAccent(p), -1, 12)
+        help.addOutput(patchDescription(p), LightGray, -1, 24)
+      help.addOutput("", White)
+      help.addOutput(t("help_recovery_heat"), head)
+      help.addOutput(t("help_recovery_heat_body"), White, -1, 12)
+      help.addOutput("", White)
+
+    of "lore", "archive", "story":
+      # The incident archive: one case file per act of the saga. Act I is always
+      # readable (the intro plays on every fresh profile); the rest decrypt with
+      # the same "seen" flags that unlock their replays in Settings > Cinematics.
+      let s = globalSettings
+      let archiveColor = Color(r: 120, g: 200, b: 255, a: 255)
+      help.addOutput("", White)
+      help.addOutput("=======================================", archiveColor)
+      help.addOutput("  " & t(tkHelpLoreTopic), archiveColor)
+      help.addOutput("=======================================", archiveColor)
+      help.addOutput("", White)
+      help.addOutput(t(tkHelpLoreIntro), LightGray)
+      help.addOutput("", White)
+      let acts = [
+        (t(tkHelpLoreAct1Title), t(tkHelpLoreAct1Body), "", true,
+         Color(r: 0, g: 230, b: 230, a: 255)),
+        (t(tkHelpLoreAct2Title), t(tkHelpLoreAct2Body), t(tkHelpLoreAct2Hint),
+         s != nil and s.hasSeenEnding, Color(r: 60, g: 235, b: 160, a: 255)),
+        (t(tkHelpLoreAct3Title), t(tkHelpLoreAct3Body), t(tkHelpLoreAct3Hint),
+         s != nil and s.hasSeenRogueliteEnding, Color(r: 255, g: 190, b: 70, a: 255)),
+        (t(tkHelpLoreAct4Title), t(tkHelpLoreAct4Body), t(tkHelpLoreAct4Hint),
+         s != nil and s.hasSeenSurvivalEnding, Color(r: 255, g: 120, b: 50, a: 255)),
+      ]
+      for (title, body, hint, unlocked, accent) in acts:
+        if unlocked:
+          help.addOutput(title, accent)
+          help.addOutput(body, White, -1, 12)
+        else:
+          help.addOutput(title, Color(r: 110, g: 120, b: 135, a: 255))
+          help.addOutput(t(tkHelpLoreEncrypted), Color(r: 150, g: 150, b: 160, a: 255), -1, 12)
+          help.addOutput(hint, Color(r: 120, g: 130, b: 145, a: 255), -1, 12)
+        help.addOutput("", White)
+      help.addOutput(t(tkHelpLoreFooter), LightGray)
+      help.addOutput("", White)
+
     # Desktop icon execution commands
     of "play", "play.exe":
       help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconPlay), Color(r: 100, g: 200, b: 255, a: 255))
@@ -313,6 +397,27 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconCredits), Color(r: 255, g: 110, b: 160, a: 255))
       help.pendingIconExecution = 12  # diCredits = 12
 
+    of "feedback", "feedback.exe", "bug", "bugs", "report", "reportbug":
+      help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconFeedback), Color(r: 255, g: 130, b: 90, a: 255))
+      help.pendingIconExecution = 13  # diFeedback = 13
+
+    of "licenses", "license", "licence", "licences", "legal":
+      # Third-party notices that must travel with every copy of the game.
+      const LuaLicense = staticRead("../modding/lua/LICENSE")
+      let noticeColor = Color(r: 190, g: 200, b: 215, a: 255)
+      help.addOutput("", White)
+      help.addOutput(t(tkHelpLicensesIntro), Color(r: 120, g: 220, b: 160, a: 255))
+      help.addOutput("", White)
+      let at = LuaLicense.find("Copyright")
+      for para in LuaLicense[max(at, 0) .. ^1].replace("\r", "").split("\n\n"):
+        if para.strip.len > 0:
+          help.addOutput(para.strip.splitLines.join(" "), noticeColor, indent = 10)
+          help.addOutput("", White)
+
+    of "mods", "mods.exe", "mod", "modding", "addons":
+      help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconMods), Color(r: 120, g: 220, b: 160, a: 255))
+      help.pendingIconExecution = 14  # diMods = 14
+
     of "sandbox", "sandbox.exe":
       help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconSandbox), Color(r: 255, g: 165, b: 0, a: 255))
       help.pendingIconExecution = 7  # diSandbox = 7
@@ -331,6 +436,32 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     help.addOutput(t(tkHelpErrorExecuting) & ": " & e.msg, Red)
     help.addOutput(t(tkHelpTypeHelp), LightGray)
     help.addOutput("", White)
+
+proc entryVisualLines(help: HelpWindow, idx: int): int =
+  ## Wrapped line count of one output entry, using the draw pass's geometry.
+  let line = help.outputLines[idx]
+  let contentW = help.window.width - WINDOW_PADDING * 2
+  var availableW: int32 = (contentW - 20 - HELP_SCROLLBAR_GUTTER).int32 - line.indent.int32
+  if line.icon >= 0 or line.icon == -2:
+    availableW = availableW - int32(HELP_ICON_SIZE + HELP_ICON_PADDING)
+  max(1, wrapTextToWidth(line.text, max(availableW, 20'i32), 14'i32).len)
+
+proc bottomScrollOffset*(help: HelpWindow): int =
+  ## First entry to draw so the LAST entry is on screen. Scrolling counts entries
+  ## but long entries wrap onto several lines, so a fixed `len - 15` left the tail
+  ## of paragraph output (the lore archive, long boss dossiers) unreachable.
+  ## `capacity` mirrors drawHelpWindow's stop condition.
+  let contentH = help.window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING * 2
+  let capacity = max(1, (contentH - 78) div HELP_LINE_HEIGHT + 1)
+  var used = 0
+  var start = help.outputLines.len
+  while start > 0:
+    let n = entryVisualLines(help, start - 1)
+    if used + n > capacity:
+      break
+    used += n
+    dec start
+  min(start, max(0, help.outputLines.len - 1))
 
 proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): int =
   ## Returns icon to execute: -1 = none, 0-6 = desktop icon index (6 = sandbox)
@@ -387,13 +518,13 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
       if help.currentInput.len > 0:
         executeCommand(help, help.currentInput)
         help.currentInput = ""
-      help.scrollOffset = max(0, help.outputLines.len - 15)  # Scroll to bottom
+      help.scrollOffset = bottomScrollOffset(help)  # Scroll to bottom
 
   # Handle scrolling with mouse wheel
   let wheel = getPointerWheelMove()
   if wheel != 0:
     help.scrollOffset = clamp(help.scrollOffset - int(wheel * 3), 0,
-                              max(0, help.outputLines.len - 15))
+                              bottomScrollOffset(help))
 
   return -1  # No icon to execute
 
@@ -433,7 +564,7 @@ proc drawHelpWindow*(help: HelpWindow) =
     let hasPowerUpIcon = line.icon >= 0
     let hasLockIcon = line.icon == -2  # sentinel: undiscovered power-up
     let iconPresent = hasPowerUpIcon or hasLockIcon
-    var availableW: int32 = (contentW - 20).int32 - line.indent.int32
+    var availableW: int32 = (contentW - 20 - HELP_SCROLLBAR_GUTTER).int32 - line.indent.int32
     if iconPresent:
       availableW = availableW - int32(HELP_ICON_SIZE + HELP_ICON_PADDING)
     if availableW < 20.int32:

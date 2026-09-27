@@ -2,7 +2,7 @@
 ## Provides high-level functions to update Discord presence based on game state
 
 import strformat, math
-import discord_presence, types, gamemode_definitions, pvp_game
+import discord_presence, types, gamemode_definitions, pvp_game, survival
 
 const
   PresenceAppName = "TopHat-ShooterOS"
@@ -52,16 +52,17 @@ proc updateDiscordForPlaying*(client: DiscordClient, game: Game) =
       stateText = &"Wave {game.currentWave} | {game.player.kills} Kills"
       hoverText = &"{PresenceAppName} | Wave {game.currentWave}"
   elif isTimeSurvivalMode(game.mode):
-    stateText = &"{formatClock(game.time)} | {game.player.kills} Kills"
-    hoverText = &"{PresenceAppName} | Survival run"
+    # The survival clock (boss fights excluded) and the phase it has reached.
+    stateText = &"{formatClock(game.survivalTime)} | {game.player.kills} Kills"
+    hoverText = &"{PresenceAppName} | Survival: {survivalPhaseReachedLabel(game)}"
   elif isSandboxMode(game.mode):
     stateText = &"Sandbox Mode | {game.player.kills} Kills"
     hoverText = &"{PresenceAppName} | Sandbox chaos"
   elif isRogueliteMode(game.mode):
     let floorNum = if game.rogueliteRun != nil: game.rogueliteRun.floorNumber else: 1
     let rooms = if game.rogueliteRun != nil: game.rogueliteRun.totalRoomsCleared else: 0
-    stateText = &"Floor {floorNum} | {rooms} Rooms | {game.player.kills} Kills"
-    hoverText = &"{PresenceAppName} | Dungeon run"
+    stateText = &"Sector {floorNum} | {rooms} Folders | {game.player.kills} Kills"
+    hoverText = &"{PresenceAppName} | Deep Recovery"
   else:
     stateText = &"{game.player.kills} Kills"
     hoverText = PresenceTagline
@@ -133,7 +134,7 @@ proc updateDiscordForPvP*(client: DiscordClient, pvpGame: PvPGameState) =
       hoverText = &"{PresenceAppName} | Match complete"
     else:
       detailsText = modeText
-      stateText = pvpGame.gameOverReason
+      stateText = if pvpGame.endReason == erHostLeft: "Host left" else: "Draw"
       hoverText = &"{PresenceAppName} | Match complete"
 
   elif pvpGame.isCountingDown:
@@ -182,7 +183,7 @@ proc updateDiscordForGameOver*(client: DiscordClient, game: Game) =
   var stateText = &"Game Over | {game.player.kills} Kills"
   if isRogueliteMode(game.mode) and game.rogueliteRun != nil:
     let rooms = game.rogueliteRun.totalRoomsCleared
-    stateText = &"Game Over | {rooms} Rooms, {game.player.kills} Kills"
+    stateText = &"Game Over | {rooms} Folders, {game.player.kills} Kills"
 
   let presence = buildPresence(
     detailsText = modeText,

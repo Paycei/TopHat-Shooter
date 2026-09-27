@@ -1,0 +1,8 @@
+{
+  "id": "retro_crt",
+  "name": "Retro CRT",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "An old CRT monitor over the game: scanlines, a curved screen and colour fringes. Tune it in MODS.EXE > Apps > CRT Settings (remembered for this profile). Shows assets.shader, override.shader, register.app and mod.storage.",
+  "main": "main.lua"
+}

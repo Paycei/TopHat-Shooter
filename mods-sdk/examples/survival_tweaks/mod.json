@@ -1,0 +1,8 @@
+{
+  "id": "survival_tweaks",
+  "name": "Survival Tweaks",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "Changes an existing mode instead of adding one: in Time Survival, Firewall Breach events never trigger, some horde Threads are swapped for Daemons and every kill pays double XP.",
+  "main": "main.lua"
+}

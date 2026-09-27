@@ -1,7 +1,13 @@
 import raylib, math, random
-import particle_types, types, particle, particle_pool, powerup, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions
+import particle_types, types, particle, particle_pool, powerup, patches, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions, enemy_config
+import modding/mod_hooks
+from roguelite import bankMetaCurrency
 
 const LOOT_MARGIN* = 50.0  # Distance from screen edge
+
+const RogueliteCoinScale* = 0.45'f32
+  ## Roguelite kill-drop credit scale (measured: unscaled drops paid ~1600 of a
+  ## run's ~2400 credits against stalls costing 55-250).
 
 proc clampLootPosition*(x, y: float32, screenWidth, screenHeight: int32): tuple[x, y: float32] =
   ## Clamps a position to be within screen bounds with margin
@@ -29,6 +35,10 @@ proc newCoin*(x, y: float32, value: int = 1, isBoss: bool = false): Coin =
 proc updateCoin*(coin: Coin, dt: float32, totalCoins: int): bool =
   # Coins despawn based on total count, not time
   # Keep coins until there are too many (> 150)
+  # The boss coin is exempt: wave mode only advances once it is picked up, so
+  # letting it fade out with the overflow would leave the run stuck forever.
+  if coin.isBossCoin:
+    return true
   if totalCoins > 150:
     # Start despawning oldest coins (mark with positive lifetime)
     if coin.lifetime < 0:
@@ -139,6 +149,7 @@ proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty:
   else:
     let waveBonus = if mode == gmWaveBased: 0 else: (currentWave div 10)
     let baseValue = case enemy.enemyType
+      of etMod00..etMod31: modEnemies[enemy.enemyType].coins
       of etCircle: 1
       of etCube: 3           # More coins since it's now harder
       of etTriangle: 2
@@ -152,10 +163,26 @@ proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty:
       of etPhantom: 7
       of etSniper: 10
       of etMage: 10
+      of etThread: 1
+      of etForkBomb: 2
+      of etWatchdog: 3
+      of etZombie: 3
+      of etDeadlock: 2
+      of etDaemon: 4
+      of etInterrupt: 1
+      of etFragment: 1
+      of etPortGuard: 4
+      of etSentry: 3
+      of etMimic: 5
+      of etRestorer: 4
+      of etPacket: 3
+      of etDriver: 5
+      of etCorruptor: 4
       of etEnvironment: 0
     result = baseValue + waveBonus
   if enemy.isElite:
     result = (result.float32 * 1.5).int
+  result = modCoinValue(enemy, result)
 
 proc dropEnemyCoin*(game: Game, enemy: Enemy) =
   var coinValue = enemyCoinValue(enemy, game.mode, game.currentWave, game.difficulty)
@@ -163,11 +190,48 @@ proc dropEnemyCoin*(game: Game, enemy: Enemy) =
   # ~4x head count would otherwise pay out ~4x per wave -- a measured run earned
   # 27.5k coins and bought 53 shop upgrades. Bosses are exempt: there is still
   # exactly one of them, so their lump is not a per-enemy quantity at all.
-  if game.mode == gmWaveBased and not enemy.isBoss:
-    coinValue = max(1, int(coinValue.float32 * waveDensityRebate(game.currentWave)))
+  # Roguelite rooms fight on the same density curve (densityWave), but round
+  # STOCHASTICALLY instead of flooring at 1: a pulsed swarm is mostly 1-credit
+  # enemies, and the floor minted a credit from every one of them (measured:
+  # 1000-2600 unspendable credits by the last sector). Wave mode keeps its
+  # floor so every kill there still visibly pays. Survival's horde rounds
+  # stochastically too (no RogueliteCoinScale): its credits only buy rerolls.
+  if (densityWave(game) > 0 or game.mode == gmTimeSurvival) and not enemy.isBoss:
+    var scaled = coinValue.float32 * densityRebate(game)
+    if game.mode == gmTimeSurvival:
+      coinValue = int(scaled) + (if rand(1.0'f32) < scaled - floor(scaled): 1 else: 0)
+      if coinValue <= 0:
+        return
+    elif game.mode == gmRoguelite:
+      # Credits only buy /pkg stalls and rerolls here (no stat shop), so kill
+      # drops are scaled to what a sector should afford: one or two stalls.
+      scaled *= RogueliteCoinScale
+      coinValue = int(scaled) + (if rand(1.0'f32) < scaled - floor(scaled): 1 else: 0)
+      if coinValue <= 0:
+        return
+    else:
+      coinValue = max(1, int(scaled))
   let clampedPos = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
   let requiresBossCoin = enemy.isBoss and game.mode == gmWaveBased
   game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, requiresBossCoin))
+
+proc awardMetaCurrency*(game: Game, shards: int, cores: int = 0) =
+  ## Wave/survival reward: bank Data Shards / Cores into the profile wallet the
+  ## cosmetic shop spends from, tally them for the end-of-run screens, and float
+  ## the amounts over the player. A cheated run earns nothing from here on (what
+  ## was banked before the cheat menu opened is kept).
+  if game.cheatsUsed or not bankMetaCurrency(shards, cores):
+    return
+  game.metaShardsEarned += max(0, shards)
+  game.metaCoresEarned += max(0, cores)
+  # Kept live (finalizeRunTracking re-syncs it) because the victory screen's
+  # View Stats opens before the run is finalized.
+  if not currentRunStats.isNil:
+    currentRunStats.rogueliteShardsEarned = game.metaShardsEarned
+  if shards > 0:
+    showCurrency(game, game.player.pos + newVector2f(0, -40), shards, cikDataShards)
+  if cores > 0:
+    showCurrency(game, game.player.pos + newVector2f(28, -26), cores, cikCores)
 
 proc collectAllCoins*(game: Game) =
   ## Auto-bank every coin on the floor when the room is cleared, applying the
@@ -191,9 +255,26 @@ proc collectAllCoins*(game: Game) =
 proc updateGameCoins*(game: Game, dt: float32): bool =
   ## Update all coins, handle collection, and magnet/aura movement.
   ## Returns true if a boss coin was collected and completeBossWave should be called.
+  # Recovery: the wave is waiting on a boss coin that no longer exists (a run
+  # saved by an older build, where the coin could fade out). Put one back at
+  # the arena centre so the wave can finish.
+  if game.bossWaveManager.coinActive and shouldUseWaves(game.mode):
+    var bossCoinPresent = false
+    for coin in game.coins:
+      if coin.isBossCoin:
+        bossCoinPresent = true
+        break
+    if not bossCoinPresent:
+      game.coins.add(newCoin(game.screenWidth.float32 / 2, game.screenHeight.float32 / 2,
+                             1, isBoss = true))
+
+  # Roguelite folders vacuum every coin at clear (collectAllCoins), so the
+  # overflow despawn would only ever delete credits a big pulse had earned.
+  let despawnCount = if game.mode == gmRoguelite: 0 else: game.coins.len
+  let magnetAll = game.player.magnetTimer > 0 or hasPatch(game.player, rrtGarbageCollector)
   var i = 0
   while i < game.coins.len:
-    if not updateCoin(game.coins[i], dt, game.coins.len):
+    if not updateCoin(game.coins[i], dt, despawnCount):
       game.coins.delete(i)
       continue
 
@@ -202,9 +283,13 @@ proc updateGameCoins*(game: Game, dt: float32): bool =
       spawnTimedParticlesPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, 18.0,
                          Color(r: 255, g: 215, b: 0, a: 150), 1, dt)
 
-    if game.player.magnetTimer > 0:
+    if magnetAll:
       moveCoinToPlayer(game.coins[i], game.player.pos, dt)
 
+    if checkPlayerCollision(game.coins[i], game.player) and not game.coins[i].isBossCoin and
+       modPickup(game, "coin", game.coins[i].value.float64):
+      game.coins.delete(i)   # a mod took it (pickup hook); boss coins always count
+      continue
     if checkPlayerCollision(game.coins[i], game.player):
       let isBossCoin = game.coins[i].isBossCoin
       var coinValue = game.coins[i].value

@@ -5,13 +5,6 @@ import raylib, math
 import ../render_context
 
 type
-  WindowAnimation* = enum
-    waNone,         # No animation
-    waSlideIn,      # Sliding in from off-screen
-    waSlideOut,     # Sliding out off-screen
-    waMinimizing,   # Animating to minimized state
-    waRestoring     # Animating from minimized to full
-
   OSWindowType* = enum
     owtSettings
     owtStatistics
@@ -37,13 +30,14 @@ type
     resizing*: bool
     resizeEdge*: int  # 0=none, 1=right, 2=bottom, 3=corner
 
-    # Panel-like animations
-    animation*: WindowAnimation
-    animationTimer*: float32
-    animationDuration*: float32
-    targetX*, targetY*: int
-    startX*, startY*: int
     savedWidth*, savedHeight*: int  # For minimize/restore
+
+    # The UI scale this window is currently drawn and hit-tested at. Each window
+    # gets its own (window_manager.windowUIScale caps the player's setting per
+    # window), so x/y/width/height are in *this window's* logical pixels and are
+    # only comparable with another window's after a trip through both scales.
+    # The window manager refreshes it every frame; 1.0 until it does.
+    uiScale*: float32
 
 const
   TITLE_BAR_HEIGHT* = 30
@@ -77,6 +71,12 @@ proc chromeBtnHitRect(winX, winY, inset: int): Rectangle =
   Rectangle(x: (winX - inset - pad).float32, y: winY.float32,
             width: CHROME_BTN_HIT_W.float32, height: CHROME_BTN_HIT_H.float32)
 
+proc uiScaleOfWindow*(window: OSWindow): float32 =
+  ## `window.uiScale`, guarded against a window the manager has not touched yet
+  ## (and against a 0 that would make the conversions below divide by zero).
+  if window.isNil or window.uiScale <= 0.0'f32: 1.0'f32
+  else: window.uiScale
+
 proc newOSWindow*(title: string, x, y, width, height: int,
                  iconColor: Color, windowType: OSWindowType, resizable: bool = true): OSWindow =
   result = OSWindow(
@@ -96,43 +96,20 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     handledClickThisFrame: false,
     time: 0,
     zOrder: 0,
-    animation: waNone,
-    animationTimer: 0.0,
-    animationDuration: 0.3,
-    targetX: x,
-    targetY: y,
-    startX: x,
-    startY: y,
     savedWidth: width,
-    savedHeight: height
+    savedHeight: height,
+    uiScale: 1.0'f32
   )
-
-proc startSlideInAnimation*(window: OSWindow, screenWidth, screenHeight: int) =
-  ## Start slide-in animation from bottom
-  window.animation = waSlideIn
-  window.animationTimer = 0.0
-  window.startY = screenHeight
-  window.targetY = window.y
-  window.y = window.startY
-
-proc startSlideOutAnimation*(window: OSWindow, screenHeight: int) =
-  ## Start slide-out animation to bottom
-  window.animation = waSlideOut
-  window.animationTimer = 0.0
-  window.startY = window.y
-  window.targetY = screenHeight
 
 proc startMinimizeAnimation*(window: OSWindow) =
   ## Instantly minimize - no animation
   window.minimized = true
-  window.animation = waNone
   window.savedWidth = window.width
   window.savedHeight = window.height
 
 proc startRestoreAnimation*(window: OSWindow) =
   ## Instantly restore - no animation
   window.minimized = false
-  window.animation = waNone
 
 proc bringWindowToFront*(window: OSWindow, allWindows: openArray[OSWindow]) =
   ## Bring this window to the front of all other windows
@@ -187,8 +164,19 @@ proc isPointInWindow*(window: OSWindow, mouseX, mouseY: float32): bool =
            mouseY >= window.y.float32 and
            mouseY <= (window.y + window.height).float32
 
+proc toWindowSpace(src, dst: OSWindow, x, y: float32): Vector2 =
+  ## A point in `src`'s scale layer, re-expressed in `dst`'s. Windows whose UI
+  ## scale was capped differently do not share a coordinate space, so a point
+  ## has to travel out to virtual pixels (times src's scale) and back down (by
+  ## dst's) before it can be tested against another window's rect. A no-op
+  ## whenever the two ended up at the same scale.
+  let k = uiScaleOfWindow(src) / uiScaleOfWindow(dst)
+  Vector2(x: x * k, y: y * k)
+
 proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindows: openArray[OSWindow]): bool =
-  ## Check if this window is the topmost window at the given point
+  ## Check if this window is the topmost window at the given point, which is in
+  ## `window`'s own coordinates (what getVirtualMousePosition returns while that
+  ## window's scale layer is active).
   if not window.visible:
     return false
 
@@ -208,13 +196,14 @@ proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindo
   for otherWindow in allWindows:
     if otherWindow != window and not otherWindow.isNil and otherWindow.visible:
       if otherWindow.zOrder > window.zOrder:
-        # Check if the other window covers this point
+        # Check if the other window covers this point, asked in its own space
         # For minimized windows, only the title bar counts
         # For normal windows, the entire window counts
+        let p = toWindowSpace(window, otherWindow, mouseX, mouseY)
         let otherWindowCoversPoint = if otherWindow.minimized:
-          isPointInTitleBar(otherWindow, mouseX, mouseY)
+          isPointInTitleBar(otherWindow, p.x, p.y)
         else:
-          isPointInWindow(otherWindow, mouseX, mouseY)
+          isPointInWindow(otherWindow, p.x, p.y)
 
         if otherWindowCoversPoint:
           return false
@@ -315,7 +304,11 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
     if not clickOnThisWindowArea:
       return false  # Click is not on this window at all
 
-    # Step 2: Find which window should handle this click (highest z-order at this point)
+    # Step 2: Find which window should handle this click (highest z-order at this point).
+    # `mousePos` is in *this* window's scale layer, and a window whose scale was
+    # capped differently does not share that space, so each candidate is asked in
+    # its own coordinates (see toWindowSpace). Identical to the old single-space
+    # test whenever every window ended up at the same scale (e.g. any scale <= 100%).
     var windowThatShouldHandle: OSWindow = nil
     var highestZ = -1
 
@@ -323,11 +316,13 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
       if w.isNil or not w.visible:
         continue
 
+      let p = toWindowSpace(window, w, mousePos.x, mousePos.y)
+
       # Check if this window covers the click point
       let windowCoversClick = if w.minimized:
-        isPointInTitleBar(w, mousePos.x, mousePos.y)
+        isPointInTitleBar(w, p.x, p.y)
       else:
-        isPointInWindow(w, mousePos.x, mousePos.y)
+        isPointInWindow(w, p.x, p.y)
 
       if windowCoversClick and w.zOrder > highestZ:
         highestZ = w.zOrder

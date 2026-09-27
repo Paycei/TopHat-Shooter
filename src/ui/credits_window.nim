@@ -7,7 +7,7 @@
 ## the buttons cannot be clicked. The credits above it are unaffected.
 
 import raylib
-import os_window, ui_helpers, ../localization, ../render_context, ../support
+import os_window, ui_helpers, ../localization, ../render_context, ../feedback
 
 type
   CreditsWindow* = ref object

@@ -32,6 +32,34 @@ proc drawCenteredTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: 
                           minSize: int32 = 9): int32 {.discardable.} =
   drawTextFit(text, x, y, maxWidth, fontSize, color, minSize, taCenter)
 
+proc moddedBadgeSize*(fontSize: int32 = 12): tuple[w, h: int32] =
+  (measureText(t(tkModdedBadge), fontSize) + 14'i32, fontSize + 8'i32)
+
+proc drawModdedBadge*(x, y: int32, fontSize: int32 = 12) =
+  ## The MODDED tag of a run played with mods loaded (MODS.EXE). Amber, the
+  ## palette's "earns nothing permanent" warning; a slow pulse on the border
+  ## keeps it noticeable without competing with the HUD.
+  let (w, h) = moddedBadgeSize(fontSize)
+  let r = Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32)
+  let pulse = 0.5'f32 + 0.5'f32 * sin(getTime().float32 * 2.4'f32)
+  drawRectangleRounded(r, 0.35, 4, Color(r: 38, g: 24, b: 4, a: 225))
+  drawRectangleRoundedLines(r, 0.35, 4, 1.5,
+    Color(r: 255, g: 176, b: 32, a: uint8(150 + 105 * pulse)))
+  drawText(t(tkModdedBadge), x + 7, y + 4, fontSize, Color(r: 255, g: 196, b: 80, a: 255))
+
+proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string =
+  ## `text` cut down (with a trailing "..") until it is at most maxWidth wide.
+  ## Trims whole UTF-8 characters, so an accented letter is never split.
+  result = text
+  if measureText(result, fontSize) <= maxWidth:
+    return
+  while result.len > 1 and measureText(result & "..", fontSize) > maxWidth:
+    var n = result.len - 1
+    while n > 0 and (result[n].uint8 and 0xC0'u8) == 0x80'u8:
+      dec n
+    result.setLen(n)
+  result = result.strip(leading = false) & ".."
+
 proc wrapTextLines*(text: string, maxWidth, fontSize: int32): seq[string] =
   ## Greedy word-wrap to lines no wider than `maxWidth` at `fontSize`.
   let words = text.splitWhitespace()
@@ -64,10 +92,12 @@ proc bestWrapFontSize*(text: string, maxWidth, preferredSize: int32,
 # ---------------------------------------------------------------------------
 # Restore-point glyph.
 #
-# The wave-mode lives budget (difficultyMaxLives in types.nim) is shown to the
-# player as RESTORE POINTS rather than lives, because that is literally what one
-# is in this fiction: pressing "Continue (Wave 21)" restores a saved system
-# state off disk (run_checkpoint.json), and spending one burns that save.
+# The lives budget of wave mode, the roguelite and Time Survival
+# (difficultyMaxLives in types.nim) is shown to the player as RESTORE POINTS
+# rather than lives, because that is literally what one is in this fiction:
+# pressing "Continue (Wave 21)", "Continue (Sector 3)" or "Continue (10:00)"
+# restores a saved system state off disk (the mode's run_checkpoint file), and
+# spending one burns that save.
 #
 # The glyph is a save-state platter -- disc, recessed face, spindle hub and a
 # write LED -- drawn in the shadow / body / bright-core layering that
@@ -235,6 +265,47 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
     drawText(status, cursor, int32(cy) - PanelFontSize div 2, PanelFontSize,
              if critical or low: Color(r: 255, g: 120, b: 120, a: 255)
              else: Color(r: 120, g: 235, b: 160, a: 255))
+
+proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
+                              height: int32 = LivesPanelHeight) =
+  ## Stand-in for the meter once a run has been won and plays on past it (see
+  ## restorePointsOffline in types.nim): wave mode's endless waves, the
+  ## roguelite's endless loops, survival's Overtime. The win deleted the block
+  ## checkpoint and nothing writes a new one, so the budget is gone whatever
+  ## the counter says -- showing the live meter there would promise a Continue
+  ## that can never appear. Same frame and anchor as drawLivesPanel so the
+  ## screens keep their layout; one dead platter plus a warning replaces the
+  ## glyph row. `mode` only picks the wording (survival says Overtime).
+  let pulse = sin(time * 3.0) * 0.2 + 0.8
+  drawRectangle(x, y, width, height, Color(r: 46, g: 16, b: 20, a: 255))
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+                               width: width.float32, height: height.float32),
+                     2.0, Color(r: uint8(220.0 * pulse), g: 60, b: 70, a: 255))
+  drawRectangle(x, y, 4'i32, height, Color(r: 190, g: 40, b: 55, a: 255))
+
+  # Centered group: RESTORE POINTS  <dead platter>  OFFLINE: ...
+  # The warning shrinks to fit: it runs long in Spanish and the pause window's
+  # panel is narrower than the ending screens'.
+  let label = t(tkRestorePointsLabel)
+  let status = t(if mode == gmTimeSurvival: tkRestorePointsOvertime
+                 else: tkRestorePointsEndless)
+  let labelW = measureText(label, PanelFontSize)
+  let glyphW = int32(PanelIconSize * 2.0)
+  let statusMax = width - 24 - labelW - glyphW - IconLabelGap * 2
+  let statusSize = bestFitFontSize(status, statusMax, PanelFontSize)
+  let statusW = measureText(status, statusSize)
+  let groupW = labelW + IconLabelGap + glyphW + IconLabelGap + statusW
+
+  var cursor = x + (width - groupW) div 2
+  let cy = y.float32 + height.float32 * 0.5
+  drawText(label, cursor, int32(cy) - PanelFontSize div 2, PanelFontSize,
+           Color(r: 190, g: 202, b: 216, a: 255))
+  cursor += labelW + IconLabelGap
+  drawRestorePointIcon(cursor.float32 + PanelIconSize, cy, PanelIconSize,
+                       RpDeadBody, RpDeadAccent, RpDeadLed)
+  cursor += glyphW + IconLabelGap
+  drawText(status, cursor, int32(cy) - statusSize div 2, statusSize,
+           Color(r: 255, g: 120, b: 120, a: 255))
 
 # ---------------------------------------------------------------------------
 # "Restore point spent" animation.

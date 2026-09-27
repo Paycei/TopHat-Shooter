@@ -37,7 +37,7 @@ nim check --mm:orc src/main.nim
 
 - `nimble debug` runs the main game loop in debug mode.
 - Use `nim check --mm:orc src/main.nim` as the primary correctness check after edits.
-- There is no dedicated test suite in this repo.
+- There is no full test suite; `tests/test_spatial_grid.nim` (`nim r --mm:orc tests/test_spatial_grid.nim`) checks the enemy `SpatialGrid` in `src/enemy_helpers.nim`.
 - The Windows release path links `icono.res`; do not remove it.
 
 ## Development Workflow

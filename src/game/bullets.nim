@@ -1,6 +1,6 @@
 import raylib, rlgl, random, math
 import types, player, particle_pool, particle_types, effects, powerup, fx, game/combat
-from run_statistics import trackPowerUpDamage, trackPowerUpHealing
+from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, trackHealing
 
 type BulletEffects* = tuple[
   slow: float32,
@@ -26,6 +26,14 @@ const MasteryDamageMult* = 2.5'f32
 # arcane orbs already carry a +50% inherent premium), so its damage bonus is
 # held to +75% instead of the shared +150%.
 const ArcaneMasteryDmgMult* = 1.75'f32
+
+# Blood's mastery splits its budget between damage and lifesteal, so each side
+# only doubles. Named so the damage split in the statistics can read the same
+# number the damage itself is scaled by.
+const BloodMasteryDmgMult* = 2.0'f32
+const BloodMasteryLifestealMult* = 2.0'f32
+  ## The lifesteal half of that budget. Every blood heal reads it, and so does the
+  ## statistics split that credits Blood Mastery its share of the healing.
 
 proc windBulletFlatBonus*(player: Player): float32 =
   ## Wind Bullets' own flat damage contribution to a bullet, mastery included.
@@ -78,6 +86,189 @@ proc updatePathShockwaves*(game: var Game, dt: float32) =
 
 proc drawPathShockwaves*(game: Game) =
   fx.drawPathShockwaves(game.pathShockwaves)
+
+# Boss death blast (deallocation sweep), forwarding stubs.
+# The sweep's colour is re-exported so the detonation game.nim spawns at the
+# corpse can be tinted to match the wave it launches.
+export BOSS_DEATH_BLAST_COLOR
+
+proc spawnBossDeathBlast*(game: var Game, pos: Vector2f, maxRadius: float32,
+                          sourceEnemyId: int,
+                          color: Color = fx.BOSS_DEATH_BLAST_COLOR) =
+  fx.spawnBossDeathBlastInto(game.bossDeathBlasts, pos, maxRadius, sourceEnemyId, color)
+
+proc drawBossDeathBlasts*(game: Game) =
+  fx.drawBossDeathBlasts(game.bossDeathBlasts)
+
+proc blastFreeFizzle(game: var Game, pos: Vector2f, color: Color) =
+  ## The little puff left where the sweep freed one hazard. Angular shards
+  ## rather than a soft puff, so an erased projectile reads as data being
+  ## dropped rather than as something burning up.
+  for i in 0 ..< 5:
+    let angle = rand(TAU).float32
+    let speed = 50.0'f32 + rand(110.0).float32
+    discard game.particlePool.acquireParticleDetailed(
+      pos.x, pos.y, cos(angle) * speed, sin(angle) * speed, color,
+      lifetime = 0.22'f32 + rand(0.16).float32,
+      startSize = 3.5'f32, endSize = 0.0'f32,
+      drag = 4.5'f32, glow = 1.5'f32,
+      style = (if i mod 2 == 0: psShard else: psSpark),
+      layer = plForeground,
+      rotation = angle * 180.0'f32 / PI.float32,
+      spin = (-420.0 + rand(840.0)).float32)
+
+proc bossHazardDefused*(game: Game, sourceEnemyId: int): bool =
+  ## True once a boss-death sweep owns this hazard's firer, which is the moment
+  ## that boss died.
+  ##
+  ## The sweep needs about a second to cross the arena, and a shot it has not
+  ## reached yet would still be a live shot -- so landing the killing blow could
+  ## still cost the player the run, to a bullet fired by something that no
+  ## longer exists. Winning the fight ENDS the fight: from the detonation
+  ## onward every hazard that boss put in the air is inert, and the wave that
+  ## follows is only the visible clean-up.
+  ##
+  ## Ownership is matched by sourceEnemyId rather than by defusing each object,
+  ## so it also covers what a boss's leftovers would go on to produce -- a
+  ## telegraph's lasers, a meteor warning's rocks -- since those inherit the
+  ## same dead firer. Every damage path that reads a hazard's owner consults
+  ## this, which is what makes "a dead boss cannot damage the player" one rule
+  ## rather than a list of special cases.
+  if sourceEnemyId < 0: return false
+  for blast in game.bossDeathBlasts:
+    if blast.sourceEnemyId == sourceEnemyId:
+      return true
+  false
+
+proc blastFreeBeam(game: var Game, laser: Laser, color: Color) =
+  ## A beam is cleared as one object, so its puffs go at the TIPS -- where the
+  ## wave actually caught up with it -- and not back at the dead firer the
+  ## sweep left behind long ago. The arms mirror how drawLaser lays the beam
+  ## out: 0/1 extend both ways on an axis, 2 is a rotated cross, 3 is a single
+  ## arm along the rotation.
+  const Quarter = (PI / 2.0).float32
+  let arms = case laser.direction
+    of 0: @[0.0'f32, PI.float32]
+    of 1: @[Quarter, -Quarter]
+    of 2: @[laser.rotation, laser.rotation + PI.float32,
+            laser.rotation + Quarter, laser.rotation - Quarter]
+    else: @[laser.rotation]
+  for a in arms:
+    blastFreeFizzle(game, newVector2f(laser.pos.x + cos(a) * laser.length,
+                                      laser.pos.y + sin(a) * laser.length), color)
+
+proc blastHasReached(blast: BossDeathBlast, pos: Vector2f,
+                     extra: float32 = 0.0'f32): bool =
+  ## Has the sweep's edge covered this hazard yet? `extra` is the hazard's own
+  ## reach past that point, which is what makes a beam wait until the wave has
+  ## washed past its tip rather than popping the instant the edge leaves its
+  ## firer.
+  ##
+  ## The maxRadius fallback is the guarantee that nothing of the boss survives:
+  ## a hazard can sit -- or a screen-diagonal beam can reach -- well outside the
+  ## arena, where no amount of expansion the player can SEE would ever cover it,
+  ## so the sweep's final step takes whatever is left.
+  distance(pos, blast.pos) + extra <= blast.radius or
+    blast.radius >= blast.maxRadius
+
+proc updateBossDeathBlasts*(game: var Game, dt: float32) =
+  ## Advance every boss-death sweep and erase the hazards its edge has reached.
+  ##
+  ## The wave only ever DELETES. It never calls takeDamage, damageEnemy or any
+  ## other damage path, so it is safe to let it cover the whole arena: the
+  ## player, surviving minions and the boss's reward drops are untouched. Only
+  ## hazards whose sourceEnemyId matches the dead boss are swept, so a minion's
+  ## bullets keep flying and the fight around the corpse continues honestly.
+  var i = 0
+  while i < game.bossDeathBlasts.len:
+    let blast = game.bossDeathBlasts[i]
+
+    # Spent sweep: nothing left to clear, just fade the ring out.
+    if blast.radius >= blast.maxRadius:
+      blast.fadeTimer -= dt
+      if blast.fadeTimer <= 0:
+        game.bossDeathBlasts.delete(i)
+      else:
+        inc i
+      continue
+
+    blast.radius = min(blast.radius + blast.speed * dt, blast.maxRadius)
+
+    # Projectiles: gone the moment the edge passes over them. The test is
+    # ownership plus which way the shot is pointed, NOT isBossBullet -- a shot
+    # the boss's reflect shield turned back on the player keeps its player-fired
+    # shape and only hands over its ownership, and it is every bit as much a
+    # hazard the dead boss put in the air. A bullet the player has since parried
+    # back has fromPlayer set again, so it correctly survives the sweep.
+    var b = 0
+    while b < game.bullets.len:
+      let bullet = game.bullets[b]
+      if not bullet.fromPlayer and bullet.sourceEnemyId == blast.sourceEnemyId and
+         blastHasReached(blast, bullet.pos):
+        blastFreeFizzle(game, bullet.pos, blast.color)
+        game.bullets.delete(b)
+      else:
+        inc b
+
+    # Beams anchor on their firer and reach `length` outward from it, so
+    # clearing one the instant the edge touches its origin would pop every
+    # boss beam at once, and clearing it halfway would leave a floating stub.
+    # Instead a beam goes when the wave has washed past its far tip -- the same
+    # "cleared once the edge arrives" rule, applied to the furthest point the
+    # beam actually occupies.
+    var l = 0
+    while l < game.lasers.len:
+      let laser = game.lasers[l]
+      if laser.sourceEnemyId == blast.sourceEnemyId and
+         blastHasReached(blast, laser.pos, laser.length):
+        blastFreeBeam(game, laser, blast.color)
+        game.lasers.delete(l)
+      else:
+        inc l
+
+    # Meteorites: while a rock is still telegraphing it sits off-screen, so the
+    # edge is tested against the marked impact point instead -- otherwise the
+    # warning circle would outlive the boss and land on an empty arena.
+    var m = 0
+    while m < game.meteorites.len:
+      let rock = game.meteorites[m]
+      let at = if rock.warningTimer > 0: rock.targetPos else: rock.pos
+      if rock.sourceEnemyId == blast.sourceEnemyId and
+         blastHasReached(blast, at):
+        blastFreeFizzle(game, at, blast.color)
+        game.meteorites.delete(m)
+      else:
+        inc m
+
+    # Telegraphs: an un-fired warning is a hazard too -- left alone it would
+    # spawn its lasers or bullets seconds after the boss is already dead.
+    var w = 0
+    while w < game.attackWarnings.len:
+      let warn = game.attackWarnings[w]
+      if warn.sourceEnemyId == blast.sourceEnemyId and
+         blastHasReached(blast, warn.pos):
+        blastFreeFizzle(game, warn.pos, blast.color)
+        game.attackWarnings.delete(w)
+      else:
+        inc w
+
+    inc i
+
+const
+  WindHitLaunchScale* = 0.5'f32
+    ## Converts a wind push "force" (windPushForce, the Wind orb's pushForce) into
+    ## the launch speed fed to enemy.knockbackVel. Those forces were tuned as a
+    ## per-frame nudge scaled by dt; as a launch speed that coasts to a stop
+    ## (~speed / 4.2 px of travel, see the decay in game.nim) they are ~14x too
+    ## strong, so they are scaled down here and capped below.
+  WindHitMaxLaunch* = 700.0'f32
+    ## Ceiling on a single wind hit's launch (~170 px), the Wind Aura's own level-3
+    ## gust. Without it Wind Mastery + Heavy Rounds reached 2100 px/s (~500 px per
+    ## bullet) and pinned whole waves against the arena edge.
+
+proc windHitLaunch*(force: float32): float32 =
+  ## Launch speed for one wind hit of the given push force (before boss resistance).
+  min(force * WindHitLaunchScale, WindHitMaxLaunch)
 
 proc getExplosionRadius*(level: int): float32 =
   ## Standard explosion radius for explosive bullets
@@ -209,24 +400,27 @@ proc applyMasteryDoT*(enemy: Enemy, elemType: ElementType,
   if hasMastery:
     dmg *= masteryDmgMult
     dur *= masteryDurMult
-  applyEffect(enemy, elemType, dmg, dur, source)
+  # hasMastery is recorded ON the effect so the tick-time statistics credit the
+  # mastery only for DoTs it actually amplified, rather than reading the player's
+  # current flag against a burn applied before the mastery was picked.
+  applyEffect(enemy, elemType, dmg, dur, source, hasMastery)
   if hasMastery:
-    enemy.slowTimer = 0.2
-    if enemy.slowAmount < masterySlowAmount:
-      enemy.slowAmount = masterySlowAmount
+    applySlow(enemy, masterySlowAmount, 0.2)
 
 proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
-                       bullet: Bullet, dt: float32, stats: CombatStats) =
+                       bullet: Bullet, dt: float32, stats: CombatStats,
+                       shielded: bool) =
   ## Apply a single bullet effect to an enemy
-  ## Uses pre-calculated combat stats for critical hit calculations
+  ## Uses pre-calculated combat stats for critical hit calculations.
+  ## `shielded` = a Port Guard's shield took the shot: the burns and the
+  ## lifesteal ride on damage that never landed, so they are dropped.
+  if shielded and effect.effectType in {befPoison, befFire, befBlood}:
+    return
   case effect.effectType
   of befFrost:
-    # Frost: Permanent slow (reduced by debuffResistance for bosses)
-    # Only apply if stronger than current slow or current slow expired
-    let newSlowAmount = bullet.slowAmount * (1.0 - enemy.debuffResistance)
-    if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-      enemy.slowTimer = effect.duration
-      enemy.slowAmount = newSlowAmount
+    # Frost: Permanent slow (reduced by debuffResistance for bosses). Kept in
+    # its own slot so a short stun or aura slow can't cut it short.
+    applyFrostChill(enemy, bullet.slowAmount * (1.0 - enemy.debuffResistance))
 
   of befPoison:
     # applyMasteryDoT handles the DoT; slow is applied separately below
@@ -238,9 +432,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     if effect.hasMastery:
       let newSlowAmount = 0.40 * (1.0 - enemy.debuffResistance)
       let actualDur = effect.duration * PoisonMasteryDurMult  # already scaled by masteryDurMult
-      if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-        enemy.slowTimer = actualDur
-        enemy.slowAmount = newSlowAmount
+      applySlow(enemy, newSlowAmount, actualDur)
 
   of befFire:
     applyMasteryDoT(enemy, etFire, effect.baseDamage, effect.duration,
@@ -250,33 +442,29 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
     if effect.hasMastery:
       let newSlowAmount = 0.45 * (1.0 - enemy.debuffResistance)
       let actualDur = effect.duration * FireMasteryDurMult
-      if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-        enemy.slowTimer = actualDur
-        enemy.slowAmount = newSlowAmount
+      applySlow(enemy, newSlowAmount, actualDur)
 
   of befWind:
-    # Wind: Knockback
+    # Wind: Knockback. A hit is a single impulse, so it feeds enemy.knockbackVel
+    # (a launch speed that coasts to a stop, integrated and screen-clamped in
+    # game.nim) like Heavy Rounds and the Wind Aura. It used to be a one-frame
+    # position nudge scaled by dt: ~2 px per hit at 60 fps, and weaker still at
+    # higher frame rates.
     let pushDir = (enemy.pos - game.player.pos).normalize()
-    let bossResistance = if enemy.isBoss: 0.1 else: 1.0
+    let bossResistance = if enemy.isBoss: 0.1'f32 else: 1.0'f32
 
     var actualWindForce = bullet.windPushForce
     if effect.hasMastery:
       actualWindForce *= 3.5  # +250% stronger
 
-    # Apply push
-    enemy.pos.x += pushDir.x * actualWindForce * dt * bossResistance
-    enemy.pos.y += pushDir.y * actualWindForce * dt * bossResistance
-
-    # Clamp to screen boundaries - enemies can't be pushed through borders
-    enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
-    enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
+    # Never accumulate, and never cancel a stronger shove already in flight.
+    let launch = pushDir * (windHitLaunch(actualWindForce) * bossResistance)
+    if launch.length() > enemy.knockbackVel.length():
+      enemy.knockbackVel = launch
 
     # Apply slow only with mastery (reduced by debuffResistance for bosses)
     if effect.hasMastery:
-      enemy.slowTimer = 0.2
-      let slowValue = 0.45 * (1.0 - enemy.debuffResistance)
-      if enemy.slowAmount < slowValue:
-        enemy.slowAmount = slowValue  # 45% slow
+      applySlow(enemy, 0.45 * (1.0 - enemy.debuffResistance), 0.2)  # 45% slow
 
     # Visual wind effect particles
     for k in 0..3:
@@ -309,9 +497,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       # Stun primary target (reduced by debuffResistance for bosses)
       # Only apply if stronger than current slow or current slow expired
       let newSlowAmount = 0.99 * (1.0 - enemy.debuffResistance)  # 99% slow = stun (cap to prevent permanent freeze)
-      if newSlowAmount > enemy.slowAmount or enemy.slowTimer <= 0:
-        enemy.slowTimer = 0.05
-        enemy.slowAmount = newSlowAmount
+      applySlow(enemy, newSlowAmount, 0.05)
       enemy.chainLightningCooldown = 0.3
 
       # Find nearby enemies to chain to
@@ -322,13 +508,16 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
           if dist < chainRange and game.enemies[k].chainLightningCooldown <= 0:
             let chainDmgBase = effect.baseDamage * chainDamage * chainDmgMult
             let chainDmgWithCrit = applyCriticalHitFromStats(stats, chainDmgBase)
-            let actualDamage = damageEnemy(game.enemies[k], chainDmgWithCrit)
+            let actualDamage =
+              if shieldBlocksHit(game, game.enemies[k], enemy.pos): 0.0'f32
+              else: damageEnemy(game.enemies[k], chainDmgWithCrit)
 
-            # Track chain lightning damage for statistics
+            # Track chain lightning damage, splitting off the mastery's share.
+            # Keyed off effect.hasMastery -- the flag that actually scaled
+            # chainDmgMult above -- not the player's live mastery state.
             if actualDamage > 0:
-              trackPowerUpDamage(game, puChainLightning, actualDamage)
-              if game.player.hasLightningMastery:
-                trackPowerUpDamage(game, puLightningMastery, actualDamage)
+              trackPowerUpDamageWithMastery(game, puChainLightning, puLightningMastery,
+                                            actualDamage, chainDmgMult)
 
             # Create damage number
             if actualDamage > 0:
@@ -336,11 +525,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
                         chainDmgWithCrit > chainDmgBase, dtLightning)
 
             game.enemies[k].chainLightningCooldown = 0.3
-            # Only apply stun if stronger than current slow or current slow expired
-            let chainSlowAmount = 0.99 * (1.0 - game.enemies[k].debuffResistance)
-            if chainSlowAmount > game.enemies[k].slowAmount or game.enemies[k].slowTimer <= 0:
-              game.enemies[k].slowTimer = 0.05
-              game.enemies[k].slowAmount = chainSlowAmount
+            applySlow(game.enemies[k], 0.99 * (1.0 - game.enemies[k].debuffResistance), 0.05)
             chained += 1
 
             # Lightning arc visual connecting the two enemies
@@ -348,31 +533,31 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
 
   of befBlood:
     # Blood: Lifesteal
-    var healPercent = case effect.level
-      of 1: 0.0075  # 0.75%
-      of 2: 0.01    # 1.0%
-      else: 0.01375 # 1.375%
+    let baseHealPercent = case effect.level
+      of 1: 0.0075'f32  # 0.75%
+      of 2: 0.01'f32    # 1.0%
+      else: 0.01375'f32 # 1.375%
+    let healPercent =
+      if effect.hasMastery: baseHealPercent * BloodMasteryLifestealMult  # +100% lifesteal
+      else: baseHealPercent
 
-    if effect.hasMastery:
-      healPercent *= 2.0  # +100% lifesteal
+    # Per-hit heal, density-normalised (see densityHealScale). heal() applies the
+    # multiplier and the max-HP clamp and reports what was ACTUALLY restored, so
+    # a hit taken at full HP books nothing instead of inflating lifesteal totals.
+    let perHitHeal = (0.01'f32 + effect.baseDamage * healPercent) * densityHealScale(game)
+    let restored = heal(game.player, perHitHeal)
+    # The mastery doubles only the lifesteal term, not the flat 0.01, so its
+    # multiplier on this heal is the ratio against the unmastered figure.
+    let bloodMasteryMult = (0.01'f32 + effect.baseDamage * healPercent) /
+                           (0.01'f32 + effect.baseDamage * baseHealPercent)
+    trackHealing(game, puBloodBullets, perHitHeal, restored, bloodMasteryMult)
 
-    # Per-hit heal, density-normalised (see densityHealScale).
-    let healAmount = (0.01 + effect.baseDamage * healPercent) * densityHealScale(game)
-    # heal() applies the player's healPowerMult; attribute base vs multiplier separately
-    heal(game.player, healAmount)
-    if healAmount > 0.01:
-      # Attribute the base healing to the lifesteal source
-      trackPowerUpHealing(game, puBloodBullets, healAmount)
-      # Attribute any bonus from the global heal multiplier to the heal-power power-up
-      let bonusHealing = healAmount * (game.player.healPowerMult - 1.0)
-      if bonusHealing > 0.001 and hasPowerUp(game.player, puHealPower):
-        trackPowerUpHealing(game, puHealPower, bonusHealing)
-
-    if healAmount > 0.01:
+    if restored > 0.01:
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, Green, 3)
-      showDamage(game, game.player.pos, healAmount, true, false, dtHeal)
+      showDamage(game, game.player.pos, restored, true, false, dtHeal)
 
-proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float32) =
+proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float32,
+                         shielded = false) =
   ## Apply all bullet effects to an enemy - unified entry point
   let effects = getBulletEffects(game, bullet)
 
@@ -380,5 +565,5 @@ proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float
   let stats = calculateCombatStats(game.player)
 
   for effect in effects:
-    applyBulletEffect(game, effect, enemy, bullet, dt, stats)
+    applyBulletEffect(game, effect, enemy, bullet, dt, stats, shielded)
 

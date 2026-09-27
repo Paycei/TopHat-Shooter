@@ -1,5 +1,6 @@
 import raylib, math
-import types, bullet, particle_skins, particle_types, powerup, sound, d_systems, run_statistics, fx, game/combat, game/bullets
+import types, bullet, particle_skins, particle_types, powerup, patches, sound, run_statistics, fx, game/combat, game/bullets
+import modding/mod_hooks
 
 proc rotateVec(v: Vector2f, angle: float32): Vector2f =
   newVector2f(v.x * cos(angle) - v.y * sin(angle), v.x * sin(angle) + v.y * cos(angle))
@@ -99,7 +100,9 @@ proc fireLightspeedTracer(game: Game, origin, dir: Vector2f, stats: combat.Comba
 
   let tracerBase = stats.damage * TracerDamageMult
   let (tracerDmg, wasCrit) = applyCriticalHitWithFlag(stats, tracerBase)
-  let actual = damageEnemy(bestEnemy, tracerDmg)
+  let actual =
+    if shieldBlocksHit(game, bestEnemy, origin): 0.0'f32
+    else: damageEnemy(bestEnemy, tracerDmg)
   if actual > 0:
     trackPowerUpDamage(game, puBulletSpeed, actual)
     showDamage(game, bestEnemy.pos, actual, fromPlayer = true,
@@ -114,10 +117,14 @@ proc shootBullet*(game: Game, direction: Vector2f) =
   applyBossArenaCombatBonus(game, stats)
 
   if game.time - game.player.lastShot >= stats.fireRate:
+    # Mods (shoot): a script that fires its own shot returns true, and the
+    # built-in volley is skipped; the fire-rate clock still ticks.
+    if modShoot(game, direction.x, direction.y):
+      game.player.lastShot = game.time
+      return
     # Increment bullet counter for special rounds power-up
     game.player.bulletCounter += 1
 
-    recordShot(game.dopamine.waveStats, false)  # Will be updated to true if hit
 
     # Check for power-ups that modify shooting
     let hasHoming: bool = hasPowerUp(game.player, puMagicalBullets)
@@ -133,18 +140,9 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     var speed = baseBulletSpeed(game.player)
     var damage = stats.damage  # Already includes Rage bonus
 
-    # Compute rage multiplier at fire time so hit-block can isolate the bonus
-    var rageMultiplier = 1.0'f32
-    for powerUp in game.player.powerUps:
-      if powerUp.powerType == puRage:
-        let hpPercent = game.player.hp / game.player.maxHp
-        let hpLost = 1.0 - hpPercent
-        let bonusPerTenPercent = case powerUp.level
-          of 1: 0.05
-          of 2: 0.08
-          else: 0.12
-        rageMultiplier = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
-        break
+    # Stamped on each bullet so the hit block can isolate Rage's share. Shares
+    # rageDamageMultiplier with calculateCombatStats so the two cannot drift.
+    let rageMultiplier = rageDamageMultiplier(game.player)
 
     # Double-shot bullets deal 15% less damage per bullet
     if hasDoubleShot:
@@ -170,9 +168,12 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     if hasPowerUp(game.player, puWindBullets):
       damage += windBulletFlatBonus(game.player)
 
-    # RoomEcho: charged bullets from room clear deal bonus damage
+    # RoomEcho: charged bullets from room clear deal bonus damage. Stamped on the
+    # bullets like Rage, so the hit block can credit Room Echo its share.
+    var roomEchoMultiplier = 1.0'f32
     if game.player.roomEchoCharges > 0:
-      damage *= 1.6'f32
+      roomEchoMultiplier = 1.6'f32
+      damage *= roomEchoMultiplier
       game.player.roomEchoCharges -= 1
 
     # Check for Special Rounds power-up
@@ -237,6 +238,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bullet.radius = bulletRadius
         bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
+        bullet.roomEchoMultiplier = roomEchoMultiplier
+        assignBulletId(game, bullet)
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
 
@@ -273,6 +276,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       bullet.radius = bulletRadius
       bullet.baseDamagePreCrit = baseDamagePreCrit
       bullet.rageMultiplier = rageMultiplier
+      bullet.roomEchoMultiplier = roomEchoMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
@@ -313,6 +317,8 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bullet.radius = bulletRadius
         bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
+        bullet.roomEchoMultiplier = roomEchoMultiplier
+        assignBulletId(game, bullet)
         game.bullets.add(bullet)
         trackBulletFired(game)  # Track shot for statistics
     else:
@@ -342,6 +348,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       bullet.radius = bulletRadius
       bullet.baseDamagePreCrit = baseDamagePreCrit
       bullet.rageMultiplier = rageMultiplier
+      bullet.roomEchoMultiplier = roomEchoMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)  # Track shot for statistics
@@ -350,6 +357,38 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     # line, once per shot (independent of Multi-/Double-Shot bullet counts).
     if hasPowerUp(game.player, puBulletSpeed):
       fireLightspeedTracer(game, game.player.pos, direction, stats)
+
+    # RAID 1 Mirroring patch: every Nth shot writes a mirrored round straight
+    # behind you -- covering the flank a swarm comes from.
+    if hasPatch(game.player, rrtRaidMirror) and
+       game.player.bulletCounter mod RaidMirrorEvery == 0:
+      let mirror = newBullet(
+        x = game.player.pos.x,
+        y = game.player.pos.y,
+        direction = direction * -1.0'f32,
+        speed = speed,
+        damage = damage,
+        fromPlayer = true,
+        isHoming = hasHoming,
+        isPiercing = arcanePiercing,
+        isExplosive = hasExplosive,
+        hasBounce = hasRicochet,
+        canSplit = hasSplit,
+        slowAmount = slowEffect,
+        poisonDuration = poisonEffect,
+        fireDuration = fireEffect,
+        windPushForce = windEffect,
+        isArcaneBullet = hasArcane,
+        wasCrit = wasCrit,
+        bulletSkin = game.player.bulletSkinType,
+        bulletShape = game.player.bulletShapeType
+      )
+      mirror.radius = bulletRadius
+      mirror.baseDamagePreCrit = baseDamagePreCrit
+      mirror.rageMultiplier = rageMultiplier
+      assignBulletId(game, mirror)
+      game.bullets.add(mirror)
+      trackBulletFired(game)
 
     game.player.lastShot = game.time
 
@@ -382,6 +421,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
   var speed = baseBulletSpeed(game.player)
   var damage = burstStats.damage * 0.85  # Second bullet reduced by 15%
   var bulletRadius = BASE_PLAYER_BULLET_RADIUS
+  let burstRageMultiplier = rageDamageMultiplier(game.player)
 
   # Apply Arcane Mastery bonus consistently to delayed burst bullets too.
   var arcanePiercing = hasPiercing
@@ -444,6 +484,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       )
       bullet.radius = bulletRadius
       bullet.baseDamagePreCrit = burstBaseDamagePreCrit
+      bullet.rageMultiplier = burstRageMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
       trackBulletFired(game)
@@ -476,6 +517,7 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     )
     bullet.radius = bulletRadius
     bullet.baseDamagePreCrit = burstBaseDamagePreCrit
+    bullet.rageMultiplier = burstRageMultiplier
     assignBulletId(game, bullet)
     game.bullets.add(bullet)
     trackBulletFired(game)

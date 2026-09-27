@@ -40,7 +40,8 @@
 ## games tolerate re-seeded randomness after a resume.
 
 import os, deques, strutils, tables
-import types, save_system, run_statistics
+import types, save_system, run_statistics, tutorial
+import modding/mod_state
 import discord_presence  # DiscordClient (no-op flatty overload)
 import particle_types    # ParticlePool  (no-op flatty overload)
 import flatty, supersnappy
@@ -89,9 +90,6 @@ proc fromFlatty*(s: string, i: var int, x: var RogueliteProfile) = x = nil
 proc toFlatty*(s: var string, x: OSBackgroundState) = discard
 proc fromFlatty*(s: string, i: var int, x: var OSBackgroundState) = discard
 
-proc toFlatty*(s: var string, x: OSHUDState) = discard
-proc fromFlatty*(s: string, i: var int, x: var OSHUDState) = discard
-
 proc toFlatty*(s: var string, x: DopamineState) = discard
 proc fromFlatty*(s: string, i: var int, x: var DopamineState) = discard
 
@@ -116,7 +114,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 3'u32  # bumped: Game gained the wave-mode lives budget + its animation state
+  SnapFormatVersion = 13'u32  # bumped: MODS.EXE Player.modBulletSkin (12: Game mod fields)
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =
@@ -136,31 +134,27 @@ proc layoutFingerprint(): uint32 =
   mix(ord(high(ElementType)))
   mix(ord(high(DungeonFloorTheme)))
   mix(ord(high(RogueliteStarterKit)))
+  mix(ord(high(RogueliteRelicType)))
+  mix(ord(high(RoomReward)))
+  mix(ord(high(DungeonPickupKind)))
+  # The roguelite run graph (sector, rooms, pickups) is snapshotted too.
+  mix(sizeof(typeof(default(RogueliteRun)[])))
+  mix(sizeof(typeof(default(DungeonFloor)[])))
+  mix(sizeof(typeof(default(DungeonRoom)[])))
+  mix(sizeof(typeof(default(DungeonPickup)[])))
   mix(sizeof(typeof(default(Game)[])))
   mix(sizeof(typeof(default(Player)[])))
   mix(sizeof(typeof(default(Enemy)[])))
   mix(sizeof(typeof(default(Bullet)[])))
+  # The run statistics ride in the same positional flatty stream, so a field
+  # added there shifts every byte after it exactly like a Game field would.
+  mix(sizeof(typeof(default(RunStatistics)[])))
+  # The loaded mod set: mod power-up/enemy slots are bound per set, so a
+  # snapshot's raw slot ordinals only mean the same thing under the same set.
+  # (The file name already pins it; this is belt and braces.)
+  for c in modFingerprintHex:
+    mix(ord(c))
   h
-
-proc getSuspendPath*(): string =
-  getAppDataPath() / "suspend.snap"
-
-proc deleteSuspendSnapshot*() =
-  ## Remove the current profile's exact snapshot, if any.
-  try:
-    let path = getSuspendPath()
-    if fileExists(path):
-      removeFile(path)
-  except CatchableError:
-    echo "Warning: could not delete suspend snapshot"
-
-proc hasSuspendSnapshot*(): bool =
-  ## Cheap existence check. Full validity (magic/version/fingerprint) is only
-  ## confirmed by restoreGame; callers fall back to run_save when restore fails.
-  try:
-    fileExists(getSuspendPath())
-  except CatchableError:
-    false
 
 # ---- little-endian uint32 header helpers ----
 proc putU32(s: var string, v: uint32) =
@@ -173,6 +167,55 @@ proc getU32(s: string, off: int): uint32 =
   uint32(byte s[off]) or (uint32(byte s[off + 1]) shl 8) or
     (uint32(byte s[off + 2]) shl 16) or (uint32(byte s[off + 3]) shl 24)
 
+const LegacySuspendFile = "suspend.snap"
+
+proc getSuspendPath*(mode: GameMode, modMode: string = ""): string =
+  ## One snapshot per mode, so starting or quitting a run in one mode can never
+  ## discard another mode's suspended run. saveSlotTag keeps modded sessions
+  ## on their own files (see run_save.runSaveFileFor).
+  getAppDataPath() / ("suspend_" & $mode & saveSlotTag(modMode) & ".snap")
+
+proc migrateLegacySuspendSnapshot() =
+  ## Older builds kept a single shared suspend.snap. Move it to the file of the
+  ## mode recorded in its header (or drop it if that slot is already taken or
+  ## the header is unreadable).
+  if modsActive:
+    return  # a vanilla leftover must never land in a modded slot
+  try:
+    let legacy = getAppDataPath() / LegacySuspendFile
+    if not fileExists(legacy):
+      return
+    let raw = readFile(legacy)
+    if raw.len >= HeaderLen and raw.startsWith(SnapMagic):
+      let m = int(getU32(raw, 16))
+      if m >= ord(low(GameMode)) and m <= ord(high(GameMode)):
+        let dest = getSuspendPath(GameMode(m))
+        if not fileExists(dest):
+          moveFile(legacy, dest)
+          return
+    removeFile(legacy)
+  except CatchableError:
+    echo "Warning: could not migrate legacy suspend snapshot"
+
+proc deleteSuspendSnapshot*(mode: GameMode, modMode: string = "") =
+  ## Remove this mode's exact snapshot for the current profile, if any.
+  migrateLegacySuspendSnapshot()
+  try:
+    let path = getSuspendPath(mode, modMode)
+    if fileExists(path):
+      removeFile(path)
+  except CatchableError:
+    echo "Warning: could not delete suspend snapshot"
+
+proc hasSuspendSnapshot*(mode: GameMode, modMode: string = ""): bool =
+  ## Cheap existence check. Full validity (magic/version/fingerprint) is only
+  ## confirmed by restoreGame; callers fall back to run_save when restore fails.
+  migrateLegacySuspendSnapshot()
+  try:
+    fileExists(getSuspendPath(mode, modMode))
+  except CatchableError:
+    false
+
 proc isSupportedSuspendMode(mode: GameMode): bool =
   mode in {gmWaveBased, gmTimeSurvival, gmRoguelite}
 
@@ -180,24 +223,29 @@ const ResumableStates = {gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared
                          gsPowerUpSelect, gsRogueliteFloorSelect}
 
 proc suspendGame*(game: Game) =
-  ## Write an exact snapshot of the live simulation to `suspend.snap`. Mirrors
-  ## run_save's guards: no-op for unsupported modes / non-resumable states, and
-  ## DELETES any stale snapshot for a finished/failed run. Because the runtime
-  ## fields have no-op serializers, the passed `game` is left fully unchanged.
+  ## Write an exact snapshot of the live simulation to this mode's snapshot file.
+  ## Mirrors run_save's guards: no-op for unsupported modes / non-resumable
+  ## states, and DELETES any stale snapshot for a finished/failed run. Because
+  ## the runtime fields have no-op serializers, the passed `game` is left fully
+  ## unchanged.
   if game.isNil or not isSupportedSuspendMode(game.mode):
-    deleteSuspendSnapshot()
     return
   if game.state notin ResumableStates:
     return
+  # Same exemption as run_save.saveRunState: tutorial sessions never persist.
+  if tutorialSuppressesSaves(game):
+    return
   # Never persist a finished/failed run (matches run_save.saveRunState).
   if game.hasWonGame and game.mode == gmWaveBased:
-    deleteSuspendSnapshot()
+    deleteSuspendSnapshot(game.mode, game.modMode)
     return
   if game.mode == gmRoguelite and (game.rogueliteRun.isNil or
      game.rogueliteRun.completed or game.rogueliteRun.died):
-    deleteSuspendSnapshot()
+    deleteSuspendSnapshot(game.mode, game.modMode)
     return
 
+  if game.modded and not captureModRunData.isNil:
+    captureModRunData(game)
   try:
     let snap = Snapshot(game: game, runStats: currentRunStats)
     var payload = supersnappy.compress(toFlatty(snap))
@@ -207,26 +255,51 @@ proc suspendGame*(game: Game) =
     outp.putU32(layoutFingerprint())
     outp.putU32(uint32(ord(game.mode)))
     outp.add payload
-    writeFile(getSuspendPath(), outp)
+    writeFile(getSuspendPath(game.mode, game.modMode), outp)
   except CatchableError:
     echo "Warning: could not write suspend snapshot"
 
-proc suspendSnapshotMode*(): GameMode =
-  ## Mode stored in the snapshot header, read WITHOUT decompressing. Returns
-  ## gmWaveBased when there is no readable snapshot (callers gate on presence).
-  try:
-    let path = getSuspendPath()
-    if not fileExists(path):
-      return gmWaveBased
-    let raw = readFile(path)
-    if raw.len < HeaderLen or not raw.startsWith(SnapMagic):
-      return gmWaveBased
-    let m = int(getU32(raw, 16))
-    if m >= ord(low(GameMode)) and m <= ord(high(GameMode)):
-      return GameMode(m)
-    return gmWaveBased
-  except CatchableError:
-    return gmWaveBased
+# ---- shared-reference repair ----
+# flatty writes every ref by value, so a hazard referenced from two places comes
+# back as two separate objects. Three such links exist: a boss satellite's beam
+# and charge telegraph (also in game.lasers / game.attackWarnings) and a Cross
+# enemy's dash laser (also in game.lasers). Left as copies, the owner moves an
+# invisible twin while the real hazard freezes where it was saved, and
+# retireSatelliteHazards can no longer find it. The copies are field-for-field
+# identical to their list entry, so each is swapped back for that entry.
+
+proc samePos(a, b: Vector2f): bool {.inline.} =
+  a.x == b.x and a.y == b.y
+
+proc listTwin(lasers: seq[Laser], copy: Laser): Laser =
+  ## The game.lasers entry this deserialized copy was taken from, or nil.
+  if copy.isNil: return nil
+  for l in lasers:
+    if l.sourceEnemyId == copy.sourceEnemyId and l.direction == copy.direction and
+       samePos(l.pos, copy.pos) and l.rotation == copy.rotation and
+       l.lifetime == copy.lifetime and l.length == copy.length:
+      return l
+  nil
+
+proc listTwin(warnings: seq[AttackWarning], copy: AttackWarning): AttackWarning =
+  ## The game.attackWarnings entry this deserialized copy was taken from, or nil.
+  if copy.isNil: return nil
+  for w in warnings:
+    if w.attackType == copy.attackType and w.sourceEnemyId == copy.sourceEnemyId and
+       samePos(w.pos, copy.pos) and samePos(w.targetPos, copy.targetPos) and
+       w.lifetime == copy.lifetime:
+      return w
+  nil
+
+proc relinkSharedRefs(g: Game) =
+  for enemy in g.enemies:
+    if not enemy.activeCrossLaser.isNil:
+      enemy.activeCrossLaser = listTwin(g.lasers, enemy.activeCrossLaser)
+    for s in enemy.satellites.mitems:
+      if not s.activeLaser.isNil:
+        s.activeLaser = listTwin(g.lasers, s.activeLaser)
+      if not s.activeWarning.isNil:
+        s.activeWarning = listTwin(g.attackWarnings, s.activeWarning)
 
 proc restoreGame*(target: var Game): bool =
   ## Rebuild the exact simulation onto `target` (which the caller has already
@@ -236,8 +309,9 @@ proc restoreGame*(target: var Game): bool =
   ## and returns true. On ANY failure (missing file, bad magic, version or
   ## layout-fingerprint mismatch, corrupt payload) returns false WITHOUT touching
   ## target, so the caller can delete the snapshot and fall back to run_save.
+  migrateLegacySuspendSnapshot()
   try:
-    let path = getSuspendPath()
+    let path = getSuspendPath(target.mode, target.modMode)
     if not fileExists(path):
       return false
     let raw = readFile(path)
@@ -256,16 +330,39 @@ proc restoreGame*(target: var Game): bool =
       return false
 
     let restored = snap.game
+    relinkSharedRefs(restored)
     # Carry runtime/live fields from the shell the caller built.
     restored.discordClient = target.discordClient       # process-lifetime handle
     restored.rogueliteProfile = target.rogueliteProfile # keep LIVE meta profile
     restored.game3D = nil                               # 3D state never suspended
     restored.osBackground = target.osBackground         # freshly-inited render state
-    restored.osHUD = target.osHUD
     restored.dopamine = target.dopamine
     restored.particlePool = target.particlePool         # cosmetic particle buffers
     restored.screenWidth = target.screenWidth           # match the current window
     restored.screenHeight = target.screenHeight
+
+    # Equipped cosmetics are profile state, not run state: newGame built the
+    # shell's player from the CURRENT settings, so a skin changed in the shop
+    # since the snapshot shows on resume. rogueliteCosmetic is the run's class
+    # emblem and stays from the snapshot.
+    let live = target.player
+    let p = restored.player
+    p.skinType = live.skinType
+    p.bulletSkinType = live.bulletSkinType
+    p.bulletShapeType = live.bulletShapeType
+    p.shapeType = live.shapeType
+    p.particleSkinType = live.particleSkinType
+    p.cubeSkinType = live.cubeSkinType
+    p.wearsTophat = live.wearsTophat
+    p.wearsCheaterHat = live.wearsCheaterHat
+    p.hasOrbitalCube = live.hasOrbitalCube
+    p.modSkin = live.modSkin
+    p.modBulletSkin = live.modBulletSkin
+    # Shots already in flight baked the old look in at fire time.
+    for b in restored.bullets:
+      if b.fromPlayer or b.isShieldReflected:
+        b.bulletSkin = p.bulletSkinType
+        b.bulletShape = p.bulletShapeType
 
     # Restore the per-run statistics global (run-scoped, so from the snapshot).
     if not snap.runStats.isNil:

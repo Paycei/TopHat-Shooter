@@ -1,5 +1,5 @@
 import raylib, math
-import types, sound, gamemode_definitions, powerup, powerup_data, localization, render_context, ui/os_shop, roguelite, settings, save_system
+import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types, enemy_config
 
 # ENABLE/DISABLE CHEATS
 # Release-build toggle: flip to `false` to ship a build with no cheat menu.
@@ -11,7 +11,10 @@ const CHEATS_ENABLED* = defined(debug) or RELEASE_CHEATS_ENABLED
 
 # Anti-cheat exemption for development builds. The anti-cheat is just the
 # `game.cheatsUsed` flag, which (when set) withholds every progression unlock
-# (survival mode, kernel tophat, roguelite unlock, run stats, death rewards).
+# (survival mode, kernel tophat, roguelite unlock, run stats, death rewards) and
+# every permanent reward (Data Shards / Cores, banked Recursion damage, roguelite
+# records and advancement progress). The menu's own persistent-write cheats
+# (currency, Discover All) exist only in debug builds for the same reason.
 # Debug builds compile with -d:debug (see `nimble debug`); there the cheat menu
 # is a testing tool, so it must NOT mark the run as cheated or those unlocks
 # would never fire while developing. Release builds keep the anti-cheat active.
@@ -230,13 +233,11 @@ proc applyPermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType, level
 proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   # Capture the live speed BEFORE the rebuild below. The rebuild reconstructs speed
   # from base + shop + remaining power-ups only, so it would discard any manual speed
-  # set via the cheat menu (applyStatCheat). Instead we surgically remove just the
-  # deleted power-up's contribution: puSpeedBoost is the only speed power-up and it
-  # applies as a trailing multiply (*1.33), so dividing it back out is exact and also
-  # preserves base/shop/other-power-ups/manual overrides. Factor is 1.0 for any other
-  # power-up (no speed effect), leaving the current speed untouched.
+  # set via the cheat menu (applyStatCheat). No power-up currently applies a speed
+  # multiplier in applyPowerUp (Momentum/puSpeedBoost included -- its effect is
+  # entirely the stack-based damage/crit bonus in calculateCombatStats, not a stat
+  # change), so preRemovalSpeed is carried through unscaled and simply restored below.
   let preRemovalSpeed = game.player.speed
-  let removedSpeedFactor = (if powerUpType == puSpeedBoost: 1.33'f32 else: 1.0'f32)
 
   # Find and remove the power-up from player's list
   for i in countdown(game.player.powerUps.len - 1, 0):
@@ -269,12 +270,11 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
   for powerUp in game.player.powerUps:
     applyPowerUp(game.player, powerUp)
 
-  # Override the rebuilt speed with the surgically-adjusted value so manual speed
-  # cheats survive removal (see preRemovalSpeed note above). For the non-cheated case
-  # this equals exactly what the rebuild produced.
-  let adjustedSpeed = preRemovalSpeed / removedSpeedFactor
-  game.player.speed = adjustedSpeed
-  game.player.baseSpeed = adjustedSpeed
+  # Restore the surgically-preserved speed so manual speed cheats survive removal
+  # (see preRemovalSpeed note above). For the non-cheated case this equals exactly
+  # what the rebuild produced.
+  game.player.speed = preRemovalSpeed
+  game.player.baseSpeed = preRemovalSpeed
 
   playSound(stMenuSelect)
 
@@ -300,9 +300,11 @@ proc discoverAllPowerUpsCheat*(game: var Game) =
   ## Fill the persistent discovery codex with every PowerUpType, keyed the same
   ## way death.nim records a first install (`$powerUp.powerType`), then save so
   ## the "NEW" badge on the selection screen clears for all power-ups.
-  if globalSettings.isNil: return
+  ## Debug builds only: discovery unlocks power-ups in sandbox and the help
+  ## window, which a cheated run must not keep.
+  if ANTICHEAT_ENABLED or globalSettings.isNil: return
   globalSettings.discoveredPowerUps = @[]
-  for pt in PowerUpType:
+  for pt in puAftershock..puDataHarvest:  # never mod slot names
     globalSettings.discoveredPowerUps.add($pt)
   discard saveSettings(globalSettings)
   playSound(stMenuSelect)
@@ -318,39 +320,93 @@ proc undiscoverAllPowerUpsCheat*(game: var Game) =
 proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) =
   ## Adjust the persisted meta currencies (data shards / cores) used to buy
   ## roguelite unlocks, and immediately save so the roguelite window reflects it.
-  if game.rogueliteProfile.isNil: return
+  ## Debug builds only: the currency is permanent, so a player-facing cheat
+  ## could never give it out.
+  if ANTICHEAT_ENABLED or game.rogueliteProfile.isNil: return
   game.rogueliteProfile.dataShards = max(0, game.rogueliteProfile.dataShards + shards)
   game.rogueliteProfile.cores = max(0, game.rogueliteProfile.cores + cores)
   discard saveRogueliteProfile(game.rogueliteProfile)
   playSound(stMenuSelect)
 
-proc applyRogueliteKeysCheat*(game: var Game, keys: int) =
-  ## Keys unlock the locked treasure rooms on the current floor (run-scoped).
-  if game.rogueliteRun.isNil: return
-  game.rogueliteRun.keys = max(0, game.rogueliteRun.keys + keys)
-  playSound(stMenuSelect)
+var cheatPatchPick = succ(rrtNone)
+  ## Patch the roguelite tab's picker currently shows.
+
+proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelicType): bool =
+  ## Apply a patch to the live run. Marks the run cheated in release builds.
+  if game.rogueliteRun.isNil: return false
+  if ANTICHEAT_ENABLED:
+    game.cheatsUsed = true
+  result = installPatch(game, patch)
+  playSound(if result: stPowerUp else: stMenuNav)
 
 proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
   ## Fast-forward (or rewind) the survival clock. In time-survival mode difficulty
   ## is recomputed from game.survivalTime every frame (game.difficulty =
   ## survivalTime/SurvivalDifficultyRamp * scale, see updateGame), so this clock is
-  ## the single honest knob for difficulty: bumping it cascades into spawn rate,
-  ## elite tiers and boss difficulty. Reaching 900 s (SURVIVAL_ENDING_MIN_TIME) also
-  ## arms the survival ending on the next death, so this is a progression cheat,
+  ## the single honest knob for difficulty: bumping it cascades into the horde
+  ## density, elite tiers and the boss schedule (a boss whose time has passed
+  ## spawns right away). Reaching 900 s (SURVIVAL_ENDING_MIN_TIME) also arms the
+  ## survival ending on the next death, so this is a progression cheat:
   ## re-assert the anti-cheat flag (the menu-open path already sets it, this is
   ## belt-and-suspenders, mirroring the roguelite skip).
   game.survivalTime = max(0.0'f32, game.survivalTime + deltaSeconds)
+  # Skipped minutes are not paid out as Data Shards: only time actually survived is.
+  game.survivalMinutesRewarded = max(game.survivalMinutesRewarded,
+                                     int(game.survivalTime / 60.0'f32))
   if ANTICHEAT_ENABLED:
     game.cheatsUsed = true
   playSound(stMenuSelect)
 
 proc applySurvivalBossCheat*(game: var Game) =
-  ## Force the next survival boss to spawn as soon as possible by zeroing the boss
-  ## timer (normally a 60 s TIME_SURVIVAL_BOSS_INTERVAL countdown). The actual spawn
-  ## still goes through bossWaveManager.canSpawnBoss(), so this won't stack a boss
-  ## on top of one that's already active.
-  game.bossTimer = 0.0
+  ## Force the next survival boss to spawn now instead of at its scheduled time
+  ## on the survival clock. The spawn still goes through
+  ## bossWaveManager.canSpawnBoss(), so this won't stack a boss on top of one
+  ## that's already active.
+  game.survival.cheatForceBoss = true
   playSound(stBossSpawn)
+
+proc applySurvivalEventCheat*(game: var Game, kind: SurvivalEventKind) =
+  ## Start a System Event right now (replacing any running one). The scheduler
+  ## picks the request up on the next live frame, outside a boss fight.
+  if ANTICHEAT_ENABLED:
+    game.cheatsUsed = true
+  game.survival.cheatEventKind = kind
+  playSound(stMenuSelect)
+
+proc applySurvivalCacheCheat*(game: var Game, tier: SurvivalCacheTier) =
+  ## Drop a Data Cache of `tier` next to the player.
+  if ANTICHEAT_ENABLED:
+    game.cheatsUsed = true
+  let x = clamp(game.player.pos.x + 80.0'f32, 50.0'f32, game.screenWidth.float32 - 50.0'f32)
+  let y = clamp(game.player.pos.y, 50.0'f32, game.screenHeight.float32 - 50.0'f32)
+  game.survival.chests.add(SurvivalChest(pos: newVector2f(x, y), tier: tier, age: 1.0'f32))
+  playSound(stCoinPickup)
+
+proc syncSurvivalCheatClock(game: var Game, clock: float32) =
+  game.survivalTime = max(game.survivalTime, clock)
+  game.survivalMinutesRewarded = max(game.survivalMinutesRewarded,
+                                     int(game.survivalTime / 60.0'f32))
+  game.survival.nextEventClock = game.survivalTime + 30.0'f32
+  if ANTICHEAT_ENABLED:
+    game.cheatsUsed = true
+
+proc applySurvivalSkipPhaseCheat*(game: var Game) =
+  ## Jump the clock to 5 s before the next boss (its warning fires at once).
+  if game.bossWaveManager.active:
+    playSound(stMenuNav)
+    return
+  syncSurvivalCheatClock(game, survivalNextBossTime(game) - 5.0'f32)
+  playSound(stMenuSelect)
+
+proc applySurvivalJumpToFinalCheat*(game: var Game) =
+  ## Skip to 19:55, 5 s before the final boss, with the first three phase
+  ## bosses counted as beaten.
+  if game.bossWaveManager.active or game.survival.victoryAchieved:
+    playSound(stMenuNav)
+    return
+  game.bossCount = max(game.bossCount, SurvivalFinalBoss - 1)
+  syncSurvivalCheatClock(game, survivalBossTime(SurvivalFinalBoss) - 5.0'f32)
+  playSound(stMenuSelect)
 
 proc drawWavesTab(x, y, width, height: int32, game: var Game)
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu)
@@ -401,6 +457,11 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
 
   # Close instruction
   drawText(t(tkCheatCloseInstruction), panelX + 10, panelY + 35, 12, Gray)
+  # Right-aligned on the same line: say up front that nothing permanent survives.
+  # A modded run is cheated even in debug builds, so it says so there too.
+  if game.modded or (ANTICHEAT_ENABLED and game.cheatsUsed):
+    let notice = if game.modded: t(tkModdedNoRewards) else: t(tkCheatNoPermanentRewards)
+    drawText(notice, panelX + panelWidth - 10 - measureText(notice, 12), panelY + 35, 12, Orange)
 
   # Tab buttons with mouse support. The visible set is mode-dependent, so the
   # bar splits the panel width evenly across however many tabs are present.
@@ -529,7 +590,7 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
   # --- Discovery codex controls -----------------------------------------
   # Toggle globalSettings.discoveredPowerUps, the persistent codex that drives
   # the "NEW" badge on the power-up selection screen.
-  let totalPowerUps = ord(high(PowerUpType)) - ord(low(PowerUpType)) + 1
+  let totalPowerUps = VanillaPowerUpCount
   let discoveredCount = if globalSettings.isNil: 0 else: globalSettings.discoveredPowerUps.len
   drawText(t(tkCheatDiscoveryCodex) & " " & $discoveredCount & " / " & $totalPowerUps,
            x + 20, currentY, 14, Gray)
@@ -540,16 +601,21 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
   let discX = x + 20
   let undiscX = x + 40 + discBtnW
 
-  # Discover All
+  # Discover All (debug builds only, greyed out otherwise: see discoverAllPowerUpsCheat)
   let discRect = Rectangle(x: discX.float32, y: currentY.float32,
                            width: discBtnW.float32, height: discBtnH.float32)
-  let discHovered = checkCollisionPointRec(getVirtualMousePosition(), discRect)
-  drawRectangle(discX, currentY, discBtnW, discBtnH,
-                if discHovered: Color(r: 0, g: 110, b: 0, a: 255) else: Color(r: 0, g: 75, b: 0, a: 255))
-  drawRectangleLines(discX, currentY, discBtnW, discBtnH, Green)
+  let discHovered = not ANTICHEAT_ENABLED and
+                    checkCollisionPointRec(getVirtualMousePosition(), discRect)
+  let discFill = if ANTICHEAT_ENABLED: Color(r: 45, g: 45, b: 50, a: 255)
+                 elif discHovered: Color(r: 0, g: 110, b: 0, a: 255)
+                 else: Color(r: 0, g: 75, b: 0, a: 255)
+  drawRectangle(discX, currentY, discBtnW, discBtnH, discFill)
+  drawRectangleLines(discX, currentY, discBtnW, discBtnH,
+                     if ANTICHEAT_ENABLED: Gray else: Green)
   let discLabel = t(tkCheatDiscoverAll)
   let discTW = measureText(discLabel, 13)
-  drawText(discLabel, discX + (discBtnW - discTW) div 2, currentY + 9, 13, White)
+  drawText(discLabel, discX + (discBtnW - discTW) div 2, currentY + 9, 13,
+           if ANTICHEAT_ENABLED: Gray else: White)
   if discHovered and isMouseButtonPressed(Left):
     discoverAllPowerUpsCheat(game)
 
@@ -861,8 +927,9 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   drawText(t(tkCheatAllPowerUps), x + 20, currentY, 14, Yellow)
   currentY += 25
 
-  # All power-up types come directly from the registry enum.
-  let allPowerUpCount = ord(high(PowerUpType)) - ord(low(PowerUpType)) + 1
+  # Every live power-up: the built-in registry plus loaded mods' ones.
+  let livePUs = livePowerUps()
+  let allPowerUpCount = livePUs.len
 
   # Scrollable area setup for available list
   let availableAreaHeight = y + contentHeight - currentY - 10
@@ -890,7 +957,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   let endIdx = min(startIdx + maxVisibleItems, allPowerUpCount)
 
   for i in startIdx..<endIdx:
-    let powerType = PowerUpType(ord(low(PowerUpType)) + i)
+    let powerType = livePUs[i]
     let name = getPowerUpName(powerType)
     let itemY = currentY + (i - startIdx).int32 * itemHeight
 
@@ -1020,20 +1087,8 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
       t(tkCheatCustomBoss)
     else:
       case enemy.enemyType
-      of etCircle: t(tkEnemyCircleName)
-      of etCube: t(tkEnemyCubeName)
-      of etTriangle: t(tkEnemyTriangleName)
-      of etStar: t(tkEnemyStarName)
-      of etHexagon: t(tkEnemyHexagonName)
-      of etCross: t(tkEnemyCrossName)
-      of etDiamond: t(tkEnemyDiamondName)
-      of etOctagon: t(tkEnemyOctagonName)
-      of etPentagon: t(tkEnemyPentagonName)
-      of etTrickster: t(tkEnemyTricksterName)
-      of etPhantom: t(tkEnemyPhantomName)
-      of etSniper: t(tkEnemySniperName)
-      of etMage: t(tkEnemyMageName)
       of etEnvironment: t(tkCheatEnemyEnvironment)
+      else: getEnemyConfig(enemy.enemyType).name
 
     let nameColor = if enemy.isBoss: Red
                     elif enemy.enemyType == etSniper: Magenta
@@ -1066,9 +1121,9 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
             x + 20, remainingY, 12, Yellow)
 
 proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
-  ## Mode-specific cheats for the dungeon roguelite: meta-currency injection (for
-  ## testing the unlock economy), keys, relic grants, and a floor-skip that
-  ## replays the floor-boss-defeated flow (see cheatCompleteRogueliteFloor).
+  ## Mode-specific cheats for the roguelite: meta-currency injection (debug
+  ## builds only), patch installs, and a sector-skip that replays the
+  ## SERVICE-defeated flow (see cheatCompleteRogueliteFloor).
   var currentY = y + 10
 
   if game.rogueliteRun.isNil or game.rogueliteProfile.isNil:
@@ -1095,13 +1150,15 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
     result = hovered and isMouseButtonPressed(Left)
 
   # --- Run / profile info -------------------------------------------------
-  drawText("Floor: " & $run.floorNumber & " / " & $RogueliteFloorsToWin &
+  let layer = if run.floor.isNil or run.floor.rooms.len == 0: 0
+              else: run.floor.rooms[run.floor.rooms.high].layer
+  let layers = if run.floor.isNil: 0 else: max(0, run.floor.layers.len - 2)
+  drawText("Sector: " & $run.floorNumber & " / " & $RogueliteFloorsToWin &
+           "    Folder: " & $layer & " / " & $layers &
            "    Endless Loop: " & $run.endlessLoop, x + 20, currentY, 14, White)
   currentY += 22
-  drawText("Heat: " & $run.heat & "    Rooms Cleared: " & $run.totalRoomsCleared,
-           x + 20, currentY, 14, White)
-  currentY += 22
-  drawText("Keys: " & $run.keys & "    Relics: " & $run.relics.len,
+  drawText("Heat: " & $run.heat & "    Folders Cleared: " & $run.totalRoomsCleared &
+           "    Patches: " & $run.relics.len,
            x + 20, currentY, 14, White)
   currentY += 22
   drawText("Data Shards: " & $profile.dataShards & "    Cores: " & $profile.cores,
@@ -1114,60 +1171,77 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
   let bh: int32 = 28
   let gap: int32 = 8
 
-  # Data Shards row
-  drawText("Data Shards", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "+100", Color(r: 70, g: 60, b: 0, a: 255), Gold):
-    applyRogueliteCurrencyCheat(game, 100, 0)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+500", Color(r: 70, g: 60, b: 0, a: 255), Gold):
-    applyRogueliteCurrencyCheat(game, 500, 0)
-  if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+1000", Color(r: 70, g: 60, b: 0, a: 255), Gold):
-    applyRogueliteCurrencyCheat(game, 1000, 0)
-  currentY += bh + 10
+  # Currency rows: debug builds only (see applyRogueliteCurrencyCheat).
+  if not ANTICHEAT_ENABLED:
+    # Data Shards row
+    drawText("Data Shards", labelX, currentY + 6, 14, White)
+    if btn(btnStartX, currentY, bw, bh, "+100", Color(r: 70, g: 60, b: 0, a: 255), Gold):
+      applyRogueliteCurrencyCheat(game, 100, 0)
+    if btn(btnStartX + (bw + gap), currentY, bw, bh, "+500", Color(r: 70, g: 60, b: 0, a: 255), Gold):
+      applyRogueliteCurrencyCheat(game, 500, 0)
+    if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+1000", Color(r: 70, g: 60, b: 0, a: 255), Gold):
+      applyRogueliteCurrencyCheat(game, 1000, 0)
+    currentY += bh + 10
 
-  # Cores row
-  drawText("Cores", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "+1", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applyRogueliteCurrencyCheat(game, 0, 1)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applyRogueliteCurrencyCheat(game, 0, 5)
-  if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+10", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applyRogueliteCurrencyCheat(game, 0, 10)
-  currentY += bh + 10
+    # Cores row
+    drawText("Cores", labelX, currentY + 6, 14, White)
+    if btn(btnStartX, currentY, bw, bh, "+1", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+      applyRogueliteCurrencyCheat(game, 0, 1)
+    if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+      applyRogueliteCurrencyCheat(game, 0, 5)
+    if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+10", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
+      applyRogueliteCurrencyCheat(game, 0, 10)
+    currentY += bh + 10
 
-  # Keys row
-  drawText("Keys", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "+1", Color(r: 60, g: 40, b: 0, a: 255), Orange):
-    applyRogueliteKeysCheat(game, 1)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5", Color(r: 60, g: 40, b: 0, a: 255), Orange):
-    applyRogueliteKeysCheat(game, 5)
-  currentY += bh + 16
+  # Patch picker: < name > [Apply]
+  drawText("Patch", labelX, currentY + 6, 14, White)
+  if btn(btnStartX, currentY, 28, bh, "<", Color(r: 30, g: 40, b: 60, a: 255), SkyBlue):
+    cheatPatchPick = if cheatPatchPick <= succ(rrtNone): high(RogueliteRelicType)
+                     else: pred(cheatPatchPick)
+  let owned = run.hasRelic(cheatPatchPick)
+  let pickLabel = patchKbLabel(cheatPatchPick) & " " & patchName(cheatPatchPick) &
+                  (if owned: " (applied)" else: "")
+  drawText(pickLabel, btnStartX + 36, currentY + 7, 12, if owned: Gray else: White)
+  let applyX = x + width - 20 - 150
+  if btn(applyX - 36, currentY, 28, bh, ">", Color(r: 30, g: 40, b: 60, a: 255), SkyBlue):
+    cheatPatchPick = if cheatPatchPick >= high(RogueliteRelicType): succ(rrtNone)
+                     else: succ(cheatPatchPick)
+  if btn(applyX, currentY, 150, bh, "Apply Patch", Color(r: 60, g: 0, b: 60, a: 255), Magenta):
+    discard applyRoguelitePatchCheat(game, cheatPatchPick)
+  currentY += bh + 12
 
-  # Full-width actions: grant relic + skip floor
+  # Full-width actions: random patch + skip sector
   let wideW = width - 40
-  if btn(labelX, currentY, wideW, bh + 4, "Grant Next Unlocked Relic",
+  if btn(labelX, currentY, wideW, bh + 4, "Apply Random Patch",
          Color(r: 60, g: 0, b: 60, a: 255), Magenta):
-    if grantNextUnlockedRelic(game):
-      playSound(stPowerUp)
+    let pool = rollPatchChoices(run, 1)
+    if pool.len > 0:
+      discard applyRoguelitePatchCheat(game, pool[0])
     else:
       playSound(stMenuNav)
   currentY += bh + 14
 
-  if btn(labelX, currentY, wideW, bh + 4, "Skip Floor (Complete Boss)",
+  if btn(labelX, currentY, wideW, bh + 4, "Skip Sector (Complete SERVICE)",
          Color(r: 80, g: 0, b: 0, a: 255), Red):
     if ANTICHEAT_ENABLED:
       game.cheatsUsed = true
     game.cheatRogueliteSkipFloor = true
   currentY += bh + 16
 
-  drawText("Currency changes are saved to your roguelite profile.",
-           labelX, currentY, 11, Gray)
+  if ANTICHEAT_ENABLED:
+    drawText("Cheated runs keep no shards, cores, Recursion or records.",
+             labelX, currentY, 11, Gray)
+  else:
+    drawText("Debug build: currency changes are saved to your roguelite profile.",
+             labelX, currentY, 11, Gray)
 
 proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
-  ## Mode-specific cheats for time-survival: fast-forward the survival clock (the
-  ## single knob that drives difficulty, since difficulty is recomputed from
-  ## game.time each frame) and force the next boss to spawn. Mirrors the roguelite
+  ## Mode-specific cheats for time-survival: move the survival clock (the knob
+  ## that drives difficulty, the horde and the boss schedule, since difficulty
+  ## is recomputed from game.survivalTime each frame), force bosses and phase
+  ## skips, start System Events and drop Data Caches. Mirrors the roguelite
   ## tab's button helpers and hardcoded-English convention (no localization keys).
-  var currentY = y + 10
+  var currentY = y + 8
 
   # Lighten a button colour on hover using int math so we never overflow uint8.
   proc lighten(c: Color): Color =
@@ -1186,56 +1260,90 @@ proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
     result = hovered and isMouseButtonPressed(Left)
 
   # --- Survival run info --------------------------------------------------
-  # Survival time as MM:SS; the 15:00 mark (SURVIVAL_ENDING_MIN_TIME = 900 s) is
-  # when the survival ending cinematic arms on death, so it's called out below.
-  let totalSecs = max(0, int(game.survivalTime))
-  let mins = totalSecs div 60
-  let secs = totalSecs mod 60
-  let timeStr = (if mins < 10: "0" else: "") & $mins & ":" &
-                (if secs < 10: "0" else: "") & $secs
   # One-decimal difficulty via int math (strutils.formatFloat isn't imported here).
   let diff10 = int(game.difficulty * 10.0)
   let diffStr = $(diff10 div 10) & "." & $(diff10 mod 10)
-  drawText("Survival Time: " & timeStr & "    Difficulty: " & diffStr,
+  let phase = survivalPhase(game)
+  drawText("Clock: " & formatSurvivalClock(game.survivalTime) & "   Phase: " &
+           t(survivalPhaseNameKey(phase)) & "   Difficulty: " & diffStr,
            x + 20, currentY, 14, White)
-  currentY += 22
-  drawText("Bosses Spawned: " & $game.bossCount & "    Next Boss In: " &
-           $int(game.bossTimer) & "s", x + 20, currentY, 14, White)
-  currentY += 22
-  drawText("Enemies Alive: " & $game.enemies.len, x + 20, currentY, 14, White)
-  currentY += 30
+  currentY += 20
+  let nextBoss = game.bossCount + 1
+  let bossLine = if game.bossWaveManager.active: "Boss " & $game.bossCount & " fighting"
+                 else: "Next: boss " & $nextBoss & " at " &
+                       formatSurvivalClock(survivalBossTime(nextBoss))
+  drawText(bossLine & "   Alive: " & $game.enemies.len & " / target " &
+           $int(game.survival.debugTarget) & "   Caches: " & $game.survival.chests.len,
+           x + 20, currentY, 14, White)
+  currentY += 20
+  let ev = game.survival.event
+  let eventLine = if ev.kind == sekNone: "Event: none (next at " &
+                    formatSurvivalClock(game.survival.nextEventClock) & ")"
+                  else: "Event: " & t(survivalEventNameKey(ev.kind)) & " (" &
+                    formatSurvivalClock(ev.elapsed) & " in)"
+  drawText(eventLine, x + 20, currentY, 14, White)
+  currentY += 26
 
   let labelX = x + 20
-  let btnStartX = x + 180
-  let bw: int32 = 80
-  let bh: int32 = 28
-  let gap: int32 = 8
+  let btnStartX = x + 150
+  let rowW = width - 170
+  let bh: int32 = 26
+  let gap: int32 = 6
 
-  # Advance-time row. Difficulty derives from time, so these are the difficulty
-  # cheats; +15:00 jumps straight to the survival-ending threshold for testing.
-  drawText("Advance Time", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "+1 min", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applySurvivalTimeCheat(game, 60.0)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "+5 min", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applySurvivalTimeCheat(game, 300.0)
-  if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "+15 min", Color(r: 0, g: 60, b: 80, a: 255), SkyBlue):
-    applySurvivalTimeCheat(game, 900.0)
-  currentY += bh + 10
+  proc rowButtonW(count: int32): int32 = (rowW - gap * (count - 1)) div count
 
-  # Rewind-time row (clamped at 0 inside applySurvivalTimeCheat).
-  drawText("Rewind Time", labelX, currentY + 6, 14, White)
-  if btn(btnStartX, currentY, bw, bh, "-1 min", Color(r: 60, g: 40, b: 0, a: 255), Orange):
-    applySurvivalTimeCheat(game, -60.0)
-  if btn(btnStartX + (bw + gap), currentY, bw, bh, "-5 min", Color(r: 60, g: 40, b: 0, a: 255), Orange):
-    applySurvivalTimeCheat(game, -300.0)
-  currentY += bh + 16
+  # Time rows. +15:00 jumps straight to the survival-ending threshold.
+  drawText("Clock", labelX, currentY + 6, 14, White)
+  block:
+    let bw = rowButtonW(5)
+    let deltas = [60.0'f32, 300.0, 900.0, -60.0, -300.0]
+    let labels = ["+1 min", "+5 min", "+15 min", "-1 min", "-5 min"]
+    for i in 0..4:
+      let rewind = deltas[i] < 0
+      if btn(btnStartX + i.int32 * (bw + gap), currentY, bw, bh, labels[i],
+             if rewind: Color(r: 60, g: 40, b: 0, a: 255) else: Color(r: 0, g: 60, b: 80, a: 255),
+             if rewind: Orange else: SkyBlue):
+        applySurvivalTimeCheat(game, deltas[i])
+  currentY += bh + 8
 
-  # Full-width action: force the next survival boss to spawn ASAP.
-  let wideW = width - 40
-  if btn(labelX, currentY, wideW, bh + 4, "Spawn Boss Now",
-         Color(r: 80, g: 0, b: 0, a: 255), Red):
-    applySurvivalBossCheat(game)
-  currentY += bh + 16
+  # Boss / phase row.
+  drawText("Bosses", labelX, currentY + 6, 14, White)
+  block:
+    let bw = rowButtonW(3)
+    if btn(btnStartX, currentY, bw, bh, "Spawn Boss Now", Color(r: 80, g: 0, b: 0, a: 255), Red):
+      applySurvivalBossCheat(game)
+    if btn(btnStartX + bw + gap, currentY, bw, bh, "Skip Phase", Color(r: 80, g: 0, b: 0, a: 255), Red):
+      applySurvivalSkipPhaseCheat(game)
+    if btn(btnStartX + 2 * (bw + gap), currentY, bw, bh, "Jump to Final",
+           Color(r: 80, g: 0, b: 0, a: 255), Red):
+      applySurvivalJumpToFinalCheat(game)
+  currentY += bh + 8
 
-  drawText("Advancing time fast-forwards difficulty; +15 min reaches the ending threshold.",
+  # System Events row.
+  drawText("Events", labelX, currentY + 6, 14, White)
+  block:
+    const kinds = [sekMemoryLeak, sekFirewallBreach, sekUploadZone,
+                   sekCorruptedSector, sekRogueProcess, sekOverclock]
+    const labels = ["Leak", "Breach", "Upload", "Sector", "Rogue", "Clock"]
+    let bw = rowButtonW(6)
+    for i in 0..5:
+      if btn(btnStartX + i.int32 * (bw + gap), currentY, bw, bh, labels[i],
+             Color(r: 40, g: 20, b: 70, a: 255), Color(r: 200, g: 120, b: 255, a: 255)):
+        applySurvivalEventCheat(game, kinds[i])
+  currentY += bh + 8
+
+  # Data Cache row.
+  drawText("Caches", labelX, currentY + 6, 14, White)
+  block:
+    const labels = ["Minor", "Standard", "Rare", "Kernel"]
+    let bw = rowButtonW(4)
+    var i = 0'i32
+    for tier in SurvivalCacheTier:
+      if btn(btnStartX + i * (bw + gap), currentY, bw, bh, labels[i],
+             Color(r: 0, g: 50, b: 30, a: 255), survivalCacheAccent(tier)):
+        applySurvivalCacheCheat(game, tier)
+      inc i
+  currentY += bh + 12
+
+  drawText("Clock moves difficulty and the boss schedule; +15 min reaches the ending threshold.",
            labelX, currentY, 11, Gray)

@@ -1,21 +1,54 @@
 import raylib, rlgl, random
-import types, particle, particle_pool, particle_types, powerup, run_statistics, boss_weakpoints, ui/os_background
+import types, particle, particle_pool, particle_types, powerup, patches, run_statistics, boss_weakpoints, ui/os_background, player, mode_hazards
+import modding/mod_hooks
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
+proc shieldBlocksHit*(game: Game, enemy: Enemy, hitFrom: Vector2f): bool =
+  ## A Port Guard's shield negates any player damage arriving from its front,
+  ## not just bullets: orbs, auras, chains, blasts, the ram, Thorns. `hitFrom`
+  ## is where the hit comes from -- the player for anything that emanates from
+  ## them (orbs ride the player's ring, so the guard that faces the player faces
+  ## them too), the blast centre or the previous link for splash and chains.
+  ## When true the caller drops the damage and any DoT or lifesteal riding on
+  ## it; pushes and slows still land, since the shield stops harm, not force.
+  ## Throws the deflection spark on the shield rim.
+  if not portGuardBlocks(enemy, hitFrom):
+    return false
+  let rim = enemy.pos + (hitFrom - enemy.pos).normalize() * enemy.radius
+  spawnExplosionPooled(game.particlePool, rim.x, rim.y,
+                       Color(r: 255, g: 220, b: 150, a: 255), 4)
+  true
+
+proc bossPassiveDamageTaken*(enemy: Enemy): float32 =
+  ## Fraction of a non-bullet hit a boss actually takes: phase defense, the
+  ## weak-point body/window multiplier and the adds/shield gate. 1.0 for
+  ## non-bosses. Any damage path that skips damageEnemy() (Conduit, Aftershock,
+  ## on-hit bonuses) must multiply by this, or it ignores every boss resistance.
+  if not enemy.isBoss:
+    return 1.0'f32
+  result = 1.0'f32
+  # Higher defenseMultiplier = MORE defense (takes LESS damage), same as the
+  # bullet path in game.nim.
+  if enemy.defenseMultiplier > 0:
+    result /= enemy.defenseMultiplier
+  result *= bossWeakPointDamageMultiplier(enemy, bwdsPassive)
+  # Boss gate: while adds are alive or the overload shield is up (and no
+  # vulnerability window is open), throttle non-bullet damage too. Otherwise a
+  # DoT/aura/explosion build could chip a sealed boss and skip the mechanic.
+  if enemy.weakPoint.exposedTimer <= 0 and
+      (enemy.addsGateActive or enemy.reflectShieldActive):
+    result *= GATE_DAMAGE_LEAK
+
 proc applyEliteModifiers(enemy: Enemy, baseDamage: float32,
                          consumesDiamondShield: bool = true): float32 =
-  ## Applies elite damage modifiers (tank reduction, shield absorption) and boss defense multiplier
+  ## Applies elite damage modifiers (tank reduction, shield absorption)
   ## Returns the actual damage to apply to enemy HP
   ## Handles multiple elite types for wave 25+ elites
   ##
   ## Note: enemy is a ref object, so field mutations below (e.g. enemy.shieldHp -= ...)
   ## are intentional and persist on the heap even though the parameter is a let binding.
   result = baseDamage
-
-  # Boss defense multiplier: reduces all incoming damage
-  if enemy.isBoss and enemy.defenseMultiplier > 0:
-    result *= enemy.defenseMultiplier
 
   # Tank elite: still durable, but no longer late-midgame mini-bosses.
   # If multiple elites include Tank, apply reduction
@@ -27,9 +60,11 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32,
     if enemy.shieldHp >= result:
       # Shield absorbs all damage
       enemy.shieldHp -= result
+      recordDamageDealt(result)
       result = 0
     else:
       # Shield breaks, remaining damage goes to HP
+      recordDamageDealt(enemy.shieldHp)
       result -= enemy.shieldHp
       enemy.shieldHp = 0
 
@@ -43,7 +78,27 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32,
 
 proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
   ## Applies raw HP damage. Bosses only lose HP from the active phase pool.
+  ##
+  ## Also the single choke point where the run's total damage dealt is recorded:
+  ## every source -- bullets, auras, DoT ticks, orbitals, explosions, thorns,
+  ## chain lightning, Blood Pact, Conduit, Aftershock -- funnels through here, so
+  ## Damage Dealt and the DPS series cover the whole build rather than just the
+  ## gun. Nothing else may add to combat.totalDamageDealt.
   if damage <= 0.0'f32:
+    return 0.0'f32
+  # Mods (enemyDamaged) may scale or cancel any damage an enemy takes.
+  var damage = damage
+  if hookActive(hkEnemyDamaged):
+    damage = modEnemyDamaged(enemy, damage)
+    if damage <= 0.0'f32:
+      return 0.0'f32
+
+  if enemy.enemyType == etStar and not enemy.isBoss:
+    # Stars die by hit count, and their HP is only a placeholder: draining it
+    # here (Blood Pact, Aftershock, Conduit) killed them outright and skipped
+    # the hit-count mechanic. Every damage source counts as one hit instead,
+    # exactly as damageEnemy already does.
+    enemy.hitCount += 1
     return 0.0'f32
 
   if enemy.isBoss:
@@ -59,9 +114,16 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
     if enemy.hp > 0.0'f32 and enemy.hp < EnemyMinAliveHp:
       dealt += enemy.hp
       enemy.hp = 0.0'f32
+    # Everything dealt inside an open vulnerability window counts toward using
+    # it (the heal-on-ignore check), not just direct bullet damage: aura, DoT
+    # and orbital builds were being refunded windows they had spent well.
+    if enemy.weakPoint.exposedTimer > 0:
+      enemy.windowDamageDealt += dealt
+    recordDamageDealt(dealt)
     return dealt
 
   enemy.hp -= damage
+  recordDamageDealt(damage)
   damage
 
 proc damageEnemy*(enemy: Enemy, baseDamage: float32,
@@ -79,18 +141,14 @@ proc damageEnemy*(enemy: Enemy, baseDamage: float32,
     return 0.0
 
   result = applyEliteModifiers(enemy, baseDamage, consumesDiamondShield)
-  result *= bossWeakPointDamageMultiplier(enemy, bwdsPassive)
+  result *= bossPassiveDamageTaken(enemy)
 
-  # Boss gate: while adds are alive or the overload shield is up (and no
-  # vulnerability window is open), throttle non-bullet damage too. Otherwise a
-  # DoT/aura/explosion build could chip a sealed boss and skip the mechanic.
-  if enemy.isBoss and enemy.weakPoint.exposedTimer <= 0 and
-      (enemy.addsGateActive or enemy.reflectShieldActive):
-    result *= GATE_DAMAGE_LEAK
-
-  # Stars use hit counter for ALL damage sources
-  if enemy.enemyType == etStar:
+  # Stars use hit counter for ALL damage sources. The hit costs them no HP, so
+  # it reports 0 dealt, like applyEnemyHpDamage: returning the incoming amount
+  # credited power-ups with damage nobody took and floated numbers over Stars.
+  if enemy.enemyType == etStar and not enemy.isBoss:
     enemy.hitCount += 1
+    result = 0.0'f32
   else:
     result = applyEnemyHpDamage(enemy, result)
 
@@ -103,6 +161,21 @@ type CombatStats* = object
   critChance*: int          # Critical hit chance (0-100)
   critMultiplier*: float32  # Critical hit damage multiplier
   hasCrit*: bool            # Whether player has crit power-up
+
+proc rageDamageMultiplier*(player: Player): float32 =
+  ## Rage's damage multiplier at the current HP. Single source of truth: the
+  ## bullet path stamps it onto each bullet so the hit block can isolate Rage's
+  ## share, and calculateCombatStats applies it to the damage itself.
+  result = 1.0'f32
+  for powerUp in player.powerUps:
+    if powerUp.powerType == puRage:
+      let hpLost = 1.0'f32 - player.hp / player.maxHp
+      let bonusPerTenPercent = case powerUp.level
+        of 1: 0.05'f32  # 5% per 10% HP lost
+        of 2: 0.08'f32  # 8% per 10% HP lost
+        else: 0.12'f32  # 12% per 10% HP lost
+      result = 1.0'f32 + (hpLost * 10.0'f32 * bonusPerTenPercent)
+      break
 
 proc calculateCombatStats*(player: Player): CombatStats =
   ## Calculates all combat stats in one place
@@ -121,24 +194,23 @@ proc calculateCombatStats*(player: Player): CombatStats =
     result.damage *= 1.4  # +40% damage
 
   # Rage power-up - damage increases when HP is low
-  for powerUp in player.powerUps:
-    if powerUp.powerType == puRage:
-      let hpPercent = player.hp / player.maxHp
-      let hpLost = 1.0 - hpPercent
-      let bonusPerTenPercent = case powerUp.level
-        of 1: 0.05  # 5% per 10% HP lost
-        of 2: 0.08  # 8% per 10% HP lost
-        else: 0.12  # 12% per 10% HP lost
-      let damageBonus = 1.0 + (hpLost * 10.0 * bonusPerTenPercent)
-      result.damage *= damageBonus
+  result.damage *= rageDamageMultiplier(player)
 
-  # Speed Boost (Legendary) - Momentum: the faster you move, the harder you hit.
-  # Scales 0 -> +25% damage as movement speed climbs to baseline; rewards the
-  # constant kiting that the bullet-heaven loop is built around. vel can exceed
-  # baseSpeed (the +33% boost, consumables), so the ratio is clamped to 1.0.
-  if hasPowerUp(player, puSpeedBoost) and player.baseSpeed > 0:
-    let speedRatio = min(player.vel.length() / player.baseSpeed, 1.0'f32)
-    result.damage *= 1.0'f32 + speedRatio * 0.25'f32
+  # Speed Boost (Legendary) - Momentum: discrete stacks built by sustained fast
+  # travel (see momentumStacks/momentumBuildTimer/momentumDecayTimer updates in
+  # player.nim), not a live vel/baseSpeed ratio. The old ratio sat near 1.0
+  # almost the whole run because dodging already keeps velocity near baseSpeed,
+  # so it read as a flat +25% buff. Stacks decay when the player stops moving,
+  # so standing still to line up a shot or getting slowed/frozen has a real,
+  # visible cost. Holding all 5 stacks also grants a fragile crit-chance window
+  # that drops the instant a stack is lost.
+  if hasPowerUp(player, puSpeedBoost):
+    result.damage *= 1.0'f32 + player.momentumStacks.float32 * MomentumDamagePerStack
+    if player.momentumStacks >= MomentumMaxStacks:
+      result.hasCrit = true
+      result.critChance += MomentumMaxCritBonus
+      if result.critMultiplier < 2.0'f32:
+        result.critMultiplier = 2.0'f32
 
   # Max Health (Legendary) - Juggernaut: convert *invested* vitality into raw
   # power. The starting pool and every automatic max-HP grant are excluded
@@ -190,6 +262,14 @@ proc calculateCombatStats*(player: Player): CombatStats =
     if powerUp.powerType == puDoubleShot:
       result.fireRate *= 1.25  # 25% slower (higher value = slower)
 
+  # Roguelite patches. Overclock: +35% fire rate until a hit stalls it
+  # (overclockStallTimer, armed in takeDamageRaw). Cryptominer: the mining
+  # rig taxes every shot.
+  if hasPatch(player, rrtOverclock) and player.overclockStallTimer <= 0:
+    result.fireRate /= 1.0'f32 + OverclockFireRateBonus  # lower = faster
+  if hasPatch(player, rrtCryptominer):
+    result.damage *= 1.0'f32 - CryptominerDamagePenalty
+
   # Berserker power-up - fire rate increases when HP is low
   for powerUp in player.powerUps:
     if powerUp.powerType == puBerserker:
@@ -212,6 +292,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
       of 2: 35  # 35% chance
       else: 50  # 50% chance
     result.critMultiplier = 2.0
+  modCombatStats(player, result.damage, result.fireRate, result.critChance, result.critMultiplier)
 
 proc applyBossArenaCombatBonus*(game: Game, stats: var CombatStats) =
   let bonus = getBossArenaCombatBonus(game.osBackground)
@@ -239,6 +320,16 @@ proc showDamage*(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool,
   ## Centralized helper to create and display damage numbers
   game.damageNumbers.add(newDamageNumber(pos.x, pos.y, damage, fromPlayer, isCritical, damageType))
 
+proc showPlayerDamageTaken*(game: Game, damageType: DamageType = dtDefault) =
+  ## Damage number for the hit takeDamage just resolved, showing what it actually
+  ## cost (player.lastDamageTaken). A hit that invincibility, a shield charge,
+  ## Celestial Veil, a dodge or the Singularity shield swallowed shows nothing,
+  ## instead of the full incoming amount as if it had landed.
+  let taken = game.player.lastDamageTaken
+  if taken > 0.001'f32:
+    game.showDamage(game.player.pos, taken, fromPlayer = false,
+                    isCritical = false, damageType = damageType)
+
 proc showCurrency*(game: Game, pos: Vector2f, amount: int,
                    kind: CurrencyIndicatorKind = cikCredits) =
   ## Centralized helper for floating currency pickup indicators.
@@ -261,8 +352,7 @@ proc densityHealScale*(game: Game): float32 =
   ## must be fully rebated or the two drift apart every single wave.
   ## puHealPower is intentionally NOT scaled here -- it is a multiplier on these
   ## base amounts, so it follows automatically.
-  if game.mode == gmWaveBased: waveDensityRebate(game.currentWave)
-  else: 1.0'f32
+  densityRebate(game)
 
 proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) =
   ## Centralized helper for floating "+SHIELD" / "+SPEED" style consumable
@@ -362,6 +452,8 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
   ## Returns actual damage dealt (after shields/reductions)
   if not hasPowerUp(player, puThorns):
     return 0.0
+  if shieldBlocksHit(game, targetEnemy, player.pos):
+    return 0.0
 
   let thornsLevel = getPowerUpLevel(player, puThorns)
 
@@ -387,8 +479,10 @@ proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: flo
   trackPowerUpDamage(game, puThorns, actualDamage)
 
   # Create damage number for thorns reflection
+  # Compared against the pre-crit total: the HP scaling is always added, so
+  # comparing against reflectDamageBase flagged every reflection as a crit.
   game.showDamage(targetEnemy.pos, actualDamage, fromPlayer = true,
-                  isCritical = reflectDamageWithCrit > reflectDamageBase, damageType = dtDefault)
+                  isCritical = reflectDamageWithCrit > reflectDamageWithScaling, damageType = dtDefault)
 
   # Visual feedback: thorns are a REFLECTION, so the burst reads outward from
   # the enemy as a spike ring rather than as another generic hit puff. The

@@ -1,5 +1,6 @@
 import raylib, math, random
-import particle_types, types, particle_pool, sound, powerup, particle
+import particle_types, types, particle_pool, sound, powerup, patches, particle, enemy_config
+import modding/mod_hooks
 
 ## Experience orbs for the run-leveling modes (wave, roguelite + time-survival).
 ## This module is a deliberate sibling of
@@ -20,6 +21,21 @@ const
                            ## Solved against the actual per-wave XP income, so
                            ## retuning calculateWaveEnemyCount means re-solving
                            ## this. Roguelite/survival never apply it.
+  XpSurvivalBase* = 12     ## Time Survival curve: 12 + 8n + 1.5n^2. A strong
+  XpSurvivalStep* = 8      ## build lands ~200 kills a minute in Boot and ~500 in
+  XpSurvivalQuadratic2* = 3 ## Kernel Panic (~7k by 20:00, measured headless);
+                           ## with every orb collected that solves to roughly
+                           ## levels 11 / 19 / 24 / 29 at 5 / 10 / 15 / 20
+                           ## minutes, a few fewer for real orb pickup. The
+                           ## quadratic is in halves (3 = 1.5). Re-solve it if
+                           ## the density targets in survival.nim change.
+  XpRogueliteBase* = 18    ## Roguelite curve: cost of the first level...
+  XpRogueliteStep* = 15    ## ...and the linear step after it. Sectors fight on
+                           ## the wave-mode swarm curve (dungeonDensityWave), so
+                           ## a run has banked ~160 / 480 / 1010 / 1800 XP by the
+                           ## end of sectors 1..4 at Heat 1; this lands ~4 / 7.5
+                           ## / 11 / 15 levels (18n + 7.5n(n-1) XP for n levels).
+                           ## Re-solve it if the room budgets change.
   XpOrbPullSpeed = 320.0   # homing speed in px/s (slightly snappier than coins)
   XpOrbLifetime = 18.0     # seconds before an uncollected orb fades out
   XpLootMargin = 50.0      # keep drops this far from the screen edge (cf. coin.nim)
@@ -28,22 +44,29 @@ proc clampXpDrop(x, y: float32, sw, sh: int32): tuple[x, y: float32] =
   result.x = clamp(x, XpLootMargin, sw.float32 - XpLootMargin)
   result.y = clamp(y, XpLootMargin, sh.float32 - XpLootMargin)
 
-proc xpRequiredForLevel*(level: int, longRun: bool = false): int =
-  ## Steady, escalating curve: ~one level per room early, slowing later.
+proc xpRequiredForLevel*(level: int, mode: GameMode): int =
+  ## XP to clear `level`, per mode.
   ##
-  ## `longRun` adds a quadratic term for modes that run for dozens of waves
-  ## rather than a handful of rooms. The linear curve was tuned for a roguelite
-  ## floor, where a run ends long before the threshold matters; wave mode plays
-  ## 60 waves, and because levels grow with the SQUARE ROOT of total XP, even a
-  ## fully density-normalised XP income still produced ~37 levels there. Each
-  ## level is a power-up draft and a permanent stat bundle, so that alone
-  ## outpaced every other progression channel combined.
+  ## Wave mode adds a quadratic term: it runs for dozens of waves, and because
+  ## levels grow with the SQUARE ROOT of total XP, even a fully
+  ## density-normalised XP income still produced ~37 levels there. Each level is
+  ## a power-up draft and a permanent stat bundle, so that alone outpaced every
+  ## other progression channel combined.
   ##
-  ## Roguelite and survival keep the original linear curve untouched.
-  result = XpBaseToLevel + max(0, level - 1) * XpPerLevelStep
-  if longRun:
-    let n = max(0, level - 1)
-    result += n * n * XpLongRunQuadratic
+  ## Roguelite has its own, steeper linear curve (XpRogueliteBase/-Step), solved
+  ## against its swarm-density sectors; Time Survival its own gentle quadratic
+  ## against the horde spawner.
+  let n = max(0, level - 1)
+  let base = case mode
+    of gmRoguelite:
+      XpRogueliteBase + n * XpRogueliteStep
+    of gmWaveBased:
+      XpBaseToLevel + n * XpPerLevelStep + n * n * XpLongRunQuadratic
+    of gmTimeSurvival:
+      XpSurvivalBase + n * XpSurvivalStep + (n * n * XpSurvivalQuadratic2) div 2
+    else:
+      XpBaseToLevel + n * XpPerLevelStep
+  modXpToLevel(base, level, mode)   # mods may reshape the curve (xpToLevel hook)
 
 proc enemyXpValue*(enemy: Enemy): int =
   ## Small per-enemy XP grant, shaped like enemyCoinValue but smaller magnitudes.
@@ -51,6 +74,7 @@ proc enemyXpValue*(enemy: Enemy): int =
     result = 40
   else:
     result = case enemy.enemyType
+      of etMod00..etMod31: modEnemies[enemy.enemyType].xp
       of etCircle: 1
       of etCube: 2
       of etTriangle: 1
@@ -64,9 +88,25 @@ proc enemyXpValue*(enemy: Enemy): int =
       of etPhantom: 3
       of etSniper: 4
       of etMage: 4
+      of etThread: 1
+      of etForkBomb: 2
+      of etWatchdog: 2
+      of etZombie: 3
+      of etDeadlock: 2
+      of etDaemon: 3
+      of etInterrupt: 1
+      of etFragment: 1
+      of etPortGuard: 3
+      of etSentry: 2
+      of etMimic: 3
+      of etRestorer: 3
+      of etPacket: 2
+      of etDriver: 4
+      of etCorruptor: 3
       of etEnvironment: 0
   if enemy.isElite:
     result *= 2
+  result = modXpValue(enemy, result)
 
 proc newXpOrb*(x, y: float32, value: int = 1): XpOrb =
   result = XpOrb(
@@ -141,7 +181,10 @@ proc dropEnemyXp*(game: Game, enemy: Enemy) =
   # curve, which reaches the same level pacing without ever silencing a kill.
   # (Coins, consumables and elites have no matching cost curve, which is why
   # they are normalised on the grant side instead -- see waveDensityRebate.)
-  let total = max(1, int(base.float32 * dataHarvestMultiplier(game.player)))
+  var total = max(1, int(base.float32 * dataHarvestMultiplier(game.player)))
+  # Survival's Overclock event doubles XP while it runs.
+  if game.mode == gmTimeSurvival and game.survival.xpMult > 1.0'f32:
+    total = int(total.float32 * game.survival.xpMult)
   let clamped = clampXpDrop(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
   if enemy.isBoss:
     # Spread the boss XP across several orbs around the death point.
@@ -158,8 +201,15 @@ proc dropEnemyXp*(game: Game, enemy: Enemy) =
 
 proc updateGameXpOrbs*(game: Game, dt: float32) =
   ## Lifetime decay, aura/magnet homing, and pickup. Mirrors updateGameCoins.
+  # Roguelite: an orb never expires. Its folder vacuums every orb at clear
+  # (collectAllXpOrbs), and a pulsed swarm can leave orbs lying for longer
+  # than the lifetime; expiring them silently deleted earned XP.
+  let noExpiry = game.mode == gmRoguelite
+  let magnetAll = game.player.magnetTimer > 0 or hasPatch(game.player, rrtGarbageCollector)
   var i = 0
   while i < game.xpOrbs.len:
+    if noExpiry:
+      game.xpOrbs[i].lifetime = max(game.xpOrbs[i].lifetime, 2.0)
     if not updateXpOrb(game.xpOrbs[i], dt):
       game.xpOrbs.delete(i)
       continue
@@ -169,9 +219,13 @@ proc updateGameXpOrbs*(game: Game, dt: float32) =
       moveXpOrbToPlayer(game.xpOrbs[i], game.player.pos, dt)
       spawnTimedParticlesPooled(game.particlePool, game.xpOrbs[i].pos.x, game.xpOrbs[i].pos.y,
                          18.0, Color(r: 90, g: 255, b: 170, a: 150), 1, dt)
-    if game.player.magnetTimer > 0:
+    if magnetAll:
       moveXpOrbToPlayer(game.xpOrbs[i], game.player.pos, dt)
 
+    if checkPlayerCollision(game.xpOrbs[i], game.player) and
+       modPickup(game, "xp", game.xpOrbs[i].value.float64):
+      game.xpOrbs.delete(i)   # a mod took it (pickup hook)
+      continue
     if checkPlayerCollision(game.xpOrbs[i], game.player):
       game.player.xp += game.xpOrbs[i].value
       playSound(stCoinPickup, 0.35, 1.4)  # higher pitch than coins
@@ -184,6 +238,21 @@ proc updateGameXpOrbs*(game: Game, dt: float32) =
       continue
 
     i += 1
+
+proc collectAllXpOrbs*(game: Game) =
+  ## Bank every orb on the floor at once (a roguelite folder clearing), so the
+  ## final kills' XP counts toward the level-ups banked right after. Mirrors
+  ## coin.nim's collectAllCoins.
+  if game.xpOrbs.len == 0: return
+  var total = 0
+  for orb in game.xpOrbs:
+    total += orb.value
+  game.xpOrbs = @[]
+  if total > 0:
+    game.player.xp += total
+    playSound(stCoinPickup, 0.4, 1.4)
+    game.currencyIndicators.add(newCurrencyIndicator(
+      game.player.pos.x + 18, game.player.pos.y - 8, total, cikXp))
 
 proc drawGameXpOrbs*(game: Game) =
   for orb in game.xpOrbs:

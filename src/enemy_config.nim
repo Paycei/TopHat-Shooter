@@ -1,16 +1,21 @@
 ## enemy_config.nim
 ## Single source of truth for all enemy definitions: stats, attack/movement config,
-## spawn-pool membership, difficulty thresholds, and speed scaling.
+## and speed scaling. Which enemies spawn where is each mode's roster.
 ##
 ## Adding a new enemy:
-## Touch ONLY these places:
-##   1. types.nim        -> add the EnemyType variant
+##   1. types.nim        -> add the EnemyType variant (above the etMod00..etMod31
+##                          block; keep etEnvironment last)
 ##   2. enemy_config.nim -> add a block in getEnemyConfig  (stats, attack, movement, speedScaling)
-##                       -> add ONE entry in allEnemyDefs   (introductionDifficulty, fadeOutDifficulty, spawnWeight)
-##   3. enemy.nim        -> add the update case in updateEnemy
+##   3. enemy.nim        -> add the update case in updateEnemy and the draw case in
+##                          drawEnemy (survival/roguelite types delegate to
+##                          mode_enemies.nim / mode_visuals.nim)
 ##   4. localization.nim -> add tkEnemyXName / tkEnemyXDesc keys + both-language strings
+##   5. put it in a roster: wave mode's ladder (spawnWaveEnemies in game.nim),
+##      SurvivalRoster (survival.nim) or a folder theme (themeDef in dungeon.nim)
+## The compiler then lists the remaining exhaustive sites (coin/XP values,
+## dungeon tuning wave, cheat menu, in-world label).
 
-import raylib, math, random
+import raylib, math, random, strutils
 import types, localization
 
 type
@@ -23,7 +28,6 @@ type
     damage*: float32             # Ranged damage
     usesBurst*: bool             # Whether to fire multiple shots in quick succession
     burstCount*: int             # Number of shots in a burst
-    burstDelay*: float32         # Delay between burst shots
     homingStrength*: float32     # 0.0 = no homing, 1.0 = full homing
     isPentagonBullet*: bool      # Special pentagon-shaped bullet
     bulletCountMin*: int         # Minimum bullets (for randomization)
@@ -31,6 +35,7 @@ type
     randomizeBulletCount*: bool  # Whether to randomize bullet count
     inaccuracyAmount*: float32   # Random spread amount (0.0 = perfect aim)
     bulletRadius*: float32       # Bullet size (0 = use default)
+    bulletLifetime*: float32     # Seconds before the bullet despawns (0 = use default)
 
   EnemyMovementConfig* = object
     ## Configuration for enemy movement behavior
@@ -39,7 +44,6 @@ type
     dashCooldown*: float32       # Cooldown between dashes
     dashDuration*: float32       # How long dash lasts
     teleportCooldown*: float32   # Cooldown between teleports
-    teleportRange*: float32      # Max teleport distance
     maintainsDistance*: bool     # Whether to keep distance from player
     optimalDistance*: float32    # Preferred distance from player
     retreatDistance*: float32    # Distance to start retreating
@@ -71,8 +75,6 @@ type
 
     # Visual configuration
     requiresScreenEntry*: bool    # Must enter screen before attacking
-    trailEffect*: bool            # Shows motion trail
-    glowEffect*: bool             # Pulsing glow effect
 
     # Hit requirements (for star-type enemies)
     usesHitCount*: bool
@@ -81,75 +83,93 @@ type
     # Difficulty scaling
     speedScaling*: float32            ## Speed gained per 1 unit of difficulty
 
-# Spawn-pool registry
+# Survival / Roguelite roster builders. These enemies keep their behaviour in
+# mode_enemies.nim; the config only carries the numbers.
+proc modeMelee(et: EnemyType, name, desc: string, hp, radius, contact: float32,
+               color: Color, speed, speedScaling: float32): EnemyConfig =
+  EnemyConfig(enemyType: et, name: name, description: desc,
+              baseHP: hp, baseRadius: radius, contactDamage: contact, baseColor: color,
+              movement: EnemyMovementConfig(baseSpeed: speed),
+              speedScaling: speedScaling)
 
+proc modeRanged(et: EnemyType, name, desc: string, hp, radius, contact: float32,
+                color: Color, speed, speedScaling: float32,
+                optimal, retreat: float32, attack: EnemyAttackConfig): EnemyConfig =
+  result = modeMelee(et, name, desc, hp, radius, contact, color, speed, speedScaling)
+  result.movement.maintainsDistance = true
+  result.movement.optimalDistance = optimal
+  result.movement.retreatDistance = retreat
+  result.hasRangedAttack = true
+  result.attack = attack
+  result.requiresScreenEntry = true
+
+proc modeFan(fireRate, bulletSpeed: float32, count: int, spread, damage: float32,
+             lifetime = 3.0'f32): EnemyAttackConfig =
+  EnemyAttackConfig(fireRate: fireRate, bulletSpeed: bulletSpeed, bulletCount: count,
+                    spreadAngle: spread, damage: damage, bulletLifetime: lifetime)
+
+# MODS.EXE: the reserved etMod slots. register.enemy binds one to a mod's
+# enemy: its config (starting from a built-in type's), the built-in type whose
+# AI and look it borrows (`base`), its label and its rewards.
 type
-  EnemyDef* = object
-    ## Spawn-pool membership for one enemy type.
-    ## Combat stats and behaviour parameters live in EnemyConfig / getEnemyConfig below.
-    introductionDifficulty*: float32  ## Minimum difficulty before this type can appear
-    fadeOutDifficulty*: float32       ## Removed from pool at/above this value; 0 = never
-    spawnWeight*: int                 ## Relative probability weight when active (0 = excluded)
+  ModEnemySlot* = etMod00..etMod31
+  ModEnemyInfo* = object
+    bound*: bool
+    key*: string        ## "<mod id>:<name>", never the slot name
+    label*: string      ## in-world process label
+    base*: EnemyType    ## built-in type whose AI / body it reuses
+    coins*, xp*: int
+    config*: EnemyConfig
 
-# One entry per EnemyType; named-index syntax keeps the compiler honest.
-#
-# Weight notes
-#
-# Weights are calibrated against the late-game distribution and apply whenever
-# the enemy is active.  Early-game is naturally correct because most types are
-# gated behind introductionDifficulty.
-#
-# Circle uses a large weight (30) so it dominates until Pentagon arrives
-# (diff 3 => ~77 % circle vs original 80 %).  After fade-out at diff 7 the
-# remaining enemies settle into near-equal shares, matching the original tables.
-# Sniper's low weight (2) matches the original 2 % late-pool chance.
-# etEnvironment has weight 0 and is never selected.
-const allEnemyDefs*: array[EnemyType, EnemyDef] = [
-  etCircle:      EnemyDef(introductionDifficulty:  0.0,   fadeOutDifficulty:  7.0, spawnWeight: 30),
-  etCube:        EnemyDef(introductionDifficulty:  5.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
-  etTriangle:    EnemyDef(introductionDifficulty:  5.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
-  etStar:        EnemyDef(introductionDifficulty:  8.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
-  etHexagon:     EnemyDef(introductionDifficulty: 14.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
-  etCross:       EnemyDef(introductionDifficulty:  8.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
-  etDiamond:     EnemyDef(introductionDifficulty: 11.0,   fadeOutDifficulty:  0.0, spawnWeight:  8),
-  etOctagon:     EnemyDef(introductionDifficulty: 11.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
-  etPentagon:    EnemyDef(introductionDifficulty:  3.0,   fadeOutDifficulty:  0.0, spawnWeight:  9),
-  etTrickster:   EnemyDef(introductionDifficulty: 18.0,   fadeOutDifficulty:  0.0, spawnWeight: 10),
-  etPhantom:     EnemyDef(introductionDifficulty: 23.0,   fadeOutDifficulty:  0.0, spawnWeight: 10),
-  etSniper:      EnemyDef(introductionDifficulty: 23.0,   fadeOutDifficulty:  0.0, spawnWeight:  2),
-  etMage:        EnemyDef(introductionDifficulty: 23.0,   fadeOutDifficulty:  0.0, spawnWeight: 10),
-  etEnvironment: EnemyDef(introductionDifficulty:  0.0,   fadeOutDifficulty:  0.0, spawnWeight:  0),
-]
+var modEnemies*: array[ModEnemySlot, ModEnemyInfo]
 
-proc isSpawnable*(et: EnemyType, difficulty: float32): bool {.inline.} =
-  ## True when `et` belongs to the active spawn pool at `difficulty`.
-  let d = allEnemyDefs[et]
-  if d.spawnWeight <= 0: return false
-  if difficulty < d.introductionDifficulty: return false
-  if d.fadeOutDifficulty > 0.0'f32 and difficulty >= d.fadeOutDifficulty: return false
-  return true
+proc isModEnemy*(et: EnemyType): bool {.inline.} = et in etMod00..etMod31
 
-proc pickSpawnType*(difficulty: float32): EnemyType =
-  ## Weighted-random pick from the active pool at `difficulty`.
-  ## Falls back to etCircle when the pool is unexpectedly empty.
-  var totalWeight = 0
-  for et in EnemyType:
-    if isSpawnable(et, difficulty):
-      totalWeight += allEnemyDefs[et].spawnWeight
-  if totalWeight == 0:
-    return etCircle
-  var roll = rand(totalWeight - 1)
-  for et in EnemyType:
-    if isSpawnable(et, difficulty):
-      let w = allEnemyDefs[et].spawnWeight
-      if roll < w: return et
-      roll -= w
-  return etCircle  # unreachable in practice
+proc isEnemyLive*(et: EnemyType): bool {.inline.} =
+  ## Built-in (not the environment sentinel), or a slot a loaded mod uses.
+  et != etEnvironment and (not isModEnemy(et) or modEnemies[et].bound)
+
+proc enemyAiType*(et: EnemyType): EnemyType {.inline.} =
+  ## The type whose update/draw branch runs: a mod enemy borrows its base's.
+  if isModEnemy(et): modEnemies[et].base else: et
+
+proc enemySaveName*(et: EnemyType): string =
+  ## What saves store: the enum name, or "mod:<mod id>:<name>" for a mod slot.
+  if isModEnemy(et): "mod:" & modEnemies[et].key else: $et
+
+proc parseEnemySaveName*(s: string, et: var EnemyType): bool =
+  if s.startsWith("mod:"):
+    let key = s[4 .. ^1]
+    for slot in ModEnemySlot:
+      if modEnemies[slot].bound and modEnemies[slot].key == key:
+        et = slot
+        return true
+    return false
+  try:
+    et = parseEnum[EnemyType](s)
+    not isModEnemy(et)
+  except ValueError:
+    false
+
+proc enemyScriptName*(et: EnemyType): string =
+  ## The name scripts use: "etCube", or "<mod id>:<name>" for a mod's.
+  if isModEnemy(et): modEnemies[et].key else: $et
+
+proc resolveEnemyScriptName*(s: string, et: var EnemyType): bool =
+  if ':' in s: parseEnemySaveName("mod:" & s, et)
+  else: parseEnemySaveName(s, et) and et != etEnvironment
+
+proc resetModEnemies*() =
+  for et in ModEnemySlot:
+    modEnemies[et] = ModEnemyInfo(base: etCircle)
 
 # Per-enemy stat and behaviour configuration
-proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
+proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
   ## Returns the complete configuration for a given enemy type
   case enemyType
+  of etMod00..etMod31:
+    result = modEnemies[enemyType].config
+    result.enemyType = enemyType
 
   of etCircle:  # Normal chaser - melee only
     result = EnemyConfig(
@@ -168,7 +188,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -177,8 +196,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       hasRangedAttack: false,
       hasSpecialBehavior: false,
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: false,
       usesHitCount: false,
       speedScaling: 10.0
     )
@@ -200,7 +217,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 300.0,
         retreatDistance: 250.0
@@ -215,7 +231,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 2.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: true,  # Special large pentagon bullet
         bulletCountMin: 0,
@@ -227,8 +242,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
       hasSpecialBehavior: false,
       requiresScreenEntry: true,
-      trailEffect: false,
-      glowEffect: true,       # Charge-up glow before firing
       usesHitCount: false,
       speedScaling: 3.0
     )
@@ -250,7 +263,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 2.0,
         dashDuration: 0.3,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -264,8 +276,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "zigzag_pattern|dash_range:150|dash_multiplier:3.0",
 
       requiresScreenEntry: false,
-      trailEffect: true,      # Shows motion trail during dash
-      glowEffect: true,       # Charge-up glow before dash
       usesHitCount: false,
       speedScaling: 10.0
     )
@@ -287,7 +297,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 2.0,
         dashDuration: 0.5,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -301,8 +310,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "dash_range:150",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Pulsing glow + charge glow
       usesHitCount: true,
       baseRequiredHits: 10,    # Base hits required (scales with difficulty)
       speedScaling: 6.0
@@ -325,7 +332,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 250.0,
         retreatDistance: 150.0
@@ -340,7 +346,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 3.5,          # Higher ranged damage
         usesBurst: true,
         burstCount: 3,
-        burstDelay: 0.05,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -352,8 +357,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
       hasSpecialBehavior: false,
       requiresScreenEntry: true,  # Must enter screen before attacking
-      trailEffect: false,
-      glowEffect: false,
       usesHitCount: false,
       speedScaling: 3.0
     )
@@ -375,7 +378,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 2.5,  # Base cooldown (randomized)
-        teleportRange: 200.0,   # Teleport distance from player
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -390,7 +392,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 5.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 2,
@@ -406,8 +407,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "chaotic_shooting",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Teleport warning glow
       usesHitCount: false,
       speedScaling: 8.0
     )
@@ -429,7 +428,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.5,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -443,8 +441,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "warning_duration:1.2|dash_duration:0.5|laser_length:120|rotation_speed:12.5",
 
       requiresScreenEntry: false,
-      trailEffect: true,       # Motion blur during dash
-      glowEffect: true,        # Pulsing warning glow
       usesHitCount: false,
       speedScaling: 4.0
     )
@@ -466,7 +462,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 2.5,    # Randomized 2.5-3.5
         dashDuration: 0.4,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -481,7 +476,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 4.5,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -497,8 +491,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "shoots_on_dash|shoots_periodically",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Dash indicator
       usesHitCount: false,
       speedScaling: 12.0
     )
@@ -520,7 +512,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 200.0,
         retreatDistance: 200.0
@@ -528,27 +519,29 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
 
       hasRangedAttack: true,
       attack: EnemyAttackConfig(
-        fireRate: 0.4,        # Very frequent shots
+        fireRate: 0.5,        # Very frequent shots (was 0.4: tuned for the old
+                              # sparse waves, it carpeted the screen in swarms)
         bulletSpeed: 120.0,   # Slow projectiles
         bulletCount: 1,       # Single shot
         spreadAngle: 0.8,     # High inaccuracy (random ±0.4 radians)
         damage: 5.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
         bulletCountMax: 0,
         randomizeBulletCount: false,
         inaccuracyAmount: 0.45,  # Reduced inaccuracy - shots land more often
-        bulletRadius: 0.0
+        bulletRadius: 0.0,
+        # ~450px of travel: over twice the 200px Octagons hold from the player,
+        # so every aimed shot still arrives, but misses fade out instead of
+        # drifting across the whole arena at this crawl for the default 4s.
+        bulletLifetime: 3.0
       ),
 
       hasSpecialBehavior: false,
       requiresScreenEntry: true,
-      trailEffect: false,
-      glowEffect: true,       # Constant firing glow
       usesHitCount: false,
       speedScaling: 3.0
     )
@@ -570,7 +563,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 3.0,  # Randomized 3-5 seconds
-        teleportRange: 150.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -585,7 +577,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 7.5,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -601,8 +592,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "fake_warning:1.0|teleport_shoot",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Mysterious pulse
       usesHitCount: false,
       speedScaling: 5.0
     )
@@ -624,7 +613,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 2.0,  # Randomized 2-3.5 seconds
-        teleportRange: 200.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -639,7 +627,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 5.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -655,8 +642,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "clone_count:3|shoot_from_clones:60%",
 
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: true,       # Fade effect
       usesHitCount: false,
       speedScaling: 6.0
     )
@@ -678,7 +663,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 500.0,  # Much further away (was 300)
         retreatDistance: 400.0   # Retreat if player gets close (was 225)
@@ -693,7 +677,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 9999.9,       # One-shot kill
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 0.0,
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -709,8 +692,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "charge_time:3.0|trigger_range:500|cooldown:2.0|color_shift",  # Trigger range increased to 500 (was 300)
 
       requiresScreenEntry: true,
-      trailEffect: false,
-      glowEffect: true,       # Charging rings
       usesHitCount: false,
       speedScaling: 2.0
     )
@@ -732,7 +713,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: true,
         optimalDistance: 250.0,
         retreatDistance: 180.0
@@ -747,7 +727,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         damage: 10.0,
         usesBurst: false,
         burstCount: 0,
-        burstDelay: 0.0,
         homingStrength: 1.0,  # Full homing
         isPentagonBullet: false,
         bulletCountMin: 0,
@@ -763,11 +742,77 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       specialData: "meteorite_count:2|meteorite_count_random:1|warning_time:1.5|damage:3",
 
       requiresScreenEntry: true,
-      trailEffect: false,
-      glowEffect: true,       # Magical aura and casting glow
       usesHitCount: false,
       speedScaling: 3.0
     )
+
+  # ---- Survival horde (the flood) ----------------------------------------
+  # Built for 100+ bodies on screen: cheap, readable, and almost no bullets
+  # (fire rate is not density-rebated, so only the Watchdog shoots).
+  of etThread:
+    result = modeMelee(etThread, t(tkEnemyThreadName), t(tkEnemyThreadDesc),
+                       0.8, 7.0, 2.0, Color(r: 90, g: 220, b: 255, a: 255), 118.0, 8.0)
+  of etForkBomb:
+    result = modeMelee(etForkBomb, t(tkEnemyForkBombName), t(tkEnemyForkBombDesc),
+                       2.6, 12.0, 2.0, Color(r: 255, g: 120, b: 200, a: 255), 72.0, 5.0)
+  of etWatchdog:
+    result = modeRanged(etWatchdog, t(tkEnemyWatchdogName), t(tkEnemyWatchdogDesc),
+                        2.5, 11.0, 2.0, Color(r: 255, g: 200, b: 80, a: 255), 62.0, 3.0,
+                        280.0, 200.0, modeFan(3.0, 210.0, 3, 0.36, 2.0))
+  of etZombie:
+    result = modeMelee(etZombie, t(tkEnemyZombieName), t(tkEnemyZombieDesc),
+                       4.5, 13.0, 3.0, Color(r: 150, g: 180, b: 110, a: 255), 46.0, 3.0)
+  of etDeadlock:
+    result = modeMelee(etDeadlock, t(tkEnemyDeadlockName), t(tkEnemyDeadlockDesc),
+                       2.0, 10.0, 2.0, Color(r: 255, g: 80, b: 90, a: 255), 88.0, 6.0)
+  of etDaemon:
+    result = modeMelee(etDaemon, t(tkEnemyDaemonName), t(tkEnemyDaemonDesc),
+                       3.0, 11.0, 1.0, Color(r: 190, g: 120, b: 255, a: 255), 58.0, 3.0)
+    result.movement.maintainsDistance = true
+    result.movement.optimalDistance = 320.0
+    result.movement.retreatDistance = 240.0
+  of etInterrupt:
+    result = modeMelee(etInterrupt, t(tkEnemyInterruptName), t(tkEnemyInterruptDesc),
+                       1.4, 10.0, 2.0, Color(r: 255, g: 150, b: 40, a: 255), 92.0, 6.0)
+    result.hasSpecialBehavior = true
+    result.specialBehaviorType = "kamikaze"
+
+  # ---- Roguelite rooms (legacy processes) ---------------------------------
+  # Written for sector 1 (tuneDungeonEnemyStats barely touches them) and
+  # room play: cover, walls and obstacles are part of every behaviour.
+  of etFragment:
+    result = modeMelee(etFragment, t(tkEnemyFragmentName), t(tkEnemyFragmentDesc),
+                       1.2, 8.0, 2.0, Color(r: 200, g: 205, b: 215, a: 255), 240.0, 8.0)
+  of etPortGuard:
+    result = modeMelee(etPortGuard, t(tkEnemyPortGuardName), t(tkEnemyPortGuardDesc),
+                       3.5, 13.0, 2.0, Color(r: 255, g: 130, b: 60, a: 255), 55.0, 3.0)
+  of etSentry:
+    result = modeRanged(etSentry, t(tkEnemySentryName), t(tkEnemySentryDesc),
+                        2.6, 12.0, 2.0, Color(r: 120, g: 200, b: 120, a: 255), 70.0, 3.0,
+                        300.0, 160.0, modeFan(2.4, 200.0, 3, 0.30, 2.0, 3.2))
+  of etMimic:
+    result = modeMelee(etMimic, t(tkEnemyMimicName), t(tkEnemyMimicDesc),
+                       3.0, 12.0, 3.0, Color(r: 235, g: 225, b: 180, a: 255), 125.0, 5.0)
+  of etRestorer:
+    result = modeMelee(etRestorer, t(tkEnemyRestorerName), t(tkEnemyRestorerDesc),
+                       2.8, 11.0, 1.0, Color(r: 110, g: 235, b: 160, a: 255), 62.0, 3.0)
+    result.movement.maintainsDistance = true
+    result.movement.optimalDistance = 260.0
+    result.movement.retreatDistance = 180.0
+  of etPacket:
+    result = modeMelee(etPacket, t(tkEnemyPacketName), t(tkEnemyPacketDesc),
+                       1.6, 9.0, 2.0, Color(r: 0, g: 220, b: 255, a: 255), 60.0, 4.0)
+    result.movement.dashSpeed = 430.0
+  of etDriver:
+    result = modeMelee(etDriver, t(tkEnemyDriverName), t(tkEnemyDriverDesc),
+                       6.0, 15.0, 3.0, Color(r: 160, g: 110, b: 255, a: 255), 50.0, 3.0)
+    result.movement.dashSpeed = 420.0
+  of etCorruptor:
+    result = modeMelee(etCorruptor, t(tkEnemyCorruptorName), t(tkEnemyCorruptorDesc),
+                       3.0, 11.0, 2.0, Color(r: 255, g: 80, b: 200, a: 255), 66.0, 4.0)
+    result.movement.maintainsDistance = true
+    result.movement.optimalDistance = 200.0
+    result.movement.retreatDistance = 120.0
 
   of etEnvironment:  # Non-combat entity, no movement, no attack
     result = EnemyConfig(
@@ -786,7 +831,6 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
         dashCooldown: 0.0,
         dashDuration: 0.0,
         teleportCooldown: 0.0,
-        teleportRange: 0.0,
         maintainsDistance: false,
         optimalDistance: 0.0,
         retreatDistance: 0.0
@@ -795,11 +839,39 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       hasRangedAttack: false,
       hasSpecialBehavior: false,
       requiresScreenEntry: false,
-      trailEffect: false,
-      glowEffect: false,
       usesHitCount: false,
       speedScaling: 0.0
     )
+
+# The builder above is called per enemy per frame (movement, attacks), and
+# looks up two strings every time, so configs are cached per language. Mods
+# (MODS.EXE) edit a config through enemyConfigOverride as it enters the
+# cache; mod_api invalidates the cache whenever overrides change.
+var
+  enemyConfigOverride*: proc (et: EnemyType, cfg: var EnemyConfig) {.nimcall.}
+  enemyConfigCache: array[EnemyType, EnemyConfig]
+  enemyConfigFilled: array[EnemyType, bool]
+  enemyConfigCacheLang: Language
+
+proc invalidateEnemyConfigCache*() =
+  for et in EnemyType:
+    enemyConfigFilled[et] = false
+
+proc vanillaEnemyConfig*(enemyType: EnemyType): EnemyConfig =
+  ## The built-in config, ignoring mods.
+  buildEnemyConfig(enemyType)
+
+proc getEnemyConfig*(enemyType: EnemyType): lent EnemyConfig =
+  if enemyConfigCacheLang != getLanguage():
+    invalidateEnemyConfigCache()
+    enemyConfigCacheLang = getLanguage()
+  if not enemyConfigFilled[enemyType]:
+    var cfg = buildEnemyConfig(enemyType)
+    if not enemyConfigOverride.isNil:
+      enemyConfigOverride(enemyType, cfg)
+    enemyConfigCache[enemyType] = cfg
+    enemyConfigFilled[enemyType] = true
+  enemyConfigCache[enemyType]
 
 # HELPER FUNCTIONS
 

@@ -1,5 +1,7 @@
 import raylib, math
 import particle_types, types, bullet_skins, bullet_shapes, utils
+import modding/[mod_assets, mod_hooks]
+from run_statistics import trackBulletFired
 
 ## Boss ID -> bullet shape index. 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square
 const bossBulletShapeTable = [
@@ -16,10 +18,21 @@ const bossBulletShapeTable = [
   5,  # 10: Timekeeper        -> square
   3,  # 11: Chaos Weaver      -> star
   4,  # 12: Omega Entity      -> cross
+  2,  # 13: Forkmother        -> triangle (forks)
+  5,  # 14: Dispatcher        -> square (tickets)
+  3,  # 15: Thermal Runaway   -> star (sparks)
+  4,  # 16: Omega (survival)  -> cross
+  5,  # 17: Gatekeeper        -> square
+  1,  # 18: Compactor         -> diamond (shards)
+  1,  # 19: Hive              -> diamond (cells)
+  0,  # 20: Router            -> circle (packets)
+  5,  # 21: Supervisor        -> square (pages)
+  3,  # 22: Mirror Cache      -> star
+  4,  # 23: Omega (roguelite) -> cross
 ]
 
 proc bossBulletShapeFor*(bossId: int): int =
-  if bossId in 1..12: bossBulletShapeTable[bossId] else: 0
+  if bossId in 1..MaxBossId: bossBulletShapeTable[bossId] else: 0
 
 ## Bullets ease their alpha down over the final `BulletFadeOutTime` seconds of
 ## their life, bottoming out at `BulletFadeFloor` (never fully transparent) so
@@ -249,6 +262,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
   )
   if bulletRadius > 0.0:
     result.radius = bulletRadius
+  modBulletSpawn(result)   # mods may reshape any bullet before it flies
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
   # Track distance traveled for Overcharge power-up
@@ -265,6 +279,7 @@ proc assignBulletId*(game: Game, bullet: Bullet) =
   bullet.bulletId = game.bulletIdCounter
 
 proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false, gameTime: float32 = 0.0) =
+  if modBulletDraw(bullet): return   # a mod drew it (bulletDraw hook)
   # Get base color from bullet skin for player bullets
   var color: Color
   var glowColor: Color
@@ -283,6 +298,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     color = primary
     glowColor = glow
     trailColor = trail
+    bulletPalette(true, color, glowColor, trailColor)  # mod cosmetic (MODS.EXE)
 
     # Override color for special bullet types (these take priority over skin)
     if bullet.isSpecialRound:
@@ -357,8 +373,10 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       drawCircle(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
                 withAlpha(trailColor, trailAlpha))
 
-  # Draw pentagon shape for pentagon bullets
-  if bullet.isPentagon:
+  # Draw pentagon shape for pentagon bullets (a mod texture replaces any body)
+  if drawBulletModBody(bullet, usesPlayerLook):
+    discard
+  elif bullet.isPentagon:
     # Draw pentagon shape
     let points = 5
     for i in 0..<points:
@@ -559,11 +577,6 @@ proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool =
   if bullet.fromPlayer: return false # Player bullets pass through walls
   wallOverlapsCircle(wall, bullet.pos, bullet.radius)
 
-proc checkShieldCollision*(bullet: Bullet, shieldPos: Vector2f): bool =
-  # Check if enemy bullet hits player's rotating shield
-  if bullet.fromPlayer: return false
-  distance(bullet.pos, shieldPos) < bullet.radius + 6
-
 ## Utility functions for bullet synergies and cloning
 
 proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
@@ -610,13 +623,18 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     original.bulletShape   # Preserve cosmetic bullet shape
   )
 
-  # Copy additional state that needs to be preserved
+  # Copy additional state that needs to be preserved.
+  # NOT copied on purpose: hasCountedHit. A clone is its own projectile that is
+  # counted as its own shot, so it needs its own "has connected yet" flag.
   result.radius = original.radius * radiusMultiplier
   result.travelDistance = original.travelDistance  # Preserve Overcharge progress
   result.bounceCount = original.bounceCount  # Preserve ricochet state
   result.piercedEnemies = original.piercedEnemies  # Preserve pierce state
   result.hasSplit = preventSplit or original.hasSplit  # Preserve split state
   result.echoSpawnCount = original.echoSpawnCount  # Inherit spent echo budget so clones don't reset it
+  result.isFromNova = original.isFromNova  # Nova keeps credit for what its bullets go on to do
+  result.rageMultiplier = original.rageMultiplier  # so Rage keeps its share through clones
+  result.roomEchoMultiplier = original.roomEchoMultiplier  # same for a Room Echo charged shot
 
   # Copy hit enemies list for independent tracking
   for enemyIdx in original.hitEnemies:
@@ -681,29 +699,7 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
     splitBullet.isRicochet = false
 
     game.bullets.add(splitBullet)
-
-proc createRicochetBullet*(game: Game, sourceBullet: Bullet, targetPos: Vector2f,
-                          damageMultiplier: float32 = 0.75) =
-  ## Create a ricochet bullet that inherits ALL properties
-  ## SYNERGY SYSTEM: Ricochet bullets can split, explode, poison, etc.
-  let toTarget = (targetPos - sourceBullet.pos).normalize()
-  let vel = toTarget * sourceBullet.vel.length()
-
-  let ricochetBullet = cloneBullet(
-    sourceBullet,
-    sourceBullet.pos,
-    vel,
-    damageMultiplier,
-    1.0,  # Same speed
-    1.0,  # Same size
-    false  # Can still split
-  )
-
-  # Increment bounce count for the new bullet
-  ricochetBullet.bounceCount += 1
-  ricochetBullet.isRicochet = true  # Mark for statistics tracking
-
-  game.bullets.add(ricochetBullet)
+    trackBulletFired(game)
 
 proc createEchoBullet*(game: Game, sourceBullet: Bullet,
                       damageMultiplier: float32 = 0.4, speedMultiplier: float32 = 0.5,
@@ -759,3 +755,4 @@ proc createEchoBullet*(game: Game, sourceBullet: Bullet,
       echoBullet.hitEnemies.add(enemyId)
 
   game.bullets.add(echoBullet)
+  trackBulletFired(game)

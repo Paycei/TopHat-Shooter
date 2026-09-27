@@ -42,10 +42,10 @@ type
 
 const
   AdvancementProfileVersion* = 1
-  AdvancementRogueliteSectorsPerAct = 3
   CubeEscapeAdvancementId* = "mastery_escape_velocity"
   CheaterAdvancementId* = "mastery_cheater"
   FlawlessWaveAdvancementId* = "survival_flawless_kernel"
+  SurvivalStabilizedAdvancementId* = "survival_system_stabilized"
 
 proc saveAdvancements*(profile: AdvancementProfile): bool
 
@@ -66,7 +66,7 @@ proc categoryDescription*(category: AdvancementCategory): string =
   of acSurvival: "Waves, endurance, no-damage windows, and clutch play."
   of acResources: "Credits, consumables, walls, and economy control."
   of acMastery: "Power-up drafting, legendary installs, and build depth."
-  of acRoguelite: "Sector clears, banked shards, Heat unlocks, and full-run wins."
+  of acRoguelite: "Sector clears, banked shards, Heat earned by winning, and full-run wins."
 
 proc tierName*(tier: AdvancementTier): string =
   case tier
@@ -75,15 +75,6 @@ proc tierName*(tier: AdvancementTier): string =
   of atGold: "Gold"
   of atLegendary: "Legendary"
   of atMythic: "Mythic"
-
-proc tierRank*(tier: AdvancementTier): int =
-  ## Rarity ordering used to sort advancement lists: Bronze -> Legendary.
-  case tier
-  of atBronze: 0
-  of atSilver: 1
-  of atGold: 2
-  of atLegendary: 3
-  of atMythic: 4
 
 proc allAdvancementTiers*(): array[5, AdvancementTier] =
   [atBronze, atSilver, atGold, atLegendary, atMythic]
@@ -264,6 +255,14 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
       target: 90.0'f32,
     ),
     AdvancementDefinition(
+      id: SurvivalStabilizedAdvancementId,
+      name: "System Stabilized",
+      description: "Beat the 20:00 final process in time survival.",
+      category: acSurvival,
+      tier: atLegendary,
+      target: 1.0'f32,
+    ),
+    AdvancementDefinition(
       id: FlawlessWaveAdvancementId,
       name: "Flawless Kernel",
       description: "Clear wave mode start to finish without dying once - no Continue.",
@@ -373,15 +372,15 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "roguelite_first_sector",
       name: "First Sector Clear",
-      description: "Clear any 3-wave roguelite sector.",
+      description: "Shut down the SERVICE at the end of any roguelite sector.",
       category: acRoguelite,
       tier: atBronze,
       target: 1.0'f32,
     ),
     AdvancementDefinition(
       id: "roguelite_act_runner",
-      name: "Act Runner",
-      description: "Clear 5 roguelite sectors across all runs.",
+      name: "Sector Runner",
+      description: "Shut down 5 sector SERVICEs across all roguelite runs.",
       category: acRoguelite,
       tier: atSilver,
       target: 5.0'f32,
@@ -397,7 +396,7 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "roguelite_heat_check",
       name: "Heat Check",
-      description: "Unlock Heat 2 from the roguelite unlock shop.",
+      description: "Win a roguelite run at Heat 1 to unlock Heat 2.",
       category: acRoguelite,
       tier: atSilver,
       target: 2.0'f32,
@@ -405,7 +404,7 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "roguelite_heat_singularity",
       name: "Heat Singularity",
-      description: "Unlock Heat 3, the highest roguelite Heat.",
+      description: "Win at Heat 2 to unlock Heat 3, the highest roguelite Heat.",
       category: acRoguelite,
       tier: atLegendary,
       target: 3.0'f32,
@@ -413,7 +412,7 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     AdvancementDefinition(
       id: "roguelite_victory_kernel",
       name: "Victory Kernel",
-      description: "Defeat the third act boss and complete a roguelite run.",
+      description: "Shut down the final SERVICE and complete a roguelite run.",
       category: acRoguelite,
       tier: atLegendary,
       target: 1.0'f32,
@@ -545,26 +544,12 @@ proc totalClaimed*(profile: AdvancementProfile): int =
     if entry.claimed:
       inc result
 
-proc totalClaimedShards*(profile: AdvancementProfile): int =
-  if profile.isNil: return 0
-  for def in AllAdvancementDefs:
-    let entry = profile.getAdvancementEntry(def.id)
-    if entry.claimed:
-      result += def.rewardShards
-
 proc unclaimedShards*(profile: AdvancementProfile): int =
   if profile.isNil: return 0
   for def in AllAdvancementDefs:
     let entry = profile.getAdvancementEntry(def.id)
     if entry.unlocked and not entry.claimed:
       result += def.rewardShards
-
-proc unclaimedCores*(profile: AdvancementProfile): int =
-  if profile.isNil: return 0
-  for def in AllAdvancementDefs:
-    let entry = profile.getAdvancementEntry(def.id)
-    if entry.unlocked and not entry.claimed:
-      result += def.rewardCores
 
 proc categoryTotals*(profile: AdvancementProfile,
                      category: AdvancementCategory): tuple[unlocked, total, unclaimed: int] =
@@ -618,10 +603,17 @@ proc totalBosses(stats: Statistics): int =
   stats.waveMode.bossesDefeated + stats.timeMode.bossesDefeated + stats.rogueliteMode.bossesDefeated
 
 proc uniqueBossesDefeated(stats: Statistics): int =
-  ## Distinct boss definitions cleared at least once. There are 12 unique
+  ## Distinct campaign bosses cleared at least once. There are 12 unique
   ## bosses (one per 5-wave gauntlet up to wave 60); the codex tracks coverage.
+  ## Only the campaign counts: the Survival and Roguelite rosters are extra
+  ## IDs (13+), and an Omega Entity beaten in either mode counts as boss 12.
   if stats.isNil: return 0
-  stats.defeatedBossIDs.len
+  var seen: set[0..12]
+  for id in stats.defeatedBossIDs:
+    let canonical = canonicalBossId(id)
+    if isWaveBossId(canonical):
+      seen.incl(canonical)
+  seen.card
 
 proc highestWave(stats: Statistics): int =
   if stats.isNil: return 0
@@ -645,9 +637,11 @@ proc countElementalPowerUps(runStats: RunStatistics): int =
       discard
 
 proc rogueliteSectorsCleared(profile: RogueliteProfile): int =
+  ## Lifetime sector SERVICEs shut down. Profiles from before that counter
+  ## existed fall back to the sectors their best run completed.
   if profile.isNil:
     return 0
-  max(profile.bestRooms, max(0, profile.bestFloor - 1) * AdvancementRogueliteSectorsPerAct)
+  max(profile.sectorsCleared, max(0, profile.bestFloor - 1))
 
 proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
                       lastRun: RunStatistics,
@@ -685,7 +679,11 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
   of "survival_five_minutes", "survival_twenty_minutes", "survival_deep_runtime":
     var survived = longestSurvival(stats)
     if liveRun and not lastRun.isNil and lastRun.gameMode == gmTimeSurvival:
-      survived = max(survived, lastRun.runDuration)
+      # The survival clock, not the run's wall time: the clock pauses for boss
+      # fights and drafts, and the lifetime record (longestSurvivalTime) is
+      # measured on it too.
+      survived = max(survived, if lastRun.survivalClock > 0: lastRun.survivalClock
+                               else: lastRun.runDuration)
     survived
   of "survival_clean_window", "survival_phantom_runtime":
     if lastRun.isNil: 0.0'f32 else: lastRun.movement.longestNoDamageStreak
@@ -712,8 +710,10 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.highestHeat.float32
   of "roguelite_victory_kernel":
     if rogueliteProfile.isNil: 0.0'f32 else: rogueliteProfile.wins.float32
-  of CubeEscapeAdvancementId, CheaterAdvancementId, FlawlessWaveAdvancementId:
-    # Event-driven (desktop easter egg, cheat use, flawless wave-mode clear),
+  of CubeEscapeAdvancementId, CheaterAdvancementId, FlawlessWaveAdvancementId,
+     SurvivalStabilizedAdvancementId:
+    # Event-driven (desktop easter egg, cheat use, flawless wave-mode clear,
+    # survival final boss beaten),
     # never derived from stats; unlocked via unlockAdvancementDirectly.
     # Returning 0 keeps sync from touching it.
     0.0'f32
@@ -729,6 +729,9 @@ proc syncAdvancements*(profile: AdvancementProfile, stats: Statistics,
   if profile.isNil:
     return @[]
   profile.ensureAdvancementEntries()
+  # A cheated run never counts (claims pay shards), just as lifetime stats skip
+  # it. Its record is still saved as the last run, so it has to be filtered here.
+  let lastRun = if not lastRun.isNil and lastRun.cheatsUsed: nil else: lastRun
 
   for def in getAdvancementDefinitions():
     let idx = profile.findEntryIndex(def.id)

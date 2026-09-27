@@ -23,10 +23,7 @@ proc getBoss3D*(bossId: int): Boss3D =
       phaseTransitionTimer: 0.0,
       attackPattern: 0,
       patternTimer: 0.0,
-      shieldActive: false,
       shieldHealth: 0.0,
-      maxShieldHealth: 0.0,
-      clones: @[],
       teleportTimer: 0.0,
       gravityWells: @[],
       berserkModeActive: false
@@ -43,8 +40,6 @@ proc getBoss3D*(bossId: int): Boss3D =
         maxHealth: 250.0,
         active: true,
         orbitSpeed: 0.8,
-        laserChargeTimer: 0.0,
-        targetSatelliteIndex: -1
       ))
 
   else:
@@ -60,10 +55,7 @@ proc getBoss3D*(bossId: int): Boss3D =
       phaseTransitionTimer: 0.0,
       attackPattern: 0,
       patternTimer: 0.0,
-      shieldActive: false,
       shieldHealth: 0.0,
-      maxShieldHealth: 0.0,
-      clones: @[],
       teleportTimer: 0.0,
       gravityWells: @[],
       berserkModeActive: false
@@ -125,7 +117,6 @@ proc executePhase1Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
         fromPlayer: false,
         active: true,
         isHoming: false,
-        homingTarget: vec3(0, 0, 0),
         homingStrength: 0.0
       ))
 
@@ -148,7 +139,6 @@ proc executePhase2Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
         fromPlayer: false,
         active: true,
         isHoming: false,
-        homingTarget: vec3(0, 0, 0),
         homingStrength: 0.0
       ))
 
@@ -180,7 +170,6 @@ proc executePhase2Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
         fromPlayer: false,
         active: true,
         isHoming: false,
-        homingTarget: vec3(0, 0, 0),
         homingStrength: 0.0
       ))
 
@@ -223,7 +212,6 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
       fromPlayer: false,
       active: true,
       isHoming: false,
-      homingTarget: vec3(0, 0, 0),
       homingStrength: 0.0
     ))
 
@@ -243,7 +231,6 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
           fromPlayer: false,
           active: true,
           isHoming: true,
-          homingTarget: player.pos,
           homingStrength: 200.0
         ))
 
@@ -270,7 +257,6 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
           fromPlayer: false,
           active: true,
           isHoming: false,
-          homingTarget: vec3(0, 0, 0),
           homingStrength: 0.0
         ))
 

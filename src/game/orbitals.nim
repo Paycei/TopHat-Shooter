@@ -1,17 +1,13 @@
 import raylib, rlgl, math, tables
 import types, player, particle_pool, particle_types, powerup, game/combat, game/bullets
-from run_statistics import trackPowerUpDamage, trackPowerUpHealing
+from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, trackHealing
 
 # ORBITAL WEAPONS SYSTEM
 
 proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
-                    baseDamage: float32, orbPos: Vector2f, currentTime: float32,
-                    enemyIdx: int, stats: CombatStats): bool =
-  ## Apply damage from orb to enemy and handle hit cooldown
-  ## Returns true if damage was applied
-
-  if orb.lastHitTime.getOrDefault(enemyIdx, 0.0) > currentTime - 0.5:
-    return false  # Still within 0.5s cooldown
+                    baseDamage: float32, orbPos: Vector2f,
+                    stats: CombatStats) =
+  ## Apply damage from orb to enemy (the caller owns the hit cooldown)
 
   # Calculate actual damage
   var actualBaseDamage = baseDamage
@@ -41,59 +37,54 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
   let damageWithCrit = applyCriticalHitFromStats(stats, actualBaseDamage)
   let actualDamage = damageEnemy(enemy, damageWithCrit)
 
-  # Track statistics for the orb type
-  if hasPowerUp(game.player, puRotatingOrbs):
-    trackPowerUpDamage(game, puRotatingOrbs, actualDamage)
-  else:
-    # Track individual orb type with mastery bonus
-    case orb.elementType
-    of etPoison:
-      trackPowerUpDamage(game, puPoisonOrb, actualDamage)
-      if game.player.hasPoisonMastery:
-        trackPowerUpDamage(game, puPoisonMastery, actualDamage)
-    of etFire:
-      trackPowerUpDamage(game, puFireOrb, actualDamage)
-      if game.player.hasFireMastery:
-        trackPowerUpDamage(game, puFireMastery, actualDamage)
-    of etLightning:
-      trackPowerUpDamage(game, puLightningOrb, actualDamage)
-      if game.player.hasLightningMastery:
-        trackPowerUpDamage(game, puLightningMastery, actualDamage)
-    of etWind:
-      trackPowerUpDamage(game, puWindOrb, actualDamage)
-      if game.player.hasWindMastery:
-        trackPowerUpDamage(game, puWindMastery, actualDamage)
-    of etFrost:
-      trackPowerUpDamage(game, puFrostOrb, actualDamage)
-      if game.player.hasFrostMastery:
-        trackPowerUpDamage(game, puFrostMastery, actualDamage)
-    of etArcane:
-      trackPowerUpDamage(game, puArcaneOrb, actualDamage)
-      if game.player.hasArcaneMastery:
-        trackPowerUpDamage(game, puArcaneMastery, actualDamage)
-    of etBlood:
-      trackPowerUpDamage(game, puBloodOrb, actualDamage)
-      if game.player.hasBloodMastery:
-        trackPowerUpDamage(game, puBloodMastery, actualDamage)
-    of etNone: discard
+  # Track statistics for the orb type.
+  #
+  # The mastery share is derived from orbMasteryMult, the multiplier that was
+  # actually applied above -- so poison/fire/frost/blood masteries (whose payoff
+  # is the DoT, the chill and the lifesteal, and which leave orbMasteryMult at
+  # 1.0) are no longer credited impact damage they did not add.
+  #
+  # With the legendary owned, baseDamage comes from puRotatingOrbs rather than
+  # from any element orb's level, so the legendary is the base earner -- but the
+  # mastery still gets its cut, which the old branch dropped entirely.
+  if orb.elementType != etNone:
+    let masteryPower = case orb.elementType
+      of etPoison: puPoisonMastery
+      of etFire: puFireMastery
+      of etLightning: puLightningMastery
+      of etWind: puWindMastery
+      of etFrost: puFrostMastery
+      of etArcane: puArcaneMastery
+      else: puBloodMastery
+    let basePower =
+      if hasPowerUp(game.player, puRotatingOrbs): puRotatingOrbs
+      else:
+        case orb.elementType
+        of etPoison: puPoisonOrb
+        of etFire: puFireOrb
+        of etLightning: puLightningOrb
+        of etWind: puWindOrb
+        of etFrost: puFrostOrb
+        of etArcane: puArcaneOrb
+        else: puBloodOrb
+    trackPowerUpDamageWithMastery(game, basePower, masteryPower, actualDamage, orbMasteryMult)
 
   # Create damage number
   game.showDamage(enemy.pos, actualDamage, fromPlayer = true,
                   isCritical = damageWithCrit > actualBaseDamage, damageType = dtDefault)
 
-  # Record hit time
-  orb.lastHitTime[enemyIdx] = currentTime
-
-  return true
-
 proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
                      baseDamage: float32, orbPos: Vector2f, dt: float32,
-                     stats: CombatStats) =
-  ## Apply element-specific effects from orb to enemy
+                     stats: CombatStats, shielded: bool) =
+  ## Apply element-specific effects from orb to enemy. `shielded` = a Port
+  ## Guard's shield took the orb: its burns and lifesteal ride on damage that
+  ## never landed, so they are dropped (knockback, chill and chains still go).
+  if shielded and orb.elementType in {etPoison, etFire, etBlood}:
+    return
 
   case orb.elementType
   of etPoison:
-    let poisonDmg = 0.3 + game.player.damage * 0.2
+    let poisonDmg = 0.25 + game.player.damage * 0.18
     applyMasteryDoT(enemy, etPoison, poisonDmg, 5.0,
                     game.player.hasPoisonMastery,
                     masteryDmgMult = PoisonMasteryDmgMult, masteryDurMult = PoisonMasteryDurMult,
@@ -104,7 +95,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
                    Color(r: 100, g: 255, b: 100, a: 255), 5)
 
   of etFire:
-    let fireDmg = 0.6 + game.player.damage * 0.25
+    let fireDmg = 0.5 + game.player.damage * 0.22
     applyMasteryDoT(enemy, etFire, fireDmg, 2.0,
                     game.player.hasFireMastery,
                     masteryDmgMult = FireMasteryDmgMult, masteryDurMult = FireMasteryDurMult,
@@ -140,19 +131,20 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
     # Apply chain damage
     if nearestEnemy != nil:
       let chainDamageWithCrit = applyCriticalHitFromStats(stats, chainBase)
-      let chainDamage = damageEnemy(nearestEnemy, chainDamageWithCrit)
+      let chainDamage =
+        if shieldBlocksHit(game, nearestEnemy, enemy.pos): 0.0'f32
+        else: damageEnemy(nearestEnemy, chainDamageWithCrit)
 
       # Track lightning orb chain damage, belongs to puChainLightning regardless of trigger source
       trackPowerUpDamage(game, puChainLightning, chainDamage)
 
-      game.showDamage(nearestEnemy.pos, chainDamage, fromPlayer = true,
-                      isCritical = chainDamageWithCrit > chainBase, damageType = dtLightning)
+      if chainDamage > 0:
+        game.showDamage(nearestEnemy.pos, chainDamage, fromPlayer = true,
+                        isCritical = chainDamageWithCrit > chainBase, damageType = dtLightning)
 
       # Apply slow if has Lightning Mastery
       if game.player.hasLightningMastery:
-        nearestEnemy.slowTimer = 0.2
-        if nearestEnemy.slowAmount < 0.25:
-          nearestEnemy.slowAmount = 0.25  # 25% slow
+        applySlow(nearestEnemy, 0.25, 0.2)  # 25% slow
 
       # Lightning arc from hit enemy to chained enemy
       spawnLightningBolt(game, enemy.pos, nearestEnemy.pos)
@@ -171,66 +163,59 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
 
         if secondNearestEnemy != nil:
           let secondChainDamageWithCrit = applyCriticalHitFromStats(stats, chainBase)
-          let secondChainDamage = damageEnemy(secondNearestEnemy, secondChainDamageWithCrit)
+          let secondChainDamage =
+            if shieldBlocksHit(game, secondNearestEnemy, nearestEnemy.pos): 0.0'f32
+            else: damageEnemy(secondNearestEnemy, secondChainDamageWithCrit)
 
           # Track second chain damage, belongs to puChainLightning regardless of trigger source
           trackPowerUpDamage(game, puChainLightning, secondChainDamage)
 
-          game.showDamage(secondNearestEnemy.pos, secondChainDamage, fromPlayer = true,
-                          isCritical = secondChainDamageWithCrit > chainBase, damageType = dtLightning)
+          if secondChainDamage > 0:
+            game.showDamage(secondNearestEnemy.pos, secondChainDamage, fromPlayer = true,
+                            isCritical = secondChainDamageWithCrit > chainBase, damageType = dtLightning)
 
-          secondNearestEnemy.slowTimer = 0.2
-          if secondNearestEnemy.slowAmount < 0.25:
-            secondNearestEnemy.slowAmount = 0.25
+          applySlow(secondNearestEnemy, 0.25, 0.2)
 
           # Lightning arc from first chain to second chain
           spawnLightningBolt(game, nearestEnemy.pos, secondNearestEnemy.pos)
 
     # Apply slow to primary target if has Lightning Mastery
     if game.player.hasLightningMastery:
-      enemy.slowTimer = 0.2
-      if enemy.slowAmount < 0.25:
-        enemy.slowAmount = 0.25
+      applySlow(enemy, 0.25, 0.2)
 
     # Yellow particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y, Yellow, 5)
 
   of etWind:
-    # Wind: Knockback
+    # Wind: Knockback, as a single impulse through enemy.knockbackVel (it used
+    # to be a dt-scaled one-frame nudge: a few pixels, and frame-rate dependent).
     let pushDir = (enemy.pos - game.player.pos).normalize()
-    var pushForce = 200.0
-    let bossResistance = if enemy.isBoss: 0.1 else: 1.0
+    var pushForce = 200.0'f32
+    let bossResistance = if enemy.isBoss: 0.1'f32 else: 1.0'f32
 
     if game.player.hasWindMastery:
       pushForce *= 3.5  # +250% stronger
 
-    enemy.pos.x += pushDir.x * pushForce * dt * bossResistance
-    enemy.pos.y += pushDir.y * pushForce * dt * bossResistance
-
-    # Clamp to screen boundaries - enemies can't be pushed through borders
-    enemy.pos.x = clamp(enemy.pos.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
-    enemy.pos.y = clamp(enemy.pos.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
+    let launch = pushDir * (windHitLaunch(pushForce) * bossResistance)
+    if launch.length() > enemy.knockbackVel.length():
+      enemy.knockbackVel = launch
 
     # Apply slow only with Wind Mastery
     if game.player.hasWindMastery:
-      enemy.slowTimer = 0.2
-      if enemy.slowAmount < 0.45:
-        enemy.slowAmount = 0.45  # 45% slow
+      applySlow(enemy, 0.45, 0.2)  # 45% slow
 
     # Cyan particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
                    Color(r: 200, g: 230, b: 255, a: 255), 5)
 
   of etFrost:
-    # Frost: Permanent slow
-    enemy.slowTimer = 999.0
-    var frostSlow = 0.3  # Base 30%
+    # Frost: Permanent slow, in the frost slot so short slows can't erase it
+    var frostSlow = 0.3'f32  # Base 30%
 
     if game.player.hasFrostMastery:
       frostSlow = 0.55  # 55% with mastery
 
-    if enemy.slowAmount < frostSlow:
-      enemy.slowAmount = frostSlow
+    applyFrostChill(enemy, frostSlow)
 
     # Light blue particles
     spawnExplosionPooled(game.particlePool, orbPos.x, orbPos.y,
@@ -243,18 +228,20 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
 
   of etBlood:
     # Blood: Lifesteal
-    var lifestealPercent = 0.05  # Base 5%
+    let masteryMult =
+      if game.player.hasBloodMastery: BloodMasteryLifestealMult  # 10.0% with mastery
+      else: 1.0'f32
+    let lifestealPercent = 0.045'f32 * masteryMult  # Base 4.5%
 
-    if game.player.hasBloodMastery:
-      lifestealPercent *= 2.0  # 10.0% with mastery
+    # Goes through heal() like every other lifesteal source: it was the only one
+    # writing hp directly, which silently skipped the player's heal-power
+    # multiplier and booked overheal as healing.
+    let orbHeal = baseDamage * lifestealPercent
+    let restored = heal(game.player, orbHeal)
+    trackHealing(game, puBloodOrb, orbHeal, restored, masteryMult)
 
-    let healAmount = baseDamage * lifestealPercent
-    game.player.hp = min(game.player.hp + healAmount, game.player.maxHp)
-    if healAmount > 0.0:
-      trackPowerUpHealing(game, puBloodOrb, healAmount)
-
-    if healAmount > 0.01:
-      game.showDamage(game.player.pos, healAmount, fromPlayer = true,
+    if restored > 0.01:
+      game.showDamage(game.player.pos, restored, fromPlayer = true,
                       isCritical = false, damageType = dtHeal)
 
       # Green healing particles at player
@@ -279,9 +266,9 @@ proc updateOrbitalWeapons*(game: var Game, dt: float32) =
   let orbStats = calculateCombatStats(game.player)
 
   # Calculate base damage
-  let damageScaling = game.player.damage * 0.2
+  let damageScaling = game.player.damage * 0.18
   let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
-    5.0 + damageScaling  # Legendary version
+    4.5 + damageScaling  # Legendary version
   else:
     # For individual orbs, use level-based damage
     var maxDamage = 0.0
@@ -314,18 +301,24 @@ proc updateOrbitalWeapons*(game: var Game, dt: float32) =
     let orbPos = newVector2f(orbX, orbY)
 
     # Check collisions with enemies
-    var enemyIdx = 0
     for enemy in game.enemies:
       let dist = distance(orbPos, enemy.pos)
 
-      # Check if orb is touching enemy
-      if dist < orbRadius + enemy.radius + orbDetectionRange:
-        # Apply damage
-        if applyOrbDamage(game, orb, enemy, baseDamage, orbPos, game.time, enemyIdx, orbStats):
-          # Apply element-specific effects
-          applyOrbEffects(game, orb, enemy, baseDamage, orbPos, dt, orbStats)
-
-      enemyIdx += 1
+      # Check if orb is touching enemy. The 0.5s hit cooldown is keyed by the
+      # enemy's stable id. It used to be keyed by its index in game.enemies,
+      # which shifts every time an enemy dies, so the cooldown jumped onto
+      # whichever enemy slid into that slot.
+      if dist < orbRadius + enemy.radius + orbDetectionRange and
+          orb.lastHitTime.getOrDefault(enemy.id, -1.0) <= game.time - 0.5:
+        orb.lastHitTime[enemy.id] = game.time
+        # A Port Guard facing the player takes the orb on its shield. A
+        # blocked touch still spends the cooldown, so it sparks once per
+        # window instead of every frame.
+        let shielded = shieldBlocksHit(game, enemy, game.player.pos)
+        if not shielded:
+          applyOrbDamage(game, orb, enemy, baseDamage, orbPos, orbStats)
+        # Apply element-specific effects
+        applyOrbEffects(game, orb, enemy, baseDamage, orbPos, dt, orbStats, shielded)
 
     # Clean up old hit times to prevent memory growth
     var toRemove: seq[int] = @[]

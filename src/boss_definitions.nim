@@ -1,62 +1,52 @@
 ## Boss Definitions System
 ## Allows complete customization of boss behavior, properties, attacks, and phases
 
-import math, random, raylib
+import math, raylib, tables
 import localization, types
 
-type
-  BossAttackPattern* = enum
-    bapSpiral,           # Shoots bullets in spiral
-    bapBurst,            # Rapid burst fire
-    bapWave,             # Wave pattern
-    bapTargeted,         # Direct shots at player
-    bapCircle,           # Circle of bullets
-    bapLaser,            # Laser beams
-    bapOrbit,            # Orbiting projectiles
-    bapMeteor,           # Falling projectiles
-    bapChain,            # Chain lightning
-    bapPulse,            # Expanding pulse
-    bapTeleport,         # Teleport then attack
-    bapSummon,           # Spawn minions
-    bapDash,             # Dash attack
-    bapBarrage,          # Massive projectile barrage
-    bapSnipe,            # Precise aimed shots
-    bapMinionVolley      # Living summoned adds fire at the player in unison (Summoner King)
+# Mods (MODS.EXE): bosses registered by mods (IDs >= ModBossIdBase) and
+# replacements for built-in IDs, filled by mod_api and wiped on every reload.
+# Everything that resolves a boss ID consults these first.
+const ModBossIdBase* = 1000
+var
+  modBossDefs*: Table[int, BossDefinition]
+  modBossSlotWaves*: Table[int, int]      ## authored slot of a mod boss (default 25)
+  modBossProcessNames*: Table[int, string]
 
-  BossAttack* = object
-    attackType*: BossAttackPattern
-    damage*: float32
-    cooldown*: float32
-    timer*: float32
-    projectileSpeed*: float32
-    projectileCount*: int
-    spreadAngle*: float32
-    durationOrRadius*: float32
-    bulletRadius*: float32     # Bullet size override (0 = use default 6)
-    specialData*: string  # JSON-like data for special mechanics
+proc hasModBoss*(bossId: int): bool {.inline.} = modBossDefs.hasKey(bossId)
 
-  BossPhaseDefinition* = object
-    name*: string
-    hpThreshold*: float32      # Enters this phase when HP drops below this %
-    speedMultiplier*: float32
-    damageMultiplier*: float32
-    defenseMultiplier*: float32
-    attacks*: seq[BossAttack]
-    color*: Color
-    visualEffect*: string      # "glow", "aura", "shield", "pulse"
-    specialBehavior*: string
+proc modBossIdsSorted*(): seq[int] =
+  ## Bosses mods registered (not built-in IDs they replaced), in ID order.
+  for id in modBossDefs.keys:
+    if id >= ModBossIdBase: result.add(id)
+  for i in 1 ..< result.len:
+    var j = i
+    while j > 0 and result[j - 1] > result[j]:
+      swap(result[j - 1], result[j])
+      dec j
 
-  BossDefinition* = object
-    name*: string
-    bossID*: int
-    baseHP*: float32
-    baseSpeed*: float32
-    baseDamage*: int
-    baseRadius*: float32
-    color*: Color
-    phases*: seq[BossPhaseDefinition]
-    description*: string
-    weakPoint*: BossWeakPointDefinition
+proc clearModBosses*() =
+  modBossDefs.clear()
+  modBossSlotWaves.clear()
+  modBossProcessNames.clear()
+
+
+proc bossWeakTier*(bossID: int): int =
+  ## Weak-point resistance tier (1-4). The wave campaign keys it on the boss
+  ## number; the mode rosters map onto the wave boss they stand in for: the
+  ## survival bosses replace bosses 3 / 6 / 9 / 12, the roguelite guardians
+  ## fight at sector budgets (tier 2), and the Omega kits are always tier 4.
+  if bossID in 1..4: 1
+  elif bossID in 5..8: 2
+  elif bossID in 9..11: 3
+  elif isOmegaBoss(bossID): 4
+  else:
+    case bossID
+    of 13: 1
+    of 14: 2
+    of 15: 3
+    of 17..22: 2
+    else: 0
 
 proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   # Body damage is heavily resisted; the real damage happens in the weak-point
@@ -65,16 +55,12 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   # because those were the worst offenders for "just shoot to win":
   #   tier 1-4  ~3.6x   tier 5-8  ~6x   tier 9-11 ~11x   tier 12 ~17x
   let (bodyMult, weakMult, exposure) =
-    if bossID in 1..4:
-      (0.55'f32, 1.5'f32, 2.4'f32)
-    elif bossID in 5..8:
-      (0.40'f32, 2.0'f32, 2.2'f32)
-    elif bossID in 9..11:
-      (0.28'f32, 2.5'f32, 2.0'f32)
-    elif bossID == 12:
-      (0.20'f32, 3.0'f32, 1.8'f32)
-    else:
-      (1.0'f32, 1.0'f32, 0.0'f32)
+    case bossWeakTier(bossID)
+    of 1: (0.55'f32, 1.5'f32, 2.4'f32)
+    of 2: (0.40'f32, 2.0'f32, 2.2'f32)
+    of 3: (0.28'f32, 2.5'f32, 2.0'f32)
+    of 4: (0.20'f32, 3.0'f32, 1.8'f32)
+    else: (1.0'f32, 1.0'f32, 0.0'f32)
 
   proc spec(kind: BossWeakObjectiveKind, requiredHits, targetCount: int): BossWeakPointDefinition =
     BossWeakPointDefinition(
@@ -90,7 +76,7 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
 
   case bossID
   of 1: spec(bwoSpiralAnchors, 3, 3)
-  of 2: spec(bwoSummonSigils, 3, 3)
+  of 2: spec(bwoSummonSigils, 2, 0)  # Pips count Royal Guards; 2 = phase one's legion (set per summon)
   of 3: spec(bwoMeteorCracks, 2, 2)
   of 4: spec(bwoLaserPrisms, 2, 2)
   of 5: spec(bwoVoidRifts, 1, 3)
@@ -103,10 +89,70 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   of 9: spec(bwoPrismSequence, 3, 3)
   of 10: spec(bwoClockNodes, 2, 4)
   of 11: spec(bwoChaosAnomalies, 3, 3)
-  of 12: spec(bwoOmegaCycle, 3, 3)
+  of 12, 16, 23: spec(bwoOmegaCycle, 3, 3)
+  # Mode rosters reuse the generic objectives. The Forkmother's children ARE
+  # her objective (the Summoner King's guard pipeline): the last one down
+  # opens the window.
+  of 13: spec(bwoSummonSigils, 2, 0)
+  of 14: spec(bwoCoilSequence, 3, 3)    # service the dispatch queue in order
+  of 15: spec(bwoMeteorCracks, 2, 2)    # vent the heat sinks
+  of 17: spec(bwoLaserPrisms, 2, 2)     # shatter the searchlight lenses
+  of 18: spec(bwoChaosAnomalies, 3, 3)  # shred the stray files
+  of 19: spec(bwoPrismSequence, 3, 3)   # read the keys in order
+  of 20: spec(bwoClockNodes, 2, 4)      # hit the relay nodes on their pulse
+  of 21: spec(bwoSpiralAnchors, 3, 3)   # knock out the page anchors
+  of 22: spec(bwoVoidRifts, 1, 3)       # find the real copy
   else: BossWeakPointDefinition(kind: bwoNone)
 
-proc getBossDefinition*(bossNumber: int): BossDefinition =
+proc isRootBoss*(bossNumber: int): bool =
+  ## The Omega Entity (boss 12 and its two mode kits) is the Root itself
+  ## taking form; the wave bosses are services it hijacked, the survival
+  ## bosses spawn from its flood and the roguelite guardians are legacy
+  ## processes it woke. Same model the lore cinematics use.
+  isOmegaBoss(bossNumber)
+
+proc getBossProcessName*(bossNumber: int): string =
+  ## In-fiction process name of the service the boss was made from.
+  case bossNumber
+  of 1: t(tkBoss1Process)
+  of 2: t(tkBoss2Process)
+  of 3: t(tkBoss3Process)
+  of 4: t(tkBoss4Process)
+  of 5: t(tkBoss5Process)
+  of 6: t(tkBoss6Process)
+  of 7: t(tkBoss7Process)
+  of 8: t(tkBoss8Process)
+  of 9: t(tkBoss9Process)
+  of 10: t(tkBoss10Process)
+  of 11: t(tkBoss11Process)
+  of 12, 16, 23: t(tkBoss12Process)
+  of 13: t(tkBoss13Process)
+  of 14: t(tkBoss14Process)
+  of 15: t(tkBoss15Process)
+  of 17: t(tkBoss17Process)
+  of 18: t(tkBoss18Process)
+  of 19: t(tkBoss19Process)
+  of 20: t(tkBoss20Process)
+  of 21: t(tkBoss21Process)
+  of 22: t(tkBoss22Process)
+  else: modBossProcessNames.getOrDefault(bossNumber, "")
+
+proc getBossServiceTag*(bossNumber: int): string =
+  ## "HIJACKED SERVICE: scheduler.exe" line for the boss intro card and Help
+  ## list; "HIJACKER: root (uid 0)" for the Root, "FLOOD SPAWN" for the
+  ## survival bosses and "LEGACY PROCESS" for the roguelite guardians. Empty
+  ## for unknown IDs.
+  let process = getBossProcessName(bossNumber)
+  if process.len == 0:
+    return ""
+  let label =
+    if isRootBoss(bossNumber): t(tkBossTagHijacker)
+    elif bossNumber in 13..15: t(tkBossTagFloodSpawn)
+    elif bossNumber in 17..22: t(tkBossTagLegacy)
+    else: t(tkBossTagService)
+  label & ": " & process
+
+proc buildVanillaBossDefinition(bossNumber: int): BossDefinition =
   case bossNumber
   of 1:  # Wave 5 - THE SPIRAL GUARDIAN
     result = BossDefinition(
@@ -126,7 +172,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 0.85,
           color: Color(r: 100, g: 50, b: 200, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "circle_movement",
           attacks: @[
             BossAttack(
@@ -156,7 +201,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 1.1,
           color: Color(r: 150, g: 30, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "aggressive",
           attacks: @[
             BossAttack(
@@ -186,7 +230,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss2Name),
       bossID: 2,
-      baseHP: 300.0,  # durability buff: was 220 -> 250; was dying too fast off its add-clear windows, now a tankier wall to grind through while clearing the legion
+      baseHP: 300.0,
       baseSpeed: 65.0,
       baseDamage: 1,
       baseRadius: 50.0,
@@ -200,18 +244,22 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 1.1,  # durability buff: shielded/defensive opening now resists ~10% of body damage (scales window damage equally, so the weak-point gap is preserved)
           color: Color(r: 50, g: 150, b: 50, a: 255),
-          visualEffect: "shield",
           specialBehavior: "defensive",
           attacks: @[
             BossAttack(
+              # Legion Muster (game/bosses.nim): a ring of rank and file around
+              # the King with its Royal Guards set into it. projectileCount is
+              # the rank and file; the guard count comes from specialData. The
+              # countdown only ticks once every guard is down, and outlasts the
+              # vulnerability window by a short breath before the next muster.
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 2.5,  # reduced from 4.5: timer only ticks after adds are cleared
+              cooldown: 3.4,
               projectileSpeed: 0.0,
-              projectileCount: 4,
+              projectileCount: 12,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
-              specialData: "minion_circle"
+              specialData: "legion_muster"
             ),
             BossAttack(
               # Generic wave demoted to occasional filler so the themed attacks lead.
@@ -237,13 +285,13 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "royal_sigils"
             ),
             BossAttack(
-              # Legion Volley: short cooldown so the legion pressures the player
-              # while they clear the sealed wave.
+              # Legion Volley: every living Royal Guard throws a short spear of
+              # shots, so the guards are the priority targets twice over.
               attackType: bapMinionVolley,
               damage: 1.0,
-              cooldown: 1.8,
+              cooldown: 2.0,
               projectileSpeed: 165.0,
-              projectileCount: 5,  # fallback fan when no adds are alive
+              projectileCount: 5,  # the King's own fallback fan while no guard is alive
               spreadAngle: 45.0,
               durationOrRadius: 0.0,
               bulletRadius: 8.0
@@ -269,18 +317,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.05,  # durability buff: raised from 0.95; kept below the defensive opening (1.1) to preserve the roster's "squishier when enraged" step-down
           color: Color(r: 30, g: 200, b: 30, a: 255),
-          visualEffect: "glow",
           specialBehavior: "summon_frenzy",
           attacks: @[
             BossAttack(
+              # Legion Encirclement: the rank and file rise in a ring around the
+              # PLAYER, dashers set into it, while the guards muster at the
+              # King's side -- cut out of the ring to reach them. The next call
+              # lands as the vulnerability window closes.
               attackType: bapSummon,
               damage: 0.0,
-              cooldown: 2.0,  # reduced from 3.75: timer only ticks after adds are cleared
+              cooldown: 3.0,
               projectileSpeed: 0.0,
-              projectileCount: 3,
+              projectileCount: 14,
               spreadAngle: 0.0,
               durationOrRadius: 0.0,
-              specialData: "minion_triangle"
+              specialData: "legion_encircle"
             ),
             BossAttack(
               # Generic burst demoted to occasional filler.
@@ -317,10 +368,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               specialData: "royal_sigils"
             ),
             BossAttack(
-              # Faster Legion Volley to match the tighter phase-2 summon loop.
+              # Faster Legion Volley from the larger phase-2 guard.
               attackType: bapMinionVolley,
               damage: 1.0,
-              cooldown: 1.5,
+              cooldown: 1.7,
               projectileSpeed: 180.0,
               projectileCount: 5,  # fallback fan when no adds are alive
               spreadAngle: 50.0,
@@ -336,7 +387,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
     result = BossDefinition(
       name: t(tkBoss3Name),
       bossID: 3,
-      baseHP: 400.0,  # small general buff: +10% pool (was 300)
+      baseHP: 400.0,
       baseSpeed: 65.0,
       baseDamage: 2,
       baseRadius: 48.0,
@@ -350,7 +401,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.05,  # small general buff: was 1.0
           defenseMultiplier: 1.05,  # small general buff: was 1.0 (slightly sturdier opening)
           color: Color(r: 255, g: 100, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "circle_player",
           attacks: @[
             BossAttack(
@@ -393,7 +443,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.25,  # small general buff: was 1.2 (NERFED from 1.5)
           defenseMultiplier: 1.0,
           color: Color(r: 255, g: 50, b: 0, a: 255),
-          visualEffect: "aura",
           specialBehavior: "meteor_storm",
           attacks: @[
             BossAttack(
@@ -436,7 +485,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.35,  # small general buff: was 1.3
           defenseMultiplier: 1.075,
           color: Color(r: 255, g: 0, b: 0, a: 255),
-          visualEffect: "glow",
           specialBehavior: "enraged",
           attacks: @[
             BossAttack(
@@ -493,7 +541,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.0,
           defenseMultiplier: 1.2,
           color: Color(r: 0, g: 200, b: 255, a: 255),
-          visualEffect: "shield",
           specialBehavior: "geometric_movement",
           attacks: @[
             BossAttack(
@@ -533,7 +580,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,  # NERFED from 1.33
           defenseMultiplier: 1.1,
           color: Color(r: 0, g: 255, b: 255, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "laser_web",
           attacks: @[
             BossAttack(
@@ -582,7 +628,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,  # NERFED from 1.3
           defenseMultiplier: 1.0,
           color: Color(r: 100, g: 255, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "laser_chaos",
           attacks: @[
             BossAttack(
@@ -670,7 +715,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,  # NERFED from 1.0
           defenseMultiplier: 1.0,
           color: Color(r: 80, g: 0, b: 120, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "teleport_pattern",
           attacks: @[
             BossAttack(
@@ -722,7 +766,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,  # NERFED from 1.3
           defenseMultiplier: 0.9,
           color: Color(r: 120, g: 0, b: 180, a: 255),
-          visualEffect: "aura",
           specialBehavior: "clone_assault",
           attacks: @[
             BossAttack(
@@ -782,7 +825,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.1,  # NERFED from 1.5
           defenseMultiplier: 1.5,
           color: Color(r: 160, g: 40, b: 220, a: 255),
-          visualEffect: "glow",
           specialBehavior: "reality_break",
           attacks: @[
             BossAttack(
@@ -875,7 +917,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.85,
           defenseMultiplier: 1.35,
           color: Color(r: 255, g: 255, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "electric_buildup",  # Twitchy, charging movement
           attacks: @[
             BossAttack(
@@ -918,7 +959,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.1,
           color: Color(r: 255, g: 255, b: 150, a: 255),
-          visualEffect: "aura",
           specialBehavior: "electric_surge",  # Rapid twitchy movement
           attacks: @[
             BossAttack(
@@ -973,7 +1013,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.3,
           defenseMultiplier: 0.9,
           color: Color(r: 255, g: 255, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "critical_discharge",  # Chaotic electric movement
           attacks: @[
             BossAttack(
@@ -1041,7 +1080,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 0.9,
           defenseMultiplier: 1.4,
           color: Color(r: 150, g: 100, b: 255, a: 255),
-          visualEffect: "shield",
           specialBehavior: "orbital_pattern",  # Circular orbital movement
           attacks: @[
             BossAttack(
@@ -1097,7 +1135,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.2,
           defenseMultiplier: 1.3,
           color: Color(r: 180, g: 120, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "satellite_swarm",  # Multiple orbital patterns
           attacks: @[
             BossAttack(
@@ -1161,7 +1198,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.3,
           defenseMultiplier: 1.0,
           color: Color(r: 200, g: 150, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "orbital_chaos",  # Complex orbital patterns
           attacks: @[
             BossAttack(
@@ -1169,7 +1205,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
               damage: 14.0,
               cooldown: 0.6,
               projectileSpeed: 100.0,
-              projectileCount: 6,  # Eased: fewer satellites = fewer laser sources (was 8)
+              projectileCount: 4,  # Eased further: fewer satellites/laser sources cluttering the arena, leaving room to dodge the Orbital Scan (was 8, then 6)
               spreadAngle: 45.0,
               durationOrRadius: 220.0,
               specialData: "orbital_storm"  # Triple layer orbit
@@ -1241,19 +1277,26 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.8,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.2,
+          defenseMultiplier: 1.35,  # late-boss resistance buff: was 1.2
           color: Color(r: 200, g: 0, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "aggressive_chase",  # Direct pursuit
           attacks: @[
             BossAttack(
+              # Charge combo (game/bosses.nim): a real charge, sidestepped not
+              # outrun, hitting for `damage` on contact. One charge here to
+              # teach the lane. For charges durationOrRadius is the TRAVEL
+              # TIME to the aim point (each charge's speed derives from it)
+              # and projectileSpeed is the speed cap. Charge cooldowns only
+              # count the idle time BETWEEN combos (the combo freezes them)
+              # and stay >= the player's 2.5 s dash cooldown, so a saved
+              # dash is always back.
               attackType: bapDash,
               damage: 10.5,
               cooldown: 4.5,
-              projectileSpeed: 450.0,  # Fast charge
+              projectileSpeed: 1100.0,
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 0.0,
+              durationOrRadius: 0.22,
               specialData: "charge_attack"
             ),
             BossAttack(
@@ -1296,20 +1339,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.65,
           speedMultiplier: 0.9,  # NERFED from 1.1
           damageMultiplier: 1.3,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.2375,  # late-boss resistance buff: was 1.1
           color: Color(r: 255, g: 30, b: 0, a: 255),
-          visualEffect: "aura",
           specialBehavior: "enraged_assault",  # Aggressive movement
           attacks: @[
             BossAttack(
+              # Two charges, the second re-aimed after a short turn: both fit
+              # inside one dash cooldown, so one of them has to be walked.
               attackType: bapDash,
               damage: 14.0,
-              cooldown: 3.0,  # Frequent charges
-              projectileSpeed: 520.0,  # Very fast
+              cooldown: 3.5,
+              projectileSpeed: 1200.0,
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 0.0,
-              specialData: "double_charge"  # Charges twice
+              durationOrRadius: 0.20,
+              specialData: "double_charge"
             ),
             BossAttack(
               attackType: bapPulse,
@@ -1361,20 +1405,21 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.3,
           speedMultiplier: 1.1,  # NERFED from 1.2
           damageMultiplier: 1.5,
-          defenseMultiplier: 0.9,
+          defenseMultiplier: 1.0125,  # late-boss resistance buff: was 0.9
           color: Color(r: 255, g: 0, b: 0, a: 255),
-          visualEffect: "glow",
           specialBehavior: "berserk_rampage",  # Maximum aggression
           attacks: @[
             BossAttack(
+              # Three charges: the dash is back in time for one more of them,
+              # never for all three. The last one bursts a fire ring.
               attackType: bapDash,
               damage: 14.0,
-              cooldown: 2.0,  # Constant charging
-              projectileSpeed: 600.0,
+              cooldown: 3.0,  # was 2.0: the ~5 s combo itself now freezes every countdown
+              projectileSpeed: 1300.0,
               projectileCount: 0,
               spreadAngle: 0.0,
-              durationOrRadius: 0.0,
-              specialData: "rage_charge"  # Triple charge combo
+              durationOrRadius: 0.18,
+              specialData: "rage_charge"
             ),
             BossAttack(
               attackType: bapPulse,
@@ -1442,9 +1487,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.8,
           damageMultiplier: 0.9,
-          defenseMultiplier: 1.3,
+          defenseMultiplier: 1.5,  # late-boss resistance buff: was 1.3
           color: Color(r: 255, g: 200, b: 255, a: 255),
-          visualEffect: "shield",
           specialBehavior: "prism_defense",  # Geometric movement
           attacks: @[
             BossAttack(
@@ -1488,9 +1532,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.67,
           speedMultiplier: 1.1,
           damageMultiplier: 1.2,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.375,  # late-boss resistance buff: was 1.2
           color: Color(r: 200, g: 150, b: 255, a: 255),
-          visualEffect: "aura",
           specialBehavior: "prism_array",  # Figure-8 patterns
           attacks: @[
             BossAttack(
@@ -1530,10 +1573,9 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           name: t(tkBoss9Phase3),
           hpThreshold: 0.33,
           speedMultiplier: 1.2,
-          damageMultiplier: 1.25,
-          defenseMultiplier: 1.0,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.275,  # late-boss resistance buff: was 1.1
           color: Color(r: 255, g: 255, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "light_cascade",  # Sweeping arc movements
           attacks: @[
             BossAttack(
@@ -1602,9 +1644,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.7,
           damageMultiplier: 1.0,
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.3,  # late-boss resistance buff: was 1.1
           color: Color(r: 0, g: 180, b: 180, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "slow_time",  # Slow methodical movement
           attacks: @[
             BossAttack(
@@ -1648,9 +1689,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.65,
           speedMultiplier: 1.2,
           damageMultiplier: 1.1,
-          defenseMultiplier: 1.2,
+          defenseMultiplier: 1.4,  # late-boss resistance buff: was 1.2
           color: Color(r: 100, g: 220, b: 220, a: 255),  # Brighter cyan
-          visualEffect: "aura",
           specialBehavior: "time_distortion",  # Stuttering movement
           attacks: @[
             BossAttack(
@@ -1706,9 +1746,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.4,
           speedMultiplier: 1.3,  # Fast blinking
           damageMultiplier: 1.3,
-          defenseMultiplier: 1.2,
+          defenseMultiplier: 1.4,  # late-boss resistance buff: was 1.2
           color: Color(r: 150, g: 255, b: 255, a: 255),  # Bright cyan/white
-          visualEffect: "glow",
           specialBehavior: "time_collapse",  # Fast blinking movement
           attacks: @[
             BossAttack(
@@ -1786,16 +1825,15 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: t(tkBoss11Phase1),
           hpThreshold: 1.0,
-          speedMultiplier: 1.05,  # NERFED from 1.3
-          damageMultiplier: 0.9,  # NERFED from 1.0
-          defenseMultiplier: 1.2,  # NERFED from 1.3
+          speedMultiplier: 1.05,
+          damageMultiplier: 0.9,
+          defenseMultiplier: 1.325,  # late-boss resistance buff: was 1.1
           color: Color(r: 180, g: 0, b: 180, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "chaotic_movement",
           attacks: @[
             BossAttack(
               attackType: bapBarrage,
-              damage: 19.5,  # NERFED from 2.0
+              damage: 19.5,
               cooldown: 3.5,  # demoted: the chaos weave leads, spray fills gaps
               projectileSpeed: 170.0,  # NERFED from 200.0
               projectileCount: 12,  # NERFED from 15
@@ -1805,7 +1843,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
             ),
             BossAttack(
               attackType: bapTeleport,
-              damage: 22.0,  # NERFED from 3.0
+              damage: 22.0,
               cooldown: 4.0,
               projectileSpeed: 0.0,
               projectileCount: 0,
@@ -1844,11 +1882,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: t(tkBoss11Phase2),
           hpThreshold: 0.6,
-          speedMultiplier: 1.1,  # NERFED from 1.6
-          damageMultiplier: 1.2,  # NERFED from 1.5
-          defenseMultiplier: 1.0,  # NERFED from 1.1
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.2,  # late-boss resistance buff: was 1.0
           color: Color(r: 200, g: 40, b: 200, a: 255),
-          visualEffect: "aura",
           specialBehavior: "entropy_field",
           attacks: @[
             BossAttack(
@@ -1902,11 +1939,10 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
         BossPhaseDefinition(
           name: t(tkBoss11Phase3),
           hpThreshold: 0.35,
-          speedMultiplier: 1.175,  # NERFED from 2.0
-          damageMultiplier: 1.4,  # NERFED from 2.0
-          defenseMultiplier: 0.85,  # NERFED from 0.9
+          speedMultiplier: 1.2,
+          damageMultiplier: 1.4,
+          defenseMultiplier: 1.15,  # late-boss resistance buff: was 0.95
           color: Color(r: 255, g: 100, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "total_chaos",
           attacks: @[
             BossAttack(
@@ -1962,7 +1998,7 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       name: t(tkBoss12Name),
       bossID: 12,
       baseHP: 4000.0,
-      baseSpeed: 60.0,  # NERFED from 85.0
+      baseSpeed: 60.0,
       baseDamage: 6,
       baseRadius: 70.0,
       color: Color(r: 255, g: 50, b: 50, a: 255),
@@ -1973,9 +2009,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 1.0,
           speedMultiplier: 0.9,  # NERFED from 1.0
           damageMultiplier: 0.9,  # NERFED from 1.0
-          defenseMultiplier: 1.3,  # NERFED from 1.5
+          defenseMultiplier: 1.55,  # late-boss resistance buff: was 1.3
           color: Color(r: 255, g: 50, b: 50, a: 255),
-          visualEffect: "shield",
           specialBehavior: "balanced_assault",
           attacks: @[
             BossAttack(
@@ -2017,9 +2052,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.7,
           speedMultiplier: 1.1,  # NERFED from 1.3
           damageMultiplier: 1.15,  # NERFED from 1.3
-          defenseMultiplier: 1.2,  # NERFED from 1.3
+          defenseMultiplier: 1.45,  # late-boss resistance buff: was 1.2
           color: Color(r: 255, g: 100, b: 0, a: 255),
-          visualEffect: "aura",
           specialBehavior: "aggressive_mixed",
           attacks: @[
             BossAttack(
@@ -2074,9 +2108,8 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           hpThreshold: 0.5,
           speedMultiplier: 1.15,  # NERFED from 1.5
           damageMultiplier: 1.25,  # NERFED from 1.6
-          defenseMultiplier: 1.1,
+          defenseMultiplier: 1.325,  # late-boss resistance buff: was 1.1
           color: Color(r: 255, g: 255, b: 0, a: 255),
-          visualEffect: "pulse",
           specialBehavior: "adaptive_combat",
           attacks: @[
             BossAttack(
@@ -2148,7 +2181,6 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
           damageMultiplier: 1.5,
           defenseMultiplier: 3.0,
           color: Color(r: 255, g: 0, b: 255, a: 255),
-          visualEffect: "glow",
           specialBehavior: "final_form",
           attacks: @[
             BossAttack(
@@ -2219,12 +2251,1707 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
       ]
     )
 
-  else:  # Boss 13+ (endless) - RANDOM BOSSES
-    # Past the 12-boss campaign, generate random powerful bosses
-    let randomBossType = rand(11) + 1
-    return getBossDefinition(randomBossType)
+  # ---------------------------------------------------------------------------
+  # Mode boss rosters: the Survival phase bosses (13-15), the Roguelite folder
+  # guardians (17-22) and the Omega Entity re-armed with each mode's kit
+  # (16 = survival, 23 = roguelite).
+  #
+  # Same data model as the wave campaign above; this case holds IDs 13..23.
+  # Each boss is authored for one slot on the wave boss curve
+  # (bossAuthoredSlotWave): the survival bosses stand in for bosses 3 / 6 / 9 /
+  # 12 at the same slots, so their numbers match those bosses; the guardians
+  # are written at the sector-1 budget and rescaled per sector by
+  # normalizeBossToSlot.
+  #
+  # Signature attacks are routed by specialData before the attackType dispatch
+  # (executeCustomBossAttack in game/bosses.nim). Their nominal attackType is
+  # bapMeteor so the generic pre-fire telegraph stays out of the way: each one
+  # draws its own warning. What each specialData means, and how it reads the
+  # BossAttack fields, is documented where it is spawned (ui/mode_warnings.nim
+  # and game/bosses.nim).
+  #
+  # BossAttack.timer is a start offset added to the first countdown (spawn and
+  # every phase change): it staggers fillers onto a beat grid.
+  # ---------------------------------------------------------------------------
+
+  # SURVIVAL: the flood's spawn. Each boss plays WITH the horde.
+
+  of 13:  # Survival Boot (slot 15) - THE FORKMOTHER
+    # Boot phase (slot 15, stands in for boss 3). Her children are Royal-Guard
+    # style objectives hidden in the horde: while any lives her body is sealed,
+    # the last one down opens the window. Signature: Exponential Fork, seeds
+    # that double every beat unless shot first.
+    result = BossDefinition(
+      name: t(tkBoss13Name),
+      bossID: 13,
+      baseHP: 400.0,
+      baseSpeed: 60.0,
+      baseDamage: 2,
+      baseRadius: 48.0,
+      color: Color(r: 255, g: 90, b: 170, a: 255),
+      description: t(tkBoss13Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss13Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.0,
+          defenseMultiplier: 0.9,
+          color: Color(r: 255, g: 90, b: 170, a: 255),
+          specialBehavior: "defensive",
+          attacks: @[
+            # children: projectileCount = how many, durationOrRadius = raise ring radius
+            BossAttack(
+              attackType: bapSummon,
+              damage: 2.0,
+              cooldown: 9.0,
+              projectileSpeed: 0.0,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 110.0,
+              specialData: "fork_children"
+            ),
+            # seeds: projectileCount = splits (depth), spreadAngle = branch angle (deg),
+            # durationOrRadius = beat between splits, projectileSpeed = flight speed
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 7.0,
+              projectileSpeed: 150.0,
+              projectileCount: 2,
+              spreadAngle: 34.0,
+              durationOrRadius: 0.85,
+              specialData: "exponential_fork",
+              timer: 2.0
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 2.0,
+              cooldown: 3.4,
+              projectileSpeed: 150.0,
+              projectileCount: 12,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "fork_ring"
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss13Phase2),
+          hpThreshold: 0.55,
+          speedMultiplier: 1.05,
+          damageMultiplier: 1.1,
+          defenseMultiplier: 1.0,
+          color: Color(r: 255, g: 60, b: 200, a: 255),
+          specialBehavior: "circle_movement",
+          attacks: @[
+            BossAttack(
+              attackType: bapSummon,
+              damage: 2.0,
+              cooldown: 10.0,
+              projectileSpeed: 0.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 120.0,
+              specialData: "fork_children"
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 7.5,
+              projectileSpeed: 155.0,
+              projectileCount: 3,
+              spreadAngle: 30.0,
+              durationOrRadius: 0.8,
+              specialData: "exponential_fork",
+              timer: 2.5
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 2.0,
+              cooldown: 3.2,
+              projectileSpeed: 155.0,
+              projectileCount: 14,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "fork_ring"
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 2.0,
+              cooldown: 2.4,
+              projectileSpeed: 190.0,
+              projectileCount: 3,
+              spreadAngle: 18.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss13Phase3),
+          hpThreshold: 0.25,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.1,
+          color: Color(r: 255, g: 40, b: 140, a: 255),
+          specialBehavior: "adaptive_combat",
+          attacks: @[
+            BossAttack(
+              attackType: bapSummon,
+              damage: 2.0,
+              cooldown: 9.0,
+              projectileSpeed: 0.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 120.0,
+              specialData: "fork_children"
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 8.0,
+              projectileSpeed: 160.0,
+              projectileCount: 3,
+              spreadAngle: 30.0,
+              durationOrRadius: 0.75,
+              specialData: "exponential_fork_twin",
+              timer: 2.0
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 2.0,
+              cooldown: 3.0,
+              projectileSpeed: 160.0,
+              projectileCount: 16,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "fork_ring"
+            )
+          ]
+        )
+      ]
+    )
+
+  of 14:  # Survival Runtime (slot 30) - THE DISPATCHER
+    # Runtime phase (slot 30, stands in for boss 6). Signature: Marching
+    # Orders, ranks of REAL killable bodies march across the arena as a wall;
+    # the player shoots their own gap. Priority Boost hastes the horde.
+    result = BossDefinition(
+      name: t(tkBoss14Name),
+      bossID: 14,
+      baseHP: 1250.0,
+      baseSpeed: 55.0,
+      baseDamage: 3,
+      baseRadius: 55.0,
+      color: Color(r: 255, g: 170, b: 40, a: 255),
+      description: t(tkBoss14Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss14Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.0,
+          defenseMultiplier: 0.95,
+          color: Color(r: 255, g: 170, b: 40, a: 255),
+          specialBehavior: "defensive",
+          attacks: @[
+            # ranks: projectileCount = ranks, durationOrRadius = bodies per rank,
+            # projectileSpeed = march speed, damage = contact damage per body
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 8.0,
+              cooldown: 9.0,
+              projectileSpeed: 115.0,
+              projectileCount: 1,
+              spreadAngle: 0.0,
+              durationOrRadius: 13.0,
+              specialData: "marching_orders",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 8.0,
+              cooldown: 2.4,
+              projectileSpeed: 200.0,
+              projectileCount: 3,
+              spreadAngle: 18.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapWave,
+              damage: 8.0,
+              cooldown: 4.5,
+              projectileSpeed: 170.0,
+              projectileCount: 7,
+              spreadAngle: 60.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss14Phase2),
+          hpThreshold: 0.6,
+          speedMultiplier: 1.05,
+          damageMultiplier: 1.1,
+          defenseMultiplier: 1.0,
+          color: Color(r: 255, g: 140, b: 20, a: 255),
+          specialBehavior: "circle_movement",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 8.0,
+              cooldown: 10.0,
+              projectileSpeed: 120.0,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 13.0,
+              specialData: "marching_orders",
+              timer: 1.5
+            ),
+            # boost: durationOrRadius = radius, spreadAngle = haste fraction
+            BossAttack(
+              attackType: bapPulse,
+              damage: 0.0,
+              cooldown: 8.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.35,
+              durationOrRadius: 330.0,
+              specialData: "priority_boost",
+              timer: 4.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 8.0,
+              cooldown: 2.4,
+              projectileSpeed: 205.0,
+              projectileCount: 3,
+              spreadAngle: 18.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss14Phase3),
+          hpThreshold: 0.3,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.1,
+          color: Color(r: 255, g: 100, b: 0, a: 255),
+          specialBehavior: "adaptive_combat",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 8.0,
+              cooldown: 11.0,
+              projectileSpeed: 125.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 12.0,
+              specialData: "marching_orders",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapPulse,
+              damage: 0.0,
+              cooldown: 7.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.4,
+              durationOrRadius: 360.0,
+              specialData: "priority_boost",
+              timer: 3.0
+            ),
+            BossAttack(
+              attackType: bapWave,
+              damage: 8.0,
+              cooldown: 4.0,
+              projectileSpeed: 175.0,
+              projectileCount: 9,
+              spreadAngle: 70.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        )
+      ]
+    )
+
+  of 15:  # Survival Overload (slot 45) - THERMAL RUNAWAY
+    # Overload phase (slot 45, stands in for boss 9). Signature: Heat Trail,
+    # the player's own footsteps arm into burning ground (it burns the horde
+    # too, so lead them through it). Thermal Vents erupt under the densest
+    # crowds.
+    result = BossDefinition(
+      name: t(tkBoss15Name),
+      bossID: 15,
+      baseHP: 2500.0,
+      baseSpeed: 55.0,
+      baseDamage: 4,
+      baseRadius: 56.0,
+      color: Color(r: 255, g: 90, b: 30, a: 255),
+      description: t(tkBoss15Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss15Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.0,
+          defenseMultiplier: 1.05,
+          color: Color(r: 255, g: 90, b: 30, a: 255),
+          specialBehavior: "balanced_assault",
+          attacks: @[
+            # trail: durationOrRadius = seconds the emitter tracks the player,
+            # bulletRadius = trail node radius, damage = per touch
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 16.0,
+              cooldown: 11.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 5.0,
+              bulletRadius: 16.0,
+              specialData: "heat_trail",
+              timer: 1.0
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 16.0,
+              cooldown: 3.5,
+              projectileSpeed: 160.0,
+              projectileCount: 14,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 16.0,
+              cooldown: 2.8,
+              projectileSpeed: 210.0,
+              projectileCount: 3,
+              spreadAngle: 16.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss15Phase2),
+          hpThreshold: 0.67,
+          speedMultiplier: 1.05,
+          damageMultiplier: 1.1,
+          defenseMultiplier: 1.1,
+          color: Color(r: 255, g: 60, b: 10, a: 255),
+          specialBehavior: "aggressive_mixed",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 16.0,
+              cooldown: 11.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 6.0,
+              bulletRadius: 17.0,
+              specialData: "heat_trail",
+              timer: 1.0
+            ),
+            # vents: projectileCount = vents, durationOrRadius = vent radius
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 16.0,
+              cooldown: 6.5,
+              projectileSpeed: 0.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 80.0,
+              specialData: "thermal_vents",
+              timer: 3.5
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 16.0,
+              cooldown: 3.4,
+              projectileSpeed: 165.0,
+              projectileCount: 16,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss15Phase3),
+          hpThreshold: 0.33,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.15,
+          color: Color(r: 255, g: 30, b: 0, a: 255),
+          specialBehavior: "adaptive_combat",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 16.0,
+              cooldown: 10.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 7.0,
+              bulletRadius: 18.0,
+              specialData: "heat_trail",
+              timer: 1.0
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 16.0,
+              cooldown: 5.5,
+              projectileSpeed: 0.0,
+              projectileCount: 4,
+              spreadAngle: 0.0,
+              durationOrRadius: 90.0,
+              specialData: "thermal_vents",
+              timer: 3.0
+            ),
+            BossAttack(
+              attackType: bapPulse,
+              damage: 16.0,
+              cooldown: 5.0,
+              projectileSpeed: 220.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 260.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 16.0,
+              cooldown: 2.8,
+              projectileSpeed: 215.0,
+              projectileCount: 3,
+              spreadAngle: 16.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        )
+      ]
+    )
+
+  of 16:  # Survival Kernel Panic (slot 60) - THE OMEGA ENTITY (survival kit)
+    # Kernel Panic (slot 60). The Omega Entity with the survival kit: Alpha,
+    # Beta and Gamma echo the three flood bosses in order, and the Omega phase
+    # floods the arena until only a drifting Safe Mode bubble is left.
+    result = BossDefinition(
+      name: t(tkBoss12Name),
+      bossID: 16,
+      baseHP: 4000.0,
+      baseSpeed: 60.0,
+      baseDamage: 6,
+      baseRadius: 70.0,
+      color: Color(r: 255, g: 50, b: 50, a: 255),
+      description: t(tkBoss16Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss16Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 0.9,
+          damageMultiplier: 0.9,
+          defenseMultiplier: 1.55,
+          color: Color(r: 255, g: 50, b: 50, a: 255),
+          specialBehavior: "balanced_assault",
+          attacks: @[
+            BossAttack(
+              attackType: bapSummon,
+              damage: 26.0,
+              cooldown: 10.0,
+              projectileSpeed: 0.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 130.0,
+              specialData: "fork_children"
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 26.0,
+              cooldown: 7.5,
+              projectileSpeed: 165.0,
+              projectileCount: 3,
+              spreadAngle: 30.0,
+              durationOrRadius: 0.8,
+              specialData: "exponential_fork",
+              timer: 2.5
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 26.0,
+              cooldown: 3.0,
+              projectileSpeed: 170.0,
+              projectileCount: 18,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "fork_ring"
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss16Phase2),
+          hpThreshold: 0.7,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.15,
+          defenseMultiplier: 1.45,
+          color: Color(r: 255, g: 100, b: 0, a: 255),
+          specialBehavior: "aggressive_mixed",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 26.0,
+              cooldown: 9.5,
+              projectileSpeed: 135.0,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 14.0,
+              specialData: "marching_orders",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapPulse,
+              damage: 0.0,
+              cooldown: 8.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.35,
+              durationOrRadius: 360.0,
+              specialData: "priority_boost",
+              timer: 4.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 26.0,
+              cooldown: 2.6,
+              projectileSpeed: 215.0,
+              projectileCount: 3,
+              spreadAngle: 18.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss16Phase3),
+          hpThreshold: 0.5,
+          speedMultiplier: 1.15,
+          damageMultiplier: 1.25,
+          defenseMultiplier: 1.325,
+          color: Color(r: 255, g: 255, b: 0, a: 255),
+          specialBehavior: "adaptive_combat",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 29.0,
+              cooldown: 10.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 6.0,
+              bulletRadius: 18.0,
+              specialData: "heat_trail",
+              timer: 1.0
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 29.0,
+              cooldown: 6.0,
+              projectileSpeed: 0.0,
+              projectileCount: 4,
+              spreadAngle: 0.0,
+              durationOrRadius: 90.0,
+              specialData: "thermal_vents",
+              timer: 3.5
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 26.0,
+              cooldown: 4.0,
+              projectileSpeed: 175.0,
+              projectileCount: 18,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "fork_ring"
+            )
+          ]
+        ),
+        # THE BEAT GRID: fillers land on multiples of 2.4 s (2.4 / 4.8), and the
+        # Safe Mode cast is a mega-cast that pauses them while it runs.
+        BossPhaseDefinition(
+          name: t(tkBoss16Phase4),
+          hpThreshold: 0.2,
+          speedMultiplier: 1.2,
+          damageMultiplier: 1.5,
+          defenseMultiplier: 3.0,
+          color: Color(r: 255, g: 0, b: 255, a: 255),
+          specialBehavior: "final_form",
+          attacks: @[
+            # safe mode: durationOrRadius = cast seconds, projectileSpeed = bubble
+            # drift speed, damage = per flood tick
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 14.0,
+              cooldown: 15.0,
+              projectileSpeed: 70.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 9.0,
+              specialData: "safe_mode",
+              timer: 1.0
+            ),
+            # payload: projectileCount = orbs, each hatches a Thread where it stops
+            BossAttack(
+              attackType: bapCircle,
+              damage: 26.0,
+              cooldown: 4.8,
+              projectileSpeed: 190.0,
+              projectileCount: 8,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "payload_ring",
+              timer: 2.4
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 26.0,
+              cooldown: 2.4,
+              projectileSpeed: 190.0,
+              projectileCount: 16,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              specialData: "fork_ring"
+            )
+          ]
+        )
+      ]
+    )
+
+  # ROGUELITE: legacy processes, older than TOPHAT. Each guardian is fought in a
+  # folder room and uses it: cover, walls, the floor itself.
+
+  of 17:  # Roguelite Firewall guardian - THE GATEKEEPER
+    # Firewall guardian. Signature: Stateful Inspection, rotating searchlight
+    # beams that the room's obstacles block. Anchored at the room's centre.
+    result = BossDefinition(
+      name: t(tkBoss17Name),
+      bossID: 17,
+      baseHP: 165.0,
+      baseSpeed: 40.0,
+      baseDamage: 1,
+      baseRadius: 50.0,
+      color: Color(r: 255, g: 110, b: 48, a: 255),
+      description: t(tkBoss17Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss17Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.0,
+          defenseMultiplier: 0.85,
+          color: Color(r: 255, g: 110, b: 48, a: 255),
+          specialBehavior: "anchored",
+          attacks: @[
+            # inspection: projectileCount = beams, durationOrRadius = sweep seconds,
+            # projectileSpeed = angular speed (rad/s)
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 9.0,
+              projectileSpeed: 0.55,
+              projectileCount: 1,
+              spreadAngle: 0.0,
+              durationOrRadius: 5.0,
+              specialData: "stateful_inspection",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.0,
+              projectileSpeed: 180.0,
+              projectileCount: 3,
+              spreadAngle: 14.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss17Phase2),
+          hpThreshold: 0.6,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.1,
+          defenseMultiplier: 0.95,
+          color: Color(r: 255, g: 80, b: 30, a: 255),
+          specialBehavior: "anchored",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 9.0,
+              projectileSpeed: 0.6,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 5.5,
+              specialData: "stateful_inspection",
+              timer: 1.5
+            ),
+            # guards: projectileCount = Port Guards raised at the gate
+            BossAttack(
+              attackType: bapSummon,
+              damage: 1.0,
+              cooldown: 12.0,
+              projectileSpeed: 0.0,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 90.0,
+              specialData: "port_guards",
+              timer: 4.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.2,
+              projectileSpeed: 185.0,
+              projectileCount: 3,
+              spreadAngle: 14.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss17Phase3),
+          hpThreshold: 0.3,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.05,
+          color: Color(r: 255, g: 50, b: 20, a: 255),
+          specialBehavior: "anchored",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 8.0,
+              projectileSpeed: 0.75,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 6.0,
+              specialData: "stateful_inspection",
+              timer: 1.0
+            ),
+            BossAttack(
+              attackType: bapWave,
+              damage: 1.0,
+              cooldown: 3.5,
+              projectileSpeed: 170.0,
+              projectileCount: 7,
+              spreadAngle: 70.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.0,
+              projectileSpeed: 190.0,
+              projectileCount: 3,
+              spreadAngle: 14.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        )
+      ]
+    )
+
+  of 18:  # Roguelite Recycle Bin guardian - THE COMPACTOR
+    # Recycle Bin guardian. Signature: Empty Trash, dormant file bombs strewn
+    # around the room all burst together later; walk over or shoot them first.
+    # Undelete: a restore point that rolls its HP back unless broken in time.
+    result = BossDefinition(
+      name: t(tkBoss18Name),
+      bossID: 18,
+      baseHP: 160.0,
+      baseSpeed: 45.0,
+      baseDamage: 1,
+      baseRadius: 50.0,
+      color: Color(r: 150, g: 190, b: 140, a: 255),
+      description: t(tkBoss18Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss18Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.0,
+          defenseMultiplier: 0.85,
+          color: Color(r: 150, g: 190, b: 140, a: 255),
+          specialBehavior: "defensive",
+          attacks: @[
+            # trash: projectileCount = bombs, durationOrRadius = fuse to the purge,
+            # projectileSpeed = shrapnel speed
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 11.0,
+              projectileSpeed: 150.0,
+              projectileCount: 5,
+              spreadAngle: 0.0,
+              durationOrRadius: 5.0,
+              specialData: "empty_trash",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapBurst,
+              damage: 1.0,
+              cooldown: 2.2,
+              projectileSpeed: 190.0,
+              projectileCount: 4,
+              spreadAngle: 20.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss18Phase2),
+          hpThreshold: 0.6,
+          speedMultiplier: 1.05,
+          damageMultiplier: 1.1,
+          defenseMultiplier: 0.95,
+          color: Color(r: 120, g: 210, b: 110, a: 255),
+          specialBehavior: "circle_movement",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 11.0,
+              projectileSpeed: 155.0,
+              projectileCount: 6,
+              spreadAngle: 0.0,
+              durationOrRadius: 5.0,
+              specialData: "empty_trash",
+              timer: 1.5
+            ),
+            # restore point: durationOrRadius = window, spreadAngle = share of the
+            # phase pool that breaks it
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 0.0,
+              cooldown: 14.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.12,
+              durationOrRadius: 6.0,
+              specialData: "undelete",
+              timer: 6.0
+            ),
+            BossAttack(
+              attackType: bapBurst,
+              damage: 1.0,
+              cooldown: 2.2,
+              projectileSpeed: 195.0,
+              projectileCount: 4,
+              spreadAngle: 20.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss18Phase3),
+          hpThreshold: 0.3,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.05,
+          color: Color(r: 90, g: 230, b: 80, a: 255),
+          specialBehavior: "aggressive_mixed",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 10.0,
+              projectileSpeed: 160.0,
+              projectileCount: 8,
+              spreadAngle: 0.0,
+              durationOrRadius: 5.5,
+              specialData: "empty_trash",
+              timer: 1.0
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 0.0,
+              cooldown: 13.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.12,
+              durationOrRadius: 6.0,
+              specialData: "undelete",
+              timer: 5.0
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 1.0,
+              cooldown: 3.6,
+              projectileSpeed: 150.0,
+              projectileCount: 12,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        )
+      ]
+    )
+
+  of 19:  # Roguelite Registry guardian - THE HIVE
+    # Registry guardian. Signature: Audit Lock, the whole room freezes and any
+    # movement or shot during the audit is a write, and gets punished.
+    result = BossDefinition(
+      name: t(tkBoss19Name),
+      bossID: 19,
+      baseHP: 150.0,
+      baseSpeed: 45.0,
+      baseDamage: 1,
+      baseRadius: 48.0,
+      color: Color(r: 90, g: 160, b: 255, a: 255),
+      description: t(tkBoss19Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss19Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.0,
+          defenseMultiplier: 0.85,
+          color: Color(r: 90, g: 160, b: 255, a: 255),
+          specialBehavior: "geometric_movement",
+          attacks: @[
+            # audit: durationOrRadius = locked window (the telegraph is fixed)
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 12.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.2,
+              specialData: "audit_lock",
+              timer: 3.0
+            ),
+            BossAttack(
+              attackType: bapSpiral,
+              damage: 1.0,
+              cooldown: 1.4,
+              projectileSpeed: 150.0,
+              projectileCount: 5,
+              spreadAngle: 45.0,
+              durationOrRadius: 1.5
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.6,
+              projectileSpeed: 185.0,
+              projectileCount: 2,
+              spreadAngle: 12.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss19Phase2),
+          hpThreshold: 0.6,
+          speedMultiplier: 1.05,
+          damageMultiplier: 1.1,
+          defenseMultiplier: 0.95,
+          color: Color(r: 60, g: 120, b: 255, a: 255),
+          specialBehavior: "geometric_movement",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 11.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.4,
+              specialData: "audit_lock",
+              timer: 2.5
+            ),
+            BossAttack(
+              attackType: bapSpiral,
+              damage: 1.0,
+              cooldown: 1.3,
+              projectileSpeed: 155.0,
+              projectileCount: 6,
+              spreadAngle: 40.0,
+              durationOrRadius: 1.6
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.4,
+              projectileSpeed: 190.0,
+              projectileCount: 3,
+              spreadAngle: 14.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss19Phase3),
+          hpThreshold: 0.3,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.05,
+          color: Color(r: 40, g: 80, b: 255, a: 255),
+          specialBehavior: "adaptive_combat",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 9.5,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.5,
+              specialData: "audit_lock",
+              timer: 2.0
+            ),
+            BossAttack(
+              attackType: bapSpiral,
+              damage: 1.0,
+              cooldown: 1.2,
+              projectileSpeed: 160.0,
+              projectileCount: 7,
+              spreadAngle: 40.0,
+              durationOrRadius: 1.8
+            ),
+            BossAttack(
+              attackType: bapWave,
+              damage: 1.0,
+              cooldown: 4.0,
+              projectileSpeed: 170.0,
+              projectileCount: 7,
+              spreadAngle: 60.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        )
+      ]
+    )
+
+  of 20:  # Roguelite Network guardian - THE ROUTER
+    # Network guardian. Signature: Packet Switching, lit links across the room
+    # carry trains of packets; cross the lanes between trains.
+    result = BossDefinition(
+      name: t(tkBoss20Name),
+      bossID: 20,
+      baseHP: 150.0,
+      baseSpeed: 50.0,
+      baseDamage: 1,
+      baseRadius: 48.0,
+      color: Color(r: 0, g: 220, b: 255, a: 255),
+      description: t(tkBoss20Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss20Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.0,
+          defenseMultiplier: 0.85,
+          color: Color(r: 0, g: 220, b: 255, a: 255),
+          specialBehavior: "circle_movement",
+          attacks: @[
+            # links: projectileCount = links, projectileSpeed = packet speed,
+            # durationOrRadius = link telegraph
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 8.0,
+              projectileSpeed: 320.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.2,
+              specialData: "packet_switching",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapPulse,
+              damage: 1.0,
+              cooldown: 5.0,
+              projectileSpeed: 180.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 240.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.4,
+              projectileSpeed: 190.0,
+              projectileCount: 2,
+              spreadAngle: 12.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss20Phase2),
+          hpThreshold: 0.6,
+          speedMultiplier: 1.05,
+          damageMultiplier: 1.1,
+          defenseMultiplier: 0.95,
+          color: Color(r: 0, g: 180, b: 255, a: 255),
+          specialBehavior: "circle_movement",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 7.5,
+              projectileSpeed: 350.0,
+              projectileCount: 4,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.15,
+              specialData: "packet_switching",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapPulse,
+              damage: 1.0,
+              cooldown: 5.0,
+              projectileSpeed: 190.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 250.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.4,
+              projectileSpeed: 195.0,
+              projectileCount: 3,
+              spreadAngle: 14.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss20Phase3),
+          hpThreshold: 0.3,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.05,
+          color: Color(r: 0, g: 140, b: 255, a: 255),
+          specialBehavior: "adaptive_combat",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 7.0,
+              projectileSpeed: 370.0,
+              projectileCount: 5,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.1,
+              specialData: "packet_switching",
+              timer: 1.0
+            ),
+            BossAttack(
+              attackType: bapPulse,
+              damage: 1.0,
+              cooldown: 4.6,
+              projectileSpeed: 200.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 260.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.2,
+              projectileSpeed: 200.0,
+              projectileCount: 3,
+              spreadAngle: 14.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        )
+      ]
+    )
+
+  of 21:  # Roguelite Kernel guardian - THE SUPERVISOR
+    # Kernel guardian. Signature: Page Fault, the room's obstacles page out and
+    # page back in elsewhere; standing in a ghost footprint gets you crushed.
+    result = BossDefinition(
+      name: t(tkBoss21Name),
+      bossID: 21,
+      baseHP: 170.0,
+      baseSpeed: 45.0,
+      baseDamage: 1,
+      baseRadius: 52.0,
+      color: Color(r: 150, g: 95, b: 235, a: 255),
+      description: t(tkBoss21Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss21Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.0,
+          defenseMultiplier: 0.85,
+          color: Color(r: 150, g: 95, b: 235, a: 255),
+          specialBehavior: "balanced_assault",
+          attacks: @[
+            # page fault: projectileCount = obstacles paged, durationOrRadius =
+            # ghost footprint telegraph
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 10.0,
+              projectileSpeed: 0.0,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.6,
+              specialData: "page_fault",
+              timer: 2.0
+            ),
+            BossAttack(
+              attackType: bapWave,
+              damage: 1.0,
+              cooldown: 3.5,
+              projectileSpeed: 170.0,
+              projectileCount: 7,
+              spreadAngle: 70.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss21Phase2),
+          hpThreshold: 0.6,
+          speedMultiplier: 1.05,
+          damageMultiplier: 1.1,
+          defenseMultiplier: 0.95,
+          color: Color(r: 130, g: 70, b: 245, a: 255),
+          specialBehavior: "balanced_assault",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 9.0,
+              projectileSpeed: 0.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.5,
+              specialData: "page_fault",
+              timer: 2.0
+            ),
+            BossAttack(
+              attackType: bapWave,
+              damage: 1.0,
+              cooldown: 3.5,
+              projectileSpeed: 175.0,
+              projectileCount: 7,
+              spreadAngle: 70.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.6,
+              projectileSpeed: 190.0,
+              projectileCount: 2,
+              spreadAngle: 12.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss21Phase3),
+          hpThreshold: 0.3,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.05,
+          color: Color(r: 110, g: 40, b: 255, a: 255),
+          specialBehavior: "adaptive_combat",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 2.0,
+              cooldown: 8.0,
+              projectileSpeed: 0.0,
+              projectileCount: 4,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.4,
+              specialData: "page_fault",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 1.0,
+              cooldown: 3.6,
+              projectileSpeed: 155.0,
+              projectileCount: 12,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 1.0,
+              cooldown: 2.4,
+              projectileSpeed: 195.0,
+              projectileCount: 3,
+              spreadAngle: 14.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        )
+      ]
+    )
+
+  of 22:  # Roguelite Cache guardian - THE MIRROR CACHE
+    # Cache guardian. Signature: Stale Copy, a hostile echo that replays the
+    # player's movement and shots from a few seconds ago.
+    result = BossDefinition(
+      name: t(tkBoss22Name),
+      bossID: 22,
+      baseHP: 150.0,
+      baseSpeed: 50.0,
+      baseDamage: 1,
+      baseRadius: 48.0,
+      color: Color(r: 70, g: 215, b: 195, a: 255),
+      description: t(tkBoss22Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss22Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 1.0,
+          damageMultiplier: 1.0,
+          defenseMultiplier: 0.85,
+          color: Color(r: 70, g: 215, b: 195, a: 255),
+          specialBehavior: "circle_player",
+          attacks: @[
+            # echo: projectileCount = echoes, durationOrRadius = echo lifetime,
+            # spreadAngle = replay delay (seconds)
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 12.0,
+              projectileSpeed: 0.0,
+              projectileCount: 1,
+              spreadAngle: 3.0,
+              durationOrRadius: 7.0,
+              specialData: "stale_copy",
+              timer: 2.0
+            ),
+            BossAttack(
+              attackType: bapBurst,
+              damage: 1.0,
+              cooldown: 2.4,
+              projectileSpeed: 190.0,
+              projectileCount: 4,
+              spreadAngle: 20.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss22Phase2),
+          hpThreshold: 0.6,
+          speedMultiplier: 1.05,
+          damageMultiplier: 1.1,
+          defenseMultiplier: 0.95,
+          color: Color(r: 40, g: 230, b: 200, a: 255),
+          specialBehavior: "circle_player",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 11.0,
+              projectileSpeed: 0.0,
+              projectileCount: 1,
+              spreadAngle: 2.6,
+              durationOrRadius: 8.0,
+              specialData: "stale_copy",
+              timer: 2.0
+            ),
+            BossAttack(
+              attackType: bapBurst,
+              damage: 1.0,
+              cooldown: 2.4,
+              projectileSpeed: 195.0,
+              projectileCount: 4,
+              spreadAngle: 20.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 1.0,
+              cooldown: 4.2,
+              projectileSpeed: 150.0,
+              projectileCount: 12,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss22Phase3),
+          hpThreshold: 0.3,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.2,
+          defenseMultiplier: 1.05,
+          color: Color(r: 20, g: 255, b: 210, a: 255),
+          specialBehavior: "adaptive_combat",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 1.5,
+              cooldown: 11.0,
+              projectileSpeed: 0.0,
+              projectileCount: 2,
+              spreadAngle: 3.0,
+              durationOrRadius: 8.0,
+              specialData: "stale_copy",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapBurst,
+              damage: 1.0,
+              cooldown: 2.2,
+              projectileSpeed: 200.0,
+              projectileCount: 5,
+              spreadAngle: 24.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        )
+      ]
+    )
+
+  of 23:  # Roguelite final sector (slot 60) - THE OMEGA ENTITY (roguelite kit)
+    # Final sector (slot 60, normalized to the sector like every SERVICE). The
+    # Omega Entity with the roguelite kit: Alpha, Beta and Gamma echo two
+    # guardians each, and the Omega phase is Last Known Good, one real door
+    # among decoys while the room is purged from the centre out.
+    result = BossDefinition(
+      name: t(tkBoss12Name),
+      bossID: 23,
+      baseHP: 4000.0,
+      baseSpeed: 60.0,
+      baseDamage: 6,
+      baseRadius: 70.0,
+      color: Color(r: 255, g: 50, b: 50, a: 255),
+      description: t(tkBoss23Desc),
+      phases: @[
+        BossPhaseDefinition(
+          name: t(tkBoss23Phase1),
+          hpThreshold: 1.0,
+          speedMultiplier: 0.9,
+          damageMultiplier: 0.9,
+          defenseMultiplier: 1.55,
+          color: Color(r: 255, g: 50, b: 50, a: 255),
+          specialBehavior: "balanced_assault",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 30.0,
+              cooldown: 9.0,
+              projectileSpeed: 0.6,
+              projectileCount: 2,
+              spreadAngle: 0.0,
+              durationOrRadius: 5.0,
+              specialData: "stateful_inspection",
+              timer: 1.5
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 28.0,
+              cooldown: 11.0,
+              projectileSpeed: 160.0,
+              projectileCount: 6,
+              spreadAngle: 0.0,
+              durationOrRadius: 5.0,
+              specialData: "empty_trash",
+              timer: 5.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 26.0,
+              cooldown: 2.5,
+              projectileSpeed: 200.0,
+              projectileCount: 3,
+              spreadAngle: 16.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss23Phase2),
+          hpThreshold: 0.7,
+          speedMultiplier: 1.1,
+          damageMultiplier: 1.15,
+          defenseMultiplier: 1.45,
+          color: Color(r: 255, g: 100, b: 0, a: 255),
+          specialBehavior: "aggressive_mixed",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 30.0,
+              cooldown: 12.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.3,
+              specialData: "audit_lock",
+              timer: 3.0
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 28.0,
+              cooldown: 8.0,
+              projectileSpeed: 380.0,
+              projectileCount: 4,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.15,
+              specialData: "packet_switching",
+              timer: 6.5
+            ),
+            BossAttack(
+              attackType: bapSpiral,
+              damage: 26.0,
+              cooldown: 1.6,
+              projectileSpeed: 160.0,
+              projectileCount: 6,
+              spreadAngle: 40.0,
+              durationOrRadius: 1.6
+            )
+          ]
+        ),
+        BossPhaseDefinition(
+          name: t(tkBoss23Phase3),
+          hpThreshold: 0.5,
+          speedMultiplier: 1.15,
+          damageMultiplier: 1.25,
+          defenseMultiplier: 1.325,
+          color: Color(r: 255, g: 255, b: 0, a: 255),
+          specialBehavior: "adaptive_combat",
+          attacks: @[
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 30.0,
+              cooldown: 9.0,
+              projectileSpeed: 0.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.5,
+              specialData: "page_fault",
+              timer: 2.0
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 28.0,
+              cooldown: 11.0,
+              projectileSpeed: 0.0,
+              projectileCount: 1,
+              spreadAngle: 3.0,
+              durationOrRadius: 7.0,
+              specialData: "stale_copy",
+              timer: 5.5
+            ),
+            BossAttack(
+              attackType: bapBurst,
+              damage: 26.0,
+              cooldown: 2.6,
+              projectileSpeed: 200.0,
+              projectileCount: 4,
+              spreadAngle: 20.0,
+              durationOrRadius: 0.0
+            )
+          ]
+        ),
+        # THE BEAT GRID again (2.4 / 4.8 / 7.2); Last Known Good is a mega-cast.
+        BossPhaseDefinition(
+          name: t(tkBoss23Phase4),
+          hpThreshold: 0.2,
+          speedMultiplier: 1.2,
+          damageMultiplier: 1.5,
+          defenseMultiplier: 3.0,
+          color: Color(r: 255, g: 0, b: 255, a: 255),
+          specialBehavior: "final_form",
+          attacks: @[
+            # doors: durationOrRadius = seconds to reach the real door
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 38.0,
+              cooldown: 14.0,
+              projectileSpeed: 0.0,
+              projectileCount: 0,
+              spreadAngle: 0.0,
+              durationOrRadius: 4.2,
+              specialData: "last_known_good",
+              timer: 1.0
+            ),
+            BossAttack(
+              attackType: bapTargeted,
+              damage: 26.0,
+              cooldown: 2.4,
+              projectileSpeed: 210.0,
+              projectileCount: 3,
+              spreadAngle: 16.0,
+              durationOrRadius: 0.0
+            ),
+            BossAttack(
+              attackType: bapMeteor,
+              damage: 26.0,
+              cooldown: 4.8,
+              projectileSpeed: 400.0,
+              projectileCount: 3,
+              spreadAngle: 0.0,
+              durationOrRadius: 1.0,
+              specialData: "packet_switching",
+              timer: 2.4
+            ),
+            BossAttack(
+              attackType: bapCircle,
+              damage: 26.0,
+              cooldown: 7.2,
+              projectileSpeed: 170.0,
+              projectileCount: 14,
+              spreadAngle: 0.0,
+              durationOrRadius: 0.0,
+              timer: 3.6
+            )
+          ]
+        )
+      ]
+    )
+
+  else:
+    # Unknown ID: the campaign finale. Deterministic on purpose - this runs
+    # every frame for a live boss, so a random pick would swap its kit.
+    return buildVanillaBossDefinition(12)
 
   result.weakPoint = bossWeakPointDefinitionFor(result.bossID)
+
+# The builder above constructs its whole literal and looks up every string on
+# each call, and a live boss asks every frame, so built-in definitions are
+# cached per language.
+var
+  vanillaBossCache: Table[int, BossDefinition]
+  vanillaBossCacheLang: Language
+
+proc vanillaBossDefinition*(bossNumber: int): BossDefinition =
+  ## The built-in definition, ignoring mods (reference numbers use this).
+  if vanillaBossCacheLang != getLanguage():
+    vanillaBossCache.clear()
+    vanillaBossCacheLang = getLanguage()
+  if not vanillaBossCache.hasKey(bossNumber):
+    vanillaBossCache[bossNumber] = buildVanillaBossDefinition(bossNumber)
+  vanillaBossCache[bossNumber]
+
+proc getBossDefinition*(bossNumber: int): BossDefinition =
+  ## The definition a boss ID fights with: a mod's, if one registered or
+  ## replaced it, else the built-in one.
+  if modBossDefs.len > 0 and modBossDefs.hasKey(bossNumber):
+    return modBossDefs[bossNumber]
+  vanillaBossDefinition(bossNumber)
+
+proc bossName*(bossNumber: int): string =
+  ## Display name of any boss ID (the Omega kits share boss 12's name).
+  getBossDefinition(bossNumber).name
 
 # Helper Functions
 
@@ -2243,16 +3970,6 @@ proc getCustomBossNumber*(waveNumber: int): int =
     return 12  # Boss 12 continues indefinitely with scaled stats
 
   return bossNumber
-
-proc getBossForWave*(waveNumber: int): BossDefinition =
-  ## Gets the appropriate boss definition for a wave number
-  ## Past the 12-boss campaign, uses boss 12 with stats scaled per wave
-  if not isBossWave(waveNumber):
-    # Not a boss wave, return empty definition
-    return BossDefinition()
-
-  let bossNumber = getCustomBossNumber(waveNumber)
-  return getBossDefinition(bossNumber)
 
 proc getBossPhaseHpPools*(boss: BossDefinition, scaledHp: float32): seq[float32] =
   ## Splits total boss HP into one pool per phase using the existing threshold gaps.
@@ -2276,16 +3993,6 @@ proc getBossPhaseHpPools*(boss: BossDefinition, scaledHp: float32): seq[float32]
 
   for weight in weights:
     result.add(max(0.01'f32, scaledHp * (weight / totalWeight)))
-
-proc getCurrentPhase*(boss: BossDefinition, currentHpPercent: float32): BossPhaseDefinition =
-  ## Returns the current phase based on boss HP percentage
-  result = boss.phases[0]  # Default to first phase
-
-  for phase in boss.phases:
-    if currentHpPercent <= phase.hpThreshold:
-      result = phase
-    else:
-      break
 
 # Boss Stats Scaling
 
@@ -2321,3 +4028,94 @@ proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): float32 =
   # Endless-only buff (see getScaledBossHP): 1.0 for every campaign boss, compounds past wave 60
   # so endless bosses keep threatening a player stacked with defensive power-ups.
   float32(baseBoss.baseDamage + additionalDamage) * pow(1.05'f32, endlessSteps(waveNumber))
+
+# ---------------------------------------------------------------------------
+# Slot normalization
+#
+# Every boss is authored for one "slot" on the wave-mode boss curve (the wave
+# its numbers were tuned against). The mode rosters then fight at other slots:
+# roguelite guardians at their sector's slot, survival bosses at later Overtime
+# slots. Rather than hand-tuning a copy per slot, the spawned boss is rescaled
+# by the ratio of the curve at the two slots: HP by the campaign's HP budget,
+# attack damage by the campaign's typical attack damage. A boss therefore keeps
+# its mechanics, phases and weak points and just fights with the numbers of the
+# slot it appears in.
+
+const BossSlotDamageRef = [1.0'f32, 1.0, 2.0, 2.5, 6.0, 8.0, 10.5, 14.0, 16.5, 19.0, 22.0, 28.0]
+  ## Median attack damage of wave bosses 1..12 (their slots 5..60): the
+  ## per-slot "how hard does a boss hit here" reference.
+
+proc bossAuthoredSlotWave*(bossId: int): int =
+  ## The wave slot a boss definition's numbers are written for.
+  case bossId
+  of 1..12: bossId * BossWaveInterval
+  of 13: 15     # stands in for boss 3
+  of 14: 30     # boss 6
+  of 15: 45     # boss 9
+  of 16: 60     # boss 12
+  of 17..22: 5  # sector-1 budget; rescaled per sector
+  of 23: 60
+  else: modBossSlotWaves.getOrDefault(bossId, 60)
+
+proc bossSlotHpBudget*(slotWave: float32): float32 =
+  ## Total HP the campaign gives a boss at this slot (the boss holding the
+  ## slot's base HP on getScaledBossHP's curve), before profile difficulty.
+  let w = max(BossWaveInterval.float32, slotWave)
+  let holder = clamp(int(round(w / BossWaveInterval.float32)), 1, 12)
+  let steps = max(0.0'f32, (w - 5.0'f32) / 5.0'f32)
+  let endless = max(0.0'f32, steps - 11.0'f32)
+  # Always the built-in holder: a mod replacing a boss must not move the scale.
+  vanillaBossDefinition(holder).baseHP * (1.0'f32 + steps * 0.20'f32) * pow(1.08'f32, endless)
+
+proc bossSlotDamageRef*(slotWave: float32): float32 =
+  ## Typical boss attack damage at this slot, interpolated between the
+  ## campaign bosses and compounding like getScaledBossDamage past wave 60.
+  let w = max(BossWaveInterval.float32, slotWave)
+  let pos = w / BossWaveInterval.float32 - 1.0'f32   # 0 at slot 5, 11 at slot 60
+  if pos >= 11.0'f32:
+    return BossSlotDamageRef[11] * pow(1.05'f32, pos - 11.0'f32)
+  let lo = int(floor(pos))
+  let frac = pos - lo.float32
+  BossSlotDamageRef[lo] + (BossSlotDamageRef[min(lo + 1, 11)] - BossSlotDamageRef[lo]) * frac
+
+proc rescaleBossPools*(boss: Enemy, factor: float32) =
+  ## Scale a spawned boss's whole HP budget (current, max, total, and every
+  ## phase pool) by `factor`, keeping the phase proportions.
+  boss.hp *= factor
+  boss.maxHp *= factor
+  boss.bossTotalMaxHp *= factor
+  for i in 0..<boss.bossPhaseHpPools.len:
+    boss.bossPhaseHpPools[i] *= factor
+
+proc normalizeBossToSlot*(boss: Enemy, slotWave: float32, hpScale = 1.0'f32) =
+  ## Rescale a boss spawned at its authored slot so it fights with the HP and
+  ## attack damage of `slotWave` instead (up or down). The spawned pool already
+  ## carries the profile difficulty multiplier, and a ratio keeps it. Attack
+  ## damage flows through damageTuning (executeCustomBossAttack), which also
+  ## scales the minions a boss raises.
+  if boss.isNil or not boss.isBoss:
+    return
+  let authored = bossAuthoredSlotWave(boss.bossDefinitionID).float32
+  let hpFactor = clamp(bossSlotHpBudget(slotWave) / bossSlotHpBudget(authored) * hpScale,
+                       0.02'f32, 50.0'f32)
+  rescaleBossPools(boss, hpFactor)
+  let dmgFactor = clamp(bossSlotDamageRef(slotWave) / bossSlotDamageRef(authored),
+                        0.05'f32, 30.0'f32)
+  boss.contactDamage *= dmgFactor
+  boss.rangedDamage *= dmgFactor
+  boss.damageTuning = dmgFactor
+
+proc bossRosterProblems*(): seq[string] =
+  ## Per-ID wiring the compiler cannot check (boss IDs are plain ints with
+  ## `else` branches everywhere): every ID must resolve to its own definition,
+  ## carry a weak point and a process name. Reported by debug builds at startup.
+  for id in 1..MaxBossId:
+    let def = vanillaBossDefinition(id)
+    if def.bossID != id:
+      result.add("boss " & $id & ": definition reports bossID " & $def.bossID)
+    if def.phases.len == 0:
+      result.add("boss " & $id & ": no phases")
+    if def.weakPoint.kind == bwoNone:
+      result.add("boss " & $id & ": no weak point")
+    if getBossProcessName(id).len == 0:
+      result.add("boss " & $id & ": no process name")

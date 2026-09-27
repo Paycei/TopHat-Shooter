@@ -100,6 +100,39 @@ const
   FissureChaseSpeed*     = 150.0'f32 # phase-3 chaser crack speed (just below base player speed)
   FissureChaseInterval*  = 0.55'f32  # seconds between eruptions the chaser drops as it travels
   FissureChasePopWarn*   = 0.4'f32   # chaser-dropped eruptions pop much faster than chain steps
+  # Juggernaut charges are built around the player's dash (player.nim). The
+  # wind-up TRACKS the player and only commits JuggernautChargeCommit before
+  # launch, aimed part of the way along the player's motion: a lane locked at
+  # the start of a long wind-up is walked off by anyone who is moving at all,
+  # and one aimed at where the player stands is beaten by strafing. The commit
+  # beat is sized so a reacting player can still dash out even at point blank
+  # (reaction ~0.25 s + DashDuration 0.16 s < commit + the boss's travel).
+  JuggernautChargeWindup*    = 0.9'f32   # first charge: tracking + commit
+  JuggernautChargeReaim*     = 0.8'f32   # follow-ups: turn, track, commit, go (lets a triple's 3rd charge meet a recharged dash)
+  JuggernautChargeCommit*    = 0.4'f32   # final beat of either: lane locked and shown
+  JuggernautChargeLead*      = 0.5'f32   # fraction of the player's motion until impact the aim leads by
+  JuggernautChargeMinSpeed*  = 300.0'f32 # floor on the travel-time speed (point-blank charges)
+  JuggernautChargeWinded*    = 0.9'f32   # stands spent after the last charge: the opening
+  JuggernautChargeOvershoot* = 150.0'f32 # a charge runs this far PAST its aim point
+  JuggernautChargeMinDist*   = 240.0'f32
+  JuggernautChargeMaxDist*   = 560.0'f32
+  # Summoner King legion (boss 2, game/bosses.nim). Waves field several times
+  # the bodies they used to (calculateWaveEnemyCount), so a legion of four
+  # circles was the emptiest moment of its own block. The legion is now a
+  # crowd of one-hit rank and file plus a few Royal Guards: the guards alone
+  # hold the seal and fire the Legion Volley, the crowd is pressure around them.
+  LegionMinionDifficulty*  = 2.5'f32   # fixed stat difficulty: summons never outscale the fight
+  LegionFodderCap*         = 28        # rank and file alive at once: an ignored legion tops up, never piles up
+  LegionFodderSpeedMult*   = 0.8'f32   # slower than a wave circle, so a ring closes at a readable pace
+  LegionGuardHpMult*       = 6.0'f32   # a guard takes a few focused hits where the crowd takes one
+  LegionGuardRadiusMult*   = 1.9'f32
+  LegionGuardSpeedMult*    = 0.65'f32
+  LegionGuardDamageMult*   = 1.5'f32
+  LegionMusterRing*        = 60.0'f32  # muster ring sits this far outside the King's body
+  LegionEncircleRadius*    = 300.0'f32 # phase 2 rings the PLAYER at this range...
+  LegionEncircleMinGap*    = 190.0'f32 # ...and drops any slot an arena wall pushed closer than this
+  LegionVolleyFan*         = 3         # shots in each guard's volley spear
+  LegionVolleySpread*      = 10.0'f32  # degrees between the spear's shots
   PrismRayTelegraph*     = 1.6'f32   # Prism Architect: wind-up showing feed beam + refracted star
   PrismRayActive*        = 0.4'f32   # refracted rays' lethal flash
   PrismMiniTelegraph*    = 0.9'f32   # cascade beat two: mini prisms' shorter ignite wind-up
@@ -143,16 +176,21 @@ type
   GameDifficulty* = enum
     ## Per-profile difficulty picked when a save profile is created.
     ## The on-disk form is the value string ("easy"/"medium"/"hard"/"nightmare").
-    ## Difficulty also sets the wave-mode lives budget -- how many times a run may
-    ## continue from the death-surviving block checkpoint (see difficultyMaxLives
-    ## below): unlimited / 3 / 1 / 0. Nightmare's 0 is what makes every death
-    ## there restart at wave 1.
+    ## Difficulty also sets the lives budget -- how many times a run may continue
+    ## from its death-surviving checkpoint (see difficultyMaxLives below): wave
+    ## mode gets unlimited / 3 / 1 / 0, the roguelite and Time Survival 3 / 1 /
+    ## 0 / 0. Nightmare's 0 is what makes every death there start the run over. The combat
+    ## multipliers live in the difficulty table further down
+    ## (difficultyEnemyHpMult and friends).
     gdEasy = "easy", gdMedium = "medium", gdHard = "hard", gdNightmare = "nightmare"
 
   CutsceneContinuation* = enum
     cscMenu,       ## after cutscene -> gsMenu (intro, settings replays)
     cscVictory,    ## after cutscene -> gsVictory (first endgame win)
-    cscLaunchGame  ## after cutscene -> startLoadingAnimation + pendingGameMode
+    cscLaunchGame, ## after cutscene -> startLoadingAnimation + pendingGameMode
+    cscDesktopIcon ## after cutscene -> gsMenu, then re-run the desktop icon that
+                   ## started it (a first-time mode intro): its intro is now seen,
+                   ## so the icon does exactly what a normal click does
 
   GameMode* = enum
     gmWaveBased,
@@ -187,6 +225,7 @@ type
     timeLimit*: float32     ## Match time limit in seconds, 0 = unlimited (default 180)
     snapshotRate*: float32  ## Seconds between server->client state snapshots
     inputRate*: float32     ## Seconds between client->server input packets
+    pickupsEnabled*: bool   ## Arena ports drop packages (default true)
 
   EnemyType* = enum
     etCircle,      # Normal chasers
@@ -202,7 +241,30 @@ type
     etPhantom,     # Unpredictable - teleports with fake clones
     etSniper,      # Rare - charges one-shot epic attack with warning
     etMage,        # Summons meteorites and shoots homing magic bullets
-    etEnvironment  # Sentinel: damage from arena hazards, not an enemy
+    # --- Survival horde (the flood). Contiguous: etThread..etInterrupt. ---
+    etThread,      # Fodder: small, fast, streams at the player
+    etForkBomb,    # Splits into two Threads on death, forks itself if ignored
+    etWatchdog,    # The horde's only shooter: slow three-shot fan from range
+    etZombie,      # Leaves a husk that stands back up unless reaped
+    etDeadlock,    # "mutex": arrives in pairs, links to every Deadlock nearby; the mesh closes around the player
+    etDaemon,      # Support aura: hastes the horde around it
+    etInterrupt,   # Kamikaze: marks a spot, dashes, detonates (hurts the horde too)
+    # --- Roguelite rooms (legacy processes). Contiguous: etFragment..etCorruptor. ---
+    etFragment,    # Fodder: hops in, then pounces onto a mark leading the player
+    etPortGuard,   # Front shield blocks shots; flank it
+    etSentry,      # Walks to a post, roots, turret-fires
+    etMimic,       # Dormant file decoy that springs
+    etRestorer,    # Channels a beam that revives a fallen enemy
+    etPacket,      # Dasher that ricochets off walls and obstacles
+    etDriver,      # Armoured charger that stuns itself on obstacles
+    etCorruptor,   # Leaves decaying corrupted floor tiles
+    # MODS.EXE: reserved slots, bound at load time to the enemies mods register
+    # (register.enemy). Never saved by name. New built-in enemies go ABOVE.
+    etMod00, etMod01, etMod02, etMod03, etMod04, etMod05, etMod06, etMod07,
+    etMod08, etMod09, etMod10, etMod11, etMod12, etMod13, etMod14, etMod15,
+    etMod16, etMod17, etMod18, etMod19, etMod20, etMod21, etMod22, etMod23,
+    etMod24, etMod25, etMod26, etMod27, etMod28, etMod29, etMod30, etMod31,
+    etEnvironment  # Sentinel: damage from arena hazards, not an enemy (keep LAST)
 
   DeathCause* = enum
     ## How the player was killed, used by the game-over screen to explain the death.
@@ -306,7 +368,7 @@ type
     puSpeedBoost,      # Permanent speed increase
     puThorns,          # Reflect damage to attackers
     puTimeWarp,        # Slow down time globally
-    puVolatile,        # LEGENDARY passive: enemies with 2+ DoTs take +50% dmg, death pulse spreads elements
+    puVolatile,        # LEGENDARY passive: enemies with 2+ DoTs take +30% dmg, death pulse spreads elements
     puWallMaster,      # Place stronger walls and increment turret damage
     puWallTurrets,     # LEGENDARY: Walls become turrets that shoot enemies
     puWindAura,        # Pushes enemies away from player
@@ -329,7 +391,19 @@ type
     puRoomEcho,             # Room clear charges next N bullets with bonus damage (roguelite only)
     puChainReaction,        # Kills have chance to drop bonus coin (roguelite only)
     puKernelExploit,        # LEGENDARY: boss defeat grants permanent damage (roguelite only)
-    puDataHarvest           # +XP gained per enemy (roguelite only)
+    puDataHarvest,          # +XP gained per enemy (roguelite only)
+    # MODS.EXE: reserved slots, bound at load time to the power-ups mods
+    # register (register.powerup). An unbound slot appears nowhere, and slot
+    # names are never saved (saves store "mod:<id>:<name>"). New built-in
+    # power-ups go ABOVE this block.
+    puMod00, puMod01, puMod02, puMod03, puMod04, puMod05, puMod06, puMod07,
+    puMod08, puMod09, puMod10, puMod11, puMod12, puMod13, puMod14, puMod15,
+    puMod16, puMod17, puMod18, puMod19, puMod20, puMod21, puMod22, puMod23,
+    puMod24, puMod25, puMod26, puMod27, puMod28, puMod29, puMod30, puMod31,
+    puMod32, puMod33, puMod34, puMod35, puMod36, puMod37, puMod38, puMod39,
+    puMod40, puMod41, puMod42, puMod43, puMod44, puMod45, puMod46, puMod47,
+    puMod48, puMod49, puMod50, puMod51, puMod52, puMod53, puMod54, puMod55,
+    puMod56, puMod57, puMod58, puMod59, puMod60, puMod61, puMod62, puMod63
 
   PowerUpRarity* = enum
     prCommon,
@@ -365,13 +439,31 @@ type
     dftCache,
     dftCorruptedSector
 
+  # --- Roguelite sectors (player-facing: a sector is a directory tree) -----
+  #
+  # A sector ("floor" internally) is a FORWARD path of folders: the start
+  # room, n reward layers, then the boss (the sector's SERVICE). Clearing a
+  # folder opens 2-3 exits, each labelled with the reward the next folder
+  # pays. Every layer's exits are fixed when the sector is generated; the
+  # player's path only records which one was taken, so a save needs just the
+  # theme, the path and the live room's state (see run_save.nim).
+
   DungeonRoomKind* = enum
     drkStart,
     drkCombat,
-    drkElite,
-    drkTreasure,
-    drkShop,
-    drkBoss
+    drkElite,     # /quarantine
+    drkShop,      # /pkg: stalls, no combat
+    drkBoss       # the sector's SERVICE
+
+  RoomReward* = enum
+    rrwNone,        # start room, SERVICE
+    rrwDraft,       # /bin        a power-up install
+    rrwPatch,       # /updates    choose 1 of 3 patches
+    rrwCredits,     # /cache      credits
+    rrwRepair,      # /restore    integrity
+    rrwShards,      # /shards     Data Shards
+    rrwShop,        # /pkg        package stalls
+    rrwQuarantine   # /quarantine elite fight, then a patch choice
 
   DoorDir* = enum
     ddUp,
@@ -380,62 +472,99 @@ type
     ddLeft
 
   DungeonPickupKind* = enum
-    dpkKey,
-    dpkCompass,
-    dpkMap,
-    dpkRelicPedestal,
-    dpkShardCache
+    dpkDraftPackage,   # /bin reward: opens the installer draft on touch
+    dpkPatchPedestal,  # /updates reward: one of a group of 3 patches
+    dpkCreditCache,    # /cache reward
+    dpkRepairKit,      # /restore reward
+    dpkShardCache,     # /shards reward
+    dpkStallPowerUp,   # /pkg: a specific power-up for credits
+    dpkStallPatch,     # /pkg: a patch for credits
+    dpkStallRepair,    # /pkg: integrity for credits
+    dpkStallRestock    # /pkg: reroll the unsold power-up and patch stalls
 
   DungeonPickup* = ref object
     pos*: Vector2f
     kind*: DungeonPickupKind
-    costCredits*: int     # 0 = free on touch
-    taken*: bool
+    taken*: bool             # (stall prices are derived live: see stallPrice in dungeon.nim)
+    patch*: RogueliteRelicType   # pedestal / patch stall
+    powerUp*: PowerUp        # power-up stall (level re-derived at purchase)
+    amount*: int             # credits / shards / repair percent
+    group*: int              # taking one pickup removes the rest of its group (0 = none)
+    spawnTimer*: float32     # materialize animation; claimable once it passes PickupSpawnTime
+
+  DungeonExit* = object
+    dir*: DoorDir
+    reward*: RoomReward
+    kind*: DungeonRoomKind
+    encounterSeed*: int
+    obstacleSeed*: int
+
+  DungeonLayer* = object
+    exits*: seq[DungeonExit]   # the doors that lead INTO this layer
 
   DungeonRoom* = ref object
-    gridX*, gridY*: int
+    layer*: int               # 0 = start, 1..n = reward folders, n+1 = SERVICE
+    exitIdx*: int             # which exit of its layer this room is
     kind*: DungeonRoomKind
-    doors*: set[DoorDir]
-    cleared*: bool        # Encounter finished (start/shop rooms are born cleared)
-    visited*: bool        # Player has entered this room
-    seen*: bool           # Adjacent to a visited room (shows as outline on minimap)
-    locked*: bool         # Treasure rooms need a key to enter
-    encounterBudget*: int # Enemies to spawn on first entry
+    reward*: RoomReward
+    cleared*: bool            # Encounter finished (start/shop rooms are born cleared)
+    rewardSpawned*: bool      # Reward pickups have materialized
+    rewardClaimed*: bool      # Reward collected: the exits open
+    encounterBudget*: int     # Enemies to spawn on first entry
     encounterSeed*: int
-    bfsDepth*: int        # Distance from the start room
     obstacleSeed*: int
+    pulseIndex*: int          # Encounter pulse currently spawning (1-based; 0 = not started)
+    pulseCount*: int          # Pulses this encounter is split into
+    pulseQuota*: int          # Enemies the current pulse may still spawn
+    pulseSize*: int           # Size of the current pulse
+    pulseTimer*: float32      # Delay before the first pulse / stall timer before the next
+    restocks*: int            # /pkg restocks bought
     pickups*: seq[DungeonPickup]
 
   DungeonFloor* = ref object
     theme*: DungeonFloorTheme
     floorNumber*: int
-    rooms*: seq[DungeonRoom]
-    currentRoom*: int
-    startIdx*: int
-    bossIdx*: int
-    mapRevealed*: bool    # Map pickup: full layout visible on minimap
-    compassFound*: bool   # Compass pickup: boss room marked on minimap
+    layers*: seq[DungeonLayer] # [0] start, [1..n] reward layers, [n+1] SERVICE
+    path*: seq[int]            # exit index taken into each layer (path[0] = 0)
+    rooms*: seq[DungeonRoom]   # rooms visited this sector, in order
+    currentRoom*: int          # always rooms.high
 
   RogueliteRelicType* = enum
+    ## Roguelite PATCHES (player-facing: "KB-#### <name>"). Keep the symbol
+    ## names stable and append new values at the end: run saves store
+    ## `$value`, and a renamed value silently drops out of a saved run.
     rrtNone,
     rrtDiscountProtocol,
     rrtShardMagnet,
     rrtEliteDividend,
     rrtEmergencyPatch,
-    rrtDraftCache
+    rrtDraftCache,
+    rrtOverclock,        # +fire rate; a hit stalls it
+    rrtFirewallRule,     # first hit in every combat room is blocked
+    rrtDefragmenter,     # room clears restore integrity
+    rrtGarbageCollector, # loose XP and credits home in from anywhere
+    rrtCronJob,          # periodic radial burst while in combat
+    rrtZipBomb,          # elites detonate on death
+    rrtRootAccess,       # +damage vs bosses/elites, -damage vs the rest
+    rrtRollback,         # once per sector, survive a lethal hit
+    rrtCryptominer,      # kills mine credits, -damage
+    rrtRaidMirror,       # every 3rd shot also fires backward
+    rrtPacketLoss        # some regular enemy bullets are dropped as fired
 
   RogueliteRelic* = object
+    ## A PATCH, as the player sees it (KB-####). The internal name predates the
+    ## rename and stays because saves parse `$relicType`; the display name,
+    ## KB number and description all come from patches.nim via t().
     relicType*: RogueliteRelicType
-    name*: string
-    description*: string
 
   RogueliteProfile* = ref object
     version*: int
     dataShards*: int
     cores*: int
-    unlockedStarterKits*: set[RogueliteStarterKit]
-    unlockedPowerFamilies*: set[RoguelitePowerFamily]
-    unlockedRelics*: set[RogueliteRelicType]
+    # v5 ("earn, don't buy"): boot profiles, power families and patches are
+    # never bought any more, so the old unlockedStarterKits/-PowerFamilies/
+    # -Relics sets, the Wave Surge boss tier and the unlock-shop badge memory
+    # were dropped. Their spend was refunded once at migration (roguelite.nim).
     unlockedPlayerSkins*: seq[string]
     unlockedBulletSkins*: seq[string]
     unlockedPlayerShapes*: seq[string]
@@ -443,8 +572,9 @@ type
     unlockedParticleSkins*: seq[string]
     unlockedDesktopBgs*: seq[string]
     unlockedCubeSkins*: seq[string]
-    unlockedBossTier*: int
-    highestHeat*: int
+    highestHeat*: int                    # Highest Heat unlocked; Heat N+1 is earned
+                                         # by winning a run at Heat N
+    sectorsCleared*: int                 # Lifetime sector SERVICEs shut down
     bestFloor*: int
     bestRooms*: int
     bestEndlessLoop*: int
@@ -458,10 +588,6 @@ type
                                          # for Recursion. Pre-seeded onto the player
                                          # each run so the draft offers the NEXT
                                          # level instead of restarting at 1.
-    seenAffordableUnlocks*: seq[string]  # Stable keys of unlocks the player has
-                                         # already been shown as affordable; gates
-                                         # the shop button's "deal" badge so it only
-                                         # nags about newly-affordable items.
 
   RogueliteRun* = ref object
     seed*: int
@@ -470,14 +596,16 @@ type
     floorNumber*: int                # 1..RogueliteFloorsToWin, resets each endless loop
     floor*: DungeonFloor             # The active generated floor
     totalRoomsCleared*: int
-    keys*: int                       # Opens locked treasure rooms
-    combatRoomsSinceDraft*: int      # Draft offered every 2nd combat/elite clear
     usedThemes*: set[DungeonFloorTheme]
     nextThemeChoices*: array[3, DungeonFloorTheme]
     pendingFloorSelect*: bool
     relics*: seq[RogueliteRelic]
-    shardsEarned*: int
+    shardsEarned*: int               # Unbanked; zeroed each time the run commits
     coresEarned*: int
+    totalShardsBanked*: int          # Never reset: what this run has paid out in
+    totalCoresBanked*: int           # total, for the BSOD and victory screens
+    heatUnlocked*: int               # Heat this run's win unlocked (0 = none)
+    roomDensityWave*: int            # Wave-mode density slot of the live room (see densityWave)
     endlessLoop*: int
     completed*: bool
     died*: bool
@@ -527,6 +655,34 @@ type
     awtClockSweep       # Timekeeper rotating clock-hand beams (ClockSweep timing)
     awtChaosWeave       # Chaos Weaver jagged arena-spanning threads (ChaosWeave timing)
     awtOmegaQuadrant    # Omega Entity sequential quadrant detonations (OmegaQuad timing)
+    # --- Survival / Roguelite rosters (mode_hazards.nim timing, drawn by
+    # mode_visuals.nim, resolved by game/mode_mechanics.nim). Contiguous:
+    # awtEnemyDashLane..awtLastKnownGood. ---
+    awtEnemyDashLane    # Interrupt target / Packet & Driver lane (non-lethal tell)
+    awtCorruptTile      # Corruptor floor tile: arms, then hurts while stood on
+    awtForkTree         # Forkmother: faint binary tree her seeds will follow (non-lethal)
+    awtMarchLane        # Dispatcher: lane tell; spawns a marching rank on expiry
+    awtHeatEmitter      # Thermal Runaway: follows the player, laying heat nodes
+    awtHeatTrail        # Thermal Runaway: one heat node (arms, then burns player + horde)
+    awtThermalVent      # Thermal Runaway: vent under a crowd (one-shot eruption)
+    awtSafeMode         # Omega (survival): everything outside a drifting bubble floods
+    awtSearchlight      # Gatekeeper: rotating inspection beams, blocked by obstacles
+    awtFileBomb         # Compactor: dormant file bomb (shred it) until the purge
+    awtRestorePoint     # Compactor: HP restore point, rolls back unless broken
+    awtAuditLock        # Hive: the room freezes; moving or shooting is punished
+    awtPacketLink       # Router: lit link, then a train of packets races down it
+    awtPageFault        # Supervisor: ghost footprint where an obstacle pages in
+    awtStaleCopy        # Mirror Cache: echo replaying the player's past movement + shots
+    awtLastKnownGood    # Omega (roguelite): four doors, one real, purge from the centre
+
+  ChargeComboState* = enum
+    ## The Juggernaut's charge combo, one state per beat. While it is anything
+    ## but ccIdle the boss is committed: every other attack countdown is frozen.
+    ccIdle       ## not charging
+    ccWindup     ## first charge: line locked, pawing the ground
+    ccCharging   ## on the move along the locked line (isDashing is true)
+    ccReaim      ## between charges: turned round, next line locked
+    ccWinded     ## combo spent: stands still with its back plate cracked open
 
   AttackWarning* = ref object
     pos*: Vector2f
@@ -608,6 +764,9 @@ type
     speedBoostTimer*: float32
     outOfCombatSpeedBoost*: bool  # Roguelite: +25% move speed while no encounter is active
     invincibilityTimer*: float32
+    laserHitCooldown*: float32     # Shared re-hit cooldown for beam/laser hazards: while
+                                    # standing in a laser, damage ticks at most once per
+                                    # LaserHitInterval (0.5s) instead of once per activation.
     fireRateBoostTimer*: float32
     magnetTimer*: float32
     shieldBoostTimer*: float32     # Shield boost duration
@@ -631,7 +790,13 @@ type
     regenTimer*: float32
     lastDamageEvent*: DamageEvent  # One-frame categorical signal set by takeDamage, consumed by drawPlayer
     rageStacks*: int
-    critCharge*: float32
+    # Momentum (Legendary, puSpeedBoost): discrete stacks built by sustained fast
+    # movement, lost the same way if it stops. Updated each frame in player.nim's
+    # updatePlayer (right after player.vel is finalized); consumed in
+    # game/combat.nim's calculateCombatStats for the damage/crit bonus.
+    momentumStacks*: int          # 0..MomentumMaxStacks
+    momentumBuildTimer*: float32  # Counts up toward the next stack while above threshold
+    momentumDecayTimer*: float32  # Grace period before stacks start dropping while below threshold
     auraRadius*: float32  # Invisible coin collection aura
     doubleShotDelay*: float32  # Timer for double-shot rapid succession
     bulletCounter*: int  # Counter for special rounds powerup
@@ -668,6 +833,9 @@ type
     poisonAccumulator*: float32  # Accumulates fractional poison damage until it reaches 1.0
     poisonSourceType*: EnemyType  # Enemy type that applied the poison (for stats tracking)
     lastDamageAvoided*: float32  # Set by takeDamage when a hit is blocked, read by game.nim to record damageAvoided
+    lastDamageTaken*: float32    # Set by takeDamage to the HP actually lost: 0 when the hit was blocked,
+                                 # dodged or fully absorbed, and net of Fortified/shield mitigation and the
+                                 # difficulty multiplier. Statistics read THIS, not the damage that was offered.
     parryActive*: bool  # True when actively parrying
     parryCooldown*: float32  # Cooldown timer between parries
     parryDuration*: float32  # How long the parry state lasts
@@ -681,6 +849,8 @@ type
     teamId*: PvPTeam  # Team assignment for PvP mode (ptNone for free-for-all)
     skinType*: int  # Current equipped skinHost
     bulletSkinType*: int  # Current equipped bullet skin
+    modSkin*: int16       # MODS.EXE: equipped mod player cosmetic (index + 1, 0 = none)
+    modBulletSkin*: int16 # MODS.EXE: equipped mod bullet cosmetic (same), per player for PvP
     bulletShapeType*: int  # Current equipped bullet shape (BulletShapeType ord)
     shapeType*: int  # Current equipped player shape
     particleSkinType*: int  # Current equipped particle effect
@@ -691,7 +861,7 @@ type
     cubeSkinType*: int  # Equipped desktop-cube skin (colors the orbital cube companion)
     celestialVeilCharges*: int  # Number of Celestial Veil charges left this wave (decremented when a hit is absorbed)
     # Volatile (Legendary passive)
-    hasVolatile*: bool          # Enemies with 2+ DoTs take +50% dmg and spread on death
+    hasVolatile*: bool          # Enemies with 2+ DoTs take +30% dmg and spread on death
     # Resonance (Normal passive)
     resonanceLevel*: int        # 0 = none, 1/2/3 = 20/30/40% bonus elemental DPS
     # Blood Pact (Legendary active)
@@ -715,9 +885,18 @@ type
     adaptiveFirewallTimer*: float32  # Fire rate boost duration after taking damage (AdaptiveFirewall)
     killChainCount*: int             # Consecutive kill counter for KillChain
     killChainTimer*: float32         # Window timer for KillChain kill streak
-    corruptedCoreHpAcc*: float32     # Fractional max-HP accumulator for CorruptedCore
+    corruptedCoreHpAcc*: float32     # Max HP CorruptedCore has granted this run
     roomEchoCharges*: int            # Charged bullets remaining from RoomEcho
     rapidFireSpinup*: float32        # [0,1] minigun spin-up from sustained fire (RapidFire legendary)
+    # Roguelite patches (player-facing name for RogueliteRelicType). The run's
+    # authoritative list is RogueliteRun.relics; this set mirrors it so modules
+    # that only see a Player (combat stats, takeDamageRaw, shooting) can test a
+    # patch without reaching the Game. Rebuilt by syncPlayerPatches on restore.
+    patches*: set[RogueliteRelicType]
+    patchBlockCharges*: int          # Firewall Rule / Emergency Patch: hits blocked outright
+    overclockStallTimer*: float32    # Overclock: bonus suspended while > 0
+    rollbackArmed*: bool             # Rollback: a lethal hit is still interceptable this sector
+    cronJobTimer*: float32           # Cron Job: seconds until the next radial burst
 
   EffectInstance* = object
     elementType*: ElementType
@@ -726,6 +905,9 @@ type
     maxDuration*: float32
     isActive*: bool
     source*: string
+    hadMastery*: bool  # Whether the matching elemental mastery was owned when this
+                       # effect was applied. Read at tick time so statistics credit
+                       # the mastery only for the ticks it actually amplified.
 
   ActiveEffect* = object
     primary*: EffectInstance
@@ -742,6 +924,10 @@ type
     laserActive*: bool
     laserTarget*: Vector2f  # Current player coordinates to target
     laserChargeTime*: float32  # Time to charge before firing
+    activeLaser*: Laser  # Persistent beam instance for the whole firing phase, kept alive
+                         # (not recreated) so hasHitPlayer isn't reset every couple of frames
+    activeWarning*: AttackWarning  # This satellite's own charge telegraph. Kept per satellite
+                                   # so several charging at once never share one warning.
 
   BossWeakObjectiveKind* = enum
     bwoNone,
@@ -772,6 +958,60 @@ type
     exposureDuration*: float32
     cooldownDuration*: float32
     targetHitRadius*: float32
+
+  # Boss definition data. The roster itself (getBossDefinition) lives in
+  # boss_definitions.nim.
+  BossAttackPattern* = enum
+    bapSpiral,           # Shoots bullets in spiral
+    bapBurst,            # Rapid burst fire
+    bapWave,             # Wave pattern
+    bapTargeted,         # Direct shots at player
+    bapCircle,           # Circle of bullets
+    bapLaser,            # Laser beams
+    bapOrbit,            # Orbiting projectiles
+    bapMeteor,           # Falling projectiles
+    bapChain,            # Chain lightning
+    bapPulse,            # Expanding pulse
+    bapTeleport,         # Teleport then attack
+    bapSummon,           # Spawn minions
+    bapDash,             # Dash attack
+    bapBarrage,          # Massive projectile barrage
+    bapSnipe,            # Precise aimed shots
+    bapMinionVolley      # Living Royal Guards fire at the player in unison (Summoner King)
+
+  BossAttack* = object
+    attackType*: BossAttackPattern
+    damage*: float32
+    cooldown*: float32
+    timer*: float32
+    projectileSpeed*: float32
+    projectileCount*: int
+    spreadAngle*: float32
+    durationOrRadius*: float32
+    bulletRadius*: float32     # Bullet size override (0 = use default 6)
+    specialData*: string  # JSON-like data for special mechanics
+
+  BossPhaseDefinition* = object
+    name*: string
+    hpThreshold*: float32      # Enters this phase when HP drops below this %
+    speedMultiplier*: float32
+    damageMultiplier*: float32
+    defenseMultiplier*: float32
+    attacks*: seq[BossAttack]
+    color*: Color
+    specialBehavior*: string
+
+  BossDefinition* = object
+    name*: string
+    bossID*: int
+    baseHP*: float32
+    baseSpeed*: float32
+    baseDamage*: int
+    baseRadius*: float32
+    color*: Color
+    phases*: seq[BossPhaseDefinition]
+    description*: string
+    weakPoint*: BossWeakPointDefinition
 
   BossWeakPointTarget* = object
     pos*: Vector2f
@@ -849,8 +1089,9 @@ type
     startPos*: Vector2f            # Position at start of entrance animation
     targetPos*: Vector2f
     slowTimer*: float32
-    entranceWait*: float32        # Brief wait after arrival before boss begins attacking
-    slowAmount*: float32
+    slowAmount*: float32          # Timed slow (see applySlow); cleared when slowTimer runs out
+    frostSlowAmount*: float32     # Permanent chill from Frost Shots / Frost orbs. Kept apart
+                                  # from the timed slot so a short stun can't erase it.
     activeEffects*: array[ElementType, ActiveEffect]  # Unified effect system, indexed directly by ElementType
     chainLightningCooldown*: float32
 
@@ -858,6 +1099,7 @@ type
     attackExecuteTimer*: float32
     attackPhase*: int  # 0=patrol, 1=warning, 2=execute
     dashCooldown*: float32
+    activeCrossLaser*: Laser  # etCross dash-laser instance, kept alive (not recreated) for the whole dash so hasHitPlayer isn't reset every frame
     fakeWarningTimer*: float32
     clonePositions*: seq[Vector2f]
     cloneTimer*: float32
@@ -876,6 +1118,7 @@ type
     spawnRingTimer*: float32   # countdown from 0.45 -> 0 on spawn; drives expanding ring pop-in
     regenTimer*: float32  # For regenerative elites
     spawnedByBoss*: bool  # True if spawned by boss summon attack
+    royalGuard*: bool     # Summoner King Royal Guard: holds the seal and fires the Legion Volley
     rotation*: float32  # Current rotation angle in radians
     bossDefinitionID*: int  # Which boss definition this uses
     currentPhaseIndex*: int  # Current phase index
@@ -907,6 +1150,14 @@ type
     pendingDashLocked*: bool  # True while a dash warning has locked the next dash line
     pendingDashStart*: Vector2f  # Exact start point shown by the dash warning
     pendingDashTarget*: Vector2f  # Exact endpoint shown by the dash warning
+    # Juggernaut charge combo (boss 8, see JuggernautCharge* consts). Rides on
+    # the dash fields above for the movement itself; these track the combo.
+    chargeState*: ChargeComboState
+    chargesLeft*: int        # charges still owed, counting the one winding up
+    chargeTimer*: float32    # countdown for the current windup / reaim / winded beat
+    chargeSpeed*: float32    # speed CAP for the combo's charges (the def's projectileSpeed)
+    chargeTravel*: float32   # seconds from launch to the aim point; sets each charge's speed
+    chargeDamage*: float32   # body-impact damage of each charge in the combo
     satellites*: seq[OrbitalSatellite]  # Persistent satellites that can be destroyed
     weakPoint*: BossWeakPointState  # Boss objective weak-point state
     invulnerabilityTimer*: float32  # Brief invulnerability during phase transitions
@@ -917,8 +1168,8 @@ type
     reflectShieldWarnTimer*: float32  # >0 while the shield is charging up (text-free telegraph); 0 otherwise
     bossStallTimer*: float32        # Time the current weak-point objective has gone unbroken
     bossEnrageLevel*: float32       # 0 = calm; ramps while the objective is ignored (faster attacks)
-    addsGateActive*: bool           # True while living boss-summoned adds make the boss damage-immune
-    summonWaveActive*: bool         # Summoner King: a summoned wave is out; clearing it opens the window
+    addsGateActive*: bool           # True while seal-holding adds (satellites, Royal Guards) make the boss damage-immune
+    summonWaveActive*: bool         # Summoner King: a legion is out; slaying its Royal Guards opens the window
     megaCastTimer*: float32         # >0 while channelling a mega special (boss frozen, other attacks paused, hardened)
     megaCastTotal*: float32         # Full duration of the active mega cast, for animation progress
     ignoreHealPending*: float32     # Queued heal from weak-point targets that expired unhit (applied next frame)
@@ -929,6 +1180,14 @@ type
     dotAccs*: array[ElementType, DamageAccumulator]  # Per-element DoT tick display, so fire/poison numbers stay separate and keep their own color
     poisonStacks*: float32        # Ramp built while poisoned (effects.nim); boosts poison tick damage up to a cap, resets when poison fully expires
     damageTuning*: float32  # Dungeon: attack-damage compression factor (0 or 1 = untouched)
+    survivalTag*: SurvivalTag  # Survival: spawned by this System Event (stgNone otherwise)
+    # Survival / Roguelite rosters (mode_enemies.nim, game/mode_mechanics.nim)
+    linkId*: int            # Enemy id this one is bound to: Deadlock partner, Forkmother child -> mother, 0 = none
+    generation*: int        # Fork seeds: splits left (0 = hatch, -1 = marcher); Zombie: 1 once revived; Packet: bounces left
+    modeTimer*: float32     # Per-type clock of the mode rosters (fork charge, hop, seed flight, tile drop...)
+    hasteAmount*: float32   # Speed bonus fraction (Priority Daemon aura, Dispatcher boost)
+    hasteTimer*: float32    # Seconds of haste left
+    ballisticVel*: Vector2f # Non-zero: flies straight at this velocity (fork seeds, payload orbs, marching ranks)
 
   Bullet* = ref object
     pos*: Vector2f
@@ -961,6 +1220,7 @@ type
     parentBulletId*: int  # ID of parent bullet
     bulletId*: int  # Unique ID for this bullet
     isBossBullet*: bool  # True if this bullet was fired by a boss
+    packetChecked*: bool # Packet Loss patch already rolled for this enemy round
     bossBulletShape*: int  # Boss bullet shape: 0=circle,1=diamond,2=triangle,3=star,4=cross,5=square
     bulletShape*: int  # Player cosmetic bullet shape (BulletShapeType ord)
     isArcaneBullet*: bool  # True if this bullet is from arcane bullet power-up
@@ -981,6 +1241,9 @@ type
     isFrozenByNova*: bool  # True while Nova ability has this bullet frozen in place
     isFromNova*: bool      # True if this bullet was released by Nova (for damage tracking)
     rageMultiplier*: float32  # Rage damage multiplier baked in at fire time (1.0 = no bonus)
+    roomEchoMultiplier*: float32  # Room Echo charged-shot multiplier baked in at fire time (1.0 = uncharged)
+    hasCountedHit*: bool      # True once this bullet has been counted as a connecting shot. A piercing
+                              # bullet hits several enemies but is still one shot, so accuracy needs this.
 
   Coin* = ref object
     pos*: Vector2f
@@ -1051,7 +1314,9 @@ type
     deNone,         # No pending event (idle / already consumed)
     deDodged,       # Player successfully dodged the hit
     deDamage,       # Player took damage (UI/alert signal)
-    deCelestialVeil # Celestial Veil absorbed the hit
+    deCelestialVeil,# Celestial Veil absorbed the hit
+    dePatchBlocked, # A Firewall Rule / Emergency Patch charge blocked the hit
+    deRollback      # Rollback patch caught a lethal hit
 
   DamageNumber* = ref object
     pos*: Vector2f          # Current position
@@ -1151,6 +1416,24 @@ type
     maxLifetime*: float32
     color*: Color
 
+  BossDeathBlast* = ref object
+    ## The deallocation sweep a dying boss leaves behind. The OS reclaims the
+    ## dead process: an edge travels outward from the corpse and ERASES that
+    ## boss's own leftover hazards -- bullets, beams, meteorites, un-fired
+    ## telegraphs -- as it reaches them, so a boss can never land a hit from
+    ## beyond the grave with shots it fired while alive.
+    ##
+    ## It is purely a clear. It deals no damage to the player, to surviving
+    ## minions or to anything else, which is why there is no damage field here
+    ## and no collision code anywhere that reads one.
+    pos*: Vector2f
+    sourceEnemyId*: int      # Only hazards fired by THIS boss are swept away
+    radius*: float32         # Leading edge; everything inside it is already gone
+    maxRadius*: float32      # Where the sweep stops (sized to cover the arena)
+    speed*: float32          # Edge travel speed, px/s
+    fadeTimer*: float32      # Counts down once the edge has reached maxRadius
+    color*: Color
+
   Laser* = ref object
     pos*: Vector2f          # Center position
     direction*: int         # 0=horizontal, 1=vertical, 2=both (cross)
@@ -1162,6 +1445,7 @@ type
     hasHitPlayer*: bool     # Track if already damaged player this laser
     rotation*: float32      # Rotation angle in radians (for rotating lasers)
     enemyType*: EnemyType   # Type of enemy that created this laser
+    sourceEnemyId*: int     # ID of the enemy that fired this beam (-1 = unowned)
 
   Meteorite* = ref object
     pos*: Vector2f          # Current position
@@ -1172,6 +1456,7 @@ type
     warningTimer*: float32  # Time before impact
     maxWarningTime*: float32 # Total warning duration
     splashDamage*: float32  # AoE damage dealt on impact (0 = direct-contact only)
+    sourceEnemyId*: int     # ID of the enemy that called it down (-1 = unowned)
 
   ShopItem* = object
     name*: string
@@ -1220,14 +1505,11 @@ type
     bossArenaPlayerX*: float32
     bossArenaPlayerY*: float32
 
-  OSHUDState* = object
-    panelPulse*: float32
-    minimized*: bool
-
   TaskManagerTab* = enum
     tmtProcesses,    # Active power-ups
     tmtPerformance,  # Stats and metrics
-    tmtSettings      # Game settings access
+    tmtSettings,     # Game settings access
+    tmtPatches       # Roguelite: the run's installed patches
 
   BossWaveManager* = object
     active*: bool        # True when a boss is currently spawned
@@ -1240,16 +1522,6 @@ type
     maxDuration*: float32
     decayRate*: float32
     tintColor*: Color
-
-  StreakLevel* = enum
-    slNone, slSpree, slRampage, slUnstoppable, slGodlike
-
-  KillStreak* = object
-    kills*: int
-    timer*: float32
-    level*: StreakLevel
-    lastLevelUpTime*: float32
-    displayTimer*: float32
 
   ComboSystem* = object
     killCount*: int
@@ -1270,8 +1542,6 @@ type
     pos*: Vector2f
 
   MicroRewardTracker* = object
-    lastKills*: int
-    lastDamageDealt*: float32
     rewards*: seq[MicroReward]
 
   SlowMotionType* = enum
@@ -1309,11 +1579,6 @@ type
     isPerfect*: bool
     maxCombo*: int
 
-  CloseCall* = object
-    detected*: bool
-    displayTimer*: float32
-    count*: int
-
   WaveCelebration* = object
     active*: bool
     animationTimer*: float32
@@ -1329,6 +1594,8 @@ type
     maxTime*: float32
     bossName*: string
     bossTitle*: string
+    bossTag*: string    ## lore line above the name ("HIJACKED SERVICE: ..."); "" = none
+    isRoot*: bool       ## the Root itself (boss 12): card switches to its magenta palette
     bossHp*: float32
     phase*: int
 
@@ -1367,6 +1634,147 @@ type
     coins*: int
     startWave*: int        # wave the run begins on (also drives the wave-average preview)
 
+  # --- Time Survival ("LASTSTAND.exe") ---------------------------------------
+  # A 20:00 run in four phases, each closed by a boss, then optional Overtime.
+  # Between bosses the horde spawner keeps the screen full and System Events
+  # fire; events, elites and bosses drop Data Caches (free power-up levels).
+  # Logic lives in survival*.nim; persisted by run_save.nim.
+
+  SurvivalPhase* = enum
+    ## The phase is the number of bosses beaten (see survivalPhase in
+    ## the Time Survival schedule below), so it only ever changes after a boss fight.
+    spBoot, spRuntime, spOverload, spKernelPanic, spOvertime
+
+  SurvivalEventKind* = enum
+    sekNone,
+    sekMemoryLeak,      # a torrent of weak, fast enemies pours from one edge
+    sekFirewallBreach,  # a ring of chasers closes in around the player
+    sekUploadZone,      # stand inside a zone until its upload completes
+    sekCorruptedSector, # telegraphed meteors rain around the player
+    sekRogueProcess,    # a champion elite to hunt down before it escapes
+    sekOverclock        # double XP, denser horde
+
+  SurvivalTag* = enum
+    ## Marks enemies spawned by an event so the event can count them.
+    stgNone, stgLeak, stgBreach, stgRogue
+
+  SurvivalCacheTier* = enum
+    sctMinor, sctStandard, sctRare, sctKernel
+
+  SurvivalBannerKind* = enum
+    sbkNone, sbkPhase, sbkEventStart, sbkEventCleared, sbkEventFailed,
+    sbkBossInbound, sbkFinalInbound
+
+  CorpseRecord* = object
+    ## A recently killed roguelite enemy a Restorer can bring back.
+    pos*: Vector2f
+    enemyType*: EnemyType
+    maxHp*: float32
+    radius*: float32
+    age*: float32
+    claimedBy*: int        # Restorer id channelling it (0 = free)
+
+  HuskRecord* = object
+    ## A fallen Zombie Process waiting to stand back up (walk over it to reap).
+    pos*: Vector2f
+    maxHp*: float32
+    radius*: float32
+    speed*: float32
+    contactDamage*: float32
+    timer*: float32        # seconds until it reanimates
+    tag*: SurvivalTag
+    fromBoss*: bool
+
+  EchoSample* = object
+    ## One tick of the player's recent history (Mirror Cache replays these).
+    pos*: Vector2f
+    aim*: float32
+    fired*: bool
+
+  ModeCombatState* = object
+    ## Transient, per-frame-derived state of the Survival/Roguelite rosters.
+    ## Value types only (snapshot-safe); cleared whenever the room/horde is.
+    corpses*: seq[CorpseRecord]
+    husks*: seq[HuskRecord]
+    echo*: seq[EchoSample]      # ring buffer, EchoSampleRate Hz
+    echoHead*: int
+    echoClock*: float32
+    echoShotLatch*: bool        # the player fired since the last sample
+    auditTimer*: float32        # > 0: Audit Lock is freezing the room
+    auditOrigin*: Vector2f      # where the player stood when the audit locked
+    auditBreached*: bool        # the player already paid for moving this audit
+
+  SurvivalPendingSpawn* = object
+    ## An enemy queued to appear after `delay` seconds. In-arena spawns are
+    ## telegraphed with a marker for that time so nothing pops onto the player.
+    pos*: Vector2f
+    enemyType*: EnemyType
+    delay*: float32
+    tag*: SurvivalTag
+    hpMult*: float32
+    speedMult*: float32
+    allowElite*: bool
+    telegraph*: bool
+
+  SurvivalChest* = object
+    ## A Data Cache lying on the floor; walking over it opens it.
+    pos*: Vector2f
+    tier*: SurvivalCacheTier
+    age*: float32
+
+  SurvivalCacheReveal* = object
+    ## The opened cache's reveal overlay. The rewards are already applied when
+    ## it opens; this only shows them (the sim is paused while it is active).
+    active*: bool
+    tier*: SurvivalCacheTier
+    items*: seq[PowerUp]
+    shards*: int
+    walls*: int
+    repaired*: bool
+    timer*: float32
+
+  SurvivalEvent* = object
+    kind*: SurvivalEventKind   # sekNone = no event running
+    elapsed*: float32          # survival-clock seconds since it started
+    warmup*: float32           # telegraph before the event goes live
+    limit*: float32            # live duration / time limit after the warmup
+    edge*: int                 # Memory Leak: 0 top, 1 right, 2 bottom, 3 left
+    emitTimer*: float32
+    spawned*: int              # enemies (or meteors) the event has produced
+    killed*: int               # tagged enemies killed (Memory Leak)
+    emitDone*: bool
+    zonePos*: Vector2f         # Upload Zone centre / Rogue Process spawn point
+    zoneRadius*: float32
+    progress*: float32         # Upload Zone fill, 0..1
+    progressStep*: int         # last 25% step chimed
+    rogueId*: int              # Rogue Process enemy id (-1 before it spawns)
+
+  SurvivalState* = object
+    event*: SurvivalEvent
+    lastEventKind*: SurvivalEventKind
+    nextEventClock*: float32       # survival clock at which the next random event may start
+    formationClock*: float32       # survival clock of the next set-piece formation
+    spawnBudget*: float32          # density spawner's accumulated spawn allowance
+    lastEliteCacheClock*: float32  # elite cache drops are rate-limited
+    nextRogueIndex*: int           # next guaranteed Rogue Process slot
+    bossWarnedIndex*: int          # last boss number whose 10 s warning fired
+    pending*: seq[SurvivalPendingSpawn]
+    chests*: seq[SurvivalChest]
+    reveal*: SurvivalCacheReveal
+    xpMult*: float32               # Overclock doubles XP
+    victoryAchieved*: bool         # final boss beaten: the run is in Overtime
+    lastPhase*: SurvivalPhase      # for the phase-change banner
+    bannerKind*: SurvivalBannerKind
+    bannerEvent*: SurvivalEventKind
+    bannerStart*: float32          # game.time the banner started
+    eventsStarted*: int
+    eventsCleared*: int
+    cachesOpened*: int
+    lastKillHitStop*: float32      # game.time of the last horde kill hit stop
+    debugTarget*: float32          # live density target (cheat tab readout)
+    cheatForceBoss*: bool          # cheat: spawn the next boss now
+    cheatEventKind*: SurvivalEventKind  # cheat: start this event now
+
   Game* = ref object
     state*: GameState
     mode*: GameMode
@@ -1380,6 +1788,9 @@ type
     levelDraftActive*: bool  # Current draft is an XP level-up (return to play, not the shop).
                              # Set by survival and wave mode; roguelite routes via the dungeon.
     survivalTime*: float32  # Survival: progression clock; pauses during boss fights (unlike game.time)
+    survival*: SurvivalState  # Survival: horde, events, caches, phase (see survival.nim)
+    modeCombat*: ModeCombatState  # Survival/Roguelite roster mechanics (husks, corpses, echo, audit)
+    survivalVictoryJustEarned*: bool  # One-shot: the survival final boss fell on a clean run (consumed in main.nim)
     consumables*: seq[Consumable]
     walls*: seq[Wall]
     pendingWallRespawns*: seq[PendingWallRespawn]  # Boss-room obstacles re-forming
@@ -1406,7 +1817,6 @@ type
     screenHeight*: int32
     shopItems*: array[6, ShopItem]
     selectedShopItem*: int
-    menuSelection*: int
     countdownTimer*: float32
     waveClearedTimer*: float32  # Timer for wave cleared transition
     powerUpChoices*: array[3, PowerUp]
@@ -1439,14 +1849,34 @@ type
     cameFromPowerUpSelect*: bool
     gameOverSoundPlayed*: bool
     currentWave*: int
+    waveScalingApplied*: int  # Last wave whose startWave player scaling ran; stops a resumed
+                              # mid-wave checkpoint from applying the same wave's scaling twice
     wavesUntilBoss*: int
     waveEnemiesRemaining*: int
     waveEnemiesTotal*: int
     waveInProgress*: bool
     waveStartTime*: float32  # Track when current wave started for statistics
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
+    # MODS.EXE (src/modding): a run started with any mod loaded is modded, which
+    # also forces cheatsUsed. modMode is the mod game mode id ("" = the vanilla
+    # mode itself) and modRunData the mods' per-run `run.data`, as JSON, so
+    # both save layers carry it without holding script values.
+    modded*: bool
+    modFingerprint*: string
+    modMode*: string
+    modRunData*: string
     runHadDeath*: bool  # Sticky: the run has died at least once (or resumed a block checkpoint after dying)
-    livesUsed*: int  # Wave mode: continues already spent this run (see difficultyMaxLives)
+    livesUsed*: int  # Wave/roguelite/survival: continues already spent this run (see difficultyMaxLives)
+    # What the lifetime statistics already hold for this run. A Continue rolls the
+    # run back to its checkpoint after its death was recorded, so the next record
+    # adds only what was earned since then (see persistRunResults in main.nim).
+    statsBaseKills*: int      # player.kills at the last Continue
+    statsBaseTime*: float32   # stats clock at the last Continue (survival clock in survival, run clock elsewhere)
+    statsBaseCoins*: int      # run-statistics coin tally already recorded
+    statsBaseBosses*: int     # run-statistics boss kills already recorded
+    metaShardsEarned*: int  # Wave/survival: Data Shards banked this run. Display tally only; the wallet is credited as each is earned (bankMetaCurrency)
+    metaCoresEarned*: int   # Wave/survival: Cores banked this run (same)
+    survivalMinutesRewarded*: int  # Survival: whole survival-clock minutes already paid out, so a minute pays once
     lifeLostTimer*: float32  # Counts down while the "life lost" animation owns the countdown screen
     lifeLostSoundStage*: int  # How far that animation's sound cues have fired (0 none, 1 crack, 2 shatter)
     flawlessWaveVictory*: bool  # One-shot: wave mode was just beaten with runHadDeath still false (consumed in main.nim)
@@ -1458,9 +1888,7 @@ type
     previousState*: GameState  # Track where we came from to return correctly
     nextEnemyId*: int  # Counter for assigning unique IDs to enemies
     showRunStatsGraphs*: bool  # Toggle for showing graphs in run stats screen
-    statsMenuTab*: int  # 0 = Lifetime stats, 1 = Last Run stats
     sandboxSidebarOpen*: bool  # Is the sandbox control sidebar visible
-    sandboxTypingBuffer*: string  # Buffer for detecting "ttt" input
     sandboxSelectedTab*: int  # Current tab in sandbox UI (0=Enemies, 1=Bosses, 2=PowerUps, 3=Controls)
     sandboxScrollOffset*: int32  # Scroll position in sidebar
     sandboxScrollbarDragging*: bool     # True while the user is dragging the scrollbar thumb
@@ -1482,8 +1910,10 @@ type
     roomTransitionDir*: DoorDir      # Door the player walked through
     bossPortalActive*: bool          # Roguelite: exit portal open in the cleared boss room
     bossPortalTimer*: float32        # Drives the portal spawn + idle animation
+    dungeonInteractFocus*: bool      # Roguelite: a pedestal/stall is in [E] range this frame
+    interactKeyLatch*: bool          # Roguelite: an [E] press was spent on a pickup; wall
+                                     # placement stays suppressed until the key is released
     osBackground*: OSBackgroundState  # Animated background system
-    osHUD*: OSHUDState
     pendingToasts*: seq[string]  # Toasts queued by subsystems; drained to desktop toasts each frame
     pauseMenuTab*: TaskManagerTab  # Current tab in pause menu task manager
     selectedGameOverButton*: int  # Selected button on game over screen (0=Restart, 1=Stats, 2=Exit)
@@ -1504,12 +1934,11 @@ type
     lightningBolts*: seq[LightningBolt]  # Active lightning arc visuals
     shockwaveRings*: seq[ShockwaveRing]  # Active AoE-blast boundary rings (Star death, etc.)
     pathShockwaves*: seq[PathShockwave]  # Active path-swept blast corridors (Aftershock)
+    bossDeathBlasts*: seq[BossDeathBlast]  # Deallocation sweeps clearing a dead boss's hazards
     confirmQuitPending*: bool  # True while the quit-confirmation dialog is open
     pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
     confirmQuitFrameGuard*: float32  # Short guard so Q-open and Q-confirm can't fire on the same frame
     wallPlacementMode*: bool   # Whether the player is in wall-placement mode (E toggles, RMB/walls=0 exits)
-    comebackBonusActive*: bool  # True while the +10% comeback stat bonus is in effect
-    comebackEndWave*: int        # Wave number at which the comeback bonus expires (copied from settings on run start)
 
 # Selected difficulty of the active save profile. Set at boot / on profile
 # switch (main.nim) and read by the spawn/damage choke points below. Medium is
@@ -1522,10 +1951,38 @@ var currentDifficulty* = gdMedium
 # through this constant rather than hardcoding the interval.
 const BossWaveInterval* = 5
 
+# Boss definition IDs. 1..12 are the wave-mode campaign (boss 12, the Omega
+# Entity, is the Root itself). Survival and Roguelite field their own rosters
+# on top of it: 13-15 are the survival phase bosses, 17-22 the roguelite folder
+# guardians, and 16 / 23 are the Omega Entity re-armed with each mode's kit.
+# IDs are contiguous so every per-ID table (weak points, bullet shapes, process
+# names) stays a plain lookup.
+
+const MaxBossId* = 23
+
+proc isWaveBossId*(id: int): bool {.inline.} =
+  ## The 12-boss wave campaign (what the Full Boss Codex counts).
+  id in 1..12
+
+proc isOmegaBoss*(id: int): bool {.inline.} =
+  ## Every form of the Omega Entity: the wave finale and its two mode kits.
+  ## They share the model, halo, name and the Root's tag.
+  id == 12 or id == 16 or id == 23
+
+proc canonicalBossId*(id: int): int {.inline.} =
+  ## The ID whose look a boss borrows (the Omega kits wear boss 12's body).
+  if isOmegaBoss(id): 12 else: id
+
 # Sentinel for an unmetered lives budget (Easy). Kept distinct from a large
 # number so the meter UI can branch on it instead of trying to render an
 # unbounded row of glyphs.
 const UnlimitedLives* = -1
+
+const RestorePointModes* = {gmWaveBased, gmRoguelite, gmTimeSurvival}
+  ## Modes that keep a death-surviving checkpoint and show the restore-point
+  ## meter, on every difficulty (a 0 budget reads NONE LEFT rather than
+  ## vanishing), or the offline panel once the run is won (restorePointsOffline).
+  ## Must agree with the non-zero rows of difficultyMaxLives.
 
 # "Life lost" animation, played over the reorientation countdown when a run
 # resumes from its block checkpoint. Phase boundaries are fractions of the total
@@ -1578,6 +2035,10 @@ proc resumeRunTime*(game: Game) =
 # the number of bodies it is divided into changed.
 # ---------------------------------------------------------------------------
 
+const AllPowerFamilies* = {low(RoguelitePowerFamily)..high(RoguelitePowerFamily)}
+  ## Every draft pool draws from all families. The roguelite used to gate them
+  ## behind shard purchases; since the "earn, don't buy" rework it doesn't.
+
 proc calculateWaveEnemyCount*(waveNumber: int): int =
   ## Enemy count per wave: uncapped, and growing much faster than it used to.
   ##
@@ -1613,51 +2074,264 @@ proc waveDensityRebate*(waveNumber: int): float32 =
               max(1.0, float(calculateWaveEnemyCount(waveNumber)))
   result = max(0.30'f32, float32(ratio))
 
+proc densityWave*(game: Game): int =
+  ## The wave-curve slot whose swarm density the live fight uses, or 0 when
+  ## the mode has no density rework (no rebate). Wave mode: the wave itself.
+  ## Roguelite: the room's wave-equivalent, set by enterRoom -- NOT
+  ## game.currentWave, which stays 1 for a whole roguelite run.
+  case game.mode
+  of gmWaveBased: max(1, game.currentWave)
+  of gmRoguelite:
+    if game.rogueliteRun.isNil: 1 else: max(1, game.rogueliteRun.roomDensityWave)
+  else: 0
+
+proc survivalDensityRebate*(clock: float32): float32 =
+  ## Time Survival's per-enemy multiplier. The horde spawner keeps several
+  ## times as many bodies on screen as the old one-at-a-time trickle, so every
+  ## per-enemy grant (HP, coins, consumables, healing) is scaled down as the
+  ## horde thickens: 0.55 at 0:00, ~0.43 at 10:00, 0.30 from 20:00 on.
+  max(0.30'f32, 0.55'f32 - 0.0125'f32 * (clock / 60.0'f32))
+
+proc densityRebate*(game: Game): float32 =
+  ## waveDensityRebate for the live fight (1.0 in modes without the swarm
+  ## rework). Route every per-enemy grant through this, never through
+  ## game.currentWave directly.
+  if game.mode == gmTimeSurvival:
+    return survivalDensityRebate(game.survivalTime)
+  let w = densityWave(game)
+  if w <= 0: 1.0'f32 else: waveDensityRebate(w)
+
+# ---------------------------------------------------------------------------
+# Time Survival schedule.
+#
+# A run is four 5-minute phases on the survival clock, each closed by a boss:
+#   Boot 0-5, Runtime 5-10, Overload 10-15, Kernel Panic 15-20.
+# The 20:00 boss is the final one; beating it wins the run and opens Overtime,
+# where a boss arrives every 2:30 forever. The clock pauses during boss fights,
+# so boss k always spawns at exactly survivalBossTime(k). Lives here rather
+# than in survival.nim because run_save.nim (below survival in the DAG) needs
+# it; the tuning tables and the simulation are in survival.nim.
+# ---------------------------------------------------------------------------
+
+const
+  SurvivalPhaseLength* = 300.0'f32     ## Survival-clock seconds per phase
+  SurvivalFinalBoss* = 4               ## Boss number that wins the run (20:00)
+  SurvivalOvertimeBossGap* = 150.0'f32 ## Overtime: a boss every 2:30
+  SurvivalFirstEventClock* = 40.0'f32  ## The first System Event (always Memory Leak)
+  SurvivalBossWarnLead* = 10.0'f32     ## Warning banner this long before a boss
+  SurvivalRogueStale* = 30.0'f32       ## A Rogue slot this far behind is skipped
+  SurvivalSaveFormat* = 2
+    ## run_save.nim's survival block layout. Saves without it (format 1) come
+    ## from the old 90 s boss cadence and have their boss count remapped.
+
+proc survivalBossTime*(bossNumber: int): float32 =
+  ## Survival clock at which boss `bossNumber` (1-based) spawns.
+  if bossNumber <= SurvivalFinalBoss:
+    bossNumber.float32 * SurvivalPhaseLength
+  else:
+    SurvivalFinalBoss.float32 * SurvivalPhaseLength +
+      (bossNumber - SurvivalFinalBoss).float32 * SurvivalOvertimeBossGap
+
+proc survivalBossBlockWave*(bossNumber: int): int =
+  ## The wave-mode boss slot a survival boss uses, which picks the definition
+  ## and its stats: bosses 3 / 6 / 9 / 12 (waves 15 / 30 / 45 / 60), then the
+  ## final boss keeps scaling every Overtime fight.
+  if bossNumber <= SurvivalFinalBoss:
+    bossNumber * 3 * BossWaveInterval
+  else:
+    SurvivalFinalBoss * 3 * BossWaveInterval + (bossNumber - SurvivalFinalBoss) * BossWaveInterval
+
+proc survivalBossId*(bossNumber: int): int =
+  ## Which boss definition survival boss `bossNumber` (1-based) fields: the
+  ## Forkmother, the Dispatcher and Thermal Runaway close Boot / Runtime /
+  ## Overload, the Omega Entity's survival kit closes Kernel Panic, and
+  ## Overtime rotates through all four (stats come from survivalBossBlockWave).
+  const roster = [13, 14, 15, 16]
+  if bossNumber <= 0:
+    roster[0]
+  elif bossNumber <= SurvivalFinalBoss:
+    roster[bossNumber - 1]
+  else:
+    roster[(bossNumber - SurvivalFinalBoss - 1) mod roster.len]
+
+proc survivalRogueTime*(index: int): float32 =
+  ## The guaranteed Rogue Process of each phase lands at its halfway mark:
+  ## 2:30, 7:30, 12:30, 17:30, then halfway between Overtime bosses.
+  if index < SurvivalFinalBoss:
+    SurvivalPhaseLength * 0.5'f32 + index.float32 * SurvivalPhaseLength
+  else:
+    survivalBossTime(SurvivalFinalBoss) + SurvivalOvertimeBossGap * 0.5'f32 +
+      (index - SurvivalFinalBoss).float32 * SurvivalOvertimeBossGap
+
+proc survivalPhase*(game: Game): SurvivalPhase =
+  ## Bosses beaten so far (a boss that is still alive doesn't count yet), or
+  ## Overtime once the final boss has fallen.
+  if game.survival.victoryAchieved:
+    return spOvertime
+  let beaten = game.bossCount - (if game.bossWaveManager.active: 1 else: 0)
+  SurvivalPhase(clamp(beaten, 0, ord(spKernelPanic)))
+
+proc survivalPhaseIndex*(game: Game): int {.inline.} = ord(survivalPhase(game))
+
+proc survivalPhaseProgress*(game: Game): float32 =
+  ## 0..1 through the current phase (Overtime: 0..1 over its first 8 minutes,
+  ## after which it stays saturated and the per-minute terms keep climbing).
+  let ph = survivalPhase(game)
+  if ph == spOvertime:
+    let since = game.survivalTime - survivalBossTime(SurvivalFinalBoss)
+    return clamp(since / 480.0'f32, 0.0'f32, 1.0'f32)
+  let start = ord(ph).float32 * SurvivalPhaseLength
+  clamp((game.survivalTime - start) / SurvivalPhaseLength, 0.0'f32, 1.0'f32)
+
+proc survivalOvertimeMinutes*(game: Game): float32 =
+  max(0.0'f32, (game.survivalTime - survivalBossTime(SurvivalFinalBoss)) / 60.0'f32)
+
+proc survivalNextBossTime*(game: Game): float32 {.inline.} =
+  survivalBossTime(game.bossCount + 1)
+
+proc initSurvivalState*(): SurvivalState =
+  SurvivalState(
+    event: SurvivalEvent(kind: sekNone, rogueId: -1),
+    lastEventKind: sekNone,
+    nextEventClock: SurvivalFirstEventClock,
+    formationClock: 20.0'f32,
+    spawnBudget: 0.0'f32,
+    lastEliteCacheClock: -999.0'f32,
+    nextRogueIndex: 0,
+    bossWarnedIndex: 0,
+    xpMult: 1.0'f32,
+    lastPhase: spBoot,
+    bannerKind: sbkNone,
+    bannerStart: -999.0'f32,
+    lastKillHitStop: -999.0'f32)
+
+# ---------------------------------------------------------------------------
+# Profile difficulty table.
+#
+# HP and damage alone did not make the upper tiers feel different: the player's
+# power compounds every wave (startWave, level-ups, power-ups), so a flat enemy
+# HP bonus is out-scaled within a few waves and stops being noticed. Hard and
+# Nightmare therefore also change how the fight PLAYS -- enemies that close
+# faster, arrive in tighter bursts, turn elite more often, and bosses that fire
+# more often. Easy and Medium are exactly 1.0 on every lever except HP/damage,
+# so the classic balance is untouched.
+#
+# Each lever is consumed at one choke point, never read ad hoc:
+#   HP          newEnemy / spawnBoss (enemy.nim), game3d
+#   damage      takeDamage (player.nim), game3d
+#   speed       newEnemy (enemy.nim)
+#   spawn pace  updateEnemySpawning (game.nim), survivalRefillRate (survival.nim)
+#   elites      makeElite (enemy.nim)
+#   boss pace   spawnBoss (enemy.nim) + the boss attack-timer reset (game.nim)
+# ---------------------------------------------------------------------------
+
 proc difficultyEnemyHpMult*(): float32 =
   case currentDifficulty
   of gdEasy: 0.75'f32
   of gdMedium: 1.0'f32
-  of gdHard: 1.35'f32
-  of gdNightmare: 1.5'f32
+  of gdHard: 1.40'f32
+  of gdNightmare: 1.80'f32
 
 proc difficultyEnemyDamageMult*(): float32 =
   case currentDifficulty
   of gdEasy: 0.70'f32
   of gdMedium: 1.0'f32
-  of gdHard: 1.30'f32
-  of gdNightmare: 1.5'f32
+  of gdHard: 1.40'f32
+  of gdNightmare: 1.80'f32
 
-proc difficultyMaxLives*(): int =
-  ## Continues ("lives") a wave-mode run gets on this profile, or UnlimitedLives
+proc difficultyEnemySpeedMult*(): float32 =
+  ## Regular-enemy movement speed. Bosses are excluded: their movement is
+  ## choreographed (orbit landing radii, dash lanes), so they get harder through
+  ## difficultyBossCooldownMult instead.
+  case currentDifficulty
+  of gdEasy, gdMedium: 1.0'f32
+  of gdHard: 1.12'f32
+  of gdNightmare: 1.22'f32
+
+proc difficultySpawnPaceMult*(): float32 =
+  ## Divides the delay between spawn ticks. A wave's head count is unchanged
+  ## (every per-enemy reward is normalised against calculateWaveEnemyCount, see
+  ## waveDensityRebate), so this packs the same wave into a shorter window: more
+  ## bodies on screen at once, not a bigger economy.
+  case currentDifficulty
+  of gdEasy, gdMedium: 1.0'f32
+  of gdHard: 1.25'f32
+  of gdNightmare: 1.50'f32
+
+proc difficultyEliteChanceMult*(): float32 =
+  ## Scales the per-enemy elite roll in makeElite.
+  case currentDifficulty
+  of gdEasy, gdMedium: 1.0'f32
+  of gdHard: 1.5'f32
+  of gdNightmare: 2.0'f32
+
+proc difficultyBossCooldownMult*(): float32 =
+  ## Scales every custom-boss attack cooldown (lower = attacks more often).
+  ## Phase-transition silences are left alone, so a boss still resumes exactly
+  ## when its invulnerability ends.
+  case currentDifficulty
+  of gdEasy, gdMedium: 1.0'f32
+  of gdHard: 0.85'f32
+  of gdNightmare: 0.72'f32
+
+proc difficultyMaxLives*(mode: GameMode): int =
+  ## Continues ("lives") a run of `mode` gets on this profile, or UnlimitedLives
   ## for an unmetered budget. This is the single source of truth for the lives
   ## system: the checkpoint gate, the meters and the spend path all derive from
   ## it, so retuning a tier here retunes every consumer at once.
   ##
+  ## Wave mode resumes at the start of its last boss block, the roguelite at the
+  ## start of the sector it died in, Time Survival at the start of its phase.
+  ## The roguelite and survival replay a whole sector or phase with the build
+  ## intact, so they are metered tighter and run out a tier sooner. PvP and the
+  ## sandbox have no checkpoint to continue from. A run past its win has no
+  ## budget left at all, whatever this says: see restorePointsOffline.
+  ##
   ## Naming note: this is the "lives" budget throughout the code, but the UI
   ## calls one a RESTORE POINT, because that is what spending one does -- it
   ## restores a saved system state off disk. See ui/ui_helpers.nim.
-  case currentDifficulty
-  of gdEasy: UnlimitedLives
-  of gdMedium: 3
-  of gdHard: 1
-  of gdNightmare: 0
+  case mode
+  of gmWaveBased:
+    case currentDifficulty
+    of gdEasy: UnlimitedLives
+    of gdMedium: 3
+    of gdHard: 1
+    of gdNightmare: 0
+  of gmRoguelite, gmTimeSurvival:
+    case currentDifficulty
+    of gdEasy: 3
+    of gdMedium: 1
+    of gdHard, gdNightmare: 0
+  of gmSandbox, gmPvP: 0
 
-proc livesRemaining*(used: int): int =
+proc livesRemaining*(used: int, mode: GameMode): int =
   ## Lives still available after `used` continues, or UnlimitedLives when the
   ## budget is unmetered. Clamped at 0 so a checkpoint written under a more
   ## generous difficulty can never report a negative count.
-  let maxLives = difficultyMaxLives()
+  let maxLives = difficultyMaxLives(mode)
   if maxLives == UnlimitedLives: UnlimitedLives
   else: max(0, maxLives - used)
 
-proc difficultyAllowsContinue*(): bool =
-  ## Whether the death-surviving block checkpoint ("Continue (Wave N)") exists on
-  ## this profile at all. Nightmare has no second chances: its lives budget is 0,
-  ## so dying always means a fresh run from wave 1. Gated at the run_save.nim
+proc difficultyAllowsContinue*(mode: GameMode): bool =
+  ## Whether the death-surviving checkpoint ("Continue (Wave N)" / "Continue
+  ## (Sector N)") exists for `mode` on this profile at all. A 0 budget means no
+  ## second chances: dying always means a fresh run. Gated at the run_save.nim
   ## write/read choke points so every consumer (game-over screen, resume prompt)
   ## loses the option at once. A run that has merely SPENT its lives is stopped
   ## further down, by hasBlockCheckpoint's remaining-lives check.
-  difficultyMaxLives() != 0
+  difficultyMaxLives(mode) != 0
+
+proc restorePointsOffline*(game: Game): bool =
+  ## The run has been won and is playing on past it -- wave mode's endless
+  ## waves, the roguelite's endless loops, survival's Overtime. That is bonus
+  ## play with no restore points in any mode: one death ends it. The win
+  ## deletes the checkpoint, saveBlockCheckpoint refuses to write a new one,
+  ## Continue is withheld, and the meters show the offline panel instead.
+  case game.mode
+  of gmWaveBased: game.hasWonGame
+  of gmRoguelite: not game.rogueliteRun.isNil and game.rogueliteRun.endlessLoop > 0
+  of gmTimeSurvival: game.survival.victoryAchieved
+  of gmSandbox, gmPvP: false
 
 proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
                        duration: float32, sourceEnemyId: int = -1): AttackWarning =
@@ -1694,7 +2368,7 @@ proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32
   result.targetPos = newVector2f(targetX, targetY)
   result.fromSatellite = true
 
-proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle): Laser =
+proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle, sourceEnemyId: int = -1): Laser =
   Laser(
     pos: newVector2f(x, y),
     direction: direction,
@@ -1705,10 +2379,11 @@ proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage
     maxLifetime: duration,
     hasHitPlayer: false,
     rotation: rotation,
-    enemyType: enemyType
+    enemyType: enemyType,
+    sourceEnemyId: sourceEnemyId
   )
 
-proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: int, warningTime: float32): Meteorite =
+proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: int, warningTime: float32, sourceEnemyId: int = -1): Meteorite =
   ## Create a new meteorite that falls from the sky
   Meteorite(
     pos: newVector2f(spawnX, spawnY),
@@ -1717,8 +2392,16 @@ proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: i
     radius: 15.0,
     damage: damage,
     warningTimer: warningTime,
-    maxWarningTime: warningTime
+    maxWarningTime: warningTime,
+    sourceEnemyId: sourceEnemyId
   )
+
+proc teamFromInt*(value: int): PvPTeam =
+  ## Team from a raw ordinal (network packets, lobby assignments). A plain
+  ## PvPTeam(value) conversion is unchecked in release builds, so an
+  ## out-of-range value from the wire became an invalid enum.
+  if value < ord(low(PvPTeam)) or value > ord(high(PvPTeam)): ptNone
+  else: PvPTeam(value)
 
 proc defaultPvPConfig*(): PvPConfig =
   ## Returns the default/balanced PvP configuration
@@ -1735,7 +2418,8 @@ proc defaultPvPConfig*(): PvPConfig =
     respawnTime: 3.0,
     timeLimit: 180.0,
     snapshotRate: 1.0 / 32.0,   # 32 ticks (Medium)
-    inputRate: 1.0 / 32.0       # match snapshot tick rate
+    inputRate: 1.0 / 32.0,      # match snapshot tick rate
+    pickupsEnabled: true
   )
 
 # Bullet-speed diminishing returns
@@ -1771,6 +2455,27 @@ proc multiplyBulletSpeedDiminished*(currentSpeed, multiplier: float32): float32 
   if multiplier <= 1.0:
     return currentSpeed * multiplier
   currentSpeed + diminishedBulletSpeedGain(currentSpeed, currentSpeed * (multiplier - 1.0))
+
+proc applySlow*(enemy: Enemy, amount, duration: float32) =
+  ## The one way to apply a timed slow. Every source shares one slot, so the
+  ## strongest active slow wins: a weaker slow never replaces (or cuts short) a
+  ## stronger one that is still running, and an equal one only extends it.
+  if amount <= 0.0'f32 or duration <= 0.0'f32:
+    return
+  if enemy.slowTimer <= 0.0'f32 or amount > enemy.slowAmount:
+    enemy.slowAmount = amount
+    enemy.slowTimer = duration
+  elif amount >= enemy.slowAmount:
+    enemy.slowTimer = max(enemy.slowTimer, duration)
+
+proc applyFrostChill*(enemy: Enemy, amount: float32) =
+  ## Permanent frost slow (Frost Shots, Frost orbs). Only ever strengthens.
+  enemy.frostSlowAmount = max(enemy.frostSlowAmount, amount)
+
+proc effectiveSlow*(enemy: Enemy): float32 =
+  ## Movement slow actually in force: the stronger of the timed slow and the
+  ## permanent frost chill.
+  max(enemy.slowAmount, enemy.frostSlowAmount)
 
 proc applyFireRateDiminished*(currentRate, scalingFactor, exponent, hardCap: float32): float32 =
   ## Applies one fire-rate upgrade step with tunable diminishing returns.

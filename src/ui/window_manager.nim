@@ -1,9 +1,9 @@
 ## OS Window Manager
 ## Centralized window handling with state management
 
-import raylib, algorithm, sequtils
-import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
-import ../gamepad_input
+import raylib, algorithm, sequtils, math
+import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, mods_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import ../gamepad_input, ../render_context
 
 type
   WindowID* = enum
@@ -17,6 +17,8 @@ type
     widRoguelite
     widChangelog
     widCredits
+    widFeedback
+    widMods
 
   WindowManager* = ref object
     settings*: SettingsWindow
@@ -29,6 +31,8 @@ type
     roguelite*: RogueliteWindow
     changelog*: ChangelogWindow
     credits*: CreditsWindow
+    feedback*: FeedbackWindow
+    mods*: ModsWindow
     nextZOrder: int
 
 proc newWindowManager*(screenWidth, screenHeight: int,
@@ -56,6 +60,8 @@ proc newWindowManager*(screenWidth, screenHeight: int,
     roguelite: newRogueliteWindow(screenWidth, screenHeight, rogueliteProfile),
     changelog: newChangelogWindow(screenWidth, screenHeight),
     credits: newCreditsWindow(screenWidth, screenHeight),
+    feedback: newFeedbackWindow(screenWidth, screenHeight),
+    mods: newModsWindow(screenWidth, screenHeight, gameSettings),
     nextZOrder: 1
   )
 
@@ -70,6 +76,8 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.roguelite.window.visible = false
   result.changelog.window.visible = false
   result.credits.window.visible = false
+  result.feedback.window.visible = false
+  result.mods.window.visible = false
 
 proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
   ## Get all windows in a single sequence
@@ -83,7 +91,9 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.advancements.window,
     wm.roguelite.window,
     wm.changelog.window,
-    wm.credits.window
+    wm.credits.window,
+    wm.feedback.window,
+    wm.mods.window
   ]
 
 proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
@@ -108,13 +118,17 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widPvP: window = wm.pvp.window
   of widSandbox: window = wm.sandbox.window
   of widAdvancements: window = wm.advancements.window
-  of widRoguelite:
-    window = wm.roguelite.window
-    wm.roguelite.showUnlocks = false  # Always open to setup view, not shop/unlocks
+  of widRoguelite: window = wm.roguelite.window
   of widChangelog:
     window = wm.changelog.window
-    wm.changelog.scrollOffset = 0  # Always open scrolled to the top
+    resetChangelogView(wm.changelog)  # Always open on the newest version, at the top
   of widCredits: window = wm.credits.window
+  of widFeedback:
+    window = wm.feedback.window
+    resetFeedbackView(wm.feedback)  # Keeps the draft, refocuses the form
+  of widMods:
+    window = wm.mods.window
+    resetModsWindow(wm.mods)  # Picks up mod folders added since the last reload
 
   window.visible = true
   window.minimized = false
@@ -140,6 +154,8 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widRoguelite: wm.roguelite.window.visible = false
   of widChangelog: wm.changelog.window.visible = false
   of widCredits: wm.credits.window.visible = false
+  of widFeedback: wm.feedback.window.visible = false
+  of widMods: wm.mods.window.visible = false
 
 proc closeAllWindows*(wm: WindowManager) =
   ## Close all open desktop windows (e.g. when starting a game)
@@ -153,22 +169,102 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.roguelite.window.visible = false
   wm.changelog.window.visible = false
   wm.credits.window.visible = false
+  wm.feedback.window.visible = false
+  wm.mods.window.visible = false
 
-proc relayoutWindows*(wm: WindowManager, screenWidth, screenHeight: int) =
-  ## React to a virtual-resolution change (classic <-> widescreen). Only the
-  ## X axis / width changes across the toggle (height stays 768), so closed
-  ## windows are re-centered horizontally (preserving each window's intended
-  ## vertical position) and open windows are only re-clamped -- mirroring the
-  ## drag clamp in handleOSWindowInput -- so a dragged window is never yanked
-  ## yet also never stranded off-screen.
+proc windowUIScale*(window: OSWindow, requested: float32,
+                    screenWidth, screenHeight: int): float32 =
+  ## The interface scale this one window can actually be drawn at.
+  ##
+  ## Scaling down always works. Scaling *up* shrinks the logical viewport a
+  ## window lays out in (`virtual / scale`) while its contents stay a fixed
+  ## pixel size, so past a certain point its edges fall off the screen with no
+  ## way to reach them. That point differs per window -- the settings window is
+  ## 700x500 against a 1024x768 virtual screen and has room to spare, while the
+  ## stats window is 1000x700 and has almost none -- so the cap is applied per
+  ## window rather than globally. Everything that *can* grow does; only the
+  ## windows that are already near screen-size stop early.
+  if requested <= 1.0'f32:
+    return requested
+  let w = max(window.width, window.savedWidth)
+  let h = max(window.height, window.savedHeight)
+  let fit = min(screenWidth.float32 / w.float32,
+                screenHeight.float32 / h.float32)
+  # max(fit, 1.0) so a window that already overflows at 100% is left alone
+  # rather than being silently shrunk by a setting that was turned *up*.
+  min(requested, max(fit, 1.0'f32))
+
+proc windowViewport*(window: OSWindow, requested: float32,
+                     screenWidth, screenHeight: int):
+                     tuple[scale: float32, w, h: int] =
+  ## `window`'s own scale plus the logical viewport it lays out and is
+  ## hit-tested in at that scale. Rounded up, to match what the window's own
+  ## getVirtualScreenWidth/Height report once it is inside that layer.
+  let scale = windowUIScale(window, requested, screenWidth, screenHeight)
+  (scale, ceil(screenWidth.float32 / scale).int, ceil(screenHeight.float32 / scale).int)
+
+proc pointerIn(window: OSWindow, requested: float32,
+               screenWidth, screenHeight: int): Vector2 =
+  ## The pointer, in `window`'s own coordinate space. Windows no longer share
+  ## one space, so a caller cannot hit-test them all against a single position.
+  pushUIScale(windowUIScale(window, requested, screenWidth, screenHeight))
+  result = getVirtualMousePosition()
+  popUIScale()
+
+proc applyWindowScales*(wm: WindowManager, uiScale: float32,
+                        screenWidth, screenHeight: int) =
+  ## Publish every window's resolved scale onto the window itself, before
+  ## anything walks the list. handleOSWindowInput decides which window owns a
+  ## click by testing the *other* windows too, and it can only translate the
+  ## pointer into their spaces if they already know their own scale -- so all of
+  ## them are refreshed up front rather than one per loop iteration.
   for window in wm.getAllWindows():
-    if window.visible:
-      window.x = max(0, min(window.x, screenWidth - window.width))
-      window.y = max(0, min(window.y, screenHeight - 100))
-    else:
-      window.x = (screenWidth - window.width) div 2
+    window.uiScale = windowUIScale(window, uiScale, screenWidth, screenHeight)
 
-proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
+proc relayoutWindows*(wm: WindowManager, uiScale: float32,
+                      screenWidth, screenHeight: int) =
+  ## React to a change in the logical viewport windows lay out in: the
+  ## classic <-> widescreen toggle (X axis only) or a UI-scale change (both
+  ## axes). Closed windows are re-centered -- their position is already treated
+  ## as disposable, since the X half of this has always reset it -- and open
+  ## windows are re-clamped so a dragged window is never yanked, yet also never
+  ## stranded off-screen.
+  ##
+  ## The clamp pulls the whole window back into view rather than leaving 100px
+  ## of it showing the way the drag clamp does: this runs when the viewport
+  ## moved underneath the player, not when they dragged a window somewhere on
+  ## purpose, so the window should end up usable again.
+  ##
+  ## When the *scale* is what changed, an open window is re-anchored around the
+  ## pointer rather than around its own corner: whatever sat under the cursor
+  ## before sits under it after. That is what makes the Interface tab's own
+  ## UI-scale stepper usable. A control's offset inside its window scales too, so
+  ## pinning only the window corner still slides the button out from under the
+  ## click that moved it -- and the next click on the same spot then lands on the
+  ## other arrow, or misses the button entirely.
+  ##
+  ## Callers run outside any UI-scale layer, so this pointer is in plain virtual
+  ## pixels: the space both the old and the new scale divide.
+  let pointer = getVirtualMousePosition()
+  for window in wm.getAllWindows():
+    # The scale this window was laid out at until now. windowUIScale is pure and
+    # applyWindowScales has not run again this frame, so it is still the previous
+    # value when a scale change is what brought us here.
+    let prevScale = uiScaleOfWindow(window)
+    let vp = windowViewport(window, uiScale, screenWidth, screenHeight)
+    if window.visible:
+      if prevScale != vp.scale:
+        window.x = int(pointer.x / vp.scale - (pointer.x / prevScale - window.x.float32))
+        window.y = int(pointer.y / vp.scale - (pointer.y / prevScale - window.y.float32))
+      window.x = max(0, min(window.x, vp.w - window.width))
+      window.y = max(0, min(window.y, max(0, vp.h - window.height)))
+    else:
+      window.x = (vp.w - window.width) div 2
+      window.y = max(0, (vp.h - window.height) div 2)
+    window.uiScale = vp.scale
+
+proc handleWindowClick*(wm: WindowManager, uiScale: float32,
+                        screenWidth, screenHeight: int): bool =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
   if not isPointerPressed():
     return false
@@ -178,6 +274,7 @@ proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
 
   # Find the topmost window at click position
   for window in visibleWindows:
+    let mousePos = window.pointerIn(uiScale, screenWidth, screenHeight)
     let clickArea = if window.minimized:
       # Minimized windows only have title bar clickable
       Rectangle(
@@ -211,10 +308,12 @@ proc handleWindowClick*(wm: WindowManager, mousePos: Vector2): bool =
 
   return false  # No window at click position
 
-proc isMouseOverAnyWindow*(wm: WindowManager, mousePos: Vector2): bool =
+proc isMouseOverAnyWindow*(wm: WindowManager, uiScale: float32,
+                           screenWidth, screenHeight: int): bool =
   ## Check if mouse is over any visible window (for blocking desktop interaction)
   for window in wm.getVisibleWindows():
     if not window.minimized:
+      let mousePos = window.pointerIn(uiScale, screenWidth, screenHeight)
       let windowRect = Rectangle(
         x: window.x.float32,
         y: window.y.float32,
@@ -226,6 +325,13 @@ proc isMouseOverAnyWindow*(wm: WindowManager, mousePos: Vector2): bool =
         return true
 
   return false
+
+proc wantsTextInput*(wm: WindowManager): bool =
+  ## True while a window's text field owns the keyboard. The desktop's icon
+  ## navigation (WASD/arrows, E/Enter) is otherwise only blocked by the mouse
+  ## hovering a window, so typing "e" with the cursor parked elsewhere would
+  ## launch an icon.
+  wm.feedback.wantsTextInput()
 
 type
   WindowUpdateResult* = object
@@ -245,8 +351,11 @@ type
     replayRogueliteIntro*: bool   # True when user clicked "Roguelite Intro" in settings
     replaySandboxIntro*: bool     # True when user clicked "Sandbox Intro" in settings
     replayPvPIntro*: bool         # True when user clicked "PvP Intro" in settings
+    replayTutorial*: bool         # True when user clicked "Replay Tutorial" in settings
+    modModeLaunch*: int           # MODS.EXE Game Modes row to launch (-1 = none)
+    modModeResume*: bool          # ...via Continue rather than Launch
 
-proc updateAllWindows*(wm: WindowManager, dt: float32,
+proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
                        screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
   ## Update all visible windows and handle their inputs
   result.fullscreenToggle = false
@@ -265,6 +374,10 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   result.replayRogueliteIntro = false
   result.replaySandboxIntro = false
   result.replayPvPIntro = false
+  result.replayTutorial = false
+  result.modModeLaunch = -1
+
+  wm.applyWindowScales(uiScale, screenWidth, screenHeight)
 
   let visibleWindows = wm.getVisibleWindows()
 
@@ -272,8 +385,15 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
   for window in wm.getAllWindows():
     window.handledClickThisFrame = false
 
-  # Update each visible window
+  # Update each visible window, inside its own scale layer so its hit-testing
+  # matches how drawAllWindows renders it.
   for window in visibleWindows:
+    let vp = windowViewport(window, uiScale, screenWidth, screenHeight)
+    let screenWidth = vp.w
+    let screenHeight = vp.h
+    pushUIScale(vp.scale)
+    defer: popUIScale()
+
     if window == wm.settings.window:
       let settingsResult = updateSettingsWindow(wm.settings, dt, screenWidth, screenHeight, visibleWindows)
       if settingsResult.fullscreenToggle:
@@ -307,6 +427,9 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
       if wm.settings.replayPvPIntroRequested:
         result.replayPvPIntro = true
         wm.settings.replayPvPIntroRequested = false
+      if wm.settings.replayTutorialRequested:
+        result.replayTutorial = true
+        wm.settings.replayTutorialRequested = false
 
     elif window == wm.stats.window:
       discard updateStatsWindow(wm.stats, dt, screenWidth, screenHeight, visibleWindows)
@@ -365,8 +488,20 @@ proc updateAllWindows*(wm: WindowManager, dt: float32,
     elif window == wm.credits.window:
       updateCreditsWindow(wm.credits, dt, screenWidth, screenHeight, visibleWindows)
 
-proc drawAllWindows*(wm: WindowManager, game: Game) =
-  ## Draw all visible windows in z-order
+    elif window == wm.feedback.window:
+      updateFeedbackWindow(wm.feedback, dt, screenWidth, screenHeight, visibleWindows)
+
+    elif window == wm.mods.window:
+      updateModsWindow(wm.mods, dt, screenWidth, screenHeight, visibleWindows)
+      if wm.mods.launchRequest >= 0:
+        result.modModeLaunch = wm.mods.launchRequest
+        result.modModeResume = wm.mods.launchResume
+        wm.mods.launchRequest = -1
+
+proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
+                     screenWidth, screenHeight: int) =
+  ## Draw all visible windows in z-order, each inside its own scale layer.
+  wm.applyWindowScales(uiScale, screenWidth, screenHeight)
   var visibleWindows = wm.getAllWindows().filterIt(it.visible)
 
   # Sort by z-order (lowest first for drawing)
@@ -374,6 +509,9 @@ proc drawAllWindows*(wm: WindowManager, game: Game) =
 
   # Draw each window
   for window in visibleWindows:
+    beginUIScaleMode(windowUIScale(window, uiScale, screenWidth, screenHeight))
+    defer: endUIScaleMode()
+
     if window == wm.settings.window:
       drawSettingsWindow(wm.settings)
     elif window == wm.stats.window:
@@ -402,3 +540,7 @@ proc drawAllWindows*(wm: WindowManager, game: Game) =
       drawChangelogWindow(wm.changelog)
     elif window == wm.credits.window:
       drawCreditsWindow(wm.credits)
+    elif window == wm.feedback.window:
+      drawFeedbackWindow(wm.feedback)
+    elif window == wm.mods.window:
+      drawModsWindow(wm.mods)

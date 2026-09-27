@@ -1,5 +1,6 @@
 import raylib, random, math, tables
-import types, powerup_data, ui/os_powerup_installer, d_visuals
+import types, powerup_data, patches, ui/os_powerup_installer, d_visuals
+import modding/[mod_hooks, lua_bridge]
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -68,7 +69,7 @@ proc bulwarkDamageBonus*(player: Player): float32 =
 proc isOfferable*(player: Player, pt: PowerUpType,
                   allowed: set[RoguelitePowerFamily],
                   mode: GameMode): bool {.inline.} =
-  let def = allPowerUpDefs[pt]
+  let def = powerUpDef(pt)
   (def.allowedModes == {} or mode in def.allowedModes) and
     def.family in allowed and
     getPowerUpLevel(player, pt) < def.maxLevel
@@ -82,6 +83,25 @@ proc isPowerUpPoolExhausted*(player: Player, isLegendary: bool,
     if player.isOfferable(pt, allowedPowerFamilies, mode):
       return false
   return true
+
+proc modPowerUpChoices(player: Player, choices: var array[3, PowerUp]) =
+  ## powerUpChoices hook: handlers get the three names and may return a list of
+  ## names to offer instead (anything already maxed or unknown is ignored).
+  if not hookActive(hkPowerUpChoices):
+    return
+  let t = newScriptTable()
+  for c in choices: t.add(vstr(powerUpScriptName(c.powerType)))
+  let v = filterValue(hkPowerUpChoices, vtable(t), [wrapPlayer(player)])
+  if v.kind != vkTable:
+    return
+  for i in 0 ..< min(3, v.tbl.len):
+    let s = v.tbl.item(i + 1)
+    var pt: PowerUpType
+    if s.kind == vkString and resolvePowerUpScriptName(s.str.s, pt):
+      let lvl = getPowerUpLevel(player, pt)
+      if lvl < getPowerUpMaxLevel(pt):
+        choices[i] = PowerUp(powerType: pt, level: lvl + 1,
+                             rarity: if powerUpDef(pt).pool == puppLegendary: prLegendary else: prCommon)
 
 proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
                              allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood},
@@ -123,10 +143,10 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
 
     # Exceptions
 
-    let isOrb    = allPowerUpDefs[powerUp.powerType].group == pugOrb
-    let isAura   = allPowerUpDefs[powerUp.powerType].group == pugAura
-    let isBullet = allPowerUpDefs[powerUp.powerType].group == pugBullet
-    let isMastery = allPowerUpDefs[powerUp.powerType].group == pugMastery
+    let isOrb    = powerUpDef(powerUp.powerType).group == pugOrb
+    let isAura   = powerUpDef(powerUp.powerType).group == pugAura
+    let isBullet = powerUpDef(powerUp.powerType).group == pugBullet
+    let isMastery = powerUpDef(powerUp.powerType).group == pugMastery
 
     if isOrb and hasOrb:
       continue
@@ -151,63 +171,45 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
     if isMastery:
       hasMastery = true
 
-  # Fill result with selected power-ups (up to 3)
-  for i in 0..2:
-    if i < selectedPowerUps.len:
-      result[i] = selectedPowerUps[i]
-    else:
-      # If we run out, create random power-ups from the CORRECT pool
-      # Make sure to don't violate orb/aura/bullet/mastery pooling
-      var attempts = 0
-      while attempts < 100:  # Prevent infinite loop
-        let randomType = if isLegendary:
-          legendaryPool[rand(legendaryPool.high)]
-        else:
-          normalPool[rand(normalPool.high)]
-
-        # Skip if already at max level or outside allowed families
-        if not player.isOfferable(randomType, allowedPowerFamilies, mode):
-          attempts += 1
-          continue
-
-        let isOrb    = allPowerUpDefs[randomType].group == pugOrb
-        let isAura   = allPowerUpDefs[randomType].group == pugAura
-        let isBullet = allPowerUpDefs[randomType].group == pugBullet
-        let isMastery = allPowerUpDefs[randomType].group == pugMastery
-
-        # Check if this violates our grouping rules
-        if (isOrb and hasOrb) or (isAura and hasAura) or (isBullet and hasBullet) or (isMastery and hasMastery):
-          attempts += 1
-          continue
-
-        let currentLevel = getPowerUpLevel(player, randomType)
-        let nextLevel = if currentLevel == 0: 1 else: currentLevel + 1
-        let rarity = if isLegendary: prLegendary else: prCommon
-        result[i] = PowerUp(powerType: randomType, level: nextLevel, rarity: rarity)
-        if isOrb:
-          hasOrb = true
-        if isAura:
-          hasAura = true
-        if isBullet:
-          hasBullet = true
-        if isMastery:
-          hasMastery = true
+  # Too few picks survived the variety rule: relax it rather than leave a slot
+  # empty, still offering each power-up at most once.
+  if selectedPowerUps.len < 3:
+    for powerUp in availablePowerUps:
+      if selectedPowerUps.len >= 3:
         break
+      var alreadyPicked = false
+      for picked in selectedPowerUps:
+        if picked.powerType == powerUp.powerType:
+          alreadyPicked = true
+          break
+      if not alreadyPicked:
+        selectedPowerUps.add(powerUp)
 
-      # Fallback: pool was partially exhausted with grouping conflicts, leave slot as zero-value.
-      # isPowerUpPoolExhausted prevents reaching gsPowerUpSelect when fully exhausted.
+  # Nothing at all can be offered. The slots still have to carry this draft's
+  # rarity: the draft screen (and reroll) decide which pool to check from
+  # powerUpChoices[0].rarity, and a zero-valued slot reads as prCommon. A spent
+  # LEGENDARY pool then passed the normal-pool exhaustion check and showed three
+  # "Aftershock level 0" cards instead of the exhausted screen. Level 0 marks the
+  # slots as placeholders; installPowerUp refuses them.
+  if selectedPowerUps.len == 0:
+    let placeholderRarity = if isLegendary: prLegendary else: prCommon
+    for i in 0..2:
+      result[i] = PowerUp(powerType: low(PowerUpType), level: 0, rarity: placeholderRarity)
+    return
+
+  # Fewer than three power-ups can be offered at all: repeat the valid ones. An
+  # unfilled slot used to stay zero-valued, which is Aftershock at level 0 -- a
+  # free legendary for whoever picked it.
+  var k = 0
+  while selectedPowerUps.len < 3:
+    selectedPowerUps.add(selectedPowerUps[k])
+    inc k
+
+  for i in 0..2:
+    result[i] = selectedPowerUps[i]
+  modPowerUpChoices(player, result)
 
 # ROTATING ORBS SYSTEM
-proc newRotatingOrb*(angle: float32, radius: float32, elementType: ElementType, orbLevel: int = 1): RotatingOrb =
-  result = RotatingOrb(
-    angle: angle,
-    radius: radius,
-    elementType: elementType,
-    orbLevel: orbLevel,
-    hitEnemies: @[],
-    lastHitTime: initTable[int, float32]()
-  )
-
 const ORB_ORBIT_RADIUS_BASE = 42.0
 const ORB_ORBIT_RING_GAP    = 34.0
 
@@ -317,9 +319,9 @@ proc getElementDamage*(level: int): float32 =
   ## Get base damage per hit based on power-up level
   ## Compensated with reduced damage multiplier in game logic
   case level
-  of 1: 3.5
-  of 2: 5.5
-  else: 8.0
+  of 1: 3.0
+  of 2: 5.0
+  else: 7.0
 
 proc getHeavyRoundsSizeMultiplier*(level: int): float32 =
   case level
@@ -327,6 +329,22 @@ proc getHeavyRoundsSizeMultiplier*(level: int): float32 =
   of 1: 1.1
   of 2: 1.2
   else: 1.25
+
+proc rotatingShieldHealth*(level: int): float32 =
+  ## Health of each Rotating Shield segment (100/250/400 displayed HP, as the
+  ## tooltips say). Single table for both the first pickup and upgrades, which
+  ## used to disagree (upgrades applied 4.0/5.0).
+  case level
+  of 1: 1.0
+  of 2: 2.5
+  else: 4.0
+
+proc rotatingShieldRegenDelay*(level: int): float32 =
+  ## Seconds before a broken segment re-forms (6s / 5s / 3s).
+  case level
+  of 1: 6.0
+  of 2: 5.0
+  else: 3.0
 
 proc getFortifiedMaxHpBonus*(level: int): float32 =
   ## TOTAL max-HP granted by Fortified at the given level (250/500/750 displayed).
@@ -339,6 +357,9 @@ proc getFortifiedMaxHpBonus*(level: int): float32 =
   else: 7.5   # +750 HP
 
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
+  # A mod may take over a power-up's pickup effect (powerUpApply hook).
+  if modPowerUpApply(player, powerUpScriptName(powerUp.powerType), powerUp.level):
+    return
   let previousHeavyRoundsLevel = getPowerUpLevel(player, puHeavyRounds)
   let previousFortifiedLevel = getPowerUpLevel(player, puFortified)
   let previousRecursionLevel = getPowerUpLevel(player, puRecursion)
@@ -359,8 +380,11 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.maxHp += JuggernautPlatingHp
     player.hp += JuggernautPlatingHp
   of puSpeedBoost:
-    # Momentum (Legendary): no flat move-speed stat. The effect is the
-    # move-while-firing damage bonus (up to +25%) in calculateCombatStats.
+    # Momentum (Legendary): no flat stat here either. The effect is entirely
+    # the stack-based damage/crit bonus in calculateCombatStats, driven by
+    # momentumStacks/momentumBuildTimer/momentumDecayTimer, which player.nim
+    # updates every frame from sustained movement speed. See the block comment
+    # by those constants in player.nim for the full design rationale.
     discard
   of puBulletSpeed:
     # Lightspeed Tracer (Legendary): no bullet-speed stat -- the whole effect is
@@ -383,21 +407,15 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.shieldRegenTimers = @[]
 
     # Health increases with level: 100 HP, 250 HP, 400 HP
-    let shieldHealth = case powerUp.level
-      of 1: 1.0
-      of 2: 2.5
-      else: 4.0
+    let shieldHealth = rotatingShieldHealth(powerUp.level)
     player.shieldMaxHealth = shieldHealth
 
     for i in 0..<shieldCount:
       player.shieldHealths.add(shieldHealth)
       player.shieldRegenTimers.add(0.0)
 
-    # Decrease regen delay with upgrades: level 1=7s, level 2=6s, level 3=4s
-    player.shieldRegenDelay = case powerUp.level
-      of 1: 6.0
-      of 2: 5.0
-      else: 3.0
+    # Regen delay shrinks with upgrades: 6s, 5s, 3s
+    player.shieldRegenDelay = rotatingShieldRegenDelay(powerUp.level)
   of puPoisonOrb:
     createElementalOrbs(player, etPoison, powerUp.level)
   of puFireOrb:
@@ -526,7 +544,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     player.killChainCount = 0
     player.killChainTimer = 0
   of puCorruptedCore:
-    player.corruptedCoreHpAcc = 0
+    discard  # Run total in corruptedCoreHpAcc; kept across level-ups
   of puRoomEcho:
     discard  # Charges granted on room clear in game.nim
   of puChainReaction:
@@ -549,11 +567,9 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
       # Apply upgrade bonuses for normal power-ups that have levels
       case powerUp.powerType
       of puRotatingShield:
-        # Update shield health and cooldown based on new level
-        let shieldHealth = case powerUp.level
-          of 1: 3.0
-          of 2: 4.0
-          else: 5.0
+        # Update shield health and cooldown based on new level (same table as
+        # the first pickup above)
+        let shieldHealth = rotatingShieldHealth(powerUp.level)
         player.shieldMaxHealth = shieldHealth
 
         # Restore all shields to new max health
@@ -561,10 +577,7 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
           player.shieldHealths[i] = shieldHealth
 
         # Update regen delay
-        player.shieldRegenDelay = case powerUp.level
-          of 1: 6.0
-          of 2: 5.0
-          else: 3.0
+        player.shieldRegenDelay = rotatingShieldRegenDelay(powerUp.level)
       of puPoisonOrb, puFireOrb, puLightningOrb, puWindOrb, puFrostOrb, puBloodOrb:
         # Recreate orbs with new level (more orbs of this element)
         let elementType = case powerUp.powerType
@@ -607,6 +620,11 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Add new power-up
     player.powerUps.add(powerUp)
 
+  # A mod power-up's effect is its onPickup script (MODS.EXE); it sees the new
+  # level through player:powerUpLevel.
+  if isModPowerUp(powerUp.powerType) and not modPowerUpApplied.isNil:
+    modPowerUpApplied(player, powerUp.powerType, powerUp.level)
+
 proc drawPowerUpSelection*(game: Game) =
   drawOSPowerUpInstaller(game)
 
@@ -632,7 +650,7 @@ proc generateRandomPowerUpExcluding(mode: GameMode, allowed: set[RoguelitePowerF
   let rarity = if isLegendary: prLegendary else: prCommon
   var availableTypes: seq[PowerUpType]
   for t in (if isLegendary: legendaryPool else: normalPool):
-    let def = allPowerUpDefs[t]
+    let def = powerUpDef(t)
     if t != excludeType and def.family in allowed and
         (def.allowedModes == {} or mode in def.allowedModes):
       availableTypes.add(t)
@@ -755,11 +773,7 @@ proc initPowerUpRollAnimation*(game: Game) =
 
   # Same gates the real draft uses, so the reel filler can only show power-ups
   # this run is actually able to offer.
-  let allowedFamilies =
-    if game.mode == gmRoguelite and game.rogueliteProfile != nil:
-      game.rogueliteProfile.unlockedPowerFamilies
-    else:
-      {rpfCore..rpfBlood}
+  let allowedFamilies = AllPowerFamilies
 
   let listLengths: array[3, int] =
     if isLegendary: [3, 5, 7]
@@ -794,12 +808,7 @@ proc attemptRerollPowerUps*(game: Game): bool =
 
   # Generate new power-up choices (same legendary/normal status)
   let isLegendary = game.powerUpChoices[0].rarity == prLegendary
-  let allowedFamilies =
-    if game.mode == gmRoguelite and game.rogueliteProfile != nil:
-      game.rogueliteProfile.unlockedPowerFamilies
-    else:
-      {rpfCore..rpfBlood}
-  game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary, allowedFamilies, game.mode)
+  game.powerUpChoices = generatePowerUpChoices(game.player, isLegendary, AllPowerFamilies, game.mode)
 
   # Reset selection to first option
   game.selectedPowerUp = 0
@@ -807,35 +816,21 @@ proc attemptRerollPowerUps*(game: Game): bool =
   # Initialize reroll animation (same as new power-up selection)
   initPowerUpRollAnimation(game)
 
-  # Increase cost for next reroll (adds 25 coins)
-  let rerollStep = if game.mode == gmRoguelite and game.rogueliteRun != nil:
-    var hasDiscount = false
-    var hasDraftCache = false
-    for relic in game.rogueliteRun.relics:
-      if relic.relicType == rrtDiscountProtocol:
-        hasDiscount = true
-      if relic.relicType == rrtDraftCache:
-        hasDraftCache = true
-    var step = if hasDiscount: 20 else: 25
-    if hasDraftCache:
-      step = max(10, step - 5)
-    step
+  # Next reroll: +base each time. Patches only ever exist in roguelite, so
+  # patchPrice is a no-op everywhere else. A free Draft Cache reroll (cost 0)
+  # steps up to the normal base price rather than to base + base.
+  let step = patchPrice(game.player, RerollBaseCost)
+  if game.rerollCost <= 0:
+    game.rerollCost = step
   else:
-    25
-  game.rerollCost += rerollStep
+    game.rerollCost += step
 
   return true
 
 proc initializeRerollCost*(game: Game) =
-  ## Initialize the reroll cost at the start of a power-up selection
-  ## Base cost: 25 coins for first reroll, increases by 25 each time
-  game.rerollCost = 25
-  if game.mode == gmRoguelite and game.rogueliteRun != nil:
-    var hasDraftCache = false
-    for relic in game.rogueliteRun.relics:
-      if relic.relicType == rrtDiscountProtocol:
-        game.rerollCost = 20
-      if relic.relicType == rrtDraftCache:
-        hasDraftCache = true
-    if hasDraftCache:
-      game.rerollCost = max(5, game.rerollCost - 10)
+  ## Initialize the reroll cost at the start of a power-up selection.
+  ## Base cost 25 credits, +25 per reroll. Patches: Discount Protocol takes
+  ## 20% off every reroll; Draft Cache makes each installer's first one free.
+  game.rerollCost = patchPrice(game.player, RerollBaseCost)
+  if hasPatch(game.player, rrtDraftCache):
+    game.rerollCost = 0

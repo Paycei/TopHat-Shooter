@@ -1,4 +1,4 @@
-import raylib, math
+import raylib, rlgl, math
 import gamepad_input
 # Re-export so every module that already imports render_context (all ui/, game,
 # pvp_game, sandbox, main) sees the pointer wrappers and gamepad queries.
@@ -31,10 +31,96 @@ var
   currentVirtualHeight = 768.0'f32
   currentRenderSupersampleScale = 1.0'f32
   mouseClipActive = false
-  # Horizontal offset of the gameplay world inside the virtual screen. In classic
-  # (4:3) mode the world fills the virtual screen so this is 0; in widescreen
-  # (16:9) mode the 1024-wide world is centered and this is the left gutter width.
+  # Where the gameplay world is drawn inside the virtual screen, and how large.
+  # The world itself is a fixed WorldWidth x WorldHeight simulation; this is
+  # purely presentation.
+  #
+  # Classic (4:3): the world fills the virtual screen -- offset 0, scale 1.
+  # Widescreen (16:9): the world is centered between the two HUD bands. Those
+  # bands are one HUD column wide and grow with the interface scale, so the
+  # world shrinks to fit whatever is left. That is what lets the HUD get bigger
+  # without ever reaching over the arena. At 100% the bands are exactly the
+  # letterbox gutters and the scale is 1, i.e. the layout everything was tuned
+  # against.
   currentWorldViewOffsetX = 0.0'f32
+  currentWorldViewOffsetY = 0.0'f32
+  currentWorldViewScale = 1.0'f32
+  # An extra magnification of the world about a fixed centre (world coords),
+  # applied inside the world view. Only the mobile PvE pass sets it (see
+  # types.MobileWorldZoom); PvP publishes 1.0 because its arena is networked.
+  # It is per-pass state rather than a constant so worldToVirtual and
+  # getWorldMousePosition always agree with whichever pass drew last.
+  currentWorldZoom = 1.0'f32
+  currentWorldZoomCenter = Vector2(x: 0, y: 0)
+  # UI scale: the factor the *interface* layer (desktop, OS windows, in-game HUD)
+  # is drawn at on top of the virtual screen. It is only non-1.0 between a
+  # pushUIScale/popUIScale pair, so gameplay drawing is never affected.
+  #
+  # A layer pushed at scale S is laid out in "UI logical" pixels -- virtual
+  # pixels divided by S -- and then scaled back up by S when drawn. So S > 1.0
+  # makes the interface physically bigger while shrinking the room it has to lay
+  # out in, and S < 1.0 does the reverse. Because getVirtualScreenWidth/Height
+  # and getVirtualMousePosition both honour the active scale, existing UI code
+  # that already goes through those adapts with no changes.
+  activeUIScale = 1.0'f32
+  # Whether the default font atlas is currently bilinear-filtered; see
+  # applyTextFilterFor. Starts false because raylib loads it point-filtered.
+  fontAtlasSmoothed = false
+
+proc applyTextFilterFor*(drawScale: float32) =
+  ## Pick the default font's texture filter for text about to be drawn under a
+  ## transform of `drawScale` (a UI-scale layer, or the shrunken world view).
+  ##
+  ## The font is a 10px bitmap sampled point-filtered, which only holds up while
+  ## every glyph texel lands on at least one render-target pixel. Once the net
+  ## scale -- this transform times the render target's supersample -- drops
+  ## below 1, point sampling starts skipping whole texel rows and columns, and
+  ## the text garbles ("HUD" reads "HLD", "UI" reads "LI"). Bilinear keeps it
+  ## legible there at the cost of a little softness, so it is used for exactly
+  ## that range; everything at or above 1 keeps the crisp look it always had.
+  ##
+  ## The atlas doubles as raylib's shapes texture, but shapes sample the inside
+  ## of a solid glyph block (inset 1px by raylib for this very reason), so
+  ## filtering never changes how rectangles and lines look.
+  let smooth = drawScale * currentRenderSupersampleScale < 0.999'f32
+  if smooth == fontAtlasSmoothed:
+    return
+  # The filter is read when the batch is *flushed*, not when a glyph is queued,
+  # so everything queued under the old filter has to go out first.
+  drawRenderBatchActive()
+  setTextureFilter(getFontDefault().texture,
+                   if smooth: TextureFilter.Bilinear else: TextureFilter.Point)
+  fontAtlasSmoothed = smooth
+
+proc pushUIScale*(scale: float32) =
+  ## Enter a UI layer whose coordinates are virtual pixels divided by `scale`.
+  ## Input-only: use beginUIScaleMode when also drawing the layer. These do not
+  ## nest -- one interface layer is active at a time.
+  activeUIScale = max(scale, 0.0001'f32)
+
+proc popUIScale*() =
+  ## Leave the UI layer; coordinates return to plain virtual pixels.
+  activeUIScale = 1.0'f32
+
+proc getActiveUIScale*(): float32 =
+  ## The scale of the interface layer currently being drawn/hit-tested (1.0 when
+  ## none is active). Callers that pre-scale their own geometry need this; most
+  ## don't, because the coordinate getters already fold it in.
+  activeUIScale
+
+proc beginUIScaleMode*(scale: float32) =
+  ## Draw *and* hit-test the following UI at `scale`. Must be paired with
+  ## endUIScaleMode. Nests inside the supersample matrix pushed by the frame's
+  ## render-target setup, so the two multiply as expected.
+  pushUIScale(scale)
+  pushMatrix()
+  scalef(activeUIScale, activeUIScale, 1.0'f32)
+  applyTextFilterFor(activeUIScale)
+
+proc endUIScaleMode*() =
+  applyTextFilterFor(1.0'f32)
+  popMatrix()
+  popUIScale()
 
 proc updateRenderInputTransform*(scale, offsetX, offsetY: float32,
                                  virtualWidth, virtualHeight: int32) =
@@ -58,25 +144,71 @@ proc getRenderScale*(): float32 =
   ## length L maps to L / getRenderScale() virtual units.
   currentRenderScale
 
-proc setWorldViewOffset*(x: float32) =
-  ## Set the horizontal offset of the gameplay world within the virtual screen.
-  ## Called by main each frame alongside updateRenderInputTransform.
-  currentWorldViewOffsetX = x
+proc setWorldView*(offsetX, offsetY, scale: float32) =
+  ## Place the gameplay world within the virtual screen. Called by main whenever
+  ## the virtual resolution, the HUD layout or the interface scale changes.
+  currentWorldViewOffsetX = offsetX
+  currentWorldViewOffsetY = offsetY
+  currentWorldViewScale = max(scale, 0.0001'f32)
 
 proc getWorldViewOffsetX*(): float32 =
   currentWorldViewOffsetX
 
+proc getWorldViewOffsetY*(): float32 =
+  currentWorldViewOffsetY
+
+proc getWorldViewScale*(): float32 =
+  ## 1.0 whenever the world is drawn at its native size, which is every case
+  ## except widescreen with the interface scaled above 100%.
+  currentWorldViewScale
+
+proc setWorldZoom*(zoom: float32, center: Vector2) =
+  ## Publish the world pass's magnification about `center` (world coords), so
+  ## the world<->screen mappings below match what was drawn. 1.0 disables it.
+  currentWorldZoom = max(zoom, 0.0001'f32)
+  currentWorldZoomCenter = center
+
+proc worldToVirtual*(p: Vector2): Vector2 =
+  ## A gameplay world point in virtual screen coordinates -- the inverse of
+  ## getWorldMousePosition. Used by overlays that are drawn after the world pass
+  ## has closed but still have to line up with something in the world.
+  let c = currentWorldZoomCenter
+  let zx = (p.x - c.x) * currentWorldZoom + c.x
+  let zy = (p.y - c.y) * currentWorldZoom + c.y
+  Vector2(x: zx * currentWorldViewScale + currentWorldViewOffsetX,
+          y: zy * currentWorldViewScale + currentWorldViewOffsetY)
+
 proc getVirtualScreenWidth*(): int32 =
-  ## Full virtual screen width (1024 classic / 1366 widescreen).
-  currentVirtualWidth.int32
+  ## Full virtual screen width (1024 classic / 1366 widescreen), expressed in
+  ## the coordinates of the active UI layer -- so inside a scaled interface
+  ## layer this is the *logical* width that layer has to lay out in.
+  ##
+  ## Rounded *up*: a layer laid out in W logical pixels is drawn back at
+  ## W * scale, so truncating would leave an unpainted strip along the right
+  ## edge at scales that don't divide evenly. Exact (no-op) at scale 1.0.
+  ceil(currentVirtualWidth / activeUIScale).int32
 
 proc getVirtualScreenHeight*(): int32 =
-  ## Full virtual screen height (768).
-  currentVirtualHeight.int32
+  ## Full virtual screen height (768), in active-UI-layer coordinates. Rounded
+  ## up for the same reason as the width.
+  ceil(currentVirtualHeight / activeUIScale).int32
 
 const BaseVirtualWidth* = 1024'i32
   ## The classic (4:3) virtual width. Every fixed-size panel in the game was laid
   ## out against this, so it is the baseline "no extra room" width.
+
+const WidescreenVirtualWidth* = 1366'i32
+  ## The virtual width the widescreen (16:9) HUD layout switches the canvas to.
+
+const WidescreenGutterWidth* = (WidescreenVirtualWidth - BaseVirtualWidth) div 2
+  ## Width of one letterbox gutter in the widescreen layout (171px), and so the
+  ## designed width of each gutter HUD column.
+  ##
+  ## The columns are laid out against this constant and anchored to the *screen*
+  ## edges rather than to the world's edges, and the band a column sits in is
+  ## this width times the interface scale. So turning the scale up widens the
+  ## bands rather than pushing the columns over the arena -- the world view
+  ## shrinks to fit what is left (see setWorldView).
 
 proc getExtraVirtualWidth*(): int32 =
   ## Horizontal virtual pixels available beyond the classic layout width:
@@ -103,11 +235,13 @@ proc beginVirtualScissorMode*(x, y, width, height: int32) =
   # round-trip through beginVirtualScissorMode doesn't double-apply the scale.
   currentVirtualScissorRect = (x, y, width, height)
   currentVirtualScissorActive = true
-  let supersampleScale = getRenderSupersampleScale()
-  let scaledX = floor(x.float32 * supersampleScale).int32
-  let scaledY = floor(y.float32 * supersampleScale).int32
-  let scaledWidth = max(1'i32, ceil(width.float32 * supersampleScale).int32)
-  let scaledHeight = max(1'i32, ceil(height.float32 * supersampleScale).int32)
+  # The rect arrives in active-UI-layer coords, so it has to travel through the
+  # same two transforms the drawing does: the UI scale, then the supersample.
+  let totalScale = getRenderSupersampleScale() * activeUIScale
+  let scaledX = floor(x.float32 * totalScale).int32
+  let scaledY = floor(y.float32 * totalScale).int32
+  let scaledWidth = max(1'i32, ceil(width.float32 * totalScale).int32)
+  let scaledHeight = max(1'i32, ceil(height.float32 * totalScale).int32)
   beginScissorMode(scaledX, scaledY, scaledWidth, scaledHeight)
 
 proc getCurrentVirtualScissor*(): tuple[x, y, w, h: int32] =
@@ -119,9 +253,12 @@ proc currentVirtualScissorIsActive*(): bool =
   currentVirtualScissorActive
 
 proc screenToVirtual*(screenPos: Vector2): Vector2 =
-  ## Map a physical-window pixel coordinate into the virtual canvas, undoing the
-  ## letterbox offset + scale. Shared by the mouse and touch paths so both land
-  ## in the same space the game draws in. Clamped to the virtual bounds.
+  ## Map a physical-window pixel coordinate into the plain virtual canvas,
+  ## undoing the letterbox offset + scale. Shared by the mouse and touch paths
+  ## so both land in the same space the game draws in. Clamped to the virtual
+  ## bounds. Deliberately blind to the active UI layer: the touch controls and
+  ## the on-screen keyboard are laid out in plain virtual pixels, and the pointer
+  ## getters below apply the layer's divide themselves.
   result.x = (screenPos.x - currentRenderOffsetX) / currentRenderScale
   result.y = (screenPos.y - currentRenderOffsetY) / currentRenderScale
   result.x = clamp(result.x, 0.0'f32, currentVirtualWidth)
@@ -130,15 +267,19 @@ proc screenToVirtual*(screenPos: Vector2): Vector2 =
 proc getRealVirtualMousePosition*(): Vector2 =
   ## The physical mouse position in virtual coords, ignoring the gamepad
   ## cursor. Used for device arbitration and cursor handoff seeding.
-  screenToVirtual(getMousePosition())
+  let p = screenToVirtual(getMousePosition())
+  Vector2(x: p.x / activeUIScale, y: p.y / activeUIScale)
 
 proc getVirtualMousePosition*(): Vector2 =
   ## The pointer position every menu/HUD/aim call site reads. While the gamepad
   ## is the active device this is the gamepad virtual cursor (menu mode) or the
   ## gameplay aim point, so the entire mouse-driven UI works from the pad.
   if isGamepadActive():
-    return gamepadCursorPos()
-  result = getRealVirtualMousePosition()
+    # The pad cursor is tracked in plain virtual pixels (it is moved and clamped
+    # against the whole screen), so it needs the same divide the mouse gets.
+    let p = gamepadCursorPos()
+    return Vector2(x: p.x / activeUIScale, y: p.y / activeUIScale)
+  var p = screenToVirtual(getMousePosition())
   when defined(mobile):
     # Hide a pointer parked on the on-screen keyboard, reporting the last
     # position outside it instead. Every "is this window topmost / is the cursor
@@ -146,20 +287,29 @@ proc getVirtualMousePosition*(): Vector2 =
     # follows the finger onto the keyboard the moment you type -- which used to
     # make the owning window drop out of focus mid-word. Gameplay is unaffected:
     # the keyboard only exists in the menu states.
-    result = touchKeyboardMaskPointer(result)
+    #
+    # Masked BEFORE the UI-layer divide: the keyboard is drawn in plain virtual
+    # pixels, so its rect is only comparable to the undivided point.
+    p = touchKeyboardMaskPointer(p)
+  Vector2(x: p.x / activeUIScale, y: p.y / activeUIScale)
 
 proc getWorldMousePosition*(): Vector2 =
-  ## The pointer position in gameplay WORLD coords (virtual pointer minus the
-  ## world view offset). In the left gutter this can go negative; callers expect
-  ## world coordinates, so it is intentionally NOT clamped.
-  result = getVirtualMousePosition()
-  result.x -= currentWorldViewOffsetX
+  ## The pointer position in gameplay WORLD coords: the virtual pointer taken
+  ## back through the world view's offset and scale. Outside the arena this can
+  ## go negative or past the world bounds; callers expect world coordinates, so
+  ## it is intentionally NOT clamped.
+  let p = getVirtualMousePosition()
+  result.x = (p.x - currentWorldViewOffsetX) / currentWorldViewScale
+  result.y = (p.y - currentWorldViewOffsetY) / currentWorldViewScale
+  let c = currentWorldZoomCenter
+  result.x = (result.x - c.x) / currentWorldZoom + c.x
+  result.y = (result.y - c.y) / currentWorldZoom + c.y
 
 proc setGamepadAimPointWorld*(p: Vector2) =
   ## Store a gameplay aim point expressed in WORLD coords. The stored "virtual
-  ## mouse" is uniformly virtual for both mouse and pad, so the offset is added
-  ## back here before handing off to setGamepadAimPoint.
-  setGamepadAimPoint(Vector2(x: p.x + currentWorldViewOffsetX, y: p.y))
+  ## mouse" is uniformly virtual for both mouse and pad, so the world view
+  ## transform is applied here before handing off to setGamepadAimPoint.
+  setGamepadAimPoint(worldToVirtual(p))
 
 proc bondMouseToVirtualViewport*() =
   ## Keep the mouse inside the active virtual viewport.

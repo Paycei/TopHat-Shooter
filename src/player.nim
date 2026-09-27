@@ -1,5 +1,6 @@
 import raylib, math, random, std/deques
-import particle_types, types, wall, powerup, powerup_data, localization, skins, shapes, cube_skins, ui/ui_constants, utils, input_intent
+import gamepad_input, particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, settings, utils, input_intent
+import modding/[mod_hooks, mod_assets]
 
 const
   # BASE DASH tuning. A burst of speed, not a teleport and not an i-frame
@@ -10,6 +11,23 @@ const
   DashDuration*     = 0.16'f32  ## seconds of burst
   DashCooldownTime* = 2.5'f32   ## seconds between dashes
   DashReadyFlashTime* = 0.35'f32 ## how long the "recharged" snap plays on the player
+
+  LaserHitInterval* = 0.5'f32   ## minimum time between repeat hits from a laser/beam
+                                 ## hazard while the player keeps standing in it
+
+  # Momentum (Legendary, puSpeedBoost) tuning. Discrete stacks instead of a
+  # continuous vel/baseSpeed ratio: the old version was full most of the time
+  # because dodging already keeps velocity near baseSpeed, so it read as a flat
+  # +25% damage buff wearing a movement costume. Stacks force a real choice
+  # instead -- sustained fast travel pays off, but standing still to line up a
+  # shot, tanking a hit, or getting slowed/frozen costs real, visible damage.
+  MomentumMaxStacks*      = 5
+  MomentumStackTime*      = 0.5'f32  ## seconds above threshold to gain one stack
+  MomentumDecayGrace*     = 0.5'f32  ## seconds below threshold before stacks start dropping
+  MomentumDecayTime*      = 0.5'f32  ## seconds below threshold to lose one stack, after grace
+  MomentumSpeedThreshold* = 0.6'f32  ## fraction of baseSpeed counted as "moving with intent"
+  MomentumDamagePerStack* = 0.04'f32 ## +4% damage per stack (20% at max)
+  MomentumMaxCritBonus*   = 20       ## +20% crit chance while holding all 5 stacks
 
   PlayerAcceleration = 7.0'f32
   PlayerBraking = 1.8'f32
@@ -108,7 +126,9 @@ proc newPlayer*(x, y: float32): Player =
     regenTimer: 0,
     lastDamageEvent: deNone,
     rageStacks: 0,
-    critCharge: 0,
+    momentumStacks: 0,
+    momentumBuildTimer: 0,
+    momentumDecayTimer: 0,
     auraRadius: 90.0,  # Invisible pickup aura (refreshPlayerSize owns it after frame 1)
     doubleShotDelay: 0,
     rapidFireSpinup: 0,  # Minigun spin-up meter (RapidFire legendary)
@@ -169,10 +189,14 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.speedBoostTimer -= dt
   if player.invincibilityTimer > 0:
     player.invincibilityTimer -= dt
+  if player.laserHitCooldown > 0:
+    player.laserHitCooldown -= dt
   if player.fireRateBoostTimer > 0:
     player.fireRateBoostTimer -= dt
   if player.adaptiveFirewallTimer > 0:
     player.adaptiveFirewallTimer -= dt
+  if player.overclockStallTimer > 0:
+    player.overclockStallTimer -= dt
   if player.killChainTimer > 0:
     player.killChainTimer -= dt
     if player.killChainTimer <= 0:
@@ -231,7 +255,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.conduitCooldown > 0:
     player.conduitCooldown -= dt
   if player.aftershockCooldown > 0:
-    player.aftershockCooldown -= dt
+    player.aftershockCooldown = max(0.0'f32, player.aftershockCooldown - dt)
   if player.novaCooldown > 0:
     player.novaCooldown -= dt
 
@@ -244,15 +268,17 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       player.novaActive = false
       # Note: bullet release (vel *= 1.5, isFrozenByNova = false) done in game.nim
 
-  # Aftershock position history sampling (every 0.05s = 40 samples for 2s of history)
-  if player.aftershockCooldown >= 0:  # always sample (even when cooldown is 0)
-    player.aftershockSampleTimer += dt
-    if player.aftershockSampleTimer >= 0.05:
-      player.aftershockSampleTimer -= 0.05
-      player.aftershockPosHistory.addLast(player.pos)
-      # Keep only the last 40 samples (2 seconds at 0.05s intervals)
-      if player.aftershockPosHistory.len > 40:
-        player.aftershockPosHistory.popFirst()
+  # Aftershock position history sampling (every 0.05s = 40 samples for 2s of
+  # history). Always on: this used to be gated on `cooldown >= 0`, and the
+  # cooldown countdown overshot to a small negative, so after the first cast
+  # the history never refilled and Aftershock silently stopped firing.
+  player.aftershockSampleTimer += dt
+  if player.aftershockSampleTimer >= 0.05:
+    player.aftershockSampleTimer -= 0.05
+    player.aftershockPosHistory.addLast(player.pos)
+    # Keep only the last 40 samples (2 seconds at 0.05s intervals)
+    if player.aftershockPosHistory.len > 40:
+      player.aftershockPosHistory.popFirst()
 
   # Update Pulse Armor cooldown. Clamp at 0 so it never crosses into negative
   # (a negative cooldown used to be misread as the trigger sentinel, causing
@@ -294,7 +320,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.dashCooldown <= 0 and player.dashTimer <= 0:
     # Device reads live behind input_intent (Shift / LT on desktop, the
     # on-screen dash button on mobile), like every other gameplay input here.
-    if dashPressed():
+    if dashPressed() and not modDash(player):
       var d = moveDir
       if d.length() < 0.01'f32:
         # Standing still: dash along current travel, else straight up.
@@ -317,6 +343,31 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     let targetVel = moveDir * currentSpeed
     let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
     player.vel = approachVelocity(player.vel, targetVel, acceleration, dt)
+
+  # Momentum (Legendary) - build a stack every MomentumStackTime seconds spent
+  # above the speed threshold; below it, wait out the grace period and then
+  # lose stacks at the same rate. Read against baseSpeed (not currentSpeed) so
+  # slows/freezes that reduce currentSpeed can't quietly keep the threshold
+  # trivial to clear.
+  if hasPowerUp(player, puSpeedBoost) and player.baseSpeed > 0:
+    if player.vel.length() >= player.baseSpeed * MomentumSpeedThreshold:
+      player.momentumDecayTimer = 0
+      player.momentumBuildTimer += dt
+      while player.momentumBuildTimer >= MomentumStackTime and player.momentumStacks < MomentumMaxStacks:
+        player.momentumBuildTimer -= MomentumStackTime
+        player.momentumStacks += 1
+      if player.momentumStacks >= MomentumMaxStacks:
+        player.momentumBuildTimer = 0  # don't bank progress past the cap
+    else:
+      player.momentumBuildTimer = 0
+      if player.momentumStacks > 0:
+        player.momentumDecayTimer += dt
+        while player.momentumDecayTimer >= MomentumDecayGrace + MomentumDecayTime and player.momentumStacks > 0:
+          player.momentumDecayTimer -= MomentumDecayTime
+          player.momentumStacks -= 1
+        if player.momentumStacks <= 0:
+          player.momentumStacks = 0
+          player.momentumDecayTimer = 0
 
   # Calculate next position
   let nextPos = player.pos + player.vel * dt
@@ -446,13 +497,16 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.singularityShieldRegenTimer = 0.0
 
   # Update rotating orbs angle
-  player.orbRotationAngle += dt * 2.75  # Rotate orbs around player
+  player.orbRotationAngle += dt * 2.5  # Rotate orbs around player
 
   # Clean up orbs if no orb power-ups are active
   if not hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
     player.rotatingOrbs = @[]
 
 proc drawPlayer*(player: Player) =
+  # Mods (playerDraw): a script-drawn body replaces the built-in one.
+  if hookActive(hkPlayerDraw) and modPlayerDraw(player):
+    return
   let time = getTime()  # Used throughout for animations
   # NOTE: aura bodies/borders are NOT drawn here. Every aura visual goes through
   # the unified renderer (drawAuraEffect in game/auras.nim), which is the only
@@ -558,13 +612,24 @@ proc drawPlayer*(player: Player) =
              Color(r: 200, g: 200, b: 255, a: 255))
     player.lastDamageEvent = deNone  # Consume flag
 
+  # Patch interceptions (roguelite): same one-frame signal pattern.
+  if player.lastDamageEvent in {dePatchBlocked, deRollback} and player.hp > 0:
+    let label = if player.lastDamageEvent == deRollback: t("patch_fx_rollback")
+                else: t("patch_fx_blocked")
+    let lw = measureText(label, 14)
+    drawText(label, (player.pos.x - lw.float32 / 2).int32, (player.pos.y - 35).int32, 14,
+             Color(r: 120, g: 210, b: 255, a: 255))
+    player.lastDamageEvent = deNone  # Consume flag
+
   # PLAYER RENDERING
   let pulse = sin(time * 2.0) * 0.5 + 0.5  # Pulsing animation
   let rotation = time * 0.5  # Slow rotation for hex frame
 
   # Get colors from skin system
   let skinType = player.skinType.SkinType
-  let (skinPrimary, skinSecondary, skinCore) = getSkinColors(skinType, time)
+  var (skinPrimary, skinSecondary, skinCore) = getSkinColors(skinType, time)
+  if player.modSkin > 0:
+    playerPalette(player, skinPrimary, skinSecondary, skinCore)  # mod cosmetic (MODS.EXE)
   var baseColor = skinPrimary
   var secondaryColor = skinSecondary
   var coreColor = skinCore
@@ -619,8 +684,12 @@ proc drawPlayer*(player: Player) =
 
   # Draw player using selected shape
   let shapeType = player.shapeType.ShapeType
-  drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
-                  time, rotation, pulse, glowIntensity)
+  # A mod texture (equipped cosmetic or override.texture("player")) replaces the
+  # shape; status colours (invincible gold, phase cyan) tint it.
+  let modTint = if baseColor == skinPrimary: White else: baseColor
+  if not drawPlayerModBody(player, modTint):
+    drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
+                    time, rotation, pulse, glowIntensity)
 
   # Secret cosmetic: the kernel's tophat, earned by clearing the final boss wave.
   # Band and outline take the player's current body color so the hat
@@ -968,14 +1037,16 @@ proc drawPlayer*(player: Player) =
         discard  # etNone or other unknown types
 
 proc takeDamageRaw(player: Player, damage: float32): bool =
-  ## Returns true if player died (HP reached 0 or below), false otherwise
+  ## Returns true if player died (HP reached 0 or below), false otherwise.
+  ## Also publishes lastDamageAvoided / lastDamageTaken for the frame: exactly one
+  ## of them is non-zero, so statistics can book a hit as avoided OR taken but
+  ## never both (see trackPlayerDamage).
   player.lastDamageAvoided = 0.0  # Reset each call
-  # Shield boost absorbs hits first
-  if player.shieldHits > 0:
-    player.shieldHits -= 1
-    player.lastDamageAvoided = damage
-    # Visual/audio feedback happens in game.nim
-    return false
+  player.lastDamageTaken = 0.0
+
+  # Invulnerability states come first: a hit they block must not also spend a
+  # Shield Boost charge (the shield used to be checked first and was burned on
+  # hits that could never have landed).
 
   # Invincibility from consumables
   if player.invincibilityTimer > 0:
@@ -990,6 +1061,22 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   # Phase Shift invulnerability
   if player.phaseShiftInvulnTimer > 0:
     player.lastDamageAvoided = damage
+    return false
+
+  # Roguelite patch charges (Firewall Rule: one per combat room; Emergency
+  # Patch: one per SERVICE room). Kept apart from shieldHits, which the Shield
+  # Boost timer zeroes every frame it is not running.
+  if player.patchBlockCharges > 0:
+    player.patchBlockCharges -= 1
+    player.lastDamageAvoided = damage
+    player.lastDamageEvent = dePatchBlocked
+    return false
+
+  # Shield boost absorbs the first hits that would actually land
+  if player.shieldHits > 0:
+    player.shieldHits -= 1
+    player.lastDamageAvoided = damage
+    # Visual/audio feedback happens in game.nim
     return false
 
   # Celestial Veil - absorb 2 hits per wave
@@ -1017,9 +1104,9 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   for powerUp in player.powerUps:
     if powerUp.powerType == puFortified:
       let reduction = case powerUp.level
-        of 1: 0.1  # 10% reduction
-        of 2: 0.2  # 20% reduction
-        else: 0.3  # 30% reduction
+        of 1: 0.05  # 5% reduction
+        of 2: 0.1   # 10% reduction
+        else: 0.15  # 15% reduction
       finalDamage *= (1.0 - reduction)
       break
 
@@ -1029,6 +1116,9 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     if absorb > 0.0:
       player.singularityShield -= absorb
       finalDamage -= absorb
+      # Shield HP spent is damage the player did not take. Without this a hit
+      # the singularity swallowed whole counted as neither taken nor avoided.
+      player.lastDamageAvoided = absorb
       # Reset regen timer on damage
       player.singularityShieldRegenTimer = 0.0
       # Mark recent damage for UI/feedback
@@ -1036,15 +1126,21 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     if finalDamage <= 0.0:
       return false
 
+  let hpBefore = player.hp
   player.hp -= finalDamage
 
   # Clamp HP to 0 minimum
   if player.hp < 0:
     player.hp = 0
+  player.lastDamageTaken = hpBefore - player.hp
 
   player.lastDamageEvent = deDamage
   # Reset singularity shield regen timer on any player damage
   player.singularityShieldRegenTimer = 0.0
+
+  # Overclock patch: integrity actually lost stalls the fire-rate bonus.
+  if player.lastDamageTaken > 0.0 and hasPatch(player, rrtOverclock):
+    player.overclockStallTimer = OverclockStallTime
 
   # AdaptiveFirewall: fire rate boost after taking damage
   if hasPowerUp(player, puAdaptiveFirewall):
@@ -1062,6 +1158,22 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     player.invincibilityTimer = 3.0'f32
     return false
 
+  # Rollback patch: once per sector, restore the last good state instead of
+  # crashing. startDungeonFloor re-arms it.
+  if player.hp <= 0 and player.rollbackArmed and hasPatch(player, rrtRollback):
+    player.rollbackArmed = false
+    player.hp = max(1.0'f32, player.maxHp * RollbackRestore)
+    player.invincibilityTimer = max(player.invincibilityTimer, RollbackInvulnTime)
+    player.lastDamageEvent = deRollback
+    return false
+
+  # Mods (playerLethal): a script may keep the player alive; it can set the
+  # HP it wants, otherwise the player is left on a sliver.
+  if player.hp <= 0 and modPlayerLethal(player):
+    if player.hp <= 0:
+      player.hp = min(player.maxHp, 0.5'f32)
+    return false
+
   # Return true if HP reached 0 or below (death condition)
   return player.hp <= 0
 
@@ -1070,11 +1182,24 @@ proc takeDamage*(player: Player, damage: float32): bool =
   ## difficulty scales here so every source (contact, bullets, lasers,
   ## meteors, explosions) is covered without touching each call site.
   ## PvP has its own damage path and is intentionally unaffected.
-  takeDamageRaw(player, damage * difficultyEnemyDamageMult())
+  var dealt = damage * difficultyEnemyDamageMult()
+  # Mods (playerDamaged) may scale or cancel it.
+  if hookActive(hkPlayerDamaged):
+    dealt = modPlayerDamaged(player, dealt)
+    if dealt <= 0.0'f32:
+      return false
+  takeDamageRaw(player, dealt)
 
-proc heal*(player: Player, amount: float32) =
+proc heal*(player: Player, amount: float32): float32 {.discardable.} =
+  ## Applies the player's heal-power multiplier and clamps to max HP, returning
+  ## the HP that was ACTUALLY restored. Healing statistics track the return value
+  ## rather than the amount requested, so a heal that lands at full HP is worth
+  ## zero instead of inflating the run's healing total with overheal.
+  let before = player.hp
+  let amount = if hookActive(hkPlayerHeal): modPlayerHeal(player, amount) else: amount
   player.hp += amount * player.healPowerMult
   if player.hp > player.maxHp: player.hp = player.maxHp
+  player.hp - before
 
 proc activateSpeedBoost*(player: Player) =
   player.speedBoostTimer = 5.0

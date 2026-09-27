@@ -1,5 +1,6 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, input_intent, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, discord_config, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_hud, ui/os_task_manager, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers
+import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, input_intent, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
+import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_api], ui/mods_window
 
 when defined(mobile):
   import mobile_controls  # updateMobileControls / drawMobileControls hooks
@@ -16,18 +17,22 @@ type ConfirmDialogContext = enum
 var
   globalConfirmActive      = false
   globalConfirmContext     = cdcQuitToMenu
+  globalConfirmRunMode     = gmWaveBased  # Mode of the run an abandon-checkpoint prompt is about
   globalConfirmFrameGuard  = 0.0'f32  # Prevents Q from instantly confirming on dialog open
   globalConfirmMouseGuard  = 0.0'f32  # anti-accident cooldown before mouse/button click is accepted
 
 const DEFAULT_CONFIRM_COOLDOWN = 1.5'f32  # standard anti-accident window (seconds)
 
-proc showGlobalConfirm(ctx: ConfirmDialogContext, cooldown: float32 = DEFAULT_CONFIRM_COOLDOWN) =
+proc showGlobalConfirm(ctx: ConfirmDialogContext, cooldown: float32 = DEFAULT_CONFIRM_COOLDOWN,
+                       runMode: GameMode = gmWaveBased) =
   ## `cooldown` is the seconds the YES button stays greyed out / counts down before it
   ## accepts a click. Pass 0.0 to make confirmation immediate (e.g. the main-menu Quit
   ## icon, where there's no in-progress run to protect). Defaults to the standard window
-  ## so in-game quits keep the anti-accident delay.
+  ## so in-game quits keep the anti-accident delay. `runMode` words the abandon-restart
+  ## prompt: wave mode restarts at wave 1, the other modes start a new run.
   globalConfirmActive     = true
   globalConfirmContext    = ctx
+  globalConfirmRunMode    = runMode
   globalConfirmFrameGuard = 0.15'f32  # Absorbs the key that opened the dialog
   globalConfirmMouseGuard = max(0.0'f32, cooldown)
 
@@ -35,16 +40,27 @@ proc isOverRect(mp: Vector2, x, y, w, h: int32): bool =
   mp.x >= x.float32 and mp.x <= (x + w).float32 and
   mp.y >= y.float32 and mp.y <= (y + h).float32
 
-proc drawGlobalConfirmDialog(sw, sh: int32): int =
+proc overlayUIScaleFor(panelW, panelH: int32): float32
+  ## Defined below with the other interface-scale helpers.
+
+# Both modal dialogs below are drawn *and* hit-tested inside their own UI-scale
+# layer, so they grow and shrink with the rest of the interface. They still
+# cover and centre on the real screen: they size themselves from the layer's
+# viewport, which is rounded up so the backdrop always spans every pixel.
+
+proc drawGlobalConfirmDialog(): int =
   ## Returns 0 = still open, 1 = confirmed (yes), -1 = cancelled (no).
   if not globalConfirmActive: return 0
 
-  let mp = getVirtualMousePosition()
   const DW: int32 = 460; const DH: int32 = 210
   const BW: int32 = 170; const BH: int32 = 42
-  let dx = (sw - DW) div 2; let dy = (sh - DH) div 2
+  beginUIScaleMode(overlayUIScaleFor(DW, DH))
+  defer: endUIScaleMode()
+  let viewW = getVirtualScreenWidth(); let viewH = getVirtualScreenHeight()
+  let mp = getVirtualMousePosition()
+  let dx = (viewW - DW) div 2; let dy = (viewH - DH) div 2
 
-  drawRectangle(0, 0, sw, sh, Color(r: 0, g: 0, b: 0, a: 160))
+  drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 160))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
   drawRectangle(dx, dy, DW, DH, Color(r: 18, g: 22, b: 32, a: 255))
   drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
@@ -62,7 +78,9 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
   let bodyStr = case globalConfirmContext
                 of cdcQuitToDesktop: t(tkConfirmQuitBody)
                 of cdcQuitToMenu, cdcAbandonExit, cdcPostGameExit: t(tkConfirmExitBody)
-                of cdcAbandonRestart: t(tkConfirmCheckpointRestartBody)
+                of cdcAbandonRestart:
+                  if globalConfirmRunMode == gmWaveBased: t(tkConfirmCheckpointRestartBody)
+                  else: t(tkConfirmCheckpointNewRunBody)
   let bW = measureText(bodyStr, 19)
   drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, White)
   # cdcPostGameExit has no subtitle: the run is already over and results are
@@ -116,7 +134,10 @@ proc drawGlobalConfirmDialog(sw, sh: int32): int =
   if isPointerPressed():
     if noHov:               decision = -1
     elif yesHov and mouseReady: decision = 1
-  if isBackPressed(): decision = -1
+  # Gated on the frame guard too: when ESC/B is what opened the dialog (game
+  # over, victory, run stats), that same press would otherwise cancel it on the
+  # frame it appears.
+  if globalConfirmFrameGuard <= 0.0 and isBackPressed(): decision = -1
   if keyReady:
     if globalConfirmContext == cdcAbandonRestart:
       if isKeyPressed(R): decision = 1
@@ -133,15 +154,18 @@ var
   resumePromptActive = false
   resumePromptMode   = gmWaveBased  # mode the saved run belongs to
 
-proc drawResumeDialog(sw, sh: int32): int =
+proc drawResumeDialog(): int =
   ## Returns 0 = still open, 1 = Continue (resume), -1 = New Run (fresh).
   if not resumePromptActive: return 0
-  let mp = getVirtualMousePosition()
   const DW: int32 = 480; const DH: int32 = 210
   const BW: int32 = 180; const BH: int32 = 44
-  let dx = (sw - DW) div 2; let dy = (sh - DH) div 2
+  beginUIScaleMode(overlayUIScaleFor(DW, DH))
+  defer: endUIScaleMode()
+  let viewW = getVirtualScreenWidth(); let viewH = getVirtualScreenHeight()
+  let mp = getVirtualMousePosition()
+  let dx = (viewW - DW) div 2; let dy = (viewH - DH) div 2
 
-  drawRectangle(0, 0, sw, sh, Color(r: 0, g: 0, b: 0, a: 170))
+  drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 170))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
   drawRectangle(dx, dy, DW, DH, Color(r: 16, g: 24, b: 34, a: 255))
   drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
@@ -263,7 +287,7 @@ proc virtualWidthFor(layout: HudLayout): int32 =
   ## while the gameplay world stays WorldWidth; classic keeps the world size.
   case layout
   of hlWidescreen:
-    when defined(mobile): mobileVirtualWidth() else: 1366'i32
+    when defined(mobile): mobileVirtualWidth() else: WidescreenVirtualWidth
   of hlClassic: WorldWidth.int32
 
 # Global Discord client that persists across game sessions
@@ -271,6 +295,61 @@ var globalDiscordClient: DiscordClient = nil
 
 # Global window manager
 var globalWindowManager: WindowManager = nil
+
+proc desktopUIScale(): float32 =
+  ## Interface scale for the desktop chrome (wallpaper, icons, taskbar). That
+  ## chrome is laid out against whatever viewport it is handed, so it honours
+  ## the player's setting with no ceiling. The OS windows are *not* drawn in
+  ## this layer: each caps itself at the point where it would stop fitting the
+  ## screen (window_manager.windowUIScale), so one oversized window can't hold
+  ## the rest of the interface back.
+  uiScaleOf(globalSettings)
+
+proc overlayUIScale(): float32 =
+  ## Interface scale for the in-game, full-screen overlays: the pause menu, the
+  ## shop, the power-up draft and the end screens. These *replace* the view --
+  ## play is suspended behind them -- so they take the setting as given, capped
+  ## per panel only where it would stop fitting (overlayUIScaleFor). Anything
+  ## drawn over live gameplay uses game.hudInterfaceScale instead.
+  ## Every one of them lays itself out from getVirtualScreenWidth/Height, so
+  ## drawing *and* hit-testing inside one scale layer is the whole change --
+  ## exactly the deal the desktop chrome gets.
+  uiScaleOf(globalSettings)
+
+proc overlayUIScaleFor(panelW, panelH: int32): float32 =
+  ## overlayUIScale, capped so a panel of `panelW` x `panelH` still fits the
+  ## screen -- the same rule window_manager.windowUIScale applies per OS window.
+  ## Scaling down always fits; scaling *up* shrinks the logical viewport the
+  ## panel centres itself in, so past a point its edges run off the screen with
+  ## no way to reach them. Pass the panel's largest possible size, and pass the
+  ## same size from the draw and the hit-test so the two agree.
+  let requested = overlayUIScale()
+  if requested <= 1.0'f32:
+    return requested
+  let fit = min(screenWidth.float32 / max(1'i32, panelW).float32,
+                screenHeight.float32 / max(1'i32, panelH).float32)
+  # max(fit, 1.0) so a panel that already overflows at 100% is left alone rather
+  # than being shrunk by a setting the player turned *up*.
+  min(requested, max(fit, 1.0'f32))
+
+proc drawInGameToasts(desktop: OSDesktop) =
+  ## The desktop's toast stack drawn over a game screen. The desktop draws the
+  ## same toasts inside its own scaled layer, so these take the same scale --
+  ## otherwise an unlock toast changes size depending on where it pops up.
+  beginUIScaleMode(overlayUIScale())
+  drawDesktopToastsOverlay(desktop, getVirtualScreenWidth(), getVirtualScreenHeight())
+  endUIScaleMode()
+
+proc desktopUIWidth(): int32 =
+  ## Logical width the desktop chrome lays out in at the current UI scale.
+  ## Rounded up so scaling it back by the same factor always covers the whole
+  ## virtual width -- truncating leaves an unpainted strip at the right edge.
+  ceil(screenWidth.float32 / desktopUIScale()).int32
+
+proc desktopUIHeight(): int32 =
+  ## Logical height the desktop chrome lays out in at the current UI scale,
+  ## rounded up for the same reason as the width.
+  ceil(screenHeight.float32 / desktopUIScale()).int32
 
 var
   renderTarget: RenderTexture2D  # Virtual screen for consistent rendering
@@ -311,6 +390,33 @@ proc updateRenderSupersampleState(settings: Settings) =
     rebuildRenderTarget(targetSupersampleScale)
   setRenderSupersampleScale(targetSupersampleScale)
 
+proc hudBandWidth(): float32 =
+  ## Width reserved on each side of the arena for a widescreen HUD band.
+  ##
+  ## A band holds one HUD column (WidescreenGutterWidth at 100%) and grows with
+  ## the interface scale, so raising the scale gives the HUD more room instead of
+  ## making it reach over the arena. Classic has no bands -- its arena is the
+  ## whole screen and its HUD floats over it by design.
+  let layout = if globalSettings.isNil: hlWidescreen else: globalSettings.hudLayout
+  case layout
+  of hlClassic: 0.0'f32
+  of hlWidescreen: WidescreenGutterWidth.float32 * uiScaleOf(globalSettings)
+
+proc updateWorldView() =
+  ## Place the gameplay world inside the virtual screen: centred, and scaled down
+  ## to whatever the HUD bands leave it. At 100% the bands are exactly the
+  ## letterbox gutters, so the world is drawn 1:1 at the same offset as always --
+  ## the layout every fixed panel was tuned against. Never scaled *up*: the world
+  ## is a fixed-size simulation and the extra room in classic is not the arena's
+  ## to take.
+  let avail = screenWidth.float32 - hudBandWidth() * 2.0'f32
+  let scale = clamp(avail / WorldWidth.float32, 0.25'f32, 1.0'f32)
+  let drawnW = WorldWidth.float32 * scale
+  let drawnH = WorldHeight.float32 * scale
+  setWorldView((screenWidth.float32 - drawnW) * 0.5'f32,
+               (screenHeight.float32 - drawnH) * 0.5'f32,
+               scale)
+
 proc updateRenderScale() =
   ## Calculate letterbox scaling for current window size
   let windowWidth = getScreenWidth()
@@ -329,9 +435,7 @@ proc updateRenderScale() =
   renderOffsetY = (windowHeight.float32 - scaledHeight) / 2.0
   updateRenderInputTransform(renderScale, renderOffsetX, renderOffsetY,
                              screenWidth.int32, screenHeight.int32)
-  # Center the fixed-size world inside the (possibly wider) virtual screen. 0 in
-  # classic mode; the left-gutter width in widescreen mode.
-  setWorldViewOffset(((screenWidth - WorldWidth) div 2).float32)
+  updateWorldView()
 
 proc beginGameDrawing() =
   ## Begin drawing to the virtual render target
@@ -349,14 +453,16 @@ proc endGameDrawing() =
   beginDrawing()
   clearBackground(Black)  # Black bars for letterboxing
 
-  # Draw the scaled render texture
+  # Draw the scaled render texture (through a mod's post-process shader, if any)
   let source = Rectangle(x: 0, y: 0,
                          width: renderTarget.texture.width.float32,
                          height: -renderTarget.texture.height.float32)
   let dest = Rectangle(x: renderOffsetX, y: renderOffsetY,
                        width: screenWidth.float32 * renderScale,
                        height: screenHeight.float32 * renderScale)
+  let modShaded = beginPostShader(dest.width, dest.height, getTime().float32)
   drawTexture(renderTarget.texture, source, dest, Vector2(x: 0, y: 0), 0, White)
+  if modShaded: endShaderMode()
 
   endDrawing()
 
@@ -383,14 +489,6 @@ proc applyWindowMode(fullscreen: bool) =
     setWindowPosition((monitorWidth - screenWidth) div 2,
                      (monitorHeight - screenHeight) div 2)
   updateRenderScale()
-
-proc isMenuClickValid*(game: Game, settings: Settings, mousePos: Vector2f, buttonX: int32, buttonY: int32, buttonWidth: int32, buttonHeight: int32): bool =
-  ## Helper function to validate mouse clicks in menus
-  ## Returns true if mouse click is within button bounds and mouse support is enabled
-  if not game.mouseMovedRecently:
-    return false
-  return mousePos.x >= buttonX.float32 and mousePos.x <= (buttonX + buttonWidth).float32 and
-         mousePos.y >= buttonY.float32 and mousePos.y <= (buttonY + buttonHeight).float32
 
 proc hasMouseMoved*(game: Game): bool =
   ## Detects if mouse has actually moved (not just hovering)
@@ -573,6 +671,12 @@ proc initializeAllCosmetics() =
 proc main() =
   randomize()
 
+  when defined(debug):
+    # Wiring the compiler cannot see: untranslated keys and boss IDs whose
+    # per-ID tables (weak point, process name, definition) were missed.
+    for problem in missingTranslations() & bossRosterProblems():
+      echo "[self-check] ", problem
+
   # Save-profile bootstrap: convert pre-profile saves into profile 1, then
   # point the save system at the last-used profile so its settings drive
   # window creation. The profile-select screen shown after the splash can
@@ -685,6 +789,13 @@ proc main() =
   onLanguageChange = proc() =
     initializeAllCosmetics()
 
+  # Mods (MODS.EXE): this profile's enabled mods load once the window, sounds
+  # and cosmetics exist. Mod strings can rename cosmetics, so the databases are
+  # rebuilt after a set that loaded anything.
+  reloadMods(settings.enabledMods, settings.modCosmetics)
+  if modsActive:
+    initializeAllCosmetics()
+
   let cheatMenu = initCheatMenu()
 
   # Apply remaining settings
@@ -693,6 +804,7 @@ proc main() =
   let stats = initStatistics()
   discard loadStatistics(stats)
   var rogueliteProfile = loadRogueliteProfile()
+  activeRogueliteProfile = rogueliteProfile
   if sanitizeEquippedCosmetics(settings, rogueliteProfile):
     discard saveSettings(settings)
 
@@ -719,6 +831,10 @@ proc main() =
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
   var appliedHudLayout = settings.hudLayout  # Last virtual-resolution applied to the window/pipeline
+  # Last desktop-layer UI scale the windows were laid out for. Starts at 0 (an
+  # impossible scale) so the first frame always lays them out for the saved one,
+  # which is what centers them in the scaled logical viewport after boot.
+  var appliedUIScale = 0.0'f32
 
   when defined(mobile):
     var mobilePrevState = gsSplash  # matches currentGame.state at first entry
@@ -770,9 +886,12 @@ proc main() =
   # playing; cutsceneContinuation says where to go when it finishes.
   # pendingModeAfterCutscene is the pendingGameMode value staged before a mode-intro
   # cutscene plays (used by cscLaunchGame); -1 when not in use.
+  # pendingIconAfterCutscene is the desktop icon whose first click played a mode
+  # intro (cscDesktopIcon); the desktop re-runs it once the intro ends.
   var activeCutscene: Cutscene = nil
   var cutsceneContinuation: CutsceneContinuation = cscMenu
   var pendingModeAfterCutscene: int = -1
+  var pendingIconAfterCutscene: int = -1
   var osDesktop = newOSDesktop()
   # Expose the running desktop instance so UI previews can match its state
   activeDesktop = osDesktop
@@ -783,12 +902,32 @@ proc main() =
 
   # Initialize window manager with all windows
   globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile)
+  # MODS.EXE Game Modes rows: every mod game mode, and whether its own save
+  # slots hold a run to continue.
+  modeRowsBuilder = proc (): seq[ModModeRow] =
+    let spanish = getLanguage() == Spanish
+    for m in modModes:
+      let baseName = case m.base
+        of gmTimeSurvival: t(tkDesktopIconSurvival)
+        of gmRoguelite: t(tkDesktopIconRoguelite)
+        else: t(tkDesktopIconPlay)
+      var modName = m.key
+      for r in mods:
+        if r.index == m.owner: modName = r.name
+      result.add(ModModeRow(
+        name: (if spanish and m.nameEs.len > 0: m.nameEs else: m.nameEn),
+        description: (if spanish and m.descEs.len > 0: m.descEs else: m.descEn),
+        modName: modName, baseName: baseName,
+        canContinue: hasSuspendSnapshot(m.base, m.key) or hasSavedRun(m.base, m.key) or
+                     hasBlockCheckpoint(m.base, m.key)))
+  refreshModsWindow(globalWindowManager.mods)
   # Pre-load saved nickname into pvp window and host network manager
   globalWindowManager.pvp.inputNickname = settings.pvpNickname
   globalWindowManager.pvp.networkManager.hostNickname = settings.pvpNickname
 
   proc setActiveRogueliteProfile(profile: RogueliteProfile) =
     rogueliteProfile = profile
+    activeRogueliteProfile = profile  # wallet wave/survival rewards bank into
     if sanitizeEquippedCosmetics(settings, profile):
       discard saveSettings(settings)
     if not globalWindowManager.isNil and not globalWindowManager.settings.isNil:
@@ -825,8 +964,17 @@ proc main() =
     reloadSettingsFromDisk(settings)
     applySettings(settings)
     applyWindowMode(settings.fullscreen)
+    # Each profile keeps its own enabled mods.
+    reloadMods(settings.enabledMods, settings.modCosmetics)
+    initializeAllCosmetics()
+    if not globalWindowManager.isNil and not globalWindowManager.mods.isNil:
+      refreshModsWindow(globalWindowManager.mods)
 
-    stats[] = initStatistics()[]
+    # Reset IN PLACE: resetStatistics keeps `globalStats` pointing at this same
+    # object. Copying a fresh initStatistics() in here instead left globalStats
+    # on the temporary, and the first boss kill then saved that empty object
+    # over stats.json.
+    resetStatistics(stats)
     discard loadStatistics(stats)
 
     let freshRunStats = loadLastRunStats()
@@ -859,12 +1007,17 @@ proc main() =
     if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
       globalWindowManager.advancements.profile = advancementProfile
 
-  proc persistRunResults(game: Game) =
+  proc persistRunResults(game: Game, died: bool) =
     ## Finalize and save an ended run: last-run snapshot, lifetime statistics and
     ## advancement sync. Idempotent via statsSavedThisGame so it is safe to call
     ## from both the game-over and victory "return to menu" paths.
+    ##
+    ## `died` separates the two: a wave-60 victory and a banked roguelite cash out
+    ## are wins, and were previously both recorded as deaths in the run record and
+    ## in the lifetime death counter.
+    modRunEnd(game, died)  # once per run (mod_hooks dedupes repeat calls)
     if hasValidRunStats():
-      finalizeRunTracking(game)
+      finalizeRunTracking(game, died)
       saveLastCompletedRun()  # Save to memory
       if not currentRunStats.isNil:
         discard saveLastRunStats(currentRunStats)  # Save to disk
@@ -874,6 +1027,9 @@ proc main() =
       # else reaching here (real game-over, or dying in a later endless loop) is a
       # death. awaitingVictoryScreen is only set while parked on the ending screen.
       discard commitRogueliteRunProgress(game, not game.rogueliteRun.awaitingVictoryScreen)
+      # What was just banked must not come back with a Continue from the
+      # sector's restore point (a no-op when the run has no checkpoint).
+      markCheckpointCurrencyBanked(game)
       setActiveRogueliteProfile(game.rogueliteProfile)
 
     # Save lifetime statistics only once per run
@@ -900,8 +1056,22 @@ proc main() =
       # matches the HUD the player watched; other modes report real elapsed time.
       let timeForStats = if isTimeSurvivalMode(game.mode): game.survivalTime
                          else: runElapsedTime(game)
-      updateStatsForMode(stats, game.mode, scoreReached, timeForStats,
-                         game.player.kills, coinsForStats, bossesKilled)
+
+      # A run resumed with Continue was already recorded when it died: its kills
+      # and clock were rolled back to the checkpoint, and its coin and boss
+      # tallies carried on. Only what it gained past those baselines is new, and
+      # it is still the same game, not another one. statsBaseTime is on the same
+      # clock as timeForStats (consumeContinueLife picks it per mode).
+      let continuedRun = game.livesUsed > 0
+      updateStatsForMode(stats, game.mode, scoreReached,
+                         max(0.0'f32, timeForStats - game.statsBaseTime),
+                         max(0, game.player.kills - game.statsBaseKills),
+                         max(0, coinsForStats - game.statsBaseCoins),
+                         max(0, bossesKilled - game.statsBaseBosses),
+                         died,
+                         newGame = not continuedRun,
+                         runKills = game.player.kills, runCoins = coinsForStats,
+                         runTime = timeForStats)
 
       var saveSuccess = false
       var retries = 0
@@ -927,6 +1097,21 @@ proc main() =
       else:
         echo "ERROR: Failed to save statistics after ", MAX_RETRIES, " attempts"
 
+  proc isUnresumableWonRun(game: Game): bool =
+    ## A wave run that was won and carried on into endless. saveRunState and
+    ## suspendGame refuse to keep it, so leaving it any way but dying would
+    ## otherwise drop the whole run -- the victory included -- unrecorded.
+    game.mode == gmWaveBased and game.hasWonGame
+
+  proc checkpointLiveRun(game: Game) =
+    ## Leaving a live run for the menu: checkpoint it so it can be resumed, or,
+    ## when it cannot be (see isUnresumableWonRun), record it as ended.
+    if isUnresumableWonRun(game):
+      freezeRunTime(game)
+      persistRunResults(game, died = false)
+    saveRunState(game)
+    suspendGame(game)  # Exact mid-run snapshot (primary resume path).
+
   proc openRunStatsWindow() =
     ## Route the post-run "View Stats" action into the desktop stats window,
     ## opened on the Last Run tab. The victory path arrives here before
@@ -940,6 +1125,9 @@ proc main() =
 
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
+  const TutorialPracticeLaunch = 20  # pendingGameMode: the tutorial replayed from settings
+  const ModModeLaunch = 21  # pendingGameMode: a mod game mode from MODS.EXE (pendingModMode)
+  var pendingModMode = -1
   var pendingResume = false  # True when the pending launch should resume a saved run
   var windowCloseRequested = false  # True once the OS close button is clicked
 
@@ -975,6 +1163,11 @@ proc main() =
 
     updateRenderSupersampleState(settings)
 
+    # The tutorial replay is a whole practice session, so Settings only offers
+    # it from the desktop (it greys out when opened from the pause menu).
+    if not globalWindowManager.isNil and not globalWindowManager.settings.isNil:
+      globalWindowManager.settings.replayTutorialAvailable = currentGame.state == gsMenu
+
     # Live HUD-layout (virtual resolution) toggle. When the setting changes,
     # resize the virtual screen + window, rebuild the render target, recenter the
     # window on the monitor (windowed only), recompute the letterbox + world
@@ -1002,7 +1195,16 @@ proc main() =
                             (monitorHeight - screenHeight) div 2)
       updateRenderScale()
       if not globalWindowManager.isNil:
-        globalWindowManager.relayoutWindows(screenWidth, screenHeight)
+        globalWindowManager.relayoutWindows(desktopUIScale(), screenWidth.int, screenHeight.int)
+
+    # Live UI-scale changes resize the widescreen HUD bands -- which moves and
+    # resizes the world view -- and shrink/grow the logical viewport each window
+    # lays out in, so they get the same re-layout the resolution toggle does.
+    if abs(desktopUIScale() - appliedUIScale) > 0.0001'f32:
+      appliedUIScale = desktopUIScale()
+      updateWorldView()
+      if not globalWindowManager.isNil:
+        globalWindowManager.relayoutWindows(desktopUIScale(), screenWidth.int, screenHeight.int)
 
     var dt = getFrameTime()
 
@@ -1105,6 +1307,13 @@ proc main() =
       hideCursor()
       updateInGameMouseBonding(settings, currentGame.state)
 
+    # Mods: scripts see a run only while one is on screen (never PvP), and
+    # hear about every state change of the run in progress.
+    if not isActiveRunState(currentGame.state):
+      modOutsideRun(currentGame.state == gsPvPPlaying)
+    modWatchState(currentGame)
+    postShaderInRun = isActiveRunState(currentGame.state)
+
     case currentGame.state
     of gsSplash:
       # Update splash screen
@@ -1200,6 +1409,10 @@ proc main() =
         settings.language = $lang
         discard saveSettings(settings)
         playSound(stMenuSelect)
+        # Rebuild now: the startup instance resolved its tape labels and title
+        # card before a language was picked, so they'd stay in the old language
+        # while the captions (looked up per frame) switched.
+        loreCinematic = newLoreCinematic()
         currentGame.state = gsLoreIntro
 
       beginGameDrawing()
@@ -1288,10 +1501,10 @@ proc main() =
           survivalEndReplayMode = false
           currentGame.state = gsMenu
         else:
-          # The run is over. The "Long Watch" eulogy is the true send-off for a
-          # survival death, so close the game once it finishes playing rather than
-          # dropping to the game-over screen.
-          windowCloseRequested = true
+          # The run is over: the "Long Watch" eulogy (played only the first time
+          # a run passes 15:00, see game/death.nim) hands over to the normal
+          # crash screen, which freezes the clock and persists the run once.
+          currentGame.state = gsGameOver
 
       beginGameDrawing()
       drawSurvivalEndCinematic(survivalEndCinematic, screenWidth, screenHeight)
@@ -1318,11 +1531,14 @@ proc main() =
               of 0: "Launching Wave-Based Mode..."
               of 1: "Launching Time Survival Mode..."
               of 6: "Launching Sandbox Mode..."
-              of 9: "Launching Roguelite Mode..."
+              of 9: "Launching Deep Recovery..."
               else: "Launching..."
             startLoadingAnimation(osDesktop, loadText)
             pendingGameMode = pendingModeAfterCutscene
             pendingModeAfterCutscene = -1
+            currentGame.state = gsMenu
+          of cscDesktopIcon:
+            # pendingIconAfterCutscene is consumed by the desktop dispatch in gsMenu.
             currentGame.state = gsMenu
 
         beginGameDrawing()
@@ -1349,7 +1565,7 @@ proc main() =
           # Primary resume path: an EXACT snapshot restores the whole live sim
           # (and its run stats). On any failure fall back to the checkpoint.
           var exactResume0 = false
-          if pendingResume and hasSuspendSnapshot():
+          if pendingResume and hasSuspendSnapshot(gmWaveBased):
             if restoreGame(currentGame):
               # Give a brief reorient countdown when dropping back into live play
               # (leave shop / power-up / floor-select states as restored).
@@ -1358,14 +1574,14 @@ proc main() =
                 currentGame.countdownTimer = 3.0
               exactResume0 = true
             else:
-              deleteSuspendSnapshot()
+              deleteSuspendSnapshot(gmWaveBased)
           if exactResume0:
             discard  # snapshot carried the full sim + currentRunStats
           elif pendingResume and applySavedRun(currentGame):
             initializeRunTracking(currentGame)  # checkpoint resume: fresh stats
           elif pendingResume and applyBlockCheckpoint(currentGame):
             # No live run save, but a death-surviving block checkpoint exists:
-            # resume from the last cleared boss block. No comeback bonus here.
+            # resume from the last cleared boss block.
             # Reaching this path means the run save was deleted by a death, so
             # the run is no longer flawless.
             currentGame.runHadDeath = true
@@ -1379,12 +1595,15 @@ proc main() =
             currentGame.countdownTimer = 3.0
             initializeRunTracking(currentGame)
           else:
-            deleteRunSave()
-            deleteBlockCheckpoint()  # fresh run: discard the block checkpoint too
-            deleteSuspendSnapshot()
-            applyComebackBonus(currentGame)
+            deleteRunSave(gmWaveBased)
+            deleteBlockCheckpoint(gmWaveBased)  # fresh run: discard the block checkpoint too
+            deleteSuspendSnapshot(gmWaveBased)
             currentGame.state = gsPlaying
             initializeRunTracking(currentGame)
+            if not settings.hasSeenTutorial:
+              # First fresh wave run: ORIENTATION.EXE plays over its opening and
+              # holds wave 1 until it is finished or skipped.
+              startTutorial(currentGame, practice = false)
           statsSavedThisGame = false
         of 1:  # Time Survival Mode
           if not settings.survivalUnlocked:
@@ -1394,21 +1613,31 @@ proc main() =
             currentGame.discordClient = globalDiscordClient
             setGameMode(currentGame, gmTimeSurvival)
             var exactResume1 = false
-            if pendingResume and hasSuspendSnapshot():
+            if pendingResume and hasSuspendSnapshot(gmTimeSurvival):
               if restoreGame(currentGame):
                 if currentGame.state == gsPlaying:
                   currentGame.state = gsCountdown
                   currentGame.countdownTimer = 3.0
                 exactResume1 = true
               else:
-                deleteSuspendSnapshot()
+                deleteSuspendSnapshot(gmTimeSurvival)
             if exactResume1:
               discard
             elif pendingResume and applySavedRun(currentGame):
               initializeRunTracking(currentGame)
+            elif pendingResume and applyBlockCheckpoint(currentGame):
+              # The run died, but the restore point its last boss left is
+              # still there. Same terms as the crash screen's Continue: it
+              # spends a restore point.
+              currentGame.runHadDeath = true
+              consumeContinueLife(currentGame)
+              currentGame.state = gsCountdown
+              currentGame.countdownTimer = 3.0
+              initializeRunTracking(currentGame)
             else:
-              deleteRunSave()
-              deleteSuspendSnapshot()
+              deleteRunSave(gmTimeSurvival)
+              deleteSuspendSnapshot(gmTimeSurvival)
+              deleteBlockCheckpoint(gmTimeSurvival)  # fresh run: a dead run's restore point goes too
               currentGame.state = gsPlaying
               initializeRunTracking(currentGame)
             statsSavedThisGame = false
@@ -1436,7 +1665,7 @@ proc main() =
             # (meta-currency earned after the snapshot is not rolled back) and
             # only the run-scoped state comes from the snapshot.
             var exactResume9 = false
-            if hasSuspendSnapshot():
+            if hasSuspendSnapshot(gmRoguelite):
               if restoreGame(currentGame):
                 if currentGame.state == gsPlaying:
                   currentGame.state = gsCountdown
@@ -1444,15 +1673,27 @@ proc main() =
                 currentGame.selectedRogueliteTheme = 0
                 exactResume9 = true
               else:
-                deleteSuspendSnapshot()
+                deleteSuspendSnapshot(gmRoguelite)
             if exactResume9:
               discard
             elif applySavedRun(currentGame):
               initializeRunTracking(currentGame)
               currentGame.selectedRogueliteTheme = 0
+            elif applyBlockCheckpoint(currentGame):
+              # No live run save, but the sector's death-surviving restore point
+              # is still there: the run died and is picked up at the start of
+              # that sector. Same terms as the crash screen's Continue, so it
+              # spends a restore point ("die -> Exit -> Resume" is no free pass).
+              currentGame.runHadDeath = true
+              consumeContinueLife(currentGame)
+              currentGame.state = gsCountdown
+              currentGame.countdownTimer = 3.0
+              currentGame.selectedRogueliteTheme = 0
+              initializeRunTracking(currentGame)
             else:
-              deleteRunSave()
-              deleteSuspendSnapshot()
+              deleteRunSave(gmRoguelite)
+              deleteSuspendSnapshot(gmRoguelite)
+              deleteBlockCheckpoint(gmRoguelite)
               globalWindowManager.openWindow(widRoguelite)
               currentGame.state = gsMenu
             statsSavedThisGame = false
@@ -1464,33 +1705,107 @@ proc main() =
             let selectedIdx9 = clamp(currentGame.selectedRogueliteStarter, 0, starterKits9.high)
             let kit9 = starterKits9[selectedIdx9]
             let heat9 = clampedRogueliteHeatSelection(currentGame.selectedRogueliteHeat, rogueliteProfile)
-            deleteRunSave()  # Fresh run of this mode discards any saved run.
-            deleteSuspendSnapshot()
+            deleteRunSave(gmRoguelite)  # Fresh run of this mode discards its own saved run.
+            deleteSuspendSnapshot(gmRoguelite)
+            deleteBlockCheckpoint(gmRoguelite)  # ...and a dead run's restore point.
             beginRogueliteRun(currentGame, rogueliteProfile, kit9, heat9)
             initializeRunTracking(currentGame)
-            generateThemeChoices(currentGame.rogueliteRun, unlockedBossTierOf(currentGame))
+            generateThemeChoices(currentGame.rogueliteRun)
             currentGame.selectedRogueliteTheme = 0
             currentGame.state = gsRogueliteFloorSelect
             statsSavedThisGame = false
+        of TutorialPracticeLaunch:
+          # The tutorial replayed from settings, as a throwaway wave-mode session
+          # that ends on the desktop. Unlike a fresh wave run it deletes nothing:
+          # the player's saved run, block checkpoint and snapshot stay exactly as
+          # they were (tutorialSuppressesSaves also stops this session writing
+          # any), and cheatsUsed -- the "earns nothing permanent" switch -- keeps
+          # stats, advancements and meta currency out of it.
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame.discordClient = globalDiscordClient
+          setGameMode(currentGame, gmWaveBased)
+          currentGame.cheatsUsed = true
+          initializeRunTracking(currentGame)
+          currentGame.state = gsPlaying
+          startTutorial(currentGame, practice = true)
+          statsSavedThisGame = true  # nothing from this session is ever recorded
+        of ModModeLaunch:
+          # A mod game mode (MODS.EXE): its vanilla base plus game.modMode, which
+          # also keys its own save slots. Resume paths mirror the vanilla ones.
+          if pendingModMode >= 0 and pendingModMode < modModes.len:
+            let md = modModes[pendingModMode]
+            if md.base == gmRoguelite:
+              setActiveRogueliteProfile(loadRogueliteProfile())
+            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame.discordClient = globalDiscordClient
+            setGameMode(currentGame, md.base)
+            currentGame.modMode = md.key
+            if md.base == gmRoguelite:
+              currentGame.rogueliteProfile = rogueliteProfile
+            var resumed = false
+            if pendingResume:
+              if hasSuspendSnapshot(md.base, md.key):
+                if restoreGame(currentGame):
+                  if currentGame.state == gsPlaying:
+                    currentGame.state = gsCountdown
+                    currentGame.countdownTimer = 3.0
+                  currentGame.selectedRogueliteTheme = 0
+                  resumed = true
+                else:
+                  deleteSuspendSnapshot(md.base, md.key)
+              if not resumed and applySavedRun(currentGame):
+                initializeRunTracking(currentGame)
+                currentGame.selectedRogueliteTheme = 0
+                resumed = true
+              if not resumed and applyBlockCheckpoint(currentGame):
+                currentGame.runHadDeath = true
+                consumeContinueLife(currentGame)
+                currentGame.state = gsCountdown
+                currentGame.countdownTimer = 3.0
+                currentGame.selectedRogueliteTheme = 0
+                initializeRunTracking(currentGame)
+                resumed = true
+            if not resumed:
+              deleteRunSave(md.base, md.key)
+              deleteSuspendSnapshot(md.base, md.key)
+              deleteBlockCheckpoint(md.base, md.key)
+              if md.base == gmRoguelite:
+                beginRogueliteRun(currentGame, rogueliteProfile, rskOperator,
+                                  clampedRogueliteHeatSelection(1, rogueliteProfile))
+                initializeRunTracking(currentGame)
+                generateThemeChoices(currentGame.rogueliteRun)
+                currentGame.selectedRogueliteTheme = 0
+                currentGame.state = gsRogueliteFloorSelect
+              else:
+                currentGame.state = gsPlaying
+                initializeRunTracking(currentGame)
+            statsSavedThisGame = false
+          pendingModMode = -1
         else: discard
         pendingGameMode = -1  # Reset pending mode
         pendingResume = false
 
-      # Handle window and desktop input
-      let mousePos = getVirtualMousePosition()
+      # Handle window clicks and check if desktop is blocked. Each window is
+      # hit-tested in its own scale layer (they no longer share one), so the
+      # window manager resolves the pointer per window rather than taking one.
+      # (Skip when the confirm dialog is open so nothing behind it is clickable.)
+      if not globalConfirmActive:
+        discard globalWindowManager.handleWindowClick(desktopUIScale(),
+                                                     screenWidth.int, screenHeight.int)
+      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(
+        desktopUIScale(), screenWidth.int, screenHeight.int)
+
+      # Everything from here until popUIScale is the desktop chrome, hit-tested
+      # in its own coordinates so the pointer and the screen-size getters agree
+      # with how that chrome is drawn below.
+      pushUIScale(desktopUIScale())
 
       # Play click sound for any left-click on the desktop (anywhere)
       if isPointerPressed() and not globalConfirmActive:
         playSound(stMenuNav, 0.6)
 
-      # Handle window clicks and check if desktop is blocked
-      # (skip when the confirm dialog is open so nothing behind it is clickable)
-      if not globalConfirmActive:
-        discard globalWindowManager.handleWindowClick(mousePos)
-      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
-
       # Update OS desktop (after mouseOverWindow is known, so cube drag respects windows)
-      updateOSDesktop(osDesktop, dt, mouseOverWindow, screenWidth, screenHeight)
+      updateOSDesktop(osDesktop, dt, mouseOverWindow, desktopUIWidth(), desktopUIHeight())
 
       # Cube knocked out of orbit by sustained fast spinning: grant the one-time advancement
       if osDesktop.cubeEscapeTriggered:
@@ -1519,11 +1834,42 @@ proc main() =
           showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
                            unlockedDef.name)
 
-      # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
-      let action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive: handleDesktopInput(osDesktop, currentGame) else: -1
+      # MODS.EXE asked for a reload (Apply & Reload): done here, on the desktop,
+      # so a run always sees one fixed mod set.
+      if modReloadRequested and not globalConfirmActive:
+        modReloadRequested = false
+        reloadMods(settings.enabledMods, settings.modCosmetics)
+        initializeAllCosmetics()
+        refreshModsWindow(globalWindowManager.mods)
+        showDesktopToast(osDesktop, t(tkModsReloadedToast) & ": " & summaryText())
+      while modNotices.len > 0 and osDesktop.toasts.len < MAX_DESKTOP_TOASTS and
+            not globalConfirmActive:
+        showDesktopToast(osDesktop, modNotices[0])
+        modNotices.delete(0)
 
-      # Update all windows
-      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
+      # One-time notice for the roguelite "earn, don't buy" migration: whatever
+      # the old unlock shop cost this profile was credited back on load.
+      if (pendingProfileRefund.shards > 0 or pendingProfileRefund.cores > 0) and
+         osDesktop.toasts.len < MAX_DESKTOP_TOASTS and not globalConfirmActive:
+        showDesktopToast(osDesktop, t("roguelite_refund_toast")
+          .replace("$1", $pendingProfileRefund.shards)
+          .replace("$2", $pendingProfileRefund.cores))
+        pendingProfileRefund = (0, 0)
+
+      # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
+      var action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive and
+                      not globalWindowManager.wantsTextInput(): handleDesktopInput(osDesktop, currentGame) else: -1
+      # A first-time mode intro hands its icon click back once it ends, so the
+      # icon now opens its window / launches exactly as a normal click would.
+      if pendingIconAfterCutscene >= 0 and not globalConfirmActive:
+        action = pendingIconAfterCutscene
+        pendingIconAfterCutscene = -1
+
+      popUIScale()
+
+      # Update all windows (each enters its own scale layer internally)
+      let updateResult = globalWindowManager.updateAllWindows(
+        dt, desktopUIScale(), screenWidth.int, screenHeight.int, currentGame)
 
       # Handle fullscreen toggle from settings
       if updateResult.fullscreenToggle:
@@ -1568,6 +1914,12 @@ proc main() =
           cutsceneContinuation = cscMenu
           currentGame.state = gsCutscene
 
+      # Replay the tutorial from settings: a practice session that returns here.
+      if updateResult.replayTutorial and not globalConfirmActive and
+         not osDesktop.loadingActive and pendingGameMode < 0:
+        startLoadingAnimation(osDesktop, t(tkTutorialLaunching))
+        pendingGameMode = TutorialPracticeLaunch
+
       # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame and not globalConfirmActive:
         if not settings.hasSeenRogueliteIntro:
@@ -1578,7 +1930,7 @@ proc main() =
           pendingModeAfterCutscene = 9
           currentGame.state = gsCutscene
         else:
-          startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
+          startLoadingAnimation(osDesktop, "Launching Deep Recovery...")
           pendingGameMode = 9
 
       # Handle sandbox setup window Start button: show loading screen, then launch.
@@ -1588,6 +1940,14 @@ proc main() =
         globalWindowManager.closeWindow(widSandbox)
         startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
         pendingGameMode = 6
+
+      # MODS.EXE Game Modes: Launch / Continue a mod game mode.
+      if updateResult.modModeLaunch >= 0 and updateResult.modModeLaunch < modModes.len and
+         not globalConfirmActive:
+        pendingModMode = updateResult.modModeLaunch
+        pendingResume = updateResult.modModeResume
+        startLoadingAnimation(osDesktop, "Launching " & modModes[pendingModMode].nameEn & "...")
+        pendingGameMode = ModModeLaunch
 
       # Handle PvP game ready
       if updateResult.pvpGameReady and not globalConfirmActive:
@@ -1647,6 +2007,18 @@ proc main() =
         )
         currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
         currentPvPGame.localPlayerIndex = localPlayerIndex
+        # MODS.EXE cosmetics: your own from what you equipped; on the host,
+        # every client's from its connection request. The host then sends them
+        # all to everyone in the state updates (lobbies share one mod set, so
+        # the indices mean the same thing on every machine).
+        if localPlayerIndex >= 0 and localPlayerIndex < currentPvPGame.players.len:
+          currentPvPGame.players[localPlayerIndex].modSkin = int16(equippedCosmetic[mckPlayer])
+          currentPvPGame.players[localPlayerIndex].modBulletSkin = int16(equippedCosmetic[mckBullet])
+        if globalWindowManager.pvp.isHost:
+          for client in globalWindowManager.pvp.networkManager.clients:
+            if client.playerIndex >= 0 and client.playerIndex < currentPvPGame.players.len:
+              currentPvPGame.players[client.playerIndex].modSkin = client.modSkin
+              currentPvPGame.players[client.playerIndex].modBulletSkin = client.modBulletSkin
 
         echo "[MAIN] PvP game state created successfully"
 
@@ -1736,13 +2108,12 @@ proc main() =
             settings.hasSeenWaveModeIntro = true
             discard saveSettings(settings)
             activeCutscene = newWaveIntroCutscene()
-            cutsceneContinuation = cscLaunchGame
-            pendingModeAfterCutscene = 0
+            cutsceneContinuation = cscDesktopIcon
+            pendingIconAfterCutscene = 0
             currentGame.state = gsCutscene
-          elif (hasSavedRun() and loadSavedRunMode() == gmWaveBased) or
-               hasBlockCheckpoint():
+          elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint(gmWaveBased):
             # Offer resume for a live run save OR a death-surviving block
-            # checkpoint (wave mode only).
+            # checkpoint.
             resumePromptActive = true
             resumePromptMode = gmWaveBased
           else:
@@ -1753,10 +2124,10 @@ proc main() =
             settings.hasSeenSurvivalIntro = true
             discard saveSettings(settings)
             activeCutscene = newSurvivalIntroCutscene()
-            cutsceneContinuation = cscLaunchGame
-            pendingModeAfterCutscene = 1
+            cutsceneContinuation = cscDesktopIcon
+            pendingIconAfterCutscene = 1
             currentGame.state = gsCutscene
-          elif hasSavedRun() and loadSavedRunMode() == gmTimeSurvival:
+          elif hasSavedRun(gmTimeSurvival) or hasBlockCheckpoint(gmTimeSurvival):
             resumePromptActive = true
             resumePromptMode = gmTimeSurvival
           else:
@@ -1786,7 +2157,8 @@ proc main() =
             settings.hasSeenSandboxIntro = true
             discard saveSettings(settings)
             activeCutscene = newSandboxIntroCutscene()
-            cutsceneContinuation = cscMenu  # returns to desktop; user clicks Sandbox again
+            cutsceneContinuation = cscDesktopIcon
+            pendingIconAfterCutscene = 7
             currentGame.state = gsCutscene
           else:
             openWindow(globalWindowManager, widSandbox)
@@ -1797,14 +2169,17 @@ proc main() =
             settings.hasSeenPvPIntro = true
             discard saveSettings(settings)
             activeCutscene = newPvPIntroCutscene()
-            cutsceneContinuation = cscMenu  # returns to desktop; user clicks PvP again
+            cutsceneContinuation = cscDesktopIcon
+            pendingIconAfterCutscene = 8
             currentGame.state = gsCutscene
           else:
             openWindow(globalWindowManager, widPvP)
             resetPvPWindow(globalWindowManager.pvp)
             playSound(stMenuSelect)
         of 9:  # Roguelite.exe - Roguelite Mode
-          if settings.rogueliteUnlocked and hasSavedRun() and loadSavedRunMode() == gmRoguelite:
+          # A live run save, or a dead run's sector restore point, can be resumed.
+          if settings.rogueliteUnlocked and
+             (hasSavedRun(gmRoguelite) or hasBlockCheckpoint(gmRoguelite)):
             resumePromptActive = true
             resumePromptMode = gmRoguelite
           else:
@@ -1825,6 +2200,10 @@ proc main() =
           globalWindowManager.openWindow(widChangelog)
         of 12: # CREDITS.nfo - Open Credits / Support Window
           globalWindowManager.openWindow(widCredits)
+        of 13: # FEEDBACK.exe - Open Feedback / Bug Report Window
+          globalWindowManager.openWindow(widFeedback)
+        of 14: # MODS.exe - Open the Mod Manager
+          globalWindowManager.openWindow(widMods)
         else: discard
 
       # Handle icon execution from help window commands
@@ -1837,9 +2216,14 @@ proc main() =
               settings.hasSeenWaveModeIntro = true
               discard saveSettings(settings)
               activeCutscene = newWaveIntroCutscene()
-              cutsceneContinuation = cscLaunchGame
-              pendingModeAfterCutscene = 0
+              cutsceneContinuation = cscDesktopIcon
+              pendingIconAfterCutscene = 0
               currentGame.state = gsCutscene
+            elif hasSavedRun(gmWaveBased) or hasBlockCheckpoint(gmWaveBased):
+              # Same resume prompt as the desktop icon: launching straight from
+              # here used to start a fresh run and delete the saved one.
+              resumePromptActive = true
+              resumePromptMode = gmWaveBased
             else:
               startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
               pendingGameMode = 0
@@ -1848,9 +2232,12 @@ proc main() =
               settings.hasSeenSurvivalIntro = true
               discard saveSettings(settings)
               activeCutscene = newSurvivalIntroCutscene()
-              cutsceneContinuation = cscLaunchGame
-              pendingModeAfterCutscene = 1
+              cutsceneContinuation = cscDesktopIcon
+              pendingIconAfterCutscene = 1
               currentGame.state = gsCutscene
+            elif hasSavedRun(gmTimeSurvival) or hasBlockCheckpoint(gmTimeSurvival):
+              resumePromptActive = true
+              resumePromptMode = gmTimeSurvival
             else:
               startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
               pendingGameMode = 1
@@ -1877,7 +2264,8 @@ proc main() =
               settings.hasSeenSandboxIntro = true
               discard saveSettings(settings)
               activeCutscene = newSandboxIntroCutscene()
-              cutsceneContinuation = cscMenu  # returns to desktop; user clicks Sandbox again
+              cutsceneContinuation = cscDesktopIcon
+              pendingIconAfterCutscene = 7
               currentGame.state = gsCutscene
             else:
               openWindow(globalWindowManager, widSandbox)
@@ -1888,23 +2276,29 @@ proc main() =
               settings.hasSeenPvPIntro = true
               discard saveSettings(settings)
               activeCutscene = newPvPIntroCutscene()
-              cutsceneContinuation = cscMenu
+              cutsceneContinuation = cscDesktopIcon
+              pendingIconAfterCutscene = 8
               currentGame.state = gsCutscene
             else:
               openWindow(globalWindowManager, widPvP)
               resetPvPWindow(globalWindowManager.pvp)
               playSound(stMenuSelect)
           of 9:  # Roguelite.exe
-            setActiveRogueliteProfile(loadRogueliteProfile())
-            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-            currentGame.discordClient = globalDiscordClient
-            currentGame.rogueliteProfile = rogueliteProfile
-            setGameMode(currentGame, gmRoguelite)
-            currentGame.state = gsMenu
-            currentGame.selectedRogueliteStarter = 0
-            currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
-            globalWindowManager.openWindow(widRoguelite)
-            statsSavedThisGame = false
+            if settings.rogueliteUnlocked and
+               (hasSavedRun(gmRoguelite) or hasBlockCheckpoint(gmRoguelite)):
+              resumePromptActive = true
+              resumePromptMode = gmRoguelite
+            else:
+              setActiveRogueliteProfile(loadRogueliteProfile())
+              currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+              currentGame.discordClient = globalDiscordClient
+              currentGame.rogueliteProfile = rogueliteProfile
+              setGameMode(currentGame, gmRoguelite)
+              currentGame.state = gsMenu
+              currentGame.selectedRogueliteStarter = 0
+              currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
+              globalWindowManager.openWindow(widRoguelite)
+              statsSavedThisGame = false
           of 10: # Advncmnts.exe
             refreshAdvancementProfile()
             globalWindowManager.openWindow(widAdvancements)
@@ -1912,6 +2306,10 @@ proc main() =
             globalWindowManager.openWindow(widChangelog)
           of 12: # CREDITS.nfo
             globalWindowManager.openWindow(widCredits)
+          of 13: # FEEDBACK.exe
+            globalWindowManager.openWindow(widFeedback)
+          of 14: # MODS.exe
+            globalWindowManager.openWindow(widMods)
           else: discard
 
       # Update Discord Rich Presence (throttled internally to prevent lag)
@@ -1930,37 +2328,47 @@ proc main() =
           globalDiscordClient = nil
 
       beginGameDrawing()
-      drawOSDesktop(osDesktop, screenWidth, screenHeight)
+      # The desktop chrome is one scaled layer; each window is its own, and so
+      # is each modal dialog below. Only the loading overlay and the cursor stay
+      # at plain virtual size.
+      beginUIScaleMode(desktopUIScale())
+      drawOSDesktop(osDesktop, desktopUIWidth(), desktopUIHeight())
+      modDrawDesktop(desktopUIWidth(), desktopUIHeight())   # mod layers, under the windows
+      endUIScaleMode()
 
       # Draw all windows using window manager
-      globalWindowManager.drawAllWindows(currentGame)
+      globalWindowManager.drawAllWindows(currentGame, desktopUIScale(),
+                                         screenWidth.int, screenHeight.int)
 
       # Draw loading overlay on top of everything if active
       drawLoadingOverlay(osDesktop, screenWidth, screenHeight)
 
       # Draw quit-confirmation dialog if active (on top of everything)
       if globalConfirmActive:
-        let confirmResult = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let confirmResult = drawGlobalConfirmDialog()
         if confirmResult == 1:
           windowCloseRequested = true  # confirmed quit to desktop
         # confirmResult == -1 means cancelled, dialog already closed
 
       # Resume-run prompt: Continue resumes the saved run, New Run discards it.
       if resumePromptActive:
-        let resumeResult = drawResumeDialog(screenWidth, screenHeight)
+        let resumeResult = drawResumeDialog()
         if resumeResult != 0:
           pendingResume = resumeResult == 1
           if resumeResult == -1:
-            deleteRunSave()          # "New Run" discards the checkpoint,
-            deleteBlockCheckpoint()  # the death-surviving block checkpoint,
-            deleteSuspendSnapshot()  # and the exact snapshot.
+            # "New Run" discards this mode's checkpoint and exact snapshot, and
+            # its death-surviving block checkpoint (a no-op for a mode without
+            # one). Other modes' saved runs are left alone.
+            deleteRunSave(resumePromptMode)
+            deleteSuspendSnapshot(resumePromptMode)
+            deleteBlockCheckpoint(resumePromptMode)
           case resumePromptMode
           of gmTimeSurvival:
             startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
             pendingGameMode = 1
           of gmRoguelite:
             if resumeResult == 1:
-              startLoadingAnimation(osDesktop, "Launching Roguelite Mode...")
+              startLoadingAnimation(osDesktop, "Launching Deep Recovery...")
               pendingGameMode = 9
             else:
               # Fresh roguelite goes through the setup window.
@@ -2043,35 +2451,55 @@ proc main() =
         cheatMenu.active = false
         cheatCompleteRogueliteFloor(currentGame)
 
+      # A survival Data Cache reveal pauses the game like the cheat menu does.
+      let survivalRevealOpen = currentGame.survival.reveal.active
+
       # Only process game input if cheat menu is not active and confirm dialog is not open
-      if not cheatMenu.active and not globalConfirmActive:
+      if not cheatMenu.active and not globalConfirmActive and not survivalRevealOpen:
         # Shop removed from gameplay - only accessible during power-up selection
 
         # Wall placement mode: hold (E / wall button) to preview range, release
         # to place. Placement target is the aim point (mouse on desktop, aim
         # joystick on mobile).
         const WALL_PLACEMENT_RANGE_SP = 250.0
-        let eHeld = placeWallHeld() and currentGame.player.walls > 0
+        let wallBindHeld = placeWallHeld()
+        # Roguelite: the wall control is also the pedestal/stall control (see
+        # input_intent.interactPressed -- a wall-button tap on mobile). While one
+        # is in range, or after a press was spent on one (until the control is let
+        # go), it is not a wall control -- placement fires on RELEASE, so without
+        # this every purchase would also drop a wall at the aim point.
+        let interactOwnsKey = currentGame.mode == gmRoguelite and
+          (currentGame.dungeonInteractFocus or currentGame.interactKeyLatch)
+        let eHeld = wallBindHeld and currentGame.player.walls > 0 and not interactOwnsKey
         currentGame.wallPlacementMode = eHeld
 
         # Releasing the wall control places the wall at the current aim target.
         # getAimTarget already returns WORLD coords (the wall lives in the
         # 1024-wide world, centered inside the wider virtual screen in
         # widescreen mode), so it agrees with the ghost preview in drawGame.
-        if placeWallReleased() and currentGame.player.walls > 0:
+        if placeWallReleased() and currentGame.player.walls > 0 and not interactOwnsKey:
           let wallPos = getAimTarget(currentGame.player.pos)
           let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
           if inRange and isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
                                               currentGame.enemies, 25,
-                                              currentGame.screenWidth, currentGame.screenHeight):
+                                              currentGame.screenWidth, currentGame.screenHeight) and
+             not modPlaceWall(currentGame, wallPos.x, wallPos.y):
             currentGame.walls.add(newWall(wallPos.x, wallPos.y, currentGame.player))
             currentGame.player.walls -= 1
             spawnExplosionPooled(currentGame.particlePool, wallPos.x, wallPos.y, Brown, 15)
             trackWallPlacement(currentGame, wallPos)
+        # The spent interact press stops owning the wall control once it is let
+        # go (cleared after the release check above, so that release never places).
+        if currentGame.interactKeyLatch and not wallBindHeld:
+          currentGame.interactKeyLatch = false
 
       # Activate ALL legendary power-ups with the legendary control (key/pad on
       # desktop, ability button on mobile) -- simultaneous activation.
-      if abilityPressed() and not globalConfirmActive:
+      # Not while the cheat menu is open: it pauses the game, and abilities fired
+      # then dealt their damage and teleports into a frozen world.
+      if abilityPressed() and
+         not globalConfirmActive and not cheatMenu.active and not survivalRevealOpen and
+         not modAbility(currentGame):
         var anyActivated = false
 
         # Time Warp - slow down time
@@ -2110,17 +2538,29 @@ proc main() =
           if dashDir.length() > 0:
             # Dash in movement direction
             dashDir = dashDir.normalize()
-            currentGame.player.lastPhaseShiftPos = currentGame.player.pos
-            currentGame.player.pos.x += dashDir.x * dashDistance
-            currentGame.player.pos.y += dashDir.y * dashDistance
+            let shiftStart = currentGame.player.pos
+            currentGame.player.lastPhaseShiftPos = shiftStart
 
-            # Keep player in bounds
-            currentGame.player.pos.x = max(currentGame.player.radius,
-                                           min(currentGame.player.pos.x,
-                                               currentGame.screenWidth.float32 - currentGame.player.radius))
-            currentGame.player.pos.y = max(currentGame.player.radius,
-                                           min(currentGame.player.pos.y,
-                                               currentGame.screenHeight.float32 - currentGame.player.radius))
+            # Land on the farthest point along the dash (in tenths) that is in
+            # bounds and clear of every wall. Teleporting blindly could drop the
+            # player inside a dungeon obstacle, where movement can never leave it.
+            var landing = shiftStart
+            for step in countdown(10, 1):
+              let reach = dashDistance.float32 * step.float32 / 10.0'f32
+              let candidate = newVector2f(
+                clamp(shiftStart.x + dashDir.x * reach, currentGame.player.radius,
+                      currentGame.screenWidth.float32 - currentGame.player.radius),
+                clamp(shiftStart.y + dashDir.y * reach, currentGame.player.radius,
+                      currentGame.screenHeight.float32 - currentGame.player.radius))
+              var blocked = false
+              for w in currentGame.walls:
+                if checkPlayerWallCollision(candidate, currentGame.player.radius, w):
+                  blocked = true
+                  break
+              if not blocked:
+                landing = candidate
+                break
+            currentGame.player.pos = landing
 
             # Record actual distance traveled (post-clamp) for stats
             let actualDashDist = distance(currentGame.player.lastPhaseShiftPos, currentGame.player.pos)
@@ -2152,7 +2592,7 @@ proc main() =
                         Color(r: 255, g: 255, b: 255, a: 255), 35)
           anyActivated = true
 
-        # Blood Pact - sacrifice 30% current HP to unleash an amplified blood
+        # Blood Pact - sacrifice 25% current HP to unleash an amplified blood
         # nova. Every enemy is hit for a big share of its OWN max HP (so it stays
         # devastating at any wave) plus bonus damage from the blood spent. The
         # damage is NO LONGER split across targets. Bosses resist the nova and
@@ -2162,12 +2602,12 @@ proc main() =
             const
               BLOOD_PACT_ENEMY_FRAC = 0.25'f32   # share of a normal enemy's max HP per cast
               BLOOD_PACT_BOSS_FRAC  = 0.03'f32   # bosses only take a small share
-              BLOOD_PACT_BONUS_MULT = 2.5'f32    # bonus damage per point of HP sacrificed
+              BLOOD_PACT_BONUS_MULT = 1.25'f32   # bonus damage per point of HP sacrificed
             const
               BloodBright = Color(r: 235, g: 40, b: 40, a: 255)
               BloodDeep   = Color(r: 130, g: 0, b: 25, a: 255)
               BloodPactMaxTethers = 12  # a packed wave would otherwise be a red mesh
-            let sacrifice = currentGame.player.hp * 0.2
+            let sacrifice = currentGame.player.hp * 0.25
             currentGame.player.hp = max(0.1, currentGame.player.hp - sacrifice)
             let bonus = sacrifice * BLOOD_PACT_BONUS_MULT
 
@@ -2175,11 +2615,16 @@ proc main() =
             for enemy in currentGame.enemies:
               if enemy.isBoss and enemy.invulnerabilityTimer > 0:
                 continue  # respect phase-transition invulnerability
+              if shieldBlocksHit(currentGame, enemy, currentGame.player.pos):
+                continue  # a Port Guard facing the caster takes it on the shield
               let intended = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
                              else: enemy.maxHp * BLOOD_PACT_ENEMY_FRAC + bonus
-              let dealt = applyEnemyHpDamage(enemy, intended)
+              # Bosses resist it like every other non-bullet damage path: phase
+              # defense, the weak-point multiplier and the adds/shield gate.
+              let dealt = applyEnemyHpDamage(enemy, intended * bossPassiveDamageTaken(enemy))
               trackPowerUpDamage(currentGame, puBloodPact, dealt)
-              showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
+              if dealt > 0:
+                showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
 
               # The pact reaches every enemy at once, so the hit has to be shown
               # ON each enemy - a burst at the player alone reads as "nothing
@@ -2221,11 +2666,15 @@ proc main() =
                 # Detonating a ramped poison honors the stacks, then consumes them
                 burstDmg *= poisonStackMultiplier(enemy)
                 enemy.poisonStacks = 0
+              # The ticks being detonated were boss-mitigated; the burst must be too,
+              # or a 3x payout ignores every boss resistance and gate.
+              burstDmg *= bossPassiveDamageTaken(enemy)
               let dealt = applyEnemyHpDamage(enemy, burstDmg)
               trackPowerUpDamage(currentGame, puConduit, dealt)
               # Color the number by the element that actually detonated, so a
               # multi-element stack reads as several distinct payloads popping.
-              showDamage(currentGame, enemy.pos, dealt, true, false, elementDamageType(et))
+              if dealt > 0:
+                showDamage(currentGame, enemy.pos, dealt, true, false, elementDamageType(et))
               totalDetonated += dealt
               enemyBurst += dealt
 
@@ -2294,9 +2743,12 @@ proc main() =
                     let dist = distance(closest, enemy.pos)
                     if dist <= shockwaveWidth + enemy.radius:
                       hitEnemyIds.add(enemy.id)
-                      let dealt = applyEnemyHpDamage(enemy, baseDamage)
+                      let dealt =
+                        if shieldBlocksHit(currentGame, enemy, closest): 0.0'f32
+                        else: applyEnemyHpDamage(enemy, baseDamage * bossPassiveDamageTaken(enemy))
                       trackPowerUpDamage(currentGame, puAftershock, dealt)
-                      showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
+                      if dealt > 0:
+                        showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
                       # Knockback away from path
                       let awayFromPath = if dist > 0.1: (enemy.pos - closest).normalize()
                                          else: segNorm * -1.0
@@ -2369,6 +2821,19 @@ proc main() =
       if pausePressed() and not globalConfirmActive:
         currentGame.state = gsPaused
 
+      # ORIENTATION.EXE: advance the tutorial from what the player just did.
+      # Runs before updateGame so its safety net lands ahead of this frame's
+      # damage. A practice session leaves for the desktop once the frame has
+      # been drawn (see the end of this branch).
+      var tutorialEvent = teNone
+      if not cheatMenu.active and not globalConfirmActive and
+         currentGame.state == gsPlaying and isTutorialActive(currentGame):
+        tutorialEvent = updateTutorial(currentGame, dt)
+        if tutorialEvent != teNone and not settings.hasSeenTutorial:
+          settings.hasSeenTutorial = true
+          discard saveSettings(settings)
+      let leaveTutorialPractice = tutorialEvent != teNone and isTutorialPractice(currentGame)
+
       # Update game (only if cheat menu is not active and confirm dialog is not open)
       if not cheatMenu.active and not globalConfirmActive:
         if isSandboxMode(currentGame.mode):
@@ -2399,6 +2864,20 @@ proc main() =
         showDesktopToast(osDesktop, msg)
       currentGame.pendingToasts.setLen(0)
 
+      # Survival won (the 20:00 final boss fell on a clean run): game.nim raises
+      # the flag; the advancement profile lives here.
+      if currentGame.survivalVictoryJustEarned:
+        currentGame.survivalVictoryJustEarned = false
+        if unlockAdvancementDirectly(advancementProfile, SurvivalStabilizedAdvancementId):
+          discard saveAdvancements(advancementProfile)
+          if not globalWindowManager.isNil and not globalWindowManager.advancements.isNil:
+            globalWindowManager.advancements.profile = advancementProfile
+          showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
+                           getAdvancementDefinition(SurvivalStabilizedAdvancementId).name)
+          let queueIdx = advancementProfile.recentUnlocks.find(SurvivalStabilizedAdvancementId)
+          if queueIdx >= 0:
+            advancementProfile.recentUnlocks.delete(queueIdx)
+
       # Mythic flawless clear: game.nim raises the flag the frame wave mode is
       # won with no deaths on record. Event-driven, so syncAdvancements never
       # derives it -- this is the only place it can unlock.
@@ -2415,9 +2894,13 @@ proc main() =
             advancementProfile.recentUnlocks.delete(queueIdx)
           playSound(stPowerUp, 0.9)
 
-      # Mid-run advancement sync: surface unlocks as desktop toasts.
+      # Mid-run advancement sync: surface unlocks as desktop toasts. Skipped for
+      # cheated runs: currentRunStats.cheatsUsed is only set when the run ends.
+      # Waits out the tutorial too: its practice kills are wiped at the handoff
+      # (restoreFreshRun), so they must not unlock anything first.
       if not cheatMenu.active and not globalConfirmActive and
-         not isSandboxMode(currentGame.mode) and not currentRunStats.isNil:
+         not isSandboxMode(currentGame.mode) and not currentGame.cheatsUsed and
+         not isTutorialActive(currentGame) and not currentRunStats.isNil:
         advancementSyncTimer += dt
         if advancementSyncTimer >= 2.0'f32:
           advancementSyncTimer = 0.0'f32
@@ -2437,24 +2920,29 @@ proc main() =
 
       # Normal 2D rendering
       drawGame(currentGame)
+      drawTutorialOverlay(currentGame, hudInterfaceScale())
 
       # Touch joysticks + action buttons, on top of the game/HUD (mobile only).
+      # Drawn before the interface layer below opens: the buttons are laid out
+      # and hit-tested in plain virtual pixels, so they must not take its scale.
       when defined(mobile):
         drawMobileControls()
 
-      # Draw sandbox UI if in sandbox mode
+      # Interface drawn over live gameplay, so it takes the HUD scale. The modal
+      # dialog and toasts below scale in layers of their own, exactly as they do
+      # on the desktop; the transition fade and the cursor stay at plain size.
+      beginUIScaleMode(hudInterfaceScale())
+      # Draw sandbox UI if in sandbox mode (it hit-tests inside its own draw)
       if isSandboxMode(currentGame.mode):
-        drawSandboxSidebar(currentGame, screenWidth, screenHeight)
+        drawSandboxSidebar(currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
 
       # Draw cheat menu overlay if active
-      drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
+      drawCheatMenu(cheatMenu, currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
 
-      # Alpha banner for roguelite mode
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
+      endUIScaleMode()
       # Draw window-close confirmation if triggered via OS close button
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           windowCloseRequested = true
         # r == -1: cancelled, dialog already dismissed
@@ -2469,12 +2957,23 @@ proc main() =
 
       # Desktop toasts overlay (advancement unlocks etc.)
       tickDesktopToasts(osDesktop, dt)
-      drawDesktopToastsOverlay(osDesktop, screenWidth, screenHeight)
+      drawInGameToasts(osDesktop)
 
       # Draw custom cursor during gameplay (after dialogs so it appears on top)
       drawCustomCursor(currentGame.time)
 
       endGameDrawing()
+
+      # A practice session ends on the desktop. No checkpointLiveRun: there is
+      # nothing to keep, and the player's real saved run must stay untouched.
+      if leaveTutorialPractice:
+        cleanupGame(currentGame)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        endTutorialSession()
+        if tutorialEvent == teFinished:
+          showDesktopToast(osDesktop, t(tkTutorialPracticeComplete))
 
     of gsDeathSequence:
       updateGame(currentGame, dt)
@@ -2482,8 +2981,6 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
       drawDeathSequenceOverlay(currentGame)
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
       endGameDrawing()
 
     of gsPaused:
@@ -2507,14 +3004,18 @@ proc main() =
       currentGame.mouseMovedRecently = true
 
       # Handle window clicks first (before pause menu interactions)
-      # Skip when either confirm dialog is open so nothing behind it is clickable
-      let mousePos = getVirtualMousePosition()
+      # Skip when either confirm dialog is open so nothing behind it is clickable.
+      # Windows float above the pause menu at the same per-window scale they use
+      # on the desktop, so their input is resolved the same way it is there.
       if not globalConfirmActive and not currentGame.confirmQuitPending:
-        discard globalWindowManager.handleWindowClick(mousePos)
-      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(mousePos)
+        discard globalWindowManager.handleWindowClick(desktopUIScale(),
+                                                     screenWidth.int, screenHeight.int)
+      let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(
+        desktopUIScale(), screenWidth.int, screenHeight.int)
 
-      # Update all windows
-      let updateResult = globalWindowManager.updateAllWindows(dt, screenWidth, screenHeight, currentGame)
+      # Update all windows (each enters its own scale layer internally)
+      let updateResult = globalWindowManager.updateAllWindows(
+        dt, desktopUIScale(), screenWidth.int, screenHeight.int, currentGame)
 
       # Handle fullscreen toggle from settings
       if updateResult.fullscreenToggle:
@@ -2531,14 +3032,18 @@ proc main() =
       # Only handle pause menu controls if no window is blocking interaction
       # and neither confirm dialog is active
       if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
-        # Pause menu navigation - Tab switching (Left/Right or A/D)
-        if isKeyPressed(Left) or isKeyPressed(A) or isKeyPressed(Right) or isKeyPressed(D):
-          currentGame.pauseMenuTab = case currentGame.pauseMenuTab
-            of tmtProcesses: tmtPerformance
-            of tmtPerformance: tmtProcesses
-            else: tmtProcesses
+        # Pause menu navigation - Tab switching (Left/Right, A/D or the D-pad),
+        # cycling through whichever tabs this mode shows.
+        let keyLeft = isKeyPressed(Left) or isKeyPressed(A)
+        let keyRight = isKeyPressed(Right) or isKeyPressed(D)
+        let tabStep = if keyLeft or gamepadNavPressed(gnLeft): -1
+                      elif keyRight or gamepadNavPressed(gnRight): 1
+                      else: 0
+        if tabStep != 0:
+          currentGame.pauseMenuTab = stepTaskManagerTab(currentGame, currentGame.pauseMenuTab, tabStep)
           playSound(stMenuNav)
-          markKeyboardUsed(currentGame)
+          if keyLeft or keyRight:
+            markKeyboardUsed(currentGame)
 
         # Actions
         if isKeyPressed(Space):  # Resume
@@ -2554,8 +3059,7 @@ proc main() =
         elif isKeyPressed(Q):  # Quit to main menu, ask first (no cooldown gate Q is intentional)
           if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
             # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
-            saveRunState(currentGame)
-            suspendGame(currentGame)  # Exact mid-run snapshot (primary resume path).
+            checkpointLiveRun(currentGame)
             cleanupGame(currentGame)
             currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
@@ -2601,12 +3105,15 @@ proc main() =
 
       # Draw appropriate game based on context
       if isPvP and not currentPvPGame.isNil:
-        drawPvP(currentPvPGame)
+        drawPvP(currentPvPGame, hudInterfaceScale())
       else:
         drawGame(currentGame)
 
-      # Draw OS-style Task Manager pause menu and handle mouse interactions
+      # Draw OS-style Task Manager pause menu and handle mouse interactions. It
+      # hit-tests inside its own draw, so one scale layer covers both halves.
+      beginUIScaleMode(overlayUIScaleFor(TaskManagerPanelW, TaskManagerPanelH))
       let menuResult = drawOSTaskManager(currentGame, currentGame.pauseMenuTab)
+      endUIScaleMode()
 
       # Handle tab changes from mouse (only if no windows are blocking and no confirm is open)
       if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
@@ -2629,8 +3136,7 @@ proc main() =
         elif menuResult.exitClicked:
           if isSandboxMode(currentGame.mode) or not settings.exitConfirmEnabled:
             # Sandbox has no progress to lose; or exit confirm is disabled: quit immediately
-            saveRunState(currentGame)
-            suspendGame(currentGame)  # Exact mid-run snapshot (primary resume path).
+            checkpointLiveRun(currentGame)
             cleanupGame(currentGame)
             currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
             currentGame.discordClient = globalDiscordClient
@@ -2642,17 +3148,15 @@ proc main() =
             currentGame.pauseMenuExitCooldown = 2.0   # countdown shown inside dialog
             playSound(stMenuNav)
 
-      # Draw all windows on top of pause menu
-      globalWindowManager.drawAllWindows(currentGame)
+      # Draw all windows on top of pause menu (each in its own scale layer)
+      globalWindowManager.drawAllWindows(currentGame, desktopUIScale(),
+                                         screenWidth.int, screenHeight.int)
 
-      # Alpha banner for roguelite mode
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       # (separate from the in-game quit-to-menu confirm dialog)
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1: windowCloseRequested = true
 
       # Draw quit-confirmation dialog on top of everything if pending
@@ -2666,8 +3170,7 @@ proc main() =
               disconnect(currentPvPGame.networkManager, "Player quit to menu")
             cleanup(currentPvPGame.networkManager)
             currentPvPGame = nil
-          saveRunState(currentGame)
-          suspendGame(currentGame)  # Exact mid-run snapshot (primary resume path).
+          checkpointLiveRun(currentGame)
           cleanupGame(currentGame)
           currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
           currentGame.discordClient = globalDiscordClient
@@ -2701,6 +3204,11 @@ proc main() =
         selectFloorTheme(currentGame, currentGame.selectedRogueliteTheme)
         currentGame.state = gsCountdown
         currentGame.countdownTimer = 0.5
+        # The sector's restore point: the whole build as it enters the sector,
+        # after the last guardian's reward and this theme pick, so a Continue
+        # replays this same sector with nothing lost. The sector layout is
+        # rebuilt from the run seed. No-op on a profile without a budget.
+        saveBlockCheckpoint(currentGame)
         playSound(stMenuSelect)
 
       proc closeRogueliteFloorSelect() =
@@ -2711,6 +3219,11 @@ proc main() =
             currentGame.rogueliteRun.coresEarned > 0):
           discard commitRogueliteRunProgress(currentGame, true)
           setActiveRogueliteProfile(currentGame.rogueliteProfile)
+        # The run is abandoned (and its shards were just banked), so its saves
+        # must go too: left on disk, the run could be resumed and banked again.
+        deleteRunSave(gmRoguelite, currentGame.modMode)
+        deleteSuspendSnapshot(gmRoguelite, currentGame.modMode)
+        deleteBlockCheckpoint(gmRoguelite, currentGame.modMode)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -2730,6 +3243,12 @@ proc main() =
           else: closeRogueliteFloorSelect()
 
       if isPointerPressed() and not globalConfirmActive:
+        # Hit-tested in the interface layer the panel is drawn in, so the local
+        # screen size below is that layer's viewport.
+        pushUIScale(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
+        defer: popUIScale()
+        let screenWidth = getVirtualScreenWidth()
+        let screenHeight = getVirtualScreenHeight()
         let mousePos = getVirtualMousePosition()
         const PanelW = 920
         const PanelH = 620
@@ -2760,13 +3279,15 @@ proc main() =
               break
 
       beginGameDrawing()
+      beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
       drawRogueliteFloorSelect(currentGame)
+      endUIScaleMode()
 
       # Draw the confirm dialog on top of everything. Two triggers share it here:
       # the OS close button (cdcQuitToDesktop -> quit app) and the in-screen Q /
       # panel-close exit (cdcQuitToMenu -> abandon back to the roguelite setup).
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           if globalConfirmContext == cdcQuitToDesktop: windowCloseRequested = true
           else: closeRogueliteFloorSelect()
@@ -2798,8 +3319,12 @@ proc main() =
           currentGame.shopSidebarScroll = max(0'i32, currentGame.shopSidebarScroll - 40)
           markKeyboardUsed(currentGame)
 
-        # Mouse click handling for shop items
+        # Mouse click handling for shop items. shopLayout() measures the
+        # interface viewport, so the hit-test enters the same scale layer the
+        # panel is drawn in below.
         if isPointerPressed():
+          pushUIScale(overlayUIScaleFor(ShopPanelW, ShopPanelH))
+          defer: popUIScale()
           let mousePos = getVirtualMousePosition()
 
           # Geometry comes straight from os_shop.nim's layout, so widescreen
@@ -2847,13 +3372,13 @@ proc main() =
 
       beginGameDrawing()
       drawGame(currentGame)
+      beginUIScaleMode(overlayUIScaleFor(ShopPanelW, ShopPanelH))
       drawShop(currentGame)
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
+      endUIScaleMode()
 
       # Draw quit-confirmation dialog on top of everything if triggered by OS close button
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1: windowCloseRequested = true
 
       # Draw custom cursor
@@ -2891,11 +3416,18 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
 
+      # Interface layer: the life-lost overlay, the countdown numerals and their
+      # subtitle are UI over the live arena, so they take the HUD scale and
+      # measure against that layer's viewport.
+      beginUIScaleMode(hudInterfaceScale())
+      let screenWidth = getVirtualScreenWidth()
+      let screenHeight = getVirtualScreenHeight()
+
       # While a life is being spent the shatter owns the screen; the countdown
       # numerals are held back so the two do not fight over the centre.
       if currentGame.lifeLostTimer > 0:
         drawLifeLostOverlay(screenWidth, screenHeight, currentGame.livesUsed,
-                            difficultyMaxLives(), UnlimitedLives,
+                            difficultyMaxLives(currentGame.mode), UnlimitedLives,
                             1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration)
       else:
         # Draw stylish countdown overlay
@@ -2945,12 +3477,11 @@ proc main() =
                 40,
                 Color(r: 255, g: 255, b: 100, a: alpha))
 
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
+      endUIScaleMode()
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1: windowCloseRequested = true
 
       # Draw custom cursor
@@ -3001,9 +3532,17 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
 
-      # Draw appropriate cleared text based on whether it was a boss wave
-      let waveText = if isBossWave(currentGame.currentWave):
-        "BOSS " & $getCustomBossNumber(currentGame.currentWave) & " CLEARED!"
+      # Coin collection continues under this banner, so it is drawn at the HUD
+      # scale like the rest of the in-game interface.
+      beginUIScaleMode(hudInterfaceScale())
+      let screenWidth = getVirtualScreenWidth()
+
+      # Draw appropriate cleared text based on whether it was a boss wave. The
+      # wave counter has already advanced past the wave just cleared, so testing
+      # currentWave itself labelled the wave BEFORE each boss "BOSS N CLEARED!".
+      let clearedWave = currentGame.currentWave - 1
+      let waveText = if isBossWave(clearedWave):
+        "BOSS " & $getCustomBossNumber(clearedWave) & " CLEARED!"
       else:
         "WAVE CLEARED!"
       let waveTextSize = 48.int32
@@ -3021,23 +3560,20 @@ proc main() =
       drawText(waveText, textX, textY, waveTextSize,
               Color(r: 150, g: 255, b: 150, a: 255))
 
-      if currentGame.mode == gmRoguelite:
-        drawBetaBanner(currentGame)
+      endUIScaleMode()
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
+      # (outside the layer, so it reads the real screen rather than the shadowed
+      # interface-layer width above).
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1: windowCloseRequested = true
 
       endGameDrawing()
 
     of gsPowerUpSelect:
       let isLegendaryRound = currentGame.powerUpChoices[0].rarity == prLegendary
-      let allowedFamiliesForDraft =
-        if currentGame.mode == gmRoguelite and currentGame.rogueliteProfile != nil:
-          currentGame.rogueliteProfile.unlockedPowerFamilies
-        else:
-          {rpfCore..rpfBlood}
+      let allowedFamiliesForDraft = AllPowerFamilies
 
       proc continueAfterDraft() =
         ## Route out of the draft screen. Classic modes visit the between-wave
@@ -3051,7 +3587,7 @@ proc main() =
               # (the cheat can fire from any room), so jump straight to floor
               # select, mirroring what walking into the portal would do.
               currentGame.cheatRogueliteDirectFloorSelect = false
-              generateThemeChoices(currentGame.rogueliteRun, unlockedBossTierOf(currentGame))
+              generateThemeChoices(currentGame.rogueliteRun)
               currentGame.selectedRogueliteTheme = 0
               currentGame.state = gsRogueliteFloorSelect
             else:
@@ -3064,23 +3600,33 @@ proc main() =
             currentGame.cheatRogueliteDirectFloorSelect = false
             currentGame.state = gsPlaying
             beginDraftResume(currentGame)
-        elif currentGame.levelDraftActive:
+        elif currentGame.levelDraftActive or isTimeSurvivalMode(currentGame.mode):
           # Mid-run XP level-up draft (survival or wave mode): resume into the
-          # same battlefield, not the shop. The shop stays reserved for the
-          # wave-boundary / post-boss draft below.
+          # same battlefield, not the shop. The shop stays reserved for wave
+          # mode's wave-boundary / post-boss draft below; survival has no shop
+          # at all (its bosses drop Data Caches), so its post-boss draft
+          # returns to the fight too.
           #
           # This is the disorienting exit -- the fight is still running and the
           # player has been looking at a menu -- so it gets the re-entry beat
           # (time ramp + i-frames + a locate-me pulse). Exits to the shop or to
           # floor select do not need it: nothing is chasing the player there.
+          let survivalBossReward = isTimeSurvivalMode(currentGame.mode) and
+                                   isLegendaryRound and not currentGame.levelDraftActive
           currentGame.levelDraftActive = false
           currentGame.state = gsPlaying
           beginDraftResume(currentGame)
+          if survivalBossReward:
+            # Survival's restore point: a boss has just closed its phase and its
+            # reward is installed, so a Continue picks the run up right here,
+            # Kernel cache still on the floor. Written after the state change,
+            # so the save does not reopen this draft. Overtime (the final boss's
+            # draft onward) writes nothing: saveBlockCheckpoint refuses a won run.
+            saveBlockCheckpoint(currentGame)
         else:
           currentGame.state = gsShop
           currentGame.shopSidebarScroll = 0
 
-      updateOSHUD(currentGame.osHUD, dt)
       tickDesktopToasts(osDesktop, dt)
       for msg in currentGame.pendingToasts:
         showDesktopToast(osDesktop, msg)
@@ -3103,6 +3649,8 @@ proc main() =
             continueAfterDraft()
 
           if isPointerPressed():
+            pushUIScale(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
+            defer: popUIScale()
             let mousePos = getVirtualMousePosition()
             # Geometry comes straight from os_powerup_installer.nim's layout,
             # which already accounts for the wider 16:9 panel.
@@ -3112,13 +3660,13 @@ proc main() =
               continueAfterDraft()
 
         beginGameDrawing()
+        beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
         drawPowerUpSelectionExhausted(currentGame)
-        if currentGame.mode == gmRoguelite:
-          drawBetaBanner(currentGame)
+        endUIScaleMode()
         if globalConfirmActive:
-          let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+          let r = drawGlobalConfirmDialog()
           if r == 1: windowCloseRequested = true
-        drawDesktopToastsOverlay(osDesktop, screenWidth, screenHeight)
+        drawInGameToasts(osDesktop)
         drawCustomCursor(currentGame.time)
         endGameDrawing()
 
@@ -3192,6 +3740,8 @@ proc main() =
 
           # Mouse hover detection for card selection (only if keyboard not recently used)
           if isPointerPressed() or currentGame.mouseMovedRecently:
+            pushUIScale(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
+            defer: popUIScale()
             let mousePos = getVirtualMousePosition()
             # Card geometry comes straight from os_powerup_installer.nim's layout.
             let L = installerLayout()
@@ -3211,6 +3761,8 @@ proc main() =
 
           # Mouse click to select
           if isPointerPressed():
+            pushUIScale(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
+            defer: popUIScale()
             let mousePos = getVirtualMousePosition()
             # Card / button geometry comes straight from os_powerup_installer.nim.
             let L = installerLayout()
@@ -3238,16 +3790,16 @@ proc main() =
           # this screen without selecting a power-up.
 
         beginGameDrawing()
+        beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
         drawPowerUpSelection(currentGame)
-        if currentGame.mode == gmRoguelite:
-          drawBetaBanner(currentGame)
+        endUIScaleMode()
 
         # Draw quit-confirmation dialog on top of everything if triggered by OS close button
         if globalConfirmActive:
-          let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+          let r = drawGlobalConfirmDialog()
           if r == 1: windowCloseRequested = true
 
-        drawDesktopToastsOverlay(osDesktop, screenWidth, screenHeight)
+        drawInGameToasts(osDesktop)
         drawCustomCursor(currentGame.time)
         endGameDrawing()
 
@@ -3280,14 +3832,14 @@ proc main() =
             globalDiscordClient = nil
 
         # Finalize and persist the run (last-run snapshot, lifetime stats, advancements)
-        persistRunResults(currentGame)
+        persistRunResults(currentGame, died = true)
 
       # Update mouse tracking
       updateMouseTracking(currentGame)
 
-      # A death-surviving wave-mode block checkpoint prepends a "Continue" option,
-      # shifting Restart/Stats/Exit indices up by one (idxOff).
-      let goShowContinue = currentGame.mode == gmWaveBased and hasBlockCheckpoint()
+      # A death-surviving block checkpoint (RestorePointModes) prepends a
+      # "Continue" option, shifting Restart/Stats/Exit indices up by one (idxOff).
+      let goShowContinue = canContinueRun(currentGame)
       let goOptionCount = if goShowContinue: 4 else: 3
       let goIdxOff = if goShowContinue: 1 else: 0
       let goRestartIdx = goIdxOff
@@ -3296,10 +3848,16 @@ proc main() =
 
       # Nested action helpers (shared by keyboard, gamepad and mouse dispatch).
       proc doContinue() =
+        let mode = currentGame.mode
+        let modMode = currentGame.modMode
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
-        setGameMode(currentGame, gmWaveBased)
-        # Resume the saved block; NO comeback bonus on this path.
+        setGameMode(currentGame, mode)
+        currentGame.modMode = modMode
+        if mode == gmRoguelite:
+          # The run resumes on the live wallet the death just banked into.
+          setActiveRogueliteProfile(loadRogueliteProfile())
+          currentGame.rogueliteProfile = rogueliteProfile
         if applyBlockCheckpoint(currentGame):
           # Same run, resumed: keep the accumulated run statistics (power-ups
           # collected, kills, damage, time) instead of zeroing them.
@@ -3307,11 +3865,16 @@ proc main() =
           currentGame.runHadDeath = true
           # Spend a life and write the new count back to the checkpoint, so the
           # budget shrinks even if the next death arrives before the next boss
-          # block would have rewritten the file.
+          # block, sector or survival boss would have rewritten the file.
           consumeContinueLife(currentGame)
           currentGame.state = gsCountdown
           currentGame.countdownTimer = 3.0
+          currentGame.selectedRogueliteTheme = 0
           resumeRunTracking(currentGame)
+        elif mode == gmRoguelite:
+          # Checkpoint failed to apply: a fresh roguelite starts at its setup.
+          globalWindowManager.openWindow(widRoguelite)
+          currentGame.state = gsMenu
         else:
           # Checkpoint failed to apply: fall back to a fresh run.
           currentGame.state = gsPlaying
@@ -3321,6 +3884,7 @@ proc main() =
 
       proc doRestart() =
         let previousMode = currentGame.mode
+        let previousModMode = currentGame.modMode
         let preservedRogueliteHeat =
           if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
             currentGame.rogueliteRun.heat
@@ -3330,12 +3894,11 @@ proc main() =
         # already warned that Continue was still available), exactly like the
         # menu's "New Run". Keeping the file would let a fresh wave-1 run die at
         # wave 2 and still offer "Continue (Wave 21)" from the discarded run.
-        if previousMode == gmWaveBased:
-          deleteBlockCheckpoint()
+        deleteBlockCheckpoint(previousMode, previousModMode)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
-        applyComebackBonus(currentGame)
+        currentGame.modMode = previousModMode
         if previousMode == gmRoguelite:
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
@@ -3365,11 +3928,11 @@ proc main() =
       # When a checkpoint is available, Restart/Exit first ask for confirmation so
       # the player can't accidentally lose the chance to continue their run.
       proc requestRestart() =
-        if goShowContinue: showGlobalConfirm(cdcAbandonRestart, 1.0)
+        if goShowContinue: showGlobalConfirm(cdcAbandonRestart, 1.0, currentGame.mode)
         else: doRestart()
 
       proc requestExit() =
-        if goShowContinue: showGlobalConfirm(cdcAbandonExit, 1.0)
+        if goShowContinue: showGlobalConfirm(cdcAbandonExit, 1.0, currentGame.mode)
         elif settings.exitConfirmEnabled: showGlobalConfirm(cdcPostGameExit, cooldown = 0.0'f32)
         else: doExit()
 
@@ -3405,17 +3968,20 @@ proc main() =
         requestExit()
 
       # Mouse hover detection for button highlighting. Layout must mirror
-      # drawSystemCrash (narrower buttons/spacing when Continue is present).
+      # drawSystemCrash (narrower buttons/spacing when Continue is present) --
+      # including the interface layer it draws in, so the pointer and the screen
+      # size below both come from that layer.
+      pushUIScale(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
       let mousePos = getVirtualMousePosition()
       const SCREEN_HEIGHT = 600
       const BUTTON_HEIGHT = 48
 
       let goButtonW = if goShowContinue: 200 else: 220
       let goButtonSpacing = if goShowContinue: 24 else: 40
-      let windowY = (screenHeight - SCREEN_HEIGHT) div 2
+      let windowY = (getVirtualScreenHeight() - SCREEN_HEIGHT) div 2
       let buttonY = windowY + SCREEN_HEIGHT - 100
       let totalButtonWidth = goButtonW * goOptionCount + goButtonSpacing * (goOptionCount - 1)
-      let buttonsX = (screenWidth - totalButtonWidth) div 2
+      let buttonsX = (getVirtualScreenWidth() - totalButtonWidth) div 2
 
       proc goButtonRect(slot: int): Rectangle =
         # slot is the on-screen position (0-based) left-to-right.
@@ -3450,13 +4016,17 @@ proc main() =
         elif checkCollisionPointRec(mousePos, exitRect):
           requestExit()
 
+      popUIScale()   # leaves the game-over hit-test layer
+
       beginGameDrawing()
+      beginUIScaleMode(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
       drawGameOver(currentGame)
+      endUIScaleMode()
 
       # Confirmation dialog: OS close button (quit contexts) or the
       # abandon-checkpoint guard on Restart/Exit.
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           case globalConfirmContext
           of cdcAbandonRestart: doRestart()
@@ -3481,11 +4051,27 @@ proc main() =
       # Drive the window like the desktop does: reset the per-frame click flag,
       # then let it handle dragging, tab clicks and its close button.
       statsWin.window.handledClickThisFrame = false
-      let statsWindowClosed = updateStatsWindow(statsWin, dt, screenWidth,
-                                                screenHeight, [statsWin.window])
+      # Standalone here, but it is still an OS window: give it the same per-window
+      # scale (and the same capped logical viewport) the window manager hands it
+      # on the desktop, so it is drawn and hit-tested identically in both places.
+      let statsVp = windowViewport(statsWin.window, overlayUIScale(),
+                                   screenWidth.int, screenHeight.int)
+      statsWin.window.uiScale = statsVp.scale
+      pushUIScale(statsVp.scale)
+      let statsWindowClosed = updateStatsWindow(statsWin, dt, statsVp.w,
+                                                statsVp.h, [statsWin.window])
+      popUIScale()
+
+      # A won run reaches this screen from the victory screen before it has been
+      # persisted (the game-over path persists on entry), so every way out of
+      # here must record it first or the victory is lost.
+      proc persistIfFromVictory() =
+        if currentGame.previousState == gsVictory:
+          persistRunResults(currentGame, died = false)
 
       proc doReturnToMenuFromStats() =
         statsWin.window.visible = false
+        persistIfFromVictory()
         cleanupGame(currentGame)  # Clean up resources before creating new game
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -3504,19 +4090,20 @@ proc main() =
       # Quick restart
       if not globalConfirmActive and isKeyPressed(R):
         statsWin.window.visible = false
+        persistIfFromVictory()
         let previousMode = currentGame.mode
+        let previousModMode = currentGame.modMode
         let preservedRogueliteHeat =
           if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
             currentGame.rogueliteRun.heat
           else:
             currentGame.selectedRogueliteHeat
         # Same abandon rule as the game-over Restart button.
-        if previousMode == gmWaveBased:
-          deleteBlockCheckpoint()
+        deleteBlockCheckpoint(previousMode, previousModMode)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)
-        applyComebackBonus(currentGame)
+        currentGame.modMode = previousModMode
         if previousMode == gmRoguelite:
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
@@ -3544,22 +4131,30 @@ proc main() =
                 1, Color(r: 40, g: 60, b: 80, a: alpha))
 
       if statsWin.window.visible:
+        beginUIScaleMode(statsVp.scale)
         drawStatsWindow(statsWin, currentGame)
+        endUIScaleMode()
         # Controls hint along the bottom edge
+        beginUIScaleMode(overlayUIScale())
         let footerText = t(tkStatsControlsFooter)
         let footerWidth = measureText(footerText, 14)
-        drawText(footerText, (screenWidth.int32 - footerWidth) div 2, screenHeight - 26, 14,
+        drawText(footerText, (getVirtualScreenWidth() - footerWidth) div 2,
+                getVirtualScreenHeight() - 26, 14,
                 Color(r: 0, g: 180, b: 255, a: 255))
+        endUIScaleMode()
       elif currentGame.state == gsRunStats:
         # Fallback if no stats available (skipped on the one frame where the
         # window was just dismissed and we are about to leave this state)
+        beginUIScaleMode(overlayUIScale())
         drawText(t(tkSystemNoStatistics),
-                screenWidth div 2 - 150, screenHeight div 2, 24, Red)
+                getVirtualScreenWidth() div 2 - 150, getVirtualScreenHeight() div 2, 24, Red)
         drawText(t(tkSystemPressESCToReturn),
-                screenWidth div 2 - 120, screenHeight div 2 + 40, 18, LightGray)
+                getVirtualScreenWidth() div 2 - 120, getVirtualScreenHeight() div 2 + 40,
+                18, LightGray)
+        endUIScaleMode()
 
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           case globalConfirmContext
           of cdcPostGameExit: doReturnToMenuFromStats()
@@ -3581,7 +4176,11 @@ proc main() =
       proc doReturnToMenuFromVictory() =
         # Return to menu: the run ends here, so persist results before leaving
         playSound(stMenuSelect)
-        persistRunResults(currentGame)
+        persistRunResults(currentGame, died = false)
+        if isTimeSurvivalMode(currentGame.mode):
+          # A won survival run ended here, never to be resumed.
+          deleteRunSave(currentGame.mode, currentGame.modMode)
+          deleteSuspendSnapshot(currentGame.mode, currentGame.modMode)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -3606,11 +4205,12 @@ proc main() =
       const VIC_SCREEN_HEIGHT = 600
       const VIC_BUTTON_WIDTH = 220
       const VIC_BUTTON_HEIGHT = 48
-      let vicWindowY = (screenHeight - VIC_SCREEN_HEIGHT) div 2
+      pushUIScale(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
+      let vicWindowY = (getVirtualScreenHeight() - VIC_SCREEN_HEIGHT) div 2
       let vicButtonY = vicWindowY + VIC_SCREEN_HEIGHT - 100
       let vicButtonSpacing = 40
       let vicTotalWidth = VIC_BUTTON_WIDTH * 3 + vicButtonSpacing * 2
-      let vicButtonsX = (screenWidth - vicTotalWidth) div 2
+      let vicButtonsX = (getVirtualScreenWidth() - vicTotalWidth) div 2
       let continueRect = Rectangle(x: vicButtonsX.float32, y: vicButtonY.float32,
                                    width: VIC_BUTTON_WIDTH.float32, height: VIC_BUTTON_HEIGHT.float32)
       let vicStatsX = vicButtonsX + VIC_BUTTON_WIDTH + vicButtonSpacing
@@ -3667,10 +4267,14 @@ proc main() =
       else:
         discard
 
+      popUIScale()   # leaves the victory hit-test layer
+
       beginGameDrawing()
+      beginUIScaleMode(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
       drawVictory(currentGame)
+      endUIScaleMode()
       if globalConfirmActive:
-        let r = drawGlobalConfirmDialog(screenWidth, screenHeight)
+        let r = drawGlobalConfirmDialog()
         if r == 1:
           case globalConfirmContext
           of cdcPostGameExit: doReturnToMenuFromVictory()
@@ -3698,7 +4302,8 @@ proc main() =
         playSound(stMenuNav)
         markKeyboardUsed(currentGame)
 
-      let rvRects = rogueliteVictoryButtonRects(screenWidth.int32, screenHeight.int32)
+      pushUIScale(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
+      let rvRects = rogueliteVictoryButtonRects(getVirtualScreenWidth(), getVirtualScreenHeight())
       let rvMousePos = getVirtualMousePosition()
       if checkCollisionPointRec(rvMousePos, rvRects.continueBtn):
         currentGame.selectedVictoryButton = 0
@@ -3731,7 +4336,7 @@ proc main() =
         # to the roguelite hub window (mirrors closing the floor-select).
         playSound(stMenuSelect)
         let preservedHeat = currentGame.selectedRogueliteHeat
-        persistRunResults(currentGame)
+        persistRunResults(currentGame, died = false)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -3744,8 +4349,12 @@ proc main() =
       else:
         discard
 
+      popUIScale()   # leaves the roguelite-victory hit-test layer
+
       beginGameDrawing()
+      beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
       drawRogueliteVictory(currentGame)
+      endUIScaleMode()
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
@@ -3788,9 +4397,15 @@ proc main() =
       when defined(mobile):
         # Same twin-stick controls as single-player; capturePlayerInput reads
         # them through input_intent. Must run before updatePvP so this frame's
-        # captured input is current. No dash button: PvP runs its own movement
-        # and never calls updatePlayer, so there is no base dash to offer.
-        setMobileDashState(false, 0.0'f32)
+        # captured input is current. PvP has the PvE base dash too (same verb and
+        # DashCooldownTime; the cooldown is the host-synced one), so the button
+        # shows it -- and hides while the local player is down.
+        let pvpIdx = currentPvPGame.localPlayerIndex
+        if pvpIdx >= 0 and pvpIdx < currentPvPGame.players.len:
+          let lp = currentPvPGame.players[pvpIdx]
+          setMobileDashState(lp.hp > 0, lp.dashCooldown / DashCooldownTime)
+        else:
+          setMobileDashState(false, 0.0'f32)
         updateMobileControls(dt)
 
       # Check for pause (visual only - game continues running)
@@ -3835,11 +4450,44 @@ proc main() =
         continue  # Skip drawing, go to next frame
 
       beginGameDrawing()
-      drawPvP(currentPvPGame)
+      drawPvP(currentPvPGame, hudInterfaceScale())
       when defined(mobile):
         drawMobileControls()
       drawCustomCursor(currentPvPGame.gameTime)
       endGameDrawing()
+
+  # A run that has ended but was not persisted yet -- the window was closed on
+  # an ending screen or during the death playback -- is recorded now, since
+  # those states are not resumable and the run would otherwise just vanish.
+  # Replays of the ending cinematics run on the idle menu Game and are skipped.
+  if not currentGame.isNil:
+    case currentGame.state
+    of gsDeathSequence:
+      freezeRunTime(currentGame)
+      persistRunResults(currentGame, died = true)
+    of gsSurvivalEndCinematic:
+      if not survivalEndReplayMode:
+        freezeRunTime(currentGame)
+        persistRunResults(currentGame, died = true)
+    of gsVictory, gsRogueliteVictory:
+      persistRunResults(currentGame, died = false)
+    of gsEndgameCinematic:
+      if not endgameReplayMode:
+        persistRunResults(currentGame, died = false)
+    of gsRogueliteEndCinematic:
+      if not rogueliteEndReplayMode:
+        persistRunResults(currentGame, died = false)
+    of gsRunStats:
+      if currentGame.previousState == gsVictory:
+        persistRunResults(currentGame, died = false)
+    of gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared, gsPowerUpSelect:
+      # Live play is normally checkpointed below, but a won run in endless
+      # cannot be, so it is recorded here instead of being lost.
+      if isUnresumableWonRun(currentGame):
+        freezeRunTime(currentGame)
+        persistRunResults(currentGame, died = false)
+    else:
+      discard
 
   # Checkpoint the live run on shutdown so it can be resumed next launch.
   if not currentGame.isNil:
@@ -3854,7 +4502,10 @@ proc main() =
       # Ignore Discord disconnect errors during shutdown
       discard
 
-  # Cleanup
+  # Cleanup. Mod textures and sounds are GPU/audio resources: they go before
+  # the device and the window do.
+  saveAllModStorage()
+  unloadModAssets()
   stopMusic()
   closeSoundSystem(globalSoundSystem)
   closeWindow()

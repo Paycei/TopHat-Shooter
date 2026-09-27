@@ -2,7 +2,7 @@
 ## Main 3D game loop, state management, and integration
 
 import raylib, sequtils, random, math
-import types_3d, engine_3d, player_3d, boss_3d, ../types, ../localization
+import types_3d, engine_3d, player_3d, boss_3d, ../types, ../localization, ../settings
 
 type
   Game3D* = object
@@ -105,7 +105,7 @@ proc drawDamageNumbers(damageNumbers: seq[DamageNumber3D], camera: FPSCamera) =
        screenPos.y >= 0 and screenPos.y <= getScreenHeight().float32:
 
       let damageText = $int(dmg.damage)
-      let fontSize: int32 = 24
+      let fontSize = max(8'i32, int32(24.0'f32 * damageNumberScaleOf(globalSettings)))
       let color = Color(r: 255, g: 255, b: 100, a: alpha.uint8)
 
       # Draw with shadow for better visibility
@@ -222,8 +222,9 @@ proc renderGame3D*(game: Game3D) =
   # Draw satellite healthbars (in 2D overlay)
   drawSatelliteHealthbars(game.boss, game.camera)
 
-  # Draw damage numbers (in 2D overlay)
-  drawDamageNumbers(game.damageNumbers, game.camera)
+  # Draw damage numbers (in 2D overlay), subject to the Interface tab's toggle.
+  if showDamageNumbersOf(globalSettings):
+    drawDamageNumbers(game.damageNumbers, game.camera)
 
   # 2D HUD
   drawRectangle(10, 10, 320, 150, fade(Black, 0.7))

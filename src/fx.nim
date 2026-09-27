@@ -95,6 +95,121 @@ proc drawShockwaveRings*(rings: seq[ShockwaveRing]) =
     let hiA = uint8(clamp(frac * 200.0, 0.0, 200.0))
     drawCircleLines(cx, cy, r - 3.0'f32, Color(r: 255, g: 255, b: 230, a: hiA))
 
+# ---------------------------------------------------------------------------
+# Boss death blast: the deallocation sweep that clears a dead boss's hazards.
+#
+# Themed as the OS reclaiming a terminated process rather than as a fireball:
+# a dashed scan ring enumerates the region it is freeing, the swept interior
+# fills in as an address-space lattice, and the desktop's own data-rain glyphs
+# ride the edge. The wave is a CLEAR, never an attack -- see BossDeathBlast in
+# types.nim and updateBossDeathBlasts in game/bullets.nim.
+# ---------------------------------------------------------------------------
+
+const
+  BOSS_DEATH_BLAST_SPEED* = 1450.0'f32   # px/s the freeing edge travels
+  BOSS_DEATH_BLAST_FADE*  = 0.45'f32     # seconds the spent sweep lingers
+
+  ## Kernel cyan, deliberately NOT the hot orange every hostile blast is drawn
+  ## in: the ring has to read as safe to stand in at a glance.
+  BOSS_DEATH_BLAST_COLOR* = Color(r: 120, g: 240, b: 255, a: 255)
+
+  ## The desktop's data-rain alphabet, reused so the sweep speaks the same
+  ## visual language as the wallpaper and the boot screens.
+  BlastGlyphs = "01<>+#$%&=?*"
+  BlastGridCell = 34.0'f32               # lattice pitch of the freed region
+
+proc spawnBossDeathBlastInto*(blasts: var seq[BossDeathBlast], pos: Vector2f,
+                              maxRadius: float32, sourceEnemyId: int,
+                              color: Color = BOSS_DEATH_BLAST_COLOR) =
+  ## Start a sweep at the corpse. It expands from nothing, so the first frame
+  ## clears nothing and the erasure genuinely follows the visible edge.
+  blasts.add(BossDeathBlast(
+    pos:           pos,
+    sourceEnemyId: sourceEnemyId,
+    radius:        0.0'f32,
+    maxRadius:     maxRadius,
+    speed:         BOSS_DEATH_BLAST_SPEED,
+    fadeTimer:     BOSS_DEATH_BLAST_FADE,
+    color:         color
+  ))
+
+proc blastAlpha(value, fade: float32): uint8 =
+  uint8(clamp(value * fade, 0.0'f32, 255.0'f32))
+
+proc drawBossDeathBlasts*(blasts: seq[BossDeathBlast]) =
+  for blast in blasts:
+    let r = blast.radius
+    if r < 1.0'f32: continue
+    # Full strength while the edge is still travelling; the fade only starts
+    # once the sweep has finished, so the bright ring always marks the LIVE
+    # boundary between cleared and not-yet-cleared.
+    let fade = if blast.radius >= blast.maxRadius:
+      clamp(blast.fadeTimer / BOSS_DEATH_BLAST_FADE, 0.0'f32, 1.0'f32)
+    else:
+      1.0'f32
+    let cx = blast.pos.x
+    let cy = blast.pos.y
+
+    # Freed region: a faint wash plus a lattice of chords clipped to the circle,
+    # so the cleared area reads as reclaimed address space instead of smoke.
+    drawCircle(Vector2(x: cx, y: cy), r,
+               withAlpha(blast.color, blastAlpha(12.0'f32, fade)))
+    let gridCol = withAlpha(blast.color, blastAlpha(30.0'f32, fade))
+    var gx = floor((cx - r) / BlastGridCell) * BlastGridCell
+    while gx <= cx + r:
+      let d = gx - cx
+      let h = r * r - d * d
+      if h > 1.0'f32:
+        let half = sqrt(h)
+        drawLine(Vector2(x: gx, y: cy - half), Vector2(x: gx, y: cy + half), 1, gridCol)
+      gx += BlastGridCell
+    var gy = floor((cy - r) / BlastGridCell) * BlastGridCell
+    while gy <= cy + r:
+      let d = gy - cy
+      let h = r * r - d * d
+      if h > 1.0'f32:
+        let half = sqrt(h)
+        drawLine(Vector2(x: cx - half, y: gy), Vector2(x: cx + half, y: gy), 1, gridCol)
+      gy += BlastGridCell
+
+    # Trailing refresh rings: rows the sweep has already finished, redrawn
+    # fainter behind the crest like a scan line that has passed.
+    for k in 1 .. 2:
+      let tr = r - k.float32 * 15.0'f32
+      if tr > 2.0'f32:
+        drawCircleLines(cx.int32, cy.int32, tr,
+                        withAlpha(blast.color, blastAlpha(70.0'f32 / k.float32, fade)))
+
+    # Leading edge: a DASHED scan ring, not a solid circle, so it reads as a
+    # progress sweep ticking through what it frees. Segment count is capped so
+    # a screen-wide ring costs the same as a small one.
+    let segs = clamp(int(r * 0.2'f32), 28, 96)
+    let step = TAU.float32 / segs.float32
+    let phase = r * 0.011'f32            # dashes crawl as the edge advances
+    let edgeCol = withAlpha(blast.color, blastAlpha(235.0'f32, fade))
+    let hotCol = Color(r: 235, g: 255, b: 255, a: blastAlpha(215.0'f32, fade))
+    for i in 0 ..< segs:
+      if i mod 4 == 3: continue          # a gap every fourth tick
+      let a0 = phase + i.float32 * step
+      let a1 = a0 + step * 0.7'f32
+      drawLine(Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
+               Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r), 3, edgeCol)
+      let ir = r - 3.0'f32
+      drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
+               Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir), 1, hotCol)
+
+    # Glyphs riding just outside the edge, mutating as it advances: the
+    # addresses being enumerated and released, scrolling past.
+    const GlyphTicks = 10
+    let glyphCol = withAlpha(blast.color, blastAlpha(200.0'f32, fade))
+    for i in 0 ..< GlyphTicks:
+      let ang = phase * 0.6'f32 + i.float32 * (TAU.float32 / GlyphTicks.float32)
+      let gi = (int(r * 0.09'f32) + i * 5) mod BlastGlyphs.len
+      drawText($BlastGlyphs[gi],
+               int32(cx + cos(ang) * (r + 9.0'f32)) - 3'i32,
+               int32(cy + sin(ang) * (r + 9.0'f32)) - 5'i32,
+               12, glyphCol)
+
 proc updateLightningBolts*(bolts: var seq[LightningBolt], dt: float32) =
   var i = 0
   while i < bolts.len:

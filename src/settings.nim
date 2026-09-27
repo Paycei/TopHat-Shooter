@@ -1,10 +1,10 @@
 ## Settings Backend Module
 ## Handles settings initialization, state management, and application
 
-from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, saveSettings, loadSettings
+from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, HudStyle, hsModern, hsLegacy, saveSettings, loadSettings, MinUIScale, MaxUIScale, MinDamageNumberScale, MaxDamageNumberScale, MinScreenShakeScale, MaxScreenShakeScale
 from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, kaDash, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds
 import raylib, strutils
-import sound, localization
+import sound, localization, powerup_data
 
 var globalSettings*: Settings
 
@@ -14,6 +14,8 @@ proc isPowerUpDiscovered*(pt: PowerUpType): bool =
   ## When settings aren't loaded yet (nil), treat everything as discovered so the
   ## reference screens never hide content during early init or in tests.
   if globalSettings.isNil: return true
+  # A loaded mod's power-ups are always known (they never enter the codex).
+  if pt >= puMod00: return isPowerUpLive(pt)
   $pt in globalSettings.discoveredPowerUps
 
 proc newDefaultSettings*(): Settings =
@@ -26,8 +28,6 @@ proc newDefaultSettings*(): Settings =
     musicVolume: 0.5,
     inputBuffer: "60",
     editingFPS: false,
-    editingVolume: false,
-    editingMusicVolume: false,
     fullscreen: false,
     renderResolutionMode: rrmEnabled,
     showFPS: false,
@@ -40,7 +40,13 @@ proc newDefaultSettings*(): Settings =
     # less of the display and moves the touch buttons off the gameplay world
     # into the side gutters.
     hudLayout: hlWidescreen,
+    hudStyle: hsModern,
+    uiScale: 1.0,             # 100%: the layout every panel was designed against
     showEnemyLabels: true,
+    showDamageNumbers: true,
+    damageNumberScale: 1.0,
+    screenShakeScale: 1.0,
+    changelogLegacyView: false,  # a page per version
     language: "english",  # Default language is English
     playerSkin: 0,  # Default to first skin (skDefault)
     bulletSkin: 0,  # Default to first bullet skin (bskDefault)
@@ -79,6 +85,30 @@ proc initSettings*(): Settings =
   result = newDefaultSettings()
   globalSettings = result
   reloadSettingsFromDisk(result)
+
+proc uiScaleOf*(settings: Settings): float32 =
+  ## The interface scale to draw with, tolerant of a nil/never-loaded Settings
+  ## (early boot, tests) and of a value from before the field existed, where the
+  ## JSON key is absent and the float defaults to 0.
+  if settings.isNil or settings.uiScale <= 0.0'f32: 1.0'f32
+  else: clamp(settings.uiScale, MinUIScale, MaxUIScale)
+
+proc showDamageNumbersOf*(settings: Settings): bool =
+  ## Whether floating damage text is drawn. Defaults to on when settings aren't
+  ## loaded yet, so nothing silently disappears during early init.
+  settings.isNil or settings.showDamageNumbers
+
+proc damageNumberScaleOf*(settings: Settings): float32 =
+  ## Size multiplier for floating damage text. Like uiScaleOf, a non-positive
+  ## value means "never set" rather than "invisible".
+  if settings.isNil or settings.damageNumberScale <= 0.0'f32: 1.0'f32
+  else: clamp(settings.damageNumberScale, MinDamageNumberScale, MaxDamageNumberScale)
+
+proc screenShakeScaleOf*(settings: Settings): float32 =
+  ## Multiplier on all screen shake. Unlike the scales above, 0 is a real choice
+  ## here (shake fully off), so it is passed through rather than treated as unset.
+  if settings.isNil: 1.0'f32
+  else: clamp(settings.screenShakeScale, MinScreenShakeScale, MaxScreenShakeScale)
 
 proc applySettings*(settings: Settings) =
   ## Apply settings to the game engine and systems

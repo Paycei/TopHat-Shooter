@@ -96,16 +96,6 @@ proc addShake*(cam: var FPSCamera, intensity: float32) =
 
 const GRAVITY* = -20.0
 
-proc checkGroundCollision*(pos: Vector3f, platforms: seq[Platform3D]): bool =
-  for platform in platforms:
-    let dx = abs(pos.x - platform.pos.x)
-    let dz = abs(pos.z - platform.pos.z)
-    let dy = abs(pos.y - platform.pos.y)
-
-    if dx < platform.size.x and dz < platform.size.z and dy < 2.0:
-      return true
-  false
-
 proc checkCollision*(pos: Vector3f, radius: float32, platforms: seq[Platform3D]): (bool, Platform3D) =
   for platform in platforms:
     let dx = abs(pos.x - platform.pos.x)
@@ -116,9 +106,6 @@ proc checkCollision*(pos: Vector3f, radius: float32, platforms: seq[Platform3D])
        dy > 0 and dy < platform.size.y + 1.0:
       return (true, platform)
   (false, Platform3D())
-
-proc sphereVsSphere*(pos1: Vector3f, r1: float32, pos2: Vector3f, r2: float32): bool =
-  distance(pos1, pos2) < r1 + r2
 
 proc generateArena*(theme: string, radius: float32): Arena3D =
   result.radius = radius
@@ -138,8 +125,6 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
         size: vec3(50, 2, 50),
         color: Color(r: 100, g: 100, b: 150, a: 255),
         moving: false,
-        movePath: @[],
-        pathIndex: 0,
         moveSpeed: 0.0,
         jumpPad: false,
         jumpForce: 0.0,
@@ -155,8 +140,6 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
         size: vec3(30, 2, 30),
         color: Color(r: 120, g: 120, b: 180, a: 255),
         moving: false,
-        movePath: @[],
-        pathIndex: 0,
         moveSpeed: 0.0,
         jumpPad: false,
         jumpForce: 0.0,
@@ -172,8 +155,6 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
         size: vec3(25, 2, 25),
         color: Color(r: 150, g: 100, b: 255, a: 255),
         moving: true,
-        movePath: @[],
-        pathIndex: 0,
         moveSpeed: 0.3,
         jumpPad: false,
         jumpForce: 0.0,
@@ -187,8 +168,6 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
       size: vec3(40, 1, 40),
       color: Color(r: 0, g: 255, b: 0, a: 255),
       moving: false,
-      movePath: @[],
-      pathIndex: 0,
       moveSpeed: 0.0,
       jumpPad: true,
       jumpForce: 800.0,
@@ -212,8 +191,6 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
         size: vec3(30, 2, 30),
         color: Color(r: 80, g: 80, b: 80, a: 255),
         moving: false,
-        movePath: @[],
-        pathIndex: 0,
         moveSpeed: 0.0,
         jumpPad: false,
         jumpForce: 0.0,

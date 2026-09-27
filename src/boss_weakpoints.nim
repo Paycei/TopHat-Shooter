@@ -6,7 +6,6 @@ const TwoPi = PI * 2.0
 type
   BossWeakPointHitResult* = object
     hit*: bool
-    exposed*: bool
     wrongTarget*: bool
     completed*: bool
     bonusDamage*: float32
@@ -24,9 +23,6 @@ proc effectiveWeakKind(enemy: Enemy): BossWeakObjectiveKind =
     else: bwoChaosAnomalies
   else:
     enemy.weakPoint.kind
-
-proc weakPointCoreRadius*(enemy: Enemy): float32 =
-  max(18.0'f32, enemy.radius * 0.35'f32)
 
 proc initBossWeakPointState*(spec: BossWeakPointDefinition, bossId: int): BossWeakPointState =
   result.enabled = spec.kind != bwoNone
@@ -217,7 +213,7 @@ proc syncTargetActivity(enemy: Enemy, kind: BossWeakObjectiveKind) =
 proc weakPointCompletionDamage(enemy: Enemy, kind: BossWeakObjectiveKind): float32 =
   let pct = case kind
     of bwoSpiralAnchors: 0.020'f32
-    of bwoSummonSigils: 0.020'f32   # trimmed from 0.030: add-clear bursts were too strong
+    of bwoSummonSigils: 0.030'f32   # was 0.020: slaying a legion's Royal Guards is real work, where four circles were one sweep
     of bwoMeteorCracks: 0.040'f32
     of bwoLaserPrisms: 0.026'f32
     of bwoVoidRifts: 0.050'f32
@@ -237,7 +233,7 @@ proc weakPointCompletionDamage(enemy: Enemy, kind: BossWeakObjectiveKind): float
 proc weakPointVulnerabilityDuration(enemy: Enemy, kind: BossWeakObjectiveKind): float32 =
   case kind
   of bwoSpiralAnchors:   1.8'f32   # was 1.5: extra window to spend damage
-  of bwoSummonSigils:    2.4'f32   # was 2.2
+  of bwoSummonSigils:    3.0'f32   # was 2.4: the legion cycle is longer, so each window has to carry more
   of bwoMeteorCracks:    0.0'f32   # no window: damage comes from crack hits
   of bwoLaserPrisms:     2.8'f32
   of bwoVoidRifts:       2.0'f32   # was 1.5: reward for picking the real rift
@@ -362,16 +358,19 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
     return
 
   if kind == bwoSummonSigils:
-    # Summoner King: the objective is to destroy the boss's summoned adds, not to
-    # shoot orbiting targets. The wave is tracked in game.nim (required/progress
-    # derived from the live add count); clearing it opens the window via
-    # openBossSummonWindow. Spawn no orbit targets here.
+    # Summoner King: the objective is to slay the Royal Guards of its summoned
+    # legion, not to shoot orbiting targets. The legion is tracked in game.nim
+    # (required/progress derived from the live guard count); the last guard down
+    # opens the window via openBossSummonWindow. Spawn no orbit targets here.
     enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
 
   if kind == bwoDashBackPlate:
-    if enemy.weakPoint.lastDashActive and not enemy.isDashing and enemy.weakPoint.targets.len == 0:
+    # A charge combo cracks the plate once, when the Juggernaut is finally
+    # winded: between charges (ccReaim) it is already turning for the next one.
+    if enemy.weakPoint.lastDashActive and not enemy.isDashing and
+       enemy.chargeState != ccReaim and enemy.weakPoint.targets.len == 0:
       spawnBackPlate(enemy, playerPos)
     enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
@@ -467,9 +466,9 @@ proc registerBossSatelliteDestroyed*(enemy: Enemy): float32 =
   completion.bonusDamage
 
 proc openBossSummonWindow*(enemy: Enemy): tuple[opened: bool, bonusDamage: float32] =
-  ## Called when the Summoner King's current summoned wave is fully cleared.
+  ## Called when the last Royal Guard of the Summoner King's legion falls.
   ## Opens the vulnerability window directly (no orbit targets / per-hit progress),
-  ## which is what makes this boss's objective distinct: clear the adds, not the sigils.
+  ## which is what makes this boss's objective distinct: slay the guards, not the sigils.
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return (false, 0.0'f32)
   if effectiveWeakKind(enemy) != bwoSummonSigils:

@@ -22,6 +22,7 @@ type
     tkDesktopIconAdvancements = "desktop_icon_advancements"
     tkDesktopIconChangelog = "desktop_icon_changelog"
     tkDesktopIconCredits = "desktop_icon_credits"
+    tkDesktopIconFeedback = "desktop_icon_feedback"
 
     # Credits window
     tkCreditsWindowTitle = "credits_window_title"
@@ -34,6 +35,30 @@ type
     tkSupportBlurb = "support_blurb"
     tkSupportNote = "support_note"
 
+    # Feedback window
+    tkFeedbackWindowTitle = "feedback_window_title"
+    tkFeedbackIntro = "feedback_intro"
+    tkFeedbackKindBug = "feedback_kind_bug"
+    tkFeedbackKindIdea = "feedback_kind_idea"
+    tkFeedbackKindOther = "feedback_kind_other"
+    tkFeedbackTitleLabel = "feedback_title_label"
+    tkFeedbackTitleHint = "feedback_title_hint"
+    tkFeedbackDetailsLabel = "feedback_details_label"
+    tkFeedbackHintBug = "feedback_hint_bug"
+    tkFeedbackHintIdea = "feedback_hint_idea"
+    tkFeedbackHintOther = "feedback_hint_other"
+    tkFeedbackAttachInfo = "feedback_attach_info"
+    tkFeedbackSend = "feedback_send"
+    tkFeedbackCopy = "feedback_copy"
+    tkFeedbackSave = "feedback_save"
+    tkFeedbackStatusEmpty = "feedback_status_empty"
+    tkFeedbackStatusOpened = "feedback_status_opened"
+    tkFeedbackStatusTruncated = "feedback_status_truncated"
+    tkFeedbackStatusCopied = "feedback_status_copied"
+    tkFeedbackStatusSaved = "feedback_status_saved"
+    tkFeedbackStatusSaveFailed = "feedback_status_save_failed"
+    tkFeedbackNote = "feedback_note"
+
     # Changelog window
     tkChangelogWindowTitle = "changelog_window_title"
     tkChangelogHeader = "changelog_header"
@@ -43,6 +68,7 @@ type
     tkChangelogCatImproved = "changelog_cat_improved"
     tkChangelogCatBalance = "changelog_cat_balance"
     tkChangelogCatFixed = "changelog_cat_fixed"
+    tkChangelogLegacyView = "changelog_legacy_view"
 
     # Settings
     tkSettingsTitle = "settings_title"
@@ -68,19 +94,19 @@ type
     tkSettingsMouseBondingAlwaysInGame = "settings_mouse_bonding_always_in_game"
     tkSettingsMouseBondingAlways = "settings_mouse_bonding_always"
     tkSettingsDebugPanel = "settings_debug_panel"
-    tkSettingsDebugPanelDesc = "settings_debug_panel_desc"
     tkSettingsArenaVignette = "settings_arena_vignette"
-    tkSettingsArenaVignetteDesc = "settings_arena_vignette_desc"
     tkSettingsLowHealthVignette = "settings_low_health_vignette"
-    tkSettingsLowHealthVignetteDesc = "settings_low_health_vignette_desc"
     tkSettingsShowHints = "settings_show_hints"
     tkSettingsShowHintsDesc = "settings_show_hints_desc"
     tkSettingsHudLayout = "settings_hud_layout"
     tkSettingsHudLayoutDesc = "settings_hud_layout_desc"
     tkSettingsHudLayoutClassic = "settings_hud_layout_classic"
     tkSettingsHudLayoutWidescreen = "settings_hud_layout_widescreen"
+    tkSettingsHudStyle = "settings_hud_style"
+    tkSettingsHudStyleDesc = "settings_hud_style_desc"
+    tkSettingsHudStyleModern = "settings_hud_style_modern"
+    tkSettingsHudStyleLegacy = "settings_hud_style_legacy"
     tkSettingsShowEnemyLabels = "settings_show_enemy_labels"
-    tkSettingsShowEnemyLabelsDesc = "settings_show_enemy_labels_desc"
     tkSettingsExitConfirm = "settings_exit_confirm"
     tkSettingsExitConfirmDesc = "settings_exit_confirm_desc"
     tkSettingsLanguage = "settings_language"
@@ -107,10 +133,23 @@ type
     tkSettingsTabControls = "settings_tab_controls"
     tkSettingsTabGameplay = "settings_tab_gameplay"
     tkSettingsTabCinematics = "settings_tab_cinematics"
+    tkSettingsTabInterface = "settings_tab_interface"
 
     tkSettingsSectionStory = "settings_section_story"
     tkSettingsSectionModeIntros = "settings_section_mode_intros"
     tkSettingsSectionDisplay = "settings_section_display"
+    tkSettingsSectionScale = "settings_section_scale"
+    tkSettingsSectionHudElements = "settings_section_hud_elements"
+    tkSettingsUiScale = "settings_ui_scale"
+    tkSettingsUiScaleDesc = "settings_ui_scale_desc"
+    tkSettingsUiScaleSmall = "settings_ui_scale_small"
+    tkSettingsUiScaleDefault = "settings_ui_scale_default"
+    tkSettingsUiScaleBig = "settings_ui_scale_big"
+    tkSettingsDamageNumbers = "settings_damage_numbers"
+    tkSettingsDamageNumbersDesc = "settings_damage_numbers_desc"
+    tkSettingsDamageNumberSize = "settings_damage_number_size"
+    tkSettingsScreenShake = "settings_screen_shake"
+    tkSettingsScreenShakeDesc = "settings_screen_shake_desc"
     tkSettingsSectionVolumeControl = "settings_section_volume_control"
     tkSettingsSectionInputMethod = "settings_section_input_method"
     tkSettingsSectionAssistance = "settings_section_assistance"
@@ -147,6 +186,8 @@ type
     tkLoreControlsFF = "lore_controls_ff"
     tkLoreControlsFFActive = "lore_controls_ff_active"
     tkLoreControlsTouch = "lore_controls_touch"
+    tkLoreControlsPad = "lore_controls_pad"
+    tkLoreControlsPadActive = "lore_controls_pad_active"
     tkLoreRecBreach = "lore_rec_breach"
     tkLoreRecSwarm = "lore_rec_swarm"
     tkLoreRecAwaken = "lore_rec_awaken"
@@ -165,6 +206,12 @@ type
     tkLoreCounter2 = "lore_counter_2"
     tkLoreDirectiveTitle = "lore_directive_title"
     tkLoreDirectiveSub = "lore_directive_sub"
+    tkLoreBreachAlert = "lore_breach_alert"
+    tkLoreContainment = "lore_containment"
+    tkLoreBoot1 = "lore_boot_1"
+    tkLoreBoot2 = "lore_boot_2"
+    tkLoreBoot3 = "lore_boot_3"
+    tkLoreServicesHijacked = "lore_services_hijacked"
 
     # Endgame / Outro Cinematic
     tkEndTitleCardSub = "end_title_card_sub"
@@ -289,15 +336,21 @@ type
     tkGameOverResourcesCollected = "game_over_resources_collected"
     tkGameOverMissionDuration = "game_over_mission_duration"
     tkGameOverContinue = "game_over_continue"
+    tkGameOverContinueSector = "game_over_continue_sector"
+    tkGameOverContinueClock = "game_over_continue_clock"  # + survival clock "5:00" + ")"
+    tkGameOverShopCurrencyBanked = "game_over_shop_currency_banked"
 
-    # Restore points -- the player-facing name for the wave-mode lives budget
-    # (see difficultyMaxLives). A "life" here is a saved system state that
-    # Continue restores off disk, so the UI calls it what it is.
+    # Restore points -- the player-facing name for the lives budget of wave
+    # mode, the roguelite and Time Survival (see difficultyMaxLives). A "life"
+    # here is a saved system state that Continue restores off disk, so the UI
+    # calls it what it is.
     tkRestorePointsLabel = "restore_points_label"
     tkRestorePointsUnlimited = "restore_points_unlimited"
     tkRestorePointsNone = "restore_points_none"
     tkRestorePointsLast = "restore_points_last"
     tkRestorePointLost = "restore_point_lost"
+    tkRestorePointsEndless = "restore_points_endless"
+    tkRestorePointsOvertime = "restore_points_overtime"
     tkGameOverCriticalFailure = "game_over_critical_failure"
     tkGameOverErrorMsg = "game_over_error_msg"
     tkGameOverSessionDiagnostics = "game_over_session_diagnostics"
@@ -334,17 +387,16 @@ type
     tkDeathBossTag = "death_boss_tag"
 
     # HUD/Notifications
-    tkHUDSystemStatus = "hud_system_status"
-    tkHUDIntegrity = "hud_integrity"
-    tkHUDCharges = "hud_charges"
     tkHUDProcesses = "hud_processes"
-    tkHUDCache = "hud_cache"
-    tkHUDPerformance = "hud_performance"
-    tkHUDWave = "hud_wave"
-    tkHUDUptime = "hud_uptime"
-    tkHUDThreats = "hud_threats"
     tkHUDDash = "hud_dash"
     tkHUDDashReady = "hud_dash_ready"
+    tkHUDMore = "hud_more"
+    tkHUDBossWave = "hud_boss_wave"
+    tkHUDBossInWaves = "hud_boss_in_waves"
+    tkHUDKeyWall = "hud_key_wall"
+    tkHUDKeyDash = "hud_key_dash"
+    tkHUDKeyAbility = "hud_key_ability"
+    tkHUDKeyPause = "hud_key_pause"
 
     # Debug Panel
     tkDebugPanelDiagnostics = "debug_panel_diagnostics"
@@ -376,7 +428,6 @@ type
     tkShopClickEquip = "shop_click_equip"
     tkShopWindowTitle = "shop_window_title"
     tkShopEquipped = "shop_equipped"
-    tkShopCurrentlyEquipped = "shop_currently_equipped"
     tkShopCustomizeAppearance = "shop_customize_appearance"
     tkShopCustomizeBullets = "shop_customize_bullets"
     tkShopChooseShape = "shop_choose_shape"
@@ -514,7 +565,27 @@ type
     tkHelpCmdEnemies = "help_cmd_enemies"
     tkHelpCmdBosses = "help_cmd_bosses"
     tkHelpCmdShop = "help_cmd_shop"
+    tkHelpCmdLore = "help_cmd_lore"
+    tkHelpCmdLicenses = "help_cmd_licenses"
+    tkHelpLicensesIntro = "help_licenses_intro"
     tkHelpCmdLaunchIcons = "help_cmd_launch_icons"
+
+    # Help System - Incident archive ("lore" command)
+    tkHelpLoreTopic = "help_lore_topic"
+    tkHelpLoreIntro = "help_lore_intro"
+    tkHelpLoreAct1Title = "help_lore_act1_title"
+    tkHelpLoreAct1Body = "help_lore_act1_body"
+    tkHelpLoreAct2Title = "help_lore_act2_title"
+    tkHelpLoreAct2Body = "help_lore_act2_body"
+    tkHelpLoreAct2Hint = "help_lore_act2_hint"
+    tkHelpLoreAct3Title = "help_lore_act3_title"
+    tkHelpLoreAct3Body = "help_lore_act3_body"
+    tkHelpLoreAct3Hint = "help_lore_act3_hint"
+    tkHelpLoreAct4Title = "help_lore_act4_title"
+    tkHelpLoreAct4Body = "help_lore_act4_body"
+    tkHelpLoreAct4Hint = "help_lore_act4_hint"
+    tkHelpLoreEncrypted = "help_lore_encrypted"
+    tkHelpLoreFooter = "help_lore_footer"
 
     # Help System - Controls section
     tkHelpMovement = "help_movement"
@@ -571,7 +642,6 @@ type
     tkHelpAvailableBetweenWaves = "help_available_between_waves"
 
     # Game Notifications and UI
-    tkGameWaveAnnouncementMain = "game_wave_announcement_main"
     tkGameInstructionsWall = "game_instructions_wall"
     tkGameWallPlace = "game_wall_place"
     tkGameWallPlaceTouch = "game_wall_place_touch"
@@ -581,7 +651,6 @@ type
     tkGameNoPreviousRun = "game_no_previous_run"
     tkGameCompleteGameStats = "game_complete_game_stats"
     tkGameNoPowerUpData = "game_no_power_up_data"
-    tkGameBestStreak = "game_best_streak"
 
     # Stats Window
     tkStatsDamageColumnLabel = "stats_damage_column_label"
@@ -959,7 +1028,6 @@ type
     tkLoadingGeneratingMusic = "loading_generating_music"
     tkLoadingComplete = "loading_complete"
     tkLoadingHint = "loading_hint"
-    tkLoadingCached = "loading_cached"
     tkLoadingLoadingSounds = "loading_loading_sounds"
     tkLoadingStageSfx = "loading_stage_sfx"
     tkLoadingStageMusic = "loading_stage_music"
@@ -969,13 +1037,12 @@ type
 
     # Cheat Menu Buttons
     tkCheatCloseInstruction = "cheat_close_instruction"
+    tkCheatNoPermanentRewards = "cheat_no_permanent_rewards"
     tkCheatShowingItems = "cheat_showing_items"
 
     # OS Task Manager / System Monitoring
     tkOSRunningProcesses = "os_running_processes"
     tkOSNoActiveProcesses = "os_no_active_processes"
-    tkOSProcessName = "os_process_name"
-    tkOSVersion = "os_version"
     tkOSStatus = "os_status"
     tkOSSystemPerformance = "os_system_performance"
     tkOSSystemManager = "os_system_manager"
@@ -989,8 +1056,6 @@ type
     tkOSEdition = "os_edition"
     tkOSTopHatButton = "os_tophat_button"
 
-    # Enemy Labels
-    tkEnemyActiveThreats = "enemy_active_threats"
 
     # PvP Lobby
     tkPvPTitle = "pvp_title"
@@ -1064,6 +1129,72 @@ type
     tkPvPTeamPurple = "pvp_team_purple"
     tkPvPTeamNone = "pvp_team_none"
 
+    # PvP arena packages (ports & pickups)
+    tkPvPPkgChkdsk = "pvp_pkg_chkdsk"
+    tkPvPPkgFirewall = "pvp_pkg_firewall"
+    tkPvPPkgTurbo = "pvp_pkg_turbo"
+    tkPvPPkgOverclock = "pvp_pkg_overclock"
+    tkPvPPkgFork = "pvp_pkg_fork"
+    tkPvPPkgChkdskBlurb = "pvp_pkg_chkdsk_blurb"
+    tkPvPPkgFirewallBlurb = "pvp_pkg_firewall_blurb"
+    tkPvPPkgTurboBlurb = "pvp_pkg_turbo_blurb"
+    tkPvPPkgOverclockBlurb = "pvp_pkg_overclock_blurb"
+    tkPvPPkgForkBlurb = "pvp_pkg_fork_blurb"
+    tkPvPPortIncoming = "pvp_port_incoming"
+    tkPvPStatPackages = "pvp_stat_packages"
+    tkPvPValueOn = "pvp_value_on"
+
+    # PvP callouts (kill streaks / multi-kills)
+    tkPvPCallFirstBlood = "pvp_call_first_blood"
+    tkPvPCallDouble = "pvp_call_double"
+    tkPvPCallTriple = "pvp_call_triple"
+    tkPvPCallStreak3 = "pvp_call_streak3"
+    tkPvPCallStreak5 = "pvp_call_streak5"
+    tkPvPCallStreak7 = "pvp_call_streak7"
+    tkPvPCallShutdown = "pvp_call_shutdown"
+
+    # PvP in-match HUD
+    tkPvPFeedLeft = "pvp_feed_left"
+    tkPvPTerminatedBy = "pvp_terminated_by"
+    tkPvPRespawningIn = "pvp_respawning_in"
+    tkPvPWallsLabel = "pvp_walls_label"
+    tkPvPPlaceMode = "pvp_place_mode"
+    tkPvPYouMarker = "pvp_you_marker"
+    tkPvPHintWall = "pvp_hint_wall"
+    tkPvPHintScores = "pvp_hint_scores"
+
+    # PvP scoreboard / match end
+    tkPvPBoardTitle = "pvp_board_title"
+    tkPvPBoardPlayer = "pvp_board_player"
+    tkPvPBoardKills = "pvp_board_kills"
+    tkPvPBoardDeaths = "pvp_board_deaths"
+    tkPvPBoardStreak = "pvp_board_streak"
+    tkPvPBoardBest = "pvp_board_best"
+    tkPvPBoardAcc = "pvp_board_acc"
+    tkPvPBoardDmg = "pvp_board_dmg"
+    tkPvPAwardSharpshooter = "pvp_award_sharpshooter"
+    tkPvPAwardSharpshooterDesc = "pvp_award_sharpshooter_desc"
+    tkPvPAwardUnkillable = "pvp_award_unkillable"
+    tkPvPAwardUnkillableDesc = "pvp_award_unkillable_desc"
+    tkPvPAwardHoarder = "pvp_award_hoarder"
+    tkPvPAwardHoarderDesc = "pvp_award_hoarder_desc"
+    tkPvPAwardUptime = "pvp_award_uptime"
+    tkPvPAwardUptimeDesc = "pvp_award_uptime_desc"
+    tkPvPResultWin = "pvp_result_win"
+    tkPvPResultLose = "pvp_result_lose"
+    tkPvPResultDraw = "pvp_result_draw"
+    tkPvPResultTeamWin = "pvp_result_team_win"
+    tkPvPResultTeamOther = "pvp_result_team_other"
+    tkPvPEndTimeLimit = "pvp_end_time_limit"
+    tkPvPEndOpponentDisconnected = "pvp_end_opponent_disconnected"
+    tkPvPEndOpponentForfeited = "pvp_end_opponent_forfeited"
+    tkPvPEndLastStanding = "pvp_end_last_standing"
+    tkPvPEndHostLeft = "pvp_end_host_left"
+    tkPvPPromptRematch = "pvp_prompt_rematch"
+    tkPvPPromptLeave = "pvp_prompt_leave"
+    tkPvPWaitingHost = "pvp_waiting_host"
+    tkPvPRematchNeedsPlayers = "pvp_rematch_needs_players"
+
     # Play Styles
     tkStatsPlayStyleAggressive = "stats_play_style_aggressive"
     tkStatsPlayStyleDefensive = "stats_play_style_defensive"
@@ -1090,6 +1221,7 @@ type
     tkConfirmExitBtn = "confirm_exit_btn"
     tkConfirmCheckpointTitle = "confirm_checkpoint_title"
     tkConfirmCheckpointRestartBody = "confirm_checkpoint_restart_body"
+    tkConfirmCheckpointNewRunBody = "confirm_checkpoint_new_run_body"
     tkConfirmCheckpointSub = "confirm_checkpoint_sub"
     tkConfirmRestartBtn = "confirm_restart_btn"
 
@@ -1102,11 +1234,6 @@ type
     tkWaveCelebCoins = "wave_celeb_coins"
     tkWaveCelebMaxCombo = "wave_celeb_max_combo"
 
-    # Real-time stats overlay (d_enhancements)
-    tkRealStatsPower = "real_stats_power"
-    tkRealStatsDPS = "real_stats_dps"
-    tkRealStatsKills = "real_stats_kills"
-    tkRealStatsCPM = "real_stats_cpm"
 
     # Combo display (d_visuals)
     tkComboInsane = "combo_insane"
@@ -1117,12 +1244,6 @@ type
     tkComboPerfectStreak = "combo_perfect_streak"
     tkComboCoins = "combo_coins"
 
-    # Micro-reward popups & wave-stats
-    tkMassacreBonus = "massacre_bonus"
-    tkWaveStatsFlawless = "wave_stats_flawless"
-    tkWaveStatsTitle = "wave_stats_title"
-    tkWaveStatsKillsLabel = "wave_stats_kills_label"
-    tkWaveStatsTimeLabel = "wave_stats_time_label"
 
     # 3D Boss Game HUD
     tkGame3DHp = "game3d_hp"
@@ -1180,6 +1301,38 @@ type
     tkEnemyMageName = "enemy_mage_name"
     tkEnemyMageDesc = "enemy_mage_desc"
 
+    # Survival and Roguelite rosters
+    tkEnemyThreadName = "enemy_thread_name"
+    tkEnemyThreadDesc = "enemy_thread_desc"
+    tkEnemyForkBombName = "enemy_fork_bomb_name"
+    tkEnemyForkBombDesc = "enemy_fork_bomb_desc"
+    tkEnemyWatchdogName = "enemy_watchdog_name"
+    tkEnemyWatchdogDesc = "enemy_watchdog_desc"
+    tkEnemyZombieName = "enemy_zombie_name"
+    tkEnemyZombieDesc = "enemy_zombie_desc"
+    tkEnemyDeadlockName = "enemy_deadlock_name"
+    tkEnemyDeadlockDesc = "enemy_deadlock_desc"
+    tkEnemyDaemonName = "enemy_daemon_name"
+    tkEnemyDaemonDesc = "enemy_daemon_desc"
+    tkEnemyInterruptName = "enemy_interrupt_name"
+    tkEnemyInterruptDesc = "enemy_interrupt_desc"
+    tkEnemyFragmentName = "enemy_fragment_name"
+    tkEnemyFragmentDesc = "enemy_fragment_desc"
+    tkEnemyPortGuardName = "enemy_port_guard_name"
+    tkEnemyPortGuardDesc = "enemy_port_guard_desc"
+    tkEnemySentryName = "enemy_sentry_name"
+    tkEnemySentryDesc = "enemy_sentry_desc"
+    tkEnemyMimicName = "enemy_mimic_name"
+    tkEnemyMimicDesc = "enemy_mimic_desc"
+    tkEnemyRestorerName = "enemy_restorer_name"
+    tkEnemyRestorerDesc = "enemy_restorer_desc"
+    tkEnemyPacketName = "enemy_packet_name"
+    tkEnemyPacketDesc = "enemy_packet_desc"
+    tkEnemyDriverName = "enemy_driver_name"
+    tkEnemyDriverDesc = "enemy_driver_desc"
+    tkEnemyCorruptorName = "enemy_corruptor_name"
+    tkEnemyCorruptorDesc = "enemy_corruptor_desc"
+
     # Boss Names and Descriptions
     tkBoss1Name = "boss_1_name"
     tkBoss1Desc = "boss_1_desc"
@@ -1205,6 +1358,56 @@ type
     tkBoss11Desc = "boss_11_desc"
     tkBoss12Name = "boss_12_name"
     tkBoss12Desc = "boss_12_desc"
+
+    # Survival bosses (13-15, 16 = Omega survival kit) and Roguelite
+    # guardians (17-22, 23 = Omega roguelite kit). The Omega kits reuse
+    # boss 12's name.
+    tkBoss13Name = "boss_13_name"
+    tkBoss13Desc = "boss_13_desc"
+    tkBoss14Name = "boss_14_name"
+    tkBoss14Desc = "boss_14_desc"
+    tkBoss15Name = "boss_15_name"
+    tkBoss15Desc = "boss_15_desc"
+    tkBoss16Desc = "boss_16_desc"
+    tkBoss17Name = "boss_17_name"
+    tkBoss17Desc = "boss_17_desc"
+    tkBoss18Name = "boss_18_name"
+    tkBoss18Desc = "boss_18_desc"
+    tkBoss19Name = "boss_19_name"
+    tkBoss19Desc = "boss_19_desc"
+    tkBoss20Name = "boss_20_name"
+    tkBoss20Desc = "boss_20_desc"
+    tkBoss21Name = "boss_21_name"
+    tkBoss21Desc = "boss_21_desc"
+    tkBoss22Name = "boss_22_name"
+    tkBoss22Desc = "boss_22_desc"
+    tkBoss23Desc = "boss_23_desc"
+
+    # Boss lore: the TOPHAT system service the Root hijacked to make each boss
+    # (boss 12 is the Root itself). Shown on the boss intro card and in Help.
+    tkBossTagService = "boss_tag_service"
+    tkBossTagHijacker = "boss_tag_hijacker"
+    tkBoss1Process = "boss_1_process"
+    tkBoss2Process = "boss_2_process"
+    tkBoss3Process = "boss_3_process"
+    tkBoss4Process = "boss_4_process"
+    tkBoss5Process = "boss_5_process"
+    tkBoss6Process = "boss_6_process"
+    tkBoss7Process = "boss_7_process"
+    tkBoss8Process = "boss_8_process"
+    tkBoss9Process = "boss_9_process"
+    tkBoss10Process = "boss_10_process"
+    tkBoss11Process = "boss_11_process"
+    tkBoss12Process = "boss_12_process"
+    tkBoss13Process = "boss_13_process"
+    tkBoss14Process = "boss_14_process"
+    tkBoss15Process = "boss_15_process"
+    tkBoss17Process = "boss_17_process"
+    tkBoss18Process = "boss_18_process"
+    tkBoss19Process = "boss_19_process"
+    tkBoss20Process = "boss_20_process"
+    tkBoss21Process = "boss_21_process"
+    tkBoss22Process = "boss_22_process"
 
     # Boss phase names (shown in the boss threat panel)
     tkBoss1Phase1 = "boss_1_phase_1"
@@ -1242,6 +1445,41 @@ type
     tkBoss12Phase2 = "boss_12_phase_2"
     tkBoss12Phase3 = "boss_12_phase_3"
     tkBoss12Phase4 = "boss_12_phase_4"
+    tkBoss13Phase1 = "boss_13_phase_1"
+    tkBoss13Phase2 = "boss_13_phase_2"
+    tkBoss13Phase3 = "boss_13_phase_3"
+    tkBoss14Phase1 = "boss_14_phase_1"
+    tkBoss14Phase2 = "boss_14_phase_2"
+    tkBoss14Phase3 = "boss_14_phase_3"
+    tkBoss15Phase1 = "boss_15_phase_1"
+    tkBoss15Phase2 = "boss_15_phase_2"
+    tkBoss15Phase3 = "boss_15_phase_3"
+    tkBoss16Phase1 = "boss_16_phase_1"
+    tkBoss16Phase2 = "boss_16_phase_2"
+    tkBoss16Phase3 = "boss_16_phase_3"
+    tkBoss16Phase4 = "boss_16_phase_4"
+    tkBoss17Phase1 = "boss_17_phase_1"
+    tkBoss17Phase2 = "boss_17_phase_2"
+    tkBoss17Phase3 = "boss_17_phase_3"
+    tkBoss18Phase1 = "boss_18_phase_1"
+    tkBoss18Phase2 = "boss_18_phase_2"
+    tkBoss18Phase3 = "boss_18_phase_3"
+    tkBoss19Phase1 = "boss_19_phase_1"
+    tkBoss19Phase2 = "boss_19_phase_2"
+    tkBoss19Phase3 = "boss_19_phase_3"
+    tkBoss20Phase1 = "boss_20_phase_1"
+    tkBoss20Phase2 = "boss_20_phase_2"
+    tkBoss20Phase3 = "boss_20_phase_3"
+    tkBoss21Phase1 = "boss_21_phase_1"
+    tkBoss21Phase2 = "boss_21_phase_2"
+    tkBoss21Phase3 = "boss_21_phase_3"
+    tkBoss22Phase1 = "boss_22_phase_1"
+    tkBoss22Phase2 = "boss_22_phase_2"
+    tkBoss22Phase3 = "boss_22_phase_3"
+    tkBoss23Phase1 = "boss_23_phase_1"
+    tkBoss23Phase2 = "boss_23_phase_2"
+    tkBoss23Phase3 = "boss_23_phase_3"
+    tkBoss23Phase4 = "boss_23_phase_4"
 
     # Common
     tkCommonOn = "common_on"
@@ -1255,7 +1493,22 @@ type
     tkBossThreatLocked = "boss_threat_locked"
     tkBossPhaseFirewall = "boss_phase_firewall"
     tkEnemySealedClearAdds = "enemy_sealed_clear_adds"
+    tkEnemySealedSlayGuards = "enemy_sealed_slay_guards"
     tkEnemyOverloadHoldFire = "enemy_overload_hold_fire"
+
+    # Survival / Roguelite roster: tags, boss objective hints, signature-attack
+    # banners and Help roster headers
+    tkBossTagFloodSpawn = "boss_tag_flood_spawn"
+    tkBossTagLegacy = "boss_tag_legacy"
+    tkEnemySealedCutChildren = "enemy_sealed_cut_children"
+    tkModeAuditLocked = "mode_audit_locked"
+    tkModeAuditBreach = "mode_audit_breach"
+    tkModeSafeMode = "mode_safe_mode"
+    tkModeRestorePoint = "mode_restore_point"
+    tkModeLastKnownGood = "mode_last_known_good"
+    tkHelpRosterWave = "help_roster_wave"
+    tkHelpRosterSurvival = "help_roster_survival"
+    tkHelpRosterRoguelite = "help_roster_roguelite"
 
     # Sandbox power-up visuals tab
     tkSandboxPowerupVisuals = "sandbox_powerup_visuals"
@@ -1314,14 +1567,16 @@ type
     tkAdvCategoryLabel = "adv_category_label"
 
     # Stats window (untranslated leftovers)
-    tkStatsHealingSources = "stats_healing_sources"
     tkStatsHealthConsumable = "stats_health_consumable"
+    tkStatsLevelUpHealing = "stats_levelup_healing"
     tkStatsNoHealingData = "stats_no_healing_data"
     tkStatsTotalEarned = "stats_total_earned"
     tkStatsHealingRanking = "stats_healing_ranking"
     tkStatsHealingColumnLabel = "stats_healing_column_label"
     tkStatsSourceColumnLabel = "stats_source_column_label"
     tkStatsTotalHealed = "stats_total_healed"
+    tkStatsOverheal = "stats_overheal"
+    tkStatsHealedLabel = "stats_healed_label"
 
     # Desktop
     tkDesktopNet = "desktop_net"
@@ -1347,10 +1602,6 @@ type
     tkCheatConsDoubleCoin = "cheat_cons_double_coin"
     tkCheatConsLifesteal = "cheat_cons_lifesteal"
 
-    # Comeback mechanic
-    tkComebackBonusActive = "comeback_bonus_active"
-    tkComebackBonusUntil = "comeback_bonus_until"
-
     # Mode intro cutscenes: wave-based
     tkModeIntroWaveTitle = "mode_intro_wave_title"
     tkModeIntroWaveRec1  = "mode_intro_wave_rec1"
@@ -1359,6 +1610,7 @@ type
     tkModeIntroWaveRec2  = "mode_intro_wave_rec2"
     tkModeIntroWave2a    = "mode_intro_wave_2a"
     tkModeIntroWave2b    = "mode_intro_wave_2b"
+    tkModeIntroWaveRoster = "mode_intro_wave_roster"
 
     # Mode intro cutscenes: time survival
     tkModeIntroSurvTitle = "mode_intro_surv_title"
@@ -1368,6 +1620,8 @@ type
     tkModeIntroSurvRec2  = "mode_intro_surv_rec2"
     tkModeIntroSurv2a    = "mode_intro_surv_2a"
     tkModeIntroSurv2b    = "mode_intro_surv_2b"
+    tkModeIntroSurvUptime = "mode_intro_surv_uptime"
+    tkModeIntroSurvLogHeld = "mode_intro_surv_log_held"
 
     # Mode intro cutscenes: roguelite
     tkModeIntroRogueTitle = "mode_intro_rogue_title"
@@ -1377,12 +1631,21 @@ type
     tkModeIntroRogueRec2  = "mode_intro_rogue_rec2"
     tkModeIntroRogue2a    = "mode_intro_rogue_2a"
     tkModeIntroRogue2b    = "mode_intro_rogue_2b"
+    tkModeIntroRogueSector = "mode_intro_rogue_sector"
 
     # Mode intro cutscenes: sandbox
     tkModeIntroSandboxTitle = "mode_intro_sandbox_title"
     tkModeIntroSandboxRec1  = "mode_intro_sandbox_rec1"
     tkModeIntroSandbox1a    = "mode_intro_sandbox_1a"
     tkModeIntroSandbox1b    = "mode_intro_sandbox_1b"
+    tkModeIntroSandboxTerm1 = "mode_intro_sandbox_term_1"
+    tkModeIntroSandboxTerm2 = "mode_intro_sandbox_term_2"
+    tkModeIntroSandboxTerm3 = "mode_intro_sandbox_term_3"
+    tkModeIntroSandboxTerm4 = "mode_intro_sandbox_term_4"
+    tkModeIntroSandboxTerm5 = "mode_intro_sandbox_term_5"
+    tkModeIntroSandboxRec2  = "mode_intro_sandbox_rec2"
+    tkModeIntroSandbox2a    = "mode_intro_sandbox_2a"
+    tkModeIntroSandbox2b    = "mode_intro_sandbox_2b"
 
     # Mode intro cutscenes: pvp
     tkModeIntroPvPTitle = "mode_intro_pvp_title"
@@ -1392,6 +1655,9 @@ type
     tkModeIntroPvPRec2  = "mode_intro_pvp_rec2"
     tkModeIntroPvP2a    = "mode_intro_pvp_2a"
     tkModeIntroPvP2b    = "mode_intro_pvp_2b"
+    tkModeIntroPvPRec3  = "mode_intro_pvp_rec3"
+    tkModeIntroPvP3a    = "mode_intro_pvp_3a"
+    tkModeIntroPvP3b    = "mode_intro_pvp_3b"
     # Mode-exclusive power-up names
     tkPowerupGlitchField    = "powerup_glitch_field"
     tkPowerupTimeSurge      = "powerup_time_surge"
@@ -1442,12 +1708,157 @@ type
     tkPowerupChainReactionDesc2     = "powerup_chain_reaction_desc2"
     tkPowerupChainReactionDesc3     = "powerup_chain_reaction_desc3"
     tkPowerupKernelExploitDesc      = "powerup_kernel_exploit_desc"
-    tkPowerupDataHarvest        = "powerup_data_harvest"
+    tkPowerupDataHarvest            = "powerup_data_harvest"
     tkPowerupDataHarvestDesc1       = "powerup_data_harvest_desc1"
     tkPowerupDataHarvestDesc2       = "powerup_data_harvest_desc2"
     tkPowerupDataHarvestDesc3       = "powerup_data_harvest_desc3"
     # Discovery banner
     tkNewProcessInstalled = "new_process_installed"
+    # First-run tutorial (ORIENTATION.EXE). Bodies carry {placeholders} that
+    # the overlay swaps for the player's live bindings, drawn as keycaps.
+    tkTutorialHeader = "tutorial_header"
+    tkTutorialMoveTitle = "tutorial_move_title"
+    tkTutorialMoveBody = "tutorial_move_body"
+    tkTutorialFireTitle = "tutorial_fire_title"
+    tkTutorialFireBodyKb = "tutorial_fire_body_kb"
+    tkTutorialFireBodyPad = "tutorial_fire_body_pad"
+    tkTutorialDashTitle = "tutorial_dash_title"
+    tkTutorialDashBody = "tutorial_dash_body"
+    tkTutorialTargetsTitle = "tutorial_targets_title"
+    tkTutorialTargetsBody = "tutorial_targets_body"
+    tkTutorialTargetsCount = "tutorial_targets_count"
+    tkTutorialLootTitle = "tutorial_loot_title"
+    tkTutorialLootBody = "tutorial_loot_body"
+    tkTutorialStatusTitle = "tutorial_status_title"
+    tkTutorialStatusBody = "tutorial_status_body"
+    tkTutorialWallsTitle = "tutorial_walls_title"
+    tkTutorialWallsBody = "tutorial_walls_body"
+    tkTutorialSettingsTitle = "tutorial_settings_title"
+    tkTutorialSettingsBody = "tutorial_settings_body"
+    tkTutorialReadyTitle = "tutorial_ready_title"
+    tkTutorialReadyBody = "tutorial_ready_body"
+    tkTutorialYou = "tutorial_you"
+    tkTutorialDone = "tutorial_done"
+    tkTutorialNext = "tutorial_next"
+    tkTutorialStartWave = "tutorial_start_wave"
+    tkTutorialFinish = "tutorial_finish"
+    tkTutorialHoldSkip = "tutorial_hold_skip"
+    tkTutorialKeyLeftClick = "tutorial_key_left_click"
+    tkTutorialKeyLeftStick = "tutorial_key_left_stick"
+    tkTutorialKeyRightStick = "tutorial_key_right_stick"
+    tkTutorialLaunching = "tutorial_launching"
+    tkTutorialPracticeComplete = "tutorial_practice_complete"
+    tkSettingsTutorial = "settings_tutorial"
+    tkSettingsReplayTutorial = "settings_replay_tutorial"
+    tkSettingsReplayTutorialDesc = "settings_replay_tutorial_desc"
+    tkSettingsReplayTutorialLocked = "settings_replay_tutorial_locked"
+
+    # Time Survival: phases, System Events, Data Caches, victory
+    tkSurvivalPhaseBoot = "survival_phase_boot"
+    tkSurvivalPhaseRuntime = "survival_phase_runtime"
+    tkSurvivalPhaseOverload = "survival_phase_overload"
+    tkSurvivalPhaseKernelPanic = "survival_phase_kernel_panic"
+    tkSurvivalPhaseOvertime = "survival_phase_overtime"
+    tkSurvivalPhaseBootDesc = "survival_phase_boot_desc"
+    tkSurvivalPhaseRuntimeDesc = "survival_phase_runtime_desc"
+    tkSurvivalPhaseOverloadDesc = "survival_phase_overload_desc"
+    tkSurvivalPhaseKernelPanicDesc = "survival_phase_kernel_panic_desc"
+    tkSurvivalPhaseOvertimeDesc = "survival_phase_overtime_desc"
+    tkSurvivalPhaseBanner = "survival_phase_banner"
+    tkSurvivalHudBossIn = "survival_hud_boss_in"
+    tkSurvivalHudFinalIn = "survival_hud_final_in"
+    tkSurvivalHudBossLive = "survival_hud_boss_live"
+    tkSurvivalBossInbound = "survival_boss_inbound"
+    tkSurvivalFinalInbound = "survival_final_inbound"
+    tkSurvivalBossInboundSub = "survival_boss_inbound_sub"
+    tkSurvivalEventMemoryLeak = "survival_event_memory_leak"
+    tkSurvivalEventMemoryLeakHint = "survival_event_memory_leak_hint"
+    tkSurvivalEventFirewallBreach = "survival_event_firewall_breach"
+    tkSurvivalEventFirewallBreachHint = "survival_event_firewall_breach_hint"
+    tkSurvivalEventUploadZone = "survival_event_upload_zone"
+    tkSurvivalEventUploadZoneHint = "survival_event_upload_zone_hint"
+    tkSurvivalEventCorruptedSector = "survival_event_corrupted_sector"
+    tkSurvivalEventCorruptedSectorHint = "survival_event_corrupted_sector_hint"
+    tkSurvivalEventRogueProcess = "survival_event_rogue_process"
+    tkSurvivalEventRogueProcessHint = "survival_event_rogue_process_hint"
+    tkSurvivalEventOverclock = "survival_event_overclock"
+    tkSurvivalEventOverclockHint = "survival_event_overclock_hint"
+    tkSurvivalEventCleared = "survival_event_cleared"
+    tkSurvivalEventFailed = "survival_event_failed"
+    tkSurvivalRogueEscaped = "survival_rogue_escaped"
+    tkSurvivalTrackerRemaining = "survival_tracker_remaining"
+    tkSurvivalTrackerPurged = "survival_tracker_purged"
+    tkSurvivalTrackerUploaded = "survival_tracker_uploaded"
+    tkSurvivalTrackerSurvive = "survival_tracker_survive"
+    tkSurvivalTrackerIncoming = "survival_tracker_incoming"
+    tkSurvivalTrackerXpBoost = "survival_tracker_xp_boost"
+    tkSurvivalCacheMinor = "survival_cache_minor"
+    tkSurvivalCacheStandard = "survival_cache_standard"
+    tkSurvivalCacheRare = "survival_cache_rare"
+    tkSurvivalCacheKernel = "survival_cache_kernel"
+    tkSurvivalCacheDecrypted = "survival_cache_decrypted"
+    tkSurvivalCacheNew = "survival_cache_new"
+    tkSurvivalCacheLevel = "survival_cache_level"
+    tkSurvivalCacheLegendary = "survival_cache_legendary"
+    tkSurvivalCacheWalls = "survival_cache_walls"
+    tkSurvivalCacheRepair = "survival_cache_repair"
+    tkSurvivalCacheContinue = "survival_cache_continue"
+    tkSurvivalVictoryTitle = "survival_victory_title"
+    tkSurvivalVictorySubtitle = "survival_victory_subtitle"
+    tkSurvivalVictoryStatus = "survival_victory_status"
+    tkSurvivalVictoryOvertime = "survival_victory_overtime"
+    tkSurvivalVictoryEndRun = "survival_victory_end_run"
+    tkSurvivalVictoryFooter = "survival_victory_footer"
+    tkSurvivalTimeSurvived = "survival_time_survived"
+    tkSurvivalPhaseReached = "survival_phase_reached"
+    tkSurvivalEventsCaches = "survival_events_caches"
+
+    # Mods (MODS.EXE)
+    tkModdedBadge = "modded_badge"
+    tkModdedNoRewards = "modded_no_rewards"
+    tkDesktopIconMods = "desktop_icon_mods"
+    tkModsWindowTitle = "mods_window_title"
+    tkModsTabInstalled = "mods_tab_installed"
+    tkModsTabModes = "mods_tab_modes"
+    tkModsTabLog = "mods_tab_log"
+    tkModsTabApps = "mods_tab_apps"
+    tkModsNoApps = "mods_no_apps"
+    tkModsCheatBanner = "mods_cheat_banner"
+    tkModsApply = "mods_apply"
+    tkModsOpenFolder = "mods_open_folder"
+    tkModsInstallExamples = "mods_install_examples"
+    tkModsEmpty = "mods_empty"
+    tkModsEmptyHint = "mods_empty_hint"
+    tkModsStatusLoaded = "mods_status_loaded"
+    tkModsStatusDisabled = "mods_status_disabled"
+    tkModsStatusError = "mods_status_error"
+    tkModsStatusMissingDep = "mods_status_missing_dep"
+    tkModsStatusInvalid = "mods_status_invalid"
+    tkModsStatusDuplicate = "mods_status_duplicate"
+    tkModsStatusWillLoad = "mods_status_will_load"
+    tkModsStatusWillUnload = "mods_status_will_unload"
+    tkModsBy = "mods_by"
+    tkModsRequires = "mods_requires"
+    tkModsFolder = "mods_folder"
+    tkModsPending = "mods_pending"
+    tkModsNoModes = "mods_no_modes"
+    tkModsLaunch = "mods_launch"
+    tkModsContinue = "mods_continue"
+    tkModsBaseMode = "mods_base_mode"
+    tkModsFromMod = "mods_from_mod"
+    tkModsLogEmpty = "mods_log_empty"
+    tkModsReloadedToast = "mods_reloaded_toast"
+    tkModsSummaryLoaded = "mods_summary_loaded"
+    tkModsSummaryFailed = "mods_summary_failed"
+    tkModsExamplesInstalled = "mods_examples_installed"
+    tkModsExamplesFailed = "mods_examples_failed"
+    tkModsTabCosmetics = "mods_tab_cosmetics"
+    tkModsNoCosmetics = "mods_no_cosmetics"
+    tkModsEquip = "mods_equip"
+    tkModsUnequip = "mods_unequip"
+    tkModsKindPlayer = "mods_kind_player"
+    tkModsKindBullet = "mods_kind_bullet"
+    tkModsKindDesktop = "mods_kind_desktop"
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -1463,10 +1874,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_sandbox": "LAB.exe",
     "desktop_icon_shop": "CHROMA.db",
     "desktop_icon_pvp": "DUELINK.exe",
-    "desktop_icon_roguelite": "ROOTMAP.db",
+    "desktop_icon_roguelite": "RECOVERY.exe",
     "desktop_icon_advancements": "ASCEND.db",
     "desktop_icon_changelog": "PATCHLOG.txt",
     "desktop_icon_credits": "CREDITS.nfo",
+    "desktop_icon_feedback": "FEEDBACK.exe",
 
     # Credits window
     "credits_window_title": "Credits - About",
@@ -1479,6 +1891,30 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "support_blurb": "TopHat-ShooterOS is free and open source. Support is optional and never gates any feature.",
     "support_note": "Links open in your browser.",
 
+    # Feedback window
+    "feedback_window_title": "Feedback - Report a Bug",
+    "feedback_intro": "Found a bug or have an idea? Write it here and send it straight to the project's issue tracker.",
+    "feedback_kind_bug": "Bug",
+    "feedback_kind_idea": "Idea",
+    "feedback_kind_other": "Other",
+    "feedback_title_label": "Title",
+    "feedback_title_hint": "A one-line summary",
+    "feedback_details_label": "Details",
+    "feedback_hint_bug": "What happened? What did you expect? How can it be reproduced?",
+    "feedback_hint_idea": "Describe your idea and how it would make the game better.",
+    "feedback_hint_other": "Anything you want to tell the developer.",
+    "feedback_attach_info": "Attach system info (version, OS, settings; nothing personal)",
+    "feedback_send": "Send on GitHub",
+    "feedback_copy": "Copy report",
+    "feedback_save": "Save to file",
+    "feedback_status_empty": "Write a title or some details first.",
+    "feedback_status_opened": "Opened in your browser. Review it there and submit it.",
+    "feedback_status_truncated": "Too long for a link: the full report was copied, paste it on the page.",
+    "feedback_status_copied": "Report copied to the clipboard.",
+    "feedback_status_saved": "Saved: $1",
+    "feedback_status_save_failed": "Could not save the report.",
+    "feedback_note": "Sending needs a free GitHub account. No account? Copy or save the report and share it however you like.",
+
     # Changelog window
     "changelog_window_title": "Patch Notes - Changelog",
     "changelog_header": "What's New",
@@ -1488,6 +1924,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "changelog_cat_improved": "Improvements",
     "changelog_cat_balance": "Balance",
     "changelog_cat_fixed": "Fixes",
+    "changelog_legacy_view": "Legacy view (all versions on one page)",
 
     # Settings
     "settings_title": "SETTINGS",
@@ -1513,19 +1950,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_mouse_bonding_always_in_game": "Always In-Game",
     "settings_mouse_bonding_always": "Always",
     "settings_debug_panel": "Debug Panel:",
-    "settings_debug_panel_desc": "(top-right stats)",
     "settings_arena_vignette": "Arena Vignette:",
-    "settings_arena_vignette_desc": "(dark edge shading)",
     "settings_low_health_vignette": "Low HP Vignette:",
-    "settings_low_health_vignette_desc": "(red warning when HP is low)",
     "settings_show_hints": "Show Hints:",
     "settings_show_hints_desc": "(E: Wall, ESC: Pause)",
     "settings_hud_layout": "HUD Layout:",
     "settings_hud_layout_desc": "(Widescreen adds side UI bands)",
     "settings_hud_layout_classic": "Classic (4:3)",
     "settings_hud_layout_widescreen": "Widescreen (16:9)",
+    "settings_hud_style": "HUD Style:",
+    "settings_hud_style_desc": "(Legacy restores the previous in-game HUD)",
+    "settings_hud_style_modern": "Modern",
+    "settings_hud_style_legacy": "Legacy",
     "settings_show_enemy_labels": "Show Enemy Labels:",
-    "settings_show_enemy_labels_desc": "(name tags above enemies)",
     "settings_exit_confirm": "Exit Confirm:",
     "settings_exit_confirm_desc": "(prompt when quitting game)",
     "settings_language": "Language:",
@@ -1545,6 +1982,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_controls_ff": "HOLD ENTER: X2  |  HOLD SPACE: SKIP",
     "lore_controls_ff_active": "HOLD ENTER: 2X ACTIVE  |  HOLD SPACE: SKIP",
     "lore_controls_touch": "HOLD ANYWHERE: SKIP",
+    "lore_controls_pad": "HOLD $1: X2  |  HOLD $2: SKIP",
+    "lore_controls_pad_active": "HOLD $1: 2X ACTIVE  |  HOLD $2: SKIP",
     "lore_rec_breach": "REC 00: SYSTEM BREACH",
     "lore_rec_swarm": "REC 01: HOSTILE PROCESS FLOOD",
     "lore_rec_awaken": "REC 02: TOPHAT KERNEL WAKE",
@@ -1555,14 +1994,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_breach_2": "The gate is only a door. Something came through it.",
     "lore_swarm_1": "Its corruption pours in: shapes, shards, and hunger.",
     "lore_swarm_2": "Every wave learns. Every wave gets closer.",
-    "lore_awaken_1": "TOPHAT wakes and boots its last trusted process - you.",
+    "lore_awaken_1": "TOPHAT wakes and boots its last trusted process: you.",
     "lore_awaken_2": "The kernel cannot fight while contained. You can.",
     "lore_boss_1": "What came through the breach is older than the OS.",
-    "lore_boss_2": "It runs as root, and it writes every attack you face.",
+    "lore_boss_2": "It runs as root. Every service it touches turns on you.",
     "lore_counter_1": "Your fire becomes patches. Its shards become power.",
     "lore_counter_2": "The system can still be saved.",
     "lore_directive_title": "DEFENSE PROTOCOL: ACTIVE",
     "lore_directive_sub": "Hold the line, operator.",
+    "lore_breach_alert": "INCOMING CONNECTION: UNKNOWN HOST",
+    "lore_containment": "KERNEL CONTAINMENT",
+    "lore_boot_1": "tophat: containment active, kernel locked",
+    "lore_boot_2": "tophat: spawning last trusted process...",
+    "lore_boot_3": "operator: online",
+    "lore_services_hijacked": "SERVICES HIJACKED",
 
     "end_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT RESOLVED",
     "end_rec_fall": "REC 06: THE ROOT PURGED",
@@ -1573,13 +2018,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "end_fall_1": "The Root shatters.",
     "end_fall_2": "Its code unravels back through the breach it crawled from.",
     "end_purge_1": "The corruption recedes, sector by sector.",
-    "end_purge_2": "Clean memory is reclaimed in its wake.",
+    "end_purge_2": "Every service it stole comes back online.",
     "end_restore_1": "TOPHAT kernel restored. Containment stable.",
     "end_restore_2": "Threat level dropping... zero.",
     "end_crown_1": "With the Root gone, its root access falls to you.",
     "end_crown_2": "You wear the crown of the kernel now.",
     "end_signoff_title": "SYSTEM SECURED",
-    "end_signoff_sub": "Threat level zero. Stand down - you have earned the crown.",
+    "end_signoff_sub": "Threat level zero. Stand down, operator. You earned the crown.",
 
     "rog_end_title_card_sub": "ARCHIVE PLAYBACK // DEEP RECOVERY",
     "rog_end_rec_descend": "DELVE 01: SECTOR DESCENT",
@@ -1590,7 +2035,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "rog_end_rec_signoff": "DELVE 06: SURFACE REACHED",
     "rog_end_descend_1": "The surface was secured, but the rot still pulsed below.",
     "rog_end_descend_2": "Crowned now, you descended to end it at the source.",
-    "rog_end_core_1": "At the base of the recursion waited the seed-",
+    "rog_end_core_1": "At the base of the recursion waited the seed:",
     "rog_end_core_2": "the core the Root grew from, older than TOPHAT itself.",
     "rog_end_extract_1": "You tore the seed free, shard by shard,",
     "rog_end_extract_2": "and the endless loop began to unwind.",
@@ -1599,7 +2044,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "rog_end_ascend_1": "Up through the collapsing stack you climbed,",
     "rog_end_ascend_2": "recovered cores burning bright in hand.",
     "rog_end_signoff_title": "SECTOR CLEARED",
-    "rog_end_signoff_sub": "The recursion is broken - but now you know how deep root goes.",
+    "rog_end_signoff_sub": "The recursion is broken. Now you know how deep root goes.",
 
     "sur_end_title_card_sub": "ARCHIVE PLAYBACK // THE LONG WATCH",
     "sur_end_rec_watch": "LOG 01: THE LONG WATCH",
@@ -1632,6 +2077,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_controls": "Controls",
     "settings_tab_gameplay": "Gameplay",
     "settings_tab_cinematics": "Cinematics",
+    "settings_tab_interface": "Interface",
+    "settings_section_scale": "SCALE & FEEL",
+    "settings_section_hud_elements": "HUD ELEMENTS",
+    "settings_ui_scale": "UI Scale:",
+    "settings_ui_scale_desc": "(Desktop, windows, in-game HUD and menus)",
+    "settings_ui_scale_small": "Small (70%)",
+    "settings_ui_scale_default": "Default (100%)",
+    "settings_ui_scale_big": "Big (130%)",
+    "settings_damage_numbers": "Damage Numbers:",
+    "settings_damage_numbers_desc": "(Floating damage text on hits)",
+    "settings_damage_number_size": "Label Size:",
+    "settings_screen_shake": "Screen Shake:",
+    "settings_screen_shake_desc": "(0% turns camera shake off completely)",
 
     "settings_section_story": "STORY CINEMATICS",
     "settings_section_mode_intros": "MODE INTROS",
@@ -1738,7 +2196,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_time_warp": "Chronos",
     "powerup_gravity_well": "Singularity",
     "powerup_phase_shift": "Phase Walker",
-    "powerup_overcharge": "Momentum",
+    "powerup_overcharge": "Overcharge",
     "powerup_echo_shots": "Echo Strike",
     "powerup_rotating_orbs": "Elemental Orbs",
     "powerup_poison_orb": "Poison Orbs",
@@ -1788,7 +2246,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_life_steal_desc3": "Heal 100 HP per 5 kills",
     "powerup_rapid_fire_desc": "Spin-up: hold fire to ramp fire rate up to +30% faster",
     "powerup_max_health_desc": "Juggernaut: bolts on 300 max HP, then +3% damage per 100 max HP gained from upgrades (up to +45%) -- the plating costs up to 18% move speed",
-    "powerup_speed_boost_desc": "Momentum: deal up to +25% damage while moving",
+    "powerup_speed_boost_desc": "Momentum: gain a stack every 0.5s spent moving fast (max 5, +4% damage each). Stopping drains stacks just as fast. Full stacks: +20% crit chance",
     "powerup_bullet_speed_desc": "Lightspeed: each shot fires an instant tracer beam that hits the first enemy in line for 50% damage",
     "powerup_lucky_coins_desc": "Doubles all coins collected",
     "powerup_wall_master_desc": "Walls have +250% HP turrets have +100% damage",
@@ -1905,9 +2363,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_heavy_rounds_desc1": "Bullets 15% larger with slight knockback",
     "powerup_heavy_rounds_desc2": "Bullets 25% larger with increased knockback",
     "powerup_heavy_rounds_desc3": "Bullets 35% larger with strong knockback",
-    "powerup_fortified_desc1": "Reduce damage taken by 10% and gain 250 max HP",
-    "powerup_fortified_desc2": "Reduce damage taken by 20% and gain 500 (+250) max HP",
-    "powerup_fortified_desc3": "Reduce damage taken by 30% and gain 750 (+250) max HP",
+    "powerup_fortified_desc1": "Reduce damage taken by 5% and gain 250 max HP",
+    "powerup_fortified_desc2": "Reduce damage taken by 10% and gain 500 (+250) max HP",
+    "powerup_fortified_desc3": "Reduce damage taken by 15% and gain 750 (+250) max HP",
     "powerup_bulwark_desc1": "Intact plating: up to +12% damage at full HP, fading as you lose HP",
     "powerup_bulwark_desc2": "Intact plating: up to +18% damage at full HP, fading as you lose HP",
     "powerup_bulwark_desc3": "Intact plating: up to +25% damage at full HP, fading as you lose HP",
@@ -1922,13 +2380,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_curse_desc3": "Curse 50% of enemies, deal +60% damage to cursed foes (greatly reduced vs bosses)",
     "powerup_celestial_veil_desc": "Nullifies 2 hits per wave, resets at the start of each wave",
     "powerup_volatile": "Volatile",
-    "powerup_volatile_desc": "Enemies with 2+ elemental effects take +50% bullet dmg, on death they pulse their active elements to nearby foes",
+    "powerup_volatile_desc": "Enemies with 2+ elemental effects take +30% bullet dmg, on death they pulse their active elements to nearby foes",
     "powerup_resonance": "Resonance",
     "powerup_resonance_desc1": "Bullets hitting enemies with active DoTs deal bonus damage equal to 20% of their combined elemental DPS",
     "powerup_resonance_desc2": "Bullets hitting enemies with active DoTs deal bonus damage equal to 30% of their combined elemental DPS",
     "powerup_resonance_desc3": "Bullets hitting enemies with active DoTs deal bonus damage equal to 40% of their combined elemental DPS",
     "powerup_blood_pact": "Blood Pact",
-    "powerup_blood_pact_desc": "Sacrifice 20% of your current HP to unleash a blood nova, hitting EVERY enemy for 25% of its max HP + 2.5 damage per HP sacrificed. Bosses resist 60% of it. 3s cooldown",
+    "powerup_blood_pact_desc": "Sacrifice 25% of your current HP to unleash a blood nova, hitting EVERY enemy for 25% of its max HP + 1.25 damage per HP sacrificed. Bosses resist 60% of it. 3s cooldown",
     "powerup_conduit": "Conduit",
     "powerup_conduit_desc": "Detonate all active DoTs on enemies for 3x their remaining tick damage, then clear the effects. 15s cooldown",
     "powerup_aftershock": "Aftershock",
@@ -1962,7 +2420,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "loading_generating_music": "Generating music",
     "loading_complete": "Asset generation complete!",
     "loading_hint": "Generating procedural audio assets",
-    "loading_cached": "All assets loaded from cache",
     "loading_loading_sounds": "Loading sound",
     "loading_stage_sfx": "SFX",
     "loading_stage_music": "MUSIC",
@@ -1972,14 +2429,26 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cheat Menu Buttons
     "cheat_close_instruction": "Press ESC or click X to close",
+    "cheat_no_permanent_rewards": "Cheated run: no permanent rewards",
     "cheat_showing_items": "Showing",
 
     # OS Task Manager / System Monitoring
     "os_running_processes": "RUNNING PROCESSES",
     "os_no_active_processes": "No active processes",
-    "os_process_name": "Process Name",
-    "os_version": "Version",
     "os_status": "Status",
+    "os_tab_processes": "Processes",
+    "os_tab_patches": "Patches",
+    "os_tab_performance": "Performance",
+    "os_installed_patches": "INSTALLED PATCHES",
+    "os_no_patches": "No patches installed yet. Find them in /updates and /quarantine folders or at /pkg stalls.",
+    "os_patches_hint": "Hover a patch or use UP/DOWN to read it.",
+    "os_processes_hint": "Hover a process or use UP/DOWN to read it.",
+    "os_status_running": "RUNNING",
+    "os_status_recharging": "RECHARGING $1",
+    "os_level_of": "LEVEL $1/$2",
+    "os_legendary": "LEGENDARY",
+    "os_active_ability": "ACTIVE ABILITY",
+    "os_next_level": "NEXT LEVEL",
     "os_system_performance": "SYSTEM PERFORMANCE",
     "os_system_manager": "System Manager",
 
@@ -1993,8 +2462,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Stats Labels
     "stats_play_style_balanced": "Balanced",
 
-    # Enemy Labels
-    "enemy_active_threats": "ACTIVE THREATS:",
 
     # General
     "general_cancel": "Cancel",
@@ -2008,11 +2475,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "wave_celeb_coins": "Coins Earned",
     "wave_celeb_max_combo": "Max Combo",
 
-    # Real-time stats overlay
-    "real_stats_power": "Power",
-    "real_stats_dps": "DPS",
-    "real_stats_kills": "Kills",
-    "real_stats_cpm": "C/min",
 
     # Combo display
     "combo_insane": "INSANE!",
@@ -2023,12 +2485,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "combo_perfect_streak": "PERFECT x",
     "combo_coins": "coins!",
 
-    # Micro-reward popups & wave-stats
-    "massacre_bonus": "MASSACRE BONUS!",
-    "wave_stats_flawless": "FLAWLESS!",
-    "wave_stats_title": "WAVE",
-    "wave_stats_kills_label": "Kills:",
-    "wave_stats_time_label": "Time:",
 
     # 3D Boss Game HUD
     "game3d_hp": "HP",
@@ -2109,11 +2565,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Resources Collected:",
     "game_over_mission_duration": "Mission Duration:",
     "game_over_continue": "CONTINUE (WAVE",
+    "game_over_continue_sector": "CONTINUE (SECTOR",
+    "game_over_continue_clock": "CONTINUE (",
+    "game_over_shop_currency_banked": "BANKED FOR THE SHOP",
     "restore_points_label": "RESTORE POINTS",
     "restore_points_unlimited": "UNLIMITED",
     "restore_points_none": "NONE LEFT",
     "restore_points_last": "LAST ONE",
     "restore_point_lost": "RESTORE POINT SPENT",
+    "restore_points_endless": "OFFLINE: ENDLESS HAS NO CONTINUES",
+    "restore_points_overtime": "OFFLINE: OVERTIME HAS NO CONTINUES",
     "game_over_critical_failure": "CRITICAL SYSTEM FAILURE",
     "game_over_error_msg": "Your system has encountered a critical error and needs to reboot.",
     "game_over_session_diagnostics": "=== SESSION DIAGNOSTICS ===",
@@ -2134,7 +2595,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "victory_continue_endless": "CONTINUE ENDLESS",
     "victory_view_stats": "VIEW STATS",
     "victory_return_menu": "RETURN TO MENU",
-    "victory_footer": "[OK] Endless protocol unlocked | How long can you hold the line?",
+    "victory_footer": "[OK] Endless protocol unlocked | No restore points: one death ends the run",
 
     # Game Over "cause of death" lines
     "game_over_cause_label": "CAUSE OF TERMINATION",
@@ -2150,17 +2611,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "death_boss_tag": "BOSS",
 
     # HUD/Notifications
-    "hud_system_status": "SYSTEM STATUS",
-    "hud_integrity": "INTEGRITY:",
-    "hud_charges": "CHARGES",
     "hud_processes": "PROCESSES",
-    "hud_cache": "CACHE",
-    "hud_performance": "Performance",
-    "hud_wave": "WAVE:",
-    "hud_uptime": "UPTIME:",
-    "hud_threats": "THREATS:",
     "hud_dash": "DASH",
     "hud_dash_ready": "READY",
+    "hud_more": "more",
+    "hud_boss_wave": "BOSS WAVE",
+    "hud_boss_in_waves": "BOSS IN $1",
+    "hud_key_wall": "Wall",
+    "hud_key_dash": "Dash",
+    "hud_key_ability": "Ability",
+    "hud_key_pause": "Pause",
 
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNOSTICS",
@@ -2196,7 +2656,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_click_equip": "Click to equip",
     "shop_window_title": "Customization Shop",
     "shop_equipped": "[EQUIPPED]",
-    "shop_currently_equipped": "Currently Equipped:",
     "shop_customize_appearance": "CUSTOMIZE YOUR APPEARANCE",
     "shop_customize_bullets": "CUSTOMIZE YOUR BULLETS",
     "shop_choose_shape": "CHOOSE YOUR SHAPE",
@@ -2218,7 +2677,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_cube_locked_hint": "Earn the 'Escape Velocity' advancement to unlock",
     "secret_cheater_hat_name": "Cheater Hat",
     "secret_cheater_hat_desc": "A very white, very pointy hat for players who know exactly what cd+ does.",
-    "victory_secret_unlocked": "[NEW] SECRET UNLOCKED: KERNEL TOPHAT -- equipped! Toggle it in the Shop's SECRET tab.",
+    "victory_secret_unlocked": "[NEW] SECRET UNLOCKED: KERNEL TOPHAT - equipped! Toggle it in the Shop's SECRET tab.",
 
     # Desktop Background Skins
     "dbg_default": "OS Grid",
@@ -2391,21 +2850,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pack_owned": "OWNED",
     "pack_includes": "Player + Bullet + Particle",
     "pack_gold": "Gold Bundle",
-    "pack_gold_desc": "Every Golden Aura cosmetic",
     "pack_ice": "Ice Bundle",
-    "pack_ice_desc": "Every Ice Crystal cosmetic",
     "pack_shadow": "Shadow Bundle",
-    "pack_shadow_desc": "Every Shadow Ops cosmetic",
     "pack_rainbow": "Rainbow Bundle",
-    "pack_rainbow_desc": "Every Rainbow Wave cosmetic",
     "pack_void": "Void Bundle",
-    "pack_void_desc": "Every Void Walker cosmetic",
     "pack_plasma": "Plasma Bundle",
-    "pack_plasma_desc": "Every Plasma Core cosmetic",
     "pack_sunset": "Sunset Bundle",
-    "pack_sunset_desc": "Sunset skins with a flame trail",
     "pack_emerald": "Emerald Bundle",
-    "pack_emerald_desc": "Emerald skins with a toxic trail",
     "pack_neon_pink": "Neon Pink Bundle",
     "pack_neon_pink_desc": "Neon Pink skins with heart bursts",
     "pack_amethyst": "Amethyst Bundle",
@@ -2446,6 +2897,24 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_enemies": "Enemy types and behaviors",
     "help_cmd_bosses": "Boss information",
     "help_cmd_shop": "Shop items and costs",
+    "help_cmd_lore": "Incident archive: the story so far",
+    "help_cmd_licenses": "Third-party licenses",
+    "help_licenses_intro": "Mods run on Lua 5.5 (www.lua.org), used under the MIT license:",
+    "help_lore_topic": "INCIDENT ARCHIVE",
+    "help_lore_intro": "Recovered case files on the Root incident. New files decrypt as you recover their recordings.",
+    "help_lore_act1_title": "ACT I: THE BREACH   [REC 00-05]",
+    "help_lore_act1_body": "An unknown server forced the gate of TopHat-ShooterOS, and something came through it: the Root. Its flood poured into memory, and every system service it touched turned hostile. Held in containment, the TOPHAT kernel could not fight, so it booted its last trusted process. You.",
+    "help_lore_act2_title": "ACT II: THE CROWN   [REC 06-10]",
+    "help_lore_act2_body": "Wave after wave, you tore the hijacked services out of the Root's grip until it had nothing left to hide behind and took form itself. It fell. The corruption receded, every stolen service came back online, and the Root's access passed to the one who ended it. The kernel's crown is yours now.",
+    "help_lore_act2_hint": "Recover this file by defeating the wave 60 boss.",
+    "help_lore_act3_title": "ACT III: THE DEEP   [DELVE 01-06]",
+    "help_lore_act3_body": "The surface was secured, but the rot still pulsed below the stack. You descended sector by sector to the seed the Root grew from, older than TOPHAT itself, and in its dying light learned the truth: the breach did not bring the Root. It woke it.",
+    "help_lore_act3_hint": "Recover this file by shutting down the final roguelite SERVICE.",
+    "help_lore_act4_title": "ACT IV: THE LONG WATCH   [LOG 01-05]",
+    "help_lore_act4_body": "Long after the crown, the flood returned, and you held the line alone. Every second of uptime was logged. When the last surge found the gap you could not close, no reboot answered, and the kernel's lights went out one by one. SYSTEM HALTED.",
+    "help_lore_act4_hint": "Recover this file by holding out for 15 minutes in Time Survival.",
+    "help_lore_encrypted": "[ENCRYPTED] This file is still sealed.",
+    "help_lore_footer": "Replay recovered recordings in SETTINGS.sys > Cinematics. Type 'bosses' for the hijacked service dossiers.",
     "help_cmd_launch_icons": "Launch desktop icons by name",
 
     # Help System - Controls section
@@ -2489,7 +2958,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Help System - Misc
     "help_boss_every_5th": "Wave Mode: Every 5th wave (5, 10, 15...)",
-    "help_boss_every_60_sec": "Survival Mode: Every 60 seconds",
+    "help_boss_every_60_sec": "Survival Mode: Every 5:00 (final boss at 20:00)",
     "help_cost_scaling_formula": "- Shop items have strict purchase caps\n  - Each buy is stronger and costs baseCost * 1.8^bought",
     "help_kill_enemies_to_collect": "- Kill enemies to collect coins",
     "help_elite_drop_more": "- Elite enemies drop more coins",
@@ -2503,7 +2972,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_available_between_waves": "- Available between waves",
 
     # Game Notifications and UI
-    "game_wave_announcement_main": "*** WAVE ***",
     "game_instructions_wall": "E: Wall | ESC: Pause",
     "game_wall_place": "[Release E] Place Wall",
     "game_wall_place_touch": "[Release] Place Wall",
@@ -2513,7 +2981,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_no_previous_run": "No previous run statistics available",
     "game_complete_game_stats": "Complete a game to see detailed run statistics",
     "game_no_power_up_data": "No power-up data available",
-    "game_best_streak": "Best Streak",
 
     # Stats Window
     "stats_damage_column_label": "DAMAGE",
@@ -2689,6 +3156,72 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_team_purple": "Purple",
     "pvp_team_none": "None",
 
+    # PvP arena packages
+    "pvp_pkg_chkdsk": "CHKDSK.EXE",
+    "pvp_pkg_firewall": "FIREWALL.SYS",
+    "pvp_pkg_turbo": "TURBO.DLL",
+    "pvp_pkg_overclock": "OVERCLOCK.SYS",
+    "pvp_pkg_fork": "FORK.EXE",
+    "pvp_pkg_chkdsk_blurb": "integrity restored",
+    "pvp_pkg_firewall_blurb": "blocks the next hit",
+    "pvp_pkg_turbo_blurb": "move speed x1.4",
+    "pvp_pkg_overclock_blurb": "fire rate x2",
+    "pvp_pkg_fork_blurb": "triple shot",
+    "pvp_port_incoming": "INCOMING",
+    "pvp_stat_packages": "PACKAGES",
+    "pvp_value_on": "ON",
+
+    # PvP callouts
+    "pvp_call_first_blood": "FIRST CRASH",
+    "pvp_call_double": "DOUBLE FAULT",
+    "pvp_call_triple": "TRIPLE FAULT",
+    "pvp_call_streak3": "PRIVILEGE ESCALATION",
+    "pvp_call_streak5": "ROOT ACCESS",
+    "pvp_call_streak7": "KERNEL MODE",
+    "pvp_call_shutdown": "SHUTDOWN",
+
+    # PvP in-match HUD
+    "pvp_feed_left": "left the match",
+    "pvp_terminated_by": "TERMINATED BY",
+    "pvp_respawning_in": "Respawning in",
+    "pvp_walls_label": "Walls",
+    "pvp_place_mode": "PLACE MODE",
+    "pvp_you_marker": "YOU",
+    "pvp_hint_wall": "Wall",
+    "pvp_hint_scores": "Scores",
+
+    # PvP scoreboard / match end
+    "pvp_board_title": "PROCESS TABLE",
+    "pvp_board_player": "PLAYER",
+    "pvp_board_kills": "KILLS",
+    "pvp_board_deaths": "DEATHS",
+    "pvp_board_streak": "STREAK",
+    "pvp_board_best": "BEST",
+    "pvp_board_acc": "ACC",
+    "pvp_board_dmg": "DMG",
+    "pvp_award_sharpshooter": "SHARPSHOOTER",
+    "pvp_award_sharpshooter_desc": "best accuracy",
+    "pvp_award_unkillable": "UNKILLABLE",
+    "pvp_award_unkillable_desc": "fewest deaths",
+    "pvp_award_hoarder": "HOARDER",
+    "pvp_award_hoarder_desc": "most packages",
+    "pvp_award_uptime": "LONGEST UPTIME",
+    "pvp_award_uptime_desc": "best streak",
+    "pvp_result_win": "YOU WIN!",
+    "pvp_result_lose": "YOU LOSE!",
+    "pvp_result_draw": "DRAW!",
+    "pvp_result_team_win": "YOUR TEAM WINS!",
+    "pvp_result_team_other": "TEAM {team} WINS!",
+    "pvp_end_time_limit": "Time limit reached",
+    "pvp_end_opponent_disconnected": "Opponent disconnected",
+    "pvp_end_opponent_forfeited": "Opponent forfeited",
+    "pvp_end_last_standing": "Last process standing",
+    "pvp_end_host_left": "The host left the match",
+    "pvp_prompt_rematch": "Rematch",
+    "pvp_prompt_leave": "Leave",
+    "pvp_waiting_host": "Waiting for the host to start a rematch...",
+    "pvp_rematch_needs_players": "A rematch needs at least 2 players",
+
     "stats_no_powerups_selected": "No power-ups selected",
     "stats_controls_footer": "[TAB/ESC] Return  [R] Restart  [Q] Menu",
 
@@ -2703,140 +3236,181 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "gamemode_wave_based_name": "Wave-Based",
     "gamemode_wave_based_desc": "Fight through waves of enemies. Defeat bosses every 5 waves for legendary upgrades.",
     "gamemode_time_survival_name": "Time Survival",
-    "gamemode_time_survival_desc": "Survive as long as possible. Difficulty increases over time.",
+    "gamemode_time_survival_desc": "Hold the system for 20:00 across four escalating phases.\nSurvive the horde, clear System Events and crack Data Caches for free upgrades.\nBeat the final process, then push into Overtime.",
     "gamemode_sandbox_name": "Sandbox",
     "gamemode_sandbox_desc": "Test and experiment with enemies, bosses, and game mechanics.",
     "gamemode_pvp_name": "PVP",
     "gamemode_pvp_desc": "Battle against another players in real-time combat. First to 5 kills wins!",
     "gamemode_roguelite_name": "Roguelite",
-    "gamemode_roguelite_desc": "Crawl 4 themed dungeon floors, loot keys and relics, defeat floor bosses, and bank shards.",
-    "roguelite_setup_title": "DUNGEON SETUP",
-    "roguelite_setup_subtitle": "CONFIGURE LOADOUT  //  PICK KIT  ·  SET HEAT  ·  LAUNCH",
-    "roguelite_unlocks_title": "SHARD UNLOCKS",
+    "gamemode_roguelite_desc": "Descend 4 system sectors. Pick a folder at every door, apply patches, shut down each sector's SERVICE and bank Data Shards.",
+    "roguelite_setup_title": "DEEP RECOVERY",
+    "roguelite_setup_subtitle": "PICK A BOOT PROFILE  //  SET HEAT  //  DESCEND",
     "roguelite_data_shards": "Data Shards",
     "roguelite_shards": "Shards",
     "roguelite_shards_short": "shards",
     "roguelite_cores": "Cores",
     "roguelite_cores_short": "Cores",
     "roguelite_heat": "Heat",
-    "roguelite_floor": "Floor",
+    "roguelite_floor": "Sector",
     "roguelite_level_up": "LEVEL UP!",
     "roguelite_endless": "Endless",
     "roguelite_pressure": "Pressure",
     "roguelite_elite": "Elite",
-    "dungeon_rooms": "Rooms",
-    "dungeon_rooms_cleared": "Rooms Cleared",
-    "dungeon_keys": "Keys",
-    "dungeon_door_locked": "LOCKED - find a key",
-    "dungeon_door_unlock": "Use key to unlock",
-    "dungeon_shop_prompt": "[E] Open shop",
-    "dungeon_portal_prompt": "Enter portal to descend",
-    "dungeon_floor_select_title": "CHOOSE FLOOR THEME",
-    "dungeon_floor_select_tip": "Each theme brings its own processes, hazards, and floor boss. Used themes won't reappear this run.",
+    "dungeon_rooms_cleared": "Folders Cleared",
+    "dungeon_portal_prompt": "Enter the portal to mount the next sector",
+    "dungeon_floor_select_title": "MOUNT NEXT SECTOR",
+    "dungeon_floor_select_tip": "Each sector brings its own processes and its own SERVICE. A mounted sector won't come back this run.",
     "roguelite_victory_title": "SYSTEM PURGED",
-    "roguelite_victory_subtitle": "Every floor boss is down. The OS is yours, cash out, or push the kernel deeper into the endless loop.",
+    "roguelite_victory_subtitle": "Every SERVICE is shut down and the OS is yours. Cash out, or push the kernel deeper into the endless loop.",
     "roguelite_loop_cleared_title": "LOOP CLEARED",
     "roguelite_loop_cleared_subtitle": "Another loop secured. Bank your spoils, or descend again for richer rewards and fiercer processes.",
-    "roguelite_relics_carried": "Relics carried",
-    "roguelite_relics_none": "No relics this run.",
+    "roguelite_relics_carried": "Patches applied",
+    "roguelite_relics_none": "No patches applied this run.",
     "roguelite_continue_endless": "Continue (Endless Loop)",
     "roguelite_cash_out": "Cash Out",
     "roguelite_victory_controls": "[SPACE] continue    [ESC] cash out    [<-/->] switch    [ENTER] confirm",
-    "dungeon_floor_boss": "Floor Boss",
-    "dungeon_final_floor_label": "FINAL BOSS",
+    "dungeon_floor_boss": "Sector SERVICE",
+    "dungeon_final_floor_label": "FINAL SECTOR",
     "dungeon_final_floor_desc": "The stack ends here. No sectors left to roll, only the last process. Step into the arena and face the Omega Entity.",
     "dungeon_final_floor_warning": "No more sectors. No turning back.",
     "dungeon_theme_firewall": "Firewall",
-    "dungeon_theme_firewall_desc": "Heat-hardened defense grid. Steady shooters and blockers hold every room.",
+    "dungeon_theme_firewall_desc": "Heat-hardened defense grid. Shielded guards, rooted sentries and armored drivers hold every room.",
     "dungeon_theme_recycle_bin": "Recycle Bin",
-    "dungeon_theme_recycle_bin_desc": "Discarded process swarms. Endless weak chasers backed by tanky stars.",
+    "dungeon_theme_recycle_bin_desc": "Deleted files that refuse to stay deleted. Mimics hide among the scraps and restorers raise the fallen.",
     "dungeon_theme_registry": "Registry",
-    "dungeon_theme_registry_desc": "Ordered killers. Crosses and cubes fire precise, telegraphed volleys.",
+    "dungeon_theme_registry_desc": "Ordered, guarded keys. Shield walls, restorers and corruptors that rot the floor.",
     "dungeon_theme_network": "Network",
-    "dungeon_theme_network_desc": "Hot packet traffic. Dashers, snipers, and hit-and-run strikes.",
+    "dungeon_theme_network_desc": "Hot packet traffic. Ricocheting packets, sentries on every hop and the odd mimic.",
     "dungeon_theme_kernel": "Kernel",
-    "dungeon_theme_kernel_desc": "Deep system space. Heavy units and mage processes with real firepower.",
+    "dungeon_theme_kernel_desc": "Deep system space. Armored drivers charge through the fire of rooted sentries.",
     "dungeon_theme_cache": "Cache",
-    "dungeon_theme_cache_desc": "Mirrored memory. Phantoms, tricksters, and teleporting chaos.",
+    "dungeon_theme_cache_desc": "Mirrored, stale memory. Mimics, bouncing packets and corrupted tiles everywhere.",
     "dungeon_theme_corrupted_sector": "Corrupted Sector",
-    "dungeon_theme_corrupted_sector_desc": "Anything goes. Every process type, more elites, and the biggest payouts.",
-    "roguelite_best": "Record",
-    "roguelite_relics": "Relics",
+    "dungeon_theme_corrupted_sector_desc": "The bottom of the stack. Every legacy process at once, more elites and the biggest payouts.",
+    "roguelite_relics": "Patches",
     "roguelite_unlocked": "OWNED",
     "roguelite_locked": "LOCKED",
-    "roguelite_unlocks": "[U] Unlock Shop",
-    "roguelite_start": "[ENTER] Start Run",
+    "roguelite_start": "[ENTER] Descend",
     "roguelite_back": "[ESC] Back",
-    "roguelite_setup_controls": "Kit A/D  |  Heat W/S  |  Shop U  |  Start ENTER",
-    "roguelite_sector_controls": "Theme A/D  |  Deploy ENTER",
-    "roguelite_unlock_shop_controls": "1-4/A-D: Group  |  Arrows: Item  |  ENTER: Buy  |  ESC: Back",
-    "roguelite_scroll_hint": "Scroll to see more",
-    "roguelite_unlock_cat_kits": "Kits",
-    "roguelite_unlock_cat_families": "Families",
-    "roguelite_unlock_cat_relics": "Relics",
-    "roguelite_unlock_cat_challenge": "Challenge",
-    "roguelite_cost": "Cost",
-    "roguelite_ready_to_buy": "READY",
+    "roguelite_setup_controls": "Boot profile A/D  |  Heat W/S  |  Descend ENTER",
+    "roguelite_sector_controls": "Sector A/D  |  Mount ENTER",
     "roguelite_not_enough_shards": "NEED RESOURCES",
-    "roguelite_buy_unlock": "[ENTER] BUY",
-    "roguelite_need_more_shards": "NEED RESOURCES",
-    "roguelite_already_unlocked": "OWNED",
-    "roguelite_unlock_heat": "Heat",
-    "roguelite_unlock_wave_surge": "Wave Surge",
-    "roguelite_unlock_desc_wave_surge": "Shifts every floor boss to a harder definition per tier, with bigger boss payouts.",
-    "roguelite_unlock_desc_family": "Adds this power-up family to future draft pools.",
-    "roguelite_unlock_desc_family_core": "Adds base stat, bullet, economy, and survival upgrades to drafts.",
-    "roguelite_unlock_desc_family_shield": "Adds armor, wall, thorns, and shield tools to drafts.",
-    "roguelite_unlock_desc_family_arcane": "Adds Arcane Aura, Arcane Bullets, Echo Shots, Gravity Well, and Overcharge.",
-    "roguelite_unlock_desc_family_fire": "Adds burn aura, fire rounds, fire orb, and Fire Mastery drafts.",
-    "roguelite_unlock_desc_family_frost": "Adds slow shots, frost orb, and Frost Mastery drafts.",
-    "roguelite_unlock_desc_family_poison": "Adds poison aura, poison shots, poison orb, and Poison Mastery drafts.",
-    "roguelite_unlock_desc_family_lightning": "Adds lightning aura/orb, Chain Lightning, Conduit, and mastery drafts.",
-    "roguelite_unlock_desc_family_wind": "Adds wind aura/rounds/orb, Aftershock, and Wind Mastery drafts.",
-    "roguelite_unlock_desc_family_blood": "Adds lifesteal, blood weapons, Blood Pact, and Blood Mastery drafts.",
-    "roguelite_unlock_desc_discount": "Relic: rerolls cost 20% less, never below 5 credits.",
-    "roguelite_unlock_desc_shard": "Relic: +25% shards from cleared rooms.",
-    "roguelite_unlock_desc_draft": "Relic: rerolls cost 10 fewer credits after other discounts.",
-    "roguelite_unlock_desc_patch": "Relic: each floor boss heals 2 HP and grants +1 shield charge.",
-    "roguelite_unlock_desc_elite": "Relic: elite rooms grant +30 credits and bonus shards.",
-    "roguelite_unlock_desc_heat": "Unlocks the next Heat above the default. Heat 3 costs Cores earned on Heat 2+.",
     "roguelite_starter_ready": "READY",
     "roguelite_boss": "Boss",
-    "roguelite_boss_tier": "Wave Surge",
     "roguelite_recursion": "Recursion",
     "roguelite_recursion_dmg": "PERM. DMG",
     "roguelite_level": "Lv",
-    "roguelite_run_flow": "FLOOR ROUTE",
-    "roguelite_combat_title": "DUNGEON FLOOR",
+    "roguelite_run_flow": "SECTOR STACK",
     "roguelite_heat_effects": "Effects",
-    "roguelite_heat_buy_next": "Buy Heat",
-    "roguelite_heat_maxed": "Heat fully unlocked",
+    "roguelite_heat_maxed": "Every Heat unlocked",
     "roguelite_heat_core_rule": "Heat 2+ drops Cores. Heat 3 drops a lot more of them.",
-    "roguelite_req_default": "Default",
     "roguelite_kit_operator": "Operator",
     "roguelite_kit_bulwark": "Bulwark",
     "roguelite_kit_arcanist": "Arcanist",
     "roguelite_kit_operator_desc": "Start with 15 credits and no preset power-up.",
     "roguelite_kit_bulwark_desc": "Start with 5 credits, +3 walls, and Fortified armor.",
     "roguelite_kit_arcanist_desc": "Start with Arcane Bullets installed and no credits.",
-    "roguelite_family_core": "Core",
-    "roguelite_family_shield": "Shield",
-    "roguelite_family_arcane": "Arcane",
-    "roguelite_family_fire": "Fire",
-    "roguelite_family_frost": "Frost",
-    "roguelite_family_poison": "Poison",
-    "roguelite_family_lightning": "Lightning",
-    "roguelite_family_wind": "Wind",
-    "roguelite_family_blood": "Blood",
-    "roguelite_relic_none": "None",
-    "roguelite_relic_discount": "Discount Protocol",
-    "roguelite_relic_shard": "Shard Magnet",
-    "roguelite_relic_elite": "Elite Dividend",
-    "roguelite_relic_patch": "Emergency Patch",
-    "roguelite_relic_draft": "Draft Cache",
     "roguelite_no_run": "No active roguelite run.",
     "roguelite_no_profile": "No roguelite profile loaded.",
-    "roguelite_beta_banner": "BETA - WORK IN PROGRESS",
+    "help_cmd_recovery": "Deep Recovery (roguelite): sectors, folders, patches, Heat",
+    "help_recovery_topic": "DEEP RECOVERY (ROGUELITE)",
+    "help_recovery_sectors": "SECTORS",
+    "help_recovery_sectors_body": "A run descends 4 sectors. Each one is a path of folders that ends in the sector's SERVICE. Shut it down and a portal mounts the next sector. There is no going back through a folder.",
+    "help_recovery_folders": "FOLDERS",
+    "help_recovery_folders_body": "Clear a folder and its reward appears in the middle of the room. Collect it and the exits open. Every door shows the folder it leads to and what that folder pays:",
+    "help_recovery_patches": "PATCHES",
+    "help_recovery_patches_body": "Numbered system updates that change how the run plays. Pick 1 of 3 from /updates and /quarantine, or buy one at a /pkg stall. They last for the whole run.",
+    "help_recovery_heat": "HEAT",
+    "help_recovery_heat_body": "Win a run at your highest Heat to unlock the next one. Higher Heat means denser, tougher sectors and SERVICEs, and from Heat 2 the run also pays Cores.",
+    "card_buy_action": "[E] BUY",
+    "card_install_action": "[E] INSTALL",
+    "card_maxed": "MAXED",
+    "card_maxed_desc": "Already at its highest level.",
+    "card_patch_action": "[E] APPLY UPDATE",
+    "card_tag_package": "PACKAGE // POWER-UP",
+    "card_tag_repair": "PACKAGE // REPAIR",
+    "card_tag_restock": "PACKAGE // RESTOCK",
+    "dungeon_claim_hint": "Collect this folder's reward to open the exits",
+    "gameover_folders_patches": "Folders Cleared / Patches",
+    "gameover_sector_reached": "Sector Reached",
+    "patch_applied": "APPLIED",
+    "patch_category_maintenance": "Maintenance",
+    "patch_category_performance": "Performance",
+    "patch_category_security": "Security",
+    "patch_none_name": "No patch",
+    "patch_none_desc": "",
+    "patch_discount_name": "Discount Protocol",
+    "patch_discount_desc": "Rerolls and /pkg stalls cost 20% less (never below 5 credits).",
+    "patch_shard_magnet_name": "Shard Magnet",
+    "patch_shard_magnet_desc": "+25% Data Shards from cleared folders and /shards caches.",
+    "patch_elite_dividend_name": "Elite Dividend",
+    "patch_elite_dividend_desc": "/quarantine folders pay +30 credits and extra Data Shards.",
+    "patch_emergency_name": "Emergency Patch",
+    "patch_emergency_desc": "Every SERVICE room starts with one blocked hit. Shutting a SERVICE down restores 25% integrity.",
+    "patch_draft_cache_name": "Draft Cache",
+    "patch_draft_cache_desc": "The first reroll in every installer is free.",
+    "patch_overclock_name": "Overclock",
+    "patch_overclock_desc": "+35% fire rate. Losing integrity stalls the overclock for 3 seconds.",
+    "patch_firewall_rule_name": "Firewall Rule",
+    "patch_firewall_rule_desc": "The first hit you take in each fight is blocked.",
+    "patch_defragmenter_name": "Defragmenter",
+    "patch_defragmenter_desc": "Clearing a folder restores 8% integrity (20% for a SERVICE).",
+    "patch_garbage_collector_name": "Garbage Collector",
+    "patch_garbage_collector_desc": "Loose XP and credits fly to you from anywhere in the room.",
+    "patch_cron_job_name": "Cron Job",
+    "patch_cron_job_desc": "Every 8 seconds in a fight, fire a ring of 12 rounds.",
+    "patch_zip_bomb_name": "Zip Bomb",
+    "patch_zip_bomb_desc": "Elites decompress when they die, dealing 2.5x your damage to everything nearby.",
+    "patch_root_access_name": "Root Access",
+    "patch_root_access_desc": "+25% damage to bosses and elites, -10% to everything else.",
+    "patch_rollback_name": "Rollback",
+    "patch_rollback_desc": "Once per sector, a lethal hit restores you to 50% integrity instead.",
+    "patch_cryptominer_name": "Cryptominer",
+    "patch_cryptominer_desc": "Kills mine extra credits. The rig costs 10% of your damage.",
+    "patch_raid_mirror_name": "RAID 1 Mirroring",
+    "patch_raid_mirror_desc": "Every 3rd shot also fires a mirrored round straight behind you.",
+    "patch_packet_loss_name": "Packet Loss",
+    "patch_packet_loss_desc": "15% of regular enemy rounds are dropped the moment they are fired. SERVICE attacks still land.",
+    "patch_fx_blocked": "BLOCKED",
+    "patch_fx_rollback": "ROLLBACK",
+    "patch_status_active": "ACTIVE",
+    "patch_status_ready": "READY",
+    "patch_status_used": "USED",
+    "patch_status_stalled": "STALLED",
+    "pkg_need_credits": "NOT ENOUGH CREDITS",
+    "reroll_credits_unit": "credits",
+    "reroll_free_patch": "FREE (Draft Cache)",
+    "roguelite_boot_profile": "BOOT PROFILE",
+    "roguelite_heat_base": "BASE",
+    "roguelite_heat_down": "-HEAT",
+    "roguelite_heat_up": "+HEAT",
+    "roguelite_heat_earn_next": "Win a run at Heat $1 to unlock Heat $2.",
+    "roguelite_heat_now_open": "UNLOCKED",
+    "roguelite_heat_unlocked_label": "Unlocked by this win",
+    "roguelite_hud_title": "DEEP RECOVERY",
+    "roguelite_hud_folder": "FOLDER $1/$2",
+    "roguelite_hud_heat": "HEAT",
+    "roguelite_hud_shards": "SHARDS",
+    "roguelite_hud_cores": "CORES",
+    "roguelite_hud_patches": "PATCHES",
+    "roguelite_refund_toast": "Roguelite unlocks are now free: $1 Data Shards and $2 Cores refunded.",
+    "roguelite_run_cores": "Cores this run",
+    "roguelite_run_shards": "Data Shards this run",
+    "roguelite_sector_upper": "SECTOR",
+    "roguelite_starter_selected": "SELECTED",
+    "roguelite_wins": "Wins",
+    "room_reward_bin": "Power-up",
+    "room_reward_updates": "Patch (pick 1 of 3)",
+    "room_reward_cache": "Credits",
+    "room_reward_restore": "Repair",
+    "room_reward_shards": "Data Shards",
+    "room_reward_pkg": "Package stalls",
+    "room_reward_quarantine": "Elite + patch",
+    "room_reward_service": "SERVICE",
+    "stall_repair_title": "System Restore",
+    "stall_repair_desc": "Restore $1% of your integrity.",
+    "stall_restock_title": "Refresh Mirrors",
+    "stall_restock_desc": "Reroll every unsold package in this folder. Costs more each time.",
     "stats_tab_roguelite": "Roguelite",
     "stats_roguelite_metrics": "ROGUELITE METRICS",
     "stats_roguelite_best_sectors": "Best Rooms",
@@ -2870,32 +3444,105 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "enemy_sniper_desc": "Deadly enemy that charges a powerful one-shot kill attack",
     "enemy_mage_name": "Mage",
     "enemy_mage_desc": "Magical enemy that summons meteorites and fires homing projectiles",
+    "enemy_thread_name": "Thread",
+    "enemy_thread_desc": "A single thread of the flood. Weak alone, drowning in numbers.",
+    "enemy_fork_bomb_name": "Fork Bomb",
+    "enemy_fork_bomb_desc": "Splits into two Threads when killed, and forks a copy of itself if left alone.",
+    "enemy_watchdog_name": "Watchdog",
+    "enemy_watchdog_desc": "The flood's only gunner. Keeps its distance and barks a slow three-shot fan.",
+    "enemy_zombie_name": "Zombie Process",
+    "enemy_zombie_desc": "Slow and tough. It gets back up once, unless you walk over its husk to reap it.",
+    "enemy_deadlock_name": "Deadlock",
+    "enemy_deadlock_desc": "Arrives in pairs, and links to every other Deadlock nearby with a burning line. They spread out around where you are heading to close the lock. Kill one to open a gap.",
+    "enemy_daemon_name": "Priority Daemon",
+    "enemy_daemon_desc": "Hangs back and boosts the speed of every process around it. Kill it first.",
+    "enemy_interrupt_name": "Interrupt",
+    "enemy_interrupt_desc": "Marks a spot, then dashes in and detonates. The blast hurts the horde too.",
+    "enemy_fragment_name": "Fragment",
+    "enemy_fragment_desc": "A shard of a broken file. It skitters in, marks where you are heading and pounces onto the mark. Change course when the mark turns red, and shoot it while it is grounded.",
+    "enemy_port_guard_name": "Port Guard",
+    "enemy_port_guard_desc": "Its shield blocks every shot from the front. Circle around to its back.",
+    "enemy_sentry_name": "Sentry",
+    "enemy_sentry_desc": "Walks to a post, roots itself and fires like a turret. Use cover or pick it off.",
+    "enemy_mimic_name": "Mimic",
+    "enemy_mimic_desc": "Lies still as a harmless file until you get close or shoot it. Then it bites.",
+    "enemy_restorer_name": "Restorer",
+    "enemy_restorer_desc": "Channels a beam that brings a fallen process back. Any hit breaks the channel.",
+    "enemy_packet_name": "Packet",
+    "enemy_packet_desc": "Fast dasher that ricochets off walls and obstacles. Read the bounce.",
+    "enemy_driver_name": "Driver",
+    "enemy_driver_desc": "Armored in front. Its charge stuns it against walls and obstacles, leaving it exposed.",
+    "enemy_corruptor_name": "Corruptor",
+    "enemy_corruptor_desc": "Leaves corrupted tiles behind that hurt to stand on. They decay in time.",
 
     # Boss Names and Descriptions
     "boss_1_name": "The Spiral Guardian",
-    "boss_1_desc": "A mystical entity that weaves spiraling bullet patterns",
+    "boss_1_desc": "TOPHAT's perimeter watchman. The Root rewrote its patrol into endless spiraling barrages.",
     "boss_2_name": "The Summoner King",
-    "boss_2_desc": "Commands an army of minions to overwhelm foes",
+    "boss_2_desc": "The process scheduler, crowned by the Root. It forks hostile minions faster than you can end them.",
     "boss_3_name": "The Meteor Striker",
-    "boss_3_desc": "Rains destruction from above with devastating meteor strikes",
+    "boss_3_desc": "The garbage collector. It used to free dead memory; now it drops it on you as meteors.",
     "boss_4_name": "The Laser Architect",
-    "boss_4_desc": "Constructs deadly laser grids and geometric death traps",
+    "boss_4_desc": "The display compositor. It once drew every window on the desktop; now it draws laser grids around you.",
     "boss_5_name": "The Void Dancer",
-    "boss_5_desc": "Blinks through reality, leaving trails of dark energy",
+    "boss_5_desc": "The memory pager. It swaps itself in and out of existence, leaving trails of unmapped void.",
     "boss_6_name": "The Chain Reactor",
-    "boss_6_desc": "A being of pure electricity that chains devastating arcs between targets",
+    "boss_6_desc": "The interrupt handler. Every signal it catches now arrives as a chain of lightning.",
     "boss_7_name": "The Orbital Commander",
-    "boss_7_desc": "Commands orbital satellites that strike with astronomical precision",
+    "boss_7_desc": "The network uplink. Its relay satellites were built to carry packets; the Root aimed them at you.",
     "boss_8_name": "The Berserker Juggernaut",
-    "boss_8_desc": "An unstoppable force of pure rage that grows stronger as it bleeds",
+    "boss_8_desc": "The out-of-memory killer. The more it bleeds, the harder it charges.",
     "boss_9_name": "The Prism Architect",
-    "boss_9_desc": "Manipulates light itself into geometric prisons of splitting lasers",
+    "boss_9_desc": "The graphics shader pipeline. It bends light into prisms, and every beam it splits is aimed.",
     "boss_10_name": "The Timekeeper",
-    "boss_10_desc": "Bends the flow of time itself, creating paradoxes and temporal rifts",
+    "boss_10_desc": "The system clock. The Root stole its ticks, and now time runs however it says.",
     "boss_11_name": "The Chaos Weaver",
-    "boss_11_desc": "Weaves patterns of pure chaos, unpredictable and devastating",
+    "boss_11_desc": "The entropy pool. It fed the OS its randomness; now it feeds you nothing but chaos.",
     "boss_12_name": "The Omega Entity",
-    "boss_12_desc": "The ultimate challenge - combines all previous boss mechanics",
+    "boss_12_desc": "The Root itself, wearing every service it stole. It fights with all of them at once.",
+    "boss_13_name": "The Forkmother",
+    "boss_13_desc": "Spawned by the flood with one instruction: fork(). Her children shield her; hunt them in the crowd, and shoot her seeds before they multiply.",
+    "boss_14_name": "The Dispatcher",
+    "boss_14_desc": "The flood's quartermaster. It lines the horde up in marching ranks; cut yourself a lane through them.",
+    "boss_15_name": "Thermal Runaway",
+    "boss_15_desc": "An overheating flood core. Every step you take leaves burning ground behind: never double back, and lead the horde through the fire.",
+    "boss_16_desc": "The Root, returned for the last watch. It floods the system with everything it has spawned, until only Safe Mode is left.",
+    "boss_17_name": "The Gatekeeper",
+    "boss_17_desc": "A legacy firewall older than TOPHAT, woken by the Root. Its inspection beams sweep the room; the obstacles are your only cover.",
+    "boss_18_name": "The Compactor",
+    "boss_18_desc": "The old undelete utility. It scatters dormant file bombs and empties the bin all at once, so shred them first. It can roll back its own damage.",
+    "boss_19_name": "The Hive",
+    "boss_19_desc": "The configuration file that came before the registry. When it audits the system everything locks: stop moving and stop shooting until the audit ends.",
+    "boss_20_name": "The Router",
+    "boss_20_desc": "A legacy network stack. It lights up links between relays and races packets down them; cross between the trains.",
+    "boss_21_name": "The Supervisor",
+    "boss_21_desc": "The ancient memory manager. It pages the room's obstacles out and back in somewhere else; never stand on a ghost footprint.",
+    "boss_22_name": "The Mirror Cache",
+    "boss_22_desc": "A disk cache that never forgets. It replays your last seconds as a hostile echo that moves and shoots exactly as you did.",
+    "boss_23_desc": "The Root at its origin, older than TOPHAT. It fights with every guardian you passed, then offers one last choice of door.",
+    "boss_tag_service": "HIJACKED SERVICE",
+    "boss_tag_hijacker": "HIJACKER",
+    "boss_1_process": "sentinel.sys",
+    "boss_2_process": "scheduler.exe",
+    "boss_3_process": "gc.daemon",
+    "boss_4_process": "compositor.sys",
+    "boss_5_process": "pager.sys",
+    "boss_6_process": "irq_handler.sys",
+    "boss_7_process": "uplink.net",
+    "boss_8_process": "oom_killer.exe",
+    "boss_9_process": "shader.gpu",
+    "boss_10_process": "clock.sys",
+    "boss_11_process": "entropy.pool",
+    "boss_12_process": "root (uid 0)",
+    "boss_13_process": "fork.bomb",
+    "boss_14_process": "dispatch.q",
+    "boss_15_process": "thermal.trip",
+    "boss_17_process": "ipchains",
+    "boss_18_process": "undelete.com",
+    "boss_19_process": "system.ini",
+    "boss_20_process": "winsock.dll",
+    "boss_21_process": "himem.sys",
+    "boss_22_process": "smartdrv.exe",
 
     # Boss phase names (shown in the boss threat panel)
     "boss_1_phase_1": "Awakening",
@@ -2933,6 +3580,41 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_12_phase_2": "Beta Phase",
     "boss_12_phase_3": "Gamma Phase",
     "boss_12_phase_4": "Omega Phase",
+    "boss_13_phase_1": "Parent Process",
+    "boss_13_phase_2": "Process Tree",
+    "boss_13_phase_3": "Fork Storm",
+    "boss_14_phase_1": "Queue",
+    "boss_14_phase_2": "Round Robin",
+    "boss_14_phase_3": "Priority Inversion",
+    "boss_15_phase_1": "Warm Boot",
+    "boss_15_phase_2": "Throttling",
+    "boss_15_phase_3": "Runaway",
+    "boss_16_phase_1": "Alpha: Fork",
+    "boss_16_phase_2": "Beta: Dispatch",
+    "boss_16_phase_3": "Gamma: Throttle",
+    "boss_16_phase_4": "Omega: Safe Mode",
+    "boss_17_phase_1": "Default Deny",
+    "boss_17_phase_2": "Stateful",
+    "boss_17_phase_3": "Lockdown",
+    "boss_18_phase_1": "Recycle",
+    "boss_18_phase_2": "Undelete",
+    "boss_18_phase_3": "Purge",
+    "boss_19_phase_1": "Read",
+    "boss_19_phase_2": "Write-Protect",
+    "boss_19_phase_3": "Hive Lock",
+    "boss_20_phase_1": "Handshake",
+    "boss_20_phase_2": "Congestion",
+    "boss_20_phase_3": "Broadcast Storm",
+    "boss_21_phase_1": "Paging",
+    "boss_21_phase_2": "Thrashing",
+    "boss_21_phase_3": "Page Fault",
+    "boss_22_phase_1": "Cached",
+    "boss_22_phase_2": "Stale",
+    "boss_22_phase_3": "Coherence Lost",
+    "boss_23_phase_1": "Alpha: Inspection",
+    "boss_23_phase_2": "Beta: Audit",
+    "boss_23_phase_3": "Gamma: Page Fault",
+    "boss_23_phase_4": "Omega: Last Known Good",
 
     # Exit Confirm Dialog
     "confirm_quit_title": "CONFIRM QUIT",
@@ -2945,6 +3627,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_exit_btn": "[Q] EXIT",
     "confirm_checkpoint_title": "CHECKPOINT AVAILABLE",
     "confirm_checkpoint_restart_body": "Restart from wave 1?",
+    "confirm_checkpoint_new_run_body": "Start a new run?",
     "confirm_checkpoint_sub": "You can still CONTINUE from your last checkpoint.",
     "confirm_restart_btn": "[R] RESTART",
 
@@ -2960,7 +3643,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_threat_locked": "LOCKED",
     "boss_phase_firewall": "PHASE FIREWALL",
     "enemy_sealed_clear_adds": "SEALED - CLEAR ADDS",
+    "enemy_sealed_slay_guards": "SEALED - SLAY THE ROYAL GUARD",
     "enemy_overload_hold_fire": "OVERLOAD - HOLD FIRE",
+    "boss_tag_flood_spawn": "FLOOD SPAWN",
+    "boss_tag_legacy": "LEGACY PROCESS",
+    "enemy_sealed_cut_children": "SHIELDED - KILL HER CHILDREN",
+    "mode_audit_locked": "REGISTRY LOCKED - HOLD STILL",
+    "mode_audit_breach": "WRITE DENIED",
+    "mode_safe_mode": "SAFE MODE",
+    "mode_restore_point": "RESTORE POINT",
+    "mode_last_known_good": "LAST KNOWN GOOD",
+    "help_roster_wave": "THREAT RESPONSE (waves)",
+    "help_roster_survival": "THE LONG WATCH (survival)",
+    "help_roster_roguelite": "DEEP RECOVERY (roguelite)",
 
     # Sandbox power-up visuals tab
     "sandbox_powerup_visuals": "Power-Up Visuals",
@@ -2996,23 +3691,25 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "adv_category_label": "Category",
 
     # Stats window leftovers
-    "stats_healing_sources": "Healing Sources",
     "stats_health_consumable": "Health Consumable",
+    "stats_levelup_healing": "Level Up",
     "stats_no_healing_data": "No healing data",
     "stats_total_earned": "Total Earned",
     "stats_healing_ranking": "HEALING SOURCES",
     "stats_healing_column_label": "HEALED",
     "stats_source_column_label": "SOURCE",
     "stats_total_healed": "Total healed",
+    "stats_overheal": "Overheal",
+    "stats_healed_label": "Healed",
 
     # Desktop
     "desktop_net": "NET",
     "desktop_advancement_unlocked": "Advancement unlocked",
     "desktop_mode_locked": "MODE LOCKED:",
-    "survival_locked_desc": "Unlock Time Survival by beating Roguelite mode.",
-    "roguelite_locked_desc": "Unlock Roguelite by defeating the Wave 20 boss in Wave Mode.",
+    "survival_locked_desc": "Unlock Time Survival by beating Deep Recovery.",
+    "roguelite_locked_desc": "Unlock Deep Recovery by defeating the Wave 20 boss in Wave Mode.",
     "game_mode_unlocked": "NEW MODE UNLOCKED:",
-    "roguelite_unlocked_notif": "Roguelite Mode is now available on the desktop!",
+    "roguelite_unlocked_notif": "Deep Recovery is now available on the desktop!",
     "survival_unlocked_notif": "Time Survival Mode is now available on the desktop!",
 
     # Debug panel runtime stats
@@ -3035,10 +3732,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_cons_double_coin": "Double Coin",
     "cheat_cons_lifesteal": "Lifesteal",
 
-    # Comeback mechanic
-    "comeback_bonus_active": "COMEBACK +10%",
-    "comeback_bonus_until": "until wave",
-
     # Mode intro: wave-based (Act 1-2 live open; the ending archive is
     # "ARCHIVE PLAYBACK // INCIDENT RESOLVED", this is the same incident, live)
     "mode_intro_wave_title": "LIVE DISPATCH // THREAT RESPONSE",
@@ -3048,30 +3741,42 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_wave_rec2":  "DEPLOYMENT",
     "mode_intro_wave_2a":    "EVERY WAVE LEARNS. EVERY WAVE GETS CLOSER.",
     "mode_intro_wave_2b":    "HOLD THE LINE, OPERATOR.",
+    "mode_intro_wave_roster": "COMPROMISED SERVICES",
 
     # Mode intro: time survival (Act 4 live open of "THE LONG WATCH")
     "mode_intro_surv_title": "LIVE DISPATCH // THE LONG WATCH",
-    "mode_intro_surv_rec1":  "COUNTDOWN",
+    "mode_intro_surv_rec1":  "WATCH START",
     "mode_intro_surv_1a":    "THE ROOT IS PURGED. THE FLOOD STILL COMES.",
     "mode_intro_surv_1b":    "THE LONG WATCH BEGINS.",
     "mode_intro_surv_rec2":  "UPTIME LOG",
     "mode_intro_surv_2a":    "EVERY SECOND OF UPTIME IS LOGGED.",
     "mode_intro_surv_2b":    "NO RELIEF IS COMING. HOLD ANYWAY.",
+    "mode_intro_surv_uptime": "UPTIME",
+    "mode_intro_surv_log_held": "LINE HELD",
 
     # Mode intro: roguelite (Act 3 live open of "DEEP RECOVERY")
     "mode_intro_rogue_title": "LIVE DISPATCH // DEEP RECOVERY",
     "mode_intro_rogue_rec1":  "STACK MAP",
     "mode_intro_rogue_1a":    "THE SURFACE IS SECURE. THE ROT STILL PULSES BELOW.",
     "mode_intro_rogue_1b":    "DESCEND THE STACK, SECTOR BY SECTOR.",
-    "mode_intro_rogue_rec2":  "RELIC SCAN",
-    "mode_intro_rogue_2a":    "RECOVER LOST KERNEL PROCESSES. CLAIM RELICS.",
+    "mode_intro_rogue_rec2":  "PATCH SCAN",
+    "mode_intro_rogue_2a":    "RECOVER LOST KERNEL PROCESSES. APPLY PATCHES.",
     "mode_intro_rogue_2b":    "FIND WHAT THE ROOT GREW FROM.",
+    "mode_intro_rogue_sector": "SECTOR $1",
 
     # Mode intro: sandbox (non-canon, outside the incident archive)
     "mode_intro_sandbox_title": "OFF THE RECORD // TEST ENVIRONMENT",
     "mode_intro_sandbox_rec1":  "INIT SEQUENCE",
     "mode_intro_sandbox_1a":    "TEST ENVIRONMENT ACTIVE",
     "mode_intro_sandbox_1b":    "WARNING: NO GUARDRAILS. PROCEED FREELY.",
+    "mode_intro_sandbox_term_1": "INIT TOPHAT_SANDBOX v0.9 ...",
+    "mode_intro_sandbox_term_2": "LOADING ENV MODULES ........",
+    "mode_intro_sandbox_term_3": "DISABLING SAFETY CHECKS .....",
+    "mode_intro_sandbox_term_4": "UNRESTRICTED ACCESS GRANTED.",
+    "mode_intro_sandbox_term_5": "WARNING: NO GUARDRAILS ACTIVE",
+    "mode_intro_sandbox_rec2":  "SPAWN TOOLS",
+    "mode_intro_sandbox_2a":    "SPAWN ANY PROCESS. TEST ANY BUILD.",
+    "mode_intro_sandbox_2b":    "ONE CLICK, ONE PROCESS. AS MANY AS YOU WANT.",
 
     # Mode intro: pvp (non-canon, outside the incident archive)
     "mode_intro_pvp_title": "EXTERNAL FEED // HOSTILE NODE",
@@ -3081,6 +3786,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_pvp_rec2":  "ADVERSARY LOCK",
     "mode_intro_pvp_2a":    "ADVERSARY SIGNATURE CONFIRMED",
     "mode_intro_pvp_2b":    "ELIMINATE OR BE ELIMINATED.",
+    "mode_intro_pvp_rec3":  "LINK DUEL",
+    "mode_intro_pvp_3a":    "ONE PORT. TWO PROCESSES.",
+    "mode_intro_pvp_3b":    "ONLY ONE KEEPS THE CONNECTION.",
     # Mode-exclusive power-up names
     "powerup_glitch_field":    "GLITCH_FIELD.dll",
     "powerup_time_surge":      "TIME_SURGE.exe",
@@ -3121,9 +3829,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_chain_reaction":       "CHAIN_REACT.dll",
     "powerup_kernel_exploit":       "KERNEL_EXPLOIT.sys",
     # Stage 5 roguelite-exclusive descriptions
-    "powerup_corrupted_core_desc1": "Elite kills grant +100 max HP.",
-    "powerup_corrupted_core_desc2": "Elite kills grant +150 max HP.",
-    "powerup_corrupted_core_desc3": "Elite kills grant +200 max HP.",
+    "powerup_corrupted_core_desc1": "Elite kills grant +10 max HP.",
+    "powerup_corrupted_core_desc2": "Elite kills grant +15 max HP.",
+    "powerup_corrupted_core_desc3": "Elite kills grant +20 max HP.",
     "powerup_room_echo_desc1":      "Room clear grants 8 charged bullets dealing +60% damage.",
     "powerup_room_echo_desc2":      "Room clear grants 12 charged bullets dealing +60% damage.",
     "powerup_room_echo_desc3":      "Room clear grants 16 charged bullets dealing +60% damage.",
@@ -3139,7 +3847,150 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "resume_run_body":         "Continue your saved run or start a new one?",
     "resume_continue":         "CONTINUE",
     "resume_new_run":          "NEW RUN",
-    "new_process_installed":   "NEW PROCESS DISCOVERED"
+    "new_process_installed":   "NEW PROCESS DISCOVERED",
+    "tutorial_header":          "ORIENTATION.EXE",
+    "tutorial_move_title":      "MOVE",
+    "tutorial_move_body":       "Welcome, process. Move with {move}. The glowing shape in the middle is you.",
+    "tutorial_fire_title":      "AIM & FIRE",
+    "tutorial_fire_body_kb":    "Aim with the mouse and hold {fire} to shoot.",
+    "tutorial_fire_body_pad":   "Aim with {aim}, it fires on its own. {fire} fires too.",
+    "tutorial_dash_title":      "DASH",
+    "tutorial_dash_body":       "Tap {dash} to dash out of danger. It recharges in a few seconds, watch the DASH row.",
+    "tutorial_targets_title":   "HOSTILE PROCESSES",
+    "tutorial_targets_body":    "Enemies hunt you down, and touching them drains your HP. Destroy them before they get close.",
+    "tutorial_targets_count":   "Destroyed",
+    "tutorial_loot_title":      "LOOT",
+    "tutorial_loot_body":       "Kills drop XP orbs and credits. Move close to pick them up.",
+    "tutorial_status_title":    "STATUS PANEL",
+    "tutorial_status_body":     "HP is your system integrity, and at zero you crash. Below it are your wall charges, credits, dash, wave and LV bar. Fill the LV bar with XP to install a new power-up.",
+    "tutorial_walls_title":     "WALLS",
+    "tutorial_walls_body":      "Hold {wall} to aim a wall, release to place it. Walls block enemies. Here is a free charge, you can buy more in the shop.",
+    "tutorial_settings_title":  "TUNE YOUR SYSTEM",
+    "tutorial_settings_body":   "Before you start, change your parameters in the Settings menu. Controls, HUD style, UI scale, audio and more are there, from the desktop or with {pause} at any time.",
+    "tutorial_ready_title":     "READY",
+    "tutorial_ready_body":      "Clear waves to advance. A boss arrives every {interval} waves; before and after it you pick a power-up and visit the shop. {pause} pauses, {legendary} fires legendary powers.",
+    "tutorial_you":             "YOU",
+    "tutorial_done":            "DONE",
+    "tutorial_next":            "Next",
+    "tutorial_start_wave":      "Start wave 1",
+    "tutorial_finish":          "Finish",
+    "tutorial_hold_skip":       "Hold {key} to skip",
+    "tutorial_key_left_click":  "Left Click",
+    "tutorial_key_left_stick":  "Left Stick",
+    "tutorial_key_right_stick": "Right Stick",
+    "tutorial_launching":       "Launching Orientation...",
+    "tutorial_practice_complete": "Orientation complete",
+    "settings_tutorial":        "Tutorial:",
+    "settings_replay_tutorial": "Replay Tutorial",
+    "settings_replay_tutorial_desc": "Practice run, saves untouched",
+    "settings_replay_tutorial_locked": "Available from the desktop",
+
+    # Time Survival: phases, System Events, Data Caches, victory
+    "survival_phase_boot": "BOOT",
+    "survival_phase_runtime": "RUNTIME",
+    "survival_phase_overload": "OVERLOAD",
+    "survival_phase_kernel_panic": "KERNEL PANIC",
+    "survival_phase_overtime": "OVERTIME",
+    "survival_phase_boot_desc": "The system is waking up. Hold the line.",
+    "survival_phase_runtime_desc": "Processes multiply. Rings start closing in.",
+    "survival_phase_overload_desc": "The system is overheating. Upload zones decay.",
+    "survival_phase_kernel_panic_desc": "Everything is failing. Survive to 20:00.",
+    "survival_phase_overtime_desc": "Past the limit. Every minute pays extra.",
+    "survival_phase_banner": "PHASE $1",
+    "survival_hud_boss_in": "BOSS IN",
+    "survival_hud_final_in": "FINAL IN",
+    "survival_hud_boss_live": "BOSS ACTIVE",
+    "survival_boss_inbound": "BOSS PROCESS INBOUND",
+    "survival_final_inbound": "FINAL PROCESS INBOUND",
+    "survival_boss_inbound_sub": "It arrives in 10 seconds.",
+    "survival_event_memory_leak": "MEMORY LEAK",
+    "survival_event_memory_leak_hint": "Purge 60% of the leak before it floods the screen.",
+    "survival_event_firewall_breach": "FIREWALL BREACH",
+    "survival_event_firewall_breach_hint": "A ring is closing in. Wipe it out in 25 seconds.",
+    "survival_event_upload_zone": "UPLOAD ZONE",
+    "survival_event_upload_zone_hint": "Stand in the zone until the upload completes.",
+    "survival_event_corrupted_sector": "CORRUPTED SECTOR",
+    "survival_event_corrupted_sector_hint": "Meteors incoming. Keep moving.",
+    "survival_event_rogue_process": "ROGUE PROCESS",
+    "survival_event_rogue_process_hint": "Hunt it down before it escapes.",
+    "survival_event_overclock": "OVERCLOCK",
+    "survival_event_overclock_hint": "Double XP. The horde speeds up.",
+    "survival_event_cleared": "CLEARED",
+    "survival_event_failed": "FAILED",
+    "survival_rogue_escaped": "PROCESS ESCAPED",
+    "survival_tracker_remaining": "$1 LEFT",
+    "survival_tracker_purged": "$1% PURGED",
+    "survival_tracker_uploaded": "$1% UPLOADED",
+    "survival_tracker_survive": "SURVIVE",
+    "survival_tracker_incoming": "INCOMING",
+    "survival_tracker_xp_boost": "XP x2",
+    "survival_cache_minor": "MINOR CACHE",
+    "survival_cache_standard": "DATA CACHE",
+    "survival_cache_rare": "RARE CACHE",
+    "survival_cache_kernel": "KERNEL CACHE",
+    "survival_cache_decrypted": "DECRYPTED",
+    "survival_cache_new": "NEW",
+    "survival_cache_level": "LV $1",
+    "survival_cache_legendary": "LEGENDARY",
+    "survival_cache_walls": "+$1 walls",
+    "survival_cache_repair": "System repaired",
+    "survival_cache_continue": "Click or press Enter to continue",
+    "survival_victory_title": "SYSTEM STABILIZED",
+    "survival_victory_subtitle": "You held the system for 20:00 and terminated the final process!",
+    "survival_victory_status": "ALL FOUR PHASES SURVIVED -- OVERTIME AVAILABLE",
+    "survival_victory_overtime": "ENTER OVERTIME",
+    "survival_victory_end_run": "END RUN",
+    "survival_victory_footer": "[OK] Overtime: a boss every 2:30, and every minute pays 50% more",
+    "survival_time_survived": "Time Survived:",
+    "survival_phase_reached": "Phase Reached:",
+    "survival_events_caches": "Events / Caches:",
+
+    # Mods (MODS.EXE)
+    "modded_badge": "MODDED",
+    "modded_no_rewards": "Modded run: no permanent rewards",
+    "desktop_icon_mods": "MODS.exe",
+    "mods_window_title": "Mods - Mod Manager",
+    "mods_tab_installed": "Installed",
+    "mods_tab_modes": "Game Modes",
+    "mods_tab_log": "Log",
+    "mods_tab_apps": "Apps",
+    "mods_no_apps": "No loaded mod adds an app. Mods add them with register.app.",
+    "mods_cheat_banner": "Modded runs count as cheated: no Data Shards, stats, advancements or unlocks.",
+    "mods_apply": "Apply & Reload",
+    "mods_open_folder": "Open Folder",
+    "mods_install_examples": "Install Examples",
+    "mods_empty": "No mods installed yet. Put each mod in its own folder inside:",
+    "mods_empty_hint": "Or press Install Examples to get a few to start from.",
+    "mods_status_loaded": "Loaded",
+    "mods_status_disabled": "Disabled",
+    "mods_status_error": "Error",
+    "mods_status_missing_dep": "Missing dependency",
+    "mods_status_invalid": "Invalid mod.json",
+    "mods_status_duplicate": "Duplicate id",
+    "mods_status_will_load": "Loads on Apply",
+    "mods_status_will_unload": "Unloads on Apply",
+    "mods_by": "by",
+    "mods_requires": "Requires:",
+    "mods_folder": "Folder:",
+    "mods_pending": "Changes pending",
+    "mods_no_modes": "No mod game modes loaded. Mods add them with register.gamemode.",
+    "mods_launch": "Launch",
+    "mods_continue": "Continue",
+    "mods_base_mode": "Based on:",
+    "mods_from_mod": "From mod:",
+    "mods_log_empty": "Nothing logged yet.",
+    "mods_reloaded_toast": "Mods reloaded",
+    "mods_summary_loaded": "$1 loaded",
+    "mods_summary_failed": "$1 failed",
+    "mods_examples_installed": "Example mods installed. Tick them and press Apply & Reload.",
+    "mods_examples_failed": "Could not write the example mods.",
+    "mods_tab_cosmetics": "Cosmetics",
+    "mods_no_cosmetics": "No mod cosmetics loaded. Mods add them with register.cosmetic.",
+    "mods_equip": "Equip",
+    "mods_unequip": "Unequip",
+    "mods_kind_player": "Player skin",
+    "mods_kind_bullet": "Bullet skin",
+    "mods_kind_desktop": "Wallpaper"
   }.toTable,
 
   Spanish: {
@@ -3154,10 +4005,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "desktop_icon_sandbox": "LAB.exe",
     "desktop_icon_shop": "CROMAS.db",
     "desktop_icon_pvp": "DUELOS.exe",
-    "desktop_icon_roguelite": "ROOTMAP_ALPHA.db",
+    "desktop_icon_roguelite": "RECOVERY.exe",
     "desktop_icon_advancements": "ASCEND.db",
     "desktop_icon_changelog": "PARCHES.txt",
     "desktop_icon_credits": "CRÉDITOS.nfo",
+    "desktop_icon_feedback": "COMENTARIOS.exe",
 
     # Credits window
     "credits_window_title": "Créditos - Acerca de",
@@ -3170,6 +4022,30 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "support_blurb": "TopHat-ShooterOS es gratuito y de codigo abierto. Apoyar es opcional y nunca bloquea ninguna función.",
     "support_note": "Los enlaces se abren en tu navegador.",
 
+    # Feedback window
+    "feedback_window_title": "Comentarios - Reportar un Error",
+    "feedback_intro": "¿Encontraste un error o tienes una idea? Escríbelo aquí y envíalo directo al gestor de incidencias del proyecto.",
+    "feedback_kind_bug": "Error",
+    "feedback_kind_idea": "Idea",
+    "feedback_kind_other": "Otro",
+    "feedback_title_label": "Título",
+    "feedback_title_hint": "Un resumen en una línea",
+    "feedback_details_label": "Detalles",
+    "feedback_hint_bug": "¿Qué pasó? ¿Qué esperabas? ¿Cómo se puede reproducir?",
+    "feedback_hint_idea": "Describe tu idea y cómo mejoraría el juego.",
+    "feedback_hint_other": "Cualquier cosa que quieras contarle al desarrollador.",
+    "feedback_attach_info": "Adjuntar info del sistema (versión, SO, ajustes; nada personal)",
+    "feedback_send": "Enviar en GitHub",
+    "feedback_copy": "Copiar reporte",
+    "feedback_save": "Guardar archivo",
+    "feedback_status_empty": "Escribe primero un título o algunos detalles.",
+    "feedback_status_opened": "Abierto en tu navegador. Revísalo allí y envíalo.",
+    "feedback_status_truncated": "Demasiado largo para un enlace: se copió el reporte completo, pégalo en la página.",
+    "feedback_status_copied": "Reporte copiado al portapapeles.",
+    "feedback_status_saved": "Guardado: $1",
+    "feedback_status_save_failed": "No se pudo guardar el reporte.",
+    "feedback_note": "Enviar requiere una cuenta gratuita de GitHub. ¿Sin cuenta? Copia o guarda el reporte y compártelo como quieras.",
+
     # Changelog window
     "changelog_window_title": "Notas del Parche - Cambios",
     "changelog_header": "Novedades",
@@ -3179,6 +4055,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "changelog_cat_improved": "Mejoras",
     "changelog_cat_balance": "Balance",
     "changelog_cat_fixed": "Correcciones",
+    "changelog_legacy_view": "Vista clásica (todas las versiones en una página)",
 
     # Settings
     "settings_title": "CONFIG",
@@ -3187,7 +4064,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_music": "Música:",
     "settings_sound_effects_desc": "(explosiones, UI, efectos en juego)",
     "settings_music_desc": "(volumen de música de fondo)",
-    "settings_fullscreen": "Pantalla:",
+    "settings_fullscreen": "Pantalla completa:",
     "settings_fullscreen_toggle": "(F11 para cambiar)",
     "settings_render_resolution": "Resolución mejorada (SSAA):",
     "settings_render_resolution_desc": "(mejora la nitidez en pantalla completa)",
@@ -3204,19 +4081,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_mouse_bonding_always_in_game": "Siempre en partida",
     "settings_mouse_bonding_always": "Siempre",
     "settings_debug_panel": "Debug:",
-    "settings_debug_panel_desc": "(stats arriba-derecha)",
     "settings_arena_vignette": "Viñeta Arena:",
-    "settings_arena_vignette_desc": "(sombreado oscuro en bordes)",
     "settings_low_health_vignette": "Viñeta HP Bajo:",
-    "settings_low_health_vignette_desc": "(aviso rojo con poca vida)",
     "settings_show_hints": "Consejos:",
     "settings_show_hints_desc": "(E: Muro, ESC: Pausa)",
     "settings_hud_layout": "Diseño del HUD:",
     "settings_hud_layout_desc": "(Panorámico añade paneles laterales)",
     "settings_hud_layout_classic": "Clásico (4:3)",
     "settings_hud_layout_widescreen": "Panorámico (16:9)",
+    "settings_hud_style": "Estilo del HUD:",
+    "settings_hud_style_desc": "(Anterior restaura el HUD de partida previo)",
+    "settings_hud_style_modern": "Moderno",
+    "settings_hud_style_legacy": "Anterior",
     "settings_show_enemy_labels": "Etiquetas:",
-    "settings_show_enemy_labels_desc": "(nombres sobre enemigos)",
     "settings_exit_confirm": "Confirmar Salida:",
     "settings_exit_confirm_desc": "(aviso al salir del juego)",
     "settings_language": "Idioma:",
@@ -3236,6 +4113,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_controls_ff": "ENTER: X2  |  ESPACIO: SALTAR",
     "lore_controls_ff_active": "ENTER: X2 ACTIVO  |  ESPACIO: SALTAR",
     "lore_controls_touch": "MANTEN PULSADO: SALTAR",
+    "lore_controls_pad": "$1: X2  |  $2: SALTAR",
+    "lore_controls_pad_active": "$1: X2 ACTIVO  |  $2: SALTAR",
     "lore_rec_breach": "REC 00: BRECHA DEL SISTEMA",
     "lore_rec_swarm": "REC 01: AVALANCHA DE PROCESOS",
     "lore_rec_awaken": "REC 02: DESPERTAR DEL KERNEL",
@@ -3249,11 +4128,17 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "lore_awaken_1": "TOPHAT despierta y arranca su último proceso fiable: tú.",
     "lore_awaken_2": "El kernel no puede luchar confinado. Tú sí.",
     "lore_boss_1": "Lo que cruzó la brecha es más antiguo que el SO.",
-    "lore_boss_2": "Corre como root y escribe cada ataque que enfrentas.",
+    "lore_boss_2": "Corre como root. Cada servicio que toca se vuelve contra ti.",
     "lore_counter_1": "Tu fuego son parches. Sus fragmentos, poder.",
     "lore_counter_2": "El sistema aún puede salvarse.",
     "lore_directive_title": "PROTOCOLO DE DEFENSA: ACTIVO",
     "lore_directive_sub": "Aguanta la línea, operador.",
+    "lore_breach_alert": "CONEXIÓN ENTRANTE: HOST DESCONOCIDO",
+    "lore_containment": "CONTENCIÓN DEL KERNEL",
+    "lore_boot_1": "tophat: contención activa, kernel bloqueado",
+    "lore_boot_2": "tophat: iniciando el último proceso fiable...",
+    "lore_boot_3": "operador: en línea",
+    "lore_services_hijacked": "SERVICIOS SECUESTRADOS",
 
     "end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE RESUELTO",
     "end_rec_fall": "REC 06: LA RAÍZ PURGADA",
@@ -3264,13 +4149,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "end_fall_1": "La Raíz se hace pedazos.",
     "end_fall_2": "Su código se deshace de vuelta por la brecha de la que surgió.",
     "end_purge_1": "La corrupción retrocede, sector a sector.",
-    "end_purge_2": "Tras ella se recupera memoria limpia.",
+    "end_purge_2": "Cada servicio que robó vuelve a estar en línea.",
     "end_restore_1": "Kernel TOPHAT restaurado. Contención estable.",
     "end_restore_2": "Nivel de amenaza bajando... cero.",
     "end_crown_1": "Con la Raíz eliminada, su acceso root pasa a ti.",
     "end_crown_2": "Ahora llevas la corona del kernel.",
     "end_signoff_title": "SISTEMA ASEGURADO",
-    "end_signoff_sub": "Nivel de amenaza cero. Descansa: te has ganado la corona.",
+    "end_signoff_sub": "Nivel de amenaza cero. Descansa, operador. Te ganaste la corona.",
 
     "rog_end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // RECUPERACIÓN PROFUNDA",
     "rog_end_rec_descend": "DESCENSO 01: BAJADA DE SECTOR",
@@ -3281,7 +4166,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "rog_end_rec_signoff": "DESCENSO 06: SUPERFICIE ALCANZADA",
     "rog_end_descend_1": "La superficie quedó asegurada, pero la podredumbre aún latía abajo.",
     "rog_end_descend_2": "Ya coronado, descendiste a acabarla en su origen.",
-    "rog_end_core_1": "En el fondo de la recursión aguardaba la semilla-",
+    "rog_end_core_1": "En el fondo de la recursión aguardaba la semilla:",
     "rog_end_core_2": "el núcleo del que nació la Raíz, más antiguo que el propio TOPHAT.",
     "rog_end_extract_1": "Arrancaste la semilla, fragmento a fragmento,",
     "rog_end_extract_2": "y el bucle sin fin comenzó a deshacerse.",
@@ -3323,6 +4208,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_controls": "Controles",
     "settings_tab_gameplay": "Juego",
     "settings_tab_cinematics": "Cinemáticas",
+    "settings_tab_interface": "Interfaz",
+    "settings_section_scale": "ESCALA Y EFECTOS",
+    "settings_section_hud_elements": "ELEMENTOS DEL HUD",
+    "settings_ui_scale": "Escala de interfaz:",
+    "settings_ui_scale_desc": "(Escritorio, ventanas, HUD y menús del juego)",
+    "settings_ui_scale_small": "Pequeña (70%)",
+    "settings_ui_scale_default": "Normal (100%)",
+    "settings_ui_scale_big": "Grande (130%)",
+    "settings_damage_numbers": "Números de daño:",
+    "settings_damage_numbers_desc": "(Texto de daño flotante en los impactos)",
+    "settings_damage_number_size": "Tamaño del texto:",
+    "settings_screen_shake": "Vibración de pantalla:",
+    "settings_screen_shake_desc": "(0% desactiva la vibración por completo)",
 
     "settings_section_story": "CINEMÁTICAS DE HISTORIA",
     "settings_section_mode_intros": "INTROS DE MODO",
@@ -3479,7 +4377,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_life_steal_desc3": "Restaura 100 HP cada 5 bajas",
     "powerup_rapid_fire_desc": "Sobrecarga: mantén el disparo para acelerar la cadencia hasta +30%",
     "powerup_max_health_desc": "Coloso: te instala 300 HP máx y luego +3% de daño por cada 100 HP máx ganados con mejoras (máx +45%) -- el blindaje te quita hasta un 18% de velocidad",
-    "powerup_speed_boost_desc": "Impulso: hasta +25% de daño en movimiento",
+    "powerup_speed_boost_desc": "Impulso: gana una carga cada 0.5s moviéndote rápido (máx. 5, +4% de daño cada una). Detenerte las agota igual de rápido. Cargas máximas: +20% de probabilidad crítica",
     "powerup_bullet_speed_desc": "Lightspeed: cada disparo lanza un rayo trazador instantáneo que golpea al primer enemigo en línea por 50% de daño",
     "powerup_lucky_coins_desc": "Duplica todas las monedas recogidas",
     "powerup_wall_master_desc": "Los muros ganan +250% de HP y las torretas +100% de daño",
@@ -3596,9 +4494,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_heavy_rounds_desc1": "Balas 15% más grandes con ligero retroceso",
     "powerup_heavy_rounds_desc2": "Balas 25% más grandes con retroceso aumentado",
     "powerup_heavy_rounds_desc3": "Balas 35% más grandes con fuerte retroceso",
-    "powerup_fortified_desc1": "Reduce el daño recibido un 10% y te da 250 HP máximos",
-    "powerup_fortified_desc2": "Reduce el daño recibido un 20% y te da 500 (+250) HP máximos",
-    "powerup_fortified_desc3": "Reduce el daño recibido un 30% y te da 750 (+250) HP máximos",
+    "powerup_fortified_desc1": "Reduce el daño recibido un 5% y te da 250 HP máximos",
+    "powerup_fortified_desc2": "Reduce el daño recibido un 10% y te da 500 (+250) HP máximos",
+    "powerup_fortified_desc3": "Reduce el daño recibido un 15% y te da 750 (+250) HP máximos",
     "powerup_bulwark_desc1": "Blindaje intacto: hasta +12% de daño con la vida llena, se pierde al recibir daño",
     "powerup_bulwark_desc2": "Blindaje intacto: hasta +18% de daño con la vida llena, se pierde al recibir daño",
     "powerup_bulwark_desc3": "Blindaje intacto: hasta +25% de daño con la vida llena, se pierde al recibir daño",
@@ -3613,13 +4511,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_curse_desc3": "Maldice al 50% de los enemigos, inflige +60% de daño a los malditos (muy reducido contra jefes)",
     "powerup_celestial_veil_desc": "Anula 2 golpes por oleada, se reinicia al empezar cada oleada",
     "powerup_volatile": "Volátil",
-    "powerup_volatile_desc": "Enemigos con 2+ efectos elementales reciben +50% daño de bala, al morir, propagan sus elementos cerca",
+    "powerup_volatile_desc": "Enemigos con 2+ efectos elementales reciben +30% daño de bala, al morir, propagan sus elementos cerca",
     "powerup_resonance": "Resonancia",
     "powerup_resonance_desc1": "Tus balas infligen daño extra igual al 20% del DPS elemental combinado si el objetivo tiene DoTs",
     "powerup_resonance_desc2": "Tus balas infligen daño extra igual al 30% del DPS elemental combinado si el objetivo tiene DoTs",
     "powerup_resonance_desc3": "Tus balas infligen daño extra igual al 40% del DPS elemental combinado si el objetivo tiene DoTs",
     "powerup_blood_pact": "Pacto de Sangre",
-    "powerup_blood_pact_desc": "Sacrifica el 20% de tu HP actual para desatar una nova de sangre que golpea a CADA enemigo por el 25% de su HP máximo + 2.5 daño por HP sacrificado. Los jefes la resisten en un 60%. Recarga 3 s",
+    "powerup_blood_pact_desc": "Sacrifica el 25% de tu HP actual para desatar una nova de sangre que golpea a CADA enemigo por el 25% de su HP máximo + 1.25 daño por HP sacrificado. Los jefes la resisten en un 60%. Recarga 3 s",
     "powerup_conduit": "Conducto",
     "powerup_conduit_desc": "Detona todos los DoTs activos por 3x su daño restante y luego los elimina. Recarga 15 s",
     "powerup_aftershock": "Réplica",
@@ -3692,11 +4590,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_over_resources_collected": "Recursos Recopilados:",
     "game_over_mission_duration": "Duración de la Misión:",
     "game_over_continue": "CONTINUAR (OLEADA",
+    "game_over_continue_sector": "CONTINUAR (SECTOR",
+    "game_over_continue_clock": "CONTINUAR (",
+    "game_over_shop_currency_banked": "GUARDADO PARA LA TIENDA",
     "restore_points_label": "PUNTOS DE RESTAURACIÓN",
     "restore_points_unlimited": "ILIMITADOS",
     "restore_points_none": "NINGUNO",
     "restore_points_last": "EL ÚLTIMO",
     "restore_point_lost": "PUNTO DE RESTAURACIÓN GASTADO",
+    "restore_points_endless": "DESACTIVADOS: INFINITO SIN CONTINUACIONES",
+    "restore_points_overtime": "DESACTIVADOS: TIEMPO EXTRA SIN CONTINUACIONES",
     "game_over_critical_failure": "FALLO CRÍTICO DEL SISTEMA",
     "game_over_error_msg": "Tu sistema ha encontrado un error crítico y necesita reiniciarse.",
     "game_over_session_diagnostics": "=== DIAGNÓSTICO DE SESIÓN ===",
@@ -3717,7 +4620,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "victory_continue_endless": "MODO INFINITO",
     "victory_view_stats": "VER ESTADÍSTICAS",
     "victory_return_menu": "VOLVER AL MENÚ",
-    "victory_footer": "[OK] Protocolo infinito desbloqueado | ¿Cuánto resistirás?",
+    "victory_footer": "[OK] Protocolo infinito desbloqueado | Sin puntos de restauración: una muerte termina la partida",
 
     # Game Over "cause of death" lines
     "game_over_cause_label": "CAUSA DE LA TERMINACIÓN",
@@ -3733,17 +4636,16 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "death_boss_tag": "JEFE",
 
     # HUD/Notifications
-    "hud_system_status": "ESTADO DEL SISTEMA",
-    "hud_integrity": "INTEGRIDAD:",
-    "hud_charges": "CARGAS",
     "hud_processes": "PROCESOS",
-    "hud_cache": "CACHÉ",
-    "hud_performance": "Rendimiento",
-    "hud_wave": "OLEADA:",
-    "hud_uptime": "TIEMPO DE ACTIVIDAD:",
-    "hud_threats": "AMENAZAS:",
     "hud_dash": "IMPULSO",
     "hud_dash_ready": "LISTO",
+    "hud_more": "más",
+    "hud_boss_wave": "OLEADA JEFE",
+    "hud_boss_in_waves": "JEFE EN $1",
+    "hud_key_wall": "Muro",
+    "hud_key_dash": "Impulso",
+    "hud_key_ability": "Habilidad",
+    "hud_key_pause": "Pausa",
 
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNÓSTICOS",
@@ -3779,7 +4681,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "shop_click_equip": "Clic para equipar",
     "shop_window_title": "Tienda Personaliz.",
     "shop_equipped": "[EQUIPADO]",
-    "shop_currently_equipped": "Equipado:",
     "shop_customize_appearance": "PERSONALIZA TU APARIENCIA",
     "shop_customize_bullets": "PERSONALIZA TUS BALAS",
     "shop_choose_shape": "ELIGE TU FORMA",
@@ -3974,21 +4875,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pack_owned": "OBTENIDO",
     "pack_includes": "Jugador + Bala + Particula",
     "pack_gold": "Paquete Dorado",
-    "pack_gold_desc": "Todos los cosméticos Dorados",
     "pack_ice": "Paquete Cristal",
-    "pack_ice_desc": "Todos los cosméticos Cristal",
     "pack_shadow": "Paquete Sombra",
-    "pack_shadow_desc": "Todos los cosméticos Sombra",
     "pack_rainbow": "Paquete Arcoiris",
-    "pack_rainbow_desc": "Todos los cosméticos Arcoiris",
     "pack_void": "Paquete Vacío",
-    "pack_void_desc": "Todos los cosméticos Vacío",
     "pack_plasma": "Paquete Plasma",
-    "pack_plasma_desc": "Todos los cosméticos Plasma",
     "pack_sunset": "Paquete Atardecer",
-    "pack_sunset_desc": "Atardecer con estela de fuego",
     "pack_emerald": "Paquete Esmeralda",
-    "pack_emerald_desc": "Esmeralda con estela tóxica",
     "pack_neon_pink": "Paquete Rosa Neon",
     "pack_neon_pink_desc": "Rosa Neon con corazones",
     "pack_amethyst": "Paquete Amatista",
@@ -4029,6 +4922,24 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_enemies": "Tipos de enemigos y comportamientos",
     "help_cmd_bosses": "Información de jefes",
     "help_cmd_shop": "Artículos de tienda y costos",
+    "help_cmd_lore": "Archivo del incidente: la historia hasta ahora",
+    "help_cmd_licenses": "Licencias de terceros",
+    "help_licenses_intro": "Los mods se ejecutan con Lua 5.5 (www.lua.org), usado bajo la licencia MIT:",
+    "help_lore_topic": "ARCHIVO DEL INCIDENTE",
+    "help_lore_intro": "Expedientes recuperados del incidente de la Raíz. Los nuevos se descifran al recuperar sus grabaciones.",
+    "help_lore_act1_title": "ACTO I: LA BRECHA   [REC 00-05]",
+    "help_lore_act1_body": "Un servidor desconocido forzó la puerta de TopHat-ShooterOS, y algo la cruzó: la Raíz. Su marea inundó la memoria, y cada servicio del sistema que tocó se volvió hostil. Confinado, el kernel TOPHAT no podía luchar, así que arrancó su último proceso fiable. Tú.",
+    "help_lore_act2_title": "ACTO II: LA CORONA   [REC 06-10]",
+    "help_lore_act2_body": "Oleada tras oleada, arrancaste los servicios secuestrados de las garras de la Raíz hasta que no tuvo tras qué esconderse y tomó forma ella misma. Cayó. La corrupción retrocedió, cada servicio robado volvió a estar en línea, y el acceso de la Raíz pasó a quien la derrotó. La corona del kernel ahora es tuya.",
+    "help_lore_act2_hint": "Recupera este expediente derrotando al jefe de la oleada 60.",
+    "help_lore_act3_title": "ACTO III: LAS PROFUNDIDADES   [DESCENSO 01-06]",
+    "help_lore_act3_body": "La superficie quedó asegurada, pero la podredumbre aún latía bajo la pila. Descendiste sector a sector hasta la semilla de la que nació la Raíz, más antigua que el propio TOPHAT, y en su última luz supiste la verdad: la brecha no trajo a la Raíz. La despertó.",
+    "help_lore_act3_hint": "Recupera este expediente apagando el último SERVICIO del modo roguelite.",
+    "help_lore_act4_title": "ACTO IV: LA LARGA VIGILIA   [REG 01-05]",
+    "help_lore_act4_body": "Mucho después de la corona, la marea volvió, y sostuviste la línea en solitario. Cada segundo de actividad quedó registrado. Cuando la última oleada halló la brecha que no pudiste cerrar, ningún reinicio respondió, y las luces del kernel se apagaron una a una. SISTEMA DETENIDO.",
+    "help_lore_act4_hint": "Recupera este expediente resistiendo 15 minutos en Supervivencia por Tiempo.",
+    "help_lore_encrypted": "[CIFRADO] Este expediente sigue sellado.",
+    "help_lore_footer": "Vuelve a ver las grabaciones recuperadas en CONFIG.sys > Cinemáticas. Escribe 'bosses' para ver los expedientes de servicios secuestrados.",
     "help_cmd_launch_icons": "Lanzar iconos de escritorio por nombre",
 
     # Help System - Controls section
@@ -4072,7 +4983,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Help System - Misc
     "help_boss_every_5th": "Modo Oleadas: Cada 5ta oleada (5, 10, 15...)",
-    "help_boss_every_60_sec": "Modo Supervivencia: Cada 60 segundos",
+    "help_boss_every_60_sec": "Modo Supervivencia: Cada 5:00 (jefe final a las 20:00)",
     "help_cost_scaling_formula": "- Los objetos de tienda tienen límites estrictos\n  - Cada compra es más fuerte y cuesta costBase * 1.8^comprado",
     "help_kill_enemies_to_collect": "- Mata enemigos para recopilar monedas",
     "help_elite_drop_more": "- Los enemigos élite dejan caer más monedas",
@@ -4086,7 +4997,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_available_between_waves": "- Disponible entre oleadas",
 
     # Game Notifications and UI
-    "game_wave_announcement_main": "*** OLEADA ***",
     "game_instructions_wall": "E: Muro | ESC: Pausa",
     "game_wall_place": "[Soltar E] Colocar Muro",
     "game_wall_place_touch": "[Soltar] Colocar Muro",
@@ -4096,7 +5006,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game_no_previous_run": "No hay estadísticas de ejecución anterior disponibles",
     "game_complete_game_stats": "Completa un juego para ver estadísticas de ejecución detalladas",
     "game_no_power_up_data": "Sin datos de mejoras disponibles",
-    "game_best_streak": "Mejor Racha",
 
     # Stats Window
     "stats_damage_column_label": "DAÑO",
@@ -4220,7 +5129,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "loading_generating_music": "Generando música",
     "loading_complete": "¡Generación de assets completa!",
     "loading_hint": "Generando assets de audio procedurales",
-    "loading_cached": "Todos los assets cargados desde caché",
     "loading_loading_sounds": "Cargando sonido",
     "loading_stage_sfx": "SFX",
     "loading_stage_music": "MÚSICA",
@@ -4230,14 +5138,26 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cheat Menu Buttons
     "cheat_close_instruction": "Presiona ESC o haz clic en X para cerrar",
+    "cheat_no_permanent_rewards": "Partida con trucos: sin recompensas",
     "cheat_showing_items": "Mostrando",
 
     # OS Task Manager / System Monitoring
     "os_running_processes": "PROCESOS ACTIVOS",
     "os_no_active_processes": "Sin procesos",
-    "os_process_name": "Proceso",
-    "os_version": "Versión",
     "os_status": "Estado",
+    "os_tab_processes": "Procesos",
+    "os_tab_patches": "Parches",
+    "os_tab_performance": "Rendimiento",
+    "os_installed_patches": "PARCHES INSTALADOS",
+    "os_no_patches": "Aún no hay parches instalados. Encuéntralos en las carpetas /updates y /quarantine o en los puestos de /pkg.",
+    "os_patches_hint": "Pasa el cursor sobre un parche o usa ARRIBA/ABAJO para leerlo.",
+    "os_processes_hint": "Pasa el cursor sobre un proceso o usa ARRIBA/ABAJO para leerlo.",
+    "os_status_running": "ACTIVO",
+    "os_status_recharging": "RECARGANDO $1",
+    "os_level_of": "NIVEL $1/$2",
+    "os_legendary": "LEGENDARIO",
+    "os_active_ability": "HABILIDAD ACTIVA",
+    "os_next_level": "SIGUIENTE NIVEL",
     "os_system_performance": "RENDIMIENTO",
     "os_system_manager": "Admin. Sistema",
 
@@ -4251,8 +5171,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Stats Labels
     "stats_play_style_balanced": "Equilibrado",
 
-    # Enemy Labels
-    "enemy_active_threats": "AMENAZAS ACTIVAS:",
 
     # General
     "general_cancel": "Cancelar",
@@ -4266,11 +5184,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "wave_celeb_coins": "Monedas Ganadas",
     "wave_celeb_max_combo": "Combo Máximo",
 
-    # Real-time stats overlay
-    "real_stats_power": "Poder",
-    "real_stats_dps": "DPS",
-    "real_stats_kills": "Muertes",
-    "real_stats_cpm": "M/min",
 
     # Combo display
     "combo_insane": "¡LOCURA!",
@@ -4281,12 +5194,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "combo_perfect_streak": "PERFECTA x",
     "combo_coins": "monedas!",
 
-    # Micro-reward popups & wave-stats
-    "massacre_bonus": "¡BONO MASACRE!",
-    "wave_stats_flawless": "¡IMPECABLE!",
-    "wave_stats_title": "OLEADA",
-    "wave_stats_kills_label": "Muertes:",
-    "wave_stats_time_label": "Tiempo:",
 
     # 3D Boss Game HUD
     "game3d_hp": "HP",
@@ -4380,6 +5287,72 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_team_purple": "Púrpura",
     "pvp_team_none": "Ninguno",
 
+    # PvP arena packages
+    "pvp_pkg_chkdsk": "CHKDSK.EXE",
+    "pvp_pkg_firewall": "FIREWALL.SYS",
+    "pvp_pkg_turbo": "TURBO.DLL",
+    "pvp_pkg_overclock": "OVERCLOCK.SYS",
+    "pvp_pkg_fork": "FORK.EXE",
+    "pvp_pkg_chkdsk_blurb": "integridad restaurada",
+    "pvp_pkg_firewall_blurb": "bloquea el próximo impacto",
+    "pvp_pkg_turbo_blurb": "velocidad x1.4",
+    "pvp_pkg_overclock_blurb": "cadencia de fuego x2",
+    "pvp_pkg_fork_blurb": "disparo triple",
+    "pvp_port_incoming": "ENTRANTE",
+    "pvp_stat_packages": "PAQUETES",
+    "pvp_value_on": "ON",
+
+    # PvP callouts
+    "pvp_call_first_blood": "PRIMER CRASH",
+    "pvp_call_double": "DOBLE FALLO",
+    "pvp_call_triple": "TRIPLE FALLO",
+    "pvp_call_streak3": "ESCALADA DE PRIVILEGIOS",
+    "pvp_call_streak5": "ACCESO ROOT",
+    "pvp_call_streak7": "MODO KERNEL",
+    "pvp_call_shutdown": "APAGADO",
+
+    # PvP in-match HUD
+    "pvp_feed_left": "abandonó la partida",
+    "pvp_terminated_by": "TERMINADO POR",
+    "pvp_respawning_in": "Reapareciendo en",
+    "pvp_walls_label": "Muros",
+    "pvp_place_mode": "MODO COLOCAR",
+    "pvp_you_marker": "TÚ",
+    "pvp_hint_wall": "Muro",
+    "pvp_hint_scores": "Marcador",
+
+    # PvP scoreboard / match end
+    "pvp_board_title": "TABLA DE PROCESOS",
+    "pvp_board_player": "JUGADOR",
+    "pvp_board_kills": "BAJAS",
+    "pvp_board_deaths": "MUERTES",
+    "pvp_board_streak": "RACHA",
+    "pvp_board_best": "MEJOR",
+    "pvp_board_acc": "PREC",
+    "pvp_board_dmg": "DAÑO",
+    "pvp_award_sharpshooter": "FRANCOTIRADOR",
+    "pvp_award_sharpshooter_desc": "mejor precisión",
+    "pvp_award_unkillable": "INMORTAL",
+    "pvp_award_unkillable_desc": "menos muertes",
+    "pvp_award_hoarder": "ACAPARADOR",
+    "pvp_award_hoarder_desc": "más paquetes",
+    "pvp_award_uptime": "MAYOR UPTIME",
+    "pvp_award_uptime_desc": "mejor racha",
+    "pvp_result_win": "¡GANASTE!",
+    "pvp_result_lose": "¡PERDISTE!",
+    "pvp_result_draw": "¡EMPATE!",
+    "pvp_result_team_win": "¡TU EQUIPO GANA!",
+    "pvp_result_team_other": "¡GANA EL EQUIPO {team}!",
+    "pvp_end_time_limit": "Se acabó el tiempo",
+    "pvp_end_opponent_disconnected": "El rival se desconectó",
+    "pvp_end_opponent_forfeited": "El rival abandonó",
+    "pvp_end_last_standing": "Último proceso en pie",
+    "pvp_end_host_left": "El anfitrión abandonó la partida",
+    "pvp_prompt_rematch": "Revancha",
+    "pvp_prompt_leave": "Salir",
+    "pvp_waiting_host": "Esperando a que el anfitrión inicie la revancha...",
+    "pvp_rematch_needs_players": "La revancha necesita al menos 2 jugadores",
+
     # Lifetime Stats Labels
     "stats_no_powerups_selected": "Sin mejoras seleccionadas",
     "stats_dps_over_time_label": "DPS A TRAVÉS DEL TIEMPO",
@@ -4393,140 +5366,181 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "gamemode_wave_based_name": "Por Oleadas",
     "gamemode_wave_based_desc": "Lucha contra oleadas de enemigos. Derrota a los jefes cada 5 oleadas para obtener mejoras legendarias.",
     "gamemode_time_survival_name": "Supervivencia por Tiempo",
-    "gamemode_time_survival_desc": "Sobrevive el mayor tiempo posible. La dificultad aumenta con el tiempo.",
+    "gamemode_time_survival_desc": "Mantén el sistema 20:00 a lo largo de cuatro fases cada vez más duras.\nSobrevive a la horda, supera Eventos del Sistema y abre Cachés de Datos con mejoras gratis.\nDerrota al proceso final y sigue en Tiempo Extra.",
     "gamemode_sandbox_name": "Sandbox",
     "gamemode_sandbox_desc": "Prueba y experimenta con enemigos, jefes y mecánicas del juego.",
     "gamemode_pvp_name": "PVP",
     "gamemode_pvp_desc": "¡Batalla en tiempo real. Primero en 5 bajas gana!",
     "gamemode_roguelite_name": "Roguelite",
-    "gamemode_roguelite_desc": "Explora 4 pisos temáticos, consigue llaves y reliquias, vence jefes de piso y guarda fragmentos.",
-    "roguelite_setup_title": "AJUSTE DE MAZMORRA",
-    "roguelite_setup_subtitle": "CONFIGURA EQUIPO  //  ELIGE KIT  ·  AJUSTA CALOR  ·  INICIA",
-    "roguelite_unlocks_title": "DESBLOQUEOS",
+    "gamemode_roguelite_desc": "Desciende 4 sectores del sistema. Elige carpeta en cada puerta, aplica parches, apaga el SERVICIO de cada sector y guarda Fragmentos.",
+    "roguelite_setup_title": "RECUPERACIÓN PROFUNDA",
+    "roguelite_setup_subtitle": "ELIGE UN PERFIL DE ARRANQUE  //  AJUSTA EL CALOR  //  DESCIENDE",
     "roguelite_data_shards": "Fragmentos",
     "roguelite_shards": "Frag.",
     "roguelite_shards_short": "frag.",
     "roguelite_cores": "Núcleos",
     "roguelite_cores_short": "Núcleos",
     "roguelite_heat": "Calor",
-    "roguelite_floor": "Piso",
+    "roguelite_floor": "Sector",
     "roguelite_level_up": "¡SUBIÓ DE NIVEL!",
     "roguelite_endless": "Infinito",
     "roguelite_pressure": "Presión",
     "roguelite_elite": "Élite",
-    "dungeon_rooms": "Salas",
-    "dungeon_rooms_cleared": "Salas Limpiadas",
-    "dungeon_keys": "Llaves",
-    "dungeon_door_locked": "BLOQUEADA - busca una llave",
-    "dungeon_door_unlock": "Usar llave para abrir",
-    "dungeon_shop_prompt": "[E] Abrir tienda",
-    "dungeon_portal_prompt": "Entra al portal para descender",
-    "dungeon_floor_select_title": "ELIGE TEMA DEL PISO",
-    "dungeon_floor_select_tip": "Cada tema tiene sus propios procesos, peligros y jefe de piso. Los temas usados no se repiten en la ejecución.",
+    "dungeon_rooms_cleared": "Carpetas limpiadas",
+    "dungeon_portal_prompt": "Entra al portal para montar el siguiente sector",
+    "dungeon_floor_select_title": "MONTAR SIGUIENTE SECTOR",
+    "dungeon_floor_select_tip": "Cada sector trae sus propios procesos y su propio SERVICIO. Un sector montado no vuelve a salir en esta partida.",
     "roguelite_victory_title": "SISTEMA PURGADO",
-    "roguelite_victory_subtitle": "Todos los jefes de piso han caído. El SO es tuyo: retírate con tu botín o lleva al núcleo más hondo en el bucle infinito.",
+    "roguelite_victory_subtitle": "Todos los SERVICIOS están apagados y el SO es tuyo. Cobra, o empuja el kernel más hondo en el bucle infinito.",
     "roguelite_loop_cleared_title": "BUCLE COMPLETADO",
     "roguelite_loop_cleared_subtitle": "Otro bucle asegurado. Guarda tu botín o desciende de nuevo por recompensas mayores y procesos más feroces.",
-    "roguelite_relics_carried": "Reliquias llevadas",
-    "roguelite_relics_none": "Sin reliquias esta ejecución.",
+    "roguelite_relics_carried": "Parches aplicados",
+    "roguelite_relics_none": "No se aplicó ningún parche en esta partida.",
     "roguelite_continue_endless": "Continuar (Bucle Infinito)",
     "roguelite_cash_out": "Retirarse",
     "roguelite_victory_controls": "[ESPACIO] continuar    [ESC] retirarse    [<-/->] cambiar    [ENTER] confirmar",
-    "dungeon_floor_boss": "Jefe del Piso",
-    "dungeon_final_floor_label": "JEFE FINAL",
+    "dungeon_floor_boss": "SERVICIO del sector",
+    "dungeon_final_floor_label": "SECTOR FINAL",
     "dungeon_final_floor_desc": "La pila termina aquí. No quedan sectores que sortear, solo el último proceso. Entra a la arena y enfréntate a la Entidad Omega.",
     "dungeon_final_floor_warning": "No más sectores. No hay vuelta atrás.",
     "dungeon_theme_firewall": "Cortafuegos",
-    "dungeon_theme_firewall_desc": "Red defensiva endurecida. Tiradores y bloqueadores constantes en cada sala.",
+    "dungeon_theme_firewall_desc": "Red defensiva endurecida. Guardias con escudo, centinelas anclados y controladores blindados en cada sala.",
     "dungeon_theme_recycle_bin": "Papelera",
-    "dungeon_theme_recycle_bin_desc": "Enjambres de procesos desechados. Perseguidores débiles con estrellas tanque.",
+    "dungeon_theme_recycle_bin_desc": "Archivos borrados que se niegan a desaparecer. Mímicos entre los restos y restauradores que levantan a los caídos.",
     "dungeon_theme_registry": "Registro",
-    "dungeon_theme_registry_desc": "Asesinos ordenados. Cruces y cubos con ráfagas precisas.",
+    "dungeon_theme_registry_desc": "Claves ordenadas y vigiladas. Muros de escudos, restauradores y corruptores que pudren el suelo.",
     "dungeon_theme_network": "Red",
-    "dungeon_theme_network_desc": "Tráfico de paquetes. Embestidores, snipers y golpes rápidos.",
+    "dungeon_theme_network_desc": "Tráfico de paquetes al rojo. Paquetes que rebotan, centinelas en cada salto y algún mímico.",
     "dungeon_theme_kernel": "Núcleo",
-    "dungeon_theme_kernel_desc": "Espacio profundo del sistema. Unidades pesadas y magos con potencia real.",
+    "dungeon_theme_kernel_desc": "Espacio profundo del sistema. Controladores blindados cargan entre el fuego de centinelas anclados.",
     "dungeon_theme_cache": "Caché",
-    "dungeon_theme_cache_desc": "Memoria reflejada. Fantasmas, embaucadores y caos teletransportado.",
+    "dungeon_theme_cache_desc": "Memoria reflejada y obsoleta. Mímicos, paquetes que rebotan y casillas corruptas por todas partes.",
     "dungeon_theme_corrupted_sector": "Sector Corrupto",
-    "dungeon_theme_corrupted_sector_desc": "Todo vale. Todos los procesos, más élites y las mayores recompensas.",
-    "roguelite_best": "Récord",
-    "roguelite_relics": "Reliquias",
+    "dungeon_theme_corrupted_sector_desc": "El fondo de la pila. Todos los procesos heredados a la vez, más élites y las mayores recompensas.",
+    "roguelite_relics": "Parches",
     "roguelite_unlocked": "COMPRADO",
     "roguelite_locked": "BLOQUEADO",
-    "roguelite_unlocks": "[U] Tienda",
-    "roguelite_start": "[ENTER] Iniciar",
+    "roguelite_start": "[ENTER] Descender",
     "roguelite_back": "[ESC] Volver",
-    "roguelite_setup_controls": "Kit A/D  |  Calor W/S  |  Tienda U  |  Iniciar ENTER",
-    "roguelite_sector_controls": "Tema A/D  |  Entrar ENTER",
-    "roguelite_unlock_shop_controls": "Grupo TAB/A-D  |  Item W/S  |  Comprar ENTER  |  Volver ESC",
-    "roguelite_scroll_hint": "Rueda para ver más",
-    "roguelite_unlock_cat_kits": "Kits",
-    "roguelite_unlock_cat_families": "Familias",
-    "roguelite_unlock_cat_relics": "Reliquias",
-    "roguelite_unlock_cat_challenge": "Desafío",
-    "roguelite_cost": "Costo",
-    "roguelite_ready_to_buy": "LISTO",
+    "roguelite_setup_controls": "Perfil A/D  |  Calor W/S  |  Descender ENTER",
+    "roguelite_sector_controls": "Sector A/D  |  Montar ENTER",
     "roguelite_not_enough_shards": "FALTAN RECURSOS",
-    "roguelite_buy_unlock": "[ENTER] COMPRAR",
-    "roguelite_need_more_shards": "FALTAN RECURSOS",
-    "roguelite_already_unlocked": "COMPRADO",
-    "roguelite_unlock_heat": "Calor",
-    "roguelite_unlock_wave_surge": "Oleada Extra",
-    "roguelite_unlock_desc_wave_surge": "Cambia cada jefe de piso por una versión más dura por nivel, con mayores recompensas.",
-    "roguelite_unlock_desc_family": "Añade esta familia a los drafts futuros.",
-    "roguelite_unlock_desc_family_core": "Añade mejoras base de estadísticas, balas, economía y supervivencia.",
-    "roguelite_unlock_desc_family_shield": "Añade armadura, muros, espinas y herramientas de escudo.",
-    "roguelite_unlock_desc_family_arcane": "Añade Aura Arcana, Balas Arcanas, Ecos, Gravedad y Sobrecarga.",
-    "roguelite_unlock_desc_family_fire": "Añade aura de fuego, balas de fuego, orbe y Dominio del Fuego.",
-    "roguelite_unlock_desc_family_frost": "Añade disparos lentos, orbe de hielo y Dominio de Escarcha.",
-    "roguelite_unlock_desc_family_poison": "Añade aura, disparos, orbe y Dominio del Veneno.",
-    "roguelite_unlock_desc_family_lightning": "Añade aura/orbe eléctrico, Cadena, Conducto y dominio.",
-    "roguelite_unlock_desc_family_wind": "Añade aura/balas/orbe de viento, Réplica y Dominio del Viento.",
-    "roguelite_unlock_desc_family_blood": "Añade robo de vida, armas de sangre, Pacto y Dominio.",
-    "roguelite_unlock_desc_discount": "Reliquia: los rerolls cuestan un 20% menos, mínimo 5 créditos.",
-    "roguelite_unlock_desc_shard": "Reliquia: +25% de fragmentos por salas limpiadas.",
-    "roguelite_unlock_desc_draft": "Reliquia: los rerolls cuestan 10 créditos menos tras descuentos.",
-    "roguelite_unlock_desc_patch": "Reliquia: cada jefe de piso cura 2 HP y da +1 carga de escudo.",
-    "roguelite_unlock_desc_elite": "Reliquia: las salas élite dan +30 créditos y fragmentos extra.",
-    "roguelite_unlock_desc_heat": "Desbloquea el siguiente nivel de Calor sobre el valor base. Calor 3 cuesta Núcleos ganados en Calor 2+.",
     "roguelite_starter_ready": "LISTO",
     "roguelite_boss": "Jefe",
-    "roguelite_boss_tier": "Oleada Extra",
     "roguelite_recursion": "Recursión",
     "roguelite_recursion_dmg": "DAÑO PERM.",
     "roguelite_level": "Niv",
-    "roguelite_run_flow": "RUTA DE PISOS",
-    "roguelite_combat_title": "PISO DE MAZMORRA",
+    "roguelite_run_flow": "PILA DE SECTORES",
     "roguelite_heat_effects": "Efectos",
-    "roguelite_heat_buy_next": "Comprar Calor",
-    "roguelite_heat_maxed": "Calor al máximo",
+    "roguelite_heat_maxed": "Todo el Calor desbloqueado",
     "roguelite_heat_core_rule": "El Calor 2+ da Núcleos. El Calor 3 da muchos más.",
-    "roguelite_req_default": "Inicial",
     "roguelite_kit_operator": "Operador",
     "roguelite_kit_bulwark": "Baluarte",
     "roguelite_kit_arcanist": "Arcanista",
     "roguelite_kit_operator_desc": "Empieza con 15 créditos y sin mejora fija.",
     "roguelite_kit_bulwark_desc": "Empieza con 5 créditos, +3 muros y armadura Fortificada.",
     "roguelite_kit_arcanist_desc": "Empieza con Balas Arcanas y 0 créditos.",
-    "roguelite_family_core": "Base",
-    "roguelite_family_shield": "Escudo",
-    "roguelite_family_arcane": "Arcano",
-    "roguelite_family_fire": "Fuego",
-    "roguelite_family_frost": "Hielo",
-    "roguelite_family_poison": "Veneno",
-    "roguelite_family_lightning": "Rayo",
-    "roguelite_family_wind": "Viento",
-    "roguelite_family_blood": "Sangre",
-    "roguelite_relic_none": "Ninguna",
-    "roguelite_relic_discount": "Protocolo Descuento",
-    "roguelite_relic_shard": "Imán de Fragmentos",
-    "roguelite_relic_elite": "Dividendo Elite",
-    "roguelite_relic_patch": "Parche de Emergencia",
-    "roguelite_relic_draft": "Caché de Selección",
     "roguelite_no_run": "No hay ejecución roguelite activa.",
     "roguelite_no_profile": "No hay perfil roguelite cargado.",
-    "roguelite_beta_banner": "BETA - EN DESARROLLO",
+    "help_cmd_recovery": "Recuperación Profunda (roguelite): sectores, carpetas, parches, Calor",
+    "help_recovery_topic": "RECUPERACIÓN PROFUNDA (ROGUELITE)",
+    "help_recovery_sectors": "SECTORES",
+    "help_recovery_sectors_body": "Una partida desciende 4 sectores. Cada uno es un camino de carpetas que termina en el SERVICIO del sector. Apágalo y un portal monta el siguiente sector. No se puede volver atrás por una carpeta.",
+    "help_recovery_folders": "CARPETAS",
+    "help_recovery_folders_body": "Limpia una carpeta y su recompensa aparece en el centro de la sala. Recógela y se abren las salidas. Cada puerta muestra la carpeta a la que lleva y lo que paga:",
+    "help_recovery_patches": "PARCHES",
+    "help_recovery_patches_body": "Actualizaciones del sistema numeradas que cambian cómo se juega la partida. Elige 1 de 3 en /updates y /quarantine, o compra uno en un puesto de /pkg. Duran toda la partida.",
+    "help_recovery_heat": "CALOR",
+    "help_recovery_heat_body": "Gana una partida con tu Calor más alto para desbloquear el siguiente. Más Calor significa sectores y SERVICIOS más densos y duros, y desde Calor 2 la partida también paga Núcleos.",
+    "card_buy_action": "[E] COMPRAR",
+    "card_install_action": "[E] INSTALAR",
+    "card_maxed": "AL MÁXIMO",
+    "card_maxed_desc": "Ya está en su nivel más alto.",
+    "card_patch_action": "[E] APLICAR ACTUALIZACIÓN",
+    "card_tag_package": "PAQUETE // MEJORA",
+    "card_tag_repair": "PAQUETE // REPARACIÓN",
+    "card_tag_restock": "PAQUETE // REPOSICIÓN",
+    "dungeon_claim_hint": "Recoge la recompensa de esta carpeta para abrir las salidas",
+    "gameover_folders_patches": "Carpetas limpiadas / Parches",
+    "gameover_sector_reached": "Sector alcanzado",
+    "patch_applied": "APLICADO",
+    "patch_category_maintenance": "Mantenimiento",
+    "patch_category_performance": "Rendimiento",
+    "patch_category_security": "Seguridad",
+    "patch_none_name": "Sin parche",
+    "patch_none_desc": "",
+    "patch_discount_name": "Protocolo de Descuento",
+    "patch_discount_desc": "Los rerolls y los puestos de /pkg cuestan un 20% menos (nunca menos de 5 créditos).",
+    "patch_shard_magnet_name": "Imán de Fragmentos",
+    "patch_shard_magnet_desc": "+25% de Fragmentos de las carpetas limpiadas y de las cachés /shards.",
+    "patch_elite_dividend_name": "Dividendo Élite",
+    "patch_elite_dividend_desc": "Las carpetas /quarantine pagan +30 créditos y Fragmentos extra.",
+    "patch_emergency_name": "Parche de Emergencia",
+    "patch_emergency_desc": "Cada sala de SERVICIO empieza con un golpe bloqueado. Apagar un SERVICIO restaura un 25% de integridad.",
+    "patch_draft_cache_name": "Caché de Instalación",
+    "patch_draft_cache_desc": "El primer reroll de cada instalador es gratis.",
+    "patch_overclock_name": "Overclock",
+    "patch_overclock_desc": "+35% de cadencia de fuego. Perder integridad detiene el overclock durante 3 segundos.",
+    "patch_firewall_rule_name": "Regla de Firewall",
+    "patch_firewall_rule_desc": "El primer golpe que recibes en cada combate queda bloqueado.",
+    "patch_defragmenter_name": "Desfragmentador",
+    "patch_defragmenter_desc": "Limpiar una carpeta restaura un 8% de integridad (un 20% en un SERVICIO).",
+    "patch_garbage_collector_name": "Recolector de Basura",
+    "patch_garbage_collector_desc": "La XP y los créditos sueltos vuelan hacia ti desde cualquier punto de la sala.",
+    "patch_cron_job_name": "Tarea Cron",
+    "patch_cron_job_desc": "Cada 8 segundos en combate, dispara un anillo de 12 proyectiles.",
+    "patch_zip_bomb_name": "Bomba Zip",
+    "patch_zip_bomb_desc": "Las élites se descomprimen al morir e infligen 2,5x tu daño a todo lo cercano.",
+    "patch_root_access_name": "Acceso Root",
+    "patch_root_access_desc": "+25% de daño a jefes y élites, -10% a todo lo demás.",
+    "patch_rollback_name": "Reversión",
+    "patch_rollback_desc": "Una vez por sector, un golpe letal te restaura al 50% de integridad.",
+    "patch_cryptominer_name": "Criptominero",
+    "patch_cryptominer_desc": "Las bajas minan créditos extra. El equipo cuesta un 10% de tu daño.",
+    "patch_raid_mirror_name": "Espejo RAID 1",
+    "patch_raid_mirror_desc": "Cada tercer disparo lanza también un proyectil reflejado justo detrás de ti.",
+    "patch_packet_loss_name": "Pérdida de Paquetes",
+    "patch_packet_loss_desc": "Un 15% de los proyectiles enemigos normales se pierden al dispararse. Los ataques de SERVICIO siguen impactando.",
+    "patch_fx_blocked": "BLOQUEADO",
+    "patch_fx_rollback": "REVERSIÓN",
+    "patch_status_active": "ACTIVO",
+    "patch_status_ready": "LISTO",
+    "patch_status_used": "USADO",
+    "patch_status_stalled": "DETENIDO",
+    "pkg_need_credits": "CRÉDITOS INSUFICIENTES",
+    "reroll_credits_unit": "créditos",
+    "reroll_free_patch": "GRATIS (Caché de Instalación)",
+    "roguelite_boot_profile": "PERFIL DE ARRANQUE",
+    "roguelite_heat_base": "BASE",
+    "roguelite_heat_down": "-CALOR",
+    "roguelite_heat_up": "+CALOR",
+    "roguelite_heat_earn_next": "Gana una partida con Calor $1 para desbloquear Calor $2.",
+    "roguelite_heat_now_open": "DESBLOQUEADO",
+    "roguelite_heat_unlocked_label": "Desbloqueado con esta victoria",
+    "roguelite_hud_title": "RECUPERACIÓN PROFUNDA",
+    "roguelite_hud_folder": "CARPETA $1/$2",
+    "roguelite_hud_heat": "CALOR",
+    "roguelite_hud_shards": "FRAGMENTOS",
+    "roguelite_hud_cores": "NÚCLEOS",
+    "roguelite_hud_patches": "PARCHES",
+    "roguelite_refund_toast": "Los desbloqueos del roguelite ahora son gratis: se han devuelto $1 Fragmentos y $2 Núcleos.",
+    "roguelite_run_cores": "Núcleos de esta partida",
+    "roguelite_run_shards": "Fragmentos de esta partida",
+    "roguelite_sector_upper": "SECTOR",
+    "roguelite_starter_selected": "ELEGIDO",
+    "roguelite_wins": "Victorias",
+    "room_reward_bin": "Mejora",
+    "room_reward_updates": "Parche (elige 1 de 3)",
+    "room_reward_cache": "Créditos",
+    "room_reward_restore": "Reparación",
+    "room_reward_shards": "Fragmentos",
+    "room_reward_pkg": "Puestos de paquetes",
+    "room_reward_quarantine": "Élite + parche",
+    "room_reward_service": "SERVICIO",
+    "stall_repair_title": "Restaurar Sistema",
+    "stall_repair_desc": "Restaura un $1% de tu integridad.",
+    "stall_restock_title": "Refrescar Espejos",
+    "stall_restock_desc": "Vuelve a sortear todos los paquetes sin vender de esta carpeta. Cuesta más cada vez.",
     "stats_tab_roguelite": "Roguelite",
     "stats_roguelite_metrics": "MÉTRICAS ROGUELITE",
     "stats_roguelite_best_sectors": "Mejores Salas",
@@ -4560,32 +5574,105 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "enemy_sniper_desc": "Carga un disparo letal de un golpe",
     "enemy_mage_name": "Mago",
     "enemy_mage_desc": "Invoca meteoritos y dispara proyectiles teledirigidos",
+    "enemy_thread_name": "Hilo",
+    "enemy_thread_desc": "Un solo hilo de la inundación. Débil a solas, abrumador en número.",
+    "enemy_fork_bomb_name": "Bomba Fork",
+    "enemy_fork_bomb_desc": "Se divide en dos Hilos al morir, y se clona si lo dejas en paz.",
+    "enemy_watchdog_name": "Perro Guardián",
+    "enemy_watchdog_desc": "El único tirador de la inundación. Mantiene la distancia y ladra un abanico lento de tres disparos.",
+    "enemy_zombie_name": "Proceso Zombi",
+    "enemy_zombie_desc": "Lento y resistente. Se levanta una vez, salvo que pases sobre su cáscara para segarla.",
+    "enemy_deadlock_name": "Interbloqueo",
+    "enemy_deadlock_desc": "Llega en parejas y se enlaza con cada Interbloqueo cercano mediante una línea que quema. Se reparten alrededor de hacia donde vas para cerrar el cerrojo. Mata a uno para abrir un hueco.",
+    "enemy_daemon_name": "Demonio de Prioridad",
+    "enemy_daemon_desc": "Se queda atrás y acelera a todos los procesos cercanos. Mátalo primero.",
+    "enemy_interrupt_name": "Interrupción",
+    "enemy_interrupt_desc": "Marca un punto, embiste y detona. La explosión también daña a la horda.",
+    "enemy_fragment_name": "Fragmento",
+    "enemy_fragment_desc": "Un trozo de un archivo roto. Se acerca a saltos, marca hacia donde vas y se abalanza sobre la marca. Cambia de rumbo cuando la marca se vuelva roja y dispárale mientras está en el suelo.",
+    "enemy_port_guard_name": "Guardia de Puerto",
+    "enemy_port_guard_desc": "Su escudo bloquea todo disparo frontal. Rodéalo y atácalo por detrás.",
+    "enemy_sentry_name": "Centinela",
+    "enemy_sentry_desc": "Camina hasta su puesto, se ancla y dispara como una torreta. Cúbrete o elimínalo.",
+    "enemy_mimic_name": "Mímico",
+    "enemy_mimic_desc": "Se queda quieto como un archivo inofensivo hasta que te acercas o le disparas. Entonces muerde.",
+    "enemy_restorer_name": "Restaurador",
+    "enemy_restorer_desc": "Canaliza un rayo que devuelve a la vida a un proceso caído. Cualquier impacto lo interrumpe.",
+    "enemy_packet_name": "Paquete",
+    "enemy_packet_desc": "Embestidor veloz que rebota en muros y obstáculos. Lee el rebote.",
+    "enemy_driver_name": "Controlador",
+    "enemy_driver_desc": "Blindado por delante. Su embestida lo aturde contra muros y obstáculos, y queda expuesto.",
+    "enemy_corruptor_name": "Corruptor",
+    "enemy_corruptor_desc": "Deja casillas corruptas a su paso que dañan al pisarlas. Se degradan con el tiempo.",
 
     # Boss Names and Descriptions
     "boss_1_name": "El Guardián Espiral",
-    "boss_1_desc": "Entidad mística que teje patrones de espiral",
+    "boss_1_desc": "El vigía del perímetro de TOPHAT. La Raíz reescribió su patrulla en ráfagas en espiral sin fin.",
     "boss_2_name": "El Rey Invocador",
-    "boss_2_desc": "Abruma con ejércitos de secuaces",
+    "boss_2_desc": "El planificador de procesos, coronado por la Raíz. Genera secuaces hostiles más rápido de lo que puedes acabar con ellos.",
     "boss_3_name": "El Azote Meteórico",
-    "boss_3_desc": "Lluvia de destrucción desde las alturas",
+    "boss_3_desc": "El recolector de basura. Antes liberaba memoria muerta; ahora te la arroja encima como meteoros.",
     "boss_4_name": "El Arquitecto Láser",
-    "boss_4_desc": "Construye trampas letales de rejillas láser",
+    "boss_4_desc": "El compositor de pantalla. Antes dibujaba cada ventana del escritorio; ahora dibuja rejillas láser a tu alrededor.",
     "boss_5_name": "El Danzante del Vacío",
-    "boss_5_desc": "Parpadea entre dimensiones dejando energía oscura",
+    "boss_5_desc": "El paginador de memoria. Entra y sale de la existencia, dejando estelas de vacío sin mapear.",
     "boss_6_name": "El Reactor en Cadena",
-    "boss_6_desc": "Ser de pura electricidad que encadena arcos devastadores",
+    "boss_6_desc": "El gestor de interrupciones. Cada señal que atrapa llega ahora como una cadena de relámpagos.",
     "boss_7_name": "El Comandante Orbital",
-    "boss_7_desc": "Controla satélites que atacan con precisión astronómica",
+    "boss_7_desc": "El enlace de red. Sus satélites repetidores transportaban paquetes; la Raíz los apuntó hacia ti.",
     "boss_8_name": "El Berserker Imparable",
-    "boss_8_desc": "Fuerza de ira pura que se fortalece al sangrar",
+    "boss_8_desc": "El eliminador de memoria agotada. Cuanto más sangra, más fuerte embiste.",
     "boss_9_name": "El Arquitecto Prisma",
-    "boss_9_desc": "Manipula la luz en prisiones geométricas de láseres",
+    "boss_9_desc": "La cadena de sombreado gráfico. Dobla la luz en prismas, y cada haz que divide va apuntado.",
     "boss_10_name": "El Cronómetra",
-    "boss_10_desc": "Dobla el tiempo creando paradojas y grietas temporales",
+    "boss_10_desc": "El reloj del sistema. La Raíz le robó sus ciclos, y ahora el tiempo corre a su antojo.",
     "boss_11_name": "El Tejedor del Caos",
-    "boss_11_desc": "Teje patrones de caos puro, imprevisible y devastador",
+    "boss_11_desc": "La reserva de entropía. Alimentaba al SO de azar; ahora solo te alimenta de caos.",
     "boss_12_name": "La Entidad Omega",
-    "boss_12_desc": "El desafío final: combina todos los mecánicos anteriores",
+    "boss_12_desc": "La propia Raíz, vistiendo cada servicio que robó. Lucha con todos a la vez.",
+    "boss_13_name": "La Madre Fork",
+    "boss_13_desc": "Nacida de la inundación con una sola instrucción: fork(). Sus hijos la protegen; cázalos entre la multitud y dispara a sus semillas antes de que se multipliquen.",
+    "boss_14_name": "El Despachador",
+    "boss_14_desc": "El intendente de la inundación. Forma a la horda en filas que marchan; ábrete un pasillo a tiros.",
+    "boss_15_name": "Fuga Térmica",
+    "boss_15_desc": "Un núcleo de la inundación al rojo vivo. Cada paso que das deja el suelo ardiendo: nunca vuelvas sobre tus pasos y guía a la horda por el fuego.",
+    "boss_16_desc": "La Raíz, de vuelta para la última guardia. Inunda el sistema con todo lo que ha engendrado hasta que solo queda el Modo Seguro.",
+    "boss_17_name": "El Guardián",
+    "boss_17_desc": "Un cortafuegos heredado, más antiguo que TOPHAT, despertado por la Raíz. Sus haces de inspección barren la sala; los obstáculos son tu única cobertura.",
+    "boss_18_name": "La Compactadora",
+    "boss_18_desc": "La vieja utilidad de recuperación. Esparce bombas de archivos dormidas y vacía la papelera de golpe, así que destrúyelas antes. Puede deshacer su propio daño.",
+    "boss_19_name": "La Colmena",
+    "boss_19_desc": "El archivo de configuración anterior al registro. Cuando audita el sistema todo se bloquea: deja de moverte y de disparar hasta que termine.",
+    "boss_20_name": "El Enrutador",
+    "boss_20_desc": "Una pila de red heredada. Ilumina enlaces entre repetidores y lanza paquetes por ellos; cruza entre los trenes.",
+    "boss_21_name": "El Supervisor",
+    "boss_21_desc": "El antiguo gestor de memoria. Saca los obstáculos de la sala y los vuelve a colocar en otro sitio; nunca te quedes sobre una huella fantasma.",
+    "boss_22_name": "La Caché Espejo",
+    "boss_22_desc": "Una caché de disco que nunca olvida. Repite tus últimos segundos como un eco hostil que se mueve y dispara igual que tú.",
+    "boss_23_desc": "La Raíz en su origen, más antigua que TOPHAT. Lucha con cada guardián que dejaste atrás y luego te ofrece una última elección de puerta.",
+    "boss_tag_service": "SERVICIO SECUESTRADO",
+    "boss_tag_hijacker": "SECUESTRADOR",
+    "boss_1_process": "centinela.sys",
+    "boss_2_process": "planificador.exe",
+    "boss_3_process": "recolector.daemon",
+    "boss_4_process": "compositor.sys",
+    "boss_5_process": "paginador.sys",
+    "boss_6_process": "gestor_irq.sys",
+    "boss_7_process": "enlace.net",
+    "boss_8_process": "oom_killer.exe",
+    "boss_9_process": "sombreador.gpu",
+    "boss_10_process": "reloj.sys",
+    "boss_11_process": "azar.pool",
+    "boss_12_process": "root (uid 0)",
+    "boss_13_process": "fork.bomb",
+    "boss_14_process": "dispatch.q",
+    "boss_15_process": "thermal.trip",
+    "boss_17_process": "ipchains",
+    "boss_18_process": "undelete.com",
+    "boss_19_process": "system.ini",
+    "boss_20_process": "winsock.dll",
+    "boss_21_process": "himem.sys",
+    "boss_22_process": "smartdrv.exe",
 
     # Boss phase names (shown in the boss threat panel)
     "boss_1_phase_1": "Despertar",
@@ -4623,6 +5710,41 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_12_phase_2": "Fase Beta",
     "boss_12_phase_3": "Fase Gamma",
     "boss_12_phase_4": "Fase Omega",
+    "boss_13_phase_1": "Proceso Padre",
+    "boss_13_phase_2": "Árbol de Procesos",
+    "boss_13_phase_3": "Tormenta Fork",
+    "boss_14_phase_1": "Cola",
+    "boss_14_phase_2": "Turno Rotativo",
+    "boss_14_phase_3": "Inversión de Prioridad",
+    "boss_15_phase_1": "Arranque en Caliente",
+    "boss_15_phase_2": "Estrangulamiento",
+    "boss_15_phase_3": "Fuga",
+    "boss_16_phase_1": "Alfa: Fork",
+    "boss_16_phase_2": "Beta: Despacho",
+    "boss_16_phase_3": "Gamma: Estrangulamiento",
+    "boss_16_phase_4": "Omega: Modo Seguro",
+    "boss_17_phase_1": "Denegar por Defecto",
+    "boss_17_phase_2": "Con Estado",
+    "boss_17_phase_3": "Bloqueo Total",
+    "boss_18_phase_1": "Reciclar",
+    "boss_18_phase_2": "Recuperar",
+    "boss_18_phase_3": "Purga",
+    "boss_19_phase_1": "Lectura",
+    "boss_19_phase_2": "Protección contra Escritura",
+    "boss_19_phase_3": "Bloqueo de Colmena",
+    "boss_20_phase_1": "Negociación",
+    "boss_20_phase_2": "Congestión",
+    "boss_20_phase_3": "Tormenta de Difusión",
+    "boss_21_phase_1": "Paginación",
+    "boss_21_phase_2": "Hiperpaginación",
+    "boss_21_phase_3": "Fallo de Página",
+    "boss_22_phase_1": "En Caché",
+    "boss_22_phase_2": "Obsoleto",
+    "boss_22_phase_3": "Coherencia Perdida",
+    "boss_23_phase_1": "Alfa: Inspección",
+    "boss_23_phase_2": "Beta: Auditoría",
+    "boss_23_phase_3": "Gamma: Fallo de Página",
+    "boss_23_phase_4": "Omega: Última Configuración Válida",
 
     # Exit Confirm Dialog
     "confirm_quit_title": "CONFIRMAR SALIDA",
@@ -4635,6 +5757,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_exit_btn": "[Q] VOLVER",
     "confirm_checkpoint_title": "PUNTO DE CONTROL DISPONIBLE",
     "confirm_checkpoint_restart_body": "¿Reiniciar desde la oleada 1?",
+    "confirm_checkpoint_new_run_body": "¿Empezar una partida nueva?",
     "confirm_checkpoint_sub": "Todavía puedes CONTINUAR desde tu último punto de control.",
     "confirm_restart_btn": "[R] REINICIAR",
 
@@ -4650,7 +5773,19 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_threat_locked": "BLOQUEADA",
     "boss_phase_firewall": "FIREWALL DE FASE",
     "enemy_sealed_clear_adds": "SELLADO - ELIMINA REFUERZOS",
+    "enemy_sealed_slay_guards": "SELLADO - ABATE A LA GUARDIA REAL",
     "enemy_overload_hold_fire": "SOBRECARGA - ALTO EL FUEGO",
+    "boss_tag_flood_spawn": "ENGENDRO DE LA INUNDACIÓN",
+    "boss_tag_legacy": "PROCESO HEREDADO",
+    "enemy_sealed_cut_children": "PROTEGIDA - MATA A SUS HIJOS",
+    "mode_audit_locked": "REGISTRO BLOQUEADO - NO TE MUEVAS",
+    "mode_audit_breach": "ESCRITURA DENEGADA",
+    "mode_safe_mode": "MODO SEGURO",
+    "mode_restore_point": "PUNTO DE RESTAURACIÓN",
+    "mode_last_known_good": "ÚLTIMA CONFIGURACIÓN VÁLIDA",
+    "help_roster_wave": "RESPUESTA A AMENAZAS (oleadas)",
+    "help_roster_survival": "LA LARGA GUARDIA (supervivencia)",
+    "help_roster_roguelite": "RECUPERACIÓN PROFUNDA (roguelite)",
 
     # Sandbox power-up visuals tab
     "sandbox_powerup_visuals": "Visuales de Mejoras",
@@ -4686,23 +5821,25 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "adv_category_label": "Categoría",
 
     # Stats window leftovers
-    "stats_healing_sources": "Fuentes de Curación",
     "stats_health_consumable": "Consumible de Salud",
+    "stats_levelup_healing": "Subida de Nivel",
     "stats_no_healing_data": "Sin datos de curación",
     "stats_total_earned": "Total Ganado",
     "stats_healing_ranking": "FUENTES DE CURACIÓN",
     "stats_healing_column_label": "CURADO",
     "stats_source_column_label": "FUENTE",
     "stats_total_healed": "Curación total",
+    "stats_overheal": "Sobrecuración",
+    "stats_healed_label": "Curado",
 
     # Desktop
     "desktop_net": "RED",
     "desktop_advancement_unlocked": "Logro desbloqueado",
     "desktop_mode_locked": "MODO BLOQUEADO:",
-    "survival_locked_desc": "Desbloquea Supervivencia en Tiempo derrotando el modo Roguelite.",
-    "roguelite_locked_desc": "Desbloquea Roguelite derrotando el jefe de la Ola 20 en Modo de Olas.",
+    "survival_locked_desc": "Desbloquea Supervivencia en Tiempo superando Recuperación Profunda.",
+    "roguelite_locked_desc": "Desbloquea Recuperación Profunda derrotando el jefe de la Ola 20 en Modo de Olas.",
     "game_mode_unlocked": "NUEVO MODO DESBLOQUEADO:",
-    "roguelite_unlocked_notif": "¡El Modo Roguelite ya está disponible en el escritorio!",
+    "roguelite_unlocked_notif": "¡Recuperación Profunda ya está disponible en el escritorio!",
     "survival_unlocked_notif": "¡El Modo Supervivencia ya está disponible en el escritorio!",
 
     # Debug panel runtime stats
@@ -4725,10 +5862,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_cons_double_coin": "Moneda Doble",
     "cheat_cons_lifesteal": "Robo de Vida",
 
-    # Comeback mechanic
-    "comeback_bonus_active": "REGRESO +10%",
-    "comeback_bonus_until": "hasta oleada",
-
     # Mode intro: wave-based
     "mode_intro_wave_title": "EN DIRECTO // RESPUESTA A AMENAZA",
     "mode_intro_wave_rec1":  "BARRIDO DE RADAR",
@@ -4737,30 +5870,42 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_wave_rec2":  "DESPLIEGUE",
     "mode_intro_wave_2a":    "CADA OLEADA APRENDE. CADA OLEADA SE ACERCA.",
     "mode_intro_wave_2b":    "AGUANTA LA LÍNEA, OPERADOR.",
+    "mode_intro_wave_roster": "SERVICIOS COMPROMETIDOS",
 
     # Mode intro: time survival
     "mode_intro_surv_title": "EN DIRECTO // LA LARGA VIGILIA",
-    "mode_intro_surv_rec1":  "CUENTA REGRESIVA",
+    "mode_intro_surv_rec1":  "INICIO DE VIGILIA",
     "mode_intro_surv_1a":    "LA RAÍZ FUE PURGADA. LA MAREA SIGUE LLEGANDO.",
     "mode_intro_surv_1b":    "LA LARGA VIGILIA COMIENZA.",
     "mode_intro_surv_rec2":  "REGISTRO DE TIEMPO",
     "mode_intro_surv_2a":    "CADA SEGUNDO DE ACTIVIDAD QUEDA REGISTRADO.",
     "mode_intro_surv_2b":    "NO VENDRÁN REFUERZOS. AGUANTA IGUAL.",
+    "mode_intro_surv_uptime": "ACTIVIDAD",
+    "mode_intro_surv_log_held": "LÍNEA SOSTENIDA",
 
     # Mode intro: roguelite
     "mode_intro_rogue_title": "EN DIRECTO // RECUPERACIÓN PROFUNDA",
     "mode_intro_rogue_rec1":  "MAPA DE LA PILA",
     "mode_intro_rogue_1a":    "LA SUPERFICIE ESTÁ ASEGURADA. LA PODREDUMBRE AÚN LATE ABAJO.",
     "mode_intro_rogue_1b":    "DESCIENDE LA PILA, SECTOR A SECTOR.",
-    "mode_intro_rogue_rec2":  "ESCANEO DE RELIQUIA",
-    "mode_intro_rogue_2a":    "RECUPERA PROCESOS PERDIDOS DEL KERNEL. RECLAMA RELIQUIAS.",
+    "mode_intro_rogue_rec2":  "ESCANEO DE PARCHES",
+    "mode_intro_rogue_2a":    "RECUPERA PROCESOS PERDIDOS DEL KERNEL. APLICA PARCHES.",
     "mode_intro_rogue_2b":    "ENCUENTRA AQUELLO DE LO QUE NACIÓ LA RAÍZ.",
+    "mode_intro_rogue_sector": "SECTOR $1",
 
     # Mode intro: sandbox
     "mode_intro_sandbox_title": "FUERA DE REGISTRO // ENTORNO DE PRUEBAS",
     "mode_intro_sandbox_rec1":  "SECUENCIA DE INICIO",
     "mode_intro_sandbox_1a":    "ENTORNO DE PRUEBAS ACTIVO",
     "mode_intro_sandbox_1b":    "ADVERTENCIA: SIN LIMITACIONES. PROCEDE LIBREMENTE.",
+    "mode_intro_sandbox_term_1": "INICIANDO TOPHAT_SANDBOX v0.9 ...",
+    "mode_intro_sandbox_term_2": "CARGANDO MÓDULOS DE ENTORNO ...",
+    "mode_intro_sandbox_term_3": "DESACTIVANDO SEGURIDAD ........",
+    "mode_intro_sandbox_term_4": "ACCESO SIN RESTRICCIONES.",
+    "mode_intro_sandbox_term_5": "AVISO: SIN SALVAGUARDAS ACTIVAS",
+    "mode_intro_sandbox_rec2":  "HERRAMIENTAS DE GENERACIÓN",
+    "mode_intro_sandbox_2a":    "GENERA CUALQUIER PROCESO. PRUEBA CUALQUIER CONFIGURACIÓN.",
+    "mode_intro_sandbox_2b":    "UN CLIC, UN PROCESO. TANTOS COMO QUIERAS.",
 
     # Mode intro: pvp
     "mode_intro_pvp_title": "SEÑAL EXTERNA // NODO HOSTIL",
@@ -4770,6 +5915,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_pvp_rec2":  "BLOQUEO DE ADVERSARIO",
     "mode_intro_pvp_2a":    "FIRMA DEL ADVERSARIO CONFIRMADA",
     "mode_intro_pvp_2b":    "ELIMINA O SERÁS ELIMINADO.",
+    "mode_intro_pvp_rec3":  "DUELO DE ENLACE",
+    "mode_intro_pvp_3a":    "UN PUERTO. DOS PROCESOS.",
+    "mode_intro_pvp_3b":    "SOLO UNO CONSERVA LA CONEXIÓN.",
     # Mode-exclusive power-up names
     "powerup_glitch_field":    "CAMPO_FALLO.dll",
     "powerup_time_surge":      "OLEADA_TEMPORAL.exe",
@@ -4810,9 +5958,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "powerup_chain_reaction":       "REACCIÓN_CADENA.dll",
     "powerup_kernel_exploit":       "EXPLOIT_KERNEL.sys",
     # Stage 5 roguelite-exclusive descriptions
-    "powerup_corrupted_core_desc1": "Eliminar élites otorga +100 HP máximo.",
-    "powerup_corrupted_core_desc2": "Eliminar élites otorga +150 HP máximo.",
-    "powerup_corrupted_core_desc3": "Eliminar élites otorga +200 HP máximo.",
+    "powerup_corrupted_core_desc1": "Eliminar élites otorga +10 HP máximo.",
+    "powerup_corrupted_core_desc2": "Eliminar élites otorga +15 HP máximo.",
+    "powerup_corrupted_core_desc3": "Eliminar élites otorga +20 HP máximo.",
     "powerup_room_echo_desc1":      "Al limpiar una sala, obtén 8 balas cargadas con +60% de daño.",
     "powerup_room_echo_desc2":      "Al limpiar una sala, obtén 12 balas cargadas con +60% de daño.",
     "powerup_room_echo_desc3":      "Al limpiar una sala, obtén 16 balas cargadas con +60% de daño.",
@@ -4828,7 +5976,150 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "resume_run_body":         "Continuar tu partida guardada o empezar una nueva?",
     "resume_continue":         "CONTINUAR",
     "resume_new_run":          "NUEVA PARTIDA",
-    "new_process_installed":   "NUEVO PROCESO DESCUBIERTO"
+    "new_process_installed":   "NUEVO PROCESO DESCUBIERTO",
+    "tutorial_header":          "ORIENTACIÓN.EXE",
+    "tutorial_move_title":      "MOVIMIENTO",
+    "tutorial_move_body":       "Bienvenido, proceso. Muévete con {move}: la figura brillante del centro eres tú.",
+    "tutorial_fire_title":      "APUNTAR Y DISPARAR",
+    "tutorial_fire_body_kb":    "Apunta con el ratón y mantén {fire} para disparar.",
+    "tutorial_fire_body_pad":   "Apunta con {aim}: dispara solo. {fire} también dispara.",
+    "tutorial_dash_title":      "IMPULSO",
+    "tutorial_dash_body":       "Pulsa {dash} para impulsarte fuera de peligro. Se recarga en unos segundos: mira la fila IMPULSO.",
+    "tutorial_targets_title":   "PROCESOS HOSTILES",
+    "tutorial_targets_body":    "Los enemigos te persiguen y tocarlos te quita HP. Destrúyelos antes de que se acerquen.",
+    "tutorial_targets_count":   "Destruidos",
+    "tutorial_loot_title":      "BOTÍN",
+    "tutorial_loot_body":       "Las eliminaciones sueltan orbes de XP y créditos. Acércate para recogerlos.",
+    "tutorial_status_title":    "PANEL DE ESTADO",
+    "tutorial_status_body":     "El HP es la integridad del sistema: si llega a cero, el sistema cae. Debajo: cargas de muro, créditos, impulso, oleada y la barra de nivel. Llénala con XP para instalar una nueva mejora.",
+    "tutorial_walls_title":     "MUROS",
+    "tutorial_walls_body":      "Mantén {wall} para apuntar un muro y suéltalo para colocarlo. Los muros bloquean a los enemigos. Aquí tienes una carga gratis: compra más en la tienda.",
+    "tutorial_settings_title":  "AJUSTA TU SISTEMA",
+    "tutorial_settings_body":   "Antes de empezar, cambia tus parámetros en el menú de Ajustes. Ahí tienes los controles, el estilo del HUD, la escala de la interfaz, el audio y más, desde el escritorio o con {pause} en cualquier momento.",
+    "tutorial_ready_title":     "LISTO",
+    "tutorial_ready_body":      "Supera oleadas para avanzar. Cada {interval} oleadas llega un jefe; antes y después eliges una mejora y visitas la tienda. {pause} pausa, {legendary} activa los poderes legendarios.",
+    "tutorial_you":             "TÚ",
+    "tutorial_done":            "HECHO",
+    "tutorial_next":            "Siguiente",
+    "tutorial_start_wave":      "Iniciar oleada 1",
+    "tutorial_finish":          "Terminar",
+    "tutorial_hold_skip":       "Mantén {key} para saltar",
+    "tutorial_key_left_click":  "Clic izquierdo",
+    "tutorial_key_left_stick":  "Stick izquierdo",
+    "tutorial_key_right_stick": "Stick derecho",
+    "tutorial_launching":       "Iniciando orientación...",
+    "tutorial_practice_complete": "Orientación completada",
+    "settings_tutorial":        "Tutorial:",
+    "settings_replay_tutorial": "Repetir tutorial",
+    "settings_replay_tutorial_desc": "Práctica, no toca tus partidas",
+    "settings_replay_tutorial_locked": "Disponible desde el escritorio",
+
+    # Time Survival: phases, System Events, Data Caches, victory
+    "survival_phase_boot": "ARRANQUE",
+    "survival_phase_runtime": "EJECUCIÓN",
+    "survival_phase_overload": "SOBRECARGA",
+    "survival_phase_kernel_panic": "PÁNICO DEL KERNEL",
+    "survival_phase_overtime": "TIEMPO EXTRA",
+    "survival_phase_boot_desc": "El sistema está despertando. Resiste.",
+    "survival_phase_runtime_desc": "Los procesos se multiplican. Los anillos se cierran.",
+    "survival_phase_overload_desc": "El sistema se sobrecalienta. Las zonas de subida se degradan.",
+    "survival_phase_kernel_panic_desc": "Todo está fallando. Sobrevive hasta las 20:00.",
+    "survival_phase_overtime_desc": "Más allá del límite. Cada minuto paga más.",
+    "survival_phase_banner": "FASE $1",
+    "survival_hud_boss_in": "JEFE EN",
+    "survival_hud_final_in": "FINAL EN",
+    "survival_hud_boss_live": "JEFE ACTIVO",
+    "survival_boss_inbound": "PROCESO JEFE ENTRANTE",
+    "survival_final_inbound": "PROCESO FINAL ENTRANTE",
+    "survival_boss_inbound_sub": "Llega en 10 segundos.",
+    "survival_event_memory_leak": "FUGA DE MEMORIA",
+    "survival_event_memory_leak_hint": "Purga el 60% de la fuga antes de que inunde la pantalla.",
+    "survival_event_firewall_breach": "BRECHA EN EL FIREWALL",
+    "survival_event_firewall_breach_hint": "Un anillo se cierra. Elimínalo en 25 segundos.",
+    "survival_event_upload_zone": "ZONA DE SUBIDA",
+    "survival_event_upload_zone_hint": "Quédate en la zona hasta que termine la subida.",
+    "survival_event_corrupted_sector": "SECTOR CORRUPTO",
+    "survival_event_corrupted_sector_hint": "Meteoros entrantes. No dejes de moverte.",
+    "survival_event_rogue_process": "PROCESO REBELDE",
+    "survival_event_rogue_process_hint": "Elimínalo antes de que escape.",
+    "survival_event_overclock": "OVERCLOCK",
+    "survival_event_overclock_hint": "XP doble. La horda se intensifica.",
+    "survival_event_cleared": "SUPERADO",
+    "survival_event_failed": "FALLIDO",
+    "survival_rogue_escaped": "EL PROCESO ESCAPÓ",
+    "survival_tracker_remaining": "QUEDAN $1",
+    "survival_tracker_purged": "$1% PURGADO",
+    "survival_tracker_uploaded": "$1% SUBIDO",
+    "survival_tracker_survive": "SOBREVIVE",
+    "survival_tracker_incoming": "ENTRANTE",
+    "survival_tracker_xp_boost": "XP x2",
+    "survival_cache_minor": "CACHÉ MENOR",
+    "survival_cache_standard": "CACHÉ DE DATOS",
+    "survival_cache_rare": "CACHÉ RARA",
+    "survival_cache_kernel": "CACHÉ DEL KERNEL",
+    "survival_cache_decrypted": "DESCIFRADA",
+    "survival_cache_new": "NUEVO",
+    "survival_cache_level": "NV $1",
+    "survival_cache_legendary": "LEGENDARIO",
+    "survival_cache_walls": "+$1 muros",
+    "survival_cache_repair": "Sistema reparado",
+    "survival_cache_continue": "Haz clic o pulsa Enter para continuar",
+    "survival_victory_title": "SISTEMA ESTABILIZADO",
+    "survival_victory_subtitle": "¡Mantuviste el sistema 20:00 y terminaste el proceso final!",
+    "survival_victory_status": "LAS CUATRO FASES SUPERADAS -- TIEMPO EXTRA DISPONIBLE",
+    "survival_victory_overtime": "TIEMPO EXTRA",
+    "survival_victory_end_run": "TERMINAR",
+    "survival_victory_footer": "[OK] Tiempo extra: un jefe cada 2:30 y cada minuto paga un 50% más",
+    "survival_time_survived": "Tiempo Sobrevivido:",
+    "survival_phase_reached": "Fase Alcanzada:",
+    "survival_events_caches": "Eventos / Cachés:",
+
+    # Mods (MODS.EXE)
+    "modded_badge": "CON MODS",
+    "modded_no_rewards": "Partida con mods: sin recompensas permanentes",
+    "desktop_icon_mods": "MODS.exe",
+    "mods_window_title": "Mods - Gestor de Mods",
+    "mods_tab_installed": "Instalados",
+    "mods_tab_modes": "Modos de juego",
+    "mods_tab_log": "Registro",
+    "mods_tab_apps": "Apps",
+    "mods_no_apps": "Ningún mod cargado añade una app. Los mods las añaden con register.app.",
+    "mods_cheat_banner": "Las partidas con mods cuentan como trampas: sin Fragmentos, estadísticas, logros ni desbloqueos.",
+    "mods_apply": "Aplicar y recargar",
+    "mods_open_folder": "Abrir carpeta",
+    "mods_install_examples": "Instalar ejemplos",
+    "mods_empty": "Aún no hay mods instalados. Coloca cada mod en su propia carpeta dentro de:",
+    "mods_empty_hint": "O pulsa Instalar ejemplos para empezar con algunos.",
+    "mods_status_loaded": "Cargado",
+    "mods_status_disabled": "Desactivado",
+    "mods_status_error": "Error",
+    "mods_status_missing_dep": "Falta una dependencia",
+    "mods_status_invalid": "mod.json no válido",
+    "mods_status_duplicate": "Id duplicado",
+    "mods_status_will_load": "Se carga al aplicar",
+    "mods_status_will_unload": "Se descarga al aplicar",
+    "mods_by": "por",
+    "mods_requires": "Requiere:",
+    "mods_folder": "Carpeta:",
+    "mods_pending": "Cambios pendientes",
+    "mods_no_modes": "No hay modos de juego de mods cargados. Los mods los añaden con register.gamemode.",
+    "mods_launch": "Iniciar",
+    "mods_continue": "Continuar",
+    "mods_base_mode": "Basado en:",
+    "mods_from_mod": "Del mod:",
+    "mods_log_empty": "Aún no hay nada registrado.",
+    "mods_reloaded_toast": "Mods recargados",
+    "mods_summary_loaded": "$1 cargados",
+    "mods_summary_failed": "$1 con error",
+    "mods_examples_installed": "Mods de ejemplo instalados. Márcalos y pulsa Aplicar y recargar.",
+    "mods_examples_failed": "No se pudieron escribir los mods de ejemplo.",
+    "mods_tab_cosmetics": "Cosméticos",
+    "mods_no_cosmetics": "No hay cosméticos de mods cargados. Los mods los añaden con register.cosmetic.",
+    "mods_equip": "Equipar",
+    "mods_unequip": "Quitar",
+    "mods_kind_player": "Aspecto del jugador",
+    "mods_kind_bullet": "Aspecto de las balas",
+    "mods_kind_desktop": "Fondo de escritorio"
   }.toTable
 }.toTable
 
@@ -4839,9 +6130,31 @@ var currentLanguage*: Language = English
 # that cached translated strings at initialization time (e.g. skin databases).
 var onLanguageChange*: proc() = nil
 
+# Mod text (MODS.EXE): strings mods add or override, consulted before the
+# built-in tables and wiped on every mod reload.
+var modTranslations: array[localization.Language, Table[system.string, system.string]]
+var modTranslationsActive: bool
+
+proc setModTranslation*(lang: localization.Language, key, value: string) =
+  modTranslations[lang][key] = value
+  modTranslationsActive = true
+
+proc clearModTranslations*() =
+  for lang in localization.Language:
+    modTranslations[lang].clear()
+  modTranslationsActive = false
+
 # Get translation for a key
 proc t*(key: string): string =
   ## Get translation for the current language
+  if modTranslationsActive:
+    if modTranslations[currentLanguage].hasKey(key):
+      return modTranslations[currentLanguage][key]
+    # An English-only mod string still beats the raw key, but never a real
+    # translation the player's language already has.
+    if modTranslations[English].hasKey(key) and
+       not (translations.hasKey(currentLanguage) and translations[currentLanguage].hasKey(key)):
+      return modTranslations[English][key]
   if translations.hasKey(currentLanguage) and translations[currentLanguage].hasKey(key):
     return translations[currentLanguage][key]
   # Fallback to English if translation not found
@@ -4849,6 +6162,15 @@ proc t*(key: string): string =
     return translations[English][key]
   else:
     return key  # Return key itself as last resort
+
+proc missingTranslations*(): seq[string] =
+  ## TranslationKey entries absent from a language table. t() silently falls
+  ## back to English and then to the raw key, so the compiler never catches a
+  ## missing string; debug builds report these at startup.
+  for key in TranslationKey:
+    for lang in Language:
+      if not translations.hasKey(lang) or not translations[lang].hasKey($key):
+        result.add($lang & ": " & $key)
 
 # Get translation for a TranslationKey enum
 proc t*(key: TranslationKey): string =
