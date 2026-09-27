@@ -3269,6 +3269,10 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
   let worldOffY = getWorldViewOffsetY()
   let worldViewScale = getWorldViewScale()
   let worldClipped = worldOffX > 0 or worldOffY > 0
+  # PvP never takes PvE's mobile world zoom (the duel arena must stay whole and
+  # identical for both players), so publish "none": a PvE run earlier in the
+  # session must not leave worldToVirtual/getWorldMousePosition zoomed here.
+  setWorldZoom(1.0'f32, Vector2(x: 0, y: 0))
   # Screen shake moves the world only (as in PvE); the Interface tab's shake
   # slider scales the offset, so 0% is a true off.
   let shakeScale = screenShakeScaleOf(globalSettings)
@@ -3363,9 +3367,9 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
     # Faint ring showing max placement range
     drawCircleLines(localPlayer.pos.x.int32, localPlayer.pos.y.int32,
                     WALL_PLACEMENT_RANGE, Color(r: 180, g: 180, b: 255, a: 60))
-    # Ghost wall at cursor, green if placeable, red if not
-    let mousePos = getWorldMousePosition()
-    let cursorPos = newVector2f(mousePos.x, mousePos.y)
+    # Ghost wall at the aim point (the same getAimTarget capturePlayerInput
+    # places at), green if placeable, red if not
+    let cursorPos = getAimTarget(localPlayer.pos)
     let inRange = distance(cursorPos, localPlayer.pos) <= WALL_PLACEMENT_RANGE
     let validPos = isValidWallPlacement(cursorPos, localPlayer.pos, pvp.walls, @[], 25,
                                         pvp.screenWidth, pvp.screenHeight)

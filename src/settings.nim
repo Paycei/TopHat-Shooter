@@ -1,7 +1,7 @@
 ## Settings Backend Module
 ## Handles settings initialization, state management, and application
 
-from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, HudStyle, hsModern, hsLegacy, saveSettings, loadSettings, MinUIScale, MaxUIScale, MinDamageNumberScale, MaxDamageNumberScale, MinScreenShakeScale, MaxScreenShakeScale
+from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, HudStyle, hsModern, hsLegacy, saveSettings, loadSettings, MinUIScale, MaxUIScale, DefaultUIScale, MinDamageNumberScale, MaxDamageNumberScale, MinScreenShakeScale, MaxScreenShakeScale
 from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, kaDash, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds
 import raylib, strutils
 import sound, localization, powerup_data
@@ -41,7 +41,7 @@ proc newDefaultSettings*(): Settings =
     # into the side gutters.
     hudLayout: hlWidescreen,
     hudStyle: hsModern,
-    uiScale: 1.0,             # 100%: the layout every panel was designed against
+    uiScale: DefaultUIScale,  # 100% on desktop (the designed layout); Big on mobile
     showEnemyLabels: true,
     showDamageNumbers: true,
     damageNumberScale: 1.0,
@@ -90,7 +90,7 @@ proc uiScaleOf*(settings: Settings): float32 =
   ## The interface scale to draw with, tolerant of a nil/never-loaded Settings
   ## (early boot, tests) and of a value from before the field existed, where the
   ## JSON key is absent and the float defaults to 0.
-  if settings.isNil or settings.uiScale <= 0.0'f32: 1.0'f32
+  if settings.isNil or settings.uiScale <= 0.0'f32: DefaultUIScale
   else: clamp(settings.uiScale, MinUIScale, MaxUIScale)
 
 proc showDamageNumbersOf*(settings: Settings): bool =

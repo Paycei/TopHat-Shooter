@@ -17,7 +17,8 @@
 ## their write choke points. Drawing lives in ui/tutorial_overlay.nim.
 
 import raylib, math, random, sequtils
-import types, particle_types, enemy, settings, gamepad_input, sound, run_statistics, d_systems, d_enhancements
+import types, particle_types, enemy, sound, run_statistics, d_systems, d_enhancements
+import input_intent
 
 type
   TutorialStep* = enum
@@ -100,23 +101,13 @@ proc isRead*(step: TutorialStep): bool =
   step in {tsStatus, tsSettings, tsReady}
 
 # ---------------------------------------------------------------------------
-# Input probes. These read the same bindings the gameplay code does, so a
-# rebound control is taught (and detected) under its new key.
+# Input probes. They go through input_intent, which reads the same bindings the
+# gameplay code does (so a rebound control is taught, and detected, under its
+# new key) and maps each to touch on mobile: fire is the aim stick, continue is
+# a tap, and skip is holding the pause button. Skip is a hold (not a tap) so a
+# stray press can't throw the tutorial away.
 
-proc fireHeld(): bool =
-  isMouseButtonDown(MouseButton.Left) or
-    isKeyDown(globalSettings.keybinds[kaShoot]) or
-    (isGamepadActive() and gamepadFireDown(globalSettings.gamepadBinds))
-
-proc continuePressed(): bool =
-  isKeyPressed(KeyboardKey.Enter) or isKeyPressed(KeyboardKey.KpEnter) or
-    (isGamepadActive() and isGamepadConfirmPressed())
-
-proc skipHeld(): bool =
-  ## Tab / Select: neither is a gameplay binding by default, and a hold (not a
-  ## tap) is required so a stray press can't throw the tutorial away.
-  isKeyDown(KeyboardKey.Tab) or
-    (isGamepadActive() and isGamepadButtonDown(activeGamepad(), GamepadButton.MiddleLeft))
+proc fireHeld(): bool = isFiring(wallPlacementMode = false)
 
 # ---------------------------------------------------------------------------
 
@@ -287,7 +278,7 @@ proc updateTutorial*(game: Game, dt: float32): TutorialEvent =
   of tsStatus, tsSettings, tsReady:
     # The bar fills while the card arms, then sits full until it is dismissed.
     state.progress = clamp(state.stepTime / ReadMinTime, 0.0'f32, 1.0'f32)
-    goalMet = state.stepTime >= ReadMinTime and continuePressed()
+    goalMet = state.stepTime >= ReadMinTime and confirmPressed()
 
   if not goalMet:
     return teNone

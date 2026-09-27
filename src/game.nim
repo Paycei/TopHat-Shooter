@@ -6735,11 +6735,12 @@ proc drawGame*(game: Game) =
           drawSimpleWarning(cx, cy, (0.6 + 0.4 * entranceProg).float32)
           break
 
-  # Wall-placement range ring + ghost preview (world-anchored at the cursor).
+  # Wall-placement range ring + ghost preview (world-anchored at the aim point).
+  # getAimTarget is exactly what main.nim places at (the cursor on desktop, the
+  # wall button's drag / last aim on touch), so the ghost can't disagree.
   if game.state != gsShop and game.wallPlacementMode and game.player.walls > 0:
     const WallPlaceRange = 250.0'f32
-    let mousePos = getWorldMousePosition()
-    let cursorPos = newVector2f(mousePos.x, mousePos.y)
+    let cursorPos = getAimTarget(game.player.pos)
     let inRange = distance(cursorPos, game.player.pos) <= WallPlaceRange
     let validPos = isValidWallPlacement(cursorPos, game.player.pos, game.walls, game.enemies, 25,
                                         game.screenWidth, game.screenHeight)

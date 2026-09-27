@@ -23,7 +23,14 @@ type
     dragOffsetX*, dragOffsetY*: int
     time*: float32
     zOrder*: int  # Z-order for window stacking (higher = on top)
-    handledClickThisFrame*: bool  # TRUE if this window handled a click this frame
+    handledClickThisFrame*: bool
+      ## A click COMMITTED on this window this frame: buttons, toggles, tabs.
+      ## On touch that is the tap's release, and never a drag's.
+    handledPressThisFrame*: bool
+      ## A press LANDED on this window this frame: what starts a drag (sliders,
+      ## thumbs). Same frame as the click on desktop; the finger-down on touch,
+      ## where committing on it would fire a toggle twice (down and up) and
+      ## activate whatever a scroll started on.
 
     # Resizing
     resizable*: bool  # Whether this window can be resized
@@ -94,6 +101,7 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     resizable: resizable,
     resizing: false,
     handledClickThisFrame: false,
+    handledPressThisFrame: false,
     time: 0,
     zOrder: 0,
     savedWidth: width,
@@ -333,7 +341,8 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
       return false  # Another window should handle this
 
     # WE handled this click - bring window to front immediately
-    window.handledClickThisFrame = true
+    window.handledClickThisFrame = tapped
+    window.handledPressThisFrame = dragStart
 
     # Bring to front if not already focused
     if not window.focused:

@@ -52,31 +52,50 @@ proc bindCap(action: KeyAction): string =
   if isGamepadActive(): cap(gamepadBindLabel(globalSettings.gamepadBinds[action]))
   else: cap(keyName(globalSettings.keybinds[action]))
 
+const TouchLabels = defined(mobile)
+  ## Touch builds name the on-screen controls instead of keys -- a phone has no
+  ## [W A S D] or [Enter]. input_intent maps each taught action to its touch
+  ## control, so these are the names of real buttons (their own captions).
+
 proc fillBindings(text: string): string =
-  let pad = isGamepadActive()
-  let kb = globalSettings.keybinds
-  let moveCaps =
-    if pad: cap(t(tkTutorialKeyLeftStick))
-    else: cap(keyName(kb[kaMoveUp])) & " " & cap(keyName(kb[kaMoveLeft])) & " " &
-          cap(keyName(kb[kaMoveDown])) & " " & cap(keyName(kb[kaMoveRight]))
-  # The left mouse button always fires alongside the rebindable fire key.
-  let fireCaps = if pad: bindCap(kaShoot)
-                 else: cap(t(tkTutorialKeyLeftClick)) & " / " & cap(keyName(kb[kaShoot]))
-  text.multiReplace(
-    ("{move}", moveCaps),
-    ("{aim}", cap(t(tkTutorialKeyRightStick))),
-    ("{fire}", fireCaps),
-    ("{dash}", bindCap(kaDash)),
-    ("{wall}", bindCap(kaPlaceWall)),
-    ("{legendary}", bindCap(kaLegendary)),
-    ("{pause}", if pad: "[Start]" else: "[Esc]"),  # fixed, non-rebindable
-    ("{interval}", $BossWaveInterval))
+  when TouchLabels:
+    text.multiReplace(
+      ("{move}", cap(t(tkTutorialKeyTouchMove))),
+      ("{aim}", cap(t(tkTutorialKeyTouchAim))),
+      ("{fire}", cap(t(tkTutorialKeyTouchAim))),
+      ("{dash}", cap(t(tkHUDKeyDash))),
+      ("{wall}", cap(t(tkHUDKeyWall))),
+      ("{legendary}", cap(t(tkHUDKeyAbility))),
+      ("{pause}", cap(t(tkHUDKeyPause))),
+      ("{interval}", $BossWaveInterval))
+  else:
+    let pad = isGamepadActive()
+    let kb = globalSettings.keybinds
+    let moveCaps =
+      if pad: cap(t(tkTutorialKeyLeftStick))
+      else: cap(keyName(kb[kaMoveUp])) & " " & cap(keyName(kb[kaMoveLeft])) & " " &
+            cap(keyName(kb[kaMoveDown])) & " " & cap(keyName(kb[kaMoveRight]))
+    # The left mouse button always fires alongside the rebindable fire key.
+    let fireCaps = if pad: bindCap(kaShoot)
+                   else: cap(t(tkTutorialKeyLeftClick)) & " / " & cap(keyName(kb[kaShoot]))
+    text.multiReplace(
+      ("{move}", moveCaps),
+      ("{aim}", cap(t(tkTutorialKeyRightStick))),
+      ("{fire}", fireCaps),
+      ("{dash}", bindCap(kaDash)),
+      ("{wall}", bindCap(kaPlaceWall)),
+      ("{legendary}", bindCap(kaLegendary)),
+      ("{pause}", if pad: "[Start]" else: "[Esc]"),  # fixed, non-rebindable
+      ("{interval}", $BossWaveInterval))
 
 proc continueCap(): string =
-  if isGamepadActive(): "[A]" else: "[Enter]"
+  when TouchLabels: cap(t(tkTutorialKeyTap))
+  else: (if isGamepadActive(): "[A]" else: "[Enter]")
 
 proc skipCap(): string =
-  if isGamepadActive(): "[Select]" else: "[Tab]"
+  ## Touch: the skip is a hold on the pause button (input_intent.skipHeld).
+  when TouchLabels: cap(t(tkHUDKeyPause))
+  else: (if isGamepadActive(): "[Select]" else: "[Tab]")
 
 # ---------------------------------------------------------------------------
 # Keycap-aware rich text: "[...]" groups render as keycaps and wrap as a unit.
@@ -190,12 +209,16 @@ proc stepTitle(step: TutorialStep): string =
 proc stepBody(step: TutorialStep): string =
   let raw = case step
     of tsMove:    t(tkTutorialMoveBody)
-    of tsFire:    (if isGamepadActive(): t(tkTutorialFireBodyPad) else: t(tkTutorialFireBodyKb))
+    of tsFire:
+      when TouchLabels: t(tkTutorialFireBodyTouch)
+      else: (if isGamepadActive(): t(tkTutorialFireBodyPad) else: t(tkTutorialFireBodyKb))
     of tsDash:    t(tkTutorialDashBody)
     of tsTargets: t(tkTutorialTargetsBody)
     of tsLoot:    t(tkTutorialLootBody)
     of tsStatus:  t(tkTutorialStatusBody)
-    of tsWalls:   t(tkTutorialWallsBody)
+    of tsWalls:
+      when TouchLabels: t(tkTutorialWallsBodyTouch)  # the wall button's drag-to-aim
+      else: t(tkTutorialWallsBody)
     of tsSettings: t(tkTutorialSettingsBody)
     of tsReady:   t(tkTutorialReadyBody)
   fillBindings(raw)

@@ -384,6 +384,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
   # Reset click flags for all windows at the start of each frame
   for window in wm.getAllWindows():
     window.handledClickThisFrame = false
+    window.handledPressThisFrame = false
 
   # Update each visible window, inside its own scale layer so its hit-testing
   # matches how drawAllWindows renders it.

@@ -4,6 +4,7 @@ import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_api], ui/mods_
 
 when defined(mobile):
   import mobile_controls  # updateMobileControls / drawMobileControls hooks
+  import powerup_data     # [Q] ability state pushed to the touch buttons
 
 # Global quit-confirmation dialog
 
@@ -238,6 +239,31 @@ when defined(mobile):
   const ResumeStallThreshold = 0.5'f32
     ## A frame longer than this can't be a real frame (it's 30x the 60 FPS
     ## budget) -- it means the app was backgrounded and raylib blocked the loop.
+
+  proc pushMobileRunState(game: Game) =
+    ## Feed the on-screen buttons the player state they show (and gate on):
+    ## mobile_controls sits under input_intent, which player imports, so it
+    ## can't read the player itself -- the state flows in from here instead.
+    let p = game.player
+    setMobileDashState(true, p.dashCooldown / DashCooldownTime)
+    var owned, ready = 0
+    var soonest = 0.0'f32
+    for pu in p.powerUps:
+      if pu.powerType in legendaryPanelTypes:
+        inc owned
+        if abilityReady(p, pu.powerType):
+          inc ready
+        else:
+          let cd = abilityCooldown(p, pu.powerType)
+          if cd > 0.0'f32 and (soonest <= 0.0'f32 or cd < soonest):
+            soonest = cd
+    # A loaded mod may put its own ability on the button (modAbility), so it
+    # stays live whenever mods are, owned [Q] abilities or not.
+    setMobileAbilityState(owned > 0 or game.modded, ready, soonest)
+    setMobileWallState(p.walls, game.mode == gmRoguelite and game.dungeonInteractFocus)
+    setMobileSkipProgress(
+      if isTutorialActive(game): tutorialState().skipHold / SkipHoldTime
+      else: 0.0'f32)
 
 when defined(android):
   const
@@ -2395,12 +2421,10 @@ proc main() =
       # Poll touch controls before any input is read this frame (input_intent
       # reads the resulting state). No-op / not compiled on desktop.
       when defined(mobile):
-        # The dash button needs the cooldown pushed to it: mobile_controls must
-        # not import types/player (it sits under input_intent, which player
-        # imports), so the state flows in from here instead.
+        # Before the poll: the buttons hit-test against what they show (no [Q]
+        # ability owned -> no ability button to take the touch).
         if not currentGame.isNil and not currentGame.player.isNil:
-          setMobileDashState(true,
-            currentGame.player.dashCooldown / DashCooldownTime)
+          pushMobileRunState(currentGame)
         updateMobileControls(dt)
 
       # Dynamic music based on game state
@@ -4051,6 +4075,7 @@ proc main() =
       # Drive the window like the desktop does: reset the per-frame click flag,
       # then let it handle dragging, tab clicks and its close button.
       statsWin.window.handledClickThisFrame = false
+      statsWin.window.handledPressThisFrame = false
       # Standalone here, but it is still an OS window: give it the same per-window
       # scale (and the same capped logical viewport) the window manager hands it
       # on the desktop, so it is drawn and hit-tested identically in both places.
@@ -4404,8 +4429,13 @@ proc main() =
         if pvpIdx >= 0 and pvpIdx < currentPvPGame.players.len:
           let lp = currentPvPGame.players[pvpIdx]
           setMobileDashState(lp.hp > 0, lp.dashCooldown / DashCooldownTime)
+          setMobileWallState(lp.walls, false)
         else:
           setMobileDashState(false, 0.0'f32)
+        # PvP has no [Q] abilities (capturePlayerInput never reads one), so no
+        # button: its area goes back to the aim stick.
+        setMobileAbilityState(false, 0, 0.0'f32)
+        setMobileSkipProgress(0.0'f32)
         updateMobileControls(dt)
 
       # Check for pause (visual only - game continues running)

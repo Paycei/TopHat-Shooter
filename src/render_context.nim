@@ -193,6 +193,12 @@ proc getVirtualScreenHeight*(): int32 =
   ## up for the same reason as the width.
   ceil(currentVirtualHeight / activeUIScale).int32
 
+proc getCanvasSize*(): Vector2 =
+  ## The plain virtual canvas (width x 768), ignoring any active UI layer. For
+  ## overlays that are laid out in plain virtual pixels no matter where they
+  ## are called from -- the touch controls and their HUD reserve.
+  Vector2(x: currentVirtualWidth, y: currentVirtualHeight)
+
 const BaseVirtualWidth* = 1024'i32
   ## The classic (4:3) virtual width. Every fixed-size panel in the game was laid
   ## out against this, so it is the baseline "no extra room" width.

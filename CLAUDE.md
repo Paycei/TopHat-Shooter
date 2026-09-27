@@ -123,11 +123,13 @@ look for the seam that already covers the case first.
 
 **Gameplay — `src/input_intent.nim`.** Gameplay asks for *intents*
 (`getMoveVector`, `getAimTarget`, `isFiring`, `abilityPressed`, `dashPressed`,
-`placeWallHeld/Pressed/Released`, `interactPressed`, `pausePressed`). On desktop
-each returns exactly the old inline behavior; on `-d:mobile` it reads
-`src/mobile_controls.nim`. Consumers are `player.nim` (movement + dash),
-`game.nim` (aim/fire), `main.nim` (ability/wall/pause), `pvp_game.nim` (all of
-its input) and `dungeon.nim` (`interactPressed`) — keep that surface small. A new
+`placeWallHeld/Pressed/Released`, `interactPressed`, `pausePressed`,
+`confirmPressed`, `skipHeld`). On desktop each returns exactly the old inline
+behavior; on `-d:mobile` it reads `src/mobile_controls.nim`. Consumers are
+`player.nim` (movement + dash), `game.nim` (aim/fire + the wall ghost preview),
+`main.nim` (ability/wall/pause), `pvp_game.nim` (all of its input),
+`dungeon.nim` (`interactPressed`) and `tutorial.nim` (fire/confirm/skip) — keep
+that surface small. A new
 power-up/enemy/boss needs **zero** mobile work. Add to `input_intent` only when
 introducing a genuinely new *input action*; add a `when defined(android)` guard
 only for a genuinely new *desktop-only API* call.
@@ -141,6 +143,12 @@ site inherits touch behaviour unmodified:
   **Anything that starts a drag must use `isPointerDragStart()` instead** (window
   title bars, the desktop cube, scrollbar thumbs, the HUD panel) — the release
   edge is far too late to grab something.
+- OS-window content follows the same split through two per-frame flags set by
+  `handleOSWindowInput`: `handledClickThisFrame` (the tap — commit buttons,
+  toggles, tabs on it) and `handledPressThisFrame` (the finger-down — start
+  slider/thumb drags on it). They are the same frame on desktop. Committing on
+  the press flag, or on a flag set by both, fires a toggle twice per tap and
+  activates whatever a scroll started on.
 - `isBackPressed()` picks up the back chip; `pollCharPressed` /
   `pollBackspacePressed` / `pollEnterPressed` / `setTextInputActive` /
   `setTextInputPreview` bridge text fields to the virtual keyboard (no-ops on
@@ -226,16 +234,32 @@ Other pieces:
   the band and push the whole bottom HUD stack up again.
 - Key hints (`drawControlsDockCard`/`drawControlsStrip`) name keyboard/pad keys,
   so on mobile only their wall-placement prompt is drawn.
-- The **base dash** (`DashCooldownTime` in `player.nim`, Shift / LT on desktop)
-  is the one gameplay action whose mobile button needs state pushed *back into*
-  the touch layer: `setMobileDashState(available, cooldownRatio)` from
-  `main.nim`'s `gsPlaying`/`gsPvPPlaying` branches. `mobile_controls` cannot read
-  the player (it sits under `input_intent`, which `player` imports), and the
-  button is the game's only dash-cooldown readout. PvP has the same dash
-  (`capturePlayerInput`, host-synced cooldown), so its branch pushes the local
-  player's state; `available` is false while that player is down, and the
-  button is then neither drawn nor hit-tested, so its area goes back to the aim
-  stick.
+- **Button state is pushed, never read.** `mobile_controls` cannot read the
+  player (it sits under `input_intent`, which `player` imports), so `main.nim`
+  pushes what the buttons show and gate on before each poll: `pushMobileRunState`
+  in `gsPlaying` (dash cooldown, owned/ready [Q] abilities + soonest cooldown,
+  wall charges, roguelite interact focus, tutorial skip fill) and the local
+  player's dash/walls in `gsPvPPlaying`. A button whose action doesn't exist
+  right now (no [Q] ability owned, PvP ability, a downed PvP player's dash) is
+  neither drawn nor hit-tested, so its area goes back to the aim stick; one that
+  exists but is cooling still *consumes* its touch, so reaching for it never
+  spawns a stick under the thumb. Layout: one row, WALL / ABILITY / DASH (the
+  corner, biggest); pause in the arena's top-right corner, clear of the dock.
+- **Wall button = mini-stick.** Drag from it to aim the wall; with no drag it
+  uses the last aim (then move) direction (`mobileAimTargetDir`, behind
+  `getAimTarget`). Holding it takes the right thumb off the aim stick, and a wall
+  projected along a zero aim lands on the player, which `isValidWallPlacement`
+  always rejects — so without this, touch players could not place walls (nor
+  finish the tutorial's wall step). The ghost previews in `drawGame`/`drawPvP`
+  read `getAimTarget` too, so preview and placement always agree. Next to a
+  roguelite pickup the button reads USE (it is `interactPressed` on touch).
+- **Pause fires on release** of a short tap (`PauseTapMax`); a longer hold is
+  `skipHeld` (the tutorial's hold-to-skip), and `confirmPressed` is a quick tap
+  anywhere off the buttons, tracked per touch point so it works while the other
+  thumb holds a stick. `tutorial_overlay` names the touch controls on `-d:mobile`.
+- The interface scale defaults to **Big** on mobile (`DefaultUIScale` in
+  `save_system.nim`); the middle preset is labelled "Normal" there, since it is
+  not the default.
 - Platform gating: saves + synthesized-sound cache write to Android internal
   storage via `src/android_glue.c` (`getAppDataPath` in `save_system.nim`,
   `getCacheDir` in `sound.nim`); the same shim provides `nimAndroidKeepScreenOn`.

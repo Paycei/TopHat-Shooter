@@ -97,10 +97,11 @@ nim check --os:android --cpu:arm64 -d:mobile -d:android --mm:orc --app:lib `
 
 | Surface | Control |
 |---|---|
-| Left half of the screen | floating move joystick |
+| Left half of the screen | floating move joystick (follows an overshooting thumb) |
 | Right half | floating aim joystick; auto-fires while deflected |
-| Bottom-right buttons | ability (outer), place wall (inner — hold to preview, release to place) |
-| Top-right button | pause |
+| Bottom-right row | **dash** (corner, recharge sweep), **ability** (only when a [Q] ability is owned; countdown when cooling), **wall** (hold + drag to aim, release to place; becomes **USE** beside a roguelite pickup) |
+| Arena top-right button | pause (tap); hold to skip the tutorial |
+| Tap anywhere | continue a tutorial card |
 | Top-left chip | back / cancel in fullscreen overlays |
 | Anywhere, held 1.5 s | skip a cinematic |
 | Vertical drag in a list | scroll, with flick momentum |
@@ -120,8 +121,9 @@ touch behaviour). Adding a power-up, enemy or boss needs **zero** mobile work.
 - The gameplay world is magnified 1.25× (`MobileWorldZoom`) about the arena
   centre, with the player clamp inset to match so it can never leave view. Not
   applied in PvP: arena size is networked and both duellists must stay visible.
-- The status column is scaled by a single matrix rather than per-widget font
-  bumps, bounded by the real gutter width.
+- The interface scale (Settings → Interface) defaults to **Big** (130%) on
+  mobile; the HUD docks, windows and menus all grow with it. Touch targets are
+  sized for thumbs instead and don't follow the setting.
 - The screen is kept awake, and runs are checkpointed on a 45 s timer because
   Android kills backgrounded processes without unwinding the frame loop.
 

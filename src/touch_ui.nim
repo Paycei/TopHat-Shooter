@@ -76,6 +76,19 @@ const
     ## The "reopen keyboard" chip, shown when a field still has focus but the
     ## panel was closed with DONE. Without it that state is a trap: the field
     ## keeps requesting input every frame, so the dismiss latch never clears.
+  VkFlashTime = 0.12'f32
+    ## How long a key stays lit after it fires. Touch has no hover, so without
+    ## it a keystroke gives no confirmation until its character shows up.
+
+  # Palette: the in-game HUD dock's (ui/hud_dock), so the touch chrome reads as
+  # part of the same OS. Mirrored rather than imported -- this module is a leaf.
+  UiInk = Color(r: 228, g: 240, b: 250, a: 255)
+  UiAccent = Color(r: 0, g: 220, b: 255, a: 255)
+  UiGlass = Color(r: 9, g: 16, b: 26, a: 230)
+  UiKey = Color(r: 22, g: 34, b: 50, a: 255)
+  UiKeyLit = Color(r: 34, g: 92, b: 124, a: 255)
+  UiDone = Color(r: 120, g: 225, b: 140, a: 255)
+  UiErase = Color(r: 255, g: 130, b: 110, a: 255)
 
 type
   TextInputKind* = enum
@@ -119,6 +132,9 @@ var
   vkBackHeldTime: float32 = 0
   vkBackDown = false
   vkBackKeyRect = Rectangle(x: 0, y: 0, width: 0, height: 0)
+  vkFlashRow = -1
+  vkFlashKey = -1
+  vkFlashTimer: float32 = 0
     ## Hit rect of the backspace key that armed the repeat, so the repeat stops
     ## when the finger slides off it instead of running until the touch ends.
   vkOverlayTop: float32 = 1e9
@@ -171,18 +187,30 @@ proc setTouchBackVisible*(v: bool) =
 proc pointInRect(p: Vector2, r: Rectangle): bool =
   p.x >= r.x and p.x <= r.x + r.width and p.y >= r.y and p.y <= r.y + r.height
 
+proc fade(c: Color, k: float32): Color =
+  Color(r: c.r, g: c.g, b: c.b, a: uint8(clamp(c.a.float32 * k, 0.0'f32, 255.0'f32)))
+
+proc drawChip(r: Rectangle, accent: Color) =
+  ## A touch chip in the HUD's glass-card style: drop shadow, dark body, an
+  ## accent spine on the leading edge and an accent rim.
+  drawRectangleRounded(Rectangle(x: r.x + 3, y: r.y + 4, width: r.width, height: r.height),
+                       0.3, 8, Color(r: 0, g: 0, b: 0, a: 110))
+  drawRectangleRounded(r, 0.3, 8, UiGlass)
+  drawRectangleRounded(Rectangle(x: r.x + 6, y: r.y + 10, width: 3, height: r.height - 20),
+                       1.0, 4, fade(accent, 0.85))
+  drawRectangleRoundedLines(r, 0.3, 8, 2.0, fade(accent, 0.7))
+
 proc drawTouchBackButton*() =
   ## Draw inside the virtual-canvas pass. No text, so it needs no localization.
   if not backVisible: return
   let r = backBtnRect()
-  drawRectangleRounded(r, 0.35, 8, Color(r: 40, g: 46, b: 66, a: 170))
-  drawRectangleRoundedLines(r, 0.35, 8, 2.0, Color(r: 180, g: 200, b: 255, a: 210))
+  drawChip(r, UiAccent)
   # Left-pointing chevron, drawn as two thick lines so there is no triangle
-  # winding to worry about (same reasoning as the mobile ability button).
-  let cx = r.x + r.width / 2
+  # winding to worry about (same reasoning as the mobile dash button).
+  let cx = r.x + r.width / 2 + 3
   let cy = r.y + r.height / 2
-  drawLine(Vector2(x: cx + 10, y: cy - 14), Vector2(x: cx - 10, y: cy), 5.0, White)
-  drawLine(Vector2(x: cx - 10, y: cy), Vector2(x: cx + 10, y: cy + 14), 5.0, White)
+  drawLine(Vector2(x: cx + 10, y: cy - 14), Vector2(x: cx - 10, y: cy), 5.0, UiInk)
+  drawLine(Vector2(x: cx - 10, y: cy), Vector2(x: cx + 10, y: cy + 14), 5.0, UiInk)
 
 # --- virtual keyboard --------------------------------------------------------
 #
@@ -304,6 +332,9 @@ proc vkHitKey(p: Vector2) =
       let rect = vkKeyRect(rows, r, k)
       if pointInRect(p, rect):
         vkPressKey(rows[r][k])
+        vkFlashRow = r
+        vkFlashKey = k
+        vkFlashTimer = VkFlashTime
         if rows[r][k].action == vkaBack:
           vkBackDown = true
           vkBackKeyRect = rect
@@ -354,17 +385,16 @@ proc drawVirtualKeyboard*() =
   ## Draw inside the virtual-canvas pass, above the window layer.
   if vkChipVisible:
     let c = vkChipRect()
-    drawRectangleRounded(c, 0.35, 8, Color(r: 40, g: 46, b: 66, a: 190))
-    drawRectangleRoundedLines(c, 0.35, 8, 2.0, Color(r: 180, g: 200, b: 255, a: 210))
+    drawChip(c, UiAccent)
     # A keyboard glyph: three rows of keys, drawn rather than written so it
     # needs no localization (same reasoning as the back chevron).
-    let gx = c.x + 22
-    let gy = c.y + 16
+    let gx = c.x + 26
+    let gy = c.y + 12
     for row in 0 ..< 3:
       for col in 0 ..< 5:
         drawRectangle(Rectangle(x: gx + col.float32 * 14, y: gy + row.float32 * 10,
-                                width: 10, height: 7), White)
-    drawRectangle(Rectangle(x: gx + 14, y: gy + 30, width: 38, height: 7), White)
+                                width: 10, height: 7), UiInk)
+    drawRectangle(Rectangle(x: gx + 14, y: gy + 30, width: 38, height: 7), UiAccent)
   if not vkActive: return
   let rows = vkRows()
   let panel = vkPanelRect(rows)
@@ -374,7 +404,8 @@ proc drawVirtualKeyboard*() =
     # caret -- the end you are typing at -- on screen.
     let strip = Rectangle(x: 0, y: panel.y - VkPreviewH,
                           width: vp.virtualW, height: VkPreviewH)
-    drawRectangle(strip, Color(r: 10, g: 14, b: 22, a: 240))
+    drawRectangle(strip, Color(r: 6, g: 11, b: 18, a: 245))
+    drawRectangle(Rectangle(x: 0, y: strip.y, width: vp.virtualW, height: 1), fade(UiAccent, 0.35))
     const previewSize = 22'i32
     let textW = measureText(vkPreview, previewSize).float32
     let avail = vp.virtualW - 32
@@ -385,24 +416,32 @@ proc drawVirtualKeyboard*() =
     drawRectangle(Rectangle(x: tx + textW + 3, y: ty, width: 3,
                             height: previewSize.float32),
                   Color(r: 0, g: 210, b: 255, a: 255))
-  drawRectangle(panel, Color(r: 16, g: 20, b: 30, a: 240))
-  drawLine(Vector2(x: panel.x, y: panel.y),
-           Vector2(x: panel.x + panel.width, y: panel.y), 2.0,
-           Color(r: 90, g: 130, b: 180, a: 200))
+  drawRectangleGradientV(panel.x.int32, panel.y.int32, panel.width.int32, panel.height.int32,
+                         Color(r: 12, g: 20, b: 32, a: 245), Color(r: 5, g: 9, b: 15, a: 250))
+  drawRectangle(Rectangle(x: panel.x, y: panel.y, width: panel.width, height: 2),
+                fade(UiAccent, 0.8))
   for r in 0 ..< rows.len:
     for k in 0 ..< rows[r].len:
       let key = rows[r][k]
       let rect = vkKeyRect(rows, r, k)
-      let lit = key.action == vkaShift and vkShift
-      drawRectangleRounded(rect, 0.25, 6,
-                           if lit: Color(r: 70, g: 110, b: 170, a: 255)
-                           else: Color(r: 44, g: 52, b: 72, a: 255))
-      drawRectangleRoundedLines(rect, 0.25, 6, 1.5,
-                                Color(r: 110, g: 140, b: 190, a: 180))
+      # Function keys carry their meaning in colour: DONE closes (green),
+      # erase is red, ENTER and an armed SHIFT use the accent.
+      let accent = case key.action
+        of vkaDone: UiDone
+        of vkaBack: UiErase
+        of vkaEnter, vkaShift: UiAccent
+        else: fade(UiInk, 0.35)
+      let flashing = vkFlashTimer > 0 and r == vkFlashRow and k == vkFlashKey
+      let lit = flashing or (key.action == vkaShift and vkShift)
+      drawRectangleRounded(Rectangle(x: rect.x, y: rect.y + 2, width: rect.width, height: rect.height),
+                           0.25, 6, Color(r: 0, g: 0, b: 0, a: 120))
+      drawRectangleRounded(rect, 0.25, 6, if lit: UiKeyLit else: UiKey)
+      drawRectangleRoundedLines(rect, 0.25, 6, 1.5, fade(accent, if lit: 1.0 else: 0.7))
       let size = if key.label.len > 1: 18'i32 else: 26'i32
       let w = measureText(key.label, size)
+      let ink = if key.action in {vkaDone, vkaBack, vkaEnter}: accent else: UiInk
       drawText(key.label, (rect.x + (rect.width - w.float32) / 2).int32,
-               (rect.y + (rect.height - size.float32) / 2).int32, size, White)
+               (rect.y + (rect.height - size.float32) / 2).int32, size, ink)
 
 proc pollVkChar*(): int32 =
   ## Pop one queued character, 0 when empty -- same contract as getCharPressed,
@@ -429,6 +468,7 @@ proc updateTouchUI*(dt: float32) =
   tapPressed = false
   backTapped = false
   frameNotches = 0
+  vkFlashTimer = max(0.0'f32, vkFlashTimer - dt)
 
   # Resolve keyboard visibility from last frame's request. The UI sets it during
   # the state machine, i.e. after this runs, so it is always one frame behind --

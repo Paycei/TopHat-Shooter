@@ -92,6 +92,11 @@ const
   UIScalePresets* = [MinUIScale, 1.00'f32, MaxUIScale]
     ## Small / Default / Big. The only UI scales the game offers; anything else
     ## (an older save, a hand edit) snaps to the nearest one on load.
+  DefaultUIScale* = when defined(mobile): MaxUIScale else: 1.00'f32
+    ## The scale a fresh profile (or a save from before the setting existed)
+    ## starts at. Mobile starts Big: the canvas is pinned to 768 virtual px of
+    ## height, which on a phone is a few centimetres of glass, so the 100% layout
+    ## -- designed against a monitor -- reads tiny there.
   MinDamageNumberScale* = 0.60'f32
   MaxDamageNumberScale* = 1.60'f32
   MinScreenShakeScale* = 0.0'f32

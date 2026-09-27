@@ -8,9 +8,10 @@
 ## is a no-op refactor. On `-d:mobile` the same procs read the touch controls
 ## instead — so a new power-up / enemy / boss needs zero mobile-specific work.
 ##
-## The consumers are player.nim (movement + dash), game.nim (aim/fire),
-## main.nim (ability/wall/pause), pvp_game.nim (all of its input) and
-## dungeon.nim (interact); keep that surface small. Add a proc here only for a
+## The consumers are player.nim (movement + dash), game.nim (aim/fire + the
+## wall preview), main.nim (ability/wall/pause), pvp_game.nim (all of its
+## input), dungeon.nim (interact) and tutorial.nim (fire/confirm/skip); keep
+## that surface small. Add a proc here only for a
 ## genuinely new *input action* -- a new power-up, enemy or boss needs none.
 
 import raylib
@@ -66,16 +67,14 @@ proc getAimTarget*(playerPos: Vector2f): Vector2f =
   ##
   ## Desktop: the mouse cursor (getWorldMousePosition already resolves to the
   ## gamepad aim point when a pad is the active device). Mobile: a point
-  ## MobileAimReach ahead of the player along the aim stick (playerPos itself
-  ## when not aiming, i.e. zero direction -> no shot). Note game.nim owns the
-  ## assisted firing aim point (see stickAimPoint); this is the plain
-  ## projection used for wall placement and other non-firing targeting.
+  ## MobileAimReach ahead of the player along mobileAimTargetDir -- the wall
+  ## button's own drag, else the aim stick, else the last direction aimed. It
+  ## never collapses onto the player: holding the wall button takes the right
+  ## thumb off the aim stick, and a wall on the player is never valid. Note
+  ## game.nim owns the assisted firing aim point (see stickAimPoint); this is
+  ## the plain projection used for wall placement and its preview.
   when defined(mobile):
-    let dir = mobileAimVector()
-    if dir.length() > 0:
-      playerPos + dir.normalize() * MobileAimReach
-    else:
-      playerPos
+    playerPos + mobileAimTargetDir() * MobileAimReach
   else:
     let m = getWorldMousePosition()
     newVector2f(m.x, m.y)
@@ -157,7 +156,29 @@ proc interactPressed*(): bool =
 
 proc pausePressed*(): bool =
   ## Pause edge. Desktop: Escape (via isBackPressed) or the pad's Start button.
+  ## Mobile: a short tap of the pause button, on release (a long hold is left to
+  ## skipHeld).
   when defined(mobile):
     mobilePausePressed()
   else:
     isBackPressed() or isGamepadStartPressed()
+
+proc confirmPressed*(): bool =
+  ## "Acknowledge / continue" edge -- the tutorial's read-only cards. Desktop:
+  ## Enter or the pad's A. Mobile: a quick tap anywhere that isn't an on-screen
+  ## button, by any finger, so it registers while the other thumb holds a stick.
+  when defined(mobile):
+    mobileTapPressed() or (isGamepadActive() and isGamepadConfirmPressed())
+  else:
+    isKeyPressed(KeyboardKey.Enter) or isKeyPressed(KeyboardKey.KpEnter) or
+      (isGamepadActive() and isGamepadConfirmPressed())
+
+proc skipHeld*(): bool =
+  ## Hold-to-skip (the tutorial). Desktop: Tab or the pad's Select -- neither is
+  ## a gameplay binding by default. Mobile: holding the pause button, whose tap
+  ## only pauses on a short release, so the two never collide.
+  when defined(mobile):
+    mobilePauseHeld()
+  else:
+    isKeyDown(KeyboardKey.Tab) or
+      (isGamepadActive() and isGamepadButtonDown(activeGamepad(), GamepadButton.MiddleLeft))

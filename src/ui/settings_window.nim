@@ -661,7 +661,11 @@ const
   IfcGridRowPitch = 30
 
   UIScaleLabels: array[3, TranslationKey] =
-    [tkSettingsUiScaleSmall, tkSettingsUiScaleDefault, tkSettingsUiScaleBig]
+    [tkSettingsUiScaleSmall,
+     # Mobile defaults to Big (save_system.DefaultUIScale), so 100% must not
+     # be the one labelled "Default" there.
+     (when defined(mobile): tkSettingsUiScaleNormal else: tkSettingsUiScaleDefault),
+     tkSettingsUiScaleBig]
     ## Names for save_system.UIScalePresets, index for index. A stepper over a
     ## few named sizes beats a slider: a 1px wobble re-laying-out every desktop
     ## window would be miserable to use.
@@ -726,6 +730,27 @@ proc interfaceControlRect(ic: InterfaceControl, contentX, contentY, contentW: in
     Rectangle(x: (contentX + 40 + (idx mod 2) * gridColW).float32,
               y: (contentY + IfcGridY + (idx div 2) * IfcGridRowPitch).float32,
               width: IfcCheckboxSize.float32, height: IfcCheckboxSize.float32)
+
+proc interfaceHitRect(ic: InterfaceControl, contentX, contentY, contentW: int): Rectangle =
+  ## Where a pointer has to land to use a control -- shared by the hover
+  ## highlight and the click handler, so the two can't drift. Desktop: exactly
+  ## the drawn control. Touch: a 24px box is half a fingertip, so the grid
+  ## toggles take their whole cell (box + label) and the lone checkbox grows
+  ## the way checkboxHit's do. Neither reaches a neighbour's area.
+  result = interfaceControlRect(ic, contentX, contentY, contentW)
+  when defined(mobile):
+    case ic
+    of ifcEnemyLabels .. ifcDebugPanel:
+      let gridColW = (contentW - 80) div 2
+      let padY = (IfcGridRowPitch - IfcCheckboxSize) div 2
+      result = Rectangle(x: result.x - 6, y: result.y - padY.float32,
+                         width: (gridColW - 8).float32,
+                         height: (IfcGridRowPitch - 1).float32)
+    of ifcDamageNumbers:
+      result = Rectangle(x: result.x - 11, y: result.y - 4,
+                         width: result.width + 22, height: result.height + 8)
+    else:
+      discard
 
 proc interfaceToggleLabel(ic: InterfaceControl): string =
   ## These keys read "Label:" because every other tab puts the label before its
@@ -804,7 +829,9 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
   let dmgRect = rectOf(ifcDamageNumbers)
   drawText(t(tkSettingsDamageNumbers), (contentX + 40).int32, (contentY + 106).int32, 18, White)
   drawCheckbox(dmgRect.x.int32, dmgRect.y.int32, IfcCheckboxSize,
-               s.showDamageNumbers, checkCollisionPointRec(mousePos, dmgRect))
+               s.showDamageNumbers,
+               checkCollisionPointRec(mousePos,
+                                      interfaceHitRect(ifcDamageNumbers, contentX, contentY, contentW)))
   drawText(t(tkSettingsDamageNumbersDesc), (dmgRect.x + 34).int32, (dmgRect.y + 5).int32,
            13, LightGray)
 
@@ -861,7 +888,8 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
   for ic in ifcEnemyLabels .. ifcDebugPanel:
     let rect = rectOf(ic)
     drawCheckbox(rect.x.int32, rect.y.int32, IfcCheckboxSize,
-                 interfaceToggleValue(s, ic), checkCollisionPointRec(mousePos, rect))
+                 interfaceToggleValue(s, ic),
+                 checkCollisionPointRec(mousePos, interfaceHitRect(ic, contentX, contentY, contentW)))
     drawText(interfaceToggleLabel(ic), (rect.x + 34).int32, (rect.y + 5).int32, 16, White)
 
 proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
@@ -1452,7 +1480,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         if stepUIScale(settingsWin.settings, stepperSide(mousePos, scaleRect)):
           settingsChanged = true
 
-      if checkCollisionPointRec(mousePos, ifaceRect(ifcDamageNumbers)):
+      if checkCollisionPointRec(mousePos, interfaceHitRect(ifcDamageNumbers, contentX, ifaceY, ifaceW)):
         settingsWin.settings.showDamageNumbers = not settingsWin.settings.showDamageNumbers
         settingsChanged = true
 
@@ -1467,14 +1495,14 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsChanged = true
 
       for ic in ifcEnemyLabels .. ifcDebugPanel:
-        if checkCollisionPointRec(mousePos, ifaceRect(ic)):
+        if checkCollisionPointRec(mousePos, interfaceHitRect(ic, contentX, ifaceY, ifaceW)):
           toggleInterfaceSetting(settingsWin.settings, ic)
           settingsChanged = true
           break
 
     # Sliders follow the Audio tab's press/drag/release shape, saving only on
     # release so a drag doesn't rewrite settings.json every frame.
-    if settingsWin.window.handledClickThisFrame and
+    if settingsWin.window.handledPressThisFrame and
        checkCollisionPointRec(mousePos, sliderHitRect(sizeRect)):
       settingsWin.draggingDamageSize = true
     if settingsWin.draggingDamageSize:
@@ -1486,7 +1514,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         settingsWin.draggingDamageSize = false
         settingsChanged = true
 
-    if settingsWin.window.handledClickThisFrame and
+    if settingsWin.window.handledPressThisFrame and
        checkCollisionPointRec(mousePos, sliderHitRect(shakeRect)):
       settingsWin.draggingScreenShake = true
     if settingsWin.draggingScreenShake:
@@ -1531,7 +1559,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                         mousePos.y <= (volumeSliderY + sliderHeight).float32
 
     # Start dragging on click
-    if settingsWin.window.handledClickThisFrame and volumeHovered:
+    if settingsWin.window.handledPressThisFrame and volumeHovered:
       settingsWin.draggingVolume = true
 
     # Continue dragging or handle click
@@ -1554,7 +1582,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                        mousePos.y <= (musicSliderY + sliderHeight).float32
 
     # Start dragging on click
-    if settingsWin.window.handledClickThisFrame and musicHovered:
+    if settingsWin.window.handledPressThisFrame and musicHovered:
       settingsWin.draggingMusic = true
 
     # Continue dragging or handle click

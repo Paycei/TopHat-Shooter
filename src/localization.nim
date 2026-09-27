@@ -144,6 +144,7 @@ type
     tkSettingsUiScaleDesc = "settings_ui_scale_desc"
     tkSettingsUiScaleSmall = "settings_ui_scale_small"
     tkSettingsUiScaleDefault = "settings_ui_scale_default"
+    tkSettingsUiScaleNormal = "settings_ui_scale_normal"
     tkSettingsUiScaleBig = "settings_ui_scale_big"
     tkSettingsDamageNumbers = "settings_damage_numbers"
     tkSettingsDamageNumbersDesc = "settings_damage_numbers_desc"
@@ -397,6 +398,9 @@ type
     tkHUDKeyDash = "hud_key_dash"
     tkHUDKeyAbility = "hud_key_ability"
     tkHUDKeyPause = "hud_key_pause"
+    tkTouchMove = "touch_move"
+    tkTouchAim = "touch_aim"
+    tkTouchUse = "touch_use"
 
     # Debug Panel
     tkDebugPanelDiagnostics = "debug_panel_diagnostics"
@@ -1746,6 +1750,11 @@ type
     tkTutorialKeyLeftClick = "tutorial_key_left_click"
     tkTutorialKeyLeftStick = "tutorial_key_left_stick"
     tkTutorialKeyRightStick = "tutorial_key_right_stick"
+    tkTutorialKeyTouchMove = "tutorial_key_touch_move"
+    tkTutorialKeyTouchAim = "tutorial_key_touch_aim"
+    tkTutorialKeyTap = "tutorial_key_tap"
+    tkTutorialFireBodyTouch = "tutorial_fire_body_touch"
+    tkTutorialWallsBodyTouch = "tutorial_walls_body_touch"
     tkTutorialLaunching = "tutorial_launching"
     tkTutorialPracticeComplete = "tutorial_practice_complete"
     tkSettingsTutorial = "settings_tutorial"
@@ -2084,6 +2093,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_ui_scale_desc": "(Desktop, windows, in-game HUD and menus)",
     "settings_ui_scale_small": "Small (70%)",
     "settings_ui_scale_default": "Default (100%)",
+    "settings_ui_scale_normal": "Normal (100%)",
     "settings_ui_scale_big": "Big (130%)",
     "settings_damage_numbers": "Damage Numbers:",
     "settings_damage_numbers_desc": "(Floating damage text on hits)",
@@ -2621,6 +2631,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_key_dash": "Dash",
     "hud_key_ability": "Ability",
     "hud_key_pause": "Pause",
+    "touch_move": "Move",
+    "touch_aim": "Aim",
+    "touch_use": "Use",
 
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNOSTICS",
@@ -3878,6 +3891,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "tutorial_key_left_click":  "Left Click",
     "tutorial_key_left_stick":  "Left Stick",
     "tutorial_key_right_stick": "Right Stick",
+    "tutorial_key_touch_move": "Left thumb",
+    "tutorial_key_touch_aim": "Right thumb",
+    "tutorial_key_tap": "Tap",
+    "tutorial_fire_body_touch": "Drag {aim} to aim, it fires on its own.",
+    "tutorial_walls_body_touch": "Hold {wall} and drag to aim a wall, release to place it. Walls block enemies. Here is a free charge, you can buy more in the shop.",
     "tutorial_launching":       "Launching Orientation...",
     "tutorial_practice_complete": "Orientation complete",
     "settings_tutorial":        "Tutorial:",
@@ -4215,6 +4233,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_ui_scale_desc": "(Escritorio, ventanas, HUD y menús del juego)",
     "settings_ui_scale_small": "Pequeña (70%)",
     "settings_ui_scale_default": "Normal (100%)",
+    "settings_ui_scale_normal": "Normal (100%)",
     "settings_ui_scale_big": "Grande (130%)",
     "settings_damage_numbers": "Números de daño:",
     "settings_damage_numbers_desc": "(Texto de daño flotante en los impactos)",
@@ -4646,6 +4665,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "hud_key_dash": "Impulso",
     "hud_key_ability": "Habilidad",
     "hud_key_pause": "Pausa",
+    "touch_move": "Mover",
+    "touch_aim": "Apuntar",
+    "touch_use": "Usar",
 
     # Debug Panel
     "debug_panel_diagnostics": "DIAGNÓSTICOS",
@@ -6007,6 +6029,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "tutorial_key_left_click":  "Clic izquierdo",
     "tutorial_key_left_stick":  "Stick izquierdo",
     "tutorial_key_right_stick": "Stick derecho",
+    "tutorial_key_touch_move": "Pulgar izquierdo",
+    "tutorial_key_touch_aim": "Pulgar derecho",
+    "tutorial_key_tap": "Toca",
+    "tutorial_fire_body_touch": "Arrastra {aim} para apuntar: dispara solo.",
+    "tutorial_walls_body_touch": "Mantén {wall} y arrastra para apuntar un muro; suéltalo para colocarlo. Los muros bloquean a los enemigos. Aquí tienes una carga gratis: compra más en la tienda.",
     "tutorial_launching":       "Iniciando orientación...",
     "tutorial_practice_complete": "Orientación completada",
     "settings_tutorial":        "Tutorial:",
