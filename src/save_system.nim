@@ -1,5 +1,5 @@
 import json, os, std/tables, strutils, raylib
-import particle_types, run_statistics, types, utils
+import particle_types, run_statistics, types, utils, powerup_data, enemy_config
 
 # Settings type definition (moved from settings_types.nim)
 type
@@ -80,6 +80,8 @@ type
     hasSeenPvPIntro*: bool         # First-time pvp mode intro played
     hasSeenTutorial*: bool         # First-run tutorial finished or skipped (see tutorial.nim)
     discoveredPowerUps*: seq[string] # Power-ups seen for the first time (name-serialized)
+    enabledMods*: seq[string]        # MODS.EXE: ids of the mods this profile loads
+    modCosmetics*: seq[string]       # MODS.EXE: equipped mod cosmetics, "kind=modid:name"
 
 const
   ## Bounds for the Interface tab's sliders. They live here (next to Settings
@@ -328,7 +330,9 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "hasSeenSandboxIntro": settings.hasSeenSandboxIntro,
     "hasSeenPvPIntro": settings.hasSeenPvPIntro,
     "hasSeenTutorial": settings.hasSeenTutorial,
-    "discoveredPowerUps": settings.discoveredPowerUps
+    "discoveredPowerUps": settings.discoveredPowerUps,
+    "enabledMods": settings.enabledMods,
+    "modCosmetics": settings.modCosmetics
   }
   var bindsObj = newJObject()
   for action in KeyAction:
@@ -511,6 +515,16 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
     for item in jsonNode["discoveredPowerUps"]:
       settings.discoveredPowerUps.add(item.getStr())
 
+  if jsonNode.hasKey("enabledMods"):
+    settings.enabledMods = @[]
+    for item in jsonNode["enabledMods"]:
+      settings.enabledMods.add(item.getStr())
+
+  if jsonNode.hasKey("modCosmetics"):
+    settings.modCosmetics = @[]
+    for item in jsonNode["modCosmetics"]:
+      settings.modCosmetics.add(item.getStr())
+
   if jsonNode.hasKey("keybinds"):
     let binds = jsonNode["keybinds"]
     for action in KeyAction:
@@ -566,13 +580,13 @@ proc loadSettings*(settings: Settings): bool =
 proc enemyTypeIntTableToJson(table: Table[EnemyType, int]): JsonNode =
   result = newJObject()
   for key, val in table:
-    result[$key] = %val
+    result[enemySaveName(key)] = %val
 
 # Helper to convert Table[EnemyType, float32] to JSON
 proc enemyTypeFloatTableToJson(table: Table[EnemyType, float32]): JsonNode =
   result = newJObject()
   for key, val in table:
-    result[$key] = %val
+    result[enemySaveName(key)] = %val
 
 # Helper to convert Table[ConsumableType, int] to JSON
 proc consumableTypeTableToJson(table: Table[ConsumableType, int]): JsonNode =
@@ -584,7 +598,7 @@ proc consumableTypeTableToJson(table: Table[ConsumableType, int]): JsonNode =
 proc powerUpTypeFloatTableToJson(table: Table[PowerUpType, float32]): JsonNode =
   result = newJObject()
   for key, val in table:
-    result[$key] = %val
+    result[powerUpSaveName(key)] = %val
 
 # Convert GameEvent to JSON
 proc gameEventToJson(event: GameEvent): JsonNode =
@@ -602,7 +616,7 @@ proc gameEventToJson(event: GameEvent): JsonNode =
 # Convert PowerUp to JSON
 proc powerUpToJson(powerUp: PowerUp): JsonNode =
   result = %* {
-    "powerType": $powerUp.powerType,
+    "powerType": powerUpSaveName(powerUp.powerType),
     "level": powerUp.level,
     "rarity": $powerUp.rarity
   }
@@ -698,7 +712,7 @@ proc powerUpStatsToJson(stats: PowerUpStats): JsonNode =
 
   var elementalArray = newJArray()
   for powerUpType in stats.elementalCombo:
-    elementalArray.add(%($powerUpType))
+    elementalArray.add(%(powerUpSaveName(powerUpType)))
 
   result = %* {
     "powerUpsChosen": chosenArray,
@@ -713,8 +727,8 @@ proc powerUpStatsToJson(stats: PowerUpStats): JsonNode =
     "overhealContribution": powerUpTypeFloatTableToJson(stats.overhealContribution),
     "overhealFromConsumables": stats.overhealFromConsumables,
     "overhealFromLevelUps": stats.overhealFromLevelUps,
-    "mostEffectivePowerUp": $stats.mostEffectivePowerUp,
-    "leastEffectivePowerUp": $stats.leastEffectivePowerUp,
+    "mostEffectivePowerUp": powerUpSaveName(stats.mostEffectivePowerUp),
+    "leastEffectivePowerUp": powerUpSaveName(stats.leastEffectivePowerUp),
     "synergyScore": stats.synergyScore,
     "elementalCombo": elementalArray,
     "hasSynergy": stats.hasSynergy,
@@ -791,6 +805,7 @@ proc runStatisticsToJson*(runStats: RunStatistics): JsonNode =
     "waveReached": runStats.waveReached,
     "finalScore": runStats.finalScore,
     "cheatsUsed": runStats.cheatsUsed,
+    "modded": runStats.modded,
     "died": runStats.died,
     "combat": combatStatsToJson(runStats.combat),
     "movement": movementStatsToJson(runStats.movement),
@@ -835,10 +850,10 @@ proc saveLastRunStats*(runStats: RunStatistics): bool =
 # Enum parse helpers. The on-disk format is the Nim symbol name (`$value`), so a
 # generic name-based parse round-trips byte-for-byte; `parseEnumOr` (utils.nim)
 # preserves the old silent fallback-to-default behavior on unknown input.
-proc parseEnemyType(s: string): EnemyType = parseEnumOr(s, etCircle)
 proc parsePowerUpRarity(s: string): PowerUpRarity = parseEnumOr(s, prCommon)
 proc parseConsumableType(s: string): ConsumableType = parseEnumOr(s, ctHealth)
-proc parsePowerUpType(s: string): PowerUpType = parseEnumOr(s, puDoubleShot)
+proc parsePowerUpType(s: string): PowerUpType =
+  if not parsePowerUpSaveName(s, result): result = puDoubleShot
 proc parseGameMode(s: string): GameMode = parseEnumOr(s, gmWaveBased)
 proc parseGameEventType(s: string): GameEventType = parseEnumOr(s, geKill)
 
@@ -875,13 +890,16 @@ proc jsonToCombatStats(j: JsonNode): CombatStats =
   result.largestSingleHit = j["largestSingleHit"].getFloat().float32
 
   # Parse tables
+  var et: EnemyType
   for key, val in j["damageTakenByType"]:
-    result.damageTakenByType[parseEnemyType(key)] = val.getFloat().float32
+    if parseEnemySaveName(key, et):  # a mod's enemy whose mod is gone is skipped
+      result.damageTakenByType[et] = val.getFloat().float32
 
   result.totalKills = j["totalKills"].getInt()
 
   for key, val in j["killsByType"]:
-    result.killsByType[parseEnemyType(key)] = val.getInt()
+    if parseEnemySaveName(key, et):
+      result.killsByType[et] = val.getInt()
 
   result.eliteKills = j["eliteKills"].getInt()
   result.bossKills = j["bossKills"].getInt()
@@ -976,7 +994,7 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
 
   # Parse damage contribution table
   for key, val in j["damageContribution"]:
-    result.damageContribution[parsePowerUpType(key)] = val.getFloat().float32
+    (var pt: PowerUpType; if parsePowerUpSaveName(key, pt): result.damageContribution[pt] = val.getFloat().float32)
 
   # "killContribution" is written by older saves only: it was never populated
   # and never displayed, so it is read past rather than resurrected.
@@ -984,7 +1002,7 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
   # Parse healing contribution table
   if j.hasKey("healingContribution"):
     for key, val in j["healingContribution"]:
-      result.healingContribution[parsePowerUpType(key)] = val.getFloat().float32
+      (var pt: PowerUpType; if parsePowerUpSaveName(key, pt): result.healingContribution[pt] = val.getFloat().float32)
   if j.hasKey("totalHealingFromPowerUps"):
     result.totalHealingFromPowerUps = j["totalHealingFromPowerUps"].getFloat().float32
   result.healingFromConsumables = j.getOrDefault("healingFromConsumables").getFloat(0.0).float32
@@ -992,7 +1010,7 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
   # Overheal was added later; older saves simply show none.
   if j.hasKey("overhealContribution"):
     for key, val in j["overhealContribution"]:
-      result.overhealContribution[parsePowerUpType(key)] = val.getFloat().float32
+      (var pt: PowerUpType; if parsePowerUpSaveName(key, pt): result.overhealContribution[pt] = val.getFloat().float32)
   result.overhealFromConsumables = j.getOrDefault("overhealFromConsumables").getFloat(0.0).float32
   result.overhealFromLevelUps = j.getOrDefault("overhealFromLevelUps").getFloat(0.0).float32
 
@@ -1066,6 +1084,7 @@ proc jsonToRunStatistics(j: JsonNode): RunStatistics =
     waveReached: j["waveReached"].getInt(),
     finalScore: j["finalScore"].getInt(),
     cheatsUsed: j["cheatsUsed"].getBool(),
+    modded: j.getOrDefault("modded").getBool(false),
     died: j["died"].getBool(),
     combat: jsonToCombatStats(j["combat"]),
     movement: jsonToMovementStats(j["movement"]),

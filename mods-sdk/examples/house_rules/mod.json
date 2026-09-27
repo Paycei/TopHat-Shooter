@@ -1,0 +1,8 @@
+{
+  "id": "house_rules",
+  "name": "House Rules",
+  "version": "1.0.0",
+  "author": "TopHat-ShooterOS",
+  "description": "A game mode that rewrites the rules instead of just the numbers: dash becomes a short-range blink, coins also patch you up, the shop sells at half price, every level-up sharpens your shots, and the run panel is replaced by the mod's own. Shows deep field access (lists and nested objects), hud.hide, replacement hooks and pickups.",
+  "main": "main.lua"
+}

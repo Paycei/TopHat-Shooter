@@ -1,5 +1,6 @@
 import raylib, rlgl, random
 import types, particle, particle_pool, particle_types, powerup, patches, run_statistics, boss_weakpoints, ui/os_background, player, mode_hazards
+import modding/mod_hooks
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
@@ -85,6 +86,12 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
   ## gun. Nothing else may add to combat.totalDamageDealt.
   if damage <= 0.0'f32:
     return 0.0'f32
+  # Mods (enemyDamaged) may scale or cancel any damage an enemy takes.
+  var damage = damage
+  if hookActive(hkEnemyDamaged):
+    damage = modEnemyDamaged(enemy, damage)
+    if damage <= 0.0'f32:
+      return 0.0'f32
 
   if enemy.enemyType == etStar and not enemy.isBoss:
     # Stars die by hit count, and their HP is only a placeholder: draining it
@@ -285,6 +292,7 @@ proc calculateCombatStats*(player: Player): CombatStats =
       of 2: 35  # 35% chance
       else: 50  # 50% chance
     result.critMultiplier = 2.0
+  modCombatStats(player, result.damage, result.fireRate, result.critChance, result.critMultiplier)
 
 proc applyBossArenaCombatBonus*(game: Game, stats: var CombatStats) =
   let bonus = getBossArenaCombatBonus(game.osBackground)

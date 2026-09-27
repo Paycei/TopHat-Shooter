@@ -14,6 +14,7 @@ import particle_types, types, localization, utils, sound, d_systems, d_visuals, 
        enemy, enemy_helpers, particle_pool, consumable, coin, player, powerup,
        powerup_data, gamepad_input, game/bullets, game/death, ui/os_background, ui/icon_drawing,
        ui/hud_dock, ui/ui_helpers
+import modding/mod_hooks
 
 # ============================================================================
 # Data: per-phase tuning, events, caches, text
@@ -269,6 +270,7 @@ proc pickRosterType(game: Game): EnemyType =
     result = pickFromRoster(game, everyone)
   if result == etDaemon and livingOfType(game, etDaemon) >= SurvivalDaemonCap:
     result = etThread
+  result = modSurvivalSpawn(game, result)
 
 proc pickFodderType*(game: Game): EnemyType =
   ## Formations are made of melee chasers so they keep their shape as they
@@ -878,6 +880,9 @@ proc pickRogueType(game: Game): EnemyType =
 proc startSurvivalEvent*(game: var Game, kind: SurvivalEventKind) =
   if kind == sekNone:
     return
+  # Mods (survivalEvent) may veto an event.
+  if modSurvivalEvent(game, $kind):
+    return
   let p = survivalPhaseIndex(game)
   var ev = SurvivalEvent(kind: kind, rogueId: -1)
   case kind
@@ -1433,9 +1438,13 @@ proc updateSurvival*(game: var Game, dt: float32) =
       playSound(stBossSpawn, 0.35, 1.7)
 
   updateSurvivalPending(game, dt)
-  updateSurvivalDensity(game, dt)
+  # A mod game mode may run the survival clock without its horde (MODS.EXE).
+  let hordeOn = modModeSpawns(game)
+  if hordeOn:
+    updateSurvivalDensity(game, dt)
   if clockRunning:
-    updateSurvivalFormations(game)
+    if hordeOn:
+      updateSurvivalFormations(game)
     updateSurvivalScheduler(game)
     updateSurvivalEvent(game, dt)
   updateSurvivalChests(game, dt)

@@ -1,5 +1,6 @@
 import raylib, math
 import particle_types, types, bullet_skins, bullet_shapes, utils
+import modding/[mod_assets, mod_hooks]
 from run_statistics import trackBulletFired
 
 ## Boss ID -> bullet shape index. 0=circle, 1=diamond, 2=triangle, 3=star, 4=cross, 5=square
@@ -261,6 +262,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
   )
   if bulletRadius > 0.0:
     result.radius = bulletRadius
+  modBulletSpawn(result)   # mods may reshape any bullet before it flies
 
 proc updateBullet*(bullet: Bullet, dt: float32): bool =
   # Track distance traveled for Overcharge power-up
@@ -277,6 +279,7 @@ proc assignBulletId*(game: Game, bullet: Bullet) =
   bullet.bulletId = game.bulletIdCounter
 
 proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false, gameTime: float32 = 0.0) =
+  if modBulletDraw(bullet): return   # a mod drew it (bulletDraw hook)
   # Get base color from bullet skin for player bullets
   var color: Color
   var glowColor: Color
@@ -295,6 +298,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     color = primary
     glowColor = glow
     trailColor = trail
+    bulletPalette(true, color, glowColor, trailColor)  # mod cosmetic (MODS.EXE)
 
     # Override color for special bullet types (these take priority over skin)
     if bullet.isSpecialRound:
@@ -369,8 +373,10 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       drawCircle(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
                 withAlpha(trailColor, trailAlpha))
 
-  # Draw pentagon shape for pentagon bullets
-  if bullet.isPentagon:
+  # Draw pentagon shape for pentagon bullets (a mod texture replaces any body)
+  if drawBulletModBody(bullet, usesPlayerLook):
+    discard
+  elif bullet.isPentagon:
     # Draw pentagon shape
     let points = 5
     for i in 0..<points:

@@ -300,7 +300,7 @@ proc secondsText(s: float32): string =
 proc processStatus(game: Game, pu: PowerUp): tuple[short, full: string, color: Color] =
   ## RUNNING for a passive; for a [Q] ability, READY or how long until it is.
   let pt = pu.powerType
-  if not allPowerUpDefs[pt].inLegendaryPanel:
+  if not powerUpDef(pt).inLegendaryPanel:
     let s = t("os_status_running")
     return (s, s, RunningGreen)
   if abilityReady(game.player, pt):
@@ -353,7 +353,7 @@ proc drawProcessesTab(game: Game, x, y, width, height: int32, mouseSupported: bo
   let rank = if pu.rarity == prLegendary: t("os_legendary")
              else: t("os_level_of").replace("$1", $pu.level).replace("$2", $maxLevel)
   drawText(rank, p.textX, p.iconY + 28, 12, color)
-  if allPowerUpDefs[pt].inLegendaryPanel:
+  if powerUpDef(pt).inLegendaryPanel:
     drawText(t("os_active_ability"), p.textX + measureText(rank, 12) + 12, p.iconY + 28, 12,
              Color(r: 140, g: 150, b: 165, a: 255))
 

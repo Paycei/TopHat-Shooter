@@ -1,0 +1,8 @@
+{
+  "id": "overclock_boss",
+  "name": "Overclock Boss",
+  "version": "1.0.0",
+  "author": "TopHat-ShooterOS",
+  "description": "A new boss, OVERCLOCK, who replaces the wave 10 boss: two phases, a scripted spinning bullet ring, scripted movement and a custom-drawn body. Shows register.boss and bossForWave.",
+  "main": "main.lua"
+}

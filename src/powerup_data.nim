@@ -2,8 +2,8 @@
 ## Single source of truth for all power-up static metadata, names, and descriptions.
 ##
 ## Adding a new power-up:
-##   1. Add it to `PowerUpType` in types.nim
-##   2. Add exactly ONE entry to `allPowerUpDefs` below.
+##   1. Add it to `PowerUpType` in types.nim (above the puMod00..puMod63 block)
+##   2. Add exactly ONE entry to `vanillaPowerUpDefs` below (read via powerUpDef).
 ##      Pool membership, exclusivity group, family, colour, panel visibility,
 ##      and max level all derive automatically from that one entry.
 ##   3. Add the name to `getPowerUpName`.
@@ -42,7 +42,7 @@ type
 
 # The registry: one entry per PowerUpType, named-index syntax keeps it safe
 
-const allPowerUpDefs*: array[PowerUpType, PowerUpDef] = [
+const vanillaPowerUpDefs: array[puAftershock..puDataHarvest, PowerUpDef] = [
   puAftershock:       PowerUpDef(pool: puppLegendary, family: rpfWind,      group: pugNone,    maxLevel: 1, color: Color(r:255,g:160,b: 60,a:255), inLegendaryPanel: true,  isElementalOrb: false),
   puArcaneAura:       PowerUpDef(pool: puppNormal,    family: rpfArcane,    group: pugAura,    maxLevel: 3, color: Color(r:200,g:100,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
   puArcaneBullets:    PowerUpDef(pool: puppNormal,    family: rpfArcane,    group: pugBullet,  maxLevel: 3, color: Color(r:200,g:100,b:255,a:255), inLegendaryPanel: false, isElementalOrb: false),
@@ -140,45 +140,130 @@ const allPowerUpDefs*: array[PowerUpType, PowerUpDef] = [
 
 # Derived constants, computed once at compile time from the registry above
 
-const legendaryPool* = block:
-  ## All power-ups in the legendary (boss) pool, in enum order.
-  var r: seq[PowerUpType]
-  for pt in PowerUpType:
-    if allPowerUpDefs[pt].pool == puppLegendary:
-      r.add(pt)
-  r
-
-const normalPool* = block:
-  ## All power-ups in the normal (wave) pool, in enum order.
-  var r: seq[PowerUpType]
-  for pt in PowerUpType:
-    if allPowerUpDefs[pt].pool == puppNormal:
-      r.add(pt)
-  r
-
 const elementalOrbTypes* = block:
   ## The 7 single-element orbs.  puRotatingOrbs is intentionally excluded.
   var r: seq[PowerUpType]
-  for pt in PowerUpType:
-    if allPowerUpDefs[pt].isElementalOrb:
+  for pt in puAftershock..puDataHarvest:
+    if vanillaPowerUpDefs[pt].isElementalOrb:
       r.add(pt)
   r
 
 const legendaryPanelTypes* = block:
   ## Active legendaries displayed in the HUD panel (all have cooldowns).
   var r: seq[PowerUpType]
-  for pt in PowerUpType:
-    if allPowerUpDefs[pt].inLegendaryPanel:
+  for pt in puAftershock..puDataHarvest:
+    if vanillaPowerUpDefs[pt].inLegendaryPanel:
       r.add(pt)
   r
+
+# The live registry. Built-in entries come from the table above; mods
+# (MODS.EXE) bind the reserved puMod slots and may override built-in entries,
+# so everything reads definitions through powerUpDef() and the pools are
+# rebuilt whenever that changes.
+const
+  FirstModPowerUp* = puMod00
+  LastModPowerUp* = puMod63
+
+type
+  ModPowerUpSlot* = puMod00..puMod63
+  ModPowerUpInfo* = object
+    bound*: bool
+    key*: string   ## "<mod id>:<name>", what saves store instead of the slot name
+
+var
+  powerUpDefs: array[PowerUpType, PowerUpDef]
+  modPowerUps*: array[ModPowerUpSlot, ModPowerUpInfo]
+  legendaryPool*: seq[PowerUpType]  ## the legendary (boss) pool, in enum order
+  normalPool*: seq[PowerUpType]     ## the normal (wave) pool, in enum order
+  modPowerUpText*: proc (pt: PowerUpType, level: int, wantName: bool): string {.nimcall.}
+    ## Installed by mod_api: a mod power-up's name / level description.
+  modPowerUpApplied*: proc (player: Player, pt: PowerUpType, level: int) {.nimcall.}
+    ## Installed by mod_api: runs a mod power-up's onPickup after it is applied.
+
+proc isModPowerUp*(pt: PowerUpType): bool {.inline.} = pt >= FirstModPowerUp
+
+proc isPowerUpLive*(pt: PowerUpType): bool {.inline.} =
+  ## Built-in, or a mod slot a loaded mod is using. Lists and pools show only these.
+  not isModPowerUp(pt) or modPowerUps[pt].bound
+
+proc powerUpDef*(pt: PowerUpType): PowerUpDef {.inline.} = powerUpDefs[pt]
+
+const VanillaPowerUpCount* = ord(puDataHarvest) - ord(low(PowerUpType)) + 1
+  ## Built-in power-ups only (the codex total).
+
+proc powerUpSaveName*(pt: PowerUpType): string =
+  ## What saves store: the enum name, or "mod:<mod id>:<name>" for a mod slot,
+  ## whose number only means something under one mod set.
+  if isModPowerUp(pt): "mod:" & modPowerUps[pt].key else: $pt
+
+proc parsePowerUpSaveName*(s: string, pt: var PowerUpType): bool =
+  ## False for anything that does not exist right now: an unknown name, a mod
+  ## that is not loaded, or a raw slot name (never valid on disk).
+  if s.startsWith("mod:"):
+    let key = s[4 .. ^1]
+    for slot in ModPowerUpSlot:
+      if modPowerUps[slot].bound and modPowerUps[slot].key == key:
+        pt = slot
+        return true
+    return false
+  try:
+    pt = parseEnum[PowerUpType](s)
+    not isModPowerUp(pt)
+  except ValueError:
+    false
+
+proc powerUpScriptName*(pt: PowerUpType): string =
+  ## The name scripts use: "puDoubleShot", or "<mod id>:<name>" for a mod's.
+  if isModPowerUp(pt): modPowerUps[pt].key else: $pt
+
+proc resolvePowerUpScriptName*(s: string, pt: var PowerUpType): bool =
+  if ':' in s: parsePowerUpSaveName("mod:" & s, pt)
+  else: parsePowerUpSaveName(s, pt)
+
+proc livePowerUps*(): seq[PowerUpType] =
+  ## Every power-up that exists right now: built-ins plus bound mod slots.
+  for pt in PowerUpType:
+    if isPowerUpLive(pt): result.add(pt)
+
+proc rebuildPowerUpPools*() =
+  legendaryPool.setLen(0)
+  normalPool.setLen(0)
+  for pt in PowerUpType:
+    if not isPowerUpLive(pt): continue
+    case powerUpDefs[pt].pool
+    of puppLegendary: legendaryPool.add(pt)
+    of puppNormal: normalPool.add(pt)
+
+proc setPowerUpDef*(pt: PowerUpType, def: PowerUpDef) =
+  powerUpDefs[pt] = def
+  rebuildPowerUpPools()
+
+proc vanillaPowerUpDef*(pt: PowerUpType): PowerUpDef =
+  if isModPowerUp(pt): PowerUpDef(pool: puppNormal, maxLevel: 1, color: Gray)
+  else: vanillaPowerUpDefs[pt]
+
+proc resetPowerUpDefs*() =
+  ## Back to the built-in registry with every mod slot unbound.
+  for pt in PowerUpType:
+    powerUpDefs[pt] = vanillaPowerUpDef(pt)
+  for pt in ModPowerUpSlot:
+    modPowerUps[pt] = ModPowerUpInfo()
+  rebuildPowerUpPools()
+
+resetPowerUpDefs()
+
+proc modPowerUpDisplay(pt: PowerUpType, level: int, wantName: bool): string =
+  if not modPowerUpText.isNil: modPowerUpText(pt, level, wantName)
+  elif wantName: "MOD.exe"
+  else: ""
 
 # Inline lookup helpers
 
 proc getPowerUpColor*(pt: PowerUpType): Color {.inline.} =
-  allPowerUpDefs[pt].color
+  powerUpDefs[pt].color
 
 proc getPowerUpMaxLevel*(pt: PowerUpType): int {.inline.} =
-  allPowerUpDefs[pt].maxLevel
+  powerUpDefs[pt].maxLevel
 
 # Active ([Q]) abilities: live state, shared by the [Q] strip and the pause menu
 
@@ -220,6 +305,7 @@ proc recursionDamageBonusForLevel*(level: int): float32 {.inline.} =
 
 proc getPowerUpName*(powerType: PowerUpType): string =
   case powerType
+  of puMod00..puMod63: modPowerUpDisplay(powerType, 0, true)
   of puDoubleShot: t(tkPowerupDoubleShot)
   of puRotatingShield: t(tkPowerupRotatingShield)
   of puMagicalBullets: t(tkPowerupMagicalBullets)
@@ -326,6 +412,8 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     fmt"{baseVal} + {scaledVal} ({pctVal}%) dmg/s"
 
   case powerType
+  of puMod00..puMod63:
+    modPowerUpDisplay(powerType, level, false)
   of puAftershock:
     t(tkPowerupAftershockDesc)
   of puArcaneAura:

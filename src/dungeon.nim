@@ -23,6 +23,7 @@ import raylib, random, math, tables, strutils
 import gamepad_input, particle_types, types, roguelite, powerup, powerup_data, patches, player,
        particle_pool, sound, localization, boss_definitions, settings, coin, xp_orb, utils,
        game/combat, ui/icon_drawing, ui/ui_helpers
+import modding/mod_hooks, enemy_config
 
 # ---------------------------------------------------------------------------
 # Proximity info card: the tooltip that floats over an interactable pickup
@@ -428,6 +429,7 @@ proc enemyTuningWave(enemyType: EnemyType): float32 =
   ## (see the roster table in spawnWaveEnemies). A type spawning far below
   ## this point needs its stats compressed.
   case enemyType
+  of etMod00..etMod31: enemyTuningWave(modEnemies[enemyType].base)
   of etCircle: 1
   of etPentagon: 6
   of etTriangle: 11
@@ -1169,6 +1171,7 @@ proc enterRoom*(game: Game, roomIdx: int, enteredThrough: DoorDir,
   of drkStart, drkShop:
     game.waveInProgress = false
     room.cleared = true
+  modRoomEnter(game, roomIdx)
 
 proc startDungeonFloor*(game: Game, theme: DungeonFloorTheme) =
   ## Build the sector for the chosen theme and place the player in its start room.
@@ -1189,6 +1192,7 @@ proc startDungeonFloor*(game: Game, theme: DungeonFloorTheme) =
   # Rollback re-arms once per sector.
   game.player.rollbackArmed = hasPatch(game.player, rrtRollback)
   enterRoom(game, 0, ddDown)
+  modFloorStart(game, run.floorNumber)
 
 proc selectFloorTheme*(game: Game, choiceIndex: int) =
   if game.rogueliteRun.isNil: return
@@ -1208,6 +1212,7 @@ proc onRoomCleared*(game: Game) =
   room.cleared = true
   game.waveInProgress = false
   run.totalRoomsCleared += 1
+  modRoomCleared(game, run.floor.currentRoom)
   playSound(stWaveComplete)
 
   let def = themeDef(run.floor.theme)
@@ -1307,7 +1312,7 @@ proc claimDungeonPickup*(game: Game, index: int): DungeonFrame =
         return
       game.player.coins -= price
       pickup.taken = true
-      let rarity = if allPowerUpDefs[pickup.powerUp.powerType].pool == puppLegendary: prLegendary
+      let rarity = if powerUpDef(pickup.powerUp.powerType).pool == puppLegendary: prLegendary
                    else: prCommon
       result.install = PowerUp(powerType: pickup.powerUp.powerType, level: lvl, rarity: rarity)
     of dpkStallPatch:

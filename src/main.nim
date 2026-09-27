@@ -1,5 +1,6 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
+import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_api], ui/mods_window
 
 # Global quit-confirmation dialog
 
@@ -395,14 +396,16 @@ proc endGameDrawing() =
   beginDrawing()
   clearBackground(Black)  # Black bars for letterboxing
 
-  # Draw the scaled render texture
+  # Draw the scaled render texture (through a mod's post-process shader, if any)
   let source = Rectangle(x: 0, y: 0,
                          width: renderTarget.texture.width.float32,
                          height: -renderTarget.texture.height.float32)
   let dest = Rectangle(x: renderOffsetX, y: renderOffsetY,
                        width: screenWidth.float32 * renderScale,
                        height: screenHeight.float32 * renderScale)
+  let modShaded = beginPostShader(dest.width, dest.height, getTime().float32)
   drawTexture(renderTarget.texture, source, dest, Vector2(x: 0, y: 0), 0, White)
+  if modShaded: endShaderMode()
 
   endDrawing()
 
@@ -711,6 +714,13 @@ proc main() =
   onLanguageChange = proc() =
     initializeAllCosmetics()
 
+  # Mods (MODS.EXE): this profile's enabled mods load once the window, sounds
+  # and cosmetics exist. Mod strings can rename cosmetics, so the databases are
+  # rebuilt after a set that loaded anything.
+  reloadMods(settings.enabledMods, settings.modCosmetics)
+  if modsActive:
+    initializeAllCosmetics()
+
   let cheatMenu = initCheatMenu()
 
   # Apply remaining settings
@@ -806,6 +816,25 @@ proc main() =
 
   # Initialize window manager with all windows
   globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile)
+  # MODS.EXE Game Modes rows: every mod game mode, and whether its own save
+  # slots hold a run to continue.
+  modeRowsBuilder = proc (): seq[ModModeRow] =
+    let spanish = getLanguage() == Spanish
+    for m in modModes:
+      let baseName = case m.base
+        of gmTimeSurvival: t(tkDesktopIconSurvival)
+        of gmRoguelite: t(tkDesktopIconRoguelite)
+        else: t(tkDesktopIconPlay)
+      var modName = m.key
+      for r in mods:
+        if r.index == m.owner: modName = r.name
+      result.add(ModModeRow(
+        name: (if spanish and m.nameEs.len > 0: m.nameEs else: m.nameEn),
+        description: (if spanish and m.descEs.len > 0: m.descEs else: m.descEn),
+        modName: modName, baseName: baseName,
+        canContinue: hasSuspendSnapshot(m.base, m.key) or hasSavedRun(m.base, m.key) or
+                     hasBlockCheckpoint(m.base, m.key)))
+  refreshModsWindow(globalWindowManager.mods)
   # Pre-load saved nickname into pvp window and host network manager
   globalWindowManager.pvp.inputNickname = settings.pvpNickname
   globalWindowManager.pvp.networkManager.hostNickname = settings.pvpNickname
@@ -849,6 +878,11 @@ proc main() =
     reloadSettingsFromDisk(settings)
     applySettings(settings)
     applyWindowMode(settings.fullscreen)
+    # Each profile keeps its own enabled mods.
+    reloadMods(settings.enabledMods, settings.modCosmetics)
+    initializeAllCosmetics()
+    if not globalWindowManager.isNil and not globalWindowManager.mods.isNil:
+      refreshModsWindow(globalWindowManager.mods)
 
     # Reset IN PLACE: resetStatistics keeps `globalStats` pointing at this same
     # object. Copying a fresh initStatistics() in here instead left globalStats
@@ -895,6 +929,7 @@ proc main() =
     ## `died` separates the two: a wave-60 victory and a banked roguelite cash out
     ## are wins, and were previously both recorded as deaths in the run record and
     ## in the lifetime death counter.
+    modRunEnd(game, died)  # once per run (mod_hooks dedupes repeat calls)
     if hasValidRunStats():
       finalizeRunTracking(game, died)
       saveLastCompletedRun()  # Save to memory
@@ -1005,6 +1040,8 @@ proc main() =
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
   const TutorialPracticeLaunch = 20  # pendingGameMode: the tutorial replayed from settings
+  const ModModeLaunch = 21  # pendingGameMode: a mod game mode from MODS.EXE (pendingModMode)
+  var pendingModMode = -1
   var pendingResume = false  # True when the pending launch should resume a saved run
   var windowCloseRequested = false  # True once the OS close button is clicked
 
@@ -1112,6 +1149,13 @@ proc main() =
     # ALWAYS hide system cursor - we always use custom cursor
     hideCursor()
     updateInGameMouseBonding(settings, currentGame.state)
+
+    # Mods: scripts see a run only while one is on screen (never PvP), and
+    # hear about every state change of the run in progress.
+    if not isActiveRunState(currentGame.state):
+      modOutsideRun(currentGame.state == gsPvPPlaying)
+    modWatchState(currentGame)
+    postShaderInRun = isActiveRunState(currentGame.state)
 
     case currentGame.state
     of gsSplash:
@@ -1528,6 +1572,58 @@ proc main() =
           currentGame.state = gsPlaying
           startTutorial(currentGame, practice = true)
           statsSavedThisGame = true  # nothing from this session is ever recorded
+        of ModModeLaunch:
+          # A mod game mode (MODS.EXE): its vanilla base plus game.modMode, which
+          # also keys its own save slots. Resume paths mirror the vanilla ones.
+          if pendingModMode >= 0 and pendingModMode < modModes.len:
+            let md = modModes[pendingModMode]
+            if md.base == gmRoguelite:
+              setActiveRogueliteProfile(loadRogueliteProfile())
+            currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+            currentGame.discordClient = globalDiscordClient
+            setGameMode(currentGame, md.base)
+            currentGame.modMode = md.key
+            if md.base == gmRoguelite:
+              currentGame.rogueliteProfile = rogueliteProfile
+            var resumed = false
+            if pendingResume:
+              if hasSuspendSnapshot(md.base, md.key):
+                if restoreGame(currentGame):
+                  if currentGame.state == gsPlaying:
+                    currentGame.state = gsCountdown
+                    currentGame.countdownTimer = 3.0
+                  currentGame.selectedRogueliteTheme = 0
+                  resumed = true
+                else:
+                  deleteSuspendSnapshot(md.base, md.key)
+              if not resumed and applySavedRun(currentGame):
+                initializeRunTracking(currentGame)
+                currentGame.selectedRogueliteTheme = 0
+                resumed = true
+              if not resumed and applyBlockCheckpoint(currentGame):
+                currentGame.runHadDeath = true
+                consumeContinueLife(currentGame)
+                currentGame.state = gsCountdown
+                currentGame.countdownTimer = 3.0
+                currentGame.selectedRogueliteTheme = 0
+                initializeRunTracking(currentGame)
+                resumed = true
+            if not resumed:
+              deleteRunSave(md.base, md.key)
+              deleteSuspendSnapshot(md.base, md.key)
+              deleteBlockCheckpoint(md.base, md.key)
+              if md.base == gmRoguelite:
+                beginRogueliteRun(currentGame, rogueliteProfile, rskOperator,
+                                  clampedRogueliteHeatSelection(1, rogueliteProfile))
+                initializeRunTracking(currentGame)
+                generateThemeChoices(currentGame.rogueliteRun)
+                currentGame.selectedRogueliteTheme = 0
+                currentGame.state = gsRogueliteFloorSelect
+              else:
+                currentGame.state = gsPlaying
+                initializeRunTracking(currentGame)
+            statsSavedThisGame = false
+          pendingModMode = -1
         else: discard
         pendingGameMode = -1  # Reset pending mode
         pendingResume = false
@@ -1580,6 +1676,19 @@ proc main() =
         if unlockedDef.id.len > 0:
           showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
                            unlockedDef.name)
+
+      # MODS.EXE asked for a reload (Apply & Reload): done here, on the desktop,
+      # so a run always sees one fixed mod set.
+      if modReloadRequested and not globalConfirmActive:
+        modReloadRequested = false
+        reloadMods(settings.enabledMods, settings.modCosmetics)
+        initializeAllCosmetics()
+        refreshModsWindow(globalWindowManager.mods)
+        showDesktopToast(osDesktop, t(tkModsReloadedToast) & ": " & summaryText())
+      while modNotices.len > 0 and osDesktop.toasts.len < MAX_DESKTOP_TOASTS and
+            not globalConfirmActive:
+        showDesktopToast(osDesktop, modNotices[0])
+        modNotices.delete(0)
 
       # One-time notice for the roguelite "earn, don't buy" migration: whatever
       # the old unlock shop cost this profile was credited back on load.
@@ -1675,6 +1784,14 @@ proc main() =
         startLoadingAnimation(osDesktop, "Launching Sandbox Mode...")
         pendingGameMode = 6
 
+      # MODS.EXE Game Modes: Launch / Continue a mod game mode.
+      if updateResult.modModeLaunch >= 0 and updateResult.modModeLaunch < modModes.len and
+         not globalConfirmActive:
+        pendingModMode = updateResult.modModeLaunch
+        pendingResume = updateResult.modModeResume
+        startLoadingAnimation(osDesktop, "Launching " & modModes[pendingModMode].nameEn & "...")
+        pendingGameMode = ModModeLaunch
+
       # Handle PvP game ready
       if updateResult.pvpGameReady and not globalConfirmActive:
         echo "[MAIN] PvP game starting..."
@@ -1733,6 +1850,18 @@ proc main() =
         )
         currentPvPGame.networkManager = globalWindowManager.pvp.networkManager
         currentPvPGame.localPlayerIndex = localPlayerIndex
+        # MODS.EXE cosmetics: your own from what you equipped; on the host,
+        # every client's from its connection request. The host then sends them
+        # all to everyone in the state updates (lobbies share one mod set, so
+        # the indices mean the same thing on every machine).
+        if localPlayerIndex >= 0 and localPlayerIndex < currentPvPGame.players.len:
+          currentPvPGame.players[localPlayerIndex].modSkin = int16(equippedCosmetic[mckPlayer])
+          currentPvPGame.players[localPlayerIndex].modBulletSkin = int16(equippedCosmetic[mckBullet])
+        if globalWindowManager.pvp.isHost:
+          for client in globalWindowManager.pvp.networkManager.clients:
+            if client.playerIndex >= 0 and client.playerIndex < currentPvPGame.players.len:
+              currentPvPGame.players[client.playerIndex].modSkin = client.modSkin
+              currentPvPGame.players[client.playerIndex].modBulletSkin = client.modBulletSkin
 
         echo "[MAIN] PvP game state created successfully"
 
@@ -1916,6 +2045,8 @@ proc main() =
           globalWindowManager.openWindow(widCredits)
         of 13: # FEEDBACK.exe - Open Feedback / Bug Report Window
           globalWindowManager.openWindow(widFeedback)
+        of 14: # MODS.exe - Open the Mod Manager
+          globalWindowManager.openWindow(widMods)
         else: discard
 
       # Handle icon execution from help window commands
@@ -2020,6 +2151,8 @@ proc main() =
             globalWindowManager.openWindow(widCredits)
           of 13: # FEEDBACK.exe
             globalWindowManager.openWindow(widFeedback)
+          of 14: # MODS.exe
+            globalWindowManager.openWindow(widMods)
           else: discard
 
       # Update Discord Rich Presence (throttled internally to prevent lag)
@@ -2043,6 +2176,7 @@ proc main() =
       # at plain virtual size.
       beginUIScaleMode(desktopUIScale())
       drawOSDesktop(osDesktop, desktopUIWidth(), desktopUIHeight())
+      modDrawDesktop(desktopUIWidth(), desktopUIHeight())   # mod layers, under the windows
       endUIScaleMode()
 
       # Draw all windows using window manager
@@ -2183,7 +2317,8 @@ proc main() =
           let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
           if inRange and isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
                                               currentGame.enemies, 25,
-                                              currentGame.screenWidth, currentGame.screenHeight):
+                                              currentGame.screenWidth, currentGame.screenHeight) and
+             not modPlaceWall(currentGame, wallPos.x, wallPos.y):
             currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
             currentGame.player.walls -= 1
             spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
@@ -2197,7 +2332,8 @@ proc main() =
       # Not while the cheat menu is open: it pauses the game, and abilities fired
       # then dealt their damage and teleports into a frozen world.
       if (isKeyPressed(globalSettings.keybinds[kaLegendary]) or isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)) and
-         not globalConfirmActive and not cheatMenu.active and not survivalRevealOpen:
+         not globalConfirmActive and not cheatMenu.active and not survivalRevealOpen and
+         not modAbility(currentGame):
         var anyActivated = false
 
         # Time Warp - slow down time
@@ -2918,9 +3054,9 @@ proc main() =
           setActiveRogueliteProfile(currentGame.rogueliteProfile)
         # The run is abandoned (and its shards were just banked), so its saves
         # must go too: left on disk, the run could be resumed and banked again.
-        deleteRunSave(gmRoguelite)
-        deleteSuspendSnapshot(gmRoguelite)
-        deleteBlockCheckpoint(gmRoguelite)
+        deleteRunSave(gmRoguelite, currentGame.modMode)
+        deleteSuspendSnapshot(gmRoguelite, currentGame.modMode)
+        deleteBlockCheckpoint(gmRoguelite, currentGame.modMode)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -3546,9 +3682,11 @@ proc main() =
       # Nested action helpers (shared by keyboard, gamepad and mouse dispatch).
       proc doContinue() =
         let mode = currentGame.mode
+        let modMode = currentGame.modMode
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, mode)
+        currentGame.modMode = modMode
         if mode == gmRoguelite:
           # The run resumes on the live wallet the death just banked into.
           setActiveRogueliteProfile(loadRogueliteProfile())
@@ -3579,6 +3717,7 @@ proc main() =
 
       proc doRestart() =
         let previousMode = currentGame.mode
+        let previousModMode = currentGame.modMode
         let preservedRogueliteHeat =
           if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
             currentGame.rogueliteRun.heat
@@ -3588,10 +3727,11 @@ proc main() =
         # already warned that Continue was still available), exactly like the
         # menu's "New Run". Keeping the file would let a fresh wave-1 run die at
         # wave 2 and still offer "Continue (Wave 21)" from the discarded run.
-        deleteBlockCheckpoint(previousMode)
+        deleteBlockCheckpoint(previousMode, previousModMode)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)  # Preserve the game mode
+        currentGame.modMode = previousModMode
         if previousMode == gmRoguelite:
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
@@ -3785,16 +3925,18 @@ proc main() =
         statsWin.window.visible = false
         persistIfFromVictory()
         let previousMode = currentGame.mode
+        let previousModMode = currentGame.modMode
         let preservedRogueliteHeat =
           if previousMode == gmRoguelite and currentGame.rogueliteRun != nil:
             currentGame.rogueliteRun.heat
           else:
             currentGame.selectedRogueliteHeat
         # Same abandon rule as the game-over Restart button.
-        deleteBlockCheckpoint(previousMode)
+        deleteBlockCheckpoint(previousMode, previousModMode)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
         setGameMode(currentGame, previousMode)
+        currentGame.modMode = previousModMode
         if previousMode == gmRoguelite:
           setActiveRogueliteProfile(loadRogueliteProfile())
           currentGame.rogueliteProfile = rogueliteProfile
@@ -3870,8 +4012,8 @@ proc main() =
         persistRunResults(currentGame, died = false)
         if isTimeSurvivalMode(currentGame.mode):
           # A won survival run ended here, never to be resumed.
-          deleteRunSave(currentGame.mode)
-          deleteSuspendSnapshot(currentGame.mode)
+          deleteRunSave(currentGame.mode, currentGame.modMode)
+          deleteSuspendSnapshot(currentGame.mode, currentGame.modMode)
         cleanupGame(currentGame)
         currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
         currentGame.discordClient = globalDiscordClient
@@ -4177,7 +4319,10 @@ proc main() =
       # Ignore Discord disconnect errors during shutdown
       discard
 
-  # Cleanup
+  # Cleanup. Mod textures and sounds are GPU/audio resources: they go before
+  # the device and the window do.
+  saveAllModStorage()
+  unloadModAssets()
   stopMusic()
   closeSoundSystem(globalSoundSystem)
   closeWindow()

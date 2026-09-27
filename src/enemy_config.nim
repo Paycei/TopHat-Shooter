@@ -3,7 +3,8 @@
 ## and speed scaling. Which enemies spawn where is each mode's roster.
 ##
 ## Adding a new enemy:
-##   1. types.nim        -> add the EnemyType variant (keep etEnvironment last)
+##   1. types.nim        -> add the EnemyType variant (above the etMod00..etMod31
+##                          block; keep etEnvironment last)
 ##   2. enemy_config.nim -> add a block in getEnemyConfig  (stats, attack, movement, speedScaling)
 ##   3. enemy.nim        -> add the update case in updateEnemy and the draw case in
 ##                          drawEnemy (survival/roguelite types delegate to
@@ -14,7 +15,7 @@
 ## The compiler then lists the remaining exhaustive sites (coin/XP values,
 ## dungeon tuning wave, cheat menu, in-world label).
 
-import raylib, math, random
+import raylib, math, random, strutils
 import types, localization
 
 type
@@ -107,10 +108,68 @@ proc modeFan(fireRate, bulletSpeed: float32, count: int, spread, damage: float32
   EnemyAttackConfig(fireRate: fireRate, bulletSpeed: bulletSpeed, bulletCount: count,
                     spreadAngle: spread, damage: damage, bulletLifetime: lifetime)
 
+# MODS.EXE: the reserved etMod slots. register.enemy binds one to a mod's
+# enemy: its config (starting from a built-in type's), the built-in type whose
+# AI and look it borrows (`base`), its label and its rewards.
+type
+  ModEnemySlot* = etMod00..etMod31
+  ModEnemyInfo* = object
+    bound*: bool
+    key*: string        ## "<mod id>:<name>", never the slot name
+    label*: string      ## in-world process label
+    base*: EnemyType    ## built-in type whose AI / body it reuses
+    coins*, xp*: int
+    config*: EnemyConfig
+
+var modEnemies*: array[ModEnemySlot, ModEnemyInfo]
+
+proc isModEnemy*(et: EnemyType): bool {.inline.} = et in etMod00..etMod31
+
+proc isEnemyLive*(et: EnemyType): bool {.inline.} =
+  ## Built-in (not the environment sentinel), or a slot a loaded mod uses.
+  et != etEnvironment and (not isModEnemy(et) or modEnemies[et].bound)
+
+proc enemyAiType*(et: EnemyType): EnemyType {.inline.} =
+  ## The type whose update/draw branch runs: a mod enemy borrows its base's.
+  if isModEnemy(et): modEnemies[et].base else: et
+
+proc enemySaveName*(et: EnemyType): string =
+  ## What saves store: the enum name, or "mod:<mod id>:<name>" for a mod slot.
+  if isModEnemy(et): "mod:" & modEnemies[et].key else: $et
+
+proc parseEnemySaveName*(s: string, et: var EnemyType): bool =
+  if s.startsWith("mod:"):
+    let key = s[4 .. ^1]
+    for slot in ModEnemySlot:
+      if modEnemies[slot].bound and modEnemies[slot].key == key:
+        et = slot
+        return true
+    return false
+  try:
+    et = parseEnum[EnemyType](s)
+    not isModEnemy(et)
+  except ValueError:
+    false
+
+proc enemyScriptName*(et: EnemyType): string =
+  ## The name scripts use: "etCube", or "<mod id>:<name>" for a mod's.
+  if isModEnemy(et): modEnemies[et].key else: $et
+
+proc resolveEnemyScriptName*(s: string, et: var EnemyType): bool =
+  if ':' in s: parseEnemySaveName("mod:" & s, et)
+  else: parseEnemySaveName(s, et) and et != etEnvironment
+
+proc resetModEnemies*() =
+  for et in ModEnemySlot:
+    modEnemies[et] = ModEnemyInfo(base: etCircle)
+
 # Per-enemy stat and behaviour configuration
-proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
+proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
   ## Returns the complete configuration for a given enemy type
   case enemyType
+  of etMod00..etMod31:
+    result = modEnemies[enemyType].config
+    result.enemyType = enemyType
 
   of etCircle:  # Normal chaser - melee only
     result = EnemyConfig(
@@ -783,6 +842,36 @@ proc getEnemyConfig*(enemyType: EnemyType): EnemyConfig =
       usesHitCount: false,
       speedScaling: 0.0
     )
+
+# The builder above is called per enemy per frame (movement, attacks), and
+# looks up two strings every time, so configs are cached per language. Mods
+# (MODS.EXE) edit a config through enemyConfigOverride as it enters the
+# cache; mod_api invalidates the cache whenever overrides change.
+var
+  enemyConfigOverride*: proc (et: EnemyType, cfg: var EnemyConfig) {.nimcall.}
+  enemyConfigCache: array[EnemyType, EnemyConfig]
+  enemyConfigFilled: array[EnemyType, bool]
+  enemyConfigCacheLang: Language
+
+proc invalidateEnemyConfigCache*() =
+  for et in EnemyType:
+    enemyConfigFilled[et] = false
+
+proc vanillaEnemyConfig*(enemyType: EnemyType): EnemyConfig =
+  ## The built-in config, ignoring mods.
+  buildEnemyConfig(enemyType)
+
+proc getEnemyConfig*(enemyType: EnemyType): lent EnemyConfig =
+  if enemyConfigCacheLang != getLanguage():
+    invalidateEnemyConfigCache()
+    enemyConfigCacheLang = getLanguage()
+  if not enemyConfigFilled[enemyType]:
+    var cfg = buildEnemyConfig(enemyType)
+    if not enemyConfigOverride.isNil:
+      enemyConfigOverride(enemyType, cfg)
+    enemyConfigCache[enemyType] = cfg
+    enemyConfigFilled[enemyType] = true
+  enemyConfigCache[enemyType]
 
 # HELPER FUNCTIONS
 

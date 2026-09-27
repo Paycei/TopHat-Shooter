@@ -3,6 +3,7 @@
 
 import raylib, math, strutils
 import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context
+import ../modding/mod_hooks
 
 const
   SHOP_BASE_WIDTH: int32 = 950     # classic (4:3) width -- do not change
@@ -740,6 +741,8 @@ proc buyShopItem*(game: Game, index: int) =
     # Play error sound (using menu nav sound at lower volume)
     playSound(stMenuNav, 0.3)
     return
+  if modShopBuy(game, index, item.name, cost):
+    return   # a mod handled (or refused) the purchase
 
   # Play purchase sound (using coin pickup)
   playSound(stCoinPickup, 0.8)

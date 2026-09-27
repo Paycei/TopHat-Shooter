@@ -3,7 +3,7 @@
 
 import raylib, rlgl, math, times, strutils, sequtils, algorithm, random
 from std/unicode import nil   # toUpper for accented team names, without its split/strip overloads
-import types, player, bullet, wall, particle, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, ui/background_fx, d_systems
+import types, player, bullet, wall, particle, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, ui/background_fx, d_systems, modding/mod_assets
 
 const
   PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
@@ -1685,7 +1685,9 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         shieldHits: pvp.players[i].shieldHits,
         speedBoostTimer: pvp.players[i].speedBoostTimer,
         fireRateBoostTimer: pvp.players[i].fireRateBoostTimer,
-        spreadTimer: pvp.spreadTimers[i]
+        spreadTimer: pvp.spreadTimers[i],
+        modSkin: pvp.players[i].modSkin,
+        modBulletSkin: pvp.players[i].modBulletSkin
       ))
 
     var portStates: seq[PortStateNet] = @[]
@@ -1969,6 +1971,8 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       pvp.players[i].bulletSkinType = serverState.players[i].bulletSkinType
       pvp.players[i].shapeType = serverState.players[i].shapeType
       pvp.players[i].particleSkinType = serverState.players[i].particleSkinType
+      pvp.players[i].modSkin = serverState.players[i].modSkin
+      pvp.players[i].modBulletSkin = serverState.players[i].modBulletSkin
       pvp.players[i].teamId = teamFromInt(serverState.players[i].teamId)  # Sync team
       pvp.players[i].dashTimer = serverState.players[i].dashTimer
       pvp.players[i].dashCooldown = serverState.players[i].dashCooldown
@@ -2275,6 +2279,8 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         pvp.players[playerIdx].bulletSkinType = event.remoteBulletSkinType
         pvp.players[playerIdx].shapeType = event.remoteShapeType
         pvp.players[playerIdx].particleSkinType = event.remoteParticleSkinType
+        pvp.players[playerIdx].modSkin = event.remoteModSkin
+        pvp.players[playerIdx].modBulletSkin = event.remoteModBulletSkin
 
     of neReceive:
       let packet = event.packet
@@ -3239,6 +3245,9 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
 
 
 proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
+  # The local player's mod bullet skin must not dress everyone's shots here.
+  pvpDrawing = true
+  defer: pvpDrawing = false
   ## `uiScale` is the in-game interface scale for the HUD pass at the bottom.
   ## The caller resolves it (game.hudInterfaceScale), so PvP and PvE HUDs can
   ## never disagree about it.
@@ -3372,9 +3381,13 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
                     if inRange and validPos: Color(r: 80, g: 255, b: 80, a: 200)
                     else: Color(r: 255, g: 60, b: 60, a: 200))
 
-  # Draw bullets with skin support
+  # Draw bullets with skin support (and the shooter's mod bullet cosmetic)
   for bullet in pvp.bullets:
+    let owner = bullet.ownerPlayerIndex
+    pvpBulletCosmetic = if owner >= 0 and owner < pvp.players.len: pvp.players[owner].modBulletSkin.int
+                        else: 0
     drawBullet(bullet, false, false, pvp.gameTime)
+  pvpBulletCosmetic = 0
 
   # Draw players with cosmetics and TEAM COLORS
   for i in 0..<pvp.maxPlayers:

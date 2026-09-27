@@ -740,7 +740,7 @@ proc controlHints(game: Game): array[4, KeyHint] =
   ## Wall, dash, ability, pause -- the keys the HUD reminds the player of.
   var hasAbility = false
   for pu in game.player.powerUps:
-    if allPowerUpDefs[pu.powerType].inLegendaryPanel:
+    if powerUpDef(pu.powerType).inLegendaryPanel:
       hasAbility = true
       break
   let pause = if isGamepadActive(): "Start" else: "Esc"

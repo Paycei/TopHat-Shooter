@@ -1,5 +1,6 @@
 ﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers, boss_weakpoints, effects
 import particle_types, utils, mode_enemies, mode_visuals
+import modding/[mod_state, mod_hooks, mod_assets]
 export mode_enemies
 
 proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
@@ -95,8 +96,14 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
 
   # Increment enemy ID counter for next enemy
   game.nextEnemyId += 1
+  if modsActive:
+    modEnemySpawn(result)
 
 proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
+  # Mods: a script can take over an enemy's AI (its own `update`, or the
+  # enemyUpdate hook returning true); it stays alive while it has HP.
+  if modsActive and modEnemyUpdate(enemy, dt):
+    return enemy.hp >= EnemyMinAliveHp
   # Apply slow field effect
   var effectiveSpeed = getEffectiveSpeed(enemy.speed, game.currentWave)
   let slow = effectiveSlow(enemy)
@@ -154,8 +161,11 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
 
   else:
-    # Regular enemy updates
-    case enemy.enemyType
+    # Regular enemy updates. A mod enemy (MODS.EXE) runs the branch of the
+    # built-in type it is based on (enemyAiType), with its own config.
+    case enemyAiType(enemy.enemyType)
+    of etMod00..etMod31:
+      discard  # never: a mod enemy's base is always a built-in type
     of etThread..etCorruptor:
       # Survival horde and roguelite room roster (mode_enemies.nim).
       updateModeEnemy(enemy, playerPos, dt, effectiveSpeed, walls, currentTime, game)
@@ -1961,6 +1971,11 @@ proc drawEnemy*(enemy: Enemy) =
     drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 7.0 + cp * 4.0,
                     Color(r: 200, g: 110, b: 240, a: uint8(50 + cp * 60)))
 
+  # Mods: a script-drawn body (enemyDraw hook, or a mod enemy/boss's own draw)
+  # replaces the built-in one; the status overlays above still show.
+  if modsActive and (modEnemyDraw(enemy) or drawEnemyModBody(enemy)):
+    return
+
   if enemy.isBoss:
     # Omega Entity final form: the halo sits under the body so the boss
     # visibly ascends when the last phase begins.
@@ -1977,7 +1992,9 @@ proc drawEnemy*(enemy: Enemy) =
       drawBossPhaseTransition(enemy)
   else:
     drawThreatAura(enemy)
-    case enemy.enemyType
+    case enemyAiType(enemy.enemyType)
+    of etMod00..etMod31:
+      discard  # never: a mod enemy's base is always a built-in type
     of etThread..etCorruptor:
       drawModeEnemy(enemy)
     of etCircle:
@@ -4945,7 +4962,8 @@ proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: 
   ## phases (pools split by the phase thresholds), per-phase attack kits and
   ## a weak-point objective. The caller assigns the boss a unique id.
   block:
-    let bossDef = getBossDefinition(clamp(bossId, 1, MaxBossId))
+    # A mod boss (MODS.EXE) keeps its own ID; anything else unknown clamps.
+    let bossDef = getBossDefinition(if hasModBoss(bossId): bossId else: clamp(bossId, 1, MaxBossId))
     let centerX = screenWidth.float32 / 2
     let centerY = screenHeight.float32 / 2
     var targetX, targetY, startX, startY: float32

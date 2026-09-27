@@ -2,7 +2,7 @@
 ## Centralized window handling with state management
 
 import raylib, algorithm, sequtils, math
-import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, mods_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 import ../gamepad_input, ../render_context
 
 type
@@ -18,6 +18,7 @@ type
     widChangelog
     widCredits
     widFeedback
+    widMods
 
   WindowManager* = ref object
     settings*: SettingsWindow
@@ -31,6 +32,7 @@ type
     changelog*: ChangelogWindow
     credits*: CreditsWindow
     feedback*: FeedbackWindow
+    mods*: ModsWindow
     nextZOrder: int
 
 proc newWindowManager*(screenWidth, screenHeight: int,
@@ -59,6 +61,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
     changelog: newChangelogWindow(screenWidth, screenHeight),
     credits: newCreditsWindow(screenWidth, screenHeight),
     feedback: newFeedbackWindow(screenWidth, screenHeight),
+    mods: newModsWindow(screenWidth, screenHeight, gameSettings),
     nextZOrder: 1
   )
 
@@ -74,6 +77,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.changelog.window.visible = false
   result.credits.window.visible = false
   result.feedback.window.visible = false
+  result.mods.window.visible = false
 
 proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
   ## Get all windows in a single sequence
@@ -88,7 +92,8 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.roguelite.window,
     wm.changelog.window,
     wm.credits.window,
-    wm.feedback.window
+    wm.feedback.window,
+    wm.mods.window
   ]
 
 proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
@@ -121,6 +126,9 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
   of widFeedback:
     window = wm.feedback.window
     resetFeedbackView(wm.feedback)  # Keeps the draft, refocuses the form
+  of widMods:
+    window = wm.mods.window
+    resetModsWindow(wm.mods)  # Picks up mod folders added since the last reload
 
   window.visible = true
   window.minimized = false
@@ -147,6 +155,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widChangelog: wm.changelog.window.visible = false
   of widCredits: wm.credits.window.visible = false
   of widFeedback: wm.feedback.window.visible = false
+  of widMods: wm.mods.window.visible = false
 
 proc closeAllWindows*(wm: WindowManager) =
   ## Close all open desktop windows (e.g. when starting a game)
@@ -161,6 +170,7 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.changelog.window.visible = false
   wm.credits.window.visible = false
   wm.feedback.window.visible = false
+  wm.mods.window.visible = false
 
 proc windowUIScale*(window: OSWindow, requested: float32,
                     screenWidth, screenHeight: int): float32 =
@@ -342,6 +352,8 @@ type
     replaySandboxIntro*: bool     # True when user clicked "Sandbox Intro" in settings
     replayPvPIntro*: bool         # True when user clicked "PvP Intro" in settings
     replayTutorial*: bool         # True when user clicked "Replay Tutorial" in settings
+    modModeLaunch*: int           # MODS.EXE Game Modes row to launch (-1 = none)
+    modModeResume*: bool          # ...via Continue rather than Launch
 
 proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
                        screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
@@ -363,6 +375,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
   result.replaySandboxIntro = false
   result.replayPvPIntro = false
   result.replayTutorial = false
+  result.modModeLaunch = -1
 
   wm.applyWindowScales(uiScale, screenWidth, screenHeight)
 
@@ -478,6 +491,13 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
     elif window == wm.feedback.window:
       updateFeedbackWindow(wm.feedback, dt, screenWidth, screenHeight, visibleWindows)
 
+    elif window == wm.mods.window:
+      updateModsWindow(wm.mods, dt, screenWidth, screenHeight, visibleWindows)
+      if wm.mods.launchRequest >= 0:
+        result.modModeLaunch = wm.mods.launchRequest
+        result.modModeResume = wm.mods.launchResume
+        wm.mods.launchRequest = -1
+
 proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
                      screenWidth, screenHeight: int) =
   ## Draw all visible windows in z-order, each inside its own scale layer.
@@ -522,3 +542,5 @@ proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
       drawCreditsWindow(wm.credits)
     elif window == wm.feedback.window:
       drawFeedbackWindow(wm.feedback)
+    elif window == wm.mods.window:
+      drawModsWindow(wm.mods)

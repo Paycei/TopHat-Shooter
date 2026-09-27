@@ -1,5 +1,6 @@
 import raylib, math, random, std/deques
 import gamepad_input, particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, settings, utils
+import modding/[mod_hooks, mod_assets]
 
 const
   # BASE DASH tuning. A burst of speed, not a teleport and not an i-frame
@@ -334,7 +335,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     let dashPressed =
       isKeyPressed(globalSettings.keybinds[kaDash]) or
       (isGamepadActive() and isGamepadBindPressed(globalSettings.gamepadBinds, kaDash))
-    if dashPressed:
+    if dashPressed and not modDash(player):
       var d = moveDir
       if d.length() < 0.01'f32:
         # Standing still: dash along current travel, else straight up.
@@ -513,6 +514,9 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.rotatingOrbs = @[]
 
 proc drawPlayer*(player: Player) =
+  # Mods (playerDraw): a script-drawn body replaces the built-in one.
+  if hookActive(hkPlayerDraw) and modPlayerDraw(player):
+    return
   let time = getTime()  # Used throughout for animations
   # NOTE: aura bodies/borders are NOT drawn here. Every aura visual goes through
   # the unified renderer (drawAuraEffect in game/auras.nim), which is the only
@@ -633,7 +637,9 @@ proc drawPlayer*(player: Player) =
 
   # Get colors from skin system
   let skinType = player.skinType.SkinType
-  let (skinPrimary, skinSecondary, skinCore) = getSkinColors(skinType, time)
+  var (skinPrimary, skinSecondary, skinCore) = getSkinColors(skinType, time)
+  if player.modSkin > 0:
+    playerPalette(player, skinPrimary, skinSecondary, skinCore)  # mod cosmetic (MODS.EXE)
   var baseColor = skinPrimary
   var secondaryColor = skinSecondary
   var coreColor = skinCore
@@ -688,8 +694,12 @@ proc drawPlayer*(player: Player) =
 
   # Draw player using selected shape
   let shapeType = player.shapeType.ShapeType
-  drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
-                  time, rotation, pulse, glowIntensity)
+  # A mod texture (equipped cosmetic or override.texture("player")) replaces the
+  # shape; status colours (invincible gold, phase cyan) tint it.
+  let modTint = if baseColor == skinPrimary: White else: baseColor
+  if not drawPlayerModBody(player, modTint):
+    drawPlayerShape(player.pos, player.radius, shapeType, baseColor, secondaryColor, coreColor,
+                    time, rotation, pulse, glowIntensity)
 
   # Secret cosmetic: the kernel's tophat, earned by clearing the final boss wave.
   # Band and outline take the player's current body color so the hat
@@ -1167,6 +1177,13 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     player.lastDamageEvent = deRollback
     return false
 
+  # Mods (playerLethal): a script may keep the player alive; it can set the
+  # HP it wants, otherwise the player is left on a sliver.
+  if player.hp <= 0 and modPlayerLethal(player):
+    if player.hp <= 0:
+      player.hp = min(player.maxHp, 0.5'f32)
+    return false
+
   # Return true if HP reached 0 or below (death condition)
   return player.hp <= 0
 
@@ -1175,7 +1192,13 @@ proc takeDamage*(player: Player, damage: float32): bool =
   ## difficulty scales here so every source (contact, bullets, lasers,
   ## meteors, explosions) is covered without touching each call site.
   ## PvP has its own damage path and is intentionally unaffected.
-  takeDamageRaw(player, damage * difficultyEnemyDamageMult())
+  var dealt = damage * difficultyEnemyDamageMult()
+  # Mods (playerDamaged) may scale or cancel it.
+  if hookActive(hkPlayerDamaged):
+    dealt = modPlayerDamaged(player, dealt)
+    if dealt <= 0.0'f32:
+      return false
+  takeDamageRaw(player, dealt)
 
 proc heal*(player: Player, amount: float32): float32 {.discardable.} =
   ## Applies the player's heal-power multiplier and clamps to max HP, returning
@@ -1183,6 +1206,7 @@ proc heal*(player: Player, amount: float32): float32 {.discardable.} =
   ## rather than the amount requested, so a heal that lands at full HP is worth
   ## zero instead of inflating the run's healing total with overheal.
   let before = player.hp
+  let amount = if hookActive(hkPlayerHeal): modPlayerHeal(player, amount) else: amount
   player.hp += amount * player.healPowerMult
   if player.hp > player.maxHp: player.hp = player.maxHp
   player.hp - before

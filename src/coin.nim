@@ -1,5 +1,6 @@
 import raylib, math, random
-import particle_types, types, particle, particle_pool, powerup, patches, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions
+import particle_types, types, particle, particle_pool, powerup, patches, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions, enemy_config
+import modding/mod_hooks
 from roguelite import bankMetaCurrency
 
 const LOOT_MARGIN* = 50.0  # Distance from screen edge
@@ -148,6 +149,7 @@ proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty:
   else:
     let waveBonus = if mode == gmWaveBased: 0 else: (currentWave div 10)
     let baseValue = case enemy.enemyType
+      of etMod00..etMod31: modEnemies[enemy.enemyType].coins
       of etCircle: 1
       of etCube: 3           # More coins since it's now harder
       of etTriangle: 2
@@ -180,6 +182,7 @@ proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty:
     result = baseValue + waveBonus
   if enemy.isElite:
     result = (result.float32 * 1.5).int
+  result = modCoinValue(enemy, result)
 
 proc dropEnemyCoin*(game: Game, enemy: Enemy) =
   var coinValue = enemyCoinValue(enemy, game.mode, game.currentWave, game.difficulty)
@@ -283,6 +286,10 @@ proc updateGameCoins*(game: Game, dt: float32): bool =
     if magnetAll:
       moveCoinToPlayer(game.coins[i], game.player.pos, dt)
 
+    if checkPlayerCollision(game.coins[i], game.player) and not game.coins[i].isBossCoin and
+       modPickup(game, "coin", game.coins[i].value.float64):
+      game.coins.delete(i)   # a mod took it (pickup hook); boss coins always count
+      continue
     if checkPlayerCollision(game.coins[i], game.player):
       let isBossCoin = game.coins[i].isBossCoin
       var coinValue = game.coins[i].value

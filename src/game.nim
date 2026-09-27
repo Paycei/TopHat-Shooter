@@ -4,6 +4,8 @@ import types, settings, save_system, player, enemy, bullet, consumable, coin, xp
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
 import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting, run_save, suspend, utils, tutorial
+import powerup_data
+import modding/[mod_state, mod_hooks, mod_assets]
 
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -170,6 +172,7 @@ proc bankRunLevelUps*(game: Game) =
     # steepened curve so levels decelerate instead of compounding all run.
     game.player.xpToNextLevel = xpRequiredForLevel(game.player.rogueliteLevel, game.mode)
     applyLevelUpStatBoost(game)
+    modLevelUp(game, game.player.rogueliteLevel)
     inc levelsGained
   if levelsGained > 0:
     game.pendingLevelDrafts += levelsGained
@@ -221,7 +224,7 @@ proc checkPendingLevelDraft*(game: Game) =
     # Autosave checkpoint at each level draft. Written after the state switch
     # so the save counts this open draft as still owed (see saveRunState).
     saveRunState(game)
-    deleteSuspendSnapshot(game.mode)  # Boundary reached: the pre-exit snapshot is stale.
+    deleteSuspendSnapshot(game.mode, game.modMode)  # Boundary reached: the pre-exit snapshot is stale.
 
 proc beginDraftResume*(game: var Game) =
   ## Re-entry beat after a draft hands the player back to a LIVE battlefield.
@@ -351,6 +354,9 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
   result.player.hasOrbitalCube = not globalSettings.isNil and
     globalSettings.orbitalCubeUnlocked and globalSettings.orbitalCubeEquipped
   result.player.cubeSkinType = if globalSettings.isNil: 0 else: globalSettings.cubeSkin
+  # MODS.EXE: the player's equipped mod skin (0 = none).
+  result.player.modSkin = int16(equippedCosmetic[mckPlayer])
+  result.player.modBulletSkin = int16(equippedCosmetic[mckBullet])
 
   # Note: initializeRunTracking is called explicitly when starting a game
   # (not in sandbox mode) to ensure correct mode is tracked
@@ -358,6 +364,9 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
 proc setGameMode*(game: Game, mode: GameMode) =
   ## Changes the game mode and applies mode-specific settings
   game.mode = mode
+  # Every run start passes through here (fresh, resumed, continued, restarted),
+  # so this is where a run started with mods loaded becomes modded/cheated.
+  markRunModded(game)
   let modeDef = getGameModeDefinition(mode)
 
   # Apply mode-specific starting values
@@ -415,6 +424,7 @@ proc startWave*(game: Game) =
   # Apply boss wave reduction if this is a boss wave
   if game.wavesUntilBoss == 0:
     waveEnemyCount = (waveEnemyCount.float32 * BOSS_WAVE_SPAWN_MULTIPLIER).int
+  waveEnemyCount = modWaveEnemyCount(game, waveEnemyCount)
 
   game.waveEnemiesTotal = waveEnemyCount
   game.waveEnemiesRemaining = waveEnemyCount
@@ -479,6 +489,7 @@ proc startWave*(game: Game) =
   # Reset Celestial Veil charges for new wave
   if hasPowerUp(game.player, puCelestialVeil):
     game.player.celestialVeilCharges = 2
+  modWaveStart(game)
 
 proc spawnWaveEnemies*(game: Game, count: int) =
   # Spawn multiple enemies at once
@@ -609,6 +620,7 @@ proc spawnWaveEnemies*(game: Game, count: int) =
       # raw wave, so the late game stays busy, just not spongy.
       let statWave: float32 = wave.float32 / (1.0'f32 + wave.float32 / 150.0'f32)
       let baseDifficulty = (statWave - 1.0'f32) / 4.0
+      enemyType = modWaveSpawn(game, enemyType)
 
       let (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
       let enemy = newEnemy(x, y, baseDifficulty, enemyType, game)
@@ -704,7 +716,7 @@ proc spawnDungeonEnemies(game: Game, count: int) =
   for _ in 0..<count:
     if game.waveEnemiesRemaining <= 0 or dungeonSpawnAllowance(game) <= 0:
       break
-    let enemyType = rollEncounterEnemyType(run, room)
+    let enemyType = modRogueSpawn(game, rollEncounterEnemyType(run, room))
     # Pulses land at the edges but never on top of the player (who enters at
     # the bottom door).
     var (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
@@ -835,9 +847,9 @@ proc completeBossWave*(game: Game) =
     # Raised as a one-shot flag because the advancement profile lives in main().
     if not game.runHadDeath and not game.cheatsUsed:
       game.flawlessWaveVictory = true
-    deleteRunSave(game.mode)  # Run is won: no longer resumable.
-    deleteBlockCheckpoint(game.mode)  # Won run: drop the block checkpoint too.
-    deleteSuspendSnapshot(game.mode)  # Drop the exact snapshot too.
+    deleteRunSave(game.mode, game.modMode)  # Run is won: no longer resumable.
+    deleteBlockCheckpoint(game.mode, game.modMode)  # Won run: drop the block checkpoint too.
+    deleteSuspendSnapshot(game.mode, game.modMode)  # Drop the exact snapshot too.
     # First-ever victory unlocks the secret kernel tophat cosmetic. It is
     # equipped by default (and immediately, so it shows in endless) and can be
     # toggled off in the shop's SECRET tab.
@@ -878,6 +890,14 @@ proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: in
   ## `bossBlockWave` names a different slot (Overtime), is rescaled to it.
   # (The 3D boss used to hijack boss number 13 here; it is now reachable only
   # from the sandbox, and 13 is the Forkmother.)
+  # Mods (bossForWave) may swap in another boss, built-in or their own.
+  var bossId = bossId
+  if hookActive(hkBossForWave):
+    let natural = if bossId > 0: bossId else: getCustomBossNumber(bossBlockWave)
+    let chosen = modBossForWave(game, natural, bossBlockWave)
+    if chosen > 0 and chosen != natural and
+       (chosen in 1..MaxBossId or hasModBoss(chosen)):
+      bossId = chosen
   let pending =
     if bossId > 0:
       let authored = bossAuthoredSlotWave(bossId)
@@ -896,6 +916,100 @@ proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: in
   game.pendingBossTimer = 0.2  # Show warning for 0.2s before adding boss to world
   # Mark boss wave active so UI shows boss-related hints during the warning
   game.bossWaveManager.startBossWave()
+
+proc processModActions(game: Game) =
+  ## Carry out what mod scripts queued this frame (spawns, removals, bullets),
+  ## after the simulation and outside every entity loop. Anything queued while
+  ## this runs (a spawn callback spawning more) waits for the next frame.
+  if modActions.len == 0:
+    return
+  var actions = move modActions
+  modActions = @[]
+  var deferred: seq[ModAction]
+  for a in actions:
+    case a.kind
+    of makSpawnEnemy:
+      let difficulty = if a.difficulty >= 0: a.difficulty else: game.difficulty
+      let e = newEnemy(a.x, a.y, difficulty, a.enemyType, game)
+      if a.elite:
+        makeElite(e, game.currentWave, force = true)
+      game.enemies.add(e)
+      modActionDone(a, e)
+    of makSpawnBoss:
+      if game.pendingBoss != nil:
+        deferred.add(a)  # one boss arrives at a time
+        continue
+      spawnConfiguredBoss(game, 1.0, 0, a.bossId)
+      if game.pendingBoss != nil:
+        if a.x != 0 or a.y != 0:
+          game.pendingBoss.targetPos = newVector2f(a.x, a.y)
+        modActionDone(a, game.pendingBoss)
+    of makRemoveEnemy:
+      let idx = game.enemies.find(a.target)
+      if idx >= 0 and not game.enemies[idx].isBoss:
+        game.enemies.delete(idx)
+    of makSpawnBullet:
+      let dir = newVector2f(a.vx, a.vy)
+      let speed = sqrt(a.vx * a.vx + a.vy * a.vy)
+      let b = newBullet(a.x, a.y, (if speed > 0: dir * (1.0'f32 / speed) else: newVector2f(1, 0)),
+                        speed, a.damage, fromPlayer = a.fromPlayer)
+      if a.radius > 0: b.radius = a.radius
+      if a.lifetime > 0: b.lifetime = a.lifetime
+      if a.hasColor: b.colorOverride = a.color
+      game.bullets.add(b)
+    of makRemoveBullet:
+      let idx = game.bullets.find(a.bullet)
+      if idx >= 0: game.bullets.delete(idx)
+    of makStartWave:
+      if not game.waveInProgress and game.mode != gmRoguelite:
+        startWave(game)
+    of makEndWave:
+      # Nothing left to spawn and every regular enemy gone: the mode's own
+      # wave-complete check then ends the wave as usual (bosses stay).
+      game.waveEnemiesRemaining = 0
+      var kept: seq[Enemy]
+      for e in game.enemies:
+        if e.isBoss: kept.add(e)
+      game.enemies = kept
+    of makWin:
+      if game.state == gsPlaying:
+        deleteRunSave(game.mode, game.modMode)
+        deleteBlockCheckpoint(game.mode, game.modMode)
+        deleteSuspendSnapshot(game.mode, game.modMode)
+        game.selectedVictoryButton = 0
+        playSound(stWaveComplete)
+        game.state = if game.mode == gmRoguelite: gsRogueliteVictory else: gsVictory
+    of makLose:
+      if game.state == gsPlaying and game.player.hp > 0:
+        game.player.hp = 0
+        beginPlayerDeathSequence(game, dcUnknown)
+    of makPowerUpDraft:
+      # Opens at the next moment a draft may (checkPendingLevelDraft), like a
+      # level-up's.
+      game.pendingLevelDrafts += max(1, a.value)
+    of makGivePowerUp:
+      var level = getPowerUpLevel(game.player, a.powerType)
+      let target = if a.level > 0: min(a.level, powerUpDef(a.powerType).maxLevel)
+                   else: min(level + 1, powerUpDef(a.powerType).maxLevel)
+      let rarity = if powerUpDef(a.powerType).pool == puppLegendary: prLegendary else: prCommon
+      var g = game   # installPowerUp takes a var (Game is a ref: same run)
+      while level < target:
+        inc level
+        installPowerUp(g, PowerUp(powerType: a.powerType, level: level, rarity: rarity),
+                       quiet = true)
+    of makTakePowerUp:
+      var kept: seq[PowerUp]
+      for pu in game.player.powerUps:
+        if pu.powerType != a.powerType: kept.add(pu)
+      game.player.powerUps = kept
+    of makSpawnCoin:
+      game.coins.add(newCoin(a.x, a.y, max(1, a.value)))
+    of makSpawnXp:
+      game.xpOrbs.add(newXpOrb(a.x, a.y, max(1, a.value)))
+    of makSpawnConsumable:
+      game.consumables.add(newSpecificConsumable(a.x, a.y, a.consumable))
+  for a in deferred:
+    modActions.add(a)
 
 # Update
 proc currentBossArenaWave(game: Game): int =
@@ -2173,7 +2287,8 @@ proc updatePlayerFiring(game: var Game, dt: float32) =
 proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
   # Update player (with wall collision)
   game.player.outOfCombatSpeedBoost = game.mode == gmRoguelite and not game.waveInProgress
-  updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
+  if not modPlayerUpdate(game.player, dt):
+    updatePlayer(game.player, dt, game.screenWidth, game.screenHeight, game.walls)
   updateBossArenaGameplay(game, dt)
 
   # Nova freeze expiry: when novaActive becomes false, release bullets
@@ -2367,7 +2482,7 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
       # tutorial holds wave 1 back until it hands the arena over.
       if game.mode != gmRoguelite and not game.waveInProgress and
          game.bossWaveManager.canStartNewWave() and game.state == gsPlaying and
-         not tutorialHoldsWaves(game):
+         not tutorialHoldsWaves(game) and modModeSpawns(game):
         # Start a new wave
         startWave(game)
 
@@ -2417,6 +2532,7 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
 
       # Profile difficulty packs the same head count into tighter bursts.
       baseSpawnRate /= difficultySpawnPaceMult()
+      baseSpawnRate = typeof(baseSpawnRate)(modSpawnInterval(game, baseSpawnRate.float32))
 
       if game.spawnTimer > baseSpawnRate and game.waveEnemiesRemaining > 0:
         if game.mode == gmRoguelite:
@@ -2437,6 +2553,7 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
         currentDungeonRoom(game.rogueliteRun).kind == drkBoss
       if checkWaveComplete(game) and not inDungeonBossRoom:
         game.waveInProgress = false
+        modWaveEnd(game)
 
         # Track wave completion for statistics
         let waveTime = game.time - game.waveStartTime
@@ -2527,14 +2644,14 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
           # folder's reward waits in the middle of the room.
           # Autosave checkpoint: folder cleared, reward spawned.
           saveRunState(game)
-          deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
+          deleteSuspendSnapshot(game.mode, game.modMode)  # Boundary: the pre-exit snapshot is stale.
         else:
           # Transition to wave cleared state for 0.3s to let players collect coins
           game.waveClearedTimer = 0.3
           game.state = gsWaveCleared
           # Autosave checkpoint: wave cleared (about to start the next wave).
           saveRunState(game)
-          deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
+          deleteSuspendSnapshot(game.mode, game.modMode)  # Boundary: the pre-exit snapshot is stale.
 
           # Store whether we should offer power-up after the timer
           # Store this in cameFromPowerUpSelect as a temporary flag
@@ -3002,6 +3119,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # Roster death hooks: Fork Bomb splits, Zombie husks, Interrupt pops,
       # corpses a Restorer can raise.
       onModeEnemyKilled(game, enemy)
+      modEnemyDeath(enemy, game)
 
       # Survival: System Event bookkeeping and elite Data Cache drops.
       if isTimeSurvivalMode(game.mode):
@@ -3138,6 +3256,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       if enemy.isBoss:
         bossDefeated = true
         detonateBossCorpse(game, enemy)
+        modBossDeath(enemy, game)
         # Remember this boss so its full phase layout may be revealed next time.
         if globalStats != nil and not game.cheatsUsed and enemy.bossDefinitionID > 0 and
            not globalStats.hasDefeatedBoss(enemy.bossDefinitionID):
@@ -3689,11 +3808,11 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     bankRunLevelUps(game)
     completeRogueliteBoss(game)
     saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
-    deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
+    deleteSuspendSnapshot(game.mode, game.modMode)  # Boundary: the pre-exit snapshot is stale.
     if game.rogueliteRun.completed:
       # Won: the final sector's restore point must not replay the win. The
       # endless loop past it has none (restorePointsOffline).
-      deleteBlockCheckpoint(game.mode)
+      deleteBlockCheckpoint(game.mode, game.modMode)
     if not survivalWasUnlocked and not globalSettings.isNil and globalSettings.survivalUnlocked:
       game.pendingToasts.add(t(tkGameModeUnlocked) & " " & t(tkSurvivalUnlockedNotif))
     let shardDelta = game.rogueliteRun.shardsEarned - prevShards
@@ -3744,10 +3863,10 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # The final process is down: the run is won. Show the victory screen
       # first; the legendary draft stays queued, so "Enter Overtime" re-arms
       # the roll and drops the player straight into it (as wave mode's endless).
-      deleteRunSave(game.mode)          # the pre-final save must not replay the win
-      deleteSuspendSnapshot(game.mode)
+      deleteRunSave(game.mode, game.modMode)          # the pre-final save must not replay the win
+      deleteSuspendSnapshot(game.mode, game.modMode)
       # ...and neither may the Kernel Panic restore point. Overtime has none.
-      deleteBlockCheckpoint(game.mode)
+      deleteBlockCheckpoint(game.mode, game.modMode)
       game.selectedVictoryButton = 0
       playSound(stWaveComplete)
       game.state = gsVictory
@@ -3768,9 +3887,9 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
   markBossRoomCleared(game)
   completeRogueliteBoss(game)
   saveRunState(game)  # Checkpoint next floor, or delete the save on a win.
-  deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
+  deleteSuspendSnapshot(game.mode, game.modMode)  # Boundary: the pre-exit snapshot is stale.
   if game.rogueliteRun.completed:
-    deleteBlockCheckpoint(game.mode)  # Same win rule as the real boss kill.
+    deleteBlockCheckpoint(game.mode, game.modMode)  # Same win rule as the real boss kill.
   game.powerUpChoices = generatePowerUpChoices(game.player, true,
                           AllPowerFamilies, game.mode)
   game.selectedPowerUp = 0
@@ -4034,7 +4153,13 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
       i += 1
       continue
 
-    if not updateBullet(bullet, bulletDt) or isOffScreen(bullet, game.screenWidth, game.screenHeight):
+    # A mod may move this bullet itself (bulletUpdate); its lifetime still runs.
+    let bulletAlive = if modBulletUpdate(bullet, bulletDt):
+                        bullet.lifetime -= bulletDt
+                        bullet.lifetime > 0
+                      else:
+                        updateBullet(bullet, bulletDt)
+    if not bulletAlive or isOffScreen(bullet, game.screenWidth, game.screenHeight):
       # Track bullet despawn (missed shot) for player bullets only
       if bullet.fromPlayer:
         trackBulletDespawn(game, bullet, false)
@@ -4316,6 +4441,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           else:
             # Apply elite modifiers to damage
             var actualDamage = finalDamage
+            actualDamage = modBulletHit(bullet, target, actualDamage)
 
             # Root Access patch: elevated against privileged targets (bosses,
             # elites), throttled against everything else. Applied to the landed
@@ -5042,6 +5168,10 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
       spawnTimedParticlesPooled(game.particlePool, game.consumables[i].pos.x, game.consumables[i].pos.y,
                          18.0, Purple, 1, dt)
 
+    if checkPlayerCollision(game.consumables[i], game.player) and
+       modPickup(game, $game.consumables[i].consumableType, 0):
+      game.consumables.delete(i)   # a mod took it (pickup hook)
+      continue
     if checkPlayerCollision(game.consumables[i], game.player):
       playSound(stPowerUp, 0.6)
 
@@ -5194,6 +5324,14 @@ proc updateGame*(game: var Game, dt: float32) =
   let perfStart = getTime()
   defer: game.perfUpdateMs = game.perfUpdateMs * 0.9'f32 +
                              float32((getTime() - perfStart) * 1000.0) * 0.1'f32
+  # Backstop for markRunModded: a Game swapped in by a snapshot restore or
+  # built by a path that skipped setGameMode is still marked before it can
+  # earn anything.
+  if modsActive and not game.modded:
+    markRunModded(game)
+  # Mods: publish this run to scripts and fire runStart on a new run, before
+  # anything this frame spawns or takes damage.
+  modBeginFrame(game)
   if game.state == gsDeathSequence:
     updateDeathSequencePlayback(game, dt)
     return
@@ -5282,7 +5420,7 @@ proc updateGame*(game: var Game, dt: float32) =
       installPowerUp(game, frame.install)
     if frame.checkpoint:
       saveRunState(game)
-      deleteSuspendSnapshot(game.mode)  # Boundary: the pre-exit snapshot is stale.
+      deleteSuspendSnapshot(game.mode, game.modMode)  # Boundary: the pre-exit snapshot is stale.
     if frame.pauseSim:
       game.time += dt
       game.frameCount += 1
@@ -5328,6 +5466,7 @@ proc updateGame*(game: var Game, dt: float32) =
       playSound(stBossSpawn)
 
       let boss = game.enemies[^1]
+      modBossSpawn(boss, game)
       let bossDef = getBossDefinition(boss.bossDefinitionID)
       let introBossHp = if boss.bossTotalMaxHp > 0.0'f32: boss.bossTotalMaxHp else: boss.maxHp
       startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description, introBossHp,
@@ -5403,6 +5542,7 @@ proc updateGame*(game: var Game, dt: float32) =
   # the game continuously, and death is excluded because the death sequence owns
   # its own time scale (deathSequenceTimeScale).
   let hpBeforeSim = game.player.hp
+  modPreUpdate(game, simDt)
   updateAttackWarningsAndLasers(game, simDt, effectiveDt)
   updatePlayerAndAuras(game, simDt, effectiveDt)
   updateEnemySpawning(game, simDt, effectiveDt)
@@ -5413,6 +5553,11 @@ proc updateGame*(game: var Game, dt: float32) =
   # Last in the block on purpose: every hazard this frame could spawn already
   # exists, so a sweep launched this frame sees all of them.
   updateBossDeathBlasts(game, simDt)
+
+  # Mods (MODS.EXE): runStart on a new run, timers and the `update` hook, on
+  # the world clock and after the whole simulation, outside every entity loop.
+  modUpdate(game, simDt)
+  processModActions(game)
 
   # Real dt on purpose: the re-entry highlight should last a fixed wall-clock
   # beat rather than stretching along with the smtResume ramp it accompanies.
@@ -6044,6 +6189,7 @@ proc drawGame*(game: Game) =
     Color(r: 0, g: 0, b: 0, a: 0)
   drawOSBackground(game.osBackground, game.screenWidth, game.screenHeight,
                    showArenaVignette, bgAccent)
+  modDrawBackground(game)   # mod layers under everything else in the arena
 
   # Draw background particles first
   drawParticlePoolLayer(game.particlePool, plBackground)
@@ -6445,7 +6591,7 @@ proc drawGame*(game: Game) =
 
   # Draw damage numbers (on top of everything except UI). They keep ticking down
   # either way -- the setting hides the labels, it doesn't change the simulation.
-  if showDamageNumbersOf(globalSettings):
+  if showDamageNumbersOf(globalSettings) and not hudHidden(hpDamageNumbers):
     let dmgNumScale = damageNumberScaleOf(globalSettings)
     for damageNum in game.damageNumbers:
       drawDamageNumber(damageNum, dmgNumScale)
@@ -6626,6 +6772,9 @@ proc drawGame*(game: Game) =
       drawLine(c3, c4, 2.0'f32, ghostEdge)
       drawLine(c4, c1, 2.0'f32, ghostEdge)
 
+  # Mods draw on top of the arena, still in world coordinates.
+  modDrawWorld(game)
+
   # ===================== END WORLD PASS =====================
   applyTextFilterFor(1.0'f32)
   if worldPassOpen:
@@ -6647,11 +6796,12 @@ proc drawGame*(game: Game) =
 
   # Modern widescreen: paint the side bands the docked HUD lives in. Before the
   # vignettes, so damage feedback still washes over the whole screen.
-  if hudLayout == hlWidescreen and hudStyle == hsModern:
+  if hudLayout == hlWidescreen and hudStyle == hsModern and not hudHidden(hpDocks):
     drawDockBands(game.time)
 
   let showLowHealthVignette = globalSettings == nil or globalSettings.showLowHealthVignette
-  if showLowHealthVignette and game.osBackground.lowHealthVignetteLevel > 0:
+  if showLowHealthVignette and game.osBackground.lowHealthVignetteLevel > 0 and
+     not hudHidden(hpVignettes):
     let lowHpLevel = game.osBackground.lowHealthVignetteLevel
     let beatWave = max(0.0, sin(game.time * (3.4 + lowHpLevel * 1.6)))
     let beatScale = 1.0 + beatWave * (0.06 + lowHpLevel * 0.10)
@@ -6673,7 +6823,7 @@ proc drawGame*(game: Game) =
       drawRectangleLines(bandRect, 3, Color(r: 255, g: 0, b: 0, a: bandAlpha))
 
   # Full-screen red vignette when alertLevel > 0
-  if game.osBackground.alertLevel > 0:
+  if game.osBackground.alertLevel > 0 and not hudHidden(hpVignettes):
     let vigAlpha = uint8(game.osBackground.alertLevel * 92)
     let vW: int32 = 160
     drawRectangleGradientH(0, 0, vW, fullVh,
@@ -6713,7 +6863,9 @@ proc drawGame*(game: Game) =
   # generic banner would flash "WAVE 1" on every room; suppress it there.
   let showWaveBanner = game.waveInProgress and game.mode != gmRoguelite and showHints
 
-  if hudStyle == hsLegacy:
+  if hudHidden(hpAll):
+    discard   # a mod draws the whole HUD itself (hud.hide("all"))
+  elif hudStyle == hsLegacy:
     drawLegacyHud(game, hudLayout, hudScale, vw, vh)
   elif hudLayout == hlWidescreen:
     # ---- LEFT DOCK: the player ---------------------------------------------
@@ -6722,7 +6874,7 @@ proc drawGame*(game: Game) =
     # processes list grows into whatever height the band has.
     let playerX = DockMargin
     var playerBottom = vh - DockMargin
-    if game.state != gsShop:
+    if game.state != gsShop and not hudHidden(hpHints):
       playerBottom = drawControlsDockCard(game, playerX, playerBottom) - DockGap
     if showDiagnostics:
       let diagH = debugPanelHeight(game)
@@ -6731,7 +6883,8 @@ proc drawGame*(game: Game) =
       if playerBottom - diagH - DockGap - statusBottom >= 90'i32:
         drawDebugPanel(game, playerX, playerBottom - diagH, anchorLeftDefault = true)
         playerBottom -= diagH + DockGap
-    drawPlayerDock(game, playerX, DockMargin, playerBottom)
+    if not hudHidden(hpPlayer):
+      drawPlayerDock(game, playerX, DockMargin, playerBottom)
 
     # ---- RIGHT DOCK: the run -----------------------------------------------
     # Top stack (dynamic, via a running cursor): the mode's objective card
@@ -6751,14 +6904,17 @@ proc drawGame*(game: Game) =
 
     # Count active bosses (<=3) so each vertical card can be sized to fit.
     var bossCount = 0
-    if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
+    if (game.bossWaveManager.isBossActive() or isSandboxMode(game.mode)) and
+       not hudHidden(hpBoss):
       for enemy in game.enemies:
         if enemy.isBoss and enemy.entranceTimer <= 0:
           inc bossCount
           if bossCount >= 3: break
 
     var rgY = DockMargin
-    if isTimeSurvivalMode(game.mode):
+    if hudHidden(hpRun):
+      discard
+    elif isTimeSurvivalMode(game.mode):
       rgY = drawSurvivalDockCard(game, runX, rgY) + DockGap
     elif game.mode == gmWaveBased:
       rgY = drawWaveDockCard(game, runX, rgY) + DockGap
@@ -6791,15 +6947,18 @@ proc drawGame*(game: Game) =
     # Transient cards never start below the boss band, so even the tallest of
     # them (the multi-line wave-celebration card, ~135px) clears the combo card.
     var tY = min(rgY, bossBandBottom)
-    if showWaveBanner:
+    let banners = not hudHidden(hpBanners)
+    if showWaveBanner and banners:
       tY = drawWaveStartBannerGutter(game.currentWave, waveAge,
                                      rightGutterX, rightGutterW, tY, isBossNext)
-    if isTimeSurvivalMode(game.mode):
+    if isTimeSurvivalMode(game.mode) and banners:
       tY = drawSurvivalBannerGutter(game, rightGutterX, rightGutterW, tY)
     # Boss kills keep the classic fullscreen celebration even in widescreen (drawn
     # over the 1024-wide world column, so it reads exactly like 4:3); only ordinary
     # wave clears are demoted to the compact gutter card.
-    if game.dopamine.waveCelebration.active and
+    if not banners:
+      discard
+    elif game.dopamine.waveCelebration.active and
        isBossWave(game.dopamine.waveCelebration.waveNumber):
       # This one draws a full-width dimming backdrop, so it is given the arena's
       # own column -- expressed in this layer's coordinates -- and never bleeds
@@ -6810,25 +6969,31 @@ proc drawGame*(game: Game) =
                           int32(getWorldViewOffsetX() / hudScale))
     else:
       tY = drawWaveCelebrationGutter(game.dopamine.waveCelebration, rightGutterX, rightGutterW, tY)
-    tY = drawBossIntroductionGutter(game.dopamine.bossIntro, rightGutterX, rightGutterW, tY)
+    if banners:
+      tY = drawBossIntroductionGutter(game.dopamine.bossIntro, rightGutterX, rightGutterW, tY)
 
-    if showHints:
+    if showHints and not hudHidden(hpCombo):
       drawComboGutterCard(game.dopamine.comboSystem, rightGutterX, rightGutterW,
                           comboCardY, game.dopamine.currentTime)
 
-    drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = true)
+    if not hudHidden(hpAbilities):
+      drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = true)
   else:
     # ---- CLASSIC HUD: everything floats over the arena ----
-    drawCombinedHUDPanel(game, 10, 2)
-    if showHints:
+    if not hudHidden(hpPlayer):
+      drawCombinedHUDPanel(game, 10, 2)
+    if showHints and not hudHidden(hpCombo):
       drawCombo(game.dopamine.comboSystem, vw, vh, game.dopamine.currentTime)
-    if showWaveBanner:
+    let banners = not hudHidden(hpBanners)
+    if showWaveBanner and banners:
       drawWaveStartBanner(game.currentWave, waveAge, vw, vh, isBossNext)
-    if isTimeSurvivalMode(game.mode):
+    if isTimeSurvivalMode(game.mode) and banners:
       drawSurvivalBanner(game, vw, survivalHudStackBottom(game) + 8'i32)
-    drawWaveCelebration(game.dopamine.waveCelebration, vw, vh)
-    drawBossIntroduction(game.dopamine.bossIntro, vw, vh)
-    if game.bossWaveManager.isBossActive() or isSandboxMode(game.mode):
+    if banners:
+      drawWaveCelebration(game.dopamine.waveCelebration, vw, vh)
+      drawBossIntroduction(game.dopamine.bossIntro, vw, vh)
+    if (game.bossWaveManager.isBossActive() or isSandboxMode(game.mode)) and
+       not hudHidden(hpBoss):
       var nextBossBarY = if isTimeSurvivalMode(game.mode): SurvivalHudBottomY + 6'i32
                          else: 10'i32
       var bossBarCount = 0
@@ -6838,19 +7003,56 @@ proc drawGame*(game: Game) =
           bossBarCount += 1
           if bossBarCount >= 3:
             break
-    if isTimeSurvivalMode(game.mode):
+    if isTimeSurvivalMode(game.mode) and not hudHidden(hpRun):
       drawSurvivalHUD(game, vw, vh)
     if showDiagnostics:
       drawDebugPanel(game, vw, 2, anchorLeftDefault = false)
-    drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = false)
+    if not hudHidden(hpAbilities):
+      drawLegendaryPowerUpsPanel(game, vw, vh, alignRightGutter = false)
 
     # Key hints along the bottom edge, hidden when the shop overlay is active.
-    if game.state != gsShop:
+    if game.state != gsShop and not hudHidden(hpHints):
       drawControlsStrip(game, vw div 2, vh - 22)
 
   # Survival Data Cache reveal, over the whole HUD
   if isTimeSurvivalMode(game.mode):
     drawSurvivalCacheReveal(game, vw, vh)
+
+  # A run played with mods loaded says so for its whole length (MODS.EXE).
+  # Mod HUD layers, in this layer's screen coordinates, told where the arena is.
+  modDrawHud(game, vw, vh,
+             (getWorldViewOffsetX().float64 / hudScale.float64,
+              getWorldViewOffsetY().float64 / hudScale.float64,
+              BaseVirtualWidth.float64 * getWorldViewScale().float64 / hudScale.float64,
+              vh.float64))
+
+  # A mod switched off mid-run (errors / too slow) says so for a few seconds.
+  if hudNoticeTimer > 0 and hudNotice.len > 0:
+    let noticeA = uint8(clamp(hudNoticeTimer, 0.0'f32, 1.0'f32) * 235)
+    let noticeW = measureText(hudNotice, 12) + 20
+    let noticeX = (vw - noticeW) div 2
+    let noticeY = if hudLayout == hlWidescreen: 30'i32 else: 58'i32
+    drawRectangle(noticeX, noticeY, noticeW, 22, Color(r: 38, g: 14, b: 12, a: noticeA))
+    drawRectangleLines(Rectangle(x: noticeX.float32, y: noticeY.float32, width: noticeW.float32,
+                                 height: 22), 1.0, Color(r: 255, g: 105, b: 95, a: noticeA))
+    drawText(hudNotice, noticeX + 10, noticeY + 5, 12, Color(r: 255, g: 180, b: 170, a: noticeA))
+
+  # Widescreen: top of the arena column (the docks own every corner). Classic:
+  # bottom-left, since the top strip belongs to the wave/boss banners, the key
+  # hints are centered and the [Q] panel holds the bottom-right.
+  if game.modded:
+    let (badgeW, badgeH) = moddedBadgeSize(11)
+    let modeLabel = if game.modMode.len > 0: modModeName(game.modMode, getLanguage() == Spanish)
+                    else: ""
+    if hudLayout == hlWidescreen:
+      drawModdedBadge((vw - badgeW) div 2, 4, 11)
+      if modeLabel.len > 0:
+        let lw = measureText(modeLabel, 11)
+        drawText(modeLabel, (vw - lw) div 2, 4 + badgeH + 3, 11, Color(r: 255, g: 196, b: 80, a: 220))
+    else:
+      drawModdedBadge(10, vh - badgeH - 10, 11)
+      if modeLabel.len > 0:
+        drawText(modeLabel, 10 + badgeW + 8, vh - badgeH - 10 + 4, 11, Color(r: 255, g: 196, b: 80, a: 220))
 
   endUIScaleMode()   # closes the interface layer opened before the HUD panel
 
@@ -6917,10 +7119,10 @@ proc drawGameOver*(game: Game) =
   # checkpoint is written by it and carries the same counter), but a checkpoint
   # left behind by an abandoned run belongs to that run, not the fresh one that
   # just died.
-  let livesUsed = if blockCheckpointExists(game.mode): blockCheckpointLivesUsed(game.mode)
+  let livesUsed = if blockCheckpointExists(game.mode, game.modMode): blockCheckpointLivesUsed(game.mode, game.modMode)
                   else: game.livesUsed
   drawSystemCrash(game, game.selectedGameOverButton, showContinue,
-                  blockCheckpointResumePoint(game.mode), livesUsed)
+                  blockCheckpointResumePoint(game.mode, game.modMode), livesUsed)
 
 proc drawVictory*(game: Game) =
   # OS-style "system secured" congratulations screen (wave-60 final boss cleared)

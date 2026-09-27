@@ -1,5 +1,6 @@
 import raylib, math
 import types, bullet, particle_skins, particle_types, powerup, patches, sound, run_statistics, fx, game/combat, game/bullets
+import modding/mod_hooks
 
 proc rotateVec(v: Vector2f, angle: float32): Vector2f =
   newVector2f(v.x * cos(angle) - v.y * sin(angle), v.x * sin(angle) + v.y * cos(angle))
@@ -116,6 +117,11 @@ proc shootBullet*(game: Game, direction: Vector2f) =
   applyBossArenaCombatBonus(game, stats)
 
   if game.time - game.player.lastShot >= stats.fireRate:
+    # Mods (shoot): a script that fires its own shot returns true, and the
+    # built-in volley is skipped; the fire-rate clock still ticks.
+    if modShoot(game, direction.x, direction.y):
+      game.player.lastShot = game.time
+      return
     # Increment bullet counter for special rounds power-up
     game.player.bulletCounter += 1
 

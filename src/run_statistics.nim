@@ -103,6 +103,7 @@ type
     runDuration*: float32
     waveReached*, finalScore*: int
     cheatsUsed*, died*: bool
+    modded*: bool  # played with mods loaded (MODS.EXE); always also cheatsUsed
     combat*: CombatStats
     movement*: MovementStats
     resources*: ResourceStats
@@ -826,6 +827,8 @@ proc finalizeRunTracking*(game: Game, died: bool) =
   elif game.mode in {gmWaveBased, gmTimeSurvival} and not currentRunStats.isNil:
     currentRunStats.rogueliteShardsEarned = game.metaShardsEarned
   endRun(game.player, waveReached, finalScore, game.cheatsUsed, died)
+  if not currentRunStats.isNil:
+    currentRunStats.modded = game.modded
 
 proc hasValidRunStats*(): bool =
   result = not currentRunStats.isNil and currentRunStats.runDuration > 0

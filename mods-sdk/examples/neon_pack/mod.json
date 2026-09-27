@@ -1,0 +1,8 @@
+{
+  "id": "neon_pack",
+  "name": "Neon Pack",
+  "version": "1.0.0",
+  "author": "TopHat-ShooterOS",
+  "description": "Cosmetics to equip in MODS.EXE > Cosmetics: a magenta and cyan player skin, a matching bullet trail and a neon grid wallpaper. Shows register.cosmetic with palettes and a texture.",
+  "main": "main.lua"
+}

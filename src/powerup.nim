@@ -1,5 +1,6 @@
 import raylib, random, math, tables
 import types, powerup_data, patches, ui/os_powerup_installer, d_visuals
+import modding/[mod_hooks, lua_bridge]
 
 proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
   for p in player.powerUps:
@@ -68,7 +69,7 @@ proc bulwarkDamageBonus*(player: Player): float32 =
 proc isOfferable*(player: Player, pt: PowerUpType,
                   allowed: set[RoguelitePowerFamily],
                   mode: GameMode): bool {.inline.} =
-  let def = allPowerUpDefs[pt]
+  let def = powerUpDef(pt)
   (def.allowedModes == {} or mode in def.allowedModes) and
     def.family in allowed and
     getPowerUpLevel(player, pt) < def.maxLevel
@@ -82,6 +83,25 @@ proc isPowerUpPoolExhausted*(player: Player, isLegendary: bool,
     if player.isOfferable(pt, allowedPowerFamilies, mode):
       return false
   return true
+
+proc modPowerUpChoices(player: Player, choices: var array[3, PowerUp]) =
+  ## powerUpChoices hook: handlers get the three names and may return a list of
+  ## names to offer instead (anything already maxed or unknown is ignored).
+  if not hookActive(hkPowerUpChoices):
+    return
+  let t = newScriptTable()
+  for c in choices: t.add(vstr(powerUpScriptName(c.powerType)))
+  let v = filterValue(hkPowerUpChoices, vtable(t), [wrapPlayer(player)])
+  if v.kind != vkTable:
+    return
+  for i in 0 ..< min(3, v.tbl.len):
+    let s = v.tbl.item(i + 1)
+    var pt: PowerUpType
+    if s.kind == vkString and resolvePowerUpScriptName(s.str.s, pt):
+      let lvl = getPowerUpLevel(player, pt)
+      if lvl < getPowerUpMaxLevel(pt):
+        choices[i] = PowerUp(powerType: pt, level: lvl + 1,
+                             rarity: if powerUpDef(pt).pool == puppLegendary: prLegendary else: prCommon)
 
 proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
                              allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood},
@@ -123,10 +143,10 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
 
     # Exceptions
 
-    let isOrb    = allPowerUpDefs[powerUp.powerType].group == pugOrb
-    let isAura   = allPowerUpDefs[powerUp.powerType].group == pugAura
-    let isBullet = allPowerUpDefs[powerUp.powerType].group == pugBullet
-    let isMastery = allPowerUpDefs[powerUp.powerType].group == pugMastery
+    let isOrb    = powerUpDef(powerUp.powerType).group == pugOrb
+    let isAura   = powerUpDef(powerUp.powerType).group == pugAura
+    let isBullet = powerUpDef(powerUp.powerType).group == pugBullet
+    let isMastery = powerUpDef(powerUp.powerType).group == pugMastery
 
     if isOrb and hasOrb:
       continue
@@ -187,6 +207,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
 
   for i in 0..2:
     result[i] = selectedPowerUps[i]
+  modPowerUpChoices(player, result)
 
 # ROTATING ORBS SYSTEM
 const ORB_ORBIT_RADIUS_BASE = 42.0
@@ -336,6 +357,9 @@ proc getFortifiedMaxHpBonus*(level: int): float32 =
   else: 7.5   # +750 HP
 
 proc applyPowerUp*(player: Player, powerUp: PowerUp) =
+  # A mod may take over a power-up's pickup effect (powerUpApply hook).
+  if modPowerUpApply(player, powerUpScriptName(powerUp.powerType), powerUp.level):
+    return
   let previousHeavyRoundsLevel = getPowerUpLevel(player, puHeavyRounds)
   let previousFortifiedLevel = getPowerUpLevel(player, puFortified)
   let previousRecursionLevel = getPowerUpLevel(player, puRecursion)
@@ -596,6 +620,11 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
     # Add new power-up
     player.powerUps.add(powerUp)
 
+  # A mod power-up's effect is its onPickup script (MODS.EXE); it sees the new
+  # level through player:powerUpLevel.
+  if isModPowerUp(powerUp.powerType) and not modPowerUpApplied.isNil:
+    modPowerUpApplied(player, powerUp.powerType, powerUp.level)
+
 proc drawPowerUpSelection*(game: Game) =
   drawOSPowerUpInstaller(game)
 
@@ -621,7 +650,7 @@ proc generateRandomPowerUpExcluding(mode: GameMode, allowed: set[RoguelitePowerF
   let rarity = if isLegendary: prLegendary else: prCommon
   var availableTypes: seq[PowerUpType]
   for t in (if isLegendary: legendaryPool else: normalPool):
-    let def = allPowerUpDefs[t]
+    let def = powerUpDef(t)
     if t != excludeType and def.family in allowed and
         (def.allowedModes == {} or mode in def.allowedModes):
       availableTypes.add(t)

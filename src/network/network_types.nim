@@ -73,6 +73,8 @@ type
     speedBoostTimer*: float32  ## TURBO.DLL
     fireRateBoostTimer*: float32 ## OVERCLOCK.SYS
     spreadTimer*: float32      ## FORK.EXE
+    modSkin*: int16            ## MODS.EXE cosmetics (index + 1, 0 = none). Lobbies are
+    modBulletSkin*: int16      ## matched by mod fingerprint, so indices agree on every side.
 
   PortStateNet* = object
     ## One arena port. Positions are not sent: both sides derive them from the
@@ -142,6 +144,13 @@ type
       requestBulletSkinType*: int
       requestShapeType*: int
       requestParticleSkinType*: int
+      # MODS.EXE: matched mod lobbies. The host refuses a client whose mod set
+      # (fingerprint) differs from its own; modList only makes the refusal
+      # readable.
+      modFingerprint*: string
+      modList*: string
+      requestModSkin*: int16       ## equipped mod cosmetics (see PlayerStateNet)
+      requestModBulletSkin*: int16
     of ptConnectionAccept, ptConnectionDenied:
       connectionReason*: string
       assignedPlayerIndex*: int

@@ -2115,6 +2115,71 @@ proc minReplayInterval(soundType: SoundType): float64 =
   of stPowerUp: 0.1
   else: 0.0
 
+# ---------------------------------------------------------------------------
+# MODS.EXE: sound and music replacement. A mod's file takes over one of the
+# game's sounds (its own voice pool, played exactly like the built-in one) or
+# one music track (swapped into the track's slot; the built-in stream is kept
+# aside and swapped back). restoreVanillaSounds undoes everything; it must run
+# before the audio device closes.
+# ---------------------------------------------------------------------------
+var
+  modSoundSource: array[SoundType, Sound]
+  modSoundVoices: array[SoundType, seq[SoundAlias]]
+  modMusicBackup: array[MusicTrack, Music]
+  modMusicActive: array[MusicTrack, bool]
+  modMusicHadVanilla: array[MusicTrack, bool]
+
+proc setModSound*(st: SoundType, path: string): bool =
+  ## Replace one of the game's sounds with a WAV/OGG/MP3 file. False if it
+  ## could not be loaded (the built-in sound stays).
+  try:
+    var s = loadSound(path)
+    var voices: seq[SoundAlias]
+    for i in 0 ..< MAX_SOUND_VOICES:
+      voices.add(loadSoundAlias(s))
+    modSoundVoices[st].setLen(0)       # aliases go before their source
+    modSoundVoices[st] = move voices
+    modSoundSource[st] = move s
+    true
+  except CatchableError:
+    false
+
+proc setModMusic*(track: MusicTrack, path: string): bool =
+  ## Replace one music track with a file (OGG/MP3/WAV). False on failure.
+  let sys = globalSoundSystem
+  if sys == nil:
+    return false
+  var m: Music
+  try:
+    m = loadMusicStream(path)
+  except CatchableError:
+    return false
+  if sys.trackPlaying and sys.currentTrack == track:
+    stopMusicStream(sys.cachedMusic[track])
+    sys.trackPlaying = false
+  if not modMusicActive[track]:
+    modMusicHadVanilla[track] = sys.musicGenerated[track]
+    modMusicBackup[track] = move sys.cachedMusic[track]
+  sys.cachedMusic[track] = move m
+  sys.musicGenerated[track] = true   # ensureMusicLoaded must not reload over it
+  modMusicActive[track] = true
+  true
+
+proc restoreVanillaSounds*() =
+  for st in SoundType:
+    modSoundVoices[st].setLen(0)
+    reset(modSoundSource[st])
+  let sys = globalSoundSystem
+  for track in MusicTrack:
+    if not modMusicActive[track]: continue
+    if not sys.isNil:
+      if sys.trackPlaying and sys.currentTrack == track:
+        stopMusicStream(sys.cachedMusic[track])
+        sys.trackPlaying = false
+      sys.cachedMusic[track] = move modMusicBackup[track]
+      sys.musicGenerated[track] = modMusicHadVanilla[track]
+    modMusicActive[track] = false
+
 proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0,
                 pitch: float32 = 1.0) =
   let sys = globalSoundSystem
@@ -2131,6 +2196,16 @@ proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0,
     # Rotate through the alias pool so overlapping plays don't cut each other
     let voiceIdx = sys.nextVoice[soundType]
     sys.nextVoice[soundType] = (voiceIdx + 1) mod MAX_SOUND_VOICES
+    if modSoundVoices[soundType].len == MAX_SOUND_VOICES:
+      # A mod replaced this sound: same volume, pitch and pan rules.
+      template modVoice: Sound = Sound(modSoundVoices[soundType][voiceIdx])
+      setSoundVolume(modVoice, sys.masterVolume * volumeMultiplier)
+      let modJitter = pitchVariation(soundType)
+      setSoundPitch(modVoice, if modJitter > 0.0: pitch * (1.0'f32 + rand(-modJitter..modJitter)) else: pitch)
+      let modSpread = panSpread(soundType)
+      setSoundPan(modVoice, if modSpread > 0.0: rand(-modSpread..modSpread) else: 0.0'f32)
+      raylib.playSound(modVoice)
+      return
     template voice: Sound = Sound(sys.soundVoices[soundType][voiceIdx])
 
     setSoundVolume(voice, sys.masterVolume * volumeMultiplier)

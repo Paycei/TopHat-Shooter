@@ -36,6 +36,7 @@ proc getHelpCommands*(): seq[HelpCommand] =
     ("shop", t(tkHelpCmdShop)),
     ("recovery", t("help_cmd_recovery")),
     ("lore", t(tkHelpCmdLore)),
+    ("licenses", t(tkHelpCmdLicenses)),
     ("customize", "Customize player and bullet skins"),
     ("advancements", "Open persistent progression tracker"),
     ("clear", t(tkHelpClearCommand)),
@@ -399,6 +400,23 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
     of "feedback", "feedback.exe", "bug", "bugs", "report", "reportbug":
       help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconFeedback), Color(r: 255, g: 130, b: 90, a: 255))
       help.pendingIconExecution = 13  # diFeedback = 13
+
+    of "licenses", "license", "licence", "licences", "legal":
+      # Third-party notices that must travel with every copy of the game.
+      const LuaLicense = staticRead("../modding/lua/LICENSE")
+      let noticeColor = Color(r: 190, g: 200, b: 215, a: 255)
+      help.addOutput("", White)
+      help.addOutput(t(tkHelpLicensesIntro), Color(r: 120, g: 220, b: 160, a: 255))
+      help.addOutput("", White)
+      let at = LuaLicense.find("Copyright")
+      for para in LuaLicense[max(at, 0) .. ^1].replace("\r", "").split("\n\n"):
+        if para.strip.len > 0:
+          help.addOutput(para.strip.splitLines.join(" "), noticeColor, indent = 10)
+          help.addOutput("", White)
+
+    of "mods", "mods.exe", "mod", "modding", "addons":
+      help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconMods), Color(r: 120, g: 220, b: 160, a: 255))
+      help.pendingIconExecution = 14  # diMods = 14
 
     of "sandbox", "sandbox.exe":
       help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconSandbox), Color(r: 255, g: 165, b: 0, a: 255))

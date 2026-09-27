@@ -3,6 +3,7 @@
 
 import raylib, rlgl, math
 import ../types, ../utils
+import ../modding/mod_assets
 
 type
   CurrencyIconType* = enum
@@ -568,12 +569,18 @@ proc iconChainLink(c: Vector2, rotDeg, len, wid, thick: float32, col, ink: Color
 # Power-up icons
 # ---------------------------------------------------------------------------
 
+var modPowerUpIconDraw*: proc (pt: PowerUpType, color: Color): bool {.nimcall.}
+  ## MODS.EXE (set by mod_api): draws a mod power-up's own icon inside the
+  ## 32x32 icon grid. False when the mod has none, so the stock glyph shows.
+
 proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   ## Power-up glyph in the shared icon style (see the glyph kit above): one
   ## bold ink-rimmed silhouette per power-up, shaded only from `color`, so
   ## the registry hue, dimmed states and fades (death recap card) all carry.
   ## Elemental families share their element's glyph.
   if size <= 0:
+    return
+  if drawPowerUpModIcon(x, y, size, powerType):  # override.texture("powerup:...")
     return
 
   # Callers frame the box themselves, so keep the glyph a little off its edge.
@@ -590,6 +597,17 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   let mid = sv(16, 16)
 
   case powerType
+  of puMod00..puMod63:
+    # A mod power-up: its own icon if it drew one, else a plug-in chip.
+    if modPowerUpIconDraw.isNil or not modPowerUpIconDraw(powerType, color):
+      let chip = Rectangle(x: 8, y: 8, width: 16, height: 16)
+      drawRectangleRounded(Rectangle(x: 7, y: 7, width: 18, height: 18), 0.3, 6, ink)
+      drawRectangleRounded(chip, 0.3, 6, base)
+      drawCircle(sv(16, 7.5), 3.2, ink)
+      drawCircle(sv(16, 7.5), 2.4, base)
+      drawCircle(sv(24.5, 16), 3.2, ink)
+      drawCircle(sv(24.5, 16), 2.4, base)
+      drawCircle(sv(12.5, 12.5), 1.6, pale)
   of puDoubleShot:
     # Two-round burst; the trailing round sits a step back.
     drawLine(sv(3, 10), sv(8.5, 10), 1.8, faded(light, 0.6))

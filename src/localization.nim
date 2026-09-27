@@ -565,6 +565,8 @@ type
     tkHelpCmdBosses = "help_cmd_bosses"
     tkHelpCmdShop = "help_cmd_shop"
     tkHelpCmdLore = "help_cmd_lore"
+    tkHelpCmdLicenses = "help_cmd_licenses"
+    tkHelpLicensesIntro = "help_licenses_intro"
     tkHelpCmdLaunchIcons = "help_cmd_launch_icons"
 
     # Help System - Incident archive ("lore" command)
@@ -1809,6 +1811,53 @@ type
     tkSurvivalPhaseReached = "survival_phase_reached"
     tkSurvivalEventsCaches = "survival_events_caches"
 
+    # Mods (MODS.EXE)
+    tkModdedBadge = "modded_badge"
+    tkModdedNoRewards = "modded_no_rewards"
+    tkDesktopIconMods = "desktop_icon_mods"
+    tkModsWindowTitle = "mods_window_title"
+    tkModsTabInstalled = "mods_tab_installed"
+    tkModsTabModes = "mods_tab_modes"
+    tkModsTabLog = "mods_tab_log"
+    tkModsTabApps = "mods_tab_apps"
+    tkModsNoApps = "mods_no_apps"
+    tkModsCheatBanner = "mods_cheat_banner"
+    tkModsApply = "mods_apply"
+    tkModsOpenFolder = "mods_open_folder"
+    tkModsInstallExamples = "mods_install_examples"
+    tkModsEmpty = "mods_empty"
+    tkModsEmptyHint = "mods_empty_hint"
+    tkModsStatusLoaded = "mods_status_loaded"
+    tkModsStatusDisabled = "mods_status_disabled"
+    tkModsStatusError = "mods_status_error"
+    tkModsStatusMissingDep = "mods_status_missing_dep"
+    tkModsStatusInvalid = "mods_status_invalid"
+    tkModsStatusDuplicate = "mods_status_duplicate"
+    tkModsStatusWillLoad = "mods_status_will_load"
+    tkModsStatusWillUnload = "mods_status_will_unload"
+    tkModsBy = "mods_by"
+    tkModsRequires = "mods_requires"
+    tkModsFolder = "mods_folder"
+    tkModsPending = "mods_pending"
+    tkModsNoModes = "mods_no_modes"
+    tkModsLaunch = "mods_launch"
+    tkModsContinue = "mods_continue"
+    tkModsBaseMode = "mods_base_mode"
+    tkModsFromMod = "mods_from_mod"
+    tkModsLogEmpty = "mods_log_empty"
+    tkModsReloadedToast = "mods_reloaded_toast"
+    tkModsSummaryLoaded = "mods_summary_loaded"
+    tkModsSummaryFailed = "mods_summary_failed"
+    tkModsExamplesInstalled = "mods_examples_installed"
+    tkModsExamplesFailed = "mods_examples_failed"
+    tkModsTabCosmetics = "mods_tab_cosmetics"
+    tkModsNoCosmetics = "mods_no_cosmetics"
+    tkModsEquip = "mods_equip"
+    tkModsUnequip = "mods_unequip"
+    tkModsKindPlayer = "mods_kind_player"
+    tkModsKindBullet = "mods_kind_bullet"
+    tkModsKindDesktop = "mods_kind_desktop"
+
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
   English: {
@@ -2846,6 +2895,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_bosses": "Boss information",
     "help_cmd_shop": "Shop items and costs",
     "help_cmd_lore": "Incident archive: the story so far",
+    "help_cmd_licenses": "Third-party licenses",
+    "help_licenses_intro": "Mods run on Lua 5.5 (www.lua.org), used under the MIT license:",
     "help_lore_topic": "INCIDENT ARCHIVE",
     "help_lore_intro": "Recovered case files on the Root incident. New files decrypt as you recover their recordings.",
     "help_lore_act1_title": "ACT I: THE BREACH   [REC 00-05]",
@@ -3888,7 +3939,54 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "survival_victory_footer": "[OK] Overtime: a boss every 2:30, and every minute pays 50% more",
     "survival_time_survived": "Time Survived:",
     "survival_phase_reached": "Phase Reached:",
-    "survival_events_caches": "Events / Caches:"
+    "survival_events_caches": "Events / Caches:",
+
+    # Mods (MODS.EXE)
+    "modded_badge": "MODDED",
+    "modded_no_rewards": "Modded run: no permanent rewards",
+    "desktop_icon_mods": "MODS.exe",
+    "mods_window_title": "Mods - Mod Manager",
+    "mods_tab_installed": "Installed",
+    "mods_tab_modes": "Game Modes",
+    "mods_tab_log": "Log",
+    "mods_tab_apps": "Apps",
+    "mods_no_apps": "No loaded mod adds an app. Mods add them with register.app.",
+    "mods_cheat_banner": "Modded runs count as cheated: no Data Shards, stats, advancements or unlocks.",
+    "mods_apply": "Apply & Reload",
+    "mods_open_folder": "Open Folder",
+    "mods_install_examples": "Install Examples",
+    "mods_empty": "No mods installed yet. Put each mod in its own folder inside:",
+    "mods_empty_hint": "Or press Install Examples to get a few to start from.",
+    "mods_status_loaded": "Loaded",
+    "mods_status_disabled": "Disabled",
+    "mods_status_error": "Error",
+    "mods_status_missing_dep": "Missing dependency",
+    "mods_status_invalid": "Invalid mod.json",
+    "mods_status_duplicate": "Duplicate id",
+    "mods_status_will_load": "Loads on Apply",
+    "mods_status_will_unload": "Unloads on Apply",
+    "mods_by": "by",
+    "mods_requires": "Requires:",
+    "mods_folder": "Folder:",
+    "mods_pending": "Changes pending",
+    "mods_no_modes": "No mod game modes loaded. Mods add them with register.gamemode.",
+    "mods_launch": "Launch",
+    "mods_continue": "Continue",
+    "mods_base_mode": "Based on:",
+    "mods_from_mod": "From mod:",
+    "mods_log_empty": "Nothing logged yet.",
+    "mods_reloaded_toast": "Mods reloaded",
+    "mods_summary_loaded": "$1 loaded",
+    "mods_summary_failed": "$1 failed",
+    "mods_examples_installed": "Example mods installed. Tick them and press Apply & Reload.",
+    "mods_examples_failed": "Could not write the example mods.",
+    "mods_tab_cosmetics": "Cosmetics",
+    "mods_no_cosmetics": "No mod cosmetics loaded. Mods add them with register.cosmetic.",
+    "mods_equip": "Equip",
+    "mods_unequip": "Unequip",
+    "mods_kind_player": "Player skin",
+    "mods_kind_bullet": "Bullet skin",
+    "mods_kind_desktop": "Wallpaper"
   }.toTable,
 
   Spanish: {
@@ -4820,6 +4918,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_bosses": "Información de jefes",
     "help_cmd_shop": "Artículos de tienda y costos",
     "help_cmd_lore": "Archivo del incidente: la historia hasta ahora",
+    "help_cmd_licenses": "Licencias de terceros",
+    "help_licenses_intro": "Los mods se ejecutan con Lua 5.5 (www.lua.org), usado bajo la licencia MIT:",
     "help_lore_topic": "ARCHIVO DEL INCIDENTE",
     "help_lore_intro": "Expedientes recuperados del incidente de la Raíz. Los nuevos se descifran al recuperar sus grabaciones.",
     "help_lore_act1_title": "ACTO I: LA BRECHA   [REC 00-05]",
@@ -5966,7 +6066,54 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "survival_victory_footer": "[OK] Tiempo extra: un jefe cada 2:30 y cada minuto paga un 50% más",
     "survival_time_survived": "Tiempo Sobrevivido:",
     "survival_phase_reached": "Fase Alcanzada:",
-    "survival_events_caches": "Eventos / Cachés:"
+    "survival_events_caches": "Eventos / Cachés:",
+
+    # Mods (MODS.EXE)
+    "modded_badge": "CON MODS",
+    "modded_no_rewards": "Partida con mods: sin recompensas permanentes",
+    "desktop_icon_mods": "MODS.exe",
+    "mods_window_title": "Mods - Gestor de Mods",
+    "mods_tab_installed": "Instalados",
+    "mods_tab_modes": "Modos de juego",
+    "mods_tab_log": "Registro",
+    "mods_tab_apps": "Apps",
+    "mods_no_apps": "Ningún mod cargado añade una app. Los mods las añaden con register.app.",
+    "mods_cheat_banner": "Las partidas con mods cuentan como trampas: sin Fragmentos, estadísticas, logros ni desbloqueos.",
+    "mods_apply": "Aplicar y recargar",
+    "mods_open_folder": "Abrir carpeta",
+    "mods_install_examples": "Instalar ejemplos",
+    "mods_empty": "Aún no hay mods instalados. Coloca cada mod en su propia carpeta dentro de:",
+    "mods_empty_hint": "O pulsa Instalar ejemplos para empezar con algunos.",
+    "mods_status_loaded": "Cargado",
+    "mods_status_disabled": "Desactivado",
+    "mods_status_error": "Error",
+    "mods_status_missing_dep": "Falta una dependencia",
+    "mods_status_invalid": "mod.json no válido",
+    "mods_status_duplicate": "Id duplicado",
+    "mods_status_will_load": "Se carga al aplicar",
+    "mods_status_will_unload": "Se descarga al aplicar",
+    "mods_by": "por",
+    "mods_requires": "Requiere:",
+    "mods_folder": "Carpeta:",
+    "mods_pending": "Cambios pendientes",
+    "mods_no_modes": "No hay modos de juego de mods cargados. Los mods los añaden con register.gamemode.",
+    "mods_launch": "Iniciar",
+    "mods_continue": "Continuar",
+    "mods_base_mode": "Basado en:",
+    "mods_from_mod": "Del mod:",
+    "mods_log_empty": "Aún no hay nada registrado.",
+    "mods_reloaded_toast": "Mods recargados",
+    "mods_summary_loaded": "$1 cargados",
+    "mods_summary_failed": "$1 con error",
+    "mods_examples_installed": "Mods de ejemplo instalados. Márcalos y pulsa Aplicar y recargar.",
+    "mods_examples_failed": "No se pudieron escribir los mods de ejemplo.",
+    "mods_tab_cosmetics": "Cosméticos",
+    "mods_no_cosmetics": "No hay cosméticos de mods cargados. Los mods los añaden con register.cosmetic.",
+    "mods_equip": "Equipar",
+    "mods_unequip": "Quitar",
+    "mods_kind_player": "Aspecto del jugador",
+    "mods_kind_bullet": "Aspecto de las balas",
+    "mods_kind_desktop": "Fondo de escritorio"
   }.toTable
 }.toTable
 
@@ -5977,9 +6124,31 @@ var currentLanguage*: Language = English
 # that cached translated strings at initialization time (e.g. skin databases).
 var onLanguageChange*: proc() = nil
 
+# Mod text (MODS.EXE): strings mods add or override, consulted before the
+# built-in tables and wiped on every mod reload.
+var modTranslations: array[localization.Language, Table[system.string, system.string]]
+var modTranslationsActive: bool
+
+proc setModTranslation*(lang: localization.Language, key, value: string) =
+  modTranslations[lang][key] = value
+  modTranslationsActive = true
+
+proc clearModTranslations*() =
+  for lang in localization.Language:
+    modTranslations[lang].clear()
+  modTranslationsActive = false
+
 # Get translation for a key
 proc t*(key: string): string =
   ## Get translation for the current language
+  if modTranslationsActive:
+    if modTranslations[currentLanguage].hasKey(key):
+      return modTranslations[currentLanguage][key]
+    # An English-only mod string still beats the raw key, but never a real
+    # translation the player's language already has.
+    if modTranslations[English].hasKey(key) and
+       not (translations.hasKey(currentLanguage) and translations[currentLanguage].hasKey(key)):
+      return modTranslations[English][key]
   if translations.hasKey(currentLanguage) and translations[currentLanguage].hasKey(key):
     return translations[currentLanguage][key]
   # Fallback to English if translation not found

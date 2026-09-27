@@ -1,5 +1,6 @@
 import raylib, math, random
-import particle_types, types, particle_pool, sound, powerup, patches, particle
+import particle_types, types, particle_pool, sound, powerup, patches, particle, enemy_config
+import modding/mod_hooks
 
 ## Experience orbs for the run-leveling modes (wave, roguelite + time-survival).
 ## This module is a deliberate sibling of
@@ -56,15 +57,16 @@ proc xpRequiredForLevel*(level: int, mode: GameMode): int =
   ## against its swarm-density sectors; Time Survival its own gentle quadratic
   ## against the horde spawner.
   let n = max(0, level - 1)
-  case mode
-  of gmRoguelite:
-    XpRogueliteBase + n * XpRogueliteStep
-  of gmWaveBased:
-    XpBaseToLevel + n * XpPerLevelStep + n * n * XpLongRunQuadratic
-  of gmTimeSurvival:
-    XpSurvivalBase + n * XpSurvivalStep + (n * n * XpSurvivalQuadratic2) div 2
-  else:
-    XpBaseToLevel + n * XpPerLevelStep
+  let base = case mode
+    of gmRoguelite:
+      XpRogueliteBase + n * XpRogueliteStep
+    of gmWaveBased:
+      XpBaseToLevel + n * XpPerLevelStep + n * n * XpLongRunQuadratic
+    of gmTimeSurvival:
+      XpSurvivalBase + n * XpSurvivalStep + (n * n * XpSurvivalQuadratic2) div 2
+    else:
+      XpBaseToLevel + n * XpPerLevelStep
+  modXpToLevel(base, level, mode)   # mods may reshape the curve (xpToLevel hook)
 
 proc enemyXpValue*(enemy: Enemy): int =
   ## Small per-enemy XP grant, shaped like enemyCoinValue but smaller magnitudes.
@@ -72,6 +74,7 @@ proc enemyXpValue*(enemy: Enemy): int =
     result = 40
   else:
     result = case enemy.enemyType
+      of etMod00..etMod31: modEnemies[enemy.enemyType].xp
       of etCircle: 1
       of etCube: 2
       of etTriangle: 1
@@ -103,6 +106,7 @@ proc enemyXpValue*(enemy: Enemy): int =
       of etEnvironment: 0
   if enemy.isElite:
     result *= 2
+  result = modXpValue(enemy, result)
 
 proc newXpOrb*(x, y: float32, value: int = 1): XpOrb =
   result = XpOrb(
@@ -218,6 +222,10 @@ proc updateGameXpOrbs*(game: Game, dt: float32) =
     if magnetAll:
       moveXpOrbToPlayer(game.xpOrbs[i], game.player.pos, dt)
 
+    if checkPlayerCollision(game.xpOrbs[i], game.player) and
+       modPickup(game, "xp", game.xpOrbs[i].value.float64):
+      game.xpOrbs.delete(i)   # a mod took it (pickup hook)
+      continue
     if checkPlayerCollision(game.xpOrbs[i], game.player):
       game.player.xp += game.xpOrbs[i].value
       playSound(stCoinPickup, 0.35, 1.4)  # higher pitch than coins

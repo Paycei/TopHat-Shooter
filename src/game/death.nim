@@ -1,5 +1,6 @@
 import raylib, rlgl, random, math
 import types, settings, save_system, run_save, suspend, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite, game/bullets, ui/icon_drawing, utils
+import modding/mod_hooks
 export utils
 
 const DEATH_SLOW_DURATION* = 1.1'f32
@@ -36,6 +37,7 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) =
     return
   applyPowerUp(game.player, powerUp)
   trackPowerUpSelection(game, powerUp)
+  modPowerUpPicked(game, powerUpScriptName(powerUp.powerType), powerUp.level)
 
   # Recursion permanently banks its damage onto the roguelite profile, so the
   # bonus compounds across every future run (applyPowerUp above already granted
@@ -241,8 +243,8 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   game.runHadDeath = true
 
   # Death ends the run: the checkpoint save is no longer resumable.
-  deleteRunSave(game.mode)
-  deleteSuspendSnapshot(game.mode)  # ...and the exact snapshot with it.
+  deleteRunSave(game.mode, game.modMode)
+  deleteSuspendSnapshot(game.mode, game.modMode)  # ...and the exact snapshot with it.
 
   game.state = gsDeathSequence
   game.transitioning = false

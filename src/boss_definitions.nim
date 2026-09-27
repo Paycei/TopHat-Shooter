@@ -1,8 +1,34 @@
 ## Boss Definitions System
 ## Allows complete customization of boss behavior, properties, attacks, and phases
 
-import math, raylib
+import math, raylib, tables
 import localization, types
+
+# Mods (MODS.EXE): bosses registered by mods (IDs >= ModBossIdBase) and
+# replacements for built-in IDs, filled by mod_api and wiped on every reload.
+# Everything that resolves a boss ID consults these first.
+const ModBossIdBase* = 1000
+var
+  modBossDefs*: Table[int, BossDefinition]
+  modBossSlotWaves*: Table[int, int]      ## authored slot of a mod boss (default 25)
+  modBossProcessNames*: Table[int, string]
+
+proc hasModBoss*(bossId: int): bool {.inline.} = modBossDefs.hasKey(bossId)
+
+proc modBossIdsSorted*(): seq[int] =
+  ## Bosses mods registered (not built-in IDs they replaced), in ID order.
+  for id in modBossDefs.keys:
+    if id >= ModBossIdBase: result.add(id)
+  for i in 1 ..< result.len:
+    var j = i
+    while j > 0 and result[j - 1] > result[j]:
+      swap(result[j - 1], result[j])
+      dec j
+
+proc clearModBosses*() =
+  modBossDefs.clear()
+  modBossSlotWaves.clear()
+  modBossProcessNames.clear()
 
 
 proc bossWeakTier*(bossID: int): int =
@@ -109,7 +135,7 @@ proc getBossProcessName*(bossNumber: int): string =
   of 20: t(tkBoss20Process)
   of 21: t(tkBoss21Process)
   of 22: t(tkBoss22Process)
-  else: ""
+  else: modBossProcessNames.getOrDefault(bossNumber, "")
 
 proc getBossServiceTag*(bossNumber: int): string =
   ## "HIJACKED SERVICE: scheduler.exe" line for the boss intro card and Help
@@ -126,7 +152,7 @@ proc getBossServiceTag*(bossNumber: int): string =
     else: t(tkBossTagService)
   label & ": " & process
 
-proc getBossDefinition*(bossNumber: int): BossDefinition =
+proc buildVanillaBossDefinition(bossNumber: int): BossDefinition =
   case bossNumber
   of 1:  # Wave 5 - THE SPIRAL GUARDIAN
     result = BossDefinition(
@@ -3896,9 +3922,32 @@ proc getBossDefinition*(bossNumber: int): BossDefinition =
   else:
     # Unknown ID: the campaign finale. Deterministic on purpose - this runs
     # every frame for a live boss, so a random pick would swap its kit.
-    return getBossDefinition(12)
+    return buildVanillaBossDefinition(12)
 
   result.weakPoint = bossWeakPointDefinitionFor(result.bossID)
+
+# The builder above constructs its whole literal and looks up every string on
+# each call, and a live boss asks every frame, so built-in definitions are
+# cached per language.
+var
+  vanillaBossCache: Table[int, BossDefinition]
+  vanillaBossCacheLang: Language
+
+proc vanillaBossDefinition*(bossNumber: int): BossDefinition =
+  ## The built-in definition, ignoring mods (reference numbers use this).
+  if vanillaBossCacheLang != getLanguage():
+    vanillaBossCache.clear()
+    vanillaBossCacheLang = getLanguage()
+  if not vanillaBossCache.hasKey(bossNumber):
+    vanillaBossCache[bossNumber] = buildVanillaBossDefinition(bossNumber)
+  vanillaBossCache[bossNumber]
+
+proc getBossDefinition*(bossNumber: int): BossDefinition =
+  ## The definition a boss ID fights with: a mod's, if one registered or
+  ## replaced it, else the built-in one.
+  if modBossDefs.len > 0 and modBossDefs.hasKey(bossNumber):
+    return modBossDefs[bossNumber]
+  vanillaBossDefinition(bossNumber)
 
 proc bossName*(bossNumber: int): string =
   ## Display name of any boss ID (the Omega kits share boss 12's name).
@@ -4006,7 +4055,7 @@ proc bossAuthoredSlotWave*(bossId: int): int =
   of 16: 60     # boss 12
   of 17..22: 5  # sector-1 budget; rescaled per sector
   of 23: 60
-  else: 60
+  else: modBossSlotWaves.getOrDefault(bossId, 60)
 
 proc bossSlotHpBudget*(slotWave: float32): float32 =
   ## Total HP the campaign gives a boss at this slot (the boss holding the
@@ -4015,7 +4064,8 @@ proc bossSlotHpBudget*(slotWave: float32): float32 =
   let holder = clamp(int(round(w / BossWaveInterval.float32)), 1, 12)
   let steps = max(0.0'f32, (w - 5.0'f32) / 5.0'f32)
   let endless = max(0.0'f32, steps - 11.0'f32)
-  getBossDefinition(holder).baseHP * (1.0'f32 + steps * 0.20'f32) * pow(1.08'f32, endless)
+  # Always the built-in holder: a mod replacing a boss must not move the scale.
+  vanillaBossDefinition(holder).baseHP * (1.0'f32 + steps * 0.20'f32) * pow(1.08'f32, endless)
 
 proc bossSlotDamageRef*(slotWave: float32): float32 =
   ## Typical boss attack damage at this slot, interpolated between the
@@ -4060,7 +4110,7 @@ proc bossRosterProblems*(): seq[string] =
   ## `else` branches everywhere): every ID must resolve to its own definition,
   ## carry a weak point and a process name. Reported by debug builds at startup.
   for id in 1..MaxBossId:
-    let def = getBossDefinition(id)
+    let def = vanillaBossDefinition(id)
     if def.bossID != id:
       result.add("boss " & $id & ": definition reports bossID " & $def.bossID)
     if def.phases.len == 0:

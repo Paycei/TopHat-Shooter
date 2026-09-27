@@ -219,6 +219,9 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
                                 width: (SCREEN_WIDTH + 20).float32,
                                 height: (SCREEN_HEIGHT + 20).float32),
                     3, Color(r: 60, g: 120, b: 200, a: 255))
+  if game.modded:
+    let (badgeW, badgeH) = moddedBadgeSize(14)
+    drawModdedBadge(windowX + (SCREEN_WIDTH - badgeW) div 2, windowY - 10 - badgeH - 10, 14)
 
   var yOffset = windowY + 28
 
@@ -464,6 +467,9 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
                                 width: (SCREEN_WIDTH + 20).float32,
                                 height: (SCREEN_HEIGHT + 20).float32),
                     3, Color(r: 0, g: 255, b: 120, a: 255))
+  if game.modded:
+    let (badgeW, badgeH) = moddedBadgeSize(14)
+    drawModdedBadge(windowX + (SCREEN_WIDTH - badgeW) div 2, windowY - 15 - badgeH - 8, 14)
 
   var yOffset = windowY + 30
 

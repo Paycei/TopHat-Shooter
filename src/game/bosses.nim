@@ -1,5 +1,6 @@
 import raylib, rlgl, random, math
 import types, enemy, bullet, boss_definitions, particle_pool, particle_types, d_systems, enemy_helpers, boss_weakpoints, ui/warnings, game/bullets, game/mode_boss_attacks, mode_hazards
+import modding/[mod_state, mod_hooks]
 export pointSegmentDistance  # beam hit tests (shared with the roster hazards)
 
 const BOSS_PHASE_INVULNERABILITY_DURATION* = BossPhaseTransitionDuration
@@ -170,6 +171,7 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
   # than the definition's default.
   if enemy.summonWaveActive and enemy.weakPoint.kind == bwoSummonSigils:
     enemy.weakPoint.required = max(1, livingRoyalGuardCount(game))
+  modBossPhase(enemy, nextPhaseIndex)
 
 proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool =
   ## Breaks a boss into its next phase once the current phase pool is spent.
@@ -362,6 +364,9 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
   if enemy.chargeState == ccWinded:
     # Spent after a charge combo: rooted to the spot, which is the opening.
     enemy.vel = newVector2f(0, 0)
+    return
+  # Mods: "mod:<name>" behaviours are scripted movement.
+  if modsActive and modBossBehavior(game, enemy, phase.specialBehavior, dt):
     return
 
   let startPos = enemy.pos
@@ -2866,6 +2871,11 @@ proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, 
   if enemy.damageTuning > 0.0'f32 and enemy.damageTuning != 1.0'f32:
     attack.damage *= enemy.damageTuning
   let toPlayer = (game.player.pos - enemy.pos).normalize()
+
+  # Mods: bossAttack may cancel any attack, and "mod:<name>" attacks are
+  # scripted by the mod that registered the boss.
+  if modsActive and modBossAttack(game, enemy, attack):
+    return
 
   # Survival / Roguelite roster signatures (game/mode_boss_attacks.nim).
   if isModeBossAttack(attack.specialData):

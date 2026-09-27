@@ -41,6 +41,7 @@
 
 import os, deques, strutils, tables
 import types, save_system, run_statistics, tutorial
+import modding/mod_state
 import discord_presence  # DiscordClient (no-op flatty overload)
 import particle_types    # ParticlePool  (no-op flatty overload)
 import flatty, supersnappy
@@ -113,7 +114,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 11'u32  # bumped: dead-field sweep (Game/Player/Enemy fields, GameEventType values)
+  SnapFormatVersion = 13'u32  # bumped: MODS.EXE Player.modBulletSkin (12: Game mod fields)
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =
@@ -148,6 +149,11 @@ proc layoutFingerprint(): uint32 =
   # The run statistics ride in the same positional flatty stream, so a field
   # added there shifts every byte after it exactly like a Game field would.
   mix(sizeof(typeof(default(RunStatistics)[])))
+  # The loaded mod set: mod power-up/enemy slots are bound per set, so a
+  # snapshot's raw slot ordinals only mean the same thing under the same set.
+  # (The file name already pins it; this is belt and braces.)
+  for c in modFingerprintHex:
+    mix(ord(c))
   h
 
 # ---- little-endian uint32 header helpers ----
@@ -163,15 +169,18 @@ proc getU32(s: string, off: int): uint32 =
 
 const LegacySuspendFile = "suspend.snap"
 
-proc getSuspendPath*(mode: GameMode): string =
+proc getSuspendPath*(mode: GameMode, modMode: string = ""): string =
   ## One snapshot per mode, so starting or quitting a run in one mode can never
-  ## discard another mode's suspended run.
-  getAppDataPath() / ("suspend_" & $mode & ".snap")
+  ## discard another mode's suspended run. saveSlotTag keeps modded sessions
+  ## on their own files (see run_save.runSaveFileFor).
+  getAppDataPath() / ("suspend_" & $mode & saveSlotTag(modMode) & ".snap")
 
 proc migrateLegacySuspendSnapshot() =
   ## Older builds kept a single shared suspend.snap. Move it to the file of the
   ## mode recorded in its header (or drop it if that slot is already taken or
   ## the header is unreadable).
+  if modsActive:
+    return  # a vanilla leftover must never land in a modded slot
   try:
     let legacy = getAppDataPath() / LegacySuspendFile
     if not fileExists(legacy):
@@ -188,22 +197,22 @@ proc migrateLegacySuspendSnapshot() =
   except CatchableError:
     echo "Warning: could not migrate legacy suspend snapshot"
 
-proc deleteSuspendSnapshot*(mode: GameMode) =
+proc deleteSuspendSnapshot*(mode: GameMode, modMode: string = "") =
   ## Remove this mode's exact snapshot for the current profile, if any.
   migrateLegacySuspendSnapshot()
   try:
-    let path = getSuspendPath(mode)
+    let path = getSuspendPath(mode, modMode)
     if fileExists(path):
       removeFile(path)
   except CatchableError:
     echo "Warning: could not delete suspend snapshot"
 
-proc hasSuspendSnapshot*(mode: GameMode): bool =
+proc hasSuspendSnapshot*(mode: GameMode, modMode: string = ""): bool =
   ## Cheap existence check. Full validity (magic/version/fingerprint) is only
   ## confirmed by restoreGame; callers fall back to run_save when restore fails.
   migrateLegacySuspendSnapshot()
   try:
-    fileExists(getSuspendPath(mode))
+    fileExists(getSuspendPath(mode, modMode))
   except CatchableError:
     false
 
@@ -228,13 +237,15 @@ proc suspendGame*(game: Game) =
     return
   # Never persist a finished/failed run (matches run_save.saveRunState).
   if game.hasWonGame and game.mode == gmWaveBased:
-    deleteSuspendSnapshot(game.mode)
+    deleteSuspendSnapshot(game.mode, game.modMode)
     return
   if game.mode == gmRoguelite and (game.rogueliteRun.isNil or
      game.rogueliteRun.completed or game.rogueliteRun.died):
-    deleteSuspendSnapshot(game.mode)
+    deleteSuspendSnapshot(game.mode, game.modMode)
     return
 
+  if game.modded and not captureModRunData.isNil:
+    captureModRunData(game)
   try:
     let snap = Snapshot(game: game, runStats: currentRunStats)
     var payload = supersnappy.compress(toFlatty(snap))
@@ -244,7 +255,7 @@ proc suspendGame*(game: Game) =
     outp.putU32(layoutFingerprint())
     outp.putU32(uint32(ord(game.mode)))
     outp.add payload
-    writeFile(getSuspendPath(game.mode), outp)
+    writeFile(getSuspendPath(game.mode, game.modMode), outp)
   except CatchableError:
     echo "Warning: could not write suspend snapshot"
 
@@ -300,7 +311,7 @@ proc restoreGame*(target: var Game): bool =
   ## target, so the caller can delete the snapshot and fall back to run_save.
   migrateLegacySuspendSnapshot()
   try:
-    let path = getSuspendPath(target.mode)
+    let path = getSuspendPath(target.mode, target.modMode)
     if not fileExists(path):
       return false
     let raw = readFile(path)

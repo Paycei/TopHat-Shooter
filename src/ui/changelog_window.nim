@@ -125,6 +125,25 @@ let changelog: seq[ChangelogVersion] = @[
     entries: @[
       # --- New ---
       ChangelogEntry(category: clcNew,
+        headEn: "Mods: MODS.EXE",
+        headEs: "Mods: MODS.EXE",
+        en: points(
+          "A new desktop program, MODS.EXE, loads mods: small scripts written in Lua 5.5, with their own pictures, sounds and shaders. Tick the ones you want for this profile and press Apply & Reload.",
+          "Mods can change almost everything: add whole game modes, new enemies, bosses and power-ups, reskin the player, enemies, bullets, icons and the wallpaper (with or without the desktop cube floating over it), replace sounds and music, and rewrite the rules of the modes that already exist.",
+          "They reach every part of a run, down to its lists and inner workings, and can replace the game's own behaviour: movement, the dash, walls, [Q] abilities, bullets, pickups, the shop, level-ups, enemy AI and boss attacks. They can hide the HUD and draw their own, run screen filters (shaders), and add their own apps to MODS.EXE.",
+          "Modded runs count as cheated: they earn no Data Shards, statistics, advancements or unlocks, and say MODDED on screen from start to finish. Unload every mod to play for keeps again.",
+          "Install Examples writes eight example mods and the full modding guide into your mods folder: a HUD readout, the Glass Cannon and House Rules game modes, Time Survival tweaks, a new enemy with a power-up, the OVERCLOCK boss, a neon cosmetics pack and a CRT screen filter with its own settings app.",
+          "Mods run in a sandbox. They cannot touch your files or the network, a mod stuck in an endless loop is stopped instead of freezing the game, and one that keeps failing is switched off with a notice. Errors show up with their file and line in the Log tab.",
+          "Modded runs keep their own saves, apart from your normal ones, and can only be continued with the same mods loaded. PvP lobbies only accept players with exactly the same mods, and everyone sees each other's mod skins."),
+        es: points(
+          "Un programa nuevo en el escritorio, MODS.EXE, carga mods: pequeños scripts escritos en Lua 5.5, con sus propias imágenes, sonidos y shaders. Marca los que quieras para este perfil y pulsa Aplicar y recargar.",
+          "Los mods pueden cambiar casi todo: añadir modos de juego enteros, enemigos, jefes y mejoras nuevos, cambiar el aspecto del jugador, los enemigos, las balas, los iconos y el fondo de escritorio (con o sin el cubo flotando encima), reemplazar sonidos y música, y reescribir las reglas de los modos que ya existen.",
+          "Llegan a cada parte de una partida, hasta sus listas y su funcionamiento interno, y pueden reemplazar el comportamiento del propio juego: el movimiento, el impulso, los muros, las habilidades [Q], las balas, los objetos que recoges, la tienda, las subidas de nivel, la IA de los enemigos y los ataques de los jefes. Pueden ocultar el HUD y dibujar el suyo, aplicar filtros de pantalla (shaders) y añadir sus propias apps a MODS.EXE.",
+          "Las partidas con mods cuentan como trampas: no dan Fragmentos, estadísticas, logros ni desbloqueos, y muestran CON MODS en pantalla de principio a fin. Desactiva todos los mods para volver a jugar en serio.",
+          "Instalar ejemplos escribe ocho mods de ejemplo y la guía completa de modding en tu carpeta de mods: un indicador en el HUD, los modos Cañón de Cristal y Reglas de la Casa, ajustes para Supervivencia, un enemigo nuevo con una mejora, el jefe OVERCLOCK, un paquete de cosméticos de neón y un filtro de pantalla CRT con su propia app de ajustes.",
+          "Los mods se ejecutan aislados. No pueden tocar tus archivos ni la red, un mod atascado en un bucle infinito se detiene en lugar de congelar el juego, y uno que falla una y otra vez se desactiva con un aviso. Los errores aparecen con su archivo y su línea en la pestaña Registro.",
+          "Las partidas con mods tienen sus propios guardados, aparte de los normales, y solo se pueden continuar con los mismos mods cargados. Las salas de PvP solo aceptan jugadores con exactamente los mismos mods, y todos ven los aspectos de mods de los demás.")),
+      ChangelogEntry(category: clcNew,
         headEn: "Time Survival: its own horde and bosses",
         headEs: "Supervivencia: horda y jefes propios",
         en: points(

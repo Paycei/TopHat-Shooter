@@ -304,7 +304,7 @@ proc discoverAllPowerUpsCheat*(game: var Game) =
   ## window, which a cheated run must not keep.
   if ANTICHEAT_ENABLED or globalSettings.isNil: return
   globalSettings.discoveredPowerUps = @[]
-  for pt in PowerUpType:
+  for pt in puAftershock..puDataHarvest:  # never mod slot names
     globalSettings.discoveredPowerUps.add($pt)
   discard saveSettings(globalSettings)
   playSound(stMenuSelect)
@@ -458,8 +458,9 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   # Close instruction
   drawText(t(tkCheatCloseInstruction), panelX + 10, panelY + 35, 12, Gray)
   # Right-aligned on the same line: say up front that nothing permanent survives.
-  if ANTICHEAT_ENABLED and game.cheatsUsed:
-    let notice = t(tkCheatNoPermanentRewards)
+  # A modded run is cheated even in debug builds, so it says so there too.
+  if game.modded or (ANTICHEAT_ENABLED and game.cheatsUsed):
+    let notice = if game.modded: t(tkModdedNoRewards) else: t(tkCheatNoPermanentRewards)
     drawText(notice, panelX + panelWidth - 10 - measureText(notice, 12), panelY + 35, 12, Orange)
 
   # Tab buttons with mouse support. The visible set is mode-dependent, so the
@@ -589,7 +590,7 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
   # --- Discovery codex controls -----------------------------------------
   # Toggle globalSettings.discoveredPowerUps, the persistent codex that drives
   # the "NEW" badge on the power-up selection screen.
-  let totalPowerUps = ord(high(PowerUpType)) - ord(low(PowerUpType)) + 1
+  let totalPowerUps = VanillaPowerUpCount
   let discoveredCount = if globalSettings.isNil: 0 else: globalSettings.discoveredPowerUps.len
   drawText(t(tkCheatDiscoveryCodex) & " " & $discoveredCount & " / " & $totalPowerUps,
            x + 20, currentY, 14, Gray)
@@ -926,8 +927,9 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   drawText(t(tkCheatAllPowerUps), x + 20, currentY, 14, Yellow)
   currentY += 25
 
-  # All power-up types come directly from the registry enum.
-  let allPowerUpCount = ord(high(PowerUpType)) - ord(low(PowerUpType)) + 1
+  # Every live power-up: the built-in registry plus loaded mods' ones.
+  let livePUs = livePowerUps()
+  let allPowerUpCount = livePUs.len
 
   # Scrollable area setup for available list
   let availableAreaHeight = y + contentHeight - currentY - 10
@@ -955,7 +957,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
   let endIdx = min(startIdx + maxVisibleItems, allPowerUpCount)
 
   for i in startIdx..<endIdx:
-    let powerType = PowerUpType(ord(low(PowerUpType)) + i)
+    let powerType = livePUs[i]
     let name = getPowerUpName(powerType)
     let itemY = currentY + (i - startIdx).int32 * itemHeight
 

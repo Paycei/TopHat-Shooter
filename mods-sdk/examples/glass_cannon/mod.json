@@ -1,0 +1,8 @@
+{
+  "id": "glass_cannon",
+  "name": "Glass Cannon",
+  "version": "1.0.0",
+  "author": "TopHat-ShooterOS",
+  "description": "A new game mode, launched from MODS.EXE > Game Modes: wave mode with double damage dealt, triple damage taken, twice the enemies and no healing. Shows register.gamemode, filters scoped to one mode and run.data.",
+  "main": "main.lua"
+}

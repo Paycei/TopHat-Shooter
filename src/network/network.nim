@@ -2,6 +2,7 @@
 
 import net, nativesockets, flatty, supersnappy, times, strutils, math
 import network_types, ../types
+import ../modding/[mod_state, mod_assets]
 
 const
   DEFAULT_PORT* = 7777
@@ -9,7 +10,7 @@ const
   # bullet, and a busy match with FORK.EXE triple shots can pass 8 KB; a smaller
   # buffer silently truncated those datagrams and they failed to deserialize.
   MAX_PACKET_SIZE = 65507
-  NETWORK_VERSION* = "2.2.0"
+  NETWORK_VERSION* = "2.4.0"
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 100
   PACKET_MAGIC = "THS1"
@@ -39,6 +40,8 @@ type
       remoteBulletSkinType*: int
       remoteShapeType*: int
       remoteParticleSkinType*: int
+      remoteModSkin*: int16
+      remoteModBulletSkin*: int16
     of neReceive:
       packet*: Packet
     of neDisconnect:
@@ -55,6 +58,8 @@ type
     shapeType*: int
     particleSkinType*: int
     nickname*: string
+    modSkin*: int16
+    modBulletSkin*: int16
 
   NetworkManager* = ref object
     role*: NetworkRole
@@ -126,6 +131,10 @@ proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
   packet.requestBulletSkinType = bulletSkinType
   packet.requestShapeType = shapeType
   packet.requestParticleSkinType = particleSkinType
+  packet.modFingerprint = modFingerprintHex
+  packet.modList = loadedModIds.join(", ")
+  packet.requestModSkin = int16(equippedCosmetic[mckPlayer])
+  packet.requestModBulletSkin = int16(equippedCosmetic[mckBullet])
   try:
     nm.socket.sendTo(host, Port(port), serialize(packet))
     echo "[NETWORK] Connection request sent to ", host, ":", port
@@ -338,6 +347,20 @@ proc pollEvents*(nm: NetworkManager,
         echo "[NETWORK] Connection denied (version mismatch): host=", NETWORK_VERSION, " client=", packet.version
         continue
 
+      # Matched mod lobbies: both sides must run the exact same mod set, or
+      # the host-authoritative match would simulate content the client lacks.
+      if packet.modFingerprint != modFingerprintHex:
+        var deny = newPacket(ptConnectionDenied)
+        let hostMods = if loadedModIds.len > 0: loadedModIds.join(", ") else: "none"
+        let clientMods = if packet.modList.len > 0: packet.modList else: "none"
+        deny.connectionReason = "Mods don't match (host: " & hostMods & "; you: " & clientMods & ")"
+        deny.assignedPlayerIndex = -1
+        deny.maxPlayersInRoom = nm.maxPlayers
+        deny.connectedPlayers = @[]
+        nm.socket.sendTo(address, port, serialize(deny))
+        echo "[NETWORK] Connection denied (mod mismatch): host=", modFingerprintHex, " client=", packet.modFingerprint
+        continue
+
       if nm.matchStarted:
         # Player indices are frozen once the match starts; a joiner would get
         # an index the match has no slot for.
@@ -369,7 +392,9 @@ proc pollEvents*(nm: NetworkManager,
         bulletSkinType: packet.requestBulletSkinType,
         shapeType: packet.requestShapeType,
         particleSkinType: packet.requestParticleSkinType,
-        nickname: packet.playerName
+        nickname: packet.playerName,
+        modSkin: packet.requestModSkin,
+        modBulletSkin: packet.requestModBulletSkin
       ))
       nm.isConnected = true
 
@@ -401,7 +426,9 @@ proc pollEvents*(nm: NetworkManager,
         remoteSkinType: packet.requestSkinType,
         remoteBulletSkinType: packet.requestBulletSkinType,
         remoteShapeType: packet.requestShapeType,
-        remoteParticleSkinType: packet.requestParticleSkinType))
+        remoteParticleSkinType: packet.requestParticleSkinType,
+        remoteModSkin: packet.requestModSkin,
+        remoteModBulletSkin: packet.requestModBulletSkin))
       echo "[NETWORK] Player ", assignedIndex, " connected from ", address, ":", port.int
       continue
 

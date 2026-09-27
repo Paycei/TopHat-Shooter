@@ -3,6 +3,7 @@
 
 import raylib, rlgl, math, strutils, strformat, times
 import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../particle_types, ../utils
+import ../modding/mod_assets
 
 type
   DesktopIconType* = enum
@@ -20,6 +21,7 @@ type
     diChangelog     # Patch notes / changelog viewer (PATCHLOG.txt) - 11
     diCredits       # Credits + support the project (CREDITS.nfo) - 12
     diFeedback      # Feedback / bug report form (FEEDBACK.exe) - 13
+    diMods          # Mod manager (MODS.exe) - 14
 
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -138,6 +140,7 @@ proc getIconName(iconType: DesktopIconType): string =
   of diChangelog: t(tkDesktopIconChangelog)
   of diCredits: t(tkDesktopIconCredits)
   of diFeedback: t(tkDesktopIconFeedback)
+  of diMods: t(tkDesktopIconMods)
 
 proc bestDesktopLabelFontSize(text: string, maxWidth, preferredSize: int32,
                               minSize: int32 = ICON_LABEL_MIN_SIZE): int32 =
@@ -162,7 +165,7 @@ proc isCornerIcon(iconType: DesktopIconType): bool =
   ## grid. They are excluded from the grid flow and from its column arithmetic.
   ## They stack upward from the bottom-right corner in reverse seq order, so the
   ## last one in the seq sits in the corner itself.
-  iconType in {diFeedback, diCredits}
+  iconType in {diMods, diFeedback, diCredits}
 
 proc desktopGridRows(screenHeight: int): int =
   ## Rows per icon column that actually fit above the taskbar in `screenHeight`
@@ -275,6 +278,9 @@ proc newOSDesktop*(): OSDesktop =
       # real coordinates, since they depend on the current logical viewport. The
       # *order* of this seq is what matters -- it is the grid's fill order, and
       # the corner stack's top-to-bottom order.
+      DesktopIcon(iconType: diMods, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
+                  selected: false, name: getIconName(diMods),
+                  iconColor: Color(r: 120, g: 220, b: 160, a: 255)),
       DesktopIcon(iconType: diFeedback, x: DESKTOP_GRID_START_X + ICON_SPACING * 2, y: DESKTOP_GRID_START_Y,
                   selected: false, name: getIconName(diFeedback),
                   iconColor: Color(r: 255, g: 130, b: 90, a: 255)),
@@ -486,9 +492,18 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
   let cubeCY = h * 0.46
   let cubeSize = min(w, h) * 0.042'f32
 
+  # A mod wallpaper covers the built-in background: the cube is only there (and
+  # grabbable) when the mod keeps it, and the background half of the easter-egg
+  # combos (dice table, portals, Kernel Panic) is gone, so it acts as the default.
+  let modWall = modWallpaper()
+  let cubeShown = modWall.id == 0 or modWall.cube
+  var wallBg: DesktopBgType = dbgDefault
+  if modWall.id == 0 and not globalSettings.isNil:
+    wallBg = DesktopBgType(globalSettings.desktopBg)
+
   let mp   = getVirtualMousePosition()
   let ddst = sqrt((mp.x-cubeCX)*(mp.x-cubeCX) + (mp.y-cubeCY)*(mp.y-cubeCY))
-  let overCube = ddst <= (CubeDragRadius + cubeSize * 2.0)
+  let overCube = cubeShown and ddst <= (CubeDragRadius + cubeSize * 2.0)
 
   if isPointerPressed() and overCube and not mouseOverWindow and
      not desktop.cubeEscaping:
@@ -503,7 +518,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     desktop.cubeDiceVelY = 0.0
 
   if desktop.cubeDragging:
-    if isPointerDown():
+    if isPointerDown() and cubeShown:
       let ddx = mp.x - desktop.cubeDragLastX
       let ddy = mp.y - desktop.cubeDragLastY
       # right drag -> rotate around world Y (up)
@@ -699,10 +714,9 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
     else:
       desktop.cubeSpinHeat = max(0.0'f32, desktop.cubeSpinHeat - dt * CubeEscapeHeatDecay)
     # Which background + skin is selected decides what sustained fast spinning does.
-    var selectedBg: DesktopBgType = dbgDefault
+    let selectedBg = wallBg
     var currentCubeSkin: CubeSkinType = cskDefault
     if not globalSettings.isNil:
-      selectedBg = DesktopBgType(globalSettings.desktopBg)
       currentCubeSkin = CubeSkinType(globalSettings.cubeSkin)
     if selectedBg == dbgHorror and currentCubeSkin == cskJack:
       # Kernel Panic + Jack-O'-Node: spinning the pumpkin doesn't break orbit, it
@@ -779,7 +793,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
   # Release the dice hold if the player leaves a dice-combo (either dice skin on
   # either dice background) while the die rests, so it doesn't stay frozen elsewhere.
   if desktop.cubeDiceMode and not desktop.cubeEscaping and not globalSettings.isNil:
-    let guardBg = DesktopBgType(globalSettings.desktopBg)
+    let guardBg = wallBg
     let guardSkin = CubeSkinType(globalSettings.cubeSkin)
     let onDiceCombo = (guardBg == dbgCasino or guardBg == dbgDragon) and
                       (guardSkin == cskDice or guardSkin == cskD20)
@@ -1235,6 +1249,24 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     drawLine(v2(bx, by - 5), v2(bx, by + 8), 1.4, Color(r: 14, g: 18, b: 30, a: 255))
     drawCircle(v2(bx - 2.4'f32, by - 1), 1.1, bright)
     drawCircle(v2(bx + 2.4'f32, by + 3), 1.1, bright)
+
+  of diMods:
+    # A puzzle piece easing into its socket: add-ons plugged into the system.
+    # The slow slide keeps it reading as "plug in" rather than as a static tile.
+    let panel = Rectangle(x: centerX.float32 - 18, y: centerY.float32 - 16, width: 36, height: 32)
+    let panelCol = Color(r: 14, g: 18, b: 30, a: 255)
+    drawRectangleRounded(panel, 0.25, 6, panelCol)
+    drawRectangleRoundedLines(panel, 0.25, 6, 2.0, dim)
+    let slide = (sin(time * 2.0'f32) * 0.5'f32 + 0.5'f32) * 3.0'f32
+    let px = centerX.float32 - 2.0'f32 + slide
+    let py = centerY.float32 + 2.0'f32
+    let s = 16.0'f32
+    drawRectangleRounded(Rectangle(x: px - s / 2, y: py - s / 2, width: s, height: s), 0.2, 4, accent)
+    drawCircle(v2(px, py - s / 2 - 1.5'f32), 3.8, accent)          # top tab
+    drawCircle(v2(px + s / 2 + 1.5'f32, py), 3.8, accent)          # right tab
+    drawCircle(v2(px - s / 2 + 0.5'f32, py), 3.4, panelCol)        # left slot
+    drawCircle(v2(px, py + s / 2 - 0.5'f32), 3.4, panelCol)        # bottom slot
+    drawCircle(v2(px - 3.5'f32, py - 3.5'f32), 1.6, bright)        # glint
   # Locked overlay for modes that are gated by progression
   var isLocked = false
   case icon.iconType
@@ -2280,6 +2312,31 @@ proc drawHorrorWatchers(cx, cy, cubeSize, w, h, time, glow: float32) =
   drawRectangleGradientV(0, 0, w.int32, vh.int32, blood, clear)
   drawRectangleGradientV(0, int32(h - vh), w.int32, vh.int32, clear, blood)
 
+proc drawDesktopCube(desktop: OSDesktop, w, h: float32,
+                     jitterX = 0.0'f32, jitterY = 0.0'f32) =
+  ## The interactive cube in its orbit slot, plus the dice-roll result above it.
+  ## Drawn by the themed backgrounds and by a mod wallpaper that keeps the cube.
+  let centerX = w * 0.64
+  let centerY = h * 0.46
+  let skin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
+  drawZeroGravityWallpaperCube(centerX + desktop.cubeOffsetX + jitterX,
+                               centerY + desktop.cubeOffsetY + jitterY,
+                               min(w, h) * 0.042'f32, desktop.time,
+                               desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
+                               skin, desktop.cubeJackGlow)
+
+  # Dice roll result: a big gold number that pops above the settled die.
+  if desktop.cubeDiceResultTimer > 0.0'f32 and desktop.cubeDiceResult > 0:
+    let fade = min(1.0'f32, desktop.cubeDiceResultTimer / 0.6'f32)
+    let a = uint8(255.0'f32 * fade)
+    let label = $desktop.cubeDiceResult
+    let fs = int32(min(w, h) * 0.16'f32)
+    let lw = measureText(label, fs)
+    let lx = int32(centerX) - lw div 2
+    let ly = int32(centerY - min(w, h) * 0.20'f32) - fs div 2
+    drawText(label, lx + 3, ly + 3, fs, Color(r: 0, g: 0, b: 0, a: uint8(160.0'f32 * fade)))
+    drawText(label, lx, ly, fs, Color(r: 255, g: 215, b: 90, a: a))
+
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   ## Draw the active desktop background. If the player has selected a desktop
   ## background from settings/shop use that otherwise fall back to the
@@ -2288,99 +2345,90 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   if not globalSettings.isNil:
     selectedBg = DesktopBgType(globalSettings.desktopBg)
 
-  case selectedBg
-  of dbgDefault:
-    # Exact, hardcoded wallpaper (keeps cube rotations and all effects)
-    drawDesktopWallpaper(screenWidth, screenHeight, desktop.time,
-                         desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
-                         desktop.cubeOffsetX, desktop.cubeOffsetY)
+  # A mod wallpaper (equipped cosmetic or override.texture("desktop")) covers
+  # the screen instead of the built-in background; the cube stays on top only
+  # when the mod asked for it (cube = true).
+  if drawDesktopModBackground(screenWidth.int32, screenHeight.int32):
+    if modWallpaper().cube:
+      drawDesktopCube(desktop, screenWidth.float32, screenHeight.float32)
   else:
-    let bgData = getDesktopBgData(selectedBg)
-    let topColor = bgData.bgColor
-    let bottomColor = brighten(topColor, -(12), topColor.a.int)
-    let gridColor = Color(r: uint8((bgData.primaryColor.r.int + bgData.accentColor.r.int) div 2),
-                          g: uint8((bgData.primaryColor.g.int + bgData.accentColor.g.int) div 2),
-                          b: uint8((bgData.primaryColor.b.int + bgData.accentColor.b.int) div 2),
-                          a: 34)
-    let nodeColor = bgData.accentColor
-    let accentColor = bgData.primaryColor
-    let w = screenWidth.float32
-    let h = screenHeight.float32
+    case selectedBg
+    of dbgDefault:
+      # Exact, hardcoded wallpaper (keeps cube rotations and all effects)
+      drawDesktopWallpaper(screenWidth, screenHeight, desktop.time,
+                           desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
+                           desktop.cubeOffsetX, desktop.cubeOffsetY)
+    else:
+      let bgData = getDesktopBgData(selectedBg)
+      let topColor = bgData.bgColor
+      let bottomColor = brighten(topColor, -(12), topColor.a.int)
+      let gridColor = Color(r: uint8((bgData.primaryColor.r.int + bgData.accentColor.r.int) div 2),
+                            g: uint8((bgData.primaryColor.g.int + bgData.accentColor.g.int) div 2),
+                            b: uint8((bgData.primaryColor.b.int + bgData.accentColor.b.int) div 2),
+                            a: 34)
+      let nodeColor = bgData.accentColor
+      let accentColor = bgData.primaryColor
+      let w = screenWidth.float32
+      let h = screenHeight.float32
 
-    # Draw the shared backdrop at 1/6th the virtual canvas size so the grid
-    # cell count and star density match what the shop preview miniature shows.
-    # The fixed-size elements (48 px grid, 48 stars) are otherwise spread too
-    # thin at 1024x768 compared to the 170x64 shop card.
-    let refW = int32(ceil(w / 6.0'f32))
-    let refH = int32(ceil(h / 6.0'f32))
-    pushMatrix()
-    scalef(w / refW.float32, h / refH.float32, 1.0'f32)
-    drawSharedBackdrop(refW, refH, desktop.time * 0.62,
-                       topColor, bottomColor, gridColor, nodeColor, accentColor,
-                       0.9, 0.8)
-    popMatrix()
+      # Draw the shared backdrop at 1/6th the virtual canvas size so the grid
+      # cell count and star density match what the shop preview miniature shows.
+      # The fixed-size elements (48 px grid, 48 stars) are otherwise spread too
+      # thin at 1024x768 compared to the 170x64 shop card.
+      let refW = int32(ceil(w / 6.0'f32))
+      let refH = int32(ceil(h / 6.0'f32))
+      pushMatrix()
+      scalef(w / refW.float32, h / refH.float32, 1.0'f32)
+      drawSharedBackdrop(refW, refH, desktop.time * 0.62,
+                         topColor, bottomColor, gridColor, nodeColor, accentColor,
+                         0.9, 0.8)
+      popMatrix()
 
-    drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
-                 withAlpha(accentColor, 70), 0.7)
-    drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
-                 withAlpha(nodeColor, 56), 0.55)
-    drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
-                 withAlpha(bgData.primaryColor, 46), 0.5)
+      drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
+                   withAlpha(accentColor, 70), 0.7)
+      drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
+                   withAlpha(nodeColor, 56), 0.55)
+      drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
+                   withAlpha(bgData.primaryColor, 46), 0.5)
 
-    drawDesktopBgThemeFx(selectedBg, screenWidth.int32, screenHeight.int32, desktop.time)
+      drawDesktopBgThemeFx(selectedBg, screenWidth.int32, screenHeight.int32, desktop.time)
 
-    for i in 0..3:
-      let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
-      let alpha = uint8(26 + i * 9)
-      drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
-                      withAlpha(accentColor, alpha))
-      let nodeAngle = desktop.time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
-      drawCircle(Vector2(x: w * 0.64 + cos(nodeAngle) * ringRadius,
-                         y: h * 0.46 + sin(nodeAngle) * ringRadius),
-                 3.0 + i.float32 * 0.35,
-                 withAlpha(nodeColor, uint8(120 + i * 18)))
+      for i in 0..3:
+        let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
+        let alpha = uint8(26 + i * 9)
+        drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
+                        withAlpha(accentColor, alpha))
+        let nodeAngle = desktop.time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
+        drawCircle(Vector2(x: w * 0.64 + cos(nodeAngle) * ringRadius,
+                           y: h * 0.46 + sin(nodeAngle) * ringRadius),
+                   3.0 + i.float32 * 0.35,
+                   withAlpha(nodeColor, uint8(120 + i * 18)))
 
-    let centerX = w * 0.64
-    let centerY = h * 0.46
-    let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
+      let centerX = w * 0.64
+      let centerY = h * 0.46
+      let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
 
-    # Kernel Panic: the cube cowers. A constant high-frequency jitter (terror)
-    # with an occasional larger flinch, layered ON TOP of cubeOffsetX/Y so the
-    # orbital-escape easter egg still owns that state. Suppressed mid-escape so
-    # the cube can fly cleanly. Stateless: derived purely from desktop.time, the
-    # same trick the escape "strain" shudder uses.
-    var tremX, tremY = 0.0'f32
-    if selectedBg == dbgHorror and not desktop.cubeEscaping and
-       currentCubeSkin != cskJack:
-      let t = desktop.time
-      let flinch = 1.0'f32 + 1.0'f32 * max(0.0'f32, sin(t * 0.9'f32) - 0.6'f32)
-      let amp = min(w, h) * 0.001'f32 * flinch
-      tremX = (sin(t * 53.0'f32) + 0.5'f32 * sin(t * 89.0'f32)) * amp
-      tremY = (cos(t * 61.0'f32) + 0.5'f32 * sin(t * 97.0'f32)) * amp
+      # Kernel Panic: the cube cowers. A constant high-frequency jitter (terror)
+      # with an occasional larger flinch, layered ON TOP of cubeOffsetX/Y so the
+      # orbital-escape easter egg still owns that state. Suppressed mid-escape so
+      # the cube can fly cleanly. Stateless: derived purely from desktop.time, the
+      # same trick the escape "strain" shudder uses.
+      var tremX, tremY = 0.0'f32
+      if selectedBg == dbgHorror and not desktop.cubeEscaping and
+         currentCubeSkin != cskJack:
+        let t = desktop.time
+        let flinch = 1.0'f32 + 1.0'f32 * max(0.0'f32, sin(t * 0.9'f32) - 0.6'f32)
+        let amp = min(w, h) * 0.001'f32 * flinch
+        tremX = (sin(t * 53.0'f32) + 0.5'f32 * sin(t * 89.0'f32)) * amp
+        tremY = (cos(t * 61.0'f32) + 0.5'f32 * sin(t * 97.0'f32)) * amp
 
-    # Kernel Panic + spun Jack-O'-Node: reveal the watchers in the dark behind the
-    # cube before drawing it, so the lantern light and eyes sit underneath.
-    if selectedBg == dbgHorror and desktop.cubeJackGlow > 0.01'f32:
-      drawHorrorWatchers(centerX, centerY, min(w, h) * 0.042'f32,
-                         w, h, desktop.time, desktop.cubeJackGlow)
+      # Kernel Panic + spun Jack-O'-Node: reveal the watchers in the dark behind the
+      # cube before drawing it, so the lantern light and eyes sit underneath.
+      if selectedBg == dbgHorror and desktop.cubeJackGlow > 0.01'f32:
+        drawHorrorWatchers(centerX, centerY, min(w, h) * 0.042'f32,
+                           w, h, desktop.time, desktop.cubeJackGlow)
 
-    drawZeroGravityWallpaperCube(centerX + desktop.cubeOffsetX + tremX,
-                                 centerY + desktop.cubeOffsetY + tremY,
-                                 min(w, h) * 0.042'f32, desktop.time,
-                                 desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
-                                 currentCubeSkin, desktop.cubeJackGlow)
-
-    # Dice roll result: a big gold number that pops above the settled die.
-    if desktop.cubeDiceResultTimer > 0.0'f32 and desktop.cubeDiceResult > 0:
-      let fade = min(1.0'f32, desktop.cubeDiceResultTimer / 0.6'f32)
-      let a = uint8(255.0'f32 * fade)
-      let label = $desktop.cubeDiceResult
-      let fs = int32(min(w, h) * 0.16'f32)
-      let lw = measureText(label, fs)
-      let lx = int32(centerX) - lw div 2
-      let ly = int32(centerY - min(w, h) * 0.20'f32) - fs div 2
-      drawText(label, lx + 3, ly + 3, fs, Color(r: 0, g: 0, b: 0, a: uint8(160.0'f32 * fade)))
-      drawText(label, lx, ly, fs, Color(r: 255, g: 215, b: 90, a: a))
+      drawDesktopCube(desktop, w, h, tremX, tremY)
 
   # Desktop icons
   for icon in desktop.icons:

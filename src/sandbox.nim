@@ -20,7 +20,7 @@ const
 
 proc isSandboxLegendaryPowerUp(powerType: PowerUpType): bool {.inline.} =
   ## Derived from the registry.
-  allPowerUpDefs[powerType].pool == puppLegendary
+  powerUpDef(powerType).pool == puppLegendary
 
 proc fitSandboxText(text: string, maxWidth, fontSize: int32,
                     minSize: int32 = 8): tuple[text: string, size: int32] =
@@ -48,14 +48,26 @@ const
     # Roguelite rooms
     etFragment, etPortGuard, etSentry, etMimic, etRestorer, etPacket, etDriver, etCorruptor]
 
+proc sandboxEnemies(): seq[EnemyType] =
+  ## The roster above plus every enemy a loaded mod registered.
+  result = @SandboxEnemyRoster
+  for et in ModEnemySlot:
+    if isEnemyLive(et): result.add(et)
+
+proc sandboxBossIds(): seq[int] =
+  for id in 1..MaxBossId: result.add(id)
+  for id in modBossIdsSorted(): result.add(id)
+
 proc sandboxEnemyTag(et: EnemyType): string =
   if et in etThread..etInterrupt: "[SURV] "
   elif et in etFragment..etCorruptor: "[ROGUE] "
+  elif isModEnemy(et): "[MOD] "
   else: ""
 
 proc sandboxBossTag(bossId: int): string =
   if bossId in 13..16: "[SURV] "
   elif bossId in 17..23: "[ROGUE] "
+  elif hasModBoss(bossId) and bossId >= ModBossIdBase: "[MOD] "
   else: ""
 
 proc spawnSandboxEnemy(game: Game, enemyType: EnemyType) =
@@ -112,11 +124,11 @@ proc wrapSandboxText(text: string, maxWidth, fontSize: int32): seq[string] =
 proc sandboxContentHeight(selectedTab: int): int32 =
   case selectedTab
   of 0:
-    10'i32 + 25'i32 + SandboxEnemyRoster.len.int32 * (BUTTON_HEIGHT + BUTTON_SPACING) + 10'i32 + BUTTON_HEIGHT
+    10'i32 + 25'i32 + sandboxEnemies().len.int32 * (BUTTON_HEIGHT + BUTTON_SPACING) + 10'i32 + BUTTON_HEIGHT
   of 1:
-    10'i32 + 25'i32 + MaxBossId.int32 * (BUTTON_HEIGHT + BUTTON_SPACING)
+    10'i32 + 25'i32 + sandboxBossIds().len.int32 * (BUTTON_HEIGHT + BUTTON_SPACING)
   of 2:
-    let powerUpCount = ord(high(PowerUpType)) - ord(low(PowerUpType)) + 1
+    let powerUpCount = livePowerUps().len
     10'i32 + 24'i32 + 20'i32 + int32(powerUpCount) * (POWERUP_ITEM_HEIGHT + BUTTON_SPACING)
   of 3:
     560'i32
@@ -145,7 +157,7 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   currentY += 25
 
   # Every enemy type with a spawn button (wave, then survival, then roguelite).
-  for enemyType in SandboxEnemyRoster:
+  for enemyType in sandboxEnemies():
     if currentY > startY - 50 and currentY < screenHeight - 50:  # Only draw visible items
       let config = getEnemyConfig(enemyType)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 70, b: 120, a: 255))
@@ -169,7 +181,7 @@ proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   drawText(t(tkSandboxSpawnBosses), contentX, currentY, 18, White)
   currentY += 25
 
-  for bossId in 1..MaxBossId:
+  for bossId in sandboxBossIds():
     if currentY > startY - 50 and currentY < screenHeight - 50:
       let bossDef = getBossDefinition(bossId)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 50, b: 50, a: 255))
@@ -192,8 +204,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
            Color(r: 170, g: 185, b: 200, a: 255))
   currentY += 20
 
-  for powerOrdinal in ord(low(PowerUpType))..ord(high(PowerUpType)):
-    let powerType = PowerUpType(powerOrdinal)
+  for powerType in livePowerUps():
     # Undiscovered power-ups are masked: a neutral accent, lock icon, generic
     # badge, and preset text hide both their identity and their stats.
     let discovered = isPowerUpDiscovered(powerType)
@@ -454,7 +465,7 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
   let contentX = sidebarX + SIDEBAR_PADDING
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
 
-  for enemyType in SandboxEnemyRoster:
+  for enemyType in sandboxEnemies():
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
       spawnSandboxEnemy(game, enemyType)
@@ -467,7 +478,8 @@ proc handleEnemiesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth,
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     # Spawn 10 random enemies
     for i in 0..<10:
-      spawnSandboxEnemy(game, SandboxEnemyRoster[rand(SandboxEnemyRoster.len - 1)])
+      let roster = sandboxEnemies()
+      spawnSandboxEnemy(game, roster[rand(roster.len - 1)])
 
 proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, screenHeight: int32) =
   let startY: int32 = 45 + TAB_HEIGHT + 5
@@ -476,7 +488,7 @@ proc handleBossesTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth, 
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
 
   # Check each boss button
-  for bossId in 1..MaxBossId:
+  for bossId in sandboxBossIds():
     if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
        mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
       # Spawn the selected boss at the slot its numbers are written for

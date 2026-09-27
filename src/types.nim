@@ -233,6 +233,12 @@ type
     etPacket,      # Dasher that ricochets off walls and obstacles
     etDriver,      # Armoured charger that stuns itself on obstacles
     etCorruptor,   # Leaves decaying corrupted floor tiles
+    # MODS.EXE: reserved slots, bound at load time to the enemies mods register
+    # (register.enemy). Never saved by name. New built-in enemies go ABOVE.
+    etMod00, etMod01, etMod02, etMod03, etMod04, etMod05, etMod06, etMod07,
+    etMod08, etMod09, etMod10, etMod11, etMod12, etMod13, etMod14, etMod15,
+    etMod16, etMod17, etMod18, etMod19, etMod20, etMod21, etMod22, etMod23,
+    etMod24, etMod25, etMod26, etMod27, etMod28, etMod29, etMod30, etMod31,
     etEnvironment  # Sentinel: damage from arena hazards, not an enemy (keep LAST)
 
   DeathCause* = enum
@@ -360,7 +366,19 @@ type
     puRoomEcho,             # Room clear charges next N bullets with bonus damage (roguelite only)
     puChainReaction,        # Kills have chance to drop bonus coin (roguelite only)
     puKernelExploit,        # LEGENDARY: boss defeat grants permanent damage (roguelite only)
-    puDataHarvest           # +XP gained per enemy (roguelite only)
+    puDataHarvest,          # +XP gained per enemy (roguelite only)
+    # MODS.EXE: reserved slots, bound at load time to the power-ups mods
+    # register (register.powerup). An unbound slot appears nowhere, and slot
+    # names are never saved (saves store "mod:<id>:<name>"). New built-in
+    # power-ups go ABOVE this block.
+    puMod00, puMod01, puMod02, puMod03, puMod04, puMod05, puMod06, puMod07,
+    puMod08, puMod09, puMod10, puMod11, puMod12, puMod13, puMod14, puMod15,
+    puMod16, puMod17, puMod18, puMod19, puMod20, puMod21, puMod22, puMod23,
+    puMod24, puMod25, puMod26, puMod27, puMod28, puMod29, puMod30, puMod31,
+    puMod32, puMod33, puMod34, puMod35, puMod36, puMod37, puMod38, puMod39,
+    puMod40, puMod41, puMod42, puMod43, puMod44, puMod45, puMod46, puMod47,
+    puMod48, puMod49, puMod50, puMod51, puMod52, puMod53, puMod54, puMod55,
+    puMod56, puMod57, puMod58, puMod59, puMod60, puMod61, puMod62, puMod63
 
   PowerUpRarity* = enum
     prCommon,
@@ -806,6 +824,8 @@ type
     teamId*: PvPTeam  # Team assignment for PvP mode (ptNone for free-for-all)
     skinType*: int  # Current equipped skinHost
     bulletSkinType*: int  # Current equipped bullet skin
+    modSkin*: int16       # MODS.EXE: equipped mod player cosmetic (index + 1, 0 = none)
+    modBulletSkin*: int16 # MODS.EXE: equipped mod bullet cosmetic (same), per player for PvP
     bulletShapeType*: int  # Current equipped bullet shape (BulletShapeType ord)
     shapeType*: int  # Current equipped player shape
     particleSkinType*: int  # Current equipped particle effect
@@ -1812,6 +1832,14 @@ type
     waveInProgress*: bool
     waveStartTime*: float32  # Track when current wave started for statistics
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
+    # MODS.EXE (src/modding): a run started with any mod loaded is modded, which
+    # also forces cheatsUsed. modMode is the mod game mode id ("" = the vanilla
+    # mode itself) and modRunData the mods' per-run `run.data`, as JSON, so
+    # both save layers carry it without holding script values.
+    modded*: bool
+    modFingerprint*: string
+    modMode*: string
+    modRunData*: string
     runHadDeath*: bool  # Sticky: the run has died at least once (or resumed a block checkpoint after dying)
     livesUsed*: int  # Wave/roguelite/survival: continues already spent this run (see difficultyMaxLives)
     # What the lifetime statistics already hold for this run. A Continue rolls the
