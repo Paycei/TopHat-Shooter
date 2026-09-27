@@ -467,6 +467,7 @@ proc beginGameDrawing() =
   ## Begin drawing to the virtual render target
   beginTextureMode(renderTarget)
   clearBackground(Black)
+  resetModelDepth()  # the clear emptied the depth buffer mod models layer in
   let activeSupersampleScale = getRenderSupersampleScale()
   pushMatrix()
   scalef(activeSupersampleScale, activeSupersampleScale, 1.0'f32)

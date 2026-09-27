@@ -10,7 +10,7 @@
 ## game.nim (spawning into the live enemy list, starting waves, bosses) is
 ## queued as a ModAction and executed there, outside every entity loop.
 
-import std/[os, strutils, tables, json]
+import std/[os, strutils, tables, json, math]
 import raylib
 import ../types, ../particle_types, ../localization, ../render_context, ../settings, ../powerup
 import ../enemy_config, ../boss_definitions, ../player, ../game/combat, ../d_systems, ../particle_pool, ../sound
@@ -1280,11 +1280,11 @@ proc installNewContent(base: ScriptTable) =
   rawSet(base, vstr("powerups"), vtable(powerupsT))
 
 # ================================================================== assets ====
-# assets.texture / assets.sound load files from the mod's own folder;
-# override.texture/sound/music swap the game's look and sound; register.cosmetic
-# adds skins players equip in MODS.EXE.
+# assets.texture / assets.model / assets.sound load files from the mod's own
+# folder; override.texture/model/sound/music swap the game's look and sound;
+# register.cosmetic adds skins players equip in MODS.EXE.
 
-var textureClass, soundClass, shaderClass: UdClass
+var textureClass, soundClass, shaderClass, modelClass: UdClass
 
 proc safeModPath*(m: ModRuntime, rel: string): string
 
@@ -1299,17 +1299,110 @@ proc textureId(vm: VM, v: ScriptValue, what: string): int =
   if v.kind == vkUserdata and v.ud.cls == textureClass: return v.ud.handle
   if v.kind == vkString:
     let id = loadModTexture(vm.modFile(v.str.s, what))
-    if id == 0: vm.runtimeError(what & ": could not load '" & v.str.s & "' (PNG expected)")
+    if id == 0: vm.runtimeError(what & ": could not load '" & v.str.s & "' (PNG or GIF expected)")
     return id
   vm.runtimeError(what & ": texture expected (assets.texture(...) or a file name)")
 
-proc texReplace(vm: VM, args: openArray[ScriptValue], texArg: int, what: string): TexReplace =
-  result = TexReplace(id: vm.textureId(arg(args, texArg), what), scale: 1.0, rotate: false)
-  let opts = arg(args, texArg + 1)
+proc loadModelFile(vm: VM, rel, what: string): int =
+  ## A model from the mod's folder; what it could not use goes to the Log tab.
+  var err, warn = ""
+  result = loadModModel(vm.modFile(rel, what), err, warn)
+  if result == 0: vm.runtimeError(what & ": " & rel & ": " & err)
+  if warn.len > 0: modLogAdd(mlWarn, mods[vm.requireOwner(what)].id, rel & ": " & warn)
+
+proc modelId(vm: VM, v: ScriptValue, what: string): int =
+  ## A model handle, or a path (loaded on the spot).
+  if v.kind == vkUserdata and v.ud.cls == modelClass: return v.ud.handle
+  if v.kind == vkString: return vm.loadModelFile(v.str.s, what)
+  vm.runtimeError(what & ": model expected (assets.model(...) or a file name)")
+
+proc resolveAnim(vm: VM, id: int, v: ScriptValue, what: string): int =
+  ## An `animation` option (index + 1): a name or a number from 1; false
+  ## holds the rest pose; nil or true plays the first one, if there is any.
+  let names = modelAnimations(id)
+  case v.kind
+  of vkNil: result = min(1, names.len)
+  of vkBool: result = if v.b: min(1, names.len) else: 0
+  of vkNumber:
+    if not (v.n >= 1 and v.n <= names.len.float64 and v.n == floor(v.n)):
+      let shown = if v.n == floor(v.n) and abs(v.n) < 1.0e15: $int(v.n) else: $v.n
+      vm.runtimeError(what & ": animation " & shown & " does not exist (the model has " &
+                      $names.len & ")")
+    result = int(v.n)
+  of vkString:
+    result = names.find(v.str.s) + 1
+    if result == 0:
+      vm.runtimeError(what & ": the model has no animation '" & v.str.s & "'" &
+                      (if names.len > 0: " (it has: " & names.join(", ") & ")" else: " (it has none)"))
+  else: vm.runtimeError(what & ": animation must be a name, a number or false")
+
+proc readPose(vm: VM, opts: ScriptValue, id: int, what: string): ModelPose =
+  ## The pose options shared by override.model, draw.model and model cosmetics.
+  result = ModelPose(speed: 1, lit: true, tint: White)
+  if opts.kind != vkTable:
+    result.anim = vm.resolveAnim(id, NilValue, what)
+    return
+  for (field, dest) in [("tilt", addr result.tilt), ("yaw", addr result.yaw),
+                        ("pitch", addr result.pitch), ("roll", addr result.roll),
+                        ("spin", addr result.spin), ("speed", addr result.speed)]:
+    let v = rawGetStr(opts.tbl, field)
+    if v.kind == vkNumber and abs(v.n) < 1.0e9: dest[] = v.n.float32   # (NaN fails too)
+    elif v.kind != vkNil: vm.runtimeError(what & ": " & field & " must be a number")
+  let lit = rawGetStr(opts.tbl, "lit")
+  if lit.kind != vkNil: result.lit = truthy(lit)
+  let tn = rawGetStr(opts.tbl, "tint")
+  if tn.kind != vkNil: result.tint = parseColor(vm, tn, what & ".tint")
+  result.anim = vm.resolveAnim(id, rawGetStr(opts.tbl, "animation"), what)
+
+proc readScaleRotate(opts: ScriptValue, look: var BodyReplace) =
+  look.scale = 1.0
   if opts.kind == vkTable:
     let s = rawGetStr(opts.tbl, "scale")
-    if s.kind == vkNumber: result.scale = max(0.05, s.n).float32
-    result.rotate = truthy(rawGetStr(opts.tbl, "rotate"))
+    if s.kind == vkNumber: look.scale = max(0.05, s.n).float32
+    look.rotate = truthy(rawGetStr(opts.tbl, "rotate"))
+
+proc texReplace(vm: VM, args: openArray[ScriptValue], texArg: int, what: string): BodyReplace =
+  ## override.texture's look; nil clears the override.
+  if arg(args, texArg).kind == vkNil: return BodyReplace()
+  result = BodyReplace(id: vm.textureId(arg(args, texArg), what))
+  readScaleRotate(arg(args, texArg + 1), result)
+
+proc modelReplace(vm: VM, args: openArray[ScriptValue], modelArg: int, what: string): BodyReplace =
+  ## override.model's look; nil clears the override.
+  if arg(args, modelArg).kind == vkNil: return BodyReplace()
+  let opts = arg(args, modelArg + 1)
+  if opts.kind notin {vkNil, vkTable}: vm.argError("model", modelArg + 1, "options must be a table")
+  result = BodyReplace(model: vm.modelId(arg(args, modelArg), what))
+  result.pose = vm.readPose(opts, result.model, what)
+  readScaleRotate(opts, result)
+
+proc bodySlot(vm: VM, target, fname, extraTarget: string): ptr BodyReplace =
+  ## The body an override target names: player, enemy:<type>, boss:<id>,
+  ## bullet:player, bullet:enemy or powerup:<name>.
+  let colon = target.find(':')
+  let kind = if colon >= 0: target[0 ..< colon] else: target
+  let rest = if colon >= 0: target[colon + 1 .. ^1] else: ""
+  case kind
+  of "player": result = addr playerTex
+  of "bullet":
+    if rest notin ["player", "enemy"]: vm.argError(fname, 0, "use bullet:player or bullet:enemy")
+    result = addr bulletTex[rest == "player"]
+  of "enemy":
+    var et: EnemyType
+    if not resolveEnemyName(rest, et): vm.argError(fname, 0, "unknown enemy type '" & rest & "'")
+    result = addr enemyTex[et]
+  of "boss":
+    var id = 0
+    try: id = parseInt(rest)
+    except ValueError: vm.argError(fname, 0, "boss:<id> needs a number")
+    result = addr bossTex.mgetOrPut(id, BodyReplace())
+  of "powerup":
+    var pt: PowerUpType
+    if not resolvePowerUpScriptName(rest, pt): vm.argError(fname, 0, "unknown power-up '" & rest & "'")
+    result = addr powerUpTex[pt]
+  else:
+    vm.argError(fname, 0, "unknown target '" & target & "' (player, enemy:<type>, boss:<id>, " &
+                "bullet:player, bullet:enemy, powerup:<name>, " & extraTarget & ")")
 
 proc installAssetLibraries(base: ScriptTable) =
   textureClass = UdClass(name: "texture")
@@ -1318,6 +1411,8 @@ proc installAssetLibraries(base: ScriptTable) =
     case keyName(key)
     of "width": vnum(w)
     of "height": vnum(h)
+    of "frames": vnum(textureFrames(ud.handle))
+    of "duration": vnum(textureDuration(ud.handle).float64)
     else: vm.runtimeError("texture has no field '" & keyName(key) & "'")
   textureClass.tostr = proc (ud: Userdata): string = "texture #" & $ud.handle
   soundClass = UdClass(name: "sound")
@@ -1352,13 +1447,31 @@ proc installAssetLibraries(base: ScriptTable) =
         r.setRet(vbool(setModShaderValue(self.ud.handle, name, vals)))))
     vm.runtimeError("shader has no field '" & keyName(key) & "'")
   shaderClass.tostr = proc (ud: Userdata): string = "shader #" & $ud.handle
+  modelClass = UdClass(name: "model")
+  modelClass.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
+    let s = modelSize(ud.handle)
+    case keyName(key)
+    of "width": vnum(s.x.float64)
+    of "height": vnum(s.y.float64)
+    of "depth": vnum(s.z.float64)
+    of "animations": namesTable(modelAnimations(ud.handle))
+    of "duration":
+      vnative(newNative("duration", proc (vm: VM, a: openArray[ScriptValue], r: var RetVals) =
+        ## mdl:duration([animation]) -> seconds one loop lasts (0: no animation)
+        let self = arg(a, 0)
+        if self.kind != vkUserdata or self.ud.cls != modelClass:
+          vm.runtimeError("model:duration() needs a model (call it with ':')")
+        let anim = vm.resolveAnim(self.ud.handle, arg(a, 1), "model:duration")
+        r.setRet(vnum(modelAnimDuration(self.ud.handle, anim).float64))))
+    else: vm.runtimeError("model has no field '" & keyName(key) & "'")
+  modelClass.tostr = proc (ud: Userdata): string = "model #" & $ud.handle
 
   let assetsT = newScriptTable()
   assetsT.reg("texture") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## local tex = assets.texture("sprites/ship.png")  -- PNG in your mod folder
+    ## local tex = assets.texture("sprites/ship.png")  -- PNG or GIF in your mod folder
     let rel = vm.checkStr(args, 0, "texture")
     let id = loadModTexture(vm.modFile(rel, "assets.texture"))
-    if id == 0: vm.runtimeError("assets.texture: could not load '" & rel & "' (PNG expected)")
+    if id == 0: vm.runtimeError("assets.texture: could not load '" & rel & "' (PNG or GIF expected)")
     ret.setRet(vud(Userdata(cls: textureClass, handle: id, key: cast[pointer](id))))
   assetsT.reg("sound") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local s = assets.sound("sfx/zap.wav"); s:play([volume, pitch])
@@ -1374,12 +1487,19 @@ proc installAssetLibraries(base: ScriptTable) =
     let id = loadModShader(vm.modFile(rel, "assets.shader"), err)
     if id == 0: vm.runtimeError("assets.shader: " & rel & ": " & err)
     ret.setRet(vud(Userdata(cls: shaderClass, handle: id, key: cast[pointer](id + 200000))))
+  assetsT.reg("model") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## local ship = assets.model("models/ship.glb")  -- GLB/glTF, OBJ, IQM, VOX or M3D;
+    ## mdl.width/height/depth, mdl.animations, mdl:duration(anim)
+    let id = vm.loadModelFile(vm.checkStr(args, 0, "model"), "assets.model")
+    ret.setRet(vud(Userdata(cls: modelClass, handle: id, key: cast[pointer](id + 300000))))
   rawSet(base, vstr("assets"), vtable(assetsT))
 
   let drawT = rawGetStr(base, "draw").tbl
   drawT.reg("texture") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## draw.texture(tex, x, y [, {w = .., h = .., rotation = deg, tint = color,
-    ##              origin = "center" | "topleft"}])
+    ##              origin = "center" | "topleft", frame = n, time = seconds}])
+    ## A GIF plays by itself; frame (1 = first, wraps) or time (seconds into
+    ## the animation) pick the frame instead.
     vm.requireDrawing("texture")
     let id = vm.textureId(arg(args, 0), "draw.texture")
     let (tw, th) = textureSize(id)
@@ -1388,6 +1508,7 @@ proc installAssetLibraries(base: ScriptTable) =
     var rot = 0.0'f32
     var tint = White
     var centered = true
+    var frame = -1
     let opts = arg(args, 3)
     if opts.kind == vkTable:
       let ow = rawGetStr(opts.tbl, "w")
@@ -1401,42 +1522,72 @@ proc installAssetLibraries(base: ScriptTable) =
       if tn.kind != vkNil: tint = parseColor(vm, tn, "draw.texture.tint")
       let o = rawGetStr(opts.tbl, "origin")
       if o.kind == vkString and o.str.s == "topleft": centered = false
-    drawModTexture(id, vm.f32(args, 1, "texture"), vm.f32(args, 2, "texture"), w, h, rot, tint, centered)
+      let fr = rawGetStr(opts.tbl, "frame")
+      let tm = rawGetStr(opts.tbl, "time")
+      if fr.kind == vkNumber:
+        if fr.n != fr.n or abs(fr.n) > 9.0e15: vm.runtimeError("draw.texture: frame must be a whole number")
+        frame = floorMod(int(floor(fr.n)) - 1, textureFrames(id))
+      elif tm.kind == vkNumber:
+        frame = textureFrameAt(id, tm.n)
+    drawModTexture(id, vm.f32(args, 1, "texture"), vm.f32(args, 2, "texture"), w, h, rot, tint,
+                   centered, frame)
+  drawT.reg("model") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## draw.model(mdl, x, y [, {size = px, scale = px per unit, facing = deg,
+    ##            tilt/yaw/pitch/roll = deg, spin = deg/s, animation = name | n | false,
+    ##            speed = x, time = seconds, frame = n, lit = bool, tint = color}])
+    ## Centred on x, y; its footprint (seen from above) is `size` wide (64 by
+    ## default); its front points toward `facing` (90 = down, the default).
+    vm.requireDrawing("model")
+    let id = vm.modelId(arg(args, 0), "draw.model")
+    let x = vm.f32(args, 1, "model")
+    let y = vm.f32(args, 2, "model")
+    let opts = arg(args, 3)
+    if opts.kind notin {vkNil, vkTable}: vm.argError("model", 3, "options must be a table")
+    let pose = vm.readPose(opts, id, "draw.model")
+    var pxPerUnit = 64 / modelFootprint(id)
+    var facing = 90.0'f32
+    var frame = modelFrameAt(id, pose, getTime())
+    if opts.kind == vkTable:
+      let size = rawGetStr(opts.tbl, "size")
+      let scale = rawGetStr(opts.tbl, "scale")
+      if size.kind == vkNumber: pxPerUnit = size.n.float32 / modelFootprint(id)
+      elif scale.kind == vkNumber: pxPerUnit = scale.n.float32
+      let f = rawGetStr(opts.tbl, "facing")
+      if f.kind == vkNumber and abs(f.n) < 1.0e9: facing = f.n.float32
+      let fr = rawGetStr(opts.tbl, "frame")
+      let tm = rawGetStr(opts.tbl, "time")
+      if fr.kind == vkNumber and pose.anim > 0:
+        if not (abs(fr.n) < 9.0e15): vm.runtimeError("draw.model: frame must be a whole number")
+        frame = floorMod(int(floor(fr.n)) - 1, modelAnimFrames(id, pose.anim))
+      elif tm.kind == vkNumber:
+        frame = modelFrameAt(id, pose, tm.n)   # (a NaN time shows frame 1)
+    drawModModel(id, x, y, pxPerUnit, facing, pose, frame)
 
   let overrideT = rawGetStr(base, "override").tbl
   overrideT.reg("texture") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## override.texture("enemy:etCube", "cube.png" [, {scale = 1.2, rotate = true}])
     ## targets: player, enemy:<type>, boss:<id>, bullet:player, bullet:enemy,
-    ##          powerup:<name>, desktop ({cube = true} keeps the desktop cube)
+    ##          powerup:<name>, desktop ({cube = true} keeps the desktop cube).
+    ## nil instead of the texture puts the game's own look back.
     let target = vm.checkStr(args, 0, "texture")
     let r = vm.texReplace(args, 1, "override.texture")
-    let colon = target.find(':')
-    let kind = if colon >= 0: target[0 ..< colon] else: target
-    let rest = if colon >= 0: target[colon + 1 .. ^1] else: ""
-    case kind
-    of "player": playerTex = r
-    of "desktop":
+    if target == "desktop":
       desktopTex = r
       let opts = arg(args, 2)
       desktopCube = opts.kind == vkTable and truthy(rawGetStr(opts.tbl, "cube"))
-    of "bullet":
-      if rest notin ["player", "enemy"]: vm.argError("texture", 0, "use bullet:player or bullet:enemy")
-      bulletTex[rest == "player"] = r
-    of "enemy":
-      var et: EnemyType
-      if not resolveEnemyName(rest, et): vm.argError("texture", 0, "unknown enemy type '" & rest & "'")
-      enemyTex[et] = r
-    of "boss":
-      var id = 0
-      try: id = parseInt(rest)
-      except ValueError: vm.argError("texture", 0, "boss:<id> needs a number")
-      bossTex[id] = r
-    of "powerup":
-      var pt: PowerUpType
-      if not resolvePowerUpScriptName(rest, pt): vm.argError("texture", 0, "unknown power-up '" & rest & "'")
-      powerUpTex[pt] = r
     else:
-      vm.argError("texture", 0, "unknown target '" & target & "' (player, enemy:<type>, boss:<id>, bullet:player, bullet:enemy, powerup:<name>, desktop)")
+      vm.bodySlot(target, "texture", "desktop")[] = r
+    markActive()
+  overrideT.reg("model") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## override.model("player", "models/ship.glb" [, {scale = 1.2, rotate = true,
+    ##   tilt = 30, yaw = 0, pitch = 0, roll = 0, spin = 0, animation = "Idle",
+    ##   speed = 1, lit = true, tint = color}])
+    ## targets: those of override.texture, and "cube" (the desktop cube) in
+    ## place of "desktop". nil instead of the model puts the game's own look back.
+    let target = vm.checkStr(args, 0, "model")
+    let r = vm.modelReplace(args, 1, "override.model")
+    if target == "cube": cubeModel = r
+    else: vm.bodySlot(target, "model", "cube")[] = r
     markActive()
   overrideT.reg("sound") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## override.sound("shoot", "sfx/pew.wav")
@@ -1519,8 +1670,10 @@ proc installAssetLibraries(base: ScriptTable) =
   registerT.reg("cosmetic") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## register.cosmetic{kind = "player" | "bullet" | "desktop", id = "neon",
     ##   name = "Neon", colors = {"#ff00ff", "#00ffff", "#ffffff"},
-    ##   texture = "skins/neon.png", scale = 1.2, rotate = true}
-    ##   desktop only: cube = true keeps the desktop cube over the wallpaper
+    ##   texture = "skins/neon.png", model = "skins/neon.glb", scale = 1.2, rotate = true,
+    ##   plus override.model's pose options (tilt, spin, animation, ...)}
+    ##   desktop only: the texture is the wallpaper (cube = true keeps the desktop
+    ##   cube over it) and the model stands in for the desktop cube
     let owner = vm.requireOwner("register.cosmetic")
     let t = vm.checkTable(args, 0, "cosmetic")
     let kindName = rawGetStr(t, "kind")
@@ -1545,13 +1698,15 @@ proc installAssetLibraries(base: ScriptTable) =
       c.c3 = parseColor(vm, colors.tbl.item(3), "colors[3]")
     let tex = rawGetStr(t, "texture")
     if tex.kind != vkNil:
-      c.tex = TexReplace(id: vm.textureId(tex, "register.cosmetic"), scale: 1.0)
-      let s = rawGetStr(t, "scale")
-      if s.kind == vkNumber: c.tex.scale = max(0.05, s.n).float32
-      c.tex.rotate = truthy(rawGetStr(t, "rotate"))
+      c.look.id = vm.textureId(tex, "register.cosmetic")
+    let mdl = rawGetStr(t, "model")
+    if mdl.kind != vkNil:
+      c.look.model = vm.modelId(mdl, "register.cosmetic")
+      c.look.pose = vm.readPose(vtable(t), c.look.model, "register.cosmetic")
+    readScaleRotate(vtable(t), c.look)
     c.cube = kind == mckDesktop and truthy(rawGetStr(t, "cube"))
-    if not c.hasPalette and c.tex.id == 0:
-      vm.runtimeError("register.cosmetic needs colors and/or a texture")
+    if not c.hasPalette and not c.look.hasLook:
+      vm.runtimeError("register.cosmetic needs colors, a texture and/or a model")
     modCosmetics.add(c)
     ret.setRet(vstr(key))
 

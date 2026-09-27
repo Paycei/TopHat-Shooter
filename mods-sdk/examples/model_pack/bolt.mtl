@@ -1,0 +1,5 @@
+newmtl core
+Kd 1.0 0.93 0.45
+
+newmtl trail
+Kd 1.0 0.45 0.15

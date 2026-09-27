@@ -2158,7 +2158,10 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
 
 proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                           cubeRotX, cubeRotY, cubeRotZ: float32,
-                          cubeOffsetX: float32 = 0.0, cubeOffsetY: float32 = 0.0) =
+                          cubeOffsetX: float32 = 0.0, cubeOffsetY: float32 = 0.0,
+                          modCube = false) =
+  ## `modCube`: the live desktop, where a mod's cube model stands in for the
+  ## cube (the shop's preview cards keep showing the built-in one).
   drawSharedBackdrop(screenWidth.int32, screenHeight.int32, time * 0.62,
                      Color(r: 5, g: 8, b: 18, a: 255),
                      Color(r: 18, g: 17, b: 34, a: 255),
@@ -2192,9 +2195,11 @@ proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                Color(r: 165, g: 245, b: 255, a: uint8(120 + i * 18)))
 
   let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
-  drawZeroGravityWallpaperCube(centerX + cubeOffsetX, centerY + cubeOffsetY,
-                               min(w, h) * 0.042'f32, time,
-                               cubeRotX, cubeRotY, cubeRotZ, currentCubeSkin)
+  if not (modCube and drawCubeModModel(centerX + cubeOffsetX, centerY + cubeOffsetY,
+                                       min(w, h) * 0.042'f32, cubeRotX, cubeRotY, cubeRotZ)):
+    drawZeroGravityWallpaperCube(centerX + cubeOffsetX, centerY + cubeOffsetY,
+                                 min(w, h) * 0.042'f32, time,
+                                 cubeRotX, cubeRotY, cubeRotZ, currentCubeSkin)
 
   # Thin scan bands and routing traces.
   for i in 0..<14:
@@ -2321,11 +2326,16 @@ proc drawDesktopCube(desktop: OSDesktop, w, h: float32,
   let centerX = w * 0.64
   let centerY = h * 0.46
   let skin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
-  drawZeroGravityWallpaperCube(centerX + desktop.cubeOffsetX + jitterX,
-                               centerY + desktop.cubeOffsetY + jitterY,
-                               min(w, h) * 0.042'f32, desktop.time,
-                               desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
-                               skin, desktop.cubeJackGlow)
+  # A mod's cube model (override.model("cube") / a desktop cosmetic) turns
+  # with the same drag-and-spin rotation the cube would.
+  if not drawCubeModModel(centerX + desktop.cubeOffsetX + jitterX,
+                          centerY + desktop.cubeOffsetY + jitterY, min(w, h) * 0.042'f32,
+                          desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ):
+    drawZeroGravityWallpaperCube(centerX + desktop.cubeOffsetX + jitterX,
+                                 centerY + desktop.cubeOffsetY + jitterY,
+                                 min(w, h) * 0.042'f32, desktop.time,
+                                 desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
+                                 skin, desktop.cubeJackGlow)
 
   # Dice roll result: a big gold number that pops above the settled die.
   if desktop.cubeDiceResultTimer > 0.0'f32 and desktop.cubeDiceResult > 0:
@@ -2349,7 +2359,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
 
   # A mod wallpaper (equipped cosmetic or override.texture("desktop")) covers
   # the screen instead of the built-in background; the cube stays on top only
-  # when the mod asked for it (cube = true).
+  # when the mod asked for it (cube = true) or gave it a model.
   if drawDesktopModBackground(screenWidth.int32, screenHeight.int32):
     if modWallpaper().cube:
       drawDesktopCube(desktop, screenWidth.float32, screenHeight.float32)
@@ -2359,7 +2369,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
       # Exact, hardcoded wallpaper (keeps cube rotations and all effects)
       drawDesktopWallpaper(screenWidth, screenHeight, desktop.time,
                            desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
-                           desktop.cubeOffsetX, desktop.cubeOffsetY)
+                           desktop.cubeOffsetX, desktop.cubeOffsetY, modCube = true)
     else:
       let bgData = getDesktopBgData(selectedBg)
       let topColor = bgData.bgColor

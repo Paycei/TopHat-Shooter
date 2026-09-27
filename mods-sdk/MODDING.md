@@ -7,8 +7,9 @@ new game modes, new looks. They are small programs written in **Lua 5.5**
 A mod can reach almost everything: every field of the game state (down to
 nested lists and objects), replace the game's own behaviour at dozens of
 points (movement, dash, shooting, bullets, pickups, the shop, level-ups,
-enemy AI, boss attacks...), hide the HUD and draw its own, post-process the
-screen with shaders, and add its own apps to MODS.EXE.
+enemy AI, boss attacks...), hide the HUD and draw its own, dress the game in
+textures and 3D models, post-process the screen with shaders, and add its
+own apps to MODS.EXE.
 
 > **Modded runs count as cheated.** Any run started while at least one mod is
 > loaded earns no Data Shards, statistics, advancements or unlocks, and says
@@ -387,14 +388,29 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   `tex.height`); draw it inside a draw hook with
   `draw.texture(tex, x, y [, {w = .., h = .., rotation = degrees, tint = color,
   origin = "center" | "topleft"}])`.
+* Textures are PNG or GIF files, and an **animated GIF** plays by itself
+  anywhere a texture goes (`draw.texture`, `override.texture`, cosmetics), at
+  the frame delays saved in the file, looping. Every copy on screen shows the
+  same frame. `tex.frames` is its number of frames and `tex.duration` one loop
+  in seconds (1 and 0 for a still image). To pick the frame yourself, pass
+  `frame = n` (1 is the first; it wraps) or `time = seconds` (the frame that
+  far into the animation) to `draw.texture`. A delay under 2/100 s plays as
+  1/10 s, as in web browsers. GIF transparency is all or nothing per pixel, so
+  use a PNG for soft edges.
 * `assets.sound("sfx/zap.wav")` returns a sound: `snd:play([volume, pitch])`.
-* `override.texture(target, file [, {scale = 1.2, rotate = true}])` draws a PNG
-  instead of one of the game's bodies. Targets: `"player"`, `"enemy:<type>"`,
+* `override.texture(target, file [, {scale = 1.2, rotate = true}])` draws an
+  image (PNG or GIF) instead of one of the game's bodies. Targets: `"player"`, `"enemy:<type>"`,
   `"boss:<id>"`, `"bullet:player"`, `"bullet:enemy"`, `"powerup:<name>"` (its
   icon) and `"desktop"` (the wallpaper). `scale` multiplies the body's size;
   `rotate` turns the image with the body. A wallpaper hides the desktop cube
   unless you pass `{cube = true}`: then the cube (in the player's cube skin)
-  keeps floating over your image and can still be grabbed and spun.
+  keeps floating over your image and can still be grabbed and spun. Pass
+  `nil` instead of the file to put the game's own look back.
+* A wallpaper is centred on the desktop cube's spot (right of the middle of
+  the screen, clear of the icons), like the game's own backgrounds, and
+  scaled to cover the whole screen from there. Put your focal point in the
+  middle of the image and it sits under the cube in every screen layout,
+  whether or not the cube is shown.
 * `override.sound(name, file)` replaces one of the game's sounds (`shoot`,
   `enemyHit`, `enemyDeath`, `playerHit`, `coinPickup`, `powerUp`, `bossSpawn`,
   `explosion`, `wallPlace`, `teleport`, `menuNav`, `menuSelect`,
@@ -406,12 +422,71 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   texture = "skins/neon.png", scale = 1.2, rotate = true}` adds a cosmetic the
   player equips in **MODS.EXE > Cosmetics**. `colors` is a palette for the
   built-in shapes (player: body, trim, core; bullets: body, glow, trail); a
-  `texture` replaces the drawing. Desktop cosmetics take a texture, and
-  `cube = true` keeps the desktop cube over it (hidden by default).
+  `texture` or a `model` (see 3D models below) replaces the drawing. Desktop
+  cosmetics take a texture (the wallpaper; `cube = true` keeps the desktop
+  cube over it, hidden by default) and/or a model, which stands in for the
+  desktop cube.
 
 Equipped mod cosmetics are remembered per profile and come back whenever the
 mod is loaded. In PvP everyone in the lobby sees each player's mod ship and
 bullet cosmetics.
+
+## 3D models
+
+Models load from your folder like textures and go wherever a texture goes:
+the game's bodies, cosmetics, and your own drawing.
+
+* `assets.model("models/ship.glb")` returns a model. Formats: **GLB/glTF**
+  (Blender's glTF 2.0 export; the best choice), **OBJ** (with its `.mtl`
+  beside it), **IQM**, **VOX** (MagicaVoxel) and **M3D**. `mdl.width`,
+  `mdl.height` and `mdl.depth` are its size in its own units,
+  `mdl.animations` lists its animations by name and
+  `mdl:duration(animation)` is one loop of one, in seconds.
+* A model's **up is +Y and its front is +Z** (glTF's convention, which is
+  what Blender writes). The arena is seen from above, so an unturned model
+  faces the bottom of the screen.
+* One light from the upper left shades the model over its own colours
+  (material colour, texture and vertex colours all show). `lit = false`
+  draws the flat colours instead, which suits glowing things. Pixels under
+  2% alpha are cut out.
+* `override.model(target, model [, options])` draws the model instead of one
+  of the game's bodies. The targets are those of `override.texture` (`"player"`,
+  `"enemy:<type>"`, `"boss:<id>"`, `"bullet:player"`, `"bullet:enemy"`,
+  `"powerup:<name>"`) plus `"cube"`: the desktop cube, which the model
+  replaces as it tumbles and is dragged, and also as the orbital cube that
+  follows the player. The model's footprint (its width or length seen from
+  above, whichever is larger) is fitted to the body. `nil` instead of the
+  model puts the game's own look back.
+* `draw.model(model, x, y [, options])` draws one in any draw hook or app,
+  centred on x, y. `size` is its footprint in pixels (64 by default), or
+  `scale` sets pixels per model unit; `facing` is where its front points, in
+  degrees (0 right, 90 down, the default); `time = seconds` or `frame = n`
+  (1 is the first) pick the animation frame.
+* `register.cosmetic{..., model = "skins/ship.glb"}` takes a model and the
+  same options: a 3D ship, 3D bullets, or a desktop cube of your own.
+
+| Option | Default | What it does |
+|---|---|---|
+| `scale` | 1 | multiplies the body's size (`override.model`, cosmetics) |
+| `rotate` | false | the front turns to where the body moves (`override.model`, cosmetics) |
+| `tilt` | 0 | degrees the camera leans back from straight above; 30 shows the front and sides |
+| `yaw` | 0 | degrees turned about the model's up axis (for a model whose front is not +Z) |
+| `pitch`, `roll` | 0 | tip the model forward, lean it sideways (degrees) |
+| `spin` | 0 | keeps turning it about its up axis, degrees per second |
+| `animation` | the first | a name or a number (1 is the first); `false` holds the rest pose |
+| `speed` | 1 | animation speed |
+| `lit` | true | shaded by the light; `false` for flat colours |
+| `tint` | white | a colour multiplied over the model |
+
+Animations are skeletal (a mesh skinned to an armature) in GLB/glTF, IQM and
+M3D. They loop at 60 frames per second, which is the speed glTF and M3D
+animations were authored at, and up to 128 bones move a mesh. Each enemy
+starts its animation at its own point, so a crowd does not flap in step.
+Export the skeleton with its armature (Blender does): a root bone with no
+parent node cannot be animated here, and the Log tab says so.
+
+Every copy on screen is drawn on its own, so keep enemy models light: a few
+hundred triangles each is plenty.
 
 ## Shaders
 
@@ -522,12 +597,13 @@ already have is never overwritten):
 | `survival_tweaks` | changing an existing mode (vetoing events, swapping spawns, XP) |
 | `bouncer` | a new enemy with its own movement and look, and a new power-up |
 | `overclock_boss` | a new boss with scripted attacks and movement, replacing a wave boss |
-| `neon_pack` | cosmetics: a player skin, a bullet trail and a wallpaper |
+| `neon_pack` | cosmetics: player skins (one an animated GIF), a bullet trail and a wallpaper |
 | `retro_crt` | a post-processing shader, and an app in MODS.EXE to tune it |
 | `house_rules` | a mode that rewrites rules: dash, pickups, the shop, level-ups and its own HUD panel |
+| `model_pack` | 3D models: a ship skin, 3D bullets, a voxel desktop cube, an animated enemy and a model viewer app |
 
 ## Multiplayer
 
 PvP lobbies are matched: the host refuses players whose loaded mods (ids,
 versions and every file) differ from its own. Gameplay hooks do not run in
-PvP; mod cosmetics, textures, sounds, text and `"screen"` shaders do.
+PvP; mod cosmetics, textures, models, sounds, text and `"screen"` shaders do.

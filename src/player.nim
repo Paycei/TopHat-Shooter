@@ -714,8 +714,10 @@ proc drawPlayer*(player: Player) =
       y: player.pos.y + sin(orbitAngle) * orbitDist * 0.72 + sin(time * 3.1) * 2.0)
     let cubeHeart = if cubeSkin == cskCompanion: Color(r: 244, g: 116, b: 150, a: 255)
                     else: Color(r: 0, g: 0, b: 0, a: 0)
-    drawMiniCube(cubeCenter, 8.0'f32, time, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
-                isD20 = cubeSkin == cskD20, skin = cubeSkin, secretStyle = true)
+    # A mod's cube model replaces the desktop cube, so it is what orbits here too.
+    if not drawCubeModModel(cubeCenter.x, cubeCenter.y, 8.0'f32, time * 0.9'f32, time * 1.4'f32, 0):
+      drawMiniCube(cubeCenter, 8.0'f32, time, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
+                  isD20 = cubeSkin == cskD20, skin = cubeSkin, secretStyle = true)
 
   # Roguelite class emblem: a run-scoped cosmetic marking the chosen starter
   # kit. Body/side-mounted (and an inner orbit for the Arcanist), so it never

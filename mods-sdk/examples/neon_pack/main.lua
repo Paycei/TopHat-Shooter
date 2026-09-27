@@ -9,6 +9,15 @@ register.cosmetic{
 }
 
 register.cosmetic{
+  kind = "player", id = "neon_core",
+  name = {en = "Neon Core", es = "Núcleo de Neón"},
+  description = {en = "An animated GIF: two sparks orbit a pulsing core.",
+                 es = "Un GIF animado: dos chispas orbitan un núcleo que late."},
+  texture = "neon_core.gif",   -- a GIF plays by itself, at the speed saved in it
+  scale = 1.4, rotate = true,  -- a bit bigger; the nose turns to where you move
+}
+
+register.cosmetic{
   kind = "bullet", id = "neon_trail",
   name = {en = "Neon Trail", es = "Estela de Neón"},
   colors = {"#2bf0ff", "#ff2bd6", "#7a3cff"},   -- body, glow, trail
@@ -17,6 +26,6 @@ register.cosmetic{
 register.cosmetic{
   kind = "desktop", id = "neon_grid",
   name = {en = "Neon Grid", es = "Rejilla de Neón"},
-  texture = "wallpaper.png",
-  -- cube = true,   -- keep the desktop cube floating over the wallpaper
+  texture = "wallpaper.png",   -- its middle (the rings) sits under the desktop cube
+  cube = true,   -- keep the desktop cube floating over the wallpaper
 }

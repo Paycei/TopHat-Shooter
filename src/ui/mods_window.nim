@@ -439,11 +439,14 @@ proc drawCosmetics(mw: ModsWindow, g: Geo) =
     let equipped = equippedCosmetic[c.kind] == i + 1
     drawRectangle(Rectangle(x: g.x.float32 + 2, y: ry.float32 + 2, width: g.w.float32 - 4,
                             height: CosRowH - 4), if equipped: ColRowSel else: ColRow)
-    # preview: the texture, else the palette swatches
+    # preview: the model (turning) or texture it draws with, else the palette
+    # swatches. A desktop cosmetic shows its wallpaper over its cube model.
     let px = int32(g.x) + 10
     let py = ry + 7
-    if c.tex.id > 0:
-      drawModTexture(c.tex.id, px.float32 + 21, py.float32 + 21, 40, 40, 0, White)
+    if c.look.model > 0 and (c.kind != mckDesktop or c.look.id == 0):
+      drawModelIcon(c.look.model, px.float32 + 21, py.float32 + 21, 40, c.look.pose)
+    elif c.look.id > 0:
+      drawModTexture(c.look.id, px.float32 + 21, py.float32 + 21, 40, 40, 0, White)
     elif c.hasPalette:
       drawCircle(Vector2(x: px.float32 + 21, y: py.float32 + 21), 18, c.c1)
       drawCircle(Vector2(x: px.float32 + 21, y: py.float32 + 21), 11, c.c2)

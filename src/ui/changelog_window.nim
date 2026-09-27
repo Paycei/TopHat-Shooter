@@ -117,11 +117,48 @@ proc points(items: varargs[string]): string =
 # commit history since the previous release tag, not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
+    titleEn: "Version 6.3.1",
+    titleEs: "Versión 6.3.1",
+    subtitleEn: "Changes since v6.3.0",
+    subtitleEs: "Cambios desde v6.3.0",
+    latest: true,
+    entries: @[
+      # --- New ---
+      ChangelogEntry(category: clcNew,
+        headEn: "Mods: 3D models",
+        headEs: "Mods: modelos 3D",
+        en: points(
+          "Mods can now bring 3D models (GLB/glTF, OBJ, IQM, VOX from MagicaVoxel and M3D) and use them anywhere a picture goes: skins for the player, enemies, bosses and bullets, and mod cosmetics. Animated models play their animations, each enemy with its own pose.",
+          "A mod can also replace the desktop cube with a model. The cube that orbits you in a run wears it too.",
+          "The MODS.EXE cosmetics list previews models turning in place.",
+          "Install Examples adds a ninth example, the Model Pack: a 3D ship skin, energy bolt bullets, a voxel desktop cube and a Model Viewer app that can swap the Circle enemies for an animated drone."),
+        es: points(
+          "Los mods ahora pueden traer modelos 3D (GLB/glTF, OBJ, IQM, VOX de MagicaVoxel y M3D) y usarlos en cualquier sitio donde va una imagen: aspectos del jugador, los enemigos, los jefes y las balas, y cosméticos de mods. Los modelos animados reproducen sus animaciones, cada enemigo con su propia pose.",
+          "Un mod también puede reemplazar el cubo del escritorio por un modelo. El cubo que te orbita durante una partida también lo lleva.",
+          "La lista de cosméticos de MODS.EXE muestra los modelos girando sobre sí mismos.",
+          "Instalar ejemplos añade un noveno ejemplo, el Model Pack: un aspecto de nave 3D, balas de rayo de energía, un cubo de escritorio de vóxeles y una app Model Viewer que puede cambiar los enemigos Círculo por un dron animado.")),
+
+      # --- Improvements ---
+      ChangelogEntry(category: clcImproved,
+        headEn: "Mods: animated GIFs and wallpapers on the cube",
+        headEs: "Mods: GIF animados y fondos sobre el cubo",
+        en: points(
+          "Mods can now use GIF images as well as PNG, anywhere a picture goes: skins for the player, enemies, bosses and bullets, power-up icons, the wallpaper and mod cosmetics. Animated GIFs play at their own speed, and the MODS.EXE cosmetics list previews them in motion.",
+          "Mod scripts can also read how many frames a GIF has and how long it lasts, and pick which frame to draw.",
+          "Mod wallpapers are now centred on the desktop cube instead of the middle of the screen, like the built-in backgrounds, so a picture made around the cube lines up with it in both screen layouts.",
+          "The Neon Pack example adds Neon Core, an animated player skin, and its Neon Grid rings now circle the cube. Install Examples only writes the examples you do not have yet, so delete your Neon Pack folder first to get the new version."),
+        es: points(
+          "Los mods ahora pueden usar imágenes GIF además de PNG, en cualquier sitio donde va una imagen: aspectos del jugador, los enemigos, los jefes y las balas, iconos de mejoras, el fondo de escritorio y los cosméticos de mods. Los GIF animados se reproducen a su propia velocidad, y la lista de cosméticos de MODS.EXE los muestra en movimiento.",
+          "Los scripts de los mods también pueden saber cuántos fotogramas tiene un GIF y cuánto dura, y elegir qué fotograma dibujar.",
+          "Los fondos de escritorio de los mods ahora se centran en el cubo del escritorio en lugar de en el centro de la pantalla, como los fondos del juego, así que una imagen hecha alrededor del cubo encaja con él en los dos formatos de pantalla.",
+          "El ejemplo Neon Pack añade Núcleo de Neón, un aspecto animado para el jugador, y los anillos de su Rejilla de Neón ahora rodean el cubo. Instalar ejemplos solo escribe los ejemplos que aún no tienes, así que borra antes tu carpeta de Neon Pack para recibir la versión nueva.")),
+    ]),
+  ChangelogVersion(
     titleEn: "Version 6.3.0",
     titleEs: "Versión 6.3.0",
     subtitleEn: "Changes since v6.2.2",
     subtitleEs: "Cambios desde v6.2.2",
-    latest: true,
+    latest: false,
     entries: @[
       # --- New ---
       ChangelogEntry(category: clcNew,
