@@ -9,28 +9,40 @@
 import std/[os, strutils]
 import mod_catalog
 
+proc chunked(data: string): seq[string] {.compileTime.} =
+  ## Nim emits a const string as a single C literal, and older MSVC toolsets
+  ## reject literals over 16380 chars (C2026). A binary byte can take 4 chars
+  ## as an octal escape, so 4000-byte pieces always fit; they are joined when
+  ## written out.
+  var i = 0
+  while i < data.len:
+    result.add(data[i ..< min(i + 4000, data.len)])
+    i += 4000
+
+template embed(file: string): seq[string] = chunked(staticRead(Sdk & file))
+
 const
   Sdk = "../../mods-sdk/"
-  ModdingDoc = staticRead(Sdk & "MODDING.md")
-  ExampleFiles: seq[tuple[path, data: string]] = @[
-    ("hello_hud/mod.json", staticRead(Sdk & "examples/hello_hud/mod.json")),
-    ("hello_hud/main.lua", staticRead(Sdk & "examples/hello_hud/main.lua")),
-    ("glass_cannon/mod.json", staticRead(Sdk & "examples/glass_cannon/mod.json")),
-    ("glass_cannon/main.lua", staticRead(Sdk & "examples/glass_cannon/main.lua")),
-    ("survival_tweaks/mod.json", staticRead(Sdk & "examples/survival_tweaks/mod.json")),
-    ("survival_tweaks/main.lua", staticRead(Sdk & "examples/survival_tweaks/main.lua")),
-    ("bouncer/mod.json", staticRead(Sdk & "examples/bouncer/mod.json")),
-    ("bouncer/main.lua", staticRead(Sdk & "examples/bouncer/main.lua")),
-    ("overclock_boss/mod.json", staticRead(Sdk & "examples/overclock_boss/mod.json")),
-    ("overclock_boss/main.lua", staticRead(Sdk & "examples/overclock_boss/main.lua")),
-    ("neon_pack/mod.json", staticRead(Sdk & "examples/neon_pack/mod.json")),
-    ("neon_pack/main.lua", staticRead(Sdk & "examples/neon_pack/main.lua")),
-    ("neon_pack/wallpaper.png", staticRead(Sdk & "examples/neon_pack/wallpaper.png")),
-    ("retro_crt/mod.json", staticRead(Sdk & "examples/retro_crt/mod.json")),
-    ("retro_crt/main.lua", staticRead(Sdk & "examples/retro_crt/main.lua")),
-    ("retro_crt/crt.fs", staticRead(Sdk & "examples/retro_crt/crt.fs")),
-    ("house_rules/mod.json", staticRead(Sdk & "examples/house_rules/mod.json")),
-    ("house_rules/main.lua", staticRead(Sdk & "examples/house_rules/main.lua")),
+  ModdingDoc = embed("MODDING.md")
+  ExampleFiles: seq[tuple[path: string, data: seq[string]]] = @[
+    ("hello_hud/mod.json", embed("examples/hello_hud/mod.json")),
+    ("hello_hud/main.lua", embed("examples/hello_hud/main.lua")),
+    ("glass_cannon/mod.json", embed("examples/glass_cannon/mod.json")),
+    ("glass_cannon/main.lua", embed("examples/glass_cannon/main.lua")),
+    ("survival_tweaks/mod.json", embed("examples/survival_tweaks/mod.json")),
+    ("survival_tweaks/main.lua", embed("examples/survival_tweaks/main.lua")),
+    ("bouncer/mod.json", embed("examples/bouncer/mod.json")),
+    ("bouncer/main.lua", embed("examples/bouncer/main.lua")),
+    ("overclock_boss/mod.json", embed("examples/overclock_boss/mod.json")),
+    ("overclock_boss/main.lua", embed("examples/overclock_boss/main.lua")),
+    ("neon_pack/mod.json", embed("examples/neon_pack/mod.json")),
+    ("neon_pack/main.lua", embed("examples/neon_pack/main.lua")),
+    ("neon_pack/wallpaper.png", embed("examples/neon_pack/wallpaper.png")),
+    ("retro_crt/mod.json", embed("examples/retro_crt/mod.json")),
+    ("retro_crt/main.lua", embed("examples/retro_crt/main.lua")),
+    ("retro_crt/crt.fs", embed("examples/retro_crt/crt.fs")),
+    ("house_rules/mod.json", embed("examples/house_rules/mod.json")),
+    ("house_rules/main.lua", embed("examples/house_rules/main.lua")),
   ]
 
 proc installExampleMods*(): bool =
@@ -40,7 +52,7 @@ proc installExampleMods*(): bool =
   let root = modsRootDir()
   result = true
   try:
-    writeFile(root / "MODDING.md", ModdingDoc)
+    writeFile(root / "MODDING.md", ModdingDoc.join)
   except IOError, OSError:
     result = false
   var installed: seq[string]  # example folders already present before we started
@@ -54,7 +66,7 @@ proc installExampleMods*(): bool =
     let dest = root / path
     try:
       createDir(parentDir(dest))
-      writeFile(dest, data)
+      writeFile(dest, data.join)
     except IOError, OSError:
       result = false
 
