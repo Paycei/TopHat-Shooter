@@ -117,30 +117,67 @@ proc points(items: varargs[string]): string =
 # commit history since the previous release tag, not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
+    titleEn: "Version 6.3.1",
+    titleEs: "Versión 6.3.1",
+    subtitleEn: "Changes since v6.3.0",
+    subtitleEs: "Cambios desde v6.3.0",
+    latest: true,
+    entries: @[
+      # --- New ---
+      ChangelogEntry(category: clcNew,
+        headEn: "Mods: 3D models",
+        headEs: "Mods: modelos 3D",
+        en: points(
+          "Mods can now bring 3D models (GLB/glTF, OBJ, IQM, VOX from MagicaVoxel and M3D) and use them anywhere a picture goes: skins for the player, enemies, bosses and bullets, and mod cosmetics. Animated models play their animations, each enemy with its own pose.",
+          "A mod can also replace the desktop cube with a model. The cube that orbits you in a run wears it too.",
+          "The MODS.EXE cosmetics list previews models turning in place.",
+          "Install Examples adds a ninth example, the Model Pack: a 3D ship skin, energy bolt bullets, a voxel desktop cube and a Model Viewer app that can swap the Circle enemies for an animated drone."),
+        es: points(
+          "Los mods ahora pueden traer modelos 3D (GLB/glTF, OBJ, IQM, VOX de MagicaVoxel y M3D) y usarlos en cualquier sitio donde va una imagen: aspectos del jugador, los enemigos, los jefes y las balas, y cosméticos de mods. Los modelos animados reproducen sus animaciones, cada enemigo con su propia pose.",
+          "Un mod también puede reemplazar el cubo del escritorio por un modelo. El cubo que te orbita durante una partida también lo lleva.",
+          "La lista de cosméticos de MODS.EXE muestra los modelos girando sobre sí mismos.",
+          "Instalar ejemplos añade un noveno ejemplo, el Model Pack: un aspecto de nave 3D, balas de rayo de energía, un cubo de escritorio de vóxeles y una app Model Viewer que puede cambiar los enemigos Círculo por un dron animado.")),
+
+      # --- Improvements ---
+      ChangelogEntry(category: clcImproved,
+        headEn: "Mods: animated GIFs and wallpapers on the cube",
+        headEs: "Mods: GIF animados y fondos sobre el cubo",
+        en: points(
+          "Mods can now use GIF images as well as PNG, anywhere a picture goes: skins for the player, enemies, bosses and bullets, power-up icons, the wallpaper and mod cosmetics. Animated GIFs play at their own speed, and the MODS.EXE cosmetics list previews them in motion.",
+          "Mod scripts can also read how many frames a GIF has and how long it lasts, and pick which frame to draw.",
+          "Mod wallpapers are now centred on the desktop cube instead of the middle of the screen, like the built-in backgrounds, so a picture made around the cube lines up with it in both screen layouts.",
+          "The Neon Pack example adds Neon Core, an animated player skin, and its Neon Grid rings now circle the cube. Install Examples only writes the examples you do not have yet, so delete your Neon Pack folder first to get the new version."),
+        es: points(
+          "Los mods ahora pueden usar imágenes GIF además de PNG, en cualquier sitio donde va una imagen: aspectos del jugador, los enemigos, los jefes y las balas, iconos de mejoras, el fondo de escritorio y los cosméticos de mods. Los GIF animados se reproducen a su propia velocidad, y la lista de cosméticos de MODS.EXE los muestra en movimiento.",
+          "Los scripts de los mods también pueden saber cuántos fotogramas tiene un GIF y cuánto dura, y elegir qué fotograma dibujar.",
+          "Los fondos de escritorio de los mods ahora se centran en el cubo del escritorio en lugar de en el centro de la pantalla, como los fondos del juego, así que una imagen hecha alrededor del cubo encaja con él en los dos formatos de pantalla.",
+          "El ejemplo Neon Pack añade Núcleo de Neón, un aspecto animado para el jugador, y los anillos de su Rejilla de Neón ahora rodean el cubo. Instalar ejemplos solo escribe los ejemplos que aún no tienes, así que borra antes tu carpeta de Neon Pack para recibir la versión nueva.")),
+    ]),
+  ChangelogVersion(
     titleEn: "Version 6.3.0",
     titleEs: "Versión 6.3.0",
     subtitleEn: "Changes since v6.2.2",
     subtitleEs: "Cambios desde v6.2.2",
-    latest: true,
+    latest: false,
     entries: @[
       # --- New ---
       ChangelogEntry(category: clcNew,
         headEn: "Mods: MODS.EXE",
         headEs: "Mods: MODS.EXE",
         en: points(
-          "A new desktop program, MODS.EXE, loads mods: small scripts written in Lua 5.5, with their own pictures, 3D models, sounds and shaders. Tick the ones you want for this profile and press Apply & Reload.",
-          "Mods can change almost everything: add whole game modes, new enemies, bosses and power-ups, reskin the player, enemies, bullets and icons with pictures or animated 3D models, swap the wallpaper (with or without the desktop cube floating over it) and even the cube itself, replace sounds and music, and rewrite the rules of the modes that already exist.",
+          "A new desktop program, MODS.EXE, loads mods: small scripts written in Lua 5.5, with their own pictures, sounds and shaders. Tick the ones you want for this profile and press Apply & Reload.",
+          "Mods can change almost everything: add whole game modes, new enemies, bosses and power-ups, reskin the player, enemies, bullets, icons and the wallpaper (with or without the desktop cube floating over it), replace sounds and music, and rewrite the rules of the modes that already exist.",
           "They reach every part of a run, down to its lists and inner workings, and can replace the game's own behaviour: movement, the dash, walls, [Q] abilities, bullets, pickups, the shop, level-ups, enemy AI and boss attacks. They can hide the HUD and draw their own, run screen filters (shaders), and add their own apps to MODS.EXE.",
           "Modded runs count as cheated: they earn no Data Shards, statistics, advancements or unlocks, and say MODDED on screen from start to finish. Unload every mod to play for keeps again.",
-          "Install Examples writes nine example mods and the full modding guide into your mods folder: a HUD readout, the Glass Cannon and House Rules game modes, Time Survival tweaks, a new enemy with a power-up, the OVERCLOCK boss, a neon cosmetics pack, a pack of 3D models with its own viewer app and a CRT screen filter with its own settings app.",
+          "Install Examples writes eight example mods and the full modding guide into your mods folder: a HUD readout, the Glass Cannon and House Rules game modes, Time Survival tweaks, a new enemy with a power-up, the OVERCLOCK boss, a neon cosmetics pack and a CRT screen filter with its own settings app.",
           "Mods run in a sandbox. They cannot touch your files or the network, a mod stuck in an endless loop is stopped instead of freezing the game, and one that keeps failing is switched off with a notice. Errors show up with their file and line in the Log tab.",
           "Modded runs keep their own saves, apart from your normal ones, and can only be continued with the same mods loaded. PvP lobbies only accept players with exactly the same mods, and everyone sees each other's mod skins."),
         es: points(
-          "Un programa nuevo en el escritorio, MODS.EXE, carga mods: pequeños scripts escritos en Lua 5.5, con sus propias imágenes, modelos 3D, sonidos y shaders. Marca los que quieras para este perfil y pulsa Aplicar y recargar.",
-          "Los mods pueden cambiar casi todo: añadir modos de juego enteros, enemigos, jefes y mejoras nuevos, cambiar el aspecto del jugador, los enemigos, las balas y los iconos con imágenes o modelos 3D animados, cambiar el fondo de escritorio (con o sin el cubo flotando encima) e incluso el propio cubo, reemplazar sonidos y música, y reescribir las reglas de los modos que ya existen.",
+          "Un programa nuevo en el escritorio, MODS.EXE, carga mods: pequeños scripts escritos en Lua 5.5, con sus propias imágenes, sonidos y shaders. Marca los que quieras para este perfil y pulsa Aplicar y recargar.",
+          "Los mods pueden cambiar casi todo: añadir modos de juego enteros, enemigos, jefes y mejoras nuevos, cambiar el aspecto del jugador, los enemigos, las balas, los iconos y el fondo de escritorio (con o sin el cubo flotando encima), reemplazar sonidos y música, y reescribir las reglas de los modos que ya existen.",
           "Llegan a cada parte de una partida, hasta sus listas y su funcionamiento interno, y pueden reemplazar el comportamiento del propio juego: el movimiento, el impulso, los muros, las habilidades [Q], las balas, los objetos que recoges, la tienda, las subidas de nivel, la IA de los enemigos y los ataques de los jefes. Pueden ocultar el HUD y dibujar el suyo, aplicar filtros de pantalla (shaders) y añadir sus propias apps a MODS.EXE.",
           "Las partidas con mods cuentan como trampas: no dan Fragmentos, estadísticas, logros ni desbloqueos, y muestran CON MODS en pantalla de principio a fin. Desactiva todos los mods para volver a jugar en serio.",
-          "Instalar ejemplos escribe nueve mods de ejemplo y la guía completa de modding en tu carpeta de mods: un indicador en el HUD, los modos Cañón de Cristal y Reglas de la Casa, ajustes para Supervivencia, un enemigo nuevo con una mejora, el jefe OVERCLOCK, un paquete de cosméticos de neón, un paquete de modelos 3D con su propia app visor y un filtro de pantalla CRT con su propia app de ajustes.",
+          "Instalar ejemplos escribe ocho mods de ejemplo y la guía completa de modding en tu carpeta de mods: un indicador en el HUD, los modos Cañón de Cristal y Reglas de la Casa, ajustes para Supervivencia, un enemigo nuevo con una mejora, el jefe OVERCLOCK, un paquete de cosméticos de neón y un filtro de pantalla CRT con su propia app de ajustes.",
           "Los mods se ejecutan aislados. No pueden tocar tus archivos ni la red, un mod atascado en un bucle infinito se detiene en lugar de congelar el juego, y uno que falla una y otra vez se desactiva con un aviso. Los errores aparecen con su archivo y su línea en la pestaña Registro.",
           "Las partidas con mods tienen sus propios guardados, aparte de los normales, y solo se pueden continuar con los mismos mods cargados. Las salas de PvP solo aceptan jugadores con exactamente los mismos mods, y todos ven los aspectos de mods de los demás.")),
       ChangelogEntry(category: clcNew,
@@ -411,19 +448,6 @@ let changelog: seq[ChangelogVersion] = @[
           "¿Sin cuenta de GitHub? Copia el reporte al portapapeles o guárdalo como archivo y compártelo como quieras. Tu borrador se conserva si cierras la ventana.")),
 
       # --- Improvements ---
-      ChangelogEntry(category: clcImproved,
-        headEn: "Mods: animated GIFs and wallpapers on the cube",
-        headEs: "Mods: GIF animados y fondos sobre el cubo",
-        en: points(
-          "Mods can now use GIF images as well as PNG, anywhere a picture goes: skins for the player, enemies, bosses and bullets, power-up icons, the wallpaper and mod cosmetics. Animated GIFs play at their own speed, and the MODS.EXE cosmetics list previews them in motion.",
-          "Mod scripts can also read how many frames a GIF has and how long it lasts, and pick which frame to draw.",
-          "Mod wallpapers are now centred on the desktop cube instead of the middle of the screen, like the built-in backgrounds, so a picture made around the cube lines up with it in both screen layouts.",
-          "The Neon Pack example adds Neon Core, an animated player skin, and its Neon Grid rings now circle the cube. Install Examples only writes the examples you do not have yet, so delete your Neon Pack folder first to get the new version."),
-        es: points(
-          "Los mods ahora pueden usar imágenes GIF además de PNG, en cualquier sitio donde va una imagen: aspectos del jugador, los enemigos, los jefes y las balas, iconos de mejoras, el fondo de escritorio y los cosméticos de mods. Los GIF animados se reproducen a su propia velocidad, y la lista de cosméticos de MODS.EXE los muestra en movimiento.",
-          "Los scripts de los mods también pueden saber cuántos fotogramas tiene un GIF y cuánto dura, y elegir qué fotograma dibujar.",
-          "Los fondos de escritorio de los mods ahora se centran en el cubo del escritorio en lugar de en el centro de la pantalla, como los fondos del juego, así que una imagen hecha alrededor del cubo encaja con él en los dos formatos de pantalla.",
-          "El ejemplo Neon Pack añade Núcleo de Neón, un aspecto animado para el jugador, y los anillos de su Rejilla de Neón ahora rodean el cubo. Instalar ejemplos solo escribe los ejemplos que aún no tienes, así que borra antes tu carpeta de Neon Pack para recibir la versión nueva.")),
       ChangelogEntry(category: clcImproved,
         headEn: "Time Survival: Rogue Process arrivals stand out",
         headEs: "Supervivencia: la llegada del Proceso Rebelde se nota",

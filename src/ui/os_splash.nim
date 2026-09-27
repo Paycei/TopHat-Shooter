@@ -71,7 +71,7 @@ proc buildBiosLines(): (seq[BiosLine], int) =
   let osn  = if hw.osName.len  > 0: hw.osName  else: "ShooterOS 6.3"
 
   result[0] = @[
-    plainLine("TOPHAT SYSTEMS, INC.  -  BIOS v6.3.0  -  BUILD 20260911"),
+    plainLine("TOPHAT SYSTEMS, INC.  -  BIOS v6.3.1  -  BUILD 20260927"),
     plainLine("Copyright (C) 2024-2026 TopHat Systems, Inc.  All Rights Reserved."),
     plainLine(""),
     statusLine(cpuLine, "OK"),
@@ -130,10 +130,10 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   # Inverted amber header bar
   let hH = 44
   drawRectangle(4, 4, sw - 8, hH.int32, Color(r: 160, g: 100, b: 10, a: 255))
-  let hTitle = "TOPHAT SYSTEMS, INC.  BIOS VERSION 6.3.0"
+  let hTitle = "TOPHAT SYSTEMS, INC.  BIOS VERSION 6.3.1"
   let hTitleW = measureText(hTitle, 22)
   drawText(hTitle, sw div 2 - hTitleW div 2, 14, 22, Color(r: 10, g: 6, b: 0, a: 255))
-  let hDate = "09/11/2026"
+  let hDate = "09/27/2026"
   let hDateW = measureText(hDate, 18)
   drawText(hDate, sw - 20 - hDateW, 17, 18, Color(r: 10, g: 6, b: 0, a: 255))
   drawText("POST", 20, 17, 18, Color(r: 10, g: 6, b: 0, a: 255))
