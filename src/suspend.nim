@@ -341,6 +341,29 @@ proc restoreGame*(target: var Game): bool =
     restored.screenWidth = target.screenWidth           # match the current window
     restored.screenHeight = target.screenHeight
 
+    # Equipped cosmetics are profile state, not run state: newGame built the
+    # shell's player from the CURRENT settings, so a skin changed in the shop
+    # since the snapshot shows on resume. rogueliteCosmetic is the run's class
+    # emblem and stays from the snapshot.
+    let live = target.player
+    let p = restored.player
+    p.skinType = live.skinType
+    p.bulletSkinType = live.bulletSkinType
+    p.bulletShapeType = live.bulletShapeType
+    p.shapeType = live.shapeType
+    p.particleSkinType = live.particleSkinType
+    p.cubeSkinType = live.cubeSkinType
+    p.wearsTophat = live.wearsTophat
+    p.wearsCheaterHat = live.wearsCheaterHat
+    p.hasOrbitalCube = live.hasOrbitalCube
+    p.modSkin = live.modSkin
+    p.modBulletSkin = live.modBulletSkin
+    # Shots already in flight baked the old look in at fire time.
+    for b in restored.bullets:
+      if b.fromPlayer or b.isShieldReflected:
+        b.bulletSkin = p.bulletSkinType
+        b.bulletShape = p.bulletShapeType
+
     # Restore the per-run statistics global (run-scoped, so from the snapshot).
     if not snap.runStats.isNil:
       currentRunStats = snap.runStats

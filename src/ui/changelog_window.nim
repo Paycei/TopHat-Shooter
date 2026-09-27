@@ -953,7 +953,12 @@ let changelog: seq[ChangelogVersion] = @[
         headEn: "Port Guard shields only stopped bullets",
         headEs: "El escudo del Guardia de Puerto solo detenía balas",
         en: "Orbs, auras, chain lightning, explosions, ramming, Thorns and abilities went straight through a Port Guard's shield. While the shield faces you it now negates all of them, burns and lifesteal included. Pushes and slows still land, and hitting it from behind works as before.",
-        es: "Los orbes, las auras, los rayos en cadena, las explosiones, las embestidas, Espinas y las habilidades atravesaban el escudo del Guardia de Puerto. Mientras el escudo te mira, ahora los anula todos, quemaduras y robo de vida incluidos. Los empujes y ralentizaciones siguen funcionando, y golpearlo por detrás funciona como antes.")
+        es: "Los orbes, las auras, los rayos en cadena, las explosiones, las embestidas, Espinas y las habilidades atravesaban el escudo del Guardia de Puerto. Mientras el escudo te mira, ahora los anula todos, quemaduras y robo de vida incluidos. Los empujes y ralentizaciones siguen funcionando, y golpearlo por detrás funciona como antes."),
+      ChangelogEntry(category: clcFixed,
+        headEn: "Resumed runs brought back your old skin",
+        headEs: "Las partidas reanudadas recuperaban tu aspecto anterior",
+        en: "Changing your skin, bullet skin, shapes, particles, hat or cube skin between sessions and then resuming a saved run put the look you had when you saved back on. Resumed runs now wear whatever you have equipped.",
+        es: "Cambiar tu aspecto, el aspecto de las balas, las formas, las partículas, el sombrero o el aspecto del cubo entre sesiones y luego reanudar una partida guardada volvía a ponerte el aspecto que tenías al guardar. Ahora las partidas reanudadas usan lo que tengas equipado.")
     ]
   ),
   ChangelogVersion(

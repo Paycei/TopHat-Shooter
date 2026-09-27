@@ -162,11 +162,10 @@ proc playerToJson(p: Player): JsonNode =
     "hasLightningMastery": p.hasLightningMastery,
     "hasWindMastery": p.hasWindMastery,
     "hasBloodMastery": p.hasBloodMastery,
-    "skinType": p.skinType, "bulletSkinType": p.bulletSkinType,
-    "bulletShapeType": p.bulletShapeType, "shapeType": p.shapeType,
-    "particleSkinType": p.particleSkinType, "cubeSkinType": p.cubeSkinType,
-    "wearsTophat": p.wearsTophat, "wearsCheaterHat": p.wearsCheaterHat,
-    "hasOrbitalCube": p.hasOrbitalCube, "rogueliteCosmetic": p.rogueliteCosmetic
+    # Equipped cosmetics (skin, shapes, hats, cube) are NOT saved: they are
+    # profile state, and the fresh newPlayer already wears the current ones.
+    # Only the run's class emblem is run state.
+    "rogueliteCosmetic": p.rogueliteCosmetic
   }
 
 proc applyPlayerJson(p: Player, j: JsonNode) =
@@ -253,11 +252,9 @@ proc applyPlayerJson(p: Player, j: JsonNode) =
   b("hasWindMastery", p.hasWindMastery)
   b("hasBloodMastery", p.hasBloodMastery)
 
-  i("skinType", p.skinType); i("bulletSkinType", p.bulletSkinType)
-  i("bulletShapeType", p.bulletShapeType); i("shapeType", p.shapeType)
-  i("particleSkinType", p.particleSkinType); i("cubeSkinType", p.cubeSkinType)
-  b("wearsTophat", p.wearsTophat); b("wearsCheaterHat", p.wearsCheaterHat)
-  b("hasOrbitalCube", p.hasOrbitalCube); i("rogueliteCosmetic", p.rogueliteCosmetic)
+  # Older saves still carry the equipped cosmetics; they are ignored so a skin
+  # changed since the save shows on resume (newGame applied the current one).
+  i("rogueliteCosmetic", p.rogueliteCosmetic)
 
 # ---------------------------------------------------------------------------
 # Roguelite run serialization.
