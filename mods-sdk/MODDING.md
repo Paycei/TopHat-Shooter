@@ -426,6 +426,19 @@ GLSL fragment shaders can post-process the whole frame (desktop OpenGL 3.3,
   screen; `override.shader("screen", shader)` over everything, desktop
   included. Pass `nil` to switch it off.
 
+Phones draw with OpenGL ES, and the game converts your `#version 330` shader
+for it as it loads (`in` becomes `varying`, your `out vec4` becomes
+`gl_FragColor`, `texture()` becomes `texture2D()`, and floats get high
+precision where the phone has it). For one file to work on both, stay inside
+what OpenGL ES 2.0 has:
+
+* Write float numbers with a point: `1.0`, not `1`. There is no automatic
+  int to float conversion, so `float x = 1;` does not compile on a phone.
+* Read the frame with `texture()` only (no `texelFetch`, `textureSize` or
+  `textureLod`), and declare a single `out vec4`.
+* Give loops constant bounds, and use `mod()` instead of `%` and integer bit
+  operations.
+
 ## The HUD
 
 `hud.hide(part)` hides a piece of the built-in HUD so you can draw your own in

@@ -9,7 +9,7 @@
 ## draw helpers directly. Textures are GPU resources: they load after the
 ## window exists and unloadModAssets must run before it closes.
 
-import std/[tables, math]
+import std/[tables, math, strutils]
 import raylib, rlgl
 import ../types, ../sound
 
@@ -114,6 +114,74 @@ var
   screenShader*, gameShader*: int   ## override.shader targets (index + 1, 0 = none)
   postShaderInRun*: bool            ## main.nim, each frame: is a run on screen?
 
+proc renameCall(line, name, to: string): string =
+  ## `line` with every call `name(` renamed to `to(`, whole identifiers only
+  ## (`texture(` changes, `texture0` does not).
+  var i = 0
+  while i < line.len:
+    if line.continuesWith(name, i) and (i == 0 or line[i - 1] notin IdentChars):
+      var j = i + name.len
+      while j < line.len and line[j] in {' ', '\t'}: inc j
+      if j < line.len and line[j] == '(':
+        result.add to
+        i += name.len
+        continue
+    result.add line[i]
+    inc i
+
+proc glslForDriver(src: string): string =
+  ## Mod shaders are written for desktop OpenGL 3.3 (`#version 330`), but the
+  ## mobile build draws with OpenGL ES, whose drivers refuse that dialect.
+  ## There the source is rewritten to GLSL ES as it loads: `#version 300 es`
+  ## and a float precision on ES 3; on ES 2 (GLSL ES 1.00) also `varying` for
+  ## the inputs, gl_FragColor for the one output and `texture2D` for
+  ## `texture`. Desktop drivers, and a shader with no #version or one already
+  ## in an ES dialect, get the source unchanged.
+  let gl = rlgl.getVersion()
+  if gl notin {OpenglEs20, OpenglEs30}: return src
+  let lines = src.splitLines()
+  var at = -1
+  for i, line in lines:
+    if line.strip().startsWith("#version"):
+      at = i
+      break
+  if at < 0: return src
+  let ver = lines[at].strip()["#version".len .. ^1].splitWhitespace()
+  if ver.len == 0 or ver[0] == "100" or "es" in ver: return src
+  var head = @[if gl == OpenglEs20: "#version 100" else: "#version 300 es"]
+  var body: seq[string]
+  var output = ""
+  for i, line in lines:
+    if i == at: continue
+    let s = line.strip()
+    if s.startsWith("#extension"):      # must come before any code
+      head.add s
+      continue
+    if gl == OpenglEs20:
+      # A global `in` / `out` declaration (`in vec2 fragTexCoord;`, `out vec4
+      # finalColor;`, maybe behind a layout(...)), never a parameter list.
+      var decl = s.split("//")[0].strip()
+      if decl.startsWith("layout") and ')' in decl:
+        decl = decl[decl.find(')') + 1 .. ^1].strip()
+      let words = decl.replace(";", " ;").splitWhitespace()
+      if words.len >= 4 and words[^1] == ";" and '(' notin decl:
+        if words[0] == "in":
+          body.add "varying " & words[1 .. ^2].join(" ") & ";"
+          continue
+        if words[0] == "out":
+          output = words[^2]
+          body.add ""
+          continue
+      body.add line.renameCall("texture", "texture2D")
+    else:
+      body.add line
+  # highp where the GPU has it: mediump (half floats) cannot even count the
+  # pixel rows of a phone screen, so scanline-style maths would turn to noise.
+  head.add ["#ifdef GL_FRAGMENT_PRECISION_HIGH", "precision highp float;",
+            "#else", "precision mediump float;", "#endif"]
+  if output.len > 0: head.add "#define " & output & " gl_FragColor"
+  (head & body).join("\n")
+
 proc loadModShader*(path: string, err: var string): int =
   ## A fragment shader file (raylib's default vertex shader). 0 and `err` set
   ## when it cannot be used; GLSL compile errors fall back to raylib's default
@@ -121,9 +189,15 @@ proc loadModShader*(path: string, err: var string): int =
   for i in 0 ..< modShaders.len:
     if modShaders[i].path == path: return i + 1
   try:
-    var s = loadShader("", path)
+    var src = readFile(path)
+    if src.startsWith("\xEF\xBB\xBF"): src = src[3 .. ^1]   # a UTF-8 BOM ahead of #version
+    var s = loadShaderFromMemory("", glslForDriver(src))
     if s.id == 0 or s.id == getShaderIdDefault():
-      err = "the shader did not compile (GLSL fragment shader expected)"
+      err = if rlgl.getVersion() in {OpenglEs20, OpenglEs30}:
+              "the shader did not compile for this device's OpenGL ES " &
+                "(see Shaders in MODDING.md for what phones support)"
+            else:
+              "the shader did not compile (GLSL fragment shader expected)"
       return 0
     let t = getShaderLocation(s, "time")
     let r = getShaderLocation(s, "resolution")
