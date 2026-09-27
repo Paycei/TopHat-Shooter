@@ -2,7 +2,7 @@
   "id": "bouncer",
   "name": "Bouncer",
   "version": "1.0.0",
-  "author": "TopHat-ShooterOS",
+  "author": "Paycei",
   "description": "A new enemy and a new power-up. Bouncers ricochet around the arena from wave 3 on; PULSE_CORE.exe (a 3-level power-up) periodically shocks every enemy near you. Shows register.enemy, roster.add, register.powerup and power-up levels driving a hook.",
   "main": "main.lua"
 }

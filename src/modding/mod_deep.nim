@@ -20,7 +20,7 @@
 ## being read-only, still hold). Tables, deques, raw pointers, procs and GPU /
 ## audio resources stay invisible: scripts cannot corrupt them.
 
-import std/[strutils, math, tables, deques]
+import std/[strutils, math, tables, deques, locks]
 import raylib
 import ../types
 import lua_bridge, mod_reflect, mod_hooks
@@ -36,7 +36,8 @@ type
 
 const
   HiddenFields = ["discordClient", "game3D"]
-    ## Never shown: platform handles and raw pointers.
+    ## Never shown: platform handles and raw pointers. Pruned at compile time,
+    ## so their types are never walked at all.
   ReadOnlyRoots = ["rogueliteProfile"]
     ## Readable but frozen, with everything under it: the roguelite profile is
     ## the player's real meta progression, saved outside the (cheated) run.
@@ -47,7 +48,11 @@ template isOpaque(F: typedesc): bool =
     F is Texture or F is RenderTexture or F is Image or F is Font or F is Shader or
     F is Sound or F is Music or F is Wave or F is AudioStream or F is Mesh or
     F is Model or F is Material or F is ModelAnimation or
-    F is pointer or F is ptr or F is proc or F is cstring
+    F is pointer or F is ptr or F is proc or F is cstring or
+    # OS sync/thread handles: importc structs whose Nim-side fields are a
+    # stand-in (Linux's pthread_mutex_t has no `abi`), so touching them in
+    # generated C does not even compile.
+    F is Lock or F is Cond or F is Thread
 
 proc keyStr(key: ScriptValue): string =
   case key.kind
@@ -125,8 +130,8 @@ proc fieldAssign[F](vm: VM, p: ptr F, val: ScriptValue, path: string) =
 # --------------------------------------------------------------- objects ----
 proc fieldNames[T](p: ptr T): seq[string] =
   for fname, f in fieldPairs(p[]):
-    when compiles(addr f):
-      if fname notin HiddenFields and visible(addr f):
+    when fname notin HiddenFields and compiles(addr f):
+      if visible(addr f):
         result.add(fname)
 
 proc indexObj[T](p: ptr T, get: Resolver, name: string, ro: bool, path: string,
@@ -136,30 +141,32 @@ proc indexObj[T](p: ptr T, get: Resolver, name: string, ro: bool, path: string,
     found = true   # exists, but reads as nil
     return NilValue
   for fname, f in fieldPairs(p[]):
-    if fname == name:
-      found = true
-      when compiles(addr f):
-        let off = cast[int](addr f) - cast[int](p)
-        return fieldValue(addr f, offsetResolver(get, off),
-                          ro or fname in ReadOnlyRoots, path & "." & fname)
-      else:
-        # A variant's discriminator: readable, never writable.
-        when compiles(toScript(f)): return toScript(f)
-        else: return NilValue
+    when fname notin HiddenFields:
+      if fname == name:
+        found = true
+        when compiles(addr f):
+          let off = cast[int](addr f) - cast[int](p)
+          return fieldValue(addr f, offsetResolver(get, off),
+                            ro or fname in ReadOnlyRoots, path & "." & fname)
+        else:
+          # A variant's discriminator: readable, never writable.
+          when compiles(toScript(f)): return toScript(f)
+          else: return NilValue
   NilValue
 
 proc setObj[T](vm: VM, p: ptr T, name: string, val: ScriptValue, ro: bool, path: string): bool =
   if name in HiddenFields:
     vm.runtimeError(path & "." & name & " is not available to scripts")
   for fname, f in fieldPairs(p[]):
-    if fname == name:
-      if ro or fname in ReadOnlyRoots:
-        vm.runtimeError(path & "." & fname & " is read-only")
-      when compiles(addr f):
-        fieldAssign(vm, addr f, val, path & "." & fname)
-        return true
-      else:
-        vm.runtimeError(path & "." & fname & " is read-only")
+    when fname notin HiddenFields:
+      if fname == name:
+        if ro or fname in ReadOnlyRoots:
+          vm.runtimeError(path & "." & fname & " is read-only")
+        when compiles(addr f):
+          fieldAssign(vm, addr f, val, path & "." & fname)
+          return true
+        else:
+          vm.runtimeError(path & "." & fname & " is read-only")
   false
 
 proc namesValue(names: seq[string]): ScriptValue =

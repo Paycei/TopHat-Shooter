@@ -2,7 +2,7 @@
   "id": "hello_hud",
   "name": "Hello HUD",
   "version": "1.0.0",
-  "author": "TopHat-ShooterOS",
+  "author": "Paycei",
   "description": "The smallest useful mod: a HUD readout of kills and survival time, and a ring that follows the player. Read main.lua to see how hooks, drawing and run.data work.",
   "main": "main.lua"
 }
