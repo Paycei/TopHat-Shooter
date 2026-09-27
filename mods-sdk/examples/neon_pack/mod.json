@@ -3,6 +3,6 @@
   "name": "Neon Pack",
   "version": "1.0.0",
   "author": "Paycei",
-  "description": "Cosmetics to equip in MODS.EXE > Cosmetics: a magenta and cyan player skin, a matching bullet trail and a neon grid wallpaper. Shows register.cosmetic with palettes and a texture.",
+  "description": "Cosmetics to equip in MODS.EXE > Cosmetics: a magenta and cyan player skin, an animated one, a matching bullet trail and a neon grid wallpaper. Shows register.cosmetic with palettes, a texture and an animated GIF.",
   "main": "main.lua"
 }

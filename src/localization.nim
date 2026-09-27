@@ -3986,7 +3986,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_unequip": "Unequip",
     "mods_kind_player": "Player skin",
     "mods_kind_bullet": "Bullet skin",
-    "mods_kind_desktop": "Wallpaper"
+    "mods_kind_desktop": "Desktop"
   }.toTable,
 
   Spanish: {
@@ -6113,7 +6113,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_unequip": "Quitar",
     "mods_kind_player": "Aspecto del jugador",
     "mods_kind_bullet": "Aspecto de las balas",
-    "mods_kind_desktop": "Fondo de escritorio"
+    "mods_kind_desktop": "Escritorio"
   }.toTable
 }.toTable
 

@@ -38,11 +38,19 @@ const
     ("neon_pack/mod.json", embed("examples/neon_pack/mod.json")),
     ("neon_pack/main.lua", embed("examples/neon_pack/main.lua")),
     ("neon_pack/wallpaper.png", embed("examples/neon_pack/wallpaper.png")),
+    ("neon_pack/neon_core.gif", embed("examples/neon_pack/neon_core.gif")),
     ("retro_crt/mod.json", embed("examples/retro_crt/mod.json")),
     ("retro_crt/main.lua", embed("examples/retro_crt/main.lua")),
     ("retro_crt/crt.fs", embed("examples/retro_crt/crt.fs")),
     ("house_rules/mod.json", embed("examples/house_rules/mod.json")),
     ("house_rules/main.lua", embed("examples/house_rules/main.lua")),
+    ("model_pack/mod.json", embed("examples/model_pack/mod.json")),
+    ("model_pack/main.lua", embed("examples/model_pack/main.lua")),
+    ("model_pack/ship.glb", embed("examples/model_pack/ship.glb")),
+    ("model_pack/drone.glb", embed("examples/model_pack/drone.glb")),
+    ("model_pack/bolt.obj", embed("examples/model_pack/bolt.obj")),
+    ("model_pack/bolt.mtl", embed("examples/model_pack/bolt.mtl")),
+    ("model_pack/data_cube.vox", embed("examples/model_pack/data_cube.vox")),
   ]
 
 proc installExampleMods*(): bool =
