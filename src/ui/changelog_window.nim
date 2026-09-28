@@ -117,11 +117,39 @@ proc points(items: varargs[string]): string =
 # commit history since the previous release tag, not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
+    titleEn: "Version 6.3.2",
+    titleEs: "Versión 6.3.2",
+    subtitleEn: "Changes since v6.3.1",
+    subtitleEs: "Cambios desde v6.3.1",
+    latest: true,
+    entries: @[
+      # --- New ---
+      ChangelogEntry(category: clcNew,
+        headEn: "Mods: Remove button",
+        headEs: "Mods: botón Eliminar",
+        en: points(
+          "MODS.EXE can now remove a mod: select it in the Installed tab and press Remove. A confirmation names the mod and its folder before anything is deleted.",
+          "A mod that was running is unloaded right away."),
+        es: points(
+          "MODS.EXE ahora puede eliminar un mod: selecciónalo en la pestaña Instalados y pulsa Eliminar. Una confirmación muestra el mod y su carpeta antes de borrar nada.",
+          "Un mod que estaba activo se descarga al momento.")),
+      # --- Improvements ---
+      ChangelogEntry(category: clcImproved,
+        headEn: "Mods: Install Examples updates the examples",
+        headEs: "Mods: Instalar ejemplos actualiza los ejemplos",
+        en: points(
+          "Pressing Install Examples in MODS.EXE again now updates the examples you already have when the game ships a newer version of them, instead of skipping them. You no longer need to delete an example's folder to get its new version, and examples that are already up to date are left alone.",
+          "When an example is updated, any changes you made inside its folder are lost, so keep your own work in a renamed copy."),
+        es: points(
+          "Pulsar de nuevo Instalar ejemplos en MODS.EXE ahora actualiza los ejemplos que ya tienes cuando el juego trae una versión más nueva, en lugar de saltárselos. Ya no hace falta borrar la carpeta de un ejemplo para recibir su versión nueva, y los ejemplos que ya están al día no se tocan.",
+          "Cuando un ejemplo se actualiza, los cambios que hayas hecho dentro de su carpeta se pierden, así que guarda tu trabajo en una copia con otro nombre.")),
+    ]),
+  ChangelogVersion(
     titleEn: "Version 6.3.1",
     titleEs: "Versión 6.3.1",
     subtitleEn: "Changes since v6.3.0",
     subtitleEs: "Cambios desde v6.3.0",
-    latest: true,
+    latest: false,
     entries: @[
       # --- New ---
       ChangelogEntry(category: clcNew,

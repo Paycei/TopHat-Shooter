@@ -574,8 +574,9 @@ The mouse is -1, -1 when it is outside the canvas. Keep settings in
 
 ## The examples
 
-**Install Examples** writes these into your mods folder (an example you
-already have is never overwritten):
+**Install Examples** writes these into your mods folder. Pressing it again
+replaces an example only when the game ships a newer version of it (a higher
+`version` in its `mod.json`), so keep your own changes in a renamed copy:
 
 | Example | Shows |
 |---|---|

@@ -5,7 +5,7 @@
 ## loaded mods registered (launch/continue). Log: print output and errors.
 ## The banner states the one rule players must know: modded runs are cheated.
 
-import std/[os, strutils]
+import std/[os, strutils, math]
 import raylib, rlgl
 import os_window, ui_helpers, ../localization, ../render_context, ../save_system,
        ../gamepad_input
@@ -34,6 +34,9 @@ type
     launchResume*: bool
     cosScroll*: int
     appSelected*: int         ## register.app entry shown in the Apps tab
+    removeTarget: string      ## folder the remove confirmation is about ("" = closed)
+    removeName: string
+    removeCooldown: float32   ## seconds until the confirmation's Remove unlocks
 
   ModModeRow* = object
     ## One mod game mode as the window shows it (filled by main.nim).
@@ -51,6 +54,8 @@ const
   ListW = 300
   RowH = 44
   CosRowH = 58
+  RemoveBtnH = 28'f32
+  RemoveConfirmCooldown = 1.5'f32  # anti-accident window, like the quit dialog
   LogLineH = 15
 
   ColAccent = Color(r: 120, g: 220, b: 160, a: 255)
@@ -94,7 +99,8 @@ type Geo = object
   bodyY, bodyH: int
   list, detail, logArea, appList, appCanvas: Rectangle
   tabs: array[ModsTab, Rectangle]
-  applyBtn, folderBtn, examplesBtn: Rectangle
+  applyBtn, folderBtn, examplesBtn, removeBtn: Rectangle
+  confirm, confirmNo, confirmYes: Rectangle
 
 proc geometry(mw: ModsWindow): Geo =
   result.x = mw.window.x + WINDOW_PADDING
@@ -126,6 +132,21 @@ proc geometry(mw: ModsWindow): Geo =
   let exW = max(150'i32, measureText(t(tkModsInstallExamples), 14) + 30).float32
   result.examplesBtn = Rectangle(x: result.folderBtn.x + folderW + 8, y: by, width: exW,
                                  height: ButtonH.float32)
+  let removeW = max(100'i32, measureText(t(tkModsRemove), 14) + 30).float32
+  result.removeBtn = Rectangle(x: result.detail.x + result.detail.width - removeW - 12,
+                               y: result.detail.y + result.detail.height - RemoveBtnH - 12,
+                               width: removeW, height: RemoveBtnH)
+  # the remove confirmation, centred on the window body
+  const CW = 440.0'f32
+  const CH = 190.0'f32
+  const CBW = 150.0'f32
+  const CBH = 36.0'f32
+  let cx = float32(result.x) + (result.w.float32 - CW) / 2
+  let cy = float32(result.y) + (result.h.float32 - CH) / 2
+  result.confirm = Rectangle(x: cx, y: cy, width: CW, height: CH)
+  let cby = cy + CH - CBH - 18
+  result.confirmNo = Rectangle(x: cx + CW / 2 - CBW - 10, y: cby, width: CBW, height: CBH)
+  result.confirmYes = Rectangle(x: cx + CW / 2 + 10, y: cby, width: CBW, height: CBH)
 
 # ---------------------------------------------------------------- state ----
 proc hasPendingChanges(mw: ModsWindow): bool =
@@ -179,6 +200,52 @@ proc say(mw: ModsWindow, text: string, isError = false) =
   mw.messageTimer = 6.0
   mw.messageIsError = isError
 
+proc askRemove(mw: ModsWindow, i: int) =
+  if i < 0 or i >= installedMods.len: return
+  mw.removeTarget = installedMods[i].dir
+  mw.removeName = installedMods[i].name
+  mw.removeCooldown = RemoveConfirmCooldown
+
+proc removeMod(mw: ModsWindow) =
+  ## Delete the confirmed mod's folder. A mod that is running keeps running
+  ## from memory, so it also triggers a reload to unload it.
+  let dir = mw.removeTarget
+  mw.removeTarget = ""
+  var at = -1
+  for i, m in installedMods:
+    if m.dir == dir: at = i
+  if at < 0: return
+  let m = installedMods[at]
+  # only ever a folder straight inside a mods folder (never a parent of one)
+  var inModsFolder = false
+  for root in modSearchDirs():
+    if normalizedPath(parentDir(m.dir)) == normalizedPath(root): inModsFolder = true
+  if not inModsFolder:
+    mw.say(t(tkModsRemoveFailed), isError = true)
+    return
+  try:
+    removeDir(m.dir)
+  except IOError, OSError:
+    rescanInstalledMods(mw.settings.enabledMods)
+    mw.say(t(tkModsRemoveFailed), isError = true)
+    return
+  rescanInstalledMods(mw.settings.enabledMods)
+  # Forget the id unless another folder still provides it (a duplicate).
+  var idStillInstalled = false
+  for other in installedMods:
+    if other.id == m.id: idStillInstalled = true
+  if not idStillInstalled:
+    let p = mw.pending.find(m.id)
+    if p >= 0: mw.pending.delete(p)
+    let e = mw.settings.enabledMods.find(m.id)
+    if e >= 0:
+      mw.settings.enabledMods.delete(e)
+      discard saveSettings(mw.settings)
+  if m.status == msLoaded:
+    modReloadRequested = true
+  mw.selected = clamp(mw.selected, 0, max(0, installedMods.high))
+  mw.say(t(tkModsRemoved).replace("$1", m.name))
+
 proc logLines(): int = modLog.len
 
 # --------------------------------------------------------------- update ----
@@ -186,13 +253,29 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
                        allWindows: openArray[OSWindow]) =
   updateOSWindow(mw.window, dt)
   if not mw.window.visible: return
+  # Back cancels an open remove confirmation instead of closing the window.
+  if mw.removeTarget.len > 0 and mw.window.focused and isBackPressed():
+    mw.removeTarget = ""
+    return
   if handleOSWindowInput(mw.window, screenWidth, screenHeight, allWindows):
     mw.window.visible = false
+    mw.removeTarget = ""
     return
   if mw.messageTimer > 0: mw.messageTimer -= dt
   if mw.window.minimized: return
   let g = mw.geometry()
   let mouse = getVirtualMousePosition()
+
+  # The remove confirmation is modal: it takes every click in the window.
+  if mw.removeTarget.len > 0:
+    if mw.removeCooldown > 0: mw.removeCooldown -= dt
+    if mw.window.handledClickThisFrame and
+       isWindowTopmostAtPoint(mw.window, mouse.x, mouse.y, allWindows):
+      if checkCollisionPointRec(mouse, g.confirmNo):
+        mw.removeTarget = ""
+      elif checkCollisionPointRec(mouse, g.confirmYes) and mw.removeCooldown <= 0:
+        mw.removeMod()
+    return
 
   if mw.window.handledClickThisFrame and
      isWindowTopmostAtPoint(mw.window, mouse.x, mouse.y, allWindows):
@@ -206,16 +289,21 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
           if mouse.x < g.list.x + 34:   # the checkbox column toggles
             mw.toggle(row)
           mw.selected = row
-      if checkCollisionPointRec(mouse, g.applyBtn) and mw.hasPendingChanges():
+      if installedMods.len > 0 and checkCollisionPointRec(mouse, g.removeBtn):
+        mw.askRemove(mw.selected)
+      elif checkCollisionPointRec(mouse, g.applyBtn) and mw.hasPendingChanges():
         mw.apply()
       elif checkCollisionPointRec(mouse, g.folderBtn):
         openFolder(modsRootDir())
       elif checkCollisionPointRec(mouse, g.examplesBtn):
-        if installExampleMods():
-          rescanInstalledMods(mw.settings.enabledMods)
-          mw.say(t(tkModsExamplesInstalled))
-        else:
+        let (ok, written) = installExampleMods()
+        if not ok:
           mw.say(t(tkModsExamplesFailed), isError = true)
+        elif written == 0:
+          mw.say(t(tkModsExamplesUpToDate))
+        else:
+          mw.say(t(tkModsExamplesInstalled))
+        rescanInstalledMods(mw.settings.enabledMods)
     elif mw.tab == mtCosmetics:
       for i in 0 ..< modCosmetics.len:
         let ry = g.bodyY + i * CosRowH - mw.cosScroll
@@ -302,6 +390,21 @@ proc drawButton(r: Rectangle, label: string, enabled, primary: bool) =
   drawText(label, int32(r.x + (r.width - tw.float32) / 2), int32(r.y + (r.height - 14) / 2), 14,
            if enabled: ColText else: ColMuted)
 
+proc drawRemoveButton(r: Rectangle, enabled: bool, label = "") =
+  ## Red: the one destructive button in the window.
+  let hovered = enabled and checkCollisionPointRec(getVirtualMousePosition(), r)
+  let fill =
+    if not enabled: Color(r: 60, g: 60, b: 64, a: 255)
+    elif hovered: Color(r: 158, g: 38, b: 38, a: 255)
+    else: Color(r: 118, g: 28, b: 28, a: 255)
+  drawRectangle(r, fill)
+  drawRectangleLines(r, 1.0, if enabled: Color(r: 255, g: 100, b: 100, a: 220)
+                             else: Color(r: 110, g: 110, b: 115, a: 255))
+  let text = if label.len > 0: label else: t(tkModsRemove)
+  let tw = measureText(text, 14)
+  drawText(text, int32(r.x + (r.width - tw.float32) / 2), int32(r.y + (r.height - 14) / 2), 14,
+           if enabled: ColText else: ColMuted)
+
 proc drawCheckbox(x, y: int32, checked, enabled: bool) =
   let r = Rectangle(x: x.float32, y: y.float32, width: 16, height: 16)
   drawRectangle(r, Color(r: 8, g: 10, b: 14, a: 255))
@@ -332,6 +435,34 @@ proc drawWrapped(text: string, x, y, maxW, size: int32, color: Color, maxY: int3
       if result + size > maxY: return
       drawText(line, x, result, size, color)
       result += size + 3
+
+proc drawRemoveConfirm(mw: ModsWindow, g: Geo) =
+  ## Modal over the window body: which mod, that its folder goes, Cancel/Remove.
+  drawRectangle(Rectangle(x: g.x.float32, y: float32(g.y), width: g.w.float32, height: g.h.float32),
+                Color(r: 0, g: 0, b: 0, a: 150))
+  let d = g.confirm
+  drawRectangle(Rectangle(x: d.x + 6, y: d.y + 6, width: d.width, height: d.height), Color(r: 0, g: 0, b: 0, a: 140))
+  drawRectangle(d, Color(r: 18, g: 22, b: 32, a: 255))
+  drawRectangleLines(d, 2.0, Color(r: 255, g: 80, b: 80, a: 255))
+  let tbH = 30'i32
+  drawRectangle(Rectangle(x: d.x, y: d.y, width: d.width, height: tbH.float32), Color(r: 120, g: 28, b: 28, a: 255))
+  let title = t(tkModsRemoveTitle)
+  drawText(title, int32(d.x + (d.width - measureText(title, 15).float32) / 2), int32(d.y) + 8, 15,
+           Color(r: 255, g: 200, b: 200, a: 255))
+  let x = int32(d.x) + 18
+  let w = int32(d.width) - 36
+  var y = int32(d.y) + tbH + 14
+  let body = fitWithEllipsis(t(tkModsRemoveBody).replace("$1", mw.removeName), w, 16)
+  drawText(body, int32(d.x + (d.width - measureText(body, 16).float32) / 2), y, 16, ColText)
+  y += 24
+  drawText(fitWithEllipsis(t(tkModsFolder) & " " & lastPathPart(mw.removeTarget), w, 12), x, y, 12, ColMuted)
+  y += 18
+  discard drawWrapped(t(tkModsRemoveSub), x, y, w, 12, Color(r: 200, g: 150, b: 150, a: 255),
+                      int32(g.confirmNo.y) - 4)
+  drawButton(g.confirmNo, t(tkConfirmCancelBtn), true, true)
+  let ready = mw.removeCooldown <= 0
+  drawRemoveButton(g.confirmYes, ready,
+                   if ready: "" else: $int(ceil(mw.removeCooldown)))
 
 proc drawInstalled(mw: ModsWindow, g: Geo) =
   if installedMods.len == 0:
@@ -369,7 +500,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
       let m = installedMods[mw.selected]
       let x = int32(g.detail.x) + 14
       let w = int32(g.detail.width) - 28
-      let bottom = int32(g.detail.y + g.detail.height) - 8
+      let bottom = int32(g.removeBtn.y) - 8   # the text stops above the Remove button
       var y = int32(g.detail.y) + 12
       drawText(fitWithEllipsis(m.name, w, 20), x, y, 20, ColText)
       y += 26
@@ -389,6 +520,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
         beginVirtualScissorMode(x, y, w, max(0'i32, bottom - y))
         discard drawWrapped(m.message, x, y, w, 11, ColErr, bottom)
         endScissorMode()
+      drawRemoveButton(g.removeBtn, mw.removeTarget.len == 0)
 
   # button bar
   drawButton(g.folderBtn, t(tkModsOpenFolder), true, false)
@@ -547,3 +679,6 @@ proc drawModsWindow*(mw: ModsWindow) =
   of mtCosmetics: mw.drawCosmetics(g)
   of mtApps: mw.drawApps(g)
   of mtLog: mw.drawLog(g)
+
+  if mw.removeTarget.len > 0:
+    mw.drawRemoveConfirm(g)

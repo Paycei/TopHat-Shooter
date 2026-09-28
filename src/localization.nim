@@ -1850,6 +1850,13 @@ type
     tkModsSummaryFailed = "mods_summary_failed"
     tkModsExamplesInstalled = "mods_examples_installed"
     tkModsExamplesFailed = "mods_examples_failed"
+    tkModsExamplesUpToDate = "mods_examples_up_to_date"
+    tkModsRemove = "mods_remove"
+    tkModsRemoveTitle = "mods_remove_title"
+    tkModsRemoveBody = "mods_remove_body"
+    tkModsRemoveSub = "mods_remove_sub"
+    tkModsRemoved = "mods_removed"
+    tkModsRemoveFailed = "mods_remove_failed"
     tkModsTabCosmetics = "mods_tab_cosmetics"
     tkModsNoCosmetics = "mods_no_cosmetics"
     tkModsEquip = "mods_equip"
@@ -3980,6 +3987,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_summary_failed": "$1 failed",
     "mods_examples_installed": "Example mods installed. Tick them and press Apply & Reload.",
     "mods_examples_failed": "Could not write the example mods.",
+    "mods_examples_up_to_date": "The example mods are already up to date.",
+    "mods_remove": "Remove",
+    "mods_remove_title": "REMOVE MOD",
+    "mods_remove_body": "Delete $1 and its folder?",
+    "mods_remove_sub": "Its files are deleted from disk. This cannot be undone.",
+    "mods_removed": "$1 removed.",
+    "mods_remove_failed": "Could not delete the mod folder (a file may be in use).",
     "mods_tab_cosmetics": "Cosmetics",
     "mods_no_cosmetics": "No mod cosmetics loaded. Mods add them with register.cosmetic.",
     "mods_equip": "Equip",
@@ -6107,6 +6121,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_summary_failed": "$1 con error",
     "mods_examples_installed": "Mods de ejemplo instalados. Márcalos y pulsa Aplicar y recargar.",
     "mods_examples_failed": "No se pudieron escribir los mods de ejemplo.",
+    "mods_examples_up_to_date": "Los mods de ejemplo ya están al día.",
+    "mods_remove": "Eliminar",
+    "mods_remove_title": "ELIMINAR MOD",
+    "mods_remove_body": "¿Eliminar $1 y su carpeta?",
+    "mods_remove_sub": "Sus archivos se borran del disco. No se puede deshacer.",
+    "mods_removed": "$1 eliminado.",
+    "mods_remove_failed": "No se pudo borrar la carpeta del mod (puede que un archivo esté en uso).",
     "mods_tab_cosmetics": "Cosméticos",
     "mods_no_cosmetics": "No hay cosméticos de mods cargados. Los mods los añaden con register.cosmetic.",
     "mods_equip": "Equipar",
