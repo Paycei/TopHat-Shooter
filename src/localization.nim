@@ -155,6 +155,9 @@ type
     tkSettingsSectionInputMethod = "settings_section_input_method"
     tkSettingsSectionAssistance = "settings_section_assistance"
     tkSettingsSectionLocalization = "settings_section_localization"
+    tkSettingsSectionMods = "settings_section_mods"
+    tkSettingsModsDescription = "settings_mods_description"
+    tkSettingsResetModKeybindings = "settings_reset_mod_keybindings"
 
     # Rebindable keybinds UI
     tkSettingsSectionKeybindings = "settings_section_keybindings"
@@ -2096,6 +2099,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_gameplay": "Gameplay",
     "settings_tab_cinematics": "Cinematics",
     "settings_tab_interface": "Interface",
+    "settings_section_mods": "MOD KEYBINDS",
+    "settings_mods_description": "Bindings supplied by loaded mods. Changes are saved per mod.",
+    "settings_reset_mod_keybindings": "Reset Mod Binds",
     "settings_section_scale": "SCALE & FEEL",
     "settings_section_hud_elements": "HUD ELEMENTS",
     "settings_ui_scale": "UI Scale:",
@@ -4249,6 +4255,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_gameplay": "Juego",
     "settings_tab_cinematics": "Cinemáticas",
     "settings_tab_interface": "Interfaz",
+    "settings_section_mods": "CONTROLES DE MODS",
+    "settings_mods_description": "Controles de los mods cargados. Los cambios se guardan por mod.",
+    "settings_reset_mod_keybindings": "Restaurar Controles",
     "settings_section_scale": "ESCALA Y EFECTOS",
     "settings_section_hud_elements": "ELEMENTOS DEL HUD",
     "settings_ui_scale": "Escala de interfaz:",

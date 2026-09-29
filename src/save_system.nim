@@ -82,6 +82,7 @@ type
     discoveredPowerUps*: seq[string] # Power-ups seen for the first time (name-serialized)
     enabledMods*: seq[string]        # MODS.EXE: ids of the mods this profile loads
     modCosmetics*: seq[string]       # MODS.EXE: equipped mod cosmetics, "kind=modid:name"
+    modKeybinds*: seq[string]        # "modId:actionId=KeyboardKey|GamepadButton"
 
 const
   ## Bounds for the Interface tab's sliders. They live here (next to Settings
@@ -332,7 +333,8 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "hasSeenTutorial": settings.hasSeenTutorial,
     "discoveredPowerUps": settings.discoveredPowerUps,
     "enabledMods": settings.enabledMods,
-    "modCosmetics": settings.modCosmetics
+    "modCosmetics": settings.modCosmetics,
+    "modKeybinds": settings.modKeybinds
   }
   var bindsObj = newJObject()
   for action in KeyAction:
@@ -524,6 +526,11 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
     settings.modCosmetics = @[]
     for item in jsonNode["modCosmetics"]:
       settings.modCosmetics.add(item.getStr())
+
+  if jsonNode.hasKey("modKeybinds"):
+    settings.modKeybinds = @[]
+    for item in jsonNode["modKeybinds"]:
+      settings.modKeybinds.add(item.getStr())
 
   if jsonNode.hasKey("keybinds"):
     let binds = jsonNode["keybinds"]

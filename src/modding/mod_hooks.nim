@@ -14,7 +14,7 @@
 
 import std/[json, tables, strutils, math, random]
 import raylib
-import ../types, ../game3d/types_3d
+import ../types, ../game3d/types_3d, ../settings, ../save_system, ../gamepad_input
 import lua_bridge, mod_state, mod_assets
 
 type
@@ -126,6 +126,18 @@ type
     storage*: ScriptTable  ## mod.storage: kept per profile between sessions
     modTable*: ScriptTable ## the mod's `mod` table (mod.storage may be reassigned)
 
+  ModKeybind* = ref object
+    key*: string
+    owner*: int
+    modId*: string
+    actionId*: string
+    nameEn*: string
+    nameEs*: string
+    defaultKey*: KeyboardKey
+    defaultPad*: GamepadButton
+    keyBind*: KeyboardKey
+    padBind*: GamepadButton
+
   Handler = object
     fn: ScriptValue
     owner: int
@@ -179,6 +191,74 @@ var
   timers: seq[ModTimer]
   hiddenHud*: set[HudPart]       ## hud.hide(); every run starts with the full HUD
   nextTimerId = 1
+  modKeybinds*: seq[ModKeybind]
+
+proc modKeybindKey*(modId, actionId: string): string =
+  modId & ":" & actionId
+
+proc modKeybindName*(b: ModKeybind): string =
+  if globalSettings.isNil or globalSettings.language != "spanish": b.nameEn
+  else: b.nameEs
+
+proc modKeybindByKey*(key: string): ModKeybind =
+  for b in modKeybinds:
+    if b.key == key and b.owner >= 0 and b.owner < mods.len and not mods[b.owner].disabled:
+      return b
+  nil
+
+proc modKeybindGamepadDown*(b: ModKeybind): bool =
+  let pad = activeGamepad()
+  b != nil and pad >= 0 and b.padBind != GamepadButton.Unknown and
+    isGamepadButtonDown(pad, b.padBind)
+
+proc modKeybindActive*(b: ModKeybind): bool =
+  not b.isNil and (isKeyDown(b.keyBind) or modKeybindGamepadDown(b))
+
+proc modKeybindPressed*(b: ModKeybind): bool =
+  if b.isNil: return false
+  let pad = activeGamepad()
+  isKeyPressed(b.keyBind) or
+    (pad >= 0 and b.padBind != GamepadButton.Unknown and
+     isGamepadButtonPressed(pad, b.padBind))
+
+proc modKeybindReleased*(b: ModKeybind): bool =
+  if b.isNil: return false
+  let pad = activeGamepad()
+  isKeyReleased(b.keyBind) or
+    (pad >= 0 and b.padBind != GamepadButton.Unknown and
+     isGamepadButtonReleased(pad, b.padBind))
+
+proc resetModKeybinds*() =
+  modKeybinds.setLen(0)
+
+proc dropModKeybinds*(owner: int) =
+  var kept: seq[ModKeybind]
+  for b in modKeybinds:
+    if b.owner != owner: kept.add(b)
+  modKeybinds = kept
+
+proc restoreModKeybind*(b: ModKeybind) =
+  if b.isNil or globalSettings.isNil: return
+  let prefix = b.key & "="
+  for entry in globalSettings.modKeybinds:
+    if entry.startsWith(prefix):
+      let parts = entry[prefix.len .. ^1].split('|')
+      if parts.len == 2:
+        try: b.keyBind = parseEnum[KeyboardKey](parts[0])
+        except ValueError: discard
+        try: b.padBind = parseEnum[GamepadButton](parts[1])
+        except ValueError: discard
+      return
+
+proc saveModKeybind*(b: ModKeybind) =
+  if b.isNil or globalSettings.isNil: return
+  let prefix = b.key & "="
+  var kept: seq[string]
+  for entry in globalSettings.modKeybinds:
+    if not entry.startsWith(prefix): kept.add(entry)
+  kept.add(prefix & $b.keyBind & "|" & $b.padBind)
+  globalSettings.modKeybinds = kept
+  discard saveSettings(globalSettings)
 
 proc hudHidden*(p: HudPart): bool {.inline.} =
   ## drawGame: is this built-in HUD piece hidden by a mod?
@@ -577,6 +657,7 @@ proc resetHooks*() =
   modCtx = ModCtx()
   modNotices.setLen(0)
   hiddenHud = {}
+  resetModKeybinds()
 
 proc dropHandlersOf*(idx: int) =
   ## A mod that failed while loading leaves nothing behind.

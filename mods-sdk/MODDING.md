@@ -909,6 +909,37 @@ icons, in the order the apps were registered, tagged MOD. Opening an app that is
 already open just brings its window to the front. Keep settings in
 `mod.storage` so they survive restarts (see `retro_crt`).
 
+## Mod keybinds
+
+Mods can register their own keyboard and gamepad actions. The action ID is
+automatically namespaced by the owning mod, so two mods may use the same local
+ID. Keys are allowed to overlap: both actions report input when their key is
+held. The optional `name` table supplies English and Spanish labels for the
+mod keybind subsection in Settings > Controls.
+
+```lua
+local reload = register.keybind{
+  id = "reload",
+  name = {en = "Reload", es = "Recargar"},
+  default = "r",
+  gamepad = "RightFaceDown"
+}
+
+hooks.on("update", function(game, dt)
+  if input.bindPressed("reload") then
+    -- reload the mod's weapon
+  end
+end)
+```
+
+Use `input.bind(id)`, `input.bindPressed(id)` or `input.bindReleased(id)` for
+the registered action. Bindings changed by the player in Settings > Controls
+(the mod keybind subsection) are
+stored per profile and restored when that mod is loaded again. A failed or
+disabled mod contributes no keybinds, and bindings are only visible while the
+owning mod is loaded. `default` is a raylib keyboard key name; `gamepad` is an
+optional raylib `GamepadButton` name and defaults to unbound.
+
 ## Timers, input, drawing, text
 
 * `timer.after(seconds, fn)`, `timer.every(seconds, fn)` return an id for

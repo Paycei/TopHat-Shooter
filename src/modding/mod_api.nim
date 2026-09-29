@@ -90,6 +90,9 @@ proc creditedPowerUp(vm: VM, args: openArray[ScriptValue], i: int,
     vm.argError(fname, i, "source must be a power-up name")
   (modCtx.hasSource, modCtx.source)
 
+proc textPair(vm: VM, v: ScriptValue, what: string): tuple[en, es: string]
+proc checkName(vm: VM, t: ScriptTable, what: string): string
+
 # ----------------------------------------------------------- classes ----
 const
   GameReadOnly = ["mode", "state", "modded", "cheatsUsed", "modFingerprint", "modMode",
@@ -406,6 +409,21 @@ proc installLibraries(base: ScriptTable) =
                       "moveRight, shoot, placeWall, legendary, dash)")
     let key = if globalSettings.isNil: defaultKeybinds[a] else: globalSettings.keybinds[a]
     ret.setRet(vbool(isKeyDown(key)))
+  inputT.reg("bind") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let owner = vm.requireOwner("input.bind")
+    let b = modKeybindByKey(mods[owner].id & ":" & vm.checkStr(args, 0, "bind"))
+    if b.isNil: vm.runtimeError("unknown mod keybind")
+    ret.setRet(vbool(modKeybindActive(b)))
+  inputT.reg("bindPressed") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let owner = vm.requireOwner("input.bindPressed")
+    let b = modKeybindByKey(mods[owner].id & ":" & vm.checkStr(args, 0, "bindPressed"))
+    if b.isNil: vm.runtimeError("unknown mod keybind")
+    ret.setRet(vbool(modKeybindPressed(b)))
+  inputT.reg("bindReleased") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let owner = vm.requireOwner("input.bindReleased")
+    let b = modKeybindByKey(mods[owner].id & ":" & vm.checkStr(args, 0, "bindReleased"))
+    if b.isNil: vm.runtimeError("unknown mod keybind")
+    ret.setRet(vbool(modKeybindReleased(b)))
   rawSet(base, vstr("input"), vtable(inputT))
 
   # ---- draw (only inside draw hooks)
@@ -965,6 +983,30 @@ proc installContentLibraries(base: ScriptTable) =
 
   # ---- register
   let registerT = newScriptTable()
+  registerT.reg("keybind") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let owner = vm.requireOwner("register.keybind")
+    let t = vm.checkTable(args, 0, "register.keybind")
+    let actionId = vm.checkName(t, "register.keybind")
+    let key = modKeybindKey(mods[owner].id, actionId)
+    if modKeybindByKey(key) != nil:
+      vm.runtimeError("register.keybind: '" & key & "' is already registered")
+    let defaultValue = rawGetStr(t, "default")
+    if defaultValue.kind != vkString:
+      vm.runtimeError("register.keybind: default must be a keyboard key name")
+    let keyboard = vm.keyFromName(defaultValue.str.s)
+    var pad = GamepadButton.Unknown
+    let padValue = rawGetStr(t, "gamepad")
+    if padValue.kind == vkString:
+      try: pad = parseEnum[GamepadButton](padValue.str.s)
+      except ValueError: vm.runtimeError("register.keybind: unknown gamepad button")
+    let (nameEn, nameEs) = vm.textPair(rawGetStr(t, "name"), "name")
+    let b = ModKeybind(key: key, owner: owner, modId: mods[owner].id,
+                       actionId: actionId, nameEn: nameEn, nameEs: nameEs,
+                       defaultKey: keyboard, defaultPad: pad,
+                       keyBind: keyboard, padBind: pad)
+    modKeybinds.add(b)
+    restoreModKeybind(b)
+    ret.setRet(vstr(key))
   registerT.reg("boss") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local id = register.boss{name = "OVERCLOCK", hp = 600, phases = {...}}
     let owner = vm.requireOwner("register.boss")

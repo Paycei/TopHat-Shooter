@@ -80,6 +80,7 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
       installedMods[ci].message = err
       m.disabled = true
       dropHandlersOf(m.index)
+      dropModKeybinds(m.index)
       dropModText(m.index)
       dropModContent(m.index)
     else:

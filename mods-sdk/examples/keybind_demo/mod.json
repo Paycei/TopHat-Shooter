@@ -1,0 +1,9 @@
+{
+  "id": "keybind_demo",
+  "name": "Keybind Demo",
+  "version": "1.0.1",
+  "author": "TopHat-Shooter",
+  "description": "Demonstrates mod keybind registration and input queries.",
+  "main": "main.lua",
+  "disableAchievements": false
+}

@@ -57,6 +57,8 @@ const
     ("arena_3d/main.lua", embed("examples/arena_3d/main.lua")),
     ("orbital_tweaks/mod.json", embed("examples/orbital_tweaks/mod.json")),
     ("orbital_tweaks/main.lua", embed("examples/orbital_tweaks/main.lua")),
+    ("keybind_demo/mod.json", embed("examples/keybind_demo/mod.json")),
+    ("keybind_demo/main.lua", embed("examples/keybind_demo/main.lua")),
   ]
 
 proc exampleModIds*(): seq[string] =

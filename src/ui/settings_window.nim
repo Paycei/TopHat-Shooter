@@ -1,8 +1,8 @@
 ﻿## OS-Themed Settings Control Panel
 ## Tabbed settings interface matching the OS visual language
 
-import raylib, strutils, math
-import ../sound, ../save_system, os_window, ../localization, ../render_context, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types
+import raylib, rlgl, strutils, math
+import ../sound, ../save_system, os_window, ../localization, ../render_context, ../gamepad_input, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types, ../modding/mod_hooks
 
 type
   SettingsTab* = enum
@@ -71,13 +71,16 @@ type
     rebindingAction*: int
     # Same, but capturing a gamepad button for the pad-bind column
     rebindingGamepadAction*: int
+    rebindingModKey*: int
+    rebindingModPad*: int
+    modKeybindScroll*: int
 
 proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
                         stats: Statistics = nil,
                         advancementProfile: AdvancementProfile = nil,
                         rogueliteProfile: RogueliteProfile = nil): SettingsWindow =
   let windowWidth = 700
-  let windowHeight = 540   # the Interface tab's HUD section needs the full height
+  let windowHeight = 620   # Controls also shows the loaded-mod keybind subsection
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
 
@@ -118,7 +121,10 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     resetStatus: "",
     resetStatusTimer: 0.0,
     rebindingAction: -1,
-    rebindingGamepadAction: -1
+    rebindingGamepadAction: -1,
+    rebindingModKey: -1,
+    rebindingModPad: -1,
+    modKeybindScroll: 0
   )
 
 const
@@ -963,8 +969,11 @@ type
     resetY*: int
     note1Y*: int
     note2Y*: int
+    modHeaderY*: int
+    modRowsY*: int
+    modResetY*: int
 
-proc controlsLayout*(contentY: int): ControlsLayout =
+proc controlsLayout*(contentY, contentH: int): ControlsLayout =
   var y = contentY + 10
   result.inputHeaderY = y
   y += 28
@@ -987,12 +996,26 @@ proc controlsLayout*(contentY: int): ControlsLayout =
   result.note1Y = y
   y += 14
   result.note2Y = y
+  y += 22
+  result.modHeaderY = y
+  y += 44
+  result.modRowsY = y
+  y += modKeybinds.len * ClKbRowStride + 6
+  result.modResetY = y
 
 proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   # All vertical offsets come from controlsLayout so the click handling in
   # handleSettingsInput reads the exact same numbers.
-  let lay = controlsLayout(contentY)
-  let mousePos = getVirtualMousePosition()
+  let lay = controlsLayout(contentY, contentH)
+  let rawMousePos = getVirtualMousePosition()
+  let totalBottom = lay.modResetY + ClResetBtnH + 8
+  let maxScroll = max(0, totalBottom - contentY - contentH)
+  settingsWin.modKeybindScroll = clamp(settingsWin.modKeybindScroll, 0, maxScroll)
+  let mousePos = Vector2(x: rawMousePos.x,
+                         y: rawMousePos.y + settingsWin.modKeybindScroll.float32)
+  beginVirtualScissorMode(contentX.int32, contentY.int32, contentW.int32, contentH.int32)
+  rlgl.pushMatrix()
+  rlgl.translatef(0.0'f32, -settingsWin.modKeybindScroll.float32, 0.0'f32)
 
   # Section: Input Method
   drawSectionHeader(contentX + 20, lay.inputHeaderY, contentW - 40,
@@ -1003,7 +1026,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(t(tkSettingsMouseBonding), (contentX + 40).int32, lay.bondingLabelY.int32, 18, White)
   let bondingButtonX = contentX + 320
   let bondingButtonY = lay.bondingLabelY - 5
-  let bondingHovered = mousePos.x >= bondingButtonX.float32 and
+  let bondingHovered =   mousePos.x >= bondingButtonX.float32 and
                        mousePos.x <= (bondingButtonX + ClBondingBtnW).float32 and
                        mousePos.y >= bondingButtonY.float32 and
                        mousePos.y <= (bondingButtonY + ClBondingBtnH).float32
@@ -1148,6 +1171,55 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
            Color(r: 130, g: 130, b: 160, a: 255))
   drawText(t(tkGamepadReservedNote), (contentX + 20).int32, lay.note2Y.int32, 12,
            Color(r: 130, g: 130, b: 160, a: 255))
+
+  # Mod keybindings subsection
+  drawSectionHeader(contentX + 20, lay.modHeaderY, contentW - 40,
+                   t(tkSettingsSectionMods), '+',
+                   Color(r: 255, g: 170, b: 80, a: 255))
+  drawText(t(tkSettingsModsDescription), (contentX + 40).int32,
+           (lay.modHeaderY + 26).int32, 13, LightGray)
+
+  let keyX = contentX + contentW - 270
+  let padX = contentX + contentW - 135
+  drawText(t(tkGamepadColumnKey), keyX.int32, (lay.modRowsY - 15).int32, 12,
+           Color(r: 130, g: 130, b: 160, a: 255))
+  drawText(t(tkGamepadColumnPad), padX.int32, (lay.modRowsY - 15).int32, 12,
+           Color(r: 130, g: 130, b: 160, a: 255))
+
+  var y = lay.modRowsY
+  for i, b in modKeybinds:
+    let ownerName = if b.owner >= 0 and b.owner < mods.len: mods[b.owner].name else: b.modId
+    drawText(ownerName & ": " & modKeybindName(b),
+             (contentX + 30).int32, (y + 3).int32, 13, LightGray)
+    let keyRect = Rectangle(x: keyX.float32, y: y.float32, width: 120, height: 20)
+    let padRect = Rectangle(x: padX.float32, y: y.float32, width: 120, height: 20)
+    let keyEditing = settingsWin.rebindingModKey == i
+    let padEditing = settingsWin.rebindingModPad == i
+    drawSettingsButton(keyRect,
+      if keyEditing: t(tkKeybindPressAnyKey) else: keyboardKeyLabel(b.keyBind),
+      checkCollisionPointRec(mousePos, keyRect) and not padEditing, false,
+      confirming = keyEditing)
+    drawSettingsButton(padRect,
+      if padEditing: t(tkGamepadPressAnyButton) else: gamepadBindLabel(b.padBind),
+      checkCollisionPointRec(mousePos, padRect) and not keyEditing, false,
+      confirming = padEditing)
+    inc y, ClKbRowStride
+
+  let resetRect = Rectangle(x: (contentX + 20).float32,
+                            y: lay.modResetY.float32,
+                            width: ClResetBtnW.float32, height: ClResetBtnH.float32)
+  drawSettingsButton(resetRect, t(tkSettingsResetModKeybindings),
+                     checkCollisionPointRec(mousePos, resetRect), false)
+  rlgl.popMatrix()
+  endScissorMode()
+  if maxScroll > 0:
+    let barX = contentX + contentW - 12
+    let viewH = contentH
+    drawRectangle(barX.int32, contentY.int32, 4, viewH.int32,
+                  Color(r: 45, g: 45, b: 65, a: 255))
+    let thumbH = max(12, viewH * viewH div (viewH + maxScroll))
+    let thumbY = contentY + (viewH - thumbH) * settingsWin.modKeybindScroll div maxScroll
+    drawRectangle(barX.int32, thumbY.int32, 4, thumbH.int32, Gold)
 
 proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -1307,6 +1379,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
   let mousePos = getVirtualMousePosition()
   let contentX = settingsWin.window.x + WINDOW_PADDING
   let contentY = settingsWin.window.y + TITLE_BAR_HEIGHT + 60
+  let contentW = settingsWin.window.width - WINDOW_PADDING * 2
 
   # Only handle content interactions if this window is topmost at mouse position
   let isTopmost = isWindowTopmostAtPoint(settingsWin.window, mousePos.x, mousePos.y, allWindows)
@@ -1325,7 +1398,9 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       tabX += SettingsTabWidth + SettingsTabGap
 
   # Tab switching with number keys (blocked while editing FPS or capturing a rebind)
-  if not settingsWin.window.minimized and not settingsWin.editingFPS and settingsWin.rebindingAction < 0:
+  if not settingsWin.window.minimized and not settingsWin.editingFPS and
+     settingsWin.rebindingAction < 0 and settingsWin.rebindingGamepadAction < 0 and
+     settingsWin.rebindingModKey < 0 and settingsWin.rebindingModPad < 0:
     if isKeyPressed(One): settingsWin.currentTab = stGraphics
     if isKeyPressed(Two): settingsWin.currentTab = stInterface
     if isKeyPressed(Three): settingsWin.currentTab = stAudio
@@ -1586,9 +1661,24 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
 
   # Handle Controls tab interactions
   if settingsWin.currentTab == stControls and isTopmost:
+    let controlsLay = controlsLayout(contentY, settingsWin.window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING)
+    let controlsBottom = controlsLay.modResetY + ClResetBtnH + 8
+    let controlsViewportH = settingsWin.window.height - TITLE_BAR_HEIGHT -
+                            WINDOW_PADDING - 35 - 20
+    let controlsMaxScroll = max(0, controlsBottom - contentY - controlsViewportH)
+    settingsWin.modKeybindScroll = clamp(settingsWin.modKeybindScroll, 0, controlsMaxScroll)
+    let rawControlsMousePos = mousePos
+    let mousePos = Vector2(x: rawControlsMousePos.x,
+                           y: rawControlsMousePos.y + settingsWin.modKeybindScroll.float32)
+    let wheel = getPointerWheelMove()
+    if wheel != 0.0'f32 and rawControlsMousePos.y >= contentY.float32 and
+       rawControlsMousePos.y <= (contentY + controlsViewportH).float32:
+      settingsWin.modKeybindScroll = clamp(
+        settingsWin.modKeybindScroll - int(wheel * ClKbRowStride.float32),
+        0, controlsMaxScroll)
     if settingsWin.window.handledClickThisFrame:
       # Same layout the draw pass uses - no hardcoded offsets here.
-      let lay = controlsLayout(contentY)
+      let lay = controlsLayout(contentY, controlsViewportH)
 
       # Mouse bonding mode selector
       let bondingButtonX = contentX + 320
@@ -1668,6 +1758,61 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       settingsWin.settings.gamepadBinds[KeyAction(settingsWin.rebindingGamepadAction)] = btn
       settingsWin.rebindingGamepadAction = -1
       settingsChanged = true
+
+  # Handle loaded mod keybinds.
+  if settingsWin.currentTab == stControls and isTopmost:
+    let controlsLay = controlsLayout(contentY, settingsWin.window.height - TITLE_BAR_HEIGHT -
+                                     WINDOW_PADDING - 35 - 20)
+    if settingsWin.window.handledClickThisFrame:
+      let keyX = contentX + contentW - 270
+      let padX = contentX + contentW - 135
+      var y = controlsLay.modRowsY
+      for i, b in modKeybinds:
+        let keyRect = Rectangle(x: keyX.float32, y: y.float32, width: 120, height: 20)
+        let padRect = Rectangle(x: padX.float32, y: y.float32, width: 120, height: 20)
+        if checkCollisionPointRec(mousePos, keyRect):
+          settingsWin.rebindingModKey = i
+          settingsWin.rebindingModPad = -1
+          playSound(stMenuSelect)
+          break
+        if checkCollisionPointRec(mousePos, padRect):
+          settingsWin.rebindingModPad = i
+          settingsWin.rebindingModKey = -1
+          playSound(stMenuSelect)
+          break
+        inc y, ClKbRowStride
+      let resetRect = Rectangle(x: (contentX + 20).float32,
+                                y: controlsLay.modResetY.float32,
+                                width: ClResetBtnW.float32, height: ClResetBtnH.float32)
+      if checkCollisionPointRec(mousePos, resetRect):
+        for b in modKeybinds:
+          b.keyBind = b.defaultKey
+          b.padBind = b.defaultPad
+          saveModKeybind(b)
+        settingsChanged = true
+
+    if settingsWin.rebindingModKey >= 0:
+      let key = getKeyPressed()
+      if key != KeyboardKey.Null:
+        if key == KeyboardKey.Escape:
+          settingsWin.rebindingModKey = -1
+        elif settingsWin.rebindingModKey < modKeybinds.len:
+          modKeybinds[settingsWin.rebindingModKey].keyBind = key
+          saveModKeybind(modKeybinds[settingsWin.rebindingModKey])
+          settingsWin.rebindingModKey = -1
+          settingsChanged = true
+
+    if settingsWin.rebindingModPad >= 0:
+      suppressBackThisFrame()
+      let btn = gamepadAnyButtonPressed()
+      if isKeyPressed(KeyboardKey.Escape) or btn == GamepadButton.RightFaceRight:
+        settingsWin.rebindingModPad = -1
+      elif btn notin [GamepadButton.Unknown, GamepadButton.RightFaceDown,
+                      GamepadButton.MiddleRight] and settingsWin.rebindingModPad < modKeybinds.len:
+        modKeybinds[settingsWin.rebindingModPad].padBind = btn
+        saveModKeybind(modKeybinds[settingsWin.rebindingModPad])
+        settingsWin.rebindingModPad = -1
+        settingsChanged = true
 
   # Handle Gameplay tab interactions
   if settingsWin.currentTab == stGameplay and isTopmost:
