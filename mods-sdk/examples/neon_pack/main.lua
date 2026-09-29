@@ -26,6 +26,6 @@ register.cosmetic{
 register.cosmetic{
   kind = "desktop", id = "neon_grid",
   name = {en = "Neon Grid", es = "Rejilla de Neón"},
-  texture = "wallpaper.png",   -- its middle (the rings) sits under the desktop cube
+  texture = "wallpaper.png",   -- scaled from the screen's top-left corner
   cube = true,   -- keep the desktop cube floating over the wallpaper
 }

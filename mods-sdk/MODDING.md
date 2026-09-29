@@ -448,11 +448,9 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   unless you pass `{cube = true}`: then the cube (in the player's cube skin)
   keeps floating over your image and can still be grabbed and spun. Pass
   `nil` instead of the file to put the game's own look back.
-* A wallpaper is centred on the desktop cube's spot (right of the middle of
-  the screen, clear of the icons), like the game's own backgrounds, and
-  scaled to cover the whole screen from there. Put your focal point in the
-  middle of the image and it sits under the cube in every screen layout,
-  whether or not the cube is shown.
+* A wallpaper is drawn from the screen's top-left corner and scaled to the
+  screen dimensions without repositioning its artwork. The desktop cube is
+  independent of the wallpaper's placement.
 * `override.sound(name, file)` replaces one of the game's sounds (`shoot`,
   `enemyHit`, `enemyDeath`, `playerHit`, `coinPickup`, `powerUp`, `bossSpawn`,
   `explosion`, `wallPlace`, `teleport`, `menuNav`, `menuSelect`,

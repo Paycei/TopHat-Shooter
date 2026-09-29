@@ -874,18 +874,11 @@ proc drawCubeModModel*(cx, cy, halfSize, angleX, angleY, angleZ: float32): bool 
   true
 
 proc drawDesktopModBackground*(w, h: int32): bool =
-  ## The mod wallpaper (modWallpaper). Its centre sits under the desktop cube,
-  ## as the built-in backgrounds centre their art on it, so a mod's focal
-  ## point meets the cube in every layout; scaled to cover the screen from there.
+  ## The mod wallpaper (modWallpaper) fills the viewport from its top-left
+  ## corner without repositioning the image.
   let id = modWallpaper().id
   if id == 0: return false
-  let (tw, th) = textureSize(id)
-  if tw <= 0 or th <= 0: return false
-  let cx = w.float32 * 0.64'f32      # the cube's rest spot (os_desktop.nim)
-  let cy = h.float32 * 0.46'f32
-  let scale = max(2 * max(cx, w.float32 - cx) / tw.float32,
-                  2 * max(cy, h.float32 - cy) / th.float32)
-  drawModTexture(id, cx, cy, tw.float32 * scale, th.float32 * scale, 0, White)
+  drawModTexture(id, 0, 0, w.float32, h.float32, 0, White, centered = false)
   true
 
 # ----------------------------------------------------------------- equipping ----
