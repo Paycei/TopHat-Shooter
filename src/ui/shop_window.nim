@@ -1174,6 +1174,10 @@ proc drawModCosmeticPreview(shop: ShopWindow, c: ModCosmetic, x, y, border: int)
       drawCircle(Vector2(x: cx, y: cy), 22.0'f32, c.c1)
       drawCircle(Vector2(x: cx, y: cy), 13.0'f32, c.c2)
       drawCircle(Vector2(x: cx, y: cy), 6.0'f32, c.c3)
+    of mckCube:
+      drawCircle(Vector2(x: cx, y: cy), 22.0'f32, c.c1)
+      drawCircle(Vector2(x: cx, y: cy), 13.0'f32, c.c2)
+      drawCircle(Vector2(x: cx, y: cy), 6.0'f32, c.c3)
   endPreviewClip(clip)
 
 proc drawModCard(shop: ShopWindow, idx, x, y: int) =
@@ -1246,6 +1250,7 @@ proc drawModsTabContent(shop: ShopWindow, contentX, contentY, contentWidth, cont
         of mckPlayer: t(tkModsKindPlayer)
         of mckBullet: t(tkModsKindBullet)
         of mckDesktop: t(tkModsKindDesktop)
+        of mckCube: t(tkModsKindCube)
       drawText(label, (contentX + 14).int32, (hy + 3).int32, 13, Color(r: 120, g: 220, b: 160, a: 255))
       drawRectangle((contentX + 14).int32, (hy + 20).int32, (contentWidth - 44).int32, 1,
                     Color(r: 60, g: 80, b: 75, a: 255))

@@ -457,7 +457,7 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   `waveComplete`, `shield`, `gameOver`, `buy`, ...). WAV, OGG or MP3.
 * `override.music(track, file)` replaces a music track: `"menu"`, `"wave"`,
   `"powerUp"` or `"boss"`.
-* `register.cosmetic{kind = "player" | "bullet" | "desktop", id = "neon",
+* `register.cosmetic{kind = "player" | "bullet" | "desktop" | "cube", id = "neon",
   name = "Neon", description = "...", colors = {"#ff00ff", "#00ffff", "#ffffff"},
   texture = "skins/neon.png", scale = 1.2, rotate = true}` adds a cosmetic the
   player equips in **MODS.EXE > Cosmetics**, or in the Shop's **MODS** tab
@@ -465,8 +465,10 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   built-in shapes (player: body, trim, core; bullets: body, glow, trail); a
   `texture` or a `model` (see 3D models below) replaces the drawing. Desktop
   cosmetics take a texture (the wallpaper; `cube = true` keeps the desktop
-  cube over it, hidden by default) and/or a model, which stands in for the
-  desktop cube.
+  cube over it, hidden by default) and/or a model. Desktop wallpapers and cube
+  models have independent equip slots, so both can be active at once. The
+  `cube` kind is for a mod model that replaces the desktop cube; the `desktop`
+  kind remains compatible with older combined wallpaper/cube cosmetics.
 
 Equipped mod cosmetics are remembered per profile and come back whenever the
 mod is loaded. In PvP everyone in the lobby sees each player's mod ship and

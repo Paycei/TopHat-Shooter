@@ -28,7 +28,7 @@ register.cosmetic{
 }
 
 register.cosmetic{
-  kind = "desktop", id = "data_cube",
+  kind = "cube", id = "data_cube",
   name = {en = "Data Cube (3D)", es = "Cubo de Datos (3D)"},
   description = {en = "A voxel cube in place of the desktop cube. Drag it to spin it.",
                  es = "Un cubo de vóxeles en lugar del cubo del escritorio. Arrástralo para girarlo."},

@@ -44,7 +44,8 @@ type
     path: string
 
   ModCosmeticKind* = enum
-    mckPlayer = "player", mckBullet = "bullet", mckDesktop = "desktop"
+    mckPlayer = "player", mckBullet = "bullet", mckDesktop = "desktop",
+    mckCube = "cube"
 
   ModCosmetic* = object
     kind*: ModCosmeticKind
@@ -837,16 +838,22 @@ proc drawPowerUpModIcon*(x, y, size: int32, pt: PowerUpType): bool =
   true
 
 proc cubeLook(): BodyReplace =
-  ## The model standing in for the desktop cube: an equipped desktop
-  ## cosmetic's, else override.model("cube"). model 0 = the built-in cube.
-  let c = cosmeticAt(equippedCosmetic[mckDesktop])
-  if not c.isNil and c.look.model > 0: c.look else: cubeModel
+  ## The model standing in for the desktop cube: an equipped cube cosmetic,
+  ## then a legacy desktop cosmetic, else override.model("cube").
+  let cube = cosmeticAt(equippedCosmetic[mckCube])
+  if not cube.isNil and cube.look.model > 0:
+    return cube.look
+  let desktop = cosmeticAt(equippedCosmetic[mckDesktop])
+  if not desktop.isNil and desktop.look.model > 0:
+    return desktop.look
+  cubeModel
 
 proc modWallpaper*(): tuple[id: int, cube: bool] =
   ## The mod wallpaper covering the desktop: an equipped desktop cosmetic, else
   ## override.texture("desktop"). id 0 = none (the built-in background shows).
-  ## `cube`: the mod keeps the desktop cube (drawn and grabbable) on top of it,
-  ## which a cube model always does.
+  ## A cube cosmetic is independent of the wallpaper and is shown whenever it
+  ## supplies a model; legacy desktop cosmetics may still keep the cube with
+  ## `cube = true`.
   if not modTexturesActive: return (0, false)
   let cubeModelShown = cubeLook().model > 0
   let c = cosmeticAt(equippedCosmetic[mckDesktop])

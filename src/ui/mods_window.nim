@@ -668,6 +668,7 @@ proc drawCosmetics(mw: ModsWindow, g: Geo) =
       of mckPlayer: t(tkModsKindPlayer)
       of mckBullet: t(tkModsKindBullet)
       of mckDesktop: t(tkModsKindDesktop)
+      of mckCube: t(tkModsKindCube)
     let textX = px + 54
     let textW = int32(g.w) - 54 - 150
     drawText(fitWithEllipsis(c.name, textW, 15), textX, ry + 8, 15, ColText)

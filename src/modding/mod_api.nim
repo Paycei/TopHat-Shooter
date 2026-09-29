@@ -1784,7 +1784,7 @@ proc installAssetLibraries(base: ScriptTable) =
     var kind = mckPlayer
     if kindName.kind == vkString:
       try: kind = parseEnum[ModCosmeticKind](kindName.str.s)
-      except ValueError: vm.runtimeError("register.cosmetic: kind must be \"player\", \"bullet\" or \"desktop\"")
+      except ValueError: vm.runtimeError("register.cosmetic: kind must be \"player\", \"bullet\", \"desktop\" or \"cube\"")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.cosmetic")
     if cosmeticIndex(kind, key) > 0: vm.runtimeError("register.cosmetic: '" & key & "' is already registered")
     var c = ModCosmetic(kind: kind, key: key, owner: owner)

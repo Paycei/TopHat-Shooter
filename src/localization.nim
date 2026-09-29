@@ -1884,6 +1884,7 @@ type
     tkModsKindPlayer = "mods_kind_player"
     tkModsKindBullet = "mods_kind_bullet"
     tkModsKindDesktop = "mods_kind_desktop"
+    tkModsKindCube = "mods_kind_cube"
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -4044,7 +4045,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_unequip": "Unequip",
     "mods_kind_player": "Player skin",
     "mods_kind_bullet": "Bullet skin",
-    "mods_kind_desktop": "Desktop"
+    "mods_kind_desktop": "Desktop",
+    "mods_kind_cube": "Desktop cube"
   }.toTable,
 
   Spanish: {
@@ -6202,7 +6204,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_unequip": "Quitar",
     "mods_kind_player": "Aspecto del jugador",
     "mods_kind_bullet": "Aspecto de las balas",
-    "mods_kind_desktop": "Escritorio"
+    "mods_kind_desktop": "Escritorio",
+    "mods_kind_cube": "Cubo del escritorio"
   }.toTable
 }.toTable
 
