@@ -335,17 +335,21 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
 
   if mw.window.focused:
     if mw.tab == mtInstalled and installedMods.len > 0:
+      var selectionMoved = false
       if isKeyPressed(KeyboardKey.Down) or gamepadNavPressed(gnDown):
         mw.selected = min(mw.selected + 1, installedMods.high)
+        selectionMoved = true
       elif isKeyPressed(KeyboardKey.Up) or gamepadNavPressed(gnUp):
         mw.selected = max(mw.selected - 1, 0)
+        selectionMoved = true
       elif isKeyPressed(KeyboardKey.Space):
         mw.toggle(mw.selected)
       # keep the selection in view
-      let visible = max(1, int(g.list.height) div RowH)
-      if mw.selected * RowH < mw.listScroll: mw.listScroll = mw.selected * RowH
-      elif (mw.selected + 1) * RowH > mw.listScroll + visible * RowH:
-        mw.listScroll = (mw.selected + 1) * RowH - visible * RowH
+      if selectionMoved:
+        let visible = max(1, int(g.list.height) div RowH)
+        if mw.selected * RowH < mw.listScroll: mw.listScroll = mw.selected * RowH
+        elif (mw.selected + 1) * RowH > mw.listScroll + visible * RowH:
+          mw.listScroll = (mw.selected + 1) * RowH - visible * RowH
     if isKeyPressed(KeyboardKey.Tab):
       mw.tab = ModsTab((ord(mw.tab) + 1) mod (ord(high(ModsTab)) + 1))
 
