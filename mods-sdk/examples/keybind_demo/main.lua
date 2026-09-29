@@ -30,7 +30,8 @@ hooks.on("update", function(game, dt)
 end)
 
 hooks.on("drawHud", function(game, width, height)
-  local x, y = 32, 92
+  local ax, ay = draw.arena()
+  local x, y = ax + 16, ay + 16
   local color = messageTime > 0 and "#64d8ff" or "#a8b4c8"
   draw.rect(x - 10, y - 8, 250, 58, "#101824dd")
   draw.rectLines(x - 10, y - 8, 250, 58, "#4d7999", 1)
