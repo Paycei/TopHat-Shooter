@@ -10,9 +10,9 @@ whole game is a desktop operating system. You play a lone process defending the 
 kernel from a hostile takeover. The menus are desktop apps, the enemies are rogue processes
 and the bosses are hijacked system services.
 
-<!-- MEDIA PLACEHOLDER (GIF): a ~6 s loop of wave-mode combat.
+<!-- MEDIA PLACEHOLDER
 <p align="center">
-  <img src="docs/media/gameplay.gif" alt="Wave mode combat" width="800">
+  <img src="media/1.gif" alt="Wave mode combat" width="800">
 </p>
 -->
 
@@ -43,11 +43,9 @@ and the bosses are hijacked system services.
 - **Everything else:** full controller support, English and Spanish, Discord Rich
   Presence, and a built-in tutorial (`ORIENTATION.EXE`).
 
-<!-- MEDIA PLACEHOLDER (image): the desktop, ideally with one app window open.
 <p align="center">
-  <img src="docs/media/desktop.png" alt="The TopHat-ShooterOS desktop" width="800">
+  <img src="media/2.png" alt="The TopHat-ShooterOS desktop" width="800">
 </p>
--->
 
 ## Game modes
 
@@ -95,11 +93,9 @@ Debug builds save to a separate `debug/` subfolder, so testing never touches you
 
 ## Modding
 
-<!-- MEDIA PLACEHOLDER (image): an example mod in action (e.g. Retro CRT or Neon Pack).
 <p align="center">
-  <img src="docs/media/mods.png" alt="An example mod running in game" width="800">
+  <img src="media/3.png" alt="An example mod running in game" width="800">
 </p>
--->
 
 Open **MODS.exe** on the desktop, press **Install Examples**, tick a mod and press
 **Apply & Reload**. Mods are written in **Lua 5.5** (the official implementation,
