@@ -3,6 +3,7 @@
 import raylib, std/strutils, random
 from std/unicode import runeSubStr, runeLen
 import types, enemy, enemy_config, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
+import game3d/types_3d
 
 const
   SIDEBAR_WIDTH = 300
@@ -605,6 +606,7 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
   if mousePos.x >= contentX.float32 and mousePos.x <= (contentX + buttonWidth).float32 and
      mousePos.y >= currentY.float32 and mousePos.y <= (currentY + BUTTON_HEIGHT).float32:
     # Start transition to 3D mode
+    pendingWorld3D = World3DOptions(bossEnabled: true, bossId: 7, carryHp: true)
     game.transitioning = true
     game.fadeAlpha = 0.0
     return

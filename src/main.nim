@@ -1159,6 +1159,13 @@ proc main() =
     hideCursor()
     updateInGameMouseBonding(settings, currentGame.state)
 
+    # A 3D world belongs to the game that entered it: a replaced game (profile
+    # switch, new mode) or a state that left gs3DBoss must not leave it dangling.
+    if activeWorld3D != nil and (currentGame.game3D != cast[pointer](activeWorld3D) or
+                                 currentGame.state != gs3DBoss):
+      activeWorld3D = nil
+      currentGame.game3D = nil
+
     # Mods: scripts see a run only while one is on screen (never PvP), and
     # hear about every state change of the run in progress.
     if not isActiveRunState(currentGame.state):
@@ -1631,6 +1638,9 @@ proc main() =
               else:
                 currentGame.state = gsPlaying
                 initializeRunTracking(currentGame)
+            if md.threeD:
+              # base = "3d": straight into the world (a resumed run re-enters it fresh)
+              enterWorld3D(currentGame, World3DOptions(modeKey: md.key, resumed: resumed))
             statsSavedThisGame = false
           pendingModMode = -1
         else: discard
@@ -2821,7 +2831,7 @@ proc main() =
         drawRectangle(0, 0, screenWidth, screenHeight,
                      fade(Black, currentGame.fadeAlpha))
         if currentGame.fadeAlpha > 0.5:
-          let text = "ENTERING 3D ARENA"
+          let text = t(tkGame3DEntering)
           let textWidth = measureText(text, 30)
           drawText(text, screenWidth div 2 - textWidth div 2,
                   screenHeight div 2, 30, White)
@@ -4238,16 +4248,30 @@ proc main() =
         updateGame(currentGame, dt)
 
       # Render 3D game directly (no 2D render target)
-      if currentGame.game3D != nil:
+      if activeWorld3D != nil:
+        let world = activeWorld3D
         beginDrawing()
         clearBackground(Black)
-        var game3D = cast[ptr Game3D](currentGame.game3D)
-        renderGame3D(game3D[])
+        renderGame3D(world)
 
         # Draw cheat menu overlay if active
         drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
 
         endDrawing()
+
+        if world.quitRequested:
+          # The 3D pause overlay's "quit to desktop": checkpoint the run like the
+          # 2D pause menu does (a mod-mode run resumes into a fresh world), then
+          # leave. The 2D state is put back for the checkpoint's state gate.
+          finishWorld3D(world, w3Exit)
+          enableCursor()
+          currentGame.state = gsPlaying
+          checkpointLiveRun(currentGame)
+          cleanupGame(currentGame)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame.discordClient = globalDiscordClient
+          currentGame.state = gsMenu
+          playSound(stMenuSelect)
       else:
         # Safety: only recover if the 3D state is still active after update.
         if currentGame.state == gs3DBoss:
@@ -4346,6 +4370,8 @@ proc main() =
 
   # Checkpoint the live run on shutdown so it can be resumed next launch.
   if not currentGame.isNil:
+    if currentGame.state == gs3DBoss and currentGame.modMode.len > 0:
+      currentGame.state = gsPlaying  # a mod-mode run closed inside its world resumes into a fresh one
     saveRunState(currentGame)
     suspendGame(currentGame)  # Exact snapshot: the primary resume path on relaunch.
 

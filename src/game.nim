@@ -98,6 +98,8 @@ proc cleanupGame*(game: Game) =
   ## Release game object references before creating a new game.
   # Only drop the Discord reference - the client is global and persists across sessions.
   game.discordClient = nil
+  activeWorld3D = nil
+  game.game3D = nil
   game.enemies = @[]
   game.bullets = @[]
   game.coins = @[]
@@ -917,6 +919,71 @@ proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: in
   # Mark boss wave active so UI shows boss-related hints during the warning
   game.bossWaveManager.startBossWave()
 
+# 3D worlds
+# The game3d/ engine plays a run's 3D scenes: the Orbital Commander fight from
+# the sandbox, or a mod's world (world3d.enter, or a whole mod game mode with
+# base = "3d"). Entering parks the 2D run in state gs3DBoss; leaving carries
+# the world's result back into it.
+
+
+proc enterWorld3D*(game: Game, opts: World3DOptions) =
+  ## Enter a 3D world now. activeWorld3D holds the world; Game.game3D only
+  ## marks that one exists (the pointer is never serialized or suspended).
+  game.transitioning = false
+  game.fadeAlpha = 0.0
+  let world = initGame3D(opts, game.player)
+  world3dActions.setLen(0)
+  activeWorld3D = world
+  game.game3D = cast[pointer](world)
+  game.state = gs3DBoss
+  disableCursor()  # For mouse look
+
+proc beginEnter3D*(game: Game, opts: World3DOptions) =
+  ## Enter a 3D world through the fade to black (the sandbox button, world3d.enter).
+  pendingWorld3D = opts
+  game.transitioning = true
+  game.fadeAlpha = 0.0
+
+proc leaveWorld3D(game: Game) =
+  ## The world ended: carry its result back into the run. A mod game mode
+  ## (world.modeKey) has no 2D run behind it, so its ending ends the run.
+  let world = activeWorld3D
+  let res = world.result
+  let modeRun = world.modeKey.len > 0
+  activeWorld3D = nil
+  game.game3D = nil
+  world3dActions.setLen(0)
+  enableCursor()
+  if world.carryHp and res != w3Lost:
+    # Boss defeated / left alive: transfer health back
+    game.player.hp = max(1.0'f32, min(world.player.health, game.player.maxHp))
+  case res
+  of w3Won:
+    if modeRun:
+      # The run is won, like a script's game:win()
+      deleteRunSave(game.mode, game.modMode)
+      deleteBlockCheckpoint(game.mode, game.modMode)
+      deleteSuspendSnapshot(game.mode, game.modMode)
+      game.selectedVictoryButton = 0
+      playSound(stWaveComplete)
+      game.state = gsVictory
+    elif world.bossEnabled:
+      # Boss defeated: complete the boss wave
+      game.bossWaveManager.bossDefeated()
+      game.bossWaveManager.coinActive = false  # Skip coin for 3D boss
+      completeBossWave(game)
+      game.state = gsPowerUpSelect
+    else:
+      game.state = gsPlaying
+  of w3Lost:
+    # Player died in 3D
+    beginPlayerDeathSequence(game, if world.bossEnabled: dcBossContact else: dcUnknown)
+  of w3Exit, w3None:
+    if modeRun:
+      beginPlayerDeathSequence(game, dcUnknown)  # nothing to go back to: leaving counts as a loss
+    else:
+      game.state = gsPlaying
+
 proc processModActions(game: Game) =
   ## Carry out what mod scripts queued this frame (spawns, removals, bullets),
   ## after the simulation and outside every entity loop. Anything queued while
@@ -971,8 +1038,14 @@ proc processModActions(game: Game) =
       for e in game.enemies:
         if e.isBoss: kept.add(e)
       game.enemies = kept
+    of makEnter3D:
+      if game.state == gsPlaying and not game.transitioning and activeWorld3D.isNil and
+         not modModeIs3D(game.modMode):
+        beginEnter3D(game, a.enter3d)
     of makWin:
-      if game.state == gsPlaying:
+      if game.state == gs3DBoss and not activeWorld3D.isNil:
+        requestFinish3D(activeWorld3D, w3Won)  # the world ends the run (leaveWorld3D)
+      elif game.state == gsPlaying:
         deleteRunSave(game.mode, game.modMode)
         deleteBlockCheckpoint(game.mode, game.modMode)
         deleteSuspendSnapshot(game.mode, game.modMode)
@@ -980,7 +1053,9 @@ proc processModActions(game: Game) =
         playSound(stWaveComplete)
         game.state = if game.mode == gmRoguelite: gsRogueliteVictory else: gsVictory
     of makLose:
-      if game.state == gsPlaying and game.player.hp > 0:
+      if game.state == gs3DBoss and not activeWorld3D.isNil:
+        requestFinish3D(activeWorld3D, w3Lost)
+      elif game.state == gsPlaying and game.player.hp > 0:
         game.player.hp = 0
         beginPlayerDeathSequence(game, dcUnknown)
     of makPowerUpDraft:
@@ -5332,6 +5407,11 @@ proc updateGame*(game: var Game, dt: float32) =
   # Mods: publish this run to scripts and fire runStart on a new run, before
   # anything this frame spawns or takes damage.
   modBeginFrame(game)
+  # A mod game mode with base = "3d" lives in a world, never on the 2D arena: a
+  # resumed run, or a victory's "continue", lands back in 3D here.
+  if game.state == gsPlaying and game.modMode.len > 0 and activeWorld3D.isNil and
+     modModeIs3D(game.modMode):
+    enterWorld3D(game, World3DOptions(modeKey: game.modMode, resumed: game.time > 0.5))
   if game.state == gsDeathSequence:
     updateDeathSequencePlayback(game, dt)
     return
@@ -5371,28 +5451,20 @@ proc updateGame*(game: var Game, dt: float32) =
 
   # Handle 3D boss state
   if game.state == gs3DBoss:
-    if game.game3D != nil:
-      var game3D = cast[ptr Game3D](game.game3D)
-      updateGame3D(game3D[], dt)
-
-      if not game3D[].active:
-        # 3D boss fight ended - return to 2D
-        if game3D[].won:
-          # Boss defeated - transfer health back
-          game.player.hp = game3D[].player.health
-          # Clean up and complete boss wave
-          game.bossWaveManager.bossDefeated()
-          game.bossWaveManager.coinActive = false  # Skip coin for 3D boss
-          completeBossWave(game)
-          game.state = gsPowerUpSelect
-          enableCursor()
-        else:
-          # Player died in 3D
-          beginPlayerDeathSequence(game, dcBossContact)
-          enableCursor()
-        # Clean up 3D game
-        dealloc(game.game3D)
-        game.game3D = nil
+    let world = activeWorld3D
+    if not world.isNil:
+      let live = world.active and not world.paused
+      if live: modPreUpdate(game, dt)
+      updateGame3D(world, dt)
+      if live:
+        if world.modeKey.len > 0:
+          game.time += dt  # a mod-mode run has no 2D frames: its clock ticks here
+          game.frameCount += 1
+        modUpdate(game, dt)
+        processModActions(game)
+      if not world.active:
+        # The 3D scene ended - back to the run (or the end of it)
+        leaveWorld3D(game)
     return
 
   # Handle transition to 3D mode
@@ -5400,14 +5472,8 @@ proc updateGame*(game: var Game, dt: float32) =
     game.fadeAlpha += dt * 2.0
     if game.fadeAlpha >= 1.0:
       game.fadeAlpha = 1.0
-      game.transitioning = false
-
       # Initialize and switch to 3D mode
-      var game3D = create(Game3D)
-      game3D[] = initGame3D(7, game.player)
-      game.game3D = cast[pointer](game3D)
-      game.state = gs3DBoss
-      disableCursor()  # For mouse look
+      enterWorld3D(game, pendingWorld3D)
     return
 
   # Sector layer: room transitions, exits, rewards and /pkg stalls. While a

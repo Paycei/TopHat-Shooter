@@ -1254,6 +1254,9 @@ type
     tkGame3DPhaseTransition = "game3d_phase_transition"
     tkGame3DPaused = "game3d_paused"
     tkGame3DPressEscResume = "game3d_press_esc_resume"
+    tkGame3DPressQQuit = "game3d_press_q_quit"
+    tkGame3DReloading = "game3d_reloading"
+    tkGame3DEntering = "game3d_entering"
 
     # OS UI
     tkOSLoading = "os_loading"
@@ -2508,6 +2511,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game3d_phase_transition": "PHASE TRANSITION!",
     "game3d_paused": "PAUSED",
     "game3d_press_esc_resume": "Press ESC to resume",
+    "game3d_press_q_quit": "Press Q to quit to the desktop",
+    "game3d_reloading": "RELOADING",
+    "game3d_entering": "ENTERING 3D ARENA",
 
     # OS UI
     "os_loading": "Loading...",
@@ -5236,6 +5242,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game3d_phase_transition": "¡CAMBIO DE FASE!",
     "game3d_paused": "PAUSA",
     "game3d_press_esc_resume": "Presiona ESC para continuar",
+    "game3d_press_q_quit": "Presiona Q para salir al escritorio",
+    "game3d_reloading": "RECARGANDO",
+    "game3d_entering": "ENTRANDO A LA ARENA 3D",
 
     # OS UI
     "os_loading": "Cargando...",

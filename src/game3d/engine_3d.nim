@@ -68,7 +68,9 @@ proc updateCamera*(cam: var FPSCamera, mouseDelta: Vector2, sensitivity: float32
   # Update shake
   if cam.shakeTime > 0:
     cam.shakeTime -= getFrameTime()
-    cam.shake = cam.shakeTime * 10.0
+    # Amplitude follows sqrt of the time left (capped at 1 s): a short
+    # world3d.shake(0.3) still shows, and every shake fades to nothing.
+    cam.shake = sqrt(min(cam.shakeTime, 1.0'f32)) * 10.0'f32
   else:
     cam.shake = 0
 
@@ -175,6 +177,11 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
       currentRotation: 0.0
     ))
 
+  of "empty":  # A mod world: the script builds everything
+    result.skyColor = Color(r: 20, g: 30, b: 40, a: 255)
+    result.floorColor = Color(r: 40, g: 40, b: 40, a: 255)
+    result.wallColor = Color(r: 60, g: 60, b: 60, a: 255)
+
   else:  # Default arena
     result.skyColor = Color(r: 20, g: 30, b: 40, a: 255)
     result.floorColor = Color(r: 40, g: 40, b: 40, a: 255)
@@ -199,6 +206,15 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
       ))
 
   result.environmentIntensity = 0.0
+  result.gravity = GRAVITY
+  result.boundsRadius = 450.0
+  result.deathPlaneY = -50.0
+  result.drawFloor = true
+  result.drawWalls = true
+  # The visual floor (drawArena) is a 1-thick slab centred on y = -10: its top is -9.5.
+  # Only a mod world's empty arena is solid: the vanilla boss arena keeps its void.
+  result.floorY = -9.5
+  result.solidFloor = (theme == "empty")
 
 proc updatePlatforms*(platforms: var seq[Platform3D], dt: float32) =
   for platform in platforms.mitems:
@@ -225,14 +241,16 @@ proc drawArena*(arena: Arena3D) =
   clearBackground(arena.skyColor)
 
   # Draw floor
-  drawCube(Vector3(x: 0, y: -10, z: 0),
-          arena.radius * 4, 1.0, arena.radius * 4,
-          arena.floorColor)
+  if arena.drawFloor:
+    drawCube(Vector3(x: 0, y: -10, z: 0),
+            arena.radius * 4, 1.0, arena.radius * 4,
+            arena.floorColor)
 
   # Draw walls
-  drawCylinderWires(Vector3(x: 0, y: 50, z: 0),
-                   arena.radius, arena.radius, 100.0, 32,
-                   arena.wallColor)
+  if arena.drawWalls:
+    drawCylinderWires(Vector3(x: 0, y: 50, z: 0),
+                     arena.radius, arena.radius, 100.0, 32,
+                     arena.wallColor)
 
 proc drawPlatform*(platform: Platform3D) =
   drawCube(Vector3(x: platform.pos.x, y: platform.pos.y, z: platform.pos.z),
@@ -252,12 +270,21 @@ proc drawPlatform*(platform: Platform3D) =
                 0.5, 0.5, 2.0, 8,
                 Color(r: 0, g: uint8(255.0 * glow), b: 0, a: 200))
 
-proc drawProjectile*(proj: Projectile3D) =
-  let color = if proj.fromPlayer: Yellow else: Red
-  drawSphere(Vector3(x: proj.pos.x, y: proj.pos.y, z: proj.pos.z), 1.5, color)
+const DefaultProjectileRadius* = 1.5'f32
 
-  # Trail effect
+proc effectiveRadius*(proj: Projectile3D): float32 =
+  ## The size a projectile hits and is drawn at (radius 0 = the default).
+  if proj.radius > 0: proj.radius else: DefaultProjectileRadius
+
+proc drawProjectile*(proj: Projectile3D) =
+  let color = if proj.color.a > 0: proj.color
+              elif proj.fromPlayer: Yellow
+              else: Red
+  let r = proj.effectiveRadius()
+  drawSphere(Vector3(x: proj.pos.x, y: proj.pos.y, z: proj.pos.z), r, color)
+
+  # Trail effect (vanilla: 1.0 behind a 1.5 shot)
   drawSphere(Vector3(x: proj.pos.x - proj.vel.x * 0.05,
                     y: proj.pos.y - proj.vel.y * 0.05,
                     z: proj.pos.z - proj.vel.z * 0.05),
-            1.0, fade(color, 0.5))
+            r / 1.5'f32, fade(color, 0.5))

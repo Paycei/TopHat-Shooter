@@ -8,7 +8,7 @@
 
 import std/[os, strutils]
 import ../localization
-import lua_bridge, mod_state, mod_hooks, mod_api, mod_catalog, mod_assets
+import lua_bridge, mod_state, mod_hooks, mod_api, mod_3d, mod_catalog, mod_assets
 
 proc summaryText*(): string =
   ## "3 loaded, 1 failed" style line for toasts and the log.
@@ -37,6 +37,7 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   let (vm, base) = newScriptVM()
   initModHooksVM(vm, base)
   installModApi(base)
+  installMod3D(base)
   resetModContent()
 
   # 3. Discover and run.

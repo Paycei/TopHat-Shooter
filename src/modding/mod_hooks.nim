@@ -14,7 +14,7 @@
 
 import std/[json, tables, strutils, math, random]
 import raylib
-import ../types
+import ../types, ../game3d/types_3d
 import lua_bridge, mod_state, mod_assets
 
 type
@@ -80,16 +80,34 @@ type
     hkXpValue = "xpValue"            ## filter (amount, enemy)
     hkPickup = "pickup"              ## cancel (kind, value, game): true = taken, no vanilla effect
     hkShopBuy = "shopBuy"            ## cancel (index, name, cost, game): true = not bought
+    # 3D worlds (game3d/): the script-facing wrappers come from mod_3d
+    hkWorld3dStart = "world3dStart"  ## (world, resumed)    first frame of a world, before its simulation
+    hkWorld3dPreUpdate = "world3dPreUpdate"  ## (world, dt)  before the simulation
+    hkWorld3dUpdate = "world3dUpdate"  ## (world, dt)       after the simulation
+    hkWorld3dEnd = "world3dEnd"      ## (world, result)     "won" | "lost" | "exit"
+    hkWorld3dDraw = "world3dDraw"    ## (world)             inside the 3D camera: draw3d.* allowed
+    hkWorld3dDrawHud = "world3dDrawHud"  ## (world, w, h)   screen coordinates over the 3D view
+    hkWorld3dShoot = "world3dShoot"  ## cancel (world): true skips the vanilla shot
+    hkWorld3dHit = "world3dHit"      ## filter (damage, target, projectile): target = entity or "boss"/"satellite"
+    hkWorld3dPlayerDamaged = "world3dPlayerDamaged"  ## filter (amount, source, entity)
+    hkWorld3dPlayerLethal = "world3dPlayerLethal"  ## cancel (): true keeps the player alive
+    hkWorld3dEntitySpawn = "world3dEntitySpawn"  ## (entity)
+    hkWorld3dEntityUpdate = "world3dEntityUpdate"  ## cancel (entity, dt): true skips the built-in AI
+    hkWorld3dEntityDraw = "world3dEntityDraw"  ## cancel (entity): true skips the built-in body
+    hkWorld3dEntityDeath = "world3dEntityDeath"  ## (entity)
+    hkWorld3dBossPhase = "world3dBossPhase"  ## (phase)
+    hkWorld3dBossAttack = "world3dBossAttack"  ## cancel (phase, pattern): true skips the vanilla attack
+    hkWorld3dPickup = "world3dPickup"  ## cancel (pickup): true = taken, no vanilla effect
 
   DrawTarget* = enum
-    dtNone, dtWorld, dtHud
+    dtNone, dtWorld, dtHud, dtWorld3D  ## dtWorld3D: inside a 3D camera (world3dDraw, world3dEntityDraw)
 
   HudPart* = enum
     ## Built-in HUD pieces a mod may hide (hud.hide) to draw its own.
     hpAll = "all", hpPlayer = "player", hpRun = "run", hpBoss = "boss",
     hpCombo = "combo", hpBanners = "banners", hpAbilities = "abilities",
     hpHints = "hints", hpVignettes = "vignettes", hpDocks = "docks",
-    hpDamageNumbers = "damageNumbers"
+    hpDamageNumbers = "damageNumbers", hpCrosshair = "crosshair"
 
   ModRuntime* = ref object
     ## One successfully started mod.
@@ -461,6 +479,7 @@ type ModModeDef* = object
   icon*: BodyReplace   ## the desktop icon's texture or model (none: a default glyph)
   color*: Color        ## icon accent; alpha 0 = not given, use the base mode's desktop colour
   desktop*: bool       ## puts an icon on the desktop
+  threeD*: bool        ## base = "3d": the run lives in a 3D world (game3d/), never on the 2D arena
 
 var modModes*: seq[ModModeDef]
 
@@ -468,6 +487,12 @@ proc findModMode*(key: string): int =
   for i, m in modModes:
     if m.key == key: return i
   -1
+
+proc modModeIs3D*(key: string): bool =
+  ## Whether the mod game mode `key` runs in a 3D world.
+  if key.len == 0 or modModes.len == 0: return false
+  let i = findModMode(key)
+  i >= 0 and modModes[i].threeD
 
 proc modModeSpawns*(game: Game): bool =
   ## Whether the base mode's own spawning runs (always, outside mod modes).
@@ -623,9 +648,9 @@ proc modUpdate*(game: Game, dt: float32) =
     return
   if hudNoticeTimer > 0.0:
     hudNoticeTimer = max(0.0'f32, hudNoticeTimer - dt)
-  if game.state notin {gsPlaying, gsCountdown}:
+  if game.state notin {gsPlaying, gsCountdown, gs3DBoss}:
     return
-  if game.state == gsPlaying:
+  if game.state in {gsPlaying, gs3DBoss}:
     tickTimers(dt.float64)
     tickPowerUpScripts(game, dt.float64)
     if hookActive(hkUpdate):
@@ -662,7 +687,7 @@ proc modDrawDesktop*(w, h: int32) =
   modCtx.drawing = dtNone
 
 proc modPreUpdate*(game: Game, dt: float32) =
-  if hookActive(hkPreUpdate) and not modCtx.inPvP and game.state == gsPlaying:
+  if hookActive(hkPreUpdate) and not modCtx.inPvP and game.state in {gsPlaying, gs3DBoss}:
     fire(hkPreUpdate, [wrapGame(game), vnum(dt.float64)])
 
 proc modDrawHud*(game: Game, w, h: int32, arena: tuple[x, y, w, h: float64]) =
@@ -751,7 +776,8 @@ type
   ModActionKind* = enum
     makSpawnEnemy, makSpawnBoss, makRemoveEnemy, makSpawnBullet, makRemoveBullet,
     makStartWave, makEndWave, makWin, makLose, makPowerUpDraft,
-    makGivePowerUp, makTakePowerUp, makSpawnCoin, makSpawnXp, makSpawnConsumable
+    makGivePowerUp, makTakePowerUp, makSpawnCoin, makSpawnXp, makSpawnConsumable,
+    makEnter3D
 
   ModAction* = object
     kind*: ModActionKind
@@ -771,6 +797,7 @@ type
     powerType*: PowerUpType
     level*, value*: int
     consumable*: ConsumableType
+    enter3d*: World3DOptions ## makEnter3D: how the 3D world is entered
 
 var modActions*: seq[ModAction]
 
@@ -1105,9 +1132,170 @@ proc modXpValue*(e: Enemy, amount: int): int =
   if not hookActive(hkXpValue) or modCtx.inPvP: return amount
   max(0, int(round(filterNum(hkXpValue, amount.float64, [wrapEnemy(e)]))))
 
+# ------------------------------------------------------------ 3D worlds ----
+# The game3d/ engine fires the world3d* hooks; the script-facing wrappers for
+# its objects are made by mod_3d (high layer), which fills these impl vars at
+# startup. Until then (and in tests with no scripting) a wrapper is nil.
+var
+  wrapWorld3DImpl*: proc (w: Game3D): ScriptValue {.nimcall.}
+  wrapEntity3DImpl*: proc (e: Entity3D): ScriptValue {.nimcall.}
+  wrapProjectile3DImpl*: proc (p: Projectile3D): ScriptValue {.nimcall.}
+  wrapPickup3DImpl*: proc (p: Pickup3D): ScriptValue {.nimcall.}
+
+proc wrapWorld3D*(w: Game3D): ScriptValue =
+  if w.isNil or wrapWorld3DImpl.isNil: NilValue else: wrapWorld3DImpl(w)
+
+proc wrapEntity3D*(e: Entity3D): ScriptValue =
+  if e.isNil or wrapEntity3DImpl.isNil: NilValue else: wrapEntity3DImpl(e)
+
+proc wrapProjectile3D*(p: Projectile3D): ScriptValue =
+  if p.isNil or wrapProjectile3DImpl.isNil: NilValue else: wrapProjectile3DImpl(p)
+
+proc wrapPickup3D*(p: Pickup3D): ScriptValue =
+  if p.isNil or wrapPickup3DImpl.isNil: NilValue else: wrapPickup3DImpl(p)
+
+# The world's own action queue. Hooks fire inside the world's entity and
+# projectile loops, so a script adding things there only queues them here; the
+# engine (game_3d.nim processWorld3DActions) applies the queue between stages,
+# outside every loop. Removal needs no queue: `alive = false` and the engine
+# sweeps the dead after the stage.
+type
+  World3DActionKind* = enum
+    wkSpawnEntity, wkSpawnProjectile, wkSpawnPickup, wkFinish
+
+  World3DAction* = object
+    kind*: World3DActionKind
+    owner*: int
+    entity*: Entity3D          ## wkSpawnEntity: already built (id assigned), not yet in the world
+    projectile*: Projectile3D  ## wkSpawnProjectile
+    pickup*: Pickup3D          ## wkSpawnPickup
+    result*: World3DResult     ## wkFinish
+    callback*: ScriptValue     ## wkSpawnEntity: called with the entity once it is in the world
+
+var world3dActions*: seq[World3DAction]
+
+type World3DLabel* = object
+  ## draw3d.text: a label anchored to a point in the world. Text cannot be drawn
+  ## inside the 3D camera, so the engine draws these after it, once per frame.
+  pos*: Vector3f
+  text*: string
+  size*: int32
+  color*: Color
+
+const MaxWorld3DLabels* = 512
+var world3dLabels*: seq[World3DLabel]
+
+proc queueWorld3DAction*(a: World3DAction) =
+  if world3dActions.len < 4096:  # a runaway loop can't queue the whole heap
+    world3dActions.add(a)
+
+proc world3DActionDone*(a: World3DAction) =
+  ## The engine calls this once a wkSpawnEntity is in the world.
+  if a.callback.kind in {vkFunction, vkNative} and not a.entity.isNil:
+    var r: RetVals
+    discard callAs(a.owner, a.callback, [wrapEntity3D(a.entity)], r)
+
+proc world3dScripts(): bool {.inline.} =
+  not modCtx.inPvP
+
+proc modWorld3DStart*(w: Game3D, resumed: bool) =
+  if hookActive(hkWorld3dStart) and world3dScripts():
+    fire(hkWorld3dStart, [wrapWorld3D(w), vbool(resumed)])
+
+proc modWorld3DPreUpdate*(w: Game3D, dt: float32) =
+  if hookActive(hkWorld3dPreUpdate) and world3dScripts():
+    fire(hkWorld3dPreUpdate, [wrapWorld3D(w), vnum(dt.float64)])
+
+proc modWorld3DUpdate*(w: Game3D, dt: float32) =
+  if hookActive(hkWorld3dUpdate) and world3dScripts():
+    fire(hkWorld3dUpdate, [wrapWorld3D(w), vnum(dt.float64)])
+
+proc modWorld3DEnd*(w: Game3D, result: World3DResult) =
+  if hookActive(hkWorld3dEnd) and world3dScripts():
+    fire(hkWorld3dEnd, [wrapWorld3D(w), vstr($result)])
+
+proc modWorld3DDraw*(w: Game3D) =
+  ## Inside beginMode3D: draw3d.* works, draw.* does not.
+  if not hookActive(hkWorld3dDraw) or not world3dScripts(): return
+  let prev = modCtx.drawing
+  modCtx.drawing = dtWorld3D
+  fire(hkWorld3dDraw, [wrapWorld3D(w)])
+  modCtx.drawing = prev
+
+proc modWorld3DDrawHud*(w: Game3D, sw, sh: int32) =
+  ## After the vanilla 3D HUD, screen pixels: draw.* works.
+  if not hookActive(hkWorld3dDrawHud) or not world3dScripts(): return
+  let prev = modCtx.drawing
+  let prevArena = modCtx.hudArena
+  modCtx.hudArena = (0.0, 0.0, sw.float64, sh.float64)
+  modCtx.drawing = dtHud
+  fire(hkWorld3dDrawHud, [wrapWorld3D(w), vnum(sw.int), vnum(sh.int)])
+  modCtx.drawing = prev
+  modCtx.hudArena = prevArena
+
+proc modWorld3DShoot*(w: Game3D): bool =
+  hookActive(hkWorld3dShoot) and world3dScripts() and
+    fireCancel(hkWorld3dShoot, [wrapWorld3D(w)])
+
+proc modWorld3DHit*(damage: float32, target: Entity3D, targetName: string,
+                    proj: Projectile3D): float32 =
+  ## target is the entity that was hit, or nil for the boss ("boss") and its
+  ## satellites ("satellite"), named by `targetName`.
+  if not hookActive(hkWorld3dHit) or not world3dScripts(): return damage
+  let t = if target.isNil: vstr(targetName) else: wrapEntity3D(target)
+  max(0.0, filterNum(hkWorld3dHit, damage.float64, [t, wrapProjectile3D(proj)])).float32
+
+proc modWorld3DPlayerDamaged*(amount: float32, source: string, entity: Entity3D): float32 =
+  ## source: "projectile" (the boss's and entities' shots), "contact" (with the
+  ## entity) or whatever world3d.damagePlayer was given ("script" by default).
+  ## A fall through the death plane is not damage: world3dPlayerLethal handles it.
+  if not hookActive(hkWorld3dPlayerDamaged) or not world3dScripts(): return amount
+  max(0.0, filterNum(hkWorld3dPlayerDamaged, amount.float64,
+                     [vstr(source), wrapEntity3D(entity)])).float32
+
+proc modWorld3DPlayerLethal*(): bool =
+  hookActive(hkWorld3dPlayerLethal) and world3dScripts() and
+    fireCancel(hkWorld3dPlayerLethal, [])
+
+proc modWorld3DEntitySpawn*(e: Entity3D) =
+  if hookActive(hkWorld3dEntitySpawn) and world3dScripts():
+    fire(hkWorld3dEntitySpawn, [wrapEntity3D(e)])
+
+proc modWorld3DEntityUpdate*(e: Entity3D, dt: float32): bool =
+  ## True: a script took over this entity's AI for the frame.
+  hookActive(hkWorld3dEntityUpdate) and world3dScripts() and
+    fireCancel(hkWorld3dEntityUpdate, [wrapEntity3D(e), vnum(dt.float64)])
+
+proc modWorld3DEntityDraw*(e: Entity3D): bool =
+  ## True: a script drew this entity (the built-in body is skipped).
+  if not hookActive(hkWorld3dEntityDraw) or not world3dScripts(): return false
+  let prev = modCtx.drawing
+  modCtx.drawing = dtWorld3D
+  defer: modCtx.drawing = prev
+  fireCancel(hkWorld3dEntityDraw, [wrapEntity3D(e)])
+
+proc modWorld3DEntityDeath*(e: Entity3D) =
+  if hookActive(hkWorld3dEntityDeath) and world3dScripts():
+    fire(hkWorld3dEntityDeath, [wrapEntity3D(e)])
+
+proc modWorld3DBossPhase*(phase: int) =
+  if hookActive(hkWorld3dBossPhase) and world3dScripts():
+    fire(hkWorld3dBossPhase, [vnum(phase)])
+
+proc modWorld3DBossAttack*(phase, pattern: int): bool =
+  hookActive(hkWorld3dBossAttack) and world3dScripts() and
+    fireCancel(hkWorld3dBossAttack, [vnum(phase), vnum(pattern)])
+
+proc modWorld3DPickup*(p: Pickup3D): bool =
+  ## True: a script took the pickup (it is gone, the vanilla effect is skipped).
+  hookActive(hkWorld3dPickup) and world3dScripts() and
+    fireCancel(hkWorld3dPickup, [wrapPickup3D(p)])
+
 proc clearModRoutes*() =
   ## Loader: forget every per-content script route (a fresh set is registered).
   modActions.setLen(0)
+  world3dActions.setLen(0)
+  world3dLabels.setLen(0)
   rosterEntries.setLen(0)
   modModes.setLen(0)
   bossAttackFns.clear()

@@ -65,6 +65,10 @@ var
   bossTex*: Table[int, BodyReplace]
   bulletTex*: array[bool, BodyReplace]         ## [fromPlayer]
   powerUpTex*: array[PowerUpType, BodyReplace]
+  boss3dTex*, satellite3dTex*: BodyReplace         ## override.*("boss3d" / "satellite3d")
+  entity3dTex*: Table[string, BodyReplace]         ## "entity3d:<tag>"
+  projectile3dTex*: array[bool, BodyReplace]       ## "projectile3d:player|enemy", [fromPlayer]
+  pickup3dTex*: Table[string, BodyReplace]         ## "pickup3d:<kind>"
   desktopTex*: BodyReplace
   desktopCube*: bool                               ## override.texture("desktop", ..., {cube = true})
   cubeModel*: BodyReplace                          ## override.model("cube")
@@ -581,6 +585,50 @@ proc drawModelIcon*(id: int, x, y, size: float32, pose: ModelPose) =
                  topDownRotation(p, 90 + floorMod(now * 60.0, 360.0).float32, now), p, White,
                  modelFrameAt(id, p, now))
 
+proc drawModelWorld3D*(id: int, x, y, z, scale, yawDeg, pitchDeg, rollDeg: float32,
+                       pose: ModelPose, tint: Color, time: float) =
+  ## A real 3D draw for the 3D worlds (game3d/): call it between beginMode3D
+  ## and endMode3D. Unlike the 2D-embedded path above it keeps the camera's own
+  ## projection and depth buffer, so the model sits in the scene like any mesh.
+  ## The bounding-box centre lands on (x, y, z); `scale` is world units per
+  ## model unit; angles in degrees (yaw about the up axis, then pitch and roll;
+  ## pose.spin keeps adding to the yaw). pose.anim/speed pick the animation
+  ## frame at `time`, pose.lit toggles the scene light, pose.tint multiplies
+  ## `tint`. Models are +Y up with their front on +Z.
+  if id <= 0 or id > modModels.len or not (scale > 0 and scale < 1.0e6): return
+  let m = addr modModels[id - 1]
+  # rotation (row-major): yaw about Y, then tip (X) and lean (Z) the model
+  let rot = rotY(degToRad(yawDeg + spinAngle(pose, time))) * rotX(degToRad(pitchDeg)) *
+            rotZ(degToRad(rollDeg))
+  var l = rot
+  for v in l.mitems: v *= scale
+  let c = m.center
+  let transform = toMatrix(l, x - (l[0] * c.x + l[1] * c.y + l[2] * c.z),
+                              y - (l[3] * c.x + l[4] * c.y + l[5] * c.z),
+                              z - (l[6] * c.x + l[7] * c.y + l[8] * c.z))
+  drawRenderBatchActive()   # what the scene drew so far goes under the model
+  disableBackfaceCulling()  # tolerate models exported with mixed windings
+  let t = Color(r: uint8(pose.tint.r.int * tint.r.int div 255), g: uint8(pose.tint.g.int * tint.g.int div 255),
+                b: uint8(pose.tint.b.int * tint.b.int div 255), a: uint8(pose.tint.a.int * tint.a.int div 255))
+  if look.ok:
+    # The shader lights in view space with y down (the 2D convention): take the
+    # normals into the camera's frame and flip y.
+    let v = getMatrixModelview()
+    let view: Mat3 = [v.m0, v.m4, v.m8,  -v.m1, -v.m5, -v.m9,  v.m2, v.m6, v.m10]
+    setShaderValueMatrix(look.shader, look.normal, toMatrix(view * rot, 0, 0, 0))
+    setShaderValue(look.shader, look.tint, [t.r.float32 / 255, t.g.float32 / 255,
+                                            t.b.float32 / 255, t.a.float32 / 255])
+    setShaderValue(look.shader, look.lit, (if pose.lit: 1'f32 else: 0'f32))
+  let frame = modelFrameAt(id, pose, time)
+  let skin = frame >= 0 and look.skinning and pose.anim in 1 .. m.animIdx.len
+  if skin:
+    updateModelAnimationBones(m.model, m.anims[m.animIdx[pose.anim - 1]], frame.int32)
+  for i in 0 ..< m.model.meshCount:
+    if look.skinning:
+      setShaderValue(look.shader, look.skinned, int32(skin and m.model.meshes[i].boneCount > 0))
+    drawMesh(m.model.meshes[i], m.model.materials[m.model.meshMaterial[i]], transform)
+  enableBackfaceCulling()
+
 proc unloadModModels() =
   ## Models before their shader, and the textures their materials loaded
   ## (UnloadModel leaves those to the caller).
@@ -641,6 +689,11 @@ proc unloadModAssets*() =
   bossTex.clear()
   bulletTex = [BodyReplace(), BodyReplace()]
   for pt in PowerUpType: powerUpTex[pt] = BodyReplace()
+  boss3dTex = BodyReplace()
+  satellite3dTex = BodyReplace()
+  entity3dTex.clear()
+  projectile3dTex = [BodyReplace(), BodyReplace()]
+  pickup3dTex.clear()
   desktopTex = BodyReplace()
   desktopCube = false
   cubeModel = BodyReplace()
@@ -690,6 +743,32 @@ proc drawReplacement*(r: BodyReplace, x, y, diameter, angleDeg: float32,
   drawModTexture(r.id, x, y, w, h, (if r.rotate: angleDeg else: 0.0'f32), tint)
 
 proc hasLook*(r: BodyReplace): bool {.inline.} = r.id > 0 or r.model > 0
+
+proc drawBodyWorld3D*(r: BodyReplace, cam: Camera, x, y, z, diameter, yawDeg: float32,
+                      time: float, tint: Color = White) =
+  ## A replacement body inside a 3D camera (the 3D worlds): a model stands in
+  ## the scene, fitted so its footprint is `diameter` (times r.scale) wide and
+  ## turned to `yawDeg` when it rotates; a texture is a billboard facing `cam`.
+  let size = diameter * (if r.scale > 0: r.scale else: 1.0'f32)
+  if r.model > 0:
+    drawModelWorld3D(r.model, x, y, z, size / modelFootprint(r.model),
+                     r.pose.yaw + (if r.rotate: yawDeg else: 0.0'f32), r.pose.pitch, r.pose.roll,
+                     r.pose, tint, time)
+  elif r.id > 0 and r.id <= modTextures.len:
+    let m = addr modTextures[r.id - 1]
+    let f = if m.ends.len > 0: textureFrameAt(r.id, time) else: 0
+    drawBillboard(cam, m.frames[f], Vector3(x: x, y: y, z: z), size, tint)
+
+proc drawTextureBillboard*(id: int, cam: Camera, x, y, z, size: float32, tint: Color,
+                           frame = -1) =
+  ## draw3d.billboard: texture `id` (a GIF plays on the wall clock unless
+  ## `frame`, 0-based, picks one) facing the camera, `size` world units wide.
+  if id <= 0 or id > modTextures.len: return
+  let m = addr modTextures[id - 1]
+  let f = if frame >= 0: frame mod m.frames.len
+          elif m.ends.len > 0: textureFrameAt(id, getTime())
+          else: 0
+  drawBillboard(cam, m.frames[f], Vector3(x: x, y: y, z: z), size, tint)
 
 proc cosmeticAt(idx: int): ptr ModCosmetic {.inline.} =
   if idx > 0 and idx <= modCosmetics.len: addr modCosmetics[idx - 1] else: nil

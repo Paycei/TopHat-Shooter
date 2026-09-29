@@ -53,6 +53,10 @@ const
     ("model_pack/bolt.obj", embed("examples/model_pack/bolt.obj")),
     ("model_pack/bolt.mtl", embed("examples/model_pack/bolt.mtl")),
     ("model_pack/data_cube.vox", embed("examples/model_pack/data_cube.vox")),
+    ("arena_3d/mod.json", embed("examples/arena_3d/mod.json")),
+    ("arena_3d/main.lua", embed("examples/arena_3d/main.lua")),
+    ("orbital_tweaks/mod.json", embed("examples/orbital_tweaks/mod.json")),
+    ("orbital_tweaks/main.lua", embed("examples/orbital_tweaks/main.lua")),
   ]
 
 proc exampleModIds*(): seq[string] =
