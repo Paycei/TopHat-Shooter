@@ -316,6 +316,17 @@ proc undiscoverAllPowerUpsCheat*(game: var Game) =
   discard saveSettings(globalSettings)
   playSound(stMenuNav)
 
+proc setGameModesUnlockedCheat*(unlocked: bool) =
+  ## Flip every progression-gated mode (Time Survival, Roguelite) at once and
+  ## save, so the desktop launchers reflect it without a restart. Debug builds
+  ## only, both ways: unlocking is a permanent reward a cheated run must not
+  ## hand out, and re-locking would wipe progress a player earned.
+  if ANTICHEAT_ENABLED or globalSettings.isNil: return
+  globalSettings.survivalUnlocked = unlocked
+  globalSettings.rogueliteUnlocked = unlocked
+  discard saveSettings(globalSettings)
+  playSound(if unlocked: stMenuSelect else: stMenuNav)
+
 proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) =
   ## Adjust the persisted meta currencies (data shards / cores) used to buy
   ## roguelite unlocks, and immediately save so the roguelite window reflects it.
@@ -583,6 +594,36 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
 
   if bossHovered and isMouseButtonPressed(Left):
     applyWaveCheat(game, "boss")
+
+  currentY += buttonHeight + 30
+
+  # --- Game mode unlocks (debug builds only, greyed out otherwise) --------
+  let survivalOn = not globalSettings.isNil and globalSettings.survivalUnlocked
+  let rogueliteOn = not globalSettings.isNil and globalSettings.rogueliteUnlocked
+  drawText(t(tkCheatGameModes) & " " & t(tkDesktopIconSurvival) & (if survivalOn: " [ON]" else: " [OFF]") &
+           ", " & t(tkDesktopIconRoguelite) & (if rogueliteOn: " [ON]" else: " [OFF]"),
+           x + 20, currentY, 14, Gray)
+  currentY += 24
+
+  let modeBtnW = (width - 60) div 2
+  let modeBtnH: int32 = 32
+  for (i, unlock) in [(0'i32, true), (1'i32, false)]:
+    let bx = x + 20 + i * (modeBtnW + 20)
+    let rect = Rectangle(x: bx.float32, y: currentY.float32,
+                         width: modeBtnW.float32, height: modeBtnH.float32)
+    let hovered = not ANTICHEAT_ENABLED and
+                  checkCollisionPointRec(getVirtualMousePosition(), rect)
+    let accent = if unlock: Green else: Red
+    let fill = if ANTICHEAT_ENABLED: Color(r: 45, g: 45, b: 50, a: 255)
+               elif unlock: (if hovered: Color(r: 0, g: 110, b: 0, a: 255) else: Color(r: 0, g: 75, b: 0, a: 255))
+               else: (if hovered: Color(r: 110, g: 0, b: 0, a: 255) else: Color(r: 75, g: 0, b: 0, a: 255))
+    drawRectangle(bx, currentY, modeBtnW, modeBtnH, fill)
+    drawRectangleLines(bx, currentY, modeBtnW, modeBtnH, if ANTICHEAT_ENABLED: Gray else: accent)
+    let label = t(if unlock: tkCheatUnlockModes else: tkCheatLockModes)
+    drawText(label, bx + (modeBtnW - measureText(label, 13)) div 2, currentY + 9, 13,
+             if ANTICHEAT_ENABLED: Gray else: White)
+    if hovered and isMouseButtonPressed(Left):
+      setGameModesUnlockedCheat(unlock)
 
 proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu) =
   var currentY = y + 10

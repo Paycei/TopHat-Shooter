@@ -719,6 +719,9 @@ type
     tkCheatDiscoveryCodex = "cheat_discovery_codex"
     tkCheatDiscoverAll = "cheat_discover_all"
     tkCheatUndiscoverAll = "cheat_undiscover_all"
+    tkCheatGameModes = "cheat_game_modes"
+    tkCheatUnlockModes = "cheat_unlock_modes"
+    tkCheatLockModes = "cheat_lock_modes"
 
     # Power-up Installer
     tkPowerUpInstallerTitle = "power_up_installer_title"
@@ -3092,6 +3095,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_discovery_codex": "Discovery Codex:",
     "cheat_discover_all": "Discover All Power-Ups",
     "cheat_undiscover_all": "Un-Discover All",
+    "cheat_game_modes": "Game modes:",
+    "cheat_unlock_modes": "Unlock All Modes",
+    "cheat_lock_modes": "Lock Modes",
 
     # Power-up Installer
     "power_up_installer_title": "LEGENDARY UPGRADE INSTALLER",
@@ -5133,6 +5139,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_discovery_codex": "Códice de Descubrimiento:",
     "cheat_discover_all": "Descubrir Todas las Mejoras",
     "cheat_undiscover_all": "Olvidar Todas las Mejoras",
+    "cheat_game_modes": "Modos de juego:",
+    "cheat_unlock_modes": "Desbloquear Todos los Modos",
+    "cheat_lock_modes": "Bloquear Modos",
 
     # Power-up Installer
     "power_up_installer_title": "INSTALADOR DE MEJORA LEGENDARIA",
