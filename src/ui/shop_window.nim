@@ -2,7 +2,8 @@
 ## OS-themed window for player and bullet customization with tabs
 
 import raylib, rlgl, math, strformat, strutils
-import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils
+import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets
+from ../modding/mod_hooks import mods
 
 type
   ShopTab* = enum
@@ -15,6 +16,7 @@ type
     stCubeSkins      # Cube skins tab
     stSecret         # Secret items tab (victory-unlocked cosmetics)
     stPacks          # Cosmetic packs tab (discounted theme bundles)
+    stMods           # Mod cosmetics tab (only while a loaded mod registered one)
 
   ShopWindow* = ref object
     window*: OSWindow
@@ -56,7 +58,7 @@ const
   TAB_HEIGHT = 40
   PREVIEW_BOX_WIDTH = 420
   PREVIEW_BOX_HEIGHT = 360
-  SHOP_TAB_COUNT = 9
+  SHOP_BASE_TAB_COUNT = 9  # tabs shown with no mod cosmetics (the Mods tab makes ten)
   SECRET_CARD_W = 240
   SECRET_CARD_H = 220
   SECRET_CARD_GAP = 40
@@ -65,6 +67,10 @@ const
   PACK_CARD_H = 156
   PACK_CARD_PAD = 16
   PACK_HEADER_H = 46
+  MOD_CARD_W = 170       # Mods tab: same width as a skin card, taller for text
+  MOD_CARD_H = 150
+  MOD_CARD_PAD = 15
+  MOD_SECTION_H = 24
 
 proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow =
   let windowWidth = 820
@@ -923,6 +929,33 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
+# ---- Tab strip ----
+type ShopTabDef = tuple[tab: ShopTab, labelKey: string, underline: Color]
+
+proc visibleShopTabs(): seq[ShopTabDef] =
+  ## The tabs in display order (not enum order). The Mods tab exists only while
+  ## a loaded mod has registered a cosmetic.
+  let orange = Color(r: 255, g: 150, b: 50, a: 255)
+  result = @[
+    (stPlayerSkins, "shop_tab_player", orange),
+    (stBulletSkins, "shop_tab_bullet", orange),
+    (stShapes, "shop_tab_shapes", orange),
+    (stBulletShapes, "shop_tab_bshapes", orange),
+    (stParticles, "shop_tab_particles", orange),
+    (stDesktopBg, "shop_tab_desktop", orange),
+    (stCubeSkins, "shop_tab_cubeskins", orange),
+    (stSecret, "shop_tab_secret", Color(r: 255, g: 120, b: 230, a: 255)),  # magenta
+    (stPacks, "shop_tab_packs", Color(r: 90, g: 220, b: 120, a: 255))]     # green "deal"
+  if modCosmetics.len > 0:
+    result.add((stMods, "shop_tab_mods", Color(r: 120, g: 220, b: 160, a: 255)))  # MODS.EXE green
+
+proc ensureShopTabValid(shop: ShopWindow) =
+  ## Mods can be reloaded while the shop is open; leave the Mods tab if it vanished.
+  if shop.currentTab == stMods and modCosmetics.len == 0:
+    shop.currentTab = stPlayerSkins
+    shop.scrollOffset = 0.0
+    shop.scrollVelocity = 0.0
+
 # ---- Cosmetic Packs tab ----
 # The Packs tab is a special (non-CosmeticKind) tab like the Secret tab: it
 # early-returns in both update and draw and reuses hoveredSkin/scrollOffset.
@@ -1067,6 +1100,168 @@ proc drawPacksTabContent(shop: ShopWindow, contentX, contentY, contentWidth, con
     let thumbY = gridTop.float32 + (shop.scrollOffset / shop.maxScrollOffset) * (gridHeight.float32 - thumbH)
     drawRectangle(sbX.int32, thumbY.int32, 10, thumbH.int32, Color(r: 255, g: 150, b: 50, a: 200))
 
+# ---- Mods tab ----
+# Cosmetics registered by loaded mods, grouped by kind (ship / bullets / desktop).
+# A special tab like Packs: own layout, early-returns in update and draw, and
+# reuses hoveredSkin (= index into modCosmetics) and the scroll fields. It edits
+# the same state as MODS.EXE > Cosmetics, so it has no search box or preview modal.
+
+type ModShopLayout = object
+  cards: seq[tuple[idx, x, y: int]]         ## y is unscrolled, relative to the grid top
+  heads: seq[tuple[kind: ModCosmeticKind, y: int]]
+  totalH: int
+
+proc modShopGridMetrics(contentX, contentY, contentWidth, contentHeight: int):
+    tuple[gridTop, gridHeight: int] =
+  (contentY + TAB_HEIGHT + PACK_HEADER_H, contentHeight - TAB_HEIGHT - PACK_HEADER_H)
+
+proc modShopLayout(contentX, contentWidth: int): ModShopLayout =
+  ## Shared by the update hit-test and the draw so they agree on card positions.
+  let columns = max(1, contentWidth div (MOD_CARD_W + MOD_CARD_PAD))
+  let gridLeft = contentX + (contentWidth - (columns * MOD_CARD_W + (columns - 1) * MOD_CARD_PAD)) div 2
+  var y = 5
+  for kind in ModCosmeticKind:
+    var n = 0
+    for i in 0 ..< modCosmetics.len:
+      if modCosmetics[i].kind != kind: continue
+      if n == 0:
+        result.heads.add((kind, y))
+        y += MOD_SECTION_H
+      result.cards.add((i, gridLeft + (n mod columns) * (MOD_CARD_W + MOD_CARD_PAD),
+                        y + (n div columns) * (MOD_CARD_H + MOD_CARD_PAD)))
+      inc n
+    if n > 0:
+      y += ((n + columns - 1) div columns) * (MOD_CARD_H + MOD_CARD_PAD)
+  result.totalH = y + 5
+
+proc modOwnerName(c: ModCosmetic): string =
+  if c.owner >= 0 and c.owner < mods.len and mods[c.owner].name.len > 0: mods[c.owner].name
+  else: c.key.split(':')[0]
+
+proc drawModCosmeticPreview(shop: ShopWindow, c: ModCosmetic, x, y, border: int) =
+  ## The card's picture: its 3D model, else its texture, else its palette. A
+  ## desktop cosmetic shows its wallpaper unless it only has a model. The panel
+  ## and its clip sit inside the card's border (`border` px on each side).
+  let cx = (x + MOD_CARD_W div 2).float32
+  let cy = (y + 33).float32
+  let px = (x + border).int32
+  let py = (y + border).int32
+  let pw = (MOD_CARD_W - 2 * border).int32
+  let ph = (66 - border).int32
+  let clip = beginPreviewClip(px, py, pw, ph)
+  drawRectangle(px, py, pw, ph, Color(r: 28, g: 29, b: 38, a: 255))
+  if c.look.model > 0 and (c.kind != mckDesktop or c.look.id == 0):
+    drawModelIcon(c.look.model, cx, cy, 52, c.look.pose)
+  elif c.look.id > 0:
+    let (tw, th) = textureSize(c.look.id)
+    if tw > 0 and th > 0:
+      let scale = min((MOD_CARD_W - 20).float32 / tw.float32, 54.0'f32 / th.float32)
+      drawModTexture(c.look.id, cx, cy, tw.float32 * scale, th.float32 * scale, 0, White)
+  elif c.hasPalette:
+    case c.kind
+    of mckPlayer:
+      drawPlayerShape(Vector2f(x: cx, y: cy), 15.0'f32, shop.selectedShape, c.c1, c.c2, c.c3,
+                      shop.animationTime, shop.animationTime * 0.5'f32, 0.5'f32, 1.0'f32)
+    of mckBullet:
+      # A glowing dot with a fading trail behind it.
+      for k in countdown(6, 1):
+        let a = uint8(150 - k * 20)
+        drawCircle(Vector2(x: cx - 6.0'f32 - k.float32 * 7.0'f32, y: cy),
+                   5.0'f32 - k.float32 * 0.5'f32, Color(r: c.c3.r, g: c.c3.g, b: c.c3.b, a: a))
+      drawCircle(Vector2(x: cx + 14.0'f32, y: cy), 11.0'f32, Color(r: c.c2.r, g: c.c2.g, b: c.c2.b, a: 90))
+      drawCircle(Vector2(x: cx + 14.0'f32, y: cy), 6.0'f32, c.c1)
+    of mckDesktop:
+      drawCircle(Vector2(x: cx, y: cy), 22.0'f32, c.c1)
+      drawCircle(Vector2(x: cx, y: cy), 13.0'f32, c.c2)
+      drawCircle(Vector2(x: cx, y: cy), 6.0'f32, c.c3)
+  endPreviewClip(clip)
+
+proc drawModCard(shop: ShopWindow, idx, x, y: int) =
+  let c = modCosmetics[idx]
+  let equipped = equippedCosmetic[c.kind] == idx + 1
+  let isHovered = shop.hoveredSkin == idx
+  let bg = if equipped: Color(r: 0, g: 60, b: 80, a: 255)
+           elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
+           else: Color(r: 40, g: 40, b: 50, a: 255)
+  drawRectangle(x.int32, y.int32, MOD_CARD_W.int32, MOD_CARD_H.int32, bg)
+  let borderColor = if equipped: Color(r: 255, g: 150, b: 50, a: 255)
+                    elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
+                    else: Color(r: 80, g: 80, b: 100, a: 255)
+  let borderW = if isHovered or equipped: 3 else: 2
+
+  drawModCosmeticPreview(shop, c, x, y, borderW)
+
+  let textW = (MOD_CARD_W - 16).int32
+  let name = fitWithEllipsis(c.name, textW, 13)
+  drawText(name, (x + (MOD_CARD_W - measureText(name, 13)) div 2).int32, (y + 70).int32, 13, White)
+  if c.description.len > 0:
+    let wrapped = wrapTwoLines(c.description, textW, 10)
+    let l1 = fitWithEllipsis(wrapped.line1, textW, 10)
+    drawText(l1, (x + (MOD_CARD_W - measureText(l1, 10)) div 2).int32, (y + 86).int32, 10, Gray)
+    if wrapped.line2.len > 0:
+      let l2 = fitWithEllipsis(wrapped.line2, textW, 10)
+      drawText(l2, (x + (MOD_CARD_W - measureText(l2, 10)) div 2).int32, (y + 97).int32, 10, Gray)
+  let owner = fitWithEllipsis(modOwnerName(c), textW, 10)
+  drawText(owner, (x + (MOD_CARD_W - measureText(owner, 10)) div 2).int32, (y + 109).int32, 10,
+           Color(r: 120, g: 220, b: 160, a: 255))
+
+  # Equipped / Equip pill. Mod cosmetics are free, so no price.
+  let pillX = (x + 6).int32
+  let pillY = (y + 125).int32
+  let pillW = (MOD_CARD_W - 12).int32
+  drawRectangle(pillX, pillY, pillW, 20, Color(r: 16, g: 20, b: 28, a: 230))
+  let pillColor = if equipped: Color(r: 255, g: 200, b: 100, a: 255)
+                  else: Color(r: 120, g: 220, b: 160, a: 255)
+  drawRectangleLines(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: 20.0'f32),
+                     1.0'f32, pillColor)
+  let label = if equipped: t("shop_equipped") else: t(tkModsEquip)
+  let fs = fitTextSize(label, pillW - 8, 11, 6)
+  drawText(label, (x + (MOD_CARD_W - measureText(label, fs)) div 2).int32, (pillY + 4).int32, fs, pillColor)
+
+  # Border last, so nothing drawn inside the card can cover it.
+  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: MOD_CARD_W.float32,
+                               height: MOD_CARD_H.float32), borderW.float32, borderColor)
+
+proc drawModsTabContent(shop: ShopWindow, contentX, contentY, contentWidth, contentHeight: int) =
+  ## The MODS tab: the loaded mods' cosmetics, grouped by kind.
+  let headerY = contentY + TAB_HEIGHT
+  drawText(t("shop_customize_mods"), (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
+  let subtitleW = contentWidth - 200
+  drawText(fitWithEllipsis(t("shop_mods_subtitle"), subtitleW.int32, 11), (contentX + 10).int32,
+           (headerY + 28).int32, 11, Gray)
+  if shop.statusTimer > 0 and shop.statusMessage.len > 0:
+    let w = measureText(shop.statusMessage, 11)
+    drawText(shop.statusMessage, (contentX + contentWidth - w - 14).int32, (headerY + 15).int32, 11,
+             Color(r: 255, g: 210, b: 110, a: 255))
+
+  let (gridTop, gridHeight) = modShopGridMetrics(contentX, contentY, contentWidth, contentHeight)
+  let layout = modShopLayout(contentX, contentWidth)
+  let scrollInt = int(round(shop.scrollOffset))
+
+  beginVirtualScissorMode(contentX.int32, gridTop.int32, contentWidth.int32, gridHeight.int32)
+  for h in layout.heads:
+    let hy = gridTop + h.y - scrollInt
+    if hy + MOD_SECTION_H > gridTop and hy < gridTop + gridHeight:
+      let label = case h.kind
+        of mckPlayer: t(tkModsKindPlayer)
+        of mckBullet: t(tkModsKindBullet)
+        of mckDesktop: t(tkModsKindDesktop)
+      drawText(label, (contentX + 14).int32, (hy + 3).int32, 13, Color(r: 120, g: 220, b: 160, a: 255))
+      drawRectangle((contentX + 14).int32, (hy + 20).int32, (contentWidth - 44).int32, 1,
+                    Color(r: 60, g: 80, b: 75, a: 255))
+  for card in layout.cards:
+    let cy = gridTop + card.y - scrollInt
+    if cy + MOD_CARD_H > gridTop - 10 and cy < gridTop + gridHeight + 10:
+      drawModCard(shop, card.idx, card.x, cy)
+  endScissorMode()
+
+  if shop.maxScrollOffset > 0:
+    let sbX = contentX + contentWidth - 15
+    drawRectangle(sbX.int32, gridTop.int32, 10, gridHeight.int32, Color(r: 40, g: 40, b: 50, a: 255))
+    let thumbH = max(30.0'f32, (gridHeight.float32 / layout.totalH.float32) * gridHeight.float32)
+    let thumbY = gridTop.float32 + (shop.scrollOffset / shop.maxScrollOffset) * (gridHeight.float32 - thumbH)
+    drawRectangle(sbX.int32, thumbY.int32, 10, thumbH.int32, Color(r: 120, g: 220, b: 160, a: 200))
+
 proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
   ## Update shop window. Returns true if window should close
   if shop.isNil or shop.window.isNil:
@@ -1107,47 +1302,18 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
   let isTopmost = isWindowTopmostAtPoint(shop.window, mousePos.x, mousePos.y, allWindows)
 
   # Check tab clicks
+  ensureShopTabValid(shop)
   let tabY = contentY
-  let tabWidth = contentWidth div SHOP_TAB_COUNT
+  let tabs = visibleShopTabs()
+  let tabWidth = contentWidth div tabs.len
 
   if not shop.window.dragging and mouseY >= tabY and mouseY < tabY + TAB_HEIGHT and isTopmost:
-    if shop.window.handledClickThisFrame:
-      if mouseX >= contentX and mouseX < contentX + tabWidth:
-        shop.currentTab = stPlayerSkins
-        shop.scrollOffset = 0.0
-        shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth and mouseX < contentX + tabWidth * 2:
-        shop.currentTab = stBulletSkins
-        shop.scrollOffset = 0.0
-        shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 2 and mouseX < contentX + tabWidth * 3:
-        shop.currentTab = stShapes
-        shop.scrollOffset = 0.0
-        shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 3 and mouseX < contentX + tabWidth * 4:
-        shop.currentTab = stBulletShapes
-        shop.scrollOffset = 0.0
-        shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 4 and mouseX < contentX + tabWidth * 5:
-        shop.currentTab = stParticles
-        shop.scrollOffset = 0.0
-        shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 5 and mouseX < contentX + tabWidth * 6:
-        shop.currentTab = stDesktopBg
-        shop.scrollOffset = 0.0
-        shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 6 and mouseX < contentX + tabWidth * 7:
-        shop.currentTab = stCubeSkins
-        shop.scrollOffset = 0.0
-        shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 7 and mouseX < contentX + tabWidth * 8:
-        shop.currentTab = stSecret
-        shop.scrollOffset = 0.0
-        shop.scrollVelocity = 0.0
-      elif mouseX >= contentX + tabWidth * 8 and mouseX < contentX + contentWidth:
-        shop.currentTab = stPacks
-        shop.scrollOffset = 0.0
-        shop.scrollVelocity = 0.0
+    if shop.window.handledClickThisFrame and mouseX >= contentX and mouseX < contentX + contentWidth:
+      # The last tab absorbs the remainder of the integer division.
+      let hit = min((mouseX - contentX) div tabWidth, tabs.len - 1)
+      shop.currentTab = tabs[hit].tab
+      shop.scrollOffset = 0.0
+      shop.scrollVelocity = 0.0
 
   # The SECRET tab is a short row of victory/achievement-unlocked toggles,
   # not a CosmeticKind grid, handle it here and skip the grid machinery.
@@ -1246,6 +1412,56 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
       else:
         shop.statusMessage = t("roguelite_not_enough_shards")
         shop.statusTimer = 1.6
+
+    if isTopmost and isKeyPressed(Escape):
+      shop.window.visible = false
+      return true
+    return false
+
+  # The MODS tab lists the loaded mods' cosmetics with its own layout, so
+  # handle it here and skip the CosmeticKind grid machinery.
+  if shop.currentTab == stMods:
+    shop.hoveredSkin = -1
+    let (gridTop, gridHeight) = modShopGridMetrics(contentX, contentY, contentWidth, contentHeight)
+    let layout = modShopLayout(contentX, contentWidth)
+    shop.maxScrollOffset = max(0.0, layout.totalH.float32 - gridHeight.float32)
+
+    let inGrid = mouseX >= contentX and mouseX < contentX + contentWidth and
+                 mouseY >= gridTop and mouseY < gridTop + gridHeight
+    if inGrid and not shop.window.dragging and isTopmost:
+      let wheel = getPointerWheelMove()
+      if wheel != 0:
+        shop.scrollVelocity += -wheel * 400.0'f32
+    if abs(shop.scrollVelocity) > 0.001'f32:
+      shop.scrollOffset += shop.scrollVelocity * dt
+      if shop.scrollOffset < 0.0'f32:
+        shop.scrollOffset = 0.0'f32
+        shop.scrollVelocity = 0.0'f32
+      elif shop.scrollOffset > shop.maxScrollOffset:
+        shop.scrollOffset = shop.maxScrollOffset
+        shop.scrollVelocity = 0.0'f32
+      else:
+        shop.scrollVelocity *= clamp(1.0'f32 - dt * 8.0'f32, 0.0'f32, 1.0'f32)
+    let scrollInt = int(round(shop.scrollOffset))
+
+    for card in layout.cards:
+      let cy = gridTop + card.y - scrollInt
+      if inGrid and isTopmost and cy + MOD_CARD_H > gridTop and cy < gridTop + gridHeight and
+         mouseX >= card.x and mouseX < card.x + MOD_CARD_W and mouseY >= cy and mouseY < cy + MOD_CARD_H:
+        shop.hoveredSkin = card.idx
+
+    let activate = isTopmost and not shop.window.dragging and shop.hoveredSkin >= 0 and
+                   (shop.window.handledClickThisFrame or isKeyPressed(Enter))
+    if activate and not globalSettings.isNil:
+      # Same state MODS.EXE > Cosmetics edits: one equipped per kind, click again to remove.
+      toggleCosmetic(shop.hoveredSkin)
+      globalSettings.modCosmetics = equippedEntries()
+      discard saveSettings(globalSettings)
+      playSound(stMenuSelect)
+      shop.statusMessage =
+        if equippedCosmetic[modCosmetics[shop.hoveredSkin].kind] == shop.hoveredSkin + 1: t("shop_equipped")
+        else: t("shop_mods_unequipped")
+      shop.statusTimer = 1.2
 
     if isTopmost and isKeyPressed(Escape):
       shop.window.visible = false
@@ -1592,98 +1808,24 @@ proc drawShopWindow*(shop: ShopWindow) =
                 Color(r: 25, g: 25, b: 35, a: 255))
 
   # Draw tabs
-  let tabWidth = contentWidth div SHOP_TAB_COUNT
+  ensureShopTabValid(shop)
+  let tabs = visibleShopTabs()
+  let tabWidth = contentWidth div tabs.len
   let tabY = contentY
-
-  # Player Skins tab
-  let tab1Active = shop.currentTab == stPlayerSkins
-  let tab1Color = if tab1Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
-  drawRectangle(contentX.int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab1Color)
-  if tab1Active:
-    drawRectangle(contentX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  let tab1Label = t("shop_tab_player")
-  let tab1LabelX = contentX + (tabWidth - measureText(tab1Label, 12)) div 2
-  drawText(tab1Label, tab1LabelX.int32, (tabY + 13).int32, 12, if tab1Active: White else: Gray)
-
-  # Bullet Skins tab
-  let tab2Active = shop.currentTab == stBulletSkins
-  let tab2Color = if tab2Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
-  drawRectangle((contentX + tabWidth).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab2Color)
-  if tab2Active:
-    drawRectangle((contentX + tabWidth).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  let tab2Label = t("shop_tab_bullet")
-  let tab2LabelX = contentX + tabWidth + (tabWidth - measureText(tab2Label, 12)) div 2
-  drawText(tab2Label, tab2LabelX.int32, (tabY + 13).int32, 12, if tab2Active: White else: Gray)
-
-  # Shapes tab
-  let tab3Active = shop.currentTab == stShapes
-  let tab3Color = if tab3Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
-  drawRectangle((contentX + tabWidth * 2).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab3Color)
-  if tab3Active:
-    drawRectangle((contentX + tabWidth * 2).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  let tab3Label = t("shop_tab_shapes")
-  let tab3LabelX = contentX + tabWidth * 2 + (tabWidth - measureText(tab3Label, 12)) div 2
-  drawText(tab3Label, tab3LabelX.int32, (tabY + 13).int32, 12, if tab3Active: White else: Gray)
-
-  # Bullet Shapes tab
-  let tab4Active = shop.currentTab == stBulletShapes
-  let tab4Color = if tab4Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
-  drawRectangle((contentX + tabWidth * 3).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab4Color)
-  if tab4Active:
-    drawRectangle((contentX + tabWidth * 3).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  let tab4Label = t("shop_tab_bshapes")
-  let tab4LabelX = contentX + tabWidth * 3 + (tabWidth - measureText(tab4Label, 12)) div 2
-  drawText(tab4Label, tab4LabelX.int32, (tabY + 13).int32, 12, if tab4Active: White else: Gray)
-
-  # Particles tab
-  let tab5Active = shop.currentTab == stParticles
-  let tab5Color = if tab5Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
-  drawRectangle((contentX + tabWidth * 4).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab5Color)
-  if tab5Active:
-    drawRectangle((contentX + tabWidth * 4).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  let tab5Label = t("shop_tab_particles")
-  let tab5LabelX = contentX + tabWidth * 4 + (tabWidth - measureText(tab5Label, 12)) div 2
-  drawText(tab5Label, tab5LabelX.int32, (tabY + 13).int32, 12, if tab5Active: White else: Gray)
-
-  # Desktop BG tab
-  let tab6Active = shop.currentTab == stDesktopBg
-  let tab6Color = if tab6Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
-  drawRectangle((contentX + tabWidth * 5).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab6Color)
-  if tab6Active:
-    drawRectangle((contentX + tabWidth * 5).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  let tab6Label = t("shop_tab_desktop")
-  let tab6LabelX = contentX + tabWidth * 5 + (tabWidth - measureText(tab6Label, 12)) div 2
-  drawText(tab6Label, tab6LabelX.int32, (tabY + 13).int32, 12, if tab6Active: White else: Gray)
-
-  # Cube Skins tab
-  let tab7Active = shop.currentTab == stCubeSkins
-  let tab7Color = if tab7Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
-  drawRectangle((contentX + tabWidth * 6).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab7Color)
-  if tab7Active:
-    drawRectangle((contentX + tabWidth * 6).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 150, b: 50, a: 255))
-  let tab7Label = t("shop_tab_cubeskins")
-  let tab7LabelX = contentX + tabWidth * 6 + (tabWidth - measureText(tab7Label, 12)) div 2
-  drawText(tab7Label, tab7LabelX.int32, (tabY + 13).int32, 12, if tab7Active: White else: Gray)
-
-  # Secret items tab, magenta underline instead of the shop's orange
-  let tab8Active = shop.currentTab == stSecret
-  let tab8Color = if tab8Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
-  drawRectangle((contentX + tabWidth * 7).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab8Color)
-  if tab8Active:
-    drawRectangle((contentX + tabWidth * 7).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 255, g: 120, b: 230, a: 255))
-  let tab8Label = t("shop_tab_secret")
-  let tab8LabelX = contentX + tabWidth * 7 + (tabWidth - measureText(tab8Label, 12)) div 2
-  drawText(tab8Label, tab8LabelX.int32, (tabY + 13).int32, 12, if tab8Active: White else: Gray)
-
-  # Packs tab, green "deal" underline instead of the shop's orange
-  let tab9Active = shop.currentTab == stPacks
-  let tab9Color = if tab9Active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255)
-  drawRectangle((contentX + tabWidth * 8).int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32, tab9Color)
-  if tab9Active:
-    drawRectangle((contentX + tabWidth * 8).int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, Color(r: 90, g: 220, b: 120, a: 255))
-  let tab9Label = t("shop_tab_packs")
-  let tab9LabelX = contentX + tabWidth * 8 + (tabWidth - measureText(tab9Label, 12)) div 2
-  drawText(tab9Label, tab9LabelX.int32, (tabY + 13).int32, 12, if tab9Active: White else: Gray)
+  # Ten tabs leave the labels less room, so they shrink to fit; the usual nine
+  # keep the full 12pt size.
+  let labelMaxW = (tabWidth - (if tabs.len > SHOP_BASE_TAB_COUNT: 6 else: 0)).int32
+  for i, td in tabs:
+    let active = shop.currentTab == td.tab
+    let tabX = contentX + tabWidth * i
+    drawRectangle(tabX.int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32,
+                  if active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255))
+    if active:
+      drawRectangle(tabX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, td.underline)
+    let label = t(td.labelKey)
+    let fs = fitTextSize(label, labelMaxW, 12, 8)
+    let labelX = tabX + (tabWidth - measureText(label, fs)) div 2
+    drawText(label, labelX.int32, (tabY + 13 + (12 - fs) div 2).int32, fs, if active: White else: Gray)
 
   # The SECRET tab draws its own single-card layout instead of the grid.
   if shop.currentTab == stSecret:
@@ -1693,6 +1835,11 @@ proc drawShopWindow*(shop: ShopWindow) =
   # The PACKS tab draws its own bundle-card grid instead of the CosmeticKind grid.
   if shop.currentTab == stPacks:
     drawPacksTabContent(shop, contentX, contentY, contentWidth, contentHeight)
+    return
+
+  # The MODS tab draws its own grouped card grid.
+  if shop.currentTab == stMods:
+    drawModsTabContent(shop, contentX, contentY, contentWidth, contentHeight)
     return
 
   # Draw header
@@ -1848,6 +1995,8 @@ proc drawShopWindow*(shop: ShopWindow) =
         discard  # Handled by drawSecretTabContent (early return above)
       of stPacks:
         discard  # Handled by drawPacksTabContent (early return above)
+      of stMods:
+        discard  # Handled by drawModsTabContent (early return above)
 
     # Focus ring for keyboard navigation (drawn over card)
     if vIndex == shop.focusIndex:

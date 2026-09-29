@@ -15,7 +15,7 @@
 import std/[json, tables, strutils, math, random]
 import raylib
 import ../types
-import lua_bridge, mod_state
+import lua_bridge, mod_state, mod_assets
 
 type
   ModHook* = enum
@@ -458,6 +458,9 @@ type ModModeDef* = object
   spawning*: bool      ## false: the base mode spawns no regular enemies itself
   owner*: int
   onStart*: ScriptValue
+  icon*: BodyReplace   ## the desktop icon's texture or model (none: a default glyph)
+  color*: Color        ## icon accent; alpha 0 = not given, use the base mode's desktop colour
+  desktop*: bool       ## puts an icon on the desktop
 
 var modModes*: seq[ModModeDef]
 
@@ -478,16 +481,37 @@ proc modModeName*(key: string, spanish: bool): string =
   if spanish and modModes[i].nameEs.len > 0: modModes[i].nameEs else: modModes[i].nameEn
 
 # ------------------------------------------------------------ mod apps ----
-# register.app: a small program a mod adds to MODS.EXE's Apps tab (settings
-# for the mod, an info page, a toy...). It draws in its own canvas, in
-# canvas coordinates, and gets clicks and a per-frame update while shown.
+# register.app: a program a mod adds to the desktop: its own window (and, unless
+# it opts out, its own desktop icon), opened from the icon or from MODS.EXE's
+# Apps tab. It draws in a canvas, in canvas coordinates, and gets clicks while
+# its window is open; update runs every frame the window is open and not
+# minimized. Windows and icons name an app by key: reloadMods rebuilds the list,
+# so an index is only good for the call it was looked up for.
 type ModApp* = object
   key*: string         ## "<mod id>:<id>"
   nameEn*, nameEs*: string
   owner*: int
   draw*, update*, click*: ScriptValue
+  icon*: BodyReplace   ## the desktop icon's texture or model (none: a default glyph)
+  color*: Color        ## accent of the window's title bar and the icon tile
+  width*, height*: int ## the canvas at opening (and its minimum when resizable)
+  resizable*: bool
+  desktop*: bool       ## puts an icon on the desktop
+
+const
+  ModAppDefaultColor* = Color(r: 120, g: 220, b: 160, a: 255)  # MODS.EXE's green
+  ModAppMinW* = 240
+  ModAppMaxW* = 960
+  ModAppMinH* = 160
+  ModAppMaxH* = 640
 
 var modApps*: seq[ModApp]
+
+proc findModApp*(key: string): int =
+  ## Index of the app with this key, -1 if it is gone (a reload dropped it).
+  for i in 0 ..< modApps.len:
+    if modApps[i].key == key: return i
+  -1
 
 proc modAppName*(i: int, spanish: bool): string =
   if i < 0 or i >= modApps.len: return ""

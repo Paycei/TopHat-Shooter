@@ -28,6 +28,7 @@ type
     clcImproved  # reworks and quality-of-life changes
     clcBalance   # tuning / numbers
     clcFixed     # bug fixes
+    clcMods      # modding (MODS.EXE, the Lua API, the example mods); always last
 
   ChangelogEntry* = object
     category*: ChangelogCategory
@@ -123,26 +124,34 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.3.1",
     latest: true,
     entries: @[
-      # --- New ---
-      ChangelogEntry(category: clcNew,
-        headEn: "Mods: Remove button",
-        headEs: "Mods: botón Eliminar",
+      # --- Mods ---
+      ChangelogEntry(category: clcMods,
+        headEn: "Remove button",
+        headEs: "Botón Eliminar",
         en: points(
           "MODS.EXE can now remove a mod: select it in the Installed tab and press Remove. A confirmation names the mod and its folder before anything is deleted.",
           "A mod that was running is unloaded right away."),
         es: points(
           "MODS.EXE ahora puede eliminar un mod: selecciónalo en la pestaña Instalados y pulsa Eliminar. Una confirmación muestra el mod y su carpeta antes de borrar nada.",
           "Un mod que estaba activo se descarga al momento.")),
-      # --- Improvements ---
-      ChangelogEntry(category: clcImproved,
-        headEn: "Mods: Install Examples updates the examples",
-        headEs: "Mods: Instalar ejemplos actualiza los ejemplos",
+      ChangelogEntry(category: clcMods,
+        headEn: "Install Examples updates the examples",
+        headEs: "Instalar ejemplos actualiza los ejemplos",
         en: points(
           "Pressing Install Examples in MODS.EXE again now updates the examples you already have when the game ships a newer version of them, instead of skipping them. You no longer need to delete an example's folder to get its new version, and examples that are already up to date are left alone.",
           "When an example is updated, any changes you made inside its folder are lost, so keep your own work in a renamed copy."),
         es: points(
           "Pulsar de nuevo Instalar ejemplos en MODS.EXE ahora actualiza los ejemplos que ya tienes cuando el juego trae una versión más nueva, en lugar de saltárselos. Ya no hace falta borrar la carpeta de un ejemplo para recibir su versión nueva, y los ejemplos que ya están al día no se tocan.",
           "Cuando un ejemplo se actualiza, los cambios que hayas hecho dentro de su carpeta se pierden, así que guarda tu trabajo en una copia con otro nombre.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "No more MODDED banner",
+        headEs: "Adiós al aviso CON MODS",
+        en: points(
+          "Runs played with mods no longer show the MODDED banner, in the HUD, on the game-over and victory screens or in the Last Run statistics.",
+          "Nothing else changed: a modded run still earns no permanent rewards unless every loaded mod opts out, and keeps its own saves."),
+        es: points(
+          "Las partidas con mods ya no muestran el aviso CON MODS, ni en el HUD, ni en las pantallas de derrota y victoria, ni en las estadísticas de la última partida.",
+          "Nada más cambia: una partida con mods sigue sin dar recompensas permanentes salvo que todos los mods cargados lo permitan, y conserva sus propios guardados.")),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.1",
@@ -151,10 +160,10 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.3.0",
     latest: false,
     entries: @[
-      # --- New ---
-      ChangelogEntry(category: clcNew,
-        headEn: "Mods: 3D models",
-        headEs: "Mods: modelos 3D",
+      # --- Mods ---
+      ChangelogEntry(category: clcMods,
+        headEn: "3D models",
+        headEs: "Modelos 3D",
         en: points(
           "Mods can now bring 3D models (GLB/glTF, OBJ, IQM, VOX from MagicaVoxel and M3D) and use them anywhere a picture goes: skins for the player, enemies, bosses and bullets, and mod cosmetics. Animated models play their animations, each enemy with its own pose.",
           "A mod can also replace the desktop cube with a model. The cube that orbits you in a run wears it too.",
@@ -165,11 +174,9 @@ let changelog: seq[ChangelogVersion] = @[
           "Un mod también puede reemplazar el cubo del escritorio por un modelo. El cubo que te orbita durante una partida también lo lleva.",
           "La lista de cosméticos de MODS.EXE muestra los modelos girando sobre sí mismos.",
           "Instalar ejemplos añade un noveno ejemplo, el Model Pack: un aspecto de nave 3D, balas de rayo de energía, un cubo de escritorio de vóxeles y una app Model Viewer que puede cambiar los enemigos Círculo por un dron animado.")),
-
-      # --- Improvements ---
-      ChangelogEntry(category: clcImproved,
-        headEn: "Mods: animated GIFs and wallpapers on the cube",
-        headEs: "Mods: GIF animados y fondos sobre el cubo",
+      ChangelogEntry(category: clcMods,
+        headEn: "Animated GIFs and wallpapers on the cube",
+        headEs: "GIF animados y fondos sobre el cubo",
         en: points(
           "Mods can now use GIF images as well as PNG, anywhere a picture goes: skins for the player, enemies, bosses and bullets, power-up icons, the wallpaper and mod cosmetics. Animated GIFs play at their own speed, and the MODS.EXE cosmetics list previews them in motion.",
           "Mod scripts can also read how many frames a GIF has and how long it lasts, and pick which frame to draw.",
@@ -188,10 +195,10 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.2.2",
     latest: false,
     entries: @[
-      # --- New ---
-      ChangelogEntry(category: clcNew,
-        headEn: "Mods: MODS.EXE",
-        headEs: "Mods: MODS.EXE",
+      # --- Mods ---
+      ChangelogEntry(category: clcMods,
+        headEn: "MODS.EXE",
+        headEs: "MODS.EXE",
         en: points(
           "A new desktop program, MODS.EXE, loads mods: small scripts written in Lua 5.5, with their own pictures, sounds and shaders. Tick the ones you want for this profile and press Apply & Reload.",
           "Mods can change almost everything: add whole game modes, new enemies, bosses and power-ups, reskin the player, enemies, bullets, icons and the wallpaper (with or without the desktop cube floating over it), replace sounds and music, and rewrite the rules of the modes that already exist.",
@@ -208,6 +215,7 @@ let changelog: seq[ChangelogVersion] = @[
           "Instalar ejemplos escribe ocho mods de ejemplo y la guía completa de modding en tu carpeta de mods: un indicador en el HUD, los modos Cañón de Cristal y Reglas de la Casa, ajustes para Supervivencia, un enemigo nuevo con una mejora, el jefe OVERCLOCK, un paquete de cosméticos de neón y un filtro de pantalla CRT con su propia app de ajustes.",
           "Los mods se ejecutan aislados. No pueden tocar tus archivos ni la red, un mod atascado en un bucle infinito se detiene en lugar de congelar el juego, y uno que falla una y otra vez se desactiva con un aviso. Los errores aparecen con su archivo y su línea en la pestaña Registro.",
           "Las partidas con mods tienen sus propios guardados, aparte de los normales, y solo se pueden continuar con los mismos mods cargados. Las salas de PvP solo aceptan jugadores con exactamente los mismos mods, y todos ven los aspectos de mods de los demás.")),
+      # --- New ---
       ChangelogEntry(category: clcNew,
         headEn: "Time Survival: its own horde and bosses",
         headEs: "Supervivencia: horda y jefes propios",
@@ -1496,6 +1504,7 @@ proc categoryLabel(cat: ChangelogCategory): string =
   of clcImproved: t(tkChangelogCatImproved)
   of clcBalance: t(tkChangelogCatBalance)
   of clcFixed: t(tkChangelogCatFixed)
+  of clcMods: t(tkChangelogCatMods)
 
 proc categoryColor(cat: ChangelogCategory): Color =
   case cat
@@ -1503,6 +1512,7 @@ proc categoryColor(cat: ChangelogCategory): Color =
   of clcImproved: Color(r: 90, g: 200, b: 255, a: 255) # cyan
   of clcBalance: Color(r: 255, g: 200, b: 50, a: 255)  # gold
   of clcFixed: Color(r: 255, g: 130, b: 110, a: 255)   # warm red
+  of clcMods: Color(r: 200, g: 140, b: 255, a: 255)    # violet
 
 proc entryHead(e: ChangelogEntry): string =
   if getLanguage() == Spanish: e.headEs else: e.headEn

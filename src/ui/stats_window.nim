@@ -3,7 +3,6 @@
 
 import raylib, strutils, std/tables, algorithm
 import os_window, ../statistics, ../run_statistics, ../types, ../powerup_data, ../localization, ../render_context, ../utils
-import ui_helpers
 
 type
   StatsTab* = enum
@@ -511,11 +510,6 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     drawText(tabName, textX.int32, textY.int32, 16, textColor)
 
     tabX += tabWidth + 10
-
-  # The last run was played with mods loaded: say so beside the tabs.
-  if statsWin.currentTab == stLastRun and hasLastRunStats() and getLastRunStats().modded:
-    let (badgeW, badgeH) = moddedBadgeSize(13)
-    drawModdedBadge(int32(contentX + contentW - badgeW), int32(tabY + (tabHeight - badgeH) div 2), 13)
 
   # Content area
   let tabContentY = contentY + tabHeight + 10

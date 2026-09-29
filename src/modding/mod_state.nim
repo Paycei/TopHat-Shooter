@@ -25,7 +25,11 @@ const MaxModLogLines = 400
 var
   modsActive*: bool
     ## At least one mod loaded successfully. Every run started while this is
-    ## true counts as cheated (see markRunModded).
+    ## true is stamped as modded (see markRunModded); it counts as cheated only
+    ## when modsDisableAchievements is set too.
+  modsDisableAchievements*: bool
+    ## At least one loaded mod keeps its runs from earning rewards (mod.json
+    ## `disableAchievements`, default true); false when no mod is loaded.
   modFingerprintHex*: string
     ## 8 lowercase hex digits identifying the loaded mod set (ids, versions and
     ## every file byte). "" when no mod is loaded.
@@ -66,9 +70,12 @@ proc saveSlotTag*(modMode: string = ""): string =
 
 proc markRunModded*(game: Game) =
   ## Stamp a run started with mods loaded. Unconditional, even in debug builds
-  ## (like tutorial practice): a modded run earns nothing permanent.
+  ## (like tutorial practice). The run counts as cheated (earns nothing
+  ## permanent) only if a loaded mod asks for it; this never clears cheatsUsed,
+  ## which a resumed save or the cheat menu may already have set.
   if game.isNil or not modsActive:
     return
   game.modded = true
-  game.cheatsUsed = true
+  if modsDisableAchievements:
+    game.cheatsUsed = true
   game.modFingerprint = modFingerprintHex

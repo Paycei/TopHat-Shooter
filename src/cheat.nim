@@ -1,11 +1,10 @@
 import raylib, math
-import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types, enemy_config
+import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types, enemy_config, modding/mod_state
 
 # ENABLE/DISABLE CHEATS
 # Release-build toggle: flip to `false` to ship a build with no cheat menu.
 # Debug builds (-d:debug, see `nimble debug`) ignore this toggle and ALWAYS
-# enable the cheat menu, since it's a core dev/testing tool. The toggle below
-# therefore only governs release builds.
+# enable the cheat menu. The toggle below therefore only governs release builds.
 const RELEASE_CHEATS_ENABLED = true
 const CHEATS_ENABLED* = defined(debug) or RELEASE_CHEATS_ENABLED
 
@@ -459,8 +458,9 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
   drawText(t(tkCheatCloseInstruction), panelX + 10, panelY + 35, 12, Gray)
   # Right-aligned on the same line: say up front that nothing permanent survives.
   # A modded run is cheated even in debug builds, so it says so there too.
-  if game.modded or (ANTICHEAT_ENABLED and game.cheatsUsed):
-    let notice = if game.modded: t(tkModdedNoRewards) else: t(tkCheatNoPermanentRewards)
+  let modsWithheld = game.modded and modsDisableAchievements
+  if modsWithheld or (ANTICHEAT_ENABLED and game.cheatsUsed):
+    let notice = if modsWithheld: t(tkModdedNoRewards) else: t(tkCheatNoPermanentRewards)
     drawText(notice, panelX + panelWidth - 10 - measureText(notice, 12), panelY + 35, 12, Orange)
 
   # Tab buttons with mouse support. The visible set is mode-dependent, so the

@@ -2,8 +2,9 @@
 ## Centralized window handling with state management
 
 import raylib, algorithm, sequtils, math
-import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, mods_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, mods_window, mod_app_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 import ../gamepad_input, ../render_context
+import ../modding/mod_hooks
 
 type
   WindowID* = enum
@@ -33,6 +34,7 @@ type
     credits*: CreditsWindow
     feedback*: FeedbackWindow
     mods*: ModsWindow
+    modApps*: seq[ModAppWindow]  ## open register.app windows, one per app key
     nextZOrder: int
 
 proc newWindowManager*(screenWidth, screenHeight: int,
@@ -95,6 +97,8 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
     wm.feedback.window,
     wm.mods.window
   ]
+  for app in wm.modApps:
+    result.add(app.window)
 
 proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
   ## Get only visible windows, sorted by z-order (highest first)
@@ -105,6 +109,19 @@ proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
 
   # Sort by z-order (highest first for click handling)
   result.sort(proc(a, b: OSWindow): int = cmp(b.zOrder, a.zOrder))
+
+proc bringToFront(wm: WindowManager, window: OSWindow) =
+  ## Show, restore and focus `window` on top of every other one.
+  window.visible = true
+  window.minimized = false
+  window.focused = true
+  window.zOrder = wm.nextZOrder
+  inc wm.nextZOrder
+
+  # Unfocus all other windows
+  for w in wm.getAllWindows():
+    if w != window:
+      w.focused = false
 
 proc openWindow*(wm: WindowManager, id: WindowID) =
   ## Open a specific window and bring it to front
@@ -130,16 +147,7 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
     window = wm.mods.window
     resetModsWindow(wm.mods)  # Picks up mod folders added since the last reload
 
-  window.visible = true
-  window.minimized = false
-  window.focused = true
-  window.zOrder = wm.nextZOrder
-  inc wm.nextZOrder
-
-  # Unfocus all other windows
-  for w in wm.getAllWindows():
-    if w != window:
-      w.focused = false
+  wm.bringToFront(window)
 
 proc closeWindow*(wm: WindowManager, id: WindowID) =
   ## Close a specific window
@@ -171,6 +179,7 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.credits.window.visible = false
   wm.feedback.window.visible = false
   wm.mods.window.visible = false
+  wm.modApps.setLen(0)
 
 proc windowUIScale*(window: OSWindow, requested: float32,
                     screenWidth, screenHeight: int): float32 =
@@ -202,6 +211,24 @@ proc windowViewport*(window: OSWindow, requested: float32,
   ## getVirtualScreenWidth/Height report once it is inside that layer.
   let scale = windowUIScale(window, requested, screenWidth, screenHeight)
   (scale, ceil(screenWidth.float32 / scale).int, ceil(screenHeight.float32 / scale).int)
+
+proc openModApp*(wm: WindowManager, key: string, uiScale: float32,
+                 screenWidth, screenHeight: int) =
+  ## Open the window of mod app `key`, or bring the one already open to front.
+  ## An app that a reload removed cannot be opened.
+  if findModApp(key) < 0: return
+  for app in wm.modApps:
+    if app.key == key:
+      wm.bringToFront(app.window)
+      return
+  # Centred in the viewport this window will actually lay out in.
+  let app = newModAppWindow(key, 0, 0)
+  let vp = windowViewport(app.window, uiScale, screenWidth, screenHeight)
+  app.window.uiScale = vp.scale
+  app.window.x = max(0, (vp.w - app.window.width) div 2)
+  app.window.y = max(0, (vp.h - app.window.height) div 2)
+  wm.modApps.add(app)
+  wm.bringToFront(app.window)
 
 proc pointerIn(window: OSWindow, requested: float32,
                screenWidth, screenHeight: int): Vector2 =
@@ -380,6 +407,7 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
   wm.applyWindowScales(uiScale, screenWidth, screenHeight)
 
   let visibleWindows = wm.getVisibleWindows()
+  var appToOpen = ""
 
   # Reset click flags for all windows at the start of each frame
   for window in wm.getAllWindows():
@@ -497,6 +525,22 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
         result.modModeLaunch = wm.mods.launchRequest
         result.modModeResume = wm.mods.launchResume
         wm.mods.launchRequest = -1
+      if wm.mods.openAppRequest.len > 0:
+        appToOpen = wm.mods.openAppRequest
+        wm.mods.openAppRequest = ""
+
+    else:
+      for app in wm.modApps:
+        if window == app.window:
+          updateModAppWindow(app, dt, screenWidth, screenHeight, visibleWindows)
+          break
+
+  # Closed app windows are dropped after the loop (visibleWindows is a copy, but
+  # a window must not vanish from the seq while it is still being updated), and
+  # a request from MODS.EXE opens its window last, on top.
+  wm.modApps.keepItIf(it.window.visible)
+  if appToOpen.len > 0:
+    wm.openModApp(appToOpen, uiScale, screenWidth, screenHeight)
 
 proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
                      screenWidth, screenHeight: int) =
@@ -544,3 +588,8 @@ proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
       drawFeedbackWindow(wm.feedback)
     elif window == wm.mods.window:
       drawModsWindow(wm.mods)
+    else:
+      for app in wm.modApps:
+        if window == app.window:
+          drawModAppWindow(app, visibleWindows)
+          break

@@ -68,6 +68,7 @@ type
     tkChangelogCatImproved = "changelog_cat_improved"
     tkChangelogCatBalance = "changelog_cat_balance"
     tkChangelogCatFixed = "changelog_cat_fixed"
+    tkChangelogCatMods = "changelog_cat_mods"
     tkChangelogLegacyView = "changelog_legacy_view"
 
     # Settings
@@ -1812,7 +1813,6 @@ type
     tkSurvivalEventsCaches = "survival_events_caches"
 
     # Mods (MODS.EXE)
-    tkModdedBadge = "modded_badge"
     tkModdedNoRewards = "modded_no_rewards"
     tkDesktopIconMods = "desktop_icon_mods"
     tkModsWindowTitle = "mods_window_title"
@@ -1821,7 +1821,14 @@ type
     tkModsTabLog = "mods_tab_log"
     tkModsTabApps = "mods_tab_apps"
     tkModsNoApps = "mods_no_apps"
+    tkModsOpenApp = "mods_open_app"
+    tkModsAppsHint = "mods_apps_hint"
+    tkModsAppNoIcon = "mods_app_no_icon"
     tkModsCheatBanner = "mods_cheat_banner"
+    tkModsKeepsBanner = "mods_keeps_banner"
+    tkModsKeepsTag = "mods_keeps_tag"
+    tkModsRewardsKept = "mods_rewards_kept"
+    tkModsRewardsOff = "mods_rewards_off"
     tkModsApply = "mods_apply"
     tkModsOpenFolder = "mods_open_folder"
     tkModsInstallExamples = "mods_install_examples"
@@ -1929,6 +1936,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "changelog_cat_improved": "Improvements",
     "changelog_cat_balance": "Balance",
     "changelog_cat_fixed": "Fixes",
+    "changelog_cat_mods": "Mods",
     "changelog_legacy_view": "Legacy view (all versions on one page)",
 
     # Settings
@@ -2850,6 +2858,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cosmetic Packs (discounted theme trios)
     "shop_tab_packs": "PACKS",
+    "shop_tab_mods": "MODS",
+    "shop_customize_mods": "Mod Cosmetics",
+    "shop_mods_unequipped": "[UNEQUIPPED]",
+    "shop_mods_subtitle": "From your loaded mods. Free to equip; they show while the mod is loaded.",
     "shop_customize_packs": "Theme Bundles -- 40% Off",
     "pack_owned": "OWNED",
     "pack_includes": "Player + Bullet + Particle",
@@ -3949,7 +3961,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "survival_events_caches": "Events / Caches:",
 
     # Mods (MODS.EXE)
-    "modded_badge": "MODDED",
     "modded_no_rewards": "Modded run: no permanent rewards",
     "desktop_icon_mods": "MODS.exe",
     "mods_window_title": "Mods - Mod Manager",
@@ -3958,7 +3969,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_tab_log": "Log",
     "mods_tab_apps": "Apps",
     "mods_no_apps": "No loaded mod adds an app. Mods add them with register.app.",
-    "mods_cheat_banner": "Modded runs count as cheated: no Data Shards, stats, advancements or unlocks.",
+    "mods_open_app": "Open",
+    "mods_apps_hint": "Each app opens in its own window; most also put an icon on the desktop.",
+    "mods_app_no_icon": "(no desktop icon)",
+    "mods_cheat_banner": "Modded runs count as cheated (no Data Shards, stats, advancements or unlocks) unless every loaded mod is marked KEEPS REWARDS.",
+    "mods_keeps_banner": "Loaded mods keep rewards: modded runs still earn Data Shards, stats, advancements and unlocks.",
+    "mods_keeps_tag": "KEEPS REWARDS",
+    "mods_rewards_kept": "Keeps rewards: runs with this mod can still earn progress.",
+    "mods_rewards_off": "Disables rewards: runs with this mod count as cheated.",
     "mods_apply": "Apply & Reload",
     "mods_open_folder": "Open Folder",
     "mods_install_examples": "Install Examples",
@@ -4065,6 +4083,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "changelog_cat_improved": "Mejoras",
     "changelog_cat_balance": "Balance",
     "changelog_cat_fixed": "Correcciones",
+    "changelog_cat_mods": "Mods",
     "changelog_legacy_view": "Vista clásica (todas las versiones en una página)",
 
     # Settings
@@ -4880,6 +4899,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cosmetic Packs (paquetes tematicos con descuento)
     "shop_tab_packs": "PAQUETES",
+    "shop_tab_mods": "MODS",
+    "shop_customize_mods": "Cosméticos de mods",
+    "shop_mods_unequipped": "[DESEQUIPADO]",
+    "shop_mods_subtitle": "De tus mods cargados. Gratis; se ven mientras el mod esté cargado.",
     "shop_customize_packs": "Paquetes Temáticos -- 40% Off",
     "pack_owned": "OBTENIDO",
     "pack_includes": "Jugador + Bala + Particula",
@@ -6083,7 +6106,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "survival_events_caches": "Eventos / Cachés:",
 
     # Mods (MODS.EXE)
-    "modded_badge": "CON MODS",
     "modded_no_rewards": "Partida con mods: sin recompensas permanentes",
     "desktop_icon_mods": "MODS.exe",
     "mods_window_title": "Mods - Gestor de Mods",
@@ -6092,7 +6114,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_tab_log": "Registro",
     "mods_tab_apps": "Apps",
     "mods_no_apps": "Ningún mod cargado añade una app. Los mods las añaden con register.app.",
-    "mods_cheat_banner": "Las partidas con mods cuentan como trampas: sin Fragmentos, estadísticas, logros ni desbloqueos.",
+    "mods_open_app": "Abrir",
+    "mods_apps_hint": "Cada app se abre en su propia ventana; la mayoría también pone un icono en el escritorio.",
+    "mods_app_no_icon": "(sin icono en el escritorio)",
+    "mods_cheat_banner": "Con mods, la partida cuenta como trampa (sin Fragmentos, estadísticas, logros ni desbloqueos) salvo si todos llevan CON RECOMPENSAS.",
+    "mods_keeps_banner": "Los mods cargados conservan las recompensas: Fragmentos, estadísticas, logros y desbloqueos siguen activos.",
+    "mods_keeps_tag": "CON RECOMPENSAS",
+    "mods_rewards_kept": "Conserva las recompensas: las partidas con este mod pueden dar progreso.",
+    "mods_rewards_off": "Desactiva las recompensas: las partidas con este mod cuentan como trampas.",
     "mods_apply": "Aplicar y recargar",
     "mods_open_folder": "Abrir carpeta",
     "mods_install_examples": "Instalar ejemplos",

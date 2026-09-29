@@ -103,7 +103,7 @@ type
     runDuration*: float32
     waveReached*, finalScore*: int
     cheatsUsed*, died*: bool
-    modded*: bool  # played with mods loaded (MODS.EXE); always also cheatsUsed
+    modded*: bool  # played with mods loaded (MODS.EXE); cheatsUsed too unless every mod opted out
     combat*: CombatStats
     movement*: MovementStats
     resources*: ResourceStats

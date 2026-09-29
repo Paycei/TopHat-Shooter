@@ -9,12 +9,14 @@ nested lists and objects), replace the game's own behaviour at dozens of
 points (movement, dash, shooting, bullets, pickups, the shop, level-ups,
 enemy AI, boss attacks...), hide the HUD and draw its own, dress the game in
 textures and 3D models, post-process the screen with shaders, and add its
-own apps to MODS.EXE.
+own apps to the desktop.
 
 > **Modded runs count as cheated.** Any run started while at least one mod is
-> loaded earns no Data Shards, statistics, advancements or unlocks, and says
-> MODDED on screen. Unload every mod (MODS.EXE, untick, Apply & Reload) to play
-> for keeps again.
+> loaded earns no Data Shards, statistics, advancements or unlocks. The one
+> exception: a run keeps its rewards when *every* loaded mod sets
+> `"disableAchievements": false` in its `mod.json` (see below), which is meant
+> for mods that don't change how a run plays. Otherwise unload
+> every mod (MODS.EXE, untick, Apply & Reload) to play for keeps again.
 
 ## Getting started
 
@@ -39,7 +41,8 @@ for portable installs, in a `mods` folder next to the game executable.
   "description": "What it does, shown in MODS.EXE.",
   "main": "main.lua",
   "dependencies": ["other_mod"],
-  "loadAfter": ["optional_mod"]
+  "loadAfter": ["optional_mod"],
+  "disableAchievements": true
 }
 ```
 
@@ -48,6 +51,14 @@ for portable installs, in a `mods` folder next to the game executable.
 * `dependencies`: mods that must be enabled and load first. If one is missing
   or fails, this mod is skipped.
 * `loadAfter`: mods that load first *if* they are enabled.
+* `disableAchievements`: `true` (the default) makes every run with this mod
+  loaded cheated. Set `false` only for mods that don't change how a run plays
+  (cosmetics, shaders, HUD readouts, apps). A run keeps its Data Shards,
+  statistics, advancements and unlocks only if *every* loaded mod says `false`;
+  one mod with `true` (or without the key) makes it cheated. It must be a JSON
+  boolean: `"false"` in quotes makes the manifest invalid and the mod does not
+  load. Modded runs still keep their own saves either way, and
+  MODS.EXE tags such mods KEEPS REWARDS.
 
 Mods load in dependency order, ties broken by id. The order does not depend
 on how you arranged anything, so two players with the same mods always load
@@ -355,7 +366,9 @@ as long as that mod is loaded.
 ## Game modes
 
 A mod can add whole game modes. They appear in **MODS.EXE > Game Modes** with
-Launch and Continue buttons, and keep their own saves.
+Launch and Continue buttons, and each gets an icon on the desktop that launches
+it like the game's own modes (with a Continue / New Run prompt when a run is
+saved). Every mode keeps its own saves.
 
 ```lua
 local MODE = register.gamemode{
@@ -364,6 +377,7 @@ local MODE = register.gamemode{
   description = {en = "...", es = "..."},
   base = "wave",          -- "wave", "survival" or "roguelite": the rules it starts from
   spawning = true,        -- false: the base mode spawns nothing by itself
+  icon = "icon.png",      -- optional desktop icon; color and desktop work the same way
   onStart = function(game, resumed) end,
 }
 
@@ -377,6 +391,13 @@ end)
 * `spawning = false` stops wave mode from starting waves and survival's horde
   from spawning (its clock, events and bosses carry on), so your scripts decide
   what appears and when. It has no effect on the roguelite.
+* `icon`, `color` and `desktop` are the desktop-icon options of `register.app`
+  (see the option table in [Apps](#apps)): a texture or model for the icon, its
+  accent color, and `desktop = false` to leave the icon off (the mode stays in
+  MODS.EXE). Without an `icon` the icon is a play triangle on a small screen;
+  without a `color` it takes its base mode's color (Play blue, Survival orange,
+  Roguelite teal). Mode icons come first among the mod icons, in registration
+  order, tagged MOD.
 * To change an **existing** mode instead, write the same hooks without a mode:
   check `game:isMode("survival")` and so on (see the `survival_tweaks` example).
 
@@ -420,7 +441,8 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
 * `register.cosmetic{kind = "player" | "bullet" | "desktop", id = "neon",
   name = "Neon", description = "...", colors = {"#ff00ff", "#00ffff", "#ffffff"},
   texture = "skins/neon.png", scale = 1.2, rotate = true}` adds a cosmetic the
-  player equips in **MODS.EXE > Cosmetics**. `colors` is a palette for the
+  player equips in **MODS.EXE > Cosmetics**, or in the Shop's **MODS** tab
+  (shown while a loaded mod has cosmetics). `colors` is a palette for the
   built-in shapes (player: body, trim, core; bullets: body, glow, trail); a
   `texture` or a `model` (see 3D models below) replaces the drawing. Desktop
   cosmetics take a texture (the wallpaper; `cube = true` keeps the desktop
@@ -513,19 +535,38 @@ sector panel), `"boss"`, `"combo"`, `"banners"`, `"abilities"`, `"hints"`,
 
 ## Apps
 
-`register.app` adds a program to **MODS.EXE > Apps**: settings for your mod,
-an info page, a toy. It draws in its own canvas, in canvas coordinates.
+`register.app` adds a program to the desktop: settings for your mod, an info
+page, a toy. Each app is a real window (title bar, drag, minimize, close, focus
+like the game's own) with an icon on the desktop that opens it; **MODS.EXE >
+Apps** lists every app with an Open button too. The app draws in the window's
+canvas, in canvas coordinates.
 
 ```lua
 register.app{
   id = "settings", name = {en = "My Settings", es = "Mis Ajustes"},
+  icon = assets.model("ship.glb"), color = "#7de2ff", width = 420, height = 260,
   draw = function(w, h, mouseX, mouseY) draw.text("Hello", 20, 20, 20, "#ffffff") end,
-  update = function(dt) end,                      -- every frame while shown
+  update = function(dt) end,                      -- every frame while open
   click = function(x, y, button, w, h) end,       -- a click inside the canvas
 }
 ```
 
-The mouse is -1, -1 when it is outside the canvas. Keep settings in
+| Option | Meaning |
+|---|---|
+| `id` | required, unique in your mod (the app is `<mod id>:<id>`) |
+| `name` | text or `{en = ..., es = ...}`: the window title and the icon label |
+| `draw` | required, `draw(w, h, mouseX, mouseY)`: the canvas size and the mouse in canvas coordinates (-1, -1 when it is outside the canvas or another window covers it) |
+| `update` | optional, `update(dt)`: runs every frame the window is open and not minimized (not while it is closed or minimized) |
+| `click` | optional, `click(x, y, button, w, h)`: a click inside the canvas (`"left"` or `"right"`), only when this window is the one under the pointer |
+| `icon` | optional: a texture or model (`assets.texture(...)` / `assets.model(...)`, or a file name: `.png` / `.gif` is a texture, anything else a model) shown in the desktop icon. Without one the icon shows a small window with the app's initial. A model icon also reads the pose options of `override.model` (`tilt`, `spin`, `animation`...) from the same table |
+| `color` | optional accent for the window and the icon tile (default: MODS.EXE green) |
+| `width`, `height` | optional canvas size in pixels (default 480 x 360; 240-960 wide, 160-640 tall) |
+| `resizable` | optional, default `false`. When `true` the player can drag the window's edge: `draw` and `click` then get the current canvas size, so lay out from `w` and `h`. Resizable windows open at least 400 x 300 |
+| `desktop` | optional, default `true`. `false` puts no icon on the desktop; the app is still reachable from MODS.EXE > Apps |
+
+The desktop icons of mod apps sit in columns of their own after the game's
+icons, in the order the apps were registered, tagged MOD. Opening an app that is
+already open just brings its window to the front. Keep settings in
 `mod.storage` so they survive restarts (see `retro_crt`).
 
 ## Timers, input, drawing, text
@@ -585,10 +626,10 @@ replaces an example only when the game ships a newer version of it (a higher
 | `survival_tweaks` | changing an existing mode (vetoing events, swapping spawns, XP) |
 | `bouncer` | a new enemy with its own movement and look, and a new power-up |
 | `overclock_boss` | a new boss with scripted attacks and movement, replacing a wave boss |
-| `neon_pack` | cosmetics: player skins (one an animated GIF), a bullet trail and a wallpaper |
-| `retro_crt` | a post-processing shader, and an app in MODS.EXE to tune it |
+| `neon_pack` | cosmetics: player skins (one an animated GIF), a bullet trail and a wallpaper (`disableAchievements: false`) |
+| `retro_crt` | a post-processing shader, and a desktop app to tune it (`disableAchievements: false`) |
 | `house_rules` | a mode that rewrites rules: dash, pickups, the shop, level-ups and its own HUD panel |
-| `model_pack` | 3D models: a ship skin, 3D bullets, a voxel desktop cube, an animated enemy and a model viewer app |
+| `model_pack` | 3D models: a ship skin, 3D bullets, a voxel desktop cube, an animated enemy and a model viewer app with a 3D icon (`disableAchievements: false`) |
 
 ## Multiplayer
 

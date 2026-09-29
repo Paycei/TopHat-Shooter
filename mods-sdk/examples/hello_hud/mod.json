@@ -1,8 +1,9 @@
 {
   "id": "hello_hud",
   "name": "Hello HUD",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Paycei",
   "description": "The smallest useful mod: a HUD readout of kills and survival time, and a ring that follows the player. Read main.lua to see how hooks, drawing and run.data work.",
-  "main": "main.lua"
+  "main": "main.lua",
+  "disableAchievements": false
 }

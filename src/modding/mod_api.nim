@@ -1376,6 +1376,30 @@ proc modelReplace(vm: VM, args: openArray[ScriptValue], modelArg: int, what: str
   result.pose = vm.readPose(opts, result.model, what)
   readScaleRotate(opts, result)
 
+proc readDesktopEntry(vm: VM, t: ScriptTable, what: string, icon: var BodyReplace,
+                      color: var Color, desktop: var bool) =
+  ## The desktop-icon options register.app and register.gamemode share: icon
+  ## (texture, model or file name), color (left as is when absent) and desktop
+  ## (default true).
+  let col = rawGetStr(t, "color")
+  if col.kind != vkNil: color = parseColor(vm, col, what & " color")
+  let dk = rawGetStr(t, "desktop")
+  desktop = dk.kind == vkNil or truthy(dk)
+  let ic = rawGetStr(t, "icon")
+  if ic.kind == vkUserdata and ic.ud.cls == modelClass:
+    icon.model = ic.ud.handle
+  elif ic.kind == vkUserdata:
+    icon.id = vm.textureId(ic, what & " icon")
+  elif ic.kind == vkString:
+    # By extension: an image is a texture, anything else is tried as a model.
+    let ext = ic.str.s.toLowerAscii
+    if ext.endsWith(".png") or ext.endsWith(".gif"): icon.id = vm.textureId(ic, what & " icon")
+    else: icon.model = vm.modelId(ic, what & " icon")
+  elif ic.kind != vkNil:
+    vm.runtimeError(what & ": icon must be a texture, a model or a file name")
+  if icon.model > 0:
+    icon.pose = vm.readPose(vtable(t), icon.model, what)
+
 proc bodySlot(vm: VM, target, fname, extraTarget: string): ptr BodyReplace =
   ## The body an override target names: player, enemy:<type>, boss:<id>,
   ## bullet:player, bullet:enemy or powerup:<name>.
@@ -1627,12 +1651,13 @@ proc installAssetLibraries(base: ScriptTable) =
   registerT.reg("gamemode") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## register.gamemode{id = "glass", name = "Glass Cannon", description = "...",
     ##   base = "wave" | "survival" | "roguelite", spawning = true,
-    ##   onStart = function(game, resumed) ... end}
+    ##   onStart = function(game, resumed) ... end,
+    ##   icon = texture | model | "file", color = "#64c8ff", desktop = true}
     let owner = vm.requireOwner("register.gamemode")
     let t = vm.checkTable(args, 0, "gamemode")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.gamemode")
     if findModMode(key) >= 0: vm.runtimeError("register.gamemode: '" & key & "' is already registered")
-    var m = ModModeDef(key: key, owner: owner, spawning: true, base: gmWaveBased)
+    var m = ModModeDef(key: key, owner: owner, spawning: true, desktop: true, base: gmWaveBased)
     let b = rawGetStr(t, "base")
     if b.kind == vkString:
       m.base = case b.str.s
@@ -1646,12 +1671,15 @@ proc installAssetLibraries(base: ScriptTable) =
     let sp = rawGetStr(t, "spawning")
     if sp.kind != vkNil: m.spawning = truthy(sp)
     m.onStart = rawGetStr(t, "onStart")
+    vm.readDesktopEntry(t, "register.gamemode", m.icon, m.color, m.desktop)  # color a = 0: base mode's
     modModes.add(m)
     ret.setRet(vstr(key))
   registerT.reg("app") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## register.app{id = "settings", name = {en = "Settings", es = "Ajustes"},
     ##   draw = function(w, h, mouseX, mouseY) ... end,   -- canvas coordinates
-    ##   update = function(dt) ... end, click = function(x, y, button) ... end}
+    ##   update = function(dt) ... end, click = function(x, y, button, w, h) ... end,
+    ##   icon = texture | model | "file", color = "#78dca0", width = 480, height = 360,
+    ##   resizable = false, desktop = true}
     let owner = vm.requireOwner("register.app")
     let t = vm.checkTable(args, 0, "app")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.app")
@@ -1665,6 +1693,16 @@ proc installAssetLibraries(base: ScriptTable) =
       if f.kind in {vkFunction, vkNative}: dest[] = f
       elif f.kind != vkNil: vm.runtimeError("register.app: " & field & " must be a function")
     if app.draw.kind == vkNil: vm.runtimeError("register.app needs a draw function")
+    app.color = ModAppDefaultColor
+    vm.readDesktopEntry(t, "register.app", app.icon, app.color, app.desktop)
+    app.width = 480
+    app.height = 360
+    for (field, dest, lo, hi) in [("width", addr app.width, ModAppMinW, ModAppMaxW),
+                                  ("height", addr app.height, ModAppMinH, ModAppMaxH)]:
+      let v = rawGetStr(t, field)
+      if v.kind == vkNumber and abs(v.n) < 1.0e9: dest[] = clamp(int(v.n), lo, hi)
+      elif v.kind != vkNil: vm.runtimeError("register.app: " & field & " must be a number")
+    app.resizable = truthy(rawGetStr(t, "resizable"))
     modApps.add(app)
     ret.setRet(vstr(key))
   registerT.reg("cosmetic") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):

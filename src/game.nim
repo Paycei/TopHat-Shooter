@@ -7037,23 +7037,6 @@ proc drawGame*(game: Game) =
                                  height: 22), 1.0, Color(r: 255, g: 105, b: 95, a: noticeA))
     drawText(hudNotice, noticeX + 10, noticeY + 5, 12, Color(r: 255, g: 180, b: 170, a: noticeA))
 
-  # Widescreen: top of the arena column (the docks own every corner). Classic:
-  # bottom-left, since the top strip belongs to the wave/boss banners, the key
-  # hints are centered and the [Q] panel holds the bottom-right.
-  if game.modded:
-    let (badgeW, badgeH) = moddedBadgeSize(11)
-    let modeLabel = if game.modMode.len > 0: modModeName(game.modMode, getLanguage() == Spanish)
-                    else: ""
-    if hudLayout == hlWidescreen:
-      drawModdedBadge((vw - badgeW) div 2, 4, 11)
-      if modeLabel.len > 0:
-        let lw = measureText(modeLabel, 11)
-        drawText(modeLabel, (vw - lw) div 2, 4 + badgeH + 3, 11, Color(r: 255, g: 196, b: 80, a: 220))
-    else:
-      drawModdedBadge(10, vh - badgeH - 10, 11)
-      if modeLabel.len > 0:
-        drawText(modeLabel, 10 + badgeW + 8, vh - badgeH - 10 + 4, 11, Color(r: 255, g: 196, b: 80, a: 220))
-
   endUIScaleMode()   # closes the interface layer opened before the HUD panel
 
 proc drawDeathSequenceOverlay*(game: Game) =

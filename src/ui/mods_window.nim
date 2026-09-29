@@ -3,7 +3,8 @@
 ## Installed: tick mods for this profile and Apply & Reload (the reload itself
 ## runs in main.nim, from the desktop, never mid-run). Game Modes: modes that
 ## loaded mods registered (launch/continue). Log: print output and errors.
-## The banner states the one rule players must know: modded runs are cheated.
+## The banner states the one rule players must know: modded runs are cheated,
+## unless every loaded mod opts out with "disableAchievements": false.
 
 import std/[os, strutils, math]
 import raylib, rlgl
@@ -33,7 +34,8 @@ type
     launchRequest*: int       ## index into modeRows to launch, -1 = none
     launchResume*: bool
     cosScroll*: int
-    appSelected*: int         ## register.app entry shown in the Apps tab
+    appSelected*: int         ## register.app row highlighted in the Apps tab
+    openAppRequest*: string   ## key of the app to open, "" = none (consumed by the window manager)
     removeTarget: string      ## folder the remove confirmation is about ("" = closed)
     removeName: string
     removeCooldown: float32   ## seconds until the confirmation's Remove unlocks
@@ -48,7 +50,8 @@ const
   ModsWindowH = 560
   TabH = 28
   TabW = 146
-  AppListW = 180
+  AppRowH = 52
+  AppHintH = 28  # the Apps tab's hint line, above its rows
   BannerH = 22
   ButtonH = 32
   ListW = 300
@@ -97,7 +100,7 @@ proc resetModsWindow*(mw: ModsWindow) =
 type Geo = object
   x, y, w, h: int
   bodyY, bodyH: int
-  list, detail, logArea, appList, appCanvas: Rectangle
+  list, detail, logArea: Rectangle
   tabs: array[ModsTab, Rectangle]
   applyBtn, folderBtn, examplesBtn, removeBtn: Rectangle
   confirm, confirmNo, confirmYes: Rectangle
@@ -118,11 +121,6 @@ proc geometry(mw: ModsWindow): Geo =
                             width: float32(result.w - ListW - 12), height: result.bodyH.float32)
   result.logArea = Rectangle(x: result.x.float32, y: result.bodyY.float32,
                              width: result.w.float32, height: result.bodyH.float32)
-  result.appList = Rectangle(x: result.x.float32, y: result.bodyY.float32,
-                             width: AppListW.float32, height: result.bodyH.float32)
-  result.appCanvas = Rectangle(x: float32(result.x + AppListW + 10), y: result.bodyY.float32,
-                               width: float32(result.w - AppListW - 10),
-                               height: float32(result.bodyH + ButtonH + 10))
   let by = float32(result.y + result.h - ButtonH)
   let applyW = max(170'i32, measureText(t(tkModsApply), 14) + 30).float32
   result.applyBtn = Rectangle(x: float32(result.x + result.w) - applyW, y: by,
@@ -249,6 +247,11 @@ proc removeMod(mw: ModsWindow) =
 proc logLines(): int = modLog.len
 
 # --------------------------------------------------------------- update ----
+proc appOpenBtn(g: Geo, i: int): Rectangle =
+  ## The Open button of Apps tab row `i` (rows sit under the one-line hint).
+  Rectangle(x: float32(g.x + g.w - 124), y: float32(g.bodyY + AppHintH + i * AppRowH + 11),
+            width: 110, height: 30)
+
 proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: int,
                        allWindows: openArray[OSWindow]) =
   updateOSWindow(mw.window, dt)
@@ -314,13 +317,10 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
           mw.settings.modCosmetics = equippedEntries()
           discard saveSettings(mw.settings)
     elif mw.tab == mtApps:
-      if checkCollisionPointRec(mouse, g.appList):
-        let row = int(mouse.y - g.appList.y) div RowH
-        if row >= 0 and row < modApps.len: mw.appSelected = row
-      elif checkCollisionPointRec(mouse, g.appCanvas):
-        modAppClick(mw.appSelected, mouse.x - g.appCanvas.x, mouse.y - g.appCanvas.y,
-                    if isMouseButtonPressed(MouseButton.Right): "right" else: "left",
-                    g.appCanvas.width, g.appCanvas.height)
+      for i in 0 ..< modApps.len:
+        if checkCollisionPointRec(mouse, appOpenBtn(g, i)):
+          mw.appSelected = i
+          mw.openAppRequest = modApps[i].key
     elif mw.tab == mtModes:
       for i in 0 ..< mw.modeRows.len:
         let rowY = g.bodyY + i * 64
@@ -351,7 +351,13 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
 
   if mw.tab == mtApps and modApps.len > 0:
     mw.appSelected = clamp(mw.appSelected, 0, modApps.high)
-    modAppUpdate(mw.appSelected, dt)
+    if mw.window.focused:
+      if isKeyPressed(KeyboardKey.Down) or gamepadNavPressed(gnDown):
+        mw.appSelected = min(mw.appSelected + 1, modApps.high)
+      elif isKeyPressed(KeyboardKey.Up) or gamepadNavPressed(gnUp):
+        mw.appSelected = max(mw.appSelected - 1, 0)
+      elif isKeyPressed(KeyboardKey.Space) or isKeyPressed(KeyboardKey.Enter):
+        mw.openAppRequest = modApps[mw.appSelected].key
 
   let wheel = getPointerWheelMove()
   case mw.tab
@@ -489,8 +495,13 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
       drawCheckbox(int32(g.list.x) + 10, ry + 14, m.id in mw.pending, toggleable(m))
       drawText(fitWithEllipsis(m.name, int32(g.list.width) - 50, 14), int32(g.list.x) + 34, ry + 7, 14, ColText)
       let (st, col) = mw.displayStatus(m)
-      drawText(fitWithEllipsis(m.version & "  " & st, int32(g.list.width) - 50, 11),
-               int32(g.list.x) + 34, ry + 26, 11, col)
+      let verSt = fitWithEllipsis(m.version & "  " & st, int32(g.list.width) - 50, 11)
+      drawText(verSt, int32(g.list.x) + 34, ry + 26, 11, col)
+      if m.status != msInvalid and not m.disableAchievements:
+        let tag = t(tkModsKeepsTag)
+        let tx = int32(g.list.x) + 34 + measureText(verSt, 11) + 10
+        if tx + measureText(tag, 10) < int32(g.list.x + g.list.width) - 6:
+          drawText(tag, tx, ry + 27, 10, ColOk)
     endScissorMode()
 
     # detail pane
@@ -510,7 +521,11 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
       y += 18
       let (st, col) = mw.displayStatus(m)
       drawText(st, x, y, 13, col)
-      y += 22
+      y += 20
+      if m.status != msInvalid:
+        drawText(fitWithEllipsis(t(if m.disableAchievements: tkModsRewardsOff else: tkModsRewardsKept), w, 12),
+                 x, y, 12, if m.disableAchievements: ColWarn else: ColOk)
+        y += 20
       if m.description.len > 0:
         y = drawWrapped(m.description, x, y, w, 13, ColText, bottom) + 6
       if m.dependencies.len > 0:
@@ -598,35 +613,30 @@ proc drawCosmetics(mw: ModsWindow, g: Geo) =
   endScissorMode()
 
 proc drawApps(mw: ModsWindow, g: Geo) =
-  drawRectangle(g.appList, ColPanel)
-  drawRectangleLines(g.appList, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  drawRectangle(g.logArea, ColPanel)
+  drawRectangleLines(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
   if modApps.len == 0:
-    discard drawWrapped(t(tkModsNoApps), int32(g.appCanvas.x) + 14, int32(g.bodyY) + 14,
-                        int32(g.appCanvas.width) - 28, 13, ColMuted, int32(g.bodyY + g.bodyH))
+    discard drawWrapped(t(tkModsNoApps), int32(g.x) + 14, int32(g.bodyY) + 14,
+                        int32(g.w) - 28, 13, ColMuted, int32(g.bodyY + g.bodyH))
     return
   let spanish = getLanguage() == Spanish
+  discard drawWrapped(t(tkModsAppsHint), int32(g.x) + 14, int32(g.bodyY) + 8,
+                      int32(g.w) - 28, 12, ColMuted, int32(g.bodyY + g.bodyH))
   for i in 0 ..< modApps.len:
-    let ry = int32(g.appList.y) + int32(i * RowH)
-    if ry + RowH > int32(g.appList.y + g.appList.height): break
-    drawRectangle(Rectangle(x: g.appList.x + 2, y: ry.float32 + 2, width: g.appList.width - 4,
-                            height: RowH - 4), if i == mw.appSelected: ColRowSel else: ColRow)
-    drawText(fitWithEllipsis(modAppName(i, spanish), int32(g.appList.width) - 20, 14),
-             int32(g.appList.x) + 10, ry + 8, 14, ColText)
-    drawText(fitWithEllipsis(modApps[i].key.split(':')[0], int32(g.appList.width) - 20, 11),
-             int32(g.appList.x) + 10, ry + 26, 11, ColMuted)
-  # The app's canvas: its own coordinates, and it cannot draw outside it.
-  let c = g.appCanvas
-  drawRectangle(c, Color(r: 6, g: 8, b: 12, a: 255))
-  drawRectangleLines(c, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
-  let mouse = getVirtualMousePosition()
-  let inside = checkCollisionPointRec(mouse, c)
-  beginVirtualScissorMode(int32(c.x), int32(c.y), int32(c.width), int32(c.height))
-  pushMatrix()
-  translatef(c.x, c.y, 0)
-  modAppDraw(mw.appSelected, c.width, c.height,
-             if inside: mouse.x - c.x else: -1, if inside: mouse.y - c.y else: -1)
-  popMatrix()
-  endScissorMode()
+    let btn = appOpenBtn(g, i)
+    if btn.y + btn.height > g.logArea.y + g.logArea.height: break
+    let ry = int32(btn.y) - 11
+    drawRectangle(Rectangle(x: g.logArea.x + 4, y: ry.float32, width: g.logArea.width - 8,
+                            height: AppRowH - 4), if i == mw.appSelected: ColRowSel else: ColRow)
+    drawRectangle(Rectangle(x: g.logArea.x + 4, y: ry.float32, width: 4, height: AppRowH - 4),
+                  modApps[i].color)
+    let textW = int32(g.logArea.width) - 40 - int32(btn.width)
+    drawText(fitWithEllipsis(modAppName(i, spanish), textW, 15),
+             int32(g.logArea.x) + 20, ry + 8, 15, ColText)
+    drawText(fitWithEllipsis(modApps[i].key.split(':')[0] &
+                             (if modApps[i].desktop: "" else: "   " & t(tkModsAppNoIcon)), textW, 11),
+             int32(g.logArea.x) + 20, ry + 28, 11, ColMuted)
+    drawButton(btn, t(tkModsOpenApp), true, true)
 
 proc drawLog(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
@@ -667,11 +677,15 @@ proc drawModsWindow*(mw: ModsWindow) =
 
   # the rule players must know
   let banner = Rectangle(x: g.x.float32, y: float32(g.y + TabH + 8), width: g.w.float32, height: BannerH.float32)
-  drawRectangle(banner, Color(r: 48, g: 34, b: 8, a: 255))
-  drawRectangleLines(banner, 1.0, Color(r: 255, g: 176, b: 32, a: 200))
-  let bannerSize = bestFitFontSize(t(tkModsCheatBanner), int32(g.w) - 16, 12, 10)
-  drawText(fitWithEllipsis(t(tkModsCheatBanner), int32(g.w) - 16, bannerSize),
-           int32(g.x) + 8, int32(banner.y) + (BannerH - bannerSize) div 2, bannerSize, ColWarn)
+  let keeps = modsActive and not modsDisableAchievements   # every loaded mod keeps rewards
+  let bannerText = t(if keeps: tkModsKeepsBanner else: tkModsCheatBanner)
+  drawRectangle(banner, if keeps: Color(r: 12, g: 42, b: 30, a: 255) else: Color(r: 48, g: 34, b: 8, a: 255))
+  drawRectangleLines(banner, 1.0, if keeps: Color(r: 60, g: 200, b: 140, a: 200)
+                                  else: Color(r: 255, g: 176, b: 32, a: 200))
+  let bannerSize = bestFitFontSize(bannerText, int32(g.w) - 16, 12, 10)
+  drawText(fitWithEllipsis(bannerText, int32(g.w) - 16, bannerSize),
+           int32(g.x) + 8, int32(banner.y) + (BannerH - bannerSize) div 2, bannerSize,
+           if keeps: ColOk else: ColWarn)
 
   case mw.tab
   of mtInstalled: mw.drawInstalled(g)

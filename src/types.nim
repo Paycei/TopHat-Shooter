@@ -1833,9 +1833,10 @@ type
     waveStartTime*: float32  # Track when current wave started for statistics
     cheatsUsed*: bool  # Set to true if cheat menu opened during run
     # MODS.EXE (src/modding): a run started with any mod loaded is modded, which
-    # also forces cheatsUsed. modMode is the mod game mode id ("" = the vanilla
-    # mode itself) and modRunData the mods' per-run `run.data`, as JSON, so
-    # both save layers carry it without holding script values.
+    # also forces cheatsUsed unless every mod sets disableAchievements=false.
+    # modMode is the mod game mode id ("" = the vanilla mode itself) and
+    # modRunData the mods' per-run `run.data`, as JSON, so both save layers
+    # carry it without holding script values.
     modded*: bool
     modFingerprint*: string
     modMode*: string

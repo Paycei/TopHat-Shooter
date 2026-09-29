@@ -28,6 +28,7 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   clearModTranslations()
   resetHooks()
   modsActive = false
+  modsDisableAchievements = false
   modFingerprintHex = ""
   loadedModIds = @[]
   captureModRunData = nil
@@ -89,9 +90,14 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   # 4. Publish the new set.
   loadedModIds = loadedIds
   modsActive = loadedIds.len > 0
+  for info in loadedInfos:
+    if info.disableAchievements: modsDisableAchievements = true
   modFingerprintHex = if modsActive: computeFingerprint(loadedInfos) else: ""
   if modsActive:
     captureModRunData = captureRunData
   applyEquippedCosmetics(equippedCosmetics)
   modLogAdd(mlInfo, "", "mods reloaded: " & summaryText() &
-            (if modsActive: " (set " & modFingerprintHex & ")" else: ""))
+            (if modsActive: " (set " & modFingerprintHex & ")" else: "") &
+            (if not modsActive: ""
+             elif modsDisableAchievements: "; runs with this set count as cheated (no rewards)"
+             else: "; runs with this set keep their rewards"))
