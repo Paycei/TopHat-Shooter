@@ -4256,7 +4256,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_cinematics": "Cinemáticas",
     "settings_tab_interface": "Interfaz",
     "settings_section_mods": "CONTROLES DE MODS",
-    "settings_mods_description": "Controles de los mods cargados. Los cambios se guardan por mod.",
+    "settings_mods_description": "Controles de los mods actualmente cargados.",
     "settings_reset_mod_keybindings": "Restaurar Controles",
     "settings_section_scale": "ESCALA Y EFECTOS",
     "settings_section_hud_elements": "ELEMENTOS DEL HUD",

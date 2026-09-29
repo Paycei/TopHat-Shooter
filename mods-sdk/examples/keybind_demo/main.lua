@@ -20,7 +20,7 @@ local messageTime = 0
 hooks.on("update", function(game, dt)
   messageTime = math.max(0, messageTime - dt)
   if input.bindPressed("ping") then
-    message = "PING! The mod keybind works."
+    message = "PING!"
     messageTime = 2
   end
   if input.bindPressed("clear") then
