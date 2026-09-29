@@ -1838,6 +1838,10 @@ type
     tkModsKeepsTag = "mods_keeps_tag"
     tkModsRewardsKept = "mods_rewards_kept"
     tkModsRewardsOff = "mods_rewards_off"
+    tkModsRewardsWarningTitle = "mods_rewards_warning_title"
+    tkModsRewardsWarningBody = "mods_rewards_warning_body"
+    tkModsRewardsWarningSub = "mods_rewards_warning_sub"
+    tkModsRewardsWarningConfirm = "mods_rewards_warning_confirm"
     tkModsApply = "mods_apply"
     tkModsOpenFolder = "mods_open_folder"
     tkModsInstallExamples = "mods_install_examples"
@@ -3995,6 +3999,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_keeps_tag": "KEEPS REWARDS",
     "mods_rewards_kept": "Keeps rewards: runs with this mod can still earn progress.",
     "mods_rewards_off": "Disables rewards: runs with this mod count as cheated.",
+    "mods_rewards_warning_title": "REWARDS DISABLED",
+    "mods_rewards_warning_body": "The selected mod combination disables player rewards.",
+    "mods_rewards_warning_sub": "Runs with these mods will not grant Data Shards, stats, advancements or unlocks. Load them anyway?",
+    "mods_rewards_warning_confirm": "Load Mods",
     "mods_apply": "Apply & Reload",
     "mods_open_folder": "Open Folder",
     "mods_install_examples": "Install Examples",
@@ -6149,6 +6157,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_keeps_tag": "CON RECOMPENSAS",
     "mods_rewards_kept": "Conserva las recompensas: las partidas con este mod pueden dar progreso.",
     "mods_rewards_off": "Desactiva las recompensas: las partidas con este mod cuentan como trampas.",
+    "mods_rewards_warning_title": "RECOMPENSAS DESACTIVADAS",
+    "mods_rewards_warning_body": "La combinación de mods seleccionada desactiva las recompensas del jugador.",
+    "mods_rewards_warning_sub": "Estas partidas no darán Fragmentos, estadísticas, logros ni desbloqueos. ¿Cargar los mods de todos modos?",
+    "mods_rewards_warning_confirm": "Cargar mods",
     "mods_apply": "Aplicar y recargar",
     "mods_open_folder": "Abrir carpeta",
     "mods_install_examples": "Instalar ejemplos",

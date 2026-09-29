@@ -39,6 +39,8 @@ type
     removeTarget: string      ## folder the remove confirmation is about ("" = closed)
     removeName: string
     removeCooldown: float32   ## seconds until the confirmation's Remove unlocks
+    applyConfirm: bool         ## pending Apply & Reload warning
+    applyCooldown: float32
 
   ModModeRow* = object
     ## One mod game mode as the window shows it (filled by main.nim).
@@ -59,6 +61,7 @@ const
   CosRowH = 58
   RemoveBtnH = 28'f32
   RemoveConfirmCooldown = 1.5'f32  # anti-accident window, like the quit dialog
+  ApplyConfirmCooldown = 1.0'f32
   LogLineH = 15
 
   ColAccent = Color(r: 120, g: 220, b: 160, a: 255)
@@ -95,6 +98,8 @@ proc resetModsWindow*(mw: ModsWindow) =
   rescanInstalledMods(mw.settings.enabledMods)
   mw.refreshModsWindow()
   mw.message = ""
+  mw.applyConfirm = false
+  mw.applyCooldown = 0
 
 # ------------------------------------------------------------- geometry ----
 type Geo = object
@@ -182,10 +187,24 @@ proc toggle(mw: ModsWindow, i: int) =
   if at >= 0: mw.pending.delete(at)
   else: mw.pending.add(id)
 
+proc pendingDisablesRewards(mw: ModsWindow): bool =
+  for m in installedMods:
+    if m.id in mw.pending and m.disableAchievements and
+       m.status notin {msInvalid, msDuplicate}:
+      return true
+  false
+
 proc apply(mw: ModsWindow) =
   mw.settings.enabledMods = mw.pending
   discard saveSettings(mw.settings)
   modReloadRequested = true
+
+proc askApply(mw: ModsWindow) =
+  if mw.pendingDisablesRewards():
+    mw.applyConfirm = true
+    mw.applyCooldown = ApplyConfirmCooldown
+  else:
+    mw.apply()
 
 proc openFolder(path: string) =
   when defined(windows):
@@ -263,11 +282,26 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
   if handleOSWindowInput(mw.window, screenWidth, screenHeight, allWindows):
     mw.window.visible = false
     mw.removeTarget = ""
+    mw.applyConfirm = false
     return
   if mw.messageTimer > 0: mw.messageTimer -= dt
   if mw.window.minimized: return
   let g = mw.geometry()
   let mouse = getVirtualMousePosition()
+
+  if mw.applyConfirm:
+    if mw.applyCooldown > 0: mw.applyCooldown -= dt
+    if mw.window.focused and isBackPressed():
+      mw.applyConfirm = false
+      return
+    if mw.window.handledClickThisFrame and
+       isWindowTopmostAtPoint(mw.window, mouse.x, mouse.y, allWindows):
+      if checkCollisionPointRec(mouse, g.confirmNo):
+        mw.applyConfirm = false
+      elif checkCollisionPointRec(mouse, g.confirmYes) and mw.applyCooldown <= 0:
+        mw.applyConfirm = false
+        mw.apply()
+    return
 
   # The remove confirmation is modal: it takes every click in the window.
   if mw.removeTarget.len > 0:
@@ -295,7 +329,7 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
       if installedMods.len > 0 and checkCollisionPointRec(mouse, g.removeBtn):
         mw.askRemove(mw.selected)
       elif checkCollisionPointRec(mouse, g.applyBtn) and mw.hasPendingChanges():
-        mw.apply()
+        mw.askApply()
       elif checkCollisionPointRec(mouse, g.folderBtn):
         openFolder(modsRootDir())
       elif checkCollisionPointRec(mouse, g.examplesBtn):
@@ -473,6 +507,34 @@ proc drawRemoveConfirm(mw: ModsWindow, g: Geo) =
   let ready = mw.removeCooldown <= 0
   drawRemoveButton(g.confirmYes, ready,
                    if ready: "" else: $int(ceil(mw.removeCooldown)))
+
+proc drawApplyConfirm(mw: ModsWindow, g: Geo) =
+  ## Warn before loading a mod set that disables player rewards.
+  drawRectangle(Rectangle(x: g.x.float32, y: float32(g.y), width: g.w.float32, height: g.h.float32),
+                Color(r: 0, g: 0, b: 0, a: 150))
+  let d = g.confirm
+  drawRectangle(Rectangle(x: d.x + 6, y: d.y + 6, width: d.width, height: d.height),
+                Color(r: 0, g: 0, b: 0, a: 140))
+  drawRectangle(d, Color(r: 18, g: 22, b: 32, a: 255))
+  drawRectangleLines(d, 2.0, Color(r: 255, g: 176, b: 32, a: 255))
+  let tbH = 30'i32
+  drawRectangle(Rectangle(x: d.x, y: d.y, width: d.width, height: tbH.float32),
+                Color(r: 120, g: 75, b: 18, a: 255))
+  let title = t(tkModsRewardsWarningTitle)
+  drawText(title, int32(d.x + (d.width - measureText(title, 15).float32) / 2), int32(d.y) + 8, 15,
+           Color(r: 255, g: 225, b: 170, a: 255))
+  let x = int32(d.x) + 18
+  let w = int32(d.width) - 36
+  let bottom = int32(g.confirmNo.y) - 8
+  var y = int32(d.y) + tbH + 14
+  y = drawWrapped(t(tkModsRewardsWarningBody), x, y, w, 14, ColText, bottom)
+  discard drawWrapped(t(tkModsRewardsWarningSub), x, y + 6, w, 12,
+                      Color(r: 255, g: 205, b: 120, a: 255), bottom)
+  drawButton(g.confirmNo, t(tkConfirmCancelBtn), true, false)
+  let ready = mw.applyCooldown <= 0
+  drawRemoveButton(g.confirmYes, ready,
+                   if ready: t(tkModsRewardsWarningConfirm)
+                   else: $int(ceil(mw.applyCooldown)))
 
 proc drawInstalled(mw: ModsWindow, g: Geo) =
   if installedMods.len == 0:
@@ -700,3 +762,5 @@ proc drawModsWindow*(mw: ModsWindow) =
 
   if mw.removeTarget.len > 0:
     mw.drawRemoveConfirm(g)
+  elif mw.applyConfirm:
+    mw.drawApplyConfirm(g)
