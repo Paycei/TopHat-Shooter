@@ -152,6 +152,42 @@ let changelog: seq[ChangelogVersion] = @[
         es: points(
           "Las partidas con mods ya no muestran el aviso CON MODS, ni en el HUD, ni en las pantallas de derrota y victoria, ni en las estadísticas de la última partida.",
           "Nada más cambia: una partida con mods sigue sin dar recompensas permanentes salvo que todos los mods cargados lo permitan, y conserva sus propios guardados.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Mods can make 3D worlds",
+        headEs: "Los mods pueden crear mundos 3D",
+        en: points(
+          "Mods can now build complete first-person 3D game modes: make arenas, enemies, pickups and projectiles, use built-in AI, tune the player's weapon and rules, and draw their own HUD and effects.",
+          "The new Cube Siege example is a complete wave-based 3D mode. Orbital Tweaks shows how a mod can also change the built-in 3D boss fight."),
+        es: points(
+          "Los mods ahora pueden crear modos de juego 3D completos en primera persona: construir arenas, enemigos, objetos y proyectiles, usar IA incorporada, ajustar el arma y las reglas del jugador y dibujar su propio HUD y efectos.",
+          "El nuevo ejemplo Cube Siege es un modo 3D completo basado en oleadas. Orbital Tweaks también muestra cómo un mod puede cambiar el combate 3D contra el jefe incluido.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Mod keybinds",
+        headEs: "Teclas de los mods",
+        en: points(
+          "Mods can register their own keyboard and gamepad controls. Active mod controls appear in Settings > Controls, where you can rebind them or reset them to their defaults.",
+          "Controls from disabled mods are hidden, and the list only shows the mod controls when they differ from the defaults."),
+        es: points(
+          "Los mods pueden registrar sus propios controles de teclado y mando. Los controles de los mods activos aparecen en Ajustes > Controles, donde puedes reasignarlos o devolverlos a sus valores predeterminados.",
+          "Los controles de los mods desactivados se ocultan, y la lista solo muestra los controles del mod cuando son distintos de los valores predeterminados.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "A warning before mods turn off rewards",
+        headEs: "Aviso antes de desactivar las recompensas",
+        en: points(
+          "MODS.EXE now warns you before loading a selected set of mods that disables permanent rewards. The warning lists what the run will not earn, so you can cancel before reloading.",
+          "A mod can opt out of disabling rewards; the run keeps its rewards only when every loaded mod opts out."),
+        es: points(
+          "MODS.EXE ahora avisa antes de cargar una selección de mods que desactiva las recompensas permanentes. El aviso indica lo que no dará la partida, para que puedas cancelar antes de recargar.",
+          "Un mod puede permitir las recompensas; la partida solo las conserva cuando todos los mods cargados las permiten.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Desktop cube cosmetics",
+        headEs: "Cosméticos para el cubo del escritorio",
+        en: points(
+          "Desktop cosmetics can now say whether their image is a wallpaper, a replacement for the desktop cube, or both. A cube replacement keeps the cube visible over the wallpaper and also applies to the cube that orbits you during a run.",
+          "The mod preview and the example Model Pack use the new cube option."),
+        es: points(
+          "Los cosméticos del escritorio ahora pueden indicar si su imagen es un fondo, un reemplazo del cubo del escritorio o ambas cosas. Un reemplazo del cubo mantiene el cubo visible sobre el fondo y también se aplica al cubo que te orbita durante una partida.",
+          "La vista previa de mods y el ejemplo Model Pack usan la nueva opción del cubo.")),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.1",
