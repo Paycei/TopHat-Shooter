@@ -1,8 +1,9 @@
 {
   "id": "model_pack",
   "name": "Model Pack",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Paycei",
-  "description": "3D models: a ship skin, energy bolt bullets and a voxel desktop cube to equip in MODS.EXE > Cosmetics, and a Model Viewer app (MODS.EXE > Apps) that can swap the Circle enemies for an animated drone. Shows assets.model, register.cosmetic with a model, draw.model and override.model.",
-  "main": "main.lua"
+  "description": "3D models: a ship skin, energy bolt bullets and a voxel desktop cube to equip in MODS.EXE > Cosmetics, and a Model Viewer app (its own desktop icon and window) that can swap the Circle enemies for an animated drone. Shows assets.model, register.cosmetic with a model, draw.model and override.model.",
+  "main": "main.lua",
+  "disableAchievements": false
 }

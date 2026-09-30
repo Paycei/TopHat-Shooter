@@ -154,6 +154,7 @@ proc drawGlobalConfirmDialog(): int =
 var
   resumePromptActive = false
   resumePromptMode   = gmWaveBased  # mode the saved run belongs to
+  resumePromptModKey = ""           # a mod game mode's key ("" = a built-in mode); resumePromptMode is its base
 
 proc drawResumeDialog(): int =
   ## Returns 0 = still open, 1 = Continue (resume), -1 = New Run (fresh).
@@ -1156,6 +1157,13 @@ proc main() =
   const ModModeLaunch = 21  # pendingGameMode: a mod game mode from MODS.EXE (pendingModMode)
   var pendingModMode = -1
   var pendingResume = false  # True when the pending launch should resume a saved run
+  template launchModMode(idx: int, resume: bool) =
+    ## Start a mod game mode (index into modModes) behind the loading animation:
+    ## from MODS.EXE's Launch / Continue and from the mode's desktop icon.
+    pendingModMode = idx
+    pendingResume = resume
+    startLoadingAnimation(osDesktop, "Launching " & modModes[idx].nameEn & "...")
+    pendingGameMode = ModModeLaunch
   var windowCloseRequested = false  # True once the OS close button is clicked
 
   while not windowCloseRequested:
@@ -1333,6 +1341,13 @@ proc main() =
       # position raylib maintains from touch point 0.
       hideCursor()
       updateInGameMouseBonding(settings, currentGame.state)
+
+    # A 3D world belongs to the game that entered it: a replaced game (profile
+    # switch, new mode) or a state that left gs3DBoss must not leave it dangling.
+    if activeWorld3D != nil and (currentGame.game3D != cast[pointer](activeWorld3D) or
+                                 currentGame.state != gs3DBoss):
+      activeWorld3D = nil
+      currentGame.game3D = nil
 
     # Mods: scripts see a run only while one is on screen (never PvP), and
     # hear about every state change of the run in progress.
@@ -1806,6 +1821,9 @@ proc main() =
               else:
                 currentGame.state = gsPlaying
                 initializeRunTracking(currentGame)
+            if md.threeD:
+              # base = "3d": straight into the world (a resumed run re-enters it fresh)
+              enterWorld3D(currentGame, World3DOptions(modeKey: md.key, resumed: resumed))
             statsSavedThisGame = false
           pendingModMode = -1
         else: discard
@@ -1971,10 +1989,7 @@ proc main() =
       # MODS.EXE Game Modes: Launch / Continue a mod game mode.
       if updateResult.modModeLaunch >= 0 and updateResult.modModeLaunch < modModes.len and
          not globalConfirmActive:
-        pendingModMode = updateResult.modModeLaunch
-        pendingResume = updateResult.modModeResume
-        startLoadingAnimation(osDesktop, "Launching " & modModes[pendingModMode].nameEn & "...")
-        pendingGameMode = ModModeLaunch
+        launchModMode(updateResult.modModeLaunch, updateResult.modModeResume)
 
       # Handle PvP game ready
       if updateResult.pvpGameReady and not globalConfirmActive:
@@ -2143,6 +2158,7 @@ proc main() =
             # checkpoint.
             resumePromptActive = true
             resumePromptMode = gmWaveBased
+            resumePromptModKey = ""
           else:
             startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
             pendingGameMode = 0
@@ -2157,6 +2173,7 @@ proc main() =
           elif hasSavedRun(gmTimeSurvival) or hasBlockCheckpoint(gmTimeSurvival):
             resumePromptActive = true
             resumePromptMode = gmTimeSurvival
+            resumePromptModKey = ""
           else:
             startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
             pendingGameMode = 1
@@ -2209,6 +2226,7 @@ proc main() =
              (hasSavedRun(gmRoguelite) or hasBlockCheckpoint(gmRoguelite)):
             resumePromptActive = true
             resumePromptMode = gmRoguelite
+            resumePromptModKey = ""
           else:
             setActiveRogueliteProfile(loadRogueliteProfile())
             currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
@@ -2231,6 +2249,20 @@ proc main() =
           globalWindowManager.openWindow(widFeedback)
         of 14: # MODS.exe - Open the Mod Manager
           globalWindowManager.openWindow(widMods)
+        of ord(diModApp): # A mod app's icon - open its window
+          globalWindowManager.openModApp(osDesktop.launchModKey, desktopUIScale(),
+                                         screenWidth.int, screenHeight.int)
+        of ord(diModMode): # A mod game mode's icon - launch it like a built-in mode
+          let mi = findModMode(osDesktop.launchModKey)
+          if mi >= 0:
+            let md = modModes[mi]
+            if hasSuspendSnapshot(md.base, md.key) or hasSavedRun(md.base, md.key) or
+               hasBlockCheckpoint(md.base, md.key):
+              resumePromptActive = true
+              resumePromptMode = md.base
+              resumePromptModKey = md.key
+            else:
+              launchModMode(mi, false)
         else: discard
 
       # Handle icon execution from help window commands
@@ -2251,6 +2283,7 @@ proc main() =
               # here used to start a fresh run and delete the saved one.
               resumePromptActive = true
               resumePromptMode = gmWaveBased
+              resumePromptModKey = ""
             else:
               startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
               pendingGameMode = 0
@@ -2265,6 +2298,7 @@ proc main() =
             elif hasSavedRun(gmTimeSurvival) or hasBlockCheckpoint(gmTimeSurvival):
               resumePromptActive = true
               resumePromptMode = gmTimeSurvival
+              resumePromptModKey = ""
             else:
               startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
               pendingGameMode = 1
@@ -2315,6 +2349,7 @@ proc main() =
                (hasSavedRun(gmRoguelite) or hasBlockCheckpoint(gmRoguelite)):
               resumePromptActive = true
               resumePromptMode = gmRoguelite
+              resumePromptModKey = ""
             else:
               setActiveRogueliteProfile(loadRogueliteProfile())
               currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
@@ -2382,36 +2417,48 @@ proc main() =
         let resumeResult = drawResumeDialog()
         if resumeResult != 0:
           pendingResume = resumeResult == 1
-          if resumeResult == -1:
-            # "New Run" discards this mode's checkpoint and exact snapshot, and
-            # its death-surviving block checkpoint (a no-op for a mode without
-            # one). Other modes' saved runs are left alone.
-            deleteRunSave(resumePromptMode)
-            deleteSuspendSnapshot(resumePromptMode)
-            deleteBlockCheckpoint(resumePromptMode)
-          case resumePromptMode
-          of gmTimeSurvival:
-            startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
-            pendingGameMode = 1
-          of gmRoguelite:
-            if resumeResult == 1:
-              startLoadingAnimation(osDesktop, "Launching Deep Recovery...")
-              pendingGameMode = 9
-            else:
-              # Fresh roguelite goes through the setup window.
-              setActiveRogueliteProfile(loadRogueliteProfile())
-              currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-              currentGame.discordClient = globalDiscordClient
-              currentGame.rogueliteProfile = rogueliteProfile
-              setGameMode(currentGame, gmRoguelite)
-              currentGame.state = gsMenu
-              currentGame.selectedRogueliteStarter = 0
-              currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
-              globalWindowManager.openWindow(widRoguelite)
-              statsSavedThisGame = false
+          let promptModIdx = findModMode(resumePromptModKey)
+          if resumePromptModKey.len > 0:
+            # A mod game mode: New Run clears its own slots, then either choice
+            # goes through the shared mod launch (a vanished mode is dropped).
+            if promptModIdx >= 0:
+              if resumeResult == -1:
+                deleteRunSave(resumePromptMode, resumePromptModKey)
+                deleteSuspendSnapshot(resumePromptMode, resumePromptModKey)
+                deleteBlockCheckpoint(resumePromptMode, resumePromptModKey)
+              launchModMode(promptModIdx, resumeResult == 1)
+            resumePromptModKey = ""
           else:
-            startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
-            pendingGameMode = 0
+            if resumeResult == -1:
+              # "New Run" discards this mode's checkpoint and exact snapshot, and
+              # its death-surviving block checkpoint (a no-op for a mode without
+              # one). Other modes' saved runs are left alone.
+              deleteRunSave(resumePromptMode)
+              deleteSuspendSnapshot(resumePromptMode)
+              deleteBlockCheckpoint(resumePromptMode)
+            case resumePromptMode
+            of gmTimeSurvival:
+              startLoadingAnimation(osDesktop, "Launching Time Survival Mode...")
+              pendingGameMode = 1
+            of gmRoguelite:
+              if resumeResult == 1:
+                startLoadingAnimation(osDesktop, "Launching Deep Recovery...")
+                pendingGameMode = 9
+              else:
+                # Fresh roguelite goes through the setup window.
+                setActiveRogueliteProfile(loadRogueliteProfile())
+                currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+                currentGame.discordClient = globalDiscordClient
+                currentGame.rogueliteProfile = rogueliteProfile
+                setGameMode(currentGame, gmRoguelite)
+                currentGame.state = gsMenu
+                currentGame.selectedRogueliteStarter = 0
+                currentGame.selectedRogueliteHeat = defaultRogueliteHeatSelection(rogueliteProfile)
+                globalWindowManager.openWindow(widRoguelite)
+                statsSavedThisGame = false
+            else:
+              startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
+              pendingGameMode = 0
 
       # Draw custom cursor on menu
       drawCustomCursor(currentGame.time)
@@ -2975,7 +3022,7 @@ proc main() =
         drawRectangle(0, 0, screenWidth, screenHeight,
                      fade(Black, currentGame.fadeAlpha))
         if currentGame.fadeAlpha > 0.5:
-          let text = "ENTERING 3D ARENA"
+          let text = t(tkGame3DEntering)
           let textWidth = measureText(text, 30)
           drawText(text, screenWidth div 2 - textWidth div 2,
                   screenHeight div 2, 30, White)
@@ -4393,16 +4440,30 @@ proc main() =
         updateGame(currentGame, dt)
 
       # Render 3D game directly (no 2D render target)
-      if currentGame.game3D != nil:
+      if activeWorld3D != nil:
+        let world = activeWorld3D
         beginDrawing()
         clearBackground(Black)
-        var game3D = cast[ptr Game3D](currentGame.game3D)
-        renderGame3D(game3D[])
+        renderGame3D(world)
 
         # Draw cheat menu overlay if active
         drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
 
         endDrawing()
+
+        if world.quitRequested:
+          # The 3D pause overlay's "quit to desktop": checkpoint the run like the
+          # 2D pause menu does (a mod-mode run resumes into a fresh world), then
+          # leave. The 2D state is put back for the checkpoint's state gate.
+          finishWorld3D(world, w3Exit)
+          enableCursor()
+          currentGame.state = gsPlaying
+          checkpointLiveRun(currentGame)
+          cleanupGame(currentGame)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame.discordClient = globalDiscordClient
+          currentGame.state = gsMenu
+          playSound(stMenuSelect)
       else:
         # Safety: only recover if the 3D state is still active after update.
         if currentGame.state == gs3DBoss:
@@ -4522,6 +4583,8 @@ proc main() =
 
   # Checkpoint the live run on shutdown so it can be resumed next launch.
   if not currentGame.isNil:
+    if currentGame.state == gs3DBoss and currentGame.modMode.len > 0:
+      currentGame.state = gsPlaying  # a mod-mode run closed inside its world resumes into a fresh one
     saveRunState(currentGame)
     suspendGame(currentGame)  # Exact snapshot: the primary resume path on relaunch.
 

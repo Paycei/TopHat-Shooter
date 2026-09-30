@@ -1,29 +1,8 @@
 ## 3D Player Module
 ## Handles 3D player movement, shooting, and weapon systems
 
-import raylib, math
+import raylib, math, random
 import types_3d, engine_3d
-
-type
-  Weapon3D* = object
-    ammo*: int
-    maxAmmo*: int
-    fireRate*: float32
-    fireTimer*: float32
-    damage*: float32
-
-  Player3D* = object
-    pos*: Vector3f
-    vel*: Vector3f
-    health*: float32
-    maxHealth*: float32
-    speed*: float32
-    sprintMultiplier*: float32
-    jumpForce*: float32
-    jumpsRemaining*: int
-    maxJumps*: int
-    weapon*: Weapon3D
-    grounded*: bool
 
 proc newWeapon3D*(): Weapon3D =
   Weapon3D(
@@ -31,34 +10,61 @@ proc newWeapon3D*(): Weapon3D =
     maxAmmo: 500,     # Increased from 150 for longer fights
     fireRate: 0.125,
     fireTimer: 0.0,
-    damage: 15.0
+    damage: 15.0,
+    projectileSpeed: 600.0,
+    spread: 0.0,
+    pellets: 1
   )
 
 proc updateWeapon*(player: var Player3D, dt: float32) =
   if player.weapon.fireTimer > 0:
     player.weapon.fireTimer -= dt
+  if player.weapon.reloadTimer > 0:
+    player.weapon.reloadTimer -= dt
+    if player.weapon.reloadTimer <= 0:
+      player.weapon.reloadTimer = 0
+      player.weapon.ammo = player.weapon.maxAmmo
+
+proc weaponReady*(player: Player3D): bool =
+  ## Whether pulling the trigger now fires a shot.
+  (player.weapon.ammo > 0 or player.weapon.infiniteAmmo) and
+    player.weapon.fireTimer <= 0 and player.weapon.reloadTimer <= 0
 
 proc fireWeapon*(player: var Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool =
-  if player.weapon.ammo > 0 and player.weapon.fireTimer <= 0:
-    player.weapon.ammo -= 1
+  if weaponReady(player):
+    if not player.weapon.infiniteAmmo:
+      player.weapon.ammo -= 1
     player.weapon.fireTimer = player.weapon.fireRate
 
     let forward = camera.getForward()
     let spawnPos = player.pos + vec3(0, 1.5, 0) + forward * 2.0
 
-    projectiles.add(Projectile3D(
-      pos: spawnPos,
-      vel: forward * 600.0,
-      damage: player.weapon.damage,
-      lifetime: 3.0,
-      fromPlayer: true,
-      active: true
-    ))
+    for _ in 0 ..< clamp(player.weapon.pellets, 1, MaxPellets3D):
+      var dir = forward
+      if player.weapon.spread > 0:
+        # Each pellet strays inside the cone by turning the camera a little
+        var aim = camera
+        aim.yaw += (rand(2.0) - 1.0).float32 * player.weapon.spread
+        aim.pitch += (rand(2.0) - 1.0).float32 * player.weapon.spread
+        dir = aim.getForward()
+      projectiles.add(Projectile3D(
+        pos: spawnPos,
+        vel: dir * player.weapon.projectileSpeed,
+        damage: player.weapon.damage,
+        lifetime: 3.0,
+        fromPlayer: true,
+        active: true,
+        radius: player.weapon.projectileRadius,
+        color: player.weapon.projectileColor
+      ))
     return true
   false
 
 proc reload*(player: var Player3D) =
-  player.weapon.ammo = player.weapon.maxAmmo
+  if player.weapon.reloadTime <= 0:
+    player.weapon.ammo = player.weapon.maxAmmo
+  elif player.weapon.reloadTimer <= 0 and player.weapon.ammo < player.weapon.maxAmmo:
+    player.weapon.reloadTimer = player.weapon.reloadTime
 
 proc newPlayer3D*(startPos: Vector3f, health2D: float32): Player3D =
   Player3D(
@@ -72,10 +78,18 @@ proc newPlayer3D*(startPos: Vector3f, health2D: float32): Player3D =
     jumpsRemaining: 2,
     maxJumps: 2,
     weapon: newWeapon3D(),
-    grounded: false
+    grounded: false,
+    radius: 3.5,         # + a default shot's 1.5 = the classic 5.0 hit distance
+    canJump: true,
+    gravityScale: 1.0
   )
 
-proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platform3D], dt: float32) =
+proc updatePlayer*(player: var Player3D, camera: FPSCamera, arena: Arena3D, dt: float32): bool =
+  ## Movement, gravity, platform landings and the arena bounds. True when the
+  ## player fell through the death plane (the caller decides what that means).
+  if player.invulnTimer > 0:
+    player.invulnTimer -= dt
+
   # Movement input
   var moveDir = vec3(0, 0, 0)
   let forward = camera.getForward()
@@ -108,18 +122,19 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
     player.vel.z = 0
 
   # Apply gravity
-  player.vel.y += GRAVITY * dt
+  player.vel.y += arena.gravity * player.gravityScale * dt
 
   # Jumping
-  if isKeyPressed(KeyboardKey.Space) and player.jumpsRemaining > 0:
+  if player.canJump and isKeyPressed(KeyboardKey.Space) and player.jumpsRemaining > 0:
     player.vel.y = player.jumpForce
     player.jumpsRemaining -= 1
 
   # Update position
+  let prevY = player.pos.y
   let nextPos = player.pos + player.vel * dt
 
   # Check platform collision
-  let (collided, platform) = checkCollision(nextPos, 1.0, platforms)
+  let (collided, platform) = checkCollision(nextPos, 1.0, arena.platforms)
 
   if collided:
     # Landing on platform
@@ -142,8 +157,16 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
     player.pos = nextPos
     player.grounded = false
 
+  # Solid floor: lands exactly like a platform top (stand height +1.0)
+  if arena.solidFloor and player.vel.y <= 0 and
+     player.pos.y < arena.floorY + 1.0 and prevY >= arena.floorY:
+    player.pos.y = arena.floorY + 1.0
+    player.vel.y = 0
+    player.jumpsRemaining = player.maxJumps
+    player.grounded = true
+
   # Keep player in arena bounds
-  let maxDist = 450.0
+  let maxDist = arena.boundsRadius
   let dist = sqrt(player.pos.x * player.pos.x + player.pos.z * player.pos.z)
   if dist > maxDist:
     let angle = arctan2(player.pos.z, player.pos.x)
@@ -151,5 +174,4 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, platforms: seq[Platf
     player.pos.z = sin(angle) * maxDist
 
   # Death plane
-  if player.pos.y < -50:
-    player.health = 0
+  player.pos.y < arena.deathPlaneY

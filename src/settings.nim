@@ -62,7 +62,8 @@ proc newDefaultSettings*(): Settings =
     preferredGamepad: -1,  # Auto: use the first detected controller
     aimAssistEnabled: true,
     rogueliteUnlocked: false,
-    survivalUnlocked: false
+    survivalUnlocked: false,
+    modKeybinds: @[]
   )
 
 proc reloadSettingsFromDisk*(settings: Settings) =

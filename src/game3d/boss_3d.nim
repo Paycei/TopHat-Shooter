@@ -1,7 +1,7 @@
 ## 3D Boss Module - The Orbital Commander
 
 import raylib, math, random
-import types_3d, engine_3d, player_3d
+import types_3d, engine_3d, ../modding/[mod_hooks, mod_assets]
 
 const
   PHASE2_THRESHOLD = 0.66  # Transition to Phase 2 when HP drops to 66% (and all satellites destroyed)
@@ -93,6 +93,8 @@ proc initiatePhaseTransition(boss: var Boss3D, newPhase: int, arena: var Arena3D
 
   else:
     discard
+
+  modWorld3DBossPhase(newPhase)
 
 proc executePhase1Attacks(boss: var Boss3D, player: Player3D, projectiles: var seq[Projectile3D]) =
   ## PHASE 1: Satellites attack - Core is COMPLETELY INVULNERABLE
@@ -337,15 +339,18 @@ proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Pr
 
   # Execute attacks
   if boss.attackTimer <= 0:
-    case boss.phase
-    of 1:
-      executePhase1Attacks(boss, player, projectiles)
-    of 2:
-      executePhase2Attacks(boss, player, projectiles)
-    of 3:
-      executePhase3Attacks(boss, player, projectiles)
+    if modWorld3DBossAttack(boss.phase, boss.attackPattern):
+      boss.attackTimer = 2.0  # a script took this attack over; it sets the pace from here
     else:
-      discard
+      case boss.phase
+      of 1:
+        executePhase1Attacks(boss, player, projectiles)
+      of 2:
+        executePhase2Attacks(boss, player, projectiles)
+      of 3:
+        executePhase3Attacks(boss, player, projectiles)
+      else:
+        discard
 
   # Update gravity wells
   var i = 0
@@ -366,16 +371,10 @@ proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Pr
 
       i += 1
 
-  # Update homing projectiles
-  for proj in projectiles.mitems:
-    if proj.isHoming and proj.active and not proj.fromPlayer:
-      let toTarget = player.pos - proj.pos
-      let homingForce = toTarget.normalize() * proj.homingStrength
-      proj.vel = (proj.vel + homingForce * dt).normalize() * proj.vel.length()
-
 # RENDERING
 
-proc drawBoss*(boss: Boss3D) =
+proc drawBoss*(boss: Boss3D, cam: Camera) =
+  ## `cam` places billboards for texture overrides (override.texture("boss3d", ...)).
   # Phase transition flash
   if boss.phaseTransitionTimer > 0:
     let flashIntensity = sin(boss.phaseTransitionTimer * 10.0) * 0.5 + 0.5
@@ -398,18 +397,27 @@ proc drawBoss*(boss: Boss3D) =
   else:
     coreColor = Gray
 
-  # Draw core
-  drawSphere(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z), coreSize, coreColor)
+  if boss3dTex.hasLook:
+    # A mod's body (override.model / override.texture "boss3d") replaces the core
+    drawBodyWorld3D(boss3dTex, cam, boss.pos.x, boss.pos.y, boss.pos.z, coreSize * 2, 0,
+                    getTime())
+  else:
+    # Draw core
+    drawSphere(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z), coreSize, coreColor)
 
-  # Draw core glow
-  let glowSize = coreSize + 2.0 + sin(boss.moveTimer * 2.0) * 1.0
-  drawSphere(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z), glowSize, fade(coreColor, 0.3))
+    # Draw core glow
+    let glowSize = coreSize + 2.0 + sin(boss.moveTimer * 2.0) * 1.0
+    drawSphere(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z), glowSize, fade(coreColor, 0.3))
 
   # Draw satellites
   for sat in boss.satellites:
     if sat.active:
       let satColor = if boss.phase >= 2: Color(r: 200, g: 50, b: 255, a: 255) else: Purple
-      drawSphere(Vector3(x: sat.pos.x, y: sat.pos.y, z: sat.pos.z), 5.0, satColor)
+      let satLook = satellite3dTex.hasLook
+      if satLook:
+        drawBodyWorld3D(satellite3dTex, cam, sat.pos.x, sat.pos.y, sat.pos.z, 10.0, 0, getTime())
+      else:
+        drawSphere(Vector3(x: sat.pos.x, y: sat.pos.y, z: sat.pos.z), 5.0, satColor)
 
       # Orbit trail
       drawLine3D(Vector3(x: boss.pos.x, y: boss.pos.y, z: boss.pos.z),
@@ -417,7 +425,8 @@ proc drawBoss*(boss: Boss3D) =
                 fade(satColor, 0.3))
 
       # Satellite glow
-      drawSphere(Vector3(x: sat.pos.x, y: sat.pos.y, z: sat.pos.z), 6.0, fade(satColor, 0.2))
+      if not satLook:
+        drawSphere(Vector3(x: sat.pos.x, y: sat.pos.y, z: sat.pos.z), 6.0, fade(satColor, 0.2))
 
 proc drawGravityWells*(boss: Boss3D) =
   for well in boss.gravityWells:
@@ -468,6 +477,7 @@ proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
                           int32(barWidth), int32(barHeight), White)
 
 proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3f] =
+  ## world3dHit may rescale the projectile's damage.
   # Phase transition invulnerability
   if boss.phaseTransitionTimer > 0:
     return (false, 0.0, false, vec3(0, 0, 0))
@@ -475,8 +485,9 @@ proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: boo
   # Check satellite hits
   for sat in boss.satellites.mitems:
     if sat.active and distance(sat.pos, projectile.pos) < 6.0:
-      let damageDealt = min(projectile.damage, sat.health)
-      sat.health -= projectile.damage
+      let dmg = modWorld3DHit(projectile.damage, nil, "satellite", projectile)
+      let damageDealt = min(dmg, sat.health)
+      sat.health -= dmg
       if sat.health <= 0:
         sat.active = false
       return (true, damageDealt, true, sat.pos)
@@ -495,8 +506,9 @@ proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: boo
 
   # PHASE 2+: Core is vulnerable
   if distance(boss.pos, projectile.pos) < 22.0:
-    let damageDealt = min(projectile.damage, boss.health)
-    boss.health -= projectile.damage
+    let dmg = modWorld3DHit(projectile.damage, nil, "boss", projectile)
+    let damageDealt = min(dmg, boss.health)
+    boss.health -= dmg
     return (true, damageDealt, false, boss.pos)
 
   (false, 0.0, false, vec3(0, 0, 0))

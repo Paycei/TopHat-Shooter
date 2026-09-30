@@ -8,7 +8,7 @@
 
 import std/[os, strutils]
 import ../localization
-import lua_bridge, mod_state, mod_hooks, mod_api, mod_catalog, mod_assets
+import lua_bridge, mod_state, mod_hooks, mod_api, mod_3d, mod_catalog, mod_assets
 
 proc summaryText*(): string =
   ## "3 loaded, 1 failed" style line for toasts and the log.
@@ -28,6 +28,7 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   clearModTranslations()
   resetHooks()
   modsActive = false
+  modsDisableAchievements = false
   modFingerprintHex = ""
   loadedModIds = @[]
   captureModRunData = nil
@@ -36,6 +37,7 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   let (vm, base) = newScriptVM()
   initModHooksVM(vm, base)
   installModApi(base)
+  installMod3D(base)
   resetModContent()
 
   # 3. Discover and run.
@@ -78,6 +80,7 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
       installedMods[ci].message = err
       m.disabled = true
       dropHandlersOf(m.index)
+      dropModKeybinds(m.index)
       dropModText(m.index)
       dropModContent(m.index)
     else:
@@ -89,9 +92,14 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   # 4. Publish the new set.
   loadedModIds = loadedIds
   modsActive = loadedIds.len > 0
+  for info in loadedInfos:
+    if info.disableAchievements: modsDisableAchievements = true
   modFingerprintHex = if modsActive: computeFingerprint(loadedInfos) else: ""
   if modsActive:
     captureModRunData = captureRunData
   applyEquippedCosmetics(equippedCosmetics)
   modLogAdd(mlInfo, "", "mods reloaded: " & summaryText() &
-            (if modsActive: " (set " & modFingerprintHex & ")" else: ""))
+            (if modsActive: " (set " & modFingerprintHex & ")" else: "") &
+            (if not modsActive: ""
+             elif modsDisableAchievements: "; runs with this set count as cheated (no rewards)"
+             else: "; runs with this set keep their rewards"))

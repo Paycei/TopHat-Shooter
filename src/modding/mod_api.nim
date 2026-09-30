@@ -37,7 +37,7 @@ proc dropModText*(owner: int) =
   for e in textEntries: setModTranslation(e.lang, e.key, e.value)
 
 # ------------------------------------------------------------- helpers ----
-proc keyName(key: ScriptValue): string {.inline.} =
+proc keyName*(key: ScriptValue): string {.inline.} =
   if key.kind == vkString: key.str.s else: ""
 
 proc requireRunGame*(vm: VM): Game =
@@ -60,7 +60,7 @@ proc selfEnemy(vm: VM, args: openArray[ScriptValue], fname: string): Enemy =
   if result.isNil:
     vm.runtimeError("enemy:" & fname & "() needs an enemy (call it with ':')")
 
-proc namesTable(names: seq[string]): ScriptValue =
+proc namesTable*(names: seq[string]): ScriptValue =
   let t = newScriptTable(names.len)
   for n in names: t.add(vstr(n))
   vtable(t)
@@ -69,6 +69,9 @@ proc requireDrawing(vm: VM, fname: string) =
   if modCtx.drawing == dtNone:
     vm.runtimeError("draw." & fname & " only works inside a draw hook " &
                     "(drawWorld, drawHud, enemyDraw, playerDraw)")
+  if modCtx.drawing == dtWorld3D:
+    vm.runtimeError("draw." & fname & " is 2D: in world3dDraw and world3dEntityDraw " &
+                    "use the draw3d library (draw.* works in world3dDrawHud)")
 
 proc f32(vm: VM, args: openArray[ScriptValue], i: int, fname: string): float32 {.inline.} =
   vm.checkNum(args, i, fname).float32
@@ -86,6 +89,9 @@ proc creditedPowerUp(vm: VM, args: openArray[ScriptValue], i: int,
   if v.kind != vkNil:
     vm.argError(fname, i, "source must be a power-up name")
   (modCtx.hasSource, modCtx.source)
+
+proc textPair(vm: VM, v: ScriptValue, what: string): tuple[en, es: string]
+proc checkName(vm: VM, t: ScriptTable, what: string): string
 
 # ----------------------------------------------------------- classes ----
 const
@@ -305,7 +311,7 @@ proc parseHook(vm: VM, name: string): ModHook =
     for h in ModHook: names.add($h)
     vm.runtimeError("unknown hook '" & name & "' (hooks: " & names.join(", ") & ")")
 
-proc requireOwner(vm: VM, what: string): int =
+proc requireOwner*(vm: VM, what: string): int =
   if currentModIdx < 0:
     vm.runtimeError(what & " must be called from mod code")
   currentModIdx
@@ -403,6 +409,21 @@ proc installLibraries(base: ScriptTable) =
                       "moveRight, shoot, placeWall, legendary, dash)")
     let key = if globalSettings.isNil: defaultKeybinds[a] else: globalSettings.keybinds[a]
     ret.setRet(vbool(isKeyDown(key)))
+  inputT.reg("bind") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let owner = vm.requireOwner("input.bind")
+    let b = modKeybindByKey(mods[owner].id & ":" & vm.checkStr(args, 0, "bind"))
+    if b.isNil: vm.runtimeError("unknown mod keybind")
+    ret.setRet(vbool(modKeybindActive(b)))
+  inputT.reg("bindPressed") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let owner = vm.requireOwner("input.bindPressed")
+    let b = modKeybindByKey(mods[owner].id & ":" & vm.checkStr(args, 0, "bindPressed"))
+    if b.isNil: vm.runtimeError("unknown mod keybind")
+    ret.setRet(vbool(modKeybindPressed(b)))
+  inputT.reg("bindReleased") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let owner = vm.requireOwner("input.bindReleased")
+    let b = modKeybindByKey(mods[owner].id & ":" & vm.checkStr(args, 0, "bindReleased"))
+    if b.isNil: vm.runtimeError("unknown mod keybind")
+    ret.setRet(vbool(modKeybindReleased(b)))
   rawSet(base, vstr("input"), vtable(inputT))
 
   # ---- draw (only inside draw hooks)
@@ -962,6 +983,30 @@ proc installContentLibraries(base: ScriptTable) =
 
   # ---- register
   let registerT = newScriptTable()
+  registerT.reg("keybind") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let owner = vm.requireOwner("register.keybind")
+    let t = vm.checkTable(args, 0, "register.keybind")
+    let actionId = vm.checkName(t, "register.keybind")
+    let key = modKeybindKey(mods[owner].id, actionId)
+    if modKeybindByKey(key) != nil:
+      vm.runtimeError("register.keybind: '" & key & "' is already registered")
+    let defaultValue = rawGetStr(t, "default")
+    if defaultValue.kind != vkString:
+      vm.runtimeError("register.keybind: default must be a keyboard key name")
+    let keyboard = vm.keyFromName(defaultValue.str.s)
+    var pad = GamepadButton.Unknown
+    let padValue = rawGetStr(t, "gamepad")
+    if padValue.kind == vkString:
+      try: pad = parseEnum[GamepadButton](padValue.str.s)
+      except ValueError: vm.runtimeError("register.keybind: unknown gamepad button")
+    let (nameEn, nameEs) = vm.textPair(rawGetStr(t, "name"), "name")
+    let b = ModKeybind(key: key, owner: owner, modId: mods[owner].id,
+                       actionId: actionId, nameEn: nameEn, nameEs: nameEs,
+                       defaultKey: keyboard, defaultPad: pad,
+                       keyBind: keyboard, padBind: pad)
+    modKeybinds.add(b)
+    restoreModKeybind(b)
+    ret.setRet(vstr(key))
   registerT.reg("boss") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local id = register.boss{name = "OVERCLOCK", hp = 600, phases = {...}}
     let owner = vm.requireOwner("register.boss")
@@ -1284,7 +1329,8 @@ proc installNewContent(base: ScriptTable) =
 # folder; override.texture/model/sound/music swap the game's look and sound;
 # register.cosmetic adds skins players equip in MODS.EXE.
 
-var textureClass, soundClass, shaderClass, modelClass: UdClass
+var soundClass, shaderClass: UdClass
+var textureClass*, modelClass*: UdClass
 
 proc safeModPath*(m: ModRuntime, rel: string): string
 
@@ -1294,7 +1340,7 @@ proc modFile(vm: VM, rel, what: string): string =
   if result.len == 0: vm.runtimeError(what & ": '" & rel & "' is outside the mod folder")
   if not fileExists(result): vm.runtimeError(what & ": file not found: " & rel)
 
-proc textureId(vm: VM, v: ScriptValue, what: string): int =
+proc textureId*(vm: VM, v: ScriptValue, what: string): int =
   ## A texture handle, or a path (loaded on the spot).
   if v.kind == vkUserdata and v.ud.cls == textureClass: return v.ud.handle
   if v.kind == vkString:
@@ -1310,7 +1356,7 @@ proc loadModelFile(vm: VM, rel, what: string): int =
   if result == 0: vm.runtimeError(what & ": " & rel & ": " & err)
   if warn.len > 0: modLogAdd(mlWarn, mods[vm.requireOwner(what)].id, rel & ": " & warn)
 
-proc modelId(vm: VM, v: ScriptValue, what: string): int =
+proc modelId*(vm: VM, v: ScriptValue, what: string): int =
   ## A model handle, or a path (loaded on the spot).
   if v.kind == vkUserdata and v.ud.cls == modelClass: return v.ud.handle
   if v.kind == vkString: return vm.loadModelFile(v.str.s, what)
@@ -1336,7 +1382,7 @@ proc resolveAnim(vm: VM, id: int, v: ScriptValue, what: string): int =
                       (if names.len > 0: " (it has: " & names.join(", ") & ")" else: " (it has none)"))
   else: vm.runtimeError(what & ": animation must be a name, a number or false")
 
-proc readPose(vm: VM, opts: ScriptValue, id: int, what: string): ModelPose =
+proc readPose*(vm: VM, opts: ScriptValue, id: int, what: string): ModelPose =
   ## The pose options shared by override.model, draw.model and model cosmetics.
   result = ModelPose(speed: 1, lit: true, tint: White)
   if opts.kind != vkTable:
@@ -1376,6 +1422,30 @@ proc modelReplace(vm: VM, args: openArray[ScriptValue], modelArg: int, what: str
   result.pose = vm.readPose(opts, result.model, what)
   readScaleRotate(opts, result)
 
+proc readDesktopEntry(vm: VM, t: ScriptTable, what: string, icon: var BodyReplace,
+                      color: var Color, desktop: var bool) =
+  ## The desktop-icon options register.app and register.gamemode share: icon
+  ## (texture, model or file name), color (left as is when absent) and desktop
+  ## (default true).
+  let col = rawGetStr(t, "color")
+  if col.kind != vkNil: color = parseColor(vm, col, what & " color")
+  let dk = rawGetStr(t, "desktop")
+  desktop = dk.kind == vkNil or truthy(dk)
+  let ic = rawGetStr(t, "icon")
+  if ic.kind == vkUserdata and ic.ud.cls == modelClass:
+    icon.model = ic.ud.handle
+  elif ic.kind == vkUserdata:
+    icon.id = vm.textureId(ic, what & " icon")
+  elif ic.kind == vkString:
+    # By extension: an image is a texture, anything else is tried as a model.
+    let ext = ic.str.s.toLowerAscii
+    if ext.endsWith(".png") or ext.endsWith(".gif"): icon.id = vm.textureId(ic, what & " icon")
+    else: icon.model = vm.modelId(ic, what & " icon")
+  elif ic.kind != vkNil:
+    vm.runtimeError(what & ": icon must be a texture, a model or a file name")
+  if icon.model > 0:
+    icon.pose = vm.readPose(vtable(t), icon.model, what)
+
 proc bodySlot(vm: VM, target, fname, extraTarget: string): ptr BodyReplace =
   ## The body an override target names: player, enemy:<type>, boss:<id>,
   ## bullet:player, bullet:enemy or powerup:<name>.
@@ -1400,9 +1470,25 @@ proc bodySlot(vm: VM, target, fname, extraTarget: string): ptr BodyReplace =
     var pt: PowerUpType
     if not resolvePowerUpScriptName(rest, pt): vm.argError(fname, 0, "unknown power-up '" & rest & "'")
     result = addr powerUpTex[pt]
+  of "boss3d":
+    if colon >= 0: vm.argError(fname, 0, "use boss3d (the 3D world's boss)")
+    result = addr boss3dTex
+  of "satellite3d":
+    if colon >= 0: vm.argError(fname, 0, "use satellite3d (the 3D boss's satellites)")
+    result = addr satellite3dTex
+  of "entity3d":
+    if rest.len == 0: vm.argError(fname, 0, "entity3d:<tag> needs the entity's tag")
+    result = addr entity3dTex.mgetOrPut(rest, BodyReplace())
+  of "projectile3d":
+    if rest notin ["player", "enemy"]: vm.argError(fname, 0, "use projectile3d:player or projectile3d:enemy")
+    result = addr projectile3dTex[rest == "player"]
+  of "pickup3d":
+    if rest.len == 0: vm.argError(fname, 0, "pickup3d:<kind> needs the pickup's kind")
+    result = addr pickup3dTex.mgetOrPut(rest, BodyReplace())
   else:
     vm.argError(fname, 0, "unknown target '" & target & "' (player, enemy:<type>, boss:<id>, " &
-                "bullet:player, bullet:enemy, powerup:<name>, " & extraTarget & ")")
+                "bullet:player, bullet:enemy, powerup:<name>, boss3d, satellite3d, entity3d:<tag>, " &
+                "projectile3d:player, projectile3d:enemy, pickup3d:<kind>, " & extraTarget & ")")
 
 proc installAssetLibraries(base: ScriptTable) =
   textureClass = UdClass(name: "texture")
@@ -1626,32 +1712,40 @@ proc installAssetLibraries(base: ScriptTable) =
   let registerT = rawGetStr(base, "register").tbl
   registerT.reg("gamemode") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## register.gamemode{id = "glass", name = "Glass Cannon", description = "...",
-    ##   base = "wave" | "survival" | "roguelite", spawning = true,
-    ##   onStart = function(game, resumed) ... end}
+    ##   base = "wave" | "survival" | "roguelite" | "3d", spawning = true,
+    ##   onStart = function(game, resumed) ... end,
+    ##   icon = texture | model | "file", color = "#64c8ff", desktop = true}
     let owner = vm.requireOwner("register.gamemode")
     let t = vm.checkTable(args, 0, "gamemode")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.gamemode")
     if findModMode(key) >= 0: vm.runtimeError("register.gamemode: '" & key & "' is already registered")
-    var m = ModModeDef(key: key, owner: owner, spawning: true, base: gmWaveBased)
+    var m = ModModeDef(key: key, owner: owner, spawning: true, desktop: true, base: gmWaveBased)
     let b = rawGetStr(t, "base")
     if b.kind == vkString:
-      m.base = case b.str.s
-        of "wave": gmWaveBased
-        of "survival": gmTimeSurvival
-        of "roguelite": gmRoguelite
-        else: vm.runtimeError("register.gamemode: base must be \"wave\", \"survival\" or \"roguelite\"")
+      if b.str.s == "3d":
+        m.threeD = true   # a 3D world on a wave-mode run; the 2D arena never plays
+      else:
+        m.base = case b.str.s
+          of "wave": gmWaveBased
+          of "survival": gmTimeSurvival
+          of "roguelite": gmRoguelite
+          else: vm.runtimeError("register.gamemode: base must be \"wave\", \"survival\", \"roguelite\" or \"3d\"")
     (m.nameEn, m.nameEs) = vm.textPair(rawGetStr(t, "name"), "name")
     if m.nameEn.len == 0: m.nameEn = key
     (m.descEn, m.descEs) = vm.textPair(rawGetStr(t, "description"), "description")
     let sp = rawGetStr(t, "spawning")
     if sp.kind != vkNil: m.spawning = truthy(sp)
+    if m.threeD: m.spawning = false
     m.onStart = rawGetStr(t, "onStart")
+    vm.readDesktopEntry(t, "register.gamemode", m.icon, m.color, m.desktop)  # color a = 0: base mode's
     modModes.add(m)
     ret.setRet(vstr(key))
   registerT.reg("app") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## register.app{id = "settings", name = {en = "Settings", es = "Ajustes"},
     ##   draw = function(w, h, mouseX, mouseY) ... end,   -- canvas coordinates
-    ##   update = function(dt) ... end, click = function(x, y, button) ... end}
+    ##   update = function(dt) ... end, click = function(x, y, button, w, h) ... end,
+    ##   icon = texture | model | "file", color = "#78dca0", width = 480, height = 360,
+    ##   resizable = false, desktop = true}
     let owner = vm.requireOwner("register.app")
     let t = vm.checkTable(args, 0, "app")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.app")
@@ -1665,6 +1759,16 @@ proc installAssetLibraries(base: ScriptTable) =
       if f.kind in {vkFunction, vkNative}: dest[] = f
       elif f.kind != vkNil: vm.runtimeError("register.app: " & field & " must be a function")
     if app.draw.kind == vkNil: vm.runtimeError("register.app needs a draw function")
+    app.color = ModAppDefaultColor
+    vm.readDesktopEntry(t, "register.app", app.icon, app.color, app.desktop)
+    app.width = 480
+    app.height = 360
+    for (field, dest, lo, hi) in [("width", addr app.width, ModAppMinW, ModAppMaxW),
+                                  ("height", addr app.height, ModAppMinH, ModAppMaxH)]:
+      let v = rawGetStr(t, field)
+      if v.kind == vkNumber and abs(v.n) < 1.0e9: dest[] = clamp(int(v.n), lo, hi)
+      elif v.kind != vkNil: vm.runtimeError("register.app: " & field & " must be a number")
+    app.resizable = truthy(rawGetStr(t, "resizable"))
     modApps.add(app)
     ret.setRet(vstr(key))
   registerT.reg("cosmetic") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -1680,7 +1784,7 @@ proc installAssetLibraries(base: ScriptTable) =
     var kind = mckPlayer
     if kindName.kind == vkString:
       try: kind = parseEnum[ModCosmeticKind](kindName.str.s)
-      except ValueError: vm.runtimeError("register.cosmetic: kind must be \"player\", \"bullet\" or \"desktop\"")
+      except ValueError: vm.runtimeError("register.cosmetic: kind must be \"player\", \"bullet\", \"desktop\" or \"cube\"")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.cosmetic")
     if cosmeticIndex(kind, key) > 0: vm.runtimeError("register.cosmetic: '" & key & "' is already registered")
     var c = ModCosmetic(kind: kind, key: key, owner: owner)

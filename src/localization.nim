@@ -68,6 +68,7 @@ type
     tkChangelogCatImproved = "changelog_cat_improved"
     tkChangelogCatBalance = "changelog_cat_balance"
     tkChangelogCatFixed = "changelog_cat_fixed"
+    tkChangelogCatMods = "changelog_cat_mods"
     tkChangelogLegacyView = "changelog_legacy_view"
 
     # Settings
@@ -155,6 +156,9 @@ type
     tkSettingsSectionInputMethod = "settings_section_input_method"
     tkSettingsSectionAssistance = "settings_section_assistance"
     tkSettingsSectionLocalization = "settings_section_localization"
+    tkSettingsSectionMods = "settings_section_mods"
+    tkSettingsModsDescription = "settings_mods_description"
+    tkSettingsResetModKeybindings = "settings_reset_mod_keybindings"
 
     # Rebindable keybinds UI
     tkSettingsSectionKeybindings = "settings_section_keybindings"
@@ -724,6 +728,9 @@ type
     tkCheatDiscoveryCodex = "cheat_discovery_codex"
     tkCheatDiscoverAll = "cheat_discover_all"
     tkCheatUndiscoverAll = "cheat_undiscover_all"
+    tkCheatGameModes = "cheat_game_modes"
+    tkCheatUnlockModes = "cheat_unlock_modes"
+    tkCheatLockModes = "cheat_lock_modes"
 
     # Power-up Installer
     tkPowerUpInstallerTitle = "power_up_installer_title"
@@ -1259,6 +1266,9 @@ type
     tkGame3DPhaseTransition = "game3d_phase_transition"
     tkGame3DPaused = "game3d_paused"
     tkGame3DPressEscResume = "game3d_press_esc_resume"
+    tkGame3DPressQQuit = "game3d_press_q_quit"
+    tkGame3DReloading = "game3d_reloading"
+    tkGame3DEntering = "game3d_entering"
 
     # OS UI
     tkOSLoading = "os_loading"
@@ -1823,7 +1833,6 @@ type
     tkSurvivalEventsCaches = "survival_events_caches"
 
     # Mods (MODS.EXE)
-    tkModdedBadge = "modded_badge"
     tkModdedNoRewards = "modded_no_rewards"
     tkDesktopIconMods = "desktop_icon_mods"
     tkModsWindowTitle = "mods_window_title"
@@ -1832,7 +1841,18 @@ type
     tkModsTabLog = "mods_tab_log"
     tkModsTabApps = "mods_tab_apps"
     tkModsNoApps = "mods_no_apps"
+    tkModsOpenApp = "mods_open_app"
+    tkModsAppsHint = "mods_apps_hint"
+    tkModsAppNoIcon = "mods_app_no_icon"
     tkModsCheatBanner = "mods_cheat_banner"
+    tkModsKeepsBanner = "mods_keeps_banner"
+    tkModsKeepsTag = "mods_keeps_tag"
+    tkModsRewardsKept = "mods_rewards_kept"
+    tkModsRewardsOff = "mods_rewards_off"
+    tkModsRewardsWarningTitle = "mods_rewards_warning_title"
+    tkModsRewardsWarningBody = "mods_rewards_warning_body"
+    tkModsRewardsWarningSub = "mods_rewards_warning_sub"
+    tkModsRewardsWarningConfirm = "mods_rewards_warning_confirm"
     tkModsApply = "mods_apply"
     tkModsOpenFolder = "mods_open_folder"
     tkModsInstallExamples = "mods_install_examples"
@@ -1861,6 +1881,13 @@ type
     tkModsSummaryFailed = "mods_summary_failed"
     tkModsExamplesInstalled = "mods_examples_installed"
     tkModsExamplesFailed = "mods_examples_failed"
+    tkModsExamplesUpToDate = "mods_examples_up_to_date"
+    tkModsRemove = "mods_remove"
+    tkModsRemoveTitle = "mods_remove_title"
+    tkModsRemoveBody = "mods_remove_body"
+    tkModsRemoveSub = "mods_remove_sub"
+    tkModsRemoved = "mods_removed"
+    tkModsRemoveFailed = "mods_remove_failed"
     tkModsTabCosmetics = "mods_tab_cosmetics"
     tkModsNoCosmetics = "mods_no_cosmetics"
     tkModsEquip = "mods_equip"
@@ -1868,6 +1895,7 @@ type
     tkModsKindPlayer = "mods_kind_player"
     tkModsKindBullet = "mods_kind_bullet"
     tkModsKindDesktop = "mods_kind_desktop"
+    tkModsKindCube = "mods_kind_cube"
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -1933,6 +1961,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "changelog_cat_improved": "Improvements",
     "changelog_cat_balance": "Balance",
     "changelog_cat_fixed": "Fixes",
+    "changelog_cat_mods": "Mods",
     "changelog_legacy_view": "Legacy view (all versions on one page)",
 
     # Settings
@@ -2087,6 +2116,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_gameplay": "Gameplay",
     "settings_tab_cinematics": "Cinematics",
     "settings_tab_interface": "Interface",
+    "settings_section_mods": "MOD KEYBINDS",
+    "settings_mods_description": "Bindings supplied by loaded mods. Changes are saved per mod.",
+    "settings_reset_mod_keybindings": "Reset Mod Binds",
     "settings_section_scale": "SCALE & FEEL",
     "settings_section_hud_elements": "HUD ELEMENTS",
     "settings_ui_scale": "UI Scale:",
@@ -2506,6 +2538,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game3d_phase_transition": "PHASE TRANSITION!",
     "game3d_paused": "PAUSED",
     "game3d_press_esc_resume": "Press ESC to resume",
+    "game3d_press_q_quit": "Press Q to quit to the desktop",
+    "game3d_reloading": "RELOADING",
+    "game3d_entering": "ENTERING 3D ARENA",
 
     # OS UI
     "os_loading": "Loading...",
@@ -2859,6 +2894,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cosmetic Packs (discounted theme trios)
     "shop_tab_packs": "PACKS",
+    "shop_tab_mods": "MODS",
+    "shop_customize_mods": "Mod Cosmetics",
+    "shop_mods_unequipped": "[UNEQUIPPED]",
+    "shop_mods_subtitle": "From your loaded mods. Free to equip; they show while the mod is loaded.",
     "shop_customize_packs": "Theme Bundles -- 40% Off",
     "pack_owned": "OWNED",
     "pack_includes": "Player + Bullet + Particle",
@@ -3084,6 +3123,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_discovery_codex": "Discovery Codex:",
     "cheat_discover_all": "Discover All Power-Ups",
     "cheat_undiscover_all": "Un-Discover All",
+    "cheat_game_modes": "Game modes:",
+    "cheat_unlock_modes": "Unlock All Modes",
+    "cheat_lock_modes": "Lock Modes",
 
     # Power-up Installer
     "power_up_installer_title": "LEGENDARY UPGRADE INSTALLER",
@@ -3964,7 +4006,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "survival_events_caches": "Events / Caches:",
 
     # Mods (MODS.EXE)
-    "modded_badge": "MODDED",
     "modded_no_rewards": "Modded run: no permanent rewards",
     "desktop_icon_mods": "MODS.exe",
     "mods_window_title": "Mods - Mod Manager",
@@ -3973,7 +4014,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_tab_log": "Log",
     "mods_tab_apps": "Apps",
     "mods_no_apps": "No loaded mod adds an app. Mods add them with register.app.",
-    "mods_cheat_banner": "Modded runs count as cheated: no Data Shards, stats, advancements or unlocks.",
+    "mods_open_app": "Open",
+    "mods_apps_hint": "Each app opens in its own window; most also put an icon on the desktop.",
+    "mods_app_no_icon": "(no desktop icon)",
+    "mods_cheat_banner": "Modded runs count as cheated (no Data Shards, stats, advancements or unlocks) unless every loaded mod is marked KEEPS REWARDS.",
+    "mods_keeps_banner": "Loaded mods keep rewards: modded runs still earn Data Shards, stats, advancements and unlocks.",
+    "mods_keeps_tag": "KEEPS REWARDS",
+    "mods_rewards_kept": "Keeps rewards: runs with this mod can still earn progress.",
+    "mods_rewards_off": "Disables rewards: runs with this mod count as cheated.",
+    "mods_rewards_warning_title": "REWARDS DISABLED",
+    "mods_rewards_warning_body": "The selected mod combination disables player rewards.",
+    "mods_rewards_warning_sub": "Runs with these mods will not grant Data Shards, stats, advancements or unlocks. Load them anyway?",
+    "mods_rewards_warning_confirm": "Load Mods",
     "mods_apply": "Apply & Reload",
     "mods_open_folder": "Open Folder",
     "mods_install_examples": "Install Examples",
@@ -4002,13 +4054,21 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_summary_failed": "$1 failed",
     "mods_examples_installed": "Example mods installed. Tick them and press Apply & Reload.",
     "mods_examples_failed": "Could not write the example mods.",
+    "mods_examples_up_to_date": "The example mods are already up to date.",
+    "mods_remove": "Remove",
+    "mods_remove_title": "REMOVE MOD",
+    "mods_remove_body": "Delete $1 and its folder?",
+    "mods_remove_sub": "Its files are deleted from disk. This cannot be undone.",
+    "mods_removed": "$1 removed.",
+    "mods_remove_failed": "Could not delete the mod folder (a file may be in use).",
     "mods_tab_cosmetics": "Cosmetics",
     "mods_no_cosmetics": "No mod cosmetics loaded. Mods add them with register.cosmetic.",
     "mods_equip": "Equip",
     "mods_unequip": "Unequip",
     "mods_kind_player": "Player skin",
     "mods_kind_bullet": "Bullet skin",
-    "mods_kind_desktop": "Desktop"
+    "mods_kind_desktop": "Desktop",
+    "mods_kind_cube": "Desktop cube"
   }.toTable,
 
   Spanish: {
@@ -4073,6 +4133,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "changelog_cat_improved": "Mejoras",
     "changelog_cat_balance": "Balance",
     "changelog_cat_fixed": "Correcciones",
+    "changelog_cat_mods": "Mods",
     "changelog_legacy_view": "Vista clásica (todas las versiones en una página)",
 
     # Settings
@@ -4227,6 +4288,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_tab_gameplay": "Juego",
     "settings_tab_cinematics": "Cinemáticas",
     "settings_tab_interface": "Interfaz",
+    "settings_section_mods": "CONTROLES DE MODS",
+    "settings_mods_description": "Controles de los mods actualmente cargados.",
+    "settings_reset_mod_keybindings": "Restaurar Controles",
     "settings_section_scale": "ESCALA Y EFECTOS",
     "settings_section_hud_elements": "ELEMENTOS DEL HUD",
     "settings_ui_scale": "Escala de interfaz:",
@@ -4893,6 +4957,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Cosmetic Packs (paquetes tematicos con descuento)
     "shop_tab_packs": "PAQUETES",
+    "shop_tab_mods": "MODS",
+    "shop_customize_mods": "Cosméticos de mods",
+    "shop_mods_unequipped": "[DESEQUIPADO]",
+    "shop_mods_subtitle": "De tus mods cargados. Gratis; se ven mientras el mod esté cargado.",
     "shop_customize_packs": "Paquetes Temáticos -- 40% Off",
     "pack_owned": "OBTENIDO",
     "pack_includes": "Jugador + Bala + Particula",
@@ -5118,6 +5186,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "cheat_discovery_codex": "Códice de Descubrimiento:",
     "cheat_discover_all": "Descubrir Todas las Mejoras",
     "cheat_undiscover_all": "Olvidar Todas las Mejoras",
+    "cheat_game_modes": "Modos de juego:",
+    "cheat_unlock_modes": "Desbloquear Todos los Modos",
+    "cheat_lock_modes": "Bloquear Modos",
 
     # Power-up Installer
     "power_up_installer_title": "INSTALADOR DE MEJORA LEGENDARIA",
@@ -5227,6 +5298,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "game3d_phase_transition": "¡CAMBIO DE FASE!",
     "game3d_paused": "PAUSA",
     "game3d_press_esc_resume": "Presiona ESC para continuar",
+    "game3d_press_q_quit": "Presiona Q para salir al escritorio",
+    "game3d_reloading": "RECARGANDO",
+    "game3d_entering": "ENTRANDO A LA ARENA 3D",
 
     # OS UI
     "os_loading": "Cargando...",
@@ -6102,7 +6176,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "survival_events_caches": "Eventos / Cachés:",
 
     # Mods (MODS.EXE)
-    "modded_badge": "CON MODS",
     "modded_no_rewards": "Partida con mods: sin recompensas permanentes",
     "desktop_icon_mods": "MODS.exe",
     "mods_window_title": "Mods - Gestor de Mods",
@@ -6111,7 +6184,18 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_tab_log": "Registro",
     "mods_tab_apps": "Apps",
     "mods_no_apps": "Ningún mod cargado añade una app. Los mods las añaden con register.app.",
-    "mods_cheat_banner": "Las partidas con mods cuentan como trampas: sin Fragmentos, estadísticas, logros ni desbloqueos.",
+    "mods_open_app": "Abrir",
+    "mods_apps_hint": "Cada app se abre en su propia ventana; la mayoría también pone un icono en el escritorio.",
+    "mods_app_no_icon": "(sin icono en el escritorio)",
+    "mods_cheat_banner": "Con mods, la partida cuenta como trampa (sin Fragmentos, estadísticas, logros ni desbloqueos) salvo si todos llevan CON RECOMPENSAS.",
+    "mods_keeps_banner": "Los mods cargados conservan las recompensas: Fragmentos, estadísticas, logros y desbloqueos siguen activos.",
+    "mods_keeps_tag": "CON RECOMPENSAS",
+    "mods_rewards_kept": "Conserva las recompensas: las partidas con este mod pueden dar progreso.",
+    "mods_rewards_off": "Desactiva las recompensas: las partidas con este mod cuentan como trampas.",
+    "mods_rewards_warning_title": "RECOMPENSAS DESACTIVADAS",
+    "mods_rewards_warning_body": "La combinación de mods seleccionada desactiva las recompensas del jugador.",
+    "mods_rewards_warning_sub": "Estas partidas no darán Fragmentos, estadísticas, logros ni desbloqueos. ¿Cargar los mods de todos modos?",
+    "mods_rewards_warning_confirm": "Cargar mods",
     "mods_apply": "Aplicar y recargar",
     "mods_open_folder": "Abrir carpeta",
     "mods_install_examples": "Instalar ejemplos",
@@ -6140,13 +6224,21 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_summary_failed": "$1 con error",
     "mods_examples_installed": "Mods de ejemplo instalados. Márcalos y pulsa Aplicar y recargar.",
     "mods_examples_failed": "No se pudieron escribir los mods de ejemplo.",
+    "mods_examples_up_to_date": "Los mods de ejemplo ya están al día.",
+    "mods_remove": "Eliminar",
+    "mods_remove_title": "ELIMINAR MOD",
+    "mods_remove_body": "¿Eliminar $1 y su carpeta?",
+    "mods_remove_sub": "Sus archivos se borran del disco. No se puede deshacer.",
+    "mods_removed": "$1 eliminado.",
+    "mods_remove_failed": "No se pudo borrar la carpeta del mod (puede que un archivo esté en uso).",
     "mods_tab_cosmetics": "Cosméticos",
     "mods_no_cosmetics": "No hay cosméticos de mods cargados. Los mods los añaden con register.cosmetic.",
     "mods_equip": "Equipar",
     "mods_unequip": "Quitar",
     "mods_kind_player": "Aspecto del jugador",
     "mods_kind_bullet": "Aspecto de las balas",
-    "mods_kind_desktop": "Escritorio"
+    "mods_kind_desktop": "Escritorio",
+    "mods_kind_cube": "Cubo del escritorio"
   }.toTable
 }.toTable
 

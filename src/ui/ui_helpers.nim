@@ -32,21 +32,6 @@ proc drawCenteredTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: 
                           minSize: int32 = 9): int32 {.discardable.} =
   drawTextFit(text, x, y, maxWidth, fontSize, color, minSize, taCenter)
 
-proc moddedBadgeSize*(fontSize: int32 = 12): tuple[w, h: int32] =
-  (measureText(t(tkModdedBadge), fontSize) + 14'i32, fontSize + 8'i32)
-
-proc drawModdedBadge*(x, y: int32, fontSize: int32 = 12) =
-  ## The MODDED tag of a run played with mods loaded (MODS.EXE). Amber, the
-  ## palette's "earns nothing permanent" warning; a slow pulse on the border
-  ## keeps it noticeable without competing with the HUD.
-  let (w, h) = moddedBadgeSize(fontSize)
-  let r = Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32)
-  let pulse = 0.5'f32 + 0.5'f32 * sin(getTime().float32 * 2.4'f32)
-  drawRectangleRounded(r, 0.35, 4, Color(r: 38, g: 24, b: 4, a: 225))
-  drawRectangleRoundedLines(r, 0.35, 4, 1.5,
-    Color(r: 255, g: 176, b: 32, a: uint8(150 + 105 * pulse)))
-  drawText(t(tkModdedBadge), x + 7, y + 4, fontSize, Color(r: 255, g: 196, b: 80, a: 255))
-
 proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string =
   ## `text` cut down (with a trailing "..") until it is at most maxWidth wide.
   ## Trims whole UTF-8 characters, so an accented letter is never split.

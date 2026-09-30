@@ -1,0 +1,9 @@
+{
+  "id": "orbital_tweaks",
+  "name": "Orbital Tweaks",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "Changes the existing 3D boss fight (wave boss 7, the Orbital Commander): four extra orbiting drones, a message when a phase starts, and bonus damage against its satellites. Shows the world3d hooks on a vanilla world.",
+  "main": "main.lua",
+  "disableAchievements": true
+}

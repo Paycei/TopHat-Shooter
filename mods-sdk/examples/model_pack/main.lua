@@ -28,7 +28,7 @@ register.cosmetic{
 }
 
 register.cosmetic{
-  kind = "desktop", id = "data_cube",
+  kind = "cube", id = "data_cube",
   name = {en = "Data Cube (3D)", es = "Cubo de Datos (3D)"},
   description = {en = "A voxel cube in place of the desktop cube. Drag it to spin it.",
                  es = "Un cubo de vóxeles en lugar del cubo del escritorio. Arrástralo para girarlo."},
@@ -63,6 +63,9 @@ local function cellWidth(w) return (w - PAD * 2) / #shown end
 register.app{
   id = "viewer",
   name = {en = "Model Viewer", es = "Visor de Modelos"},
+  icon = ship,              -- the desktop icon shows the ship turning
+  color = "#7de2ff",        -- accent of the icon tile and the window
+  width = 560, height = 340,
   update = function(dt) turn = turn + dt * 40 end,   -- degrees per second
   draw = function(w, h, mx, my)
     draw.text(say("MODEL VIEWER", "VISOR DE MODELOS"), PAD, 16, 20, "#7de2ff")

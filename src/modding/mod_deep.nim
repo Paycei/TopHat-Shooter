@@ -22,7 +22,7 @@
 
 import std/[strutils, math, tables, deques, locks]
 import raylib
-import ../types
+import ../types, ../game3d/types_3d
 import lua_bridge, mod_reflect, mod_hooks
 
 type
@@ -41,6 +41,14 @@ const
   ReadOnlyRoots = ["rogueliteProfile"]
     ## Readable but frozen, with everything under it: the roguelite profile is
     ## the player's real meta progression, saved outside the (cheated) run.
+  ReadOnlyPaths = ["world.active", "world.result", "world.pendingResult", "world.quitRequested",
+                   "world.bossEnabled", "world.bossId", "world.modeKey", "world.resumed",
+                   "world.carryHp", "world.startFired", "world.paused", "world.nextId",
+                   "world.boss.health", "world.boss.maxHealth",
+                   "entity.id", "entity.alive", "entity.removed",
+                   "projectile.removed", "pickup.id", "pickup.removed"]
+    ## Single fields (by path from a 3D-world root) a script may read but not
+    ## write: the world's own bookkeeping, a boss's HP (world3d.damageBoss), ids.
 
 template isOpaque(F: typedesc): bool =
   ## Types a script must never see inside of.
@@ -75,6 +83,10 @@ proc fieldValue[F](p: ptr F, get: Resolver, ro: bool, path: string): ScriptValue
   elif F is Player: wrapPlayer(p[])
   elif F is Enemy: wrapEnemy(p[])
   elif F is Bullet: wrapBullet(p[])
+  elif F is Game3D: wrapWorld3D(p[])
+  elif F is Entity3D: wrapEntity3D(p[])
+  elif F is Projectile3D: wrapProjectile3D(p[])
+  elif F is Pickup3D: wrapPickup3D(p[])
   elif isOpaque(F): NilValue
   elif compiles(toScript(p[])): toScript(p[])
   elif F is ref:
@@ -98,6 +110,7 @@ proc visible[F](p: ptr F): bool =
   ## Whether fieldValue shows anything for this type (for fields() / pairs).
   when isOpaque(F): false
   elif F is Game or F is Player or F is Enemy or F is Bullet: true
+  elif F is Game3D or F is Entity3D or F is Projectile3D or F is Pickup3D: true
   elif compiles(toScript(p[])): true
   elif F is ref: typeof(p[][]) is object or typeof(p[][]) is tuple
   elif F is object or F is tuple or F is seq or F is array: true
@@ -160,7 +173,7 @@ proc setObj[T](vm: VM, p: ptr T, name: string, val: ScriptValue, ro: bool, path:
   for fname, f in fieldPairs(p[]):
     when fname notin HiddenFields:
       if fname == name:
-        if ro or fname in ReadOnlyRoots:
+        if ro or fname in ReadOnlyRoots or (path & "." & fname) in ReadOnlyPaths:
           vm.runtimeError(path & "." & fname & " is read-only")
         when compiles(addr f):
           fieldAssign(vm, addr f, val, path & "." & fname)
@@ -294,9 +307,11 @@ proc listClass[C](): UdClass =
       let box = DeepBox(ud.box)
       let raw = box.get()
       box.path & " (" & $(if raw.isNil: 0 else: cast[ptr C](raw)[].len) & " items)"
-    when C is seq[Enemy] or C is seq[Bullet]:
-      # `for e in game:enemies() do` -- calling a list of enemies (or bullets)
-      # iterates it, skipping enemies that are already dead.
+    when C is seq[Enemy] or C is seq[Bullet] or C is seq[Entity3D] or C is seq[Projectile3D] or
+         C is seq[Pickup3D]:
+      # `for e in game:enemies() do` -- calling a list of enemies (or bullets, or a
+      # 3D world's entities / projectiles / pickups) iterates it, skipping what is
+      # already dead.
       cls.call = proc (vm: VM, ud: Userdata, args: openArray[ScriptValue], ret: var RetVals) =
         let get = DeepBox(ud.box).get
         var i = 0
@@ -313,9 +328,21 @@ proc listClass[C](): UdClass =
               if x.hp > 0:
                 r.setRet(wrapEnemy(x))
                 return
-            else:
+            elif C is seq[Bullet]:
               r.setRet(wrapBullet(x))
               return
+            elif C is seq[Entity3D]:
+              if x.alive:
+                r.setRet(wrapEntity3D(x))
+                return
+            elif C is seq[Projectile3D]:
+              if x.active:
+                r.setRet(wrapProjectile3D(x))
+                return
+            else:
+              if x.alive:
+                r.setRet(wrapPickup3D(x))
+                return
           r.setRet(NilValue))))
   cls
 
@@ -328,12 +355,17 @@ proc deepList[C](get: Resolver, ro: bool, path: string): ScriptValue =
 # The game / player / enemy / bullet classes (mod_api) fall back to these for
 # every field their own rules do not cover.
 
-proc rootResolver[T: ref object](obj: T): Resolver =
+proc rootResolver[T: ref object](obj: T, alive: proc (): bool {.closure.} = nil): Resolver =
+  ## `alive` (optional) says whether the root is still the thing it was: a proxy
+  ## reached from it then reads "no longer exists" once it is not (a 3D world
+  ## that ended), rather than showing a stale object.
   let keep = obj
-  result = proc (): pointer = cast[pointer](keep)
+  result = proc (): pointer =
+    if not alive.isNil and not alive(): nil else: cast[pointer](keep)
 
-proc deepGet*[T: ref object](obj: T, name, path: string, found: var bool): ScriptValue =
-  indexObj(cast[ptr typeof(obj[])](cast[pointer](obj)), rootResolver(obj), name, false, path, found)
+proc deepGet*[T: ref object](obj: T, name, path: string, found: var bool,
+                             alive: proc (): bool {.closure.} = nil): ScriptValue =
+  indexObj(cast[ptr typeof(obj[])](cast[pointer](obj)), rootResolver(obj, alive), name, false, path, found)
 
 proc deepSet*[T: ref object](vm: VM, obj: T, name: string, val: ScriptValue, path: string): bool =
   setObj(vm, cast[ptr typeof(obj[])](cast[pointer](obj)), name, val, false, path)

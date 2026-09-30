@@ -26,6 +26,7 @@ type
     dependencies*, loadAfter*: seq[string]
     dir*: string
     enabled*: bool
+    disableAchievements*: bool   ## mod.json "disableAchievements" (default true)
     status*: ModStatus
     message*: string   ## why it is not loaded (error text with traceback)
 
@@ -83,6 +84,7 @@ proc readManifest(dir: string): ModInfo =
   result.main = j.getOrDefault("main").getStr("main.lua")
   result.dependencies = strList(j, "dependencies")
   result.loadAfter = strList(j, "loadAfter")
+  result.disableAchievements = true
   if not validId(result.id):
     result.message = "\"id\" must be 1-40 characters of a-z, 0-9 and _ (got \"" & result.id & "\")"
     if result.id.len == 0: result.id = lastPathPart(dir)
@@ -93,6 +95,12 @@ proc readManifest(dir: string): ModInfo =
   if not fileExists(dir / result.main):
     result.message = "main script not found: " & result.main
     return
+  let da = j.getOrDefault("disableAchievements")
+  if not da.isNil:
+    if da.kind != JBool:
+      result.message = "\"disableAchievements\" must be true or false"
+      return
+    result.disableAchievements = da.getBool
   result.status = msDisabled
 
 proc scanMods*(enabled: seq[string]): seq[ModInfo] =

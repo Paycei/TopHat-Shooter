@@ -1,9 +1,10 @@
 ## OS-Themed Desktop Environment Module
 ## Main menu as an operating system desktop
 
-import raylib, rlgl, math, strutils, strformat, times
+import raylib, rlgl, math, strutils, strformat, times, tables
+from std/unicode import runeAt, toUpper, `$`
 import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../particle_types, ../utils
-import ../modding/mod_assets
+import ../modding/[mod_assets, mod_hooks]
 
 type
   DesktopIconType* = enum
@@ -22,6 +23,8 @@ type
     diCredits       # Credits + support the project (CREDITS.nfo) - 12
     diFeedback      # Feedback / bug report form (FEEDBACK.exe) - 13
     diMods          # Mod manager (MODS.exe) - 14
+    diModApp        # A register.app program (one icon per app, see syncModIcons) - 15
+    diModMode       # A register.gamemode game mode (one icon per mode, see syncModIcons) - 16
 
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -29,6 +32,7 @@ type
     selected*: bool
     name*: string
     iconColor*: Color
+    modKey*: string   ## diModApp / diModMode only: the app's or mode's key ("<mod id>:<id>")
 
   WindowState* = ref object
     opened*: bool
@@ -94,6 +98,9 @@ type
     # the logical viewport (which the UI-scale setting shrinks), and read back by
     # keyboard navigation so it always walks the grid that was actually drawn.
     gridRows*: int
+    launchModKey*: string
+      ## Key of the mod app or mode whose icon was just activated (read by main.nim
+      ## when handleDesktopInput returns diModApp / diModMode).
 
 var
   activeDesktop*: OSDesktop = nil
@@ -141,6 +148,7 @@ proc getIconName(iconType: DesktopIconType): string =
   of diCredits: t(tkDesktopIconCredits)
   of diFeedback: t(tkDesktopIconFeedback)
   of diMods: t(tkDesktopIconMods)
+  of diModApp, diModMode: ""  # named per entry (modAppName / modModeName), see updateOSDesktop
 
 proc bestDesktopLabelFontSize(text: string, maxWidth, preferredSize: int32,
                               minSize: int32 = ICON_LABEL_MIN_SIZE): int32 =
@@ -167,6 +175,71 @@ proc isCornerIcon(iconType: DesktopIconType): bool =
   ## last one in the seq sits in the corner itself.
   iconType in {diMods, diFeedback, diCredits}
 
+proc isModIcon(iconType: DesktopIconType): bool =
+  ## Mod icons (game modes, then apps): flowed like the grid, but in columns of
+  ## their own that start after the built-in grid's last one (see
+  ## layoutDesktopIcons).
+  iconType in {diModMode, diModApp}
+
+proc modBaseColor(base: GameMode): Color =
+  ## The desktop colour of a mod mode's base mode (as in newOSDesktop).
+  case base
+  of gmTimeSurvival: Color(r: 255, g: 150, b: 100, a: 255)
+  of gmRoguelite: Color(r: 0, g: 220, b: 180, a: 255)
+  else: Color(r: 100, g: 200, b: 255, a: 255)
+
+proc modModeIconColor(m: ModModeDef): Color =
+  if m.color.a > 0: m.color else: modBaseColor(m.base)
+
+proc syncModIcons(desktop: OSDesktop) =
+  ## Keep exactly one icon per register.gamemode / register.app entry that
+  ## wants one: modes first, then apps, each in registration order, between the
+  ## built-in grid icons and the corner icons. Cheap when nothing changed (a key
+  ## comparison); rebuilds keep the selection on the same icon where it still
+  ## exists. A mode and an app may share a key, so icons are told apart by type.
+  var want: seq[tuple[t: DesktopIconType, i: int]]
+  for i in 0 ..< modModes.len:
+    if modModes[i].desktop: want.add((diModMode, i))
+  for i in 0 ..< modApps.len:
+    if modApps[i].desktop: want.add((diModApp, i))
+  proc wantKey(w: tuple[t: DesktopIconType, i: int]): string =
+    if w.t == diModMode: modModes[w.i].key else: modApps[w.i].key
+  var same = true
+  var have = 0
+  for icon in desktop.icons:
+    if isModIcon(icon.iconType):
+      if have >= want.len or icon.iconType != want[have].t or icon.modKey != wantKey(want[have]):
+        same = false
+        break
+      inc have
+  if same and have == want.len:
+    return
+
+  var selType = diPlay
+  var selKey = ""
+  if desktop.selectedIcon in 0 ..< desktop.icons.len:
+    selType = desktop.icons[desktop.selectedIcon].iconType
+    selKey = desktop.icons[desktop.selectedIcon].modKey
+  var builtin, corner: seq[DesktopIcon]
+  var modIcons: Table[string, DesktopIcon]
+  for icon in desktop.icons:
+    if isCornerIcon(icon.iconType): corner.add(icon)
+    elif isModIcon(icon.iconType): modIcons[$icon.iconType & icon.modKey] = icon
+    else: builtin.add(icon)
+  var rebuilt = builtin
+  for w in want:
+    let key = wantKey(w)
+    var icon = modIcons.getOrDefault($w.t & key, DesktopIcon(iconType: w.t, modKey: key))
+    icon.iconColor = if w.t == diModMode: modModeIconColor(modModes[w.i]) else: modApps[w.i].color
+    rebuilt.add(icon)
+  rebuilt.add(corner)
+  desktop.icons = rebuilt
+  desktop.selectedIcon = clamp(desktop.selectedIcon, 0, desktop.icons.high)
+  for i, icon in desktop.icons:
+    if icon.iconType == selType and icon.modKey == selKey:
+      desktop.selectedIcon = i
+      break
+
 proc desktopGridRows(screenHeight: int): int =
   ## Rows per icon column that actually fit above the taskbar in `screenHeight`
   ## logical pixels. DESKTOP_GRID_ROWS is the cap, so any viewport with room to
@@ -191,10 +264,12 @@ proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # right edge sits half the overhang past the icon box.
   const labelOverhang = (ICON_LABEL_WIDTH - ICON_SIZE) div 2
 
-  var gridCount = 0
+  # The built-in grid alone decides the row count, so it lays out exactly as it
+  # did before mod apps existed; app icons reuse that row count.
+  var gridCount, appCount = 0
   for icon in desktop.icons:
-    if not isCornerIcon(icon.iconType):
-      inc gridCount
+    if isModIcon(icon.iconType): inc appCount
+    elif not isCornerIcon(icon.iconType): inc gridCount
 
   var rows = desktopGridRows(screenHeight)
   # Height is the binding constraint at every scale the setting allows, but if a
@@ -212,12 +287,15 @@ proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   rows = max(1, (gridCount + cols - 1) div cols)
   desktop.gridRows = rows
 
+  # App icons start on the next fresh column and fill it column-major.
+  let appBase = ((gridCount + rows - 1) div rows) * rows
   var slot = 0
   for icon in desktop.icons.mitems:
     if isCornerIcon(icon.iconType):
       continue
-    icon.x = DESKTOP_GRID_START_X + (slot div rows) * ICON_SPACING
-    icon.y = DESKTOP_GRID_START_Y + (slot mod rows) * ICON_SPACING
+    let s = if isModIcon(icon.iconType): appBase + slot - gridCount else: slot
+    icon.x = DESKTOP_GRID_START_X + (s div rows) * ICON_SPACING
+    icon.y = DESKTOP_GRID_START_Y + (s mod rows) * ICON_SPACING
     inc slot
 
   let cornerX = screenWidth - DESKTOP_MARGIN_RIGHT - ICON_SIZE - labelOverhang
@@ -459,8 +537,10 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
                       screenWidth: int, screenHeight: int) =
   desktop.time += dt
 
-  # Keep corner-anchored icons glued to the corner when the HUD layout (and with
-  # it the virtual canvas width) changes at runtime.
+  # Mod apps come and go with reloads; then keep corner-anchored icons glued to
+  # the corner when the HUD layout (and with it the virtual canvas width)
+  # changes at runtime.
+  syncModIcons(desktop)
   layoutDesktopIcons(desktop, screenWidth, screenHeight)
 
   # Cube drag & inertia (quaternion, world-space axes)
@@ -840,7 +920,13 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
 
   # Update all icon names to reflect current language
   for i in 0..<desktop.icons.len:
-    desktop.icons[i].name = getIconName(desktop.icons[i].iconType)
+    if desktop.icons[i].iconType == diModApp:
+      let app = findModApp(desktop.icons[i].modKey)
+      desktop.icons[i].name = modAppName(app, getLanguage() == Spanish)
+    elif desktop.icons[i].iconType == diModMode:
+      desktop.icons[i].name = modModeName(desktop.icons[i].modKey, getLanguage() == Spanish)
+    else:
+      desktop.icons[i].name = getIconName(desktop.icons[i].iconType)
     desktop.icons[i].selected = (i == desktop.selectedIcon)
 
 proc drawHexBadge(cx, cy: int32, radius: float32, fill, edge: Color, rotation: float32 = PI / 6.0) =
@@ -1269,6 +1355,58 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     drawCircle(v2(px - s / 2 + 0.5'f32, py), 3.4, panelCol)        # left slot
     drawCircle(v2(px, py + s / 2 - 0.5'f32), 3.4, panelCol)        # bottom slot
     drawCircle(v2(px - 3.5'f32, py - 3.5'f32), 1.6, bright)        # glint
+  of diModApp:
+    # A mod app: its own texture or model when it gave one, else a little window
+    # showing the first letter of its name. The MOD tag marks it as not built in.
+    let app = findModApp(icon.modKey)
+    let look = if app >= 0: modApps[app].icon else: BodyReplace()
+    let cx = centerX.float32
+    let cy = centerY.float32
+    if look.model > 0:
+      drawModelIcon(look.model, cx, cy, 42, look.pose)
+    elif look.id > 0:
+      let (tw, th) = textureSize(look.id)
+      let fit = 42.0'f32 / max(1.0'f32, max(tw, th).float32)
+      drawModTexture(look.id, cx, cy, tw.float32 * fit, th.float32 * fit, 0, White)
+    else:
+      let frame = Rectangle(x: cx - 19, y: cy - 15, width: 38, height: 30)
+      drawRectangleRounded(frame, 0.15, 4, Color(r: 14, g: 18, b: 30, a: 255))
+      drawRectangleRoundedLines(frame, 0.15, 4, 2.0, accent)
+      drawRectangle(int32(frame.x) + 2, int32(frame.y) + 2, int32(frame.width) - 4, 6, dim)
+      # The first character, whole: a name may start with an accented letter.
+      let letter = if icon.name.len > 0: unicode.toUpper($icon.name.runeAt(0)) else: "?"
+      let lw = measureText(letter, 18)
+      drawText(letter, centerX - lw div 2, centerY - 5, 18, bright)
+    let tagX = icon.x.int32 + ICON_SIZE - 26
+    let tagY = icon.y.int32 + ICON_SIZE - 12
+    drawRectangle(tagX, tagY, 24, 10, Color(r: 8, g: 14, b: 24, a: 215))
+    drawText("MOD", tagX + 3, tagY + 1, 8, bright)
+  of diModMode:
+    # A mod game mode: its own texture or model when it gave one, else a play
+    # triangle on a little screen. Same MOD tag as the apps.
+    let mi = findModMode(icon.modKey)
+    let look = if mi >= 0: modModes[mi].icon else: BodyReplace()
+    let cx = centerX.float32
+    let cy = centerY.float32
+    if look.model > 0:
+      drawModelIcon(look.model, cx, cy, 42, look.pose)
+    elif look.id > 0:
+      let (tw, th) = textureSize(look.id)
+      let fit = 42.0'f32 / max(1.0'f32, max(tw, th).float32)
+      drawModTexture(look.id, cx, cy, tw.float32 * fit, th.float32 * fit, 0, White)
+    else:
+      let frame = Rectangle(x: cx - 19, y: cy - 15, width: 38, height: 30)
+      drawRectangleRounded(frame, 0.15, 4, Color(r: 14, g: 18, b: 30, a: 255))
+      drawRectangleRoundedLines(frame, 0.15, 4, 2.0, accent)
+      let pulse = 1.0'f32 + sin(time * 3.0'f32) * 0.06'f32
+      let h = 9.0'f32 * pulse
+      drawTriangle(v2(cx - h * 0.6'f32, cy - h), v2(cx - h * 0.6'f32, cy + h),
+                   v2(cx + h, cy), bright)
+    let tagX = icon.x.int32 + ICON_SIZE - 26
+    let tagY = icon.y.int32 + ICON_SIZE - 12
+    drawRectangle(tagX, tagY, 24, 10, Color(r: 8, g: 14, b: 24, a: 215))
+    drawText("MOD", tagX + 3, tagY + 1, 8, bright)
+
   # Locked overlay for modes that are gated by progression
   var isLocked = false
   case icon.iconType
@@ -2607,22 +2745,26 @@ proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: in
 # more, shorter columns. The corner-anchored icons (last in the seq) form one
 # trailing column, matching how they are stacked on screen, which is how
 # diFeedback and diCredits stay reachable from the keyboard.
-proc desktopGridColumns(desktop: OSDesktop): tuple[rows, gridCount, cols: int] =
+proc desktopGridColumns(desktop: OSDesktop): tuple[rows, builtin, apps, cols: int] =
+  ## Columns left to right: the built-in grid, then the mod-app columns (same
+  ## row count, starting fresh), then the corner column if there is one.
   let rows = max(1, desktop.gridRows)
-  var n = 0
+  var nb, na = 0
   for icon in desktop.icons:
-    if not isCornerIcon(icon.iconType):
-      inc n
-  let gridCols = (n + rows - 1) div rows
-  (rows, n, gridCols + (if desktop.icons.len > n: 1 else: 0))
+    if isModIcon(icon.iconType): inc na
+    elif not isCornerIcon(icon.iconType): inc nb
+  let corner = desktop.icons.len - nb - na
+  (rows, nb, na, (nb + rows - 1) div rows + (na + rows - 1) div rows + (if corner > 0: 1 else: 0))
 
 proc desktopColLen(desktop: OSDesktop, col: int): int =
   ## Number of icons in column `col`: the flowed grid columns first, then the
-  ## one column holding every corner-anchored icon.
-  let (rows, n, _) = desktopGridColumns(desktop)
-  let gridCols = (n + rows - 1) div rows
-  if col < gridCols: min(rows, n - col * rows)
-  else: desktop.icons.len - n
+  ## mod-app columns, then the one column holding every corner-anchored icon.
+  let (rows, nb, na, _) = desktopGridColumns(desktop)
+  let gridCols = (nb + rows - 1) div rows
+  let appCols = (na + rows - 1) div rows
+  if col < gridCols: min(rows, nb - col * rows)
+  elif col < gridCols + appCols: min(rows, na - (col - gridCols) * rows)
+  else: desktop.icons.len - nb - na
 
 proc iconGridPos(desktop: OSDesktop, index: int): tuple[col, row: int] =
   ## Map a flat icon index onto its (column, row) slot.
@@ -2645,7 +2787,7 @@ proc iconGridIndex(desktop: OSDesktop, col, row: int): int =
   result += clamp(row, 0, desktopColLen(desktop, c) - 1)
 
 proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
-  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements, 11=Changelog, 12=Credits, 13=Feedback
+  ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements, 11=Changelog, 12=Credits, 13=Feedback, 14=Mods, 15=a mod app / 16=a mod game mode (desktop.launchModKey)
   ## Returns -1 if no action
   ## Note: Window occlusion should be handled by the calling code
 
@@ -2686,6 +2828,9 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
             return -1
           else:
             return clicked.iconType.int
+        of diModApp, diModMode:
+          desktop.launchModKey = clicked.modKey
+          return clicked.iconType.int
         else:
           return clicked.iconType.int
 
@@ -2724,7 +2869,10 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
 
   # Confirm selection with Enter or E
   if isKeyPressed(Enter) or isKeyPressed(E):
-    return desktop.icons[desktop.selectedIcon].iconType.int
+    let chosen = desktop.icons[desktop.selectedIcon]
+    if chosen.iconType in {diModApp, diModMode}:
+      desktop.launchModKey = chosen.modKey
+    return chosen.iconType.int
 
   return -1
 

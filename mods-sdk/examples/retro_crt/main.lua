@@ -29,6 +29,8 @@ local BOX_Y = 150
 register.app{
   id = "settings",
   name = {en = "CRT Settings", es = "Ajustes CRT"},
+  color = "#7dffb0",        -- accent of the desktop icon and the window
+  width = 420, height = 240,
   draw = function(w, h, mx, my)
     local sliderW = w - PAD * 2
     draw.text(say("RETRO CRT", "CRT RETRO"), PAD, 20, 20, "#7dffb0")
