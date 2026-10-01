@@ -349,6 +349,10 @@ const
   ModelFps = 60.0
     ## Animation frames per second: raylib samples glTF and M3D animations at
     ## this rate, so they play at their authored speed.
+  Es2BoneMatrices = 24
+    ## OpenGL ES 2 guarantees only 128 vertex uniform vectors. Leave room for
+    ## mvp and lookNormal while covering small mobile model skeletons.
+  Es3BoneMatrices = 64
   DepthHalf = 524288.0'f32
     ## Models share z in [-DepthHalf, DepthHalf] between depth clears: 1/16
     ## pixel of depth precision (24-bit buffer) and room for thousands of
@@ -382,7 +386,35 @@ void main() {
 """
 
 proc lookVertexShader(skinning: bool): string =
-  result = """#version 330
+  let gl = rlgl.getVersion()
+  if gl == OpenglEs20:
+    result = """#version 100
+precision highp float;
+attribute vec3 vertexPosition;
+attribute vec2 vertexTexCoord;
+attribute vec3 vertexNormal;
+attribute vec4 vertexColor;
+uniform mat4 mvp;
+uniform mat4 lookNormal;
+varying vec2 fragTexCoord;
+varying vec4 fragColor;
+varying vec3 fragNormal;
+"""
+  elif gl == OpenglEs30:
+    result = """#version 300 es
+precision highp float;
+in vec3 vertexPosition;
+in vec2 vertexTexCoord;
+in vec3 vertexNormal;
+in vec4 vertexColor;
+uniform mat4 mvp;
+uniform mat4 lookNormal;
+out vec2 fragTexCoord;
+out vec4 fragColor;
+out vec3 fragNormal;
+"""
+  else:
+    result = """#version 330
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
 in vec3 vertexNormal;
@@ -394,11 +426,18 @@ out vec4 fragColor;
 out vec3 fragNormal;
 """
   if skinning:
-    result.add """in vec4 vertexBoneIds;
+    if gl == OpenglEs20:
+      result.add "attribute vec4 vertexBoneIds;\nattribute vec4 vertexBoneWeights;\n" &
+                 "uniform mat4 boneMatrices[" & $Es2BoneMatrices & "];\n"
+    elif gl == OpenglEs30:
+      result.add "in vec4 vertexBoneIds;\nin vec4 vertexBoneWeights;\n" &
+                 "uniform mat4 boneMatrices[" & $Es3BoneMatrices & "];\n"
+    else:
+      result.add """in vec4 vertexBoneIds;
 in vec4 vertexBoneWeights;
 uniform mat4 boneMatrices[128];
-uniform int skinned;
 """
+    result.add "uniform int skinned;\n"
   result.add """void main() {
   vec4 pos = vec4(vertexPosition, 1.0);
   vec3 nrm = vertexNormal;
@@ -420,6 +459,56 @@ uniform int skinned;
 }
 """
 
+proc lookFragmentShader(): string =
+  case rlgl.getVersion()
+  of OpenglEs20:
+    """#version 100
+precision mediump float;
+varying vec2 fragTexCoord;
+varying vec4 fragColor;
+varying vec3 fragNormal;
+uniform sampler2D texture0;
+uniform vec4 colDiffuse;
+uniform vec4 lookTint;
+uniform float lookLit;
+void main() {
+  vec4 base = texture2D(texture0, fragTexCoord) * colDiffuse * fragColor * lookTint;
+  if (base.a < 0.02) discard;
+  float light = 1.0;
+  float len = length(fragNormal);
+  if (lookLit > 0.5 && len > 0.0001) {
+    float diff = max(dot(fragNormal / len, vec3(-0.35, -0.45, 0.82)), 0.0);
+    light = 0.5 + 0.55 * diff;
+  }
+  gl_FragColor = vec4(base.rgb * light, base.a);
+}
+"""
+  of OpenglEs30:
+    """#version 300 es
+precision mediump float;
+in vec2 fragTexCoord;
+in vec4 fragColor;
+in vec3 fragNormal;
+uniform sampler2D texture0;
+uniform vec4 colDiffuse;
+uniform vec4 lookTint;
+uniform float lookLit;
+out vec4 finalColor;
+void main() {
+  vec4 base = texture(texture0, fragTexCoord) * colDiffuse * fragColor * lookTint;
+  if (base.a < 0.02) discard;
+  float light = 1.0;
+  float len = length(fragNormal);
+  if (lookLit > 0.5 && len > 0.0001) {
+    float diff = max(dot(fragNormal / len, vec3(-0.35, -0.45, 0.82)), 0.0);
+    light = 0.5 + 0.55 * diff;
+  }
+  finalColor = vec4(base.rgb * light, base.a);
+}
+"""
+  else:
+    LookFS
+
 var
   modModels: seq[ModModel]
   look: LookShader
@@ -432,7 +521,7 @@ proc ensureLook() =
   if look.tried: return
   look.tried = true
   for skinning in [true, false]:
-    var s = loadShaderFromMemory(lookVertexShader(skinning), LookFS)
+    var s = loadShaderFromMemory(lookVertexShader(skinning), lookFragmentShader())
     if s.id == 0 or s.id == getShaderIdDefault(): continue
     look.normal = getShaderLocation(s, "lookNormal")
     look.tint = getShaderLocation(s, "lookTint")
