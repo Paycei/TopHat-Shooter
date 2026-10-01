@@ -888,6 +888,7 @@ register.app{
   draw = function(w, h, mouseX, mouseY) draw.text("Hello", 20, 20, 20, "#ffffff") end,
   update = function(dt) end,                      -- every frame while open
   click = function(x, y, button, w, h) end,       -- a click inside the canvas
+  drag = function(x, y, w, h) end,                -- while the left mouse button is held
 }
 ```
 
@@ -898,6 +899,7 @@ register.app{
 | `draw` | required, `draw(w, h, mouseX, mouseY)`: the canvas size and the mouse in canvas coordinates (-1, -1 when it is outside the canvas or another window covers it) |
 | `update` | optional, `update(dt)`: runs every frame the window is open and not minimized (not while it is closed or minimized) |
 | `click` | optional, `click(x, y, button, w, h)`: a click inside the canvas (`"left"` or `"right"`), only when this window is the one under the pointer |
+| `drag` | optional, `drag(x, y, w, h)`: called while the left mouse button is held after a click in this app's canvas |
 | `icon` | optional: a texture or model (`assets.texture(...)` / `assets.model(...)`, or a file name: `.png` / `.gif` is a texture, anything else a model) shown in the desktop icon. Without one the icon shows a small window with the app's initial. A model icon also reads the pose options of `override.model` (`tilt`, `spin`, `animation`...) from the same table |
 | `color` | optional accent for the window and the icon tile (default: MODS.EXE green) |
 | `width`, `height` | optional canvas size in pixels (default 480 x 360; 240-960 wide, 160-640 tall) |

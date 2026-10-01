@@ -1744,6 +1744,7 @@ proc installAssetLibraries(base: ScriptTable) =
     ## register.app{id = "settings", name = {en = "Settings", es = "Ajustes"},
     ##   draw = function(w, h, mouseX, mouseY) ... end,   -- canvas coordinates
     ##   update = function(dt) ... end, click = function(x, y, button, w, h) ... end,
+    ##   drag = function(x, y, w, h) ... end,
     ##   icon = texture | model | "file", color = "#78dca0", width = 480, height = 360,
     ##   resizable = false, desktop = true}
     let owner = vm.requireOwner("register.app")
@@ -1754,7 +1755,8 @@ proc installAssetLibraries(base: ScriptTable) =
     var app = ModApp(key: key, owner: owner)
     (app.nameEn, app.nameEs) = vm.textPair(rawGetStr(t, "name"), "name")
     if app.nameEn.len == 0: app.nameEn = key
-    for (field, dest) in [("draw", addr app.draw), ("update", addr app.update), ("click", addr app.click)]:
+    for (field, dest) in [("draw", addr app.draw), ("update", addr app.update),
+                          ("click", addr app.click), ("drag", addr app.drag)]:
       let f = rawGetStr(t, field)
       if f.kind in {vkFunction, vkNative}: dest[] = f
       elif f.kind != vkNil: vm.runtimeError("register.app: " & field & " must be a function")

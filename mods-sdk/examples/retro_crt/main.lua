@@ -26,6 +26,11 @@ local PAD = 24
 local SLIDER_Y = 86
 local BOX_Y = 150
 
+local function setStrength(x, w)
+  settings.strength = math.clamp((x - PAD) / (w - PAD * 2), 0, 1)
+  apply()
+end
+
 register.app{
   id = "settings",
   name = {en = "CRT Settings", es = "Ajustes CRT"},
@@ -50,13 +55,18 @@ register.app{
   end,
   click = function(x, y, button, w, h)
     if y >= SLIDER_Y - 10 and y <= SLIDER_Y + 18 then
-      settings.strength = math.clamp((x - PAD) / (w - PAD * 2), 0, 1)
+      setStrength(x, w)
     elseif x >= PAD and x <= PAD + 18 and y >= BOX_Y and y <= BOX_Y + 18 then
       settings.everywhere = not settings.everywhere
     else
       return
     end
-    apply()
     mod.saveStorage()
+  end,
+  drag = function(x, y, w, h)
+    if y >= SLIDER_Y - 10 and y <= SLIDER_Y + 18 then
+      setStrength(x, w)
+      mod.saveStorage()
+    end
   end,
 }

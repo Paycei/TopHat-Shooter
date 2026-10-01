@@ -15,6 +15,7 @@ type
   ModAppWindow* = ref object
     window*: OSWindow
     key*: string
+    draggingCanvas*: bool
 
 const
   CanvasBg = Color(r: 6, g: 8, b: 12, a: 255)
@@ -44,7 +45,7 @@ proc newModAppWindow*(key: string, screenWidth, screenHeight: int): ModAppWindow
   let osWin = newOSWindow(appTitle(key), (screenWidth - w) div 2,
                           max(0, (screenHeight - h) div 2), w, h, color, owtSettings,
                           resizable = resizable)
-  result = ModAppWindow(window: osWin, key: key)
+  result = ModAppWindow(window: osWin, key: key, draggingCanvas: false)
 
 proc canvasRect(mw: ModAppWindow): Rectangle =
   Rectangle(x: (mw.window.x + WINDOW_BORDER).float32,
@@ -71,12 +72,21 @@ proc updateModAppWindow*(mw: ModAppWindow, dt: float32, screenWidth, screenHeigh
 
   let c = canvasRect(mw)
   let mouse = getVirtualMousePosition()
-  if checkCollisionPointRec(mouse, c) and isWindowTopmostAtPoint(w, mouse.x, mouse.y, allWindows):
+  let overCanvas = checkCollisionPointRec(mouse, c) and
+                   isWindowTopmostAtPoint(w, mouse.x, mouse.y, allWindows)
+  if overCanvas:
     let leftClick = w.handledClickThisFrame and isPointerPressed()
     let rightClick = isMouseButtonPressed(MouseButton.Right)
     if leftClick or rightClick:
       modAppClick(idx, mouse.x - c.x, mouse.y - c.y, if leftClick: "left" else: "right",
                   c.width, c.height)
+      if leftClick:
+        mw.draggingCanvas = true
+  if mw.draggingCanvas:
+    if isMouseButtonDown(MouseButton.Left):
+      modAppDrag(idx, mouse.x - c.x, mouse.y - c.y, c.width, c.height)
+    else:
+      mw.draggingCanvas = false
   modAppUpdate(idx, dt)
 
 proc drawModAppWindow*(mw: ModAppWindow, allWindows: openArray[OSWindow]) =
