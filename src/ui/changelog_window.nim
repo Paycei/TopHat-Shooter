@@ -118,6 +118,23 @@ proc points(items: varargs[string]): string =
 # commit history since the previous release tag, not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
+    titleEn: "Version 6.3.3",
+    titleEs: "Versión 6.3.3",
+    subtitleEn: "Changes since v6.3.2",
+    subtitleEs: "Cambios desde v6.3.2",
+    latest: true,
+    entries: @[
+      ChangelogEntry(category: clcMods,
+        headEn: "Drag mod apps",
+        headEs: "Arrastra las apps de los mods",
+        en: points(
+          "Windows opened by mods can now be dragged around the desktop, just like the built-in apps.",
+          "The window stays within the desktop and remains focused while you move it."),
+        es: points(
+          "Las ventanas abiertas por los mods ahora se pueden arrastrar por el escritorio, igual que las apps incluidas.",
+          "La ventana permanece dentro del escritorio y mantiene el foco mientras la mueves.")),
+    ]),
+  ChangelogVersion(
     titleEn: "Version 6.3.2",
     titleEs: "Versión 6.3.2",
     subtitleEn: "Changes since v6.3.1",
