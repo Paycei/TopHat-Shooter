@@ -596,7 +596,7 @@ type ModApp* = object
   key*: string         ## "<mod id>:<id>"
   nameEn*, nameEs*: string
   owner*: int
-  draw*, update*, click*: ScriptValue
+  draw*, update*, click*, drag*: ScriptValue
   icon*: BodyReplace   ## the desktop icon's texture or model (none: a default glyph)
   color*: Color        ## accent of the window's title bar and the icon tile
   width*, height*: int ## the canvas at opening (and its minimum when resizable)
@@ -646,6 +646,13 @@ proc modAppClick*(i: int, x, y: float32, button: string, w, h: float32) =
   var r: RetVals
   discard callAs(modApps[i].owner, modApps[i].click,
                  [vnum(x.float64), vnum(y.float64), vstr(button), vnum(w.float64), vnum(h.float64)], r)
+
+proc modAppDrag*(i: int, x, y: float32, w, h: float32) =
+  ## drag(x, y, w, h): canvas coordinates while the left mouse button is held.
+  if i < 0 or i >= modApps.len or modApps[i].drag.kind notin {vkFunction, vkNative}: return
+  var r: RetVals
+  discard callAs(modApps[i].owner, modApps[i].drag,
+                 [vnum(x.float64), vnum(y.float64), vnum(w.float64), vnum(h.float64)], r)
 
 # ---------------------------------------------------------- lifecycle ----
 proc resetHooks*() =

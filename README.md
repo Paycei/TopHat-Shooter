@@ -98,6 +98,25 @@ Each profile has its own folder:
 
 Debug builds save to a separate `debug/` subfolder, so testing never touches your real progress.
 
+### Multiplayer
+
+PvP is a host-authoritative UDP match for 2-16 players. It is designed for players on
+the same local network.
+
+1. Open **DUELINK.exe** on the desktop and choose **HOST GAME**.
+2. Enter a nickname, choose the maximum number of players, and optionally enable teams
+   or adjust the match settings. Choose **START HOSTING**.
+3. Share the host's displayed **Local IP** and **Port** with the other players. The
+   default port is `7777`.
+4. On each other computer, open **DUELINK.exe**, choose **JOIN GAME**, enter a nickname,
+   the host's IP address, and the same port, then choose **CONNECT**.
+5. When everyone is listed in the lobby, the host chooses **START GAME**. A minimum of
+   two players is required.
+
+All players must use compatible game builds and the same loaded mod set. If a player
+cannot connect, check the host IP and UDP port, make sure the game is allowed through
+the firewall, and confirm that everyone is on the same network.
+
 ## Modding
 
 <p align="center">
