@@ -10,7 +10,7 @@
 ## draw helpers directly. Textures and models are GPU resources: they load
 ## after the window exists and unloadModAssets must run before it closes.
 
-import std/[tables, math, strutils, os, json]
+import std/[tables, math, strutils, os]
 import raylib, rlgl
 import ../types, ../sound
 
@@ -267,7 +267,7 @@ type
     ## vertex colour, one key light, GPU skinning for animations.
     shader: Shader
     tried, ok, skinning: bool
-    normal, tint, lit, skinned: ShaderLocation
+    normal, tint, lit, skinned, bones: ShaderLocation
 
   Mat3 = array[9, float32]   ## row-major
 
@@ -284,6 +284,8 @@ const
     ## the bottom of the screen
   FrontBasis: Mat3 = [1'f32, 0, 0,  0, -1, 0,  0, 0, 1]
     ## model -> screen seen from the front (the desktop cube): up is up
+  LookMaxBones = 128
+    ## size of the look shader's bone array
   LookFS = """#version 330
 in vec2 fragTexCoord;
 in vec4 fragColor;
@@ -320,9 +322,10 @@ out vec4 fragColor;
 out vec3 fragNormal;
 """
   if skinning:
-    result.add """in vec4 vertexBoneIds;
+    # raylib binds the bone attributes by these exact names
+    result.add """in vec4 vertexBoneIndices;
 in vec4 vertexBoneWeights;
-uniform mat4 boneMatrices[128];
+uniform mat4 boneMatrices[""" & $LookMaxBones & """];
 uniform int skinned;
 """
   result.add """void main() {
@@ -331,10 +334,10 @@ uniform int skinned;
 """
   if skinning:
     result.add """  if (skinned != 0 && dot(vertexBoneWeights, vec4(1.0)) > 0.0) {
-    mat4 skin = vertexBoneWeights.x * boneMatrices[int(vertexBoneIds.x)]
-              + vertexBoneWeights.y * boneMatrices[int(vertexBoneIds.y)]
-              + vertexBoneWeights.z * boneMatrices[int(vertexBoneIds.z)]
-              + vertexBoneWeights.w * boneMatrices[int(vertexBoneIds.w)];
+    mat4 skin = vertexBoneWeights.x * boneMatrices[int(vertexBoneIndices.x)]
+              + vertexBoneWeights.y * boneMatrices[int(vertexBoneIndices.y)]
+              + vertexBoneWeights.z * boneMatrices[int(vertexBoneIndices.z)]
+              + vertexBoneWeights.w * boneMatrices[int(vertexBoneIndices.w)];
     pos = skin * pos;
     nrm = mat3(skin) * nrm;
   }
@@ -364,40 +367,15 @@ proc ensureLook() =
     look.tint = getShaderLocation(s, "lookTint")
     look.lit = getShaderLocation(s, "lookLit")
     look.skinned = getShaderLocation(s, "skinned")
+    look.bones = getShaderLocation(s, "boneMatrices")
     look.shader = move s
     look.ok = true
     look.skinning = skinning
     return
 
-proc gltfRootBoneOrphaned(path: string): bool =
-  ## raylib's glTF animation loader reads the transform of the skeleton root's
-  ## PARENT without a nil check, so a file whose root bone sits at the top of
-  ## the scene (valid glTF; Blender always exports an armature node above it)
-  ## would crash the game. True for such a file.
-  try:
-    let data = readFile(path)
-    var js = data
-    if data.startsWith("glTF"):                 # GLB: header, then the JSON chunk
-      if data.len < 20 or data[16 ..< 20] != "JSON": return false
-      let n = ord(data[12]) or ord(data[13]) shl 8 or ord(data[14]) shl 16 or ord(data[15]) shl 24
-      if 20 + n > data.len: return false
-      js = data[20 ..< 20 + n]
-    let root = parseJson(js)
-    let skins = root{"skins"}.getElems()
-    if skins.len == 0: return false
-    let joints = skins[0]{"joints"}.getElems()
-    if joints.len == 0: return false
-    let rootJoint = joints[0].getInt(-1)
-    for node in root{"nodes"}.getElems():
-      for child in node{"children"}.getElems():
-        if child.getInt(-2) == rootJoint: return false
-    true
-  except CatchableError:
-    false   # not parseable here: cgltf refuses it cleanly as well
-
-proc loadModModel*(path: string, err, warn: var string): int =
+proc loadModModel*(path: string, err: var string): int =
   ## Load a 3D model with its animations (once per path). Returns the model
-  ## id, 0 with `err` set on failure; `warn` explains animations it skipped.
+  ## id, 0 with `err` set on failure.
   for i in 0 ..< modModels.len:
     if modModels[i].path == path: return i + 1
   let ext = path.splitFile.ext.toLowerAscii
@@ -420,18 +398,14 @@ proc loadModModel*(path: string, err, warn: var string): int =
                      z: (box.max.z + box.min.z) / 2)
   m.radius = max(sqrt(m.size.x * m.size.x + m.size.y * m.size.y + m.size.z * m.size.z) / 2,
                  1.0e-6'f32)
-  if ext in [".glb", ".gltf", ".iqm", ".m3d"] and m.model.boneCount > 0:
-    if ext in [".glb", ".gltf"] and gltfRootBoneOrphaned(path):
-      warn = "animations skipped: the skeleton's root bone needs a parent node " &
-             "(export it with its armature)"
-    else:
-      try:
-        m.anims = loadModelAnimations(path)
-      except CatchableError:
-        discard                                 # no animations in the file
+  if ext in [".glb", ".gltf", ".iqm", ".m3d"] and m.model.skeleton.boneCount > 0:
+    try:
+      m.anims = loadModelAnimations(path)
+    except CatchableError:
+      discard                                   # no animations in the file
     for a in 0 ..< m.anims.len:
       # A skeleton that does not match would write past the bone arrays.
-      if m.anims[a].frameCount > 0 and m.anims[a].boneCount > 0 and
+      if m.anims[a].keyframeCount > 0 and m.anims[a].boneCount > 0 and
          isModelAnimationValid(m.model, m.anims[a]):
         var name = ""
         for c in m.anims[a].name:
@@ -439,7 +413,7 @@ proc loadModModel*(path: string, err, warn: var string): int =
           name.add c
         m.animIdx.add a
         m.animNames.add name
-        m.animFrames.add m.anims[a].frameCount.int
+        m.animFrames.add m.anims[a].keyframeCount.int
   modModels.add(move m)
   modModels.len
 
@@ -525,6 +499,17 @@ proc topDownRotation(pose: ModelPose, facingDeg: float32, time: float): Mat3 =
     rotZ(degToRad(facingDeg - 90 + pose.yaw + spinAngle(pose, time))) *
     TopDownBasis * rotX(degToRad(pose.pitch)) * rotZ(degToRad(pose.roll))
 
+proc poseSkeleton(m: var ModModel, anim, frame: int) =
+  ## Pose the skeleton at `frame` of usable animation `anim` (index + 1) and
+  ## hand its bone matrices to the look shader. raylib uploads them only in
+  ## DrawModelEx, and models here draw mesh by mesh, so it is done before each
+  ## draw: every body sharing a model keeps its own pose.
+  updateModelAnimation(m.model, m.anims[m.animIdx[anim - 1]], frame.float32)
+  let n = min(m.model.skeleton.boneCount.int, LookMaxBones)
+  if n > 0 and look.bones.int32 >= 0:
+    rlgl.enableShader(look.shader.id)
+    rlgl.setUniformMatrices(look.bones.int32, m.model.boneMatrices[0], n.int32)
+
 proc drawModelPosed(id: int, x, y, pxPerUnit: float32, rot: Mat3, pose: ModelPose,
                     tint: Color, frame: int) =
   ## Model `id` with its bounding-box centre on (x, y): `rot` turns model
@@ -560,7 +545,7 @@ proc drawModelPosed(id: int, x, y, pxPerUnit: float32, rot: Mat3, pose: ModelPos
     setShaderValue(look.shader, look.lit, (if pose.lit: 1'f32 else: 0'f32))
   let skin = frame >= 0 and look.skinning and pose.anim in 1 .. m.animIdx.len
   if skin:
-    updateModelAnimationBones(m.model, m.anims[m.animIdx[pose.anim - 1]], frame.int32)
+    poseSkeleton(m[], pose.anim, frame)
   for i in 0 ..< m.model.meshCount:
     if look.skinning:
       setShaderValue(look.shader, look.skinned, int32(skin and m.model.meshes[i].boneCount > 0))
@@ -623,7 +608,7 @@ proc drawModelWorld3D*(id: int, x, y, z, scale, yawDeg, pitchDeg, rollDeg: float
   let frame = modelFrameAt(id, pose, time)
   let skin = frame >= 0 and look.skinning and pose.anim in 1 .. m.animIdx.len
   if skin:
-    updateModelAnimationBones(m.model, m.anims[m.animIdx[pose.anim - 1]], frame.int32)
+    poseSkeleton(m[], pose.anim, frame)
   for i in 0 ..< m.model.meshCount:
     if look.skinning:
       setShaderValue(look.shader, look.skinned, int32(skin and m.model.meshes[i].boneCount > 0))

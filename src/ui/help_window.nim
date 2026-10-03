@@ -403,16 +403,20 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
 
     of "licenses", "license", "licence", "licences", "legal":
       # Third-party notices that must travel with every copy of the game.
-      const LuaLicense = staticRead("../modding/lua/LICENSE")
+      const Notices = [
+        (tkHelpLicensesRaylib, staticRead("../../vendor/naylib/LICENSE-RAYLIB")),
+        (tkHelpLicensesNaylib, staticRead("../../vendor/naylib/LICENSE")),
+        (tkHelpLicensesIntro, staticRead("../../vendor/lua/LICENSE"))]
       let noticeColor = Color(r: 190, g: 200, b: 215, a: 255)
-      help.addOutput("", White)
-      help.addOutput(t(tkHelpLicensesIntro), Color(r: 120, g: 220, b: 160, a: 255))
-      help.addOutput("", White)
-      let at = LuaLicense.find("Copyright")
-      for para in LuaLicense[max(at, 0) .. ^1].replace("\r", "").split("\n\n"):
-        if para.strip.len > 0:
-          help.addOutput(para.strip.splitLines.join(" "), noticeColor, indent = 10)
-          help.addOutput("", White)
+      for (intro, license) in Notices:
+        help.addOutput("", White)
+        help.addOutput(t(intro), Color(r: 120, g: 220, b: 160, a: 255))
+        help.addOutput("", White)
+        let at = license.find("Copyright")
+        for para in license[max(at, 0) .. ^1].replace("\r", "").split("\n\n"):
+          if para.strip.len > 0:
+            help.addOutput(para.splitWhitespace.join(" "), noticeColor, indent = 10)
+            help.addOutput("", White)
 
     of "mods", "mods.exe", "mod", "modding", "addons":
       help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconMods), Color(r: 120, g: 220, b: 160, a: 255))

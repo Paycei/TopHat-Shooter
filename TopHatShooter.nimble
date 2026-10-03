@@ -9,7 +9,6 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 2.2.12"
-requires "naylib == 26.08.0"
 requires "flatty >= 0.4.0"
 requires "supersnappy >= 2.1.4"
 

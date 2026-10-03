@@ -10,24 +10,29 @@ when withDir(thisDir(), system.fileExists("nimble.paths")):
 # which only ever holds Windows absolute paths plus --noNimblePath. On Windows
 # that is exactly right and the block below is skipped. On Linux those paths
 # don't exist, so we re-discover the deps from this user's Nimble package dir.
+#
+# raylib and its naylib bindings are not a Nimble dependency: vendor/naylib is a
+# git submodule (Paycei/naylib, see its readme.md) and the game imports
+# vendor/naylib/src. Its path is added after everything else because a later
+# --path wins, so a naylib a stale nimble.paths still lists can never shadow it.
 when not defined(windows):
   import std/strutils
   let pkgsDir = getEnv("HOME") & "/.nimble/pkgs2"
   if dirExists(pkgsDir):
     for dir in listDirs(pkgsDir):
-      if dir.contains("/naylib-") or dir.contains("/flatty-") or
-         dir.contains("/supersnappy-"):
+      if dir.contains("/flatty-") or dir.contains("/supersnappy-"):
         switch("path", dir)
   switch("path", thisDir() & "/src")
+  switch("path", thisDir() & "/vendor/naylib/src")
 
 # On Windows nimble.paths normally holds correct absolute paths, so this is a
 # no-op on the machine that generated it. But those paths are hardcoded to one
 # user's home (e.g. C:\Users\<name>\.nimble), so a *different* Windows checkout
 # can't resolve them. Re-discover from the local Nimble package dir, mirroring
 # the Linux block. Unlike Linux we must be version-aware: several versions of a
-# dep can be installed side by side (this machine has naylib 25.x and 26.x), and
-# adding the stale one to the search path could shadow the required >=26.08.0.
-# So pick the highest installed version of each package.
+# dep can be installed side by side, and adding the stale one to the search
+# path could shadow the required one. So pick the highest installed version of
+# each package.
 when defined(windows):
   import std/strutils
 
@@ -38,7 +43,7 @@ when defined(windows):
     p[i + 1 .. ^1]
 
   proc pkgVersion(dirName: string): seq[int] =
-    # "naylib-26.08.0-<hash>" -> @[26, 8, 0]; the hash field is ignored.
+    # "flatty-0.3.4-<hash>" -> @[0, 3, 4]; the hash field is ignored.
     let parts = dirName.split('-')
     if parts.len >= 2:
       for n in parts[1].split('.'):
@@ -55,7 +60,7 @@ when defined(windows):
   let nimbleHome = getEnv("NIMBLE_DIR", getEnv("USERPROFILE") & "\\.nimble")
   let pkgsDir = nimbleHome & "\\pkgs2"
   if dirExists(pkgsDir):
-    for pkg in ["naylib", "flatty", "supersnappy"]:
+    for pkg in ["flatty", "supersnappy"]:
       var bestDir = ""
       var bestVer: seq[int] = @[]
       for dir in listDirs(pkgsDir):
@@ -68,3 +73,15 @@ when defined(windows):
       if bestDir.len > 0:
         switch("path", bestDir)
   switch("path", thisDir() & "\\src")
+  switch("path", thisDir() & "\\vendor\\naylib\\src")
+
+# A clone made without --recursive has an empty vendor/naylib. Stop here: the
+# compile would otherwise fail at "cannot open file: raylib" with no hint why, or
+# worse, pick up an old naylib Nimble installed and fail on raylib 6 changes.
+# (Nimble never reads config.nims, so `nimble install` still works.)
+if not fileExists(thisDir() & "/vendor/naylib/src/raylib.nim"):
+  quit "vendor/naylib is empty: run `git submodule update --init` (or clone with --recursive).", 1
+
+# Mod models skin on the GPU (LookShader in mod_assets.nim), so raylib must
+# upload the bone index/weight vertex buffers. naylib leaves that off by default.
+switch("define", "NaylibSupportGpuSkinning")

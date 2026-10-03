@@ -735,7 +735,7 @@ proc drawSurvivalChests*(game: Game) =
     # Crate body
     let body = Rectangle(x: cx - w * 0.5'f32, y: cy - h * 0.5'f32, width: w, height: h)
     drawRectangleRounded(body, 0.25'f32, 4, Color(r: 14, g: 22, b: 34, a: 240))
-    drawRectangleRoundedLines(body, 0.25'f32, 4, 2.0'f32, accent)
+    drawRectangleRoundedLines(body, 0.25'f32, 4, -2.0'f32, accent)
     # Lid seam
     drawLine(Vector2(x: cx - w * 0.5'f32 + 2.0'f32, y: cy - h * 0.12'f32),
              Vector2(x: cx + w * 0.5'f32 - 2.0'f32, y: cy - h * 0.12'f32), 2.0'f32,
@@ -1306,7 +1306,7 @@ proc drawSurvivalEventsUnder*(game: Game) =
       drawRectangleGradientV(cx - beamW div 2, 0, beamW, cy, withAlpha(RogueColor, 0),
                              withAlpha(RogueColor, int(90.0'f32 + prog * 120.0'f32)))
       drawRectangle(cx - 1, 0, 2, cy, withAlpha(WHITE, int(60.0'f32 + prog * 140.0'f32)))
-      drawCircleGradient(cx, cy, 40.0'f32 + prog * 50.0'f32,
+      drawCircleGradient(Vector2(x: cx.float32, y: cy.float32), 40.0'f32 + prog * 50.0'f32,
                          withAlpha(RogueColor, int(70.0'f32 + prog * 110.0'f32)),
                          withAlpha(RogueColor, 0))
       for i in 0..2:
@@ -1573,7 +1573,7 @@ proc drawRevealCard(x, y: int32, pu: PowerUp, flip: float32, accent: Color, time
   let rect = Rectangle(x: rx.float32, y: y.float32, width: w.float32, height: CardH.float32)
   if not faceUp:
     drawRectangleRounded(rect, 0.12'f32, 6, Color(r: 18, g: 26, b: 40, a: 250))
-    drawRectangleRoundedLines(rect, 0.12'f32, 6, 2.0'f32, withAlpha(accent, 200))
+    drawRectangleRoundedLines(rect, 0.12'f32, 6, -2.0'f32, withAlpha(accent, 200))
     if w > 40:
       let pulse = sin(time * 6.0'f32) * 0.5'f32 + 0.5'f32
       let q = "?"
@@ -1582,7 +1582,7 @@ proc drawRevealCard(x, y: int32, pu: PowerUp, flip: float32, accent: Color, time
                withAlpha(accent, int(140.0'f32 + pulse * 100.0'f32)))
     return
   drawRectangleRounded(rect, 0.12'f32, 6, Color(r: 12, g: 20, b: 32, a: 250))
-  drawRectangleRoundedLines(rect, 0.12'f32, 6, 2.0'f32, edge)
+  drawRectangleRoundedLines(rect, 0.12'f32, 6, -2.0'f32, edge)
   if w < CardW - 10:
     return   # still mid-flip: only the frame reads at this width
   const iconSize = 56'i32
@@ -1621,7 +1621,7 @@ proc drawSurvivalCacheReveal*(game: Game, screenWidth, screenHeight: int32) =
   let panel = Rectangle(x: panelX.float32, y: panelY.float32,
                         width: panelW.float32, height: panelH.float32)
   drawRectangleRounded(panel, 0.06'f32, 8, Color(r: 8, g: 14, b: 24, a: 240))
-  drawRectangleRoundedLines(panel, 0.06'f32, 8, 2.0'f32, accent)
+  drawRectangleRoundedLines(panel, 0.06'f32, 8, -2.0'f32, accent)
   # Title bar
   drawRectangle(panelX + 2, panelY + 2, panelW - 4, 34, withAlpha(accent, 40))
   let title = t(survivalCacheNameKey(r.tier)) & "  //  " & t(tkSurvivalCacheDecrypted)
@@ -1696,7 +1696,7 @@ proc drawSurvivalTracker(game: Game, x, y, w: int32) =
   let info = survivalTrackerInfo(game)
   let rect = Rectangle(x: x.float32, y: y.float32, width: w.float32, height: SurvivalTrackerH.float32)
   drawRectangleRounded(rect, 0.25'f32, 6, Color(r: 8, g: 18, b: 28, a: 205))
-  drawRectangleRoundedLines(rect, 0.25'f32, 6, 1.5'f32, withAlpha(color, 170))
+  drawRectangleRoundedLines(rect, 0.25'f32, 6, -1.5'f32, withAlpha(color, 170))
   const pad: int32 = 12
   let name = t(survivalEventNameKey(ev.kind))
   drawText(name, x + pad + 1, y + 7, 14, Color(r: 0, g: 0, b: 0, a: 140))
@@ -1845,7 +1845,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   let panelRect = Rectangle(x: panelX.float32, y: panelY.float32,
                             width: panelW.float32, height: panelH.float32)
   drawRectangleRounded(panelRect, 0.28'f32, 6, Color(r: 8, g: 18, b: 28, a: 205))
-  drawRectangleRoundedLines(panelRect, 0.28'f32, 6, 1.5'f32,
+  drawRectangleRoundedLines(panelRect, 0.28'f32, 6, -1.5'f32,
                             withAlpha(accent, 150))
 
   # --- Row 1: stopwatch icon + MM:SS.CC -----------------------------------

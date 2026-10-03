@@ -124,6 +124,19 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.3.2",
     latest: true,
     entries: @[
+      # --- Improvements ---
+      ChangelogEntry(category: clcImproved,
+        headEn: "Engine update",
+        headEs: "Motor actualizado",
+        en: points(
+          "The game now runs on the latest version of raylib, the library behind its graphics, sound and input.",
+          "Rounded outlines on cards, buttons and icons look a little sharper. Everything keeps its size and place.",
+          "Typing licenses in the Help terminal now also lists the raylib and naylib licenses."),
+        es: points(
+          "El juego ahora funciona con la última versión de raylib, la biblioteca que mueve sus gráficos, su sonido y sus controles.",
+          "Los contornos redondeados de tarjetas, botones e iconos se ven algo más nítidos. Todo conserva su tamaño y su posición.",
+          "Escribir licenses en la terminal de Ayuda ahora también muestra las licencias de raylib y naylib.")),
+      # --- Mods ---
       ChangelogEntry(category: clcMods,
         headEn: "Drag mod apps",
         headEs: "Arrastra las apps de los mods",
@@ -133,6 +146,15 @@ let changelog: seq[ChangelogVersion] = @[
         es: points(
           "Las ventanas abiertas por los mods ahora se pueden arrastrar por el escritorio, igual que las apps incluidas.",
           "La ventana permanece dentro del escritorio y mantiene el foco mientras la mueves.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Smoother model animations",
+        headEs: "Animaciones de modelos más fluidas",
+        en: points(
+          "Animated 3D models no longer snap to a wrong pose on the last frame of each loop.",
+          "glTF and GLB models whose skeleton has no parent node now play their animations instead of standing still."),
+        es: points(
+          "Los modelos 3D animados ya no saltan a una pose incorrecta en el último fotograma de cada ciclo.",
+          "Los modelos glTF y GLB cuyo esqueleto no tiene un nodo padre ahora reproducen sus animaciones en lugar de quedarse quietos.")),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.2",

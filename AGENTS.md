@@ -15,6 +15,7 @@ This file documents repository conventions, common commands, and the project-spe
 - Install Nim and Nimble.
 - On Windows, install Visual C++ Build Tools for release builds that use `--cc:vcc`.
 - `config.nims` may define a project-local `nimble.paths` override for dependency locations.
+- raylib and its naylib bindings come from the `vendor/naylib` git submodule ([Paycei/naylib](https://github.com/Paycei/naylib), a maintained fork of the archived upstream). Clone with `--recursive`, or run `git submodule update --init`. Read `vendor/naylib/readme.md` before editing, since part of it is generated; naylib changes are committed and pushed in the submodule first, then the new pointer is committed here.
 
 ## Common Commands
 

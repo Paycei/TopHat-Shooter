@@ -1317,7 +1317,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     drawIconTri(v2(bx - 11, by + 10), v2(bx - 3, by + 10), v2(bx - 13, by + 19),
                 accent)
     drawRectangleRounded(bubble, 0.35, 6, Color(r: 14, g: 18, b: 30, a: 255))
-    drawRectangleRoundedLines(bubble, 0.35, 6, 2.0, accent)
+    drawRectangleRoundedLines(bubble, 0.35, 6, -2.0, accent)
     # Legs first so the shell laps over their roots; three per side.
     let twitch = sin(time * 9.0'f32) * 1.2'f32
     let legCol = Color(r: 230, g: 236, b: 245, a: 230)
@@ -1342,7 +1342,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let panel = Rectangle(x: centerX.float32 - 18, y: centerY.float32 - 16, width: 36, height: 32)
     let panelCol = Color(r: 14, g: 18, b: 30, a: 255)
     drawRectangleRounded(panel, 0.25, 6, panelCol)
-    drawRectangleRoundedLines(panel, 0.25, 6, 2.0, dim)
+    drawRectangleRoundedLines(panel, 0.25, 6, -2.0, dim)
     let slide = (sin(time * 2.0'f32) * 0.5'f32 + 0.5'f32) * 3.0'f32
     let px = centerX.float32 - 2.0'f32 + slide
     let py = centerY.float32 + 2.0'f32
@@ -1369,7 +1369,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     else:
       let frame = Rectangle(x: cx - 19, y: cy - 15, width: 38, height: 30)
       drawRectangleRounded(frame, 0.15, 4, Color(r: 14, g: 18, b: 30, a: 255))
-      drawRectangleRoundedLines(frame, 0.15, 4, 2.0, accent)
+      drawRectangleRoundedLines(frame, 0.15, 4, -2.0, accent)
       drawRectangle(int32(frame.x) + 2, int32(frame.y) + 2, int32(frame.width) - 4, 6, dim)
       # The first character, whole: a name may start with an accented letter.
       let letter = if icon.name.len > 0: unicode.toUpper($icon.name.runeAt(0)) else: "?"
@@ -1395,7 +1395,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     else:
       let frame = Rectangle(x: cx - 19, y: cy - 15, width: 38, height: 30)
       drawRectangleRounded(frame, 0.15, 4, Color(r: 14, g: 18, b: 30, a: 255))
-      drawRectangleRoundedLines(frame, 0.15, 4, 2.0, accent)
+      drawRectangleRoundedLines(frame, 0.15, 4, -2.0, accent)
       let pulse = 1.0'f32 + sin(time * 3.0'f32) * 0.06'f32
       let h = 9.0'f32 * pulse
       drawTriangle(v2(cx - h * 0.6'f32, cy - h), v2(cx - h * 0.6'f32, cy + h),

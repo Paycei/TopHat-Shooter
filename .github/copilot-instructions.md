@@ -45,7 +45,7 @@ Notes:
 - Ref objects: Player/Enemy/Bullet are `ref object`s — modifying a local ref mutates the shared model.
 - Registry pattern: Skins, power-ups, and cosmetics follow `enum -> registry entry -> localization keys -> exhaustive render branch -> save parse branch`.
 - Build paths: Windows release links icono.res; do not remove it from passL flags.
-- Dependency discovery: config.nims contains logic for locating highest installed versions of naylib/flatty/supersnappy on Windows; automated tools should respect it.
+- Dependency discovery: config.nims contains logic for locating highest installed versions of flatty/supersnappy on Windows; automated tools should respect it. raylib + naylib come from the `vendor/naylib` git submodule (Paycei/naylib, a maintained fork of the archived upstream; clone with `--recursive`); read `vendor/naylib/readme.md` before editing, since part of it is generated.
 
 ## Tests & shortcuts
 

@@ -1,4 +1,4 @@
-## Raw bindings to the vendored Lua 5.5 (src/modding/lua, see its LICENSE).
+## Raw bindings to the vendored Lua 5.5 (vendor/lua, see its LICENSE).
 ##
 ## The C sources are compiled straight into the executable (no DLL), so every
 ## build target (MSVC, the WSL Linux build, the Android NDK) gets the same Lua.
@@ -14,33 +14,33 @@ when defined(vcc):
 else:
   const LuaCFlags = "-fno-fast-math"
 
-{.compile("lua/lapi.c", LuaCFlags).}
-{.compile("lua/lcode.c", LuaCFlags).}
-{.compile("lua/lctype.c", LuaCFlags).}
-{.compile("lua/ldebug.c", LuaCFlags).}
-{.compile("lua/ldo.c", LuaCFlags).}
-{.compile("lua/ldump.c", LuaCFlags).}
-{.compile("lua/lfunc.c", LuaCFlags).}
-{.compile("lua/lgc.c", LuaCFlags).}
-{.compile("lua/llex.c", LuaCFlags).}
-{.compile("lua/lmem.c", LuaCFlags).}
-{.compile("lua/lobject.c", LuaCFlags).}
-{.compile("lua/lopcodes.c", LuaCFlags).}
-{.compile("lua/lparser.c", LuaCFlags).}
-{.compile("lua/lstate.c", LuaCFlags).}
-{.compile("lua/lstring.c", LuaCFlags).}
-{.compile("lua/ltable.c", LuaCFlags).}
-{.compile("lua/ltm.c", LuaCFlags).}
-{.compile("lua/lundump.c", LuaCFlags).}
-{.compile("lua/lvm.c", LuaCFlags).}
-{.compile("lua/lzio.c", LuaCFlags).}
-{.compile("lua/lauxlib.c", LuaCFlags).}
-{.compile("lua/lbaselib.c", LuaCFlags).}
-{.compile("lua/lcorolib.c", LuaCFlags).}
-{.compile("lua/lmathlib.c", LuaCFlags).}
-{.compile("lua/lstrlib.c", LuaCFlags).}
-{.compile("lua/ltablib.c", LuaCFlags).}
-{.compile("lua/lutf8lib.c", LuaCFlags).}
+{.compile("../../vendor/lua/lapi.c", LuaCFlags).}
+{.compile("../../vendor/lua/lcode.c", LuaCFlags).}
+{.compile("../../vendor/lua/lctype.c", LuaCFlags).}
+{.compile("../../vendor/lua/ldebug.c", LuaCFlags).}
+{.compile("../../vendor/lua/ldo.c", LuaCFlags).}
+{.compile("../../vendor/lua/ldump.c", LuaCFlags).}
+{.compile("../../vendor/lua/lfunc.c", LuaCFlags).}
+{.compile("../../vendor/lua/lgc.c", LuaCFlags).}
+{.compile("../../vendor/lua/llex.c", LuaCFlags).}
+{.compile("../../vendor/lua/lmem.c", LuaCFlags).}
+{.compile("../../vendor/lua/lobject.c", LuaCFlags).}
+{.compile("../../vendor/lua/lopcodes.c", LuaCFlags).}
+{.compile("../../vendor/lua/lparser.c", LuaCFlags).}
+{.compile("../../vendor/lua/lstate.c", LuaCFlags).}
+{.compile("../../vendor/lua/lstring.c", LuaCFlags).}
+{.compile("../../vendor/lua/ltable.c", LuaCFlags).}
+{.compile("../../vendor/lua/ltm.c", LuaCFlags).}
+{.compile("../../vendor/lua/lundump.c", LuaCFlags).}
+{.compile("../../vendor/lua/lvm.c", LuaCFlags).}
+{.compile("../../vendor/lua/lzio.c", LuaCFlags).}
+{.compile("../../vendor/lua/lauxlib.c", LuaCFlags).}
+{.compile("../../vendor/lua/lbaselib.c", LuaCFlags).}
+{.compile("../../vendor/lua/lcorolib.c", LuaCFlags).}
+{.compile("../../vendor/lua/lmathlib.c", LuaCFlags).}
+{.compile("../../vendor/lua/lstrlib.c", LuaCFlags).}
+{.compile("../../vendor/lua/ltablib.c", LuaCFlags).}
+{.compile("../../vendor/lua/lutf8lib.c", LuaCFlags).}
 
 type
   LuaState* = distinct pointer

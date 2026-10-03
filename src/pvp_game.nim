@@ -2710,7 +2710,7 @@ proc drawPorts(pvp: PvPGameState) =
       const box = 13.0'f32
       let rect = Rectangle(x: c.x - box, y: cy - box, width: box * 2, height: box * 2)
       drawRectangleRounded(rect, 0.3, 6, Color(r: 18, g: 22, b: 34, a: 235))
-      drawRectangleRoundedLines(rect, 0.3, 6, 2, col)
+      drawRectangleRoundedLines(rect, 0.3, 6, -2, col)
       drawPackageIcon(port.kind, c.x, cy, 8.0, col)
       drawTextCentered(packageName(port.kind), c.x.int32, (c.y + r + 4).int32, 10,
                        withAlpha(col, 210))
@@ -3053,7 +3053,7 @@ proc drawKeyPrompt(x, y: int32, key, label: string, enabled = true) =
   drawRectangleRounded(Rectangle(x: x.float32, y: y.float32, width: kw.float32, height: 24), 0.25, 4,
                        Color(r: 40, g: 46, b: 62, a: uint8(a)))
   drawRectangleRoundedLines(Rectangle(x: x.float32, y: y.float32, width: kw.float32, height: 24), 0.25, 4,
-                            1, withAlpha(Color(r: 150, g: 170, b: 210, a: 255), a))
+                            -1, withAlpha(Color(r: 150, g: 170, b: 210, a: 255), a))
   drawText(key, x + 7, y + 4, 16, withAlpha(White, a))
   drawText(label, x + kw + 8, y + 3, 18, withAlpha(White, a))
 
