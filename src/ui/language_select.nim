@@ -8,6 +8,7 @@
 ## bilingual title, so a player of either language understands it.
 
 import raylib, math
+import ../draw_prims
 
 const
   LangEnglish* = 0
@@ -48,8 +49,8 @@ proc drawUSFlag(x, y, w, h: float32) =
     for c in 0 ..< 5:
       let sx = x + cantonW * (c.float32 + 1.0'f32) / 6.0'f32
       let sy = y + cantonH * (row.float32 + 1.0'f32) / 5.0'f32
-      drawCircle(Vector2(x: sx, y: sy), 2.2'f32, Color(r: 255, g: 255, b: 255, a: 255))
-  drawRectangleLines(Rectangle(x: x, y: y, width: w, height: h),
+      drawDisc(Vector2(x: sx, y: sy), 2.2'f32, Color(r: 255, g: 255, b: 255, a: 255))
+  drawRectOutline(Rectangle(x: x, y: y, width: w, height: h),
                      1.5'f32, Color(r: 0, g: 0, b: 0, a: 120))
 
 proc drawSpainFlag(x, y, w, h: float32) =
@@ -70,7 +71,7 @@ proc drawSpainFlag(x, y, w, h: float32) =
                 Color(r: 200, g: 150, b: 30, a: 255))
   drawRectangle((ex - 5.0'f32).int32, (ey - 14.0'f32).int32, 10, 4,
                 Color(r: 230, g: 190, b: 40, a: 255))  # crown bar
-  drawRectangleLines(Rectangle(x: x, y: y, width: w, height: h),
+  drawRectOutline(Rectangle(x: x, y: y, width: w, height: h),
                      1.5'f32, Color(r: 0, g: 0, b: 0, a: 120))
 
 proc drawLanguageCard(rect: Rectangle, hovered: bool, time: float32,
@@ -83,7 +84,7 @@ proc drawLanguageCard(rect: Rectangle, hovered: bool, time: float32,
   drawRectangle((rect.x + 4).int32, (rect.y + 5).int32, rect.width.int32, rect.height.int32,
                 Color(r: 0, g: 0, b: 0, a: 120))  # drop shadow
   drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
-  drawRectangleLines(rect, if hovered: 3.0'f32 else: 1.5'f32, border)
+  drawRectOutline(rect, if hovered: 3.0'f32 else: 1.5'f32, border)
 
   # Flag, centred near the top of the card.
   let flagW = rect.width * 0.55'f32

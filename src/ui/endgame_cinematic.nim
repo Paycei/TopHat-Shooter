@@ -4,6 +4,7 @@
 ## newEndgameCutscene() via the generic framework in cutscene.nim.
 
 import raylib, rlgl, math
+import ../draw_prims
 import particle_types, background_fx, ../types, ../shapes, ../localization, ../sound, cinematic_common, cutscene, ../utils
 
 const
@@ -29,14 +30,14 @@ proc drawFallShot(local, duration: float32, screenWidth, screenHeight: int32,
   for i in 0..<12:
     let a = i.float32 * PI * 2.0'f32 / 12.0'f32 + local * 0.4'f32
     let len = 36.0'f32 + collapse * 230.0'f32
-    drawLine(cx.int32, cy.int32,
+    drawStroke(cx.int32, cy.int32,
              (cx + cos(a) * len).int32, (cy + sin(a) * len).int32,
              Color(r: 255, g: 60, b: 200, a: alphaByte(alpha * (1.0'f32 - collapse) * 150.0'f32)))
 
   for k in 0..<3:
     let rp = clamp01(collapse * 1.3'f32 - k.float32 * 0.18'f32)
     if rp > 0.0'f32:
-      drawCircleLines(Vector2(x: cx, y: cy), rp * 340.0'f32,
+      drawCircleOutline(Vector2(x: cx, y: cy), rp * 340.0'f32,
                       colorA(EndAccent, alpha * (1.0'f32 - rp) * 180.0'f32))
 
   for i in 0..<18:
@@ -76,7 +77,7 @@ proc drawPurgeShot(local, duration: float32, screenWidth, screenHeight: int32,
     if sz > 0.6'f32:
       drawRealEnemy(enemyKinds[i mod enemyKinds.len], ex, ey, sz, local, i, 0)
     if passed > 0.0'f32 and passed < 1.0'f32:
-      drawCircle(Vector2(x: ex, y: ey), 7.0'f32 * (1.0'f32 - passed),
+      drawDisc(Vector2(x: ex, y: ey), 7.0'f32 * (1.0'f32 - passed),
                  colorA(EndAccent, alpha * 200.0'f32))
 
   drawSoftGlow(frontX, screenHeight.float32 * 0.5'f32, 90.0'f32,
@@ -100,9 +101,9 @@ proc drawRestoreShot(local, duration: float32, screenWidth, screenHeight: int32,
     let dist = (1.0'f32 - inT) * 270.0'f32 + 40.0'f32
     let px = cx + cos(ang) * dist
     let py = cy + sin(ang) * dist
-    drawCircle(Vector2(x: px, y: py), 3.0'f32 * inT + 1.0'f32,
+    drawDisc(Vector2(x: px, y: py), 3.0'f32 * inT + 1.0'f32,
                colorA(EndAccent, alpha * inT * 170.0'f32))
-    drawLine(px.int32, py.int32, cx.int32, cy.int32,
+    drawStroke(px.int32, py.int32, cx.int32, cy.int32,
              colorA(EndAccent, alpha * inT * 28.0'f32))
 
   drawKernelModel(newVector2f(cx, cy), 46.0'f32, local, boot, alpha)
@@ -127,7 +128,7 @@ proc drawCrownShot(local, duration: float32, screenWidth, screenHeight: int32,
     let p = fractCoord(local * 0.4'f32 + i.float32 * 0.137'f32)
     let sx = cx + sin(i.float32 * 2.3'f32 + local) * (40.0'f32 + i.float32 * 4.0'f32)
     let sy = screenHeight.float32 * 0.92'f32 - p * screenHeight.float32 * 0.72'f32
-    drawCircle(Vector2(x: sx, y: sy), 2.6'f32 * (1.0'f32 - p),
+    drawDisc(Vector2(x: sx, y: sy), 2.6'f32 * (1.0'f32 - p),
                colorA(EndAccent, alpha * (1.0'f32 - p) * 200.0'f32))
 
   let pr = 30.0'f32 * (0.82'f32 + rise * 0.18'f32)

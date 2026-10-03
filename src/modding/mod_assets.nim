@@ -435,9 +435,11 @@ proc modelAnimFrames*(id, anim: int): int =
   if id <= 0 or id > modModels.len or anim <= 0 or anim > modModels[id - 1].animFrames.len: 1
   else: modModels[id - 1].animFrames[anim - 1]
 
-proc modelFrameAt*(id: int, pose: ModelPose, time: float): int =
+proc modelFrameAt*(id: int, pose: ModelPose, time: float): float32 =
   ## The frame animation pose.anim shows `time` seconds in (looping, scaled
-  ## by pose.speed); -1 = no animation (the rest pose).
+  ## by pose.speed); -1 = no animation (the rest pose). Fractional: raylib 6
+  ## blends the two keyframes around it, so a slowed animation or a fast
+  ## monitor no longer steps at the 60 fps the keyframes were sampled at.
   if id <= 0 or id > modModels.len: return -1
   let m = addr modModels[id - 1]
   if pose.anim <= 0 or pose.anim > m.animFrames.len: return -1
@@ -446,7 +448,7 @@ proc modelFrameAt*(id: int, pose: ModelPose, time: float): int =
   # A positive range test (not t != t): release builds use fast math, which may
   # drop a NaN self-comparison, and a bad frame would read past the poses.
   if not (abs(t) < 1.0e15): return 0
-  clamp(int(floorMod(t, frames.float)), 0, frames - 1)
+  clamp(floorMod(t, frames.float), 0.0, frames.float).float32
 
 proc modelFootprint*(id: int): float32 =
   ## The model's size seen from above (the larger of its width and length):
@@ -499,19 +501,20 @@ proc topDownRotation(pose: ModelPose, facingDeg: float32, time: float): Mat3 =
     rotZ(degToRad(facingDeg - 90 + pose.yaw + spinAngle(pose, time))) *
     TopDownBasis * rotX(degToRad(pose.pitch)) * rotZ(degToRad(pose.roll))
 
-proc poseSkeleton(m: var ModModel, anim, frame: int) =
+proc poseSkeleton(m: var ModModel, anim: int, frame: float32) =
   ## Pose the skeleton at `frame` of usable animation `anim` (index + 1) and
   ## hand its bone matrices to the look shader. raylib uploads them only in
   ## DrawModelEx, and models here draw mesh by mesh, so it is done before each
-  ## draw: every body sharing a model keeps its own pose.
-  updateModelAnimation(m.model, m.anims[m.animIdx[anim - 1]], frame.float32)
+  ## draw: every body sharing a model keeps its own pose. A fractional frame
+  ## blends its two keyframes (the last one blends back into the first).
+  updateModelAnimation(m.model, m.anims[m.animIdx[anim - 1]], frame)
   let n = min(m.model.skeleton.boneCount.int, LookMaxBones)
   if n > 0 and look.bones.int32 >= 0:
     rlgl.enableShader(look.shader.id)
     rlgl.setUniformMatrices(look.bones.int32, m.model.boneMatrices[0], n.int32)
 
 proc drawModelPosed(id: int, x, y, pxPerUnit: float32, rot: Mat3, pose: ModelPose,
-                    tint: Color, frame: int) =
+                    tint: Color, frame: float32) =
   ## Model `id` with its bounding-box centre on (x, y): `rot` turns model
   ## space into screen space and `pxPerUnit` scales it. `frame` is the frame of
   ## animation pose.anim to show (-1: the rest pose).
@@ -554,7 +557,7 @@ proc drawModelPosed(id: int, x, y, pxPerUnit: float32, rot: Mat3, pose: ModelPos
   disableDepthTest()
   setMatrixProjection(saved)
 
-proc drawModModel*(id: int, x, y, pxPerUnit, facingDeg: float32, pose: ModelPose, frame: int) =
+proc drawModModel*(id: int, x, y, pxPerUnit, facingDeg: float32, pose: ModelPose, frame: float32) =
   ## draw.model: model `id` centred on (x, y), `pxPerUnit` pixels per model
   ## unit, its front turned to `facingDeg` (screen degrees, 90 = down).
   drawModelPosed(id, x, y, pxPerUnit, topDownRotation(pose, facingDeg, getTime()), pose,

@@ -1,4 +1,5 @@
 import raylib, rlgl, random, math, strutils, algorithm
+import draw_prims
 import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_debug_panel, ui/os_combined_hud, ui/os_legacy_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_helpers, ui/hud_dock, boss_weakpoints, mode_hazards, mode_visuals, game/mode_mechanics
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
@@ -23,7 +24,7 @@ proc drawVolatilePrimed(enemy: Enemy, time: float32) =
   let flick = sin(time * 12.0'f32 + enemy.id.float32) * 0.5'f32 + 0.5'f32
   let r = enemy.radius + 7.0'f32 + flick * 2.0'f32
   let center = Vector2(x: enemy.pos.x, y: enemy.pos.y)
-  drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r,
+  drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r,
                   withAlpha(VOLATILE_COLOR, uint8(110.0'f32 + flick * 100.0'f32)))
   let span = 360.0'f32 / count.float32
   let spin = time * 140.0'f32
@@ -3480,9 +3481,9 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           "prism_defense",      "prism_array",     "light_cascade",
           "slow_time",          "time_distortion", "time_collapse",
           "orbital_pattern",    "satellite_swarm", "deploy_satellites", "multi_orbital",
-          "orbital_chaos",                          # Boss 7 P3: zone like its earlier phases (was omitted)
+          "orbital_chaos",                          # Boss 7 P3: zone like its earlier phases
           "electric_buildup",   "electric_surge",
-          "critical_discharge"                      # Boss 6 P3: zone like its earlier phases (was omitted)
+          "critical_discharge"                      # Boss 6 P3: zone like its earlier phases
         ]
 
         let distToPlayer = distance(enemy.pos, game.player.pos)
@@ -5703,13 +5704,13 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
 
     # Breathing outer glow.
     let glowA = uint8(clamp(50.0'f32 + pulseT * 150.0'f32, 0.0, 255.0))
-    drawRectangleLines(Rectangle(x: (panelX - 2).float32, y: (panelY - 2).float32,
+    drawRectOutline(Rectangle(x: (panelX - 2).float32, y: (panelY - 2).float32,
                                  width: (panelW + 4).float32, height: (cardH + 4).float32),
                        2, withAlpha(activeColor, glowA.int))
     drawRectangle(panelX + 3, panelY + 4, panelW, cardH, Color(r: 0, g: 0, b: 0, a: 110))
     drawRectangle(panelX, panelY, panelW, cardH, Color(r: 8, g: 12, b: 19, a: 236))
     drawRectangle(panelX, panelY, panelW, 4, activeColor)
-    drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+    drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                  width: panelW.float32, height: cardH.float32),
                        2, withAlpha(activeColor, 230))
 
@@ -5736,7 +5737,7 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
                          b: min(255, activeColor.b.int + 80).uint8, a: 255)
       drawRectangleGradientV(barX, fy, barW, fillH, bright, withAlpha(activeColor, 235))
       drawRectangle(barX, fy, barW, 2, Color(r: 255, g: 255, b: 255, a: 205))
-    drawRectangleLines(Rectangle(x: barX.float32, y: barTop.float32,
+    drawRectOutline(Rectangle(x: barX.float32, y: barTop.float32,
                                  width: barW.float32, height: barAreaH.float32),
                        2, withAlpha(activeColor, 235))
     # HP value under the bar.
@@ -5762,7 +5763,7 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
         drawRectangle(pipX, py, pipW, pipH, withAlpha(pcol, pa))
       else:
         drawRectangle(pipX, py, pipW, pipH, Color(r: 14, g: 20, b: 28, a: 200))
-      drawRectangleLines(Rectangle(x: pipX.float32, y: py.float32, width: pipW.float32, height: pipH.float32),
+      drawRectOutline(Rectangle(x: pipX.float32, y: py.float32, width: pipW.float32, height: pipH.float32),
                          1, withAlpha(pcol, pa))
       if pipH >= 12:
         drawText("P" & $(p + 1), pipX + 3, py + (pipH - 8) div 2, 8,
@@ -5780,7 +5781,7 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
   drawRectangle(panelX + 3, panelY + 4, panelW, panelH, Color(r: 0, g: 0, b: 0, a: 110))
   drawRectangle(panelX, panelY, panelW, panelH, Color(r: 8, g: 12, b: 19, a: 232))
   drawRectangle(panelX, panelY, panelW, 3, activeColor)
-  drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+  drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                width: panelW.float32, height: panelH.float32),
                      1, withAlpha(activeColor, 210))
 
@@ -5850,7 +5851,7 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
       let poolTextW = measureText(poolText, 8)
       drawText(poolText, barX + barW - poolTextW - 6, y + 1, 8, White)
 
-    drawRectangleLines(Rectangle(x: barX.float32, y: y.float32,
+    drawRectOutline(Rectangle(x: barX.float32, y: y.float32,
                                  width: barW.float32, height: 9.0'f32),
                        1, withAlpha(phaseColor, rowAlpha))
     y += rowH
@@ -5863,7 +5864,7 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
     let shieldY = panelY + panelH - 15
     drawRectangle(shieldX, shieldY, shieldW, 12, Color(r: 5, g: 15, b: 24, a: 235))
     drawRectangle(shieldX, shieldY, int32(shieldW.float32 * shieldPct), 12, withAlpha(activeColor, 125))
-    drawRectangleLines(Rectangle(x: shieldX.float32, y: shieldY.float32,
+    drawRectOutline(Rectangle(x: shieldX.float32, y: shieldY.float32,
                                  width: shieldW.float32, height: 12.0'f32),
                        1, withAlpha(activeColor, 255))
     drawText(shieldText, shieldX + 8, shieldY + 2, 10, White)
@@ -6024,7 +6025,7 @@ proc drawLegacyHud(game: Game, hudLayout: HudLayout, hudScale: float32, vw, vh: 
         Color(r: 0, g: 220, b: 255, a: 200)
       drawRectangle(cardX, cardY, cardW, cardH, Color(r: 8, g: 15, b: 25, a: 170))
       drawRectangle(cardX, cardY, 2, cardH, accent)
-      drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32,
+      drawRectOutline(Rectangle(x: cardX.float32, y: cardY.float32,
                                    width: cardW.float32, height: cardH.float32),
                          1, withAlpha(accent, 70))
       var iy = cardY + 5
@@ -6073,9 +6074,9 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
 
   #  outer glow halo
   let glowR = 22.0 + pulse * 5.0 + (if charging: fastPulse * 8.0 else: 0.0)
-  drawCircle(Vector2(x: sx, y: sy), glowR,
+  drawDisc(Vector2(x: sx, y: sy), glowR,
              withAlpha(glowColor, uint8(glowColor.a.int div 3)))
-  drawCircleLines(sx.int32, sy.int32, glowR,
+  drawCircleOutline(sx.int32, sy.int32, glowR,
              withAlpha(glowColor, glowColor.a))
 
   #  rotating outer shield ring
@@ -6084,7 +6085,7 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
     let ra = shieldAngle + k.float32 * (PI / 3.0)
     let ax = sx + cos(ra) * 15.0
     let ay = sy + sin(ra) * 15.0
-    drawCircle(Vector2(x: ax, y: ay), 2.5,
+    drawDisc(Vector2(x: ax, y: ay), 2.5,
                withAlpha(coreColor, uint8(160 + pulse * 80)))
 
   #  hexagonal body outline
@@ -6094,7 +6095,7 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
     let a1 = bodyAngle + (k + 1).float32 * (PI / 3.0)
     let bx0 = sx + cos(a0) * 11.0;  let by0 = sy + sin(a0) * 11.0
     let bx1 = sx + cos(a1) * 11.0;  let by1 = sy + sin(a1) * 11.0
-    drawLine(Vector2(x: bx0, y: by0), Vector2(x: bx1, y: by1), 2.5, rimColor)
+    drawStroke(Vector2(x: bx0, y: by0), Vector2(x: bx1, y: by1), 2.5, rimColor)
 
   #  solar panel wings
   # Two rigid arms extending perpendicular to the current orbit tangent
@@ -6107,7 +6108,7 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
     # Arm strut
     let armTipX = sx + cos(armAngle) * panelDist
     let armTipY = sy + sin(armAngle) * panelDist
-    drawLine(Vector2(x: sx + cos(armAngle) * 5.0,  y: sy + sin(armAngle) * 5.0),
+    drawStroke(Vector2(x: sx + cos(armAngle) * 5.0,  y: sy + sin(armAngle) * 5.0),
              Vector2(x: armTipX, y: armTipY), 2.0,
              Color(r: 180, g: 200, b: 220, a: 200))
     # Panel rectangle (4 corners)
@@ -6119,21 +6120,21 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
     let p1 = Vector2(x: armTipX - perpX + fwdX, y: armTipY - perpY + fwdY)
     let p2 = Vector2(x: armTipX - perpX - fwdX, y: armTipY - perpY - fwdY)
     let p3 = Vector2(x: armTipX + perpX - fwdX, y: armTipY + perpY - fwdY)
-    drawLine(p0, p1, 2.0, panelColor)
-    drawLine(p1, p2, 2.0, panelColor)
-    drawLine(p2, p3, 2.0, panelColor)
-    drawLine(p3, p0, 2.0, panelColor)
+    drawStroke(p0, p1, 2.0, panelColor)
+    drawStroke(p1, p2, 2.0, panelColor)
+    drawStroke(p2, p3, 2.0, panelColor)
+    drawStroke(p3, p0, 2.0, panelColor)
     # Panel centre stripe (solar cell division)
     let midA = Vector2(x: (p0.x + p3.x) * 0.5, y: (p0.y + p3.y) * 0.5)
     let midB = Vector2(x: (p1.x + p2.x) * 0.5, y: (p1.y + p2.y) * 0.5)
-    drawLine(midA, midB, 1.0, Color(r: 120, g: 200, b: 255, a: 160))
+    drawStroke(midA, midB, 1.0, Color(r: 120, g: 200, b: 255, a: 160))
 
   #  core filled circle
-  drawCircle(Vector2(x: sx, y: sy), 9.0, coreColor)
+  drawDisc(Vector2(x: sx, y: sy), 9.0, coreColor)
 
   #  lens flare dot
   let lensR = 3.5 + (if firing: fastPulse * 4.0 else: pulse * 1.5)
-  drawCircle(Vector2(x: sx, y: sy), lensR,
+  drawDisc(Vector2(x: sx, y: sy), lensR,
              Color(r: 255, g: 255, b: 255, a: uint8(200 + fastPulse * 55)))
 
   #  charging / firing effects
@@ -6148,15 +6149,15 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
       let cy1 = sy + sin(ca + 0.4) * 13.0
       let cx2 = sx + cos(ca - 0.4) * 13.0
       let cy2 = sy + sin(ca - 0.4) * 13.0
-      drawLine(Vector2(x: cx0, y: cy0), Vector2(x: cx1, y: cy1), 2.0,
+      drawStroke(Vector2(x: cx0, y: cy0), Vector2(x: cx1, y: cy1), 2.0,
                Color(r: 255, g: 80, b: 0, a: uint8(180 + fastPulse * 75)))
-      drawLine(Vector2(x: cx0, y: cy0), Vector2(x: cx2, y: cy2), 2.0,
+      drawStroke(Vector2(x: cx0, y: cy0), Vector2(x: cx2, y: cy2), 2.0,
                Color(r: 255, g: 80, b: 0, a: uint8(180 + fastPulse * 75)))
 
     # Expanding charge ring
     let chargeProgress = sat.laserChargeTime / 1.5
     let chargeRingR = 9.0 + chargeProgress * 24.0
-    drawCircleLines(sx.int32, sy.int32, chargeRingR,
+    drawCircleOutline(sx.int32, sy.int32, chargeRingR,
                     Color(r: 255, g: uint8(200 - chargeProgress * 150), b: 0,
                           a: uint8(220 - chargeProgress * 120)))
 
@@ -6164,7 +6165,7 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
     # Rapid concentric flash rings
     for k in 0..2:
       let flashR = 8.0 + k.float32 * 7.0 + fastPulse * 5.0
-      drawCircleLines(sx.int32, sy.int32, flashR,
+      drawCircleOutline(sx.int32, sy.int32, flashR,
                       Color(r: 255, g: 220, b: 120, a: uint8(180 - k * 50)))
 
   #  target crosshair on the locked player position
@@ -6173,15 +6174,15 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
     let tAlpha = uint8(140 + fastPulse * 115)
     let tColor = Color(r: 255, g: 60, b: 30, a: tAlpha)
     # + crosshair
-    drawLine(Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y),
+    drawStroke(Vector2(x: sat.laserTarget.x - targetSize, y: sat.laserTarget.y),
              Vector2(x: sat.laserTarget.x + targetSize, y: sat.laserTarget.y), 2.0, tColor)
-    drawLine(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y - targetSize),
+    drawStroke(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y - targetSize),
              Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y + targetSize), 2.0, tColor)
     # Inner dot
-    drawCircle(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y), 3.5,
+    drawDisc(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y), 3.5,
                Color(r: 255, g: 255, b: 255, a: tAlpha))
     # Outer pulsing ring
-    drawCircleLines(sat.laserTarget.x.int32, sat.laserTarget.y.int32,
+    drawCircleOutline(sat.laserTarget.x.int32, sat.laserTarget.y.int32,
                     targetSize + fastPulse * 6.0, tColor)
 
   #  Objective diamond: show when satellite is a shoot-to-destroy target 
@@ -6190,10 +6191,10 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
     let da  = uint8(clamp(160.0 + dp * 95.0, 0.0, 255.0))
     let ds  = 9.0 + dp * 3.0   # diamond half-size
     let dcol = Color(r: 255, g: 220, b: 60, a: da)
-    drawLine(Vector2(x: sx,      y: sy - ds), Vector2(x: sx + ds, y: sy     ), 2.0, dcol)
-    drawLine(Vector2(x: sx + ds, y: sy     ), Vector2(x: sx,      y: sy + ds), 2.0, dcol)
-    drawLine(Vector2(x: sx,      y: sy + ds), Vector2(x: sx - ds, y: sy     ), 2.0, dcol)
-    drawLine(Vector2(x: sx - ds, y: sy     ), Vector2(x: sx,      y: sy - ds), 2.0, dcol)
+    drawStroke(Vector2(x: sx,      y: sy - ds), Vector2(x: sx + ds, y: sy     ), 2.0, dcol)
+    drawStroke(Vector2(x: sx + ds, y: sy     ), Vector2(x: sx,      y: sy + ds), 2.0, dcol)
+    drawStroke(Vector2(x: sx,      y: sy + ds), Vector2(x: sx - ds, y: sy     ), 2.0, dcol)
+    drawStroke(Vector2(x: sx - ds, y: sy     ), Vector2(x: sx,      y: sy - ds), 2.0, dcol)
 
 proc drawGame*(game: Game) =
   # Profiling counterpart to updateGame: smoothed wall-clock ms spent drawing.
@@ -6313,19 +6314,19 @@ proc drawGame*(game: Game) =
         let tr = max(2.0'f32, r * (1.0'f32 - f * 0.14'f32))
         let a = uint8(clamp(210.0'f32 - f * 32.0'f32, 0.0'f32, 255.0'f32))
         let gg = uint8(clamp(190.0'f32 - f * 26.0'f32, 50.0'f32, 255.0'f32))
-        drawCircle(Vector2(x: tp.x, y: tp.y), tr, Color(r: 255, g: gg, b: 30, a: a))
+        drawDisc(Vector2(x: tp.x, y: tp.y), tr, Color(r: 255, g: gg, b: 30, a: a))
       # Outer heat glow.
-      drawCircle(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), r + 6,
+      drawDisc(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), r + 6,
                  Color(r: 255, g: 140, b: 0, a: 70))
       # Molten body.
-      drawCircle(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), r,
+      drawDisc(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), r,
                  Color(r: 255, g: 90, b: 0, a: 255))
       # Dark rocky core, offset toward the trailing edge so the front looks hottest.
-      drawCircle(Vector2(x: meteorite.pos.x - td.x * r * 0.25'f32,
+      drawDisc(Vector2(x: meteorite.pos.x - td.x * r * 0.25'f32,
                          y: meteorite.pos.y - td.y * r * 0.25'f32),
                  r * 0.55'f32, Color(r: 90, g: 38, b: 22, a: 255))
       # Bright leading edge.
-      drawCircle(Vector2(x: meteorite.pos.x + td.x * r * 0.4'f32,
+      drawDisc(Vector2(x: meteorite.pos.x + td.x * r * 0.4'f32,
                          y: meteorite.pos.y + td.y * r * 0.4'f32),
                  r * 0.3'f32, Color(r: 255, g: 230, b: 150, a: 220))
 
@@ -6391,21 +6392,21 @@ proc drawGame*(game: Game) =
           let conv = 1.0'f32 - ph                       # 1 = far out, 0 = at the boss
           let rr = baseR + 18.0'f32 + conv * (120.0'f32 + charge * 60.0'f32)
           let aa = uint8(clamp((1.0'f32 - conv) * 200.0'f32 * (0.4'f32 + charge * 0.6'f32), 0.0'f32, 255.0'f32))
-          drawCircleLines(cx.int32, cy.int32, rr, Color(r: 120, g: 230, b: 255, a: aa))
+          drawCircleOutline(cx.int32, cy.int32, rr, Color(r: 120, g: 230, b: 255, a: aa))
         const spokes = 8
         let rot = game.time * (2.0'f32 + charge * 6.0'f32)
         for k in 0..<spokes:
           let ang = rot + k.float32 * (PI * 2.0'f32 / spokes.float32)
           let outer = baseR + 14.0'f32 + (1.0'f32 - charge) * 40.0'f32
           let inner = baseR + 4.0'f32
-          drawLine(Vector2(x: cx + cos(ang) * outer, y: cy + sin(ang) * outer),
+          drawStroke(Vector2(x: cx + cos(ang) * outer, y: cy + sin(ang) * outer),
                    Vector2(x: cx + cos(ang) * inner, y: cy + sin(ang) * inner),
                    1.5'f32 + charge * 2.0'f32,
                    Color(r: 200, g: 245, b: 255,
                          a: uint8(clamp(120.0'f32 + charge * 135.0'f32, 0.0'f32, 255.0'f32))))
         let pulse = sin(game.time * (10.0'f32 + charge * 20.0'f32)) * 0.5'f32 + 0.5'f32
         let coreR = baseR * (0.6'f32 + charge * 0.5'f32 + pulse * 0.15'f32)
-        drawCircle(Vector2(x: cx, y: cy), coreR,
+        drawDisc(Vector2(x: cx, y: cy), coreR,
                    Color(r: 150, g: 235, b: 255,
                          a: uint8(clamp(60.0'f32 + charge * 120.0'f32 + pulse * 40.0'f32, 0.0'f32, 255.0'f32))))
       drawBossWeakPoints(enemy, globalSettings == nil or globalSettings.showHints)
@@ -6432,11 +6433,11 @@ proc drawGame*(game: Game) =
             uint8(clamp(vpct * 220.0, 60.0, 220.0))
           else:
             uint8(30)   # dim ghost so full circle shape is always readable
-          drawCircle(Vector2(x: ax, y: ay), 3.0,
+          drawDisc(Vector2(x: ax, y: ay), 3.0,
                      Color(r: 255, g: 235, b: 80, a: dotAlpha))
-        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, vr1,
+        drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, vr1,
                         Color(r: 255, g: 235, b: 80, a: va))
-        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, vr2,
+        drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, vr2,
                         Color(r: 255, g: 255, b: 200, a: uint8(va.int div 3)))
 
       # Enrage aura: red spikes that thicken as the boss is left to stall.
@@ -6447,7 +6448,7 @@ proc drawGame*(game: Game) =
         let ea   = uint8(clamp(70.0 + elv * 160.0, 0.0, 255.0))
         for s in 0..<12:
           let a = game.time * 3.0 + s.float32 * PI / 6.0
-          drawLine(Vector2(x: enemy.pos.x + cos(a) * er, y: enemy.pos.y + sin(a) * er),
+          drawStroke(Vector2(x: enemy.pos.x + cos(a) * er, y: enemy.pos.y + sin(a) * er),
                    Vector2(x: enemy.pos.x + cos(a) * (er + 8.0 + elv * 14.0),
                            y: enemy.pos.y + sin(a) * (er + 8.0 + elv * 14.0)),
                    1.5'f32 + elv * 1.5'f32, Color(r: 255, g: 50, b: 30, a: ea))
@@ -6463,9 +6464,9 @@ proc drawGame*(game: Game) =
         let sp = sin(game.time * 4.0) * 0.5 + 0.5
         let sa = uint8(clamp(110.0 + sp * 110.0, 0.0, 255.0))
         let sr = enemy.radius + 14.0 + sp * 4.0
-        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sr,
+        drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, sr,
                         Color(r: 255, g: 180, b: 40, a: sa))
-        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sr + 5.0,
+        drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, sr + 5.0,
                         Color(r: 255, g: 140, b: 20, a: uint8(sa.int div 2)))
         if globalSettings == nil or globalSettings.showHints:
           let gt = if enemy.bossDefinitionID == 13: t(tkEnemySealedCutChildren)
@@ -6508,13 +6509,13 @@ proc drawGame*(game: Game) =
                              y: enemy.pos.y + dir.y * (shellRad + dropDist))
           let tail = Vector2(x: enemy.pos.x + dir.x * (shellRad + dropDist + 12.0'f32),
                              y: enemy.pos.y + dir.y * (shellRad + dropDist + 12.0'f32))
-          drawLine(tail, tip, 2.0'f32 + charge * 2.0'f32,
+          drawStroke(tail, tip, 2.0'f32 + charge * 2.0'f32,
                    Color(r: 140, g: 225, b: 255, a: warnA))
-          drawCircle(tip, 2.0'f32 + charge * 2.0'f32,
+          drawDisc(tip, 2.0'f32 + charge * 2.0'f32,
                      Color(r: 200, g: 245, b: 255, a: warnA))
 
         # Faint inner bloom that swells into the shell's fill.
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), shellRad,
+        drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), shellRad,
                    Color(r: 90, g: 200, b: 255, a: uint8(charge * 26.0'f32)))
 
       # Overload shield: rotating cyan hex shell that bounces body shots back.
@@ -6527,9 +6528,9 @@ proc drawGame*(game: Game) =
         for v in 1..6:
           let a = spin + v.float32 * PI / 3.0
           let cur = Vector2(x: enemy.pos.x + cos(a) * shRad, y: enemy.pos.y + sin(a) * shRad)
-          drawLine(prev, cur, 3.0'f32, Color(r: 90, g: 200, b: 255, a: sha))
+          drawStroke(prev, cur, 3.0'f32, Color(r: 90, g: 200, b: 255, a: sha))
           prev = cur
-        drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), shRad,
+        drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), shRad,
                    Color(r: 90, g: 200, b: 255, a: uint8(sha.int div 8)))
         if globalSettings == nil or globalSettings.showHints:
           let st = t(tkEnemyOverloadHoldFire)
@@ -6552,7 +6553,7 @@ proc drawGame*(game: Game) =
       # Orbit trail rings, one per unique radius
       for idx, sat in enemy.satellites:
         if idx mod 2 == 0:
-          drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, sat.radius,
+          drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, sat.radius,
                          Color(r: 100, g: 150, b: 255, a: 25))
 
       #  Objective indicators
@@ -6586,16 +6587,16 @@ proc drawGame*(game: Game) =
         let angle = (i.float32 / 16.0) * PI * 2.0 + rotationOffset
         let x = game.player.pos.x + cos(angle) * ringRadius
         let y = game.player.pos.y + sin(angle) * ringRadius
-        drawCircle(Vector2(x: x, y: y), 3, Color(r: 75, g: 0, b: 130, a: alpha))
+        drawDisc(Vector2(x: x, y: y), 3, Color(r: 75, g: 0, b: 130, a: alpha))
 
     # Draw outer boundary, 3-pass so the pull limit is always clearly visible
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 4.0,
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 4.0,
                    Color(r: 138, g: 43, b: 226, a: 55))
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 2.0,
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius + 2.0,
                    Color(r: 138, g: 43, b: 226, a: 90))
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius,
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius,
                    Color(r: 170, g: 80, b: 255, a: 220))
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius - 2.5,
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, pullRadius - 2.5,
                    Color(r: 200, g: 140, b: 255, a: 110))
 
   # UNIFIED AURA RENDERING
@@ -6637,9 +6638,9 @@ proc drawGame*(game: Game) =
       let pulse = 0.55'f32 + 0.45'f32 * sin(game.time * 16.0'f32)
       let ringA = uint8(clamp(230.0'f32 * rp * pulse, 0.0'f32, 255.0'f32))
       let ringR = game.player.radius + 10.0'f32 + (1.0'f32 - rp) * 6.0'f32
-      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringR,
+      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, ringR,
                       Color(r: 140, g: 255, b: 215, a: ringA))
-      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, ringR + 3.0'f32,
+      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, ringR + 3.0'f32,
                       Color(r: 140, g: 255, b: 215, a: uint8(ringA.int div 2)))
 
   # Foreground particles, such as player muzzle bursts, render over the player.
@@ -6688,9 +6689,9 @@ proc drawGame*(game: Game) =
       let bgAlpha = uint8(clamp(alphaF * 200.0, 0.0, 255.0))
       let ringAlpha = uint8(max(0, (bgAlpha.int div 3).int))
       # Soft filled circle
-      drawCircle(Vector2(x: xCenter.float32, y: yCenter.float32), 36.0, Color(r: 255, g: 60, b: 60, a: bgAlpha))
+      drawDisc(Vector2(x: xCenter.float32, y: yCenter.float32), 36.0, Color(r: 255, g: 60, b: 60, a: bgAlpha))
       # Subtle outer ring
-      drawCircleLines(xCenter, yCenter, 44.0, Color(r: 255, g: 60, b: 60, a: ringAlpha))
+      drawCircleOutline(xCenter, yCenter, 44.0, Color(r: 255, g: 60, b: 60, a: ringAlpha))
       # Exclamation mark
       let excFont: int32 = 44
       let excW = measureText("!", excFont)
@@ -6787,15 +6788,15 @@ proc drawGame*(game: Game) =
     let ringA = uint8(clamp(150.0 + pulse * 105.0, 0.0, 255.0))
 
     # Subtle fill so the buildable zone reads as an area, not just an edge.
-    drawCircle(Vector2(x: game.player.pos.x, y: game.player.pos.y), WallPlaceRange,
+    drawDisc(Vector2(x: game.player.pos.x, y: game.player.pos.y), WallPlaceRange,
                Color(r: 90, g: 130, b: 255, a: 14))
 
     # Boundary: outer glow -> bright core -> inner highlight (3-pass, like the
     # gravity-pull limit ring) so the edge stays crisp over busy backgrounds.
-    drawCircleLines(px, py, ringR + 5.0, Color(r: 120, g: 160, b: 255, a: uint8(ringA.int div 4)))
-    drawCircleLines(px, py, ringR + 2.5, Color(r: 150, g: 185, b: 255, a: uint8(ringA.int div 2)))
-    drawCircleLines(px, py, ringR,       Color(r: 200, g: 225, b: 255, a: ringA))
-    drawCircleLines(px, py, ringR - 2.5, Color(r: 235, g: 245, b: 255, a: uint8(ringA.int div 2)))
+    drawCircleOutline(px, py, ringR + 5.0, Color(r: 120, g: 160, b: 255, a: uint8(ringA.int div 4)))
+    drawCircleOutline(px, py, ringR + 2.5, Color(r: 150, g: 185, b: 255, a: uint8(ringA.int div 2)))
+    drawCircleOutline(px, py, ringR,       Color(r: 200, g: 225, b: 255, a: ringA))
+    drawCircleOutline(px, py, ringR - 2.5, Color(r: 235, g: 245, b: 255, a: uint8(ringA.int div 2)))
 
     # Rotating tick marks on the boundary make the ring unmistakable and give
     # it motion the eye catches even through dense aura particles.
@@ -6803,7 +6804,7 @@ proc drawGame*(game: Game) =
       let a = game.time * 0.6 + i.float32 / 24.0 * PI * 2.0
       let tx = game.player.pos.x + cos(a) * ringR
       let ty = game.player.pos.y + sin(a) * ringR
-      drawCircle(Vector2(x: tx, y: ty), 2.2 + pulse * 1.0,
+      drawDisc(Vector2(x: tx, y: ty), 2.2 + pulse * 1.0,
                  Color(r: 215, g: 235, b: 255, a: ringA))
 
     # Ghost preview at cursor: green = valid, red = blocked. Turrets place as
@@ -6814,8 +6815,8 @@ proc drawGame*(game: Game) =
     let ghostEdge = if canPlace: Color(r: 80, g: 255, b: 80, a: 200)
                     else: Color(r: 255, g: 60, b: 60, a: 200)
     if hasPowerUp(game.player, puWallTurrets):
-      drawCircle(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostFill)
-      drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25, ghostEdge)
+      drawDisc(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostFill)
+      drawCircleOutline(cursorPos.x.int32, cursorPos.y.int32, 25, ghostEdge)
     else:
       # Mirror drawBarricadeWall: thin along the outward normal, broad across.
       let ga = arctan2(cursorPos.y - game.player.pos.y, cursorPos.x - game.player.pos.x)
@@ -6833,10 +6834,10 @@ proc drawGame*(game: Game) =
       let c2 = gcorner(gHalfThick, -gHalfLen)
       let c3 = gcorner(gHalfThick, gHalfLen)
       let c4 = gcorner(-gHalfThick, gHalfLen)
-      drawLine(c1, c2, 2.0'f32, ghostEdge)
-      drawLine(c2, c3, 2.0'f32, ghostEdge)
-      drawLine(c3, c4, 2.0'f32, ghostEdge)
-      drawLine(c4, c1, 2.0'f32, ghostEdge)
+      drawStroke(c1, c2, 2.0'f32, ghostEdge)
+      drawStroke(c2, c3, 2.0'f32, ghostEdge)
+      drawStroke(c3, c4, 2.0'f32, ghostEdge)
+      drawStroke(c4, c1, 2.0'f32, ghostEdge)
 
   # Mods draw on top of the arena, still in world coordinates.
   modDrawWorld(game)
@@ -6886,7 +6887,7 @@ proc drawGame*(game: Game) =
         width: max(0, fullVw - inset * 2).float32,
         height: max(0, fullVh - inset * 2).float32
       )
-      drawRectangleLines(bandRect, 3, Color(r: 255, g: 0, b: 0, a: bandAlpha))
+      drawRectOutline(bandRect, 3, Color(r: 255, g: 0, b: 0, a: bandAlpha))
 
   # Full-screen red vignette when alertLevel > 0
   if game.osBackground.alertLevel > 0 and not hudHidden(hpVignettes):
@@ -7099,7 +7100,7 @@ proc drawGame*(game: Game) =
     let noticeX = (vw - noticeW) div 2
     let noticeY = if hudLayout == hlWidescreen: 30'i32 else: 58'i32
     drawRectangle(noticeX, noticeY, noticeW, 22, Color(r: 38, g: 14, b: 12, a: noticeA))
-    drawRectangleLines(Rectangle(x: noticeX.float32, y: noticeY.float32, width: noticeW.float32,
+    drawRectOutline(Rectangle(x: noticeX.float32, y: noticeY.float32, width: noticeW.float32,
                                  height: 22), 1.0, Color(r: 255, g: 105, b: 95, a: noticeA))
     drawText(hudNotice, noticeX + 10, noticeY + 5, 12, Color(r: 255, g: 180, b: 170, a: noticeA))
 
@@ -7123,7 +7124,7 @@ proc drawDeathSequenceOverlay*(game: Game) =
   if impactFlash > 0:
     drawRectangle(0, 0, vw, vh,
                   Color(r: 255, g: 242, b: 205, a: uint8(impactFlash * 145.0'f32)))
-    drawCircle(Vector2(x: playerX, y: playerY),
+    drawDisc(Vector2(x: playerX, y: playerY),
                46.0'f32 + (1.0'f32 - impactFlash) * 130.0'f32,
                Color(r: 255, g: 190, b: 80, a: uint8(impactFlash * 155.0'f32)))
 
@@ -7132,15 +7133,15 @@ proc drawDeathSequenceOverlay*(game: Game) =
   if ringAlpha > 0:
     for i in 0..2:
       let ringRadius = game.player.radius + 34.0'f32 + ringProgress * (145.0'f32 + i.float32 * 78.0'f32)
-      drawCircleLines(playerX.int32, playerY.int32, ringRadius,
+      drawCircleOutline(playerX.int32, playerY.int32, ringRadius,
                       Color(r: 255, g: 215, b: 120, a: uint8(ringAlpha.int div (i + 1))))
 
   let slowPulseAlpha = uint8(max(0.0'f32, (1.0'f32 - timer / DEATH_SLOW_DURATION)) * 110.0'f32)
   if slowPulseAlpha > 0:
     let ringRadius = game.player.radius + 28.0'f32 + timer * 68.0'f32
-    drawCircleLines(playerX.int32, playerY.int32, ringRadius,
+    drawCircleOutline(playerX.int32, playerY.int32, ringRadius,
                     Color(r: 255, g: 65, b: 65, a: slowPulseAlpha))
-    drawCircle(Vector2(x: playerX, y: playerY), game.player.radius + 5.0'f32,
+    drawDisc(Vector2(x: playerX, y: playerY), game.player.radius + 5.0'f32,
                Color(r: 255, g: 35, b: 35, a: uint8(slowPulseAlpha div 3)))
 
   let vignetteAlpha = uint8(min(120.0'f32, 55.0'f32 + game.deathSequenceFadeAlpha * 65.0'f32))

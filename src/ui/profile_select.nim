@@ -11,6 +11,7 @@
 ## bilingual (English / Spanish, plain ASCII).
 
 import raylib, math
+import ../draw_prims
 import ../save_system, ../types, ../advancement
 import ../gamepad_input
 
@@ -230,7 +231,7 @@ proc drawCardBase(rect: Rectangle, hovered: bool, time: float32, accent: Color) 
   drawRectangle((rect.x + 4).int32, (rect.y + 5).int32, rect.width.int32, rect.height.int32,
                 Color(r: 0, g: 0, b: 0, a: 120))  # drop shadow
   drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
-  drawRectangleLines(rect, if hovered: 3.0'f32 else: 1.5'f32, border)
+  drawRectOutline(rect, if hovered: 3.0'f32 else: 1.5'f32, border)
 
 proc drawTophatBadge(cx, cy: float32, scale: float32, tint: Color) =
   ## Minimal tophat glyph so occupied slots read as "a player lives here".
@@ -256,7 +257,7 @@ proc drawDeleteConfirmDialog(state: ProfileSelectState, screenWidth, screenHeigh
                 Color(r: 0, g: 0, b: 0, a: 140))
   drawRectangle(d.x.int32, d.y.int32, d.width.int32, d.height.int32,
                 Color(r: 18, g: 22, b: 32, a: 255))
-  drawRectangleLines(d, 3.0'f32, Color(r: 255, g: 80, b: 80, a: 255))
+  drawRectOutline(d, 3.0'f32, Color(r: 255, g: 80, b: 80, a: 255))
 
   let cx = (d.x + d.width / 2.0'f32).int32
   const TitleBarH = 36.0'f32
@@ -279,7 +280,7 @@ proc drawDeleteConfirmDialog(state: ProfileSelectState, screenWidth, screenHeigh
                 rects.noBtn.width.int32, rects.noBtn.height.int32,
                 if noHov: Color(r: 0, g: 145, b: 0, a: 255)
                 else: Color(r: 0, g: 105, b: 0, a: 255))
-  drawRectangleLines(rects.noBtn, if noHov: 3.0'f32 else: 2.0'f32,
+  drawRectOutline(rects.noBtn, if noHov: 3.0'f32 else: 2.0'f32,
                      if noHov: Color(r: 0, g: 255, b: 100, a: 255)
                      else: Color(r: 0, g: 195, b: 55, a: 255))
   drawCenteredText("Cancel / Cancelar",
@@ -292,7 +293,7 @@ proc drawDeleteConfirmDialog(state: ProfileSelectState, screenWidth, screenHeigh
               else:         Color(r: 118, g: 28, b: 28, a: 255)
   drawRectangle(rects.yesBtn.x.int32, rects.yesBtn.y.int32,
                 rects.yesBtn.width.int32, rects.yesBtn.height.int32, yesBg)
-  drawRectangleLines(rects.yesBtn, if yesHov and ready: 3.0'f32 else: 2.0'f32,
+  drawRectOutline(rects.yesBtn, if yesHov and ready: 3.0'f32 else: 2.0'f32,
                      if not ready: Color(r: 140, g: 140, b: 140, a: 255)
                      elif yesHov:  Color(r: 255, g: 100, b: 100, a: 255)
                      else:         Color(r: 195, g: 55, b: 55, a: 255))
@@ -343,7 +344,7 @@ proc drawProfileSelect*(state: ProfileSelectState, screenWidth, screenHeight: in
           drawRectangle(barX.int32, barY.int32,
                         max(1'i32, (barW * info.completion).int32), 7,
                         Color(r: 255, g: 210, b: 70, a: 255))
-        drawRectangleLines(Rectangle(x: barX, y: barY, width: barW, height: 7.0'f32),
+        drawRectOutline(Rectangle(x: barX, y: barY, width: barW, height: 7.0'f32),
                            1.0'f32, Color(r: 90, g: 105, b: 130, a: 255))
         # Delete button (opens the confirmation dialog)
         let delRect = deleteButtonRect(rect)
@@ -352,7 +353,7 @@ proc drawProfileSelect*(state: ProfileSelectState, screenWidth, screenHeight: in
                     else: Color(r: 52, g: 30, b: 34, a: 255)
         drawRectangle(delRect.x.int32, delRect.y.int32,
                       delRect.width.int32, delRect.height.int32, delBg)
-        drawRectangleLines(delRect, if delHov: 2.0'f32 else: 1.0'f32,
+        drawRectOutline(delRect, if delHov: 2.0'f32 else: 1.0'f32,
                            Color(r: 210, g: 80, b: 80, a: 255))
         drawCenteredText("Delete / Borrar", (delRect.x + delRect.width / 2.0'f32).int32,
                          (delRect.y + 8).int32, 13, Color(r: 235, g: 160, b: 160, a: 255))
@@ -440,7 +441,7 @@ proc drawProfileSelect*(state: ProfileSelectState, screenWidth, screenHeight: in
       drawRectangle(bannerX.int32, bannerY.int32, bannerW.int32, bannerH.int32,
                     Color(r: accent.r, g: accent.g, b: accent.b,
                           a: uint8(26.0'f32 + beat * 46.0'f32)))
-      drawRectangleLines(Rectangle(x: bannerX, y: bannerY,
+      drawRectOutline(Rectangle(x: bannerX, y: bannerY,
                                    width: bannerW, height: bannerH),
                          1.0'f32 + beat * 2.0'f32,
                          Color(r: accent.r, g: accent.g, b: accent.b,

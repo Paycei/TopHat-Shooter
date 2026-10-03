@@ -10,6 +10,7 @@
 # Like the game/ modules, it must never import game.
 
 import raylib, random, math, strutils
+import draw_prims
 import particle_types, types, localization, utils, sound, d_systems, d_visuals, roguelite,
        enemy, enemy_helpers, particle_pool, consumable, coin, player, powerup,
        powerup_data, gamepad_input, game/bullets, game/death, ui/os_background, ui/icon_drawing,
@@ -593,11 +594,11 @@ proc drawSurvivalSpawnMarkers*(game: Game) =
     let pulse = sin(now * 14.0'f32) * 0.5'f32 + 0.5'f32
     let r = 14.0'f32 - prog * 6.0'f32
     let a = uint8(clamp(90.0'f32 + prog * 140.0'f32 + pulse * 25.0'f32, 0.0'f32, 255.0'f32))
-    drawCircleLines(p.pos.x.int32, p.pos.y.int32, r, Color(r: 255, g: 90, b: 70, a: a))
-    drawLine(Vector2(x: p.pos.x - r * 0.6'f32, y: p.pos.y),
+    drawCircleOutline(p.pos.x.int32, p.pos.y.int32, r, Color(r: 255, g: 90, b: 70, a: a))
+    drawStroke(Vector2(x: p.pos.x - r * 0.6'f32, y: p.pos.y),
              Vector2(x: p.pos.x + r * 0.6'f32, y: p.pos.y), 1.5'f32,
              Color(r: 255, g: 120, b: 90, a: a))
-    drawLine(Vector2(x: p.pos.x, y: p.pos.y - r * 0.6'f32),
+    drawStroke(Vector2(x: p.pos.x, y: p.pos.y - r * 0.6'f32),
              Vector2(x: p.pos.x, y: p.pos.y + r * 0.6'f32), 1.5'f32,
              Color(r: 255, g: 120, b: 90, a: a))
 
@@ -720,7 +721,7 @@ proc drawSurvivalChests*(game: Game) =
     let cy = chest.pos.y + bob
     let pulse = sin(now * 5.0'f32) * 0.5'f32 + 0.5'f32
     # Floor ring and shadow
-    drawCircleLines(chest.pos.x.int32, chest.pos.y.int32 + 12, 18.0'f32 + pulse * 6.0'f32,
+    drawCircleOutline(chest.pos.x.int32, chest.pos.y.int32 + 12, 18.0'f32 + pulse * 6.0'f32,
                     withAlpha(accent, int(70.0'f32 + pulse * 60.0'f32)))
     drawEllipse(chest.pos.x.int32, chest.pos.y.int32 + 13, 14.0'f32, 4.0'f32,
                 Color(r: 0, g: 0, b: 0, a: 90))
@@ -731,13 +732,13 @@ proc drawSurvivalChests*(game: Game) =
       drawRectangle(int32(cx - 2.0'f32), int32(cy - 70.0'f32), 4, 60,
                     withAlpha(accent, int(60.0'f32 + pulse * 40.0'f32)))
     # Glow
-    drawCircle(Vector2(x: cx, y: cy), 20.0'f32 + pulse * 3.0'f32, withAlpha(accent, 45))
+    drawDisc(Vector2(x: cx, y: cy), 20.0'f32 + pulse * 3.0'f32, withAlpha(accent, 45))
     # Crate body
     let body = Rectangle(x: cx - w * 0.5'f32, y: cy - h * 0.5'f32, width: w, height: h)
     drawRectangleRounded(body, 0.25'f32, 4, Color(r: 14, g: 22, b: 34, a: 240))
     drawRectangleRoundedLines(body, 0.25'f32, 4, -2.0'f32, accent)
     # Lid seam
-    drawLine(Vector2(x: cx - w * 0.5'f32 + 2.0'f32, y: cy - h * 0.12'f32),
+    drawStroke(Vector2(x: cx - w * 0.5'f32 + 2.0'f32, y: cy - h * 0.12'f32),
              Vector2(x: cx + w * 0.5'f32 - 2.0'f32, y: cy - h * 0.12'f32), 2.0'f32,
              withAlpha(accent, int(160.0'f32 + pulse * 95.0'f32)))
     # Chip glyph
@@ -1268,15 +1269,15 @@ proc drawSurvivalEventsUnder*(game: Game) =
   of sekFirewallBreach:
     if live < 0.5'f32:
       let a = int(90.0'f32 + pulse * 120.0'f32)
-      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, BreachRadius,
+      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, BreachRadius,
                       withAlpha(color, a))
-      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, BreachRadius - 3.0'f32,
+      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, BreachRadius - 3.0'f32,
                       withAlpha(color, a div 2))
   of sekUploadZone:
     let inside = distance(game.player.pos, ev.zonePos) <= ev.zoneRadius
     let center = Vector2(x: ev.zonePos.x, y: ev.zonePos.y)
-    drawCircle(center, ev.zoneRadius, withAlpha(color, if inside: 60 else: 32))
-    drawCircleLines(ev.zonePos.x.int32, ev.zonePos.y.int32, ev.zoneRadius,
+    drawDisc(center, ev.zoneRadius, withAlpha(color, if inside: 60 else: 32))
+    drawCircleOutline(ev.zonePos.x.int32, ev.zonePos.y.int32, ev.zoneRadius,
                     withAlpha(color, int(150.0'f32 + pulse * 100.0'f32)))
     # Progress arc around the rim, filling clockwise from the top.
     if ev.progress > 0.0'f32:
@@ -1292,7 +1293,7 @@ proc drawSurvivalEventsUnder*(game: Game) =
              withAlpha(color, 200))
   of sekCorruptedSector:
     let a = if live < 0: int(80.0'f32 + pulse * 120.0'f32) else: int(35.0'f32 + pulse * 35.0'f32)
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, SectorRadius,
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, SectorRadius,
                     withAlpha(color, a))
   of sekRogueProcess:
     if ev.spawned == 0:
@@ -1311,11 +1312,11 @@ proc drawSurvivalEventsUnder*(game: Game) =
                          withAlpha(RogueColor, 0))
       for i in 0..2:
         let f = (ev.elapsed * 1.6'f32 + i.float32 / 3.0'f32) mod 1.0'f32
-        drawCircleLines(cx, cy, 20.0'f32 + (1.0'f32 - f) * 170.0'f32,
+        drawCircleOutline(cx, cy, 20.0'f32 + (1.0'f32 - f) * 170.0'f32,
                         withAlpha(RogueColor, int(40.0'f32 + f * 200.0'f32)))
       let r = 60.0'f32 - prog * 40.0'f32
-      drawCircleLines(cx, cy, r, withAlpha(RogueColor, int(120.0'f32 + pulse * 120.0'f32)))
-      drawCircleLines(cx, cy, r * 0.6'f32, withAlpha(RogueColor, int(80.0'f32 + pulse * 80.0'f32)))
+      drawCircleOutline(cx, cy, r, withAlpha(RogueColor, int(120.0'f32 + pulse * 120.0'f32)))
+      drawCircleOutline(cx, cy, r * 0.6'f32, withAlpha(RogueColor, int(80.0'f32 + pulse * 80.0'f32)))
   of sekOverclock:
     # Gold heat shimmer along the arena border.
     let a = int(25.0'f32 + pulse * 35.0'f32)
@@ -1373,7 +1374,7 @@ proc drawSurvivalEventsOver*(game: Game) =
   if live < RogueCalloutTime + 1.0'f32:
     for i in 0..1:
       let f = (live * 1.3'f32 + i.float32 * 0.5'f32) mod 1.0'f32
-      drawCircleLines(rogue.pos.x.int32, rogue.pos.y.int32, rogue.radius + 8.0'f32 + f * 90.0'f32,
+      drawCircleOutline(rogue.pos.x.int32, rogue.pos.y.int32, rogue.radius + 8.0'f32 + f * 90.0'f32,
                       withAlpha(RogueColor, int(230.0'f32 * (1.0'f32 - f))))
   let top = rogue.pos.y - rogue.radius - 34.0'f32
   if live < RogueCalloutTime:
@@ -1395,7 +1396,7 @@ proc drawSurvivalEventsOver*(game: Game) =
   drawRectangle(bx, by, barW, 5, Color(r: 30, g: 10, b: 40, a: 220))
   let frac = clamp(rogue.hp / max(0.01'f32, rogue.maxHp), 0.0'f32, 1.0'f32)
   drawRectangle(bx, by, int32(barW.float32 * frac), 5, RogueColor)
-  drawRectangleLines(bx, by, barW, 5, withAlpha(RogueColor, 180))
+  drawRectOutline(bx, by, barW, 5, withAlpha(RogueColor, 180))
   drawRoguePointer(game, rogue.pos, pulse)
 
 # ============================================================================
@@ -1601,7 +1602,7 @@ proc drawRevealCard(x, y: int32, pu: PowerUp, flip: float32, accent: Color, time
   let tagX = cx - tagW div 2
   let tagY = y + CardH - 24
   drawRectangle(tagX, tagY, tagW, 17, withAlpha(edge, 60))
-  drawRectangleLines(tagX, tagY, tagW, 17, edge)
+  drawRectOutline(tagX, tagY, tagW, 17, edge)
   drawText(tag, tagX + 6, tagY + 2, 13, edge)
 
 proc drawSurvivalCacheReveal*(game: Game, screenWidth, screenHeight: int32) =
@@ -1715,7 +1716,7 @@ proc drawSurvivalTracker(game: Game, x, y, w: int32) =
   let fillW = int32(barW.float32 * clamp(info.frac, 0.0'f32, 1.0'f32))
   if fillW > 0:
     drawRectangle(barX, barY, fillW, 7, withAlpha(color, 230))
-  drawRectangleLines(barX, barY, barW, 7, withAlpha(color, 120))
+  drawRectOutline(barX, barY, barW, 7, withAlpha(color, 120))
   drawText(info.detail, barX, y + 36, 11, Color(r: 190, g: 215, b: 230, a: 255))
 
 proc drawSurvivalTrackerDock(game: Game, x, y: int32): int32 =
@@ -1748,22 +1749,22 @@ proc drawStopwatchIcon(cx, cy, r, survivedT: float32, accent, handColor: Color) 
   ## (reinforced by the gray-out + pause glyph at the call sites).
   # Crown: a little button + stem on top so the icon reads as a stopwatch.
   drawRectangle((cx - 2.0).int32, (cy - r - 4.0).int32, 4, 4, accent)
-  drawCircle(Vector2(x: cx, y: cy - r - 4.5), 2.0'f32, accent)
+  drawDisc(Vector2(x: cx, y: cy - r - 4.5), 2.0'f32, accent)
   # Face: dark fill, outer rim, faint inner rim, and 12/3/6/9 tick marks.
-  drawCircle(Vector2(x: cx, y: cy), r + 1.0, Color(r: 6, g: 16, b: 24, a: 220))
-  drawCircleLines(cx.int32, cy.int32, r, accent)
-  drawCircleLines(cx.int32, cy.int32, r - 1.0, withAlpha(accent, 90))
+  drawDisc(Vector2(x: cx, y: cy), r + 1.0, Color(r: 6, g: 16, b: 24, a: 220))
+  drawCircleOutline(cx.int32, cy.int32, r, accent)
+  drawCircleOutline(cx.int32, cy.int32, r - 1.0, withAlpha(accent, 90))
   for q in 0..<4:
     let ta = q.float32 * (PI.float32 / 2.0)
-    drawLine(Vector2(x: cx + cos(ta) * (r - 2.4), y: cy + sin(ta) * (r - 2.4)),
+    drawStroke(Vector2(x: cx + cos(ta) * (r - 2.4), y: cy + sin(ta) * (r - 2.4)),
              Vector2(x: cx + cos(ta) * (r - 0.6), y: cy + sin(ta) * (r - 0.6)),
              1.0'f32, withAlpha(accent, 130))
   let handAng = (survivedT mod 60.0) / 60.0 * (PI.float32 * 2.0) - PI.float32 / 2.0
   let handLen = r * 0.72
-  drawLine(Vector2(x: cx, y: cy),
+  drawStroke(Vector2(x: cx, y: cy),
            Vector2(x: cx + cos(handAng) * handLen, y: cy + sin(handAng) * handLen),
            2.0'f32, handColor)
-  drawCircle(Vector2(x: cx, y: cy), 1.6'f32, accent)
+  drawDisc(Vector2(x: cx, y: cy), 1.6'f32, accent)
 
 proc stopwatchReadout(survivedT: float32): tuple[mmss, centis: string] =
   ## "MM:SS" and ".CC" for the stopwatch. Centiseconds derive from survivalTime,
@@ -1877,7 +1878,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
 
   # --- Divider between the clock and the phase row ------------------------
   let divY = (timerY + timerSize + vGap div 2).float32
-  drawLine(Vector2(x: (panelX + padX).float32, y: divY),
+  drawStroke(Vector2(x: (panelX + padX).float32, y: divY),
            Vector2(x: (panelX + panelW - padX).float32, y: divY),
            1.0'f32, withAlpha(accent, 55))
 
@@ -1908,7 +1909,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   let fillW = int32(barW.float32 * ratio)
   if fillW > 0:
     drawRectangle(barX, barY, fillW, barH, if overclock: xpGold else: xpFill)
-  drawRectangleLines(barX, barY, barW, barH,
+  drawRectOutline(barX, barY, barW, barH,
                      if overclock: xpGold else: Color(r: 120, g: 220, b: 190, a: 170))
 
   # --- Event card ------------------------------------------------------------
@@ -1941,7 +1942,7 @@ proc drawRunTimeline(game: Game, x, y, w: int32, dim: bool) =
     let fw = int32(segW.float32 * frac)
     if fw > 0:
       drawRectangle(sx, y, fw, h, withAlpha(color, if dim: 110 else: 215))
-    drawRectangleLines(Rectangle(x: sx.float32, y: y.float32, width: segW.float32,
+    drawRectOutline(Rectangle(x: sx.float32, y: y.float32, width: segW.float32,
                                  height: h.float32), 1, withAlpha(color, 130))
     # Boss notch at the segment's end; lit once that boss is down.
     let beaten = game.bossCount - (if game.bossWaveManager.active: 1 else: 0) > i

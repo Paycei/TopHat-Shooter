@@ -2,6 +2,7 @@
 ## Network lobby interface as an OS-style window
 
 import raylib, strutils, net, math, algorithm
+import ../draw_prims
 import os_window, ../network/network, ../network/network_types, ../types, ../localization, ../render_context
 
 type
@@ -422,7 +423,7 @@ proc drawPrimaryButton(bx, by, bw, bh: int, label: string, hovered: bool,
                 Color(r: 255, g: 255, b: 255, a: if hovered: 26 else: 14))
   let borderCol = if hovered: Color(r: 0, g: 220, b: 255, a: 255)
                   else: Color(r: 70, g: 95, b: 115, a: 255)
-  drawRectangleLines(Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32),
+  drawRectOutline(Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32),
                      if hovered: 2.0'f32 else: 1.0'f32, borderCol)
   let tw = measureText(label, fontSize)
   drawText(label, (bx + (bw - tw) div 2).int32, (by + (bh - fontSize.int) div 2).int32, fontSize,
@@ -434,7 +435,7 @@ proc drawDangerButton(bx, by, bw, bh: int, label: string, hovered: bool, fontSiz
   drawRectangle((bx + 1).int32, (by + 1).int32, (bw - 2).int32, (bh.float32 * 0.42'f32).int32,
                 Color(r: 255, g: 255, b: 255, a: if hovered: 22 else: 12))
   let borderCol = if hovered: Color(r: 220, g: 90, b: 90, a: 255) else: Color(r: 110, g: 55, b: 55, a: 255)
-  drawRectangleLines(Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32),
+  drawRectOutline(Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32),
                      if hovered: 2.0'f32 else: 1.0'f32, borderCol)
   let tw = measureText(label, fontSize)
   drawText(label, (bx + (bw - tw) div 2).int32, (by + (bh - fontSize.int) div 2).int32, fontSize,
@@ -449,12 +450,12 @@ proc drawCheckbox(cbx, cby, cbSize: int, checked, hovered: bool, label: string, 
   let borderCol = if checked: Color(r: 0, g: 200, b: 255, a: 255)
                   elif hovered: Color(r: 150, g: 150, b: 170, a: 255)
                   else: Color(r: 110, g: 110, b: 130, a: 255)
-  drawRectangleLines(rect, 1.0'f32, borderCol)
+  drawRectOutline(rect, 1.0'f32, borderCol)
   if checked:
     let chkCol = Color(r: 0, g: 230, b: 180, a: 255)
-    drawLine(Vector2(x: (cbx + 5).float32, y: (cby + cbSize div 2).float32),
+    drawStroke(Vector2(x: (cbx + 5).float32, y: (cby + cbSize div 2).float32),
              Vector2(x: (cbx + cbSize div 2 - 2).float32, y: (cby + cbSize - 5).float32), 3, chkCol)
-    drawLine(Vector2(x: (cbx + cbSize div 2 - 2).float32, y: (cby + cbSize - 5).float32),
+    drawStroke(Vector2(x: (cbx + cbSize div 2 - 2).float32, y: (cby + cbSize - 5).float32),
              Vector2(x: (cbx + cbSize - 3).float32, y: (cby + 3).float32), 3, chkCol)
   drawText(label, (cbx + cbSize + 10).int32, (cby + (cbSize - labelFontSize.int) div 2).int32,
            labelFontSize, Color(r: 225, g: 225, b: 235, a: 255))
@@ -466,13 +467,13 @@ proc drawInputField(fx, fy, fw, fh, textOffX, textOffY, fontSize: int, active: b
   let bgCol = if active: Color(r: 0, g: 55, b: 75, a: 255) else: Color(r: 38, g: 38, b: 50, a: 255)
   drawRectangle(fx.int32, fy.int32, fw.int32, fh.int32, bgCol)
   let borderCol = if active: Color(r: 0, g: 210, b: 255, a: 255) else: Color(r: 80, g: 80, b: 100, a: 255)
-  drawRectangleLines(rect, 2.0'f32, borderCol)
+  drawRectOutline(rect, 2.0'f32, borderCol)
   if active:
     drawTextSelection(text, fx, fy, fontSize, selStart, selEnd)
   drawText(text, (fx + textOffX).int32, (fy + textOffY).int32, fontSize.int32, White)
   if active and (cursorBlink.int mod 2) == 0:
     let cx = fx + textOffX + measureText(textBefore, fontSize.int32)
-    drawLine(Vector2(x: cx.float32, y: (fy + textOffY - 2).float32),
+    drawStroke(Vector2(x: cx.float32, y: (fy + textOffY - 2).float32),
              Vector2(x: cx.float32, y: (fy + fh - textOffY + 2).float32), 2,
              Color(r: 0, g: 210, b: 255, a: 255))
 
@@ -816,7 +817,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                   elif canMinus: Color(r: 50, g: 50, b: 65, a: 255)
                   else: Color(r: 35, g: 35, b: 45, a: 255)
     drawRectangle(mBoxX.int32, pcY.int32, 26, 26, minusBg)
-    drawRectangleLines(Rectangle(x: mBoxX.float32, y: pcY.float32, width: 26, height: 26),
+    drawRectOutline(Rectangle(x: mBoxX.float32, y: pcY.float32, width: 26, height: 26),
                        1, if canMinus: Color(r: 80, g: 80, b: 100, a: 255) else: Color(r: 50, g: 50, b: 60, a: 255))
     let mW = measureText("-", 22)
     drawText("-", (mBoxX + (26 - mW) div 2).int32, (pcY + 2).int32, 22,
@@ -833,7 +834,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                  elif canPlus: Color(r: 50, g: 50, b: 65, a: 255)
                  else: Color(r: 35, g: 35, b: 45, a: 255)
     drawRectangle(pBoxX.int32, pcY.int32, 26, 26, plusBg)
-    drawRectangleLines(Rectangle(x: pBoxX.float32, y: pcY.float32, width: 26, height: 26),
+    drawRectOutline(Rectangle(x: pBoxX.float32, y: pcY.float32, width: 26, height: 26),
                        1, if canPlus: Color(r: 80, g: 80, b: 100, a: 255) else: Color(r: 50, g: 50, b: 60, a: 255))
     let pW = measureText("+", 22)
     drawText("+", (pBoxX + (26 - pW) div 2).int32, (pcY + 2).int32, 22,
@@ -875,7 +876,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                    elif tbHov: Color(r: 50, g: 50, b: 60, a: 255)
                    else: Color(r: 40, g: 40, b: 50, a: 255)
         drawRectangle(tbX.int32, tbY.int32, tbW.int32, 28.int32, tbBg)
-        drawRectangleLines(Rectangle(x: tbX.float32, y: tbY.float32, width: tbW.float32, height: 28),
+        drawRectOutline(Rectangle(x: tbX.float32, y: tbY.float32, width: tbW.float32, height: 28),
                            1, if isSel: Color(r: 0, g: 200, b: 255, a: 255) else: Color(r: 80, g: 80, b: 100, a: 255))
         let tStr = $tc
         let tW = measureText(tStr, 18)
@@ -901,7 +902,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       let mBg = if canDec: Color(r: 50, g: 50, b: 65, a: 255)
                 else: Color(r: 35, g: 35, b: 45, a: 255)
       drawRectangle((cx).int32, controlY.int32, 22, 22, mBg)
-      drawRectangleLines(Rectangle(x: cx.float32, y: controlY.float32,
+      drawRectOutline(Rectangle(x: cx.float32, y: controlY.float32,
         width: 22, height: 22), 1,
         if canDec: Color(r: 80, g: 80, b: 110, a: 255)
         else: Color(r: 50, g: 50, b: 60, a: 255))
@@ -916,7 +917,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       let pBg = if canInc: Color(r: 50, g: 50, b: 65, a: 255)
                 else: Color(r: 35, g: 35, b: 45, a: 255)
       drawRectangle((cx + colW - 24).int32, controlY.int32, 22, 22, pBg)
-      drawRectangleLines(Rectangle(x: (cx + colW - 24).float32,
+      drawRectOutline(Rectangle(x: (cx + colW - 24).float32,
         y: controlY.float32, width: 22, height: 22), 1,
         if canInc: Color(r: 80, g: 80, b: 110, a: 255)
         else: Color(r: 50, g: 50, b: 60, a: 255))
@@ -1022,7 +1023,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                   Color(r: 25, g: 25, b: 35, a: 255))
     drawRectangle(panelX.int32, panelY.int32, panelW.int32, 2,
                   Color(r: 0, g: 200, b: 255, a: 255))
-    drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+    drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
       width: panelW.float32, height: 56), 1, Color(r: 60, g: 60, b: 80, a: 255))
 
     let localIPDisplay = if pvpWin.showIPs: pvpWin.hostIP else: censorIP(pvpWin.hostIP)
@@ -1196,7 +1197,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
         let hBX = contentX + 270
         let hBY = contentY + 130
         drawRectangle(hBX.int32, hBY.int32, 60, 20, Color(r: 25, g: 25, b: 35, a: 255))
-        drawRectangleLines(Rectangle(x: hBX.float32, y: hBY.float32, width: 60, height: 20), 1, hTeamCol)
+        drawRectOutline(Rectangle(x: hBX.float32, y: hBY.float32, width: 60, height: 20), 1, hTeamCol)
         let hTN = getTeamName(hTeam)
         let hTNW = measureText(hTN, 13)
         drawText(hTN, (hBX + (60 - hTNW) div 2).int32, (hBY + 4).int32, 13, hTeamCol)
@@ -1221,7 +1222,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
           let pBX = contentX + 270
           let pBY = contentY + yOff
           drawRectangle(pBX.int32, pBY.int32, 60, 20, Color(r: 25, g: 25, b: 35, a: 255))
-          drawRectangleLines(Rectangle(x: pBX.float32, y: pBY.float32, width: 60, height: 20), 1, pCol)
+          drawRectOutline(Rectangle(x: pBX.float32, y: pBY.float32, width: 60, height: 20), 1, pCol)
           let pTN = getTeamName(pTeam)
           let pTNW = measureText(pTN, 13)
           drawText(pTN, (pBX + (60 - pTNW) div 2).int32, (pBY + 4).int32, 13, pCol)
@@ -1240,7 +1241,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
         drawPrimaryButton(startBX, startBY, 250, 50, t("pvp_start_game"), startHov, fontSize = 22)
       else:
         drawRectangle(startBX.int32, startBY.int32, 250, 50, Color(r: 40, g: 40, b: 50, a: 255))
-        drawRectangleLines(Rectangle(x: startBX.float32, y: startBY.float32, width: 250, height: 50),
+        drawRectOutline(Rectangle(x: startBX.float32, y: startBY.float32, width: 250, height: 50),
                            1, Color(r: 60, g: 60, b: 80, a: 255))
         let ntW = measureText(t("pvp_need_2_players"), 16)
         drawText(t("pvp_need_2_players"),
@@ -1301,7 +1302,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                   Color(r: 30, g: 22, b: 26, a: 255))
     drawRectangle(panelX.int32, panelY.int32, panelW.int32, 2,
                   Color(r: 180, g: 50, b: 50, a: 255))
-    drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+    drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
       width: panelW.float32, height: panelH.float32), 1,
       Color(r: 80, g: 40, b: 40, a: 255))
     let errW = measureText(pvpWin.errorMessage, 16)

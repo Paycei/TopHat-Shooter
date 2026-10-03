@@ -2,6 +2,7 @@
 ## Game Over as Modern System Crash, Victory as System Secured
 
 import raylib, math
+import ../draw_prims
 import ../types, ../localization, ../render_context, ../utils, ../survival
 from ../roguelite import RogueliteFloorsToWin
 import ui_helpers, icon_drawing
@@ -65,7 +66,7 @@ proc drawModernButton(x, y, width, height: int32, text: string,
       else: Color(r: 210, g: 80, b: 80, a: 255)
 
   let borderWidth = if isPrimary: 2.5 else: 2.0
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
                     borderWidth, borderColor)
 
@@ -125,7 +126,7 @@ proc drawShopCurrencyBanked(game: Game, windowX, statsY: int32) =
   let panelH = headerH + rowH * 2 + 8
   drawRectangle(x, statsY, panelW, panelH, Color(r: 14, g: 30, b: 52, a: 235))
   drawRectangle(x, statsY, panelW, headerH, Color(r: 0, g: 90, b: 130, a: 150))
-  drawRectangleLines(Rectangle(x: x.float32, y: statsY.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: statsY.float32,
                                width: panelW.float32, height: panelH.float32),
                      1, Color(r: 0, g: 200, b: 255, a: 170))
   let title = t(tkGameOverShopCurrencyBanked)
@@ -215,7 +216,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
                Color(r: 18, g: 45, b: 85, a: 255))
 
   # Window border
-  drawRectangleLines(Rectangle(x: (windowX - 10).float32, y: (windowY - 10).float32,
+  drawRectOutline(Rectangle(x: (windowX - 10).float32, y: (windowY - 10).float32,
                                 width: (SCREEN_WIDTH + 20).float32,
                                 height: (SCREEN_HEIGHT + 20).float32),
                     3, Color(r: 60, g: 120, b: 200, a: 255))
@@ -233,7 +234,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
 
   let iconBoxX = windowX + SCREEN_WIDTH - 108
   drawRectangle(iconBoxX, yOffset, 78, 78, Color(r: 60, g: 24, b: 28, a: 255))
-  drawRectangleLines(Rectangle(x: iconBoxX.float32, y: yOffset.float32, width: 78.0, height: 78.0),
+  drawRectOutline(Rectangle(x: iconBoxX.float32, y: yOffset.float32, width: 78.0, height: 78.0),
                     2, Color(r: 220, g: 80, b: 80, a: 255))
   drawText("[X]", iconBoxX + 15, yOffset + 17, 44, Color(r: 255, g: 120, b: 120, a: 255))
 
@@ -250,7 +251,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   let bannerPulse = sin(game.time * 3.0) * 0.25 + 0.75
   drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, bannerH,
                Color(r: 46, g: 18, b: 22, a: 255))
-  drawRectangleLines(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
+  drawRectOutline(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
                                 width: (SCREEN_WIDTH - 60).float32, height: bannerH.float32),
                     2.0, Color(r: uint8(255 * bannerPulse), g: 70, b: 70, a: 255))
   drawText("[X]", windowX + 48, yOffset + 18, 30, Color(r: 255, g: 90, b: 90, a: 255))
@@ -277,7 +278,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   # Error code line (thin, themed)
   drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, 30,
                Color(r: 25, g: 45, b: 75, a: 255))
-  drawRectangleLines(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
+  drawRectOutline(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
                                 width: (SCREEN_WIDTH - 60).float32, height: 30.0),
                     1, Color(r: 60, g: 100, b: 160, a: 255))
   drawText("[!]", windowX + 40, yOffset + 6, 16, Color(r: 255, g: 200, b: 100, a: 255))
@@ -460,7 +461,7 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
                Color(r: 20, g: 40, b: 30, a: 255))
 
   # Window border with glow
-  drawRectangleLines(Rectangle(x: (windowX - 10).float32, y: (windowY - 10).float32,
+  drawRectOutline(Rectangle(x: (windowX - 10).float32, y: (windowY - 10).float32,
                                 width: (SCREEN_WIDTH + 20).float32,
                                 height: (SCREEN_HEIGHT + 20).float32),
                     3, Color(r: 0, g: 255, b: 120, a: 255))
@@ -492,7 +493,7 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   let iconBoxX = windowX + SCREEN_WIDTH - 120
   drawRectangle(iconBoxX, yOffset, 100, 100,
                Color(r: 25, g: 50, b: 35, a: 255))
-  drawRectangleLines(Rectangle(x: iconBoxX.float32, y: yOffset.float32,
+  drawRectOutline(Rectangle(x: iconBoxX.float32, y: yOffset.float32,
                                 width: 100.0, height: 100.0),
                     2, Color(r: 0, g: 200, b: 100, a: 255))
   # "[OK]" at a fixed size/offset overflowed the right edge of the 100px box.
@@ -521,7 +522,7 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   # Status box
   drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, 35,
                Color(r: 25, g: 45, b: 35, a: 255))
-  drawRectangleLines(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
+  drawRectOutline(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
                                 width: (SCREEN_WIDTH - 60).float32, height: 35.0),
                     1, Color(r: 0, g: 180, b: 100, a: 255))
 

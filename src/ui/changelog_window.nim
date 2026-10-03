@@ -19,6 +19,7 @@
 ## rationale and backstory do not.
 
 import raylib, strutils
+import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../settings, ../save_system
 from settings_window import drawCheckbox
 
@@ -136,6 +137,15 @@ let changelog: seq[ChangelogVersion] = @[
           "El juego ahora funciona con la última versión de raylib, la biblioteca que mueve sus gráficos, su sonido y sus controles.",
           "Los contornos redondeados de tarjetas, botones e iconos se ven algo más nítidos. Todo conserva su tamaño y su posición.",
           "Escribir licenses en la terminal de Ayuda ahora también muestra las licencias de raylib y naylib.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Faster drawing",
+        headEs: "Dibujado más rápido",
+        en: points(
+          "Busy fights draw about twice as fast. Small shapes like particles, sparks and bullets take far less work, and each frame reaches the graphics card in a handful of batches instead of thousands.",
+          "Thin lines and outlines are now 1 pixel wide with Improved resolution (SSAA) on, as they are with it off. Before, they came out half as thick and faint."),
+        es: points(
+          "Los combates intensos se dibujan aproximadamente el doble de rápido. Las formas pequeñas como partículas, chispas y balas cuestan mucho menos, y cada fotograma llega a la tarjeta gráfica en unos pocos lotes en lugar de miles.",
+          "Las líneas y los contornos finos ahora miden 1 píxel de grosor con la Resolución mejorada (SSAA) activada, igual que sin ella. Antes salían la mitad de gruesos y tenues.")),
       # --- Mods ---
       ChangelogEntry(category: clcMods,
         headEn: "Drag mod apps",
@@ -151,10 +161,12 @@ let changelog: seq[ChangelogVersion] = @[
         headEs: "Animaciones de modelos más fluidas",
         en: points(
           "Animated 3D models no longer snap to a wrong pose on the last frame of each loop.",
-          "glTF and GLB models whose skeleton has no parent node now play their animations instead of standing still."),
+          "glTF and GLB models whose skeleton has no parent node now play their animations instead of standing still.",
+          "Animations now blend between their keyframes, so they stay smooth on high refresh rate monitors and when slowed down with speed."),
         es: points(
           "Los modelos 3D animados ya no saltan a una pose incorrecta en el último fotograma de cada ciclo.",
-          "Los modelos glTF y GLB cuyo esqueleto no tiene un nodo padre ahora reproducen sus animaciones en lugar de quedarse quietos.")),
+          "Los modelos glTF y GLB cuyo esqueleto no tiene un nodo padre ahora reproducen sus animaciones en lugar de quedarse quietos.",
+          "Las animaciones ahora se interpolan entre sus fotogramas clave, así que se ven fluidas en monitores de alta frecuencia y al ralentizarlas con speed.")),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.2",
@@ -1900,7 +1912,7 @@ proc drawNavButton(r: Rectangle, pointsLeft, enabled, hovered: bool) =
            elif hovered: Color(r: 255, g: 220, b: 150, a: 255)
            else: AccentColor
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, bg)
-  drawRectangleLines(r, (if enabled and hovered: 2.0'f32 else: 1.0'f32), fg)
+  drawRectOutline(r, (if enabled and hovered: 2.0'f32 else: 1.0'f32), fg)
   # Chevron as a filled triangle. raylib culls clockwise triangles, so both
   # arrows are listed counter-clockwise as seen on screen.
   let cx = r.x + r.width / 2
@@ -1975,7 +1987,7 @@ proc drawChangelogWindow*(cl: ChangelogWindow) =
   # Panel background
   drawRectangle(g.contentX.int32, g.contentY.int32, g.contentW.int32, g.contentH.int32,
                Color(r: 10, g: 12, b: 18, a: 255))
-  drawRectangleLines(Rectangle(x: g.contentX.float32, y: g.contentY.float32,
+  drawRectOutline(Rectangle(x: g.contentX.float32, y: g.contentY.float32,
                                 width: g.contentW.float32, height: g.contentH.float32),
                     1, Color(r: 255, g: 180, b: 80, a: 200))
 

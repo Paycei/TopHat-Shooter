@@ -1,4 +1,5 @@
 import raylib, math
+import draw_prims
 import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types, enemy_config, modding/mod_state
 
 # ENABLE/DISABLE CHEATS
@@ -441,7 +442,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
 
   # Panel background
   drawRectangle(panelX, panelY, panelWidth, panelHeight, Color(r: 30, g: 30, b: 40, a: 255))
-  drawRectangleLines(panelX, panelY, panelWidth, panelHeight, Yellow)
+  drawRectOutline(panelX, panelY, panelWidth, panelHeight, Yellow)
 
   # Title
   let title = "CHEAT MENU (TESTER BUILD)"
@@ -457,7 +458,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
 
   drawRectangle(closeX, closeY, closeButtonSize, closeButtonSize,
                 if closeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
-  drawRectangleLines(closeX, closeY, closeButtonSize, closeButtonSize, Red)
+  drawRectOutline(closeX, closeY, closeButtonSize, closeButtonSize, Red)
   drawText("X", closeX + 9, closeY + 7, 16, White)
 
   if closeHovered and isMouseButtonPressed(Left):
@@ -505,7 +506,7 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
       if tabHovered: Color(r: 35, g: 35, b: 45, a: 255) else: Color(r: 20, g: 20, b: 30, a: 255)
 
     drawRectangle(tabX, tabY, tabWidth, 30, bgColor)
-    drawRectangleLines(tabX, tabY, tabWidth, 30, tabColor)
+    drawRectOutline(tabX, tabY, tabWidth, 30, tabColor)
     let tabText = tabLabel(tab, i)
     let textWidth = measureText(tabText, 12)
     drawText(tabText, tabX + (tabWidth - textWidth) div 2, tabY + 9, 12, tabColor)
@@ -539,8 +540,8 @@ proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: 
 
   # Draw cursor on top of everything when menu is active
   let mousePos = getVirtualMousePosition()
-  drawCircle(mousePos, 4, Color(r: 255, g: 255, b: 255, a: 200))
-  drawCircleLines(mousePos.x.int32, mousePos.y.int32, 4, Black)
+  drawDisc(mousePos, 4, Color(r: 255, g: 255, b: 255, a: 200))
+  drawCircleOutline(mousePos.x.int32, mousePos.y.int32, 4, Black)
 
 proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   var currentY = y + 10
@@ -563,7 +564,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   let skipHovered = checkCollisionPointRec(getVirtualMousePosition(), skipRect)
   drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if skipHovered: Color(r: 80, g: 80, b: 0, a: 255) else: Color(r: 60, g: 60, b: 0, a: 255))
-  drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, Yellow)
+  drawRectOutline(centerX, currentY, buttonWidth, buttonHeight, Yellow)
   drawText(t(tkCheatSkipWave), centerX + 30, currentY + 12, 16, White)
 
   if skipHovered and isMouseButtonPressed(Left):
@@ -576,7 +577,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   let nextHovered = checkCollisionPointRec(getVirtualMousePosition(), nextRect)
   drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if nextHovered: Color(r: 0, g: 80, b: 80, a: 255) else: Color(r: 0, g: 60, b: 60, a: 255))
-  drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, SkyBlue)
+  drawRectOutline(centerX, currentY, buttonWidth, buttonHeight, SkyBlue)
   drawText(t(tkCheatAdvanceWave), centerX + 20, currentY + 12, 16, White)
 
   if nextHovered and isMouseButtonPressed(Left):
@@ -589,7 +590,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
   let bossHovered = checkCollisionPointRec(getVirtualMousePosition(), bossRect)
   drawRectangle(centerX, currentY, buttonWidth, buttonHeight,
                 if bossHovered: Color(r: 80, g: 0, b: 0, a: 255) else: Color(r: 60, g: 0, b: 0, a: 255))
-  drawRectangleLines(centerX, currentY, buttonWidth, buttonHeight, Red)
+  drawRectOutline(centerX, currentY, buttonWidth, buttonHeight, Red)
   drawText(t(tkCheatTriggerBoss), centerX + 40, currentY + 12, 16, White)
 
   if bossHovered and isMouseButtonPressed(Left):
@@ -618,7 +619,7 @@ proc drawWavesTab(x, y, width, height: int32, game: var Game) =
                elif unlock: (if hovered: Color(r: 0, g: 110, b: 0, a: 255) else: Color(r: 0, g: 75, b: 0, a: 255))
                else: (if hovered: Color(r: 110, g: 0, b: 0, a: 255) else: Color(r: 75, g: 0, b: 0, a: 255))
     drawRectangle(bx, currentY, modeBtnW, modeBtnH, fill)
-    drawRectangleLines(bx, currentY, modeBtnW, modeBtnH, if ANTICHEAT_ENABLED: Gray else: accent)
+    drawRectOutline(bx, currentY, modeBtnW, modeBtnH, if ANTICHEAT_ENABLED: Gray else: accent)
     let label = t(if unlock: tkCheatUnlockModes else: tkCheatLockModes)
     drawText(label, bx + (modeBtnW - measureText(label, 13)) div 2, currentY + 9, 13,
              if ANTICHEAT_ENABLED: Gray else: White)
@@ -651,7 +652,7 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
                  elif discHovered: Color(r: 0, g: 110, b: 0, a: 255)
                  else: Color(r: 0, g: 75, b: 0, a: 255)
   drawRectangle(discX, currentY, discBtnW, discBtnH, discFill)
-  drawRectangleLines(discX, currentY, discBtnW, discBtnH,
+  drawRectOutline(discX, currentY, discBtnW, discBtnH,
                      if ANTICHEAT_ENABLED: Gray else: Green)
   let discLabel = t(tkCheatDiscoverAll)
   let discTW = measureText(discLabel, 13)
@@ -666,7 +667,7 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
   let undiscHovered = checkCollisionPointRec(getVirtualMousePosition(), undiscRect)
   drawRectangle(undiscX, currentY, discBtnW, discBtnH,
                 if undiscHovered: Color(r: 110, g: 0, b: 0, a: 255) else: Color(r: 75, g: 0, b: 0, a: 255))
-  drawRectangleLines(undiscX, currentY, discBtnW, discBtnH, Red)
+  drawRectOutline(undiscX, currentY, discBtnW, discBtnH, Red)
   let undiscLabel = t(tkCheatUndiscoverAll)
   let undiscTW = measureText(undiscLabel, 13)
   drawText(undiscLabel, undiscX + (discBtnW - undiscTW) div 2, currentY + 9, 13, White)
@@ -727,7 +728,7 @@ proc drawPowerUpsTab(x, y, width, height: int32, game: var Game, menu: CheatMenu
                         a: 255)
 
     drawRectangle(centerX, itemY, buttonWidth, buttonHeight, drawColor)
-    drawRectangleLines(centerX, itemY, buttonWidth, buttonHeight, White)
+    drawRectOutline(centerX, itemY, buttonWidth, buttonHeight, White)
 
     let textWidth = measureText(name, 14)
     drawText(name, centerX + (buttonWidth - textWidth) div 2, itemY + 10, 14, Black)
@@ -783,7 +784,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
 
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 0, g: 100, b: 0, a: 255) else: Color(r: 0, g: 70, b: 0, a: 255))
-    drawRectangleLines(btnX, currentY, buttonWidth, buttonHeight, Green)
+    drawRectOutline(btnX, currentY, buttonWidth, buttonHeight, Green)
 
     let textWidth = measureText(label, 12)
     drawText(label, btnX + (buttonWidth - textWidth) div 2, currentY + 9, 12, White)
@@ -813,7 +814,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
 
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 100, g: 100, b: 0, a: 255) else: Color(r: 70, g: 70, b: 0, a: 255))
-    drawRectangleLines(btnX, currentY, buttonWidth, buttonHeight, Yellow)
+    drawRectOutline(btnX, currentY, buttonWidth, buttonHeight, Yellow)
 
     let textWidth = measureText(label, 12)
     drawText(label, btnX + (buttonWidth - textWidth) div 2, currentY + 9, 12, White)
@@ -844,7 +845,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
 
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 100, g: 80, b: 0, a: 255) else: Color(r: 70, g: 60, b: 0, a: 255))
-    drawRectangleLines(btnX, currentY, buttonWidth, buttonHeight, Gold)
+    drawRectOutline(btnX, currentY, buttonWidth, buttonHeight, Gold)
 
     let textWidth = measureText(label, 12)
     drawText(label, btnX + (buttonWidth - textWidth) div 2, currentY + 9, 12, White)
@@ -874,7 +875,7 @@ proc drawStatsTab(x, y, width, height: int32, game: var Game) =
 
     drawRectangle(btnX, currentY, buttonWidth, buttonHeight,
                   if hovered: Color(r: 0, g: 100, b: 150, a: 255) else: Color(r: 0, g: 70, b: 100, a: 255))
-    drawRectangleLines(btnX, currentY, buttonWidth, buttonHeight, SkyBlue)
+    drawRectOutline(btnX, currentY, buttonWidth, buttonHeight, SkyBlue)
 
     let textWidth = measureText(label, 12)
     drawText(label, btnX + (buttonWidth - textWidth) div 2, currentY + 9, 12, White)
@@ -942,7 +943,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
 
       drawRectangle(removeX, itemY + 2, removeWidth, removeHeight,
                     if removeHovered: Color(r: 150, g: 0, b: 0, a: 255) else: Color(r: 100, g: 0, b: 0, a: 255))
-      drawRectangleLines(removeX, itemY + 2, removeWidth, removeHeight, Red)
+      drawRectOutline(removeX, itemY + 2, removeWidth, removeHeight, Red)
 
       let removeText = t(tkCheatRemove)
       let removeTextWidth = measureText(removeText, 10)
@@ -959,7 +960,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
               x + 20, scrollInfoY, 10, Gray)
 
   # Draw divider line
-  drawLine(Vector2(x: (x + 10).float32, y: dividerY.float32),
+  drawStroke(Vector2(x: (x + 10).float32, y: dividerY.float32),
            Vector2(x: (x + width - 10).float32, y: dividerY.float32),
            2, Color(r: 100, g: 100, b: 120, a: 255))
 
@@ -1031,7 +1032,7 @@ proc drawPermanentPowerUpsTab(x, y, width, height: int32, game: var Game, menu: 
         btnColor = if hovered: Color(r: 80, g: 80, b: 80, a: 255) else: Color(r: 50, g: 50, b: 50, a: 255)
 
       drawRectangle(btnX, itemY, buttonWidth, itemHeight - 5, btnColor)
-      drawRectangleLines(btnX, itemY, buttonWidth, itemHeight - 5,
+      drawRectOutline(btnX, itemY, buttonWidth, itemHeight - 5,
                         if level == currentLevel: Yellow else: Gray)
 
       let btnText = "Lv" & $level
@@ -1072,7 +1073,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
       Color(r: 40, g: 40, b: 50, a: 255)
 
     drawRectangle(x + 20, itemY, width - 40, itemHeight - 5, boxColor)
-    drawRectangleLines(x + 20, itemY, width - 40, itemHeight - 5,
+    drawRectOutline(x + 20, itemY, width - 40, itemHeight - 5,
                       if enemy.isBoss: Red else: Gray)
 
     # Draw enemy icon/shape (miniature version)
@@ -1082,7 +1083,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
 
     case enemy.enemyType
     of etCircle:
-      drawCircle(Vector2(x: iconX.float32, y: iconY.float32), iconSize, enemy.color)
+      drawDisc(Vector2(x: iconX.float32, y: iconY.float32), iconSize, enemy.color)
     of etCube:
       drawRectangle((iconX - iconSize.int32), (iconY - iconSize.int32),
                    (iconSize * 2).int32, (iconSize * 2).int32, enemy.color)
@@ -1097,7 +1098,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
         let angle = j.float32 * PI * 2.0 / 5.0 - PI / 2.0
         let x1 = iconX.float32 + cos(angle) * iconSize
         let y1 = iconY.float32 + sin(angle) * iconSize
-        drawCircle(Vector2(x: x1, y: y1), 3, enemy.color)
+        drawDisc(Vector2(x: x1, y: y1), 3, enemy.color)
     of etHexagon:
       # Draw hexagon
       for j in 0..<6:
@@ -1107,7 +1108,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
         let y1 = iconY.float32 + sin(angle) * iconSize
         let x2 = iconX.float32 + cos(nextAngle) * iconSize
         let y2 = iconY.float32 + sin(nextAngle) * iconSize
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
+        drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
     of etPentagon:
       # Draw pentagon
       for j in 0..<5:
@@ -1117,10 +1118,10 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
         let y1 = iconY.float32 + sin(angle) * iconSize
         let x2 = iconX.float32 + cos(nextAngle) * iconSize
         let y2 = iconY.float32 + sin(nextAngle) * iconSize
-        drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
+        drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2, enemy.color)
     else:
       # Default circle for other types
-      drawCircle(Vector2(x: iconX.float32, y: iconY.float32), iconSize, enemy.color)
+      drawDisc(Vector2(x: iconX.float32, y: iconY.float32), iconSize, enemy.color)
 
     # Enemy name and type
     let nameX = x + 65
@@ -1150,7 +1151,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game) =
     drawRectangle(hpBarX, hpBarY, (hpBarWidth * hpPercent).int32, hpBarHeight.int32,
                  if hpPercent > 0.5: Green elif hpPercent > 0.2: Orange else: Red)
     # Border
-    drawRectangleLines(hpBarX, hpBarY, hpBarWidth.int32, hpBarHeight.int32, White)
+    drawRectOutline(hpBarX, hpBarY, hpBarWidth.int32, hpBarHeight.int32, White)
 
     # HP text
     drawText($int(enemy.hp) & "/" & $int(enemy.maxHp), hpBarX + 190, hpBarY, 10, White)
@@ -1185,7 +1186,7 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
     let rect = Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
     drawRectangle(bx, by, bw, bh, if hovered: lighten(base) else: base)
-    drawRectangleLines(bx, by, bw, bh, border)
+    drawRectOutline(bx, by, bw, bh, border)
     let tw = measureText(label, 12)
     drawText(label, bx + (bw - tw) div 2, by + (bh - 12) div 2, 12, White)
     result = hovered and isMouseButtonPressed(Left)
@@ -1295,7 +1296,7 @@ proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
     let rect = Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
     drawRectangle(bx, by, bw, bh, if hovered: lighten(base) else: base)
-    drawRectangleLines(bx, by, bw, bh, border)
+    drawRectOutline(bx, by, bw, bh, border)
     let tw = measureText(label, 12)
     drawText(label, bx + (bw - tw) div 2, by + (bh - 12) div 2, 12, White)
     result = hovered and isMouseButtonPressed(Left)

@@ -1,6 +1,7 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
 import raylib, std/strutils, random
+import draw_prims
 from std/unicode import runeSubStr, runeLen
 import types, enemy, enemy_config, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
 import game3d/types_3d
@@ -162,7 +163,7 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
     if currentY > startY - 50 and currentY < screenHeight - 50:  # Only draw visible items
       let config = getEnemyConfig(enemyType)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 70, b: 120, a: 255))
-      drawRectangleLines(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 100, g: 100, b: 150, a: 255))
+      drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 100, g: 100, b: 150, a: 255))
       let (nameText, nameSize) = fitSandboxText(sandboxEnemyTag(enemyType) & config.name, buttonWidth - 10, 16)
       drawText(nameText, contentX + 5, currentY + 5, nameSize, White)
       let (descText, descSize) = fitSandboxText(config.description, buttonWidth - 10, 12)
@@ -186,7 +187,7 @@ proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
     if currentY > startY - 50 and currentY < screenHeight - 50:
       let bossDef = getBossDefinition(bossId)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 50, b: 50, a: 255))
-      drawRectangleLines(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 80, b: 80, a: 255))
+      drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 80, b: 80, a: 255))
       let (nameText, nameSize) = fitSandboxText($bossId & ". " & sandboxBossTag(bossId) & bossDef.name,
                                                 buttonWidth - 10, 16)
       drawText(nameText, contentX + 5, currentY + 5, nameSize, Red)
@@ -225,7 +226,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
 
       drawRectangle(contentX, currentY, cardWidth, POWERUP_ITEM_HEIGHT, bgColor)
       drawRectangle(contentX, currentY, 3, POWERUP_ITEM_HEIGHT, accent)
-      drawRectangleLines(Rectangle(x: contentX.float32, y: currentY.float32,
+      drawRectOutline(Rectangle(x: contentX.float32, y: currentY.float32,
                                    width: cardWidth.float32, height: POWERUP_ITEM_HEIGHT.float32),
                          1, borderColor)
 
@@ -233,7 +234,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
       let iconY = currentY + 11
       drawRectangle(iconX - 3, iconY - 3, POWERUP_ICON_SIZE + 6, POWERUP_ICON_SIZE + 6,
                     Color(r: 10, g: 16, b: 24, a: 190))
-      drawRectangleLines(Rectangle(x: (iconX - 3).float32, y: (iconY - 3).float32,
+      drawRectOutline(Rectangle(x: (iconX - 3).float32, y: (iconY - 3).float32,
                                    width: (POWERUP_ICON_SIZE + 6).float32,
                                    height: (POWERUP_ICON_SIZE + 6).float32),
                          1, withAlpha(accent, 180))
@@ -365,7 +366,7 @@ proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int
   # Track background
   drawRectangle(trackX, trackY, SCROLLBAR_WIDTH, trackH,
                 Color(r: 30, g: 30, b: 40, a: 180))
-  drawRectangleLines(Rectangle(x: trackX.float32, y: trackY.float32,
+  drawRectOutline(Rectangle(x: trackX.float32, y: trackY.float32,
                                width: SCROLLBAR_WIDTH.float32, height: trackH.float32),
                      1, Color(r: 60, g: 60, b: 80, a: 180))
 
@@ -389,7 +390,7 @@ proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int
   # Subtle grip lines
   let midY = thumbY + thumbH div 2
   for dy in [-4'i32, 0'i32, 4'i32]:
-    drawLine(trackX + 2, midY + dy, trackX + SCROLLBAR_WIDTH - 3, midY + dy,
+    drawStroke(trackX + 2, midY + dy, trackX + SCROLLBAR_WIDTH - 3, midY + dy,
              Color(r: 200, g: 220, b: 255, a: 100))
 
 proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =

@@ -5,6 +5,7 @@
 ## cinematic_common helpers as the lore and endgame cinematics.
 
 import raylib, rlgl, math, strutils
+import ../draw_prims
 from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../localization, ../sound, ../boss_definitions,
        ../enemy_config, cinematic_common, cutscene, ../utils
@@ -54,11 +55,11 @@ proc newWaveRosterShot(): CutsceneDrawProc =
 
     drawSoftGlow(cx, cy, 130.0'f32 * open, colorA(WaveAccent, alpha * 40.0'f32), 1.0'f32)
     for i in 1..4:
-      drawCircleLines(Vector2(x: cx, y: cy), radarR * i.float32 / 4.0'f32 * open,
+      drawCircleOutline(Vector2(x: cx, y: cy), radarR * i.float32 / 4.0'f32 * open,
                       colorA(WaveAccent, alpha * (110.0'f32 - i.float32 * 14.0'f32)))
-    drawLine((cx - radarR * open).int32, cy.int32, (cx + radarR * open).int32, cy.int32,
+    drawStroke((cx - radarR * open).int32, cy.int32, (cx + radarR * open).int32, cy.int32,
              colorA(WaveAccent, alpha * 45.0'f32))
-    drawLine(cx.int32, (cy - radarR * open).int32, cx.int32, (cy + radarR * open).int32,
+    drawStroke(cx.int32, (cy - radarR * open).int32, cx.int32, (cy + radarR * open).int32,
              colorA(WaveAccent, alpha * 45.0'f32))
 
     # The sweep starts at twelve o'clock and fades a trail behind it.
@@ -66,7 +67,7 @@ proc newWaveRosterShot(): CutsceneDrawProc =
     let sweepA = -PI * 0.5'f32 + swept
     for k in 0..<14:
       let a = sweepA - k.float32 * 0.035'f32
-      drawLine(Vector2(x: cx, y: cy), Vector2(x: cx + cos(a) * radarR * open, y: cy + sin(a) * radarR * open),
+      drawStroke(Vector2(x: cx, y: cy), Vector2(x: cx + cos(a) * radarR * open, y: cy + sin(a) * radarR * open),
                2.0'f32, colorA(WaveAccent, alpha * (150.0'f32 - k.float32 * 10.0'f32)))
 
     # Each service is found as the sweep crosses it: ping, blip, and its name.
@@ -81,10 +82,10 @@ proc newWaveRosterShot(): CutsceneDrawProc =
       let by = cy + sin(ang) * radarR * blipDist[i] * open
       let age = (swept - rel) / sweepSpeed
       if age < 0.6'f32:
-        drawCircleLines(Vector2(x: bx, y: by), 6.0'f32 + age * 40.0'f32,
+        drawCircleOutline(Vector2(x: bx, y: by), 6.0'f32 + age * 40.0'f32,
                         Color(r: 255, g: 70, b: 70, a: alphaByte(alpha * (1.0'f32 - age / 0.6'f32) * 220.0'f32)))
       let pulse = 0.6'f32 + 0.4'f32 * sin(local * 6.0'f32 + i.float32)
-      drawCircle(Vector2(x: bx, y: by), 3.5'f32 + pulse * 2.0'f32,
+      drawDisc(Vector2(x: bx, y: by), 3.5'f32 + pulse * 2.0'f32,
                  Color(r: 255, g: 60, b: 60, a: alphaByte(alpha * 235.0'f32)))
       let w = measureText(name, 12)
       let lx = if cos(ang) >= 0.0'f32: bx.int32 + 10 else: bx.int32 - 10 - w
@@ -163,11 +164,11 @@ proc drawSurvShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   let sweep = (local / duration) * 360.0'f32
   drawRing(Vector2(x: cx, y: cy), dialR - 2.0'f32, dialR + 2.0'f32, -90.0'f32, -90.0'f32 + sweep, 48,
            colorA(SurvAccent, alpha * 215.0'f32))
-  drawCircleLines(Vector2(x: cx, y: cy), dialR, colorA(SurvAccent, alpha * 70.0'f32 * open))
+  drawCircleOutline(Vector2(x: cx, y: cy), dialR, colorA(SurvAccent, alpha * 70.0'f32 * open))
   for i in 0..<12:
     let a = i.float32 * PI * 2.0'f32 / 12.0'f32 - PI * 0.5'f32
     let r1 = dialR - (if i mod 3 == 0: 12.0'f32 else: 7.0'f32)
-    drawLine((cx + cos(a) * r1).int32, (cy + sin(a) * r1).int32,
+    drawStroke((cx + cos(a) * r1).int32, (cy + sin(a) * r1).int32,
              (cx + cos(a) * dialR).int32, (cy + sin(a) * dialR).int32,
              colorA(SurvAccent, alpha * (if i mod 3 == 0: 200.0'f32 else: 120.0'f32)))
 
@@ -210,7 +211,7 @@ proc drawSurvShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
   drawSoftGlow(cx, panelY.float32 + panelH.float32 * 0.5'f32, 240.0'f32,
                colorA(SurvAccent, alpha * 26.0'f32), 1.0'f32)
   drawRectangle(panelX, panelY, panelW, panelH, Color(r: 12, g: 8, b: 6, a: alphaByte(alpha * 200.0'f32)))
-  drawRectangleLines(panelX, panelY, panelW, panelH, colorA(SurvAccent, alpha * 150.0'f32))
+  drawRectOutline(panelX, panelY, panelW, panelH, colorA(SurvAccent, alpha * 150.0'f32))
 
   # Entries arrive on a steady cadence; once the panel is full it jumps a line
   # per entry, the way a real terminal log scrolls.
@@ -248,9 +249,9 @@ proc drawSurvShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
       elif phase > 0.5'f32 and phase < 0.53'f32: 16.0'f32 * sin((phase - 0.5'f32) / 0.03'f32 * PI)
       else: sin(phase * 40.0'f32) * 1.5'f32
     let p = Vector2(x: panelX.float32 + u * traceW, y: traceY + spike)
-    drawLine(prev, p, 2.0'f32, colorA(SurvAccent, alpha * 200.0'f32 * (0.35'f32 + u * 0.65'f32)))
+    drawStroke(prev, p, 2.0'f32, colorA(SurvAccent, alpha * 200.0'f32 * (0.35'f32 + u * 0.65'f32)))
     prev = p
-  drawCircle(prev, 3.5'f32, colorA(SurvAccent, alpha * 240.0'f32))
+  drawDisc(prev, 3.5'f32, colorA(SurvAccent, alpha * 240.0'f32))
 
   drawSubtitles([t(tkModeIntroSurv2a), t(tkModeIntroSurv2b)], sw, sh, alpha)
 
@@ -330,10 +331,10 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
     triAny(left, right, bottom, fill)
     for g in 1..3:
       let u = g.float32 / 4.0'f32
-      drawLine(lerpV(left, top, u), lerpV(bottom, right, u), 1.0'f32, colorA(acc, la * 55.0'f32))
-      drawLine(lerpV(top, right, u), lerpV(left, bottom, u), 1.0'f32, colorA(acc, la * 55.0'f32))
+      drawStroke(lerpV(left, top, u), lerpV(bottom, right, u), 1.0'f32, colorA(acc, la * 55.0'f32))
+      drawStroke(lerpV(top, right, u), lerpV(left, bottom, u), 1.0'f32, colorA(acc, la * 55.0'f32))
     for (a, b) in [(left, top), (top, right), (right, bottom), (bottom, left)]:
-      drawLine(a, b, 2.0'f32, colorA(acc, la * 190.0'f32))
+      drawStroke(a, b, 2.0'f32, colorA(acc, la * 190.0'f32))
     let name = themeName(themes[k])
     let nw = measureText(name, 16)
     drawText(name, (cx - hw - 16.0'f32).int32 - nw, (y - 8.0'f32).int32, 16, colorA(acc, la * 230.0'f32))
@@ -346,10 +347,10 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
     let sx = cx + (hash01Mode(i.float32) - 0.5'f32) * 70.0'f32
     let p = fractCoord(local * 2.2'f32 + i.float32 * 0.1'f32)
     let sy = playerY - 30.0'f32 - p * 150.0'f32
-    drawLine(sx.int32, sy.int32, sx.int32, (sy - 26.0'f32).int32,
+    drawStroke(sx.int32, sy.int32, sx.int32, (sy - 26.0'f32).int32,
              colorA(RogueAccent, alpha * (1.0'f32 - p) * 150.0'f32))
   if flash > 0.0'f32:
-    drawCircleLines(Vector2(x: cx, y: playerY), 26.0'f32 + flash * 60.0'f32,
+    drawCircleOutline(Vector2(x: cx, y: playerY), 26.0'f32 + flash * 60.0'f32,
                     Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * flash * 200.0'f32)))
   drawEquippedPlayerModel(newVector2f(cx, playerY), 22.0'f32, local, alpha, 0.25'f32 + flash * 0.5'f32)
 
@@ -357,10 +358,10 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   let gx = (sw - 60).int32
   let gTop = sh div 9 + 40
   let gBottom = sh - sh div 9 - 150
-  drawLine(gx, gTop, gx, gBottom, colorA(RogueAccent, alpha * 120.0'f32))
+  drawStroke(gx, gTop, gx, gBottom, colorA(RogueAccent, alpha * 120.0'f32))
   for k in 0..themes.high:
     let ty = gTop + int32((gBottom - gTop).float32 * k.float32 / themes.high.float32)
-    drawLine(gx - 5, ty, gx + 5, ty, colorA(themeAccent(themes[k]), alpha * 170.0'f32))
+    drawStroke(gx - 5, ty, gx + 5, ty, colorA(themeAccent(themes[k]), alpha * 170.0'f32))
   let frac = clamp01((depth - 100.0'f32 + gap) / (themes.len.float32 * gap))
   let my = gTop.float32 + (gBottom - gTop).float32 * frac
   drawTriangle(Vector2(x: gx.float32 - 8.0'f32, y: my - 6.0'f32), Vector2(x: gx.float32 - 8.0'f32, y: my + 6.0'f32),
@@ -383,7 +384,7 @@ proc drawRogueShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
     let rx = cx + cos(a) * r
     let ry = cy + sin(a) * r * 0.6'f32
     drawSoftGlow(rx, ry, 28.0'f32 * progress, colorA(RogueAccent, alpha * 55.0'f32 * progress), 1.0'f32)
-    drawCircle(Vector2(x: rx, y: ry), 8.0'f32 * progress,
+    drawDisc(Vector2(x: rx, y: ry), 8.0'f32 * progress,
                colorA(RogueAccent, alpha * 200.0'f32 * progress))
 
   drawKernelModel(newVector2f(cx, cy), 34.0'f32, local, progress, alpha)
@@ -483,11 +484,11 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
   let grid = colorA(SandboxAccent, alpha * 22.0'f32)
   var gx = 0'i32
   while gx < sidebarX:
-    drawLine(gx, top, gx, bottom, grid)
+    drawStroke(gx, top, gx, bottom, grid)
     gx += 40
   var gy = top
   while gy < bottom:
-    drawLine(0, gy, sidebarX, gy, grid)
+    drawStroke(0, gy, sidebarX, gy, grid)
     gy += 40
 
   drawEquippedPlayerModel(newVector2f(playCx, playCy), 20.0'f32, local, alpha, 0.2'f32)
@@ -516,7 +517,7 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
 
   # The spawn list, drawn like the mode's own Enemies tab.
   drawRectangle(sidebarX, top, sidebarW, panelBottom - top, Color(r: 22, g: 22, b: 34, a: alphaByte(alpha * 240.0'f32)))
-  drawLine(sidebarX, top, sidebarX, panelBottom, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 220.0'f32)))
+  drawStroke(sidebarX, top, sidebarX, panelBottom, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 220.0'f32)))
   drawText(t(tkSandboxSpawnEnemies), bx, top + 14, 18, Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 240.0'f32)))
   for i, kind in listKinds:
     let y = buttonY(i)
@@ -528,7 +529,7 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
     let fill = Color(r: uint8(70.0'f32 + flash * 70.0'f32), g: uint8(70.0'f32 + flash * 70.0'f32),
                      b: uint8(120.0'f32 + flash * 90.0'f32), a: alphaByte(alpha * 245.0'f32))
     drawRectangle(bx, y, bw, btnH, fill)
-    drawRectangleLines(bx, y, bw, btnH, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 255.0'f32)))
+    drawRectOutline(bx, y, bw, btnH, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 255.0'f32)))
     # Small radius: some enemies (Star, Diamond) draw halos well past it.
     drawRealEnemy(kind, (bx + 18).float32, (y + btnH div 2).float32, 6.0'f32, local, 400 + i, 0)
     let cfg = getEnemyConfig(kind)
@@ -588,11 +589,11 @@ proc drawPvPShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
     let passed = ny.int32 <= scanY
     let nodeAlpha = if passed: alpha * 200.0'f32 else: 0.0'f32
     if nodeAlpha > 0:
-      drawCircle(Vector2(x: nx, y: ny), 6.0'f32, colorA(PvPAccent, nodeAlpha))
+      drawDisc(Vector2(x: nx, y: ny), 6.0'f32, colorA(PvPAccent, nodeAlpha))
       if i > 0:
         let px = sw.float32 * (0.15'f32 + fractCoord((i - 1).float32 * 5.37'f32) * 0.7'f32)
         let py = sh.float32 * (0.2'f32 + fractCoord((i - 1).float32 * 5.37'f32 * 1.7'f32) * 0.55'f32)
-        drawLine(nx.int32, ny.int32, px.int32, py.int32,
+        drawStroke(nx.int32, ny.int32, px.int32, py.int32,
                  colorA(PvPAccent, nodeAlpha * 0.4'f32))
 
   drawSoftGlow(cx, cy, 100.0'f32, colorA(PvPAccent, alpha * 25.0'f32), 1.0'f32)
@@ -632,7 +633,7 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
   var k = 0
   while x < rx - 34.0'f32:
     let flick = hash01Mode(k.float32 + floor(local * 18.0'f32))
-    drawLine(x.int32, cy.int32, (x + 9.0'f32).int32, cy.int32,
+    drawStroke(x.int32, cy.int32, (x + 9.0'f32).int32, cy.int32,
              colorA(PvPAccent, alpha * enter * (60.0'f32 + flick * 90.0'f32)))
     x += 16.0'f32
     inc k
@@ -643,7 +644,7 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
     let bx = lx + 34.0'f32 + (clashX - lx - 34.0'f32) * p
     let by = cy + sin(i.float32 * 2.1'f32 + local * 3.0'f32) * 16.0'f32 * (1.0'f32 - p)
     for tr in 1..3:
-      drawCircle(Vector2(x: bx - tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
+      drawDisc(Vector2(x: bx - tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
                  Color(r: 0, g: 230, b: 230, a: alphaByte(alpha * enter * (120.0'f32 - tr.float32 * 30.0'f32))))
     drawEquippedBulletModel(newVector2f(bx, by), 7.0'f32, 0.0'f32, local + i.float32, alpha * enter)
   for i in 0..<7:
@@ -651,10 +652,10 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
     let bx = rx - 34.0'f32 - (rx - 34.0'f32 - clashX) * p
     let by = cy + sin(i.float32 * 1.7'f32 + local * 3.0'f32) * 16.0'f32 * (1.0'f32 - p)
     for tr in 1..3:
-      drawCircle(Vector2(x: bx + tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
+      drawDisc(Vector2(x: bx + tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
                  colorA(PvPAccent, alpha * enter * (120.0'f32 - tr.float32 * 30.0'f32)))
-    drawCircle(Vector2(x: bx, y: by), 6.5'f32, Color(r: 255, g: 90, b: 90, a: alphaByte(alpha * enter * 240.0'f32)))
-    drawCircle(Vector2(x: bx, y: by), 3.0'f32, Color(r: 255, g: 220, b: 220, a: alphaByte(alpha * enter * 240.0'f32)))
+    drawDisc(Vector2(x: bx, y: by), 6.5'f32, Color(r: 255, g: 90, b: 90, a: alphaByte(alpha * enter * 240.0'f32)))
+    drawDisc(Vector2(x: bx, y: by), 3.0'f32, Color(r: 255, g: 220, b: 220, a: alphaByte(alpha * enter * 240.0'f32)))
 
   # The clash: sparks where the streams cancel out.
   drawSoftGlow(clashX, cy, 42.0'f32 + sin(local * 11.0'f32) * 8.0'f32,
@@ -662,17 +663,17 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
   for i in 0..<10:
     let a = hash01Mode(i.float32 + floor(local * 14.0'f32)) * PI * 2.0'f32
     let len = 10.0'f32 + hash01Mode(i.float32 * 3.3'f32 + floor(local * 14.0'f32)) * 26.0'f32
-    drawLine(Vector2(x: clashX, y: cy), Vector2(x: clashX + cos(a) * len, y: cy + sin(a) * len), 2.0'f32,
+    drawStroke(Vector2(x: clashX, y: cy), Vector2(x: clashX + cos(a) * len, y: cy + sin(a) * len), 2.0'f32,
              Color(r: 255, g: 235, b: 245, a: alphaByte(alpha * enter * 200.0'f32)))
 
   # The two processes.
   drawSoftGlow(lx, cy, 64.0'f32, Color(r: 0, g: 230, b: 230, a: alphaByte(alpha * 50.0'f32)), 1.0'f32)
   drawEquippedPlayerModel(newVector2f(lx, cy), 24.0'f32, local, alpha, 0.25'f32)
-  drawCircleLines(Vector2(x: lx, y: cy), 34.0'f32 + sin(local * 5.0'f32 + 1.0'f32) * 2.0'f32,
+  drawCircleOutline(Vector2(x: lx, y: cy), 34.0'f32 + sin(local * 5.0'f32 + 1.0'f32) * 2.0'f32,
                   Color(r: 0, g: 230, b: 230, a: alphaByte(alpha * 200.0'f32)))
   drawSoftGlow(rx, cy, 64.0'f32, colorA(PvPAccent, alpha * 50.0'f32), 1.0'f32)
   drawEquippedPlayerModel(newVector2f(rx, cy), 24.0'f32, -local, alpha, 0.25'f32)
-  drawCircleLines(Vector2(x: rx, y: cy), 34.0'f32 + sin(local * 5.0'f32) * 2.0'f32, colorA(PvPAccent, alpha * 200.0'f32))
+  drawCircleOutline(Vector2(x: rx, y: cy), 34.0'f32 + sin(local * 5.0'f32) * 2.0'f32, colorA(PvPAccent, alpha * 200.0'f32))
 
   drawSubtitles([t(tkModeIntroPvP3a), t(tkModeIntroPvP3b)], sw, sh, alpha)
 

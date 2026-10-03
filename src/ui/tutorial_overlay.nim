@@ -11,6 +11,7 @@
 ## so a rebound control is always taught under its real key.
 
 import raylib, math, strutils
+import ../draw_prims
 import ../types, ../particle_types, ../tutorial, ../localization, ../settings, ../render_context, ../utils, os_combined_hud
 
 const
@@ -160,7 +161,7 @@ proc drawRichLine(line: seq[Token], x, y, size: int32, textColor: Color, alpha: 
       let ky = y - 3
       drawRectangle(cx, ky, w, kh, withAlpha(KeyBg, KeyBg.a.float32 * alpha))
       drawRectangle(cx, ky + kh - 2, w, 2, withAlpha(Accent, 120.0'f32 * alpha))  # keycap lip
-      drawRectangleLines(Rectangle(x: cx.float32, y: ky.float32, width: w.float32, height: kh.float32),
+      drawRectOutline(Rectangle(x: cx.float32, y: ky.float32, width: w.float32, height: kh.float32),
                          1, withAlpha(Accent, 180.0'f32 * alpha))
       drawText(tok.text, cx + KeyPadX, y - 1, size - 2, withAlpha(KeyText, 255.0'f32 * alpha))
     else:
@@ -210,8 +211,8 @@ proc drawCornerBrackets(c: Vector2, half, arm: float32, color: Color) =
   for sx in [-1.0'f32, 1.0'f32]:
     for sy in [-1.0'f32, 1.0'f32]:
       let corner = Vector2(x: c.x + sx * half, y: c.y + sy * half)
-      drawLine(corner, Vector2(x: corner.x - sx * arm, y: corner.y), 2, color)
-      drawLine(corner, Vector2(x: corner.x, y: corner.y - sy * arm), 2, color)
+      drawStroke(corner, Vector2(x: corner.x - sx * arm, y: corner.y), 2, color)
+      drawStroke(corner, Vector2(x: corner.x, y: corner.y - sy * arm), 2, color)
 
 proc drawWorldCues(game: Game, s: TutorialState) =
   let scale = getWorldViewScale()
@@ -223,8 +224,8 @@ proc drawWorldCues(game: Game, s: TutorialState) =
     let fade = 1.0'f32 - s.progress * 0.6'f32
     let c = toScreen(game.player.pos)
     let r = (game.player.radius + 16.0'f32 + pulse * 6.0'f32) * scale
-    drawCircleLines(c.x.int32, c.y.int32, r, withAlpha(Accent, (140.0'f32 + 90.0'f32 * pulse) * fade))
-    drawCircleLines(c.x.int32, c.y.int32, r + 5.0'f32 * scale, withAlpha(Accent, 60.0'f32 * fade))
+    drawCircleOutline(c.x.int32, c.y.int32, r, withAlpha(Accent, (140.0'f32 + 90.0'f32 * pulse) * fade))
+    drawCircleOutline(c.x.int32, c.y.int32, r + 5.0'f32 * scale, withAlpha(Accent, 60.0'f32 * fade))
     let label = t(tkTutorialYou)
     let lw = measureText(label, 14)
     let ly = (c.y - r - 22.0'f32).int32
@@ -240,11 +241,11 @@ proc drawWorldCues(game: Game, s: TutorialState) =
   of tsLoot:
     for orb in game.xpOrbs:
       let c = toScreen(orb.pos)
-      drawCircleLines(c.x.int32, c.y.int32, (9.0'f32 + pulse * 4.0'f32) * scale,
+      drawCircleOutline(c.x.int32, c.y.int32, (9.0'f32 + pulse * 4.0'f32) * scale,
                       withAlpha(DoneColor, 120.0'f32 + 100.0'f32 * pulse))
     for coin in game.coins:
       let c = toScreen(coin.pos)
-      drawCircleLines(c.x.int32, c.y.int32, (10.0'f32 + pulse * 4.0'f32) * scale,
+      drawCircleOutline(c.x.int32, c.y.int32, (10.0'f32 + pulse * 4.0'f32) * scale,
                       withAlpha(CoinColor, 120.0'f32 + 100.0'f32 * pulse))
   else:
     discard
@@ -259,7 +260,7 @@ proc highlightRow(r: Rectangle, color: Color, time: float32) =
   let grow = 2.0'f32 + pulse * 2.0'f32
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32,
                 withAlpha(color, 22.0'f32 + 22.0'f32 * pulse))
-  drawRectangleLines(Rectangle(x: r.x - grow, y: r.y - grow,
+  drawRectOutline(Rectangle(x: r.x - grow, y: r.y - grow,
                                width: r.width + grow * 2.0'f32, height: r.height + grow * 2.0'f32),
                      2, withAlpha(color, 150.0'f32 + 100.0'f32 * pulse))
 
@@ -285,8 +286,8 @@ proc drawHudHighlights(game: Game, s: TutorialState) =
 # Instruction card
 
 proc drawCheck(x, y: float32, color: Color) =
-  drawLine(Vector2(x: x, y: y + 6), Vector2(x: x + 5, y: y + 11), 3, color)
-  drawLine(Vector2(x: x + 5, y: y + 11), Vector2(x: x + 14, y: y), 3, color)
+  drawStroke(Vector2(x: x, y: y + 6), Vector2(x: x + 5, y: y + 11), 3, color)
+  drawStroke(Vector2(x: x + 5, y: y + 11), Vector2(x: x + 14, y: y), 3, color)
 
 proc drawCard(game: Game, s: TutorialState) =
   let vw = getVirtualScreenWidth()
@@ -316,7 +317,7 @@ proc drawCard(game: Game, s: TutorialState) =
   drawRectangle(cardX, cardY, cardW, cardH, withAlpha(CardBg, CardBg.a.float32 * alpha))
   drawRectangle(cardX, cardY, cardW, TitleBarH, withAlpha(TitleBarBg, TitleBarBg.a.float32 * alpha))
   drawRectangle(cardX, cardY, 2, cardH, withAlpha(edge, 220.0'f32 * alpha))
-  drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32,
+  drawRectOutline(Rectangle(x: cardX.float32, y: cardY.float32,
                                width: cardW.float32, height: cardH.float32),
                      1, withAlpha(edge, 120.0'f32 * alpha))
 
@@ -335,7 +336,7 @@ proc drawCard(game: Game, s: TutorialState) =
       let blink = 0.5'f32 + 0.5'f32 * sin(game.time * 6.0'f32)
       drawRectangle(r, withAlpha(Accent, (140.0'f32 + 110.0'f32 * blink) * alpha))
     else:
-      drawRectangleLines(r, 1, withAlpha(MutedColor, 160.0'f32 * alpha))
+      drawRectOutline(r, 1, withAlpha(MutedColor, 160.0'f32 * alpha))
     px += pip + pipGap
 
   # Step title, with a DONE stamp while an action step's beat plays
@@ -375,7 +376,7 @@ proc drawCard(game: Game, s: TutorialState) =
   let fillW = int32(barW.float32 * clamp(s.progress, 0.0'f32, 1.0'f32))
   if fillW > 0:
     drawRectangle(cardX + CardPad, barY, fillW, 6, withAlpha(barColor, 230.0'f32 * alpha))
-  drawRectangleLines(Rectangle(x: (cardX + CardPad).float32, y: barY.float32,
+  drawRectOutline(Rectangle(x: (cardX + CardPad).float32, y: barY.float32,
                                width: barW.float32, height: 6),
                      1, withAlpha(barColor, 140.0'f32 * alpha))
   if label.len > 0:

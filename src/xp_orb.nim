@@ -1,4 +1,5 @@
 import raylib, math, random
+import draw_prims
 import particle_types, types, particle_pool, sound, powerup, patches, particle, enemy_config
 import modding/mod_hooks
 
@@ -130,13 +131,13 @@ proc drawXpOrb*(orb: XpOrb) =
   let a = uint8(255.0 * fade)
   let glowA = uint8(70.0 * fade)
   # Soft cyan-green glow + bright core (visually distinct from gold coins).
-  drawCircle(Vector2(x: orb.pos.x, y: orb.pos.y), size + 4 + pulse * 1.5,
+  drawDisc(Vector2(x: orb.pos.x, y: orb.pos.y), size + 4 + pulse * 1.5,
              Color(r: 80, g: 255, b: 200, a: glowA))
-  drawCircle(Vector2(x: orb.pos.x, y: orb.pos.y), size,
+  drawDisc(Vector2(x: orb.pos.x, y: orb.pos.y), size,
              Color(r: 90, g: 255, b: 170, a: a))
-  drawCircle(Vector2(x: orb.pos.x, y: orb.pos.y), size * 0.5,
+  drawDisc(Vector2(x: orb.pos.x, y: orb.pos.y), size * 0.5,
              Color(r: 220, g: 255, b: 240, a: a))
-  drawCircleLines(orb.pos.x.int32, orb.pos.y.int32, size,
+  drawCircleOutline(orb.pos.x.int32, orb.pos.y.int32, size,
                   Color(r: 180, g: 255, b: 220, a: a))
 
 proc moveXpOrbToPlayer*(orb: XpOrb, playerPos: Vector2f, dt: float32) =

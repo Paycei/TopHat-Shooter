@@ -3,6 +3,7 @@
 ## which knows anything about ui/, so it is safe to use from any ui/ module.
 
 import raylib, strutils, math
+import ../draw_prims
 import ../localization, ../types
 
 type TextAlign* = enum
@@ -117,32 +118,32 @@ proc drawRestorePointIcon*(cx, cy, size: float32, body, accent, led: Color,
 
   # Drop shadow, skipped once the glyph is fading or it muddies the fade.
   if body.a > 200:
-    drawCircle(Vector2(x: cx + 1.0, y: cy + 2.0), size, Color(r: 0, g: 0, b: 0, a: 90))
+    drawDisc(Vector2(x: cx + 1.0, y: cy + 2.0), size, Color(r: 0, g: 0, b: 0, a: 90))
 
   # Disc body + rim.
-  drawCircle(ctr, size, body)
-  drawCircleLines(int32(cx), int32(cy), size, accent)
+  drawDisc(ctr, size, body)
+  drawCircleOutline(int32(cx), int32(cy), size, accent)
 
   # Recessed platter face: a darker inset so the rim reads as a raised edge.
-  drawCircle(ctr, size * 0.66, shade(body, 0.62))
+  drawDisc(ctr, size * 0.66, shade(body, 0.62))
 
   # Rim sector ticks.
   for i in 0 ..< SectorTicks:
     let a = spin + (PI * 2.0) * i.float32 / SectorTicks.float32
-    drawLine(Vector2(x: cx + cos(a) * size * 0.70, y: cy + sin(a) * size * 0.70),
+    drawStroke(Vector2(x: cx + cos(a) * size * 0.70, y: cy + sin(a) * size * 0.70),
              Vector2(x: cx + cos(a) * size * 0.93, y: cy + sin(a) * size * 0.93),
              max(1.0'f32, size * 0.09), accent)
 
   # Spindle hub.
-  drawCircle(ctr, size * 0.30, accent)
-  drawCircle(ctr, size * 0.12, shade(body, 0.35))
+  drawDisc(ctr, size * 0.30, accent)
+  drawDisc(ctr, size * 0.12, shade(body, 0.35))
 
   # Write LED on the housing, fixed at the upper right (it does not spin).
   let lx = cx + size * 0.78 * cos(-0.85'f32)
   let ly = cy + size * 0.78 * sin(-0.85'f32)
   if led.a > 0:
-    drawCircle(Vector2(x: lx, y: ly), size * 0.20, shade(led, 0.45))
-    drawCircle(Vector2(x: lx, y: ly), size * 0.13, led)
+    drawDisc(Vector2(x: lx, y: ly), size * 0.20, shade(led, 0.45))
+    drawDisc(Vector2(x: lx, y: ly), size * 0.13, led)
 
 # ---------------------------------------------------------------------------
 # Restore-point meter.
@@ -200,7 +201,7 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
     else:
       Color(r: 70, g: 115, b: 175, a: 255)
   drawRectangle(x, y, width, height, bg)
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
                      2.0, border)
   # Left accent bar, so the strip is identifiable from the corner of the eye.
@@ -263,7 +264,7 @@ proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
   ## glyph row. `mode` only picks the wording (survival says Overtime).
   let pulse = sin(time * 3.0) * 0.2 + 0.8
   drawRectangle(x, y, width, height, Color(r: 46, g: 16, b: 20, a: 255))
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
                      2.0, Color(r: uint8(220.0 * pulse), g: 60, b: 70, a: 255))
   drawRectangle(x, y, 4'i32, height, Color(r: 190, g: 40, b: 55, a: 255))
@@ -360,9 +361,9 @@ proc drawFracture(cx, cy, size, reveal, jitter, alpha: float32) =
     let ay = y0 + dy * tA + ny * jit[i] * size
     let bx = x0 + dx * tB + nx * jit[i + 1] * size + jitter
     let by = y0 + dy * tB + ny * jit[i + 1] * size
-    drawLine(Vector2(x: ax, y: ay), Vector2(x: bx, y: by), 3.0,
+    drawStroke(Vector2(x: ax, y: ay), Vector2(x: bx, y: by), 3.0,
              Color(r: 8, g: 12, b: 18, a: uint8(235.0 * alpha)))
-    drawLine(Vector2(x: ax, y: ay - 1.0), Vector2(x: bx, y: by - 1.0), 1.0,
+    drawStroke(Vector2(x: ax, y: ay - 1.0), Vector2(x: bx, y: by - 1.0), 1.0,
              Color(r: 200, g: 245, b: 255, a: uint8(160.0 * alpha)))
 proc smoothStep(t: float32): float32 =
   ## Ease in and out, for the camera pull-back.
@@ -466,7 +467,7 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
       # through the title.
       if shatterT < 0.55:
         let rt = shatterT / 0.55
-        drawCircleLines(int32(targetX), int32(cy), size * (0.6 + rt * 1.9),
+        drawCircleOutline(int32(targetX), int32(cy), size * (0.6 + rt * 1.9),
                         withAlphaF(RpAccent, alpha * (1.0 - rt)))
       # The save scatters. Alpha falls off quadratically so the shards stay
       # solid through most of the arc and only thin out at the very end.

@@ -11,6 +11,7 @@
 
 import std/tables
 import raylib, math, random
+import ../draw_prims
 import types_3d, engine_3d, player_3d, boss_3d, ../types, ../localization, ../settings
 import ../modding/[mod_hooks, mod_assets]
 
@@ -794,7 +795,7 @@ proc renderGame3D*(world: Game3D) =
     drawText(t(tkGame3DBossHp) & ":", 20, 70, 18, White)
     drawRectangle(20, 92, 280, 20, Color(r: 50, g: 0, b: 0, a: 200))
     drawRectangle(20, 92, int32(280.0 * bossHpPercent), 20, Color(r: 255, g: 50, b: 50, a: 255))
-    drawRectangleLines(20, 92, 280, 20, White)
+    drawRectOutline(20, 92, 280, 20, White)
 
     # Phase indicator with color
     let phaseColor = case world.boss.phase
@@ -828,9 +829,9 @@ proc renderGame3D*(world: Game3D) =
   let centerX = getScreenWidth() div 2
   let centerY = getScreenHeight() div 2
   if not hudHidden(hpCrosshair):
-    drawCircleLines(centerX, centerY, 10, White)
-    drawLine(centerX - 15, centerY, centerX + 15, centerY, White)
-    drawLine(centerX, centerY - 15, centerX, centerY + 15, White)
+    drawCircleOutline(centerX, centerY, 10, White)
+    drawStroke(centerX - 15, centerY, centerX + 15, centerY, White)
+    drawStroke(centerX, centerY - 15, centerX, centerY + 15, White)
 
   modWorld3DDrawHud(world, getScreenWidth(), getScreenHeight())
 

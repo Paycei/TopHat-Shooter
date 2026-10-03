@@ -1,6 +1,7 @@
 ## 3D Boss Module - The Orbital Commander
 
 import raylib, math, random
+import ../draw_prims
 import types_3d, engine_3d, ../modding/[mod_hooks, mod_assets]
 
 const
@@ -473,7 +474,7 @@ proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
                      int32(barWidth * healthPercent), int32(barHeight), Color(r: 150, g: 100, b: 255, a: 255))
 
         # Border
-        drawRectangleLines(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
+        drawRectOutline(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                           int32(barWidth), int32(barHeight), White)
 
 proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3f] =

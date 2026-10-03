@@ -2,6 +2,7 @@
 ## Pause menu styled as system task manager with mouse support
 
 import raylib, math, strutils
+import ../draw_prims
 import ../types, ../powerup_data, ../localization, ../render_context, ../survival, ../patches, ../utils
 import ui_helpers, icon_drawing
 
@@ -40,7 +41,7 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
   else:
     Color(r: 60, g: 70, b: 85, a: 255)
 
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: TAB_HEIGHT.float32),
                     if active: 2 else: 1, borderColor)
 
@@ -155,7 +156,7 @@ proc drawInspectorRowFrame(lay: InspectorLayout, slot: int, selected: bool): int
   result = lay.listY + slot.int32 * InspectorRowH
   if selected:
     drawRectangle(lay.listX, result, InspectorListW, InspectorRowH, withAlpha(InspectorAccent, 45))
-    drawRectangleLines(Rectangle(x: lay.listX.float32, y: result.float32,
+    drawRectOutline(Rectangle(x: lay.listX.float32, y: result.float32,
                                  width: InspectorListW.float32, height: InspectorRowH.float32),
                        1, withAlpha(InspectorAccent, 170))
   elif slot mod 2 == 0:
@@ -188,7 +189,7 @@ proc drawInspectorPane(lay: InspectorLayout, accent: Color): tuple[iconX, iconY,
   let (x, y, w, h) = (lay.paneX, lay.paneY, lay.paneW, lay.paneH)
   drawRectangle(x, y, w, h, Color(r: 28, g: 34, b: 46, a: 255))
   drawRectangle(x, y, 3, h, accent)
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
                      1, withAlpha(accent, 110))
   result.iconX = x + 16
   result.iconY = y + 16
@@ -206,7 +207,7 @@ proc drawInspectorBody(lay: InspectorLayout, blocks: openArray[tuple[caption, te
   let w = lay.paneW - 28
   let top = lay.paneY + 16 + InspectorIcon + 18
   let bottom = lay.paneY + lay.paneH - 30
-  drawLine(Vector2(x: x.float32, y: (top - 8).float32),
+  drawStroke(Vector2(x: x.float32, y: (top - 8).float32),
            Vector2(x: (x + w).float32, y: (top - 8).float32), 1, Color(r: 60, g: 70, b: 85, a: 255))
 
   var needed = 0'i32
@@ -419,7 +420,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   drawRectangle(dx + 6, dy + 6, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
   # Dialog background
   drawRectangle(dx, dy, DW, DH, Color(r: 20, g: 25, b: 35, a: 255))
-  drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32,
+  drawRectOutline(Rectangle(x: dx.float32, y: dy.float32,
                                width: DW.float32, height: DH.float32),
                      3, Color(r: 255, g: 80, b: 80, a: 255))
 
@@ -457,7 +458,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   # Cancel button (green: safe)
   let noBg = if noHov: Color(r: 0, g: 150, b: 0, a: 255) else: Color(r: 0, g: 110, b: 0, a: 255)
   drawRectangle(noX, btnY, BTN_W, BTN_H, noBg)
-  drawRectangleLines(Rectangle(x: noX.float32, y: btnY.float32,
+  drawRectOutline(Rectangle(x: noX.float32, y: btnY.float32,
                                width: BTN_W.float32, height: BTN_H.float32),
                      if noHov: 3 else: 2,
                      if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 200, b: 60, a: 255))
@@ -474,7 +475,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
     Color(r: 120, g: 30, b: 30, a: 255)
 
   drawRectangle(yesX, btnY, BTN_W, BTN_H, yesBg)
-  drawRectangleLines(Rectangle(x: yesX.float32, y: btnY.float32,
+  drawRectOutline(Rectangle(x: yesX.float32, y: btnY.float32,
                                width: BTN_W.float32, height: BTN_H.float32),
                      if (yesHov and mouseReady): 3 else: 2,
                      if not mouseReady: Color(r: 140, g: 140, b: 140, a: 255)
@@ -528,7 +529,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
                Color(r: 20, g: 25, b: 35, a: 255))
 
   # Window border
-  drawRectangleLines(Rectangle(x: windowX.float32, y: windowY.float32,
+  drawRectOutline(Rectangle(x: windowX.float32, y: windowY.float32,
                                 width: TASK_MANAGER_WIDTH.float32, height: TASK_MANAGER_HEIGHT.float32),
                     3, Color(r: 0, g: 200, b: 255, a: 255))
 
@@ -612,7 +613,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
     Color(r: 120, g: 30, b: 30, a: 255)
 
   drawRectangle(buttonsStartX, buttonY, 180, BUTTON_HEIGHT, exitBgColor)
-  drawRectangleLines(Rectangle(x: buttonsStartX.float32, y: buttonY.float32,
+  drawRectOutline(Rectangle(x: buttonsStartX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
                     if exitHovered: 3 else: 2,
                     if exitHovered: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 255, g: 80, b: 80, a: 255))
@@ -628,7 +629,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
     Color(r: 60, g: 70, b: 85, a: 255)
 
   drawRectangle(settingsX, buttonY, 180, BUTTON_HEIGHT, settingsBgColor)
-  drawRectangleLines(Rectangle(x: settingsX.float32, y: buttonY.float32,
+  drawRectOutline(Rectangle(x: settingsX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
                     if settingsHovered: 3 else: 2,
                     if settingsHovered: Color(r: 150, g: 170, b: 190, a: 255) else: Color(r: 120, g: 140, b: 160, a: 255))
@@ -644,7 +645,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
     Color(r: 0, g: 120, b: 0, a: 255)
 
   drawRectangle(resumeX, buttonY, 180, BUTTON_HEIGHT, resumeBgColor)
-  drawRectangleLines(Rectangle(x: resumeX.float32, y: buttonY.float32,
+  drawRectOutline(Rectangle(x: resumeX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
                     if resumeHovered: 3 else: 2,
                     if resumeHovered: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 255, b: 0, a: 255))

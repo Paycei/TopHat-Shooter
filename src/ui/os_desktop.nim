@@ -2,6 +2,7 @@
 ## Main menu as an operating system desktop
 
 import raylib, rlgl, math, strutils, strformat, times, tables
+import ../draw_prims
 from std/unicode import runeAt, toUpper, `$`
 import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../particle_types, ../utils
 import ../modding/[mod_assets, mod_hooks]
@@ -938,7 +939,7 @@ proc drawHexBadge(cx, cy: int32, radius: float32, fill, edge: Color, rotation: f
     drawTriangle(points[0], points[i], points[i + 1], fill)
   for i in 0..<6:
     let next = (i + 1) mod 6
-    drawLine(points[i], points[next], 2, edge)
+    drawStroke(points[i], points[next], 2, edge)
 
 proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
   let pulse = if selected: sin(time * 4.0) * 0.15 + 1.0 else: 1.0
@@ -969,12 +970,12 @@ proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
                Vector2(x: (x + iconSize - cut).float32, y: (y + iconSize).float32),
                Vector2(x: (x + iconSize).float32, y: (y + iconSize - cut).float32), darkCorner)
 
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: iconSize.float32, height: iconSize.float32), 2, edge)
-  drawLine(Vector2(x: (x + 7).float32, y: (y + 5).float32),
+  drawStroke(Vector2(x: (x + 7).float32, y: (y + 5).float32),
            Vector2(x: (x + iconSize - 11).float32, y: (y + 5).float32),
            2, Color(r: 205, g: 245, b: 255, a: if selected: 150 else: 72))
-  drawLine(Vector2(x: (x + 5).float32, y: (y + iconSize - 7).float32),
+  drawStroke(Vector2(x: (x + 5).float32, y: (y + iconSize - 7).float32),
            Vector2(x: (x + iconSize - 8).float32, y: (y + iconSize - 7).float32),
            1, withAlpha(accent, if selected: 175 else: 95))
 
@@ -996,7 +997,7 @@ proc drawIconDisc(cx, cy, r: float32, fill, edge: Color, thick: float32 = 2.0) =
   ## Filled disc with a rim. Every icon glyph sits on the busy animated
   ## wallpaper, so shapes need their own dark backing plus a bright edge to
   ## hold their silhouette.
-  drawCircle(v2(cx, cy), r, fill)
+  drawDisc(v2(cx, cy), r, fill)
   drawRing(v2(cx, cy), r - thick, r, 0.0, 360.0, 32, edge)
 
 proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
@@ -1024,7 +1025,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
       let phase = (time * 1.5'f32 + i.float32 * 0.31'f32) mod 1.0'f32
       let sx = pcx - 11.0'f32 - phase * 11.0'f32
       let sy = pcy - 7.0'f32 + i.float32 * 7.0'f32
-      drawLine(v2(sx, sy), v2(sx + 7.0'f32, sy), 2,
+      drawStroke(v2(sx, sy), v2(sx + 7.0'f32, sy), 2,
                withAlpha(bright, uint8(165.0'f32 * (1.0'f32 - phase))))
     drawIconTri(v2(pcx - 11, pcy - 16), v2(pcx - 11, pcy + 16), v2(pcx + 18, pcy),
                 Color(r: 8, g: 12, b: 20, a: 235))
@@ -1038,39 +1039,39 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let scy = centerY.float32 + 2.0'f32
     # Crown and side button on top of the case.
     drawRectangle((centerX - 4).int32, (scy - 22.0'f32).int32, 8, 5, bright)
-    drawLine(v2(scx + 12, scy - 17), v2(scx + 17, scy - 22), 4, dim)
+    drawStroke(v2(scx + 12, scy - 17), v2(scx + 17, scy - 22), 4, dim)
     drawIconDisc(scx, scy, 17.0, Color(r: 10, g: 16, b: 26, a: 245), bright, 2.5)
     # Quarter ticks.
     for i in 0..3:
       let a = i.float32 * (PI / 2.0'f32)
       let ca = cos(a)
       let sa = sin(a)
-      drawLine(v2(scx + ca * 10.0, scy + sa * 10.0),
+      drawStroke(v2(scx + ca * 10.0, scy + sa * 10.0),
                v2(scx + ca * 13.5, scy + sa * 13.5), 2, withAlpha(accent, 210))
     # Fixed minute hand plus a hand that actually sweeps.
-    drawLine(v2(scx, scy), v2(scx, scy - 11), 3, White)
+    drawStroke(v2(scx, scy), v2(scx, scy - 11), 3, White)
     let sweep = time * 1.25'f32 - PI / 2.0'f32
-    drawLine(v2(scx, scy), v2(scx + cos(sweep) * 13.0, scy + sin(sweep) * 13.0), 2, accent)
-    drawCircle(v2(scx, scy), 2.4, bright)
+    drawStroke(v2(scx, scy), v2(scx + cos(sweep) * 13.0, scy + sin(sweep) * 13.0), 2, accent)
+    drawDisc(v2(scx, scy), 2.4, bright)
 
   of diStatistics:
     # Analytics bars on a real axis, with the trend line ending in a marker.
     let bx = centerX.float32
     let by = centerY.float32
-    drawLine(v2(bx - 19, by + 19), v2(bx + 19, by + 19), 2, withAlpha(bright, 200))
-    drawLine(v2(bx - 19, by - 19), v2(bx - 19, by + 19), 2, withAlpha(bright, 120))
+    drawStroke(v2(bx - 19, by + 19), v2(bx + 19, by + 19), 2, withAlpha(bright, 200))
+    drawStroke(v2(bx - 19, by - 19), v2(bx - 19, by + 19), 2, withAlpha(bright, 120))
     let heights = [13'i32, 20'i32, 28'i32]
     let barCols = [dim, accent, bright]
     for i in 0..2:
       let h = heights[i]
       let x = centerX - 15 + i.int32 * 11
       drawRectangle(x, (centerY + 18 - h).int32, 8, h, barCols[i])
-      drawRectangleLines(Rectangle(x: x.float32, y: (centerY + 18 - h).float32,
+      drawRectOutline(Rectangle(x: x.float32, y: (centerY + 18 - h).float32,
                                    width: 8.0, height: h.float32), 1,
                          Color(r: 8, g: 12, b: 20, a: 190))
-    drawLine(v2(bx - 12, by + 2), v2(bx - 1, by - 6), 2, White)
-    drawLine(v2(bx - 1, by - 6), v2(bx + 11, by - 14), 2, White)
-    drawCircle(v2(bx + 11, by - 14), 3.0, White)
+    drawStroke(v2(bx - 12, by + 2), v2(bx - 1, by - 6), 2, White)
+    drawStroke(v2(bx - 1, by - 6), v2(bx + 11, by - 14), 2, White)
+    drawDisc(v2(bx + 11, by - 14), 3.0, White)
 
   of diSettings:
     # Slowly turning cog. The old three-slider glyph read as an audio mixer;
@@ -1083,15 +1084,15 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
       let a = spin + i.float32 * (PI / 4.0'f32)
       let ca = cos(a)
       let sa = sin(a)
-      drawLine(Vector2(x: cogCX + ca * 11.0'f32, y: cogCY + sa * 11.0'f32),
+      drawStroke(Vector2(x: cogCX + ca * 11.0'f32, y: cogCY + sa * 11.0'f32),
                Vector2(x: cogCX + ca * 20.0'f32, y: cogCY + sa * 20.0'f32), 8, dim)
-      drawLine(Vector2(x: cogCX + ca * 11.0'f32, y: cogCY + sa * 11.0'f32),
+      drawStroke(Vector2(x: cogCX + ca * 11.0'f32, y: cogCY + sa * 11.0'f32),
                Vector2(x: cogCX + ca * 18.0'f32, y: cogCY + sa * 18.0'f32), 4, bright)
     # Body, rim and hub hole.
-    drawCircle(Vector2(x: cogCX, y: cogCY), 14, accent)
-    drawCircleLines(Vector2(x: cogCX, y: cogCY), 14, bright)
-    drawCircle(Vector2(x: cogCX, y: cogCY), 6, Color(r: 8, g: 12, b: 20, a: 255))
-    drawCircleLines(Vector2(x: cogCX, y: cogCY), 6.5, bright)
+    drawDisc(Vector2(x: cogCX, y: cogCY), 14, accent)
+    drawCircleOutline(Vector2(x: cogCX, y: cogCY), 14, bright)
+    drawDisc(Vector2(x: cogCX, y: cogCY), 6, Color(r: 8, g: 12, b: 20, a: 255))
+    drawCircleOutline(Vector2(x: cogCX, y: cogCY), 6.5, bright)
 
   of diShop:
     # Shopping bag with paint swatches. The old crate silhouette was ambiguous;
@@ -1103,8 +1104,8 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     # Body: slightly tapered, dark backing then accent face.
     drawIconTri(v2(sx - 16, sy - 7), v2(sx - 13, sy + 18), v2(sx + 13, sy + 18), accent)
     drawIconTri(v2(sx - 16, sy - 7), v2(sx + 13, sy + 18), v2(sx + 16, sy - 7), accent)
-    drawLine(v2(sx - 16, sy - 7), v2(sx + 16, sy - 7), 3, dim)
-    drawLine(v2(sx - 13, sy + 18), v2(sx + 13, sy + 18), 2, dim)
+    drawStroke(v2(sx - 16, sy - 7), v2(sx + 16, sy - 7), 3, dim)
+    drawStroke(v2(sx - 13, sy + 18), v2(sx + 13, sy + 18), 2, dim)
     let colors = [
       Color(r: 255, g: 100, b: 180, a: 255),
       Color(r: 0, g: 255, b: 100, a: 255),
@@ -1112,8 +1113,8 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     ]
     for i in 0..<3:
       let px = sx - 8.0'f32 + i.float32 * 8.0'f32
-      drawCircle(v2(px, sy + 6.0), 4.2, Color(r: 8, g: 12, b: 20, a: 220))
-      drawCircle(v2(px, sy + 6.0), 3.2, colors[i])
+      drawDisc(v2(px, sy + 6.0), 4.2, Color(r: 8, g: 12, b: 20, a: 220))
+      drawDisc(v2(px, sy + 6.0), 3.2, colors[i])
 
   of diHelp:
     # Manual: a book rather than a sheet, so it never reads as the changelog
@@ -1122,17 +1123,17 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let hy = centerY.float32
     drawRectangle((centerX - 15).int32, (centerY - 17).int32, 30, 34, accent)
     drawRectangle((centerX - 15).int32, (centerY - 17).int32, 6, 34, dim)
-    drawRectangleLines(Rectangle(x: hx - 15, y: hy - 17, width: 30.0, height: 34.0), 2,
+    drawRectOutline(Rectangle(x: hx - 15, y: hy - 17, width: 30.0, height: 34.0), 2,
                        Color(r: 8, g: 12, b: 20, a: 220))
     # Page edge highlight on the open side.
-    drawLine(v2(hx + 13, hy - 15), v2(hx + 13, hy + 15), 2, withAlpha(bright, 200))
+    drawStroke(v2(hx + 13, hy - 15), v2(hx + 13, hy + 15), 2, withAlpha(bright, 200))
     drawText("?", (centerX - 4).int32, (centerY - 13).int32, 27, White)
 
   of diQuit:
     # True power glyph: a broken ring with the stem sitting in the gap.
     let qx = centerX.float32
     let qy = centerY.float32
-    drawCircle(v2(qx, qy), 18.0, Color(r: 8, g: 12, b: 20, a: 210))
+    drawDisc(v2(qx, qy), 18.0, Color(r: 8, g: 12, b: 20, a: 210))
     drawRing(v2(qx, qy), 12.0, 17.0, 250.0, 650.0, 40, dim)
     drawRing(v2(qx, qy), 13.5, 16.0, 250.0, 650.0, 40, bright)
     drawRectangle((centerX - 3).int32, (centerY - 21).int32, 6, 18,
@@ -1162,7 +1163,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     for i in 0..2:
       let phase = (time * 0.8'f32 + i.float32 * 0.37'f32) mod 1.0'f32
       let by = flaskBottom.float32 - 8.0'f32 - phase * 16.0'f32
-      drawCircle(v2(centerX.float32 - 4.0'f32 + i.float32 * 4.0'f32, by),
+      drawDisc(v2(centerX.float32 - 4.0'f32 + i.float32 * 4.0'f32, by),
                  1.8'f32 - phase * 0.6'f32,
                  Color(r: 255, g: 255, b: 255, a: uint8(210.0'f32 * (1.0'f32 - phase))))
 
@@ -1189,20 +1190,20 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
       # Blade: dark backing stroke, then the bright edge, stopping short so the
       # tip triangle forms the point.
       let bladeEnd = v2(tip.x - ux * 7.0'f32, tip.y - uy * 7.0'f32)
-      drawLine(hilt, tip, 6, Color(r: 8, g: 12, b: 20, a: 230))
-      drawLine(v2(hilt.x + ux * 8.0'f32, hilt.y + uy * 8.0'f32), bladeEnd, 3, col)
+      drawStroke(hilt, tip, 6, Color(r: 8, g: 12, b: 20, a: 230))
+      drawStroke(v2(hilt.x + ux * 8.0'f32, hilt.y + uy * 8.0'f32), bladeEnd, 3, col)
       drawIconTri(tip,
                   v2(bladeEnd.x + perpX * 3.2'f32, bladeEnd.y + perpY * 3.2'f32),
                   v2(bladeEnd.x - perpX * 3.2'f32, bladeEnd.y - perpY * 3.2'f32), col)
       # Crossguard: square to the blade, a fixed step up from the grip.
       let guard = v2(hilt.x + ux * 9.0'f32, hilt.y + uy * 9.0'f32)
-      drawLine(v2(guard.x + perpX * 6.5'f32, guard.y + perpY * 6.5'f32),
+      drawStroke(v2(guard.x + perpX * 6.5'f32, guard.y + perpY * 6.5'f32),
                v2(guard.x - perpX * 6.5'f32, guard.y - perpY * 6.5'f32), 3, dim)
       # Grip and pommel.
-      drawLine(hilt, guard, 3, dim)
-      drawCircle(hilt, 3.2, bright)
-    drawCircle(v2(px, py), 5.5, Color(r: 255, g: 255, b: 255, a: 215))
-    drawCircle(v2(px, py), 2.6, accent)
+      drawStroke(hilt, guard, 3, dim)
+      drawDisc(hilt, 3.2, bright)
+    drawDisc(v2(px, py), 5.5, Color(r: 255, g: 255, b: 255, a: 215))
+    drawDisc(v2(px, py), 2.6, accent)
 
   of diRoguelite:
     # Route map read bottom-to-top: you start at the base node, the path forks,
@@ -1216,8 +1217,8 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let boss  = v2(mx, my - 15)
     let pathCol = Color(r: 120, g: 255, b: 220, a: 210)
     for (a, b) in [(start, forkL), (start, forkR), (forkL, boss), (forkR, boss)]:
-      drawLine(a, b, 4, Color(r: 8, g: 12, b: 20, a: 200))
-      drawLine(a, b, 2, pathCol)
+      drawStroke(a, b, 4, Color(r: 8, g: 12, b: 20, a: 200))
+      drawStroke(a, b, 2, pathCol)
     # Nodes: dark cores with bright rims so they stay legible over the paths.
     drawIconDisc(start.x, start.y, 5.5, Color(r: 8, g: 12, b: 20, a: 245), accent, 2.0)
     drawIconDisc(forkL.x, forkL.y, 5.5, Color(r: 8, g: 12, b: 20, a: 245), Gold, 2.0)
@@ -1226,7 +1227,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let bossCol = Color(r: 255, g: 110, b: 90, a: 255)
     drawIconTri(v2(boss.x, boss.y - 8), v2(boss.x - 8, boss.y), v2(boss.x, boss.y + 8), bossCol)
     drawIconTri(v2(boss.x, boss.y - 8), v2(boss.x, boss.y + 8), v2(boss.x + 8, boss.y), bossCol)
-    drawCircle(v2(boss.x, boss.y), 2.6, Color(r: 255, g: 240, b: 220, a: 240))
+    drawDisc(v2(boss.x, boss.y), 2.6, Color(r: 255, g: 240, b: 220, a: 240))
 
   of diAdvancements:
     # Trophy. The old ledger-of-rows glyph collided with the help and changelog
@@ -1239,7 +1240,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     # Cup bowl, tapering to the stem.
     drawIconTri(v2(tx - 12, ty - 17), v2(tx - 9, ty + 2), v2(tx + 9, ty + 2), Gold)
     drawIconTri(v2(tx - 12, ty - 17), v2(tx + 9, ty + 2), v2(tx + 12, ty - 17), Gold)
-    drawLine(v2(tx - 12, ty - 17), v2(tx + 12, ty - 17), 3, bright)
+    drawStroke(v2(tx - 12, ty - 17), v2(tx + 12, ty - 17), 3, bright)
     # Stem and base.
     drawRectangle((centerX - 3).int32, (centerY + 2).int32, 6, 7, dim)
     drawRectangle((centerX - 10).int32, (centerY + 9).int32, 20, 5, Gold)
@@ -1262,7 +1263,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let docX = centerX - 13
     let docY = centerY - 17
     drawRectangle(docX.int32, docY.int32, 26, 34, Color(r: 240, g: 240, b: 246, a: 255))
-    drawRectangleLines(Rectangle(x: docX.float32, y: docY.float32,
+    drawRectOutline(Rectangle(x: docX.float32, y: docY.float32,
                                  width: 26.0, height: 34.0), 2, accent)
     # Folded top-right corner
     drawTriangle(Vector2(x: (docX + 26).float32, y: docY.float32),
@@ -1272,40 +1273,40 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     for i in 0..<4:
       let lineY = docY + 8 + i * 6
       let lineW = if i == 3: 9 else: 14 - (i mod 2) * 4
-      drawCircle(v2((docX + 5).float32, (lineY + 1).float32), 1.4,
+      drawDisc(v2((docX + 5).float32, (lineY + 1).float32), 1.4,
                  Color(r: 90, g: 130, b: 175, a: 235))
       drawRectangle((docX + 9).int32, lineY.int32, lineW.int32, 3,
                     Color(r: 70, g: 90, b: 120, a: 235))
     # Sparkle marking fresh changes
     let starX = (centerX + 12).float32
     let starY = (centerY + 14).float32
-    drawLine(Vector2(x: starX - 5, y: starY), Vector2(x: starX + 5, y: starY), 2, bright)
-    drawLine(Vector2(x: starX, y: starY - 5), Vector2(x: starX, y: starY + 5), 2, bright)
-    drawCircle(Vector2(x: starX, y: starY), 1.5, White)
+    drawStroke(Vector2(x: starX - 5, y: starY), Vector2(x: starX + 5, y: starY), 2, bright)
+    drawStroke(Vector2(x: starX, y: starY - 5), Vector2(x: starX, y: starY + 5), 2, bright)
+    drawDisc(Vector2(x: starX, y: starY), 1.5, White)
 
   of diCredits:
     # Terminal panel with a beating heart: credits + "support the project"
     let panelX = centerX - 18
     let panelY = centerY - 15
     drawRectangle(panelX.int32, panelY.int32, 36, 30, Color(r: 14, g: 18, b: 30, a: 255))
-    drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+    drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                  width: 36.0, height: 30.0), 2, accent)
     # Title bar of the "window"
     drawRectangle(panelX.int32, panelY.int32, 36, 6, dim)
     for i in 0..<3:
-      drawCircle(Vector2(x: (panelX + 5 + i * 6).float32, y: (panelY + 3).float32),
+      drawDisc(Vector2(x: (panelX + 5 + i * 6).float32, y: (panelY + 3).float32),
                  1.4, Color(r: 240, g: 240, b: 250, a: 220))
     # Heart, gently beating so the icon reads as a "thanks / support" affordance
     let beat = 1.0'f32 + sin(time * 3.2) * 0.09'f32
     let hx = centerX.float32
     let hy = (centerY + 2).float32
     let lobe = 4.6'f32 * beat
-    drawCircle(Vector2(x: hx - lobe * 0.85, y: hy - lobe * 0.5), lobe, bright)
-    drawCircle(Vector2(x: hx + lobe * 0.85, y: hy - lobe * 0.5), lobe, bright)
+    drawDisc(Vector2(x: hx - lobe * 0.85, y: hy - lobe * 0.5), lobe, bright)
+    drawDisc(Vector2(x: hx + lobe * 0.85, y: hy - lobe * 0.5), lobe, bright)
     drawTriangle(Vector2(x: hx - lobe * 1.72, y: hy - lobe * 0.15),
                  Vector2(x: hx, y: hy + lobe * 2.05),
                  Vector2(x: hx + lobe * 1.72, y: hy - lobe * 0.15), bright)
-    drawCircle(Vector2(x: hx - lobe * 0.7, y: hy - lobe * 0.75), lobe * 0.3,
+    drawDisc(Vector2(x: hx - lobe * 0.7, y: hy - lobe * 0.75), lobe * 0.3,
                Color(r: 255, g: 255, b: 255, a: 180))
 
   of diFeedback:
@@ -1324,17 +1325,17 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     for i in 0..2:
       let ly = by - 4.0'f32 + i.float32 * 4.0'f32
       let tw = if i == 1: -twitch else: twitch
-      drawLine(v2(bx - 3, ly), v2(bx - 10, ly - 1.5'f32 + tw), 1.6, legCol)
-      drawLine(v2(bx + 3, ly), v2(bx + 10, ly - 1.5'f32 - tw), 1.6, legCol)
+      drawStroke(v2(bx - 3, ly), v2(bx - 10, ly - 1.5'f32 + tw), 1.6, legCol)
+      drawStroke(v2(bx + 3, ly), v2(bx + 10, ly - 1.5'f32 - tw), 1.6, legCol)
     # Antennae.
-    drawLine(v2(bx - 1.5'f32, by - 8), v2(bx - 5, by - 12), 1.4, legCol)
-    drawLine(v2(bx + 1.5'f32, by - 8), v2(bx + 5, by - 12), 1.4, legCol)
+    drawStroke(v2(bx - 1.5'f32, by - 8), v2(bx - 5, by - 12), 1.4, legCol)
+    drawStroke(v2(bx + 1.5'f32, by - 8), v2(bx + 5, by - 12), 1.4, legCol)
     # Head and split shell.
-    drawCircle(v2(bx, by - 7), 2.8, dim)
+    drawDisc(v2(bx, by - 7), 2.8, dim)
     drawEllipse(bx.int32, (by + 1).int32, 5.5, 7.0, accent)
-    drawLine(v2(bx, by - 5), v2(bx, by + 8), 1.4, Color(r: 14, g: 18, b: 30, a: 255))
-    drawCircle(v2(bx - 2.4'f32, by - 1), 1.1, bright)
-    drawCircle(v2(bx + 2.4'f32, by + 3), 1.1, bright)
+    drawStroke(v2(bx, by - 5), v2(bx, by + 8), 1.4, Color(r: 14, g: 18, b: 30, a: 255))
+    drawDisc(v2(bx - 2.4'f32, by - 1), 1.1, bright)
+    drawDisc(v2(bx + 2.4'f32, by + 3), 1.1, bright)
 
   of diMods:
     # A puzzle piece easing into its socket: add-ons plugged into the system.
@@ -1348,11 +1349,11 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let py = centerY.float32 + 2.0'f32
     let s = 16.0'f32
     drawRectangleRounded(Rectangle(x: px - s / 2, y: py - s / 2, width: s, height: s), 0.2, 4, accent)
-    drawCircle(v2(px, py - s / 2 - 1.5'f32), 3.8, accent)          # top tab
-    drawCircle(v2(px + s / 2 + 1.5'f32, py), 3.8, accent)          # right tab
-    drawCircle(v2(px - s / 2 + 0.5'f32, py), 3.4, panelCol)        # left slot
-    drawCircle(v2(px, py + s / 2 - 0.5'f32), 3.4, panelCol)        # bottom slot
-    drawCircle(v2(px - 3.5'f32, py - 3.5'f32), 1.6, bright)        # glint
+    drawDisc(v2(px, py - s / 2 - 1.5'f32), 3.8, accent)          # top tab
+    drawDisc(v2(px + s / 2 + 1.5'f32, py), 3.8, accent)          # right tab
+    drawDisc(v2(px - s / 2 + 0.5'f32, py), 3.4, panelCol)        # left slot
+    drawDisc(v2(px, py + s / 2 - 0.5'f32), 3.4, panelCol)        # bottom slot
+    drawDisc(v2(px - 3.5'f32, py - 3.5'f32), 1.6, bright)        # glint
   of diModApp:
     # A mod app: its own texture or model when it gave one, else a little window
     # showing the first letter of its name. The MOD tag marks it as not built in.
@@ -1428,9 +1429,9 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let lockCX = centerX
     let lockCY = centerY - 2
     let shackleR = 9.0'f32
-    drawCircleLines(Vector2(x: lockCX.float32, y: (lockCY - 6).float32), shackleR, Color(r: 235, g: 240, b: 245, a: 220))
+    drawCircleOutline(Vector2(x: lockCX.float32, y: (lockCY - 6).float32), shackleR, Color(r: 235, g: 240, b: 245, a: 220))
     drawRectangle((lockCX - lockW div 2).int32, (lockCY - 1).int32, lockW.int32, lockH.int32, Color(r: 235, g: 240, b: 245, a: 230))
-    drawRectangleLines(Rectangle(x: (lockCX - lockW div 2).float32, y: (lockCY - 1).float32,
+    drawRectOutline(Rectangle(x: (lockCX - lockW div 2).float32, y: (lockCY - 1).float32,
                                  width: lockW.float32, height: lockH.float32), 2, Color(r: 18, g: 22, b: 28, a: 200))
     # keyhole
     drawRectangle(lockCX - 1, lockCY + 2, 3, 5, Color(r: 18, g: 22, b: 28, a: 255))
@@ -1444,7 +1445,7 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   drawRectangle(0, (screenHeight - TASKBAR_HEIGHT).int32,
                screenWidth.int32, TASKBAR_HEIGHT.int32,
                Color(r: 20, g: 20, b: 30, a: 240))
-  drawRectangleLines(Rectangle(x: 0, y: (screenHeight - TASKBAR_HEIGHT).float32,
+  drawRectOutline(Rectangle(x: 0, y: (screenHeight - TASKBAR_HEIGHT).float32,
                                 width: screenWidth.float32, height: TASKBAR_HEIGHT.float32),
                     1, Color(r: 0, g: 200, b: 200, a: 255))
 
@@ -1456,7 +1457,7 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
 
   drawRectangle(startBtnX.int32, startBtnY.int32, startBtnW.int32, startBtnH.int32,
                Color(r: 0, g: 60, b: 80, a: 255))
-  drawRectangleLines(Rectangle(x: startBtnX.float32, y: startBtnY.float32,
+  drawRectOutline(Rectangle(x: startBtnX.float32, y: startBtnY.float32,
                                 width: startBtnW.float32, height: startBtnH.float32), 2,
                     Color(r: 0, g: 200, b: 255, a: 255))
 
@@ -1508,9 +1509,9 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
                Vector2(x: (volX + 11).float32, y: cy), spkCol)
   if muted:
     # Muted: a red cross where the sound waves would be.
-    drawLine(Vector2(x: (volX + 15).float32, y: cy - 5.0'f32),
+    drawStroke(Vector2(x: (volX + 15).float32, y: cy - 5.0'f32),
              Vector2(x: (volX + 23).float32, y: cy + 5.0'f32), 2, spkCol)
-    drawLine(Vector2(x: (volX + 23).float32, y: cy - 5.0'f32),
+    drawStroke(Vector2(x: (volX + 23).float32, y: cy - 5.0'f32),
              Vector2(x: (volX + 15).float32, y: cy + 5.0'f32), 2, spkCol)
   else:
     # Concentric sound-wave arcs; each lights as the volume crosses its band.
@@ -1730,8 +1731,8 @@ proc drawD20WallpaperCube(centerX, centerY, size, time,
   # the 2.4px glow halo to bleed outside the filled area at every face vertex.
   for i in 0 ..< 30:
     if isFrontFacingByIdx[D20EdgeFaces[i][0]] or isFrontFacingByIdx[D20EdgeFaces[i][1]]:
-      drawLine(projected[D20Edges[i][0]], projected[D20Edges[i][1]], 2.4'f32, innerEdgeColor)
-      drawLine(projected[D20Edges[i][0]], projected[D20Edges[i][1]], 1.0'f32, edgeColor)
+      drawStroke(projected[D20Edges[i][0]], projected[D20Edges[i][1]], 2.4'f32, innerEdgeColor)
+      drawStroke(projected[D20Edges[i][0]], projected[D20Edges[i][1]], 1.0'f32, edgeColor)
 
   const SevenSeg: array[10, array[7, bool]] = [
     [true,  true,  true,  true,  true,  true,  false], # 0: a b c d e f
@@ -1788,12 +1789,12 @@ proc drawD20WallpaperCube(centerX, centerY, size, time,
     let insetC = Vector2(
       x: projected[face.corners[2]].x * 0.82'f32 + fcScreen.x * 0.18'f32,
       y: projected[face.corners[2]].y * 0.82'f32 + fcScreen.y * 0.18'f32)
-    drawLine(insetA, insetB, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
-    drawLine(insetB, insetC, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
-    drawLine(insetC, insetA, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
-    drawLine(insetA, insetB, 0.55'f32, withAlpha(edgeColor, 185'u8))
-    drawLine(insetB, insetC, 0.55'f32, withAlpha(edgeColor, 185'u8))
-    drawLine(insetC, insetA, 0.55'f32, withAlpha(edgeColor, 185'u8))
+    drawStroke(insetA, insetB, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
+    drawStroke(insetB, insetC, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
+    drawStroke(insetC, insetA, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
+    drawStroke(insetA, insetB, 0.55'f32, withAlpha(edgeColor, 185'u8))
+    drawStroke(insetB, insetC, 0.55'f32, withAlpha(edgeColor, 185'u8))
+    drawStroke(insetC, insetA, 0.55'f32, withAlpha(edgeColor, 185'u8))
 
     let n = WallpaperCubePoint(x: face.nx, y: face.ny, z: face.nz)
     var refAxis: WallpaperCubePoint
@@ -1853,31 +1854,31 @@ proc drawD20WallpaperCube(centerX, centerY, size, time,
       let ang = c.float32 / CartSeg.float32 * PI * 2.0'f32
       let curCart = fp(cos(ang) * cartR, sin(ang) * cartR)
       drawTriangleBothWindings(cartCentre, prevCart, curCart, Color(r: 5, g: 4, b: 6, a: 82))
-      drawLine(prevCart, curCart, 0.65'f32, withAlpha(edgeColor, 115'u8))
+      drawStroke(prevCart, curCart, 0.65'f32, withAlpha(edgeColor, 115'u8))
       prevCart = curCart
     template drawDigit(digit: int, du, dv, hw, hh: float32) =
       let seg = SevenSeg[digit]
       if seg[0]:
-        drawLine(fp(du - hw, dv + hh), fp(du + hw, dv + hh), 2.2'f32, innerEdgeColor)
-        drawLine(fp(du - hw, dv + hh), fp(du + hw, dv + hh), 1.0'f32, edgeColor)
+        drawStroke(fp(du - hw, dv + hh), fp(du + hw, dv + hh), 2.2'f32, innerEdgeColor)
+        drawStroke(fp(du - hw, dv + hh), fp(du + hw, dv + hh), 1.0'f32, edgeColor)
       if seg[1]:
-        drawLine(fp(du + hw, dv), fp(du + hw, dv + hh), 2.2'f32, innerEdgeColor)
-        drawLine(fp(du + hw, dv), fp(du + hw, dv + hh), 1.0'f32, edgeColor)
+        drawStroke(fp(du + hw, dv), fp(du + hw, dv + hh), 2.2'f32, innerEdgeColor)
+        drawStroke(fp(du + hw, dv), fp(du + hw, dv + hh), 1.0'f32, edgeColor)
       if seg[2]:
-        drawLine(fp(du + hw, dv - hh), fp(du + hw, dv), 2.2'f32, innerEdgeColor)
-        drawLine(fp(du + hw, dv - hh), fp(du + hw, dv), 1.0'f32, edgeColor)
+        drawStroke(fp(du + hw, dv - hh), fp(du + hw, dv), 2.2'f32, innerEdgeColor)
+        drawStroke(fp(du + hw, dv - hh), fp(du + hw, dv), 1.0'f32, edgeColor)
       if seg[3]:
-        drawLine(fp(du - hw, dv - hh), fp(du + hw, dv - hh), 2.2'f32, innerEdgeColor)
-        drawLine(fp(du - hw, dv - hh), fp(du + hw, dv - hh), 1.0'f32, edgeColor)
+        drawStroke(fp(du - hw, dv - hh), fp(du + hw, dv - hh), 2.2'f32, innerEdgeColor)
+        drawStroke(fp(du - hw, dv - hh), fp(du + hw, dv - hh), 1.0'f32, edgeColor)
       if seg[4]:
-        drawLine(fp(du - hw, dv - hh), fp(du - hw, dv), 2.2'f32, innerEdgeColor)
-        drawLine(fp(du - hw, dv - hh), fp(du - hw, dv), 1.0'f32, edgeColor)
+        drawStroke(fp(du - hw, dv - hh), fp(du - hw, dv), 2.2'f32, innerEdgeColor)
+        drawStroke(fp(du - hw, dv - hh), fp(du - hw, dv), 1.0'f32, edgeColor)
       if seg[5]:
-        drawLine(fp(du - hw, dv), fp(du - hw, dv + hh), 2.2'f32, innerEdgeColor)
-        drawLine(fp(du - hw, dv), fp(du - hw, dv + hh), 1.0'f32, edgeColor)
+        drawStroke(fp(du - hw, dv), fp(du - hw, dv + hh), 2.2'f32, innerEdgeColor)
+        drawStroke(fp(du - hw, dv), fp(du - hw, dv + hh), 1.0'f32, edgeColor)
       if seg[6]:
-        drawLine(fp(du - hw, dv), fp(du + hw, dv), 2.2'f32, innerEdgeColor)
-        drawLine(fp(du - hw, dv), fp(du + hw, dv), 1.0'f32, edgeColor)
+        drawStroke(fp(du - hw, dv), fp(du + hw, dv), 2.2'f32, innerEdgeColor)
+        drawStroke(fp(du - hw, dv), fp(du + hw, dv), 1.0'f32, edgeColor)
     let value = D20FaceNumbers[face.idx]
     if value < 10:
       drawDigit(value, -inkCentreU(value, dHw), 0.0'f32, dHw, dHh)
@@ -1912,7 +1913,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
 
   drawSoftGlow(cx, cy, size * 2.15'f32,
                Color(r: 0, g: 210, b: 255, a: uint8(34.0'f32 + pulse * 16.0'f32)), 0.6)
-  drawCircle(Vector2(x: cx, y: cy), size * 1.36'f32,
+  drawDisc(Vector2(x: cx, y: cy), size * 1.36'f32,
              Color(r: 0, g: 180, b: 225, a: 18))
 
   for i in 0..<5:
@@ -1920,7 +1921,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     let orbitRadius = size * (1.42'f32 + i.float32 * 0.09'f32)
     let moteX = cx + cos(orbitAngle) * orbitRadius
     let moteY = cy + sin(orbitAngle * 0.78'f32) * orbitRadius * 0.28'f32
-    drawCircle(Vector2(x: moteX, y: moteY), 1.3'f32 + i.float32 * 0.12'f32,
+    drawDisc(Vector2(x: moteX, y: moteY), 1.3'f32 + i.float32 * 0.12'f32,
                Color(r: 170, g: 250, b: 255, a: uint8(58 + i * 12)))
 
   if skin == cskD20:
@@ -2033,8 +2034,8 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     # channels are recessed dark grey, not glowing pink.
     innerEdgeColor = Color(r: 90, g: 93, b: 104, a: 130)
   for edge in CubeEdges:
-    drawLine(projected[edge[0]], projected[edge[1]], 4, innerEdgeColor)
-    drawLine(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
+    drawStroke(projected[edge[0]], projected[edge[1]], 4, innerEdgeColor)
+    drawStroke(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
 
   # Companion Cube skin: the Weighted Companion Cube look, a soft-pink heart
   # on a light disc at the center of every visible face. Faces were depth-sorted
@@ -2197,8 +2198,8 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
         for k in 0 .. 3:
           let a0 = frame[k]
           let a1 = frame[(k + 1) mod 4]
-          drawLine(a0, a1, 3.0'f32, Color(r: 80, g: 245, b: 255, a: 55))
-          drawLine(a0, a1, 1.3'f32, cyan)
+          drawStroke(a0, a1, 3.0'f32, Color(r: 80, g: 245, b: 255, a: 55))
+          drawStroke(a0, a1, 1.3'f32, cyan)
         # Magenta corner brackets: short L-arms inset from each corner.
         const bl = 0.22'f32
         const cornerSigns = [(-1.0'f32, -1.0'f32), (1.0'f32, -1.0'f32),
@@ -2206,18 +2207,18 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
         for c in cornerSigns:
           let cu = c[0] * pin
           let cv = c[1] * pin
-          drawLine(fp(cu, cv), fp(cu - c[0] * bl, cv), 2.2'f32, mag)
-          drawLine(fp(cu, cv), fp(cu, cv - c[1] * bl), 2.2'f32, mag)
+          drawStroke(fp(cu, cv), fp(cu - c[0] * bl, cv), 2.2'f32, mag)
+          drawStroke(fp(cu, cv), fp(cu, cv - c[1] * bl), 2.2'f32, mag)
         # Faint scanline ticks across the panel.
         for r in 0 .. 2:
           let vv = -0.30'f32 + r.float32 * 0.30'f32
-          drawLine(fp(-0.45'f32, vv), fp(0.45'f32, vv), 1.0'f32,
+          drawStroke(fp(-0.45'f32, vv), fp(0.45'f32, vv), 1.0'f32,
                    Color(r: 80, g: 245, b: 255, a: 65))
         # Pulsing centre node: cyan ring with a magenta core.
         let nodeR = (3.0'f32 + 2.0'f32 * pulseC) * (size / 60.0'f32)
-        drawCircle(fcScreen, max(1.0'f32, nodeR * 1.7'f32),
+        drawDisc(fcScreen, max(1.0'f32, nodeR * 1.7'f32),
                    Color(r: 80, g: 245, b: 255, a: 120))
-        drawCircle(fcScreen, max(0.7'f32, nodeR), mag)
+        drawDisc(fcScreen, max(0.7'f32, nodeR), mag)
         continue
 
       if skin == cskDice:
@@ -2322,12 +2323,12 @@ proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
   for i in 0..4:
     let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
     let alpha = uint8(26 + i * 9)
-    drawCircleLines(Vector2(x: centerX, y: centerY), ringRadius,
+    drawCircleOutline(Vector2(x: centerX, y: centerY), ringRadius,
                     Color(r: 80, g: 210, b: 255, a: alpha))
     let angle = time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
     let nodeX = centerX + cos(angle) * ringRadius
     let nodeY = centerY + sin(angle) * ringRadius
-    drawCircle(Vector2(x: nodeX, y: nodeY), 3.0 + i.float32 * 0.35,
+    drawDisc(Vector2(x: nodeX, y: nodeY), 3.0 + i.float32 * 0.35,
                Color(r: 165, g: 245, b: 255, a: uint8(120 + i * 18)))
 
   let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
@@ -2342,21 +2343,21 @@ proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
     let y = ((i.float32 * 67.0 + time * (16.0 + i.float32 * 1.7)) mod (h + 90.0)) - 45.0
     let sway = sin(time * 0.7 + i.float32) * 32.0
     let alpha = uint8(18 + (i mod 4) * 8)
-    drawLine(Vector2(x: -40.0, y: y),
+    drawStroke(Vector2(x: -40.0, y: y),
              Vector2(x: w + 40.0, y: y + sway * 0.18),
              1, Color(r: 0, g: 198, b: 238, a: alpha))
     if i mod 3 == 0:
       let x = (w * (0.22 + (i mod 5).float32 * 0.13) + sway) mod max(w, 1.0)
-      drawLine(Vector2(x: x, y: y - 28.0),
+      drawStroke(Vector2(x: x, y: y - 28.0),
                Vector2(x: x, y: y + 32.0),
                1, Color(r: 85, g: 240, b: 255, a: uint8(alpha + 28)))
-      drawCircle(Vector2(x: x, y: y), 2.6, Color(r: 180, g: 250, b: 255, a: 130))
+      drawDisc(Vector2(x: x, y: y), 2.6, Color(r: 180, g: 250, b: 255, a: 130))
 
   # Left-side launch column silhouette keeps icons readable over the animation.
   drawRectangleGradientH(0, 0, min(310, screenWidth).int32, screenHeight.int32,
                          Color(r: 2, g: 5, b: 12, a: 155),
                          Color(r: 2, g: 5, b: 12, a: 0))
-  drawLine(Vector2(x: 250.0, y: 42.0),
+  drawStroke(Vector2(x: 250.0, y: 42.0),
            Vector2(x: 250.0 + sin(time * 0.9) * 10.0, y: h - 74.0),
            1, Color(r: 70, g: 230, b: 255, a: 64))
 
@@ -2392,7 +2393,7 @@ proc drawUsageRow(panelX, panelW, y: int32, label: string, pct: float32, color: 
     drawRectangle(capX - 2, barY, 2, barH, Color(r: 255, g: 255, b: 255, a: 170))
     drawSoftGlow(capX.float32, (barY + barH div 2).float32, 7.0'f32,
                  withAlpha(color, 130), 1.0'f32)
-  drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
+  drawRectOutline(Rectangle(x: barX.float32, y: barY.float32,
                                width: barW.float32, height: barH.float32), 1,
                      Color(r: 0, g: 90, b: 110, a: 150))
   # Percentage, right-aligned
@@ -2544,10 +2545,10 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
       for i in 0..3:
         let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
         let alpha = uint8(26 + i * 9)
-        drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
+        drawCircleOutline(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
                         withAlpha(accentColor, alpha))
         let nodeAngle = desktop.time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
-        drawCircle(Vector2(x: w * 0.64 + cos(nodeAngle) * ringRadius,
+        drawDisc(Vector2(x: w * 0.64 + cos(nodeAngle) * ringRadius,
                            y: h * 0.46 + sin(nodeAngle) * ringRadius),
                    3.0 + i.float32 * 0.35,
                    withAlpha(nodeColor, uint8(120 + i * 18)))
@@ -2600,7 +2601,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   drawRectangleGradientV(panelX, panelY, panelW, panelH,
                          Color(r: 18, g: 26, b: 38, a: 222),
                          Color(r: 9, g: 13, b: 22, a: 222))
-  drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+  drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                width: panelW.float32, height: panelH.float32), 1,
                      Color(r: 0, g: 180, b: 190, a: 210))
   # Corner accents
@@ -2622,7 +2623,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   drawText(t(tkOSSystemMonitor), panelX + 9, panelY + 5, 14,
            Color(r: 120, g: 235, b: 235, a: 255))
   let pulse = sin(tm * 3.0'f32) * 0.5'f32 + 0.5'f32
-  drawCircle(Vector2(x: (panelX + panelW - 16).float32, y: (panelY + 11).float32),
+  drawDisc(Vector2(x: (panelX + panelW - 16).float32, y: (panelY + 11).float32),
              4.0'f32, Color(r: 70, g: 255, b: 120, a: uint8(110.0'f32 + pulse * 145.0'f32)))
 
   # CPU sparkline (scrolling filled waveform)
@@ -2637,7 +2638,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
     let h = int32(v * gh.float32)
     drawRectangle(gx + i.int32, gy + gh - h, 1, h, Color(r: 0, g: 190, b: 160, a: 70))
     drawRectangle(gx + i.int32, gy + gh - h, 1, 1, Color(r: 90, g: 255, b: 210, a: 200))
-  drawRectangleLines(Rectangle(x: gx.float32, y: gy.float32,
+  drawRectOutline(Rectangle(x: gx.float32, y: gy.float32,
                                width: gw.float32, height: gh.float32), 1,
                      Color(r: 0, g: 80, b: 100, a: 140))
 
@@ -2682,7 +2683,7 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
       let toastY = int32(screenHeight - TASKBAR_HEIGHT - toastH.int - 14 - j * (toastH + spacing).int)
       drawRectangle(toastX, toastY, toastW, toastH,
                     Color(r: 12, g: 22, b: 34, a: uint8(232.0'f32 * fade)))
-      drawRectangleLines(Rectangle(x: toastX.float32, y: toastY.float32,
+      drawRectOutline(Rectangle(x: toastX.float32, y: toastY.float32,
                                    width: toastW.float32, height: toastH.float32), 2,
                          Color(r: 255, g: 210, b: 80, a: alpha))
       drawHexBadge(toastX + 26, toastY + toastH div 2, 14.0,
@@ -2727,7 +2728,7 @@ proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: in
     let toastY = int32(screenHeight - toastH - 14 - j * (toastH + spacing))
     drawRectangle(toastX, toastY, toastW, toastH,
                   Color(r: 12, g: 22, b: 34, a: uint8(232.0'f32 * fade)))
-    drawRectangleLines(Rectangle(x: toastX.float32, y: toastY.float32,
+    drawRectOutline(Rectangle(x: toastX.float32, y: toastY.float32,
                                  width: toastW.float32, height: toastH.float32), 2,
                        Color(r: 255, g: 210, b: 80, a: alpha))
     drawHexBadge(toastX + 26, toastY + toastH div 2, 14.0,
@@ -2898,7 +2899,7 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Panel background with OS-style border
   drawRectangle(panelX.int32, panelY.int32, panelWidth.int32, panelHeight.int32,
                Color(r: 25, g: 30, b: 45, a: 255))
-  drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+  drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                 width: panelWidth.float32, height: panelHeight.float32), 2,
                     Color(r: 0, g: 180, b: 220, a: 255))
 
@@ -2923,7 +2924,7 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Progress bar background
   drawRectangle(barX.int32, barY.int32, barWidth.int32, barHeight.int32,
                Color(r: 20, g: 25, b: 35, a: 255))
-  drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
+  drawRectOutline(Rectangle(x: barX.float32, y: barY.float32,
                                 width: barWidth.float32, height: barHeight.float32), 2,
                     Color(r: 60, g: 80, b: 100, a: 255))
 
@@ -2953,5 +2954,5 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
     let dotX = dotsStartX + i * dotSpacing
     let dotPhase = desktop.time * 3.0 + i.float32 * 0.3
     let dotAlpha = ((sin(dotPhase) + 1.0) / 2.0 * 200.0 + 55.0).uint8
-    drawCircle(Vector2(x: dotX.float32, y: dotsY.float32), 4,
+    drawDisc(Vector2(x: dotX.float32, y: dotsY.float32), 4,
               Color(r: 0, g: 200, b: 255, a: dotAlpha))

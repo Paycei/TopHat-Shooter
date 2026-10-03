@@ -2,6 +2,7 @@
 ## Draw enemies with modern process/threat labels
 
 import raylib, math
+import ../draw_prims
 import ../types, ../utils, ../enemy_config
 
 proc getEnemyProcessName*(enemy: Enemy): string =
@@ -134,7 +135,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     let glowAlpha = uint8(min(180.0, float32(alpha) * glowPulse))
 
     # Outer glow
-    drawRectangleLines(
+    drawRectOutline(
       Rectangle(x: (labelX - 2).float32, y: (labelY - 2).float32,
                width: (totalWidth + 4).float32, height: (labelHeight + 4).float32),
       1, Color(r: 255, g: 100, b: 100, a: glowAlpha)
@@ -149,7 +150,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     Color(r: 80, g: 100, b: 130, a: uint8(alpha.float32 * 0.9))
 
   let borderWidth = if enemy.isBoss: 2.0 elif enemy.isElite: 1.5 else: 1.0
-  drawRectangleLines(Rectangle(x: labelX, y: labelY,
+  drawRectOutline(Rectangle(x: labelX, y: labelY,
                                 width: totalWidth.float32, height: labelHeight.float32),
                     borderWidth, borderColor)
 
@@ -242,7 +243,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
                  Color(r: 255, g: 255, b: 255, a: shineAlpha))
 
     # Bar border
-    drawRectangleLines(Rectangle(x: barX, y: barY,
+    drawRectOutline(Rectangle(x: barX, y: barY,
                                   width: barWidth.float32, height: barHeight.float32),
                       1, Color(r: 70, g: 85, b: 100, a: uint8(alpha.float32 * 0.8)))
 
@@ -292,7 +293,7 @@ proc drawEnemyWarningIndicator*(enemy: Enemy) =
   else:
     Color(r: 200, g: 170, b: 60, a: glowAlpha)
 
-  drawCircle(iconX.int32, iconY.int32, (glowSize div 2).float32, glowColor)
+  drawDisc(iconX.int32, iconY.int32, (glowSize div 2).float32, glowColor)
 
   # Warning triangle (no exclamation mark)
   let size = if enemy.isBoss: 9.0 else: 7.0

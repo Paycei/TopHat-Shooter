@@ -6,6 +6,7 @@
 ## in cutscene.nim so it shares the same archive chrome.
 
 import raylib, rlgl, math
+import ../draw_prims
 import particle_types, background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene
 
 const
@@ -27,10 +28,10 @@ proc drawWatchShot(local, duration: float32, screenWidth, screenHeight: int32,
   let sweep = (local / duration) * 360.0'f32
   drawRing(Vector2(x: cx, y: cy), 88.0'f32, 92.0'f32, -90.0'f32, -90.0'f32 + sweep, 48,
            colorA(SurAccent, alpha * 210.0'f32))
-  drawCircleLines(Vector2(x: cx, y: cy), 90.0'f32, colorA(SurAccent, alpha * 70.0'f32))
+  drawCircleOutline(Vector2(x: cx, y: cy), 90.0'f32, colorA(SurAccent, alpha * 70.0'f32))
   for i in 0..<12:
     let a = i.float32 * PI * 2.0'f32 / 12.0'f32 - PI * 0.5'f32
-    drawLine((cx + cos(a) * 82.0'f32).int32, (cy + sin(a) * 82.0'f32).int32,
+    drawStroke((cx + cos(a) * 82.0'f32).int32, (cy + sin(a) * 82.0'f32).int32,
              (cx + cos(a) * 90.0'f32).int32, (cy + sin(a) * 90.0'f32).int32,
              colorA(SurAccent, alpha * 130.0'f32))
 
@@ -103,7 +104,7 @@ proc drawSurFallShot(local, duration: float32, screenWidth, screenHeight: int32,
     let dist = fade * (60.0'f32 + fractCoord(i.float32 * 4.3'f32) * 280.0'f32)
     let px = cx + cos(ang) * dist
     let py = cy + sin(ang) * dist - fade * 40.0'f32   # drift upward like sparks
-    drawCircle(Vector2(x: px, y: py), 2.6'f32 * (1.0'f32 - fade) + 0.6'f32,
+    drawDisc(Vector2(x: px, y: py), 2.6'f32 * (1.0'f32 - fade) + 0.6'f32,
                colorA(SurAccent, alpha * (1.0'f32 - fade) * 200.0'f32))
 
   # The dimming process itself.
@@ -148,12 +149,12 @@ proc drawShutdownShot(local, duration: float32, screenWidth, screenHeight: int32
       let lx = originX + c.float32 * gapX
       let ly = originY + r.float32 * gapY
       if off:
-        drawCircleLines(Vector2(x: lx, y: ly), 5.0'f32,
+        drawCircleOutline(Vector2(x: lx, y: ly), 5.0'f32,
                         colorA(SurAccent, alpha * 28.0'f32))
       else:
         let flick = 0.7'f32 + 0.3'f32 * (sin(local * 12.0'f32 + idx.float32) * 0.5'f32 + 0.5'f32)
         drawSoftGlow(lx, ly, 16.0'f32, colorA(SurAccent, alpha * flick * 70.0'f32), 1.0'f32)
-        drawCircle(Vector2(x: lx, y: ly), 5.0'f32, colorA(SurAccent, alpha * flick * 230.0'f32))
+        drawDisc(Vector2(x: lx, y: ly), 5.0'f32, colorA(SurAccent, alpha * flick * 230.0'f32))
 
   # CRT power-off collapse over the final ~30%: image crushes to a bright scanline,
   # then to a center dot, then nothing.
@@ -174,7 +175,7 @@ proc drawShutdownShot(local, duration: float32, screenWidth, screenHeight: int32
       # Final dying pinpoint.
       let dot = (1.0'f32 - (collapse - 0.85'f32) / 0.15'f32) * 4.0'f32
       if dot > 0.2'f32:
-        drawCircle(Vector2(x: cx, y: cy), dot,
+        drawDisc(Vector2(x: cx, y: cy), dot,
                    Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 235.0'f32)))
 
   drawSubtitles([t(tkSurEndShutdown1), t(tkSurEndShutdown2)], screenWidth, screenHeight, alpha)
@@ -190,9 +191,9 @@ proc drawSurSignoffShot(local, duration: float32, screenWidth, screenHeight: int
   drawSoftGlow(cx, cy, 240.0'f32, colorA(SurAccent, alpha * (32.0'f32 + pulse * 22.0'f32)), 1.0'f32)
 
   # A lone, slowly-pulsing ember mark where the process stood.
-  drawCircle(Vector2(x: cx, y: cy), 7.0'f32 + pulse * 2.0'f32, colorA(SurAccent, alpha * 230.0'f32))
-  drawCircleLines(Vector2(x: cx, y: cy), 22.0'f32 + pulse * 6.0'f32, colorA(SurAccent, alpha * 140.0'f32))
-  drawCircleLines(Vector2(x: cx, y: cy), 40.0'f32 + pulse * 10.0'f32, colorA(SurAccent, alpha * 70.0'f32))
+  drawDisc(Vector2(x: cx, y: cy), 7.0'f32 + pulse * 2.0'f32, colorA(SurAccent, alpha * 230.0'f32))
+  drawCircleOutline(Vector2(x: cx, y: cy), 22.0'f32 + pulse * 6.0'f32, colorA(SurAccent, alpha * 140.0'f32))
+  drawCircleOutline(Vector2(x: cx, y: cy), 40.0'f32 + pulse * 10.0'f32, colorA(SurAccent, alpha * 70.0'f32))
 
   let titleAlpha = alpha * easeInOut(local / 0.85'f32)
   drawCenteredText(t(tkSurEndSignoffTitle), screenWidth div 2, (screenHeight * 2 div 3).int32,

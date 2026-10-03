@@ -1,6 +1,7 @@
 ## OS-themed advancement tracker window.
 
 import raylib, strutils, math
+import ../draw_prims
 import os_window, ../advancement, ../render_context, ../localization, ../types, ../roguelite, ../utils, ui_helpers
 
 type
@@ -152,14 +153,14 @@ proc drawProgressBar(x, y, width, height: int, ratio: float32, color: Color,
   let border =
     if complete: withAlpha(brighten(color, 30, color.a.int), 150 + int(90.0'f32 * pulse))
     else: Color(r: 70, g: 82, b: 102, a: 255)
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
                      1, border)
 
 proc drawPanel(x, y, width, height: int, title: string = "") =
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                 Color(r: 19, g: 23, b: 34, a: 238))
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
                      1, Color(r: 68, g: 82, b: 106, a: 255))
   if title.len > 0:
@@ -190,7 +191,7 @@ proc drawButton(rect: Rectangle, label: string, enabled: bool, hovered: bool,
     drawRectangleGradientV(rect.x.int32, rect.y.int32, rect.width.int32,
                            max(1, rect.height.int32 div 2),
                            withAlpha(White, 30), withAlpha(White, 0))
-  drawRectangleLines(rect, (if enabled and pulse > 0.0'f32: 2 else: 1), border)
+  drawRectOutline(rect, (if enabled and pulse > 0.0'f32: 2 else: 1), border)
   let tw = measureText(label, 14)
   drawText(label, (rect.x.int32 + (rect.width.int32 - tw) div 2),
            (rect.y.int32 + 8), 14, text)
@@ -396,7 +397,7 @@ proc drawTierDiamond(cx, cy: int, size: float32, color: Color, filled: bool) =
   let center = Vector2(x: cx.float32, y: cy.float32)
   if filled:
     drawPoly(center, 4, size, 45.0'f32, color)
-  drawPolyLines(center, 4, size, 45.0'f32, 1.5'f32, color)
+  drawPolyOutline(center, 4, size, 45.0'f32, 1.5'f32, color)
 
 proc drawTierGroupHeader(x, y, w, h: int, tier: AdvancementTier,
                          totals: tuple[unlocked, total, unclaimed: int],
@@ -416,7 +417,7 @@ proc drawTierGroupHeader(x, y, w, h: int, tier: AdvancementTier,
            elif totals.unlocked >= totals.total: c
            else: Color(r: 140, g: 155, b: 175, a: 255))
   if totals.unclaimed > 0:
-    drawCircle(Vector2(x: (x + w - 18 - cw).float32, y: (y + h div 2).float32),
+    drawDisc(Vector2(x: (x + w - 18 - cw).float32, y: (y + h div 2).float32),
                3.0'f32 + pulse * 1.5'f32, Color(r: 255, g: 210, b: 70, a: 255))
   # Hairline under the label ties the group to the cards below it.
   drawRectangle(x.int32, (y + h - 1).int32, w.int32, 1, withAlpha(c, 70))
@@ -443,7 +444,7 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
   drawRectangle(x.int32, y.int32, width.int32, height.int32, bg)
   # Claimable cards get a soft pulsing halo to pull the eye toward the reward.
   if claimable:
-    drawRectangleLines(Rectangle(x: (x - 1).float32, y: (y - 1).float32,
+    drawRectOutline(Rectangle(x: (x - 1).float32, y: (y - 1).float32,
                                  width: (width + 2).float32, height: (height + 2).float32),
                        2, withAlpha(accent, 35 + int(70.0'f32 * pulse)))
   # Untouched entries keep the rarity hue but at low alpha, so a group's
@@ -451,7 +452,7 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
   let untouched = not entry.unlocked and entry.progress <= 0.0'f32
   drawRectangle(x.int32, y.int32, 4, height.int32,
                 if untouched: withAlpha(accent, 90) else: accent)
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
                      if claimable or selected or hovered: 2 else: 1, border)
 
@@ -482,8 +483,8 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
     let check = Color(r: 90, g: 255, b: 150, a: 255)
     # Two strokes drawn twice (1px offset) to read as a bold 2px checkmark.
     for off in 0..1:
-      drawLine((cx - 4).int32, (cy + off).int32, (cx - 1).int32, (cy + 4 + off).int32, check)
-      drawLine((cx - 1).int32, (cy + 4 + off).int32, (cx + 4).int32, (cy - 4 + off).int32, check)
+      drawStroke((cx - 4).int32, (cy + off).int32, (cx - 1).int32, (cy + 4 + off).int32, check)
+      drawStroke((cx - 1).int32, (cy + 4 + off).int32, (cx + 4).int32, (cy - 4 + off).int32, check)
     drawText(t(tkAdvDone), (x + width - 52).int32, (barY - 3).int32, 11, check)
   else:
     let pct = $int(ratio * 100.0'f32) & "%"
@@ -563,7 +564,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
                  elif hovered: Color(r: 120, g: 220, b: 255, a: 255)
                  else: Color(r: 62, g: 74, b: 96, a: 255)
     drawRectangle(contentX.int32, catY.int32, SidebarWidth.int32, 38, bg)
-    drawRectangleLines(catRect, if active or hovered: 2 else: 1, border)
+    drawRectOutline(catRect, if active or hovered: 2 else: 1, border)
     drawText(categoryName(category), (contentX + 9).int32, (catY + 7).int32, 14,
              if active or hovered: White else: Color(r: 210, g: 220, b: 235, a: 255))
     let countText = $totals.unlocked & " / " & $totals.total
@@ -572,8 +573,8 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
     if totals.unclaimed > 0:
       let dotPos = Vector2(x: (contentX + SidebarWidth - 15).float32, y: (catY + 26).float32)
       let gold = Color(r: 255, g: 210, b: 70, a: 255)
-      drawCircle(dotPos, 4.0'f32 + pulse * 2.5'f32, withAlpha(gold, 60))
-      drawCircle(dotPos, 4.0'f32, gold)
+      drawDisc(dotPos, 4.0'f32 + pulse * 2.5'f32, withAlpha(gold, 60))
+      drawDisc(dotPos, 4.0'f32, gold)
     catY += 44
 
   # Rarity legend pinned to the bottom of the sidebar: the same ordering the

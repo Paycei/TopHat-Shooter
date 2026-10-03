@@ -2,6 +2,7 @@
 ## System diagnostics and performance metrics
 
 import raylib, strutils, math
+import ../draw_prims
 import ../types, ../powerup, ../localization, ../render_context, ../powerup_data, icon_drawing, ../utils, hud_dock
 
 const
@@ -212,7 +213,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
                  Color(r: 0, g: 220, b: 255, a: 180))
 
     # Panel border
-    drawRectangleLines(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
+    drawRectOutline(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
                                   width: debugPanelW.float32,
                                   height: (DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT).float32),
                       DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
@@ -229,7 +230,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
     # Draw maximize icon (square)
     let iconX = finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 12
     let iconY = yOffset + 4
-    drawRectangleLines(Rectangle(x: iconX.float32, y: iconY.float32, width: 10, height: 10),
+    drawRectOutline(Rectangle(x: iconX.float32, y: iconY.float32, width: 10, height: 10),
                       1, ACCENT_COLOR)
 
     return  # Don't draw rest of panel
@@ -252,7 +253,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
                  Color(r: 0, g: 220, b: 255, a: 180))
 
     # Panel border with glow effect (cyan theme matching other panels)
-    drawRectangleLines(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
+    drawRectOutline(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
                                   width: debugPanelW.float32, height: contentHeight.float32),
                       DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
 
@@ -275,7 +276,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
   if not anchorLeftDefault:
     let iconX = finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 12
     let iconY = yOffset + 9
-    drawLine(Vector2(x: iconX.float32, y: iconY.float32),
+    drawStroke(Vector2(x: iconX.float32, y: iconY.float32),
             Vector2(x: (iconX + 10).float32, y: iconY.float32),
             2, ACCENT_COLOR)
 
@@ -347,7 +348,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
   # ACTIVE EFFECTS
   if activeTimers > 0:
     # Section separator line - cyan
-    drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 2).float32, y: yOffset.float32),
+    drawStroke(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 2).float32, y: yOffset.float32),
             Vector2(x: (finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 2).float32, y: yOffset.float32),
             1, Color(r: 0, g: 220, b: 255, a: 120))
     yOffset += 3
@@ -486,7 +487,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
 
   # COMBAT STATS
   # Section separator line
-  drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
+  drawStroke(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
           Vector2(x: (finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
           1, Color(r: 0, g: 200, b: 255, a: 100))
   yOffset += 4
@@ -547,7 +548,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
   # LOW HP BONUSES
   if hpPercent < 0.7 and (hasPowerUp(game.player, puRage) or hasPowerUp(game.player, puBerserker)):
     # Section separator line
-    drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
+    drawStroke(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
             Vector2(x: (finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
             1, Color(r: 255, g: 100, b: 100, a: 120))
     yOffset += 4
@@ -612,7 +613,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
 
   # REAL-TIME STATS
   # Section separator line
-  drawLine(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
+  drawStroke(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
           Vector2(x: (finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
           1, Color(r: 100, g: 200, b: 255, a: 100))
   yOffset += 3
@@ -795,10 +796,10 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
                    Color(r: 255, g: 238, b: 170, a: 235))
     let glyphX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
     if legendaryPanelMinimized:
-      drawRectangleLines(Rectangle(x: glyphX.float32, y: (actualY + 3).float32, width: 10, height: 10),
+      drawRectOutline(Rectangle(x: glyphX.float32, y: (actualY + 3).float32, width: 10, height: 10),
                          1, Color(r: 255, g: 230, b: 145, a: 255))
       return
-    drawLine(Vector2(x: glyphX.float32, y: (actualY + 8).float32),
+    drawStroke(Vector2(x: glyphX.float32, y: (actualY + 8).float32),
              Vector2(x: (glyphX + 10).float32, y: (actualY + 8).float32),
              2, Color(r: 255, g: 230, b: 145, a: 255))
 
@@ -808,7 +809,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
                  Color(r: 5, g: 15, b: 25, a: 58))
     drawRectangle(actualX + panelWidth - 2, actualY, 2, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
                  Color(r: 255, g: 215, b: 80, a: 165))
-    drawRectangleLines(Rectangle(x: actualX.float32, y: actualY.float32,
+    drawRectOutline(Rectangle(x: actualX.float32, y: actualY.float32,
                                   width: panelWidth.float32,
                                   height: (DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT).float32),
                       DEBUG_PANEL_BORDER, Color(r: 255, g: 215, b: 80, a: 75))
@@ -824,7 +825,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
              qYOffset + 2, 10, Color(r: 255, g: 238, b: 170, a: 230))
     let miniIconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
     let miniIconY = qYOffset + 4
-    drawRectangleLines(Rectangle(x: miniIconX.float32, y: miniIconY.float32, width: 10, height: 10),
+    drawRectOutline(Rectangle(x: miniIconX.float32, y: miniIconY.float32, width: 10, height: 10),
                       1, Color(r: 255, g: 230, b: 145, a: 255))
     return
 
@@ -836,7 +837,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
                   Color(r: 255, g: 215, b: 80, a: 95))
     drawRectangle(actualX + panelWidth - 2, actualY, 2, qContentHeight,
                   Color(r: 255, g: 215, b: 80, a: 165))
-    drawRectangleLines(Rectangle(x: actualX.float32, y: actualY.float32,
+    drawRectOutline(Rectangle(x: actualX.float32, y: actualY.float32,
                                   width: panelWidth.float32, height: qContentHeight.float32),
                       DEBUG_PANEL_BORDER, Color(r: 255, g: 215, b: 80, a: 75))
 
@@ -854,7 +855,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
 
     let miniIconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
     let miniIconY = qYOffset + 9
-    drawLine(Vector2(x: miniIconX.float32, y: miniIconY.float32),
+    drawStroke(Vector2(x: miniIconX.float32, y: miniIconY.float32),
             Vector2(x: (miniIconX + 10).float32, y: miniIconY.float32),
             2, Color(r: 255, g: 230, b: 145, a: 255))
 
@@ -905,7 +906,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     drawRectangle(iconX + 1, iconY + 1, LEGENDARY_Q_ICON_SIZE, LEGENDARY_Q_ICON_SIZE,
                   Color(r: 0, g: 0, b: 0, a: 85))
     drawRectangle(iconX, iconY, LEGENDARY_Q_ICON_SIZE, LEGENDARY_Q_ICON_SIZE, bgColor)
-    drawRectangleLines(Rectangle(x: iconX.float32, y: iconY.float32,
+    drawRectOutline(Rectangle(x: iconX.float32, y: iconY.float32,
                                   width: LEGENDARY_Q_ICON_SIZE.float32,
                                   height: LEGENDARY_Q_ICON_SIZE.float32),
                        1, borderColor)

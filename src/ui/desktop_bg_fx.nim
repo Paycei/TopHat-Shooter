@@ -8,6 +8,7 @@
 ## translates the matrix and clips with a scissor before calling in).
 
 import raylib, math
+import ../draw_prims
 import background_fx, ../desktop_bg_skins, ../utils
 
 proc fract01(value: float32): float32 =
@@ -54,7 +55,7 @@ proc drawNeonCityFx(w, h, time: float32) =
         # Blinking rooftop beacon on some near towers
         if hash01(seed + 4.4'f32) > 0.62'f32:
           let blink = sin(time * 2.2'f32 + seed) * 0.5'f32 + 0.5'f32
-          drawCircle(Vector2(x: bx + bw * 0.5'f32, y: topY - 3.0'f32),
+          drawDisc(Vector2(x: bx + bw * 0.5'f32, y: topY - 3.0'f32),
                      max(1.4'f32, w * 0.002'f32),
                      Color(r: 255, g: 60, b: 120, a: alphaU8(90.0'f32 + blink * 140.0'f32)))
         # Sparse lit windows, a few flickering
@@ -152,13 +153,13 @@ proc drawDeepVoidFx(w, h, time: float32) =
     let sy = hash01(seed + 1.7'f32) * h
     let tw = sin(time * (0.9'f32 + hash01(seed + 3.3'f32) * 1.6'f32) + seed) * 0.5'f32 + 0.5'f32
     let sr = (0.8'f32 + hash01(seed + 8.8'f32) * 1.6'f32) * sScale
-    drawCircle(Vector2(x: sx, y: sy), sr + tw * 0.8'f32 * sScale,
+    drawDisc(Vector2(x: sx, y: sy), sr + tw * 0.8'f32 * sScale,
                Color(r: 220, g: 215, b: 255, a: alphaU8(70.0'f32 + tw * 150.0'f32)))
     if hash01(seed + 12.0'f32) > 0.65'f32:
       let arm = (3.0'f32 + tw * 5.0'f32) * (0.6'f32 + sr * 0.3'f32)
       let armCol = Color(r: 200, g: 190, b: 255, a: alphaU8(40.0'f32 + tw * 90.0'f32))
-      drawLine(Vector2(x: sx - arm, y: sy), Vector2(x: sx + arm, y: sy), 1.0'f32, armCol)
-      drawLine(Vector2(x: sx, y: sy - arm), Vector2(x: sx, y: sy + arm), 1.0'f32, armCol)
+      drawStroke(Vector2(x: sx - arm, y: sy), Vector2(x: sx + arm, y: sy), 1.0'f32, armCol)
+      drawStroke(Vector2(x: sx, y: sy - arm), Vector2(x: sx, y: sy + arm), 1.0'f32, armCol)
 
   # Occasional shooting stars on two interleaved cycles
   for lane in 0..1:
@@ -176,7 +177,7 @@ proc drawDeepVoidFx(w, h, time: float32) =
       let tailLen = min(w, h) * 0.22'f32
       let fade = sin(prog * PI)
       let streakCol = Color(r: 235, g: 230, b: 255, a: alphaU8(220.0'f32 * fade))
-      drawLine(Vector2(x: px - dirX * w * 0.45'f32 / mvLen * tailLen,
+      drawStroke(Vector2(x: px - dirX * w * 0.45'f32 / mvLen * tailLen,
                        y: py - h * 0.35'f32 / mvLen * tailLen),
                Vector2(x: px, y: py), 2.0'f32, streakCol)
       drawSoftGlow(px, py, 9.0'f32 * sScale, withAlpha(streakCol, alphaU8(90.0'f32 * fade)), 0.7)
@@ -196,9 +197,9 @@ proc drawSunriseFx(w, h, time: float32) =
 
   # Sun: warm halo, banded disk, synthwave slits sweeping the lower half
   drawSoftGlow(sunX, horizon, sunR * 2.1'f32, Color(r: 255, g: 120, b: 30, a: 60), 0.8)
-  drawCircle(sunCenter, sunR, Color(r: 255, g: 95, b: 40, a: 235))
-  drawCircle(sunCenter, sunR * 0.86'f32, Color(r: 255, g: 150, b: 40, a: 240))
-  drawCircle(sunCenter, sunR * 0.68'f32, Color(r: 255, g: 215, b: 110, a: 245))
+  drawDisc(sunCenter, sunR, Color(r: 255, g: 95, b: 40, a: 235))
+  drawDisc(sunCenter, sunR * 0.86'f32, Color(r: 255, g: 150, b: 40, a: 240))
+  drawDisc(sunCenter, sunR * 0.68'f32, Color(r: 255, g: 215, b: 110, a: 245))
   for k in 0..<8:
     let tt = fract01(time * 0.045'f32 + k.float32 / 8.0'f32)
     let sy = horizon - sunR + tt * sunR * 2.0'f32
@@ -216,13 +217,13 @@ proc drawSunriseFx(w, h, time: float32) =
 
   # Scrolling perspective grid racing toward the viewer
   for i in -7..7:
-    drawLine(Vector2(x: sunX, y: horizon),
+    drawStroke(Vector2(x: sunX, y: horizon),
              Vector2(x: sunX + i.float32 * w * 0.105'f32, y: h), 1.0'f32,
              Color(r: 255, g: 90, b: 170, a: 64))
   for i in 0..<9:
     let t = fract01(time * 0.14'f32 + i.float32 / 9.0'f32)
     let gy = horizon + t * t * (h - horizon)
-    drawLine(Vector2(x: 0.0'f32, y: gy), Vector2(x: w, y: gy),
+    drawStroke(Vector2(x: 0.0'f32, y: gy), Vector2(x: w, y: gy),
              1.0'f32 + t * 1.4'f32,
              Color(r: 255, g: 90, b: 170, a: alphaU8(26.0'f32 + t * 120.0'f32)))
 
@@ -247,12 +248,12 @@ proc drawNeuralNetFx(w, h, time: float32) =
       let d = sqrt(dx * dx + dy * dy)
       if d < maxDist and d > 1.0'f32:
         let closeness = 1.0'f32 - d / maxDist
-        drawLine(Vector2(x: px[i], y: py[i]), Vector2(x: px[j], y: py[j]), 1.0'f32,
+        drawStroke(Vector2(x: px[i], y: py[i]), Vector2(x: px[j], y: py[j]), 1.0'f32,
                  Color(r: 0, g: 170, b: 255, a: alphaU8(14.0'f32 + closeness * 70.0'f32)))
         if (i * 7 + j * 13) mod 4 == 0:
           let tt = fract01(time * (0.25'f32 + hash01((i * 31 + j).float32) * 0.5'f32) +
                            hash01((i * 17 + j * 3).float32))
-          drawCircle(Vector2(x: px[i] + (px[j] - px[i]) * tt, y: py[i] + (py[j] - py[i]) * tt),
+          drawDisc(Vector2(x: px[i] + (px[j] - px[i]) * tt, y: py[i] + (py[j] - py[i]) * tt),
                      2.0'f32,
                      Color(r: 120, g: 255, b: 230, a: alphaU8(120.0'f32 + closeness * 100.0'f32)))
 
@@ -260,7 +261,7 @@ proc drawNeuralNetFx(w, h, time: float32) =
     let seed = i.float32 * 12.93'f32
     let pulse = sin(time * (0.8'f32 + hash01(seed + 9.0'f32)) + seed) * 0.5'f32 + 0.5'f32
     let r = 1.8'f32 + hash01(seed + 3.3'f32) * 2.2'f32 + pulse * 0.8'f32
-    drawCircle(Vector2(x: px[i], y: py[i]), r,
+    drawDisc(Vector2(x: px[i], y: py[i]), r,
                Color(r: 0, g: 200, b: 255, a: alphaU8(120.0'f32 + pulse * 100.0'f32)))
     if i mod 3 == 0:
       drawSoftGlow(px[i], py[i], r * 7.0'f32, Color(r: 0, g: 220, b: 200, a: 36), 0.5)
@@ -284,7 +285,7 @@ proc drawInfernoFx(w, h, time: float32) =
     for s in 0..<(4 + int(hash01(seed + 2.2'f32) * 3.0'f32)):
       let nx = cx + (hash01(seed + s.float32 * 3.3'f32) - 0.3'f32) * w * 0.045'f32
       let ny = cy + (hash01(seed + s.float32 * 5.9'f32) - 0.5'f32) * h * 0.02'f32
-      drawLine(Vector2(x: cx, y: cy), Vector2(x: nx, y: ny), 2.0'f32,
+      drawStroke(Vector2(x: cx, y: cy), Vector2(x: nx, y: ny), 2.0'f32,
                Color(r: 255, g: uint8(90.0'f32 + glow * 120.0'f32), b: 0,
                      a: alphaU8(90.0'f32 + glow * 120.0'f32)))
       cx = nx
@@ -311,7 +312,7 @@ proc drawInfernoFx(w, h, time: float32) =
                 Color(r: 255, g: 150, b: 30, a: alphaU8(190.0'f32 * fade * flicker))
               else:
                 Color(r: 255, g: 70, b: 20, a: alphaU8(170.0'f32 * fade * flicker))
-    drawCircle(Vector2(x: xPos, y: yPos), size, col)
+    drawDisc(Vector2(x: xPos, y: yPos), size, col)
 
 # Aperture Test
 
@@ -353,7 +354,7 @@ proc drawAperturePortal(cx, cy, rx, ry, time: float32, rim, core: Color,
                     g: alphaU8(baseCol.g.float32 * bright),
                     b: alphaU8(baseCol.b.float32 * bright), a: 255)
     let lineW = 2.0'f32 * ry / Rows.float32 + 1.0'f32
-    drawLine(Vector2(x: cx - half, y: yy), Vector2(x: cx + half, y: yy),
+    drawStroke(Vector2(x: cx - half, y: yy), Vector2(x: cx + half, y: yy),
              lineW, col)
 
   # Rim of light: dots around the perimeter, brightness banded so the band spins
@@ -363,7 +364,7 @@ proc drawAperturePortal(cx, cy, rx, ry, time: float32, rim, core: Color,
     let ex = cx + cos(ang) * rx
     let ey = cy + sin(ang) * ry
     let band = sin(ang * 3.0'f32 - time * spin) * 0.5'f32 + 0.5'f32
-    drawCircle(Vector2(x: ex, y: ey), (0.9'f32 + 1.8'f32 * band) * scale,
+    drawDisc(Vector2(x: ex, y: ey), (0.9'f32 + 1.8'f32 * band) * scale,
                withAlpha(mixCol(rim, core, band * 0.6'f32),
                          alphaU8(110.0'f32 + 130.0'f32 * band)))
 
@@ -372,7 +373,7 @@ proc drawAperturePortal(cx, cy, rx, ry, time: float32, rim, core: Color,
     let ang = time * spin * 0.25'f32 + s.float32 * PI
     let ox = cx + cos(ang) * rx * 1.08'f32
     let oy = cy + sin(ang) * ry * 1.08'f32
-    drawCircle(Vector2(x: ox, y: oy), 1.6'f32 * scale, withAlpha(core, 230'u8))
+    drawDisc(Vector2(x: ox, y: oy), 1.6'f32 * scale, withAlpha(core, 230'u8))
     drawSoftGlow(ox, oy, 8.0'f32 * scale, withAlpha(rim, 120'u8), 0.6)
 
 proc drawWallPanel(px, py, size, gap, base: float32, recessed: bool,
@@ -401,10 +402,10 @@ proc drawWallPanel(px, py, size, gap, base: float32, recessed: bool,
                      if recessed: 80'u8 else: 55'u8)
   let topLeft  = if recessed: sh else: hi   # extruded panels catch light top-left
   let botRight = if recessed: hi else: sh
-  drawLine(Vector2(x: x0, y: y0), Vector2(x: x0 + s, y: y0), bw, topLeft)        # top
-  drawLine(Vector2(x: x0, y: y0), Vector2(x: x0, y: y0 + s), bw, topLeft)        # left
-  drawLine(Vector2(x: x0, y: y0 + s), Vector2(x: x0 + s, y: y0 + s), bw, botRight) # bottom
-  drawLine(Vector2(x: x0 + s, y: y0), Vector2(x: x0 + s, y: y0 + s), bw, botRight) # right
+  drawStroke(Vector2(x: x0, y: y0), Vector2(x: x0 + s, y: y0), bw, topLeft)        # top
+  drawStroke(Vector2(x: x0, y: y0), Vector2(x: x0, y: y0 + s), bw, topLeft)        # left
+  drawStroke(Vector2(x: x0, y: y0 + s), Vector2(x: x0 + s, y: y0 + s), bw, botRight) # bottom
+  drawStroke(Vector2(x: x0 + s, y: y0), Vector2(x: x0 + s, y: y0 + s), bw, botRight) # right
 
 proc drawPortalFx(w, h, time: float32) =
   let rimBlue    = Color(r: 60,  g: 150, b: 255, a: 255)
@@ -475,7 +476,7 @@ proc drawPortalFx(w, h, time: float32) =
     let col = mixCol(coreBlue, coreOrange, tt)
     let edgeFade = sin(tt * PI)   # fade in/out near the portal mouths
     let sz = (1.4'f32 + 1.2'f32 * edgeFade) * (min(w, h) / 600.0'f32)
-    drawCircle(Vector2(x: px, y: py), max(1.0'f32, sz),
+    drawDisc(Vector2(x: px, y: py), max(1.0'f32, sz),
                withAlpha(col, alphaU8(200.0'f32 * edgeFade)))
     if m mod 3 == 0:
       drawSoftGlow(px, py, 6.0'f32, withAlpha(col, alphaU8(80.0'f32 * edgeFade)), 0.5)
@@ -545,7 +546,7 @@ proc drawHorrorFx(w, h, time: float32) =
                 Color(r: 225, g: 215, b: 110, a: alphaU8(215.0'f32 * vis * blink))
     for side in [-1.0'f32, 1.0'f32]:
       let px = ex + side * gap + look
-      drawCircle(Vector2(x: px, y: ey), max(0.5'f32, er * blink), col)
+      drawDisc(Vector2(x: px, y: ey), max(0.5'f32, er * blink), col)
       drawSoftGlow(px, ey, er * 6.0'f32, withAlpha(col, alphaU8(70.0'f32 * vis * blink)), 0.5)
 
   # Failing light: a brief, sickly red flash on a rare cadence, like something
@@ -563,7 +564,7 @@ proc drawHorrorFx(w, h, time: float32) =
     let dy = wrapF(hash01(seed) * span +
                    time * (h * (0.03'f32 + hash01(seed + 1.0'f32) * 0.06'f32)), span)
     let dx = hash01(seed + 2.0'f32) * w + sin(time * 0.4'f32 + seed) * w * 0.01'f32
-    drawCircle(Vector2(x: dx, y: dy),
+    drawDisc(Vector2(x: dx, y: dy),
                0.8'f32 + hash01(seed + 3.0'f32) * 1.0'f32,
                Color(r: 80, g: 70, b: 70, a: 60))
 
@@ -607,8 +608,8 @@ proc drawCyberFx(w, h, time: float32) =
         pts[k] = Vector2(x: prev.x, y: clamp(prev.y + dir * stepLen * h, 0.0'f32, h))
       horiz = not horiz
     for k in 0 ..< (np - 1):
-      drawLine(pts[k], pts[k + 1], 3.0'f32, withAlpha(tint, 38))
-      drawLine(pts[k], pts[k + 1], 1.3'f32, withAlpha(tint, 150))
+      drawStroke(pts[k], pts[k + 1], 3.0'f32, withAlpha(tint, 38))
+      drawStroke(pts[k], pts[k + 1], 1.3'f32, withAlpha(tint, 150))
     for k in 0 ..< np:
       drawRectangle(int32(pts[k].x - pad), int32(pts[k].y - pad),
                     int32(pad * 2.0'f32), int32(pad * 2.0'f32),
@@ -621,7 +622,7 @@ proc drawCyberFx(w, h, time: float32) =
     let pp = Vector2(x: pts[si].x + (pts[si + 1].x - pts[si].x) * lf,
                      y: pts[si].y + (pts[si + 1].y - pts[si].y) * lf)
     drawSoftGlow(pp.x, pp.y, s * 0.02'f32, withAlpha(tint, 150), 0.6)
-    drawCircle(pp, pulseR, Color(r: 255, g: 255, b: 255, a: 230))
+    drawDisc(pp, pulseR, Color(r: 255, g: 255, b: 255, a: 230))
 
   # --- Floating holographic HUD panels with animated data bars.
   for pi in 0 ..< 3:
@@ -641,8 +642,8 @@ proc drawCyberFx(w, h, time: float32) =
         let cyp = py + cy2 * phh
         let sx = if cx2 < 0.5'f32: 1.0'f32 else: -1.0'f32
         let sy = if cy2 < 0.5'f32: 1.0'f32 else: -1.0'f32
-        drawLine(Vector2(x: cxp, y: cyp), Vector2(x: cxp + sx * bl, y: cyp), 1.6'f32, tint)
-        drawLine(Vector2(x: cxp, y: cyp), Vector2(x: cxp, y: cyp + sy * bl), 1.6'f32, tint)
+        drawStroke(Vector2(x: cxp, y: cyp), Vector2(x: cxp + sx * bl, y: cyp), 1.6'f32, tint)
+        drawStroke(Vector2(x: cxp, y: cyp), Vector2(x: cxp, y: cyp + sy * bl), 1.6'f32, tint)
     # Data bars: a fixed track with an animated fill.
     for r in 0 ..< 3:
       let by = py + phh * (0.26'f32 + r.float32 * 0.24'f32)
@@ -669,7 +670,7 @@ proc drawCyberFx(w, h, time: float32) =
   # --- Faint CRT scanlines over the whole frame (constant pixel spacing).
   var y = 0.0'f32
   while y < h:
-    drawLine(Vector2(x: 0.0'f32, y: y), Vector2(x: w, y: y), 1.0'f32,
+    drawStroke(Vector2(x: 0.0'f32, y: y), Vector2(x: w, y: y), 1.0'f32,
              Color(r: 0, g: 0, b: 0, a: 26))
     y += 3.0'f32
 
@@ -720,9 +721,9 @@ proc drawDiamondSuit(cx, cy, r: float32, col: Color) =
 
 proc drawClubSuit(cx, cy, r: float32, col: Color) =
   let cr = r * 0.44'f32
-  drawCircle(Vector2(x: cx, y: cy - r * 0.34'f32), cr, col)
-  drawCircle(Vector2(x: cx - r * 0.42'f32, y: cy + r * 0.14'f32), cr, col)
-  drawCircle(Vector2(x: cx + r * 0.42'f32, y: cy + r * 0.14'f32), cr, col)
+  drawDisc(Vector2(x: cx, y: cy - r * 0.34'f32), cr, col)
+  drawDisc(Vector2(x: cx - r * 0.42'f32, y: cy + r * 0.14'f32), cr, col)
+  drawDisc(Vector2(x: cx + r * 0.42'f32, y: cy + r * 0.14'f32), cr, col)
   drawTri2(Vector2(x: cx, y: cy + r * 0.02'f32),
            Vector2(x: cx - r * 0.30'f32, y: cy + r * 0.70'f32),
            Vector2(x: cx + r * 0.30'f32, y: cy + r * 0.70'f32), col)
@@ -756,7 +757,7 @@ proc drawChipStack(cx, cyBase, r: float32, count: int, base: Color, time, seed: 
   drawEllipse(cx.int32, topY.int32, r * 0.5'f32, rv * 0.5'f32, base)
   for kk in 0 ..< 6:
     let a = kk.float32 / 6.0'f32 * PI * 2.0'f32 + time * 0.2'f32 + seed
-    drawCircle(Vector2(x: cx + cos(a) * r * 0.8'f32, y: topY + sin(a) * rv * 0.8'f32),
+    drawDisc(Vector2(x: cx + cos(a) * r * 0.8'f32, y: topY + sin(a) * rv * 0.8'f32),
                r * 0.12'f32, white)
 
 proc drawPlayingCard(cx, cy, cw, ch: float32, suit: int, suitRed: bool) =
@@ -826,10 +827,10 @@ proc drawCasinoFx(w, h, time: float32) =
                Color(r: 120, g: 205, b: 150, a: 22), 0.6)
 
   # 6. Gold betting arcs (a bright double outer line and a faint inner one).
-  drawEllipseLines(tcx.int32, tcy.int32, trh * 0.8'f32, trv * 0.8'f32, withAlpha(gold, 150'u8))
-  drawEllipseLines(tcx.int32, tcy.int32, trh * 0.8'f32 + 1.0'f32, trv * 0.8'f32 + 1.0'f32,
+  drawEllipseOutline(tcx.int32, tcy.int32, trh * 0.8'f32, trv * 0.8'f32, withAlpha(gold, 150'u8))
+  drawEllipseOutline(tcx.int32, tcy.int32, trh * 0.8'f32 + 1.0'f32, trv * 0.8'f32 + 1.0'f32,
                    withAlpha(gold, 75'u8))
-  drawEllipseLines(tcx.int32, tcy.int32, trh * 0.6'f32, trv * 0.6'f32, withAlpha(gold, 55'u8))
+  drawEllipseOutline(tcx.int32, tcy.int32, trh * 0.6'f32, trv * 0.6'f32, withAlpha(gold, 55'u8))
 
   # 7. Inlaid suit marks around the felt ring (top, right, bottom, left) - kept
   #    faint and off-centre so they never crowd the cube.
@@ -880,7 +881,7 @@ proc drawCasinoFx(w, h, time: float32) =
     let sx = hash01(seed) * w
     let sy = hash01(seed + 1.0'f32) * h
     let tw = sin(time * (1.5'f32 + hash01(seed + 2.0'f32) * 2.5'f32) + seed) * 0.5'f32 + 0.5'f32
-    drawCircle(Vector2(x: sx, y: sy), (0.6'f32 + hash01(seed + 3.0'f32) * 1.4'f32) * (0.5'f32 + tw),
+    drawDisc(Vector2(x: sx, y: sy), (0.6'f32 + hash01(seed + 3.0'f32) * 1.4'f32) * (0.5'f32 + tw),
                Color(r: 255, g: 215, b: 110, a: alphaU8(24.0'f32 + tw * 130.0'f32)))
 
   # 12. Soft dark edge vignette to keep focus on the table (edge gradients, never
@@ -903,11 +904,11 @@ proc drawRune(cx, cy, r: float32, col: Color) =
   let right = Vector2(x: cx + r * 0.7'f32, y: cy)
   let bot = Vector2(x: cx, y: cy + r)
   let left = Vector2(x: cx - r * 0.7'f32, y: cy)
-  drawLine(top, right, 1.4'f32, col)
-  drawLine(right, bot, 1.4'f32, col)
-  drawLine(bot, left, 1.4'f32, col)
-  drawLine(left, top, 1.4'f32, col)
-  drawLine(Vector2(x: cx, y: cy - r * 1.35'f32), Vector2(x: cx, y: cy + r * 1.35'f32),
+  drawStroke(top, right, 1.4'f32, col)
+  drawStroke(right, bot, 1.4'f32, col)
+  drawStroke(bot, left, 1.4'f32, col)
+  drawStroke(left, top, 1.4'f32, col)
+  drawStroke(Vector2(x: cx, y: cy - r * 1.35'f32), Vector2(x: cx, y: cy + r * 1.35'f32),
           1.2'f32, col)
 
 proc drawDragonGameCard(cx, cy, cw, ch: float32, accent, ink: Color) =
@@ -921,12 +922,12 @@ proc drawDragonGameCard(cx, cy, cw, ch: float32, accent, ink: Color) =
   drawRectangle(int32(cx - cw * 0.5'f32 - 1.0'f32), int32(cy - ch * 0.5'f32 - 1.0'f32),
                 int32(cw + 2.0'f32), int32(ch + 2.0'f32), edge)
   drawRectangle(int32(cx - cw * 0.5'f32), int32(cy - ch * 0.5'f32), cw.int32, ch.int32, paper)
-  drawRectangleLines(int32(cx - cw * 0.41'f32), int32(cy - ch * 0.39'f32),
+  drawRectOutline(int32(cx - cw * 0.41'f32), int32(cy - ch * 0.39'f32),
                      int32(cw * 0.82'f32), int32(ch * 0.78'f32), withAlpha(edge, 150'u8))
   drawRune(cx, cy - ch * 0.12'f32, min(cw, ch) * 0.18'f32, accent)
-  drawLine(Vector2(x: cx - cw * 0.28'f32, y: cy + ch * 0.18'f32),
+  drawStroke(Vector2(x: cx - cw * 0.28'f32, y: cy + ch * 0.18'f32),
            Vector2(x: cx + cw * 0.28'f32, y: cy + ch * 0.18'f32), 1.0'f32, ink)
-  drawLine(Vector2(x: cx - cw * 0.22'f32, y: cy + ch * 0.28'f32),
+  drawStroke(Vector2(x: cx - cw * 0.22'f32, y: cy + ch * 0.28'f32),
            Vector2(x: cx + cw * 0.22'f32, y: cy + ch * 0.28'f32), 1.0'f32, withAlpha(ink, 150'u8))
 
 proc drawDragonToken(cx, cy, r, time, seed: float32, base, rim: Color) =
@@ -934,9 +935,9 @@ proc drawDragonToken(cx, cy, r, time, seed: float32, base, rim: Color) =
   let bob = sin(time * 0.7'f32 + seed) * r * 0.05'f32
   drawEllipse(cx.int32, int32(cy + bob + r * 0.22'f32), r * 1.02'f32, r * 0.34'f32,
               Color(r: 0, g: 0, b: 0, a: 85))
-  drawCircle(Vector2(x: cx, y: cy + bob), r, base)
-  drawCircleLines(cx.int32, int32(cy + bob), r, rim)
-  drawCircle(Vector2(x: cx - r * 0.20'f32, y: cy + bob - r * 0.22'f32),
+  drawDisc(Vector2(x: cx, y: cy + bob), r, base)
+  drawCircleOutline(cx.int32, int32(cy + bob), r, rim)
+  drawDisc(Vector2(x: cx - r * 0.20'f32, y: cy + bob - r * 0.22'f32),
              r * 0.34'f32, withAlpha(Color(r: 255, g: 236, b: 170, a: 255), 34'u8))
   drawRune(cx, cy + bob, r * 0.36'f32, withAlpha(rim, 170'u8))
 
@@ -944,8 +945,8 @@ proc drawDragonMini(cx, cy, s: float32, body, rim, ember: Color) =
   ## A tiny dragon/monster meeple silhouette for the table edge.
   drawEllipse(cx.int32, int32(cy + s * 0.34'f32), s * 0.42'f32, s * 0.16'f32,
               Color(r: 0, g: 0, b: 0, a: 80))
-  drawCircle(Vector2(x: cx, y: cy), s * 0.32'f32, body)
-  drawCircle(Vector2(x: cx + s * 0.34'f32, y: cy - s * 0.12'f32), s * 0.18'f32, body)
+  drawDisc(Vector2(x: cx, y: cy), s * 0.32'f32, body)
+  drawDisc(Vector2(x: cx + s * 0.34'f32, y: cy - s * 0.12'f32), s * 0.18'f32, body)
   drawTri2(Vector2(x: cx - s * 0.08'f32, y: cy - s * 0.12'f32),
            Vector2(x: cx - s * 0.58'f32, y: cy - s * 0.42'f32),
            Vector2(x: cx - s * 0.28'f32, y: cy + s * 0.04'f32), withAlpha(body, 230'u8))
@@ -955,11 +956,11 @@ proc drawDragonMini(cx, cy, s: float32, body, rim, ember: Color) =
   drawTri2(Vector2(x: cx + s * 0.42'f32, y: cy - s * 0.24'f32),
            Vector2(x: cx + s * 0.62'f32, y: cy - s * 0.34'f32),
            Vector2(x: cx + s * 0.50'f32, y: cy - s * 0.12'f32), rim)
-  drawCircle(Vector2(x: cx + s * 0.40'f32, y: cy - s * 0.16'f32), max(0.8'f32, s * 0.035'f32), ember)
+  drawDisc(Vector2(x: cx + s * 0.40'f32, y: cy - s * 0.16'f32), max(0.8'f32, s * 0.035'f32), ember)
 
 proc drawHexMapCell(cx, cy, r: float32, fill, line: Color) =
   drawPoly(Vector2(x: cx, y: cy), 6, r, 30.0'f32, fill)
-  drawPolyLines(Vector2(x: cx, y: cy), 6, r, 30.0'f32, line)
+  drawPolyOutline(Vector2(x: cx, y: cy), 6, r, 30.0'f32, line)
 
 proc edgeX(localX, w, side: float32): float32 =
   ## Folds a coordinate measured inward from a screen edge to actual screen x:
@@ -1013,13 +1014,13 @@ proc drawDragonWing(shoulderX, shoulderY, s, time, side, seed: float32,
     drawTri2(shoulder, dip, tip[i + 1], membrane)
   # Finger-bones and their tip nubs.
   for i in 0 ..< Struts:
-    drawLine(shoulder, tip[i], 1.6'f32, rim)
-    drawCircle(tip[i], 1.6'f32, rim)
+    drawStroke(shoulder, tip[i], 1.6'f32, rim)
+    drawDisc(tip[i], 1.6'f32, rim)
   # Scalloped trailing edge traced through the dip points.
   for i in 0 ..< (Struts - 1):
     let dip = dipOf(i)
-    drawLine(tip[i], dip, 1.3'f32, withAlpha(rim, 150'u8))
-    drawLine(dip, tip[i + 1], 1.3'f32, withAlpha(rim, 150'u8))
+    drawStroke(tip[i], dip, 1.3'f32, withAlpha(rim, 150'u8))
+    drawStroke(dip, tip[i + 1], 1.3'f32, withAlpha(rim, 150'u8))
   # Thumb claw hooking off the leading strut tip.
   let lead = tip[Struts - 1]
   drawTri2(lead, Vector2(x: lead.x + inward * s * 0.012'f32, y: lead.y - s * 0.004'f32),
@@ -1048,7 +1049,7 @@ proc drawDragonForeleg(hipX, hipY, s, time, side, seed: float32,
   drawTri2(Vector2(x: hip.x + uW, y: hip.y),
            Vector2(x: elbow.x + inward * lW, y: elbow.y),
            Vector2(x: elbow.x - inward * lW, y: elbow.y), body)
-  drawCircle(elbow, lW, body)
+  drawDisc(elbow, lW, body)
   drawTri2(Vector2(x: elbow.x - inward * lW, y: elbow.y),
            Vector2(x: elbow.x + inward * lW, y: elbow.y), wrist, body)
   # Three claws splaying downward-and-inward from the wrist, gold at the tips.
@@ -1060,7 +1061,7 @@ proc drawDragonForeleg(hipX, hipY, s, time, side, seed: float32,
     let cw = s * 0.006'f32
     drawTri2(Vector2(x: wrist.x - cw, y: wrist.y),
              Vector2(x: wrist.x + cw, y: wrist.y), ctip, body)
-    drawCircle(ctip, max(0.7'f32, s * 0.005'f32), rim)
+    drawDisc(ctip, max(0.7'f32, s * 0.005'f32), rim)
 
 proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
   ## One black dragon coiled up a screen edge: tail at the bottom corner,
@@ -1112,7 +1113,7 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
     drawTri2(Vector2(x: rx[i], y: ry[i]), Vector2(x: rx[i + 1], y: ry[i + 1]),
              Vector2(x: lx[i + 1], y: ly[i + 1]), body)
   for i in 0 ..< Segs:
-    drawCircle(Vector2(x: bx[i], y: by[i]), br[i] * 0.98'f32, body)
+    drawDisc(Vector2(x: bx[i], y: by[i]), br[i] * 0.98'f32, body)
 
   # Warm rim on the inward-facing contour, brightest near the head and fading
   # to black down the tail: one side catches the tavern glow while the outer
@@ -1123,11 +1124,11 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
     let lit = mixCol(body, rim, 0.15'f32 + t * 0.45'f32)
     let ex = bx[i] + inward * br[i] * 0.92'f32
     let pex = bx[i - 1] + inward * br[i - 1] * 0.92'f32
-    drawLine(Vector2(x: pex, y: by[i - 1]), Vector2(x: ex, y: by[i]),
+    drawStroke(Vector2(x: pex, y: by[i - 1]), Vector2(x: ex, y: by[i]),
              max(1.2'f32, br[i] * 0.30'f32), lit)
   for i in 0 ..< Segs:
     let t = i.float32 / (Segs - 1).float32
-    drawCircleLines(bx[i].int32, by[i].int32, br[i],
+    drawCircleOutline(bx[i].int32, by[i].int32, br[i],
                     withAlpha(rim, alphaU8(18.0'f32 + t * 42.0'f32)))
 
   # Spine spikes: small gold triangles on alternating segments, angled
@@ -1159,7 +1160,7 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
            Vector2(x: tailTip.x - inward * s * 0.024'f32, y: tailTip.y - s * 0.026'f32), body)
   drawTri2(tailTip, tailMid,
            Vector2(x: tailTip.x + inward * s * 0.010'f32, y: tailTip.y + s * 0.022'f32), body)
-  drawLine(t0, tailTip, 1.3'f32, withAlpha(rim, 90'u8))
+  drawStroke(t0, tailTip, 1.3'f32, withAlpha(rim, 90'u8))
 
   # Head: an assembled skull turned inward over the desktop - an upper cranium
   # and snout with a brow ridge, plus a separate hinged lower jaw so the mouth
@@ -1187,11 +1188,11 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
              Vector2(x: mx + inward * headW * 0.022'f32, y: my),
              Vector2(x: mx - inward * headW * 0.02'f32, y: my + headW * 0.17'f32 + gape * 0.4'f32),
              withAlpha(rim, 205'u8))
-  drawLine(hinge, brow, 1.5'f32, rim)
-  drawLine(brow, snoutTop, 1.5'f32, rim)
-  drawLine(snoutTop, snout, 1.5'f32, rim)
-  drawLine(snout, jawTip, 1.3'f32, withAlpha(rim, 160'u8))
-  drawLine(jawTip, hinge, 1.3'f32, withAlpha(rim, 120'u8))
+  drawStroke(hinge, brow, 1.5'f32, rim)
+  drawStroke(brow, snoutTop, 1.5'f32, rim)
+  drawStroke(snoutTop, snout, 1.5'f32, rim)
+  drawStroke(snout, jawTip, 1.3'f32, withAlpha(rim, 160'u8))
+  drawStroke(jawTip, hinge, 1.3'f32, withAlpha(rim, 120'u8))
 
   # Twin horns sweeping back off the brow.
   for hk in 0 ..< 2:
@@ -1215,7 +1216,7 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
   let eyePos = Vector2(x: hx + inward * headLen * 0.34'f32, y: hy - headW * 0.34'f32)
   drawSoftGlow(eyePos.x, eyePos.y, headW * 0.52'f32,
               withAlpha(ember, alphaU8(40.0'f32 + eyePulse * 34.0'f32)), 0.6)
-  drawCircle(eyePos, headW * 0.1'f32, withAlpha(ember, alphaU8(190.0'f32 + eyePulse * 60.0'f32)))
+  drawDisc(eyePos, headW * 0.1'f32, withAlpha(ember, alphaU8(190.0'f32 + eyePulse * 60.0'f32)))
 
   # Smoldering breath: a faint nostril glow with a few embers drifting up.
   drawSoftGlow(snout.x, snout.y, headW * 0.4'f32, withAlpha(ember, 60'u8), 0.55)
@@ -1224,7 +1225,7 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
     let ePhase = fract01(time * 0.18'f32 + hash01(eseed))
     let ePos = Vector2(x: snout.x + inward * ePhase * headLen * 0.6'f32,
                        y: snout.y - ePhase * headLen * 1.4'f32)
-    drawCircle(ePos, max(0.6'f32, headW * 0.05'f32 * (1.0'f32 - ePhase)),
+    drawDisc(ePos, max(0.6'f32, headW * 0.05'f32 * (1.0'f32 - ePhase)),
               withAlpha(ember, alphaU8(140.0'f32 * (1.0'f32 - ePhase))))
 
 proc drawDragonFx(w, h, time: float32) =
@@ -1265,7 +1266,7 @@ proc drawDragonFx(w, h, time: float32) =
     let f = if (plankIndex and 1) == 0: 0.0'f32 else: 1.0'f32
     let plankCol = mixCol(wood, woodHi, 0.18'f32 + f * 0.12'f32)
     drawRectangle(0, plankY.int32, w.int32, int32(plankH + 2.0'f32), plankCol)
-    drawLine(Vector2(x: 0.0'f32, y: plankY), Vector2(x: w, y: plankY),
+    drawStroke(Vector2(x: 0.0'f32, y: plankY), Vector2(x: w, y: plankY),
              1.2'f32, Color(r: 24, g: 12, b: 7, a: 150))
     for knot in 0 ..< 3:
       let seed = plankIndex.float32 * 9.7'f32 + knot.float32 * 18.1'f32
@@ -1282,9 +1283,9 @@ proc drawDragonFx(w, h, time: float32) =
   drawRectangle(mapX.int32, mapY.int32, mapW.int32, mapH.int32, parchment)
   drawRectangleGradientV(mapX.int32, mapY.int32, mapW.int32, mapH.int32,
                          parchmentHi, parchment)
-  drawRectangleLines(mapX.int32, mapY.int32, mapW.int32, mapH.int32,
+  drawRectOutline(mapX.int32, mapY.int32, mapW.int32, mapH.int32,
                      Color(r: 93, g: 55, b: 25, a: 210))
-  drawRectangleLines(int32(mapX + s * 0.014'f32), int32(mapY + s * 0.014'f32),
+  drawRectOutline(int32(mapX + s * 0.014'f32), int32(mapY + s * 0.014'f32),
                      int32(mapW - s * 0.028'f32), int32(mapH - s * 0.028'f32),
                      Color(r: 115, g: 74, b: 33, a: 125))
   let fold = s * 0.055'f32
@@ -1312,13 +1313,13 @@ proc drawDragonFx(w, h, time: float32) =
                      Color(r: 0, g: 0, b: 0, a: 0)
         drawHexMapCell(hx, hy, hexR, fill, withAlpha(ink, 55'u8))
   let roomCol = Color(r: 73, g: 43, b: 23, a: 145)
-  drawRectangleLines(int32(tcx - s * 0.31'f32), int32(tcy - s * 0.18'f32),
+  drawRectOutline(int32(tcx - s * 0.31'f32), int32(tcy - s * 0.18'f32),
                      int32(s * 0.22'f32), int32(s * 0.16'f32), roomCol)
-  drawRectangleLines(int32(tcx + s * 0.12'f32), int32(tcy + s * 0.03'f32),
+  drawRectOutline(int32(tcx + s * 0.12'f32), int32(tcy + s * 0.03'f32),
                      int32(s * 0.26'f32), int32(s * 0.18'f32), roomCol)
-  drawLine(Vector2(x: tcx - s * 0.09'f32, y: tcy - s * 0.10'f32),
+  drawStroke(Vector2(x: tcx - s * 0.09'f32, y: tcy - s * 0.10'f32),
            Vector2(x: tcx + s * 0.12'f32, y: tcy + s * 0.09'f32), 1.2'f32, roomCol)
-  drawLine(Vector2(x: tcx - s * 0.02'f32, y: tcy + s * 0.15'f32),
+  drawStroke(Vector2(x: tcx - s * 0.02'f32, y: tcy + s * 0.15'f32),
            Vector2(x: tcx + s * 0.25'f32, y: tcy + s * 0.15'f32), 1.2'f32, roomCol)
   drawRune(tcx - mapW * 0.36'f32, tcy - mapH * 0.29'f32, s * 0.021'f32,
            withAlpha(ember, 130'u8))
@@ -1337,11 +1338,11 @@ proc drawDragonFx(w, h, time: float32) =
   drawRectangle(int32(mapX + mapW * 0.73'f32), int32(mapY + mapH * 0.70'f32),
                 int32(s * 0.18'f32), int32(s * 0.12'f32),
                 Color(r: 229, g: 203, b: 146, a: 230))
-  drawRectangleLines(int32(mapX + mapW * 0.73'f32), int32(mapY + mapH * 0.70'f32),
+  drawRectOutline(int32(mapX + mapW * 0.73'f32), int32(mapY + mapH * 0.70'f32),
                      int32(s * 0.18'f32), int32(s * 0.12'f32), withAlpha(ink, 170'u8))
   for line in 0 ..< 4:
     let ly = mapY + mapH * 0.73'f32 + line.float32 * s * 0.022'f32
-    drawLine(Vector2(x: mapX + mapW * 0.75'f32, y: ly),
+    drawStroke(Vector2(x: mapX + mapW * 0.75'f32, y: ly),
              Vector2(x: mapX + mapW * 0.88'f32, y: ly), 1.0'f32, withAlpha(ink, 115'u8))
 
   for tok in 0 ..< 5:
@@ -1377,7 +1378,7 @@ proc drawDragonFx(w, h, time: float32) =
              time * (h * (0.025'f32 + hash01(seed + 1.0'f32) * 0.05'f32)), span)
     let ex = hash01(seed + 2.0'f32) * w + sin(time * 0.3'f32 + seed) * w * 0.015'f32
     let fade = clamp(1.0'f32 - (h - ey) / h * 0.3'f32, 0.0'f32, 1.0'f32)
-    drawCircle(Vector2(x: ex, y: ey), s * (0.0025'f32 + hash01(seed + 3.0'f32) * 0.003'f32),
+    drawDisc(Vector2(x: ex, y: ey), s * (0.0025'f32 + hash01(seed + 3.0'f32) * 0.003'f32),
               withAlpha(ember, alphaU8(60.0'f32 * fade)))
 
   # 7. Twin black dragons coiled up either edge, mirrored.

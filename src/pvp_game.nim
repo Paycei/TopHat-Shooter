@@ -2,6 +2,7 @@
 ## Handles multiplayer player vs player combat with optional team support
 
 import raylib, rlgl, math, times, strutils, sequtils, algorithm, random
+import draw_prims
 from std/unicode import nil   # toUpper for accented team names, without its split/strip overloads
 import types, player, bullet, wall, particle, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, ui/background_fx, d_systems, modding/mod_assets
 
@@ -166,21 +167,21 @@ proc drawPackageIcon*(kind: PvPPackageKind, cx, cy, size: float32, color: Color)
   of pkTurbo:
     # Double chevron
     for ox in [-0.4'f32, 0.2'f32]:
-      drawLine(p(ox - 0.2'f32, -0.65'f32), p(ox + 0.3'f32, 0.0'f32), thick, color)
-      drawLine(p(ox + 0.3'f32, 0.0'f32), p(ox - 0.2'f32, 0.65'f32), thick, color)
+      drawStroke(p(ox - 0.2'f32, -0.65'f32), p(ox + 0.3'f32, 0.0'f32), thick, color)
+      drawStroke(p(ox + 0.3'f32, 0.0'f32), p(ox - 0.2'f32, 0.65'f32), thick, color)
   of pkOverclock:
     # Lightning bolt
-    drawLine(p(0.3'f32, -0.9'f32), p(-0.3'f32, 0.08'f32), thick, color)
-    drawLine(p(-0.3'f32, 0.08'f32), p(0.3'f32, -0.08'f32), thick, color)
-    drawLine(p(0.3'f32, -0.08'f32), p(-0.3'f32, 0.9'f32), thick, color)
+    drawStroke(p(0.3'f32, -0.9'f32), p(-0.3'f32, 0.08'f32), thick, color)
+    drawStroke(p(-0.3'f32, 0.08'f32), p(0.3'f32, -0.08'f32), thick, color)
+    drawStroke(p(0.3'f32, -0.08'f32), p(-0.3'f32, 0.9'f32), thick, color)
   of pkFork:
     # One process splitting into three
     let root = p(0.0'f32, 0.8'f32)
     let tips = [p(-0.72'f32, -0.62'f32), p(0.0'f32, -0.85'f32), p(0.72'f32, -0.62'f32)]
     for tip in tips:
-      drawLine(root, tip, thick * 0.8'f32, color)
-      drawCircle(tip, thick * 0.8'f32, color)
-    drawCircle(root, thick, color)
+      drawStroke(root, tip, thick * 0.8'f32, color)
+      drawDisc(tip, thick * 0.8'f32, color)
+    drawDisc(root, thick, color)
 
 type
   TeamScore* = object
@@ -2700,9 +2701,9 @@ proc drawPorts(pvp: PvPGameState) =
     let socketCol = if port.isPower: Color(r: 255, g: 200, b: 80, a: 170)
                     else: Color(r: 120, g: 150, b: 200, a: 130)
     drawPoly(c, 6, r, 30, Color(r: 12, g: 16, b: 28, a: 150))
-    drawPolyLines(c, 6, r, 30, 2, socketCol)
+    drawPolyOutline(c, 6, r, 30, 2, socketCol)
     if port.isPower:
-      drawPolyLines(c, 6, r + 6, 30, 1, withAlpha(socketCol, 70))
+      drawPolyOutline(c, 6, r + 6, 30, 1, withAlpha(socketCol, 70))
     if port.active:
       let col = packageColor(port.kind)
       let cy = c.y - 4 + sin(time * 3.2'f32 + port.pos.x * 0.01'f32) * 3.0'f32
@@ -2736,7 +2737,7 @@ proc drawHitMarkers(pvp: PvPGameState) =
     let col = if m.isKill: Color(r: 255, g: 70, b: 70, a: uint8(255 * k))
               else: Color(r: 255, g: 255, b: 255, a: uint8(235 * k))
     for d in [(1.0'f32, 1.0'f32), (-1.0'f32, 1.0'f32), (1.0'f32, -1.0'f32), (-1.0'f32, -1.0'f32)]:
-      drawLine(Vector2(x: m.pos.x + d[0] * gap, y: m.pos.y + d[1] * gap),
+      drawStroke(Vector2(x: m.pos.x + d[0] * gap, y: m.pos.y + d[1] * gap),
                Vector2(x: m.pos.x + d[0] * size, y: m.pos.y + d[1] * size), 2.5, col)
 
 proc drawEdgeVignette(viewW, viewH: int32, alpha: float32, thickness = 90'i32) =
@@ -2795,7 +2796,7 @@ proc drawKillFeed(pvp: PvPGameState, rightX, topY: int32) =
                   if involvesLocal: Color(r: 20, g: 50, b: 70, a: uint8(a * 0.75'f32))
                   else: Color(r: 0, g: 0, b: 0, a: uint8(a * 0.55'f32)))
     if involvesLocal:
-      drawRectangleLines(Rectangle(x: x0.float32, y: y.float32, width: (total + pad * 2).float32,
+      drawRectOutline(Rectangle(x: x0.float32, y: y.float32, width: (total + pad * 2).float32,
                                    height: (rowH - 2).float32), 1,
                          Color(r: 0, g: 200, b: 255, a: uint8(a * 0.6'f32)))
     var x = x0 + pad
@@ -2807,9 +2808,9 @@ proc drawKillFeed(pvp: PvPGameState, rightX, topY: int32) =
       let gy = (y + (rowH - 2) div 2).float32
       if e.kind == kfKill:
         # A bullet with a short trail
-        drawLine(Vector2(x: x.float32, y: gy), Vector2(x: (x + glyphW - 6).float32, y: gy), 2,
+        drawStroke(Vector2(x: x.float32, y: gy), Vector2(x: (x + glyphW - 6).float32, y: gy), 2,
                  Color(r: 255, g: 220, b: 150, a: uint8(a * 0.6'f32)))
-        drawCircle(Vector2(x: (x + glyphW - 4).float32, y: gy), 3.5, Color(r: 255, g: 240, b: 200, a: uint8(a)))
+        drawDisc(Vector2(x: (x + glyphW - 4).float32, y: gy), 3.5, Color(r: 255, g: 240, b: 200, a: uint8(a)))
       else:
         drawPackageIcon(e.pkg, (x + glyphW div 2).float32, gy, 6.5, withAlpha(packageColor(e.pkg), a))
       x += glyphW + gap
@@ -2850,7 +2851,7 @@ proc drawToast(pvp: PvPGameState, viewW, viewH: int32) =
   let x = viewW div 2 - w div 2
   let y = viewH - 104
   drawRectangle(x - 12, y - 6, w + 24, size + 12, Color(r: 0, g: 0, b: 0, a: uint8(a * 0.65'f32)))
-  drawRectangleLines(Rectangle(x: (x - 12).float32, y: (y - 6).float32, width: (w + 24).float32,
+  drawRectOutline(Rectangle(x: (x - 12).float32, y: (y - 6).float32, width: (w + 24).float32,
                                height: (size + 12).float32), 1, withAlpha(pvp.toastColor, a))
   drawText(pvp.toastText, x, y, size, withAlpha(pvp.toastColor, a))
 
@@ -2876,7 +2877,7 @@ proc drawBuffPills(pvp: PvPGameState, x, bottomY: int32) =
                 else: packageName(b.kind)
     let w = 28 + measureText(label, size) + 10
     drawRectangle(x, y, w, h, Color(r: 0, g: 0, b: 0, a: 160))
-    drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32), 1,
+    drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32), 1,
                        withAlpha(col, 170))
     drawPackageIcon(b.kind, (x + 14).float32, (y + h div 2).float32, 7.0, col)
     drawText(label, x + 28, y + (h - size) div 2, size, col)
@@ -2948,7 +2949,7 @@ proc drawScoreBoard(pvp: PvPGameState, centerX, top: int32, final: bool): int32 
   let panelH = 24 + rows.len.int32 * rowH + 8
 
   drawRectangle(x0 - 12, top - 10, tableW + 24, panelH + 16, Color(r: 10, g: 14, b: 24, a: 225))
-  drawRectangleLines(Rectangle(x: (x0 - 12).float32, y: (top - 10).float32,
+  drawRectOutline(Rectangle(x: (x0 - 12).float32, y: (top - 10).float32,
                                width: (tableW + 24).float32, height: (panelH + 16).float32),
                      1, Color(r: 70, g: 100, b: 150, a: 210))
 
@@ -3035,7 +3036,7 @@ proc drawAwards(pvp: PvPGameState, viewW, top: int32) =
   var x = viewW div 2 - (cardW * n + gap * (n - 1)) div 2
   for a in awards:
     drawRectangle(x, top, cardW, AwardCardH, Color(r: 14, g: 18, b: 30, a: 230))
-    drawRectangleLines(Rectangle(x: x.float32, y: top.float32, width: cardW.float32,
+    drawRectOutline(Rectangle(x: x.float32, y: top.float32, width: cardW.float32,
                                  height: AwardCardH.float32), 1, Color(r: 255, g: 203, b: 0, a: 150))
     let cx = x + cardW div 2
     drawTextCentered(a.title, cx, top + 6, 14, Gold)
@@ -3212,7 +3213,7 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
                   else: Color(r: 0, g: 0, b: 0, a: 140)
   drawRectangle(8, viewH - 38, wallLabelW + 14, 28, pillColor)
   if modeActive:
-    drawRectangleLines(Rectangle(x: 8, y: (viewH - 38).float32,
+    drawRectOutline(Rectangle(x: 8, y: (viewH - 38).float32,
                                  width: (wallLabelW + 14).float32, height: 28), 1,
                        Color(r: 80, g: 255, b: 80, a: 200))
   drawText(wallLabel, 15, viewH - 32, 20,
@@ -3306,10 +3307,10 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
   for i in 0..3:
     let r = arenaRadius * (0.44 + i.float32 * 0.17)
     let alpha = uint8(26 + i * 9 + int(arenaPulse * 16.0))
-    drawCircleLines(arenaCenterX.int32, arenaCenterY.int32, r,
+    drawCircleOutline(arenaCenterX.int32, arenaCenterY.int32, r,
                     withAlpha(accentColor, alpha))
     let angle = pvp.gameTime * (0.34 + i.float32 * 0.06) + i.float32 * PI * 0.48
-    drawCircle(Vector2(x: arenaCenterX + cos(angle) * r,
+    drawDisc(Vector2(x: arenaCenterX + cos(angle) * r,
                        y: arenaCenterY + sin(angle) * r),
                2.8 + i.float32 * 0.35, Color(r: 230, g: 250, b: 255, a: 148))
 
@@ -3317,18 +3318,18 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
     let angle = i.float32 * PI / 5.0
     let inner = arenaRadius * 0.25
     let outer = arenaRadius * 1.05
-    drawLine(Vector2(x: arenaCenterX + cos(angle) * inner, y: arenaCenterY + sin(angle) * inner),
+    drawStroke(Vector2(x: arenaCenterX + cos(angle) * inner, y: arenaCenterY + sin(angle) * inner),
              Vector2(x: arenaCenterX + cos(angle) * outer, y: arenaCenterY + sin(angle) * outer),
              1, withAlpha(accentColor, if i mod 2 == 0: 48'u8 else: 26'u8))
 
   for i in 0..<6:
     let t = (i.float32 - 2.5) / 2.5
-    drawLine(Vector2(x: arenaCenterX - arenaRadius * 1.04, y: arenaCenterY + t * arenaRadius * 0.82),
+    drawStroke(Vector2(x: arenaCenterX - arenaRadius * 1.04, y: arenaCenterY + t * arenaRadius * 0.82),
              Vector2(x: arenaCenterX + arenaRadius * 1.04, y: arenaCenterY + t * arenaRadius * 1.08),
              1, withAlpha(accentColor, 24))
 
   # Draw arena bounds
-  drawRectangleLines(
+  drawRectOutline(
     Rectangle(x: 0, y: 0, width: pvp.screenWidth.float32, height: pvp.screenHeight.float32),
     2, Color(r: 112, g: 136, b: 180, a: 235)
   )
@@ -3345,8 +3346,8 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
       b: 50,
       a: 255
     )
-    drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, wallColor)
-    drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, Brown)
+    drawDisc(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, wallColor)
+    drawCircleOutline(wall.pos.x.int32, wall.pos.y.int32, wall.radius, Brown)
     # Wall health bar, drawn above the wall
     let wallHealthPercent = wall.hp / wall.maxHp
     let wallBarWidth = (wall.radius * 2).int32
@@ -3364,7 +3365,7 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
   let localPlayer = pvp.players[pvp.localPlayerIndex]
   if localPlayer.hp > 0 and pvp.wallPlacementMode and not pvp.isCountingDown and not pvp.gameOver:
     # Faint ring showing max placement range
-    drawCircleLines(localPlayer.pos.x.int32, localPlayer.pos.y.int32,
+    drawCircleOutline(localPlayer.pos.x.int32, localPlayer.pos.y.int32,
                     WALL_PLACEMENT_RANGE, Color(r: 180, g: 180, b: 255, a: 60))
     # Ghost wall at cursor, green if placeable, red if not
     let mousePos = getWorldMousePosition()
@@ -3376,8 +3377,8 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
       Color(r: 80, g: 200, b: 80, a: 100)
     else:
       Color(r: 200, g: 60, b: 60, a: 100)
-    drawCircle(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostColor)
-    drawCircleLines(cursorPos.x.int32, cursorPos.y.int32, 25,
+    drawDisc(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostColor)
+    drawCircleOutline(cursorPos.x.int32, cursorPos.y.int32, 25,
                     if inRange and validPos: Color(r: 80, g: 255, b: 80, a: 200)
                     else: Color(r: 255, g: 60, b: 60, a: 200))
 
@@ -3403,7 +3404,7 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
     # Draw team indicator ring if teams enabled
     if pvp.teamsEnabled and player.teamId != ptNone:
       let teamColor = getTeamColor(player.teamId)
-      drawCircleLines(player.pos.x.int32, player.pos.y.int32, player.radius + 5, teamColor)
+      drawCircleOutline(player.pos.x.int32, player.pos.y.int32, player.radius + 5, teamColor)
 
     # Nickname above the player in its name colour. A streak of 3+ earns a gold
     # root prompt ("#") in front, so everyone can see who is worth hunting.
@@ -3558,7 +3559,7 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
     )
 
     # Draw arrow outline for better visibility
-    drawTriangleLines(
+    drawTriangleOutline(
       Vector2(x: arrowTipX, y: arrowTipY),
       Vector2(x: arrowLeftX, y: arrowTopY),
       Vector2(x: arrowRightX, y: arrowTopY),

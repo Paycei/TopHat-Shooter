@@ -11,6 +11,7 @@
 ## Enter can never also drive the desktop's icon navigation behind it.
 
 import raylib, std/[unicode, strutils, math]
+import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../feedback
 
 type
@@ -367,7 +368,7 @@ proc wrapField(text: string, maxWidth, size: int32): seq[string] =
 
 proc drawField(r: Rectangle, active: bool, accent: Color) =
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, ColFieldBg)
-  drawRectangleLines(r, (if active: 2.0 else: 1.0),
+  drawRectOutline(r, (if active: 2.0 else: 1.0),
                      if active: accent else: Color(r: 70, g: 80, b: 100, a: 255))
 
 proc drawButton(r: Rectangle, label: string, fill: Color, hovered: bool) =
@@ -376,7 +377,7 @@ proc drawButton(r: Rectangle, label: string, fill: Color, hovered: bool) =
             b: min(255, fill.b.int + 28).uint8, a: 255)
     else: fill
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, f)
-  drawRectangleLines(r, (if hovered: 2.0 else: 1.0),
+  drawRectOutline(r, (if hovered: 2.0 else: 1.0),
                      Color(r: 255, g: 255, b: 255, a: if hovered: 210 else: 90))
   drawCenteredTextFit(label, r.x.int32 + 5, r.y.int32 + (r.height.int32 - 15) div 2,
                       r.width.int32 - 10, 15, White)
@@ -394,7 +395,7 @@ proc drawFeedbackWindow*(fw: FeedbackWindow) =
   let cw = fw.window.width - WINDOW_PADDING * 2
   let ch = fw.window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING * 2
   drawRectangle(cx.int32, cy.int32, cw.int32, ch.int32, ColPanelBg)
-  drawRectangleLines(Rectangle(x: cx.float32, y: cy.float32,
+  drawRectOutline(Rectangle(x: cx.float32, y: cy.float32,
                                width: cw.float32, height: ch.float32),
                      1, Color(r: ColAccent.r, g: ColAccent.g, b: ColAccent.b, a: 200))
 
@@ -418,9 +419,9 @@ proc drawFeedbackWindow*(fw: FeedbackWindow) =
              elif fw.hover == k.ord: Color(r: 30, g: 36, b: 50, a: 255)
              else: ColFieldBg
     drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, bg)
-    drawRectangleLines(r, (if selected: 2.0 else: 1.0),
+    drawRectOutline(r, (if selected: 2.0 else: 1.0),
                        if selected: col else: Color(r: 70, g: 80, b: 100, a: 255))
-    drawCircle(Vector2(x: r.x + 14, y: r.y + r.height / 2), 4.5, col)
+    drawDisc(Vector2(x: r.x + 14, y: r.y + r.height / 2), 4.5, col)
     drawTextFit(kindName(k), r.x.int32 + 25, r.y.int32 + 7, r.width.int32 - 30, 14,
                 if selected: ColTitle else: ColMuted)
 
@@ -473,10 +474,10 @@ proc drawFeedbackWindow*(fw: FeedbackWindow) =
   let cb = lo.checkbox
   let box = Rectangle(x: cb.x, y: cb.y + 1, width: 18, height: 18)
   drawRectangle(box.x.int32, box.y.int32, 18, 18, ColFieldBg)
-  drawRectangleLines(box, (if fw.hover == HoverCheckbox: 2.0 else: 1.0), accent)
+  drawRectOutline(box, (if fw.hover == HoverCheckbox: 2.0 else: 1.0), accent)
   if fw.includeInfo:
-    drawLine(Vector2(x: box.x + 4, y: box.y + 9), Vector2(x: box.x + 8, y: box.y + 13), 2.5, ColOk)
-    drawLine(Vector2(x: box.x + 8, y: box.y + 13), Vector2(x: box.x + 14, y: box.y + 4), 2.5, ColOk)
+    drawStroke(Vector2(x: box.x + 4, y: box.y + 9), Vector2(x: box.x + 8, y: box.y + 13), 2.5, ColOk)
+    drawStroke(Vector2(x: box.x + 8, y: box.y + 13), Vector2(x: box.x + 14, y: box.y + 4), 2.5, ColOk)
   drawTextFit(t(tkFeedbackAttachInfo), cb.x.int32 + 28, cb.y.int32 + 3,
               cb.width.int32 - 28, 14, ColBody)
 

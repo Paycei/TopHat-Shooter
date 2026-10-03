@@ -2,6 +2,7 @@
 ## Tabbed settings interface matching the OS visual language
 
 import raylib, rlgl, strutils, math
+import ../draw_prims
 import ../sound, ../save_system, os_window, ../localization, ../render_context, ../gamepad_input, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types, ../modding/mod_hooks
 
 type
@@ -154,7 +155,7 @@ proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHover
   else:
     Color(r: 80, g: 80, b: 100, a: 255)
 
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
                     1, borderColor)
 
@@ -187,16 +188,16 @@ proc drawCheckbox*(x, y, size: int, checked: bool, hovered: bool) =
     Color(r: 100, g: 100, b: 120, a: 255)
   let borderThick: float32 = if checked or hovered: 2.0 else: 1.0
 
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: size.float32, height: size.float32),
                     borderThick, borderColor)
 
   if checked:
     let checkColor = Color(r: 100, g: 255, b: 130, a: 255)
-    drawLine(Vector2(x: (x + 4).float32, y: (y + size div 2).float32),
+    drawStroke(Vector2(x: (x + 4).float32, y: (y + size div 2).float32),
             Vector2(x: (x + size div 2 - 2).float32, y: (y + size - 5).float32),
             3, checkColor)
-    drawLine(Vector2(x: (x + size div 2 - 2).float32, y: (y + size - 5).float32),
+    drawStroke(Vector2(x: (x + size div 2 - 2).float32, y: (y + size - 5).float32),
             Vector2(x: (x + size - 3).float32, y: (y + 3).float32),
             3, checkColor)
 
@@ -226,7 +227,7 @@ proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool,
   drawRectangle(x.int32, y.int32, fillWidth.int32, height.int32, fillColor)
 
   # Border
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
                     1, Color(r: 100, g: 100, b: 120, a: 255))
 
@@ -394,7 +395,7 @@ proc drawSettingsButton(rect: Rectangle, label: string, hovered: bool, danger: b
       Color(r: 100, g: 100, b: 120, a: 255)
 
   drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
-  drawRectangleLines(rect, 1, border)
+  drawRectOutline(rect, 1, border)
   let fontSize: int32 = 14
   let textWidth = measureText(label, fontSize)
   drawText(label,
@@ -576,7 +577,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
 
   drawRectangle(renderModeButtonX.int32, renderModeButtonY.int32,
                 renderModeButtonWidth.int32, renderModeButtonHeight.int32, renderModeBgColor)
-  drawRectangleLines(Rectangle(x: renderModeButtonX.float32, y: renderModeButtonY.float32,
+  drawRectOutline(Rectangle(x: renderModeButtonX.float32, y: renderModeButtonY.float32,
                                 width: renderModeButtonWidth.float32, height: renderModeButtonHeight.float32),
                     1, if renderModeHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
 
@@ -601,7 +602,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawRectangle(boxX.int32, boxY.int32, boxWidth.int32, boxHeight.int32,
                if settingsWin.editingFPS: Color(r: 100, g: 100, b: 150, a: 255)
                else: Color(r: 60, g: 60, b: 80, a: 255))
-  drawRectangleLines(Rectangle(x: boxX.float32, y: boxY.float32,
+  drawRectOutline(Rectangle(x: boxX.float32, y: boxY.float32,
                                 width: boxWidth.float32, height: boxHeight.float32),
                     if settingsWin.editingFPS: 2.0'f32 else: 1.0'f32,
                     if settingsWin.editingFPS: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
@@ -765,7 +766,7 @@ proc drawCycleButton(rect: Rectangle, label: string, hovered: bool,
   let bg = if hovered: Color(r: 80, g: 80, b: 100, a: 255)
            else: Color(r: 60, g: 60, b: 80, a: 255)
   drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
-  drawRectangleLines(rect, 1,
+  drawRectOutline(rect, 1,
                      if hovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
   template arrowColor(side: int, enabled: bool): Color =
     if not enabled: Color(r: 85, g: 85, b: 105, a: 255)
@@ -1039,7 +1040,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
 
   drawRectangle(bondingButtonX.int32, bondingButtonY.int32,
                 ClBondingBtnW.int32, ClBondingBtnH.int32, bondingBgColor)
-  drawRectangleLines(Rectangle(x: bondingButtonX.float32, y: bondingButtonY.float32,
+  drawRectOutline(Rectangle(x: bondingButtonX.float32, y: bondingButtonY.float32,
                                 width: ClBondingBtnW.float32, height: ClBondingBtnH.float32),
                     1, if bondingHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
 
@@ -1067,7 +1068,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   let padSelBg = if padSelHovered: Color(r: 80, g: 80, b: 100, a: 255)
                  else: Color(r: 60, g: 60, b: 80, a: 255)
   drawRectangle(padSelX.int32, padSelY.int32, ClPadSelW.int32, ClPadSelH.int32, padSelBg)
-  drawRectangleLines(Rectangle(x: padSelX.float32, y: padSelY.float32,
+  drawRectOutline(Rectangle(x: padSelX.float32, y: padSelY.float32,
                                 width: ClPadSelW.float32, height: ClPadSelH.float32),
                     1, if padSelHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
   let padSelText = controllerSelectorLabel(settingsWin.settings.preferredGamepad)
@@ -1121,7 +1122,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
 
     drawText(label, (contentX + 30).int32, (yPos + 3).int32, 14, LightGray)
     drawRectangle(kbBtnX.int32, btnY.int32, ClKbBtnW.int32, ClKbBtnH.int32, btnBg)
-    drawRectangleLines(Rectangle(x: kbBtnX.float32, y: btnY.float32,
+    drawRectOutline(Rectangle(x: kbBtnX.float32, y: btnY.float32,
                                   width: ClKbBtnW.float32, height: ClKbBtnH.float32), 1, btnBorder)
     let keyText  = if isRebinding: t(tkKeybindPressAnyKey)
                    else: $settingsWin.settings.keybinds[action]
@@ -1142,7 +1143,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                     elif padHovered: Gold
                     else: Color(r: 100, g: 100, b: 120, a: 255)
     drawRectangle(padBtnX.int32, btnY.int32, ClKbBtnW.int32, ClKbBtnH.int32, padBg)
-    drawRectangleLines(Rectangle(x: padBtnX.float32, y: btnY.float32,
+    drawRectOutline(Rectangle(x: padBtnX.float32, y: btnY.float32,
                                   width: ClKbBtnW.float32, height: ClKbBtnH.float32), 1, padBorder)
     let padText  = if isPadRebinding: t(tkGamepadPressAnyButton)
                    else: gamepadBindLabel(settingsWin.settings.gamepadBinds[action])
@@ -1161,7 +1162,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   let resetBg = if resetHovered: Color(r: 80, g: 80, b: 100, a: 255)
                 else: Color(r: 50, g: 50, b: 70, a: 255)
   drawRectangle(resetBtnX.int32, lay.resetY.int32, ClResetBtnW.int32, ClResetBtnH.int32, resetBg)
-  drawRectangleLines(Rectangle(x: resetBtnX.float32, y: lay.resetY.float32,
+  drawRectOutline(Rectangle(x: resetBtnX.float32, y: lay.resetY.float32,
                                 width: ClResetBtnW.float32, height: ClResetBtnH.float32),
                     1, if resetHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
   let resetText  = t(tkKeybindResetDefaults)
@@ -1302,7 +1303,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     Color(r: 60, g: 60, b: 80, a: 255)
 
   drawRectangle(langButtonX.int32, langButtonY.int32, langButtonWidth.int32, langButtonHeight.int32, langBgColor)
-  drawRectangleLines(Rectangle(x: langButtonX.float32, y: langButtonY.float32,
+  drawRectOutline(Rectangle(x: langButtonX.float32, y: langButtonY.float32,
                                 width: langButtonWidth.float32, height: langButtonHeight.float32),
                     1, if langHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
 
@@ -1937,7 +1938,7 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
 
   drawRectangle(contentX.int32, tabContentY.int32, contentW.int32, tabContentH.int32,
                Color(r: 25, g: 25, b: 35, a: 255))
-  drawRectangleLines(Rectangle(x: contentX.float32, y: tabContentY.float32,
+  drawRectOutline(Rectangle(x: contentX.float32, y: tabContentY.float32,
                                 width: contentW.float32, height: tabContentH.float32),
                     1, Color(r: 60, g: 60, b: 80, a: 255))
 

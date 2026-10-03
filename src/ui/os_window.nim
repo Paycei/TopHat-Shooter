@@ -2,6 +2,7 @@
 ## Base system for all OS-style windows (Settings, Stats, Help)
 
 import raylib, math
+import ../draw_prims
 import ../render_context
 
 type
@@ -377,7 +378,7 @@ proc drawWindowChrome*(window: OSWindow) =
     else:
       Color(r: 80, g: 80, b: 100, a: 255)
 
-    drawRectangleLines(Rectangle(x: window.x.float32, y: window.y.float32,
+    drawRectOutline(Rectangle(x: window.x.float32, y: window.y.float32,
                                   width: window.savedWidth.float32, height: miniHeight.float32),
                       WINDOW_BORDER, borderColor)
 
@@ -407,7 +408,7 @@ proc drawWindowChrome*(window: OSWindow) =
                  else: Color(r: 60, g: 60, b: 70, a: 255))
     drawRectangle((restoreX + 5).int32, (buttonY + 5).int32, 10, 10,
                  Color(r: 200, g: 200, b: 200, a: 255))
-    drawRectangleLines(Rectangle(x: (restoreX + 5).float32, y: (buttonY + 5).float32,
+    drawRectOutline(Rectangle(x: (restoreX + 5).float32, y: (buttonY + 5).float32,
                                   width: 10.0, height: 10.0),
                       1, White)
     return
@@ -424,7 +425,7 @@ proc drawWindowChrome*(window: OSWindow) =
     let glowSize = 6
     for i in 1..glowSize:
       let glowAlpha = uint8((30.0 / i.float32) * glowPulse)
-      drawRectangleLines(Rectangle(
+      drawRectOutline(Rectangle(
         x: (window.x - i).float32,
         y: (window.y - i).float32,
         width: (window.width + i * 2).float32,
@@ -442,7 +443,7 @@ proc drawWindowChrome*(window: OSWindow) =
   else:
     Color(r: 80, g: 80, b: 100, a: 255)
 
-  drawRectangleLines(Rectangle(x: window.x.float32, y: window.y.float32,
+  drawRectOutline(Rectangle(x: window.x.float32, y: window.y.float32,
                                 width: window.width.float32, height: window.height.float32),
                     WINDOW_BORDER, borderColor)
 
@@ -499,6 +500,6 @@ proc drawResizeIndicator*(window: OSWindow) =
 
     for i in 0..<3:
       let offset = i * 4
-      drawLine(Vector2(x: (gripX + offset).float32, y: (gripY + 8).float32),
+      drawStroke(Vector2(x: (gripX + offset).float32, y: (gripY + 8).float32),
               Vector2(x: (gripX + 8).float32, y: (gripY + offset).float32),
               2, Color(r: 100, g: 100, b: 120, a: 255))

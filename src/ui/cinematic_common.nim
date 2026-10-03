@@ -7,6 +7,7 @@
 ## so the outro reads as a sibling of the intro.
 
 import raylib, rlgl, math, strutils
+import ../draw_prims
 from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../settings, ../save_system, ../skins, ../shapes, ../bullet_skins, ../bullet_shapes, ../enemy, ../enemy_config, icon_drawing, ../utils
 
@@ -90,15 +91,15 @@ proc drawKernelModel*(pos: Vector2f, radius: float32, time: float32,
 
   # Hexagonal shell with a slow spin; the hat stays upright on top.
   drawPoly(center, 6, r, spin, Color(r: 8, g: 20, b: 28, a: alphaByte(alpha * 240.0'f32)))
-  drawPolyLines(center, 6, r, spin,
+  drawPolyOutline(center, 6, r, spin,
                 Color(r: 0, g: 225, b: 230, a: alphaByte(alpha * 230.0'f32)))
-  drawPolyLines(center, 6, r * 0.66'f32, -spin * 1.7'f32,
+  drawPolyOutline(center, 6, r * 0.66'f32, -spin * 1.7'f32,
                 Color(r: 0, g: 170, b: 190, a: alphaByte(alpha * 150.0'f32)))
 
   # Spokes from the shell vertices into the core.
   for i in 0..<6:
     let a = degToRad(spin) + i.float32 * PI / 3.0'f32
-    drawLine(Vector2(x: pos.x + cos(a) * r * 0.4'f32, y: pos.y + sin(a) * r * 0.4'f32),
+    drawStroke(Vector2(x: pos.x + cos(a) * r * 0.4'f32, y: pos.y + sin(a) * r * 0.4'f32),
              Vector2(x: pos.x + cos(a) * r, y: pos.y + sin(a) * r), 1.5'f32,
              Color(r: 0, g: 160, b: 180, a: alphaByte(alpha * 90.0'f32)))
 
@@ -106,8 +107,8 @@ proc drawKernelModel*(pos: Vector2f, radius: float32, time: float32,
   let coreR = r * 0.34'f32 * (0.55'f32 + boot * 0.45'f32) * (0.92'f32 + pulse * 0.08'f32)
   drawSoftGlow(pos.x, pos.y, coreR * 3.2'f32,
                Color(r: 0, g: 240, b: 230, a: alphaByte(alpha * boot * 60.0'f32)), 1.0'f32)
-  drawCircle(center, coreR, Color(r: 0, g: 235, b: 225, a: alphaByte(alpha * 235.0'f32)))
-  drawCircle(center, coreR * 0.55'f32,
+  drawDisc(center, coreR, Color(r: 0, g: 235, b: 225, a: alphaByte(alpha * 235.0'f32)))
+  drawDisc(center, coreR * 0.55'f32,
              Color(r: 235, g: 255, b: 255, a: alphaByte(alpha * (140.0'f32 + boot * 110.0'f32))))
 
   # The tophat drops on as the final stage of the wake-up.
@@ -123,7 +124,7 @@ proc drawEquippedBulletModel*(pos: Vector2f, radius: float32, travelAngle: float
     let tx = pos.x - cos(travelAngle) * i.float32 * radius * 1.45'f32
     let ty = pos.y - sin(travelAngle) * i.float32 * radius * 1.45'f32
     let trailAlpha = alpha * trail.a.float32 * (1.0'f32 - i.float32 * 0.18'f32)
-    drawCircle(Vector2(x: tx, y: ty), radius * (1.0'f32 - i.float32 * 0.12'f32),
+    drawDisc(Vector2(x: tx, y: ty), radius * (1.0'f32 - i.float32 * 0.12'f32),
                colorA(trail, trailAlpha))
   drawPlayerBulletShape(pos, radius, equippedBulletShape(), travelAngle,
                         colorA(primary, alpha * primary.a.float32),
@@ -342,7 +343,7 @@ proc drawCinematicOverlay*(screenWidth, screenHeight: int32,
   let skipProgress = clamp01(skipHoldTimer / skipHoldRequired)
   let skipText = skipRemainingSeconds.formatFloat(ffDecimal, 1) & "s"
   drawRectangle(skipBoxX, skipBoxY, skipBoxW, skipBoxH, Color(r: 8, g: 12, b: 18, a: 190))
-  drawRectangleLines(skipBoxX, skipBoxY, skipBoxW, skipBoxH, Color(r: 70, g: 120, b: 130, a: 185))
+  drawRectOutline(skipBoxX, skipBoxY, skipBoxW, skipBoxH, Color(r: 70, g: 120, b: 130, a: 185))
   drawText(skipText, skipBoxX + 14, skipBoxY + 8, 16,
            Color(r: 220, g: 240, b: 245, a: 215))
   let barX = skipBoxX + 70
@@ -351,6 +352,6 @@ proc drawCinematicOverlay*(screenWidth, screenHeight: int32,
   drawRectangle(barX, barY, barW, 8, Color(r: 25, g: 35, b: 45, a: 210))
   drawRectangle(barX, barY, int32(barW.float32 * skipProgress), 8,
                 withAlpha(accent, 225))
-  drawRectangleLines(barX, barY, barW, 8, Color(r: 70, g: 120, b: 130, a: 190))
+  drawRectOutline(barX, barY, barW, 8, Color(r: 70, g: 120, b: 130, a: 190))
 
   drawFilmGrain(screenWidth, screenHeight, time, 24.0'f32)

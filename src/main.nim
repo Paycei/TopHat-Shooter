@@ -1,4 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
+import draw_prims
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
 import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_api], ui/mods_window
 
@@ -60,7 +61,7 @@ proc drawGlobalConfirmDialog(): int =
   drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 160))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
   drawRectangle(dx, dy, DW, DH, Color(r: 18, g: 22, b: 32, a: 255))
-  drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
+  drawRectOutline(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
                      3, Color(r: 255, g: 80, b: 80, a: 255))
 
   let tbH: int32 = 36
@@ -101,7 +102,7 @@ proc drawGlobalConfirmDialog(): int =
 
   drawRectangle(noX, btnY, BW, BH,
     if noHov: Color(r: 0, g: 145, b: 0, a: 255) else: Color(r: 0, g: 105, b: 0, a: 255))
-  drawRectangleLines(Rectangle(x: noX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+  drawRectOutline(Rectangle(x: noX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if noHov: 3 else: 2,
     if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 195, b: 55, a: 255))
   let noTxt = t(tkConfirmCancelBtn); let nTW = measureText(noTxt, 14)
@@ -112,7 +113,7 @@ proc drawGlobalConfirmDialog(): int =
               elif yesHov:       Color(r: 158, g: 38, b: 38, a: 255)
               else:              Color(r: 118, g: 28, b: 28, a: 255)
   drawRectangle(yesX, btnY, BW, BH, yesBg)
-  drawRectangleLines(Rectangle(x: yesX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+  drawRectOutline(Rectangle(x: yesX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if yesHov and mouseReady: 3 else: 2,
     if not mouseReady:        Color(r: 140, g: 140, b: 140, a: 255)
     elif yesHov:              Color(r: 255, g: 100, b: 100, a: 255)
@@ -166,7 +167,7 @@ proc drawResumeDialog(): int =
   drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 170))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
   drawRectangle(dx, dy, DW, DH, Color(r: 16, g: 24, b: 34, a: 255))
-  drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
+  drawRectOutline(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
                      3, Color(r: 0, g: 200, b: 255, a: 255))
 
   let tbH: int32 = 36
@@ -188,7 +189,7 @@ proc drawResumeDialog(): int =
   # New Run (amber: discards the save)
   drawRectangle(newX, btnY, BW, BH,
     if newHov: Color(r: 150, g: 95, b: 0, a: 255) else: Color(r: 110, g: 70, b: 0, a: 255))
-  drawRectangleLines(Rectangle(x: newX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+  drawRectOutline(Rectangle(x: newX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if newHov: 3 else: 2,
     if newHov: Color(r: 255, g: 180, b: 60, a: 255) else: Color(r: 200, g: 140, b: 40, a: 255))
   let newTxt = t(tkResumeNewRun); let nTW = measureText(newTxt, 14)
@@ -197,7 +198,7 @@ proc drawResumeDialog(): int =
   # Continue (cyan: resume)
   drawRectangle(contX, btnY, BW, BH,
     if contHov: Color(r: 0, g: 130, b: 165, a: 255) else: Color(r: 0, g: 95, b: 125, a: 255))
-  drawRectangleLines(Rectangle(x: contX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+  drawRectOutline(Rectangle(x: contX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if contHov: 3 else: 2,
     if contHov: Color(r: 80, g: 220, b: 255, a: 255) else: Color(r: 0, g: 180, b: 220, a: 255))
   let contTxt = t(tkResumeContinue); let cTW = measureText(contTxt, 14)
@@ -523,20 +524,20 @@ proc drawCustomCursor*(time: float32) =
     let angle = time * 4.0 + i.float32 * PI / 4.0
     let x = mousePos.x + cos(angle) * cursorPulse
     let y = mousePos.y + sin(angle) * cursorPulse
-    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+    drawDisc(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
 
   # Crosshair lines
-  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y),
+  drawStroke(Vector2(x: mousePos.x - 8, y: mousePos.y),
           Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y),
+  drawStroke(Vector2(x: mousePos.x + 3, y: mousePos.y),
           Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8),
+  drawStroke(Vector2(x: mousePos.x, y: mousePos.y - 8),
           Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3),
+  drawStroke(Vector2(x: mousePos.x, y: mousePos.y + 3),
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
 
   # Center dot
-  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
+  drawDisc(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
 
 proc isBondingGameplayState(state: GameState): bool =
   state in {gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver, gsCountdown,
@@ -4007,7 +4008,7 @@ proc main() =
       for i in 0..<(screenHeight div 3):
         let lineY = i * 3 + int(currentGame.time * 50.0) mod 3
         let alpha = uint8(3 + sin(currentGame.time + i.float32) * 3.0)
-        drawLine(Vector2(x: 0, y: lineY.float32),
+        drawStroke(Vector2(x: 0, y: lineY.float32),
                 Vector2(x: screenWidth.float32, y: lineY.float32),
                 1, Color(r: 40, g: 60, b: 80, a: alpha))
 

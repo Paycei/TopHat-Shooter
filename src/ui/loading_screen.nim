@@ -1,4 +1,5 @@
 import raylib, math
+import ../draw_prims
 import ../localization, background_fx
 
 const
@@ -96,7 +97,7 @@ proc drawStagePill(x, y: int32, label: string, state: int, animTime: float32): i
     discard
 
   drawRectangle(x, y, w, h, bg)
-  drawRectangleLines(x, y, w, h, border)
+  drawRectOutline(x, y, w, h, border)
   drawText(marker, x + padX, y + 4, 14, fg)
   drawText(label, x + padX + 14, y + 4, 14, fg)
   result = w
@@ -139,7 +140,7 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
   # Window body + chrome
   drawRectangle(panelX + 4, panelY + 6, panelW, panelH, Color(r: 0, g: 0, b: 0, a: 110))
   drawRectangle(panelX, panelY, panelW, panelH, Color(r: 14, g: 17, b: 28, a: 242))
-  drawRectangleLines(panelX, panelY, panelW, panelH, Color(r: 70, g: 105, b: 150, a: 255))
+  drawRectOutline(panelX, panelY, panelW, panelH, Color(r: 70, g: 105, b: 150, a: 255))
   drawRectangle(panelX, panelY, panelW, titleBarH, Color(r: 26, g: 40, b: 66, a: 255))
   drawRectangle(panelX, panelY + titleBarH - 1, panelW, 1, Color(r: 70, g: 105, b: 150, a: 255))
   drawText("audio_setup.exe", panelX + 10, panelY + 6, 14,
@@ -148,7 +149,7 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
   # Decorative (inert) window buttons
   var btnX = panelX + panelW - 22
   for label in ["x", "o", "-"]:
-    drawRectangleLines(btnX, panelY + 5, 16, 16, Color(r: 80, g: 110, b: 150, a: 200))
+    drawRectOutline(btnX, panelY + 5, 16, 16, Color(r: 80, g: 110, b: 150, a: 200))
     drawText(label, btnX + 5, panelY + 6, 14, Color(r: 150, g: 180, b: 210, a: 220))
     btnX -= 20
 
@@ -189,7 +190,7 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
   let barY = y
   let barWidth = contentW
   drawRectangle(barX, barY, barWidth, barHeight, Color(r: 8, g: 10, b: 18, a: 255))
-  drawRectangleLines(barX - 1, barY - 1, barWidth + 2, barHeight + 2,
+  drawRectOutline(barX - 1, barY - 1, barWidth + 2, barHeight + 2,
                      Color(r: 90, g: 130, b: 175, a: 255))
 
   let fillWidth = int32(barWidth.float32 * screen.displayProgress)
@@ -240,7 +241,7 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
     let col = if lit: Color(r: 90, g: 200, b: 255, a: 235)
               else: Color(r: 46, g: 62, b: 88, a: 200)
     drawRectangle(bx, y + (stripH - h) div 2, bw, h, col)
-  drawRectangleLines(barX, y, barWidth, stripH, Color(r: 50, g: 74, b: 105, a: 255))
+  drawRectOutline(barX, y, barWidth, stripH, Color(r: 50, g: 74, b: 105, a: 255))
   y += stripH + 12
 
   # Cache note: explains why the first launch is the slow one.

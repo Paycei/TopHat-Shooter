@@ -1,4 +1,5 @@
 import raylib, math
+import draw_prims
 import particle_types, types, bullet_skins, bullet_shapes, utils
 import modding/[mod_assets, mod_hooks]
 from run_statistics import trackBulletFired
@@ -64,7 +65,7 @@ proc drawNgonLines(cx, cy, r: float32, n: int, rotation: float32, color: Color, 
   for i in 0..<n:
     let a0 = rotation + i.float32 * PI * 2.0 / n.float32
     let a1 = rotation + (i + 1).float32 * PI * 2.0 / n.float32
-    drawLine(
+    drawStroke(
       Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
       Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
       thick, color)
@@ -94,7 +95,7 @@ proc drawBossBulletTrail(bullet: Bullet, trailColor: Color) =
 
   let dir = bullet.vel.normalize()
   let lineStart = bullet.pos - dir * (bullet.radius + 11.0)
-  drawLine(Vector2(x: lineStart.x, y: lineStart.y),
+  drawStroke(Vector2(x: lineStart.x, y: lineStart.y),
            Vector2(x: bullet.pos.x, y: bullet.pos.y), 3,
            withAlpha(trailColor, max(60, trailColor.a.int div 2)))
 
@@ -103,7 +104,7 @@ proc drawBossBulletTrail(bullet: Bullet, trailColor: Color) =
     let trailPos = bullet.pos - dir * trailOffset
     let trailRadius = max(1.6'f32, bullet.radius * (0.95 - i.float32 * 0.18))
     let trailAlpha = max(38, trailColor.a.int - i * 58)
-    drawCircle(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
+    drawDisc(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
                withAlpha(trailColor, trailAlpha))
 
 proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32) =
@@ -130,7 +131,7 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
     drawNgonLines(cx, cy, r + 1.8, sides, rot, rimColor, 2.4)
     drawNgonLines(cx, cy, r + 4.8, sides, rot, haloColor, 1.7)
     drawNgonLines(cx, cy, r + 7.8, sides, rot, withAlpha(glowColor, 70), 1.0)
-    drawCircle(Vector2(x: cx, y: cy), r * 0.24, highlight)
+    drawDisc(Vector2(x: cx, y: cy), r * 0.24, highlight)
 
   case bullet.bossBulletShape
   of 1:  # Diamond (rotated square = 4-gon at 45°)
@@ -154,7 +155,7 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
     drawNgonLines(cx, cy, r + 1.6, 3, rot2, rimColor, 1.8)
     drawNgonLines(cx, cy, r + 5.0, 3, rot1, haloColor, 1.5)
     drawNgonLines(cx, cy, r + 5.0, 3, rot2, withAlpha(glowColor, 92), 1.2)
-    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
+    drawDisc(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
 
   of 4:  # Cross / X
     let hw = r * 0.35  # half-width of each arm
@@ -179,20 +180,20 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
         Vector2(x: nx.x - perp.x, y: nx.y - perp.y),
         baseColor)
     drawBossCross(cx, cy, r * 0.56, hw * 0.65, rot, coreColor)
-    drawCircleLines(cx.int32, cy.int32, r + 3.5, rimColor)
-    drawCircleLines(cx.int32, cy.int32, r + 6.5 + pulse, haloColor)
-    drawCircleLines(cx.int32, cy.int32, r + 9.5, withAlpha(glowColor, 68))
-    drawCircle(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
+    drawCircleOutline(cx.int32, cy.int32, r + 3.5, rimColor)
+    drawCircleOutline(cx.int32, cy.int32, r + 6.5 + pulse, haloColor)
+    drawCircleOutline(cx.int32, cy.int32, r + 9.5, withAlpha(glowColor, 68))
+    drawDisc(Vector2(x: cx, y: cy), r * 0.24, Color(r: 255, g: 255, b: 255, a: 220))
 
   else:  # Circle fallback
-    drawCircle(Vector2(x: cx, y: cy), r + 6.0 + pulse, silhouetteColor)
-    drawCircle(Vector2(x: cx, y: cy), r + 3.5 + pulse * 0.6, withAlpha(glowColor, 88))
-    drawCircle(Vector2(x: cx, y: cy), r, baseColor)
-    drawCircle(Vector2(x: cx, y: cy), r * 0.56, coreColor)
-    drawCircleLines(cx.int32, cy.int32, r + 2, rimColor)
-    drawCircleLines(cx.int32, cy.int32, r + 5 + pulse, haloColor)
-    drawCircleLines(cx.int32, cy.int32, r + 8, withAlpha(glowColor, 70))
-    drawCircle(Vector2(x: cx, y: cy), r * 0.22, Color(r: 255, g: 255, b: 255, a: 220))
+    drawDisc(Vector2(x: cx, y: cy), r + 6.0 + pulse, silhouetteColor)
+    drawDisc(Vector2(x: cx, y: cy), r + 3.5 + pulse * 0.6, withAlpha(glowColor, 88))
+    drawDisc(Vector2(x: cx, y: cy), r, baseColor)
+    drawDisc(Vector2(x: cx, y: cy), r * 0.56, coreColor)
+    drawCircleOutline(cx.int32, cy.int32, r + 2, rimColor)
+    drawCircleOutline(cx.int32, cy.int32, r + 5 + pulse, haloColor)
+    drawCircleOutline(cx.int32, cy.int32, r + 8, withAlpha(glowColor, 70))
+    drawDisc(Vector2(x: cx, y: cy), r * 0.22, Color(r: 255, g: 255, b: 255, a: 220))
 
 const BASE_PLAYER_BULLET_RADIUS* = 5.0
 
@@ -357,7 +358,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
 
   if bullet.isBossBullet:
     let warningPulse = sin(gameTime * 10.0 + bullet.radius * 0.25) * 0.5 + 0.5
-    drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius + 6.5 + warningPulse * 1.4,
+    drawDisc(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius + 6.5 + warningPulse * 1.4,
                faded(Color(r: 10, g: 4, b: 22, a: 110)))
     drawBossBulletTrail(bullet, trailColor)
 
@@ -370,7 +371,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let trailPos = bullet.pos - bullet.vel.normalize() * trailOffset
       let trailRadius = bullet.radius * (1.0 - i.float32 * 0.15)
       let trailAlpha = uint8((1.0 - i.float32 * 0.25) * float32(trailColor.a))
-      drawCircle(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
+      drawDisc(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
                 withAlpha(trailColor, trailAlpha))
 
   # Draw pentagon shape for pentagon bullets (a mod texture replaces any body)
@@ -386,9 +387,9 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let y1 = bullet.pos.y + sin(angle) * bullet.radius
       let x2 = bullet.pos.x + cos(nextAngle) * bullet.radius
       let y2 = bullet.pos.y + sin(nextAngle) * bullet.radius
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, color)
+      drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, color)
     # Fill center
-    drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius * 0.5, color)
+    drawDisc(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius * 0.5, color)
   elif bullet.isBossBullet and bullet.bossBulletShape > 0:
     # Boss bullets with a unique shape shape + glow already handled together
     drawBossBulletShape(bullet, color, glowColor, gameTime)
@@ -400,7 +401,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                           color, glowColor)
   else:
     # Normal circle bullet
-    drawCircle(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
+    drawDisc(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
 
   # Blood bullets: Add dripping blood effect
   if hasBloodBullets and usesPlayerLook:
@@ -412,10 +413,10 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let dripY = bullet.pos.y - bullet.vel.normalize().y * dripOffset + i.float32 * 2.0  # Slight fall effect
       let dripSize = bullet.radius * (0.5 - i.float32 * 0.1)  # Smaller drips behind
       let dripAlpha = uint8(180 - i * 50)  # Fade drips
-      drawCircle(Vector2(x: dripX, y: dripY), dripSize,
+      drawDisc(Vector2(x: dripX, y: dripY), dripSize,
                 faded(Color(r: 150, g: 30, b: 30, a: dripAlpha)))
       # Add a darker blood dot below each drip for extra drippiness
-      drawCircle(Vector2(x: dripX, y: dripY + dripSize * 0.5), dripSize * 0.4,
+      drawDisc(Vector2(x: dripX, y: dripY + dripSize * 0.5), dripSize * 0.4,
                 faded(Color(r: 100, g: 20, b: 20, a: dripAlpha)))
 
   # Add glow effect
@@ -426,14 +427,14 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     for i in 0..1:
       let glowRadius = bullet.radius + 2.0 + i.float32 * 2.0
       let glowAlpha = uint8(float32(glowColor.a) * (1.0 - i.float32 * 0.4))
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
+      drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
                      withAlpha(glowColor, glowAlpha))
     let pulse = sin(gameTime * 9.0 + bullet.pos.x * 0.05) * 0.5 + 0.5
     let ringA = uint8(clamp(140.0 + pulse * 115.0, 0.0, 255.0))
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32,
                    bullet.radius + 4.0 + pulse * 2.5,
                    faded(Color(r: 120, g: 210, b: 255, a: ringA)))
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32,
                    bullet.radius + 7.5 + pulse * 3.5,
                    faded(Color(r: 90, g: 180, b: 255, a: uint8(ringA.int div 2))))
     # Four spokes spinning against the travel direction: reads as "captured".
@@ -444,31 +445,31 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                           y: bullet.pos.y + sin(a) * (bullet.radius + 3.0))
       let outer = Vector2(x: bullet.pos.x + cos(a) * (bullet.radius + 8.0 + pulse * 2.0),
                           y: bullet.pos.y + sin(a) * (bullet.radius + 8.0 + pulse * 2.0))
-      drawLine(inner, outer, 1.5'f32, faded(Color(r: 170, g: 230, b: 255, a: ringA)))
+      drawStroke(inner, outer, 1.5'f32, faded(Color(r: 170, g: 230, b: 255, a: ringA)))
   elif not bullet.fromPlayer:
     # Sniper bullets get strong red glow
     if bullet.sourceEnemyType == etSniper:
       # Multiple red glow rings for sniper bullets
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+      drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                      faded(Color(r: 255, g: 80, b: 80, a: 180)))
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
+      drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
                      faded(Color(r: 255, g: 50, b: 50, a: 120)))
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6,
+      drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6,
                      faded(Color(r: 255, g: 20, b: 20, a: 60)))
     # Boss bullets get a special strong glow effect
     elif bullet.isBossBullet:
       if bullet.bossBulletShape == 0:
         # Circle fallback, draw old-style glow rings
-        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
+        drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
                        faded(Color(r: 255, g: 50, b: 150, a: 200)))
-        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 7,
+        drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 7,
                        faded(Color(r: 255, g: 100, b: 150, a: 120)))
-        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 10,
+        drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 10,
                        faded(Color(r: 255, g: 150, b: 180, a: 60)))
       # shaped boss bullets already drew their glow inside drawBossBulletShape
     else:
       # Regular enemy bullets - standard pink glow
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+      drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                      faded(Color(r: 255, g: 100, b: 150, a: 100)))
   elif bullet.fromPlayer and not bullet.isEcho:
     # Player bullet skin glow effects
@@ -476,44 +477,44 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     for i in 0..1:
       let glowRadius = bullet.radius + 2.0 + i.float32 * 2.0
       let glowAlpha = uint8(float32(glowColor.a) * (1.0 - i.float32 * 0.4))
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
+      drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
                      withAlpha(glowColor, glowAlpha))
 
     # Add highlight to bullet
-    drawCircle(Vector2(x: bullet.pos.x - 1.5, y: bullet.pos.y - 1.5), bullet.radius * 0.3,
+    drawDisc(Vector2(x: bullet.pos.x - 1.5, y: bullet.pos.y - 1.5), bullet.radius * 0.3,
               faded(Color(r: 255, g: 255, b: 255, a: 120)))
 
   # Legacy glow effects for power-up modified bullets
   if bullet.isExplosive:
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    faded(Color(r: 255, g: 150, b: 0, a: 150)))
   if bullet.windPushForce > 0:
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    faded(Color(r: 180, g: 220, b: 255, a: 150)))
   if bullet.slowAmount > 0:
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    faded(Color(r: 100, g: 150, b: 255, a: 150)))
   if bullet.poisonDuration > 0:
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    faded(Color(r: 50, g: 255, b: 50, a: 150)))
   if bullet.fireDuration > 0:
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    faded(Color(r: 255, g: 100, b: 30, a: 180)))
   if bullet.isArcaneBullet:
     # Arcane bullet glow - purple arcane aura
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    faded(Color(r: 200, g: 100, b: 255, a: 200)))
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
                    faded(Color(r: 150, g: 50, b: 200, a: 100)))
 
   # Special Round visual effect - golden glow with sparkles
   if bullet.isSpecialRound and usesPlayerLook:
     # Main golden glow
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 2,
                    faded(Color(r: 255, g: 215, b: 0, a: 255)))
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 4,
                    faded(Color(r: 255, g: 200, b: 50, a: 180)))
-    drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6,
+    drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, bullet.radius + 6,
                    faded(Color(r: 255, g: 180, b: 100, a: 120)))
 
   # Overcharge visual effect - ONLY if player has the power-up
@@ -552,13 +553,13 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
 
       # Draw expanding glow rings
       let glowRadius = bullet.radius + 2 + chargeLevel * 4
-      drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius, faded(glowColor))
+      drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius, faded(glowColor))
 
       # Add a second, larger glow ring for high charge
       if chargeLevel > 0.5:
         let outerGlow = glowColor
         let outerRadius = glowRadius + 3
-        drawCircleLines(bullet.pos.x.int32, bullet.pos.y.int32, outerRadius,
+        drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, outerRadius,
                        faded(withAlpha(outerGlow, outerGlow.a div 2)))
 
 proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool =

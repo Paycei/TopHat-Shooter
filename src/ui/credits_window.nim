@@ -7,6 +7,7 @@
 ## the buttons cannot be clicked. The credits above it are unaffected.
 
 import raylib
+import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../feedback
 
 type
@@ -133,7 +134,7 @@ proc drawSupportButton(r: Rectangle, link: SupportLink, hovered: bool) =
             b: min(255, link.fill.b.int + 30).uint8, a: link.fill.a)
     else: link.fill
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, fill)
-  drawRectangleLines(r, (if hovered: 2.0 else: 1.5),
+  drawRectOutline(r, (if hovered: 2.0 else: 1.5),
                      Color(r: 255, g: 255, b: 255, a: if hovered: 220 else: 120))
   # Shrink the caption until it fits so brand names never spill out of the pill.
   var fontSize = 15'i32
@@ -157,7 +158,7 @@ proc drawCreditsWindow*(cw: CreditsWindow) =
 
   drawRectangle(contentX.int32, contentY.int32, contentW.int32, contentH.int32,
                 ColPanelBg)
-  drawRectangleLines(Rectangle(x: contentX.float32, y: contentY.float32,
+  drawRectOutline(Rectangle(x: contentX.float32, y: contentY.float32,
                                width: contentW.float32, height: contentH.float32),
                      1, Color(r: 255, g: 110, b: 160, a: 200))
 
@@ -170,7 +171,7 @@ proc drawCreditsWindow*(cw: CreditsWindow) =
   y += 26
   drawText(t(tkOSEdition), baseX.int32, y.int32, 13, ColMuted)
   y += 22
-  drawLine(Vector2(x: baseX.float32, y: y.float32),
+  drawStroke(Vector2(x: baseX.float32, y: y.float32),
            Vector2(x: (baseX + innerW).float32, y: y.float32),
            1, Color(r: 255, g: 110, b: 160, a: 120))
   y += 14
@@ -201,7 +202,7 @@ proc drawCreditsWindow*(cw: CreditsWindow) =
   let rects = supportButtonRects(cw)
   if rects.len > 0:
     let panelTop = supportPanelTop(cw).int32
-    drawLine(Vector2(x: baseX.float32, y: panelTop.float32),
+    drawStroke(Vector2(x: baseX.float32, y: panelTop.float32),
              Vector2(x: (baseX + innerW).float32, y: panelTop.float32),
              1, Color(r: 255, g: 110, b: 160, a: 120))
     drawText(t(tkSupportTitle), baseX.int32, panelTop + 10, 16, ColHeading)

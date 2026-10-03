@@ -2,6 +2,7 @@
 ## Terminal-style documentation viewer
 
 import raylib, strutils, math
+import ../draw_prims
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
 import ../gamepad_input, ../patches
 from ../dungeon import rewardFolderName, rewardLabel
@@ -543,7 +544,7 @@ proc drawHelpWindow*(help: HelpWindow) =
   # Terminal background
   drawRectangle(contentX.int32, contentY.int32, contentW.int32, contentH.int32,
                Color(r: 5, g: 5, b: 10, a: 255))
-  drawRectangleLines(Rectangle(x: contentX.float32, y: contentY.float32,
+  drawRectOutline(Rectangle(x: contentX.float32, y: contentY.float32,
                                 width: contentW.float32, height: contentH.float32),
                     1, Color(r: 0, g: 200, b: 200, a: 255))
 

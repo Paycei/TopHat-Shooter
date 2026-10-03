@@ -12,6 +12,7 @@
 
 import std/[os, strutils, tables, json, math]
 import raylib
+import ../draw_prims
 import ../types, ../particle_types, ../localization, ../render_context, ../settings, ../powerup
 import ../enemy_config, ../boss_definitions, ../player, ../game/combat, ../d_systems, ../particle_pool, ../sound
 import ../powerup_data, ../ui/icon_drawing, ../save_system, ../run_statistics
@@ -430,7 +431,7 @@ proc installLibraries(base: ScriptTable) =
   let drawT = newScriptTable()
   drawT.reg("circle") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     vm.requireDrawing("circle")
-    drawCircle(Vector2(x: vm.f32(args, 0, "circle"), y: vm.f32(args, 1, "circle")),
+    drawDisc(Vector2(x: vm.f32(args, 0, "circle"), y: vm.f32(args, 1, "circle")),
                vm.f32(args, 2, "circle"), parseColor(vm, arg(args, 3), "draw.circle"))
   drawT.reg("circleLines") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     vm.requireDrawing("circleLines")
@@ -445,13 +446,13 @@ proc installLibraries(base: ScriptTable) =
                   parseColor(vm, arg(args, 4), "draw.rect"))
   drawT.reg("rectLines") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     vm.requireDrawing("rectLines")
-    drawRectangleLines(Rectangle(x: vm.f32(args, 0, "rectLines"), y: vm.f32(args, 1, "rectLines"),
+    drawRectOutline(Rectangle(x: vm.f32(args, 0, "rectLines"), y: vm.f32(args, 1, "rectLines"),
                                  width: vm.f32(args, 2, "rectLines"), height: vm.f32(args, 3, "rectLines")),
                        vm.optNum(args, 5, "rectLines", 1.0).float32,
                        parseColor(vm, arg(args, 4), "draw.rectLines"))
   drawT.reg("line") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     vm.requireDrawing("line")
-    drawLine(Vector2(x: vm.f32(args, 0, "line"), y: vm.f32(args, 1, "line")),
+    drawStroke(Vector2(x: vm.f32(args, 0, "line"), y: vm.f32(args, 1, "line")),
              Vector2(x: vm.f32(args, 2, "line"), y: vm.f32(args, 3, "line")),
              vm.optNum(args, 5, "line", 1.0).float32, parseColor(vm, arg(args, 4), "draw.line"))
   drawT.reg("poly") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -1643,7 +1644,7 @@ proc installAssetLibraries(base: ScriptTable) =
       let tm = rawGetStr(opts.tbl, "time")
       if fr.kind == vkNumber and pose.anim > 0:
         if not (abs(fr.n) < 9.0e15): vm.runtimeError("draw.model: frame must be a whole number")
-        frame = floorMod(int(floor(fr.n)) - 1, modelAnimFrames(id, pose.anim))
+        frame = floorMod(int(floor(fr.n)) - 1, modelAnimFrames(id, pose.anim)).float32
       elif tm.kind == vkNumber:
         frame = modelFrameAt(id, pose, tm.n)   # (a NaN time shows frame 1)
     drawModModel(id, x, y, pxPerUnit, facing, pose, frame)

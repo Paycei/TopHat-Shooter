@@ -2,6 +2,7 @@
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
 import raylib, strutils, std/tables, algorithm
+import ../draw_prims
 import os_window, ../statistics, ../run_statistics, ../types, ../powerup_data, ../localization, ../render_context, ../utils
 
 type
@@ -293,13 +294,13 @@ proc drawMetricCard*(x, y, width, height: int, title: string, value: string,
                     icon: char, color: Color) =
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                Color(r: 25, g: 25, b: 35, a: 255))
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
                     1, color)
 
   let iconX = x + 15
   let iconY = y + height div 2
-  drawCircle(Vector2(x: iconX.float32, y: iconY.float32), 12, color)
+  drawDisc(Vector2(x: iconX.float32, y: iconY.float32), 12, color)
   drawText($icon, (iconX - 6).int32, (iconY - 10).int32, 20, Black)
 
   drawText(title, (x + 40).int32, (y + 10).int32, 14, LightGray)
@@ -309,7 +310,7 @@ proc drawStatPanel*(x, y, width, height: int, title: string) =
   ## Draw a panel background with title
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                Color(r: 25, g: 25, b: 35, a: 255))
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
                     1, Color(r: 80, g: 80, b: 100, a: 255))
 
@@ -383,7 +384,7 @@ proc drawHealingTooltip(row: HealingSourceRow, anchor: Vector2, bounds: OSWindow
   if x + w > bounds.x + bounds.width: x = int(anchor.x) - Offset - w
   if y + h > bounds.y + bounds.height: y = int(anchor.y) - Offset - h
   drawRectangle(x.int32, y.int32, w.int32, h.int32, Color(r: 18, g: 18, b: 28, a: 240))
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
                      1, Color(r: 80, g: 80, b: 100, a: 255))
   for i in 0 ..< lines.len:
     drawText(lines[i][0], (x + Pad).int32, (y + Pad + i * LineH).int32, FontSize, lines[i][1])
@@ -400,7 +401,7 @@ proc drawMiniGraph*(x, y, width, height: int, title: string,
   ## Draw a time-series line graph
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                Color(r: 20, g: 20, b: 30, a: 255))
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
                     1, Color(r: 80, g: 80, b: 100, a: 255))
 
@@ -418,7 +419,7 @@ proc drawMiniGraph*(x, y, width, height: int, title: string,
 
   for i in 0..3:
     let gridY = graphY + int((i.float32 / 3.0) * graphHeight.float32)
-    drawLine(Vector2(x: graphX.float32, y: gridY.float32),
+    drawStroke(Vector2(x: graphX.float32, y: gridY.float32),
             Vector2(x: (graphX + graphWidth).float32, y: gridY.float32),
             1, Color(r: 40, g: 40, b: 60, a: 255))
 
@@ -442,9 +443,9 @@ proc drawMiniGraph*(x, y, width, height: int, title: string,
     let x2Px = graphX.float32 + x2Norm * graphWidth.float32
     let y2Px = graphY.float32 + y2Norm * graphHeight.float32
 
-    drawLine(Vector2(x: x1Px, y: y1Px), Vector2(x: x2Px, y: y2Px),
+    drawStroke(Vector2(x: x1Px, y: y1Px), Vector2(x: x2Px, y: y2Px),
             3, withAlpha(color, 60))
-    drawLine(Vector2(x: x1Px, y: y1Px), Vector2(x: x2Px, y: y2Px),
+    drawStroke(Vector2(x: x1Px, y: y1Px), Vector2(x: x2Px, y: y2Px),
             2, color)
 
   drawText("0", (x + 2).int32, (graphY + graphHeight - 12).int32, 10, Gray)
@@ -498,7 +499,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     else:
       Color(r: 80, g: 80, b: 100, a: 255)
 
-    drawRectangleLines(Rectangle(x: tabX.float32, y: tabY.float32,
+    drawRectOutline(Rectangle(x: tabX.float32, y: tabY.float32,
                                   width: tabWidth.float32, height: tabHeight.float32),
                       1, borderColor)
 
@@ -776,7 +777,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       let aggressionBar = int(runStats.comparison.aggressionRating * 2.4)
       drawRectangle((col2X + 10).int32, lineY.int32, aggressionBar.int32, 16,
                    Color(r: 255, g: 100, b: 100, a: 200))
-      drawRectangleLines(Rectangle(x: (col2X + 10).float32, y: lineY.float32,
+      drawRectOutline(Rectangle(x: (col2X + 10).float32, y: lineY.float32,
                                     width: 240.0, height: 16.0),
                         1, Color(r: 80, g: 80, b: 100, a: 255))
       lineY += 30
@@ -786,7 +787,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       let cautionBar = int(runStats.comparison.cautionRating * 2.4)
       drawRectangle((col2X + 10).int32, lineY.int32, cautionBar.int32, 16,
                    Color(r: 100, g: 200, b: 255, a: 200))
-      drawRectangleLines(Rectangle(x: (col2X + 10).float32, y: lineY.float32,
+      drawRectOutline(Rectangle(x: (col2X + 10).float32, y: lineY.float32,
                                     width: 240.0, height: 16.0),
                         1, Color(r: 80, g: 80, b: 100, a: 255))
 

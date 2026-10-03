@@ -2,6 +2,7 @@
 ## OS-themed window for player and bullet customization with tabs
 
 import raylib, rlgl, math, strformat, strutils
+import ../draw_prims
 import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets
 from ../modding/mod_hooks import mods
 
@@ -167,10 +168,10 @@ proc secretCardPos(contentX, contentY, contentWidth, index: int): tuple[x, y: in
   (x: left + index * (SECRET_CARD_W + SECRET_CARD_GAP), y: contentY + TAB_HEIGHT + 60)
 
 proc drawLockGlyph(x, y: int32, color: Color) =
-  drawCircleLines(x + 10, y + 8, 7, color)
+  drawCircleOutline(x + 10, y + 8, 7, color)
   drawRectangle(x + 2, y + 8, 16, 14, Color(r: 20, g: 24, b: 32, a: 235))
-  drawRectangleLines(x + 2, y + 8, 16, 14, color)
-  drawCircle(Vector2(x: (x + 10).float32, y: (y + 15).float32), 2, color)
+  drawRectOutline(x + 2, y + 8, 16, 14, color)
+  drawDisc(Vector2(x: (x + 10).float32, y: (y + 15).float32), 2, color)
 
 proc fitTextSize(text: string, maxWidth: int32, startSize: int32, minSize: int32 = 7): int32 =
   result = startSize
@@ -276,7 +277,7 @@ proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cos
   let pillW = (SKIN_BOX_WIDTH - 12).int32
   let pillH: int32 = 20
   drawRectangle(pillX, pillY, pillW, pillH, Color(r: 16, g: 20, b: 28, a: 230))
-  drawRectangleLines(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: pillH.float32), 1.0'f32, statusColor)
+  drawRectOutline(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: pillH.float32), 1.0'f32, statusColor)
 
   let statusText = if canBuy: t(tkShopBuy) else: t("roguelite_locked")
 
@@ -391,7 +392,7 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
     Color(r: 80, g: 80, b: 100, a: 255)
 
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
                     borderThickness, borderColor)
 
@@ -463,7 +464,7 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
   else:
     Color(r: 80, g: 80, b: 100, a: 255)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
                     borderThickness, borderColor)
 
@@ -478,21 +479,21 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
     let trailX = centerX - i.float32 * 8.0
     let trailRadius = bulletRadius * (1.0 - i.float32 * 0.15)
     let trailAlpha = uint8((1.0 - i.float32 * 0.2) * float32(trailColor.a))
-    drawCircle(Vector2(x: trailX, y: centerY), trailRadius,
+    drawDisc(Vector2(x: trailX, y: centerY), trailRadius,
               withAlpha(trailColor, trailAlpha))
 
   # Glow
   for i in 0..2:
     let glowRadius = bulletRadius + (i.float32 + 1) * 3.0
     let glowAlpha = uint8((1.0 - i.float32 / 3.0) * float32(glowColor.a))
-    drawCircle(Vector2(x: centerX, y: centerY), glowRadius,
+    drawDisc(Vector2(x: centerX, y: centerY), glowRadius,
               withAlpha(glowColor, glowAlpha))
 
   # Main bullet
-  drawCircle(Vector2(x: centerX, y: centerY), bulletRadius, primaryColor)
+  drawDisc(Vector2(x: centerX, y: centerY), bulletRadius, primaryColor)
 
   # Bullet highlight
-  drawCircle(Vector2(x: centerX - 2, y: centerY - 2), bulletRadius * 0.3,
+  drawDisc(Vector2(x: centerX - 2, y: centerY - 2), bulletRadius * 0.3,
             Color(r: 255, g: 255, b: 255, a: 180))
 
   # Skin name
@@ -532,7 +533,7 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
                     elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
                     else: Color(r: 80, g: 80, b: 100, a: 255)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
                     borderThickness, borderColor)
 
@@ -551,7 +552,7 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
   for i in 1..3:
     let tx = cx - i.float32 * 9.0
     let ta = uint8(180 - i * 50)
-    drawCircle(Vector2(x: tx, y: cy), r * (1.0 - i.float32 * 0.2),
+    drawDisc(Vector2(x: tx, y: cy), r * (1.0 - i.float32 * 0.2),
                Color(r: 0, g: 180, b: 180, a: ta))
 
   # Name
@@ -597,7 +598,7 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
     Color(r: 80, g: 80, b: 100, a: 255)
 
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
                     borderThickness, borderColor)
 
@@ -668,7 +669,7 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
   else:
     Color(r: 80, g: 80, b: 100, a: 255)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
                     borderThickness, borderColor)
 
@@ -691,7 +692,7 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
     let color = if useSecondary: secondaryColor else: primaryColor
     let particleSize = (3.0 + sin(time * 4.0 + i.float32) * 1.5) * hoverScale
 
-    drawCircle(Vector2(x: px, y: py), particleSize, color)
+    drawDisc(Vector2(x: px, y: py), particleSize, color)
 
   # Particle name
   let particleDataInfo = getParticleSkinData(particleType)
@@ -816,7 +817,7 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
     for i in 0..3:
       let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
       let alpha = uint8(26 + i * 9)
-      drawCircleLines(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
+      drawCircleOutline(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
                       withAlpha(accentColor, alpha))
 
     # Draw the wallpaper cube using the currently equipped cube skin so the
@@ -841,7 +842,7 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                     elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
                     else: Color(r: 80, g: 80, b: 100, a: 255)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
-  drawRectangleLines(
+  drawRectOutline(
     Rectangle(x: x.float32, y: y.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
     borderThickness, borderColor)
 
@@ -885,7 +886,7 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
                     elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
                     else: Color(r: 80, g: 80, b: 100, a: 255)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
-  drawRectangleLines(
+  drawRectOutline(
     Rectangle(x: x.float32, y: y.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
     borderThickness, borderColor)
 
@@ -1004,7 +1005,7 @@ proc drawPackCard(shop: ShopWindow, x, y: int, id: CosmeticPackId) =
                     elif isHovered: accent
                     else: Color(r: 80, g: 80, b: 100, a: 255)
   let borderThick = if isHovered or owned: 3.0'f32 else: 2.0'f32
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: PACK_CARD_W.float32, height: PACK_CARD_H.float32),
                      borderThick, borderColor)
 
@@ -1017,11 +1018,11 @@ proc drawPackCard(shop: ShopWindow, x, y: int, id: CosmeticPackId) =
   let swR = 13.0'f32
   var swX = x + 26
   for m in pack.members:
-    drawCircle(Vector2(x: swX.float32, y: swY.float32), swR + 2.0'f32, Color(r: 0, g: 0, b: 0, a: 120))
-    drawCircle(Vector2(x: swX.float32, y: swY.float32), swR, packMemberColor(m, shop.animationTime))
-    drawCircleLines(swX.int32, swY.int32, swR, Color(r: 255, g: 255, b: 255, a: 60))
+    drawDisc(Vector2(x: swX.float32, y: swY.float32), swR + 2.0'f32, Color(r: 0, g: 0, b: 0, a: 120))
+    drawDisc(Vector2(x: swX.float32, y: swY.float32), swR, packMemberColor(m, shop.animationTime))
+    drawCircleOutline(swX.int32, swY.int32, swR, Color(r: 255, g: 255, b: 255, a: 60))
     if cosmeticIsUnlocked(profile, m.kind, m.index):
-      drawCircle(Vector2(x: (swX + 9).float32, y: (swY - 9).float32), 6.0'f32, Color(r: 40, g: 180, b: 90, a: 255))
+      drawDisc(Vector2(x: (swX + 9).float32, y: (swY - 9).float32), 6.0'f32, Color(r: 40, g: 180, b: 90, a: 255))
       drawText("+", (swX + 6).int32, (swY - 16).int32, 12, White)
     swX += 42
 
@@ -1166,18 +1167,18 @@ proc drawModCosmeticPreview(shop: ShopWindow, c: ModCosmetic, x, y, border: int)
       # A glowing dot with a fading trail behind it.
       for k in countdown(6, 1):
         let a = uint8(150 - k * 20)
-        drawCircle(Vector2(x: cx - 6.0'f32 - k.float32 * 7.0'f32, y: cy),
+        drawDisc(Vector2(x: cx - 6.0'f32 - k.float32 * 7.0'f32, y: cy),
                    5.0'f32 - k.float32 * 0.5'f32, Color(r: c.c3.r, g: c.c3.g, b: c.c3.b, a: a))
-      drawCircle(Vector2(x: cx + 14.0'f32, y: cy), 11.0'f32, Color(r: c.c2.r, g: c.c2.g, b: c.c2.b, a: 90))
-      drawCircle(Vector2(x: cx + 14.0'f32, y: cy), 6.0'f32, c.c1)
+      drawDisc(Vector2(x: cx + 14.0'f32, y: cy), 11.0'f32, Color(r: c.c2.r, g: c.c2.g, b: c.c2.b, a: 90))
+      drawDisc(Vector2(x: cx + 14.0'f32, y: cy), 6.0'f32, c.c1)
     of mckDesktop:
-      drawCircle(Vector2(x: cx, y: cy), 22.0'f32, c.c1)
-      drawCircle(Vector2(x: cx, y: cy), 13.0'f32, c.c2)
-      drawCircle(Vector2(x: cx, y: cy), 6.0'f32, c.c3)
+      drawDisc(Vector2(x: cx, y: cy), 22.0'f32, c.c1)
+      drawDisc(Vector2(x: cx, y: cy), 13.0'f32, c.c2)
+      drawDisc(Vector2(x: cx, y: cy), 6.0'f32, c.c3)
     of mckCube:
-      drawCircle(Vector2(x: cx, y: cy), 22.0'f32, c.c1)
-      drawCircle(Vector2(x: cx, y: cy), 13.0'f32, c.c2)
-      drawCircle(Vector2(x: cx, y: cy), 6.0'f32, c.c3)
+      drawDisc(Vector2(x: cx, y: cy), 22.0'f32, c.c1)
+      drawDisc(Vector2(x: cx, y: cy), 13.0'f32, c.c2)
+      drawDisc(Vector2(x: cx, y: cy), 6.0'f32, c.c3)
   endPreviewClip(clip)
 
 proc drawModCard(shop: ShopWindow, idx, x, y: int) =
@@ -1216,14 +1217,14 @@ proc drawModCard(shop: ShopWindow, idx, x, y: int) =
   drawRectangle(pillX, pillY, pillW, 20, Color(r: 16, g: 20, b: 28, a: 230))
   let pillColor = if equipped: Color(r: 255, g: 200, b: 100, a: 255)
                   else: Color(r: 120, g: 220, b: 160, a: 255)
-  drawRectangleLines(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: 20.0'f32),
+  drawRectOutline(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: 20.0'f32),
                      1.0'f32, pillColor)
   let label = if equipped: t("shop_equipped") else: t(tkModsEquip)
   let fs = fitTextSize(label, pillW - 8, 11, 6)
   drawText(label, (x + (MOD_CARD_W - measureText(label, fs)) div 2).int32, (pillY + 4).int32, fs, pillColor)
 
   # Border last, so nothing drawn inside the card can cover it.
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: MOD_CARD_W.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: MOD_CARD_W.float32,
                                height: MOD_CARD_H.float32), borderW.float32, borderColor)
 
 proc drawModsTabContent(shop: ShopWindow, contentX, contentY, contentWidth, contentHeight: int) =
@@ -1646,7 +1647,7 @@ proc drawSecretCardChrome(cardX, cardY: int, unlocked, equipped, isHovered: bool
     else: Color(r: 120, g: 60, b: 130, a: 255)
   drawRectangle(cardX.int32, cardY.int32, SECRET_CARD_W.int32, SECRET_CARD_H.int32,
                 Color(r: 22, g: 18, b: 32, a: 255))
-  drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32,
+  drawRectOutline(Rectangle(x: cardX.float32, y: cardY.float32,
                                width: SECRET_CARD_W.float32, height: SECRET_CARD_H.float32),
                      2.0'f32, borderColor)
 
@@ -1923,7 +1924,7 @@ proc drawShopWindow*(shop: ShopWindow) =
   if shop.searchVisible:
     let searchBg = if shop.searchFocused: Color(r: 45, g: 45, b: 55, a: 255) else: Color(r: 35, g: 35, b: 45, a: 255)
     drawRectangle(searchX.int32, searchY.int32, searchW.int32, searchH.int32, searchBg)
-    drawRectangleLines(Rectangle(x: searchX.float32, y: searchY.float32, width: searchW.float32, height: searchH.float32),
+    drawRectOutline(Rectangle(x: searchX.float32, y: searchY.float32, width: searchW.float32, height: searchH.float32),
                        if shop.searchFocused: 2.0'f32 else: 1.0'f32, if shop.searchFocused: Color(r: 255, g: 150, b: 50, a: 255) else: Color(r: 60, g: 60, b: 70, a: 255))
     let searchLabel = if shop.searchQuery.len == 0: "Search..." else: shop.searchQuery
     drawText(searchLabel, (searchX + 8).int32, (searchY + 6).int32, 12, if shop.searchQuery.len == 0: Color(r: 120, g: 120, b: 130, a: 255) else: White)
@@ -2005,7 +2006,7 @@ proc drawShopWindow*(shop: ShopWindow) =
 
     # Focus ring for keyboard navigation (drawn over card)
     if vIndex == shop.focusIndex:
-      drawRectangleLines(Rectangle(x: boxX.float32, y: boxY.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32), 2.0'f32, Color(r: 255, g: 200, b: 100, a: 180))
+      drawRectOutline(Rectangle(x: boxX.float32, y: boxY.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32), 2.0'f32, Color(r: 255, g: 200, b: 100, a: 180))
   endScissorMode()
 
   # Draw scrollbar if needed

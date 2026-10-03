@@ -20,6 +20,7 @@
 ## are handed back through the DungeonFrame that updateDungeon returns.
 
 import raylib, random, math, tables, strutils
+import draw_prims
 import gamepad_input, particle_types, types, roguelite, powerup, powerup_data, patches, player,
        particle_pool, sound, localization, boss_definitions, settings, coin, xp_orb, utils,
        game/combat, ui/icon_drawing, ui/ui_helpers
@@ -87,13 +88,13 @@ proc drawProximityCard*(card: ProximityCard, anchorX, anchorY: float32,
   drawRectangle(x, y, CardW, cardH, Color(r: 13, g: 18, b: 28, a: 238))
   drawRectangleGradientV(x, y, CardW, headerH + CardPad, withAlpha(accent, 46), withAlpha(accent, 0))
   drawRectangle(x, y, CardW, 3, accent)
-  drawRectangleLines(rect, 1.5, withAlpha(accent, 200))
+  drawRectOutline(rect, 1.5, withAlpha(accent, 200))
 
   # Icon tile.
   let ix = x + CardPad
   let iy = y + CardPad
   drawRectangle(ix, iy, IconBox, IconBox, Color(r: 8, g: 12, b: 20, a: 255))
-  drawRectangleLines(Rectangle(x: ix.float32, y: iy.float32, width: IconBox.float32,
+  drawRectOutline(Rectangle(x: ix.float32, y: iy.float32, width: IconBox.float32,
                                height: IconBox.float32), 1.0, withAlpha(accent, 150))
   case card.iconKind
   of pciPatch:
@@ -117,7 +118,7 @@ proc drawProximityCard*(card: ProximityCard, anchorX, anchorY: float32,
 
   # Action row: prompt on the left, price on the right.
   let ay = y + cardH - CardPad - 16
-  drawLine(x + CardPad, ay - 5, x + CardW - CardPad, ay - 5, withAlpha(accent, 60))
+  drawStroke(x + CardPad, ay - 5, x + CardW - CardPad, ay - 5, withAlpha(accent, 60))
   let blink = 0.75'f32 + 0.25'f32 * (if int(time * 2.0'f32) mod 2 == 0: 1.0'f32 else: 0.0'f32)
   let actionColor =
     if card.disabled: Color(r: 120, g: 126, b: 140, a: 255)
@@ -1505,7 +1506,7 @@ proc drawFolderTab(x, y, w, h: float32, color: Color, fillAlpha: uint8) =
   let tabW = w * 0.42'f32
   drawRectangle(Rectangle(x: x, y: y - 5, width: tabW, height: 6), withAlpha(color, fillAlpha))
   drawRectangle(Rectangle(x: x, y: y, width: w, height: h), withAlpha(color, fillAlpha))
-  drawRectangleLines(Rectangle(x: x, y: y, width: w, height: h), 1.5, withAlpha(color, 230))
+  drawRectOutline(Rectangle(x: x, y: y, width: w, height: h), 1.5, withAlpha(color, 230))
 
 proc drawExitDoor(game: Game, ex: DungeonExit, open: bool, bossNumber: int) =
   let rect = doorRect(game, ex.dir)
@@ -1514,7 +1515,7 @@ proc drawExitDoor(game: Game, ex: DungeonExit, open: bool, bossNumber: int) =
   let pulse = 0.6'f32 + 0.4'f32 * sin(game.time * 3.4'f32)
   let alphaK = if open: 1.0'f32 else: 0.38'f32
   drawRectangle(rect, withAlpha(accent, uint8(70.0'f32 * alphaK * (if open: pulse else: 1.0'f32))))
-  drawRectangleLines(rect, 2.0, withAlpha(accent, uint8(235.0'f32 * alphaK)))
+  drawRectOutline(rect, 2.0, withAlpha(accent, uint8(235.0'f32 * alphaK)))
 
   # Label card just inside the door.
   const cardW = 150'f32
@@ -1559,15 +1560,15 @@ proc drawEntryDoor(game: Game) =
   ## The door the player came in by: closed behind them (no going back).
   let rect = doorRect(game, ddDown)
   drawRectangle(rect, Color(r: 60, g: 66, b: 80, a: 90))
-  drawRectangleLines(rect, 1.5, Color(r: 110, g: 118, b: 136, a: 160))
+  drawRectOutline(rect, 1.5, Color(r: 110, g: 118, b: 136, a: 160))
   let midY = (rect.y + rect.height / 2).int32
-  drawLine((rect.x + 18).int32, midY, (rect.x + rect.width - 18).int32, midY,
+  drawStroke((rect.x + 18).int32, midY, (rect.x + rect.width - 18).int32, midY,
            Color(r: 130, g: 138, b: 156, a: 160))
 
 proc drawPedestalBase(pos: Vector2f, accent: Color, time: float32) =
   drawEllipse(pos.x.int32, (pos.y + 18).int32, 24, 8, Color(r: 0, g: 0, b: 0, a: 90))
   drawEllipse(pos.x.int32, (pos.y + 15).int32, 22, 7, Color(r: 22, g: 30, b: 44, a: 235))
-  drawEllipseLines(pos.x.int32, (pos.y + 15).int32, 22, 7, withAlpha(accent, 190))
+  drawEllipseOutline(pos.x.int32, (pos.y + 15).int32, 22, 7, withAlpha(accent, 190))
 
 proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup) =
   let t = clamp(pickup.spawnTimer / PickupSpawnTime, 0.0'f32, 1.0'f32)
@@ -1592,7 +1593,7 @@ proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup
   let size = int32(34.0'f32 * grow * (if isFocus: 1.12'f32 else: 1.0'f32))
   let ix = (pickup.pos.x - size.float32 / 2).int32
   let iy = (pickup.pos.y - size.float32 / 2 - 6 + bob).int32
-  drawCircle(Vector2(x: pickup.pos.x, y: pickup.pos.y - 6 + bob), size.float32 * 0.7'f32,
+  drawDisc(Vector2(x: pickup.pos.x, y: pickup.pos.y - 6 + bob), size.float32 * 0.7'f32,
              withAlpha(accent, uint8(if isFocus: 60 else: 34)))
   case pickup.kind
   of dpkPatchPedestal, dpkStallPatch:
@@ -1624,7 +1625,7 @@ proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup
     let tagColor = if maxed: Color(r: 130, g: 136, b: 150, a: 255)
                    elif affordable: Color(r: 255, g: 215, b: 80, a: 255)
                    else: Color(r: 255, g: 110, b: 100, a: 255)
-    drawRectangleLines(Rectangle(x: tx.float32, y: ty.float32, width: tagW.float32, height: 18),
+    drawRectOutline(Rectangle(x: tx.float32, y: ty.float32, width: tagW.float32, height: 18),
                        1.0, withAlpha(tagColor, 180))
     if maxed:
       drawText(label, tx + 5, ty + 3, 13, tagColor)
@@ -1697,9 +1698,9 @@ proc drawExitPortal(game: Game) =
   const tau = 6.2831853'f32
 
   # Outer glow + dark core
-  drawCircle(Vector2(x: cx, y: cy), baseR * 1.4'f32,
+  drawDisc(Vector2(x: cx, y: cy), baseR * 1.4'f32,
              withAlpha(accent, uint8(40.0'f32 * scale)))
-  drawCircle(Vector2(x: cx, y: cy), baseR,
+  drawDisc(Vector2(x: cx, y: cy), baseR,
              Color(r: 8, g: 6, b: 18, a: uint8(235.0'f32 * scale)))
 
   # Swirling spiral arms made of fading dots
@@ -1714,21 +1715,21 @@ proc drawExitPortal(game: Game) =
       let px = cx + cos(ang) * rr
       let py = cy + sin(ang) * rr
       let aa = uint8(255.0'f32 * (1.0'f32 - frac) * scale)
-      drawCircle(Vector2(x: px, y: py), 1.5'f32 + (1.0'f32 - frac) * 2.5'f32,
+      drawDisc(Vector2(x: px, y: py), 1.5'f32 + (1.0'f32 - frac) * 2.5'f32,
                  withAlpha(accent, aa))
 
   # Rotating rim rings
   for k in 0..2:
     let rr = baseR * (0.6'f32 + k.float32 * 0.18'f32)
     let pulse = 0.6'f32 + 0.4'f32 * sin(tm * 3.0'f32 - k.float32)
-    drawCircleLines(cx.int32, cy.int32, rr,
+    drawCircleOutline(cx.int32, cy.int32, rr,
                     Color(r: accent.r, g: accent.g, b: accent.b,
                           a: uint8(200.0'f32 * pulse * scale)))
 
   # Spawn shockwave expanding outward while opening
   if spawnT < 1.0'f32:
     let shockR = ExitPortalRadius * (0.5'f32 + spawnT * 1.8'f32)
-    drawCircleLines(cx.int32, cy.int32, shockR,
+    drawCircleOutline(cx.int32, cy.int32, shockR,
                     Color(r: accent.r, g: accent.g, b: accent.b,
                           a: uint8(180.0'f32 * (1.0'f32 - spawnT))))
   else:

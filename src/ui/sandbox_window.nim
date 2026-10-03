@@ -4,6 +4,7 @@
 ## build for any wave, then launch the sandbox.
 
 import raylib, math, strutils
+import ../draw_prims
 import os_window, os_shop, ../types, ../player, ../localization, ../render_context
 
 const
@@ -301,7 +302,7 @@ proc drawSetupButton(r: Rectangle, label: string, fill, border, text: Color,
                              g: min(255, fill.g.int + 25).uint8,
                              b: min(255, fill.b.int + 25).uint8, a: fill.a) else: fill
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, bg)
-  drawRectangleLines(r, 1.5, border)
+  drawRectOutline(r, 1.5, border)
   let tw = measureText(label, fontSize)
   drawText(label, r.x.int32 + (r.width.int32 - tw) div 2,
            r.y.int32 + (r.height.int32 - fontSize) div 2, fontSize, text)

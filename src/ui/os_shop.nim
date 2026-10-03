@@ -2,6 +2,7 @@
 ## Shop screen redesigned as a modern OS storefront interface
 
 import raylib, math, strutils
+import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context
 import ../modding/mod_hooks
 
@@ -320,7 +321,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
     Color(r: 100, g: 120, b: 140, a: 255)
 
   let borderWidth = if isSelected: 2.5 else: 2.0
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
                     borderWidth, borderColor)
 
@@ -370,7 +371,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
     let badgeBorder = Color(r: 0, g: 200, b: 100, a: 255)
     let badgeText2Color = Color(r: 120, g: 255, b: 160, a: 255)
     drawRectangle(badgeX, badgeY, badgeW, 16.int32, badgeBg)
-    drawRectangleLines(Rectangle(x: badgeX.float32, y: badgeY.float32,
+    drawRectOutline(Rectangle(x: badgeX.float32, y: badgeY.float32,
                                   width: badgeW.float32, height: 16.0), 1.0, badgeBorder)
     drawText(badgeText, badgeX + 5, badgeY + 3, 10, badgeText2Color)
 
@@ -424,10 +425,10 @@ proc drawShop*(game: Game) =
                  Color(r: 30, g: 36, b: 48, a: 255))
 
   # Window borders
-  drawRectangleLines(Rectangle(x: windowX.float32, y: windowY.float32,
+  drawRectOutline(Rectangle(x: windowX.float32, y: windowY.float32,
                                 width: windowW.float32, height: windowH.float32),
                     4, Color(r: 0, g: 180, b: 255, a: 255))
-  drawRectangleLines(Rectangle(x: (windowX + 2).float32, y: (windowY + 2).float32,
+  drawRectOutline(Rectangle(x: (windowX + 2).float32, y: (windowY + 2).float32,
                                 width: (windowW - 4).float32, height: (windowH - 4).float32),
                     1, Color(r: 60, g: 75, b: 95, a: 255))
 
@@ -451,7 +452,7 @@ proc drawShop*(game: Game) =
   let closeX = L.closeX
   drawRectangle(closeX, closeButtonY, buttonSize, buttonSize,
                Color(r: 220, g: 50, b: 50, a: 255))
-  drawRectangleLines(Rectangle(x: closeX.float32, y: closeButtonY.float32,
+  drawRectOutline(Rectangle(x: closeX.float32, y: closeButtonY.float32,
                                 width: buttonSize.float32, height: buttonSize.float32),
                     1, Color(r: 180, g: 30, b: 30, a: 255))
   drawText("X", closeX + 8, closeButtonY + 5, 18, White)
@@ -469,7 +470,7 @@ proc drawShop*(game: Game) =
 
   drawRectangle(sidebarX, sidebarY, sidebarWidth, sidebarHeight,
                Color(r: 30, g: 38, b: 52, a: 255))
-  drawRectangleLines(Rectangle(x: sidebarX.float32, y: sidebarY.float32,
+  drawRectOutline(Rectangle(x: sidebarX.float32, y: sidebarY.float32,
                                 width: sidebarWidth.float32, height: sidebarHeight.float32),
                     1, Color(r: 0, g: 140, b: 200, a: 255))
 
@@ -646,7 +647,7 @@ proc drawShop*(game: Game) =
                Color(r: 255, g: 220, b: 0, a: 60))
 
   # Border
-  drawRectangleLines(Rectangle(x: creditsBoxX.float32, y: creditsBoxY.float32,
+  drawRectOutline(Rectangle(x: creditsBoxX.float32, y: creditsBoxY.float32,
                                 width: creditsBoxWidth.float32, height: creditsBoxHeight.float32),
                     2, Color(r: 255, g: 215, b: 0, a: 200))
 
@@ -691,7 +692,7 @@ proc drawShop*(game: Game) =
   else:
     Color(r: 100, g: 110, b: 120, a: 255)
 
-  drawRectangleLines(Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
+  drawRectOutline(Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
                                 width: buyButtonWidth.float32, height: buyButtonHeight.float32),
                     2.5, buyBorderColor)
 
@@ -716,20 +717,20 @@ proc drawShop*(game: Game) =
     let angle = game.time * 4.0 + i.float32 * PI / 4.0
     let x = mousePos.x + cos(angle) * cursorPulse
     let y = mousePos.y + sin(angle) * cursorPulse
-    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+    drawDisc(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
 
   # Crosshair lines
-  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y),
+  drawStroke(Vector2(x: mousePos.x - 8, y: mousePos.y),
           Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y),
+  drawStroke(Vector2(x: mousePos.x + 3, y: mousePos.y),
           Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8),
+  drawStroke(Vector2(x: mousePos.x, y: mousePos.y - 8),
           Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3),
+  drawStroke(Vector2(x: mousePos.x, y: mousePos.y + 3),
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
 
   # Center dot
-  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
+  drawDisc(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
 
 proc buyShopItem*(game: Game, index: int) =
   if index < 0 or index > 5: return

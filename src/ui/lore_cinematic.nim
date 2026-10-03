@@ -6,6 +6,7 @@
 ## newLoreCutscene() assembles the shots on the generic framework in cutscene.nim.
 
 import raylib, rlgl, math
+import ../draw_prims
 from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../localization, ../sound, ../boss_definitions,
        cinematic_common, cutscene, os_desktop
@@ -72,11 +73,11 @@ proc drawOSWindowFrame(x, y, w, h: float32, title: string, alpha: float32) =
   drawText(title, xi + 10, yi + 6, 14, Color(r: 230, g: 250, b: 255, a: alphaByte(alpha * 235.0'f32)))
   for k in 0..2:
     let bx = xi + wi - 22 - k.int32 * 22
-    drawRectangleLines(bx, yi + 6, 14, 14, colorA(LoreAccent, alpha * 170.0'f32))
+    drawRectOutline(bx, yi + 6, 14, 14, colorA(LoreAccent, alpha * 170.0'f32))
     if k == 0:
-      drawLine(bx + 3, yi + 9, bx + 11, yi + 17, colorA(LoreAccent, alpha * 200.0'f32))
-      drawLine(bx + 11, yi + 9, bx + 3, yi + 17, colorA(LoreAccent, alpha * 200.0'f32))
-  drawRectangleLines(xi, yi, wi, hi, colorA(LoreAccent, alpha * 200.0'f32))
+      drawStroke(bx + 3, yi + 9, bx + 11, yi + 17, colorA(LoreAccent, alpha * 200.0'f32))
+      drawStroke(bx + 11, yi + 9, bx + 3, yi + 17, colorA(LoreAccent, alpha * 200.0'f32))
+  drawRectOutline(xi, yi, wi, hi, colorA(LoreAccent, alpha * 200.0'f32))
 
 proc drawContainment(pos: Vector2f, r, time, alpha: float32, strain: float32 = 0.0'f32) =
   ## The kernel's containment cage: two counter-turning hex rings and bars.
@@ -84,11 +85,11 @@ proc drawContainment(pos: Vector2f, r, time, alpha: float32, strain: float32 = 0
   let cage = Color(r: uint8(lerpF(0, 255, strain)), g: uint8(lerpF(190, 60, strain)),
                    b: uint8(lerpF(210, 190, strain)), a: 255)
   let c = Vector2(x: pos.x, y: pos.y)
-  drawPolyLines(c, 6, r, time * 9.0'f32, colorA(cage, alpha * 170.0'f32))
-  drawPolyLines(c, 6, r + 6.0'f32, -time * 6.0'f32, colorA(cage, alpha * 110.0'f32))
+  drawPolyOutline(c, 6, r, time * 9.0'f32, colorA(cage, alpha * 170.0'f32))
+  drawPolyOutline(c, 6, r + 6.0'f32, -time * 6.0'f32, colorA(cage, alpha * 110.0'f32))
   for i in 0..<6:
     let a = degToRad(time * 9.0'f32) + i.float32 * PI / 3.0'f32
-    drawLine(Vector2(x: pos.x + cos(a) * r * 0.62'f32, y: pos.y + sin(a) * r * 0.62'f32),
+    drawStroke(Vector2(x: pos.x + cos(a) * r * 0.62'f32, y: pos.y + sin(a) * r * 0.62'f32),
              Vector2(x: pos.x + cos(a) * r, y: pos.y + sin(a) * r), 2.0'f32,
              colorA(cage, alpha * 120.0'f32))
 
@@ -105,7 +106,7 @@ proc drawTendril(a, b: Vector2, reach, time, seed, alpha: float32, col: Color) =
     let dy = b.y - a.y
     let len = max(1.0'f32, sqrt(dx * dx + dy * dy))
     let p = Vector2(x: a.x + dx * u - dy / len * wob, y: a.y + dy * u + dx / len * wob)
-    drawLine(prev, p, 2.0'f32, colorA(col, alpha * (1.0'f32 - u * 0.4'f32)))
+    drawStroke(prev, p, 2.0'f32, colorA(col, alpha * (1.0'f32 - u * 0.4'f32)))
     prev = p
 
 # ---------------------------------------------------------------------------
@@ -144,12 +145,12 @@ proc drawBreachShot(local, duration: float32, screenWidth, screenHeight: int32,
     let ang = PI + (hash01(k.float32 + 3.0'f32) - 0.5'f32) * 1.9'f32
     let len = force * (60.0'f32 + hash01(k.float32 + 9.0'f32) * 120.0'f32)
     let sy = wy + 50.0'f32 + hash01(k.float32 + 17.0'f32) * (winH - 70.0'f32)
-    drawLine(Vector2(x: riftX, y: sy), Vector2(x: riftX + cos(ang) * len, y: sy + sin(ang) * len),
+    drawStroke(Vector2(x: riftX, y: sy), Vector2(x: riftX + cos(ang) * len, y: sy + sin(ang) * len),
              1.5'f32, colorA(RootMagenta, alpha * force * 140.0'f32))
   # Shock rings off the tear.
   for i in 0..<5:
     let r = fractCoord(local * 0.45'f32 + i.float32 * 0.2'f32) * 300.0'f32 * force
-    drawCircleLines(Vector2(x: riftX, y: cy), r,
+    drawCircleOutline(Vector2(x: riftX, y: cy), r,
                     colorA(RootMagenta, alpha * force * (1.0'f32 - r / 300.0'f32) * 120.0'f32))
 
   # The warning, drawn over the tear so it stays legible: an unknown host
@@ -226,7 +227,7 @@ proc newFloodShot(): CutsceneDrawProc =
           drawRectangle(x0 + off, bandY, ICON_SIZE, 3,
                         if k mod 2 == 0: colorA(RootMagenta, alpha * c * 170.0'f32)
                         else: Color(r: 0, g: 255, b: 255, a: alphaByte(alpha * c * 120.0'f32)))
-        drawRectangleLines(x0 - 2, y0 - 2, ICON_SIZE + 4, ICON_SIZE + 4, colorA(HijackRed, alpha * c * 200.0'f32))
+        drawRectOutline(x0 - 2, y0 - 2, ICON_SIZE + 4, ICON_SIZE + 4, colorA(HijackRed, alpha * c * 200.0'f32))
 
     # The tear the flood pours from.
     drawRift(cx, riftTop, riftBottom, 1.0'f32, local, alpha)
@@ -290,7 +291,7 @@ proc drawAwakenShot(local, duration: float32, screenWidth, screenHeight: int32,
   let boot = easeOut(clamp01((t01 - 0.36'f32) / 0.3'f32))
   if beam >= 1.0'f32:
     let ring = clamp01((t01 - 0.36'f32) / 0.25'f32)
-    drawCircleLines(Vector2(x: cx, y: py), 18.0'f32 + ring * 90.0'f32,
+    drawCircleOutline(Vector2(x: cx, y: py), 18.0'f32 + ring * 90.0'f32,
                     colorA(LoreAccent, alpha * (1.0'f32 - ring) * 220.0'f32))
   if boot > 0.0'f32:
     drawSoftGlow(cx, py, 105.0'f32 * boot, Color(r: 0, g: 220, b: 255, a: alphaByte(alpha * 40.0'f32)), 1.0'f32)
@@ -299,7 +300,7 @@ proc drawAwakenShot(local, duration: float32, screenWidth, screenHeight: int32,
       let r = (80.0'f32 + sin(local * 3.0'f32 + i.float32) * 10.0'f32) * boot
       let dx = cx + cos(a) * r
       let dy = py + sin(a) * r * 0.62'f32
-      drawCircle(Vector2(x: dx, y: dy), 3.0'f32 + boot * 2.0'f32,
+      drawDisc(Vector2(x: dx, y: dy), 3.0'f32 + boot * 2.0'f32,
                  Color(r: 0, g: 255, b: 220, a: alphaByte(alpha * boot * 150.0'f32)))
     drawEquippedPlayerModel(newVector2f(cx, py), 30.0'f32 * (0.3'f32 + boot * 0.7'f32),
                             local, alpha * boot, 0.22'f32)
@@ -319,7 +320,7 @@ proc drawAwakenShot(local, duration: float32, screenWidth, screenHeight: int32,
     let shown = text.runeSubStr(0, min(n, text.runeLen))
     drawText(shown, logX + 10, logY + 8 + i.int32 * 20, 14, colorA(col, alpha * 230.0'f32))
   if shownAny:
-    drawRectangleLines(logX, logY, 360, 70, colorA(LoreAccent, alpha * 90.0'f32))
+    drawRectOutline(logX, logY, 360, 70, colorA(LoreAccent, alpha * 90.0'f32))
 
   drawSubtitles([t(tkLoreAwaken1), t(tkLoreAwaken2)], screenWidth, screenHeight, alpha)
 
@@ -339,7 +340,7 @@ proc newRootShot(): CutsceneDrawProc =
     drawSoftGlow(cx, cy, 280.0'f32 * reveal, Color(r: 180, g: 0, b: 255, a: alphaByte(alpha * 65.0'f32)), 1.0'f32)
     for ring in 0..<4:
       let r = 70.0'f32 + ring.float32 * 38.0'f32 + sin(local * 2.2'f32 + ring.float32) * 7.0'f32
-      drawCircleLines(Vector2(x: cx, y: cy), r * reveal,
+      drawCircleOutline(Vector2(x: cx, y: cy), r * reveal,
                       Color(r: 230, g: 80, b: 255, a: alphaByte(alpha * (120.0'f32 - ring.float32 * 20.0'f32))))
 
     let bossR = 84.0'f32 * reveal
@@ -368,9 +369,9 @@ proc newRootShot(): CutsceneDrawProc =
                     alpha * (if h < 1.0'f32: 210.0'f32 else: 70.0'f32), RootMagenta)
       let snap = clamp01((local - startAt - 0.3'f32) / 0.4'f32)
       if snap > 0.0'f32 and snap < 1.0'f32:
-        drawCircleLines(Vector2(x: px, y: py), 10.0'f32 + snap * 34.0'f32,
+        drawCircleOutline(Vector2(x: px, y: py), 10.0'f32 + snap * 34.0'f32,
                         colorA(HijackRed, alpha * (1.0'f32 - snap) * 200.0'f32))
-      drawCircle(Vector2(x: px, y: py - 13.0'f32), 3.0'f32, colorA(col, alpha * reveal * 230.0'f32))
+      drawDisc(Vector2(x: px, y: py - 13.0'f32), 3.0'f32, colorA(col, alpha * reveal * 230.0'f32))
       drawCenteredText(name, px.int32 + 1, (py - 5.0'f32).int32, 14,
                        Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * reveal * 200.0'f32)))
       drawCenteredText(name, px.int32, (py - 6.0'f32).int32, 14, colorA(col, alpha * reveal * 245.0'f32))
@@ -395,7 +396,7 @@ proc drawCounterShot(local, duration: float32, screenWidth, screenHeight: int32,
     let bx = muzzleX + p * screenWidth.float32 * 0.88'f32
     let by = y + sin(i.float32 * 1.9'f32) * 92.0'f32 + sin(local * 5.0'f32 + i.float32) * 8.0'f32
     let a = alpha * (1.0'f32 - p) * 220.0'f32
-    drawLine((bx - 46.0'f32).int32, by.int32, bx.int32, by.int32,
+    drawStroke((bx - 46.0'f32).int32, by.int32, bx.int32, by.int32,
              Color(r: 0, g: 255, b: 235, a: alphaByte(a * 0.45'f32)))
     drawEquippedBulletModel(newVector2f(bx, by), 8.0'f32, 0.0'f32, local + i.float32, alpha * (1.0'f32 - p))
   for i in 0..<18:
@@ -403,7 +404,7 @@ proc drawCounterShot(local, duration: float32, screenWidth, screenHeight: int32,
     let ex = screenWidth.float32 * (0.57'f32 + fractCoord(i.float32 * 0.37'f32) * 0.36'f32)
     let ey = screenHeight.float32 * (0.2'f32 + fractCoord(i.float32 * 0.51'f32) * 0.52'f32)
     let r = 9.0'f32 + sin((p + local) * 9.0'f32) * 5.0'f32 + p * 38.0'f32
-    drawCircleLines(Vector2(x: ex, y: ey), r, Color(r: 255, g: 160, b: 45, a: alphaByte(alpha * (1.0'f32 - p) * 170.0'f32)))
+    drawCircleOutline(Vector2(x: ex, y: ey), r, Color(r: 255, g: 160, b: 45, a: alphaByte(alpha * (1.0'f32 - p) * 170.0'f32)))
 
   drawSubtitles([t(tkLoreCounter1), t(tkLoreCounter2)], screenWidth, screenHeight, alpha)
 

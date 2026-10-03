@@ -2,6 +2,7 @@
 ## All icons drawn programmatically using shapes with depth and polish
 
 import raylib, rlgl, math
+import ../draw_prims
 import ../types, ../utils
 import ../modding/mod_assets
 
@@ -42,7 +43,7 @@ proc drawLockIcon*(x, y, size: int32,
   let khColor = Color(r: 25, g: 30, b: 40, a: color.a)
   let khCX = fx + s * 0.5
   let khCY = bodyY + bodyH * 0.42
-  drawCircle(Vector2(x: khCX, y: khCY), s * 0.085, khColor)
+  drawDisc(Vector2(x: khCX, y: khCY), s * 0.085, khColor)
   drawRectangle(int32(khCX - s * 0.03), int32(khCY),
                 max(1'i32, int32(s * 0.06)), int32(s * 0.17), khColor)
 
@@ -59,10 +60,10 @@ proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
   of ciCredits:
     let outer = Color(r: 255, g: 215, b: 0, a: alpha)
     let inner = Color(r: 205, g: 160, b: 0, a: alpha)
-    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 2).float32), radius, shadow)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius, outer)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius * 0.72'f32, inner)
-    drawCircleLines(cx, cy, radius, Color(r: 255, g: 242, b: 130, a: alpha))
+    drawDisc(Vector2(x: (cx + 1).float32, y: (cy + 2).float32), radius, shadow)
+    drawDisc(Vector2(x: cx.float32, y: cy.float32), radius, outer)
+    drawDisc(Vector2(x: cx.float32, y: cy.float32), radius * 0.72'f32, inner)
+    drawCircleOutline(cx, cy, radius, Color(r: 255, g: 242, b: 130, a: alpha))
     drawText("$", cx - size div 7, cy - size div 3, max(8'i32, size div 2),
              Color(r: 55, g: 42, b: 0, a: alpha))
   of ciDataShards:
@@ -72,20 +73,20 @@ proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
     let top = Vector2(x: cx.float32, y: cy.float32 - radius)
     let left = Vector2(x: cx.float32 - radius * 0.82'f32, y: cy.float32 + radius * 0.72'f32)
     let right = Vector2(x: cx.float32 + radius * 0.82'f32, y: cy.float32 + radius * 0.72'f32)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius * 1.05'f32, glow)
+    drawDisc(Vector2(x: cx.float32, y: cy.float32), radius * 1.05'f32, glow)
     drawTriangle(top, left, right, fill)
-    drawTriangleLines(top, left, right, edge)
-    drawLine(cx, cy - (radius * 0.72'f32).int32, cx, cy + (radius * 0.45'f32).int32,
+    drawTriangleOutline(top, left, right, edge)
+    drawStroke(cx, cy - (radius * 0.72'f32).int32, cx, cy + (radius * 0.45'f32).int32,
              Color(r: 220, g: 255, b: 255, a: alpha))
-    drawCircle(Vector2(x: (cx - 2).float32, y: (cy - 3).float32), max(1.5'f32, radius * 0.16'f32),
+    drawDisc(Vector2(x: (cx - 2).float32, y: (cy - 3).float32), max(1.5'f32, radius * 0.16'f32),
                Color(r: 255, g: 255, b: 255, a: uint8(min(220, alpha.int))))
   of ciCore:
     let core = Color(r: 255, g: 95, b: 42, a: alpha)
     let hot = Color(r: 255, g: 214, b: 78, a: alpha)
-    drawCircle(Vector2(x: (cx + 1).float32, y: (cy + 2).float32), radius, shadow)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius, core)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius * 0.52'f32, hot)
-    drawCircleLines(cx, cy, radius * 1.16'f32, Color(r: 255, g: 130, b: 80, a: uint8(alpha.int div 2)))
+    drawDisc(Vector2(x: (cx + 1).float32, y: (cy + 2).float32), radius, shadow)
+    drawDisc(Vector2(x: cx.float32, y: cy.float32), radius, core)
+    drawDisc(Vector2(x: cx.float32, y: cy.float32), radius * 0.52'f32, hot)
+    drawCircleOutline(cx, cy, radius * 1.16'f32, Color(r: 255, g: 130, b: 80, a: uint8(alpha.int div 2)))
     drawTriangle(
       Vector2(x: cx.float32, y: cy.float32 - radius * 0.98'f32),
       Vector2(x: cx.float32 - radius * 0.34'f32, y: cy.float32 - radius * 0.05'f32),
@@ -94,13 +95,13 @@ proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
   of ciHeat:
     let heat = Color(r: 255, g: 120, b: 60, a: alpha)
     let bright = Color(r: 255, g: 222, b: 86, a: alpha)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32 + radius * 0.28'f32), radius * 0.58'f32, shadow)
+    drawDisc(Vector2(x: cx.float32, y: cy.float32 + radius * 0.28'f32), radius * 0.58'f32, shadow)
     drawTriangle(
       Vector2(x: cx.float32, y: cy.float32 - radius),
       Vector2(x: cx.float32 - radius * 0.68'f32, y: cy.float32 + radius * 0.68'f32),
       Vector2(x: cx.float32 + radius * 0.68'f32, y: cy.float32 + radius * 0.68'f32),
       heat)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32 + radius * 0.28'f32), radius * 0.68'f32, heat)
+    drawDisc(Vector2(x: cx.float32, y: cy.float32 + radius * 0.28'f32), radius * 0.68'f32, heat)
     drawTriangle(
       Vector2(x: cx.float32, y: cy.float32 - radius * 0.42'f32),
       Vector2(x: cx.float32 - radius * 0.28'f32, y: cy.float32 + radius * 0.55'f32),
@@ -112,10 +113,10 @@ proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
     let glow = Color(r: 80, g: 255, b: 200, a: uint8(alpha.int div 4))
     let body = Color(r: 90, g: 255, b: 170, a: alpha)
     let core = Color(r: 220, g: 255, b: 240, a: alpha)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius * 1.18'f32, glow)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius, body)
-    drawCircle(Vector2(x: cx.float32, y: cy.float32), radius * 0.5'f32, core)
-    drawCircleLines(cx, cy, radius, Color(r: 180, g: 255, b: 220, a: alpha))
+    drawDisc(Vector2(x: cx.float32, y: cy.float32), radius * 1.18'f32, glow)
+    drawDisc(Vector2(x: cx.float32, y: cy.float32), radius, body)
+    drawDisc(Vector2(x: cx.float32, y: cy.float32), radius * 0.5'f32, core)
+    drawCircleOutline(cx, cy, radius, Color(r: 180, g: 255, b: 220, a: alpha))
   of ciNone:
     discard
 
@@ -215,16 +216,16 @@ proc iconOutline(pts: openArray[Vector2], thick: float32, col: Color) =
   ## Closed stroke with round joins. Drawn under a fill, half of it survives
   ## as the ink rim.
   for i in 0 ..< pts.len:
-    drawLine(pts[i], pts[(i + 1) mod pts.len], thick, col)
-    drawCircle(pts[i], thick * 0.5'f32, col)
+    drawStroke(pts[i], pts[(i + 1) mod pts.len], thick, col)
+    drawDisc(pts[i], thick * 0.5'f32, col)
 
 proc iconStroke(pts: openArray[Vector2], thick: float32, col: Color) =
   ## Open polyline with round joins and caps (for opaque colours: the joins
   ## overlap, which a translucent colour would show).
   for i in 0 ..< pts.len - 1:
-    drawLine(pts[i], pts[i + 1], thick, col)
+    drawStroke(pts[i], pts[i + 1], thick, col)
   for p in pts:
-    drawCircle(p, thick * 0.5'f32, col)
+    drawDisc(p, thick * 0.5'f32, col)
 
 proc iconInkStroke(pts: openArray[Vector2], thick: float32, col, ink: Color) =
   iconStroke(pts, thick + IconEdge, ink)
@@ -249,8 +250,8 @@ proc iconBrick(x0, y0, x1, y1: float32, fill, top, bottom: Color) =
   iconRect(x0, y1 - 1.0'f32, x1, y1, bottom)
 
 proc iconDisc(c: Vector2, r: float32, fill, ink: Color) =
-  drawCircle(c, r + IconEdge * 0.5'f32, ink)
-  drawCircle(c, r, fill)
+  drawDisc(c, r + IconEdge * 0.5'f32, ink)
+  drawDisc(c, r, fill)
 
 proc iconArc(c: Vector2, r, a0, a1, thick: float32, col: Color) =
   ## Band of width `thick` along a circular arc (degrees, clockwise).
@@ -260,8 +261,8 @@ proc iconInkArc(c: Vector2, r, a0, a1, thick: float32, col, ink: Color) =
   ## Arc band with an ink rim and round ends.
   for (w, fill) in [(thick + IconEdge, ink), (thick, col)]:
     iconArc(c, r, a0, a1, w, fill)
-    drawCircle(polar(c, r, a0), w * 0.5'f32, fill)
-    drawCircle(polar(c, r, a1), w * 0.5'f32, fill)
+    drawDisc(polar(c, r, a0), w * 0.5'f32, fill)
+    drawDisc(polar(c, r, a1), w * 0.5'f32, fill)
 
 proc iconArcPts(c: Vector2, r, a0, a1: float32, n: int): seq[Vector2] =
   ## n + 1 points along a circular arc from a0 to a1 (degrees, either way).
@@ -285,9 +286,9 @@ proc iconImpact(c: Vector2, r0, r1: float32, rays: int, a0, span: float32, col, 
 proc iconGlint(c: Vector2, len: float32, col: Color) =
   ## Specular glint on glass or polished metal: a long and a short tick.
   const a = -55.0'f32
-  drawLine(polar(c, len * 0.5'f32, a + 180.0'f32), polar(c, len * 0.5'f32, a), 1.3, col)
+  drawStroke(polar(c, len * 0.5'f32, a + 180.0'f32), polar(c, len * 0.5'f32, a), 1.3, col)
   let c2 = polar(c, 2.3, a + 90.0'f32)
-  drawLine(polar(c2, len * 0.22'f32, a + 180.0'f32), polar(c2, len * 0.22'f32, a), 1.3, col)
+  drawStroke(polar(c2, len * 0.22'f32, a + 180.0'f32), polar(c2, len * 0.22'f32, a), 1.3, col)
 
 proc iconFlash(p: Vector2, dirDeg, size: float32, fill, ink: Color) =
   ## Muzzle flash: one long forward prong between two swept side prongs.
@@ -329,10 +330,10 @@ proc iconTaper(p0, p1, p2: Vector2, width: float32, bothEnds: bool, fill, ink: C
 proc iconShadedDisc(c: Vector2, r: float32, fill, shadow, ink: Color) =
   ## Disc with a crisp crescent of shadow: the lit disc sits inside the
   ## shadow disc, tangent to it at the upper left.
-  drawCircle(c, r + IconEdge * 0.5'f32, ink)
-  drawCircle(c, r, shadow)
+  drawDisc(c, r + IconEdge * 0.5'f32, ink)
+  drawDisc(c, r, shadow)
   let d = r * 0.18'f32 * 0.7071'f32
-  drawCircle(sv(c.x - d, c.y - d), r * 0.82'f32, fill)
+  drawDisc(sv(c.x - d, c.y - d), r * 0.82'f32, fill)
 
 proc iconCelFill(c: Vector2, pts: openArray[Vector2], fill, shadow: Color) =
   ## Fill a shape that is star-shaped around `c`, leaving a hard band of
@@ -422,7 +423,7 @@ proc iconShield(cx, top, w, h: float32, pal: IconPalette) =
   ## Ink-rimmed shield with a bevelled face, ready for an emblem on top.
   iconShape(iconShieldPts(cx, top, w, h), pal.base, pal.ink)
   iconFan(iconShieldPts(cx, top + h * 0.12'f32, w * 0.7'f32, h * 0.76'f32), pal.shade)
-  drawLine(sv(cx - w * 0.5'f32 + 1.4'f32, top + 1.2'f32),
+  drawStroke(sv(cx - w * 0.5'f32 + 1.4'f32, top + 1.2'f32),
            sv(cx + w * 0.5'f32 - 1.4'f32, top + 1.2'f32), 1.1, pal.light)
 
 const BoltPts = [(14.0'f32, 2.0'f32), (23.0'f32, 2.0'f32), (18.5'f32, 12.0'f32),
@@ -463,7 +464,7 @@ proc iconBullet(c: Vector2, dirDeg, length: float32, pal: IconPalette) =
   iconFan(shell, pal.base)
   iconFan(nose, pal.light)
   iconRect(back - 0.6'f32, -r - 0.6'f32, back + 1.3'f32, r + 0.6'f32, pal.deep)   # rim
-  drawLine(sv(back + 2.0'f32, -r * 0.45'f32), sv(noseBase + noseLen * 0.4'f32, -r * 0.45'f32),
+  drawStroke(sv(back + 2.0'f32, -r * 0.45'f32), sv(noseBase + noseLen * 0.4'f32, -r * 0.45'f32),
            max(0.8'f32, r * 0.3'f32), pal.pale)
   rlgl.popMatrix()
 
@@ -488,17 +489,17 @@ proc iconSword(c: Vector2, rotDeg, s: float32, pal: IconPalette) =
   # that stops short of the point, and a nick taken out of the edge.
   iconFan(blade, pal.steel)
   iconFan([sv(0, -15.5), sv(2.3, -10), sv(3.3, 3.5), sv(1.6, 3.5), sv(1.0, -10)], pal.steelDark)
-  drawLine(sv(-1.5, -10), sv(-2.2, 2.5), 0.9, pal.steelLight)
-  drawLine(sv(0, -8), sv(0, 2.5), 1.1, pal.steelDark)
+  drawStroke(sv(-1.5, -10), sv(-2.2, 2.5), 0.9, pal.steelLight)
+  drawStroke(sv(0, -8), sv(0, 2.5), 1.1, pal.steelDark)
   iconTri(sv(3.4, -4.3), sv(1.8, -3.2), sv(3.4, -2.1), pal.ink)
   # Down-swept crossguard.
   iconFanAround(sv(0, 5), guard, pal.base)
-  drawLine(sv(-8.9, 5.0), sv(-2.6, 3.7), 0.9, pal.light)
-  drawLine(sv(2.6, 3.7), sv(8.9, 5.0), 0.9, pal.light)
+  drawStroke(sv(-8.9, 5.0), sv(-2.6, 3.7), 0.9, pal.light)
+  drawStroke(sv(2.6, 3.7), sv(8.9, 5.0), 0.9, pal.light)
   # Leather-wrapped grip.
   iconRect(-1.7, 6.4, 1.7, 11.8, pal.deep)
   for yy in [7.5'f32, 9.2'f32, 10.9'f32]:
-    drawLine(sv(-1.7, yy + 0.7'f32), sv(1.7, yy - 0.7'f32), 0.8, pal.ink)
+    drawStroke(sv(-1.7, yy + 0.7'f32), sv(1.7, yy - 0.7'f32), 0.8, pal.ink)
   # Faceted pommel: lit facet up-left, shadowed facet down-right.
   iconFan(pommel, pal.base)
   iconFan([sv(0, 11.6), sv(0, 14), sv(-2.4, 14)], pal.light)
@@ -604,15 +605,15 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       let chip = Rectangle(x: 8, y: 8, width: 16, height: 16)
       drawRectangleRounded(Rectangle(x: 7, y: 7, width: 18, height: 18), 0.3, 6, ink)
       drawRectangleRounded(chip, 0.3, 6, base)
-      drawCircle(sv(16, 7.5), 3.2, ink)
-      drawCircle(sv(16, 7.5), 2.4, base)
-      drawCircle(sv(24.5, 16), 3.2, ink)
-      drawCircle(sv(24.5, 16), 2.4, base)
-      drawCircle(sv(12.5, 12.5), 1.6, pale)
+      drawDisc(sv(16, 7.5), 3.2, ink)
+      drawDisc(sv(16, 7.5), 2.4, base)
+      drawDisc(sv(24.5, 16), 3.2, ink)
+      drawDisc(sv(24.5, 16), 2.4, base)
+      drawDisc(sv(12.5, 12.5), 1.6, pale)
   of puDoubleShot:
     # Two-round burst; the trailing round sits a step back.
-    drawLine(sv(3, 10), sv(8.5, 10), 1.8, faded(light, 0.6))
-    drawLine(sv(1.5, 22), sv(5.5, 22), 1.8, faded(light, 0.6))
+    drawStroke(sv(3, 10), sv(8.5, 10), 1.8, faded(light, 0.6))
+    drawStroke(sv(1.5, 22), sv(5.5, 22), 1.8, faded(light, 0.6))
     iconBullet(sv(19, 10), 0, 17, pal)
     iconBullet(sv(16, 22), 0, 17, pal)
 
@@ -632,7 +633,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # Homing: a round bending along a dashed track into a locked-on target.
     let (p0, p1, p2) = (sv(3.5, 28.5), sv(4.5, 18), sv(11, 16.3))
     for i in countup(0, 8, 2):
-      drawLine(qbez(p0, p1, p2, i.float32 / 10.0'f32),
+      drawStroke(qbez(p0, p1, p2, i.float32 / 10.0'f32),
                qbez(p0, p1, p2, (i + 1).float32 / 10.0'f32), 1.8, faded(light, 0.8))
     iconBullet(sv(16.5, 13.3), -29.5, 11, pal)
     let target = sv(25, 8.5)
@@ -652,17 +653,17 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for (c, pts) in [(square, foes[0]), (diamond, foes[1])]:
       iconOutline(pts, IconEdge, ink)
       iconCelFill(c, pts, pal.steel, pal.steelDark)
-    drawLine(sv(1.5, 16), sv(23, 16), 2.6, ink)
-    drawLine(sv(1.5, 16), sv(23, 16), 1.2, pale)
+    drawStroke(sv(1.5, 16), sv(23, 16), 2.6, ink)
+    drawStroke(sv(1.5, 16), sv(23, 16), 1.2, pale)
     for c in [square, diamond]:
-      drawCircle(c, 1.7, ink)
+      drawDisc(c, 1.7, ink)
     iconBullet(sv(26.5, 16), 0, 8, pal)
 
   of puMultiShot:
     # Three rounds fanning out of one muzzle.
     let muzzle = sv(5, 16)
     for a in [-36.0'f32, 0.0'f32, 36.0'f32]:
-      drawLine(muzzle, polar(muzzle, 9, a), 1.4, faded(light, 0.55))
+      drawStroke(muzzle, polar(muzzle, 9, a), 1.4, faded(light, 0.55))
     for a in [-36.0'f32, 0.0'f32, 36.0'f32]:
       iconBullet(polar(muzzle, 16, a), a, 13, pal)
     iconDisc(muzzle, 3.4, light, ink)
@@ -688,8 +689,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawRectangleRounded(Rectangle(x: 1.7, y: 4.2, width: 28.6, height: 23.6), 0.2, 4, ink)
     drawRectangleRounded(Rectangle(x: 3, y: 5.5, width: 26, height: 21), 0.2, 4, deep)
     for gx in [9.5'f32, 16.0'f32, 22.5'f32]:
-      drawLine(sv(gx, 7), sv(gx, 25), 0.7, shade)
-    drawLine(sv(4.5, 16), sv(27.5, 16), 0.7, shade)
+      drawStroke(sv(gx, 7), sv(gx, 25), 0.7, shade)
+    drawStroke(sv(4.5, 16), sv(27.5, 16), 0.7, shade)
     var wave = @[sv(4.5, 21)]
     var wx = 4.5'f32
     for period in [7.4'f32, 5.8, 4.4, 3.4]:
@@ -706,7 +707,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   of puOvercharge:
     # A round gathering power the farther it flies: charge bars rising
     # along its track.
-    drawLine(sv(2.5, 22.5), sv(17.5, 22.5), 1.3, faded(light, 0.5))
+    drawStroke(sv(2.5, 22.5), sv(17.5, 22.5), 1.3, faded(light, 0.5))
     for (x, h, col) in [(4.5'f32, 4.0'f32, shade), (9.5'f32, 7.5'f32, base),
                         (14.5'f32, 11.5'f32, light)]:
       iconInkRect(x - 1.6'f32, 21 - h, x + 1.6'f32, 21, col, ink)
@@ -721,7 +722,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     iconCelFill(c, plate, base, shade)
     let rivets = iconHeartPts(c, 0.7)
     for i in [5, 12, 17, 23, 28, 35]:
-      drawCircle(rivets[i], 1.05, deep)
+      drawDisc(rivets[i], 1.05, deep)
 
   of puSpeedBoost:
     # Momentum: Newton's cradle, the end ball swung out and about to drop.
@@ -731,8 +732,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     let swung = polar(pivot, 15, 115)
     iconArc(pivot, 15, 95, 108, 1.2, faded(light, 0.6))
     for px in [16.0'f32, 21.2'f32, 26.4'f32]:
-      drawLine(sv(px, 5), sv(px, 19.5), 0.8, light)
-    drawLine(pivot, swung, 0.8, light)
+      drawStroke(sv(px, 5), sv(px, 19.5), 0.8, light)
+    drawStroke(pivot, swung, 0.8, light)
     for px in [16.0'f32, 21.2'f32, 26.4'f32]:
       iconShadedDisc(sv(px, 19.5), 2.6, pal.steel, pal.steelDark, ink)
     iconShadedDisc(swung, 2.6, base, shade, ink)
@@ -749,15 +750,15 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for x in [12.8'f32, 19.2'f32]:
       iconFan([sv(x - 1.9'f32, 8.5), sv(x + 1.9'f32, 8.5), sv(x + 0.9'f32, 18.5),
                sv(x - 0.9'f32, 18.5)], ink)
-      drawCircle(sv(x, 22.2), 1.9, ink)
+      drawDisc(sv(x, 22.2), 1.9, ink)
 
   of puCurse:
     # Cursed skull with burning eyes.
     let crown = sv(16, 13.5)
-    drawCircle(crown, 10.5 + IconEdge * 0.5'f32, ink)
+    drawDisc(crown, 10.5 + IconEdge * 0.5'f32, ink)
     iconRect(8.7, 18, 23.3, 27.3, ink)
-    drawCircle(crown, 10.5, shade)
-    drawCircle(sv(crown.x - 1.34'f32, crown.y - 1.34'f32), 8.6, base)
+    drawDisc(crown, 10.5, shade)
+    drawDisc(sv(crown.x - 1.34'f32, crown.y - 1.34'f32), 8.6, base)
     iconRect(10, 18, 22, 26, base)
     iconRect(19.2, 18, 22, 26, shade)
     iconRect(10, 22.6, 22, 26, shade)
@@ -765,21 +766,21 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for tx in [13.0'f32, 16.0'f32, 19.0'f32]:
       iconRect(tx - 0.55'f32, 22.6, tx + 0.55'f32, 26, ink)
     for ex in [11.8'f32, 20.2'f32]:
-      drawCircle(sv(ex, 14.5), 3.3, ink)
-      drawCircle(sv(ex, 14.8), 1.3, pale)
+      drawDisc(sv(ex, 14.5), 3.3, ink)
+      drawDisc(sv(ex, 14.8), 1.3, pale)
     iconTri(sv(16, 17.6), sv(14.6, 20.4), sv(17.4, 20.4), ink)
 
   of puBulletSpeed:
     # Lightspeed: an instant tracer beam flaring where it lands.
-    drawLine(sv(5, 16), sv(25, 16), 7.0, faded(base, 0.28))
-    drawLine(sv(5, 16), sv(25, 16), 4.6, ink)
-    drawLine(sv(5, 16), sv(25, 16), 3.0, light)
-    drawLine(sv(5, 16), sv(25, 16), 1.1, pale)
-    drawLine(sv(9, 10.5), sv(16, 10.5), 1.4, faded(light, 0.55))
-    drawLine(sv(12, 21.5), sv(19, 21.5), 1.4, faded(light, 0.55))
+    drawStroke(sv(5, 16), sv(25, 16), 7.0, faded(base, 0.28))
+    drawStroke(sv(5, 16), sv(25, 16), 4.6, ink)
+    drawStroke(sv(5, 16), sv(25, 16), 3.0, light)
+    drawStroke(sv(5, 16), sv(25, 16), 1.1, pale)
+    drawStroke(sv(9, 10.5), sv(16, 10.5), 1.4, faded(light, 0.55))
+    drawStroke(sv(12, 21.5), sv(19, 21.5), 1.4, faded(light, 0.55))
     iconDisc(sv(5, 16), 3.4, base, ink)
     iconImpact(sv(25, 16), 2.8, 6.4, 8, 0, 360, pale, ink)
-    drawCircle(sv(25, 16), 1.8, pale)
+    drawDisc(sv(25, 16), 1.8, pale)
 
   of puLuckyCoins:
     # Greed: a coin stack with a fresh coin landing on it.
@@ -822,14 +823,14 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     iconArc(body, 9.5, -30, 30, 1.6, faded(light, 0.75))
     iconArc(body, 12.5, -20, 20, 1.4, faded(light, 0.45))
     iconShadedDisc(body, 6.5, base, shade, ink)
-    drawLine(polar(sv(23.5, 10), 6.5, 115), polar(sv(23.5, 10), 16, 115), 1.6, faded(light, 0.6))
+    drawStroke(polar(sv(23.5, 10), 6.5, 115), polar(sv(23.5, 10), 16, 115), 1.6, faded(light, 0.6))
     iconBullet(sv(23.5, 10), -65, 12, pal)
 
   of puBulletRicochet:
     # Round glancing off a wall.
     iconInkRect(25.5, 3, 29, 29, deep, ink)
     for yy in [7.0'f32, 13.0'f32, 19.0'f32, 25.0'f32]:
-      drawLine(sv(25.5, yy + 2.5'f32), sv(29, yy - 1.0'f32), 1.0, shade)
+      drawStroke(sv(25.5, yy + 2.5'f32), sv(29, yy - 1.0'f32), 1.0, shade)
     iconInkStroke([sv(3.5, 27), sv(23.5, 16), sv(13.9, 10.6)], 2.0, light, ink)
     iconBullet(sv(9.1, 7.9), 209.3, 11, pal)
     iconImpact(sv(23.5, 16), 2.2, 5.6, 5, 120, 120, pale, ink)
@@ -874,13 +875,13 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     iconRect(21.5, 17, 25.5, 25, shade)
     iconRect(6.5, 15.8, 25.5, 17.8, pal.steel)       # brow band
     for rx in [8.5'f32, 23.5'f32]:
-      drawCircle(sv(rx, 16.8), 0.7, deep)
+      drawDisc(sv(rx, 16.8), 0.7, deep)
     iconRect(14.8, 15.8, 17.2, 25.8, pal.steel)      # nose guard
     for side in [-1.0'f32, 1.0'f32]:
       let inner = 16.0'f32 + side * 2.2'f32
       let outer = 16.0'f32 + side * 8.8'f32
       iconFan([sv(outer, 18.6), sv(inner, 19.8), sv(inner, 21.8), sv(outer, 20.6)], ink)
-      drawLine(sv(outer - side * 1.2'f32, 19.8), sv(inner + side * 0.6'f32, 20.9), 0.9, pale)
+      drawStroke(sv(outer - side * 1.2'f32, 19.8), sv(inner + side * 0.6'f32, 20.9), 0.9, pale)
 
   of puThorns:
     # Spiked shell: whatever hits it gets hurt back.
@@ -900,7 +901,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # One round breaking into fragments.
     let split = sv(17, 16)
     for a in [-38.0'f32, 0.0'f32, 38.0'f32]:
-      drawLine(split, polar(split, 8, a), 1.4, faded(light, 0.6))
+      drawStroke(split, polar(split, 8, a), 1.4, faded(light, 0.6))
     for a in [-38.0'f32, 0.0'f32, 38.0'f32]:
       let p = polar(split, 10.5, a)
       iconShape([polar(p, 3.4, a), polar(p, 1.7, a + 90.0'f32),
@@ -927,12 +928,12 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     let bulb = sv(16, 20.5)
     iconRect(11.9, 5.5, 20.1, 14, ink)
     drawRectangleRounded(Rectangle(x: 10.2, y: 1.9, width: 11.6, height: 6.0), 0.5, 4, ink)
-    drawCircle(bulb, 8.5 + IconEdge * 0.5'f32, ink)
-    drawCircle(bulb, 8.5, deep)
+    drawDisc(bulb, 8.5 + IconEdge * 0.5'f32, ink)
+    drawDisc(bulb, 8.5, deep)
     iconRect(13.2, 5.5, 18.8, 14, deep)
     let liquid = iconArcPts(bulb, 8.5, -10, 190, 18)
     iconFan(liquid, base)
-    drawLine(liquid[0], liquid[^1], 1.2, pale)
+    drawStroke(liquid[0], liquid[^1], 1.2, pale)
     drawRectangleRounded(Rectangle(x: 11.5, y: 3.2, width: 9, height: 3.4), 0.5, 4, light)
     iconArc(bulb, 6, 200, 250, 1.3, faded(light, 0.8))
     # Bubbles as rings, not dots, so they read as air in the liquid.
@@ -990,7 +991,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     iconOutline(face, 2.2, base)
     iconCelFill(sv(15.5, 14), face, pale, light)
     for a in [-90.0'f32, 0.0'f32, 180.0'f32]:
-      drawLine(polar(c, 6.2, a), polar(c, 7.8, a), 1.2, deep)
+      drawStroke(polar(c, 6.2, a), polar(c, 7.8, a), 1.2, deep)
     iconStroke([c, polar(c, 5.2, -115)], 1.5, ink)
     iconStroke([c, sv(c.x + 3.5'f32, c.y + 0.8'f32), sv(c.x + 5.2'f32, c.y + 4.2'f32)], 1.3, ink)
 
@@ -999,7 +1000,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawCircleGradient(Vector2(x: 16, y: 16), 15.0, faded(base, 0.25), faded(base, 0))
     iconTiltedRing(mid, -22, 0.42, 8.0, 15.0, 180, 360, ink)     # far half
     iconTiltedRing(mid, -22, 0.42, 9.3, 13.7, 180, 360, shade)
-    drawCircle(mid, 7.9, ink)
+    drawDisc(mid, 7.9, ink)
     iconArc(mid, 6.8, 0, 360, 1.3, light)
     iconTiltedRing(mid, -22, 0.42, 8.0, 15.0, 0, 180, ink)       # near half
     iconTiltedRing(mid, -22, 0.42, 9.3, 13.7, 0, 180, base)
@@ -1008,9 +1009,9 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   of puPhaseShift:
     # Phase Walker: dash forward out of a hollow afterimage.
     for yy in [12.5'f32, 17.0'f32, 21.5'f32]:
-      drawLine(sv(10, yy), sv(20, yy), 1.5, faded(light, 0.55))
+      drawStroke(sv(10, yy), sv(20, yy), 1.5, faded(light, 0.55))
     let ghost = sv(8, 17)
-    drawCircle(ghost, 5.5, faded(light, 0.22))
+    drawDisc(ghost, 5.5, faded(light, 0.22))
     for i in 0..7:
       let a = i.float32 * 45.0'f32
       iconArc(ghost, 5.5, a, a + 26.0'f32, 1.3, faded(pale, 0.75))
@@ -1065,7 +1066,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   of puHeavyRounds:
     # Cannonball ploughing forward.
     for yy in [11.0'f32, 16.5'f32, 22.0'f32]:
-      drawLine(sv(1.5, yy), sv(6.5, yy), 1.8, faded(light, 0.6))
+      drawStroke(sv(1.5, yy), sv(6.5, yy), 1.8, faded(light, 0.6))
     iconShadedDisc(sv(18.5, 16.5), 10.5, base, shade, ink)
     iconArc(sv(17.2, 15.2), 6.4, 195, 255, 1.3, light)
 
@@ -1080,9 +1081,9 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     iconFanAround(sv(16, 15), plate, base)
     iconFan([sv(9, 7), sv(13.5, 5.5), sv(12, 9.5), sv(9, 13.5), sv(6, 11)], light)
     iconFan([sv(23, 7), sv(18.5, 5.5), sv(20, 9.5), sv(23, 13.5), sv(26, 11)], shade)
-    drawLine(sv(16, 9.5), sv(16, 24.5), 1.1, deep)
-    drawLine(sv(11, 16), sv(15, 17.5), 1.1, shade)
-    drawLine(sv(21, 16), sv(17, 17.5), 1.1, shade)
+    drawStroke(sv(16, 9.5), sv(16, 24.5), 1.1, deep)
+    drawStroke(sv(11, 16), sv(15, 17.5), 1.1, shade)
+    drawStroke(sv(21, 16), sv(17, 17.5), 1.1, shade)
 
   of puFortified:
     # Castle tower.
@@ -1097,11 +1098,11 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       iconRect(m[0], 4, m[1], 8.5, light)
       iconRect(m[0], 4, m[1], 4.9, pale)
     iconRect(9.5, 12, 22.5, 13, shade)
-    drawLine(sv(9.5, 18), sv(13, 18), 1.0, shade)
-    drawLine(sv(19, 22.5), sv(22.5, 22.5), 1.0, shade)
+    drawStroke(sv(9.5, 18), sv(13, 18), 1.0, shade)
+    drawStroke(sv(19, 22.5), sv(22.5, 22.5), 1.0, shade)
     iconRect(15, 14.5, 17, 18.5, ink)
     iconRect(13.5, 22, 18.5, 28.5, ink)
-    drawCircle(sv(16, 22), 2.5, ink)
+    drawDisc(sv(16, 22), 2.5, ink)
 
   of puBulwark:
     # Riveted plate, cracked down one side: the bonus is what's still intact.
@@ -1110,7 +1111,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     iconShape(plate, base, ink)
     iconFan(scalePts(plate, sv(16, 15.5), 0.76), light)
     for r in [sv(9.5, 8.5), sv(22.5, 8.5), sv(9, 19.5), sv(23, 19.5)]:
-      drawCircle(r, 1.4, deep)
+      drawDisc(r, 1.4, deep)
     iconStroke([sv(21.5, 4.5), sv(19, 10), sv(22, 14), sv(19.5, 19), sv(21.5, 24.5)], 1.5, ink)
 
   of puSpecialRounds:
@@ -1139,14 +1140,14 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # A slice carved out of a giant's health: percentage damage.
     let c = sv(15, 17.5)
     drawCircleSector(c, 11.5 + IconEdge * 0.5'f32, 0, 300, 40, ink)
-    drawLine(c, polar(c, 12.8, 0), IconEdge, ink)
-    drawLine(c, polar(c, 12.8, 300), IconEdge, ink)
+    drawStroke(c, polar(c, 12.8, 0), IconEdge, ink)
+    drawStroke(c, polar(c, 12.8, 300), IconEdge, ink)
     drawCircleSector(c, 11.5, 0, 300, 40, base)
     iconArc(c, 9.6, 190, 250, 1.3, light)
     let w = polar(c, 3.8, -30)
     drawCircleSector(w, 11.5 + IconEdge * 0.5'f32, -60, 0, 12, ink)
-    drawLine(w, polar(w, 12.8, 0), IconEdge, ink)
-    drawLine(w, polar(w, 12.8, -60), IconEdge, ink)
+    drawStroke(w, polar(w, 12.8, 0), IconEdge, ink)
+    drawStroke(w, polar(w, 12.8, -60), IconEdge, ink)
     drawCircleSector(w, 11.5, -60, 0, 12, light)
 
   of puCelestialVeil:
@@ -1157,7 +1158,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     iconArc(foot, 10.2, 200, 250, 1.2, faded(pale, 0.8))
     for (p, r) in [(sv(10.5, 19), 0.8'f32), (sv(21.5, 17), 0.9'f32), (sv(13, 15.5), 0.6'f32),
                    (sv(19.5, 21.5), 0.6'f32)]:
-      drawCircle(p, r, pale)
+      drawDisc(p, r, pale)
     iconShadedDisc(sv(16, 22.5), 3.2, light, base, ink)
     iconInkArc(foot, 12, 180, 360, 2.2, light, ink)
     iconInkStroke([sv(2.5, 26), sv(29.5, 26)], 1.6, shade, ink)
@@ -1189,13 +1190,13 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     iconRect(17.2, 3, 22.8, 16, ink)
     drawRing(sv(16, 16), 1.2, 6.8, 0, 180, 20, ink)
     iconRect(13.3, 19, 18.7, 27, ink)
-    drawCircle(sv(16, 27.5), 3.7, ink)
+    drawDisc(sv(16, 27.5), 3.7, ink)
     iconRect(10.5, 4.3, 13.5, 16, base)
     iconRect(18.5, 4.3, 21.5, 16, base)
     drawRing(sv(16, 16), 2.5, 5.5, 0, 180, 20, base)
     iconRect(14.6, 21, 17.4, 27, base)
-    drawCircle(sv(16, 27.5), 2.4, base)
-    drawLine(sv(11.6, 5.5), sv(11.6, 15), 0.9, pale)
+    drawDisc(sv(16, 27.5), 2.4, base)
+    drawStroke(sv(11.6, 5.5), sv(11.6, 15), 0.9, pale)
 
   of puBloodPact:
     # Cracked heart: health paid in for power.
@@ -1273,7 +1274,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
       iconTri(left[i], left[i + 1], right[i + 1], base)
       iconTri(left[i], right[i + 1], right[i], base)
     for i in [4, 8]:
-      drawLine(left[i], right[i], 1.2, shade)
+      drawStroke(left[i], right[i], 1.2, shade)
     # Mouth: an ellipse across the open end.
     let w0 = 7.6'f32
     rlgl.pushMatrix()
@@ -1281,9 +1282,9 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     rlgl.rotatef(radToDeg(arctan2(right[0].y - left[0].y, right[0].x - left[0].x)),
                  0.0'f32, 0.0'f32, 1.0'f32)
     rlgl.scalef(1.0'f32, 0.36'f32, 1.0'f32)
-    drawCircle(sv(0, 0), w0 + IconEdge * 0.5'f32, ink)
-    drawCircle(sv(0, 0), w0, light)
-    drawCircle(sv(0, 0), w0 - 1.8'f32, deep)
+    drawDisc(sv(0, 0), w0 + IconEdge * 0.5'f32, ink)
+    drawDisc(sv(0, 0), w0, light)
+    drawDisc(sv(0, 0), w0 - 1.8'f32, deep)
     rlgl.popMatrix()
     iconShadedDisc(sv(24.5, 6.5), 3.4, light, base, ink)
     iconShadedDisc(sv(27.5, 13), 2.8, pale, light, ink)
@@ -1310,10 +1311,10 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     iconArc(c, 10.3, 0, 360, 2.2, base)
     for i in 0..3:
       let a = i.float32 * 90.0'f32
-      drawLine(polar(c, 5.8, a), polar(c, 8, a), 1.5, pale)
+      drawStroke(polar(c, 5.8, a), polar(c, 8, a), 1.5, pale)
     iconStroke([c, polar(c, 7, -90)], 1.8, pale)
     iconStroke([c, polar(c, 5, 30)], 1.8, light)
-    drawCircle(c, 1.6, pale)
+    drawDisc(c, 1.6, pale)
     iconBolt(sv(24.5, 21.5), 0.46, pale, ink)
 
   of puLastStand:
@@ -1412,7 +1413,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     # A kill bursting and flinging out a bonus coin.
     iconRaggedBurst(sv(10, 21.5), 0.72, -50, pal)
     for i, t in [0.3'f32, 0.55'f32, 0.8'f32]:
-      drawCircle(qbez(sv(12, 14), sv(13, 5), sv(20, 7), t), 1.0'f32 + i.float32 * 0.2'f32,
+      drawDisc(qbez(sv(12, 14), sv(13, 5), sv(20, 7), t), 1.0'f32 + i.float32 * 0.2'f32,
                  faded(light, 0.8))
     let coin = sv(23, 11.5)
     iconShadedDisc(coin, 6, base, shade, ink)
@@ -1425,7 +1426,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     drawRectangleRounded(Rectangle(x: 3, y: 5, width: 26, height: 22), 0.18, 4, base)
     iconRect(4.5, 10.5, 27.5, 25.5, deep)
     for i in 0..2:
-      drawCircle(sv(6.8'f32 + i.float32 * 2.6'f32, 7.7), 0.9, deep)
+      drawDisc(sv(6.8'f32 + i.float32 * 2.6'f32, 7.7), 0.9, deep)
     iconStroke([sv(8, 14), sv(12, 17.5), sv(8, 21)], 2.0, pale)
     iconRect(14, 20, 21, 22, light)
 
@@ -1437,7 +1438,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
     for (p, r) in [(sv(8.5, 8), 2.2'f32), (sv(23.5, 6.5), 2.6'f32), (sv(23, 14.5), 1.7'f32),
                    (sv(9.5, 15.5), 1.5'f32)]:
       iconDisc(p, r, light, ink)
-      drawCircle(p, r * 0.45'f32, pale)
+      drawDisc(p, r * 0.45'f32, pale)
 
 # ---------------------------------------------------------------------------
 # Shop upgrade icons
@@ -1479,7 +1480,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
     for i in 0..5:
       let p = polar(c, 6.1, -78.0'f32 + i.float32 * 60.0'f32)
       iconDisc(p, 2.3, base, ink)
-      drawCircle(p, 1.15, ink)
+      drawDisc(p, 1.15, ink)
     iconDisc(c, 1.6, light, ink)
 
   of 2: # Move Speed + -- the kernel's top hat, dashing
@@ -1499,10 +1500,10 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
                          1.0, 6, ink)
     iconFan(crown, pal.steelDark)
     iconRect(-5.9, -6.2, 5.9, -2.4, base)                        # hat band
-    drawLine(sv(-5.3, -16), sv(-4.7, -7), 1.1, pal.steel)       # rim light on the lit edge
+    drawStroke(sv(-5.3, -16), sv(-4.7, -7), 1.1, pal.steel)       # rim light on the lit edge
     iconRect(-6.4, -17, 6.4, -16, pal.steel)
     drawRectangleRounded(brim, 1.0, 6, pal.steelDark)
-    drawLine(sv(-9, -2.2), sv(9, -2.2), 0.9, pal.steel)
+    drawStroke(sv(-9, -2.2), sv(9, -2.2), 0.9, pal.steel)
     rlgl.popMatrix()
 
   of 3: # Max Health + -- heart with a plus
@@ -1513,9 +1514,9 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
     iconRect(14.3, 10.5, 17.7, 20.5, pale)
 
   of 4: # Bullet Speed + -- bullet with speed streaks
-    drawLine(sv(1.5, 16), sv(8.5, 16), 2.2, faded(light, 200.0'f32 / 255.0'f32))
-    drawLine(sv(3.5, 11.5), sv(8.5, 11.5), 1.8, faded(light, 130.0'f32 / 255.0'f32))
-    drawLine(sv(3.5, 20.5), sv(8.5, 20.5), 1.8, faded(light, 130.0'f32 / 255.0'f32))
+    drawStroke(sv(1.5, 16), sv(8.5, 16), 2.2, faded(light, 200.0'f32 / 255.0'f32))
+    drawStroke(sv(3.5, 11.5), sv(8.5, 11.5), 1.8, faded(light, 130.0'f32 / 255.0'f32))
+    drawStroke(sv(3.5, 20.5), sv(8.5, 20.5), 1.8, faded(light, 130.0'f32 / 255.0'f32))
     # Body + half-ellipse nose as one outline.
     var shell: array[11, Vector2]
     shell[0] = sv(11, 20)
@@ -1533,7 +1534,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
     iconFan(nose, light)                    # copper tip over the casing
     iconRect(20.4, 12.3, 21.6, 19.7, deep)  # crimp groove
     iconRect(10, 11.2, 12.2, 20.8, deep)
-    drawLine(sv(13, 13.7), sv(24, 13.7), 1.2, pale)
+    drawStroke(sv(13, 13.7), sv(24, 13.7), 1.2, pale)
 
   of 5: # Wall (x10) -- crenellated brick wall
     iconBrickWall(pal)
@@ -1542,13 +1543,13 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
     for i in 0..3:
       drawRectangle(Rectangle(x: 16, y: 16, width: 6.4, height: 27.5),
                     sv(3.2, 13.75), i.float32 * 45.0'f32, ink)
-    drawCircle(sv(16, 16), 11.3, ink)
+    drawDisc(sv(16, 16), 11.3, ink)
     for i in 0..3:
       drawRectangle(Rectangle(x: 16, y: 16, width: 4, height: 25),
                     sv(2, 12.5), i.float32 * 45.0'f32, base)
-    drawCircle(sv(16, 16), 10, base)
+    drawDisc(sv(16, 16), 10, base)
     drawRing(sv(16, 16), 6.2, 7.6, 0, 360, 24, light)
-    drawCircle(sv(16, 16), 4.2, ink)
+    drawDisc(sv(16, 16), 4.2, ink)
 
 proc shopIconAccent*(itemIndex: int): Color =
   ## Signature hue per shop slot, so the rows read apart at a glance.
@@ -1669,18 +1670,18 @@ proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) 
     # Bin with a lid.
     iconShape([sv(10.5, 10.5), sv(20.5, 10.5), sv(19.2, 19.5), sv(11.8, 19.5)], pale, ink)
     iconInkRect(9.5, 8, 21.5, 9.8, light, ink)
-    drawLine(sv(14, 12.5), sv(14.4, 17.5), 1.0, deep)
-    drawLine(sv(17, 12.5), sv(16.6, 17.5), 1.0, deep)
+    drawStroke(sv(14, 12.5), sv(14.4, 17.5), 1.0, deep)
+    drawStroke(sv(17, 12.5), sv(16.6, 17.5), 1.0, deep)
   of rrtCronJob:
     # Clock face.
     let c = sv(15.5, 13.5)
     iconDisc(c, 6.2, pale, ink)
-    drawLine(c, sv(15.5, 9.2), 1.5, ink)
-    drawLine(c, sv(19, 13.5), 1.5, ink)
-    drawCircle(c, 1.1, deep)
+    drawStroke(c, sv(15.5, 9.2), 1.5, ink)
+    drawStroke(c, sv(19, 13.5), 1.5, ink)
+    drawDisc(c, 1.1, deep)
   of rrtZipBomb:
     # Zipper teeth with a spark on the pull.
-    drawLine(sv(15.5, 7.5), sv(15.5, 18.5), 1.2, ink)
+    drawStroke(sv(15.5, 7.5), sv(15.5, 18.5), 1.2, ink)
     for i in 0..4:
       let ty = 8.0'f32 + i.float32 * 2.2'f32
       if i mod 2 == 0: iconInkRect(12.8, ty, 15.5, ty + 1.3'f32, pale, ink)
@@ -1703,15 +1704,15 @@ proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) 
     # A chip mining a coin.
     iconInkRect(10, 8.5, 21, 18.5, pal.steel, ink)
     for py in [10.5'f32, 13.5'f32, 16.5'f32]:
-      drawLine(sv(8, py), sv(10, py), 1.2, ink)
-      drawLine(sv(21, py), sv(23, py), 1.2, ink)
+      drawStroke(sv(8, py), sv(10, py), 1.2, ink)
+      drawStroke(sv(21, py), sv(23, py), 1.2, ink)
     iconDisc(sv(15.5, 13.5), 2.9, Color(r: 255, g: 215, b: 60, a: color.a), ink)
   of rrtRaidMirror:
     # Two mirrored platters.
     for cx in [11.8'f32, 19.2'f32]:
       iconDisc(sv(cx, 13), 3.6, pale, ink)
-      drawCircle(sv(cx, 13), 1.0, ink)
-    drawLine(sv(15.5, 7.5), sv(15.5, 18.5), 0.9, faded(pale, 0.7))
+      drawDisc(sv(cx, 13), 1.0, ink)
+    drawStroke(sv(15.5, 7.5), sv(15.5, 18.5), 0.9, faded(pale, 0.7))
   of rrtPacketLoss:
     # A packet stream with one dropped.
     for px in [9.2'f32, 12.6'f32]:
@@ -1776,13 +1777,13 @@ proc drawRoomRewardIcon*(x, y, size: int32, reward: RoomReward, color: Color) =
     iconInkRect(5, 12, 22, 27, base, ink)
     iconRect(5, 15, 22, 16.3, deep)
     iconShape([sv(18, 5), sv(26.5, 5), sv(29, 9.5), sv(26.5, 14), sv(18, 14)], pale, ink)
-    drawCircle(sv(20.5, 9.5), 1.2, ink)
+    drawDisc(sv(20.5, 9.5), 1.2, ink)
   of rrwQuarantine:
     # Hazard triangle.
     iconShape([sv(16, 3.5), sv(29, 27), sv(3, 27)], base, ink)
     iconFan([sv(16, 8.5), sv(24.5, 24), sv(7.5, 24)], light)
     iconRect(14.7, 11.5, 17.3, 20, ink)
-    drawCircle(sv(16, 22.2), 1.5, ink)
+    drawDisc(sv(16, 22.2), 1.5, ink)
 
 proc drawServiceIcon*(x, y, size: int32, color: Color) =
   ## The sector's SERVICE (boss) door: a gear with a hot core.
@@ -1797,11 +1798,11 @@ proc drawServiceIcon*(x, y, size: int32, color: Color) =
   for i in 0..3:
     drawRectangle(Rectangle(x: 16, y: 16, width: 6.4, height: 27.5),
                   sv(3.2, 13.75), i.float32 * 45.0'f32, pal.ink)
-  drawCircle(sv(16, 16), 11.3, pal.ink)
+  drawDisc(sv(16, 16), 11.3, pal.ink)
   for i in 0..3:
     drawRectangle(Rectangle(x: 16, y: 16, width: 4, height: 25),
                   sv(2, 12.5), i.float32 * 45.0'f32, pal.base)
-  drawCircle(sv(16, 16), 10, pal.base)
+  drawDisc(sv(16, 16), 10, pal.base)
   drawRing(sv(16, 16), 6.2, 7.6, 0, 360, 24, pal.light)
-  drawCircle(sv(16, 16), 4.2, pal.ink)
-  drawCircle(sv(16, 16), 2.6, Color(r: 255, g: 90, b: 70, a: color.a))
+  drawDisc(sv(16, 16), 4.2, pal.ink)
+  drawDisc(sv(16, 16), 2.6, Color(r: 255, g: 90, b: 70, a: color.a))

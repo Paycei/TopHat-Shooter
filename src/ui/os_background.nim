@@ -1,6 +1,7 @@
 ## OS-Style Background System
 
 import raylib, math, random
+import ../draw_prims
 import particle_types, ../types, background_fx, ../utils
 
 const
@@ -166,12 +167,12 @@ proc drawCombatGrid(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
   for i in 0..4:
     let r = arenaRadius * (0.34 + i.float32 * 0.16)
     let ringAlpha = alphaFrom(10.0 + i.float32 * 3.0 + pulse * 6.0)  # Dimmed: gameplay rings must dominate
-    drawCircleLines(centerX.int32, centerY.int32, r,
+    drawCircleOutline(centerX.int32, centerY.int32, r,
       Color(r: 40, g: 110, b: 155, a: ringAlpha))
     let sweepAngle = bg.gridPulseTime * (0.42 + i.float32 * 0.05) + i.float32 * PI * 0.34
     let sx = centerX + cos(sweepAngle) * r
     let sy = centerY + sin(sweepAngle) * r
-    drawCircle(Vector2(x: sx, y: sy), 2.4 + i.float32 * 0.35,
+    drawDisc(Vector2(x: sx, y: sy), 2.4 + i.float32 * 0.35,
       Color(r: 180, g: 250, b: 255, a: alphaFrom(118.0 + pulse * 62.0)))
 
   for i in 0..<12:
@@ -179,7 +180,7 @@ proc drawCombatGrid(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
     let inner = arenaRadius * 0.22
     let outer = arenaRadius * 1.03
     let alpha = alphaFrom(18.0 + (if i mod 3 == 0: 28.0 else: 0.0) + pulse * 8.0)
-    drawLine(Vector2(x: centerX + cos(angle) * inner, y: centerY + sin(angle) * inner),
+    drawStroke(Vector2(x: centerX + cos(angle) * inner, y: centerY + sin(angle) * inner),
              Vector2(x: centerX + cos(angle) * outer, y: centerY + sin(angle) * outer),
              1, Color(r: 64, g: 185, b: 230, a: alpha))
 
@@ -188,10 +189,10 @@ proc drawCombatGrid(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
     let t = (i.float32 - 3.0) / 3.0
     let topX = centerX + t * arenaRadius * 0.45
     let bottomX = centerX + t * arenaRadius * 1.25
-    drawLine(Vector2(x: topX, y: centerY - arenaRadius * 0.9),
+    drawStroke(Vector2(x: topX, y: centerY - arenaRadius * 0.9),
              Vector2(x: bottomX, y: centerY + arenaRadius * 1.05),
              1, laneColor)
-    drawLine(Vector2(x: centerX - arenaRadius * 1.05, y: centerY + t * arenaRadius * 1.25),
+    drawStroke(Vector2(x: centerX - arenaRadius * 1.05, y: centerY + t * arenaRadius * 1.25),
              Vector2(x: centerX + arenaRadius * 1.05, y: centerY + t * arenaRadius * 0.45),
              1, withAlpha(laneColor, laneColor.a div 2))
 
@@ -201,10 +202,10 @@ proc drawCombatGrid(bg: OSBackgroundState, screenWidth, screenHeight: int32) =
       let angle = i.float32 * PI / 3.0 + bg.gridPulseTime * 0.22
       let x = centerX + cos(angle) * arenaRadius * 0.78
       let y = centerY + sin(angle) * arenaRadius * 0.78
-      drawLine(Vector2(x: x - 12.0, y: y - 12.0),
+      drawStroke(Vector2(x: x - 12.0, y: y - 12.0),
                Vector2(x: x + 12.0, y: y + 12.0), 2,
                Color(r: 255, g: 62, b: 55, a: hazardAlpha))
-      drawLine(Vector2(x: x + 12.0, y: y - 12.0),
+      drawStroke(Vector2(x: x + 12.0, y: y - 12.0),
                Vector2(x: x - 12.0, y: y + 12.0), 2,
                Color(r: 255, g: 62, b: 55, a: hazardAlpha))
 
@@ -258,9 +259,9 @@ proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: i
         let outA = alphaFrom(120.0 + pulse * 80.0)
         let thickness = if isPlayerHere: 5 else: 3
         for i in 0..<thickness:
-          drawCircleLines(cx.int32, cy.int32, (outerR + i.float32),
+          drawCircleOutline(cx.int32, cy.int32, (outerR + i.float32),
             Color(r: 90, g: 255, b: 190, a: alphaFrom(outA.float32 - i.float32 * 28.0)))
-          drawCircleLines(cx.int32, cy.int32, (innerR - i.float32),
+          drawCircleOutline(cx.int32, cy.int32, (innerR - i.float32),
             Color(r: 90, g: 255, b: 190, a: alphaFrom(outA.float32 - i.float32 * 28.0)))
 
         drawZoneLabel("+ BONUS ZONE", cx, cy, outerR,
@@ -270,7 +271,7 @@ proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: i
         # Inactive band, subtle dim outline, tiny label
         drawRing(center, innerR, outerR, 0.0, 360.0, 64,
           Color(r: 40, g: 80, b: 100, a: 14))
-        drawCircleLines(cx.int32, cy.int32, radius,
+        drawCircleOutline(cx.int32, cy.int32, radius,
           Color(r: 70, g: 130, b: 170, a: 36))
         drawZoneLabel("neutral", cx, cy, outerR, 55,
           Color(r: 100, g: 140, b: 170, a: 255), 9)
@@ -280,14 +281,14 @@ proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: i
         # Active hazard zone: red fill covering entire circle interior + thick pulsing outline + label
         let fillA = alphaFrom(if isPlayerHere: 72.0 + fastPulse * 45.0 else: 30.0 + pulse * 25.0)
         # Fill the full disk from center to outerR
-        drawCircle(center, outerR,
+        drawDisc(center, outerR,
           Color(r: 255, g: 32, b: 22, a: fillA))
 
         # Multi-pixel outline, flashes urgently
         let outA = alphaFrom(145.0 + fastPulse * 90.0)
         let thickness = if isPlayerHere: 6 else: 4
         for i in 0..<thickness:
-          drawCircleLines(cx.int32, cy.int32, (outerR + i.float32),
+          drawCircleOutline(cx.int32, cy.int32, (outerR + i.float32),
             Color(r: 255, g: 60, b: 48, a: alphaFrom(outA.float32 - i.float32 * 24.0)))
 
         drawZoneLabel("! HAZARD !", cx, cy, outerR,
@@ -297,14 +298,14 @@ proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: i
         # Safe non-hazard band, dim reddish tint to hint at the mode
         drawRing(center, innerR, outerR, 0.0, 360.0, 64,
           Color(r: 80, g: 30, b: 30, a: 14))
-        drawCircleLines(cx.int32, cy.int32, radius,
+        drawCircleOutline(cx.int32, cy.int32, radius,
           Color(r: 110, g: 50, b: 55, a: 36))
         drawZoneLabel("safe", cx, cy, outerR, 55,
           Color(r: 160, g: 100, b: 100, a: 255), 9)
 
     of barmRotating:
       # Dim base ring so sectors stand out against it
-      drawCircleLines(cx.int32, cy.int32, radius,
+      drawCircleOutline(cx.int32, cy.int32, radius,
         Color(r: 60, g: 140, b: 200, a: 35))
 
       let sweep = bg.bossArenaRotation + band.float32 * 0.72
@@ -489,8 +490,8 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
     let lineAlpha = alphaFrom(18.0 + pulse * 28.0)
     let lineColor = Color(r: 0, g: uint8(150 + pulse * 40), b: uint8(188 + shimmer * 50), a: lineAlpha)
 
-    drawLine(0, line.y.int32, screenWidth, line.y.int32, lineColor)
-    drawLine(0, (line.y + 3.0).int32, screenWidth, (line.y + 3.0).int32,
+    drawStroke(0, line.y.int32, screenWidth, line.y.int32, lineColor)
+    drawStroke(0, (line.y + 3.0).int32, screenWidth, (line.y + 3.0).int32,
              withAlpha(lineColor, lineAlpha div 3))
 
     # Draw connecting vertical segments and node pulses
@@ -500,26 +501,26 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
                 sin(bg.gridPulseTime * 1.4 + line.pulseOffset + anchor * PI) * 18.0
         let segHeight = 24.0 + pulse * 18.0
         let nodeColor = Color(r: 70, g: 220, b: 255, a: uint8(70 + shimmer * 55))
-        drawLine(x.int32, (line.y - segHeight).int32, x.int32, (line.y + segHeight).int32,
+        drawStroke(x.int32, (line.y - segHeight).int32, x.int32, (line.y + segHeight).int32,
                  withAlpha(lineColor, uint8(min(255, lineColor.a.int + 18))))
-        drawCircle(Vector2(x: x, y: line.y), 2.2 + pulse * 1.8, nodeColor)
+        drawDisc(Vector2(x: x, y: line.y), 2.2 + pulse * 1.8, nodeColor)
 
   # Draw data packets
   for packet in bg.dataPackets:
     let packetColor = Color(r: 0, g: 200, b: 255, a: packet.alpha)
     let streak = 16.0 + packet.speed * 0.055
-    drawLine((packet.x - streak).int32, packet.y.int32, packet.x.int32, packet.y.int32,
+    drawStroke((packet.x - streak).int32, packet.y.int32, packet.x.int32, packet.y.int32,
              withAlpha(packetColor, packet.alpha div 2))
-    drawLine((packet.x - streak * 0.55).int32, (packet.y - 4.0).int32,
+    drawStroke((packet.x - streak * 0.55).int32, (packet.y - 4.0).int32,
              packet.x.int32, packet.y.int32,
              withAlpha(packetColor, packet.alpha div 3))
-    drawCircle(Vector2(x: packet.x, y: packet.y), 3.0, packetColor)
+    drawDisc(Vector2(x: packet.x, y: packet.y), 3.0, packetColor)
 
     # Trail effect
     for i in 1..3:
       let trailX = packet.x - (i * 5).float32
       let trailAlpha = packet.alpha div (i * 2).uint8
-      drawCircle(Vector2(x: trailX, y: packet.y), 2,
+      drawDisc(Vector2(x: trailX, y: packet.y), 2,
                 Color(r: 0, g: 200, b: 255, a: trailAlpha))
 
   # Wave pulse rings
@@ -527,11 +528,11 @@ proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
     let rAlpha = uint8(ring.alpha * 180)
     drawSoftGlow(ring.centerX, ring.centerY, ring.radius * 0.85,
                  withAlpha(ring.color, uint8(rAlpha.float32 * 0.25)), 0.55)
-    drawCircleLines(ring.centerX.int32, ring.centerY.int32, ring.radius,
+    drawCircleOutline(ring.centerX.int32, ring.centerY.int32, ring.radius,
       withAlpha(ring.color, rAlpha))
     # Double-ring for thickness feel
     if ring.radius > 4:
-      drawCircleLines(ring.centerX.int32, ring.centerY.int32, ring.radius - 3,
+      drawCircleOutline(ring.centerX.int32, ring.centerY.int32, ring.radius - 3,
         withAlpha(ring.color, uint8(rAlpha.float32 * 0.5)))
 
   # Critical status border pulse

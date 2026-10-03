@@ -6,6 +6,7 @@
 ## and a climb back to the surface with the recovered cores in hand.
 
 import raylib, rlgl, math
+import ../draw_prims
 import particle_types, background_fx, ../shapes, ../localization, ../sound, cinematic_common, cutscene
 
 const
@@ -31,10 +32,10 @@ proc drawDescendShot(local, duration: float32, screenWidth, screenHeight: int32,
     let sides = 4 + (i mod 4).int32
     let rot = local * (18.0'f32 + i.float32 * 4.0'f32) + i.float32 * 21.0'f32
     let ringA = alpha * (1.0'f32 - phase) * 150.0'f32
-    drawPolyLines(Vector2(x: cx, y: cy), sides, r, rot,
+    drawPolyOutline(Vector2(x: cx, y: cy), sides, r, rot,
                   Color(r: 255, g: 170, b: 60, a: alphaByte(ringA)))
     if i mod 2 == 0:
-      drawPolyLines(Vector2(x: cx, y: cy), sides, r * 0.62'f32, -rot * 1.3'f32,
+      drawPolyOutline(Vector2(x: cx, y: cy), sides, r * 0.62'f32, -rot * 1.3'f32,
                     Color(r: 200, g: 90, b: 255, a: alphaByte(ringA * 0.5'f32)))
 
   # Falling shards streak past toward the vanishing point.
@@ -44,9 +45,9 @@ proc drawDescendShot(local, duration: float32, screenWidth, screenHeight: int32,
     let dist = (1.0'f32 - p) * 320.0'f32 + 30.0'f32
     let px = cx + cos(ang) * dist
     let py = cy + sin(ang) * dist * 0.7'f32
-    drawLine(px.int32, py.int32, cx.int32, cy.int32,
+    drawStroke(px.int32, py.int32, cx.int32, cy.int32,
              colorA(RogAccent, alpha * (1.0'f32 - p) * 30.0'f32))
-    drawCircle(Vector2(x: px, y: py), 2.4'f32 * (1.0'f32 - p) + 0.6'f32,
+    drawDisc(Vector2(x: px, y: py), 2.4'f32 * (1.0'f32 - p) + 0.6'f32,
                colorA(RogAccent, alpha * (1.0'f32 - p) * 180.0'f32))
 
   # The descending process, shrinking as it falls deeper.
@@ -80,15 +81,15 @@ proc drawCoreShot(local, duration: float32, screenWidth, screenHeight: int32,
   let seedR = 40.0'f32 * reveal * (0.94'f32 + pulse * 0.06'f32)
   drawPoly(Vector2(x: cx, y: cy), 6, seedR, local * 16.0'f32,
            Color(r: 24, g: 8, b: 30, a: alphaByte(alpha * 245.0'f32)))
-  drawPolyLines(Vector2(x: cx, y: cy), 6, seedR, local * 16.0'f32,
+  drawPolyOutline(Vector2(x: cx, y: cy), 6, seedR, local * 16.0'f32,
                 Color(r: 230, g: 70, b: 255, a: alphaByte(alpha * 220.0'f32)))
   # Corruption fault-lines cracking outward.
   for i in 0..<6:
     let a = local * 0.6'f32 + i.float32 * PI / 3.0'f32
     let len = seedR * (1.2'f32 + pulse * 0.4'f32)
-    drawLine(cx.int32, cy.int32, (cx + cos(a) * len).int32, (cy + sin(a) * len).int32,
+    drawStroke(cx.int32, cy.int32, (cx + cos(a) * len).int32, (cy + sin(a) * len).int32,
              colorA(RogAccent, alpha * (90.0'f32 + pulse * 90.0'f32)))
-  drawCircle(Vector2(x: cx, y: cy), seedR * 0.32'f32 * (0.8'f32 + pulse * 0.2'f32),
+  drawDisc(Vector2(x: cx, y: cy), seedR * 0.32'f32 * (0.8'f32 + pulse * 0.2'f32),
              colorA(RogAccent, alpha * 235.0'f32))
 
   drawSubtitles([t(tkRogEndCore1), t(tkRogEndCore2)], screenWidth, screenHeight, alpha)
@@ -150,14 +151,14 @@ proc drawRevealShot(local, duration: float32, screenWidth, screenHeight: int32,
     let sides = 6'i32
     let rot = local * (6.0'f32 + i.float32 * 2.0'f32) * (if i mod 2 == 0: 1.0'f32 else: -1.0'f32)
     let latA = alpha * settle * (140.0'f32 - i.float32 * 14.0'f32)
-    drawPolyLines(Vector2(x: cx, y: cy), sides, r, rot,
+    drawPolyOutline(Vector2(x: cx, y: cy), sides, r, rot,
                   Color(r: 150, g: 60, b: 255, a: alphaByte(latA)))
 
   # Radial truth-rays firing out at the flash peak.
   for i in 0..<24:
     let a = i.float32 * PI * 2.0'f32 / 24.0'f32 + local * 0.2'f32
     let len = 60.0'f32 + flash * 360.0'f32
-    drawLine(cx.int32, cy.int32,
+    drawStroke(cx.int32, cy.int32,
              (cx + cos(a) * len).int32, (cy + sin(a) * len).int32,
              colorA(RogAccent, alpha * flash * 120.0'f32))
 
@@ -165,7 +166,7 @@ proc drawRevealShot(local, duration: float32, screenWidth, screenHeight: int32,
   let seedR = 38.0'f32 * (1.0'f32 - settle * 0.55'f32)
   drawPoly(Vector2(x: cx, y: cy), 6, seedR, local * 16.0'f32,
            Color(r: 24, g: 8, b: 30, a: alphaByte(alpha * (1.0'f32 - settle) * 240.0'f32)))
-  drawCircle(Vector2(x: cx, y: cy), seedR * 0.34'f32,
+  drawDisc(Vector2(x: cx, y: cy), seedR * 0.34'f32,
              colorA(RogAccent, alpha * (60.0'f32 + flash * 195.0'f32)))
 
   drawSubtitles([t(tkRogEndReveal1), t(tkRogEndReveal2)], screenWidth, screenHeight, alpha)
@@ -191,7 +192,7 @@ proc drawAscendShot(local, duration: float32, screenWidth, screenHeight: int32,
     let phase = fractCoord(local * 0.4'f32 + i.float32 / 9.0'f32)
     let r = phase * 330.0'f32 + 20.0'f32
     let sides = 4 + (i mod 4).int32
-    drawPolyLines(Vector2(x: cx, y: cy), sides, r, -local * 16.0'f32 + i.float32 * 18.0'f32,
+    drawPolyOutline(Vector2(x: cx, y: cy), sides, r, -local * 16.0'f32 + i.float32 * 18.0'f32,
                   colorA(RogAccent, alpha * (1.0'f32 - phase) * 130.0'f32))
 
   # Rising spark motes.
@@ -199,7 +200,7 @@ proc drawAscendShot(local, duration: float32, screenWidth, screenHeight: int32,
     let p = fractCoord(local * 0.5'f32 + i.float32 * 0.117'f32)
     let sx = cx + sin(i.float32 * 2.1'f32 + local) * (40.0'f32 + i.float32 * 5.0'f32)
     let sy = screenHeight.float32 * 0.94'f32 - p * screenHeight.float32 * 0.78'f32
-    drawCircle(Vector2(x: sx, y: sy), 2.4'f32 * (1.0'f32 - p),
+    drawDisc(Vector2(x: sx, y: sy), 2.4'f32 * (1.0'f32 - p),
                colorA(RogAccent, alpha * (1.0'f32 - p) * 200.0'f32))
 
   let pr = 28.0'f32 * (0.84'f32 + rise * 0.16'f32)

@@ -8,6 +8,7 @@
 
 import std/[os, strutils, math]
 import raylib, rlgl
+import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../save_system,
        ../gamepad_input
 import ../modding/[mod_state, mod_catalog, mod_examples, mod_assets, mod_hooks]
@@ -429,7 +430,7 @@ proc drawButton(r: Rectangle, label: string, enabled, primary: bool) =
     elif primary: (if hovered: Color(r: 60, g: 150, b: 100, a: 255) else: Color(r: 40, g: 120, b: 80, a: 255))
     else: (if hovered: Color(r: 55, g: 62, b: 78, a: 255) else: Color(r: 38, g: 44, b: 58, a: 255))
   drawRectangle(r, fill)
-  drawRectangleLines(r, 1.0, if enabled: Color(r: 150, g: 200, b: 175, a: 180) else: Color(r: 70, g: 75, b: 85, a: 255))
+  drawRectOutline(r, 1.0, if enabled: Color(r: 150, g: 200, b: 175, a: 180) else: Color(r: 70, g: 75, b: 85, a: 255))
   let tw = measureText(label, 14)
   drawText(label, int32(r.x + (r.width - tw.float32) / 2), int32(r.y + (r.height - 14) / 2), 14,
            if enabled: ColText else: ColMuted)
@@ -442,7 +443,7 @@ proc drawRemoveButton(r: Rectangle, enabled: bool, label = "") =
     elif hovered: Color(r: 158, g: 38, b: 38, a: 255)
     else: Color(r: 118, g: 28, b: 28, a: 255)
   drawRectangle(r, fill)
-  drawRectangleLines(r, 1.0, if enabled: Color(r: 255, g: 100, b: 100, a: 220)
+  drawRectOutline(r, 1.0, if enabled: Color(r: 255, g: 100, b: 100, a: 220)
                              else: Color(r: 110, g: 110, b: 115, a: 255))
   let text = if label.len > 0: label else: t(tkModsRemove)
   let tw = measureText(text, 14)
@@ -452,7 +453,7 @@ proc drawRemoveButton(r: Rectangle, enabled: bool, label = "") =
 proc drawCheckbox(x, y: int32, checked, enabled: bool) =
   let r = Rectangle(x: x.float32, y: y.float32, width: 16, height: 16)
   drawRectangle(r, Color(r: 8, g: 10, b: 14, a: 255))
-  drawRectangleLines(r, 1.0, if enabled: ColAccent else: Color(r: 70, g: 75, b: 85, a: 255))
+  drawRectOutline(r, 1.0, if enabled: ColAccent else: Color(r: 70, g: 75, b: 85, a: 255))
   if checked:
     drawRectangle(Rectangle(x: x.float32 + 4, y: y.float32 + 4, width: 8, height: 8), ColAccent)
 
@@ -487,7 +488,7 @@ proc drawRemoveConfirm(mw: ModsWindow, g: Geo) =
   let d = g.confirm
   drawRectangle(Rectangle(x: d.x + 6, y: d.y + 6, width: d.width, height: d.height), Color(r: 0, g: 0, b: 0, a: 140))
   drawRectangle(d, Color(r: 18, g: 22, b: 32, a: 255))
-  drawRectangleLines(d, 2.0, Color(r: 255, g: 80, b: 80, a: 255))
+  drawRectOutline(d, 2.0, Color(r: 255, g: 80, b: 80, a: 255))
   let tbH = 30'i32
   drawRectangle(Rectangle(x: d.x, y: d.y, width: d.width, height: tbH.float32), Color(r: 120, g: 28, b: 28, a: 255))
   let title = t(tkModsRemoveTitle)
@@ -516,7 +517,7 @@ proc drawApplyConfirm(mw: ModsWindow, g: Geo) =
   drawRectangle(Rectangle(x: d.x + 6, y: d.y + 6, width: d.width, height: d.height),
                 Color(r: 0, g: 0, b: 0, a: 140))
   drawRectangle(d, Color(r: 18, g: 22, b: 32, a: 255))
-  drawRectangleLines(d, 2.0, Color(r: 255, g: 176, b: 32, a: 255))
+  drawRectOutline(d, 2.0, Color(r: 255, g: 176, b: 32, a: 255))
   let tbH = 30'i32
   drawRectangle(Rectangle(x: d.x, y: d.y, width: d.width, height: tbH.float32),
                 Color(r: 120, g: 75, b: 18, a: 255))
@@ -541,7 +542,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
     # No list and no detail pane: the message gets the whole body.
     let area = g.logArea
     drawRectangle(area, ColPanel)
-    drawRectangleLines(area, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+    drawRectOutline(area, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
     var y = int32(area.y) + 14
     let x = int32(area.x) + 12
     let w = int32(area.width) - 24
@@ -551,7 +552,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
     discard drawWrapped(t(tkModsEmptyHint), x, y + 8, w, 13, ColMuted, bottom)
   else:
     drawRectangle(g.list, ColPanel)
-    drawRectangleLines(g.list, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+    drawRectOutline(g.list, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
     beginVirtualScissorMode(int32(g.list.x), int32(g.list.y), int32(g.list.width), int32(g.list.height))
     for i, m in installedMods:
       let ry = int32(g.list.y) + int32(i * RowH - mw.listScroll)
@@ -572,7 +573,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
 
     # detail pane
     drawRectangle(g.detail, ColPanel)
-    drawRectangleLines(g.detail, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+    drawRectOutline(g.detail, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
     if mw.selected >= 0 and mw.selected < installedMods.len:
       let m = installedMods[mw.selected]
       let x = int32(g.detail.x) + 14
@@ -619,7 +620,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
 
 proc drawModes(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
-  drawRectangleLines(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  drawRectOutline(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
   if mw.modeRows.len == 0:
     discard drawWrapped(t(tkModsNoModes), int32(g.x) + 14, int32(g.bodyY) + 14, int32(g.w) - 28, 13,
                         ColMuted, int32(g.bodyY + g.bodyH))
@@ -640,7 +641,7 @@ proc drawModes(mw: ModsWindow, g: Geo) =
 
 proc drawCosmetics(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
-  drawRectangleLines(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  drawRectOutline(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
   if modCosmetics.len == 0:
     discard drawWrapped(t(tkModsNoCosmetics), int32(g.x) + 14, int32(g.bodyY) + 14, int32(g.w) - 28, 13,
                         ColMuted, int32(g.bodyY + g.bodyH))
@@ -661,9 +662,9 @@ proc drawCosmetics(mw: ModsWindow, g: Geo) =
     elif c.look.id > 0:
       drawModTexture(c.look.id, px.float32 + 21, py.float32 + 21, 40, 40, 0, White)
     elif c.hasPalette:
-      drawCircle(Vector2(x: px.float32 + 21, y: py.float32 + 21), 18, c.c1)
-      drawCircle(Vector2(x: px.float32 + 21, y: py.float32 + 21), 11, c.c2)
-      drawCircle(Vector2(x: px.float32 + 21, y: py.float32 + 21), 5, c.c3)
+      drawDisc(Vector2(x: px.float32 + 21, y: py.float32 + 21), 18, c.c1)
+      drawDisc(Vector2(x: px.float32 + 21, y: py.float32 + 21), 11, c.c2)
+      drawDisc(Vector2(x: px.float32 + 21, y: py.float32 + 21), 5, c.c3)
     let kindLabel = case c.kind
       of mckPlayer: t(tkModsKindPlayer)
       of mckBullet: t(tkModsKindBullet)
@@ -681,7 +682,7 @@ proc drawCosmetics(mw: ModsWindow, g: Geo) =
 
 proc drawApps(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
-  drawRectangleLines(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  drawRectOutline(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
   if modApps.len == 0:
     discard drawWrapped(t(tkModsNoApps), int32(g.x) + 14, int32(g.bodyY) + 14,
                         int32(g.w) - 28, 13, ColMuted, int32(g.bodyY + g.bodyH))
@@ -707,7 +708,7 @@ proc drawApps(mw: ModsWindow, g: Geo) =
 
 proc drawLog(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
-  drawRectangleLines(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  drawRectOutline(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
   if modLog.len == 0:
     drawText(t(tkModsLogEmpty), int32(g.x) + 12, int32(g.bodyY) + 12, 13, ColMuted)
     return
@@ -737,7 +738,7 @@ proc drawModsWindow*(mw: ModsWindow) =
     let r = g.tabs[tab]
     let active = mw.tab == tab
     drawRectangle(r, if active: Color(r: 30, g: 70, b: 55, a: 255) else: Color(r: 28, g: 32, b: 42, a: 255))
-    drawRectangleLines(r, 1.0, if active: ColAccent else: Color(r: 70, g: 78, b: 92, a: 255))
+    drawRectOutline(r, 1.0, if active: ColAccent else: Color(r: 70, g: 78, b: 92, a: 255))
     let tw = measureText(labels[tab], 14)
     drawText(labels[tab], int32(r.x + (r.width - tw.float32) / 2), int32(r.y) + 7, 14,
              if active: ColText else: ColMuted)
@@ -747,7 +748,7 @@ proc drawModsWindow*(mw: ModsWindow) =
   let keeps = modsActive and not modsDisableAchievements   # every loaded mod keeps rewards
   let bannerText = t(if keeps: tkModsKeepsBanner else: tkModsCheatBanner)
   drawRectangle(banner, if keeps: Color(r: 12, g: 42, b: 30, a: 255) else: Color(r: 48, g: 34, b: 8, a: 255))
-  drawRectangleLines(banner, 1.0, if keeps: Color(r: 60, g: 200, b: 140, a: 200)
+  drawRectOutline(banner, 1.0, if keeps: Color(r: 60, g: 200, b: 140, a: 200)
                                   else: Color(r: 255, g: 176, b: 32, a: 200))
   let bannerSize = bestFitFontSize(bannerText, int32(g.w) - 16, 12, 10)
   drawText(fitWithEllipsis(bannerText, int32(g.w) - 16, bannerSize),

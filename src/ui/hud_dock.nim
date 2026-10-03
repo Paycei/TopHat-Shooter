@@ -10,6 +10,7 @@
 ## it without dragging in the others.
 
 import raylib, math
+import ../draw_prims
 import ../utils, ../render_context
 
 const
@@ -93,7 +94,7 @@ proc drawDockCard*(x, y, w, h: int32, accent: Color = DockAccent,
   ## A docked card: solid body, an accent spine on the left and a thin rim.
   drawRectangle(x, y, w, h, bg)
   drawRectangle(x, y, 2, h, withAlpha(accent, 210))
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
                      1, withAlpha(accent, 55))
 
 proc drawDockHeader*(x, y, w: int32, title: string, accent: Color = DockAccent,
@@ -118,5 +119,5 @@ proc drawDockBar*(x, y, w, h: int32, frac: float32, fill: Color,
     if h >= 4:
       drawRectangle(x, y, fw, 1, withAlpha(Color(r: 255, g: 255, b: 255, a: 255), 70))
   if rim.a > 0:
-    drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
+    drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
                        1, rim)

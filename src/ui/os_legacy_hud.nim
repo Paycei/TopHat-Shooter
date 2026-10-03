@@ -8,6 +8,7 @@
 ## keeps pointing at the right rows.
 
 import raylib, math, strutils
+import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../render_context, icon_drawing, ../utils, ui_helpers
 from ../player import DashCooldownTime
 from os_combined_hud import leftPanelMinimized, leftPanelPos, leftPanelDragging,
@@ -55,7 +56,7 @@ proc drawLevelXpBar(game: Game, panelX, panelW, yOffset: int32) =
   let fillW = int32(barW.float32 * ratio)
   if fillW > 0:
     drawRectangle(barX, barY, fillW, barH, Color(r: 90, g: 255, b: 170, a: 230))
-  drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
+  drawRectOutline(Rectangle(x: barX.float32, y: barY.float32,
                                width: barW.float32, height: barH.float32),
                      1, Color(r: 120, g: 220, b: 190, a: 160))
 
@@ -117,7 +118,7 @@ proc drawDashRow(game: Game, panelX, panelW, yOffset: int32) =
             g: uint8(140.0'f32 + 105.0'f32 * progress),
             b: uint8(190.0'f32 + 65.0'f32 * progress), a: 220)
     drawRectangle(barX, barY, fillW, barH, fillColor)
-  drawRectangleLines(Rectangle(x: barX.float32, y: barY.float32,
+  drawRectOutline(Rectangle(x: barX.float32, y: barY.float32,
                                width: barW.float32, height: barH.float32),
                     1, Color(r: 0, g: 220, b: 255, a: if ready: 150 else: 90))
 
@@ -165,7 +166,7 @@ proc drawRogueliteHudBlock(game: Game, panelX, panelW: int32, yOffset: var int32
   let contentW = rogueliteContentW(panelW)
   let textX = panelX + COMBINED_PANEL_PADDING + 6
 
-  drawLine(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
+  drawStroke(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
           Vector2(x: (panelX + panelW - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
           1, Color(r: 0, g: 200, b: 255, a: 100))
   yOffset += 3
@@ -209,7 +210,7 @@ proc drawRogueliteHudBlock(game: Game, panelX, panelW: int32, yOffset: var int32
       elif layer == current:
         let pulse = uint8(150.0 + sin(game.time * 5.0) * 90.0)
         drawRectangle(rect, Color(r: 255, g: 255, b: 255, a: pulse))
-      drawRectangleLines(rect, 1, Color(r: 0, g: 200, b: 255, a: 170))
+      drawRectOutline(rect, 1, Color(r: 0, g: 200, b: 255, a: 170))
       px += 12
     let atBoss = current > layers
     let service = "> " & t("room_reward_service")
@@ -292,7 +293,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
                Color(r: 0, g: 220, b: 255, a: 180))
 
   # Panel border with cyan glow - more transparent
-  drawRectangleLines(Rectangle(x: panelX.float32, y: yOffset.float32,
+  drawRectOutline(Rectangle(x: panelX.float32, y: yOffset.float32,
                                 width: panelW.float32, height: totalHeight.float32),
                     1, Color(r: 0, g: 220, b: 255, a: 80))
 
@@ -312,7 +313,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
   if showMinimizeIcon:
     let iconX = panelX + panelW - COMBINED_PANEL_PADDING - 12
     let iconY = yOffset + 9
-    drawLine(Vector2(x: iconX.float32, y: iconY.float32),
+    drawStroke(Vector2(x: iconX.float32, y: iconY.float32),
             Vector2(x: (iconX + 10).float32, y: iconY.float32),
             2, ACCENT_COLOR)
 
@@ -362,7 +363,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
                    Color(r: 210, g: 170, b: 255, a: 230))
 
   # Bar border - cyan accent
-  drawRectangleLines(Rectangle(x: (panelX + COMBINED_PANEL_PADDING).float32, y: yOffset.float32,
+  drawRectOutline(Rectangle(x: (panelX + COMBINED_PANEL_PADDING).float32, y: yOffset.float32,
                                 width: barWidth.float32, height: barHeight.float32),
                     1, Color(r: 0, g: 220, b: 255, a: 120))
 
@@ -402,7 +403,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
   # WAVE INFO (if applicable)
   if (game.mode == gmWaveBased):
     # Separator line
-    drawLine(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
+    drawStroke(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
             Vector2(x: (panelX + panelW - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
             1, Color(r: 0, g: 200, b: 255, a: 100))
     yOffset += 3
@@ -481,7 +482,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
       drawRectangle(panelX + COMBINED_PANEL_PADDING, yOffset, fillWidth, 6, threatColor)
 
       # Border
-      drawRectangleLines(Rectangle(
+      drawRectOutline(Rectangle(
         x: (panelX + COMBINED_PANEL_PADDING).float32,
         y: yOffset.float32,
         width: barWidth.float32,
@@ -518,7 +519,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
   # ACTIVE POWER-UPS LIST
   if game.player.powerUps.len > 0:
     # Separator line
-    drawLine(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
+    drawStroke(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
             Vector2(x: (panelX + panelW - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
             1, Color(r: 0, g: 200, b: 255, a: 100))
     yOffset += 3
@@ -560,7 +561,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
                     Color(r: 0, g: 0, b: 0, a: 125))
       drawRectangle(panelX + COMBINED_PANEL_PADDING + 6, yOffset + 2, 18, 18,
                     withAlpha(iconColor, glowAlpha))
-      drawRectangleLines(Rectangle(x: (panelX + COMBINED_PANEL_PADDING + 6).float32,
+      drawRectOutline(Rectangle(x: (panelX + COMBINED_PANEL_PADDING + 6).float32,
                                     y: (yOffset + 2).float32,
                                     width: 18.0, height: 18.0),
                         1, withAlpha(iconColor, if powerUp.rarity == prLegendary: 240 else: 170))
@@ -690,7 +691,7 @@ proc drawLegacyStatusPanel*(game: Game, x, y: int32) =
                  Color(r: 0, g: 220, b: 255, a: 180))
 
     # Panel border
-    drawRectangleLines(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
+    drawRectOutline(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
                                   width: COMBINED_PANEL_WIDTH.float32,
                                   height: (COMBINED_PANEL_PADDING + COMBINED_TITLE_HEIGHT).float32),
                       1, Color(r: 0, g: 220, b: 255, a: 80))
@@ -709,7 +710,7 @@ proc drawLegacyStatusPanel*(game: Game, x, y: int32) =
     # Draw maximize icon (square)
     let iconX = finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - 12
     let iconY = yOffset + 4
-    drawRectangleLines(Rectangle(x: iconX.float32, y: iconY.float32, width: 10, height: 10),
+    drawRectOutline(Rectangle(x: iconX.float32, y: iconY.float32, width: 10, height: 10),
                       1, ACCENT_COLOR)
 
     return  # Don't draw rest of panel

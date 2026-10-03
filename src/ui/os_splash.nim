@@ -2,6 +2,7 @@
 ## Two phases: BIOS amber POST -> kernel model reveal with title and press-any-key.
 
 import raylib, math
+import ../draw_prims
 import particle_types, ../localization, ../hardware_info, ../shapes, ../sound, background_fx, cinematic_common
 
 const
@@ -123,7 +124,7 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   drawRectangle(0, 0, sw, sh, Color(r: 0, g: 0, b: 8, a: 255))
   drawSplashScanlines(sw, sh, splash.scanlineOffset, Color(r: 24, g: 8, b: 0, a: 18))
 
-  drawRectangleLines(Rectangle(x: 4.0'f32, y: 4.0'f32,
+  drawRectOutline(Rectangle(x: 4.0'f32, y: 4.0'f32,
                                width: (sw - 8).float32, height: (sh - 8).float32),
                      2.0'f32, Color(r: 180, g: 120, b: 20, a: 200))
 
@@ -238,10 +239,10 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
                          Color(r: 26, g: 16, b: 2, a: 0))
 
   # Double bevel border: bright outer rule + a dimmer inset rule.
-  drawRectangleLines(Rectangle(x: badgeX.float32, y: badgeY.float32,
+  drawRectOutline(Rectangle(x: badgeX.float32, y: badgeY.float32,
                                width: bW.float32, height: bH.float32),
                      2.0'f32, Color(r: 235, g: 165, b: 40, a: bA))
-  drawRectangleLines(Rectangle(x: badgeX.float32 + 6.0'f32, y: badgeY.float32 + 6.0'f32,
+  drawRectOutline(Rectangle(x: badgeX.float32 + 6.0'f32, y: badgeY.float32 + 6.0'f32,
                                width: bW.float32 - 12.0'f32, height: bH.float32 - 12.0'f32),
                      1.0'f32, Color(r: 150, g: 95, b: 18, a: alphaByte(bFade * 180.0'f32)))
 

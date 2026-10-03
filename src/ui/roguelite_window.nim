@@ -5,6 +5,7 @@
 ## and Heat N+1 unlocks by winning a run at Heat N.
 
 import raylib, math
+import ../draw_prims
 import os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound, ../utils
 
 const HeatUnlockCelebrationDuration = 1.35'f32
@@ -53,7 +54,7 @@ proc drawHeatUnlockCelebration(rw: RogueliteWindow, panelX, panelY: int32) =
   for ring in 0..2:
     let grow = int32(progress * (16.0'f32 + ring.float32 * 10.0'f32))
     let ringAlpha = uint8(clamp(remaining * (170.0'f32 - ring.float32 * 34.0'f32), 0.0'f32, 170.0'f32))
-    drawRectangleLines(Rectangle(
+    drawRectOutline(Rectangle(
       x: (heatPanelX - 4 - grow).float32,
       y: (heatPanelY - 4 - grow).float32,
       width: (heatPanelW + 8 + grow * 2).float32,
@@ -68,7 +69,7 @@ proc drawHeatUnlockCelebration(rw: RogueliteWindow, panelX, panelY: int32) =
   for ring in 0..3:
     let radius = 22.0'f32 + progress * (28.0'f32 + ring.float32 * 12.0'f32)
     let ringAlpha = uint8(clamp(remaining * (210.0'f32 - ring.float32 * 38.0'f32), 0.0'f32, 210.0'f32))
-    drawCircleLines(pipCenterX, pipCenterY, radius, withAlpha((if ring mod 2 == 0: gold else: accent), ringAlpha))
+    drawCircleOutline(pipCenterX, pipCenterY, radius, withAlpha((if ring mod 2 == 0: gold else: accent), ringAlpha))
 
   let bannerW: int32 = 330
   let bannerH: int32 = 54
@@ -76,7 +77,7 @@ proc drawHeatUnlockCelebration(rw: RogueliteWindow, panelX, panelY: int32) =
   let bannerY = heatPanelY - 24 - int32(10.0'f32 * peak)
   drawRectangle(bannerX + 4, bannerY + 4, bannerW, bannerH, Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.45)))
   drawRectangle(bannerX, bannerY, bannerW, bannerH, Color(r: 54, g: 28, b: 24, a: uint8(alpha.float32 * 0.88)))
-  drawRectangleLines(Rectangle(x: bannerX.float32, y: bannerY.float32,
+  drawRectOutline(Rectangle(x: bannerX.float32, y: bannerY.float32,
                                width: bannerW.float32, height: bannerH.float32),
                      2.5'f32, withAlpha(gold, alpha))
   drawCurrencyIcon(bannerX + 32, bannerY + bannerH div 2, 34, ciHeat, alpha)

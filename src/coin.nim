@@ -1,4 +1,5 @@
 import raylib, math, random
+import draw_prims
 import particle_types, types, particle, particle_pool, powerup, patches, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions, enemy_config
 import modding/mod_hooks
 from roguelite import bankMetaCurrency
@@ -71,10 +72,10 @@ proc drawCoin*(coin: Coin) =
     Orange
 
   # Outer soft glow
-  drawCircle(Vector2(x: coin.pos.x, y: coin.pos.y), size + 6 + pulse * 2, glowColor)
+  drawDisc(Vector2(x: coin.pos.x, y: coin.pos.y), size + 6 + pulse * 2, glowColor)
 
   # Main body
-  drawCircle(Vector2(x: coin.pos.x, y: coin.pos.y), size, mainColor)
+  drawDisc(Vector2(x: coin.pos.x, y: coin.pos.y), size, mainColor)
 
   # Spinning inner diamond (4-point star shape using 4 triangles)
   let spinAngle = t * 2.8  # rotation speed
@@ -91,8 +92,8 @@ proc drawCoin*(coin: Coin) =
       Color(r: 255, g: 255, b: 180, a: 200))
 
   # Outer ring / rim
-  drawCircleLines(coin.pos.x.int32, coin.pos.y.int32, size, rimColor)
-  drawCircleLines(coin.pos.x.int32, coin.pos.y.int32, size - 1.5, Color(r: 255, g: 255, b: 150, a: 120))
+  drawCircleOutline(coin.pos.x.int32, coin.pos.y.int32, size, rimColor)
+  drawCircleOutline(coin.pos.x.int32, coin.pos.y.int32, size - 1.5, Color(r: 255, g: 255, b: 150, a: 120))
 
   # Rotating sparkle dots (4 dots orbiting)
   let sparkR = size + 4.5 + sin(t * 6.0) * 1.5
@@ -101,13 +102,13 @@ proc drawCoin*(coin: Coin) =
     let sx = coin.pos.x + cos(sa) * sparkR
     let sy = coin.pos.y + sin(sa) * sparkR
     let sparkAlpha = uint8(140 + sin(t * 8.0 + i.float32) * 80)
-    drawCircle(Vector2(x: sx, y: sy), 1.8,
+    drawDisc(Vector2(x: sx, y: sy), 1.8,
       Color(r: 255, g: 255, b: 200, a: sparkAlpha))
 
   # Boss coins: extra bold outer ring
   if coin.isBossCoin:
     let outerPulse = 1.0 + 0.4 * sin(t * 6.0)
-    drawCircleLines(coin.pos.x.int32, coin.pos.y.int32, size * outerPulse * 1.25,
+    drawCircleOutline(coin.pos.x.int32, coin.pos.y.int32, size * outerPulse * 1.25,
                    Color(r: 255, g: 150, b: 150, a: 160))
 
   # Draw value if > 1

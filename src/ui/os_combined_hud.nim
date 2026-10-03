@@ -15,6 +15,7 @@
 ## classic panel sums up front to size its background.
 
 import raylib, math, strutils
+import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../settings, ../render_context, icon_drawing, ../utils, ui_helpers, hud_dock
 from ../player import DashCooldownTime
 
@@ -113,7 +114,7 @@ proc drawHpBlock(game: Game, cx, cw, y: int32): int32 =
 
   let rim = if low: Color(r: 255, g: 80, b: 80, a: uint8(120.0'f32 + 120.0'f32 * pulse))
             else: withAlpha(DockAccent, 110)
-  drawRectangleLines(Rectangle(x: cx.float32, y: barY.float32, width: cw.float32,
+  drawRectOutline(Rectangle(x: cx.float32, y: barY.float32, width: cw.float32,
                                height: barH.float32), 1, rim)
   y + HpBlockH
 
@@ -156,7 +157,7 @@ proc drawResourceTiles(game: Game, cx, cw, y: int32): int32 =
 
   # Credits
   drawRectangle(cx, y, creditW, tileH, tileBg)
-  drawRectangleLines(Rectangle(x: cx.float32, y: y.float32, width: creditW.float32,
+  drawRectOutline(Rectangle(x: cx.float32, y: y.float32, width: creditW.float32,
                                height: tileH.float32), 1, Color(r: 255, g: 215, b: 0, a: 60))
   drawCurrencyIcon(cx + 12, y + tileH div 2, 15, ciCredits)
   let coinText = $game.player.coins
@@ -170,7 +171,7 @@ proc drawResourceTiles(game: Game, cx, cw, y: int32): int32 =
   let hasWalls = game.player.walls > 0
   let wallColor = if hasWalls: DockAccent else: Color(r: 90, g: 110, b: 125, a: 220)
   drawRectangle(wx, y, wallW, tileH, tileBg)
-  drawRectangleLines(Rectangle(x: wx.float32, y: y.float32, width: wallW.float32,
+  drawRectOutline(Rectangle(x: wx.float32, y: y.float32, width: wallW.float32,
                                height: tileH.float32), 1, withAlpha(wallColor, 70))
   drawWallGlyph(wx + 6, y + (tileH - 9) div 2, wallColor)
   let wallText = $game.player.walls
@@ -233,7 +234,7 @@ proc drawLevelPips(pu: PowerUp, rightX, y: int32, color: Color): int32 =
   if pu.rarity == prLegendary:
     let c = Vector2(x: (rightX - 5).float32, y: (y + 5).float32)
     drawPoly(c, 4, 5.0'f32, 0.0'f32, LegendaryGold)
-    drawPolyLines(c, 4, 5.5'f32, 0.0'f32, Color(r: 255, g: 245, b: 190, a: 255))
+    drawPolyOutline(c, 4, 5.5'f32, 0.0'f32, Color(r: 255, g: 245, b: 190, a: 255))
     return 11
   let total = max(pu.level, getPowerUpMaxLevel(pu.powerType))
   if total > 5:
@@ -249,7 +250,7 @@ proc drawLevelPips(pu: PowerUp, rightX, y: int32, color: Color): int32 =
     if i < pu.level:
       drawRectangle(px, y + 1, pipW, 8, withAlpha(color, 235))
     else:
-      drawRectangleLines(Rectangle(x: px.float32, y: (y + 1).float32, width: pipW.float32,
+      drawRectOutline(Rectangle(x: px.float32, y: (y + 1).float32, width: pipW.float32,
                                    height: 8.0'f32), 1, withAlpha(color, 90))
   w
 
@@ -264,7 +265,7 @@ proc drawProcessRow(game: Game, pu: PowerUp, cx, cw, y: int32, fresh: bool, shad
   const box = 16'i32
   let by = y + (ProcessRowH - box) div 2
   drawRectangle(cx, by, box, box, withAlpha(color, glow))
-  drawRectangleLines(Rectangle(x: cx.float32, y: by.float32, width: box.float32,
+  drawRectOutline(Rectangle(x: cx.float32, y: by.float32, width: box.float32,
                                height: box.float32), 1,
                      withAlpha(color, if legendary: 240 else: 170))
   drawPowerUpIcon(cx + 1, by + 1, box - 2, pu.powerType, color)
@@ -319,7 +320,7 @@ proc drawPatchRow(game: Game, patch: RogueliteRelicType, cx, cw, y: int32,
   const box = 16'i32
   let by = y + (ProcessRowH - box) div 2
   drawRectangle(cx, by, box, box, withAlpha(color, if spent: 18 else: 34 + int(pulse * 40.0'f32)))
-  drawRectangleLines(Rectangle(x: cx.float32, y: by.float32, width: box.float32,
+  drawRectOutline(Rectangle(x: cx.float32, y: by.float32, width: box.float32,
                                height: box.float32), 1, withAlpha(color, if spent: 80 else: 170))
   drawPatchIcon(cx + 1, by + 1, box - 2, patch, if spent: withAlpha(color, 90) else: color)
 
@@ -428,7 +429,7 @@ proc drawWaveBody(game: Game, cx, cw, y: int32): int32 =
       drawRectangle(bx, trackY, cellW, cellH, withAlpha(base, uint8(120.0'f32 + 120.0'f32 * pulse)))
     else:
       drawRectangle(bx, trackY, cellW, cellH, DockTrackBg)
-    drawRectangleLines(Rectangle(x: bx.float32, y: trackY.float32, width: cellW.float32,
+    drawRectOutline(Rectangle(x: bx.float32, y: trackY.float32, width: cellW.float32,
                                  height: cellH.float32), 1, withAlpha(base, 150))
   let trackText = if game.wavesUntilBoss <= 0: t(tkHUDBossWave)
                   else: t(tkHUDBossInWaves).replace("$1", $game.wavesUntilBoss)
@@ -497,7 +498,7 @@ proc drawFolderGlyph(x, y: int32, color: Color) =
   ## A 16x13 folder: a tab on the top-left over a filled body.
   drawRectangle(x, y, 7, 3, color)
   drawRectangle(x, y + 2, 16, 11, withAlpha(color, 90))
-  drawRectangleLines(Rectangle(x: x.float32, y: (y + 2).float32, width: 16, height: 11), 1, color)
+  drawRectOutline(Rectangle(x: x.float32, y: (y + 2).float32, width: 16, height: 11), 1, color)
   drawRectangle(x + 1, y + 5, 14, 1, withAlpha(color, 150))
 
 proc drawSectorName(floor: DungeonFloor, cx, cw, y: int32) =
@@ -543,7 +544,7 @@ proc drawSectorTrack(game: Game, floor: DungeonFloor, cx, cw, y: int32) =
       # SERVICE
       drawRectangle(rect, if atBoss: withAlpha(RogueServiceColor, uint8(110.0'f32 + 130.0'f32 * pulse))
                           else: DockTrackBg)
-      drawRectangleLines(rect, 1, withAlpha(RogueServiceColor, if atBoss: 255 else: 170))
+      drawRectOutline(rect, 1, withAlpha(RogueServiceColor, if atBoss: 255 else: 170))
     else:
       if layer < current or (layer == current and currentDungeonRoom(run).cleared):
         drawRectangle(rect, withAlpha(DockAccent, 200))
@@ -552,7 +553,7 @@ proc drawSectorTrack(game: Game, floor: DungeonFloor, cx, cw, y: int32) =
         drawRectangle(rect, Color(r: 255, g: 255, b: 255, a: uint8(90.0'f32 + 150.0'f32 * pulse)))
       else:
         drawRectangle(rect, DockTrackBg)
-      drawRectangleLines(rect, 1, withAlpha(DockAccent, 170))
+      drawRectOutline(rect, 1, withAlpha(DockAccent, 170))
 
   let capY = y + RogueHudTrackH
   let folder = t("roguelite_hud_folder").replace("$1", $clamp(current, 0, layers))
@@ -726,7 +727,7 @@ proc drawKeyHint(x, y, w: int32, key, label: string, active: bool, keyMaxW: int3
   let rim = if active: withAlpha(DockAccent, 170) else: withAlpha(DockDim, 90)
   drawRectangle(x, y, capW, 13, Color(r: 22, g: 36, b: 52, a: 245))
   drawRectangle(x, y + 12, capW, 1, rim)
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: capW.float32, height: 13), 1, rim)
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: capW.float32, height: 13), 1, rim)
   drawText(key, x + 4, y + 2 + (10 - keySize) div 2, keySize,
            if active: DockInk else: DockDim)
   let labelW = w - capW - 4
@@ -857,7 +858,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32) =
 
   drawRectangle(panelX, panelY, panelW, totalH, Color(r: 5, g: 13, b: 22, a: 150))
   drawRectangle(panelX, panelY, 2, totalH, Color(r: 0, g: 220, b: 255, a: 180))
-  drawRectangleLines(Rectangle(x: panelX.float32, y: panelY.float32,
+  drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                width: panelW.float32, height: totalH.float32),
                      1, Color(r: 0, g: 220, b: 255, a: 80))
 
@@ -900,12 +901,12 @@ proc drawClassicTitleBar(x, y: int32, minimized: bool) =
   let iconX = x + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - 12
   if minimized:
     # Maximize glyph (square)
-    drawRectangleLines(Rectangle(x: iconX.float32, y: (y + COMBINED_PANEL_PADDING + 4).float32,
+    drawRectOutline(Rectangle(x: iconX.float32, y: (y + COMBINED_PANEL_PADDING + 4).float32,
                                  width: 10, height: 10), 1, ACCENT_COLOR)
   else:
     # Minimize glyph (horizontal line)
     let iconY = y + COMBINED_PANEL_PADDING + 9
-    drawLine(Vector2(x: iconX.float32, y: iconY.float32),
+    drawStroke(Vector2(x: iconX.float32, y: iconY.float32),
              Vector2(x: (iconX + 10).float32, y: iconY.float32), 2, ACCENT_COLOR)
 
 proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
@@ -968,7 +969,7 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
     lastLevelBarRect = Rectangle()
     drawRectangle(finalX, finalY, COMBINED_PANEL_WIDTH, h, Color(r: 5, g: 13, b: 22, a: 150))
     drawRectangle(finalX, finalY, 2, h, Color(r: 0, g: 220, b: 255, a: 180))
-    drawRectangleLines(Rectangle(x: finalX.float32, y: finalY.float32,
+    drawRectOutline(Rectangle(x: finalX.float32, y: finalY.float32,
                                  width: COMBINED_PANEL_WIDTH.float32, height: h.float32),
                        1, Color(r: 0, g: 220, b: 255, a: 80))
     drawClassicTitleBar(finalX, finalY, minimized = true)

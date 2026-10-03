@@ -2,6 +2,7 @@
 ## Defines available player shapes and rendering functions
 
 import raylib, math
+import draw_prims
 import particle_types, localization, cube_skins, utils
 
 type
@@ -110,14 +111,14 @@ proc drawCheaterHat*(pos: Vector2f, radius: float32, time: float32,
   let shade = Color(r: 202, g: 210, b: 228, a: topHatAlpha(alpha * 220.0'f32))
   let outline = Color(r: 116, g: 128, b: 148, a: topHatAlpha(alpha * 180.0'f32))
   drawTriangle(tip, left, right, fill)
-  drawTriangleLines(tip, left, right, outline)
+  drawTriangleOutline(tip, left, right, outline)
   drawRectangleRounded(Rectangle(x: pos.x - brimW * 0.5'f32, y: brimY,
                                  width: brimW, height: brimH),
                        0.65'f32, 8, fill)
   drawRectangleRoundedLines(Rectangle(x: pos.x - brimW * 0.5'f32, y: brimY,
                                       width: brimW, height: brimH),
                             0.65'f32, 8, -1.5'f32, outline)
-  drawCircle(Vector2(x: tip.x, y: tip.y), max(2.0'f32, radius * 0.11'f32), shade)
+  drawDisc(Vector2(x: tip.x, y: tip.y), max(2.0'f32, radius * 0.11'f32), shade)
 
 proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =
   drawTriangle(a, b, c, color)
@@ -138,12 +139,12 @@ proc drawRogueliteClassCosmetic*(pos: Vector2f, radius: float32, time: float32,
   of 1:
     # OPERATOR: a tiny recon reticle: a small ring, a center dot, and four ticks.
     let green = Color(r: 90, g: 235, b: 170, a: 205)
-    drawCircle(Vector2(x: ex, y: ey), es * 0.78'f32, Color(r: 90, g: 235, b: 170, a: 45))
-    drawCircleLines(ex.int32, ey.int32, es * 0.55'f32, green)
-    drawCircle(Vector2(x: ex, y: ey), max(1.0'f32, radius * 0.07'f32), green)
+    drawDisc(Vector2(x: ex, y: ey), es * 0.78'f32, Color(r: 90, g: 235, b: 170, a: 45))
+    drawCircleOutline(ex.int32, ey.int32, es * 0.55'f32, green)
+    drawDisc(Vector2(x: ex, y: ey), max(1.0'f32, radius * 0.07'f32), green)
     for i in 0 ..< 4:
       let a = i.float32 * (PI * 0.5'f32)
-      drawLine(Vector2(x: ex + cos(a) * es * 0.6'f32, y: ey + sin(a) * es * 0.6'f32),
+      drawStroke(Vector2(x: ex + cos(a) * es * 0.6'f32, y: ey + sin(a) * es * 0.6'f32),
                Vector2(x: ex + cos(a) * es * 0.92'f32, y: ey + sin(a) * es * 0.92'f32),
                max(1.0'f32, radius * 0.05'f32), green)
   of 2:
@@ -154,23 +155,23 @@ proc drawRogueliteClassCosmetic*(pos: Vector2f, radius: float32, time: float32,
     let topR = Vector2(x: ex + es * 0.55'f32, y: ey - es * 0.55'f32)
     let tip  = Vector2(x: ex, y: ey + es * 0.7'f32)
     drawTriangleBothWindings(topL, topR, tip, steel)
-    drawLine(topL, topR, max(1.0'f32, radius * 0.06'f32), steelHi)
-    drawLine(Vector2(x: ex, y: ey - es * 0.5'f32), tip,
+    drawStroke(topL, topR, max(1.0'f32, radius * 0.06'f32), steelHi)
+    drawStroke(Vector2(x: ex, y: ey - es * 0.5'f32), tip,
              max(1.0'f32, radius * 0.05'f32), steelHi)
-    drawCircle(Vector2(x: ex, y: ey - es * 0.18'f32), max(1.0'f32, radius * 0.06'f32),
+    drawDisc(Vector2(x: ex, y: ey - es * 0.18'f32), max(1.0'f32, radius * 0.06'f32),
                Color(r: 248, g: 200, b: 110, a: 230))
   of 3:
     # ARCANIST: a tiny arcane rune: a diamond outline with a soft glow and core.
     let line = Color(r: 210, g: 160, b: 255, a: 210)
-    drawCircle(Vector2(x: ex, y: ey), es * 0.7'f32, Color(r: 190, g: 120, b: 255, a: 45))
+    drawDisc(Vector2(x: ex, y: ey), es * 0.7'f32, Color(r: 190, g: 120, b: 255, a: 45))
     let up = Vector2(x: ex, y: ey - es * 0.7'f32)
     let rt = Vector2(x: ex + es * 0.55'f32, y: ey)
     let dn = Vector2(x: ex, y: ey + es * 0.7'f32)
     let lf = Vector2(x: ex - es * 0.55'f32, y: ey)
     let w  = max(1.0'f32, radius * 0.05'f32)
-    drawLine(up, rt, w, line); drawLine(rt, dn, w, line)
-    drawLine(dn, lf, w, line); drawLine(lf, up, w, line)
-    drawCircle(Vector2(x: ex, y: ey), max(1.0'f32, radius * 0.08'f32),
+    drawStroke(up, rt, w, line); drawStroke(rt, dn, w, line)
+    drawStroke(dn, lf, w, line); drawStroke(lf, up, w, line)
+    drawDisc(Vector2(x: ex, y: ey), max(1.0'f32, radius * 0.08'f32),
                Color(r: 245, g: 225, b: 255, a: 235))
   else:
     discard
@@ -221,7 +222,7 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
       let x3 = x * cay + z2 * say
       rotZ[i] = -x * say + z2 * cay
       pts[i] = Vector2(x: center.x + x3 * size, y: center.y + y2 * size)
-    drawCircle(center, size * 1.9'f32,
+    drawDisc(center, size * 1.9'f32,
                withAlpha(glowColor, 36))
     type D20Face = object
       corners: array[3, int]
@@ -251,9 +252,9 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
     # Thinner strokes than the cube's: 30 edges packed into the same tiny
     # silhouette would mud together at the cube's edge thickness.
     for e in d20Edges:
-      drawLine(pts[e[0]], pts[e[1]], 1.2'f32,
+      drawStroke(pts[e[0]], pts[e[1]], 1.2'f32,
                withAlpha(glowColor, 55))
-      drawLine(pts[e[0]], pts[e[1]], 0.75'f32, edgeColor)
+      drawStroke(pts[e[0]], pts[e[1]], 0.75'f32, edgeColor)
     return
 
   const base = [
@@ -287,8 +288,8 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
     withAlpha(glowColor, 36)
   else:
     withAlpha(glowColor, 52)
-  drawCircle(center, size * 2.0'f32, shellGlow)
-  drawCircle(center, size * 1.35'f32,
+  drawDisc(center, size * 2.0'f32, shellGlow)
+  drawDisc(center, size * 1.35'f32,
              withAlpha(edgeColor, 18))
 
   type MiniFace = object
@@ -362,14 +363,14 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
         drawTriangleBothWindings(pts[face.corners[0]], pts[face.corners[2]],
                                  pts[face.corners[3]], fill)
     # A tiny inner glow gives the orbital cube a more polished, glassy feel.
-    drawCircle(center, size * 0.72'f32,
+    drawDisc(center, size * 0.72'f32,
                Color(r: skinData.glowColor.r, g: skinData.glowColor.g,
                      b: skinData.glowColor.b, a: if skin == cskCyber: 28 else: 18))
 
   for e in edges:
-    drawLine(pts[e[0]], pts[e[1]], 2.6'f32,
+    drawStroke(pts[e[0]], pts[e[1]], 2.6'f32,
              withAlpha(glowColor, 110))
-    drawLine(pts[e[0]], pts[e[1]], 1.2'f32, edgeColor)
+    drawStroke(pts[e[0]], pts[e[1]], 1.2'f32, edgeColor)
 
   # Companion Cube skin: a soft-pink heart on a light disc at the centre of
   # every camera-facing face, drawn in that face's own projected basis so it
@@ -424,17 +425,17 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
         Vector2(x: fcScreen.x + sU.x * -0.12'f32,
                 y: fcScreen.y + sU.y * -0.12'f32),
         candle)
-      drawLine(Vector2(x: fcScreen.x - sR.x * 0.42'f32 - sU.x * 0.27'f32,
+      drawStroke(Vector2(x: fcScreen.x - sR.x * 0.42'f32 - sU.x * 0.27'f32,
                        y: fcScreen.y - sR.y * 0.42'f32 - sU.y * 0.27'f32),
                Vector2(x: fcScreen.x - sR.x * 0.14'f32 - sU.x * 0.38'f32,
                        y: fcScreen.y - sR.y * 0.14'f32 - sU.y * 0.38'f32),
                2.0'f32, candle)
-      drawLine(Vector2(x: fcScreen.x - sR.x * 0.14'f32 - sU.x * 0.38'f32,
+      drawStroke(Vector2(x: fcScreen.x - sR.x * 0.14'f32 - sU.x * 0.38'f32,
                        y: fcScreen.y - sR.y * 0.14'f32 - sU.y * 0.38'f32),
                Vector2(x: fcScreen.x + sR.x * 0.14'f32 - sU.x * 0.38'f32,
                        y: fcScreen.y + sR.y * 0.14'f32 - sU.y * 0.38'f32),
                2.0'f32, candle)
-      drawLine(Vector2(x: fcScreen.x + sR.x * 0.14'f32 - sU.x * 0.38'f32,
+      drawStroke(Vector2(x: fcScreen.x + sR.x * 0.14'f32 - sU.x * 0.38'f32,
                        y: fcScreen.y + sR.y * 0.14'f32 - sU.y * 0.38'f32),
                Vector2(x: fcScreen.x + sR.x * 0.42'f32 - sU.x * 0.27'f32,
                        y: fcScreen.y + sR.y * 0.42'f32 - sU.y * 0.27'f32),
@@ -495,12 +496,12 @@ proc drawMiniCube*(center: Vector2, size: float32, time: float32,
           let p = 0.56'f32
           let frame = [fp(-p, -p), fp(p, -p), fp(p, p), fp(-p, p)]
           for k in 0..3:
-            drawLine(frame[k], frame[(k + 1) mod 4], 2.0'f32,
+            drawStroke(frame[k], frame[(k + 1) mod 4], 2.0'f32,
                      Color(r: 80, g: 245, b: 255, a: 65))
-            drawLine(frame[k], frame[(k + 1) mod 4], 0.9'f32, cyan)
-          drawLine(fp(-0.42'f32, -0.16'f32), fp(0.42'f32, -0.16'f32), 0.8'f32, cyan)
-          drawLine(fp(-0.34'f32, 0.12'f32), fp(0.34'f32, 0.12'f32), 0.8'f32, cyan)
-          drawCircle(fcScreen, max(1.0'f32, size * 0.18'f32), mag)
+            drawStroke(frame[k], frame[(k + 1) mod 4], 0.9'f32, cyan)
+          drawStroke(fp(-0.42'f32, -0.16'f32), fp(0.42'f32, -0.16'f32), 0.8'f32, cyan)
+          drawStroke(fp(-0.34'f32, 0.12'f32), fp(0.34'f32, 0.12'f32), 0.8'f32, cyan)
+          drawDisc(fcScreen, max(1.0'f32, size * 0.18'f32), mag)
           continue
 
         if skin == cskDice:
@@ -585,7 +586,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     for i in 0..2:
       let layerRadius = outerGlowRadius + i.float32 * 4.0
       let layerAlpha = uint8((1.0 - i.float32 / 3.0) * glowIntensity * 50)
-      drawCircle(Vector2(x: pos.x, y: pos.y), layerRadius,
+      drawDisc(Vector2(x: pos.x, y: pos.y), layerRadius,
                 withAlpha(baseColor, layerAlpha))
 
     # CIRCUIT TRACES (inner glow layer)
@@ -599,7 +600,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let x2 = pos.x + cos(angle) * outerR
       let y2 = pos.y + sin(angle) * outerR
       let traceAlpha = uint8(80 + pulse * 60)
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1.5,
+      drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1.5,
               Color(r: min(secondaryColor.r.int + 60, 255).uint8,
                     g: min(secondaryColor.g.int + 60, 255).uint8,
                     b: min(secondaryColor.b.int + 60, 255).uint8, a: traceAlpha))
@@ -614,12 +615,12 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let y1 = pos.y + sin(angle) * hexRadius
       let x2 = pos.x + cos(nextAngle) * hexRadius
       let y2 = pos.y + sin(nextAngle) * hexRadius
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.5, baseColor)
+      drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.5, baseColor)
       # Corner nodes
-      drawCircle(Vector2(x: x1, y: y1), 2.5, baseColor)
+      drawDisc(Vector2(x: x1, y: y1), 2.5, baseColor)
 
     # 4. MAIN BODY CIRCLE
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.6,
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius * 0.6,
               Color(r: secondaryColor.r div 2, g: secondaryColor.g div 2, b: secondaryColor.b div 2, a: 200))
 
     # 4b. INNER COUNTER-ROTATING TRIANGLE (unique hexagon sub-element)
@@ -628,18 +629,18 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     for i in 0..<3:
       let a0 = triRot + i.float32 * (PI * 2.0 / 3.0)
       let a1 = triRot + (i + 1).float32 * (PI * 2.0 / 3.0)
-      drawLine(Vector2(x: pos.x + cos(a0) * triInner, y: pos.y + sin(a0) * triInner),
+      drawStroke(Vector2(x: pos.x + cos(a0) * triInner, y: pos.y + sin(a0) * triInner),
                Vector2(x: pos.x + cos(a1) * triInner, y: pos.y + sin(a1) * triInner),
                1.5, Color(r: min(secondaryColor.r.int + 100, 255).uint8,
                           g: min(secondaryColor.g.int + 100, 255).uint8,
                           b: min(secondaryColor.b.int + 100, 255).uint8, a: uint8(120 + pulse * 80)))
 
     # 5. BRIGHT WHITE CORE
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
     # Core highlight
     let highlightX = pos.x - radius * 0.15
     let highlightY = pos.y - radius * 0.15
-    drawCircle(Vector2(x: highlightX, y: highlightY), radius * 0.15,
+    drawDisc(Vector2(x: highlightX, y: highlightY), radius * 0.15,
               Color(r: 255, g: 255, b: 255, a: 180))
 
   of shTriangle:
@@ -654,7 +655,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
         let angle = i.float32 * (2.0 * PI / 3.0) - PI / 2.0  # Static, no rotation
         let vx = pos.x + cos(angle) * layerRadius
         let vy = pos.y + sin(angle) * layerRadius
-        drawCircle(Vector2(x: vx, y: vy), 8.0,
+        drawDisc(Vector2(x: vx, y: vy), 8.0,
                   withAlpha(baseColor, layerAlpha))
 
     # 2. ENERGY LINES between vertices
@@ -668,7 +669,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let x2 = pos.x + cos(angle2) * innerR
       let y2 = pos.y + sin(angle2) * innerR
       let traceAlpha = uint8(80 + pulse * 60)
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
+      drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
               Color(r: min(secondaryColor.r.int + 60, 255).uint8,
                     g: min(secondaryColor.g.int + 60, 255).uint8,
                     b: min(secondaryColor.b.int + 60, 255).uint8, a: traceAlpha))
@@ -682,9 +683,9 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let y1 = pos.y + sin(angle) * triRadius
       let x2 = pos.x + cos(nextAngle) * triRadius
       let y2 = pos.y + sin(nextAngle) * triRadius
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3.0, baseColor)
+      drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3.0, baseColor)
       # Corner nodes
-      drawCircle(Vector2(x: x1, y: y1), 3.5, baseColor)
+      drawDisc(Vector2(x: x1, y: y1), 3.5, baseColor)
 
     # 4. INNER TRIANGLE (filled)
     let v1x = pos.x + cos(-PI / 2.0) * (radius * 0.6)
@@ -697,20 +698,20 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                 Color(r: secondaryColor.r div 2, g: secondaryColor.g div 2, b: secondaryColor.b div 2, a: 200))
 
     # 5. CORE CIRCLE
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
     let highlightX = pos.x - radius * 0.15
     let highlightY = pos.y - radius * 0.15
-    drawCircle(Vector2(x: highlightX, y: highlightY), radius * 0.15,
+    drawDisc(Vector2(x: highlightX, y: highlightY), radius * 0.15,
               Color(r: 255, g: 255, b: 255, a: 180))
     # ORBITING DOT unique to triangle (secondary-colored halo around a bright core)
     let orbitAngle = time * 4.5
     let orbitR = radius * 0.55
     let orbitX = pos.x + cos(orbitAngle) * orbitR
     let orbitY = pos.y + sin(orbitAngle) * orbitR
-    drawCircle(Vector2(x: orbitX, y: orbitY), radius * 0.16,
+    drawDisc(Vector2(x: orbitX, y: orbitY), radius * 0.16,
                Color(r: secondaryColor.r, g: secondaryColor.g, b: secondaryColor.b,
                      a: uint8(110 + pulse * 60)))
-    drawCircle(Vector2(x: orbitX, y: orbitY), radius * 0.10, coreColor)
+    drawDisc(Vector2(x: orbitX, y: orbitY), radius * 0.10, coreColor)
 
   of shSquare:
     # Square shape with same hitbox radius (no rotation)
@@ -724,7 +725,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
         let angle = i.float32 * PI / 2.0 + PI / 4.0  # Static, no rotation
         let vx = pos.x + cos(angle) * layerSize
         let vy = pos.y + sin(angle) * layerSize
-        drawCircle(Vector2(x: vx, y: vy), 8.0,
+        drawDisc(Vector2(x: vx, y: vy), 8.0,
                   withAlpha(baseColor, layerAlpha))
 
     # 2. ENERGY LINES connecting corners
@@ -737,7 +738,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let x2 = pos.x + cos(angle2) * innerR
       let y2 = pos.y + sin(angle2) * innerR
       let traceAlpha = uint8(80 + pulse * 60)
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
+      drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
               Color(r: min(secondaryColor.r.int + 60, 255).uint8,
                     g: min(secondaryColor.g.int + 60, 255).uint8,
                     b: min(secondaryColor.b.int + 60, 255).uint8, a: traceAlpha))
@@ -750,9 +751,9 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
       let y1 = pos.y + sin(angle) * squareSize
       let x2 = pos.x + cos(nextAngle) * squareSize
       let y2 = pos.y + sin(nextAngle) * squareSize
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3.0, baseColor)
+      drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3.0, baseColor)
       # Corner nodes
-      drawCircle(Vector2(x: x1, y: y1), 3.5, baseColor)
+      drawDisc(Vector2(x: x1, y: y1), 3.5, baseColor)
 
     # 4. INNER SQUARE (filled)
     let innerSize = radius * 0.6
@@ -775,17 +776,17 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
                 Color(r: secondaryColor.r div 2, g: secondaryColor.g div 2, b: secondaryColor.b div 2, a: 200))
 
     # 5. CORE CIRCLE
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius * 0.35, coreColor)
     let highlightX = pos.x - radius * 0.15
     let highlightY = pos.y - radius * 0.15
-    drawCircle(Vector2(x: highlightX, y: highlightY), radius * 0.15,
+    drawDisc(Vector2(x: highlightX, y: highlightY), radius * 0.15,
               Color(r: 255, g: 255, b: 255, a: 180))
     # SPINNING INNER ARC unique to square
     let arcAngle = time * -3.2
     let arcR = radius * 0.52
     for seg in 0..1:
       let sa = arcAngle + seg.float32 * PI
-      drawLine(Vector2(x: pos.x + cos(sa) * arcR, y: pos.y + sin(sa) * arcR),
+      drawStroke(Vector2(x: pos.x + cos(sa) * arcR, y: pos.y + sin(sa) * arcR),
                Vector2(x: pos.x + cos(sa + PI * 0.6) * arcR, y: pos.y + sin(sa + PI * 0.6) * arcR),
                2.0, Color(r: min(baseColor.r + 120, 255).uint8,
                           g: min(baseColor.g + 120, 255).uint8,
@@ -798,7 +799,7 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
     for i in 0..3:
       let layerRadius = outerGlowRadius + i.float32 * 3.5
       let layerAlpha = uint8((1.0 - i.float32 / 4.0) * glowIntensity * 60)
-      drawCircle(Vector2(x: pos.x, y: pos.y), layerRadius,
+      drawDisc(Vector2(x: pos.x, y: pos.y), layerRadius,
                 withAlpha(baseColor, layerAlpha))
 
     # 2. ROTATING ENERGY RINGS (orbital layers)
@@ -813,33 +814,33 @@ proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,
         let dotY = pos.y + sin(angle) * ringRadius
         let dotAlpha = uint8(100 + pulse * 80)
         let dotSize = 1.5 + pulse * 0.5
-        drawCircle(Vector2(x: dotX, y: dotY), dotSize,
+        drawDisc(Vector2(x: dotX, y: dotY), dotSize,
                   Color(r: min(baseColor.r + 30, 255), g: min(baseColor.g + 30, 255),
                         b: min(baseColor.b + 30, 255), a: dotAlpha))
 
     # 3. MAIN OUTER RING
     let mainRingRadius = radius * 0.9
-    drawCircle(Vector2(x: pos.x, y: pos.y), mainRingRadius, baseColor)
-    drawCircle(Vector2(x: pos.x, y: pos.y), mainRingRadius - 2.5,
+    drawDisc(Vector2(x: pos.x, y: pos.y), mainRingRadius, baseColor)
+    drawDisc(Vector2(x: pos.x, y: pos.y), mainRingRadius - 2.5,
               Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 255))
 
     # 4. INNER BODY CIRCLE (darker fill)
     let bodyRadius = radius * 0.7
-    drawCircle(Vector2(x: pos.x, y: pos.y), bodyRadius,
+    drawDisc(Vector2(x: pos.x, y: pos.y), bodyRadius,
               Color(r: baseColor.r div 2, g: baseColor.g div 2, b: baseColor.b div 2, a: 220))
 
     # 5. SECONDARY COLOR RING (mid layer)
     let secondaryRing = radius * 0.55
     for i in 0..1:
       let ringR = secondaryRing - i.float32 * 2.0
-      drawCircle(Vector2(x: pos.x, y: pos.y), ringR, secondaryColor)
+      drawDisc(Vector2(x: pos.x, y: pos.y), ringR, secondaryColor)
 
     # 6. BRIGHT CORE with rotating highlight
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.4, coreColor)
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius * 0.4, coreColor)
     # Rotating core highlight
     let highlightAngle = rotation * 2.0
     let highlightDist = radius * 0.1
     let highlightX2 = pos.x + cos(highlightAngle) * highlightDist
     let highlightY2 = pos.y + sin(highlightAngle) * highlightDist
-    drawCircle(Vector2(x: highlightX2, y: highlightY2), radius * 0.2,
+    drawDisc(Vector2(x: highlightX2, y: highlightY2), radius * 0.2,
               Color(r: 255, g: 255, b: 255, a: uint8(160 + pulse * 50)))

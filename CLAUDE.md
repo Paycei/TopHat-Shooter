@@ -45,6 +45,18 @@ rules the code relies on: a positive `thick` in the `Draw*LinesEx` family (e.g. 
 rounded outline here passes a negative thickness to keep the game's look; and `DrawMesh` never
 uploads bone matrices (only `DrawModelEx` does), so `poseSkeleton` in `mod_assets.nim` does it.
 
+**Draw circles and 1px outlines through `draw_prims.nim`, not raylib's originals**: `drawDisc`,
+`drawCircleOutline`, `drawStroke`, `drawRectOutline`, `drawTriangleOutline`, `drawPolyOutline`,
+`drawEllipseOutline` take the same arguments as `drawCircle`, `drawCircleLines`, `drawLine`,
+`drawRectangleLines`, `drawTriangleLines`, `drawPolyLines`, `drawEllipseLines`. raylib tessellates every
+circle into 36 segments whatever its size and draws outlines as `GL_LINES`, which split the batch
+and render at half width under the 2x supersample. The helpers size circles from the live rlgl
+transform and draw outlines as quads that are 1 *virtual* pixel wide, so they halved `drawGame`'s
+CPU time and cut a busy frame from ~2,800 draw calls to ~12. Nothing flags a stray original, so
+check new draw code by hand. Never bind
+`getShapesTexture()` (or any raylib-owned `Texture`) to a Nim variable: naylib's `=destroy`
+unloads it at scope exit, which deletes the font atlas every text and shape draw shares.
+
 **There is no real test suite** — only `tests/test_spatial_grid.nim` (`nim r --mm:orc tests/test_spatial_grid.nim`), a brute-force check that `SpatialGrid` queries never drop an in-range enemy (run it when touching the grid in `enemy_helpers.nim`/`game.nim`), and `tests/test_mod_lua.nim` (`nim r --mm:orc tests/test_mod_lua.nim`), the checks of the mod scripting runtime: sandbox, budget and memory guards, errors, natives, userdata (run it when touching `src/modding/lua_bridge.nim`). The primary correctness check is compilation:
 
 ```powershell
