@@ -289,6 +289,10 @@ block world3d:
       ["20", "2", "9", "9", "40", "\"cube\"", "2", "\"chase\""])
   check(world.entities[0].pos.x == 20 and world.entities[0].vel.z == 2 and world.entities[0].shape == esCube,
         "writes reached the entity")
+  ok3("animation crossfade length",
+      "local was = e.modelFade e.modelFade = 0.5 return math.abs(was - 0.2) < 1e-6, e.modelFade",
+      ["true", "0.5"])
+  check(world.entities[0].modelFade == 0.5, "modelFade reached the entity")
   err3("id is read-only", "e.id = 5", "read-only")
   err3("alive is read-only", "e.alive = false", "read-only")
   err3("unknown field read", "return e.bogus", "no field 'bogus'")

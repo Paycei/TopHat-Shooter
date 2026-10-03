@@ -25,6 +25,11 @@ type
     speed*: float32        ## animation speed (1 = as authored)
     lit*: bool             ## shaded by the scene light (false: flat colours)
     tint*: Color
+    fade*: float32         ## seconds a switch to this animation crossfades (0 snaps)
+
+  AnimKey* = tuple[owner: uint64, name: string]
+    ## One drawn instance's crossfade memory: an entity (its ref, no name) or a
+    ## script's draw.model `key` (the mod's VM plus the key). owner 0 = none.
 
   BodyReplace* = object
     ## A mod's look for one of the game's bodies: a texture or a 3D model
@@ -349,10 +354,46 @@ uniform int skinned;
 }
 """
 
+type
+  AnimTrack = object
+    ## What one instance drew last, so an animation change can crossfade.
+    ## Presentation only: never saved, and dropped when the instance stops
+    ## being drawn.
+    model: int             ## the model it drew (another model starts over)
+    anim: int              ## animation shown (index + 1; 0 = the rest pose)
+    frame: float32         ## the last frame of it drawn
+    fromAnim: int          ## the animation fading out, held at fromFrame
+    fromFrame: float32
+    start, fade: float     ## wall clock the fade began; its length in seconds
+    seen: float            ## wall clock of the last draw
+
+  AnimView {.importc: "ModelAnimation", header: "raylib.h", completeStruct, bycopy.} = object
+    ## A ModelAnimation looked at but not owned (naylib's frees its keyframes
+    ## when it goes out of scope): what the crossfade hands raylib, including
+    ## the one-keyframe rest clip built on the stack.
+    name: array[32, char]
+    boneCount: uint32
+    keyframeCount: int32
+    keyframePoses: ptr UncheckedArray[ModelAnimPose]
+
+  SkeletonView {.importc: "ModelSkeleton", header: "raylib.h", completeStruct, bycopy.} = object
+    boneCount: uint32
+    bones: pointer
+    bindPose: ModelAnimPose
+
+proc updateModelAnimationBlend(model: Model, animA: AnimView, frameA: float32, animB: AnimView,
+                               frameB, blend: float32) {.importc: "UpdateModelAnimationEx", header: "raylib.h".}
+
+const
+  NoAnimKey*: AnimKey = (0'u64, "")
+  StaleTrack = 1.0  ## seconds undrawn before an instance's crossfade memory goes
+
 var
   modModels: seq[ModModel]
   look: LookShader
   depthCursor = -DepthHalf
+  animTracks: Table[AnimKey, AnimTrack]
+  lastTrackPrune = 0.0
 
 proc ensureLook() =
   ## Compile the model shader once (after the window exists). Without GPU
@@ -501,23 +542,104 @@ proc topDownRotation(pose: ModelPose, facingDeg: float32, time: float): Mat3 =
     rotZ(degToRad(facingDeg - 90 + pose.yaw + spinAngle(pose, time))) *
     TopDownBasis * rotX(degToRad(pose.pitch)) * rotZ(degToRad(pose.roll))
 
-proc poseSkeleton(m: var ModModel, anim: int, frame: float32) =
-  ## Pose the skeleton at `frame` of usable animation `anim` (index + 1) and
-  ## hand its bone matrices to the look shader. raylib uploads them only in
-  ## DrawModelEx, and models here draw mesh by mesh, so it is done before each
-  ## draw: every body sharing a model keeps its own pose. A fractional frame
-  ## blends its two keyframes (the last one blends back into the first).
-  updateModelAnimation(m.model, m.anims[m.animIdx[anim - 1]], frame)
+proc animKey*(instance: pointer): AnimKey {.inline.} =
+  ## An entity's own crossfade memory, keyed by its ref.
+  (cast[uint64](instance), "")
+
+proc animKey*(owner: pointer, name: string): AnimKey {.inline.} =
+  ## A script's draw.model / draw3d.model `key`, kept apart per mod (`owner`
+  ## is the mod's VM).
+  (cast[uint64](owner), "k" & name)
+
+proc uploadBones(m: var ModModel) =
+  ## Hand the posed bone matrices to the look shader. raylib uploads them only
+  ## in DrawModelEx, and models here draw mesh by mesh, so it is done before
+  ## each draw: every body sharing a model keeps its own pose.
   let n = min(m.model.skeleton.boneCount.int, LookMaxBones)
   if n > 0 and look.bones.int32 >= 0:
     rlgl.enableShader(look.shader.id)
     rlgl.setUniformMatrices(look.bones.int32, m.model.boneMatrices[0], n.int32)
 
+proc poseSkeleton(m: var ModModel, anim: int, frame: float32) =
+  ## Pose the skeleton at `frame` of usable animation `anim` (index + 1). A
+  ## fractional frame blends its two keyframes (the last one blends back into
+  ## the first).
+  updateModelAnimation(m.model, m.anims[m.animIdx[anim - 1]], frame)
+  uploadBones(m)
+
+proc poseSkeletonBlend(m: var ModModel, animA: int, frameA: float32,
+                       animB: int, frameB, blend: float32) =
+  ## Pose the skeleton `blend` of the way from animation `animA` at `frameA` to
+  ## `animB` at `frameB` (index + 1). 0 is the rest pose: a one-keyframe clip
+  ## of the skeleton's bind pose, built here on the stack (skinning a mesh with
+  ## its bind pose leaves it exactly as drawn unskinned).
+  var restPose = [cast[ptr SkeletonView](addr m.model.skeleton).bindPose]
+  let rest = AnimView(boneCount: m.model.skeleton.boneCount, keyframeCount: 1,
+                      keyframePoses: cast[ptr UncheckedArray[ModelAnimPose]](addr restPose))
+  template clip(a: int): AnimView =
+    if a > 0: cast[ptr AnimView](addr m.anims[m.animIdx[a - 1]])[] else: rest
+  # Outside 0..1 raylib skips the update and the last draw's bones would stay.
+  updateModelAnimationBlend(m.model, clip(animA), max(frameA, 0.0'f32),
+                            clip(animB), max(frameB, 0.0'f32), clamp(blend, 0.0'f32, 1.0'f32))
+  uploadBones(m)
+
+proc fadeWeight(t: AnimTrack, now: float): float32 =
+  ## How much of t.anim is on screen (1 = the fade is over), eased in and out.
+  if t.fade <= 0: return 1
+  let x = clamp((now - t.start) / t.fade, 0.0, 1.0).float32
+  x * x * (3 - 2 * x)
+
+proc crossfade(id: int, key: AnimKey, anim: int, frame, fade: float32):
+               tuple[fromAnim: int, fromFrame, weight: float32] =
+  ## Note that instance `key` draws animation `anim` (0 = the rest pose) of
+  ## model `id` at `frame`, and say how far its crossfade has come. A switch
+  ## fades from what was on screen, held at the frame it showed, into the new
+  ## animation playing on; a switch during a fade starts from whichever of the
+  ## two dominated.
+  let now = getTime()
+  if now - lastTrackPrune > StaleTrack:
+    lastTrackPrune = now
+    var stale: seq[AnimKey]
+    for k, t in animTracks:
+      if now - t.seen > StaleTrack: stale.add k
+    for k in stale: animTracks.del k
+  let t = addr animTracks.mgetOrPut(key, AnimTrack(model: id, anim: anim, start: -1.0e9))
+  if t.model != id or now - t.seen > StaleTrack:
+    # A new instance, or one long undrawn: its ref may belong to another now.
+    t[] = AnimTrack(model: id, anim: anim, start: -1.0e9)
+  elif anim != t.anim:
+    if fadeWeight(t[], now) >= 0.5:
+      t.fromAnim = t.anim
+      t.fromFrame = t.frame
+    t.anim = anim
+    t.start = now
+    t.fade = fade
+  t.frame = frame
+  t.seen = now
+  (t.fromAnim, t.fromFrame, fadeWeight(t[], now))
+
+proc poseModel(m: var ModModel, id: int, key: AnimKey, pose: ModelPose, frame: float32): bool =
+  ## Pose model `id` for one draw at `frame` of pose.anim (-1: the rest pose);
+  ## true when it is to be drawn skinned. An instance with a key crossfades
+  ## when its animation changes.
+  if not look.skinning: return false
+  let anim = if frame >= 0 and pose.anim in 1 .. m.animIdx.len: pose.anim else: 0
+  if key.owner != 0 and m.animIdx.len > 0:
+    let (fromAnim, fromFrame, weight) = crossfade(id, key, anim, frame, pose.fade)
+    if weight < 1 and fromAnim in 0 .. m.animIdx.len and (fromAnim > 0 or anim > 0):
+      poseSkeletonBlend(m, fromAnim, fromFrame, anim, frame, weight)
+      return true
+  if anim > 0:
+    poseSkeleton(m, anim, frame)
+    return true
+  false
+
 proc drawModelPosed(id: int, x, y, pxPerUnit: float32, rot: Mat3, pose: ModelPose,
-                    tint: Color, frame: float32) =
+                    tint: Color, frame: float32, key = NoAnimKey) =
   ## Model `id` with its bounding-box centre on (x, y): `rot` turns model
   ## space into screen space and `pxPerUnit` scales it. `frame` is the frame of
-  ## animation pose.anim to show (-1: the rest pose).
+  ## animation pose.anim to show (-1: the rest pose). With a `key` the
+  ## instance crossfades when its animation changes.
   if id <= 0 or id > modModels.len or not (pxPerUnit > 0 and pxPerUnit < 1.0e6): return
   let m = addr modModels[id - 1]
   let z = claimDepth(min(m.radius * pxPerUnit, DepthHalf / 2))
@@ -546,9 +668,7 @@ proc drawModelPosed(id: int, x, y, pxPerUnit: float32, rot: Mat3, pose: ModelPos
     setShaderValue(look.shader, look.tint, [t.r.float32 / 255, t.g.float32 / 255,
                                             t.b.float32 / 255, t.a.float32 / 255])
     setShaderValue(look.shader, look.lit, (if pose.lit: 1'f32 else: 0'f32))
-  let skin = frame >= 0 and look.skinning and pose.anim in 1 .. m.animIdx.len
-  if skin:
-    poseSkeleton(m[], pose.anim, frame)
+  let skin = poseModel(m[], id, key, pose, frame)
   for i in 0 ..< m.model.meshCount:
     if look.skinning:
       setShaderValue(look.shader, look.skinned, int32(skin and m.model.meshes[i].boneCount > 0))
@@ -557,11 +677,12 @@ proc drawModelPosed(id: int, x, y, pxPerUnit: float32, rot: Mat3, pose: ModelPos
   disableDepthTest()
   setMatrixProjection(saved)
 
-proc drawModModel*(id: int, x, y, pxPerUnit, facingDeg: float32, pose: ModelPose, frame: float32) =
+proc drawModModel*(id: int, x, y, pxPerUnit, facingDeg: float32, pose: ModelPose, frame: float32,
+                   key = NoAnimKey) =
   ## draw.model: model `id` centred on (x, y), `pxPerUnit` pixels per model
   ## unit, its front turned to `facingDeg` (screen degrees, 90 = down).
   drawModelPosed(id, x, y, pxPerUnit, topDownRotation(pose, facingDeg, getTime()), pose,
-                 White, frame)
+                 White, frame, key)
 
 proc drawModelIcon*(id: int, x, y, size: float32, pose: ModelPose) =
   ## A model shown as a turntable in a `size` box (MODS.EXE previews): its
@@ -575,7 +696,7 @@ proc drawModelIcon*(id: int, x, y, size: float32, pose: ModelPose) =
                  modelFrameAt(id, p, now))
 
 proc drawModelWorld3D*(id: int, x, y, z, scale, yawDeg, pitchDeg, rollDeg: float32,
-                       pose: ModelPose, tint: Color, time: float) =
+                       pose: ModelPose, tint: Color, time: float, key = NoAnimKey) =
   ## A real 3D draw for the 3D worlds (game3d/): call it between beginMode3D
   ## and endMode3D. Unlike the 2D-embedded path above it keeps the camera's own
   ## projection and depth buffer, so the model sits in the scene like any mesh.
@@ -583,7 +704,8 @@ proc drawModelWorld3D*(id: int, x, y, z, scale, yawDeg, pitchDeg, rollDeg: float
   ## model unit; angles in degrees (yaw about the up axis, then pitch and roll;
   ## pose.spin keeps adding to the yaw). pose.anim/speed pick the animation
   ## frame at `time`, pose.lit toggles the scene light, pose.tint multiplies
-  ## `tint`. Models are +Y up with their front on +Z.
+  ## `tint`. Models are +Y up with their front on +Z. With a `key` the
+  ## instance crossfades when its animation changes.
   if id <= 0 or id > modModels.len or not (scale > 0 and scale < 1.0e6): return
   let m = addr modModels[id - 1]
   # rotation (row-major): yaw about Y, then tip (X) and lean (Z) the model
@@ -608,10 +730,7 @@ proc drawModelWorld3D*(id: int, x, y, z, scale, yawDeg, pitchDeg, rollDeg: float
     setShaderValue(look.shader, look.tint, [t.r.float32 / 255, t.g.float32 / 255,
                                             t.b.float32 / 255, t.a.float32 / 255])
     setShaderValue(look.shader, look.lit, (if pose.lit: 1'f32 else: 0'f32))
-  let frame = modelFrameAt(id, pose, time)
-  let skin = frame >= 0 and look.skinning and pose.anim in 1 .. m.animIdx.len
-  if skin:
-    poseSkeleton(m[], pose.anim, frame)
+  let skin = poseModel(m[], id, key, pose, modelFrameAt(id, pose, time))
   for i in 0 ..< m.model.meshCount:
     if look.skinning:
       setShaderValue(look.shader, look.skinned, int32(skin and m.model.meshes[i].boneCount > 0))
@@ -631,6 +750,7 @@ proc unloadModModels() =
           seen.add tid
           rlgl.unloadTexture(tid)
   modModels.setLen(0)
+  animTracks.clear()   # model ids are reused by the next load
   look = LookShader()
 
 proc textureSize*(id: int): tuple[w, h: int] =
@@ -713,17 +833,18 @@ proc drawModTexture*(id: int, x, y, w, h, rotationDeg: float32, tint: Color,
                 rotationDeg, tint)
 
 proc drawReplacement*(r: BodyReplace, x, y, diameter, angleDeg: float32,
-                      tint: Color = White, animPhase = 0.0) =
+                      tint: Color = White, animPhase = 0.0, key = NoAnimKey) =
   ## A replacement body, centred. A texture is fitted into the diameter
   ## (aspect kept). A model's footprint (seen from above) is fitted to it, its
   ## front turned to `angleDeg` when it rotates (else facing the bottom of the
-  ## screen); `animPhase` offsets its animation clock in seconds.
+  ## screen); `animPhase` offsets its animation clock in seconds, and a `key`
+  ## (the body's own) lets it crossfade when its animation changes.
   let size = diameter * (if r.scale > 0: r.scale else: 1.0'f32)
   if r.model > 0:
     let now = getTime()
     drawModelPosed(r.model, x, y, size / modelFootprint(r.model),
                    topDownRotation(r.pose, (if r.rotate: angleDeg else: 90.0'f32), now),
-                   r.pose, tint, modelFrameAt(r.model, r.pose, now + animPhase))
+                   r.pose, tint, modelFrameAt(r.model, r.pose, now + animPhase), key)
     return
   let (tw, th) = textureSize(r.id)
   if tw <= 0 or th <= 0: return
@@ -734,15 +855,16 @@ proc drawReplacement*(r: BodyReplace, x, y, diameter, angleDeg: float32,
 proc hasLook*(r: BodyReplace): bool {.inline.} = r.id > 0 or r.model > 0
 
 proc drawBodyWorld3D*(r: BodyReplace, cam: Camera, x, y, z, diameter, yawDeg: float32,
-                      time: float, tint: Color = White) =
+                      time: float, tint: Color = White, key = NoAnimKey) =
   ## A replacement body inside a 3D camera (the 3D worlds): a model stands in
   ## the scene, fitted so its footprint is `diameter` (times r.scale) wide and
-  ## turned to `yawDeg` when it rotates; a texture is a billboard facing `cam`.
+  ## turned to `yawDeg` when it rotates (a `key` lets it crossfade when its
+  ## animation changes); a texture is a billboard facing `cam`.
   let size = diameter * (if r.scale > 0: r.scale else: 1.0'f32)
   if r.model > 0:
     drawModelWorld3D(r.model, x, y, z, size / modelFootprint(r.model),
                      r.pose.yaw + (if r.rotate: yawDeg else: 0.0'f32), r.pose.pitch, r.pose.roll,
-                     r.pose, tint, time)
+                     r.pose, tint, time, key)
   elif r.id > 0 and r.id <= modTextures.len:
     let m = addr modTextures[r.id - 1]
     let f = if m.ends.len > 0: textureFrameAt(r.id, time) else: 0
@@ -783,7 +905,8 @@ proc drawPlayerModBody*(p: Player, tint: Color): bool =
   let key = cast[pointer](p)
   if p.vel.x != 0 or p.vel.y != 0:
     playerHeading[key] = radToDeg(arctan2(p.vel.y, p.vel.x))
-  drawReplacement(r, p.pos.x, p.pos.y, p.radius * 2.0'f32, playerHeading.getOrDefault(key), tint)
+  drawReplacement(r, p.pos.x, p.pos.y, p.radius * 2.0'f32, playerHeading.getOrDefault(key), tint,
+                  key = animKey(key))
   true
 
 proc bulletCosmetic(): ptr ModCosmetic {.inline.} =
@@ -816,7 +939,7 @@ proc drawEnemyModBody*(e: Enemy): bool =
   # Each enemy starts its model's animation at its own point (golden-ratio
   # steps spread any count evenly), so a crowd does not march in step.
   drawReplacement(r, e.pos.x, e.pos.y, e.radius * 2.0'f32, radToDeg(e.rotation), tint,
-                  animPhase = e.id.float * 0.618)
+                  animPhase = e.id.float * 0.618, key = animKey(cast[pointer](e)))
   true
 
 proc drawPowerUpModIcon*(x, y, size: int32, pt: PowerUpType): bool =

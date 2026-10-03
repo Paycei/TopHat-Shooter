@@ -167,6 +167,17 @@ let changelog: seq[ChangelogVersion] = @[
           "Los modelos 3D animados ya no saltan a una pose incorrecta en el último fotograma de cada ciclo.",
           "Los modelos glTF y GLB cuyo esqueleto no tiene un nodo padre ahora reproducen sus animaciones en lugar de quedarse quietos.",
           "Las animaciones ahora se interpolan entre sus fotogramas clave, así que se ven fluidas en monitores de alta frecuencia y al ralentizarlas con speed.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Animation crossfades",
+        headEs: "Transiciones entre animaciones",
+        en: points(
+          "When a 3D model switches animation, it now blends from its current pose into the new one instead of jumping, the rest pose included.",
+          "Bodies replaced with override.model and the entities of 3D worlds do it on their own. draw.model and draw3d.model do it for whatever you give a key.",
+          "The new fade option, and modelFade on 3D entities, sets how long the blend takes: 0.2 seconds unless changed, and 0 switches at once."),
+        es: points(
+          "Cuando un modelo 3D cambia de animación, ahora pasa de su pose actual a la nueva con una transición suave en lugar de saltar, también desde y hacia la pose de reposo.",
+          "Los cuerpos reemplazados con override.model y las entidades de los mundos 3D lo hacen solos. draw.model y draw3d.model lo hacen con lo que lleve un key.",
+          "La nueva opción fade, y modelFade en las entidades 3D, fija cuánto dura la transición: 0,2 segundos salvo que se cambie, y 0 cambia al instante.")),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.2",

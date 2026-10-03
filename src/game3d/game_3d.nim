@@ -36,6 +36,7 @@ proc newEntity3D*(world: Game3D, tag = ""): Entity3D =
     color: Color(r: 230, g: 60, b: 60, a: 255),
     shape: esSphere, size: vec3(8, 8, 8),
     modelId: -1, modelScale: 0.0, modelSpeed: 1.0,   # scale 0 = fit the model to the entity's diameter
+    modelFade: 0.2,
     ai: aiNone, speed: 30.0, orbitRadius: 60.0,
     projectileSpeed: 150.0, projectileDamage: 10.0,
     alive: true)
@@ -681,7 +682,8 @@ proc drawEntity3D(world: Game3D, e: Entity3D, cam: Camera) =
      entity3dTex.len > 0 and e.tag in entity3dTex:
     let look = entity3dTex[e.tag]
     if look.hasLook:
-      drawBodyWorld3D(look, cam, e.pos.x, e.pos.y, e.pos.z, e.radius * 2, e.yaw, e.age.float)
+      drawBodyWorld3D(look, cam, e.pos.x, e.pos.y, e.pos.z, e.radius * 2, e.yaw, e.age.float,
+                      key = animKey(cast[pointer](e)))
       return
   case e.shape
   of esNone:
@@ -700,8 +702,9 @@ proc drawEntity3D(world: Game3D, e: Entity3D, cam: Camera) =
       let scale = if e.modelScale > 0: e.modelScale
                   else: 2 * e.radius / max(modelFootprint(e.modelId), 1.0e-6'f32)
       drawModelWorld3D(e.modelId, e.pos.x, e.pos.y, e.pos.z, scale, e.yaw, 0, 0,
-                       ModelPose(anim: e.modelAnim, speed: e.modelSpeed, lit: true, tint: White),
-                       White, world.timeElapsed.float)
+                       ModelPose(anim: e.modelAnim, speed: e.modelSpeed, lit: true, tint: White,
+                                 fade: e.modelFade),
+                       White, world.timeElapsed.float, animKey(cast[pointer](e)))
 
 proc drawPickup3D(p: Pickup3D, cam: Camera) =
   if pickup3dTex.len > 0 and p.kind in pickup3dTex:

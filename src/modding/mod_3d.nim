@@ -735,8 +735,9 @@ proc installDraw3dLibrary(base: ScriptTable) =
               parseColor(vm, arg(args, 5), "draw3d.plane"))
   t.reg("model") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## draw3d.model(mdl, x, y, z [, {scale, size, yaw, pitch, roll, spin, animation,
-    ##   time, frame, speed, tint, lit}]) -- centred on x, y, z. scale = world units
-    ##   per model unit; size = fit its footprint to that many units (default 8).
+    ##   time, frame, speed, tint, lit, key, fade}]) -- centred on x, y, z. scale = world
+    ##   units per model unit; size = fit its footprint to that many units (default 8).
+    ##   With a `key`, a change of animation crossfades over `fade` seconds.
     vm.requireDrawing3D("model")
     let id = vm.modelId(arg(args, 0), "draw3d.model")
     let p = vm.vec3Arg(args, 1, "model")
@@ -763,7 +764,8 @@ proc installDraw3dLibrary(base: ScriptTable) =
         time = floorMod(f.float - 1.0, modelAnimFrames(id, pose.anim).float) / ModelFps
       elif tm.kind != vkNil:
         time = vm.num(tm, "draw3d.model.time").float
-    drawModelWorld3D(id, p.x, p.y, p.z, scale, pose.yaw, pose.pitch, pose.roll, pose, White, time)
+    drawModelWorld3D(id, p.x, p.y, p.z, scale, pose.yaw, pose.pitch, pose.roll, pose, White, time,
+                     vm.readAnimKey(opts, "draw3d.model"))
   t.reg("billboard") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## draw3d.billboard(texture, x, y, z [, size = 8, tint]) -- a sprite that always faces the camera
     vm.requireDrawing3D("billboard")

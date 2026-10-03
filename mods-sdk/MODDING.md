@@ -518,6 +518,8 @@ the game's bodies, cosmetics, and your own drawing.
 | `spin` | 0 | keeps turning it about its up axis, degrees per second |
 | `animation` | the first | a name or a number (1 is the first); `false` holds the rest pose |
 | `speed` | 1 | animation speed |
+| `fade` | 0.2 | seconds a change of animation crossfades; 0 switches at once |
+| `key` | none | `draw.model` and `draw3d.model`: a string or number naming what you draw, so it crossfades when its animation changes |
 | `lit` | true | shaded by the light; `false` for flat colours |
 | `tint` | white | a colour multiplied over the model |
 
@@ -525,6 +527,17 @@ Animations are skeletal (a mesh skinned to an armature) in GLB/glTF, IQM and
 M3D. They loop at 60 frames per second, which is the speed glTF and M3D
 animations were authored at, and up to 128 bones move a mesh. Each enemy
 starts its animation at its own point, so a crowd does not flap in step.
+
+**Crossfades.** When a body's animation changes, it blends from the pose on
+screen into the new animation over `fade` seconds instead of jumping. The
+bodies the game draws do this on their own: calling `override.model` again
+with another `animation` crossfades every player, enemy or boss wearing it,
+and so does setting a 3D entity's `modelAnim` (its `modelFade` sets the
+time). `draw.model` and `draw3d.model` draw a fresh copy every call, so give
+what you draw a `key` (a string or a number; an enemy's `id` works well, and
+each mod's keys are its own) and it crossfades the same way when the
+`animation` you pass changes. The rest pose (`animation = false`) fades in and
+out like any animation.
 
 Every copy on screen is drawn on its own, so keep enemy models light: a few
 hundred triangles each is plenty.
@@ -669,7 +682,7 @@ difficulty scales an entity's HP once, when it joins. Defaults: `hp` 30,
 | `tag`, `hp`, `maxHp`, `radius` | `radius` is the hit and touch size. An entity brought to 0 hp dies |
 | `pos`, `vel`, `yaw`, `x y z vx vy vz` | position, velocity, heading (degrees) |
 | `shape`, `color`, `size` | `"none"`, `"cube"` (`size` = full extents), `"sphere"` (drawn from `radius`), `"cylinder"` (from `radius`; `size.y` is its height) or `"model"` |
-| `model`, `modelScale`, `modelAnim`, `modelSpeed` | a model from `assets.model` (or a file name); setting one makes the shape `"model"`. `modelScale` 0 fits the model to the entity's diameter; `modelAnim` is an animation number (1 is the first, 0 the rest pose) |
+| `model`, `modelScale`, `modelAnim`, `modelSpeed`, `modelFade` | a model from `assets.model` (or a file name); setting one makes the shape `"model"`. `modelScale` 0 fits the model to the entity's diameter; `modelAnim` is an animation number (1 is the first, 0 the rest pose); changing it crossfades over `modelFade` seconds (0.2; 0 switches at once) |
 | `ai`, `speed`, `orbitRadius`, `range` | see below |
 | `contactDamage`, `contactTimer` | damage when it touches the player, at most once a second |
 | `fireInterval`, `fireTimer`, `projectileSpeed`, `projectileDamage` | shooting (an interval of 0 never shoots) |

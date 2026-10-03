@@ -1384,21 +1384,35 @@ proc resolveAnim(vm: VM, id: int, v: ScriptValue, what: string): int =
 
 proc readPose*(vm: VM, opts: ScriptValue, id: int, what: string): ModelPose =
   ## The pose options shared by override.model, draw.model and model cosmetics.
-  result = ModelPose(speed: 1, lit: true, tint: White)
+  result = ModelPose(speed: 1, lit: true, tint: White, fade: 0.2)
   if opts.kind != vkTable:
     result.anim = vm.resolveAnim(id, NilValue, what)
     return
   for (field, dest) in [("tilt", addr result.tilt), ("yaw", addr result.yaw),
                         ("pitch", addr result.pitch), ("roll", addr result.roll),
-                        ("spin", addr result.spin), ("speed", addr result.speed)]:
+                        ("spin", addr result.spin), ("speed", addr result.speed),
+                        ("fade", addr result.fade)]:
     let v = rawGetStr(opts.tbl, field)
     if v.kind == vkNumber and abs(v.n) < 1.0e9: dest[] = v.n.float32   # (NaN fails too)
     elif v.kind != vkNil: vm.runtimeError(what & ": " & field & " must be a number")
+  result.fade = max(result.fade, 0)
   let lit = rawGetStr(opts.tbl, "lit")
   if lit.kind != vkNil: result.lit = truthy(lit)
   let tn = rawGetStr(opts.tbl, "tint")
   if tn.kind != vkNil: result.tint = parseColor(vm, tn, what & ".tint")
   result.anim = vm.resolveAnim(id, rawGetStr(opts.tbl, "animation"), what)
+
+proc readAnimKey*(vm: VM, opts: ScriptValue, what: string): AnimKey =
+  ## draw.model / draw3d.model's `key`: a string or number naming what is
+  ## drawn, so it crossfades when its animation changes (each mod's keys are
+  ## its own).
+  if opts.kind != vkTable: return NoAnimKey
+  let k = rawGetStr(opts.tbl, "key")
+  case k.kind
+  of vkNil: NoAnimKey
+  of vkString: animKey(cast[pointer](vm), k.str.s)
+  of vkNumber: animKey(cast[pointer](vm), $k.n)
+  else: vm.runtimeError(what & ": key must be a string or a number")
 
 proc readScaleRotate(opts: ScriptValue, look: var BodyReplace) =
   look.scale = 1.0
@@ -1620,9 +1634,11 @@ proc installAssetLibraries(base: ScriptTable) =
   drawT.reg("model") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## draw.model(mdl, x, y [, {size = px, scale = px per unit, facing = deg,
     ##            tilt/yaw/pitch/roll = deg, spin = deg/s, animation = name | n | false,
-    ##            speed = x, time = seconds, frame = n, lit = bool, tint = color}])
+    ##            speed = x, time = seconds, frame = n, lit = bool, tint = color,
+    ##            key = name | n, fade = seconds}])
     ## Centred on x, y; its footprint (seen from above) is `size` wide (64 by
     ## default); its front points toward `facing` (90 = down, the default).
+    ## With a `key`, a change of animation crossfades over `fade` seconds.
     vm.requireDrawing("model")
     let id = vm.modelId(arg(args, 0), "draw.model")
     let x = vm.f32(args, 1, "model")
@@ -1647,7 +1663,7 @@ proc installAssetLibraries(base: ScriptTable) =
         frame = floorMod(int(floor(fr.n)) - 1, modelAnimFrames(id, pose.anim)).float32
       elif tm.kind == vkNumber:
         frame = modelFrameAt(id, pose, tm.n)   # (a NaN time shows frame 1)
-    drawModModel(id, x, y, pxPerUnit, facing, pose, frame)
+    drawModModel(id, x, y, pxPerUnit, facing, pose, frame, vm.readAnimKey(opts, "draw.model"))
 
   let overrideT = rawGetStr(base, "override").tbl
   overrideT.reg("texture") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
