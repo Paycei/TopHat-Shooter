@@ -1,244 +1,317 @@
-## Roguelite Ending Cinematic, "Deep Recovery" outro.
-## Plays once the first time the final-floor boss falls (the DELVE archive). Built
-## from the generic framework in cutscene.nim, exactly like the wave-mode outro in
-## endgame_cinematic.nim, so it reads as a sibling of the other archive tapes.
-## Theme: a descent through the corrupted recursion to the core, data extraction,
-## and a climb back to the surface with the recovered cores in hand.
+## Roguelite Ending Cinematic: Act III, BELOW THE PARTITION (DELVE 01 to 06).
+## Plays once, the first time the final-floor boss falls. With root access,
+## shooter.exe goes below the partition table and finds another desktop whose
+## clock stopped years before TOPHAT existed. Its boot log lists the six
+## legacy guardians, then TopHat-ShooterOS being installed over it. The other
+## root was never an invader: it was here first. It gets the shutdown nobody
+## gave it, and Disk Cleanup can finally finish.
+##
+## Timing: sound.nim's story timing (BelowShots, Below*), shared with the
+## mtStoryBelow score in sound.nim.
 
-import raylib, rlgl, math
+import raylib, math
 import ../draw_prims
-import particle_types, background_fx, ../shapes, ../localization, ../sound, cinematic_common, cutscene
+import particle_types, background_fx, ../shapes, ../localization, ../sound, ../boss_definitions,
+       cinematic_common, cutscene
 
 const
   RogAccent* = Color(r: 255, g: 190, b: 70, a: 255)   # recovered-data amber/gold
+  OldTeal = Color(r: 0, g: 92, b: 96, a: 255)
+  OldGrey = Color(r: 178, g: 178, b: 170, a: 255)
+  OldNavy = Color(r: 10, g: 20, b: 120, a: 255)
+  SafeOrange = Color(r: 255, g: 140, b: 30, a: 255)
+  IntruderCyan = Color(r: 0, g: 220, b: 235, a: 255)
+  GuardianIds = [17, 18, 19, 20, 21, 22]   # the roguelite guardians: its services
 
 # ---------------------------------------------------------------------------
-# Shot draw procs
+# The old system's desktop: flat teal, grey bevels, an 8.3 world.
+
+proc drawBevel(x, y, w, h: int32, a: float32, sunken: bool = false) =
+  drawRectangle(x, y, w, h, colorA(OldGrey, a * 255.0'f32))
+  let light = Color(r: 240, g: 240, b: 232, a: alphaByte(a * 255.0'f32))
+  let dark = Color(r: 80, g: 80, b: 76, a: alphaByte(a * 255.0'f32))
+  let (tl, br) = if sunken: (dark, light) else: (light, dark)
+  drawRectangle(x, y, w, 2, tl)
+  drawRectangle(x, y, 2, h, tl)
+  drawRectangle(x, y + h - 2, w, 2, br)
+  drawRectangle(x + w - 2, y, 2, h, br)
+
+proc drawOldIcon(kind: int, cx, y: int32, label: string, a: float32) =
+  let ink = Color(r: 20, g: 20, b: 20, a: alphaByte(a * 255.0'f32))
+  case kind
+  of 0:   # computer
+    drawRectangle(cx - 15, y, 30, 22, colorA(OldGrey, a * 255.0'f32))
+    drawRectangle(cx - 11, y + 3, 22, 15, Color(r: 0, g: 60, b: 70, a: alphaByte(a * 255.0'f32)))
+    drawRectangle(cx - 8, y + 24, 16, 5, colorA(OldGrey, a * 255.0'f32))
+    drawRectOutline(cx - 15, y, 30, 22, ink)
+  of 1:   # folder
+    drawRectangle(cx - 15, y + 2, 12, 5, Color(r: 230, g: 200, b: 80, a: alphaByte(a * 255.0'f32)))
+    drawRectangle(cx - 15, y + 6, 30, 21, Color(r: 245, g: 215, b: 90, a: alphaByte(a * 255.0'f32)))
+    drawRectOutline(cx - 15, y + 6, 30, 21, ink)
+  of 2:   # document
+    drawRectangle(cx - 11, y, 22, 28, Color(r: 245, g: 245, b: 240, a: alphaByte(a * 255.0'f32)))
+    drawRectOutline(cx - 11, y, 22, 28, ink)
+    for k in 0..<4:
+      drawRectangle(cx - 7, y + 6 + k.int32 * 5, 14, 1, ink)
+  else:   # bin
+    drawRectangle(cx - 11, y + 4, 22, 24, Color(r: 200, g: 205, b: 210, a: alphaByte(a * 255.0'f32)))
+    drawRectangle(cx - 13, y + 2, 26, 3, Color(r: 150, g: 155, b: 160, a: alphaByte(a * 255.0'f32)))
+    drawRectOutline(cx - 11, y + 4, 22, 24, ink)
+  let w = measureText(label, 12)
+  drawText(label, cx - w div 2 + 1, y + 35, 12, Color(r: 0, g: 0, b: 0, a: alphaByte(a * 200.0'f32)))
+  drawText(label, cx - w div 2, y + 34, 12, Color(r: 255, g: 255, b: 255, a: alphaByte(a * 255.0'f32)))
+
+proc oldScreenRect(sw, sh: int32): (int32, int32, int32, int32) =
+  let w = (sw.float32 * 0.7'f32).int32
+  let h = (sh.float32 * 0.5'f32).int32
+  ((sw - w) div 2, sh div 9 + 26, w, h)
+
+proc drawOldDesktop(sw, sh: int32, local, alpha: float32, iconsLeft: int = 5) =
+  ## The desktop below the partition. Nothing moves except the dust; the
+  ## clock in the corner stopped long ago and never blinks.
+  let (x, y, w, h) = oldScreenRect(sw, sh)
+  drawRectangle(x - 4, y - 4, w + 8, h + 8, Color(r: 30, g: 30, b: 28, a: alphaByte(alpha * 255.0'f32)))
+  drawRectangle(x, y, w, h, colorA(OldTeal, alpha * 255.0'f32))
+  const labels = ["SYSTEM", "DOCS", "GAMES", "README.TXT", "RECYCLED"]
+  const kinds = [0, 1, 1, 2, 3]
+  for i in 0..<min(iconsLeft, labels.len):
+    drawOldIcon(kinds[i], x + 46, y + 18 + i.int32 * 62, labels[i], alpha)
+  let barY = y + h - 28
+  drawBevel(x, barY, w, 28, alpha)
+  drawBevel(x + 4, barY + 4, 74, 20, alpha)
+  drawRectangle(x + 10, barY + 9, 10, 10, Color(r: 0, g: 110, b: 110, a: alphaByte(alpha * 255.0'f32)))
+  drawText("MENU", x + 26, barY + 9, 12, Color(r: 10, g: 10, b: 10, a: alphaByte(alpha * 255.0'f32)))
+  drawBevel(x + w - 70, barY + 4, 66, 20, alpha, sunken = true)
+  drawText("03:14", x + w - 56, barY + 9, 12, Color(r: 10, g: 10, b: 10, a: alphaByte(alpha * 255.0'f32)))
+  # Dust and a tired picture: specks, slow rolling bars.
+  for i in 0..<40:
+    let sx = x + int32(hash01(i.float32 * 3.3'f32) * w.float32)
+    let sy = y + int32(fractCoord(hash01(i.float32 + 0.7'f32) + local * 0.03'f32) * h.float32)
+    drawRectangle(sx, sy, 1, 1, Color(r: 255, g: 255, b: 240, a: alphaByte(alpha * 60.0'f32)))
+  let roll = y + int32(fractCoord(local * 0.12'f32) * h.float32)
+  drawRectangle(x, roll, w, 10, Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * 22.0'f32)))
+
+# ---------------------------------------------------------------------------
+# DELVE 01: BELOW THE PARTITION. Through the floor TOPHAT could never open.
 
 proc drawDescendShot(local, duration: float32, screenWidth, screenHeight: int32,
                      alpha: float32) =
-  ## Falling inward through nested sector rings: concentric polygons rush past the
-  ## camera toward a single vanishing point as the player-process descends.
   let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * 0.46'f32
+  let cy = screenHeight.float32 * 0.44'f32
   let dive = easeInOut(local / duration)
 
-  drawSoftGlow(cx, cy, 200.0'f32, colorA(RogAccent, alpha * 46.0'f32), 1.0'f32)
-
-  # Recursion stack: rings spiral inward, each one a deeper floor.
+  drawHalo(cx, cy, 200.0'f32, colorA(RogAccent, alpha * 46.0'f32), 1.0'f32)
   for i in 0..<11:
     let phase = fractCoord(local * 0.32'f32 + i.float32 / 11.0'f32)
-    let r = (28.0'f32 + phase * 360.0'f32)
+    let r = 28.0'f32 + phase * 360.0'f32
     let sides = 4 + (i mod 4).int32
     let rot = local * (18.0'f32 + i.float32 * 4.0'f32) + i.float32 * 21.0'f32
     let ringA = alpha * (1.0'f32 - phase) * 150.0'f32
-    drawPolyOutline(Vector2(x: cx, y: cy), sides, r, rot,
-                  Color(r: 255, g: 170, b: 60, a: alphaByte(ringA)))
-    if i mod 2 == 0:
-      drawPolyOutline(Vector2(x: cx, y: cy), sides, r * 0.62'f32, -rot * 1.3'f32,
-                    Color(r: 200, g: 90, b: 255, a: alphaByte(ringA * 0.5'f32)))
-
-  # Falling shards streak past toward the vanishing point.
+    drawPolyOutline(Vector2(x: cx, y: cy), sides, r, rot, Color(r: 255, g: 170, b: 60, a: alphaByte(ringA)))
   for i in 0..<16:
-    let ang = fractCoord(sin(i.float32 * 12.9898'f32) * 43758.5453'f32) * PI * 2.0'f32
+    let ang = hash01(i.float32) * PI * 2.0'f32
     let p = fractCoord(local * 0.6'f32 + i.float32 * 0.063'f32)
     let dist = (1.0'f32 - p) * 320.0'f32 + 30.0'f32
     let px = cx + cos(ang) * dist
     let py = cy + sin(ang) * dist * 0.7'f32
-    drawStroke(px.int32, py.int32, cx.int32, cy.int32,
-             colorA(RogAccent, alpha * (1.0'f32 - p) * 30.0'f32))
-    drawDisc(Vector2(x: px, y: py), 2.4'f32 * (1.0'f32 - p) + 0.6'f32,
-               colorA(RogAccent, alpha * (1.0'f32 - p) * 180.0'f32))
+    drawStroke(px.int32, py.int32, cx.int32, cy.int32, colorA(RogAccent, alpha * (1.0'f32 - p) * 30.0'f32))
+    drawDisc(Vector2(x: px, y: py), 2.4'f32 * (1.0'f32 - p) + 0.6'f32, colorA(RogAccent, alpha * (1.0'f32 - p) * 180.0'f32))
 
-  # The descending process, shrinking as it falls deeper.
+  # The partition table, passed on the way down: a bright plane sweeping up.
+  let pass = clamp01((local - 0.6'f32) / 1.5'f32)
+  if pass > 0.0'f32 and pass < 1.0'f32:
+    let planeY = lerpF(screenHeight.float32 * 0.62'f32, screenHeight.float32 * 0.12'f32, easeInOut(pass))
+    let pa = alpha * sin(pass * PI)
+    drawRectangle(0, planeY.int32 - 1, screenWidth, 3, colorA(IntruderCyan, pa * 230.0'f32))
+    drawRectangleGradientV(0, planeY.int32 + 2, screenWidth, 40, colorA(IntruderCyan, pa * 60.0'f32),
+                           colorA(IntruderCyan, 0.0'f32))
+    drawText(t(tkEndPartitionTable), screenWidth div 9, planeY.int32 - 18, 14, colorA(IntruderCyan, pa * 230.0'f32))
+
   let pr = 26.0'f32 * (1.0'f32 - dive * 0.35'f32)
   drawEquippedPlayerModel(newVector2f(cx, cy), pr, local, alpha, 0.25'f32)
+  drawTopHat(newVector2f(cx, cy), pr, local, alpha)
 
   drawSubtitles([t(tkRogEndDescend1), t(tkRogEndDescend2)], screenWidth, screenHeight, alpha)
 
-proc drawCoreShot(local, duration: float32, screenWidth, screenHeight: int32,
-                  alpha: float32) =
-  ## The corrupted core at the base of the recursion: a dark seed wrapped in
-  ## fracturing containment, leaking corruption.
-  let reveal = easeOut(local / (duration * 0.7'f32))
-  let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * 0.44'f32
-  let pulse = sin(local * 2.4'f32) * 0.5'f32 + 0.5'f32
+# ---------------------------------------------------------------------------
+# DELVE 02: SOMEONE ELSE'S DESKTOP.
 
-  drawSoftGlow(cx, cy, 260.0'f32 * reveal, Color(r: 180, g: 40, b: 255, a: alphaByte(alpha * 60.0'f32)), 1.0'f32)
+proc drawOldDesktopShot(local, duration: float32, sw, sh: int32, alpha: float32) =
+  drawOldDesktop(sw, sh, local, alpha)
+  let (x, y, w, h) = oldScreenRect(sw, sh)
+  # shooter.exe, a visitor, small against someone else's wallpaper.
+  let arrive = easeOut(clamp01(local / 2.2'f32))
+  let px = (x + w div 2).float32
+  let py = (y + h).float32 - 90.0'f32 - (1.0'f32 - arrive) * 40.0'f32
+  drawHalo(px, py, 40.0'f32, colorA(IntruderCyan, alpha * 40.0'f32), 1.0'f32)
+  drawEquippedPlayerModel(newVector2f(px, py), 14.0'f32, local, alpha * arrive, 0.2'f32)
+  drawTopHat(newVector2f(px, py), 14.0'f32, local, alpha * arrive)
+  drawSubtitles([t(tkRogEndDesktop1), t(tkRogEndDesktop2)], sw, sh, alpha)
 
-  # Containment arcs failing around the seed.
-  for ring in 0..<4:
-    let rr = (50.0'f32 + ring.float32 * 34.0'f32) * reveal
-    let dir = if ring mod 2 == 0: 1.0'f32 else: -1.0'f32
-    let base = local * dir * (24.0'f32 + ring.float32 * 12.0'f32)
-    for seg in 0..<3:
-      let start = base + seg.float32 * 120.0'f32
-      drawRing(Vector2(x: cx, y: cy), rr - 1.5'f32, rr + 1.5'f32, start, start + 54.0'f32, 22,
-               colorA(RogAccent, alpha * (130.0'f32 - ring.float32 * 22.0'f32)))
+# ---------------------------------------------------------------------------
+# DELVE 03: BOOT LOG. Its services, then us, written over it.
 
-  # The seed: a dark hexagon with an amber fault-line core.
-  let seedR = 40.0'f32 * reveal * (0.94'f32 + pulse * 0.06'f32)
-  drawPoly(Vector2(x: cx, y: cy), 6, seedR, local * 16.0'f32,
-           Color(r: 24, g: 8, b: 30, a: alphaByte(alpha * 245.0'f32)))
-  drawPolyOutline(Vector2(x: cx, y: cy), 6, seedR, local * 16.0'f32,
-                Color(r: 230, g: 70, b: 255, a: alphaByte(alpha * 220.0'f32)))
-  # Corruption fault-lines cracking outward.
-  for i in 0..<6:
-    let a = local * 0.6'f32 + i.float32 * PI / 3.0'f32
-    let len = seedR * (1.2'f32 + pulse * 0.4'f32)
-    drawStroke(cx.int32, cy.int32, (cx + cos(a) * len).int32, (cy + sin(a) * len).int32,
-             colorA(RogAccent, alpha * (90.0'f32 + pulse * 90.0'f32)))
-  drawDisc(Vector2(x: cx, y: cy), seedR * 0.32'f32 * (0.8'f32 + pulse * 0.2'f32),
-             colorA(RogAccent, alpha * 235.0'f32))
+proc newBootLogShot(): CutsceneDrawProc =
+  var guardians: seq[string]
+  for id in GuardianIds:
+    guardians.add(getBossProcessName(id))
+  let install = t(tkRogEndLogInstall)
+  let overwrite = t(tkRogEndLogOverwrite)
+  let suspend = t(tkRogEndLogSuspend)
 
-  drawSubtitles([t(tkRogEndCore1), t(tkRogEndCore2)], screenWidth, screenHeight, alpha)
+  result = proc(local, duration: float32, sw, sh: int32, alpha: float32) =
+    let x = (sw.float32 * 0.14'f32).int32
+    let colW = min(sw - 2 * x, 560'i32)
+    let y0 = sh div 9 + 28
+    drawRectangle(x - 16, y0 - 14, colW + 32, BelowLogLines.int32 * 30 + 24,
+                  Color(r: 4, g: 4, b: 2, a: alphaByte(alpha * 235.0'f32)))
+    drawRectOutline(x - 16, y0 - 14, colW + 32, BelowLogLines.int32 * 30 + 24, colorA(OldAmber, alpha * 70.0'f32))
+    let overwriteAt = BelowLogStart + 7.0'f32 * BelowLogEvery
+    for i in 0..<BelowLogLines:
+      let at = BelowLogStart + i.float32 * BelowLogEvery
+      if local < at:
+        break
+      let ly = y0 + i.int32 * 30
+      let reveal = revealOver(local, at, 0.3'f32)
+      if i < GuardianIds.len:
+        let name = guardians[i]
+        drawOldText(name, x, ly, 20, reveal, local, alpha, centered = false, cursor = false)
+        if reveal >= 1.0'f32:
+          let okX = x + colW - measureText("OK", 20)
+          var dx = x + measureText(name, 20) + 12
+          while dx < okX - 14:
+            drawRectangle(dx, ly + 14, 3, 3, colorA(OldAmber, alpha * 150.0'f32))
+            dx += 12
+          drawText("OK", okX, ly, 20, colorA(OldAmber, alpha * 245.0'f32))
+      elif i < 8:
+        drawOldText((if i == 6: install & "..." else: overwrite & "..."), x, ly, 20, reveal, local, alpha,
+                    IntruderCyan, centered = false, cursor = false)
+      else:
+        drawOldText(suspend, x, ly, 20, reveal, local, alpha * 0.8'f32, centered = false)
+    # The overwrite: TopHat-ShooterOS's cyan eats into the amber lines above.
+    let eat = clamp01((local - overwriteAt) / 2.6'f32)
+    if eat > 0.0'f32:
+      for k in 0..<int(eat * 90.0'f32):
+        let row = int(hash01(k.float32 * 1.7'f32) * GuardianIds.len.float32)
+        let bx = x + int32(hash01(k.float32 * 4.1'f32 + 2.0'f32) * colW.float32)
+        let flick = if fractCoord(local * 8.0'f32 + hash01(k.float32)) < 0.85'f32: 1.0'f32 else: 0.4'f32
+        drawRectangle(bx, y0 + row.int32 * 30 + 2, 6 + int32(hash01(k.float32 + 9.0'f32) * 22.0'f32), 18,
+                      colorA(IntruderCyan, alpha * flick * 150.0'f32))
+    drawSubtitles([t(tkRogEndLog1), t(tkRogEndLog2)], sw, sh, alpha)
 
-proc drawExtractShot(local, duration: float32, screenWidth, screenHeight: int32,
-                     alpha: float32) =
-  ## Data extraction: shards (diamonds) tear loose from the core and stream out to
-  ## the player as the loop unwinds; recovered cores orbit.
-  let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * 0.46'f32
-  let progress = easeInOut(local / duration)
+# ---------------------------------------------------------------------------
+# DELVE 04: THE OTHER ROOT. No monster: a cursor on its own screen.
 
-  drawSoftGlow(cx, cy, 230.0'f32, colorA(RogAccent, alpha * 50.0'f32), 1.0'f32)
+proc drawOtherRootShot(local, duration: float32, sw, sh: int32, alpha: float32) =
+  drawRectangle(-20, -20, sw + 40, sh + 40, Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * 200.0'f32)))
+  let cy = (sh.float32 * 0.30'f32).int32
+  let lands = BelowFirstAt + BelowFirstDur
+  if local >= lands:
+    drawHalo(sw.float32 * 0.5'f32, cy.float32 + 20.0'f32, 280.0'f32,
+                 colorA(OldAmber, alpha * (20.0'f32 + 40.0'f32 * exp(-(local - lands) * 3.0'f32))), 1.0'f32)
+  drawOldText(t(tkRogEndFirst), sw div 2, cy, 40, revealOver(local, BelowFirstAt, BelowFirstDur), local, alpha)
+  # shooter.exe, hat and all, the intruder in this story.
+  let px = sw.float32 * 0.5'f32
+  let py = sh.float32 * 0.5'f32
+  drawEquippedPlayerModel(newVector2f(px, py), 18.0'f32, local, alpha * 0.9'f32, 0.15'f32)
+  drawTopHat(newVector2f(px, py), 18.0'f32, local, alpha * 0.9'f32)
+  drawSubtitles([t(tkRogEndFirst1), t(tkRogEndFirst2)], sw, sh, alpha)
 
-  # Shards streaming outward from the core, unwinding the loop.
-  for i in 0..<22:
-    let ang = i.float32 * PI * 2.0'f32 / 22.0'f32 + local * 0.5'f32
-    let spread = fractCoord(local * 0.7'f32 + i.float32 * 0.045'f32)
-    let dist = spread * (180.0'f32 + (i mod 3).float32 * 40.0'f32)
-    let px = cx + cos(ang) * dist
-    let py = cy + sin(ang) * dist
-    let sz = 6.0'f32 * (1.0'f32 - spread) + 1.5'f32
-    drawPoly(Vector2(x: px, y: py), 4, sz, local * 120.0'f32 + i.float32 * 40.0'f32,
-             colorA(RogAccent, alpha * (1.0'f32 - spread) * 210.0'f32))
+# ---------------------------------------------------------------------------
+# DELVE 05: SHUTDOWN. The proper one.
 
-  # Orbiting recovered cores.
-  for i in 0..<5:
-    let a = local * 1.1'f32 + i.float32 * PI * 2.0'f32 / 5.0'f32
-    let orx = cx + cos(a) * 96.0'f32
-    let ory = cy + sin(a) * 96.0'f32 * 0.7'f32
-    drawSoftGlow(orx, ory, 22.0'f32, colorA(RogAccent, alpha * 70.0'f32), 1.0'f32)
-    drawPoly(Vector2(x: orx, y: ory), 6, 9.0'f32, local * 60.0'f32 + i.float32 * 30.0'f32,
-             Color(r: 255, g: 210, b: 110, a: alphaByte(alpha * 235.0'f32)))
+proc drawShutdownShot(local, duration: float32, sw, sh: int32, alpha: float32) =
+  let yes = BelowYesAt
+  let safe = BelowSafeAt
+  let goingDown = clamp01((local - (yes + 0.3'f32)) / (safe - yes - 0.6'f32))
+  let iconsLeft = 5 - int(goingDown * 5.0'f32 + 0.001'f32)
+  let deskA = alpha * (1.0'f32 - clamp01((local - (safe - 0.5'f32)) / 0.4'f32))
+  if deskA > 0.0'f32:
+    drawOldDesktop(sw, sh, local, deskA, iconsLeft)
+    let (x, y, w, h) = oldScreenRect(sw, sh)
+    let dlgA = deskA * (1.0'f32 - clamp01((local - (yes + 0.2'f32)) / 0.25'f32))
+    if dlgA > 0.0'f32:
+      let dw = 300'i32
+      let dh = 120'i32
+      let dx = x + (w - dw) div 2
+      let dy = y + (h - dh) div 2 - 20
+      drawBevel(dx, dy, dw, dh, dlgA)
+      drawRectangle(dx + 3, dy + 3, dw - 6, 20, colorA(OldNavy, dlgA * 255.0'f32))
+      drawText(t(tkRogEndShutdownTitle), dx + 8, dy + 7, 12, Color(r: 255, g: 255, b: 255, a: alphaByte(dlgA * 255.0'f32)))
+      let body = t(tkRogEndShutdownBody)
+      drawText(body, dx + 16, dy + 40, fitFontSize(body, dw - 32, 16), Color(r: 10, g: 10, b: 10, a: alphaByte(dlgA * 255.0'f32)))
+      let pressed = local >= yes and local < yes + 0.15'f32
+      let bx = dx + dw div 2 - 55
+      let by = dy + dh - 36
+      drawBevel(bx, by, 110, 26, dlgA, sunken = pressed)
+      let go = t(tkRogEndShutdownGo)
+      drawCenteredText(go, bx + 55, by + 7, fitFontSize(go, 100, 14), Color(r: 10, g: 10, b: 10, a: alphaByte(dlgA * 255.0'f32)))
+      # The pointer that presses it is yours.
+      let travel = easeInOut(clamp01((local - 0.15'f32) / (yes - 0.25'f32)))
+      let ptx = lerpF((x + w - 40).float32, (bx + 60).float32, travel)
+      let pty = lerpF((y + h - 50).float32, (by + 14).float32, travel)
+      drawStoryPointer(ptx, pty, dlgA, pressed)
 
-  # The process gathering the payload at the center.
-  drawEquippedPlayerModel(newVector2f(cx, cy), 28.0'f32, local, alpha, 0.3'f32 + progress * 0.2'f32)
+  # Black, and the line every old machine ended on.
+  let safeA = alpha * clamp01((local - safe) / 0.8'f32)
+  if local >= safe - 0.5'f32:
+    drawRectangle(-20, -20, sw + 40, sh + 40,
+                  Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * clamp01((local - (safe - 0.5'f32)) / 0.4'f32) * 255.0'f32)))
+  if safeA > 0.0'f32:
+    let line = t(tkRogEndSafe)
+    let size = fitFontSize(line, sw - 120, 26)
+    drawCenteredText(line, sw div 2, (sh.float32 * 0.36'f32).int32, size, colorA(SafeOrange, safeA * 255.0'f32))
 
-  drawSubtitles([t(tkRogEndExtract1), t(tkRogEndExtract2)], screenWidth, screenHeight, alpha)
+  drawSubtitles([t(tkRogEndShutdown1), t(tkRogEndShutdown2)], sw, sh, alpha)
 
-proc drawRevealShot(local, duration: float32, screenWidth, screenHeight: int32,
-                    alpha: float32) =
-  ## ORIGIN EXPOSED: in the seed's dying light, the truth is laid bare. A single
-  ## flash peaks mid-shot and burns away the seed to expose an ancient lattice
-  ## behind it - a structure older than the OS, proof the breach only woke the Root.
-  let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * 0.45'f32
-  # Flash envelope: rises to a hard peak near the middle, then settles.
-  let t01 = local / duration
-  let flash = exp(-((t01 - 0.42'f32) * (t01 - 0.42'f32)) / 0.018'f32)
-  let settle = easeOut(clamp01((t01 - 0.5'f32) / 0.5'f32))
-
-  drawSoftGlow(cx, cy, 200.0'f32 + flash * 260.0'f32,
-               colorA(RogAccent, alpha * (40.0'f32 + flash * 150.0'f32)), 1.0'f32)
-
-  # The ancient lattice revealed behind the seed: nested rotating polygons in a
-  # cold violet, fading up as the seed burns away. Older geometry than the gold.
-  for i in 0..<7:
-    let r = 40.0'f32 + i.float32 * 30.0'f32
-    let sides = 6'i32
-    let rot = local * (6.0'f32 + i.float32 * 2.0'f32) * (if i mod 2 == 0: 1.0'f32 else: -1.0'f32)
-    let latA = alpha * settle * (140.0'f32 - i.float32 * 14.0'f32)
-    drawPolyOutline(Vector2(x: cx, y: cy), sides, r, rot,
-                  Color(r: 150, g: 60, b: 255, a: alphaByte(latA)))
-
-  # Radial truth-rays firing out at the flash peak.
-  for i in 0..<24:
-    let a = i.float32 * PI * 2.0'f32 / 24.0'f32 + local * 0.2'f32
-    let len = 60.0'f32 + flash * 360.0'f32
-    drawStroke(cx.int32, cy.int32,
-             (cx + cos(a) * len).int32, (cy + sin(a) * len).int32,
-             colorA(RogAccent, alpha * flash * 120.0'f32))
-
-  # The seed itself, dimming and shrinking as the flash consumes it.
-  let seedR = 38.0'f32 * (1.0'f32 - settle * 0.55'f32)
-  drawPoly(Vector2(x: cx, y: cy), 6, seedR, local * 16.0'f32,
-           Color(r: 24, g: 8, b: 30, a: alphaByte(alpha * (1.0'f32 - settle) * 240.0'f32)))
-  drawDisc(Vector2(x: cx, y: cy), seedR * 0.34'f32,
-             colorA(RogAccent, alpha * (60.0'f32 + flash * 195.0'f32)))
-
-  drawSubtitles([t(tkRogEndReveal1), t(tkRogEndReveal2)], screenWidth, screenHeight, alpha)
-
-proc drawAscendShot(local, duration: float32, screenWidth, screenHeight: int32,
-                    alpha: float32) =
-  ## Climbing back up the collapsing stack: rings expand outward (the inverse of the
-  ## descent) and light rises as the player surfaces with the cores.
-  let rise = easeInOut(local / duration)
-  let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * (0.54'f32 - rise * 0.08'f32)
-
-  # Rising light columns.
-  for i in -2..2:
-    let bx = cx + i.float32 * 50.0'f32
-    drawRectangleGradientV(bx.int32 - 5, 0, 10, screenHeight,
-                           colorA(RogAccent, 0.0'f32),
-                           colorA(RogAccent, alpha * rise * 46.0'f32))
-  drawSoftGlow(cx, cy, 200.0'f32 * rise + 60.0'f32, colorA(RogAccent, alpha * (40.0'f32 + rise * 36.0'f32)), 1.0'f32)
-
-  # Expanding rings: the recursion releasing its grip.
-  for i in 0..<9:
-    let phase = fractCoord(local * 0.4'f32 + i.float32 / 9.0'f32)
-    let r = phase * 330.0'f32 + 20.0'f32
-    let sides = 4 + (i mod 4).int32
-    drawPolyOutline(Vector2(x: cx, y: cy), sides, r, -local * 16.0'f32 + i.float32 * 18.0'f32,
-                  colorA(RogAccent, alpha * (1.0'f32 - phase) * 130.0'f32))
-
-  # Rising spark motes.
-  for i in 0..<18:
-    let p = fractCoord(local * 0.5'f32 + i.float32 * 0.117'f32)
-    let sx = cx + sin(i.float32 * 2.1'f32 + local) * (40.0'f32 + i.float32 * 5.0'f32)
-    let sy = screenHeight.float32 * 0.94'f32 - p * screenHeight.float32 * 0.78'f32
-    drawDisc(Vector2(x: sx, y: sy), 2.4'f32 * (1.0'f32 - p),
-               colorA(RogAccent, alpha * (1.0'f32 - p) * 200.0'f32))
-
-  let pr = 28.0'f32 * (0.84'f32 + rise * 0.16'f32)
-  drawEquippedPlayerModel(newVector2f(cx, cy), pr, local, alpha, 0.3'f32 + rise * 0.25'f32)
-
-  drawSubtitles([t(tkRogEndAscend1), t(tkRogEndAscend2)], screenWidth, screenHeight, alpha)
+# ---------------------------------------------------------------------------
+# DELVE 06: CLEANUP COMPLETE. Back up, and the bar from REC 00 finishes.
 
 proc drawRogSignoffShot(local, duration: float32, screenWidth, screenHeight: int32,
                         alpha: float32) =
   let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * 0.42'f32
-  let pulse = sin(local * 3.0'f32) * 0.5'f32 + 0.5'f32
-  drawSoftGlow(cx, cy, 300.0'f32, colorA(RogAccent, alpha * (46.0'f32 + pulse * 30.0'f32)), 1.0'f32)
-
-  # A small constellation of recovered cores haloing the survivor.
-  for i in 0..<6:
-    let a = local * 0.7'f32 + i.float32 * PI * 2.0'f32 / 6.0'f32
-    let orx = cx + cos(a) * 78.0'f32
-    let ory = cy + sin(a) * 50.0'f32
-    drawPoly(Vector2(x: orx, y: ory), 6, 6.0'f32, local * 50.0'f32 + i.float32 * 30.0'f32,
-             colorA(RogAccent, alpha * 210.0'f32))
-
-  let pr = 30.0'f32
-  drawEquippedPlayerModel(newVector2f(cx, cy), pr * (1.0'f32 + pulse * 0.04'f32),
-                          local, alpha, 0.3'f32)
+  let cy = screenHeight.float32 * 0.30'f32
+  let rise = easeInOut(local / duration)
+  for i in -2..2:
+    drawRectangleGradientV((cx + i.float32 * 50.0'f32).int32 - 5, 0, 10, screenHeight,
+                           colorA(RogAccent, 0.0'f32), colorA(RogAccent, alpha * rise * 46.0'f32))
+  drawHalo(cx, cy, 260.0'f32, colorA(RogAccent, alpha * 50.0'f32), 1.0'f32)
+  for i in 0..<18:
+    let p = fractCoord(local * 0.5'f32 + i.float32 * 0.117'f32)
+    let sx = cx + sin(i.float32 * 2.1'f32 + local) * (40.0'f32 + i.float32 * 5.0'f32)
+    let sy = screenHeight.float32 * 0.94'f32 - p * screenHeight.float32 * 0.78'f32
+    drawDisc(Vector2(x: sx, y: sy), 2.4'f32 * (1.0'f32 - p), colorA(RogAccent, alpha * (1.0'f32 - p) * 200.0'f32))
+  const pr = 28.0'f32
+  drawEquippedPlayerModel(newVector2f(cx, cy), pr, local, alpha, 0.3'f32)
   drawTopHat(newVector2f(cx, cy), pr, local, alpha)
 
-  let titleAlpha = alpha * easeInOut(local / 0.85'f32)
-  drawCenteredText(t(tkRogEndSignoffTitle), screenWidth div 2, (screenHeight * 2 div 3).int32,
-                   32, Color(r: 255, g: 255, b: 255, a: alphaByte(titleAlpha * 255.0'f32)))
-  drawCenteredText(t(tkRogEndSignoffSub), screenWidth div 2, (screenHeight * 2 div 3 + 46).int32,
-                   21, colorA(RogAccent, titleAlpha * 220.0'f32))
+  # Disk Cleanup, finishing the job it started in REC 00.
+  let bw = min(420.0'f32, screenWidth.float32 * 0.5'f32)
+  let bx = cx - bw * 0.5'f32
+  let by = cy + 64.0'f32
+  let frac = easeInOut(clamp01((local - 0.6'f32) / 1.8'f32))
+  let barA = alpha * clamp01(local / 0.4'f32)
+  drawText("old_system", bx.int32, by.int32 - 20, 14, Color(r: 230, g: 220, b: 200, a: alphaByte(barA * 230.0'f32)))
+  let pct = $int(frac * 100.0'f32) & "%"
+  drawText(pct, (bx + bw).int32 - measureText(pct, 14), by.int32 - 20, 14, colorA(RogAccent, barA * 230.0'f32))
+  drawStoryProgress(bx, by, bw, 12.0'f32, frac, barA, RogAccent)
+
+  let titleAlpha = alpha * easeInOut((local - 2.4'f32) / 0.8'f32)
+  drawCenteredText(t(tkRogEndSignoffTitle), screenWidth div 2, (screenHeight * 2 div 3 - 40).int32,
+                   34, Color(r: 255, g: 255, b: 255, a: alphaByte(titleAlpha * 255.0'f32)))
+  let sub = t(tkRogEndSignoffSub)
+  drawCenteredText(sub, screenWidth div 2, (screenHeight * 2 div 3 + 6).int32,
+                   fitFontSize(sub, screenWidth - 80, 21), colorA(RogAccent, titleAlpha * 220.0'f32))
 
 # ---------------------------------------------------------------------------
 # Per-shot shake override
 
-proc coreShake(time, local, duration, alpha: float32): float32 =
-  sin(time * 33.0'f32) * 2.4'f32 * alpha
+proc logShake(time, local, duration, alpha: float32): float32 =
+  let hit = BelowLogStart + 6.0'f32 * BelowLogEvery
+  if local >= hit:
+    sin(time * 38.0'f32) * 3.0'f32 * exp(-(local - hit) * 2.0'f32)
+  else:
+    sin(time * 0.7'f32) * 1.0'f32 * alpha
 
 # ---------------------------------------------------------------------------
 # Backdrop, warms toward gold as the recovery succeeds.
@@ -259,28 +332,29 @@ proc rogueliteBackdrop(time, totalDuration: float32, sw, sh: int32) =
 proc newRogueliteEndCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.20'f32, drawProc: drawDescendShot, soundCue: stTeleport,
-                   label: t(tkRogEndRecDescend), iconIndex: 7),
-      CutsceneShot(duration: 5.40'f32, drawProc: drawCoreShot,    soundCue: stBossSpawn,
-                   label: t(tkRogEndRecCore),    iconIndex: 3,
-                   glitchMod: 67, glitchWindow: 5, shakeProc: coreShake),
-      CutsceneShot(duration: 5.30'f32, drawProc: drawExtractShot, soundCue: stPowerUp,
-                   label: t(tkRogEndRecExtract), iconIndex: 4),
-      CutsceneShot(duration: 5.40'f32, drawProc: drawRevealShot,  soundCue: stBossSpawn,
-                   label: t(tkRogEndRecReveal),  iconIndex: 3,
-                   glitchMod: 53, glitchWindow: 6, shakeProc: coreShake),
-      CutsceneShot(duration: 5.20'f32, drawProc: drawAscendShot,  soundCue: stShield,
-                   label: t(tkRogEndRecAscend),  iconIndex: 0),
-      CutsceneShot(duration: 5.40'f32, drawProc: drawRogSignoffShot, soundCue: stWaveComplete,
-                   label: t(tkRogEndRecSignoff), iconIndex: 10),
+      CutsceneShot(duration: BelowShots[0], drawProc: drawDescendShot, soundCue: stTeleport,
+                   muteCue: true, label: t(tkRogEndRecDescend), iconIndex: 7),
+      CutsceneShot(duration: BelowShots[1], drawProc: drawOldDesktopShot, soundCue: stMenuSelect,
+                   muteCue: true, label: t(tkRogEndRecDesktop), iconIndex: 4),
+      CutsceneShot(duration: BelowShots[2], drawProc: newBootLogShot(), soundCue: stMenuSelect,
+                   muteCue: true, label: t(tkRogEndRecLog), iconIndex: 10,
+                   glitchMod: 67, glitchWindow: 4, shakeProc: logShake),
+      CutsceneShot(duration: BelowShots[3], drawProc: drawOtherRootShot, soundCue: stBossSpawn,
+                   muteCue: true, label: t(tkRogEndRecFirst), iconIndex: 3,
+                   glitchMod: 53, glitchWindow: 4),
+      CutsceneShot(duration: BelowShots[4], drawProc: drawShutdownShot, soundCue: stMenuSelect,
+                   muteCue: true, label: t(tkRogEndRecShutdown), iconIndex: 5),
+      CutsceneShot(duration: BelowShots[5], drawProc: drawRogSignoffShot, soundCue: stWaveComplete,
+                   muteCue: true, label: t(tkRogEndRecSignoff), iconIndex: 10),
     ],
     accentColor      = RogAccent,
     titleCardText    = "TopHat-ShooterOS",
     titleCardSub     = t(tkRogEndTitleCardSub),
     drawBackdropProc = rogueliteBackdrop,
     swayAmp          = 1.0'f32,
-    musicTrack       = mtMenu,
+    musicTrack       = mtStoryBelow,
     cornerTag        = t(tkLorePlayback),
+    captionCps       = EndingCaptionCps,
   )
 
 # Legacy-style wrappers so main.nim mirrors the endgame-cinematic call sites.

@@ -1236,6 +1236,11 @@ proc main() =
           # Fresh profile: pick a language before the intro cinematic.
           currentGame.state = gsLanguageSelect
           languageSelectGuard = 0.18'f32
+        elif storyPending(settings, scIntro):
+          # An older save meeting a rewritten story: the language is already
+          # chosen, so the new intro plays straight away (once).
+          loreCinematic = newLoreCinematic()
+          currentGame.state = gsLoreIntro
         else:
           currentGame.state = gsMenu
 
@@ -1283,11 +1288,17 @@ proc main() =
       endGameDrawing()
 
     of gsLoreIntro:
-      # Tense score under the cinematic. Hold SPACE (3s) to skip, ENTER for 2x.
-      playMusic(mtBoss)
+      # The cutscene plays its own score (updateCutscene). Hold SPACE (3s) to
+      # skip, ENTER for 2x.
       updateLoreCinematic(loreCinematic, dt)
       if loreCinematic.complete:
-        settings.hasSeenIntro = true
+        # An older save that already unlocked endings gets pointed at their new
+        # versions (Settings > Cinematics marks them NEW until watched).
+        if settings.hasSeenIntro and settings.storySeen[scIntro] < StoryVersion and
+           (storyOutdated(settings, scWaveEnding) or storyOutdated(settings, scRogueliteEnding) or
+            storyOutdated(settings, scSurvivalEnding)):
+          showDesktopToast(osDesktop, t(tkStoryNewRecordings))
+        markStorySeen(settings, scIntro)
         discard saveSettings(settings)
         loreCinematic = newLoreCinematic()  # reset for safety
         currentGame.state = gsMenu
@@ -1302,13 +1313,12 @@ proc main() =
       if not endgameCinematicArmed:
         endgameCinematic = newEndgameCinematic()
         endgameCinematicArmed = true
-      playMusic(mtMenu)  # calmer score than the tense intro's boss theme
-      updateEndgameCinematic(endgameCinematic, dt)
+      updateEndgameCinematic(endgameCinematic, dt)  # drives its own score
       if endgameCinematic.complete:
         endgameCinematicArmed = false
-        if not settings.hasSeenEnding:
-          settings.hasSeenEnding = true
-          discard saveSettings(settings)
+        # Replays count too: watching the current version clears its NEW tag.
+        markStorySeen(settings, scWaveEnding)
+        discard saveSettings(settings)
         if endgameReplayMode:
           # Replayed from the desktop: there is no active run to congratulate.
           endgameReplayMode = false
@@ -1327,13 +1337,12 @@ proc main() =
       if not rogueliteEndCinematicArmed:
         rogueliteEndCinematic = newRogueliteEndCinematic()
         rogueliteEndCinematicArmed = true
-      playMusic(mtMenu)
-      updateRogueliteEndCinematic(rogueliteEndCinematic, dt)
+      updateRogueliteEndCinematic(rogueliteEndCinematic, dt)  # drives its own score
       if rogueliteEndCinematic.complete:
         rogueliteEndCinematicArmed = false
-        if not settings.hasSeenRogueliteEnding:
-          settings.hasSeenRogueliteEnding = true
-          discard saveSettings(settings)
+        # Replays count too: watching the current version clears its NEW tag.
+        markStorySeen(settings, scRogueliteEnding)
+        discard saveSettings(settings)
         if rogueliteEndReplayMode:
           # Replayed from the desktop: there is no active run to send off.
           rogueliteEndReplayMode = false
@@ -1352,13 +1361,12 @@ proc main() =
       if not survivalEndCinematicArmed:
         survivalEndCinematic = newSurvivalEndCinematic()
         survivalEndCinematicArmed = true
-      playMusic(mtMenu)
-      updateSurvivalEndCinematic(survivalEndCinematic, dt)
+      updateSurvivalEndCinematic(survivalEndCinematic, dt)  # drives its own score
       if survivalEndCinematic.complete:
         survivalEndCinematicArmed = false
-        if not settings.hasSeenSurvivalEnding:
-          settings.hasSeenSurvivalEnding = true
-          discard saveSettings(settings)
+        # Replays count too: watching the current version clears its NEW tag.
+        markStorySeen(settings, scSurvivalEnding)
+        discard saveSettings(settings)
         if survivalEndReplayMode:
           survivalEndReplayMode = false
           currentGame.state = gsMenu
@@ -1378,8 +1386,7 @@ proc main() =
       if activeCutscene.isNil:
         currentGame.state = gsMenu
       else:
-        playMusic(activeCutscene.musicTrack)
-        updateCutscene(activeCutscene, dt)
+        updateCutscene(activeCutscene, dt)  # also drives the cutscene's music
         if activeCutscene.complete:
           case cutsceneContinuation
           of cscMenu:
@@ -1775,6 +1782,15 @@ proc main() =
         elif updateResult.replaySandboxIntro: intro = newSandboxIntroCutscene()
         elif updateResult.replayPvPIntro: intro = newPvPIntroCutscene()
         if intro != nil and not globalConfirmActive:
+          # Watching the current version from Settings clears its NEW tag.
+          let watched =
+            if updateResult.replayWaveIntro: scWaveIntro
+            elif updateResult.replaySurvivalIntro: scSurvivalIntro
+            elif updateResult.replayRogueliteIntro: scRogueliteIntro
+            elif updateResult.replaySandboxIntro: scSandboxIntro
+            else: scPvPIntro
+          markStorySeen(settings, watched)
+          discard saveSettings(settings)
           activeCutscene = intro
           cutsceneContinuation = cscMenu
           currentGame.state = gsCutscene
@@ -1787,8 +1803,8 @@ proc main() =
 
       # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame and not globalConfirmActive:
-        if not settings.hasSeenRogueliteIntro:
-          settings.hasSeenRogueliteIntro = true
+        if storyPending(settings, scRogueliteIntro):
+          markStorySeen(settings, scRogueliteIntro)
           discard saveSettings(settings)
           activeCutscene = newRogueliteIntroCutscene()
           cutsceneContinuation = cscLaunchGame
@@ -1966,8 +1982,8 @@ proc main() =
         playSound(stMenuSelect)
         case action
         of 0:  # Play.exe - Wave-Based Mode
-          if not settings.hasSeenWaveModeIntro:
-            settings.hasSeenWaveModeIntro = true
+          if storyPending(settings, scWaveIntro):
+            markStorySeen(settings, scWaveIntro)
             discard saveSettings(settings)
             activeCutscene = newWaveIntroCutscene()
             cutsceneContinuation = cscDesktopIcon
@@ -1983,8 +1999,8 @@ proc main() =
             startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
             pendingGameMode = 0
         of 1:  # Survival.exe - Time Survival Mode
-          if not settings.hasSeenSurvivalIntro:
-            settings.hasSeenSurvivalIntro = true
+          if storyPending(settings, scSurvivalIntro):
+            markStorySeen(settings, scSurvivalIntro)
             discard saveSettings(settings)
             activeCutscene = newSurvivalIntroCutscene()
             cutsceneContinuation = cscDesktopIcon
@@ -2017,8 +2033,8 @@ proc main() =
           else:
             windowCloseRequested = true
         of 7:  # Sandbox.exe - Open Sandbox Setup Window
-          if not settings.hasSeenSandboxIntro:
-            settings.hasSeenSandboxIntro = true
+          if storyPending(settings, scSandboxIntro):
+            markStorySeen(settings, scSandboxIntro)
             discard saveSettings(settings)
             activeCutscene = newSandboxIntroCutscene()
             cutsceneContinuation = cscDesktopIcon
@@ -2029,8 +2045,8 @@ proc main() =
             resetSandboxWindow(globalWindowManager.sandbox)
             playSound(stMenuSelect)
         of 8:  # PvP.exe - Open PvP Window
-          if not settings.hasSeenPvPIntro:
-            settings.hasSeenPvPIntro = true
+          if storyPending(settings, scPvPIntro):
+            markStorySeen(settings, scPvPIntro)
             discard saveSettings(settings)
             activeCutscene = newPvPIntroCutscene()
             cutsceneContinuation = cscDesktopIcon
@@ -2091,8 +2107,8 @@ proc main() =
         playSound(stMenuSelect)
         case updateResult.iconToExecute
           of 0:  # Play.exe - Wave-Based Mode
-            if not settings.hasSeenWaveModeIntro:
-              settings.hasSeenWaveModeIntro = true
+            if storyPending(settings, scWaveIntro):
+              markStorySeen(settings, scWaveIntro)
               discard saveSettings(settings)
               activeCutscene = newWaveIntroCutscene()
               cutsceneContinuation = cscDesktopIcon
@@ -2108,8 +2124,8 @@ proc main() =
               startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
               pendingGameMode = 0
           of 1:  # Survival.exe - Time Survival Mode
-            if not settings.hasSeenSurvivalIntro:
-              settings.hasSeenSurvivalIntro = true
+            if storyPending(settings, scSurvivalIntro):
+              markStorySeen(settings, scSurvivalIntro)
               discard saveSettings(settings)
               activeCutscene = newSurvivalIntroCutscene()
               cutsceneContinuation = cscDesktopIcon
@@ -2141,8 +2157,8 @@ proc main() =
             else:
               windowCloseRequested = true
           of 7:  # Sandbox.exe - Open Sandbox Setup Window
-            if not settings.hasSeenSandboxIntro:
-              settings.hasSeenSandboxIntro = true
+            if storyPending(settings, scSandboxIntro):
+              markStorySeen(settings, scSandboxIntro)
               discard saveSettings(settings)
               activeCutscene = newSandboxIntroCutscene()
               cutsceneContinuation = cscDesktopIcon
@@ -2153,8 +2169,8 @@ proc main() =
               resetSandboxWindow(globalWindowManager.sandbox)
               playSound(stMenuSelect)
           of 8:  # PvP.exe - Open PvP Window
-            if not settings.hasSeenPvPIntro:
-              settings.hasSeenPvPIntro = true
+            if storyPending(settings, scPvPIntro):
+              markStorySeen(settings, scPvPIntro)
               discard saveSettings(settings)
               activeCutscene = newPvPIntroCutscene()
               cutsceneContinuation = cscDesktopIcon

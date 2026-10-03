@@ -869,7 +869,7 @@ proc completeBossWave*(game: Game) =
     # First-ever victory plays the one-time endgame cinematic; it hands off to
     # the "system secured" screen when it ends. If the player has already seen
     # the outro (e.g. a later session), drop straight onto the victory screen.
-    if not globalSettings.isNil and not globalSettings.hasSeenEnding:
+    if storyPending(globalSettings, scWaveEnding):
       game.state = gsEndgameCinematic
     else:
       game.state = gsVictory
@@ -3911,7 +3911,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       # First final-floor clear plays the one-time "Deep Recovery" outro, which
       # hands off to the roguelite victory screen when it ends. Already-seen runs
       # drop straight onto the victory screen.
-      if not globalSettings.isNil and not globalSettings.hasSeenRogueliteEnding:
+      if storyPending(globalSettings, scRogueliteEnding):
         game.state = gsRogueliteEndCinematic
       else:
         game.state = gsRogueliteVictory
@@ -3975,7 +3975,7 @@ proc cheatCompleteRogueliteFloor*(game: var Game) =
   game.bullets = @[]
   if game.rogueliteRun.awaitingVictoryScreen:
     game.selectedVictoryButton = 0
-    if not globalSettings.isNil and not globalSettings.hasSeenRogueliteEnding:
+    if storyPending(globalSettings, scRogueliteEnding):
       game.state = gsRogueliteEndCinematic
     else:
       game.state = gsRogueliteVictory

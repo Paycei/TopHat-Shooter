@@ -17,7 +17,10 @@ type
     stRestoreAccess, stRestoreSpinDown, stRestoreShatter
 
   MusicTrack* = enum
-    mtMenu, mtWave, mtPowerUp, mtBoss
+    mtMenu, mtWave, mtPowerUp, mtBoss,
+    # Story scores: composed against a cinematic's cuts (story timing below),
+    # played once from the top and never looped. See isScoreTrack.
+    mtStoryIntro, mtStoryRootAccess, mtStoryBelow, mtStoryUptime
 
   SoundSystem* = ref object
     enabled*: bool
@@ -47,12 +50,122 @@ const
   SAMPLE_RATE = 44100'u32
   MUSIC_DURATION = 48.0'f32  # Long-form: 48 seconds
   MUSIC_CACHE_VERSION = "v4"
+  SCORE_CACHE_VERSION = "s3"  # story scores; bump when any create*Score changes
   SOUND_CACHE_VERSION = "v2"  # bump when any create* synthesis changes
   MaxSynthThreads = 32      # cap: past this the mix is memory-bound, not CPU-bound
   ChunksPerSynthThread = 6  # oversubscribe chunks so uneven bars still balance
 
-proc expectedMusicCacheBytes(): int64 =
-  int64(44 + int(MUSIC_DURATION * SAMPLE_RATE.float32) * 2)
+# STORY CINEMATIC TIMING
+#
+# The single source of truth for when things happen in the four story
+# cinematics (ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic,
+# ui/survival_end_cinematic). Their shots are built from these lengths, and the
+# story scores below are composed against the same numbers, so a cue cannot
+# drift off its frame. It lives here, the lowest module both sides import.
+#
+# Every value is in CUTSCENE seconds (the clock the shots read). Cutscenes run
+# at StoryPlaybackSpeed, so a cue's position in the music is
+# `cutsceneTime / StoryPlaybackSpeed` real seconds (see `scoreTime`).
+
+const
+  StoryPlaybackSpeed* = 1.2'f32
+    ## Every cinematic plays at this pace. Scaling the clock instead of the shot
+    ## durations keeps each shot's internal beats (captions, staged reveals)
+    ## lined up with its fades.
+
+  ScoreTail* = 2.0'f32
+    ## Real seconds of music past a score's last cut, so the final chord rings
+    ## out under the fade instead of the stream running dry on screen.
+
+  # ACT I: CLEANUP (first-launch intro, REC 00-05). Brisk enough to hook,
+  # slow enough that every beat reads; its captions type at IntroCaptionCps.
+  IntroCaptionCps* = 38.0'f32
+  IntroShots* = [8.4'f32, 7.6, 6.8, 7.4, 7.8, 8.0]
+  IntroCleanupOpen* = 1.2'f32      ## shot 0: the Disk Cleanup dialog pops up
+  IntroCleanupClick* = 3.0'f32     ## shot 0: the pointer clicks "Clean up"
+  IntroCleanupStall* = 5.4'f32     ## shot 0: the progress bar stops dead
+  IntroCleanupError* = 5.55'f32    ## shot 0: "Permission denied" appears
+  IntroProcRowStart* = 0.7'f32     ## shot 1: first root-owned process row
+  IntroProcRowEvery* = 0.36'f32    ## shot 1: one new row this often
+  IntroProcRows* = 14
+  IntroWhoAt* = 0.9'f32            ## shot 2: "WHO ARE YOU?" starts typing
+  IntroWhoDur* = 1.1'f32           ##         ...and lands (beep) this much later
+  IntroMachineAt* = 3.1'f32        ## shot 2: "THIS IS MY MACHINE." starts
+  IntroMachineDur* = 1.5'f32
+  IntroBootAt* = 3.0'f32           ## shot 3: shooter.exe boots under the beam
+  IntroFlipStart* = 1.0'f32        ## shot 4: first service changes owner
+  IntroFlipEvery* = 0.42'f32       ## shot 4: one service per step (11 of them)
+  IntroTitleAt* = 4.4'f32          ## shot 5: the title slams in
+
+  # The endings run longer and slower than the intro: the intro has to hook,
+  # an ending has to land. Each key beat gets room before and after it, and
+  # their captions type slower (EndingCaptionCps).
+  EndingCaptionCps* = 30.0'f32
+
+  # ACT II: ROOT ACCESS (wave-60 ending, REC 06-10)
+  RootAccessShots* = [7.6'f32, 7.2, 8.6, 8.0, 4.0]
+  RootCutOffAt* = 2.8'f32          ## shot 0: root is cut off mid-sentence
+  RootTypeAt* = 0.6'f32            ## shot 0: root starts typing
+  RootHomeStart* = 0.9'f32         ## shot 1: first service flips back to tophat
+  RootHomeEvery* = 0.38'f32
+  RootHatYesAt* = 1.8'f32          ## shot 2: the transfer dialog's [Yes] presses
+  RootHatLandAt* = 4.8'f32         ## shot 2: the hat settles on shooter.exe
+  RootStingBeepAt* = 1.6'f32       ## shot 4: one beep from below
+
+  # ACT III: BELOW THE PARTITION (roguelite ending, DELVE 01-06)
+  BelowShots* = [6.8'f32, 7.8, 8.4, 7.8, 9.2, 8.6]
+  BelowLogStart* = 0.6'f32         ## shot 2: first boot-log line
+  BelowLogEvery* = 0.55'f32        ## shot 2: one line this often (9 lines)
+  BelowLogLines* = 9
+  BelowFirstAt* = 0.9'f32          ## shot 3: "I WAS HERE FIRST." starts typing
+  BelowFirstDur* = 1.6'f32
+  BelowYesAt* = 1.3'f32            ## shot 4: [Shut down] presses
+  BelowSafeAt* = 4.6'f32           ## shot 4: "It's now safe to turn off..." screen
+
+  # ACT IV: UPTIME (survival ending, LOG 01-05)
+  UptimeShots* = [7.2'f32, 6.4, 7.0, 8.0, 11.0]
+  UptimeCrashAt* = 0.0'f32         ## shot 2: the crash lands on the cut
+  UptimeFormatAt* = 1.2'f32        ## shot 3: the new installer starts formatting
+  UptimeNewBootAt* = 0.4'f32       ## shot 4: the new OS chimes
+  UptimeSinkAt* = 2.4'f32          ## shot 4: the camera sinks below the new OS
+  UptimeWhoAt* = 4.0'f32           ## shot 4: "WHO ARE YOU?" from below
+  UptimeWhoDur* = 1.1'f32
+  UptimeMachineAt* = 5.8'f32       ## shot 4: "THIS IS MY MACHINE."
+  UptimeMachineDur* = 1.6'f32
+
+proc shotStart*(shots: openArray[float32], index: int): float32 =
+  ## Cutscene time at which shot `index` begins.
+  for i in 0..<min(index, shots.len):
+    result += shots[i]
+
+proc totalLength*(shots: openArray[float32]): float32 =
+  shotStart(shots, shots.len)
+
+proc scoreTime*(shots: openArray[float32], index: int, local: float32): float32 =
+  ## Real-time position in the score of `local` cutscene seconds into shot `index`.
+  (shotStart(shots, index) + local) / StoryPlaybackSpeed
+
+proc scoreLength*(shots: openArray[float32]): float32 =
+  ## Length of a cinematic's score in real seconds, tail included.
+  totalLength(shots) / StoryPlaybackSpeed + ScoreTail
+
+proc isScoreTrack*(track: MusicTrack): bool =
+  ## A cinematic's score: starts from the top on cue and does not loop.
+  track >= mtStoryIntro
+
+proc trackDuration(track: MusicTrack): float32 =
+  case track
+  of mtMenu, mtWave, mtPowerUp, mtBoss: MUSIC_DURATION
+  of mtStoryIntro: scoreLength(IntroShots)
+  of mtStoryRootAccess: scoreLength(RootAccessShots)
+  of mtStoryBelow: scoreLength(BelowShots)
+  of mtStoryUptime: scoreLength(UptimeShots)
+
+proc trackSampleCount(track: MusicTrack): int =
+  int(trackDuration(track) * SAMPLE_RATE.float32)
+
+proc expectedMusicCacheBytes(track: MusicTrack): int64 =
+  int64(44 + trackSampleCount(track) * 2)
 
 # CACHE MANAGEMENT
 proc getCacheDir(): string =
@@ -95,7 +208,12 @@ proc getMusicCacheFile(track: MusicTrack): string =
     of mtWave: "wave_music"
     of mtPowerUp: "powerup_music"
     of mtBoss: "boss_music"
-  result = cacheDir / (trackName & "_" & MUSIC_CACHE_VERSION & ".wav")
+    of mtStoryIntro: "story_cleanup"
+    of mtStoryRootAccess: "story_root_access"
+    of mtStoryBelow: "story_below"
+    of mtStoryUptime: "story_uptime"
+  let version = if isScoreTrack(track): SCORE_CACHE_VERSION else: MUSIC_CACHE_VERSION
+  result = cacheDir / (trackName & "_" & version & ".wav")
 
 proc isSoundCached(soundType: SoundType): bool =
   fileExists(getSoundCacheFile(soundType))
@@ -103,7 +221,7 @@ proc isSoundCached(soundType: SoundType): bool =
 proc isMusicCached(track: MusicTrack): bool =
   let cacheFile = getMusicCacheFile(track)
   try:
-    fileExists(cacheFile) and getFileSize(cacheFile) == expectedMusicCacheBytes()
+    fileExists(cacheFile) and getFileSize(cacheFile) == expectedMusicCacheBytes(track)
   except OSError:
     false
 
@@ -1097,10 +1215,16 @@ type
     ikBell,   # soft bell with inharmonic partial
     ikPluck,  # bright synth pluck with decaying brightness
     ikBass,   # FM bass with sub oscillator
-    ikPad     # warm detuned pad
+    ikPad,    # warm detuned pad
+    ikSquare, # PC-speaker square: the old system's voice (story scores)
+    ikDrone   # dark beating sine drone for tension beds (story scores)
 
   PercussionVoice = enum
-    pvKick, pvSnare, pvHat, pvOpenHat, pvSoftTick, pvCrash
+    pvKick, pvSnare, pvHat, pvOpenHat, pvSoftTick, pvCrash,
+    # Story-score percussion
+    pvBoom,   # cinematic impact: pitch-dropping sub plus a noise burst
+    pvRiser,  # noise swell that ends exactly where the next hit lands
+    pvClick   # a mouse click
 
   ChordQuality = enum
     cqMajor, cqMinor, cqMajor7, cqMinor7, cqDom7, cqSus2
@@ -1191,6 +1315,16 @@ proc instrumentWave(kind: InstrumentKind, freq, t, progress: float32): float32 =
     result = (sin(2.0 * PI * freq * drift * t) +
               sin(2.0 * PI * freq * 1.004 * t) +
               sin(2.0 * PI * freq * 0.996 * t)) * 0.3
+  of ikSquare:
+    # Odd harmonics only, stopped at the 9th so a high beep stays under Nyquist.
+    let phase = 2.0 * PI * freq * t
+    result = (sin(phase) + sin(phase * 3.0) / 3.0 + sin(phase * 5.0) / 5.0 +
+              sin(phase * 7.0) / 7.0 + sin(phase * 9.0) / 9.0) * 0.55
+  of ikDrone:
+    # Two sines a fraction of a hertz apart beat slowly against each other.
+    let phase = 2.0 * PI * freq * t
+    result = (sin(phase) * 0.55 + sin(2.0 * PI * (freq + 0.7) * t) * 0.35 +
+              sin(phase * 2.0) * 0.12) * (0.8 + 0.2 * sin(2.0 * PI * 0.25 * t))
 
 proc voiceEnvelope(kind: InstrumentKind, progress, durSec: float32): float32 =
   case kind
@@ -1221,6 +1355,25 @@ proc voiceEnvelope(kind: InstrumentKind, progress, durSec: float32): float32 =
   of ikPad:
     let attack = 0.22'f32
     let release = 0.28'f32
+    if progress < attack:
+      result = sin(progress / attack * PI * 0.5)
+    elif progress > 1.0 - release:
+      result = cos((progress - (1.0 - release)) / release * PI * 0.5)
+    else:
+      result = 1.0
+  of ikSquare:
+    # Gated like a real PC speaker: on, flat, off. The few milliseconds of
+    # ramp only stop the edges from clicking.
+    let ramp = min(0.004, durSec * 0.2) / durSec
+    if progress < ramp:
+      result = progress / ramp
+    elif progress > 1.0 - ramp:
+      result = (1.0 - progress) / ramp
+    else:
+      result = 1.0
+  of ikDrone:
+    let attack = min(1.2, durSec * 0.35) / durSec
+    let release = min(1.5, durSec * 0.35) / durSec
     if progress < attack:
       result = sin(progress / attack * PI * 0.5)
     elif progress > 1.0 - release:
@@ -1344,6 +1497,9 @@ proc renderVoices(samples: var seq[float32], events: seq[VoiceEvent]) =
 
 # PERCUSSION
 
+const RiserLength = 1.4'f32
+  ## A riser is scheduled to END on its hit (see ScoreBuilder.riserInto).
+
 proc deterministicNoise(sampleIndex: int): float32 {.inline.} =
   ## Stable pseudo-noise so generated percussion is repeatable between runs.
   let x = sin((sampleIndex.float32 + 1.0) * 12.9898) * 43758.5453
@@ -1360,6 +1516,9 @@ proc renderPercussionInto(s: ptr UncheckedArray[float32], totalLen: int,
     of pvOpenHat: 0.30'f32
     of pvSoftTick: 0.06'f32
     of pvCrash: 0.75'f32
+    of pvBoom: 1.6'f32
+    of pvRiser: RiserLength
+    of pvClick: 0.025'f32
 
   let startSample = max(0, int(startTime * SAMPLE_RATE.float32))
   let endSample = min(startSample + int(duration * SAMPLE_RATE.float32),
@@ -1410,6 +1569,20 @@ proc renderPercussionInto(s: ptr UncheckedArray[float32], totalLen: int,
       let shimmer = (sin(2.0 * PI * 4200.0 * t) * 0.14 +
                      sin(2.0 * PI * 6100.0 * t) * 0.08)
       value = (noise * 0.48 + highNoise * 0.20 + shimmer) * exp(-progress * 4.8)
+    of pvBoom:
+      let pitch = 28.0 + 62.0 * exp(-progress * 5.5)
+      let body = sin(2.0 * PI * pitch * t) * exp(-progress * 2.6)
+      let burst = if progress < 0.06: noise * (1.0 - progress / 0.06) * 0.55 else: 0.0
+      value = body * 1.05 + burst
+    of pvRiser:
+      # Brightness and level climb together; a sine sweep (200 -> 1200 Hz,
+      # integrated so the phase stays continuous) gives the swell a pitch.
+      let swell = pow(progress, 2.2)
+      let sweep = sin(2.0 * PI * (200.0 * t + 500.0 * t * t / duration))
+      value = (noise * (1.0 - progress) * 0.25 + highNoise * progress * 0.45 +
+               sweep * 0.12) * swell
+    of pvClick:
+      value = (highNoise * 0.7 + sin(2.0 * PI * 2900.0 * t) * 0.25) * exp(-progress * 9.0)
 
     s[i] += value * volume
 
@@ -1841,6 +2014,448 @@ proc createBossMusic(filename: string) =
 
   composeTrack(spec, filename, 0.86)
 
+# ============================================================================
+# STORY SCORES
+#
+# The four story cinematics each get a through-composed score instead of a
+# loop. A ScoreBuilder places notes and hits at absolute times, and every time
+# comes from the story timing table above -- the numbers the shots are built
+# from -- through `at(shot, local)`. A stab written "when the third service
+# changes owner" therefore lands on that frame, and retiming a shot moves its
+# music with it. Rendering reuses the loop engine's parallel voice/drum mixers.
+#
+# One leitmotif runs through all four: TOPHAT's six notes (hatMotif). The old
+# system plays the very same notes on the PC-speaker voice (ikSquare). Act I
+# only hints at it with a fragment; Act III's reveal plays it whole, with
+# TOPHAT's bell answering in canon; Act IV ends with TOPHAT's theme on the
+# PC speaker, because by then it is the old system.
+# ============================================================================
+
+type
+  ScoreBuilder = object
+    shots: seq[float32]   # the cinematic's shot lengths, cutscene seconds
+    length: float32       # real seconds, tail included
+    voices: seq[VoiceEvent]
+    hits: seq[DrumEvent]
+    kicks: seq[float32]
+
+const
+  E2 = 82.41'f32
+  E3 = 164.81'f32
+  E4 = 329.63'f32
+  A2 = 110.0'f32
+  A3 = 220.0'f32
+  A4 = 440.0'f32
+  D2 = 73.42'f32
+  D3 = 146.83'f32
+  D4 = 293.66'f32
+  G3 = 196.0'f32
+  G4 = 392.0'f32
+  BeepHigh = 880.0'f32   # the question beep (A5)
+  BeepLow = 659.26'f32   # the statement beep (E5)
+
+proc newScore(shots: openArray[float32]): ScoreBuilder =
+  ScoreBuilder(shots: @shots, length: scoreLength(shots))
+
+proc at(sb: ScoreBuilder, shot: int, local: float32 = 0.0): float32 =
+  ## Real time in the score of `local` cutscene seconds into `shot`.
+  scoreTime(sb.shots, shot, local)
+
+proc tone(sb: var ScoreBuilder, kind: InstrumentKind, freq, start, dur, vol: float32) =
+  if start < 0.0 or start >= sb.length or dur <= 0.0:
+    return
+  sb.voices.addVoice(freq, start, min(dur, sb.length - start), kind, vol)
+
+proc note(sb: var ScoreBuilder, kind: InstrumentKind, tonic: float32, semi: int,
+          start, dur, vol: float32) =
+  sb.tone(kind, semiFreq(tonic, semi), start, dur, vol)
+
+proc chord(sb: var ScoreBuilder, kind: InstrumentKind, tonic: float32,
+           semis: openArray[int], start, dur, vol: float32) =
+  for i, s in semis:
+    sb.note(kind, tonic, s, start, dur, vol * (if i == 0: 1.0'f32 else: 0.8'f32))
+
+proc hit(sb: var ScoreBuilder, voice: PercussionVoice, time, vol: float32) =
+  if time < 0.0 or time >= sb.length:
+    return
+  sb.hits.add((time, voice, vol))
+  if voice == pvKick:
+    sb.kicks.add(time)
+
+proc riserInto(sb: var ScoreBuilder, time, vol: float32) =
+  ## A riser that ends exactly on `time`.
+  sb.hit(pvRiser, time - RiserLength, vol)
+
+proc pulse(sb: var ScoreBuilder, voice: PercussionVoice, start, stop, every, vol: float32) =
+  var t = start
+  while t < stop - 0.001:
+    sb.hit(voice, t, vol)
+    t += every
+
+proc phrase(sb: var ScoreBuilder, kind: InstrumentKind, tonic: float32,
+            start, beat: float32, notes: openArray[MelodyNote], vol: float32,
+            transpose: int = 0, stopAt: float32 = Inf) =
+  ## Play `notes` from `start`; anything at or past `stopAt` is cut off.
+  for n in notes:
+    let t = start + n.start * beat
+    if t >= stopAt:
+      break
+    sb.note(kind, tonic, n.semi + transpose, t,
+            min(n.dur * beat * 0.95, stopAt - t), vol * (1.0 + n.accent * 0.3))
+
+proc ostinato(sb: var ScoreBuilder, kind: InstrumentKind, tonic: float32,
+              semis: openArray[int], start, stop, step, vol: float32) =
+  ## Cycle `semis` one note per `step` until `stop`; no note rings past it.
+  var t = start
+  var i = 0
+  while t < stop - 0.01:
+    sb.note(kind, tonic, semis[i mod semis.len], t, min(step * 0.9, stop - t), vol)
+    t += step
+    inc i
+
+proc beep(sb: var ScoreBuilder, freq, time: float32, vol: float32 = 0.06) =
+  ## The old system's voice: one PC-speaker beep.
+  sb.tone(ikSquare, freq, time, 0.17, vol)
+
+proc typing(sb: var ScoreBuilder, start, dur: float32, vol: float32 = 0.12) =
+  ## Key clicks under a line that types out over `dur` seconds.
+  sb.pulse(pvClick, start, start + dur, 0.075, vol)
+
+proc errorDing(sb: var ScoreBuilder, tonic, time, vol: float32) =
+  ## Something the system did not expect: a bell cluster with a tritone in it.
+  sb.chord(ikBell, tonic, [12, 13, 18], time, 1.3, vol)
+
+proc hatMotif(minor: bool): seq[MelodyNote] =
+  ## TOPHAT's leitmotif: a fifth up, then a step-wise fall onto the third.
+  let third = if minor: 3 else: 4
+  @[mn(0, 0.0, 1.0, 0.3), mn(7, 1.0, 0.5), mn(5, 1.5, 0.5),
+    mn(third, 2.0, 1.0), mn(2, 3.0, 0.5), mn(third, 3.5, 1.5)]
+
+proc renderScore(sb: ScoreBuilder, track: MusicTrack, pump: float32): seq[float32] =
+  ## Mix one layer. The length comes from the track so the WAV size always
+  ## matches what isMusicCached expects.
+  result = newSeq[float32](trackSampleCount(track))
+  if genCancel.load():
+    return
+  renderVoices(result, sb.voices)
+  if genCancel.load():
+    return
+  applySidechainPump(result, sb.kicks, pump)
+  renderDrums(result, sb.hits)
+
+proc applyTapeStop(samples: var seq[float32], startSec, durSec: float32) =
+  ## The tape slows to a halt over `durSec`, then silence for the rest of the
+  ## buffer. Read position advances at a rate falling from 1 to 0.
+  let a = int(startSec * SAMPLE_RATE.float32)
+  if a >= samples.len:
+    return
+  let n = min(int(durSec * SAMPLE_RATE.float32), samples.len - a)
+  let src = samples[a ..< samples.len]
+  var pos = 0.0'f32
+  for k in 0..<n:
+    let rate = 1.0'f32 - k.float32 / n.float32
+    let i0 = int(pos)
+    let frac = pos - i0.float32
+    samples[a + k] =
+      if i0 + 1 < src.len: (src[i0] * (1.0 - frac) + src[i0 + 1] * frac) * rate.sqrt
+      else: 0.0
+    pos += rate
+  for i in a + n ..< samples.len:
+    samples[i] = 0.0
+
+proc mixInto(dst: var seq[float32], src: seq[float32]) =
+  for i in 0..<min(dst.len, src.len):
+    dst[i] += src[i]
+
+proc createIntroScore(filename: string) =
+  ## ACT I: CLEANUP. Calm desktop lo-fi, cut dead by "Permission denied";
+  ## a ticking flood; silence and two beeps for WHO ARE YOU / THIS IS MY
+  ## MACHINE; TOPHAT answers with its motif and boots shooter.exe; a driving
+  ## alarm for the hijack, one stab per service; full kit under the title.
+  var sb = newScore(IntroShots)
+  # Shot 0: maintenance
+  let err = sb.at(0, IntroCleanupError)
+  let calm = err / 3.0'f32   # three chords fill the calm before the error
+  sb.chord(ikPad, E3, [0, 4, 7, 11], 0.0, calm + 0.1, 0.07)
+  sb.chord(ikPad, E3, [9, 12, 16, 19], calm, calm + 0.1, 0.065)
+  sb.chord(ikPad, E3, [5, 9, 12, 16], calm * 2.0, err - calm * 2.0, 0.065)
+  sb.note(ikBass, E2, 0, 0.0, calm, 0.09)
+  sb.note(ikBass, E2, 9, calm, calm, 0.09)
+  sb.note(ikBass, E2, 5, calm * 2.0, err - calm * 2.0, 0.09)
+  sb.phrase(ikBell, E4, 0.5, 0.48, hatMotif(false), 0.1)
+  sb.hit(pvClick, sb.at(0, IntroCleanupClick), 0.55)
+  sb.pulse(pvSoftTick, sb.at(0, IntroCleanupClick + 0.2), sb.at(0, IntroCleanupStall), 0.1, 0.22)
+  sb.errorDing(E3, err, 0.09)
+  sb.hit(pvBoom, err, 0.2)
+  sb.note(ikDrone, E2, 0, err, sb.at(1, 1.5) - err, 0.12)
+  # Shot 1: root's processes flood in
+  let floodEnd = sb.at(2)
+  sb.ostinato(ikBass, E2, [0, 0, 1, 0, 0, 0, -2, 0], sb.at(1, 0.3), floodEnd, 0.2, 0.13)
+  sb.pulse(pvKick, sb.at(1, 1.0), floodEnd, 0.4, 0.075)
+  sb.pulse(pvHat, sb.at(1, 3.0), floodEnd, 0.1, 0.05)
+  for i in 0..<IntroProcRows:
+    let t = sb.at(1, IntroProcRowStart + i.float32 * IntroProcRowEvery)
+    sb.note(ikPluck, E4, i, t, 0.12, 0.05)
+    sb.hit(pvSoftTick, t, 0.3)
+  sb.riserInto(floodEnd, 0.5)
+  # Shot 2: WHO ARE YOU? / THIS IS MY MACHINE.
+  sb.note(ikDrone, E2, 0, sb.at(2, 0.2), sb.at(3, 0.6) - sb.at(2, 0.2), 0.08)
+  sb.typing(sb.at(2, IntroWhoAt), IntroWhoDur / StoryPlaybackSpeed)
+  sb.beep(BeepHigh, sb.at(2, IntroWhoAt + IntroWhoDur))
+  sb.typing(sb.at(2, IntroMachineAt), IntroMachineDur / StoryPlaybackSpeed)
+  sb.beep(BeepLow, sb.at(2, IntroMachineAt + IntroMachineDur))
+  # Root hums the first three notes of TOPHAT's motif. Only Act III says why.
+  sb.phrase(ikSquare, E3, sb.at(2, IntroMachineAt + IntroMachineDur + 0.4), 0.5,
+            hatMotif(true)[0..2], 0.03)
+  # Shot 3: TOPHAT answers and spawns shooter.exe
+  let boot = sb.at(3, IntroBootAt)
+  let shot4 = sb.at(4)
+  sb.chord(ikPad, E3, [0, 3, 7, 14], sb.at(3), boot - sb.at(3) + 0.2, 0.06)
+  sb.phrase(ikBell, E4, sb.at(3, 0.3), 0.42, hatMotif(true), 0.1)
+  sb.riserInto(boot, 0.45)
+  sb.hit(pvBoom, boot, 0.32)
+  sb.hit(pvCrash, boot, 0.22)
+  sb.chord(ikPad, E3, [0, 4, 7, 12], boot, shot4 - boot + 0.3, 0.07)
+  sb.note(ikBass, E2, 0, boot, shot4 - boot, 0.12)
+  sb.ostinato(ikPluck, E3, [12, 16, 19, 24, 19, 16], boot, shot4, 0.13, 0.05)
+  # Shot 4: the hijack, one alarm stab per service
+  let beat = 0.42'f32
+  let shot5 = sb.at(5)
+  sb.pulse(pvKick, shot4, shot5, beat, 0.09)
+  sb.pulse(pvSnare, shot4 + beat, shot5, beat * 2.0, 0.07)
+  sb.pulse(pvHat, shot4, shot5, beat * 0.5, 0.05)
+  sb.ostinato(ikBass, E2, [0, 0, 1, 0, 0, 0, -2, -2], shot4, shot5, beat * 0.5, 0.14)
+  let third = (shot5 - shot4) / 3.0'f32
+  sb.chord(ikPad, E3, [0, 3, 7], shot4, third + 0.05, 0.055)
+  sb.chord(ikPad, E3, [1, 5, 8], shot4 + third, third + 0.05, 0.055)
+  sb.chord(ikPad, E3, [0, 3, 7], shot4 + third * 2.0, third, 0.055)
+  for i in 0..<11:
+    let t = sb.at(4, IntroFlipStart + i.float32 * IntroFlipEvery)
+    sb.chord(ikLead, E3, [12 + i, 13 + i], t, 0.17, 0.05)
+    sb.hit(pvSoftTick, t, 0.35)
+  sb.riserInto(shot5, 0.45)
+  # Shot 5: defend the system; the title slams in
+  let title = sb.at(5, IntroTitleAt)
+  sb.hit(pvCrash, shot5, 0.35)
+  sb.pulse(pvKick, shot5, title, beat, 0.1)
+  sb.pulse(pvSnare, shot5 + beat, title, beat * 2.0, 0.08)
+  sb.pulse(pvHat, shot5, title, beat * 0.25, 0.045)
+  sb.ostinato(ikBass, E2, [0, 0, 7, 0, 5, 0, 3, 2], shot5, title, beat * 0.5, 0.15)
+  sb.phrase(ikLead, E4, shot5 + 0.1, beat, hatMotif(true), 0.09)
+  sb.riserInto(title, 0.4)
+  sb.hit(pvBoom, title, 0.36)
+  sb.hit(pvCrash, title, 0.3)
+  sb.chord(ikPad, E3, [0, 4, 7, 12, 16], title, sb.length - title, 0.075)
+  sb.note(ikBass, E2, 0, title, sb.length - title, 0.12)
+  sb.phrase(ikBell, E4, title + 0.35, 0.4, hatMotif(false), 0.07, 12)
+  var mix = sb.renderScore(mtStoryIntro, 0.35)
+  if genCancel.load():
+    return
+  applySingleEcho(mix, 0.32, 0.08)
+  finishMusic(mix, filename, 0.9)
+
+proc createRootAccessScore(filename: string) =
+  ## ACT II: ROOT ACCESS. Root's motif fragment is cut off by an impact and a
+  ## breath of silence; the services chime home one by one; TOPHAT's motif in
+  ## major as the hat changes heads; a slow IV - V - I; one beep from below.
+  var sb = newScore(RootAccessShots)
+  let typeAt = sb.at(0, RootTypeAt)
+  let cut = sb.at(0, RootCutOffAt)
+  sb.note(ikDrone, E2, 0, 0.0, cut + 0.3, 0.09)
+  sb.typing(typeAt, cut - typeAt, 0.11)
+  # Root starts its motif, slower now, and never gets to finish it.
+  sb.phrase(ikSquare, E3, typeAt, 0.42, hatMotif(true), 0.035, stopAt = cut)
+  sb.hit(pvBoom, cut, 0.4)
+  sb.hit(pvCrash, cut, 0.28)
+  let swell = sb.at(0, RootCutOffAt + 1.6)
+  sb.chord(ikPad, E3, [0, 4, 7, 11], swell, sb.at(1, 0.8) - swell, 0.06)
+  sb.note(ikBell, E4, 12, swell + 0.8, 2.0, 0.05)
+  # Shot 1: services come home, then a held, settled chord
+  let home = sb.at(1)
+  let s2 = sb.at(2)
+  let lastHome = sb.at(1, RootHomeStart + 10.0 * RootHomeEvery)
+  sb.chord(ikPad, E3, [5, 9, 12, 16], home, lastHome - home + 0.2, 0.06)
+  sb.note(ikBass, E2, 5, home, lastHome - home, 0.08)
+  sb.chord(ikPad, E3, [0, 4, 7, 11], lastHome, s2 - lastHome + 0.3, 0.065)
+  sb.note(ikBass, E2, 0, lastHome, s2 - lastHome, 0.08)
+  const homeScale = [0, 2, 4, 7, 9, 11, 12, 14, 16, 19, 21]
+  for i in 0..<11:
+    let t = sb.at(1, RootHomeStart + i.float32 * RootHomeEvery)
+    sb.note(ikBell, E4, homeScale[i], t, 0.7, 0.075)
+    sb.hit(pvSoftTick, t, 0.25)
+  sb.chord(ikBell, E4, [12, 16, 19], lastHome + 0.6, 2.2, 0.05)
+  # Shot 2: the hat changes heads
+  let land = sb.at(2, RootHatLandAt)
+  let s3 = sb.at(3)
+  sb.chord(ikPad, E3, [0, 4, 7, 14], s2, land - s2 + 0.2, 0.06)
+  sb.phrase(ikBell, E4, s2 + 0.3, 0.5, hatMotif(false), 0.09)
+  sb.hit(pvClick, sb.at(2, RootHatYesAt), 0.5)
+  sb.riserInto(land, 0.32)
+  sb.hit(pvCrash, land, 0.32)
+  sb.hit(pvKick, land, 0.08)
+  sb.chord(ikPad, E3, [0, 4, 7, 11, 14], land, s3 - land + 0.3, 0.07)
+  sb.note(ikBass, E2, 0, land, s3 - land, 0.1)
+  sb.phrase(ikLead, E4, land + 0.2, 0.48, hatMotif(false), 0.08)
+  # Shot 3: cadence, IV - V - I, then the tonic held under the title
+  const cadStep = 1.6'f32
+  sb.chord(ikPad, E3, [5, 9, 12], s3, cadStep + 0.05, 0.065)
+  sb.note(ikBass, E2, 5, s3, cadStep, 0.09)
+  sb.chord(ikPad, E3, [7, 11, 14], s3 + cadStep, cadStep + 0.05, 0.065)
+  sb.note(ikBass, E2, 7, s3 + cadStep, cadStep, 0.09)
+  let tonicAt = s3 + cadStep * 2.0
+  sb.chord(ikPad, E3, [0, 4, 7, 12], tonicAt, sb.at(4, 0.5) - tonicAt, 0.07)
+  sb.note(ikBass, E2, 0, tonicAt, sb.at(4, 0.3) - tonicAt, 0.1)
+  sb.note(ikBell, E4, 12, tonicAt, 2.2, 0.06)
+  sb.phrase(ikBell, E4, tonicAt + 0.6, 0.55, hatMotif(false), 0.045, 12)
+  # Shot 4: one beep from below
+  let sting = sb.at(4, RootStingBeepAt)
+  sb.tone(ikSquare, E3, sting, 0.26, 0.04)
+  sb.note(ikDrone, E2, 0, sb.at(4, 0.4), sb.length - sb.at(4, 0.4), 0.05)
+  var mix = sb.renderScore(mtStoryRootAccess, 0.2)
+  if genCancel.load():
+    return
+  applySingleEcho(mix, 0.38, 0.09)
+  finishMusic(mix, filename, 0.9)
+
+proc createBelowScore(filename: string) =
+  ## ACT III: BELOW THE PARTITION. Falling arpeggios; an empty hum on the old
+  ## desktop; the old system's POST beeps and the overwrite buzz; root plays
+  ## TOPHAT's whole motif with TOPHAT's bell answering in canon; a power-down
+  ## jingle and the old system's last tone; a warm close in major.
+  var sb = newScore(BelowShots)
+  # Shot 0: the descent
+  let s1 = sb.at(1)
+  let half0 = s1 * 0.45'f32
+  sb.ostinato(ikPluck, A3, [24, 19, 15, 12, 7, 3, 0, 3], 0.0, s1, 0.16, 0.05)
+  sb.chord(ikPad, A3, [0, 3, 7], 0.0, half0 + 0.1, 0.06)
+  sb.chord(ikPad, A3, [-4, 0, 3], half0, s1 - half0 + 0.3, 0.06)
+  sb.note(ikDrone, A2, 0, 0.0, s1 + 0.4, 0.08)
+  sb.pulse(pvOpenHat, 0.5, s1, 1.0, 0.12)
+  # Shot 1: the old desktop. Almost nothing: a hum and two idle blips.
+  let s2 = sb.at(2)
+  sb.note(ikDrone, A2, 0, s1, s2 - s1 + 0.4, 0.07)
+  sb.chord(ikPad, A3, [12, 19], s1 + 0.3, s2 - s1, 0.035)
+  sb.tone(ikSquare, A4, sb.at(1, 3.0), 0.08, 0.025)
+  sb.tone(ikSquare, A4, sb.at(1, 5.6), 0.08, 0.02)
+  # Shot 2: the old boot log, beep by beep, then the overwrite
+  let s3 = sb.at(3)
+  sb.note(ikDrone, A2, 0, s2, s3 - s2, 0.07)
+  for i in 0..<BelowLogLines:
+    let t = sb.at(2, BelowLogStart + i.float32 * BelowLogEvery)
+    if i < 6:
+      sb.tone(ikSquare, BeepHigh, t, 0.06, 0.035)
+    elif i == 6:
+      sb.tone(ikSquare, A2, t, 1.1, 0.045)
+      sb.tone(ikSquare, semiFreq(A2, 1), t + 0.1, 1.0, 0.035)
+    elif i == 7:
+      sb.hit(pvBoom, t, 0.22)
+    else:
+      sb.tone(ikSquare, BeepLow, t, 0.12, 0.035)
+      sb.tone(ikSquare, A4, t + 0.13, 0.25, 0.035)
+  # Shot 3: I WAS HERE FIRST. Then the twist, in music.
+  let first = sb.at(3, BelowFirstAt)
+  let firstEnd = sb.at(3, BelowFirstAt + BelowFirstDur)
+  let s4 = sb.at(4)
+  sb.typing(first, firstEnd - first)
+  sb.beep(BeepLow, firstEnd)
+  let motifAt = sb.at(3, BelowFirstAt + BelowFirstDur + 0.6)
+  const motifBeat = 0.5'f32
+  sb.chord(ikPad, A3, [0, 3, 7], s3, s4 - s3 + 0.3, 0.05)
+  sb.note(ikBass, A2, 0, motifAt, s4 - motifAt, 0.07)
+  sb.phrase(ikSquare, A3, motifAt, motifBeat, hatMotif(true), 0.04)
+  sb.phrase(ikBell, A4, motifAt + motifBeat * 2.0, motifBeat, hatMotif(true), 0.075)
+  # Shot 4: the shutdown it never got
+  let yes = sb.at(4, BelowYesAt)
+  let safe = sb.at(4, BelowSafeAt)
+  let s5 = sb.at(5)
+  sb.hit(pvClick, yes, 0.5)
+  for i, semi in [12, 7, 3, 0]:
+    let t = yes + 0.3 + i.float32 * 0.45
+    sb.note(ikSquare, A3, semi, t, 0.36, 0.035)
+    sb.note(ikBell, A4, semi, t, 0.8, 0.06)
+  sb.note(ikDrone, A2, 0, s4, safe - s4, 0.06)
+  # The old system's last sound, under the line every old machine ended on.
+  sb.tone(ikSquare, A3, safe + 0.2, 1.4, 0.022)
+  sb.chord(ikPad, A3, [0, 4, 7], safe + 0.6, s5 - safe - 0.4, 0.04)
+  # Shot 5: cleanup complete, a warm close
+  sb.chord(ikPad, A3, [0, 4, 7, 11], s5, 2.6, 0.065)
+  sb.chord(ikPad, A3, [5, 9, 12], s5 + 2.5, 2.0, 0.06)
+  sb.chord(ikPad, A3, [0, 4, 7, 12], s5 + 4.4, sb.length - s5 - 4.4, 0.07)
+  sb.note(ikBass, A2, 0, s5, 2.5, 0.08)
+  sb.note(ikBass, A2, 5, s5 + 2.5, 1.9, 0.08)
+  sb.note(ikBass, A2, 0, s5 + 4.4, sb.length - s5 - 4.4, 0.08)
+  sb.phrase(ikBell, A4, s5 + 0.4, 0.5, hatMotif(false), 0.09)
+  sb.ostinato(ikPluck, A3, [12, 16, 19, 24], s5 + 0.4, sb.length - 0.8, 0.24, 0.035)
+  var mix = sb.renderScore(mtStoryBelow, 0.0)
+  if genCancel.load():
+    return
+  applySingleEcho(mix, 0.4, 0.1)
+  finishMusic(mix, filename, 1.1)   # a quiet, sparse score: a little more gain
+
+proc createUptimeScore(filename: string) =
+  ## ACT IV: UPTIME. A tired heartbeat and TOPHAT's motif slowed down; the
+  ## last surge; the crash winds the tape to a stop; a cheerful, sterile
+  ## installer tune for the new OS; its boot chime; then, from below, the
+  ## intro's two beeps and TOPHAT's theme on the PC speaker.
+  var before = newScore(UptimeShots)
+  let s1 = before.at(1)
+  let crash = before.at(2, UptimeCrashAt)
+  # Shot 0: years of uptime
+  let half0 = s1 * 0.5'f32
+  before.chord(ikPad, D3, [0, 3, 7], 0.0, half0 + 0.1, 0.06)
+  before.chord(ikPad, D3, [-2, 2, 5], half0, s1 - half0 + 0.2, 0.06)
+  before.note(ikBass, D2, 0, 0.0, half0, 0.08)
+  before.note(ikBass, D2, -2, half0, s1 - half0, 0.08)
+  var hb = 0.2'f32
+  while hb < s1:
+    before.hit(pvKick, hb, 0.06)
+    before.hit(pvKick, hb + 0.2, 0.045)
+    hb += 1.0
+  before.pulse(pvSoftTick, 0.0, s1, 0.5, 0.18)
+  before.phrase(ikBell, D4, 0.6, 0.65, hatMotif(true), 0.07)   # tired: slower than ever
+  # Shot 1: the last surge
+  let beat = 0.38'f32
+  before.pulse(pvKick, s1, crash, beat, 0.09)
+  before.pulse(pvSnare, s1 + beat, crash, beat * 2.0, 0.07)
+  before.pulse(pvHat, s1, crash, beat * 0.25, 0.045)
+  before.ostinato(ikBass, D2, [0, 0, 3, 0, 5, 0, 3, 1], s1, crash, beat * 0.5, 0.14)
+  before.chord(ikPad, D3, [0, 3, 7], s1, crash - s1, 0.06)
+  before.phrase(ikLead, D4, s1 + 0.2, beat, hatMotif(true), 0.085)
+  before.riserInto(crash, 0.5)
+  var mix = before.renderScore(mtStoryUptime, 0.35)
+  if genCancel.load():
+    return
+  # The crash winds the whole mix down like a tape losing power.
+  applyTapeStop(mix, crash, 1.4)
+
+  var after = newScore(UptimeShots)
+  # Shot 2: the crash screen
+  after.errorDing(D3, crash + 1.3, 0.08)
+  after.note(ikDrone, D2, 0, crash + 1.1, after.at(3) - crash - 1.1, 0.07)
+  # Shot 3: the new OS installs itself, pleasantly
+  let s3 = after.at(3)
+  let s4 = after.at(4)
+  after.chord(ikPad, G3, [0, 4, 7, 12], s3, s4 - s3, 0.055)
+  after.ostinato(ikPluck, G4, [0, 4, 7, 12, 7, 4], s3 + 0.1, s4, 0.18, 0.05)
+  after.pulse(pvSoftTick, after.at(3, UptimeFormatAt), s4, 0.36, 0.15)
+  # Shot 4: the new OS boots clean; then something answers from below
+  after.chord(ikBell, G4, [0, 4, 7, 12, 16], after.at(4, UptimeNewBootAt), 2.4, 0.07)
+  let who = after.at(4, UptimeWhoAt)
+  let mine = after.at(4, UptimeMachineAt)
+  after.typing(who, UptimeWhoDur / StoryPlaybackSpeed)
+  after.beep(BeepHigh, after.at(4, UptimeWhoAt + UptimeWhoDur))
+  after.typing(mine, UptimeMachineDur / StoryPlaybackSpeed)
+  let mineEnd = after.at(4, UptimeMachineAt + UptimeMachineDur)
+  after.beep(BeepLow, mineEnd)
+  after.note(ikDrone, E2, 0, who - 0.4, after.length - who + 0.4, 0.06)
+  # TOPHAT's theme, in the intro's key, on the old system's voice.
+  after.phrase(ikSquare, E3, mineEnd + 0.5, 0.55, hatMotif(false), 0.035)
+  mix.mixInto(after.renderScore(mtStoryUptime, 0.0))
+  if genCancel.load():
+    return
+  applySingleEcho(mix, 0.4, 0.1)
+  finishMusic(mix, filename, 0.9)
+
 # MUSIC LOADING AND SYSTEM MANAGEMENT
 
 proc generateMusicFile(track: MusicTrack) =
@@ -1856,6 +2471,10 @@ proc generateMusicFile(track: MusicTrack) =
   of mtWave: createWaveMusic(cacheFile)
   of mtPowerUp: createPowerUpMusic(cacheFile)
   of mtBoss: createBossMusic(cacheFile)
+  of mtStoryIntro: createIntroScore(cacheFile)
+  of mtStoryRootAccess: createRootAccessScore(cacheFile)
+  of mtStoryBelow: createBelowScore(cacheFile)
+  of mtStoryUptime: createUptimeScore(cacheFile)
 
 proc cleanStaleCacheFiles() =
   ## Remove WAVs from older sound versions (pre-versioning files have no
@@ -1865,7 +2484,8 @@ proc cleanStaleCacheFiles() =
   for path in walkFiles(cacheDir / "*.wav"):
     let name = splitFile(path).name
     if not (name.endsWith("_" & SOUND_CACHE_VERSION) or
-            name.endsWith("_" & MUSIC_CACHE_VERSION)):
+            name.endsWith("_" & MUSIC_CACHE_VERSION) or
+            name.endsWith("_" & SCORE_CACHE_VERSION)):
       try:
         removeFile(path)
       except OSError:
@@ -2296,11 +2916,49 @@ proc updateMusic*() =
     return   # paused for a mod's music: the restart below would undo that
   try:
     updateMusicStream(sys.cachedMusic[sys.currentTrack])
-    # Manually restart if music stopped (seamless looping)
-    if not isMusicStreamPlaying(sys.cachedMusic[sys.currentTrack]):
+    # Manually restart if music stopped (seamless looping). A story score
+    # plays once: its cinematic decides what comes next.
+    if not isMusicStreamPlaying(sys.cachedMusic[sys.currentTrack]) and
+       not isScoreTrack(sys.currentTrack):
       seekMusicStream(sys.cachedMusic[sys.currentTrack], 0.0)
       playMusicStream(sys.cachedMusic[sys.currentTrack])
   except:
+    discard
+
+proc startScore*(track: MusicTrack): bool =
+  ## Play a story score from the top at normal speed, whatever was playing
+  ## (including this same score, on a replay). False while the stream is not
+  ## ready yet; the caller retries, and syncScore then seeks to the right spot.
+  ## A disabled sound system counts as started: there is nothing to wait for.
+  let sys = globalSoundSystem
+  if sys == nil or not sys.enabled:
+    return true
+  if not ensureMusicLoaded(sys, track):
+    return false
+  switchToTrack(sys, track)
+  try:
+    seekMusicStream(sys.cachedMusic[track], 0.0)
+    setMusicPitch(sys.cachedMusic[track], 1.0)
+  except CatchableError:
+    discard
+  true
+
+proc syncScore*(track: MusicTrack, position, rate: float32) =
+  ## Keep a playing score on its cinematic's clock. `rate` is the playback
+  ## multiplier (2 while the cutscene fast-forwards): raylib's pitch resamples
+  ## the stream, so speed and pitch rise together like a tape. Drift past a
+  ## quarter second (frame hitches, a mod pausing the music) is seeked away.
+  let sys = globalSoundSystem
+  if sys == nil or not sys.enabled or not sys.trackPlaying or
+     sys.currentTrack != track or gameMusicHeld:
+    return
+  try:
+    template music: Music = sys.cachedMusic[track]   # Music cannot be copied
+    setMusicPitch(music, rate)
+    let target = clamp(position, 0.0'f32, max(0.0'f32, getMusicTimeLength(music) - 0.05'f32))
+    if abs(getMusicTimePlayed(music) - target) > 0.25'f32:
+      seekMusicStream(music, target)
+  except CatchableError:
     discard
 
 proc stopMusic*() =

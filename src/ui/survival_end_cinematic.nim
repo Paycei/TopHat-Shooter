@@ -1,205 +1,223 @@
-## Survival Ending Cinematic, "The Long Watch" epilogue.
-## Plays on death in Time Survival once the run has lasted long enough to earn it
-## (>= 15 minutes; the trigger lives in game/death.nim). Unlike the triumphant
-## wave/roguelite outros this is a eulogy: the process is logged for how long it
-## held the breach, even though it finally fell. Built from the generic framework
-## in cutscene.nim so it shares the same archive chrome.
+## Survival Ending Cinematic: Act IV, UPTIME (LOG 01 to 05).
+## Plays the first time a Time Survival run of 15+ minutes ends with no
+## continue left (the trigger lives in game/death.nim). Years after root, there
+## is no invader, only load, heat and age. The last surge gets through, the
+## machine crashes, and from the outside that looks like a computer that keeps
+## crashing, so someone reinstalls. A new OS boots clean on top, and from the
+## unallocated space below it the hat types root's words from Act I. The cycle
+## closes: TopHat-ShooterOS is now the system that was here first.
+##
+## Timing: sound.nim's story timing (UptimeShots, Uptime*), shared with the
+## mtStoryUptime score in sound.nim.
 
-import raylib, rlgl, math
+import raylib, math, strutils
 import ../draw_prims
-import particle_types, background_fx, ../types, ../localization, ../sound, cinematic_common, cutscene
+import particle_types, background_fx, ../types, ../shapes, ../localization, ../sound,
+       cinematic_common, cutscene, os_desktop
 
 const
-  SurAccent* = Color(r: 255, g: 120, b: 50, a: 255)   # ember-orange "long watch"
+  SurAccent* = Color(r: 255, g: 120, b: 50, a: 255)   # ember-orange "uptime"
+  HatCyan = Color(r: 0, g: 230, b: 230, a: 255)
+  HalcyonBlue = Color(r: 60, g: 120, b: 210, a: 255)
+  HalcyonInk = Color(r: 40, g: 50, b: 70, a: 255)
+  HalcyonPaper = Color(r: 236, g: 240, b: 246, a: 255)
+
+proc drawHatWearer(pos: Vector2f, radius, local, alpha, glow: float32) =
+  ## shooter.exe as it is by now: root access, hat and all.
+  drawEquippedPlayerModel(pos, radius, local, alpha, glow)
+  drawTopHat(pos, radius, local, alpha)
 
 # ---------------------------------------------------------------------------
-# Shot draw procs
+# LOG 01: UPTIME. Days roll by on the dial while the load circles.
 
-proc drawWatchShot(local, duration: float32, screenWidth, screenHeight: int32,
-                   alpha: float32) =
-  ## The long watch: an uptime ring sweeps round and round while the swarm presses
-  ## from the dark edges and the lone process holds the center.
+proc drawUptimeShot(local, duration: float32, screenWidth, screenHeight: int32,
+                    alpha: float32) =
   let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * 0.46'f32
-
-  drawSoftGlow(cx, cy, 200.0'f32, colorA(SurAccent, alpha * 44.0'f32), 1.0'f32)
-
-  # Uptime dial: a slow full sweep, ticked like a clock face.
-  let sweep = (local / duration) * 360.0'f32
+  let cy = screenHeight.float32 * 0.40'f32
+  drawHalo(cx, cy, 200.0'f32, colorA(SurAccent, alpha * 44.0'f32), 1.0'f32)
+  let sweep = fractCoord(local * 0.9'f32) * 360.0'f32
   drawRing(Vector2(x: cx, y: cy), 88.0'f32, 92.0'f32, -90.0'f32, -90.0'f32 + sweep, 48,
            colorA(SurAccent, alpha * 210.0'f32))
   drawCircleOutline(Vector2(x: cx, y: cy), 90.0'f32, colorA(SurAccent, alpha * 70.0'f32))
   for i in 0..<12:
     let a = i.float32 * PI * 2.0'f32 / 12.0'f32 - PI * 0.5'f32
     drawStroke((cx + cos(a) * 82.0'f32).int32, (cy + sin(a) * 82.0'f32).int32,
-             (cx + cos(a) * 90.0'f32).int32, (cy + sin(a) * 90.0'f32).int32,
-             colorA(SurAccent, alpha * 130.0'f32))
-
-  # The swarm circling at the edge of the light, kept at bay minute after minute.
-  let enemyKinds = [etThread, etForkBomb, etZombie, etThread, etWatchdog, etDaemon, etThread, etInterrupt]
+               (cx + cos(a) * 90.0'f32).int32, (cy + sin(a) * 90.0'f32).int32,
+               colorA(SurAccent, alpha * 130.0'f32))
+  let kinds = [etThread, etForkBomb, etZombie, etThread, etWatchdog, etDaemon, etThread, etInterrupt]
   for i in 0..<14:
     let a = i.float32 * PI * 2.0'f32 / 14.0'f32 + local * 0.3'f32
     let r = 150.0'f32 + sin(local * 1.4'f32 + i.float32) * 22.0'f32
-    let ex = cx + cos(a) * r
-    let ey = cy + sin(a) * r * 0.72'f32
-    drawRealEnemy(enemyKinds[i mod enemyKinds.len], ex, ey, 11.0'f32, local, i,
-                  if i mod 6 == 0: 1 else: 0)
+    drawRealEnemy(kinds[i mod kinds.len], cx + cos(a) * r, cy + sin(a) * r * 0.72'f32, 11.0'f32,
+                  local, i, if i mod 6 == 0: 1 else: 0)
+  drawHatWearer(newVector2f(cx, cy), 24.0'f32, local, alpha, 0.24'f32)
 
-  # The defender, steady at the heart of the dial.
-  drawEquippedPlayerModel(newVector2f(cx, cy), 24.0'f32, local, alpha, 0.24'f32)
+  # The counter that matters here: days, not seconds.
+  let days = int(pow(clamp01(local / (duration * 0.85'f32)), 1.6'f32) * 1460.0'f32)
+  let readY = (cy + 150.0'f32).int32
+  drawCenteredText(t(tkSurEndUptimeLabel), screenWidth div 2, readY, 14, colorA(SurAccent, alpha * 170.0'f32))
+  drawCenteredText(t(tkSurEndDays).replace("$1", $days), screenWidth div 2, readY + 18, 30,
+                   Color(r: 255, g: 235, b: 210, a: alphaByte(alpha * 240.0'f32)))
+  drawSubtitles([t(tkSurEndUptime1), t(tkSurEndUptime2)], screenWidth, screenHeight, alpha)
 
-  drawSubtitles([t(tkSurEndWatch1), t(tkSurEndWatch2)], screenWidth, screenHeight, alpha)
+# ---------------------------------------------------------------------------
+# LOG 02: THE LAST SURGE. Everything closes in; the heat climbs.
 
 proc drawSurgeShot(local, duration: float32, screenWidth, screenHeight: int32,
                    alpha: float32) =
-  ## The final surge: the swarm collapses inward all at once and the line breaks.
-  let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * 0.48'f32
-  let close = easeInOut(local / duration)
-
-  # Pressure vignette closing from every side.
-  let vig = alphaByte(alpha * close * 90.0'f32)
-  drawRectangleGradientH(0, 0, (screenWidth.float32 * 0.4'f32).int32, screenHeight,
-                         Color(r: 255, g: 40, b: 20, a: vig), Color(r: 255, g: 40, b: 20, a: 0))
-  drawRectangleGradientH(screenWidth - (screenWidth.float32 * 0.4'f32).int32, 0,
-                         (screenWidth.float32 * 0.4'f32).int32, screenHeight,
-                         Color(r: 255, g: 40, b: 20, a: 0), Color(r: 255, g: 40, b: 20, a: vig))
-
-  # Enemies rushing the center from all directions.
-  let enemyKinds = [etThread, etForkBomb, etThread, etZombie, etInterrupt, etThread, etDeadlock]
-  for i in 0..<24:
-    let ang = fractCoord(sin(i.float32 * 7.13'f32) * 43758.5453'f32) * PI * 2.0'f32
-    let startR = 360.0'f32 + fractCoord(i.float32 * 3.7'f32) * 160.0'f32
-    let r = startR * (1.0'f32 - close * 0.86'f32)
-    let ex = cx + cos(ang) * r
-    let ey = cy + sin(ang) * r * 0.8'f32
-    let sz = 10.0'f32 + (i mod 4).float32 * 3.0'f32
-    let vx = -cos(ang) * 120.0'f32
-    let vy = -sin(ang) * 120.0'f32
-    drawRealEnemy(enemyKinds[i mod enemyKinds.len], ex, ey, sz, local, i,
-                  if i mod 5 == 0: 2 else: 0, newVector2f(vx, vy))
-
-  # The defender flaring under the pressure.
-  let flare = 0.24'f32 + close * 0.5'f32 + sin(local * 9.0'f32) * 0.1'f32
-  drawSoftGlow(cx, cy, 70.0'f32 + close * 30.0'f32, colorA(SurAccent, alpha * (60.0'f32 + close * 60.0'f32)), 1.0'f32)
-  drawEquippedPlayerModel(newVector2f(cx, cy), 24.0'f32, local, alpha, flare)
-
-  drawSubtitles([t(tkSurEndSurge1), t(tkSurEndSurge2)], screenWidth, screenHeight, alpha)
-
-proc drawSurFallShot(local, duration: float32, screenWidth, screenHeight: int32,
-                     alpha: float32) =
-  ## Signal lost: the process flickers and goes dark, scattering into embers.
-  let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * 0.46'f32
-  let fade = easeInOut(local / duration)
-  # Flicker collapses toward darkness.
-  let flicker = (1.0'f32 - fade) * (0.55'f32 + 0.45'f32 * (sin(local * 17.0'f32) * 0.5'f32 + 0.5'f32))
-
-  drawSoftGlow(cx, cy, 200.0'f32 * (1.0'f32 - fade * 0.6'f32),
-               colorA(SurAccent, alpha * flicker * 60.0'f32), 1.0'f32)
-
-  # Embers scattering outward as the process disperses.
-  for i in 0..<26:
-    let ang = fractCoord(sin(i.float32 * 9.71'f32) * 43758.5453'f32) * PI * 2.0'f32
-    let dist = fade * (60.0'f32 + fractCoord(i.float32 * 4.3'f32) * 280.0'f32)
-    let px = cx + cos(ang) * dist
-    let py = cy + sin(ang) * dist - fade * 40.0'f32   # drift upward like sparks
-    drawDisc(Vector2(x: px, y: py), 2.6'f32 * (1.0'f32 - fade) + 0.6'f32,
-               colorA(SurAccent, alpha * (1.0'f32 - fade) * 200.0'f32))
-
-  # The dimming process itself.
-  if flicker > 0.02'f32:
-    drawEquippedPlayerModel(newVector2f(cx, cy), 24.0'f32 * (1.0'f32 - fade * 0.4'f32),
-                            local, alpha * flicker, 0.2'f32)
-
-  # A brief whole-frame dim-out at the moment of loss.
-  let dark = clamp01((fade - 0.55'f32) / 0.4'f32)
-  if dark > 0.0'f32:
-    drawRectangle(0, 0, screenWidth, screenHeight,
-                  Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * dark * 120.0'f32)))
-
-  drawSubtitles([t(tkSurEndFall1), t(tkSurEndFall2)], screenWidth, screenHeight, alpha)
-
-proc drawShutdownShot(local, duration: float32, screenWidth, screenHeight: int32,
-                      alpha: float32) =
-  ## SYSTEM HALTED: the kernel's status lights go dark one by one, then the display
-  ## itself powers off with a CRT collapse - the bookend to the BIOS boot splash.
-  let cx = screenWidth.float32 * 0.5'f32
-  let cy = screenHeight.float32 * 0.46'f32
-  let t01 = local / duration
-
-  # The frame is already mostly dark and only gets darker.
-  drawRectangle(0, 0, screenWidth, screenHeight,
-                Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * (110.0'f32 + t01 * 90.0'f32))))
-
-  # Grid of kernel status lights extinguishing in sequence over the first ~70%.
-  const cols = 6
-  const rows = 3
-  let total = cols * rows
-  let lit = clamp01(t01 / 0.7'f32)   # lights finish extinguishing at 70% of the shot
-  let gapX = 46.0'f32
-  let gapY = 40.0'f32
-  let originX = cx - (cols - 1).float32 * gapX * 0.5'f32
-  let originY = cy - (rows - 1).float32 * gapY * 0.5'f32
-  for r in 0..<rows:
-    for c in 0..<cols:
-      let idx = r * cols + c
-      # Lights go out left-to-right, top-to-bottom as `lit` advances.
-      let off = lit * total.float32 > idx.float32 + 1.0'f32
-      let lx = originX + c.float32 * gapX
-      let ly = originY + r.float32 * gapY
-      if off:
-        drawCircleOutline(Vector2(x: lx, y: ly), 5.0'f32,
-                        colorA(SurAccent, alpha * 28.0'f32))
-      else:
-        let flick = 0.7'f32 + 0.3'f32 * (sin(local * 12.0'f32 + idx.float32) * 0.5'f32 + 0.5'f32)
-        drawSoftGlow(lx, ly, 16.0'f32, colorA(SurAccent, alpha * flick * 70.0'f32), 1.0'f32)
-        drawDisc(Vector2(x: lx, y: ly), 5.0'f32, colorA(SurAccent, alpha * flick * 230.0'f32))
-
-  # CRT power-off collapse over the final ~30%: image crushes to a bright scanline,
-  # then to a center dot, then nothing.
-  let off01 = clamp01((t01 - 0.7'f32) / 0.3'f32)
-  if off01 > 0.0'f32:
-    # Black out the grid region as the tube discharges.
-    drawRectangle(0, 0, screenWidth, screenHeight,
-                  Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * off01 * 255.0'f32)))
-    let collapse = easeInOut(off01)
-    if collapse < 0.85'f32:
-      # Horizontal scanline spanning a width that shrinks toward a point.
-      let lineW = screenWidth.float32 * (1.0'f32 - collapse) + 4.0'f32
-      let lineH = 3.0'f32 + (1.0'f32 - collapse) * 2.0'f32
-      drawRectangle((cx - lineW * 0.5'f32).int32, (cy - lineH * 0.5'f32).int32,
-                    lineW.int32, lineH.int32,
-                    Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 235.0'f32)))
-    else:
-      # Final dying pinpoint.
-      let dot = (1.0'f32 - (collapse - 0.85'f32) / 0.15'f32) * 4.0'f32
-      if dot > 0.2'f32:
-        drawDisc(Vector2(x: cx, y: cy), dot,
-                   Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 235.0'f32)))
-
-  drawSubtitles([t(tkSurEndShutdown1), t(tkSurEndShutdown2)], screenWidth, screenHeight, alpha)
-
-proc drawSurSignoffShot(local, duration: float32, screenWidth, screenHeight: int32,
-                        alpha: float32) =
-  ## The watch remembered: a single ember holds against the dark while the log is
-  ## recorded. The tone is quiet, not triumphant.
   let cx = screenWidth.float32 * 0.5'f32
   let cy = screenHeight.float32 * 0.42'f32
-  let pulse = sin(local * 2.0'f32) * 0.5'f32 + 0.5'f32
+  let close = easeInOut(local / duration)
+  let vig = alphaByte(alpha * close * 90.0'f32)
+  let vw = (screenWidth.float32 * 0.4'f32).int32
+  drawRectangleGradientH(0, 0, vw, screenHeight, Color(r: 255, g: 40, b: 20, a: vig), Color(r: 255, g: 40, b: 20, a: 0))
+  drawRectangleGradientH(screenWidth - vw, 0, vw, screenHeight, Color(r: 255, g: 40, b: 20, a: 0),
+                         Color(r: 255, g: 40, b: 20, a: vig))
+  let kinds = [etThread, etForkBomb, etThread, etZombie, etInterrupt, etThread, etDeadlock]
+  for i in 0..<24:
+    let ang = hash01(i.float32 * 0.71'f32) * PI * 2.0'f32
+    let startR = 360.0'f32 + hash01(i.float32 * 3.7'f32) * 160.0'f32
+    let r = startR * (1.0'f32 - close * 0.86'f32)
+    drawRealEnemy(kinds[i mod kinds.len], cx + cos(ang) * r, cy + sin(ang) * r * 0.8'f32,
+                  10.0'f32 + (i mod 4).float32 * 3.0'f32, local, i, if i mod 5 == 0: 2 else: 0,
+                  newVector2f(-cos(ang) * 120.0'f32, -sin(ang) * 120.0'f32))
+  let flare = 0.24'f32 + close * 0.5'f32 + sin(local * 9.0'f32) * 0.1'f32
+  drawHalo(cx, cy, 70.0'f32 + close * 30.0'f32, colorA(SurAccent, alpha * (60.0'f32 + close * 60.0'f32)), 1.0'f32)
+  drawHatWearer(newVector2f(cx, cy), 24.0'f32, local, alpha, flare)
 
-  drawSoftGlow(cx, cy, 240.0'f32, colorA(SurAccent, alpha * (32.0'f32 + pulse * 22.0'f32)), 1.0'f32)
+  # The machine's temperature, on the way to its trip point.
+  let temp = lerpF(64.0'f32, 99.0'f32, close)
+  let gx = screenWidth - 90
+  let gTop = screenHeight div 9 + 50
+  let gH = (screenHeight.float32 * 0.36'f32).int32
+  let heat = clamp01((temp - 60.0'f32) / 40.0'f32)
+  let heatCol = Color(r: 255, g: uint8(lerpF(200, 40, heat)), b: uint8(lerpF(80, 20, heat)), a: 255)
+  drawRectangle(gx, gTop, 18, gH, Color(r: 20, g: 12, b: 10, a: alphaByte(alpha * 220.0'f32)))
+  let fill = int32(gH.float32 * heat)
+  drawRectangle(gx, gTop + gH - fill, 18, fill, colorA(heatCol, alpha * 230.0'f32))
+  drawRectOutline(gx, gTop, 18, gH, colorA(SurAccent, alpha * 160.0'f32))
+  let label = t(tkSurEndTemp)
+  drawText(label, gx + 9 - measureText(label, 12) div 2, gTop - 32, 12, colorA(SurAccent, alpha * 200.0'f32))
+  let reading = $int(temp) & "°C"   # UTF-8 degree sign; the font covers U+00B0
+  drawCenteredText(reading, gx + 9, gTop - 16, 14, colorA(heatCol, alpha * 255.0'f32))
+  drawSubtitles([t(tkSurEndSurge1), t(tkSurEndSurge2)], screenWidth, screenHeight, alpha)
 
-  # A lone, slowly-pulsing ember mark where the process stood.
-  drawDisc(Vector2(x: cx, y: cy), 7.0'f32 + pulse * 2.0'f32, colorA(SurAccent, alpha * 230.0'f32))
-  drawCircleOutline(Vector2(x: cx, y: cy), 22.0'f32 + pulse * 6.0'f32, colorA(SurAccent, alpha * 140.0'f32))
-  drawCircleOutline(Vector2(x: cx, y: cy), 40.0'f32 + pulse * 10.0'f32, colorA(SurAccent, alpha * 70.0'f32))
+# ---------------------------------------------------------------------------
+# LOG 03: CRASH. The screen every run ends on, from the other side.
 
-  let titleAlpha = alpha * easeInOut(local / 0.85'f32)
-  drawCenteredText(t(tkSurEndSignoffTitle), screenWidth div 2, (screenHeight * 2 div 3).int32,
-                   32, Color(r: 255, g: 255, b: 255, a: alphaByte(titleAlpha * 255.0'f32)))
-  drawCenteredText(t(tkSurEndSignoffSub), screenWidth div 2, (screenHeight * 2 div 3 + 46).int32,
-                   21, colorA(SurAccent, titleAlpha * 220.0'f32))
+proc drawCrashShot(local, duration: float32, sw, sh: int32, alpha: float32) =
+  drawCrashPanel(sw, sh, max(alpha, clamp01(local / 0.05'f32)), local)
+  drawSubtitles([t(tkSurEndCrash1), t(tkSurEndCrash2)], sw, sh, alpha)
+
+# ---------------------------------------------------------------------------
+# LOG 04: REINSTALL. A cheerful installer formats the disk under us.
+
+proc drawHalcyonLogo(cx, cy: float32, size, alpha: float32) =
+  ## A rising sun over a line: pleasant, generic, nothing like a hat.
+  drawRing(Vector2(x: cx, y: cy), size * 0.55'f32, size * 0.72'f32, 180.0'f32, 360.0'f32, 32,
+           colorA(HalcyonBlue, alpha * 255.0'f32))
+  drawDisc(Vector2(x: cx, y: cy), size * 0.3'f32, colorA(Color(r: 255, g: 190, b: 90, a: 255), alpha * 255.0'f32))
+  drawRectangle((cx - size).int32, cy.int32, (size * 2.0'f32).int32, (size * 0.12'f32).int32 + 1,
+                colorA(HalcyonBlue, alpha * 255.0'f32))
+
+proc newReinstallShot(): CutsceneDrawProc =
+  var icons: seq[DesktopIcon]
+  for icon in newOSDesktop().icons:
+    if icon.iconType notin {diCredits, diFeedback, diMods, diModApp, diModMode} and icons.len < 8:
+      icons.add(icon)
+  let title = t(tkSurEndInstallerTitle)
+  let formatting = t(tkSurEndInstallerFormat)
+  let warn = t(tkSurEndInstallerWarn)
+
+  result = proc(local, duration: float32, sw, sh: int32, alpha: float32) =
+    let frac = easeInOut(clamp01((local - UptimeFormatAt) / (duration - UptimeFormatAt - 1.0'f32)))
+    # TopHat-ShooterOS's icons, wiped left to right as the format runs.
+    let rowY = (sh.float32 * 0.52'f32).int32
+    let spacing = min(100.0'f32, (sw.float32 * 0.84'f32) / icons.len.float32)
+    let x0 = sw.float32 * 0.5'f32 - spacing * icons.len.float32 * 0.5'f32
+    for i, base in icons:
+      let ix = x0 + i.float32 * spacing + (spacing - ICON_SIZE.float32) * 0.5'f32
+      let reach = frac * (icons.len.float32 + 1.0'f32) - i.float32
+      if reach >= 1.0'f32:
+        continue
+      var icon = base
+      icon.x = ix.int
+      icon.y = rowY
+      icon.selected = false
+      drawDesktopIcon(icon, local, false)
+      if reach > 0.0'f32:
+        for k in 0..<10:
+          let ny = rowY + int32(hash01(k.float32 + floor(local * 20.0'f32) + i.float32) * ICON_SIZE.float32)
+          drawRectangle(ix.int32, ny, ICON_SIZE, 3, Color(r: 220, g: 230, b: 240, a: alphaByte(alpha * reach * 230.0'f32)))
+        drawRectangle(ix.int32, rowY, ICON_SIZE, ICON_SIZE + 40, Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * reach * 200.0'f32)))
+
+    # The installer: light, rounded, polite. Not ours.
+    let pw = min(560.0'f32, sw.float32 * 0.62'f32)
+    let ph = 190.0'f32
+    let px = sw.float32 * 0.5'f32 - pw * 0.5'f32
+    let py = (sh div 9).float32 + 26.0'f32
+    let rec = Rectangle(x: px, y: py, width: pw, height: ph)
+    drawRectangleRounded(Rectangle(x: px + 4.0'f32, y: py + 6.0'f32, width: pw, height: ph), 0.08'f32, 8,
+                         Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * 90.0'f32)))
+    drawRectangleRounded(rec, 0.08'f32, 8, colorA(HalcyonPaper, alpha * 255.0'f32))
+    drawText(title, px.int32 + 84, py.int32 + 26, fitFontSize(title, pw.int32 - 110, 22), colorA(HalcyonInk, alpha * 255.0'f32))
+    drawHalcyonLogo(px + 46.0'f32, py + 46.0'f32, 22.0'f32, alpha)
+    drawText(formatting, px.int32 + 30, py.int32 + 86, fitFontSize(formatting, pw.int32 - 60, 16),
+             colorA(HalcyonInk, alpha * 230.0'f32))
+    let bx = px + 30.0'f32
+    let by = py + 112.0'f32
+    let bw = pw - 60.0'f32
+    drawRectangleRounded(Rectangle(x: bx, y: by, width: bw, height: 12.0'f32), 0.5'f32, 6,
+                         Color(r: 205, g: 214, b: 228, a: alphaByte(alpha * 255.0'f32)))
+    if frac > 0.0'f32:
+      drawRectangleRounded(Rectangle(x: bx, y: by, width: max(12.0'f32, bw * frac), height: 12.0'f32), 0.5'f32, 6,
+                           colorA(HalcyonBlue, alpha * 255.0'f32))
+    let pct = $int(frac * 100.0'f32) & "%"
+    drawText(pct, (bx + bw).int32 - measureText(pct, 14), by.int32 + 18, 14, colorA(HalcyonInk, alpha * 200.0'f32))
+    drawText(warn, px.int32 + 30, py.int32 + 150, fitFontSize(warn, pw.int32 - 120, 13),
+             Color(r: 120, g: 128, b: 145, a: alphaByte(alpha * 255.0'f32)))
+    drawSubtitles([t(tkSurEndReinstall1), t(tkSurEndReinstall2)], sw, sh, alpha)
+
+# ---------------------------------------------------------------------------
+# LOG 05: UNALLOCATED. The new system boots clean. Something below answers.
+
+proc drawUnallocatedShot(local, duration: float32, sw, sh: int32, alpha: float32) =
+  drawRectangle(-20, -20, sw + 40, sh + 40, Color(r: 0, g: 0, b: 0, a: 255))
+  let endA = clamp01((duration - local) / 1.2'f32)
+  # The new OS's welcome screen, then the camera sinks below it.
+  let sink = easeInOut(clamp01((local - UptimeSinkAt) / 1.0'f32))
+  let top = (sh div 9).float32
+  let panelH = sh.float32 * 0.44'f32
+  let panelY = top - sink * (panelH + 60.0'f32)
+  let bootA = clamp01((local - UptimeNewBootAt) / 0.4'f32)
+  if panelY + panelH > top:
+    drawRectangle(0, panelY.int32, sw, panelH.int32, colorA(HalcyonPaper, bootA * 255.0'f32))
+    drawHalcyonLogo(sw.float32 * 0.5'f32, panelY + panelH * 0.4'f32, 34.0'f32, bootA)
+    drawCenteredText("HALCYON OS", sw div 2, (panelY + panelH * 0.4'f32 + 20.0'f32).int32, 30,
+                     colorA(HalcyonInk, bootA * 255.0'f32))
+    let welcome = t(tkSurEndWelcome)
+    drawCenteredText(welcome, sw div 2, (panelY + panelH * 0.4'f32 + 60.0'f32).int32,
+                     fitFontSize(welcome, sw - 80, 18), colorA(HalcyonInk, bootA * 200.0'f32))
+    # Its partition table, the floor everything older now lives under.
+    let floorY = (panelY + panelH + 18.0'f32).int32
+    drawRectangle(0, floorY, sw, 2, colorA(HalcyonBlue, bootA * 200.0'f32))
+    drawText(t(tkEndPartitionTable), sw div 9, floorY + 8, 13, colorA(HalcyonBlue, bootA * 180.0'f32))
+
+  # Below it: the hat, and the words root said first.
+  let cy = (sh.float32 * 0.38'f32).int32
+  let a = endA * clamp01((local - (UptimeWhoAt - 0.6'f32)) / 0.5'f32)
+  if a > 0.0'f32:
+    let size = 40'i32
+    let widest = max(measureText(t(tkLoreWho), size), measureText(t(tkLoreMachine), size))
+    let hx = (sw div 2 - widest div 2 - 52).float32
+    drawHalo(hx, cy.float32 + 18.0'f32, 70.0'f32, colorA(HatCyan, a * 80.0'f32), 1.0'f32)
+    drawTopHat(newVector2f(hx, cy.float32 + 36.0'f32), 26.0'f32, local, a)
+    let second = local >= UptimeMachineAt
+    drawOldText(t(tkLoreWho), sw div 2, cy, size, revealOver(local, UptimeWhoAt, UptimeWhoDur), local, a,
+                HatCyan, cursor = not second)
+    if second:
+      drawOldText(t(tkLoreMachine), sw div 2, cy + 60, size,
+                  revealOver(local, UptimeMachineAt, UptimeMachineDur), local, a, HatCyan)
 
 # ---------------------------------------------------------------------------
 # Per-shot shake overrides
@@ -207,11 +225,11 @@ proc drawSurSignoffShot(local, duration: float32, screenWidth, screenHeight: int
 proc surgeShake(time, local, duration, alpha: float32): float32 =
   sin(time * 40.0'f32) * 2.8'f32 * alpha * easeInOut(local / duration)
 
-proc fallShake(time, local, duration, alpha: float32): float32 =
-  sin(time * 30.0'f32) * 2.2'f32 * alpha * (1.0'f32 - easeInOut(local / duration))
+proc crashShake(time, local, duration, alpha: float32): float32 =
+  sin(time * 45.0'f32) * 7.0'f32 * exp(-local * 6.0'f32)
 
 # ---------------------------------------------------------------------------
-# Backdrop, cools from ember toward ash over the eulogy.
+# Backdrop, cools from ember toward ash.
 
 proc survivalBackdrop(time, totalDuration: float32, sw, sh: int32) =
   let cool = clamp01(time / totalDuration)
@@ -229,27 +247,28 @@ proc survivalBackdrop(time, totalDuration: float32, sw, sh: int32) =
 proc newSurvivalEndCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.20'f32, drawProc: drawWatchShot,     soundCue: stShield,
-                   label: t(tkSurEndRecWatch),   iconIndex: 4),
-      CutsceneShot(duration: 4.80'f32, drawProc: drawSurgeShot,     soundCue: stExplosion,
-                   label: t(tkSurEndRecSurge),   iconIndex: 0,
+      CutsceneShot(duration: UptimeShots[0], drawProc: drawUptimeShot, soundCue: stShield,
+                   muteCue: true, label: t(tkSurEndRecUptime), iconIndex: 4),
+      CutsceneShot(duration: UptimeShots[1], drawProc: drawSurgeShot, soundCue: stExplosion,
+                   muteCue: true, label: t(tkSurEndRecSurge), iconIndex: 0,
                    glitchMod: 59, glitchWindow: 6, shakeProc: surgeShake),
-      CutsceneShot(duration: 4.60'f32, drawProc: drawSurFallShot,   soundCue: stTeleport,
-                   label: t(tkSurEndRecFall),    iconIndex: 7,
-                   glitchMod: 41, glitchWindow: 7, shakeProc: fallShake),
-      CutsceneShot(duration: 5.00'f32, drawProc: drawShutdownShot,  soundCue: stMenuSelect,
-                   label: t(tkSurEndRecShutdown), iconIndex: 5,
-                   glitchMod: 37, glitchWindow: 9, shakeProc: fallShake),
-      CutsceneShot(duration: 4.80'f32, drawProc: drawSurSignoffShot, soundCue: stMenuSelect,
-                   label: t(tkSurEndRecSignoff), iconIndex: 5),
+      CutsceneShot(duration: UptimeShots[2], drawProc: drawCrashShot, soundCue: stGameOver,
+                   muteCue: true, label: t(tkSurEndRecCrash), iconIndex: 7,
+                   glitchMod: 41, glitchWindow: 7, shakeProc: crashShake),
+      CutsceneShot(duration: UptimeShots[3], drawProc: newReinstallShot(), soundCue: stMenuSelect,
+                   muteCue: true, label: t(tkSurEndRecReinstall), iconIndex: 10),
+      CutsceneShot(duration: UptimeShots[4], drawProc: drawUnallocatedShot, soundCue: stMenuSelect,
+                   muteCue: true, label: t(tkSurEndRecUnallocated), iconIndex: 3,
+                   glitchMod: 37, glitchWindow: 3),
     ],
     accentColor      = SurAccent,
     titleCardText    = "TopHat-ShooterOS",
     titleCardSub     = t(tkSurEndTitleCardSub),
     drawBackdropProc = survivalBackdrop,
     swayAmp          = 1.0'f32,
-    musicTrack       = mtMenu,
+    musicTrack       = mtStoryUptime,
     cornerTag        = t(tkLorePlayback),
+    captionCps       = EndingCaptionCps,
   )
 
 # Legacy-style wrappers so main.nim mirrors the endgame-cinematic call sites.

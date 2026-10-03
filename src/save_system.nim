@@ -24,6 +24,12 @@ type
     hsModern = "modern"
     hsLegacy = "legacy"
 
+  StoryCinematic* = enum
+    ## Every cinematic that tells part of the story. Settings.storySeen records
+    ## the StoryVersion each one was last watched at; see storyPending.
+    scIntro, scWaveEnding, scRogueliteEnding, scSurvivalEnding,
+    scWaveIntro, scSurvivalIntro, scRogueliteIntro, scSandboxIntro, scPvPIntro
+
   Settings* = ref object
     fpsLimit*: int32
     volume*: float32
@@ -83,6 +89,9 @@ type
     enabledMods*: seq[string]        # MODS.EXE: ids of the mods this profile loads
     modCosmetics*: seq[string]       # MODS.EXE: equipped mod cosmetics, "kind=modid:name"
     modKeybinds*: seq[string]        # "modId:actionId=KeyboardKey|GamepadButton"
+    storySeen*: array[StoryCinematic, int]
+      ## StoryVersion each story cinematic was last watched at; 0 = never, or
+      ## only an older version of it (every save from before versioning).
 
 const
   ## Bounds for the Interface tab's sliders. They live here (next to Settings
@@ -97,6 +106,57 @@ const
   MaxDamageNumberScale* = 1.60'f32
   MinScreenShakeScale* = 0.0'f32
   MaxScreenShakeScale* = 1.50'f32
+
+const StoryVersion* = 1
+  ## Bump whenever the story cinematics are rewritten. Every profile then sees
+  ## each one again where it normally plays (the intro on the next launch, a
+  ## mode intro on the next visit to that mode, an ending on its next
+  ## qualifying win or run), old saves included. The hasSeen* flags are left
+  ## alone: they unlock the Settings replays and Help archive files, and an
+  ## update must never re-lock what a player already earned.
+  ## 1: the CLEANUP / ROOT ACCESS / BELOW THE PARTITION / UPTIME rework.
+
+proc storyFlag(settings: Settings, cine: StoryCinematic): bool =
+  ## The cinematic's hasSeen* flag: whether it is unlocked at all.
+  case cine
+  of scIntro: settings.hasSeenIntro
+  of scWaveEnding: settings.hasSeenEnding
+  of scRogueliteEnding: settings.hasSeenRogueliteEnding
+  of scSurvivalEnding: settings.hasSeenSurvivalEnding
+  of scWaveIntro: settings.hasSeenWaveModeIntro
+  of scSurvivalIntro: settings.hasSeenSurvivalIntro
+  of scRogueliteIntro: settings.hasSeenRogueliteIntro
+  of scSandboxIntro: settings.hasSeenSandboxIntro
+  of scPvPIntro: settings.hasSeenPvPIntro
+
+proc unlockStoryFlag(settings: Settings, cine: StoryCinematic) =
+  case cine
+  of scIntro: settings.hasSeenIntro = true
+  of scWaveEnding: settings.hasSeenEnding = true
+  of scRogueliteEnding: settings.hasSeenRogueliteEnding = true
+  of scSurvivalEnding: settings.hasSeenSurvivalEnding = true
+  of scWaveIntro: settings.hasSeenWaveModeIntro = true
+  of scSurvivalIntro: settings.hasSeenSurvivalIntro = true
+  of scRogueliteIntro: settings.hasSeenRogueliteIntro = true
+  of scSandboxIntro: settings.hasSeenSandboxIntro = true
+  of scPvPIntro: settings.hasSeenPvPIntro = true
+
+proc storyOutdated*(settings: Settings, cine: StoryCinematic): bool =
+  ## Unlocked, but last watched before the current version of the story: the
+  ## Cinematics tab marks it NEW.
+  not settings.isNil and settings.storyFlag(cine) and settings.storySeen[cine] < StoryVersion
+
+proc storyPending*(settings: Settings, cine: StoryCinematic): bool =
+  ## Should this cinematic play at its usual trigger? Never seen, or seen only
+  ## in an older version.
+  not settings.isNil and (not settings.storyFlag(cine) or settings.storySeen[cine] < StoryVersion)
+
+proc markStorySeen*(settings: Settings, cine: StoryCinematic) =
+  ## Unlocks it (the hasSeen* flag) and records that this version was watched.
+  if settings.isNil:
+    return
+  settings.unlockStoryFlag(cine)
+  settings.storySeen[cine] = StoryVersion
 
 proc uiScalePresetIndex*(scale: float32): int =
   ## Index of the UIScalePresets entry nearest `scale`.
@@ -346,6 +406,10 @@ proc settingsToJson*(settings: Settings): JsonNode =
   result["gamepadBinds"] = padBindsObj
   result["preferredGamepad"] = %settings.preferredGamepad
   result["aimAssistEnabled"] = %settings.aimAssistEnabled
+  var storyObj = newJObject()
+  for cine in StoryCinematic:
+    storyObj[$cine] = %settings.storySeen[cine]
+  result["storySeen"] = storyObj
 
 # Load Settings from JSON
 proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
@@ -531,6 +595,13 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
     settings.modKeybinds = @[]
     for item in jsonNode["modKeybinds"]:
       settings.modKeybinds.add(item.getStr())
+
+  # Missing (any save from before story versioning) leaves every entry at 0,
+  # so each story cinematic plays its new version once.
+  if jsonNode.hasKey("storySeen") and jsonNode["storySeen"].kind == JObject:
+    for cine in StoryCinematic:
+      if jsonNode["storySeen"].hasKey($cine):
+        settings.storySeen[cine] = jsonNode["storySeen"][$cine].getInt()
 
   if jsonNode.hasKey("keybinds"):
     let binds = jsonNode["keybinds"]

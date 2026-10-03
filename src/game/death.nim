@@ -380,7 +380,7 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
     # gsGameOver when it ends. It mourns a run that is over, so it waits while
     # a restore point could still Continue this one.
     if game.mode == gmTimeSurvival and game.survivalTime >= SURVIVAL_ENDING_MIN_TIME and
-       not globalSettings.isNil and not globalSettings.hasSeenSurvivalEnding and
+       storyPending(globalSettings, scSurvivalEnding) and
        not canContinueRun(game):
       game.state = gsSurvivalEndCinematic
     else:

@@ -80,6 +80,9 @@ proc buildBiosLines(): (seq[BiosLine], int) =
              text: "RAM  : " & $ramMB & " MB (" & $ramGB & " GB)", status: "OK"),
     statusLine("GPU  : " & gpu, "OK"),
     statusLine(diskLine, "OK"),
+    # Every boot reports it, and every boot ignores it (the story's old_system:
+    # Act I's Disk Cleanup, Act III's descent).
+    statusLine("SCAN : Unallocated region found (3.8 GB)", "IGNORED"),
     statusLine("HOST : " & host & "  /  " & osn, "OK"),
     statusLine("NET  : TopHat Gigabit Ethernet", "OK"),
     statusLine("SND  : TopHat Audio Pro", "OK"),
@@ -173,10 +176,13 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
       drawText(padded, 20, yPos.int32, 18, postAmber)
       let statusX = 20 + max(measureText(padded, 18), 452) + 8
       if resolved:
-        # Fresh statuses flash white for a beat, then settle green.
+        # Fresh statuses flash white for a beat, then settle green (or a
+        # warning yellow for the one check firmware shrugs off).
         let col =
           if sinceReveal - STATUS_LAG < 0.12'f32:
             Color(r: 245, g: 255, b: 245, a: 255)
+          elif line.status == "IGNORED":
+            Color(r: 255, g: 205, b: 60, a: 255)
           else:
             Color(r: 80, g: 255, b: 80, a: 255)
         drawText(line.status, statusX, yPos.int32, 18, col)

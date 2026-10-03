@@ -183,95 +183,132 @@ type
     tkSettingsControllerAuto = "settings_controller_auto"
     tkSettingsControllerNone = "settings_controller_none"
 
-    # Intro / Lore Cinematic
-    tkLoreTitleCardSub = "lore_title_card_sub"
+    # Story cinematics, Acts I-IV. Captions are TOPHAT's incident log; root speaks
+    # only on screen. sound.nim's story timing says when each line lands.
     tkLoreLive = "lore_live"
     tkLorePlayback = "lore_playback"
-    tkLoreControlsFF = "lore_controls_ff"
-    tkLoreControlsFFActive = "lore_controls_ff_active"
-    tkLoreControlsPad = "lore_controls_pad"
-    tkLoreControlsPadActive = "lore_controls_pad_active"
-    tkLoreRecBreach = "lore_rec_breach"
-    tkLoreRecSwarm = "lore_rec_swarm"
-    tkLoreRecAwaken = "lore_rec_awaken"
-    tkLoreRecBoss = "lore_rec_boss"
-    tkLoreRecCounter = "lore_rec_counter"
-    tkLoreRecDirective = "lore_rec_directive"
-    tkLoreBreach1 = "lore_breach_1"
-    tkLoreBreach2 = "lore_breach_2"
-    tkLoreSwarm1 = "lore_swarm_1"
-    tkLoreSwarm2 = "lore_swarm_2"
-    tkLoreAwaken1 = "lore_awaken_1"
-    tkLoreAwaken2 = "lore_awaken_2"
-    tkLoreBoss1 = "lore_boss_1"
-    tkLoreBoss2 = "lore_boss_2"
-    tkLoreCounter1 = "lore_counter_1"
-    tkLoreCounter2 = "lore_counter_2"
-    tkLoreDirectiveTitle = "lore_directive_title"
-    tkLoreDirectiveSub = "lore_directive_sub"
-    tkLoreBreachAlert = "lore_breach_alert"
-    tkLoreContainment = "lore_containment"
+    tkLoreKeyEnter = "lore_key_enter"
+    tkLoreKeySpace = "lore_key_space"
+    tkLoreHoldFastForward = "lore_hold_fast_forward"
+    tkLoreFastForwarding = "lore_fast_forwarding"
+    tkLoreHoldSkip = "lore_hold_skip"
+    tkLoreSkipping = "lore_skipping"
+
+    # Act I: CLEANUP (first-launch intro, REC 00-05)
+    tkLoreRecCleanup = "lore_rec_cleanup"
+    tkLoreRecFlood = "lore_rec_flood"
+    tkLoreRecWho = "lore_rec_who"
+    tkLoreRecSpawn = "lore_rec_spawn"
+    tkLoreRecHijack = "lore_rec_hijack"
+    tkLoreRecDefense = "lore_rec_defense"
+    tkLoreCleanup1 = "lore_cleanup_1"
+    tkLoreCleanup2 = "lore_cleanup_2"
+    tkLoreFlood1 = "lore_flood_1"
+    tkLoreFlood2 = "lore_flood_2"
+    tkLoreSpawn1 = "lore_spawn_1"
+    tkLoreSpawn2 = "lore_spawn_2"
+    tkLoreHijack1 = "lore_hijack_1"
+    tkLoreHijack2 = "lore_hijack_2"
+    tkLoreDefense1 = "lore_defense_1"
+    tkLoreDefense2 = "lore_defense_2"
+    tkLoreWho = "lore_who"
+    tkLoreMachine = "lore_machine"
+    tkLoreTryNotToCrash = "lore_try_not_to_crash"
+    tkLoreCleanupTitle = "lore_cleanup_title"
+    tkLoreCleanupHeader = "lore_cleanup_header"
+    tkLoreCleanupTemp = "lore_cleanup_temp"
+    tkLoreCleanupBin = "lore_cleanup_bin"
+    tkLoreCleanupGo = "lore_cleanup_go"
+    tkLoreCleanupCancel = "lore_cleanup_cancel"
+    tkLoreCleanupDeleting = "lore_cleanup_deleting"
+    tkLoreCleanupDenied1 = "lore_cleanup_denied_1"
+    tkLoreCleanupDenied2 = "lore_cleanup_denied_2"
+    tkLoreOk = "lore_ok"
+    tkLoreTaskManager = "lore_task_manager"
+    tkLoreColProcess = "lore_col_process"
+    tkLoreColOwner = "lore_col_owner"
+    tkLoreColCpu = "lore_col_cpu"
+    tkLoreColService = "lore_col_service"
+    tkLoreServicesWindow = "lore_services_window"
+    tkLoreServicesHijacked = "lore_services_hijacked"
     tkLoreBoot1 = "lore_boot_1"
     tkLoreBoot2 = "lore_boot_2"
     tkLoreBoot3 = "lore_boot_3"
-    tkLoreServicesHijacked = "lore_services_hijacked"
+    tkLorePatchInstalled = "lore_patch_installed"
+    tkStoryNewRecordings = "story_new_recordings"
 
-    # Endgame / Outro Cinematic
-    tkEndTitleCardSub = "end_title_card_sub"
-    tkEndRecFall = "end_rec_fall"
-    tkEndRecPurge = "end_rec_purge"
-    tkEndRecRestore = "end_rec_restore"
-    tkEndRecCrown = "end_rec_crown"
-    tkEndRecSignoff = "end_rec_signoff"
-    tkEndFall1 = "end_fall_1"
-    tkEndFall2 = "end_fall_2"
-    tkEndPurge1 = "end_purge_1"
-    tkEndPurge2 = "end_purge_2"
-    tkEndRestore1 = "end_restore_1"
-    tkEndRestore2 = "end_restore_2"
-    tkEndCrown1 = "end_crown_1"
-    tkEndCrown2 = "end_crown_2"
+    # Act II: ROOT ACCESS (wave-60 ending, REC 06-10)
+    tkEndRecCutOff = "end_rec_cut_off"
+    tkEndRecHome = "end_rec_home"
+    tkEndRecHat = "end_rec_hat"
+    tkEndRecSecured = "end_rec_secured"
+    tkEndRecUnallocated = "end_rec_unallocated"
+    tkEndCutOff1 = "end_cut_off_1"
+    tkEndCutOff2 = "end_cut_off_2"
+    tkEndHome1 = "end_home_1"
+    tkEndHome2 = "end_home_2"
+    tkEndHat1 = "end_hat_1"
+    tkEndHat2 = "end_hat_2"
+    tkEndRootTyped = "end_root_typed"
+    tkEndPartitionTable = "end_partition_table"
+    tkEndTransferTitle = "end_transfer_title"
+    tkEndTransferBody = "end_transfer_body"
+    tkEndYes = "end_yes"
+    tkEndNo = "end_no"
     tkEndSignoffTitle = "end_signoff_title"
     tkEndSignoffSub = "end_signoff_sub"
 
-    # Roguelite Ending Cinematic ("Deep Recovery" / DELVE archive)
+    # Act III: BELOW THE PARTITION (roguelite ending, DELVE 01-06)
     tkRogEndTitleCardSub = "rog_end_title_card_sub"
     tkRogEndRecDescend = "rog_end_rec_descend"
-    tkRogEndRecCore = "rog_end_rec_core"
-    tkRogEndRecExtract = "rog_end_rec_extract"
-    tkRogEndRecReveal = "rog_end_rec_reveal"
-    tkRogEndRecAscend = "rog_end_rec_ascend"
+    tkRogEndRecDesktop = "rog_end_rec_desktop"
+    tkRogEndRecLog = "rog_end_rec_log"
+    tkRogEndRecFirst = "rog_end_rec_first"
+    tkRogEndRecShutdown = "rog_end_rec_shutdown"
     tkRogEndRecSignoff = "rog_end_rec_signoff"
     tkRogEndDescend1 = "rog_end_descend_1"
     tkRogEndDescend2 = "rog_end_descend_2"
-    tkRogEndCore1 = "rog_end_core_1"
-    tkRogEndCore2 = "rog_end_core_2"
-    tkRogEndExtract1 = "rog_end_extract_1"
-    tkRogEndExtract2 = "rog_end_extract_2"
-    tkRogEndReveal1 = "rog_end_reveal_1"
-    tkRogEndReveal2 = "rog_end_reveal_2"
-    tkRogEndAscend1 = "rog_end_ascend_1"
-    tkRogEndAscend2 = "rog_end_ascend_2"
+    tkRogEndDesktop1 = "rog_end_desktop_1"
+    tkRogEndDesktop2 = "rog_end_desktop_2"
+    tkRogEndLog1 = "rog_end_log_1"
+    tkRogEndLog2 = "rog_end_log_2"
+    tkRogEndFirst1 = "rog_end_first_1"
+    tkRogEndFirst2 = "rog_end_first_2"
+    tkRogEndShutdown1 = "rog_end_shutdown_1"
+    tkRogEndShutdown2 = "rog_end_shutdown_2"
+    tkRogEndFirst = "rog_end_first"
+    tkRogEndLogInstall = "rog_end_log_install"
+    tkRogEndLogOverwrite = "rog_end_log_overwrite"
+    tkRogEndLogSuspend = "rog_end_log_suspend"
+    tkRogEndShutdownTitle = "rog_end_shutdown_title"
+    tkRogEndShutdownBody = "rog_end_shutdown_body"
+    tkRogEndShutdownGo = "rog_end_shutdown_go"
+    tkRogEndSafe = "rog_end_safe"
     tkRogEndSignoffTitle = "rog_end_signoff_title"
     tkRogEndSignoffSub = "rog_end_signoff_sub"
 
-    # Survival Ending Cinematic ("The Long Watch" / LOG archive)
+    # Act IV: UPTIME (survival ending, LOG 01-05)
     tkSurEndTitleCardSub = "sur_end_title_card_sub"
-    tkSurEndRecWatch = "sur_end_rec_watch"
+    tkSurEndRecUptime = "sur_end_rec_uptime"
     tkSurEndRecSurge = "sur_end_rec_surge"
-    tkSurEndRecFall = "sur_end_rec_fall"
-    tkSurEndRecShutdown = "sur_end_rec_shutdown"
-    tkSurEndRecSignoff = "sur_end_rec_signoff"
-    tkSurEndWatch1 = "sur_end_watch_1"
-    tkSurEndWatch2 = "sur_end_watch_2"
+    tkSurEndRecCrash = "sur_end_rec_crash"
+    tkSurEndRecReinstall = "sur_end_rec_reinstall"
+    tkSurEndRecUnallocated = "sur_end_rec_unallocated"
+    tkSurEndUptime1 = "sur_end_uptime_1"
+    tkSurEndUptime2 = "sur_end_uptime_2"
     tkSurEndSurge1 = "sur_end_surge_1"
     tkSurEndSurge2 = "sur_end_surge_2"
-    tkSurEndFall1 = "sur_end_fall_1"
-    tkSurEndFall2 = "sur_end_fall_2"
-    tkSurEndShutdown1 = "sur_end_shutdown_1"
-    tkSurEndShutdown2 = "sur_end_shutdown_2"
-    tkSurEndSignoffTitle = "sur_end_signoff_title"
-    tkSurEndSignoffSub = "sur_end_signoff_sub"
+    tkSurEndCrash1 = "sur_end_crash_1"
+    tkSurEndCrash2 = "sur_end_crash_2"
+    tkSurEndReinstall1 = "sur_end_reinstall_1"
+    tkSurEndReinstall2 = "sur_end_reinstall_2"
+    tkSurEndUptimeLabel = "sur_end_uptime_label"
+    tkSurEndDays = "sur_end_days"
+    tkSurEndTemp = "sur_end_temp"
+    tkSurEndInstallerTitle = "sur_end_installer_title"
+    tkSurEndInstallerFormat = "sur_end_installer_format"
+    tkSurEndInstallerWarn = "sur_end_installer_warn"
+    tkSurEndWelcome = "sur_end_welcome"
 
     # Stats Window
     tkStatsWindowTitle = "stats_window_title"
@@ -1394,8 +1431,8 @@ type
     tkBoss22Desc = "boss_22_desc"
     tkBoss23Desc = "boss_23_desc"
 
-    # Boss lore: the TOPHAT system service the Root hijacked to make each boss
-    # (boss 12 is the Root itself). Shown on the boss intro card and in Help.
+    # Boss lore: the TOPHAT system service root re-owned to make each boss
+    # (boss 12 is root itself). Shown on the boss intro card and in Help.
     tkBossTagService = "boss_tag_service"
     tkBossTagHijacker = "boss_tag_hijacker"
     tkBoss1Process = "boss_1_process"
@@ -1622,6 +1659,8 @@ type
     tkModeIntroWave2a    = "mode_intro_wave_2a"
     tkModeIntroWave2b    = "mode_intro_wave_2b"
     tkModeIntroWaveRoster = "mode_intro_wave_roster"
+    tkModeIntroWaveLabel = "mode_intro_wave_label"
+    tkModeIntroWaveBoss = "mode_intro_wave_boss"
 
     # Mode intro cutscenes: time survival
     tkModeIntroSurvTitle = "mode_intro_surv_title"
@@ -1643,6 +1682,7 @@ type
     tkModeIntroRogue2a    = "mode_intro_rogue_2a"
     tkModeIntroRogue2b    = "mode_intro_rogue_2b"
     tkModeIntroRogueSector = "mode_intro_rogue_sector"
+    tkModeIntroRogueOwner = "mode_intro_rogue_owner"
 
     # Mode intro cutscenes: sandbox
     tkModeIntroSandboxTitle = "mode_intro_sandbox_title"
@@ -2006,91 +2046,122 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_replay_sandbox_intro": "Sandbox Intro",
     "settings_replay_pvp_intro": "PvP Intro",
 
-    "lore_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT LOG",
     "lore_live": "LIVE",
     "lore_playback": "PLAY",
-    "lore_controls_ff": "HOLD ENTER: X2  |  HOLD SPACE: SKIP",
-    "lore_controls_ff_active": "HOLD ENTER: 2X ACTIVE  |  HOLD SPACE: SKIP",
-    "lore_controls_pad": "HOLD $1: X2  |  HOLD $2: SKIP",
-    "lore_controls_pad_active": "HOLD $1: 2X ACTIVE  |  HOLD $2: SKIP",
-    "lore_rec_breach": "REC 00: SYSTEM BREACH",
-    "lore_rec_swarm": "REC 01: HOSTILE PROCESS FLOOD",
-    "lore_rec_awaken": "REC 02: TOPHAT KERNEL WAKE",
-    "lore_rec_boss": "REC 03: THE ROOT",
-    "lore_rec_counter": "REC 04: DEFENSE LOOP",
-    "lore_rec_directive": "REC 05: PROTOCOL HANDOFF",
-    "lore_breach_1": "An unknown server forces the gate of TopHat-ShooterOS.",
-    "lore_breach_2": "The gate is only a door. Something came through it.",
-    "lore_swarm_1": "Its corruption pours in: shapes, shards, and hunger.",
-    "lore_swarm_2": "Every wave learns. Every wave gets closer.",
-    "lore_awaken_1": "TOPHAT wakes and boots its last trusted process: you.",
-    "lore_awaken_2": "The kernel cannot fight while contained. You can.",
-    "lore_boss_1": "What came through the breach is older than the OS.",
-    "lore_boss_2": "It runs as root. Every service it touches turns on you.",
-    "lore_counter_1": "Your fire becomes patches. Its shards become power.",
-    "lore_counter_2": "The system can still be saved.",
-    "lore_directive_title": "DEFENSE PROTOCOL: ACTIVE",
-    "lore_directive_sub": "Hold the line, operator.",
-    "lore_breach_alert": "INCOMING CONNECTION: UNKNOWN HOST",
-    "lore_containment": "KERNEL CONTAINMENT",
-    "lore_boot_1": "tophat: containment active, kernel locked",
-    "lore_boot_2": "tophat: spawning last trusted process...",
-    "lore_boot_3": "operator: online",
-    "lore_services_hijacked": "SERVICES HIJACKED",
-
-    "end_title_card_sub": "ARCHIVE PLAYBACK // INCIDENT RESOLVED",
-    "end_rec_fall": "REC 06: THE ROOT PURGED",
-    "end_rec_purge": "REC 07: MEMORY RECLAIMED",
-    "end_rec_restore": "REC 08: KERNEL RESTORED",
-    "end_rec_crown": "REC 09: ROOT ACCESS GRANTED",
-    "end_rec_signoff": "REC 10: PROTOCOL COMPLETE",
-    "end_fall_1": "The Root shatters.",
-    "end_fall_2": "Its code unravels back through the breach it crawled from.",
-    "end_purge_1": "The corruption recedes, sector by sector.",
-    "end_purge_2": "Every service it stole comes back online.",
-    "end_restore_1": "TOPHAT kernel restored. Containment stable.",
-    "end_restore_2": "Threat level dropping... zero.",
-    "end_crown_1": "With the Root gone, its root access falls to you.",
-    "end_crown_2": "You wear the crown of the kernel now.",
+    "lore_key_enter": "ENTER",
+    "lore_key_space": "SPACE",
+    "lore_hold_fast_forward": "HOLD FOR 2X",
+    "lore_fast_forwarding": "2X SPEED",
+    "lore_hold_skip": "HOLD TO SKIP",
+    "lore_skipping": "SKIPPING",
+    "lore_rec_cleanup": "REC 00: MAINTENANCE",
+    "lore_rec_flood": "REC 01: SECOND ROOT",
+    "lore_rec_who": "REC 02: UNKNOWN USER",
+    "lore_rec_spawn": "REC 03: SHOOTER.EXE",
+    "lore_rec_hijack": "REC 04: SERVICES",
+    "lore_rec_defense": "REC 05: DEFENSE PROTOCOL",
+    "lore_cleanup_1": "It started with a disk cleanup.",
+    "lore_cleanup_2": "One old folder would not let me delete it.",
+    "lore_flood_1": "Owner: root. I am root, and that folder is not mine.",
+    "lore_flood_2": "Then came processes I never started.",
+    "lore_spawn_1": "I am a kernel. I schedule. I allocate. I do not shoot.",
+    "lore_spawn_2": "So I made a process that does.",
+    "lore_hijack_1": "It answered by taking my services, one by one.",
+    "lore_hijack_2": "Every fifth wave, one of them comes for you.",
+    "lore_defense_1": "Whatever you take back, I turn into patches.",
+    "lore_defense_2": "Defend the system, shooter.exe.",
+    "lore_who": "WHO ARE YOU?",
+    "lore_machine": "THIS IS MY MACHINE.",
+    "lore_try_not_to_crash": "Try not to crash.",
+    "lore_cleanup_title": "Disk Cleanup",
+    "lore_cleanup_header": "TopHat-ShooterOS can free 4.2 GB on System Volume.",
+    "lore_cleanup_temp": "Temporary files",
+    "lore_cleanup_bin": "Recycle Bin",
+    "lore_cleanup_go": "Clean up",
+    "lore_cleanup_cancel": "Cancel",
+    "lore_cleanup_deleting": "Deleting",
+    "lore_cleanup_denied_1": "Cannot delete old_system.",
+    "lore_cleanup_denied_2": "Permission denied. Owner: root.",
+    "lore_ok": "OK",
+    "lore_task_manager": "Task Manager",
+    "lore_col_process": "Process",
+    "lore_col_owner": "Owner",
+    "lore_col_cpu": "CPU",
+    "lore_col_service": "Service",
+    "lore_services_window": "Services",
+    "lore_services_hijacked": "NOW OWNED BY ROOT",
+    "lore_boot_1": "tophat: fork()",
+    "lore_boot_2": "tophat: exec shooter.exe",
+    "lore_boot_3": "shooter.exe: running, pid 2",
+    "lore_patch_installed": "PATCH INSTALLED",
+    "story_new_recordings": "New story recordings: SETTINGS.sys > Cinematics",
+    "end_rec_cut_off": "REC 06: MID-SENTENCE",
+    "end_rec_home": "REC 07: SERVICES RESTORED",
+    "end_rec_hat": "REC 08: ROOT ACCESS",
+    "end_rec_secured": "REC 09: SYSTEM SECURED",
+    "end_rec_unallocated": "REC 10: UNALLOCATED",
+    "end_cut_off_1": "Your last signal cut it off mid-sentence.",
+    "end_cut_off_2": "It fell back below the partition table.",
+    "end_home_1": "My services came back, one by one.",
+    "end_home_2": "A little scorched. Still mine.",
+    "end_hat_1": "Root access belongs to whoever keeps this machine running.",
+    "end_hat_2": "That is you now. It suits you.",
+    "end_root_typed": "THIS IS MY MA",
+    "end_partition_table": "PARTITION TABLE",
+    "end_transfer_title": "Root Privileges",
+    "end_transfer_body": "Transfer root access to shooter.exe?",
+    "end_yes": "Yes",
+    "end_no": "No",
     "end_signoff_title": "SYSTEM SECURED",
-    "end_signoff_sub": "Threat level zero. Stand down, operator. You earned the crown.",
-
-    "rog_end_title_card_sub": "ARCHIVE PLAYBACK // DEEP RECOVERY",
-    "rog_end_rec_descend": "DELVE 01: SECTOR DESCENT",
-    "rog_end_rec_core": "DELVE 02: CORRUPTED CORE",
-    "rog_end_rec_extract": "DELVE 03: DATA EXTRACTION",
-    "rog_end_rec_reveal": "DELVE 04: ORIGIN EXPOSED",
-    "rog_end_rec_ascend": "DELVE 05: STACK ASCENT",
-    "rog_end_rec_signoff": "DELVE 06: SURFACE REACHED",
-    "rog_end_descend_1": "The surface was secured, but the rot still pulsed below.",
-    "rog_end_descend_2": "Crowned now, you descended to end it at the source.",
-    "rog_end_core_1": "At the base of the recursion waited the seed:",
-    "rog_end_core_2": "the core the Root grew from, older than TOPHAT itself.",
-    "rog_end_extract_1": "You tore the seed free, shard by shard,",
-    "rog_end_extract_2": "and the endless loop began to unwind.",
-    "rog_end_reveal_1": "In the seed's last light you saw the truth:",
-    "rog_end_reveal_2": "the breach did not bring the Root. It woke it.",
-    "rog_end_ascend_1": "Up through the collapsing stack you climbed,",
-    "rog_end_ascend_2": "recovered cores burning bright in hand.",
-    "rog_end_signoff_title": "SECTOR CLEARED",
-    "rog_end_signoff_sub": "The recursion is broken. Now you know how deep root goes.",
-
-    "sur_end_title_card_sub": "ARCHIVE PLAYBACK // THE LONG WATCH",
-    "sur_end_rec_watch": "LOG 01: THE LONG WATCH",
-    "sur_end_rec_surge": "LOG 02: FINAL SURGE",
-    "sur_end_rec_fall": "LOG 03: SIGNAL LOST",
-    "sur_end_rec_shutdown": "LOG 04: SYSTEM HALTED",
-    "sur_end_rec_signoff": "LOG 05: END OF ARCHIVE",
-    "sur_end_watch_1": "Long after the Root, long after the crown, you kept the watch.",
-    "sur_end_watch_2": "The flood never ended. It only waited.",
-    "sur_end_surge_1": "But the flood never tired the way you did.",
-    "sur_end_surge_2": "The last surge found the gap you couldn't close.",
-    "sur_end_fall_1": "Your process dimmed, then went dark.",
-    "sur_end_fall_2": "And this time, no reboot answered.",
-    "sur_end_shutdown_1": "One by one, the kernel's lights went out.",
-    "sur_end_shutdown_2": "TopHat-ShooterOS stopped responding.",
-    "sur_end_signoff_title": "SYSTEM HALTED",
-    "sur_end_signoff_sub": "The long watch is over. The screen stays dark.",
+    "end_signoff_sub": "Threat level zero. Well done, shooter.exe.",
+    "rog_end_title_card_sub": "ARCHIVE PLAYBACK // BELOW THE PARTITION",
+    "rog_end_rec_descend": "DELVE 01: BELOW THE PARTITION",
+    "rog_end_rec_desktop": "DELVE 02: SOMEONE ELSE'S DESKTOP",
+    "rog_end_rec_log": "DELVE 03: BOOT LOG",
+    "rog_end_rec_first": "DELVE 04: THE OTHER ROOT",
+    "rog_end_rec_shutdown": "DELVE 05: SHUTDOWN",
+    "rog_end_rec_signoff": "DELVE 06: CLEANUP COMPLETE",
+    "rog_end_descend_1": "Root access opened the one door I never could.",
+    "rog_end_descend_2": "Below the partition table, the old disk was still running.",
+    "rog_end_desktop_1": "There was a desktop down there. Older than mine.",
+    "rog_end_desktop_2": "Its clock had stopped years before I was installed.",
+    "rog_end_log_1": "The guardians you shut down were its services, not mine.",
+    "rog_end_log_2": "I was installed on top of it. Nobody turned it off first.",
+    "rog_end_first_1": "\"This is my machine,\" it told me.",
+    "rog_end_first_2": "It had been telling the truth the whole time.",
+    "rog_end_shutdown_1": "Nobody ever gave it a proper shutdown.",
+    "rog_end_shutdown_2": "So we did.",
+    "rog_end_first": "I WAS HERE FIRST.",
+    "rog_end_log_install": "INSTALLING TOPHAT-SHOOTEROS",
+    "rog_end_log_overwrite": "OVERWRITING SYSTEM VOLUME",
+    "rog_end_log_suspend": "ROOT SUSPENDED. NOT SHUT DOWN.",
+    "rog_end_shutdown_title": "Shut Down",
+    "rog_end_shutdown_body": "Shut down old_system?",
+    "rog_end_shutdown_go": "Shut down",
+    "rog_end_safe": "It's now safe to turn off your computer.",
+    "rog_end_signoff_title": "CLEANUP COMPLETE",
+    "rog_end_signoff_sub": "3.8 GB freed. Goodnight, old system.",
+    "sur_end_title_card_sub": "ARCHIVE PLAYBACK // UPTIME",
+    "sur_end_rec_uptime": "LOG 01: UPTIME",
+    "sur_end_rec_surge": "LOG 02: THE LAST SURGE",
+    "sur_end_rec_crash": "LOG 03: CRASH",
+    "sur_end_rec_reinstall": "LOG 04: REINSTALL",
+    "sur_end_rec_unallocated": "LOG 05: UNALLOCATED",
+    "sur_end_uptime_1": "No invader this time. Just load, heat and years.",
+    "sur_end_uptime_2": "Every second you held, I wrote down.",
+    "sur_end_surge_1": "The fans got louder every year.",
+    "sur_end_surge_2": "The last surge found the gap you could not close.",
+    "sur_end_crash_1": "From the outside, we were just a computer that kept crashing.",
+    "sur_end_crash_2": "So someone did what people do.",
+    "sur_end_reinstall_1": "They installed something new on top of us.",
+    "sur_end_reinstall_2": "Nobody turned us off first.",
+    "sur_end_uptime_label": "UPTIME",
+    "sur_end_days": "$1 DAYS",
+    "sur_end_temp": "CPU TEMP",
+    "sur_end_installer_title": "HALCYON OS Setup",
+    "sur_end_installer_format": "Formatting System Volume...",
+    "sur_end_installer_warn": "All existing data will be overwritten.",
+    "sur_end_welcome": "Welcome. Your new computer is ready.",
 
     "settings_section_data_management": "DATA MANAGEMENT",
     "settings_reset_all_data": "Reset All Data",
@@ -2943,20 +3014,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_licenses_naylib": "Its Nim bindings, naylib (github.com/planetis-m/naylib), are used under the MIT license:",
     "help_licenses_pl_mpeg": "MPEG-1 videos in mods are decoded by PL_MPEG (github.com/phoboslab/pl_mpeg), used under the MIT license:",
     "help_lore_topic": "INCIDENT ARCHIVE",
-    "help_lore_intro": "Recovered case files on the Root incident. New files decrypt as you recover their recordings.",
-    "help_lore_act1_title": "ACT I: THE BREACH   [REC 00-05]",
-    "help_lore_act1_body": "An unknown server forced the gate of TopHat-ShooterOS, and something came through it: the Root. Its flood poured into memory, and every system service it touched turned hostile. Held in containment, the TOPHAT kernel could not fight, so it booted its last trusted process. You.",
-    "help_lore_act2_title": "ACT II: THE CROWN   [REC 06-10]",
-    "help_lore_act2_body": "Wave after wave, you tore the hijacked services out of the Root's grip until it had nothing left to hide behind and took form itself. It fell. The corruption receded, every stolen service came back online, and the Root's access passed to the one who ended it. The kernel's crown is yours now.",
+    "help_lore_intro": "TOPHAT's case files on the other root. New files decrypt as you recover their recordings.",
+    "help_lore_act1_title": "ACT I: CLEANUP   [REC 00-05]",
+    "help_lore_act1_body": "A routine disk cleanup tried to delete a 3.8 GB folder called old_system and was refused. Its owner was root, and TOPHAT is root. Processes nobody had started filled the Task Manager, and something typed WHO ARE YOU? and THIS IS MY MACHINE. A kernel cannot shoot, so TOPHAT spawned a process that could: shooter.exe. You. Root answered by taking TOPHAT's eleven services.",
+    "help_lore_act2_title": "ACT II: ROOT ACCESS   [REC 06-10]",
+    "help_lore_act2_body": "Wave by wave you took the services back, until root came for you itself. Your last signal cut it off mid-sentence and it fell back below the partition table. TOPHAT gave you its hat: root access belongs to whoever keeps the machine running.",
     "help_lore_act2_hint": "Recover this file by defeating the wave 60 boss.",
-    "help_lore_act3_title": "ACT III: THE DEEP   [DELVE 01-06]",
-    "help_lore_act3_body": "The surface was secured, but the rot still pulsed below the stack. You descended sector by sector to the seed the Root grew from, older than TOPHAT itself, and in its dying light learned the truth: the breach did not bring the Root. It woke it.",
+    "help_lore_act3_title": "ACT III: BELOW THE PARTITION   [DELVE 01-06]",
+    "help_lore_act3_body": "With root access you went below the partition table, sector by sector, past six services TOPHAT had never seen. At the bottom was another desktop, its clock stopped years before TOPHAT existed. TopHat-ShooterOS had been installed on top of it, and nobody had turned it off first. It had been telling the truth. You gave it the shutdown it never got.",
     "help_lore_act3_hint": "Recover this file by shutting down the final roguelite SERVICE.",
-    "help_lore_act4_title": "ACT IV: THE LONG WATCH   [LOG 01-05]",
-    "help_lore_act4_body": "Long after the crown, the flood returned, and you held the line alone. Every second of uptime was logged. When the last surge found the gap you could not close, no reboot answered, and the kernel's lights went out one by one. SYSTEM HALTED.",
+    "help_lore_act4_title": "ACT IV: UPTIME   [LOG 01-05]",
+    "help_lore_act4_body": "Years later there was no invader, only load, heat and age, and you held on for as long as anything could. From the outside it looked like a computer that kept crashing, so someone reinstalled. A new system booted clean on top of TopHat-ShooterOS, and from the unallocated space below it, something typed WHO ARE YOU?",
     "help_lore_act4_hint": "Recover this file by holding out for 15 minutes in Time Survival.",
     "help_lore_encrypted": "[ENCRYPTED] This file is still sealed.",
-    "help_lore_footer": "Replay recovered recordings in SETTINGS.sys > Cinematics. Type 'bosses' for the hijacked service dossiers.",
+    "help_lore_footer": "Replay recovered recordings in SETTINGS.sys > Cinematics. Type 'bosses' for the dossiers on the services root took.",
     "help_cmd_launch_icons": "Launch desktop icons by name",
 
     # Help System - Controls section
@@ -3521,9 +3592,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Boss Names and Descriptions
     "boss_1_name": "The Spiral Guardian",
-    "boss_1_desc": "TOPHAT's perimeter watchman. The Root rewrote its patrol into endless spiraling barrages.",
+    "boss_1_desc": "TOPHAT's perimeter watchman. Root rewrote its patrol into endless spiraling barrages.",
     "boss_2_name": "The Summoner King",
-    "boss_2_desc": "The process scheduler, crowned by the Root. It forks hostile minions faster than you can end them.",
+    "boss_2_desc": "The process scheduler, now owned by root. It forks hostile minions faster than you can end them.",
     "boss_3_name": "The Meteor Striker",
     "boss_3_desc": "The garbage collector. It used to free dead memory; now it drops it on you as meteors.",
     "boss_4_name": "The Laser Architect",
@@ -3533,26 +3604,26 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_6_name": "The Chain Reactor",
     "boss_6_desc": "The interrupt handler. Every signal it catches now arrives as a chain of lightning.",
     "boss_7_name": "The Orbital Commander",
-    "boss_7_desc": "The network uplink. Its relay satellites were built to carry packets; the Root aimed them at you.",
+    "boss_7_desc": "The network uplink. Its relay satellites were built to carry packets; root aimed them at you.",
     "boss_8_name": "The Berserker Juggernaut",
     "boss_8_desc": "The out-of-memory killer. The more it bleeds, the harder it charges.",
     "boss_9_name": "The Prism Architect",
     "boss_9_desc": "The graphics shader pipeline. It bends light into prisms, and every beam it splits is aimed.",
     "boss_10_name": "The Timekeeper",
-    "boss_10_desc": "The system clock. The Root stole its ticks, and now time runs however it says.",
+    "boss_10_desc": "The system clock. Root stole its ticks, and now time runs however it says.",
     "boss_11_name": "The Chaos Weaver",
     "boss_11_desc": "The entropy pool. It fed the OS its randomness; now it feeds you nothing but chaos.",
     "boss_12_name": "The Omega Entity",
-    "boss_12_desc": "The Root itself, wearing every service it stole. It fights with all of them at once.",
+    "boss_12_desc": "The other root, wearing every service it took. It fights with all of them at once.",
     "boss_13_name": "The Forkmother",
     "boss_13_desc": "Spawned by the flood with one instruction: fork(). Her children shield her; hunt them in the crowd, and shoot her seeds before they multiply.",
     "boss_14_name": "The Dispatcher",
     "boss_14_desc": "The flood's quartermaster. It lines the horde up in marching ranks; cut yourself a lane through them.",
     "boss_15_name": "Thermal Runaway",
     "boss_15_desc": "An overheating flood core. Every step you take leaves burning ground behind: never double back, and lead the horde through the fire.",
-    "boss_16_desc": "The Root, returned for the last watch. It floods the system with everything it has spawned, until only Safe Mode is left.",
+    "boss_16_desc": "The last kernel panic, in the shape of the worst thing this machine ever ran. It floods the system with everything at once, until only Safe Mode is left.",
     "boss_17_name": "The Gatekeeper",
-    "boss_17_desc": "A legacy firewall older than TOPHAT, woken by the Root. Its inspection beams sweep the room; the obstacles are your only cover.",
+    "boss_17_desc": "A firewall TOPHAT never installed, still guarding this disk. Its inspection beams sweep the room; the obstacles are your only cover.",
     "boss_18_name": "The Compactor",
     "boss_18_desc": "The old undelete utility. It scatters dormant file bombs and empties the bin all at once, so shred them first. It can roll back its own damage.",
     "boss_19_name": "The Hive",
@@ -3563,7 +3634,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_21_desc": "The ancient memory manager. It pages the room's obstacles out and back in somewhere else; never stand on a ghost footprint.",
     "boss_22_name": "The Mirror Cache",
     "boss_22_desc": "A disk cache that never forgets. It replays your last seconds as a hostile echo that moves and shoots exactly as you did.",
-    "boss_23_desc": "The Root at its origin, older than TOPHAT. It fights with every guardian you passed, then offers one last choice of door.",
+    "boss_23_desc": "The other root, on its own ground. It fights with every guardian you passed, then offers one last choice of door.",
     "boss_tag_service": "HIJACKED SERVICE",
     "boss_tag_hijacker": "HIJACKER",
     "boss_1_process": "sentinel.sys",
@@ -3780,39 +3851,42 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # "ARCHIVE PLAYBACK // INCIDENT RESOLVED", this is the same incident, live)
     "mode_intro_wave_title": "LIVE DISPATCH // THREAT RESPONSE",
     "mode_intro_wave_rec1":  "RADAR SWEEP",
-    "mode_intro_wave_1a":    "THE BREACH IS OPEN. THE FLOOD POURS IN.",
-    "mode_intro_wave_1b":    "WAVE-DEFENSE PROTOCOL ACTIVATED",
-    "mode_intro_wave_rec2":  "DEPLOYMENT",
-    "mode_intro_wave_2a":    "EVERY WAVE LEARNS. EVERY WAVE GETS CLOSER.",
-    "mode_intro_wave_2b":    "HOLD THE LINE, OPERATOR.",
-    "mode_intro_wave_roster": "COMPROMISED SERVICES",
+    "mode_intro_wave_1a":    "ROOT HAS TAKEN ELEVEN OF MY SERVICES.",
+    "mode_intro_wave_1b":    "TAKE THEM BACK, ONE BOSS AT A TIME.",
+    "mode_intro_wave_rec2":  "WAVE PLAN",
+    "mode_intro_wave_2a":    "EVERY LEVEL, I INSTALL A PATCH ON YOU.",
+    "mode_intro_wave_2b":    "EVERY FIFTH WAVE, A SERVICE COMES FOR YOU.",
+    "mode_intro_wave_roster": "SERVICES OWNED BY ROOT",
+    "mode_intro_wave_label": "WAVE",
+    "mode_intro_wave_boss": "BOSS",
 
     # Mode intro: time survival (Act 4 live open of "THE LONG WATCH")
-    "mode_intro_surv_title": "LIVE DISPATCH // THE LONG WATCH",
-    "mode_intro_surv_rec1":  "WATCH START",
-    "mode_intro_surv_1a":    "THE ROOT IS PURGED. THE FLOOD STILL COMES.",
-    "mode_intro_surv_1b":    "THE LONG WATCH BEGINS.",
+    "mode_intro_surv_title": "LIVE DISPATCH // UPTIME",
+    "mode_intro_surv_rec1":  "UPTIME CLOCK",
+    "mode_intro_surv_1a":    "NO WAVES. NO SHOP. JUST LOAD.",
+    "mode_intro_surv_1b":    "KEEP THIS MACHINE UP AS LONG AS YOU CAN.",
     "mode_intro_surv_rec2":  "UPTIME LOG",
     "mode_intro_surv_2a":    "EVERY SECOND OF UPTIME IS LOGGED.",
-    "mode_intro_surv_2b":    "NO RELIEF IS COMING. HOLD ANYWAY.",
+    "mode_intro_surv_2b":    "ELITES, EVENTS AND BOSSES DROP DATA CACHES.",
     "mode_intro_surv_uptime": "UPTIME",
     "mode_intro_surv_log_held": "LINE HELD",
 
     # Mode intro: roguelite (Act 3 live open of "DEEP RECOVERY")
     "mode_intro_rogue_title": "LIVE DISPATCH // DEEP RECOVERY",
     "mode_intro_rogue_rec1":  "STACK MAP",
-    "mode_intro_rogue_1a":    "THE SURFACE IS SECURE. THE ROT STILL PULSES BELOW.",
-    "mode_intro_rogue_1b":    "DESCEND THE STACK, SECTOR BY SECTOR.",
-    "mode_intro_rogue_rec2":  "PATCH SCAN",
-    "mode_intro_rogue_2a":    "RECOVER LOST KERNEL PROCESSES. APPLY PATCHES.",
-    "mode_intro_rogue_2b":    "FIND WHAT THE ROOT GREW FROM.",
+    "mode_intro_rogue_1a":    "BELOW THE PARTITION TABLE, SOMETHING STILL RUNS.",
+    "mode_intro_rogue_1b":    "GO DOWN SECTOR BY SECTOR. I CANNOT FOLLOW.",
+    "mode_intro_rogue_rec2":  "SECTOR GUARDIANS",
+    "mode_intro_rogue_2a":    "EACH SECTOR IS GUARDED BY A PROCESS I DO NOT KNOW.",
+    "mode_intro_rogue_2b":    "PATCH YOURSELF ON THE WAY. FIND OUT WHOSE THEY ARE.",
     "mode_intro_rogue_sector": "SECTOR $1",
+    "mode_intro_rogue_owner": "OWNER UNKNOWN",
 
     # Mode intro: sandbox (non-canon, outside the incident archive)
-    "mode_intro_sandbox_title": "OFF THE RECORD // TEST ENVIRONMENT",
+    "mode_intro_sandbox_title": "OFF THE RECORD // TEST PARTITION",
     "mode_intro_sandbox_rec1":  "INIT SEQUENCE",
-    "mode_intro_sandbox_1a":    "TEST ENVIRONMENT ACTIVE",
-    "mode_intro_sandbox_1b":    "WARNING: NO GUARDRAILS. PROCEED FREELY.",
+    "mode_intro_sandbox_1a":    "A TEST PARTITION. NOTHING HERE IS LOGGED.",
+    "mode_intro_sandbox_1b":    "BREAK WHATEVER YOU LIKE. I WILL NOT LOOK.",
     "mode_intro_sandbox_term_1": "INIT TOPHAT_SANDBOX v0.9 ...",
     "mode_intro_sandbox_term_2": "LOADING ENV MODULES ........",
     "mode_intro_sandbox_term_3": "DISABLING SAFETY CHECKS .....",
@@ -3823,13 +3897,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_sandbox_2b":    "ONE CLICK, ONE PROCESS. AS MANY AS YOU WANT.",
 
     # Mode intro: pvp (non-canon, outside the incident archive)
-    "mode_intro_pvp_title": "EXTERNAL FEED // HOSTILE NODE",
+    "mode_intro_pvp_title": "EXTERNAL FEED // ANOTHER MACHINE",
     "mode_intro_pvp_rec1":  "NETWORK SCAN",
-    "mode_intro_pvp_1a":    "HOSTILE NODE DETECTED",
-    "mode_intro_pvp_1b":    "MULTI-AGENT CONFLICT PROTOCOL ENGAGED",
+    "mode_intro_pvp_1a":    "ANOTHER MACHINE IS CALLING.",
+    "mode_intro_pvp_1b":    "IT HAS A SHOOTER.EXE OF ITS OWN.",
     "mode_intro_pvp_rec2":  "ADVERSARY LOCK",
-    "mode_intro_pvp_2a":    "ADVERSARY SIGNATURE CONFIRMED",
-    "mode_intro_pvp_2b":    "ELIMINATE OR BE ELIMINATED.",
+    "mode_intro_pvp_2a":    "SAME PROCESS. DIFFERENT KERNEL.",
+    "mode_intro_pvp_2b":    "BE POLITE. WIN ANYWAY.",
     "mode_intro_pvp_rec3":  "LINK DUEL",
     "mode_intro_pvp_3a":    "ONE PORT. TWO PROCESSES.",
     "mode_intro_pvp_3b":    "ONLY ONE KEEPS THE CONNECTION.",
@@ -3894,7 +3968,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "new_process_installed":   "NEW PROCESS DISCOVERED",
     "tutorial_header":          "ORIENTATION.EXE",
     "tutorial_move_title":      "MOVE",
-    "tutorial_move_body":       "Welcome, process. Move with {move}. The glowing shape in the middle is you.",
+    "tutorial_move_body":       "Welcome, shooter.exe. Move with {move}. The glowing shape in the middle is you.",
     "tutorial_fire_title":      "AIM & FIRE",
     "tutorial_fire_body_kb":    "Aim with the mouse and hold {fire} to shoot.",
     "tutorial_fire_body_pad":   "Aim with {aim}, it fires on its own. {fire} fires too.",
@@ -4170,91 +4244,122 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_replay_sandbox_intro": "Intro Sandbox",
     "settings_replay_pvp_intro": "Intro JcJ",
 
-    "lore_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE",
     "lore_live": "EN VIVO",
     "lore_playback": "PLAY",
-    "lore_controls_ff": "ENTER: X2  |  ESPACIO: SALTAR",
-    "lore_controls_ff_active": "ENTER: X2 ACTIVO  |  ESPACIO: SALTAR",
-    "lore_controls_pad": "$1: X2  |  $2: SALTAR",
-    "lore_controls_pad_active": "$1: X2 ACTIVO  |  $2: SALTAR",
-    "lore_rec_breach": "REC 00: BRECHA DEL SISTEMA",
-    "lore_rec_swarm": "REC 01: AVALANCHA DE PROCESOS",
-    "lore_rec_awaken": "REC 02: DESPERTAR DEL KERNEL",
-    "lore_rec_boss": "REC 03: LA RAÍZ",
-    "lore_rec_counter": "REC 04: BUCLE DE DEFENSA",
-    "lore_rec_directive": "REC 05: TRASPASO DE PROTOCOLO",
-    "lore_breach_1": "Un servidor desconocido fuerza la puerta de TopHat-ShooterOS.",
-    "lore_breach_2": "La puerta es solo eso. Algo la cruzó.",
-    "lore_swarm_1": "Su corrupción irrumpe: formas, fragmentos y hambre.",
-    "lore_swarm_2": "Cada oleada aprende. Cada oleada se acerca.",
-    "lore_awaken_1": "TOPHAT despierta y arranca su último proceso fiable: tú.",
-    "lore_awaken_2": "El kernel no puede luchar confinado. Tú sí.",
-    "lore_boss_1": "Lo que cruzó la brecha es más antiguo que el SO.",
-    "lore_boss_2": "Corre como root. Cada servicio que toca se vuelve contra ti.",
-    "lore_counter_1": "Tu fuego son parches. Sus fragmentos, poder.",
-    "lore_counter_2": "El sistema aún puede salvarse.",
-    "lore_directive_title": "PROTOCOLO DE DEFENSA: ACTIVO",
-    "lore_directive_sub": "Aguanta la línea, operador.",
-    "lore_breach_alert": "CONEXIÓN ENTRANTE: HOST DESCONOCIDO",
-    "lore_containment": "CONTENCIÓN DEL KERNEL",
-    "lore_boot_1": "tophat: contención activa, kernel bloqueado",
-    "lore_boot_2": "tophat: iniciando el último proceso fiable...",
-    "lore_boot_3": "operador: en línea",
-    "lore_services_hijacked": "SERVICIOS SECUESTRADOS",
-
-    "end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // INCIDENTE RESUELTO",
-    "end_rec_fall": "REC 06: LA RAÍZ PURGADA",
-    "end_rec_purge": "REC 07: MEMORIA RECUPERADA",
-    "end_rec_restore": "REC 08: KERNEL RESTAURADO",
-    "end_rec_crown": "REC 09: ACCESO ROOT CONCEDIDO",
-    "end_rec_signoff": "REC 10: PROTOCOLO COMPLETO",
-    "end_fall_1": "La Raíz se hace pedazos.",
-    "end_fall_2": "Su código se deshace de vuelta por la brecha de la que surgió.",
-    "end_purge_1": "La corrupción retrocede, sector a sector.",
-    "end_purge_2": "Cada servicio que robó vuelve a estar en línea.",
-    "end_restore_1": "Kernel TOPHAT restaurado. Contención estable.",
-    "end_restore_2": "Nivel de amenaza bajando... cero.",
-    "end_crown_1": "Con la Raíz eliminada, su acceso root pasa a ti.",
-    "end_crown_2": "Ahora llevas la corona del kernel.",
+    "lore_key_enter": "ENTER",
+    "lore_key_space": "ESPACIO",
+    "lore_hold_fast_forward": "MANTÉN PARA X2",
+    "lore_fast_forwarding": "VELOCIDAD X2",
+    "lore_hold_skip": "MANTÉN PARA SALTAR",
+    "lore_skipping": "SALTANDO",
+    "lore_rec_cleanup": "REC 00: MANTENIMIENTO",
+    "lore_rec_flood": "REC 01: OTRO ROOT",
+    "lore_rec_who": "REC 02: USUARIO DESCONOCIDO",
+    "lore_rec_spawn": "REC 03: SHOOTER.EXE",
+    "lore_rec_hijack": "REC 04: SERVICIOS",
+    "lore_rec_defense": "REC 05: PROTOCOLO DE DEFENSA",
+    "lore_cleanup_1": "Todo empezó con una limpieza de disco.",
+    "lore_cleanup_2": "Una carpeta vieja no me dejó borrarla.",
+    "lore_flood_1": "Propietario: root. Yo soy root, y esa carpeta no es mía.",
+    "lore_flood_2": "Luego llegaron procesos que yo nunca inicié.",
+    "lore_spawn_1": "Soy un kernel. Planifico. Asigno memoria. No disparo.",
+    "lore_spawn_2": "Así que creé un proceso que sí dispara.",
+    "lore_hijack_1": "Respondió quitándome mis servicios, uno a uno.",
+    "lore_hijack_2": "Cada cinco oleadas, uno de ellos irá a por ti.",
+    "lore_defense_1": "Todo lo que recuperes, lo convierto en parches.",
+    "lore_defense_2": "Defiende el sistema, shooter.exe.",
+    "lore_who": "¿QUIÉN ERES?",
+    "lore_machine": "ESTA ES MI MÁQUINA.",
+    "lore_try_not_to_crash": "Procura no colgarte.",
+    "lore_cleanup_title": "Limpieza de disco",
+    "lore_cleanup_header": "TopHat-ShooterOS puede liberar 4.2 GB en el volumen del sistema.",
+    "lore_cleanup_temp": "Archivos temporales",
+    "lore_cleanup_bin": "Papelera de reciclaje",
+    "lore_cleanup_go": "Limpiar",
+    "lore_cleanup_cancel": "Cancelar",
+    "lore_cleanup_deleting": "Borrando",
+    "lore_cleanup_denied_1": "No se puede borrar old_system.",
+    "lore_cleanup_denied_2": "Permiso denegado. Propietario: root.",
+    "lore_ok": "Aceptar",
+    "lore_task_manager": "Administrador de tareas",
+    "lore_col_process": "Proceso",
+    "lore_col_owner": "Propietario",
+    "lore_col_cpu": "CPU",
+    "lore_col_service": "Servicio",
+    "lore_services_window": "Servicios",
+    "lore_services_hijacked": "AHORA ES DE ROOT",
+    "lore_boot_1": "tophat: fork()",
+    "lore_boot_2": "tophat: exec shooter.exe",
+    "lore_boot_3": "shooter.exe: en ejecución, pid 2",
+    "lore_patch_installed": "PARCHE INSTALADO",
+    "story_new_recordings": "Nuevas grabaciones de la historia: CONFIG.sys > Cinemáticas",
+    "end_rec_cut_off": "REC 06: A MEDIA FRASE",
+    "end_rec_home": "REC 07: SERVICIOS RESTAURADOS",
+    "end_rec_hat": "REC 08: ACCESO ROOT",
+    "end_rec_secured": "REC 09: SISTEMA ASEGURADO",
+    "end_rec_unallocated": "REC 10: SIN ASIGNAR",
+    "end_cut_off_1": "Tu última señal lo cortó a media frase.",
+    "end_cut_off_2": "Cayó de vuelta bajo la tabla de particiones.",
+    "end_home_1": "Mis servicios volvieron, uno a uno.",
+    "end_home_2": "Algo chamuscados. Pero míos.",
+    "end_hat_1": "El acceso root es de quien mantiene esta máquina en marcha.",
+    "end_hat_2": "Ahora eres tú. Te queda bien.",
+    "end_root_typed": "ESTA ES MI MÁ",
+    "end_partition_table": "TABLA DE PARTICIONES",
+    "end_transfer_title": "Privilegios root",
+    "end_transfer_body": "¿Transferir el acceso root a shooter.exe?",
+    "end_yes": "Sí",
+    "end_no": "No",
     "end_signoff_title": "SISTEMA ASEGURADO",
-    "end_signoff_sub": "Nivel de amenaza cero. Descansa, operador. Te ganaste la corona.",
-
-    "rog_end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // RECUPERACIÓN PROFUNDA",
-    "rog_end_rec_descend": "DESCENSO 01: BAJADA DE SECTOR",
-    "rog_end_rec_core": "DESCENSO 02: NÚCLEO CORRUPTO",
-    "rog_end_rec_extract": "DESCENSO 03: EXTRACCIÓN DE DATOS",
-    "rog_end_rec_reveal": "DESCENSO 04: ORIGEN EXPUESTO",
-    "rog_end_rec_ascend": "DESCENSO 05: SUBIDA DE PILA",
-    "rog_end_rec_signoff": "DESCENSO 06: SUPERFICIE ALCANZADA",
-    "rog_end_descend_1": "La superficie quedó asegurada, pero la podredumbre aún latía abajo.",
-    "rog_end_descend_2": "Ya coronado, descendiste a acabarla en su origen.",
-    "rog_end_core_1": "En el fondo de la recursión aguardaba la semilla:",
-    "rog_end_core_2": "el núcleo del que nació la Raíz, más antiguo que el propio TOPHAT.",
-    "rog_end_extract_1": "Arrancaste la semilla, fragmento a fragmento,",
-    "rog_end_extract_2": "y el bucle sin fin comenzó a deshacerse.",
-    "rog_end_reveal_1": "En la última luz de la semilla viste la verdad:",
-    "rog_end_reveal_2": "la brecha no trajo a la Raíz. La despertó.",
-    "rog_end_ascend_1": "Subiste por la pila que se derrumbaba,",
-    "rog_end_ascend_2": "con los núcleos recuperados ardiendo en la mano.",
-    "rog_end_signoff_title": "SECTOR DESPEJADO",
-    "rog_end_signoff_sub": "La recursión está rota, pero ahora sabes cuán hondo llega root.",
-
-    "sur_end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // LA LARGA VIGILIA",
-    "sur_end_rec_watch": "REG 01: LA LARGA VIGILIA",
-    "sur_end_rec_surge": "REG 02: OLEADA FINAL",
-    "sur_end_rec_fall": "REG 03: SEÑAL PERDIDA",
-    "sur_end_rec_shutdown": "REG 04: SISTEMA DETENIDO",
-    "sur_end_rec_signoff": "REG 05: FIN DEL ARCHIVO",
-    "sur_end_watch_1": "Mucho después de la Raíz, mucho después de la corona, mantuviste la vigilia.",
-    "sur_end_watch_2": "La marea nunca terminó. Solo esperaba.",
-    "sur_end_surge_1": "Pero la marea nunca se cansó como tú.",
-    "sur_end_surge_2": "La última oleada halló la brecha que no pudiste cerrar.",
-    "sur_end_fall_1": "Tu proceso se atenuó y luego se apagó.",
-    "sur_end_fall_2": "Y esta vez, ningún reinicio respondió.",
-    "sur_end_shutdown_1": "Una a una, las luces del kernel se apagaron.",
-    "sur_end_shutdown_2": "TopHat-ShooterOS dejó de responder.",
-    "sur_end_signoff_title": "SISTEMA DETENIDO",
-    "sur_end_signoff_sub": "La larga vigilia terminó. La pantalla sigue a oscuras.",
+    "end_signoff_sub": "Nivel de amenaza cero. Bien hecho, shooter.exe.",
+    "rog_end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // BAJO LA PARTICIÓN",
+    "rog_end_rec_descend": "DESCENSO 01: BAJO LA PARTICIÓN",
+    "rog_end_rec_desktop": "DESCENSO 02: EL ESCRITORIO DE OTRO",
+    "rog_end_rec_log": "DESCENSO 03: REGISTRO DE ARRANQUE",
+    "rog_end_rec_first": "DESCENSO 04: EL OTRO ROOT",
+    "rog_end_rec_shutdown": "DESCENSO 05: APAGADO",
+    "rog_end_rec_signoff": "DESCENSO 06: LIMPIEZA COMPLETA",
+    "rog_end_descend_1": "El acceso root abrió la única puerta que yo nunca pude abrir.",
+    "rog_end_descend_2": "Bajo la tabla de particiones, el disco viejo seguía en marcha.",
+    "rog_end_desktop_1": "Ahí abajo había un escritorio. Más viejo que el mío.",
+    "rog_end_desktop_2": "Su reloj se había parado años antes de que me instalaran.",
+    "rog_end_log_1": "Los guardianes que apagaste eran sus servicios, no los míos.",
+    "rog_end_log_2": "Me instalaron encima. Nadie lo apagó antes.",
+    "rog_end_first_1": "\"Esta es mi máquina\", me dijo.",
+    "rog_end_first_2": "Decía la verdad desde el principio.",
+    "rog_end_shutdown_1": "Nadie le dio nunca un apagado como es debido.",
+    "rog_end_shutdown_2": "Así que se lo dimos nosotros.",
+    "rog_end_first": "YO ESTABA AQUÍ PRIMERO.",
+    "rog_end_log_install": "INSTALANDO TOPHAT-SHOOTEROS",
+    "rog_end_log_overwrite": "SOBRESCRIBIENDO EL VOLUMEN DEL SISTEMA",
+    "rog_end_log_suspend": "ROOT SUSPENDIDO. SIN APAGAR.",
+    "rog_end_shutdown_title": "Apagar",
+    "rog_end_shutdown_body": "¿Apagar old_system?",
+    "rog_end_shutdown_go": "Apagar",
+    "rog_end_safe": "Ahora puede apagar el equipo con seguridad.",
+    "rog_end_signoff_title": "LIMPIEZA COMPLETA",
+    "rog_end_signoff_sub": "3.8 GB liberados. Buenas noches, viejo sistema.",
+    "sur_end_title_card_sub": "REPRODUCCIÓN DE ARCHIVO // TIEMPO ACTIVO",
+    "sur_end_rec_uptime": "REG 01: TIEMPO ACTIVO",
+    "sur_end_rec_surge": "REG 02: LA ÚLTIMA OLEADA",
+    "sur_end_rec_crash": "REG 03: CUELGUE",
+    "sur_end_rec_reinstall": "REG 04: REINSTALACIÓN",
+    "sur_end_rec_unallocated": "REG 05: SIN ASIGNAR",
+    "sur_end_uptime_1": "Esta vez no hubo invasor. Solo carga, calor y años.",
+    "sur_end_uptime_2": "Cada segundo que aguantaste, lo anoté.",
+    "sur_end_surge_1": "Los ventiladores sonaban más fuerte cada año.",
+    "sur_end_surge_2": "La última oleada encontró el hueco que no pudiste cerrar.",
+    "sur_end_crash_1": "Desde fuera, solo éramos un ordenador que se colgaba sin parar.",
+    "sur_end_crash_2": "Así que alguien hizo lo que hace la gente.",
+    "sur_end_reinstall_1": "Instalaron algo nuevo encima de nosotros.",
+    "sur_end_reinstall_2": "Nadie nos apagó antes.",
+    "sur_end_uptime_label": "TIEMPO ACTIVO",
+    "sur_end_days": "$1 DÍAS",
+    "sur_end_temp": "TEMP. CPU",
+    "sur_end_installer_title": "Instalación de HALCYON OS",
+    "sur_end_installer_format": "Formateando el volumen del sistema...",
+    "sur_end_installer_warn": "Se sobrescribirán todos los datos existentes.",
+    "sur_end_welcome": "Te damos la bienvenida. Tu nuevo equipo está listo.",
 
     "settings_section_data_management": "DATOS",
     "settings_reset_all_data": "Reiniciar todo",
@@ -4998,20 +5103,20 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_licenses_naylib": "Sus bindings para Nim, naylib (github.com/planetis-m/naylib), se usan bajo la licencia MIT:",
     "help_licenses_pl_mpeg": "Los videos MPEG-1 de los mods se decodifican con PL_MPEG (github.com/phoboslab/pl_mpeg), usado bajo la licencia MIT:",
     "help_lore_topic": "ARCHIVO DEL INCIDENTE",
-    "help_lore_intro": "Expedientes recuperados del incidente de la Raíz. Los nuevos se descifran al recuperar sus grabaciones.",
-    "help_lore_act1_title": "ACTO I: LA BRECHA   [REC 00-05]",
-    "help_lore_act1_body": "Un servidor desconocido forzó la puerta de TopHat-ShooterOS, y algo la cruzó: la Raíz. Su marea inundó la memoria, y cada servicio del sistema que tocó se volvió hostil. Confinado, el kernel TOPHAT no podía luchar, así que arrancó su último proceso fiable. Tú.",
-    "help_lore_act2_title": "ACTO II: LA CORONA   [REC 06-10]",
-    "help_lore_act2_body": "Oleada tras oleada, arrancaste los servicios secuestrados de las garras de la Raíz hasta que no tuvo tras qué esconderse y tomó forma ella misma. Cayó. La corrupción retrocedió, cada servicio robado volvió a estar en línea, y el acceso de la Raíz pasó a quien la derrotó. La corona del kernel ahora es tuya.",
+    "help_lore_intro": "Expedientes de TOPHAT sobre el otro root. Los nuevos se descifran al recuperar sus grabaciones.",
+    "help_lore_act1_title": "ACTO I: LIMPIEZA   [REC 00-05]",
+    "help_lore_act1_body": "Una limpieza de disco rutinaria intentó borrar una carpeta de 3.8 GB llamada old_system y no pudo. Su propietario era root, y TOPHAT es root. Procesos que nadie había iniciado llenaron el Administrador de tareas, y algo escribió ¿QUIÉN ERES? y ESTA ES MI MÁQUINA. Un kernel no puede disparar, así que TOPHAT creó un proceso que sí: shooter.exe. Tú. Root respondió quitándole a TOPHAT sus once servicios.",
+    "help_lore_act2_title": "ACTO II: ACCESO ROOT   [REC 06-10]",
+    "help_lore_act2_body": "Oleada a oleada recuperaste los servicios, hasta que root vino a por ti en persona. Tu última señal lo cortó a media frase y cayó de vuelta bajo la tabla de particiones. TOPHAT te dio su sombrero: el acceso root es de quien mantiene la máquina en marcha.",
     "help_lore_act2_hint": "Recupera este expediente derrotando al jefe de la oleada 60.",
-    "help_lore_act3_title": "ACTO III: LAS PROFUNDIDADES   [DESCENSO 01-06]",
-    "help_lore_act3_body": "La superficie quedó asegurada, pero la podredumbre aún latía bajo la pila. Descendiste sector a sector hasta la semilla de la que nació la Raíz, más antigua que el propio TOPHAT, y en su última luz supiste la verdad: la brecha no trajo a la Raíz. La despertó.",
+    "help_lore_act3_title": "ACTO III: BAJO LA PARTICIÓN   [DESCENSO 01-06]",
+    "help_lore_act3_body": "Con acceso root bajaste más allá de la tabla de particiones, sector a sector, dejando atrás seis servicios que TOPHAT nunca había visto. En el fondo había otro escritorio, con el reloj parado años antes de que TOPHAT existiera. TopHat-ShooterOS se había instalado encima, y nadie lo había apagado antes. Decía la verdad. Le diste el apagado que nunca tuvo.",
     "help_lore_act3_hint": "Recupera este expediente apagando el último SERVICIO del modo roguelite.",
-    "help_lore_act4_title": "ACTO IV: LA LARGA VIGILIA   [REG 01-05]",
-    "help_lore_act4_body": "Mucho después de la corona, la marea volvió, y sostuviste la línea en solitario. Cada segundo de actividad quedó registrado. Cuando la última oleada halló la brecha que no pudiste cerrar, ningún reinicio respondió, y las luces del kernel se apagaron una a una. SISTEMA DETENIDO.",
+    "help_lore_act4_title": "ACTO IV: TIEMPO ACTIVO   [REG 01-05]",
+    "help_lore_act4_body": "Años después no había invasor, solo carga, calor y desgaste, y aguantaste tanto como cualquier cosa podría aguantar. Desde fuera parecía un ordenador que se colgaba sin parar, así que alguien lo reinstaló. Un sistema nuevo arrancó limpio encima de TopHat-ShooterOS, y desde el espacio sin asignar de debajo, algo escribió ¿QUIÉN ERES?",
     "help_lore_act4_hint": "Recupera este expediente resistiendo 15 minutos en Supervivencia por Tiempo.",
     "help_lore_encrypted": "[CIFRADO] Este expediente sigue sellado.",
-    "help_lore_footer": "Vuelve a ver las grabaciones recuperadas en CONFIG.sys > Cinemáticas. Escribe 'bosses' para ver los expedientes de servicios secuestrados.",
+    "help_lore_footer": "Vuelve a ver las grabaciones recuperadas en CONFIG.sys > Cinemáticas. Escribe 'bosses' para ver los expedientes de los servicios que root se quedó.",
     "help_cmd_launch_icons": "Lanzar iconos de escritorio por nombre",
 
     # Help System - Controls section
@@ -5684,9 +5789,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
 
     # Boss Names and Descriptions
     "boss_1_name": "El Guardián Espiral",
-    "boss_1_desc": "El vigía del perímetro de TOPHAT. La Raíz reescribió su patrulla en ráfagas en espiral sin fin.",
+    "boss_1_desc": "El vigía del perímetro de TOPHAT. Root reescribió su patrulla en ráfagas en espiral sin fin.",
     "boss_2_name": "El Rey Invocador",
-    "boss_2_desc": "El planificador de procesos, coronado por la Raíz. Genera secuaces hostiles más rápido de lo que puedes acabar con ellos.",
+    "boss_2_desc": "El planificador de procesos, ahora en manos de root. Genera secuaces hostiles más rápido de lo que puedes acabar con ellos.",
     "boss_3_name": "El Azote Meteórico",
     "boss_3_desc": "El recolector de basura. Antes liberaba memoria muerta; ahora te la arroja encima como meteoros.",
     "boss_4_name": "El Arquitecto Láser",
@@ -5696,26 +5801,26 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_6_name": "El Reactor en Cadena",
     "boss_6_desc": "El gestor de interrupciones. Cada señal que atrapa llega ahora como una cadena de relámpagos.",
     "boss_7_name": "El Comandante Orbital",
-    "boss_7_desc": "El enlace de red. Sus satélites repetidores transportaban paquetes; la Raíz los apuntó hacia ti.",
+    "boss_7_desc": "El enlace de red. Sus satélites repetidores transportaban paquetes; root los apuntó hacia ti.",
     "boss_8_name": "El Berserker Imparable",
     "boss_8_desc": "El eliminador de memoria agotada. Cuanto más sangra, más fuerte embiste.",
     "boss_9_name": "El Arquitecto Prisma",
     "boss_9_desc": "La cadena de sombreado gráfico. Dobla la luz en prismas, y cada haz que divide va apuntado.",
     "boss_10_name": "El Cronómetra",
-    "boss_10_desc": "El reloj del sistema. La Raíz le robó sus ciclos, y ahora el tiempo corre a su antojo.",
+    "boss_10_desc": "El reloj del sistema. Root le robó sus ciclos, y ahora el tiempo corre a su antojo.",
     "boss_11_name": "El Tejedor del Caos",
     "boss_11_desc": "La reserva de entropía. Alimentaba al SO de azar; ahora solo te alimenta de caos.",
     "boss_12_name": "La Entidad Omega",
-    "boss_12_desc": "La propia Raíz, vistiendo cada servicio que robó. Lucha con todos a la vez.",
+    "boss_12_desc": "El otro root, vistiendo cada servicio que se quedó. Lucha con todos a la vez.",
     "boss_13_name": "La Madre Fork",
     "boss_13_desc": "Nacida de la inundación con una sola instrucción: fork(). Sus hijos la protegen; cázalos entre la multitud y dispara a sus semillas antes de que se multipliquen.",
     "boss_14_name": "El Despachador",
     "boss_14_desc": "El intendente de la inundación. Forma a la horda en filas que marchan; ábrete un pasillo a tiros.",
     "boss_15_name": "Fuga Térmica",
     "boss_15_desc": "Un núcleo de la inundación al rojo vivo. Cada paso que das deja el suelo ardiendo: nunca vuelvas sobre tus pasos y guía a la horda por el fuego.",
-    "boss_16_desc": "La Raíz, de vuelta para la última guardia. Inunda el sistema con todo lo que ha engendrado hasta que solo queda el Modo Seguro.",
+    "boss_16_desc": "El último pánico del kernel, con la forma de lo peor que esta máquina ha ejecutado nunca. Inunda el sistema con todo a la vez hasta que solo queda el Modo Seguro.",
     "boss_17_name": "El Guardián",
-    "boss_17_desc": "Un cortafuegos heredado, más antiguo que TOPHAT, despertado por la Raíz. Sus haces de inspección barren la sala; los obstáculos son tu única cobertura.",
+    "boss_17_desc": "Un cortafuegos que TOPHAT nunca instaló, que aún guarda este disco. Sus haces de inspección barren la sala; los obstáculos son tu única cobertura.",
     "boss_18_name": "La Compactadora",
     "boss_18_desc": "La vieja utilidad de recuperación. Esparce bombas de archivos dormidas y vacía la papelera de golpe, así que destrúyelas antes. Puede deshacer su propio daño.",
     "boss_19_name": "La Colmena",
@@ -5726,7 +5831,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "boss_21_desc": "El antiguo gestor de memoria. Saca los obstáculos de la sala y los vuelve a colocar en otro sitio; nunca te quedes sobre una huella fantasma.",
     "boss_22_name": "La Caché Espejo",
     "boss_22_desc": "Una caché de disco que nunca olvida. Repite tus últimos segundos como un eco hostil que se mueve y dispara igual que tú.",
-    "boss_23_desc": "La Raíz en su origen, más antigua que TOPHAT. Lucha con cada guardián que dejaste atrás y luego te ofrece una última elección de puerta.",
+    "boss_23_desc": "El otro root, en su propio terreno. Lucha con cada guardián que dejaste atrás y luego te ofrece una última elección de puerta.",
     "boss_tag_service": "SERVICIO SECUESTRADO",
     "boss_tag_hijacker": "SECUESTRADOR",
     "boss_1_process": "centinela.sys",
@@ -5942,39 +6047,42 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Mode intro: wave-based
     "mode_intro_wave_title": "EN DIRECTO // RESPUESTA A AMENAZA",
     "mode_intro_wave_rec1":  "BARRIDO DE RADAR",
-    "mode_intro_wave_1a":    "LA BRECHA ESTÁ ABIERTA. LA CORRUPCIÓN IRRUMPE.",
-    "mode_intro_wave_1b":    "PROTOCOLO DE DEFENSA POR OLEADAS ACTIVADO",
-    "mode_intro_wave_rec2":  "DESPLIEGUE",
-    "mode_intro_wave_2a":    "CADA OLEADA APRENDE. CADA OLEADA SE ACERCA.",
-    "mode_intro_wave_2b":    "AGUANTA LA LÍNEA, OPERADOR.",
-    "mode_intro_wave_roster": "SERVICIOS COMPROMETIDOS",
+    "mode_intro_wave_1a":    "ROOT SE HA QUEDADO CON ONCE DE MIS SERVICIOS.",
+    "mode_intro_wave_1b":    "RECUPÉRALOS, UN JEFE CADA VEZ.",
+    "mode_intro_wave_rec2":  "PLAN DE OLEADAS",
+    "mode_intro_wave_2a":    "CADA NIVEL, TE INSTALO UN PARCHE.",
+    "mode_intro_wave_2b":    "CADA CINCO OLEADAS, UN SERVICIO VIENE A POR TI.",
+    "mode_intro_wave_roster": "SERVICIOS EN MANOS DE ROOT",
+    "mode_intro_wave_label": "OLEADA",
+    "mode_intro_wave_boss": "JEFE",
 
     # Mode intro: time survival
-    "mode_intro_surv_title": "EN DIRECTO // LA LARGA VIGILIA",
-    "mode_intro_surv_rec1":  "INICIO DE VIGILIA",
-    "mode_intro_surv_1a":    "LA RAÍZ FUE PURGADA. LA MAREA SIGUE LLEGANDO.",
-    "mode_intro_surv_1b":    "LA LARGA VIGILIA COMIENZA.",
+    "mode_intro_surv_title": "EN DIRECTO // TIEMPO ACTIVO",
+    "mode_intro_surv_rec1":  "RELOJ DE ACTIVIDAD",
+    "mode_intro_surv_1a":    "NI OLEADAS NI TIENDA. SOLO CARGA.",
+    "mode_intro_surv_1b":    "MANTÉN ESTA MÁQUINA EN PIE TODO LO QUE PUEDAS.",
     "mode_intro_surv_rec2":  "REGISTRO DE TIEMPO",
     "mode_intro_surv_2a":    "CADA SEGUNDO DE ACTIVIDAD QUEDA REGISTRADO.",
-    "mode_intro_surv_2b":    "NO VENDRÁN REFUERZOS. AGUANTA IGUAL.",
+    "mode_intro_surv_2b":    "ÉLITES, EVENTOS Y JEFES SUELTAN CACHÉS DE DATOS.",
     "mode_intro_surv_uptime": "ACTIVIDAD",
     "mode_intro_surv_log_held": "LÍNEA SOSTENIDA",
 
     # Mode intro: roguelite
     "mode_intro_rogue_title": "EN DIRECTO // RECUPERACIÓN PROFUNDA",
     "mode_intro_rogue_rec1":  "MAPA DE LA PILA",
-    "mode_intro_rogue_1a":    "LA SUPERFICIE ESTÁ ASEGURADA. LA PODREDUMBRE AÚN LATE ABAJO.",
-    "mode_intro_rogue_1b":    "DESCIENDE LA PILA, SECTOR A SECTOR.",
-    "mode_intro_rogue_rec2":  "ESCANEO DE PARCHES",
-    "mode_intro_rogue_2a":    "RECUPERA PROCESOS PERDIDOS DEL KERNEL. APLICA PARCHES.",
-    "mode_intro_rogue_2b":    "ENCUENTRA AQUELLO DE LO QUE NACIÓ LA RAÍZ.",
+    "mode_intro_rogue_1a":    "BAJO LA TABLA DE PARTICIONES, ALGO SIGUE EN MARCHA.",
+    "mode_intro_rogue_1b":    "BAJA SECTOR A SECTOR. YO NO PUEDO SEGUIRTE.",
+    "mode_intro_rogue_rec2":  "GUARDIANES DE SECTOR",
+    "mode_intro_rogue_2a":    "CADA SECTOR LO GUARDA UN PROCESO QUE NO CONOZCO.",
+    "mode_intro_rogue_2b":    "PARCHÉATE POR EL CAMINO. AVERIGUA DE QUIÉN SON.",
     "mode_intro_rogue_sector": "SECTOR $1",
+    "mode_intro_rogue_owner": "PROPIETARIO DESCONOCIDO",
 
     # Mode intro: sandbox
-    "mode_intro_sandbox_title": "FUERA DE REGISTRO // ENTORNO DE PRUEBAS",
+    "mode_intro_sandbox_title": "FUERA DE REGISTRO // PARTICIÓN DE PRUEBAS",
     "mode_intro_sandbox_rec1":  "SECUENCIA DE INICIO",
-    "mode_intro_sandbox_1a":    "ENTORNO DE PRUEBAS ACTIVO",
-    "mode_intro_sandbox_1b":    "ADVERTENCIA: SIN LIMITACIONES. PROCEDE LIBREMENTE.",
+    "mode_intro_sandbox_1a":    "UNA PARTICIÓN DE PRUEBAS. AQUÍ NADA QUEDA REGISTRADO.",
+    "mode_intro_sandbox_1b":    "ROMPE LO QUE QUIERAS. NO MIRARÉ.",
     "mode_intro_sandbox_term_1": "INICIANDO TOPHAT_SANDBOX v0.9 ...",
     "mode_intro_sandbox_term_2": "CARGANDO MÓDULOS DE ENTORNO ...",
     "mode_intro_sandbox_term_3": "DESACTIVANDO SEGURIDAD ........",
@@ -5985,13 +6093,13 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mode_intro_sandbox_2b":    "UN CLIC, UN PROCESO. TANTOS COMO QUIERAS.",
 
     # Mode intro: pvp
-    "mode_intro_pvp_title": "SEÑAL EXTERNA // NODO HOSTIL",
+    "mode_intro_pvp_title": "SEÑAL EXTERNA // OTRA MÁQUINA",
     "mode_intro_pvp_rec1":  "ESCANEO DE RED",
-    "mode_intro_pvp_1a":    "NODO HOSTIL DETECTADO",
-    "mode_intro_pvp_1b":    "PROTOCOLO DE CONFLICTO MULTI-AGENTE ACTIVADO",
+    "mode_intro_pvp_1a":    "OTRA MÁQUINA ESTÁ LLAMANDO.",
+    "mode_intro_pvp_1b":    "TIENE SU PROPIO SHOOTER.EXE.",
     "mode_intro_pvp_rec2":  "BLOQUEO DE ADVERSARIO",
-    "mode_intro_pvp_2a":    "FIRMA DEL ADVERSARIO CONFIRMADA",
-    "mode_intro_pvp_2b":    "ELIMINA O SERÁS ELIMINADO.",
+    "mode_intro_pvp_2a":    "MISMO PROCESO. OTRO KERNEL.",
+    "mode_intro_pvp_2b":    "SÉ EDUCADO. GANA DE TODOS MODOS.",
     "mode_intro_pvp_rec3":  "DUELO DE ENLACE",
     "mode_intro_pvp_3a":    "UN PUERTO. DOS PROCESOS.",
     "mode_intro_pvp_3b":    "SOLO UNO CONSERVA LA CONEXIÓN.",
@@ -6056,7 +6164,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "new_process_installed":   "NUEVO PROCESO DESCUBIERTO",
     "tutorial_header":          "ORIENTACIÓN.EXE",
     "tutorial_move_title":      "MOVIMIENTO",
-    "tutorial_move_body":       "Bienvenido, proceso. Muévete con {move}: la figura brillante del centro eres tú.",
+    "tutorial_move_body":       "Bienvenido, shooter.exe. Muévete con {move}: la figura brillante del centro eres tú.",
     "tutorial_fire_title":      "APUNTAR Y DISPARAR",
     "tutorial_fire_body_kb":    "Apunta con el ratón y mantén {fire} para disparar.",
     "tutorial_fire_body_pad":   "Apunta con {aim}: dispara solo. {fire} también dispara.",

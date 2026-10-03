@@ -105,10 +105,11 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   else: BossWeakPointDefinition(kind: bwoNone)
 
 proc isRootBoss*(bossNumber: int): bool =
-  ## The Omega Entity (boss 12 and its two mode kits) is the Root itself
-  ## taking form; the wave bosses are services it hijacked, the survival
-  ## bosses spawn from its flood and the roguelite guardians are legacy
-  ## processes it woke. Same model the lore cinematics use.
+  ## The Omega Entity (boss 12 and its two mode kits) is root itself: the
+  ## superuser of the system TopHat-ShooterOS was installed over. The wave
+  ## bosses are TOPHAT services it re-owned, the survival bosses spawn from the
+  ## load of an aging machine and the roguelite guardians are the old system's
+  ## own services. Same model the story cinematics use.
   isOmegaBoss(bossNumber)
 
 proc getBossProcessName*(bossNumber: int): string =
@@ -139,7 +140,7 @@ proc getBossProcessName*(bossNumber: int): string =
 
 proc getBossServiceTag*(bossNumber: int): string =
   ## "HIJACKED SERVICE: scheduler.exe" line for the boss intro card and Help
-  ## list; "HIJACKER: root (uid 0)" for the Root, "FLOOD SPAWN" for the
+  ## list; "HIJACKER: root (uid 0)" for root itself, "FLOOD SPAWN" for the
   ## survival bosses and "LEGACY PROCESS" for the roguelite guardians. Empty
   ## for unknown IDs.
   let process = getBossProcessName(bossNumber)

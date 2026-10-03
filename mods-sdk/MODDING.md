@@ -463,8 +463,11 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   `explosion`, `wallPlace`, `teleport`, `menuNav`, `menuSelect`,
   `waveComplete`, `shield`, `gameOver`, `buy`, ...). WAV, OGG, MP3, FLAC or QOA.
 * `override.music(track, file)` replaces a music track: `"menu"`, `"wave"`,
-  `"powerUp"` or `"boss"`. OGG, MP3, WAV, FLAC, QOA, or the tracker formats
-  XM and MOD.
+  `"powerUp"` or `"boss"`, or a story cinematic's score: `"storyIntro"`,
+  `"storyRootAccess"`, `"storyBelow"` or `"storyUptime"`. OGG, MP3, WAV, FLAC,
+  QOA, or the tracker formats XM and MOD. A score plays once from the top in
+  time with its cinematic (fast-forwarding speeds it up) and does not loop, so
+  make it as long as the cinematic.
 * `register.cosmetic{kind = "player" | "bullet" | "desktop" | "cube", id = "neon",
   name = "Neon", description = "...", colors = {"#ff00ff", "#00ffff", "#ffffff"},
   texture = "skins/neon.png", scale = 1.2, rotate = true}` adds a cosmetic the

@@ -125,6 +125,28 @@ let changelog: seq[ChangelogVersion] = @[
     subtitleEs: "Cambios desde v6.3.2",
     latest: true,
     entries: @[
+      # --- New ---
+      ChangelogEntry(category: clcNew,
+        headEn: "A new story",
+        headEs: "Una nueva historia",
+        en: points(
+          "The story has been rewritten from the ground up, and so has every cinematic. It now begins with a routine disk cleanup that finds a folder it is not allowed to delete.",
+          "TOPHAT, the kernel, now tells the story itself, and every cinematic is staged in the game's own interface: your desktop, its windows, the Task Manager, the crash screen.",
+          "Each story cinematic has its own soundtrack, composed to its scenes. Holding ENTER to fast forward now speeds the music up with the picture, like a tape.",
+          "The cinematics take their time, the endings most of all: longer scenes, slower captions and a held last image, so the moments that matter have room to land.",
+          "Skipping a cinematic now takes a 1.5 second hold instead of 3. The controls at the bottom were redesigned as two keys, hold ENTER for double speed and hold SPACE to skip, and the skip key fills up while you hold it.",
+          "The mode intros were rewritten to explain what each mode asks of you, and the wave and roguelite intros show the real bosses you will meet.",
+          "Saves from older versions get the new story too. The new intro plays the next time you pick your profile, each mode intro plays again on your next visit, and endings you already unlocked are marked NEW in SETTINGS.sys > Cinematics until you watch them.",
+          "The lore archive in the Help terminal, the boss descriptions and the first tutorial card were updated to match."),
+        es: points(
+          "La historia se ha reescrito desde cero, y con ella todas las cinemáticas. Ahora empieza con una limpieza de disco rutinaria que encuentra una carpeta que no se le permite borrar.",
+          "TOPHAT, el kernel, cuenta ahora la historia en persona, y cada cinemática ocurre dentro de la propia interfaz del juego: tu escritorio, sus ventanas, el Administrador de tareas, la pantalla de error.",
+          "Cada cinemática de la historia tiene su propia banda sonora, compuesta para sus escenas. Al mantener ENTER para avanzar rápido, la música se acelera junto con la imagen, como una cinta.",
+          "Las cinemáticas se toman su tiempo, sobre todo los finales: escenas más largas, subtítulos más pausados y una última imagen que se mantiene, para que los momentos importantes calen.",
+          "Saltar una cinemática ahora requiere mantener pulsado 1,5 segundos en lugar de 3. Los controles de la parte inferior se rediseñaron como dos teclas, mantén ENTER para velocidad doble y mantén ESPACIO para saltar, y la tecla de saltar se llena mientras la mantienes.",
+          "Las introducciones de los modos se reescribieron para explicar lo que te pide cada modo, y las de oleadas y roguelite muestran los jefes reales a los que te enfrentarás.",
+          "Las partidas guardadas de versiones anteriores también reciben la nueva historia. La nueva intro se reproduce la próxima vez que elijas tu perfil, cada intro de modo vuelve a reproducirse en tu próxima visita, y los finales que ya desbloqueaste aparecen marcados como NUEVO en CONFIG.sys > Cinemáticas hasta que los veas.",
+          "El archivo de la historia en la terminal de Ayuda, las descripciones de los jefes y la primera tarjeta del tutorial se actualizaron a juego.")),
       # --- Improvements ---
       ChangelogEntry(category: clcImproved,
         headEn: "Engine update",
@@ -147,6 +169,15 @@ let changelog: seq[ChangelogVersion] = @[
           "Los combates intensos se dibujan aproximadamente el doble de rápido. Las formas pequeñas como partículas, chispas y balas cuestan mucho menos, y cada fotograma llega a la tarjeta gráfica en unos pocos lotes en lugar de miles.",
           "Las líneas y los contornos finos ahora miden 1 píxel de grosor con la Resolución mejorada (SSAA) activada, igual que sin ella. Antes salían la mitad de gruesos y tenues.")),
       # --- Mods ---
+      ChangelogEntry(category: clcMods,
+        headEn: "Story scores in mods",
+        headEs: "Bandas sonoras de la historia en los mods",
+        en: points(
+          "override.music can now replace the scores of the four story cinematics: storyIntro, storyRootAccess, storyBelow and storyUptime.",
+          "A score plays once from the start, in time with its cinematic, and does not loop, so make it as long as the scene."),
+        es: points(
+          "override.music ahora puede reemplazar las bandas sonoras de las cuatro cinemáticas de la historia: storyIntro, storyRootAccess, storyBelow y storyUptime.",
+          "Una banda sonora se reproduce una vez desde el principio, al ritmo de su cinemática, y no se repite, así que hazla tan larga como la escena.")),
       ChangelogEntry(category: clcMods,
         headEn: "Drag mod apps",
         headEs: "Arrastra las apps de los mods",

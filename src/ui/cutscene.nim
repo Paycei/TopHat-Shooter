@@ -6,7 +6,7 @@
 ## Per-cinematic content (the actual shots) lives in the concrete factory modules
 ## (lore_cinematic.nim, endgame_cinematic.nim, mode_intros.nim).
 
-import raylib, rlgl, math, strutils
+import raylib, rlgl, math
 import ../localization, ../sound, ../gamepad_input, cinematic_common
 
 type
@@ -26,14 +26,18 @@ type
     glitchWindow*: int
     ## Per-shot camX shake.  nil -> cutscene-level swayAmp default.
     shakeProc*: CutsceneShakeProc
+    muteCue*: bool
+      ## Skip `soundCue`: the shot's sound is written into its score instead.
 
   Cutscene* = ref object
     shots*:         seq[CutsceneShot]
     totalDuration*: float32
     accentColor*:   Color
-    titleCardText*: string     ## large title drawn on the opening card
+    titleCardText*: string     ## large title drawn on the opening card; "" = cold open
     titleCardSub*:  string     ## subtitle under the title (already t()-resolved by caller)
     cornerTag*:     string     ## deck-status chip top-right; "" -> t(tkLoreLive)
+    speaker*:       string     ## name chip above the captions ("" = none)
+    captionCps*:    float32    ## base caption typing speed (characters per second)
     drawBackdropProc*: CutsceneBackdropProc
     swayAmp*:       float32    ## default camX/camY idle sway amplitude
     skipHoldRequired*:  float32
@@ -48,30 +52,38 @@ type
     fastForwardActive*: bool
     skipHoldTimer*:    float32
     lastShotPlayed*:   int
+    scoreStarted:      bool
 
 # ---------------------------------------------------------------------------
 
 const
-  CutscenePlaybackSpeed* = 1.2'f32
-    ## Every cinematic plays at this pace. Scaling the clock instead of the shot
-    ## durations keeps each shot's internal beats (captions, staged reveals)
-    ## lined up with its fades. Tune here, not per shot.
+  CutscenePlaybackSpeed* = StoryPlaybackSpeed
+    ## Every cinematic plays at this pace (sound.nim's story timing, because
+    ## the story scores are composed against it). Tune there, not per shot.
+  SkipHoldSeconds* = 1.5'f32
+    ## Hold the skip button this long (real seconds) to leave a cutscene.
+  StorySpeaker* = "TOPHAT"
+    ## The narrator. Every caption is TOPHAT's incident log; a name, so it is
+    ## not translated.
 
 proc newCutscene*(shots: seq[CutsceneShot],
                   accentColor: Color,
                   titleCardText, titleCardSub: string,
                   drawBackdropProc: CutsceneBackdropProc,
                   swayAmp: float32 = 1.2'f32,
-                  skipHoldRequired: float32 = 3.0'f32,
+                  skipHoldRequired: float32 = SkipHoldSeconds,
                   fastForwardMult: float32 = 2.0'f32,
                   musicTrack: MusicTrack = mtBoss,
                   cornerTag: string = "",
-                  playbackSpeed: float32 = CutscenePlaybackSpeed): Cutscene =
+                  playbackSpeed: float32 = CutscenePlaybackSpeed,
+                  speaker: string = StorySpeaker,
+                  captionCps: float32 = 46.0'f32): Cutscene =
   var total = 0.0'f32
   for s in shots: total += s.duration
   Cutscene(
     shots: shots, totalDuration: total, accentColor: accentColor,
     titleCardText: titleCardText, titleCardSub: titleCardSub, cornerTag: cornerTag,
+    speaker: speaker, captionCps: captionCps,
     drawBackdropProc: drawBackdropProc, swayAmp: swayAmp,
     skipHoldRequired: skipHoldRequired, fastForwardMult: fastForwardMult,
     playbackSpeed: playbackSpeed, musicTrack: musicTrack,
@@ -104,14 +116,25 @@ proc updateCutscene*(c: Cutscene, dt: float32) =
   if c.skipHoldTimer >= c.skipHoldRequired:
     c.complete = true; return
   # The skip hold above stays on real time: "hold 3s" means three real seconds.
-  let playbackDt = dt * c.playbackSpeed * (if c.fastForwardActive: c.fastForwardMult else: 1.0'f32)
+  let rate = if c.fastForwardActive: c.fastForwardMult else: 1.0'f32
+  let playbackDt = dt * c.playbackSpeed * rate
   c.time        += playbackDt
   c.scanlineOffset += playbackDt * 118.0'f32
   inc c.frame
+  # A story score is composed against this clock: start it once (retrying
+  # until the stream is ready), then keep it on the clock. Fast-forward raises
+  # its pitch with its speed, like the tape it is pretending to be.
+  if isScoreTrack(c.musicTrack):
+    if not c.scoreStarted:
+      c.scoreStarted = startScore(c.musicTrack)
+    syncScore(c.musicTrack, c.time / c.playbackSpeed, rate)
+  else:
+    playMusic(c.musicTrack)
   let (idx, _, _) = c.shotAt(c.time)
   if idx != c.lastShotPlayed:
     c.lastShotPlayed = idx
-    playSound(c.shots[idx].soundCue, 0.6'f32)
+    if not c.shots[idx].muteCue:
+      playSound(c.shots[idx].soundCue, 0.6'f32)
   if c.time >= c.totalDuration:
     c.complete = true
 
@@ -138,8 +161,12 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) =
   # Captions inside the shot type out against the shot's own clock.
   captionClock = local
   captionShotDuration = duration
+  captionSpeaker = c.speaker
+  captionAccent = c.accentColor
+  captionCharsPerSec = c.captionCps
   shot.drawProc(local, duration, sW, sH, alpha)
   captionClock = -1.0'f32
+  captionSpeaker = ""
   popMatrix()
 
   drawTapeChange(sW, sH, local, c.frame, c.time)
@@ -149,28 +176,30 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) =
   let fadeA   = alphaByte(max(fadeIn, fadeOut) * 255.0'f32)
 
   let glitchHot = shot.glitchMod > 0 and (c.frame mod shot.glitchMod) < shot.glitchWindow
-  let (controlsText, controlsActiveText) =
-    if isGamepadActive():
-      let ff = gamepadBindLabel(GamepadButton.RightFaceDown)
-      let skip = gamepadBindLabel(GamepadButton.RightFaceRight)
-      (t(tkLoreControlsPad).replace("$1", ff).replace("$2", skip),
-       t(tkLoreControlsPadActive).replace("$1", ff).replace("$2", skip))
-    else:
-      (t(tkLoreControlsFF), t(tkLoreControlsFFActive))
-  drawCinematicOverlay(sW, sH, c.time, c.frame, c.scanlineOffset,
-                       c.fastForwardActive, c.skipHoldTimer, c.skipHoldRequired,
-                       c.totalDuration, shot.label,
+  let pad = isGamepadActive()
+  let skipProgress = clamp01(c.skipHoldTimer / c.skipHoldRequired)
+  let controls = CinematicControls(
+    ffKey: (if pad: gamepadBindLabel(GamepadButton.RightFaceDown) else: t(tkLoreKeyEnter)),
+    ffLabel: (if c.fastForwardActive: t(tkLoreFastForwarding) else: t(tkLoreHoldFastForward)),
+    skipKey: (if pad: gamepadBindLabel(GamepadButton.RightFaceRight) else: t(tkLoreKeySpace)),
+    skipLabel: (if skipProgress > 0.0'f32: t(tkLoreSkipping) else: t(tkLoreHoldSkip)),
+    ffActive: c.fastForwardActive,
+    skipProgress: skipProgress)
+  drawCinematicOverlay(sW, sH, c.time, c.frame, c.scanlineOffset, c.totalDuration, shot.label,
                        (if c.cornerTag.len > 0: c.cornerTag else: t(tkLoreLive)),
-                       controlsText, controlsActiveText,
-                       shot.iconIndex, glitchHot, c.accentColor)
+                       shot.iconIndex, glitchHot, controls, c.accentColor)
 
-  # Opening title card: slides in and out over the first ~2 s.
+  # Opening title card: slides in and out over the first ~2 s. A cold open
+  # (empty title) skips it and drops its own title later.
   let appear = clamp01((c.time - 0.2'f32) / 0.5'f32)
   let leave  = clamp01((1.95'f32 - c.time) / 0.5'f32)
   let a = min(appear, leave)
-  if a > 0.0'f32:
+  if a > 0.0'f32 and c.titleCardText.len > 0:
     let cx = sW div 2
     let cy = sH div 2 - 30
+    # A dark band behind the card: it reads as the tape's label laid over the
+    # scene, not as text competing with it.
+    drawRectangle(0, cy - 34, sW, 128, Color(r: 0, g: 0, b: 0, a: alphaByte(a * 165.0'f32)))
     let ruleW = (sW.float32 * 0.32'f32 * a).int32
     drawRectangle(cx - ruleW, cy - 16, ruleW * 2, 2, colorA(c.accentColor, a * 170.0'f32))
     drawRectangle(cx - ruleW, cy + 54, ruleW * 2, 2, colorA(c.accentColor, a * 170.0'f32))

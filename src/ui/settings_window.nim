@@ -346,6 +346,18 @@ proc replayCineUnlocked(rc: ReplayCine, s: Settings): bool =
   of rcSandboxIntro:    s.hasSeenSandboxIntro
   of rcPvPIntro:        s.hasSeenPvPIntro
 
+proc replayCineStory(rc: ReplayCine): StoryCinematic =
+  case rc
+  of rcLoreIntro:       scIntro
+  of rcWaveEnding:      scWaveEnding
+  of rcRogueliteEnding: scRogueliteEnding
+  of rcSurvivalEnding:  scSurvivalEnding
+  of rcWaveIntro:       scWaveIntro
+  of rcSurvivalIntro:   scSurvivalIntro
+  of rcRogueliteIntro:  scRogueliteIntro
+  of rcSandboxIntro:    scSandboxIntro
+  of rcPvPIntro:        scPvPIntro
+
 proc requestReplayCine(settingsWin: SettingsWindow, rc: ReplayCine) =
   ## Route a click on an unlocked entry into the matching request flag; main.nim
   ## consumes these via the window manager and enters the cutscene.
@@ -439,6 +451,7 @@ proc resetProgressSettings(settings: Settings): bool =
   settings.hasSeenRogueliteIntro = false
   settings.hasSeenSandboxIntro = false
   settings.hasSeenPvPIntro = false
+  settings.storySeen = default(array[StoryCinematic, int])
   settings.discoveredPowerUps = @[]
   return saveSettings(settings)
 
@@ -1358,6 +1371,14 @@ proc drawCinematicsTab*(settingsWin: SettingsWindow, contentX, contentY, content
     let hovered = unlocked and checkCollisionPointRec(mousePos, rect)
     drawSettingsButton(rect, replayCineLabel(rc), hovered, false,
                        confirming = false, disabled = not unlocked)
+    # Unlocked, but rewritten since this profile last watched it.
+    if unlocked and storyOutdated(s, replayCineStory(rc)):
+      let tag = t(tkPowerUpNewBadge)
+      let tw = measureText(tag, 11) + 10
+      let tx = (rect.x + rect.width).int32 - tw - 4
+      let ty = rect.y.int32 - 7
+      drawRectangle(tx, ty, tw, 15, Color(r: 255, g: 200, b: 60, a: 255))
+      drawText(tag, tx + 5, ty + 2, 11, Color(r: 40, g: 24, b: 0, a: 255))
 
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                           screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] =
