@@ -178,6 +178,19 @@ let changelog: seq[ChangelogVersion] = @[
           "Cuando un modelo 3D cambia de animación, ahora pasa de su pose actual a la nueva con una transición suave en lugar de saltar, también desde y hacia la pose de reposo.",
           "Los cuerpos reemplazados con override.model y las entidades de los mundos 3D lo hacen solos. draw.model y draw3d.model lo hacen con lo que lleve un key.",
           "La nueva opción fade, y modelFade en las entidades 3D, fija cuánto dura la transición: 0,2 segundos salvo que se cambie, y 0 cambia al instante.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Videos, music and fonts in mods",
+        headEs: "Videos, música y fuentes en los mods",
+        en: points(
+          "Mods can now play videos (MPEG-1 .mpg files, which the game decodes itself, so they play the same everywhere). A video goes anywhere an image goes: in an app, on the HUD, as a wallpaper, a skin or a desktop icon.",
+          "Mods can play their own music tracks (OGG, MP3, WAV, FLAC, QOA, XM and MOD), which pause the game's music while they play, and write with their own fonts (TTF, OTF, FNT and BDF).",
+          "Mods can load images in many more formats (JPG, BMP, TGA, PSD, HDR, DDS and others), read data files (text and JSON) and hand images and videos to their shaders.",
+          "The new Media Player example plays a video and a music track in a desktop app. Typing licenses in the Help terminal now also lists PL_MPEG, which decodes MPEG-1 videos."),
+        es: points(
+          "Los mods ahora pueden reproducir videos (archivos .mpg MPEG-1, que el propio juego decodifica, así que se ven igual en todas partes). Un video va a cualquier lugar donde va una imagen: en una app, en el HUD, como fondo de escritorio, aspecto o icono del escritorio.",
+          "Los mods pueden reproducir sus propias pistas de música (OGG, MP3, WAV, FLAC, QOA, XM y MOD), que pausan la música del juego mientras suenan, y escribir con sus propias fuentes (TTF, OTF, FNT y BDF).",
+          "Los mods pueden cargar imágenes en muchos más formatos (JPG, BMP, TGA, PSD, HDR, DDS y otros), leer archivos de datos (texto y JSON) y pasar imágenes y videos a sus shaders.",
+          "El nuevo ejemplo Reproductor muestra un video y una pista de música en una app del escritorio. Escribir licenses en la terminal de Ayuda ahora también muestra PL_MPEG, que decodifica los videos MPEG-1.")),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.2",

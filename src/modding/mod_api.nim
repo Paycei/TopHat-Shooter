@@ -10,13 +10,13 @@
 ## game.nim (spawning into the live enemy list, starting waves, bosses) is
 ## queued as a ModAction and executed there, outside every entity loop.
 
-import std/[os, strutils, tables, json, math]
+import std/[os, strutils, tables, json, math, algorithm]
 import raylib
 import ../draw_prims
 import ../types, ../particle_types, ../localization, ../render_context, ../settings, ../powerup
 import ../enemy_config, ../boss_definitions, ../player, ../game/combat, ../d_systems, ../particle_pool, ../sound
 import ../powerup_data, ../ui/icon_drawing, ../save_system, ../run_statistics
-import mod_assets
+import mod_assets, mod_media
 import lua_bridge, mod_state, mod_hooks, mod_reflect, mod_deep
 
 var
@@ -76,6 +76,31 @@ proc requireDrawing(vm: VM, fname: string) =
 
 proc f32(vm: VM, args: openArray[ScriptValue], i: int, fname: string): float32 {.inline.} =
   vm.checkNum(args, i, fname).float32
+
+var fontClass*: UdClass   ## assets.font handles (made in installAssetLibraries)
+
+proc textFont*(vm: VM, v: ScriptValue, what: string): tuple[font: int, spacing: float32] =
+  ## The optional font argument of draw.text, draw.textWidth and draw3d.text:
+  ## a font (assets.font) or {font = f, spacing = px}. Font 0 = the game's own.
+  case v.kind
+  of vkNil: (0, 0'f32)
+  of vkUserdata:
+    if v.ud.cls != fontClass: vm.runtimeError(what & ": a font (assets.font) expected")
+    (v.ud.handle, 0'f32)
+  of vkTable:
+    var r = (font: 0, spacing: 0'f32)
+    let f = rawGetStr(v.tbl, "font")
+    if f.kind == vkUserdata and f.ud.cls == fontClass: r.font = f.ud.handle
+    elif f.kind != vkNil: vm.runtimeError(what & ": font must be a font (assets.font)")
+    let sp = rawGetStr(v.tbl, "spacing")
+    if sp.kind == vkNumber and abs(sp.n) < 1000: r.spacing = sp.n.float32   # (NaN fails too)
+    elif sp.kind != vkNil: vm.runtimeError(what & ": spacing must be a number")
+    r
+  else: vm.runtimeError(what & ": a font (assets.font) or {font = ..., spacing = ...} expected")
+
+proc fontSize*(n: float64): float32 =
+  ## A size for text in a mod font: 1 to 400 pixels (a NaN gives 1).
+  if n >= 1 and n <= 400: n.float32 elif n > 400: 400 else: 1
 
 proc creditedPowerUp(vm: VM, args: openArray[ScriptValue], i: int,
                      fname: string): tuple[has: bool, pt: PowerUpType] =
@@ -463,9 +488,16 @@ proc installLibraries(base: ScriptTable) =
     drawPoly(Vector2(x: vm.f32(args, 0, "poly"), y: vm.f32(args, 1, "poly")), sides.int32,
              vm.f32(args, 3, "poly"), vm.f32(args, 4, "poly"), parseColor(vm, arg(args, 5), "draw.poly"))
   drawT.reg("text") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## draw.text(text, x, y, size, color) -> width in pixels
+    ## draw.text(text, x, y, size, color [, font | {font = f, spacing = px}]) -> width in pixels
     vm.requireDrawing("text")
     let s = vm.checkStr(args, 0, "text")
+    let (font, spacing) = vm.textFont(arg(args, 5), "draw.text")
+    if font > 0:
+      let size = fontSize(vm.checkNum(args, 3, "text"))
+      drawModText(font, s, vm.f32(args, 1, "text"), vm.f32(args, 2, "text"), size, spacing,
+                  parseColor(vm, arg(args, 4), "draw.text"))
+      ret.setRet(vnum(measureModText(font, s, size, spacing).float64))
+      return
     let size = clamp(vm.checkInt(args, 3, "text"), 10, 200).int32
     drawText(s, vm.checkInt(args, 1, "text").int32, vm.checkInt(args, 2, "text").int32, size,
              parseColor(vm, arg(args, 4), "draw.text"))
@@ -482,6 +514,12 @@ proc installLibraries(base: ScriptTable) =
       let a = modCtx.hudArena
       ret.setRet([vnum(a.x), vnum(a.y), vnum(a.w), vnum(a.h)])
   drawT.reg("textWidth") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## draw.textWidth(text [, size = 10, font | {font = f, spacing = px}])
+    let (font, spacing) = vm.textFont(arg(args, 2), "draw.textWidth")
+    if font > 0:
+      ret.setRet(vnum(measureModText(font, vm.checkStr(args, 0, "textWidth"),
+                                     fontSize(vm.optNum(args, 1, "textWidth", 10)), spacing).float64))
+      return
     let size = clamp(vm.optInt(args, 1, "textWidth", 10), 10, 200).int32
     ret.setRet(vnum(measureText(vm.checkStr(args, 0, "textWidth"), size).int))
   rawSet(base, vstr("draw"), vtable(drawT))
@@ -1330,25 +1368,35 @@ proc installNewContent(base: ScriptTable) =
 # folder; override.texture/model/sound/music swap the game's look and sound;
 # register.cosmetic adds skins players equip in MODS.EXE.
 
-var soundClass, shaderClass: UdClass
-var textureClass*, modelClass*: UdClass
+const MaxModDataFile = 16_000_000   ## assets.text / assets.json
+
+var soundClass, shaderClass, musicClass: UdClass
+var textureClass*, modelClass*, videoClass*: UdClass
 
 proc safeModPath*(m: ModRuntime, rel: string): string
 
-proc modFile(vm: VM, rel, what: string): string =
+proc modPath(vm: VM, rel, what: string): string =
+  ## A path inside the calling mod's folder (which may not exist).
   let owner = vm.requireOwner(what)
   result = safeModPath(mods[owner], rel)
   if result.len == 0: vm.runtimeError(what & ": '" & rel & "' is outside the mod folder")
+
+proc modFile(vm: VM, rel, what: string): string =
+  result = vm.modPath(rel, what)
   if not fileExists(result): vm.runtimeError(what & ": file not found: " & rel)
 
+proc loadTextureFile(vm: VM, rel, what: string): int =
+  ## An image or a video from the mod's folder, as a texture.
+  var err = ""
+  result = loadModTexture(vm.modFile(rel, what), err)
+  if result == 0: vm.runtimeError(what & ": " & rel & ": " & err)
+
 proc textureId*(vm: VM, v: ScriptValue, what: string): int =
-  ## A texture handle, or a path (loaded on the spot).
-  if v.kind == vkUserdata and v.ud.cls == textureClass: return v.ud.handle
-  if v.kind == vkString:
-    let id = loadModTexture(vm.modFile(v.str.s, what))
-    if id == 0: vm.runtimeError(what & ": could not load '" & v.str.s & "' (PNG or GIF expected)")
-    return id
-  vm.runtimeError(what & ": texture expected (assets.texture(...) or a file name)")
+  ## A texture (or video) handle, or a path (loaded on the spot).
+  if v.kind == vkUserdata and (v.ud.cls == textureClass or v.ud.cls == videoClass):
+    return v.ud.handle
+  if v.kind == vkString: return vm.loadTextureFile(v.str.s, what)
+  vm.runtimeError(what & ": texture expected (assets.texture(...), assets.video(...) or a file name)")
 
 proc loadModelFile(vm: VM, rel, what: string): int =
   ## A model from the mod's folder.
@@ -1451,9 +1499,8 @@ proc readDesktopEntry(vm: VM, t: ScriptTable, what: string, icon: var BodyReplac
   elif ic.kind == vkUserdata:
     icon.id = vm.textureId(ic, what & " icon")
   elif ic.kind == vkString:
-    # By extension: an image is a texture, anything else is tried as a model.
-    let ext = ic.str.s.toLowerAscii
-    if ext.endsWith(".png") or ext.endsWith(".gif"): icon.id = vm.textureId(ic, what & " icon")
+    # By extension: an image or a video is a texture, anything else is tried as a model.
+    if isTextureFile(ic.str.s): icon.id = vm.textureId(ic, what & " icon")
     else: icon.model = vm.modelId(ic, what & " icon")
   elif ic.kind != vkNil:
     vm.runtimeError(what & ": icon must be a texture, a model or a file name")
@@ -1536,6 +1583,13 @@ proc installAssetLibraries(base: ScriptTable) =
           vm.runtimeError("shader:set() needs a shader (call it with ':')")
         let name = vm.checkStr(a, 1, "set")
         let v = arg(a, 2)
+        if v.kind == vkUserdata and (v.ud.cls == textureClass or v.ud.cls == videoClass):
+          # shader:set("noise", tex): a sampler2D reads a texture or a video
+          let status = setModShaderTexture(self.ud.handle, name, v.ud.handle)
+          if status < 0:
+            vm.argError("set", 2, "a shader reads at most " & $MaxShaderTextures & " textures")
+          r.setRet(vbool(status > 0))
+          return
         var vals: seq[float32]
         if v.kind == vkNumber: vals.add(v.n.float32)
         elif v.kind == vkTable and v.tbl.len in 2..4:
@@ -1566,25 +1620,193 @@ proc installAssetLibraries(base: ScriptTable) =
     else: vm.runtimeError("model has no field '" & keyName(key) & "'")
   modelClass.tostr = proc (ud: Userdata): string = "model #" & $ud.handle
 
+  # A method of a video or music handle: checks `self`, then runs `body`, which
+  # sees `vm`, `args` and the handle's `id` (a video's is its texture id).
+  template mediaMethod(klass: UdClass, kindName, mname: string, body: untyped): ScriptValue {.dirty.} =
+    vnative(newNative(mname, proc (vm: VM, args: openArray[ScriptValue], r: var RetVals) =
+      let self = arg(args, 0)
+      if self.kind != vkUserdata or self.ud.cls != klass:
+        vm.runtimeError(kindName & ":" & mname & "() needs a " & kindName & " (call it with ':')")
+      let id = self.ud.handle
+      body))
+  proc numberArg(vm: VM, v: ScriptValue, what: string): float =
+    if v.kind != vkNumber or not (abs(v.n) < 1.0e9): vm.runtimeError(what & " must be a number")
+    v.n
+
+  videoClass = UdClass(name: "video")
+  videoClass.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
+    let info = videoInfo(textureVideo(ud.handle))
+    case keyName(key)
+    of "width": vnum(info.width)
+    of "height": vnum(info.height)
+    of "duration": vnum(info.duration)
+    of "time": vnum(info.time)
+    of "fps": vnum(info.fps)
+    of "playing": vbool(info.playing)
+    of "paused": vbool(info.paused)
+    of "ended": vbool(info.ended)
+    of "hasAudio": vbool(info.hasAudio)
+    of "loop": vbool(info.loop)
+    of "volume": vnum(info.volume.float64)
+    of "play":
+      mediaMethod(videoClass, "video", "play"):
+        playVideo(textureVideo(id))
+    of "pause":
+      mediaMethod(videoClass, "video", "pause"):
+        pauseVideo(textureVideo(id))
+    of "stop":
+      mediaMethod(videoClass, "video", "stop"):
+        stopVideo(textureVideo(id))
+    of "seek":
+      mediaMethod(videoClass, "video", "seek"):
+        seekVideo(textureVideo(id), vm.numberArg(arg(args, 1), "video:seek's seconds"))
+    else: vm.runtimeError("video has no field '" & keyName(key) & "'")
+  videoClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
+    case keyName(key)
+    of "loop": setVideoLoop(textureVideo(ud.handle), truthy(val))
+    of "volume": setVideoVolume(textureVideo(ud.handle), vm.numberArg(val, "video.volume").float32)
+    else: vm.runtimeError("video." & keyName(key) & " cannot be set (only loop and volume)")
+  videoClass.tostr = proc (ud: Userdata): string = "video #" & $ud.handle
+
+  musicClass = UdClass(name: "music")
+  musicClass.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
+    let info = musicInfo(ud.handle)
+    case keyName(key)
+    of "duration": vnum(info.duration.float64)
+    of "time": vnum(info.time.float64)
+    of "playing": vbool(info.playing)
+    of "paused": vbool(info.paused)
+    of "loop": vbool(info.loop)
+    of "layer": vbool(info.layer)
+    of "volume": vnum(info.volume.float64)
+    of "pitch": vnum(info.pitch.float64)
+    of "pan": vnum(info.pan.float64)
+    of "play":
+      mediaMethod(musicClass, "music", "play"):
+        playModMusic(id, not modCtx.game.isNil)
+    of "pause":
+      mediaMethod(musicClass, "music", "pause"):
+        pauseModMusic(id)
+    of "stop":
+      mediaMethod(musicClass, "music", "stop"):
+        stopModMusic(id)
+    of "seek":
+      mediaMethod(musicClass, "music", "seek"):
+        seekModMusic(id, vm.numberArg(arg(args, 1), "music:seek's seconds").float32)
+    else: vm.runtimeError("music has no field '" & keyName(key) & "'")
+  musicClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
+    var m = musicInfo(ud.handle)
+    case keyName(key)
+    of "loop": m.loop = truthy(val)
+    of "layer": m.layer = truthy(val)
+    of "volume": m.volume = vm.numberArg(val, "music.volume").float32
+    of "pitch": m.pitch = vm.numberArg(val, "music.pitch").float32
+    of "pan": m.pan = vm.numberArg(val, "music.pan").float32
+    else: vm.runtimeError("music." & keyName(key) & " cannot be set " &
+                          "(only loop, layer, volume, pitch and pan)")
+    setMusicOption(ud.handle, m.loop, m.layer, m.volume, m.pitch, m.pan)
+  musicClass.tostr = proc (ud: Userdata): string = "music #" & $ud.handle
+
+  fontClass = UdClass(name: "font")
+  fontClass.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
+    if keyName(key) == "size": return vnum(fontBaseSize(ud.handle))
+    vm.runtimeError("font has no field '" & keyName(key) & "'")
+  fontClass.tostr = proc (ud: Userdata): string = "font #" & $ud.handle
+
   let assetsT = newScriptTable()
   assetsT.reg("texture") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## local tex = assets.texture("sprites/ship.png")  -- PNG or GIF in your mod folder
-    let rel = vm.checkStr(args, 0, "texture")
-    let id = loadModTexture(vm.modFile(rel, "assets.texture"))
-    if id == 0: vm.runtimeError("assets.texture: could not load '" & rel & "' (PNG or GIF expected)")
+    ## local tex = assets.texture("sprites/ship.png")  -- an image (PNG, JPG, GIF, ...)
+    ## or a video in your mod folder
+    let id = vm.loadTextureFile(vm.checkStr(args, 0, "texture"), "assets.texture")
     ret.setRet(vud(Userdata(cls: textureClass, handle: id, key: cast[pointer](id))))
+  assetsT.reg("video") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## local clip = assets.video("intro.mpg")  -- MPEG-1 (convert anything else with
+    ## ffmpeg, see MODDING.md). Goes wherever a texture goes.
+    let rel = vm.checkStr(args, 0, "video")
+    let id = vm.loadTextureFile(rel, "assets.video")
+    if textureVideo(id) == 0:
+      vm.runtimeError("assets.video: " & rel & ": not a video (an MPEG-1 .mpg file is)")
+    ret.setRet(vud(Userdata(cls: videoClass, handle: id, key: cast[pointer](id + 400000))))
+  assetsT.reg("music") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## local theme = assets.music("music/theme.ogg"); theme:play()
+    let rel = vm.checkStr(args, 0, "music")
+    var err = ""
+    let id = loadModMusic(vm.modFile(rel, "assets.music"), err)
+    if id == 0: vm.runtimeError("assets.music: " & rel & ": " & err)
+    ret.setRet(vud(Userdata(cls: musicClass, handle: id, key: cast[pointer](id + 500000))))
+  assetsT.reg("font") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## local f = assets.font("fonts/pixel.ttf" [, {size = 32, smooth = true, chars = "..."}])
+    let rel = vm.checkStr(args, 0, "font")
+    let opts = arg(args, 1)
+    if opts.kind notin {vkNil, vkTable}: vm.argError("font", 1, "options must be a table")
+    let ext = rel.splitFile.ext.toLowerAscii
+    var size = 32
+    var smooth = ext in [".ttf", ".otf"]   # bitmap fonts stay sharp
+    var chars = ""
+    if opts.kind == vkTable:
+      let s = rawGetStr(opts.tbl, "size")
+      if s.kind == vkNumber and s.n >= 4 and s.n <= 256: size = int(s.n)
+      elif s.kind != vkNil: vm.runtimeError("assets.font: size must be a number from 4 to 256")
+      let sm = rawGetStr(opts.tbl, "smooth")
+      if sm.kind != vkNil: smooth = truthy(sm)
+      let c = rawGetStr(opts.tbl, "chars")
+      if c.kind == vkString: chars = c.str.s
+      elif c.kind != vkNil: vm.runtimeError("assets.font: chars must be a string")
+    var err = ""
+    let id = loadModFont(vm.modFile(rel, "assets.font"), size, smooth, chars, err)
+    if id == 0: vm.runtimeError("assets.font: " & rel & ": " & err)
+    ret.setRet(vud(Userdata(cls: fontClass, handle: id, key: cast[pointer](id + 600000))))
+  assetsT.reg("text") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## assets.text("data/story.txt") -> the file's contents (a string)
+    let rel = vm.checkStr(args, 0, "text")
+    let path = vm.modFile(rel, "assets.text")
+    if getFileSize(path) > MaxModDataFile:
+      vm.runtimeError("assets.text: " & rel & " is larger than 16 MB")
+    try: ret.setRet(vstr(readFile(path)))
+    except IOError: vm.runtimeError("assets.text: cannot read " & rel)
+  assetsT.reg("json") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## assets.json("data/levels.json") -> its value (tables, numbers, strings, booleans)
+    let rel = vm.checkStr(args, 0, "json")
+    let path = vm.modFile(rel, "assets.json")
+    if getFileSize(path) > MaxModDataFile:
+      vm.runtimeError("assets.json: " & rel & " is larger than 16 MB")
+    var node: JsonNode
+    try: node = parseJson(readFile(path))
+    except IOError: vm.runtimeError("assets.json: cannot read " & rel)
+    except JsonParsingError as e: vm.runtimeError("assets.json: " & rel & ": " & e.msg)
+    except ValueError as e: vm.runtimeError("assets.json: " & rel & ": " & e.msg)
+    ret.setRet(fromJsonNode(node))
+  assetsT.reg("exists") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## assets.exists("music/boss.ogg") -> is there such a file (or folder) in your mod?
+    let path = vm.modPath(vm.checkStr(args, 0, "exists"), "assets.exists")
+    ret.setRet(vbool(fileExists(path) or dirExists(path)))
+  assetsT.reg("list") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## assets.list(["levels"]) -> the names in a folder of your mod, sorted;
+    ## folders end with "/"
+    let rel = vm.optStr(args, 0, "list", "")
+    let path = if rel.len == 0 or rel == ".": mods[vm.requireOwner("assets.list")].dir
+               else: vm.modPath(rel, "assets.list")
+    if not dirExists(path): vm.runtimeError("assets.list: no folder '" & rel & "' in the mod")
+    var names: seq[string]
+    for kind, entry in walkDir(path, relative = true):
+      names.add(if kind in {pcDir, pcLinkToDir}: entry & "/" else: entry)
+    names.sort(cmpIgnoreCase)
+    ret.setRet(namesTable(names))
   assetsT.reg("sound") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local s = assets.sound("sfx/zap.wav"); s:play([volume, pitch])
     let rel = vm.checkStr(args, 0, "sound")
     let id = loadModSound(vm.modFile(rel, "assets.sound"))
-    if id == 0: vm.runtimeError("assets.sound: could not load '" & rel & "' (WAV/OGG/MP3)")
+    if id == 0: vm.runtimeError("assets.sound: could not load '" & rel & "' (WAV, OGG, MP3, FLAC or QOA)")
     ret.setRet(vud(Userdata(cls: soundClass, handle: id, key: cast[pointer](id + 100000))))
   assetsT.reg("shader") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## local crt = assets.shader("fx/crt.fs")  -- a GLSL fragment shader; it gets
-    ## `time` and `resolution` uniforms, and shader:set(name, value) for yours.
+    ## local crt = assets.shader("fx/crt.fs" [, "fx/crt.vs"])  -- a GLSL fragment
+    ## shader (and a vertex shader); it gets `time` and `resolution` uniforms,
+    ## and shader:set(name, value) for yours (numbers, vectors, textures).
     let rel = vm.checkStr(args, 0, "shader")
+    let vsRel = vm.optStr(args, 1, "shader", "")
+    let vs = if vsRel.len > 0: vm.modFile(vsRel, "assets.shader") else: ""
     var err = ""
-    let id = loadModShader(vm.modFile(rel, "assets.shader"), err)
+    let id = loadModShader(vm.modFile(rel, "assets.shader"), err, vs)
     if id == 0: vm.runtimeError("assets.shader: " & rel & ": " & err)
     ret.setRet(vud(Userdata(cls: shaderClass, handle: id, key: cast[pointer](id + 200000))))
   assetsT.reg("model") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -1698,7 +1920,7 @@ proc installAssetLibraries(base: ScriptTable) =
     try: st = parseEnum[SoundType]("st" & name.capitalizeAscii)
     except ValueError: vm.argError("sound", 0, "unknown sound '" & name & "'")
     if not setModSound(st, vm.modFile(vm.checkStr(args, 1, "sound"), "override.sound")):
-      vm.runtimeError("override.sound: could not load the file (WAV/OGG/MP3)")
+      vm.runtimeError("override.sound: could not load the file (WAV, OGG, MP3, FLAC or QOA)")
   overrideT.reg("shader") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## override.shader("screen" | "game", shader) -- post-processing over the
     ## whole frame; "game" only while a run is on screen. nil switches it off.
@@ -1723,7 +1945,7 @@ proc installAssetLibraries(base: ScriptTable) =
     try: track = parseEnum[MusicTrack]("mt" & name.capitalizeAscii)
     except ValueError: vm.argError("music", 0, "use \"menu\", \"wave\", \"powerUp\" or \"boss\"")
     if not setModMusic(track, vm.modFile(vm.checkStr(args, 1, "music"), "override.music")):
-      vm.runtimeError("override.music: could not load the file (OGG/MP3/WAV)")
+      vm.runtimeError("override.music: could not load the file (OGG, MP3, WAV, FLAC, QOA, XM or MOD)")
 
   let registerT = rawGetStr(base, "register").tbl
   registerT.reg("gamemode") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):

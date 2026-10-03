@@ -85,3 +85,11 @@ if not fileExists(thisDir() & "/vendor/naylib/src/raylib.nim"):
 # Mod models skin on the GPU (LookShader in mod_assets.nim), so raylib must
 # upload the bone index/weight vertex buffers. naylib leaves that off by default.
 switch("define", "NaylibSupportGpuSkinning")
+
+# Mods load every file format raylib can decode (mod_assets.nim ImageExts /
+# FontExts, MODDING.md): naylib leaves these off by default. They only switch
+# on decoders raylib already carries (stb_image, its GPU texture loaders, its
+# BDF reader, dr_flac).
+for format in ["Bmp", "Tga", "Jpg", "Psd", "Hdr", "Pic", "Pnm", "Ktx", "Pkm", "Pvr", "Astc",
+               "Bdf", "Flac"]:
+  switch("define", "NaylibSupportFileFormat" & format)

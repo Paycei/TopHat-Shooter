@@ -1,0 +1,9 @@
+{
+  "id": "media_player",
+  "name": "Media Player",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "A desktop app that plays videos and music: a seek bar, a music track that takes over the game's music, a playlist read from playlist.json, a time readout in its own LCD font and a desktop icon that is a video. Shows assets.video, assets.music, assets.font and assets.json. Add your own clips (MPEG-1 .mpg) to playlist.json.",
+  "main": "main.lua",
+  "disableAchievements": false
+}

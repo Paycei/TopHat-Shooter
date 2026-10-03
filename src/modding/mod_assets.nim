@@ -9,10 +9,14 @@
 ## Low in the DAG (raylib + types + sound) so the renderers can call the
 ## draw helpers directly. Textures and models are GPU resources: they load
 ## after the window exists and unloadModAssets must run before it closes.
+## A texture may also be a video (mod_media decodes it): it then goes
+## everywhere a texture goes and plays while it is drawn.
 
 import std/[tables, math, strutils, os]
+from std/unicode import runes
 import raylib, rlgl
 import ../types, ../sound
+import mod_media
 
 type
   ModelPose* = object
@@ -42,10 +46,11 @@ type
 
   ModTexture = object
     frames: seq[Texture2D]
-      ## One texture per frame (a PNG has one). Separate textures rather than
-      ## one re-uploaded texture: raylib batches draws, so two sprites of the
-      ## same GIF on different frames in one frame need both frames on the GPU.
+      ## One texture per frame (a still image has one). Separate textures rather
+      ## than one re-uploaded texture: raylib batches draws, so two sprites of
+      ## the same GIF on different frames in one frame need both on the GPU.
     ends: seq[float32]  ## animated: when each frame ends, in seconds into the loop
+    video: int          ## a video (mod_media id; no frames here): its picture
     path: string
 
   ModCosmeticKind* = enum
@@ -120,14 +125,54 @@ proc gifFrameDelays(data: string): seq[float32] =
       result.add(float32(if delay < 2: 10 else: delay) / 100)
     else: break                           # trailer (or a damaged file)
 
-proc loadModTexture*(path: string): int =
-  ## Load a PNG, or a GIF with all of its frames and their timing (once per
-  ## path). Returns the texture id, 0 on failure.
+const
+  ImageExts* = [".png", ".jpg", ".jpeg", ".bmp", ".tga", ".gif", ".qoi", ".psd", ".hdr", ".pic",
+                ".ppm", ".pgm", ".dds", ".ktx", ".pkm", ".pvr", ".astc"]
+    ## Every image format raylib decodes here (config.nims switches them on).
+  VideoExts* = [".mpg", ".mpeg"]
+    ## MPEG-1 (built in through pl_mpeg, so it plays the same everywhere)
+  OtherVideoExts = [".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi", ".wmv", ".ogv", ".flv"]
+    ## not played: only named so the error says how to convert them
+  ImageFormatList* = "PNG, JPG, BMP, TGA, GIF, QOI, PSD, HDR, PIC, PPM/PGM, DDS, KTX, PKM, PVR or ASTC"
+
+proc isTextureFile*(path: string): bool =
+  ## A file that loads as a texture: an image or a video.
+  let ext = path.splitFile.ext.toLowerAscii
+  ext in ImageExts or ext in VideoExts
+
+proc textureFrameAtImpl(t: ModTexture, time: float): int =
+  ## The frame (0-based) an animated texture shows `time` seconds into its
+  ## animation, which loops. Always 0 for a still image or a video.
+  if t.ends.len == 0: return 0
+  let at = floorMod(time, t.ends[^1].float).float32
+  var lo = 0
+  var hi = t.ends.high
+  while lo < hi:                  # the first frame that has not ended at `at`
+    let mid = (lo + hi) div 2
+    if t.ends[mid] <= at: lo = mid + 1
+    else: hi = mid
+  lo
+
+proc loadModTexture*(path: string, err: var string): int =
+  ## Load an image, a GIF with all of its frames and their timing, or a video
+  ## (once per path). Returns the texture id, 0 with `err` set on failure.
   for i in 0 ..< modTextures.len:   # (by index: a texture cannot be copied)
     if modTextures[i].path == path: return i + 1
+  let ext = path.splitFile.ext.toLowerAscii
   var t = ModTexture(path: path)
+  if ext in VideoExts:
+    t.video = loadModVideo(path, err)
+    if t.video == 0: return 0
+    modTextures.add(move t)
+    return modTextures.len
+  if ext in OtherVideoExts:
+    err = "only MPEG-1 .mpg videos play; convert it with: " & ConvertHint
+    return 0
+  if ext notin ImageExts:
+    err = "unsupported format (" & ImageFormatList & " images, or an MPEG-1 .mpg video)"
+    return 0
   try:
-    if path.toLowerAscii.endsWith(".gif"):
+    if ext == ".gif":
       let data = readFile(path)
       var count = [0'i32]
       let img = loadImageAnimFromMemory(".gif", data.toOpenArrayByte(0, data.high), count)
@@ -146,12 +191,39 @@ proc loadModTexture*(path: string): int =
           at += (if f < delays.len: delays[f] else: 0.1'f32)
           t.ends.add(at)
     else:
-      t.frames.add(loadTexture(path))
+      # Read here rather than by raylib: its loader matches only ".png" or
+      # ".PNG" (not ".Png"), and Nim opens paths with any characters in them.
+      let data = readFile(path)
+      if data.len == 0:
+        err = "the file is empty"
+        return 0
+      let img = loadImageFromMemory(ext, data.toOpenArrayByte(0, data.high))
+      t.frames.add(loadTextureFromImage(img))
   except CatchableError:
+    err = "could not load the image (a damaged file, or a format variant raylib cannot read)"
     return 0
   for f in 0 ..< t.frames.len: setTextureFilter(t.frames[f], TextureFilter.Bilinear)
   modTextures.add(move t)
   modTextures.len
+
+proc loadModTexture*(path: string): int =
+  var err = ""
+  loadModTexture(path, err)
+
+proc textureVideo*(id: int): int =
+  ## The video (mod_media id) texture `id` shows; 0 for an image.
+  if id <= 0 or id > modTextures.len: 0 else: modTextures[id - 1].video
+
+proc frameTexture(id: int, time: float, frame = -1): ptr Texture2D =
+  ## What texture `id` shows now: a GIF's frame `time` seconds into its loop
+  ## (or `frame`, 0-based), a video's current picture (asking for it is what
+  ## keeps the video playing), else the image. `id` must be valid.
+  let m = addr modTextures[id - 1]
+  if m.video > 0: return videoTexture(m.video)
+  let f = if frame >= 0: frame mod m.frames.len
+          elif m.ends.len > 0: textureFrameAtImpl(m[], time)
+          else: 0
+  addr m.frames[f]
 
 type ModSound = object
   src: Sound
@@ -186,38 +258,120 @@ proc playModSound*(id: int, volume, pitch: float32) =
   setSoundPitch(voice, pitch)
   raylib.playSound(voice)
 
+# -------------------------------------------------------------------- fonts ----
+# assets.font: TrueType/OpenType fonts (baked at one size), BMFont .fnt and BDF
+# bitmap fonts, for draw.text and draw3d.text. Every font carries ASCII and
+# Latin-1 (the game's own text range, so Spanish shows) plus any characters the
+# mod asks for.
+type ModFont = object
+  font: Font
+  key: string
+
+const FontExts* = [".ttf", ".otf", ".fnt", ".bdf"]
+
+var modFonts: seq[ModFont]
+
+proc loadModFont*(path: string, size: int, smooth: bool, extra: string, err: var string): int =
+  ## Load a font (once per file and options): TTF/OTF glyphs are baked at
+  ## `size` pixels; a .fnt or .bdf keeps its own size. `extra` lists more
+  ## characters to bake. Returns the font id, 0 with `err` set.
+  let ext = path.splitFile.ext.toLowerAscii
+  if ext notin FontExts:
+    err = "unsupported format (TTF, OTF, FNT or BDF expected)"
+    return 0
+  let key = path & "|" & $size & "|" & $smooth & "|" & extra
+  for i in 0 ..< modFonts.len:
+    if modFonts[i].key == key: return i + 1
+  var codepoints: seq[int32]
+  for c in 32 .. 126: codepoints.add c.int32
+  for c in 160 .. 255: codepoints.add c.int32
+  for r in extra.runes:
+    if r.int32 >= 32 and r.int32 notin codepoints: codepoints.add r.int32
+  if codepoints.len * size * size > 4096 * 4096:
+    err = "too many characters at this size for one font atlas"
+    return 0
+  var f: Font
+  try:
+    f = if ext == ".fnt": loadFont(path) else: loadFont(path, size.int32, codepoints)
+  except CatchableError:
+    err = "could not load the font (a damaged file, or no glyphs in it)"
+    return 0
+  # raylib hands back its own default font when a file has no usable glyphs
+  # (unloading it is a no-op, so letting `f` go is safe).
+  if f.texture.id == getFontDefault().texture.id:
+    err = "could not load the font (a damaged file, or no glyphs in it)"
+    return 0
+  setTextureFilter(f.texture, if smooth: TextureFilter.Bilinear else: TextureFilter.Point)
+  modFonts.add(ModFont(font: move f, key: key))
+  modFonts.len
+
+proc fontBaseSize*(id: int): int =
+  ## The size (pixels) a font's glyphs were made at: text drawn at it is crispest.
+  if id <= 0 or id > modFonts.len: 0 else: modFonts[id - 1].font.baseSize.int
+
+proc drawModText*(id: int, text: string, x, y, size, spacing: float32, tint: Color) =
+  ## Text in font `id` (UTF-8), its top-left corner at (x, y).
+  if id <= 0 or id > modFonts.len: return
+  drawText(modFonts[id - 1].font, text, Vector2(x: x, y: y), size, spacing, tint)
+
+proc measureModText*(id: int, text: string, size, spacing: float32): float32 =
+  if id <= 0 or id > modFonts.len: 0.0'f32
+  else: measureText(modFonts[id - 1].font, text, size, spacing).x
+
 # ------------------------------------------------------------------ shaders ----
-# assets.shader / override.shader: GLSL fragment shaders run over the finished
-# frame (post-processing). "screen" covers everything; "game" only while a run
-# is on screen (and wins over "screen" then).
+# assets.shader / override.shader: GLSL fragment shaders (with an optional
+# vertex shader) run over the finished frame (post-processing). "screen" covers
+# everything; "game" only while a run is on screen (and wins over "screen"
+# then). A shader may sample mod textures and videos (shader:set).
 type ModShader = object
   shader: Shader
-  path: string
+  key: string
   time, resolution: ShaderLocation
+  samplers: seq[tuple[loc: ShaderLocation, tex: int]]
+
+const MaxShaderTextures* = 4   ## raylib's extra texture units per draw batch
 
 var
   modShaders: seq[ModShader]
   screenShader*, gameShader*: int   ## override.shader targets (index + 1, 0 = none)
   postShaderInRun*: bool            ## main.nim, each frame: is a run on screen?
 
-proc loadModShader*(path: string, err: var string): int =
-  ## A fragment shader file (raylib's default vertex shader). 0 and `err` set
-  ## when it cannot be used; GLSL compile errors fall back to raylib's default
-  ## shader, which is reported here rather than silently drawing nothing new.
+proc loadModShader*(path: string, err: var string, vertexPath = ""): int =
+  ## A fragment shader file, with a vertex shader file or raylib's default
+  ## one. 0 and `err` set when it cannot be used; GLSL compile errors fall back
+  ## to raylib's default shader, which is reported here rather than silently
+  ## drawing nothing new.
+  let key = path & "|" & vertexPath
   for i in 0 ..< modShaders.len:
-    if modShaders[i].path == path: return i + 1
+    if modShaders[i].key == key: return i + 1
   try:
-    var s = loadShader("", path)
+    var s = loadShader(vertexPath, path)
     if s.id == 0 or s.id == getShaderIdDefault():
-      err = "the shader did not compile (GLSL fragment shader expected)"
+      err = "the shader did not compile (GLSL 330 expected; the Log tab has the reason)"
       return 0
     let t = getShaderLocation(s, "time")
     let r = getShaderLocation(s, "resolution")
-    modShaders.add(ModShader(shader: move s, path: path, time: t, resolution: r))
+    modShaders.add(ModShader(shader: move s, key: key, time: t, resolution: r))
     modShaders.len
   except CatchableError as e:
     err = e.msg
     0
+
+proc setModShaderTexture*(id: int, name: string, tex: int): int =
+  ## shader:set(name, texture): a sampler2D uniform reads texture `tex` (a
+  ## GIF's current frame, a video's picture). 1 = set, 0 = the shader has no
+  ## such uniform, -1 = it already reads MaxShaderTextures others.
+  if id <= 0 or id > modShaders.len: return 0
+  let s = addr modShaders[id - 1]
+  let loc = getShaderLocation(s.shader, name)
+  if loc.int32 < 0: return 0
+  for e in s.samplers.mitems:
+    if e.loc.int32 == loc.int32:
+      e.tex = tex
+      return 1
+  if s.samplers.len >= MaxShaderTextures: return -1
+  s.samplers.add((loc, tex))
+  1
 
 proc setModShaderValue*(id: int, name: string, values: openArray[float32]): bool =
   ## shader:set(name, value): a float or a 2-4 float vector. False if the
@@ -242,6 +396,12 @@ proc beginPostShader*(w, h: float32, time: float32): bool =
   if s.time.int32 >= 0: setShaderValue(s.shader, s.time, time)
   if s.resolution.int32 >= 0: setShaderValue(s.shader, s.resolution, [w, h])
   beginShaderMode(s.shader)
+  # Texture units are claimed per draw batch, and beginShaderMode just ended
+  # the last one, so the samplers are bound again on every use.
+  let now = getTime()
+  for (loc, tex) in s.samplers:
+    if tex > 0 and tex <= modTextures.len:
+      setShaderValueTexture(s.shader, loc, frameTexture(tex, now)[])
   true
 
 # ------------------------------------------------------------------- models ----
@@ -755,11 +915,14 @@ proc unloadModModels() =
 
 proc textureSize*(id: int): tuple[w, h: int] =
   if id <= 0 or id > modTextures.len: return (0, 0)
+  if modTextures[id - 1].video > 0: return videoSize(modTextures[id - 1].video)
   (modTextures[id - 1].frames[0].width.int, modTextures[id - 1].frames[0].height.int)
 
 proc textureFrames*(id: int): int =
-  ## Frames of texture `id`: 1 for a still image, 0 for no texture.
-  if id <= 0 or id > modTextures.len: 0 else: modTextures[id - 1].frames.len
+  ## Frames of texture `id`: 1 for a still image or a video, 0 for no texture.
+  if id <= 0 or id > modTextures.len: 0
+  elif modTextures[id - 1].video > 0: 1
+  else: modTextures[id - 1].frames.len
 
 proc textureDuration*(id: int): float32 =
   ## One loop of an animated texture, in seconds (0 for a still image).
@@ -768,25 +931,18 @@ proc textureDuration*(id: int): float32 =
 
 proc textureFrameAt*(id: int, time: float): int =
   ## The frame (0-based) an animated texture shows `time` seconds into its
-  ## animation, which loops. Always 0 for a still image.
-  if id <= 0 or id > modTextures.len: return 0
-  let t = addr modTextures[id - 1]
-  if t.ends.len == 0: return 0
-  let at = floorMod(time, t.ends[^1].float).float32
-  var lo = 0
-  var hi = t.ends.high
-  while lo < hi:                  # the first frame that has not ended at `at`
-    let mid = (lo + hi) div 2
-    if t.ends[mid] <= at: lo = mid + 1
-    else: hi = mid
-  lo
+  ## animation, which loops. Always 0 for a still image or a video.
+  if id <= 0 or id > modTextures.len: 0 else: textureFrameAtImpl(modTextures[id - 1], time)
 
 proc markActive*() =
   modTexturesActive = true
 
 proc unloadModAssets*() =
-  ## Drop every mod texture, model, replacement, cosmetic and sound override.
+  ## Drop every mod texture, video, music, font, model, replacement, cosmetic
+  ## and sound override.
   modTextures.setLen(0)
+  unloadModMedia()
+  modFonts.setLen(0)
   modShaders.setLen(0)
   screenShader = 0
   gameShader = 0
@@ -817,13 +973,9 @@ proc drawModTexture*(id: int, x, y, w, h, rotationDeg: float32, tint: Color,
                      centered = true, frame = -1) =
   ## Draw texture `id` into a w x h box at (x, y) (its centre when `centered`).
   ## An animated GIF plays on the wall clock, like the game's own animated
-  ## bodies, unless `frame` (0-based) picks one.
+  ## bodies, unless `frame` (0-based) picks one; a video shows its picture.
   if id <= 0 or id > modTextures.len: return
-  let m = addr modTextures[id - 1]
-  let f = if frame >= 0: frame mod m.frames.len
-          elif m.ends.len > 0: textureFrameAt(id, getTime())
-          else: 0
-  let t = addr m.frames[f]
+  let t = frameTexture(id, getTime(), frame)
   let src = Rectangle(x: 0, y: 0, width: t.width.float32, height: t.height.float32)
   if centered:
     drawTexture(t[], src, Rectangle(x: x, y: y, width: w, height: h),
@@ -866,20 +1018,14 @@ proc drawBodyWorld3D*(r: BodyReplace, cam: Camera, x, y, z, diameter, yawDeg: fl
                      r.pose.yaw + (if r.rotate: yawDeg else: 0.0'f32), r.pose.pitch, r.pose.roll,
                      r.pose, tint, time, key)
   elif r.id > 0 and r.id <= modTextures.len:
-    let m = addr modTextures[r.id - 1]
-    let f = if m.ends.len > 0: textureFrameAt(r.id, time) else: 0
-    drawBillboard(cam, m.frames[f], Vector3(x: x, y: y, z: z), size, tint)
+    drawBillboard(cam, frameTexture(r.id, time)[], Vector3(x: x, y: y, z: z), size, tint)
 
 proc drawTextureBillboard*(id: int, cam: Camera, x, y, z, size: float32, tint: Color,
                            frame = -1) =
   ## draw3d.billboard: texture `id` (a GIF plays on the wall clock unless
   ## `frame`, 0-based, picks one) facing the camera, `size` world units wide.
   if id <= 0 or id > modTextures.len: return
-  let m = addr modTextures[id - 1]
-  let f = if frame >= 0: frame mod m.frames.len
-          elif m.ends.len > 0: textureFrameAt(id, getTime())
-          else: 0
-  drawBillboard(cam, m.frames[f], Vector3(x: x, y: y, z: z), size, tint)
+  drawBillboard(cam, frameTexture(id, getTime(), frame)[], Vector3(x: x, y: y, z: z), size, tint)
 
 proc cosmeticAt(idx: int): ptr ModCosmetic {.inline.} =
   if idx > 0 and idx <= modCosmetics.len: addr modCosmetics[idx - 1] else: nil

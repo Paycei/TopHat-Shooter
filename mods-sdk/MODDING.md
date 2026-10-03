@@ -8,8 +8,8 @@ A mod can reach almost everything: every field of the game state (down to
 nested lists and objects), replace the game's own behaviour at dozens of
 points (movement, dash, shooting, bullets, pickups, the shop, level-ups,
 enemy AI, boss attacks...), hide the HUD and draw its own, build first-person 3D worlds, dress the game in
-textures and 3D models, post-process the screen with shaders, and add its
-own apps to the desktop.
+textures, videos and 3D models, play its own music, write in its own fonts,
+post-process the screen with shaders, and add its own apps to the desktop.
 
 > **Modded runs count as cheated.** Any run started while at least one mod is
 > loaded earns no Data Shards, statistics, advancements or unlocks. The one
@@ -428,7 +428,12 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   `tex.height`); draw it inside a draw hook with
   `draw.texture(tex, x, y [, {w = .., h = .., rotation = degrees, tint = color,
   origin = "center" | "topleft"}])`.
-* Textures are PNG or GIF files, and an **animated GIF** plays by itself
+* Textures are images in any of these formats: **PNG, JPG, BMP, TGA, GIF,
+  QOI, PSD** (the merged image), **HDR, PIC, PPM/PGM, DDS, KTX, PKM, PVR** and
+  **ASTC** (the last four are GPU-compressed formats, which load only where
+  the graphics card supports them). Upper or lower case in the extension does
+  not matter. A video works as a texture too (see [Videos](#videos)).
+* An **animated GIF** plays by itself
   anywhere a texture goes (`draw.texture`, `override.texture`, cosmetics), at
   the frame delays saved in the file, looping. Every copy on screen shows the
   same frame. `tex.frames` is its number of frames and `tex.duration` one loop
@@ -438,8 +443,10 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   1/10 s, as in web browsers. GIF transparency is all or nothing per pixel, so
   use a PNG for soft edges.
 * `assets.sound("sfx/zap.wav")` returns a sound: `snd:play([volume, pitch])`.
+  WAV, OGG, MP3, FLAC or QOA. For music, and any sound that should loop or
+  be paused, use `assets.music` (see [Music](#music)).
 * `override.texture(target, file [, {scale = 1.2, rotate = true}])` draws an
-  image (PNG or GIF) instead of one of the game's bodies. Targets: `"player"`, `"enemy:<type>"`,
+  image or a video instead of one of the game's bodies. Targets: `"player"`, `"enemy:<type>"`,
   `"boss:<id>"`, `"bullet:player"`, `"bullet:enemy"`, `"powerup:<name>"` (its
   icon) and `"desktop"` (the wallpaper), plus the 3D-world targets `"boss3d"`,
   `"satellite3d"`, `"entity3d:<tag>"`, `"projectile3d:player"`,
@@ -454,9 +461,10 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
 * `override.sound(name, file)` replaces one of the game's sounds (`shoot`,
   `enemyHit`, `enemyDeath`, `playerHit`, `coinPickup`, `powerUp`, `bossSpawn`,
   `explosion`, `wallPlace`, `teleport`, `menuNav`, `menuSelect`,
-  `waveComplete`, `shield`, `gameOver`, `buy`, ...). WAV, OGG or MP3.
+  `waveComplete`, `shield`, `gameOver`, `buy`, ...). WAV, OGG, MP3, FLAC or QOA.
 * `override.music(track, file)` replaces a music track: `"menu"`, `"wave"`,
-  `"powerUp"` or `"boss"`.
+  `"powerUp"` or `"boss"`. OGG, MP3, WAV, FLAC, QOA, or the tracker formats
+  XM and MOD.
 * `register.cosmetic{kind = "player" | "bullet" | "desktop" | "cube", id = "neon",
   name = "Neon", description = "...", colors = {"#ff00ff", "#00ffff", "#ffffff"},
   texture = "skins/neon.png", scale = 1.2, rotate = true}` adds a cosmetic the
@@ -473,6 +481,91 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
 Equipped mod cosmetics are remembered per profile and come back whenever the
 mod is loaded. In PvP everyone in the lobby sees each player's mod ship and
 bullet cosmetics.
+
+## Videos
+
+* `assets.video("clips/intro.mpg")` returns a video. A video goes everywhere
+  a texture goes: `draw.texture(clip, x, y, {...})`, `override.texture`,
+  `register.cosmetic{texture = ...}`, app and mode icons, `draw3d.billboard`
+  and `shader:set` (a file name ending in `.mpg` works there too, as with
+  `assets.texture`).
+* **Format.** Videos are **MPEG-1 in an `.mpg` file** (with MP2 sound). The
+  game decodes them itself, so a video plays the same on every system. Convert
+  any other video (MP4, MOV, WebM, ...) with ffmpeg:
+
+  ```
+  ffmpeg -i in.mp4 -c:v mpeg1video -q:v 4 -c:a mp2 -b:a 192k -f mpeg out.mpg
+  ```
+
+  (`-an` leaves the sound out, `-s 640x360` shrinks the picture, and a lower
+  `-q:v` raises the quality. MPEG-1 takes the usual frame rates only: 24, 25,
+  30, 50 or 60.) Any other video file is an error that gives this command.
+* **A video plays while it is on screen.** It starts the first time it is
+  drawn and holds still, sound and all, while nothing draws it (a closed app,
+  a hidden wallpaper), so it costs nothing then. It runs on the wall clock,
+  like a GIF, and every copy on screen shows the same picture: one file is one
+  playback, whichever handle drew it. Until it first plays it shows its first
+  picture.
+* It loops unless `clip.loop = false`; it then stops on its last picture and
+  `clip.ended` turns true.
+* `clip:pause()`, `clip:play()` (an ended video starts over), `clip:stop()`
+  (pauses on the first picture) and `clip:seek(seconds)`.
+* Fields: `width`, `height`, `duration` and `time` (seconds), `fps`,
+  `playing` (moving right now), `paused`, `ended` and `hasAudio`. `loop`
+  (true) and `volume` (1, up to 4) can be set.
+* Its sound follows the game's sound volume. While a video's sound plays, the
+  game's own music waits, and goes on when it stops.
+* Decoding costs time every frame: up to 1280 x 720 at 30 frames a second is
+  comfortable; 1080p works but is heavy.
+
+## Music
+
+* `assets.music("music/theme.ogg")` returns a music track, streamed from the
+  file: OGG, MP3, WAV, FLAC, QOA, XM or MOD.
+* `theme:play()` (from where it was paused, else from the start),
+  `theme:pause()`, `theme:stop()` and `theme:seek(seconds)`.
+* Fields: `duration`, `time`, `playing` and `paused`; and settable `volume` (1,
+  up to 4), `loop` (true), `pitch` (1), `pan` (0; -1 is left, 1 right) and
+  `layer` (false).
+* It follows the game's music volume. While it plays (or is paused) the
+  game's own music waits, and goes on from where it was when yours stops;
+  playing a second track stops the first. A track with `layer = true` plays
+  over the game's music instead (ambience, a drone under a boss), and any
+  number of those can play at once.
+* A track started during a run stops when the run leaves the screen (game
+  over, quitting to the desktop); one started on the desktop (in an app, say)
+  plays on until you stop it.
+
+## Fonts
+
+* `assets.font("fonts/pixel.ttf" [, {size = 32, smooth = true, chars = "..."}])`
+  returns a font: **TTF** or **OTF**, **FNT** (BMFont, with its page images
+  beside it) or **BDF**.
+* Give it to `draw.text`, `draw.textWidth` or `draw3d.text` as the last
+  argument, alone or in a table with the letter spacing:
+  `draw.text("Score", 10, 10, 24, "#ffffff", font)` or
+  `draw.text("Score", 10, 10, 24, "#ffffff", {font = font, spacing = 2})`.
+  Text in your own font may be 1 to 400 pixels tall.
+* A TTF or OTF is made at `size` pixels (4 to 256, 32 by default) and scaled
+  from there, so text at that size is the sharpest; `font.size` tells it. FNT
+  and BDF fonts keep their own size. `smooth` (true for TTF/OTF, false for
+  FNT/BDF) blends the scaled edges rather than keeping hard pixels.
+* Every font carries ASCII and the accented letters of Western European
+  languages (what the game's own text uses). `chars` adds any others it should
+  have, for example `chars = "ĄĘŁŃŚŹŻ"` or a whole alphabet.
+
+## Data files
+
+Data your mod ships with (levels, dialogue, tables) reads from its folder:
+
+* `assets.text("data/story.txt")` returns a file's contents as a string.
+* `assets.json("data/levels.json")` returns its value: tables, numbers,
+  strings and booleans. A malformed file is an error with the line and column.
+* `assets.exists(path)` tells whether a file or folder exists in your mod.
+* `assets.list([folder])` returns the names in a folder of your mod (its top
+  folder without one), sorted; folder names end with `/`.
+
+Each file is at most 16 MB. Lua files load with `require`.
 
 ## 3D models
 
@@ -766,8 +859,8 @@ live ones (`for p in world:pickups() do`).
   options of [3D models](#3d-models), plus `size`, the footprint in world
   units, 8 by default, or `scale`), `billboard(texture, x, y, z [, size = 8,
   tint])` (a sprite that always faces the camera) and
-  `text(text, x, y, z [, size = 20, color])` (a label at a world point, size 10
-  to 120). `draw.*` there is an error (`draw.X is 2D: ... use the draw3d
+  `text(text, x, y, z [, size = 20, color, font])` (a label at a world point,
+  size 10 to 120 in the game's font; a [font](#fonts) of your own goes last). `draw.*` there is an error (`draw.X is 2D: ... use the draw3d
   library`), and so is `draw3d.*` anywhere else.
 * **On the screen** (`world3dDrawHud(world, w, h)`): the ordinary `draw`
   library, in pixels over the view, after the built-in HUD.
@@ -865,10 +958,16 @@ a world (and stop while it is paused).
 GLSL fragment shaders can post-process the whole frame (desktop OpenGL 3.3,
 `#version 330`; see the `retro_crt` example for the inputs raylib passes).
 
-* `assets.shader("fx/crt.fs")` returns a shader. The game fills its `time`
-  (seconds) and `resolution` (pixels) uniforms; `shader:set(name, value)` sets
-  yours (a number, or a list of 2 to 4 numbers). A shader that does not
-  compile is an error with the reason.
+* `assets.shader("fx/crt.fs" [, "fx/crt.vs"])` returns a shader, with your own
+  vertex shader if you give one (it must use raylib's input names:
+  `vertexPosition`, `vertexTexCoord`, `vertexColor`, `mvp`). The game fills its
+  `time` (seconds) and `resolution` (pixels) uniforms; `shader:set(name, value)`
+  sets yours: a number, a list of 2 to 4 numbers, or a texture or video for a
+  `sampler2D` (up to 4 of them; a GIF shows its current frame, a video its
+  current picture). A shader that does not compile is an error with the reason.
+* The frame reaches the shader upside down, so `fragTexCoord` runs from the
+  bottom of the screen: sample your own texture at
+  `vec2(fragTexCoord.x, 1.0 - fragTexCoord.y)` to keep it upright.
 * `override.shader("game", shader)` runs it over every frame while a run is on
   screen; `override.shader("screen", shader)` over everything, desktop
   included. Pass `nil` to switch it off.
@@ -911,7 +1010,7 @@ register.app{
 | `update` | optional, `update(dt)`: runs every frame the window is open and not minimized (not while it is closed or minimized) |
 | `click` | optional, `click(x, y, button, w, h)`: a click inside the canvas (`"left"` or `"right"`), only when this window is the one under the pointer |
 | `drag` | optional, `drag(x, y, w, h)`: called while the left mouse button is held after a click in this app's canvas |
-| `icon` | optional: a texture or model (`assets.texture(...)` / `assets.model(...)`, or a file name: `.png` / `.gif` is a texture, anything else a model) shown in the desktop icon. Without one the icon shows a small window with the app's initial. A model icon also reads the pose options of `override.model` (`tilt`, `spin`, `animation`...) from the same table |
+| `icon` | optional: a texture or model (`assets.texture(...)` / `assets.model(...)`, or a file name: an image or video is a texture, anything else a model) shown in the desktop icon. Without one the icon shows a small window with the app's initial. A model icon also reads the pose options of `override.model` (`tilt`, `spin`, `animation`...) from the same table |
 | `color` | optional accent for the window and the icon tile (default: MODS.EXE green) |
 | `width`, `height` | optional canvas size in pixels (default 480 x 360; 240-960 wide, 160-640 tall) |
 | `resizable` | optional, default `false`. When `true` the player can drag the window's edge: `draw` and `click` then get the current canvas size, so lay out from `w` and `h`. Resizable windows open at least 400 x 300 |
@@ -969,10 +1068,11 @@ optional raylib `GamepadButton` name and defaults to unbound.
   `draw.rect(x, y, w, h, color)`, `draw.rectLines(x, y, w, h, color [, thickness])`,
   `draw.line(x1, y1, x2, y2, color [, thickness])`,
   `draw.poly(x, y, sides, radius, rotationDegrees, color)`,
-  `draw.text(text, x, y, size, color)` (returns the width),
-  `draw.textWidth(text, size)`, and `draw.arena()`, which returns x, y, w, h
+  `draw.text(text, x, y, size, color [, font])` (returns the width),
+  `draw.textWidth(text, size [, font])`, and `draw.arena()`, which returns x, y, w, h
   of the arena (in `drawHud`, where it sits on screen: the widescreen side
-  panels are outside it). Text is at least size 10.
+  panels are outside it). Text in the game's own font is at least size 10; for
+  your own, see [Fonts](#fonts).
 * Colours: `{r = 255, g = 128, b = 0, a = 255}`, `{255, 128, 0}`, or
   `"#ff8000"` / `"#ff8000cc"`. `color.rgb(r, g, b [, a])` and `color.hex(s)`
   build the table form.
@@ -1016,6 +1116,7 @@ replaces an example only when the game ships a newer version of it (a higher
 | `model_pack` | 3D models: a ship skin, 3D bullets, a voxel desktop cube, an animated enemy and a model viewer app with a 3D icon (`disableAchievements: false`) |
 | `arena_3d` | a complete 3D game mode, Cube Siege: waves of entities with built-in AI, pickups, a shotgun tune, a custom HUD, `draw3d` effects and a resumable `run.data` |
 | `orbital_tweaks` | changing the game's own 3D boss fight: extra drones, a phase message and a hit filter |
+| `media_player` | videos and music: a desktop app with a seek bar, a music track that takes over the game's music, a playlist read with `assets.json`, an LCD font and a video as its desktop icon (`disableAchievements: false`) |
 
 ## Multiplayer
 

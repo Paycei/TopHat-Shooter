@@ -765,7 +765,12 @@ proc renderGame3D*(world: Game3D) =
   if world3dLabels.len > 0:
     for label in world3dLabels:
       let sp = worldToScreen3D(world.camera, label.pos)
-      if sp.visible:
+      if sp.visible and label.font > 0:
+        let size = label.size.float32
+        let x = sp.x.float32 - measureModText(label.font, label.text, size, label.spacing) / 2
+        drawModText(label.font, label.text, x + 1, sp.y.float32 + 1, size, label.spacing, fade(Black, 0.7))
+        drawModText(label.font, label.text, x, sp.y.float32, size, label.spacing, label.color)
+      elif sp.visible:
         let w = measureText(label.text, label.size)
         drawText(label.text, int32(sp.x) - w div 2 + 1, int32(sp.y) + 1, label.size, fade(Black, 0.7))
         drawText(label.text, int32(sp.x) - w div 2, int32(sp.y), label.size, label.color)

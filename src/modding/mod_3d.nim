@@ -775,14 +775,18 @@ proc installDraw3dLibrary(base: ScriptTable) =
     let tint = if arg(args, 5).kind == vkNil: White else: parseColor(vm, arg(args, 5), "draw3d.billboard")
     drawTextureBillboard(id, raylibCamera(activeWorld3D.camera), p.x, p.y, p.z, size, tint)
   t.reg("text") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## draw3d.text(text, x, y, z [, size = 20, color]) -- a label at a world point, drawn over the scene
+    ## draw3d.text(text, x, y, z [, size = 20, color, font | {font = f, spacing = px}])
+    ## -- a label at a world point, drawn over the scene
     vm.requireDrawing3D("text")
     let s = vm.checkStr(args, 0, "text")
     let p = vm.vec3Arg(args, 1, "text")
-    let size = clamp(vm.optInt(args, 4, "text", 20), 10, 120).int32
+    let (font, spacing) = vm.textFont(arg(args, 6), "draw3d.text")
+    let size = (if font > 0: fontSize(vm.optNum(args, 4, "text", 20)).int32
+                else: clamp(vm.optInt(args, 4, "text", 20), 10, 120).int32)
     let color = if arg(args, 5).kind == vkNil: White else: parseColor(vm, arg(args, 5), "draw3d.text")
     if world3dLabels.len < MaxWorld3DLabels:
-      world3dLabels.add(World3DLabel(pos: p, text: s, size: size, color: color))
+      world3dLabels.add(World3DLabel(pos: p, text: s, size: size, color: color, font: font,
+                                     spacing: spacing))
 
   rawSet(base, vstr("draw3d"), vtable(t))
 

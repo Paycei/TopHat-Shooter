@@ -1,0 +1,7 @@
+{
+  "videos": [
+    {"file": "clip.mpg", "title": {"en": "Grid Drift", "es": "Deriva de cuadrícula"}},
+    {"file": "my_clip.mpg", "title": {"en": "Your clip here", "es": "Tu video aquí"}}
+  ],
+  "music": {"file": "music.ogg", "title": {"en": "Arpeggio Loop", "es": "Bucle de arpegio"}}
+}

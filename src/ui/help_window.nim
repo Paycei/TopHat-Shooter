@@ -407,7 +407,8 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       const Notices = [
         (tkHelpLicensesRaylib, staticRead("../../vendor/naylib/LICENSE-RAYLIB")),
         (tkHelpLicensesNaylib, staticRead("../../vendor/naylib/LICENSE")),
-        (tkHelpLicensesIntro, staticRead("../../vendor/lua/LICENSE"))]
+        (tkHelpLicensesIntro, staticRead("../../vendor/lua/LICENSE")),
+        (tkHelpLicensesPlMpeg, staticRead("../../vendor/pl_mpeg/LICENSE"))]
       let noticeColor = Color(r: 190, g: 200, b: 215, a: 255)
       for (intro, license) in Notices:
         help.addOutput("", White)

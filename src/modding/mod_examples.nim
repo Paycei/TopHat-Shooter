@@ -59,6 +59,13 @@ const
     ("orbital_tweaks/main.lua", embed("examples/orbital_tweaks/main.lua")),
     ("keybind_demo/mod.json", embed("examples/keybind_demo/mod.json")),
     ("keybind_demo/main.lua", embed("examples/keybind_demo/main.lua")),
+    ("media_player/mod.json", embed("examples/media_player/mod.json")),
+    ("media_player/main.lua", embed("examples/media_player/main.lua")),
+    ("media_player/playlist.json", embed("examples/media_player/playlist.json")),
+    ("media_player/clip.mpg", embed("examples/media_player/clip.mpg")),
+    ("media_player/icon.mpg", embed("examples/media_player/icon.mpg")),
+    ("media_player/music.ogg", embed("examples/media_player/music.ogg")),
+    ("media_player/lcd.bdf", embed("examples/media_player/lcd.bdf")),
   ]
 
 proc exampleModIds*(): seq[string] =

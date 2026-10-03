@@ -1269,6 +1269,8 @@ type World3DLabel* = object
   text*: string
   size*: int32
   color*: Color
+  font*: int          ## a mod font (assets.font), 0 = the game's own
+  spacing*: float32   ## a mod font's letter spacing
 
 const MaxWorld3DLabels* = 512
 var world3dLabels*: seq[World3DLabel]

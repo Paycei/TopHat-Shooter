@@ -2128,9 +2128,26 @@ var
   modMusicBackup: array[MusicTrack, Music]
   modMusicActive: array[MusicTrack, bool]
   modMusicHadVanilla: array[MusicTrack, bool]
+  gameMusicHeld: bool
+    ## A mod's own music (assets.music) or a video's sound has the music
+    ## channel: the game's track waits, paused, and carries on from there.
+
+proc holdGameMusic*(held: bool) =
+  ## mod_media, every frame: whether mod music or video sound is playing.
+  if held == gameMusicHeld:
+    return
+  gameMusicHeld = held
+  let sys = globalSoundSystem
+  if sys == nil or not sys.trackPlaying:
+    return
+  try:
+    if held: pauseMusicStream(sys.cachedMusic[sys.currentTrack])
+    else: resumeMusicStream(sys.cachedMusic[sys.currentTrack])
+  except CatchableError:
+    discard
 
 proc setModSound*(st: SoundType, path: string): bool =
-  ## Replace one of the game's sounds with a WAV/OGG/MP3 file. False if it
+  ## Replace one of the game's sounds with a WAV/OGG/MP3/FLAC/QOA file. False if it
   ## could not be loaded (the built-in sound stays).
   try:
     var s = loadSound(path)
@@ -2145,7 +2162,7 @@ proc setModSound*(st: SoundType, path: string): bool =
     false
 
 proc setModMusic*(track: MusicTrack, path: string): bool =
-  ## Replace one music track with a file (OGG/MP3/WAV). False on failure.
+  ## Replace one music track with a file (OGG/MP3/WAV/FLAC/QOA/XM/MOD). False on failure.
   let sys = globalSoundSystem
   if sys == nil:
     return false
@@ -2251,6 +2268,8 @@ proc switchToTrack(sys: SoundSystem, track: MusicTrack) =
       sys.trackPlaying = false
     setMusicVolume(sys.cachedMusic[track], sys.musicVolume)
     playMusicStream(sys.cachedMusic[track])
+    if gameMusicHeld:
+      pauseMusicStream(sys.cachedMusic[track])   # waits for the mod's music
     sys.currentTrack = track
     sys.trackPlaying = true
   except CatchableError:
@@ -2273,6 +2292,8 @@ proc updateMusic*() =
   let sys = globalSoundSystem
   if sys == nil or not sys.enabled or not sys.trackPlaying:
     return
+  if gameMusicHeld:
+    return   # paused for a mod's music: the restart below would undo that
   try:
     updateMusicStream(sys.cachedMusic[sys.currentTrack])
     # Manually restart if music stopped (seamless looping)
