@@ -312,7 +312,7 @@ proc drawLabelBanner*(title, subtitle: string, age: float32, screenWidth, topY: 
   let alpha = ease * 255.0'f32
   let rect = Rectangle(x: boxX.float32, y: boxY.float32, width: boxW.float32, height: boxH.float32)
   drawRectangleRounded(rect, 0.3'f32, 6, Color(r: 8, g: 16, b: 26, a: uint8(ease * 215.0'f32)))
-  drawRectangleRoundedLines(rect, 0.3'f32, 6, 2.0'f32, withAlpha(accent, alpha))
+  drawRectangleRoundedLines(rect, 0.3'f32, 6, -2.0'f32, withAlpha(accent, alpha))
   let tx = boxX + (boxW - titleW) div 2
   let ty = boxY + 8
   drawText(title, tx + 1, ty + 1, titleSize, Color(r: 0, g: 0, b: 0, a: uint8(alpha * 0.6'f32)))

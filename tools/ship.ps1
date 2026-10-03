@@ -80,6 +80,21 @@ function Get-WslPath([string] $distro, [string] $path) {
     ($p | Select-Object -First 1).Trim()
 }
 
+function Assert-Naylib {
+    # vendor/naylib is a git submodule. Ship only what the game commit records:
+    # a stray checkout or a local edit would make binaries no commit can rebuild.
+    $line = @(git -C $RepoRoot submodule status -- vendor/naylib 2>$null)[0]
+    if ($LASTEXITCODE -ne 0 -or -not $line) { throw 'vendor/naylib is not registered as a submodule.' }
+    switch ($line.Substring(0, 1)) {
+        '-' { throw 'vendor/naylib is empty: run git submodule update --init.' }
+        '+' { throw 'vendor/naylib is at a different commit than the game records: commit the new pointer, or run git submodule update.' }
+        'U' { throw 'vendor/naylib has merge conflicts.' }
+    }
+    if (git -C (Join-Path $RepoRoot 'vendor/naylib') status --porcelain --untracked-files=no) {
+        throw 'vendor/naylib has uncommitted changes: commit them in the submodule (and the new pointer here) first.'
+    }
+}
+
 function Build-Portable {
     Use-Msvc
     Run 'nimble' @('--accept', 'WinReleaseMin') 'nimble WinReleaseMin'
@@ -146,6 +161,7 @@ try {
     }
     Find-Niminst | Out-Null
     Find-Distro  | Out-Null
+    Assert-Naylib
 
     Push-Location $RepoRoot
     try { Run 'nim' @('check', '--mm:orc', 'src/main.nim') 'nim check' }

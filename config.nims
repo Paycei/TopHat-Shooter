@@ -16,6 +16,11 @@ when withDir(thisDir(), system.fileExists("nimble.paths")):
 # Android build on a Windows host reports hostOS == "android"). We instead detect
 # the host from an OS-set env var that `--os` can't move: Windows always exports
 # OS=Windows_NT. This lets `nimble android` on Windows still find the host's deps.
+#
+# raylib and its naylib bindings are not a Nimble dependency: vendor/naylib is a
+# git submodule (Paycei/naylib, see its readme.md) and the game imports
+# vendor/naylib/src. Its path is added after everything else because a later
+# --path wins, so a naylib a stale nimble.paths still lists can never shadow it.
 import std/strutils
 
 let hostIsWindows = getEnv("OS") == "Windows_NT" or getEnv("USERPROFILE").len > 0
@@ -27,7 +32,7 @@ proc baseName(p: string): string =
   p[i + 1 .. ^1]
 
 proc pkgVersion(dirName: string): seq[int] =
-  # "naylib-26.08.0-<hash>" -> @[26, 8, 0]; the hash field is ignored.
+  # "flatty-0.3.4-<hash>" -> @[0, 3, 4]; the hash field is ignored.
   let parts = dirName.split('-')
   if parts.len >= 2:
     for n in parts[1].split('.'):
@@ -45,20 +50,20 @@ if not hostIsWindows:
   let pkgsDir = getEnv("HOME") & "/.nimble/pkgs2"
   if dirExists(pkgsDir):
     for dir in listDirs(pkgsDir):
-      if dir.contains("/naylib-") or dir.contains("/flatty-") or
-         dir.contains("/supersnappy-"):
+      if dir.contains("/flatty-") or dir.contains("/supersnappy-"):
         switch("path", dir)
   switch("path", thisDir() & "/src")
+  switch("path", thisDir() & "/vendor/naylib/src")
 else:
   # Windows host (native or cross-compiling). nimble.paths holds absolute paths
   # hardcoded to one user's home, so a different checkout can't resolve them.
   # Re-discover from the local Nimble package dir, version-aware: several versions
   # of a dep can be installed side by side, and adding a stale one to the search
-  # path could shadow the required >=26.08.0 — so pick the highest of each.
+  # path could shadow the required one — so pick the highest of each.
   let nimbleHome = getEnv("NIMBLE_DIR", getEnv("USERPROFILE") & "\\.nimble")
   let pkgsDir = nimbleHome & "\\pkgs2"
   if dirExists(pkgsDir):
-    for pkg in ["naylib", "flatty", "supersnappy"]:
+    for pkg in ["flatty", "supersnappy"]:
       var bestDir = ""
       var bestVer: seq[int] = @[]
       for dir in listDirs(pkgsDir):
@@ -71,3 +76,20 @@ else:
       if bestDir.len > 0:
         switch("path", bestDir)
   switch("path", thisDir() & "\\src")
+  switch("path", thisDir() & "\\vendor\\naylib\\src")
+  # Cross-compiling (e.g. Android): naylib derives raylib's include dir from
+  # currentSourcePath() with the *target's* path separator, which collapses this
+  # Windows path to "./raylib", so clang can't find raylib.h. Pass it absolute.
+  when not defined(windows):
+    switch("passC", "-I" & thisDir() & "/vendor/naylib/src/raylib")
+
+# A clone made without --recursive has an empty vendor/naylib. Stop here: the
+# compile would otherwise fail at "cannot open file: raylib" with no hint why, or
+# worse, pick up an old naylib Nimble installed and fail on raylib 6 changes.
+# (Nimble never reads config.nims, so `nimble install` still works.)
+if not fileExists(thisDir() & "/vendor/naylib/src/raylib.nim"):
+  quit "vendor/naylib is empty: run `git submodule update --init` (or clone with --recursive).", 1
+
+# Mod models skin on the GPU (LookShader in mod_assets.nim), so raylib must
+# upload the bone index/weight vertex buffers. naylib leaves that off by default.
+switch("define", "NaylibSupportGpuSkinning")

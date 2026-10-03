@@ -198,7 +198,7 @@ proc drawChip(r: Rectangle, accent: Color) =
   drawRectangleRounded(r, 0.3, 8, UiGlass)
   drawRectangleRounded(Rectangle(x: r.x + 6, y: r.y + 10, width: 3, height: r.height - 20),
                        1.0, 4, fade(accent, 0.85))
-  drawRectangleRoundedLines(r, 0.3, 8, 2.0, fade(accent, 0.7))
+  drawRectangleRoundedLines(r, 0.3, 8, -2.0, fade(accent, 0.7))
 
 proc drawTouchBackButton*() =
   ## Draw inside the virtual-canvas pass. No text, so it needs no localization.
@@ -436,7 +436,7 @@ proc drawVirtualKeyboard*() =
       drawRectangleRounded(Rectangle(x: rect.x, y: rect.y + 2, width: rect.width, height: rect.height),
                            0.25, 6, Color(r: 0, g: 0, b: 0, a: 120))
       drawRectangleRounded(rect, 0.25, 6, if lit: UiKeyLit else: UiKey)
-      drawRectangleRoundedLines(rect, 0.25, 6, 1.5, fade(accent, if lit: 1.0 else: 0.7))
+      drawRectangleRoundedLines(rect, 0.25, 6, -1.5, fade(accent, if lit: 1.0 else: 0.7))
       let size = if key.label.len > 1: 18'i32 else: 26'i32
       let w = measureText(key.label, size)
       let ink = if key.action in {vkaDone, vkaBack, vkaEnter}: accent else: UiInk

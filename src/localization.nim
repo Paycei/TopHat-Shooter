@@ -576,6 +576,8 @@ type
     tkHelpCmdLore = "help_cmd_lore"
     tkHelpCmdLicenses = "help_cmd_licenses"
     tkHelpLicensesIntro = "help_licenses_intro"
+    tkHelpLicensesRaylib = "help_licenses_raylib"
+    tkHelpLicensesNaylib = "help_licenses_naylib"
     tkHelpCmdLaunchIcons = "help_cmd_launch_icons"
 
     # Help System - Incident archive ("lore" command)
@@ -2952,6 +2954,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_lore": "Incident archive: the story so far",
     "help_cmd_licenses": "Third-party licenses",
     "help_licenses_intro": "Mods run on Lua 5.5 (www.lua.org), used under the MIT license:",
+    "help_licenses_raylib": "The game runs on raylib (www.raylib.com), used under the zlib/libpng license:",
+    "help_licenses_naylib": "Its Nim bindings, naylib (github.com/planetis-m/naylib), are used under the MIT license:",
     "help_lore_topic": "INCIDENT ARCHIVE",
     "help_lore_intro": "Recovered case files on the Root incident. New files decrypt as you recover their recordings.",
     "help_lore_act1_title": "ACT I: THE BREACH   [REC 00-05]",
@@ -5015,6 +5019,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_cmd_lore": "Archivo del incidente: la historia hasta ahora",
     "help_cmd_licenses": "Licencias de terceros",
     "help_licenses_intro": "Los mods se ejecutan con Lua 5.5 (www.lua.org), usado bajo la licencia MIT:",
+    "help_licenses_raylib": "El juego funciona con raylib (www.raylib.com), usado bajo la licencia zlib/libpng:",
+    "help_licenses_naylib": "Sus bindings para Nim, naylib (github.com/planetis-m/naylib), se usan bajo la licencia MIT:",
     "help_lore_topic": "ARCHIVO DEL INCIDENTE",
     "help_lore_intro": "Expedientes recuperados del incidente de la Raíz. Los nuevos se descifran al recuperar sus grabaciones.",
     "help_lore_act1_title": "ACTO I: LA BRECHA   [REC 00-05]",

@@ -1,0 +1,3 @@
+[submodule "vendor/naylib"]
+	path = vendor/naylib
+	url = https://github.com/Paycei/naylib.git

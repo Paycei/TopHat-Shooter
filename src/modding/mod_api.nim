@@ -1350,11 +1350,10 @@ proc textureId*(vm: VM, v: ScriptValue, what: string): int =
   vm.runtimeError(what & ": texture expected (assets.texture(...) or a file name)")
 
 proc loadModelFile(vm: VM, rel, what: string): int =
-  ## A model from the mod's folder; what it could not use goes to the Log tab.
-  var err, warn = ""
-  result = loadModModel(vm.modFile(rel, what), err, warn)
+  ## A model from the mod's folder.
+  var err = ""
+  result = loadModModel(vm.modFile(rel, what), err)
   if result == 0: vm.runtimeError(what & ": " & rel & ": " & err)
-  if warn.len > 0: modLogAdd(mlWarn, mods[vm.requireOwner(what)].id, rel & ": " & warn)
 
 proc modelId*(vm: VM, v: ScriptValue, what: string): int =
   ## A model handle, or a path (loaded on the spot).

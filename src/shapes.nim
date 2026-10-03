@@ -116,7 +116,7 @@ proc drawCheaterHat*(pos: Vector2f, radius: float32, time: float32,
                        0.65'f32, 8, fill)
   drawRectangleRoundedLines(Rectangle(x: pos.x - brimW * 0.5'f32, y: brimY,
                                       width: brimW, height: brimH),
-                            0.65'f32, 8, 1.5'f32, outline)
+                            0.65'f32, 8, -1.5'f32, outline)
   drawCircle(Vector2(x: tip.x, y: tip.y), max(2.0'f32, radius * 0.11'f32), shade)
 
 proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =

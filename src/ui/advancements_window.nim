@@ -100,7 +100,7 @@ proc drawTierChip(x, y, w, h: int, tier: AdvancementTier, solid: bool) =
     drawText(label, tx.int32, ty.int32, fs, Color(r: 16, g: 19, b: 27, a: 255))
   else:
     drawRectangleRounded(rect, 0.5'f32, 6, withAlpha(c, 40))
-    drawRectangleRoundedLines(rect, 0.5'f32, 6, 1.0'f32, c)
+    drawRectangleRoundedLines(rect, 0.5'f32, 6, -1.0'f32, c)
     drawText(label, tx.int32, ty.int32, fs, c)
 
 proc statusColor(entry: AdvancementEntry): Color =

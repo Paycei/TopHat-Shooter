@@ -147,15 +147,22 @@ The included examples are *Hello HUD*, *Glass Cannon*, *House Rules*, *Survival 
 ## Building from source
 
 **Requirements:** [Nim](https://nim-lang.org) 2.2.12 or newer with Nimble. Dependencies
-(`naylib` 26.08.0, `flatty`, `supersnappy`) come from `nimble install`, and Raylib and Lua
-are compiled into the executable. Windows release builds need the Visual C++ Build Tools.
+(`flatty`, `supersnappy`) come from `nimble install`. Raylib and Lua are compiled into the
+executable: Lua ships with the source, and raylib comes with its Nim bindings from the
+`vendor/naylib` git submodule, a maintained fork of
+[naylib](https://github.com/planetis-m/naylib) at [Paycei/naylib](https://github.com/Paycei/naylib).
+Windows release builds need the Visual C++ Build Tools.
 Linux builds need the usual Raylib system headers (X11 and OpenGL).
 
 ```bash
-git clone https://github.com/Paycei/TopHat-Shooter.git
+git clone --recursive https://github.com/Paycei/TopHat-Shooter.git
 cd TopHat-Shooter
 nimble install        # fetch dependencies
 ```
+
+Already cloned without `--recursive`? Run `git submodule update --init`. The GitHub
+"Download ZIP" and the Releases page's source archives leave the submodule out, so build
+from a clone.
 
 | Command | Result |
 |---|---|
@@ -292,4 +299,4 @@ Support is entirely optional and never gates any feature of the game.
 ## License
 
 Apache 2.0, see [LICENSE](LICENSE). Lua 5.5 is vendored under the MIT license
-(see [`src/modding/lua/LICENSE`](src/modding/lua/LICENSE)).
+(see [`vendor/lua/LICENSE`](vendor/lua/LICENSE)).

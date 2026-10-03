@@ -525,8 +525,6 @@ Animations are skeletal (a mesh skinned to an armature) in GLB/glTF, IQM and
 M3D. They loop at 60 frames per second, which is the speed glTF and M3D
 animations were authored at, and up to 128 bones move a mesh. Each enemy
 starts its animation at its own point, so a crowd does not flap in step.
-Export the skeleton with its armature (Blender does): a root bone with no
-parent node cannot be animated here, and the Log tab says so.
 
 Every copy on screen is drawn on its own, so keep enemy models light: a few
 hundred triangles each is plenty.

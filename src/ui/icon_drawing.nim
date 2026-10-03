@@ -552,17 +552,18 @@ proc iconBrickWall(pal: IconPalette) =
   iconBrick(16.5, 23, 28.5, 28.5, pal.base, pal.light, pal.shade)
 
 proc iconChainLink(c: Vector2, rotDeg, len, wid, thick: float32, col, ink: Color) =
-  ## Stadium-shaped chain link. raylib grows rounded-rect lines outward, so
-  ## the ink pass starts from a rect shrunk by half the rim.
+  ## Stadium-shaped chain link. A negative thickness grows raylib's
+  ## rounded-rect lines outward, so the ink pass starts from a rect shrunk by
+  ## half the rim.
   rlgl.pushMatrix()
   rlgl.translatef(c.x, c.y, 0.0'f32)
   rlgl.rotatef(rotDeg, 0.0'f32, 0.0'f32, 1.0'f32)
   const e = IconEdge * 0.5'f32
   drawRectangleRoundedLines(Rectangle(x: -len * 0.5'f32 + e, y: -wid * 0.5'f32 + e,
                                       width: len - IconEdge, height: wid - IconEdge),
-                            1.0, 10, thick + IconEdge, ink)
+                            1.0, 10, -(thick + IconEdge), ink)
   drawRectangleRoundedLines(Rectangle(x: -len * 0.5'f32, y: -wid * 0.5'f32, width: len, height: wid),
-                            1.0, 10, thick, col)
+                            1.0, 10, -thick, col)
   rlgl.popMatrix()
 
 # ---------------------------------------------------------------------------
@@ -910,7 +911,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   of puChainLightning, puLightningAura, puLightningOrb, puLightningMastery:
     # Chain lightning: jagged arcs jumping from one target to the next, with
     # a stray fork crackling off into the air.
-    drawCircleGradient(16, 16, 15.0, faded(base, 0.25), faded(base, 0))
+    drawCircleGradient(Vector2(x: 16, y: 16), 15.0, faded(base, 0.25), faded(base, 0))
     let (a, b, c) = (sv(5.5, 24.5), sv(14.5, 8), sv(26.5, 21.5))
     let bc = iconZigzag(b, c, 5, 2.6)
     let arcs = [(iconZigzag(a, b, 5, 2.6), 2.4'f32), (bc, 2.4'f32),
@@ -995,7 +996,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
 
   of puGravityWell:
     # Singularity: a black hole wrapped in a tilted accretion disc.
-    drawCircleGradient(16, 16, 15.0, faded(base, 0.25), faded(base, 0))
+    drawCircleGradient(Vector2(x: 16, y: 16), 15.0, faded(base, 0.25), faded(base, 0))
     iconTiltedRing(mid, -22, 0.42, 8.0, 15.0, 180, 360, ink)     # far half
     iconTiltedRing(mid, -22, 0.42, 9.3, 13.7, 180, 360, shade)
     drawCircle(mid, 7.9, ink)
@@ -1165,7 +1166,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
 
   of puVolatile:
     # Unstable core: a cracked orb with energy flaring out through the splits.
-    drawCircleGradient(16, 16, 15.0, faded(base, 0.35), faded(base, 0))
+    drawCircleGradient(Vector2(x: 16, y: 16), 15.0, faded(base, 0.35), faded(base, 0))
     for (a, len) in [(-60.0'f32, 15.0'f32), (70.0'f32, 13.5'f32), (185.0'f32, 14.5'f32)]:
       iconTaper(polar(mid, 5, a), polar(mid, 10.5, a + 14.0'f32), polar(mid, len, a - 6.0'f32),
                 6.0, false, pale, ink)
@@ -1579,9 +1580,9 @@ proc drawShopIconTile*(x, y, size: int32, itemIndex: int, enabled, selected: boo
   drawRectangleGradientV(x + 2, y + 2, size - 4, size div 2,
                          withAlpha(accent, if enabled: 42 else: 12), withAlpha(accent, 0))
   if selected and enabled:
-    drawCircleGradient(x + size div 2, y + size div 2, s * 0.46'f32,
+    drawCircleGradient(Vector2(x: float32(x + size div 2), y: float32(y + size div 2)), s * 0.46'f32,
                        withAlpha(accent, 70), withAlpha(accent, 0))
-  drawRectangleRoundedLines(tile, Round, 6, if selected: 2.0'f32 else: 1.5'f32,
+  drawRectangleRoundedLines(tile, Round, 6, if selected: -2.0'f32 else: -1.5'f32,
                             withAlpha(accent, if selected: 255 elif enabled: 150 else: 70))
   let pad = max(2'i32, size div 9)
   drawShopIcon(x + pad, y + pad, size - pad * 2, itemIndex, accent)
