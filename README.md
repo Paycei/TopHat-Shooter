@@ -153,7 +153,8 @@ cd TopHat-Shooter
 nimble install        # fetch dependencies
 ```
 
-Already cloned without `--recursive`? Run `git submodule update --init`. The GitHub
+Already cloned without `--recursive`, or pulled a commit that moves the submodule to a newer
+naylib? Run `nimble submodules` (or `git submodule update --init`). The GitHub
 "Download ZIP" and the Releases page's source archives leave the submodule out, so build
 from a clone.
 
@@ -164,6 +165,7 @@ from a clone.
 | `nimble WinReleaseMin` | Size-optimized Windows build → `TopHatShooterOS.exe` |
 | `nimble LinuxRelease` | Optimized Linux build → `TopHatShooterOS-linux-x86_64` |
 | `nimble ship` | All three release artifacts plus `SHA256SUMS.txt` in `ship/` (see [`tools/ship.ps1`](tools/ship.ps1)) |
+| `nimble submodules` | Check out `vendor/naylib` at the commit the game records (e.g. after a `git pull`) |
 
 `nimble ship` is the release pipeline and has extra requirements: PowerShell 7,
 niminst, Inno Setup, and a WSL distro with Nim for the Linux build. The script checks

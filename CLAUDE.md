@@ -13,6 +13,7 @@ nimble WinRelease     # optimized MSVC build -> TopHatShooterOS.exe (Windows, ne
 nimble WinReleaseMin  # release optimized for size
 nimble LinuxRelease   # optimized Linux build
 nimble ship           # all three release artifacts -> ship/ (see tools/ship.ps1)
+nimble submodules     # check out vendor/naylib at the commit the game records (after a pull moves it)
 ```
 
 `nimble ship` is the release pipeline: it runs the three build tasks above and stages
@@ -39,7 +40,9 @@ the game pointing at an unpushed naylib commit. Read `vendor/naylib/readme.md` b
 requires for the mangled C files: any other hand edit to raylib's C goes in that list.
 `config.nims` adds the path last (a later `--path` wins, so a stale naylib in
 `nimble.paths` or `~/.nimble` can't shadow it) and defines `NaylibSupportGpuSkinning`, which the
-mod model shader needs. Two raylib 6
+mod model shader needs. Builds never run git: `config.nims` only quits with a hint when
+`vendor/naylib` is empty, and `nimble submodules` is the explicit way to check it out (also after
+a pull moves the pointer, which `ship.ps1`'s `Assert-Naylib` refuses to ship). Two raylib 6
 rules the code relies on: a positive `thick` in the `Draw*LinesEx` family (e.g. the 5-argument
 `drawRectangleRoundedLines`) strokes *inside* the shape and a negative one *outside*, so every
 rounded outline here passes a negative thickness to keep the game's look; and `DrawMesh` never

@@ -87,7 +87,7 @@ function Assert-Naylib {
     if ($LASTEXITCODE -ne 0 -or -not $line) { throw 'vendor/naylib is not registered as a submodule.' }
     switch ($line.Substring(0, 1)) {
         '-' { throw 'vendor/naylib is empty: run git submodule update --init.' }
-        '+' { throw 'vendor/naylib is at a different commit than the game records: commit the new pointer, or run git submodule update.' }
+        '+' { throw 'vendor/naylib is at a different commit than the game records: run nimble submodules, or commit the new pointer.' }
         'U' { throw 'vendor/naylib has merge conflicts.' }
     }
     if (git -C (Join-Path $RepoRoot 'vendor/naylib') status --porcelain --untracked-files=no) {
