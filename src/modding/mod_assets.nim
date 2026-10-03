@@ -1023,9 +1023,48 @@ proc drawBodyWorld3D*(r: BodyReplace, cam: Camera, x, y, z, diameter, yawDeg: fl
 proc drawTextureBillboard*(id: int, cam: Camera, x, y, z, size: float32, tint: Color,
                            frame = -1) =
   ## draw3d.billboard: texture `id` (a GIF plays on the wall clock unless
-  ## `frame`, 0-based, picks one) facing the camera, `size` world units wide.
+  ## `frame`, 0-based, picks one) facing the camera, `size` world units tall
+  ## (raylib keeps it upright and sizes the width from the aspect).
   if id <= 0 or id > modTextures.len: return
   drawBillboard(cam, frameTexture(id, getTime(), frame)[], Vector3(x: x, y: y, z: z), size, tint)
+
+proc drawTexturePanel*(id: int, x, y, z, w, h, yawDeg, pitchDeg, rollDeg: float32, tint: Color,
+                       frame = -1) =
+  ## draw3d.texture: texture `id` as a flat picture fixed in the world (a
+  ## sign, a screen, a poster, a floor decal), centred on x, y, z and `w` x `h`
+  ## world units. Unturned it stands upright with its front on +Z; the angles
+  ## turn it like drawModelWorld3D turns a model (yaw about the up axis, then
+  ## pitch and roll). Both sides show the picture the right way round, unlit.
+  ## A GIF plays on the wall clock unless `frame` (0-based) picks one.
+  if id <= 0 or id > modTextures.len: return
+  let tex = frameTexture(id, getTime(), frame)
+  let r = rotY(degToRad(yawDeg)) * rotX(degToRad(pitchDeg)) * rotZ(degToRad(rollDeg))
+  # The rotated x and y axes, scaled to the half edges, and the facing.
+  let hw = w / 2
+  let hh = h / 2
+  let rx = [r[0] * hw, r[3] * hw, r[6] * hw]
+  let uy = [r[1] * hh, r[4] * hh, r[7] * hh]
+  template corner(sr, su, u, v: float32) =
+    texCoord2f(u, v)
+    vertex3f(x + sr * rx[0] + su * uy[0], y + sr * rx[1] + su * uy[1], z + sr * rx[2] + su * uy[2])
+  setTexture(tex.id)
+  rlBegin(Quads)
+  color4ub(tint.r, tint.g, tint.b, tint.a)
+  # Front, counter-clockwise seen from the facing side (culling keeps one side
+  # per view, so the two never fight).
+  normal3f(r[2], r[5], r[8])
+  corner(-1, 1, 0, 0)
+  corner(-1, -1, 0, 1)
+  corner(1, -1, 1, 1)
+  corner(1, 1, 1, 0)
+  # Back: mirrored across the panel, so it reads the right way round from behind.
+  normal3f(-r[2], -r[5], -r[8])
+  corner(1, 1, 0, 0)
+  corner(1, -1, 0, 1)
+  corner(-1, -1, 1, 1)
+  corner(-1, 1, 1, 0)
+  rlEnd()
+  setTexture(0)
 
 proc cosmeticAt(idx: int): ptr ModCosmetic {.inline.} =
   if idx > 0 and idx <= modCosmetics.len: addr modCosmetics[idx - 1] else: nil

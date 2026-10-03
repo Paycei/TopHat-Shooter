@@ -1398,6 +1398,20 @@ proc textureId*(vm: VM, v: ScriptValue, what: string): int =
   if v.kind == vkString: return vm.loadTextureFile(v.str.s, what)
   vm.runtimeError(what & ": texture expected (assets.texture(...), assets.video(...) or a file name)")
 
+proc frameOption*(vm: VM, opts: ScriptTable, id: int, what: string): int =
+  ## The GIF frame (0-based) a draw's `frame` (1 = first, wraps) or `time`
+  ## (seconds into the animation) option picks; -1 = neither (the wall clock).
+  let fr = rawGetStr(opts, "frame")
+  let tm = rawGetStr(opts, "time")
+  if fr.kind == vkNumber:
+    # a positive range test: release builds use fast math, where x != x is folded away
+    if not (abs(fr.n) <= 9.0e15): vm.runtimeError(what & ": frame must be a whole number")
+    floorMod(int(floor(fr.n)) - 1, textureFrames(id))
+  elif tm.kind == vkNumber:
+    textureFrameAt(id, tm.n)
+  else:
+    -1
+
 proc loadModelFile(vm: VM, rel, what: string): int =
   ## A model from the mod's folder.
   var err = ""
@@ -1844,13 +1858,7 @@ proc installAssetLibraries(base: ScriptTable) =
       if tn.kind != vkNil: tint = parseColor(vm, tn, "draw.texture.tint")
       let o = rawGetStr(opts.tbl, "origin")
       if o.kind == vkString and o.str.s == "topleft": centered = false
-      let fr = rawGetStr(opts.tbl, "frame")
-      let tm = rawGetStr(opts.tbl, "time")
-      if fr.kind == vkNumber:
-        if fr.n != fr.n or abs(fr.n) > 9.0e15: vm.runtimeError("draw.texture: frame must be a whole number")
-        frame = floorMod(int(floor(fr.n)) - 1, textureFrames(id))
-      elif tm.kind == vkNumber:
-        frame = textureFrameAt(id, tm.n)
+      frame = vm.frameOption(opts.tbl, id, "draw.texture")
     drawModTexture(id, vm.f32(args, 1, "texture"), vm.f32(args, 2, "texture"), w, h, rot, tint,
                    centered, frame)
   drawT.reg("model") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):

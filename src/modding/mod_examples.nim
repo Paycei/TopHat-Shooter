@@ -66,6 +66,15 @@ const
     ("media_player/icon.mpg", embed("examples/media_player/icon.mpg")),
     ("media_player/music.ogg", embed("examples/media_player/music.ogg")),
     ("media_player/lcd.bdf", embed("examples/media_player/lcd.bdf")),
+    ("billboard_plaza/mod.json", embed("examples/billboard_plaza/mod.json")),
+    ("billboard_plaza/main.lua", embed("examples/billboard_plaza/main.lua")),
+    ("billboard_plaza/test_card.mpg", embed("examples/billboard_plaza/test_card.mpg")),
+    ("billboard_plaza/plasma.mpg", embed("examples/billboard_plaza/plasma.mpg")),
+    ("billboard_plaza/poster.png", embed("examples/billboard_plaza/poster.png")),
+    ("billboard_plaza/decal.png", embed("examples/billboard_plaza/decal.png")),
+    ("billboard_plaza/orb.png", embed("examples/billboard_plaza/orb.png")),
+    ("billboard_plaza/online.gif", embed("examples/billboard_plaza/online.gif")),
+    ("billboard_plaza/drone.gif", embed("examples/billboard_plaza/drone.gif")),
   ]
 
 proc exampleModIds*(): seq[string] =

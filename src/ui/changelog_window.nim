@@ -222,6 +222,17 @@ let changelog: seq[ChangelogVersion] = @[
           "Los mods pueden reproducir sus propias pistas de música (OGG, MP3, WAV, FLAC, QOA, XM y MOD), que pausan la música del juego mientras suenan, y escribir con sus propias fuentes (TTF, OTF, FNT y BDF).",
           "Los mods pueden cargar imágenes en muchos más formatos (JPG, BMP, TGA, PSD, HDR, DDS y otros), leer archivos de datos (texto y JSON) y pasar imágenes y videos a sus shaders.",
           "El nuevo ejemplo Reproductor muestra un video y una pista de música en una app del escritorio. Escribir licenses en la terminal de Ayuda ahora también muestra PL_MPEG, que decodifica los videos MPEG-1.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Screens and signs in 3D worlds",
+        headEs: "Pantallas y letreros en los mundos 3D",
+        en: points(
+          "The new draw3d.texture draws an image, a GIF or a video as a flat panel fixed in a 3D world, so mods can build screens, signs, posters and floor decals that stay in place instead of turning to face you.",
+          "See-through pixels in 3D worlds no longer hide what is behind them. An entity or a draw3d.billboard picture with a see-through background used to cut its whole square out of anything drawn behind it.",
+          "The new Billboard Plaza example is a 3D mode to walk around: a big screen whose video gets louder as you approach, a poster, a neon sign, a turning column of videos and drifting drones. Shoot a screen to pause it."),
+        es: points(
+          "El nuevo draw3d.texture dibuja una imagen, un GIF o un video como un panel plano fijo en un mundo 3D, así que los mods pueden construir pantallas, letreros, carteles y calcomanías en el suelo que se quedan en su sitio en lugar de girar hacia ti.",
+          "Los píxeles transparentes de los mundos 3D ya no tapan lo que hay detrás. Una entidad o una imagen de draw3d.billboard con fondo transparente recortaba todo su cuadrado de lo que se dibujaba detrás.",
+          "El nuevo ejemplo Plaza de Carteles es un modo 3D para recorrer: una gran pantalla cuyo video suena más fuerte a medida que te acercas, un cartel, un letrero de neón, una columna giratoria de videos y drones a la deriva. Dispara a una pantalla para pausarla.")),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.2",

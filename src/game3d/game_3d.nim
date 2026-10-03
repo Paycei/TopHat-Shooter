@@ -11,6 +11,7 @@
 
 import std/tables
 import raylib, math, random
+from rlgl import getShaderIdDefault
 import ../draw_prims
 import types_3d, engine_3d, player_3d, boss_3d, ../types, ../localization, ../settings
 import ../modding/[mod_hooks, mod_assets]
@@ -724,10 +725,42 @@ proc drawPickup3D(p: Pickup3D, cam: Camera) =
   drawSphere(pos, p.radius * 0.5, color)
   drawSphereWires(pos, p.radius, 8, 8, fade(color, 0.5))
 
+const CutoutFS = """#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+uniform vec4 colDiffuse;
+out vec4 finalColor;
+void main() {
+  vec4 c = texture(texture0, fragTexCoord) * colDiffuse * fragColor;
+  if (c.a < 0.02) discard;
+  finalColor = c;
+}
+"""
+
+var
+  cutout: Shader
+  cutoutTried = false
+
+proc beginCutout(): bool =
+  ## The scene draws with raylib's default shader minus its see-through texels.
+  ## Without it a sprite (a GIF entity, a mod's billboard or picture) fills the
+  ## depth buffer across its whole square, so anything drawn after it, behind
+  ## it, loses that square. Mod models keep LookShader, which discards the
+  ## same way. If this cannot compile, the scene keeps the default shader.
+  if not cutoutTried:
+    cutoutTried = true
+    var s = loadShaderFromMemory("", CutoutFS)
+    if s.id != 0 and s.id != getShaderIdDefault(): cutout = move s
+  if cutout.id == 0: return false
+  beginShaderMode(cutout)
+  true
+
 proc renderGame3D*(world: Game3D) =
   # 3D rendering
   let cam = renderCamera(world)
   beginMode3D(cam)
+  let cutoutOn = beginCutout()
 
   drawArena(world.arena)
 
@@ -759,6 +792,7 @@ proc renderGame3D*(world: Game3D) =
 
   modWorld3DDraw(world)
 
+  if cutoutOn: endShaderMode()
   endMode3D()
 
   # draw3d.text labels (text cannot be drawn inside the 3D camera)

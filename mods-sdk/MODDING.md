@@ -489,9 +489,9 @@ bullet cosmetics.
 
 * `assets.video("clips/intro.mpg")` returns a video. A video goes everywhere
   a texture goes: `draw.texture(clip, x, y, {...})`, `override.texture`,
-  `register.cosmetic{texture = ...}`, app and mode icons, `draw3d.billboard`
-  and `shader:set` (a file name ending in `.mpg` works there too, as with
-  `assets.texture`).
+  `register.cosmetic{texture = ...}`, app and mode icons, `draw3d.billboard`,
+  `draw3d.texture` (a screen in a 3D world) and `shader:set` (a file name
+  ending in `.mpg` works there too, as with `assets.texture`).
 * **Format.** Videos are **MPEG-1 in an `.mpg` file** (with MP2 sound). The
   game decodes them itself, so a video plays the same on every system. Convert
   any other video (MP4, MOV, WebM, ...) with ffmpeg:
@@ -509,6 +509,10 @@ bullet cosmetics.
   like a GIF, and every copy on screen shows the same picture: one file is one
   playback, whichever handle drew it. Until it first plays it shows its first
   picture.
+* **A paused game is still drawn** under its pause screen (a run and a 3D
+  world alike), so a video it draws keeps playing, sound and all. Pause it
+  yourself while `world.paused` is true (or the run is paused) and play it
+  again after; `billboard_plaza` does.
 * It loops unless `clip.loop = false`; it then stops on its last picture and
   `clip.ended` turns true.
 * `clip:pause()`, `clip:play()` (an ended video starts over), `clip:stop()`
@@ -643,8 +647,9 @@ hundred triangles each is plenty.
 The game has a first-person 3D mode (the Orbital Commander boss fight). Mods can
 enter it, change it, or build a whole game in it: a world of platforms, enemies
 that walk, orbit or shoot, pickups, a tunable weapon and your own HUD. The
-`arena_3d` example (**Cube Siege**) is a complete mode built this way, and
-`orbital_tweaks` changes the game's own 3D fight.
+`arena_3d` example (**Cube Siege**) is a complete mode built this way,
+`orbital_tweaks` changes the game's own 3D fight, and `billboard_plaza` puts
+videos and images on screens and billboards in a world.
 
 ```lua
 hooks.on("world3dStart", function(world, resumed)
@@ -861,10 +866,30 @@ live ones (`for p in world:pickups() do`).
   `plane(x, y, z, w, d, color)`, `model(mdl, x, y, z [, options])` (the pose
   options of [3D models](#3d-models), plus `size`, the footprint in world
   units, 8 by default, or `scale`), `billboard(texture, x, y, z [, size = 8,
-  tint])` (a sprite that always faces the camera) and
+  tint])` (a sprite that always faces the camera, standing upright: `size`
+  is its height, the width follows the picture),
+  `texture(texture, x, y, z [, {w, h, yaw, pitch, roll, tint, frame, time}])`
+  (see below) and
   `text(text, x, y, z [, size = 20, color, font])` (a label at a world point,
   size 10 to 120 in the game's font; a [font](#fonts) of your own goes last). `draw.*` there is an error (`draw.X is 2D: ... use the draw3d
   library`), and so is `draw3d.*` anywhere else.
+* **Pictures fixed in the world:** `draw3d.texture` draws an image, a GIF or a
+  [video](#videos) as a flat panel that keeps its place and turn, unlike a
+  billboard: a screen, a sign, a poster, a decal. It is 8 tall unless given;
+  give `w` or `h` alone and the other follows the picture's shape, give both
+  to stretch it. Unturned it stands upright facing +z; `yaw`, `pitch` and
+  `roll` (degrees) turn it like a model, so `yaw = 90` faces +x and
+  `pitch = -90` lays it face up on the floor, its top toward -z. Both sides
+  show it the right way round. `frame` / `time` pick a GIF's frame as in
+  `draw.texture`, and `time` on the world's clock (`world.timeElapsed`)
+  stops it while the world is paused. To face a point (px, pz):
+  `yaw = math.deg(math.atan(px - x, pz - z))`. An unknown option is an error.
+  Pictures and billboards are unlit.
+* **See-through pictures:** fully see-through pixels (a GIF's background, a
+  PNG's empty corners) are not drawn at all, so they hide nothing behind them.
+  Half see-through ones (soft edges, a glow) still hide what is drawn after
+  them and behind them: draw those last, farthest first, as `billboard_plaza`
+  does with its orbs.
 * **On the screen** (`world3dDrawHud(world, w, h)`): the ordinary `draw`
   library, in pixels over the view, after the built-in HUD.
 * **Overriding the built-in looks:** `override.model(target, model)` and
@@ -1120,6 +1145,7 @@ replaces an example only when the game ships a newer version of it (a higher
 | `arena_3d` | a complete 3D game mode, Cube Siege: waves of entities with built-in AI, pickups, a shotgun tune, a custom HUD, `draw3d` effects and a resumable `run.data` |
 | `orbital_tweaks` | changing the game's own 3D boss fight: extra drones, a phase message and a hit filter |
 | `media_player` | videos and music: a desktop app with a seek bar, a music track that takes over the game's music, a playlist read with `assets.json`, an LCD font and a video as its desktop icon (`disableAchievements: false`) |
+| `billboard_plaza` | videos and images in a 3D world, a mode called Billboard Plaza: screens fixed in place with `draw3d.texture` (a video with sound that gets louder as you walk up, a PNG poster, a GIF sign, a turning column of videos, a floor decal), `draw3d.billboard` sprites that face you (see-through, drawn farthest first, and a video), an entity drawn as a GIF, shooting a screen to pause it, and holding the videos while the world is paused (`disableAchievements: false`) |
 
 ## Multiplayer
 

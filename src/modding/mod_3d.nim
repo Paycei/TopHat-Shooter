@@ -774,6 +774,39 @@ proc installDraw3dLibrary(base: ScriptTable) =
     let size = vm.optNumArg(args, 4, "billboard", 8)
     let tint = if arg(args, 5).kind == vkNil: White else: parseColor(vm, arg(args, 5), "draw3d.billboard")
     drawTextureBillboard(id, raylibCamera(activeWorld3D.camera), p.x, p.y, p.z, size, tint)
+  t.reg("texture") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## draw3d.texture(texture, x, y, z [, {w, h, yaw, pitch, roll, tint, frame, time}])
+    ## -- a flat picture fixed in the world (a sign, a screen, a decal), centred on
+    ## x, y, z: 8 tall unless given, the missing side from the aspect. Unturned it
+    ## stands upright facing +z; both sides show it.
+    vm.requireDrawing3D("texture")
+    let id = vm.textureId(arg(args, 0), "draw3d.texture")
+    let p = vm.vec3Arg(args, 1, "texture")
+    let (tw, th) = textureSize(id)
+    let aspect = if tw > 0 and th > 0: tw.float32 / th.float32 else: 1'f32
+    var h = 8'f32
+    var w = h * aspect
+    var yaw, pitch, roll = 0'f32
+    var tint = White
+    var frame = -1
+    let opts = arg(args, 4)
+    if opts.kind == vkTable:
+      vm.checkKeys(opts.tbl, ["w", "h", "yaw", "pitch", "roll", "tint", "frame", "time"], "draw3d.texture")
+      let hasW = opts.tbl.hasField("w")
+      let hasH = opts.tbl.hasField("h")
+      if hasH: h = vm.numField(opts.tbl, "h", "draw3d.texture", h)
+      if hasW: w = vm.numField(opts.tbl, "w", "draw3d.texture", w)
+      if hasW and not hasH: h = w / aspect
+      elif hasH and not hasW: w = h * aspect
+      if not (w > 0 and h > 0): vm.runtimeError("draw3d.texture: w and h must be positive")
+      yaw = vm.numField(opts.tbl, "yaw", "draw3d.texture", 0)
+      pitch = vm.numField(opts.tbl, "pitch", "draw3d.texture", 0)
+      roll = vm.numField(opts.tbl, "roll", "draw3d.texture", 0)
+      if opts.tbl.hasField("tint"): tint = parseColor(vm, rawGetStr(opts.tbl, "tint"), "draw3d.texture.tint")
+      frame = vm.frameOption(opts.tbl, id, "draw3d.texture")
+    elif opts.kind != vkNil:
+      vm.argError("texture", 4, "options must be a table")
+    drawTexturePanel(id, p.x, p.y, p.z, w, h, yaw, pitch, roll, tint, frame)
   t.reg("text") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## draw3d.text(text, x, y, z [, size = 20, color, font | {font = f, spacing = px}])
     ## -- a label at a world point, drawn over the scene

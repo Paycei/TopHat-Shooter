@@ -1,0 +1,9 @@
+{
+  "id": "billboard_plaza",
+  "name": "Billboard Plaza",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "A 3D game mode, launched from MODS.EXE > Game Modes: a plaza of videos and images in a first-person world. Shows draw3d.texture (screens fixed in the world: a video with sound, a PNG poster, a GIF sign, a turning column of videos, a floor decal), draw3d.billboard (sprites that face you, see-through and video) and override.texture on 3D entities. Shoot a screen to pause or play it.",
+  "main": "main.lua",
+  "disableAchievements": false
+}
