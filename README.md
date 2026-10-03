@@ -10,14 +10,6 @@ whole game is a desktop operating system. You play a lone process defending the 
 kernel from a hostile takeover. The menus are desktop apps, the enemies are rogue processes
 and the bosses are hijacked system services.
 
-<!-- MEDIA PLACEHOLDER
-<p align="center">
-  <img src="media/1.gif" alt="Wave mode combat" width="800">
-</p>
--->
-
----
-
 ## Features
 
 - **The whole game is a desktop OS.** Start runs from `WAVE0.exe`, buy cosmetics in
