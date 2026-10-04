@@ -74,6 +74,9 @@ type
     hkPowerUpPicked = "powerUpPicked"    ## (name, level, game)
     hkPowerUpApply = "powerUpApply"  ## cancel (name, level, player): true skips its stat changes
     hkLevelUp = "levelUp"            ## (game, level)
+    # restore points
+    hkCheckpoint = "checkpoint"      ## cancel (game): true skips the base mode's restore point
+    hkRestorePointUsed = "restorePointUsed"  ## (game, used, max)  a Continue spent one; after runStart
     hkXpToLevel = "xpToLevel"        ## filter (xp, level, mode)
     # economy
     hkCoinValue = "coinValue"        ## filter (amount, enemy)
@@ -107,7 +110,8 @@ type
     hpAll = "all", hpPlayer = "player", hpRun = "run", hpBoss = "boss",
     hpCombo = "combo", hpBanners = "banners", hpAbilities = "abilities",
     hpHints = "hints", hpVignettes = "vignettes", hpDocks = "docks",
-    hpDamageNumbers = "damageNumbers", hpCrosshair = "crosshair"
+    hpDamageNumbers = "damageNumbers", hpCrosshair = "crosshair",
+    hpRestorePoints = "restorePoints"  ## the meters and the loss animation; "all" leaves them
 
   ModRuntime* = ref object
     ## One successfully started mod.
@@ -190,6 +194,7 @@ var
   handlers: array[ModHook, seq[Handler]]
   timers: seq[ModTimer]
   hiddenHud*: set[HudPart]       ## hud.hide(); every run starts with the full HUD
+  restoreSpentPending: bool      ## restorePointUsed is owed to the next run that starts
   nextTimerId = 1
   modKeybinds*: seq[ModKeybind]
 
@@ -261,8 +266,9 @@ proc saveModKeybind*(b: ModKeybind) =
   discard saveSettings(globalSettings)
 
 proc hudHidden*(p: HudPart): bool {.inline.} =
-  ## drawGame: is this built-in HUD piece hidden by a mod?
-  hiddenHud != {} and (p in hiddenHud or hpAll in hiddenHud)
+  ## drawGame: is this built-in HUD piece hidden by a mod? "all" is the HUD
+  ## drawn in play, so it leaves the restore points (crash and pause screens).
+  hiddenHud != {} and (p in hiddenHud or (hpAll in hiddenHud and p != hpRestorePoints))
 
 proc hookActive*(h: ModHook): bool {.inline.} =
   handlers[h].len > 0
@@ -560,6 +566,8 @@ type ModModeDef* = object
   color*: Color        ## icon accent; alpha 0 = not given, use the base mode's desktop colour
   desktop*: bool       ## puts an icon on the desktop
   threeD*: bool        ## base = "3d": the run lives in a 3D world (game3d/), never on the 2D arena
+  restore*: ModRestoreRule  ## restorePoints / restoreGlyphs (types.difficultyMaxLives reads it)
+  resumable*: bool     ## false: quitting ends the run; it is never saved to resume (see modRunResumable)
 
 var modModes*: seq[ModModeDef]
 
@@ -567,6 +575,38 @@ proc findModMode*(key: string): int =
   for i, m in modModes:
     if m.key == key: return i
   -1
+
+proc restoreRuleOf(modMode: string): ModRestoreRule {.nimcall.} =
+  ## types.modRestoreRule's seam: the mode's own rule, plus a mod's
+  ## hud.hide("restorePoints") for the run on screen (any mode).
+  if modMode.len > 0 and modModes.len > 0:
+    let i = findModMode(modMode)
+    if i >= 0: result = modModes[i].restore
+  if hpRestorePoints in hiddenHud: result.hideGlyphs = true
+
+modRestoreRuleImpl = restoreRuleOf
+
+var resumeOverride: tuple[game: Game, on: bool]
+  ## run.resumable for one run (the Game it was set on); the mode's flag otherwise
+
+proc modModeResumable*(key: string): bool =
+  ## Whether runs of mod game mode `key` are saved to resume when the player
+  ## quits (register.gamemode resumable; built-in modes always are).
+  if key.len == 0 or modModes.len == 0: return true
+  let i = findModMode(key)
+  i < 0 or modModes[i].resumable
+
+proc modRunResumable*(game: Game): bool =
+  ## run_save.saveRunState / suspend.suspendGame / main: may this run be saved
+  ## so the player can resume it after quitting? False makes quitting end it.
+  ## run.resumable decides for the run it was set on, else the mode's flag.
+  if game.isNil: return true
+  if not resumeOverride.game.isNil and resumeOverride.game == game: return resumeOverride.on
+  modModeResumable(game.modMode)
+
+proc setRunResumable*(game: Game, on: bool) =
+  ## run.resumable = on, for this run only.
+  resumeOverride = (game, on)
 
 proc modModeIs3D*(key: string): bool =
   ## Whether the mod game mode `key` runs in a 3D world.
@@ -664,6 +704,8 @@ proc resetHooks*() =
   modCtx = ModCtx()
   modNotices.setLen(0)
   hiddenHud = {}
+  restoreSpentPending = false
+  resumeOverride = (nil, true)
   resetModKeybinds()
 
 proc dropHandlersOf*(idx: int) =
@@ -717,6 +759,7 @@ proc modBeginFrame*(game: Game) =
     modCtx.lastState = game.state
     timers.setLen(0)
     hiddenHud = {}
+    resumeOverride = (nil, true)   # run.resumable is per run
     restoreRunData(game)
     let resumed = game.time > 0.5
     if hookActive(hkRunStart):
@@ -726,6 +769,24 @@ proc modBeginFrame*(game: Game) =
       if mi >= 0 and modModes[mi].onStart.kind in {vkFunction, vkNative}:
         var r: RetVals
         discard callAs(modModes[mi].owner, modModes[mi].onStart, [wrapGame(game), vbool(resumed)], r)
+    if restoreSpentPending:
+      restoreSpentPending = false
+      if hookActive(hkRestorePointUsed):
+        let budget = difficultyMaxLives(game.mode, game.modMode)
+        fire(hkRestorePointUsed, [wrapGame(game), vnum(game.livesUsed),
+                                  (if budget == UnlimitedLives: vnum(Inf) else: vnum(budget))])
+
+proc modRestorePointSpent*() =
+  ## run_save.consumeContinueLife: a Continue just spent a restore point. The
+  ## event fires on the continued run's first frame, after runStart and the
+  ## mode's onStart, when its run.data is back.
+  restoreSpentPending = mods.len > 0
+
+proc modCheckpointVetoed*(game: Game): bool =
+  ## run_save.saveBlockCheckpoint, for the base mode's own restore points (not
+  ## a script's run.restorePoints.save): true = a `checkpoint` handler skipped it.
+  hookActive(hkCheckpoint) and not game.isNil and game.mode != gmPvP and
+    fireCancel(hkCheckpoint, [wrapGame(game)])
 
 proc tickPowerUpScripts(game: Game, dt: float64)
 

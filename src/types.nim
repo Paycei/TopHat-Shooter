@@ -1958,7 +1958,25 @@ const RestorePointModes* = {gmWaveBased, gmRoguelite, gmTimeSurvival}
   ## Modes that keep a death-surviving checkpoint and show the restore-point
   ## meter, on every difficulty (a 0 budget reads NONE LEFT rather than
   ## vanishing), or the offline panel once the run is won (restorePointsOffline).
-  ## Must agree with the non-zero rows of difficultyMaxLives.
+  ## Must agree with the non-zero rows of difficultyMaxLives. A mod game mode can
+  ## switch the whole system off, or just its meters: see restorePointsShown.
+
+type ModRestoreRule* = object
+  ## A mod game mode's say over restore points (register.gamemode restorePoints
+  ## and restoreGlyphs, hud.hide("restorePoints")). The zero value leaves
+  ## everything to the base mode's difficulty table.
+  disabled*: bool                       ## no restore points at all: nothing written, no Continue, no meters
+  budget*: array[GameDifficulty, int]   ## the budget per difficulty (UnlimitedLives = unmetered)...
+  custom*: set[GameDifficulty]          ## ...for the difficulties listed here; the rest keep the base mode's
+  hideGlyphs*: bool                     ## continues work, but the meters and the loss animation are not drawn
+
+var modRestoreRuleImpl*: proc (modMode: string): ModRestoreRule {.nimcall.}
+  ## Filled by mod_hooks (which holds the mod game modes); nil without mods.
+
+proc modRestoreRule*(modMode: string): ModRestoreRule =
+  ## The rule for a run of mod game mode `modMode` ("" = a built-in mode, which
+  ## only hud.hide can touch).
+  if not modRestoreRuleImpl.isNil: modRestoreRuleImpl(modMode) else: ModRestoreRule()
 
 # "Life lost" animation, played over the reorientation countdown when a run
 # resumes from its block checkpoint. Phase boundaries are fractions of the total
@@ -2250,11 +2268,12 @@ proc difficultyBossCooldownMult*(): float32 =
   of gdHard: 0.85'f32
   of gdNightmare: 0.72'f32
 
-proc difficultyMaxLives*(mode: GameMode): int =
+proc difficultyMaxLives*(mode: GameMode, modMode = ""): int =
   ## Continues ("lives") a run of `mode` gets on this profile, or UnlimitedLives
   ## for an unmetered budget. This is the single source of truth for the lives
   ## system: the checkpoint gate, the meters and the spend path all derive from
-  ## it, so retuning a tier here retunes every consumer at once.
+  ## it, so retuning a tier here retunes every consumer at once. A mod game mode
+  ## (`modMode`) may replace the table, or switch restore points off (0).
   ##
   ## Wave mode resumes at the start of its last boss block, the roguelite at the
   ## start of the sector it died in, Time Survival at the start of its phase.
@@ -2266,6 +2285,10 @@ proc difficultyMaxLives*(mode: GameMode): int =
   ## Naming note: this is the "lives" budget throughout the code, but the UI
   ## calls one a RESTORE POINT, because that is what spending one does -- it
   ## restores a saved system state off disk. See ui/ui_helpers.nim.
+  if modMode.len > 0:
+    let rule = modRestoreRule(modMode)
+    if rule.disabled: return 0
+    if currentDifficulty in rule.custom: return rule.budget[currentDifficulty]
   case mode
   of gmWaveBased:
     case currentDifficulty
@@ -2280,22 +2303,22 @@ proc difficultyMaxLives*(mode: GameMode): int =
     of gdHard, gdNightmare: 0
   of gmSandbox, gmPvP: 0
 
-proc livesRemaining*(used: int, mode: GameMode): int =
+proc livesRemaining*(used: int, mode: GameMode, modMode = ""): int =
   ## Lives still available after `used` continues, or UnlimitedLives when the
   ## budget is unmetered. Clamped at 0 so a checkpoint written under a more
   ## generous difficulty can never report a negative count.
-  let maxLives = difficultyMaxLives(mode)
+  let maxLives = difficultyMaxLives(mode, modMode)
   if maxLives == UnlimitedLives: UnlimitedLives
   else: max(0, maxLives - used)
 
-proc difficultyAllowsContinue*(mode: GameMode): bool =
+proc difficultyAllowsContinue*(mode: GameMode, modMode = ""): bool =
   ## Whether the death-surviving checkpoint ("Continue (Wave N)" / "Continue
   ## (Sector N)") exists for `mode` on this profile at all. A 0 budget means no
   ## second chances: dying always means a fresh run. Gated at the run_save.nim
   ## write/read choke points so every consumer (game-over screen, resume prompt)
   ## loses the option at once. A run that has merely SPENT its lives is stopped
   ## further down, by hasBlockCheckpoint's remaining-lives check.
-  difficultyMaxLives(mode) != 0
+  difficultyMaxLives(mode, modMode) != 0
 
 proc restorePointsOffline*(game: Game): bool =
   ## The run has been won and is playing on past it -- wave mode's endless
@@ -2308,6 +2331,16 @@ proc restorePointsOffline*(game: Game): bool =
   of gmRoguelite: not game.rogueliteRun.isNil and game.rogueliteRun.endlessLoop > 0
   of gmTimeSurvival: game.survival.victoryAchieved
   of gmSandbox, gmPvP: false
+
+proc restorePointsShown*(game: Game): bool =
+  ## Whether this run draws restore points: the meters on the crash, pause and
+  ## victory screens, and the loss animation when one is spent. A mode outside
+  ## RestorePointModes has none; a mod game mode can switch the system off
+  ## (restorePoints = false) or keep it and hide only these (restoreGlyphs =
+  ## false, or hud.hide("restorePoints") from any mod).
+  if game.isNil or game.mode notin RestorePointModes: return false
+  let rule = modRestoreRule(game.modMode)
+  not rule.disabled and not rule.hideGlyphs
 
 proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
                        duration: float32, sourceEnemyId: int = -1): AttackWarning =

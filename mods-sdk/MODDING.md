@@ -115,6 +115,8 @@ one and `hooks.list()` returns every name. Three kinds:
 |---|---|---|
 | `runStart` | game, resumed | event: a run begins (or is resumed) |
 | `runEnd` | game, died | event |
+| `checkpoint` | game | cancel: true skips the restore point the base mode is about to save (see [Restore points](#restore-points)) |
+| `restorePointUsed` | game, used, max | event: a Continue spent a restore point; fires on the continued run's first frame, after `runStart` |
 | `update` | game, dt | event, every frame of play (dt in seconds), after the game's own update |
 | `preUpdate` | game, dt | event, every frame of play, before the game's own update |
 | `stateChange` | game, from, to | event: the run moved between screens (`"gsPlaying"`, `"gsPaused"`, `"gsShop"`, `"gsPowerUpSelect"`, `"gsGameOver"`, ...) |
@@ -392,6 +394,7 @@ local MODE = register.gamemode{
   description = {en = "...", es = "..."},
   base = "wave",          -- "wave", "survival", "roguelite" or "3d": the rules it starts from
   spawning = true,        -- false: the base mode spawns nothing by itself
+  resumable = true,       -- false: quitting ends a run instead of saving it to resume
   icon = "icon.png",      -- optional desktop icon; color and desktop work the same way
   onStart = function(game, resumed) end,
 }
@@ -413,12 +416,77 @@ end)
   without a `color` it takes its base mode's color (Play blue, Survival orange,
   Roguelite teal). Mode icons come first among the mod icons, in registration
   order, tagged MOD.
+* **Quitting is never a loss**, in any mode. A run that is quit and cannot be
+  resumed ends with `runEnd(game, false)` and counts no death.
+* `resumable = false` turns off resuming a run you quit: leaving a run of the
+  mode (the pause menu's exit, Q in a 3D world's pause, `world3d.exit()` in a
+  3D mode, or closing the game) ends it instead of saving it, the exit prompt
+  says so, and the mode's desktop icon and MODS.EXE never
+  offer the Continue / New Run prompt for a saved run. Its
+  [restore points](#restore-points) are separate and keep working. A script
+  can decide for one run with `run.resumable` (see below).
 * `base = "3d"` makes a mode that plays entirely in a first-person 3D world
   (see [3D worlds](#3d-worlds)): it launches into an empty world that the
   world3d hooks build, `spawning` is off, and finishing the world with
   `world3d.finish(true)` wins the run. Example: `arena_3d`.
 * To change an **existing** mode instead, write the same hooks without a mode:
   check `game:isMode("survival")` and so on (see the `survival_tweaks` example).
+
+### Restore points
+
+When a run dies, the crash screen can offer **CONTINUE**: the run starts again
+from its last checkpoint and spends a restore point, drawn as a save platter in
+the meters on the crash, pause and victory screens. How many a run gets depends
+on the profile's difficulty and the base mode (wave: unlimited / 3 / 1 / 0 from
+Easy to Nightmare; survival and roguelite: 3 / 1 / 0 / 0), and each base mode
+saves its checkpoint at fixed points (the start of a boss block, a sector, a
+survival phase). A mode can take all of it over:
+
+```lua
+register.gamemode{
+  id = "gauntlet", base = "3d",
+  restorePoints = 2,           -- 2 on every difficulty
+  -- restorePoints = false       no restore points at all
+  -- restorePoints = "unlimited"
+  -- restorePoints = {easy = "unlimited", medium = 3, hard = 1}   nightmare keeps the base 0
+  restoreGlyphs = true,        -- false: continues work, but no meter and no loss animation
+}
+```
+
+* `restorePoints = false` switches the system off for the mode: no checkpoint
+  is ever written (not by the base mode, not by a script), the crash screen
+  offers no CONTINUE, and no restore-point meter or animation is drawn. A
+  number (0 to 1000) or `"unlimited"` is the budget on every difficulty; a
+  table sets it per difficulty, and a difficulty it leaves out keeps the base
+  mode's. `0` keeps the meter, reading NONE LEFT, like Nightmare. Anything
+  else is an error that names it.
+* A run that is past its win (endless waves, endless loops, Overtime) still has
+  no restore points, whatever the budget.
+* `run.restorePoints` is the run's side of it, read live: `enabled` (the mode
+  has the system), `max` and `left` (`math.huge` when unlimited), `used`,
+  `saved` (a checkpoint is there for CONTINUE to resume), `offline` (past the
+  win) and `glyphs` (the meters are drawn). `used` can be set (a whole number
+  from 0): giving one back or taking one away also updates the checkpoint, so
+  the crash screen agrees. The rest are read-only.
+* `run.restorePoints.save([label])` makes the run as it stands now, with its
+  `run.data`, the checkpoint CONTINUE resumes, and returns whether it was
+  written (not when the mode has none or a budget of 0, or the run is past its
+  win; with none `left` it is written, but CONTINUE stays off). `label` (`"ROUND 3"` or
+  `{en = "ROUND 3", es = "RONDA 3"}`) is what the button names: CONTINUE (ROUND
+  3); without one it names the base mode's wave, sector or clock.
+  `run.restorePoints.clear()` drops the checkpoint. A 3D mode has no
+  checkpoints of its own, so its script saves them; CONTINUE then opens a fresh
+  world with `resumed = true` (rebuild it from `run.data`, as on Continue after
+  quitting), and `restorePointUsed` tells it a restore point paid for it.
+* The `checkpoint` hook runs before each of the base mode's own checkpoints;
+  returning `true` skips it. To save your own instead, call
+  `run.restorePoints.save(label)` from that hook and return `true`.
+* `hud.hide("restorePoints")` hides the meters and the loss animation for the
+  run, in any mode (`hud.hide("all")` leaves them). `restoreGlyphs = false`
+  does it for every run of the mode.
+* Continue after **quitting** (the Continue / New Run prompt) is a saved run,
+  not a restore point, and is not affected by any of this: `resumable` turns
+  it off.
 
 ## Textures, sounds and cosmetics
 
@@ -664,8 +732,8 @@ end)
 * **A 3D game mode:** `register.gamemode{base = "3d", ...}` (see
   [Game modes](#game-modes)). Launching it goes straight into an **empty**
   world: no boss, nothing spawned, no 2D arena. The script builds everything.
-  Winning the world wins the run (the victory screen); losing it, or leaving
-  it, ends the run through the death screens.
+  Winning the world wins the run (the victory screen); losing it ends the run
+  through the death screens; leaving it quits the run (see Leaving below).
 * **From a 2D run:** `world3d.enter{boss = false, bossId = 7, keepHp = true}`
   opens a world at the end of the frame, through the fade to black. With
   `boss = true` it is the game's own boss fight (`bossId` 7, the Orbital
@@ -675,7 +743,9 @@ end)
   or in a run that is a 3D mode already.
 * **Leaving:** `world3d.finish(true)` (or `false`, or `"won"` / `"lost"`; no
   argument means won) ends the world as won or lost, and `world3d.exit()` leaves
-  it (`"exit"`; in a 3D mode that counts as a loss). Both take effect at the end
+  it (`"exit"`). In a 3D mode leaving the world is quitting the run, never a
+  loss: back to the desktop, the run saved to resume like Q at the pause
+  (unless the mode is not `resumable`). Both take effect at the end
   of the frame. A world also ends by itself when the player dies
   (`rules.exitOnPlayerDeath`), when the boss dies (`rules.exitOnBossDeath`) and
   when `rules.timeLimit` runs out (a loss, or a win with `rules.timeLimitWins`).
@@ -1007,8 +1077,10 @@ GLSL fragment shaders can post-process the whole frame (desktop OpenGL 3.3,
 `"all"`, `"player"` (health, power-ups), `"run"` (the wave / survival /
 sector panel), `"boss"`, `"combo"`, `"banners"`, `"abilities"`, `"hints"`,
 `"vignettes"`, `"docks"` (the widescreen side panels' background),
-`"damageNumbers"` and `"crosshair"` (3D worlds only; `"player"`, `"boss"`
-and `"damageNumbers"` also apply there). Every run starts with the full HUD, so hide parts from
+`"damageNumbers"`, `"crosshair"` (3D worlds only; `"player"`, `"boss"`
+and `"damageNumbers"` also apply there) and `"restorePoints"` (the
+[restore-point](#restore-points) meters on the crash, pause and victory screens,
+and the animation when one is spent; `"all"` leaves them). Every run starts with the full HUD, so hide parts from
 `runStart` (or a game mode's `onStart`).
 
 ## Apps
@@ -1117,6 +1189,12 @@ optional raylib `GamepadButton` name and defaults to unbound.
   and tables survive quitting and resuming (functions do not). You may also
   replace it whole (`run.data = {...}`). `run.active` is true while a run is
   on screen.
+* `run.resumable` says whether quitting saves this run to be resumed (the
+  mode's `resumable`, true for the game's own modes). Set it to `false` and
+  quitting ends the run instead, and a save already on disk goes at once;
+  `true` allows it again. It lasts for this run only, in any mode.
+* `run.restorePoints`: the run's restore points (see
+  [Restore points](#restore-points)).
 * `mod.storage` is a table kept between sessions, per profile (your mod's own
   settings, records or unlocks). It is saved when mods reload and when the game
   closes; `mod.saveStorage()` saves it right away. Same plain-data rule, 1 MB
@@ -1145,7 +1223,7 @@ replaces an example only when the game ships a newer version of it (a higher
 | `arena_3d` | a complete 3D game mode, Cube Siege: waves of entities with built-in AI, pickups, a shotgun tune, a custom HUD, `draw3d` effects and a resumable `run.data` |
 | `orbital_tweaks` | changing the game's own 3D boss fight: extra drones, a phase message and a hit filter |
 | `media_player` | videos and music: a desktop app with a seek bar, a music track that takes over the game's music, a playlist read with `assets.json`, an LCD font and a video as its desktop icon (`disableAchievements: false`) |
-| `billboard_plaza` | videos and images in a 3D world, a mode called Billboard Plaza: screens fixed in place with `draw3d.texture` (a video with sound that gets louder as you walk up, a PNG poster, a GIF sign, a turning column of videos, a floor decal), `draw3d.billboard` sprites that face you (see-through, drawn farthest first, and a video), an entity drawn as a GIF, shooting a screen to pause it, and holding the videos while the world is paused (`disableAchievements: false`) |
+| `billboard_plaza` | videos and images in a 3D world, a mode called Billboard Plaza: screens fixed in place with `draw3d.texture` (a video with sound that gets louder as you walk up, a PNG poster, a GIF sign, a turning column of videos, a floor decal), `draw3d.billboard` sprites that face you (see-through, drawn farthest first, and a video), an entity drawn as a GIF, shooting a screen to pause it, holding the videos while the world is paused, no resuming after quitting (`resumable = false`) and no restore points at all (`restorePoints = false`; `disableAchievements: false`) |
 
 ## Multiplayer
 

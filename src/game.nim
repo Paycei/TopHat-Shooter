@@ -926,6 +926,12 @@ proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: in
 # base = "3d"). Entering parks the 2D run in state gs3DBoss; leaving carries
 # the world's result back into it.
 
+var modeWorldQuit*: bool
+  ## A 3D mod mode's world was left ("exit"): that is quitting the run, never a
+  ## loss. main.nim reads it right after updateGame and leaves for the desktop
+  ## the way Q at the world's pause does (saved to resume, or ended when a mod
+  ## made the run unresumable).
+
 
 proc enterWorld3D*(game: Game, opts: World3DOptions) =
   ## Enter a 3D world now. activeWorld3D holds the world; Game.game3D only
@@ -980,10 +986,9 @@ proc leaveWorld3D(game: Game) =
     # Player died in 3D
     beginPlayerDeathSequence(game, if world.bossEnabled: dcBossContact else: dcUnknown)
   of w3Exit, w3None:
-    if modeRun:
-      beginPlayerDeathSequence(game, dcUnknown)  # nothing to go back to: leaving counts as a loss
-    else:
-      game.state = gsPlaying
+    # A mod mode has no 2D run to go back to: leaving its world quits the run.
+    game.state = gsPlaying
+    if modeRun: modeWorldQuit = true
 
 proc processModActions(game: Game) =
   ## Carry out what mod scripts queued this frame (spawns, removals, bullets),
@@ -7171,8 +7176,10 @@ proc drawGameOver*(game: Game) =
   # just died.
   let livesUsed = if blockCheckpointExists(game.mode, game.modMode): blockCheckpointLivesUsed(game.mode, game.modMode)
                   else: game.livesUsed
+  let label = blockCheckpointLabel(game.mode, game.modMode)
   drawSystemCrash(game, game.selectedGameOverButton, showContinue,
-                  blockCheckpointResumePoint(game.mode, game.modMode), livesUsed)
+                  blockCheckpointResumePoint(game.mode, game.modMode), livesUsed,
+                  if getLanguage() == Spanish and label.es.len > 0: label.es else: label.en)
 
 proc drawVictory*(game: Game) =
   # OS-style "system secured" congratulations screen (wave-60 final boss cleared)

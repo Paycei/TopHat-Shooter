@@ -1,7 +1,7 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import draw_prims
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
-import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api], ui/mods_window
+import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples], ui/mods_window
 
 # Global quit-confirmation dialog
 
@@ -16,21 +16,24 @@ var
   globalConfirmActive      = false
   globalConfirmContext     = cdcQuitToMenu
   globalConfirmRunMode     = gmWaveBased  # Mode of the run an abandon-checkpoint prompt is about
+  globalConfirmRunEnds     = false  # the run being left cannot be resumed (a mod's modRunResumable)
   globalConfirmFrameGuard  = 0.0'f32  # Prevents Q from instantly confirming on dialog open
   globalConfirmMouseGuard  = 0.0'f32  # anti-accident cooldown before mouse/button click is accepted
 
 const DEFAULT_CONFIRM_COOLDOWN = 1.5'f32  # standard anti-accident window (seconds)
 
 proc showGlobalConfirm(ctx: ConfirmDialogContext, cooldown: float32 = DEFAULT_CONFIRM_COOLDOWN,
-                       runMode: GameMode = gmWaveBased) =
+                       runMode: GameMode = gmWaveBased, runEnds = false) =
   ## `cooldown` is the seconds the YES button stays greyed out / counts down before it
   ## accepts a click. Pass 0.0 to make confirmation immediate (e.g. the main-menu Quit
   ## icon, where there's no in-progress run to protect). Defaults to the standard window
   ## so in-game quits keep the anti-accident delay. `runMode` words the abandon-restart
   ## prompt: wave mode restarts at wave 1, the other modes start a new run.
+  ## `runEnds`: leaving ends a run a mod made unresumable, instead of saving it.
   globalConfirmActive     = true
   globalConfirmContext    = ctx
   globalConfirmRunMode    = runMode
+  globalConfirmRunEnds    = runEnds
   globalConfirmFrameGuard = 0.15'f32  # Absorbs the key that opened the dialog
   globalConfirmMouseGuard = max(0.0'f32, cooldown)
 
@@ -87,6 +90,8 @@ proc drawGlobalConfirmDialog(): int =
                  t(tkConfirmCheckpointSub)
                elif globalConfirmContext == cdcPostGameExit:
                  ""
+               elif globalConfirmRunEnds:
+                 t(tkConfirmRunEnds)
                else:
                  t(tkConfirmUnsaved)
   let sW = measureText(subStr, 13)
@@ -723,6 +728,9 @@ proc main() =
   reloadMods(settings.enabledMods, settings.modCosmetics)
   if modsActive:
     initializeAllCosmetics()
+  # Installed example mods this build ships newer versions of: toasted once,
+  # on the first desktop visit (MODS.EXE tags them and says how to update).
+  var exampleUpdateCount = exampleUpdates().len
 
   let cheatMenu = initCheatMenu()
 
@@ -835,7 +843,8 @@ proc main() =
         name: (if spanish and m.nameEs.len > 0: m.nameEs else: m.nameEn),
         description: (if spanish and m.descEs.len > 0: m.descEs else: m.descEn),
         modName: modName, baseName: baseName,
-        canContinue: hasSuspendSnapshot(m.base, m.key) or hasSavedRun(m.base, m.key) or
+        # A mode a mod made unresumable offers no saved run, only a restore point.
+        canContinue: (m.resumable and (hasSuspendSnapshot(m.base, m.key) or hasSavedRun(m.base, m.key))) or
                      hasBlockCheckpoint(m.base, m.key)))
   refreshModsWindow(globalWindowManager.mods)
   # Pre-load saved nickname into pvp window and host network manager
@@ -1022,12 +1031,46 @@ proc main() =
 
   proc checkpointLiveRun(game: Game) =
     ## Leaving a live run for the menu: checkpoint it so it can be resumed, or,
-    ## when it cannot be (see isUnresumableWonRun), record it as ended.
+    ## when it cannot be (see isUnresumableWonRun), record it as ended. A run a
+    ## mod made unresumable (modRunResumable) ends here too. Quitting is never a
+    ## loss, so it is recorded with died = false (no death counted; that is not a
+    ## win either: only the victory paths make one). Its saves are refused (and
+    ## older ones dropped) by saveRunState / suspendGame.
     if isUnresumableWonRun(game):
+      freezeRunTime(game)
+      persistRunResults(game, died = false)
+    elif not modRunResumable(game) and
+         game.state in {gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared,
+                        gsPowerUpSelect, gsRogueliteFloorSelect}:
       freezeRunTime(game)
       persistRunResults(game, died = false)
     saveRunState(game)
     suspendGame(game)  # Exact mid-run snapshot (primary resume path).
+
+  proc tickLifeLost(game: Game, dt: float32) =
+    ## Advance the "restore point spent" animation (consumeContinueLife arms it)
+    ## and fire its three cues off the same phase constants the drawing reads,
+    ## so each lands on the beat it describes: the drive being addressed, the
+    ## platter coasting down, and the break itself. The caller holds the run
+    ## still while it plays: the 2D countdown, or a 3D world's first frame.
+    game.lifeLostTimer = max(0.0'f32, game.lifeLostTimer - dt)
+    let lifeLostP = 1.0'f32 - game.lifeLostTimer / LifeLostAnimDuration
+    if game.lifeLostSoundStage < 1:
+      playSound(stRestoreAccess)
+      game.lifeLostSoundStage = 1
+    if game.lifeLostSoundStage < 2 and lifeLostP >= LifeLostCrackStart:
+      playSound(stRestoreSpinDown)
+      game.lifeLostSoundStage = 2
+    if game.lifeLostSoundStage < 3 and lifeLostP >= LifeLostShatterStart:
+      playSound(stRestoreShatter)
+      game.lifeLostSoundStage = 3
+
+  proc enterModWorld(game: Game, resumed: bool): bool =
+    ## A run of a base = "3d" mod game mode lives in its world, never on the 2D
+    ## arena: (re)enter it, fresh or continued. False for any other run.
+    if not modModeIs3D(game.modMode): return false
+    enterWorld3D(game, World3DOptions(modeKey: game.modMode, resumed: resumed))
+    true
 
   proc openRunStatsWindow() =
     ## Route the post-run "View Stats" action into the desktop stats window,
@@ -1069,7 +1112,7 @@ proc main() =
       # Shutdown.exe icon).
       if settings.exitConfirmEnabled and isInGame and not isSandboxMode(currentGame.mode):
         if not globalConfirmActive:
-          showGlobalConfirm(cdcQuitToDesktop)
+          showGlobalConfirm(cdcQuitToDesktop, runEnds = not modRunResumable(currentGame))
       elif settings.exitConfirmEnabled and
            (currentGame.state in {gsMenu, gsGameOver, gsVictory, gsRunStats} or
             isSandboxMode(currentGame.mode)):
@@ -1613,7 +1656,9 @@ proc main() =
               currentGame.rogueliteProfile = rogueliteProfile
             var resumed = false
             if pendingResume:
-              if hasSuspendSnapshot(md.base, md.key):
+              # A mode a mod made unresumable resumes no saved run, only a
+              # restore point (saveRunState / suspendGame drop a leftover one).
+              if md.resumable and hasSuspendSnapshot(md.base, md.key):
                 if restoreGame(currentGame):
                   if currentGame.state == gsPlaying:
                     currentGame.state = gsCountdown
@@ -1622,7 +1667,7 @@ proc main() =
                   resumed = true
                 else:
                   deleteSuspendSnapshot(md.base, md.key)
-              if not resumed and applySavedRun(currentGame):
+              if not resumed and md.resumable and applySavedRun(currentGame):
                 initializeRunTracking(currentGame)
                 currentGame.selectedRogueliteTheme = 0
                 resumed = true
@@ -1727,6 +1772,11 @@ proc main() =
           .replace("$1", $pendingProfileRefund.shards)
           .replace("$2", $pendingProfileRefund.cores))
         pendingProfileRefund = (0, 0)
+
+      if exampleUpdateCount > 0 and osDesktop.toasts.len < MAX_DESKTOP_TOASTS and
+         not globalConfirmActive:
+        showDesktopToast(osDesktop, t(tkModsUpdatesToast).replace("$1", $exampleUpdateCount))
+        exampleUpdateCount = 0
 
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
       var action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive and
@@ -2092,7 +2142,7 @@ proc main() =
           let mi = findModMode(osDesktop.launchModKey)
           if mi >= 0:
             let md = modModes[mi]
-            if hasSuspendSnapshot(md.base, md.key) or hasSavedRun(md.base, md.key) or
+            if (md.resumable and (hasSuspendSnapshot(md.base, md.key) or hasSavedRun(md.base, md.key))) or
                hasBlockCheckpoint(md.base, md.key):
               resumePromptActive = true
               resumePromptMode = md.base
@@ -3061,7 +3111,7 @@ proc main() =
 
       # Draw quit-confirmation dialog on top of everything if pending
       if currentGame.confirmQuitPending:
-        let confirmDlg = drawQuitConfirmDialog(currentGame)
+        let confirmDlg = drawQuitConfirmDialog(currentGame, not modRunResumable(currentGame))
         if confirmDlg.confirmed:
           currentGame.confirmQuitPending = false
           # Perform the actual quit-to-menu
@@ -3117,7 +3167,8 @@ proc main() =
            (currentGame.rogueliteRun.totalRoomsCleared > 0 or
             currentGame.rogueliteRun.shardsEarned > 0 or
             currentGame.rogueliteRun.coresEarned > 0):
-          discard commitRogueliteRunProgress(currentGame, true)
+          # Banked as a quit, not a death: quitting is never a loss.
+          discard commitRogueliteRunProgress(currentGame, false)
           setActiveRogueliteProfile(currentGame.rogueliteProfile)
         # The run is abandoned (and its shards were just banked), so its saves
         # must go too: left on disk, the run could be resumed and banked again.
@@ -3139,7 +3190,8 @@ proc main() =
         if not globalConfirmActive: startSelectedTheme()
       if isKeyPressed(Q):
         if not globalConfirmActive:
-          if settings.exitConfirmEnabled: showGlobalConfirm(cdcQuitToMenu)
+          if settings.exitConfirmEnabled:
+            showGlobalConfirm(cdcQuitToMenu, runEnds = not modRunResumable(currentGame))
           else: closeRogueliteFloorSelect()
 
       if isPointerPressed() and not globalConfirmActive:
@@ -3161,7 +3213,8 @@ proc main() =
         let cardY = panelY + 185
         let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
         if checkCollisionPointRec(mousePos, closeRect):
-          if settings.exitConfirmEnabled: showGlobalConfirm(cdcQuitToMenu)
+          if settings.exitConfirmEnabled:
+            showGlobalConfirm(cdcQuitToMenu, runEnds = not modRunResumable(currentGame))
           else: closeRogueliteFloorSelect()
         elif isFinalDungeonFloor(currentGame.rogueliteRun):
           if checkCollisionPointRec(mousePos, finalBossCardRect(screenWidth.int32, screenHeight.int32)):
@@ -3293,20 +3346,7 @@ proc main() =
       # A pending life-lost animation owns the screen first: the countdown holds
       # where it is until the spent restore point has finished breaking up.
       if currentGame.lifeLostTimer > 0:
-        currentGame.lifeLostTimer = max(0.0'f32, currentGame.lifeLostTimer - dt)
-        let lifeLostP = 1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration
-        # Three dedicated cues, fired off the same phase constants the drawing
-        # reads, so each one lands on the beat it describes: the drive being
-        # addressed, the platter coasting down, and the break itself.
-        if currentGame.lifeLostSoundStage < 1:
-          playSound(stRestoreAccess)
-          currentGame.lifeLostSoundStage = 1
-        if currentGame.lifeLostSoundStage < 2 and lifeLostP >= LifeLostCrackStart:
-          playSound(stRestoreSpinDown)
-          currentGame.lifeLostSoundStage = 2
-        if currentGame.lifeLostSoundStage < 3 and lifeLostP >= LifeLostShatterStart:
-          playSound(stRestoreShatter)
-          currentGame.lifeLostSoundStage = 3
+        tickLifeLost(currentGame, dt)
       else:
         currentGame.countdownTimer -= dt
 
@@ -3327,7 +3367,7 @@ proc main() =
       # numerals are held back so the two do not fight over the centre.
       if currentGame.lifeLostTimer > 0:
         drawLifeLostOverlay(screenWidth, screenHeight, currentGame.livesUsed,
-                            difficultyMaxLives(currentGame.mode), UnlimitedLives,
+                            difficultyMaxLives(currentGame.mode, currentGame.modMode), UnlimitedLives,
                             1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration)
       else:
         # Draw stylish countdown overlay
@@ -3771,6 +3811,9 @@ proc main() =
           currentGame.countdownTimer = 3.0
           currentGame.selectedRogueliteTheme = 0
           resumeRunTracking(currentGame)
+          # A 3D mod mode continues in a fresh world (resumed = true), which
+          # holds its first frame while the spent restore point breaks up.
+          discard enterModWorld(currentGame, resumed = true)
         elif mode == gmRoguelite:
           # Checkpoint failed to apply: a fresh roguelite starts at its setup.
           globalWindowManager.openWindow(widRoguelite)
@@ -3779,6 +3822,7 @@ proc main() =
           # Checkpoint failed to apply: fall back to a fresh run.
           currentGame.state = gsPlaying
           initializeRunTracking(currentGame)
+          discard enterModWorld(currentGame, resumed = false)
         playSound(stMenuSelect)
         statsSavedThisGame = false
 
@@ -3808,6 +3852,8 @@ proc main() =
         else:
           initializeRunTracking(currentGame)  # Start tracking
           currentGame.state = gsPlaying
+          # A 3D mod mode restarts in its world, not on an empty 2D arena.
+          discard enterModWorld(currentGame, resumed = false)
         playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
 
@@ -4262,9 +4308,32 @@ proc main() =
       # 3D Boss fight
       playMusic(mtBoss)
 
-      # Update 3D game
-      if not cheatMenu.active:
+      # Update 3D game. A Continue into a 3D mod mode holds the world (its
+      # world3dStart included) while the spent restore point breaks up.
+      if currentGame.lifeLostTimer > 0:
+        tickLifeLost(currentGame, dt)
+      elif not cheatMenu.active:
         updateGame(currentGame, dt)
+
+      proc quitWorldRun() =
+        ## Quit a run from its 3D world to the desktop, like the 2D pause menu:
+        ## checkpoint it to resume (a mod-mode run resumes into a fresh world), or
+        ## end it when a mod made it unresumable. Never a loss. The 2D state is
+        ## put back for the checkpoint's state gate.
+        enableCursor()
+        currentGame.state = gsPlaying
+        checkpointLiveRun(currentGame)
+        cleanupGame(currentGame)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        playSound(stMenuSelect)
+
+      if modeWorldQuit:
+        # A 3D mod mode's world was left (world3d.exit): that quits the run.
+        modeWorldQuit = false
+        quitWorldRun()
+        continue
 
       # Render 3D game directly (no 2D render target)
       if activeWorld3D != nil:
@@ -4272,6 +4341,10 @@ proc main() =
         beginDrawing()
         clearBackground(Black)
         renderGame3D(world)
+        if currentGame.lifeLostTimer > 0:
+          drawLifeLostOverlay(getScreenWidth(), getScreenHeight(), currentGame.livesUsed,
+                              difficultyMaxLives(currentGame.mode, currentGame.modMode), UnlimitedLives,
+                              1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration)
 
         # Draw cheat menu overlay if active
         drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
@@ -4279,18 +4352,9 @@ proc main() =
         endDrawing()
 
         if world.quitRequested:
-          # The 3D pause overlay's "quit to desktop": checkpoint the run like the
-          # 2D pause menu does (a mod-mode run resumes into a fresh world), then
-          # leave. The 2D state is put back for the checkpoint's state gate.
+          # The 3D pause overlay's "quit to desktop".
           finishWorld3D(world, w3Exit)
-          enableCursor()
-          currentGame.state = gsPlaying
-          checkpointLiveRun(currentGame)
-          cleanupGame(currentGame)
-          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-          currentGame.discordClient = globalDiscordClient
-          currentGame.state = gsMenu
-          playSound(stMenuSelect)
+          quitWorldRun()
       else:
         # Safety: only recover if the 3D state is still active after update.
         if currentGame.state == gs3DBoss:
@@ -4378,10 +4442,13 @@ proc main() =
     of gsRunStats:
       if currentGame.previousState == gsVictory:
         persistRunResults(currentGame, died = false)
-    of gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared, gsPowerUpSelect:
+    of gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared, gsPowerUpSelect,
+       gsRogueliteFloorSelect, gs3DBoss:
       # Live play is normally checkpointed below, but a won run in endless
-      # cannot be, so it is recorded here instead of being lost.
-      if isUnresumableWonRun(currentGame):
+      # cannot be, so it is recorded here instead of being lost. Nor can a run
+      # a mod made unresumable: closing the game ends it (quitting is never a
+      # loss, so not as a death).
+      if isUnresumableWonRun(currentGame) or not modRunResumable(currentGame):
         freezeRunTime(currentGame)
         persistRunResults(currentGame, died = false)
     else:

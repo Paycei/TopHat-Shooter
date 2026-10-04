@@ -395,8 +395,10 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
     drawText(value, x + 300, yOffset, 14, White)
     yOffset += 25
 
-proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
+proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cancelled: bool] =
   ## Draw an OS-style "Are you sure?" confirmation dialog over the task manager.
+  ## `runEnds`: the run cannot be resumed (a mod's modRunResumable), so leaving
+  ## ends it instead of saving it, and the dialog says so.
   result.confirmed = false
   result.cancelled  = false
 
@@ -427,17 +429,17 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   # Title bar
   let tbH: int32 = 35
   drawRectangle(dx, dy, DW, tbH, Color(r: 120, g: 30, b: 30, a: 255))
-  let titleStr = "CONFIRM EXIT"
+  let titleStr = t(tkConfirmExitTitle)
   let titleW = measureText(titleStr, 16)
   drawText(titleStr, dx + (DW - titleW) div 2, dy + 8, 16,
            Color(r: 255, g: 200, b: 200, a: 255))
 
   # Body text
-  let bodyStr = "Return to main menu?"
+  let bodyStr = t(tkConfirmExitBody)
   let bodyW = measureText(bodyStr, 18)
   drawText(bodyStr, dx + (DW - bodyW) div 2, dy + tbH + 28, 18, White)
 
-  let subStr = "Your progress will be saved."
+  let subStr = t(if runEnds: tkConfirmRunEnds else: tkConfirmUnsaved)
   let subW = measureText(subStr, 13)
   drawText(subStr, dx + (DW - subW) div 2, dy + tbH + 58, 13,
            Color(r: 200, g: 150, b: 150, a: 255))
@@ -462,7 +464,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
                                width: BTN_W.float32, height: BTN_H.float32),
                      if noHov: 3 else: 2,
                      if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 200, b: 60, a: 255))
-  let noText = "[ESC] CANCEL"
+  let noText = t(tkConfirmCancelBtn)
   let noTW = measureText(noText, 14)
   drawText(noText, noX + (BTN_W - noTW) div 2, btnY + 12, 14, White)
 
@@ -483,7 +485,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
 
   # Replace quit text with remaining seconds while mouse-cooldown is active
   let yesText = if mouseReady:
-    "[Q] EXIT"
+    t(tkConfirmExitBtn)
   else:
     $(int(ceil(game.pauseMenuExitCooldown)))
   let yesTW = measureText(yesText, 14)
@@ -564,8 +566,9 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   let buttonsStartX = windowX + (TASK_MANAGER_WIDTH - 600) div 2
 
   # The inspector tabs run down to the buttons, or to the lives panel above
-  # them in the modes that have one.
-  let showsLives = game.mode in RestorePointModes
+  # them in the modes that have one (restorePointsShown: a mod game mode may
+  # switch it off).
+  let showsLives = restorePointsShown(game)
   let inspectorBottom = if showsLives: buttonY - LivesPanelHeight - 14 - 10
                         else: buttonY - 10
   case shownTab
@@ -588,7 +591,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   elif showsLives:
     drawLivesPanel(windowX + 20, buttonY - LivesPanelHeight - 14,
                    TASK_MANAGER_WIDTH.int32 - 40, game.livesUsed,
-                   difficultyMaxLives(game.mode), UnlimitedLives, game.time)
+                   difficultyMaxLives(game.mode, game.modMode), UnlimitedLives, game.time)
 
   # Check mouse hover for buttons
   let exitHovered = mouseSupported and isMouseOverRect(mousePos, buttonsStartX, buttonY, 180, BUTTON_HEIGHT)

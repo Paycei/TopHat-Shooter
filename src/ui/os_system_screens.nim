@@ -184,7 +184,7 @@ proc composeDeathCause(game: Game): tuple[verb: string, killer: string, isBoss: 
 
 proc drawSystemCrash*(game: Game, selectedButton: int = 0,
                       showContinue: bool = false, continueAt: int = 1,
-                      livesUsed: int = 0) =
+                      livesUsed: int = 0, continueLabel: string = "") =
   ## Draw the enhanced Game Over screen as a modern system crash.
   ## Without a checkpoint: 0=Restart, 1=Stats, 2=Exit.
   ## With a checkpoint (showContinue): 0=Continue, 1=Restart, 2=Stats, 3=Exit.
@@ -192,7 +192,8 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   ## the survival clock (Time Survival) Continue resumes at. `livesUsed` counts
   ## the continues already spent by the run that the
   ## Continue button would resume (see drawGameOver), and drives the
-  ## restore-point meter.
+  ## restore-point meter. `continueLabel` replaces the spot Continue names when
+  ## a mod's script wrote the checkpoint with one.
   let screenWidth = getVirtualScreenWidth()
   let screenHeight = getVirtualScreenHeight()
 
@@ -382,20 +383,24 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   # A death past the win (endless waves, an endless loop, Overtime) has no
   # checkpoint to fall back on, so it gets the offline panel instead of a meter
   # with platters left on it.
-  if game.mode in RestorePointModes and restorePointsOffline(game):
+  # A mod game mode may switch the meter off (restorePointsShown).
+  if restorePointsShown(game) and restorePointsOffline(game):
     drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
                             SCREEN_WIDTH - 60, game.mode, game.time)
-  elif game.mode in RestorePointModes:
+  elif restorePointsShown(game):
     drawLivesPanel(windowX + 30, buttonY - LivesPanelHeight - 14, SCREEN_WIDTH - 60,
-                   livesUsed, difficultyMaxLives(game.mode), UnlimitedLives, game.time)
+                   livesUsed, difficultyMaxLives(game.mode, game.modMode), UnlimitedLives, game.time)
 
   if showContinue:
     # Continue button (0). Survival names the spot on its clock ("5:00"): a
     # phase name would not fit the button in Spanish.
-    let continueLabel = case game.mode
-      of gmRoguelite: t(tkGameOverContinueSector) & " " & $continueAt & ")"
-      of gmTimeSurvival: t(tkGameOverContinueClock) & formatSurvivalClock(continueAt.float32) & ")"
-      else: t(tkGameOverContinue) & " " & $continueAt & ")"
+    let continueLabel =
+      if continueLabel.len > 0: t(tkGameOverContinueClock) & continueLabel & ")"
+      else:
+        case game.mode
+        of gmRoguelite: t(tkGameOverContinueSector) & " " & $continueAt & ")"
+        of gmTimeSurvival: t(tkGameOverContinueClock) & formatSurvivalClock(continueAt.float32) & ")"
+        else: t(tkGameOverContinue) & " " & $continueAt & ")"
     drawModernButton(int32(buttonsX), buttonY, int32(buttonW), int32(BUTTON_HEIGHT),
                     continueLabel, "[C]", selectedButton == 0, game.time, baGreen)
 
@@ -591,8 +596,9 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
   # agree). The win has already dropped the checkpoint, and the endless play or
   # Overtime the first button leads into never writes one, so this warns before
   # the choice rather than showing a budget that no longer applies.
-  drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
-                          SCREEN_WIDTH - 60, game.mode, game.time)
+  if restorePointsShown(game):
+    drawEndlessRestorePanel(windowX + 30, buttonY - LivesPanelHeight - 14,
+                            SCREEN_WIDTH - 60, game.mode, game.time)
 
   # Continue Endless / Enter Overtime button (0)
   drawModernButton(int32(buttonsX), buttonY, int32(BUTTON_WIDTH), int32(BUTTON_HEIGHT),

@@ -15,7 +15,7 @@ import raylib
 import ../draw_prims
 import ../types, ../particle_types, ../localization, ../render_context, ../settings, ../powerup
 import ../enemy_config, ../boss_definitions, ../player, ../game/combat, ../d_systems, ../particle_pool, ../sound
-import ../powerup_data, ../ui/icon_drawing, ../save_system, ../run_statistics
+import ../powerup_data, ../ui/icon_drawing, ../save_system, ../run_statistics, ../run_save, ../suspend
 import mod_assets, mod_media
 import lua_bridge, mod_state, mod_hooks, mod_reflect, mod_deep
 
@@ -1565,6 +1565,42 @@ proc bodySlot(vm: VM, target, fname, extraTarget: string): ptr BodyReplace =
                 "bullet:player, bullet:enemy, powerup:<name>, boss3d, satellite3d, entity3d:<tag>, " &
                 "projectile3d:player, projectile3d:enemy, pickup3d:<kind>, " & extraTarget & ")")
 
+proc restoreBudget(vm: VM, v: ScriptValue, what: string): int =
+  ## One budget: a whole number from 0, or "unlimited".
+  if v.kind == vkString and v.str.s == "unlimited": return UnlimitedLives
+  if v.kind == vkNumber and v.n >= 0 and v.n <= 1000 and v.n == floor(v.n): return int(v.n)
+  vm.runtimeError(what & " must be a whole number from 0 to 1000 or \"unlimited\"")
+
+proc readRestoreRule(vm: VM, t: ScriptTable): ModRestoreRule =
+  ## register.gamemode's restorePoints (false: none at all; a budget for every
+  ## difficulty; or {easy =, medium =, hard =, nightmare =}, where a missing
+  ## difficulty keeps the base mode's) and restoreGlyphs (false: no meters).
+  let rp = rawGetStr(t, "restorePoints")
+  case rp.kind
+  of vkNil: discard
+  of vkBool: result.disabled = not rp.b
+  of vkTable:
+    for (k, v) in pairsCursor(rp.tbl):
+      if k.kind != vkString:
+        vm.runtimeError("register.gamemode: restorePoints keys must be difficulty names")
+      var d: GameDifficulty
+      try: d = parseEnum[GameDifficulty](k.str.s)
+      except ValueError:
+        vm.runtimeError("register.gamemode: unknown difficulty '" & k.str.s &
+                        "' in restorePoints (easy, medium, hard, nightmare)")
+      result.budget[d] = vm.restoreBudget(v, "register.gamemode: restorePoints." & k.str.s)
+      result.custom.incl(d)
+  else:
+    let n = vm.restoreBudget(rp, "register.gamemode: restorePoints")
+    for d in GameDifficulty:
+      result.budget[d] = n
+    result.custom = {low(GameDifficulty) .. high(GameDifficulty)}
+  let g = rawGetStr(t, "restoreGlyphs")
+  case g.kind
+  of vkNil: discard
+  of vkBool: result.hideGlyphs = not g.b
+  else: vm.runtimeError("register.gamemode: restoreGlyphs must be true or false")
+
 proc installAssetLibraries(base: ScriptTable) =
   textureClass = UdClass(name: "texture")
   textureClass.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
@@ -1967,7 +2003,8 @@ proc installAssetLibraries(base: ScriptTable) =
     let t = vm.checkTable(args, 0, "gamemode")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.gamemode")
     if findModMode(key) >= 0: vm.runtimeError("register.gamemode: '" & key & "' is already registered")
-    var m = ModModeDef(key: key, owner: owner, spawning: true, desktop: true, base: gmWaveBased)
+    var m = ModModeDef(key: key, owner: owner, spawning: true, desktop: true, base: gmWaveBased,
+                       resumable: true)
     let b = rawGetStr(t, "base")
     if b.kind == vkString:
       if b.str.s == "3d":
@@ -1984,6 +2021,12 @@ proc installAssetLibraries(base: ScriptTable) =
     let sp = rawGetStr(t, "spawning")
     if sp.kind != vkNil: m.spawning = truthy(sp)
     if m.threeD: m.spawning = false
+    m.restore = vm.readRestoreRule(t)
+    let rs = rawGetStr(t, "resumable")
+    case rs.kind
+    of vkNil: discard
+    of vkBool: m.resumable = rs.b
+    else: vm.runtimeError("register.gamemode: resumable must be true or false")
     m.onStart = rawGetStr(t, "onStart")
     vm.readDesktopEntry(t, "register.gamemode", m.icon, m.color, m.desktop)  # color a = 0: base mode's
     modModes.add(m)
@@ -2127,6 +2170,64 @@ proc saveAllModStorage*() =
     if not m.disabled or not m.storage.isNil:
       discard saveModStorage(m)
 
+proc restoreGame(vm: VM, what: string): Game =
+  result = modCtx.game
+  if result.isNil or modCtx.inPvP:
+    vm.runtimeError("run.restorePoints." & what & " needs a run in progress")
+
+proc budgetValue(n: int): ScriptValue =
+  ## A restore-point count for scripts: unlimited reads as math.huge.
+  if n == UnlimitedLives: vnum(Inf) else: vnum(n)   # an integer, so it prints "2", not "2.0"
+
+proc installRestorePoints(): ScriptTable =
+  ## run.restorePoints: the run's restore points ("lives"): its budget, what is
+  ## spent, its death-surviving checkpoint (save / clear) and whether they are
+  ## drawn. Everything reads live from the run on screen.
+  result = newScriptTable()
+  let t = result
+  proc selfArgs(args: openArray[ScriptValue]): int =
+    ## Called with ':' by mistake: skip the table itself.
+    if arg(args, 0).kind == vkTable and rawEquals(arg(args, 0), vtable(t)): 1 else: 0
+  t.reg("save") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## run.restorePoints.save([label]) -> written: the run as it stands now
+    ## (run.data included) becomes the checkpoint a death can Continue from.
+    ## `label` ("ROUND 3" or {en =, es =}) is what the Continue button names.
+    let g = vm.restoreGame("save")
+    let (en, es) = vm.textPair(arg(args, selfArgs(args)), "run.restorePoints.save: label")
+    ret.setRet(vbool(saveBlockCheckpoint(g, scripted = true, labelEn = en, labelEs = es)))
+  t.reg("clear") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## run.restorePoints.clear() -- drop the checkpoint: no Continue from it
+    let g = vm.restoreGame("clear")
+    deleteBlockCheckpoint(g.mode, g.modMode)
+  t.meta = newScriptTable()
+  rawSet(t.meta, vstr("__index"), vnative(newNative("restore_index",
+    proc (vm: VM, args: openArray[ScriptValue], ret: var RetVals) =
+      let name = keyName(arg(args, 1))
+      let g = vm.restoreGame(name)
+      case name
+      of "enabled":
+        ret.setRet(vbool(g.mode in RestorePointModes and not modRestoreRule(g.modMode).disabled))
+      of "max": ret.setRet(budgetValue(difficultyMaxLives(g.mode, g.modMode)))
+      of "used": ret.setRet(vnum(g.livesUsed))
+      of "left": ret.setRet(budgetValue(livesRemaining(g.livesUsed, g.mode, g.modMode)))
+      of "saved": ret.setRet(vbool(canContinueRun(g)))
+      of "offline": ret.setRet(vbool(restorePointsOffline(g)))
+      of "glyphs": ret.setRet(vbool(restorePointsShown(g)))
+      else: vm.runtimeError("run.restorePoints has no field '" & name &
+                            "' (enabled, max, used, left, saved, offline, glyphs, save, clear)"))))
+  rawSet(t.meta, vstr("__newindex"), vnative(newNative("restore_newindex",
+    proc (vm: VM, args: openArray[ScriptValue], ret: var RetVals) =
+      let name = keyName(arg(args, 1))
+      let g = vm.restoreGame(name)
+      let v = arg(args, 2)
+      if name == "used":
+        if not (v.kind == vkNumber and v.n >= 0 and v.n <= 1000 and v.n == floor(v.n)):
+          vm.runtimeError("run.restorePoints.used must be a whole number from 0 to 1000")
+        setRestorePointsUsed(g, int(v.n))
+      else:
+        vm.runtimeError("run.restorePoints." & name & " cannot be set (only used can; " &
+                        "hide the meters with hud.hide(\"restorePoints\"))"))))
+
 proc installModEnv*(m: ModRuntime) =
   let env = m.env
   let modT = newScriptTable()
@@ -2153,6 +2254,9 @@ proc installModEnv*(m: ModRuntime) =
     ret.setRet(vbool(saveModStorage(storageOwner)))
   rawSet(env, vstr("mod"), vtable(modT))
 
+  # run.restorePoints: the death-surviving checkpoint and its budget, live
+  let restoreT = installRestorePoints()
+
   # run.data: per mod, per run (saved with the run; see mod_hooks.captureRunData)
   let runT = newScriptTable()
   runT.meta = newScriptTable()
@@ -2164,6 +2268,12 @@ proc installModEnv*(m: ModRuntime) =
         ret.setRet(vtable(mods[idx].runData))
       elif keyName(arg(args, 1)) == "active":
         ret.setRet(vbool(not modCtx.game.isNil))
+      elif keyName(arg(args, 1)) == "restorePoints":
+        ret.setRet(vtable(restoreT))
+      elif keyName(arg(args, 1)) == "resumable":
+        # Whether quitting saves this run to resume (the mode's flag unless
+        # run.resumable changed it); nil outside a run.
+        ret.setRet(if modCtx.game.isNil: NilValue else: vbool(modRunResumable(modCtx.game)))
       else:
         ret.setRet(NilValue))))
   rawSet(runT.meta, vstr("__newindex"), vnative(newNative("run_newindex",
@@ -2173,6 +2283,17 @@ proc installModEnv*(m: ModRuntime) =
         let v = arg(args, 2)
         if v.kind != vkTable: vm.runtimeError("run.data must be a table")
         mods[idx].runData = v.tbl
+      elif keyName(arg(args, 1)) == "resumable":
+        # run.resumable = false: quitting ends this run instead of saving it
+        # (a save already on disk goes at once); true allows it again.
+        let v = arg(args, 2)
+        if v.kind != vkBool: vm.runtimeError("run.resumable must be true or false")
+        let g = modCtx.game
+        if g.isNil or modCtx.inPvP: vm.runtimeError("run.resumable needs a run in progress")
+        setRunResumable(g, v.b)
+        if not v.b:
+          deleteRunSave(g.mode, g.modMode)
+          deleteSuspendSnapshot(g.mode, g.modMode)
       else:
         vm.runtimeError("run." & keyName(arg(args, 1)) & " cannot be set"))))
   rawSet(env, vstr("run"), vtable(runT))

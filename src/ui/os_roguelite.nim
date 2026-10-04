@@ -732,7 +732,8 @@ proc drawRogueliteVictory*(game: Game) =
   # screen shows sits above the buttons, read before the choice is made.
   let rects = rogueliteVictoryButtonRects(getVirtualScreenWidth().int32, getVirtualScreenHeight().int32)
   let warnY = rects.continueBtn.y.int32 - LivesPanelHeight - 14
-  drawEndlessRestorePanel(x + 40, warnY, PanelW - 80, gmRoguelite, game.time)
+  if restorePointsShown(game):
+    drawEndlessRestorePanel(x + 40, warnY, PanelW - 80, gmRoguelite, game.time)
 
   # Patches applied during the run
   let relicY = curY + 78

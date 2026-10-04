@@ -1261,6 +1261,7 @@ type
     tkConfirmQuitBody = "confirm_quit_body"
     tkConfirmExitBody = "confirm_exit_body"
     tkConfirmUnsaved = "confirm_unsaved"
+    tkConfirmRunEnds = "confirm_run_ends"  # a mod mode whose runs can't be resumed (modRunResumable)
     tkConfirmCancelBtn = "confirm_cancel_btn"
     tkConfirmQuitBtn = "confirm_quit_btn"
     tkConfirmExitBtn = "confirm_exit_btn"
@@ -1914,6 +1915,9 @@ type
     tkModsExamplesInstalled = "mods_examples_installed"
     tkModsExamplesFailed = "mods_examples_failed"
     tkModsExamplesUpToDate = "mods_examples_up_to_date"
+    tkModsUpdateTag = "mods_update_tag"
+    tkModsUpdateAvailable = "mods_update_available"
+    tkModsUpdatesToast = "mods_updates_toast"
     tkModsRemove = "mods_remove"
     tkModsRemoveTitle = "mods_remove_title"
     tkModsRemoveBody = "mods_remove_body"
@@ -3737,6 +3741,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_quit_body": "Close TopHat-ShooterOS?",
     "confirm_exit_body": "Return to main menu?",
     "confirm_unsaved": "Your progress will be saved.",
+    "confirm_run_ends": "This run ends here: it cannot be resumed.",
     "confirm_cancel_btn": "[ESC] CANCEL",
     "confirm_quit_btn": "[Q] QUIT",
     "confirm_exit_btn": "[Q] EXIT",
@@ -4113,6 +4118,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_examples_installed": "Example mods installed. Tick them and press Apply & Reload.",
     "mods_examples_failed": "Could not write the example mods.",
     "mods_examples_up_to_date": "The example mods are already up to date.",
+    "mods_update_tag": "UPDATE",
+    "mods_update_available": "Update available: v$1. Press Install Examples to get it. It replaces this mod's folder, so edits you made to its files are lost.",
+    "mods_updates_toast": "Example mod updates: $1. Open MODS.EXE",
     "mods_remove": "Remove",
     "mods_remove_title": "REMOVE MOD",
     "mods_remove_body": "Delete $1 and its folder?",
@@ -5934,6 +5942,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "confirm_quit_body": "¿Cerrar TopHat-ShooterOS?",
     "confirm_exit_body": "¿Volver al menú principal?",
     "confirm_unsaved": "El progreso se guardará.",
+    "confirm_run_ends": "La partida termina aquí: no se puede reanudar.",
     "confirm_cancel_btn": "[ESC] CANCELAR",
     "confirm_quit_btn": "[Q] SALIR",
     "confirm_exit_btn": "[Q] VOLVER",
@@ -6309,6 +6318,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_examples_installed": "Mods de ejemplo instalados. Márcalos y pulsa Aplicar y recargar.",
     "mods_examples_failed": "No se pudieron escribir los mods de ejemplo.",
     "mods_examples_up_to_date": "Los mods de ejemplo ya están al día.",
+    "mods_update_tag": "NUEVA VERSIÓN",
+    "mods_update_available": "Actualización disponible: v$1. Pulsa Instalar ejemplos para obtenerla. Reemplaza la carpeta de este mod, así que se pierden los cambios que hayas hecho en sus archivos.",
+    "mods_updates_toast": "Mods de ejemplo por actualizar: $1. Abre MODS.EXE",
     "mods_remove": "Eliminar",
     "mods_remove_title": "ELIMINAR MOD",
     "mods_remove_body": "¿Eliminar $1 y su carpeta?",

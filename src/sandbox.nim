@@ -160,7 +160,7 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
 
   # Every enemy type with a spawn button (wave, then survival, then roguelite).
   for enemyType in sandboxEnemies():
-    if currentY > startY - 50 and currentY < screenHeight - 50:  # Only draw visible items
+    if currentY + BUTTON_HEIGHT > startY and currentY < screenHeight:  # Only draw visible items
       let config = getEnemyConfig(enemyType)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 70, b: 120, a: 255))
       drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 100, g: 100, b: 150, a: 255))
@@ -171,7 +171,7 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
   currentY += 10
-  if currentY > startY - 50 and currentY < screenHeight - 50:
+  if currentY + BUTTON_HEIGHT > startY and currentY < screenHeight:
     drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 70, b: 70, a: 255))
     drawText(t(tkSandboxSpawn10Random), contentX + 5, currentY + 10, 16, Yellow)
 
@@ -184,7 +184,7 @@ proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   currentY += 25
 
   for bossId in sandboxBossIds():
-    if currentY > startY - 50 and currentY < screenHeight - 50:
+    if currentY + BUTTON_HEIGHT > startY and currentY < screenHeight:
       let bossDef = getBossDefinition(bossId)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 50, b: 50, a: 255))
       drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 80, b: 80, a: 255))
@@ -214,7 +214,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
                  else: Color(r: 96, g: 106, b: 122, a: 255)
     let isLegendary = discovered and isSandboxLegendaryPowerUp(powerType)
 
-    if currentY > startY - POWERUP_ITEM_HEIGHT and currentY < screenHeight - 10:
+    if currentY + POWERUP_ITEM_HEIGHT > startY and currentY < screenHeight:
       let bgColor = if isLegendary:
         Color(r: 58, g: 46, b: 20, a: 245)
       else:

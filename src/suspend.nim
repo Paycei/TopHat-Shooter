@@ -41,7 +41,7 @@
 
 import os, deques, strutils, tables
 import types, save_system, run_statistics, tutorial
-import modding/mod_state
+import modding/[mod_state, mod_hooks]
 import discord_presence  # DiscordClient (no-op flatty overload)
 import particle_types    # ParticlePool  (no-op flatty overload)
 import flatty, supersnappy
@@ -234,6 +234,11 @@ proc suspendGame*(game: Game) =
     return
   # Same exemption as run_save.saveRunState: tutorial sessions never persist.
   if tutorialSuppressesSaves(game):
+    return
+  # Nor does a run a mod made unresumable (modRunResumable), and an older
+  # snapshot of it goes, so the desktop never offers it.
+  if not modRunResumable(game):
+    deleteSuspendSnapshot(game.mode, game.modMode)
     return
   # Never persist a finished/failed run (matches run_save.saveRunState).
   if game.hasWonGame and game.mode == gmWaveBased:

@@ -126,6 +126,24 @@ proc exampleNeedsWrite(root, folder: string): bool =
     except IOError, OSError: ""
   current.len == 0 or newerVersion(shipped, current)
 
+proc exampleUpdates*(): seq[tuple[folder, installed, shipped: string]] =
+  ## The installed examples this build ships a newer version of: what Install
+  ## Examples would replace. A missing example isn't an update, and neither is
+  ## an unreadable mod.json (the catalog already shows that one as invalid).
+  let root = modsRootDir()
+  for folder in exampleModIds():
+    let installed = root / folder / "mod.json"
+    if not fileExists(installed): continue
+    let current =
+      try: manifestVersion(readFile(installed))
+      except IOError, OSError: ""
+    if current.len == 0: continue
+    var shipped = ""
+    for (path, data) in ExampleFiles:
+      if path == folder & "/mod.json": shipped = manifestVersion(data.join)
+    if newerVersion(shipped, current):
+      result.add((folder, current, shipped))
+
 proc installExampleMods*(): tuple[ok: bool, written: int] =
   ## Write MODDING.md (always refreshed) and every example that is missing or
   ## older than the one this build ships (see exampleNeedsWrite). A replaced

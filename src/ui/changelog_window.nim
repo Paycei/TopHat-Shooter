@@ -233,6 +233,38 @@ let changelog: seq[ChangelogVersion] = @[
           "El nuevo draw3d.texture dibuja una imagen, un GIF o un video como un panel plano fijo en un mundo 3D, así que los mods pueden construir pantallas, letreros, carteles y calcomanías en el suelo que se quedan en su sitio en lugar de girar hacia ti.",
           "Los píxeles transparentes de los mundos 3D ya no tapan lo que hay detrás. Una entidad o una imagen de draw3d.billboard con fondo transparente recortaba todo su cuadrado de lo que se dibujaba detrás.",
           "El nuevo ejemplo Plaza de Carteles es un modo 3D para recorrer: una gran pantalla cuyo video suena más fuerte a medida que te acercas, un cartel, un letrero de neón, una columna giratoria de videos y drones a la deriva. Dispara a una pantalla para pausarla.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Restore points in mod game modes",
+        headEs: "Puntos de restauración en los modos de los mods",
+        en: points(
+          "A mod's game mode now decides its own restore points: how many a run gets on each difficulty, unlimited, or none at all. With none, its runs save no checkpoint, the crash screen offers no CONTINUE and no restore points are shown anywhere. Billboard Plaza has none.",
+          "Mods can also save a mode's checkpoint whenever they choose and name it on the CONTINUE button, skip the checkpoints the base mode would save, give restore points back or take them away during a run, and hide the restore point meters while keeping continues.",
+          "A 3D mod mode can now continue from a restore point, playing the restore point animation before its world returns. Restarting a 3D mod mode from the crash screen now starts its 3D world again instead of an empty arena."),
+        es: points(
+          "Un modo de juego de un mod ahora decide sus propios puntos de restauración: cuántos tiene cada partida en cada dificultad, ilimitados o ninguno. Sin ninguno, sus partidas no guardan punto de control, la pantalla de fallo no ofrece CONTINUAR y no se muestran puntos de restauración en ningún lado. Plaza de Carteles no tiene ninguno.",
+          "Los mods también pueden guardar el punto de control de un modo cuando quieran y darle nombre en el botón CONTINUAR, saltarse los puntos de control que guardaría el modo base, devolver o quitar puntos de restauración durante una partida, y ocultar los indicadores de puntos de restauración sin quitar las continuaciones.",
+          "Un modo 3D de un mod ahora puede continuar desde un punto de restauración, con la animación del punto de restauración antes de volver a su mundo. Reiniciar un modo 3D de un mod desde la pantalla de fallo ahora vuelve a empezar su mundo 3D en lugar de una arena vacía.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Mod modes can turn off resuming",
+        headEs: "Los modos de los mods pueden desactivar la reanudación",
+        en: points(
+          "A mod's game mode can now turn off resuming a run you quit. Leaving one of its runs ends it instead of saving it, without counting as a loss, and its desktop icon and MODS.EXE no longer offer to continue a saved run. Billboard Plaza works this way.",
+          "Mods can also turn it off, or back on, for a single run while it is being played.",
+          "Quitting never counts as a loss. Leaving the world of a 3D mod mode used to end the run on the crash screen as a death; it now quits to the desktop like the pause screen does.",
+          "When leaving a run that cannot be resumed, the exit prompt now says so instead of promising to save your progress. The exit prompt of the pause menu now also appears in Spanish."),
+        es: points(
+          "Un modo de juego de un mod ahora puede desactivar la reanudación de una partida que abandonas. Salir de una de sus partidas la termina en lugar de guardarla, sin contar como derrota, y su icono del escritorio y MODS.EXE ya no ofrecen continuar una partida guardada. Plaza de Carteles funciona así.",
+          "Los mods también pueden desactivarla, o volver a activarla, para una sola partida mientras se juega.",
+          "Abandonar nunca cuenta como derrota. Salir del mundo de un modo 3D de un mod antes terminaba la partida en la pantalla de fallo como una muerte; ahora vuelve al escritorio como desde la pantalla de pausa.",
+          "Al salir de una partida que no se puede reanudar, el aviso de salida ahora lo indica en lugar de prometer que se guardará el progreso. El aviso de salida del menú de pausa ahora también aparece en español.")),
+      ChangelogEntry(category: clcMods,
+        en: "When the game ships a newer version of an example mod you installed, the desktop now tells you, and MODS.EXE tags that mod UPDATE, shows the new version and highlights Install Examples, which updates it.",
+        es: "Cuando el juego trae una versión más nueva de un mod de ejemplo que instalaste, el escritorio ahora te avisa, y MODS.EXE marca ese mod con NUEVA VERSIÓN, muestra la versión nueva y resalta Instalar ejemplos, que lo actualiza."),
+
+      # --- Fixes ---
+      ChangelogEntry(category: clcFixed,
+        en: "The last entry of the Sandbox spawn lists was invisible even when scrolled to the bottom, though it could still be clicked. It now shows.",
+        es: "La última entrada de las listas de invocación del Sandbox era invisible incluso con la lista desplazada al final, aunque se podía pulsar. Ahora se muestra."),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.2",

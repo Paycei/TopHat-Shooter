@@ -24,6 +24,14 @@ local MODE = register.gamemode{
     es = "En primera persona. Recorre una plaza de pantallas de video, carteles y letreros. Dispara a una pantalla para pausarla o reanudarla.",
   },
   base = "3d",
+  -- A showroom has nothing to come back to. resumable = false: quitting ends
+  -- the visit instead of saving it, so the desktop never offers to resume it.
+  resumable = false,
+  -- And no restore points at all: no checkpoint is written, the crash screen
+  -- offers no CONTINUE, and no restore-point glyphs are drawn anywhere. (A
+  -- number would set the budget instead, and restoreGlyphs = false would keep
+  -- continues but hide the meters.)
+  restorePoints = false,
   onStart = function(game, resumed)
     hud.hide("player")   -- no HP or ammo box: nothing here can hurt you
   end,

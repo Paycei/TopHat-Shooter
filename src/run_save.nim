@@ -21,7 +21,7 @@
 
 import json, os, strutils
 import particle_types, types, save_system, utils, roguelite, dungeon, powerup, tutorial
-import modding/mod_state, powerup_data
+import modding/[mod_state, mod_hooks], powerup_data
 
 const RunSaveVersion = 1
 
@@ -69,6 +69,7 @@ type BlockCheckpointCache = object
   exists: bool
   resumePoint: int  # where Continue resumes: see blockCheckpointResumePoint
   livesUsed: int
+  labelEn, labelEs: string  # a script's Continue label (run.restorePoints.save), "" = the mode's own
 
 var bcCache: array[GameMode, BlockCheckpointCache]
 
@@ -355,6 +356,13 @@ proc saveRunState*(game: Game, file: string = "",
   # A tutorial practice session (or a first run still inside its tutorial) is
   # never a run to resume -- and must not overwrite the player's real save.
   if tutorialSuppressesSaves(game):
+    return
+  # A run a mod made unresumable (register.gamemode resumable = false, or
+  # run.resumable = false) keeps no run save, and loses any older one so the
+  # desktop never offers it. Its block checkpoint (an explicit `file`) is a
+  # restore point, not a resume, and is still written.
+  if file.len == 0 and not modRunResumable(game):
+    deleteRunSave(runSaveFileFor(game.mode, game.modMode))
     return
   let file = if file.len > 0: file else: runSaveFileFor(game.mode, game.modMode)
   # Only an actually-live run is resumable. Guards against persisting the idle
@@ -796,16 +804,31 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
 # Play past a win (endless waves, endless loops, Overtime) never writes one:
 # see restorePointsOffline.
 # ---------------------------------------------------------------------------
-proc saveBlockCheckpoint*(game: Game) =
+proc patchBlockCheckpoint(mode: GameMode, modMode: string, patch: proc (j: JsonNode))
+proc blockCheckpointExists*(mode: GameMode, modMode: string = ""): bool
+
+proc saveBlockCheckpoint*(game: Game, scripted = false, labelEn = "", labelEs = ""): bool {.discardable.} =
   ## Persist the current run as a death-surviving checkpoint. Uses the
   ## state-gate bypass so it can fire outside the resumable states.
   ## A mode or profile with no lives budget never writes one -- see
-  ## difficultyAllowsContinue -- and neither does a run past its win.
-  if game.isNil or not difficultyAllowsContinue(game.mode) or
+  ## difficultyAllowsContinue (a mod game mode's restorePoints = false is a 0
+  ## budget) -- and neither does a run past its win. The base modes' own write
+  ## points go through a mod's `checkpoint` hook first; a script's
+  ## run.restorePoints.save (`scripted`) does not, and may name the spot the
+  ## Continue button shows (`labelEn` / `labelEs`). True when it was written.
+  if game.isNil or not difficultyAllowsContinue(game.mode, game.modMode) or
      restorePointsOffline(game):
-    return
+    return false
+  if not scripted and modCheckpointVetoed(game):
+    return false
   invalidateBlockCheckpointCache()
   saveRunState(game, blockCheckpointFileFor(game.mode, game.modMode), bypassStateGate = true)
+  if not blockCheckpointExists(game.mode, game.modMode):
+    return false
+  if labelEn.len > 0 or labelEs.len > 0:
+    patchBlockCheckpoint(game.mode, game.modMode, proc (j: JsonNode) =
+      j["continueLabel"] = %*{"en": labelEn, "es": labelEs})
+  true
 
 proc refreshBlockCheckpointCache(mode: GameMode, modMode: string) =
   let file = blockCheckpointFileFor(mode, modMode)
@@ -824,6 +847,9 @@ proc refreshBlockCheckpointCache(mode: GameMode, modMode: string) =
       of gmTimeSurvival: int(j.getOrDefault("survivalTime").getFloat(0.0))
       else: j.getOrDefault("currentWave").getInt(1)
   bcCache[mode].livesUsed = if j.isNil: 0 else: max(0, j.getOrDefault("livesUsed").getInt(0))
+  let label = if j.isNil: nil else: j.getOrDefault("continueLabel")
+  bcCache[mode].labelEn = if label.isNil: "" else: label.getOrDefault("en").getStr("")
+  bcCache[mode].labelEs = if label.isNil: "" else: label.getOrDefault("es").getStr("")
   bcCache[mode].path = path
 
 proc blockCheckpointExists*(mode: GameMode, modMode: string = ""): bool =
@@ -847,12 +873,12 @@ proc hasBlockCheckpoint*(mode: GameMode, modMode: string = ""): bool =
   ## back. A run that has spent its whole lives budget answers "no" the same
   ## way, which is what turns the budget into a real limit rather than a
   ## display. Modes without a budget at all (PvP, sandbox) are always "no".
-  if not difficultyAllowsContinue(mode):
+  if not difficultyAllowsContinue(mode, modMode):
     return false
   refreshBlockCheckpointCache(mode, modMode)
   if not bcCache[mode].exists:
     return false
-  livesRemaining(bcCache[mode].livesUsed, mode) != 0
+  livesRemaining(bcCache[mode].livesUsed, mode, modMode) != 0
 
 proc canContinueRun*(game: Game): bool =
   ## Whether the run that just died can be picked up again with a restore
@@ -867,6 +893,12 @@ proc blockCheckpointResumePoint*(mode: GameMode, modMode: string = ""): int =
   ## resumes at, or 1 if there is no valid checkpoint.
   refreshBlockCheckpointCache(mode, modMode)
   bcCache[mode].resumePoint
+
+proc blockCheckpointLabel*(mode: GameMode, modMode: string = ""): tuple[en, es: string] =
+  ## The spot a script named for Continue (run.restorePoints.save("ROUND 3")),
+  ## or "" for the mode's own wording (wave, sector or clock).
+  refreshBlockCheckpointCache(mode, modMode)
+  if bcCache[mode].exists: (bcCache[mode].labelEn, bcCache[mode].labelEs) else: ("", "")
 
 proc patchBlockCheckpoint(mode: GameMode, modMode: string, patch: proc (j: JsonNode)) =
   ## Rewrite a few keys of the checkpoint in place. Patching just those keys
@@ -925,8 +957,19 @@ proc consumeContinueLife*(game: Game) =
   # sites means every way of spending a life is animated by construction -- the
   # game-over Continue button and the desktop's resume-a-dead-run both land
   # here, and a third path added later would too.
-  game.lifeLostTimer = LifeLostAnimDuration
+  # A mode that hides its restore points (restorePointsShown) spends one
+  # without the animation.
+  game.lifeLostTimer = if restorePointsShown(game): LifeLostAnimDuration else: 0.0'f32
   game.lifeLostSoundStage = 0
+  let livesUsed = game.livesUsed
+  patchBlockCheckpoint(game.mode, game.modMode, proc (j: JsonNode) =
+    j["livesUsed"] = %livesUsed)
+  modRestorePointSpent()
+
+proc setRestorePointsUsed*(game: Game, used: int) =
+  ## run.restorePoints.used = n: the run's spent count, written through to its
+  ## checkpoint too, so the crash screen's meter and Continue agree with it.
+  game.livesUsed = max(0, used)
   let livesUsed = game.livesUsed
   patchBlockCheckpoint(game.mode, game.modMode, proc (j: JsonNode) =
     j["livesUsed"] = %livesUsed)

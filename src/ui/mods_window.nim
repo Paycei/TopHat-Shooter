@@ -42,6 +42,7 @@ type
     removeCooldown: float32   ## seconds until the confirmation's Remove unlocks
     applyConfirm: bool         ## pending Apply & Reload warning
     applyCooldown: float32
+    updates: seq[tuple[folder, installed, shipped: string]]  ## examples Install Examples would update
 
   ModModeRow* = object
     ## One mod game mode as the window shows it (filled by main.nim).
@@ -89,6 +90,7 @@ proc refreshModsWindow*(mw: ModsWindow) =
   mw.pending = mw.settings.enabledMods
   if not modeRowsBuilder.isNil:
     mw.modeRows = modeRowsBuilder()
+  mw.updates = exampleUpdates()
   if installedMods.len == 0: mw.selected = 0
   else: mw.selected = clamp(mw.selected, 0, installedMods.high)
 
@@ -159,6 +161,15 @@ proc hasPendingChanges(mw: ModsWindow): bool =
   for id in mw.settings.enabledMods:
     if id notin mw.pending: return true
   false
+
+proc updateFor(mw: ModsWindow, m: ModInfo): string =
+  ## The newer version this build ships of `m`, if `m` is an installed example
+  ## (by folder, which is what Install Examples replaces); "" otherwise.
+  if normalizedPath(parentDir(m.dir)) != normalizedPath(modsRootDir()): return ""
+  let folder = lastPathPart(m.dir)
+  for u in mw.updates:
+    if u.folder == folder: return u.shipped
+  ""
 
 proc toggleable(m: ModInfo): bool = m.status notin {msInvalid, msDuplicate}
 
@@ -248,6 +259,7 @@ proc removeMod(mw: ModsWindow) =
     mw.say(t(tkModsRemoveFailed), isError = true)
     return
   rescanInstalledMods(mw.settings.enabledMods)
+  mw.updates = exampleUpdates()
   # Forget the id unless another folder still provides it (a duplicate).
   var idStillInstalled = false
   for other in installedMods:
@@ -342,6 +354,7 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
         else:
           mw.say(t(tkModsExamplesInstalled))
         rescanInstalledMods(mw.settings.enabledMods)
+        mw.updates = exampleUpdates()
     elif mw.tab == mtCosmetics:
       for i in 0 ..< modCosmetics.len:
         let ry = g.bodyY + i * CosRowH - mw.cosScroll
@@ -564,9 +577,14 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
       let (st, col) = mw.displayStatus(m)
       let verSt = fitWithEllipsis(m.version & "  " & st, int32(g.list.width) - 50, 11)
       drawText(verSt, int32(g.list.x) + 34, ry + 26, 11, col)
+      var tx = int32(g.list.x) + 34 + measureText(verSt, 11) + 10
+      if mw.updateFor(m).len > 0:
+        let tag = t(tkModsUpdateTag)
+        if tx + measureText(tag, 10) < int32(g.list.x + g.list.width) - 6:
+          drawText(tag, tx, ry + 27, 10, ColWarn)
+          tx += measureText(tag, 10) + 10
       if m.status != msInvalid and not m.disableAchievements:
         let tag = t(tkModsKeepsTag)
-        let tx = int32(g.list.x) + 34 + measureText(verSt, 11) + 10
         if tx + measureText(tag, 10) < int32(g.list.x + g.list.width) - 6:
           drawText(tag, tx, ry + 27, 10, ColOk)
     endScissorMode()
@@ -593,6 +611,9 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
         drawText(fitWithEllipsis(t(if m.disableAchievements: tkModsRewardsOff else: tkModsRewardsKept), w, 12),
                  x, y, 12, if m.disableAchievements: ColWarn else: ColOk)
         y += 20
+      let update = mw.updateFor(m)
+      if update.len > 0:
+        y = drawWrapped(t(tkModsUpdateAvailable).replace("$1", update), x, y, w, 12, ColWarn, bottom) + 6
       if m.description.len > 0:
         y = drawWrapped(m.description, x, y, w, 13, ColText, bottom) + 6
       if m.dependencies.len > 0:
@@ -606,7 +627,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
 
   # button bar
   drawButton(g.folderBtn, t(tkModsOpenFolder), true, false)
-  drawButton(g.examplesBtn, t(tkModsInstallExamples), true, false)
+  drawButton(g.examplesBtn, t(tkModsInstallExamples), true, mw.updates.len > 0)
   let pending = mw.hasPendingChanges()
   drawButton(g.applyBtn, t(tkModsApply), pending, true)
   if pending:
