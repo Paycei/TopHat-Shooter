@@ -144,29 +144,48 @@ proc exampleUpdates*(): seq[tuple[folder, installed, shipped: string]] =
     if newerVersion(shipped, current):
       result.add((folder, current, shipped))
 
-proc installExampleMods*(): tuple[ok: bool, written: int] =
+proc wipeExample(root, folder: string): bool =
+  ## Empty an installed example's folder before its new version is written, so
+  ## a file an older version shipped can't linger. A file the loaded mod holds
+  ## open (a video streams from its file) can't be deleted on Windows until the
+  ## mods reload: that is fine when the new version writes over it, so only a
+  ## file left behind that it doesn't ship makes this false.
+  let dir = root / folder
+  if not dirExists(dir): return true
+  result = true
+  for f in walkDirRec(dir):
+    try:
+      removeFile(f)
+    except IOError, OSError:
+      let path = folder & "/" & relativePath(f, dir).replace('\\', '/')
+      var shipped = false
+      for (p, _) in ExampleFiles:
+        if p == path: shipped = true
+      if not shipped: result = false
+  try:
+    removeDir(dir)   # the emptied folders; one holding a locked file stays
+  except IOError, OSError:
+    discard
+
+proc installExampleMods*(): tuple[ok: bool, written: seq[string]] =
   ## Write MODDING.md (always refreshed) and every example that is missing or
   ## older than the one this build ships (see exampleNeedsWrite). A replaced
-  ## example's folder is wiped first, so a file an older version shipped
-  ## can't linger next to the new one. `written` counts the examples written;
-  ## `ok` is false if anything failed.
+  ## example's folder is wiped first (see wipeExample), so a file an older
+  ## version shipped can't linger next to the new one. `written` lists the
+  ## folders of the examples written; `ok` is false if anything failed.
   let root = modsRootDir()
   result.ok = true
   try:
     writeFile(root / "MODDING.md", ModdingDoc.join)
   except IOError, OSError:
     result.ok = false
-  var toWrite: seq[string]
   for folder in exampleModIds():
     if exampleNeedsWrite(root, folder):
-      toWrite.add(folder)
-      try:
-        removeDir(root / folder)
-      except IOError, OSError:
+      result.written.add(folder)
+      if not wipeExample(root, folder):
         result.ok = false
-  result.written = toWrite.len
   for (path, data) in ExampleFiles:
-    if path.split('/')[0] notin toWrite:
+    if path.split('/')[0] notin result.written:
       continue
     let dest = root / path
     try:

@@ -349,12 +349,18 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
         let (ok, written) = installExampleMods()
         if not ok:
           mw.say(t(tkModsExamplesFailed), isError = true)
-        elif written == 0:
+        elif written.len == 0:
           mw.say(t(tkModsExamplesUpToDate))
         else:
           mw.say(t(tkModsExamplesInstalled))
         rescanInstalledMods(mw.settings.enabledMods)
         mw.updates = exampleUpdates()
+        # An enabled example that was just replaced still runs the script it loaded
+        # until the mods reload, so the game would go on playing the old version.
+        for m in installedMods:
+          if m.id in mw.settings.enabledMods and lastPathPart(m.dir) in written and
+             normalizedPath(parentDir(m.dir)) == normalizedPath(modsRootDir()):
+            modReloadRequested = true
     elif mw.tab == mtCosmetics:
       for i in 0 ..< modCosmetics.len:
         let ry = g.bodyY + i * CosRowH - mw.cosScroll

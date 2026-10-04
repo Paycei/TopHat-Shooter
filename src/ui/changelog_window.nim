@@ -258,8 +258,8 @@ let changelog: seq[ChangelogVersion] = @[
           "Abandonar nunca cuenta como derrota. Salir del mundo de un modo 3D de un mod antes terminaba la partida en la pantalla de fallo como una muerte; ahora vuelve al escritorio como desde la pantalla de pausa.",
           "Al salir de una partida que no se puede reanudar, el aviso de salida ahora lo indica en lugar de prometer que se guardará el progreso. El aviso de salida del menú de pausa ahora también aparece en español.")),
       ChangelogEntry(category: clcMods,
-        en: "When the game ships a newer version of an example mod you installed, the desktop now tells you, and MODS.EXE tags that mod UPDATE, shows the new version and highlights Install Examples, which updates it.",
-        es: "Cuando el juego trae una versión más nueva de un mod de ejemplo que instalaste, el escritorio ahora te avisa, y MODS.EXE marca ese mod con NUEVA VERSIÓN, muestra la versión nueva y resalta Instalar ejemplos, que lo actualiza."),
+        en: "When the game ships a newer version of an example mod you installed, the desktop now tells you, and MODS.EXE tags that mod UPDATE, shows the new version and highlights Install Examples, which updates it. An enabled example that gets updated is reloaded right away, so the new version is the one you play.",
+        es: "Cuando el juego trae una versión más nueva de un mod de ejemplo que instalaste, el escritorio ahora te avisa, y MODS.EXE marca ese mod con NUEVA VERSIÓN, muestra la versión nueva y resalta Instalar ejemplos, que lo actualiza. Un ejemplo activado que se actualiza se recarga al momento, así que juegas la versión nueva."),
 
       # --- Fixes ---
       ChangelogEntry(category: clcFixed,

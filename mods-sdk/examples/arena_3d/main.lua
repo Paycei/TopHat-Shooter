@@ -17,6 +17,7 @@ local MODE = register.gamemode{
     es = "En primera persona. Sobrevive a seis oleadas de cubos, drones y torretas con una escopeta. El clic derecho lanza una onda de choque.",
   },
   base = "3d",
+  resumable = false,
   -- onStart runs when the run starts, before the world's first frame: the
   -- place to hide parts of the built-in HUD (every run starts with all of it).
   onStart = function(game, resumed)
