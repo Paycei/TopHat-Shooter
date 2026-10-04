@@ -1983,13 +1983,15 @@ proc installAssetLibraries(base: ScriptTable) =
     of "game": gameShader = id
     else: vm.argError("shader", 0, "use \"screen\" or \"game\"")
   overrideT.reg("music") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## override.music("wave" | "menu" | "powerUp" | "boss" | "storyIntro" |
-    ##   "storyRootAccess" | "storyBelow" | "storyUptime", "music/track.ogg")
+    ## override.music("wave" | "menu" | "powerUp" | "boss" | "survival" |
+    ##   "roguelite" | "storyIntro" | "storyRootAccess" | "storyBelow" |
+    ##   "storyUptime", "music/track.ogg")
     let name = vm.checkStr(args, 0, "music")
     var track: MusicTrack
     try: track = parseEnum[MusicTrack]("mt" & name.capitalizeAscii)
     except ValueError: vm.argError("music", 0, "use \"menu\", \"wave\", \"powerUp\", \"boss\", " &
-                                   "\"storyIntro\", \"storyRootAccess\", \"storyBelow\" or \"storyUptime\"")
+                                   "\"survival\", \"roguelite\", \"storyIntro\", \"storyRootAccess\", " &
+                                   "\"storyBelow\" or \"storyUptime\"")
     if not setModMusic(track, vm.modFile(vm.checkStr(args, 1, "music"), "override.music")):
       vm.runtimeError("override.music: could not load the file (OGG, MP3, WAV, FLAC, QOA, XM or MOD)")
 

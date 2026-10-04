@@ -552,6 +552,53 @@ proc isBondingGameplayState(state: GameState): bool =
 proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
 
+proc modeTheme(mode: GameMode): MusicTrack =
+  ## The music a run plays between bosses: Survival and Roguelite have their
+  ## own themes, everything else fights to the wave theme.
+  case mode
+  of gmTimeSurvival: mtSurvival
+  of gmRoguelite: mtRoguelite
+  of gmWaveBased, gmSandbox, gmPvP: mtWave
+
+proc runMusic(game: Game): MusicTrack =
+  ## A boss fight in any mode takes the boss theme.
+  if game.bossWaveManager.isBossActive(): mtBoss
+  else: modeTheme(game.mode)
+
+proc bossMusicTier(phase, phases: int, hpFraction: float32): int =
+  ## The boss theme climbs as the boss loses phases: its sparest arrangement
+  ## for the first phase, the fullest for the last, the middle one between. A
+  ## boss with a single phase turns at half its HP.
+  if phases <= 1: (if hpFraction > 0.5: 0 else: 2)
+  elif phase <= 0: 0
+  elif phase >= phases - 1: 2
+  else: 1
+
+proc runMusicTier(game: Game): int =
+  ## Which arrangement of the run's theme plays (see TIERS in sound.nim): the
+  ## music follows the run's progress and the boss's phases.
+  if game.bossWaveManager.isBossActive():
+    for enemy in game.enemies:
+      if enemy.isBoss:
+        return bossMusicTier(enemy.currentPhaseIndex, enemy.bossPhaseHpPools.len,
+                             enemy.hp / max(enemy.maxHp, 1.0'f32))
+    return 0
+  case game.mode
+  of gmTimeSurvival:
+    min(ord(survivalPhase(game)), 3)   # Overtime keeps Kernel Panic's
+  of gmRoguelite:
+    let room = currentDungeonRoom(game.rogueliteRun)
+    if room.isNil: 0
+    else:
+      case room.kind
+      of drkStart, drkShop: 0
+      of drkCombat: 1
+      of drkElite, drkBoss: 2
+  of gmWaveBased, gmSandbox, gmPvP:
+    if game.currentWave > 40: 2
+    elif game.currentWave > 20: 1
+    else: 0
+
 proc isMenuOrGameState(state: GameState): bool =
   ## Every bonding gameplay state, plus the pre-game menus.
   isBondingGameplayState(state) or
@@ -766,6 +813,7 @@ proc main() =
   var advancementSyncTimer = 0.0'f32  # Throttle for mid-run advancement checks
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
+  var musicMuffled = false  # Critical health muffles the music (see setMusicMuffled)
   var appliedHudLayout = settings.hudLayout  # Last virtual-resolution applied to the window/pipeline
   # Last desktop-layer UI scale the windows were laid out for. Starts at 0 (an
   # impossible scale) so the first frame always lays them out for the saved one,
@@ -1188,6 +1236,19 @@ proc main() =
 
     # Update render scale every frame in case window was resized
     updateRenderScale()
+
+    # Critical health muffles the music while you fight: on at 25% of max HP,
+    # off again above 30% so regeneration ticks around the line don't flicker it.
+    let hpFraction =
+      case currentGame.state
+      of gsPlaying, gsDeathSequence:
+        currentGame.player.hp / max(currentGame.player.maxHp, 1.0'f32)
+      of gs3DBoss:
+        if activeWorld3D.isNil: 1.0'f32
+        else: activeWorld3D.player.health / max(activeWorld3D.player.maxHealth, 1.0'f32)
+      else: 1.0'f32
+    musicMuffled = if musicMuffled: hpFraction <= 0.30'f32 else: hpFraction <= 0.25'f32
+    setMusicMuffled(musicMuffled)
 
     # Update music stream (required for continuous playback)
     updateMusic()
@@ -2353,10 +2414,7 @@ proc main() =
 
     of gsPlaying:
       # Dynamic music based on game state
-      if currentGame.bossWaveManager.isBossActive():
-        playMusic(mtBoss)
-      else:
-        playMusic(mtWave)
+      playMusic(runMusic(currentGame), runMusicTier(currentGame))
 
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil and not cheatMenu.active:
@@ -3340,8 +3398,8 @@ proc main() =
       endGameDrawing()
 
     of gsCountdown:
-      # Keep wave music during countdown
-      playMusic(mtWave)
+      # Keep the run's theme during the countdown
+      playMusic(modeTheme(currentGame.mode), runMusicTier(currentGame))
 
       # A pending life-lost animation owns the screen first: the countdown holds
       # where it is until the spent restore point has finished breaking up.
@@ -3430,8 +3488,8 @@ proc main() =
       endGameDrawing()
 
     of gsWaveCleared:
-      # Keep wave music during wave cleared screen
-      playMusic(mtWave)
+      # Keep the run's theme during the wave cleared screen
+      playMusic(modeTheme(currentGame.mode), runMusicTier(currentGame))
 
       # Update wave cleared timer
       currentGame.waveClearedTimer -= dt
@@ -4305,8 +4363,13 @@ proc main() =
       endGameDrawing()
 
     of gs3DBoss:
-      # 3D Boss fight
-      playMusic(mtBoss)
+      # 3D Boss fight: the boss theme climbs with the Orbital Commander's
+      # three phases (a 3D mod mode without the boss keeps the first tier)
+      let bossWorld = activeWorld3D
+      playMusic(mtBoss,
+                if bossWorld.isNil or not bossWorld.bossEnabled: 0
+                else: bossMusicTier(bossWorld.boss.phase - 1, 3,
+                                    bossWorld.boss.health / max(bossWorld.boss.maxHealth, 1.0'f32)))
 
       # Update 3D game. A Continue into a 3D mod mode holds the world (its
       # world3dStart included) while the spent restore point breaks up.
@@ -4370,7 +4433,7 @@ proc main() =
       if currentPvPGame.isCountingDown:
         playMusic(mtWave)
       else:
-        playMusic(mtBoss)  # Intense music for PvP
+        playMusic(mtBoss, 1)  # Intense music for PvP
 
       # Check for pause (visual only - game continues running)
       if isBackPressed() and not currentPvPGame.gameOver:

@@ -531,9 +531,16 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   `explosion`, `wallPlace`, `teleport`, `menuNav`, `menuSelect`,
   `waveComplete`, `shield`, `gameOver`, `buy`, ...). WAV, OGG, MP3, FLAC or QOA.
 * `override.music(track, file)` replaces a music track: `"menu"`, `"wave"`,
-  `"powerUp"` or `"boss"`, or a story cinematic's score: `"storyIntro"`,
-  `"storyRootAccess"`, `"storyBelow"` or `"storyUptime"`. OGG, MP3, WAV, FLAC,
-  QOA, or the tracker formats XM and MOD. A score plays once from the top in
+  `"powerUp"`, `"boss"`, `"survival"` or `"roguelite"`, or a story cinematic's
+  score: `"storyIntro"`, `"storyRootAccess"`, `"storyBelow"` or `"storyUptime"`.
+  OGG, MP3, WAV, FLAC, QOA, or the tracker formats XM and MOD. Survival and
+  roguelite runs play their own theme, not `"wave"`; a boss fight in any mode
+  plays `"boss"`. Switching tracks takes a fraction of a second, and a track
+  starts from its top every time it comes in. The built-in wave, survival,
+  roguelite and boss themes change their arrangement with the run (the wave
+  number, the survival phase, the roguelite folder, the boss's phases) and
+  muffle while the player's integrity is critical; a replacement plays as it
+  is, looping from its end back to its start. A score plays once from the top in
   time with its cinematic (fast-forwarding speeds it up) and does not loop, so
   make it as long as the cinematic.
 * `register.cosmetic{kind = "player" | "bullet" | "desktop" | "cube", id = "neon",
