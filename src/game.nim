@@ -1880,7 +1880,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     # Slow is this aura's whole identity, so the debuff is held until the next
     # pulse (plus a little overlap) instead of lapsing between beats.
     let holdTime = interval * 1.15
-    let chipDamage = 0.4'f32 * interval
+    let chipDamage = 0.2'f32 * interval
 
     for enemy in game.enemies:
       if auraWaveCatches(game.player, enemy, slot, front):
@@ -1902,9 +1902,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     var fxBudget = AuraFxBudget
     let damageScaling = game.player.damage * 0.35
     let fireDamagePerSec = case level
-      of 1: 1.5 + damageScaling
-      of 2: 3.5 + damageScaling
-      else: 6.5 + damageScaling
+      of 1: 0.75 + damageScaling
+      of 2: 1.75 + damageScaling
+      else: 3.25 + damageScaling
     # Burn must outlast the gap between beats or the aura's dps would drop just
     # from being pulsed, so the level duration is floored at one cycle + 20%.
     let fireDuration = max(case level
@@ -1935,9 +1935,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     # Per-beat damage = the old per-second value times the cycle length, so the
     # sustained dps is preserved and each hit is a number you can actually read.
     var lightningDamage = (case level
-      of 1: 1.0'f32 + damageScaling
-      of 2: 2.5'f32 + damageScaling
-      else: 5.0'f32 + damageScaling) * interval
+      of 1: 0.5'f32 + damageScaling
+      of 2: 1.25'f32 + damageScaling
+      else: 2.5'f32 + damageScaling) * interval
     var maxChains = case level
       of 1: 1
       of 2: 2
@@ -2039,9 +2039,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     var fxBudget = AuraFxBudget
     let damageScaling = game.player.damage * 0.3
     var arcaneDamage = (case level
-      of 1: 3.5'f32 + damageScaling
-      of 2: 7.5'f32 + damageScaling
-      else: 10.0'f32 + damageScaling) * interval
+      of 1: 1.75'f32 + damageScaling
+      of 2: 3.75'f32 + damageScaling
+      else: 5.0'f32 + damageScaling) * interval
 
     # Apply Arcane Mastery bonuses if owned
     if game.player.hasArcaneMastery:
@@ -2076,9 +2076,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     var fxBudget = AuraFxBudget
     let damageScaling = game.player.damage * 0.25
     let poisonDamagePerSec = case level
-      of 1: 0.8 + damageScaling
-      of 2: 2.0 + damageScaling
-      else: 4.0 + damageScaling
+      of 1: 0.4 + damageScaling
+      of 2: 1.0 + damageScaling
+      else: 2.0 + damageScaling
     let poisonDuration = max(case level
       of 1: 6.0'f32
       of 2: 8.0'f32
@@ -2109,9 +2109,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
       of 2: 560.0'f32
       else: 700.0'f32
     var gustDamage = (case level
-      of 1: 2.0'f32
-      of 2: 4.0'f32
-      else: 7.0'f32) + game.player.damage * 0.25'f32
+      of 1: 1.0'f32
+      of 2: 2.0'f32
+      else: 3.5'f32) + game.player.damage * 0.25'f32
     if game.player.hasWindMastery:
       pushForce *= 2.2  # the gust is wind's identity, so mastery leans on it
       gustDamage *= MasteryDamageMult  # +150% damage, same as every other mastery
@@ -2170,9 +2170,9 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
     var fxBudget = AuraFxBudget
     let damageScaling = game.player.damage * 0.275
     var bloodDamage = (case level
-      of 1: 1.0'f32 + damageScaling
-      of 2: 2.5'f32 + damageScaling
-      else: 5.0'f32 + damageScaling) * interval
+      of 1: 0.5'f32 + damageScaling
+      of 2: 1.25'f32 + damageScaling
+      else: 2.5'f32 + damageScaling) * interval
     let lifestealPercent = case level
       of 1: 0.025  # 2.5% lifesteal
       of 2: 0.05   # 5% lifesteal

@@ -268,7 +268,7 @@ proc updateOrbitalWeapons*(game: var Game, dt: float32) =
   # Calculate base damage
   let damageScaling = game.player.damage * 0.18
   let baseDamage = if hasPowerUp(game.player, puRotatingOrbs):
-    4.5 + damageScaling  # Legendary version
+    2.25 + damageScaling  # Legendary version
   else:
     # For individual orbs, use level-based damage
     var maxDamage = 0.0
