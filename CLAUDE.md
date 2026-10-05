@@ -10,15 +10,15 @@ TopHat-ShooterOS is a bullet-heaven game written in Nim with Raylib (via the `na
 nimble install        # fetch dependencies (flatty, supersnappy; raylib + naylib are the vendor/naylib submodule)
 nimble debug          # build + run -> TopHatShooterOS-debug.exe (-d:debug; always enables the cheat menu)
 nimble WinRelease     # optimized MSVC build -> TopHatShooterOS.exe (Windows, needs VC++ Build Tools)
-nimble WinReleaseMin  # release optimized for size
+nimble WinReleaseMin  # release optimized for size -> TopHat-ShooterOS-Min.exe
 nimble LinuxRelease   # optimized Linux build
 nimble ship           # all three release artifacts -> ship/ (see tools/ship.ps1)
 nimble submodules     # check out vendor/naylib at the commit the game records (after a pull moves it)
 ```
 
-`nimble ship` is the release pipeline: it runs the three build tasks above and stages
+`nimble ship` is the release pipeline: it runs WinRelease and LinuxRelease and stages
 `ship/TopHatShooterOS-Installer_<ver>.exe` (WinRelease + niminst/Inno Setup),
-`ship/TopHatShooterOS-PORTABLE.zip` (WinReleaseMin), `ship/TopHatShooterOS-linux-x86_64.tar.gz`
+`ship/TopHatShooterOS-PORTABLE.zip` (the same WinRelease exe, zipped), `ship/TopHatShooterOS-linux-x86_64.tar.gz`
 (LinuxRelease, built inside WSL) and `SHA256SUMS.txt`. It never duplicates compiler flags —
 the `.nimble` tasks stay the single source of truth — and it takes the version from
 `TopHatShooter.nimble`, syncing `TopHatShooter.ini` so the installer can't be stamped stale.

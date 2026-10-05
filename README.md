@@ -154,7 +154,7 @@ from a clone.
 |---|---|
 | `nimble debug` | Build and run `TopHatShooterOS-debug.exe` (debug build, cheat menu enabled) |
 | `nimble WinRelease` | Speed-optimized Windows build (MSVC) → `TopHatShooterOS.exe` |
-| `nimble WinReleaseMin` | Size-optimized Windows build → `TopHatShooterOS.exe` |
+| `nimble WinReleaseMin` | Size-optimized Windows build → `TopHat-ShooterOS-Min.exe` |
 | `nimble LinuxRelease` | Optimized Linux build → `TopHatShooterOS-linux-x86_64` |
 | `nimble ship` | All three release artifacts plus `SHA256SUMS.txt` in `ship/` (see [`tools/ship.ps1`](tools/ship.ps1)) |
 | `nimble submodules` | Check out `vendor/naylib` at the commit the game records (e.g. after a `git pull`) |
