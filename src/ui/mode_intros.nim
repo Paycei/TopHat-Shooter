@@ -305,7 +305,7 @@ proc newSurvivalIntroCutscene*(): Cutscene =
     titleCardSub     = t(tkModeIntroSurvTitle),
     drawBackdropProc = simpleBackdrop(SurvAccent),
     swayAmp          = 0.7'f32,
-    musicTrack       = mtWave,
+    musicTrack       = mtSurvival,
   )
 
 # ---------------------------------------------------------------------------
@@ -452,7 +452,7 @@ proc newRogueliteIntroCutscene*(): Cutscene =
     titleCardSub     = t(tkModeIntroRogueTitle),
     drawBackdropProc = simpleBackdrop(RogueAccent),
     swayAmp          = 0.9'f32,
-    musicTrack       = mtWave,
+    musicTrack       = mtRoguelite,
   )
 
 # ---------------------------------------------------------------------------

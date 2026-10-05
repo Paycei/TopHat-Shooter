@@ -229,7 +229,7 @@ proc updateGameXpOrbs*(game: Game, dt: float32) =
       continue
     if checkPlayerCollision(game.xpOrbs[i], game.player):
       game.player.xp += game.xpOrbs[i].value
-      playSound(stCoinPickup, 0.35, 1.4)  # higher pitch than coins
+      playSound(stCoinPickup, 0.35, 1.335)  # a fourth above the coins: F, C, F, in every theme's key
       spawnExplosionPooled(game.particlePool, game.xpOrbs[i].pos.x, game.xpOrbs[i].pos.y,
                            Color(r: 90, g: 255, b: 170, a: 255), 5)
       # Floating "+N" pickup indicator, mirroring the coin pickup feedback.
@@ -251,7 +251,7 @@ proc collectAllXpOrbs*(game: Game) =
   game.xpOrbs = @[]
   if total > 0:
     game.player.xp += total
-    playSound(stCoinPickup, 0.4, 1.4)
+    playSound(stCoinPickup, 0.4, 1.335)
     game.currencyIndicators.add(newCurrencyIndicator(
       game.player.pos.x + 18, game.player.pos.y - 8, total, cikXp))
 

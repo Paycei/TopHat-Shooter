@@ -147,6 +147,24 @@ let changelog: seq[ChangelogVersion] = @[
           "Las introducciones de los modos se reescribieron para explicar lo que te pide cada modo, y las de oleadas y roguelite muestran los jefes reales a los que te enfrentarás.",
           "Las partidas guardadas de versiones anteriores también reciben la nueva historia. La nueva intro se reproduce la próxima vez que elijas tu perfil, cada intro de modo vuelve a reproducirse en tu próxima visita, y los finales que ya desbloqueaste aparecen marcados como NUEVO en CONFIG.sys > Cinemáticas hasta que los veas.",
           "El archivo de la historia en la terminal de Ayuda, las descripciones de los jefes y la primera tarjeta del tutorial se actualizaron a juego.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Music that follows the run",
+        headEs: "Música que sigue a la partida",
+        en: points(
+          "The wave, Time Survival, Roguelite and boss themes now change their arrangement with the run. Later waves play their theme fuller and harder, each Time Survival phase steps its theme up from BOOT to KERNEL PANIC, the first folder of a sector and the /pkg stalls play the Roguelite theme calm while combat folders push it and /quarantine folders push it hardest, and a boss's theme climbs each time the boss loses a phase.",
+          "Every change lands on the bar line, so the band builds up or drops back with the run instead of cutting to another song.",
+          "When your integrity is critical the music muffles, and it opens back up once you heal."),
+        es: points(
+          "Los temas de oleadas, de Supervivencia, del roguelite y de jefe ahora cambian su arreglo con la partida. Las oleadas avanzadas tocan su tema más lleno y más duro, cada fase de Supervivencia sube su tema del ARRANQUE al PÁNICO DEL KERNEL, la primera carpeta de un sector y los puestos de /pkg tocan el tema del roguelite con calma mientras las carpetas de combate lo empujan y las de /quarantine lo empujan al máximo, y el tema de un jefe sube cada vez que el jefe pierde una fase.",
+          "Cada cambio cae en el compás, así que la banda crece o se retira con la partida en lugar de cortar a otra canción.",
+          "Cuando tu integridad es crítica la música se amortigua, y se vuelve a abrir en cuanto te curas.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Time Survival and Roguelite themes",
+        headEs: "Temas de Supervivencia y del roguelite",
+        en: points(
+          "Time Survival and Roguelite now have themes of their own instead of borrowing the wave music: a driving one that ticks like a clock running down, and a darker one that falls through the folders. A boss fight in either mode still plays the boss theme."),
+        es: points(
+          "Supervivencia y el roguelite ahora tienen temas propios en lugar de tomar prestada la música de oleadas: uno insistente que avanza como un reloj en cuenta atrás y otro más oscuro que desciende por las carpetas. Una pelea contra un jefe en cualquiera de los dos modos sigue sonando con el tema de jefe.")),
       # --- Improvements ---
       ChangelogEntry(category: clcImproved,
         headEn: "Engine update",
@@ -168,6 +186,32 @@ let changelog: seq[ChangelogVersion] = @[
         es: points(
           "Los combates intensos se dibujan aproximadamente el doble de rápido. Las formas pequeñas como partículas, chispas y balas cuestan mucho menos, y cada fotograma llega a la tarjeta gráfica en unos pocos lotes en lugar de miles.",
           "Las líneas y los contornos finos ahora miden 1 píxel de grosor con la Resolución mejorada (SSAA) activada, igual que sin ella. Antes salían la mitad de gruesos y tenues.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Music transitions",
+        headEs: "Transiciones de música",
+        en: points(
+          "Switching between the fight, the shop, a power-up pick and a boss now takes a fraction of a second, with a short fade instead of a hard cut.",
+          "A theme still starts from its opening every time it comes in, so every wave and every boss fight opens on its music."),
+        es: points(
+          "Pasar del combate a la tienda, a una elección de mejora o a un jefe ahora tarda una fracción de segundo, con un fundido breve en lugar de un corte seco.",
+          "Un tema sigue empezando desde su inicio cada vez que entra, así que cada oleada y cada pelea contra un jefe empiezan con su música.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Sound effects",
+        headEs: "Efectos de sonido",
+        en: points(
+          "Every sound effect was rebuilt. Coins, power-ups, the shield, teleports, the menus, purchases, boss arrivals, wave clears and game over were remade, the musical ones as short tunes played on the soundtrack's own instruments.",
+          "Every effect with a tune is now in key with the music: they are built on notes that belong to every theme. Coins, XP, the shield, teleports and the menus no longer drift slightly out of tune at random.",
+          "Shots, hits, kills and explosions keep their character but hit harder without tiring your ears. Their punch now sits where any speaker can play it instead of in a rumble that small speakers lose, so a hit no longer lands as a muffled thump, and their edge is a short, dark snap instead of a hiss.",
+          "Each effect is as loud as before, judged by how it sounds on headphones and on laptop speakers alike, so the mix keeps its balance.",
+          "Clearing a wave now plays TOPHAT's theme, and losing a run is played out by the old system's PC speaker.",
+          "Up to eight copies of a sound can now play at once instead of four, and a new one only cuts an old one short when all eight are still playing, so busy fights no longer chop off their own kills and explosions."),
+        es: points(
+          "Todos los efectos de sonido se rehicieron. Las monedas, las mejoras, el escudo, los teletransportes, los menús, las compras, la llegada de los jefes, el fin de oleada y la derrota se rehicieron, los musicales como melodías cortas tocadas con los propios instrumentos de la banda sonora.",
+          "Todos los efectos con melodía ahora están en la tonalidad de la música: se construyen con notas que pertenecen a todos los temas. Las monedas, la XP, el escudo, los teletransportes y los menús ya no se desafinan un poco al azar.",
+          "Los disparos, impactos, bajas y explosiones conservan su carácter pero golpean más fuerte sin cansar el oído. Su golpe está ahora donde cualquier altavoz puede reproducirlo, en lugar de en un retumbe que los altavoces pequeños pierden, así que un impacto ya no suena como un golpe sordo, y su filo es un chasquido corto y oscuro en lugar de un siseo.",
+          "Cada efecto suena tan fuerte como antes, tanto con auriculares como con los altavoces de un portátil, así que la mezcla conserva su equilibrio.",
+          "Superar una oleada ahora suena con el tema de TOPHAT, y perder una partida lo toca el altavoz del sistema antiguo.",
+          "Ahora pueden sonar hasta ocho copias de un mismo sonido a la vez en lugar de cuatro, y una nueva solo corta a una anterior cuando las ocho siguen sonando, así que los combates intensos ya no cortan sus propias bajas y explosiones.")),
       # --- Mods ---
       ChangelogEntry(category: clcMods,
         headEn: "Story scores in mods",
@@ -178,6 +222,17 @@ let changelog: seq[ChangelogVersion] = @[
         es: points(
           "override.music ahora puede reemplazar las bandas sonoras de las cuatro cinemáticas de la historia: storyIntro, storyRootAccess, storyBelow y storyUptime.",
           "Una banda sonora se reproduce una vez desde el principio, al ritmo de su cinemática, y no se repite, así que hazla tan larga como la escena.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Survival and roguelite music in mods",
+        headEs: "Música de Supervivencia y del roguelite en los mods",
+        en: points(
+          "override.music can now replace the two new themes: survival and roguelite.",
+          "Time Survival and Roguelite runs no longer play the wave track, so a mod that replaces wave no longer changes their music.",
+          "A replacement plays as it is. The built-in wave, survival, roguelite and boss themes change their arrangement with the run and muffle at critical integrity; a replaced one does neither. Every track still starts from its beginning when it comes in."),
+        es: points(
+          "override.music ahora puede reemplazar los dos temas nuevos: survival y roguelite.",
+          "Las partidas de Supervivencia y del roguelite ya no usan la pista de oleadas, así que un mod que reemplaza wave ya no cambia su música.",
+          "Un reemplazo suena tal cual. Los temas wave, survival, roguelite y boss del juego cambian su arreglo con la partida y se amortiguan con la integridad crítica; uno reemplazado no hace ninguna de las dos cosas. Cada pista sigue empezando desde el principio cuando entra.")),
       ChangelogEntry(category: clcMods,
         headEn: "Drag mod apps",
         headEs: "Arrastra las apps de los mods",
@@ -261,10 +316,35 @@ let changelog: seq[ChangelogVersion] = @[
         en: "When the game ships a newer version of an example mod you installed, the desktop now tells you, and MODS.EXE tags that mod UPDATE, shows the new version and highlights Install Examples, which updates it. An enabled example that gets updated is reloaded right away, so the new version is the one you play.",
         es: "Cuando el juego trae una versión más nueva de un mod de ejemplo que instalaste, el escritorio ahora te avisa, y MODS.EXE marca ese mod con NUEVA VERSIÓN, muestra la versión nueva y resalta Instalar ejemplos, que lo actualiza. Un ejemplo activado que se actualiza se recarga al momento, así que juegas la versión nueva."),
 
+      # --- Balance ---
+      ChangelogEntry(category: clcBalance,
+        headEn: "Auras and orbs hit half as hard",
+        headEs: "Auras y orbes golpean la mitad",
+        en: points(
+          "Every aura and orb power-up deals half its base damage. The share that grows with your Damage stat is unchanged, so they still scale with your build.",
+          "Auras: Fire 0.75 / 1.75 / 3.25 burn per second, Poison 0.4 / 1 / 2, Lightning and Blood 0.5 / 1.25 / 2.5, Arcane 1.75 / 3.75 / 5, Wind gusts 1 / 2 / 3.5, and the Slow Field chip 0.2 per second.",
+          "Orbs: 1.5 / 2.5 / 3.5 per hit (Arcane 2.25 / 3.75 / 5.25), and 2.25 for the legendary Elemental Orbs."),
+        es: points(
+          "Todas las mejoras de aura y de orbes hacen la mitad de su daño base. La parte que crece con tu estadística de Daño no cambia, así que siguen escalando con tu build.",
+          "Auras: Fuego 0,75 / 1,75 / 3,25 de quemadura por segundo, Veneno 0,4 / 1 / 2, Rayo y Sangre 0,5 / 1,25 / 2,5, Arcana 1,75 / 3,75 / 5, ráfagas de Viento 1 / 2 / 3,5, y el daño del Campo Lento 0,2 por segundo.",
+          "Orbes: 1,5 / 2,5 / 3,5 por golpe (Arcanos 2,25 / 3,75 / 5,25), y 2,25 para los Orbes Elementales legendarios.")),
+
       # --- Fixes ---
       ChangelogEntry(category: clcFixed,
         en: "The last entry of the Sandbox spawn lists was invisible even when scrolled to the bottom, though it could still be clicked. It now shows.",
         es: "La última entrada de las listas de invocación del Sandbox era invisible incluso con la lista desplazada al final, aunque se podía pulsar. Ahora se muestra."),
+      ChangelogEntry(category: clcFixed,
+        en: "Held chords in the music no longer drift further out of tune the longer a track plays, and high notes no longer turn gritty toward the end of a track. Every note now sounds the same at any point in a song.",
+        es: "Los acordes sostenidos de la música ya no se desafinan cada vez más mientras suena una pista, y las notas agudas ya no se vuelven ásperas hacia el final de una pista. Cada nota suena igual en cualquier punto de una canción."),
+      ChangelogEntry(category: clcFixed,
+        en: "The music no longer dips in volume each time a track loops, and the notes, drums and echoes that cross the loop point no longer cut off there.",
+        es: "La música ya no baja de volumen cada vez que una pista se repite, y las notas, los golpes de batería y los ecos que cruzan el punto de repetición ya no se cortan ahí."),
+      ChangelogEntry(category: clcFixed,
+        en: "The coin pickup, the purchase, the power-up, the wave cleared fanfare and the restore point sounds no longer click as their notes start or end, and the boss arrival sound no longer distorts.",
+        es: "La recogida de monedas, la compra, la mejora, la fanfarria de fin de oleada y los sonidos de los puntos de restauración ya no hacen clic al empezar o terminar sus notas, y el sonido de llegada de los jefes ya no distorsiona."),
+      ChangelogEntry(category: clcFixed,
+        en: "The teleport, shield and power-up sounds no longer dissolve into noise or warble out of tune partway through.",
+        es: "Los sonidos de teletransporte, escudo y mejora ya no se deshacen en ruido ni se desafinan a mitad de camino."),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.2",
