@@ -2614,9 +2614,9 @@ proc main() =
         if hasPowerUp(currentGame.player, puBloodPact) and currentGame.player.bloodPactCooldown <= 0:
           if currentGame.player.hp > 1.0 and currentGame.enemies.len > 0:
             const
-              BLOOD_PACT_ENEMY_FRAC = 0.25'f32   # share of a normal enemy's max HP per cast
+              BLOOD_PACT_ENEMY_FRAC = 0.20'f32   # share of a normal enemy's CURRENT HP per cast
               BLOOD_PACT_BOSS_FRAC  = 0.03'f32   # bosses only take a small share
-              BLOOD_PACT_BONUS_MULT = 1.25'f32   # bonus damage per point of HP sacrificed
+              BLOOD_PACT_BONUS_MULT = 1.0'f32    # bonus damage per point of HP sacrificed
             const
               BloodBright = Color(r: 235, g: 40, b: 40, a: 255)
               BloodDeep   = Color(r: 130, g: 0, b: 25, a: 255)
@@ -2632,7 +2632,7 @@ proc main() =
               if shieldBlocksHit(currentGame, enemy, currentGame.player.pos):
                 continue  # a Port Guard facing the caster takes it on the shield
               let intended = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
-                             else: enemy.maxHp * BLOOD_PACT_ENEMY_FRAC + bonus
+                             else: enemy.hp * BLOOD_PACT_ENEMY_FRAC + bonus
               # Bosses resist it like every other non-bullet damage path: phase
               # defense, the weak-point multiplier and the adds/shield gate.
               let dealt = applyEnemyHpDamage(enemy, intended * bossPassiveDamageTaken(enemy))
