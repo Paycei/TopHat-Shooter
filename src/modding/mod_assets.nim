@@ -387,6 +387,11 @@ proc setModShaderValue*(id: int, name: string, values: openArray[float32]): bool
   else: setShaderValue(s.shader, loc, [values[0], values[1], values[2], values[3]])
   true
 
+proc postShaderActive*(): bool =
+  ## Whether beginPostShader would start a shader this frame.
+  let id = if postShaderInRun and gameShader > 0: gameShader else: screenShader
+  id > 0 and id <= modShaders.len
+
 proc beginPostShader*(w, h: float32, time: float32): bool =
   ## main.nim, around the final blit: starts the active post-process shader,
   ## with its `time` and `resolution` uniforms filled in. False = none.

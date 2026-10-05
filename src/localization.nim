@@ -87,6 +87,11 @@ type
     tkSettingsRenderResolutionFullscreenOnly = "settings_render_resolution_fullscreen_only"
     tkSettingsVSync = "settings_vsync"
     tkSettingsVSyncDesc = "settings_vsync_desc"
+    tkSettingsPostFx = "settings_post_fx"
+    tkSettingsPostFxDesc = "settings_post_fx_desc"
+    tkSettingsPostFxOff = "settings_post_fx_off"
+    tkSettingsPostFxSubtle = "settings_post_fx_subtle"
+    tkSettingsPostFxFull = "settings_post_fx_full"
     tkSettingsShowFps = "settings_show_fps"
     tkSettingsMouseBonding = "settings_mouse_bonding"
     tkSettingsMouseBondingDesc = "settings_mouse_bonding_desc"
@@ -2018,6 +2023,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_render_resolution_fullscreen_only": "Fullscreen Only",
     "settings_vsync": "VSync:",
     "settings_vsync_desc": "(locks FPS to monitor refresh rate)",
+    "settings_post_fx": "Visual effects:",
+    "settings_post_fx_desc": "(glow, vignette and color grading)",
+    "settings_post_fx_off": "Off",
+    "settings_post_fx_subtle": "Subtle",
+    "settings_post_fx_full": "Full",
     "settings_show_fps": "Show FPS:",
     "settings_mouse_bonding": "Mouse Bonding:",
     "settings_mouse_bonding_desc": "(cycle mode with a click)",
@@ -4222,6 +4232,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_render_resolution_fullscreen_only": "Solo pantalla completa",
     "settings_vsync": "VSync:",
     "settings_vsync_desc": "(bloquea FPS al refresco del monitor)",
+    "settings_post_fx": "Efectos visuales:",
+    "settings_post_fx_desc": "(brillo, viñeta y gradación de color)",
+    "settings_post_fx_off": "Desactivados",
+    "settings_post_fx_subtle": "Sutiles",
+    "settings_post_fx_full": "Completos",
     "settings_show_fps": "Mostrar FPS:",
     "settings_mouse_bonding": "Bloqueo del ratón:",
     "settings_mouse_bonding_desc": "(clic para cambiar el modo)",

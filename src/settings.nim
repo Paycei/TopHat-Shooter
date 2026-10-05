@@ -1,7 +1,7 @@
 ## Settings Backend Module
 ## Handles settings initialization, state management, and application
 
-from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, HudLayout, hlClassic, hlWidescreen, HudStyle, hsModern, hsLegacy, saveSettings, loadSettings, MinUIScale, MaxUIScale, MinDamageNumberScale, MaxDamageNumberScale, MinScreenShakeScale, MaxScreenShakeScale
+from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, pfxSubtle, HudLayout, hlClassic, hlWidescreen, HudStyle, hsModern, hsLegacy, saveSettings, loadSettings, MinUIScale, MaxUIScale, MinDamageNumberScale, MaxDamageNumberScale, MinScreenShakeScale, MaxScreenShakeScale
 from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, kaDash, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds
 import raylib, strutils
 import sound, localization, powerup_data
@@ -24,12 +24,14 @@ proc newDefaultSettings*(): Settings =
   ## state before loading a different profile's settings file.
   result = Settings(
     fpsLimit: 60,
+    vsyncEnabled: true,
     volume: 0.5,
     musicVolume: 0.5,
     inputBuffer: "60",
     editingFPS: false,
-    fullscreen: false,
+    fullscreen: true,
     renderResolutionMode: rrmEnabled,
+    postFxLevel: pfxSubtle,
     showFPS: false,
     mouseBondingMode: mbmWhileShooting,
     showDebugStats: true,
@@ -52,7 +54,7 @@ proc newDefaultSettings*(): Settings =
     particleEffect: 0,  # Default to first particle effect (pskDefault)
     desktopBg: 0,        # Default to first desktop background (dbgDefault)
     cubeSkin: 0,         # Default to first cube skin (cskDefault)
-    pvpNickname: "Player",  # Default nickname for PvP
+    pvpNickname: "shooter.exe",  # Default nickname for PvP
     exitConfirmEnabled: true,  # Exit confirm dialogs enabled by default
     keybinds: defaultKeybinds,
     gamepadBinds: defaultGamepadBinds,

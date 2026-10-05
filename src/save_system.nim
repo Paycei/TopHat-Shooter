@@ -14,6 +14,13 @@ type
     rrmEnabled = "enabled"
     rrmFullscreenOnly = "fullscreen_only"
 
+  PostFxLevel* = enum
+    ## Settings > Graphics > Visual effects: the built-in post-process pass
+    ## (post_fx.nim) run over every finished frame.
+    pfxOff = "off"
+    pfxSubtle = "subtle"
+    pfxFull = "full"
+
   HudLayout* = enum
     hlClassic = "classic"
     hlWidescreen = "widescreen"
@@ -38,6 +45,7 @@ type
     editingFPS*: bool
     fullscreen*: bool
     renderResolutionMode*: RenderResolutionMode
+    postFxLevel*: PostFxLevel  # Built-in post-processing (bloom, vignette, grade)
     showFPS*: bool
     mouseBondingMode*: MouseBondingMode
     showDebugStats*: bool
@@ -348,6 +356,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "musicVolume": settings.musicVolume,
     "fullscreen": settings.fullscreen,
     "renderResolutionMode": $settings.renderResolutionMode,
+    "postFxLevel": $settings.postFxLevel,
     "showFPS": settings.showFPS,
     "mouseBondingMode": $settings.mouseBondingMode,
     "showDebugStats": settings.showDebugStats,
@@ -430,6 +439,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
       settings.renderResolutionMode = parseEnum[RenderResolutionMode](jsonNode["renderResolutionMode"].getStr())
     except ValueError:
       settings.renderResolutionMode = rrmFullscreenOnly
+
+  if jsonNode.hasKey("postFxLevel"):
+    settings.postFxLevel = parseEnumOr(jsonNode["postFxLevel"].getStr(), pfxSubtle)
 
   if jsonNode.hasKey("showFPS"):
     settings.showFPS = jsonNode["showFPS"].getBool()
