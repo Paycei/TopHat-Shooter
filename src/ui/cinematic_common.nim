@@ -207,6 +207,11 @@ const
   CaptionLineGap = 0.2'f32      # pause between finishing one line and starting the next
   CaptionMaxShare = 0.5'f32     # all lines finish within this share of the shot
 
+proc fitFontSize*(text: string, maxW, preferred: int32, minSize: int32 = 10): int32 =
+  result = preferred
+  while result > minSize and measureText(text, result) > maxW:
+    dec result
+
 proc drawSpeakerChip(name: string, cx, y: int32, alpha: float32) =
   ## A small name tag with TOPHAT's hat beside it.
   const size = 13'i32
@@ -246,7 +251,8 @@ proc drawSubtitles*(lines: openArray[string], screenWidth, screenHeight: int32,
       drawSpeakerChip(captionSpeaker, screenWidth div 2, baseY - 28, bandA)
   var lineStart = CaptionStartDelay
   for i, line in lines:
-    let size = if i == 0: 22.int32 else: 17.int32
+    # A long line (or a longer translation) shrinks instead of running off a 4:3 screen.
+    let size = fitFontSize(line, screenWidth - 60, if i == 0: 22'i32 else: 17'i32, 14)
     let color =
       if i == 0:
         Color(r: 250, g: 255, b: 255, a: alphaByte(alpha * 245.0'f32))
@@ -274,6 +280,23 @@ proc drawSubtitles*(lines: openArray[string], screenWidth, screenHeight: int32,
           cx += max(measureText("a a", size) - measureText("aa", size), size div 4)
         drawRectangle(cx, y + 2, max(4'i32, size div 2 - 2), size - 3, color)
     lineStart = lineEnd + CaptionLineGap
+
+proc drawSubtitlesFrom*(lines: openArray[string], startAt: float32,
+                        screenWidth, screenHeight: int32, alpha: float32) =
+  ## drawSubtitles held back until `startAt` into the shot, so a caption can
+  ## follow the beat it explains instead of spoiling it.
+  if captionClock < 0.0'f32:
+    drawSubtitles(lines, screenWidth, screenHeight, alpha)
+    return
+  if captionClock < startAt:
+    return
+  let clock = captionClock
+  let duration = captionShotDuration
+  captionClock = clock - startAt
+  captionShotDuration = duration - startAt
+  drawSubtitles(lines, screenWidth, screenHeight, alpha)
+  captionClock = clock
+  captionShotDuration = duration
 
 proc drawFilmGrain*(screenWidth, screenHeight: int32, time: float32, alpha: float32) =
   var i = 0
@@ -464,11 +487,6 @@ proc triAny*(a, b, c: Vector2, col: Color) =
   let cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
   if cross < 0.0'f32: drawTriangle(a, b, c, col)
   else: drawTriangle(a, c, b, col)
-
-proc fitFontSize*(text: string, maxW, preferred: int32, minSize: int32 = 10): int32 =
-  result = preferred
-  while result > minSize and measureText(text, result) > maxW:
-    dec result
 
 proc drawStoryWindow*(x, y, w, h: float32, title: string, alpha: float32,
                       iconColor: Color = ChromeCyan, border: Color = ChromeCyan) =

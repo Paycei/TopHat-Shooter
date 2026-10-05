@@ -327,6 +327,8 @@ proc drawWhoShot(local, duration: float32, sw, sh: int32, alpha: float32) =
   if second:
     drawOldText(t(tkLoreMachine), sw div 2, cy + 66, 44,
                 revealOver(local, IntroMachineAt, IntroMachineDur), local, a)
+  # TOPHAT explains what just spoke, once it has finished speaking.
+  drawSubtitlesFrom([t(tkLoreWhoCaption1), t(tkLoreWhoCaption2)], IntroWhoCaptionAt, sw, sh, a)
 
 # ---------------------------------------------------------------------------
 # REC 03: SHOOTER.EXE. A kernel cannot fight, so it makes something that can.
@@ -448,7 +450,7 @@ proc drawDefenseShot(local, duration: float32, sw, sh: int32, alpha: float32) =
 
   const kinds = [etCircle, etTriangle, etCube, etStar, etDiamond, etCircle, etPentagon, etTriangle, etCross]
   for i in 0..<kinds.len:
-    let born = i.float32 * 0.4'f32
+    let born = i.float32 * 0.6'f32   # keeps the field busy until the title drops
     if local < born:
       continue
     let lane = sh.float32 * (0.24'f32 + hash01(i.float32 * 1.7'f32) * 0.36'f32)

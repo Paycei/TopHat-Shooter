@@ -78,7 +78,7 @@ var genCancel: Atomic[bool]
 const
   SAMPLE_RATE = 44100'u32
   MUSIC_CACHE_VERSION = "v7"  # loops; bump when a loop or the engine changes
-  SCORE_CACHE_VERSION = "s6"  # story scores; bump when any create*Score or the engine changes
+  SCORE_CACHE_VERSION = "s7"  # story scores; bump when any create*Score or the engine changes
   SOUND_CACHE_VERSION = "v5"  # bump when any create* synthesis changes
   MaxSynthThreads = 32      # cap: past this the mix is memory-bound, not CPU-bound
   ChunksPerSynthThread = 6  # oversubscribe chunks so uneven bars still balance
@@ -105,25 +105,27 @@ const
     ## Real seconds of music past a score's last cut, so the final chord rings
     ## out under the fade instead of the stream running dry on screen.
 
-  # ACT I: CLEANUP (first-launch intro, REC 00-05). Brisk enough to hook,
-  # slow enough that every beat reads; its captions type at IntroCaptionCps.
-  IntroCaptionCps* = 38.0'f32
-  IntroShots* = [8.4'f32, 7.6, 6.8, 7.4, 7.8, 8.0]
-  IntroCleanupOpen* = 1.2'f32      ## shot 0: the Disk Cleanup dialog pops up
-  IntroCleanupClick* = 3.0'f32     ## shot 0: the pointer clicks "Clean up"
-  IntroCleanupStall* = 5.4'f32     ## shot 0: the progress bar stops dead
-  IntroCleanupError* = 5.55'f32    ## shot 0: "Permission denied" appears
-  IntroProcRowStart* = 0.7'f32     ## shot 1: first root-owned process row
-  IntroProcRowEvery* = 0.36'f32    ## shot 1: one new row this often
+  # ACT I: CLEANUP (first-launch intro, REC 00-05). It is a new player's only
+  # explanation of the story, so every beat gets time to land and the
+  # captions time to be read (they type at IntroCaptionCps); ~54 real seconds.
+  IntroCaptionCps* = 26.0'f32
+  IntroShots* = [11.4'f32, 10.0, 11.5, 10.0, 10.5, 11.5]
+  IntroCleanupOpen* = 1.6'f32      ## shot 0: the Disk Cleanup dialog pops up
+  IntroCleanupClick* = 4.0'f32     ## shot 0: the pointer clicks "Clean up"
+  IntroCleanupStall* = 7.0'f32     ## shot 0: the progress bar stops dead
+  IntroCleanupError* = 7.15'f32    ## shot 0: "Permission denied" appears
+  IntroProcRowStart* = 0.8'f32     ## shot 1: first root-owned process row
+  IntroProcRowEvery* = 0.45'f32    ## shot 1: one new row this often
   IntroProcRows* = 14
-  IntroWhoAt* = 0.9'f32            ## shot 2: "WHO ARE YOU?" starts typing
-  IntroWhoDur* = 1.1'f32           ##         ...and lands (beep) this much later
-  IntroMachineAt* = 3.1'f32        ## shot 2: "THIS IS MY MACHINE." starts
-  IntroMachineDur* = 1.5'f32
-  IntroBootAt* = 3.0'f32           ## shot 3: shooter.exe boots under the beam
-  IntroFlipStart* = 1.0'f32        ## shot 4: first service changes owner
-  IntroFlipEvery* = 0.42'f32       ## shot 4: one service per step (11 of them)
-  IntroTitleAt* = 4.4'f32          ## shot 5: the title slams in
+  IntroWhoAt* = 1.0'f32            ## shot 2: "WHO ARE YOU?" starts typing
+  IntroWhoDur* = 1.3'f32           ##         ...and lands (beep) this much later
+  IntroMachineAt* = 3.6'f32        ## shot 2: "THIS IS MY MACHINE." starts
+  IntroMachineDur* = 1.7'f32
+  IntroWhoCaptionAt* = 5.9'f32     ## shot 2: TOPHAT's caption, once root has spoken
+  IntroBootAt* = 3.6'f32           ## shot 3: shooter.exe boots under the beam
+  IntroFlipStart* = 1.2'f32        ## shot 4: first service changes owner
+  IntroFlipEvery* = 0.5'f32        ## shot 4: one service per step (11 of them)
+  IntroTitleAt* = 7.0'f32          ## shot 5: the title slams in
 
   # The endings run longer and slower than the intro: the intro has to hook,
   # an ending has to land. Each key beat gets room before and after it, and
