@@ -79,7 +79,7 @@ const
   SAMPLE_RATE = 44100'u32
   MUSIC_CACHE_VERSION = "v7"  # loops; bump when a loop or the engine changes
   SCORE_CACHE_VERSION = "s7"  # story scores; bump when any create*Score or the engine changes
-  SOUND_CACHE_VERSION = "v5"  # bump when any create* synthesis changes
+  SOUND_CACHE_VERSION = "v6"  # bump when any create* synthesis changes
   MaxSynthThreads = 32      # cap: past this the mix is memory-bound, not CPU-bound
   ChunksPerSynthThread = 6  # oversubscribe chunks so uneven bars still balance
 
@@ -352,10 +352,9 @@ proc writeWavFile(filename: string, samples: seq[int16], sampleRate: uint32,
 # ============================================================================
 # SHARED SYNTHESIS
 #
-# What the soundtrack and the sound effects both build on: the names of the
-# soundtrack's instruments and drums (the effects' jingles play on them too),
-# the chord and melody types, the filters the effects run, and how a render
-# is split across threads.
+# What every piece of the soundtrack builds on: the names of its instruments
+# and drums, the chord and melody types, and how a render is split across
+# threads.
 # ============================================================================
 
 type
@@ -391,107 +390,8 @@ type
 const
   SRf = SAMPLE_RATE.float32
   SR64 = SAMPLE_RATE.float64
-  TwoPi = float32(2.0 * PI)
   RiserLength = 1.4'f32
     ## A riser is scheduled to END on its hit (see riserInto).
-
-# DSP BUILDING BLOCKS
-#
-# The sound effects' filters. A Biquad is a fixed filter (RBJ cookbook
-# designs, in float64 so a 35 Hz highpass stays exact); an Svf is a
-# state-variable filter whose cutoff may move every sample, which is how the
-# effects sweep. kWeighted and aWeighted are two curves of how loud a sound
-# is heard (see finishSfx).
-
-type
-  Biquad = object
-    b0, b1, b2, a1, a2: float64
-    x1, x2, y1, y2: float64
-
-  Svf = object
-    ## Topology-preserving state-variable filter (Zavalishin): stable however
-    ## fast its cutoff moves, lowpass, bandpass and highpass at once.
-    ic1, ic2: float64
-    cutoff, q: float32          # what the coefficients below were made for
-    k, a1, a2, a3: float64
-
-  SvfOut = tuple[low, band, high: float32]
-
-proc biquad(b0, b1, b2, a0, a1, a2: float64): Biquad =
-  Biquad(b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0)
-
-proc highpassBQ(cutoff, q: float64): Biquad =
-  let w0 = 2.0 * PI * cutoff / SR64
-  let c = cos(w0)
-  let alpha = sin(w0) / (2.0 * q)
-  biquad((1.0 + c) / 2.0, -(1.0 + c), (1.0 + c) / 2.0, 1.0 + alpha, -2.0 * c, 1.0 - alpha)
-
-proc lowpassBQ(cutoff, q: float64): Biquad =
-  let w0 = 2.0 * PI * cutoff / SR64
-  let c = cos(w0)
-  let alpha = sin(w0) / (2.0 * q)
-  biquad((1.0 - c) / 2.0, 1.0 - c, (1.0 - c) / 2.0, 1.0 + alpha, -2.0 * c, 1.0 - alpha)
-
-proc highShelfBQ(cutoff, q, gainDb: float64): Biquad =
-  let a = pow(10.0, gainDb / 40.0)
-  let w0 = 2.0 * PI * cutoff / SR64
-  let c = cos(w0)
-  let alpha = sin(w0) / (2.0 * q)
-  let sa = 2.0 * sqrt(a) * alpha
-  biquad(a * ((a + 1.0) + (a - 1.0) * c + sa), -2.0 * a * ((a - 1.0) + (a + 1.0) * c),
-         a * ((a + 1.0) + (a - 1.0) * c - sa),
-         (a + 1.0) - (a - 1.0) * c + sa, 2.0 * ((a - 1.0) - (a + 1.0) * c),
-         (a + 1.0) - (a - 1.0) * c - sa)
-
-proc process(f: var Biquad, x: float64): float64 {.inline.} =
-  result = f.b0 * x + f.b1 * f.x1 + f.b2 * f.x2 - f.a1 * f.y1 - f.a2 * f.y2
-  f.x2 = f.x1
-  f.x1 = x
-  f.y2 = f.y1
-  f.y1 = result
-
-proc kWeighted(x: openArray[float32]): seq[float32] =
-  ## `x` as the ear weighs it through headphones (ITU-R BS.1770): a +4 dB
-  ## shelf above 1.7 kHz, and the lows rolled off only below 38 Hz.
-  var shelf = highShelfBQ(1681.97, 0.7072, 3.99984)
-  var hp = highpassBQ(38.1355, 0.5003)
-  result = newSeq[float32](x.len)
-  for i, v in x:
-    result[i] = float32(hp.process(shelf.process(v.float64)))
-
-proc aWeighted(x: openArray[float32]): seq[float32] =
-  ## `x` as a laptop speaker at a quiet game volume brings it to the ear: the
-  ## A curve, with its poles at 20.6 Hz (twice), 107.7 and 737.9 Hz, and
-  ## 12.2 kHz (twice). 100 Hz counts 19 dB less than 1 kHz.
-  var low = highpassBQ(20.6, 0.5)
-  var mid = highpassBQ(281.8, 0.3333)   # the 107.7 and 737.9 Hz poles as one pair
-  var top = lowpassBQ(12194.0, 0.5)
-  result = newSeq[float32](x.len)
-  for i, v in x:
-    result[i] = float32(top.process(mid.process(low.process(v.float64))))
-
-proc tick(s: var Svf, x, cutoff, q: float32): SvfOut {.inline.} =
-  if cutoff != s.cutoff or q != s.q:
-    # Only a moving cutoff pays for the tan.
-    let g = tan(PI * clamp(cutoff.float64, 5.0, SR64 * 0.45) / SR64)
-    s.cutoff = cutoff
-    s.q = q
-    s.k = 1.0 / q.float64
-    s.a1 = 1.0 / (1.0 + g * (g + s.k))
-    s.a2 = g * s.a1
-    s.a3 = g * s.a2
-  let v3 = x.float64 - s.ic2
-  let v1 = s.a1 * s.ic1 + s.a2 * v3
-  let v2 = s.ic2 + s.a2 * s.ic1 + s.a3 * v3
-  s.ic1 = 2.0 * v1 - s.ic1
-  s.ic2 = 2.0 * v2 - s.ic2
-  (float32(v2), float32(v1), float32(x.float64 - s.k * v1 - v2))
-
-proc highpassMono(x: var seq[float32], cutoff: float64) =
-  ## A 12 dB/octave highpass over the whole buffer.
-  var f = highpassBQ(cutoff, 0.7071)
-  for i in 0 ..< x.len:
-    x[i] = float32(f.process(x[i].float64))
 
 proc semiFreq(tonic: float32, semi: int): float32 {.inline.} =
   tonic * pow(2.0'f32, semi.float32 / 12.0'f32)
@@ -509,29 +409,6 @@ proc chordSemis(c: BarChord): seq[int] =
   result = newSeq[int](base.len)
   for i in 0..<base.len:
     result[i] = c.rootSemi + base[i]
-
-proc frac32(x: float64): float32 {.inline.} =
-  ## Fractional cycles. Phases are counted in float64 and reduced here, so a
-  ## partial is as clean at the end of a sound as at its start.
-  float32(x - floor(x))
-
-proc sawStack(theta: float32, n: int, b: float32): float32 {.inline.} =
-  ## Sum of b^(h-1)/h * sin(h*theta) for h = 1..n: a band-limited saw whose
-  ## upper harmonics roll off with `b` (1 = a full saw). Varying `b` over a
-  ## note is a filter sweep with no filter state to carry.
-  ## One sin and one cos, then sin((h+1)x) = 2cos(x)sin(hx) - sin((h-1)x).
-  let s = sin(theta)
-  let c2 = 2.0'f32 * cos(theta)
-  var prev = 0.0'f32
-  var cur = s
-  var w = 1.0'f32
-  result = s
-  for h in 2 .. n:
-    let nxt = c2 * cur - prev
-    prev = cur
-    cur = nxt
-    w *= b
-    result += cur * w / h.float32
 
 # PARALLEL RENDERING
 #
@@ -574,13 +451,10 @@ proc synthThreadCount(): int = clamp(countProcessors(), 1, MaxSynthThreads)
 # ============================================================================
 # SHARED MUSICAL MATERIAL
 #
-# Notes and TOPHAT's leitmotif (hatMotif), shared by the story scores and the
-# jingles among the sound effects.
+# Notes and TOPHAT's leitmotif (hatMotif), shared by the story scores.
 # ============================================================================
 
 const
-  C3 = 130.81'f32
-  C4 = 261.63'f32
   E2 = 82.41'f32
   E3 = 164.81'f32
   E4 = 329.63'f32
@@ -1930,680 +1804,891 @@ proc createUptimeScore(filename: string) =
   applySingleEcho(mix, 0.4, 0.1)
   finishMusic(mix, filename, 0.9)
 
-# MUSIC LOADING AND SYSTEM MANAGEMENT
-
-# ============================================================================
-# SOUND EFFECTS (v5)
-#
-# Every effect is synthesised into an Sfx: a mono buffer with its own seeded
-# random source, so a cache rebuild always produces the same sound and the
-# generator thread never touches the shared global RNG. A pitch that moves is
-# driven through a phase accumulator (Osc): sin(2*PI*f(t)*t) with a moving f
-# sweeps twice as far as written, and modulation multiplied by t grows without
-# bound (that is how the v2 teleport and shield turned into noise).
-#
-# They hit without wearing the ear out: the weight of a hit is a body falling
-# through 100-300 Hz, its edge a few milliseconds of dark noise, and nothing
-# bright is left ringing. v4 kept a crack, a squawk or a sweep in the 2-5 kHz
-# band the ear is most sensitive to, which is what tired it in a long fight.
-#
-# They belong to the soundtrack. The jingles (power-up, wave cleared, game
-# over, boss arrival, the teleport's bells) are tiny scores played on its own
-# instruments and drums, with its single echo, and the bell of the chimes is
-# its bell. Every pitched effect is built on C major, which belongs to every
-# theme's key: a chord of the menu, shop, wave and survival progressions, and
-# diatonic to the roguelite's A minor and the boss's E phrygian. Only the boss
-# arrival keeps the boss theme's E, and the game over, heard after the music
-# stops, its A minor.
-# ============================================================================
-
-type
-  Sfx = object
-    samples: seq[float32]
-    rng: Rand
-
-  Osc = object
-    ## A phase accumulator. Its frequency may change every sample; the
-    ## cycles are never wrapped, so a non-integer multiple (an FM ratio, an
-    ## inharmonic partial) stays continuous too.
-    cycles: float64
-
-proc newSfx(seconds: float32, seed: int64): Sfx =
-  Sfx(samples: newSeq[float32](int(seconds * SRf)), rng: initRand(seed))
-
-proc noise(s: var Sfx): float32 =
-  float32(s.rng.rand(-1.0 .. 1.0))
-
-proc advance(o: var Osc, freq: float32) {.inline.} =
-  o.cycles += freq.float64 / SR64
-
-proc phase(o: Osc, multiple: float64 = 1.0): float32 {.inline.} =
-  ## The phase, in radians, of `multiple` times the oscillator.
-  TwoPi * frac32(o.cycles * multiple)
-
-proc lowpass(state: var float32, x, amount: float32): float32 {.inline.} =
-  ## One-pole lowpass; `amount` 0..1, higher is brighter.
-  state += amount * (x - state)
-  state
-
-proc bellTone(cycles: float64, age, decay: float32): float32 {.inline.} =
-  ## The soundtrack's bell (ikBell), `cycles` into a note `age` seconds old:
-  ## partials at 2, 2.756 and 4 times the note, the higher dying first.
-  sin(TwoPi * frac32(cycles)) * 0.7'f32 +
-    sin(TwoPi * frac32(cycles * 2.0)) * 0.18'f32 * exp(-age * decay) +
-    sin(TwoPi * frac32(cycles * 2.756)) * 0.12'f32 * exp(-age * decay * 1.6'f32) +
-    sin(TwoPi * frac32(cycles * 4.0)) * 0.05'f32 * exp(-age * decay * 2.0'f32)
-
-proc newJingle(seconds: float32): ScoreBuilder =
-  ## A score with no cinematic behind it: its times are plain seconds.
-  ScoreBuilder(length: seconds)
-
-proc addJingle(s: var Sfx, sb: ScoreBuilder, echoSec: float32 = 0.0,
-               echoMix: float32 = 0.0) =
-  ## Play a jingle on the soundtrack's instruments and drums, with its single
-  ## echo, into the effect.
-  var mix = newSeq[float32](s.samples.len)
-  renderVoices(mix, sb.voices)
-  renderDrums(mix, sb.hits)
-  if echoSec > 0.0:
-    applySingleEcho(mix, echoSec, echoMix)
-  for i in 0..<s.samples.len:
-    s.samples[i] += mix[i]
-
-proc addImpact(s: var Sfx, at, level: float32) =
-  ## A low impact landing `at` seconds in: a body falling from 120 to 42 Hz
-  ## and dying away completely, under a burst of dark noise. (The
-  ## soundtrack's boom drum stops dead at 7% of its level, a click this close
-  ## up, and falls to 28 Hz, below what a laptop plays.)
-  let first = int(at * SRf)
-  var body: Osc
-  var burstLP = 0.0'f32
-  for i in max(0, first) ..< s.samples.len:
-    let age = (i - first).float32 / SRf
-    body.advance(42.0'f32 + 78.0'f32 * exp(-age / 0.08'f32))
-    let boom = sin(body.phase) * exp(-age / 0.35'f32) * min(1.0'f32, age / 0.002'f32)
-    let burst = lowpass(burstLP, s.noise, 0.25) * 1.2'f32 * exp(-age / 0.03'f32)
-    s.samples[i] += (boom + burst) * level
-
-proc loudest50ms(heard: seq[float32]): float64 =
-  ## RMS of the loudest 50 ms of `heard` (all of it, when it is shorter).
-  let n = heard.len
-  let win = int(0.05 * SRf)
-  if n < win:
-    for x in heard:
-      result += float64(x) * float64(x)
-    return sqrt(result / n.float64)
-  var i = 0
-  while i + win <= n:
-    var acc = 0.0
-    for j in i ..< i + win:
-      acc += float64(heard[j]) * float64(heard[j])
-    result = max(result, sqrt(acc / win.float64))
-    i += win
-
-proc finishSfx(s: var Sfx, filename: string, headphones, laptop: float32) =
-  ## The shared master. Every effect is set to the level its v2 version was
-  ## heard at, so the volume each call site passes still sits where it was
-  ## tuned against the others. How loud a sound is heard depends on what
-  ## plays it, so that level is taken two ways, both over the loudest 50 ms:
-  ## `headphones` K-weighted, which counts the lows nearly in full, and
-  ## `laptop` A-weighted, which counts them as a small speaker at a quiet
-  ## game volume does. The gain meets the two halfway. (v4 matched the K
-  ## level alone, which made the effects that moved their energy up out of
-  ## v2's lows, the hit above all, as much as 7 dB louder on a laptop, and
-  ## the ones that moved down, like the wave fanfare, quieter.)
-  let n = s.samples.len
-  if n == 0 or genCancel.load():
-    return
-  # Below 35 Hz is rumble a laptop or headphones never play, and a DC offset
-  # clicks where a short sound starts and stops: a highpass takes out both.
-  highpassMono(s.samples, 35.0)
-  # No click at either end: 1 ms in keeps the attack, 8 ms out.
-  let fadeIn = min(n, int(0.001 * SRf))
-  for i in 0..<fadeIn:
-    s.samples[i] *= i.float32 / fadeIn.float32
-  let fadeOut = min(n, int(0.008 * SRf))
-  for k in 0..<fadeOut:
-    s.samples[n - 1 - k] *= k.float32 / fadeOut.float32
-  let byK = loudest50ms(kWeighted(s.samples))
-  let byA = loudest50ms(aWeighted(s.samples))
-  let gain = if byK > 1e-9 and byA > 1e-9:
-    float32(sqrt(headphones.float64 / byK * laptop.float64 / byA))
-  else:
-    1.0'f32
-  var pcm = newSeq[int16](n)
-  for i in 0..<n:
-    var y = s.samples[i] * gain
-    # Soft knee: untouched below 0.8, peaks rounded off before full scale.
-    let a = abs(y)
-    if a > 0.8'f32:
-      y = copySign(0.8'f32 + 0.19'f32 * tanh((a - 0.8'f32) / 0.19'f32), y)
-    pcm[i] = int16(clamp(y * 32767.0'f32, -32767.0'f32, 32767.0'f32))
-  writeWavFile(filename, pcm, SAMPLE_RATE)
-
-# COMBAT
-#
-# Shoot, hit, death and explosion are heard dozens of times a second, so they
-# stay short: a body for the weight, a few milliseconds of dark noise for the
-# edge, and their tone falls out of the 2-5 kHz band within 20 ms.
+# SOUND EFFECTS
 
 proc createLaserShoot(filename: string) =
-  ## A tight "pew": a round tone falling from 1.5 kHz to 330 Hz, FM only on
-  ## its first few milliseconds, a thump under it and a click of dark noise
-  ## on the front. v4 started at 2.4 kHz with a bright zing and a 4.5 kHz
-  ## spit on top, sharp at ten shots a second; v2 fell to 240 Hz and spent
-  ## most of its length there, a dull "boop".
-  const duration = 0.11'f32
-  var s = newSfx(duration, 101)
-  var core, body: Osc
-  var clickLP = 0.0'f32
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    core.advance(1170.0'f32 * exp(-t / 0.024'f32) + 330.0'f32)
-    let fm = sin(core.phase(2.0)) * 0.3'f32 * exp(-t / 0.012'f32)
-    let tone = (sin(core.phase + fm) + sin(core.phase(3.0)) * 0.12'f32 * exp(-t / 0.02'f32)) *
-               0.55'f32 * exp(-t / 0.032'f32)
-    body.advance(70.0'f32 + 120.0'f32 * exp(-t / 0.014'f32))
-    let thump = sin(body.phase) * 0.3'f32 * exp(-t / 0.02'f32)
-    let click = lowpass(clickLP, s.noise, 0.35) * 0.45'f32 * exp(-t / 0.002'f32)
-    let attack = min(1.0'f32, t / 0.001'f32)
-    s.samples[i] = tanh((tone + thump + click) * attack * 1.3'f32)
-  s.finishSfx(filename, 0.086, 0.059)
+  # Tight sci-fi "pew": pitch-swept core with light FM, a fast-fading bright
+  # harmonic, a small sub thump and a filtered attack tick. Phase accumulation
+  # keeps the sweep clean, and soft saturation adds body. Built to be heard
+  # ten times a second without fatiguing.
+  let sampleRate: uint32 = 44100
+  let duration = 0.14
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  let dt = 1.0 / sampleRate.float64
+  var corePhase, subPhase = 0.0
+  var noiseLP = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Core: exponential downward sweep, integrated as phase so the pitch
+    # glides smoothly instead of warbling
+    let coreFreq = 1600.0 * exp(-progress * 7.0) + 240.0
+    corePhase += 2.0 * PI * coreFreq * dt
+    let fm = sin(corePhase * 2.7) * 0.3 * exp(-progress * 9.0)
+    let core = sin(corePhase + fm) * 0.5
+
+    # Bright opening "zing" that fades fast
+    let zing = sin(corePhase * 2.0) * 0.24 * exp(-progress * 13.0)
+
+    # Sub thump for body behind the zap
+    let subFreq = 150.0 * exp(-progress * 4.0)
+    subPhase += 2.0 * PI * subFreq * dt
+    let thump = sin(subPhase) * 0.22 * exp(-progress * 14.0)
+
+    # Lowpass-filtered attack tick (texture without hiss)
+    noiseLP += 0.25 * (rand(-1.0..1.0) - noiseLP)
+    let tick = noiseLP * 0.55 * exp(-progress * 32.0)
+
+    let envelope = applyADSR(progress, 0.006, 0.10, 0.28, 0.55)
+
+    # Soft saturation rounds the peaks and adds harmonics
+    let value = tanh((core + zing + thump + tick) * envelope * 1.7) * 0.6
+    samples[i] = int16(clamp(value * 32767.0 * 0.5, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
 
 proc createImpactHit(filename: string) =
-  ## A bullet landing: a body thumping down from 270 to 110 Hz, a knock from
-  ## 800 to 420 Hz over it and a snap of noise around 1.9 kHz, all over in a
-  ## tenth of a second. v4's cracked at 3 kHz and pinged at 2.1 kHz, which
-  ## stung in a crowd; v2's sat at 55-190 Hz, a muffled bump on a laptop.
-  const duration = 0.1'f32
-  var s = newSfx(duration, 102)
-  var bodyOsc, knockOsc: Osc
-  var snapF: Svf
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    bodyOsc.advance(110.0'f32 + 160.0'f32 * exp(-t / 0.01'f32))
-    let body = sin(bodyOsc.phase) * 0.45'f32 * exp(-t / 0.026'f32)
-    knockOsc.advance(420.0'f32 + 380.0'f32 * exp(-t / 0.006'f32))
-    let knock = sin(knockOsc.phase) * 0.5'f32 * exp(-t / 0.013'f32)
-    let snap = snapF.tick(s.noise, 1900.0'f32, 0.7'f32).band * 1.5'f32 * exp(-t / 0.006'f32)
-    let attack = min(1.0'f32, t / 0.0005'f32)
-    s.samples[i] = tanh((body + knock + snap) * attack * 1.4'f32) * 0.7'f32
-  s.finishSfx(filename, 0.124, 0.031)
+  # Punchy drum-like impact: a pitch-swept thump (phase-accumulated, like an
+  # 808 kick), a mid knock for definition and a lowpass-filtered crack burst
+  # instead of raw white noise. Soft saturation glues the layers together.
+  let sampleRate: uint32 = 44100
+  let duration = 0.16
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  let dt = 1.0 / sampleRate.float64
+  var thumpPhase, knockPhase = 0.0
+  var crackLP = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Deep felt thump: 190 Hz dropping fast to ~55 Hz
+    let thumpFreq = 55.0 + 135.0 * exp(-progress * 16.0)
+    thumpPhase += 2.0 * PI * thumpFreq * dt
+    let thump = sin(thumpPhase) * 0.65 * exp(-progress * 7.0)
+
+    # Mid knock for definition through the mix
+    let knockFreq = 320.0 * exp(-progress * 9.0) + 120.0
+    knockPhase += 2.0 * PI * knockFreq * dt
+    let knock = sin(knockPhase) * 0.3 * exp(-progress * 12.0)
+
+    # Crack: noise lowpassed around the upper mids, very fast decay.
+    # Filtering keeps the snap but loses the static hiss.
+    crackLP += 0.30 * (rand(-1.0..1.0) - crackLP)
+    let crack = crackLP * 0.85 * exp(-progress * 26.0)
+
+    # Short metallic ping so hits cut through at low volume
+    let ping = sin(2.0 * PI * 2100.0 * t) * 0.12 * exp(-progress * 30.0)
+
+    let value = tanh((thump + knock + crack + ping) * 1.6) * 0.62
+    samples[i] = int16(clamp(value * 32767.0 * 0.72, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
 
 proc createEnemyDeath(filename: string) =
-  ## A process killed: a thump and a pop of dark noise at once, then the
-  ## "zap-drop" diving from 900 to 80 Hz with a sub octave and a detuned
-  ## partial, over debris crackle sputtering out. The thump is the punch
-  ## v4's lacked, and its sample-and-hold crunch, which grated through long
-  ## kill chains, is gone. Short enough that dense kill chains stay readable.
-  const duration = 0.36'f32
-  var s = newSfx(duration, 103)
-  var main, kick: Osc
-  var popLP = 0.0'f32
-  var debrisF: Svf
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    let progress = t / duration
-    kick.advance(55.0'f32 + 125.0'f32 * exp(-t / 0.012'f32))
-    let thump = sin(kick.phase) * 0.5'f32 * exp(-t / 0.04'f32)
-    let pop = lowpass(popLP, s.noise, 0.3) * exp(-t / 0.007'f32)
-    main.advance(820.0'f32 * exp(-progress * 6.0'f32) + 80.0'f32)
-    let tone = sin(main.phase) * 0.45'f32 + sin(main.phase(0.5)) * 0.2'f32 +
-               sin(main.phase(1.17)) * 0.1'f32 * exp(-progress * 5.0'f32)
-    let crackle = debrisF.tick(s.noise, 1300.0'f32 + 1500.0'f32 * exp(-t / 0.06'f32),
-                               0.7'f32).band * 0.45'f32 * exp(-progress * 7.0'f32)
-    let envelope = min(1.0'f32, t / 0.0015'f32) * exp(-progress * 3.8'f32)
-    s.samples[i] = tanh(((tone + crackle) * envelope + thump + pop) * 1.2'f32) * 0.75'f32
-  s.finishSfx(filename, 0.203, 0.118)
+  # Satisfying destruction "zap-drop": a clean phase-accumulated dive from
+  # high to sub frequencies with a tracking sub octave, plus lowpass-filtered
+  # debris crackle. Shorter than before (0.45 s) so dense kill chains stay
+  # readable, with saturation for weight.
+  let sampleRate: uint32 = 44100
+  let duration = 0.45
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
 
-proc createExplosion(filename: string) =
-  ## A blast that lands like a hit: a kick-like body dropping from 150 to
-  ## 45 Hz, its punch decaying fast into a long sub tail, and a mid thump
-  ## from 310 to 90 Hz carry it, on a laptop as well as on headphones; the
-  ## noise blooms and darkens into a rumble through two lowpass poles closing
-  ## together. v4 opened its noise wide, with a 2.8 kHz click and a 2.5 kHz
-  ## crack: half of what was heard of it sat in the band that grates.
-  const duration = 0.9'f32
-  var s = newSfx(duration, 104)
-  var bodyOsc, midOsc: Osc
-  var blast1, blast2 = 0.0'f32
-  var crackF: Svf
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    let progress = t / duration
-    # One oscillator for the punch and the sub: two low sines a few hertz
-    # apart would beat into a wobble.
-    bodyOsc.advance(45.0'f32 + 105.0'f32 * exp(-t / 0.03'f32))
-    let body = sin(bodyOsc.phase) * (0.45'f32 * exp(-t / 0.1'f32) + 0.3'f32 * exp(-progress * 3.5'f32))
-    midOsc.advance(90.0'f32 + 220.0'f32 * exp(-t / 0.02'f32))
-    let mid = sin(midOsc.phase) * 0.35'f32 * exp(-t / 0.06'f32)
-    let cutoff = 0.02'f32 + 0.3'f32 * exp(-progress * 6.0'f32)
-    let blast = lowpass(blast2, lowpass(blast1, s.noise, cutoff), cutoff) * 1.5'f32 *
-                exp(-progress * 2.8'f32)
-    let crack = crackF.tick(s.noise, 1600.0'f32, 0.7'f32).band * 0.6'f32 * exp(-t / 0.01'f32)
-    let attack = min(1.0'f32, t / 0.001'f32)
-    s.samples[i] = tanh((body + mid + blast + crack) * attack * 1.5'f32) * 0.66'f32
-  s.finishSfx(filename, 0.271, 0.107)
+  let dt = 1.0 / sampleRate.float64
+  var mainPhase, subPhase = 0.0
+  var burstLP, crackleLP = 0.0
 
-# THE PLAYER
-#
-# shooter.exe taking damage, shielding, building and jumping, and its drive
-# (the restore-point cues). The weight is in the body; nothing squawks.
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Main dive: ~950 Hz falling to ~45 Hz, integrated as phase
+    let mainFreq = 900.0 * exp(-progress * 6.0) + 45.0
+    mainPhase += 2.0 * PI * mainFreq * dt
+    let mainTone = sin(mainPhase) * 0.48
+
+    # Sub octave tracking the dive for weight
+    subPhase += PI * mainFreq * dt
+    let subOctave = sin(subPhase) * 0.38
+
+    # Slightly detuned partial for a broken, dissonant edge
+    let warble = sin(mainPhase * 1.17) * 0.14 * exp(-progress * 4.0)
+
+    # Impact burst: heavily lowpassed noise, only at the front
+    burstLP += 0.22 * (rand(-1.0..1.0) - burstLP)
+    let burst = burstLP * 0.9 * exp(-progress * 18.0)
+
+    # Debris crackle: brighter filtered noise sputtering out through the tail
+    crackleLP += 0.45 * (rand(-1.0..1.0) - crackleLP)
+    let crackle = (crackleLP - burstLP * 0.5) * 0.35 * exp(-progress * 6.0)
+
+    let attackEnv = min(1.0, progress / 0.02)
+    let mainEnv = exp(-progress * 3.5)
+
+    let value = tanh((mainTone + subOctave + warble + burst + crackle) *
+                     attackEnv * mainEnv * 1.5) * 0.66
+    samples[i] = int16(clamp(value * 32767.0 * 0.7, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
 
 proc createPlayerHit(filename: string) =
-  ## shooter.exe taking damage: a blow dropping from 240 to 70 Hz, a low saw
-  ## groaning down from 110 Hz through a fast tremor (the system straining),
-  ## a burst of dark grit and a short two-tone error blip, C6 down to G5,
-  ## the system's complaint. v4's 1.2 kHz square squawk and its brighter
-  ## grit made a hit sting the ear instead of landing.
-  const duration = 0.32'f32
-  var s = newSfx(duration, 105)
-  var blowOsc, groanOsc, blipOsc: Osc
-  var gritLP = 0.0'f32
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
+  # Intense, attention-grabbing damage sound
+  let sampleRate: uint32 = 44100
+  let duration = 0.35
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  var noiseLP = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
     let progress = t / duration
-    blowOsc.advance(70.0'f32 + 170.0'f32 * exp(-t / 0.012'f32))
-    let blow = sin(blowOsc.phase) * 0.5'f32 * exp(-t / 0.05'f32)
-    groanOsc.advance(110.0'f32 * (1.0'f32 - 0.15'f32 * progress))
-    let tremor = 1.0'f32 + 0.5'f32 * sin(TwoPi * 24.0'f32 * t)
-    let groan = sawStack(groanOsc.phase, 6, 0.7) * 0.32'f32 * tremor *
-                exp(-progress * 5.0'f32) * min(1.0'f32, t / 0.004'f32)
-    let grit = lowpass(gritLP, s.noise, 0.18) * exp(-t / 0.02'f32)
-    blipOsc.advance(if t < 0.035'f32: 1046.5'f32 else: 783.99'f32)
-    let blip = if t < 0.085'f32:
-      (sin(blipOsc.phase) + sin(blipOsc.phase(3.0)) * 0.2'f32) * 0.28'f32 *
-        min(1.0'f32, t / 0.002'f32) * (1.0'f32 - t / 0.085'f32)
+
+    # Deep pain tone - low frequency
+    let painFreq = 145.0 + sin(progress * PI) * 25.0
+    let pain = sin(2.0 * PI * painFreq * t) * 0.42
+
+    # Vibrating/shaking effect - distress signal
+    let shakeRate = 22.0 + progress * 8.0
+    let shake = sin(2.0 * PI * shakeRate * t) * 0.35
+
+    # Impact layer - sharp attack
+    let impactFreq = 550.0 * exp(-progress * 20.0)
+    let impact = sin(2.0 * PI * impactFreq * t) * 0.35
+
+    # High frequency alarm - alerts player
+    let alarmFreq = 1200.0 + sin(progress * PI * 3.0) * 200.0
+    let alarm = if progress < 0.2:
+      sin(2.0 * PI * alarmFreq * t) * (1.0 - progress / 0.2) * 0.3
     else:
-      0.0'f32
-    s.samples[i] = tanh((blow + groan + grit + blip) * 1.2'f32) * 0.8'f32
-  s.finishSfx(filename, 0.178, 0.095)
+      0.0
 
-proc createShield(filename: string) =
-  ## An energy shield coming up: a field humming up from G3 to C4 with its
-  ## fifth and octave, pulsing eight times a second; a glassy FM ring two
-  ## octaves above it that swells in as the field settles, beating slowly
-  ## against itself; and a soft breath of noise rising under it. (v4 hummed
-  ## A3 to E4, against the survival theme's F minor, under a brighter ring.)
-  const duration = 0.45'f32
-  var s = newSfx(duration, 106)
-  var hum, ring: Osc
-  var breath: Svf
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    let progress = t / duration
-    let rise = 1.0'f32 - exp(-t / 0.08'f32)
-    hum.advance(196.0'f32 + 65.63'f32 * rise)
-    let pulse = 1.0'f32 + sin(TwoPi * 8.0'f32 * t) * 0.3'f32
-    let body = (sin(hum.phase) * 0.4'f32 + sin(hum.phase(1.5)) * 0.24'f32 +
-                sin(hum.phase(2.0)) * 0.16'f32) * pulse
-    ring.advance(784.0'f32 + 262.5'f32 * rise)
-    let index = 0.8'f32 * exp(-t / 0.1'f32) + 0.2'f32
-    let glass = sin(ring.phase + index * sin(ring.phase(2.01))) * 0.24'f32 *
-                min(1.0'f32, t / 0.06'f32)
-    let sweep = 500.0'f32 * pow(4.0'f32, min(1.0'f32, t / 0.25'f32))
-    let air = breath.tick(s.noise, sweep, 1.4'f32).band * 0.12'f32 * exp(-t / 0.12'f32)
-    s.samples[i] = (body + glass + air) * applyADSR(progress, 0.05, 0.15, 0.65, 0.3)
-  s.finishSfx(filename, 0.112, 0.068)
+    # Damage noise, lowpass-filtered so it's gritty rather than hissy
+    noiseLP += 0.3 * (rand(-1.0..1.0) - noiseLP)
+    let noiseBurst = if progress < 0.15:
+      noiseLP * (1.0 - progress / 0.15) * 0.7
+    else:
+      0.0
 
-proc createWallPlace(filename: string) =
-  ## A wall slamming down: a thud dropping from 160 to 55 Hz, the block's own
-  ## clack from 430 to 230 Hz, a click on the front and a short scrape of
-  ## dust. The clack is new: v2 and v4 were only the thud and a click, so all
-  ## a laptop played of a wall was the click.
-  const duration = 0.22'f32
-  var s = newSfx(duration, 107)
-  var thudOsc, clackOsc: Osc
-  var scrapeF: Svf
-  var clickLP = 0.0'f32
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    thudOsc.advance(55.0'f32 + 105.0'f32 * exp(-t / 0.02'f32))
-    let thud = sin(thudOsc.phase) * 0.5'f32 * exp(-t / 0.055'f32)
-    clackOsc.advance(230.0'f32 + 200.0'f32 * exp(-t / 0.008'f32))
-    let clack = sin(clackOsc.phase) * 0.55'f32 * exp(-t / 0.018'f32)
-    let scrape = scrapeF.tick(s.noise, 900.0'f32, 0.6'f32).band * 0.5'f32 * exp(-t / 0.025'f32)
-    let click = lowpass(clickLP, s.noise, 0.4) * 0.5'f32 * exp(-t / 0.0015'f32)
-    let attack = min(1.0'f32, t / 0.0005'f32)
-    s.samples[i] = tanh((thud + clack + scrape + click) * attack * 1.3'f32) * 0.75'f32
-  s.finishSfx(filename, 0.05, 0.016)
+    # Sustained noise - aftermath
+    let sustainedNoise = noiseLP * 0.3 * exp(-progress * 10.0)
 
-proc createTeleport(filename: string) =
-  ## Dematerialise and rematerialise: a round sweep up and back down, 520 Hz
-  ## to 1.57 kHz and home, with an octave below it and a gentle warble; a
-  ## noise whoosh whose band climbs with the sweep; the soundtrack's bell on
-  ## G5 on the way out and C6 on arrival. v4 swept a bright saw to 2.4 kHz,
-  ## and its whine and its E6 and B6 bells were the sharpest thing in a run.
-  const duration = 0.6'f32
-  var s = newSfx(duration, 108)
-  var sweep: Osc
-  var whooshHi, whooshTop, whooshLo = 0.0'f32
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    let progress = t / duration
-    let arc = max(0.0'f32, sin(progress * float32(PI)))
-    sweep.advance((520.0'f32 + 1050.0'f32 * arc * arc) *
-                  (1.0'f32 + 0.015'f32 * sin(TwoPi * 6.0'f32 * t)))
-    let tone = sin(sweep.phase) * 0.36'f32 + sin(sweep.phase(2.0)) * 0.08'f32 * arc +
-               sin(sweep.phase(0.5)) * 0.24'f32
-    let n = s.noise
-    let band = 0.03'f32 + 0.2'f32 * arc
-    let hi = lowpass(whooshTop, lowpass(whooshHi, n, band), band)
-    let lo = lowpass(whooshLo, n, band * 0.25'f32)
-    let whoosh = (hi - lo) * arc
-    s.samples[i] = (tone + whoosh) * pow(arc, 0.6'f32)
-  var sb = newJingle(duration)
-  sb.note(ikBell, C4, 19, 0.0, 0.3, 0.1)     # G5 on the way out
-  sb.note(ikBell, C4, 24, 0.44, 0.16, 0.09)  # C6 on arrival
-  s.addJingle(sb, echoSec = 0.12, echoMix = 0.25)
-  s.finishSfx(filename, 0.275, 0.149)
+    # Distortion effect - damage intensity
+    let distortionAmount = 1.2 + progress * 0.3
 
-proc createRestoreAccess(filename: string) =
-  ## Restore point coming up on screen: a drive being addressed. Two rising
-  ## seek blips over a platter humming up to speed, with a head tick on the
-  ## front. The blips are sines with a soft odd harmonic at 1.05 and 1.4 kHz
-  ## (v4's were half square waves at 1.5 and 2 kHz).
-  const duration = 0.28'f32
-  var s = newSfx(duration, 109)
-  var hum: Osc
-  var tickLP = 0.0'f32
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    let progress = t / duration
-    hum.advance(70.0'f32 + progress * 95.0'f32)
-    let humTone = (sin(hum.phase) * 0.5'f32 + sin(hum.phase(2.0)) * 0.18'f32) * progress * 0.5'f32
-    # Two seek blips, the second a step higher, each rising 35% over 55 ms.
-    var blip = 0.0'f32
-    for b in 0..1:
-      let age = t - (0.06'f32 + b.float32 * 0.105'f32)
-      if age >= 0.0 and age < 0.055'f32:
-        let base = 1050.0'f32 + b.float32 * 350.0'f32
-        let cycles = base * (age + 0.35'f32 * age * age / (2.0'f32 * 0.055'f32))
-        let theta = TwoPi * frac32(cycles.float64)
-        blip += (sin(theta) + sin(3.0'f32 * theta) * 0.22'f32) * exp(-age / 0.055'f32 * 7.0'f32) *
-                0.36'f32 * min(1.0'f32, age / 0.0015'f32)
-    let tick = lowpass(tickLP, s.noise, 0.4) * 0.3'f32 * exp(-t / 0.004'f32)
-    let release = if progress > 0.75'f32: (1.0'f32 - progress) / 0.25'f32 else: 1.0'f32
-    let envelope = min(1.0'f32, progress * 18.0'f32) * (1.0'f32 - progress * progress * 0.55'f32) * release
-    s.samples[i] = (humTone + blip) * envelope + tick
-  s.finishSfx(filename, 0.082, 0.045)
+    # Multi-stage envelope
+    let mainEnvelope = exp(-progress * 7.0)
+    let shakeEnvelope = exp(-progress * 4.0)
 
-proc createRestoreSpinDown(filename: string) =
-  ## The platter losing power: the motor whine coasts down, the rotation
-  ## flutter slows WITH it (so the ear hears the disc turning slower rather
-  ## than just getting quieter), bearing rumble underneath, and brittle ticks
-  ## as the surface starts to give, at 1.8-3.2 kHz (v4's were up to 4.7 kHz).
-  const duration = 0.95'f32
-  var s = newSfx(duration, 110)
-  var motor, wobble, sub: Osc
-  var rumble = 0.0'f32
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    let progress = t / duration
-    motor.advance(60.0'f32 + 390.0'f32 * exp(-progress * 3.1'f32))
-    let whine = sin(motor.phase) * 0.55'f32 + sin(motor.phase(2.0)) * 0.2'f32 +
-                sin(motor.phase(3.0)) * 0.08'f32
-    wobble.advance(3.0'f32 + 26.0'f32 * exp(-progress * 3.1'f32))
-    let flutter = 1.0'f32 + sin(wobble.phase) * 0.32'f32
-    rumble = rumble * 0.986'f32 + s.noise * 0.014'f32
-    sub.advance(46.0'f32 + 20.0'f32 * exp(-progress * 2.4'f32))
-    let subTone = sin(sub.phase) * 0.3'f32
-    var tick = 0.0'f32
-    for k in 0..3:
-      let age = t - (0.42'f32 + k.float32 * 0.13'f32)
-      if age >= 0.0 and age < 0.03'f32:
-        tick += sin(TwoPi * (1800.0'f32 + k.float32 * 450.0'f32) * age) *
-                exp(-age / 0.03'f32 * 16.0'f32) * 0.3'f32 * min(1.0'f32, age / 0.001'f32)
-    let release = if t > duration - 0.08'f32: (duration - t) / 0.08'f32 else: 1.0'f32
-    let envelope = min(1.0'f32, progress * 14.0'f32) * (1.0'f32 - progress * 0.35'f32) * release
-    s.samples[i] = (whine * flutter * 0.5'f32 + rumble * 2.4'f32 + subTone + tick) * envelope
-  s.finishSfx(filename, 0.121, 0.046)
+    let rawValue = (
+      pain * (1.0 + shake * shakeEnvelope * 0.4) * mainEnvelope +
+      impact * mainEnvelope +
+      alarm +
+      noiseBurst +
+      sustainedNoise
+    )
 
-proc createRestoreShatter(filename: string) =
-  ## The platter giving way: a hard snap, a glassy inharmonic ring, the sub
-  ## weight of it letting go, and the save scattering as bit-crushed data
-  ## blips falling away into silence. The ring and the blips sit an octave
-  ## and a half lower than v4's (whose 2-6 kHz glass was nine tenths of what
-  ## the ear heard of it), and the snap is darker.
-  const duration = 0.8'f32
-  # Deliberately inharmonic, so it reads as breaking rather than as a chord.
-  const partials = [1300.0'f32, 1870.0, 2810.0, 3740.0]
-  var s = newSfx(duration, 111)
-  var thump: Osc
-  var snapLP = 0.0'f32
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    let progress = t / duration
-    let snap = lowpass(snapLP, s.noise, 0.35) * 1.3'f32 * exp(-t / 0.005'f32)
-    var glass = 0.0'f32
-    for n in 0..partials.high:
-      glass += sin(TwoPi * partials[n] * t) *
-               exp(-t * (14.0'f32 + n.float32 * 7.0'f32)) * (0.26'f32 - n.float32 * 0.05'f32)
-    thump.advance(120.0'f32 * exp(-progress * 5.0'f32) + 38.0'f32)
-    let weight = sin(thump.phase) * exp(-progress * 6.0'f32) * 0.6'f32
-    # Data scatter: blips falling in pitch across the tail, quantised to a
-    # handful of levels so they read as digital debris and not as sparkle.
-    var scatter = 0.0'f32
-    for k in 0..7:
-      let age = t - (0.06'f32 + k.float32 * 0.075'f32)
-      if age >= 0.0 and age < 0.05'f32:
-        let raw = sin(TwoPi * (1600.0'f32 - k.float32 * 140.0'f32) * age)
-        scatter += floor(raw * 3.0'f32) / 3.0'f32 * exp(-age / 0.05'f32 * 9.0'f32) *
-                   min(1.0'f32, age / 0.001'f32) *
-                   (0.16'f32 - k.float32 * 0.012'f32)
-    s.samples[i] = (snap + glass + weight + scatter) * (1.0'f32 - progress * progress * 0.6'f32)
-  s.finishSfx(filename, 0.195, 0.087)
+    # Apply soft clipping distortion
+    let distorted = tanh(rawValue * distortionAmount) / distortionAmount
 
-# REWARDS AND JINGLES
-#
-# On the soundtrack's bell and instruments, in C major (see the top of this
-# section): coins climb C5, G5, C6, the purchase rings the shop theme's tonic
-# and fifth, the power-up resolves into C, and the wave-cleared fanfare plays
-# TOPHAT's motif in C.
+    samples[i] = int16(clamp(distorted * 32767.0 * 0.65, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
 
 proc createCoinPickup(filename: string) =
-  ## A coin: three quick chimes climbing C5, G5, C6 on the soundtrack's bell,
-  ## each with a little upward "bling" in its pitch and ringing out on its own
-  ## decay. v4 climbed E5, B5, E6 with a 5-8 kHz sparkle on top; with every
-  ## XP orb playing it, that sparkle was the part that tired.
-  const duration = 0.32'f32
-  const notes = [(523.25'f32, 0.0'f32), (783.99'f32, 0.05'f32), (1046.5'f32, 0.1'f32)]
-  var s = newSfx(duration, 112)
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    var value = 0.0'f32
-    for idx, (freq, start) in notes:
-      let age = t - start
-      if age < 0.0:
-        continue
-      # Pitch rises 1.2% in the first few milliseconds; the phase is the
-      # integral of that, so the bend is clean.
-      let cycles = freq.float64 * (age.float64 * 1.012 - 0.012 * (1.0 - exp(-30.0 * age.float64)) / 30.0)
-      let env = (1.0'f32 - exp(-age / 0.0015'f32)) * exp(-age * (13.0'f32 + idx.float32 * 2.0'f32))
-      value += bellTone(cycles, age, 12.0) * env
-    s.samples[i] = value
-  s.finishSfx(filename, 0.215, 0.143)
+  # Pleasant, rewarding coin collection sound
+  let sampleRate: uint32 = 44100
+  let duration = 0.32
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
 
-proc createBuySound(filename: string) =
-  ## A purchase: the soundtrack's bell on C5 then G5, the shop theme's tonic
-  ## and fifth, then three coins landing. (v4 rang B4 and F#5, outside the
-  ## shop theme's C major.)
-  const duration = 0.42'f32
-  const notes = [(523.25'f32, 0.0'f32), (783.99'f32, 0.15'f32)]
-  const coins = [1567.98'f32, 2093.0, 2637.02]
-  var s = newSfx(duration, 113)
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    var value = 0.0'f32
-    for (freq, start) in notes:
-      let age = t - start
-      if age < 0.0:
-        continue
-      let env = (1.0'f32 - exp(-age / 0.002'f32)) * exp(-age * 8.0'f32)
-      value += bellTone(freq.float64 * age.float64, age, 9.0) * env
-    for k, freq in coins:
-      let age = t - (0.24'f32 + k.float32 * 0.035'f32)
-      if age >= 0.0:
-        value += sin(TwoPi * freq * age) * exp(-age * 45.0'f32) * 0.06'f32 *
-                 min(1.0'f32, age / 0.001'f32)
-    s.samples[i] = value
-  s.finishSfx(filename, 0.074, 0.052)
+  # Cheerful ascending major arpeggio
+  let notes = @[
+    (freq: 523.25'f32, start: 0.0, length: 0.10),      # C5
+    (freq: 659.25'f32, start: 0.08, length: 0.10),     # E5
+    (freq: 783.99'f32, start: 0.16, length: 0.16)      # G5 - held slightly longer
+  ]
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    var value = 0.0
+
+    for note in notes:
+      if t >= note.start and t < note.start + note.length:
+        let noteTime = t - note.start
+        let noteProgress = noteTime / note.length
+
+        # Bright bell-like timbre
+        let fundamental = sin(2.0 * PI * note.freq * t) * 0.48
+        let harmonic2 = sin(2.0 * PI * note.freq * 2.0 * t) * 0.20
+        let harmonic3 = sin(2.0 * PI * note.freq * 3.0 * t) * 0.12
+        let harmonic4 = sin(2.0 * PI * note.freq * 4.0 * t) * 0.08
+
+        # Shimmer effect
+        let shimmer = sin(2.0 * PI * note.freq * 5.0 * t) * 0.06
+
+        # Slight pitch bend for character
+        let bendAmount = 1.0 + (noteProgress * 0.015)
+
+        # Quick attack, sustain, gentle release
+        let attack = if noteProgress < 0.06: noteProgress / 0.06 else: 1.0
+        let release = if noteProgress > 0.65:
+          (1.0 - (noteProgress - 0.65) / 0.35) * 0.6 + 0.4
+        else:
+          1.0
+
+        let envelope = attack * release
+
+        let noteTone = (fundamental + harmonic2 + harmonic3 + harmonic4 + shimmer) * bendAmount
+        value += noteTone * envelope
+
+    # Add sparkle for "magical" coin feel
+    let globalProgress = t / duration
+    let sparkle = if globalProgress > 0.15 and globalProgress < 0.5:
+      sin(2.0 * PI * 2800.0 * t) * ((0.5 - abs(globalProgress - 0.32)) * 5.0) * 0.08
+    else:
+      0.0
+
+    samples[i] = int16(clamp((value + sparkle) * 32767.0 * 0.48, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
 
 proc createPowerUp(filename: string) =
-  ## A power-up installing: a chord on the soundtrack's lead (three detuned
-  ## six-harmonic saws a note) gliding up a fourth from G4 major into C5 major,
-  ## opening as it rises; the bell climbing C5, E5, G5, C6 over it; a C major
-  ## chord ringing out with a kick under the landing, through the shop
-  ## theme's echo. v4 glided in E major, outside that theme, and sprinkled
-  ## 4-7 kHz sparkles on the landing.
-  const duration = 0.95'f32
-  const ratios = [1.0'f32, 1.25992, 1.49831, 2.0]
-  const weights = [0.30'f32, 0.22, 0.20, 0.14]
-  const detune = [0.9945'f32, 1.0, 1.0055]
-  var s = newSfx(duration, 116)
-  var voices: array[4, array[3, Osc]]
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    let glide = min(1.0'f32, t / 0.45'f32)
-    let eased = glide * glide * (3.0'f32 - 2.0'f32 * glide)
-    let root = C4 * (1.5'f32 + 0.5'f32 * eased)
-    let vibrato = 1.0'f32 + 0.005'f32 * sin(TwoPi * 5.5'f32 * t) * glide
-    let bright = 0.35'f32 + 0.65'f32 * eased
-    var chord = 0.0'f32
-    for k in 0..3:
-      var note = 0.0'f32
-      for d in 0..2:
-        voices[k][d].advance(root * ratios[k] * detune[d] * vibrato)
-        note += sawStack(voices[k][d].phase, 6, bright)
-      chord += note * 0.34'f32 * weights[k]
-    let attack = min(1.0'f32, t / 0.04'f32)
-    let release = if t > duration - 0.35'f32: (duration - t) / 0.35'f32 else: 1.0'f32
-    s.samples[i] = chord * attack * release * 0.75'f32
-  var sb = newJingle(duration)
-  for idx, semi in [12, 16, 19, 24]:
-    sb.note(ikBell, C4, semi, 0.08'f32 + idx.float32 * 0.08'f32, 0.4, 0.1)
-  sb.chord(ikBell, C4, [24, 28, 31], 0.45, 0.5, 0.07)
-  sb.hit(pvKick, 0.45, 0.08)
-  s.addJingle(sb, echoSec = 0.409, echoMix = 0.2)
-  s.finishSfx(filename, 0.277, 0.183)
+  # Exciting, rewarding power-up with rising energy
+  let sampleRate: uint32 = 44100
+  let duration = 0.75
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
 
-proc createWaveComplete(filename: string) =
-  ## Wave cleared: TOPHAT's motif in C major, quick and bright on the
-  ## soundtrack's bell with its lead an octave below, over a C major pad and
-  ## bass, then a tonic stab with a kick and a crash, through an echo. C is a
-  ## chord of the wave theme's own progression, so the fanfare rings with the
-  ## loop instead of across it.
-  const duration = 1.6'f32
-  const beat = 0.13'f32
-  var s = newSfx(duration, 117)
-  var sb = newJingle(duration)
-  sb.phrase(ikBell, C4, 0.0, beat, hatMotif(false), 0.11, 12)
-  sb.phrase(ikLead, C4, 0.0, beat, hatMotif(false), 0.05)
-  sb.chord(ikPad, C3, [0, 4, 7, 12], 0.0, 0.9, 0.045)
-  sb.note(ikBass, C3, 0, 0.0, 0.62, 0.06)
-  let landing = 5.0'f32 * beat
-  # Rung to the very end: a bell stopped while still sounding would click.
-  sb.chord(ikBell, C4, [12, 16, 19, 24], landing, duration - landing, 0.08)
-  sb.chord(ikLead, C4, [0, 4, 7], landing, 0.35, 0.05)
-  sb.note(ikBass, C3, 0, landing, 0.5, 0.07)
-  sb.hit(pvKick, 0.0, 0.07)
-  sb.hit(pvKick, landing, 0.09)
-  sb.hit(pvCrash, landing, 0.05)
-  s.addJingle(sb, echoSec = 0.321, echoMix = 0.22)
-  s.finishSfx(filename, 0.206, 0.147)
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
 
-proc createGameOverSound(filename: string) =
-  ## shooter.exe terminated, heard after the music has stopped: the error
-  ## ding, then the old system's PC speaker walks down E, D, C, B to A over a
-  ## darkening A minor pad (the v2 melody's fall, in root's voice), a low boom
-  ## as it lands, and the last note winding down like the tape in Act IV's
-  ## crash. On the instruments the story scores play.
-  const duration = 2.5'f32
-  var s = newSfx(duration, 118)
-  var sb = newJingle(duration)
-  sb.errorDing(A3, 0.0, 0.09)
-  for (semi, start, dur) in [(19, 0.25'f32, 0.3'f32), (17, 0.6'f32, 0.3'f32),
-                             (15, 0.95'f32, 0.3'f32), (14, 1.3'f32, 0.32'f32),
-                             (12, 1.65'f32, 0.8'f32)]:
-    sb.note(ikSquare, A3, semi, start, dur, 0.045)
-    sb.note(ikBell, A3, semi + 12, start, dur, 0.05)
-  sb.chord(ikPad, A3, [0, 3, 7], 0.2, 2.2, 0.05)
-  sb.note(ikDrone, A2, 0, 0.9, 1.6, 0.05)
-  s.addJingle(sb, echoSec = 0.35, echoMix = 0.25)
-  s.addImpact(1.65, 0.12)
-  tapeStop(s.samples, 1.75, 0.7)
-  s.finishSfx(filename, 0.252, 0.133)
+    # Rising base pitch with acceleration
+    let pitchCurve = progress + progress * progress * 0.5
+    let basePitch = 350.0 + pitchCurve * 450.0
+
+    # Rich vibrato for shimmer
+    let vibrato = 1.0 + sin(2.0 * PI * 7.0 * t) * 0.02
+
+    # Main tone layers
+    let fundamental = sin(2.0 * PI * basePitch * vibrato * t) * 0.38
+    let third = sin(2.0 * PI * basePitch * 1.25992 * vibrato * t) * 0.28  # Major third
+    let fifth = sin(2.0 * PI * basePitch * 1.4983 * vibrato * t) * 0.26   # Perfect fifth
+    let octave = sin(2.0 * PI * basePitch * 2.0 * vibrato * t) * 0.18     # Octave
+
+    # Sparkle layer - high frequency magic
+    let sparkleFreq = 1600.0 + progress * 800.0
+    let sparkleVibrato = 1.0 + sin(2.0 * PI * 11.0 * t) * 0.025
+    let sparkle = if progress > 0.25:
+      sin(2.0 * PI * sparkleFreq * sparkleVibrato * t) * ((progress - 0.25) / 0.75) * 0.2
+    else:
+      0.0
+
+    # Texture noise - magical shimmer
+    let textureNoise = rand(-1.0..1.0) * 0.04 * progress
+
+    # Arpeggio accent notes
+    let accentPhase = (progress * 4.0) mod 1.0
+    let accent = if accentPhase < 0.15:
+      sin(2.0 * PI * basePitch * 3.0 * t) * (1.0 - accentPhase / 0.15) * 0.15
+    else:
+      0.0
+
+    # Build-up envelope
+    let attack = min(1.0, progress * 3.0)
+    let sustain = 0.85 + progress * 0.15
+    let release = if progress > 0.85: (1.0 - (progress - 0.85) / 0.15) else: 1.0
+    let envelope = attack * sustain * release
+
+    let value = (fundamental + third + fifth + octave + sparkle +
+                 textureNoise + accent) * envelope
+
+    samples[i] = int16(clamp(value * 32767.0 * 0.5, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
 
 proc createBossSpawn(filename: string) =
-  ## A boss breaking in, on the boss theme's material and instruments: the
-  ## impact and a crash at once, the hijack's minor-second cluster stabbed
-  ## low on its lead, a drone and the bass swelling under ringing metal, and
-  ## two alarm beeps from the old system. Front-loaded: it lands with the
-  ## boss and leaves the room behind it for the boss theme coming in
-  ## (Survival also plays it pitched up as a warning).
-  const duration = 2.0'f32
-  const ring = [(311.0'f32, 1.6'f32, 0.10'f32), (467.0'f32, 2.2'f32, 0.08'f32),
-                (739.0'f32, 3.0'f32, 0.06'f32), (1046.0'f32, 4.0'f32, 0.04'f32)]
-  var s = newSfx(duration, 119)
-  var sb = newJingle(duration)
-  sb.hit(pvCrash, 0.0, 0.18)
-  sb.chord(ikLead, E3, [0, 1, 7], 0.0, 0.55, 0.2)
-  sb.chord(ikLead, E3, [12, 13], 0.0, 0.3, 0.13)
-  sb.note(ikDrone, E2, 0, 0.0, 1.9, 0.1)
-  sb.note(ikBass, E3, 0, 0.0, 1.2, 0.12)
-  sb.beep(BeepHigh, 0.45, 0.08)
-  sb.beep(BeepLow, 0.75, 0.08)
-  s.addJingle(sb, echoSec = 0.281, echoMix = 0.25)
-  s.addImpact(0.0, 0.4)
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    var metal = 0.0'f32
-    for (freq, decay, level) in ring:
-      metal += sin(TwoPi * freq * t) * exp(-t * decay) * level
-    s.samples[i] += metal * (1.0'f32 - exp(-t / 0.004'f32))
-  s.finishSfx(filename, 0.306, 0.11)
+  # Epic, ominous boss entrance with dramatic build
+  let sampleRate: uint32 = 44100
+  let duration = 2.0
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
 
-# MENUS
-#
-# The desktop's own clicks, on the menu theme's C major.
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Deep rumble foundation - builds in intensity
+    let rumbleFreq = 28.0 + progress * 65.0
+    let rumble = sin(2.0 * PI * rumbleFreq * t) * 0.45
+
+    # Sub-bass earthquake layer
+    let earthquake = sin(2.0 * PI * 18.0 * t) * 0.35 * min(1.0, progress * 1.5)
+
+    # Mid-range threat tone
+    let threatFreq = 75.0 + progress * 140.0
+    let threat = sin(2.0 * PI * threatFreq * t) * 0.32
+
+    # Dissonant tension layer
+    let tensionFreq = 160.0 + progress * 110.0
+    let tension = sin(2.0 * PI * (tensionFreq * 1.06) * t) * 0.22  # Slightly detuned
+
+    # High frequency ominous whistle
+    let whistleFreq = 800.0 + progress * 400.0
+    let whistle = if progress > 0.3:
+      sin(2.0 * PI * whistleFreq * t) * ((progress - 0.3) / 0.7) * 0.18
+    else:
+      0.0
+
+    # Noise layers for atmosphere
+    let deepNoise = rand(-1.0..1.0) * 0.08 * min(1.0, progress * 2.0)
+
+    let midNoise = if progress > 0.4:
+      rand(-1.0..1.0) * 0.12 * ((progress - 0.4) / 0.6)
+    else:
+      0.0
+
+    # Metallic impacts for drama
+    let impactPhase = (progress * 3.0) mod 0.33
+    let impact = if impactPhase < 0.05:
+      sin(2.0 * PI * 450.0 * t) * (1.0 - impactPhase / 0.05) * 0.3
+    else:
+      0.0
+
+    # Reverberant tail simulation
+    let reverbDecay = exp(-max(0.0, progress - 1.2) * 3.0)
+
+    # Build-up envelope - slow dramatic crescendo
+    let buildCurve = progress * progress  # Quadratic build
+    let mainBuild = min(1.0, buildCurve * 1.8)
+    let peakHold = if progress > 0.7: 1.0 else: mainBuild
+    let finalDecay = if progress > 0.85:
+      1.0 - ((progress - 0.85) / 0.15) * 0.3
+    else:
+      1.0
+
+    let envelope = peakHold * finalDecay * reverbDecay
+
+    let value = (rumble + earthquake + threat + tension + whistle +
+                 deepNoise + midNoise + impact) * envelope
+
+    samples[i] = int16(clamp(value * 32767.0 * 0.7, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createExplosion(filename: string) =
+  # Cinematic boom built around a closing lowpass filter: the noise starts
+  # bright (the blast) and darkens into a low rumble as it decays, the way
+  # real explosions bloom. Underneath sits a phase-accumulated sub drop and
+  # a mid punch, glued with heavy soft saturation.
+  let sampleRate: uint32 = 44100
+  let duration = 0.9
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  let dt = 1.0 / sampleRate.float64
+  var subPhase, punchPhase = 0.0
+  var blastLP = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Initial detonation click
+    let click = if progress < 0.015:
+      sin(2.0 * PI * 2800.0 * t) * (1.0 - progress / 0.015) * 0.5
+    else:
+      0.0
+
+    # Sub drop: 110 Hz collapsing to ~26 Hz, felt more than heard
+    let subFreq = 26.0 + 84.0 * exp(-progress * 9.0)
+    subPhase += 2.0 * PI * subFreq * dt
+    let sub = sin(subPhase) * 0.62 * exp(-progress * 3.2)
+
+    # Mid punch for the body of the hit
+    let punchFreq = 240.0 * exp(-progress * 11.0) + 60.0
+    punchPhase += 2.0 * PI * punchFreq * dt
+    let punch = sin(punchPhase) * 0.4 * exp(-progress * 6.0)
+
+    # Blast noise through a closing filter: cutoff sweeps from wide open
+    # down to a muffled rumble across the tail
+    let alpha = 0.04 + 0.4 * exp(-progress * 5.0)
+    blastLP += alpha * (rand(-1.0..1.0) - blastLP)
+    let blast = blastLP * (0.95 * exp(-progress * 2.6))
+
+    # Low metallic resonance ringing out of the blast
+    let resonance = sin(2.0 * PI * 420.0 * t) * 0.12 * exp(-progress * 4.0)
+
+    let value = tanh((click + sub + punch + blast + resonance) * 1.7) * 0.62
+    samples[i] = int16(clamp(value * 32767.0 * 0.68, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createWallPlace(filename: string) =
+  # Solid, satisfying placement sound
+  let sampleRate: uint32 = 44100
+  let duration = 0.2
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Low thud with quick pitch drop
+    let thudFreq = 140.0 * exp(-progress * 12.0)
+    let thud = sin(2.0 * PI * thudFreq * t) * 0.5
+
+    # Click for definition
+    let click = if progress < 0.04:
+      sin(2.0 * PI * 800.0 * t) * (1.0 - progress / 0.04) * 0.3
+    else:
+      0.0
+
+    # Short noise burst
+    let noise = if progress < 0.06:
+      rand(-1.0..1.0) * (1.0 - progress / 0.06) * 0.15
+    else:
+      0.0
+
+    let envelope = exp(-progress * 15.0)
+    let value = (thud + click + noise) * envelope
+    samples[i] = int16(value * 32767.0 * 0.5)
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createTeleport(filename: string) =
+  # Advanced sci-fi teleportation effect
+  let sampleRate: uint32 = 44100
+  let duration = 0.6
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Symmetric up-down sweep for teleport "departure and arrival"
+    let sweepPhase = if progress < 0.5:
+      progress * 2.0
+    else:
+      2.0 - progress * 2.0
+
+    # Main carrier frequency with dramatic sweep range
+    let carrier = 900.0 + sin(sweepPhase * PI) * 1500.0
+
+    # Complex modulation for warbling sci-fi character
+    let mod1 = 1.0 + sin(2.0 * PI * 14.0 * t) * 0.35
+    let mod2 = 1.0 + sin(2.0 * PI * 23.0 * t) * 0.2
+
+    # Multi-layer synthesis
+    let layer1 = sin(2.0 * PI * carrier * mod1 * t) * 0.38
+    let layer2 = sin(2.0 * PI * carrier * 0.5 * mod2 * t) * 0.28  # Octave down
+    let layer3 = sin(2.0 * PI * carrier * 1.5 * mod1 * t) * 0.18  # Fifth up
+    let layer4 = sin(2.0 * PI * carrier * 2.0 * mod2 * t) * 0.12  # Octave up
+
+    # Phaser/flanger effect - sweeping resonance
+    let phaserFreq = carrier * (1.0 + sin(sweepPhase * PI * 2.0) * 0.08)
+    let phaser = sin(2.0 * PI * phaserFreq * t) * 0.15
+
+    # Energy burst noise at transition point
+    let transitionNoise = if abs(progress - 0.5) < 0.08:
+      rand(-1.0..1.0) * (1.0 - abs(progress - 0.5) / 0.08) * 0.25
+    else:
+      0.0
+
+    # Ambient texture noise
+    let textureNoise = rand(-1.0..1.0) * 0.06 * sin(sweepPhase * PI)
+
+    # Sparkle hits at entry/exit
+    let sparkle = if progress < 0.1 or progress > 0.9:
+      let sparkleProgress = if progress < 0.1: progress / 0.1 else: (1.0 - progress) / 0.1
+      sin(2.0 * PI * 2400.0 * t) * (1.0 - sparkleProgress) * 0.2
+    else:
+      0.0
+
+    # Symmetric envelope - fade in, peak at middle, fade out
+    let envelope = sin(progress * PI)
+
+    let value = (layer1 + layer2 + layer3 + layer4 + phaser +
+                 transitionNoise + textureNoise + sparkle) * envelope
+
+    samples[i] = int16(clamp(value * 32767.0 * 0.48, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
 
 proc createMenuNav(filename: string) =
-  ## Moving through a menu: one soft blip on G5, the fifth of the menu
-  ## theme's C, rounded by a touch of the G below, with a dark key click on
-  ## its front.
-  const duration = 0.05'f32
-  var s = newSfx(duration, 114)
-  var keyLP = 0.0'f32
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
+  # Clean, quick menu navigation beep
+  let sampleRate: uint32 = 44100
+  let duration = 0.05
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
     let progress = t / duration
-    let tone = sin(TwoPi * 783.99'f32 * t) * 0.6'f32 + sin(TwoPi * 1567.98'f32 * t) * 0.12'f32 +
-               sin(TwoPi * 392.0'f32 * t) * 0.2'f32 * exp(-t / 0.01'f32)
-    let key = lowpass(keyLP, s.noise, 0.3) * 0.3'f32 * exp(-t / 0.0015'f32)
-    s.samples[i] = tone * (1.0'f32 - exp(-t / 0.0015'f32)) * exp(-progress * 12.0'f32) + key
-  s.finishSfx(filename, 0.019, 0.013)
+
+    # Simple sine with harmonic for clarity
+    let fundamental = sin(2.0 * PI * 900.0 * t) * 0.6
+    let harmonic = sin(2.0 * PI * 1800.0 * t) * 0.2
+
+    # Very fast envelope for responsiveness
+    let envelope = exp(-progress * 40.0)
+
+    let value = (fundamental + harmonic) * envelope
+    samples[i] = int16(value * 32767.0 * 0.35)
+
+  writeWavFile(filename, samples, sampleRate)
 
 proc createMenuSelect(filename: string) =
-  ## Confirming a choice: G5 rising to C6 on the menu theme's own bell, the
-  ## second ringing over the first, a fourth up onto the tonic so it lands,
-  ## over a dark key click. (v4's bell rang E5 to B5 with a bright 3 kHz
-  ## click, a third of it in the band that stings.)
-  const duration = 0.26'f32
-  const notes = [(783.99'f32, 0.0'f32), (1046.5'f32, 0.06'f32)]
-  var s = newSfx(duration, 115)
-  var keyLP = 0.0'f32
-  for i in 0..<s.samples.len:
-    let t = i.float32 / SRf
-    var value = 0.0'f32
-    for (freq, start) in notes:
-      let age = t - start
-      if age < 0.0:
-        continue
-      let env = (1.0'f32 - exp(-age / 0.0015'f32)) * exp(-age * 13.0'f32)
-      value += bellTone(freq.float64 * age.float64, age, 20.0) * env
-    let key = lowpass(keyLP, s.noise, 0.3) * 0.3'f32 * exp(-t / 0.0015'f32)
-    s.samples[i] = value + key
-  s.finishSfx(filename, 0.151, 0.103)
+  # Confirming selection sound - two-tone
+  let sampleRate: uint32 = 44100
+  let duration = 0.2
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Two note confirmation: low to high
+    let freq = if progress < 0.5: 500.0 else: 700.0
+
+    # Clean tone with slight harmonic
+    let fundamental = sin(2.0 * PI * freq * t) * 0.5
+    let harmonic = sin(2.0 * PI * freq * 2.0 * t) * 0.15
+
+    # Smooth envelope with quick transitions
+    let attack = if progress < 0.08: progress / 0.08 else: 1.0
+    let release = if progress > 0.75: (1.0 - (progress - 0.75) / 0.25) else: 1.0
+    let envelope = attack * release
+
+    let value = (fundamental + harmonic) * envelope
+    samples[i] = int16(value * 32767.0 * 0.4)
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createWaveComplete(filename: string) =
+  # Triumphant, celebratory fanfare with rich harmonies
+  let sampleRate: uint32 = 44100
+  let duration = 1.2
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  # Victory arpeggio - ascending major chord
+  let notes = @[
+    (freq: 523.25'f32, start: 0.0, length: 0.25),       # C5
+    (freq: 659.25'f32, start: 0.22, length: 0.25),      # E5
+    (freq: 783.99'f32, start: 0.44, length: 0.25),      # G5
+    (freq: 1046.50'f32, start: 0.66, length: 0.54)      # C6 - finale held longer
+  ]
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    var value = 0.0
+
+    for note in notes:
+      if t >= note.start and t < note.start + note.length:
+        let noteTime = t - note.start
+        let noteProgress = noteTime / note.length
+
+        # Rich trumpet-like tone with harmonics
+        let fundamental = sin(2.0 * PI * note.freq * t) * 0.42
+        let harmonic2 = sin(2.0 * PI * note.freq * 2.0 * t) * 0.18
+        let harmonic3 = sin(2.0 * PI * note.freq * 3.0 * t) * 0.12
+        let harmonic4 = sin(2.0 * PI * note.freq * 4.0 * t) * 0.08
+
+        # Slight vibrato for life
+        let vibrato = 1.0 + sin(2.0 * PI * 5.5 * t) * 0.008
+
+        # Bell-like brightness
+        let brightness = sin(2.0 * PI * note.freq * 5.0 * t) * 0.06
+
+        # Quick attack, sustain with slight decay, gentle release
+        let attack = if noteProgress < 0.08: noteProgress / 0.08 else: 1.0
+        let sustain = 0.9 + noteProgress * 0.1
+        let release = if noteProgress > 0.75:
+          (1.0 - (noteProgress - 0.75) / 0.25) * 0.7 + 0.3
+        else:
+          1.0
+
+        let envelope = attack * sustain * release
+
+        let noteTone = (fundamental + harmonic2 + harmonic3 + harmonic4 + brightness) * vibrato
+        value += noteTone * envelope
+
+    # Add sparkle/shimmer for celebration
+    let globalProgress = t / duration
+    let sparkle = if globalProgress > 0.3:
+      sin(2.0 * PI * 2200.0 * t) * ((globalProgress - 0.3) / 0.7) * 0.12
+    else:
+      0.0
+
+    # Subtle noise for texture
+    let texture = rand(-1.0..1.0) * 0.02 * globalProgress
+
+    samples[i] = int16(clamp((value + sparkle + texture) * 32767.0 * 0.52, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createShield(filename: string) =
+  # Energy shield activation with pulsing
+  let sampleRate: uint32 = 44100
+  let duration = 0.4
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Base shield frequency with slight rise
+    let baseFreq = 260.0 + progress * 40.0
+
+    # Energy pulse modulation
+    let pulse = 1.0 + sin(2.0 * PI * 8.0 * t) * 0.4
+
+    # Multiple harmonic layers for richness
+    let layer1 = sin(2.0 * PI * baseFreq * pulse * t) * 0.35
+    let layer2 = sin(2.0 * PI * baseFreq * 1.5 * pulse * t) * 0.25
+    let layer3 = sin(2.0 * PI * baseFreq * 2.0 * pulse * t) * 0.15
+
+    # High frequency shimmer for energy effect
+    let shimmer = sin(2.0 * PI * 1800.0 * t) * 0.1 * (1.0 - progress)
+
+    # Filtered noise for texture
+    let noise = rand(-1.0..1.0) * 0.05 * exp(-progress * 8.0)
+
+    let envelope = applyADSR(progress, 0.08, 0.15, 0.6, 0.17)
+
+    let value = (layer1 + layer2 + layer3 + shimmer + noise) * envelope
+    samples[i] = int16(value * 32767.0 * 0.45)
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createGameOverSound(filename: string) =
+  let sampleRate: uint32 = 44100
+  let duration = 2.5
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  let notes = @[
+    (freq: 659.25'f32, start: 0.0, length: 0.35),
+    (freq: 587.33'f32, start: 0.4, length: 0.35),
+    (freq: 523.25'f32, start: 0.8, length: 0.4),
+    (freq: 392.00'f32, start: 1.25, length: 0.5),
+    (freq: 261.63'f32, start: 1.8, length: 0.7)
+  ]
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    var value = 0.0
+    for note in notes:
+      if t >= note.start and t < note.start + note.length:
+        let noteProgress = (t - note.start) / note.length
+        let envelope = applyADSR(noteProgress, 0.1, 0.15, 0.6, 0.15)
+        value += sin(2.0 * PI * note.freq * t) * envelope * 0.4
+    samples[i] = int16(clamp(value * 32767.0, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createBuySound(filename: string) =
+  # Satisfying two-tone "cha-ching" purchase confirmation
+  let sampleRate: uint32 = 44100
+  let duration = 0.4
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+
+  # Two-note ascending chime: lower note then upper note, with rich harmonics
+  let notes = [
+    (freq: 587.33'f32, start: 0.0'f32, length: 0.18'f32),   # D5 - first chime
+    (freq: 880.00'f32, start: 0.18'f32, length: 0.22'f32)   # A5 - confirming high note
+  ]
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    var value = 0.0
+
+    for note in notes:
+      if t >= note.start and t < note.start + note.length:
+        let noteTime = t - note.start
+        let noteProgress = noteTime / note.length
+
+        # Bell-like timbre: fundamental + bright harmonics
+        let fundamental = sin(2.0 * PI * note.freq * t) * 0.50
+        let h2 = sin(2.0 * PI * note.freq * 2.0 * t) * 0.20
+        let h3 = sin(2.0 * PI * note.freq * 3.0 * t) * 0.10
+        let h4 = sin(2.0 * PI * note.freq * 4.0 * t) * 0.05
+
+        # Gold shimmer layer
+        let shimmer = sin(2.0 * PI * note.freq * 5.5 * t) * 0.04
+
+        # Fast attack, smooth exponential decay (bell-like)
+        let attack = if noteProgress < 0.04: noteProgress / 0.04 else: 1.0
+        let decay = exp(-noteProgress * 9.0)
+        let envelope = attack * decay
+
+        value += (fundamental + h2 + h3 + h4 + shimmer) * envelope
+
+    # Tiny sparkle at the very end for a "coins landing" feel
+    let globalProgress = t / duration
+    let sparkle = if globalProgress > 0.55 and globalProgress < 0.85:
+      sin(2.0 * PI * 2200.0 * t) *
+        ((0.85 - globalProgress) / 0.30) * 0.06
+    else:
+      0.0
+
+    samples[i] = int16(clamp((value + sparkle) * 32767.0 * 0.52, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createRestoreAccess(filename: string) =
+  ## Restore point coming up on screen: a drive being addressed. Two rising seek
+  ## blips over a platter humming up to speed, with a head tick on the front.
+  let sampleRate: uint32 = 44100
+  let duration = 0.28
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  var humPhase = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Platter spinning up: the hum climbs from a stall to running speed.
+    let humFreq = 70.0 + progress * 95.0
+    humPhase += 2.0 * PI * humFreq / sampleRate.float32
+    let hum = (sin(humPhase) * 0.5 + sin(humPhase * 2.0) * 0.18) * progress * 0.5
+
+    # Two seek blips, the second a step higher. Half sine + half square gives
+    # them the digital edge the rest of the OS chrome has.
+    var blip = 0.0
+    for b in 0..1:
+      let age = t - (0.06 + b.float32 * 0.105)
+      if age >= 0.0 and age < 0.055:
+        let bp = age / 0.055
+        let raw = sin(2.0 * PI * (1500.0 + b.float32 * 520.0) * (1.0 + bp * 0.35) * age)
+        let square = if raw >= 0.0: 1.0 else: -1.0
+        blip += (raw * 0.6 + square * 0.4) * exp(-bp * 7.0) * 0.34
+
+    # Head tick on the very front.
+    let tick = if t < 0.012: rand(-1.0..1.0) * (1.0 - t / 0.012) * 0.22 else: 0.0
+
+    let envelope = min(1.0, progress * 18.0) * (1.0 - progress * progress * 0.55)
+    let value = (hum + blip + tick) * envelope
+    # Louder than its short blips suggest it needs: this is the quietest cue of
+    # the three and has to stay audible under the wave music behind the overlay.
+    samples[i] = int16(clamp(value * 32767.0 * 0.68, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createRestoreSpinDown(filename: string) =
+  ## The platter losing power: the motor whine coasts down, the rotation flutter
+  ## slows WITH it (so the ear hears the disc turning slower rather than just
+  ## getting quieter), bearing rumble underneath, and brittle ticks as the
+  ## surface starts to give.
+  let sampleRate: uint32 = 44100
+  let duration = 0.95
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  var motorPhase = 0.0
+  var wobblePhase = 0.0
+  var subPhase = 0.0
+  var rumble = 0.0
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Motor whine: exponential coast-down that never quite reaches zero.
+    let motorFreq = 60.0 + 390.0 * exp(-progress * 3.1)
+    motorPhase += 2.0 * PI * motorFreq / sampleRate.float32
+    let motor = sin(motorPhase) * 0.55 + sin(motorPhase * 2.0) * 0.2 +
+                sin(motorPhase * 3.0) * 0.08
+
+    # Rotation flutter: an amplitude wobble whose RATE decays on the same curve
+    # as the motor, which is what sells "spinning down" over "fading out".
+    let wobbleRate = 3.0 + 26.0 * exp(-progress * 3.1)
+    wobblePhase += 2.0 * PI * wobbleRate / sampleRate.float32
+    let wobble = 1.0 + sin(wobblePhase) * 0.32
+
+    # Bearing rumble: one-pole low-passed noise.
+    rumble = rumble * 0.986 + rand(-1.0..1.0) * 0.014
+
+    subPhase += 2.0 * PI * (46.0 + 20.0 * exp(-progress * 2.4)) / sampleRate.float32
+    let sub = sin(subPhase) * 0.3
+
+    # Brittle ticks across the back half: the fracture starting to travel.
+    var tick = 0.0
+    for k in 0..3:
+      let age = t - (0.42 + k.float32 * 0.13)
+      if age >= 0.0 and age < 0.03:
+        let kp = age / 0.03
+        tick += sin(2.0 * PI * (2600.0 + k.float32 * 700.0) * age) *
+                exp(-kp * 16.0) * 0.3
+
+    let envelope = min(1.0, progress * 14.0) * (1.0 - progress * 0.35)
+    let value = (motor * wobble * 0.5 + rumble * 2.4 + sub + tick) * envelope
+    samples[i] = int16(clamp(value * 32767.0 * 0.44, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
+
+proc createRestoreShatter(filename: string) =
+  ## The platter giving way: a hard broadband snap, a glassy inharmonic ring,
+  ## the sub weight of it letting go, and the save scattering as bit-crushed
+  ## data blips falling away into silence.
+  let sampleRate: uint32 = 44100
+  let duration = 0.8
+  let frameCount = int(sampleRate.float32 * duration)
+  var samples = newSeq[int16](frameCount)
+  var thumpPhase = 0.0
+
+  # Deliberately inharmonic, so it reads as breaking rather than as a chord.
+  const partials = [2170.0, 3110.0, 4690.0, 6230.0]
+
+  for i in 0..<frameCount:
+    let t = i.float32 / sampleRate.float32
+    let progress = t / duration
+
+    # Transient: broadband snap, gone in 25 ms.
+    let snap = if t < 0.025:
+      rand(-1.0..1.0) * exp(-(t / 0.025) * 5.0) * 0.85
+    else:
+      0.0
+
+    # Glassy ring, each partial decaying at its own rate.
+    var glass = 0.0
+    for n in 0..partials.high:
+      glass += sin(2.0 * PI * partials[n] * t) *
+               exp(-t * (14.0 + n.float32 * 7.0)) * (0.26 - n.float32 * 0.05)
+
+    thumpPhase += 2.0 * PI * (120.0 * exp(-progress * 5.0) + 38.0) / sampleRate.float32
+    let thump = sin(thumpPhase) * exp(-progress * 6.0) * 0.5
+
+    # Data scatter: blips falling in pitch across the tail, quantised to a
+    # handful of levels so they read as digital debris and not as sparkle.
+    var scatter = 0.0
+    for k in 0..7:
+      let age = t - (0.06 + k.float32 * 0.075)
+      if age >= 0.0 and age < 0.05:
+        let kp = age / 0.05
+        let raw = sin(2.0 * PI * (2400.0 - k.float32 * 210.0) * age)
+        let crushed = floor(raw * 3.0) / 3.0
+        scatter += crushed * exp(-kp * 9.0) * (0.16 - k.float32 * 0.012)
+
+    let envelope = 1.0 - progress * progress * 0.6
+    let value = (snap + glass + thump + scatter) * envelope
+    samples[i] = int16(clamp(value * 32767.0 * 0.46, -32767.0, 32767.0))
+
+  writeWavFile(filename, samples, sampleRate)
 
 # SOUND LOADING WITH CACHE
 proc generateSoundFile(soundType: SoundType) =
@@ -2880,21 +2965,21 @@ proc initSoundSystem*(): SoundSystem =
 # PLAYBACK FUNCTIONS
 proc pitchVariation(soundType: SoundType): float32 =
   ## Max random pitch deviation per play. Constantly repeated combat sounds
-  ## get wide variation so they never sound robotic; everything written in
-  ## the soundtrack's keys (see SOUND EFFECTS) stays at its composed pitch.
+  ## get wide variation so they never sound robotic; musical jingles
+  ## (power-up, wave fanfare, buy, game over) stay at their composed pitch.
   case soundType
   of stEnemyHit: 0.14
   of stShoot: 0.10
   of stEnemyDeath: 0.09
   of stExplosion: 0.08
   of stWallPlace: 0.07
-  of stPlayerHit: 0.04
-  # Composed one-shots keep their exact pitch: a coin detuned at random
-  # would ring out of tune against the music. The restore-point cues are a
+  of stShield: 0.05
+  of stCoinPickup, stTeleport, stPlayerHit: 0.04
+  of stMenuNav: 0.02
+  # Composed one-shots keep their exact pitch. The restore-point cues are a
   # scripted three-beat sequence, so any wobble between them would break the
   # illusion that they are one continuous event.
-  of stCoinPickup, stTeleport, stShield, stMenuNav, stPowerUp, stBossSpawn,
-     stMenuSelect, stWaveComplete, stGameOver, stBuy,
+  of stPowerUp, stBossSpawn, stMenuSelect, stWaveComplete, stGameOver, stBuy,
      stRestoreAccess, stRestoreSpinDown, stRestoreShatter: 0.0
 
 proc panSpread(soundType: SoundType): float32 =
