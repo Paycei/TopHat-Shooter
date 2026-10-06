@@ -196,6 +196,9 @@ proc spawnPlayerDeathExplosion(game: Game) =
 proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
                        sourceType: EnemyType): tuple[name: string, wasBoss: bool] =
   ## Best-effort human-readable name for whatever killed the player.
+  # A mod's own cause names itself (player:hurt(n, {cause = "Lava"})).
+  if cause == dcMod:
+    return (game.modWorld.deathLabel, false)
   # A concrete source object is the most reliable signal.
   if source != nil:
     if source.isBoss:

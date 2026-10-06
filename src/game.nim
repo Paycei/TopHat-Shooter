@@ -4,9 +4,9 @@ import types, settings, save_system, player, enemy, bullet, consumable, coin, xp
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
-import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting, run_save, suspend, utils, tutorial
+import game/combat, game/auras, game/bullets, game/death, game/bosses, game/orbitals, game/shooting, game/things, run_save, suspend, utils, tutorial
 import powerup_data
-import modding/[mod_state, mod_hooks, mod_assets]
+import modding/[mod_state, mod_hooks, mod_assets, mod_registry]
 
 const ECHO_MAX_SPAWNS = 5  # Cap echo trail bullets per parent so piercing/ricochet/etc. can't spawn an unbounded trail
 const BOSS_WAVE_SPAWN_MULTIPLIER = 0.25  # 25% of normal spawn
@@ -103,6 +103,7 @@ proc cleanupGame*(game: Game) =
   game.game3D = nil
   game.enemies = @[]
   game.bullets = @[]
+  game.modThings = @[]
   game.coins = @[]
   game.xpOrbs = @[]
   game.pendingLevelDrafts = 0
@@ -1017,10 +1018,27 @@ proc processModActions(game: Game) =
         if a.x != 0 or a.y != 0:
           game.pendingBoss.targetPos = newVector2f(a.x, a.y)
         modActionDone(a, game.pendingBoss)
+    of makJoinEnemy:
+      # spawn.enemy built it when the script asked (the handle it returned)
+      let idx = modPendingEnemies.find(a.target)
+      if idx >= 0:
+        modPendingEnemies.delete(idx)
+        game.enemies.add(a.target)
+        modActionDone(a, a.target)
+    of makJoinThing:
+      discard joinThing(game, a.thing, a.callback, a.owner)
+    of makJoinBullet:
+      let idx = modPendingBullets.find(a.bullet)
+      if idx >= 0:
+        modPendingBullets.delete(idx)
+        game.bullets.add(a.bullet)
     of makRemoveEnemy:
       let idx = game.enemies.find(a.target)
       if idx >= 0 and not game.enemies[idx].isBoss:
         game.enemies.delete(idx)
+      else:
+        let p = modPendingEnemies.find(a.target)
+        if p >= 0: modPendingEnemies.delete(p)
     of makSpawnBullet:
       let dir = newVector2f(a.vx, a.vy)
       let speed = sqrt(a.vx * a.vx + a.vy * a.vy)
@@ -1033,6 +1051,9 @@ proc processModActions(game: Game) =
     of makRemoveBullet:
       let idx = game.bullets.find(a.bullet)
       if idx >= 0: game.bullets.delete(idx)
+      else:
+        let p = modPendingBullets.find(a.bullet)
+        if p >= 0: modPendingBullets.delete(p)
     of makStartWave:
       if not game.waveInProgress and game.mode != gmRoguelite:
         startWave(game)
@@ -1088,7 +1109,9 @@ proc processModActions(game: Game) =
     of makSpawnXp:
       game.xpOrbs.add(newXpOrb(a.x, a.y, max(1, a.value)))
     of makSpawnConsumable:
-      game.consumables.add(newSpecificConsumable(a.x, a.y, a.consumable))
+      let c = newSpecificConsumable(a.x, a.y, a.consumable)
+      c.modKey = a.key
+      game.consumables.add(c)
   for a in deferred:
     modActions.add(a)
 
@@ -2345,10 +2368,11 @@ proc updatePlayerFiring(game: var Game, dt: float32) =
       fireDoubleShotBurst(game, shootDir, hasMultiShot)
       game.player.doubleShotDelay = 0  # Reset to 0
 
-  let isFiring = (isMouseButtonDown(Left) and not game.wallPlacementMode) or
-                 isKeyDown(globalSettings.keybinds[kaShoot]) or
-                 (not game.wallPlacementMode and
-                  gamepadFireDown(globalSettings.gamepadBinds))
+  let isFiring = not modUiHoldsInput() and   # a mod screen has the pointer
+                 ((isMouseButtonDown(Left) and not game.wallPlacementMode) or
+                  isKeyDown(globalSettings.keybinds[kaShoot]) or
+                  (not game.wallPlacementMode and
+                   gamepadFireDown(globalSettings.gamepadBinds)))
 
   # Rapid Fire (Legendary) spin-up: holding fire ramps the meter to full in ~1.5s;
   # releasing decays it in ~0.8s. calculateCombatStats reads it for the bonus rate.
@@ -2472,6 +2496,10 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
       spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                            patchAccent(rrtCronJob), 22)
       playSound(stShoot, 0.5, 0.8)
+
+  # Mod statuses on the player (register.status): durations, onTick, expiry
+  if game.player.modStatuses.len > 0:
+    tickModStatuses(game.player, dt)
 
   # Player poison damage from venomous elites
   # Uses accumulator system to ensure only whole number damage is applied
@@ -2872,6 +2900,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     let fireEffect = enemy.activeEffects[etFire].primary
 
     let effectDamage = updateEffects(enemy, effectiveDt)
+    if enemy.modStatuses.len > 0:
+      tickModStatuses(enemy, effectiveDt)   # mod statuses, on the enemies' clock
     if effectDamage > 0:
       # Stars use hitCount instead of HP; only register a hit when the 0.5s
       # aura-accumulation window flushes, not every frame (~60x/sec).
@@ -3105,7 +3135,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
               let bx = clampedPos.x + cos(scatter) * 28.0'f32
               let by = clampedPos.y + sin(scatter) * 28.0'f32
               let bp = clampLootPosition(bx, by, game.screenWidth, game.screenHeight)
-              game.consumables.add(newConsumable(bp.x, bp.y, consumableDifficulty))
+              game.consumables.add(newConsumable(bp.x, bp.y, consumableDifficulty, game.mode))
             # JACKPOT! A golden celebratory burst that's distinct from a normal
             # kill explosion: a layered nova core, two expanding shockwave rings,
             # and a coin-gold spiral, capped with a short screen pop.
@@ -3121,13 +3151,13 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
           # Base 30% drop chance for all other kills
           elif rand(999) < int(300.0'f32 * consumableDropScale):
-            game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
+            game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty, game.mode))
 
         else:
           # Regular enemies have 15% chance to drop a consumable
           if rand(999) < int(150.0'f32 * consumableDropScale):
             # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
-            game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty))
+            game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty, game.mode))
 
       game.player.kills += 1
 
@@ -3759,6 +3789,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           let bossDps = 0.10'f32 * game.player.maxHp
           var bossContactDamage = if chargeImpact: enemy.chargeDamage
                                   else: bossDps * elapsed
+          if modsActive:
+            bossContactDamage = modEnemyContact(enemy, bossContactDamage * enemyDamageDealtMult(enemy))
 
           let playerDied = takeDamage(game.player, bossContactDamage)
           trackDamageAvoided(game)
@@ -3790,6 +3822,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # Regular enemies deal contact damage with cooldown
         if game.time - enemy.lastContactDamageTime >= 0.33:  # Contact damage cooldown
           var enemyContactDamage = enemy.contactDamage.float32  # Damage enemy deals to player
+          if modsActive:
+            enemyContactDamage = modEnemyContact(enemy, enemyContactDamage * enemyDamageDealtMult(enemy))
 
           let playerDied = takeDamage(game.player, enemyContactDamage)
           trackDamageAvoided(game)
@@ -4241,6 +4275,8 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
                       else:
                         updateBullet(bullet, bulletDt)
     if not bulletAlive or isOffScreen(bullet, game.screenWidth, game.screenHeight):
+      if not bulletAlive and modsActive:
+        modBulletExpire(bullet)   # its lifetime ran out (bulletExpire, a kind's onExpire)
       # Track bullet despawn (missed shot) for player bullets only
       if bullet.fromPlayer:
         trackBulletDespawn(game, bullet, false)
@@ -4970,7 +5006,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
           # Piercing happens after available ricochets are spent or no ricochet target exists.
           if not didRicochet:
-            if bullet.isPiercing:
+            if bullet.modPierce > 0:
+              # A mod projectile's own pierce budget, spent before the vanilla rules
+              dec bullet.modPierce
+              bullet.piercedEnemies += 1
+              hitEnemy = false
+            elif bullet.isPiercing:
               var level = getPowerUpLevel(game.player, puPiercingShots)
               # Arcane Mastery makes arcane bullets pierce on its own. Without
               # this floor the pierce budget came only from Piercing Shots, so
@@ -5053,6 +5094,14 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           continue
 
         var bulletDamage = bullet.damage
+        if modsActive:
+          # The shooter's mod statuses (damage dealt), its kind's onHitPlayer, bulletHitPlayer
+          if statusDefs.len > 0 and bullet.sourceEnemyId >= 0:
+            for e in game.enemies:
+              if e.id == bullet.sourceEnemyId:
+                bulletDamage *= enemyDamageDealtMult(e)
+                break
+          bulletDamage = modBulletHitPlayer(bullet, bulletDamage)
 
         let bulletKilledPlayer = takeDamage(game.player, bulletDamage)
 
@@ -5250,14 +5299,16 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
                          18.0, Purple, 1, dt)
 
     if checkPlayerCollision(game.consumables[i], game.player) and
-       modPickup(game, $game.consumables[i].consumableType, 0):
+       modPickup(game, (if game.consumables[i].consumableType == ctMod: game.consumables[i].modKey
+                        else: $game.consumables[i].consumableType), 0):
       game.consumables.delete(i)   # a mod took it (pickup hook)
       continue
     if checkPlayerCollision(game.consumables[i], game.player):
       playSound(stPowerUp, 0.6)
 
-      # Track consumable pickup for statistics
-      trackConsumablePickup(game, game.consumables[i].consumableType)
+      # Track consumable pickup for statistics (a mod's are not counted)
+      if game.consumables[i].consumableType != ctMod:
+        trackConsumablePickup(game, game.consumables[i].consumableType)
 
       case game.consumables[i].consumableType
       of ctHealth:
@@ -5315,6 +5366,12 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
       of ctLifesteal:
         game.player.lifestealTimer = if game.player.hasBountiful: 22.0 else: 15.0
         showPerk(game, game.player.pos, "+LIFESTEAL", Color(r: 220, g: 20, b: 20, a: 255))
+      of ctMod:
+        # register.consumable: its stats and its onPickup
+        let c = game.consumables[i]
+        showPerk(game, game.player.pos, "+" & modConsumableName(c.modKey).toUpperAscii,
+                 modConsumableColor(c.modKey))
+        modConsumablePickup(game, c)
 
       let particleColor = case game.consumables[i].consumableType
         of ctHealth: Green
@@ -5327,6 +5384,7 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float
         of ctDoubleCoin: Color(r: 255, g: 223, b: 0, a: 255)
         of ctDamageBoost: Color(r: 255, g: 69, b: 0, a: 255)
         of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)
+        of ctMod: modConsumableColor(game.consumables[i].modKey)
 
       spawnExplosionPooled(game.particlePool, game.consumables[i].pos.x, game.consumables[i].pos.y,
                     particleColor, 10)
@@ -5455,6 +5513,15 @@ proc updateGame*(game: var Game, dt: float32) =
     game.frameCount += 1
     return
 
+  # A mod screen that pauses (ui.open, ui.dialogue...): only it runs.
+  if modsActive and game.state == gsPlaying and modUiPauses():
+    updateModUi(dt)
+    processModActions(game)
+    updateParticlePool(game.particlePool, dt)
+    game.time += dt
+    game.frameCount += 1
+    return
+
   # Handle 3D boss state
   if game.state == gs3DBoss:
     let world = activeWorld3D
@@ -5512,8 +5579,11 @@ proc updateGame*(game: var Game, dt: float32) =
   # Presentation timers (game.time, HUD, shake, combo) deliberately stay on the
   # raw dt so the UI never stutters with the world.
   let juiceScale = worldTimeScale(game.dopamine.slowMotion)
-  let simDt = dt * juiceScale
+  # Mods' time.scale (the whole world) and time.enemyScale (the enemies' clock).
+  let simDt = dt * juiceScale * modWorldTimeScale(game)
   var effectiveDt = simDt
+  if game.modWorld.enemyTimeSet:
+    effectiveDt = simDt * clamp(game.modWorld.enemyTimeScale, 0.0'f32, 2.0'f32)
   if game.player.timeWarpActive:
     let slowFactor = 0.5  # 50% slow = 50% speed (single level)
     effectiveDt = simDt * slowFactor
@@ -5614,10 +5684,18 @@ proc updateGame*(game: var Game, dt: float32) =
   # the game continuously, and death is excluded because the death sequence owns
   # its own time scale (deathSequenceTimeScale).
   let hpBeforeSim = game.player.hp
+  if modsActive: updateModUi(dt)   # open mod screens that let the run go on
   modPreUpdate(game, simDt)
   updateAttackWarningsAndLasers(game, simDt, effectiveDt)
   updatePlayerAndAuras(game, simDt, effectiveDt)
   updateEnemySpawning(game, simDt, effectiveDt)
+  # Mod things: after spawning, before the enemy loop, so the kills they make
+  # resolve in this frame's enemy loop and the bullets they block are gone
+  # before the bullet loop.
+  if game.modThings.len > 0:
+    rebuildEnemyGrid(game)
+    updateThings(game, simDt, effectiveDt, enemyGrid, gridMaxEnemyRadius)
+    collideThingBullets(game)
   updateEnemiesAndBossAttacks(game, simDt, effectiveDt)
   updateBossSatellites(game, simDt, effectiveDt)
   updateBulletsAndHits(game, simDt, effectiveDt)
@@ -5629,6 +5707,10 @@ proc updateGame*(game: var Game, dt: float32) =
   # Mods (MODS.EXE): runStart on a new run, timers and the `update` hook, on
   # the world clock and after the whole simulation, outside every entity loop.
   modUpdate(game, simDt)
+  updateModCamera(game, dt)   # camera.follow / its easing, on the real clock
+  if game.mode == gmRoguelite and patchDefs.len > 0 and game.state == gsPlaying:
+    modPatchesUpdate(game, simDt)   # mod patches' own update (register.patch)
+  sweepThings(game)
   processModActions(game)
 
   # Real dt on purpose: the re-entry highlight should last a fixed wall-clock
@@ -6226,14 +6308,19 @@ proc drawGame*(game: Game) =
   # The scale is 1.0 except in widescreen with the interface scaled above 100%,
   # where the bands widen and the arena is drawn smaller to make room -- shake
   # stays outside it so a bigger HUD doesn't damp the shake.
-  let worldOffX = getWorldViewOffsetX()
-  let worldOffY = getWorldViewOffsetY()
-  let worldViewScale = getWorldViewScale()
-  let worldScissorOpen = worldOffX > 0 or worldOffY > 0
+  # A mod's camera (camera.zoom) composes on top: the scissor stays the view's
+  # arena rect, the transform zooms into it.
+  let viewOffX = getWorldViewOffsetX()
+  let viewOffY = getWorldViewOffsetY()
+  let viewScale = getWorldViewScale()
+  let worldOffX = getWorldCamOffsetX()
+  let worldOffY = getWorldCamOffsetY()
+  let worldViewScale = getWorldCamScale()
+  let worldScissorOpen = viewOffX > 0 or viewOffY > 0
   if worldScissorOpen:
-    beginVirtualScissorMode(worldOffX.int32, worldOffY.int32,
-                            int32(game.screenWidth.float32 * worldViewScale),
-                            int32(game.screenHeight.float32 * worldViewScale))
+    beginVirtualScissorMode(viewOffX.int32, viewOffY.int32,
+                            int32(game.screenWidth.float32 * viewScale),
+                            int32(game.screenHeight.float32 * viewScale))
   let worldPassOpen = worldOffX != 0 or worldOffY != 0 or
                       worldViewScale != 1.0'f32 or
                       shakeOffsetX != 0 or shakeOffsetY != 0
@@ -6343,6 +6430,8 @@ proc drawGame*(game: Game) =
   if isTimeSurvivalMode(game.mode):
     drawSurvivalWorldUnder(game)
 
+  drawThings(game, tlBelow)   # mod things on the ground layer (hazards by default)
+
   # Draw coins
   drawGameCoins(game)
 
@@ -6370,6 +6459,8 @@ proc drawGame*(game: Game) =
   # process-tree lines (ungated: a tether is a hazard).
   drawHusks(game.modeCombat.husks)
   drawEnemyTethers(game.enemies)
+
+  drawThings(game, tlNormal)  # mod things, under the enemies
 
   # Draw enemies
   for enemy in game.enemies:
@@ -6548,6 +6639,8 @@ proc drawGame*(game: Game) =
     # with bodies: a label each would bury the pattern).
     drawEnemyLabel(enemy, showHealthBar = true,
                    enabled = globalSettings.showEnemyLabels and not isBallistic(enemy))
+    if enemy.modStatuses.len > 0:
+      drawStatusPips(enemy.pos, enemy.radius + 10, enemy.modStatuses, wrapEnemy(enemy))
 
     # Draw warning indicators for elite/boss enemies
     if globalSettings == nil or globalSettings.showHints:
@@ -6648,8 +6741,14 @@ proc drawGame*(game: Game) =
       drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, ringR + 3.0'f32,
                       Color(r: 140, g: 255, b: 215, a: uint8(ringA.int div 2)))
 
+  if playerVisible and game.player.modStatuses.len > 0:
+    drawStatusPips(game.player.pos, game.player.radius + 12, game.player.modStatuses,
+                   wrapPlayer(game.player))
+
   # Foreground particles, such as player muzzle bursts, render over the player.
   drawParticlePoolLayer(game.particlePool, plForeground)
+
+  drawThings(game, tlAbove)   # mod things over every actor
 
   if game.player.lastDamageEvent == deDamage:
     # Re-use osBackground.alertLevel as a proxy for recent-damage intensity.
@@ -6939,6 +7038,9 @@ proc drawGame*(game: Game) =
     discard   # a mod draws the whole HUD itself (hud.hide("all"))
   elif hudStyle == hsLegacy:
     drawLegacyHud(game, hudLayout, hudScale, vw, vh)
+    if hudCardDefs.len > 0 and not hudHidden(hpRun):   # mod HUD cards, top right
+      let mp = getVirtualMousePosition()
+      discard drawModHudCards(vw - 236, 150, 226, classic = true, mp.x, mp.y)
   elif hudLayout == hlWidescreen:
     # ---- LEFT DOCK: the player ---------------------------------------------
     # Key hints sit on the bottom edge, diagnostics (when enabled) stack on
@@ -7003,6 +7105,10 @@ proc drawGame*(game: Game) =
       let patchEnd = drawPatchDockCard(game, runX, rgY, patchBottom, patchFloor)
       if patchEnd > rgY:
         rgY = patchEnd + DockGap
+    # Mod HUD cards (register.hudCard), under the mode's own card
+    if hudCardDefs.len > 0 and not hudHidden(hpRun):
+      let mp = getVirtualMousePosition()
+      rgY = drawModHudCards(runX, rgY, DockCardW, classic = false, mp.x, mp.y)
 
     if bossCount > 0:
       const cardGap: int32 = 6
@@ -7086,6 +7192,10 @@ proc drawGame*(game: Game) =
     if game.state != gsShop and not hudHidden(hpHints):
       drawControlsStrip(game, vw div 2, vh - 22)
 
+    if hudCardDefs.len > 0 and not hudHidden(hpRun):   # mod HUD cards, top right
+      let mp = getVirtualMousePosition()
+      discard drawModHudCards(vw - 236, 150, 226, classic = true, mp.x, mp.y)
+
   # Survival Data Cache reveal, over the whole HUD
   if isTimeSurvivalMode(game.mode):
     drawSurvivalCacheReveal(game, vw, vh)
@@ -7097,6 +7207,10 @@ proc drawGame*(game: Game) =
               getWorldViewOffsetY().float64 / hudScale.float64,
               BaseVirtualWidth.float64 * getWorldViewScale().float64 / hudScale.float64,
               vh.float64))
+  # Mod screens over the run (ui.open's "hud" layer) and ui.banner
+  if modsActive:
+    let mp = getVirtualMousePosition()
+    drawModUi(mlHud, vw, vh, mp.x, mp.y)
 
   # A mod switched off mid-run (errors / too slow) says so for a few seconds.
   if hudNoticeTimer > 0 and hudNotice.len > 0:
@@ -7110,6 +7224,11 @@ proc drawGame*(game: Game) =
     drawText(hudNotice, noticeX + 10, noticeY + 5, 12, Color(r: 255, g: 180, b: 170, a: noticeA))
 
   endUIScaleMode()   # closes the interface layer opened before the HUD panel
+
+  # Mod screens on the "screen" layer (cutscenes): raw virtual pixels, over everything
+  if modsActive and modModals.len > 0:
+    let mp = getVirtualMousePosition()
+    drawModUi(mlScreen, getVirtualScreenWidth(), getVirtualScreenHeight(), mp.x, mp.y)
 
 proc drawDeathSequenceOverlay*(game: Game) =
   # This overlay is drawn AFTER drawGame's world pass has closed, so it runs in

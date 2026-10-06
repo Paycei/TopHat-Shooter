@@ -8,7 +8,7 @@ import ../types, ../utils, ../enemy_config
 proc getEnemyProcessName*(enemy: Enemy): string =
   ## Generate a process name for an enemy based on type
   let baseNames = case enemy.enemyType
-    of etMod00..etMod31: modEnemies[enemy.enemyType].label
+    of FirstModEnemy..LastModEnemy: modEnemies[enemy.enemyType].label
     of etCircle: "chaser"
     of etCube: "turret"
     of etTriangle: "dasher"

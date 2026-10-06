@@ -2,7 +2,7 @@
 ## Handles settings initialization, state management, and application
 
 from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, pfxSubtle, HudLayout, hlClassic, hlWidescreen, HudStyle, hsModern, hsLegacy, saveSettings, loadSettings, MinUIScale, MaxUIScale, MinDamageNumberScale, MaxDamageNumberScale, MinScreenShakeScale, MaxScreenShakeScale
-from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, kaDash, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds
+from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, kaDash, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds, FirstModPowerUp
 import raylib, strutils
 import sound, localization, powerup_data
 
@@ -15,7 +15,7 @@ proc isPowerUpDiscovered*(pt: PowerUpType): bool =
   ## reference screens never hide content during early init or in tests.
   if globalSettings.isNil: return true
   # A loaded mod's power-ups are always known (they never enter the codex).
-  if pt >= puMod00: return isPowerUpLive(pt)
+  if pt >= FirstModPowerUp: return isPowerUpLive(pt)
   $pt in globalSettings.discoveredPowerUps
 
 proc newDefaultSettings*(): Settings =

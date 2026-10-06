@@ -1,0 +1,8 @@
+{
+  "id": "chaos_engine",
+  "name": "Chaos Engine",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "Makes every mode less predictable: telegraphed hazards rain on the arena, bosses arrive with a camera punch and slow motion, wave mode's shop sells a Stabilizer, the roguelite offers an Entropy patch, survival gets a Chaos Storm event, and outlasting hazards earns a mod achievement. Shows spawn.hazard, camera, time, register.shopItem, register.patch, register.survivalEvent, register.advancement and register.command.",
+  "main": "main.lua"
+}

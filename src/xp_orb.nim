@@ -75,7 +75,7 @@ proc enemyXpValue*(enemy: Enemy): int =
     result = 40
   else:
     result = case enemy.enemyType
-      of etMod00..etMod31: modEnemies[enemy.enemyType].xp
+      of FirstModEnemy..LastModEnemy: modEnemies[enemy.enemyType].xp
       of etCircle: 1
       of etCube: 2
       of etTriangle: 1

@@ -24,7 +24,7 @@ import draw_prims
 import gamepad_input, particle_types, types, roguelite, powerup, powerup_data, patches, player,
        particle_pool, sound, localization, boss_definitions, settings, coin, xp_orb, utils,
        game/combat, ui/icon_drawing, ui/ui_helpers
-import modding/mod_hooks, enemy_config
+import modding/[mod_hooks, mod_registry], enemy_config
 
 # ---------------------------------------------------------------------------
 # Proximity info card: the tooltip that floats over an interactable pickup
@@ -41,7 +41,7 @@ type
 
   ProximityCard* = object
     iconKind*: ProximityIconKind
-    patch*: RogueliteRelicType
+    patch*: RogueliteRelic
     powerUp*: PowerUpType
     reward*: RoomReward
     tag*: string          # small accent line: "KB-3101 // PERFORMANCE"
@@ -430,7 +430,7 @@ proc enemyTuningWave(enemyType: EnemyType): float32 =
   ## (see the roster table in spawnWaveEnemies). A type spawning far below
   ## this point needs its stats compressed.
   case enemyType
-  of etMod00..etMod31: enemyTuningWave(modEnemies[enemyType].base)
+  of FirstModEnemy..LastModEnemy: enemyTuningWave(modEnemies[enemyType].base)
   of etCircle: 1
   of etPentagon: 6
   of etTriangle: 11
@@ -870,7 +870,8 @@ proc spawnPatchChoice(game: Game, room: DungeonRoom, group: int) =
   for i, p in choices:
     let offset = (i.float32 - (choices.len - 1).float32 * 0.5'f32) * 130.0'f32
     let pk = newPickup(dpkPatchPedestal, newVector2f(c.x + offset, c.y))
-    pk.patch = p
+    pk.patch = p.relicType
+    pk.modPatch = p.modKey
     pk.group = group
     room.pickups.add(pk)
 
@@ -926,7 +927,8 @@ proc spawnShopStalls*(game: Game, room: DungeonRoom) =
   let patchRoll = rollPatchChoices(game.rogueliteRun, 1)
   if patchRoll.len > 0:
     let p = newPickup(dpkStallPatch, pos[2])
-    p.patch = patchRoll[0]
+    p.patch = patchRoll[0].relicType
+    p.modPatch = patchRoll[0].modKey
     p.spawnTimer = PickupSpawnTime
     room.pickups.add(p)
   let repair = newPickup(dpkStallRepair, pos[3])
@@ -941,9 +943,12 @@ proc restockStalls(game: Game, room: DungeonRoom) =
   ## Reroll every unsold power-up and patch stall to something new.
   var current: set[PowerUpType] = {}
   var currentPatches: set[RogueliteRelicType] = {}
+  var currentModPatches: seq[string]
   for p in room.pickups:
     if p.kind == dpkStallPowerUp: current.incl(p.powerUp.powerType)
-    if p.kind == dpkStallPatch: currentPatches.incl(p.patch)
+    if p.kind == dpkStallPatch:
+      if p.patch == rrtMod: currentModPatches.add(p.modPatch)
+      else: currentPatches.incl(p.patch)
   for p in room.pickups:
     if p.taken: continue
     case p.kind
@@ -954,10 +959,12 @@ proc restockStalls(game: Game, room: DungeonRoom) =
         current.incl(fresh[0].powerType)
         p.spawnTimer = 0
     of dpkStallPatch:
-      let fresh = rollPatchChoices(game.rogueliteRun, 1, currentPatches)
+      let fresh = rollPatchChoices(game.rogueliteRun, 1, currentPatches, currentModPatches)
       if fresh.len > 0:
-        p.patch = fresh[0]
-        currentPatches.incl(fresh[0])
+        p.patch = fresh[0].relicType
+        p.modPatch = fresh[0].modKey
+        if fresh[0].relicType == rrtMod: currentModPatches.add(fresh[0].modKey)
+        else: currentPatches.incl(fresh[0].relicType)
         p.spawnTimer = 0
     else:
       discard
@@ -989,6 +996,16 @@ proc wipeRoomEntities*(game: Game) =
   game.modeCombat.corpses = @[]
   game.modeCombat.husks = @[]
   game.modeCombat.auditTimer = 0
+  # Mod things stay only when `persistent` (allies that follow the player).
+  if game.modThings.len > 0:
+    var kept: seq[ModThing]
+    for t in game.modThings:
+      if tfPersistent in t.flags and tfDead notin t.flags and tfRemoved notin t.flags:
+        kept.add(t)
+      else:
+        dropEntityData(entityKey(EdThing, t.id))
+        hazardTriggers.del(t.id)
+    game.modThings = kept
 
 proc spawnRoomObstacles(game: Game, room: DungeonRoom) =
   ## A few permanent circular obstacles, kept away from doors and the center.
@@ -1286,7 +1303,11 @@ proc openRewardDraft(game: Game) =
   initializeRerollCost(game)
   game.state = gsPowerUpSelect
 
-proc announcePatch(game: Game, patch: RogueliteRelicType) =
+proc pickupRelic*(pk: DungeonPickup): RogueliteRelic =
+  ## The patch a pedestal or a stall holds (a mod patch by its name).
+  makeRelic(pk.patch, pk.modPatch)
+
+proc announcePatch(game: Game, patch: RogueliteRelic) =
   showPerk(game, game.player.pos + newVector2f(0, -44),
            patchKbLabel(patch) & " " & t("patch_applied"), patchAccent(patch))
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, patchAccent(patch), 28)
@@ -1317,11 +1338,11 @@ proc claimDungeonPickup*(game: Game, index: int): DungeonFrame =
                    else: prCommon
       result.install = PowerUp(powerType: pickup.powerUp.powerType, level: lvl, rarity: rarity)
     of dpkStallPatch:
-      if not installPatch(game, pickup.patch):
+      if not installPatch(game, pickup.pickupRelic):
         return
       game.player.coins -= price
       pickup.taken = true
-      announcePatch(game, pickup.patch)
+      announcePatch(game, pickup.pickupRelic)
     of dpkStallRepair:
       game.player.coins -= price
       pickup.taken = true
@@ -1346,7 +1367,7 @@ proc claimDungeonPickup*(game: Game, index: int): DungeonFrame =
     openRewardDraft(game)
     result.pauseSim = true
   of dpkPatchPedestal:
-    if not installPatch(game, pickup.patch):
+    if not installPatch(game, pickup.pickupRelic):
       return
     pickup.taken = true
     # The other updates in this offer are declined.
@@ -1354,7 +1375,7 @@ proc claimDungeonPickup*(game: Game, index: int): DungeonFrame =
       if other != pickup and other.group != 0 and other.group == pickup.group and not other.taken:
         other.taken = true
         spawnExplosionPooled(game.particlePool, other.pos.x, other.pos.y, Color(r: 120, g: 140, b: 170, a: 255), 12)
-    announcePatch(game, pickup.patch)
+    announcePatch(game, pickup.pickupRelic)
   of dpkCreditCache:
     pickup.taken = true
     game.player.coins += pickup.amount
@@ -1576,7 +1597,7 @@ proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup
   let bob = sin(game.time * 2.6'f32 + index.float32) * 3.0'f32
   let accent =
     case pickup.kind
-    of dpkPatchPedestal, dpkStallPatch: patchAccent(pickup.patch)
+    of dpkPatchPedestal, dpkStallPatch: patchAccent(pickup.pickupRelic)
     of dpkDraftPackage: rewardAccent(rrwDraft)
     of dpkStallPowerUp: getPowerUpColor(pickup.powerUp.powerType)
     of dpkCreditCache: rewardAccent(rrwCredits)
@@ -1597,7 +1618,7 @@ proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup
              withAlpha(accent, uint8(if isFocus: 60 else: 34)))
   case pickup.kind
   of dpkPatchPedestal, dpkStallPatch:
-    drawPatchIcon(ix, iy, size, pickup.patch, accent)
+    drawPatchIcon(ix, iy, size, pickup.pickupRelic, accent)
   of dpkDraftPackage:
     drawRoomRewardIcon(ix, iy, size, rrwDraft, accent)
   of dpkStallPowerUp:
@@ -1634,15 +1655,17 @@ proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup
       drawText(label, tx + 19, ty + 3, 13, tagColor)
 
 proc pickupCard(game: Game, room: DungeonRoom, pickup: DungeonPickup): ProximityCard =
-  result.accent = patchAccent(pickup.patch)
+  let relic = pickup.pickupRelic
+  result.accent = patchAccent(relic)
   case pickup.kind
   of dpkPatchPedestal, dpkStallPatch:
     result.iconKind = pciPatch
-    result.patch = pickup.patch
-    result.tag = patchKbLabel(pickup.patch) & " // " &
-                 patchCategoryName(patchCategory(pickup.patch)).toUpperAscii()
-    result.title = patchName(pickup.patch)
-    result.body = patchDescription(pickup.patch)
+    result.patch = relic
+    result.tag = patchKbLabel(relic) & " // " &
+                 (if relic.relicType == rrtMod: "MOD"
+                  else: patchCategoryName(patchCategory(relic.relicType)).toUpperAscii())
+    result.title = patchName(relic)
+    result.body = patchDescription(relic)
     result.action = t("card_patch_action")
   of dpkStallPowerUp:
     let lvl = stallNextLevel(game, pickup)

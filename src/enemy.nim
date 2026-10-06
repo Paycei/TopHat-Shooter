@@ -110,6 +110,10 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   let slow = effectiveSlow(enemy)
   if slow > 0:
     effectiveSpeed = effectiveSpeed * (1.0 - slow)
+  # Mod statuses (speed modifiers). Regular enemies only, like the game's own
+  # slows: a boss's movement is choreographed.
+  if enemy.modStatuses.len > 0 and not enemy.isBoss:
+    effectiveSpeed = effectiveSpeed * max(0.0'f32, 1.0'f32 + enemy.statusSpeed)
   # Haste (Priority Daemon aura, Dispatcher boost): refreshed by its source
   # every frame it applies, so it lapses on its own once that stops.
   if enemy.hasteTimer > 0:
@@ -165,7 +169,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
     # Regular enemy updates. A mod enemy (MODS.EXE) runs the branch of the
     # built-in type it is based on (enemyAiType), with its own config.
     case enemyAiType(enemy.enemyType)
-    of etMod00..etMod31:
+    of FirstModEnemy..LastModEnemy:
       discard  # never: a mod enemy's base is always a built-in type
     of etThread..etCorruptor:
       # Survival horde and roguelite room roster (mode_enemies.nim).
@@ -1994,7 +1998,7 @@ proc drawEnemy*(enemy: Enemy) =
   else:
     drawThreatAura(enemy)
     case enemyAiType(enemy.enemyType)
-    of etMod00..etMod31:
+    of FirstModEnemy..LastModEnemy:
       discard  # never: a mod enemy's base is always a built-in type
     of etThread..etCorruptor:
       drawModeEnemy(enemy)

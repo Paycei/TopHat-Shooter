@@ -75,6 +75,17 @@ const
     ("billboard_plaza/orb.png", embed("examples/billboard_plaza/orb.png")),
     ("billboard_plaza/online.gif", embed("examples/billboard_plaza/online.gif")),
     ("billboard_plaza/drone.gif", embed("examples/billboard_plaza/drone.gif")),
+    ("necromancer/mod.json", embed("examples/necromancer/mod.json")),
+    ("necromancer/main.lua", embed("examples/necromancer/main.lua")),
+    ("story_mode/mod.json", embed("examples/story_mode/mod.json")),
+    ("story_mode/main.lua", embed("examples/story_mode/main.lua")),
+    ("story_mode/kernel.png", embed("examples/story_mode/kernel.png")),
+    ("chaos_engine/mod.json", embed("examples/chaos_engine/mod.json")),
+    ("chaos_engine/main.lua", embed("examples/chaos_engine/main.lua")),
+    ("content_pack/mod.json", embed("examples/content_pack/mod.json")),
+    ("content_pack/content/powerups.json", embed("examples/content_pack/content/powerups.json")),
+    ("content_pack/content/enemies.json", embed("examples/content_pack/content/enemies.json")),
+    ("content_pack/content/shop.json", embed("examples/content_pack/content/shop.json")),
   ]
 
 proc exampleModIds*(): seq[string] =

@@ -245,6 +245,16 @@ proc activateSlowMo*(slowMo: var SlowMotion, slowType: SlowMotionType) =
   slowMo.active = true
   slowMo.slowType = slowType
 
+proc activateCustomSlowMo*(slowMo: var SlowMotion, scale, duration: float32, ramp: bool) =
+  ## A mod's time.slowmo: `scale` for `duration` real seconds, easing back to
+  ## normal over it when `ramp`.
+  slowMo.timeScale = clamp(scale, 0.05'f32, 1.0'f32)
+  slowMo.duration = max(0.0'f32, duration)
+  slowMo.maxDuration = slowMo.duration
+  slowMo.rampToNormal = ramp
+  slowMo.active = slowMo.duration > 0
+  slowMo.slowType = smtResume   # (only the ramp and the scale matter while it runs)
+
 proc triggerHitStop*(slowMo: var SlowMotion, duration: float32,
                      scale: float32 = HitStopScaleNormal) =
   ## Freeze the world for `duration` real seconds.

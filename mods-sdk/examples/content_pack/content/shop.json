@@ -1,0 +1,37 @@
+[
+  {
+    "type": "shopItem",
+    "id": "core",
+    "name": {
+      "en": "Spare Core",
+      "es": "Núcleo de Repuesto"
+    },
+    "description": {
+      "en": "+3 walls",
+      "es": "+3 muros"
+    },
+    "cost": 10,
+    "costMult": 1.5,
+    "maxBuys": 5,
+    "modes": [
+      "wave"
+    ],
+    "color": "#78dca0",
+    "stats": {
+      "walls": 3
+    }
+  },
+  {
+    "type": "consumable",
+    "id": "mana",
+    "name": {
+      "en": "Mana Cell",
+      "es": "Celda de Maná"
+    },
+    "color": "#4080ff",
+    "weight": 5,
+    "stats": {
+      "damage": "+3%"
+    }
+  }
+]

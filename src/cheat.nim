@@ -342,13 +342,16 @@ proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) =
 var cheatPatchPick = succ(rrtNone)
   ## Patch the roguelite tab's picker currently shows.
 
-proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelicType): bool =
-  ## Apply a patch to the live run. Marks the run cheated in release builds.
+proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelic): bool =
+  ## Apply a patch (a mod's too) to the live run. Marks the run cheated in release builds.
   if game.rogueliteRun.isNil: return false
   if ANTICHEAT_ENABLED:
     game.cheatsUsed = true
   result = installPatch(game, patch)
   playSound(if result: stPowerUp else: stMenuNav)
+
+proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelicType): bool =
+  applyRoguelitePatchCheat(game, makeRelic(patch))
 
 proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
   ## Fast-forward (or rewind) the survival clock. In time-survival mode difficulty
@@ -1238,7 +1241,7 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
   # Patch picker: < name > [Apply]
   drawText("Patch", labelX, currentY + 6, 14, White)
   if btn(btnStartX, currentY, 28, bh, "<", Color(r: 30, g: 40, b: 60, a: 255), SkyBlue):
-    cheatPatchPick = if cheatPatchPick <= succ(rrtNone): high(RogueliteRelicType)
+    cheatPatchPick = if cheatPatchPick <= succ(rrtNone): pred(rrtMod)
                      else: pred(cheatPatchPick)
   let owned = run.hasRelic(cheatPatchPick)
   let pickLabel = patchKbLabel(cheatPatchPick) & " " & patchName(cheatPatchPick) &
@@ -1246,7 +1249,7 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
   drawText(pickLabel, btnStartX + 36, currentY + 7, 12, if owned: Gray else: White)
   let applyX = x + width - 20 - 150
   if btn(applyX - 36, currentY, 28, bh, ">", Color(r: 30, g: 40, b: 60, a: 255), SkyBlue):
-    cheatPatchPick = if cheatPatchPick >= high(RogueliteRelicType): succ(rrtNone)
+    cheatPatchPick = if cheatPatchPick >= pred(rrtMod): succ(rrtNone)
                      else: succ(cheatPatchPick)
   if btn(applyX, currentY, 150, bh, "Apply Patch", Color(r: 60, g: 0, b: 60, a: 255), Magenta):
     discard applyRoguelitePatchCheat(game, cheatPatchPick)
@@ -1321,7 +1324,7 @@ proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
   let ev = game.survival.event
   let eventLine = if ev.kind == sekNone: "Event: none (next at " &
                     formatSurvivalClock(game.survival.nextEventClock) & ")"
-                  else: "Event: " & t(survivalEventNameKey(ev.kind)) & " (" &
+                  else: "Event: " & survivalEventName(ev.kind, ev.modKey) & " (" &
                     formatSurvivalClock(ev.elapsed) & " in)"
   drawText(eventLine, x + 20, currentY, 14, White)
   currentY += 26

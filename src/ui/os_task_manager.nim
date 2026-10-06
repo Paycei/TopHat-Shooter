@@ -5,6 +5,7 @@ import raylib, math, strutils
 import ../draw_prims
 import ../types, ../powerup_data, ../localization, ../render_context, ../survival, ../patches, ../utils
 import ui_helpers, icon_drawing
+import ../modding/mod_registry
 
 const
   TASK_MANAGER_WIDTH = 700
@@ -57,10 +58,13 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
 proc taskManagerTabs*(game: Game): seq[TaskManagerTab] =
   ## The tabs this run shows, left to right. Patches only exist in a roguelite
   ## run, so only that mode gets their tab.
-  if game.mode == gmRoguelite and not game.rogueliteRun.isNil:
-    @[tmtProcesses, tmtPatches, tmtPerformance]
-  else:
-    @[tmtProcesses, tmtPerformance]
+  result =
+    if game.mode == gmRoguelite and not game.rogueliteRun.isNil:
+      @[tmtProcesses, tmtPatches, tmtPerformance]
+    else:
+      @[tmtProcesses, tmtPerformance]
+  if pauseActionDefs.len > 0 and livePauseActions().len > 0:
+    result.add(tmtMods)   # loaded mods' actions (register.pauseAction)
 
 proc stepTaskManagerTab*(game: Game, current: TaskManagerTab, step: int): TaskManagerTab =
   ## The tab `step` places from `current`, wrapping (Left/Right in the menu).
@@ -73,6 +77,7 @@ proc taskManagerTabLabel(tab: TaskManagerTab): string =
   of tmtProcesses: t("os_tab_processes")
   of tmtPatches: t("os_tab_patches")
   of tmtPerformance: t("os_tab_performance")
+  of tmtMods: t("os_tab_mods")
   of tmtSettings: ""
 
 # ---------------------------------------------------------------------------
@@ -100,7 +105,7 @@ type
     paneX, paneY, paneW, paneH: int32
 
 var
-  processNav, patchNav: InspectorNav
+  processNav, patchNav, modsNav: InspectorNav
   inspectorLastMouse = Vector2(x: -1, y: -1)
     ## Hover only moves the selection when the pointer actually moves: the
     ## pause menu reports the mouse as live every frame, so a cursor resting
@@ -258,8 +263,8 @@ proc drawPatchesTab(game: Game, x, y, width, height: int32, mouseSupported: bool
   let tagW = measureText("KB-0000", 12)
   for slot in 0..<min(lay.rows.int, relics.len - patchNav.scroll):
     let i = patchNav.scroll + slot
-    let patch = relics[i].relicType
-    let status = patchStatus(game, patch)
+    let patch = relics[i]
+    let status = patchStatus(game, patch.relicType)
     let spent = status in {psUsed, psStalled}
     let ry = drawInspectorRowFrame(lay, slot, i == patchNav.selection)
     let accent = patchAccent(patch)
@@ -271,16 +276,17 @@ proc drawPatchesTab(game: Game, x, y, width, height: int32, mouseSupported: bool
   drawInspectorScrollbar(lay, relics.len, patchNav)
 
   # Pane: KB number and category under the name, then what it does.
-  let patch = relics[patchNav.selection].relicType
+  let patch = relics[patchNav.selection]
   let accent = patchAccent(patch)
   let p = drawInspectorPane(lay, accent)
   drawPatchIcon(p.iconX, p.iconY, InspectorIcon, patch, accent)
   drawText(fitWithEllipsis(patchName(patch), p.textW, 18), p.textX, p.iconY + 2, 18, White)
   let kb = patchKbLabel(patch)
   drawText(kb, p.textX, p.iconY + 28, 12, Color(r: 140, g: 150, b: 165, a: 255))
-  drawText(patchCategoryName(patchCategory(patch)).toUpperAscii,
+  drawText(if patch.relicType == rrtMod: "MOD"
+           else: patchCategoryName(patchCategory(patch.relicType)).toUpperAscii,
            p.textX + measureText(kb, 12) + 12, p.iconY + 28, 12, accent)
-  let status = patchStatus(game, patch)
+  let status = patchStatus(game, patch.relicType)
   drawInspectorBody(lay, [(caption: "", text: patchDescription(patch),
                            color: Color(r: 215, g: 225, b: 235, a: 255))],
                     patchStatusLabel(status), patchStatusColor(status))
@@ -367,6 +373,31 @@ proc drawProcessesTab(game: Game, x, y, width, height: int32, mouseSupported: bo
   let status = processStatus(game, pu)
   drawInspectorBody(lay, blocks, status.full, status.color)
   drawInspectorHint(lay, t("os_processes_hint"))
+
+proc drawModsTab(game: Game, x, y, width, height: int32, mouseSupported: bool) =
+  ## The loaded mods' pause-menu actions: pick one and press it (click, Enter
+  ## or A) to run it.
+  let actions = livePauseActions()
+  drawInspectorTitle(t("os_mod_actions") & " (" & $actions.len & "):", x, y)
+  if actions.len == 0: return
+  let lay = inspectorLayout(x, y, width, height)
+  navigateInspector(modsNav, actions.len, lay, mouseSupported)
+  let mouse = getVirtualMousePosition()
+  for slot in 0..<min(lay.rows.int, actions.len - modsNav.scroll):
+    let i = modsNav.scroll + slot
+    let ry = drawInspectorRowFrame(lay, slot, i == modsNav.selection)
+    let a = pauseActionDefs[actions[i]]
+    drawInspectorRowText(lay, ry, ">", pauseActionName(actions[i]), White,
+                         a.key.split(':')[0], InspectorDim, measureText(">", 12))
+    if mouseSupported and isPointerPressed() and
+       isMouseOverRect(mouse, lay.listX, ry, InspectorListW, InspectorRowH):
+      runPauseAction(actions[i])
+  if isKeyPressed(KeyboardKey.Enter) or (not mouseSupported and isGamepadConfirmPressed()):
+    runPauseAction(actions[modsNav.selection])
+  let p = drawInspectorPane(lay, InspectorAccent)
+  drawText(fitWithEllipsis(pauseActionName(actions[modsNav.selection]), p.textW, 18), p.textX,
+           p.iconY + 2, 18, White)
+  drawInspectorHint(lay, t("os_mod_actions_hint"))
 
 proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
   ## Draw the Performance tab showing game statistics
@@ -580,6 +611,9 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
                    mouseSupported)
   of tmtPerformance:
     drawPerformanceTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, contentHeight.int32, game.time)
+  of tmtMods:
+    drawModsTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, inspectorBottom - contentY,
+                mouseSupported)
   of tmtSettings:
     discard
 

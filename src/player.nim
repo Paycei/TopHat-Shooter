@@ -80,8 +80,20 @@ proc orbCoreColor(elementType: ElementType, base: Color): Color =
   of etBlood: Color(r: 255, g: 150, b: 150, a: 255)
   else: brighten(base, 45)
 
+proc dashBurstOf*(p: Player): float32 {.inline.} =
+  ## The dash's tunables (Player.dashBurstMult / dashTime / dashRecharge, which
+  ## scripts may change); 0 reads as the default (a Player not made by newPlayer).
+  if p.dashBurstMult > 0: p.dashBurstMult else: DashSpeedMult
+proc dashTimeOf*(p: Player): float32 {.inline.} =
+  if p.dashTime > 0: p.dashTime else: DashDuration
+proc dashRechargeOf*(p: Player): float32 {.inline.} =
+  if p.dashRecharge > 0: p.dashRecharge else: DashCooldownTime
+
 proc newPlayer*(x, y: float32): Player =
   result = Player(
+    dashBurstMult: DashSpeedMult,
+    dashTime: DashDuration,
+    dashRecharge: DashCooldownTime,
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
     radius: 14,
@@ -225,6 +237,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.phaseShiftCooldown -= dt
   if player.phaseShiftInvulnTimer > 0:
     player.phaseShiftInvulnTimer -= dt
+  for cd in player.modAbilityCooldowns.mitems:   # mod [Q] abilities
+    if cd > 0: cd = max(0.0'f32, cd - dt)
   if player.dashCooldown > 0:
     player.dashCooldown -= dt
     if player.dashCooldown <= 0:
@@ -302,6 +316,9 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # granting. Deliberately applied to the movement speed only, not baseSpeed, so
   # Momentum's vel/baseSpeed ratio can no longer reach 1.0 while wearing it.
   currentSpeed *= juggernautSpeedMult(player)
+  # Mod statuses (register.status speed modifiers)
+  if player.modStatuses.len > 0:
+    currentSpeed *= max(0.0'f32, 1.0'f32 + player.statusSpeed)
 
   var moveDir = newVector2f(0, 0)
 
@@ -345,8 +362,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       else:
         d = d.normalize()
       player.dashDir     = d
-      player.dashTimer   = DashDuration
-      player.dashCooldown = DashCooldownTime
+      player.dashTimer   = dashTimeOf(player)
+      player.dashCooldown = dashRechargeOf(player)
       player.dashReadyFlash = 0  # a dash fired on the same frame it recharged must not keep flashing
 
   let inertiaScale = playerInertiaSizeScale(player)
@@ -354,7 +371,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     # During the burst, drive velocity directly. Bypassing the acceleration
     # curve is the point: the dash must feel instant, and the heavier the
     # player's build the more it should stand out from their normal handling.
-    player.vel = player.dashDir * (currentSpeed * DashSpeedMult)
+    player.vel = player.dashDir * (currentSpeed * dashBurstOf(player))
   else:
     let targetVel = moveDir * currentSpeed
     let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
@@ -585,13 +602,13 @@ proc drawPlayer*(player: Player) =
   let dashCenter = Vector2(x: player.pos.x, y: player.pos.y)
   if player.dashTimer > 0:
     # Spending the charge: a bright ring blown outward over the burst.
-    let burst = clamp(1.0'f32 - player.dashTimer / DashDuration, 0.0'f32, 1.0'f32)
+    let burst = clamp(1.0'f32 - player.dashTimer / dashTimeOf(player), 0.0'f32, 1.0'f32)
     let r = dashRingRadius + burst * 11.0'f32
     let a = uint8(clamp((1.0'f32 - burst) * 210.0'f32, 0.0'f32, 255.0'f32))
     drawRing(dashCenter, r - 1.5'f32, r + 1.5'f32, 0.0, 360.0, 32,
              Color(r: 150, g: 240, b: 255, a: a))
   elif player.dashCooldown > 0:
-    let progress = clamp(1.0'f32 - player.dashCooldown / DashCooldownTime, 0.0'f32, 1.0'f32)
+    let progress = clamp(1.0'f32 - player.dashCooldown / dashRechargeOf(player), 0.0'f32, 1.0'f32)
     # Empty track: dim enough to read as "spent" at a glance, present enough
     # that the arc has something to fill against.
     drawRing(dashCenter, dashRingRadius - 1.5'f32, dashRingRadius + 1.5'f32,
@@ -1196,6 +1213,9 @@ proc takeDamage*(player: Player, damage: float32): bool =
   ## meteors, explosions) is covered without touching each call site.
   ## PvP has its own damage path and is intentionally unaffected.
   var dealt = damage * difficultyEnemyDamageMult()
+  # Mod statuses on the player (damageTaken modifiers)
+  if player.modStatuses.len > 0:
+    dealt *= max(0.0'f32, 1.0'f32 + player.statusDamageTaken)
   # Mods (playerDamaged) may scale or cancel it.
   if hookActive(hkPlayerDamaged):
     dealt = modPlayerDamaged(player, dealt)

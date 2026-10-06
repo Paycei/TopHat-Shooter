@@ -5,6 +5,7 @@ import raylib, strutils, math
 import ../draw_prims
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
 import ../gamepad_input, ../patches
+import ../modding/mod_registry
 from ../dungeon import rewardFolderName, rewardLabel
 
 const
@@ -141,6 +142,8 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("", White)
       for helpCmd in getHelpCommands():
         help.addOutput("  " & helpCmd.cmd & " - " & helpCmd.desc, White)
+      for modCmd in modCommandHelp():   # loaded mods' commands (register.command)
+        help.addOutput("  " & modCmd.cmd & " - " & modCmd.desc & "  [MOD]", Color(r: 120, g: 220, b: 160, a: 255))
       help.addOutput("", White)
 
     of "clear":
@@ -329,6 +332,10 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       for p in AllPatches:
         help.addOutput(patchKbLabel(p) & "  " & patchName(p), patchAccent(p), -1, 12)
         help.addOutput(patchDescription(p), LightGray, -1, 24)
+      for d in patchDefs:   # mods' patches (register.patch)
+        let relic = RogueliteRelic(relicType: rrtMod, modKey: d.key)
+        help.addOutput(patchKbLabel(relic) & "  " & patchName(relic) & "  [MOD]", patchAccent(relic), -1, 12)
+        help.addOutput(patchDescription(relic), LightGray, -1, 24)
       help.addOutput("", White)
       help.addOutput(t("help_recovery_heat"), head)
       help.addOutput(t("help_recovery_heat_body"), White, -1, 12)
@@ -433,9 +440,14 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.pendingIconExecution = 6  # diQuit = 6
 
     else:
-      help.addOutput(t(tkHelpUnknownCommand) & ": " & command, Red)
-      help.addOutput(t(tkHelpTypeHelp), LightGray)
-      help.addOutput("", White)
+      var modLines: seq[string]
+      if runModCommand(command, (if parts.len > 1: parts[1 .. ^1] else: @[]), modLines):
+        for line in modLines: help.addOutput(line, White)   # a mod's command
+        help.addOutput("", White)
+      else:
+        help.addOutput(t(tkHelpUnknownCommand) & ": " & command, Red)
+        help.addOutput(t(tkHelpTypeHelp), LightGray)
+        help.addOutput("", White)
 
   except Exception as e:
     # Catch any errors during command execution

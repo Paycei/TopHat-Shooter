@@ -14,13 +14,14 @@ import std/[os, strutils, tables, json, math, algorithm]
 import raylib
 import ../draw_prims
 import ../types, ../particle_types, ../localization, ../render_context, ../settings, ../powerup
-import ../enemy_config, ../boss_definitions, ../player, ../game/combat, ../d_systems, ../particle_pool, ../sound
+import ../enemy_config, ../boss_definitions, ../player, ../enemy, ../bullet, ../game/combat, ../game/death, ../d_systems, ../particle_pool, ../sound
 import ../powerup_data, ../ui/icon_drawing, ../save_system, ../run_statistics, ../run_save, ../suspend
 import mod_assets, mod_media
-import lua_bridge, mod_state, mod_hooks, mod_reflect, mod_deep
+import lua_bridge, mod_state, mod_hooks, mod_reflect, mod_deep, mod_registry
 
 var
-  gameMethods, playerMethods, enemyMethods, bulletMethods: ScriptTable
+  gameMethods*, playerMethods*, enemyMethods*, bulletMethods*: ScriptTable
+    ## The methods tables (the high-layer API modules add their own methods).
   textEntries: seq[tuple[lang: Language, key, value: string, owner: int]]
     ## Every string a mod added, so a mod that fails to load can be undone.
 
@@ -42,6 +43,8 @@ proc keyName*(key: ScriptValue): string {.inline.} =
   if key.kind == vkString: key.str.s else: ""
 
 proc requireRunGame*(vm: VM): Game =
+  if modCtx.inPvP:
+    vm.runtimeError("not available in PvP (matches stay vanilla)")
   if modCtx.game.isNil:
     vm.runtimeError("no run in progress ('game' only exists while a run is played)")
   modCtx.game
@@ -116,18 +119,40 @@ proc creditedPowerUp(vm: VM, args: openArray[ScriptValue], i: int,
     vm.argError(fname, i, "source must be a power-up name")
   (modCtx.hasSource, modCtx.source)
 
-proc textPair(vm: VM, v: ScriptValue, what: string): tuple[en, es: string]
-proc checkName(vm: VM, t: ScriptTable, what: string): string
+proc textPair*(vm: VM, v: ScriptValue, what: string): tuple[en, es: string]
+proc checkName*(vm: VM, t: ScriptTable, what: string): string
+
+proc entityDataValue*(vm: VM, kind: int64, id: int, what: string): ScriptValue =
+  ## `x.data`: the running mod's own table for this entity.
+  let owner = currentModIdx
+  if owner < 0 or owner >= mods.len: vm.runtimeError(what & ".data must be used from mod code")
+  vtable(entityDataFor(owner, entityKey(kind, id)))
+
+proc setEntityData*(vm: VM, kind: int64, id: int, val: ScriptValue, what: string) =
+  ## `x.data = {...}` replaces the running mod's table for this entity.
+  let owner = currentModIdx
+  if owner < 0 or owner >= mods.len: vm.runtimeError(what & ".data must be used from mod code")
+  if val.kind != vkTable: vm.runtimeError(what & ".data must be a table")
+  mods[owner].entityData[entityKey(kind, id)] = val.tbl
+
+proc bulletDataId*(vm: VM, b: Bullet): int =
+  ## A bullet's id for b.data, given on first use (0 = never needed one).
+  if b.bulletId == 0:
+    let g = modCtx.game
+    if g.isNil: vm.runtimeError("bullet.data needs a run in progress")
+    g.bulletIdCounter += 1
+    b.bulletId = g.bulletIdCounter
+  b.bulletId
 
 # ----------------------------------------------------------- classes ----
 const
   GameReadOnly = ["mode", "state", "modded", "cheatsUsed", "modFingerprint", "modMode",
-                  "modRunData", "screenWidth", "screenHeight"]
+                  "modRunData", "screenWidth", "screenHeight", "modWorld"]
   PlayerReadOnly = ["baselineMaxHp"]
   EnemyReadOnly = ["id", "enemyType", "isBoss", "bossDefinitionID", "currentPhaseIndex",
                    "bossTotalMaxHp"]
 
-proc posGet(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
+proc posGet*(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
   found = true
   case name
   of "x": vnum(pos.x.float64)
@@ -138,7 +163,7 @@ proc posGet(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
     found = false
     NilValue
 
-proc posSet(vm: VM, pos, vel: var Vector2f, name: string, v: ScriptValue): bool =
+proc posSet*(vm: VM, pos, vel: var Vector2f, name: string, v: ScriptValue): bool =
   case name
   of "x": pos.x = vm.checkNum([v], 0, "x").float32
   of "y": pos.y = vm.checkNum([v], 0, "y").float32
@@ -197,6 +222,7 @@ proc makeClasses() =
     let e = EnemyBox(ud.box).e
     let name = keyName(key)
     if name == "type": return vstr($e.enemyType)
+    if name == "data": return vm.entityDataValue(EdEnemy, e.id, "enemy")
     var found = false
     result = posGet(e.pos, e.vel, name, found)
     if found: return
@@ -205,6 +231,9 @@ proc makeClasses() =
   enemyClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
     let e = EnemyBox(ud.box).e
     let name = keyName(key)
+    if name == "data":
+      vm.setEntityData(EdEnemy, e.id, val, "enemy")
+      return
     if name in EnemyReadOnly:
       vm.runtimeError("enemy." & name & " is read-only")
     if e.isBoss and name in ["hp", "maxHp"]:
@@ -222,6 +251,7 @@ proc makeClasses() =
     if m.kind != vkNil: return m
     let b = BulletBox(ud.box).b
     let name = keyName(key)
+    if name == "data": return vm.entityDataValue(EdBullet, vm.bulletDataId(b), "bullet")
     var found = false
     result = posGet(b.pos, b.vel, name, found)
     if found: return
@@ -230,6 +260,9 @@ proc makeClasses() =
   bulletClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
     let b = BulletBox(ud.box).b
     let name = keyName(key)
+    if name == "data":
+      vm.setEntityData(EdBullet, vm.bulletDataId(b), val, "bullet")
+      return
     if posSet(vm, b.pos, b.vel, name, val): return
     if not deepSet(vm, b, name, val, "bullet"):
       vm.runtimeError("bullet has no field '" & name & "'")
@@ -321,12 +354,22 @@ proc installMethods() =
         if x == e:
           inRun = true
           break
+      if not inRun:
+        # a spawn.enemy handle waiting to join at the end of the frame
+        inRun = e in modPendingEnemies or modCtx.game.pendingBoss == e
     ret.setRet(vbool(inRun))
 
   bulletMethods.reg("fields") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     let b = unwrapBullet(arg(args, 0))
     if b.isNil: vm.runtimeError("bullet:fields() needs a bullet (call it with ':')")
     ret.setRet(namesTable(deepNames(b)))
+  bulletMethods.reg("valid") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## Still flying in the current run (or a spawn.bullet handle about to join).
+    let b = unwrapBullet(arg(args, 0))
+    if b.isNil: vm.runtimeError("bullet:valid() needs a bullet (call it with ':')")
+    let g = modCtx.game
+    ret.setRet(vbool(not g.isNil and b.lifetime > 0 and
+                     (b in g.bullets or b in modPendingBullets)))
 
 # ------------------------------------------------------------ libraries ----
 proc parseHook(vm: VM, name: string): ModHook =
@@ -376,14 +419,41 @@ proc installLibraries(base: ScriptTable) =
   let hooksT = newScriptTable()
   hooksT.reg("on") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## hooks.on("update", function(game, dt) ... end)
+    ## hooks.on("necro:raised", fn) -- a name with ':' is a mod event (hooks.emit)
     let owner = vm.requireOwner("hooks.on")
-    let h = vm.parseHook(vm.checkStr(args, 0, "on"))
+    let name = vm.checkStr(args, 0, "on")
     let fn = vm.checkFunc(args, 1, "on")
-    addHandler(h, fn, owner)
+    if ':' in name: addCustomHandler(name, fn, owner)
+    else: addHandler(vm.parseHook(name), fn, owner)
     ret.setRet(fn)
   hooksT.reg("off") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     let owner = vm.requireOwner("hooks.off")
-    removeHandler(vm.parseHook(vm.checkStr(args, 0, "off")), vm.checkFunc(args, 1, "off"), owner)
+    let name = vm.checkStr(args, 0, "off")
+    let fn = vm.checkFunc(args, 1, "off")
+    if ':' in name: removeCustomHandler(name, fn, owner)
+    else: removeHandler(vm.parseHook(name), fn, owner)
+  proc eventName(vm: VM, args: openArray[ScriptValue], fname: string): string =
+    result = vm.checkStr(args, 0, fname)
+    if ':' notin result:
+      vm.argError(fname, 0, "a mod event is named \"<mod id>:<event>\" (got \"" & result & "\")")
+  hooksT.reg("emit") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## hooks.emit("necro:raised", ...) -- every handler of the event, in order
+    let name = vm.eventName(args, "emit")
+    discard vm.requireOwner("hooks.emit")
+    let rest = if args.len > 1: @(args.toOpenArray(1, args.high)) else: @[]
+    if not emitCustom(name, rest):
+      vm.runtimeError("hooks.emit: '" & name & "' nested more than " & $MaxCustomDepth & " deep")
+  hooksT.reg("filter") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## hooks.filter("necro:soulValue", value, ...) -> the value after every
+    ## handler (each gets (value, ...) and may return a replacement)
+    let name = vm.eventName(args, "filter")
+    discard vm.requireOwner("hooks.filter")
+    var ok = true
+    let rest = if args.len > 2: @(args.toOpenArray(2, args.high)) else: @[]
+    let v = filterCustom(name, arg(args, 1), rest, ok)
+    if not ok:
+      vm.runtimeError("hooks.filter: '" & name & "' nested more than " & $MaxCustomDepth & " deep")
+    ret.setRet(v)
   hooksT.reg("list") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     var names: seq[string]
     for h in ModHook: names.add($h)
@@ -768,23 +838,54 @@ proc bossFromTable(vm: VM, t: ScriptTable, base: BossDefinition, id: int, owner:
   if result.phases.len == 0:
     vm.runtimeError("boss needs phases = { {attacks = {...}}, ... }")
 
+proc buildScriptBullet*(vm: VM, t: ScriptTable): Bullet =
+  ## spawn.bullet's table -> a bullet, not yet in the run.
+  proc num(key: string, def: float64): float32 =
+    let v = rawGetStr(t, key)
+    if v.kind == vkNumber: v.n.float32 else: def.float32
+  let vx = num("vx", 0)
+  let vy = num("vy", 200)
+  let speed = sqrt(vx * vx + vy * vy)
+  let dir = if speed > 0: newVector2f(vx / speed, vy / speed) else: newVector2f(1, 0)
+  result = newBullet(num("x", 0), num("y", 0), dir, speed, num("damage", 1),
+                     fromPlayer = truthy(rawGetStr(t, "fromPlayer")))
+  let r = num("radius", 0)
+  if r > 0: result.radius = r
+  let lt = num("lifetime", 0)
+  if lt > 0: result.lifetime = lt
+  let c = rawGetStr(t, "color")
+  if c.kind != vkNil: result.colorOverride = parseColor(vm, c, "spawn.bullet")
+
 proc installContentLibraries(base: ScriptTable) =
   # ---- spawn (carried out at the end of the frame, see processModActions)
   let spawnT = newScriptTable()
   spawnT.reg("enemy") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## spawn.enemy("etCube", x, y [, {elite = true, difficulty = 3, onSpawn = fn}])
+    ## -> the enemy, at once: it joins the run at the end of the frame (e:valid()
+    ## is already true; onSpawn runs when it joins).
     let owner = vm.requireOwner("spawn.enemy")
-    discard vm.requireRunGame()
-    var a = ModAction(kind: makSpawnEnemy, owner: owner, difficulty: -1,
-                      enemyType: vm.checkEnemyType(args, 0, "enemy"),
-                      x: vm.checkNum(args, 1, "enemy").float32, y: vm.checkNum(args, 2, "enemy").float32)
+    let g = vm.requireRunGame()
+    if modActionsFull(): vm.runtimeError("spawn.enemy: too many spawns queued this frame")
+    let et = vm.checkEnemyType(args, 0, "enemy")
+    let x = vm.checkNum(args, 1, "enemy").float32
+    let y = vm.checkNum(args, 2, "enemy").float32
+    var a = ModAction(kind: makJoinEnemy, owner: owner)
+    var difficulty = g.difficulty
+    var elite = false
     let opts = arg(args, 3)
     if opts.kind == vkTable:
-      a.elite = truthy(rawGetStr(opts.tbl, "elite"))
+      elite = truthy(rawGetStr(opts.tbl, "elite"))
       let d = rawGetStr(opts.tbl, "difficulty")
-      if d.kind == vkNumber: a.difficulty = max(0.0, d.n).float32
+      if d.kind == vkNumber: difficulty = max(0.0, d.n).float32
       a.callback = rawGetStr(opts.tbl, "onSpawn")
+    elif opts.kind != vkNil:
+      vm.argError("enemy", 3, "options must be a table")
+    let e = newEnemy(x, y, difficulty, et, g)
+    if elite: makeElite(e, g.currentWave, force = true)
+    a.target = e
+    modPendingEnemies.add(e)
     queueModAction(a)
+    ret.setRet(wrapEnemy(e))
   spawnT.reg("boss") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## spawn.boss(id [, {x = .., y = .., onSpawn = fn}])
     let owner = vm.requireOwner("spawn.boss")
@@ -802,21 +903,15 @@ proc installContentLibraries(base: ScriptTable) =
   spawnT.reg("bullet") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## spawn.bullet{x = .., y = .., vx = .., vy = .., damage = 1, radius = 6,
     ##              lifetime = 3, fromPlayer = false, color = "#ff4040"}
+    ## -> the bullet, at once (it flies from the end of the frame)
     let owner = vm.requireOwner("spawn.bullet")
     discard vm.requireRunGame()
     let t = vm.checkTable(args, 0, "bullet")
-    proc num(key: string, def: float64): float32 =
-      let v = rawGetStr(t, key)
-      if v.kind == vkNumber: v.n.float32 else: def.float32
-    var a = ModAction(kind: makSpawnBullet, owner: owner, x: num("x", 0), y: num("y", 0),
-                      vx: num("vx", 0), vy: num("vy", 200), damage: num("damage", 1),
-                      radius: num("radius", 0), lifetime: num("lifetime", 0),
-                      fromPlayer: truthy(rawGetStr(t, "fromPlayer")))
-    let c = rawGetStr(t, "color")
-    if c.kind != vkNil:
-      a.color = parseColor(vm, c, "spawn.bullet")
-      a.hasColor = true
-    queueModAction(a)
+    if modActionsFull(): vm.runtimeError("spawn.bullet: too many spawns queued this frame")
+    let b = vm.buildScriptBullet(t)
+    modPendingBullets.add(b)
+    queueModAction(ModAction(kind: makJoinBullet, owner: owner, bullet: b))
+    ret.setRet(wrapBullet(b))
   spawnT.reg("coin") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## spawn.coin(x, y [, value])
     discard vm.requireRunGame()
@@ -830,17 +925,26 @@ proc installContentLibraries(base: ScriptTable) =
                              x: vm.f32(args, 0, "xp"), y: vm.f32(args, 1, "xp"),
                              value: vm.optInt(args, 2, "xp", 1)))
   spawnT.reg("consumable") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## spawn.consumable("ctHealth", x, y)
+    ## spawn.consumable("ctHealth", x, y) -- or a mod's ("<mod id>:<id>")
     discard vm.requireRunGame()
     let name = vm.checkStr(args, 0, "consumable")
     var ct: ConsumableType
-    try: ct = parseEnum[ConsumableType](name)
-    except ValueError:
-      var names: seq[string]
-      for c in ConsumableType: names.add($c)
-      vm.argError("consumable", 0, "unknown consumable (" & names.join(", ") & ")")
+    var key = ""
+    if ':' in name:
+      if findConsumable(name) < 0:
+        vm.argError("consumable", 0, "no consumable '" & name & "' (register.consumable it first)")
+      ct = ctMod
+      key = name
+    else:
+      try: ct = parseEnum[ConsumableType](name)
+      except ValueError: ct = ctMod
+      if ct == ctMod:
+        var names: seq[string]
+        for c in ConsumableType:
+          if c != ctMod: names.add($c)
+        vm.argError("consumable", 0, "unknown consumable (" & names.join(", ") & ", or a mod's)")
     queueModAction(ModAction(kind: makSpawnConsumable, owner: vm.requireOwner("spawn.consumable"),
-                             consumable: ct, x: vm.f32(args, 1, "consumable"),
+                             consumable: ct, key: key, x: vm.f32(args, 1, "consumable"),
                              y: vm.f32(args, 2, "consumable")))
   rawSet(base, vstr("spawn"), vtable(spawnT))
 
@@ -881,9 +985,25 @@ proc installContentLibraries(base: ScriptTable) =
       trackHealing(modCtx.game, src.pt, requested, restored)
     ret.setRet(vnum(restored.float64))
   playerMethods.reg("hurt") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## player:hurt(amount) -> true if it was lethal (profile difficulty applies)
+    ## player:hurt(amount [, {cause = "Lava"}]) -> true if it was lethal (profile
+    ## difficulty applies). With a cause, a lethal hurt ends the run at once and
+    ## the death screen names it.
     let p = vm.selfPlayer(args, "hurt")
-    ret.setRet(vbool(takeDamage(p, max(0.0, vm.checkNum(args, 1, "hurt")).float32)))
+    var cause = ""
+    let opts = arg(args, 2)
+    if opts.kind == vkTable:
+      vm.checkKeys(opts.tbl, ["cause"], "player:hurt")
+      let c = rawGetStr(opts.tbl, "cause")
+      if c.kind == vkString: cause = c.str.s
+      elif c.kind != vkNil: vm.runtimeError("player:hurt: cause must be a string")
+    elif opts.kind != vkNil:
+      vm.argError("hurt", 2, "options must be a table")
+    let lethal = takeDamage(p, max(0.0, vm.checkNum(args, 1, "hurt")).float32)
+    let g = modCtx.game
+    if lethal and cause.len > 0 and not g.isNil and g.player == p and g.state == gsPlaying:
+      g.modWorld.deathLabel = cause
+      beginPlayerDeathSequence(g, dcMod)
+    ret.setRet(vbool(lethal))
 
   # ---- run control (queued: carried out after the simulation, this frame)
   proc checkPowerUp(vm: VM, args: openArray[ScriptValue], i: int, fname: string): PowerUpType =
@@ -1023,7 +1143,7 @@ proc installContentLibraries(base: ScriptTable) =
   # ---- register
   let registerT = newScriptTable()
   registerT.reg("keybind") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    let owner = vm.requireOwner("register.keybind")
+    let owner = vm.requireLoading("register.keybind")
     let t = vm.checkTable(args, 0, "register.keybind")
     let actionId = vm.checkName(t, "register.keybind")
     let key = modKeybindKey(mods[owner].id, actionId)
@@ -1048,7 +1168,7 @@ proc installContentLibraries(base: ScriptTable) =
     ret.setRet(vstr(key))
   registerT.reg("boss") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local id = register.boss{name = "OVERCLOCK", hp = 600, phases = {...}}
-    let owner = vm.requireOwner("register.boss")
+    let owner = vm.requireLoading("register.boss")
     let t = vm.checkTable(args, 0, "boss")
     let id = nextModBossId
     inc nextModBossId
@@ -1078,12 +1198,13 @@ type ModPowerUpScript = object
   descFn: ScriptValue          ## or function(level) -> string
   icon: ScriptValue            ## function(color) drawing in a 32x32 box
   onPickup: ScriptValue        ## function(player, level, game)
+  stats: seq[StatDelta]        ## applied once per level gained (the `stats` table)
 
 var
   puScripts: array[ModPowerUpSlot, ModPowerUpScript]
   enemyOwners: array[ModEnemySlot, int]
 
-proc textPair(vm: VM, v: ScriptValue, what: string): tuple[en, es: string] =
+proc textPair*(vm: VM, v: ScriptValue, what: string): tuple[en, es: string] =
   ## "Text" or {en = "Text", es = "Texto"}.
   case v.kind
   of vkString: (v.str.s, "")
@@ -1124,6 +1245,7 @@ proc modPowerUpTextImpl(pt: PowerUpType, level: int, wantName: bool): string {.n
 proc modPowerUpAppliedImpl(player: Player, pt: PowerUpType, level: int) {.nimcall.} =
   if not isModPowerUp(pt): return
   let s = puScripts[pt]
+  applyStatDeltas(player, s.stats)
   if s.onPickup.kind in {vkFunction, vkNative}:
     var r: RetVals
     discard callForPowerUp(pt, ScriptFn(owner: s.owner, fn: s.onPickup),
@@ -1153,6 +1275,7 @@ proc resetNewContent() =
   modPowerUpIconDraw = modPowerUpIconImpl
   powerUpDamageSink = proc (game: Game, pt: PowerUpType, amount: float32) {.nimcall.} =
     trackPowerUpDamage(game, pt, amount)
+  activeCooldownOf = proc (pt: PowerUpType): float32 {.nimcall.} = powerUpDef(pt).activeCooldown
   enemyTypeNamer = enemyNamerImpl
   enemyNameResolver = enemyResolverImpl
 
@@ -1169,7 +1292,7 @@ proc dropNewContent(owner: int) =
       enemyOwners[et] = -1
   if changed: rebuildPowerUpPools()
 
-proc checkName(vm: VM, t: ScriptTable, what: string): string =
+proc checkName*(vm: VM, t: ScriptTable, what: string): string =
   let v = rawGetStr(t, "id")
   if v.kind != vkString or v.str.s.len == 0:
     vm.runtimeError(what & " needs an id (letters, digits, _)")
@@ -1178,7 +1301,7 @@ proc checkName(vm: VM, t: ScriptTable, what: string): string =
     if c notin {'a'..'z', 'A'..'Z', '0'..'9', '_'}:
       vm.runtimeError(what & ": id may only use letters, digits and _ (got \"" & result & "\")")
 
-proc parseModes(vm: VM, v: ScriptValue): set[GameMode] =
+proc parseModes*(vm: VM, v: ScriptValue): set[GameMode] =
   if v.kind == vkNil: return {}
   for x in textList(vm, v, "modes"):
     case x
@@ -1212,17 +1335,19 @@ proc installNewContent(base: ScriptTable) =
   let registerT = rawGetStr(base, "register").tbl
   registerT.reg("powerup") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local name = register.powerup{id = "overdrive", name = "OVERDRIVE.exe", ...}
-    let owner = vm.requireOwner("register.powerup")
+    let owner = vm.requireLoading("register.powerup")
     let t = vm.checkTable(args, 0, "powerup")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.powerup")
-    var slot = puMod00
+    var slot = FirstModPowerUp
     var found = false
     for pt in ModPowerUpSlot:
       if modPowerUps[pt].key == key: vm.runtimeError("register.powerup: '" & key & "' is already registered")
       if not found and not modPowerUps[pt].bound:
         slot = pt
         found = true
-    if not found: vm.runtimeError("register.powerup: all 64 mod power-up slots are in use")
+    if not found:
+      vm.runtimeError("register.powerup: all " & $(ord(LastModPowerUp) - ord(FirstModPowerUp) + 1) &
+                      " mod power-up slots are in use")
     var def = PowerUpDef(pool: puppNormal, family: rpfCore, group: pugNone, maxLevel: 3,
                          color: Color(r: 190, g: 190, b: 255, a: 255))
     vm.applyPowerUpFields(def, t, "register.powerup")
@@ -1241,12 +1366,34 @@ proc installNewContent(base: ScriptTable) =
     else: s.descEn = vm.textList(d, "description")
     s.icon = rawGetStr(t, "icon")
     s.onPickup = rawGetStr(t, "onPickup")
+    let st = rawGetStr(t, "stats")
+    if st.kind == vkTable:
+      for (k, x) in pairsCursor(st.tbl):
+        if k.kind != vkString: vm.runtimeError("register.powerup.stats keys must be player field names")
+        var e = ""
+        let d = parseStatDelta(k.str.s, x, e)
+        if e.len > 0: vm.runtimeError("register.powerup: " & e)
+        s.stats.add(d)
+    elif st.kind != vkNil: vm.runtimeError("register.powerup.stats must be a table")
     # Per-frame and per-hit behaviour, run only while the player has it (and
     # credited to it in the run statistics).
     let upd = rawGetStr(t, "update")
     if upd.kind in {vkFunction, vkNative}: powerUpUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
     let hit = rawGetStr(t, "onHit")
     if hit.kind in {vkFunction, vkNative}: powerUpHitFns[ord(slot)] = ScriptFn(owner: owner, fn: hit)
+    # An active [Q] ability: active = {cooldown = seconds, activate = fn(player, level, game)}
+    let act = rawGetStr(t, "active")
+    if act.kind == vkTable:
+      vm.checkKeys(act.tbl, ["cooldown", "activate"], "register.powerup.active")
+      let fn = rawGetStr(act.tbl, "activate")
+      if fn.kind notin {vkFunction, vkNative}:
+        vm.runtimeError("register.powerup.active needs activate = function(player, level, game)")
+      let cd = rawGetStr(act.tbl, "cooldown")
+      def.activeCooldown = if cd.kind == vkNumber and abs(cd.n) < 1.0e6: max(0.0, cd.n).float32 else: 5'f32
+      def.inLegendaryPanel = true
+      powerUpActiveFns[ord(slot)] = ScriptFn(owner: owner, fn: fn)
+    elif act.kind != vkNil:
+      vm.runtimeError("register.powerup.active must be a table {cooldown, activate}")
     puScripts[slot] = s
     modPowerUps[slot] = ModPowerUpInfo(bound: true, key: key)
     setPowerUpDef(slot, def)
@@ -1254,18 +1401,20 @@ proc installNewContent(base: ScriptTable) =
 
   registerT.reg("enemy") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local name = register.enemy{id = "bouncer", base = "etCube", hp = 3, ...}
-    let owner = vm.requireOwner("register.enemy")
+    let owner = vm.requireLoading("register.enemy")
     let t = vm.checkTable(args, 0, "enemy")
     let idName = vm.checkName(t, "register.enemy")
     let key = mods[owner].id & ":" & idName
-    var slot = etMod00
+    var slot = FirstModEnemy
     var found = false
     for et in ModEnemySlot:
       if modEnemies[et].key == key: vm.runtimeError("register.enemy: '" & key & "' is already registered")
       if not found and not modEnemies[et].bound:
         slot = et
         found = true
-    if not found: vm.runtimeError("register.enemy: all 32 mod enemy slots are in use")
+    if not found:
+      vm.runtimeError("register.enemy: all " & $(ord(LastModEnemy) - ord(FirstModEnemy) + 1) &
+                      " mod enemy slots are in use")
     var base = etCircle
     let b = rawGetStr(t, "base")
     if b.kind == vkString:
@@ -1330,7 +1479,7 @@ proc installNewContent(base: ScriptTable) =
   rosterT.reg("add") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## roster.add("wave", "mymod:bouncer", {chance = 0.15, fromWave = 3})
     ## (survival: minTime = seconds; roguelite: minFloor = sector)
-    let owner = vm.requireOwner("roster.add")
+    let owner = vm.requireLoading("roster.add")
     let mode = case vm.checkStr(args, 0, "add")
       of "wave": gmWaveBased
       of "survival": gmTimeSurvival
@@ -1476,7 +1625,7 @@ proc readAnimKey*(vm: VM, opts: ScriptValue, what: string): AnimKey =
   of vkNumber: animKey(cast[pointer](vm), $k.n)
   else: vm.runtimeError(what & ": key must be a string or a number")
 
-proc readScaleRotate(opts: ScriptValue, look: var BodyReplace) =
+proc readScaleRotate*(opts: ScriptValue, look: var BodyReplace) =
   look.scale = 1.0
   if opts.kind == vkTable:
     let s = rawGetStr(opts.tbl, "scale")
@@ -2001,7 +2150,7 @@ proc installAssetLibraries(base: ScriptTable) =
     ##   base = "wave" | "survival" | "roguelite" | "3d", spawning = true,
     ##   onStart = function(game, resumed) ... end,
     ##   icon = texture | model | "file", color = "#64c8ff", desktop = true}
-    let owner = vm.requireOwner("register.gamemode")
+    let owner = vm.requireLoading("register.gamemode")
     let t = vm.checkTable(args, 0, "gamemode")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.gamemode")
     if findModMode(key) >= 0: vm.runtimeError("register.gamemode: '" & key & "' is already registered")
@@ -2040,7 +2189,7 @@ proc installAssetLibraries(base: ScriptTable) =
     ##   drag = function(x, y, w, h) ... end,
     ##   icon = texture | model | "file", color = "#78dca0", width = 480, height = 360,
     ##   resizable = false, desktop = true}
-    let owner = vm.requireOwner("register.app")
+    let owner = vm.requireLoading("register.app")
     let t = vm.checkTable(args, 0, "app")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.app")
     for a in modApps:
@@ -2073,7 +2222,7 @@ proc installAssetLibraries(base: ScriptTable) =
     ##   plus override.model's pose options (tilt, spin, animation, ...)}
     ##   desktop only: the texture is the wallpaper (cube = true keeps the desktop
     ##   cube over it) and the model stands in for the desktop cube
-    let owner = vm.requireOwner("register.cosmetic")
+    let owner = vm.requireLoading("register.cosmetic")
     let t = vm.checkTable(args, 0, "cosmetic")
     let kindName = rawGetStr(t, "kind")
     var kind = mckPlayer
@@ -2136,10 +2285,13 @@ proc safeModPath*(m: ModRuntime, rel: string): string =
 const MaxStorageBytes = 1_000_000
 
 proc storagePath(m: ModRuntime): string =
-  getAppDataPath() / "mod_data" / (m.id & ".json")
+  ## In the profile folder the storage was read from: a profile switch must
+  ## never write one profile's mod.storage into another's folder.
+  m.storageDir / (m.id & ".json")
 
 proc loadModStorage(m: ModRuntime) =
   m.storage = newScriptTable()
+  m.storageDir = getAppDataPath() / "mod_data"
   try:
     let path = storagePath(m)
     if fileExists(path):
@@ -2160,7 +2312,8 @@ proc saveModStorage*(m: ModRuntime): bool =
     if text.len > MaxStorageBytes:
       modLogAdd(mlError, m.id, "mod.storage is over 1 MB; not saved")
       return false
-    createDir(getAppDataPath() / "mod_data")
+    if m.storageDir.len == 0: return true   # never loaded: nothing of it to keep
+    createDir(m.storageDir)
     writeFile(storagePath(m), text)
     true
   except CatchableError:

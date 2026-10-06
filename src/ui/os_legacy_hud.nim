@@ -10,7 +10,7 @@
 import raylib, math, strutils
 import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../render_context, icon_drawing, ../utils, ui_helpers
-from ../player import DashCooldownTime
+from ../player import dashRechargeOf
 from os_combined_hud import leftPanelMinimized, leftPanelPos, leftPanelDragging,
                             leftPanelDragOffset, lastStatusPanelRect, lastStatsRowRect,
                             lastDashRowRect, lastLevelBarRect
@@ -75,7 +75,7 @@ proc drawDashRow(game: Game, panelX, panelW, yOffset: int32) =
   let cd = game.player.dashCooldown
   let ready = cd <= 0.0'f32
   let progress = if ready: 1.0'f32
-                 else: clamp(1.0'f32 - cd / DashCooldownTime, 0.0'f32, 1.0'f32)
+                 else: clamp(1.0'f32 - cd / dashRechargeOf(game.player), 0.0'f32, 1.0'f32)
   let pulse = 0.5'f32 + 0.5'f32 * sin(game.time * 4.0'f32)
 
   # Glyph token, same vocabulary as the [#] / [*] stats row above.
@@ -241,9 +241,9 @@ proc drawRogueliteHudBlock(game: Game, panelX, panelW: int32, yOffset: var int32
       let row = i.int32 div perRow
       let ix = textX + col * RogueHudPatchPitch
       let iy = yOffset + 1 + row * RogueHudPatchPitch
-      let accent = patchAccent(relic.relicType)
+      let accent = patchAccent(relic)
       let tint = if patchSpent(game, relic.relicType): withAlpha(accent, 90) else: accent
-      drawPatchIcon(ix, iy, RogueHudPatchIcon, relic.relicType, tint)
+      drawPatchIcon(ix, iy, RogueHudPatchIcon, relic, tint)
     yOffset += rows * RogueHudPatchPitch + 2
 
 proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimizeIcon: bool) =

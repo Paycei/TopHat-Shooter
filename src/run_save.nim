@@ -21,7 +21,7 @@
 
 import json, os, strutils
 import particle_types, types, save_system, utils, roguelite, dungeon, powerup, tutorial
-import modding/[mod_state, mod_hooks], powerup_data
+import modding/[mod_state, mod_hooks, mod_registry], powerup_data
 
 const RunSaveVersion = 1
 
@@ -103,6 +103,19 @@ proc parseMode(s: string): GameMode = parseEnumOr(s, gmWaveBased)
 proc parseTheme(s: string): DungeonFloorTheme = parseEnumOr(s, dftFirewall)
 proc parseStarter(s: string): RogueliteStarterKit = parseEnumOr(s, rskOperator)
 proc parseRelic(s: string): RogueliteRelicType = parseEnumOr(s, rrtNone)
+
+proc relicSaveName(r: RogueliteRelic): string =
+  ## A mod patch is saved by name ("mod:<mod id>:<id>"): its slot means nothing
+  ## to another mod set. Builds without it read the entry as rrtNone and drop it.
+  if r.relicType == rrtMod: "mod:" & r.modKey else: $r.relicType
+
+proc parseRelicSave(s: string): RogueliteRelic =
+  ## rrtNone for anything unknown, a mod patch no longer loaded included.
+  if s.startsWith("mod:"):
+    let key = s[4 .. ^1]
+    if findPatch(key) >= 0: return makeRelic(rrtMod, key)
+    return makeRelic(rrtNone)
+  makeRelic(parseRelic(s))
 
 # ---------------------------------------------------------------------------
 # Player build serialization (durable-field whitelist).
@@ -275,16 +288,18 @@ proc parsePickupKind(s: string): DungeonPickupKind = parseEnumOr(s, dpkShardCach
 proc pickupToJson(pk: DungeonPickup): JsonNode =
   %* {
     "kind": $pk.kind, "x": pk.pos.x, "y": pk.pos.y, "taken": pk.taken,
-    "patch": $pk.patch, "pu": powerUpSaveName(pk.powerUp.powerType), "lvl": pk.powerUp.level,
+    "patch": relicSaveName(makeRelic(pk.patch, pk.modPatch)), "pu": powerUpSaveName(pk.powerUp.powerType), "lvl": pk.powerUp.level,
     "rarity": $pk.powerUp.rarity, "amount": pk.amount, "group": pk.group
   }
 
 proc jsonToPickup(j: JsonNode): DungeonPickup =
+  let relic = parseRelicSave(j.getOrDefault("patch").getStr("rrtNone"))
   DungeonPickup(
     kind: parsePickupKind(j.getOrDefault("kind").getStr()),
     pos: newVector2f(j.getOrDefault("x").getFloat().float32, j.getOrDefault("y").getFloat().float32),
     taken: j.getOrDefault("taken").getBool(false),
-    patch: parseRelic(j.getOrDefault("patch").getStr("rrtNone")),
+    patch: relic.relicType,
+    modPatch: relic.modKey,
     powerUp: PowerUp(powerType: parsePowerType(j.getOrDefault("pu").getStr()),
                      level: j.getOrDefault("lvl").getInt(0),
                      rarity: parseRarity(j.getOrDefault("rarity").getStr("prCommon"))),
@@ -294,7 +309,7 @@ proc jsonToPickup(j: JsonNode): DungeonPickup =
 
 proc rogueliteRunToJson(run: RogueliteRun): JsonNode =
   var relics = newJArray()
-  for r in run.relics: relics.add(%($r.relicType))
+  for r in run.relics: relics.add(%relicSaveName(r))
 
   var usedThemes = newJArray()
   for th in DungeonFloorTheme:
@@ -389,6 +404,10 @@ proc saveRunState*(game: Game, file: string = "",
   var shopBought = newJArray()
   for item in game.shopItems:
     shopBought.add(%item.bought)
+  # Mod shop rows (register.shopItem), by name: {key: bought}
+  var modShopBought = newJObject()
+  for e in game.modShopBought:
+    if e.bought > 0: modShopBought[e.key] = %e.bought
 
   # Level-up drafts still owed. The draft on screen right now has already been
   # taken off the queue, so a level draft that is open counts as owed too;
@@ -408,7 +427,7 @@ proc saveRunState*(game: Game, file: string = "",
     else: ""
 
   if game.modded and not captureModRunData.isNil:
-    captureModRunData(game)
+    captureModRunData(game, false)
 
   var root = %* {
     "version": RunSaveVersion,
@@ -436,6 +455,7 @@ proc saveRunState*(game: Game, file: string = "",
     "metaCoresEarned": game.metaCoresEarned,
     "time": game.time,
     "shopBought": shopBought,
+    "modShopBought": modShopBought,
     "pendingLevelDrafts": draftsOwed,
     "openDraft": openDraft,
     "player": playerToJson(game.player)
@@ -579,6 +599,13 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
     let shopBought = j.getOrDefault("shopBought").getElems()
     for i in 0 ..< min(shopBought.len, game.shopItems.len):
       game.shopItems[i].bought = max(0, shopBought[i].getInt(0))
+    # Mod shop rows: counters only, like the game's (unknown names are kept as
+    # data: they cost nothing and come back if the mod does).
+    game.modShopBought.setLen(0)
+    let msb = j.getOrDefault("modShopBought")
+    if not msb.isNil and msb.kind == JObject:
+      for k, v in msb.pairs:
+        game.modShopBought.add((k, max(0, v.getInt(0))))
 
     case game.mode
     of gmWaveBased:
@@ -688,9 +715,9 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
           run.nextThemeChoices[idx] = parseTheme(th.getStr())
           inc idx
       for r in rj.getOrDefault("relics").getElems():
-        let patch = parseRelic(r.getStr())
-        if patch != rrtNone and not run.hasRelic(patch):
-          run.relics.add(makeRelic(patch))
+        let patch = parseRelicSave(r.getStr())
+        if patch.relicType != rrtNone and not run.hasRelic(patch):
+          run.relics.add(patch)
 
       game.rogueliteRun = run
       game.player.rogueliteCosmetic = ord(run.starterKit) + 1

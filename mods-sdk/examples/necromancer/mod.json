@@ -1,0 +1,8 @@
+{
+  "id": "necromancer",
+  "name": "Necromancer",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "Your shots stack Soul Burn on enemies, and the ones that die burning may rise as thralls that hunt for you. Shows register.status, register.thing (an allied, chasing thing), per-enemy data, mod events other mods can listen to (necromancer:raised, necromancer:raiseChance, necromancer:soulValue) and mods.export.",
+  "main": "main.lua"
+}

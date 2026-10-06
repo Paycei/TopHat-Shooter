@@ -2,7 +2,7 @@
 ## Single source of truth for all power-up static metadata, names, and descriptions.
 ##
 ## Adding a new power-up:
-##   1. Add it to `PowerUpType` in types.nim (above the puMod00..puMod63 block)
+##   1. Add it to `PowerUpType` in types.nim (above the FirstModPowerUp..LastModPowerUp block)
 ##   2. Add exactly ONE entry to `vanillaPowerUpDefs` below (read via powerUpDef).
 ##      Pool membership, exclusivity group, family, colour, panel visibility,
 ##      and max level all derive automatically from that one entry.
@@ -39,6 +39,7 @@ type
     inLegendaryPanel*: bool          ## Shows in the legendary active-ability HUD panel
     isElementalOrb*:   bool          ## True for the 7 single-element orbs (NOT puRotatingOrbs)
     allowedModes*:     set[GameMode] ## Empty = all modes; non-empty = restricted to listed modes
+    activeCooldown*:   float32       ## A mod [Q] ability's cooldown (register.powerup active); 0 = none
 
 # The registry: one entry per PowerUpType, named-index syntax keeps it safe
 
@@ -160,12 +161,8 @@ const legendaryPanelTypes* = block:
 # (MODS.EXE) bind the reserved puMod slots and may override built-in entries,
 # so everything reads definitions through powerUpDef() and the pools are
 # rebuilt whenever that changes.
-const
-  FirstModPowerUp* = puMod00
-  LastModPowerUp* = puMod63
-
 type
-  ModPowerUpSlot* = puMod00..puMod63
+  ModPowerUpSlot* = FirstModPowerUp..LastModPowerUp
   ModPowerUpInfo* = object
     bound*: bool
     key*: string   ## "<mod id>:<name>", what saves store instead of the slot name
@@ -269,6 +266,8 @@ proc getPowerUpMaxLevel*(pt: PowerUpType): int {.inline.} =
 
 proc abilityCooldown*(player: Player, pt: PowerUpType): float32 =
   ## Seconds until a [Q] ability can fire again (0 for everything else).
+  if pt in FirstModPowerUp..LastModPowerUp:
+    return player.modAbilityCooldowns[pt]   # register.powerup{active = ...}
   case pt
   of puTimeWarp: player.timeWarpCooldown
   of puPhaseShift: player.phaseShiftCooldown
@@ -305,7 +304,7 @@ proc recursionDamageBonusForLevel*(level: int): float32 {.inline.} =
 
 proc getPowerUpName*(powerType: PowerUpType): string =
   case powerType
-  of puMod00..puMod63: modPowerUpDisplay(powerType, 0, true)
+  of FirstModPowerUp..LastModPowerUp: modPowerUpDisplay(powerType, 0, true)
   of puDoubleShot: t(tkPowerupDoubleShot)
   of puRotatingShield: t(tkPowerupRotatingShield)
   of puMagicalBullets: t(tkPowerupMagicalBullets)
@@ -412,7 +411,7 @@ proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: fl
     fmt"{baseVal} + {scaledVal} ({pctVal}%) dmg/s"
 
   case powerType
-  of puMod00..puMod63:
+  of FirstModPowerUp..LastModPowerUp:
     modPowerUpDisplay(powerType, level, false)
   of puAftershock:
     t(tkPowerupAftershockDesc)

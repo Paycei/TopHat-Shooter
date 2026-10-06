@@ -1,0 +1,8 @@
+{
+  "id": "story_mode",
+  "name": "Story Mode",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "A game mode with a story, launched from MODS.EXE > Game Modes: an opening cutscene, dialogue with a portrait, a blessing to choose, a choice at wave 5 that changes the run, its own HUD card and a pause-menu action. Shows ui.cutscene, ui.dialogue, ui.choose, register.hudCard and register.pauseAction.",
+  "main": "main.lua"
+}

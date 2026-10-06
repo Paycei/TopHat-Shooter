@@ -746,16 +746,16 @@ proc drawRogueliteVictory*(game: Game) =
     var px = x + 40
     var py = relicY + 26
     for relic in run.relics:
-      let name = patchName(relic.relicType)
+      let name = patchName(relic)
       let pillW = measureText(name, 13).int32 + 50
       if px + pillW > x + PanelW - 40:
         px = x + 40
         py += 38
         # A 30px row must end clear of the warning panel below.
         if py + 30 > warnY - 8: break
-      let accent = patchAccent(relic.relicType)
+      let accent = patchAccent(relic)
       drawPill(px, py, pillW, 30, "", accent)
-      drawPatchIcon(px + 4, py + 3, 24, relic.relicType, accent)
+      drawPatchIcon(px + 4, py + 3, 24, relic, accent)
       drawText(name, px + 32, py + 9, 13, accent)
       px += pillW + 10
 

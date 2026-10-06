@@ -215,7 +215,7 @@ proc drawCornerBrackets(c: Vector2, half, arm: float32, color: Color) =
       drawStroke(corner, Vector2(x: corner.x, y: corner.y - sy * arm), 2, color)
 
 proc drawWorldCues(game: Game, s: TutorialState) =
-  let scale = getWorldViewScale()
+  let scale = getWorldCamScale()   # the view and a mod's camera
   let time = game.time
   let pulse = 0.5'f32 + 0.5'f32 * sin(time * 5.0'f32)
   case s.step

@@ -4,7 +4,7 @@
 import raylib, rlgl, math
 import ../draw_prims
 import ../types, ../utils
-import ../modding/mod_assets
+import ../modding/[mod_assets, mod_registry]
 
 type
   CurrencyIconType* = enum
@@ -599,7 +599,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
   let mid = sv(16, 16)
 
   case powerType
-  of puMod00..puMod63:
+  of FirstModPowerUp..LastModPowerUp:
     # A mod power-up: its own icon if it drew one, else a plug-in chip.
     if modPowerUpIconDraw.isNil or not modPowerUpIconDraw(powerType, color):
       let chip = Rectangle(x: 8, y: 8, width: 16, height: 16)
@@ -1603,6 +1603,16 @@ proc iconRefreshBadge(c: Vector2, r: float32, pal: IconPalette) =
   iconArc(c, r * 0.56'f32, -160, 110, r * 0.3'f32, pal.deep)
   iconArrowHead(polar(c, r * 0.56'f32, 128), 200, r * 0.62'f32, pal.deep, pal.deep)
 
+proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color)
+
+proc drawPatchIcon*(x, y, size: int32, relic: RogueliteRelic, color: Color) =
+  ## A patch as the player owns it: a mod patch draws its own look (texture or
+  ## icon function), or the game's mod glyph.
+  if relic.relicType == rrtMod and
+     drawModPatchIcon(relic.modKey, x.float32 + size.float32 / 2, y.float32 + size.float32 / 2, size.float32):
+    return
+  drawPatchIcon(x, y, size, relic.relicType, color)
+
 proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) =
   ## Patch glyph filling the (size x size) box at (x, y).
   if size <= 0:
@@ -1722,6 +1732,11 @@ proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) 
                   Color(r: 255, g: 110, b: 100, a: color.a), ink)
     iconInkStroke([sv(xc.x + 2.4'f32, xc.y - 2.4'f32), sv(xc.x - 2.4'f32, xc.y + 2.4'f32)], 1.5,
                   Color(r: 255, g: 110, b: 100, a: color.a), ink)
+  of rrtMod:
+    # A mod's patch with no look of its own: a plug-in puzzle piece.
+    iconInkRect(10, 10, 21, 20, pale, ink)
+    iconDisc(sv(15.5, 8.6), 2.0, pale, ink)
+    iconDisc(sv(22.4, 15.0), 2.0, pale, ink)
 
   iconRefreshBadge(sv(24.5, 24.5), 5.3, pal)
 

@@ -81,14 +81,6 @@ proc boolField(t: ScriptTable, key: string, def: bool): bool =
 proc hasField(t: ScriptTable, key: string): bool =
   rawGetStr(t, key).kind != vkNil
 
-proc checkKeys(vm: VM, t: ScriptTable, allowed: openArray[string], what: string) =
-  ## A typo in an option table is an error naming it, never a silent no-op.
-  for (k, _) in pairsCursor(t):
-    if k.kind != vkString:
-      vm.runtimeError(what & ": keys must be field names")
-    if k.str.s notin allowed:
-      vm.runtimeError(what & ": unknown field '" & k.str.s & "' (fields: " & allowed.join(", ") & ")")
-
 proc nameIndex(names: openArray[string], s: string, prefix: string): int =
   ## Position of `s` ("chase") or its enum spelling ("aiChase") in `names`.
   for i, n in names:

@@ -169,6 +169,7 @@ proc deathCauseVerbKey(cause: DeathCause): TranslationKey =
   of dcMeteorite: tkDeathMeteorite
   of dcPoison: tkDeathPoison
   of dcHazard: tkDeathHazard
+  of dcMod: tkDeathMod
   of dcUnknown: tkDeathUnknown
 
 proc composeDeathCause(game: Game): tuple[verb: string, killer: string, isBoss: bool] =

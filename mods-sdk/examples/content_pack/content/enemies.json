@@ -1,0 +1,12 @@
+[
+  {
+    "type": "enemy",
+    "id": "brute",
+    "name": "brute.exe",
+    "base": "etCube",
+    "hp": 9, "radius": 16, "speed": 60, "contactDamage": 2,
+    "color": "#ff8040",
+    "coins": 4, "xp": 4
+  },
+  {"type": "roster", "mode": "wave", "enemy": "brute", "chance": 0.08, "fromWave": 4}
+]

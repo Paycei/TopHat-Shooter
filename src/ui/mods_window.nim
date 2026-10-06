@@ -11,11 +11,11 @@ import raylib, rlgl
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../save_system,
        ../gamepad_input
-import ../modding/[mod_state, mod_catalog, mod_examples, mod_assets, mod_hooks]
+import ../modding/[mod_state, mod_catalog, mod_examples, mod_assets, mod_hooks, mod_registry]
 
 type
   ModsTab* = enum
-    mtInstalled, mtModes, mtCosmetics, mtApps, mtLog
+    mtInstalled, mtModes, mtCosmetics, mtApps, mtAchievements, mtLog
 
   ModsWindow* = ref object
     window*: OSWindow
@@ -25,6 +25,7 @@ type
     listScroll*: int
     logScroll*: int
     logFollow*: bool
+    achScroll*: int           ## the Achievements tab's scroll (px)
     lastLogGen: int
     pending*: seq[string]     ## working copy of settings.enabledMods
     message*: string          ## transient status line under the buttons
@@ -53,7 +54,7 @@ const
   ModsWindowW = 800
   ModsWindowH = 560
   TabH = 28
-  TabW = 146
+  TabW = 121
   AppRowH = 52
   AppHintH = 28  # the Apps tab's hint line, above its rows
   BannerH = 22
@@ -61,6 +62,7 @@ const
   ListW = 300
   RowH = 44
   CosRowH = 58
+  AchRowH = 56
   RemoveBtnH = 28'f32
   RemoveConfirmCooldown = 1.5'f32  # anti-accident window, like the quit dialog
   ApplyConfirmCooldown = 1.0'f32
@@ -435,6 +437,11 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
     mw.logScroll = clamp(mw.logScroll, 0, maxScroll)
   of mtModes, mtApps:
     discard
+  of mtAchievements:
+    let maxScroll = max(0, advancementDefs.len * AchRowH - int(g.logArea.height))
+    if wheel != 0 and checkCollisionPointRec(mouse, g.logArea):
+      mw.achScroll = mw.achScroll - int(wheel * AchRowH.float32)
+    mw.achScroll = clamp(mw.achScroll, 0, maxScroll)
   of mtCosmetics:
     let maxScroll = max(0, modCosmetics.len * CosRowH - int(g.logArea.height))
     if wheel != 0 and checkCollisionPointRec(mouse, g.logArea):
@@ -733,6 +740,52 @@ proc drawApps(mw: ModsWindow, g: Geo) =
              int32(g.logArea.x) + 20, ry + 28, 11, ColMuted)
     drawButton(btn, t(tkModsOpenApp), true, true)
 
+proc drawAchievements(mw: ModsWindow, g: Geo) =
+  ## The loaded mods' own achievements (register.advancement), this profile's
+  ## progress. They never touch the game's own advancements or rewards.
+  drawRectangle(g.logArea, ColPanel)
+  drawRectOutline(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  if advancementDefs.len == 0:
+    discard drawWrapped(t(tkModsNoAchievements), int32(g.x) + 14, int32(g.bodyY) + 14,
+                        int32(g.w) - 28, 13, ColMuted, int32(g.bodyY + g.bodyH))
+    return
+  beginVirtualScissorMode(int32(g.logArea.x), int32(g.logArea.y), int32(g.logArea.width), int32(g.logArea.height))
+  for i in 0 ..< advancementDefs.len:
+    let d = advancementDefs[i]
+    let ry = int32(g.logArea.y) + 4 + int32(i * AchRowH - mw.achScroll)
+    if ry + AchRowH < int32(g.logArea.y) or ry > int32(g.logArea.y + g.logArea.height): continue
+    let st = advancementState(d.key)
+    let shown = st.unlocked or not d.hidden
+    drawRectangle(Rectangle(x: g.logArea.x + 4, y: ry.float32, width: g.logArea.width - 8,
+                            height: AchRowH - 4), ColRow)
+    let accent = if st.unlocked: d.color else: Color(r: 90, g: 98, b: 112, a: 255)
+    drawRectangle(Rectangle(x: g.logArea.x + 4, y: ry.float32, width: 4, height: AchRowH - 4), accent)
+    let ix = int32(g.logArea.x) + 16
+    if d.iconTex > 0 and shown:
+      drawModTexture(d.iconTex, ix.float32 + 16, ry.float32 + 22, 32, 32, 0,
+                     if st.unlocked: White else: Color(r: 120, g: 120, b: 120, a: 255))
+    else:
+      drawCircleOutline(ix + 16, ry + 22, 14, accent)
+      drawText(if st.unlocked: "*" else: "?", ix + 12, ry + 14, 18, accent)
+    let textX = ix + 44
+    let textW = int32(g.logArea.width) - 44 - 200
+    drawText(fitWithEllipsis(if shown: advancementName(i) else: "???", textW, 15), textX, ry + 6, 15,
+             if st.unlocked: ColText else: ColMuted)
+    let desc = if shown: advancementDescription(i) else: t(tkModsHiddenAchievement)
+    drawText(fitWithEllipsis(desc, textW, 11), textX, ry + 25, 11, ColMuted)
+    drawText(fitWithEllipsis(d.key.split(':')[0], textW, 10), textX, ry + 39, 10, ColAccent)
+    # progress
+    let bx = int32(g.logArea.x + g.logArea.width) - 180
+    if st.unlocked:
+      drawText(t(tkModsAchievementDone) & (if st.unlockedAt.len > 0: "  " & st.unlockedAt else: ""),
+               bx, ry + 18, 12, ColOk)
+    else:
+      let frac = clamp(st.progress.float32 / max(1, d.goal).float32, 0'f32, 1'f32)
+      drawRectangle(bx, ry + 20, 160, 8, Color(r: 20, g: 26, b: 36, a: 255))
+      drawRectangle(bx, ry + 20, int32(160 * frac), 8, d.color)
+      drawText($st.progress & " / " & $d.goal, bx, ry + 32, 10, ColMuted)
+  endScissorMode()
+
 proc drawLog(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
   drawRectOutline(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
@@ -760,7 +813,8 @@ proc drawModsWindow*(mw: ModsWindow) =
 
   # tabs
   let labels: array[ModsTab, string] = [t(tkModsTabInstalled), t(tkModsTabModes),
-                                        t(tkModsTabCosmetics), t(tkModsTabApps), t(tkModsTabLog)]
+                                        t(tkModsTabCosmetics), t(tkModsTabApps),
+                                        t(tkModsTabAchievements), t(tkModsTabLog)]
   for tab in ModsTab:
     let r = g.tabs[tab]
     let active = mw.tab == tab
@@ -787,6 +841,7 @@ proc drawModsWindow*(mw: ModsWindow) =
   of mtModes: mw.drawModes(g)
   of mtCosmetics: mw.drawCosmetics(g)
   of mtApps: mw.drawApps(g)
+  of mtAchievements: mw.drawAchievements(g)
   of mtLog: mw.drawLog(g)
 
   if mw.removeTarget.len > 0:

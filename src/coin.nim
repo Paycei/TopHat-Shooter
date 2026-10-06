@@ -150,7 +150,7 @@ proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty:
   else:
     let waveBonus = if mode == gmWaveBased: 0 else: (currentWave div 10)
     let baseValue = case enemy.enemyType
-      of etMod00..etMod31: modEnemies[enemy.enemyType].coins
+      of FirstModEnemy..LastModEnemy: modEnemies[enemy.enemyType].coins
       of etCircle: 1
       of etCube: 3           # More coins since it's now harder
       of etTriangle: 2

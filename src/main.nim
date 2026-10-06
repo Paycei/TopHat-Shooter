@@ -1,7 +1,7 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import draw_prims, post_fx
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
-import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples], ui/mods_window
+import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples, mod_registry], ui/mods_window
 
 # Global quit-confirmation dialog
 
@@ -941,6 +941,7 @@ proc main() =
     ## system from that profile's folder. Settings/stats are mutated in place
     ## (they are refs shared with the window manager); the advancement and
     ## roguelite profiles are replaced and re-propagated like elsewhere.
+    saveAllModStorage()   # the old profile's mod.storage, into the old profile's folder
     activeProfileSlot = slot
     setLastUsedProfileSlot(slot)
     currentDifficulty = loadProfileDifficulty(slot)
@@ -1160,6 +1161,17 @@ proc main() =
   var windowCloseRequested = false  # True once the OS close button is clicked
 
   while not windowCloseRequested:
+    # Mods: a mod that keeps blowing its per-frame script budget (in a run, on
+    # the desktop, in an app) is switched off; last frame's times are judged here.
+    modFrameCheck()
+    # Mod achievements unlocked last frame: a toast over the run, or on the desktop.
+    if advancementToasts.len > 0:
+      for msg in advancementToasts:
+        if not currentGame.isNil and isActiveRunState(currentGame.state):
+          currentGame.pendingToasts.add(msg)
+        else:
+          modNotices.add(msg)
+      advancementToasts.setLen(0)
     # Re-arm windowShouldClose each iteration; show confirm instead of quitting directly
     if windowShouldClose():
       let isInGame = currentGame.state in {gsPlaying, gsPaused, gsShop, gsCountdown,
@@ -1238,8 +1250,18 @@ proc main() =
     setGamepadCursorMode(
       if currentGame.state in {gsPlaying, gsPvPPlaying} and
          not isSandboxMode(currentGame.mode) and
-         not globalConfirmActive: cmGameplayAim
+         not globalConfirmActive and not modUiHoldsInput(): cmGameplayAim
       else: cmMenuCursor)
+
+    # Mods' 2D camera (camera.zoom): only over a PvE run on the arena; the
+    # identity camera everywhere else (desktop, PvP, 3D worlds).
+    if not currentGame.isNil and currentGame.mode != gmPvP and currentGame.state != gs3DBoss and
+       isActiveRunState(currentGame.state) and currentGame.modWorld.camZoom > 1.0'f32:
+      setWorldCamera(currentGame.modWorld.camZoom, currentGame.modWorld.camCurX,
+                     currentGame.modWorld.camCurY, currentGame.screenWidth.float32,
+                     currentGame.screenHeight.float32)
+    else:
+      clearWorldCamera()
 
     # Tick down the global confirm guards
     if globalConfirmFrameGuard > 0:
@@ -2471,8 +2493,9 @@ proc main() =
         cheatMenu.active = false
         cheatCompleteRogueliteFloor(currentGame)
 
-      # A survival Data Cache reveal pauses the game like the cheat menu does.
-      let survivalRevealOpen = currentGame.survival.reveal.active
+      # A survival Data Cache reveal pauses the game like the cheat menu does;
+      # an open mod screen (ui.open) takes the gameplay input too.
+      let survivalRevealOpen = currentGame.survival.reveal.active or modUiHoldsInput()
 
       # Only process game input if cheat menu is not active and confirm dialog is not open
       if not cheatMenu.active and not globalConfirmActive and not survivalRevealOpen:
@@ -2838,14 +2861,21 @@ proc main() =
           addShake(currentGame.dopamine.screenShake, siMedium, NovaColor)
           anyActivated = true
 
+        # Mod power-ups with an active ability (register.powerup active)
+        if modActivateAbilities(currentGame):
+          anyActivated = true
+
         # Play sound if any ability was activated
         if anyActivated:
           playSound(stPowerUp)
+        modAbilityUsed(currentGame)   # mods: [Q] was pressed (after the built-in abilities)
 
       # Pause (don't actually pause in PvP mode to avoid desync)
       # Also skip if the confirm dialog is open (it acts as a hard pause)
       # In PvP the pause menu is shown but the sim keeps running (see gsPaused below).
-      if (isBackPressed() or isGamepadStartPressed()) and not globalConfirmActive:
+      if isBackPressed() and not globalConfirmActive and modUiBack():
+        discard   # Esc / B closed the top mod screen instead
+      elif (isBackPressed() or isGamepadStartPressed()) and not globalConfirmActive:
         currentGame.state = gsPaused
 
       # ORIENTATION.EXE: advance the tutorial from what the player just did.
@@ -3328,12 +3358,15 @@ proc main() =
 
       if not globalConfirmActive:
         # Navigate shop with keyboard
+        let shopRows = shopRowCount(currentGame)   # the game's six, then mod rows
         if isKeyPressed(Down) or isKeyPressed(S):
-          currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod 6
+          currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod shopRows
           markKeyboardUsed(currentGame)
+          keepShopSelectionVisible(currentGame)
         if isKeyPressed(Up) or isKeyPressed(W):
-          currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
+          currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + shopRows) mod shopRows
           markKeyboardUsed(currentGame)
+          keepShopSelectionVisible(currentGame)
 
         # Scroll the sidebar upgrade list with PageDown/PageUp or [/]
         if isKeyPressed(PageDown) or isKeyPressed(RightBracket):
@@ -3367,10 +3400,11 @@ proc main() =
           else:
             # Check shop item clicks
             var clickedItem = -1
-            for i in 0..5:
-              if checkCollisionPointRec(mousePos, L.itemRect(i)):
-                clickedItem = i
-                break
+            if checkCollisionPointRec(mousePos, L.listRect):   # clicks clip to the visible rows
+              for i in 0 ..< shopRowCount(currentGame):
+                if checkCollisionPointRec(mousePos, L.itemRect(i, currentGame.shopItemsScroll)):
+                  clickedItem = i
+                  break
 
             if clickedItem >= 0:
               # Clicked on an item - select and buy it

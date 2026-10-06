@@ -146,6 +146,15 @@ one and `hooks.list()` returns every name. Three kinds:
 | `bulletUpdate` | bullet, dt | cancel: true skips the built-in movement (its lifetime still runs out) |
 | `bulletDraw` | bullet | cancel: true skips the built-in look |
 | `bulletHit` | damage, bullet, enemy | filter: a player bullet's damage on hit |
+| `bulletExpire` | bullet | event: a bullet's lifetime ran out (it missed) |
+| `thingSpawn` / `thingDeath` | thing | events: a thing joined the arena / its HP ran out (see [Things](#things-hazards-and-projectiles)) |
+| `statusApplied` | target, name, stacks | event: a status (see [Statuses](#statuses)) was applied to an enemy or the player |
+| `statusExpired` | target, name, expired | event: a status went away (`expired`: it ran out rather than being cleared) |
+| `enemyContact` | damage, enemy, player | filter: the damage of an enemy's (or a boss's) touch |
+| `bulletHitPlayer` | damage, bullet, player | filter: an enemy bullet landing on the player |
+| `cacheOpen` | tier, game, x, y | cancel: true takes a survival Data Cache without its rewards (`tier`: `"sctMinor"` ... `"sctKernel"`) |
+| `abilityUsed` | game | event: the player pressed [Q] (after the built-in abilities ran) |
+| `patchInstalled` | name, game | event: a roguelite patch was installed (`"rrtOverclock"`, or a mod patch's name) |
 | `playerDamaged` | amount, player | filter: damage the player is about to take |
 | `playerLethal` | player | cancel: true keeps the player alive (set `player.hp` yourself) |
 | `playerHeal` | amount, player | filter |
@@ -181,6 +190,31 @@ one and `hooks.list()` returns every name. Three kinds:
 
 Enemy types are named like the game's own (`"etCircle"`, `"etCube"`,
 `"etThread"`, `"etFragment"`...); `enemies.types()` lists them all.
+
+### Mod events
+
+Mods can talk to each other through events of their own. A hook name with a
+colon, `"<mod id>:<event>"`, is a mod event: `hooks.on` and `hooks.off` take
+it like any hook, and
+
+* `hooks.emit(name, ...)` calls every handler of `name`, in the order they
+  were added;
+* `hooks.filter(name, value, ...)` passes `value` through every handler (each
+  gets `(value, ...)` and may return a replacement) and returns the result.
+
+```lua
+-- necromancer/main.lua
+hooks.emit("necromancer:raised", ally, enemy)
+local souls = hooks.filter("necromancer:soulValue", 1, enemy)
+
+-- another mod
+hooks.on("necromancer:raised", function(ally, enemy) ally.data.glow = true end)
+hooks.on("necromancer:soulValue", function(n, enemy) return n * 2 end)
+```
+
+Name your events after your own mod id. An event that raises itself more than
+16 levels deep stops with an error, and the handlers of a mod that is switched
+off go with it.
 
 ## The game, the player, enemies and bullets
 
@@ -229,15 +263,39 @@ Methods:
   `game:enemiesNear(x, y, radius)`, `game:isMode("wave")` (also `"survival"`,
   `"roguelite"`, `"sandbox"` or a mod game mode id).
 * `player:powerUpLevel("puDoubleShot")`, `player:hasPowerUp(name)`.
-* `enemy:valid()`: still alive and still in the run.
+* `enemy:valid()`: still alive and still in the run; `bullet:valid()`: still
+  flying.
+
+### Your own data on an entity
+
+`e.data` (and `b.data` on a bullet) is a table of your own for that one enemy
+or bullet: put anything in it.
+
+```lua
+hooks.on("enemySpawn", function(e) e.data.hits = 0 end)
+hooks.on("bulletHit", function(dmg, b, e)
+  e.data.hits = (e.data.hits or 0) + 1
+  if e.data.hits >= 5 then return dmg * 3 end
+end)
+```
+
+* Each mod sees its own table: two mods' `e.data.hits` never collide.
+* It lives as long as the entity does (it is forgotten a moment after the
+  enemy dies or the bullet is gone).
+* Plain data (numbers, strings, booleans, tables) comes back when a suspended
+  run is resumed exactly (quitting to the desktop). A run restarted from a run
+  save or a restore point rebuilds its enemies, so their data starts empty:
+  keep what must survive that in `run.data`.
 
 ## Changing the game
 
 **Spawning.** `spawn.enemy(type, x, y [, {elite = true, difficulty = 3,
 onSpawn = fn}])`, `spawn.boss(id [, {x = .., y = .., onSpawn = fn}])` and
 `spawn.bullet{x, y, vx, vy, damage, radius, lifetime, fromPlayer, color}`.
-Hooks run in the middle of the game's own loops, so spawns happen at the end
-of the current frame; use `onSpawn` to set up what you spawned.
+Hooks run in the middle of the game's own loops, so spawns join the run at
+the end of the current frame. `spawn.enemy` and `spawn.bullet` return the new
+enemy or bullet right away: set it up, keep it, give it `data`; `valid()` is
+already true. `onSpawn` (and `spawn.boss`'s) runs when it joins.
 
 **Enemies.** `e:damage(amount [, source])` (bosses too: it drains the current
 phase), `e:kill()` (dies with its normal rewards; not bosses), `e:remove()`
@@ -327,6 +385,455 @@ movement (`circle_player`, `anchored`, `aggressive`, `defensive`, ...) or
 `boss.y` (like the built-in ones do). Without `weakPoint` a boss takes full
 damage everywhere.
 
+## Things, hazards and projectiles
+
+A **thing** is a new kind of object in the arena, one you design: an ally, a
+turret, an orbiting shield, an aura, a wall, a zone, a prop, a pickup. Register
+its kind while your mod loads, then spawn as many as you like during a run.
+
+```lua
+local TURRET = register.thing{
+  id = "turret", team = "player", motion = "static",
+  shape = "circle", radius = 14, color = "#60e0ff", hp = 12,
+  solid = true, hitByBullets = true,            -- enemies' shots wear it down
+  lifetime = 20,                                -- seconds (0 = forever)
+  weapon = {interval = 0.6, range = 320, damage = 1, speed = 380},
+  onDeath = function(t, game) fx.particles(t.x, t.y, "#60e0ff", 30) end,
+}
+hooks.on("placeWall", function(x, y, game)
+  spawn.thing(TURRET, x, y)
+  return true                                   -- no wall: a turret instead
+end)
+```
+
+`register.thing{...}` returns the kind's name (`"<your mod id>:<id>"`). Every
+field is optional except `id`, and an unknown field is an error:
+
+| Field | Meaning |
+|---|---|
+| `team` | `"player"` (an ally: hurts enemies, the enemies' shots hit it), `"enemy"` (hurts the player) or `"neutral"` (both) |
+| `shape`, `radius`, `w`, `h` | `"circle"` (radius) or `"rect"` (w x h, centred) |
+| `motion`, `speed` | `"static"`, `"free"` (flies on its `vx`/`vy`, with `friction` and `bounce` off the arena edges), `"followPlayer"` (keeps `orbitRadius` away), `"orbitPlayer"` (`speed` degrees per second at `orbitRadius`, from `orbitAngle`), `"chasePlayer"`, `"chaseEnemy"` (the nearest) |
+| `angle`, `spin` | degrees, degrees per second |
+| `hp` | 0 = cannot be hurt; `invulnerable = true` also ignores damage; `hpBar = false` hides its bar |
+| `contactDamage`, `contactInterval` | damage to what it touches on the other side, every `contactInterval` seconds (0.5) |
+| `solid` | pushes the player and regular enemies out of it |
+| `blocksBullets`, `hitByBullets` | stops the other side's bullets / takes their damage (a neutral thing: everyone's) |
+| `pickup`, `magnet` | taken when the player touches it (`onPickup`), and pulled toward a nearby player |
+| `persistent` | in the roguelite, follows the player into the next room (others are left behind) |
+| `lifetime`, `layer`, `color`, `scale`, `tag` | seconds alive (0 = forever), `"below"` / `"normal"` / `"above"` the actors, look, and a label you can search by |
+| `texture`, `model`, `look` | its look (`look` takes `scale`, `rotate` and `override.model`'s pose options) instead of the plain shape |
+| `weapon` | a turret: `{interval, range, speed, damage, count, spread, radius, lifetime, color, kind}`; it aims at the nearest target of the other side |
+| `update`, `updateEvery` | `fn(thing, dt, game)`, every frame or every `updateEvery` seconds |
+| `draw` | `fn(thing)` draws it yourself (world coordinates) |
+| `onSpawn(thing, game)`, `onDeath(thing, game)`, `onExpire(thing, game)` | it joined / its HP ran out / its lifetime ran out |
+| `onTouchPlayer(thing, player, game)`, `onTouchEnemy(thing, enemy, game)` | on contact (every `contactInterval`) |
+| `onHit(thing, bullet, damage)` | a bullet hit it: return the damage to take |
+| `onDamaged(thing, amount, source)` | any damage (`source`: `"bullet"`, `"explosion"`, `"script"`): return the amount |
+| `onPickup(thing, player, game)` | it was picked up; return `false` to leave it there |
+
+`spawn.thing(kind, x, y [, overrides])` returns the thing at once (it joins
+the arena at the end of the frame). The overrides take the instance fields of
+the table above (not the callbacks), `vx`/`vy`, `maxHp` and an `onSpawn`
+function. A run holds up to 4000 things.
+
+A thing works like an enemy in scripts: `t.x`, `t.y`, `t.vx`, `t.vy`, every
+field by name (`t.hp`, `t.speed`, `t.orbitRadius`...), the flags as booleans
+(`t.solid = false`), `t.data` (your own table, as on enemies), and
+`t:damage(n)`, `t:heal(n)`, `t:kill()`, `t:remove()`, `t:valid()`,
+`t:distanceTo(x, y | entity)`, `t:moveToward(x, y, speed, dt)` and
+`t:shoot(angle | {x =, y =} [, {speed, damage, kind, count, spread, radius,
+lifetime, color, pierce}])`. `game:things([kind or tag])` and
+`game:thingsNear(x, y, radius [, kind or tag])` find them.
+
+Things are saved with a suspended run (quitting to the desktop), not in run
+saves or restore points: rebuild them from `run.data` in `runStart`.
+
+### Hazards
+
+`spawn.hazard{...}` puts down a telegraphed danger: it shows a warning for
+`warn` seconds (always drawn, whatever your mod does: hazards must be fair),
+then hurts what `hurts` names for `active` seconds, once or every `tick`
+seconds.
+
+```lua
+spawn.hazard{shape = "circle", x = player.x, y = player.y, r = 90,
+             warn = 1.2, active = 0.3, damage = 2, hurts = "player", color = "#ff4040"}
+spawn.hazard{shape = "line", x = 0, y = 300, length = 1100, angle = 0, r = 18,
+             warn = 0.8, active = 1.5, tick = 0.25, damage = 1, hurts = "all"}
+```
+
+Shapes: `"circle"` (`r`), `"rect"` (`w`, `h`), `"line"` (`length` along
+`angle`, `r` wide each side), `"ring"` (`inner` to `r`). `hurts`: `"player"`
+(default), `"enemies"` or `"all"`. `onTrigger = fn(hazard, game)` runs when
+the warning ends. It returns the hazard (a thing of kind `"@hazard"`).
+
+### Projectiles and explosions
+
+`register.projectile{...}` gives bullets a behaviour of their own:
+
+```lua
+local SEEKER = register.projectile{
+  id = "seeker", pierce = 2, homing = 4,
+  onHit = function(b, e, dmg) e.speed = e.speed * 0.8 return dmg end,
+  onExpire = function(b) game:explode(b.x, b.y, 60, 2) end,
+}
+spawn.bullet{x = player.x, y = player.y, vx = 0, vy = -400, fromPlayer = true, kind = SEEKER}
+```
+
+Fields: `pierce` (enemies it passes through), `homing` (turn rate toward the
+nearest target), `update(bullet, dt, game)` (return true to move it
+yourself), `draw(bullet)`, `onHit(bullet, enemy, damage)` and
+`onHitPlayer(bullet, player, damage)` (return the damage) and
+`onExpire(bullet)`. `spawn.bullet` takes `kind`, `pierce` and `homing = true`
+too, and a turret's `weapon.kind` fires them.
+
+`game:explode(x, y, radius, damage [, {hurts = "enemies" | "player" | "all",
+color, shake = "small" | "medium" | "large"}])` hurts everything of that side
+in the circle (things too) and shows a burst.
+
+## Statuses
+
+A status is a named effect with stacks and a duration, on an enemy or on the
+player: burns, curses, marks, buffs.
+
+```lua
+local SOUL = register.status{
+  id = "soulBurn", name = {en = "Soul Burn", es = "Quemadura"}, color = "#a040ff",
+  maxStacks = 5, duration = 4, tickInterval = 0.5,
+  modifiers = {speed = -0.08, damageTaken = 0.1},   -- per stack
+  onTick = function(e, stacks) e:damage(0.2 * stacks) end,
+  onExpire = function(e) fx.particles(e.x, e.y, "#a040ff", 8) end,
+}
+hooks.on("bulletHit", function(dmg, b, e) e:applyStatus(SOUL) end)
+```
+
+* `register.status{...}` (while loading): `id`, `name`, `color`, `icon`
+  (a texture for its pip), `maxStacks` (1), `duration` (seconds, 3; 0 or less
+  lasts until cleared), `tickInterval` (seconds between `onTick`), and
+  `modifiers = {speed, damageTaken, damageDealt}`: fractions per stack
+  (`speed = -0.1` is 10% slower; `damageTaken = 0.2` takes 20% more). Callbacks:
+  `onApply(target, stacks, magnitude)`, `onTick(target, stacks, magnitude)`,
+  `onExpire(target)` and `draw(target, x, y, stacks)` (its pip over the target;
+  a coloured dot by default).
+* `e:applyStatus(name [, {duration, stacks = 1, magnitude = 1}])` adds stacks
+  (up to `maxStacks`) and refreshes the duration; `magnitude` scales the
+  modifiers. `e:status(name)` returns `{stacks, remaining, duration,
+  magnitude}` or nil; `e:clearStatus(name)` removes it. `player` has the same
+  three. `statuses.list()` names every status.
+* The game's own effects work by name too: on enemies `"fire"` and `"poison"`
+  (magnitude = damage per second), `"slow"` (magnitude 0 to 0.95, timed) and
+  `"frost"` (a lasting chill); on the player `"poison"`.
+* Speed modifiers move regular enemies only (bosses ignore slows, as with the
+  game's own). An enemy's `damageDealt` counts on its touch and its bullets,
+  not on boss attack patterns, lasers or hazards.
+* Enemy statuses run on the enemies' clock (Time Warp slows them too).
+
+## More content
+
+Every `register.*` here is a table of fields; an unknown field is an error.
+Names are `{en = ..., es = ...}` or a plain string; each call returns the
+content's full name (`"<your mod id>:<id>"`).
+
+### The `stats` table
+
+Shop items, consumables, patches (and content packs) can change the player's
+numbers without a line of code. `stats` maps a player field to a change:
+
+| Value | Means |
+|---|---|
+| `2` or `"+2"` / `"-2"` | add |
+| `"+10%"` / `"-10%"` | scale by 110% / 90% |
+| `"x0.95"` | multiply |
+| `"=3"` | set |
+
+```lua
+stats = {damage = "+10%", maxHp = 2, fireRate = "x0.95", walls = 3}
+```
+
+Any number field of the player works (`player:fields()` lists them); raising
+`maxHp` heals by the same amount.
+
+### Consumables
+
+```lua
+local MANA = register.consumable{
+  id = "mana", name = "Mana Cell", color = "#4080ff",
+  icon = "icons/mana.png",           -- or a function(x, y, radius, color); default: its initial
+  weight = 6,                        -- drop chance next to the game's own 100
+  modes = {"wave", "survival"},      -- empty: every mode
+  stats = {damage = "+5%"},
+  onPickup = function(player, game, x, y) fx.particles(x, y, "#4080ff", 20) end,
+}
+```
+
+Random drops roll yours in with the game's; `spawn.consumable(MANA, x, y)`
+drops one. The `pickup` hook sees its name as `kind`. Mod consumables do not
+count in the lifetime consumable statistics.
+
+### Shop items
+
+```lua
+register.shopItem{
+  id = "core", name = "Spare Core", description = "+3 walls",
+  cost = 12, costMult = 1.5, maxBuys = 5,   -- price x1.5 per purchase; 0 = no limit
+  modes = {"wave"}, minWave = 3, color = "#78dca0", icon = "icons/core.png",
+  stats = {walls = 3},
+  onBuy = function(player, game, bought) end,
+}
+```
+
+They appear after the shop's six rows (the list scrolls when it grows past
+them). Purchases go through the `shopBuy` hook (its index counts from 7 for
+yours) and the run statistics, and are saved with the run.
+
+### Active [Q] abilities
+
+A power-up can have an ability on the [Q] key:
+
+```lua
+register.powerup{
+  id = "nova", name = "Soul Nova", legendary = true,
+  active = {cooldown = 12, activate = function(player, level, game)
+    game:explode(player.x, player.y, 160, 3)
+    -- return false to say it did not fire (no cooldown)
+  end},
+}
+```
+
+It sits on the [Q] strip with the game's own, with its cooldown.
+
+### Roguelite patches
+
+```lua
+register.patch{
+  id = "ward", name = "KB Soul Ward", description = "+2 integrity; heals between rooms",
+  color = "#a040ff", icon = "icons/ward.png",
+  weight = 1,          -- chance in a draft; a game patch weighs 1
+  minFloor = 2,
+  stats = {maxHp = 2},
+  onInstall = function(player, game) end,
+  update = function(player, dt, game) end,   -- every frame of a run that has it
+}
+```
+
+They are offered on patch pedestals and /pkg stalls with the game's own,
+appear everywhere installed patches are listed, and are saved with the run
+(by name: a run whose mod is gone just loses them). `player:hasPatch(name)`
+checks for one (a game patch by its name, `"rrtOverclock"`).
+
+### Survival events
+
+```lua
+register.survivalEvent{
+  id = "storm", name = "Packet Storm", hint = "Survive the storm!",
+  color = "#40c0ff",
+  weights = {boot = 0, runtime = 20, overload = 25, panic = 25},  -- per phase
+  duration = 20, warmup = 2,
+  reward = "sctStandard",            -- a Data Cache on success (false: none)
+  onStart = function(ev, game) ev.data.hits = 0 end,
+  update = function(ev, game, dt)    -- "success" / "fail" end it; reaching duration succeeds
+    if ev.data.hits > 10 then return "fail" end
+  end,
+  onFinish = function(ev, game, success) end,
+  tracker = function(ev, game) return ev.data.hits .. " hits" end,   -- the HUD card's line
+  fraction = function(ev, game) return 1 - ev.live / ev.limit end,   -- its bar
+}
+```
+
+They join the random event draw by their weights (never twice in a row), with
+the game's banner and HUD card. `ev` has `name`, `elapsed`, `live` (seconds
+since the warmup ended), `warmup`, `limit`, `phase` and `data` (a table of
+yours for this event). The `survivalEvent` hook can veto one by its name. A
+running event is not saved with the run (the game's aren't either).
+
+### Achievements
+
+```lua
+local SLAYER = register.advancement{id = "slayer", name = "Soul Slayer",
+  description = "Raise 100 allies", goal = 100, hidden = false, icon = "icons/slayer.png"}
+hooks.on("enemyDeath", function(e) advancements.progress("slayer") end)
+```
+
+`advancements.progress(id [, amount])` (true when that unlocked it),
+`advancements.grant(id)` and `advancements.get(id)` (`{progress, goal,
+unlocked}`). They are your mod's own: kept per profile, shown in MODS.EXE's
+Achievements tab with a toast when one unlocks, and they unlock in any run,
+cheated or not. They never touch the game's advancements or their rewards.
+
+## In-run UI
+
+### Screens
+
+`ui.open{...}` puts a screen of yours over the run: a menu, a shop, a map, a
+minigame. While it is open the run holds still (unless `pause = false`) and
+the player's gameplay input (shooting, dash, walls, [Q]) waits.
+
+```lua
+local s = ui.open{
+  draw = function(w, h)           -- screen coordinates of the HUD (draw.*, ui.* widgets)
+    ui.panel(w / 2 - 150, h / 2 - 80, 300, 160, {title = "TERMINAL", color = "#40ff80"})
+    if ui.button(w / 2 - 60, h / 2 + 20, 120, 30, "CLOSE") then s:close() end
+  end,
+  update = function(dt) end,      -- every frame it is open
+  click = function(x, y, button) end,   -- a click no widget took ("left" / "right")
+  onClose = function() end,
+  pause = true, closeOnBack = true,     -- Esc / gamepad B closes it
+  layer = "hud",                  -- or "screen": raw screen pixels, over everything
+}
+```
+
+It returns `{id, close = fn, isOpen = fn}` (`s:close()`, `s:isOpen()`);
+`ui.close(s)`, `ui.isOpen(s)` and `ui.closeAll()` (your mod's) work too.
+Screens are never saved: a resumed run reopens what it needs in `runStart`.
+
+### Widgets
+
+Immediate mode: call them every frame you draw, and they return what the
+player did. They work in a screen's `draw`, a HUD card, an app's `draw` and
+`drawHud`, with the mouse or a gamepad (A clicks where the pad's cursor
+points).
+
+* `ui.panel(x, y, w, h [, {title, color}])` -> the y below its title
+* `ui.button(x, y, w, h, label [, {color, enabled}])` -> true the frame it is clicked
+* `ui.label(text, x, y [, {size, color, align = "left" | "center" | "right", width}])`
+  (wraps to `width`) -> the height it used
+* `ui.progress(x, y, w, h, fraction [, color])`
+* `ui.checkbox(x, y, label, checked)` -> the new value
+* `ui.slider(x, y, w, value, min, max)` -> the new value
+* `ui.pointer()` -> x, y, pressed, down
+
+### Dialogue, choices and cutscenes
+
+```lua
+ui.dialogue{
+  lines = {
+    {speaker = "KERNEL", text = "You are not supposed to be here.", portrait = KERNEL_TEX, color = "#ff4060"},
+    {speaker = "YOU", text = "Then why did you leave the door open?"},
+  },
+  choices = {"Fight", "Flee"},           -- on the last line (keys 1..9 work too)
+  onChoice = function(i) end, onDone = function() end,
+}
+ui.choose{title = "Pick a blessing", options = {
+  {title = "Fury", description = "+20% damage", icon = FURY_TEX, color = "#ff6040"},
+  {title = "Ward", description = "+3 integrity"},
+}, onPick = function(i) end, allowSkip = false}
+ui.cutscene{shots = {
+  {duration = 2, draw = function(t, w, h) draw.text("YEAR 2049", w / 2 - 80, h / 2, 30, "#ffffff") end},
+  {duration = 3, draw = function(t, w, h) draw.texture(CITY, w / 2, h / 2, {w = w}) end},
+}, skippable = true, onDone = function() end}
+```
+
+Space / Enter / a click (or A) advance and confirm; Esc / B skips (when
+`skippable`, default true; `ui.choose` only with `allowSkip`, and `onPick`
+then gets nil). Each returns its screen.
+
+### Toasts and banners
+
+`ui.toast(text)` shows a notification (over a run, or on the desktop).
+`ui.banner(title [, subtitle, color, seconds])` shows a big line over the run.
+
+### HUD cards
+
+```lua
+register.hudCard{id = "souls", title = "SOULS", color = "#a040ff", height = 34,
+  draw = function(x, y, w, h)
+    ui.progress(x, y + 4, w, 8, run.data.souls / 100, "#a040ff")
+    ui.label(run.data.souls .. " / 100", x, y + 16, {size = 12})
+  end, classic = true}
+```
+
+A card of yours in the HUD's run column (16:9, under the mode's own card), or
+at the top right in the classic and legacy HUDs (`classic = false` keeps it
+out of those). `measure = fn(w) -> height` sizes it every frame instead of
+`height` (0 hides it that frame: a mode's card can stay out of other runs).
+`hud.hide("run")` hides them with the rest of the run column.
+
+### Pause-menu actions
+
+`register.pauseAction{id = "skipIntro", name = "Skip the intro", onClick =
+fn(game)}` adds a button to a MODS tab in the pause menu (shown only when
+some are registered).
+
+## Camera and time
+
+**Camera.** `camera.zoom = 2` zooms into the arena (1 to 3; never out: the
+arena is all there is). `camera.x` / `camera.y` set where it looks (it stays
+inside the arena on its own), `camera.follow(true [, lerp])` keeps the player
+centred (`lerp`: how fast it catches up, per second; 0 snaps),
+`camera.reset()` shows the whole arena again. Aiming, the cursor and the
+gamepad follow the camera. `camera.toScreen(x, y)` gives the screen point an
+arena point is drawn at, `camera.toWorld(x, y)` the reverse. Each run starts
+with the whole arena; the camera only applies to the 2D arena (not PvP or 3D
+worlds).
+
+```lua
+hooks.on("bossSpawn", function(boss) camera.zoom = 1.6 camera.follow(true, 6) end)
+hooks.on("bossDeath", function() camera.reset() end)
+```
+
+**Time.** `time.scale` (0.1 to 2) runs the whole world faster or slower;
+`time.enemyScale` (0 to 2) only the enemies and their shots (0 freezes them).
+`time.hitstop(seconds [, scale])` freezes the world for a beat and
+`time.slowmo(seconds, scale [, ramp])` slows it down (easing back with `ramp`),
+like the game's own hit stop and slow motion. All of it resets with each run.
+
+## Commands
+
+```lua
+register.command{name = "souls", help = {en = "Shows your souls", es = "Muestra tus almas"},
+  run = function(args)              -- the words typed after it
+    return "You have " .. (mod.storage.souls or 0) .. " souls"   -- or a list of lines
+  end}
+```
+
+The Help terminal (HELP.EXE) runs it on the desktop and lists it under
+`help`.
+
+## Content packs
+
+A mod can be data only: put JSON files under `content/` in its folder (any
+depth). Each file holds one entry or a list; `type` says what it registers
+and every other field is that `register.*` call's table:
+
+```json
+[
+  {"type": "powerup", "id": "grit", "name": "Grit", "maxLevel": 3, "stats": {"maxHp": "+2"}},
+  {"type": "shopItem", "id": "core", "name": "Spare Core", "cost": 10, "stats": {"walls": 2}},
+  {"type": "consumable", "id": "mana", "color": "#4080ff", "weight": 5, "stats": {"damage": "+5%"}},
+  {"type": "enemy", "id": "brute", "base": "etCube", "hp": 9, "speed": 70, "color": "#ff8040"}
+]
+```
+
+Types: `powerup`, `enemy`, `boss`, `thing`, `projectile`, `status`,
+`consumable`, `shopItem`, `patch`, `survivalEvent`, `advancement`, and
+`roster`, which is `roster.add` for a pack: `{"type": "roster", "mode":
+"wave", "enemy": "brute", "chance": 0.1, "fromWave": 3}` (a bare enemy id is
+the pack's own; `minTime` and `minFloor` work too). Files load
+in name order, after `main.lua` (if any), still while the mod loads. A mod
+with a `content/` folder needs no `main.lua` at all. JSON cannot hold
+functions, so what a pack registers does what its fields (and `stats`) say; a
+script can add the behaviour (`hooks.on`, `override.*`). A bad entry fails the
+mod with the file's name.
+
+## Difficulty
+
+`difficulty.scale{enemyHp, enemyDamage, enemySpeed, spawnPace, eliteChance,
+bossCooldown}` multiplies the game's difficulty levers for this run, on top
+of the profile's difficulty (`spawnPace` 1.5 spawns 50% faster, `bossCooldown`
+0.8 makes bosses attack more often). Each run starts at 1 everywhere: set it in
+`runStart`. `difficulty.get()` returns the profile (`"gdHard"`...) and the
+scale in force.
+
+## More of the player
+
+* The dash is tunable per run: `player.dashBurstMult` (speed multiple during
+  the burst, 3.4), `player.dashTime` (seconds of burst, 0.16) and
+  `player.dashRecharge` (seconds between dashes, 2.5). The HUD's dash meter
+  follows them.
+* `player:hurt(amount, {cause = "Lava"})`: when that hit is lethal the run ends
+  at once and the crash screen reads "Terminated by Lava".
+
 ## New power-ups and enemies
 
 ```lua
@@ -376,7 +883,7 @@ roster.add("wave", bouncer, {chance = 0.15, fromWave = 3})
 * The `powerUpChoices` filter gets the three offered names and may return a
   list of names to offer instead.
 
-There is room for 64 mod power-ups and 32 mod enemies across all loaded mods.
+There is room for 256 mod power-ups and 128 mod enemies across all loaded mods.
 Saves store mod content by name, so a run saved with a mod keeps its power-ups
 as long as that mod is loaded.
 
@@ -1190,6 +1697,14 @@ optional raylib `GamepadButton` name and defaults to unbound.
 
 ## Your mod, the run, other mods
 
+* **Register while loading.** Every `register.*` call (and `roster.add`)
+  works only while your mod loads, in its main chunk (or a file it
+  `require`s from there): mods register in load order, so the same set of
+  mods always gets the same slots. Calling one from a hook, a timer or an app
+  is an error. `override.*` and `lang.*` work at any time.
+* Each mod has its own copy of every library table (`draw`, `spawn`, `hooks`,
+  `math`...): replacing `draw.circle` in yours changes nothing for other mods.
+
 * `mod.id`, `mod.name`, `mod.version`, `mod.author`; `mod.log(...)` and
   `mod.warn(...)` write to the Log tab (so does `print`).
 * `run.data` is a table saved with the run: plain numbers, strings, booleans
@@ -1231,6 +1746,10 @@ replaces an example only when the game ships a newer version of it (a higher
 | `orbital_tweaks` | changing the game's own 3D boss fight: extra drones, a phase message and a hit filter |
 | `media_player` | videos and music: a desktop app with a seek bar, a music track that takes over the game's music, a playlist read with `assets.json`, an LCD font and a video as its desktop icon (`disableAchievements: false`) |
 | `billboard_plaza` | videos and images in a 3D world, a mode called Billboard Plaza: screens fixed in place with `draw3d.texture` (a video with sound that gets louder as you walk up, a PNG poster, a GIF sign, a turning column of videos, a floor decal), `draw3d.billboard` sprites that face you (see-through, drawn farthest first, and a video), an entity drawn as a GIF, shooting a screen to pause it, holding the videos while the world is paused, no resuming after quitting (`resumable = false`) and no restore points at all (`restorePoints = false`; `disableAchievements: false`) |
+| `necromancer` | a status of its own (Soul Burn), allies as things (thralls raised from burning enemies), per-enemy data, and mod events and `mods.export` for other mods to build on |
+| `story_mode` | a story told in a mode: a cutscene, dialogue with a portrait, a blessing chosen with `ui.choose`, a choice that changes the run, a HUD card and a pause-menu action |
+| `chaos_engine` | telegraphed hazards, the camera and time on boss fights, a shop item, a roguelite patch, a survival event, a mod achievement and a Help-terminal command |
+| `content_pack` | a mod without a script: power-ups, an enemy in wave mode's roster, a shop item and a consumable from JSON files under `content/` |
 
 ## Multiplayer
 

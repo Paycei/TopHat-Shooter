@@ -17,7 +17,7 @@
 import raylib, math, strutils
 import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../settings, ../render_context, icon_drawing, ../utils, ui_helpers, hud_dock
-from ../player import DashCooldownTime
+from ../player import dashRechargeOf
 
 const
   COMBINED_PANEL_WIDTH = 238
@@ -194,7 +194,7 @@ proc drawDashRow(game: Game, cx, cw, y: int32): int32 =
   let cd = game.player.dashCooldown
   let ready = cd <= 0.0'f32
   let progress = if ready: 1.0'f32
-                 else: clamp(1.0'f32 - cd / DashCooldownTime, 0.0'f32, 1.0'f32)
+                 else: clamp(1.0'f32 - cd / dashRechargeOf(game.player), 0.0'f32, 1.0'f32)
   let pulse = 0.5'f32 + 0.5'f32 * sin(game.time * 4.0'f32)
 
   let label = t(tkHUDDash)
@@ -306,12 +306,12 @@ proc runPatchCount(game: Game): int =
   if game.mode == gmRoguelite and not game.rogueliteRun.isNil: game.rogueliteRun.relics.len
   else: 0
 
-proc drawPatchRow(game: Game, patch: RogueliteRelicType, cx, cw, y: int32,
+proc drawPatchRow(game: Game, patch: RogueliteRelic, cx, cw, y: int32,
                   fresh: bool, shade: bool) =
   ## Same shape as a process row: the patch glyph in its category colour, the
   ## patch's name, and a READY / USED / STALLED tag for the ones with a charge.
   ## A spent patch dims, so the tag explains why.
-  let status = patchStatus(game, patch)
+  let status = patchStatus(game, patch.relicType)
   let spent = status in {psUsed, psStalled}
   let color = patchAccent(patch)
   if shade:
@@ -344,12 +344,12 @@ proc drawPatchRows(game: Game, cx, cw, y: int32, maxRows: int): int32 =
   if n == 0 or maxRows <= 0:
     return y
   let relics = game.rogueliteRun.relics
-  var order: seq[RogueliteRelicType]
+  var order: seq[RogueliteRelic]
   for i in countdown(n - 1, 0):
-    if relics[i].relicType in ChargePatches: order.add relics[i].relicType
+    if relics[i].relicType in ChargePatches: order.add relics[i]
   for i in countdown(n - 1, 0):
-    if relics[i].relicType notin ChargePatches: order.add relics[i].relicType
-  let newest = relics[^1].relicType
+    if relics[i].relicType notin ChargePatches: order.add relics[i]
+  let newest = relics[^1]
   let shown = if n > maxRows: max(0, maxRows - 1) else: n
   var ry = y
   for i in 0..<shown:

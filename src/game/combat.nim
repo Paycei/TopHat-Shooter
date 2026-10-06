@@ -92,6 +92,11 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
     damage = modEnemyDamaged(enemy, damage)
     if damage <= 0.0'f32:
       return 0.0'f32
+  # Mod statuses on the enemy (damageTaken modifiers)
+  if enemy.modStatuses.len > 0:
+    damage *= max(0.0'f32, 1.0'f32 + enemy.statusDamageTaken)
+    if damage <= 0.0'f32:
+      return 0.0'f32
 
   if enemy.enemyType == etStar and not enemy.isBoss:
     # Stars die by hit count, and their HP is only a placeholder: draining it
@@ -192,6 +197,10 @@ proc calculateCombatStats*(player: Player): CombatStats =
   # Damage boost consumable
   if player.damageBoostTimer > 0:
     result.damage *= 1.4  # +40% damage
+
+  # Mod statuses on the player (damageDealt modifiers)
+  if player.modStatuses.len > 0:
+    result.damage *= max(0.0'f32, 1.0'f32 + player.statusDamageDealt)
 
   # Rage power-up - damage increases when HP is low
   result.damage *= rageDamageMultiplier(player)

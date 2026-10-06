@@ -3,8 +3,8 @@
 
 import raylib, math, strutils
 import ../draw_prims
-import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context
-import ../modding/mod_hooks
+import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context, ../utils
+import ../modding/[mod_hooks, mod_registry]
 
 const
   SHOP_BASE_WIDTH: int32 = 950     # classic (4:3) width -- do not change
@@ -98,11 +98,38 @@ proc shopLayout*(): ShopLayout =
   result.buyX = result.winX + result.winW - result.buyW - 20
   result.buyY = result.bottomY + 12
 
-proc itemRect*(l: ShopLayout, i: int): Rectangle =
-  ## Clickable/hover rect of shop row `i` (0..5).
+const ShopVanillaRows* = 6   ## the game's own rows; mod rows (register.shopItem) follow
+
+proc itemRect*(l: ShopLayout, i: int, scroll: int32 = 0): Rectangle =
+  ## Clickable/hover rect of shop row `i` (0..5, then mod rows), the list
+  ## scrolled by `scroll` pixels.
   Rectangle(x: l.itemsX.float32,
-            y: float32(l.itemsY + int32(i) * (ITEM_HEIGHT + ITEM_SPACING)),
+            y: float32(l.itemsY + int32(i) * (ITEM_HEIGHT + ITEM_SPACING) - scroll),
             width: l.itemW.float32, height: ITEM_HEIGHT.float32)
+
+proc listHeight*(l: ShopLayout): int32 =
+  ## The purchase list's visible height (down to the bottom panel).
+  l.bottomY - 8 - l.itemsY
+
+proc listRect*(l: ShopLayout): Rectangle =
+  Rectangle(x: l.itemsX.float32, y: l.itemsY.float32, width: l.itemW.float32,
+            height: l.listHeight.float32)
+
+proc shopRowCount*(game: Game): int =
+  ## Every row the shop shows this run: the game's six, then the mods'.
+  ShopVanillaRows + modShopRows(game).len
+
+proc shopMaxScroll(game: Game, l: ShopLayout): int32 =
+  max(0'i32, int32(shopRowCount(game)) * (ITEM_HEIGHT + ITEM_SPACING) - ITEM_SPACING - l.listHeight)
+
+proc keepShopSelectionVisible*(game: Game) =
+  ## Scroll so the selected row is fully in view (keyboard / pad navigation).
+  let l = shopLayout()
+  let top = int32(game.selectedShopItem) * (ITEM_HEIGHT + ITEM_SPACING)
+  if top < game.shopItemsScroll: game.shopItemsScroll = top
+  elif top + ITEM_HEIGHT > game.shopItemsScroll + l.listHeight:
+    game.shopItemsScroll = top + ITEM_HEIGHT - l.listHeight
+  game.shopItemsScroll = clamp(game.shopItemsScroll, 0'i32, shopMaxScroll(game, l))
 
 proc closeRect*(l: ShopLayout): Rectangle =
   Rectangle(x: l.closeX.float32, y: l.closeY.float32,
@@ -286,10 +313,26 @@ proc sandboxWaveAverageConfig*(base: SandboxConfig, wave: int): SandboxConfig =
   result.coins = coins.int
   result.startWave = w
 
+proc drawModShopIconTile(x, y, size: int32, defIdx: int, enabled, selected: bool) =
+  ## A mod row's tile: the same glass square in the item's colour, holding its
+  ## texture or icon (or its initial).
+  let d = shopItemDefs[defIdx]
+  let accent = if enabled: d.color else: Color(r: 118, g: 126, b: 140, a: 150)
+  let tile = Rectangle(x: x.float32, y: y.float32, width: size.float32, height: size.float32)
+  drawRectangleRounded(tile, 0.22, 6, Color(r: 12, g: 16, b: 26, a: 255))
+  drawRectangleRoundedLines(tile, 0.22, 6, if selected: -2.0'f32 else: -1.5'f32,
+                            withAlpha(accent, if selected: 255 elif enabled: 150 else: 70))
+  let c = size.float32 / 2
+  if not drawModShopIcon(defIdx, x.float32 + c, y.float32 + c, size.float32 * 0.7'f32):
+    let name = pickText(d.nameEn, d.nameEs)
+    let ch = if name.len > 0: $name[0].toUpperAscii else: "?"
+    drawText(ch, x + size div 2 - measureText(ch, 20) div 2, y + size div 2 - 10, 20, accent)
+
 proc drawModernShopButton(x, y, width, height: int32, text: string,
                          cost: int, canAfford: bool, isSelected: bool,
                          time: float32, itemIndex: int = 0,
-                         description: string = "", boughtCount: int = 0) =
+                         description: string = "", boughtCount: int = 0,
+                         modDef: int = -1) =
   ## Draw a modern styled shop item button
   # Button shadow
   if canAfford:
@@ -327,8 +370,11 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
 
   # Icon - drawn programmatically on an app-style tile in the slot's own hue
   const ICON_TILE: int32 = 38
-  drawShopIconTile(x + 6, y + (height - ICON_TILE) div 2, ICON_TILE, itemIndex,
-                   canAfford, isSelected)
+  if modDef >= 0:
+    drawModShopIconTile(x + 6, y + (height - ICON_TILE) div 2, ICON_TILE, modDef, canAfford, isSelected)
+  else:
+    drawShopIconTile(x + 6, y + (height - ICON_TILE) div 2, ICON_TILE, itemIndex,
+                     canAfford, isSelected)
 
   # Text color
   let textColor = if not canAfford:
@@ -570,26 +616,63 @@ proc drawShop*(game: Game) =
   drawText("v " & t(tkShopAvailablePurchases), L.headerX, L.headerY, 16,
           Color(r: 200, g: 220, b: 240, a: 255))
 
+  # Rows: the game's six, then any mod rows (register.shopItem). Past what
+  # fits, the list scrolls (wheel, or following the selection).
+  let modRows = modShopRows(game)
+  let rowCount = ShopVanillaRows + modRows.len
+  game.selectedShopItem = clamp(game.selectedShopItem, 0, rowCount - 1)
+  let maxItemScroll = shopMaxScroll(game, L)
+  let listR = L.listRect
+  if maxItemScroll > 0 and checkCollisionPointRec(getVirtualMousePosition(), listR):
+    let wheel = getPointerWheelMove()
+    if wheel != 0.0:
+      game.shopItemsScroll -= int32(wheel * 40.0)
+  game.shopItemsScroll = clamp(game.shopItemsScroll, 0'i32, maxItemScroll)
+  let scroll = game.shopItemsScroll
+
   # Mouse hover detection
   if game.mouseMovedRecently and not game.keyboardUsedRecently:
     let mousePos = getVirtualMousePosition()
-
-    for i in 0..5:
-      if checkCollisionPointRec(mousePos, L.itemRect(i)):
-        game.selectedShopItem = i
+    if checkCollisionPointRec(mousePos, listR):
+      for i in 0 ..< rowCount:
+        if checkCollisionPointRec(mousePos, L.itemRect(i, scroll)):
+          game.selectedShopItem = i
 
   # Draw shop items with programmatic icons
-  for i in 0..5:
-    let r = L.itemRect(i)
-    let item = game.shopItems[i]
-    let cost = getCurrentCost(item)
-    let canAfford = game.player.coins >= cost
+  if maxItemScroll > 0:
+    beginVirtualScissorMode(L.itemsX - 4, L.itemsY - 4, L.itemW + 8, L.listHeight + 8)
+  for i in 0 ..< rowCount:
+    let r = L.itemRect(i, scroll)
+    if r.y + r.height < L.itemsY.float32 - 4 or r.y > (L.itemsY + L.listHeight).float32 + 4:
+      continue
     let isSelected = i == game.selectedShopItem
-
-    # Draw item button
-    drawModernShopButton(r.x.int32, r.y.int32, r.width.int32, r.height.int32,
-                        item.name, cost, canAfford, isSelected,
-                        game.time, i, item.description, item.bought)
+    if i < ShopVanillaRows:
+      let item = game.shopItems[i]
+      let cost = getCurrentCost(item)
+      let canAfford = game.player.coins >= cost
+      # Draw item button
+      drawModernShopButton(r.x.int32, r.y.int32, r.width.int32, r.height.int32,
+                          item.name, cost, canAfford, isSelected,
+                          game.time, i, item.description, item.bought)
+    else:
+      let di = modRows[i - ShopVanillaRows]
+      let d = shopItemDefs[di]
+      let bought = modShopBoughtCount(game, d.key)
+      let soldOut = d.maxBuys > 0 and bought >= d.maxBuys
+      let cost = modShopCost(d, bought)
+      drawModernShopButton(r.x.int32, r.y.int32, r.width.int32, r.height.int32,
+                          pickText(d.nameEn, d.nameEs), cost,
+                          not soldOut and game.player.coins >= cost, isSelected,
+                          game.time, i, pickText(d.descEn, d.descEs), bought, modDef = di)
+  if maxItemScroll > 0:
+    endScissorMode()
+    # scrollbar
+    let trackH = L.listHeight
+    let thumbH = max(20'i32, int32(trackH.float32 * trackH.float32 / (trackH + maxItemScroll).float32))
+    let thumbY = L.itemsY + int32(float32(trackH - thumbH) * scroll.float32 / maxItemScroll.float32)
+    let sbX = L.itemsX + L.itemW + 3
+    drawRectangle(sbX, L.itemsY, 4, trackH, Color(r: 20, g: 28, b: 40, a: 200))
+    drawRectangle(sbX, thumbY, 4, thumbH, Color(r: 0, g: 160, b: 220, a: 200))
 
   # Bottom panel with controls - reduced height
   let bottomY = L.bottomY
@@ -615,9 +698,13 @@ proc drawShop*(game: Game) =
   drawText(exitHintText, windowX + 300, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
 
   # Purchase button for selected item (large, prominent)
-  let selectedItem = game.shopItems[game.selectedShopItem]
-  let selectedCost = getCurrentCost(selectedItem)
-  let canBuy = game.player.coins >= selectedCost
+  let canBuy =
+    if game.selectedShopItem < ShopVanillaRows:
+      game.player.coins >= getCurrentCost(game.shopItems[game.selectedShopItem])
+    else:
+      let d = shopItemDefs[modRows[game.selectedShopItem - ShopVanillaRows]]
+      let bought = modShopBoughtCount(game, d.key)
+      not (d.maxBuys > 0 and bought >= d.maxBuys) and game.player.coins >= modShopCost(d, bought)
 
   let buyButtonWidth = L.buyW
   let buyButtonHeight = L.buyH
@@ -732,8 +819,32 @@ proc drawShop*(game: Game) =
   # Center dot
   drawDisc(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
 
+proc buyModShopItem(game: Game, row: int) =
+  ## A mod row (register.shopItem): its own price curve and buy limit, the
+  ## shopBuy hook, the run statistics, then its stats and onBuy.
+  let rows = modShopRows(game)
+  if row < 0 or row >= rows.len: return
+  let di = rows[row]
+  let d = shopItemDefs[di]
+  let bought = modShopBoughtCount(game, d.key)
+  let cost = modShopCost(d, bought)
+  if (d.maxBuys > 0 and bought >= d.maxBuys) or game.player.coins < cost:
+    playSound(stMenuNav, 0.3)
+    return
+  let name = pickText(d.nameEn, d.nameEs)
+  if modShopBuy(game, ShopVanillaRows + row, name, cost):
+    return   # a mod handled (or refused) the purchase
+  playSound(stCoinPickup, 0.8)
+  game.player.coins -= cost
+  setModShopBought(game, d.key, bought + 1)
+  trackShopPurchase(game, name, cost)
+  modShopBuyDone(game, di, bought + 1)
+
 proc buyShopItem*(game: Game, index: int) =
-  if index < 0 or index > 5: return
+  if index >= ShopVanillaRows:
+    buyModShopItem(game, index - ShopVanillaRows)
+    return
+  if index < 0: return
 
   let item = addr game.shopItems[index]
 

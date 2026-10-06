@@ -660,8 +660,9 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
 proc legendaryAbilities(game: Game): seq[PowerUp] =
   ## Installed power-ups that live on the [Q] strip, in install order.
   for powerUp in game.player.powerUps:
-    if powerUp.powerType in legendaryPanelTypes:
-      result.add(powerUp)
+    if powerUp.powerType in legendaryPanelTypes or
+       (isModPowerUp(powerUp.powerType) and powerUpDef(powerUp.powerType).inLegendaryPanel):
+      result.add(powerUp)   # (a mod power-up with an `active` ability too)
 
 proc legendaryGridCols(shownCount: int, alignRightGutter, docked: bool): int32 =
   ## Modern widescreen dock: up to four to a row, which is what the card fits.
@@ -884,7 +885,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
       of puConduit: 15.0'f32
       of puAftershock: 14.0'f32
       of puNova: 16.0'f32
-      else: 1.0'f32
+      else: max(1.0'f32, powerUpDef(powerUp.powerType).activeCooldown)
     let ready = abilityReady(game.player, powerUp.powerType)
     let pulse = if ready:
       0.5'f32 + 0.5'f32 * sin(game.time * 5.0'f32 + i.float32)

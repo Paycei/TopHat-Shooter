@@ -431,6 +431,7 @@ type
     tkDeathPoison = "death_poison"
     tkDeathHazard = "death_hazard"
     tkDeathUnknown = "death_unknown"
+    tkDeathMod = "death_mod"
     tkDeathBossTag = "death_boss_tag"
 
     # HUD/Notifications
@@ -1879,6 +1880,10 @@ type
     tkModsTabInstalled = "mods_tab_installed"
     tkModsTabModes = "mods_tab_modes"
     tkModsTabLog = "mods_tab_log"
+    tkModsTabAchievements = "mods_tab_achievements"
+    tkModsNoAchievements = "mods_no_achievements"
+    tkModsHiddenAchievement = "mods_hidden_achievement"
+    tkModsAchievementDone = "mods_achievement_done"
     tkModsTabApps = "mods_tab_apps"
     tkModsNoApps = "mods_no_apps"
     tkModsOpenApp = "mods_open_app"
@@ -2559,6 +2564,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_status": "Status",
     "os_tab_processes": "Processes",
     "os_tab_patches": "Patches",
+    "os_tab_mods": "Mods",
+    "os_mod_actions": "Mod actions",
+    "os_mod_actions_hint": "Click, or press ENTER, to run an action.",
     "os_tab_performance": "Performance",
     "os_installed_patches": "INSTALLED PATCHES",
     "os_no_patches": "No patches installed yet. Find them in /updates and /quarantine folders or at /pkg stalls.",
@@ -2732,6 +2740,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "death_poison": "Corroded by",
     "death_hazard": "Lost to an arena hazard",
     "death_unknown": "Connection to host terminated",
+    "death_mod": "Terminated by",
     "death_boss_tag": "BOSS",
 
     # HUD/Notifications
@@ -4089,6 +4098,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_tab_installed": "Installed",
     "mods_tab_modes": "Game Modes",
     "mods_tab_log": "Log",
+    "mods_tab_achievements": "Achievements",
+    "mods_no_achievements": "None of the loaded mods has achievements of its own. They are the mods' own: they never change the game's advancements or their rewards.",
+    "mods_hidden_achievement": "A hidden achievement.",
+    "mods_achievement_done": "UNLOCKED",
+    "mods_achievement_unlocked": "Mod achievement unlocked",
     "mods_tab_apps": "Apps",
     "mods_no_apps": "No loaded mod adds an app. Mods add them with register.app.",
     "mods_open_app": "Open",
@@ -4832,6 +4846,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "death_poison": "Corroído por",
     "death_hazard": "Perdido ante un peligro de la arena",
     "death_unknown": "Conexión con el host terminada",
+    "death_mod": "Terminado por",
     "death_boss_tag": "JEFE",
 
     # HUD/Notifications
@@ -5355,6 +5370,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_status": "Estado",
     "os_tab_processes": "Procesos",
     "os_tab_patches": "Parches",
+    "os_tab_mods": "Mods",
+    "os_mod_actions": "Acciones de mods",
+    "os_mod_actions_hint": "Haz clic, o pulsa ENTER, para ejecutar una acción.",
     "os_tab_performance": "Rendimiento",
     "os_installed_patches": "PARCHES INSTALADOS",
     "os_no_patches": "Aún no hay parches instalados. Encuéntralos en las carpetas /updates y /quarantine o en los puestos de /pkg.",
@@ -6296,6 +6314,11 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_tab_installed": "Instalados",
     "mods_tab_modes": "Modos de juego",
     "mods_tab_log": "Registro",
+    "mods_tab_achievements": "Logros",
+    "mods_no_achievements": "Ningún mod cargado tiene logros propios. Son de los mods: nunca cambian los avances del juego ni sus recompensas.",
+    "mods_hidden_achievement": "Un logro oculto.",
+    "mods_achievement_done": "DESBLOQUEADO",
+    "mods_achievement_unlocked": "Logro de mod desbloqueado",
     "mods_tab_apps": "Apps",
     "mods_no_apps": "Ningún mod cargado añade una app. Los mods las añaden con register.app.",
     "mods_open_app": "Abrir",

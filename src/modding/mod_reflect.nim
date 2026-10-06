@@ -155,6 +155,15 @@ proc assignScript*[E: enum](vm: VM, dest: var set[E], v: ScriptValue, field: str
       vm.runtimeError("field '" & field & "' has no value named '" & x.str.s & "'")
   dest = s
 
+proc checkKeys*(vm: VM, t: ScriptTable, allowed: openArray[string], what: string) =
+  ## A typo in an option table is an error naming it, never a silent no-op
+  ## (every register.* and spawn.* table added since the 3D API is strict).
+  for (k, _) in pairsCursor(t):
+    if k.kind != vkString:
+      vm.runtimeError(what & ": keys must be field names")
+    if k.str.s notin allowed:
+      vm.runtimeError(what & ": unknown field '" & k.str.s & "' (fields: " & allowed.join(", ") & ")")
+
 # --------------------------------------------------------------- generic ----
 proc reflectGet*[T: ref object](obj: T, name: string, found: var bool): ScriptValue =
   found = false

@@ -312,11 +312,12 @@ type
 proc gridClampi(v, lo, hi: int): int {.inline.} =
   if v < lo: lo elif v > hi: hi else: v
 
-proc rebuild*(grid: var SpatialGrid, enemies: seq[Enemy],
-              cellSize, minX, minY, maxX, maxY: float32) =
-  ## Re-bin every enemy index into the grid. O(enemy count). Call once per frame
-  ## before a batch of queries; the produced indices are valid until `game.enemies`
-  ## is next mutated (add/delete), which must not happen between rebuild and use.
+proc rebuild*[T](grid: var SpatialGrid, enemies: seq[T],
+                 cellSize, minX, minY, maxX, maxY: float32) =
+  ## Re-bin every index into the grid. O(count). Call once per frame before a
+  ## batch of queries; the produced indices are valid until the seq is next
+  ## mutated (add/delete), which must not happen between rebuild and use.
+  ## Generic over anything with a `pos` (enemies, mod things).
   grid.cellSize = max(1.0'f32, cellSize)
   grid.originX = minX
   grid.originY = minY

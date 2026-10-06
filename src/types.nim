@@ -235,10 +235,22 @@ type
     etCorruptor,   # Leaves decaying corrupted floor tiles
     # MODS.EXE: reserved slots, bound at load time to the enemies mods register
     # (register.enemy). Never saved by name. New built-in enemies go ABOVE.
-    etMod00, etMod01, etMod02, etMod03, etMod04, etMod05, etMod06, etMod07,
-    etMod08, etMod09, etMod10, etMod11, etMod12, etMod13, etMod14, etMod15,
-    etMod16, etMod17, etMod18, etMod19, etMod20, etMod21, etMod22, etMod23,
-    etMod24, etMod25, etMod26, etMod27, etMod28, etMod29, etMod30, etMod31,
+    etMod000, etMod001, etMod002, etMod003, etMod004, etMod005, etMod006, etMod007,
+    etMod008, etMod009, etMod010, etMod011, etMod012, etMod013, etMod014, etMod015,
+    etMod016, etMod017, etMod018, etMod019, etMod020, etMod021, etMod022, etMod023,
+    etMod024, etMod025, etMod026, etMod027, etMod028, etMod029, etMod030, etMod031,
+    etMod032, etMod033, etMod034, etMod035, etMod036, etMod037, etMod038, etMod039,
+    etMod040, etMod041, etMod042, etMod043, etMod044, etMod045, etMod046, etMod047,
+    etMod048, etMod049, etMod050, etMod051, etMod052, etMod053, etMod054, etMod055,
+    etMod056, etMod057, etMod058, etMod059, etMod060, etMod061, etMod062, etMod063,
+    etMod064, etMod065, etMod066, etMod067, etMod068, etMod069, etMod070, etMod071,
+    etMod072, etMod073, etMod074, etMod075, etMod076, etMod077, etMod078, etMod079,
+    etMod080, etMod081, etMod082, etMod083, etMod084, etMod085, etMod086, etMod087,
+    etMod088, etMod089, etMod090, etMod091, etMod092, etMod093, etMod094, etMod095,
+    etMod096, etMod097, etMod098, etMod099, etMod100, etMod101, etMod102, etMod103,
+    etMod104, etMod105, etMod106, etMod107, etMod108, etMod109, etMod110, etMod111,
+    etMod112, etMod113, etMod114, etMod115, etMod116, etMod117, etMod118, etMod119,
+    etMod120, etMod121, etMod122, etMod123, etMod124, etMod125, etMod126, etMod127,
     etEnvironment  # Sentinel: damage from arena hazards, not an enemy (keep LAST)
 
   DeathCause* = enum
@@ -252,7 +264,8 @@ type
     dcExplosion,     # Caught in an enemy/elite explosion
     dcMeteorite,     # Struck by a falling meteorite
     dcPoison,        # Poison damage-over-time finished the job
-    dcHazard         # Arena/environmental hazard
+    dcHazard,        # Arena/environmental hazard
+    dcMod            # A mod's own cause (player:hurt(n, {cause = ...}): game.modWorld.deathLabel)
 
   EliteType* = enum
     etNone,        # Not elite
@@ -273,7 +286,8 @@ type
     ctShieldBoost,      # Temporary shield (absorbs hits)
     ctDoubleCoin,       # 2x coin value for duration
     ctDamageBoost,      # Increased damage
-    ctLifesteal         # Heal on kill
+    ctLifesteal,        # Heal on kill
+    ctMod               # A mod's consumable (register.consumable): Consumable.modKey names it
 
   PowerUpType* = enum
     puAftershock,      # LEGENDARY active: shockwave traces backward along movement path
@@ -371,14 +385,38 @@ type
     # register (register.powerup). An unbound slot appears nowhere, and slot
     # names are never saved (saves store "mod:<id>:<name>"). New built-in
     # power-ups go ABOVE this block.
-    puMod00, puMod01, puMod02, puMod03, puMod04, puMod05, puMod06, puMod07,
-    puMod08, puMod09, puMod10, puMod11, puMod12, puMod13, puMod14, puMod15,
-    puMod16, puMod17, puMod18, puMod19, puMod20, puMod21, puMod22, puMod23,
-    puMod24, puMod25, puMod26, puMod27, puMod28, puMod29, puMod30, puMod31,
-    puMod32, puMod33, puMod34, puMod35, puMod36, puMod37, puMod38, puMod39,
-    puMod40, puMod41, puMod42, puMod43, puMod44, puMod45, puMod46, puMod47,
-    puMod48, puMod49, puMod50, puMod51, puMod52, puMod53, puMod54, puMod55,
-    puMod56, puMod57, puMod58, puMod59, puMod60, puMod61, puMod62, puMod63
+    puMod000, puMod001, puMod002, puMod003, puMod004, puMod005, puMod006, puMod007,
+    puMod008, puMod009, puMod010, puMod011, puMod012, puMod013, puMod014, puMod015,
+    puMod016, puMod017, puMod018, puMod019, puMod020, puMod021, puMod022, puMod023,
+    puMod024, puMod025, puMod026, puMod027, puMod028, puMod029, puMod030, puMod031,
+    puMod032, puMod033, puMod034, puMod035, puMod036, puMod037, puMod038, puMod039,
+    puMod040, puMod041, puMod042, puMod043, puMod044, puMod045, puMod046, puMod047,
+    puMod048, puMod049, puMod050, puMod051, puMod052, puMod053, puMod054, puMod055,
+    puMod056, puMod057, puMod058, puMod059, puMod060, puMod061, puMod062, puMod063,
+    puMod064, puMod065, puMod066, puMod067, puMod068, puMod069, puMod070, puMod071,
+    puMod072, puMod073, puMod074, puMod075, puMod076, puMod077, puMod078, puMod079,
+    puMod080, puMod081, puMod082, puMod083, puMod084, puMod085, puMod086, puMod087,
+    puMod088, puMod089, puMod090, puMod091, puMod092, puMod093, puMod094, puMod095,
+    puMod096, puMod097, puMod098, puMod099, puMod100, puMod101, puMod102, puMod103,
+    puMod104, puMod105, puMod106, puMod107, puMod108, puMod109, puMod110, puMod111,
+    puMod112, puMod113, puMod114, puMod115, puMod116, puMod117, puMod118, puMod119,
+    puMod120, puMod121, puMod122, puMod123, puMod124, puMod125, puMod126, puMod127,
+    puMod128, puMod129, puMod130, puMod131, puMod132, puMod133, puMod134, puMod135,
+    puMod136, puMod137, puMod138, puMod139, puMod140, puMod141, puMod142, puMod143,
+    puMod144, puMod145, puMod146, puMod147, puMod148, puMod149, puMod150, puMod151,
+    puMod152, puMod153, puMod154, puMod155, puMod156, puMod157, puMod158, puMod159,
+    puMod160, puMod161, puMod162, puMod163, puMod164, puMod165, puMod166, puMod167,
+    puMod168, puMod169, puMod170, puMod171, puMod172, puMod173, puMod174, puMod175,
+    puMod176, puMod177, puMod178, puMod179, puMod180, puMod181, puMod182, puMod183,
+    puMod184, puMod185, puMod186, puMod187, puMod188, puMod189, puMod190, puMod191,
+    puMod192, puMod193, puMod194, puMod195, puMod196, puMod197, puMod198, puMod199,
+    puMod200, puMod201, puMod202, puMod203, puMod204, puMod205, puMod206, puMod207,
+    puMod208, puMod209, puMod210, puMod211, puMod212, puMod213, puMod214, puMod215,
+    puMod216, puMod217, puMod218, puMod219, puMod220, puMod221, puMod222, puMod223,
+    puMod224, puMod225, puMod226, puMod227, puMod228, puMod229, puMod230, puMod231,
+    puMod232, puMod233, puMod234, puMod235, puMod236, puMod237, puMod238, puMod239,
+    puMod240, puMod241, puMod242, puMod243, puMod244, puMod245, puMod246, puMod247,
+    puMod248, puMod249, puMod250, puMod251, puMod252, puMod253, puMod254, puMod255
 
   PowerUpRarity* = enum
     prCommon,
@@ -462,6 +500,7 @@ type
     kind*: DungeonPickupKind
     taken*: bool             # (stall prices are derived live: see stallPrice in dungeon.nim)
     patch*: RogueliteRelicType   # pedestal / patch stall
+    modPatch*: string            # patch == rrtMod: which mod patch
     powerUp*: PowerUp        # power-up stall (level re-derived at purchase)
     amount*: int             # credits / shards / repair percent
     group*: int              # taking one pickup removes the rest of its group (0 = none)
@@ -524,13 +563,15 @@ type
     rrtRollback,         # once per sector, survive a lethal hit
     rrtCryptominer,      # kills mine credits, -damage
     rrtRaidMirror,       # every 3rd shot also fires backward
-    rrtPacketLoss        # some regular enemy bullets are dropped as fired
+    rrtPacketLoss,       # some regular enemy bullets are dropped as fired
+    rrtMod               # a mod's patch (register.patch): RogueliteRelic.modKey names it. Keep last.
 
   RogueliteRelic* = object
     ## A PATCH, as the player sees it (KB-####). The internal name predates the
     ## rename and stays because saves parse `$relicType`; the display name,
     ## KB number and description all come from patches.nim via t().
     relicType*: RogueliteRelicType
+    modKey*: string          # rrtMod: the registered patch ("<mod id>:<id>")
 
   RogueliteProfile* = ref object
     version*: int
@@ -709,6 +750,17 @@ type
     hitEnemies*: seq[int]              # Track which enemies were hit (by index)
     lastHitTime*: Table[int, float32]  # Track when each enemy was last hit (pruned on access)
 
+  ModStatusInst* = object
+    ## One mod status (register.status) on an enemy or the player. Plain data:
+    ## its behaviour lives on the registered status, found by `key`.
+    key*: string             ## "<mod id>:<id>"
+    stacks*: int32
+    remaining*: float32      ## seconds left (duration <= 0: until cleared)
+    duration*: float32
+    tickTimer*: float32
+    magnitude*: float32      ## scales the status's modifiers (1 = as registered)
+    sourceId*: int           ## who applied it (an enemy id, 0 = none)
+
   Player* = ref object
     pos*: Vector2f
     vel*: Vector2f
@@ -807,6 +859,13 @@ type
     poisonDamage*: float32
     poisonAccumulator*: float32  # Accumulates fractional poison damage until it reaches 1.0
     poisonSourceType*: EnemyType  # Enemy type that applied the poison (for stats tracking)
+    modStatuses*: seq[ModStatusInst]  # Mod statuses (register.status) on the player
+    statusSpeed*, statusDamageTaken*, statusDamageDealt*: float32
+      ## Their summed modifiers, as fractions (-0.3 = 30% less); kept current by mod_registry
+    modAbilityCooldowns*: array[puMod000..puMod255, float32]  # [Q] cooldowns of mod power-ups (register.powerup active)
+    dashBurstMult*: float32  # Dash speed multiple; dashTime / dashRecharge its burst and cooldown
+    dashTime*: float32       # (initialised from player.nim's Dash* constants; scripts may tune them)
+    dashRecharge*: float32
     lastDamageAvoided*: float32  # Set by takeDamage when a hit is blocked, read by game.nim to record damageAvoided
     lastDamageTaken*: float32    # Set by takeDamage to the HP actually lost: 0 when the hit was blocked,
                                  # dodged or fully absorbed, and net of Fortified/shield mitigation and the
@@ -1035,6 +1094,9 @@ type
 
   Enemy* = ref object
     id*: int                      # Unique identifier for tracking bullet hits
+    modStatuses*: seq[ModStatusInst]  # Mod statuses (register.status) on this enemy
+    statusSpeed*, statusDamageTaken*, statusDamageDealt*: float32
+      ## Their summed modifiers, as fractions (kept current by mod_registry)
     auraWaveHitSeq*: array[AuraSlot, int32]  # Last aura pulse (per slot) whose wavefront already hit this enemy
     pos*: Vector2f
     vel*: Vector2f
@@ -1219,6 +1281,83 @@ type
     roomEchoMultiplier*: float32  # Room Echo charged-shot multiplier baked in at fire time (1.0 = uncharged)
     hasCountedHit*: bool      # True once this bullet has been counted as a connecting shot. A piercing
                               # bullet hits several enemies but is still one shot, so accuracy needs this.
+    modKind*: string          # A mod projectile kind ("<mod id>:<id>", register.projectile); "" = none
+    modPierce*: int32         # Enemies a mod bullet still passes through before the vanilla pierce rules
+
+  # ---- Mod things (src/game/things.nim, register.thing / spawn.thing) ----
+  # One generic arena entity for everything a mod adds to the 2D arena: allies,
+  # turrets, orbitals, auras, obstacles, zones, props, custom pickups and
+  # hazards. Behaviour lives on the registered kind (keyed by `kind`), never on
+  # the instance, so a thing is plain data and snapshots like an enemy.
+  ThingTeam* = enum
+    ttNeutral = "neutral", ttPlayer = "player", ttEnemy = "enemy"
+  ThingShape* = enum
+    tsCircle = "circle", tsRect = "rect"
+  ThingMotion* = enum
+    tmFree = "free", tmStatic = "static", tmFollowPlayer = "followPlayer",
+    tmOrbitPlayer = "orbitPlayer", tmChasePlayer = "chasePlayer", tmChaseEnemy = "chaseEnemy"
+  ThingLayer* = enum
+    tlBelow = "below", tlNormal = "normal", tlAbove = "above"
+  ThingFlag* = enum
+    tfSolid = "solid", tfBlocksBullets = "blocksBullets", tfHitByBullets = "hitByBullets",
+    tfPickup = "pickup", tfMagnet = "magnet", tfPersistent = "persistent",
+    tfInvulnerable = "invulnerable", tfDead = "dead", tfRemoved = "removed"
+  HazardShape* = enum
+    hzNone = "none", hzCircle = "circle", hzRect = "rect", hzLine = "line", hzRing = "ring"
+  HazardTargets* = enum
+    htPlayer = "player", htEnemies = "enemies", htAll = "all"
+
+  HazardSpec* = object
+    ## A telegraphed area: `warn` seconds of warning (always drawn), then
+    ## `active` seconds hurting what `hurts` names, every `tick` seconds
+    ## (0 = once). Geometry: a circle uses the thing's radius, a rect w x h, a
+    ## line `length` from the thing along `angle`, a ring inner..radius.
+    shape*: HazardShape
+    warn*, active*, tick*: float32
+    damage*: float32
+    hurts*: HazardTargets
+    phase*: int32            ## 0 warning, 1 active, 2 done
+    timer*: float32          ## seconds into the current phase
+    tickTimer*: float32
+    length*, inner*: float32
+
+  ModThing* = ref object
+    id*: int
+    kind*: string            ## the registered kind, "<mod id>:<id>" ("@hazard" for spawn.hazard)
+    tag*: string
+    pos*, vel*: Vector2f
+    angle*, spin*: float32   ## degrees, degrees per second
+    motion*: ThingMotion
+    speed*, friction*, bounce*: float32
+    orbitRadius*, orbitAngle*: float32
+    radius*, w*, h*: float32
+    shape*: ThingShape
+    team*: ThingTeam
+    flags*: set[ThingFlag]
+    hp*, maxHp*: float32
+    contactDamage*, contactInterval*, contactTimer*: float32
+    lifetime*, age*: float32 ## lifetime 0 = forever
+    layer*: ThingLayer
+    color*: Color
+    scale*: float32
+    weaponTimer*: float32
+    updateTimer*: float32    ## the kind's update runs every updateEvery seconds
+    hitFlash*: float32
+    hazard*: HazardSpec
+
+  ModWorldState* = object
+    ## What scripts changed about the arena itself (camera, clocks, the death
+    ## screen's label). Written only through the validating APIs.
+    nextThingId*: int
+    camZoom*: float32        ## 0 = untouched (1)
+    camX*, camY*: float32    ## the camera's centre (arena coordinates) when not following
+    camFollow*: bool
+    camLerp*: float32
+    camCurX*, camCurY*: float32  ## the centre actually shown (eased toward the target)
+    timeScale*: float32      ## 0 = untouched (1)
+    enemyTimeScale*: float32
+    enemyTimeSet*: bool      ## enemyTimeScale applies (0 there freezes enemies)
+    deathLabel*: string      ## player:hurt(n, {cause = "Lava"}): the killer the death screen names
 
   Coin* = ref object
     pos*: Vector2f
@@ -1241,6 +1380,7 @@ type
     radius*: float32
     consumableType*: ConsumableType
     lifetime*: float32
+    modKey*: string   # ctMod: the registered consumable ("<mod id>:<id>")
 
   Wall* = ref object
     pos*: Vector2f
@@ -1484,7 +1624,8 @@ type
     tmtProcesses,    # Active power-ups
     tmtPerformance,  # Stats and metrics
     tmtSettings,     # Game settings access
-    tmtPatches       # Roguelite: the run's installed patches
+    tmtPatches,      # Roguelite: the run's installed patches
+    tmtMods          # Mods' pause-menu actions (register.pauseAction), when any are loaded
 
   BossWaveManager* = object
     active*: bool        # True when a boss is currently spawned
@@ -1627,7 +1768,8 @@ type
     sekUploadZone,      # stand inside a zone until its upload completes
     sekCorruptedSector, # telegraphed meteors rain around the player
     sekRogueProcess,    # a champion elite to hunt down before it escapes
-    sekOverclock        # double XP, denser horde
+    sekOverclock,       # double XP, denser horde
+    sekMod              # a mod's event (register.survivalEvent): SurvivalEvent.modKey names it
 
   SurvivalTag* = enum
     ## Marks enemies spawned by an event so the event can count them.
@@ -1723,10 +1865,13 @@ type
     progress*: float32         # Upload Zone fill, 0..1
     progressStep*: int         # last 25% step chimed
     rogueId*: int              # Rogue Process enemy id (-1 before it spawns)
+    modKey*: string            # sekMod: the registered event
+    modOutcome*: int32         # sekMod: 0 running, 1 success, 2 fail (its update decides)
 
   SurvivalState* = object
     event*: SurvivalEvent
     lastEventKind*: SurvivalEventKind
+    lastModEventKey*: string
     nextEventClock*: float32       # survival clock at which the next random event may start
     formationClock*: float32       # survival clock of the next set-piece formation
     spawnBudget*: float32          # density spawner's accumulated spawn allowance
@@ -1741,6 +1886,7 @@ type
     lastPhase*: SurvivalPhase      # for the phase-change banner
     bannerKind*: SurvivalBannerKind
     bannerEvent*: SurvivalEventKind
+    bannerModKey*: string      # bannerEvent == sekMod: whose name the banner shows
     bannerStart*: float32          # game.time the banner started
     eventsStarted*: int
     eventsCleared*: int
@@ -1791,6 +1937,8 @@ type
     screenWidth*: int32
     screenHeight*: int32
     shopItems*: array[6, ShopItem]
+    modShopBought*: seq[tuple[key: string, bought: int]]  # register.shopItem rows bought this run
+    shopItemsScroll*: int32  # the purchase list's scroll (px) once mod rows make it overflow
     selectedShopItem*: int
     countdownTimer*: float32
     waveClearedTimer*: float32  # Timer for wave cleared transition
@@ -1841,6 +1989,8 @@ type
     modFingerprint*: string
     modMode*: string
     modRunData*: string
+    modThings*: seq[ModThing]   ## mod arena entities (game/things.nim)
+    modWorld*: ModWorldState
     runHadDeath*: bool  # Sticky: the run has died at least once (or resumed a block checkpoint after dying)
     livesUsed*: int  # Wave/roguelite/survival: continues already spent this run (see difficultyMaxLives)
     # What the lifetime statistics already hold for this run. A Continue rolls the
@@ -1935,6 +2085,14 @@ const BossWaveInterval* = 5
 # names) stays a plain lookup.
 
 const MaxBossId* = 23
+
+const MaxModThings* = 4000  ## things alive at once in a run (spawns past it are refused)
+
+const
+  FirstModPowerUp* = puMod000  ## the reserved power-up slots mods bind (register.powerup)
+  LastModPowerUp* = puMod255
+  FirstModEnemy* = etMod000    ## the reserved enemy slots (register.enemy)
+  LastModEnemy* = etMod127
 
 proc isWaveBossId*(id: int): bool {.inline.} =
   ## The 12-boss wave campaign (what the Full Boss Codex counts).
@@ -2219,54 +2377,65 @@ proc initSurvivalState*(): SurvivalState =
 #   boss pace   spawnBoss (enemy.nim) + the boss attack-timer reset (game.nim)
 # ---------------------------------------------------------------------------
 
+type DifficultyLever* = enum
+  ## The levers a mod's difficulty.scale multiplies (per run, on top of the profile).
+  dlEnemyHp = "enemyHp", dlEnemyDamage = "enemyDamage", dlEnemySpeed = "enemySpeed",
+  dlSpawnPace = "spawnPace", dlEliteChance = "eliteChance", dlBossCooldown = "bossCooldown"
+
+var modDifficultyScale* = [1'f32, 1, 1, 1, 1, 1]
+  ## difficulty.scale's multipliers, indexed by ord(DifficultyLever). Reset to 1
+  ## for every new run (mod_hooks.modBeginFrame); scripts set them again in runStart.
+
+template modLever(l: DifficultyLever): float32 = modDifficultyScale[ord(l)]
+
 proc difficultyEnemyHpMult*(): float32 =
-  case currentDifficulty
-  of gdEasy: 0.75'f32
-  of gdMedium: 1.0'f32
-  of gdHard: 1.40'f32
-  of gdNightmare: 1.80'f32
+  (case currentDifficulty
+   of gdEasy: 0.75'f32
+   of gdMedium: 1.0'f32
+   of gdHard: 1.40'f32
+   of gdNightmare: 1.80'f32) * modLever(dlEnemyHp)
 
 proc difficultyEnemyDamageMult*(): float32 =
-  case currentDifficulty
-  of gdEasy: 0.70'f32
-  of gdMedium: 1.0'f32
-  of gdHard: 1.40'f32
-  of gdNightmare: 1.80'f32
+  (case currentDifficulty
+   of gdEasy: 0.70'f32
+   of gdMedium: 1.0'f32
+   of gdHard: 1.40'f32
+   of gdNightmare: 1.80'f32) * modLever(dlEnemyDamage)
 
 proc difficultyEnemySpeedMult*(): float32 =
   ## Regular-enemy movement speed. Bosses are excluded: their movement is
   ## choreographed (orbit landing radii, dash lanes), so they get harder through
   ## difficultyBossCooldownMult instead.
-  case currentDifficulty
-  of gdEasy, gdMedium: 1.0'f32
-  of gdHard: 1.12'f32
-  of gdNightmare: 1.22'f32
+  (case currentDifficulty
+   of gdEasy, gdMedium: 1.0'f32
+   of gdHard: 1.12'f32
+   of gdNightmare: 1.22'f32) * modLever(dlEnemySpeed)
 
 proc difficultySpawnPaceMult*(): float32 =
   ## Divides the delay between spawn ticks. A wave's head count is unchanged
   ## (every per-enemy reward is normalised against calculateWaveEnemyCount, see
   ## waveDensityRebate), so this packs the same wave into a shorter window: more
   ## bodies on screen at once, not a bigger economy.
-  case currentDifficulty
-  of gdEasy, gdMedium: 1.0'f32
-  of gdHard: 1.25'f32
-  of gdNightmare: 1.50'f32
+  (case currentDifficulty
+   of gdEasy, gdMedium: 1.0'f32
+   of gdHard: 1.25'f32
+   of gdNightmare: 1.50'f32) * modLever(dlSpawnPace)
 
 proc difficultyEliteChanceMult*(): float32 =
   ## Scales the per-enemy elite roll in makeElite.
-  case currentDifficulty
-  of gdEasy, gdMedium: 1.0'f32
-  of gdHard: 1.5'f32
-  of gdNightmare: 2.0'f32
+  (case currentDifficulty
+   of gdEasy, gdMedium: 1.0'f32
+   of gdHard: 1.5'f32
+   of gdNightmare: 2.0'f32) * modLever(dlEliteChance)
 
 proc difficultyBossCooldownMult*(): float32 =
   ## Scales every custom-boss attack cooldown (lower = attacks more often).
   ## Phase-transition silences are left alone, so a boss still resumes exactly
   ## when its invulnerability ends.
-  case currentDifficulty
-  of gdEasy, gdMedium: 1.0'f32
-  of gdHard: 0.85'f32
-  of gdNightmare: 0.72'f32
+  (case currentDifficulty
+   of gdEasy, gdMedium: 1.0'f32
+   of gdHard: 0.85'f32
+   of gdNightmare: 0.72'f32) * modLever(dlBossCooldown)
 
 proc difficultyMaxLives*(mode: GameMode, modMode = ""): int =
   ## Continues ("lives") a run of `mode` gets on this profile, or UnlimitedLives

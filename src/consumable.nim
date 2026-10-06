@@ -1,6 +1,7 @@
 import raylib, random, math
 import draw_prims
 import particle_types, types, utils
+import modding/mod_registry
 
 # Icon drawing: simple, clear glyphs so each pickup reads at a glance.
 
@@ -231,9 +232,20 @@ proc drawConsumableIcon*(x, y, radius: float32, cType: ConsumableType, pulse: fl
     drawDamageBoostIcon(cx, cy, size)
   of ctLifesteal:
     drawLifestealIcon(cx, cy, size)
+  of ctMod:
+    discard   # drawn by drawConsumable (its look lives on the mod's registration)
 
-proc newConsumable*(x, y: float32, difficulty: float32): Consumable =
-  # Weighted selection based on difficulty
+proc newConsumable*(x, y: float32, difficulty: float32, mode = gmWaveBased): Consumable =
+  # Weighted selection based on difficulty. Mod consumables (register.consumable)
+  # add their weights on top of the game's 100.
+  let modWeight = if consumableDefs.len > 0: modConsumableWeight(mode) else: 0'f32
+  if modWeight > 0:
+    let r = rand(100'f32 + modWeight)
+    if r >= 100:
+      let key = rollModConsumable(mode, r - 100)
+      if key.len > 0:
+        return Consumable(pos: newVector2f(x, y), radius: 9, consumableType: ctMod,
+                          lifetime: 15.0, modKey: key)
   let roll = rand(100)
   var cType: ConsumableType
 
@@ -291,6 +303,7 @@ proc getConsumableColor(cType: ConsumableType): Color =
   of ctDoubleCoin: Color(r: 255, g: 223, b: 0, a: 255)    # Bright gold
   of ctDamageBoost: Color(r: 255, g: 69, b: 0, a: 255)    # Red-orange
   of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)       # Dark red
+  of ctMod: Color(r: 200, g: 200, b: 200, a: 255)         # (its registered colour, see drawConsumable)
 
 proc drawConsumable*(consumable: Consumable) =
   let t = getTime()
@@ -309,6 +322,7 @@ proc drawConsumable*(consumable: Consumable) =
     of ctDoubleCoin:   Color(r: 255, g: 230, b: 50,  a: 50)
     of ctDamageBoost:  Color(r: 255, g: 60,  b: 0,   a: 50)
     of ctLifesteal:    Color(r: 200, g: 0,   b: 0,   a: 50)
+    of ctMod:          withAlpha(modConsumableColor(consumable.modKey), 50)
 
   # Outer soft aura glow (two layers for depth)
   let auraR1 = size + 7 + sin(t * 4.0) * 2.5
@@ -326,9 +340,13 @@ proc drawConsumable*(consumable: Consumable) =
       2.0, withAlpha(auraColor, 200))
 
   # Draw background circle
-  let color = getConsumableColor(consumable.consumableType)
+  let color = if consumable.consumableType == ctMod: modConsumableColor(consumable.modKey)
+              else: getConsumableColor(consumable.consumableType)
   drawDisc(Vector2(x: consumable.pos.x, y: consumable.pos.y), size, color)
   drawCircleOutline(consumable.pos.x.int32, consumable.pos.y.int32, size, Black)
+  if consumable.consumableType == ctMod:
+    drawModConsumableIcon(consumable.modKey, consumable.pos.x, consumable.pos.y, size)
+    return
 
   # Use new detailed icon system
   drawConsumableIcon(consumable.pos.x, consumable.pos.y,

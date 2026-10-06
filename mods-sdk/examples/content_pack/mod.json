@@ -1,0 +1,7 @@
+{
+  "id": "content_pack",
+  "name": "Content Pack",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "A mod with no script at all: JSON files under content/ add two power-ups, an enemy mixed into wave mode, a shop item and a consumable. Shows content packs and the stats table."
+}

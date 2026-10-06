@@ -141,12 +141,62 @@ proc getWorldViewScale*(): float32 =
   ## except widescreen with the interface scaled above 100%.
   currentWorldViewScale
 
+# ---------------------------------------------------------------------------
+# The 2D camera (mods' camera.*). Composed ON TOP of the world view: the view
+# still decides where the arena sits on screen (the docks, the scissor, the
+# HUD's arena rect, PvP all read it), and the camera zooms into the arena
+# inside that rect. Zoom is 1..3 and the centre is clamped so the visible
+# region always stays inside the arena: the void past its edges never shows.
+var
+  worldCamZoom = 1.0'f32
+  worldCamCX, worldCamCY = 0.0'f32
+  worldCamActive = false
+  worldCamW = 1024.0'f32
+  worldCamH = 768.0'f32
+
+proc clampedCamCentre*(zoom, cx, cy, worldW, worldH: float32): tuple[x, y: float32] =
+  ## The centre a camera at `zoom` may show without leaving the arena.
+  let z = clamp(zoom, 1.0'f32, 3.0'f32)
+  let hw = worldW / (2 * z)
+  let hh = worldH / (2 * z)
+  (clamp(cx, hw, worldW - hw), clamp(cy, hh, worldH - hh))
+
+proc setWorldCamera*(zoom, cx, cy: float32, worldW = 1024.0'f32, worldH = 768.0'f32) =
+  ## Show the arena at `zoom` (1..3) centred on (cx, cy), clamped inside it.
+  worldCamZoom = clamp(zoom, 1.0'f32, 3.0'f32)
+  worldCamW = worldW
+  worldCamH = worldH
+  (worldCamCX, worldCamCY) = clampedCamCentre(worldCamZoom, cx, cy, worldW, worldH)
+  worldCamActive = worldCamZoom != 1.0'f32
+
+proc clearWorldCamera*() =
+  ## The identity camera (the whole arena): everything outside a PvE run.
+  worldCamActive = false
+  worldCamZoom = 1.0'f32
+
+proc worldCameraActive*(): bool = worldCamActive
+
+proc getWorldCamScale*(): float32 =
+  ## World units to virtual pixels: the view's scale times the camera zoom.
+  if worldCamActive: currentWorldViewScale * worldCamZoom else: currentWorldViewScale
+
+proc getWorldCamOffsetX*(): float32 =
+  if worldCamActive:
+    currentWorldViewOffsetX + currentWorldViewScale * (worldCamW * 0.5'f32 - worldCamCX * worldCamZoom)
+  else: currentWorldViewOffsetX
+
+proc getWorldCamOffsetY*(): float32 =
+  if worldCamActive:
+    currentWorldViewOffsetY + currentWorldViewScale * (worldCamH * 0.5'f32 - worldCamCY * worldCamZoom)
+  else: currentWorldViewOffsetY
+
 proc worldToVirtual*(p: Vector2): Vector2 =
   ## A gameplay world point in virtual screen coordinates -- the inverse of
   ## getWorldMousePosition. Used by overlays that are drawn after the world pass
-  ## has closed but still have to line up with something in the world.
-  Vector2(x: p.x * currentWorldViewScale + currentWorldViewOffsetX,
-          y: p.y * currentWorldViewScale + currentWorldViewOffsetY)
+  ## has closed but still have to line up with something in the world. Goes
+  ## through the camera too.
+  let s = getWorldCamScale()
+  Vector2(x: p.x * s + getWorldCamOffsetX(), y: p.y * s + getWorldCamOffsetY())
 
 proc getVirtualScreenWidth*(): int32 =
   ## Full virtual screen width (1024 classic / 1366 widescreen), expressed in
@@ -249,8 +299,9 @@ proc getWorldMousePosition*(): Vector2 =
   ## go negative or past the world bounds; callers expect world coordinates, so
   ## it is intentionally NOT clamped.
   let p = getVirtualMousePosition()
-  result.x = (p.x - currentWorldViewOffsetX) / currentWorldViewScale
-  result.y = (p.y - currentWorldViewOffsetY) / currentWorldViewScale
+  let s = getWorldCamScale()
+  result.x = (p.x - getWorldCamOffsetX()) / s
+  result.y = (p.y - getWorldCamOffsetY()) / s
 
 proc setGamepadAimPointWorld*(p: Vector2) =
   ## Store a gameplay aim point expressed in WORLD coords. The stored "virtual

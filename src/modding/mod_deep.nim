@@ -35,7 +35,7 @@ type
     path: string          ## "game.survival", for messages and tostring
 
 const
-  HiddenFields = ["discordClient", "game3D"]
+  HiddenFields = ["discordClient", "game3D", "modThings"]
     ## Never shown: platform handles and raw pointers. Pruned at compile time,
     ## so their types are never walked at all.
   ReadOnlyRoots = ["rogueliteProfile"]
@@ -258,11 +258,11 @@ proc listPos[C](vm: VM, c: ptr C, key: ScriptValue): int =
   when C is array:
     when typeof(low(c[])) is enum:
       if key.kind == vkString:
-        try:
-          let e = parseEnum[typeof(low(c[]))](key.str.s)
-          return ord(e) - ord(low(c[]))
-        except ValueError:
-          return -1
+        # by name, walking the index range (a subrange of an enum too)
+        for e in low(c[]) .. high(c[]):
+          if $e == key.str.s:
+            return ord(e) - ord(low(c[]))
+        return -1
   -1
 
 proc listClass[C](): UdClass =
