@@ -2,8 +2,8 @@
 <#
   Builds the three TopHat-ShooterOS release artifacts into ship/:
 
-    TopHatShooterOS-PORTABLE.zip          nimble WinReleaseMin (size)
-    TopHatShooterOS-Installer_<ver>.exe   nimble WinRelease (speed) + niminst/Inno
+    TopHatShooterOS-PORTABLE.zip          nimble WinRelease (speed)
+    TopHatShooterOS-Installer_<ver>.exe   the same exe + niminst/Inno
     TopHatShooterOS-linux-x86_64.tar.gz   nimble LinuxRelease, inside WSL
     SHA256SUMS.txt
 
@@ -95,19 +95,15 @@ function Assert-Naylib {
     }
 }
 
-function Build-Portable {
+function Build-Windows {
+    # One WinRelease (speed) build feeds both Windows artifacts: the portable
+    # zip and the installer ship the same exe.
     Use-Msvc
-    Run 'nimble' @('--accept', 'WinReleaseMin') 'nimble WinReleaseMin'
-    $exe = Join-Path $RepoRoot $WinExeName
-    if (-not (Test-Path $exe)) { throw "WinReleaseMin finished but $WinExeName was not produced." }
-    Compress-Archive -Path $exe -DestinationPath (Join-Path $ShipDir $PortableName) -CompressionLevel Optimal -Force
-}
-
-function Build-Installer {
-    Use-Msvc
+    Reset-IncrementalLtcg
     Run 'nimble' @('--accept', 'WinRelease') 'nimble WinRelease'
     $exe = Join-Path $RepoRoot $WinExeName
     if (-not (Test-Path $exe)) { throw "WinRelease finished but $WinExeName was not produced." }
+    Compress-Archive -Path $exe -DestinationPath (Join-Path $ShipDir $PortableName) -CompressionLevel Optimal -Force
 
     Push-Location $RepoRoot     # niminst resolves the .ini's paths from the CWD
     try { Run (Find-Niminst) @('inno', 'TopHatShooter.ini') 'niminst inno' }
@@ -177,10 +173,7 @@ try {
             $_.Name -in $PortableName, $LinuxTarName, 'SHA256SUMS.txt' } | Remove-Item -Force
     }
 
-    # Portable before installer: both write TopHatShooterOS.exe, and this order
-    # leaves the speed-optimised build in the repo root.
-    Build-Portable
-    Build-Installer
+    Build-Windows
     Build-Linux
 
     $sums = foreach ($f in (Get-ChildItem $ShipDir -File | Sort-Object Name)) {

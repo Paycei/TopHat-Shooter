@@ -1,5 +1,5 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
-import draw_prims
+import draw_prims, post_fx
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
 import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples], ui/mods_window
 
@@ -401,19 +401,32 @@ proc endGameDrawing() =
   popMatrix()
   endTextureMode()
 
+  # Built-in post-processing (post_fx.nim): the glow is built off-screen first.
+  # A mod's post shader still runs last, over the composited frame.
+  let fxLevel = if globalSettings.isNil: pfxFull else: globalSettings.postFxLevel
+  let fx = postFxEnabled(fxLevel)
+  let modShader = postShaderActive()
+  var frame = addr renderTarget.texture   # a pointer: raylib textures can't be copied
+  if fx:
+    preparePostFx(renderTarget.texture, screenWidth.int32, screenHeight.int32)
+    if modShader: frame = composeToTexture(fxLevel, renderTarget.texture)
+
   beginDrawing()
   clearBackground(Black)  # Black bars for letterboxing
 
   # Draw the scaled render texture (through a mod's post-process shader, if any)
   let source = Rectangle(x: 0, y: 0,
-                         width: renderTarget.texture.width.float32,
-                         height: -renderTarget.texture.height.float32)
+                         width: frame[].width.float32,
+                         height: -frame[].height.float32)
   let dest = Rectangle(x: renderOffsetX, y: renderOffsetY,
                        width: screenWidth.float32 * renderScale,
                        height: screenHeight.float32 * renderScale)
-  let modShaded = beginPostShader(dest.width, dest.height, getTime().float32)
-  drawTexture(renderTarget.texture, source, dest, Vector2(x: 0, y: 0), 0, White)
-  if modShaded: endShaderMode()
+  if fx and not modShader:
+    drawComposited(fxLevel, frame[], source, dest)
+  else:
+    let modShaded = beginPostShader(dest.width, dest.height, getTime().float32)
+    drawTexture(frame[], source, dest, Vector2(x: 0, y: 0), 0, White)
+    if modShaded: endShaderMode()
 
   endDrawing()
 
@@ -2614,9 +2627,9 @@ proc main() =
         if hasPowerUp(currentGame.player, puBloodPact) and currentGame.player.bloodPactCooldown <= 0:
           if currentGame.player.hp > 1.0 and currentGame.enemies.len > 0:
             const
-              BLOOD_PACT_ENEMY_FRAC = 0.25'f32   # share of a normal enemy's max HP per cast
+              BLOOD_PACT_ENEMY_FRAC = 0.20'f32   # share of a normal enemy's CURRENT HP per cast
               BLOOD_PACT_BOSS_FRAC  = 0.03'f32   # bosses only take a small share
-              BLOOD_PACT_BONUS_MULT = 1.25'f32   # bonus damage per point of HP sacrificed
+              BLOOD_PACT_BONUS_MULT = 1.0'f32    # bonus damage per point of HP sacrificed
             const
               BloodBright = Color(r: 235, g: 40, b: 40, a: 255)
               BloodDeep   = Color(r: 130, g: 0, b: 25, a: 255)
@@ -2632,7 +2645,7 @@ proc main() =
               if shieldBlocksHit(currentGame, enemy, currentGame.player.pos):
                 continue  # a Port Guard facing the caster takes it on the shield
               let intended = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
-                             else: enemy.maxHp * BLOOD_PACT_ENEMY_FRAC + bonus
+                             else: enemy.hp * BLOOD_PACT_ENEMY_FRAC + bonus
               # Bosses resist it like every other non-bullet damage path: phase
               # defense, the weak-point multiplier and the adds/shield gate.
               let dealt = applyEnemyHpDamage(enemy, intended * bossPassiveDamageTaken(enemy))

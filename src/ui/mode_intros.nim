@@ -21,6 +21,11 @@ const
   SandboxAccent = Color(r: 180, g: 180, b: 180, a: 255)  # gray
   PvPAccent     = Color(r: 230, g: 60,  b: 60,  a: 255)  # red
 
+  ModeIntroSpeed = 1.0'f32
+    ## Real time, not the story's 1.2x: a mode intro is the player's briefing
+    ## on how the mode works, so it has to be readable on the first watch.
+  ModeIntroCaptionCps = 30.0'f32
+
 # ---------------------------------------------------------------------------
 # Shared simple backdrop (dark field, accent sweep)
 
@@ -165,9 +170,9 @@ proc newWavePlanShot(): CutsceneDrawProc =
 proc newWaveIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.0'f32, drawProc: newWaveRosterShot(), soundCue: stTeleport,
+      CutsceneShot(duration: 6.8'f32, drawProc: newWaveRosterShot(), soundCue: stTeleport,
                    label: t(tkModeIntroWaveRec1), iconIndex: 3),
-      CutsceneShot(duration: 5.4'f32, drawProc: newWavePlanShot(), soundCue: stShoot,
+      CutsceneShot(duration: 7.2'f32, drawProc: newWavePlanShot(), soundCue: stShoot,
                    label: t(tkModeIntroWaveRec2), iconIndex: 0),
     ],
     accentColor      = WaveAccent,
@@ -176,6 +181,8 @@ proc newWaveIntroCutscene*(): Cutscene =
     drawBackdropProc = simpleBackdrop(WaveAccent),
     swayAmp          = 0.8'f32,
     musicTrack       = mtWave,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )
 
 # ---------------------------------------------------------------------------
@@ -295,9 +302,9 @@ proc drawSurvShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
 proc newSurvivalIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.0'f32, drawProc: drawSurvShot1, soundCue: stShield,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawSurvShot1, soundCue: stShield,
                    label: t(tkModeIntroSurvRec1), iconIndex: 5),
-      CutsceneShot(duration: 5.0'f32, drawProc: drawSurvShot2, soundCue: stWaveComplete,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawSurvShot2, soundCue: stWaveComplete,
                    label: t(tkModeIntroSurvRec2), iconIndex: 10),
     ],
     accentColor      = SurvAccent,
@@ -306,6 +313,8 @@ proc newSurvivalIntroCutscene*(): Cutscene =
     drawBackdropProc = simpleBackdrop(SurvAccent),
     swayAmp          = 0.7'f32,
     musicTrack       = mtSurvival,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )
 
 # ---------------------------------------------------------------------------
@@ -442,9 +451,9 @@ proc newGuardianShot(): CutsceneDrawProc =
 proc newRogueliteIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.0'f32, drawProc: drawRogueShot1, soundCue: stTeleport,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawRogueShot1, soundCue: stTeleport,
                    label: t(tkModeIntroRogueRec1), iconIndex: 4),
-      CutsceneShot(duration: 5.4'f32, drawProc: newGuardianShot(), soundCue: stPowerUp,
+      CutsceneShot(duration: 7.2'f32, drawProc: newGuardianShot(), soundCue: stPowerUp,
                    label: t(tkModeIntroRogueRec2), iconIndex: 7),
     ],
     accentColor      = RogueAccent,
@@ -453,6 +462,8 @@ proc newRogueliteIntroCutscene*(): Cutscene =
     drawBackdropProc = simpleBackdrop(RogueAccent),
     swayAmp          = 0.9'f32,
     musicTrack       = mtRoguelite,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )
 
 # ---------------------------------------------------------------------------
@@ -593,9 +604,9 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
 proc newSandboxIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.2'f32, drawProc: drawSandboxShot1, soundCue: stMenuSelect,
+      CutsceneShot(duration: 7.0'f32, drawProc: drawSandboxShot1, soundCue: stMenuSelect,
                    label: t(tkModeIntroSandboxRec1), iconIndex: 10),
-      CutsceneShot(duration: 5.4'f32, drawProc: drawSandboxShot2, soundCue: stPowerUp,
+      CutsceneShot(duration: 7.2'f32, drawProc: drawSandboxShot2, soundCue: stPowerUp,
                    label: t(tkModeIntroSandboxRec2), iconIndex: 0),
     ],
     accentColor      = SandboxAccent,
@@ -604,6 +615,8 @@ proc newSandboxIntroCutscene*(): Cutscene =
     drawBackdropProc = simpleBackdrop(SandboxAccent),
     swayAmp          = 0.5'f32,
     musicTrack       = mtMenu,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )
 
 # ---------------------------------------------------------------------------
@@ -719,11 +732,11 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
 proc newPvPIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.0'f32, drawProc: drawPvPShot1, soundCue: stTeleport,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawPvPShot1, soundCue: stTeleport,
                    label: t(tkModeIntroPvPRec1), iconIndex: 3),
-      CutsceneShot(duration: 5.0'f32, drawProc: drawPvPShot2, soundCue: stBossSpawn,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawPvPShot2, soundCue: stBossSpawn,
                    label: t(tkModeIntroPvPRec2), iconIndex: 7),
-      CutsceneShot(duration: 4.8'f32, drawProc: drawPvPShot3, soundCue: stShoot,
+      CutsceneShot(duration: 6.6'f32, drawProc: drawPvPShot3, soundCue: stShoot,
                    label: t(tkModeIntroPvPRec3), iconIndex: 0,
                    glitchMod: 71, glitchWindow: 5),
     ],
@@ -733,4 +746,6 @@ proc newPvPIntroCutscene*(): Cutscene =
     drawBackdropProc = simpleBackdrop(PvPAccent),
     swayAmp          = 0.9'f32,
     musicTrack       = mtBoss,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )

@@ -533,6 +533,18 @@ proc nextRenderResolutionMode(mode: RenderResolutionMode): RenderResolutionMode 
   of rrmEnabled: rrmFullscreenOnly
   of rrmFullscreenOnly: rrmDisabled
 
+proc getPostFxLabel(level: PostFxLevel): string =
+  case level
+  of pfxOff: t(tkSettingsPostFxOff)
+  of pfxSubtle: t(tkSettingsPostFxSubtle)
+  of pfxFull: t(tkSettingsPostFxFull)
+
+proc nextPostFxLevel(level: PostFxLevel): PostFxLevel =
+  case level
+  of pfxOff: pfxSubtle
+  of pfxSubtle: pfxFull
+  of pfxFull: pfxOff
+
 proc getHudLayoutLabel(mode: HudLayout): string =
   case mode
   of hlClassic: t(tkSettingsHudLayoutClassic)
@@ -638,6 +650,31 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                      mousePos.y <= (yPos + 25).float32
   drawCheckbox(vsyncCheckX, yPos, 25, settingsWin.settings.vsyncEnabled, vsyncHovered)
   drawText(t(tkSettingsVSyncDesc), (vsyncCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  yPos += 40
+
+  # Visual effects (post_fx.nim): same cycle button as the render mode above
+  drawText(t(tkSettingsPostFx), (contentX + 40).int32, yPos.int32, 18, White)
+  let fxButtonX = contentX + 320
+  let fxButtonY = yPos - 5
+  let fxHovered = mousePos.x >= fxButtonX.float32 and
+                  mousePos.x <= (fxButtonX + renderModeButtonWidth).float32 and
+                  mousePos.y >= fxButtonY.float32 and
+                  mousePos.y <= (fxButtonY + renderModeButtonHeight).float32
+  drawRectangle(fxButtonX.int32, fxButtonY.int32,
+                renderModeButtonWidth.int32, renderModeButtonHeight.int32,
+                if fxHovered: Color(r: 80, g: 80, b: 100, a: 255)
+                else: Color(r: 60, g: 60, b: 80, a: 255))
+  drawRectOutline(Rectangle(x: fxButtonX.float32, y: fxButtonY.float32,
+                            width: renderModeButtonWidth.float32, height: renderModeButtonHeight.float32),
+                  1, if fxHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+  let fxText = getPostFxLabel(settingsWin.settings.postFxLevel)
+  drawText("<", fxButtonX.int32 + 10, yPos.int32, 18, LightGray)
+  drawText(fxText,
+          (fxButtonX + (renderModeButtonWidth - measureText(fxText, 16)) div 2).int32,
+          yPos.int32, 16, White)
+  drawText(">", (fxButtonX + renderModeButtonWidth - 25).int32, yPos.int32, 18, LightGray)
+  yPos += 35
+  drawText(t(tkSettingsPostFxDesc), fxButtonX.int32, yPos.int32, 14, LightGray)
 
 # ---------------------------------------------------------------------------
 # Interface tab
@@ -1494,6 +1531,15 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
           setWindowState(flags(VsyncHint))
         else:
           clearWindowState(flags(VsyncHint))
+        settingsChanged = true
+
+      # Visual effects cycle button (drawn 40px below the VSync row)
+      let fxButtonX = contentX + 320
+      let fxButtonY = contentY + 225
+      if mousePos.x >= fxButtonX.float32 and mousePos.x <= (fxButtonX + renderModeButtonWidth).float32 and
+         mousePos.y >= fxButtonY.float32 and mousePos.y <= (fxButtonY + renderModeButtonHeight).float32:
+        settingsWin.settings.postFxLevel = nextPostFxLevel(settingsWin.settings.postFxLevel)
+        playSound(stMenuSelect)
         settingsChanged = true
 
     # Keyboard input for FPS text box

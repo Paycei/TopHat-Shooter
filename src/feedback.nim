@@ -147,7 +147,8 @@ proc systemInfoLines*(): seq[string] =
   if not s.isNil:
     result.add("Fullscreen: " & (if s.fullscreen: "yes" else: "no") &
                ", VSync: " & (if s.vsyncEnabled: "on" else: "off") &
-               ", render scaling: " & $s.renderResolutionMode)
+               ", render scaling: " & $s.renderResolutionMode &
+               ", visual effects: " & $s.postFxLevel)
     result.add("HUD: " & $s.hudStyle & " / " & $s.hudLayout &
                ", UI scale " & formatFloat(s.uiScale, ffDecimal, 2))
 
