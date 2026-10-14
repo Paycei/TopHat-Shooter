@@ -69,10 +69,10 @@ proc buildBiosLines(): (seq[BiosLine], int) =
       "DISK : TOPHAT_SYSTEM_SSD (2 TB NVMe)"
 
   let host = if hw.hostName.len > 0: hw.hostName else: "TOPHAT-PC"
-  let osn  = if hw.osName.len  > 0: hw.osName  else: "ShooterOS 6.3"
+  let osn  = if hw.osName.len  > 0: hw.osName  else: "ShooterOS 6.4"
 
   result[0] = @[
-    plainLine("TOPHAT SYSTEMS, INC.  -  BIOS v6.3.3  -  BUILD 20261002"),
+    plainLine("TOPHAT SYSTEMS, INC.  -  BIOS v6.4.0  -  BUILD 20261014"),
     plainLine("Copyright (C) 2024-2026 TopHat Systems, Inc.  All Rights Reserved."),
     plainLine(""),
     statusLine(cpuLine, "OK"),
@@ -87,8 +87,8 @@ proc buildBiosLines(): (seq[BiosLine], int) =
     statusLine("NET  : TopHat Gigabit Ethernet", "OK"),
     statusLine("SND  : TopHat Audio Pro", "OK"),
     statusLine("USB  : xHCI Host Controller v3.1", "OK"),
-    statusLine("KRNL : TOPHAT.SYS v6.3", "LOADED"),
-    statusLine("BOOT : shooteros-6.3  (Secure Boot)", "ENABLED"),
+    statusLine("KRNL : TOPHAT.SYS v6.4", "LOADED"),
+    statusLine("BOOT : shooteros-6.4  (Secure Boot)", "ENABLED"),
     plainLine(""),
     BiosLine(kind: blCountdown, text: "Booting TopHat-ShooterOS in"),
   ]
@@ -134,7 +134,7 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   # Inverted amber header bar
   let hH = 44
   drawRectangle(4, 4, sw - 8, hH.int32, Color(r: 160, g: 100, b: 10, a: 255))
-  let hTitle = "TOPHAT SYSTEMS, INC.  BIOS VERSION 6.3.3"
+  let hTitle = "TOPHAT SYSTEMS, INC.  BIOS VERSION 6.4.0"
   let hTitleW = measureText(hTitle, 22)
   drawText(hTitle, sw div 2 - hTitleW div 2, 14, 22, Color(r: 10, g: 6, b: 0, a: 255))
   let hDate = "10/02/2026"
@@ -272,8 +272,8 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   # The headline version, with a soft amber halo to lift it off the plate.
   drawSoftGlow(cx.float32, (badgeY + 62).float32, 46.0'f32,
                Color(r: 255, g: 190, b: 40, a: alphaByte(bFade * 70.0'f32)), 1.0'f32)
-  let v6W = measureText("6.3", 56)
-  drawText("6.3", cx - v6W div 2, badgeY + 32, 56,
+  let v6W = measureText("6.4", 56)
+  drawText("6.4", cx - v6W div 2, badgeY + 32, 56,
            Color(r: 255, g: 224, b: 96, a: bA))
 
   # Divider rule with diamond end-caps separating version from edition tag.
@@ -371,7 +371,7 @@ proc drawSplashComplete(splash: SplashScreen, sw, sh: int32) =
     let mainW     = measureText(mainLabel, 34)
     drawText(mainLabel, sw div 2 - mainW div 2, tY, 34,
              Color(r: 0, g: 230, b: 220, a: titleA))
-    let subLabel = "[ v6.3 Edition ]"
+    let subLabel = "[ v6.4 Edition ]"
     let subW     = measureText(subLabel, 22)
     drawText(subLabel, sw div 2 - subW div 2, tY + 42, 22,
              Color(r: 180, g: 60, b: 255, a: titleA))

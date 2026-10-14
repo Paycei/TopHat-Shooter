@@ -119,8 +119,8 @@ proc points(items: varargs[string]): string =
 # commit history since the previous release tag, not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
-    titleEn: "Version 6.3.3",
-    titleEs: "Versión 6.3.3",
+    titleEn: "Version 6.4.0",
+    titleEs: "Versión 6.4.0",
     subtitleEn: "Changes since v6.3.2",
     subtitleEs: "Cambios desde v6.3.2",
     latest: true,
@@ -335,7 +335,7 @@ let changelog: seq[ChangelogVersion] = @[
     titleEs: "Versión 6.3.2",
     subtitleEn: "Changes since v6.3.1",
     subtitleEs: "Cambios desde v6.3.1",
-    latest: true,
+    latest: false,
     entries: @[
       # --- Mods ---
       ChangelogEntry(category: clcMods,
