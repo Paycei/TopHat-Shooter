@@ -4,6 +4,7 @@
 import raylib, strutils, math
 import ../draw_prims
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
+import ui_theme
 import ../gamepad_input, ../patches
 import ../modding/mod_registry
 from ../dungeon import rewardFolderName, rewardLabel
@@ -556,10 +557,10 @@ proc drawHelpWindow*(help: HelpWindow) =
 
   # Terminal background
   drawRectangle(contentX.int32, contentY.int32, contentW.int32, contentH.int32,
-               Color(r: 5, g: 5, b: 10, a: 255))
+               uiSurface(5, 5, 10))
   drawRectOutline(Rectangle(x: contentX.float32, y: contentY.float32,
                                 width: contentW.float32, height: contentH.float32),
-                    1, Color(r: 0, g: 200, b: 200, a: 255))
+                    1, uiLine(0, 200, 200))
 
   # Draw output lines (with scrolling, wrapping, and optional icons)
   var yPos = contentY + 10
@@ -587,14 +588,14 @@ proc drawHelpWindow*(help: HelpWindow) =
     if iconPresent and wrapped.len > 0:
       let iconX = (baseTextX + line.indent).int32
       if hasLockIcon:
-        drawLockIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), line.color)
+        drawLockIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), uiInk(line.color))
       else:
         drawPowerUpIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), PowerUpType(line.icon), line.color)
     
     var firstWrapped = true
     for wline in wrapped:
       let textX = baseTextX + line.indent + (if iconPresent and firstWrapped: HELP_ICON_SIZE + HELP_ICON_PADDING else: 0)
-      drawText(wline, textX.int32, yPos.int32, 14, line.color)
+      drawText(wline, textX.int32, yPos.int32, 14, uiInk(line.color))
       yPos += lineHeight
       firstWrapped = false
       if yPos + lineHeight > contentY + contentH - 50:
@@ -607,17 +608,17 @@ proc drawHelpWindow*(help: HelpWindow) =
   # Draw command prompt at bottom
   let promptY = contentY + contentH - 30
   drawRectangle(contentX.int32, promptY.int32, contentW.int32, 30,
-               Color(r: 10, g: 10, b: 15, a: 255))
+               uiSurface(10, 10, 15))
 
   let promptText = "$ " & help.currentInput
   drawText(promptText, (contentX + 10).int32, (promptY + 7).int32, 16,
-          Color(r: 0, g: 220, b: 220, a: 255))
+          uiInk(0, 220, 220))
 
   # Draw blinking cursor
   if (help.cursorBlink mod 1.0) < 0.5:
     let cursorX = contentX + 10 + measureText(promptText, 16)
     drawRectangle((cursorX + 2).int32, (promptY + 7).int32, 8, 16,
-                 Color(r: 0, g: 255, b: 255, a: 255))
+                 uiSurface(0, 255, 255))
 
   # Draw scroll indicator if needed
   if help.outputLines.len > visibleLines:
@@ -634,11 +635,11 @@ proc drawHelpWindow*(help: HelpWindow) =
 
     # Scroll track
     drawRectangle(scrollBarX.int32, scrollBarY.int32, 6, scrollBarH.int32,
-                 Color(r: 20, g: 20, b: 30, a: 255))
+                 uiSurface(20, 20, 30))
 
     # Scroll thumb
     drawRectangle(scrollBarX.int32, scrollThumbY.int32, 6, scrollThumbH.int32,
-                 Color(r: 0, g: 200, b: 200, a: 255))
+                 uiSurface(0, 200, 200))
 
   # Draw resize indicator
   drawResizeIndicator(help.window)

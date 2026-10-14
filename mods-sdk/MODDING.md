@@ -806,8 +806,8 @@ and every other field is that `register.*` call's table:
 ```
 
 Types: `powerup`, `enemy`, `boss`, `thing`, `projectile`, `status`,
-`consumable`, `shopItem`, `patch`, `survivalEvent`, `advancement`, and
-`roster`, which is `roster.add` for a pack: `{"type": "roster", "mode":
+`consumable`, `shopItem`, `patch`, `survivalEvent`, `advancement`, `theme`
+(see [Interface themes](#interface-themes)), and `roster`, which is `roster.add` for a pack: `{"type": "roster", "mode":
 "wave", "enemy": "brute", "chance": 0.1, "fromWave": 3}` (a bare enemy id is
 the pack's own; `minTime` and `minFloor` work too). Files load
 in name order, after `main.lua` (if any), still while the mod loads. A mod
@@ -1634,6 +1634,73 @@ The desktop icons of mod apps sit in columns of their own after the game's
 icons, in the order the apps were registered, tagged MOD. Opening an app that is
 already open just brings its window to the front. Keep settings in
 `mod.storage` so they survive restarts (see `retro_crt`).
+
+## Interface themes
+
+The desktop, its windows, dialogs and notifications are drawn in an
+**interface theme**: TopHat-ShooterOS (the stock look), CKN OS (unlocked by the
+last story recording) or one a mod registers. The player picks it in
+**SETTINGS.sys > Interface > Theme**; the shop's SECRET tab also equips CKN
+OS. A run's own screens (the HUD, the pause menu, the crash screen) and the
+story cinematics always keep the stock look.
+
+```lua
+register.theme{
+  id = "midnight", name = {en = "Midnight", es = "Medianoche"},
+  base = "ckn",                 -- the hand-drawn pieces: "tophat" or "ckn"
+  surface = "#14182a",          -- window bodies and panels
+  raised = "#2b3350",           -- buttons, tabs, cards
+  text = "#eef2ff",             -- text
+  muted = "#8b93ad",            -- secondary text
+  accent = "#ff5fd2",           -- focus, selection, highlights
+  wallpaper = "art/night.png",  -- optional
+}
+```
+
+| Option | Meaning |
+|---|---|
+| `id` | required, unique in your mod (the theme is `<mod id>:<id>`, which register.theme returns) |
+| `name` | text or `{en = ..., es = ...}`: what Settings shows |
+| `base` | optional, default `"tophat"`. The theme's shell, the pieces drawn by hand: `"tophat"` has glowing square frames, the OS Grid wallpaper and the crosshair pointer; `"ckn"` has rounded frames with soft shadows, the CKN Dawn wallpaper, a Start button with CKN's logo and an arrow pointer. Either draws in your colours |
+| `surface`, `raised`, `text`, `muted`, `accent` | optional colours (`"#rrggbb"` or a table); each one left out is the base theme's |
+| `wallpaper` | optional texture (or file name): the free default wallpaper while the theme is on. A wallpaper the player equipped (shop or MODS.EXE) still wins |
+
+Every colour the game's interface draws plays a role, and your five colours
+anchor them, so you do not restyle windows one by one. A fill (a window's
+body, a panel, a button) lands between `surface` and `raised` by how raised it
+is on the stock theme; text lands between `muted` and `text`; the stock cyan
+accent becomes your `accent`. Every other hue keeps its meaning (red still
+reads as danger, green as done, gold as currency) at a lightness that reads on
+your surfaces, so a light `surface` makes a light theme. Pictures are never
+recoloured: skins, icons, wallpapers, previews and your own textures keep
+their colours in every theme. Themes register while the mod loads (like the
+other `register.*`), and a content pack can hold them too.
+
+The `theme` library:
+
+* `theme.current()` is the id of the theme the interface is drawn in, and
+  `theme.list()` the ids the player can pick right now (built-ins first, then
+  loaded mods' themes; CKN OS only once it is unlocked).
+* `theme.set(id)` makes `id` the player's theme and saves it, as if they
+  picked it in Settings. Your own themes work without the `"<mod id>:"`
+  prefix. It returns `false` for an unknown or still-locked theme. It changes
+  the player's choice, so call it from something they did (an app's button),
+  not every time the mod loads.
+* `theme.colors([id])` is a table of the theme in use (or of `id`): `id`,
+  `name`, `base`, `light` (a light theme) and its five colours.
+* `theme.surface(color)`, `theme.line(color)`, `theme.ink(color)` and
+  `theme.glow(color)` hand back the colour the game's own interface would draw
+  for `color` in the theme in use, in each role (a fill; a border; text; a
+  translucent highlight). Pass the colour you would use on the stock dark
+  theme. An app's canvas, and everything a mod draws, keep the colours given,
+  so an app that should follow the player's theme picks them through these:
+
+```lua
+draw = function(w, h)
+  draw.rect(0, 0, w, h, theme.surface("#0c0e14"))
+  draw.text("Hello", 20, 20, 20, theme.ink("#ffffff"))
+end
+```
 
 ## Mod keybinds
 

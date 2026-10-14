@@ -2,6 +2,7 @@ import raylib, rlgl, random, math, strutils, os, std/deques
 import draw_prims, post_fx
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
 import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples, mod_registry], ui/mods_window
+import ui/ui_theme
 
 # Global quit-confirmation dialog
 
@@ -57,24 +58,26 @@ proc drawGlobalConfirmDialog(): int =
   const BW: int32 = 170; const BH: int32 = 42
   beginUIScaleMode(overlayUIScaleFor(DW, DH))
   defer: endUIScaleMode()
+  let themedDialog = beginThemeLayer()
+  defer: endThemeLayer(themedDialog)
   let viewW = getVirtualScreenWidth(); let viewH = getVirtualScreenHeight()
   let mp = getVirtualMousePosition()
   let dx = (viewW - DW) div 2; let dy = (viewH - DH) div 2
 
   drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 160))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
-  drawRectangle(dx, dy, DW, DH, Color(r: 18, g: 22, b: 32, a: 255))
+  drawRectangle(dx, dy, DW, DH, uiSurface(18, 22, 32))
   drawRectOutline(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
-                     3, Color(r: 255, g: 80, b: 80, a: 255))
+                     3, uiLine(255, 80, 80))
 
   let tbH: int32 = 36
-  drawRectangle(dx, dy, DW, tbH, Color(r: 120, g: 28, b: 28, a: 255))
+  drawRectangle(dx, dy, DW, tbH, uiSurface(120, 28, 28))
   let titleStr = case globalConfirmContext
                  of cdcQuitToDesktop: t(tkConfirmQuitTitle)
                  of cdcQuitToMenu, cdcPostGameExit: t(tkConfirmExitTitle)
                  of cdcAbandonRestart, cdcAbandonExit: t(tkConfirmCheckpointTitle)
   let tW = measureText(titleStr, 16)
-  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, Color(r: 255, g: 200, b: 200, a: 255))
+  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, uiInk(255, 200, 200))
 
   let bodyStr = case globalConfirmContext
                 of cdcQuitToDesktop: t(tkConfirmQuitBody)
@@ -83,7 +86,7 @@ proc drawGlobalConfirmDialog(): int =
                   if globalConfirmRunMode == gmWaveBased: t(tkConfirmCheckpointRestartBody)
                   else: t(tkConfirmCheckpointNewRunBody)
   let bW = measureText(bodyStr, 19)
-  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, White)
+  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, uiInk(White))
   # cdcPostGameExit has no subtitle: the run is already over and results are
   # already persisted, so there's no "unsaved progress" to warn about.
   let subStr = if globalConfirmContext in {cdcAbandonRestart, cdcAbandonExit}:
@@ -95,7 +98,7 @@ proc drawGlobalConfirmDialog(): int =
                else:
                  t(tkConfirmUnsaved)
   let sW = measureText(subStr, 13)
-  drawText(subStr, dx + (DW - sW) div 2, dy + tbH + 54, 13, Color(r: 200, g: 150, b: 150, a: 255))
+  drawText(subStr, dx + (DW - sW) div 2, dy + tbH + 54, 13, uiInk(200, 150, 150))
 
   let btnY = dy + DH - BH - 22
   let noX  = dx + (DW div 2) - BW - 12
@@ -106,23 +109,23 @@ proc drawGlobalConfirmDialog(): int =
   let keyReady   = globalConfirmMouseGuard  <= 0.0 and globalConfirmFrameGuard <= 0.0
 
   drawRectangle(noX, btnY, BW, BH,
-    if noHov: Color(r: 0, g: 145, b: 0, a: 255) else: Color(r: 0, g: 105, b: 0, a: 255))
+    if noHov: uiSurface(0, 145, 0) else: uiSurface(0, 105, 0))
   drawRectOutline(Rectangle(x: noX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if noHov: 3 else: 2,
-    if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 195, b: 55, a: 255))
+    if noHov: uiLine(0, 255, 100) else: uiLine(0, 195, 55))
   let noTxt = t(tkConfirmCancelBtn); let nTW = measureText(noTxt, 14)
-  drawText(noTxt, noX + (BW - nTW) div 2, btnY + 13, 14, White)
+  drawText(noTxt, noX + (BW - nTW) div 2, btnY + 13, 14, uiInk(White))
 
   # YES button greyed out while mouse cooldown is active
-  let yesBg = if not mouseReady: Color(r: 90, g: 90, b: 90, a: 255)
-              elif yesHov:       Color(r: 158, g: 38, b: 38, a: 255)
-              else:              Color(r: 118, g: 28, b: 28, a: 255)
+  let yesBg = if not mouseReady: uiSurface(90, 90, 90)
+              elif yesHov:       uiSurface(158, 38, 38)
+              else:              uiSurface(118, 28, 28)
   drawRectangle(yesX, btnY, BW, BH, yesBg)
   drawRectOutline(Rectangle(x: yesX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if yesHov and mouseReady: 3 else: 2,
-    if not mouseReady:        Color(r: 140, g: 140, b: 140, a: 255)
-    elif yesHov:              Color(r: 255, g: 100, b: 100, a: 255)
-    else:                     Color(r: 195, g: 55, b: 55, a: 255))
+    if not mouseReady:        uiLine(140, 140, 140)
+    elif yesHov:              uiLine(255, 100, 100)
+    else:                     uiLine(195, 55, 55))
   # Show countdown while cooling down, normal label once ready
   let yesTxt = if not mouseReady: $(int(ceil(globalConfirmMouseGuard)))
                else:
@@ -131,7 +134,7 @@ proc drawGlobalConfirmDialog(): int =
                  of cdcQuitToMenu, cdcAbandonExit, cdcPostGameExit: t(tkConfirmExitBtn)
                  of cdcAbandonRestart: t(tkConfirmRestartBtn)
   let yTW = measureText(yesTxt, 14)
-  drawText(yesTxt, yesX + (BW - yTW) div 2, btnY + 13, 14, White)
+  drawText(yesTxt, yesX + (BW - yTW) div 2, btnY + 13, 14, uiInk(White))
 
   var decision = 0
   if isPointerPressed():
@@ -165,25 +168,27 @@ proc drawResumeDialog(): int =
   const BW: int32 = 180; const BH: int32 = 44
   beginUIScaleMode(overlayUIScaleFor(DW, DH))
   defer: endUIScaleMode()
+  let themedDialog = beginThemeLayer()
+  defer: endThemeLayer(themedDialog)
   let viewW = getVirtualScreenWidth(); let viewH = getVirtualScreenHeight()
   let mp = getVirtualMousePosition()
   let dx = (viewW - DW) div 2; let dy = (viewH - DH) div 2
 
   drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 170))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
-  drawRectangle(dx, dy, DW, DH, Color(r: 16, g: 24, b: 34, a: 255))
+  drawRectangle(dx, dy, DW, DH, uiSurface(16, 24, 34))
   drawRectOutline(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
-                     3, Color(r: 0, g: 200, b: 255, a: 255))
+                     3, uiLine(0, 200, 255))
 
   let tbH: int32 = 36
-  drawRectangle(dx, dy, DW, tbH, Color(r: 20, g: 70, b: 100, a: 255))
+  drawRectangle(dx, dy, DW, tbH, uiSurface(20, 70, 100))
   let titleStr = t(tkResumeRunTitle)
   let tW = measureText(titleStr, 16)
-  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, Color(r: 200, g: 240, b: 255, a: 255))
+  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, uiInk(200, 240, 255))
 
   let bodyStr = t(tkResumeRunBody)
   let bW = measureText(bodyStr, 17)
-  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 34, 17, White)
+  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 34, 17, uiInk(White))
 
   let btnY = dy + DH - BH - 22
   let newX = dx + (DW div 2) - BW - 12
@@ -193,21 +198,21 @@ proc drawResumeDialog(): int =
 
   # New Run (amber: discards the save)
   drawRectangle(newX, btnY, BW, BH,
-    if newHov: Color(r: 150, g: 95, b: 0, a: 255) else: Color(r: 110, g: 70, b: 0, a: 255))
+    if newHov: uiSurface(150, 95, 0) else: uiSurface(110, 70, 0))
   drawRectOutline(Rectangle(x: newX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if newHov: 3 else: 2,
-    if newHov: Color(r: 255, g: 180, b: 60, a: 255) else: Color(r: 200, g: 140, b: 40, a: 255))
+    if newHov: uiLine(255, 180, 60) else: uiLine(200, 140, 40))
   let newTxt = t(tkResumeNewRun); let nTW = measureText(newTxt, 14)
-  drawText(newTxt, newX + (BW - nTW) div 2, btnY + 14, 14, White)
+  drawText(newTxt, newX + (BW - nTW) div 2, btnY + 14, 14, uiInk(White))
 
   # Continue (cyan: resume)
   drawRectangle(contX, btnY, BW, BH,
-    if contHov: Color(r: 0, g: 130, b: 165, a: 255) else: Color(r: 0, g: 95, b: 125, a: 255))
+    if contHov: uiSurface(0, 130, 165) else: uiSurface(0, 95, 125))
   drawRectOutline(Rectangle(x: contX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if contHov: 3 else: 2,
-    if contHov: Color(r: 80, g: 220, b: 255, a: 255) else: Color(r: 0, g: 180, b: 220, a: 255))
+    if contHov: uiLine(80, 220, 255) else: uiLine(0, 180, 220))
   let contTxt = t(tkResumeContinue); let cTW = measureText(contTxt, 14)
-  drawText(contTxt, contX + (BW - cTW) div 2, btnY + 14, 14, White)
+  drawText(contTxt, contX + (BW - cTW) div 2, btnY + 14, 14, uiInk(White))
 
   var decision = 0
   if isPointerPressed():
@@ -556,6 +561,30 @@ proc drawCustomCursor*(time: float32) =
 
   # Center dot
   drawDisc(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
+
+proc drawCknPointer(pos: Vector2) =
+  ## CKN OS's pointer: a plain white arrow with an ink rim, tip on the spot.
+  const outline = [(0.0, 0.0), (0.0, 17.0), (4.2, 13.2), (7.2, 19.6),
+                   (10.0, 18.4), (7.1, 12.1), (12.4, 12.1)]
+  const fill = [(0, 1, 2), (0, 2, 5), (0, 5, 6), (2, 3, 4), (2, 4, 5)]
+  proc at(i: int, dx = 0.0'f32, dy = 0.0'f32): Vector2 =
+    Vector2(x: pos.x + outline[i][0].float32 + dx, y: pos.y + outline[i][1].float32 + dy)
+  proc tri(a, b, c: Vector2, col: Color) =
+    # raylib only fills one winding; take the triangle either way round.
+    if (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) < 0.0'f32: drawTriangle(a, b, c, col)
+    else: drawTriangle(a, c, b, col)
+  for (a, b, c) in fill:
+    tri(at(a, 1.5, 2.0), at(b, 1.5, 2.0), at(c, 1.5, 2.0), withAlpha(CknShadow, 80))
+  for (a, b, c) in fill:
+    tri(at(a), at(b), at(c), White)
+  for i in 0 ..< outline.len:
+    drawStroke(at(i), at((i + 1) mod outline.len), 1.4'f32, CknInk)
+
+proc drawDesktopCursor(time: float32) =
+  ## The pointer over the desktop and its windows, in the interface theme.
+  case activeTheme().shell
+  of ssTopHat: drawCustomCursor(time)
+  of ssCkn: drawCknPointer(getVirtualMousePosition())
 
 proc isBondingGameplayState(state: GameState): bool =
   state in {gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver, gsCountdown,
@@ -1503,9 +1532,14 @@ proc main() =
       updateSurvivalEndCinematic(survivalEndCinematic, dt)  # drives its own score
       if survivalEndCinematic.complete:
         survivalEndCinematicArmed = false
+        # The last story recording installs CKN OS; watching it the first time
+        # unlocks that as an interface theme (ui_theme.themeUnlocked).
+        let firstWatch = not themeUnlocked(findTheme("ckn"))
         # Replays count too: watching the current version clears its NEW tag.
         markStorySeen(settings, scSurvivalEnding)
         discard saveSettings(settings)
+        if firstWatch and themeUnlocked(findTheme("ckn")):
+          showDesktopToast(osDesktop, t(tkThemeUnlockedToast))
         if survivalEndReplayMode:
           survivalEndReplayMode = false
           currentGame.state = gsMenu
@@ -2443,7 +2477,7 @@ proc main() =
               pendingGameMode = 0
 
       # Draw custom cursor on menu
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -3334,7 +3368,8 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
-      drawRogueliteFloorSelect(currentGame)
+      withTheme(stockTheme()):   # a run's screen, not the desktop's
+        drawRogueliteFloorSelect(currentGame)
       endUIScaleMode()
 
       # Draw the confirm dialog on top of everything. Two triggers share it here:
@@ -4183,7 +4218,8 @@ proc main() =
 
       if statsWin.window.visible:
         beginUIScaleMode(statsVp.scale)
-        drawStatsWindow(statsWin, currentGame)
+        themeLayer:
+          drawStatsWindow(statsWin, currentGame)
         endUIScaleMode()
         # Controls hint along the bottom edge
         beginUIScaleMode(overlayUIScale())
@@ -4404,7 +4440,8 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
-      drawRogueliteVictory(currentGame)
+      withTheme(stockTheme()):   # a run's screen, not the desktop's
+        drawRogueliteVictory(currentGame)
       endUIScaleMode()
       drawCustomCursor(currentGame.time)
       endGameDrawing()

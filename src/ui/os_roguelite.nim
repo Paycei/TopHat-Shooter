@@ -2,6 +2,7 @@ import raylib, math, strutils
 import ../draw_prims
 import ../types, ../roguelite, ../patches, ../powerup_data, ../dungeon, ../localization, ../render_context, ../utils, icon_drawing, ui_helpers
 from ../boss_definitions import bossName
+import ui_theme
 export ui_helpers
 
 const
@@ -96,12 +97,13 @@ proc locStarterDescription(kit: RogueliteStarterKit): string =
   of rskBulwark: t("roguelite_kit_bulwark_desc")
   of rskArcanist: t("roguelite_kit_arcanist_desc")
 
-proc drawBackdrop(game: Game, accent: Color) =
-  drawRectangle(0, 0, getVirtualScreenWidth(), getVirtualScreenHeight(), Color(r: 5, g: 9, b: 16, a: 255))
+proc drawBackdrop(game: Game, stockAccent: Color) =
+  let accent = uiInk(stockAccent)
+  drawRectangle(0, 0, getVirtualScreenWidth(), getVirtualScreenHeight(), uiSurface(5, 9, 16))
   for x in countup(0, getVirtualScreenWidth(), 48):
-    drawStroke(x.int32, 0, x.int32, getVirtualScreenHeight(), Color(r: 24, g: 42, b: 58, a: 80))
+    drawStroke(x.int32, 0, x.int32, getVirtualScreenHeight(), uiLine(24, 42, 58, 80))
   for y in countup(0, getVirtualScreenHeight(), 48):
-    drawStroke(0, y.int32, getVirtualScreenWidth(), y.int32, Color(r: 24, g: 42, b: 58, a: 70))
+    drawStroke(0, y.int32, getVirtualScreenWidth(), y.int32, uiLine(24, 42, 58, 70))
   let cx = getVirtualScreenWidth() div 2
   let cy = getVirtualScreenHeight() div 2
   for i in 0..3:
@@ -109,8 +111,9 @@ proc drawBackdrop(game: Game, accent: Color) =
   drawStroke(cx - 380, cy, cx + 380, cy, withAlpha(accent, 38))
   drawStroke(cx, cy - 260, cx, cy + 260, withAlpha(accent, 38))
 
-proc drawThemeGlyph(cx, cy: int32, theme: DungeonFloorTheme, color: Color) =
+proc drawThemeGlyph(cx, cy: int32, theme: DungeonFloorTheme, stockColor: Color) =
   ## Large card glyph for each floor theme, desktop-OS flavored.
+  let color = uiInk(stockColor)
   case theme
   of dftFirewall:
     for i in 0..2:
@@ -151,8 +154,9 @@ proc drawThemeGlyph(cx, cy: int32, theme: DungeonFloorTheme, color: Color) =
     drawRectangle(cx - 6, cy - 16, 10, 3, withAlpha(color, 170))
     drawStroke(cx - 10, cy + 16, cx + 12, cy + 16, withAlpha(color, 120))
 
-proc drawKitGlyph(cx, cy: int32, kit: RogueliteStarterKit, color: Color,
+proc drawKitGlyph(cx, cy: int32, kit: RogueliteStarterKit, stockColor: Color,
                   compact: bool = false) =
+  let color = uiInk(stockColor)
   let s: int32 = if compact: 7 else: 10
   case kit
   of rskOperator:
@@ -179,14 +183,16 @@ proc drawKitGlyph(cx, cy: int32, kit: RogueliteStarterKit, color: Color,
       Vector2(x: (cx + s).float32, y: (cy + s - 3).float32),
       color)
 
-proc drawMeter(x, y, w, h: int32, value: float32, color: Color) =
-  drawRectangle(x, y, w, h, Color(r: 30, g: 36, b: 48, a: 255))
+proc drawMeter(x, y, w, h: int32, value: float32, stockColor: Color) =
+  let color = uiInk(stockColor)
+  drawRectangle(x, y, w, h, uiSurface(30, 36, 48))
   drawRectangle(x, y, int32(w.float32 * clamp(value, 0.0'f32, 1.0'f32)), h, withAlpha(color, 210))
   drawRectOutline(x, y, w, h, withAlpha(color, 210))
 
 proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
-                     color: Color, maxLines: int32 = 3, lineGap: int32 = 5,
+                     stockColor: Color, maxLines: int32 = 3, lineGap: int32 = 5,
                      minSize: int32 = 9): int32 =
+  let color = uiInk(stockColor)
   result = y
   if maxLines <= 0:
     return
@@ -201,24 +207,26 @@ proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
 proc rectAt(x, y, w, h: int32): Rectangle =
   Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32)
 
-proc drawCloseButton(x, y: int32, color: Color, hovered: bool = false) =
+proc drawCloseButton(x, y: int32, stockColor: Color, hovered: bool = false) =
+  let color = uiInk(stockColor)
   let bg = if hovered:
-    Color(r: 72, g: 36, b: 42, a: 255)
+    uiSurface(72, 36, 42)
   else:
-    Color(r: 38, g: 44, b: 56, a: 245)
-  let lineColor = if hovered: Color(r: 255, g: 150, b: 150, a: 255) else: LightGray
+    uiSurface(38, 44, 56, 245)
+  let lineColor = if hovered: uiLine(255, 150, 150) else: uiLine(LightGray)
   drawRectangle(x, y, CloseButtonSize, CloseButtonSize, bg)
   drawRectOutline(rectAt(x, y, CloseButtonSize, CloseButtonSize),
                      if hovered: 2 else: 1,
-                     if hovered: Color(r: 255, g: 110, b: 110, a: 255) else: withAlpha(color, 180))
+                     if hovered: uiLine(255, 110, 110) else: withAlpha(color, 180))
   drawStroke(x + 8, y + 8, x + CloseButtonSize - 8, y + CloseButtonSize - 8, lineColor)
   drawStroke(x + CloseButtonSize - 8, y + 8, x + 8, y + CloseButtonSize - 8, lineColor)
 
-proc drawStatChip*(x, y, w, h: int32, label, value: string, color: Color,
+proc drawStatChip*(x, y, w, h: int32, label, value: string, stockColor: Color,
                   icon: CurrencyIconType = ciNone) =
+  let color = uiInk(stockColor)
   drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 90))
-  drawSoftFill(x, y, w, h, Color(r: 26, g: 36, b: 54, a: 244),
-               Color(r: 12, g: 18, b: 30, a: 244))
+  drawSoftFill(x, y, w, h, uiSurface(26, 36, 54, 244),
+               uiSurface(12, 18, 30, 244))
   drawRectangle(x, y, w, 2, withAlpha(color, 145))
   drawRectangle(x, y, 5, h, withAlpha(color, 215))
   drawRectOutline(rectAt(x, y, w, h), 1, withAlpha(color, 135))
@@ -228,30 +236,32 @@ proc drawStatChip*(x, y, w, h: int32, label, value: string, color: Color,
     drawDisc(Vector2(x: (x + 24).float32, y: (y + h div 2).float32), 17, withAlpha(color, 26))
     drawCircleOutline(x + 24, y + h div 2, 17.0'f32, withAlpha(color, 75))
     drawCurrencyIcon(x + 24, y + h div 2, 24, icon)
-  drawTextFit(label, textX, y + 7, textW, 10, Color(r: 156, g: 172, b: 196, a: 255), 8)
+  drawTextFit(label, textX, y + 7, textW, 10, uiInk(156, 172, 196), 8)
   drawTextFit(value, textX, y + 22, textW, 19, color, 10)
 
-proc drawPill(x, y, w, h: int32, label: string, color: Color, filled: bool = false) =
+proc drawPill(x, y, w, h: int32, label: string, stockColor: Color, filled: bool = false) =
+  let color = uiInk(stockColor)
   drawRectangle(x, y, w, h,
-                if filled: withAlpha(color, 70) else: Color(r: 19, g: 25, b: 36, a: 225))
+                if filled: withAlpha(color, 70) else: uiSurface(19, 25, 36, 225))
   drawRectOutline(rectAt(x, y, w, h), 1, withAlpha(color, 170))
   let fontSize = bestFitFontSize(label, w - 8, 12, 8)
   discard drawCenteredTextFit(label, x + 4, y + (h - fontSize) div 2, w - 8, 12, color, 8)
 
-proc drawHeatStepButton(rect: Rectangle, label: string, enabled, hovered: bool, color: Color) =
+proc drawHeatStepButton(rect: Rectangle, label: string, enabled, hovered: bool, stockColor: Color) =
+  let color = uiInk(stockColor)
   let x = rect.x.int32
   let y = rect.y.int32
   let w = rect.width.int32
   let h = rect.height.int32
-  let bg = if enabled and hovered: Color(r: 70, g: 44, b: 36, a: 255)
-           elif enabled: Color(r: 43, g: 37, b: 38, a: 255)
-           else: Color(r: 30, g: 34, b: 43, a: 235)
+  let bg = if enabled and hovered: uiSurface(70, 44, 36)
+           elif enabled: uiSurface(43, 37, 38)
+           else: uiSurface(30, 34, 43, 235)
   drawRectangle(x + 2, y + 2, w, h, Color(r: 0, g: 0, b: 0, a: if hovered: 110 else: 70))
   drawRectangle(x, y, w, h, bg)
   drawRectOutline(rect, if enabled and hovered: 2 else: 1,
-                     if enabled: color else: Color(r: 82, g: 88, b: 102, a: 255))
+                     if enabled: color else: uiLine(82, 88, 102))
   discard drawCenteredTextFit(label, x + 4, y + 6, w - 8, 20,
-                              if enabled: color else: Color(r: 110, g: 118, b: 132, a: 255), 12)
+                              if enabled: color else: uiInk(110, 118, 132), 12)
 
 proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
   let profile = game.rogueliteProfile
@@ -268,10 +278,10 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
   let glowAlpha = uint8(18 + heatRank * 28 + int(glowPulse * 22.0'f32))
 
   drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 85))
-  drawRectangle(x, y, w, h, Color(r: 20, g: 25, b: 37, a: 245))
-  drawRectangle(x + 5, y + 5, w - 10, h - 10, Color(r: 95, g: 39, b: 26, a: glowAlpha))
-  drawRectangle(x, y, 5, h, withAlpha(heatColor, 230))
-  drawRectOutline(x, y, w, h, Color(r: 255, g: 130, b: 80, a: 220))
+  drawRectangle(x, y, w, h, uiSurface(20, 25, 37, 245))
+  drawRectangle(x + 5, y + 5, w - 10, h - 10, uiSurface(Color(r: 95, g: 39, b: 26, a: glowAlpha)))
+  drawRectangle(x, y, 5, h, withAlpha(uiInk(heatColor), 230))
+  drawRectOutline(x, y, w, h, uiLine(255, 130, 80, 220))
 
   if game.rogueliteHeatPulseTimer > 0:
     let pulseT = clamp(game.rogueliteHeatPulseTimer / 0.45'f32, 0.0'f32, 1.0'f32)
@@ -280,15 +290,15 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
                      else: Color(r: 120, g: 210, b: 255, a: 255)
     drawRectOutline(Rectangle(x: (x - 2).float32, y: (y - 2).float32,
                                  width: (w + 4).float32, height: (h + 4).float32),
-                       3, withAlpha(pulseColor, pulseAlpha))
+                       3, withAlpha(uiInk(pulseColor), pulseAlpha))
     drawTextFit(if game.rogueliteHeatPulseDirection >= 0: t("roguelite_heat_up") else: t("roguelite_heat_down"),
-                x + w - 194, y + 14, 74, 15, withAlpha(pulseColor, pulseAlpha))
+                x + w - 194, y + 14, 74, 15, withAlpha(uiInk(pulseColor), pulseAlpha))
 
   drawCurrencyIcon(x + 29, y + 22, 24, ciHeat)
   drawTextFit(t("roguelite_heat") & " " & $selectedHeat,
-              x + 46, y + 12, 92, 20, heatColor)
+              x + 46, y + 12, 92, 20, uiInk(heatColor))
   drawTextFit($maxHeat & " / " & $RogueliteMaxHeat,
-              x + 144, y + 14, 84, 13, LightGray)
+              x + 144, y + 14, 84, 13, uiInk(LightGray))
   let heatDifficultyPercent = int(round(heatRank.float32 *
     RogueliteHeatDifficultyPerTier * 100.0'f32))
   let heatBossPercent = int(round(heatRank.float32 *
@@ -296,7 +306,7 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
   drawTextFit(t("roguelite_heat_effects") & ": +" & $heatDifficultyPercent & "% " &
               t("roguelite_pressure") & ", +" & $heatBossPercent & "% " &
               t("roguelite_boss") & ", " & t("roguelite_cores"),
-              x + 230, y + 13, w - 370, 13, LightGray)
+              x + 230, y + 13, w - 370, 13, uiInk(LightGray))
 
   let pipStart = x + RogueliteHeatPipStartX
   let pipY = y + RogueliteHeatPipY
@@ -315,29 +325,29 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
     drawRectangle(px + 2, pipY + 2, RogueliteHeatPipW, RogueliteHeatPipH,
                   Color(r: 0, g: 0, b: 0, a: if hovered: 110 else: 70))
     drawRectangle(px, pipY, RogueliteHeatPipW, RogueliteHeatPipH,
-                  if selected: Color(r: 76, g: 40, b: 32, a: 255)
-                  elif hovered and unlocked: Color(r: 50, g: 43, b: 42, a: 255)
-                  elif active: Color(r: 44, g: 36, b: 38, a: 245)
-                  else: Color(r: 31, g: 37, b: 48, a: 245))
-    drawRectOutline(pipRect, if selected or hovered: 2 else: 1, pipColor)
+                  if selected: uiSurface(76, 40, 32)
+                  elif hovered and unlocked: uiSurface(50, 43, 42)
+                  elif active: uiSurface(44, 36, 38, 245)
+                  else: uiSurface(31, 37, 48, 245))
+    drawRectOutline(pipRect, if selected or hovered: 2 else: 1, uiInk(pipColor))
     drawTextFit($heatLevel, px + 10, pipY + 5, 20, 17,
-                if unlocked: White else: Color(r: 125, g: 132, b: 145, a: 255))
+                if unlocked: uiInk(White) else: uiInk(125, 132, 145))
     drawTextFit(if heatLevel == RogueliteMinHeat: t("roguelite_heat_base") else: "+" & $(heatLevel - RogueliteMinHeat),
                 px + 33, pipY + 8, RogueliteHeatPipW - 42, 11,
-                if unlocked: pipColor else: Color(r: 105, g: 112, b: 126, a: 255), 8)
+                if unlocked: uiInk(pipColor) else: uiInk(105, 112, 126), 8)
 
     if selected and game.rogueliteHeatPulseTimer > 0:
       let pulseT = clamp(game.rogueliteHeatPulseTimer / 0.45'f32, 0.0'f32, 1.0'f32)
       let ringAlpha = uint8(max(0, min(180, int(pulseT * 180.0'f32))))
       drawCircleOutline(px + RogueliteHeatPipW div 2, pipY + RogueliteHeatPipH div 2,
                       22.0'f32 + (1.0'f32 - pulseT) * 13.0'f32,
-                      withAlpha(pipColor, ringAlpha))
+                      withAlpha(uiInk(pipColor), ringAlpha))
 
   let meterX = x + 300
   let meterY = y + 54
   let meterW = w - 438
   drawTextFit(t("roguelite_pressure"), meterX, y + 39, 120, 11,
-              Color(r: 180, g: 190, b: 205, a: 255))
+              uiInk(180, 190, 205))
   drawMeter(meterX, meterY, meterW, 12, heatIntensity, highHeatColor)
 
   let emberCount = 4 + heatRank * 4
@@ -347,7 +357,7 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
     let ey = y + 42 + int32((cos(phase * 1.31'f32) * 0.5'f32 + 0.5'f32) * 44.0'f32)
     let emberAlpha = uint8(70 + heatRank * 28)
     drawDisc(Vector2(x: ex.float32, y: ey.float32), (1 + heatRank).float32,
-               Color(r: 255, g: 140, b: 75, a: emberAlpha))
+               uiSurface(Color(r: 255, g: 140, b: 75, a: emberAlpha)))
 
   # Compute step-button rects relative to the panel's own x,y so they follow the window when dragged
   let decRect = Rectangle(
@@ -366,13 +376,13 @@ proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
                      canHover and checkCollisionPointRec(mousePos, incRect), highHeatColor)
 
   if maxHeat >= RogueliteMaxHeat:
-    drawTextFit(t("roguelite_heat_maxed"), x + 18, y + h - 42, w - 36, 13, Gold)
+    drawTextFit(t("roguelite_heat_maxed"), x + 18, y + h - 42, w - 36, 13, uiInk(Gold))
   else:
     # Heat is EARNED: winning a run at your highest Heat unlocks the next one.
     drawTextFit(t("roguelite_heat_earn_next").replace("$1", $maxHeat).replace("$2", $(maxHeat + 1)),
-                x + 18, y + h - 42, w - 140, 13, Gold)
+                x + 18, y + h - 42, w - 140, 13, uiInk(Gold))
   drawTextFit(t("roguelite_heat_core_rule"), x + 18, y + h - 22, w - 36, 12,
-              Color(r: 180, g: 192, b: 210, a: 255), 8)
+              uiInk(180, 192, 210), 8)
 
 proc drawProgressRail(run: RogueliteRun, x, y, w: int32) =
   ## Floor progression: 4 themed floors, each capped by its boss.
@@ -392,20 +402,21 @@ proc drawProgressRail(run: RogueliteRun, x, y, w: int32) =
     let label = t("roguelite_floor") & " " & $(i + 1)
     discard drawCenteredTextFit(label, px - (step div 2), y + 14, step, 11, LightGray, 8)
 
-proc drawPanel*(x, y, w, h: int32, title: string, color: Color, closeHovered: bool = false,
+proc drawPanel*(x, y, w, h: int32, title: string, stockColor: Color, closeHovered: bool = false,
                omitTitleBar: bool = false) =
+  let color = uiInk(stockColor)
   drawRectangle(x + 7, y + 7, w, h, Color(r: 0, g: 0, b: 0, a: 115))
-  drawSoftFill(x, y, w, h, Color(r: 17, g: 24, b: 38, a: 250),
-               Color(r: 8, g: 13, b: 24, a: 250))
-  drawRectangle(x + 10, y + 10, w - 20, h - 20, Color(r: 11, g: 18, b: 30, a: 52))
-  drawScanlines(x + 8, y + 8, w - 16, h - 16, Color(r: 255, g: 255, b: 255, a: 6))
+  drawSoftFill(x, y, w, h, uiSurface(17, 24, 38, 250),
+               uiSurface(8, 13, 24, 250))
+  drawRectangle(x + 10, y + 10, w - 20, h - 20, uiSurface(11, 18, 30, 52))
+  drawScanlines(x + 8, y + 8, w - 16, h - 16, uiGlow(255, 255, 255, 6))
   drawCircuitLines(x + 14, y + 50, w - 28, h - 94, withAlpha(color, 24))
   if not omitTitleBar:
-    drawSoftFill(x, y, w, TitleBarH, Color(r: 36, g: 54, b: 74, a: 255),
-                 Color(r: 18, g: 27, b: 42, a: 255))
+    drawSoftFill(x, y, w, TitleBarH, uiSurface(36, 54, 74),
+                 uiSurface(18, 27, 42))
     drawRectangle(x, y + TitleBarH - 3, w, 3, withAlpha(color, 150))
   else:
-    drawRectangle(x + 16, y + 13, w - 32, 34, Color(r: 16, g: 25, b: 40, a: 220))
+    drawRectangle(x + 16, y + 13, w - 32, 34, uiSurface(16, 25, 40, 220))
     drawRectangle(x + 16, y + 45, w - 32, 2, withAlpha(color, 150))
     drawTextFit(title, x + 30, y + 21, w - 60, 18, color)
   drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32), 2, withAlpha(color, 230))
@@ -424,8 +435,9 @@ proc mouseHoverEnabled(game: Game): bool =
 proc isHovered(mousePos: Vector2, x, y, w, h: int32): bool =
   checkCollisionPointRec(mousePos, rectAt(x, y, w, h))
 
-proc drawBossGlyph(cx, cy: int32, color: Color) =
+proc drawBossGlyph(cx, cy: int32, stockColor: Color) =
   ## Warning-triangle mark for a sector's SERVICE on the theme cards.
+  let color = uiInk(stockColor)
   drawTriangle(Vector2(x: cx.float32, y: (cy - 11).float32),
                Vector2(x: (cx - 10).float32, y: (cy + 10).float32),
                Vector2(x: (cx + 10).float32, y: (cy + 10).float32), withAlpha(color, 70))
@@ -433,40 +445,42 @@ proc drawBossGlyph(cx, cy: int32, color: Color) =
                     Vector2(x: (cx - 10).float32, y: (cy + 10).float32),
                     Vector2(x: (cx + 10).float32, y: (cy + 10).float32), color)
 
-proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, color: Color, hovered: bool = false) =
-  let bgTop = if active: Color(r: 36, g: 86, b: 92, a: 255)
-              elif hovered: Color(r: 48, g: 61, b: 82, a: 255)
-              else: Color(r: 35, g: 43, b: 58, a: 255)
-  let bgBottom = if active: Color(r: 18, g: 45, b: 55, a: 255)
-                 elif hovered: Color(r: 29, g: 38, b: 54, a: 255)
-                 else: Color(r: 22, g: 28, b: 40, a: 255)
+proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, stockColor: Color, hovered: bool = false) =
+  let color = uiInk(stockColor)
+  let bgTop = if active: uiSurface(36, 86, 92)
+              elif hovered: uiSurface(48, 61, 82)
+              else: uiSurface(35, 43, 58)
+  let bgBottom = if active: uiSurface(18, 45, 55)
+                 elif hovered: uiSurface(29, 38, 54)
+                 else: uiSurface(22, 28, 40)
   if hovered:
     drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 105))
   drawSoftFill(x, y, w, h, bgTop, bgBottom)
   drawRectangle(x, y, w, 2, withAlpha(color, if active or hovered: 155 else: 80))
   drawRectOutline(rectAt(x, y, w, h), if active or hovered: 2 else: 1,
-                    if active or hovered: color else: Color(r: 82, g: 92, b: 108, a: 255))
+                    if active or hovered: color else: uiLine(82, 92, 108))
   if active:
     drawCornerBrackets(x + 4, y + 4, w - 8, h - 8, 10, 1, withAlpha(color, 150))
   let fontSize = bestFitFontSize(label, w - 14, 15, 9)
   discard drawCenteredTextFit(label, x + 7, y + (h - fontSize) div 2, w - 14, 15,
-                              if active or hovered: color else: LightGray, 9)
+                              if active or hovered: color else: uiInk(LightGray), 9)
 
 proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected: bool, hovered: bool = false) =
   ## A boot profile. All three are always available: the roguelite no longer
   ## sells them ("earn, don't buy").
-  let color = if selected: Color(r: 0, g: 220, b: 255, a: 255)
-              elif hovered: Color(r: 120, g: 220, b: 255, a: 255)
-              else: Color(r: 120, g: 150, b: 180, a: 255)
+  let stockColor = if selected: Color(r: 0, g: 220, b: 255, a: 255)
+                   elif hovered: Color(r: 120, g: 220, b: 255, a: 255)
+                   else: Color(r: 120, g: 150, b: 180, a: 255)
+  let color = uiInk(stockColor)
   drawRectangle(x + 5, y + 5, CardW, CardH, Color(r: 0, g: 0, b: 0, a: if selected or hovered: 120 else: 78))
-  let bgTop = if selected: Color(r: 22, g: 52, b: 66, a: 255)
-              elif hovered: Color(r: 32, g: 43, b: 62, a: 255)
-              else: Color(r: 24, g: 31, b: 46, a: 255)
-  let bgBottom = if selected: Color(r: 11, g: 27, b: 40, a: 255)
-                 elif hovered: Color(r: 18, g: 26, b: 40, a: 255)
-                 else: Color(r: 14, g: 20, b: 32, a: 255)
+  let bgTop = if selected: uiSurface(22, 52, 66)
+              elif hovered: uiSurface(32, 43, 62)
+              else: uiSurface(24, 31, 46)
+  let bgBottom = if selected: uiSurface(11, 27, 40)
+                 elif hovered: uiSurface(18, 26, 40)
+                 else: uiSurface(14, 20, 32)
   drawSoftFill(x, y, CardW, CardH, bgTop, bgBottom)
-  drawScanlines(x + 6, y + 6, CardW - 12, CardH - 12, Color(r: 255, g: 255, b: 255, a: 5))
+  drawScanlines(x + 6, y + 6, CardW - 12, CardH - 12, uiGlow(255, 255, 255, 5))
   drawRectangle(x, y, CardW, 76, withAlpha(color, if selected: 42 elif hovered: 34 else: 24))
   drawRectangle(x, y, CardW, 3, withAlpha(color, if selected: 220 else: 125))
   drawRectOutline(rectAt(x, y, CardW, CardH), if selected: 3 elif hovered: 2 else: 1, color)
@@ -489,11 +503,11 @@ proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected: b
       drawStroke((emblemCX.float32 + cos(a) * r1).int32, (emblemCY.float32 + sin(a) * r1).int32,
                (emblemCX.float32 + cos(a) * r2).int32, (emblemCY.float32 + sin(a) * r2).int32,
                withAlpha(color, uint8(lineA.int * 3 div 4)))
-    drawKitGlyph(emblemCX, emblemCY, kit, withAlpha(color, 235))
+    drawKitGlyph(emblemCX, emblemCY, kit, withAlpha(stockColor, 235))
   drawDisc(Vector2(x: (x + CardW - 44).float32, y: (y + 40).float32), 24, withAlpha(color, 28))
   drawCircleOutline(x + CardW - 44, y + 40, 24.0'f32, withAlpha(color, 100))
-  drawKitGlyph(x + CardW - 44, y + 40, kit, color)
-  drawTextFit(locStarterName(kit), x + 18, y + 18, CardW - 92, 24, White)
+  drawKitGlyph(x + CardW - 44, y + 40, kit, stockColor)
+  drawTextFit(locStarterName(kit), x + 18, y + 18, CardW - 92, 24, uiInk(White))
   drawPill(x + 18, y + 52, 132, 22, t("roguelite_boot_profile"),
            Color(r: 100, g: 255, b: 150, a: 255), true)
   discard drawWrappedText(locStarterDescription(kit), x + 18, y + 96, CardW - 36, 14,
@@ -669,15 +683,16 @@ proc rogueliteVictoryButtonRects*(screenWidth, screenHeight: int32): tuple[conti
   result.continueBtn = rectAt(bx, by, BtnW, BtnH)
   result.cashOut = rectAt(bx + BtnW + Gap, by, BtnW, BtnH)
 
-proc drawRogueliteEndButton(rect: Rectangle, label: string, color: Color, highlighted: bool) =
+proc drawRogueliteEndButton(rect: Rectangle, label: string, stockColor: Color, highlighted: bool) =
+  let color = uiInk(stockColor)
   let x = rect.x.int32
   let y = rect.y.int32
   let w = rect.width.int32
   let h = rect.height.int32
   drawRectangle(x + 3, y + 4, w, h, Color(r: 0, g: 0, b: 0, a: 90))
   drawSoftFill(x, y, w, h,
-    (if highlighted: withAlpha(color, 80) else: Color(r: 22, g: 30, b: 44, a: 245)),
-    (if highlighted: withAlpha(color, 32) else: Color(r: 12, g: 18, b: 30, a: 245)))
+    (if highlighted: withAlpha(color, 80) else: uiSurface(22, 30, 44, 245)),
+    (if highlighted: withAlpha(color, 32) else: uiSurface(12, 18, 30, 245)))
   drawRectOutline(rectAt(x, y, w, h), 2, withAlpha(color, if highlighted: 255 else: 150))
   let fs = bestFitFontSize(label, w - 24, 20, 12)
   discard drawCenteredTextFit(label, x + 12, y + (h - fs) div 2, w - 24, fs,

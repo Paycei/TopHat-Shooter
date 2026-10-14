@@ -13,7 +13,7 @@ import raylib, math
 import ../draw_prims
 from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../localization, ../sound, ../boss_definitions,
-       ../shapes, ../powerup_data, icon_drawing, cinematic_common, cutscene, os_desktop
+       ../shapes, ../powerup_data, icon_drawing, cinematic_common, cutscene, os_desktop, ui_theme
 
 const
   LoreAccent = Color(r: 0, g: 230, b: 230, a: 255)
@@ -110,7 +110,8 @@ proc newCleanupShot(): CutsceneDrawProc =
     beginStoryCamera(lerpF(swf * 0.5'f32, dx + dw * 0.5'f32, push),
                      lerpF(shf * 0.5'f32, dy + dh * 0.5'f32 + 40.0'f32, push),
                      swf * 0.5'f32, lerpF(shf * 0.5'f32, shf * 0.44'f32, push), scale)
-    drawOSDesktop(sd.desktop, sw, sh)
+    withTheme(stockTheme()):   # the filmed desktop is TopHat-ShooterOS
+      drawOSDesktop(sd.desktop, sw, sh)
     drawFootageFrame(sw, sh, scale, alpha)
 
     let open = easeOut(clamp01((local - IntroCleanupOpen) / 0.3'f32))
@@ -213,7 +214,8 @@ proc newFloodShot(): CutsceneDrawProc =
       sd.desktop.icons[i].name = scrambleLabel(sd.baseNames[i], rot[i], local, i)
       if rot[i] > 0.5'f32:
         sd.desktop.icons[i].iconColor = RootRed
-    drawOSDesktop(sd.desktop, sw, sh)
+    withTheme(stockTheme()):   # the filmed desktop is TopHat-ShooterOS
+      drawOSDesktop(sd.desktop, sw, sh)
     drawFootageFrame(sw, sh, scale, alpha)
     for i in 0..<icons:
       let c = rot[i]

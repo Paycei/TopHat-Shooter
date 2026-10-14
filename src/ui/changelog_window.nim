@@ -21,6 +21,7 @@
 import raylib, strutils
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../settings, ../save_system
+import ui_theme
 from settings_window import drawCheckbox
 
 type
@@ -1810,7 +1811,9 @@ proc legacyView(): bool =
 # Layout
 # The changelog is flattened into positioned lines. Wrapping all of it is not
 # free, so the result is cached and only rebuilt when the text width, the
-# language or the page (or view) changes.
+# language or the page (or view) changes. The cached lines keep the stock
+# colours below; they are themed where they are drawn, so switching the
+# interface theme needs no rebuild.
 
 const
   HeaderColor = Color(r: 230, g: 245, b: 255, a: 255)
@@ -2052,8 +2055,9 @@ proc updateChangelogWindow*(cl: ChangelogWindow, dt: float32,
     # Keep the offset valid if the window was just opened / language changed.
     cl.scrollOffset = clamp(cl.scrollOffset, 0, maxScroll)
 
-proc drawTextBold(text: string, x, y, size: int32, color: Color) =
+proc drawTextBold(text: string, x, y, size: int32, stockColor: Color) =
   ## Faux bold for the default bitmap font: the same glyphs 1px apart.
+  let color = uiInk(stockColor)
   drawText(text, x, y, size, color)
   drawText(text, x + 1, y, size, color)
 
@@ -2067,12 +2071,12 @@ proc latestBadgeWidth(): int32 =
   measureText(t(tkChangelogLatest), CL_SMALL_SIZE) + 12
 
 proc drawNavButton(r: Rectangle, pointsLeft, enabled, hovered: bool) =
-  let bg = if not enabled: Color(r: 18, g: 20, b: 26, a: 255)
-           elif hovered: Color(r: 60, g: 52, b: 34, a: 255)
-           else: Color(r: 30, g: 32, b: 40, a: 255)
-  let fg = if not enabled: Color(r: 60, g: 64, b: 74, a: 255)
-           elif hovered: Color(r: 255, g: 220, b: 150, a: 255)
-           else: AccentColor
+  let bg = if not enabled: uiSurface(18, 20, 26)
+           elif hovered: uiSurface(60, 52, 34)
+           else: uiSurface(30, 32, 40)
+  let fg = if not enabled: uiInk(60, 64, 74)
+           elif hovered: uiInk(255, 220, 150)
+           else: uiInk(AccentColor)
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, bg)
   drawRectOutline(r, (if enabled and hovered: 2.0'f32 else: 1.0'f32), fg)
   # Chevron as a filled triangle. raylib culls clockwise triangles, so both
@@ -2108,7 +2112,7 @@ proc drawNavBar(cl: ChangelogWindow, g: ChangelogGeometry, mouse: Vector2) =
 
   let subtitle = versionSubtitle(v)
   drawText(subtitle, (midX - measureText(subtitle, CL_TEXT_SIZE) div 2).int32,
-           titleY + CL_LINE_H, CL_TEXT_SIZE, SubtitleColor)
+           titleY + CL_LINE_H, CL_TEXT_SIZE, uiInk(SubtitleColor))
 
   for i in 0 ..< changelog.len:
     let cell = pageDotRect(g, i)
@@ -2117,22 +2121,22 @@ proc drawNavBar(cl: ChangelogWindow, g: ChangelogGeometry, mouse: Vector2) =
     let dx = (cell.x + (cell.width - size.float32) / 2).int32
     let dy = (cell.y + (cell.height - size.float32) / 2).int32
     if i == cl.page:
-      drawRectangle(dx, dy, size, size, AccentColor)
+      drawRectangle(dx, dy, size, size, uiInk(AccentColor))
     else:
       drawRectangle(dx, dy, size, size,
-                    if hovered: Color(r: 150, g: 130, b: 95, a: 255)
-                    else: Color(r: 70, g: 76, b: 90, a: 255))
+                    if hovered: uiSurface(150, 130, 95)
+                    else: uiSurface(70, 76, 90))
 
   drawRectangle(g.contentX.int32 + 1, (g.contentY + g.navH).int32, g.contentW.int32 - 2, 1,
-                RuleColor)
+                uiLine(RuleColor))
 
 proc drawFooter(g: ChangelogGeometry, mouse: Vector2) =
-  drawRectangle(g.contentX.int32 + 1, g.footerY.int32, g.contentW.int32 - 2, 1, RuleColor)
+  drawRectangle(g.contentX.int32 + 1, g.footerY.int32, g.contentW.int32 - 2, 1, uiLine(RuleColor))
   let hovered = checkCollisionPointRec(mouse, g.checkbox)
   drawCheckbox(g.boxX, g.boxY, CL_CHECKBOX, legacyView(), hovered)
   drawText(t(tkChangelogLegacyView), (g.boxX + CL_CHECKBOX + 10).int32,
            (g.boxY + (CL_CHECKBOX - CL_TEXT_SIZE) div 2 + 1).int32, CL_TEXT_SIZE,
-           if hovered: HeadColor else: SubtitleColor)
+           uiInk(if hovered: HeadColor else: SubtitleColor))
 
 proc drawChangelogWindow*(cl: ChangelogWindow) =
   if not cl.window.visible:
@@ -2148,10 +2152,10 @@ proc drawChangelogWindow*(cl: ChangelogWindow) =
 
   # Panel background
   drawRectangle(g.contentX.int32, g.contentY.int32, g.contentW.int32, g.contentH.int32,
-               Color(r: 10, g: 12, b: 18, a: 255))
+               uiSurface(10, 12, 18))
   drawRectOutline(Rectangle(x: g.contentX.float32, y: g.contentY.float32,
                                 width: g.contentW.float32, height: g.contentH.float32),
-                    1, Color(r: 255, g: 180, b: 80, a: 200))
+                    1, uiLine(255, 180, 80, 200))
 
   cl.ensureLayout(g, legacy)
   if not legacy:
@@ -2175,31 +2179,31 @@ proc drawChangelogWindow*(cl: ChangelogWindow) =
     of lkHeader:
       drawTextBold(line.text, x, y, CL_TITLE_SIZE, line.color)
       drawRectangle(baseX.int32, y + 36, (rightX - baseX).int32, 1,
-                    Color(r: 255, g: 180, b: 80, a: 120))
+                    uiSurface(255, 180, 80, 120))
     of lkVersion:
       drawTextBold(line.text, x, y, CL_TEXT_SIZE, line.color)
       if line.badge:
         drawLatestBadge(x + measureText(line.text, CL_TEXT_SIZE) + 12, y)
     of lkSubtitle:
-      drawText(line.text, x, y, CL_TEXT_SIZE, line.color)
+      drawText(line.text, x, y, CL_TEXT_SIZE, uiInk(line.color))
     of lkCategory:
       drawTextBold(line.text, x, y, CL_TEXT_SIZE, line.color)
       # A rule runs from the label to the right edge, marking the section.
       let ruleX = x + measureText(line.text, CL_TEXT_SIZE) + 12
       if ruleX < rightX:
         drawRectangle(ruleX, y + 9, rightX.int32 - ruleX, 2,
-                      Color(r: line.color.r, g: line.color.g, b: line.color.b, a: 80))
+                      uiSurface(Color(r: line.color.r, g: line.color.g, b: line.color.b, a: 80)))
     of lkHead:
       drawTextBold(line.text, x, y, CL_TEXT_SIZE, line.color)
     of lkBody:
-      drawText(line.text, x, y, CL_TEXT_SIZE, line.color)
+      drawText(line.text, x, y, CL_TEXT_SIZE, uiInk(line.color))
 
     case line.marker
     of mkNone: discard
     of mkSquare:
-      drawRectangle((baseX + 2).int32, y + 6, 7, 7, line.markerColor)
+      drawRectangle((baseX + 2).int32, y + 6, 7, 7, uiInk(line.markerColor))
     of mkPoint:
-      drawRectangle((baseX + CL_HEAD_INDENT + 4).int32, y + 8, 5, 5, line.markerColor)
+      drawRectangle((baseX + CL_HEAD_INDENT + 4).int32, y + 8, 5, 5, uiInk(line.markerColor))
 
   endScissorMode()
 
@@ -2212,9 +2216,9 @@ proc drawChangelogWindow*(cl: ChangelogWindow) =
     let thumbY = g.viewY + int(float32(g.viewH - thumbH) *
                                float32(cl.scrollOffset) / float32(maxScroll))
     drawRectangle(trackX.int32, g.viewY.int32, 5, g.viewH.int32,
-                 Color(r: 25, g: 28, b: 36, a: 255))
+                 uiSurface(25, 28, 36))
     drawRectangle(trackX.int32, thumbY.int32, 5, thumbH.int32,
-                 Color(r: 255, g: 180, b: 80, a: 230))
+                 uiSurface(255, 180, 80, 230))
 
   drawFooter(g, mouse)
   drawResizeIndicator(cl.window)

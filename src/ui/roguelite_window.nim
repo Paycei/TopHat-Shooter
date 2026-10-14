@@ -7,6 +7,7 @@
 import raylib, math
 import ../draw_prims
 import os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound, ../utils
+import ui_theme
 
 const HeatUnlockCelebrationDuration = 1.35'f32
 
@@ -45,12 +46,12 @@ proc drawHeatUnlockCelebration(rw: RogueliteWindow, panelX, panelY: int32) =
   let remaining = clamp(rw.celebrationTimer / HeatUnlockCelebrationDuration, 0.0'f32, 1.0'f32)
   let progress = 1.0'f32 - remaining
   let peak = sin(progress * PI)
-  let accent = Color(r: 255, g: 112, b: 64, a: 255)
-  let gold = Color(r: 255, g: 222, b: 88, a: 255)
+  let accent = uiInk(255, 112, 64)
+  let gold = uiInk(255, 222, 88)
   let alpha = uint8(clamp(remaining * 230.0'f32, 0.0'f32, 230.0'f32))
 
   drawRectangle(heatPanelX - 8, heatPanelY - 8, heatPanelW + 16, heatPanelH + 16,
-                Color(r: 255, g: 82, b: 40, a: uint8(22.0'f32 * peak)))
+                uiGlow(Color(r: 255, g: 82, b: 40, a: uint8(22.0'f32 * peak))))
   for ring in 0..2:
     let grow = int32(progress * (16.0'f32 + ring.float32 * 10.0'f32))
     let ringAlpha = uint8(clamp(remaining * (170.0'f32 - ring.float32 * 34.0'f32), 0.0'f32, 170.0'f32))
@@ -76,7 +77,7 @@ proc drawHeatUnlockCelebration(rw: RogueliteWindow, panelX, panelY: int32) =
   let bannerX = heatPanelX + (heatPanelW - bannerW) div 2
   let bannerY = heatPanelY - 24 - int32(10.0'f32 * peak)
   drawRectangle(bannerX + 4, bannerY + 4, bannerW, bannerH, Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.45)))
-  drawRectangle(bannerX, bannerY, bannerW, bannerH, Color(r: 54, g: 28, b: 24, a: uint8(alpha.float32 * 0.88)))
+  drawRectangle(bannerX, bannerY, bannerW, bannerH, uiSurface(Color(r: 54, g: 28, b: 24, a: uint8(alpha.float32 * 0.88))))
   drawRectOutline(Rectangle(x: bannerX.float32, y: bannerY.float32,
                                width: bannerW.float32, height: bannerH.float32),
                      2.5'f32, withAlpha(gold, alpha))
@@ -252,7 +253,7 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
   let contentW = rw.window.width - 20
   let contentH = rw.window.height - TITLE_BAR_HEIGHT - 20
   drawRectangle(contentX.int32, contentY.int32, contentW.int32, contentH.int32,
-                Color(r: 25, g: 25, b: 35, a: 255))
+                uiSurface(25, 25, 35))
 
   let panelX = contentX.int32
   let panelY = contentY.int32
@@ -309,6 +310,6 @@ proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
                   Color(r: 255, g: 120, b: 120, a: 255),
                   canHover and checkCollisionPointRec(mousePos, buttons.back))
   drawCenteredTextFit(t("roguelite_setup_controls"), gridLeft, panelY + RoguelitePanelH - 30,
-                      gridW, 14, LightGray)
+                      gridW, 14, uiInk(LightGray))
 
   drawHeatUnlockCelebration(rw, panelX, panelY)

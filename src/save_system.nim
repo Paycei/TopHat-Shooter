@@ -54,6 +54,7 @@ type
     showHints*: bool
     hudLayout*: HudLayout
     hudStyle*: HudStyle
+    interfaceTheme*: string    # Chosen interface theme's id ("tophat", "ckn", "<mod id>:<id>"; ui_theme.nim)
     uiScale*: float32          # Interface scale for the desktop/windows/HUD layer
     showEnemyLabels*: bool
     showDamageNumbers*: bool   # Floating damage text on hits
@@ -365,6 +366,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
     "showHints": settings.showHints,
     "hudLayout": $settings.hudLayout,
     "hudStyle": $settings.hudStyle,
+    "interfaceTheme": settings.interfaceTheme,
     "uiScale": settings.uiScale,
     "showEnemyLabels": settings.showEnemyLabels,
     "showDamageNumbers": settings.showDamageNumbers,
@@ -475,6 +477,9 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("hudStyle"):
     settings.hudStyle = parseEnumOr(jsonNode["hudStyle"].getStr(), hsModern)
+
+  if jsonNode.hasKey("interfaceTheme"):
+    settings.interfaceTheme = jsonNode["interfaceTheme"].getStr("tophat")
 
   if jsonNode.hasKey("uiScale"):
     settings.uiScale = snapUIScale(jsonNode["uiScale"].getFloat().float32)

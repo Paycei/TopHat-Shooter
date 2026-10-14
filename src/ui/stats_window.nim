@@ -4,6 +4,7 @@
 import raylib, strutils, std/tables, algorithm
 import ../draw_prims
 import os_window, ../statistics, ../run_statistics, ../types, ../powerup_data, ../localization, ../render_context, ../utils
+import ui_theme
 
 type
   StatsTab* = enum
@@ -293,30 +294,30 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
 proc drawMetricCard*(x, y, width, height: int, title: string, value: string,
                     icon: char, color: Color) =
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
-               Color(r: 25, g: 25, b: 35, a: 255))
+               uiSurface(25, 25, 35))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
-                    1, color)
+                    1, uiLine(color))
 
   let iconX = x + 15
   let iconY = y + height div 2
   drawDisc(Vector2(x: iconX.float32, y: iconY.float32), 12, color)
-  drawText($icon, (iconX - 6).int32, (iconY - 10).int32, 20, Black)
+  drawText($icon, (iconX - 6).int32, (iconY - 10).int32, 20, Black)  # on the badge, which keeps its colour
 
-  drawText(title, (x + 40).int32, (y + 10).int32, 14, LightGray)
-  drawText(value, (x + 40).int32, (y + 30).int32, 20, White)
+  drawText(title, (x + 40).int32, (y + 10).int32, 14, uiInk(LightGray))
+  drawText(value, (x + 40).int32, (y + 30).int32, 20, uiInk(White))
 
 proc drawStatPanel*(x, y, width, height: int, title: string) =
   ## Draw a panel background with title
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
-               Color(r: 25, g: 25, b: 35, a: 255))
+               uiSurface(25, 25, 35))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
-                    1, Color(r: 80, g: 80, b: 100, a: 255))
+                    1, uiLine(80, 80, 100))
 
   drawRectangle(x.int32, y.int32, width.int32, 28,
-               Color(r: 35, g: 35, b: 45, a: 255))
-  drawText(title, (x + 8).int32, (y + 6).int32, 14, Color(r: 0, g: 180, b: 255, a: 255))
+               uiSurface(35, 35, 45))
+  drawText(title, (x + 8).int32, (y + 6).int32, 14, uiInk(0, 180, 255))
 
 proc fitText*(text: string, maxWidth: int, fontSize: int32 = 13): string =
   ## Text truncated with ".." until it fits maxWidth. Guards the name columns:
@@ -351,8 +352,8 @@ proc drawListScrollbar*(x, y, height: int, scrollOffset, contentHeight, viewport
   let thumbH = max(20, int(height.float32 * viewportHeight.float32 / contentHeight.float32))
   let travel = max(0, height - thumbH)
   let thumbY = y + int(travel.float32 * (clamp(scrollOffset, 0, maxScroll).float32 / maxScroll.float32))
-  drawRectangle(x.int32, y.int32, 3, height.int32, Color(r: 40, g: 40, b: 55, a: 255))
-  drawRectangle(x.int32, thumbY.int32, 3, thumbH.int32, Color(r: 0, g: 180, b: 255, a: 220))
+  drawRectangle(x.int32, y.int32, 3, height.int32, uiSurface(40, 40, 55))
+  drawRectangle(x.int32, thumbY.int32, 3, thumbH.int32, uiSurface(0, 180, 255, 220))
 
 proc drawHealingTooltip(row: HealingSourceRow, anchor: Vector2, bounds: OSWindow,
                         healColor: Color) =
@@ -366,12 +367,12 @@ proc drawHealingTooltip(row: HealingSourceRow, anchor: Vector2, bounds: OSWindow
   let output = row.restored + row.overheal
   let wastedPct = if output > 0: row.overheal / output * 100.0'f32 else: 0.0'f32
   let lines = [
-    (row.name, White),
+    (row.name, uiInk(White)),
     (t(tkStatsHealedLabel) & ": " & formatLargeNumber(row.restored * BALANCE_MULTIPLIER),
      healColor),
     (t(tkStatsOverheal) & ": " & formatLargeNumber(row.overheal * BALANCE_MULTIPLIER) &
        " (" & formatPercent(wastedPct) & ")",
-     OverhealColor)]
+     uiInk(OverhealColor))]
   var w = 0
   for line in lines:
     w = max(w, measureText(line[0], FontSize).int)
@@ -383,33 +384,33 @@ proc drawHealingTooltip(row: HealingSourceRow, anchor: Vector2, bounds: OSWindow
   var y = int(anchor.y) + Offset
   if x + w > bounds.x + bounds.width: x = int(anchor.x) - Offset - w
   if y + h > bounds.y + bounds.height: y = int(anchor.y) - Offset - h
-  drawRectangle(x.int32, y.int32, w.int32, h.int32, Color(r: 18, g: 18, b: 28, a: 240))
+  drawRectangle(x.int32, y.int32, w.int32, h.int32, uiSurface(18, 18, 28, 240))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
-                     1, Color(r: 80, g: 80, b: 100, a: 255))
+                     1, uiLine(80, 80, 100))
   for i in 0 ..< lines.len:
     drawText(lines[i][0], (x + Pad).int32, (y + Pad + i * LineH).int32, FontSize, lines[i][1])
 
 proc drawStatLine*(x, y: int, label: string, value: string, valueColor: Color = White) =
   ## Draw a single stat line
-  drawText(label, x.int32, y.int32, 14, Color(r: 180, g: 190, b: 200, a: 255))
+  drawText(label, x.int32, y.int32, 14, uiInk(180, 190, 200))
   let valueWidth = measureText(value, 14)
-  drawText(value, (x + 260 - valueWidth).int32, y.int32, 14, valueColor)
+  drawText(value, (x + 260 - valueWidth).int32, y.int32, 14, uiInk(valueColor))
 
 proc drawMiniGraph*(x, y, width, height: int, title: string,
                    dataPoints: seq[(float32, float32)], maxValue: float32,
                    color: Color, animTime: float32) =
   ## Draw a time-series line graph
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
-               Color(r: 20, g: 20, b: 30, a: 255))
+               uiSurface(20, 20, 30))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
-                    1, Color(r: 80, g: 80, b: 100, a: 255))
+                    1, uiLine(80, 80, 100))
 
-  drawText(title, (x + 8).int32, (y + 6).int32, 12, Color(r: 0, g: 180, b: 255, a: 255))
+  drawText(title, (x + 8).int32, (y + 6).int32, 12, uiInk(0, 180, 255))
 
   if dataPoints.len < 2:
     let noDataY = y + height div 2
-    drawText(t(tkGameNoData), (x + width div 2 - 30).int32, noDataY.int32, 12, Gray)
+    drawText(t(tkGameNoData), (x + width div 2 - 30).int32, noDataY.int32, 12, uiInk(Gray))
     return
 
   let graphX = x + 10
@@ -421,7 +422,7 @@ proc drawMiniGraph*(x, y, width, height: int, title: string,
     let gridY = graphY + int((i.float32 / 3.0) * graphHeight.float32)
     drawStroke(Vector2(x: graphX.float32, y: gridY.float32),
             Vector2(x: (graphX + graphWidth).float32, y: gridY.float32),
-            1, Color(r: 40, g: 40, b: 60, a: 255))
+            1, uiLine(40, 40, 60))
 
   var minTime = float32.high
   var maxTime = 0.0'f32
@@ -444,12 +445,12 @@ proc drawMiniGraph*(x, y, width, height: int, title: string,
     let y2Px = graphY.float32 + y2Norm * graphHeight.float32
 
     drawStroke(Vector2(x: x1Px, y: y1Px), Vector2(x: x2Px, y: y2Px),
-            3, withAlpha(color, 60))
+            3, withAlpha(uiInk(color), 60))
     drawStroke(Vector2(x: x1Px, y: y1Px), Vector2(x: x2Px, y: y2Px),
-            2, color)
+            2, uiInk(color))
 
-  drawText("0", (x + 2).int32, (graphY + graphHeight - 12).int32, 10, Gray)
-  drawText(formatLargeNumber(safeMaxValue), (x + 2).int32, graphY.int32, 10, Gray)
+  drawText("0", (x + 2).int32, (graphY + graphHeight - 12).int32, 10, uiInk(Gray))
+  drawText(formatLargeNumber(safeMaxValue), (x + 2).int32, graphY.int32, 10, uiInk(Gray))
 
 proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
   if not statsWin.window.visible:
@@ -486,18 +487,18 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                    mousePos.y <= (tabY + tabHeight).float32
 
     let bgColor = if isActive:
-      Color(r: 0, g: 60, b: 80, a: 255)
+      uiSurface(0, 60, 80)
     elif isHovered:
-      Color(r: 50, g: 50, b: 60, a: 255)
+      uiSurface(50, 50, 60)
     else:
-      Color(r: 40, g: 40, b: 50, a: 255)
+      uiSurface(40, 40, 50)
 
     drawRectangle(tabX.int32, tabY.int32, tabWidth.int32, tabHeight.int32, bgColor)
 
     let borderColor = if isActive:
-      Color(r: 0, g: 200, b: 255, a: 255)
+      uiLine(0, 200, 255)
     else:
-      Color(r: 80, g: 80, b: 100, a: 255)
+      uiLine(80, 80, 100)
 
     drawRectOutline(Rectangle(x: tabX.float32, y: tabY.float32,
                                   width: tabWidth.float32, height: tabHeight.float32),
@@ -507,7 +508,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     let textX = tabX + (tabWidth - textWidth) div 2
     let textY = tabY + (tabHeight - 16) div 2
 
-    let textColor = if isActive: Gold else: White
+    let textColor = if isActive: uiInk(Gold) else: uiInk(White)
     drawText(tabName, textX.int32, textY.int32, 16, textColor)
 
     tabX += tabWidth + 10
@@ -517,7 +518,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
   let tabContentH = contentH - tabHeight - 20
 
   drawRectangle(contentX.int32, tabContentY.int32, contentW.int32, tabContentH.int32,
-               Color(r: 15, g: 15, b: 25, a: 255))
+               uiSurface(15, 15, 25))
 
   let hasLastRun = hasLastRunStats()
 
@@ -526,7 +527,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     var y = tabContentY + 20
 
     drawText(t(tkStatsPerformanceMonitor), (contentX + 20).int32, y.int32,
-            20, Color(r: 0, g: 200, b: 255, a: 255))
+            20, uiInk(0, 200, 255))
     y += 35
 
     let cardWidth = (contentW - 80) div 3
@@ -769,27 +770,27 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         of "Balanced": t("stats_play_style_balanced")
         else: runStats.comparison.playStyle
 
-      drawText(styleText, (col2X + 10).int32, lineY.int32, 20, styleColor)
+      drawText(styleText, (col2X + 10).int32, lineY.int32, 20, uiInk(styleColor))
       lineY += 35
 
-      drawText(t(tkStatsAggression), (col2X + 10).int32, lineY.int32, 14, White)
+      drawText(t(tkStatsAggression), (col2X + 10).int32, lineY.int32, 14, uiInk(White))
       lineY += 20
       let aggressionBar = int(runStats.comparison.aggressionRating * 2.4)
       drawRectangle((col2X + 10).int32, lineY.int32, aggressionBar.int32, 16,
-                   Color(r: 255, g: 100, b: 100, a: 200))
+                   uiSurface(255, 100, 100, 200))
       drawRectOutline(Rectangle(x: (col2X + 10).float32, y: lineY.float32,
                                     width: 240.0, height: 16.0),
-                        1, Color(r: 80, g: 80, b: 100, a: 255))
+                        1, uiLine(80, 80, 100))
       lineY += 30
 
-      drawText(t(tkStatsCaution), (col2X + 10).int32, lineY.int32, 14, White)
+      drawText(t(tkStatsCaution), (col2X + 10).int32, lineY.int32, 14, uiInk(White))
       lineY += 20
       let cautionBar = int(runStats.comparison.cautionRating * 2.4)
       drawRectangle((col2X + 10).int32, lineY.int32, cautionBar.int32, 16,
-                   Color(r: 100, g: 200, b: 255, a: 200))
+                   uiSurface(100, 200, 255, 200))
       drawRectOutline(Rectangle(x: (col2X + 10).float32, y: lineY.float32,
                                     width: 240.0, height: 16.0),
-                        1, Color(r: 80, g: 80, b: 100, a: 255))
+                        1, uiLine(80, 80, 100))
 
       # DPS Graph
       if runStats.performance.dpsHistory.len > 0:
@@ -799,13 +800,13 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                      Color(r: 255, g: 150, b: 50, a: 255), statsWin.animTime)
       else:
         drawStatPanel(col3X, y, col1Width, 200, t("stats_dps_over_time_label"))
-        drawText(t(tkGameNoGraphData), (col3X + col1Width div 2 - 50).int32, (y + 100).int32, 14, Gray)
+        drawText(t(tkGameNoGraphData), (col3X + col1Width div 2 - 50).int32, (y + 100).int32, 14, uiInk(Gray))
     else:
       let y = tabContentY + tabContentH div 2 - 30
       drawText(t(tkGameNoPreviousRun),
-              (contentX + contentW div 2 - 180).int32, y.int32, 18, LightGray)
+              (contentX + contentW div 2 - 180).int32, y.int32, 18, uiInk(LightGray))
       drawText(t(tkGameCompleteGameStats),
-              (contentX + contentW div 2 - 200).int32, (y + 25).int32, 16, Gray)
+              (contentX + contentW div 2 - 200).int32, (y + 25).int32, 16, uiInk(Gray))
 
   of stPowerUps:
     if hasLastRun:
@@ -814,20 +815,20 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
       # powerUpListGeometry starts the panels immediately below that.
       var y = tabContentY + 20
 
-      drawText(t(tkStatsPowerUpBreakdown), (contentX + 20).int32, y.int32, 24, Color(r: 255, g: 200, b: 50, a: 255))
+      drawText(t(tkStatsPowerUpBreakdown), (contentX + 20).int32, y.int32, 24, uiInk(255, 200, 50))
       y += 30
 
       let summaryText = $runStats.powerUps.totalPowerUps & " " & t(tkStatsTotal) & " | " &
                        $runStats.powerUps.legendaryPowerUps & " " & t(tkStatsLegendaryCount) & " | " &
                        $runStats.powerUps.commonPowerUps & " " & t(tkStatsCommonCount)
-      drawText(summaryText, (contentX + 20).int32, y.int32, 16, LightGray)
+      drawText(summaryText, (contentX + 20).int32, y.int32, 16, uiInk(LightGray))
 
       # Three independently scrollable columns: what was picked, what it dealt,
       # and what it healed. Geometry comes from the same proc the wheel handler
       # uses, so hit-testing and rendering stay in lockstep.
       let geoms = powerUpListGeometry(statsWin.window)
-      let headerColor = Color(r: 0, g: 180, b: 255, a: 255)
-      let healColor = Color(r: 80, g: 255, b: 160, a: 255)
+      let headerColor = uiInk(0, 180, 255)
+      let healColor = uiInk(80, 255, 160)
 
       # --- Column 1: pick timeline ---------------------------------------
       block timelineColumn:
@@ -835,7 +836,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         drawStatPanel(g.panelX, g.panelY, g.panelW, g.panelH, t(tkStatsTimeline))
         let picks = runStats.powerUps.powerUpsChosen
         if picks.len == 0:
-          drawText(t(tkStatsNoPowerUpsSelected), (g.panelX + 10).int32, g.listY.int32, 14, Gray)
+          drawText(t(tkStatsNoPowerUpsSelected), (g.panelX + 10).int32, g.listY.int32, 14, uiInk(Gray))
           break timelineColumn
 
         let col = timelineColumns(g)
@@ -849,13 +850,13 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           if rowY + PowerUpRowHeight <= g.listY or rowY >= g.listY + g.listH:
             continue
           let powerup = choice[1]
-          let rarityColor = if powerup.rarity == prLegendary: Gold else: White
-          drawText(formatDuration(choice[0]), col.timeX.int32, rowY.int32, 13, LightGray)
+          let rarityColor = if powerup.rarity == prLegendary: uiInk(Gold) else: uiInk(White)
+          drawText(formatDuration(choice[0]), col.timeX.int32, rowY.int32, 13, uiInk(LightGray))
           drawText(fitText(getPowerUpName(powerup.powerType), col.nameMax),
                   col.nameX.int32, rowY.int32, 13, rarityColor)
           let levelText = t(tkStatsLevelPrefix) & $powerup.level
           drawText(levelText, (col.levelRight - measureText(levelText, 13)).int32,
-                  rowY.int32, 13, Orange)
+                  rowY.int32, 13, uiInk(Orange))
         endScissorMode()
 
         drawListScrollbar(col.scrollbarX, g.listY, g.listH, scroll, contentH, g.listH)
@@ -866,7 +867,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         drawStatPanel(g.panelX, g.panelY, g.panelW, g.panelH, t(tkStatsEffectivenessRanking))
         let ranking = buildDamageRanking(runStats)
         if ranking.len == 0:
-          drawText(t(tkStatsNoDamageData), (g.panelX + 10).int32, (g.panelY + 36).int32, 14, Gray)
+          drawText(t(tkStatsNoDamageData), (g.panelX + 10).int32, (g.panelY + 36).int32, 14, uiInk(Gray))
           break damageColumn
 
         let col = rankingColumns(g)
@@ -898,8 +899,8 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
             of 3: Color(r: 205, g: 127, b: 50, a: 255)
             else: White
 
-          drawText($rank & ".", col.rankX.int32, rowY.int32, 13, medalColor)
-          drawText(fitText(getPowerUpName(entry[0]), col.nameMax), col.nameX.int32, rowY.int32, 13, White)
+          drawText($rank & ".", col.rankX.int32, rowY.int32, 13, uiInk(medalColor))
+          drawText(fitText(getPowerUpName(entry[0]), col.nameMax), col.nameX.int32, rowY.int32, 13, uiInk(White))
           # Damage is stored in internal units; BALANCE_MULTIPLIER scales it to
           # the same numbers the floating damage text shows in-game.
           let valueText = formatLargeNumber(entry[1] * BALANCE_MULTIPLIER)
@@ -907,14 +908,14 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                   rowY.int32, 13, headerColor)
           let percentText = formatPercent(percent)
           drawText(percentText, (col.percentRight - measureText(percentText, 13)).int32,
-                  rowY.int32, 13, getQualityColor(percent, 10.0))
+                  rowY.int32, 13, uiInk(getQualityColor(percent, 10.0)))
         endScissorMode()
 
         drawListScrollbar(col.scrollbarX, g.listY, g.listH, scroll, contentH, g.listH)
 
         drawRectangle((g.panelX + 8).int32, (g.footerY - 5).int32,
-                     (g.panelW - 16).int32, 1, Color(r: 70, g: 70, b: 90, a: 255))
-        drawText(t(tkStatsTotal), col.rankX.int32, (g.footerY + 3).int32, 13, LightGray)
+                     (g.panelW - 16).int32, 1, uiSurface(70, 70, 90))
+        drawText(t(tkStatsTotal), col.rankX.int32, (g.footerY + 3).int32, 13, uiInk(LightGray))
         let damageTotalText = formatLargeNumber(totalDamage * BALANCE_MULTIPLIER)
         drawText(damageTotalText, (col.percentRight - measureText(damageTotalText, 13)).int32,
                 (g.footerY + 3).int32, 13, headerColor)
@@ -925,7 +926,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         drawStatPanel(g.panelX, g.panelY, g.panelW, g.panelH, t(tkStatsHealingRanking))
         let healList = buildHealingSources(runStats)
         if healList.len == 0:
-          drawText(t(tkStatsNoHealingData), (g.panelX + 10).int32, (g.panelY + 36).int32, 14, Gray)
+          drawText(t(tkStatsNoHealingData), (g.panelX + 10).int32, (g.panelY + 36).int32, 14, uiInk(Gray))
           break healingColumn
 
         let col = rankingColumns(g)
@@ -977,32 +978,32 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                             withAlpha(healColor, 60))
             if overW > 0:
               drawRectangle((meterX + healedW).int32, meterY.int32, overW.int32, meterH.int32,
-                            withAlpha(OverhealColor, 40))
+                            withAlpha(uiInk(OverhealColor), 40))
 
-          drawText($rank & ".", col.rankX.int32, rowY.int32, 13, medalColor)
-          drawText(fitText(entry.name, col.nameMax), col.nameX.int32, rowY.int32, 13, White)
+          drawText($rank & ".", col.rankX.int32, rowY.int32, 13, uiInk(medalColor))
+          drawText(fitText(entry.name, col.nameMax), col.nameX.int32, rowY.int32, 13, uiInk(White))
           let valueText = formatLargeNumber(entry.restored * BALANCE_MULTIPLIER)
           drawText(valueText, (col.valueRight - measureText(valueText, 13)).int32,
                   rowY.int32, 13, healColor)
           let percentText = formatPercent(percent)
           drawText(percentText, (col.percentRight - measureText(percentText, 13)).int32,
-                  rowY.int32, 13, getQualityColor(percent, 10.0))
+                  rowY.int32, 13, uiInk(getQualityColor(percent, 10.0)))
         endScissorMode()
 
         drawListScrollbar(col.scrollbarX, g.listY, g.listH, scroll, contentH, g.listH)
 
         drawRectangle((g.panelX + 8).int32, (g.footerY - 5).int32,
-                     (g.panelW - 16).int32, 1, Color(r: 70, g: 70, b: 90, a: 255))
-        drawText(t(tkStatsTotalHealed), col.rankX.int32, (g.footerY + 3).int32, 13, LightGray)
+                     (g.panelW - 16).int32, 1, uiSurface(70, 70, 90))
+        drawText(t(tkStatsTotalHealed), col.rankX.int32, (g.footerY + 3).int32, 13, uiInk(LightGray))
         let healTotalText = formatLargeNumber(totalHealing * BALANCE_MULTIPLIER)
         drawText(healTotalText, (col.percentRight - measureText(healTotalText, 13)).int32,
                 (g.footerY + 3).int32, 13, healColor)
         # Drawn in the bars' muted colour, so this line is also their legend.
         let overY = g.footerY + 3 + HealFooterLineH
-        drawText(t(tkStatsOverheal), col.rankX.int32, overY.int32, 13, OverhealColor)
+        drawText(t(tkStatsOverheal), col.rankX.int32, overY.int32, 13, uiInk(OverhealColor))
         let overTotalText = formatLargeNumber(totalOverheal * BALANCE_MULTIPLIER)
         drawText(overTotalText, (col.percentRight - measureText(overTotalText, 13)).int32,
-                overY.int32, 13, OverhealColor)
+                overY.int32, 13, uiInk(OverhealColor))
 
         # The bar gives the proportion; hovering a row gives the numbers behind it.
         let pointer = getVirtualMousePosition()
@@ -1014,12 +1015,12 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
     else:
       let y = tabContentY + tabContentH div 2 - 20
       drawText(t(tkGameNoPowerUpData),
-              (contentX + contentW div 2 - 150).int32, y.int32, 18, LightGray)
+              (contentX + contentW div 2 - 150).int32, y.int32, 18, uiInk(LightGray))
 
   of stRoguelite:
     var y = tabContentY + 24
     drawText(t("stats_roguelite_metrics"), (contentX + 28).int32, y.int32, 22,
-            Color(r: 0, g: 220, b: 180, a: 255))
+            uiInk(0, 220, 180))
     y += 44
     let cardWidth = (contentW - 80) div 3
     drawMetricCard(contentX + 20, y, cardWidth, 70,

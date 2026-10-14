@@ -3,7 +3,7 @@
 
 import raylib, rlgl, math, strformat, strutils
 import ../draw_prims
-import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets
+import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets, ui_theme
 from ../modding/mod_hooks import mods
 
 type
@@ -52,6 +52,14 @@ type
     cubeSkinChanged*: bool
     maxScrollOffset*: float32
 
+type
+  SecretItem = enum
+    ## The SECRET tab's cards, left to right (their index is shop.hoveredSkin).
+    siKernelTophat   ## wave-60 victory
+    siOrbitalCube    ## Escape Velocity advancement
+    siCheaterHat     ## cd+ menu advancement
+    siCknTheme       ## the CKN OS interface theme: the last story recording
+
 const
   SKIN_BOX_WIDTH = 170  # Increased to give more space
   SKIN_BOX_HEIGHT = 140  # Increased to accommodate 2-line descriptions
@@ -60,10 +68,10 @@ const
   PREVIEW_BOX_WIDTH = 420
   PREVIEW_BOX_HEIGHT = 360
   SHOP_BASE_TAB_COUNT = 9  # tabs shown with no mod cosmetics (the Mods tab makes ten)
-  SECRET_CARD_W = 240
+  SECRET_CARD_W = 180   # four cards across the 800px content
   SECRET_CARD_H = 220
-  SECRET_CARD_GAP = 40
-  SECRET_ITEM_COUNT = 3  # 0 = kernel tophat, 1 = orbital cube, 2 = cheater hat
+  SECRET_CARD_GAP = 20
+  SECRET_ITEM_COUNT = ord(SecretItem.high) + 1
   PACK_CARD_W = 236      # Packs tab: bundle cards (wider than skin cards)
   PACK_CARD_H = 156
   PACK_CARD_PAD = 16
@@ -167,9 +175,69 @@ proc secretCardPos(contentX, contentY, contentWidth, index: int): tuple[x, y: in
   let left = contentX + (contentWidth - totalW) div 2
   (x: left + index * (SECRET_CARD_W + SECRET_CARD_GAP), y: contentY + TAB_HEIGHT + 60)
 
+proc secretUnlocked(item: SecretItem): bool =
+  let s = globalSettings
+  if s.isNil:
+    return false
+  case item
+  of siKernelTophat: s.kernelTophatUnlocked
+  of siOrbitalCube: s.orbitalCubeUnlocked
+  of siCheaterHat: s.cheaterHatUnlocked
+  of siCknTheme: themeUnlocked(findTheme("ckn"))
+
+proc secretEquipped(item: SecretItem): bool =
+  if not secretUnlocked(item):
+    return false
+  let s = globalSettings
+  case item
+  of siKernelTophat: s.kernelTophatEquipped
+  of siOrbitalCube: s.orbitalCubeEquipped
+  of siCheaterHat: s.cheaterHatEquipped
+  of siCknTheme: chosenTheme().id == "ckn"
+
+proc toggleSecret(item: SecretItem) =
+  ## Wear or take off an unlocked secret. The two hats share one head; the
+  ## theme is the same choice as Settings > Interface > Theme.
+  let s = globalSettings
+  case item
+  of siKernelTophat:
+    s.kernelTophatEquipped = not s.kernelTophatEquipped
+    if s.kernelTophatEquipped:
+      s.cheaterHatEquipped = false
+  of siOrbitalCube:
+    s.orbitalCubeEquipped = not s.orbitalCubeEquipped
+  of siCheaterHat:
+    s.cheaterHatEquipped = not s.cheaterHatEquipped
+    if s.cheaterHatEquipped:
+      s.kernelTophatEquipped = false
+  of siCknTheme:
+    discard chooseTheme(if chosenTheme().id == "ckn": "tophat" else: "ckn")
+
+proc secretName(item: SecretItem): string =
+  case item
+  of siKernelTophat: t("secret_tophat_name")
+  of siOrbitalCube: t("secret_orbital_cube_name")
+  of siCheaterHat: t("secret_cheater_hat_name")
+  of siCknTheme: t("secret_ckn_theme_name")
+
+proc secretDesc(item: SecretItem): string =
+  case item
+  of siKernelTophat: t("secret_tophat_desc")
+  of siOrbitalCube: t("secret_orbital_cube_desc")
+  of siCheaterHat: t("secret_cheater_hat_desc")
+  of siCknTheme: t("secret_ckn_theme_desc")
+
+proc secretLockedHint(item: SecretItem): string =
+  ## Kept vague where naming the reward would spoil how it is earned.
+  case item
+  of siKernelTophat: t("secret_locked_hint")
+  of siOrbitalCube: t("secret_cube_locked_hint")
+  of siCheaterHat: t("secret_unknown_locked_hint")
+  of siCknTheme: t("secret_ckn_theme_locked_hint")
+
 proc drawLockGlyph(x, y: int32, color: Color) =
   drawCircleOutline(x + 10, y + 8, 7, color)
-  drawRectangle(x + 2, y + 8, 16, 14, Color(r: 20, g: 24, b: 32, a: 235))
+  drawRectangle(x + 2, y + 8, 16, 14, uiSurface(20, 24, 32, 235))
   drawRectOutline(x + 2, y + 8, 16, 14, color)
   drawDisc(Vector2(x: (x + 10).float32, y: (y + 15).float32), 2, color)
 
@@ -230,6 +298,21 @@ proc wrapDescAutoSize*(text: string, maxWidth: int32, startSize: int32 = 11, min
           line3: if lines.len > 2: lines[2] else: "",
           fontSize: minSize)
 
+proc themeOwnsDefaultBg(): bool =
+  ## The free default background is the interface theme's own wallpaper
+  ## (os_desktop.drawThemeWallpaper): CKN Dawn, or a mod theme's image. Only
+  ## then does its card show and name something other than OS Grid.
+  let th = activeTheme()
+  th.wallpaper > 0 or th.shell == ssCkn
+
+proc desktopBgText(bg: DesktopBgType): tuple[name, desc: string] =
+  if bg == dbgDefault and themeOwnsDefaultBg():
+    let th = activeTheme()
+    if th.wallpaper > 0: (themeName(th), t(tkThemeWallpaperDesc))
+    else: (t(tkCknWallpaperName), t(tkCknWallpaperDesc))
+  else:
+    (getDesktopBgData(bg).name, getDesktopBgData(bg).description)
+
 proc visibleCosmeticIndices*(kind: CosmeticKind, query: string): seq[int] =
   var q = query.toLowerAscii()
   result = @[]
@@ -247,7 +330,7 @@ proc visibleCosmeticIndices*(kind: CosmeticKind, query: string): seq[int] =
     of ckParticle:
       name = getParticleSkinData(ParticleSkinType(i)).name
     of ckDesktopBg:
-      name = getDesktopBgData(DesktopBgType(i)).name
+      name = desktopBgText(DesktopBgType(i)).name
     of ckCubeSkin:
       name = getCubeSkinData(CubeSkinType(i)).name
 
@@ -260,13 +343,13 @@ proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cos
       let equipText = t("shop_equipped")
       let equipWidth = measureText(equipText, 11)
       let equipX = x + (SKIN_BOX_WIDTH - equipWidth) div 2
-      drawText(equipText, equipX.int32, (y + 125).int32, 11, Color(r: 255, g: 200, b: 100, a: 255))
+      drawText(equipText, equipX.int32, (y + 125).int32, 11, uiInk(255, 200, 100))
     return
 
   let statusColor = if canBuy:
-    Color(r: 255, g: 215, b: 80, a: 255)
+    uiInk(255, 215, 80)
   else:
-    Color(r: 150, g: 150, b: 165, a: 255)
+    uiInk(150, 150, 165)
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32,
                 Color(r: 0, g: 0, b: 0, a: 82))
   drawLockGlyph((x + 10).int32, (y + 10).int32, statusColor)
@@ -276,7 +359,7 @@ proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cos
   let pillY = (y + 116).int32
   let pillW = (SKIN_BOX_WIDTH - 12).int32
   let pillH: int32 = 20
-  drawRectangle(pillX, pillY, pillW, pillH, Color(r: 16, g: 20, b: 28, a: 230))
+  drawRectangle(pillX, pillY, pillW, pillH, uiSurface(16, 20, 28, 230))
   drawRectOutline(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: pillH.float32), 1.0'f32, statusColor)
 
   let statusText = if canBuy: t(tkShopBuy) else: t("roguelite_locked")
@@ -369,27 +452,43 @@ proc syncShopSelectionFromSettings(shop: ShopWindow) =
   shop.selectedDesktopBg = DesktopBgType(globalSettings.desktopBg)
   shop.selectedCubeSkin = CubeSkinType(globalSettings.cubeSkin)
 
+template cosmeticPreview(wellX, wellY, wellW, wellH: int, body: untyped) =
+  ## A cosmetic's live preview: drawn in its real colours (it never asks the
+  ## interface theme). On a light theme it gets a dark well of its own, so it
+  ## looks the way it will on the desktop or in a run.
+  if activeTheme().light:
+    drawRectangleRounded(Rectangle(x: wellX.float32, y: wellY.float32,
+                                   width: wellW.float32, height: wellH.float32),
+                         cornerRoundness(wellW.float32, wellH.float32, 6.0'f32), 8,
+                         Color(r: 30, g: 32, b: 44, a: 255))
+  body
+
+template cardPreview(x, y: int, body: untyped) =
+  ## cosmeticPreview over a cosmetic card's picture area (above its name).
+  cosmeticPreview(x + 10, y + 12, SKIN_BOX_WIDTH - 20, 66):
+    body
+
 proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
   ## Draw a preview of a player skin with shop icon style
   let (primaryColor, secondaryColor, coreColor) = getSkinColors(skinType, time)
 
   # Background box
   let bgColor = if isSelected:
-    Color(r: 0, g: 60, b: 80, a: 255)
+    uiSurface(0, 60, 80)
   elif isHovered:
-    Color(r: 60, g: 60, b: 70, a: 255)
+    uiSurface(60, 60, 70)
   else:
-    Color(r: 40, g: 40, b: 50, a: 255)
+    uiSurface(40, 40, 50)
 
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, bgColor)
 
   # Border
   let borderColor = if isSelected:
-    Color(r: 255, g: 150, b: 50, a: 255)  # Orange border when selected
+    uiLine(255, 150, 50)  # Orange border when selected
   elif isHovered:
-    Color(r: 120, g: 120, b: 140, a: 255)
+    uiLine(120, 120, 140)
   else:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    uiLine(80, 80, 100)
 
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
@@ -403,25 +502,26 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
   let playerRadius = 15.0 * hoverScale
 
   # Draw player using the shape system
-  drawPlayerShape(
-    Vector2f(x: centerX, y: centerY),
-    playerRadius,
-    shapeType,
-    primaryColor,
-    secondaryColor,
-    coreColor,
-    time,
-    time * 0.5,  # rotation
-    0.5,         # pulse
-    1.0          # glow intensity
-  )
+  cardPreview(x, y):
+    drawPlayerShape(
+      Vector2f(x: centerX, y: centerY),
+      playerRadius,
+      shapeType,
+      primaryColor,
+      secondaryColor,
+      coreColor,
+      time,
+      time * 0.5,  # rotation
+      0.5,         # pulse
+      1.0          # glow intensity
+    )
 
   # Skin name
   let skinData = getSkinData(skinType)
   let nameSize: int32 = if isHovered: 17 else: 16
   let nameWidth = measureText(skinData.name, nameSize)
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
-  drawText(skinData.name, nameX.int32, (y + 80).int32, nameSize, White)
+  drawText(skinData.name, nameX.int32, (y + 80).int32, nameSize, uiInk(White))
 
   # Skin description (2 lines max, auto-sized)
   let desc = skinData.description
@@ -430,15 +530,15 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
   let descFont = wrapped.fontSize
   let desc1Width = measureText(wrapped.line1, descFont)
   let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, uiInk(Gray))
   if wrapped.line2.len > 0:
     let desc2Width = measureText(wrapped.line2, descFont)
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, Gray)
+    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, uiInk(Gray))
   if wrapped.line3.len > 0:
     let desc3Width = measureText(wrapped.line3, descFont)
     let desc3X = x + (SKIN_BOX_WIDTH - desc3Width) div 2
-    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, Gray)
+    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, uiInk(Gray))
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -448,21 +548,21 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
 
   # Background box
   let bgColor = if isSelected:
-    Color(r: 0, g: 60, b: 80, a: 255)
+    uiSurface(0, 60, 80)
   elif isHovered:
-    Color(r: 60, g: 60, b: 70, a: 255)
+    uiSurface(60, 60, 70)
   else:
-    Color(r: 40, g: 40, b: 50, a: 255)
+    uiSurface(40, 40, 50)
 
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, bgColor)
 
   # Border
   let borderColor = if isSelected:
-    Color(r: 255, g: 150, b: 50, a: 255)
+    uiLine(255, 150, 50)
   elif isHovered:
-    Color(r: 120, g: 120, b: 140, a: 255)
+    uiLine(120, 120, 140)
   else:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    uiLine(80, 80, 100)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
@@ -474,34 +574,35 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
   let hoverScale = if isHovered: 1.06'f32 else: 1.0'f32
   let bulletRadius = 6.0 * hoverScale
 
-  # Trail
-  for i in 0..4:
-    let trailX = centerX - i.float32 * 8.0
-    let trailRadius = bulletRadius * (1.0 - i.float32 * 0.15)
-    let trailAlpha = uint8((1.0 - i.float32 * 0.2) * float32(trailColor.a))
-    drawDisc(Vector2(x: trailX, y: centerY), trailRadius,
-              withAlpha(trailColor, trailAlpha))
+  cardPreview(x, y):
+    # Trail
+    for i in 0..4:
+      let trailX = centerX - i.float32 * 8.0
+      let trailRadius = bulletRadius * (1.0 - i.float32 * 0.15)
+      let trailAlpha = uint8((1.0 - i.float32 * 0.2) * float32(trailColor.a))
+      drawDisc(Vector2(x: trailX, y: centerY), trailRadius,
+                withAlpha(trailColor, trailAlpha))
 
-  # Glow
-  for i in 0..2:
-    let glowRadius = bulletRadius + (i.float32 + 1) * 3.0
-    let glowAlpha = uint8((1.0 - i.float32 / 3.0) * float32(glowColor.a))
-    drawDisc(Vector2(x: centerX, y: centerY), glowRadius,
-              withAlpha(glowColor, glowAlpha))
+    # Glow
+    for i in 0..2:
+      let glowRadius = bulletRadius + (i.float32 + 1) * 3.0
+      let glowAlpha = uint8((1.0 - i.float32 / 3.0) * float32(glowColor.a))
+      drawDisc(Vector2(x: centerX, y: centerY), glowRadius,
+                withAlpha(glowColor, glowAlpha))
 
-  # Main bullet
-  drawDisc(Vector2(x: centerX, y: centerY), bulletRadius, primaryColor)
+    # Main bullet
+    drawDisc(Vector2(x: centerX, y: centerY), bulletRadius, primaryColor)
 
-  # Bullet highlight
-  drawDisc(Vector2(x: centerX - 2, y: centerY - 2), bulletRadius * 0.3,
-            Color(r: 255, g: 255, b: 255, a: 180))
+    # Bullet highlight
+    drawDisc(Vector2(x: centerX - 2, y: centerY - 2), bulletRadius * 0.3,
+              Color(r: 255, g: 255, b: 255, a: 180))
 
   # Skin name
   let skinData = getBulletSkinData(skinType)
   let nameSize: int32 = if isHovered: 17 else: 16
   let nameWidth = measureText(skinData.name, nameSize)
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
-  drawText(skinData.name, nameX.int32, (y + 80).int32, nameSize, White)
+  drawText(skinData.name, nameX.int32, (y + 80).int32, nameSize, uiInk(White))
 
   # Skin description (2 lines max, auto-sized)
   let desc = skinData.description
@@ -510,28 +611,28 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
   let descFont = wrapped.fontSize
   let desc1Width = measureText(wrapped.line1, descFont)
   let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, uiInk(Gray))
   if wrapped.line2.len > 0:
     let desc2Width = measureText(wrapped.line2, descFont)
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, Gray)
+    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, uiInk(Gray))
   if wrapped.line3.len > 0:
     let desc3Width = measureText(wrapped.line3, descFont)
     let desc3X = x + (SKIN_BOX_WIDTH - desc3Width) div 2
-    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, Gray)
+    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, uiInk(Gray))
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
 proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
   ## Draw a preview of a player bullet shape
-  let bgColor = if isSelected: Color(r: 0, g: 60, b: 80, a: 255)
-                elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
-                else: Color(r: 40, g: 40, b: 50, a: 255)
+  let bgColor = if isSelected: uiSurface(0, 60, 80)
+                elif isHovered: uiSurface(60, 60, 70)
+                else: uiSurface(40, 40, 50)
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, bgColor)
 
-  let borderColor = if isSelected: Color(r: 255, g: 150, b: 50, a: 255)
-                    elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
-                    else: Color(r: 80, g: 80, b: 100, a: 255)
+  let borderColor = if isSelected: uiLine(255, 150, 50)
+                    elif isHovered: uiLine(120, 120, 140)
+                    else: uiLine(80, 80, 100)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
@@ -546,20 +647,21 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
   let previewColor = Color(r: 0, g: 200, b: 200, a: 255)
   let glowColor   = Color(r: 0, g: 255, b: 255, a: 80)
   let travelAngle = 0.0  # flying right, arrow uses this for orientation
-  drawPlayerBulletShape(Vector2f(x: cx, y: cy), rScaled, shapeType, travelAngle, previewColor, glowColor)
+  cardPreview(x, y):
+    drawPlayerBulletShape(Vector2f(x: cx, y: cy), rScaled, shapeType, travelAngle, previewColor, glowColor)
 
-  # Trail dots to give motion feel
-  for i in 1..3:
-    let tx = cx - i.float32 * 9.0
-    let ta = uint8(180 - i * 50)
-    drawDisc(Vector2(x: tx, y: cy), r * (1.0 - i.float32 * 0.2),
-               Color(r: 0, g: 180, b: 180, a: ta))
+    # Trail dots to give motion feel
+    for i in 1..3:
+      let tx = cx - i.float32 * 9.0
+      let ta = uint8(180 - i * 50)
+      drawDisc(Vector2(x: tx, y: cy), r * (1.0 - i.float32 * 0.2),
+                 Color(r: 0, g: 180, b: 180, a: ta))
 
   # Name
   let shapeData = getBulletShapeData(shapeType)
   let nameSize: int32 = if isHovered: 17 else: 16
   let nameWidth = measureText(shapeData.name, nameSize)
-  drawText(shapeData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32, (y + 80).int32, nameSize, White)
+  drawText(shapeData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32, (y + 80).int32, nameSize, uiInk(White))
 
   # Description (wrapped, 2 lines max, auto-sized)
   let desc = shapeData.description
@@ -567,13 +669,13 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
   let wrapped = wrapDescAutoSize(desc, maxDescWidth.int32)
   let descFont = wrapped.fontSize
   let d1w = measureText(wrapped.line1, descFont)
-  drawText(wrapped.line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32, (y + 100).int32, descFont, Gray)
+  drawText(wrapped.line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32, (y + 100).int32, descFont, uiInk(Gray))
   if wrapped.line2.len > 0:
     let d2w = measureText(wrapped.line2, descFont)
-    drawText(wrapped.line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32, (y + 112).int32, descFont, Gray)
+    drawText(wrapped.line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32, (y + 112).int32, descFont, uiInk(Gray))
   if wrapped.line3.len > 0:
     let d3w = measureText(wrapped.line3, descFont)
-    drawText(wrapped.line3, (x + (SKIN_BOX_WIDTH - d3w) div 2).int32, (y + 124).int32, descFont, Gray)
+    drawText(wrapped.line3, (x + (SKIN_BOX_WIDTH - d3w) div 2).int32, (y + 124).int32, descFont, uiInk(Gray))
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -581,21 +683,21 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
   ## Draw a preview of a player shape
   # Background box
   let bgColor = if isSelected:
-    Color(r: 0, g: 60, b: 80, a: 255)
+    uiSurface(0, 60, 80)
   elif isHovered:
-    Color(r: 60, g: 60, b: 70, a: 255)
+    uiSurface(60, 60, 70)
   else:
-    Color(r: 40, g: 40, b: 50, a: 255)
+    uiSurface(40, 40, 50)
 
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, bgColor)
 
   # Border
   let borderColor = if isSelected:
-    Color(r: 255, g: 150, b: 50, a: 255)  # Orange border when selected
+    uiLine(255, 150, 50)  # Orange border when selected
   elif isHovered:
-    Color(r: 120, g: 120, b: 140, a: 255)
+    uiLine(120, 120, 140)
   else:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    uiLine(80, 80, 100)
 
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
@@ -618,15 +720,16 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
   let glowIntensity = 0.4 + pulse * 0.2
 
   # Draw shape using the same rendering as in-game
-  drawPlayerShape(newVector2f(centerX, centerY), shapeRadiusScaled, shapeType,
-                 baseColor, secondaryColor, coreColor, time, rotation, pulse, glowIntensity)
+  cardPreview(x, y):
+    drawPlayerShape(newVector2f(centerX, centerY), shapeRadiusScaled, shapeType,
+                   baseColor, secondaryColor, coreColor, time, rotation, pulse, glowIntensity)
 
   # Shape name
   let shapeData = getShapeData(shapeType)
   let nameSize: int32 = if isHovered: 17 else: 16
   let nameWidth = measureText(shapeData.name, nameSize)
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
-  drawText(shapeData.name, nameX.int32, (y + 80).int32, nameSize, White)
+  drawText(shapeData.name, nameX.int32, (y + 80).int32, nameSize, uiInk(White))
 
   # Shape description (2 lines max, auto-sized)
   let desc = shapeData.description
@@ -635,15 +738,15 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
   let descFont = wrapped.fontSize
   let desc1Width = measureText(wrapped.line1, descFont)
   let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, uiInk(Gray))
   if wrapped.line2.len > 0:
     let desc2Width = measureText(wrapped.line2, descFont)
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, Gray)
+    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, uiInk(Gray))
   if wrapped.line3.len > 0:
     let desc3Width = measureText(wrapped.line3, descFont)
     let desc3X = x + (SKIN_BOX_WIDTH - desc3Width) div 2
-    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, Gray)
+    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, uiInk(Gray))
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -653,21 +756,21 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
 
   # Background box
   let bgColor = if isSelected:
-    Color(r: 0, g: 60, b: 80, a: 255)
+    uiSurface(0, 60, 80)
   elif isHovered:
-    Color(r: 60, g: 60, b: 70, a: 255)
+    uiSurface(60, 60, 70)
   else:
-    Color(r: 40, g: 40, b: 50, a: 255)
+    uiSurface(40, 40, 50)
 
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, bgColor)
 
   # Border
   let borderColor = if isSelected:
-    Color(r: 255, g: 150, b: 50, a: 255)  # Orange border when selected
+    uiLine(255, 150, 50)  # Orange border when selected
   elif isHovered:
-    Color(r: 120, g: 120, b: 140, a: 255)
+    uiLine(120, 120, 140)
   else:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    uiLine(80, 80, 100)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
@@ -682,23 +785,24 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
   let particleCount = min(8, particleData.particleCount)
   let hoverScale = if isHovered: 1.06'f32 else: 1.0'f32
 
-  for i in 0..<particleCount:
-    let angle = (i.float32 / particleCount.float32) * PI * 2.0 + time * 2.0
-    let distance = (20.0 + sin(time * 3.0 + i.float32) * 5.0) * hoverScale
-    let px = centerX + cos(angle) * distance
-    let py = centerY + sin(angle) * distance
+  cardPreview(x, y):
+    for i in 0..<particleCount:
+      let angle = (i.float32 / particleCount.float32) * PI * 2.0 + time * 2.0
+      let distance = (20.0 + sin(time * 3.0 + i.float32) * 5.0) * hoverScale
+      let px = centerX + cos(angle) * distance
+      let py = centerY + sin(angle) * distance
 
-    let useSecondary = (i mod 3) == 0
-    let color = if useSecondary: secondaryColor else: primaryColor
-    let particleSize = (3.0 + sin(time * 4.0 + i.float32) * 1.5) * hoverScale
+      let useSecondary = (i mod 3) == 0
+      let color = if useSecondary: secondaryColor else: primaryColor
+      let particleSize = (3.0 + sin(time * 4.0 + i.float32) * 1.5) * hoverScale
 
-    drawDisc(Vector2(x: px, y: py), particleSize, color)
+      drawDisc(Vector2(x: px, y: py), particleSize, color)
 
   # Particle name
   let particleDataInfo = getParticleSkinData(particleType)
   let nameWidth = measureText(particleDataInfo.name, 16)
   let nameX = x + (SKIN_BOX_WIDTH - nameWidth) div 2
-  drawText(particleDataInfo.name, nameX.int32, (y + 80).int32, 16, White)
+  drawText(particleDataInfo.name, nameX.int32, (y + 80).int32, 16, uiInk(White))
 
   # Particle description (2 lines max, auto-sized)
   let desc = particleDataInfo.description
@@ -707,15 +811,15 @@ proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float
   let descFont = wrapped.fontSize
   let desc1Width = measureText(wrapped.line1, descFont)
   let desc1X = x + (SKIN_BOX_WIDTH - desc1Width) div 2
-  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, Gray)
+  drawText(wrapped.line1, desc1X.int32, (y + 100).int32, descFont, uiInk(Gray))
   if wrapped.line2.len > 0:
     let desc2Width = measureText(wrapped.line2, descFont)
     let desc2X = x + (SKIN_BOX_WIDTH - desc2Width) div 2
-    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, Gray)
+    drawText(wrapped.line2, desc2X.int32, (y + 112).int32, descFont, uiInk(Gray))
   if wrapped.line3.len > 0:
     let desc3Width = measureText(wrapped.line3, descFont)
     let desc3X = x + (SKIN_BOX_WIDTH - desc3Width) div 2
-    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, Gray)
+    drawText(wrapped.line3, desc3X.int32, (y + 124).int32, descFont, uiInk(Gray))
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -753,10 +857,11 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                             cost: CosmeticCost, costText: string = "") =
   ## Draw a card preview for a desktop background skin
   let bgData = getDesktopBgData(bgType)
+  let (bgName, bgDesc) = desktopBgText(bgType)
 
-  let cardBg = if isSelected: Color(r: 0, g: 60, b: 80, a: 255)
-               elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
-               else: Color(r: 40, g: 40, b: 50, a: 255)
+  let cardBg = if isSelected: uiSurface(0, 60, 80)
+               elif isHovered: uiSurface(60, 60, 70)
+               else: uiSurface(40, 40, 50)
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, cardBg)
 
   # Mini background preview area (top portion of card), rendered using the
@@ -765,7 +870,16 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
   let previewH = 64
   let clip = beginPreviewClip(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
 
-  if bgType == dbgDefault:
+  if bgType == dbgDefault and themeOwnsDefaultBg():
+    # Drawn at six times the card's size and scaled down, so the fixed-size
+    # parts of the full-screen wallpaper keep their proportions.
+    pushMatrix()
+    translatef(x.float32, y.float32, 0.0'f32)
+    scalef(1.0'f32 / 6.0'f32, 1.0'f32 / 6.0'f32, 1.0'f32)
+    drawThemeWallpaper(activeTheme(), SKIN_BOX_WIDTH.float32 * 6.0'f32, previewH.float32 * 6.0'f32,
+                       (if activeDesktop.isNil: time else: activeDesktop.time), activeDesktop)
+    popMatrix()
+  elif bgType == dbgDefault:
     # For the default skin draw the exact hardcoded wallpaper (including
     # the equipped cube). Use the running desktop's time/rotation when
     # available so the thumbnail matches the real desktop exactly.
@@ -838,9 +952,9 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
   endPreviewClip(clip)
 
   # Border
-  let borderColor = if isSelected: Color(r: 255, g: 150, b: 50, a: 255)
-                    elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
-                    else: Color(r: 80, g: 80, b: 100, a: 255)
+  let borderColor = if isSelected: uiLine(255, 150, 50)
+                    elif isHovered: uiLine(120, 120, 140)
+                    else: uiLine(80, 80, 100)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectOutline(
     Rectangle(x: x.float32, y: y.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
@@ -848,25 +962,25 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
 
   # Name
   let nameSize: int32 = if isHovered: 17 else: 16
-  let nameWidth = measureText(bgData.name, nameSize)
-  drawText(bgData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32,
-           (y + 70).int32, nameSize, White)
+  let nameWidth = measureText(bgName, nameSize)
+  drawText(bgName, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32,
+           (y + 70).int32, nameSize, uiInk(White))
 
   # Description (wrapped 2 lines, auto-sized)
   let maxDescWidth = SKIN_BOX_WIDTH - 10
-  let wrapped = wrapDescAutoSize(bgData.description, maxDescWidth.int32)
+  let wrapped = wrapDescAutoSize(bgDesc, maxDescWidth.int32)
   let descFont = wrapped.fontSize
   let d1w = measureText(wrapped.line1, descFont)
   drawText(wrapped.line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32,
-           (y + 90).int32, descFont, Gray)
+           (y + 90).int32, descFont, uiInk(Gray))
   if wrapped.line2.len > 0:
     let d2w = measureText(wrapped.line2, descFont)
     drawText(wrapped.line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32,
-             (y + 102).int32, descFont, Gray)
+             (y + 102).int32, descFont, uiInk(Gray))
   if wrapped.line3.len > 0:
     let d3w = measureText(wrapped.line3, descFont)
     drawText(wrapped.line3, (x + (SKIN_BOX_WIDTH - d3w) div 2).int32,
-             (y + 114).int32, descFont, Gray)
+             (y + 114).int32, descFont, uiInk(Gray))
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -877,14 +991,14 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
   ## Draw a card preview for a cube skin using simple 2-D isometric-style cube
   let skinData = getCubeSkinData(skinType)
 
-  let cardBg = if isSelected: Color(r: 0, g: 60, b: 80, a: 255)
-               elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
-               else: Color(r: 40, g: 40, b: 50, a: 255)
+  let cardBg = if isSelected: uiSurface(0, 60, 80)
+               elif isHovered: uiSurface(60, 60, 70)
+               else: uiSurface(40, 40, 50)
   drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, SKIN_BOX_HEIGHT.int32, cardBg)
 
-  let borderColor = if isSelected: Color(r: 255, g: 150, b: 50, a: 255)
-                    elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
-                    else: Color(r: 80, g: 80, b: 100, a: 255)
+  let borderColor = if isSelected: uiLine(255, 150, 50)
+                    elif isHovered: uiLine(120, 120, 140)
+                    else: uiLine(80, 80, 100)
   let borderThickness = if isHovered or isSelected: 3.0'f32 else: 2.0'f32
   drawRectOutline(
     Rectangle(x: x.float32, y: y.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32),
@@ -892,25 +1006,26 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
 
   # Render every cube skin using the same 3-D wallpaper cube so the shop
   # preview always matches what the player sees on the desktop.
-  let previewH = 64
-  let clip = beginPreviewClip(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
-  let centerX = (x + SKIN_BOX_WIDTH div 2).float32
-  # Move cube up slightly and reduce base size so it fits within the card area
-  let centerY = (y + 40).float32
-  let hoverScale = if isHovered: 1.03'f32 else: 1.0'f32
-  let cubeSize = 13.0'f32 * hoverScale
-  # Use slowly-drifting angles so the cube rotates in the shop card
-  let aX = time * 0.171'f32
-  let aY = time * 0.133'f32
-  let aZ = time * 0.095'f32
-  drawZeroGravityWallpaperCube(centerX, centerY, cubeSize, time, aX, aY, aZ, skinType)
-  endPreviewClip(clip)
+  cardPreview(x, y):
+    let previewH = 64
+    let clip = beginPreviewClip(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32)
+    let centerX = (x + SKIN_BOX_WIDTH div 2).float32
+    # Move cube up slightly and reduce base size so it fits within the card area
+    let centerY = (y + 40).float32
+    let hoverScale = if isHovered: 1.03'f32 else: 1.0'f32
+    let cubeSize = 13.0'f32 * hoverScale
+    # Use slowly-drifting angles so the cube rotates in the shop card
+    let aX = time * 0.171'f32
+    let aY = time * 0.133'f32
+    let aZ = time * 0.095'f32
+    drawZeroGravityWallpaperCube(centerX, centerY, cubeSize, time, aX, aY, aZ, skinType)
+    endPreviewClip(clip)
 
   # Name
   let nameSize: int32 = if isHovered: 17 else: 16
   let nameWidth = measureText(skinData.name, nameSize)
   drawText(skinData.name, (x + (SKIN_BOX_WIDTH - nameWidth) div 2).int32,
-           (y + 80).int32, nameSize, White)
+           (y + 80).int32, nameSize, uiInk(White))
 
   # Description (wrapped 2 lines, auto-sized)
   let maxDescWidth = SKIN_BOX_WIDTH - 10
@@ -918,15 +1033,15 @@ proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
   let descFont = wrapped.fontSize
   let d1w = measureText(wrapped.line1, descFont)
   drawText(wrapped.line1, (x + (SKIN_BOX_WIDTH - d1w) div 2).int32,
-           (y + 100).int32, descFont, Gray)
+           (y + 100).int32, descFont, uiInk(Gray))
   if wrapped.line2.len > 0:
     let d2w = measureText(wrapped.line2, descFont)
     drawText(wrapped.line2, (x + (SKIN_BOX_WIDTH - d2w) div 2).int32,
-             (y + 112).int32, descFont, Gray)
+             (y + 112).int32, descFont, uiInk(Gray))
   if wrapped.line3.len > 0:
     let d3w = measureText(wrapped.line3, descFont)
     drawText(wrapped.line3, (x + (SKIN_BOX_WIDTH - d3w) div 2).int32,
-             (y + 124).int32, descFont, Gray)
+             (y + 124).int32, descFont, uiInk(Gray))
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
@@ -995,23 +1110,23 @@ proc drawPackCard(shop: ShopWindow, x, y: int, id: CosmeticPackId) =
   let isHovered = shop.hoveredSkin == ord(id)
   let accent = Color(r: pack.accent.r, g: pack.accent.g, b: pack.accent.b, a: 255)
 
-  let bg = if owned: Color(r: 30, g: 44, b: 34, a: 255)
-           elif isHovered: Color(r: 52, g: 52, b: 64, a: 255)
-           else: Color(r: 38, g: 38, b: 48, a: 255)
+  let bg = if owned: uiSurface(30, 44, 34)
+           elif isHovered: uiSurface(52, 52, 64)
+           else: uiSurface(38, 38, 48)
   drawRectangle(x.int32, y.int32, PACK_CARD_W.int32, PACK_CARD_H.int32, bg)
   drawRectangle(x.int32, y.int32, 5, PACK_CARD_H.int32, accent)  # accent stripe
 
-  let borderColor = if owned: Color(r: 90, g: 200, b: 120, a: 255)
+  let borderColor = if owned: uiLine(90, 200, 120)
                     elif isHovered: accent
-                    else: Color(r: 80, g: 80, b: 100, a: 255)
+                    else: uiLine(80, 80, 100)
   let borderThick = if isHovered or owned: 3.0'f32 else: 2.0'f32
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: PACK_CARD_W.float32, height: PACK_CARD_H.float32),
                      borderThick, borderColor)
 
   # Title + subtitle
-  drawText(t(pack.nameKey), (x + 14).int32, (y + 10).int32, 17, White)
-  drawText(t("pack_includes"), (x + 14).int32, (y + 32).int32, 10, Color(r: 160, g: 160, b: 175, a: 255))
+  drawText(t(pack.nameKey), (x + 14).int32, (y + 10).int32, 17, uiInk(White))
+  drawText(t("pack_includes"), (x + 14).int32, (y + 32).int32, 10, uiInk(160, 160, 175))
 
   # Member swatches, with an owned marker on any already-unlocked member
   let swY = y + 66
@@ -1032,15 +1147,15 @@ proc drawPackCard(shop: ShopWindow, x, y: int, id: CosmeticPackId) =
     let badge = "-" & $pct & "%"
     let bw = measureText(badge, 13).int + 12
     let bx = x + PACK_CARD_W - bw - 10
-    drawRectangle(bx.int32, (y + 8).int32, bw.int32, 20, Color(r: 220, g: 60, b: 60, a: 255))
-    drawText(badge, (bx + 6).int32, (y + 10).int32, 13, White)
+    drawRectangle(bx.int32, (y + 8).int32, bw.int32, 20, uiSurface(220, 60, 60))
+    drawText(badge, (bx + 6).int32, (y + 10).int32, 13, uiInk(White))
 
-  drawRectangle((x + 12).int32, (y + 94).int32, (PACK_CARD_W - 24).int32, 1, Color(r: 70, g: 70, b: 85, a: 255))
+  drawRectangle((x + 12).int32, (y + 94).int32, (PACK_CARD_W - 24).int32, 1, uiSurface(70, 70, 85))
 
   if owned:
     let ot = t("pack_owned")
     let ow = measureText(ot, 15)
-    drawText(ot, (x + (PACK_CARD_W - ow) div 2).int32, (y + 120).int32, 15, Color(r: 110, g: 220, b: 140, a: 255))
+    drawText(ot, (x + (PACK_CARD_W - ow) div 2).int32, (y + 120).int32, 15, uiInk(110, 220, 140))
     return
 
   # Struck-through retail of the members being bought, then the discounted price.
@@ -1049,37 +1164,37 @@ proc drawPackCard(shop: ShopWindow, x, y: int, id: CosmeticPackId) =
   let canAfford = canAffordPack(profile, id)
 
   let retailText = cosmeticCostLabel(retail)
-  drawText(retailText, (x + 14).int32, (y + 104).int32, 11, Color(r: 150, g: 150, b: 160, a: 255))
+  drawText(retailText, (x + 14).int32, (y + 104).int32, 11, uiInk(150, 150, 160))
   let rtw = measureText(retailText, 11)
-  drawRectangle((x + 14).int32, (y + 110).int32, rtw, 1, Color(r: 190, g: 90, b: 90, a: 255))
+  drawRectangle((x + 14).int32, (y + 110).int32, rtw, 1, uiSurface(190, 90, 90))
 
   let priceText = cosmeticCostLabel(price)
-  let priceColor = if canAfford: Color(r: 255, g: 215, b: 90, a: 255) else: Color(r: 200, g: 110, b: 110, a: 255)
+  let priceColor = if canAfford: uiInk(255, 215, 90) else: uiInk(200, 110, 110)
   drawText(priceText, (x + 14).int32, (y + 122).int32, 15, priceColor)
 
   if ownedCount > 0:
     let note = $ownedCount & "/" & $total
     let nw = measureText(note, 11)
-    drawText(note, (x + PACK_CARD_W - nw - 12).int32, (y + 126).int32, 11, Color(r: 160, g: 160, b: 175, a: 255))
+    drawText(note, (x + PACK_CARD_W - nw - 12).int32, (y + 126).int32, 11, uiInk(160, 160, 175))
 
 proc drawPacksTabContent(shop: ShopWindow, contentX, contentY, contentWidth, contentHeight: int) =
   ## The PACKS tab: a scrollable grid of discounted theme-bundle cards.
   let headerY = contentY + TAB_HEIGHT
-  drawText(t("shop_customize_packs"), (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
+  drawText(t("shop_customize_packs"), (contentX + 10).int32, (headerY + 5).int32, 18, uiInk(Gold))
 
   if not shop.rogueliteProfile.isNil:
     let balanceY = headerY + 15
     let balanceX = contentX + contentWidth - 238
     drawCurrencyIcon(balanceX.int32, balanceY.int32, 16, ciDataShards)
-    drawText($shop.rogueliteProfile.dataShards, (balanceX + 12).int32, (balanceY - 6).int32, 12, Gold)
+    drawText($shop.rogueliteProfile.dataShards, (balanceX + 12).int32, (balanceY - 6).int32, 12, uiInk(Gold))
     drawCurrencyIcon((balanceX + 72).int32, balanceY.int32, 16, ciCore)
     drawText($shop.rogueliteProfile.cores, (balanceX + 84).int32, (balanceY - 6).int32, 12,
-             Color(r: 255, g: 130, b: 80, a: 255))
+             uiInk(255, 130, 80))
   elif shop.statusTimer <= 0:
-    drawText(t("roguelite_no_profile"), (contentX + contentWidth - 150).int32, (headerY + 12).int32, 12, Red)
+    drawText(t("roguelite_no_profile"), (contentX + contentWidth - 150).int32, (headerY + 12).int32, 12, uiInk(Red))
   if shop.statusTimer > 0 and shop.statusMessage.len > 0:
     drawText(shop.statusMessage, (contentX + contentWidth - 180).int32, (headerY + 31).int32, 11,
-             Color(r: 255, g: 210, b: 110, a: 255))
+             uiInk(255, 210, 110))
 
   let (columns, gridLeft, gridTop, gridHeight) = packGridMetrics(contentX, contentY, contentWidth, contentHeight)
   let scrollInt = int(round(shop.scrollOffset))
@@ -1094,12 +1209,12 @@ proc drawPacksTabContent(shop: ShopWindow, contentX, contentY, contentWidth, con
 
   if shop.maxScrollOffset > 0:
     let sbX = contentX + contentWidth - 15
-    drawRectangle(sbX.int32, gridTop.int32, 10, gridHeight.int32, Color(r: 40, g: 40, b: 50, a: 255))
+    drawRectangle(sbX.int32, gridTop.int32, 10, gridHeight.int32, uiSurface(40, 40, 50))
     let rows = (total + columns - 1) div columns
     let totalH = (rows * (PACK_CARD_H + PACK_CARD_PAD) + 10).float32
     let thumbH = max(30.0'f32, (gridHeight.float32 / totalH) * gridHeight.float32)
     let thumbY = gridTop.float32 + (shop.scrollOffset / shop.maxScrollOffset) * (gridHeight.float32 - thumbH)
-    drawRectangle(sbX.int32, thumbY.int32, 10, thumbH.int32, Color(r: 255, g: 150, b: 50, a: 200))
+    drawRectangle(sbX.int32, thumbY.int32, 10, thumbH.int32, uiSurface(255, 150, 50, 200))
 
 # ---- Mods tab ----
 # Cosmetics registered by loaded mods, grouped by kind (ship / bullets / desktop).
@@ -1185,38 +1300,38 @@ proc drawModCard(shop: ShopWindow, idx, x, y: int) =
   let c = modCosmetics[idx]
   let equipped = equippedCosmetic[c.kind] == idx + 1
   let isHovered = shop.hoveredSkin == idx
-  let bg = if equipped: Color(r: 0, g: 60, b: 80, a: 255)
-           elif isHovered: Color(r: 60, g: 60, b: 70, a: 255)
-           else: Color(r: 40, g: 40, b: 50, a: 255)
+  let bg = if equipped: uiSurface(0, 60, 80)
+           elif isHovered: uiSurface(60, 60, 70)
+           else: uiSurface(40, 40, 50)
   drawRectangle(x.int32, y.int32, MOD_CARD_W.int32, MOD_CARD_H.int32, bg)
-  let borderColor = if equipped: Color(r: 255, g: 150, b: 50, a: 255)
-                    elif isHovered: Color(r: 120, g: 120, b: 140, a: 255)
-                    else: Color(r: 80, g: 80, b: 100, a: 255)
+  let borderColor = if equipped: uiLine(255, 150, 50)
+                    elif isHovered: uiLine(120, 120, 140)
+                    else: uiLine(80, 80, 100)
   let borderW = if isHovered or equipped: 3 else: 2
 
   drawModCosmeticPreview(shop, c, x, y, borderW)
 
   let textW = (MOD_CARD_W - 16).int32
   let name = fitWithEllipsis(c.name, textW, 13)
-  drawText(name, (x + (MOD_CARD_W - measureText(name, 13)) div 2).int32, (y + 70).int32, 13, White)
+  drawText(name, (x + (MOD_CARD_W - measureText(name, 13)) div 2).int32, (y + 70).int32, 13, uiInk(White))
   if c.description.len > 0:
     let wrapped = wrapTwoLines(c.description, textW, 10)
     let l1 = fitWithEllipsis(wrapped.line1, textW, 10)
-    drawText(l1, (x + (MOD_CARD_W - measureText(l1, 10)) div 2).int32, (y + 86).int32, 10, Gray)
+    drawText(l1, (x + (MOD_CARD_W - measureText(l1, 10)) div 2).int32, (y + 86).int32, 10, uiInk(Gray))
     if wrapped.line2.len > 0:
       let l2 = fitWithEllipsis(wrapped.line2, textW, 10)
-      drawText(l2, (x + (MOD_CARD_W - measureText(l2, 10)) div 2).int32, (y + 97).int32, 10, Gray)
+      drawText(l2, (x + (MOD_CARD_W - measureText(l2, 10)) div 2).int32, (y + 97).int32, 10, uiInk(Gray))
   let owner = fitWithEllipsis(modOwnerName(c), textW, 10)
   drawText(owner, (x + (MOD_CARD_W - measureText(owner, 10)) div 2).int32, (y + 109).int32, 10,
-           Color(r: 120, g: 220, b: 160, a: 255))
+           uiInk(120, 220, 160))
 
   # Equipped / Equip pill. Mod cosmetics are free, so no price.
   let pillX = (x + 6).int32
   let pillY = (y + 125).int32
   let pillW = (MOD_CARD_W - 12).int32
-  drawRectangle(pillX, pillY, pillW, 20, Color(r: 16, g: 20, b: 28, a: 230))
-  let pillColor = if equipped: Color(r: 255, g: 200, b: 100, a: 255)
-                  else: Color(r: 120, g: 220, b: 160, a: 255)
+  drawRectangle(pillX, pillY, pillW, 20, uiSurface(16, 20, 28, 230))
+  let pillColor = if equipped: uiSurface(255, 200, 100)
+                  else: uiSurface(120, 220, 160)
   drawRectOutline(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: 20.0'f32),
                      1.0'f32, pillColor)
   let label = if equipped: t("shop_equipped") else: t(tkModsEquip)
@@ -1230,14 +1345,14 @@ proc drawModCard(shop: ShopWindow, idx, x, y: int) =
 proc drawModsTabContent(shop: ShopWindow, contentX, contentY, contentWidth, contentHeight: int) =
   ## The MODS tab: the loaded mods' cosmetics, grouped by kind.
   let headerY = contentY + TAB_HEIGHT
-  drawText(t("shop_customize_mods"), (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
+  drawText(t("shop_customize_mods"), (contentX + 10).int32, (headerY + 5).int32, 18, uiInk(Gold))
   let subtitleW = contentWidth - 200
   drawText(fitWithEllipsis(t("shop_mods_subtitle"), subtitleW.int32, 11), (contentX + 10).int32,
-           (headerY + 28).int32, 11, Gray)
+           (headerY + 28).int32, 11, uiInk(Gray))
   if shop.statusTimer > 0 and shop.statusMessage.len > 0:
     let w = measureText(shop.statusMessage, 11)
     drawText(shop.statusMessage, (contentX + contentWidth - w - 14).int32, (headerY + 15).int32, 11,
-             Color(r: 255, g: 210, b: 110, a: 255))
+             uiInk(255, 210, 110))
 
   let (gridTop, gridHeight) = modShopGridMetrics(contentX, contentY, contentWidth, contentHeight)
   let layout = modShopLayout(contentX, contentWidth)
@@ -1252,9 +1367,9 @@ proc drawModsTabContent(shop: ShopWindow, contentX, contentY, contentWidth, cont
         of mckBullet: t(tkModsKindBullet)
         of mckDesktop: t(tkModsKindDesktop)
         of mckCube: t(tkModsKindCube)
-      drawText(label, (contentX + 14).int32, (hy + 3).int32, 13, Color(r: 120, g: 220, b: 160, a: 255))
+      drawText(label, (contentX + 14).int32, (hy + 3).int32, 13, uiInk(120, 220, 160))
       drawRectangle((contentX + 14).int32, (hy + 20).int32, (contentWidth - 44).int32, 1,
-                    Color(r: 60, g: 80, b: 75, a: 255))
+                    uiSurface(60, 80, 75))
   for card in layout.cards:
     let cy = gridTop + card.y - scrollInt
     if cy + MOD_CARD_H > gridTop - 10 and cy < gridTop + gridHeight + 10:
@@ -1263,10 +1378,10 @@ proc drawModsTabContent(shop: ShopWindow, contentX, contentY, contentWidth, cont
 
   if shop.maxScrollOffset > 0:
     let sbX = contentX + contentWidth - 15
-    drawRectangle(sbX.int32, gridTop.int32, 10, gridHeight.int32, Color(r: 40, g: 40, b: 50, a: 255))
+    drawRectangle(sbX.int32, gridTop.int32, 10, gridHeight.int32, uiSurface(40, 40, 50))
     let thumbH = max(30.0'f32, (gridHeight.float32 / layout.totalH.float32) * gridHeight.float32)
     let thumbY = gridTop.float32 + (shop.scrollOffset / shop.maxScrollOffset) * (gridHeight.float32 - thumbH)
-    drawRectangle(sbX.int32, thumbY.int32, 10, thumbH.int32, Color(r: 120, g: 220, b: 160, a: 200))
+    drawRectangle(sbX.int32, thumbY.int32, 10, thumbH.int32, uiSurface(120, 220, 160, 200))
 
 proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
   ## Update shop window. Returns true if window should close
@@ -1337,31 +1452,14 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
       if clicked: shop.hoveredSkin
       elif isTopmost and isKeyPressed(Enter): max(0, shop.hoveredSkin)
       else: -1
-    if toggleIndex >= 0 and not globalSettings.isNil:
-      var toggledOn = false
-      var toggled = false
-      if toggleIndex == 0 and globalSettings.kernelTophatUnlocked:
-        globalSettings.kernelTophatEquipped = not globalSettings.kernelTophatEquipped
-        if globalSettings.kernelTophatEquipped:
-          globalSettings.cheaterHatEquipped = false
-        toggledOn = globalSettings.kernelTophatEquipped
-        toggled = true
-      elif toggleIndex == 1 and globalSettings.orbitalCubeUnlocked:
-        globalSettings.orbitalCubeEquipped = not globalSettings.orbitalCubeEquipped
-        toggledOn = globalSettings.orbitalCubeEquipped
-        toggled = true
-      elif toggleIndex == 2 and globalSettings.cheaterHatUnlocked:
-        globalSettings.cheaterHatEquipped = not globalSettings.cheaterHatEquipped
-        if globalSettings.cheaterHatEquipped:
-          globalSettings.kernelTophatEquipped = false
-        toggledOn = globalSettings.cheaterHatEquipped
-        toggled = true
-      if toggled:
-        discard saveSettings(globalSettings)
-        playSound(stMenuSelect)
-        shop.statusMessage =
-          if toggledOn: t("shop_equipped") else: t("secret_tophat_unequipped")
-        shop.statusTimer = 1.2
+    if toggleIndex >= 0 and secretUnlocked(SecretItem(toggleIndex)):
+      let item = SecretItem(toggleIndex)
+      toggleSecret(item)
+      discard saveSettings(globalSettings)
+      playSound(stMenuSelect)
+      shop.statusMessage =
+        if secretEquipped(item): t("shop_equipped") else: t("secret_tophat_unequipped")
+      shop.statusTimer = 1.2
     if isTopmost and isKeyPressed(Escape):
       shop.window.visible = false
       return true
@@ -1642,153 +1740,158 @@ proc drawSecretCardChrome(cardX, cardY: int, unlocked, equipped, isHovered: bool
   ## Card background and border. Magenta accents set the secret stock apart
   ## from the regular tabs; equipped cards get the terminal-cyan border.
   let borderColor =
-    if equipped: Color(r: 0, g: 230, b: 220, a: 255)
-    elif isHovered and unlocked: Color(r: 255, g: 120, b: 230, a: 255)
-    else: Color(r: 120, g: 60, b: 130, a: 255)
+    if equipped: uiLine(0, 230, 220)
+    elif isHovered and unlocked: uiLine(255, 120, 230)
+    else: uiLine(120, 60, 130)
   drawRectangle(cardX.int32, cardY.int32, SECRET_CARD_W.int32, SECRET_CARD_H.int32,
-                Color(r: 22, g: 18, b: 32, a: 255))
+                uiSurface(22, 18, 32))
   drawRectOutline(Rectangle(x: cardX.float32, y: cardY.float32,
                                width: SECRET_CARD_W.float32, height: SECRET_CARD_H.float32),
                      2.0'f32, borderColor)
 
+template secretPreview(cardX, cardY: int, body: untyped) =
+  ## cosmeticPreview over a SECRET card's picture area (above its name).
+  cosmeticPreview(cardX + 14, cardY + 14, SECRET_CARD_W - 28, 134):
+    body
+
 proc drawSecretCardLabels(cardX, cardY: int, equipped: bool, name: string) =
-  let nameW = measureText(name, 16)
-  drawText(name, (cardX + (SECRET_CARD_W - nameW) div 2).int32, (cardY + 158).int32, 16, White)
+  let nameSize = fitTextSize(name, (SECRET_CARD_W - 16).int32, 16, 10)
+  let nameW = measureText(name, nameSize)
+  drawText(name, (cardX + (SECRET_CARD_W - nameW) div 2).int32,
+           (cardY + 158 + (16 - nameSize) div 2).int32, nameSize, uiInk(White))
   let statusText = if equipped: t("shop_equipped") else: t("secret_click_to_wear")
   let statusColor =
-    if equipped: Color(r: 0, g: 230, b: 220, a: 255)
-    else: Color(r: 200, g: 200, b: 210, a: 255)
+    if equipped: uiInk(0, 230, 220)
+    else: uiInk(200, 200, 210)
   let statusW = measureText(statusText, 12)
   drawText(statusText, (cardX + (SECRET_CARD_W - statusW) div 2).int32,
            (cardY + 188).int32, 12, statusColor)
 
 proc drawSecretCardLocked(cardX, cardY: int, hint: string) =
   drawLockGlyph((cardX + SECRET_CARD_W div 2 - 10).int32, (cardY + 56).int32,
-                Color(r: 255, g: 120, b: 230, a: 255))
+                uiInk(255, 120, 230))
   let mystery = "???"
   let mysteryW = measureText(mystery, 24)
   drawText(mystery, (cardX + (SECRET_CARD_W - mysteryW) div 2).int32, (cardY + 110).int32, 24,
-           Color(r: 170, g: 150, b: 185, a: 255))
-  let hintLines = wrapTwoLines(hint, (SECRET_CARD_W - 20).int32, 12)
-  let hint1W = measureText(hintLines.line1, 12)
-  drawText(hintLines.line1, (cardX + (SECRET_CARD_W - hint1W) div 2).int32,
-           (cardY + 172).int32, 12, Color(r: 150, g: 150, b: 165, a: 255))
-  if hintLines.line2.len > 0:
-    let hint2W = measureText(hintLines.line2, 12)
-    drawText(hintLines.line2, (cardX + (SECRET_CARD_W - hint2W) div 2).int32,
-             (cardY + 188).int32, 12, Color(r: 150, g: 150, b: 165, a: 255))
+           uiInk(170, 150, 185))
+  let wrapped = wrapDescAutoSize(hint, (SECRET_CARD_W - 20).int32, 12, 9)
+  for i, line in [wrapped.line1, wrapped.line2, wrapped.line3]:
+    if line.len > 0:
+      drawText(line, (cardX + (SECRET_CARD_W - measureText(line, wrapped.fontSize)) div 2).int32,
+               (cardY + 164 + i * (wrapped.fontSize + 3)).int32, wrapped.fontSize,
+               uiInk(150, 150, 165))
+
+proc drawCknThemePreview(cardX, cardY: int, time: float32) =
+  ## The CKN OS card's picture: a miniature of the desktop it gives you, its
+  ## wallpaper, a window and the taskbar's Start button.
+  secretPreview(cardX, cardY):
+    let wx = (cardX + 14).float32
+    let wy = (cardY + 14).float32
+    let ww = (SECRET_CARD_W - 28).float32
+    let wh = 134.0'f32
+    let clip = beginPreviewClip(wx.int32, wy.int32, ww.int32, wh.int32)
+    # The wallpaper at five times this size, scaled down, so its fixed-size
+    # parts keep their proportions (as on the desktop background cards).
+    pushMatrix()
+    translatef(wx, wy, 0.0'f32)
+    scalef(0.2'f32, 0.2'f32, 1.0'f32)
+    drawCknWallpaper(ww * 5.0'f32, wh * 5.0'f32,
+                     (if activeDesktop.isNil: time else: activeDesktop.time), activeDesktop)
+    popMatrix()
+
+    let win = Rectangle(x: wx + 10.0'f32, y: wy + 16.0'f32, width: 76.0'f32, height: 56.0'f32)
+    let titleTint = Color(r: 226, g: 235, b: 249, a: 255)
+    drawCknPanel(win, 5.0'f32, Color(r: 246, g: 248, b: 251, a: 255), CknTrack, shadowAlpha = 70.0'f32)
+    drawRectangleRounded(Rectangle(x: win.x, y: win.y, width: win.width, height: 14.0'f32),
+                         cornerRoundness(win.width, 14.0'f32, 5.0'f32), 6, titleTint)
+    drawRectangle(win.x.int32, (win.y + 9.0'f32).int32, win.width.int32, 5, titleTint)
+    drawRectangle(win.x.int32, (win.y + 14.0'f32).int32, win.width.int32, 1, CknTrack)
+    drawCknLogo(win.x + 9.0'f32, win.y + 8.0'f32, 5.0'f32)
+    for i in 0..2:
+      drawRectangle((win.x + 8.0'f32).int32, (win.y + 21.0'f32).int32 + i.int32 * 8,
+                    (54 - i * 14).int32, 3, withAlpha(CknMuted, 170))
+    drawRectangleRounded(Rectangle(x: win.x + win.width - 30.0'f32, y: win.y + win.height - 13.0'f32,
+                                   width: 22.0'f32, height: 8.0'f32), 1.0'f32, 6, CknBlue)
+
+    let barY = wy + wh - 14.0'f32
+    drawRectangle(wx.int32, barY.int32, ww.int32, 14, withAlpha(CknPaper, 245))
+    drawRectangle(wx.int32, barY.int32, ww.int32, 1, CknTrack)
+    drawCknPanel(Rectangle(x: wx + 4.0'f32, y: barY + 2.0'f32, width: 30.0'f32, height: 10.0'f32),
+                 5.0'f32, Color(r: 248, g: 250, b: 253, a: 255), CknTrack)
+    drawCknLogo(wx + 11.0'f32, barY + 7.0'f32, 4.0'f32)
+    endPreviewClip(clip)
 
 proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, contentHeight: int) =
-  ## The SECRET tab: one card per secret cosmetic. Card 0 is the kernel tophat
-  ## (wave-60 victory); card 1 is the orbital cube (Escape Velocity advancement);
-  ## card 2 is the cheater hat (cd+ menu advancement).
-  ## Clicking an unlocked card toggles whether it is worn.
+  ## The SECRET tab: one card per SecretItem. Clicking an unlocked card
+  ## toggles whether it is worn (the theme: whether the interface wears it).
   let headerY = contentY + TAB_HEIGHT
-  drawText(t("shop_customize_secret"), (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
+  drawText(t("shop_customize_secret"), (contentX + 10).int32, (headerY + 5).int32, 18, uiInk(Gold))
   if shop.statusTimer > 0 and shop.statusMessage.len > 0:
     drawText(shop.statusMessage, (contentX + contentWidth - 180).int32, (headerY + 31).int32, 11,
-             Color(r: 255, g: 210, b: 110, a: 255))
+             uiInk(255, 210, 110))
 
-  let hatUnlocked = not globalSettings.isNil and globalSettings.kernelTophatUnlocked
-  let hatEquipped = hatUnlocked and globalSettings.kernelTophatEquipped
-  let cubeUnlocked = not globalSettings.isNil and globalSettings.orbitalCubeUnlocked
-  let cubeEquipped = cubeUnlocked and globalSettings.orbitalCubeEquipped
-  let cheaterUnlocked = not globalSettings.isNil and globalSettings.cheaterHatUnlocked
-  let cheaterEquipped = cheaterUnlocked and globalSettings.cheaterHatEquipped
+  let time = shop.animationTime
+  let (primary, secondary, core) = getSkinColors(shop.selectedPlayerSkin, time)
+  let pulse = sin(time * 2.0'f32) * 0.5'f32 + 0.5'f32
+  for item in SecretItem:
+    let (cardX, cardY) = secretCardPos(contentX, contentY, contentWidth, ord(item))
+    let unlocked = secretUnlocked(item)
+    drawSecretCardChrome(cardX, cardY, unlocked, secretEquipped(item), shop.hoveredSkin == ord(item))
+    if not unlocked:
+      drawSecretCardLocked(cardX, cardY, secretLockedHint(item))
+      continue
+    let centerX = (cardX + SECRET_CARD_W div 2).float32
+    case item
+    of siKernelTophat:
+      # On the player's current skin and shape.
+      let previewY = (cardY + 110).float32
+      secretPreview(cardX, cardY):
+        drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
+                        primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
+        drawTopHat(newVector2f(centerX, previewY), 30.0'f32, time, 1.0'f32, primary)
+    of siOrbitalCube:
+      # The player's shape with the mini desktop cube (in the equipped cube
+      # skin's colors) circling it live.
+      let previewY = (cardY + 105).float32
+      let cubeData = getCubeSkinData(shop.selectedCubeSkin)
+      let orbitAngle = time * 1.3'f32
+      let orbitDist = 24.0'f32 * 2.1'f32 + sin(time * 2.1'f32) * 3.0'f32
+      let cubeHeart = if shop.selectedCubeSkin == cskCompanion: Color(r: 244, g: 116, b: 150, a: 255)
+                      else: Color(r: 0, g: 0, b: 0, a: 0)
+      secretPreview(cardX, cardY):
+        drawPlayerShape(newVector2f(centerX, previewY), 24.0'f32, shop.selectedShape,
+                        primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
+        drawMiniCube(Vector2(x: centerX + cos(orbitAngle) * orbitDist,
+                             y: previewY + sin(orbitAngle) * orbitDist * 0.72'f32),
+                     8.0'f32, time, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
+                     isD20 = shop.selectedCubeSkin == cskD20, skin = shop.selectedCubeSkin,
+                     secretStyle = true)
+    of siCheaterHat:
+      # The shamefully pristine pointy hat.
+      let previewY = (cardY + 110).float32
+      secretPreview(cardX, cardY):
+        drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
+                        primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
+        drawCheaterHat(newVector2f(centerX, previewY), 30.0'f32, time)
+    of siCknTheme:
+      drawCknThemePreview(cardX, cardY, time)
+    drawSecretCardLabels(cardX, cardY, secretEquipped(item), secretName(item))
 
-  # Card 0: kernel tophat, previewed on the player's current skin and shape.
-  let (hatX, hatY) = secretCardPos(contentX, contentY, contentWidth, 0)
-  drawSecretCardChrome(hatX, hatY, hatUnlocked, hatEquipped, shop.hoveredSkin == 0)
-  if hatUnlocked:
-    let centerX = (hatX + SECRET_CARD_W div 2).float32
-    let previewY = (hatY + 110).float32
-    let (primary, secondary, core) = getSkinColors(shop.selectedPlayerSkin, shop.animationTime)
-    let pulse = sin(shop.animationTime * 2.0'f32) * 0.5'f32 + 0.5'f32
-    drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
-                    primary, secondary, core, shop.animationTime,
-                    shop.animationTime * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
-    drawTopHat(newVector2f(centerX, previewY), 30.0'f32, shop.animationTime,
-               1.0'f32, primary)
-    drawSecretCardLabels(hatX, hatY, hatEquipped, t("secret_tophat_name"))
-  else:
-    drawSecretCardLocked(hatX, hatY, t("secret_locked_hint"))
-
-  # Card 1: orbital cube, previewed as the player's shape with the mini
-  # desktop cube (in the equipped cube skin's colors) circling it live.
-  let (cubeX, cubeY) = secretCardPos(contentX, contentY, contentWidth, 1)
-  drawSecretCardChrome(cubeX, cubeY, cubeUnlocked, cubeEquipped, shop.hoveredSkin == 1)
-  if cubeUnlocked:
-    let centerX = (cubeX + SECRET_CARD_W div 2).float32
-    let previewY = (cubeY + 105).float32
-    let (primary, secondary, core) = getSkinColors(shop.selectedPlayerSkin, shop.animationTime)
-    let pulse = sin(shop.animationTime * 2.0'f32) * 0.5'f32 + 0.5'f32
-    drawPlayerShape(newVector2f(centerX, previewY), 24.0'f32, shop.selectedShape,
-                    primary, secondary, core, shop.animationTime,
-                    shop.animationTime * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
-    let cubeData = getCubeSkinData(shop.selectedCubeSkin)
-    let orbitAngle = shop.animationTime * 1.3'f32
-    let orbitDist = 24.0'f32 * 2.1'f32 + sin(shop.animationTime * 2.1'f32) * 3.0'f32
-    let cubeHeart = if shop.selectedCubeSkin == cskCompanion: Color(r: 244, g: 116, b: 150, a: 255)
-                    else: Color(r: 0, g: 0, b: 0, a: 0)
-    drawMiniCube(Vector2(x: centerX + cos(orbitAngle) * orbitDist,
-                         y: previewY + sin(orbitAngle) * orbitDist * 0.72'f32),
-                 8.0'f32, shop.animationTime, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
-                 isD20 = shop.selectedCubeSkin == cskD20, skin = shop.selectedCubeSkin,
-                 secretStyle = true)
-    drawSecretCardLabels(cubeX, cubeY, cubeEquipped, t("secret_orbital_cube_name"))
-  else:
-    drawSecretCardLocked(cubeX, cubeY, t("secret_cube_locked_hint"))
-
-  # Card 2: cheater hat, the shamefully pristine pointy hat.
-  let (cheaterX, cheaterY) = secretCardPos(contentX, contentY, contentWidth, 2)
-  drawSecretCardChrome(cheaterX, cheaterY, cheaterUnlocked, cheaterEquipped, shop.hoveredSkin == 2)
-  if cheaterUnlocked:
-    let centerX = (cheaterX + SECRET_CARD_W div 2).float32
-    let previewY = (cheaterY + 110).float32
-    let (primary, secondary, core) = getSkinColors(shop.selectedPlayerSkin, shop.animationTime)
-    let pulse = sin(shop.animationTime * 2.0'f32) * 0.5'f32 + 0.5'f32
-    drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
-                    primary, secondary, core, shop.animationTime,
-                    shop.animationTime * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
-    drawCheaterHat(newVector2f(centerX, previewY), 30.0'f32, shop.animationTime)
-    drawSecretCardLabels(cheaterX, cheaterY, cheaterEquipped, t("secret_cheater_hat_name"))
-  else:
-    drawSecretCardLocked(cheaterX, cheaterY, t("secret_unknown_locked_hint"))
-
-  # Info panel mirrors the other tabs, describing the hovered card.
+  # Info panel mirrors the other tabs, describing the hovered card (the first
+  # when none is).
   let infoPanelHeight = 50
   let infoPanelY = contentY + contentHeight - infoPanelHeight
   drawRectangle(contentX.int32, infoPanelY.int32, contentWidth.int32, infoPanelHeight.int32,
-                Color(r: 35, g: 35, b: 45, a: 255))
-  let infoIsCube = shop.hoveredSkin == 1
-  let infoIsCheater = shop.hoveredSkin == 2
-  let infoUnlocked =
-    if infoIsCheater: cheaterUnlocked
-    elif infoIsCube: cubeUnlocked
-    else: hatUnlocked
-  if infoUnlocked:
-    let infoEquipped =
-      if infoIsCheater: cheaterEquipped
-      elif infoIsCube: cubeEquipped
-      else: hatEquipped
-    let infoName =
-      if infoIsCheater: t("secret_cheater_hat_name")
-      elif infoIsCube: t("secret_orbital_cube_name")
-      else: t("secret_tophat_name")
-    let wornText = if infoEquipped: infoName else: "---"
+                uiSurface(35, 35, 45))
+  let info = if shop.hoveredSkin in 0 ..< SECRET_ITEM_COUNT: SecretItem(shop.hoveredSkin)
+             else: siKernelTophat
+  if secretUnlocked(info):
+    let wornText = if secretEquipped(info): secretName(info) else: "---"
     drawText(&"{t(\"shop_currently_equipped\")} {wornText}", (contentX + 10).int32,
-             (infoPanelY + 8).int32, 15, White)
-    let infoDesc =
-      if infoIsCheater: t("secret_cheater_hat_desc")
-      elif infoIsCube: t("secret_orbital_cube_desc")
-      else: t("secret_tophat_desc")
-    drawText(infoDesc, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+             (infoPanelY + 8).int32, 15, uiInk(White))
+    drawText(secretDesc(info), (contentX + 10).int32, (infoPanelY + 28).int32, 12, uiInk(Gray))
   else:
-    let lockedHint =
-      if infoIsCheater: t("secret_unknown_locked_hint")
-      elif infoIsCube: t("secret_cube_locked_hint")
-      else: t("secret_locked_hint")
-    drawText(lockedHint, (contentX + 10).int32, (infoPanelY + 18).int32, 13, Gray)
+    drawText(secretLockedHint(info), (contentX + 10).int32, (infoPanelY + 18).int32, 13, uiInk(Gray))
 
 proc drawShopWindow*(shop: ShopWindow) =
   ## Draw the shop window
@@ -1811,7 +1914,7 @@ proc drawShopWindow*(shop: ShopWindow) =
 
   # Draw content background
   drawRectangle(contentX.int32, contentY.int32, contentWidth.int32, contentHeight.int32,
-                Color(r: 25, g: 25, b: 35, a: 255))
+                uiSurface(25, 25, 35))
 
   # Draw tabs
   ensureShopTabValid(shop)
@@ -1825,13 +1928,13 @@ proc drawShopWindow*(shop: ShopWindow) =
     let active = shop.currentTab == td.tab
     let tabX = contentX + tabWidth * i
     drawRectangle(tabX.int32, tabY.int32, tabWidth.int32, TAB_HEIGHT.int32,
-                  if active: Color(r: 40, g: 40, b: 50, a: 255) else: Color(r: 30, g: 30, b: 40, a: 255))
+                  if active: uiSurface(40, 40, 50) else: uiSurface(30, 30, 40))
     if active:
-      drawRectangle(tabX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, td.underline)
+      drawRectangle(tabX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, uiSurface(td.underline))
     let label = t(td.labelKey)
     let fs = fitTextSize(label, labelMaxW, 12, 8)
     let labelX = tabX + (tabWidth - measureText(label, fs)) div 2
-    drawText(label, labelX.int32, (tabY + 13 + (12 - fs) div 2).int32, fs, if active: White else: Gray)
+    drawText(label, labelX.int32, (tabY + 13 + (12 - fs) div 2).int32, fs, if active: uiInk(White) else: uiInk(Gray))
 
   # The SECRET tab draws its own single-card layout instead of the grid.
   if shop.currentTab == stSecret:
@@ -1867,20 +1970,20 @@ proc drawShopWindow*(shop: ShopWindow) =
     t("shop_customize_cubeskins")
   else:
     t("shop_customize_effects")
-  drawText(tabTitle, (contentX + 10).int32, (headerY + 5).int32, 18, Gold)
+  drawText(tabTitle, (contentX + 10).int32, (headerY + 5).int32, 18, uiInk(Gold))
   if not shop.rogueliteProfile.isNil:
     let balanceY = headerY + 15
     let balanceX = contentX + contentWidth - 238
     drawCurrencyIcon(balanceX.int32, balanceY.int32, 16, ciDataShards)
-    drawText($shop.rogueliteProfile.dataShards, (balanceX + 12).int32, (balanceY - 6).int32, 12, Gold)
+    drawText($shop.rogueliteProfile.dataShards, (balanceX + 12).int32, (balanceY - 6).int32, 12, uiInk(Gold))
     drawCurrencyIcon((balanceX + 72).int32, balanceY.int32, 16, ciCore)
     drawText($shop.rogueliteProfile.cores, (balanceX + 84).int32, (balanceY - 6).int32, 12,
-             Color(r: 255, g: 130, b: 80, a: 255))
+             uiInk(255, 130, 80))
   elif shop.statusTimer <= 0:
-    drawText(t("roguelite_no_profile"), (contentX + contentWidth - 150).int32, (headerY + 12).int32, 12, Red)
+    drawText(t("roguelite_no_profile"), (contentX + contentWidth - 150).int32, (headerY + 12).int32, 12, uiInk(Red))
   if shop.statusTimer > 0 and shop.statusMessage.len > 0:
     drawText(shop.statusMessage, (contentX + contentWidth - 180).int32, (headerY + 31).int32, 11,
-             Color(r: 255, g: 210, b: 110, a: 255))
+             uiInk(255, 210, 110))
 
   # Calculate grid area
   let gridY = headerY + headerHeight
@@ -1907,9 +2010,9 @@ proc drawShopWindow*(shop: ShopWindow) =
   # Show scroll hint when content overflows
   if totalContentHeight.float32 > gridHeight.float32:
     drawText(t("shop_scroll_hint"), (contentX + 10).int32, (headerY + 30).int32, 12,
-            Color(r: 255, g: 200, b: 100, a: 255))
+            uiInk(255, 200, 100))
   else:
-    drawText(t("shop_click_equip"), (contentX + 10).int32, (headerY + 30).int32, 13, Gray)
+    drawText(t("shop_click_equip"), (contentX + 10).int32, (headerY + 30).int32, 13, uiInk(Gray))
 
   # Compute left offset and integer scroll
   let gridLeft = contentX + (contentWidth - (columns * SKIN_BOX_WIDTH + (columns - 1) * SKIN_BOX_PADDING)) div 2
@@ -1922,12 +2025,12 @@ proc drawShopWindow*(shop: ShopWindow) =
   let searchY = headerY + 8
   let searchH = 28
   if shop.searchVisible:
-    let searchBg = if shop.searchFocused: Color(r: 45, g: 45, b: 55, a: 255) else: Color(r: 35, g: 35, b: 45, a: 255)
+    let searchBg = if shop.searchFocused: uiSurface(45, 45, 55) else: uiSurface(35, 35, 45)
     drawRectangle(searchX.int32, searchY.int32, searchW.int32, searchH.int32, searchBg)
     drawRectOutline(Rectangle(x: searchX.float32, y: searchY.float32, width: searchW.float32, height: searchH.float32),
-                       if shop.searchFocused: 2.0'f32 else: 1.0'f32, if shop.searchFocused: Color(r: 255, g: 150, b: 50, a: 255) else: Color(r: 60, g: 60, b: 70, a: 255))
+                       if shop.searchFocused: 2.0'f32 else: 1.0'f32, if shop.searchFocused: uiLine(255, 150, 50) else: uiLine(60, 60, 70))
     let searchLabel = if shop.searchQuery.len == 0: "Search..." else: shop.searchQuery
-    drawText(searchLabel, (searchX + 8).int32, (searchY + 6).int32, 12, if shop.searchQuery.len == 0: Color(r: 120, g: 120, b: 130, a: 255) else: White)
+    drawText(searchLabel, (searchX + 8).int32, (searchY + 6).int32, 12, if shop.searchQuery.len == 0: uiInk(120, 120, 130) else: uiInk(White))
 
   # Draw grid inside a single scissor region
   beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)
@@ -2006,7 +2109,7 @@ proc drawShopWindow*(shop: ShopWindow) =
 
     # Focus ring for keyboard navigation (drawn over card)
     if vIndex == shop.focusIndex:
-      drawRectOutline(Rectangle(x: boxX.float32, y: boxY.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32), 2.0'f32, Color(r: 255, g: 200, b: 100, a: 180))
+      drawRectOutline(Rectangle(x: boxX.float32, y: boxY.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32), 2.0'f32, uiLine(255, 200, 100, 180))
   endScissorMode()
 
   # Draw scrollbar if needed
@@ -2015,52 +2118,52 @@ proc drawShopWindow*(shop: ShopWindow) =
     let scrollbarWidth = 10
 
     drawRectangle(scrollbarX.int32, gridY.int32, scrollbarWidth.int32, gridHeight.int32,
-                  Color(r: 40, g: 40, b: 50, a: 255))
+                  uiSurface(40, 40, 50))
 
     let thumbHeight = max(30.0, (gridHeight.float32 / totalContentHeight.float32) * gridHeight.float32)
     let thumbY = gridY.float32 + (shop.scrollOffset / shop.maxScrollOffset) * (gridHeight.float32 - thumbHeight)
 
     drawRectangle(scrollbarX.int32, thumbY.int32, scrollbarWidth.int32, thumbHeight.int32,
-                  Color(r: 255, g: 150, b: 50, a: 200))
+                  uiSurface(255, 150, 50, 200))
 
   # Draw info panel
   let infoPanelY = contentY + contentHeight - infoPanelHeight
   drawRectangle(contentX.int32, infoPanelY.int32, contentWidth.int32, infoPanelHeight.int32,
-                Color(r: 35, g: 35, b: 45, a: 255))
+                uiSurface(35, 35, 45))
 
   # Show selected info
   if shop.currentTab == stPlayerSkins:
     let selectedData = getSkinData(shop.selectedPlayerSkin)
-    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
-    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, uiInk(White))
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, uiInk(Gray))
   elif shop.currentTab == stBulletSkins:
     let selectedData = getBulletSkinData(shop.selectedBulletSkin)
-    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
-    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, uiInk(White))
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, uiInk(Gray))
   elif shop.currentTab == stShapes:
     let selectedData = getShapeData(shop.selectedShape)
-    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
-    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, uiInk(White))
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, uiInk(Gray))
   elif shop.currentTab == stBulletShapes:
     let selectedData = getBulletShapeData(shop.selectedBulletShape)
-    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
-    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, uiInk(White))
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, uiInk(Gray))
   elif shop.currentTab == stParticles:
     let selectedData = getParticleSkinData(shop.selectedParticle)
-    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
-    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, uiInk(White))
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, uiInk(Gray))
   elif shop.currentTab == stDesktopBg:
-    let selectedData = getDesktopBgData(shop.selectedDesktopBg)
-    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
-    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+    let (bgName, bgDesc) = desktopBgText(shop.selectedDesktopBg)
+    drawText(&"{t(\"shop_currently_equipped\")} {bgName}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, uiInk(White))
+    drawText(bgDesc, (contentX + 10).int32, (infoPanelY + 28).int32, 12, uiInk(Gray))
   elif shop.currentTab == stCubeSkins:
     let selectedData = getCubeSkinData(shop.selectedCubeSkin)
-    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, White)
-    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, Gray)
+    drawText(&"{t(\"shop_currently_equipped\")} {selectedData.name}", (contentX + 10).int32, (infoPanelY + 8).int32, 15, uiInk(White))
+    drawText(selectedData.description, (contentX + 10).int32, (infoPanelY + 28).int32, 12, uiInk(Gray))
 
   # Bottom-right hint for opening the search bar
   let hintText = "Press Ctrl+F to search"
   let hintW = measureText(hintText, 11)
   let hintX = contentX + contentWidth - int(hintW) - 10
   let hintY = contentY + contentHeight - 16
-  drawText(hintText, hintX.int32, hintY.int32, 11, Color(r: 180, g: 180, b: 190, a: 200))
+  drawText(hintText, hintX.int32, hintY.int32, 11, uiInk(180, 180, 190, 200))

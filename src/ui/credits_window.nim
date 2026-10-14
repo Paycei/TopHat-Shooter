@@ -9,6 +9,7 @@
 import raylib
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../feedback
+import ui_theme
 
 type
   CreditsWindow* = ref object
@@ -24,11 +25,12 @@ const
   SUPPORT_BUTTON_OFFSET = 68    ## button row, measured down from the panel top
   SUPPORT_BLURB_MAX_LINES = 2
 
-  ColHeading = Color(r: 255, g: 140, b: 180, a: 255)
-  ColTitle = Color(r: 235, g: 245, b: 255, a: 255)
-  ColBody = Color(r: 205, g: 212, b: 222, a: 255)
-  ColMuted = Color(r: 150, g: 160, b: 175, a: 255)
-  ColPanelBg = Color(r: 10, g: 12, b: 18, a: 255)
+# The palette, drawn in the interface theme (ui_theme.nim).
+template ColHeading: Color = uiInk(255, 140, 180)
+template ColTitle: Color = uiInk(235, 245, 255)
+template ColBody: Color = uiInk(205, 212, 222)
+template ColMuted: Color = uiInk(150, 160, 175)
+template ColPanelBg: Color = uiSurface(10, 12, 18)
 
 # Credit lines are data, not translation keys: they are mostly proper nouns
 # (names, libraries, URLs) that read the same in every language. Only the
@@ -135,7 +137,7 @@ proc drawSupportButton(r: Rectangle, link: SupportLink, hovered: bool) =
     else: link.fill
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, fill)
   drawRectOutline(r, (if hovered: 2.0 else: 1.5),
-                     Color(r: 255, g: 255, b: 255, a: if hovered: 220 else: 120))
+                     uiLine(Color(r: 255, g: 255, b: 255, a: if hovered: 220 else: 120)))
   # Shrink the caption until it fits so brand names never spill out of the pill.
   var fontSize = 15'i32
   while fontSize > 9 and measureText(link.label, fontSize) > r.width.int32 - 12:
@@ -160,7 +162,7 @@ proc drawCreditsWindow*(cw: CreditsWindow) =
                 ColPanelBg)
   drawRectOutline(Rectangle(x: contentX.float32, y: contentY.float32,
                                width: contentW.float32, height: contentH.float32),
-                     1, Color(r: 255, g: 110, b: 160, a: 200))
+                     1, uiLine(255, 110, 160, 200))
 
   let baseX = contentX + 18
   let innerW = contentW - 36
@@ -173,7 +175,7 @@ proc drawCreditsWindow*(cw: CreditsWindow) =
   y += 22
   drawStroke(Vector2(x: baseX.float32, y: y.float32),
            Vector2(x: (baseX + innerW).float32, y: y.float32),
-           1, Color(r: 255, g: 110, b: 160, a: 120))
+           1, uiLine(255, 110, 160, 120))
   y += 14
 
   # --- Credits ---
@@ -204,7 +206,7 @@ proc drawCreditsWindow*(cw: CreditsWindow) =
     let panelTop = supportPanelTop(cw).int32
     drawStroke(Vector2(x: baseX.float32, y: panelTop.float32),
              Vector2(x: (baseX + innerW).float32, y: panelTop.float32),
-             1, Color(r: 255, g: 110, b: 160, a: 120))
+             1, uiLine(255, 110, 160, 120))
     drawText(t(tkSupportTitle), baseX.int32, panelTop + 10, 16, ColHeading)
 
     # Blurb: shrink until it wraps into the two lines the panel budgets for, so

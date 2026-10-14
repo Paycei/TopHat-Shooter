@@ -40,7 +40,8 @@ proc newDefaultSettings*(): Settings =
     showHints: true,
     hudLayout: hlWidescreen,
     hudStyle: hsModern,
-    uiScale: 1.0,             # 100%: the layout every panel was designed against
+    interfaceTheme: "tophat",
+    uiScale: 1.0,            # 100%: the layout every panel was designed against
     showEnemyLabels: true,
     showDamageNumbers: true,
     damageNumberScale: 1.0,

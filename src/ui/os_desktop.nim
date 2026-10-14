@@ -6,6 +6,7 @@ import ../draw_prims
 from std/unicode import runeAt, toUpper, `$`
 import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../particle_types, ../utils
 import ../modding/[mod_assets, mod_hooks]
+import ui_theme
 
 type
   DesktopIconType* = enum
@@ -162,12 +163,25 @@ proc bestDesktopLabelFontSize(text: string, maxWidth, preferredSize: int32,
 proc drawDesktopLabel(text: string, x, y: int32, selected: bool) =
   let fontSize = bestDesktopLabelFontSize(text, ICON_LABEL_WIDTH, ICON_LABEL_FONT_SIZE)
   let labelX = x - ((ICON_LABEL_WIDTH - ICON_SIZE) div 2)
-  let shadowColor = Color(r: 0, g: 0, b: 0, a: if selected: 235 else: 180)
-  let textColor = if selected: Color(r: 220, g: 248, b: 255, a: 255) else: White
   let lineWidth = measureText(text, fontSize)
   let drawX = labelX + max(0'i32, (ICON_LABEL_WIDTH - lineWidth) div 2)
-  drawText(text, drawX + 2, y + 2, fontSize, shadowColor)
-  drawText(text, drawX, y, fontSize, textColor)
+  let th = activeTheme()
+  case th.shell
+  of ssTopHat:
+    let shadowColor = Color(r: 0, g: 0, b: 0, a: if selected: 235 else: 180)
+    let textColor = if selected: Color(r: 220, g: 248, b: 255, a: 255) else: White
+    drawText(text, drawX + 2, y + 2, fontSize, shadowColor)
+    drawText(text, drawX, y, fontSize, textColor)
+  of ssCkn:
+    # White on the wallpaper, an accent pill behind the chosen one.
+    if selected:
+      let pill = Rectangle(x: (drawX - 6).float32, y: (y - 3).float32,
+                           width: (lineWidth + 12).float32, height: (fontSize + 6).float32)
+      drawRectangleRounded(pill, cornerRoundness(pill.width, pill.height, 5.0'f32), 6,
+                           withAlpha(th.accent, 225))
+    else:
+      drawText(text, drawX + 1, y + 1, fontSize, withAlpha(CknShadow, 200))
+    drawText(text, drawX, y, fontSize, White)
 
 proc isCornerIcon(iconType: DesktopIconType): bool =
   ## Icons that are pinned to a screen corner instead of living on the top-left
@@ -1002,7 +1016,9 @@ proc drawIconDisc(cx, cy, r: float32, fill, edge: Color, thick: float32 = 2.0) =
 
 proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
   ## Tile, glyph and label. Exported so cutscenes can stage the real desktop
-  ## (the lore intro's flood shot corrupts these very icons).
+  ## (the lore intro's flood shot corrupts these very icons). The tile and
+  ## glyph are the app's picture, the same in every theme; the label is the
+  ## shell's.
   drawIconTile(icon, time, selected)
 
   # Icon graphic based on type
@@ -1440,14 +1456,26 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
   let labelY = icon.y + ICON_SIZE + 8
   drawDesktopLabel(icon.name, icon.x.int32, labelY.int32, selected)
 
+proc drawCknStartButton(x, y, w, h: int, th: UiTheme) =
+  ## The CKN shell's start button: a pill with the logo and a polite "Start".
+  let rect = Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32)
+  drawCknPanel(rect, h.float32 * 0.5'f32, mixColor(th.surface, White, 0.5'f32),
+               mixColor(th.surface, th.raised, 0.75'f32))
+  drawCknLogo((x + 22).float32, (y + h div 2 + 2).float32, 11.0'f32, arc = th.accent)
+  let label = t(tkOSCknStartButton)
+  drawText(label, (x + 40).int32, (y + (h - 16) div 2).int32,
+           bestDesktopLabelFontSize(label, (w - 48).int32, 16), th.text)
+
 proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
+  ## Every theme draws the stock taskbar in its colours; the start button is
+  ## the shell's own.
   # Taskbar background
   drawRectangle(0, (screenHeight - TASKBAR_HEIGHT).int32,
                screenWidth.int32, TASKBAR_HEIGHT.int32,
-               Color(r: 20, g: 20, b: 30, a: 240))
+               uiSurface(20, 20, 30, 240))
   drawRectOutline(Rectangle(x: 0, y: (screenHeight - TASKBAR_HEIGHT).float32,
                                 width: screenWidth.float32, height: TASKBAR_HEIGHT.float32),
-                    1, Color(r: 0, g: 200, b: 200, a: 255))
+                    1, uiLine(0, 200, 200))
 
   # Start button
   let startBtnW = 120
@@ -1455,19 +1483,24 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   let startBtnX = 8
   let startBtnY = screenHeight - TASKBAR_HEIGHT + 4
 
-  drawRectangle(startBtnX.int32, startBtnY.int32, startBtnW.int32, startBtnH.int32,
-               Color(r: 0, g: 60, b: 80, a: 255))
-  drawRectOutline(Rectangle(x: startBtnX.float32, y: startBtnY.float32,
-                                width: startBtnW.float32, height: startBtnH.float32), 2,
-                    Color(r: 0, g: 200, b: 255, a: 255))
+  let th = activeTheme()
+  case th.shell
+  of ssTopHat:
+    drawRectangle(startBtnX.int32, startBtnY.int32, startBtnW.int32, startBtnH.int32,
+                 uiSurface(0, 60, 80))
+    drawRectOutline(Rectangle(x: startBtnX.float32, y: startBtnY.float32,
+                                  width: startBtnW.float32, height: startBtnH.float32), 2,
+                      uiLine(0, 200, 255))
 
-  # Logo in start button
-  let logoSize = 16
-  drawRectangle((startBtnX + 10).int32, (startBtnY + 8).int32,
-               logoSize.int32, logoSize.int32,
-               Color(r: 0, g: 200, b: 255, a: 255))
+    # Logo in start button
+    let logoSize = 16
+    drawRectangle((startBtnX + 10).int32, (startBtnY + 8).int32,
+                 logoSize.int32, logoSize.int32,
+                 uiInk(0, 200, 255))
 
-  drawText(t("os_tophat_button"), (startBtnX + 35).int32, (startBtnY + 7).int32, 18, White)
+    drawText(t("os_tophat_button"), (startBtnX + 35).int32, (startBtnY + 7).int32, 18, uiInk(White))
+  of ssCkn:
+    drawCknStartButton(startBtnX, startBtnY, startBtnW, startBtnH, th)
 
   # System tray - clock with dynamic time. HH and MM are drawn at fixed x
   # positions and the ":" blinks in its own reserved slot at a true 1 Hz (from
@@ -1480,7 +1513,7 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
 
   let clockX = screenWidth - 80
   let clockY = startBtnY + 2
-  let clockCol = Color(r: 0, g: 255, b: 255, a: 255)
+  let clockCol = uiInk(0, 255, 255)
   let hhW = measureText(hhStr, 16)
   let colonW = measureText(":", 16)
   drawText(hhStr, clockX.int32, clockY.int32, 16, clockCol)
@@ -1488,7 +1521,7 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
     drawText(":", (clockX + hhW).int32, clockY.int32, 16, clockCol)
   drawText(mmStr, (clockX + hhW + colonW).int32, clockY.int32, 16, clockCol)
   drawText(dateStr, (clockX - 10).int32, (clockY + 16).int32, 12,
-          Color(r: 100, g: 200, b: 200, a: 255))
+          uiInk(100, 200, 200))
 
   # Volume indicator - a speaker with radiating sound-wave arcs plus a percentage.
   # The arcs (not stacked bars) and the "%" label make it read unambiguously as
@@ -1500,8 +1533,8 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   let muted = vol <= 0.001'f32
   let volX = screenWidth - 222
   let cy = (clockY + 9).float32          # vertical centre, aligned with the clock text
-  let spkCol = if muted: Color(r: 255, g: 110, b: 110, a: 255)
-               else: Color(r: 175, g: 228, b: 228, a: 255)
+  let spkCol = if muted: uiInk(255, 110, 110)
+               else: uiInk(175, 228, 228)
   # Speaker: a solid cone (back box + triangular flare).
   drawRectangle(volX.int32, (cy - 3.0'f32).int32, 4, 6, spkCol)
   drawTriangle(Vector2(x: (volX + 4).float32, y: cy - 6.0'f32),
@@ -1519,14 +1552,14 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
     for i in 0..2:
       let r = 6.5'f32 + i.float32 * 4.0'f32
       let lit = vol >= i.float32 / 3.0'f32
-      let arcCol = if lit: Color(r: 0, g: 235, b: 205, a: 255)
-                   else: Color(r: 45, g: 70, b: 75, a: 180)
+      let arcCol = if lit: uiInk(0, 235, 205)
+                   else: uiLine(45, 70, 75, 180)
       drawRing(waveCenter, r - 1.0'f32, r + 0.6'f32, -52.0'f32, 52.0'f32, 14, arcCol)
   # Percentage label removes any doubt about what the icon represents.
   let pctText = $int(round(vol * 100.0'f32)) & "%"
   drawText(pctText, (volX + 28).int32, (clockY + 3).int32, 12,
-           if muted: Color(r: 255, g: 130, b: 130, a: 255)
-           else: Color(r: 135, g: 212, b: 212, a: 255))
+           if muted: uiInk(255, 130, 130)
+           else: uiInk(135, 212, 212))
 
   # System indicators with icons
   let indicatorX = screenWidth - 146
@@ -1534,9 +1567,9 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   let netPulse = (sin(time * 3.0) * 0.5 + 0.5)
   let netAlpha = uint8(170.0 + netPulse * 85.0)
   drawRectangle(indicatorX.int32, (clockY + 6).int32, 12, 8,
-               Color(r: 50, g: 255, b: 50, a: netAlpha))
+               uiInk(50, 255, 50, netAlpha.int))
   drawText(t(tkDesktopNet), (indicatorX + 16).int32, (clockY + 3).int32, 12,
-          Color(r: 150, g: 150, b: 150, a: 255))
+          uiInk(150, 150, 150))
 
 type
   WallpaperCubePoint = object
@@ -2377,10 +2410,10 @@ proc drawUsageRow(panelX, panelW, y: int32, label: string, pct: float32, color: 
   let barY = y + 2
   const barH = 9'i32
   # Track + quarter ticks
-  drawRectangle(barX, barY, barW, barH, Color(r: 20, g: 28, b: 42, a: 235))
+  drawRectangle(barX, barY, barW, barH, uiSurface(20, 28, 42, 235))
   for q in 1 .. 3:
     drawRectangle(barX + (barW * q.int32) div 4, barY, 1, barH,
-                  Color(r: 0, g: 70, b: 90, a: 150))
+                  uiLine(0, 70, 90, 150))
   # Fill, top highlight, bright cap + glow
   let fillW = int32(barW.float32 * clamp(pct, 0.0'f32, 100.0'f32) / 100.0'f32)
   if fillW > 1:
@@ -2390,12 +2423,12 @@ proc drawUsageRow(panelX, panelW, y: int32, label: string, pct: float32, color: 
                         g: uint8(min(255, color.g.int + 60)),
                         b: uint8(min(255, color.b.int + 60)), a: 220))
     let capX = barX + fillW
-    drawRectangle(capX - 2, barY, 2, barH, Color(r: 255, g: 255, b: 255, a: 170))
+    drawRectangle(capX - 2, barY, 2, barH, uiGlow(255, 255, 255, 170))
     drawSoftGlow(capX.float32, (barY + barH div 2).float32, 7.0'f32,
                  withAlpha(color, 130), 1.0'f32)
   drawRectOutline(Rectangle(x: barX.float32, y: barY.float32,
                                width: barW.float32, height: barH.float32), 1,
-                     Color(r: 0, g: 90, b: 110, a: 150))
+                     uiLine(0, 90, 110, 150))
   # Percentage, right-aligned
   let pStr = $int(pct + 0.5'f32) & "%"
   drawText(pStr, panelX + panelW - 9 - measureText(pStr, 12), y, 12, color)
@@ -2486,10 +2519,245 @@ proc drawDesktopCube(desktop: OSDesktop, w, h: float32,
     drawText(label, lx + 3, ly + 3, fs, Color(r: 0, g: 0, b: 0, a: uint8(160.0'f32 * fade)))
     drawText(label, lx, ly, fs, Color(r: 255, g: 215, b: 90, a: a))
 
+proc drawToastStack(desktop: OSDesktop, screenWidth, bottom: int32) =
+  ## The toast stack in the bottom-right corner, newest lowest, its bottom
+  ## card 14px above `bottom` (the taskbar on the desktop, the screen edge
+  ## over a game screen).
+  let toastH = 52'i32
+  let spacing = 8'i32
+  let th = activeTheme()
+  for j in 0 ..< min(desktop.toasts.len, MAX_DESKTOP_TOASTS):
+    let toast = desktop.toasts[desktop.toasts.len - 1 - j]
+    let fade = min(1.0'f32, toast.timer / 0.6'f32)
+    let alpha = uint8(255.0'f32 * fade)
+    let toastW = max(260'i32, measureText(toast.text, 16) + 64)
+    let toastX = screenWidth - toastW - 16
+    let toastY = bottom - toastH - 14 - j.int32 * (toastH + spacing)
+    let textY = toastY + (toastH - 16) div 2
+    case th.shell
+    of ssTopHat:
+      drawRectangle(toastX, toastY, toastW, toastH,
+                    uiSurface(12, 22, 34, int(232.0'f32 * fade)))
+      drawRectOutline(Rectangle(x: toastX.float32, y: toastY.float32,
+                                   width: toastW.float32, height: toastH.float32), 2,
+                         uiLine(255, 210, 80, alpha.int))
+      drawHexBadge(toastX + 26, toastY + toastH div 2, 14.0,
+                   uiSurface(60, 44, 8, int(220.0'f32 * fade)),
+                   uiLine(255, 210, 80, alpha.int))
+      drawText(toast.text, toastX + 48, textY, 16, uiInk(235, 245, 255, alpha.int))
+    of ssCkn:
+      drawCknPanel(Rectangle(x: toastX.float32, y: toastY.float32,
+                             width: toastW.float32, height: toastH.float32), 10.0'f32,
+                   withAlpha(th.surface, 250.0'f32 * fade),
+                   withAlpha(mixColor(th.surface, th.raised, 0.75'f32), alpha),
+                   shadowAlpha = 70.0'f32 * fade)
+      drawDisc(Vector2(x: (toastX + 26).float32, y: (toastY + toastH div 2).float32), 15.0'f32,
+               withAlpha(mixColor(th.surface, th.accent, 0.14'f32), alpha))
+      drawCknLogo((toastX + 26).float32, (toastY + toastH div 2 + 2).float32, 10.0'f32, fade,
+                  arc = th.accent)
+      drawText(toast.text, toastX + 48, textY, 16, withAlpha(th.text, alpha))
+
+proc drawSystemMonitor(desktop: OSDesktop, screenWidth: int) =
+  ## The System Monitor widget (top-right). Decorative readout: the bars show
+  ## smoothly-drifting simulated load so the panel feels alive. Only Uptime is
+  ## real (desktop session time).
+  let panelW = 240'i32
+  let panelH = 128'i32
+  let panelX = (screenWidth - panelW.int - 14).int32
+  let panelY = 12'i32
+  let tm = desktop.time
+
+  # Depth halo, gradient body, crisp border. A light theme lifts the panel
+  # with a shadow instead: on its surfaces a halo is just a pale disc.
+  if activeTheme().light:
+    drawRectangle(panelX + 2, panelY + 4, panelW, panelH, withAlpha(CknShadow, 70))
+  else:
+    drawSoftGlow((panelX + panelW div 2).float32, (panelY + panelH div 2).float32,
+                 panelW.float32 * 0.62'f32, uiGlow(0, 120, 150, 24), 1.0'f32)
+  drawRectangleGradientV(panelX, panelY, panelW, panelH,
+                         uiSurface(18, 26, 38, 222),
+                         uiSurface(9, 13, 22, 222))
+  drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
+                               width: panelW.float32, height: panelH.float32), 1,
+                     uiLine(0, 180, 190, 210))
+  # Corner accents
+  let corner = uiLine(0, 235, 235, 235)
+  const cl = 10'i32
+  drawRectangle(panelX, panelY, cl, 2, corner)
+  drawRectangle(panelX, panelY, 2, cl, corner)
+  drawRectangle(panelX + panelW - cl, panelY, cl, 2, corner)
+  drawRectangle(panelX + panelW - 2, panelY, 2, cl, corner)
+  drawRectangle(panelX, panelY + panelH - 2, cl, 2, corner)
+  drawRectangle(panelX, panelY + panelH - cl, 2, cl, corner)
+  drawRectangle(panelX + panelW - cl, panelY + panelH - 2, cl, 2, corner)
+  drawRectangle(panelX + panelW - 2, panelY + panelH - cl, 2, cl, corner)
+
+  # Title bar with a pulsing "live" dot
+  drawRectangleGradientV(panelX + 1, panelY + 1, panelW - 2, 21,
+                         uiSurface(0, 56, 78, 235),
+                         uiSurface(0, 32, 48, 235))
+  drawText(t(tkOSSystemMonitor), panelX + 9, panelY + 5, 14,
+           uiInk(120, 235, 235))
+  let pulse = sin(tm * 3.0'f32) * 0.5'f32 + 0.5'f32
+  drawDisc(Vector2(x: (panelX + panelW - 16).float32, y: (panelY + 11).float32),
+             4.0'f32, uiInk(70, 255, 120, int(110.0'f32 + pulse * 145.0'f32)))
+
+  # CPU sparkline (scrolling filled waveform)
+  let gx = panelX + 9
+  let gy = panelY + 30
+  let gw = panelW - 18
+  const gh = 30'i32
+  drawRectangle(gx, gy, gw, gh, uiSurface(8, 14, 22, 215))
+  for i in 0 ..< gw.int:
+    let v = simUsage(tm - (gw.int - i).float32 * 0.05'f32,
+                     40.0'f32, 3.5'f32, 0.12'f32, 0.0'f32) / 100.0'f32
+    let h = int32(v * gh.float32)
+    drawRectangle(gx + i.int32, gy + gh - h, 1, h, uiGlow(0, 190, 160, 70))
+    drawRectangle(gx + i.int32, gy + gh - h, 1, 1, uiInk(90, 255, 210, 200))
+  drawRectOutline(Rectangle(x: gx.float32, y: gy.float32,
+                               width: gw.float32, height: gh.float32), 1,
+                     uiLine(0, 80, 100, 140))
+
+  # Metric bars
+  var rowY = panelY + 68
+  drawUsageRow(panelX, panelW, rowY, "CPU",
+               simUsage(tm, 40.0'f32, 3.5'f32, 0.12'f32, 0.0'f32),
+               uiInk(80, 230, 120))
+  rowY += 20
+  drawUsageRow(panelX, panelW, rowY, t(tkOSMemory),
+               simUsage(tm, 40.0'f32, 2.5'f32, 0.08'f32, 2.0'f32),
+               uiInk(90, 180, 255))
+
+  # Uptime (real desktop session time)
+  let uptime = int(desktop.time)
+  let hours = uptime div 3600
+  let minutes = (uptime mod 3600) div 60
+  let seconds = uptime mod 60
+  drawText(&"Uptime  {hours:02d}:{minutes:02d}:{seconds:02d}",
+           panelX + 9, panelY + panelH - 18, 12,
+           uiInk(170, 190, 210, 200))
+
+proc fract(x: float32): float32 {.inline.} = x - floor(x)
+
+proc drawDawnGlow(cx, cy, radius: float32, color: Color) =
+  ## Light that fades to nothing at its rim, `color.a` opaque at the centre.
+  ## drawSoftGlow's six discs band visibly at a sun's size.
+  const Layers = 24
+  let perLayer = 1.0'f32 - pow(1.0'f32 - color.a.float32 / 255.0'f32, 1.0'f32 / Layers.float32)
+  for i in countdown(Layers, 1):
+    drawDisc(Vector2(x: cx, y: cy), radius * i.float32 / Layers.float32,
+             withAlpha(color, perLayer * 255.0'f32))
+
+proc drawCknWallpaper*(w, h, t: float32, desktop: OSDesktop = nil) =
+  ## CKN OS's own wallpaper, its logo as a landscape: a dawn sky, the sun
+  ## half-risen on the horizon right under the cube, the logo's blue arcs
+  ## around it. Below the line lies the old floor, a faint grid running to the
+  ## horizon: everything that was here first. `t` animates it; the desktop's
+  ## cube floats over the sun when there is a desktop to take it from.
+  # Light adds up here the way it looks. The default blend also blends the
+  # frame's alpha down under every translucent layer, and the frame is shown
+  # premultiplied over black (post_fx.nim), so on this opaque, fairly bright
+  # sky stacked glows would read as dark halos. Keeping alpha opaque fixes it.
+  beginKeepAlpha()
+  defer: endKeepAlpha()
+  let horizon = h * 0.68'f32
+  let sunX = w * 0.64'f32
+  let sunR = min(w, h) * 0.13'f32
+
+  drawRectangleGradientV(0, 0, w.int32, horizon.int32 + 1,
+                         Color(r: 20, g: 36, b: 76, a: 255), Color(r: 86, g: 134, b: 206, a: 255))
+  # The last stars, fading out toward the light.
+  for i in 0..<36:
+    let sx = fract(sin(i.float32 * 12.9898'f32) * 43758.547'f32) * w
+    let sy = fract(sin(i.float32 * 78.233'f32) * 23421.631'f32) * horizon * 0.55'f32
+    let fadeDown = 1.0'f32 - sy / (horizon * 0.55'f32)
+    let twinkle = 0.55'f32 + 0.45'f32 * sin(t * (0.6'f32 + (i mod 5).float32 * 0.23'f32) + i.float32)
+    drawDisc(Vector2(x: sx, y: sy), 1.1'f32 + (i mod 3).float32 * 0.35'f32,
+             Color(r: 236, g: 240, b: 255, a: clampByteF(120.0'f32 * fadeDown * twinkle)))
+
+  # Dawn: warm light pooling on the horizon around the sun.
+  drawDawnGlow(sunX, horizon, sunR * 3.6'f32, Color(r: 255, g: 168, b: 96, a: 120))
+  drawDawnGlow(sunX, horizon, sunR * 1.9'f32, Color(r: 255, g: 204, b: 132, a: 130))
+  drawDisc(Vector2(x: sunX, y: horizon), sunR, CknSun)
+  drawDisc(Vector2(x: sunX, y: horizon), sunR * 0.82'f32, Color(r: 255, g: 214, b: 140, a: 255))
+
+  # The logo's arc, echoed: slow blue rings over the sun.
+  for i in 0..2:
+    let r = sunR * (1.45'f32 + i.float32 * 0.42'f32) + sin(t * 0.5'f32 + i.float32 * 1.3'f32) * 3.0'f32
+    drawRing(Vector2(x: sunX, y: horizon), r, r + 4.0'f32 - i.float32, 180.0'f32, 360.0'f32, 64,
+             Color(r: 150, g: 196, b: 255, a: uint8(110 - i * 30)))
+
+  # Clouds drifting across the light.
+  for i in 0..<5:
+    let span = w + 400.0'f32
+    let cx = fract((i.float32 * 0.37'f32) + t * (0.004'f32 + i.float32 * 0.0015'f32)) * span - 200.0'f32
+    let cy = horizon * (0.22'f32 + (i mod 3).float32 * 0.17'f32)
+    let rx = 120.0'f32 + (i mod 2).float32 * 70.0'f32
+    for k in 0..2:
+      drawEllipse((cx + k.float32 * rx * 0.45'f32).int32, (cy - k.float32 * 6.0'f32).int32,
+                  rx * (0.7'f32 - k.float32 * 0.15'f32), 14.0'f32 + k.float32 * 4.0'f32,
+                  Color(r: 255, g: 255, b: 255, a: 13))
+
+  # Below the line: deep, still ground (it covers the sun's lower half).
+  drawRectangleGradientV(0, horizon.int32, w.int32, (h - horizon).int32 + 1,
+                         Color(r: 30, g: 54, b: 110, a: 255), Color(r: 10, g: 20, b: 46, a: 255))
+  # The sun's reflection, shimmering.
+  for i in 0..<9:
+    let ry = horizon + 6.0'f32 + i.float32 * 9.0'f32
+    let half = sunR * (0.95'f32 - i.float32 * 0.09'f32) * (0.85'f32 + 0.15'f32 * sin(t * 1.7'f32 + i.float32))
+    drawRectangle((sunX - half).int32, ry.int32, (half * 2.0'f32).int32, 3,
+                  Color(r: 255, g: 190, b: 110, a: uint8(max(0, 120 - i * 13))))
+  # The old floor: a grid running to the horizon.
+  let floorH = h - horizon
+  for i in -10..10:
+    drawStroke(Vector2(x: sunX, y: horizon), Vector2(x: sunX + i.float32 * w * 0.16'f32, y: h),
+               1, Color(r: 120, g: 170, b: 240, a: 22))
+  for i in 1..7:
+    let ly = horizon + floorH * pow(i.float32 / 7.0'f32, 1.8'f32)
+    drawStroke(Vector2(x: 0, y: ly), Vector2(x: w, y: ly), 1, Color(r: 120, g: 170, b: 240, a: 20))
+  # The line itself.
+  drawRectangle(0, horizon.int32 - 1, w.int32, 2, Color(r: 170, g: 206, b: 255, a: 200))
+
+  # The launch column keeps its icons readable over the sky.
+  drawRectangleGradientH(0, 0, min(310'i32, w.int32), h.int32,
+                         Color(r: 8, g: 16, b: 40, a: 120), Color(r: 8, g: 16, b: 40, a: 0))
+
+  if not desktop.isNil:
+    drawDesktopCube(desktop, w, h)
+
+proc drawThemeWallpaper*(th: UiTheme, w, h, time: float32, desktop: OSDesktop = nil) =
+  ## The free default background in theme `th`: a mod theme's own image (the
+  ## cube floating over it), else its shell's wallpaper. `desktop` supplies the
+  ## live cube; without one (a shop thumbnail) the stock wallpaper shows an
+  ## unturned cube and CKN Dawn none.
+  if th.wallpaper > 0:
+    drawModTexture(th.wallpaper, 0, 0, w, h, 0, White, centered = false)
+    if not desktop.isNil:
+      drawDesktopCube(desktop, w, h)
+    return
+  case th.shell
+  of ssTopHat:
+    if desktop.isNil:
+      drawDesktopWallpaper(w.int, h.int, time, 0.0'f32, 0.0'f32, 0.0'f32)
+    else:
+      # Exact, hardcoded wallpaper (keeps cube rotations and all effects)
+      drawDesktopWallpaper(w.int, h.int, desktop.time,
+                           desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
+                           desktop.cubeOffsetX, desktop.cubeOffsetY, modCube = true)
+  of ssCkn:
+    drawCknWallpaper(w, h, time, desktop)
+
+proc drawOSDesktopLayer(desktop: OSDesktop, screenWidth, screenHeight: int)
+
 proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   ## Draw the active desktop background. If the player has selected a desktop
   ## background from settings/shop use that otherwise fall back to the
-  ## original hardcoded wallpaper.
+  ## interface theme's own wallpaper. The lore intro films this desktop as
+  ## TopHat-ShooterOS (withTheme(stockTheme())).
+  themeLayer:
+    drawOSDesktopLayer(desktop, screenWidth, screenHeight)
+
+proc drawOSDesktopLayer(desktop: OSDesktop, screenWidth, screenHeight: int) =
   var selectedBg: DesktopBgType = dbgDefault
   if not globalSettings.isNil:
     selectedBg = DesktopBgType(globalSettings.desktopBg)
@@ -2503,10 +2771,8 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   else:
     case selectedBg
     of dbgDefault:
-      # Exact, hardcoded wallpaper (keeps cube rotations and all effects)
-      drawDesktopWallpaper(screenWidth, screenHeight, desktop.time,
-                           desktop.cubeRotX, desktop.cubeRotY, desktop.cubeRotZ,
-                           desktop.cubeOffsetX, desktop.cubeOffsetY, modCube = true)
+      drawThemeWallpaper(activeTheme(), screenWidth.float32, screenHeight.float32,
+                         desktop.time, desktop)
     else:
       let bgData = getDesktopBgData(selectedBg)
       let topColor = bgData.bgColor
@@ -2586,112 +2852,23 @@ proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Taskbar
   drawTaskbar(screenWidth, screenHeight, desktop.time)
 
-  # ---- System Monitor widget (top-right) ----------------------------------
-  # Decorative readout: the bars show smoothly-drifting simulated load so the
-  # panel feels alive. Only Uptime is real (desktop session time).
-  let panelW = 240'i32
-  let panelH = 128'i32
-  let panelX = (screenWidth - panelW.int - 14).int32
-  let panelY = 12'i32
-  let tm = desktop.time
+  drawSystemMonitor(desktop, screenWidth)
 
-  # Depth halo, gradient body, crisp border
-  drawSoftGlow((panelX + panelW div 2).float32, (panelY + panelH div 2).float32,
-               panelW.float32 * 0.62'f32, Color(r: 0, g: 120, b: 150, a: 24), 1.0'f32)
-  drawRectangleGradientV(panelX, panelY, panelW, panelH,
-                         Color(r: 18, g: 26, b: 38, a: 222),
-                         Color(r: 9, g: 13, b: 22, a: 222))
-  drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
-                               width: panelW.float32, height: panelH.float32), 1,
-                     Color(r: 0, g: 180, b: 190, a: 210))
-  # Corner accents
-  let corner = Color(r: 0, g: 235, b: 235, a: 235)
-  const cl = 10'i32
-  drawRectangle(panelX, panelY, cl, 2, corner)
-  drawRectangle(panelX, panelY, 2, cl, corner)
-  drawRectangle(panelX + panelW - cl, panelY, cl, 2, corner)
-  drawRectangle(panelX + panelW - 2, panelY, 2, cl, corner)
-  drawRectangle(panelX, panelY + panelH - 2, cl, 2, corner)
-  drawRectangle(panelX, panelY + panelH - cl, 2, cl, corner)
-  drawRectangle(panelX + panelW - cl, panelY + panelH - 2, cl, 2, corner)
-  drawRectangle(panelX + panelW - 2, panelY + panelH - cl, 2, cl, corner)
-
-  # Title bar with a pulsing "live" dot
-  drawRectangleGradientV(panelX + 1, panelY + 1, panelW - 2, 21,
-                         Color(r: 0, g: 56, b: 78, a: 235),
-                         Color(r: 0, g: 32, b: 48, a: 235))
-  drawText(t(tkOSSystemMonitor), panelX + 9, panelY + 5, 14,
-           Color(r: 120, g: 235, b: 235, a: 255))
-  let pulse = sin(tm * 3.0'f32) * 0.5'f32 + 0.5'f32
-  drawDisc(Vector2(x: (panelX + panelW - 16).float32, y: (panelY + 11).float32),
-             4.0'f32, Color(r: 70, g: 255, b: 120, a: uint8(110.0'f32 + pulse * 145.0'f32)))
-
-  # CPU sparkline (scrolling filled waveform)
-  let gx = panelX + 9
-  let gy = panelY + 30
-  let gw = panelW - 18
-  const gh = 30'i32
-  drawRectangle(gx, gy, gw, gh, Color(r: 8, g: 14, b: 22, a: 215))
-  for i in 0 ..< gw.int:
-    let v = simUsage(tm - (gw.int - i).float32 * 0.05'f32,
-                     40.0'f32, 3.5'f32, 0.12'f32, 0.0'f32) / 100.0'f32
-    let h = int32(v * gh.float32)
-    drawRectangle(gx + i.int32, gy + gh - h, 1, h, Color(r: 0, g: 190, b: 160, a: 70))
-    drawRectangle(gx + i.int32, gy + gh - h, 1, 1, Color(r: 90, g: 255, b: 210, a: 200))
-  drawRectOutline(Rectangle(x: gx.float32, y: gy.float32,
-                               width: gw.float32, height: gh.float32), 1,
-                     Color(r: 0, g: 80, b: 100, a: 140))
-
-  # Metric bars
-  var rowY = panelY + 68
-  drawUsageRow(panelX, panelW, rowY, "CPU",
-               simUsage(tm, 40.0'f32, 3.5'f32, 0.12'f32, 0.0'f32),
-               Color(r: 80, g: 230, b: 120, a: 255))
-  rowY += 20
-  drawUsageRow(panelX, panelW, rowY, t(tkOSMemory),
-               simUsage(tm, 40.0'f32, 2.5'f32, 0.08'f32, 2.0'f32),
-               Color(r: 90, g: 180, b: 255, a: 255))
-
-  # Uptime (real desktop session time)
-  let uptime = int(desktop.time)
-  let hours = uptime div 3600
-  let minutes = (uptime mod 3600) div 60
-  let seconds = uptime mod 60
-  drawText(&"Uptime  {hours:02d}:{minutes:02d}:{seconds:02d}",
-           panelX + 9, panelY + panelH - 18, 12,
-           Color(r: 170, g: 190, b: 210, a: 200))
-
-  # Bottom desktop info (version and edition)
-  drawText(t(tkOSTopHatOS), 10, (screenHeight - 75).int32, 14,
-          Color(r: 100, g: 100, b: 120, a: 200))
-  drawText(t(tkOSEdition), 10, (screenHeight - 58).int32, 12,
-          Color(r: 150, g: 150, b: 170, a: 180))
+  # Bottom desktop info (version and edition): on the wallpaper, the shell's
+  case activeTheme().shell
+  of ssTopHat:
+    drawText(t(tkOSTopHatOS), 10, (screenHeight - 75).int32, 14,
+            Color(r: 100, g: 100, b: 120, a: 200))
+    drawText(t(tkOSEdition), 10, (screenHeight - 58).int32, 12,
+            Color(r: 150, g: 150, b: 170, a: 180))
+  of ssCkn:
+    drawText(themeName(activeTheme()), 10, (screenHeight - 75).int32, 14,
+            Color(r: 236, g: 240, b: 246, a: 210))
+    drawText(t(tkOSCknEdition), 10, (screenHeight - 58).int32, 12,
+            Color(r: 190, g: 204, b: 226, a: 180))
 
   # Transient OS-style toasts above the taskbar (bottom-right), stacked
-  if desktop.toasts.len > 0:
-    let toastH = 52'i32
-    let spacing = 8'i32
-    let numberToDraw = if desktop.toasts.len < MAX_DESKTOP_TOASTS: desktop.toasts.len else: MAX_DESKTOP_TOASTS
-    var j = 0
-    while j < numberToDraw:
-      let idx = desktop.toasts.len - 1 - j
-      let t = desktop.toasts[idx]
-      let fade = min(1.0'f32, t.timer / 0.6'f32)
-      let alpha = uint8(255.0'f32 * fade)
-      let toastW = max(260'i32, measureText(t.text, 16) + 64)
-      let toastX = int32(screenWidth - toastW.int - 16)
-      let toastY = int32(screenHeight - TASKBAR_HEIGHT - toastH.int - 14 - j * (toastH + spacing).int)
-      drawRectangle(toastX, toastY, toastW, toastH,
-                    Color(r: 12, g: 22, b: 34, a: uint8(232.0'f32 * fade)))
-      drawRectOutline(Rectangle(x: toastX.float32, y: toastY.float32,
-                                   width: toastW.float32, height: toastH.float32), 2,
-                         Color(r: 255, g: 210, b: 80, a: alpha))
-      drawHexBadge(toastX + 26, toastY + toastH div 2, 14.0,
-                   Color(r: 60, g: 44, b: 8, a: uint8(220.0'f32 * fade)),
-                   Color(r: 255, g: 210, b: 80, a: alpha))
-      drawText(t.text, toastX + 48, toastY + (toastH - 16) div 2, 16,
-               Color(r: 235, g: 245, b: 255, a: alpha))
-      inc j
+  drawToastStack(desktop, screenWidth.int32, (screenHeight - TASKBAR_HEIGHT).int32)
 
 proc showDesktopToast*(desktop: OSDesktop, text: string) =
   if desktop.isNil: return
@@ -2714,29 +2891,8 @@ proc tickDesktopToasts*(desktop: OSDesktop, dt: float32) =
 proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int32) =
   ## Draw the toast stack in the bottom-right corner without the full desktop frame.
   if desktop.isNil or desktop.toasts.len == 0: return
-  let toastH = 52'i32
-  let spacing = 8'i32
-  let numberToDraw = min(desktop.toasts.len, MAX_DESKTOP_TOASTS)
-  var j = 0
-  while j < numberToDraw:
-    let idx = desktop.toasts.len - 1 - j
-    let toast = desktop.toasts[idx]
-    let fade = min(1.0'f32, toast.timer / 0.6'f32)
-    let alpha = uint8(255.0'f32 * fade)
-    let toastW = max(260'i32, measureText(toast.text, 16) + 64)
-    let toastX = int32(screenWidth - toastW - 16)
-    let toastY = int32(screenHeight - toastH - 14 - j * (toastH + spacing))
-    drawRectangle(toastX, toastY, toastW, toastH,
-                  Color(r: 12, g: 22, b: 34, a: uint8(232.0'f32 * fade)))
-    drawRectOutline(Rectangle(x: toastX.float32, y: toastY.float32,
-                                 width: toastW.float32, height: toastH.float32), 2,
-                       Color(r: 255, g: 210, b: 80, a: alpha))
-    drawHexBadge(toastX + 26, toastY + toastH div 2, 14.0,
-                 Color(r: 60, g: 44, b: 8, a: uint8(220.0'f32 * fade)),
-                 Color(r: 255, g: 210, b: 80, a: alpha))
-    drawText(toast.text, toastX + 48, toastY + (toastH - 16) div 2, 16,
-             Color(r: 235, g: 245, b: 255, a: alpha))
-    inc j
+  themeLayer:
+    drawToastStack(desktop, screenWidth, screenHeight)
 
 # Desktop grid shape for keyboard navigation. It is derived from the layout
 # layoutDesktopIcons actually produced rather than hard-coded, so navigation
@@ -2881,11 +3037,44 @@ proc startLoadingAnimation*(desktop: OSDesktop, text: string) =
   desktop.loadingProgress = 0.0
   desktop.loadingText = text
 
+proc drawCknLoadingOverlay(desktop: OSDesktop, screenWidth, screenHeight: int, th: UiTheme) =
+  ## The CKN shell loads things the way CKN OS installed itself: a rounded,
+  ## polite dialog with the logo and a rounded progress bar.
+  drawRectangle(0, 0, screenWidth.int32, screenHeight.int32, withAlpha(CknShadow, 150))
+  let pw = 500.0'f32
+  let ph = 190.0'f32
+  let px = ((screenWidth.float32 - pw) * 0.5'f32).floor
+  let py = ((screenHeight.float32 - ph) * 0.5'f32).floor
+  let track = mixColor(th.surface, th.raised, 0.75'f32)
+  drawCknPanel(Rectangle(x: px, y: py, width: pw, height: ph), 12.0'f32, th.surface, track,
+               shadowAlpha = 90.0'f32)
+  drawCknLogo(px + 46.0'f32, py + 46.0'f32, 22.0'f32, arc = th.accent)
+  drawText(t("os_loading"), px.int32 + 84, py.int32 + 30, 22, th.text)
+  drawText(desktop.loadingText, px.int32 + 30, py.int32 + 84,
+           bestDesktopLabelFontSize(desktop.loadingText, (pw - 60.0'f32).int32, 18), th.text)
+  let frac = clamp(desktop.loadingProgress, 0.0'f32, 1.0'f32)
+  let bar = Rectangle(x: px + 30.0'f32, y: py + 120.0'f32, width: pw - 60.0'f32, height: 12.0'f32)
+  drawRectangleRounded(bar, 1.0'f32, 8, track)
+  if frac > 0.0'f32:
+    drawRectangleRounded(Rectangle(x: bar.x, y: bar.y, width: max(12.0'f32, bar.width * frac),
+                                   height: bar.height), 1.0'f32, 8, th.accent)
+  let pct = $int(frac * 100.0'f32) & "%"
+  drawText(pct, (bar.x + bar.width).int32 - measureText(pct, 14), bar.y.int32 + 20, 14, th.muted)
+
+proc drawLoadingOverlayLayer(desktop: OSDesktop, screenWidth, screenHeight: int)
+
 proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   ## Draw the loading animation overlay if active
   if not desktop.loadingActive:
     return
+  themeLayer:
+    let th = activeTheme()
+    if th.shell == ssCkn:
+      drawCknLoadingOverlay(desktop, screenWidth, screenHeight, th)
+    else:
+      drawLoadingOverlayLayer(desktop, screenWidth, screenHeight)
 
+proc drawLoadingOverlayLayer(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Semi-transparent dark overlay
   drawRectangle(0, 0, screenWidth.int32, screenHeight.int32,
                Color(r: 0, g: 0, b: 0, a: 180))
@@ -2898,22 +3087,22 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
 
   # Panel background with OS-style border
   drawRectangle(panelX.int32, panelY.int32, panelWidth.int32, panelHeight.int32,
-               Color(r: 25, g: 30, b: 45, a: 255))
+               uiSurface(25, 30, 45))
   drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                 width: panelWidth.float32, height: panelHeight.float32), 2,
-                    Color(r: 0, g: 180, b: 220, a: 255))
+                    uiLine(0, 180, 220))
 
   # Title bar
   drawRectangle(panelX.int32, panelY.int32, panelWidth.int32, 30,
-               Color(r: 0, g: 50, b: 80, a: 255))
+               uiSurface(0, 50, 80))
   drawText(t("os_loading") & "...", (panelX + 10).int32, (panelY + 7).int32, 16,
-          Color(r: 0, g: 200, b: 255, a: 255))
+          uiInk(0, 200, 255))
 
   # Loading text
   let textY = panelY + 60
   let textWidth = measureText(desktop.loadingText, 20)
   let textX = panelX + (panelWidth - textWidth) div 2
-  drawText(desktop.loadingText, textX.int32, textY.int32, 20, White)
+  drawText(desktop.loadingText, textX.int32, textY.int32, 20, uiInk(White))
 
   # Progress bar
   let barWidth = 400
@@ -2923,17 +3112,17 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
 
   # Progress bar background
   drawRectangle(barX.int32, barY.int32, barWidth.int32, barHeight.int32,
-               Color(r: 20, g: 25, b: 35, a: 255))
+               uiSurface(20, 25, 35))
   drawRectOutline(Rectangle(x: barX.float32, y: barY.float32,
                                 width: barWidth.float32, height: barHeight.float32), 2,
-                    Color(r: 60, g: 80, b: 100, a: 255))
+                    uiLine(60, 80, 100))
 
   # Progress fill with gradient effect
   let fillWidth = (barWidth.float32 * min(desktop.loadingProgress, 1.0)).int32
   if fillWidth > 0:
     drawRectangleGradientH(barX.int32, barY.int32, fillWidth, barHeight.int32,
-                          Color(r: 0, g: 140, b: 200, a: 255),
-                          Color(r: 0, g: 200, b: 255, a: 255))
+                          uiSurface(0, 140, 200),
+                          uiSurface(0, 200, 255))
 
   # Progress percentage
   let percentage = int(min(desktop.loadingProgress, 1.0) * 100.0)
@@ -2942,7 +3131,7 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
   let percentX = barX + (barWidth - percentWidth) div 2
   let percentY = barY + 6
   drawText(percentText, percentX.int32, percentY.int32, 18,
-          Color(r: 255, g: 255, b: 255, a: 255))
+          uiInk(255, 255, 255))
 
   # Animated loading dots
   let dotCount = 3
@@ -2955,4 +3144,4 @@ proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
     let dotPhase = desktop.time * 3.0 + i.float32 * 0.3
     let dotAlpha = ((sin(dotPhase) + 1.0) / 2.0 * 200.0 + 55.0).uint8
     drawDisc(Vector2(x: dotX.float32, y: dotsY.float32), 4,
-              Color(r: 0, g: 200, b: 255, a: dotAlpha))
+              uiSurface(Color(r: 0, g: 200, b: 255, a: dotAlpha)))

@@ -5,6 +5,7 @@ import raylib, algorithm, sequtils, math
 import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, mods_window, mod_app_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 import ../gamepad_input, ../render_context
 import ../modding/mod_hooks
+import ui_theme
 
 type
   WindowID* = enum
@@ -542,6 +543,46 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
   if appToOpen.len > 0:
     wm.openModApp(appToOpen, uiScale, screenWidth, screenHeight)
 
+proc drawWindow(wm: WindowManager, window: OSWindow, game: Game,
+                visibleWindows: seq[OSWindow]) =
+  if window == wm.settings.window:
+    drawSettingsWindow(wm.settings)
+  elif window == wm.stats.window:
+    drawStatsWindow(wm.stats, game)
+  elif window == wm.shop.window:
+    drawShopWindow(wm.shop)
+  elif window == wm.help.window:
+    drawHelpWindow(wm.help)
+  elif window == wm.pvp.window:
+    # Draw window frame
+    drawWindowChrome(window)
+    # Draw PvP content inside (only if not minimized)
+    if not window.minimized:
+      let contentX = window.x + WINDOW_BORDER
+      let contentY = window.y + TITLE_BAR_HEIGHT + WINDOW_BORDER
+      let contentWidth = window.width - WINDOW_BORDER * 2
+      let contentHeight = window.height - TITLE_BAR_HEIGHT - WINDOW_BORDER * 2
+      drawPvPWindowContent(wm.pvp, contentX, contentY, contentWidth, contentHeight)
+  elif window == wm.sandbox.window:
+    drawSandboxWindow(wm.sandbox)
+  elif window == wm.advancements.window:
+    drawAdvancementsWindow(wm.advancements)
+  elif window == wm.roguelite.window:
+    drawRogueliteWindow(wm.roguelite, game)
+  elif window == wm.changelog.window:
+    drawChangelogWindow(wm.changelog)
+  elif window == wm.credits.window:
+    drawCreditsWindow(wm.credits)
+  elif window == wm.feedback.window:
+    drawFeedbackWindow(wm.feedback)
+  elif window == wm.mods.window:
+    drawModsWindow(wm.mods)
+  else:
+    for app in wm.modApps:
+      if window == app.window:
+        drawModAppWindow(app, visibleWindows)
+        break
+
 proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
                      screenWidth, screenHeight: int) =
   ## Draw all visible windows in z-order, each inside its own scale layer.
@@ -551,45 +592,9 @@ proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
   # Sort by z-order (lowest first for drawing)
   visibleWindows.sort(proc(a, b: OSWindow): int = cmp(a.zOrder, b.zOrder))
 
-  # Draw each window
+  # Draw each window (in the interface theme's layer, see ui_theme.themeLayer)
   for window in visibleWindows:
     beginUIScaleMode(windowUIScale(window, uiScale, screenWidth, screenHeight))
     defer: endUIScaleMode()
-
-    if window == wm.settings.window:
-      drawSettingsWindow(wm.settings)
-    elif window == wm.stats.window:
-      drawStatsWindow(wm.stats, game)
-    elif window == wm.shop.window:
-      drawShopWindow(wm.shop)
-    elif window == wm.help.window:
-      drawHelpWindow(wm.help)
-    elif window == wm.pvp.window:
-      # Draw window frame
-      drawWindowChrome(window)
-      # Draw PvP content inside (only if not minimized)
-      if not window.minimized:
-        let contentX = window.x + WINDOW_BORDER
-        let contentY = window.y + TITLE_BAR_HEIGHT + WINDOW_BORDER
-        let contentWidth = window.width - WINDOW_BORDER * 2
-        let contentHeight = window.height - TITLE_BAR_HEIGHT - WINDOW_BORDER * 2
-        drawPvPWindowContent(wm.pvp, contentX, contentY, contentWidth, contentHeight)
-    elif window == wm.sandbox.window:
-      drawSandboxWindow(wm.sandbox)
-    elif window == wm.advancements.window:
-      drawAdvancementsWindow(wm.advancements)
-    elif window == wm.roguelite.window:
-      drawRogueliteWindow(wm.roguelite, game)
-    elif window == wm.changelog.window:
-      drawChangelogWindow(wm.changelog)
-    elif window == wm.credits.window:
-      drawCreditsWindow(wm.credits)
-    elif window == wm.feedback.window:
-      drawFeedbackWindow(wm.feedback)
-    elif window == wm.mods.window:
-      drawModsWindow(wm.mods)
-    else:
-      for app in wm.modApps:
-        if window == app.window:
-          drawModAppWindow(app, visibleWindows)
-          break
+    themeLayer:
+      wm.drawWindow(window, game, visibleWindows)

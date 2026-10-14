@@ -13,14 +13,11 @@
 import raylib, math, strutils
 import ../draw_prims
 import particle_types, background_fx, ../types, ../shapes, ../localization, ../sound,
-       cinematic_common, cutscene, os_desktop
+       cinematic_common, cutscene, os_desktop, ui_theme
 
 const
   SurAccent* = Color(r: 255, g: 120, b: 50, a: 255)   # ember-orange "uptime"
   HatCyan = Color(r: 0, g: 230, b: 230, a: 255)
-  CknBlue = Color(r: 60, g: 120, b: 210, a: 255)
-  CknInk = Color(r: 40, g: 50, b: 70, a: 255)
-  CknPaper = Color(r: 236, g: 240, b: 246, a: 255)
 
 proc drawHatWearer(pos: Vector2f, radius, local, alpha, glow: float32) =
   ## shooter.exe as it is by now: root access, hat and all.
@@ -110,15 +107,9 @@ proc drawCrashShot(local, duration: float32, sw, sh: int32, alpha: float32) =
   drawSubtitles([t(tkSurEndCrash1), t(tkSurEndCrash2)], sw, sh, alpha)
 
 # ---------------------------------------------------------------------------
-# LOG 04: REINSTALL. A cheerful installer formats the disk under us.
-
-proc drawCknLogo(cx, cy: float32, size, alpha: float32) =
-  ## A rising sun over a line: pleasant, generic, nothing like a hat.
-  drawRing(Vector2(x: cx, y: cy), size * 0.55'f32, size * 0.72'f32, 180.0'f32, 360.0'f32, 32,
-           colorA(CknBlue, alpha * 255.0'f32))
-  drawDisc(Vector2(x: cx, y: cy), size * 0.3'f32, colorA(Color(r: 255, g: 190, b: 90, a: 255), alpha * 255.0'f32))
-  drawRectangle((cx - size).int32, cy.int32, (size * 2.0'f32).int32, (size * 0.12'f32).int32 + 1,
-                colorA(CknBlue, alpha * 255.0'f32))
+# LOG 04: REINSTALL. A cheerful installer formats the disk under us. Its
+# look (CknPaper, CknInk, CknBlue, drawCknLogo) is the CKN OS interface theme
+# this ending unlocks (ui_theme.nim).
 
 proc newReinstallShot(): CutsceneDrawProc =
   var icons: seq[DesktopIcon]
@@ -144,7 +135,8 @@ proc newReinstallShot(): CutsceneDrawProc =
       icon.x = ix.int
       icon.y = rowY
       icon.selected = false
-      drawDesktopIcon(icon, local, false)
+      withTheme(stockTheme()):   # the icons being wiped are ours
+        drawDesktopIcon(icon, local, false)
       if reach > 0.0'f32:
         for k in 0..<10:
           let ny = rowY + int32(hash01(k.float32 + floor(local * 20.0'f32) + i.float32) * ICON_SIZE.float32)

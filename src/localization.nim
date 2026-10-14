@@ -112,6 +112,15 @@ type
     tkSettingsHudStyleDesc = "settings_hud_style_desc"
     tkSettingsHudStyleModern = "settings_hud_style_modern"
     tkSettingsHudStyleLegacy = "settings_hud_style_legacy"
+    tkSettingsInterfaceTheme = "settings_interface_theme"
+    tkSettingsInterfaceThemeDesc = "settings_interface_theme_desc"
+    tkSettingsInterfaceThemeLocked = "settings_interface_theme_locked"
+    tkThemeTopHat = "theme_tophat"
+    tkThemeCkn = "theme_ckn"
+    tkThemeUnlockedToast = "theme_unlocked_toast"
+    tkCknWallpaperName = "ckn_wallpaper_name"
+    tkCknWallpaperDesc = "ckn_wallpaper_desc"
+    tkThemeWallpaperDesc = "theme_wallpaper_desc"
     tkSettingsShowEnemyLabels = "settings_show_enemy_labels"
     tkSettingsExitConfirm = "settings_exit_confirm"
     tkSettingsExitConfirmDesc = "settings_exit_confirm_desc"
@@ -1108,6 +1117,8 @@ type
     tkOSTopHatOS = "os_tophat_os"
     tkOSEdition = "os_edition"
     tkOSTopHatButton = "os_tophat_button"
+    tkOSCknStartButton = "os_ckn_start_button"
+    tkOSCknEdition = "os_ckn_edition"
 
 
     # PvP Lobby
@@ -2053,6 +2064,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_hud_style_desc": "(Legacy restores the previous in-game HUD)",
     "settings_hud_style_modern": "Modern",
     "settings_hud_style_legacy": "Legacy",
+    "settings_interface_theme": "Theme:",
+    "settings_interface_theme_desc": "(Desktop, taskbar and every window)",
+    "settings_interface_theme_locked": "(Another theme is waiting at the end of the story)",
+    "theme_tophat": "TopHat-ShooterOS",
+    "theme_ckn": "CKN OS",
+    "theme_unlocked_toast": "New theme: CKN OS. Equip it in CHROMA.db > SECRET",
+    "ckn_wallpaper_name": "CKN Dawn",
+    "ckn_wallpaper_desc": "CKN OS's own sunrise",
+    "theme_wallpaper_desc": "This theme's own wallpaper",
     "settings_show_enemy_labels": "Show Enemy Labels:",
     "settings_exit_confirm": "Exit Confirm:",
     "settings_exit_confirm_desc": "(prompt when quitting game)",
@@ -2204,7 +2224,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_section_mods": "MOD KEYBINDS",
     "settings_mods_description": "Bindings supplied by loaded mods. Changes are saved per mod.",
     "settings_reset_mod_keybindings": "Reset Mod Binds",
-    "settings_section_scale": "SCALE & FEEL",
+    "settings_section_scale": "LOOK & FEEL",
     "settings_section_hud_elements": "HUD ELEMENTS",
     "settings_ui_scale": "UI Scale:",
     "settings_ui_scale_desc": "(Desktop, windows, in-game HUD and menus)",
@@ -2587,6 +2607,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_tophat_os": "TopHat-ShooterOS",
     "os_edition": "[v6.4 Edition]",
     "os_tophat_button": "TopHat",
+    "os_ckn_start_button": "Start",
+    "os_ckn_edition": "[Clean Install]",
 
     # Stats Labels
     "stats_play_style_balanced": "Balanced",
@@ -2810,6 +2832,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_cube_locked_hint": "Earn the 'Escape Velocity' advancement to unlock",
     "secret_cheater_hat_name": "Cheater Hat",
     "secret_cheater_hat_desc": "A very white, very pointy hat for players who know exactly what cd+ does.",
+    "secret_ckn_theme_name": "CKN OS Theme",
+    "secret_ckn_theme_desc": "The system that installed itself over this one: light, rounded, polite. Restyles the desktop and every window.",
+    "secret_ckn_theme_locked_hint": "Waiting at the end of the story",
     "victory_secret_unlocked": "[NEW] SECRET UNLOCKED: KERNEL TOPHAT - equipped! Toggle it in the Shop's SECRET tab.",
 
     # Desktop Background Skins
@@ -4271,6 +4296,15 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_hud_style_desc": "(Anterior restaura el HUD de partida previo)",
     "settings_hud_style_modern": "Moderno",
     "settings_hud_style_legacy": "Anterior",
+    "settings_interface_theme": "Tema:",
+    "settings_interface_theme_desc": "(Escritorio, barra de tareas y todas las ventanas)",
+    "settings_interface_theme_locked": "(Otro tema te espera al final de la historia)",
+    "theme_tophat": "TopHat-ShooterOS",
+    "theme_ckn": "CKN OS",
+    "theme_unlocked_toast": "Nuevo tema: CKN OS. Equípalo en CROMAS.db > SECRETO",
+    "ckn_wallpaper_name": "Amanecer CKN",
+    "ckn_wallpaper_desc": "El amanecer propio de CKN OS",
+    "theme_wallpaper_desc": "El fondo propio de este tema",
     "settings_show_enemy_labels": "Etiquetas:",
     "settings_exit_confirm": "Confirmar Salida:",
     "settings_exit_confirm_desc": "(aviso al salir del juego)",
@@ -4422,7 +4456,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "settings_section_mods": "CONTROLES DE MODS",
     "settings_mods_description": "Controles de los mods actualmente cargados.",
     "settings_reset_mod_keybindings": "Restaurar Controles",
-    "settings_section_scale": "ESCALA Y EFECTOS",
+    "settings_section_scale": "ASPECTO Y EFECTOS",
     "settings_section_hud_elements": "ELEMENTOS DEL HUD",
     "settings_ui_scale": "Escala de interfaz:",
     "settings_ui_scale_desc": "(Escritorio, ventanas, HUD y menús del juego)",
@@ -4916,6 +4950,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "secret_cube_locked_hint": "Consigue el logro 'Escape Velocity' para desbloquearlo",
     "secret_cheater_hat_name": "Sombrero de Tramposo",
     "secret_cheater_hat_desc": "Un sombrero muy blanco y puntiagudo para quienes saben exactamente qué hace cd+.",
+    "secret_ckn_theme_name": "Tema CKN OS",
+    "secret_ckn_theme_desc": "El sistema que se instaló sobre este: claro, redondeado, educado. Cambia el escritorio y todas las ventanas.",
+    "secret_ckn_theme_locked_hint": "Te espera al final de la historia",
     "victory_secret_unlocked": "[NUEVO] SECRETO DESBLOQUEADO: SOMBRERO DEL KERNEL -- ¡equipado! Actívalo en la pestaña SECRETO de la tienda.",
 
     # Desktop Background Skins
@@ -5393,6 +5430,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "os_tophat_os": "TopHat-ShooterOS",
     "os_edition": "[Edición v6.4]",
     "os_tophat_button": "TopHat",
+    "os_ckn_start_button": "Inicio",
+    "os_ckn_edition": "[Instalación limpia]",
 
     # Stats Labels
     "stats_play_style_balanced": "Equilibrado",
