@@ -18,9 +18,9 @@ import particle_types, background_fx, ../types, ../shapes, ../localization, ../s
 const
   SurAccent* = Color(r: 255, g: 120, b: 50, a: 255)   # ember-orange "uptime"
   HatCyan = Color(r: 0, g: 230, b: 230, a: 255)
-  HalcyonBlue = Color(r: 60, g: 120, b: 210, a: 255)
-  HalcyonInk = Color(r: 40, g: 50, b: 70, a: 255)
-  HalcyonPaper = Color(r: 236, g: 240, b: 246, a: 255)
+  CknBlue = Color(r: 60, g: 120, b: 210, a: 255)
+  CknInk = Color(r: 40, g: 50, b: 70, a: 255)
+  CknPaper = Color(r: 236, g: 240, b: 246, a: 255)
 
 proc drawHatWearer(pos: Vector2f, radius, local, alpha, glow: float32) =
   ## shooter.exe as it is by now: root access, hat and all.
@@ -112,13 +112,13 @@ proc drawCrashShot(local, duration: float32, sw, sh: int32, alpha: float32) =
 # ---------------------------------------------------------------------------
 # LOG 04: REINSTALL. A cheerful installer formats the disk under us.
 
-proc drawHalcyonLogo(cx, cy: float32, size, alpha: float32) =
+proc drawCknLogo(cx, cy: float32, size, alpha: float32) =
   ## A rising sun over a line: pleasant, generic, nothing like a hat.
   drawRing(Vector2(x: cx, y: cy), size * 0.55'f32, size * 0.72'f32, 180.0'f32, 360.0'f32, 32,
-           colorA(HalcyonBlue, alpha * 255.0'f32))
+           colorA(CknBlue, alpha * 255.0'f32))
   drawDisc(Vector2(x: cx, y: cy), size * 0.3'f32, colorA(Color(r: 255, g: 190, b: 90, a: 255), alpha * 255.0'f32))
   drawRectangle((cx - size).int32, cy.int32, (size * 2.0'f32).int32, (size * 0.12'f32).int32 + 1,
-                colorA(HalcyonBlue, alpha * 255.0'f32))
+                colorA(CknBlue, alpha * 255.0'f32))
 
 proc newReinstallShot(): CutsceneDrawProc =
   var icons: seq[DesktopIcon]
@@ -159,11 +159,11 @@ proc newReinstallShot(): CutsceneDrawProc =
     let rec = Rectangle(x: px, y: py, width: pw, height: ph)
     drawRectangleRounded(Rectangle(x: px + 4.0'f32, y: py + 6.0'f32, width: pw, height: ph), 0.08'f32, 8,
                          Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * 90.0'f32)))
-    drawRectangleRounded(rec, 0.08'f32, 8, colorA(HalcyonPaper, alpha * 255.0'f32))
-    drawText(title, px.int32 + 84, py.int32 + 26, fitFontSize(title, pw.int32 - 110, 22), colorA(HalcyonInk, alpha * 255.0'f32))
-    drawHalcyonLogo(px + 46.0'f32, py + 46.0'f32, 22.0'f32, alpha)
+    drawRectangleRounded(rec, 0.08'f32, 8, colorA(CknPaper, alpha * 255.0'f32))
+    drawText(title, px.int32 + 84, py.int32 + 26, fitFontSize(title, pw.int32 - 110, 22), colorA(CknInk, alpha * 255.0'f32))
+    drawCknLogo(px + 46.0'f32, py + 46.0'f32, 22.0'f32, alpha)
     drawText(formatting, px.int32 + 30, py.int32 + 86, fitFontSize(formatting, pw.int32 - 60, 16),
-             colorA(HalcyonInk, alpha * 230.0'f32))
+             colorA(CknInk, alpha * 230.0'f32))
     let bx = px + 30.0'f32
     let by = py + 112.0'f32
     let bw = pw - 60.0'f32
@@ -171,9 +171,9 @@ proc newReinstallShot(): CutsceneDrawProc =
                          Color(r: 205, g: 214, b: 228, a: alphaByte(alpha * 255.0'f32)))
     if frac > 0.0'f32:
       drawRectangleRounded(Rectangle(x: bx, y: by, width: max(12.0'f32, bw * frac), height: 12.0'f32), 0.5'f32, 6,
-                           colorA(HalcyonBlue, alpha * 255.0'f32))
+                           colorA(CknBlue, alpha * 255.0'f32))
     let pct = $int(frac * 100.0'f32) & "%"
-    drawText(pct, (bx + bw).int32 - measureText(pct, 14), by.int32 + 18, 14, colorA(HalcyonInk, alpha * 200.0'f32))
+    drawText(pct, (bx + bw).int32 - measureText(pct, 14), by.int32 + 18, 14, colorA(CknInk, alpha * 200.0'f32))
     drawText(warn, px.int32 + 30, py.int32 + 150, fitFontSize(warn, pw.int32 - 120, 13),
              Color(r: 120, g: 128, b: 145, a: alphaByte(alpha * 255.0'f32)))
     drawSubtitles([t(tkSurEndReinstall1), t(tkSurEndReinstall2)], sw, sh, alpha)
@@ -191,17 +191,17 @@ proc drawUnallocatedShot(local, duration: float32, sw, sh: int32, alpha: float32
   let panelY = top - sink * (panelH + 60.0'f32)
   let bootA = clamp01((local - UptimeNewBootAt) / 0.4'f32)
   if panelY + panelH > top:
-    drawRectangle(0, panelY.int32, sw, panelH.int32, colorA(HalcyonPaper, bootA * 255.0'f32))
-    drawHalcyonLogo(sw.float32 * 0.5'f32, panelY + panelH * 0.4'f32, 34.0'f32, bootA)
-    drawCenteredText("HALCYON OS", sw div 2, (panelY + panelH * 0.4'f32 + 20.0'f32).int32, 30,
-                     colorA(HalcyonInk, bootA * 255.0'f32))
+    drawRectangle(0, panelY.int32, sw, panelH.int32, colorA(CknPaper, bootA * 255.0'f32))
+    drawCknLogo(sw.float32 * 0.5'f32, panelY + panelH * 0.4'f32, 34.0'f32, bootA)
+    drawCenteredText("CKN OS", sw div 2, (panelY + panelH * 0.4'f32 + 20.0'f32).int32, 30,
+                     colorA(CknInk, bootA * 255.0'f32))
     let welcome = t(tkSurEndWelcome)
     drawCenteredText(welcome, sw div 2, (panelY + panelH * 0.4'f32 + 60.0'f32).int32,
-                     fitFontSize(welcome, sw - 80, 18), colorA(HalcyonInk, bootA * 200.0'f32))
+                     fitFontSize(welcome, sw - 80, 18), colorA(CknInk, bootA * 200.0'f32))
     # Its partition table, the floor everything older now lives under.
     let floorY = (panelY + panelH + 18.0'f32).int32
-    drawRectangle(0, floorY, sw, 2, colorA(HalcyonBlue, bootA * 200.0'f32))
-    drawText(t(tkEndPartitionTable), sw div 9, floorY + 8, 13, colorA(HalcyonBlue, bootA * 180.0'f32))
+    drawRectangle(0, floorY, sw, 2, colorA(CknBlue, bootA * 200.0'f32))
+    drawText(t(tkEndPartitionTable), sw div 9, floorY + 8, 13, colorA(CknBlue, bootA * 180.0'f32))
 
   # Below it: the hat, and the words root said first.
   let cy = (sh.float32 * 0.38'f32).int32
