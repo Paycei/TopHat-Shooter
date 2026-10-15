@@ -641,7 +641,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
       let hovered = canHover and checkCollisionPointRec(mousePos, cardRect)
       drawAdvancementCard(advWin, def, listX + 8, rowY, ListWidth - 16, row.h,
                           def.id == advWin.selectedId, hovered)
-  endScissorMode()
+  endVirtualScissorMode()
 
   if totalH > listH:
     let trackX = listX + ListWidth - 8

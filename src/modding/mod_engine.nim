@@ -5,7 +5,7 @@
 ## run (Game.modWorld: zoom, centre, follow, clocks; reset with every new run)
 ## and in mod_registry (the commands, the camera's easing).
 
-import std/[strutils, math]
+import std/strutils
 import raylib
 import ../types, ../d_systems, ../render_context
 import lua_bridge, mod_hooks, mod_reflect, mod_api, mod_registry

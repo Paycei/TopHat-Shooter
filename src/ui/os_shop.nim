@@ -583,7 +583,7 @@ proc drawShop*(game: Game) =
                                        Color(r: 150, g: 160, b: 170, a: 255))
       upgradeY += descHeight + 4
 
-  endScissorMode()
+  endVirtualScissorMode()
 
   # scrollbar
   if maxScroll > 0:
@@ -665,7 +665,7 @@ proc drawShop*(game: Game) =
                           not soldOut and game.player.coins >= cost, isSelected,
                           game.time, i, pickText(d.descEn, d.descEs), bought, modDef = di)
   if maxItemScroll > 0:
-    endScissorMode()
+    endVirtualScissorMode()
     # scrollbar
     let trackH = L.listHeight
     let thumbH = max(20'i32, int32(trackH.float32 * trackH.float32 / (trackH + maxItemScroll).float32))

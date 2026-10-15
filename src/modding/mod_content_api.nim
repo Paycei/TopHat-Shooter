@@ -7,7 +7,7 @@
 ## gameplay reads (the registries, their call-site helpers) lives in the LOW
 ## module mod_registry. Every new table here is strict.
 
-import std/[strutils, math]
+import std/strutils
 import raylib
 import ../types, ../effects
 

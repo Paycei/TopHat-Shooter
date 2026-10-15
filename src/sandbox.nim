@@ -455,7 +455,7 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
   else:
     discard
 
-  endScissorMode()
+  endVirtualScissorMode()
 
   # Draw scrollbar on top of (outside) the scissor region so it is always visible
   drawSandboxScrollbar(game, sidebarX, currentY, screenHeight)

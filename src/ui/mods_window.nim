@@ -602,7 +602,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
         let tag = t(tkModsKeepsTag)
         if tx + measureText(tag, 10) < int32(g.list.x + g.list.width) - 6:
           drawText(tag, tx, ry + 27, 10, ColOk)
-    endScissorMode()
+    endVirtualScissorMode()
 
     # detail pane
     drawRectangle(g.detail, ColPanel)
@@ -637,7 +637,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
       if m.message.len > 0 and m.status != msLoaded:
         beginVirtualScissorMode(x, y, w, max(0'i32, bottom - y))
         discard drawWrapped(m.message, x, y, w, 11, ColErr, bottom)
-        endScissorMode()
+        endVirtualScissorMode()
       drawRemoveButton(g.removeBtn, mw.removeTarget.len == 0)
 
   # button bar
@@ -714,7 +714,7 @@ proc drawCosmetics(mw: ModsWindow, g: Geo) =
       drawText(fitWithEllipsis(c.description, textW, 11), textX, ry + 41, 11, ColMuted)
     drawButton(Rectangle(x: float32(g.x + g.w - 124), y: float32(ry + 14), width: 110, height: 30),
                (if equipped: t(tkModsUnequip) else: t(tkModsEquip)), true, not equipped)
-  endScissorMode()
+  endVirtualScissorMode()
 
 proc drawApps(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
@@ -786,7 +786,7 @@ proc drawAchievements(mw: ModsWindow, g: Geo) =
       drawRectangle(bx, ry + 20, 160, 8, uiSurface(20, 26, 36))
       drawRectangle(bx, ry + 20, int32(160 * frac), 8, d.color)
       drawText($st.progress & " / " & $d.goal, bx, ry + 32, 10, ColMuted)
-  endScissorMode()
+  endVirtualScissorMode()
 
 proc drawLog(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
@@ -805,7 +805,7 @@ proc drawLog(mw: ModsWindow, g: Geo) =
       of mlWarn: ColWarn
       of mlError: ColErr
     drawText(fitWithEllipsis(prefix & line.text, maxW, 11), int32(g.logArea.x) + 10, y, 11, col)
-  endScissorMode()
+  endVirtualScissorMode()
 
 proc drawModsWindow*(mw: ModsWindow) =
   if not mw.window.visible: return

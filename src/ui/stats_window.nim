@@ -857,7 +857,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           let levelText = t(tkStatsLevelPrefix) & $powerup.level
           drawText(levelText, (col.levelRight - measureText(levelText, 13)).int32,
                   rowY.int32, 13, uiInk(Orange))
-        endScissorMode()
+        endVirtualScissorMode()
 
         drawListScrollbar(col.scrollbarX, g.listY, g.listH, scroll, contentH, g.listH)
 
@@ -909,7 +909,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           let percentText = formatPercent(percent)
           drawText(percentText, (col.percentRight - measureText(percentText, 13)).int32,
                   rowY.int32, 13, uiInk(getQualityColor(percent, 10.0)))
-        endScissorMode()
+        endVirtualScissorMode()
 
         drawListScrollbar(col.scrollbarX, g.listY, g.listH, scroll, contentH, g.listH)
 
@@ -988,7 +988,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           let percentText = formatPercent(percent)
           drawText(percentText, (col.percentRight - measureText(percentText, 13)).int32,
                   rowY.int32, 13, uiInk(getQualityColor(percent, 10.0)))
-        endScissorMode()
+        endVirtualScissorMode()
 
         drawListScrollbar(col.scrollbarX, g.listY, g.listH, scroll, contentH, g.listH)
 

@@ -264,6 +264,13 @@ proc beginVirtualScissorMode*(x, y, width, height: int32) =
   let scaledHeight = max(1'i32, ceil(height.float32 * totalScale).int32)
   beginScissorMode(scaledX, scaledY, scaledWidth, scaledHeight)
 
+proc endVirtualScissorMode*() =
+  ## Close a beginVirtualScissorMode clip. Use this, not raylib's endScissorMode:
+  ## the clip has to be forgotten too, or the next beginPreviewClip-style caller
+  ## intersects with a stale rect (and then re-opens it as its "parent").
+  currentVirtualScissorActive = false
+  endScissorMode()
+
 proc getCurrentVirtualScissor*(): tuple[x, y, w, h: int32] =
   ## The clip rect most recently set via beginVirtualScissorMode, in virtual
   ## coords. Only meaningful while currentVirtualScissorIsActive() is true.

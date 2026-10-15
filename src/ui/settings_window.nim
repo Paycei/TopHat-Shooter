@@ -1301,7 +1301,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     drawSettingsButton(resetRect, t(tkSettingsResetModKeybindings),
                        checkCollisionPointRec(mousePos, resetRect), false)
   rlgl.popMatrix()
-  endScissorMode()
+  endVirtualScissorMode()
   if maxScroll > 0:
     let barX = contentX + contentW - 12
     let viewH = contentH

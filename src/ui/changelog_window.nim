@@ -2205,7 +2205,7 @@ proc drawChangelogWindow*(cl: ChangelogWindow) =
     of mkPoint:
       drawRectangle((baseX + CL_HEAD_INDENT + 4).int32, y + 8, 5, 5, uiInk(line.markerColor))
 
-  endScissorMode()
+  endVirtualScissorMode()
 
   # Scrollbar
   let total = cl.layout.height

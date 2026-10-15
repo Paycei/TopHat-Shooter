@@ -586,7 +586,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
                          game.rollPowerUpList[i][idx],
                          false, game.time, game.player.damage, cardAlpha)
 
-      endScissorMode()
+      endVirtualScissorMode()
 
       # Speed streak lines along left edge of each slot when fast
       if speedFrac > 0.3:

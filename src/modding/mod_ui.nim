@@ -12,7 +12,7 @@
 ## its canvas), so the same ui.button works in all three, with the mouse or a
 ## pad (A presses like a click; the pad's menu cursor points).
 
-import std/[strutils, math]
+import std/strutils
 import raylib
 import ../draw_prims
 import ../types, ../utils

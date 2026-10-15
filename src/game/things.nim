@@ -129,8 +129,6 @@ proc kindOf(t: ModThing): int {.inline.} = findThingKind(t.kind)
 proc hurtsPlayer(t: ModThing): bool {.inline.} = t.team != ttPlayer
 proc hurtsEnemies(t: ModThing): bool {.inline.} = t.team != ttEnemy
 
-proc thingWrapArgs(t: ModThing): ScriptValue {.inline.} = wrapThing(t)
-
 # ------------------------------------------------------- damage and death ----
 proc killThing*(game: Game, t: ModThing) =
   ## Its HP ran out (or a script killed it): onDeath, the thingDeath hook, gone.

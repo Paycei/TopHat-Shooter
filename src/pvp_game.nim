@@ -3463,7 +3463,7 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
   applyTextFilterFor(1.0'f32)
   popMatrix()
   if worldClipped:
-    endScissorMode()
+    endVirtualScissorMode()
   # Interface layer: the whole PvP HUD honours the Interface tab's UI scale,
   # exactly as the PvE HUD does. viewW/viewH below are this layer's logical
   # viewport.

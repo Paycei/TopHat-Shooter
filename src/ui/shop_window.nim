@@ -849,7 +849,7 @@ proc endPreviewClip(clip: PreviewClip) =
   if clip.hadParent:
     beginVirtualScissorMode(clip.x, clip.y, clip.w, clip.h)
   else:
-    endScissorMode()
+    endVirtualScissorMode()
 
 proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                             isSelected: bool, isHovered: bool,
@@ -1205,7 +1205,7 @@ proc drawPacksTabContent(shop: ShopWindow, contentX, contentY, contentWidth, con
     let (cx, cy) = packCardXY(gridLeft, gridTop, columns, i, scrollInt)
     if cy + PACK_CARD_H > gridTop - 10 and cy < gridTop + gridHeight + 10:
       drawPackCard(shop, cx, cy, CosmeticPackId(i))
-  endScissorMode()
+  endVirtualScissorMode()
 
   if shop.maxScrollOffset > 0:
     let sbX = contentX + contentWidth - 15
@@ -1374,7 +1374,7 @@ proc drawModsTabContent(shop: ShopWindow, contentX, contentY, contentWidth, cont
     let cy = gridTop + card.y - scrollInt
     if cy + MOD_CARD_H > gridTop - 10 and cy < gridTop + gridHeight + 10:
       drawModCard(shop, card.idx, card.x, cy)
-  endScissorMode()
+  endVirtualScissorMode()
 
   if shop.maxScrollOffset > 0:
     let sbX = contentX + contentWidth - 15
@@ -2110,7 +2110,7 @@ proc drawShopWindow*(shop: ShopWindow) =
     # Focus ring for keyboard navigation (drawn over card)
     if vIndex == shop.focusIndex:
       drawRectOutline(Rectangle(x: boxX.float32, y: boxY.float32, width: SKIN_BOX_WIDTH.float32, height: SKIN_BOX_HEIGHT.float32), 2.0'f32, uiLine(255, 200, 100, 180))
-  endScissorMode()
+  endVirtualScissorMode()
 
   # Draw scrollbar if needed
   if shop.maxScrollOffset > 0:

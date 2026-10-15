@@ -6951,7 +6951,7 @@ proc drawGame*(game: Game) =
   if worldPassOpen:
     popMatrix()
   if worldScissorOpen:
-    endScissorMode()
+    endVirtualScissorMode()
 
   # ===================== HUD PASS =====================
   # Untranslated, virtual coords. The HUD stays fixed while the world shakes,

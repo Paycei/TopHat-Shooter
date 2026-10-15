@@ -108,5 +108,5 @@ proc drawModAppWindow*(mw: ModAppWindow, allWindows: openArray[OSWindow]) =
   modAppDraw(idx, c.width, c.height,
              if inside: mouse.x - c.x else: -1, if inside: mouse.y - c.y else: -1)
   popMatrix()
-  endScissorMode()
+  endVirtualScissorMode()
   drawResizeIndicator(w)
