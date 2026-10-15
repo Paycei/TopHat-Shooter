@@ -304,6 +304,19 @@ let changelog: seq[ChangelogVersion] = @[
           "Abandonar nunca cuenta como derrota. Salir del mundo de un modo 3D de un mod antes terminaba la partida en la pantalla de fallo como una muerte; ahora vuelve al escritorio como desde la pantalla de pausa.",
           "Al salir de una partida que no se puede reanudar, el aviso de salida ahora lo indica en lugar de prometer que se guardará el progreso. El aviso de salida del menú de pausa ahora también aparece en español.")),
       ChangelogEntry(category: clcMods,
+        headEn: "Mods for PvP",
+        headEs: "Mods para el PvP",
+        en: points(
+          "Mods can now change PvP matches: new rules and objectives, weapons, abilities, their own HUD and whole PvP modes. The host runs the rules and every player sees the result, so a lobby still only needs everyone on the same mods.",
+          "PVP.EXE has a new Mode row when hosting. It offers the game's own rules and every PvP mode of the loaded mods, and picking one presets the lobby's settings for it. Every player sees the mode's name and description during the countdown.",
+          "The new Critical Section example is a PvP mode: hold a moving zone alone to score, fire privileged rounds from inside it and blink with F.",
+          "A color given to spawn.bullet now also colors bullets fired for the player, not only enemy ones."),
+        es: points(
+          "Los mods ahora pueden cambiar las partidas PvP: nuevas reglas y objetivos, armas, habilidades, su propio HUD y modos PvP completos. El anfitrión ejecuta las reglas y todos los jugadores ven el resultado, así que una sala solo sigue necesitando que todos tengan los mismos mods.",
+          "PVP.EXE tiene una nueva fila Modo al crear una partida. Ofrece las reglas del juego y todos los modos PvP de los mods cargados, y elegir uno ajusta la configuración de la sala para él. Todos los jugadores ven el nombre y la descripción del modo durante la cuenta atrás.",
+          "El nuevo ejemplo Sección Crítica es un modo PvP: ocupa a solas una zona que se mueve para puntuar, dispara balas privilegiadas desde dentro y salta con F.",
+          "Un color dado a spawn.bullet ahora también colorea las balas disparadas para el jugador, no solo las enemigas.")),
+      ChangelogEntry(category: clcMods,
         en: "When the game ships a newer version of an example mod you installed, the desktop now tells you, and MODS.EXE tags that mod UPDATE, shows the new version and highlights Install Examples, which updates it. An enabled example that gets updated is reloaded right away, so the new version is the one you play.",
         es: "Cuando el juego trae una versión más nueva de un mod de ejemplo que instalaste, el escritorio ahora te avisa, y MODS.EXE marca ese mod con NUEVA VERSIÓN, muestra la versión nueva y resalta Instalar ejemplos, que lo actualiza. Un ejemplo activado que se actualiza se recarga al momento, así que juegas la versión nueva."),
 
@@ -330,6 +343,9 @@ let changelog: seq[ChangelogVersion] = @[
       ChangelogEntry(category: clcFixed,
         en: "The music no longer dips in volume each time a track loops, and the notes, drums and echoes that cross the loop point no longer cut off there.",
         es: "La música ya no baja de volumen cada vez que una pista se repite, y las notas, los golpes de batería y los ecos que cruzan el punto de repetición ya no se cortan ahí."),
+      ChangelogEntry(category: clcFixed,
+        en: "In PvP, every shot looked faint and see-through on the screens of the players who joined. Shots now look the same on every screen as on the host's.",
+        es: "En el PvP, todos los disparos se veían tenues y transparentes en la pantalla de los jugadores que se unían. Ahora los disparos se ven en todas las pantallas igual que en la del anfitrión."),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.2",

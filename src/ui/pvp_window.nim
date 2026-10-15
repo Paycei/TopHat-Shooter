@@ -5,6 +5,9 @@ import raylib, strutils, net, math, algorithm
 import ../draw_prims
 import os_window, ../network/network, ../network/network_types, ../types, ../localization, ../render_context
 import ui_theme
+from ui_helpers import fitWithEllipsis
+from ../modding/mod_hooks import pvpModes, findPvPMode, pvpModeName, pvpModeDescription,
+                                 applyPvPModeSettings, revertPvPModeSettings
 
 type
   PvPWindow* = ref object
@@ -64,6 +67,8 @@ type
 const
   DEFAULT_PORT* = 7777
   CONNECTION_TIMEOUT = 10.0
+  ModeRowH = 46   ## the host config's Mode row: everything under it sits this much lower
+  TaskbarH = 40   ## os_desktop's taskbar: the window stays clear of it
 
 proc getLocalIP*(): string =
   result = "127.0.0.1"
@@ -142,9 +147,9 @@ proc getTeamName*(team: PvPTeam): string =
 
 proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
   let windowWidth = 600
-  let windowHeight = 670 # Sized to the hosting-config screen (the tallest state)
+  let windowHeight = 670 + ModeRowH # Sized to the hosting-config screen (the tallest state)
   let windowX = (screenWidth - windowWidth) div 2
-  let windowY = (screenHeight - windowHeight) div 2
+  let windowY = max(0, (screenHeight - TaskbarH - windowHeight) div 2)
   let localIP = getLocalIP()
   result = PvPWindow(
     window: newOSWindow(t(tkPvPTitle), windowX, windowY, windowWidth, windowHeight,
@@ -187,6 +192,25 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
     interpolationEnabled: true,
     pvpConfig: defaultPvPConfig()
   )
+
+proc pvpModeKeys(): seq[string] =
+  ## What the host can pick: the game's own rules ("") and every mod's PvP mode.
+  result = @[""]
+  for m in pvpModes: result.add(m.key)
+
+proc pickPvPMode(pvpWin: PvPWindow, key: string) =
+  ## The host picked a mode: the last one's presets go back to the game's
+  ## values, then the new one's go in (the host can still change them all).
+  var teams = -1
+  revertPvPModeSettings(pvpWin.pvpConfig.modMode, pvpWin.pvpConfig, teams)
+  if teams == 0: pvpWin.teamsEnabled = false
+  pvpWin.pvpConfig.modMode = key
+  applyPvPModeSettings(key, pvpWin.pvpConfig, teams)
+  if teams == 0:
+    pvpWin.teamsEnabled = false
+  elif teams > 0:
+    pvpWin.teamsEnabled = true
+    pvpWin.numTeams = teams
 
 proc startHosting*(pvpWin: PvPWindow) =
   pvpWin.isHost = true
@@ -844,10 +868,45 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
 
     drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 184)
 
+    # --- Mode: the game's own rules or a mod's PvP mode (register.pvpmode) ---
+    if pvpWin.pvpConfig.modMode.len > 0 and findPvPMode(pvpWin.pvpConfig.modMode) < 0:
+      pvpWin.pvpConfig.modMode = ""   # its mod is no longer loaded
+    let spanish = getLanguage() == Spanish
+    let modeKey = pvpWin.pvpConfig.modMode
+    let canCycle = pvpModeKeys().len > 1
+    let mdY = contentY + 190
+    let mlX = contentX + 130
+    let mrX = contentX + contentWidth - 46
+    drawText(t(tkPvPModeLabel), (contentX + 20).int32, (mdY + 4).int32, 16, uiInk(White))
+    for (bx, glyph) in [(mlX, "<"), (mrX, ">")]:
+      let hov = canCycle and mousePos.x >= bx.float32 and mousePos.x <= (bx + 26).float32 and
+                mousePos.y >= mdY.float32 and mousePos.y <= (mdY + 24).float32
+      let bg = if hov: uiSurface(80, 80, 100)
+               elif canCycle: uiSurface(50, 50, 65)
+               else: uiSurface(35, 35, 45)
+      drawRectangle(bx.int32, mdY.int32, 26, 24, bg)
+      drawRectOutline(Rectangle(x: bx.float32, y: mdY.float32, width: 26, height: 24),
+                      1, if canCycle: uiLine(80, 80, 100) else: uiLine(50, 50, 60))
+      let gw = measureText(glyph, 20)
+      drawText(glyph, (bx + (26 - gw) div 2).int32, (mdY + 2).int32, 20,
+               if canCycle: uiInk(White) else: uiInk(80, 80, 80))
+    let modeName = fitWithEllipsis(
+      if modeKey.len == 0: t(tkPvPModeStandard) else: pvpModeName(modeKey, spanish),
+      (mrX - mlX - 26 - 16).int32, 18)
+    let modeNameW = measureText(modeName, 18)
+    drawText(modeName, ((mlX + 26 + mrX) div 2 - modeNameW div 2).int32, (mdY + 3).int32, 18,
+             if modeKey.len > 0: uiInk(Gold) else: uiInk(0, 200, 255))
+    let modeDesc = if modeKey.len == 0: t(tkPvPModeStandardDesc) else: pvpModeDescription(modeKey, spanish)
+    if modeDesc.len > 0:
+      drawText(fitWithEllipsis(modeDesc, (contentWidth - 40).int32, 12), (contentX + 20).int32,
+               (mdY + 26).int32, 12, uiInk(140, 150, 165))
+
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 184 + ModeRowH)
+
     # --- Options (two checkboxes side by side) ---
     let cbSize = 20
     let cbX = contentX + 20
-    let cbY1 = contentY + 200
+    let cbY1 = contentY + 200 + ModeRowH
     let showIPHov = mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 150).float32 and
                     mousePos.y >= cbY1.float32 and mousePos.y <= (cbY1 + cbSize).float32
     drawCheckbox(cbX, cbY1, cbSize, pvpWin.showIPs, showIPHov, t("pvp_show_ips"), 15)
@@ -856,16 +915,16 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                     mousePos.y >= cbY1.float32 and mousePos.y <= (cbY1 + cbSize).float32
     drawCheckbox(cbX2, cbY1, cbSize, pvpWin.interpolationEnabled, interpHov, t("pvp_enable_interpolation"), 15)
 
-    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 236)
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 236 + ModeRowH)
 
     # --- Teams (checkbox left, team-count buttons right when enabled) ---
-    let cbY2 = contentY + 252
+    let cbY2 = contentY + 252 + ModeRowH
     let teamEnHov = mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 150).float32 and
                     mousePos.y >= cbY2.float32 and mousePos.y <= (cbY2 + cbSize).float32
     drawCheckbox(cbX, cbY2, cbSize, pvpWin.teamsEnabled, teamEnHov, t("pvp_enable_teams"), 15)
 
     if pvpWin.teamsEnabled:
-      let tbY = contentY + 248
+      let tbY = contentY + 248 + ModeRowH
       let tbW = 34
       let tbSp = 44
       let tbStartX = contentX + 240
@@ -886,14 +945,14 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                  if isSel: uiInk(Gold) else: uiInk(White))
 
     # GAME STATS SECTION
-    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 288)
-    drawText(t(tkPvPGameStats), (contentX + 20).int32, (contentY + 296).int32, 14,
+    drawSectionDivider(contentX + 15, contentX + contentWidth - 15, contentY + 288 + ModeRowH)
+    drawText(t(tkPvPGameStats), (contentX + 20).int32, (contentY + 296 + ModeRowH).int32, 14,
              uiInk(0, 200, 255))
 
     # Helper: draw a compact stat cell with label, minus, value, plus
     # Layout: 3 columns, 4 rows
     let colW = (contentWidth - 20) div 3
-    let baseStatY = contentY + 320
+    let baseStatY = contentY + 320 + ModeRowH
 
     template drawStatCell(cx, cy: int, lbl: string, valStr: string,
                           canDec, canInc: bool) =
@@ -935,7 +994,9 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       t(tkPvPStatHp),      $pvpWin.pvpConfig.startHp.int,
       pvpWin.pvpConfig.startHp > 1.0, pvpWin.pvpConfig.startHp < 20.0)
     drawStatCell(contentX + 10 + colW,        row0Y,
-      t(tkPvPStatKillLimit), $pvpWin.pvpConfig.killLimit,
+      t(tkPvPStatKillLimit),
+      if pvpWin.pvpConfig.killLimit <= 0: t(tkPvPValueOff)   # a mod mode's "kills don't win"
+      else: $pvpWin.pvpConfig.killLimit,
       pvpWin.pvpConfig.killLimit > 1, pvpWin.pvpConfig.killLimit < 30)
     drawStatCell(contentX + 10 + colW * 2,    row0Y,
       t(tkPvPStatRespawn),
@@ -1367,24 +1428,38 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
       if pvpWin.maxPlayers < 16: pvpWin.maxPlayers += 1
       return 0
 
+    # Mode arrows: cycle the game's own rules and every mod PvP mode
+    let modeKeys = pvpModeKeys()
+    let mdY = contentY + 190
+    if modeKeys.len > 1 and mousePos.y >= mdY.float32 and mousePos.y <= (mdY + 24).float32:
+      let mlX = contentX + 130
+      let mrX = contentX + contentWidth - 46
+      let step = if mousePos.x >= mlX.float32 and mousePos.x <= (mlX + 26).float32: -1
+                 elif mousePos.x >= mrX.float32 and mousePos.x <= (mrX + 26).float32: 1
+                 else: 0
+      if step != 0:
+        let cur = max(0, modeKeys.find(pvpWin.pvpConfig.modMode))
+        pvpWin.pickPvPMode(modeKeys[(cur + step + modeKeys.len) mod modeKeys.len])
+        return 0
+
     let cbX = contentX + 20
     let cbSize = 20
     let cbX2 = contentX + contentWidth div 2 + 10
     if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 150).float32 and
-       mousePos.y >= (contentY + 200).float32 and mousePos.y <= (contentY + 220).float32:
+       mousePos.y >= (contentY + 200 + ModeRowH).float32 and mousePos.y <= (contentY + 220 + ModeRowH).float32:
       pvpWin.showIPs = not pvpWin.showIPs
       return 0
     if mousePos.x >= cbX2.float32 and mousePos.x <= (cbX2 + cbSize + 180).float32 and
-       mousePos.y >= (contentY + 200).float32 and mousePos.y <= (contentY + 220).float32:
+       mousePos.y >= (contentY + 200 + ModeRowH).float32 and mousePos.y <= (contentY + 220 + ModeRowH).float32:
       pvpWin.interpolationEnabled = not pvpWin.interpolationEnabled
       return 0
     if mousePos.x >= cbX.float32 and mousePos.x <= (cbX + cbSize + 150).float32 and
-       mousePos.y >= (contentY + 252).float32 and mousePos.y <= (contentY + 272).float32:
+       mousePos.y >= (contentY + 252 + ModeRowH).float32 and mousePos.y <= (contentY + 272 + ModeRowH).float32:
       pvpWin.teamsEnabled = not pvpWin.teamsEnabled
       return 0
 
     if pvpWin.teamsEnabled:
-      let tbY = contentY + 248
+      let tbY = contentY + 248 + ModeRowH
       let tbW = 34
       let tbSp = 44
       let tbStartX = contentX + 240
@@ -1397,7 +1472,7 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
 
     # GAME STATS click handling
     let colWc = (contentWidth - 20) div 3
-    let row0Yc = contentY + 320
+    let row0Yc = contentY + 320 + ModeRowH
     let row1Yc = row0Yc + 46
     let mx = mousePos.x
     let my = mousePos.y
@@ -1424,7 +1499,9 @@ proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
 
     # Row 0: HP | Kill Limit | Respawn
     statClick(contentX + 10,             row0Yc, pvpWin.pvpConfig.startHp,     1.0, 1.0, 20.0)
-    statClickInt(contentX + 10 + colWc,  row0Yc, pvpWin.pvpConfig.killLimit,   1,   1,   30)
+    # (Off, a mod mode's 0, only steps up: "-" must not turn it into 1)
+    statClickInt(contentX + 10 + colWc,  row0Yc, pvpWin.pvpConfig.killLimit,   1,
+                 (if pvpWin.pvpConfig.killLimit <= 0: 0 else: 1), 30)
     statClick(contentX + 10 + colWc * 2, row0Yc, pvpWin.pvpConfig.respawnTime, 0.5, 0.0, 15.0)
     # Row 1: Speed | Damage | Fire Rate
     statClick(contentX + 10,             row1Yc, pvpWin.pvpConfig.startSpeed,  25.0, 75.0,  400.0)

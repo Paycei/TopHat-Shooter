@@ -72,7 +72,7 @@ proc namesTable*(names: seq[string]): ScriptValue =
 proc requireDrawing(vm: VM, fname: string) =
   if modCtx.drawing == dtNone:
     vm.runtimeError("draw." & fname & " only works inside a draw hook " &
-                    "(drawWorld, drawHud, enemyDraw, playerDraw)")
+                    "(drawWorld, drawHud, enemyDraw, playerDraw, pvpDrawWorld, pvpDrawHud...)")
   if modCtx.drawing == dtWorld3D:
     vm.runtimeError("draw." & fname & " is 2D: in world3dDraw and world3dEntityDraw " &
                     "use the draw3d library (draw.* works in world3dDrawHud)")
@@ -136,10 +136,11 @@ proc setEntityData*(vm: VM, kind: int64, id: int, val: ScriptValue, what: string
   mods[owner].entityData[entityKey(kind, id)] = val.tbl
 
 proc bulletDataId*(vm: VM, b: Bullet): int =
-  ## A bullet's id for b.data, given on first use (0 = never needed one).
+  ## A bullet's id for b.data, given on first use (0 = never needed one). PvP
+  ## bullets always have one (pvp_game numbers them from 1).
   if b.bulletId == 0:
     let g = modCtx.game
-    if g.isNil: vm.runtimeError("bullet.data needs a run in progress")
+    if g.isNil: vm.runtimeError("bullet.data needs a run or a PvP match in progress")
     g.bulletIdCounter += 1
     b.bulletId = g.bulletIdCounter
   b.bulletId
@@ -149,6 +150,8 @@ const
   GameReadOnly = ["mode", "state", "modded", "cheatsUsed", "modFingerprint", "modMode",
                   "modRunData", "screenWidth", "screenHeight", "modWorld"]
   PlayerReadOnly = ["baselineMaxHp"]
+  PvPPlayerExtras* = ["index", "name", "deaths", "streak", "connected", "alive", "isLocal"]
+    ## What a PvP player shows besides its fields (mod_pvp's pvpPlayerField)
   EnemyReadOnly = ["id", "enemyType", "isBoss", "bossDefinitionID", "currentPhaseIndex",
                    "bossTotalMaxHp"]
 
@@ -203,6 +206,9 @@ proc makeClasses() =
     var found = false
     result = posGet(p.pos, p.vel, name, found)
     if found: return
+    if not modCtx.match.isNil and not pvpPlayerFieldImpl.isNil:
+      result = pvpPlayerFieldImpl(p, name, found)   # index, name, deaths... of a PvP player
+      if found: return
     result = deepGet(p, name, "player", found)
     if not found: vm.runtimeError("player has no field '" & name & "'")
   playerClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
@@ -210,7 +216,12 @@ proc makeClasses() =
     if p.isNil: vm.runtimeError("no run in progress")
     let name = keyName(key)
     if name in PlayerReadOnly: vm.runtimeError("player." & name & " is read-only")
-    if posSet(vm, p.pos, p.vel, name, val): return
+    if not modCtx.match.isNil and name in PvPPlayerExtras:
+      vm.runtimeError("player." & name & " is read-only")
+    if posSet(vm, p.pos, p.vel, name, val):
+      if not modCtx.match.isNil and name in ["x", "y"] and not pvpPlayerMovedImpl.isNil:
+        pvpPlayerMovedImpl(p)   # a PvP player moved by a script: snap it on every machine
+      return
     if not deepSet(vm, p, name, val, "player"):
       vm.runtimeError("player has no field '" & name & "'")
   playerClass.tostr = proc (ud: Userdata): string = "player"
@@ -255,6 +266,9 @@ proc makeClasses() =
     var found = false
     result = posGet(b.pos, b.vel, name, found)
     if found: return
+    if not modCtx.match.isNil and not pvpBulletFieldImpl.isNil:
+      result = pvpBulletFieldImpl(b, name, found)   # a PvP bullet's owner
+      if found: return
     result = deepGet(b, name, "bullet", found)
     if not found: vm.runtimeError("bullet has no field '" & name & "'")
   bulletClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
@@ -263,6 +277,13 @@ proc makeClasses() =
     if name == "data":
       vm.setEntityData(EdBullet, vm.bulletDataId(b), val, "bullet")
       return
+    if not modCtx.match.isNil:
+      # A PvP bullet's kind / pierce are its mod fields (match:spawnBullet's
+      # names); its owner is read-only.
+      if name == "owner": vm.runtimeError("bullet.owner is read-only")
+      if name in ["kind", "pierce"]:
+        discard deepSet(vm, b, (if name == "kind": "modKind" else: "modPierce"), val, "bullet")
+        return
     if posSet(vm, b.pos, b.vel, name, val): return
     if not deepSet(vm, b, name, val, "bullet"):
       vm.runtimeError("bullet has no field '" & name & "'")
@@ -367,6 +388,9 @@ proc installMethods() =
     ## Still flying in the current run (or a spawn.bullet handle about to join).
     let b = unwrapBullet(arg(args, 0))
     if b.isNil: vm.runtimeError("bullet:valid() needs a bullet (call it with ':')")
+    if not modCtx.match.isNil and not pvpBulletLiveImpl.isNil:
+      ret.setRet(vbool(pvpBulletLiveImpl(b)))
+      return
     let g = modCtx.game
     ret.setRet(vbool(not g.isNil and b.lifetime > 0 and
                      (b in g.bullets or b in modPendingBullets)))

@@ -8,7 +8,7 @@
 
 import std/[os, strutils, json, algorithm]
 import ../localization
-import lua_bridge, mod_state, mod_hooks, mod_api, mod_3d, mod_world2d, mod_content_api, mod_ui, mod_engine, mod_theme, mod_catalog, mod_assets
+import lua_bridge, mod_state, mod_hooks, mod_api, mod_3d, mod_world2d, mod_content_api, mod_ui, mod_engine, mod_pvp, mod_theme, mod_catalog, mod_assets
 
 proc summaryText*(): string =
   ## "3 loaded, 1 failed" style line for toasts and the log.
@@ -104,6 +104,7 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   installContentApi(base)
   installModUi(base)
   installModEngine(base)
+  installModPvP(base)
   installModTheme(base)
   resetModContent()
   let libraries = tableKeysOf(base)   # each mod gets its own copy of every game library

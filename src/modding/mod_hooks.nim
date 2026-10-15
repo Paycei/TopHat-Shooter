@@ -14,7 +14,7 @@
 
 import std/[json, tables, sets, strutils, math, random]
 import raylib
-import ../types, ../game3d/types_3d, ../settings, ../save_system, ../gamepad_input
+import ../types, ../particle_types, ../game3d/types_3d, ../settings, ../save_system, ../gamepad_input
 import lua_bridge, mod_state, mod_assets
 
 type
@@ -114,6 +114,32 @@ type
     hkWorld3dBossPhase = "world3dBossPhase"  ## (phase)
     hkWorld3dBossAttack = "world3dBossAttack"  ## cancel (phase, pattern): true skips the vanilla attack
     hkWorld3dPickup = "world3dPickup"  ## cancel (pickup): true = taken, no vanilla effect
+    # PvP (pvp_game.nim): the script-facing match comes from mod_pvp. The host
+    # decides the match, so the hooks that change it run on the host only; the
+    # "every machine" ones also run on each client (drawing, reacting).
+    hkPvpStart = "pvpStart"          ## (match)               every machine: a match (or rematch) begins
+    hkPvpEnd = "pvpEnd"              ## (match, winner)       every machine: player, team name or nil
+    hkPvpFrame = "pvpFrame"          ## (match, dt)           every machine: each frame of play
+    hkPvpUpdate = "pvpUpdate"        ## (match, dt)           host: each frame of play, before the snapshot
+    hkPvpDrawBackground = "pvpDrawBackground"  ## (match)     every machine: arena coordinates, on the floor
+    hkPvpDrawWorld = "pvpDrawWorld"  ## (match)               every machine: arena coordinates, over the world
+    hkPvpDrawHud = "pvpDrawHud"      ## (match, w, h)         every machine: screen coordinates
+    hkPvpPlayerDraw = "pvpPlayerDraw"  ## cancel (player, match): true skips the body, "all" its labels too
+    hkPvpBulletDraw = "pvpBulletDraw"  ## cancel (bullet, match): true skips the built-in look
+    hkPvpShoot = "pvpShoot"          ## cancel (match, player, dirX, dirY, aimX, aimY) host: true replaces the shot
+    hkPvpBulletUpdate = "pvpBulletUpdate"  ## cancel (bullet, dt, match) host: true skips the built-in movement
+    hkPvpBulletHit = "pvpBulletHit"  ## filter (damage, bullet, victim, match) host: false = it flies on
+    hkPvpPlayerDamaged = "pvpPlayerDamaged"  ## filter (amount, victim, attacker, match) host
+    hkPvpPlayerLethal = "pvpPlayerLethal"  ## cancel (victim, attacker, match) host: true keeps them alive
+    hkPvpKill = "pvpKill"            ## (match, victim, killer)  every machine (killer may be nil)
+    hkPvpRespawn = "pvpRespawn"      ## (match, player)       every machine
+    hkPvpSpawnPoint = "pvpSpawnPoint"  ## (match, player, x, y) host: return x, y to move the spawn
+    hkPvpPickup = "pvpPickup"        ## cancel (match, player, kind) host: true takes it without its effect
+    hkPvpPackage = "pvpPackage"      ## filter (kind, match, power) host: the package a port drops next
+    hkPvpPlaceWall = "pvpPlaceWall"  ## cancel (match, player, x, y) host: true places nothing
+    hkPvpEnding = "pvpEnding"        ## cancel (match, reason) host: true keeps playing ("kills" | "time" | "elimination")
+    hkPvpRequest = "pvpRequest"      ## (match, player, name, data) host: a player's match:request
+    hkPvpBroadcast = "pvpBroadcast"  ## (match, name, data)   every machine: the host's match:broadcast
 
   DrawTarget* = enum
     dtNone, dtWorld, dtHud, dtWorld3D  ## dtWorld3D: inside a 3D camera (world3dDraw, world3dEntityDraw)
@@ -169,11 +195,19 @@ type
     remaining: float64
     interval: float64    ## 0 = one-shot
 
+  ScriptedMatch* = ref object of RootObj
+    ## The part of a PvP match the mod layer owns (pvp_game's PvPGameState
+    ## inherits it): each mod's match.data, by mod index. Script values never
+    ## go on the wire as such: match.data travels as JSON (captureMatchData).
+    matchData*: seq[ScriptTable]
+    matchDataTooBig: seq[bool]   ## reported once per match per mod
+
   ModCtx* = object
     game*: Game          ## the run being played; nil on the desktop
     hudArena*: tuple[x, y, w, h: float64]  ## the arena in drawHud coordinates
     drawing*: DrawTarget
     inPvP*: bool
+    match*: ScriptedMatch  ## the PvP match on screen (pvp* hooks, the global `match`)
     lastState: GameState ## stateChange fires when the run state differs from this
     source*: PowerUpType ## the power-up a script is acting for (hasSource)
     hasSource*: bool     ## damage/healing done now is credited to `source`
@@ -189,6 +223,8 @@ type
     e*: Enemy
   BulletBox* = ref object of RootObj
     b*: Bullet
+  MatchBox* = ref object of RootObj
+    m*: ScriptedMatch    ## nil = the match in progress (the global `match` proxy)
 
 const
   HookStepBudget* = 30_000_000   ## Lua instructions per hook call before it is aborted
@@ -203,7 +239,7 @@ var
   mods*: seq[ModRuntime]
   currentModIdx* = -1            ## whose code is running (print, registration owner)
   modCtx*: ModCtx
-  gameClass*, playerClass*, enemyClass*, bulletClass*: UdClass
+  gameClass*, playerClass*, enemyClass*, bulletClass*, matchClass*: UdClass
   modNotices*: seq[string]       ## player-facing notices for the desktop toasts
   hudNotice*: string             ## the same, shown briefly over a run in progress
   hudNoticeTimer*: float32
@@ -329,6 +365,16 @@ proc unwrapEnemy*(v: ScriptValue): Enemy =
 
 proc unwrapBullet*(v: ScriptValue): Bullet =
   if v.kind == vkUserdata and v.ud.cls == bulletClass: BulletBox(v.ud.box).b else: nil
+
+proc wrapMatch*(m: ScriptedMatch): ScriptValue =
+  if m.isNil or matchClass.isNil: NilValue
+  else: vud(Userdata(cls: matchClass, box: MatchBox(m: m), key: cast[pointer](m)))
+
+proc unwrapMatch*(v: ScriptValue): ScriptedMatch =
+  if v.kind == vkUserdata and v.ud.cls == matchClass:
+    let m = MatchBox(v.ud.box).m
+    return if m.isNil: modCtx.match else: m
+  nil
 
 # ------------------------------------------------------- custom events ----
 proc dropCustomHandlers(idx: int) =
@@ -943,9 +989,11 @@ proc isActiveRunState*(s: GameState): bool =
 proc modOutsideRun*(pvp: bool) =
   ## main.nim, every frame no run is on screen: scripts must not see the last
   ## run as still going (run.active, hooks fired by shared code such as the
-  ## bullet constructor), and PvP never runs gameplay scripts.
+  ## bullet constructor), and PvP never runs the run hooks (its own pvp* ones
+  ## fire from pvp_game).
   modCtx.game = nil
   modCtx.inPvP = pvp
+  if not pvp: modCtx.match = nil
 
 proc modWatchState*(game: Game) =
   ## main.nim, once per frame before the state machine: `stateChange` for any
@@ -1746,6 +1794,406 @@ proc modWorld3DPickup*(p: Pickup3D): bool =
   hookActive(hkWorld3dPickup) and world3dScripts() and
     fireCancel(hkWorld3dPickup, [wrapPickup3D(p)])
 
+# ------------------------------------------------------------------ PvP ----
+# pvp_game fires the pvp* hooks through these helpers; mod_pvp (high layer)
+# makes the `match` object and its API. Every machine in a lobby runs the same
+# mods (the fingerprint check at connect), but only the host decides the match:
+# the hooks that change it fire there, and snapshots carry the result.
+
+# ---- register.pvpmode: rules a host picks in PVP.EXE's lobby. The mode's key
+# rides in PvPConfig.modMode; scripts check match:isMode(MODE).
+type
+  PvPSetting* = enum
+    psHp = "hp", psSpeed = "speed", psDamage = "damage", psFireRate = "fireRate",
+    psBulletSpeed = "bulletSpeed", psBulletSize = "bulletSize", psWalls = "walls",
+    psKillLimit = "killLimit", psRespawn = "respawn", psTimeLimit = "timeLimit",
+    psPackages = "packages", psTeams = "teams"
+
+  PvPModeDef* = object
+    key*: string         ## "<mod id>:<id>"
+    nameEn*, nameEs*, descEn*, descEs*: string
+    owner*: int
+    settings*: seq[tuple[setting: PvPSetting, value: float64]]
+      ## lobby values the mode presets when the host picks it (already clamped)
+    onStart*: ScriptValue
+
+var pvpModes*: seq[PvPModeDef]
+
+proc findPvPMode*(key: string): int =
+  if key.len == 0: return -1
+  for i, m in pvpModes:
+    if m.key == key: return i
+  -1
+
+proc pvpModeName*(key: string, spanish: bool): string =
+  let i = findPvPMode(key)
+  if i < 0: return key
+  if spanish and pvpModes[i].nameEs.len > 0: pvpModes[i].nameEs else: pvpModes[i].nameEn
+
+proc pvpModeDescription*(key: string, spanish: bool): string =
+  let i = findPvPMode(key)
+  if i < 0: return ""
+  if spanish and pvpModes[i].descEs.len > 0: pvpModes[i].descEs else: pvpModes[i].descEn
+
+proc clampPvPSetting*(s: PvPSetting, v: float64): float64 =
+  ## The lobby's own ranges (pvp_window's steppers), so a mode can't preset what
+  ## the host could never pick. killLimit / timeLimit / respawn 0 = off.
+  case s
+  of psHp: clamp(v, 1.0, 20.0)
+  of psSpeed: clamp(v, 75.0, 400.0)
+  of psDamage: clamp(v, 0.5, 10.0)
+  of psFireRate: clamp(v, 0.1, 1.5)
+  of psBulletSpeed: clamp(v, 100.0, 800.0)
+  of psBulletSize: clamp(v, 3.0, 25.0)
+  of psWalls: clamp(round(v), 0.0, 10.0)
+  of psKillLimit: clamp(round(v), 0.0, 30.0)
+  of psRespawn: clamp(v, 0.0, 15.0)
+  of psTimeLimit: clamp(v, 0.0, 3600.0)
+  of psPackages: (if v != 0: 1.0 else: 0.0)
+  of psTeams: (if v == 0: 0.0 else: clamp(round(v), 2.0, 6.0))
+
+proc setPvPSetting(cfg: var PvPConfig, s: PvPSetting, v: float64, teams: var int) =
+  case s
+  of psHp: cfg.startHp = v.float32
+  of psSpeed: cfg.startSpeed = v.float32
+  of psDamage: cfg.startDamage = v.float32
+  of psFireRate: cfg.fireRate = v.float32
+  of psBulletSpeed: cfg.bulletSpeed = v.float32
+  of psBulletSize: cfg.bulletRadius = v.float32
+  of psWalls: cfg.startWalls = int(v)
+  of psKillLimit: cfg.killLimit = int(v)
+  of psRespawn: cfg.respawnTime = v.float32
+  of psTimeLimit: cfg.timeLimit = v.float32
+  of psPackages: cfg.pickupsEnabled = v != 0
+  of psTeams: teams = int(v)
+
+proc defaultPvPSetting(s: PvPSetting): float64 =
+  ## The game's own value of a setting (teams: off).
+  let d = defaultPvPConfig()
+  case s
+  of psHp: d.startHp.float64
+  of psSpeed: d.startSpeed.float64
+  of psDamage: d.startDamage.float64
+  of psFireRate: d.fireRate.float64
+  of psBulletSpeed: d.bulletSpeed.float64
+  of psBulletSize: d.bulletRadius.float64
+  of psWalls: d.startWalls.float64
+  of psKillLimit: d.killLimit.float64
+  of psRespawn: d.respawnTime.float64
+  of psTimeLimit: d.timeLimit.float64
+  of psPackages: (if d.pickupsEnabled: 1.0 else: 0.0)
+  of psTeams: 0.0
+
+proc applyPvPModeSettings*(key: string, cfg: var PvPConfig, teams: var int) =
+  ## PVP.EXE, when the host picks a mode: its presets go into the lobby (the
+  ## host can still change them). `teams`: -1 = the mode leaves teams alone,
+  ## 0 = free-for-all, 2..6 = that many teams.
+  teams = -1
+  let i = findPvPMode(key)
+  if i < 0: return
+  for (s, v) in pvpModes[i].settings:
+    setPvPSetting(cfg, s, v, teams)
+
+proc revertPvPModeSettings*(key: string, cfg: var PvPConfig, teams: var int) =
+  ## PVP.EXE, when the host moves off mode `key`: what it preset goes back to
+  ## the game's own values, so nothing of it sticks to the next mode.
+  teams = -1
+  let i = findPvPMode(key)
+  if i < 0: return
+  for (s, _) in pvpModes[i].settings:
+    setPvPSetting(cfg, s, defaultPvPSetting(s), teams)
+
+# ---- seams mod_pvp fills, so the player / bullet wrappers of mod_api show a
+# PvP player's extras (index, name, deaths...) and a PvP bullet's owner.
+var
+  pvpPlayerFieldImpl*: proc (p: Player, name: string, found: var bool): ScriptValue {.nimcall.}
+  pvpPlayerMovedImpl*: proc (p: Player) {.nimcall.}
+    ## A script moved a PvP player (x / y): the host snaps it on every machine.
+  pvpBulletFieldImpl*: proc (b: Bullet, name: string, found: var bool): ScriptValue {.nimcall.}
+  pvpBulletLiveImpl*: proc (b: Bullet): bool {.nimcall.}
+
+# ---- data on the wire. match.data, and the data of match:request /
+# match:broadcast, travel as JSON: plain data only, like run.data.
+const
+  MaxMatchDataBytes* = 16_000  ## one mod's match.data
+  MaxModMsgBytes* = 8_000      ## one message's data
+  MaxModMsgName* = 64
+  MaxWireJsonDepth = 40        ## toJsonNode itself stops at 32
+
+proc jsonDepthOk(s: string): bool =
+  ## JSON from the network is parsed recursively: refuse anything nested deeper
+  ## than the game ever writes before handing it to the parser.
+  var depth = 0
+  var inStr, esc = false
+  for c in s:
+    if inStr:
+      if esc: esc = false
+      elif c == '\\': esc = true
+      elif c == '"': inStr = false
+    else:
+      case c
+      of '"': inStr = true
+      of '[', '{':
+        inc depth
+        if depth > MaxWireJsonDepth: return false
+      of ']', '}': dec depth
+      else: discard
+  true
+
+proc scriptToJson*(v: ScriptValue): string =
+  ## A message's data for the wire ("" for nil; functions and userdata drop out).
+  if v.kind == vkNil: "" else: $toJsonNode(v)
+
+proc jsonToScript*(s: string): ScriptValue =
+  ## The other side's JSON back into a script value (nil if absent or malformed).
+  if s.len == 0 or not jsonDepthOk(s): return NilValue
+  try: fromJsonNode(parseJson(s))
+  except CatchableError: NilValue
+
+proc matchDataFor*(m: ScriptedMatch, owner: int): ScriptTable =
+  ## `match.data` for mod `owner` (made on first use).
+  if m.matchData.len < mods.len: m.matchData.setLen(mods.len)
+  result = m.matchData[owner]
+  if result.isNil:
+    result = newScriptTable()
+    m.matchData[owner] = result
+
+proc setMatchData*(m: ScriptedMatch, owner: int, t: ScriptTable) =
+  ## `match.data = {...}`
+  if m.matchData.len < mods.len: m.matchData.setLen(mods.len)
+  m.matchData[owner] = t
+
+proc captureMatchData*(m: ScriptedMatch): string =
+  ## Host: every mod's match.data as one JSON object, keyed by mod id. A mod
+  ## that never touched match.data is left out (its clients keep theirs); one
+  ## whose data is too large is left out too, and told once per match.
+  if m.matchDataTooBig.len < mods.len: m.matchDataTooBig.setLen(mods.len)
+  var parts: seq[string]
+  for i in 0 ..< min(mods.len, m.matchData.len):
+    let t = m.matchData[i]
+    if t.isNil: continue
+    let text = $toJsonNode(vtable(t))
+    if text.len > MaxMatchDataBytes:
+      if not m.matchDataTooBig[i]:
+        m.matchDataTooBig[i] = true
+        reportModError(i, "match.data is too large to send (" & $text.len & " bytes, " &
+                          $MaxMatchDataBytes & " max): clients keep the last copy that fit")
+      continue
+    parts.add(escapeJson(mods[i].id) & ":" & text)
+  "{" & parts.join(",") & "}"
+
+proc applyMatchData*(m: ScriptedMatch, s: string) =
+  ## Client: the host's match.data. Each mod's table is refilled in place, so
+  ## a script holding on to `match.data` still sees the host's copy.
+  if s.len == 0 or mods.len == 0 or not jsonDepthOk(s): return
+  var root: JsonNode
+  try: root = parseJson(s)
+  except CatchableError: return
+  if root.kind != JObject: return
+  for i, md in mods:
+    if not root.hasKey(md.id): continue
+    let v = fromJsonNode(root[md.id])
+    let t = matchDataFor(m, i)
+    var keys: seq[ScriptValue]
+    for (k, _) in pairsCursor(t): keys.add(k)
+    for k in keys: rawSet(t, k, NilValue)
+    if v.kind == vkTable:
+      for (k, x) in pairsCursor(v.tbl): rawSet(t, k, x)
+
+# ---- lifecycle
+proc modPvPBegin*(m: ScriptedMatch) =
+  ## Top of every PvP frame and draw: the pvp* hooks and the global `match`
+  ## see this match, and the run hooks stay off.
+  modCtx.match = m
+  modCtx.inPvP = true
+  modCtx.game = nil
+
+proc modPvPMatchStart*(m: ScriptedMatch, modeKey: string) =
+  ## Every machine, once per match (rematches too), as its countdown starts:
+  ## nothing a script kept for the last match leaks into this one.
+  modPvPBegin(m)
+  m.matchData.setLen(0)
+  m.matchDataTooBig.setLen(0)
+  if mods.len == 0: return
+  timers.setLen(0)
+  hiddenHud = {}
+  for md in mods: md.entityData.clear()   # b.data of the last match's bullets
+  if hookActive(hkPvpStart): fire(hkPvpStart, [wrapMatch(m)])
+  let i = findPvPMode(modeKey)
+  if i >= 0 and pvpModes[i].onStart.kind in {vkFunction, vkNative}:
+    var r: RetVals
+    discard callAs(pvpModes[i].owner, pvpModes[i].onStart, [wrapMatch(m)], r)
+
+proc modPvPEnd*(m: ScriptedMatch, winner: Player, team: string) =
+  ## Every machine, once, as the match ends. Scripts get the winning player, or
+  ## the winning team's name ("ptRed"...), or nil for a draw.
+  if not hookActive(hkPvpEnd): return
+  let w = if not winner.isNil: wrapPlayer(winner)
+          elif team.len > 0: vstr(team)
+          else: NilValue
+  fire(hkPvpEnd, [wrapMatch(m), w])
+
+var pvpSweepCounter: int
+
+proc modPvPFrame*(m: ScriptedMatch, dt: float32, bullets: openArray[Bullet]) =
+  ## Every machine, each frame of play, after the simulation: timers (on the
+  ## match clock), pvpFrame, and every so often the b.data of gone bullets.
+  if mods.len == 0: return
+  if hudNoticeTimer > 0.0:
+    hudNoticeTimer = max(0.0'f32, hudNoticeTimer - dt)
+  tickTimers(dt.float64)
+  if hookActive(hkPvpFrame): fire(hkPvpFrame, [wrapMatch(m), vnum(dt.float64)])
+  inc pvpSweepCounter
+  if pvpSweepCounter >= 30:
+    pvpSweepCounter = 0
+    var live = initHashSet[int64]()
+    for b in bullets: live.incl(entityKey(EdBullet, b.bulletId))
+    for md in mods:
+      if md.entityData.len == 0: continue
+      var gone: seq[int64]
+      for k in md.entityData.keys:
+        if k notin live: gone.add(k)
+      for k in gone: md.entityData.del(k)
+
+proc modPvPUpdate*(m: ScriptedMatch, dt: float32) =
+  if hookActive(hkPvpUpdate): fire(hkPvpUpdate, [wrapMatch(m), vnum(dt.float64)])
+
+# ---- drawing (every machine)
+proc modPvPDrawBackground*(m: ScriptedMatch) =
+  if not hookActive(hkPvpDrawBackground): return
+  modCtx.drawing = dtWorld
+  fire(hkPvpDrawBackground, [wrapMatch(m)])
+  modCtx.drawing = dtNone
+
+proc modPvPDrawWorld*(m: ScriptedMatch) =
+  if not hookActive(hkPvpDrawWorld): return
+  modCtx.drawing = dtWorld
+  fire(hkPvpDrawWorld, [wrapMatch(m)])
+  modCtx.drawing = dtNone
+
+proc modPvPDrawHud*(m: ScriptedMatch, w, h: int32) =
+  ## The PvP HUD layer has no docks: the whole screen is the arena's.
+  if not hookActive(hkPvpDrawHud): return
+  modCtx.hudArena = (0.0, 0.0, w.float64, h.float64)
+  modCtx.drawing = dtHud
+  fire(hkPvpDrawHud, [wrapMatch(m), vnum(w.int), vnum(h.int)])
+  modCtx.drawing = dtNone
+
+proc modPvPPlayerDraw*(m: ScriptedMatch, p: Player): int =
+  ## 0: draw the player as usual; 1: a script drew its body; 2: a script drew
+  ## it all (no team ring, name or health bar either).
+  if not hookActive(hkPvpPlayerDraw): return 0
+  let prev = modCtx.drawing
+  modCtx.drawing = dtWorld
+  defer: modCtx.drawing = prev
+  let hs = handlers[hkPvpPlayerDraw]
+  var r: RetVals
+  for hd in hs:
+    if callAs(hd.owner, hd.fn, [wrapPlayer(p), wrapMatch(m)], r) and r.count > 0:
+      if r.first.kind == vkString and r.first.str.s == "all": return 2
+      if r.first.kind == vkBool and r.first.b: return 1
+  0
+
+proc modPvPBulletDraw*(m: ScriptedMatch, b: Bullet): bool =
+  if not hookActive(hkPvpBulletDraw): return false
+  let prev = modCtx.drawing
+  modCtx.drawing = dtWorld
+  defer: modCtx.drawing = prev
+  fireCancel(hkPvpBulletDraw, [wrapBullet(b), wrapMatch(m)])
+
+# ---- the match itself (host)
+proc modPvPShoot*(m: ScriptedMatch, p: Player, dir, aim: Vector2f): bool =
+  hookActive(hkPvpShoot) and
+    fireCancel(hkPvpShoot, [wrapMatch(m), wrapPlayer(p), vnum(dir.x.float64), vnum(dir.y.float64),
+                            vnum(aim.x.float64), vnum(aim.y.float64)])
+
+proc modPvPBulletUpdate*(m: ScriptedMatch, b: Bullet, dt: float32): bool =
+  hookActive(hkPvpBulletUpdate) and
+    fireCancel(hkPvpBulletUpdate, [wrapBullet(b), vnum(dt.float64), wrapMatch(m)])
+
+proc modPvPBulletHit*(m: ScriptedMatch, b: Bullet, victim: Player, damage: float32,
+                      pass: var bool): float32 =
+  ## A bullet touching a player: each handler may return a number (the damage
+  ## from now on) or false (no hit: the bullet flies on).
+  result = damage
+  pass = false
+  if not hookActive(hkPvpBulletHit): return
+  let hs = handlers[hkPvpBulletHit]
+  var r: RetVals
+  for hd in hs:
+    if callAs(hd.owner, hd.fn, [vnum(result.float64), wrapBullet(b), wrapPlayer(victim), wrapMatch(m)], r) and
+       r.count > 0:
+      if r.first.kind == vkBool and not r.first.b:
+        pass = true
+        return
+      if r.first.kind == vkNumber and abs(r.first.n) < 1.0e9:   # (NaN fails too)
+        result = max(0'f32, r.first.n.float32)
+
+proc modPvPPlayerDamaged*(m: ScriptedMatch, victim, attacker: Player, amount: float32): float32 =
+  ## Damage about to land on a player (after FIREWALL.SYS), from any source.
+  result = amount
+  if not hookActive(hkPvpPlayerDamaged): return
+  let hs = handlers[hkPvpPlayerDamaged]
+  var r: RetVals
+  for hd in hs:
+    if callAs(hd.owner, hd.fn, [vnum(result.float64), wrapPlayer(victim), wrapPlayer(attacker),
+                                wrapMatch(m)], r) and
+       r.count > 0 and r.first.kind == vkNumber and abs(r.first.n) < 1.0e9:
+      result = max(0'f32, r.first.n.float32)
+
+proc modPvPPlayerLethal*(m: ScriptedMatch, victim, attacker: Player): bool =
+  hookActive(hkPvpPlayerLethal) and
+    fireCancel(hkPvpPlayerLethal, [wrapPlayer(victim), wrapPlayer(attacker), wrapMatch(m)])
+
+proc modPvPSpawnPoint*(m: ScriptedMatch, p: Player, pos: var Vector2f) =
+  ## A player is about to (re)spawn at `pos`: a handler may return x, y instead.
+  if not hookActive(hkPvpSpawnPoint): return
+  let hs = handlers[hkPvpSpawnPoint]
+  var r: RetVals
+  for hd in hs:
+    if callAs(hd.owner, hd.fn, [wrapMatch(m), wrapPlayer(p), vnum(pos.x.float64), vnum(pos.y.float64)], r) and
+       r.count >= 2:
+      let x = r.first
+      let y = r.retAt(1)
+      if x.kind == vkNumber and y.kind == vkNumber and abs(x.n) < 1.0e9 and abs(y.n) < 1.0e9:
+        pos = newVector2f(x.n.float32, y.n.float32)
+
+proc modPvPPickup*(m: ScriptedMatch, p: Player, kind: string): bool =
+  hookActive(hkPvpPickup) and fireCancel(hkPvpPickup, [wrapMatch(m), wrapPlayer(p), vstr(kind)])
+
+proc modPvPPackage*(m: ScriptedMatch, kind: string, power: bool): string =
+  ## The package a port drops next; the caller checks the name it gets back.
+  result = kind
+  if not hookActive(hkPvpPackage): return
+  let v = filterValue(hkPvpPackage, vstr(kind), [wrapMatch(m), vbool(power)])
+  if v.kind == vkString: result = v.str.s
+
+proc modPvPPlaceWall*(m: ScriptedMatch, p: Player, x, y: float32): bool =
+  hookActive(hkPvpPlaceWall) and
+    fireCancel(hkPvpPlaceWall, [wrapMatch(m), wrapPlayer(p), vnum(x.float64), vnum(y.float64)])
+
+proc modPvPEnding*(m: ScriptedMatch, reason: string): bool =
+  ## The match is about to end by the rules ("kills", "time", "elimination"):
+  ## true keeps it going.
+  hookActive(hkPvpEnding) and fireCancel(hkPvpEnding, [wrapMatch(m), vstr(reason)])
+
+# ---- reacting (every machine)
+proc modPvPKill*(m: ScriptedMatch, victim, killer: Player) =
+  if hookActive(hkPvpKill): fire(hkPvpKill, [wrapMatch(m), wrapPlayer(victim), wrapPlayer(killer)])
+
+proc modPvPRespawn*(m: ScriptedMatch, p: Player) =
+  if hookActive(hkPvpRespawn): fire(hkPvpRespawn, [wrapMatch(m), wrapPlayer(p)])
+
+proc modPvPRequest*(m: ScriptedMatch, p: Player, name, data: string) =
+  ## Host: a player's match:request, delivered at a safe point of the frame.
+  if hookActive(hkPvpRequest):
+    fire(hkPvpRequest, [wrapMatch(m), wrapPlayer(p), vstr(name), jsonToScript(data)])
+
+proc modPvPBroadcast*(m: ScriptedMatch, name, data: string) =
+  ## Every machine: the host's match:broadcast.
+  if hookActive(hkPvpBroadcast):
+    fire(hkPvpBroadcast, [wrapMatch(m), vstr(name), jsonToScript(data)])
+
 proc clearModRoutes*() =
   ## Loader: forget every per-content script route (a fresh set is registered).
   modActions.setLen(0)
@@ -1753,6 +2201,7 @@ proc clearModRoutes*() =
   world3dLabels.setLen(0)
   rosterEntries.setLen(0)
   modModes.setLen(0)
+  pvpModes.setLen(0)
   bossAttackFns.clear()
   bossBehaviorFns.clear()
   bossDrawFns.clear()
@@ -1773,6 +2222,10 @@ proc dropRoutesOf*(owner: int) =
   for m in modModes:
     if m.owner != owner: keptModes.add(m)
   modModes = keptModes
+  var keptPvP: seq[PvPModeDef]
+  for m in pvpModes:
+    if m.owner != owner: keptPvP.add(m)
+  pvpModes = keptPvP
   var keptApps: seq[ModApp]
   for a in modApps:
     if a.owner != owner: keptApps.add(a)

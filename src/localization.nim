@@ -1207,6 +1207,9 @@ type
     tkPvPPortIncoming = "pvp_port_incoming"
     tkPvPStatPackages = "pvp_stat_packages"
     tkPvPValueOn = "pvp_value_on"
+    tkPvPModeLabel = "pvp_mode_label"
+    tkPvPModeStandard = "pvp_mode_standard"
+    tkPvPModeStandardDesc = "pvp_mode_standard_desc"
 
     # PvP callouts (kill streaks / multi-kills)
     tkPvPCallFirstBlood = "pvp_call_first_blood"
@@ -3337,6 +3340,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_port_incoming": "INCOMING",
     "pvp_stat_packages": "PACKAGES",
     "pvp_value_on": "ON",
+    "pvp_mode_label": "Mode",
+    "pvp_mode_standard": "Standard",
+    "pvp_mode_standard_desc": "The game's own rules. Mods can add more modes (MODS.EXE).",
 
     # PvP callouts
     "pvp_call_first_blood": "FIRST CRASH",
@@ -5569,6 +5575,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pvp_port_incoming": "ENTRANTE",
     "pvp_stat_packages": "PAQUETES",
     "pvp_value_on": "ON",
+    "pvp_mode_label": "Modo",
+    "pvp_mode_standard": "Estándar",
+    "pvp_mode_standard_desc": "Las reglas del juego. Los mods pueden añadir más modos (MODS.EXE).",
 
     # PvP callouts
     "pvp_call_first_blood": "PRIMER CRASH",

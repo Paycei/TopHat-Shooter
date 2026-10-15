@@ -195,12 +195,13 @@ type
     bulletRadius*: float32  ## Bullet hitbox/visual radius (default 7.5)
     startCoins*: int        ## Coins at match start (default 100)
     startWalls*: int        ## Walls at match start (default 3)
-    killLimit*: int         ## Kills needed to win (default 5)
+    killLimit*: int         ## Kills needed to win (default 5); 0 = no kill-limit win (only a mod mode sets it)
     respawnTime*: float32   ## Seconds before respawn (default 3.0)
     timeLimit*: float32     ## Match time limit in seconds, 0 = unlimited (default 180)
     snapshotRate*: float32  ## Seconds between server->client state snapshots
     inputRate*: float32     ## Seconds between client->server input packets
     pickupsEnabled*: bool   ## Arena ports drop packages (default true)
+    modMode*: string        ## MODS.EXE: the mod PvP mode's key ("<mod id>:<id>"), "" = standard rules
 
   EnemyType* = enum
     etCircle,      # Normal chasers

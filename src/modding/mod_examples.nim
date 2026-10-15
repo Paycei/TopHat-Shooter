@@ -86,6 +86,8 @@ const
     ("content_pack/content/powerups.json", embed("examples/content_pack/content/powerups.json")),
     ("content_pack/content/enemies.json", embed("examples/content_pack/content/enemies.json")),
     ("content_pack/content/shop.json", embed("examples/content_pack/content/shop.json")),
+    ("critical_section/mod.json", embed("examples/critical_section/mod.json")),
+    ("critical_section/main.lua", embed("examples/critical_section/main.lua")),
   ]
 
 proc exampleModIds*(): seq[string] =

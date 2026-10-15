@@ -10,7 +10,7 @@ const
   # bullet, and a busy match with FORK.EXE triple shots can pass 8 KB; a smaller
   # buffer silently truncated those datagrams and they failed to deserialize.
   MAX_PACKET_SIZE = 65507
-  NETWORK_VERSION* = "2.4.0"
+  NETWORK_VERSION* = "2.5.0"
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 100
   PACKET_MAGIC = "THS1"

@@ -7,7 +7,8 @@ new game modes, new looks. They are small programs written in **Lua 5.5**
 A mod can reach almost everything: every field of the game state (down to
 nested lists and objects), replace the game's own behaviour at dozens of
 points (movement, dash, shooting, bullets, pickups, the shop, level-ups,
-enemy AI, boss attacks...), hide the HUD and draw its own, build first-person 3D worlds, dress the game in
+enemy AI, boss attacks...), hide the HUD and draw its own, build first-person 3D worlds,
+rewrite PvP matches (new modes, weapons and abilities), dress the game in
 textures, videos and 3D models, play its own music, write in its own fonts,
 post-process the screen with shaders, and add its own apps to the desktop.
 
@@ -187,6 +188,7 @@ one and `hooks.list()` returns every name. Three kinds:
 | `world3dBossPhase` | phase | event: the 3D boss changed phase |
 | `world3dBossAttack` | phase, pattern | cancel: true stops that attack |
 | `world3dPickup` | pickup | cancel: true takes the pickup without its built-in effect |
+| `pvpStart`, `pvpEnd`, `pvpUpdate`, `pvpShoot`, ... | match, ... | the PvP hooks: see [PvP](#pvp), which has their table |
 
 Enemy types are named like the game's own (`"etCircle"`, `"etCube"`,
 `"etThread"`, `"etFragment"`...); `enemies.types()` lists them all.
@@ -1563,7 +1565,7 @@ a world (and stop while it is paused).
   fresh world with `resumed = true` in `world3dStart` and in the mode's
   `onStart`. Rebuild the arena there, and keep what must carry on in
   `run.data` (the wave, the score, the HP), as `arena_3d` does.
-* Gameplay hooks do not run in PvP.
+* The world3d hooks never run in PvP, which has hooks of its own (see [PvP](#pvp)).
 
 ## Shaders
 
@@ -1817,9 +1819,227 @@ replaces an example only when the game ships a newer version of it (a higher
 | `story_mode` | a story told in a mode: a cutscene, dialogue with a portrait, a blessing chosen with `ui.choose`, a choice that changes the run, a HUD card and a pause-menu action |
 | `chaos_engine` | telegraphed hazards, the camera and time on boss fights, a shop item, a roguelite patch, a survival event, a mod achievement and a Help-terminal command |
 | `content_pack` | a mod without a script: power-ups, an enemy in wave mode's roster, a shop item and a consumable from JSON files under `content/` |
+| `critical_section` | a PvP mode, Critical Section (king of the hill): lobby presets, scores and a moving zone in `match.data`, privileged rounds through `pvpShoot` and `match:spawnBullet` drawn by `pvpBulletDraw`, a blink on a mod keybind sent with `match:request` and shown everywhere with `match:broadcast`, the end decided by `pvpEnding` and `match:finish`, and its own HUD (`disableAchievements: false`) |
 
-## Multiplayer
+## PvP
 
-PvP lobbies are matched: the host refuses players whose loaded mods (ids,
-versions and every file) differ from its own. Gameplay hooks do not run in
-PvP; mod cosmetics, textures, models, sounds, text and `"screen"` shaders do.
+Mods can change PvP matches too: new rules and objectives, weapons, abilities,
+a HUD of their own, whole modes. The `critical_section` example is a complete
+one: king of the hill, with privileged rounds and a blink.
+
+### Who runs what
+
+Everyone in a PvP lobby runs the same mods: the host refuses a player whose
+loaded mods (ids, versions and every file) differ from its own. So every
+machine runs your script, but **only the host decides the match**: it moves the
+bullets, lands the hits, counts the kills and ends the match, and the clients
+are sent the result. Two kinds of hooks follow from that:
+
+* **Host hooks** change the match and fire on the host only: `pvpUpdate`,
+  `pvpShoot`, `pvpBulletUpdate`, `pvpBulletHit`, `pvpPlayerDamaged`,
+  `pvpPlayerLethal`, `pvpSpawnPoint`, `pvpPickup`, `pvpPackage`,
+  `pvpPlaceWall`, `pvpEnding` and `pvpRequest`.
+* **Every-machine hooks** draw and react, on the host and on each client:
+  `pvpStart`, `pvpEnd`, `pvpFrame`, the draw hooks, `pvpKill`, `pvpRespawn`
+  and `pvpBroadcast`. `match.isHost` tells the machines apart where it matters.
+
+What the host changes reaches every client by itself:
+
+* **The players**: position, HP and max HP, speed, damage, fire rate, bullet
+  speed, size (`radius`), walls, kills, team and the package buffs. Setting a
+  player's `x` / `y` on the host (or `match:teleport`) is a teleport: every
+  machine snaps the player there.
+* **The bullets**, with their size, damage, lifetime, colour, `kind` and `pierce`.
+* **`match.data`**, your mod's table for the match (below).
+
+Anything else a script changes stays on the machine that changed it: a client
+that sets `player.speed` only fights the host's next correction. The run side
+of the API does not exist in a match, which is not a run: no run hooks
+(`update`, `enemySpawn`, `shoot`...), no `game`, `player` or `run.data`, no
+`spawn.*`, things, statuses, camera or time. Mod cosmetics, textures, models,
+sounds, text and `"screen"` shaders all work, and every player sees everyone's
+mod ship and bullets.
+
+### PvP modes
+
+```lua
+local MODE = register.pvpmode{
+  id = "hill",
+  name = {en = "King of the Hill", es = "Rey de la Colina"},
+  description = {en = "Hold the hill to score.", es = "Ocupa la colina para puntuar."},
+  settings = {killLimit = false, timeLimit = 240, respawn = 2},
+  onStart = function(match) end,   -- every machine, right after pvpStart
+}
+```
+
+The host picks a mode in PVP.EXE's **Mode** row when hosting (the game's own
+rules are **Standard**); its name and description show over the countdown on
+every machine. Hooks fire in every match, so a mode's rules check
+`match:isMode(MODE)` (`match.mode` holds the key, `""` in a Standard match).
+
+`settings` are presets: picking the mode puts them into the lobby, and the
+host can still change them. They use the lobby's names and ranges: `hp`,
+`speed`, `damage`, `fireRate` (seconds between shots), `bulletSpeed`,
+`bulletSize`, `walls`, `killLimit`, `respawn` (seconds), `timeLimit`
+(seconds), `packages` (true / false) and `teams` (false, true, or 2 to 6
+teams). `killLimit`, `timeLimit`, `respawn` and `walls` take `false` (or 0)
+for off: with `killLimit = false` no number of kills ends the match, only the
+clock or your script does (the lobby shows it as OFF; only a mode can set it).
+Picking another mode puts the old one's presets back to the game's values. An
+unknown setting is an error that lists the names.
+
+### The match
+
+Every pvp hook gets the match. `match` is also a global, like `game` in a run.
+
+| Field | |
+|---|---|
+| `isHost` | this machine runs the match |
+| `mode` | the mode's key, `""` in a Standard match |
+| `localPlayer` | this machine's player |
+| `time`, `timeLeft` | seconds on the match clock, and left (`math.huge` with no time limit) |
+| `live`, `countdown`, `over` | playing, counting down, finished |
+| `teams`, `playerCount`, `width`, `height` | a team match; the player slots; the arena (1024 x 768) |
+| `settings` | a copy of the rules, by the names above (`hp`, `killLimit`, `teams`...) |
+| `data` | your mod's table for this match (below); the only field you can set |
+
+Players are the usual player objects (`p.hp`, `p.x`, `p.speed`, `p.kills`,
+`p.teamId`, `p:fields()`...) plus, in PvP, `p.index` (the slot, 1 to
+`playerCount`: the P1, P2... on screen), `p.name`, `p.deaths`, `p.streak`,
+`p.alive`, `p.connected` and `p.isLocal`, all read-only. Bullets add `b.owner`
+(the player who fired, or nil), `b.kind` and `b.pierce`.
+
+On every machine:
+
+* `match:players()` iterates the players still connected, alive or not:
+  `for p in match:players() do ... end`. `match:player(i)` gets one by slot.
+* `match:nearestPlayer(x, y [, maxDist [, except]])` returns the closest
+  living player.
+* `match:isMode(key)`, `match:fields()`.
+* `match:request(name [, data])` asks the host for something (below).
+* `match:toast(text [, color])`, `match:banner(text [, sub [, color]])` and
+  `match:particles(x, y [, color [, count]])` show something **on this machine
+  only** (text is `"Text"` or `{en = .., es = ..}`; broadcast to show it on
+  all of them).
+
+On the host only (a client gets an error: `match:spawnBullet() changes the
+match, which only the host does`):
+
+* `match:spawnBullet{x, y, vx, vy, owner, damage, radius, lifetime, color,
+  kind, pierce}` returns the new bullet. A bullet with an `owner` (a player)
+  never hits its owner or their teammates and counts in their accuracy; one
+  without hits everyone. `x` and `y` default to the owner's position,
+  `damage` to the owner's, `radius` to the match's bullet size, `lifetime` to 5
+  seconds. `kind` is any name you give your bullets, to draw or treat them
+  differently; `pierce` is how many players it goes through (each one once).
+  Like spawns in a run it joins at the next step of the frame, and every
+  machine sees it. An arena holds at most 512 bullets.
+* `match:removeBullet(bullet)`.
+* `match:damage(player, amount [, attacker])` hits like a bullet does:
+  FIREWALL.SYS blocks it, `pvpPlayerDamaged` sees it, and a kill counts for
+  `attacker`. `match:kill(player [, killer])` downs a player at once;
+  `match:heal(player, amount)` heals up to max HP.
+* `match:teleport(player, x, y)`: every machine snaps the player there.
+* `match:finish([winner [, reason]])` ends the match now. `winner` is a
+  player, a team (`"red"` or `"ptRed"`) or nil for a draw; `reason` (`"Text"` or
+  `{en = .., es = ..}`) is the line under the result, in each player's language.
+* `match:broadcast(name [, data])` (below).
+
+### match.data
+
+`match.data` is your mod's table for the match. The host's copy goes to every
+machine, so put there what the clients need to draw: a zone, the scores,
+cooldowns. It starts empty at each match (rematches too), goes out with the
+start signal (so it is there for the countdown), with the snapshots during
+play and with the result.
+
+* Plain data only (numbers, strings, booleans, tables), like `run.data`, up to
+  16 KB of it as JSON per mod.
+* On a client it is a copy, refilled with the host's whenever that changes.
+  Keep what a client works out for itself in your own variables.
+* The host's changes reach the clients within a snapshot (32 a second at the
+  lobby's default net quality).
+
+### Requests and broadcasts
+
+A player's machine asks the host for something with
+`match:request(name, data)`: the host's `pvpRequest(match, player, name, data)`
+hook gets it, as that player. The host tells everyone something with
+`match:broadcast(name, data)`: every machine's `pvpBroadcast(match, name, data)`
+gets it, the host's own included. That is how a key one player presses
+becomes something the host does and everyone sees:
+
+```lua
+hooks.on("pvpFrame", function(match)                  -- every machine: its own player
+  if input.bindPressed("blink") then
+    local x, y = input.mouse()
+    match:request("my_mod:blink", {x = x, y = y})
+  end
+end)
+
+hooks.on("pvpRequest", function(match, p, name, data) -- the host
+  if name ~= "my_mod:blink" or type(data) ~= "table" then return end
+  match:teleport(p, data.x, data.y)
+  match:broadcast("my_mod:flash", {x = data.x, y = data.y})
+end)
+
+hooks.on("pvpBroadcast", function(match, name, data)  -- every machine
+  if name == "my_mod:flash" then match:particles(data.x, data.y, "#64d8ff") end
+end)
+```
+
+* The host's own player uses the same path: `match:request` on the host goes
+  straight to its `pvpRequest`.
+* They arrive in order and exactly once, even over a connection that drops
+  packets (each is re-sent until the other side has it), but only during play:
+  what is sent during the countdown or on the result screen goes out when play
+  starts, and a rematch drops whatever is left of the last match.
+* A name is 1 to 64 characters (start it with your mod id); the data is plain
+  data, up to 8 KB of it as JSON.
+* A request is another machine's word: check its data before you act on it.
+
+### PvP hooks
+
+| Hook | Arguments | Runs on | Kind |
+|---|---|---|---|
+| `pvpStart` | match | every machine | event: a match (or rematch) is about to count down, with an empty `match.data`. The host places the players right after it (see `pvpSpawnPoint`) |
+| `pvpEnd` | match, winner | every machine | event: the match ended; `winner` is the player, the team's name or nil |
+| `pvpFrame` | match, dt | every machine | event: every frame of play, after the step (read your player's input here) |
+| `pvpUpdate` | match, dt | host | event: every frame of play, before the snapshot goes out |
+| `pvpDrawBackground` | match | every machine | draw in arena coordinates, on the floor under everything |
+| `pvpDrawWorld` | match | every machine | draw in arena coordinates, over everything |
+| `pvpDrawHud` | match, w, h | every machine | draw in screen coordinates, under the scoreboard, the countdown and the result |
+| `pvpPlayerDraw` | player, match | every machine | cancel: true skips the built-in body; `"all"` also skips its team ring, name and health bar |
+| `pvpBulletDraw` | bullet, match | every machine | cancel: true skips the built-in look |
+| `pvpShoot` | match, player, dirX, dirY, aimX, aimY | host | cancel: true replaces the shot (spawn your own) |
+| `pvpBulletUpdate` | bullet, dt, match | host | cancel: true skips the built-in movement (its lifetime still runs out) |
+| `pvpBulletHit` | damage, bullet, victim, match | host | filter: the damage; `false` lets the bullet fly on through |
+| `pvpPlayerDamaged` | amount, victim, attacker, match | host | filter: damage about to land (after FIREWALL.SYS), from bullets and `match:damage`; `attacker` may be nil |
+| `pvpPlayerLethal` | victim, attacker, match | host | cancel: true keeps the victim alive (set its `hp`, or it is left on 0.5) |
+| `pvpKill` | match, victim, killer | every machine | event (`killer` may be nil) |
+| `pvpRespawn` | match, player | every machine | event |
+| `pvpSpawnPoint` | match, player, x, y | host | return x, y to start or respawn the player somewhere else |
+| `pvpPickup` | match, player, kind | host | cancel: true takes the package without its effect (`kind`: `"pkChkdsk"`, `"pkFirewall"`, `"pkTurbo"`, `"pkOverclock"`, `"pkFork"`) |
+| `pvpPackage` | kind, match, power | host | filter: the package a port drops next (return another kind's name); `power` is the centre port |
+| `pvpPlaceWall` | match, player, x, y | host | cancel: true places no wall |
+| `pvpEnding` | match, reason | host | cancel: the rules are about to end the match (`"kills"`, `"time"` or `"elimination"`); true keeps it going. `"time"` is asked every frame until the match ends: call `match:finish` from it to name the winner yourself |
+| `pvpRequest` | match, player, name, data | host | a player's `match:request` |
+| `pvpBroadcast` | match, name, data | every machine | the host's `match:broadcast` |
+
+* A frame of a match runs: the network, then requests and broadcasts, then
+  this machine's own input (`pvpShoot` on the host). On the host: respawns
+  (`pvpSpawnPoint`, `pvpRespawn`), the other players' input, the time limit
+  (`pvpEnding`), the bullets (`pvpBulletUpdate`, `pvpBulletHit`, damage,
+  `pvpKill`), the packages, `pvpUpdate` and the snapshot. Last, on every
+  machine, timers and `pvpFrame`.
+* `timer.after` and `timer.every` run on the match clock during play, on the
+  machine that set them, and are cleared at each match.
+* `hud.hide` works in PvP for `"all"` (the whole match HUD: scores, clock,
+  ping, feed, walls and buffs), `"banners"` (callouts and package toasts),
+  `"vignettes"` and `"damageNumbers"`. Each match starts with everything shown.
+* `input.*` and mod keybinds work as in a run; `input.mouse()` is the arena
+  point under the cursor.
+* A mod switched off for errors on one machine is off there only; the host's
+  rules keep running everyone's match.
+* To test alone, start the game twice on one computer: host in one, and join
+  `127.0.0.1` from the other.

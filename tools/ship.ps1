@@ -99,7 +99,6 @@ function Build-Windows {
     # One WinRelease (speed) build feeds both Windows artifacts: the portable
     # zip and the installer ship the same exe.
     Use-Msvc
-    Reset-IncrementalLtcg
     Run 'nimble' @('--accept', 'WinRelease') 'nimble WinRelease'
     $exe = Join-Path $RepoRoot $WinExeName
     if (-not (Test-Path $exe)) { throw "WinRelease finished but $WinExeName was not produced." }

@@ -75,6 +75,9 @@ type
     spreadTimer*: float32      ## FORK.EXE
     modSkin*: int16            ## MODS.EXE cosmetics (index + 1, 0 = none). Lobbies are
     modBulletSkin*: int16      ## matched by mod fingerprint, so indices agree on every side.
+    radius*: float32           ## Body size (mods may change it)
+    warp*: int32               ## Teleports so far this match. A rise means "snap here now":
+                               ## a mod's teleport must not be smoothed away as drift.
 
   PortStateNet* = object
     ## One arena port. Positions are not sent: both sides derive them from the
@@ -104,6 +107,18 @@ type
     isExplosive*: bool
     isHoming*: bool
     bulletSkin*: int
+    life*: float32    ## Seconds left before it expires
+    color*: Color     ## A mod's colour (alpha 0 = the shooter's bullet skin)
+    kind*: string     ## A mod's tag for its own bullets (match:spawnBullet's kind), "" = none
+    pierce*: int32    ## Players it still passes through
+
+  ModNetMsg* = object
+    ## One mod message (match:request / match:broadcast). The sender keeps
+    ## re-sending it, piggybacked on its inputs or snapshots, until the other
+    ## side acknowledges its `seq`, so a lost datagram can't drop it.
+    seq*: int32
+    name*: string
+    data*: string     ## JSON (plain data only)
 
   WallStateNet* = object
     pos*: Vector2f
@@ -120,6 +135,8 @@ type
     bullets*: seq[BulletStateNet]
     walls*: seq[WallStateNet]
     ports*: seq[PortStateNet]
+    modMsgs*: seq[ModNetMsg]   ## Host broadcasts some client has not acknowledged yet
+    modAcks*: seq[int32]       ## Per player: the newest request seq the host has handled
 
   ConnectedPlayerInfo* = tuple[
     index: int,
@@ -136,6 +153,8 @@ type
     matchId*: int   ## Rematch generation. Receivers drop packets from an older match
                     ## (a rebroadcast ptGameOver still in flight must not end the new
                     ## one) and treat a newer one as "the host already restarted".
+    modData*: string  ## Host: mods' match.data (JSON), on game start / snapshots /
+                      ## game over; "" = not included (unchanged)
     case kind*: PacketType
     of ptConnectionRequest:
       version*: string
@@ -164,8 +183,11 @@ type
       teamAssignments*: seq[int]
       gameConnectedPlayers*: seq[ConnectedPlayerInfo]
       pvpConfig*: PvPConfig    ## Host game-settings broadcast to all clients
+      spawnPositions*: seq[Vector2f]  ## Where each player starts (a mod may move spawns)
     of ptPlayerInput:
       input*: PlayerInput
+      modMsgs*: seq[ModNetMsg]  ## This client's requests the host has not acknowledged
+      modAck*: int32            ## The newest host broadcast this client has handled
     of ptGameState:
       state*: NetworkGameState
     of ptBulletSpawn:
@@ -195,6 +217,7 @@ type
                             ## a localized reason string, which failed outside English.
       endReason*: int       ## PvPEndReason ordinal
       finalStats*: seq[PvPStatsNet]
+      endText*: string      ## A mod's own reason line (match:finish), "" = none
     of ptDisconnect:
       disconnectReason*: string
     of ptPing, ptPong:
@@ -207,6 +230,7 @@ type
       pickupPort*: int
       pickupKind*: int      ## PvPPackageKind ordinal
       pickupTaker*: int
+      pickupApplied*: bool  ## false: a mod took it in place of its effect (pvpPickup)
 
 proc newPacket*(kind: PacketType, tick: int = 0): Packet {.inline.} =
   ## Create a Packet with the given kind, tick, and current timestamp.

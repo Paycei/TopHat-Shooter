@@ -1,0 +1,9 @@
+{
+  "id": "critical_section",
+  "name": "Critical Section",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "A PvP mode: hold the critical section alone to score. The holder fires privileged rounds, and everyone can blink. Pick it in PVP.EXE when hosting.",
+  "main": "main.lua",
+  "disableAchievements": false
+}

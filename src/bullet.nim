@@ -308,6 +308,13 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       color = Color(r: 200, g: 50, b: 50, a: 255)  # Dark red for blood bullets
     elif bullet.isArcaneBullet:
       color = Color(r: 200, g: 100, b: 255, a: 255)  # Purple for arcane
+    # A mod's own colour (spawn.bullet / match:spawnBullet) wins over the skin;
+    # the game itself never gives a player shot one.
+    if bullet.colorOverride.a > 0:
+      color = bullet.colorOverride
+      glowColor = Color(r: bullet.colorOverride.r, g: bullet.colorOverride.g,
+                        b: bullet.colorOverride.b, a: 120)
+      trailColor = bullet.colorOverride
   elif bullet.isEcho:
     # Echo bullets are semi-transparent and fade out
     let fadeAlpha = uint8((bullet.lifetime / 0.5) * 150.0)  # Fade based on remaining lifetime
