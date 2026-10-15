@@ -1312,6 +1312,7 @@ proc survivalTrackerInfo*(game: Game): tuple[detail: string, frac: float32, rema
 # --- World drawing ------------------------------------------------------------------
 
 proc drawEdgeBand(game: Game, edge: int, color: Color, thickness: int32) =
+  ## A crisp band along one arena edge (0 top, 1 right, 2 bottom, 3 left).
   let w = game.screenWidth
   let h = game.screenHeight
   case edge
@@ -1320,8 +1321,23 @@ proc drawEdgeBand(game: Game, edge: int, color: Color, thickness: int32) =
   of 2: drawRectangle(0, h - thickness, w, thickness, color)
   else: drawRectangle(0, 0, thickness, h, color)
 
+proc drawEdgeGlow(game: Game, edge: int, color: Color, depth: float32) =
+  ## Light washing in from one arena edge: `color` at the edge, gone `depth` in.
+  let w = game.screenWidth.float32
+  let h = game.screenHeight.float32
+  let clear = withAlpha(color, 0'u8)
+  template v(px, py: float32): Vector2 = Vector2(x: px, y: py)
+  case edge
+  of 0: drawGradientQuad(v(0, 0), v(0, depth), v(w, depth), v(w, 0), color, clear, clear, color)
+  of 1: drawGradientQuad(v(w - depth, 0), v(w - depth, h), v(w, h), v(w, 0), clear, clear, color, color)
+  of 2: drawGradientQuad(v(0, h - depth), v(0, h), v(w, h), v(w, h - depth), clear, color, color, clear)
+  else: drawGradientQuad(v(0, 0), v(0, h), v(depth, h), v(depth, 0), color, color, clear, clear)
+
 proc drawSurvivalEventsUnder*(game: Game) =
-  ## Event telegraphs and zones, drawn under the actors.
+  ## Event telegraphs and zones, drawn under the actors: light along an edge,
+  ## rings of light round the player, a glowing upload pad, the Rogue
+  ## Process's landing beam. The sizes are the events' own (BreachRadius,
+  ## SectorRadius, the zone's radius); only how they are lit is visual.
   let ev = game.survival.event
   if ev.kind == sekNone:
     return
@@ -1329,32 +1345,49 @@ proc drawSurvivalEventsUnder*(game: Game) =
   let pulse = sin(now * 8.0'f32) * 0.5'f32 + 0.5'f32
   let color = survivalEventColor(ev.kind, ev.modKey)
   let live = ev.elapsed - ev.warmup
+  let player = Vector2(x: game.player.pos.x, y: game.player.pos.y)
   case ev.kind
   of sekNone: discard
   of sekMemoryLeak:
     if not ev.emitDone:
       let a = if live < 0: 70.0'f32 + pulse * 110.0'f32 else: 45.0'f32 + pulse * 30.0'f32
-      drawEdgeBand(game, ev.edge, withAlpha(color, int(a)), 10)
-      drawEdgeBand(game, ev.edge, withAlpha(color, int(a * 0.5'f32)), 26)
+      drawEdgeGlow(game, ev.edge, withAlpha(color, a * 0.85'f32), 72.0'f32)
+      drawEdgeGlow(game, ev.edge, withAlpha(color, a * 0.6'f32), 22.0'f32)
+      drawEdgeBand(game, ev.edge, withAlpha(color, a), 3)
   of sekFirewallBreach:
     if live < 0.5'f32:
-      let a = int(90.0'f32 + pulse * 120.0'f32)
-      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, BreachRadius,
-                      withAlpha(color, a))
-      drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, BreachRadius - 3.0'f32,
-                      withAlpha(color, a div 2))
+      let a = 90.0'f32 + pulse * 120.0'f32
+      drawGradientRing(player, BreachRadius - 26.0'f32, BreachRadius, withAlpha(color, 0'u8),
+                       withAlpha(color, a * 0.3'f32))
+      drawSoftRing(player, BreachRadius, 7.0'f32, withAlpha(color, a * 0.45'f32))
+      drawCircleOutline(player, BreachRadius, 2.0'f32, withAlpha(color, a))
+      drawDashedRing(player, BreachRadius + 6.0'f32, 1.2'f32, 24, 0.5'f32, now * 1.6'f32,
+                     withAlpha(color, a * 0.7'f32))
   of sekUploadZone:
     let inside = distance(game.player.pos, ev.zonePos) <= ev.zoneRadius
     let center = Vector2(x: ev.zonePos.x, y: ev.zonePos.y)
-    drawDisc(center, ev.zoneRadius, withAlpha(color, if inside: 60 else: 32))
-    drawCircleOutline(ev.zonePos.x.int32, ev.zonePos.y.int32, ev.zoneRadius,
-                    withAlpha(color, int(150.0'f32 + pulse * 100.0'f32)))
+    let rimA = 150.0'f32 + pulse * 100.0'f32
+    drawRadialGradient(center, ev.zoneRadius, ev.zoneRadius,
+                       withAlpha(color, if inside: 34 else: 14), withAlpha(color, if inside: 96 else: 58), reSmooth)
+    drawDashedRing(center, ev.zoneRadius - 12.0'f32, 1.2'f32, 30, 0.45'f32, -now * 0.8'f32,
+                   withAlpha(color, if inside: 120 else: 70))
+    drawSoftRing(center, ev.zoneRadius, 10.0'f32, withAlpha(color, rimA * 0.4'f32))
+    drawCircleOutline(center, ev.zoneRadius, 2.0'f32, withAlpha(color, rimA))
     # Progress arc around the rim, filling clockwise from the top.
     if ev.progress > 0.0'f32:
-      drawRing(center, ev.zoneRadius + 3.0'f32, ev.zoneRadius + 9.0'f32, -90.0'f32,
-               -90.0'f32 + 360.0'f32 * ev.progress, 48, withAlpha(color, 230))
+      let sweepEnd = -90.0'f32 + 360.0'f32 * ev.progress
+      drawRing(center, ev.zoneRadius + 1.0'f32, ev.zoneRadius + 11.0'f32, -90.0'f32, sweepEnd, 48,
+               withAlpha(color, 60))
+      drawRing(center, ev.zoneRadius + 3.0'f32, ev.zoneRadius + 9.0'f32, -90.0'f32, sweepEnd, 48,
+               withAlpha(color, 230))
+      let headA = sweepEnd * PI / 180.0'f32
+      let head = Vector2(x: center.x + cos(headA) * (ev.zoneRadius + 6.0'f32),
+                         y: center.y + sin(headA) * (ev.zoneRadius + 6.0'f32))
+      drawGlow(head, 16.0'f32, withAlpha(color, 200))
+      drawDisc(head, 3.0'f32, Color(r: 235, g: 250, b: 255, a: 240))
     let label = $int(ev.progress * 100.0'f32) & "%"
     let lw = measureText(label, 22)
+    drawText(label, ev.zonePos.x.int32 - lw div 2 + 1, ev.zonePos.y.int32 - 10, 22, Color(r: 0, g: 0, b: 0, a: 150))
     drawText(label, ev.zonePos.x.int32 - lw div 2, ev.zonePos.y.int32 - 11, 22,
              withAlpha(color, if inside: 255 else: 190))
     let name = t(tkSurvivalEventUploadZone)
@@ -1362,36 +1395,50 @@ proc drawSurvivalEventsUnder*(game: Game) =
     drawText(name, ev.zonePos.x.int32 - nw div 2, ev.zonePos.y.int32 + 14, 11,
              withAlpha(color, 200))
   of sekCorruptedSector:
-    let a = if live < 0: int(80.0'f32 + pulse * 120.0'f32) else: int(35.0'f32 + pulse * 35.0'f32)
-    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, SectorRadius,
-                    withAlpha(color, a))
+    let a = if live < 0: 80.0'f32 + pulse * 120.0'f32 else: 35.0'f32 + pulse * 35.0'f32
+    # A glitching ring: the true edge, and corrupt dashes stuttering outside it.
+    let glitch = floor(now * 12.0'f32)
+    drawGradientRing(player, SectorRadius - 22.0'f32, SectorRadius, withAlpha(color, 0'u8),
+                     withAlpha(color, a * 0.3'f32))
+    drawCircleOutline(player, SectorRadius, 1.5'f32, withAlpha(color, a))
+    drawDashedRing(player, SectorRadius + 5.0'f32, 1.4'f32, 18,
+                   0.35'f32 + 0.3'f32 * (sin(glitch * 12.9898'f32) * 0.5'f32 + 0.5'f32),
+                   glitch * 0.37'f32, withAlpha(color, a * 0.75'f32))
   of sekRogueProcess:
     if ev.spawned == 0:
       # Drop telegraph: a beam from the top of the arena onto the spawn point,
       # widening as the landing nears, over a glowing pad with rings
       # collapsing into it.
       let prog = clamp(ev.elapsed / max(0.01'f32, ev.warmup), 0.0'f32, 1.0'f32)
-      let cx = ev.zonePos.x.int32
-      let cy = ev.zonePos.y.int32
-      let beamW = int32(4.0'f32 + prog * 22.0'f32)
-      drawRectangleGradientV(cx - beamW div 2, 0, beamW, cy, withAlpha(RogueColor, 0),
-                             withAlpha(RogueColor, int(90.0'f32 + prog * 120.0'f32)))
-      drawRectangle(cx - 1, 0, 2, cy, withAlpha(WHITE, int(60.0'f32 + prog * 140.0'f32)))
-      drawCircleGradient(Vector2(x: cx.float32, y: cy.float32), 40.0'f32 + prog * 50.0'f32,
-                         withAlpha(RogueColor, int(70.0'f32 + prog * 110.0'f32)),
-                         withAlpha(RogueColor, 0))
+      let cx = ev.zonePos.x
+      let cy = ev.zonePos.y
+      let c = Vector2(x: cx, y: cy)
+      let half = 2.0'f32 + prog * 11.0'f32
+      let beam = withAlpha(RogueColor, 90.0'f32 + prog * 120.0'f32)
+      let beamTop = withAlpha(RogueColor, 0'u8)
+      let clear = withAlpha(RogueColor, 0'u8)
+      # Two halves split along mirrored diagonals, so the beam has no seam.
+      drawGradientQuad(Vector2(x: cx - half * 2.0'f32, y: 0), Vector2(x: cx - half * 2.0'f32, y: cy), c,
+                       Vector2(x: cx, y: 0), clear, clear, beam, beamTop)
+      drawGradientQuad(Vector2(x: cx + half * 2.0'f32, y: 0), Vector2(x: cx + half * 2.0'f32, y: cy), c,
+                       Vector2(x: cx, y: 0), clear, clear, beam, beamTop)
+      drawTaperedLine(Vector2(x: cx, y: 0), c, 1.0'f32, 2.0'f32,
+                      withAlpha(WHITE, 0'u8), withAlpha(WHITE, 60.0'f32 + prog * 140.0'f32))
+      drawGlow(c, 40.0'f32 + prog * 50.0'f32, withAlpha(RogueColor, 70.0'f32 + prog * 110.0'f32))
       for i in 0..2:
         let f = (ev.elapsed * 1.6'f32 + i.float32 / 3.0'f32) mod 1.0'f32
-        drawCircleOutline(cx, cy, 20.0'f32 + (1.0'f32 - f) * 170.0'f32,
-                        withAlpha(RogueColor, int(40.0'f32 + f * 200.0'f32)))
+        let rr = 20.0'f32 + (1.0'f32 - f) * 170.0'f32
+        drawSoftRing(c, rr, 5.0'f32, withAlpha(RogueColor, (40.0'f32 + f * 200.0'f32) * 0.5'f32))
+        drawCircleOutline(c, rr, withAlpha(RogueColor, 40.0'f32 + f * 200.0'f32))
       let r = 60.0'f32 - prog * 40.0'f32
-      drawCircleOutline(cx, cy, r, withAlpha(RogueColor, int(120.0'f32 + pulse * 120.0'f32)))
-      drawCircleOutline(cx, cy, r * 0.6'f32, withAlpha(RogueColor, int(80.0'f32 + pulse * 80.0'f32)))
+      drawSoftRing(c, r, 6.0'f32, withAlpha(RogueColor, (120.0'f32 + pulse * 120.0'f32) * 0.5'f32))
+      drawCircleOutline(c, r, 2.0'f32, withAlpha(RogueColor, 120.0'f32 + pulse * 120.0'f32))
+      drawCircleOutline(c, r * 0.6'f32, withAlpha(RogueColor, 80.0'f32 + pulse * 80.0'f32))
   of sekOverclock:
     # Gold heat shimmer along the arena border.
-    let a = int(25.0'f32 + pulse * 35.0'f32)
+    let a = 25.0'f32 + pulse * 35.0'f32
     for edge in 0..3:
-      drawEdgeBand(game, edge, withAlpha(color, a), 6)
+      drawEdgeGlow(game, edge, withAlpha(color, a * 1.4'f32), 46.0'f32)
   of sekMod:
     discard   # a mod event draws itself (drawWorld)
 

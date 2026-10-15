@@ -942,62 +942,98 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
       desktop.icons[i].name = getIconName(desktop.icons[i].iconType)
     desktop.icons[i].selected = (i == desktop.selectedIcon)
 
+proc v2(x, y: float32): Vector2 {.inline.} = Vector2(x: x, y: y)
+
 proc drawHexBadge(cx, cy: int32, radius: float32, fill, edge: Color, rotation: float32 = PI / 6.0) =
+  ## A hexagon plate lit from its centre, with a fine rim.
   var points: array[6, Vector2]
   for i in 0..<6:
     let angle = rotation + i.float32 * PI / 3.0
     points[i] = Vector2(x: cx.float32 + cos(angle) * radius,
                         y: cy.float32 + sin(angle) * radius)
-
-  for i in 1..<5:
-    drawTriangle(points[0], points[i], points[i + 1], fill)
+  let c = Vector2(x: cx.float32, y: cy.float32)
+  let core = Color(r: uint8((fill.r.int * 2 + edge.r.int) div 3), g: uint8((fill.g.int * 2 + edge.g.int) div 3),
+                   b: uint8((fill.b.int * 2 + edge.b.int) div 3), a: fill.a)
   for i in 0..<6:
-    let next = (i + 1) mod 6
-    drawStroke(points[i], points[next], 2, edge)
+    drawGradientTriangle(c, points[i], points[(i + 1) mod 6], core, fill, fill)
+  for i in 0..<6:
+    drawStroke(points[i], points[(i + 1) mod 6], 1.6, edge)
 
-proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
+proc iconTileRect(icon: DesktopIcon, time: float32, selected: bool): Rectangle =
+  ## The tile's rectangle this frame: the selected one breathes.
   let pulse = if selected: sin(time * 4.0) * 0.15 + 1.0 else: 1.0
   let iconSize = (ICON_SIZE.float32 * pulse).int32
-  let offsetX = if selected: (ICON_SIZE - iconSize) div 2 else: 0
-  let offsetY = if selected: (ICON_SIZE - iconSize) div 2 else: 0
-  let x = icon.x.int32 + offsetX
-  let y = icon.y.int32 + offsetY
+  let offset = if selected: (ICON_SIZE - iconSize) div 2 else: 0
+  Rectangle(x: (icon.x.int32 + offset).float32, y: (icon.y.int32 + offset).float32,
+            width: iconSize.float32, height: iconSize.float32)
+
+proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
+  ## The glass tile an icon's glyph sits on: a soft shadow, a body lit from
+  ## above with the app's colour rising from below, chamfered corners, a
+  ## crisp rim, and a scan line drifting over it. The chosen icon glows.
+  let r = iconTileRect(icon, time, selected)
+  let x = r.x
+  let y = r.y
+  let size = r.width
   let accent = icon.iconColor
-  let edge = if selected: brighten(accent, 35, accent.a.int) else: Color(r: 86, g: 104, b: 130, a: 235)
-  let topFill = if selected: Color(r: 36, g: 50, b: 70, a: 248) else: Color(r: 24, g: 32, b: 48, a: 232)
-  let bottomFill = if selected: Color(r: 18, g: 24, b: 38, a: 250) else: Color(r: 12, g: 17, b: 28, a: 238)
+  let edge = if selected: brighten(accent, 35, accent.a.int) else: Color(r: 92, g: 110, b: 138, a: 235)
+  let topFill = if selected: Color(r: 40, g: 56, b: 78, a: 248) else: Color(r: 28, g: 36, b: 54, a: 236)
+  let bottomFill = if selected: Color(r: 16, g: 22, b: 36, a: 250) else: Color(r: 11, g: 15, b: 26, a: 240)
+  let mid = Vector2(x: icon.x.float32 + ICON_SIZE.float32 * 0.5, y: icon.y.float32 + ICON_SIZE.float32 * 0.5)
 
+  drawGlow(Vector2(x: mid.x + 3.0'f32, y: mid.y + 7.0'f32), size * 0.66'f32, size * 0.62'f32,
+           Color(r: 0, g: 0, b: 0, a: 120))
   if selected:
-    drawSoftGlow(icon.x.float32 + ICON_SIZE.float32 * 0.5, icon.y.float32 + ICON_SIZE.float32 * 0.5,
-                 45.0, withAlpha(accent, 90), 0.85)
+    drawGlow(mid, 84.0'f32, withAlpha(accent, 175))
 
-  drawRectangle(x + 5, y + 7, iconSize, iconSize, Color(r: 0, g: 0, b: 0, a: 95))
-  drawRectangleGradientV(x, y, iconSize, iconSize, topFill, bottomFill)
+  drawGradientQuad(v2(x, y), v2(x, y + size), v2(x + size, y + size), v2(x + size, y),
+                   topFill, bottomFill, bottomFill, topFill)
+  # The app's colour rising from the bottom edge, like light under glass.
+  drawGradientQuad(v2(x, y + size * 0.45'f32), v2(x, y + size), v2(x + size, y + size), v2(x + size, y + size * 0.45'f32),
+                   withAlpha(accent, 0), withAlpha(accent, if selected: 56 else: 32),
+                   withAlpha(accent, if selected: 56 else: 32), withAlpha(accent, 0))
 
   # Chamfered, glassy corners keep the OS look without needing image assets.
-  let cut = max(7'i32, iconSize div 8)
+  let cut = max(7.0'f32, size / 8.0'f32)
   let darkCorner = Color(r: 7, g: 10, b: 18, a: 230)
-  drawTriangle(Vector2(x: x.float32, y: y.float32),
-               Vector2(x: (x + cut).float32, y: y.float32),
-               Vector2(x: x.float32, y: (y + cut).float32), darkCorner)
-  drawTriangle(Vector2(x: (x + iconSize).float32, y: (y + iconSize).float32),
-               Vector2(x: (x + iconSize - cut).float32, y: (y + iconSize).float32),
-               Vector2(x: (x + iconSize).float32, y: (y + iconSize - cut).float32), darkCorner)
+  drawGradientTriangle(v2(x, y), v2(x + cut, y), v2(x, y + cut), darkCorner, darkCorner, darkCorner)
+  drawGradientTriangle(v2(x + size, y + size), v2(x + size - cut, y + size), v2(x + size, y + size - cut),
+                       darkCorner, darkCorner, darkCorner)
+  drawStroke(v2(x + cut, y), v2(x, y + cut), 1.4, withAlpha(edge, 140))
+  drawStroke(v2(x + size - cut, y + size), v2(x + size, y + size - cut), 1.4, withAlpha(edge, 140))
 
-  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
-                                width: iconSize.float32, height: iconSize.float32), 2, edge)
-  drawStroke(Vector2(x: (x + 7).float32, y: (y + 5).float32),
-           Vector2(x: (x + iconSize - 11).float32, y: (y + 5).float32),
-           2, Color(r: 205, g: 245, b: 255, a: if selected: 150 else: 72))
-  drawStroke(Vector2(x: (x + 5).float32, y: (y + iconSize - 7).float32),
-           Vector2(x: (x + iconSize - 8).float32, y: (y + iconSize - 7).float32),
-           1, withAlpha(accent, if selected: 175 else: 95))
+  # Rim: the chosen tile's has a soft glow round it.
+  if selected:
+    for (a, b) in [(v2(x + cut, y), v2(x + size, y)), (v2(x + size, y), v2(x + size, y + size - cut)),
+                   (v2(x + size - cut, y + size), v2(x, y + size)), (v2(x, y + size), v2(x, y + cut))]:
+      drawGlowLine(a, b, 9.0'f32, withAlpha(accent, 90))
+  drawStroke(v2(x + cut, y + 1), v2(x + size, y + 1), 2, edge)
+  drawStroke(v2(x + size - 1, y), v2(x + size - 1, y + size - cut), 2, edge)
+  drawStroke(v2(x + size - cut, y + size - 1), v2(x, y + size - 1), 2, edge)
+  drawStroke(v2(x + 1, y + size), v2(x + 1, y + cut), 2, edge)
+  # A fine catch-light along the top, and the accent along the bottom.
+  drawTaperedLine(v2(x + cut + 2, y + 4), v2(x + size - 6, y + 4), 1.4, 1.4,
+                  Color(r: 205, g: 245, b: 255, a: if selected: 170 else: 90), Color(r: 205, g: 245, b: 255, a: 0))
+  drawTaperedLine(v2(x + 5, y + size - 6), v2(x + size - cut - 2, y + size - 6), 1.2, 1.2,
+                  withAlpha(accent, 0), withAlpha(accent, if selected: 190 else: 105))
 
-  let scanY = y + 12 + int32((sin(time * 2.4 + icon.iconType.int.float32) * 0.5 + 0.5) * (iconSize.float32 - 24.0))
-  drawRectangle(x + 8, scanY, iconSize - 16, 2,
-                withAlpha(accent, if selected: 92 else: 38))
+  let scanY = y + 12.0'f32 + (sin(time * 2.4 + icon.iconType.int.float32) * 0.5 + 0.5) * (size - 24.0'f32)
+  drawGlowLine(v2(x + 8, scanY), v2(x + size - 8, scanY), 6.0'f32, withAlpha(accent, if selected: 70 else: 30))
+  drawStroke(v2(x + 8, scanY), v2(x + size - 8, scanY), 1.0'f32, withAlpha(accent, if selected: 110 else: 46))
 
-proc v2(x, y: float32): Vector2 {.inline.} = Vector2(x: x, y: y)
+proc drawIconGloss(icon: DesktopIcon, time: float32, selected: bool) =
+  ## Glass over the glyph: a sheen across the top of the tile, cut on a
+  ## diagonal, so tile and glyph read as one polished button.
+  let r = iconTileRect(icon, time, selected)
+  let x = r.x + 2.0'f32
+  let y = r.y + 2.0'f32
+  let size = r.width - 4.0'f32
+  let shine = Color(r: 255, g: 255, b: 255, a: if selected: 52 else: 36)
+  let clear = Color(r: 255, g: 255, b: 255, a: 0)
+  drawGradientQuad(v2(x + 6, y), v2(x, y + 6), v2(x, y + size * 0.44'f32), v2(x + size, y + size * 0.2'f32),
+                   shine, shine, clear, clear)
+  drawGradientTriangle(v2(x + 6, y), v2(x + size, y + size * 0.2'f32), v2(x + size, y), shine, clear, shine)
+
 
 proc drawIconTri(a, b, c: Vector2, col: Color) =
   ## Winding-safe triangle. raylib culls back faces, so a triangle whose points
@@ -1027,8 +1063,10 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
   let accent = icon.iconColor
   let bright = brighten(accent, 55, accent.a.int)
   let dim = brighten(accent, -(45), accent.a.int)
-  drawHexBadge(centerX, centerY, 22.0, Color(r: 8, g: 14, b: 24, a: 160),
-               withAlpha(accent, 120),
+  drawGlow(Vector2(x: centerX.float32, y: centerY.float32), 30.0'f32,
+           withAlpha(accent, if selected: 72 else: 40))
+  drawHexBadge(centerX, centerY, 22.0, Color(r: 8, g: 14, b: 24, a: 170),
+               withAlpha(accent, if selected: 120 else: 80),
                PI / 6.0 + time * 0.08)
 
   case icon.iconType
@@ -1421,6 +1459,8 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let tagY = icon.y.int32 + ICON_SIZE - 12
     drawRectangle(tagX, tagY, 24, 10, Color(r: 8, g: 14, b: 24, a: 215))
     drawText("MOD", tagX + 3, tagY + 1, 8, bright)
+
+  drawIconGloss(icon, time, selected)
 
   # Locked overlay for modes that are gated by progression
   var isLocked = false

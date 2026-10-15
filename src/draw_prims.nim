@@ -253,6 +253,45 @@ proc drawGradientRing*(center: Vector2, innerRadius, outerRadius: float32,
   drawGradientRing(center, innerRadius, innerRadius, outerRadius, outerRadius,
                    innerColor, outerColor)
 
+proc drawSoftRing*(center: Vector2, radius, halfWidth: float32, color: Color) =
+  ## A ring of light: `color` on `radius`, fading to nothing `halfWidth`
+  ## either side of it.
+  drawGradientRing(center, max(0.0'f32, radius - halfWidth), radius, clearOf(color), color)
+  drawGradientRing(center, radius, radius + halfWidth, color, clearOf(color))
+
+proc drawFadeStroke*(a, b: Vector2, width: float32, color: Color) =
+  ## A line that fades in from `a`, is brightest halfway and fades out at `b`.
+  let m = Vector2(x: (a.x + b.x) * 0.5'f32, y: (a.y + b.y) * 0.5'f32)
+  drawTaperedLine(a, m, width, width, clearOf(color), color)
+  drawTaperedLine(m, b, width, width, color, clearOf(color))
+
+proc drawBandArc*(center: Vector2, innerRadius, outerRadius, startAngle, endAngle: float32,
+                  edgeColor, midColor: Color) =
+  ## A ring band from `startAngle` to `endAngle` (radians), `edgeColor` along
+  ## its two edges and `midColor` through its middle: a zone of light whose
+  ## crisp edges show exactly where it starts and ends.
+  let segs = max(6, int(abs(endAngle - startAngle) / (PI.float32 * 2.0'f32) * 80.0'f32))
+  let rMid = (innerRadius + outerRadius) * 0.5'f32
+  template at(r, a: float32): Vector2 = Vector2(x: center.x + cos(a) * r, y: center.y + sin(a) * r)
+  shapesQuads:
+    for i in 0 ..< segs:
+      let t0 = startAngle + (endAngle - startAngle) * i.float32 / segs.float32
+      let t1 = startAngle + (endAngle - startAngle) * (i + 1).float32 / segs.float32
+      emitQuad(at(innerRadius, t0), at(rMid, t0), at(rMid, t1), at(innerRadius, t1),
+               edgeColor, midColor, midColor, edgeColor)
+      emitQuad(at(rMid, t0), at(outerRadius, t0), at(outerRadius, t1), at(rMid, t1),
+               midColor, edgeColor, edgeColor, midColor)
+
+proc drawDashedRing*(center: Vector2, radius, halfWidth: float32, dashes: int,
+                     fill, phase: float32, color: Color) =
+  ## A ring cut into `dashes` arcs, each covering `fill` (0..1) of its slot,
+  ## turned by `phase` radians.
+  let slot = 360.0'f32 / max(1, dashes).float32
+  let turn = phase * 180.0'f32 / PI.float32
+  for k in 0 ..< dashes:
+    let start = k.float32 * slot + turn
+    drawRing(center, radius - halfWidth, radius + halfWidth, start, start + slot * fill, 4, color)
+
 # ---------------------------------------------------------------------------
 # Lines
 # ---------------------------------------------------------------------------

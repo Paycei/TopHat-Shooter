@@ -6978,20 +6978,21 @@ proc drawGame*(game: Game) =
     let beatScale = 1.0 + beatWave * (0.06 + lowHpLevel * 0.10)
     let lowHpMaxAlpha = lowHpLevel * 62.0 * beatScale
     let maxInset = 140.0 * (1.0 + beatWave * (0.03 + lowHpLevel * 0.04))
-    for band in 0..7:
-      let bandT = band.float32 / 7.0
-      let inset = int32(bandT * maxInset)
-      let bandAlpha = uint8(lowHpMaxAlpha * (1.0 - bandT) * 0.85)
-      if bandAlpha == 0:
-        continue
-
-      let bandRect = Rectangle(
-        x: inset.float32,
-        y: inset.float32,
-        width: max(0, fullVw - inset * 2).float32,
-        height: max(0, fullVh - inset * 2).float32
-      )
-      drawRectOutline(bandRect, 3, Color(r: 255, g: 0, b: 0, a: bandAlpha))
+    # Red light washing in from every edge, fading to nothing at maxInset: the
+    # old stack of 3px outlines read as stripes.
+    let edgeRed = Color(r: 255, g: 0, b: 0, a: clampByteF(lowHpMaxAlpha * 0.7))
+    let clearRed = Color(r: 255, g: 0, b: 0, a: 0)
+    let fw = fullVw.float32
+    let fh = fullVh.float32
+    let d = min(maxInset.float32, min(fw, fh) * 0.5'f32)
+    drawGradientQuad(Vector2(x: 0, y: 0), Vector2(x: 0, y: fh), Vector2(x: d, y: fh), Vector2(x: d, y: 0),
+                     edgeRed, edgeRed, clearRed, clearRed)
+    drawGradientQuad(Vector2(x: fw - d, y: 0), Vector2(x: fw - d, y: fh), Vector2(x: fw, y: fh), Vector2(x: fw, y: 0),
+                     clearRed, clearRed, edgeRed, edgeRed)
+    drawGradientQuad(Vector2(x: 0, y: 0), Vector2(x: 0, y: d), Vector2(x: fw, y: d), Vector2(x: fw, y: 0),
+                     edgeRed, clearRed, clearRed, edgeRed)
+    drawGradientQuad(Vector2(x: 0, y: fh - d), Vector2(x: 0, y: fh), Vector2(x: fw, y: fh), Vector2(x: fw, y: fh - d),
+                     clearRed, edgeRed, edgeRed, clearRed)
 
   # Full-screen red vignette when alertLevel > 0
   if game.osBackground.alertLevel > 0 and not hudHidden(hpVignettes):

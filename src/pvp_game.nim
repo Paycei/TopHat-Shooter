@@ -5,6 +5,7 @@ import raylib, rlgl, math, times, strutils, sequtils, algorithm, random
 import draw_prims
 from std/unicode import nil   # toUpper for accented team names, without its split/strip overloads
 import types, player, bullet, wall, particle, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, ui/background_fx, d_systems, modding/mod_assets
+from ui/os_background import drawArenaFloor
 
 const
   PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
@@ -3286,47 +3287,9 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
   scalef(worldViewScale, worldViewScale, 1.0'f32)
   applyTextFilterFor(worldViewScale)   # keeps shrunken world labels legible
 
-  drawSharedBackdrop(pvp.screenWidth, pvp.screenHeight, pvp.gameTime * 0.8,
-                     Color(r: 5, g: 7, b: 16, a: 255),
-                     Color(r: 18, g: 15, b: 30, a: 255),
-                     Color(r: 34, g: 42, b: 68, a: 36),
-                     Color(r: 92, g: 116, b: 168, a: 76),
-                     withAlpha(accentColor, 58),
-                     0.62, 0.68)
-  let arenaCenterX = pvp.screenWidth.float32 * 0.5
-  let arenaCenterY = pvp.screenHeight.float32 * 0.5
-  let arenaPulse = sin(pvp.gameTime * 0.9) * 0.5 + 0.5
-  let arenaRadius = min(pvp.screenWidth, pvp.screenHeight).float32 * 0.38
-  drawSoftGlow(arenaCenterX, arenaCenterY, arenaRadius * 0.9,
-               withAlpha(accentColor, 28), 0.88)
-  drawSoftGlow(pvp.screenWidth.float32 * 0.2, pvp.screenHeight.float32 * 0.22,
-               arenaRadius * 0.55, Color(r: 90, g: 105, b: 255, a: 26), 0.55)
-  drawSoftGlow(pvp.screenWidth.float32 * 0.82, pvp.screenHeight.float32 * 0.78,
-               arenaRadius * 0.58, Color(r: 0, g: 235, b: 175, a: 24), 0.5)
-
-  for i in 0..3:
-    let r = arenaRadius * (0.44 + i.float32 * 0.17)
-    let alpha = uint8(26 + i * 9 + int(arenaPulse * 16.0))
-    drawCircleOutline(arenaCenterX.int32, arenaCenterY.int32, r,
-                    withAlpha(accentColor, alpha))
-    let angle = pvp.gameTime * (0.34 + i.float32 * 0.06) + i.float32 * PI * 0.48
-    drawDisc(Vector2(x: arenaCenterX + cos(angle) * r,
-                       y: arenaCenterY + sin(angle) * r),
-               2.8 + i.float32 * 0.35, Color(r: 230, g: 250, b: 255, a: 148))
-
-  for i in 0..<10:
-    let angle = i.float32 * PI / 5.0
-    let inner = arenaRadius * 0.25
-    let outer = arenaRadius * 1.05
-    drawStroke(Vector2(x: arenaCenterX + cos(angle) * inner, y: arenaCenterY + sin(angle) * inner),
-             Vector2(x: arenaCenterX + cos(angle) * outer, y: arenaCenterY + sin(angle) * outer),
-             1, withAlpha(accentColor, if i mod 2 == 0: 48'u8 else: 26'u8))
-
-  for i in 0..<6:
-    let t = (i.float32 - 2.5) / 2.5
-    drawStroke(Vector2(x: arenaCenterX - arenaRadius * 1.04, y: arenaCenterY + t * arenaRadius * 0.82),
-             Vector2(x: arenaCenterX + arenaRadius * 1.04, y: arenaCenterY + t * arenaRadius * 1.08),
-             1, withAlpha(accentColor, 24))
+  # The same floor as every PvE arena, lit in the local player's team colour.
+  drawArenaFloor(pvp.screenWidth, pvp.screenHeight, pvp.gameTime, accentColor,
+                 tinted = pvp.teamsEnabled)
 
   # Draw arena bounds
   drawRectOutline(
