@@ -9,7 +9,7 @@
 # Lua's number semantics (NaN keys are errors, exact integer/float
 # conversions) need IEEE math: the release tasks' /fp:fast and -ffast-math are
 # undone for these files only.
-when defined(vcc):
+when defined(vcc) or defined(clang_cl):  # clang-cl ignores -fno-fast-math
   const LuaCFlags = "/fp:precise"
 else:
   const LuaCFlags = "-fno-fast-math"
