@@ -81,6 +81,179 @@ proc drawDisc*(centerX, centerY: int32, radius: float32, color: Color) =
   drawDisc(Vector2(x: centerX.float32, y: centerY.float32), radius, color)
 
 # ---------------------------------------------------------------------------
+# Gradients and glows
+#
+# Light drawn as a stack of translucent discs bands: every disc's rim is a
+# visible step. These blend per vertex instead, so a glow fades to nothing
+# without contour lines and a lit surface rolls off smoothly. They are quads
+# on the shapes texture, in the same batch as every other fill here.
+# ---------------------------------------------------------------------------
+
+type
+  RadialEase* = enum
+    reLinear  ## a straight blend from the centre colour to the rim colour
+    reSmooth  ## smoothstep: a lit dome that rolls off toward the rim
+    reGlow    ## light: a bright core, a long soft tail, gone exactly at the rim
+
+proc lerpRgba(a, b: Color, t: float32): Color {.inline.} =
+  template ch(x, y: uint8): uint8 =
+    uint8(clamp(x.float32 + (y.float32 - x.float32) * t + 0.5'f32, 0.0'f32, 255.0'f32))
+  Color(r: ch(a.r, b.r), g: ch(a.g, b.g), b: ch(a.b, b.b), a: ch(a.a, b.a))
+
+proc clearOf(c: Color): Color {.inline.} = Color(r: c.r, g: c.g, b: c.b, a: 0)
+
+proc easeAt(ease: RadialEase, t: float32): float32 {.inline.} =
+  case ease
+  of reLinear: t
+  of reSmooth: t * t * (3.0'f32 - 2.0'f32 * t)
+  of reGlow:
+    # One minus a Gaussian, rescaled so the light reaches exactly 0 at the rim.
+    const K = 3.6'f32
+    let e0 = exp(-K)
+    1.0'f32 - (exp(-K * t * t) - e0) / (1.0'f32 - e0)
+
+template shapesQuads(body: untyped) =
+  ## Open a quads batch on the shapes texture; `quadVtx` emits one corner.
+  let shapesTex = shapesTextureView()
+  let shapesRec = getShapesTextureRectangle()
+  let shapesU {.inject.} = (shapesRec.x + shapesRec.width * 0.5'f32) / shapesTex.width.float32
+  let shapesV {.inject.} = (shapesRec.y + shapesRec.height * 0.5'f32) / shapesTex.height.float32
+  setTexture(shapesTex.id)
+  rlBegin(Quads)
+  body
+  rlEnd()
+  setTexture(0)
+
+template quadVtx(px, py: float32, c: Color) =
+  color4ub(c.r, c.g, c.b, c.a)
+  texCoord2f(shapesU, shapesV)
+  vertex2f(px, py)
+
+template emitQuad(p0, p1, p2, p3: Vector2, c0, c1, c2, c3: Color) =
+  ## One convex quad in either winding: rlgl culls back faces, and raylib's
+  ## front face has a negative signed area in screen space (y down).
+  let area = (p0.x * p1.y - p1.x * p0.y) + (p1.x * p2.y - p2.x * p1.y) +
+             (p2.x * p3.y - p3.x * p2.y) + (p3.x * p0.y - p0.x * p3.y)
+  if area > 0.0'f32:
+    quadVtx(p0.x, p0.y, c0); quadVtx(p3.x, p3.y, c3)
+    quadVtx(p2.x, p2.y, c2); quadVtx(p1.x, p1.y, c1)
+  else:
+    quadVtx(p0.x, p0.y, c0); quadVtx(p1.x, p1.y, c1)
+    quadVtx(p2.x, p2.y, c2); quadVtx(p3.x, p3.y, c3)
+
+proc drawGradientQuad*(p0, p1, p2, p3: Vector2, c0, c1, c2, c3: Color) =
+  ## A convex quad, corners in order around it (either winding), its colour
+  ## blended between the corners' colours.
+  shapesQuads:
+    emitQuad(p0, p1, p2, p3, c0, c1, c2, c3)
+
+proc drawGradientTriangle*(p0, p1, p2: Vector2, c0, c1, c2: Color) =
+  ## A triangle in either winding, its colour blended between its corners'.
+  shapesQuads:
+    emitQuad(p0, p1, p2, p2, c0, c1, c2, c2)
+
+proc drawTaperedLine*(a, b: Vector2, widthA, widthB: float32, colorA, colorB: Color) =
+  ## A stroke that changes width and colour along its length: comet tails,
+  ## light rays, star spikes. Flat ends, like drawStroke.
+  let dx = b.x - a.x
+  let dy = b.y - a.y
+  let len = sqrt(dx * dx + dy * dy)
+  if len <= 0.0'f32: return
+  let nx = -dy / len
+  let ny = dx / len
+  let ha = widthA * 0.5'f32
+  let hb = widthB * 0.5'f32
+  shapesQuads:
+    emitQuad(Vector2(x: a.x - nx * ha, y: a.y - ny * ha), Vector2(x: a.x + nx * ha, y: a.y + ny * ha),
+             Vector2(x: b.x + nx * hb, y: b.y + ny * hb), Vector2(x: b.x - nx * hb, y: b.y - ny * hb),
+             colorA, colorA, colorB, colorB)
+
+proc drawGlowLine*(a, b: Vector2, width: float32, color: Color) =
+  ## A soft neon stroke: `color` along the segment, fading to nothing
+  ## `width / 2` either side of it.
+  let dx = b.x - a.x
+  let dy = b.y - a.y
+  let len = sqrt(dx * dx + dy * dy)
+  if len <= 0.0'f32 or width <= 0.0'f32: return
+  let nx = -dy / len * width * 0.5'f32
+  let ny = dx / len * width * 0.5'f32
+  let clear = clearOf(color)
+  shapesQuads:
+    emitQuad(Vector2(x: a.x - nx, y: a.y - ny), a, b, Vector2(x: b.x - nx, y: b.y - ny),
+             clear, color, color, clear)
+    emitQuad(a, Vector2(x: a.x + nx, y: a.y + ny), Vector2(x: b.x + nx, y: b.y + ny), b,
+             color, clear, clear, color)
+
+proc drawRadialGradient*(center: Vector2, radiusX, radiusY: float32,
+                         inner, outer: Color, ease = reSmooth, rings = 0) =
+  ## A filled ellipse blending from `inner` at its centre to `outer` at its
+  ## rim along `ease`. `rings` (0 = the ease's default) sets how many bands
+  ## approximate the curve; the colour is continuous across every band.
+  if radiusX <= 0.0'f32 or radiusY <= 0.0'f32:
+    return
+  let scale = drawScale()
+  let segs = segmentsAt(max(radiusX, radiusY), scale)
+  # A small glow needs few bands to look smooth; a screen-sized one needs nine.
+  let px = max(radiusX, radiusY) * scale
+  let bands = if rings > 0: rings
+              else: (case ease
+                     of reLinear: 1
+                     of reSmooth: (if px < 24.0'f32: 3 elif px < 80.0'f32: 4 else: 6)
+                     of reGlow: (if px < 16.0'f32: 3 elif px < 48.0'f32: 5
+                                 elif px < 140.0'f32: 7 else: 9))
+  var cs, sn: array[65, float32]
+  for i in 0 .. segs:
+    let a = i.float32 / segs.float32 * (PI.float32 * 2.0'f32)
+    cs[i] = cos(a)
+    sn[i] = sin(a)
+  shapesQuads:
+    var t0 = 0.0'f32
+    var c0 = inner
+    for k in 1 .. bands:
+      let t1 = k.float32 / bands.float32
+      let c1 = lerpRgba(inner, outer, easeAt(ease, t1))
+      for i in 0 ..< segs:
+        # drawRing's corner order (outer, inner, inner next, outer next): front-facing.
+        quadVtx(center.x + cs[i] * radiusX * t1, center.y + sn[i] * radiusY * t1, c1)
+        quadVtx(center.x + cs[i] * radiusX * t0, center.y + sn[i] * radiusY * t0, c0)
+        quadVtx(center.x + cs[i + 1] * radiusX * t0, center.y + sn[i + 1] * radiusY * t0, c0)
+        quadVtx(center.x + cs[i + 1] * radiusX * t1, center.y + sn[i + 1] * radiusY * t1, c1)
+      t0 = t1
+      c0 = c1
+
+proc drawGlow*(center: Vector2, radius: float32, color: Color) =
+  ## Soft light: `color` (its alpha is the peak) at the centre, fading
+  ## smoothly to nothing at `radius`.
+  drawRadialGradient(center, radius, radius, color, clearOf(color), reGlow)
+
+proc drawGlow*(center: Vector2, radiusX, radiusY: float32, color: Color) =
+  ## An elliptical drawGlow.
+  drawRadialGradient(center, radiusX, radiusY, color, clearOf(color), reGlow)
+
+proc drawGradientRing*(center: Vector2, innerRX, innerRY, outerRX, outerRY: float32,
+                       innerColor, outerColor: Color) =
+  ## An elliptical band whose colour blends from its inner edge to its outer
+  ## edge: a rim of light, a halo that starts away from its source.
+  if outerRX <= 0.0'f32 or outerRY <= 0.0'f32:
+    return
+  let segs = segmentsAt(max(outerRX, outerRY), drawScale())
+  shapesQuads:
+    for i in 0 ..< segs:
+      let a0 = i.float32 / segs.float32 * (PI.float32 * 2.0'f32)
+      let a1 = (i + 1).float32 / segs.float32 * (PI.float32 * 2.0'f32)
+      let (c0, s0) = (cos(a0), sin(a0))
+      let (c1, s1) = (cos(a1), sin(a1))
+      quadVtx(center.x + c0 * outerRX, center.y + s0 * outerRY, outerColor)
+      quadVtx(center.x + c0 * innerRX, center.y + s0 * innerRY, innerColor)
+      quadVtx(center.x + c1 * innerRX, center.y + s1 * innerRY, innerColor)
+      quadVtx(center.x + c1 * outerRX, center.y + s1 * outerRY, outerColor)
+
+proc drawGradientRing*(center: Vector2, innerRadius, outerRadius: float32,
+                       innerColor, outerColor: Color) =
+  drawGradientRing(center, innerRadius, innerRadius, outerRadius, outerRadius,
+                   innerColor, outerColor)
+
+# ---------------------------------------------------------------------------
 # Lines
 # ---------------------------------------------------------------------------
 

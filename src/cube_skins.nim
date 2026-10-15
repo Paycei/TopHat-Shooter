@@ -1,5 +1,5 @@
 ## Cube Skin System
-## Defines colour themes for the interactive 3-D cube on the OS desktop
+## Defines colour themes for the interactive 3-D cube on the OS desktop (drawn by cube_render.nim)
 
 import raylib
 import localization
@@ -78,7 +78,7 @@ proc initializeCubeSkins*() =
     glowColor: Color(r: 244, g: 130, b: 160, a: 180))
 
   # Jack-O'-Node: a pumpkin-orange gourd; the carved face glows like candlelight
-  # (the carved features are drawn on one fixed side in os_desktop's wallpaper-cube renderer).
+  # (the carved features are drawn on one fixed side by cube_render.nim).
   cubeSkinDatabase[cskJack] = CubeSkinData(
     name: t("csk_jack"), description: t("csk_jack_desc"),
     faceColor: Color(r: 235, g: 110, b: 15,  a: 255),
@@ -86,7 +86,7 @@ proc initializeCubeSkins*() =
     glowColor: Color(r: 255, g: 140, b: 0,   a: 180))
 
   # Cyberdeck: a neon duotone, cyan body, hot-magenta edges, cyan glow; the
-  # holographic HUD panel on each face is drawn in os_desktop's cube renderer.
+  # holographic HUD panel on each face is drawn by cube_render.nim.
   cubeSkinDatabase[cskCyber] = CubeSkinData(
     name: t("csk_cyber"), description: t("csk_cyber_desc"),
     faceColor: Color(r: 20,  g: 120, b: 150, a: 255),
@@ -94,7 +94,7 @@ proc initializeCubeSkins*() =
     glowColor: Color(r: 80,  g: 245, b: 255, a: 180))
 
   # Lucky Die: a classic white die with clean light edges; the dark pips (1..6,
-  # opposite faces summing to 7) are drawn per face in os_desktop's cube renderer.
+  # opposite faces summing to 7) are drawn per face by cube_render.nim.
   cubeSkinDatabase[cskDice] = CubeSkinData(
     name: t("csk_dice"), description: t("csk_dice_desc"),
     faceColor: Color(r: 236, g: 237, b: 242, a: 255),
@@ -103,7 +103,7 @@ proc initializeCubeSkins*() =
 
   # Dragon's Fang: a true 20-sided icosahedron (not a painted cube) tying into
   # the Dragon's Lair background - obsidian faces, antique-gold facet edges,
-  # ember glow. Geometry + numerals are drawn in os_desktop's cube renderer.
+  # ember glow. Geometry + numerals are drawn by cube_render.nim.
   cubeSkinDatabase[cskD20] = CubeSkinData(
     name: t("csk_d20"), description: t("csk_d20_desc"),
     faceColor: Color(r: 20,  g: 17,  b: 22,  a: 255),

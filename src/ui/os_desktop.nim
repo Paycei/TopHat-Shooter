@@ -4,7 +4,7 @@
 import raylib, rlgl, math, strutils, strformat, times, tables
 import ../draw_prims
 from std/unicode import runeAt, toUpper, `$`
-import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../particle_types, ../utils
+import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../cube_render, ../utils
 import ../modding/[mod_assets, mod_hooks]
 import ui_theme
 
@@ -1571,767 +1571,15 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   drawText(t(tkDesktopNet), (indicatorX + 16).int32, (clockY + 3).int32, 12,
           uiInk(150, 150, 150))
 
-type
-  WallpaperCubePoint = object
-    x, y, z: float32
-
-  WallpaperCubeFace = object
-    corners: array[4, int]
-    depth: float32
-    color: Color
-
-proc rotateWallpaperCubePoint(point: WallpaperCubePoint,
-                              angleX, angleY, angleZ: float32): WallpaperCubePoint =
-  let sinX = sin(angleX)
-  let cosX = cos(angleX)
-  let sinY = sin(angleY)
-  let cosY = cos(angleY)
-  let sinZ = sin(angleZ)
-  let cosZ = cos(angleZ)
-
-  var x = point.x
-  var y = point.y * cosX - point.z * sinX
-  var z = point.y * sinX + point.z * cosX
-
-  let yRotX = x * cosY + z * sinY
-  z = -x * sinY + z * cosY
-  x = yRotX
-
-  let zRotX = x * cosZ - y * sinZ
-  y = x * sinZ + y * cosZ
-  x = zRotX
-
-  WallpaperCubePoint(x: x, y: y, z: z)
-
-proc projectWallpaperCubePoint(point: WallpaperCubePoint,
-                               centerX, centerY, scale: float32): Vector2 =
-  let cameraDistance = 4.2'f32
-  let depth = max(1.35'f32, cameraDistance - point.z)
-  let perspective = cameraDistance / depth
-  Vector2(
-    x: centerX + point.x * scale * perspective,
-    y: centerY + point.y * scale * perspective
-  )
-
-proc drawWallpaperCubeFace(points: array[8, Vector2], face: WallpaperCubeFace) =
-  let a = points[face.corners[0]]
-  let b = points[face.corners[1]]
-  let c = points[face.corners[2]]
-  let d = points[face.corners[3]]
-  drawTriangle(a, b, c, face.color)
-  drawTriangle(a, c, d, face.color)
-
-proc drawTriangleBothWindings(a, b, c: Vector2, color: Color) =
-  ## Filled triangles are winding-sensitive when backface culling is active,
-  ## and the winding of face-local geometry flips as the cube tumbles, emit
-  ## both orders so the triangle can never be culled away.
-  drawTriangle(a, b, c, color)
-  drawTriangle(a, c, b, color)
-
-# Fixed light in MODEL space, shared by every wallpaper-solid renderer: because
-# it rotates with the solid, dotting it with a face's own (model-space) normal
-# gives a brightness that is constant per face, the shading is baked onto each
-# side and never tracks the camera.
-const
-  LightDirX = 0.442'f32
-  LightDirY = -0.694'f32
-  LightDirZ = 0.568'f32
-
-const
-  D20InvPhi = 0.6180339887'f32 ## 1/phi: scales the classic (0,+-1,+-phi)
-    ## icosahedron vertices so every vertex's largest axis component reaches
-    ## exactly 1, matching the unit cube's own reach at the same `size`.
-  D20Verts: array[12, WallpaperCubePoint] = [
-    WallpaperCubePoint(x: -D20InvPhi, y:  1.0'f32,    z:  0.0'f32),
-    WallpaperCubePoint(x:  D20InvPhi, y:  1.0'f32,    z:  0.0'f32),
-    WallpaperCubePoint(x: -D20InvPhi, y: -1.0'f32,    z:  0.0'f32),
-    WallpaperCubePoint(x:  D20InvPhi, y: -1.0'f32,    z:  0.0'f32),
-    WallpaperCubePoint(x:  0.0'f32,   y: -D20InvPhi,  z:  1.0'f32),
-    WallpaperCubePoint(x:  0.0'f32,   y:  D20InvPhi,  z:  1.0'f32),
-    WallpaperCubePoint(x:  0.0'f32,   y: -D20InvPhi,  z: -1.0'f32),
-    WallpaperCubePoint(x:  0.0'f32,   y:  D20InvPhi,  z: -1.0'f32),
-    WallpaperCubePoint(x:  1.0'f32,   y:  0.0'f32,    z: -D20InvPhi),
-    WallpaperCubePoint(x:  1.0'f32,   y:  0.0'f32,    z:  D20InvPhi),
-    WallpaperCubePoint(x: -1.0'f32,   y:  0.0'f32,    z: -D20InvPhi),
-    WallpaperCubePoint(x: -1.0'f32,   y:  0.0'f32,    z:  D20InvPhi)
-  ]
-  ## Standard indexed icosahedron face list (12 verts / 20 tri faces / 30
-  ## edges, Euler check: 12 - 30 + 20 = 2).
-  D20Faces: array[20, array[3, int]] = [
-    [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
-    [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
-    [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
-    [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]
-  ]
-  ## Face -> die value, indexed the same as D20Faces. A regular icosahedron is
-  ## centrally symmetric (face i's antipode is another face in this list), so
-  ## values are assigned in antipodal pairs summing to 21, exactly like a real
-  ## D20 (and this skin's own Lucky Die, whose pips sum to 7 on opposite faces).
-  D20FaceNumbers: array[20, int] = [
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 18, 19, 20, 16, 12, 11, 15, 14, 13
-  ]
-  D20Edges: array[30, array[2, int]] = [
-    [0, 11], [5, 11], [0, 5],  [1, 5],  [0, 1],  [1, 7],  [0, 7],  [7, 10], [0, 10], [10, 11],
-    [5, 9],  [1, 9],  [4, 11], [4, 5],  [2, 10], [2, 11], [6, 7],  [6, 10], [1, 8],  [7, 8],
-    [3, 9],  [4, 9],  [3, 4],  [2, 4],  [2, 3],  [2, 6],  [3, 6],  [6, 8],  [3, 8],  [8, 9]
-  ]
-  ## For each entry in D20Edges, the two faces from D20Faces that share it.
-  ## Lets the edge pass draw each edge exactly once: visible if either adjacent
-  ## face is front-facing (silhouette edges included, pure back-face edges skipped).
-  D20EdgeFaces: array[30, array[2, int]] = [
-    [0, 4],  [0, 6],  [0, 1],  [1, 5],  [1, 2],  [2, 9],  [2, 3],  [3, 8],  [3, 4],  [4, 7],
-    [5, 15], [5, 19], [6, 16], [6, 15], [7, 17], [7, 16], [8, 18], [8, 17], [9, 19], [9, 18],
-    [10, 14],[10, 15],[10, 11],[11, 16],[11, 12],[12, 17],[12, 13],[13, 18],[13, 14],[14, 19]
-  ]
-
-type
-  D20Face = object
-    corners: array[3, int]
-    idx: int
-    depth: float32
-    nx, ny, nz: float32
-    color: Color
-
-proc drawD20WallpaperCube(centerX, centerY, size, time,
-                          angleX, angleY, angleZ: float32, skinData: CubeSkinData) =
-  ## Dragon's Fang: a real icosahedron standing in for the wallpaper cube, not
-  ## a paint job on the cube's 8-vert/6-face geometry. Reuses the cube's point
-  ## rotate/project helpers (shape-agnostic) but needs its own face/edge
-  ## tables and a painter's-algorithm sort sized for 20 faces instead of 6.
-  var rotated: array[12, WallpaperCubePoint]
-  var projected: array[12, Vector2]
-  for i in 0 ..< 12:
-    rotated[i] = rotateWallpaperCubePoint(D20Verts[i], angleX, angleY, angleZ)
-    projected[i] = projectWallpaperCubePoint(rotated[i], centerX, centerY, size)
-
-  var faces: array[20, D20Face]
-  for i in 0 ..< 20:
-    var avgZ = 0.0'f32
-    var nX = 0.0'f32
-    var nY = 0.0'f32
-    var nZ = 0.0'f32
-    for corner in D20Faces[i]:
-      avgZ += rotated[corner].z
-      nX += D20Verts[corner].x
-      nY += D20Verts[corner].y
-      nZ += D20Verts[corner].z
-    avgZ /= 3.0'f32
-    # A facet's averaged corners point the same way as its outward normal (true
-    # for any face of any solid centred at the origin) but, unlike the cube's
-    # axis-aligned faces, aren't already unit length, normalise before using
-    # this as a light direction.
-    let nLen = sqrt(nX * nX + nY * nY + nZ * nZ)
-    if nLen > 0.0001'f32:
-      nX /= nLen; nY /= nLen; nZ /= nLen
-    let light = clamp((nX * LightDirX + nY * LightDirY + nZ * LightDirZ) * 0.5'f32 + 0.5'f32,
-                      0.0'f32, 1.0'f32)
-    # Opaque, like the Lucky Die: a real gemstone, not cube glass. The base
-    # colour is near-black, so lean on the edge colour (gold) for the lit
-    # facets rather than a flat multiply, or the shading would barely show.
-    let baseC = skinData.faceColor
-    let hiC = skinData.edgeColor
-    faces[i] = D20Face(
-      corners: D20Faces[i],
-      idx: i,
-      depth: avgZ,
-      nx: nX, ny: nY, nz: nZ,
-      color: Color(
-        r: uint8(clamp(baseC.r.float32 + light * (hiC.r.float32 - baseC.r.float32) * 0.45'f32, 0.0'f32, 255.0'f32)),
-        g: uint8(clamp(baseC.g.float32 + light * (hiC.g.float32 - baseC.g.float32) * 0.45'f32, 0.0'f32, 255.0'f32)),
-        b: uint8(clamp(baseC.b.float32 + light * (hiC.b.float32 - baseC.b.float32) * 0.45'f32, 0.0'f32, 255.0'f32)),
-        a: 255
-      )
-    )
-
-  for pass in 0 ..< faces.len:
-    for i in 0 ..< (faces.len - 1):
-      if faces[i].depth > faces[i + 1].depth:
-        swap(faces[i], faces[i + 1])
-
-  let edgeColor = Color(r: skinData.edgeColor.r, g: skinData.edgeColor.g,
-                        b: skinData.edgeColor.b, a: 230)
-  let innerEdgeColor = Color(r: skinData.glowColor.r, g: skinData.glowColor.g,
-                             b: skinData.glowColor.b, a: 110)
-
-  var isFrontFacingByIdx: array[20, bool]
-  for face in faces:
-    let fn = WallpaperCubePoint(x: face.nx, y: face.ny, z: face.nz)
-    let rn = rotateWallpaperCubePoint(fn, angleX, angleY, angleZ)
-    isFrontFacingByIdx[face.idx] = rn.z > 0.0'f32
-
-  # Edge pass FIRST: the opaque fills drawn below cover all interior edge glow,
-  # leaving only the true silhouette boundary visible. Drawing edges last caused
-  # the 2.4px glow halo to bleed outside the filled area at every face vertex.
-  for i in 0 ..< 30:
-    if isFrontFacingByIdx[D20EdgeFaces[i][0]] or isFrontFacingByIdx[D20EdgeFaces[i][1]]:
-      drawStroke(projected[D20Edges[i][0]], projected[D20Edges[i][1]], 2.4'f32, innerEdgeColor)
-      drawStroke(projected[D20Edges[i][0]], projected[D20Edges[i][1]], 1.0'f32, edgeColor)
-
-  const SevenSeg: array[10, array[7, bool]] = [
-    [true,  true,  true,  true,  true,  true,  false], # 0: a b c d e f
-    [false, true,  true,  false, false, false, false], # 1: b c
-    [true,  true,  false, true,  true,  false, true ], # 2: a b d e g
-    [true,  true,  true,  true,  false, false, true ], # 3: a b c d g
-    [false, true,  true,  false, false, true,  true ], # 4: b c f g
-    [true,  false, true,  true,  false, true,  true ], # 5: a c d f g
-    [true,  false, true,  true,  true,  true,  true ], # 6: a c d e f g
-    [true,  true,  true,  false, false, false, false], # 7: a b c
-    [true,  true,  true,  true,  true,  true,  true ], # 8: all
-    [true,  true,  true,  true,  false, true,  true ]  # 9: a b c d f g
-  ]
-  const dHw = 0.115'f32
-  const dHh = 0.185'f32
-  const dDc = dHw + 0.03'f32
-
-  # Horizontal centre of a seven-seg glyph's actual INK (not its nominal cell).
-  # The left column (-hw) is inked by segments a,d,e,f,g and the right column
-  # (+hw) by a,b,c,d,g, so "1" (only b,c) lives entirely in the right column and
-  # its ink centre is +hw. Centring the cell would leave "1" jammed against the
-  # cartouche's right edge (and every tens digit of 10-19 is a "1"); offsetting
-  # by -inkCentre lands the drawn strokes on the face centre instead.
-  proc inkCentreU(digit: int, hw: float32): float32 =
-    let s = SevenSeg[digit]
-    let left  = s[0] or s[3] or s[4] or s[5] or s[6]
-    let right = s[0] or s[1] or s[2] or s[3] or s[6]
-    let uMin = (if left: -hw else: hw)
-    let uMax = (if right: hw else: -hw)
-    (uMin + uMax) * 0.5'f32
-
-  # Single painter's-order pass: draw each face's fill then immediately its
-  # numeral, so a nearer face's fill correctly occludes a farther face's
-  # numeral in the overlap region (same principle as the cube skin decorations).
-  for face in faces:
-    drawTriangleBothWindings(projected[face.corners[0]], projected[face.corners[1]],
-                             projected[face.corners[2]], face.color)
-    if not isFrontFacingByIdx[face.idx]:
-      continue
-    let fc3d = WallpaperCubePoint(
-      x: (rotated[face.corners[0]].x + rotated[face.corners[1]].x + rotated[face.corners[2]].x) / 3.0'f32,
-      y: (rotated[face.corners[0]].y + rotated[face.corners[1]].y + rotated[face.corners[2]].y) / 3.0'f32,
-      z: (rotated[face.corners[0]].z + rotated[face.corners[1]].z + rotated[face.corners[2]].z) / 3.0'f32)
-    let fcScreen = projectWallpaperCubePoint(fc3d, centerX, centerY, size)
-
-    # Inset triangular bevels and a dark cartouche make the D20 read as an
-    # engraved tabletop die rather than flat numbered facets.
-    let insetA = Vector2(
-      x: projected[face.corners[0]].x * 0.82'f32 + fcScreen.x * 0.18'f32,
-      y: projected[face.corners[0]].y * 0.82'f32 + fcScreen.y * 0.18'f32)
-    let insetB = Vector2(
-      x: projected[face.corners[1]].x * 0.82'f32 + fcScreen.x * 0.18'f32,
-      y: projected[face.corners[1]].y * 0.82'f32 + fcScreen.y * 0.18'f32)
-    let insetC = Vector2(
-      x: projected[face.corners[2]].x * 0.82'f32 + fcScreen.x * 0.18'f32,
-      y: projected[face.corners[2]].y * 0.82'f32 + fcScreen.y * 0.18'f32)
-    drawStroke(insetA, insetB, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
-    drawStroke(insetB, insetC, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
-    drawStroke(insetC, insetA, 1.3'f32, withAlpha(innerEdgeColor, 120'u8))
-    drawStroke(insetA, insetB, 0.55'f32, withAlpha(edgeColor, 185'u8))
-    drawStroke(insetB, insetC, 0.55'f32, withAlpha(edgeColor, 185'u8))
-    drawStroke(insetC, insetA, 0.55'f32, withAlpha(edgeColor, 185'u8))
-
-    let n = WallpaperCubePoint(x: face.nx, y: face.ny, z: face.nz)
-    var refAxis: WallpaperCubePoint
-    if abs(n.y) < 0.5'f32:
-      refAxis = WallpaperCubePoint(x: 0.0'f32, y: -1.0'f32, z: 0.0'f32)
-    else:
-      refAxis = WallpaperCubePoint(x: 0.0'f32, y: 0.0'f32, z: 1.0'f32)
-    let nDotRef = n.x * refAxis.x + n.y * refAxis.y + n.z * refAxis.z
-    var tanUp = WallpaperCubePoint(
-      x: refAxis.x - nDotRef * n.x,
-      y: refAxis.y - nDotRef * n.y,
-      z: refAxis.z - nDotRef * n.z)
-    let tanUpLen = sqrt(tanUp.x * tanUp.x + tanUp.y * tanUp.y + tanUp.z * tanUp.z)
-    tanUp = WallpaperCubePoint(x: tanUp.x / tanUpLen, y: tanUp.y / tanUpLen,
-                               z: tanUp.z / tanUpLen)
-    let right3d = WallpaperCubePoint(
-      x: n.y * tanUp.z - n.z * tanUp.y,
-      y: n.z * tanUp.x - n.x * tanUp.z,
-      z: n.x * tanUp.y - n.y * tanUp.x)
-    let rUp = rotateWallpaperCubePoint(tanUp, angleX, angleY, angleZ)
-    let rRight = rotateWallpaperCubePoint(right3d, angleX, angleY, angleZ)
-    let rightEnd = projectWallpaperCubePoint(
-      WallpaperCubePoint(x: fc3d.x + rRight.x, y: fc3d.y + rRight.y, z: fc3d.z + rRight.z),
-      centerX, centerY, size)
-    let upEnd = projectWallpaperCubePoint(
-      WallpaperCubePoint(x: fc3d.x + rUp.x, y: fc3d.y + rUp.y, z: fc3d.z + rUp.z),
-      centerX, centerY, size)
-    let sRx = rightEnd.x - fcScreen.x
-    let sRy = rightEnd.y - fcScreen.y
-    let sUx = upEnd.x - fcScreen.x
-    let sUy = upEnd.y - fcScreen.y
-    # Anchor the numeral/cartouche at the on-screen centroid of the projected
-    # triangle, NOT at project(centroid3d). A perspective divide preserves
-    # cross-ratios, not centroids, so projecting the 3D face center lands biased
-    # toward the nearer vertices; on a tilted facet that pushes the number
-    # visibly off-centre. The mean of the three projected corners is the true
-    # visual centre of the drawn triangle, so the glyph reads centred at every
-    # tilt (and is a no-op on face-on facets, where the two points coincide).
-    let anchorX = (projected[face.corners[0]].x + projected[face.corners[1]].x +
-                   projected[face.corners[2]].x) / 3.0'f32
-    let anchorY = (projected[face.corners[0]].y + projected[face.corners[1]].y +
-                   projected[face.corners[2]].y) / 3.0'f32
-    template fp(u, v: float32): Vector2 =
-      Vector2(x: anchorX + sRx * (u) + sUx * (v),
-              y: anchorY + sRy * (u) + sUy * (v))
-    const CartSeg = 18
-    # A true circle in face space (equal u/v radius): it projects to the correctly
-    # foreshortened ellipse when the facet is tilted, but reads as a round token
-    # face-on rather than a permanently squashed oval. Sized to clear the digit
-    # bounding box (corner ~0.22 single / ~0.32 two-digit) with a small margin.
-    let cartR = if D20FaceNumbers[face.idx] < 10: 0.26'f32 else: 0.36'f32
-    # Fan apex sits on the same anchor as the rim (fp's origin), shared with the
-    # ink-centred numeral, so the disc stays centred on the number on every facet.
-    let cartCentre = fp(0.0'f32, 0.0'f32)
-    var prevCart = fp(cartR, 0.0'f32)
-    for c in 1 .. CartSeg:
-      let ang = c.float32 / CartSeg.float32 * PI * 2.0'f32
-      let curCart = fp(cos(ang) * cartR, sin(ang) * cartR)
-      drawTriangleBothWindings(cartCentre, prevCart, curCart, Color(r: 5, g: 4, b: 6, a: 82))
-      drawStroke(prevCart, curCart, 0.65'f32, withAlpha(edgeColor, 115'u8))
-      prevCart = curCart
-    template drawDigit(digit: int, du, dv, hw, hh: float32) =
-      let seg = SevenSeg[digit]
-      if seg[0]:
-        drawStroke(fp(du - hw, dv + hh), fp(du + hw, dv + hh), 2.2'f32, innerEdgeColor)
-        drawStroke(fp(du - hw, dv + hh), fp(du + hw, dv + hh), 1.0'f32, edgeColor)
-      if seg[1]:
-        drawStroke(fp(du + hw, dv), fp(du + hw, dv + hh), 2.2'f32, innerEdgeColor)
-        drawStroke(fp(du + hw, dv), fp(du + hw, dv + hh), 1.0'f32, edgeColor)
-      if seg[2]:
-        drawStroke(fp(du + hw, dv - hh), fp(du + hw, dv), 2.2'f32, innerEdgeColor)
-        drawStroke(fp(du + hw, dv - hh), fp(du + hw, dv), 1.0'f32, edgeColor)
-      if seg[3]:
-        drawStroke(fp(du - hw, dv - hh), fp(du + hw, dv - hh), 2.2'f32, innerEdgeColor)
-        drawStroke(fp(du - hw, dv - hh), fp(du + hw, dv - hh), 1.0'f32, edgeColor)
-      if seg[4]:
-        drawStroke(fp(du - hw, dv - hh), fp(du - hw, dv), 2.2'f32, innerEdgeColor)
-        drawStroke(fp(du - hw, dv - hh), fp(du - hw, dv), 1.0'f32, edgeColor)
-      if seg[5]:
-        drawStroke(fp(du - hw, dv), fp(du - hw, dv + hh), 2.2'f32, innerEdgeColor)
-        drawStroke(fp(du - hw, dv), fp(du - hw, dv + hh), 1.0'f32, edgeColor)
-      if seg[6]:
-        drawStroke(fp(du - hw, dv), fp(du + hw, dv), 2.2'f32, innerEdgeColor)
-        drawStroke(fp(du - hw, dv), fp(du + hw, dv), 1.0'f32, edgeColor)
-    let value = D20FaceNumbers[face.idx]
-    if value < 10:
-      drawDigit(value, -inkCentreU(value, dHw), 0.0'f32, dHw, dHh)
-    else:
-      let tens = value div 10
-      let ones = value mod 10
-      drawDigit(tens, -dDc - inkCentreU(tens, dHw), 0.0'f32, dHw, dHh)
-      drawDigit(ones,  dDc - inkCentreU(ones, dHw), 0.0'f32, dHw, dHh)
-
-proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
-                                   angleX, angleY, angleZ: float32,
-                                   skin: CubeSkinType = cskDefault,
-                                   glowBoost: float32 = 0.0'f32) =
-  const
-    CubeFaces: array[6, array[4, int]] = [
-      [0, 1, 2, 3],
-      [4, 7, 6, 5],
-      [0, 4, 5, 1],
-      [3, 2, 6, 7],
-      [1, 5, 6, 2],
-      [0, 3, 7, 4]
-    ]
-    CubeEdges: array[12, array[2, int]] = [
-      [0, 1], [1, 2], [2, 3], [3, 0],
-      [4, 5], [5, 6], [6, 7], [7, 4],
-      [0, 4], [1, 5], [2, 6], [3, 7]
-    ]
-
-  let cx = centerX
-  let cy = centerY
-  let pulse = sin(time * 0.72'f32) * 0.5'f32 + 0.5'f32
-
-  drawSoftGlow(cx, cy, size * 2.15'f32,
-               Color(r: 0, g: 210, b: 255, a: uint8(34.0'f32 + pulse * 16.0'f32)), 0.6)
-  drawDisc(Vector2(x: cx, y: cy), size * 1.36'f32,
-             Color(r: 0, g: 180, b: 225, a: 18))
-
-  for i in 0..<5:
-    let orbitAngle = time * (0.18'f32 + i.float32 * 0.018'f32) + i.float32 * PI * 0.42'f32
-    let orbitRadius = size * (1.42'f32 + i.float32 * 0.09'f32)
-    let moteX = cx + cos(orbitAngle) * orbitRadius
-    let moteY = cy + sin(orbitAngle * 0.78'f32) * orbitRadius * 0.28'f32
-    drawDisc(Vector2(x: moteX, y: moteY), 1.3'f32 + i.float32 * 0.12'f32,
-               Color(r: 170, g: 250, b: 255, a: uint8(58 + i * 12)))
-
-  if skin == cskD20:
-    # A D20 is a different solid entirely (12 verts/20 tri faces), not a paint
-    # job on the cube's 8-vert/6-face geometry, hand off to its own renderer
-    # rather than threading icosahedron cases through every branch below that
-    # assumes a 6-faced cube (CubeFaces/CubeEdges, the "last 3 faces are
-    # camera-facing" trick, etc).
-    drawD20WallpaperCube(cx, cy, size, time, angleX, angleY, angleZ, getCubeSkinData(skin))
-    return
-
-  var base: array[8, WallpaperCubePoint]
-  base[0] = WallpaperCubePoint(x: -1.0, y: -1.0, z: -1.0)
-  base[1] = WallpaperCubePoint(x:  1.0, y: -1.0, z: -1.0)
-  base[2] = WallpaperCubePoint(x:  1.0, y:  1.0, z: -1.0)
-  base[3] = WallpaperCubePoint(x: -1.0, y:  1.0, z: -1.0)
-  base[4] = WallpaperCubePoint(x: -1.0, y: -1.0, z:  1.0)
-  base[5] = WallpaperCubePoint(x:  1.0, y: -1.0, z:  1.0)
-  base[6] = WallpaperCubePoint(x:  1.0, y:  1.0, z:  1.0)
-  base[7] = WallpaperCubePoint(x: -1.0, y:  1.0, z:  1.0)
-
-  var rotated: array[8, WallpaperCubePoint]
-  var projected: array[8, Vector2]
-  for i in 0..<8:
-    rotated[i] = rotateWallpaperCubePoint(base[i], angleX, angleY, angleZ)
-    projected[i] = projectWallpaperCubePoint(rotated[i], cx, cy, size)
-
-  var faces: array[6, WallpaperCubeFace]
-  var useCustomSkin = skin != cskDefault
-  var skinDataLocal: CubeSkinData
-  if useCustomSkin:
-    skinDataLocal = getCubeSkinData(skin)
-
-  for i in 0..<6:
-    var avgZ = 0.0'f32
-    var nX = 0.0'f32
-    var nY = 0.0'f32
-    var nZ = 0.0'f32
-    for corner in CubeFaces[i]:
-      avgZ += rotated[corner].z
-      nX += base[corner].x
-      nY += base[corner].y
-      nZ += base[corner].z
-    avgZ /= 4.0'f32          # still drives the painter's-algorithm depth sort
-    # Averaging a face's 4 base corners yields its centre = its unit normal (the
-    # cube is centred at the origin and axis-aligned), so no normalisation needed.
-    nX *= 0.25'f32; nY *= 0.25'f32; nZ *= 0.25'f32
-
-    let light = clamp((nX * LightDirX + nY * LightDirY + nZ * LightDirZ) * 0.5'f32 + 0.5'f32,
-                      0.0'f32, 1.0'f32)
-    if skin == cskDice:
-      # A real die is a solid object, not glass: opaque faces, cleanly shaded per
-      # baked side so the cube reads as a solid white body the pips sit on.
-      let sh = 0.72'f32 + light * 0.28'f32
-      faces[i] = WallpaperCubeFace(
-        corners: CubeFaces[i],
-        depth: avgZ,
-        color: Color(
-          r: uint8(clamp(236.0'f32 * sh, 0.0'f32, 255.0'f32)),
-          g: uint8(clamp(237.0'f32 * sh, 0.0'f32, 255.0'f32)),
-          b: uint8(clamp(242.0'f32 * sh, 0.0'f32, 255.0'f32)),
-          a: 255
-        )
-      )
-    elif not useCustomSkin:
-      faces[i] = WallpaperCubeFace(
-        corners: CubeFaces[i],
-        depth: avgZ,
-        color: Color(
-          r: uint8(18.0'f32 + light * 42.0'f32),
-          g: uint8(116.0'f32 + light * 92.0'f32),
-          b: uint8(168.0'f32 + light * 70.0'f32),
-          a: uint8(84.0'f32 + light * 86.0'f32)
-        )
-      )
-    else:
-      let base = skinDataLocal.faceColor
-      let hi = skinDataLocal.edgeColor
-      let glow = skinDataLocal.glowColor
-      let rVal = base.r.float32 + light * (hi.r.float32 - base.r.float32) * 0.35'f32
-      let gVal = base.g.float32 + light * (hi.g.float32 - base.g.float32) * 0.35'f32
-      let bVal = base.b.float32 + light * (hi.b.float32 - base.b.float32) * 0.35'f32
-      let aVal = base.a.float32 * 0.5'f32 + light * (glow.a.float32 * 0.5'f32)
-      faces[i] = WallpaperCubeFace(
-        corners: CubeFaces[i],
-        depth: avgZ,
-        color: Color(
-          r: uint8(clamp(rVal, 0.0'f32, 255.0'f32)),
-          g: uint8(clamp(gVal, 0.0'f32, 255.0'f32)),
-          b: uint8(clamp(bVal, 0.0'f32, 255.0'f32)),
-          a: uint8(clamp(aVal, 0.0'f32, 255.0'f32))
-        )
-      )
-
-  for pass in 0..<faces.len:
-    for i in 0..<(faces.len - 1):
-      if faces[i].depth > faces[i + 1].depth:
-        swap(faces[i], faces[i + 1])
-
-  for face in faces:
-    drawWallpaperCubeFace(projected, face)
-
-  var edgeColor = Color(r: 190, g: 250, b: 255, a: 220)
-  var innerEdgeColor = Color(r: 0, g: 215, b: 255, a: 100)
-  if skin != cskDefault:
-    edgeColor = withAlpha(skinDataLocal.edgeColor, 220)
-    innerEdgeColor = withAlpha(skinDataLocal.glowColor, 100)
-  if skin == cskCompanion:
-    # The real Companion Cube keeps its color in the hearts only, the edge
-    # channels are recessed dark grey, not glowing pink.
-    innerEdgeColor = Color(r: 90, g: 93, b: 104, a: 130)
-  for edge in CubeEdges:
-    drawStroke(projected[edge[0]], projected[edge[1]], 4, innerEdgeColor)
-    drawStroke(projected[edge[0]], projected[edge[1]], 1.5, edgeColor)
-
-  # Companion Cube skin: the Weighted Companion Cube look, a soft-pink heart
-  # on a light disc at the center of every visible face. Faces were depth-sorted
-  # above, so the last three are the camera-facing ones; each decoration is
-  # drawn in its face's projected basis so it foreshortens and tracks the face
-  # as the cube tumbles.
-  if skin == cskCompanion or skin == cskJack or skin == cskCyber or skin == cskDice:
-    let firstFace = if skin == cskJack: 1 else: 3
-    let lastFace = if skin == cskJack: 1 else: 5
-    for fi in firstFace .. lastFace:
-      let c0 = (if skin == cskJack: CubeFaces[fi][0] else: faces[fi].corners[0])
-      let c1 = (if skin == cskJack: CubeFaces[fi][1] else: faces[fi].corners[1])
-      let c2 = (if skin == cskJack: CubeFaces[fi][2] else: faces[fi].corners[2])
-      let c3 = (if skin == cskJack: CubeFaces[fi][3] else: faces[fi].corners[3])
-      # Build a *canonical* tangent frame for the heart instead of reading it
-      # off the face's corner winding (which differs per face, so the hearts
-      # used to point every which way). The face normal in cube space is just
-      # the face centre (the cube is centred at the origin), an axis unit vector.
-      let n = WallpaperCubePoint(
-        x: (base[c0].x + base[c1].x + base[c2].x + base[c3].x) * 0.25'f32,
-        y: (base[c0].y + base[c1].y + base[c2].y + base[c3].y) * 0.25'f32,
-        z: (base[c0].z + base[c1].z + base[c2].z + base[c3].z) * 0.25'f32)
-      # Choose a consistent "up". Screen-up is world -Y in this projection (the
-      # cube uses a y-down basis), so the four side faces take up = -Y: their
-      # hearts all sit upright and point toward the cube's top ring. The
-      # top/bottom faces (normal ±Y) have no in-plane vertical, so they fall
-      # back to +Z, tying into that ring. right = up x normal keeps a uniform
-      # handedness, so a camera-facing face always projects to a positive area.
-      var up3d: WallpaperCubePoint
-      if abs(n.y) < 0.5'f32:
-        up3d = WallpaperCubePoint(x: 0.0'f32, y: -1.0'f32, z: 0.0'f32)
-      else:
-        up3d = WallpaperCubePoint(x: 0.0'f32, y: 0.0'f32, z: 1.0'f32)
-      let right3d = WallpaperCubePoint(
-        x: up3d.y * n.z - up3d.z * n.y,
-        y: up3d.z * n.x - up3d.x * n.z,
-        z: up3d.x * n.y - up3d.y * n.x)
-
-      # Rotate the tangents with the cube and project them as screen vectors, so
-      # the heart stays painted on (foreshortens, attached) while keeping its
-      # consistent orientation. Each tangent is a unit cube axis = one face
-      # half-edge, so the projected basis matches the heart's previous size.
-      let rUp = rotateWallpaperCubePoint(up3d, angleX, angleY, angleZ)
-      let rRight = rotateWallpaperCubePoint(right3d, angleX, angleY, angleZ)
-      let fc3d = WallpaperCubePoint(
-        x: (rotated[c0].x + rotated[c1].x + rotated[c2].x + rotated[c3].x) * 0.25'f32,
-        y: (rotated[c0].y + rotated[c1].y + rotated[c2].y + rotated[c3].y) * 0.25'f32,
-        z: (rotated[c0].z + rotated[c1].z + rotated[c2].z + rotated[c3].z) * 0.25'f32)
-      let fcScreen = projectWallpaperCubePoint(fc3d, cx, cy, size)
-      let rightEnd = projectWallpaperCubePoint(
-        WallpaperCubePoint(x: fc3d.x + rRight.x, y: fc3d.y + rRight.y, z: fc3d.z + rRight.z),
-        cx, cy, size)
-      let upEnd = projectWallpaperCubePoint(
-        WallpaperCubePoint(x: fc3d.x + rUp.x, y: fc3d.y + rUp.y, z: fc3d.z + rUp.z),
-        cx, cy, size)
-      let sRx = rightEnd.x - fcScreen.x
-      let sRy = rightEnd.y - fcScreen.y
-      let sUx = upEnd.x - fcScreen.x
-      let sUy = upEnd.y - fcScreen.y
-
-      # Back-face cull. The cube body is translucent, so most skins only draw on
-      # the camera-facing side. Jack is intentionally exempt so the carved face
-      # still reads through the cube when that side rotates away.
-      if skin != cskJack and sRx * sUy - sRy * sUx <= 0.0'f32:
-        continue
-
-      if skin == cskJack:
-        # Jack-O'-Node: carve a glowing face into one fixed side. Features are
-        # laid out in the face-local (right, up) basis so they foreshorten and
-        # ride the cube as it tumbles, exactly like the Companion heart.
-        template fp(u, v: float32): Vector2 =
-          Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
-                  y: fcScreen.y + sRy * (u) + sUy * (v))
-        # Spinning the pumpkin on the Kernel Panic background fans the candle:
-        # glowBoost (0..1) brightens the bloom and warms the carved features toward
-        # a fierce white-hot grin. Stays baked per-face (no screen-space halo).
-        let gb = clamp(glowBoost, 0.0'f32, 1.0'f32)
-        let glowMul = 1.0'f32 + gb * 3.6'f32
-        let candle = Color(r: 255,
-                           g: uint8(min(255.0'f32, 225.0'f32 + gb * 30.0'f32)),
-                           b: uint8(min(255.0'f32, 120.0'f32 + gb * 125.0'f32)), a: 255)
-        # Candlelight baked onto the face: concentric translucent discs drawn in
-        # the face's own (right, up) plane via fp(), so the bloom foreshortens and
-        # rides each side like the carving (a screen-space glow looked detached
-        # and floated off the cube as it tumbled). Layered large->small, deep
-        # orange at the rim to bright candle at the core; the overlap stacks into
-        # a soft radial falloff. Gently flickers. Drawn before the opaque features
-        # so they stay crisp on top.
-        # Flicker harder the more it is fanned, so a charged jack visibly seethes.
-        let flick = (0.74'f32 + 0.26'f32 * sin(time * 6.3'f32 + fi.float32 * 1.7'f32)) *
-                    (1.0'f32 + gb * 0.35'f32 * sin(time * 13.0'f32 + fi.float32))
-        const GlowRings = 9
-        const GlowSeg = 24
-        for g in 0 ..< GlowRings:
-          let gf = g.float32 / GlowRings.float32
-          let rr = 0.95'f32 * (1.0'f32 - gf)
-          let gc = Color(r: 255,
-                         g: uint8(135.0'f32 + gf * 105.0'f32),
-                         b: uint8(20.0'f32 + gf * 95.0'f32),
-                         a: uint8(min(255.0'f32, (12.0'f32 + gf * 12.0'f32) * flick * glowMul)))
-          var prevG = fp(rr, 0.0'f32)
-          for s in 1 .. GlowSeg:
-            let ang = s.float32 / GlowSeg.float32 * PI * 2.0'f32
-            let curG = fp(cos(ang) * rr, sin(ang) * rr)
-            drawTriangleBothWindings(fcScreen, prevG, curG, gc)
-            prevG = curG
-        # Two triangular eyes and a small triangular nose.
-        drawTriangleBothWindings(fp(-0.34'f32, 0.32'f32), fp(-0.12'f32, 0.32'f32),
-                                 fp(-0.23'f32, 0.10'f32), candle)
-        drawTriangleBothWindings(fp(0.12'f32, 0.32'f32), fp(0.34'f32, 0.32'f32),
-                                 fp(0.23'f32, 0.10'f32), candle)
-        drawTriangleBothWindings(fp(-0.08'f32, 0.06'f32), fp(0.08'f32, 0.06'f32),
-                                 fp(0.0'f32, -0.07'f32), candle)
-        # Toothy grin: a smiling band whose lower edge zigzags into teeth.
-        const MTeeth = 6
-        var prevTop, prevBot: Vector2
-        for i in 0 .. MTeeth:
-          let f = i.float32 / MTeeth.float32
-          let u = -0.40'f32 + 0.80'f32 * f
-          let smile = (u / 0.40'f32) * (u / 0.40'f32)         # 0 centre, 1 corners
-          let vTop = -0.16'f32 - 0.14'f32 * (1.0'f32 - smile) # corners ride up
-          let vBot = vTop - (if i mod 2 == 0: 0.12'f32 else: 0.05'f32)
-          let curTop = fp(u, vTop)
-          let curBot = fp(u, vBot)
-          if i > 0:
-            drawTriangleBothWindings(prevTop, curTop, prevBot, candle)
-            drawTriangleBothWindings(curTop, curBot, prevBot, candle)
-          prevTop = curTop
-          prevBot = curBot
-        continue
-
-      if skin == cskCyber:
-        # Cyberdeck: a holographic HUD panel projected on each face, a baked
-        # cyan glow, an inset neon frame with magenta corner brackets, scanline
-        # ticks, and a pulsing centre node. Drawn in the face's (right,up) basis
-        # via fp() so it foreshortens and rides the face like a real projection.
-        template fp(u, v: float32): Vector2 =
-          Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
-                  y: fcScreen.y + sRy * (u) + sUy * (v))
-        let cyan = Color(r: 80, g: 245, b: 255, a: 255)
-        let mag  = Color(r: 255, g: 60,  b: 200, a: 255)
-        let pulseC = 0.6'f32 + 0.4'f32 * sin(time * 3.0'f32 + fi.float32 * 2.0'f32)
-        # Baked cyan hologram glow (concentric discs, large->small, stacked).
-        const CRings = 7
-        const CSeg = 22
-        for g in 0 ..< CRings:
-          let gf = g.float32 / CRings.float32
-          let rr = 0.85'f32 * (1.0'f32 - gf)
-          let gc = Color(r: uint8(40.0'f32 + gf * 40.0'f32), g: 245, b: 255,
-                         a: uint8((9.0'f32 + gf * 9.0'f32) * pulseC))
-          var prevG = fp(rr, 0.0'f32)
-          for s in 1 .. CSeg:
-            let ang = s.float32 / CSeg.float32 * PI * 2.0'f32
-            let curG = fp(cos(ang) * rr, sin(ang) * rr)
-            drawTriangleBothWindings(fcScreen, prevG, curG, gc)
-            prevG = curG
-        # Inset neon frame (cyan) with a soft glow underlay.
-        const pin = 0.6'f32
-        let frame = [fp(-pin, -pin), fp(pin, -pin), fp(pin, pin), fp(-pin, pin)]
-        for k in 0 .. 3:
-          let a0 = frame[k]
-          let a1 = frame[(k + 1) mod 4]
-          drawStroke(a0, a1, 3.0'f32, Color(r: 80, g: 245, b: 255, a: 55))
-          drawStroke(a0, a1, 1.3'f32, cyan)
-        # Magenta corner brackets: short L-arms inset from each corner.
-        const bl = 0.22'f32
-        const cornerSigns = [(-1.0'f32, -1.0'f32), (1.0'f32, -1.0'f32),
-                             (1.0'f32, 1.0'f32), (-1.0'f32, 1.0'f32)]
-        for c in cornerSigns:
-          let cu = c[0] * pin
-          let cv = c[1] * pin
-          drawStroke(fp(cu, cv), fp(cu - c[0] * bl, cv), 2.2'f32, mag)
-          drawStroke(fp(cu, cv), fp(cu, cv - c[1] * bl), 2.2'f32, mag)
-        # Faint scanline ticks across the panel.
-        for r in 0 .. 2:
-          let vv = -0.30'f32 + r.float32 * 0.30'f32
-          drawStroke(fp(-0.45'f32, vv), fp(0.45'f32, vv), 1.0'f32,
-                   Color(r: 80, g: 245, b: 255, a: 65))
-        # Pulsing centre node: cyan ring with a magenta core.
-        let nodeR = (3.0'f32 + 2.0'f32 * pulseC) * (size / 60.0'f32)
-        drawDisc(fcScreen, max(1.0'f32, nodeR * 1.7'f32),
-                   Color(r: 80, g: 245, b: 255, a: 120))
-        drawDisc(fcScreen, max(0.7'f32, nodeR), mag)
-        continue
-
-      if skin == cskDice:
-        # Classic die: each physical face shows its pip count, identified by the
-        # model-space normal n so the number is baked to that side (opposite faces
-        # sum to 7). Pips are dark dots placed in the face's (right,up) basis via
-        # fp(), foreshortening with the cube.
-        template fp(u, v: float32): Vector2 =
-          Vector2(x: fcScreen.x + sRx * (u) + sUx * (v),
-                  y: fcScreen.y + sRy * (u) + sUy * (v))
-        let pip =
-          if   n.z >  0.5'f32: 1
-          elif n.z < -0.5'f32: 6
-          elif n.x >  0.5'f32: 2
-          elif n.x < -0.5'f32: 5
-          elif n.y >  0.5'f32: 3
-          else: 4
-        const d = 0.30'f32
-        var spots: seq[(float32, float32)]
-        case pip
-        of 1: spots = @[(0.0'f32, 0.0'f32)]
-        of 2: spots = @[(-d, -d), (d, d)]
-        of 3: spots = @[(-d, -d), (0.0'f32, 0.0'f32), (d, d)]
-        of 4: spots = @[(-d, -d), (d, -d), (-d, d), (d, d)]
-        of 5: spots = @[(-d, -d), (d, -d), (0.0'f32, 0.0'f32), (-d, d), (d, d)]
-        else: spots = @[(-d, -d), (d, -d), (-d, 0.0'f32), (d, 0.0'f32), (-d, d), (d, d)]
-        # Each pip is a filled disc in face-local units, drawn as a triangle fan
-        # through fp(): because fp projects the face plane, the disc comes out as a
-        # foreshortened ellipse painted ON the face, not a flat screen-facing dot.
-        # Radius capped under half the 0.30 pip spacing so the "6" never overlaps.
-        const pr = 0.14'f32
-        const PipSeg = 14
-        let pipCol = Color(r: 28, g: 28, b: 34, a: 255)
-        for sp in spots:
-          let centre = fp(sp[0], sp[1])
-          var prevP = fp(sp[0] + pr, sp[1])
-          for s in 1 .. PipSeg:
-            let ang = s.float32 / PipSeg.float32 * PI * 2.0'f32
-            let curP = fp(sp[0] + cos(ang) * pr, sp[1] + sin(ang) * pr)
-            drawTriangleBothWindings(centre, prevP, curP, pipCol)
-            prevP = curP
-        continue
-
-      # Light recessed disc behind the heart (a circle in the face plane).
-      let discColor = Color(r: 222, g: 224, b: 229, a: 255)
-      var prevDisc = Vector2(x: fcScreen.x + sRx * 0.55'f32, y: fcScreen.y + sRy * 0.55'f32)
-      for i in 1 .. 12:
-        let a = i.float32 / 12.0'f32 * PI * 2.0'f32
-        let dx = cos(a) * 0.55'f32
-        let dy = sin(a) * 0.55'f32
-        let cur = Vector2(x: fcScreen.x + sRx * dx + sUx * dy,
-                          y: fcScreen.y + sRy * dx + sUy * dy)
-        drawTriangleBothWindings(fcScreen, prevDisc, cur, discColor)
-        prevDisc = cur
-
-      # Classic parametric heart: width along the face's right axis, height
-      # along its up axis (negated so the point sits toward the bottom edge and
-      # the lobes: the heart's top toward the up edge on every face).
-      let heartColor = Color(r: 244, g: 116, b: 150, a: 255)
-      var prevHeart = fcScreen  # placeholder; set from the i = 0 sample below
-      var first = true
-      for i in 0 .. 24:
-        let t = i.float32 / 24.0'f32 * PI * 2.0'f32
-        let hx = 0.34'f32 * (16.0'f32 * pow(sin(t), 3.0'f32)) / 17.0'f32
-        let yc = (13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) -
-                  2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)) / 17.0'f32
-        let hy = (-yc - 0.15'f32) * 0.34'f32
-        let cur = Vector2(x: fcScreen.x + sRx * hx - sUx * hy,
-                          y: fcScreen.y + sRy * hx - sUy * hy)
-        if not first:
-          drawTriangleBothWindings(fcScreen, prevHeart, cur, heartColor)
-        prevHeart = cur
-        first = false
-
 proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                           cubeRotX, cubeRotY, cubeRotZ: float32,
                           cubeOffsetX: float32 = 0.0, cubeOffsetY: float32 = 0.0,
                           modCube = false) =
   ## `modCube`: the live desktop, where a mod's cube model stands in for the
   ## cube (the shop's preview cards keep showing the built-in one).
+  # Translucent light adds up instead of darkening the frame (see ui_theme).
+  beginKeepAlpha()
+  defer: endKeepAlpha()
   drawSharedBackdrop(screenWidth.int32, screenHeight.int32, time * 0.62,
                      Color(r: 5, g: 8, b: 18, a: 255),
                      Color(r: 18, g: 17, b: 34, a: 255),
@@ -2342,33 +1590,64 @@ proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
 
   let w = screenWidth.float32
   let h = screenHeight.float32
-  let centerX = w * 0.64
-  let centerY = h * 0.46
+  let s = min(w, h)
+  let u = max(s / 768.0'f32, 0.3'f32)
+  let centerX = w * CubeAnchorX
+  let centerY = h * CubeAnchorY
+  let c = Vector2(x: centerX, y: centerY)
 
-  drawSoftGlow(centerX, centerY, min(w, h) * 0.42,
-               Color(r: 0, g: 170, b: 220, a: 70), 0.7)
-  drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
-               Color(r: 95, g: 130, b: 255, a: 56), 0.55)
-  drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
-               Color(r: 0, g: 220, b: 165, a: 46), 0.5)
+  # Light: a cyan pool around the cube, cooler washes in two corners.
+  drawGlow(c, s * 0.62'f32, Color(r: 0, g: 170, b: 220, a: 90))
+  drawGlow(Vector2(x: w * 0.18'f32, y: h * 0.18'f32), s * 0.44'f32, Color(r: 95, g: 130, b: 255, a: 62))
+  drawGlow(Vector2(x: w * 0.88'f32, y: h * 0.82'f32), s * 0.46'f32, Color(r: 0, g: 220, b: 165, a: 52))
 
-  # Orbital rings behind the desktop make the menu feel like a live command surface.
+  # A slow radar sweep turning under the rings.
+  let sweep = time * 0.35'f32
+  let sweepR = s * 0.4'f32
+  const SweepSteps = 10
+  for k in 0 ..< SweepSteps:
+    let a0 = sweep - k.float32 * 0.06'f32
+    let a1 = sweep - (k + 1).float32 * 0.06'f32
+    let fadeK = 1.0'f32 - k.float32 / SweepSteps.float32
+    drawGradientTriangle(c, Vector2(x: centerX + cos(a0) * sweepR, y: centerY + sin(a0) * sweepR),
+                         Vector2(x: centerX + cos(a1) * sweepR, y: centerY + sin(a1) * sweepR),
+                         Color(r: 80, g: 220, b: 255, a: uint8(26.0'f32 * fadeK)),
+                         Color(r: 80, g: 220, b: 255, a: 0), Color(r: 80, g: 220, b: 255, a: 0))
+  drawStroke(c, Vector2(x: centerX + cos(sweep) * sweepR, y: centerY + sin(sweep) * sweepR),
+             max(0.5'f32, 1.0'f32 * u), Color(r: 120, g: 235, b: 255, a: 70))
+
+  # Orbital rings: a gyroscope of thin rings, each with dashed arcs of light
+  # turning the opposite way to its neighbours and a glowing node riding it.
   for i in 0..4:
-    let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
-    let alpha = uint8(26 + i * 9)
-    drawCircleOutline(Vector2(x: centerX, y: centerY), ringRadius,
-                    Color(r: 80, g: 210, b: 255, a: alpha))
-    let angle = time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
-    let nodeX = centerX + cos(angle) * ringRadius
-    let nodeY = centerY + sin(angle) * ringRadius
-    drawDisc(Vector2(x: nodeX, y: nodeY), 3.0 + i.float32 * 0.35,
-               Color(r: 165, g: 245, b: 255, a: uint8(120 + i * 18)))
+    let ringRadius = s * (0.18'f32 + i.float32 * 0.055'f32)
+    drawCircleOutline(c, ringRadius, Color(r: 80, g: 210, b: 255, a: uint8(26 + i * 9)))
+    let dir = if (i and 1) == 0: 1.0'f32 else: -1.0'f32
+    let spin = time * (0.12'f32 + i.float32 * 0.03'f32) * dir * 180.0'f32 / PI + i.float32 * 47.0'f32
+    for d in 0 ..< 3:
+      let start = spin + d.float32 * 120.0'f32
+      drawRing(c, ringRadius - max(0.4'f32, 1.0'f32 * u), ringRadius + max(0.4'f32, 1.0'f32 * u),
+               start, start + 22.0'f32 + i.float32 * 4.0'f32, 10,
+               Color(r: 120, g: 230, b: 255, a: uint8(60 + i * 10)))
+    let angle = time * (0.22'f32 + i.float32 * 0.04'f32) + i.float32 * PI * 0.38'f32
+    let node = Vector2(x: centerX + cos(angle) * ringRadius, y: centerY + sin(angle) * ringRadius)
+    drawGlow(node, 10.0'f32 * u, Color(r: 120, g: 240, b: 255, a: 120))
+    drawDisc(node, max(0.6'f32, (2.4'f32 + i.float32 * 0.3'f32) * u),
+             Color(r: 190, g: 250, b: 255, a: uint8(170 + i * 16)))
+  # Tick marks round the outermost ring, like a dial.
+  let tickR = s * (0.18'f32 + 4.0'f32 * 0.055'f32) + 6.0'f32 * u
+  for t in 0 ..< 72:
+    let a = t.float32 / 72.0'f32 * PI * 2.0'f32 + time * 0.02'f32
+    let major = t mod 6 == 0
+    let len = (if major: 8.0'f32 else: 3.5'f32) * u
+    drawStroke(Vector2(x: centerX + cos(a) * tickR, y: centerY + sin(a) * tickR),
+               Vector2(x: centerX + cos(a) * (tickR + len), y: centerY + sin(a) * (tickR + len)),
+               max(0.4'f32, 1.0'f32 * u), Color(r: 90, g: 220, b: 255, a: (if major: 80'u8 else: 38'u8)))
 
   let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
   if not (modCube and drawCubeModModel(centerX + cubeOffsetX, centerY + cubeOffsetY,
-                                       min(w, h) * 0.042'f32, cubeRotX, cubeRotY, cubeRotZ)):
+                                       s * 0.042'f32, cubeRotX, cubeRotY, cubeRotZ)):
     drawZeroGravityWallpaperCube(centerX + cubeOffsetX, centerY + cubeOffsetY,
-                                 min(w, h) * 0.042'f32, time,
+                                 s * 0.042'f32, time,
                                  cubeRotX, cubeRotY, cubeRotZ, currentCubeSkin)
 
   # Thin scan bands and routing traces.
@@ -2381,10 +1660,10 @@ proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
              1, Color(r: 0, g: 198, b: 238, a: alpha))
     if i mod 3 == 0:
       let x = (w * (0.22 + (i mod 5).float32 * 0.13) + sway) mod max(w, 1.0)
-      drawStroke(Vector2(x: x, y: y - 28.0),
-               Vector2(x: x, y: y + 32.0),
-               1, Color(r: 85, g: 240, b: 255, a: uint8(alpha + 28)))
-      drawDisc(Vector2(x: x, y: y), 2.6, Color(r: 180, g: 250, b: 255, a: 130))
+      drawTaperedLine(Vector2(x: x, y: y - 28.0), Vector2(x: x, y: y + 32.0), 0.0'f32, 1.6'f32,
+                      Color(r: 85, g: 240, b: 255, a: 0), Color(r: 85, g: 240, b: 255, a: uint8(alpha + 60)))
+      drawGlow(Vector2(x: x, y: y), 8.0'f32, Color(r: 120, g: 240, b: 255, a: 110))
+      drawDisc(Vector2(x: x, y: y), 2.2, Color(r: 190, g: 250, b: 255, a: 180))
 
   # Left-side launch column silhouette keeps icons readable over the animation.
   drawRectangleGradientH(0, 0, min(310, screenWidth).int32, screenHeight.int32,
@@ -2445,10 +1724,10 @@ proc drawHorrorWatchers(cx, cy, cubeSize, w, h, time, glow: float32) =
   # 1. The lantern casting flickering light into the room (a halo of *cast* light
   #    around the cube - the pumpkin lighting its surroundings, not face shading).
   let flick = 0.78'f32 + 0.22'f32 * sin(time * 7.3'f32) + 0.08'f32 * sin(time * 17.0'f32)
-  drawSoftGlow(cx, cy, cubeSize * (2.6'f32 + g * 5.0'f32),
-               Color(r: 255, g: 145, b: 35, a: uint8(min(255.0'f32, 80.0'f32 * g * flick))), 0.7)
-  drawSoftGlow(cx, cy, cubeSize * (1.5'f32 + g * 2.4'f32),
-               Color(r: 255, g: 195, b: 95, a: uint8(min(255.0'f32, 70.0'f32 * g * flick))), 0.85)
+  drawGlow(Vector2(x: cx, y: cy), cubeSize * (3.2'f32 + g * 6.0'f32),
+           Color(r: 255, g: 145, b: 35, a: uint8(min(255.0'f32, 120.0'f32 * g * flick))))
+  drawGlow(Vector2(x: cx, y: cy), cubeSize * (1.8'f32 + g * 2.8'f32),
+           Color(r: 255, g: 195, b: 95, a: uint8(min(255.0'f32, 110.0'f32 * g * flick))))
 
   # 2. Eyes opening in the surrounding darkness, kept clear of the centre where the
   #    cube sits. Each watcher wakes at a slightly higher glow, so they open in
@@ -2474,9 +1753,11 @@ proc drawHorrorWatchers(cx, cy, cubeSize, w, h, time, glow: float32) =
     let sway = sin(time * 0.5'f32 + seed) * sc * 0.1'f32
     for side in [-1.0'f32, 1.0'f32]:
       let eex = ex + side * sc * 1.05'f32 + sway
-      drawSoftGlow(eex, ey, sc * 1.35'f32, Color(r: 175, g: 210, b: 70, a: glowA), 0.6)
-      drawEllipse(eex.int32, ey.int32, sc * 0.72'f32, max(0.5'f32, sc * 0.46'f32 * open), eyeCol)
-      drawEllipse(eex.int32, ey.int32, sc * 0.16'f32, max(0.5'f32, sc * 0.4'f32 * open), darkSlit)
+      let eye = Vector2(x: eex, y: ey)
+      drawGlow(eye, sc * 1.9'f32, Color(r: 175, g: 210, b: 70, a: uint8(min(255.0'f32, glowA.float32 * 1.4'f32))))
+      drawRadialGradient(eye, sc * 0.72'f32, max(0.5'f32, sc * 0.46'f32 * open),
+                         Color(r: 240, g: 245, b: 150, a: eyeA), eyeCol, reSmooth)
+      drawRadialGradient(eye, sc * 0.16'f32, max(0.5'f32, sc * 0.4'f32 * open), darkSlit, darkSlit, reLinear, 1)
 
   # 3. Red dread bleeding in from the edges, pulsing with the glow.
   let dread = uint8(min(255.0'f32, 150.0'f32 * g * (0.7'f32 + 0.3'f32 * sin(time * 2.0'f32))))
@@ -2493,8 +1774,10 @@ proc drawDesktopCube(desktop: OSDesktop, w, h: float32,
                      jitterX = 0.0'f32, jitterY = 0.0'f32) =
   ## The interactive cube in its orbit slot, plus the dice-roll result above it.
   ## Drawn by the themed backgrounds and by a mod wallpaper that keeps the cube.
-  let centerX = w * 0.64
-  let centerY = h * 0.46
+  beginKeepAlpha()   # its glass adds light instead of darkening the frame
+  defer: endKeepAlpha()
+  let centerX = w * CubeAnchorX
+  let centerY = h * CubeAnchorY
   let skin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
   # A mod's cube model (override.model("cube") / a desktop cosmetic) turns
   # with the same drag-and-spin rotation the cube would.
@@ -2774,53 +2057,12 @@ proc drawOSDesktopLayer(desktop: OSDesktop, screenWidth, screenHeight: int) =
       drawThemeWallpaper(activeTheme(), screenWidth.float32, screenHeight.float32,
                          desktop.time, desktop)
     else:
-      let bgData = getDesktopBgData(selectedBg)
-      let topColor = bgData.bgColor
-      let bottomColor = brighten(topColor, -(12), topColor.a.int)
-      let gridColor = Color(r: uint8((bgData.primaryColor.r.int + bgData.accentColor.r.int) div 2),
-                            g: uint8((bgData.primaryColor.g.int + bgData.accentColor.g.int) div 2),
-                            b: uint8((bgData.primaryColor.b.int + bgData.accentColor.b.int) div 2),
-                            a: 34)
-      let nodeColor = bgData.accentColor
-      let accentColor = bgData.primaryColor
       let w = screenWidth.float32
       let h = screenHeight.float32
+      drawDesktopBgScene(selectedBg, screenWidth.int32, screenHeight.int32, desktop.time)
 
-      # Draw the shared backdrop at 1/6th the virtual canvas size so the grid
-      # cell count and star density match what the shop preview miniature shows.
-      # The fixed-size elements (48 px grid, 48 stars) are otherwise spread too
-      # thin at 1024x768 compared to the 170x64 shop card.
-      let refW = int32(ceil(w / 6.0'f32))
-      let refH = int32(ceil(h / 6.0'f32))
-      pushMatrix()
-      scalef(w / refW.float32, h / refH.float32, 1.0'f32)
-      drawSharedBackdrop(refW, refH, desktop.time * 0.62,
-                         topColor, bottomColor, gridColor, nodeColor, accentColor,
-                         0.9, 0.8)
-      popMatrix()
-
-      drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
-                   withAlpha(accentColor, 70), 0.7)
-      drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
-                   withAlpha(nodeColor, 56), 0.55)
-      drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
-                   withAlpha(bgData.primaryColor, 46), 0.5)
-
-      drawDesktopBgThemeFx(selectedBg, screenWidth.int32, screenHeight.int32, desktop.time)
-
-      for i in 0..3:
-        let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
-        let alpha = uint8(26 + i * 9)
-        drawCircleOutline(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
-                        withAlpha(accentColor, alpha))
-        let nodeAngle = desktop.time * (0.22 + i.float32 * 0.04) + i.float32 * PI * 0.38
-        drawDisc(Vector2(x: w * 0.64 + cos(nodeAngle) * ringRadius,
-                           y: h * 0.46 + sin(nodeAngle) * ringRadius),
-                   3.0 + i.float32 * 0.35,
-                   withAlpha(nodeColor, uint8(120 + i * 18)))
-
-      let centerX = w * 0.64
-      let centerY = h * 0.46
+      let centerX = w * CubeAnchorX
+      let centerY = h * CubeAnchorY
       let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
 
       # Kernel Panic: the cube cowers. A constant high-frequency jitter (terror)

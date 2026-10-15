@@ -3,7 +3,7 @@
 
 import raylib, rlgl, math, strformat, strutils
 import ../draw_prims
-import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets, ui_theme
+import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../cube_render, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets, ui_theme
 from ../modding/mod_hooks import mods
 
 type
@@ -856,7 +856,6 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                             isUnlocked: bool = true, canBuy: bool = false,
                             cost: CosmeticCost, costText: string = "") =
   ## Draw a card preview for a desktop background skin
-  let bgData = getDesktopBgData(bgType)
   let (bgName, bgDesc) = desktopBgText(bgType)
 
   let cardBg = if isSelected: uiSurface(0, 60, 80)
@@ -893,60 +892,24 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                            0.0'f32, 0.0'f32, 0.0'f32)
     popMatrix()
   else:
-    # All other skins: fill with bgColor then overlay drawSharedBackdrop using
-    # the skin palette, and draw a miniature wallpaper cube so the preview
-    # matches the full desktop rendering for that theme.
-    drawRectangle(x.int32, y.int32, SKIN_BOX_WIDTH.int32, previewH.int32, bgData.bgColor)
-    let topColor    = bgData.bgColor
-    let bottomColor = Color(r: uint8(clamp(topColor.r.int - 12, 0, 255)),
-                            g: uint8(clamp(topColor.g.int - 12, 0, 255)),
-                            b: uint8(clamp(topColor.b.int - 12, 0, 255)), a: 255)
-    let gridColor   = Color(r: uint8((bgData.primaryColor.r.int + bgData.accentColor.r.int) div 2),
-                            g: uint8((bgData.primaryColor.g.int + bgData.accentColor.g.int) div 2),
-                            b: uint8((bgData.primaryColor.b.int + bgData.accentColor.b.int) div 2),
-                            a: 34)
+    # Every other background: the same scene the desktop draws, at card size,
+    # with a miniature of the equipped cube. Prefer the running desktop's time
+    # and rotation when available for a 1:1 match.
     pushMatrix()
-    # Translate so drawSharedBackdrop treats (x,y) as its origin
     translatef(x.float32, y.float32, 0.0'f32)
-    drawSharedBackdrop(SKIN_BOX_WIDTH.int32, previewH.int32, time * 0.62,
-                       topColor, bottomColor,
-                       gridColor, bgData.accentColor, bgData.primaryColor,
-                       0.9, 0.8)
-
-    # Soft glows and orbital rings scaled to the preview size
     let w = SKIN_BOX_WIDTH.float32
     let h = previewH.float32
-    let nodeColor = bgData.accentColor
-    let accentColor = bgData.primaryColor
-    drawSoftGlow(w * 0.64, h * 0.46, min(w, h) * 0.42,
-                 withAlpha(accentColor, 70), 0.7)
-    drawSoftGlow(w * 0.18, h * 0.18, min(w, h) * 0.28,
-                 withAlpha(nodeColor, 56), 0.55)
-    drawSoftGlow(w * 0.88, h * 0.82, min(w, h) * 0.30,
-                 withAlpha(bgData.primaryColor, 46), 0.5)
-
-    # Signature theme effects so the card shows the real background look
-    drawDesktopBgThemeFx(bgType, SKIN_BOX_WIDTH.int32, previewH.int32, time)
-
-    for i in 0..3:
-      let ringRadius = min(w, h) * (0.18 + i.float32 * 0.055)
-      let alpha = uint8(26 + i * 9)
-      drawCircleOutline(Vector2(x: w * 0.64, y: h * 0.46), ringRadius,
-                      withAlpha(accentColor, alpha))
-
-    # Draw the wallpaper cube using the currently equipped cube skin so the
-    # preview matches the full desktop. Prefer the running desktop's time
-    # and rotation when available for a 1:1 match.
+    let sceneTime = if activeDesktop.isNil: time else: activeDesktop.time
+    drawDesktopBgScene(bgType, SKIN_BOX_WIDTH.int32, previewH.int32, sceneTime)
     let currentCubeSkin = if not globalSettings.isNil: CubeSkinType(globalSettings.cubeSkin) else: cskDefault
     if not activeDesktop.isNil:
-      drawZeroGravityWallpaperCube(w * 0.64, h * 0.46, min(w, h) * 0.042'f32,
+      drawZeroGravityWallpaperCube(w * CubeAnchorX, h * CubeAnchorY, min(w, h) * 0.042'f32,
                                    activeDesktop.time,
                                    activeDesktop.cubeRotX, activeDesktop.cubeRotY, activeDesktop.cubeRotZ,
                                    currentCubeSkin)
     else:
-      drawZeroGravityWallpaperCube(w * 0.64, h * 0.46, min(w, h) * 0.042'f32,
+      drawZeroGravityWallpaperCube(w * CubeAnchorX, h * CubeAnchorY, min(w, h) * 0.042'f32,
                                    time, 0.0'f32, 0.0'f32, 0.0'f32, currentCubeSkin)
-
     popMatrix()
 
   endPreviewClip(clip)
