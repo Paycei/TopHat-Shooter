@@ -1,0 +1,9 @@
+{
+  "id": "media",
+  "name": "Media",
+  "version": "1.0.0",
+  "author": "Paycei",
+  "description": "Videos, pictures and music. A Media Player app (a playlist read from playlist.json, a seek bar, a music track that takes over the game's music, a time readout in its own LCD font, a video as its desktop icon) and Billboard Plaza, a 3D mode in MODS.EXE > Game Modes with videos and pictures on screens and billboards (shoot the big screen to pause it). Shows assets.video, assets.music, assets.font, assets.json, require, draw3d.texture, draw3d.billboard, override.texture on 3D entities, world3d.raycast and a mode with resumable = false and restorePoints = false. Add your own clips (MPEG-1 .mpg) to playlist.json.",
+  "main": "main.lua",
+  "disableAchievements": false
+}

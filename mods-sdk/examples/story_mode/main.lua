@@ -7,8 +7,7 @@
 local KERNEL = assets.texture("kernel.png")
 local RED = "#ff4060"
 
-local function es() return lang.current() == "es" end
-local function tr(en, sp) return es() and sp or en end
+local function say(en, es) return lang.current() == "es" and es or en end
 
 local MODE = register.gamemode{
   id = "story",
@@ -23,42 +22,42 @@ local MODE = register.gamemode{
 local function active() return run.active and game:isMode(MODE) end
 
 local BLESSINGS = {
-  {id = "fury", color = "#ff6040",
-   title = {"FURY", "FURIA"}, text = {"+25% damage", "+25% de daño"},
+  {color = "#ff6040", title = {"FURY", "FURIA"}, text = {"+25% damage", "+25% de daño"},
    apply = function(p) p.damage = p.damage * 1.25 end},
-  {id = "ward", color = "#60c0ff",
-   title = {"WARD", "AMPARO"}, text = {"+3 integrity", "+3 de integridad"},
+  {color = "#60c0ff", title = {"WARD", "AMPARO"}, text = {"+3 integrity", "+3 de integridad"},
    apply = function(p) p.maxHp = p.maxHp + 3 p.hp = p.hp + 3 end},
-  {id = "haste", color = "#60ff90",
-   title = {"HASTE", "PRISA"}, text = {"+15% speed", "+15% de velocidad"},
+  {color = "#60ff90", title = {"HASTE", "PRISA"}, text = {"+15% speed", "+15% de velocidad"},
    apply = function(p) p.speed = p.speed * 1.15 end},
 }
 
-local function blessingNamed(id)
-  for _, b in ipairs(BLESSINGS) do if b.id == id then return b end end
+-- The story so far, from run.data: chapter 2 begins with the choice at wave 5.
+local function chapter() return run.data.pact == nil and 1 or 2 end
+local function blessingName()
+  local b = BLESSINGS[run.data.blessing or 0]
+  return b and say(b.title[1], b.title[2]) or say("no blessing", "sin bendición")
 end
 
-local function say(lines, choices, onChoice, onDone)
+-- lines: {speaker, english, spanish}. The KERNEL speaks with its portrait.
+local function talk(lines, choices, onChoice, onDone)
   local out = {}
   for i, l in ipairs(lines) do
-    out[i] = {speaker = l[1], text = tr(l[2], l[3]),
-              portrait = l[1] == "KERNEL" and KERNEL or nil,
-              color = l[1] == "KERNEL" and RED or nil}
+    local kernel = l[1] == "KERNEL"
+    out[i] = {speaker = l[1], text = say(l[2], l[3]),
+              portrait = kernel and KERNEL or nil, color = kernel and RED or nil}
   end
-  return ui.dialogue{lines = out, choices = choices, onChoice = onChoice, onDone = onDone}
+  ui.dialogue{lines = out, choices = choices, onChoice = onChoice, onDone = onDone}
 end
 
 local function chooseBlessing()
   local options = {}
   for i, b in ipairs(BLESSINGS) do
-    options[i] = {title = tr(b.title[1], b.title[2]), description = tr(b.text[1], b.text[2]), color = b.color}
+    options[i] = {title = say(b.title[1], b.title[2]), description = say(b.text[1], b.text[2]), color = b.color}
   end
-  ui.choose{title = tr("Pick a blessing", "Elige una bendición"), options = options,
+  ui.choose{title = say("Pick a blessing", "Elige una bendición"), options = options,
     onPick = function(i)
-      local b = BLESSINGS[i]
-      b.apply(player)
-      run.data.blessing = b.id
-      ui.toast(tr(b.title[1], b.title[2]) .. tr(" granted", " concedida"))
+      BLESSINGS[i].apply(player)
+      run.data.blessing = i
+      ui.toast(blessingName() .. say(" granted", " concedida"))
     end}
 end
 
@@ -67,7 +66,7 @@ local function opening()
     shots = {
       {duration = 2.2, draw = function(t, w, h)
         draw.rect(0, 0, w, h, "#000000")
-        local line = tr("SYSTEM BOOT 0x7E3", "ARRANQUE DEL SISTEMA 0x7E3")
+        local line = say("SYSTEM BOOT 0x7E3", "ARRANQUE DEL SISTEMA 0x7E3")
         draw.text(line, w / 2 - draw.textWidth(line, 24) / 2, h / 2 - 12, 24,
                   {r = 120, g = 255, b = 160, a = math.floor(math.min(1, t) * 255)})
       end},
@@ -75,48 +74,48 @@ local function opening()
         draw.rect(0, 0, w, h, "#05000a")
         local s = 96 + t * 30
         draw.texture(KERNEL, w / 2, h / 2 - 20, {w = s, h = s})
-        local line = tr("Something is watching the process table.", "Algo vigila la tabla de procesos.")
+        local line = say("Something is watching the process table.", "Algo vigila la tabla de procesos.")
         draw.text(line, w / 2 - draw.textWidth(line, 16) / 2, h / 2 + 70, 16, RED)
       end},
     },
     onDone = function()
-      say({{"KERNEL", "You are not supposed to be here.", "No deberías estar aquí."},
-           {"YOU", "Then why did you leave the door open?", "¿Entonces por qué dejaste la puerta abierta?"},
-           {"KERNEL", "Take a gift. You will need it.", "Toma un regalo. Lo vas a necesitar."}},
-          nil, nil, chooseBlessing)
+      talk({{"KERNEL", "You are not supposed to be here.", "No deberías estar aquí."},
+            {"YOU", "Then why did you leave the door open?", "¿Entonces por qué dejaste la puerta abierta?"},
+            {"KERNEL", "Take a gift. You will need it.", "Toma un regalo. Lo vas a necesitar."}},
+           nil, nil, chooseBlessing)
     end,
   }
 end
 
 hooks.on("runStart", function(game, resumed)
   if not game:isMode(MODE) then return end
-  if resumed then
-    if not run.data.blessing then chooseBlessing() end
-    return
+  if not resumed then
+    opening()
+  elseif not run.data.blessing then
+    chooseBlessing()   -- quit before choosing: choose now
   end
-  run.data = {chapter = 1}
-  opening()
 end)
 
 hooks.on("waveStart", function(game, wave)
   if not active() or wave ~= 5 or run.data.pact ~= nil then return end
-  say({{"KERNEL", "Wave five. You are persistent.", "Oleada cinco. Eres persistente."},
-       {"KERNEL", "Join me, and the waves grow gentler. Refuse, and I stop holding back.",
-                  "Únete a mí y las oleadas serán más suaves. Niégate y dejaré de contenerme."}},
-      {tr("Join", "Unirme"), tr("Refuse", "Negarme")},
-      function(i)
-        run.data.pact = (i == 1)
-        run.data.chapter = 2
-        ui.banner(i == 1 and tr("PACT SEALED", "PACTO SELLADO") or tr("DEFIANCE", "DESAFÍO"),
-                  i == 1 and tr("Fewer enemies, weaker shots", "Menos enemigos, disparos más débiles")
-                         or tr("More enemies, more coins", "Más enemigos, más monedas"), RED, 3)
-      end)
+  talk({{"KERNEL", "Wave five. You are persistent.", "Oleada cinco. Eres persistente."},
+        {"KERNEL", "Join me, and the waves grow gentler. Refuse, and I stop holding back.",
+                   "Únete a mí y las oleadas serán más suaves. Niégate y dejaré de contenerme."}},
+       {say("Join", "Unirme"), say("Refuse", "Negarme")},
+       function(i)
+         run.data.pact = (i == 1)
+         if run.data.pact then
+           ui.banner(say("PACT SEALED", "PACTO SELLADO"), say("Fewer enemies, weaker shots", "Menos enemigos, disparos más débiles"), RED, 3)
+         else
+           ui.banner(say("DEFIANCE", "DESAFÍO"), say("More enemies, more coins", "Más enemigos, más monedas"), RED, 3)
+         end
+       end)
 end)
 
--- the pact's consequences
+-- The pact's consequences: filters return the changed value.
 hooks.on("waveEnemyCount", function(count)
   if not active() or run.data.pact == nil then return end
-  return run.data.pact and math.floor(count * 0.75) or math.floor(count * 1.3)
+  return math.floor(count * (run.data.pact and 0.75 or 1.3))
 end)
 hooks.on("bulletHit", function(dmg)
   if active() and run.data.pact == true then return dmg * 0.85 end
@@ -129,12 +128,12 @@ register.hudCard{
   id = "chapter", title = "STORY", color = RED,
   measure = function(w) return active() and 34 or 0 end,   -- 0: hidden outside the mode
   draw = function(x, y, w, h)
-    local b = blessingNamed(run.data.blessing or "")
-    ui.label(tr("Chapter ", "Capítulo ") .. (run.data.chapter or 1), x, y + 2, {size = 12})
-    local line = b and tr(b.title[1], b.title[2]) or tr("no blessing", "sin bendición")
+    ui.label(say("Chapter ", "Capítulo ") .. chapter(), x, y + 2, {size = 12})
+    local line = blessingName()
     if run.data.pact ~= nil then
-      line = line .. "  ·  " .. (run.data.pact and tr("pact", "pacto") or tr("defiant", "desafiante"))
+      line = line .. "  ·  " .. (run.data.pact and say("pact", "pacto") or say("defiant", "desafiante"))
     end
+    local b = BLESSINGS[run.data.blessing or 0]
     ui.label(line, x, y + 18, {size = 10, color = b and b.color or "#a0a0a0"})
   end,
 }
@@ -142,12 +141,10 @@ register.hudCard{
 register.pauseAction{
   id = "recap", name = {en = "Story so far", es = "La historia hasta ahora"},
   onClick = function(game)
-    if not game:isMode(MODE) then
-      ui.toast(tr("Not a Story Mode run", "No es una partida del Modo Historia"))
-      return
+    if game:isMode(MODE) then
+      ui.toast(say("Chapter ", "Capítulo ") .. chapter() .. ": " .. blessingName())
+    else
+      ui.toast(say("Not a Story Mode run", "No es una partida del Modo Historia"))
     end
-    local b = blessingNamed(run.data.blessing or "")
-    ui.toast(tr("Chapter ", "Capítulo ") .. (run.data.chapter or 1) .. ": " ..
-             (b and tr(b.title[1], b.title[2]) or "-"))
   end,
 }

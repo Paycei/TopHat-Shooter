@@ -124,8 +124,8 @@ script is stopped instead of freezing the game. Runs with mods loaded keep their
 saves and earn no permanent rewards, unless every loaded mod
 opts out with `"disableAchievements": false` (for mods that only change looks).
 
-The included examples are *Hello HUD*, *Glass Cannon*, *House Rules*, *Survival Tweaks*,
-*Bouncer*, *Overclock Boss*, *Neon Pack*, *Retro CRT* and *Model Pack*. They live in
+The included examples are *Hello HUD*, *House Rules*, *Story Mode*, *Overclock*, *Necromancer*,
+*Chaos Engine*, *Content Pack*, *Cosmetics Pack*, *Media*, *3D Worlds* and *Critical Section*. They live in
 [`mods-sdk/examples/`](mods-sdk/examples), and the full API reference is in
 [`mods-sdk/MODDING.md`](mods-sdk/MODDING.md).
 

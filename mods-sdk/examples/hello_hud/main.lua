@@ -4,23 +4,31 @@
 -- runs once when the mod loads (from the MODS.EXE window); it registers
 -- functions with hooks.on, and the game calls them while you play.
 
--- run.data is saved with the run, so this survives quitting and resuming.
+-- A key of our own. Players rebind it in Settings > Controls > Mod Keybinds.
+register.keybind{
+  id = "ring",
+  name = {en = "Toggle ring", es = "Mostrar anillo"},
+  default = "f6",
+  gamepad = "RightFaceUp",
+}
+
+local showRing = true
+
 hooks.on("runStart", function(game, resumed)
-  run.data.starts = (run.data.starts or 0) + 1
-  mod.log("run started", resumed and "(resumed)" or "(fresh)",
-          "starts so far:", run.data.starts)
+  mod.log(resumed and "run resumed" or "run started")
 end)
 
-local elapsed = 0
-
+-- run.data is saved with the run, so this clock survives quitting and resuming.
 hooks.on("update", function(game, dt)
-  elapsed = elapsed + dt
+  run.data.time = (run.data.time or 0) + dt
+  if input.bindPressed("ring") then showRing = not showRing end
 end)
 
 -- drawWorld draws in arena coordinates: the same space as player.x/y.
 hooks.on("drawWorld", function(game)
+  if not showRing then return end
   local p = game.player
-  local pulse = 4 * math.sin(elapsed * 4)
+  local pulse = 4 * math.sin((run.data.time or 0) * 4)
   draw.circleLines(p.x, p.y, p.radius + 16 + pulse, {r = 255, g = 204, b = 51, a = 150}, 2)
 end)
 
@@ -29,7 +37,8 @@ end)
 -- side panels in widescreen: here it sits centred near the arena's bottom.
 hooks.on("drawHud", function(game, w, h)
   local ax, ay, aw, ah = draw.arena()
-  local line = string.format("HELLO HUD   kills %d   time %d s", game.player.kills, math.floor(elapsed))
+  local line = string.format("HELLO HUD   kills %d   time %d s   [F6] ring",
+                             game.player.kills, math.floor(run.data.time or 0))
   local width = draw.textWidth(line, 12)
   local x = ax + (aw - width) / 2
   local y = ay + ah - 70

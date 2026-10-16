@@ -473,29 +473,25 @@ block world3d:
 
   resetHooks()
 
-# ------------------------------------------------- the 3D example mods ----
-# mods-sdk/examples/arena_3d and orbital_tweaks: both main.lua files must
-# compile, load against the real API, and (driving the engine's hook helpers and
-# action queue by hand, no window) play their parts. Drawing hooks need a GL
-# context and are not run.
+# ------------------------------------------------- the 3D example mod ----
+# mods-sdk/examples/arena_3d (Cube Siege, plus its tweaks to the game's own
+# boss-7 fight): its main.lua must compile, load against the real API, and
+# (driving the engine's hook helpers and action queue by hand, no window) play
+# both parts. Drawing hooks need a GL context and are not run.
 block examples3d:
   const arenaSrc = staticRead("../mods-sdk/examples/arena_3d/main.lua")
-  const orbitalSrc = staticRead("../mods-sdk/examples/orbital_tweaks/main.lua")
-  for (name, src) in [("arena_3d", arenaSrc), ("orbital_tweaks", orbitalSrc)]:
-    try:
-      discard vm.loadChunk(src, name & "/main.lua", newModEnv(base))
-      inc passed
-    except ScriptError as e:
-      echo "FAIL ", name, " does not compile: ", e.msg.splitLines()[0]
-      inc failures
+  try:
+    discard vm.loadChunk(arenaSrc, "arena_3d/main.lua", newModEnv(base))
+    inc passed
+  except ScriptError as e:
+    echo "FAIL arena_3d does not compile: ", e.msg.splitLines()[0]
+    inc failures
 
   proc makeMods() =
-    ## Two mods with the environment the loader gives them (mod, run, require).
-    mods = @[]
-    for (i, id) in [(0, "arena_3d"), (1, "orbital_tweaks")]:
-      let m = ModRuntime(id: id, name: id, version: "1.0.0", env: newModEnv(base), index: i)
-      mods.add(m)
-      installModEnv(m)
+    ## The mod with the environment the loader gives it (mod, run, require).
+    let m = ModRuntime(id: "arena_3d", name: "arena_3d", version: "1.0.0", env: newModEnv(base), index: 0)
+    mods = @[m]
+    installModEnv(m)
 
   proc load(idx: int, src: string) =
     beginModLoad(idx)
@@ -552,10 +548,11 @@ block examples3d:
   modWorld3DStart(w3, false)
   check(w3.arena.platforms.len == 0, "Cube Siege ignores other worlds")
 
-  # orbital_tweaks on the vanilla boss-7 world
+  # the tweaks to the vanilla boss-7 world (a fresh load, as a reload would do)
   resetHooks()
+  clearModRoutes()
   makeMods()
-  load(1, orbitalSrc)
+  load(0, arenaSrc)
   var wb = initGame3D(World3DOptions(bossEnabled: true, bossId: 7), Player(hp: 100, maxHp: 100))
   activeWorld3D = wb
   world3dActions.setLen(0)
@@ -571,7 +568,7 @@ block examples3d:
   wb.player.health = 50
   killEntity3D(wb, wb.entities[0])
   check(wb.player.health == 55, "a drone kill heals 5")
-  check(mods[0].errorCount == 0 and mods[1].errorCount == 0, "no hook of either example raised an error")
+  check(mods[0].errorCount == 0, "no hook of the example raised an error")
   activeWorld3D = nil
   resetHooks()
   mods.setLen(0)
@@ -772,6 +769,7 @@ block foundations:
   # ---- mod.storage stays in the profile it was read from
   let home = getTempDir() / "tophat_test_home"
   putEnv("HOME", home)
+  putEnv("APPDATA", home)   # what getRootDataPath reads on Windows
   activeProfileSlot = 1
   let m = ModRuntime(id: "keeper", name: "keeper", version: "1", env: newModEnv(base, libs),
                      index: mods.len, runData: newScriptTable())
@@ -1017,6 +1015,7 @@ block registries:
   resetModContent()
   let home = getTempDir() / "tophat_test_home3"
   putEnv("HOME", home)
+  putEnv("APPDATA", home)
   activeProfileSlot = 1
   let m = ModRuntime(id: "kit", name: "kit", version: "1", env: newModEnv(base, tableKeysOf(base)),
                      index: 0, runData: newScriptTable())
@@ -1314,6 +1313,7 @@ block examples2d:
   resetModContent()
   let home = getTempDir() / "tophat_test_home6"
   putEnv("HOME", home)
+  putEnv("APPDATA", home)
   activeProfileSlot = 1
   resetAdvancementCache()
   const exampleSrc = [
@@ -1397,6 +1397,7 @@ closeScriptVM()
 block contentPacks:
   let home = getTempDir() / "tophat_test_home5"
   putEnv("HOME", home)
+  putEnv("APPDATA", home)
   activeProfileSlot = 1
   let dir = modsRootDir() / "pack"
   createDir(dir / "content" / "items")

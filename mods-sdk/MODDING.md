@@ -22,7 +22,7 @@ post-process the screen with shaders, and add its own apps to the desktop.
 ## Getting started
 
 1. Open **MODS.EXE** on the desktop and press **Install Examples**. That writes
-   this guide and a few example mods into your mods folder.
+   this guide and the example mods into your mods folder.
 2. Tick a mod, press **Apply & Reload**, start a run.
 3. Press **Open Folder**, copy an example folder, rename it, change the `id` in
    its `mod.json`, and start editing. Apply & Reload picks up your changes; the
@@ -939,7 +939,7 @@ end)
   world3d hooks build, `spawning` is off, and finishing the world with
   `world3d.finish(true)` wins the run. Example: `arena_3d`.
 * To change an **existing** mode instead, write the same hooks without a mode:
-  check `game:isMode("survival")` and so on (see the `survival_tweaks` example).
+  check `game:isMode("survival")` and so on (see the `chaos_engine` example).
 
 ### Restore points
 
@@ -1096,7 +1096,7 @@ bullet cosmetics.
 * **A paused game is still drawn** under its pause screen (a run and a 3D
   world alike), so a video it draws keeps playing, sound and all. Pause it
   yourself while `world.paused` is true (or the run is paused) and play it
-  again after; `billboard_plaza` does.
+  again after; the `media` example's Billboard Plaza does.
 * It loops unless `clip.loop = false`; it then stops on its last picture and
   `clip.ended` turns true.
 * `clip:pause()`, `clip:play()` (an ended video starts over), `clip:stop()`
@@ -1231,9 +1231,9 @@ hundred triangles each is plenty.
 The game has a first-person 3D mode (the Orbital Commander boss fight). Mods can
 enter it, change it, or build a whole game in it: a world of platforms, enemies
 that walk, orbit or shoot, pickups, a tunable weapon and your own HUD. The
-`arena_3d` example (**Cube Siege**) is a complete mode built this way,
-`orbital_tweaks` changes the game's own 3D fight, and `billboard_plaza` puts
-videos and images on screens and billboards in a world.
+`arena_3d` example has both: **Cube Siege**, a complete mode built this way,
+and changes to the game's own 3D fight. The `media` example's Billboard Plaza
+puts videos and images on screens and billboards in a world.
 
 ```lua
 hooks.on("world3dStart", function(world, resumed)
@@ -1474,8 +1474,8 @@ live ones (`for p in world:pickups() do`).
 * **See-through pictures:** fully see-through pixels (a GIF's background, a
   PNG's empty corners) are not drawn at all, so they hide nothing behind them.
   Half see-through ones (soft edges, a glow) still hide what is drawn after
-  them and behind them: draw those last, farthest first, as `billboard_plaza`
-  does with its orbs.
+  them and behind them: draw those last, farthest first, as the `media`
+  example's plaza does with its orbs.
 * **On the screen** (`world3dDrawHud(world, w, h)`): the ordinary `draw`
   library, in pixels over the view, after the built-in HUD.
 * **Overriding the built-in looks:** `override.model(target, model)` and
@@ -1570,7 +1570,7 @@ a world (and stop while it is paused).
 ## Shaders
 
 GLSL fragment shaders can post-process the whole frame (desktop OpenGL 3.3,
-`#version 330`; see the `retro_crt` example for the inputs raylib passes).
+`#version 330`; see `crt.fs` in the `cosmetics` example for the inputs raylib passes).
 
 * `assets.shader("fx/crt.fs" [, "fx/crt.vs"])` returns a shader, with your own
   vertex shader if you give one (it must use raylib's input names:
@@ -1635,7 +1635,7 @@ register.app{
 The desktop icons of mod apps sit in columns of their own after the game's
 icons, in the order the apps were registered, tagged MOD. Opening an app that is
 already open just brings its window to the front. Keep settings in
-`mod.storage` so they survive restarts (see `retro_crt`).
+`mod.storage` so they survive restarts (see `cosmetics`).
 
 ## Interface themes
 
@@ -1802,23 +1802,16 @@ replaces an example only when the game ships a newer version of it (a higher
 
 | Example | Shows |
 |---|---|
-| `hello_hud` | the basics: hooks, drawing in the arena and on the HUD, run.data |
-| `glass_cannon` | a new game mode with its own rules |
-| `survival_tweaks` | changing an existing mode (vetoing events, swapping spawns, XP) |
-| `bouncer` | a new enemy with its own movement and look, and a new power-up |
-| `overclock_boss` | a new boss with scripted attacks and movement, replacing a wave boss |
-| `neon_pack` | cosmetics: player skins (one an animated GIF), a bullet trail and a wallpaper (`disableAchievements: false`) |
-| `retro_crt` | a post-processing shader, and a desktop app to tune it (`disableAchievements: false`) |
-| `house_rules` | a mode that rewrites rules: dash, pickups, the shop, level-ups and its own HUD panel |
-| `model_pack` | 3D models: a ship skin, 3D bullets, a voxel desktop cube, an animated enemy and a model viewer app with a 3D icon (`disableAchievements: false`) |
-| `arena_3d` | a complete 3D game mode, Cube Siege: waves of entities with built-in AI, pickups, a shotgun tune, a custom HUD, `draw3d` effects and a resumable `run.data` |
-| `orbital_tweaks` | changing the game's own 3D boss fight: extra drones, a phase message and a hit filter |
-| `media_player` | videos and music: a desktop app with a seek bar, a music track that takes over the game's music, a playlist read with `assets.json`, an LCD font and a video as its desktop icon (`disableAchievements: false`) |
-| `billboard_plaza` | videos and images in a 3D world, a mode called Billboard Plaza: screens fixed in place with `draw3d.texture` (a video with sound that gets louder as you walk up, a PNG poster, a GIF sign, a turning column of videos, a floor decal), `draw3d.billboard` sprites that face you (see-through, drawn farthest first, and a video), an entity drawn as a GIF, shooting a screen to pause it, holding the videos while the world is paused, no resuming after quitting (`resumable = false`) and no restore points at all (`restorePoints = false`; `disableAchievements: false`) |
+| `hello_hud` | the basics: hooks, drawing in the arena and on the HUD, run.data and a mod keybind (`disableAchievements: false`) |
+| `house_rules` | a new game mode that rewrites rules: dash, pickups, the shop, level-ups and its own HUD panel |
+| `story_mode` | a story told in a mode: a cutscene, dialogue with a portrait, a blessing chosen with `ui.choose`, a choice that changes the run through filters, a HUD card and a pause-menu action |
+| `overclock` | new content for wave mode: an enemy with its own movement and look, a power-up with levels, and a boss with scripted attacks and movement that replaces a wave boss |
 | `necromancer` | a status of its own (Soul Burn), allies as things (thralls raised from burning enemies), per-enemy data, and mod events and `mods.export` for other mods to build on |
-| `story_mode` | a story told in a mode: a cutscene, dialogue with a portrait, a blessing chosen with `ui.choose`, a choice that changes the run, a HUD card and a pause-menu action |
-| `chaos_engine` | telegraphed hazards, the camera and time on boss fights, a shop item, a roguelite patch, a survival event, a mod achievement and a Help-terminal command |
+| `chaos_engine` | telegraphed hazards, the camera and time on boss fights, a shop item, a roguelite patch, a survival event, vetoes and filters on Time Survival, a mod achievement and a Help-terminal command |
 | `content_pack` | a mod without a script: power-ups, an enemy in wave mode's roster, a shop item and a consumable from JSON files under `content/` |
+| `cosmetics` | looks only: player skins (a palette, an animated GIF, a 3D model), bullets (a palette, a 3D model), a wallpaper, a voxel desktop cube, a CRT post-processing shader, and a desktop app (with a 3D icon) that tunes the shader and swaps an enemy for an animated model, kept in `mod.storage` (`disableAchievements: false`) |
+| `media` | videos and music in two files joined with `require`: a desktop app with a seek bar, a music track that takes over the game's music, a playlist read with `assets.json`, an LCD font and a video as its desktop icon; and Billboard Plaza, a 3D mode with pictures fixed in the world (`draw3d.texture`: a video with sound that gets louder as you walk up, a PNG, a GIF, a turning video, a floor decal), sprites that face you (`draw3d.billboard`, see-through ones drawn farthest first), entities drawn as a GIF, a screen you shoot to pause (`world3d.raycast`), videos held while the world is paused, and no resuming or restore points (`resumable = false`, `restorePoints = false`; `disableAchievements: false`) |
+| `arena_3d` | 3D worlds, both ways: Cube Siege, a complete 3D game mode (waves of entities with built-in AI, pickups, a shotgun tune, a custom HUD, `draw3d` and a `run.data` to continue from), and changes to the game's own 3D boss fight (extra drones, a phase message and a hit filter) |
 | `critical_section` | a PvP mode, Critical Section (king of the hill): lobby presets, scores and a moving zone in `match.data`, privileged rounds through `pvpShoot` and `match:spawnBullet` drawn by `pvpBulletDraw`, a blink on a mod keybind sent with `match:request` and shown everywhere with `match:broadcast`, the end decided by `pvpEnding` and `match:finish`, and its own HUD (`disableAchievements: false`) |
 
 ## PvP

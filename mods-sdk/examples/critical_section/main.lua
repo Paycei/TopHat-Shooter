@@ -28,6 +28,7 @@ local MOVE_EVERY = 35     -- the section moves this often
 local BLINK = 170         -- blink distance
 local BLINK_COOLDOWN = 8
 local ROOT = "critical_section:root"   -- our bullets' kind
+local SPOTS = {{0.5, 0.5}, {0.27, 0.3}, {0.73, 0.7}, {0.27, 0.7}, {0.73, 0.3}}
 
 register.keybind{
   id = "blink",
@@ -36,32 +37,27 @@ register.keybind{
   gamepad = "RightFaceUp",
 }
 
+local function say(en, es) return lang.current() == "es" and es or en end
 local function on(match) return match:isMode(MODE) end
 
-local function es() return lang.current() == "es" end
-
 -- Who a score belongs to: the team in team matches, else the player.
-local function side(match, p)
-  if match.teams then return p.teamId end
-  return "p" .. p.index
-end
-
--- That side as match:finish takes it: a team name, or the player.
-local function winnerOf(match, who)
-  if match.teams then return who end
-  return match:player(tonumber(who:sub(2)))
-end
+local function side(match, p) return match.teams and p.teamId or "p" .. p.index end
 
 local function inside(z, p)
   return p.alive and (p.x - z.x) ^ 2 + (p.y - z.y) ^ 2 <= z.r ^ 2
 end
 
-local SPOTS = {{0.5, 0.5}, {0.27, 0.3}, {0.73, 0.7}, {0.27, 0.7}, {0.73, 0.3}}
-
 local function moveSection(match)
   local spot = SPOTS[math.random(#SPOTS)]
   match.data.zone = {x = match.width * spot[1], y = match.height * spot[2], r = 90,
                      moveAt = match.time + MOVE_EVERY}
+end
+
+-- The winner as match:finish takes it: a team name, or the player.
+local function finish(match, who, why)
+  local winner = who
+  if who and not match.teams then winner = match:player(tonumber(who:sub(2))) end
+  match:finish(winner, why)
 end
 
 -- ---------------------------------------------------------------- host ----
@@ -92,25 +88,24 @@ hooks.on("pvpUpdate", function(match, dt)
   if who then
     d.score[who] = (d.score[who] or 0) + dt
     if d.score[who] >= GOAL then
-      match:finish(winnerOf(match, who), {en = "held the critical section for 30 seconds",
-                                          es = "ocupó la sección crítica 30 segundos"})
+      finish(match, who, {en = "held the critical section for 30 seconds", es = "ocupó la sección crítica 30 segundos"})
     end
   end
 end)
 
--- The match only ends by our rules: at time up, the longest holder wins.
+-- The match only ends by our rules: at time up, the longest holder wins (a
+-- tie is a draw). Returning true stops kills and eliminations ending it.
 hooks.on("pvpEnding", function(match, reason)
   if not on(match) then return end
   if reason == "time" then
-    local best, bestScore, tie = nil, -1, false
+    local best, bestScore = nil, -1
     for who, s in pairs(match.data.score) do
-      if s > bestScore then best, bestScore, tie = who, s, false
-      elseif s == bestScore then tie = true end
+      if s > bestScore then best, bestScore = who, s
+      elseif s == bestScore then best = nil end
     end
-    match:finish(best and not tie and winnerOf(match, best) or nil,
-                 {en = "time up: the longest holder wins", es = "tiempo: gana quien más la ocupó"})
+    finish(match, best, {en = "time up: the longest holder wins", es = "tiempo: gana quien más la ocupó"})
   end
-  return true   -- (kills and eliminations never end it)
+  return true
 end)
 
 -- Inside an uncontested section, a shot is a privileged round: bigger, faster
@@ -128,24 +123,22 @@ hooks.on("pvpRequest", function(match, p, name, data)
   if not on(match) or name ~= "critical_section:blink" or not p.alive then return end
   -- A request is another machine's word: check it before trusting it.
   if type(data) ~= "table" or type(data.x) ~= "number" or type(data.y) ~= "number" then return end
-  local d = match.data
   local key = "p" .. p.index
-  if (d.cooldown[key] or 0) > match.time then return end   -- still recharging
+  if (match.data.cooldown[key] or 0) > match.time then return end   -- still recharging
   local dx, dy = data.x - p.x, data.y - p.y
   local len = math.sqrt(dx * dx + dy * dy)
   if len < 1 then return end
   local step = math.min(len, BLINK)
   local fromX, fromY = p.x, p.y
   match:teleport(p, p.x + dx / len * step, p.y + dy / len * step)
-  d.cooldown[key] = match.time + BLINK_COOLDOWN
+  match.data.cooldown[key] = match.time + BLINK_COOLDOWN
   match:broadcast("critical_section:blinked", {x1 = fromX, y1 = fromY, x2 = p.x, y2 = p.y})
 end)
 
 -- --------------------------------------------------------- every machine ----
 -- Each machine reads its own player's keys and asks the host.
 hooks.on("pvpFrame", function(match)
-  if not on(match) or not match.localPlayer.alive then return end
-  if input.bindPressed("blink") then
+  if on(match) and match.localPlayer.alive and input.bindPressed("blink") then
     local x, y = input.mouse()
     match:request("critical_section:blink", {x = x, y = y})
   end
@@ -157,18 +150,10 @@ hooks.on("pvpBroadcast", function(match, name, data)
   match:particles(data.x2, data.y2, "#64d8ff", 24)
 end)
 
-hooks.on("pvpKill", function(match, victim, killer)
-  local z = on(match) and match.data.zone
-  if z and killer and killer.isLocal and (victim.x - z.x) ^ 2 + (victim.y - z.y) ^ 2 <= z.r ^ 2 then
-    match:toast({en = "Evicted from the critical section!", es = "¡Expulsado de la sección crítica!"}, "#ffb020")
-  end
-end)
-
 hooks.on("pvpBulletDraw", function(b)
   if b.kind ~= ROOT then return end
   draw.circle(b.x, b.y, b.radius + 5, "#ffb02040")
   draw.circle(b.x, b.y, b.radius, "#ffb020")
-  draw.circleLines(b.x, b.y, b.radius + 5, "#fff2c0", 1.5)
   return true
 end)
 
@@ -180,44 +165,31 @@ hooks.on("pvpDrawBackground", function(match)
   draw.circle(z.x, z.y, z.r, col .. "26")
   draw.circleLines(z.x, z.y, z.r, col, 3)
   -- the time until it moves, as a shrinking ring
-  local left = math.max(0, z.moveAt - match.time) / MOVE_EVERY
+  local left = (z.moveAt - match.time) / MOVE_EVERY
   if left > 0 then draw.circleLines(z.x, z.y, z.r * left, col .. "70", 1.5) end
-  local label = es() and "SECCIÓN CRÍTICA" or "CRITICAL SECTION"
+  local label = say("CRITICAL SECTION", "SECCIÓN CRÍTICA")
   draw.text(label, z.x - draw.textWidth(label, 12) / 2, z.y - z.r - 18, 12, col)
 end)
 
 hooks.on("pvpDrawHud", function(match, w, h)
   local d = on(match) and match.data
   if not d or not d.score then return end
-  -- one bar per side, top left
-  local rows = {}
-  if match.teams then
-    local seen = {}
-    for p in match:players() do
-      if not seen[p.teamId] then
-        seen[p.teamId] = true
-        rows[#rows + 1] = {key = p.teamId, name = lang.text("pvp_team_" .. p.teamId:sub(3):lower()),
-                           mine = p.teamId == match.localPlayer.teamId}
-      end
+  -- one score line per side, top left
+  local y, shown = 40, {}
+  for p in match:players() do
+    local who = side(match, p)
+    if not shown[who] then
+      shown[who] = true
+      local name = match.teams and lang.text("pvp_team_" .. p.teamId:sub(3):lower()) or p.name
+      local mine = who == side(match, match.localPlayer)
+      draw.text(name .. "  " .. math.floor(d.score[who] or 0) .. "/" .. GOAL, 12, y, 12,
+                who == d.holder and "#ffb020" or (mine and "#ffffff" or "#a8b0c0"))
+      y = y + 18
     end
-  else
-    for p in match:players() do
-      rows[#rows + 1] = {key = "p" .. p.index, name = p.name, mine = p.isLocal}
-    end
-  end
-  local x, y = 12, 40
-  draw.rect(x - 6, y - 6, 204, #rows * 22 + 8, "#0a0e18cc")
-  for i, row in ipairs(rows) do
-    local s = d.score[row.key] or 0
-    local yy = y + (i - 1) * 22
-    draw.text(row.name .. "  " .. math.floor(s) .. "/" .. GOAL, x, yy, 12, row.mine and "#ffffff" or "#a8b0c0")
-    draw.rect(x, yy + 14, 190, 3, "#ffffff22")
-    draw.rect(x, yy + 14, 190 * math.min(1, s / GOAL), 3, row.key == d.holder and "#ffb020" or "#64d8ff")
   end
   -- this machine's blink
-  local cd = d.cooldown and d.cooldown["p" .. match.localPlayer.index]
+  local cd = d.cooldown["p" .. match.localPlayer.index]
   local ready = not cd or cd <= match.time
-  local text = (es() and "SALTO " or "BLINK ") .. (ready and (es() and "LISTO" or "READY")
-                                                    or tostring(math.ceil(cd - match.time)))
+  local text = say("BLINK ", "SALTO ") .. (ready and say("READY", "LISTO") or tostring(math.ceil(cd - match.time)))
   draw.text(text, w - draw.textWidth(text, 14) - 14, h - 32, 14, ready and "#64d8ff" or "#7a8496")
 end)
