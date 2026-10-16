@@ -163,7 +163,9 @@ look for the seam that already covers the case first.
 (`getMoveVector`, `getAimTarget`, `isFiring`, `abilityPressed`, `dashPressed`,
 `placeWallHeld/Pressed/Released`, `interactPressed`, `pausePressed`,
 `confirmPressed`, `skipHeld`). On desktop each returns exactly the old inline
-behavior; on `-d:mobile` it reads `src/mobile_controls.nim`. Consumers are
+behavior; on `-d:mobile` it reads `src/mobile_controls.nim`, OR-ed with the
+same pad/keyboard read, so a paired controller still works (`getAimTarget`
+switches to the pad's aim point while the touch stick is idle). Consumers are
 `player.nim` (movement + dash), `game.nim` (aim/fire + the wall ghost preview),
 `main.nim` (ability/wall/pause), `pvp_game.nim` (all of its input),
 `dungeon.nim` (`interactPressed`) and `tutorial.nim` (fire/confirm/skip) — keep

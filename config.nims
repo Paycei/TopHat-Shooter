@@ -23,7 +23,9 @@ when withDir(thisDir(), system.fileExists("nimble.paths")):
 # --path wins, so a naylib a stale nimble.paths still lists can never shadow it.
 import std/strutils
 
-let hostIsWindows = getEnv("OS") == "Windows_NT" or getEnv("USERPROFILE").len > 0
+# OS alone: Windows always sets it, while USERPROFILE can leak into WSL through
+# WSLENV and would send ship.ps1's LinuxRelease down the Windows branch.
+let hostIsWindows = getEnv("OS") == "Windows_NT"
 
 proc baseName(p: string): string =
   # Last path component, separator-agnostic (avoids relying on extractFilename

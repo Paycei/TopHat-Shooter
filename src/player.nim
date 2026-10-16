@@ -1,6 +1,6 @@
 import raylib, math, random, std/deques
 import draw_prims
-import gamepad_input, particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, settings, utils, input_intent
+import particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, utils, input_intent
 import modding/[mod_hooks, mod_assets]
 
 const

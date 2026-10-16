@@ -45,7 +45,7 @@ const AndroidApiLevel = 29
 proc androidHostTag(): string =
   # NDK prebuilt toolchain host dir. Detected from the host env (see config.nims
   # for why hostOS is unreliable here).
-  if getEnv("OS") == "Windows_NT" or getEnv("USERPROFILE").len > 0: "windows-x86_64"
+  if getEnv("OS") == "Windows_NT": "windows-x86_64"
   elif defined(macosx): "darwin-x86_64"
   else: "linux-x86_64"
 
@@ -99,7 +99,7 @@ proc buildAndroidLibs(release: bool) =
       " -o:\"" & (outDir / "libmain.so") & "\" src/main.nim"
 
 proc gradleCommand(): string =
-  # Prefer the pinned Gradle 8.7 wrapper (AGP 8.5.2 needs Gradle 8.7 + JDK 17-21);
+  # Prefer the pinned Gradle 9.8.1 wrapper (AGP 9.4.1 needs Gradle 9.6+ and JDK 17+);
   # fall back to GRADLE env or system `gradle` if the wrapper isn't present.
   let wrapper = thisDir() / "android" / (when defined(windows): "gradlew.bat" else: "gradlew")
   if fileExists(wrapper): wrapper else: getEnv("GRADLE", "gradle")

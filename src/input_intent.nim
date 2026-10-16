@@ -13,6 +13,10 @@
 ## input), dungeon.nim (interact) and tutorial.nim (fire/confirm/skip); keep
 ## that surface small. Add a proc here only for a
 ## genuinely new *input action* -- a new power-up, enemy or boss needs none.
+##
+## On mobile a paired controller (or keyboard) still works: each touch intent is
+## OR-ed with the same pad/key read desktop uses, so a phone with a Bluetooth pad
+## plays like the desktop build with a pad.
 
 import raylib
 import particle_types      # Vector2f + ops
@@ -47,17 +51,14 @@ proc keyMoveVector(): Vector2f =
 proc getMoveVector*(): Vector2f =
   ## Desired movement direction (magnitude 0..~1). player.nim normalizes it.
   when defined(mobile):
-    mobileMoveVector()
+    mobileMoveVector() + keyMoveVector()  # the caller clamps the sum
   else:
     keyMoveVector()
 
 proc abilityDirection*(): Vector2f =
   ## Direction for directional abilities (Phase Shift dash). Mirrors movement
   ## input on both platforms.
-  when defined(mobile):
-    mobileMoveVector()
-  else:
-    keyMoveVector()
+  getMoveVector()
 
 proc getAimTarget*(playerPos: Vector2f): Vector2f =
   ## WORLD-space point the player is aiming at; shootDir = target - playerPos.
@@ -74,6 +75,10 @@ proc getAimTarget*(playerPos: Vector2f): Vector2f =
   ## game.nim owns the assisted firing aim point (see stickAimPoint); this is
   ## the plain projection used for wall placement and its preview.
   when defined(mobile):
+    if isGamepadActive() and not mobileIsAiming() and not mobileWallHeld():
+      # A pad is driving: the stick aim point game.nim/pvp_game.nim publish.
+      let m = getWorldMousePosition()
+      return newVector2f(m.x, m.y)
     playerPos + mobileAimTargetDir() * MobileAimReach
   else:
     let m = getWorldMousePosition()
@@ -86,7 +91,8 @@ proc isFiring*(wallPlacementMode: bool): bool =
   ## held, otherwise the player keeps firing through their own wall preview and
   ## can never line a wall up in peace.
   when defined(mobile):
-    mobileIsAiming() and not wallPlacementMode
+    not wallPlacementMode and
+      (mobileIsAiming() or gamepadFireDown(globalSettings.gamepadBinds))
   else:
     (isMouseButtonDown(Left) and not wallPlacementMode) or
       isKeyDown(globalSettings.keybinds[kaShoot]) or
@@ -95,7 +101,8 @@ proc isFiring*(wallPlacementMode: bool): bool =
 proc abilityPressed*(): bool =
   ## Legendary/ability activation edge.
   when defined(mobile):
-    mobileAbilityPressed()
+    mobileAbilityPressed() or
+      isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)
   else:
     isKeyPressed(globalSettings.keybinds[kaLegendary]) or
       isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)
@@ -111,7 +118,8 @@ proc dashPressed*(): bool =
   ## dash", not "is a dash legal", so the touch layer never has to know the
   ## tuning constants.
   when defined(mobile):
-    mobileDashPressed()
+    mobileDashPressed() or
+      (isGamepadActive() and isGamepadBindPressed(globalSettings.gamepadBinds, kaDash))
   else:
     isKeyPressed(globalSettings.keybinds[kaDash]) or
       (isGamepadActive() and isGamepadBindPressed(globalSettings.gamepadBinds, kaDash))
@@ -127,7 +135,7 @@ proc placeWallPressed*(): bool =
 proc placeWallHeld*(): bool =
   ## Wall preview is shown while held.
   when defined(mobile):
-    mobileWallHeld()
+    mobileWallHeld() or isGamepadBindDown(globalSettings.gamepadBinds, kaPlaceWall)
   else:
     isKeyDown(globalSettings.keybinds[kaPlaceWall]) or
       isGamepadBindDown(globalSettings.gamepadBinds, kaPlaceWall)
@@ -135,7 +143,8 @@ proc placeWallHeld*(): bool =
 proc placeWallReleased*(): bool =
   ## Wall is placed on release.
   when defined(mobile):
-    mobileWallReleased()
+    mobileWallReleased() or
+      isGamepadBindReleased(globalSettings.gamepadBinds, kaPlaceWall)
   else:
     isKeyReleased(globalSettings.keybinds[kaPlaceWall]) or
       isGamepadBindReleased(globalSettings.gamepadBinds, kaPlaceWall)
@@ -148,7 +157,8 @@ proc interactPressed*(): bool =
   ## the wall button (its release edge), and without that mapping a mobile
   ## player cannot buy a pedestal or open a dungeon shop at all.
   when defined(mobile):
-    mobileWallReleased()
+    mobileWallReleased() or
+      isGamepadBindPressed(globalSettings.gamepadBinds, kaPlaceWall)
   else:
     isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or
       isKeyPressed(Enter) or
@@ -159,7 +169,7 @@ proc pausePressed*(): bool =
   ## Mobile: a short tap of the pause button, on release (a long hold is left to
   ## skipHeld).
   when defined(mobile):
-    mobilePausePressed()
+    mobilePausePressed() or isGamepadStartPressed()
   else:
     isBackPressed() or isGamepadStartPressed()
 

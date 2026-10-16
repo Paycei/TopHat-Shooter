@@ -115,8 +115,10 @@ keytool -genkeypair -v -keystore tophat.jks -keyalg RSA -keysize 2048 \
 ```
 
 Keep that keystore forever — Android identifies app updates by signature, and
-losing it means the app can never be updated in place. Bump `versionCode` in
-`app/build.gradle` for each release you distribute.
+losing it means the app can never be updated in place. `versionName` and
+`versionCode` are read from the `version` line of `TopHatShooter.nimble`
+(`versionCode` = major*10000 + minor*100 + patch), so bumping the game's version
+there is all a release needs.
 
 ## Notes / things to verify on-device
 

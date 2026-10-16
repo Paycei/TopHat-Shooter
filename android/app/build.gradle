@@ -13,6 +13,19 @@ plugins {
 // or the env vars ANDROID_KEYSTORE / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS /
 // ANDROID_KEY_PASSWORD. With neither, `assembleRelease` still succeeds and emits
 // app-release-unsigned.apk (installable only after signing it yourself).
+
+// The version comes from TopHatShooter.nimble, the one source of truth that
+// ship.ps1 also syncs TopHatShooter.ini from. versionCode must only grow, so it
+// is derived as major*10000 + minor*100 + patch (6.4.0 -> 60400).
+def nimbleVersion = (rootProject.file('../TopHatShooter.nimble').text =~ /(?m)^version\s*=\s*"(\d+)\.(\d+)\.(\d+)"/)
+if (!nimbleVersion.find()) {
+    throw new GradleException("TopHatShooter.nimble has no 'version = \"X.Y.Z\"' line")
+}
+def gameVersionName = "${nimbleVersion.group(1)}.${nimbleVersion.group(2)}.${nimbleVersion.group(3)}"
+def gameVersionCode = nimbleVersion.group(1).toInteger() * 10000 +
+                      nimbleVersion.group(2).toInteger() * 100 +
+                      nimbleVersion.group(3).toInteger()
+
 def keystoreProps = new Properties()
 def keystorePropsFile = rootProject.file('keystore.properties')
 if (keystorePropsFile.exists()) {
@@ -34,8 +47,8 @@ android {
         applicationId = 'com.paycei.tophatshooter'
         minSdk = 29          // matches AndroidApiLevel in TopHatShooter.nimble
         targetSdk = 37
-        versionCode = 3
-        versionName = '6.1.1'
+        versionCode = gameVersionCode   // from TopHatShooter.nimble, see above
+        versionName = gameVersionName
         ndk {
             // Keep in sync with the ABIs you built (ANDROID_ABIS). Only ABIs with
             // a matching libmain.so under jniLibs will actually run.

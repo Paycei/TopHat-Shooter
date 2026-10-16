@@ -424,7 +424,7 @@ proc loadModShader*(path: string, err: var string, vertexPath = ""): int =
   try:
     proc source(p: string): string =
       result = readFile(p)
-      if result.startsWith("ï»¿"): result = result[3 .. ^1]   # a UTF-8 BOM ahead of #version
+      if result.startsWith("\xEF\xBB\xBF"): result = result[3 .. ^1]   # a UTF-8 BOM ahead of #version
     let vs = if vertexPath.len > 0: glslForDriver(source(vertexPath), vertex = true) else: ""
     var s = loadShaderFromMemory(vs, glslForDriver(source(path)))
     if s.id == 0 or s.id == getShaderIdDefault():

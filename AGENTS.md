@@ -9,6 +9,7 @@ This file documents repository conventions, common commands, and the project-spe
 - `src/main.nim`: primary entrypoint and game loop
 - `TopHatShooter.nimble`: Nimble tasks for build and run targets
 - `src/`: main source tree
+- `android/`: the Android build project (gradle + manifest + icons, no Java); see `android/README.md`
 
 ## Quick Setup
 
@@ -32,8 +33,21 @@ nimble WinRelease
 # Build a Linux release
 nimble LinuxRelease
 
-# Fast validation without producing a binary
+# Build the Android APK (needs ANDROID_NDK; `nimble android` also needs the SDK + JDK)
+nimble androidLib        # cross-compile libmain.so only
+nimble android           # + gradle -> debug APK
+nimble androidRelease    # LTO + stripped lib, release APK (signed if a keystore is configured)
+
+# Fast validation without producing a binary: all three configurations,
+# since -d:mobile and defined(android) are independent and neither sees the
+# other's branches
 nim check --mm:orc src/main.nim
+nim check --mm:orc -d:mobile src/main.nim
+nim check --os:android --cpu:arm64 -d:mobile -d:android --mm:orc --app:lib `
+  -d:AndroidNdk:"$env:ANDROID_NDK" src/main.nim
+
+# Run the touch build on desktop (the mouse acts as one touch point)
+nim c -r --mm:orc -d:mobile src/main.nim
 ```
 
 - `nimble debug` runs the main game loop in debug mode.
@@ -44,7 +58,7 @@ nim check --mm:orc src/main.nim
 ## Development Workflow
 
 1. Run `nimble install` if dependencies are missing.
-2. Use `nim check --mm:orc src/main.nim` after edits to catch type errors and exhaustive `case` misses quickly.
+2. Use `nim check --mm:orc src/main.nim` after edits to catch type errors and exhaustive `case` misses quickly; if the change touches input, UI, rendering or platform code, run the `-d:mobile` and Android checks too.
 3. Use `nimble debug` when you need to run the game locally.
 4. Run the relevant release task only when preparing a distribution build.
 5. Keep changes scoped and prefer focused diffs.
@@ -57,6 +71,31 @@ nim check --mm:orc src/main.nim
 - `src/ui/` contains the OS-desktop UI layer, window modules, HUD code, icon drawing, and desktop-specific visuals.
 - `src/ui/os_desktop.nim` is the simulated desktop surface where the cube and wallpaper effects live.
 - `src/game3d/` contains the separate 3D boss/gameplay code paths.
+
+## Mobile / Android
+
+The Android build is the same codebase, not a fork. Two independent flags:
+`-d:mobile` (touch controls + touch UI; runs on desktop too) and `defined(android)`
+(set by `--os:android`; platform specifics such as save paths, keep-screen-on and the
+C entry point). Only two modules read raw touch, and they are the seams to use:
+
+- **Gameplay:** `src/input_intent.nim`. Gameplay asks for intents (`getMoveVector`,
+  `getAimTarget`, `isFiring`, `dashPressed`, `placeWallHeld/Released`, ...). On desktop
+  each returns the plain keyboard/mouse/pad read. On mobile it reads
+  `src/mobile_controls.nim`, OR-ed with the same pad/keyboard read, so a paired controller
+  still works.
+- **Menus:** `src/touch_ui.nim`, wired into the pointer wrappers in `src/gamepad_input.nim`
+  (`isPointerPressed`, `getPointerWheelMove`, `isBackPressed`, the `poll*` text-input
+  shims). On touch `isPointerPressed` fires on *release*, so anything that starts a drag
+  must use `isPointerDragStart` instead (and `handledPressThisFrame`, not
+  `handledClickThisFrame`, inside OS windows).
+
+A new power-up, enemy or boss needs no mobile work. A new `when defined(mobile)` branch
+outside these seams is almost always the wrong fix. Add to `input_intent` only for a
+genuinely new input action, and add a `when defined(android)` guard only for a new
+desktop-only API call. The 3D boss fight is not ported (keyboard only). The details,
+including the virtual-keyboard contracts, are in the "Mobile / Android port" section of
+`CLAUDE.md`.
 
 ## Key Conventions
 

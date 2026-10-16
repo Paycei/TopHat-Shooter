@@ -581,6 +581,12 @@ proc nextHudStyle(style: HudStyle): HudStyle =
   of hsModern: hsLegacy
   of hsLegacy: hsModern
 
+const DisplayTogglesLive = not defined(android)
+  ## Fullscreen and VSync do nothing on Android (the OS owns one fullscreen
+  ## surface, and applyWindowMode is a no-op there), so their rows are drawn
+  ## dimmed and ignore taps. They keep their slots so every row below them stays
+  ## where the hardcoded hit rects in updateSettingsWindow expect it.
+
 proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
 
@@ -590,12 +596,14 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   yPos += 35
 
   # Fullscreen toggle
-  drawText(t(tkSettingsFullscreen), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
+  let toggleLabel = if DisplayTogglesLive: uiInk(White) else: uiInk(DarkGray)
+  let toggleDesc = if DisplayTogglesLive: uiInk(LightGray) else: uiInk(DarkGray)
+  drawText(t(tkSettingsFullscreen), (contentX + 40).int32, yPos.int32, 18, toggleLabel)
   let fsCheckX = contentX + 320
   let mousePos = getVirtualMousePosition()
-  let fsHovered = checkboxHit(mousePos, fsCheckX, yPos)
+  let fsHovered = DisplayTogglesLive and checkboxHit(mousePos, fsCheckX, yPos)
   drawCheckbox(fsCheckX, yPos, 25, settingsWin.settings.fullscreen, fsHovered)
-  drawText(t(tkSettingsFullscreenToggle), (fsCheckX + 35).int32, (yPos + 3).int32, 14, uiInk(LightGray))
+  drawText(t(tkSettingsFullscreenToggle), (fsCheckX + 35).int32, (yPos + 3).int32, 14, toggleDesc)
   yPos += 40
 
   drawText(t(tkSettingsRenderResolution), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
@@ -655,11 +663,11 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   yPos += 40
 
   # VSync
-  drawText(t(tkSettingsVSync), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
+  drawText(t(tkSettingsVSync), (contentX + 40).int32, yPos.int32, 18, toggleLabel)
   let vsyncCheckX = contentX + 320
-  let vsyncHovered = checkboxHit(mousePos, vsyncCheckX, yPos)
+  let vsyncHovered = DisplayTogglesLive and checkboxHit(mousePos, vsyncCheckX, yPos)
   drawCheckbox(vsyncCheckX, yPos, 25, settingsWin.settings.vsyncEnabled, vsyncHovered)
-  drawText(t(tkSettingsVSyncDesc), (vsyncCheckX + 35).int32, (yPos + 3).int32, 14, uiInk(LightGray))
+  drawText(t(tkSettingsVSyncDesc), (vsyncCheckX + 35).int32, (yPos + 3).int32, 14, toggleDesc)
   yPos += 40
 
   # Visual effects (post_fx.nim): same cycle button as the render mode above
@@ -1543,7 +1551,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       let fsCheckY = contentY + 50
 
       # Fullscreen checkbox (25x25 hit area)
-      if checkboxHit(mousePos, fsCheckX, fsCheckY):
+      if DisplayTogglesLive and checkboxHit(mousePos, fsCheckX, fsCheckY):
         settingsWin.settings.fullscreen = not settingsWin.settings.fullscreen
         fullscreenToggle = true
         settingsChanged = true
@@ -1585,7 +1593,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       # VSync checkbox
       let vsyncCheckX = contentX + 320
       let vsyncCheckY = contentY + 190
-      if checkboxHit(mousePos, vsyncCheckX, vsyncCheckY):
+      if DisplayTogglesLive and checkboxHit(mousePos, vsyncCheckX, vsyncCheckY):
         settingsWin.settings.vsyncEnabled = not settingsWin.settings.vsyncEnabled
         if settingsWin.settings.vsyncEnabled:
           setWindowState(flags(VsyncHint))

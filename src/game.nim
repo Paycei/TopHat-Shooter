@@ -2361,17 +2361,19 @@ proc updatePlayerFiring(game: var Game, dt: float32) =
   # Check shooting
   let pointerPos = getWorldMousePosition()
   var mousePos = newVector2f(pointerPos.x, pointerPos.y)
+  var padAims = isGamepadActive()
   when defined(mobile):
     # The aim joystick is direction-only, exactly like a gamepad right stick, so
-    # it goes through the same projection + aim-assist path.
+    # it goes through the same projection + aim-assist path. A paired pad takes
+    # over whenever the touch stick is idle.
     let touchDir = mobileAimVector()
     if touchDir.length() > 0:
       mousePos = stickAimPoint(game, touchDir.normalize())
-  else:
-    if isGamepadActive():
-      let padDir = aimDir()  # raylib Vector2, already normalized
-      mousePos = stickAimPoint(game, newVector2f(padDir.x, padDir.y))
-      setGamepadAimPointWorld(Vector2(x: mousePos.x, y: mousePos.y))
+      padAims = false
+  if padAims:
+    let padDir = aimDir()  # raylib Vector2, already normalized
+    mousePos = stickAimPoint(game, newVector2f(padDir.x, padDir.y))
+    setGamepadAimPointWorld(Vector2(x: mousePos.x, y: mousePos.y))
   let shootDir = newVector2f(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
 
   # Handle delayed double-shot bursts (rapid succession)

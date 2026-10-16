@@ -215,9 +215,9 @@ nimble android
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Known-good toolchain: NDK r30, JDK 21, the **pinned Gradle 8.7 wrapper**
-(`android/gradlew` — the system Gradle 9.x + JDK 25 cannot run AGP 8.5.2),
-AGP 8.5.2, compileSdk 34, minSdk/API 29. Full prerequisites, gotchas and the
+Known-good toolchain: NDK r30, JDK 21, the **pinned Gradle 9.8.1 wrapper**
+(`android/gradlew`, so the system Gradle version is irrelevant), AGP 9.4.1,
+compileSdk/targetSdk 37, minSdk/API 29. Full prerequisites, gotchas and the
 on-device checklist live in [`android/README.md`](android/README.md).
 
 You can exercise most of the mobile build without a phone — raylib maps the

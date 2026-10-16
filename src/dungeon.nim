@@ -21,8 +21,8 @@
 
 import raylib, random, math, tables, strutils
 import draw_prims
-import gamepad_input, particle_types, types, roguelite, powerup, powerup_data, patches, player,
-       particle_pool, sound, localization, boss_definitions, settings, coin, xp_orb, utils,
+import particle_types, types, roguelite, powerup, powerup_data, patches, player,
+       particle_pool, sound, localization, boss_definitions, coin, xp_orb, utils,
        game/combat, ui/icon_drawing, ui/ui_helpers
 import modding/[mod_hooks, mod_registry], enemy_config, input_intent
 
