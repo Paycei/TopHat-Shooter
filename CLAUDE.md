@@ -315,10 +315,10 @@ Other pieces:
   separator, which collapses a Windows path to `./raylib` (`raylib.h` not found).
 - Build project lives in `android/` (gradle + manifest + vector icon; no Java).
   `nimble androidLib` cross-compiles `libmain.so`; `nimble android` packages a
-  working `app-debug.apk` (verified). Known-good toolchain: NDK r30, JDK 21, a
-  **pinned Gradle 8.7 wrapper** (`android/gradlew` — the system Gradle 9.x + JDK
-  25 can't run AGP 8.5.2), AGP 8.5.2, compileSdk 34. On-device runtime is not yet
-  verified. `nimble androidRelease` adds LTO/stripping to the lib and the
+  working `app-debug.apk` (verified). Known-good toolchain: NDK r30 (30.0.16248370), JDK 21, a
+  **pinned Gradle 9.8.1 wrapper** (`android/gradlew`), AGP 9.4.1, compileSdk/targetSdk 37
+  (the manifest's `android:appCategory="game"` keeps the landscape lock on large
+  screens at targetSdk 36+). On-device runtime is not yet verified. `nimble androidRelease` adds LTO/stripping to the lib and the
   `release` build type; it signs the APK only if `android/keystore.properties`
   (or the `ANDROID_KEYSTORE*` env vars) exists, otherwise it emits
   `app-release-unsigned.apk`. Details + gotchas in `android/README.md`.

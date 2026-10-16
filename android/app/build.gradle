@@ -2,7 +2,7 @@
 // android.app.NativeActivity. No Java/Kotlin sources (application hasCode=false).
 // The .so files are produced by `nimble androidLib` into src/main/jniLibs/<abi>.
 plugins {
-    id 'com.android.application' version '8.5.2'
+    id 'com.android.application' version '9.4.1'
 }
 
 // Optional release signing. Supply either android/keystore.properties (git-ignored):
@@ -26,15 +26,16 @@ if (ksFile != null && !hasSigning) {
 }
 
 android {
-    namespace 'com.paycei.tophatshooter'
-    compileSdk 34
+    namespace = 'com.paycei.tophatshooter'
+    compileSdk = 37
+    buildToolsVersion = '37.0.0'
 
     defaultConfig {
-        applicationId 'com.paycei.tophatshooter'
-        minSdk 29          // matches AndroidApiLevel in TopHatShooter.nimble
-        targetSdk 34
-        versionCode 3
-        versionName '6.1.1'
+        applicationId = 'com.paycei.tophatshooter'
+        minSdk = 29          // matches AndroidApiLevel in TopHatShooter.nimble
+        targetSdk = 37
+        versionCode = 3
+        versionName = '6.1.1'
         ndk {
             // Keep in sync with the ABIs you built (ANDROID_ABIS). Only ABIs with
             // a matching libmain.so under jniLibs will actually run.
@@ -52,10 +53,10 @@ android {
     signingConfigs {
         if (hasSigning) {
             release {
-                storeFile ksFile
-                storePassword keystoreProps.getProperty('storePassword') ?: System.getenv('ANDROID_KEYSTORE_PASSWORD')
-                keyAlias keystoreProps.getProperty('keyAlias') ?: System.getenv('ANDROID_KEY_ALIAS')
-                keyPassword keystoreProps.getProperty('keyPassword') ?: System.getenv('ANDROID_KEY_PASSWORD')
+                storeFile = ksFile
+                storePassword = keystoreProps.getProperty('storePassword') ?: System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias = keystoreProps.getProperty('keyAlias') ?: System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword = keystoreProps.getProperty('keyPassword') ?: System.getenv('ANDROID_KEY_PASSWORD')
             }
         }
     }
@@ -64,22 +65,22 @@ android {
         release {
             // No Java/Kotlin bytecode to shrink (hasCode=false) - all the size and
             // speed work happens in the native lib, see `nimble androidRelease`.
-            minifyEnabled false
-            debuggable false
-            jniDebuggable false
-            zipAlignEnabled true
+            minifyEnabled = false
+            debuggable = false
+            jniDebuggable = false
+            zipAlignEnabled = true
             // libmain.so is already stripped by the linker; don't ship a symbol table.
-            ndk { debugSymbolLevel 'none' }
+            ndk { debugSymbolLevel = 'none' }
             if (hasSigning) {
-                signingConfig signingConfigs.release
+                signingConfig = signingConfigs.release
             }
         }
     }
 
     // Keep libmain.so extractable so the loader/NativeActivity can dlopen it.
-    packagingOptions {
+    packaging {
         jniLibs {
-            useLegacyPackaging true
+            useLegacyPackaging = true
         }
     }
 }

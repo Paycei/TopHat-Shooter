@@ -27,26 +27,31 @@ android/
 
 - **Android NDK**. Point `ANDROID_NDK` (or `ANDROID_NDK_HOME` /
   `ANDROID_NDK_ROOT`) at it.
-- For packaging the APK: a **JDK 17 or 21** (NOT 25 — see below), the **Android
+- For packaging the APK: a **JDK 17+** (Corretto 21 verified), the **Android
   SDK** (via `android/local.properties` `sdk.dir` or `ANDROID_HOME`), and the
-  bundled **Gradle 8.7 wrapper** (`android/gradlew`).
+  bundled **Gradle 9.8.1 wrapper** (`android/gradlew`).
 
 ### Known-good toolchain (this build was verified with)
 
 | Component | Version |
 |---|---|
-| NDK | 30.0.14904198 (clang target `aarch64-linux-android29`) |
+| NDK | 30.0.16248370 (clang target `aarch64-linux-android29`) |
 | JDK | Corretto 21 (`JAVA_HOME`) |
-| Gradle | 8.7 (pinned wrapper — see gotcha) |
-| Android Gradle Plugin | 8.5.2 (`app/build.gradle`) |
-| compileSdk / build-tools | 34 / 34.0.0 |
+| Gradle | 9.8.1 (pinned wrapper) |
+| Android Gradle Plugin | 9.4.1 (`app/build.gradle`; needs Gradle 9.6+, JDK 17+) |
+| compileSdk / targetSdk / build-tools | 37 / 37 / 37.0.0 |
 
-**Gotcha — do not use the system Gradle 9.x / JDK 25.** AGP 8.5.2 requires
-Gradle 8.7 and JDK 17–21; Gradle 9.x can't run AGP 8.5.2, and JDK 25 isn't
-supported by any stable AGP. This repo pins a **Gradle 8.7 wrapper** so the
-system Gradle version is irrelevant — always invoke `./gradlew` (the `nimble
-android` task auto-prefers it). If you regenerate the wrapper, do it in an empty
-dir (with a stub `settings.gradle`) so AGP isn't evaluated by a newer Gradle.
+Always invoke `./gradlew` (the `nimble android` task auto-prefers it) so the
+system Gradle version is irrelevant. AGP pins a minimum Gradle, so bump the two
+together: change the plugin version first, then `./gradlew wrapper
+--gradle-version <x>`. The wrapper's `networkTimeout` is raised to 60 s because
+the distribution download timed out at the 10 s default.
+
+**targetSdk 35+/36+ behaviour.** At 35 Android forces edge-to-edge (the
+cutout theme in `res/values/themes.xml` still applies; check the HUD isn't
+under the notch on-device). At 36+ large screens ignore `screenOrientation`
+and `resizeableActivity="false"` unless the app is a game, which is why the
+manifest declares `android:appCategory="game"` — don't remove it.
 
 ## Build
 
