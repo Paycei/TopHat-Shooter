@@ -10,11 +10,12 @@
 # Like the game/ modules, it must never import game.
 
 import raylib, random, math, strutils
+import draw_prims
 import particle_types, types, localization, utils, sound, d_systems, d_visuals, roguelite,
        enemy, enemy_helpers, particle_pool, consumable, coin, player, powerup,
        powerup_data, gamepad_input, game/bullets, game/death, ui/os_background, ui/icon_drawing,
        ui/hud_dock, ui/ui_helpers
-import modding/mod_hooks
+import modding/[mod_hooks, mod_registry]
 
 # ============================================================================
 # Data: per-phase tuning, events, caches, text
@@ -64,12 +65,13 @@ const
 
   # Random-event weights. Rogue Process is never random: each phase schedules
   # one at its halfway mark.
+  # The last column (sekMod) stays 0: mod events bring their own weights.
   SurvivalEventWeights*: array[SurvivalPhase, array[SurvivalEventKind, int]] = [
-    [0, 30, 15, 30, 0,  0, 25],   # Boot: no meteors yet
-    [0, 25, 25, 20, 15, 0, 15],   # Runtime
-    [0, 22, 25, 18, 20, 0, 15],   # Overload
-    [0, 20, 25, 15, 25, 0, 15],   # Kernel Panic
-    [0, 20, 25, 15, 25, 0, 15]]   # Overtime
+    [0, 30, 15, 30, 0,  0, 25, 0],   # Boot: no meteors yet
+    [0, 25, 25, 20, 15, 0, 15, 0],   # Runtime
+    [0, 22, 25, 18, 20, 0, 15, 0],   # Overload
+    [0, 20, 25, 15, 25, 0, 15, 0],   # Kernel Panic
+    [0, 20, 25, 15, 25, 0, 15, 0]]   # Overtime
 
 proc survivalEventDuration*(kind: SurvivalEventKind): float32 =
   ## Warmup + live time + resolution beat, used to keep events from running
@@ -82,6 +84,14 @@ proc survivalEventDuration*(kind: SurvivalEventKind): float32 =
   of sekCorruptedSector: 1.5'f32 + 12.0'f32
   of sekRogueProcess: 2.0'f32 + 45.0'f32
   of sekOverclock: 15.0'f32
+  of sekMod: 30.0'f32   # (survivalEventDurationOf reads the mod event's own)
+
+proc survivalEventDurationOf(kind: SurvivalEventKind, modKey: string): float32 =
+  if kind == sekMod:
+    let i = findSurvivalEvent(modKey)
+    if i >= 0:
+      return survivalEventDefs[i].warmup + survivalEventDefs[i].duration + 1.0'f32
+  survivalEventDuration(kind)
 
 proc survivalEventColor*(kind: SurvivalEventKind): Color =
   case kind
@@ -92,6 +102,11 @@ proc survivalEventColor*(kind: SurvivalEventKind): Color =
   of sekCorruptedSector: Color(r: 255, g: 150, b: 40, a: 255)
   of sekRogueProcess: Color(r: 220, g: 90, b: 255, a: 255)
   of sekOverclock: Color(r: 255, g: 215, b: 60, a: 255)
+  of sekMod: Color(r: 200, g: 200, b: 255, a: 255)
+
+proc survivalEventColor*(kind: SurvivalEventKind, modKey: string): Color =
+  ## A mod event's own colour; the game's otherwise.
+  if kind == sekMod: modEventColor(modKey) else: survivalEventColor(kind)
 
 # --- Data Caches ---------------------------------------------------------------
 
@@ -154,6 +169,7 @@ proc survivalEventNameKey*(kind: SurvivalEventKind): TranslationKey =
   of sekCorruptedSector: tkSurvivalEventCorruptedSector
   of sekRogueProcess: tkSurvivalEventRogueProcess
   of sekOverclock: tkSurvivalEventOverclock
+  of sekMod: tkSurvivalTrackerIncoming   # named by survivalEventName
 
 proc survivalEventHintKey*(kind: SurvivalEventKind): TranslationKey =
   case kind
@@ -164,6 +180,14 @@ proc survivalEventHintKey*(kind: SurvivalEventKind): TranslationKey =
   of sekCorruptedSector: tkSurvivalEventCorruptedSectorHint
   of sekRogueProcess: tkSurvivalEventRogueProcessHint
   of sekOverclock: tkSurvivalEventOverclockHint
+  of sekMod: tkSurvivalTrackerIncoming
+
+proc survivalEventName*(kind: SurvivalEventKind, modKey: string): string =
+  ## Every event's display name, a mod event's own included.
+  if kind == sekMod: modEventName(modKey) else: t(survivalEventNameKey(kind))
+
+proc survivalEventHint*(kind: SurvivalEventKind, modKey: string): string =
+  if kind == sekMod: modEventHint(modKey) else: t(survivalEventHintKey(kind))
 
 proc survivalCacheNameKey*(tier: SurvivalCacheTier): TranslationKey =
   case tier
@@ -593,11 +617,11 @@ proc drawSurvivalSpawnMarkers*(game: Game) =
     let pulse = sin(now * 14.0'f32) * 0.5'f32 + 0.5'f32
     let r = 14.0'f32 - prog * 6.0'f32
     let a = uint8(clamp(90.0'f32 + prog * 140.0'f32 + pulse * 25.0'f32, 0.0'f32, 255.0'f32))
-    drawCircleLines(p.pos.x.int32, p.pos.y.int32, r, Color(r: 255, g: 90, b: 70, a: a))
-    drawLine(Vector2(x: p.pos.x - r * 0.6'f32, y: p.pos.y),
+    drawCircleOutline(p.pos.x.int32, p.pos.y.int32, r, Color(r: 255, g: 90, b: 70, a: a))
+    drawStroke(Vector2(x: p.pos.x - r * 0.6'f32, y: p.pos.y),
              Vector2(x: p.pos.x + r * 0.6'f32, y: p.pos.y), 1.5'f32,
              Color(r: 255, g: 120, b: 90, a: a))
-    drawLine(Vector2(x: p.pos.x, y: p.pos.y - r * 0.6'f32),
+    drawStroke(Vector2(x: p.pos.x, y: p.pos.y - r * 0.6'f32),
              Vector2(x: p.pos.x, y: p.pos.y + r * 0.6'f32), 1.5'f32,
              Color(r: 255, g: 120, b: 90, a: a))
 
@@ -651,8 +675,12 @@ proc rollCacheLevel(game: var Game): PowerUp =
   let pt = pool[rand(pool.high)]
   PowerUp(powerType: pt, level: getPowerUpLevel(game.player, pt) + 1, rarity: prCommon)
 
-proc openSurvivalCache*(game: var Game, tier: SurvivalCacheTier, at: Vector2f) =
-  ## Apply a cache's rewards and start its reveal.
+proc openSurvivalCache*(game: var Game, tier: SurvivalCacheTier, at: Vector2f): bool {.discardable.} =
+  ## Apply a cache's rewards and start its reveal. False: a mod's cacheOpen
+  ## handler took it instead (gone, no rewards of its own, no reveal).
+  if hookActive(hkCacheOpen) and modCacheOpen(game, $tier, at.x, at.y):
+    return false
+  result = true
   var reveal = SurvivalCacheReveal(active: true, tier: tier)
   for _ in 0..<survivalCacheLevels(tier):
     # Rolled one at a time so each roll sees the level the previous one set.
@@ -720,7 +748,7 @@ proc drawSurvivalChests*(game: Game) =
     let cy = chest.pos.y + bob
     let pulse = sin(now * 5.0'f32) * 0.5'f32 + 0.5'f32
     # Floor ring and shadow
-    drawCircleLines(chest.pos.x.int32, chest.pos.y.int32 + 12, 18.0'f32 + pulse * 6.0'f32,
+    drawCircleOutline(chest.pos.x.int32, chest.pos.y.int32 + 12, 18.0'f32 + pulse * 6.0'f32,
                     withAlpha(accent, int(70.0'f32 + pulse * 60.0'f32)))
     drawEllipse(chest.pos.x.int32, chest.pos.y.int32 + 13, 14.0'f32, 4.0'f32,
                 Color(r: 0, g: 0, b: 0, a: 90))
@@ -731,13 +759,13 @@ proc drawSurvivalChests*(game: Game) =
       drawRectangle(int32(cx - 2.0'f32), int32(cy - 70.0'f32), 4, 60,
                     withAlpha(accent, int(60.0'f32 + pulse * 40.0'f32)))
     # Glow
-    drawCircle(Vector2(x: cx, y: cy), 20.0'f32 + pulse * 3.0'f32, withAlpha(accent, 45))
+    drawDisc(Vector2(x: cx, y: cy), 20.0'f32 + pulse * 3.0'f32, withAlpha(accent, 45))
     # Crate body
     let body = Rectangle(x: cx - w * 0.5'f32, y: cy - h * 0.5'f32, width: w, height: h)
     drawRectangleRounded(body, 0.25'f32, 4, Color(r: 14, g: 22, b: 34, a: 240))
     drawRectangleRoundedLines(body, 0.25'f32, 4, -2.0'f32, accent)
     # Lid seam
-    drawLine(Vector2(x: cx - w * 0.5'f32 + 2.0'f32, y: cy - h * 0.12'f32),
+    drawStroke(Vector2(x: cx - w * 0.5'f32 + 2.0'f32, y: cy - h * 0.12'f32),
              Vector2(x: cx + w * 0.5'f32 - 2.0'f32, y: cy - h * 0.12'f32), 2.0'f32,
              withAlpha(accent, int(160.0'f32 + pulse * 95.0'f32)))
     # Chip glyph
@@ -795,9 +823,10 @@ proc survivalEventActive*(game: Game): bool {.inline.} =
   game.survival.event.kind != sekNone
 
 proc setSurvivalBanner*(game: Game, kind: SurvivalBannerKind,
-                        event: SurvivalEventKind = sekNone) =
+                        event: SurvivalEventKind = sekNone, modKey = "") =
   game.survival.bannerKind = kind
   game.survival.bannerEvent = event
+  game.survival.bannerModKey = modKey
   game.survival.bannerStart = game.time
 
 proc leakInterval(phaseIndex: int): float32 =
@@ -877,16 +906,22 @@ proc pickRogueType(game: Game): EnemyType =
 
 # --- Lifecycle -------------------------------------------------------------------
 
-proc startSurvivalEvent*(game: var Game, kind: SurvivalEventKind) =
+proc startSurvivalEvent*(game: var Game, kind: SurvivalEventKind, modKey = "") =
   if kind == sekNone:
     return
-  # Mods (survivalEvent) may veto an event.
-  if modSurvivalEvent(game, $kind):
+  # Mods (survivalEvent) may veto an event (a mod event by its name).
+  if modSurvivalEvent(game, if kind == sekMod: modKey else: $kind):
     return
   let p = survivalPhaseIndex(game)
   var ev = SurvivalEvent(kind: kind, rogueId: -1)
   case kind
   of sekNone: discard
+  of sekMod:
+    let i = findSurvivalEvent(modKey)
+    if i < 0: return
+    ev.modKey = modKey
+    ev.warmup = survivalEventDefs[i].warmup
+    ev.limit = survivalEventDefs[i].duration
   of sekMemoryLeak:
     ev.warmup = LeakWarmup
     ev.limit = LeakEmitTime
@@ -914,9 +949,12 @@ proc startSurvivalEvent*(game: var Game, kind: SurvivalEventKind) =
     game.survival.xpMult = 2.0'f32
   game.survival.event = ev
   game.survival.lastEventKind = kind
+  game.survival.lastModEventKey = modKey
   inc game.survival.eventsStarted
-  setSurvivalBanner(game, sbkEventStart, kind)
+  setSurvivalBanner(game, sbkEventStart, kind, modKey)
   playSound(stBossSpawn, 0.45, 1.5)
+  if kind == sekMod:
+    modEventStarted(game)
 
 proc scheduleNextEvent(game: Game) =
   let ph = survivalPhase(game)
@@ -925,11 +963,20 @@ proc scheduleNextEvent(game: Game) =
 
 proc finishSurvivalEvent(game: var Game, success: bool, rewardAt: Vector2f) =
   let kind = game.survival.event.kind
+  let modKey = game.survival.event.modKey
   let p = survivalPhaseIndex(game)
+  if kind == sekMod:
+    modEventFinished(game, success)
   if success:
     inc game.survival.eventsCleared
     case kind
     of sekNone, sekOverclock: discard
+    of sekMod:
+      let i = findSurvivalEvent(modKey)
+      if i >= 0 and survivalEventDefs[i].reward >= 0:
+        dropSurvivalCache(game, rewardAt, SurvivalCacheTier(clamp(survivalEventDefs[i].reward, 0,
+                                                                  ord(high(SurvivalCacheTier)))))
+        awardMetaCurrency(game, survivalEventShardReward(p, false))
     of sekMemoryLeak:
       dropSurvivalCache(game, rewardAt, sctMinor)
       awardMetaCurrency(game, survivalEventShardReward(p, false))
@@ -946,10 +993,10 @@ proc finishSurvivalEvent(game: var Game, success: bool, rewardAt: Vector2f) =
       dropSurvivalCache(game, rewardAt, sctRare)
       awardMetaCurrency(game, survivalEventShardReward(p, true))
     if kind != sekOverclock:
-      setSurvivalBanner(game, sbkEventCleared, kind)
+      setSurvivalBanner(game, sbkEventCleared, kind, modKey)
       playSound(stWaveComplete, 0.8)
   else:
-    setSurvivalBanner(game, sbkEventFailed, kind)
+    setSurvivalBanner(game, sbkEventFailed, kind, modKey)
     playSound(stTeleport, 0.6, 0.7)
   case kind
   of sekMemoryLeak: clearTag(game, stgLeak)
@@ -970,6 +1017,8 @@ proc cancelSurvivalEvent*(game: Game) =
       removeEnemy(game, rogue.id)
   of sekOverclock:
     game.survival.xpMult = 1.0'f32
+  of sekMod:
+    modEventFinished(game, false)
   else: discard
   clearTag(game, stgLeak)
   clearTag(game, stgBreach)
@@ -1123,6 +1172,15 @@ proc updateSurvivalEvent*(game: var Game, dt: float32) =
     if ev.elapsed >= ev.limit:
       finishSurvivalEvent(game, true, game.player.pos)
 
+  of sekMod:
+    # Its update decides ("success" / "fail"); running out its duration succeeds.
+    var outcome = if live >= 0: modEventUpdate(game, dt) else: 0
+    if game.survival.event.kind != sekMod:
+      return   # the callback ended it some other way
+    if outcome == 0 and ev.limit > 0 and live >= ev.limit: outcome = 1
+    if outcome > 0:
+      finishSurvivalEvent(game, outcome == 1, lootPointNearPlayer(game))
+
 proc onSurvivalEventKill*(game: var Game, enemy: Enemy) =
   ## Kill hook for event-tagged enemies.
   case enemy.survivalTag
@@ -1138,35 +1196,41 @@ proc onSurvivalEventKill*(game: var Game, enemy: Enemy) =
 
 # --- Scheduling -------------------------------------------------------------------
 
-proc eventFits(game: Game, kind: SurvivalEventKind, rogueAt: float32): bool =
+proc eventFits(game: Game, kind: SurvivalEventKind, rogueAt: float32, modKey = ""): bool =
   ## An event must finish 8 s before the next boss and must not overlap the
   ## upcoming guaranteed Rogue Process.
   let now = game.survivalTime
-  let finish = now + survivalEventDuration(kind)
+  let finish = now + survivalEventDurationOf(kind, modKey)
   if finish + 8.0'f32 > survivalNextBossTime(game):
     return false
   if kind != sekRogueProcess and rogueAt > now and finish + 4.0'f32 > rogueAt:
     return false
   true
 
-proc pickRandomEvent(game: Game, rogueAt: float32): SurvivalEventKind =
+proc pickRandomEvent(game: Game, rogueAt: float32): tuple[kind: SurvivalEventKind, key: string] =
+  ## The game's events by their phase weights, plus every mod event's own
+  ## weight for this phase. Never the same event twice in a row.
   let weights = SurvivalEventWeights[survivalPhase(game)]
-  var total = 0
+  var pool: seq[tuple[kind: SurvivalEventKind, key: string, w: float32]]
   for k in SurvivalEventKind:
-    if k in {sekNone, sekRogueProcess} or k == game.survival.lastEventKind or
+    if k in {sekNone, sekRogueProcess, sekMod} or k == game.survival.lastEventKind or
        weights[k] <= 0 or not eventFits(game, k, rogueAt):
       continue
-    total += weights[k]
+    pool.add((k, "", weights[k].float32))
+  for (key, w) in modEventWeights(survivalPhaseIndex(game)):
+    if (game.survival.lastEventKind == sekMod and key == game.survival.lastModEventKey) or
+       not eventFits(game, sekMod, rogueAt, key):
+      continue
+    pool.add((sekMod, key, w))
+  var total = 0'f32
+  for e in pool: total += e.w
   if total <= 0:
-    return sekNone
-  var roll = rand(total - 1)
-  for k in SurvivalEventKind:
-    if k in {sekNone, sekRogueProcess} or k == game.survival.lastEventKind or
-       weights[k] <= 0 or not eventFits(game, k, rogueAt):
-      continue
-    if roll < weights[k]: return k
-    roll -= weights[k]
-  sekNone
+    return (sekNone, "")
+  var roll = rand(total)
+  for e in pool:
+    if roll < e.w: return (e.kind, e.key)
+    roll -= e.w
+  (pool[^1].kind, pool[^1].key)
 
 proc updateSurvivalScheduler*(game: var Game) =
   ## Start the next event when its time comes. Called on frames where the
@@ -1194,13 +1258,13 @@ proc updateSurvivalScheduler*(game: var Game) =
       return
   if now < s.nextEventClock:
     return
-  let kind =
-    if s.eventsStarted == 0: sekMemoryLeak   # the opener shows what events are
+  let (kind, key) =
+    if s.eventsStarted == 0: (sekMemoryLeak, "")   # the opener shows what events are
     else: pickRandomEvent(game, survivalRogueTime(s.nextRogueIndex))
-  if kind == sekNone or not eventFits(game, kind, survivalRogueTime(s.nextRogueIndex)):
+  if kind == sekNone or not eventFits(game, kind, survivalRogueTime(s.nextRogueIndex), key):
     s.nextEventClock = now + 5.0'f32   # nothing fits right now; look again shortly
     return
-  startSurvivalEvent(game, kind)
+  startSurvivalEvent(game, kind, key)
 
 # --- HUD tracker --------------------------------------------------------------------
 
@@ -1237,10 +1301,18 @@ proc survivalTrackerInfo*(game: Game): tuple[detail: string, frac: float32, rema
   of sekOverclock:
     (t(tkSurvivalTrackerXpBoost), clamp(1.0'f32 - ev.elapsed / ev.limit, 0.0'f32, 1.0'f32),
      ev.limit - ev.elapsed)
+  of sekMod:
+    # Its tracker(ev, game) -> text and fraction(ev, game) -> 0..1; else the
+    # hint and the time left.
+    var detail = modEventHint(ev.modKey)
+    var frac = if ev.limit > 0: clamp(1.0'f32 - live / ev.limit, 0.0'f32, 1.0'f32) else: 1.0'f32
+    modEventTracker(game, detail, frac)
+    (detail, frac, if ev.limit > 0: ev.limit - live else: 0.0'f32)
 
 # --- World drawing ------------------------------------------------------------------
 
 proc drawEdgeBand(game: Game, edge: int, color: Color, thickness: int32) =
+  ## A crisp band along one arena edge (0 top, 1 right, 2 bottom, 3 left).
   let w = game.screenWidth
   let h = game.screenHeight
   case edge
@@ -1249,41 +1321,73 @@ proc drawEdgeBand(game: Game, edge: int, color: Color, thickness: int32) =
   of 2: drawRectangle(0, h - thickness, w, thickness, color)
   else: drawRectangle(0, 0, thickness, h, color)
 
+proc drawEdgeGlow(game: Game, edge: int, color: Color, depth: float32) =
+  ## Light washing in from one arena edge: `color` at the edge, gone `depth` in.
+  let w = game.screenWidth.float32
+  let h = game.screenHeight.float32
+  let clear = withAlpha(color, 0'u8)
+  template v(px, py: float32): Vector2 = Vector2(x: px, y: py)
+  case edge
+  of 0: drawGradientQuad(v(0, 0), v(0, depth), v(w, depth), v(w, 0), color, clear, clear, color)
+  of 1: drawGradientQuad(v(w - depth, 0), v(w - depth, h), v(w, h), v(w, 0), clear, clear, color, color)
+  of 2: drawGradientQuad(v(0, h - depth), v(0, h), v(w, h), v(w, h - depth), clear, color, color, clear)
+  else: drawGradientQuad(v(0, 0), v(0, h), v(depth, h), v(depth, 0), color, color, clear, clear)
+
 proc drawSurvivalEventsUnder*(game: Game) =
-  ## Event telegraphs and zones, drawn under the actors.
+  ## Event telegraphs and zones, drawn under the actors: light along an edge,
+  ## rings of light round the player, a glowing upload pad, the Rogue
+  ## Process's landing beam. The sizes are the events' own (BreachRadius,
+  ## SectorRadius, the zone's radius); only how they are lit is visual.
   let ev = game.survival.event
   if ev.kind == sekNone:
     return
   let now = getTime().float32
   let pulse = sin(now * 8.0'f32) * 0.5'f32 + 0.5'f32
-  let color = survivalEventColor(ev.kind)
+  let color = survivalEventColor(ev.kind, ev.modKey)
   let live = ev.elapsed - ev.warmup
+  let player = Vector2(x: game.player.pos.x, y: game.player.pos.y)
   case ev.kind
   of sekNone: discard
   of sekMemoryLeak:
     if not ev.emitDone:
       let a = if live < 0: 70.0'f32 + pulse * 110.0'f32 else: 45.0'f32 + pulse * 30.0'f32
-      drawEdgeBand(game, ev.edge, withAlpha(color, int(a)), 10)
-      drawEdgeBand(game, ev.edge, withAlpha(color, int(a * 0.5'f32)), 26)
+      drawEdgeGlow(game, ev.edge, withAlpha(color, a * 0.85'f32), 72.0'f32)
+      drawEdgeGlow(game, ev.edge, withAlpha(color, a * 0.6'f32), 22.0'f32)
+      drawEdgeBand(game, ev.edge, withAlpha(color, a), 3)
   of sekFirewallBreach:
     if live < 0.5'f32:
-      let a = int(90.0'f32 + pulse * 120.0'f32)
-      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, BreachRadius,
-                      withAlpha(color, a))
-      drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, BreachRadius - 3.0'f32,
-                      withAlpha(color, a div 2))
+      let a = 90.0'f32 + pulse * 120.0'f32
+      drawGradientRing(player, BreachRadius - 26.0'f32, BreachRadius, withAlpha(color, 0'u8),
+                       withAlpha(color, a * 0.3'f32))
+      drawSoftRing(player, BreachRadius, 7.0'f32, withAlpha(color, a * 0.45'f32))
+      drawCircleOutline(player, BreachRadius, 2.0'f32, withAlpha(color, a))
+      drawDashedRing(player, BreachRadius + 6.0'f32, 1.2'f32, 24, 0.5'f32, now * 1.6'f32,
+                     withAlpha(color, a * 0.7'f32))
   of sekUploadZone:
     let inside = distance(game.player.pos, ev.zonePos) <= ev.zoneRadius
     let center = Vector2(x: ev.zonePos.x, y: ev.zonePos.y)
-    drawCircle(center, ev.zoneRadius, withAlpha(color, if inside: 60 else: 32))
-    drawCircleLines(ev.zonePos.x.int32, ev.zonePos.y.int32, ev.zoneRadius,
-                    withAlpha(color, int(150.0'f32 + pulse * 100.0'f32)))
+    let rimA = 150.0'f32 + pulse * 100.0'f32
+    drawRadialGradient(center, ev.zoneRadius, ev.zoneRadius,
+                       withAlpha(color, if inside: 34 else: 14), withAlpha(color, if inside: 96 else: 58), reSmooth)
+    drawDashedRing(center, ev.zoneRadius - 12.0'f32, 1.2'f32, 30, 0.45'f32, -now * 0.8'f32,
+                   withAlpha(color, if inside: 120 else: 70))
+    drawSoftRing(center, ev.zoneRadius, 10.0'f32, withAlpha(color, rimA * 0.4'f32))
+    drawCircleOutline(center, ev.zoneRadius, 2.0'f32, withAlpha(color, rimA))
     # Progress arc around the rim, filling clockwise from the top.
     if ev.progress > 0.0'f32:
-      drawRing(center, ev.zoneRadius + 3.0'f32, ev.zoneRadius + 9.0'f32, -90.0'f32,
-               -90.0'f32 + 360.0'f32 * ev.progress, 48, withAlpha(color, 230))
+      let sweepEnd = -90.0'f32 + 360.0'f32 * ev.progress
+      drawRing(center, ev.zoneRadius + 1.0'f32, ev.zoneRadius + 11.0'f32, -90.0'f32, sweepEnd, 48,
+               withAlpha(color, 60))
+      drawRing(center, ev.zoneRadius + 3.0'f32, ev.zoneRadius + 9.0'f32, -90.0'f32, sweepEnd, 48,
+               withAlpha(color, 230))
+      let headA = sweepEnd * PI / 180.0'f32
+      let head = Vector2(x: center.x + cos(headA) * (ev.zoneRadius + 6.0'f32),
+                         y: center.y + sin(headA) * (ev.zoneRadius + 6.0'f32))
+      drawGlow(head, 16.0'f32, withAlpha(color, 200))
+      drawDisc(head, 3.0'f32, Color(r: 235, g: 250, b: 255, a: 240))
     let label = $int(ev.progress * 100.0'f32) & "%"
     let lw = measureText(label, 22)
+    drawText(label, ev.zonePos.x.int32 - lw div 2 + 1, ev.zonePos.y.int32 - 10, 22, Color(r: 0, g: 0, b: 0, a: 150))
     drawText(label, ev.zonePos.x.int32 - lw div 2, ev.zonePos.y.int32 - 11, 22,
              withAlpha(color, if inside: 255 else: 190))
     let name = t(tkSurvivalEventUploadZone)
@@ -1291,36 +1395,52 @@ proc drawSurvivalEventsUnder*(game: Game) =
     drawText(name, ev.zonePos.x.int32 - nw div 2, ev.zonePos.y.int32 + 14, 11,
              withAlpha(color, 200))
   of sekCorruptedSector:
-    let a = if live < 0: int(80.0'f32 + pulse * 120.0'f32) else: int(35.0'f32 + pulse * 35.0'f32)
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, SectorRadius,
-                    withAlpha(color, a))
+    let a = if live < 0: 80.0'f32 + pulse * 120.0'f32 else: 35.0'f32 + pulse * 35.0'f32
+    # A glitching ring: the true edge, and corrupt dashes stuttering outside it.
+    let glitch = floor(now * 12.0'f32)
+    drawGradientRing(player, SectorRadius - 22.0'f32, SectorRadius, withAlpha(color, 0'u8),
+                     withAlpha(color, a * 0.3'f32))
+    drawCircleOutline(player, SectorRadius, 1.5'f32, withAlpha(color, a))
+    drawDashedRing(player, SectorRadius + 5.0'f32, 1.4'f32, 18,
+                   0.35'f32 + 0.3'f32 * (sin(glitch * 12.9898'f32) * 0.5'f32 + 0.5'f32),
+                   glitch * 0.37'f32, withAlpha(color, a * 0.75'f32))
   of sekRogueProcess:
     if ev.spawned == 0:
       # Drop telegraph: a beam from the top of the arena onto the spawn point,
       # widening as the landing nears, over a glowing pad with rings
       # collapsing into it.
       let prog = clamp(ev.elapsed / max(0.01'f32, ev.warmup), 0.0'f32, 1.0'f32)
-      let cx = ev.zonePos.x.int32
-      let cy = ev.zonePos.y.int32
-      let beamW = int32(4.0'f32 + prog * 22.0'f32)
-      drawRectangleGradientV(cx - beamW div 2, 0, beamW, cy, withAlpha(RogueColor, 0),
-                             withAlpha(RogueColor, int(90.0'f32 + prog * 120.0'f32)))
-      drawRectangle(cx - 1, 0, 2, cy, withAlpha(WHITE, int(60.0'f32 + prog * 140.0'f32)))
-      drawCircleGradient(Vector2(x: cx.float32, y: cy.float32), 40.0'f32 + prog * 50.0'f32,
-                         withAlpha(RogueColor, int(70.0'f32 + prog * 110.0'f32)),
-                         withAlpha(RogueColor, 0))
+      let cx = ev.zonePos.x
+      let cy = ev.zonePos.y
+      let c = Vector2(x: cx, y: cy)
+      let half = 2.0'f32 + prog * 11.0'f32
+      let beam = withAlpha(RogueColor, 90.0'f32 + prog * 120.0'f32)
+      let beamTop = withAlpha(RogueColor, 0'u8)
+      let clear = withAlpha(RogueColor, 0'u8)
+      # Two halves split along mirrored diagonals, so the beam has no seam.
+      drawGradientQuad(Vector2(x: cx - half * 2.0'f32, y: 0), Vector2(x: cx - half * 2.0'f32, y: cy), c,
+                       Vector2(x: cx, y: 0), clear, clear, beam, beamTop)
+      drawGradientQuad(Vector2(x: cx + half * 2.0'f32, y: 0), Vector2(x: cx + half * 2.0'f32, y: cy), c,
+                       Vector2(x: cx, y: 0), clear, clear, beam, beamTop)
+      drawTaperedLine(Vector2(x: cx, y: 0), c, 1.0'f32, 2.0'f32,
+                      withAlpha(WHITE, 0'u8), withAlpha(WHITE, 60.0'f32 + prog * 140.0'f32))
+      drawGlow(c, 40.0'f32 + prog * 50.0'f32, withAlpha(RogueColor, 70.0'f32 + prog * 110.0'f32))
       for i in 0..2:
         let f = (ev.elapsed * 1.6'f32 + i.float32 / 3.0'f32) mod 1.0'f32
-        drawCircleLines(cx, cy, 20.0'f32 + (1.0'f32 - f) * 170.0'f32,
-                        withAlpha(RogueColor, int(40.0'f32 + f * 200.0'f32)))
+        let rr = 20.0'f32 + (1.0'f32 - f) * 170.0'f32
+        drawSoftRing(c, rr, 5.0'f32, withAlpha(RogueColor, (40.0'f32 + f * 200.0'f32) * 0.5'f32))
+        drawCircleOutline(c, rr, withAlpha(RogueColor, 40.0'f32 + f * 200.0'f32))
       let r = 60.0'f32 - prog * 40.0'f32
-      drawCircleLines(cx, cy, r, withAlpha(RogueColor, int(120.0'f32 + pulse * 120.0'f32)))
-      drawCircleLines(cx, cy, r * 0.6'f32, withAlpha(RogueColor, int(80.0'f32 + pulse * 80.0'f32)))
+      drawSoftRing(c, r, 6.0'f32, withAlpha(RogueColor, (120.0'f32 + pulse * 120.0'f32) * 0.5'f32))
+      drawCircleOutline(c, r, 2.0'f32, withAlpha(RogueColor, 120.0'f32 + pulse * 120.0'f32))
+      drawCircleOutline(c, r * 0.6'f32, withAlpha(RogueColor, 80.0'f32 + pulse * 80.0'f32))
   of sekOverclock:
     # Gold heat shimmer along the arena border.
-    let a = int(25.0'f32 + pulse * 35.0'f32)
+    let a = 25.0'f32 + pulse * 35.0'f32
     for edge in 0..3:
-      drawEdgeBand(game, edge, withAlpha(color, a), 6)
+      drawEdgeGlow(game, edge, withAlpha(color, a * 1.4'f32), 46.0'f32)
+  of sekMod:
+    discard   # a mod event draws itself (drawWorld)
 
 proc drawRoguePointer(game: Game, target: Vector2f, pulse: float32) =
   ## A chevron orbiting the player, aimed at the Rogue Process (or where it
@@ -1373,7 +1493,7 @@ proc drawSurvivalEventsOver*(game: Game) =
   if live < RogueCalloutTime + 1.0'f32:
     for i in 0..1:
       let f = (live * 1.3'f32 + i.float32 * 0.5'f32) mod 1.0'f32
-      drawCircleLines(rogue.pos.x.int32, rogue.pos.y.int32, rogue.radius + 8.0'f32 + f * 90.0'f32,
+      drawCircleOutline(rogue.pos.x.int32, rogue.pos.y.int32, rogue.radius + 8.0'f32 + f * 90.0'f32,
                       withAlpha(RogueColor, int(230.0'f32 * (1.0'f32 - f))))
   let top = rogue.pos.y - rogue.radius - 34.0'f32
   if live < RogueCalloutTime:
@@ -1395,7 +1515,7 @@ proc drawSurvivalEventsOver*(game: Game) =
   drawRectangle(bx, by, barW, 5, Color(r: 30, g: 10, b: 40, a: 220))
   let frac = clamp(rogue.hp / max(0.01'f32, rogue.maxHp), 0.0'f32, 1.0'f32)
   drawRectangle(bx, by, int32(barW.float32 * frac), 5, RogueColor)
-  drawRectangleLines(bx, by, barW, 5, withAlpha(RogueColor, 180))
+  drawRectOutline(bx, by, barW, 5, withAlpha(RogueColor, 180))
   drawRoguePointer(game, rogue.pos, pulse)
 
 # ============================================================================
@@ -1601,7 +1721,7 @@ proc drawRevealCard(x, y: int32, pu: PowerUp, flip: float32, accent: Color, time
   let tagX = cx - tagW div 2
   let tagY = y + CardH - 24
   drawRectangle(tagX, tagY, tagW, 17, withAlpha(edge, 60))
-  drawRectangleLines(tagX, tagY, tagW, 17, edge)
+  drawRectOutline(tagX, tagY, tagW, 17, edge)
   drawText(tag, tagX + 6, tagY + 2, 13, edge)
 
 proc drawSurvivalCacheReveal*(game: Game, screenWidth, screenHeight: int32) =
@@ -1692,13 +1812,13 @@ proc survivalCountdownLabel(game: Game): tuple[text: string, urgent: bool] =
 proc drawSurvivalTracker(game: Game, x, y, w: int32) =
   ## The running event: name, time left, a bar and a status line.
   let ev = game.survival.event
-  let color = survivalEventColor(ev.kind)
+  let color = survivalEventColor(ev.kind, ev.modKey)
   let info = survivalTrackerInfo(game)
   let rect = Rectangle(x: x.float32, y: y.float32, width: w.float32, height: SurvivalTrackerH.float32)
   drawRectangleRounded(rect, 0.25'f32, 6, Color(r: 8, g: 18, b: 28, a: 205))
   drawRectangleRoundedLines(rect, 0.25'f32, 6, -1.5'f32, withAlpha(color, 170))
   const pad: int32 = 12
-  let name = t(survivalEventNameKey(ev.kind))
+  let name = survivalEventName(ev.kind, ev.modKey)
   drawText(name, x + pad + 1, y + 7, 14, Color(r: 0, g: 0, b: 0, a: 140))
   drawText(name, x + pad, y + 6, 14, color)
   let clock = formatSurvivalClock(info.remaining)
@@ -1715,7 +1835,7 @@ proc drawSurvivalTracker(game: Game, x, y, w: int32) =
   let fillW = int32(barW.float32 * clamp(info.frac, 0.0'f32, 1.0'f32))
   if fillW > 0:
     drawRectangle(barX, barY, fillW, 7, withAlpha(color, 230))
-  drawRectangleLines(barX, barY, barW, 7, withAlpha(color, 120))
+  drawRectOutline(barX, barY, barW, 7, withAlpha(color, 120))
   drawText(info.detail, barX, y + 36, 11, Color(r: 190, g: 215, b: 230, a: 255))
 
 proc drawSurvivalTrackerDock(game: Game, x, y: int32): int32 =
@@ -1723,7 +1843,7 @@ proc drawSurvivalTrackerDock(game: Game, x, y: int32): int32 =
   ## below it.
   const h = SurvivalDockTrackerH
   let ev = game.survival.event
-  let color = survivalEventColor(ev.kind)
+  let color = survivalEventColor(ev.kind, ev.modKey)
   let info = survivalTrackerInfo(game)
   drawDockCard(x, y, DockCardW, h, color)
   let cx = x + DockPad
@@ -1735,7 +1855,7 @@ proc drawSurvivalTrackerDock(game: Game, x, y: int32): int32 =
   drawShadowText(clock, cx + cw - clockW, y + 6, 10,
                  if urgent: Color(r: 255, g: uint8(90.0'f32 + pulse * 80.0'f32), b: 90, a: 255)
                  else: DockInk)
-  let name = t(survivalEventNameKey(ev.kind))
+  let name = survivalEventName(ev.kind, ev.modKey)
   drawShadowText(name, cx, y + 6, bestFitFontSize(name, cw - clockW - 6, 10, 7), color)
   drawDockBar(cx, y + 20, cw, 6, info.frac, withAlpha(color, 230), withAlpha(color, 120))
   drawShadowText(info.detail, cx, y + 31, bestFitFontSize(info.detail, cw, 10, 7),
@@ -1748,22 +1868,22 @@ proc drawStopwatchIcon(cx, cy, r, survivedT: float32, accent, handColor: Color) 
   ## (reinforced by the gray-out + pause glyph at the call sites).
   # Crown: a little button + stem on top so the icon reads as a stopwatch.
   drawRectangle((cx - 2.0).int32, (cy - r - 4.0).int32, 4, 4, accent)
-  drawCircle(Vector2(x: cx, y: cy - r - 4.5), 2.0'f32, accent)
+  drawDisc(Vector2(x: cx, y: cy - r - 4.5), 2.0'f32, accent)
   # Face: dark fill, outer rim, faint inner rim, and 12/3/6/9 tick marks.
-  drawCircle(Vector2(x: cx, y: cy), r + 1.0, Color(r: 6, g: 16, b: 24, a: 220))
-  drawCircleLines(cx.int32, cy.int32, r, accent)
-  drawCircleLines(cx.int32, cy.int32, r - 1.0, withAlpha(accent, 90))
+  drawDisc(Vector2(x: cx, y: cy), r + 1.0, Color(r: 6, g: 16, b: 24, a: 220))
+  drawCircleOutline(cx.int32, cy.int32, r, accent)
+  drawCircleOutline(cx.int32, cy.int32, r - 1.0, withAlpha(accent, 90))
   for q in 0..<4:
     let ta = q.float32 * (PI.float32 / 2.0)
-    drawLine(Vector2(x: cx + cos(ta) * (r - 2.4), y: cy + sin(ta) * (r - 2.4)),
+    drawStroke(Vector2(x: cx + cos(ta) * (r - 2.4), y: cy + sin(ta) * (r - 2.4)),
              Vector2(x: cx + cos(ta) * (r - 0.6), y: cy + sin(ta) * (r - 0.6)),
              1.0'f32, withAlpha(accent, 130))
   let handAng = (survivedT mod 60.0) / 60.0 * (PI.float32 * 2.0) - PI.float32 / 2.0
   let handLen = r * 0.72
-  drawLine(Vector2(x: cx, y: cy),
+  drawStroke(Vector2(x: cx, y: cy),
            Vector2(x: cx + cos(handAng) * handLen, y: cy + sin(handAng) * handLen),
            2.0'f32, handColor)
-  drawCircle(Vector2(x: cx, y: cy), 1.6'f32, accent)
+  drawDisc(Vector2(x: cx, y: cy), 1.6'f32, accent)
 
 proc stopwatchReadout(survivedT: float32): tuple[mmss, centis: string] =
   ## "MM:SS" and ".CC" for the stopwatch. Centiseconds derive from survivalTime,
@@ -1877,7 +1997,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
 
   # --- Divider between the clock and the phase row ------------------------
   let divY = (timerY + timerSize + vGap div 2).float32
-  drawLine(Vector2(x: (panelX + padX).float32, y: divY),
+  drawStroke(Vector2(x: (panelX + padX).float32, y: divY),
            Vector2(x: (panelX + panelW - padX).float32, y: divY),
            1.0'f32, withAlpha(accent, 55))
 
@@ -1908,7 +2028,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
   let fillW = int32(barW.float32 * ratio)
   if fillW > 0:
     drawRectangle(barX, barY, fillW, barH, if overclock: xpGold else: xpFill)
-  drawRectangleLines(barX, barY, barW, barH,
+  drawRectOutline(barX, barY, barW, barH,
                      if overclock: xpGold else: Color(r: 120, g: 220, b: 190, a: 170))
 
   # --- Event card ------------------------------------------------------------
@@ -1941,7 +2061,7 @@ proc drawRunTimeline(game: Game, x, y, w: int32, dim: bool) =
     let fw = int32(segW.float32 * frac)
     if fw > 0:
       drawRectangle(sx, y, fw, h, withAlpha(color, if dim: 110 else: 215))
-    drawRectangleLines(Rectangle(x: sx.float32, y: y.float32, width: segW.float32,
+    drawRectOutline(Rectangle(x: sx.float32, y: y.float32, width: segW.float32,
                                  height: h.float32), 1, withAlpha(color, 130))
     # Boss notch at the segment's end; lit once that boss is down.
     let beaten = game.bossCount - (if game.bossWaveManager.active: 1 else: 0) > i
@@ -2043,14 +2163,14 @@ proc survivalBannerContent(game: Game): tuple[title, subtitle: string, accent: C
     (t(tkSurvivalPhaseBanner).replace("$1", $(ord(ph) + 1)) & "  //  " & t(survivalPhaseNameKey(ph)),
      t(survivalPhaseDescKey(ph)), SurvivalPhaseAccent[ph], 3.2'f32)
   of sbkEventStart:
-    (t(survivalEventNameKey(s.bannerEvent)), t(survivalEventHintKey(s.bannerEvent)),
-     survivalEventColor(s.bannerEvent), 3.0'f32)
+    (survivalEventName(s.bannerEvent, s.bannerModKey), survivalEventHint(s.bannerEvent, s.bannerModKey),
+     survivalEventColor(s.bannerEvent, s.bannerModKey), 3.0'f32)
   of sbkEventCleared:
-    (t(survivalEventNameKey(s.bannerEvent)) & "  //  " & t(tkSurvivalEventCleared), "",
+    (survivalEventName(s.bannerEvent, s.bannerModKey) & "  //  " & t(tkSurvivalEventCleared), "",
      Color(r: 90, g: 255, b: 150, a: 255), 2.2'f32)
   of sbkEventFailed:
     let title = if s.bannerEvent == sekRogueProcess: t(tkSurvivalRogueEscaped)
-                else: t(survivalEventNameKey(s.bannerEvent)) & "  //  " & t(tkSurvivalEventFailed)
+                else: survivalEventName(s.bannerEvent, s.bannerModKey) & "  //  " & t(tkSurvivalEventFailed)
     (title, "", Color(r: 255, g: 90, b: 90, a: 255), 2.2'f32)
   of sbkBossInbound:
     (t(tkSurvivalBossInbound), t(tkSurvivalBossInboundSub),

@@ -41,7 +41,7 @@
 
 import os, deques, strutils, tables
 import types, save_system, run_statistics, tutorial
-import modding/mod_state
+import modding/[mod_state, mod_hooks]
 import discord_presence  # DiscordClient (no-op flatty overload)
 import particle_types    # ParticlePool  (no-op flatty overload)
 import flatty, supersnappy
@@ -84,6 +84,13 @@ proc fromFlatty*(s: string, i: var int, x: var DiscordClient) = x = nil
 proc toFlatty*(s: var string, x: ParticlePool) = discard
 proc fromFlatty*(s: string, i: var int, x: var ParticlePool) = x = nil
 
+# flatty's array copy indexes x[0.N], which an array keyed by the mod
+# power-up slots (puMod000..puMod255, ordinal 88+) can't take: walk it instead.
+proc toFlatty*(s: var string, x: array[FirstModPowerUp..LastModPowerUp, float32]) =
+  for e in x: s.toFlatty(e)
+proc fromFlatty*(s: string, i: var int, x: var array[FirstModPowerUp..LastModPowerUp, float32]) =
+  for e in x.mitems: s.fromFlatty(i, e)
+
 proc toFlatty*(s: var string, x: RogueliteProfile) = discard
 proc fromFlatty*(s: string, i: var int, x: var RogueliteProfile) = x = nil
 
@@ -114,7 +121,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 13'u32  # bumped: MODS.EXE Player.modBulletSkin (12: Game mod fields)
+  SnapFormatVersion = 16'u32  # bumped: mod consumables/patches/events/shop rows/[Q] (15: statuses; 14: things)
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =
@@ -146,6 +153,14 @@ proc layoutFingerprint(): uint32 =
   mix(sizeof(typeof(default(Player)[])))
   mix(sizeof(typeof(default(Enemy)[])))
   mix(sizeof(typeof(default(Bullet)[])))
+  mix(sizeof(typeof(default(ModThing)[])))   # lives in a seq: Game's own size never sees it
+  mix(sizeof(ModWorldState))
+  mix(sizeof(ModStatusInst))                  # in seqs on Enemy and Player
+  mix(ord(high(DeathCause)))
+  mix(ord(high(ConsumableType)))
+  mix(ord(high(SurvivalEventKind)))
+  mix(sizeof(typeof(default(Consumable)[])))
+  mix(sizeof(RogueliteRelic))
   # The run statistics ride in the same positional flatty stream, so a field
   # added there shifts every byte after it exactly like a Game field would.
   mix(sizeof(typeof(default(RunStatistics)[])))
@@ -235,6 +250,11 @@ proc suspendGame*(game: Game) =
   # Same exemption as run_save.saveRunState: tutorial sessions never persist.
   if tutorialSuppressesSaves(game):
     return
+  # Nor does a run a mod made unresumable (modRunResumable), and an older
+  # snapshot of it goes, so the desktop never offers it.
+  if not modRunResumable(game):
+    deleteSuspendSnapshot(game.mode, game.modMode)
+    return
   # Never persist a finished/failed run (matches run_save.saveRunState).
   if game.hasWonGame and game.mode == gmWaveBased:
     deleteSuspendSnapshot(game.mode, game.modMode)
@@ -245,7 +265,7 @@ proc suspendGame*(game: Game) =
     return
 
   if game.modded and not captureModRunData.isNil:
-    captureModRunData(game)
+    captureModRunData(game, true)
   try:
     let snap = Snapshot(game: game, runStats: currentRunStats)
     var payload = supersnappy.compress(toFlatty(snap))

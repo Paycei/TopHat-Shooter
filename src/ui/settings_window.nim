@@ -2,7 +2,9 @@
 ## Tabbed settings interface matching the OS visual language
 
 import raylib, rlgl, strutils, math
+import ../draw_prims
 import ../sound, ../save_system, os_window, ../localization, ../render_context, ../gamepad_input, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types, ../modding/mod_hooks
+import ui_theme
 
 proc checkboxHit*(p: Vector2, x, y: int): bool =
   ## Hit test for the 25x25 checkboxes this window is built from. On mobile the
@@ -155,62 +157,62 @@ proc tabContentOriginY*(window: OSWindow): int =
 
 proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) =
   let bgColor = if isActive:
-    Color(r: 0, g: 60, b: 80, a: 255)
+    uiSurface(0, 60, 80)
   elif isHovered:
-    Color(r: 50, g: 50, b: 60, a: 255)
+    uiSurface(50, 50, 60)
   else:
-    Color(r: 40, g: 40, b: 50, a: 255)
+    uiSurface(40, 40, 50)
 
   drawRectangle(x.int32, y.int32, width.int32, height.int32, bgColor)
 
   let borderColor = if isActive:
-    Color(r: 0, g: 200, b: 255, a: 255)
+    uiLine(0, 200, 255)
   else:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    uiLine(80, 80, 100)
 
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
                     1, borderColor)
 
   if isActive:
     drawRectangle(x.int32, (y + height - 3).int32, width.int32, 3,
-                 Color(r: 0, g: 200, b: 255, a: 255))
+                 uiSurface(0, 200, 255))
 
   let textWidth = measureText(tabName, 16)
   let textX = x + (width - textWidth) div 2
   let textY = y + (height - 16) div 2
 
-  let textColor = if isActive: Gold else: White
+  let textColor = if isActive: uiInk(Gold) else: uiInk(White)
   drawText(tabName, textX.int32, textY.int32, 16, textColor)
 
 proc drawCheckbox*(x, y, size: int, checked: bool, hovered: bool) =
   let bgColor = if checked:
-    Color(r: 15, g: 75, b: 30, a: 255)
+    uiSurface(15, 75, 30)
   elif hovered:
-    Color(r: 70, g: 70, b: 95, a: 255)
+    uiSurface(70, 70, 95)
   else:
-    Color(r: 50, g: 50, b: 70, a: 255)
+    uiSurface(50, 50, 70)
 
   drawRectangle(x.int32, y.int32, size.int32, size.int32, bgColor)
 
   let borderColor = if checked:
-    Color(r: 60, g: 220, b: 90, a: 255)
+    uiLine(60, 220, 90)
   elif hovered:
-    Color(r: 0, g: 200, b: 255, a: 255)
+    uiLine(0, 200, 255)
   else:
-    Color(r: 100, g: 100, b: 120, a: 255)
+    uiLine(100, 100, 120)
   let borderThick: float32 = if checked or hovered: 2.0 else: 1.0
 
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: size.float32, height: size.float32),
                     borderThick, borderColor)
 
   if checked:
-    let checkColor = Color(r: 100, g: 255, b: 130, a: 255)
-    drawLine(Vector2(x: (x + 4).float32, y: (y + size div 2).float32),
+    let checkColor = uiInk(100, 255, 130)
+    drawStroke(Vector2(x: (x + 4).float32, y: (y + size div 2).float32),
             Vector2(x: (x + size div 2 - 2).float32, y: (y + size - 5).float32),
             3, checkColor)
-    drawLine(Vector2(x: (x + size div 2 - 2).float32, y: (y + size - 5).float32),
+    drawStroke(Vector2(x: (x + size div 2 - 2).float32, y: (y + size - 5).float32),
             Vector2(x: (x + size - 3).float32, y: (y + 3).float32),
             3, checkColor)
 
@@ -218,46 +220,46 @@ proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool,
                 showTicks: bool = false, tickValues: seq[int] = @[]) =
   # Background
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
-               Color(r: 30, g: 30, b: 42, a: 255))
+               uiSurface(30, 30, 42))
 
   # Center groove for depth
   drawRectangle(x.int32, (y + height div 2 - 1).int32, width.int32, 2,
-               Color(r: 15, g: 15, b: 22, a: 255))
+               uiSurface(15, 15, 22))
 
   # Draw tick marks if enabled
   if showTicks and tickValues.len > 0:
     for tickVal in tickValues:
       let tickPos = x + int(float32(tickVal) / 100.0 * width.float32)
       drawRectangle(tickPos.int32, (y - 4).int32, 2, (height + 8).int32,
-                   Color(r: 80, g: 80, b: 100, a: 255))
+                   uiSurface(80, 80, 100))
 
   # Fill
   let fillWidth = int(width.float32 * value)
   let fillColor = if hovered:
-    Color(r: 255, g: 220, b: 100, a: 255)
+    uiSurface(255, 220, 100)
   else:
-    Color(r: 255, g: 200, b: 50, a: 255)
+    uiSurface(255, 200, 50)
   drawRectangle(x.int32, y.int32, fillWidth.int32, height.int32, fillColor)
 
   # Border
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
-                    1, Color(r: 100, g: 100, b: 120, a: 255))
+                    1, uiLine(100, 100, 120))
 
   # Handle with glow
   let handleX = x + fillWidth - 5
   if hovered:
     # Glow effect
     drawRectangle((handleX - 2).int32, (y - 5).int32, 14, (height + 10).int32,
-                 Color(r: 255, g: 220, b: 100, a: 80))
+                 uiGlow(255, 220, 100, 80))
   drawRectangle(handleX.int32, (y - 3).int32, 10, (height + 6).int32,
-               if hovered: Gold else: Color(r: 200, g: 200, b: 220, a: 255))
+               if hovered: uiSurface(Gold) else: uiSurface(200, 200, 220))
   drawRectangle(handleX.int32, (y - 3).int32, 10, 2,
-               Color(r: 255, g: 255, b: 255, a: 90))
+               uiGlow(255, 255, 255, 90))
 
 proc drawSectionHeader*(x, y, width: int, title: string, iconChar: char, color: Color) =
   ## Draw a section divider with colored icon square
-  # Colored icon square
+  # Colored icon square: a badge, in its own colours in every theme
   drawRectangle(x.int32, y.int32, 20, 22, color)
   let charW = measureText($iconChar, 13)
   drawText($iconChar, (x + (20 - charW) div 2).int32, (y + 4).int32, 13,
@@ -265,11 +267,11 @@ proc drawSectionHeader*(x, y, width: int, title: string, iconChar: char, color: 
 
   # Horizontal separator line
   drawRectangle((x + 20).int32, (y + 10).int32, (width - 20).int32, 1,
-               Color(r: 0, g: 200, b: 255, a: 60))
+               uiLine(0, 200, 255, 60))
 
   # Title text
   drawText(title, (x + 26).int32, (y + 3).int32, 16,
-          Color(r: 0, g: 220, b: 255, a: 255))
+          uiInk(0, 220, 255))
 
 const
   ## Gameplay tab: y of the Tutorial row, relative to tabContentOriginY.
@@ -359,6 +361,18 @@ proc replayCineUnlocked(rc: ReplayCine, s: Settings): bool =
   of rcSandboxIntro:    s.hasSeenSandboxIntro
   of rcPvPIntro:        s.hasSeenPvPIntro
 
+proc replayCineStory(rc: ReplayCine): StoryCinematic =
+  case rc
+  of rcLoreIntro:       scIntro
+  of rcWaveEnding:      scWaveEnding
+  of rcRogueliteEnding: scRogueliteEnding
+  of rcSurvivalEnding:  scSurvivalEnding
+  of rcWaveIntro:       scWaveIntro
+  of rcSurvivalIntro:   scSurvivalIntro
+  of rcRogueliteIntro:  scRogueliteIntro
+  of rcSandboxIntro:    scSandboxIntro
+  of rcPvPIntro:        scPvPIntro
+
 proc requestReplayCine(settingsWin: SettingsWindow, rc: ReplayCine) =
   ## Route a click on an unlocked entry into the matching request flag; main.nim
   ## consumes these via the window manager and enters the cutscene.
@@ -384,37 +398,37 @@ proc drawSettingsButton(rect: Rectangle, label: string, hovered: bool, danger: b
                         confirming: bool = false, disabled: bool = false) =
   let bg =
     if disabled:
-      Color(r: 34, g: 34, b: 44, a: 255)
+      uiSurface(34, 34, 44)
     elif confirming:
-      Color(r: 135, g: 64, b: 22, a: 255)
+      uiSurface(135, 64, 22)
     elif danger and hovered:
-      Color(r: 120, g: 38, b: 50, a: 255)
+      uiSurface(120, 38, 50)
     elif danger:
-      Color(r: 82, g: 34, b: 45, a: 255)
+      uiSurface(82, 34, 45)
     elif hovered:
-      Color(r: 80, g: 80, b: 100, a: 255)
+      uiSurface(80, 80, 100)
     else:
-      Color(r: 60, g: 60, b: 80, a: 255)
+      uiSurface(60, 60, 80)
   let border =
     if disabled:
-      Color(r: 60, g: 60, b: 72, a: 255)
+      uiLine(60, 60, 72)
     elif confirming:
-      Gold
+      uiLine(Gold)
     elif danger:
-      Color(r: 255, g: 95, b: 105, a: 255)
+      uiLine(255, 95, 105)
     elif hovered:
-      Gold
+      uiLine(Gold)
     else:
-      Color(r: 100, g: 100, b: 120, a: 255)
+      uiLine(100, 100, 120)
 
   drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
-  drawRectangleLines(rect, 1, border)
+  drawRectOutline(rect, 1, border)
   let fontSize: int32 = 14
   let textWidth = measureText(label, fontSize)
   drawText(label,
            rect.x.int32 + (rect.width.int32 - textWidth) div 2,
            rect.y.int32 + (rect.height.int32 - fontSize) div 2,
-           fontSize, if disabled: Color(r: 110, g: 110, b: 124, a: 255) else: White)
+           fontSize, if disabled: uiInk(110, 110, 124) else: uiInk(White))
 
 proc resetLifetimeProgress(settingsWin: SettingsWindow): bool =
   result = true
@@ -445,6 +459,7 @@ proc resetProgressSettings(settings: Settings): bool =
   settings.orbitalCubeEquipped = false
   settings.cheaterHatUnlocked = false
   settings.cheaterHatEquipped = false
+  settings.interfaceTheme = "tophat"   # CKN OS relocks with hasSeenSurvivalEnding
   settings.rogueliteUnlocked = false
   settings.survivalUnlocked = false
   settings.hasSeenWaveModeIntro = false
@@ -452,6 +467,7 @@ proc resetProgressSettings(settings: Settings): bool =
   settings.hasSeenRogueliteIntro = false
   settings.hasSeenSandboxIntro = false
   settings.hasSeenPvPIntro = false
+  settings.storySeen = default(array[StoryCinematic, int])
   settings.discoveredPowerUps = @[]
   return saveSettings(settings)
 
@@ -533,6 +549,18 @@ proc nextRenderResolutionMode(mode: RenderResolutionMode): RenderResolutionMode 
   of rrmEnabled: rrmFullscreenOnly
   of rrmFullscreenOnly: rrmDisabled
 
+proc getPostFxLabel(level: PostFxLevel): string =
+  case level
+  of pfxOff: t(tkSettingsPostFxOff)
+  of pfxSubtle: t(tkSettingsPostFxSubtle)
+  of pfxFull: t(tkSettingsPostFxFull)
+
+proc nextPostFxLevel(level: PostFxLevel): PostFxLevel =
+  case level
+  of pfxOff: pfxSubtle
+  of pfxSubtle: pfxFull
+  of pfxFull: pfxOff
+
 proc getHudLayoutLabel(mode: HudLayout): string =
   case mode
   of hlClassic: t(tkSettingsHudLayoutClassic)
@@ -562,15 +590,15 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   yPos += 35
 
   # Fullscreen toggle
-  drawText(t(tkSettingsFullscreen), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsFullscreen), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let fsCheckX = contentX + 320
   let mousePos = getVirtualMousePosition()
   let fsHovered = checkboxHit(mousePos, fsCheckX, yPos)
   drawCheckbox(fsCheckX, yPos, 25, settingsWin.settings.fullscreen, fsHovered)
-  drawText(t(tkSettingsFullscreenToggle), (fsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  drawText(t(tkSettingsFullscreenToggle), (fsCheckX + 35).int32, (yPos + 3).int32, 14, uiInk(LightGray))
   yPos += 40
 
-  drawText(t(tkSettingsRenderResolution), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsRenderResolution), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let renderModeButtonX = contentX + 320
   let renderModeButtonY = yPos - 5
   let renderModeButtonWidth = 220
@@ -581,57 +609,82 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                           mousePos.y <= (renderModeButtonY + renderModeButtonHeight).float32
 
   let renderModeBgColor = if renderModeHovered:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    uiSurface(80, 80, 100)
   else:
-    Color(r: 60, g: 60, b: 80, a: 255)
+    uiSurface(60, 60, 80)
 
   drawRectangle(renderModeButtonX.int32, renderModeButtonY.int32,
                 renderModeButtonWidth.int32, renderModeButtonHeight.int32, renderModeBgColor)
-  drawRectangleLines(Rectangle(x: renderModeButtonX.float32, y: renderModeButtonY.float32,
+  drawRectOutline(Rectangle(x: renderModeButtonX.float32, y: renderModeButtonY.float32,
                                 width: renderModeButtonWidth.float32, height: renderModeButtonHeight.float32),
-                    1, if renderModeHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+                    1, if renderModeHovered: uiLine(Gold) else: uiLine(100, 100, 120))
 
   let renderModeText = getRenderResolutionModeLabel(settingsWin.settings.renderResolutionMode)
   let renderModeTextWidth = measureText(renderModeText, 16)
-  drawText("<", renderModeButtonX.int32 + 10, yPos.int32, 18, LightGray)
+  drawText("<", renderModeButtonX.int32 + 10, yPos.int32, 18, uiInk(LightGray))
   drawText(renderModeText,
           (renderModeButtonX + (renderModeButtonWidth - renderModeTextWidth) div 2).int32,
-          yPos.int32, 16, White)
-  drawText(">", (renderModeButtonX + renderModeButtonWidth - 25).int32, yPos.int32, 18, LightGray)
+          yPos.int32, 16, uiInk(White))
+  drawText(">", (renderModeButtonX + renderModeButtonWidth - 25).int32, yPos.int32, 18, uiInk(LightGray))
 
   yPos += 35
-  drawText(t(tkSettingsRenderResolutionDesc), renderModeButtonX.int32, yPos.int32, 14, LightGray)
+  drawText(t(tkSettingsRenderResolutionDesc), renderModeButtonX.int32, yPos.int32, 14, uiInk(LightGray))
   yPos += 25
 
   # FPS Limit: text input for custom values
-  drawText(t(tkSettingsFpsLimit), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsFpsLimit), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let boxX = contentX + 320
   let boxY = yPos - 5
   let boxWidth = 110
   let boxHeight = 35
   drawRectangle(boxX.int32, boxY.int32, boxWidth.int32, boxHeight.int32,
-               if settingsWin.editingFPS: Color(r: 100, g: 100, b: 150, a: 255)
-               else: Color(r: 60, g: 60, b: 80, a: 255))
-  drawRectangleLines(Rectangle(x: boxX.float32, y: boxY.float32,
+               if settingsWin.editingFPS: uiSurface(100, 100, 150)
+               else: uiSurface(60, 60, 80))
+  drawRectOutline(Rectangle(x: boxX.float32, y: boxY.float32,
                                 width: boxWidth.float32, height: boxHeight.float32),
                     if settingsWin.editingFPS: 2.0'f32 else: 1.0'f32,
-                    if settingsWin.editingFPS: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+                    if settingsWin.editingFPS: uiLine(Gold) else: uiLine(100, 100, 120))
   let displayText = if settingsWin.editingFPS:
     settingsWin.settings.inputBuffer & "_"
   else:
     $settingsWin.settings.fpsLimit
   let textWidth = measureText(displayText, 16)
   drawText(displayText, (boxX + (boxWidth - textWidth) div 2).int32,
-          (boxY + (boxHeight - 16) div 2).int32, 16, White)
+          (boxY + (boxHeight - 16) div 2).int32, 16, uiInk(White))
 
   yPos += 40
 
   # VSync
-  drawText(t(tkSettingsVSync), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsVSync), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let vsyncCheckX = contentX + 320
   let vsyncHovered = checkboxHit(mousePos, vsyncCheckX, yPos)
   drawCheckbox(vsyncCheckX, yPos, 25, settingsWin.settings.vsyncEnabled, vsyncHovered)
-  drawText(t(tkSettingsVSyncDesc), (vsyncCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  drawText(t(tkSettingsVSyncDesc), (vsyncCheckX + 35).int32, (yPos + 3).int32, 14, uiInk(LightGray))
+  yPos += 40
+
+  # Visual effects (post_fx.nim): same cycle button as the render mode above
+  drawText(t(tkSettingsPostFx), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
+  let fxButtonX = contentX + 320
+  let fxButtonY = yPos - 5
+  let fxHovered = mousePos.x >= fxButtonX.float32 and
+                  mousePos.x <= (fxButtonX + renderModeButtonWidth).float32 and
+                  mousePos.y >= fxButtonY.float32 and
+                  mousePos.y <= (fxButtonY + renderModeButtonHeight).float32
+  drawRectangle(fxButtonX.int32, fxButtonY.int32,
+                renderModeButtonWidth.int32, renderModeButtonHeight.int32,
+                if fxHovered: uiSurface(80, 80, 100)
+                else: uiSurface(60, 60, 80))
+  drawRectOutline(Rectangle(x: fxButtonX.float32, y: fxButtonY.float32,
+                            width: renderModeButtonWidth.float32, height: renderModeButtonHeight.float32),
+                  1, if fxHovered: uiLine(Gold) else: uiLine(100, 100, 120))
+  let fxText = getPostFxLabel(settingsWin.settings.postFxLevel)
+  drawText("<", fxButtonX.int32 + 10, yPos.int32, 18, uiInk(LightGray))
+  drawText(fxText,
+          (fxButtonX + (renderModeButtonWidth - measureText(fxText, 16)) div 2).int32,
+          yPos.int32, 16, uiInk(White))
+  drawText(">", (fxButtonX + renderModeButtonWidth - 25).int32, yPos.int32, 18, uiInk(LightGray))
+  yPos += 35
+  drawText(t(tkSettingsPostFxDesc), fxButtonX.int32, yPos.int32, 14, uiInk(LightGray))
 
 # ---------------------------------------------------------------------------
 # Interface tab
@@ -643,6 +696,7 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
 
 type
   InterfaceControl = enum
+    ifcTheme            ## stepper over the themes this profile has earned
     ifcUIScale          ## cycle button: left edge steps down, the rest steps up
     ifcDamageNumbers
     ifcDamageSize       ## slider
@@ -663,7 +717,7 @@ const
   IfcButtonWidth = 200
   IfcButtonHeight = 32
   IfcControlX = 300     # every labelled control starts this far into the tab
-  IfcGridY = 358        # first row of the HUD toggle grid
+  IfcGridY = 418        # first row of the HUD toggle grid
   IfcGridRowPitch = 30
 
   UIScaleLabels: array[3, TranslationKey] =
@@ -682,6 +736,16 @@ const
   IfcSliderGrabPad = 6'f32
     ## Vertical slack on a slider's hit box: the handle overhangs the bar, and
     ## grabbing it by that overhang should still count.
+
+proc stepInterfaceTheme(delta: int): bool =
+  ## Move to the next theme the player can wear, `delta` steps around the list
+  ## (built-ins first, then loaded mods'; a locked one is not in it). False
+  ## when there is nowhere to go.
+  let choices = unlockedThemes()
+  if choices.len < 2:
+    return false
+  let at = max(0, choices.find(chosenTheme()))
+  chooseTheme(choices[floorMod(at + delta, choices.len)].id)
 
 proc steppedUIScale(scale: float32, delta: int): float32 =
   UIScalePresets[clamp(uiScalePresetIndex(scale) + delta, 0, UIScalePresets.high)]
@@ -713,23 +777,26 @@ proc interfaceControlRect(ic: InterfaceControl, contentX, contentY, contentW: in
   ## Geometry of one Interface-tab control, relative to the tab content origin.
   let gridColW = (contentW - 80) div 2
   case ic
-  of ifcUIScale:
+  of ifcTheme:
     Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 44).float32,
               width: IfcButtonWidth.float32, height: IfcButtonHeight.float32)
-  of ifcDamageNumbers:
+  of ifcUIScale:
     Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 104).float32,
+              width: IfcButtonWidth.float32, height: IfcButtonHeight.float32)
+  of ifcDamageNumbers:
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 164).float32,
               width: IfcCheckboxSize.float32, height: IfcCheckboxSize.float32)
   of ifcDamageSize:
-    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 138).float32,
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 198).float32,
               width: IfcSliderWidth.float32, height: IfcSliderHeight.float32)
   of ifcScreenShake:
-    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 170).float32,
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 230).float32,
               width: IfcSliderWidth.float32, height: IfcSliderHeight.float32)
   of ifcHudLayout:
-    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 247).float32,
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 307).float32,
               width: IfcButtonWidth.float32, height: IfcButtonHeight.float32)
   of ifcHudStyle:
-    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 300).float32,
+    Rectangle(x: (contentX + IfcControlX).float32, y: (contentY + 360).float32,
               width: IfcButtonWidth.float32, height: IfcButtonHeight.float32)
   else:
     let idx = ord(ic) - ord(ifcEnemyLabels)
@@ -795,19 +862,24 @@ proc drawCycleButton(rect: Rectangle, label: string, hovered: bool,
   ## The "< value >" control the other tabs build inline, shared by the two on
   ## this tab. On a stepper, `hoverSide` (-1 / +1, see stepperSide) lights the
   ## arrow a click would press, and an arrow with nowhere left to go is dimmed.
-  let bg = if hovered: Color(r: 80, g: 80, b: 100, a: 255)
-           else: Color(r: 60, g: 60, b: 80, a: 255)
+  let bg = if hovered: uiSurface(80, 80, 100)
+           else: uiSurface(60, 60, 80)
   drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
-  drawRectangleLines(rect, 1,
-                     if hovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+  drawRectOutline(rect, 1,
+                     if hovered: uiLine(Gold) else: uiLine(100, 100, 120))
   template arrowColor(side: int, enabled: bool): Color =
-    if not enabled: Color(r: 85, g: 85, b: 105, a: 255)
-    elif hovered and side == hoverSide: Gold
-    else: LightGray
+    if not enabled: uiInk(85, 85, 105)
+    elif hovered and side == hoverSide: uiInk(Gold)
+    else: uiInk(LightGray)
   let textY = (rect.y + (rect.height - 16) / 2).int32
-  let textWidth = measureText(label, 16)
+  # A long value (a theme's name) shrinks to stay clear of the arrows.
+  var labelSize = 16'i32
+  while labelSize > 10 and measureText(label, labelSize).float32 > rect.width - 56:
+    dec labelSize
+  let textWidth = measureText(label, labelSize)
   drawText("<", (rect.x + 10).int32, textY, 18, arrowColor(-1, canDec))
-  drawText(label, (rect.x + (rect.width - textWidth.float32) / 2).int32, textY, 16, White)
+  drawText(label, (rect.x + (rect.width - textWidth.float32) / 2).int32,
+           textY + (16 - labelSize) div 2, labelSize, uiInk(White))
   drawText(">", (rect.x + rect.width - 22).int32, textY, 18, arrowColor(1, canInc))
 
 proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
@@ -822,24 +894,38 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
                     t(tkSettingsSectionScale), '%',
                     Color(r: 160, g: 140, b: 255, a: 255))
 
+  # Until a second theme is earned the stepper has nowhere to go, and the
+  # hint only says there is more to find: naming CKN OS would spoil the last
+  # story recording.
+  let themeRect = rectOf(ifcTheme)
+  let canStepTheme = unlockedThemes().len > 1
+  drawText(t(tkSettingsInterfaceTheme), (contentX + 40).int32, (contentY + 51).int32, 18, uiInk(White))
+  drawCycleButton(themeRect, themeName(chosenTheme()),
+                  checkCollisionPointRec(mousePos, themeRect),
+                  hoverSide = stepperSide(mousePos, themeRect),
+                  canDec = canStepTheme, canInc = canStepTheme)
+  drawText(t(if themeUnlocked(findTheme("ckn")): tkSettingsInterfaceThemeDesc
+             else: tkSettingsInterfaceThemeLocked),
+           (contentX + 40).int32, (contentY + 82).int32, 13, uiInk(LightGray))
+
   let scaleRect = rectOf(ifcUIScale)
   let scaleStep = uiScalePresetIndex(s.uiScale)
-  drawText(t(tkSettingsUiScale), (contentX + 40).int32, (contentY + 51).int32, 18, White)
+  drawText(t(tkSettingsUiScale), (contentX + 40).int32, (contentY + 111).int32, 18, uiInk(White))
   drawCycleButton(scaleRect, t(UIScaleLabels[scaleStep]),
                   checkCollisionPointRec(mousePos, scaleRect),
                   hoverSide = stepperSide(mousePos, scaleRect),
                   canDec = scaleStep > 0, canInc = scaleStep < UIScalePresets.high)
-  drawText(t(tkSettingsUiScaleDesc), (contentX + 40).int32, (contentY + 82).int32,
-           13, LightGray)
+  drawText(t(tkSettingsUiScaleDesc), (contentX + 40).int32, (contentY + 142).int32,
+           13, uiInk(LightGray))
 
   let dmgRect = rectOf(ifcDamageNumbers)
-  drawText(t(tkSettingsDamageNumbers), (contentX + 40).int32, (contentY + 106).int32, 18, White)
+  drawText(t(tkSettingsDamageNumbers), (contentX + 40).int32, (contentY + 166).int32, 18, uiInk(White))
   drawCheckbox(dmgRect.x.int32, dmgRect.y.int32, IfcCheckboxSize,
                s.showDamageNumbers,
                checkCollisionPointRec(mousePos,
                                       interfaceHitRect(ifcDamageNumbers, contentX, contentY, contentW)))
   drawText(t(tkSettingsDamageNumbersDesc), (dmgRect.x + 34).int32, (dmgRect.y + 5).int32,
-           13, LightGray)
+           13, uiInk(LightGray))
 
   # Both sliders map their [Min..Max] range onto the full bar, so the fill reads
   # as "where in the allowed range am I", not as the percentage beside it. The
@@ -847,7 +933,7 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
   let sizeRect = rectOf(ifcDamageSize)
   let sizeFrac = (s.damageNumberScale - MinDamageNumberScale) /
                  (MaxDamageNumberScale - MinDamageNumberScale)
-  drawText(t(tkSettingsDamageNumberSize), (contentX + 40).int32, (contentY + 138).int32, 18, White)
+  drawText(t(tkSettingsDamageNumberSize), (contentX + 40).int32, (contentY + 198).int32, 18, uiInk(White))
   drawSlider(sizeRect.x.int32, sizeRect.y.int32, IfcSliderWidth, IfcSliderHeight,
              clamp(sizeFrac, 0.0, 1.0),
              settingsWin.draggingDamageSize or
@@ -855,12 +941,12 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
              showTicks = true,
              tickValues = sliderDefaultTick(MinDamageNumberScale, MaxDamageNumberScale))
   drawText($int(s.damageNumberScale * 100.0 + 0.5) & "%",
-           (sizeRect.x + IfcSliderWidth.float32 + 12).int32, (contentY + 138).int32, 16, Gold)
+           (sizeRect.x + IfcSliderWidth.float32 + 12).int32, (contentY + 198).int32, 16, uiInk(Gold))
 
   let shakeRect = rectOf(ifcScreenShake)
   let shakeFrac = (s.screenShakeScale - MinScreenShakeScale) /
                   (MaxScreenShakeScale - MinScreenShakeScale)
-  drawText(t(tkSettingsScreenShake), (contentX + 40).int32, (contentY + 170).int32, 18, White)
+  drawText(t(tkSettingsScreenShake), (contentX + 40).int32, (contentY + 230).int32, 18, uiInk(White))
   drawSlider(shakeRect.x.int32, shakeRect.y.int32, IfcSliderWidth, IfcSliderHeight,
              clamp(shakeFrac, 0.0, 1.0),
              settingsWin.draggingScreenShake or
@@ -868,35 +954,35 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
              showTicks = true,
              tickValues = sliderDefaultTick(MinScreenShakeScale, MaxScreenShakeScale))
   drawText($int(s.screenShakeScale * 100.0 + 0.5) & "%",
-           (shakeRect.x + IfcSliderWidth.float32 + 12).int32, (contentY + 170).int32, 16, Gold)
-  drawText(t(tkSettingsScreenShakeDesc), (contentX + 40).int32, (contentY + 194).int32,
-           13, LightGray)
+           (shakeRect.x + IfcSliderWidth.float32 + 12).int32, (contentY + 230).int32, 16, uiInk(Gold))
+  drawText(t(tkSettingsScreenShakeDesc), (contentX + 40).int32, (contentY + 254).int32,
+           13, uiInk(LightGray))
 
   # --- Section: which HUD elements are drawn --------------------------------
-  drawSectionHeader(contentX + 20, contentY + 218, contentW - 40,
+  drawSectionHeader(contentX + 20, contentY + 278, contentW - 40,
                     t(tkSettingsSectionHudElements), 'H',
                     Color(r: 100, g: 200, b: 255, a: 255))
 
   let layoutRect = rectOf(ifcHudLayout)
-  drawText(t(tkSettingsHudLayout), (contentX + 40).int32, (contentY + 254).int32, 18, White)
+  drawText(t(tkSettingsHudLayout), (contentX + 40).int32, (contentY + 314).int32, 18, uiInk(White))
   drawCycleButton(layoutRect, getHudLayoutLabel(s.hudLayout),
                   checkCollisionPointRec(mousePos, layoutRect))
-  drawText(t(tkSettingsHudLayoutDesc), (contentX + 40).int32, (contentY + 283).int32,
-           13, LightGray)
+  drawText(t(tkSettingsHudLayoutDesc), (contentX + 40).int32, (contentY + 343).int32,
+           13, uiInk(LightGray))
 
   let styleRect = rectOf(ifcHudStyle)
-  drawText(t(tkSettingsHudStyle), (contentX + 40).int32, (contentY + 307).int32, 18, White)
+  drawText(t(tkSettingsHudStyle), (contentX + 40).int32, (contentY + 367).int32, 18, uiInk(White))
   drawCycleButton(styleRect, getHudStyleLabel(s.hudStyle),
                   checkCollisionPointRec(mousePos, styleRect))
-  drawText(t(tkSettingsHudStyleDesc), (contentX + 40).int32, (contentY + 336).int32,
-           13, LightGray)
+  drawText(t(tkSettingsHudStyleDesc), (contentX + 40).int32, (contentY + 396).int32,
+           13, uiInk(LightGray))
 
   for ic in ifcEnemyLabels .. ifcDebugPanel:
     let rect = rectOf(ic)
     drawCheckbox(rect.x.int32, rect.y.int32, IfcCheckboxSize,
                  interfaceToggleValue(s, ic),
                  checkCollisionPointRec(mousePos, interfaceHitRect(ic, contentX, contentY, contentW)))
-    drawText(interfaceToggleLabel(ic), (rect.x + 34).int32, (rect.y + 5).int32, 16, White)
+    drawText(interfaceToggleLabel(ic), (rect.x + 34).int32, (rect.y + 5).int32, 16, uiInk(White))
 
 proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -909,7 +995,7 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
   let mousePos = getVirtualMousePosition()
 
   # Sound Effects Volume
-  drawText(t(tkSettingsSoundEffects), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsSoundEffects), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let volumeSliderX = contentX + 250
   let volumeSliderY = yPos + 5
   let sliderWidth = 300
@@ -924,13 +1010,13 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
             settingsWin.settings.volume, volumeHovered or settingsWin.draggingVolume)
 
   let volPercent = int(settingsWin.settings.volume * 100)
-  drawText($volPercent & "%", (volumeSliderX + sliderWidth + 15).int32, yPos.int32, 18, White)
+  drawText($volPercent & "%", (volumeSliderX + sliderWidth + 15).int32, yPos.int32, 18, uiInk(White))
   drawText(t(tkSettingsSoundEffectsDesc), (contentX + 40).int32,
-          (volumeSliderY + sliderHeight + 4).int32, 12, Color(r: 120, g: 120, b: 150, a: 255))
+          (volumeSliderY + sliderHeight + 4).int32, 12, uiInk(120, 120, 150))
   yPos += 55
 
   # Music Volume
-  drawText(t(tkSettingsMusic), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsMusic), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let musicSliderX = contentX + 250
   let musicSliderY = yPos + 5
 
@@ -943,9 +1029,9 @@ proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, co
             settingsWin.settings.musicVolume, musicHovered or settingsWin.draggingMusic)
 
   let musicPercent = int(settingsWin.settings.musicVolume * 100)
-  drawText($musicPercent & "%", (musicSliderX + sliderWidth + 15).int32, yPos.int32, 18, White)
+  drawText($musicPercent & "%", (musicSliderX + sliderWidth + 15).int32, yPos.int32, 18, uiInk(White))
   drawText(t(tkSettingsMusicDesc), (contentX + 40).int32,
-          (musicSliderY + sliderHeight + 4).int32, 12, Color(r: 120, g: 120, b: 150, a: 255))
+          (musicSliderY + sliderHeight + 4).int32, 12, uiInk(120, 120, 150))
 
 proc controllerSelectorLabel(preferred: int): string =
   ## Text shown on the controller cycle button for the current selection.
@@ -1060,7 +1146,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                    Color(r: 200, g: 100, b: 255, a: 255))
 
   # Mouse Bonding
-  drawText(t(tkSettingsMouseBonding), (contentX + 40).int32, lay.bondingLabelY.int32, 18, White)
+  drawText(t(tkSettingsMouseBonding), (contentX + 40).int32, lay.bondingLabelY.int32, 18, uiInk(White))
   let bondingButtonX = contentX + 320
   let bondingButtonY = lay.bondingLabelY - 5
   let bondingHovered =   mousePos.x >= bondingButtonX.float32 and
@@ -1069,50 +1155,50 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                        mousePos.y <= (bondingButtonY + ClBondingBtnH).float32
 
   let bondingBgColor = if bondingHovered:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    uiSurface(80, 80, 100)
   else:
-    Color(r: 60, g: 60, b: 80, a: 255)
+    uiSurface(60, 60, 80)
 
   drawRectangle(bondingButtonX.int32, bondingButtonY.int32,
                 ClBondingBtnW.int32, ClBondingBtnH.int32, bondingBgColor)
-  drawRectangleLines(Rectangle(x: bondingButtonX.float32, y: bondingButtonY.float32,
+  drawRectOutline(Rectangle(x: bondingButtonX.float32, y: bondingButtonY.float32,
                                 width: ClBondingBtnW.float32, height: ClBondingBtnH.float32),
-                    1, if bondingHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+                    1, if bondingHovered: uiLine(Gold) else: uiLine(100, 100, 120))
 
   let bondingModeText = getMouseBondingModeLabel(settingsWin.settings.mouseBondingMode)
   let bondingTextWidth = measureText(bondingModeText, 16)
-  drawText("<", bondingButtonX.int32 + 10, lay.bondingLabelY.int32, 18, LightGray)
+  drawText("<", bondingButtonX.int32 + 10, lay.bondingLabelY.int32, 18, uiInk(LightGray))
   drawText(bondingModeText,
           (bondingButtonX + (ClBondingBtnW - bondingTextWidth) div 2).int32,
-          lay.bondingLabelY.int32, 16, White)
-  drawText(">", (bondingButtonX + ClBondingBtnW - 25).int32, lay.bondingLabelY.int32, 18, LightGray)
+          lay.bondingLabelY.int32, 16, uiInk(White))
+  drawText(">", (bondingButtonX + ClBondingBtnW - 25).int32, lay.bondingLabelY.int32, 18, uiInk(LightGray))
 
   # Drawn under the LABEL, not under the button: the tightened row spacing puts
   # the controller cycle button directly below the bonding button.
-  drawText(t(tkSettingsMouseBondingDesc), (contentX + 40).int32, lay.bondingDescY.int32, 14, LightGray)
+  drawText(t(tkSettingsMouseBondingDesc), (contentX + 40).int32, lay.bondingDescY.int32, 14, uiInk(LightGray))
 
   # Controller selector: cycle Auto -> each connected pad. Same cycle-button
   # geometry as mouse bonding above.
-  drawText(t(tkSettingsController), (contentX + 40).int32, lay.padLabelY.int32, 18, White)
+  drawText(t(tkSettingsController), (contentX + 40).int32, lay.padLabelY.int32, 18, uiInk(White))
   let padSelX = contentX + 320
   let padSelY = lay.padLabelY - 5
   let padSelHovered = mousePos.x >= padSelX.float32 and
                       mousePos.x <= (padSelX + ClPadSelW).float32 and
                       mousePos.y >= padSelY.float32 and
                       mousePos.y <= (padSelY + ClPadSelH).float32
-  let padSelBg = if padSelHovered: Color(r: 80, g: 80, b: 100, a: 255)
-                 else: Color(r: 60, g: 60, b: 80, a: 255)
+  let padSelBg = if padSelHovered: uiSurface(80, 80, 100)
+                 else: uiSurface(60, 60, 80)
   drawRectangle(padSelX.int32, padSelY.int32, ClPadSelW.int32, ClPadSelH.int32, padSelBg)
-  drawRectangleLines(Rectangle(x: padSelX.float32, y: padSelY.float32,
+  drawRectOutline(Rectangle(x: padSelX.float32, y: padSelY.float32,
                                 width: ClPadSelW.float32, height: ClPadSelH.float32),
-                    1, if padSelHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+                    1, if padSelHovered: uiLine(Gold) else: uiLine(100, 100, 120))
   let padSelText = controllerSelectorLabel(settingsWin.settings.preferredGamepad)
   let padSelTextW = measureText(padSelText, 16)
-  drawText("<", padSelX.int32 + 10, lay.padLabelY.int32, 18, LightGray)
+  drawText("<", padSelX.int32 + 10, lay.padLabelY.int32, 18, uiInk(LightGray))
   drawText(padSelText, (padSelX + (ClPadSelW - padSelTextW) div 2).int32,
-           lay.padLabelY.int32, 16, White)
-  drawText(">", (padSelX + ClPadSelW - 25).int32, lay.padLabelY.int32, 18, LightGray)
-  drawText(t(tkSettingsControllerDesc), (contentX + 40).int32, lay.padDescY.int32, 14, LightGray)
+           lay.padLabelY.int32, 16, uiInk(White))
+  drawText(">", (padSelX + ClPadSelW - 25).int32, lay.padLabelY.int32, 18, uiInk(LightGray))
+  drawText(t(tkSettingsControllerDesc), (contentX + 40).int32, lay.padDescY.int32, 14, uiInk(LightGray))
 
   # Keybindings section
   drawSectionHeader(contentX + 20, lay.kbHeaderY, contentW - 40,
@@ -1126,9 +1212,9 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   let keyHdr = t(tkGamepadColumnKey)
   let padHdr = t(tkGamepadColumnPad)
   drawText(padHdr, (padBtnX + (ClKbBtnW - measureText(padHdr, 12)) div 2).int32,
-           (lay.kbRowsY - 15).int32, 12, Color(r: 130, g: 130, b: 160, a: 255))
+           (lay.kbRowsY - 15).int32, 12, uiInk(130, 130, 160))
   drawText(keyHdr, (kbBtnX + (ClKbBtnW - measureText(keyHdr, 12)) div 2).int32,
-           (lay.kbRowsY - 15).int32, 12, Color(r: 130, g: 130, b: 160, a: 255))
+           (lay.kbRowsY - 15).int32, 12, uiInk(130, 130, 160))
   let kbActions = [
     (t(tkKeybindMoveUp),    kaMoveUp),
     (t(tkKeybindMoveDown),  kaMoveDown),
@@ -1148,20 +1234,20 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                      mousePos.x >= kbBtnX.float32 and mousePos.x <= (kbBtnX + ClKbBtnW).float32 and
                      mousePos.y >= btnY.float32 and mousePos.y <= (btnY + ClKbBtnH).float32
 
-    let btnBg     = if isRebinding: Color(r: 180, g: 100, b: 0, a: 255)
-                    elif btnHovered: Color(r: 80, g: 80, b: 100, a: 255)
-                    else: Color(r: 45, g: 45, b: 65, a: 255)
-    let btnBorder = if isRebinding: Color(r: 255, g: 180, b: 0, a: 255)
-                    elif btnHovered: Gold
-                    else: Color(r: 100, g: 100, b: 120, a: 255)
+    let btnBg     = if isRebinding: uiSurface(180, 100, 0)
+                    elif btnHovered: uiSurface(80, 80, 100)
+                    else: uiSurface(45, 45, 65)
+    let btnBorder = if isRebinding: uiLine(255, 180, 0)
+                    elif btnHovered: uiLine(Gold)
+                    else: uiLine(100, 100, 120)
 
-    drawText(label, (contentX + 30).int32, (yPos + 3).int32, 14, LightGray)
+    drawText(label, (contentX + 30).int32, (yPos + 3).int32, 14, uiInk(LightGray))
     drawRectangle(kbBtnX.int32, btnY.int32, ClKbBtnW.int32, ClKbBtnH.int32, btnBg)
-    drawRectangleLines(Rectangle(x: kbBtnX.float32, y: btnY.float32,
+    drawRectOutline(Rectangle(x: kbBtnX.float32, y: btnY.float32,
                                   width: ClKbBtnW.float32, height: ClKbBtnH.float32), 1, btnBorder)
     let keyText  = if isRebinding: t(tkKeybindPressAnyKey)
                    else: $settingsWin.settings.keybinds[action]
-    let keyFg    = if isRebinding: Color(r: 255, g: 220, b: 100, a: 255) else: White
+    let keyFg    = if isRebinding: uiInk(255, 220, 100) else: uiInk(White)
     let keyTextW = measureText(keyText, 13)
     drawText(keyText, (kbBtnX + (ClKbBtnW - keyTextW) div 2).int32,
              (yPos + (ClKbBtnH - 13) div 2).int32, 13, keyFg)
@@ -1171,18 +1257,18 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     let padHovered = not isPadRebinding and
                      mousePos.x >= padBtnX.float32 and mousePos.x <= (padBtnX + ClKbBtnW).float32 and
                      mousePos.y >= btnY.float32 and mousePos.y <= (btnY + ClKbBtnH).float32
-    let padBg     = if isPadRebinding: Color(r: 180, g: 100, b: 0, a: 255)
-                    elif padHovered: Color(r: 80, g: 80, b: 100, a: 255)
-                    else: Color(r: 45, g: 45, b: 65, a: 255)
-    let padBorder = if isPadRebinding: Color(r: 255, g: 180, b: 0, a: 255)
-                    elif padHovered: Gold
-                    else: Color(r: 100, g: 100, b: 120, a: 255)
+    let padBg     = if isPadRebinding: uiSurface(180, 100, 0)
+                    elif padHovered: uiSurface(80, 80, 100)
+                    else: uiSurface(45, 45, 65)
+    let padBorder = if isPadRebinding: uiLine(255, 180, 0)
+                    elif padHovered: uiLine(Gold)
+                    else: uiLine(100, 100, 120)
     drawRectangle(padBtnX.int32, btnY.int32, ClKbBtnW.int32, ClKbBtnH.int32, padBg)
-    drawRectangleLines(Rectangle(x: padBtnX.float32, y: btnY.float32,
+    drawRectOutline(Rectangle(x: padBtnX.float32, y: btnY.float32,
                                   width: ClKbBtnW.float32, height: ClKbBtnH.float32), 1, padBorder)
     let padText  = if isPadRebinding: t(tkGamepadPressAnyButton)
                    else: gamepadBindLabel(settingsWin.settings.gamepadBinds[action])
-    let padFg    = if isPadRebinding: Color(r: 255, g: 220, b: 100, a: 255) else: White
+    let padFg    = if isPadRebinding: uiInk(255, 220, 100) else: uiInk(White)
     let padTextW = measureText(padText, 13)
     drawText(padText, (padBtnX + (ClKbBtnW - padTextW) div 2).int32,
              (yPos + (ClKbBtnH - 13) div 2).int32, 13, padFg)
@@ -1194,22 +1280,22 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                      mousePos.x <= (resetBtnX + ClResetBtnW).float32 and
                      mousePos.y >= lay.resetY.float32 and
                      mousePos.y <= (lay.resetY + ClResetBtnH).float32
-  let resetBg = if resetHovered: Color(r: 80, g: 80, b: 100, a: 255)
-                else: Color(r: 50, g: 50, b: 70, a: 255)
+  let resetBg = if resetHovered: uiSurface(80, 80, 100)
+                else: uiSurface(50, 50, 70)
   drawRectangle(resetBtnX.int32, lay.resetY.int32, ClResetBtnW.int32, ClResetBtnH.int32, resetBg)
-  drawRectangleLines(Rectangle(x: resetBtnX.float32, y: lay.resetY.float32,
+  drawRectOutline(Rectangle(x: resetBtnX.float32, y: lay.resetY.float32,
                                 width: ClResetBtnW.float32, height: ClResetBtnH.float32),
-                    1, if resetHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+                    1, if resetHovered: uiLine(Gold) else: uiLine(100, 100, 120))
   let resetText  = t(tkKeybindResetDefaults)
   let resetTextW = measureText(resetText, 14)
   drawText(resetText, (resetBtnX + (ClResetBtnW - resetTextW) div 2).int32,
-           (lay.resetY + 6).int32, 14, White)
+           (lay.resetY + 6).int32, 14, uiInk(White))
 
   # Fixed-key notes
   drawText(t(tkKeybindNonRebindableNote), (contentX + 20).int32, lay.note1Y.int32, 12,
-           Color(r: 130, g: 130, b: 160, a: 255))
+           uiInk(130, 130, 160))
   drawText(t(tkGamepadReservedNote), (contentX + 20).int32, lay.note2Y.int32, 12,
-           Color(r: 130, g: 130, b: 160, a: 255))
+           uiInk(130, 130, 160))
 
   if modKeybinds.len > 0:
     # Mod keybindings subsection
@@ -1217,20 +1303,20 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                      t(tkSettingsSectionMods), '+',
                      Color(r: 255, g: 170, b: 80, a: 255))
     drawText(t(tkSettingsModsDescription), (contentX + 40).int32,
-             (lay.modHeaderY + 26).int32, 13, LightGray)
+             (lay.modHeaderY + 26).int32, 13, uiInk(LightGray))
 
     let keyX = contentX + contentW - 270
     let padX = contentX + contentW - 135
     drawText(t(tkGamepadColumnKey), keyX.int32, (lay.modRowsY - 15).int32, 12,
-             Color(r: 130, g: 130, b: 160, a: 255))
+             uiInk(130, 130, 160))
     drawText(t(tkGamepadColumnPad), padX.int32, (lay.modRowsY - 15).int32, 12,
-             Color(r: 130, g: 130, b: 160, a: 255))
+             uiInk(130, 130, 160))
 
     var y = lay.modRowsY
     for i, b in modKeybinds:
       let ownerName = if b.owner >= 0 and b.owner < mods.len: mods[b.owner].name else: b.modId
       drawText(ownerName & ": " & modKeybindName(b),
-               (contentX + 30).int32, (y + 3).int32, 13, LightGray)
+               (contentX + 30).int32, (y + 3).int32, 13, uiInk(LightGray))
       let keyRect = Rectangle(x: keyX.float32, y: y.float32, width: 120, height: 20)
       let padRect = Rectangle(x: padX.float32, y: y.float32, width: 120, height: 20)
       let keyEditing = settingsWin.rebindingModKey == i
@@ -1251,15 +1337,15 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     drawSettingsButton(resetRect, t(tkSettingsResetModKeybindings),
                        checkCollisionPointRec(mousePos, resetRect), false)
   rlgl.popMatrix()
-  endScissorMode()
+  endVirtualScissorMode()
   if maxScroll > 0:
     let barX = contentX + contentW - 12
     let viewH = contentH
     drawRectangle(barX.int32, contentY.int32, 4, viewH.int32,
-                  Color(r: 45, g: 45, b: 65, a: 255))
+                  uiSurface(45, 45, 65))
     let thumbH = max(12, viewH * viewH div (viewH + maxScroll))
     let thumbY = contentY + (viewH - thumbH) * settingsWin.modKeybindScroll div maxScroll
-    drawRectangle(barX.int32, thumbY.int32, 4, thumbH.int32, Gold)
+    drawRectangle(barX.int32, thumbY.int32, 4, thumbH.int32, uiSurface(Gold))
 
 proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   var yPos = contentY + 15
@@ -1272,34 +1358,34 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   let mousePos = getVirtualMousePosition()
 
   # Show Hints
-  drawText(t(tkSettingsShowHints), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsShowHints), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let hintsCheckX = contentX + 320
   let hintsHovered = checkboxHit(mousePos, hintsCheckX, yPos)
   drawCheckbox(hintsCheckX, yPos, 25, settingsWin.settings.showHints, hintsHovered)
-  drawText(t(tkSettingsShowHintsDesc), (hintsCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  drawText(t(tkSettingsShowHintsDesc), (hintsCheckX + 35).int32, (yPos + 3).int32, 14, uiInk(LightGray))
   yPos += 35
 
   # Exit Confirm Dialogs
-  drawText(t(tkSettingsExitConfirm), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsExitConfirm), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let exitConfirmCheckX = contentX + 320
   let exitConfirmHovered = checkboxHit(mousePos, exitConfirmCheckX, yPos)
   drawCheckbox(exitConfirmCheckX, yPos, 25, settingsWin.settings.exitConfirmEnabled, exitConfirmHovered)
-  drawText(t(tkSettingsExitConfirmDesc), (exitConfirmCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  drawText(t(tkSettingsExitConfirmDesc), (exitConfirmCheckX + 35).int32, (yPos + 3).int32, 14, uiInk(LightGray))
   yPos += 35
 
   # Gamepad aim assist (cone snap onto the nearest enemy when stick-aiming)
-  drawText(t(tkSettingsAimAssist), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsAimAssist), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let aimAssistCheckX = contentX + 320
   let aimAssistHovered = checkboxHit(mousePos, aimAssistCheckX, yPos)
   drawCheckbox(aimAssistCheckX, yPos, 25, settingsWin.settings.aimAssistEnabled, aimAssistHovered)
-  drawText(t(tkSettingsAimAssistDesc), (aimAssistCheckX + 35).int32, (yPos + 3).int32, 14, LightGray)
+  drawText(t(tkSettingsAimAssistDesc), (aimAssistCheckX + 35).int32, (yPos + 3).int32, 14, uiInk(LightGray))
   yPos += 35
 
   # Tutorial replay: a practice session, so it's only offered from the desktop.
-  drawText(t(tkSettingsTutorial), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsTutorial), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let tutorialAvailable = settingsWin.replayTutorialAvailable
   drawText(if tutorialAvailable: t(tkSettingsReplayTutorialDesc) else: t(tkSettingsReplayTutorialLocked),
-           (contentX + 40).int32, (yPos + 21).int32, 12, Color(r: 150, g: 150, b: 175, a: 255))
+           (contentX + 40).int32, (yPos + 21).int32, 12, uiInk(150, 150, 175))
   let tutorialRect = tutorialReplayRect(settingsWin.window)
   drawSettingsButton(tutorialRect, t(tkSettingsReplayTutorial),
                      tutorialAvailable and checkCollisionPointRec(mousePos, tutorialRect), false,
@@ -1312,7 +1398,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   yPos += 35
 
   # Language selector
-  drawText(t(tkSettingsLanguage), (contentX + 40).int32, yPos.int32, 18, White)
+  drawText(t(tkSettingsLanguage), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
   let langButtonX = contentX + 320
   let langButtonY = yPos - 5
   let langButtonWidth = 200
@@ -1324,22 +1410,22 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                    mousePos.y <= (langButtonY + langButtonHeight).float32
 
   let langBgColor = if langHovered:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    uiSurface(80, 80, 100)
   else:
-    Color(r: 60, g: 60, b: 80, a: 255)
+    uiSurface(60, 60, 80)
 
   drawRectangle(langButtonX.int32, langButtonY.int32, langButtonWidth.int32, langButtonHeight.int32, langBgColor)
-  drawRectangleLines(Rectangle(x: langButtonX.float32, y: langButtonY.float32,
+  drawRectOutline(Rectangle(x: langButtonX.float32, y: langButtonY.float32,
                                 width: langButtonWidth.float32, height: langButtonHeight.float32),
-                    1, if langHovered: Gold else: Color(r: 100, g: 100, b: 120, a: 255))
+                    1, if langHovered: uiLine(Gold) else: uiLine(100, 100, 120))
 
   # Display current language with arrows
   let currentLang = try: parseEnum[Language](settingsWin.settings.language) except: English
   let langDisplayText = getLanguageName(currentLang)
   let langTextWidth = measureText(langDisplayText, 18)
-  drawText("<", langButtonX.int32 + 10, yPos.int32, 18, LightGray)
-  drawText(langDisplayText, (langButtonX + (langButtonWidth - langTextWidth) div 2).int32, yPos.int32, 18, White)
-  drawText(">", (langButtonX + langButtonWidth - 25).int32, yPos.int32, 18, LightGray)
+  drawText("<", langButtonX.int32 + 10, yPos.int32, 18, uiInk(LightGray))
+  drawText(langDisplayText, (langButtonX + (langButtonWidth - langTextWidth) div 2).int32, yPos.int32, 18, uiInk(White))
+  drawText(">", (langButtonX + langButtonWidth - 25).int32, yPos.int32, 18, uiInk(LightGray))
 
   yPos += 45
 
@@ -1362,7 +1448,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     let statusWidth = measureText(settingsWin.resetStatus, 14)
     drawText(settingsWin.resetStatus,
              (contentX + (contentW - statusWidth) div 2).int32,
-             (contentY + 344).int32, 14, LightGray)
+             (contentY + 344).int32, 14, uiInk(LightGray))
 
 proc drawCinematicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
   ## Gallery of every replayable cutscene, split into Story and Mode Intros.
@@ -1384,6 +1470,14 @@ proc drawCinematicsTab*(settingsWin: SettingsWindow, contentX, contentY, content
     let hovered = unlocked and checkCollisionPointRec(mousePos, rect)
     drawSettingsButton(rect, replayCineLabel(rc), hovered, false,
                        confirming = false, disabled = not unlocked)
+    # Unlocked, but rewritten since this profile last watched it.
+    if unlocked and storyOutdated(s, replayCineStory(rc)):
+      let tag = t(tkPowerUpNewBadge)
+      let tw = measureText(tag, 11) + 10
+      let tx = (rect.x + rect.width).int32 - tw - 4
+      let ty = rect.y.int32 - 7
+      drawRectangle(tx, ty, tw, 15, uiSurface(255, 200, 60))
+      drawText(tag, tx + 5, ty + 2, 11, uiInk(40, 24, 0))
 
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
                           screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] =
@@ -1499,6 +1593,15 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
           clearWindowState(flags(VsyncHint))
         settingsChanged = true
 
+      # Visual effects cycle button (drawn 40px below the VSync row)
+      let fxButtonX = contentX + 320
+      let fxButtonY = contentY + 225
+      if mousePos.x >= fxButtonX.float32 and mousePos.x <= (fxButtonX + renderModeButtonWidth).float32 and
+         mousePos.y >= fxButtonY.float32 and mousePos.y <= (fxButtonY + renderModeButtonHeight).float32:
+        settingsWin.settings.postFxLevel = nextPostFxLevel(settingsWin.settings.postFxLevel)
+        playSound(stMenuSelect)
+        settingsChanged = true
+
     # Keyboard input for FPS text box
     if settingsWin.editingFPS:
       setTextInputActive(true, tikNumeric)
@@ -1553,6 +1656,12 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       true
 
     if settingsWin.window.handledClickThisFrame:
+      let themeRect = ifaceRect(ifcTheme)
+      if checkCollisionPointRec(mousePos, themeRect) and
+         stepInterfaceTheme(stepperSide(mousePos, themeRect)):
+        playSound(stMenuSelect)
+        settingsChanged = true
+
       if checkCollisionPointRec(mousePos, scaleRect):
         # Left half steps down, right half steps up -- drawInterfaceTab lights
         # the arrow on whichever half the pointer is over.
@@ -1967,10 +2076,10 @@ proc drawSettingsWindow*(settingsWin: SettingsWindow) =
   let tabContentH = contentH - tabHeight - 20
 
   drawRectangle(contentX.int32, tabContentY.int32, contentW.int32, tabContentH.int32,
-               Color(r: 25, g: 25, b: 35, a: 255))
-  drawRectangleLines(Rectangle(x: contentX.float32, y: tabContentY.float32,
+               uiSurface(25, 25, 35))
+  drawRectOutline(Rectangle(x: contentX.float32, y: tabContentY.float32,
                                 width: contentW.float32, height: tabContentH.float32),
-                    1, Color(r: 60, g: 60, b: 80, a: 255))
+                    1, uiLine(60, 60, 80))
 
   # Draw active tab content
   case settingsWin.currentTab

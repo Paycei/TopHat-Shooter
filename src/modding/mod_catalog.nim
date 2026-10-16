@@ -93,8 +93,11 @@ proc readManifest(dir: string): ModInfo =
     result.message = "\"main\" must be a file inside the mod folder"
     return
   if not fileExists(dir / result.main):
-    result.message = "main script not found: " & result.main
-    return
+    if not j.hasKey("main") and dirExists(dir / "content"):
+      result.main = ""   # a content-only mod: its content/*.json is all it has
+    else:
+      result.message = "main script not found: " & result.main
+      return
   let da = j.getOrDefault("disableAchievements")
   if not da.isNil:
     if da.kind != JBool:

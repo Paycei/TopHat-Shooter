@@ -2,6 +2,7 @@
 ## Two phases: BIOS amber POST -> kernel model reveal with title and press-any-key.
 
 import raylib, math
+import ../draw_prims
 import particle_types, ../localization, ../hardware_info, ../shapes, ../sound, background_fx, cinematic_common
 
 const
@@ -68,10 +69,10 @@ proc buildBiosLines(): (seq[BiosLine], int) =
       "DISK : TOPHAT_SYSTEM_SSD (2 TB NVMe)"
 
   let host = if hw.hostName.len > 0: hw.hostName else: "TOPHAT-PC"
-  let osn  = if hw.osName.len  > 0: hw.osName  else: "ShooterOS 6.3"
+  let osn  = if hw.osName.len  > 0: hw.osName  else: "ShooterOS 6.4"
 
   result[0] = @[
-    plainLine("TOPHAT SYSTEMS, INC.  -  BIOS v6.3.3  -  BUILD 20261002"),
+    plainLine("TOPHAT SYSTEMS, INC.  -  BIOS v6.4.0  -  BUILD 20261014"),
     plainLine("Copyright (C) 2024-2026 TopHat Systems, Inc.  All Rights Reserved."),
     plainLine(""),
     statusLine(cpuLine, "OK"),
@@ -79,12 +80,15 @@ proc buildBiosLines(): (seq[BiosLine], int) =
              text: "RAM  : " & $ramMB & " MB (" & $ramGB & " GB)", status: "OK"),
     statusLine("GPU  : " & gpu, "OK"),
     statusLine(diskLine, "OK"),
+    # Every boot reports it, and every boot ignores it (the story's old_system:
+    # Act I's Disk Cleanup, Act III's descent).
+    statusLine("SCAN : Unallocated region found (3.8 GB)", "IGNORED"),
     statusLine("HOST : " & host & "  /  " & osn, "OK"),
     statusLine("NET  : TopHat Gigabit Ethernet", "OK"),
     statusLine("SND  : TopHat Audio Pro", "OK"),
     statusLine("USB  : xHCI Host Controller v3.1", "OK"),
-    statusLine("KRNL : TOPHAT.SYS v6.3", "LOADED"),
-    statusLine("BOOT : shooteros-6.3  (Secure Boot)", "ENABLED"),
+    statusLine("KRNL : TOPHAT.SYS v6.4", "LOADED"),
+    statusLine("BOOT : shooteros-6.4  (Secure Boot)", "ENABLED"),
     plainLine(""),
     BiosLine(kind: blCountdown, text: "Booting TopHat-ShooterOS in"),
   ]
@@ -123,14 +127,14 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   drawRectangle(0, 0, sw, sh, Color(r: 0, g: 0, b: 8, a: 255))
   drawSplashScanlines(sw, sh, splash.scanlineOffset, Color(r: 24, g: 8, b: 0, a: 18))
 
-  drawRectangleLines(Rectangle(x: 4.0'f32, y: 4.0'f32,
+  drawRectOutline(Rectangle(x: 4.0'f32, y: 4.0'f32,
                                width: (sw - 8).float32, height: (sh - 8).float32),
                      2.0'f32, Color(r: 180, g: 120, b: 20, a: 200))
 
   # Inverted amber header bar
   let hH = 44
   drawRectangle(4, 4, sw - 8, hH.int32, Color(r: 160, g: 100, b: 10, a: 255))
-  let hTitle = "TOPHAT SYSTEMS, INC.  BIOS VERSION 6.3.3"
+  let hTitle = "TOPHAT SYSTEMS, INC.  BIOS VERSION 6.4.0"
   let hTitleW = measureText(hTitle, 22)
   drawText(hTitle, sw div 2 - hTitleW div 2, 14, 22, Color(r: 10, g: 6, b: 0, a: 255))
   let hDate = "10/02/2026"
@@ -172,10 +176,13 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
       drawText(padded, 20, yPos.int32, 18, postAmber)
       let statusX = 20 + max(measureText(padded, 18), 452) + 8
       if resolved:
-        # Fresh statuses flash white for a beat, then settle green.
+        # Fresh statuses flash white for a beat, then settle green (or a
+        # warning yellow for the one check firmware shrugs off).
         let col =
           if sinceReveal - STATUS_LAG < 0.12'f32:
             Color(r: 245, g: 255, b: 245, a: 255)
+          elif line.status == "IGNORED":
+            Color(r: 255, g: 205, b: 60, a: 255)
           else:
             Color(r: 80, g: 255, b: 80, a: 255)
         drawText(line.status, statusX, yPos.int32, 18, col)
@@ -238,10 +245,10 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
                          Color(r: 26, g: 16, b: 2, a: 0))
 
   # Double bevel border: bright outer rule + a dimmer inset rule.
-  drawRectangleLines(Rectangle(x: badgeX.float32, y: badgeY.float32,
+  drawRectOutline(Rectangle(x: badgeX.float32, y: badgeY.float32,
                                width: bW.float32, height: bH.float32),
                      2.0'f32, Color(r: 235, g: 165, b: 40, a: bA))
-  drawRectangleLines(Rectangle(x: badgeX.float32 + 6.0'f32, y: badgeY.float32 + 6.0'f32,
+  drawRectOutline(Rectangle(x: badgeX.float32 + 6.0'f32, y: badgeY.float32 + 6.0'f32,
                                width: bW.float32 - 12.0'f32, height: bH.float32 - 12.0'f32),
                      1.0'f32, Color(r: 150, g: 95, b: 18, a: alphaByte(bFade * 180.0'f32)))
 
@@ -265,8 +272,8 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   # The headline version, with a soft amber halo to lift it off the plate.
   drawSoftGlow(cx.float32, (badgeY + 62).float32, 46.0'f32,
                Color(r: 255, g: 190, b: 40, a: alphaByte(bFade * 70.0'f32)), 1.0'f32)
-  let v6W = measureText("6.3", 56)
-  drawText("6.3", cx - v6W div 2, badgeY + 32, 56,
+  let v6W = measureText("6.4", 56)
+  drawText("6.4", cx - v6W div 2, badgeY + 32, 56,
            Color(r: 255, g: 224, b: 96, a: bA))
 
   # Divider rule with diamond end-caps separating version from edition tag.
@@ -364,7 +371,7 @@ proc drawSplashComplete(splash: SplashScreen, sw, sh: int32) =
     let mainW     = measureText(mainLabel, 34)
     drawText(mainLabel, sw div 2 - mainW div 2, tY, 34,
              Color(r: 0, g: 230, b: 220, a: titleA))
-    let subLabel = "[ v6.3 Edition ]"
+    let subLabel = "[ v6.4 Edition ]"
     let subW     = measureText(subLabel, 22)
     drawText(subLabel, sw div 2 - subW div 2, tY + 42, 22,
              Color(r: 180, g: 60, b: 255, a: titleA))

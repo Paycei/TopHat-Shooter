@@ -1,6 +1,7 @@
 ## Shared animated background helpers used across menus and arenas.
 
 import raylib, math
+import ../draw_prims
 import ../utils
 export utils  # propagate shared color/alpha helpers to importers of this module
 
@@ -27,7 +28,7 @@ proc drawSoftGlow*(centerX, centerY, radius: float32, color: Color, intensity: f
   while layer >= 1:
     let t = layer.float32 / 6.0
     let alpha = clampByteF(color.a.float32 * t * t * intensity)
-    drawCircle(Vector2(x: centerX, y: centerY), radius * t, withAlpha(color, alpha))
+    drawDisc(Vector2(x: centerX, y: centerY), radius * t, withAlpha(color, alpha))
     dec layer
 
 proc drawParallaxStars(screenWidth, screenHeight: int32, time: float32,
@@ -66,9 +67,9 @@ proc drawParallaxStars(screenWidth, screenHeight: int32, time: float32,
         else:
           Color(r: 180, g: 200, b: 235, a: starAlpha)
 
-      drawCircle(Vector2(x: x, y: y), size, starColor)
+      drawDisc(Vector2(x: x, y: y), size, starColor)
       if layer == BACKDROP_STAR_LAYERS - 1 and i mod 7 == 0:
-        drawLine(x.int32 - 6, y.int32, x.int32 + 6, y.int32, withAlpha(starColor, starAlpha div 3))
+        drawStroke(x.int32 - 6, y.int32, x.int32 + 6, y.int32, withAlpha(starColor, starAlpha div 3))
       inc i
     inc layer
 
@@ -81,14 +82,14 @@ proc drawDriftingGrid(screenWidth, screenHeight: int32, time: float32,
   while x < screenWidth + BACKDROP_GRID_SIZE:
     let drawX = x.float32 + offsetX
     if drawX >= 0.0 and drawX <= screenWidth.float32:
-      drawLine(drawX.int32, 0, drawX.int32, screenHeight, gridColor)
+      drawStroke(drawX.int32, 0, drawX.int32, screenHeight, gridColor)
     x += BACKDROP_GRID_SIZE
 
   var y = -BACKDROP_GRID_SIZE
   while y < screenHeight + BACKDROP_GRID_SIZE:
     let drawY = y.float32 + offsetY
     if drawY >= 0.0 and drawY <= screenHeight.float32:
-      drawLine(0, drawY.int32, screenWidth, drawY.int32, gridColor)
+      drawStroke(0, drawY.int32, screenWidth, drawY.int32, gridColor)
     y += BACKDROP_GRID_SIZE
 
   var gx = -BACKDROP_GRID_SIZE
@@ -104,7 +105,7 @@ proc drawDriftingGrid(screenWidth, screenHeight: int32, time: float32,
           let pulse = sin(time * 1.25'f32 + (cellX + cellY).float32 * 0.45'f32) * 0.5'f32 + 0.5'f32
           let nodeRadius = if ((cellX + cellY) mod 4) == 0: 2.0'f32 else: 1.35'f32
           let nodeAlpha = clampByteF(nodeColor.a.float32 * (0.5'f32 + pulse * 0.5'f32))
-          drawCircle(Vector2(x: drawX, y: drawY), nodeRadius, withAlpha(nodeColor, nodeAlpha))
+          drawDisc(Vector2(x: drawX, y: drawY), nodeRadius, withAlpha(nodeColor, nodeAlpha))
         gy += BACKDROP_GRID_SIZE
     gx += BACKDROP_GRID_SIZE
 
@@ -124,7 +125,7 @@ proc drawSharedBackdrop*(screenWidth, screenHeight: int32, time: float32,
     ) - 70.0'f32
     let swayY = sin(time * (0.55'f32 + band.float32 * 0.04'f32) + band.float32 * 0.8'f32) * 20.0'f32
     let alpha = clampByteF((8.0'f32 + band.float32 * 0.8'f32) * sweepAlphaScale)
-    drawLine(-40, (driftY + swayY).int32,
+    drawStroke(-40, (driftY + swayY).int32,
              screenWidth + 40, (driftY + 35.0'f32 + swayY * 0.4'f32).int32,
              withAlpha(accentColor, alpha))
     inc band

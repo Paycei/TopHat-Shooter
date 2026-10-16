@@ -1,4 +1,5 @@
 import raylib, rlgl, math
+import draw_prims
 import types, particle_types
 
 # Unified aura configuration and rendering system
@@ -252,9 +253,9 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
            edgeColor(46.0'f32 * (1.0'f32 - travel * 0.5'f32)))
 
   # Core of the wavefront: three tight rings so the leading edge has weight.
-  drawCircleLines(pos.x.int32, pos.y.int32, r, edgeColor(235.0))
-  drawCircleLines(pos.x.int32, pos.y.int32, r - 2.0, edgeColor(170.0))
-  drawCircleLines(pos.x.int32, pos.y.int32, r - 5.0, edgeColor(90.0))
+  drawCircleOutline(pos.x.int32, pos.y.int32, r, edgeColor(235.0))
+  drawCircleOutline(pos.x.int32, pos.y.int32, r - 2.0, edgeColor(170.0))
+  drawCircleOutline(pos.x.int32, pos.y.int32, r - 5.0, edgeColor(90.0))
 
   # Decoration count scales with circumference so the crest never looks sparse
   # at level 3 nor clogged in the first few frames after launch.
@@ -269,10 +270,10 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
       let fx = pos.x + cos(angle) * (r + flick * 4.0)
       let fy = pos.y + sin(angle) * (r + flick * 4.0)
       let size = 3.0 + flick * 3.5
-      drawCircle(Vector2(x: fx, y: fy), size,
+      drawDisc(Vector2(x: fx, y: fy), size,
                  Color(r: 255, g: uint8(120 + flick * 90), b: 40,
                        a: uint8(200.0 * (1.0 - travel * 0.35))))
-      drawCircle(Vector2(x: fx, y: fy - 1.5), size * 0.45,
+      drawDisc(Vector2(x: fx, y: fy - 1.5), size * 0.45,
                  Color(r: 255, g: 245, b: 160, a: uint8(220.0 * (1.0 - travel * 0.4))))
 
   of avsLightning:
@@ -285,7 +286,7 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
       let px = pos.x + cos(angle) * (r + jag)
       let py = pos.y + sin(angle) * (r + jag)
       let cur = Vector2(x: px, y: py)
-      drawLine(prev, cur, 2.5, Color(r: 220, g: 240, b: 255,
+      drawStroke(prev, cur, 2.5, Color(r: 220, g: 240, b: 255,
                                      a: uint8(230.0 * (1.0 - travel * 0.3))))
       prev = cur
     # Sparks thrown ahead of the front
@@ -293,7 +294,7 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
       let angle = i.float32 * PI * 2.0 / 6.0 + time * 3.0
       let sx = pos.x + cos(angle) * (r + 9.0)
       let sy = pos.y + sin(angle) * (r + 9.0)
-      drawCircle(Vector2(x: sx, y: sy), 2.5,
+      drawDisc(Vector2(x: sx, y: sy), 2.5,
                  Color(r: 255, g: 255, b: 255, a: uint8(200.0 * (1.0 - travel))))
 
   of avsPoison:
@@ -304,9 +305,9 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
       let bx = pos.x + cos(angle) * (r + wob)
       let by = pos.y + sin(angle) * (r + wob)
       let size = 3.0 + (i mod 3).float32 * 1.5
-      drawCircle(Vector2(x: bx, y: by), size,
+      drawDisc(Vector2(x: bx, y: by), size,
                  Color(r: 120, g: 245, b: 120, a: uint8(170.0 * (1.0 - travel * 0.4))))
-      drawCircleLines(bx.int32, by.int32, size,
+      drawCircleOutline(bx.int32, by.int32, size,
                       Color(r: 190, g: 255, b: 190, a: uint8(200.0 * (1.0 - travel * 0.4))))
 
   of avsWind:
@@ -317,7 +318,7 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
       let y1 = pos.y + sin(angle) * (r - 6.0)
       let x2 = pos.x + cos(angle + 0.16) * (r + 4.0)
       let y2 = pos.y + sin(angle + 0.16) * (r + 4.0)
-      drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
+      drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.0,
                Color(r: 225, g: 245, b: 255, a: uint8(190.0 * (1.0 - travel * 0.35))))
 
   of avsArcane:
@@ -327,13 +328,13 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
       let rx = pos.x + cos(angle) * r
       let ry = pos.y + sin(angle) * r
       let size = (if i mod 2 == 0: 3.5'f32 else: 2.0'f32)
-      drawCircle(Vector2(x: rx, y: ry), size,
+      drawDisc(Vector2(x: rx, y: ry), size,
                  Color(r: 235, g: 175, b: 255, a: uint8(215.0 * (1.0 - travel * 0.3))))
-      drawCircle(Vector2(x: rx, y: ry), size * 2.0,
+      drawDisc(Vector2(x: rx, y: ry), size * 2.0,
                  Color(r: 200, g: 100, b: 255, a: uint8(70.0 * (1.0 - travel * 0.5))))
     let echoR = config.radius * auraWaveEase(max(0.0'f32, travel - 0.18'f32))
     if echoR > 4.0:
-      drawCircleLines(pos.x.int32, pos.y.int32, echoR,
+      drawCircleOutline(pos.x.int32, pos.y.int32, echoR,
                       Color(r: 210, g: 130, b: 255, a: uint8(110.0 * (1.0 - travel))))
 
   of avsBlood:
@@ -344,9 +345,9 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
       let dx = pos.x + cos(angle) * (r + jitter)
       let dy = pos.y + sin(angle) * (r + jitter)
       let size = 3.0 + (i mod 2).float32 * 1.5
-      drawCircle(Vector2(x: dx, y: dy), size,
+      drawDisc(Vector2(x: dx, y: dy), size,
                  Color(r: 215, g: 45, b: 45, a: uint8(210.0 * (1.0 - travel * 0.35))))
-      drawCircle(Vector2(x: dx - cos(angle) * size, y: dy - sin(angle) * size), size * 0.55,
+      drawDisc(Vector2(x: dx - cos(angle) * size, y: dy - sin(angle) * size), size * 0.55,
                  Color(r: 150, g: 25, b: 25, a: uint8(180.0 * (1.0 - travel * 0.35))))
 
 proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
@@ -382,13 +383,13 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
   # Kept faint: several stacked auras fill on top of each other.
   let bodyAlpha = uint8(clamp(config.coreColor.a.float32 * 0.55 * (0.85 + 0.15 * pulse),
                               0.0'f32, 255.0'f32))
-  drawCircle(Vector2(x: pos.x, y: pos.y), config.radius,
+  drawDisc(Vector2(x: pos.x, y: pos.y), config.radius,
              Color(r: config.ringColor.r, g: config.ringColor.g,
                    b: config.ringColor.b, a: bodyAlpha))
 
   # Draw core glow (common to all auras); firing briefly kicks it
   let coreAlpha = uint8(min(255.0'f32, config.coreColor.a.float32 * (1.0 + burst * 2.0)))
-  drawCircle(Vector2(x: pos.x, y: pos.y),
+  drawDisc(Vector2(x: pos.x, y: pos.y),
              config.radius * 0.3 * pulse * (1.0 + burst * 0.35),
              Color(r: config.coreColor.r, g: config.coreColor.g,
                    b: config.coreColor.b, a: coreAlpha))
@@ -404,9 +405,9 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
       let dist = config.radius * 0.7 + sin(time * 3.0 + i.float32) * 15.0
       let x = pos.x + cos(angle) * dist
       let y = pos.y + sin(angle) * dist - abs(sin(time * 4.0 + i.float32)) * 8.0
-      drawCircle(Vector2(x: x, y: y), 4 + sin(time * 5.0 + i.float32) * 2,
+      drawDisc(Vector2(x: x, y: y), 4 + sin(time * 5.0 + i.float32) * 2,
                 Color(r: 255, g: 150, b: 50, a: 180))
-      drawCircle(Vector2(x: x, y: y - 2), 2, Color(r: 255, g: 255, b: 100, a: 220))
+      drawDisc(Vector2(x: x, y: y - 2), 2, Color(r: 255, g: 255, b: 100, a: 220))
 
   of avsLightning:
     # Lightning aura: electric arcs and bolts
@@ -429,7 +430,7 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
           let t = seg.float32 / segments.float32
           let nextX = x1 + (x2 - x1) * t + (if seg mod 2 == 0: -5.0 else: 5.0)
           let nextY = y1 + (y2 - y1) * t + (if seg mod 2 == 0: 5.0 else: -5.0)
-          drawLine(Vector2(x: prevX, y: prevY), Vector2(x: nextX, y: nextY), 2,
+          drawStroke(Vector2(x: prevX, y: prevY), Vector2(x: nextX, y: nextY), 2,
                   Color(r: 200, g: 220, b: 255, a: 200))
           prevX = nextX
           prevY = nextY
@@ -449,9 +450,9 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
       let y = pos.y + sin(angle) * dist - riseOffset
       let bubbleSize = 3 + (i mod 3).float32
 
-      drawCircle(Vector2(x: x, y: y), bubbleSize, Color(r: 120, g: 255, b: 120, a: 160))
-      drawCircle(Vector2(x: x - 1, y: y - 1), bubbleSize * 0.4, Color(r: 180, g: 255, b: 180, a: 200))
-      drawCircleLines(x.int32, y.int32, bubbleSize, Color(r: 80, g: 200, b: 80, a: 200))
+      drawDisc(Vector2(x: x, y: y), bubbleSize, Color(r: 120, g: 255, b: 120, a: 160))
+      drawDisc(Vector2(x: x - 1, y: y - 1), bubbleSize * 0.4, Color(r: 180, g: 255, b: 180, a: 200))
+      drawCircleOutline(x.int32, y.int32, bubbleSize, Color(r: 80, g: 200, b: 80, a: 200))
 
   of avsWind:
     # Wind aura: swirling cyclone effect
@@ -481,7 +482,7 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
           let y2 = pos.y + sin(angle + angleOffset) * endDist
 
           let alpha = uint8((50 - ring * 8 - seg * 5).float32)
-          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2,
+          drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2,
                   Color(r: 200, g: 230, b: 255, a: alpha))
 
     # Floating air particles
@@ -490,7 +491,7 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
       let dist = config.radius * 0.7 + sin(time * 2.0 + i.float32) * 25.0
       let x = pos.x + cos(angle) * dist
       let y = pos.y + sin(angle) * dist
-      drawCircle(Vector2(x: x, y: y), 2, Color(r: 220, g: 240, b: 255, a: 150))
+      drawDisc(Vector2(x: x, y: y), 2, Color(r: 220, g: 240, b: 255, a: 150))
 
   of avsArcane:
     # Arcane aura: orbiting runes and sparkles
@@ -504,8 +505,8 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
       let y = pos.y + sin(angle) * dist
 
       let runeSize = 4 + sin(time * 5.0 + i.float32) * 2
-      drawCircle(Vector2(x: x, y: y), runeSize, Color(r: 220, g: 150, b: 255, a: 220))
-      drawCircle(Vector2(x: x, y: y), runeSize * 1.5, Color(r: 200, g: 100, b: 255, a: 80))
+      drawDisc(Vector2(x: x, y: y), runeSize, Color(r: 220, g: 150, b: 255, a: 220))
+      drawDisc(Vector2(x: x, y: y), runeSize * 1.5, Color(r: 200, g: 100, b: 255, a: 80))
 
     # Floating sparkles
     for i in 0..7:
@@ -514,7 +515,7 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
       let x = pos.x + cos(angle) * dist
       let y = pos.y + sin(angle) * dist
       let sparkleSize = 2 + (sin(time * 6.0 + i.float32) * 1.5)
-      drawCircle(Vector2(x: x, y: y), sparkleSize.float32, Color(r: 255, g: 200, b: 255, a: 180))
+      drawDisc(Vector2(x: x, y: y), sparkleSize.float32, Color(r: 255, g: 200, b: 255, a: 180))
 
   of avsBlood:
     # Blood aura: dripping blood and mist
@@ -530,8 +531,8 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
 
       let dropSize = 4 - (dropFall / 20.0)
       if dropSize > 1.0:
-        drawCircle(Vector2(x: x, y: y), dropSize.float32, Color(r: 200, g: 50, b: 50, a: 200))
-        drawCircle(Vector2(x: x, y: y + 1), dropSize.float32 * 0.7, Color(r: 150, g: 30, b: 30, a: 200))
+        drawDisc(Vector2(x: x, y: y), dropSize.float32, Color(r: 200, g: 50, b: 50, a: 200))
+        drawDisc(Vector2(x: x, y: y + 1), dropSize.float32 * 0.7, Color(r: 150, g: 30, b: 30, a: 200))
 
     # Swirling blood mist particles
     for i in 0..9:
@@ -539,7 +540,7 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
       let dist = config.radius * 0.8 + sin(time * 3.0 + i.float32) * 20.0
       let x = pos.x + cos(angle) * dist
       let y = pos.y + sin(angle) * dist
-      drawCircle(Vector2(x: x, y: y), 3, Color(r: 255, g: 80, b: 80, a: 140))
+      drawDisc(Vector2(x: x, y: y), 3, Color(r: 255, g: 80, b: 80, a: 140))
 
     # Lifesteal heart symbols
     for corner in 0..3:
@@ -549,21 +550,21 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
       let y = pos.y + sin(angle) * dist
       let heartSize = 3 + heartbeat * 2
 
-      drawCircle(Vector2(x: x - heartSize, y: y), heartSize, Color(r: 255, g: 100, b: 100, a: 180))
-      drawCircle(Vector2(x: x + heartSize, y: y), heartSize, Color(r: 255, g: 100, b: 100, a: 180))
-      drawCircle(Vector2(x: x, y: y + heartSize), heartSize * 1.2, Color(r: 255, g: 100, b: 100, a: 180))
+      drawDisc(Vector2(x: x - heartSize, y: y), heartSize, Color(r: 255, g: 100, b: 100, a: 180))
+      drawDisc(Vector2(x: x + heartSize, y: y), heartSize, Color(r: 255, g: 100, b: 100, a: 180))
+      drawDisc(Vector2(x: x, y: y + heartSize), heartSize * 1.2, Color(r: 255, g: 100, b: 100, a: 180))
 
   # Draw outer border, 2 passes: soft outer glow, then solid ring at exact radius
   let br = config.borderColor.r
   let bg = config.borderColor.g
   let bb = config.borderColor.b
   # Pass 1: wide soft glow halo outside the ring
-  drawCircleLines(pos.x.int32, pos.y.int32, config.radius + 4.0,
+  drawCircleOutline(pos.x.int32, pos.y.int32, config.radius + 4.0,
                  Color(r: br, g: bg, b: bb, a: 55))
-  drawCircleLines(pos.x.int32, pos.y.int32, config.radius + 2.0,
+  drawCircleOutline(pos.x.int32, pos.y.int32, config.radius + 2.0,
                  Color(r: br, g: bg, b: bb, a: 90))
   # Pass 2: solid bright ring at exact radius
-  drawCircleLines(pos.x.int32, pos.y.int32, config.radius,
+  drawCircleOutline(pos.x.int32, pos.y.int32, config.radius,
                  Color(r: br, g: bg, b: bb, a: 220))
 
   # Pass 3: charge sweep just inside the border - a clock hand filling up to the
@@ -583,10 +584,10 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
   # kicks slightly outward. This lands at the END of the travel, not at the
   # start, which is what sells the wave as having actually gone somewhere.
   if impact > 0.001:
-    drawCircleLines(pos.x.int32, pos.y.int32, config.radius * (1.0 + 0.05 * impact),
+    drawCircleOutline(pos.x.int32, pos.y.int32, config.radius * (1.0 + 0.05 * impact),
                    Color(r: 255, g: 255, b: 255, a: uint8(min(200.0'f32, 200.0'f32 * impact))))
-    drawCircleLines(pos.x.int32, pos.y.int32, config.radius,
+    drawCircleOutline(pos.x.int32, pos.y.int32, config.radius,
                    Color(r: br, g: bg, b: bb, a: uint8(min(255.0'f32, 255.0'f32 * impact))))
-    drawCircleLines(pos.x.int32, pos.y.int32, config.radius - 3.0,
+    drawCircleOutline(pos.x.int32, pos.y.int32, config.radius - 3.0,
                    Color(r: br, g: bg, b: bb, a: uint8(min(180.0'f32, 180.0'f32 * impact))))
 

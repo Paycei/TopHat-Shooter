@@ -2,7 +2,9 @@
 ## Base system for all OS-style windows (Settings, Stats, Help)
 
 import raylib, math
+import ../draw_prims
 import ../render_context
+import ui_theme, ../utils
 
 type
   OSWindowType* = enum
@@ -386,8 +388,73 @@ proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allW
 
   return false
 
+proc drawCknCaptionButton(x, y: int, hovered: bool, hoverFill: Color) =
+  ## The square behind a CKN caption glyph: only there while hovered.
+  if hovered:
+    drawRectangleRounded(Rectangle(x: x.float32, y: y.float32, width: 20, height: 20),
+                         0.3'f32, 6, hoverFill)
+
+proc drawCknWindowChrome(window: OSWindow, th: UiTheme) =
+  ## The CKN shell's window: rounded, a soft shadow instead of a glow, the
+  ## focus shown by an accent border and an accent-tinted title bar, all from
+  ## the theme's anchors. Hit-testing is the stock chrome's (same title bar
+  ## and button rects).
+  const Radius = 8.0'f32
+  let w = if window.minimized: window.savedWidth else: window.width
+  let h = if window.minimized: TITLE_BAR_HEIGHT else: window.height
+  let x = window.x.float32
+  let y = window.y.float32
+  let hairline = mixColor(th.surface, th.raised, 0.75'f32)
+  let titleFill = if window.focused: mixColor(th.surface, th.accent, 0.12'f32)
+                  else: mixColor(th.surface, th.raised, 0.25'f32)
+  let border = if window.focused: withAlpha(th.accent, 190) else: hairline
+  drawCknPanel(Rectangle(x: x, y: y, width: w.float32, height: h.float32), Radius,
+               if window.minimized: titleFill else: th.surface, border,
+               shadowAlpha = if window.focused: 80.0'f32 else: 45.0'f32)
+  if not window.minimized:
+    # The title band: rounded on top, squared off where it meets the body.
+    let band = Rectangle(x: x, y: y, width: w.float32, height: TITLE_BAR_HEIGHT.float32 + Radius)
+    drawRectangleRounded(band, cornerRoundness(band.width, band.height, Radius), 10, titleFill)
+    drawRectangle(window.x.int32, (window.y + TITLE_BAR_HEIGHT).int32, w.int32, Radius.int32 + 1, th.surface)
+    drawRectangle(window.x.int32, (window.y + TITLE_BAR_HEIGHT).int32, w.int32, 1, hairline)
+
+  drawRectangleRounded(Rectangle(x: x + 9.0'f32, y: y + 8.0'f32, width: 14, height: 14),
+                       0.45'f32, 6, window.iconColor)
+  let glyph = if window.focused: th.text else: th.muted
+  drawText(window.title, (window.x + 32).int32, (window.y + 6).int32, 18, glyph)
+
+  let mousePos = getVirtualMousePosition()
+  let buttonY = window.y + 5
+  let hoverFill = mixColor(th.surface, th.raised, 0.5'f32)
+  if window.minimized:
+    let restoreX = window.x + window.savedWidth - 25
+    let hoverRestore = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
+    drawCknCaptionButton(restoreX, buttonY, hoverRestore, hoverFill)
+    drawRectOutline(Rectangle(x: (restoreX + 5).float32, y: (buttonY + 5).float32,
+                              width: 10, height: 10), 2, glyph)
+    return
+
+  let closeX = window.x + window.width - 25
+  let hoverClose = isPointInCloseButton(window, mousePos.x, mousePos.y)
+  drawCknCaptionButton(closeX, buttonY, hoverClose, Color(r: 226, g: 72, b: 72, a: 255))
+  let cross = if hoverClose: White else: glyph
+  let cx = (closeX + 10).float32
+  let cy = (buttonY + 10).float32
+  drawStroke(Vector2(x: cx - 4.5'f32, y: cy - 4.5'f32), Vector2(x: cx + 4.5'f32, y: cy + 4.5'f32), 2, cross)
+  drawStroke(Vector2(x: cx + 4.5'f32, y: cy - 4.5'f32), Vector2(x: cx - 4.5'f32, y: cy + 4.5'f32), 2, cross)
+
+  let minX = window.x + window.width - 50
+  let hoverMin = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
+  drawCknCaptionButton(minX, buttonY, hoverMin, hoverFill)
+  drawRectangle((minX + 5).int32, (buttonY + 13).int32, 10, 2, glyph)
+
 proc drawWindowChrome*(window: OSWindow) =
   if not window.visible:
+    return
+
+  let th = activeTheme()
+  if th.shell == ssCkn:
+    drawCknWindowChrome(window, th)
     return
 
   # If minimized, only draw full-width title bar (handled here)
@@ -397,14 +464,14 @@ proc drawWindowChrome*(window: OSWindow) =
     # Draw minimized window as full-width title bar
     drawRectangle(window.x.int32, window.y.int32,
                  window.savedWidth.int32, miniHeight.int32,
-                 Color(r: 40, g: 40, b: 50, a: 240))
+                 uiSurface(40, 40, 50, 240))
 
     let borderColor = if window.focused:
-      Color(r: 0, g: 200, b: 255, a: 255)
+      uiLine(0, 200, 255)
     else:
-      Color(r: 80, g: 80, b: 100, a: 255)
+      uiLine(80, 80, 100)
 
-    drawRectangleLines(Rectangle(x: window.x.float32, y: window.y.float32,
+    drawRectOutline(Rectangle(x: window.x.float32, y: window.y.float32,
                                   width: window.savedWidth.float32, height: miniHeight.float32),
                       WINDOW_BORDER, borderColor)
 
@@ -416,7 +483,7 @@ proc drawWindowChrome*(window: OSWindow) =
 
     # Title text
     drawText(window.title, (window.x + 32).int32, (window.y + 6).int32, 18,
-            Color(r: 0, g: 200, b: 255, a: 255))
+            uiInk(0, 200, 255))
 
     # Restore button
     let buttonSize = CHROME_BTN_SIZE
@@ -429,15 +496,15 @@ proc drawWindowChrome*(window: OSWindow) =
     let hoverRestore = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
 
     drawRectangle(restoreX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
-                 if hoverRestore: Color(r: 100, g: 200, b: 100, a: 255)
-                 else: Color(r: 60, g: 60, b: 70, a: 255))
+                 if hoverRestore: uiSurface(100, 200, 100)
+                 else: uiSurface(60, 60, 70))
     drawRectangle((restoreX + glyphInset).int32, (buttonY + glyphInset).int32,
                  glyphSize.int32, glyphSize.int32,
-                 Color(r: 200, g: 200, b: 200, a: 255))
-    drawRectangleLines(Rectangle(x: (restoreX + glyphInset).float32,
-                                 y: (buttonY + glyphInset).float32,
-                                 width: glyphSize.float32, height: glyphSize.float32),
-                      1, White)
+                 uiInk(200, 200, 200))
+    drawRectOutline(Rectangle(x: (restoreX + glyphInset).float32,
+                              y: (buttonY + glyphInset).float32,
+                              width: glyphSize.float32, height: glyphSize.float32),
+                      1, uiInk(White))
     return
 
   # Draw full window (not minimized)
@@ -452,32 +519,32 @@ proc drawWindowChrome*(window: OSWindow) =
     let glowSize = 6
     for i in 1..glowSize:
       let glowAlpha = uint8((30.0 / i.float32) * glowPulse)
-      drawRectangleLines(Rectangle(
+      drawRectOutline(Rectangle(
         x: (window.x - i).float32,
         y: (window.y - i).float32,
         width: (window.width + i * 2).float32,
         height: (window.height + i * 2).float32
-      ), 1, Color(r: 0, g: 200, b: 255, a: glowAlpha))
+      ), 1, uiGlow(0, 200, 255, glowAlpha.int))
 
   # Main window background
   drawRectangle(window.x.int32, window.y.int32,
                window.width.int32, window.height.int32,
-               Color(r: 20, g: 20, b: 30, a: 240))
+               uiSurface(20, 20, 30, 240))
 
   # Border with glow if focused
   let borderColor = if window.focused:
-    Color(r: 0, g: 200, b: 255, a: 255)
+    uiLine(0, 200, 255)
   else:
-    Color(r: 80, g: 80, b: 100, a: 255)
+    uiLine(80, 80, 100)
 
-  drawRectangleLines(Rectangle(x: window.x.float32, y: window.y.float32,
+  drawRectOutline(Rectangle(x: window.x.float32, y: window.y.float32,
                                 width: window.width.float32, height: window.height.float32),
                     WINDOW_BORDER, borderColor)
 
   # Title bar
   drawRectangle(window.x.int32, window.y.int32,
                window.width.int32, TITLE_BAR_HEIGHT.int32,
-               Color(r: 40, g: 40, b: 50, a: 255))
+               uiSurface(40, 40, 50))
 
   # Icon
   let iconSize = 16
@@ -487,7 +554,7 @@ proc drawWindowChrome*(window: OSWindow) =
 
   # Title text
   drawText(window.title, (window.x + 32).int32, (window.y + 6).int32, 18,
-          Color(r: 0, g: 200, b: 255, a: 255))
+          uiInk(0, 200, 255))
 
   # Window buttons
   let buttonSize = CHROME_BTN_SIZE
@@ -499,21 +566,21 @@ proc drawWindowChrome*(window: OSWindow) =
   let hoverClose = isPointInCloseButton(window, mousePos.x, mousePos.y)
 
   drawRectangle(closeX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
-               if hoverClose: Color(r: 255, g: 80, b: 80, a: 255)
-               else: Color(r: 60, g: 60, b: 70, a: 255))
+               if hoverClose: uiSurface(255, 80, 80)
+               else: uiSurface(60, 60, 70))
   let xWidth = measureText("X", 16)
   drawText("X", (closeX + (buttonSize - xWidth) div 2).int32,
-           (buttonY + (buttonSize - 16) div 2).int32, 16, White)
+           (buttonY + (buttonSize - 16) div 2).int32, 16, uiInk(White))
 
   # Minimize button
   let minX = window.x + window.width - MIN_BTN_INSET
   let hoverMin = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
 
   drawRectangle(minX.int32, buttonY.int32, buttonSize.int32, buttonSize.int32,
-               if hoverMin: Color(r: 100, g: 150, b: 200, a: 255)
-               else: Color(r: 60, g: 60, b: 70, a: 255))
+               if hoverMin: uiSurface(100, 150, 200)
+               else: uiSurface(60, 60, 70))
   drawRectangle((minX + buttonSize div 4).int32, (buttonY + buttonSize - 6).int32,
-               (buttonSize div 2).int32, 2, White)
+               (buttonSize div 2).int32, 2, uiInk(White))
 
 proc drawResizeIndicator*(window: OSWindow) =
   ## Draw resize indicators on edges
@@ -530,6 +597,6 @@ proc drawResizeIndicator*(window: OSWindow) =
 
     for i in 0..<3:
       let offset = i * 4
-      drawLine(Vector2(x: (gripX + offset).float32, y: (gripY + 8).float32),
+      drawStroke(Vector2(x: (gripX + offset).float32, y: (gripY + 8).float32),
               Vector2(x: (gripX + 8).float32, y: (gripY + offset).float32),
-              2, Color(r: 100, g: 100, b: 120, a: 255))
+              2, uiLine(100, 100, 120))

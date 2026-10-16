@@ -1,4 +1,5 @@
 import raylib, math, random, std/deques
+import draw_prims
 import gamepad_input, particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, settings, utils, input_intent
 import modding/[mod_hooks, mod_assets]
 
@@ -79,8 +80,20 @@ proc orbCoreColor(elementType: ElementType, base: Color): Color =
   of etBlood: Color(r: 255, g: 150, b: 150, a: 255)
   else: brighten(base, 45)
 
+proc dashBurstOf*(p: Player): float32 {.inline.} =
+  ## The dash's tunables (Player.dashBurstMult / dashTime / dashRecharge, which
+  ## scripts may change); 0 reads as the default (a Player not made by newPlayer).
+  if p.dashBurstMult > 0: p.dashBurstMult else: DashSpeedMult
+proc dashTimeOf*(p: Player): float32 {.inline.} =
+  if p.dashTime > 0: p.dashTime else: DashDuration
+proc dashRechargeOf*(p: Player): float32 {.inline.} =
+  if p.dashRecharge > 0: p.dashRecharge else: DashCooldownTime
+
 proc newPlayer*(x, y: float32): Player =
   result = Player(
+    dashBurstMult: DashSpeedMult,
+    dashTime: DashDuration,
+    dashRecharge: DashCooldownTime,
     pos: newVector2f(x, y),
     vel: newVector2f(0, 0),
     radius: 14,
@@ -224,6 +237,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.phaseShiftCooldown -= dt
   if player.phaseShiftInvulnTimer > 0:
     player.phaseShiftInvulnTimer -= dt
+  for cd in player.modAbilityCooldowns.mitems:   # mod [Q] abilities
+    if cd > 0: cd = max(0.0'f32, cd - dt)
   if player.dashCooldown > 0:
     player.dashCooldown -= dt
     if player.dashCooldown <= 0:
@@ -301,6 +316,9 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # granting. Deliberately applied to the movement speed only, not baseSpeed, so
   # Momentum's vel/baseSpeed ratio can no longer reach 1.0 while wearing it.
   currentSpeed *= juggernautSpeedMult(player)
+  # Mod statuses (register.status speed modifiers)
+  if player.modStatuses.len > 0:
+    currentSpeed *= max(0.0'f32, 1.0'f32 + player.statusSpeed)
 
   # Movement intent: WASD + gamepad on desktop, left virtual joystick on mobile.
   # All device reads live behind input_intent so this call site stays one line.
@@ -329,8 +347,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       else:
         d = d.normalize()
       player.dashDir     = d
-      player.dashTimer   = DashDuration
-      player.dashCooldown = DashCooldownTime
+      player.dashTimer   = dashTimeOf(player)
+      player.dashCooldown = dashRechargeOf(player)
       player.dashReadyFlash = 0  # a dash fired on the same frame it recharged must not keep flashing
 
   let inertiaScale = playerInertiaSizeScale(player)
@@ -338,7 +356,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     # During the burst, drive velocity directly. Bypassing the acceleration
     # curve is the point: the dash must feel instant, and the heavier the
     # player's build the more it should stand out from their normal handling.
-    player.vel = player.dashDir * (currentSpeed * DashSpeedMult)
+    player.vel = player.dashDir * (currentSpeed * dashBurstOf(player))
   else:
     let targetVel = moveDir * currentSpeed
     let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
@@ -519,9 +537,9 @@ proc drawPlayer*(player: Player) =
     let shieldPulse = 1.0 + 0.1 * sin(getTime() * 8.0)
     let shieldAlpha = 80 + (sin(getTime() * 4.0) * 40).int
     let shieldRadius = player.radius * 1.4 * shieldPulse
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
+    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
               withAlpha(Cyan, shieldAlpha.uint8))
-    drawCircleLines(player.pos.x.int32, player.pos.y.int32, shieldRadius, Cyan)
+    drawCircleOutline(player.pos.x.int32, player.pos.y.int32, shieldRadius, Cyan)
     # Draw shield hit counter
     let hitsText = $player.shieldHits
     drawText(hitsText, (player.pos.x - 4).int32, (player.pos.y + player.radius + 12).int32, 12, Cyan)
@@ -533,9 +551,9 @@ proc drawPlayer*(player: Player) =
     let shieldRadius = player.radius * 2.4
     let fillAlpha = uint8(40 + (shieldFrac * 160).int)
     let lineAlpha = uint8(90 + (shieldFrac * 140).int)
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
+    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
                Color(r: 170, g: 110, b: 255, a: fillAlpha))
-    drawCircleLines(player.pos.x.int32, player.pos.y.int32, shieldRadius,
+    drawCircleOutline(player.pos.x.int32, player.pos.y.int32, shieldRadius,
                     Color(r: 170, g: 110, b: 255, a: lineAlpha))
 
   # Celestial Veil, soft translucent ring around the player while the charge is ready.
@@ -547,18 +565,18 @@ proc drawPlayer*(player: Player) =
     let veilColor   = Color(r: 200, g: 200, b: 255, a: veilAlpha)
     let veilLine    = Color(r: 220, g: 220, b: 255, a: veilLineA)
     # Soft filled halo
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), veilRadius, veilColor)
+    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), veilRadius, veilColor)
     # Sharp outer ring
-    drawCircleLines(player.pos.x.int32, player.pos.y.int32, veilRadius, veilLine)
+    drawCircleOutline(player.pos.x.int32, player.pos.y.int32, veilRadius, veilLine)
     # Thin inner accent ring
-    drawCircleLines(player.pos.x.int32, player.pos.y.int32, veilRadius - 3.0,
+    drawCircleOutline(player.pos.x.int32, player.pos.y.int32, veilRadius - 3.0,
                     Color(r: 200, g: 200, b: 255, a: uint8(80 + (veilPulse * 40).int)))
     # Rotating star-glints around the ring (4 glints, 90° apart)
     for i in 0..3:
       let glintAngle = time * 1.5 + float32(i) * PI * 0.5
       let gx = player.pos.x + cos(glintAngle) * veilRadius
       let gy = player.pos.y + sin(glintAngle) * veilRadius
-      drawCircle(Vector2(x: gx, y: gy), 2.5,
+      drawDisc(Vector2(x: gx, y: gy), 2.5,
                  Color(r: 255, g: 255, b: 255, a: uint8(160 + (veilPulse * 80).int)))
 
   # BASE DASH charge ring. The dash is the one ability every run owns, so its
@@ -574,13 +592,13 @@ proc drawPlayer*(player: Player) =
   let dashCenter = Vector2(x: player.pos.x, y: player.pos.y)
   if player.dashTimer > 0:
     # Spending the charge: a bright ring blown outward over the burst.
-    let burst = clamp(1.0'f32 - player.dashTimer / DashDuration, 0.0'f32, 1.0'f32)
+    let burst = clamp(1.0'f32 - player.dashTimer / dashTimeOf(player), 0.0'f32, 1.0'f32)
     let r = dashRingRadius + burst * 11.0'f32
     let a = uint8(clamp((1.0'f32 - burst) * 210.0'f32, 0.0'f32, 255.0'f32))
     drawRing(dashCenter, r - 1.5'f32, r + 1.5'f32, 0.0, 360.0, 32,
              Color(r: 150, g: 240, b: 255, a: a))
   elif player.dashCooldown > 0:
-    let progress = clamp(1.0'f32 - player.dashCooldown / DashCooldownTime, 0.0'f32, 1.0'f32)
+    let progress = clamp(1.0'f32 - player.dashCooldown / dashRechargeOf(player), 0.0'f32, 1.0'f32)
     # Empty track: dim enough to read as "spent" at a glance, present enough
     # that the arc has something to fill against.
     drawRing(dashCenter, dashRingRadius - 1.5'f32, dashRingRadius + 1.5'f32,
@@ -641,7 +659,7 @@ proc drawPlayer*(player: Player) =
     baseColor = Color(r: 0, g: 255, b: 255, a: 255)  # Bright cyan
     glowIntensity = 0.8 + pulse * 0.2
     # Extra glow layers
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
+    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
               withAlpha(Cyan, phaseAlpha.uint8))
     drawText(t(tkPlayerPhase), (player.pos.x - 30).int32, (player.pos.y - 40).int32, 14, Cyan)
   # Parry active visual effect - white/silver shield
@@ -650,7 +668,7 @@ proc drawPlayer*(player: Player) =
     baseColor = Color(r: 255, g: 255, b: 255, a: 255)  # White
     coreColor = Color(r: 220, g: 220, b: 255, a: 255)  # Light blue
     glowIntensity = 1.0
-    drawCircle(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
+    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
               Color(r: 255, g: 255, b: 255, a: parryAlpha.uint8))
     drawText(t(tkPlayerParry), (player.pos.x - 25).int32, (player.pos.y - 40).int32, 16, White)
   # Invincibility visual effect
@@ -679,7 +697,7 @@ proc drawPlayer*(player: Player) =
         let trailScale = 0.9 - i.float32 * 0.18
         let trailX = player.pos.x - player.vel.x * i.float32 * 0.012
         let trailY = player.pos.y - player.vel.y * i.float32 * 0.012
-        drawCircle(Vector2(x: trailX, y: trailY), player.radius * trailScale,
+        drawDisc(Vector2(x: trailX, y: trailY), player.radius * trailScale,
                   withAlpha(baseColor, trailAlpha))
 
   # Draw player using selected shape
@@ -737,7 +755,7 @@ proc drawPlayer*(player: Player) =
       let particleAlpha = uint8(100 + pulse * 80)
       # Alternate primary/secondary skin colors so both show in motion
       let pColor = if i mod 2 == 0: baseColor else: secondaryColor
-      drawCircle(Vector2(x: px, y: py), 1.8,
+      drawDisc(Vector2(x: px, y: py), 1.8,
                 withAlpha(pColor, particleAlpha))
 
   # Speed boost indicator (motion trails)
@@ -747,7 +765,7 @@ proc drawPlayer*(player: Player) =
       let trailScale = 1.0 - i.float32 * 0.1
       let trailX = player.pos.x - player.vel.x * i.float32 * 0.015
       let trailY = player.pos.y - player.vel.y * i.float32 * 0.015
-      drawCircle(Vector2(x: trailX, y: trailY), player.radius * trailScale,
+      drawDisc(Vector2(x: trailX, y: trailY), player.radius * trailScale,
                 Color(r: 0, g: 255, b: 200, a: trailAlpha))
 
   # Rotating shield visual
@@ -788,7 +806,7 @@ proc drawPlayer*(player: Player) =
             let y1 = player.pos.y + sin(a1) * shieldRadius
             let x2 = player.pos.x + cos(a2) * shieldRadius
             let y2 = player.pos.y + sin(a2) * shieldRadius
-            drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1.5,
+            drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1.5,
                     Color(r: 0, g: 200, b: 255, a: ghostAlpha))
           continue
 
@@ -816,7 +834,7 @@ proc drawPlayer*(player: Player) =
           let y1 = player.pos.y + sin(a1) * gr
           let x2 = player.pos.x + cos(a2) * gr
           let y2 = player.pos.y + sin(a2) * gr
-          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 6,
+          drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 6,
                   Color(r: arcR, g: arcG, b: arcB, a: 28))
 
         # Pass 2, main arc (solid, medium thickness)
@@ -829,7 +847,7 @@ proc drawPlayer*(player: Player) =
           let y1 = player.pos.y + sin(a1) * shieldRadius
           let x2 = player.pos.x + cos(a2) * shieldRadius
           let y2 = player.pos.y + sin(a2) * shieldRadius
-          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.5,
+          drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 2.5,
                   Color(r: arcR, g: arcG, b: arcB, a: 255))
 
         # Pass 3, inner highlight (bright white-tinted, thin)
@@ -843,7 +861,7 @@ proc drawPlayer*(player: Player) =
           let y1 = player.pos.y + sin(a1) * ir
           let x2 = player.pos.x + cos(a2) * ir
           let y2 = player.pos.y + sin(a2) * ir
-          drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1,
+          drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 1,
                   Color(r: 200, g: 255, b: 255, a: 85))
 
         # Endpoint energy nodes, animated pulse
@@ -854,19 +872,19 @@ proc drawPlayer*(player: Player) =
         let ey2 = player.pos.y + sin(angle2) * shieldRadius
 
         # Outer glow on nodes
-        drawCircle(Vector2(x: ex1, y: ey1), nodePulse + 3.5,
+        drawDisc(Vector2(x: ex1, y: ey1), nodePulse + 3.5,
                   Color(r: arcR, g: arcG, b: arcB, a: 45))
-        drawCircle(Vector2(x: ex2, y: ey2), nodePulse + 3.5,
+        drawDisc(Vector2(x: ex2, y: ey2), nodePulse + 3.5,
                   Color(r: arcR, g: arcG, b: arcB, a: 45))
         # Main node
-        drawCircle(Vector2(x: ex1, y: ey1), nodePulse,
+        drawDisc(Vector2(x: ex1, y: ey1), nodePulse,
                   Color(r: arcR, g: arcG, b: arcB, a: 255))
-        drawCircle(Vector2(x: ex2, y: ey2), nodePulse,
+        drawDisc(Vector2(x: ex2, y: ey2), nodePulse,
                   Color(r: arcR, g: arcG, b: arcB, a: 255))
         # Bright core of node
-        drawCircle(Vector2(x: ex1, y: ey1), nodePulse * 0.38,
+        drawDisc(Vector2(x: ex1, y: ey1), nodePulse * 0.38,
                   Color(r: 255, g: 255, b: 255, a: 210))
-        drawCircle(Vector2(x: ex2, y: ey2), nodePulse * 0.38,
+        drawDisc(Vector2(x: ex2, y: ey2), nodePulse * 0.38,
                   Color(r: 255, g: 255, b: 255, a: 210))
 
   # Draw rotating orbs (if player has any orb power-ups)
@@ -884,9 +902,9 @@ proc drawPlayer*(player: Player) =
         drawnRadii[lv - 1] = true
         let lanePulse = sin(time * (1.8 + lv.float32 * 0.25) + lv.float32) * 1.8
         let laneAlpha = 12 + lv * 4
-        drawCircleLines(player.pos.x.int32, player.pos.y.int32, orb.radius + lanePulse,
+        drawCircleOutline(player.pos.x.int32, player.pos.y.int32, orb.radius + lanePulse,
                        Color(r: 190, g: 215, b: 255, a: clampByte(laneAlpha)))
-        drawCircleLines(player.pos.x.int32, player.pos.y.int32, orb.radius - 3.0,
+        drawCircleOutline(player.pos.x.int32, player.pos.y.int32, orb.radius - 3.0,
                        Color(r: 255, g: 255, b: 255, a: clampByte(5 + lv * 2)))
 
     for orb in player.rotatingOrbs:
@@ -904,7 +922,7 @@ proc drawPlayer*(player: Player) =
       let levelScale = 1.0'f32 + min(3, max(0, orb.orbLevel - 1)).float32 * 0.08'f32
       let orbSize = (13.5'f32 + playerOrbSizeBonus) * levelScale
 
-      drawLine(Vector2(x: player.pos.x, y: player.pos.y),
+      drawStroke(Vector2(x: player.pos.x, y: player.pos.y),
                Vector2(x: orbX, y: orbY), 1.0,
                withAlpha(color, 16 + min(12, orb.orbLevel * 3)))
 
@@ -920,9 +938,9 @@ proc drawPlayer*(player: Player) =
         let y1 = player.pos.y + sin(trailAngle1) * orb.radius
         let trailWidth = max(1.1'f32, orbSize * (0.18'f32 + fade * 0.22'f32))
         let trailAlpha = int(118.0'f32 * fade * fade)
-        drawLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1), trailWidth,
+        drawStroke(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1), trailWidth,
                  withAlpha(color, trailAlpha))
-        drawLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1),
+        drawStroke(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1),
                  max(1.0'f32, trailWidth * 0.32'f32), withAlpha(hotColor, trailAlpha div 2))
 
       # Comet tail ghost-orbs give the path a readable sense of speed.
@@ -933,32 +951,32 @@ proc drawPlayer*(player: Player) =
         let tailY = player.pos.y + sin(tailAngle) * orb.radius
         let tailSize = orbSize * 0.72 * (1.0'f32 - t.float32 * 0.085'f32)
         if tailSize > 1.5:
-          drawCircle(Vector2(x: tailX, y: tailY), tailSize,
+          drawDisc(Vector2(x: tailX, y: tailY), tailSize,
                     withAlpha(color, tailAlpha))
-          drawCircle(Vector2(x: tailX, y: tailY), tailSize * 0.38,
+          drawDisc(Vector2(x: tailX, y: tailY), tailSize * 0.38,
                     withAlpha(coreColor, tailAlpha div 2))
 
       # Layered glow, shadow rim, body, and bright glassy core.
-      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 2.15 * tPulse,
+      drawDisc(Vector2(x: orbX, y: orbY), orbSize * 2.15 * tPulse,
                 withAlpha(color, 18))
-      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 1.55,
+      drawDisc(Vector2(x: orbX, y: orbY), orbSize * 1.55,
                 withAlpha(color, 52))
-      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 1.12,
+      drawDisc(Vector2(x: orbX, y: orbY), orbSize * 1.12,
                 withAlpha(shadowColor, 210))
-      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 0.92, color)
+      drawDisc(Vector2(x: orbX, y: orbY), orbSize * 0.92, color)
 
       let ringPulse = orbSize * 1.24 + sin(time * 5.0 + orb.angle) * 2.6
-      drawCircleLines(orbX.int32, orbY.int32, ringPulse,
+      drawCircleOutline(orbX.int32, orbY.int32, ringPulse,
                      withAlpha(hotColor, int(165.0'f32 * tPulseB)))
-      drawCircleLines(orbX.int32, orbY.int32, orbSize * 1.02,
+      drawCircleOutline(orbX.int32, orbY.int32, orbSize * 1.02,
                      withAlpha(brighten(color, 80), 210))
 
-      drawCircle(Vector2(x: orbX, y: orbY), orbSize * 0.46,
+      drawDisc(Vector2(x: orbX, y: orbY), orbSize * 0.46,
                 withAlpha(coreColor, 190))
-      drawCircle(Vector2(x: orbX - orbSize * 0.20, y: orbY - orbSize * 0.20),
+      drawDisc(Vector2(x: orbX - orbSize * 0.20, y: orbY - orbSize * 0.20),
                 orbSize * 0.18,
                 Color(r: 255, g: 255, b: 255, a: 220))
-      drawCircle(Vector2(x: orbX + orbSize * 0.18, y: orbY + orbSize * 0.16),
+      drawDisc(Vector2(x: orbX + orbSize * 0.18, y: orbY + orbSize * 0.16),
                 orbSize * 0.10,
                 withAlpha(shadowColor, 125))
 
@@ -971,8 +989,8 @@ proc drawPlayer*(player: Player) =
           let flameDist = orbSize + 3 + sin(time * 7.0 + i.float32 * 1.3) * 2.5
           let fx = orbX + cos(flameAngle) * flameDist
           let fy = orbY + sin(flameAngle) * flameDist - abs(sin(time * 8.0 + i.float32)) * 4.5
-          drawCircle(Vector2(x: fx, y: fy), 2.5, Color(r: 255, g: 155, b: 25, a: 200))
-          drawCircle(Vector2(x: fx, y: fy - 1.5), 1.2, Color(r: 255, g: 240, b: 100, a: 230))
+          drawDisc(Vector2(x: fx, y: fy), 2.5, Color(r: 255, g: 155, b: 25, a: 200))
+          drawDisc(Vector2(x: fx, y: fy - 1.5), 1.2, Color(r: 255, g: 240, b: 100, a: 230))
       of etLightning:
         # Flickering electric arcs that change shape rapidly
         if (time * 12.0).int mod 2 == 0:
@@ -982,9 +1000,9 @@ proc drawPlayer*(player: Player) =
             let sy = orbY + sin(sparkAngle) * (orbSize + 7)
             let mx = orbX + cos(sparkAngle + 0.35) * (orbSize + 3.5)
             let my = orbY + sin(sparkAngle + 0.35) * (orbSize + 3.5)
-            drawLine(Vector2(x: orbX, y: orbY), Vector2(x: mx, y: my), 1,
+            drawStroke(Vector2(x: orbX, y: orbY), Vector2(x: mx, y: my), 1,
                     Color(r: 220, g: 245, b: 255, a: 210))
-            drawLine(Vector2(x: mx, y: my), Vector2(x: sx, y: sy), 1,
+            drawStroke(Vector2(x: mx, y: my), Vector2(x: sx, y: sy), 1,
                     Color(r: 180, g: 215, b: 255, a: 160))
       of etPoison:
         # Rising bubbles from center of orb
@@ -995,7 +1013,7 @@ proc drawPlayer*(player: Player) =
           let by = orbY + sin(bAngle) * (orbSize * 0.55) - bRise
           let bAlpha = uint8(max(0, 185 - bRise.int * 14))
           let bSize = max(0.5, 2.2 - bRise * 0.12)
-          drawCircle(Vector2(x: bx, y: by), bSize, Color(r: 135, g: 255, b: 135, a: bAlpha))
+          drawDisc(Vector2(x: bx, y: by), bSize, Color(r: 135, g: 255, b: 135, a: bAlpha))
       of etWind:
         # Counter-rotating swirl streaks
         for i in 0..3:
@@ -1004,7 +1022,7 @@ proc drawPlayer*(player: Player) =
             let sd = orbSize * 0.65 + s.float32 * 3.5
             let sx = orbX + cos(streamAngle + s.float32 * 0.28) * sd
             let sy = orbY + sin(streamAngle + s.float32 * 0.28) * sd
-            drawCircle(Vector2(x: sx, y: sy), 1.5,
+            drawDisc(Vector2(x: sx, y: sy), 1.5,
                       Color(r: 210, g: 235, b: 255, a: uint8(145 - s * 55)))
       of etArcane:
         # Counter-rotating rune dots with bright centers
@@ -1012,8 +1030,8 @@ proc drawPlayer*(player: Player) =
           let runeAngle = -time * 3.2 + i.float32 * PI * 2.0 / 3.0
           let rx = orbX + cos(runeAngle) * (orbSize + 5)
           let ry = orbY + sin(runeAngle) * (orbSize + 5)
-          drawCircle(Vector2(x: rx, y: ry), 2.8, Color(r: 230, g: 155, b: 255, a: 220))
-          drawCircle(Vector2(x: rx, y: ry), 1.1, Color(r: 255, g: 230, b: 255, a: 255))
+          drawDisc(Vector2(x: rx, y: ry), 2.8, Color(r: 230, g: 155, b: 255, a: 220))
+          drawDisc(Vector2(x: rx, y: ry), 1.1, Color(r: 255, g: 230, b: 255, a: 255))
       of etFrost:
         # 6-pointed ice crystal spikes slowly rotating
         for i in 0..5:
@@ -1022,9 +1040,9 @@ proc drawPlayer*(player: Player) =
           let cy1 = orbY + sin(crystalAngle) * (orbSize * 0.75)
           let cx2 = orbX + cos(crystalAngle) * (orbSize + 5.5)
           let cy2 = orbY + sin(crystalAngle) * (orbSize + 5.5)
-          drawLine(Vector2(x: cx1, y: cy1), Vector2(x: cx2, y: cy2), 1.5,
+          drawStroke(Vector2(x: cx1, y: cy1), Vector2(x: cx2, y: cy2), 1.5,
                   Color(r: 175, g: 215, b: 255, a: 195))
-          drawCircle(Vector2(x: cx2, y: cy2), 1.5, Color(r: 220, g: 240, b: 255, a: 230))
+          drawDisc(Vector2(x: cx2, y: cy2), 1.5, Color(r: 220, g: 240, b: 255, a: 230))
       of etBlood:
         # Dripping blood drops falling downward from orbit
         for i in 0..2:
@@ -1034,7 +1052,7 @@ proc drawPlayer*(player: Player) =
           let dy = orbY + sin(dropAngle) * (orbSize * 0.55) + dropFall
           let dAlpha = uint8(max(0, 205 - dropFall.int * 15))
           let dSize = max(0.5, 2.5 - dropFall * 0.14)
-          drawCircle(Vector2(x: dx, y: dy), dSize, Color(r: 220, g: 35, b: 35, a: dAlpha))
+          drawDisc(Vector2(x: dx, y: dy), dSize, Color(r: 220, g: 35, b: 35, a: dAlpha))
       else:
         discard  # etNone or other unknown types
 
@@ -1185,6 +1203,9 @@ proc takeDamage*(player: Player, damage: float32): bool =
   ## meteors, explosions) is covered without touching each call site.
   ## PvP has its own damage path and is intentionally unaffected.
   var dealt = damage * difficultyEnemyDamageMult()
+  # Mod statuses on the player (damageTaken modifiers)
+  if player.modStatuses.len > 0:
+    dealt *= max(0.0'f32, 1.0'f32 + player.statusDamageTaken)
   # Mods (playerDamaged) may scale or cancel it.
   if hookActive(hkPlayerDamaged):
     dealt = modPlayerDamaged(player, dealt)

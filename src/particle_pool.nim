@@ -2,6 +2,7 @@
 ## Instead of constantly creating and destroying particles, we reuse them from a pool.
 
 import raylib, random, math
+import draw_prims
 import particle_types, utils
 
 const
@@ -68,7 +69,7 @@ proc drawSimplifiedParticle(particle: ptr Particle, pos: Vector2, mainColor, cor
         let angle = particle.rotation * PI.float32 / 180.0'f32
         newVector2f(cos(angle), sin(angle))
     let streakLength = max(1.5'f32, particle.size * (1.2'f32 + min(1.8'f32, velLen / 150.0'f32)))
-    drawLine(
+    drawStroke(
       (particle.pos.x - dir.x * streakLength * 0.4'f32).int32,
       (particle.pos.y - dir.y * streakLength * 0.4'f32).int32,
       (particle.pos.x + dir.x * streakLength * 0.6'f32).int32,
@@ -78,7 +79,7 @@ proc drawSimplifiedParticle(particle: ptr Particle, pos: Vector2, mainColor, cor
   of psShard:
     drawPoly(pos, 4, max(0.8'f32, particle.size * 0.8'f32), particle.rotation, mainColor)
   of psEmber, psSoft:
-    drawCircle(pos, max(0.7'f32, particle.size * 0.75'f32), mainColor)
+    drawDisc(pos, max(0.7'f32, particle.size * 0.75'f32), mainColor)
 
 proc alphaScaled(color: Color, scale: float32): Color =
   result = color
@@ -252,7 +253,7 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer,
     let pos = Vector2(x: particle.pos.x, y: particle.pos.y)
 
     if renderSettings.drawHalos and particle.glow > 0:
-      drawCircle(pos, particle.size * (1.5'f32 + particle.glow * 0.45'f32), haloColor)
+      drawDisc(pos, particle.size * (1.5'f32 + particle.glow * 0.45'f32), haloColor)
 
     if renderSettings.simplified:
       drawSimplifiedParticle(particle, pos, mainColor, coreColor)
@@ -260,8 +261,8 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer,
 
     case particle.style
     of psSoft:
-      drawCircle(pos, particle.size, mainColor)
-      drawCircle(pos, max(0.7'f32, particle.size * 0.4'f32), coreColor)
+      drawDisc(pos, particle.size, mainColor)
+      drawDisc(pos, max(0.7'f32, particle.size * 0.4'f32), coreColor)
     of psSpark:
       let velLen = particle.vel.length()
       let dir =
@@ -278,15 +279,15 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer,
       let perp = newVector2f(-dir.y, dir.x)
       for layer in -1..1:
         let offset = perp * (thickness * 0.45'f32 * layer.float32)
-        drawLine(
+        drawStroke(
           (startPos.x + offset.x).int32, (startPos.y + offset.y).int32,
           (endPos.x + offset.x).int32, (endPos.y + offset.y).int32,
           mainColor
         )
-      drawCircle(pos, max(0.8'f32, particle.size * 0.24'f32), coreColor)
+      drawDisc(pos, max(0.8'f32, particle.size * 0.24'f32), coreColor)
     of psEmber:
-      drawCircle(pos, particle.size * 0.95'f32, alphaScaled(mainColor, 0.88'f32))
-      drawCircle(pos, max(0.6'f32, particle.size * 0.32'f32), coreColor)
+      drawDisc(pos, particle.size * 0.95'f32, alphaScaled(mainColor, 0.88'f32))
+      drawDisc(pos, max(0.6'f32, particle.size * 0.32'f32), coreColor)
     of psShard:
       drawPoly(pos, 4, particle.size, particle.rotation, mainColor)
       drawPoly(pos, 4, max(0.5'f32, particle.size * 0.55'f32), particle.rotation, coreColor)

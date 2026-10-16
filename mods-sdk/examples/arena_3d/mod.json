@@ -1,9 +1,8 @@
 {
   "id": "arena_3d",
-  "name": "Cube Siege",
-  "version": "1.0.1",
+  "name": "3D Worlds",
+  "version": "1.1.0",
   "author": "Paycei",
-  "description": "A complete 3D game mode, launched from MODS.EXE > Game Modes: survive six waves of cubes, drones and turrets in a first-person arena. Shows register.gamemode with base = \"3d\", the world3d library, entity AI, pickups, a shotgun tune, a custom HUD, draw3d effects and run.data.",
-  "main": "main.lua",
-  "disableAchievements": false
+  "description": "Both ways a mod works in 3D. Cube Siege, a complete first-person game mode in MODS.EXE > Game Modes: survive six waves of cubes, drones and turrets with a shotgun. And changes to the game's own 3D fight (wave boss 7, the Orbital Commander): four extra orbiting drones, a message when a phase starts and bonus damage against its satellites. Shows register.gamemode with base = \"3d\", the world3d library, entity AI, pickups, a weapon tune, a custom HUD, draw3d, run.data and the world3d hooks on a vanilla world.",
+  "main": "main.lua"
 }

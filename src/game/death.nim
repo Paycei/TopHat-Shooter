@@ -1,4 +1,5 @@
 import raylib, rlgl, random, math
+import draw_prims
 import types, settings, save_system, run_save, suspend, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite, game/bullets, ui/icon_drawing, utils
 import modding/mod_hooks
 export utils
@@ -114,7 +115,7 @@ proc drawRecentPowerUpInstall*(game: Game) =
   for ring in 0..2:
     let ringT = ((1.0'f32 - progress) + ring.float32 * 0.21'f32) mod 1.0'f32
     let radius = game.player.radius + 22.0'f32 + ringT * 78.0'f32
-    drawCircleLines(game.player.pos.x.int32, game.player.pos.y.int32, radius,
+    drawCircleOutline(game.player.pos.x.int32, game.player.pos.y.int32, radius,
                     withAlpha(accent, int(ringAlpha.float32 * (1.0'f32 - ringT))))
 
   let scaledW = (cardWidth.float32 * pulse).int32
@@ -125,7 +126,7 @@ proc drawRecentPowerUpInstall*(game: Game) =
   drawRectangle(cardX + 3, cardY + 4, scaledW, scaledH, Color(r: 0, g: 0, b: 0, a: clampByte(alpha div 3)))
   drawRectangle(cardX, cardY, scaledW, scaledH, Color(r: 7, g: 12, b: 20, a: clampByte(int(220.0'f32 * alphaF))))
   drawRectangle(cardX, cardY, 4, scaledH, withAlpha(accent, alpha))
-  drawRectangleLines(Rectangle(x: cardX.float32, y: cardY.float32, width: scaledW.float32, height: scaledH.float32),
+  drawRectOutline(Rectangle(x: cardX.float32, y: cardY.float32, width: scaledW.float32, height: scaledH.float32),
                      1, withAlpha(accent, alpha))
   drawPowerUpIcon(cardX + 12, cardY + 10, 38, powerUp.powerType, withAlpha(accent, alpha))
   drawText(title, cardX + 61, cardY + 10, 10, withAlpha(accent, alpha))
@@ -195,6 +196,9 @@ proc spawnPlayerDeathExplosion(game: Game) =
 proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
                        sourceType: EnemyType): tuple[name: string, wasBoss: bool] =
   ## Best-effort human-readable name for whatever killed the player.
+  # A mod's own cause names itself (player:hurt(n, {cause = "Lava"})).
+  if cause == dcMod:
+    return (game.modWorld.deathLabel, false)
   # A concrete source object is the most reliable signal.
   if source != nil:
     if source.isBoss:
@@ -379,7 +383,7 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
     # gsGameOver when it ends. It mourns a run that is over, so it waits while
     # a restore point could still Continue this one.
     if game.mode == gmTimeSurvival and game.survivalTime >= SURVIVAL_ENDING_MIN_TIME and
-       not globalSettings.isNil and not globalSettings.hasSeenSurvivalEnding and
+       storyPending(globalSettings, scSurvivalEnding) and
        not canContinueRun(game):
       game.state = gsSurvivalEndCinematic
     else:

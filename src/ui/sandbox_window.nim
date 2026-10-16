@@ -4,7 +4,9 @@
 ## build for any wave, then launch the sandbox.
 
 import raylib, math, strutils
+import ../draw_prims
 import os_window, os_shop, ../types, ../player, ../localization, ../render_context
+import ui_theme
 
 const
   SETUP_STAT_COUNT = 8
@@ -297,26 +299,27 @@ proc updateSandboxWindow*(sw: SandboxWindow, dt: float32,
 
 proc drawSetupButton(r: Rectangle, label: string, fill, border, text: Color,
                      fontSize: int32 = 16, hovered = false) =
+  ## The colours are the stock ones; the button draws them in the theme.
   let bg = if hovered: Color(r: min(255, fill.r.int + 25).uint8,
                              g: min(255, fill.g.int + 25).uint8,
                              b: min(255, fill.b.int + 25).uint8, a: fill.a) else: fill
-  drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, bg)
-  drawRectangleLines(r, 1.5, border)
+  drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, uiSurface(bg))
+  drawRectOutline(r, 1.5, uiLine(border))
   let tw = measureText(label, fontSize)
   drawText(label, r.x.int32 + (r.width.int32 - tw) div 2,
-           r.y.int32 + (r.height.int32 - fontSize) div 2, fontSize, text)
+           r.y.int32 + (r.height.int32 - fontSize) div 2, fontSize, uiInk(text))
 
 proc drawSandboxWindowContent*(sw: SandboxWindow, cx, cy, cw, ch: int32) =
   let lay = computeLayout(cx, cy, cw, ch)
   let mp = getVirtualMousePosition()
 
   drawText(t(tkSandboxSetupSubtitle), cx + 16, cy + 12, 12,
-           Color(r: 170, g: 185, b: 200, a: 255))
+           uiInk(170, 185, 200))
 
   # --- Stat editors (left column) ---
   for i in 0 ..< SETUP_STAT_COUNT:
     let rowY = lay.statRowY[i]
-    drawText(t(sandboxStatLabelKey(i)), lay.leftX, rowY + 12, 16, White)
+    drawText(t(sandboxStatLabelKey(i)), lay.leftX, rowY + 12, 16, uiInk(White))
 
     let minusR = lay.statMinus[i]
     let plusR = lay.statPlus[i]
@@ -333,11 +336,11 @@ proc drawSandboxWindowContent*(sw: SandboxWindow, cx, cy, cw, ch: int32) =
     let valCenterX = (minusR.x.int32 + minusR.width.int32 + plusR.x.int32) div 2
     let vw = measureText(valText, 16)
     drawText(valText, valCenterX - vw div 2, rowY + 12, 16,
-             Color(r: 120, g: 220, b: 255, a: 255))
+             uiInk(120, 220, 255))
 
   # --- Presets (right column) ---
   drawText(t(tkSandboxPresets), lay.rightX, cy + 28, 14,
-           Color(r: 200, g: 210, b: 225, a: 255))
+           uiInk(200, 210, 225))
   for i in 0 ..< SETUP_PRESET_COUNT:
     let r = lay.presets[i]
     let selected = (sw.selectedPreset == i)
@@ -353,7 +356,7 @@ proc drawSandboxWindowContent*(sw: SandboxWindow, cx, cy, cw, ch: int32) =
 
   if sw.selectedPreset < 0:
     drawText(t(tkSandboxCustomLoadout), lay.rightX, lay.waveAvgBtn.y.int32 + 48, 12,
-             Color(r: 200, g: 180, b: 120, a: 255))
+             uiInk(200, 180, 120))
 
   # --- Launch ---
   drawSetupButton(lay.startBtn, t(tkSandboxStartRun), Color(r: 40, g: 130, b: 70, a: 255),

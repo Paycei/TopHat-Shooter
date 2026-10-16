@@ -11,7 +11,9 @@
 ## Enter can never also drive the desktop's icon navigation behind it.
 
 import raylib, std/[unicode, strutils, math]
+import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../feedback
+import ui_theme, ../utils
 
 type
   FeedbackField = enum
@@ -58,15 +60,16 @@ const
   HoverCopy = 12
   HoverSave = 13
 
-  ColAccent = Color(r: 255, g: 130, b: 90, a: 255)
-  ColTitle = Color(r: 235, g: 245, b: 255, a: 255)
-  ColBody = Color(r: 205, g: 212, b: 222, a: 255)
-  ColMuted = Color(r: 150, g: 160, b: 175, a: 255)
-  ColHint = Color(r: 110, g: 120, b: 135, a: 255)
-  ColPanelBg = Color(r: 10, g: 12, b: 18, a: 255)
-  ColFieldBg = Color(r: 18, g: 22, b: 32, a: 255)
-  ColOk = Color(r: 120, g: 230, b: 150, a: 255)
-  ColWarn = Color(r: 255, g: 190, b: 90, a: 255)
+# The palette, drawn in the interface theme (ui_theme.nim).
+template ColAccent: Color = uiInk(255, 130, 90)
+template ColTitle: Color = uiInk(235, 245, 255)
+template ColBody: Color = uiInk(205, 212, 222)
+template ColMuted: Color = uiInk(150, 160, 175)
+template ColHint: Color = uiInk(110, 120, 135)
+template ColPanelBg: Color = uiSurface(10, 12, 18)
+template ColFieldBg: Color = uiSurface(18, 22, 32)
+template ColOk: Color = uiInk(120, 230, 150)
+template ColWarn: Color = uiInk(255, 190, 90)
 
 proc kindColor(kind: FeedbackKind): Color =
   case kind
@@ -367,19 +370,20 @@ proc wrapField(text: string, maxWidth, size: int32): seq[string] =
 
 proc drawField(r: Rectangle, active: bool, accent: Color) =
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, ColFieldBg)
-  drawRectangleLines(r, (if active: 2.0 else: 1.0),
-                     if active: accent else: Color(r: 70, g: 80, b: 100, a: 255))
+  drawRectOutline(r, (if active: 2.0 else: 1.0),
+                     if active: accent else: uiLine(70, 80, 100))
 
 proc drawButton(r: Rectangle, label: string, fill: Color, hovered: bool) =
+  ## `fill` is the stock colour; the button draws it in the theme.
   let f = if hovered:
       Color(r: min(255, fill.r.int + 28).uint8, g: min(255, fill.g.int + 28).uint8,
             b: min(255, fill.b.int + 28).uint8, a: 255)
     else: fill
-  drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, f)
-  drawRectangleLines(r, (if hovered: 2.0 else: 1.0),
-                     Color(r: 255, g: 255, b: 255, a: if hovered: 210 else: 90))
+  drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, uiSurface(f))
+  drawRectOutline(r, (if hovered: 2.0 else: 1.0),
+                     uiLine(Color(r: 255, g: 255, b: 255, a: if hovered: 210 else: 90)))
   drawCenteredTextFit(label, r.x.int32 + 5, r.y.int32 + (r.height.int32 - 15) div 2,
-                      r.width.int32 - 10, 15, White)
+                      r.width.int32 - 10, 15, uiInk(White))
 
 proc drawFeedbackWindow*(fw: FeedbackWindow) =
   if not fw.window.visible:
@@ -394,13 +398,13 @@ proc drawFeedbackWindow*(fw: FeedbackWindow) =
   let cw = fw.window.width - WINDOW_PADDING * 2
   let ch = fw.window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING * 2
   drawRectangle(cx.int32, cy.int32, cw.int32, ch.int32, ColPanelBg)
-  drawRectangleLines(Rectangle(x: cx.float32, y: cy.float32,
+  drawRectOutline(Rectangle(x: cx.float32, y: cy.float32,
                                width: cw.float32, height: ch.float32),
-                     1, Color(r: ColAccent.r, g: ColAccent.g, b: ColAccent.b, a: 200))
+                     1, withAlpha(ColAccent, 200))
 
   let lo = layout(fw)
   let caretOn = fw.window.focused and (fw.caretBlink mod 1.0'f32) < 0.55'f32
-  let accent = kindColor(fw.kind)
+  let accent = uiInk(kindColor(fw.kind))
 
   # --- Intro ---
   let introSize = bestWrapFontSize(t(tkFeedbackIntro), lo.intro.width.int32, 14, 2)
@@ -414,13 +418,13 @@ proc drawFeedbackWindow*(fw: FeedbackWindow) =
     let r = lo.kinds[k]
     let col = kindColor(k)
     let selected = fw.kind == k
-    let bg = if selected: Color(r: col.r div 3, g: col.g div 3, b: col.b div 3, a: 255)
-             elif fw.hover == k.ord: Color(r: 30, g: 36, b: 50, a: 255)
+    let bg = if selected: uiSurface(Color(r: col.r div 3, g: col.g div 3, b: col.b div 3, a: 255))
+             elif fw.hover == k.ord: uiSurface(30, 36, 50)
              else: ColFieldBg
     drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, bg)
-    drawRectangleLines(r, (if selected: 2.0 else: 1.0),
-                       if selected: col else: Color(r: 70, g: 80, b: 100, a: 255))
-    drawCircle(Vector2(x: r.x + 14, y: r.y + r.height / 2), 4.5, col)
+    drawRectOutline(r, (if selected: 2.0 else: 1.0),
+                       if selected: uiInk(col) else: uiLine(70, 80, 100))
+    drawDisc(Vector2(x: r.x + 14, y: r.y + r.height / 2), 4.5, uiInk(col))
     drawTextFit(kindName(k), r.x.int32 + 25, r.y.int32 + 7, r.width.int32 - 30, 14,
                 if selected: ColTitle else: ColMuted)
 
@@ -473,10 +477,10 @@ proc drawFeedbackWindow*(fw: FeedbackWindow) =
   let cb = lo.checkbox
   let box = Rectangle(x: cb.x, y: cb.y + 1, width: 18, height: 18)
   drawRectangle(box.x.int32, box.y.int32, 18, 18, ColFieldBg)
-  drawRectangleLines(box, (if fw.hover == HoverCheckbox: 2.0 else: 1.0), accent)
+  drawRectOutline(box, (if fw.hover == HoverCheckbox: 2.0 else: 1.0), accent)
   if fw.includeInfo:
-    drawLine(Vector2(x: box.x + 4, y: box.y + 9), Vector2(x: box.x + 8, y: box.y + 13), 2.5, ColOk)
-    drawLine(Vector2(x: box.x + 8, y: box.y + 13), Vector2(x: box.x + 14, y: box.y + 4), 2.5, ColOk)
+    drawStroke(Vector2(x: box.x + 4, y: box.y + 9), Vector2(x: box.x + 8, y: box.y + 13), 2.5, ColOk)
+    drawStroke(Vector2(x: box.x + 8, y: box.y + 13), Vector2(x: box.x + 14, y: box.y + 4), 2.5, ColOk)
   drawTextFit(t(tkFeedbackAttachInfo), cb.x.int32 + 28, cb.y.int32 + 3,
               cb.width.int32 - 28, 14, ColBody)
 
@@ -493,7 +497,7 @@ proc drawFeedbackWindow*(fw: FeedbackWindow) =
     let a = uint8(255.0'f32 * min(1.0'f32, fw.statusTimer))
     let base = if fw.statusOk: ColOk else: ColWarn
     drawTextFit(fw.status, lo.note.x.int32, lo.statusY.int32, lo.note.width.int32, 14,
-                Color(r: base.r, g: base.g, b: base.b, a: a))
+                withAlpha(base, a))
 
   let noteSize = bestWrapFontSize(t(tkFeedbackNote), lo.note.width.int32, 12, 2)
   var ny = lo.note.y.int32

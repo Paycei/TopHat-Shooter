@@ -40,9 +40,11 @@ var
   modLog*: seq[ModLogLine]
   modLogGeneration*: int
     ## Bumped on every append so the log view can tell it changed.
-  captureModRunData*: proc (game: Game) {.nimcall.}
+  captureModRunData*: proc (game: Game, entities: bool) {.nimcall.}
     ## Installed by the mod loader: serializes the mods' run.data into
     ## game.modRunData right before either save layer writes the run.
+    ## `entities`: also the per-entity data (e.data), which only the exact
+    ## suspend snapshot keeps (a run save rebuilds its enemies with new ids).
 
 proc modLogAdd*(level: ModLogLevel, modId, text: string) =
   for line in text.splitLines:

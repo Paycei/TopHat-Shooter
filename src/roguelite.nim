@@ -1,4 +1,5 @@
 import json, os, random, strutils, math
+import modding/[mod_hooks, mod_registry]
 import types, settings, save_system, powerup, powerup_data, patches, xp_orb, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
 
 const
@@ -59,8 +60,8 @@ proc initRogueliteProfile*(): RogueliteProfile =
     recursionLevel: 0
   )
 
-proc makeRelic*(relicType: RogueliteRelicType): RogueliteRelic =
-  RogueliteRelic(relicType: relicType)
+proc makeRelic*(relicType: RogueliteRelicType, modKey = ""): RogueliteRelic =
+  RogueliteRelic(relicType: relicType, modKey: if relicType == rrtMod: modKey else: "")
 
 proc hasRelic*(run: RogueliteRun, relicType: RogueliteRelicType): bool =
   if run.isNil: return false
@@ -68,6 +69,22 @@ proc hasRelic*(run: RogueliteRun, relicType: RogueliteRelicType): bool =
     if relic.relicType == relicType:
       return true
   false
+
+proc hasModRelic*(run: RogueliteRun, modKey: string): bool =
+  ## A mod patch (rrtMod) by its registered name.
+  if run.isNil: return false
+  for relic in run.relics:
+    if relic.relicType == rrtMod and relic.modKey == modKey:
+      return true
+  false
+
+proc hasRelic*(run: RogueliteRun, relic: RogueliteRelic): bool =
+  if relic.relicType == rrtMod: run.hasModRelic(relic.modKey) else: run.hasRelic(relic.relicType)
+
+proc ownedModPatches*(run: RogueliteRun): seq[string] =
+  if run.isNil: return
+  for relic in run.relics:
+    if relic.relicType == rrtMod: result.add(relic.modKey)
 
 proc ensureString(list: var seq[string], value: string) =
   if value.len == 0: return
@@ -398,15 +415,27 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
 # ---------------------------------------------------------------------------
 # Patches
 
-proc installPatch*(game: Game, patch: RogueliteRelicType): bool =
+proc installPatch*(game: Game, patch: RogueliteRelicType, modKey = ""): bool =
   ## THE way a patch enters a run: records it on the run (the persisted list),
   ## mirrors it onto the player (what the effect hooks test), and arms any
   ## charge it starts with. False if there is no run or it is already applied.
-  ## Feedback (sound, floating text) is the caller's job.
-  if game.rogueliteRun.isNil or patch == rrtNone or game.rogueliteRun.hasRelic(patch):
+  ## Feedback (sound, floating text) is the caller's job. A mod patch (rrtMod,
+  ## named by modKey) runs its stats and onInstall; every install fires the
+  ## patchInstalled hook.
+  if game.rogueliteRun.isNil or patch == rrtNone:
+    return false
+  if patch == rrtMod:
+    if modKey.len == 0 or game.rogueliteRun.hasModRelic(modKey) or findPatch(modKey) < 0:
+      return false
+    game.rogueliteRun.relics.add(makeRelic(rrtMod, modKey))
+    game.player.patches.incl(rrtMod)
+    modPatchInstalled(game, modKey)
+    return true
+  if game.rogueliteRun.hasRelic(patch):
     return false
   game.rogueliteRun.relics.add(makeRelic(patch))
   game.player.patches.incl(patch)
+  firePatchInstalled(game, $patch)
   case patch
   of rrtRollback:
     game.player.rollbackArmed = true
@@ -417,6 +446,9 @@ proc installPatch*(game: Game, patch: RogueliteRelicType): bool =
   else:
     discard
   true
+
+proc installPatch*(game: Game, relic: RogueliteRelic): bool =
+  installPatch(game, relic.relicType, relic.modKey)
 
 proc syncPlayerPatches*(game: Game) =
   ## Rebuild the player's patch mirror from the run (after a checkpoint
@@ -434,13 +466,33 @@ proc unownedPatches*(run: RogueliteRun,
       result.add(p)
 
 proc rollPatchChoices*(run: RogueliteRun, count: int,
-                       exclude: set[RogueliteRelicType] = {}): seq[RogueliteRelicType] =
+                       exclude: set[RogueliteRelicType] = {},
+                       excludeKeys: seq[string] = @[]): seq[RogueliteRelic] =
   ## Up to `count` distinct patches this run doesn't have yet. Fewer (possibly
-  ## none) once the pool runs dry; callers fall back to another reward.
-  var pool = unownedPatches(run, exclude)
-  shuffle(pool)
-  for i in 0 ..< min(count, pool.len):
-    result.add(pool[i])
+  ## none) once the pool runs dry; callers fall back to another reward. Mod
+  ## patches (register.patch) join the draw with their own weight (a game
+  ## patch weighs 1); `excludeKeys` leaves out mod patches by name.
+  var pool: seq[tuple[relic: RogueliteRelic, w: float32]]
+  for p in unownedPatches(run, exclude):
+    pool.add((makeRelic(p), 1'f32))
+  if patchDefs.len > 0 and not modCtx.inPvP:
+    var owned = run.ownedModPatches()
+    for k in excludeKeys: owned.add(k)
+    let floor = if run.isNil: 1 else: run.floorNumber
+    for (key, w) in modPatchCandidates(floor, owned):
+      pool.add((makeRelic(rrtMod, key), w))
+  while result.len < count and pool.len > 0:
+    var total = 0'f32
+    for e in pool: total += e.w
+    var roll = rand(total)
+    var pick = pool.high
+    for i, e in pool:
+      if roll < e.w:
+        pick = i
+        break
+      roll -= e.w
+    result.add(pool[pick].relic)
+    pool.delete(pick)
 
 # ---------------------------------------------------------------------------
 # Sector completion

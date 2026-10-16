@@ -2,8 +2,10 @@
 ## Pause menu styled as system task manager with mouse support
 
 import raylib, math, strutils
+import ../draw_prims
 import ../types, ../powerup_data, ../localization, ../render_context, ../survival, ../patches, ../utils
 import ui_helpers, icon_drawing
+import ../modding/mod_registry
 
 const
   TASK_MANAGER_WIDTH = 700
@@ -40,7 +42,7 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
   else:
     Color(r: 60, g: 70, b: 85, a: 255)
 
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: TAB_HEIGHT.float32),
                     if active: 2 else: 1, borderColor)
 
@@ -56,10 +58,13 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
 proc taskManagerTabs*(game: Game): seq[TaskManagerTab] =
   ## The tabs this run shows, left to right. Patches only exist in a roguelite
   ## run, so only that mode gets their tab.
-  if game.mode == gmRoguelite and not game.rogueliteRun.isNil:
-    @[tmtProcesses, tmtPatches, tmtPerformance]
-  else:
-    @[tmtProcesses, tmtPerformance]
+  result =
+    if game.mode == gmRoguelite and not game.rogueliteRun.isNil:
+      @[tmtProcesses, tmtPatches, tmtPerformance]
+    else:
+      @[tmtProcesses, tmtPerformance]
+  if pauseActionDefs.len > 0 and livePauseActions().len > 0:
+    result.add(tmtMods)   # loaded mods' actions (register.pauseAction)
 
 proc stepTaskManagerTab*(game: Game, current: TaskManagerTab, step: int): TaskManagerTab =
   ## The tab `step` places from `current`, wrapping (Left/Right in the menu).
@@ -72,6 +77,7 @@ proc taskManagerTabLabel(tab: TaskManagerTab): string =
   of tmtProcesses: t("os_tab_processes")
   of tmtPatches: t("os_tab_patches")
   of tmtPerformance: t("os_tab_performance")
+  of tmtMods: t("os_tab_mods")
   of tmtSettings: ""
 
 # ---------------------------------------------------------------------------
@@ -99,7 +105,7 @@ type
     paneX, paneY, paneW, paneH: int32
 
 var
-  processNav, patchNav: InspectorNav
+  processNav, patchNav, modsNav: InspectorNav
   inspectorLastMouse = Vector2(x: -1, y: -1)
     ## Hover only moves the selection when the pointer actually moves: the
     ## pause menu reports the mouse as live every frame, so a cursor resting
@@ -155,7 +161,7 @@ proc drawInspectorRowFrame(lay: InspectorLayout, slot: int, selected: bool): int
   result = lay.listY + slot.int32 * InspectorRowH
   if selected:
     drawRectangle(lay.listX, result, InspectorListW, InspectorRowH, withAlpha(InspectorAccent, 45))
-    drawRectangleLines(Rectangle(x: lay.listX.float32, y: result.float32,
+    drawRectOutline(Rectangle(x: lay.listX.float32, y: result.float32,
                                  width: InspectorListW.float32, height: InspectorRowH.float32),
                        1, withAlpha(InspectorAccent, 170))
   elif slot mod 2 == 0:
@@ -188,7 +194,7 @@ proc drawInspectorPane(lay: InspectorLayout, accent: Color): tuple[iconX, iconY,
   let (x, y, w, h) = (lay.paneX, lay.paneY, lay.paneW, lay.paneH)
   drawRectangle(x, y, w, h, Color(r: 28, g: 34, b: 46, a: 255))
   drawRectangle(x, y, 3, h, accent)
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
                      1, withAlpha(accent, 110))
   result.iconX = x + 16
   result.iconY = y + 16
@@ -206,7 +212,7 @@ proc drawInspectorBody(lay: InspectorLayout, blocks: openArray[tuple[caption, te
   let w = lay.paneW - 28
   let top = lay.paneY + 16 + InspectorIcon + 18
   let bottom = lay.paneY + lay.paneH - 30
-  drawLine(Vector2(x: x.float32, y: (top - 8).float32),
+  drawStroke(Vector2(x: x.float32, y: (top - 8).float32),
            Vector2(x: (x + w).float32, y: (top - 8).float32), 1, Color(r: 60, g: 70, b: 85, a: 255))
 
   var needed = 0'i32
@@ -257,8 +263,8 @@ proc drawPatchesTab(game: Game, x, y, width, height: int32, mouseSupported: bool
   let tagW = measureText("KB-0000", 12)
   for slot in 0..<min(lay.rows.int, relics.len - patchNav.scroll):
     let i = patchNav.scroll + slot
-    let patch = relics[i].relicType
-    let status = patchStatus(game, patch)
+    let patch = relics[i]
+    let status = patchStatus(game, patch.relicType)
     let spent = status in {psUsed, psStalled}
     let ry = drawInspectorRowFrame(lay, slot, i == patchNav.selection)
     let accent = patchAccent(patch)
@@ -270,16 +276,17 @@ proc drawPatchesTab(game: Game, x, y, width, height: int32, mouseSupported: bool
   drawInspectorScrollbar(lay, relics.len, patchNav)
 
   # Pane: KB number and category under the name, then what it does.
-  let patch = relics[patchNav.selection].relicType
+  let patch = relics[patchNav.selection]
   let accent = patchAccent(patch)
   let p = drawInspectorPane(lay, accent)
   drawPatchIcon(p.iconX, p.iconY, InspectorIcon, patch, accent)
   drawText(fitWithEllipsis(patchName(patch), p.textW, 18), p.textX, p.iconY + 2, 18, White)
   let kb = patchKbLabel(patch)
   drawText(kb, p.textX, p.iconY + 28, 12, Color(r: 140, g: 150, b: 165, a: 255))
-  drawText(patchCategoryName(patchCategory(patch)).toUpperAscii,
+  drawText(if patch.relicType == rrtMod: "MOD"
+           else: patchCategoryName(patchCategory(patch.relicType)).toUpperAscii,
            p.textX + measureText(kb, 12) + 12, p.iconY + 28, 12, accent)
-  let status = patchStatus(game, patch)
+  let status = patchStatus(game, patch.relicType)
   drawInspectorBody(lay, [(caption: "", text: patchDescription(patch),
                            color: Color(r: 215, g: 225, b: 235, a: 255))],
                     patchStatusLabel(status), patchStatusColor(status))
@@ -367,6 +374,31 @@ proc drawProcessesTab(game: Game, x, y, width, height: int32, mouseSupported: bo
   drawInspectorBody(lay, blocks, status.full, status.color)
   drawInspectorHint(lay, t("os_processes_hint"))
 
+proc drawModsTab(game: Game, x, y, width, height: int32, mouseSupported: bool) =
+  ## The loaded mods' pause-menu actions: pick one and press it (click, Enter
+  ## or A) to run it.
+  let actions = livePauseActions()
+  drawInspectorTitle(t("os_mod_actions") & " (" & $actions.len & "):", x, y)
+  if actions.len == 0: return
+  let lay = inspectorLayout(x, y, width, height)
+  navigateInspector(modsNav, actions.len, lay, mouseSupported)
+  let mouse = getVirtualMousePosition()
+  for slot in 0..<min(lay.rows.int, actions.len - modsNav.scroll):
+    let i = modsNav.scroll + slot
+    let ry = drawInspectorRowFrame(lay, slot, i == modsNav.selection)
+    let a = pauseActionDefs[actions[i]]
+    drawInspectorRowText(lay, ry, ">", pauseActionName(actions[i]), White,
+                         a.key.split(':')[0], InspectorDim, measureText(">", 12))
+    if mouseSupported and isPointerPressed() and
+       isMouseOverRect(mouse, lay.listX, ry, InspectorListW, InspectorRowH):
+      runPauseAction(actions[i])
+  if isKeyPressed(KeyboardKey.Enter) or (not mouseSupported and isGamepadConfirmPressed()):
+    runPauseAction(actions[modsNav.selection])
+  let p = drawInspectorPane(lay, InspectorAccent)
+  drawText(fitWithEllipsis(pauseActionName(actions[modsNav.selection]), p.textW, 18), p.textX,
+           p.iconY + 2, 18, White)
+  drawInspectorHint(lay, t("os_mod_actions_hint"))
+
 proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
   ## Draw the Performance tab showing game statistics
   var yOffset = y + 10
@@ -394,8 +426,10 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
     drawText(value, x + 300, yOffset, 14, White)
     yOffset += 25
 
-proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
+proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cancelled: bool] =
   ## Draw an OS-style "Are you sure?" confirmation dialog over the task manager.
+  ## `runEnds`: the run cannot be resumed (a mod's modRunResumable), so leaving
+  ## ends it instead of saving it, and the dialog says so.
   result.confirmed = false
   result.cancelled  = false
 
@@ -419,24 +453,24 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   drawRectangle(dx + 6, dy + 6, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
   # Dialog background
   drawRectangle(dx, dy, DW, DH, Color(r: 20, g: 25, b: 35, a: 255))
-  drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32,
+  drawRectOutline(Rectangle(x: dx.float32, y: dy.float32,
                                width: DW.float32, height: DH.float32),
                      3, Color(r: 255, g: 80, b: 80, a: 255))
 
   # Title bar
   let tbH: int32 = 35
   drawRectangle(dx, dy, DW, tbH, Color(r: 120, g: 30, b: 30, a: 255))
-  let titleStr = "CONFIRM EXIT"
+  let titleStr = t(tkConfirmExitTitle)
   let titleW = measureText(titleStr, 16)
   drawText(titleStr, dx + (DW - titleW) div 2, dy + 8, 16,
            Color(r: 255, g: 200, b: 200, a: 255))
 
   # Body text
-  let bodyStr = "Return to main menu?"
+  let bodyStr = t(tkConfirmExitBody)
   let bodyW = measureText(bodyStr, 18)
   drawText(bodyStr, dx + (DW - bodyW) div 2, dy + tbH + 28, 18, White)
 
-  let subStr = "Your progress will be saved."
+  let subStr = t(if runEnds: tkConfirmRunEnds else: tkConfirmUnsaved)
   let subW = measureText(subStr, 13)
   drawText(subStr, dx + (DW - subW) div 2, dy + tbH + 58, 13,
            Color(r: 200, g: 150, b: 150, a: 255))
@@ -457,11 +491,11 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
   # Cancel button (green: safe)
   let noBg = if noHov: Color(r: 0, g: 150, b: 0, a: 255) else: Color(r: 0, g: 110, b: 0, a: 255)
   drawRectangle(noX, btnY, BTN_W, BTN_H, noBg)
-  drawRectangleLines(Rectangle(x: noX.float32, y: btnY.float32,
+  drawRectOutline(Rectangle(x: noX.float32, y: btnY.float32,
                                width: BTN_W.float32, height: BTN_H.float32),
                      if noHov: 3 else: 2,
                      if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 200, b: 60, a: 255))
-  let noText = "[ESC] CANCEL"
+  let noText = t(tkConfirmCancelBtn)
   let noTW = measureText(noText, 14)
   drawText(noText, noX + (BTN_W - noTW) div 2, btnY + 12, 14, White)
 
@@ -474,7 +508,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
     Color(r: 120, g: 30, b: 30, a: 255)
 
   drawRectangle(yesX, btnY, BTN_W, BTN_H, yesBg)
-  drawRectangleLines(Rectangle(x: yesX.float32, y: btnY.float32,
+  drawRectOutline(Rectangle(x: yesX.float32, y: btnY.float32,
                                width: BTN_W.float32, height: BTN_H.float32),
                      if (yesHov and mouseReady): 3 else: 2,
                      if not mouseReady: Color(r: 140, g: 140, b: 140, a: 255)
@@ -482,7 +516,7 @@ proc drawQuitConfirmDialog*(game: Game): tuple[confirmed, cancelled: bool] =
 
   # Replace quit text with remaining seconds while mouse-cooldown is active
   let yesText = if mouseReady:
-    "[Q] EXIT"
+    t(tkConfirmExitBtn)
   else:
     $(int(ceil(game.pauseMenuExitCooldown)))
   let yesTW = measureText(yesText, 14)
@@ -528,7 +562,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
                Color(r: 20, g: 25, b: 35, a: 255))
 
   # Window border
-  drawRectangleLines(Rectangle(x: windowX.float32, y: windowY.float32,
+  drawRectOutline(Rectangle(x: windowX.float32, y: windowY.float32,
                                 width: TASK_MANAGER_WIDTH.float32, height: TASK_MANAGER_HEIGHT.float32),
                     3, Color(r: 0, g: 200, b: 255, a: 255))
 
@@ -563,8 +597,9 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   let buttonsStartX = windowX + (TASK_MANAGER_WIDTH - 600) div 2
 
   # The inspector tabs run down to the buttons, or to the lives panel above
-  # them in the modes that have one.
-  let showsLives = game.mode in RestorePointModes
+  # them in the modes that have one (restorePointsShown: a mod game mode may
+  # switch it off).
+  let showsLives = restorePointsShown(game)
   let inspectorBottom = if showsLives: buttonY - LivesPanelHeight - 14 - 10
                         else: buttonY - 10
   case shownTab
@@ -576,6 +611,9 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
                    mouseSupported)
   of tmtPerformance:
     drawPerformanceTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, contentHeight.int32, game.time)
+  of tmtMods:
+    drawModsTab(game, windowX, contentY, TASK_MANAGER_WIDTH.int32, inspectorBottom - contentY,
+                mouseSupported)
   of tmtSettings:
     discard
 
@@ -587,7 +625,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   elif showsLives:
     drawLivesPanel(windowX + 20, buttonY - LivesPanelHeight - 14,
                    TASK_MANAGER_WIDTH.int32 - 40, game.livesUsed,
-                   difficultyMaxLives(game.mode), UnlimitedLives, game.time)
+                   difficultyMaxLives(game.mode, game.modMode), UnlimitedLives, game.time)
 
   # Check mouse hover for buttons
   let exitHovered = mouseSupported and isMouseOverRect(mousePos, buttonsStartX, buttonY, 180, BUTTON_HEIGHT)
@@ -612,7 +650,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
     Color(r: 120, g: 30, b: 30, a: 255)
 
   drawRectangle(buttonsStartX, buttonY, 180, BUTTON_HEIGHT, exitBgColor)
-  drawRectangleLines(Rectangle(x: buttonsStartX.float32, y: buttonY.float32,
+  drawRectOutline(Rectangle(x: buttonsStartX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
                     if exitHovered: 3 else: 2,
                     if exitHovered: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 255, g: 80, b: 80, a: 255))
@@ -628,7 +666,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
     Color(r: 60, g: 70, b: 85, a: 255)
 
   drawRectangle(settingsX, buttonY, 180, BUTTON_HEIGHT, settingsBgColor)
-  drawRectangleLines(Rectangle(x: settingsX.float32, y: buttonY.float32,
+  drawRectOutline(Rectangle(x: settingsX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
                     if settingsHovered: 3 else: 2,
                     if settingsHovered: Color(r: 150, g: 170, b: 190, a: 255) else: Color(r: 120, g: 140, b: 160, a: 255))
@@ -644,7 +682,7 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
     Color(r: 0, g: 120, b: 0, a: 255)
 
   drawRectangle(resumeX, buttonY, 180, BUTTON_HEIGHT, resumeBgColor)
-  drawRectangleLines(Rectangle(x: resumeX.float32, y: buttonY.float32,
+  drawRectOutline(Rectangle(x: resumeX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
                     if resumeHovered: 3 else: 2,
                     if resumeHovered: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 255, b: 0, a: 255))

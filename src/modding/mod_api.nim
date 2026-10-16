@@ -10,16 +10,18 @@
 ## game.nim (spawning into the live enemy list, starting waves, bosses) is
 ## queued as a ModAction and executed there, outside every entity loop.
 
-import std/[os, strutils, tables, json, math]
+import std/[os, strutils, tables, json, math, algorithm]
 import raylib
+import ../draw_prims
 import ../types, ../particle_types, ../localization, ../render_context, ../settings, ../powerup
-import ../enemy_config, ../boss_definitions, ../player, ../game/combat, ../d_systems, ../particle_pool, ../sound
-import ../powerup_data, ../ui/icon_drawing, ../save_system, ../run_statistics
-import mod_assets
-import lua_bridge, mod_state, mod_hooks, mod_reflect, mod_deep
+import ../enemy_config, ../boss_definitions, ../player, ../enemy, ../bullet, ../game/combat, ../game/death, ../d_systems, ../particle_pool, ../sound
+import ../powerup_data, ../ui/icon_drawing, ../save_system, ../run_statistics, ../run_save, ../suspend
+import mod_assets, mod_media
+import lua_bridge, mod_state, mod_hooks, mod_reflect, mod_deep, mod_registry
 
 var
-  gameMethods, playerMethods, enemyMethods, bulletMethods: ScriptTable
+  gameMethods*, playerMethods*, enemyMethods*, bulletMethods*: ScriptTable
+    ## The methods tables (the high-layer API modules add their own methods).
   textEntries: seq[tuple[lang: Language, key, value: string, owner: int]]
     ## Every string a mod added, so a mod that fails to load can be undone.
 
@@ -41,6 +43,8 @@ proc keyName*(key: ScriptValue): string {.inline.} =
   if key.kind == vkString: key.str.s else: ""
 
 proc requireRunGame*(vm: VM): Game =
+  if modCtx.inPvP:
+    vm.runtimeError("not available in PvP (matches stay vanilla)")
   if modCtx.game.isNil:
     vm.runtimeError("no run in progress ('game' only exists while a run is played)")
   modCtx.game
@@ -68,13 +72,38 @@ proc namesTable*(names: seq[string]): ScriptValue =
 proc requireDrawing(vm: VM, fname: string) =
   if modCtx.drawing == dtNone:
     vm.runtimeError("draw." & fname & " only works inside a draw hook " &
-                    "(drawWorld, drawHud, enemyDraw, playerDraw)")
+                    "(drawWorld, drawHud, enemyDraw, playerDraw, pvpDrawWorld, pvpDrawHud...)")
   if modCtx.drawing == dtWorld3D:
     vm.runtimeError("draw." & fname & " is 2D: in world3dDraw and world3dEntityDraw " &
                     "use the draw3d library (draw.* works in world3dDrawHud)")
 
 proc f32(vm: VM, args: openArray[ScriptValue], i: int, fname: string): float32 {.inline.} =
   vm.checkNum(args, i, fname).float32
+
+var fontClass*: UdClass   ## assets.font handles (made in installAssetLibraries)
+
+proc textFont*(vm: VM, v: ScriptValue, what: string): tuple[font: int, spacing: float32] =
+  ## The optional font argument of draw.text, draw.textWidth and draw3d.text:
+  ## a font (assets.font) or {font = f, spacing = px}. Font 0 = the game's own.
+  case v.kind
+  of vkNil: (0, 0'f32)
+  of vkUserdata:
+    if v.ud.cls != fontClass: vm.runtimeError(what & ": a font (assets.font) expected")
+    (v.ud.handle, 0'f32)
+  of vkTable:
+    var r = (font: 0, spacing: 0'f32)
+    let f = rawGetStr(v.tbl, "font")
+    if f.kind == vkUserdata and f.ud.cls == fontClass: r.font = f.ud.handle
+    elif f.kind != vkNil: vm.runtimeError(what & ": font must be a font (assets.font)")
+    let sp = rawGetStr(v.tbl, "spacing")
+    if sp.kind == vkNumber and abs(sp.n) < 1000: r.spacing = sp.n.float32   # (NaN fails too)
+    elif sp.kind != vkNil: vm.runtimeError(what & ": spacing must be a number")
+    r
+  else: vm.runtimeError(what & ": a font (assets.font) or {font = ..., spacing = ...} expected")
+
+proc fontSize*(n: float64): float32 =
+  ## A size for text in a mod font: 1 to 400 pixels (a NaN gives 1).
+  if n >= 1 and n <= 400: n.float32 elif n > 400: 400 else: 1
 
 proc creditedPowerUp(vm: VM, args: openArray[ScriptValue], i: int,
                      fname: string): tuple[has: bool, pt: PowerUpType] =
@@ -90,18 +119,43 @@ proc creditedPowerUp(vm: VM, args: openArray[ScriptValue], i: int,
     vm.argError(fname, i, "source must be a power-up name")
   (modCtx.hasSource, modCtx.source)
 
-proc textPair(vm: VM, v: ScriptValue, what: string): tuple[en, es: string]
-proc checkName(vm: VM, t: ScriptTable, what: string): string
+proc textPair*(vm: VM, v: ScriptValue, what: string): tuple[en, es: string]
+proc checkName*(vm: VM, t: ScriptTable, what: string): string
+
+proc entityDataValue*(vm: VM, kind: int64, id: int, what: string): ScriptValue =
+  ## `x.data`: the running mod's own table for this entity.
+  let owner = currentModIdx
+  if owner < 0 or owner >= mods.len: vm.runtimeError(what & ".data must be used from mod code")
+  vtable(entityDataFor(owner, entityKey(kind, id)))
+
+proc setEntityData*(vm: VM, kind: int64, id: int, val: ScriptValue, what: string) =
+  ## `x.data = {...}` replaces the running mod's table for this entity.
+  let owner = currentModIdx
+  if owner < 0 or owner >= mods.len: vm.runtimeError(what & ".data must be used from mod code")
+  if val.kind != vkTable: vm.runtimeError(what & ".data must be a table")
+  mods[owner].entityData[entityKey(kind, id)] = val.tbl
+
+proc bulletDataId*(vm: VM, b: Bullet): int =
+  ## A bullet's id for b.data, given on first use (0 = never needed one). PvP
+  ## bullets always have one (pvp_game numbers them from 1).
+  if b.bulletId == 0:
+    let g = modCtx.game
+    if g.isNil: vm.runtimeError("bullet.data needs a run or a PvP match in progress")
+    g.bulletIdCounter += 1
+    b.bulletId = g.bulletIdCounter
+  b.bulletId
 
 # ----------------------------------------------------------- classes ----
 const
   GameReadOnly = ["mode", "state", "modded", "cheatsUsed", "modFingerprint", "modMode",
-                  "modRunData", "screenWidth", "screenHeight"]
+                  "modRunData", "screenWidth", "screenHeight", "modWorld"]
   PlayerReadOnly = ["baselineMaxHp"]
+  PvPPlayerExtras* = ["index", "name", "deaths", "streak", "connected", "alive", "isLocal"]
+    ## What a PvP player shows besides its fields (mod_pvp's pvpPlayerField)
   EnemyReadOnly = ["id", "enemyType", "isBoss", "bossDefinitionID", "currentPhaseIndex",
                    "bossTotalMaxHp"]
 
-proc posGet(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
+proc posGet*(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
   found = true
   case name
   of "x": vnum(pos.x.float64)
@@ -112,7 +166,7 @@ proc posGet(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
     found = false
     NilValue
 
-proc posSet(vm: VM, pos, vel: var Vector2f, name: string, v: ScriptValue): bool =
+proc posSet*(vm: VM, pos, vel: var Vector2f, name: string, v: ScriptValue): bool =
   case name
   of "x": pos.x = vm.checkNum([v], 0, "x").float32
   of "y": pos.y = vm.checkNum([v], 0, "y").float32
@@ -152,6 +206,9 @@ proc makeClasses() =
     var found = false
     result = posGet(p.pos, p.vel, name, found)
     if found: return
+    if not modCtx.match.isNil and not pvpPlayerFieldImpl.isNil:
+      result = pvpPlayerFieldImpl(p, name, found)   # index, name, deaths... of a PvP player
+      if found: return
     result = deepGet(p, name, "player", found)
     if not found: vm.runtimeError("player has no field '" & name & "'")
   playerClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
@@ -159,7 +216,12 @@ proc makeClasses() =
     if p.isNil: vm.runtimeError("no run in progress")
     let name = keyName(key)
     if name in PlayerReadOnly: vm.runtimeError("player." & name & " is read-only")
-    if posSet(vm, p.pos, p.vel, name, val): return
+    if not modCtx.match.isNil and name in PvPPlayerExtras:
+      vm.runtimeError("player." & name & " is read-only")
+    if posSet(vm, p.pos, p.vel, name, val):
+      if not modCtx.match.isNil and name in ["x", "y"] and not pvpPlayerMovedImpl.isNil:
+        pvpPlayerMovedImpl(p)   # a PvP player moved by a script: snap it on every machine
+      return
     if not deepSet(vm, p, name, val, "player"):
       vm.runtimeError("player has no field '" & name & "'")
   playerClass.tostr = proc (ud: Userdata): string = "player"
@@ -171,6 +233,7 @@ proc makeClasses() =
     let e = EnemyBox(ud.box).e
     let name = keyName(key)
     if name == "type": return vstr($e.enemyType)
+    if name == "data": return vm.entityDataValue(EdEnemy, e.id, "enemy")
     var found = false
     result = posGet(e.pos, e.vel, name, found)
     if found: return
@@ -179,6 +242,9 @@ proc makeClasses() =
   enemyClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
     let e = EnemyBox(ud.box).e
     let name = keyName(key)
+    if name == "data":
+      vm.setEntityData(EdEnemy, e.id, val, "enemy")
+      return
     if name in EnemyReadOnly:
       vm.runtimeError("enemy." & name & " is read-only")
     if e.isBoss and name in ["hp", "maxHp"]:
@@ -196,14 +262,28 @@ proc makeClasses() =
     if m.kind != vkNil: return m
     let b = BulletBox(ud.box).b
     let name = keyName(key)
+    if name == "data": return vm.entityDataValue(EdBullet, vm.bulletDataId(b), "bullet")
     var found = false
     result = posGet(b.pos, b.vel, name, found)
     if found: return
+    if not modCtx.match.isNil and not pvpBulletFieldImpl.isNil:
+      result = pvpBulletFieldImpl(b, name, found)   # a PvP bullet's owner
+      if found: return
     result = deepGet(b, name, "bullet", found)
     if not found: vm.runtimeError("bullet has no field '" & name & "'")
   bulletClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
     let b = BulletBox(ud.box).b
     let name = keyName(key)
+    if name == "data":
+      vm.setEntityData(EdBullet, vm.bulletDataId(b), val, "bullet")
+      return
+    if not modCtx.match.isNil:
+      # A PvP bullet's kind / pierce are its mod fields (match:spawnBullet's
+      # names); its owner is read-only.
+      if name == "owner": vm.runtimeError("bullet.owner is read-only")
+      if name in ["kind", "pierce"]:
+        discard deepSet(vm, b, (if name == "kind": "modKind" else: "modPierce"), val, "bullet")
+        return
     if posSet(vm, b.pos, b.vel, name, val): return
     if not deepSet(vm, b, name, val, "bullet"):
       vm.runtimeError("bullet has no field '" & name & "'")
@@ -295,12 +375,25 @@ proc installMethods() =
         if x == e:
           inRun = true
           break
+      if not inRun:
+        # a spawn.enemy handle waiting to join at the end of the frame
+        inRun = e in modPendingEnemies or modCtx.game.pendingBoss == e
     ret.setRet(vbool(inRun))
 
   bulletMethods.reg("fields") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     let b = unwrapBullet(arg(args, 0))
     if b.isNil: vm.runtimeError("bullet:fields() needs a bullet (call it with ':')")
     ret.setRet(namesTable(deepNames(b)))
+  bulletMethods.reg("valid") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## Still flying in the current run (or a spawn.bullet handle about to join).
+    let b = unwrapBullet(arg(args, 0))
+    if b.isNil: vm.runtimeError("bullet:valid() needs a bullet (call it with ':')")
+    if not modCtx.match.isNil and not pvpBulletLiveImpl.isNil:
+      ret.setRet(vbool(pvpBulletLiveImpl(b)))
+      return
+    let g = modCtx.game
+    ret.setRet(vbool(not g.isNil and b.lifetime > 0 and
+                     (b in g.bullets or b in modPendingBullets)))
 
 # ------------------------------------------------------------ libraries ----
 proc parseHook(vm: VM, name: string): ModHook =
@@ -350,14 +443,41 @@ proc installLibraries(base: ScriptTable) =
   let hooksT = newScriptTable()
   hooksT.reg("on") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## hooks.on("update", function(game, dt) ... end)
+    ## hooks.on("necro:raised", fn) -- a name with ':' is a mod event (hooks.emit)
     let owner = vm.requireOwner("hooks.on")
-    let h = vm.parseHook(vm.checkStr(args, 0, "on"))
+    let name = vm.checkStr(args, 0, "on")
     let fn = vm.checkFunc(args, 1, "on")
-    addHandler(h, fn, owner)
+    if ':' in name: addCustomHandler(name, fn, owner)
+    else: addHandler(vm.parseHook(name), fn, owner)
     ret.setRet(fn)
   hooksT.reg("off") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     let owner = vm.requireOwner("hooks.off")
-    removeHandler(vm.parseHook(vm.checkStr(args, 0, "off")), vm.checkFunc(args, 1, "off"), owner)
+    let name = vm.checkStr(args, 0, "off")
+    let fn = vm.checkFunc(args, 1, "off")
+    if ':' in name: removeCustomHandler(name, fn, owner)
+    else: removeHandler(vm.parseHook(name), fn, owner)
+  proc eventName(vm: VM, args: openArray[ScriptValue], fname: string): string =
+    result = vm.checkStr(args, 0, fname)
+    if ':' notin result:
+      vm.argError(fname, 0, "a mod event is named \"<mod id>:<event>\" (got \"" & result & "\")")
+  hooksT.reg("emit") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## hooks.emit("necro:raised", ...) -- every handler of the event, in order
+    let name = vm.eventName(args, "emit")
+    discard vm.requireOwner("hooks.emit")
+    let rest = if args.len > 1: @(args.toOpenArray(1, args.high)) else: @[]
+    if not emitCustom(name, rest):
+      vm.runtimeError("hooks.emit: '" & name & "' nested more than " & $MaxCustomDepth & " deep")
+  hooksT.reg("filter") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## hooks.filter("necro:soulValue", value, ...) -> the value after every
+    ## handler (each gets (value, ...) and may return a replacement)
+    let name = vm.eventName(args, "filter")
+    discard vm.requireOwner("hooks.filter")
+    var ok = true
+    let rest = if args.len > 2: @(args.toOpenArray(2, args.high)) else: @[]
+    let v = filterCustom(name, arg(args, 1), rest, ok)
+    if not ok:
+      vm.runtimeError("hooks.filter: '" & name & "' nested more than " & $MaxCustomDepth & " deep")
+    ret.setRet(v)
   hooksT.reg("list") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     var names: seq[string]
     for h in ModHook: names.add($h)
@@ -430,7 +550,7 @@ proc installLibraries(base: ScriptTable) =
   let drawT = newScriptTable()
   drawT.reg("circle") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     vm.requireDrawing("circle")
-    drawCircle(Vector2(x: vm.f32(args, 0, "circle"), y: vm.f32(args, 1, "circle")),
+    drawDisc(Vector2(x: vm.f32(args, 0, "circle"), y: vm.f32(args, 1, "circle")),
                vm.f32(args, 2, "circle"), parseColor(vm, arg(args, 3), "draw.circle"))
   drawT.reg("circleLines") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     vm.requireDrawing("circleLines")
@@ -445,13 +565,13 @@ proc installLibraries(base: ScriptTable) =
                   parseColor(vm, arg(args, 4), "draw.rect"))
   drawT.reg("rectLines") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     vm.requireDrawing("rectLines")
-    drawRectangleLines(Rectangle(x: vm.f32(args, 0, "rectLines"), y: vm.f32(args, 1, "rectLines"),
+    drawRectOutline(Rectangle(x: vm.f32(args, 0, "rectLines"), y: vm.f32(args, 1, "rectLines"),
                                  width: vm.f32(args, 2, "rectLines"), height: vm.f32(args, 3, "rectLines")),
                        vm.optNum(args, 5, "rectLines", 1.0).float32,
                        parseColor(vm, arg(args, 4), "draw.rectLines"))
   drawT.reg("line") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     vm.requireDrawing("line")
-    drawLine(Vector2(x: vm.f32(args, 0, "line"), y: vm.f32(args, 1, "line")),
+    drawStroke(Vector2(x: vm.f32(args, 0, "line"), y: vm.f32(args, 1, "line")),
              Vector2(x: vm.f32(args, 2, "line"), y: vm.f32(args, 3, "line")),
              vm.optNum(args, 5, "line", 1.0).float32, parseColor(vm, arg(args, 4), "draw.line"))
   drawT.reg("poly") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -462,9 +582,16 @@ proc installLibraries(base: ScriptTable) =
     drawPoly(Vector2(x: vm.f32(args, 0, "poly"), y: vm.f32(args, 1, "poly")), sides.int32,
              vm.f32(args, 3, "poly"), vm.f32(args, 4, "poly"), parseColor(vm, arg(args, 5), "draw.poly"))
   drawT.reg("text") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## draw.text(text, x, y, size, color) -> width in pixels
+    ## draw.text(text, x, y, size, color [, font | {font = f, spacing = px}]) -> width in pixels
     vm.requireDrawing("text")
     let s = vm.checkStr(args, 0, "text")
+    let (font, spacing) = vm.textFont(arg(args, 5), "draw.text")
+    if font > 0:
+      let size = fontSize(vm.checkNum(args, 3, "text"))
+      drawModText(font, s, vm.f32(args, 1, "text"), vm.f32(args, 2, "text"), size, spacing,
+                  parseColor(vm, arg(args, 4), "draw.text"))
+      ret.setRet(vnum(measureModText(font, s, size, spacing).float64))
+      return
     let size = clamp(vm.checkInt(args, 3, "text"), 10, 200).int32
     drawText(s, vm.checkInt(args, 1, "text").int32, vm.checkInt(args, 2, "text").int32, size,
              parseColor(vm, arg(args, 4), "draw.text"))
@@ -481,6 +608,12 @@ proc installLibraries(base: ScriptTable) =
       let a = modCtx.hudArena
       ret.setRet([vnum(a.x), vnum(a.y), vnum(a.w), vnum(a.h)])
   drawT.reg("textWidth") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## draw.textWidth(text [, size = 10, font | {font = f, spacing = px}])
+    let (font, spacing) = vm.textFont(arg(args, 2), "draw.textWidth")
+    if font > 0:
+      ret.setRet(vnum(measureModText(font, vm.checkStr(args, 0, "textWidth"),
+                                     fontSize(vm.optNum(args, 1, "textWidth", 10)), spacing).float64))
+      return
     let size = clamp(vm.optInt(args, 1, "textWidth", 10), 10, 200).int32
     ret.setRet(vnum(measureText(vm.checkStr(args, 0, "textWidth"), size).int))
   rawSet(base, vstr("draw"), vtable(drawT))
@@ -729,23 +862,54 @@ proc bossFromTable(vm: VM, t: ScriptTable, base: BossDefinition, id: int, owner:
   if result.phases.len == 0:
     vm.runtimeError("boss needs phases = { {attacks = {...}}, ... }")
 
+proc buildScriptBullet*(vm: VM, t: ScriptTable): Bullet =
+  ## spawn.bullet's table -> a bullet, not yet in the run.
+  proc num(key: string, def: float64): float32 =
+    let v = rawGetStr(t, key)
+    if v.kind == vkNumber: v.n.float32 else: def.float32
+  let vx = num("vx", 0)
+  let vy = num("vy", 200)
+  let speed = sqrt(vx * vx + vy * vy)
+  let dir = if speed > 0: newVector2f(vx / speed, vy / speed) else: newVector2f(1, 0)
+  result = newBullet(num("x", 0), num("y", 0), dir, speed, num("damage", 1),
+                     fromPlayer = truthy(rawGetStr(t, "fromPlayer")))
+  let r = num("radius", 0)
+  if r > 0: result.radius = r
+  let lt = num("lifetime", 0)
+  if lt > 0: result.lifetime = lt
+  let c = rawGetStr(t, "color")
+  if c.kind != vkNil: result.colorOverride = parseColor(vm, c, "spawn.bullet")
+
 proc installContentLibraries(base: ScriptTable) =
   # ---- spawn (carried out at the end of the frame, see processModActions)
   let spawnT = newScriptTable()
   spawnT.reg("enemy") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## spawn.enemy("etCube", x, y [, {elite = true, difficulty = 3, onSpawn = fn}])
+    ## -> the enemy, at once: it joins the run at the end of the frame (e:valid()
+    ## is already true; onSpawn runs when it joins).
     let owner = vm.requireOwner("spawn.enemy")
-    discard vm.requireRunGame()
-    var a = ModAction(kind: makSpawnEnemy, owner: owner, difficulty: -1,
-                      enemyType: vm.checkEnemyType(args, 0, "enemy"),
-                      x: vm.checkNum(args, 1, "enemy").float32, y: vm.checkNum(args, 2, "enemy").float32)
+    let g = vm.requireRunGame()
+    if modActionsFull(): vm.runtimeError("spawn.enemy: too many spawns queued this frame")
+    let et = vm.checkEnemyType(args, 0, "enemy")
+    let x = vm.checkNum(args, 1, "enemy").float32
+    let y = vm.checkNum(args, 2, "enemy").float32
+    var a = ModAction(kind: makJoinEnemy, owner: owner)
+    var difficulty = g.difficulty
+    var elite = false
     let opts = arg(args, 3)
     if opts.kind == vkTable:
-      a.elite = truthy(rawGetStr(opts.tbl, "elite"))
+      elite = truthy(rawGetStr(opts.tbl, "elite"))
       let d = rawGetStr(opts.tbl, "difficulty")
-      if d.kind == vkNumber: a.difficulty = max(0.0, d.n).float32
+      if d.kind == vkNumber: difficulty = max(0.0, d.n).float32
       a.callback = rawGetStr(opts.tbl, "onSpawn")
+    elif opts.kind != vkNil:
+      vm.argError("enemy", 3, "options must be a table")
+    let e = newEnemy(x, y, difficulty, et, g)
+    if elite: makeElite(e, g.currentWave, force = true)
+    a.target = e
+    modPendingEnemies.add(e)
     queueModAction(a)
+    ret.setRet(wrapEnemy(e))
   spawnT.reg("boss") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## spawn.boss(id [, {x = .., y = .., onSpawn = fn}])
     let owner = vm.requireOwner("spawn.boss")
@@ -763,21 +927,15 @@ proc installContentLibraries(base: ScriptTable) =
   spawnT.reg("bullet") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## spawn.bullet{x = .., y = .., vx = .., vy = .., damage = 1, radius = 6,
     ##              lifetime = 3, fromPlayer = false, color = "#ff4040"}
+    ## -> the bullet, at once (it flies from the end of the frame)
     let owner = vm.requireOwner("spawn.bullet")
     discard vm.requireRunGame()
     let t = vm.checkTable(args, 0, "bullet")
-    proc num(key: string, def: float64): float32 =
-      let v = rawGetStr(t, key)
-      if v.kind == vkNumber: v.n.float32 else: def.float32
-    var a = ModAction(kind: makSpawnBullet, owner: owner, x: num("x", 0), y: num("y", 0),
-                      vx: num("vx", 0), vy: num("vy", 200), damage: num("damage", 1),
-                      radius: num("radius", 0), lifetime: num("lifetime", 0),
-                      fromPlayer: truthy(rawGetStr(t, "fromPlayer")))
-    let c = rawGetStr(t, "color")
-    if c.kind != vkNil:
-      a.color = parseColor(vm, c, "spawn.bullet")
-      a.hasColor = true
-    queueModAction(a)
+    if modActionsFull(): vm.runtimeError("spawn.bullet: too many spawns queued this frame")
+    let b = vm.buildScriptBullet(t)
+    modPendingBullets.add(b)
+    queueModAction(ModAction(kind: makJoinBullet, owner: owner, bullet: b))
+    ret.setRet(wrapBullet(b))
   spawnT.reg("coin") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## spawn.coin(x, y [, value])
     discard vm.requireRunGame()
@@ -791,17 +949,26 @@ proc installContentLibraries(base: ScriptTable) =
                              x: vm.f32(args, 0, "xp"), y: vm.f32(args, 1, "xp"),
                              value: vm.optInt(args, 2, "xp", 1)))
   spawnT.reg("consumable") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## spawn.consumable("ctHealth", x, y)
+    ## spawn.consumable("ctHealth", x, y) -- or a mod's ("<mod id>:<id>")
     discard vm.requireRunGame()
     let name = vm.checkStr(args, 0, "consumable")
     var ct: ConsumableType
-    try: ct = parseEnum[ConsumableType](name)
-    except ValueError:
-      var names: seq[string]
-      for c in ConsumableType: names.add($c)
-      vm.argError("consumable", 0, "unknown consumable (" & names.join(", ") & ")")
+    var key = ""
+    if ':' in name:
+      if findConsumable(name) < 0:
+        vm.argError("consumable", 0, "no consumable '" & name & "' (register.consumable it first)")
+      ct = ctMod
+      key = name
+    else:
+      try: ct = parseEnum[ConsumableType](name)
+      except ValueError: ct = ctMod
+      if ct == ctMod:
+        var names: seq[string]
+        for c in ConsumableType:
+          if c != ctMod: names.add($c)
+        vm.argError("consumable", 0, "unknown consumable (" & names.join(", ") & ", or a mod's)")
     queueModAction(ModAction(kind: makSpawnConsumable, owner: vm.requireOwner("spawn.consumable"),
-                             consumable: ct, x: vm.f32(args, 1, "consumable"),
+                             consumable: ct, key: key, x: vm.f32(args, 1, "consumable"),
                              y: vm.f32(args, 2, "consumable")))
   rawSet(base, vstr("spawn"), vtable(spawnT))
 
@@ -842,9 +1009,25 @@ proc installContentLibraries(base: ScriptTable) =
       trackHealing(modCtx.game, src.pt, requested, restored)
     ret.setRet(vnum(restored.float64))
   playerMethods.reg("hurt") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## player:hurt(amount) -> true if it was lethal (profile difficulty applies)
+    ## player:hurt(amount [, {cause = "Lava"}]) -> true if it was lethal (profile
+    ## difficulty applies). With a cause, a lethal hurt ends the run at once and
+    ## the death screen names it.
     let p = vm.selfPlayer(args, "hurt")
-    ret.setRet(vbool(takeDamage(p, max(0.0, vm.checkNum(args, 1, "hurt")).float32)))
+    var cause = ""
+    let opts = arg(args, 2)
+    if opts.kind == vkTable:
+      vm.checkKeys(opts.tbl, ["cause"], "player:hurt")
+      let c = rawGetStr(opts.tbl, "cause")
+      if c.kind == vkString: cause = c.str.s
+      elif c.kind != vkNil: vm.runtimeError("player:hurt: cause must be a string")
+    elif opts.kind != vkNil:
+      vm.argError("hurt", 2, "options must be a table")
+    let lethal = takeDamage(p, max(0.0, vm.checkNum(args, 1, "hurt")).float32)
+    let g = modCtx.game
+    if lethal and cause.len > 0 and not g.isNil and g.player == p and g.state == gsPlaying:
+      g.modWorld.deathLabel = cause
+      beginPlayerDeathSequence(g, dcMod)
+    ret.setRet(vbool(lethal))
 
   # ---- run control (queued: carried out after the simulation, this frame)
   proc checkPowerUp(vm: VM, args: openArray[ScriptValue], i: int, fname: string): PowerUpType =
@@ -984,7 +1167,7 @@ proc installContentLibraries(base: ScriptTable) =
   # ---- register
   let registerT = newScriptTable()
   registerT.reg("keybind") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    let owner = vm.requireOwner("register.keybind")
+    let owner = vm.requireLoading("register.keybind")
     let t = vm.checkTable(args, 0, "register.keybind")
     let actionId = vm.checkName(t, "register.keybind")
     let key = modKeybindKey(mods[owner].id, actionId)
@@ -1009,7 +1192,7 @@ proc installContentLibraries(base: ScriptTable) =
     ret.setRet(vstr(key))
   registerT.reg("boss") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local id = register.boss{name = "OVERCLOCK", hp = 600, phases = {...}}
-    let owner = vm.requireOwner("register.boss")
+    let owner = vm.requireLoading("register.boss")
     let t = vm.checkTable(args, 0, "boss")
     let id = nextModBossId
     inc nextModBossId
@@ -1039,12 +1222,13 @@ type ModPowerUpScript = object
   descFn: ScriptValue          ## or function(level) -> string
   icon: ScriptValue            ## function(color) drawing in a 32x32 box
   onPickup: ScriptValue        ## function(player, level, game)
+  stats: seq[StatDelta]        ## applied once per level gained (the `stats` table)
 
 var
   puScripts: array[ModPowerUpSlot, ModPowerUpScript]
   enemyOwners: array[ModEnemySlot, int]
 
-proc textPair(vm: VM, v: ScriptValue, what: string): tuple[en, es: string] =
+proc textPair*(vm: VM, v: ScriptValue, what: string): tuple[en, es: string] =
   ## "Text" or {en = "Text", es = "Texto"}.
   case v.kind
   of vkString: (v.str.s, "")
@@ -1085,6 +1269,7 @@ proc modPowerUpTextImpl(pt: PowerUpType, level: int, wantName: bool): string {.n
 proc modPowerUpAppliedImpl(player: Player, pt: PowerUpType, level: int) {.nimcall.} =
   if not isModPowerUp(pt): return
   let s = puScripts[pt]
+  applyStatDeltas(player, s.stats)
   if s.onPickup.kind in {vkFunction, vkNative}:
     var r: RetVals
     discard callForPowerUp(pt, ScriptFn(owner: s.owner, fn: s.onPickup),
@@ -1114,6 +1299,7 @@ proc resetNewContent() =
   modPowerUpIconDraw = modPowerUpIconImpl
   powerUpDamageSink = proc (game: Game, pt: PowerUpType, amount: float32) {.nimcall.} =
     trackPowerUpDamage(game, pt, amount)
+  activeCooldownOf = proc (pt: PowerUpType): float32 {.nimcall.} = powerUpDef(pt).activeCooldown
   enemyTypeNamer = enemyNamerImpl
   enemyNameResolver = enemyResolverImpl
 
@@ -1130,7 +1316,7 @@ proc dropNewContent(owner: int) =
       enemyOwners[et] = -1
   if changed: rebuildPowerUpPools()
 
-proc checkName(vm: VM, t: ScriptTable, what: string): string =
+proc checkName*(vm: VM, t: ScriptTable, what: string): string =
   let v = rawGetStr(t, "id")
   if v.kind != vkString or v.str.s.len == 0:
     vm.runtimeError(what & " needs an id (letters, digits, _)")
@@ -1139,7 +1325,7 @@ proc checkName(vm: VM, t: ScriptTable, what: string): string =
     if c notin {'a'..'z', 'A'..'Z', '0'..'9', '_'}:
       vm.runtimeError(what & ": id may only use letters, digits and _ (got \"" & result & "\")")
 
-proc parseModes(vm: VM, v: ScriptValue): set[GameMode] =
+proc parseModes*(vm: VM, v: ScriptValue): set[GameMode] =
   if v.kind == vkNil: return {}
   for x in textList(vm, v, "modes"):
     case x
@@ -1173,17 +1359,19 @@ proc installNewContent(base: ScriptTable) =
   let registerT = rawGetStr(base, "register").tbl
   registerT.reg("powerup") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local name = register.powerup{id = "overdrive", name = "OVERDRIVE.exe", ...}
-    let owner = vm.requireOwner("register.powerup")
+    let owner = vm.requireLoading("register.powerup")
     let t = vm.checkTable(args, 0, "powerup")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.powerup")
-    var slot = puMod00
+    var slot = FirstModPowerUp
     var found = false
     for pt in ModPowerUpSlot:
       if modPowerUps[pt].key == key: vm.runtimeError("register.powerup: '" & key & "' is already registered")
       if not found and not modPowerUps[pt].bound:
         slot = pt
         found = true
-    if not found: vm.runtimeError("register.powerup: all 64 mod power-up slots are in use")
+    if not found:
+      vm.runtimeError("register.powerup: all " & $(ord(LastModPowerUp) - ord(FirstModPowerUp) + 1) &
+                      " mod power-up slots are in use")
     var def = PowerUpDef(pool: puppNormal, family: rpfCore, group: pugNone, maxLevel: 3,
                          color: Color(r: 190, g: 190, b: 255, a: 255))
     vm.applyPowerUpFields(def, t, "register.powerup")
@@ -1202,12 +1390,34 @@ proc installNewContent(base: ScriptTable) =
     else: s.descEn = vm.textList(d, "description")
     s.icon = rawGetStr(t, "icon")
     s.onPickup = rawGetStr(t, "onPickup")
+    let st = rawGetStr(t, "stats")
+    if st.kind == vkTable:
+      for (k, x) in pairsCursor(st.tbl):
+        if k.kind != vkString: vm.runtimeError("register.powerup.stats keys must be player field names")
+        var e = ""
+        let d = parseStatDelta(k.str.s, x, e)
+        if e.len > 0: vm.runtimeError("register.powerup: " & e)
+        s.stats.add(d)
+    elif st.kind != vkNil: vm.runtimeError("register.powerup.stats must be a table")
     # Per-frame and per-hit behaviour, run only while the player has it (and
     # credited to it in the run statistics).
     let upd = rawGetStr(t, "update")
     if upd.kind in {vkFunction, vkNative}: powerUpUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
     let hit = rawGetStr(t, "onHit")
     if hit.kind in {vkFunction, vkNative}: powerUpHitFns[ord(slot)] = ScriptFn(owner: owner, fn: hit)
+    # An active [Q] ability: active = {cooldown = seconds, activate = fn(player, level, game)}
+    let act = rawGetStr(t, "active")
+    if act.kind == vkTable:
+      vm.checkKeys(act.tbl, ["cooldown", "activate"], "register.powerup.active")
+      let fn = rawGetStr(act.tbl, "activate")
+      if fn.kind notin {vkFunction, vkNative}:
+        vm.runtimeError("register.powerup.active needs activate = function(player, level, game)")
+      let cd = rawGetStr(act.tbl, "cooldown")
+      def.activeCooldown = if cd.kind == vkNumber and abs(cd.n) < 1.0e6: max(0.0, cd.n).float32 else: 5'f32
+      def.inLegendaryPanel = true
+      powerUpActiveFns[ord(slot)] = ScriptFn(owner: owner, fn: fn)
+    elif act.kind != vkNil:
+      vm.runtimeError("register.powerup.active must be a table {cooldown, activate}")
     puScripts[slot] = s
     modPowerUps[slot] = ModPowerUpInfo(bound: true, key: key)
     setPowerUpDef(slot, def)
@@ -1215,18 +1425,20 @@ proc installNewContent(base: ScriptTable) =
 
   registerT.reg("enemy") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local name = register.enemy{id = "bouncer", base = "etCube", hp = 3, ...}
-    let owner = vm.requireOwner("register.enemy")
+    let owner = vm.requireLoading("register.enemy")
     let t = vm.checkTable(args, 0, "enemy")
     let idName = vm.checkName(t, "register.enemy")
     let key = mods[owner].id & ":" & idName
-    var slot = etMod00
+    var slot = FirstModEnemy
     var found = false
     for et in ModEnemySlot:
       if modEnemies[et].key == key: vm.runtimeError("register.enemy: '" & key & "' is already registered")
       if not found and not modEnemies[et].bound:
         slot = et
         found = true
-    if not found: vm.runtimeError("register.enemy: all 32 mod enemy slots are in use")
+    if not found:
+      vm.runtimeError("register.enemy: all " & $(ord(LastModEnemy) - ord(FirstModEnemy) + 1) &
+                      " mod enemy slots are in use")
     var base = etCircle
     let b = rawGetStr(t, "base")
     if b.kind == vkString:
@@ -1291,7 +1503,7 @@ proc installNewContent(base: ScriptTable) =
   rosterT.reg("add") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## roster.add("wave", "mymod:bouncer", {chance = 0.15, fromWave = 3})
     ## (survival: minTime = seconds; roguelite: minFloor = sector)
-    let owner = vm.requireOwner("roster.add")
+    let owner = vm.requireLoading("roster.add")
     let mode = case vm.checkStr(args, 0, "add")
       of "wave": gmWaveBased
       of "survival": gmTimeSurvival
@@ -1329,25 +1541,49 @@ proc installNewContent(base: ScriptTable) =
 # folder; override.texture/model/sound/music swap the game's look and sound;
 # register.cosmetic adds skins players equip in MODS.EXE.
 
-var soundClass, shaderClass: UdClass
-var textureClass*, modelClass*: UdClass
+const MaxModDataFile = 16_000_000   ## assets.text / assets.json
+
+var soundClass, shaderClass, musicClass: UdClass
+var textureClass*, modelClass*, videoClass*: UdClass
 
 proc safeModPath*(m: ModRuntime, rel: string): string
 
-proc modFile(vm: VM, rel, what: string): string =
+proc modPath(vm: VM, rel, what: string): string =
+  ## A path inside the calling mod's folder (which may not exist).
   let owner = vm.requireOwner(what)
   result = safeModPath(mods[owner], rel)
   if result.len == 0: vm.runtimeError(what & ": '" & rel & "' is outside the mod folder")
+
+proc modFile(vm: VM, rel, what: string): string =
+  result = vm.modPath(rel, what)
   if not fileExists(result): vm.runtimeError(what & ": file not found: " & rel)
 
+proc loadTextureFile(vm: VM, rel, what: string): int =
+  ## An image or a video from the mod's folder, as a texture.
+  var err = ""
+  result = loadModTexture(vm.modFile(rel, what), err)
+  if result == 0: vm.runtimeError(what & ": " & rel & ": " & err)
+
 proc textureId*(vm: VM, v: ScriptValue, what: string): int =
-  ## A texture handle, or a path (loaded on the spot).
-  if v.kind == vkUserdata and v.ud.cls == textureClass: return v.ud.handle
-  if v.kind == vkString:
-    let id = loadModTexture(vm.modFile(v.str.s, what))
-    if id == 0: vm.runtimeError(what & ": could not load '" & v.str.s & "' (PNG or GIF expected)")
-    return id
-  vm.runtimeError(what & ": texture expected (assets.texture(...) or a file name)")
+  ## A texture (or video) handle, or a path (loaded on the spot).
+  if v.kind == vkUserdata and (v.ud.cls == textureClass or v.ud.cls == videoClass):
+    return v.ud.handle
+  if v.kind == vkString: return vm.loadTextureFile(v.str.s, what)
+  vm.runtimeError(what & ": texture expected (assets.texture(...), assets.video(...) or a file name)")
+
+proc frameOption*(vm: VM, opts: ScriptTable, id: int, what: string): int =
+  ## The GIF frame (0-based) a draw's `frame` (1 = first, wraps) or `time`
+  ## (seconds into the animation) option picks; -1 = neither (the wall clock).
+  let fr = rawGetStr(opts, "frame")
+  let tm = rawGetStr(opts, "time")
+  if fr.kind == vkNumber:
+    # a positive range test: release builds use fast math, where x != x is folded away
+    if not (abs(fr.n) <= 9.0e15): vm.runtimeError(what & ": frame must be a whole number")
+    floorMod(int(floor(fr.n)) - 1, textureFrames(id))
+  elif tm.kind == vkNumber:
+    textureFrameAt(id, tm.n)
+  else:
+    -1
 
 proc loadModelFile(vm: VM, rel, what: string): int =
   ## A model from the mod's folder.
@@ -1383,23 +1619,37 @@ proc resolveAnim(vm: VM, id: int, v: ScriptValue, what: string): int =
 
 proc readPose*(vm: VM, opts: ScriptValue, id: int, what: string): ModelPose =
   ## The pose options shared by override.model, draw.model and model cosmetics.
-  result = ModelPose(speed: 1, lit: true, tint: White)
+  result = ModelPose(speed: 1, lit: true, tint: White, fade: 0.2)
   if opts.kind != vkTable:
     result.anim = vm.resolveAnim(id, NilValue, what)
     return
   for (field, dest) in [("tilt", addr result.tilt), ("yaw", addr result.yaw),
                         ("pitch", addr result.pitch), ("roll", addr result.roll),
-                        ("spin", addr result.spin), ("speed", addr result.speed)]:
+                        ("spin", addr result.spin), ("speed", addr result.speed),
+                        ("fade", addr result.fade)]:
     let v = rawGetStr(opts.tbl, field)
     if v.kind == vkNumber and abs(v.n) < 1.0e9: dest[] = v.n.float32   # (NaN fails too)
     elif v.kind != vkNil: vm.runtimeError(what & ": " & field & " must be a number")
+  result.fade = max(result.fade, 0)
   let lit = rawGetStr(opts.tbl, "lit")
   if lit.kind != vkNil: result.lit = truthy(lit)
   let tn = rawGetStr(opts.tbl, "tint")
   if tn.kind != vkNil: result.tint = parseColor(vm, tn, what & ".tint")
   result.anim = vm.resolveAnim(id, rawGetStr(opts.tbl, "animation"), what)
 
-proc readScaleRotate(opts: ScriptValue, look: var BodyReplace) =
+proc readAnimKey*(vm: VM, opts: ScriptValue, what: string): AnimKey =
+  ## draw.model / draw3d.model's `key`: a string or number naming what is
+  ## drawn, so it crossfades when its animation changes (each mod's keys are
+  ## its own).
+  if opts.kind != vkTable: return NoAnimKey
+  let k = rawGetStr(opts.tbl, "key")
+  case k.kind
+  of vkNil: NoAnimKey
+  of vkString: animKey(cast[pointer](vm), k.str.s)
+  of vkNumber: animKey(cast[pointer](vm), $k.n)
+  else: vm.runtimeError(what & ": key must be a string or a number")
+
+proc readScaleRotate*(opts: ScriptValue, look: var BodyReplace) =
   look.scale = 1.0
   if opts.kind == vkTable:
     let s = rawGetStr(opts.tbl, "scale")
@@ -1436,9 +1686,8 @@ proc readDesktopEntry(vm: VM, t: ScriptTable, what: string, icon: var BodyReplac
   elif ic.kind == vkUserdata:
     icon.id = vm.textureId(ic, what & " icon")
   elif ic.kind == vkString:
-    # By extension: an image is a texture, anything else is tried as a model.
-    let ext = ic.str.s.toLowerAscii
-    if ext.endsWith(".png") or ext.endsWith(".gif"): icon.id = vm.textureId(ic, what & " icon")
+    # By extension: an image or a video is a texture, anything else is tried as a model.
+    if isTextureFile(ic.str.s): icon.id = vm.textureId(ic, what & " icon")
     else: icon.model = vm.modelId(ic, what & " icon")
   elif ic.kind != vkNil:
     vm.runtimeError(what & ": icon must be a texture, a model or a file name")
@@ -1489,6 +1738,42 @@ proc bodySlot(vm: VM, target, fname, extraTarget: string): ptr BodyReplace =
                 "bullet:player, bullet:enemy, powerup:<name>, boss3d, satellite3d, entity3d:<tag>, " &
                 "projectile3d:player, projectile3d:enemy, pickup3d:<kind>, " & extraTarget & ")")
 
+proc restoreBudget(vm: VM, v: ScriptValue, what: string): int =
+  ## One budget: a whole number from 0, or "unlimited".
+  if v.kind == vkString and v.str.s == "unlimited": return UnlimitedLives
+  if v.kind == vkNumber and v.n >= 0 and v.n <= 1000 and v.n == floor(v.n): return int(v.n)
+  vm.runtimeError(what & " must be a whole number from 0 to 1000 or \"unlimited\"")
+
+proc readRestoreRule(vm: VM, t: ScriptTable): ModRestoreRule =
+  ## register.gamemode's restorePoints (false: none at all; a budget for every
+  ## difficulty; or {easy =, medium =, hard =, nightmare =}, where a missing
+  ## difficulty keeps the base mode's) and restoreGlyphs (false: no meters).
+  let rp = rawGetStr(t, "restorePoints")
+  case rp.kind
+  of vkNil: discard
+  of vkBool: result.disabled = not rp.b
+  of vkTable:
+    for (k, v) in pairsCursor(rp.tbl):
+      if k.kind != vkString:
+        vm.runtimeError("register.gamemode: restorePoints keys must be difficulty names")
+      var d: GameDifficulty
+      try: d = parseEnum[GameDifficulty](k.str.s)
+      except ValueError:
+        vm.runtimeError("register.gamemode: unknown difficulty '" & k.str.s &
+                        "' in restorePoints (easy, medium, hard, nightmare)")
+      result.budget[d] = vm.restoreBudget(v, "register.gamemode: restorePoints." & k.str.s)
+      result.custom.incl(d)
+  else:
+    let n = vm.restoreBudget(rp, "register.gamemode: restorePoints")
+    for d in GameDifficulty:
+      result.budget[d] = n
+    result.custom = {low(GameDifficulty) .. high(GameDifficulty)}
+  let g = rawGetStr(t, "restoreGlyphs")
+  case g.kind
+  of vkNil: discard
+  of vkBool: result.hideGlyphs = not g.b
+  else: vm.runtimeError("register.gamemode: restoreGlyphs must be true or false")
+
 proc installAssetLibraries(base: ScriptTable) =
   textureClass = UdClass(name: "texture")
   textureClass.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
@@ -1521,6 +1806,13 @@ proc installAssetLibraries(base: ScriptTable) =
           vm.runtimeError("shader:set() needs a shader (call it with ':')")
         let name = vm.checkStr(a, 1, "set")
         let v = arg(a, 2)
+        if v.kind == vkUserdata and (v.ud.cls == textureClass or v.ud.cls == videoClass):
+          # shader:set("noise", tex): a sampler2D reads a texture or a video
+          let status = setModShaderTexture(self.ud.handle, name, v.ud.handle)
+          if status < 0:
+            vm.argError("set", 2, "a shader reads at most " & $MaxShaderTextures & " textures")
+          r.setRet(vbool(status > 0))
+          return
         var vals: seq[float32]
         if v.kind == vkNumber: vals.add(v.n.float32)
         elif v.kind == vkTable and v.tbl.len in 2..4:
@@ -1551,25 +1843,193 @@ proc installAssetLibraries(base: ScriptTable) =
     else: vm.runtimeError("model has no field '" & keyName(key) & "'")
   modelClass.tostr = proc (ud: Userdata): string = "model #" & $ud.handle
 
+  # A method of a video or music handle: checks `self`, then runs `body`, which
+  # sees `vm`, `args` and the handle's `id` (a video's is its texture id).
+  template mediaMethod(klass: UdClass, kindName, mname: string, body: untyped): ScriptValue {.dirty.} =
+    vnative(newNative(mname, proc (vm: VM, args: openArray[ScriptValue], r: var RetVals) =
+      let self = arg(args, 0)
+      if self.kind != vkUserdata or self.ud.cls != klass:
+        vm.runtimeError(kindName & ":" & mname & "() needs a " & kindName & " (call it with ':')")
+      let id = self.ud.handle
+      body))
+  proc numberArg(vm: VM, v: ScriptValue, what: string): float =
+    if v.kind != vkNumber or not (abs(v.n) < 1.0e9): vm.runtimeError(what & " must be a number")
+    v.n
+
+  videoClass = UdClass(name: "video")
+  videoClass.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
+    let info = videoInfo(textureVideo(ud.handle))
+    case keyName(key)
+    of "width": vnum(info.width)
+    of "height": vnum(info.height)
+    of "duration": vnum(info.duration)
+    of "time": vnum(info.time)
+    of "fps": vnum(info.fps)
+    of "playing": vbool(info.playing)
+    of "paused": vbool(info.paused)
+    of "ended": vbool(info.ended)
+    of "hasAudio": vbool(info.hasAudio)
+    of "loop": vbool(info.loop)
+    of "volume": vnum(info.volume.float64)
+    of "play":
+      mediaMethod(videoClass, "video", "play"):
+        playVideo(textureVideo(id))
+    of "pause":
+      mediaMethod(videoClass, "video", "pause"):
+        pauseVideo(textureVideo(id))
+    of "stop":
+      mediaMethod(videoClass, "video", "stop"):
+        stopVideo(textureVideo(id))
+    of "seek":
+      mediaMethod(videoClass, "video", "seek"):
+        seekVideo(textureVideo(id), vm.numberArg(arg(args, 1), "video:seek's seconds"))
+    else: vm.runtimeError("video has no field '" & keyName(key) & "'")
+  videoClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
+    case keyName(key)
+    of "loop": setVideoLoop(textureVideo(ud.handle), truthy(val))
+    of "volume": setVideoVolume(textureVideo(ud.handle), vm.numberArg(val, "video.volume").float32)
+    else: vm.runtimeError("video." & keyName(key) & " cannot be set (only loop and volume)")
+  videoClass.tostr = proc (ud: Userdata): string = "video #" & $ud.handle
+
+  musicClass = UdClass(name: "music")
+  musicClass.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
+    let info = musicInfo(ud.handle)
+    case keyName(key)
+    of "duration": vnum(info.duration.float64)
+    of "time": vnum(info.time.float64)
+    of "playing": vbool(info.playing)
+    of "paused": vbool(info.paused)
+    of "loop": vbool(info.loop)
+    of "layer": vbool(info.layer)
+    of "volume": vnum(info.volume.float64)
+    of "pitch": vnum(info.pitch.float64)
+    of "pan": vnum(info.pan.float64)
+    of "play":
+      mediaMethod(musicClass, "music", "play"):
+        playModMusic(id, not modCtx.game.isNil)
+    of "pause":
+      mediaMethod(musicClass, "music", "pause"):
+        pauseModMusic(id)
+    of "stop":
+      mediaMethod(musicClass, "music", "stop"):
+        stopModMusic(id)
+    of "seek":
+      mediaMethod(musicClass, "music", "seek"):
+        seekModMusic(id, vm.numberArg(arg(args, 1), "music:seek's seconds").float32)
+    else: vm.runtimeError("music has no field '" & keyName(key) & "'")
+  musicClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
+    var m = musicInfo(ud.handle)
+    case keyName(key)
+    of "loop": m.loop = truthy(val)
+    of "layer": m.layer = truthy(val)
+    of "volume": m.volume = vm.numberArg(val, "music.volume").float32
+    of "pitch": m.pitch = vm.numberArg(val, "music.pitch").float32
+    of "pan": m.pan = vm.numberArg(val, "music.pan").float32
+    else: vm.runtimeError("music." & keyName(key) & " cannot be set " &
+                          "(only loop, layer, volume, pitch and pan)")
+    setMusicOption(ud.handle, m.loop, m.layer, m.volume, m.pitch, m.pan)
+  musicClass.tostr = proc (ud: Userdata): string = "music #" & $ud.handle
+
+  fontClass = UdClass(name: "font")
+  fontClass.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
+    if keyName(key) == "size": return vnum(fontBaseSize(ud.handle))
+    vm.runtimeError("font has no field '" & keyName(key) & "'")
+  fontClass.tostr = proc (ud: Userdata): string = "font #" & $ud.handle
+
   let assetsT = newScriptTable()
   assetsT.reg("texture") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## local tex = assets.texture("sprites/ship.png")  -- PNG or GIF in your mod folder
-    let rel = vm.checkStr(args, 0, "texture")
-    let id = loadModTexture(vm.modFile(rel, "assets.texture"))
-    if id == 0: vm.runtimeError("assets.texture: could not load '" & rel & "' (PNG or GIF expected)")
+    ## local tex = assets.texture("sprites/ship.png")  -- an image (PNG, JPG, GIF, ...)
+    ## or a video in your mod folder
+    let id = vm.loadTextureFile(vm.checkStr(args, 0, "texture"), "assets.texture")
     ret.setRet(vud(Userdata(cls: textureClass, handle: id, key: cast[pointer](id))))
+  assetsT.reg("video") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## local clip = assets.video("intro.mpg")  -- MPEG-1 (convert anything else with
+    ## ffmpeg, see MODDING.md). Goes wherever a texture goes.
+    let rel = vm.checkStr(args, 0, "video")
+    let id = vm.loadTextureFile(rel, "assets.video")
+    if textureVideo(id) == 0:
+      vm.runtimeError("assets.video: " & rel & ": not a video (an MPEG-1 .mpg file is)")
+    ret.setRet(vud(Userdata(cls: videoClass, handle: id, key: cast[pointer](id + 400000))))
+  assetsT.reg("music") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## local theme = assets.music("music/theme.ogg"); theme:play()
+    let rel = vm.checkStr(args, 0, "music")
+    var err = ""
+    let id = loadModMusic(vm.modFile(rel, "assets.music"), err)
+    if id == 0: vm.runtimeError("assets.music: " & rel & ": " & err)
+    ret.setRet(vud(Userdata(cls: musicClass, handle: id, key: cast[pointer](id + 500000))))
+  assetsT.reg("font") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## local f = assets.font("fonts/pixel.ttf" [, {size = 32, smooth = true, chars = "..."}])
+    let rel = vm.checkStr(args, 0, "font")
+    let opts = arg(args, 1)
+    if opts.kind notin {vkNil, vkTable}: vm.argError("font", 1, "options must be a table")
+    let ext = rel.splitFile.ext.toLowerAscii
+    var size = 32
+    var smooth = ext in [".ttf", ".otf"]   # bitmap fonts stay sharp
+    var chars = ""
+    if opts.kind == vkTable:
+      let s = rawGetStr(opts.tbl, "size")
+      if s.kind == vkNumber and s.n >= 4 and s.n <= 256: size = int(s.n)
+      elif s.kind != vkNil: vm.runtimeError("assets.font: size must be a number from 4 to 256")
+      let sm = rawGetStr(opts.tbl, "smooth")
+      if sm.kind != vkNil: smooth = truthy(sm)
+      let c = rawGetStr(opts.tbl, "chars")
+      if c.kind == vkString: chars = c.str.s
+      elif c.kind != vkNil: vm.runtimeError("assets.font: chars must be a string")
+    var err = ""
+    let id = loadModFont(vm.modFile(rel, "assets.font"), size, smooth, chars, err)
+    if id == 0: vm.runtimeError("assets.font: " & rel & ": " & err)
+    ret.setRet(vud(Userdata(cls: fontClass, handle: id, key: cast[pointer](id + 600000))))
+  assetsT.reg("text") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## assets.text("data/story.txt") -> the file's contents (a string)
+    let rel = vm.checkStr(args, 0, "text")
+    let path = vm.modFile(rel, "assets.text")
+    if getFileSize(path) > MaxModDataFile:
+      vm.runtimeError("assets.text: " & rel & " is larger than 16 MB")
+    try: ret.setRet(vstr(readFile(path)))
+    except IOError: vm.runtimeError("assets.text: cannot read " & rel)
+  assetsT.reg("json") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## assets.json("data/levels.json") -> its value (tables, numbers, strings, booleans)
+    let rel = vm.checkStr(args, 0, "json")
+    let path = vm.modFile(rel, "assets.json")
+    if getFileSize(path) > MaxModDataFile:
+      vm.runtimeError("assets.json: " & rel & " is larger than 16 MB")
+    var node: JsonNode
+    try: node = parseJson(readFile(path))
+    except IOError: vm.runtimeError("assets.json: cannot read " & rel)
+    except JsonParsingError as e: vm.runtimeError("assets.json: " & rel & ": " & e.msg)
+    except ValueError as e: vm.runtimeError("assets.json: " & rel & ": " & e.msg)
+    ret.setRet(fromJsonNode(node))
+  assetsT.reg("exists") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## assets.exists("music/boss.ogg") -> is there such a file (or folder) in your mod?
+    let path = vm.modPath(vm.checkStr(args, 0, "exists"), "assets.exists")
+    ret.setRet(vbool(fileExists(path) or dirExists(path)))
+  assetsT.reg("list") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## assets.list(["levels"]) -> the names in a folder of your mod, sorted;
+    ## folders end with "/"
+    let rel = vm.optStr(args, 0, "list", "")
+    let path = if rel.len == 0 or rel == ".": mods[vm.requireOwner("assets.list")].dir
+               else: vm.modPath(rel, "assets.list")
+    if not dirExists(path): vm.runtimeError("assets.list: no folder '" & rel & "' in the mod")
+    var names: seq[string]
+    for kind, entry in walkDir(path, relative = true):
+      names.add(if kind in {pcDir, pcLinkToDir}: entry & "/" else: entry)
+    names.sort(cmpIgnoreCase)
+    ret.setRet(namesTable(names))
   assetsT.reg("sound") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## local s = assets.sound("sfx/zap.wav"); s:play([volume, pitch])
     let rel = vm.checkStr(args, 0, "sound")
     let id = loadModSound(vm.modFile(rel, "assets.sound"))
-    if id == 0: vm.runtimeError("assets.sound: could not load '" & rel & "' (WAV/OGG/MP3)")
+    if id == 0: vm.runtimeError("assets.sound: could not load '" & rel & "' (WAV, OGG, MP3, FLAC or QOA)")
     ret.setRet(vud(Userdata(cls: soundClass, handle: id, key: cast[pointer](id + 100000))))
   assetsT.reg("shader") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## local crt = assets.shader("fx/crt.fs")  -- a GLSL fragment shader; it gets
-    ## `time` and `resolution` uniforms, and shader:set(name, value) for yours.
+    ## local crt = assets.shader("fx/crt.fs" [, "fx/crt.vs"])  -- a GLSL fragment
+    ## shader (and a vertex shader); it gets `time` and `resolution` uniforms,
+    ## and shader:set(name, value) for yours (numbers, vectors, textures).
     let rel = vm.checkStr(args, 0, "shader")
+    let vsRel = vm.optStr(args, 1, "shader", "")
+    let vs = if vsRel.len > 0: vm.modFile(vsRel, "assets.shader") else: ""
     var err = ""
-    let id = loadModShader(vm.modFile(rel, "assets.shader"), err)
+    let id = loadModShader(vm.modFile(rel, "assets.shader"), err, vs)
     if id == 0: vm.runtimeError("assets.shader: " & rel & ": " & err)
     ret.setRet(vud(Userdata(cls: shaderClass, handle: id, key: cast[pointer](id + 200000))))
   assetsT.reg("model") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -1607,21 +2067,17 @@ proc installAssetLibraries(base: ScriptTable) =
       if tn.kind != vkNil: tint = parseColor(vm, tn, "draw.texture.tint")
       let o = rawGetStr(opts.tbl, "origin")
       if o.kind == vkString and o.str.s == "topleft": centered = false
-      let fr = rawGetStr(opts.tbl, "frame")
-      let tm = rawGetStr(opts.tbl, "time")
-      if fr.kind == vkNumber:
-        if fr.n != fr.n or abs(fr.n) > 9.0e15: vm.runtimeError("draw.texture: frame must be a whole number")
-        frame = floorMod(int(floor(fr.n)) - 1, textureFrames(id))
-      elif tm.kind == vkNumber:
-        frame = textureFrameAt(id, tm.n)
+      frame = vm.frameOption(opts.tbl, id, "draw.texture")
     drawModTexture(id, vm.f32(args, 1, "texture"), vm.f32(args, 2, "texture"), w, h, rot, tint,
                    centered, frame)
   drawT.reg("model") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## draw.model(mdl, x, y [, {size = px, scale = px per unit, facing = deg,
     ##            tilt/yaw/pitch/roll = deg, spin = deg/s, animation = name | n | false,
-    ##            speed = x, time = seconds, frame = n, lit = bool, tint = color}])
+    ##            speed = x, time = seconds, frame = n, lit = bool, tint = color,
+    ##            key = name | n, fade = seconds}])
     ## Centred on x, y; its footprint (seen from above) is `size` wide (64 by
     ## default); its front points toward `facing` (90 = down, the default).
+    ## With a `key`, a change of animation crossfades over `fade` seconds.
     vm.requireDrawing("model")
     let id = vm.modelId(arg(args, 0), "draw.model")
     let x = vm.f32(args, 1, "model")
@@ -1643,10 +2099,10 @@ proc installAssetLibraries(base: ScriptTable) =
       let tm = rawGetStr(opts.tbl, "time")
       if fr.kind == vkNumber and pose.anim > 0:
         if not (abs(fr.n) < 9.0e15): vm.runtimeError("draw.model: frame must be a whole number")
-        frame = floorMod(int(floor(fr.n)) - 1, modelAnimFrames(id, pose.anim))
+        frame = floorMod(int(floor(fr.n)) - 1, modelAnimFrames(id, pose.anim)).float32
       elif tm.kind == vkNumber:
         frame = modelFrameAt(id, pose, tm.n)   # (a NaN time shows frame 1)
-    drawModModel(id, x, y, pxPerUnit, facing, pose, frame)
+    drawModModel(id, x, y, pxPerUnit, facing, pose, frame, vm.readAnimKey(opts, "draw.model"))
 
   let overrideT = rawGetStr(base, "override").tbl
   overrideT.reg("texture") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -1681,7 +2137,7 @@ proc installAssetLibraries(base: ScriptTable) =
     try: st = parseEnum[SoundType]("st" & name.capitalizeAscii)
     except ValueError: vm.argError("sound", 0, "unknown sound '" & name & "'")
     if not setModSound(st, vm.modFile(vm.checkStr(args, 1, "sound"), "override.sound")):
-      vm.runtimeError("override.sound: could not load the file (WAV/OGG/MP3)")
+      vm.runtimeError("override.sound: could not load the file (WAV, OGG, MP3, FLAC or QOA)")
   overrideT.reg("shader") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## override.shader("screen" | "game", shader) -- post-processing over the
     ## whole frame; "game" only while a run is on screen. nil switches it off.
@@ -1700,13 +2156,17 @@ proc installAssetLibraries(base: ScriptTable) =
     of "game": gameShader = id
     else: vm.argError("shader", 0, "use \"screen\" or \"game\"")
   overrideT.reg("music") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## override.music("wave" | "menu" | "powerUp" | "boss", "music/track.ogg")
+    ## override.music("wave" | "menu" | "powerUp" | "boss" | "survival" |
+    ##   "roguelite" | "storyIntro" | "storyRootAccess" | "storyBelow" |
+    ##   "storyUptime", "music/track.ogg")
     let name = vm.checkStr(args, 0, "music")
     var track: MusicTrack
     try: track = parseEnum[MusicTrack]("mt" & name.capitalizeAscii)
-    except ValueError: vm.argError("music", 0, "use \"menu\", \"wave\", \"powerUp\" or \"boss\"")
+    except ValueError: vm.argError("music", 0, "use \"menu\", \"wave\", \"powerUp\", \"boss\", " &
+                                   "\"survival\", \"roguelite\", \"storyIntro\", \"storyRootAccess\", " &
+                                   "\"storyBelow\" or \"storyUptime\"")
     if not setModMusic(track, vm.modFile(vm.checkStr(args, 1, "music"), "override.music")):
-      vm.runtimeError("override.music: could not load the file (OGG/MP3/WAV)")
+      vm.runtimeError("override.music: could not load the file (OGG, MP3, WAV, FLAC, QOA, XM or MOD)")
 
   let registerT = rawGetStr(base, "register").tbl
   registerT.reg("gamemode") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -1714,11 +2174,12 @@ proc installAssetLibraries(base: ScriptTable) =
     ##   base = "wave" | "survival" | "roguelite" | "3d", spawning = true,
     ##   onStart = function(game, resumed) ... end,
     ##   icon = texture | model | "file", color = "#64c8ff", desktop = true}
-    let owner = vm.requireOwner("register.gamemode")
+    let owner = vm.requireLoading("register.gamemode")
     let t = vm.checkTable(args, 0, "gamemode")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.gamemode")
     if findModMode(key) >= 0: vm.runtimeError("register.gamemode: '" & key & "' is already registered")
-    var m = ModModeDef(key: key, owner: owner, spawning: true, desktop: true, base: gmWaveBased)
+    var m = ModModeDef(key: key, owner: owner, spawning: true, desktop: true, base: gmWaveBased,
+                       resumable: true)
     let b = rawGetStr(t, "base")
     if b.kind == vkString:
       if b.str.s == "3d":
@@ -1735,6 +2196,12 @@ proc installAssetLibraries(base: ScriptTable) =
     let sp = rawGetStr(t, "spawning")
     if sp.kind != vkNil: m.spawning = truthy(sp)
     if m.threeD: m.spawning = false
+    m.restore = vm.readRestoreRule(t)
+    let rs = rawGetStr(t, "resumable")
+    case rs.kind
+    of vkNil: discard
+    of vkBool: m.resumable = rs.b
+    else: vm.runtimeError("register.gamemode: resumable must be true or false")
     m.onStart = rawGetStr(t, "onStart")
     vm.readDesktopEntry(t, "register.gamemode", m.icon, m.color, m.desktop)  # color a = 0: base mode's
     modModes.add(m)
@@ -1746,7 +2213,7 @@ proc installAssetLibraries(base: ScriptTable) =
     ##   drag = function(x, y, w, h) ... end,
     ##   icon = texture | model | "file", color = "#78dca0", width = 480, height = 360,
     ##   resizable = false, desktop = true}
-    let owner = vm.requireOwner("register.app")
+    let owner = vm.requireLoading("register.app")
     let t = vm.checkTable(args, 0, "app")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.app")
     for a in modApps:
@@ -1779,7 +2246,7 @@ proc installAssetLibraries(base: ScriptTable) =
     ##   plus override.model's pose options (tilt, spin, animation, ...)}
     ##   desktop only: the texture is the wallpaper (cube = true keeps the desktop
     ##   cube over it) and the model stands in for the desktop cube
-    let owner = vm.requireOwner("register.cosmetic")
+    let owner = vm.requireLoading("register.cosmetic")
     let t = vm.checkTable(args, 0, "cosmetic")
     let kindName = rawGetStr(t, "kind")
     var kind = mckPlayer
@@ -1842,10 +2309,13 @@ proc safeModPath*(m: ModRuntime, rel: string): string =
 const MaxStorageBytes = 1_000_000
 
 proc storagePath(m: ModRuntime): string =
-  getAppDataPath() / "mod_data" / (m.id & ".json")
+  ## In the profile folder the storage was read from: a profile switch must
+  ## never write one profile's mod.storage into another's folder.
+  m.storageDir / (m.id & ".json")
 
 proc loadModStorage(m: ModRuntime) =
   m.storage = newScriptTable()
+  m.storageDir = getAppDataPath() / "mod_data"
   try:
     let path = storagePath(m)
     if fileExists(path):
@@ -1866,7 +2336,8 @@ proc saveModStorage*(m: ModRuntime): bool =
     if text.len > MaxStorageBytes:
       modLogAdd(mlError, m.id, "mod.storage is over 1 MB; not saved")
       return false
-    createDir(getAppDataPath() / "mod_data")
+    if m.storageDir.len == 0: return true   # never loaded: nothing of it to keep
+    createDir(m.storageDir)
     writeFile(storagePath(m), text)
     true
   except CatchableError:
@@ -1877,6 +2348,64 @@ proc saveAllModStorage*() =
   for m in mods:
     if not m.disabled or not m.storage.isNil:
       discard saveModStorage(m)
+
+proc restoreGame(vm: VM, what: string): Game =
+  result = modCtx.game
+  if result.isNil or modCtx.inPvP:
+    vm.runtimeError("run.restorePoints." & what & " needs a run in progress")
+
+proc budgetValue(n: int): ScriptValue =
+  ## A restore-point count for scripts: unlimited reads as math.huge.
+  if n == UnlimitedLives: vnum(Inf) else: vnum(n)   # an integer, so it prints "2", not "2.0"
+
+proc installRestorePoints(): ScriptTable =
+  ## run.restorePoints: the run's restore points ("lives"): its budget, what is
+  ## spent, its death-surviving checkpoint (save / clear) and whether they are
+  ## drawn. Everything reads live from the run on screen.
+  result = newScriptTable()
+  let t = result
+  proc selfArgs(args: openArray[ScriptValue]): int =
+    ## Called with ':' by mistake: skip the table itself.
+    if arg(args, 0).kind == vkTable and rawEquals(arg(args, 0), vtable(t)): 1 else: 0
+  t.reg("save") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## run.restorePoints.save([label]) -> written: the run as it stands now
+    ## (run.data included) becomes the checkpoint a death can Continue from.
+    ## `label` ("ROUND 3" or {en =, es =}) is what the Continue button names.
+    let g = vm.restoreGame("save")
+    let (en, es) = vm.textPair(arg(args, selfArgs(args)), "run.restorePoints.save: label")
+    ret.setRet(vbool(saveBlockCheckpoint(g, scripted = true, labelEn = en, labelEs = es)))
+  t.reg("clear") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## run.restorePoints.clear() -- drop the checkpoint: no Continue from it
+    let g = vm.restoreGame("clear")
+    deleteBlockCheckpoint(g.mode, g.modMode)
+  t.meta = newScriptTable()
+  rawSet(t.meta, vstr("__index"), vnative(newNative("restore_index",
+    proc (vm: VM, args: openArray[ScriptValue], ret: var RetVals) =
+      let name = keyName(arg(args, 1))
+      let g = vm.restoreGame(name)
+      case name
+      of "enabled":
+        ret.setRet(vbool(g.mode in RestorePointModes and not modRestoreRule(g.modMode).disabled))
+      of "max": ret.setRet(budgetValue(difficultyMaxLives(g.mode, g.modMode)))
+      of "used": ret.setRet(vnum(g.livesUsed))
+      of "left": ret.setRet(budgetValue(livesRemaining(g.livesUsed, g.mode, g.modMode)))
+      of "saved": ret.setRet(vbool(canContinueRun(g)))
+      of "offline": ret.setRet(vbool(restorePointsOffline(g)))
+      of "glyphs": ret.setRet(vbool(restorePointsShown(g)))
+      else: vm.runtimeError("run.restorePoints has no field '" & name &
+                            "' (enabled, max, used, left, saved, offline, glyphs, save, clear)"))))
+  rawSet(t.meta, vstr("__newindex"), vnative(newNative("restore_newindex",
+    proc (vm: VM, args: openArray[ScriptValue], ret: var RetVals) =
+      let name = keyName(arg(args, 1))
+      let g = vm.restoreGame(name)
+      let v = arg(args, 2)
+      if name == "used":
+        if not (v.kind == vkNumber and v.n >= 0 and v.n <= 1000 and v.n == floor(v.n)):
+          vm.runtimeError("run.restorePoints.used must be a whole number from 0 to 1000")
+        setRestorePointsUsed(g, int(v.n))
+      else:
+        vm.runtimeError("run.restorePoints." & name & " cannot be set (only used can; " &
+                        "hide the meters with hud.hide(\"restorePoints\"))"))))
 
 proc installModEnv*(m: ModRuntime) =
   let env = m.env
@@ -1904,6 +2433,9 @@ proc installModEnv*(m: ModRuntime) =
     ret.setRet(vbool(saveModStorage(storageOwner)))
   rawSet(env, vstr("mod"), vtable(modT))
 
+  # run.restorePoints: the death-surviving checkpoint and its budget, live
+  let restoreT = installRestorePoints()
+
   # run.data: per mod, per run (saved with the run; see mod_hooks.captureRunData)
   let runT = newScriptTable()
   runT.meta = newScriptTable()
@@ -1915,6 +2447,12 @@ proc installModEnv*(m: ModRuntime) =
         ret.setRet(vtable(mods[idx].runData))
       elif keyName(arg(args, 1)) == "active":
         ret.setRet(vbool(not modCtx.game.isNil))
+      elif keyName(arg(args, 1)) == "restorePoints":
+        ret.setRet(vtable(restoreT))
+      elif keyName(arg(args, 1)) == "resumable":
+        # Whether quitting saves this run to resume (the mode's flag unless
+        # run.resumable changed it); nil outside a run.
+        ret.setRet(if modCtx.game.isNil: NilValue else: vbool(modRunResumable(modCtx.game)))
       else:
         ret.setRet(NilValue))))
   rawSet(runT.meta, vstr("__newindex"), vnative(newNative("run_newindex",
@@ -1924,6 +2462,17 @@ proc installModEnv*(m: ModRuntime) =
         let v = arg(args, 2)
         if v.kind != vkTable: vm.runtimeError("run.data must be a table")
         mods[idx].runData = v.tbl
+      elif keyName(arg(args, 1)) == "resumable":
+        # run.resumable = false: quitting ends this run instead of saving it
+        # (a save already on disk goes at once); true allows it again.
+        let v = arg(args, 2)
+        if v.kind != vkBool: vm.runtimeError("run.resumable must be true or false")
+        let g = modCtx.game
+        if g.isNil or modCtx.inPvP: vm.runtimeError("run.resumable needs a run in progress")
+        setRunResumable(g, v.b)
+        if not v.b:
+          deleteRunSave(g.mode, g.modMode)
+          deleteSuspendSnapshot(g.mode, g.modMode)
       else:
         vm.runtimeError("run." & keyName(arg(args, 1)) & " cannot be set"))))
   rawSet(env, vstr("run"), vtable(runT))

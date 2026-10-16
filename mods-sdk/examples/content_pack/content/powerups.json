@@ -1,0 +1,22 @@
+[
+  {
+    "type": "powerup",
+    "id": "grit",
+    "name": {"en": "GRIT.dll", "es": "AGALLAS.dll"},
+    "description": {"en": "+2 integrity per level", "es": "+2 de integridad por nivel"},
+    "maxLevel": 3,
+    "color": "#e0a040",
+    "modes": ["wave", "survival", "roguelite"],
+    "stats": {"maxHp": "+2"}
+  },
+  {
+    "type": "powerup",
+    "id": "overclock",
+    "name": {"en": "OVERCLOCK.sys", "es": "OVERCLOCK.sys"},
+    "description": {"en": "+8% damage, 5% faster fire per level",
+                    "es": "+8% de daño, 5% más cadencia por nivel"},
+    "maxLevel": 5,
+    "color": "#ff6060",
+    "stats": {"damage": "+8%", "fireRate": "x0.95"}
+  }
+]

@@ -1,4 +1,5 @@
 import math, random, raylib
+import draw_prims
 import particle_types, types, utils
 
 const TwoPi = PI * 2.0
@@ -510,7 +511,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
     let pct   = 1.0'f32 - (enemy.weakPoint.cooldownTimer /
                             max(0.01'f32, enemy.weakPoint.cooldownDuration))
     let arcR  = enemy.radius + 17.0'f32
-    drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, arcR,
+    drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, arcR,
                     Color(r: 50, g: 50, b: 50, a: 45))
     if pct > 0.015'f32:
       let segs    = max(4, int(pct * 44.0'f32))
@@ -521,7 +522,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       for s in 0..<segs:
         let a1 = startA + s.float32 * arcSpan / segs.float32
         let a2 = startA + (s + 1).float32 * arcSpan / segs.float32
-        drawLine(Vector2(x: enemy.pos.x + cos(a1) * arcR, y: enemy.pos.y + sin(a1) * arcR),
+        drawStroke(Vector2(x: enemy.pos.x + cos(a1) * arcR, y: enemy.pos.y + sin(a1) * arcR),
                  Vector2(x: enemy.pos.x + cos(a2) * arcR, y: enemy.pos.y + sin(a2) * arcR),
                  2.8'f32, arcCol)
 
@@ -543,16 +544,16 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let coreCol   = Color(r: 220, g: 30,  b: 30,  a: alpha)
       let rimCol    = Color(r: 255, g: 80,  b: 0,   a: alpha)
       let glowCol   = Color(r: 255, g: 60,  b: 0,   a: alpha div 4)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, outerR + 10.0'f32, glowCol)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, outerR + 6.0'f32,  glowCol)
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, outerR + 10.0'f32, glowCol)
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, outerR + 6.0'f32,  glowCol)
       for t in 0..<toothCount * 2:
         let a    = spinAngle + t.float32 * PI / toothCount.float32
         let rEnd = if t mod 2 == 0: outerR else: (innerR + outerR) * 0.5'f32
-        drawLine(Vector2(x: enemy.pos.x + cos(a) * innerR, y: enemy.pos.y + sin(a) * innerR),
+        drawStroke(Vector2(x: enemy.pos.x + cos(a) * innerR, y: enemy.pos.y + sin(a) * innerR),
                  Vector2(x: enemy.pos.x + cos(a) * rEnd,   y: enemy.pos.y + sin(a) * rEnd),
                  if t mod 2 == 0: 3.5'f32 else: 1.8'f32, rimCol)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, innerR, coreCol)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), innerR * 0.85'f32,
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, innerR, coreCol)
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), innerR * 0.85'f32,
                  Color(r: 255, g: 40, b: 0,
                        a: uint8(clamp(40.0'f32 + pulse * 50.0'f32, 0.0'f32, 100.0'f32))))
 
@@ -562,15 +563,15 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let r1   = enemy.radius + 9.0'f32 + slowPulse * 5.0'f32
       let r2   = r1 + 14.0'f32
       let spin = time * 3.2'f32
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r1, col)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r2,
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r1, col)
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r2,
                       withAlpha(col, alpha div 2))
       for s in 0..<4:
         let a = spin + s.float32 * PI * 0.5'f32
-        drawLine(Vector2(x: enemy.pos.x + cos(a) * r1, y: enemy.pos.y + sin(a) * r1),
+        drawStroke(Vector2(x: enemy.pos.x + cos(a) * r1, y: enemy.pos.y + sin(a) * r1),
                  Vector2(x: enemy.pos.x + cos(a) * r2, y: enemy.pos.y + sin(a) * r2),
                  2.5'f32, col)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), r1,
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r1,
                  withAlpha(col, alpha div 6))
 
     of bwoSummonSigils:
@@ -584,11 +585,11 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
         for v in 1..3:
           let a    = off + v.float32 * TwoPi.float32 / 3.0'f32
           let curr = Vector2(x: enemy.pos.x + cos(a) * r, y: enemy.pos.y + sin(a) * r)
-          drawLine(prev, curr, 2.5'f32, col)
+          drawStroke(prev, curr, 2.5'f32, col)
           prev = curr
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r + 7.0'f32,
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r + 7.0'f32,
                       withAlpha(col, alpha div 3))
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
                  withAlpha(col, alpha div 8))
 
     of bwoMeteorCracks:
@@ -599,12 +600,12 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
         let a   = c.float32 * PI / 4.0'f32 + time * 0.25'f32
         let len = if c mod 2 == 0: r + 15.0'f32 else: r + 5.0'f32
         let jit = if c mod 3 == 1: 0.14'f32 else: 0.0'f32
-        drawLine(Vector2(x: enemy.pos.x + cos(a + jit) * (r - 5.0'f32),
+        drawStroke(Vector2(x: enemy.pos.x + cos(a + jit) * (r - 5.0'f32),
                          y: enemy.pos.y + sin(a + jit) * (r - 5.0'f32)),
                  Vector2(x: enemy.pos.x + cos(a) * len, y: enemy.pos.y + sin(a) * len),
                  if c mod 2 == 0: 3.0'f32 else: 1.5'f32, col)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r, col)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r, col)
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
                  withAlpha(col, alpha div 8))
 
     of bwoLaserPrisms, bwoPrismSequence:
@@ -620,12 +621,12 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       for s in 0..<6:
         let a1 = spin + s.float32 * TwoPi.float32 / 6.0'f32
         let a2 = spin + (s.float32 + 0.82'f32) * TwoPi.float32 / 6.0'f32
-        drawLine(Vector2(x: enemy.pos.x + cos(a1) * r, y: enemy.pos.y + sin(a1) * r),
+        drawStroke(Vector2(x: enemy.pos.x + cos(a1) * r, y: enemy.pos.y + sin(a1) * r),
                  Vector2(x: enemy.pos.x + cos(a2) * r, y: enemy.pos.y + sin(a2) * r),
                  3.8'f32, pCols[s])
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r + 8.0'f32,
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r + 8.0'f32,
                       Color(r: 200, g: 200, b: 255, a: alpha div 3))
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
                  Color(r: 200, g: 200, b: 255, a: alpha div 10))
 
     of bwoVoidRifts:
@@ -634,15 +635,15 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let r1   = enemy.radius + 8.0'f32 + pulse * 10.0'f32
       let r2   = r1 + 13.0'f32
       let spin = -time * 2.1'f32   # counter-clockwise = implosion feel
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r1, col)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r2,
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r1, col)
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r2,
                       withAlpha(col, alpha div 2))
       for s in 0..<6:
         let a = spin + s.float32 * TwoPi.float32 / 6.0'f32
-        drawLine(Vector2(x: enemy.pos.x + cos(a) * r1, y: enemy.pos.y + sin(a) * r1),
+        drawStroke(Vector2(x: enemy.pos.x + cos(a) * r1, y: enemy.pos.y + sin(a) * r1),
                  Vector2(x: enemy.pos.x + cos(a) * r2, y: enemy.pos.y + sin(a) * r2),
                  2.2'f32, col)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), r1,
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r1,
                  withAlpha(col, alpha div 8))
 
     of bwoCoilSequence:
@@ -658,40 +659,40 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
         for s in 0..<sg:
           let a1 = sa + s.float32 * (ea - sa) / sg.float32
           let a2 = sa + (s + 1).float32 * (ea - sa) / sg.float32
-          drawLine(Vector2(x: enemy.pos.x + cos(a1) * r, y: enemy.pos.y + sin(a1) * r),
+          drawStroke(Vector2(x: enemy.pos.x + cos(a1) * r, y: enemy.pos.y + sin(a1) * r),
                    Vector2(x: enemy.pos.x + cos(a2) * r, y: enemy.pos.y + sin(a2) * r),
                    3.0'f32, col)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
                  withAlpha(col, alpha div 7))
 
     of bwoSatelliteSet:
       # Orbital Commander: glowing orbit rings
       let col = Color(r: 175, g: 115, b: 255, a: alpha)
       let r   = enemy.radius + 12.0'f32 + slowPulse * 4.0'f32
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r, col)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r + 10.0'f32,
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r, col)
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r + 10.0'f32,
                       withAlpha(col, alpha div 2))
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
                  withAlpha(col, alpha div 8))
 
     of bwoClockNodes:
       # Timekeeper: animated clock face
       let col = Color(r: 75, g: 255, b: 225, a: alpha)
       let r   = enemy.radius + 10.0'f32 + slowPulse * 4.0'f32
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, r, col)
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r, col)
       for t in 0..<12:
         let a   = t.float32 * TwoPi.float32 / 12.0'f32 - PI.float32 * 0.5'f32
         let len = if t mod 3 == 0: 9.0'f32 else: 4.5'f32
-        drawLine(Vector2(x: enemy.pos.x + cos(a) * (r - len),
+        drawStroke(Vector2(x: enemy.pos.x + cos(a) * (r - len),
                          y: enemy.pos.y + sin(a) * (r - len)),
                  Vector2(x: enemy.pos.x + cos(a) * r, y: enemy.pos.y + sin(a) * r),
                  if t mod 3 == 0: 2.5'f32 else: 1.5'f32, col)
       let handA = time * PI * 2.0'f32 - PI.float32 * 0.5'f32
-      drawLine(Vector2(x: enemy.pos.x, y: enemy.pos.y),
+      drawStroke(Vector2(x: enemy.pos.x, y: enemy.pos.y),
                Vector2(x: enemy.pos.x + cos(handA) * (r - 5.0'f32),
                        y: enemy.pos.y + sin(handA) * (r - 5.0'f32)),
                2.8'f32, col)
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
                  withAlpha(col, alpha div 8))
 
     of bwoChaosAnomalies:
@@ -702,22 +703,22 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                        Color(r: 60,  g: 255, b: 120, a: alpha),
                        Color(r: 255, g: 200, b: 55,  a: alpha) ]
       for c in 0..<3:
-        drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32,
+        drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32,
                         r + c.float32 * 6.0'f32, cCols[c])
       for s in 0..<8:
         let a = spin + s.float32 * TwoPi.float32 / 8.0'f32
-        drawLine(Vector2(x: enemy.pos.x + cos(a) * r,          y: enemy.pos.y + sin(a) * r),
+        drawStroke(Vector2(x: enemy.pos.x + cos(a) * r,          y: enemy.pos.y + sin(a) * r),
                  Vector2(x: enemy.pos.x + cos(a) * (r + 20.0'f32), y: enemy.pos.y + sin(a) * (r + 20.0'f32)),
                  2.2'f32, cCols[s mod 3])
-      drawCircle(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
                  Color(r: 200, g: 100, b: 200, a: alpha div 8))
 
     else:
       # Generic fallback
       let ringRadius = enemy.radius + 10.0'f32 + pulse * 5.0'f32
       let color = Color(r: 255, g: 235, b: 90, a: alpha)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius, color)
-      drawCircleLines(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius + 8.0'f32,
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius, color)
+      drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, ringRadius + 8.0'f32,
                       Color(r: 255, g: 255, b: 255, a: alpha div 3))
 
     # Exposure time-left arc: green -> yellow -> red, drawn tight against the boss
@@ -732,7 +733,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       for s in 0..<segs:
         let a1 = startA + s.float32 * arcSpan / segs.float32
         let a2 = startA + (s + 1).float32 * arcSpan / segs.float32
-        drawLine(Vector2(x: enemy.pos.x + cos(a1) * arcR, y: enemy.pos.y + sin(a1) * arcR),
+        drawStroke(Vector2(x: enemy.pos.x + cos(a1) * arcR, y: enemy.pos.y + sin(a1) * arcR),
                  Vector2(x: enemy.pos.x + cos(a2) * arcR, y: enemy.pos.y + sin(a2) * arcR),
                  3.2'f32, timerCol)
     return
@@ -747,10 +748,10 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       if target.hitFlashTimer > 0.0'f32:
         let t    = target.hitFlashTimer / 0.30'f32          # 1.0 -> 0.0
         let expR = target.hitRadius * (1.0'f32 + (1.0'f32 - t) * 1.9'f32)
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, expR,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, expR,
                         Color(r: 255, g: 255, b: 100,
                               a: uint8(clamp(t * 220.0'f32, 0.0'f32, 255.0'f32))))
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, expR * 0.58'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, expR * 0.58'f32,
                         Color(r: 255, g: 200, b: 50,
                               a: uint8(clamp(t * 140.0'f32, 0.0'f32, 255.0'f32))))
       continue
@@ -783,23 +784,23 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let pOut   = Vector2(x: target.pos.x - nx * tipOut, y: target.pos.y - ny * tipOut)
       let pLeft  = Vector2(x: target.pos.x + tx * side,   y: target.pos.y + ty * side)
       let pRight = Vector2(x: target.pos.x - tx * side,   y: target.pos.y - ty * side)
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * sc, glowCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * sc, glowCol)
       let fillCol = Color(r: shardCol.r div 3, g: shardCol.g div 4, b: 0, a: uint8(min(180, activeAlpha.int)))
       drawTriangle(pIn, pLeft, pRight, fillCol)
       drawTriangle(pOut, pRight, pLeft, fillCol)
-      drawLine(pIn,    pLeft,  2.5'f32, shardCol)
-      drawLine(pLeft,  pOut,   2.5'f32, shardCol)
-      drawLine(pOut,   pRight, 2.5'f32, shardCol)
-      drawLine(pRight, pIn,    2.5'f32, shardCol)
+      drawStroke(pIn,    pLeft,  2.5'f32, shardCol)
+      drawStroke(pLeft,  pOut,   2.5'f32, shardCol)
+      drawStroke(pOut,   pRight, 2.5'f32, shardCol)
+      drawStroke(pRight, pIn,    2.5'f32, shardCol)
       let midLeft  = Vector2(x: (pIn.x + pLeft.x)  * 0.5'f32, y: (pIn.y + pLeft.y)  * 0.5'f32)
       let midRight = Vector2(x: (pIn.x + pRight.x) * 0.5'f32, y: (pIn.y + pRight.y) * 0.5'f32)
       let midBotL  = Vector2(x: (pOut.x + pLeft.x) * 0.5'f32, y: (pOut.y + pLeft.y) * 0.5'f32)
       let midBotR  = Vector2(x: (pOut.x + pRight.x) * 0.5'f32, y: (pOut.y + pRight.y) * 0.5'f32)
-      drawLine(midLeft,  midBotR, 1.5'f32, crackCol)
-      drawLine(midRight, midBotL, 1.5'f32, crackCol)
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), 2.5'f32 * sc, crackCol)
+      drawStroke(midLeft,  midBotR, 1.5'f32, crackCol)
+      drawStroke(midRight, midBotL, 1.5'f32, crackCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), 2.5'f32 * sc, crackCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * sc + 4.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * sc + 4.0'f32,
                         withAlpha(shardCol, uint8(activeAlpha.int div 5)))
 
     of bwoSpiralAnchors:
@@ -807,18 +808,18 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let col     = Color(r: 175, g: 90, b: 255, a: activeAlpha)
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 2.6'f32 else: 0.45'f32)
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
       for s in 0..<4:
         let a = spin + s.float32 * PI * 0.5'f32
-        drawLine(Vector2(x: target.pos.x + cos(a) * cr * 0.22'f32 * scale,
+        drawStroke(Vector2(x: target.pos.x + cos(a) * cr * 0.22'f32 * scale,
                          y: target.pos.y + sin(a) * cr * 0.22'f32 * scale),
                  Vector2(x: target.pos.x + cos(a) * cr * 0.88'f32 * scale,
                          y: target.pos.y + sin(a) * cr * 0.88'f32 * scale),
                  lw, col)
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * 0.30'f32 * scale, col)
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * 0.30'f32 * scale, col)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
                         withAlpha(col, activeAlpha div 4))
 
     of bwoSummonSigils:
@@ -827,20 +828,20 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 0.85'f32 else: 0.18'f32)
       let rune    = cr * 0.80'f32 * scale
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
       for tri in 0..<2:
         let off  = tri.float32 * PI / 3.0'f32 + spin
         var prev = Vector2(x: target.pos.x + cos(off) * rune, y: target.pos.y + sin(off) * rune)
         for v in 1..3:
           let a    = off + v.float32 * TwoPi.float32 / 3.0'f32
           let curr = Vector2(x: target.pos.x + cos(a) * rune, y: target.pos.y + sin(a) * rune)
-          drawLine(prev, curr, lw, col)
+          drawStroke(prev, curr, lw, col)
           prev = curr
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.17'f32 * scale,
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.17'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
                         withAlpha(col, activeAlpha div 4))
 
     of bwoMeteorCracks:
@@ -848,19 +849,19 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let col     = Color(r: 255, g: 138, b: 38, a: activeAlpha)
       let glowCol = withAlpha(col, activeAlpha div 4)
       let jit     = target.index.float32 * 0.7'f32   # each crack looks unique
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
       for c in 0..<8:
         let a     = c.float32 * PI / 4.0'f32 + jit
         let outer = cr * (if c mod 2 == 0: 0.92'f32 else: 0.60'f32) * scale
         let inner = cr * 0.22'f32 * scale
-        drawLine(Vector2(x: target.pos.x + cos(a) * inner, y: target.pos.y + sin(a) * inner),
+        drawStroke(Vector2(x: target.pos.x + cos(a) * inner, y: target.pos.y + sin(a) * inner),
                  Vector2(x: target.pos.x + cos(a) * outer, y: target.pos.y + sin(a) * outer),
                  if c mod 2 == 0: lw else: lw * 0.55'f32, col)
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.19'f32 * scale,
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.19'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
                         withAlpha(col, activeAlpha div 4))
 
     of bwoLaserPrisms:
@@ -873,18 +874,18 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 0.65'f32 else: 0.12'f32)
       let triR    = cr * 0.82'f32 * scale
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
       var prev = Vector2(x: target.pos.x + cos(spin) * triR, y: target.pos.y + sin(spin) * triR)
       for v in 1..3:
         let a    = spin + v.float32 * TwoPi.float32 / 3.0'f32
         let curr = Vector2(x: target.pos.x + cos(a) * triR, y: target.pos.y + sin(a) * triR)
-        drawLine(prev, curr, lw, col)
+        drawStroke(prev, curr, lw, col)
         prev = curr
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.19'f32 * scale,
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.19'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
                         withAlpha(col, activeAlpha div 4))
 
     of bwoVoidRifts:
@@ -894,18 +895,18 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let col     = if isDecoy: Color(r: 88, g: 58, b: 155, a: uint8(activeAlpha.int * 7 div 10))
                     else:       Color(r: 215, g: 58, b: 255, a: activeAlpha)
       let glowCol = withAlpha(col, uint8(activeAlpha.int div 4))
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
       if isDecoy:
         # Decoy: slow cross + dim ring: clearly "wrong"
         let spinD = time * 0.5'f32
         for c in 0..<4:
           let a = c.float32 * PI * 0.5'f32 + spinD
-          drawLine(Vector2(x: target.pos.x + cos(a) * cr * 0.72'f32 * scale,
+          drawStroke(Vector2(x: target.pos.x + cos(a) * cr * 0.72'f32 * scale,
                            y: target.pos.y + sin(a) * cr * 0.72'f32 * scale),
                    Vector2(x: target.pos.x - cos(a) * cr * 0.72'f32 * scale,
                            y: target.pos.y - sin(a) * cr * 0.72'f32 * scale),
                    1.5'f32, col)
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * 0.85'f32 * scale, col)
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * 0.85'f32 * scale, col)
       else:
         # Real: three fast spinning vortex arcs + bright inner dot
         let spinR = time * 2.5'f32
@@ -917,14 +918,14 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
             let a1 = sa + s.float32 * (ea - sa) / sg.float32
             let a2 = sa + (s + 1).float32 * (ea - sa) / sg.float32
             let ri = cr * (0.44'f32 + 0.42'f32 * s.float32 / sg.float32) * scale
-            drawLine(Vector2(x: target.pos.x + cos(a1) * ri, y: target.pos.y + sin(a1) * ri),
+            drawStroke(Vector2(x: target.pos.x + cos(a1) * ri, y: target.pos.y + sin(a1) * ri),
                      Vector2(x: target.pos.x + cos(a2) * ri, y: target.pos.y + sin(a2) * ri),
                      2.5'f32, col)
-        drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.20'f32 * scale,
+        drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.20'f32 * scale,
                    withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
                         withAlpha(col, activeAlpha div 4))
 
     of bwoCoilSequence:
@@ -932,7 +933,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let col     = Color(r: 255, g: 238, b: 65, a: activeAlpha)
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 3.6'f32 else: 0.75'f32)
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
       for arc in 0..<2:
         let dir = if arc == 0: 1.0'f32 else: -1.0'f32
         let sa  = spin * dir + arc.float32 * PI
@@ -941,16 +942,16 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
         for s in 0..<sg:
           let a1 = sa + s.float32 * (ea - sa) / sg.float32
           let a2 = sa + (s + 1).float32 * (ea - sa) / sg.float32
-          drawLine(Vector2(x: target.pos.x + cos(a1) * cr * 0.82'f32 * scale,
+          drawStroke(Vector2(x: target.pos.x + cos(a1) * cr * 0.82'f32 * scale,
                            y: target.pos.y + sin(a1) * cr * 0.82'f32 * scale),
                    Vector2(x: target.pos.x + cos(a2) * cr * 0.82'f32 * scale,
                            y: target.pos.y + sin(a2) * cr * 0.82'f32 * scale),
                    lw, col)
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.18'f32 * scale,
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.18'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
                         withAlpha(col, activeAlpha div 4))
 
     of bwoPrismSequence:
@@ -963,42 +964,42 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 1.55'f32 else: 0.28'f32)
       let triR    = cr * 0.82'f32 * scale
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
       var prev = Vector2(x: target.pos.x + cos(spin) * triR, y: target.pos.y + sin(spin) * triR)
       for v in 1..3:
         let a    = spin + v.float32 * TwoPi.float32 / 3.0'f32
         let curr = Vector2(x: target.pos.x + cos(a) * triR, y: target.pos.y + sin(a) * triR)
-        drawLine(prev, curr, lw, col)
+        drawStroke(prev, curr, lw, col)
         prev = curr
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.18'f32 * scale,
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.18'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
                         withAlpha(col, activeAlpha div 4))
 
     of bwoClockNodes:
       # Timekeeper: miniature clock face: hand sweeps in sync with sequenceIndex advance
       let col     = Color(r: 75, g: 255, b: 225, a: activeAlpha)
       let glowCol = withAlpha(col, activeAlpha div 4)
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * 0.85'f32 * scale, col)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * 0.85'f32 * scale, col)
       for t in 0..<4:
         let a = t.float32 * PI * 0.5'f32 - PI.float32 * 0.5'f32
-        drawLine(Vector2(x: target.pos.x + cos(a) * cr * 0.60'f32 * scale,
+        drawStroke(Vector2(x: target.pos.x + cos(a) * cr * 0.60'f32 * scale,
                          y: target.pos.y + sin(a) * cr * 0.60'f32 * scale),
                  Vector2(x: target.pos.x + cos(a) * cr * 0.83'f32 * scale,
                          y: target.pos.y + sin(a) * cr * 0.83'f32 * scale),
                  2.0'f32, col)
       if target.active:
         let handA = time * PI * 2.0'f32 - PI.float32 * 0.5'f32
-        drawLine(Vector2(x: target.pos.x, y: target.pos.y),
+        drawStroke(Vector2(x: target.pos.x, y: target.pos.y),
                  Vector2(x: target.pos.x + cos(handA) * cr * 0.60'f32 * scale,
                          y: target.pos.y + sin(handA) * cr * 0.60'f32 * scale),
                  2.5'f32, col)
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
                         withAlpha(col, activeAlpha div 4))
 
     of bwoChaosAnomalies:
@@ -1011,21 +1012,21 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 3.1'f32 else: 0.5'f32) +
                     target.index.float32 * 1.3'f32
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
       # Star outline: alternate outer (tip) and inner (valley) radii
       for s in 0..<12:
         let a1  = spin + s.float32 * TwoPi.float32 / 12.0'f32
         let a2  = spin + (s + 1).float32 * TwoPi.float32 / 12.0'f32
         let r1  = cr * (if s mod 2 == 0: 0.90'f32 else: 0.44'f32) * scale
         let r2  = cr * (if (s+1) mod 2 == 0: 0.90'f32 else: 0.44'f32) * scale
-        drawLine(Vector2(x: target.pos.x + cos(a1) * r1, y: target.pos.y + sin(a1) * r1),
+        drawStroke(Vector2(x: target.pos.x + cos(a1) * r1, y: target.pos.y + sin(a1) * r1),
                  Vector2(x: target.pos.x + cos(a2) * r2, y: target.pos.y + sin(a2) * r2),
                  lw, col)
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.18'f32 * scale,
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.18'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr + 5.0'f32,
                         withAlpha(col, activeAlpha div 4))
 
     else:
@@ -1033,18 +1034,18 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       var color = target.color
       color.a = activeAlpha
       let ringRadius = target.hitRadius * (0.72'f32 + pulse * 0.12'f32)
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y),
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y),
                  max(5.0'f32, ringRadius * 0.35'f32),
                  withAlpha(color, activeAlpha div 3))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, ringRadius, color)
-      drawLine(Vector2(x: target.pos.x - 6.0'f32, y: target.pos.y),
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, ringRadius, color)
+      drawStroke(Vector2(x: target.pos.x - 6.0'f32, y: target.pos.y),
                Vector2(x: target.pos.x + 6.0'f32, y: target.pos.y), 2.0'f32,
                Color(r: 255, g: 255, b: 255, a: activeAlpha))
-      drawLine(Vector2(x: target.pos.x, y: target.pos.y - 6.0'f32),
+      drawStroke(Vector2(x: target.pos.x, y: target.pos.y - 6.0'f32),
                Vector2(x: target.pos.x, y: target.pos.y + 6.0'f32), 2.0'f32,
                Color(r: 255, g: 255, b: 255, a: activeAlpha))
       if showHints:
-        drawCircleLines(target.pos.x.int32, target.pos.y.int32,
+        drawCircleOutline(target.pos.x.int32, target.pos.y.int32,
                         target.hitRadius + 5.0'f32,
                         withAlpha(color, activeAlpha div 4))
 
@@ -1053,12 +1054,12 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let ft   = target.wrongHitFlash / 0.45'f32
       let fA   = uint8(clamp(ft * 210.0'f32, 0.0'f32, 255.0'f32))
       let expO = (1.0'f32 - ft) * 10.0'f32
-      drawCircle(Vector2(x: target.pos.x, y: target.pos.y), cr * scale * 1.05'f32,
+      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale * 1.05'f32,
                  Color(r: 255, g: 20, b: 20, a: uint8(clamp(ft * 72.0'f32, 0.0'f32, 100.0'f32))))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32,
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32,
                       cr * scale + 3.0'f32 + expO,
                       Color(r: 255, g: 30, b: 30, a: fA))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32,
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32,
                       cr * scale + 10.0'f32 + expO * 1.2'f32,
                       Color(r: 255, g: 80, b: 0, a: uint8(clamp(ft * 110.0'f32, 0.0'f32, 255.0'f32))))
 
@@ -1067,10 +1068,10 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
     if target.active and isSeqKind:
       let fp       = sin(time * 9.5'f32) * 0.5'f32 + 0.5'f32
       let focusR   = cr * scale + 5.0'f32 + fp * 4.5'f32
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, focusR,
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, focusR,
                       Color(r: 255, g: 255, b: 255,
                             a: uint8(clamp(120.0'f32 + fp * 100.0'f32, 0.0'f32, 255.0'f32))))
-      drawCircleLines(target.pos.x.int32, target.pos.y.int32, focusR + 5.5'f32,
+      drawCircleOutline(target.pos.x.int32, target.pos.y.int32, focusR + 5.5'f32,
                       Color(r: 255, g: 255, b: 200,
                             a: uint8(clamp(fp * 65.0'f32, 0.0'f32, 255.0'f32))))
 
@@ -1085,7 +1086,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let dotY      = target.pos.y + cr * scale + 9.0'f32
       let dotAlpha  = if target.active: uint8(220) else: uint8(90)
       for d in 0..<numDots:
-        drawCircle(
+        drawDisc(
           Vector2(x: startDotX + d.float32 * dotStep, y: dotY),
           if d == numDots - 1: 3.2'f32 else: 2.2'f32,   # last dot bigger = "this one"
           Color(r: 255, g: 255, b: 255, a: dotAlpha))
@@ -1120,14 +1121,14 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
           for s in 0..<numDash:
             let t1 = (s.float32 + 0.15'f32) / numDash.float32
             let t2 = (s.float32 + 0.75'f32) / numDash.float32
-            drawLine(Vector2(x: sP.x + (eP.x - sP.x) * t1, y: sP.y + (eP.y - sP.y) * t1),
+            drawStroke(Vector2(x: sP.x + (eP.x - sP.x) * t1, y: sP.y + (eP.y - sP.y) * t1),
                      Vector2(x: sP.x + (eP.x - sP.x) * t2, y: sP.y + (eP.y - sP.y) * t2),
                      1.5'f32, Color(r: 255, g: 255, b: 255, a: aAlpha))
           # Arrowhead at destination
           let perpX = -ny * 5.0'f32; let perpY = nx * 5.0'f32
-          drawLine(eP, Vector2(x: eP.x - nx * 9.0'f32 + perpX, y: eP.y - ny * 9.0'f32 + perpY),
+          drawStroke(eP, Vector2(x: eP.x - nx * 9.0'f32 + perpX, y: eP.y - ny * 9.0'f32 + perpY),
                    1.8'f32, Color(r: 255, g: 255, b: 255, a: aAlpha))
-          drawLine(eP, Vector2(x: eP.x - nx * 9.0'f32 - perpX, y: eP.y - ny * 9.0'f32 - perpY),
+          drawStroke(eP, Vector2(x: eP.x - nx * 9.0'f32 - perpX, y: eP.y - ny * 9.0'f32 - perpY),
                    1.8'f32, Color(r: 255, g: 255, b: 255, a: aAlpha))
 
   # Progress pips: wider spacing, per-type colour theme
@@ -1173,8 +1174,8 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
           else:      Color(r: 120, g: 120, b: 130, a: 120)
       # Filled and upcoming pips are larger
       let r = if filled: pipR + 1.8'f32 elif isNext: pipR + 1.0'f32 else: pipR
-      drawCircle(Vector2(x: startX + i.float32 * pipStep, y: y), r, pipColor)
+      drawDisc(Vector2(x: startX + i.float32 * pipStep, y: y), r, pipColor)
       # Upcoming pip gets a white halo so the player knows what's next
       if isNext:
-        drawCircleLines(int32(startX + i.float32 * pipStep), int32(y),
+        drawCircleOutline(int32(startX + i.float32 * pipStep), int32(y),
                         r + 3.5'f32, Color(r: 255, g: 255, b: 255, a: 140))

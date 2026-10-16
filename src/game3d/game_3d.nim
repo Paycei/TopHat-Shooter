@@ -11,6 +11,8 @@
 
 import std/tables
 import raylib, math, random
+from rlgl import getShaderIdDefault
+import ../draw_prims
 import types_3d, engine_3d, player_3d, boss_3d, ../types, ../localization, ../settings
 import ../modding/[mod_hooks, mod_assets]
 
@@ -35,6 +37,7 @@ proc newEntity3D*(world: Game3D, tag = ""): Entity3D =
     color: Color(r: 230, g: 60, b: 60, a: 255),
     shape: esSphere, size: vec3(8, 8, 8),
     modelId: -1, modelScale: 0.0, modelSpeed: 1.0,   # scale 0 = fit the model to the entity's diameter
+    modelFade: 0.2,
     ai: aiNone, speed: 30.0, orbitRadius: 60.0,
     projectileSpeed: 150.0, projectileDamage: 10.0,
     alive: true)
@@ -680,7 +683,8 @@ proc drawEntity3D(world: Game3D, e: Entity3D, cam: Camera) =
      entity3dTex.len > 0 and e.tag in entity3dTex:
     let look = entity3dTex[e.tag]
     if look.hasLook:
-      drawBodyWorld3D(look, cam, e.pos.x, e.pos.y, e.pos.z, e.radius * 2, e.yaw, e.age.float)
+      drawBodyWorld3D(look, cam, e.pos.x, e.pos.y, e.pos.z, e.radius * 2, e.yaw, e.age.float,
+                      key = animKey(cast[pointer](e)))
       return
   case e.shape
   of esNone:
@@ -699,8 +703,9 @@ proc drawEntity3D(world: Game3D, e: Entity3D, cam: Camera) =
       let scale = if e.modelScale > 0: e.modelScale
                   else: 2 * e.radius / max(modelFootprint(e.modelId), 1.0e-6'f32)
       drawModelWorld3D(e.modelId, e.pos.x, e.pos.y, e.pos.z, scale, e.yaw, 0, 0,
-                       ModelPose(anim: e.modelAnim, speed: e.modelSpeed, lit: true, tint: White),
-                       White, world.timeElapsed.float)
+                       ModelPose(anim: e.modelAnim, speed: e.modelSpeed, lit: true, tint: White,
+                                 fade: e.modelFade),
+                       White, world.timeElapsed.float, animKey(cast[pointer](e)))
 
 proc drawPickup3D(p: Pickup3D, cam: Camera) =
   if pickup3dTex.len > 0 and p.kind in pickup3dTex:
@@ -720,10 +725,42 @@ proc drawPickup3D(p: Pickup3D, cam: Camera) =
   drawSphere(pos, p.radius * 0.5, color)
   drawSphereWires(pos, p.radius, 8, 8, fade(color, 0.5))
 
+const CutoutFS = """#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+uniform vec4 colDiffuse;
+out vec4 finalColor;
+void main() {
+  vec4 c = texture(texture0, fragTexCoord) * colDiffuse * fragColor;
+  if (c.a < 0.02) discard;
+  finalColor = c;
+}
+"""
+
+var
+  cutout: Shader
+  cutoutTried = false
+
+proc beginCutout(): bool =
+  ## The scene draws with raylib's default shader minus its see-through texels.
+  ## Without it a sprite (a GIF entity, a mod's billboard or picture) fills the
+  ## depth buffer across its whole square, so anything drawn after it, behind
+  ## it, loses that square. Mod models keep LookShader, which discards the
+  ## same way. If this cannot compile, the scene keeps the default shader.
+  if not cutoutTried:
+    cutoutTried = true
+    var s = loadShaderFromMemory("", CutoutFS)
+    if s.id != 0 and s.id != getShaderIdDefault(): cutout = move s
+  if cutout.id == 0: return false
+  beginShaderMode(cutout)
+  true
+
 proc renderGame3D*(world: Game3D) =
   # 3D rendering
   let cam = renderCamera(world)
   beginMode3D(cam)
+  let cutoutOn = beginCutout()
 
   drawArena(world.arena)
 
@@ -755,13 +792,19 @@ proc renderGame3D*(world: Game3D) =
 
   modWorld3DDraw(world)
 
+  if cutoutOn: endShaderMode()
   endMode3D()
 
   # draw3d.text labels (text cannot be drawn inside the 3D camera)
   if world3dLabels.len > 0:
     for label in world3dLabels:
       let sp = worldToScreen3D(world.camera, label.pos)
-      if sp.visible:
+      if sp.visible and label.font > 0:
+        let size = label.size.float32
+        let x = sp.x.float32 - measureModText(label.font, label.text, size, label.spacing) / 2
+        drawModText(label.font, label.text, x + 1, sp.y.float32 + 1, size, label.spacing, fade(Black, 0.7))
+        drawModText(label.font, label.text, x, sp.y.float32, size, label.spacing, label.color)
+      elif sp.visible:
         let w = measureText(label.text, label.size)
         drawText(label.text, int32(sp.x) - w div 2 + 1, int32(sp.y) + 1, label.size, fade(Black, 0.7))
         drawText(label.text, int32(sp.x) - w div 2, int32(sp.y), label.size, label.color)
@@ -794,7 +837,7 @@ proc renderGame3D*(world: Game3D) =
     drawText(t(tkGame3DBossHp) & ":", 20, 70, 18, White)
     drawRectangle(20, 92, 280, 20, Color(r: 50, g: 0, b: 0, a: 200))
     drawRectangle(20, 92, int32(280.0 * bossHpPercent), 20, Color(r: 255, g: 50, b: 50, a: 255))
-    drawRectangleLines(20, 92, 280, 20, White)
+    drawRectOutline(20, 92, 280, 20, White)
 
     # Phase indicator with color
     let phaseColor = case world.boss.phase
@@ -828,9 +871,9 @@ proc renderGame3D*(world: Game3D) =
   let centerX = getScreenWidth() div 2
   let centerY = getScreenHeight() div 2
   if not hudHidden(hpCrosshair):
-    drawCircleLines(centerX, centerY, 10, White)
-    drawLine(centerX - 15, centerY, centerX + 15, centerY, White)
-    drawLine(centerX, centerY - 15, centerX, centerY + 15, White)
+    drawCircleOutline(centerX, centerY, 10, White)
+    drawStroke(centerX - 15, centerY, centerX + 15, centerY, White)
+    drawStroke(centerX, centerY - 15, centerX, centerY + 15, White)
 
   modWorld3DDrawHud(world, getScreenWidth(), getScreenHeight())
 

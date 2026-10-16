@@ -1,4 +1,5 @@
 import std/math, raylib
+import draw_prims
 import particle_types, types, powerup, bullet, particle_pool, utils
 
 proc newWall*(x, y: float32, player: Player): Wall =
@@ -75,14 +76,14 @@ proc drawBarricadeWall(wall: Wall) =
        Color(r: uint8(104 + dmg * 30), g: uint8(110 - dmg * 50), b: uint8(120 - dmg * 56), a: 255))
 
   # 3) Edge shading: bright bevel on the outward face, shadow on the player side.
-  drawLine(lw(halfThick, -halfLen), lw(halfThick, halfLen), 2.5'f32,
+  drawStroke(lw(halfThick, -halfLen), lw(halfThick, halfLen), 2.5'f32,
            Color(r: 168, g: 176, b: 190, a: 255))     # outward (+X) catches light
-  drawLine(lw(-halfThick, -halfLen), lw(-halfThick, halfLen), 2.5'f32,
+  drawStroke(lw(-halfThick, -halfLen), lw(-halfThick, halfLen), 2.5'f32,
            Color(r: 28, g: 30, b: 36, a: 255))          # inward (-X) in shadow
 
   # 4) Brick seams across the face split the slab into three blocks.
   for s in [-0.34'f32, 0.34'f32]:
-    drawLine(lw(-halfThick, halfLen * s), lw(halfThick, halfLen * s), 1.5'f32,
+    drawStroke(lw(-halfThick, halfLen * s), lw(halfThick, halfLen * s), 1.5'f32,
              Color(r: 40, g: 42, b: 48, a: 200))
 
   # 5) Corner rivets.
@@ -91,8 +92,8 @@ proc drawBarricadeWall(wall: Wall) =
   for sx in [-1.0'f32, 1.0'f32]:
     for sy in [-1.0'f32, 1.0'f32]:
       let p = lw(bx * sx, by * sy)
-      drawCircle(p, 2.2'f32, Color(r: 188, g: 194, b: 206, a: 255))
-      drawCircle(Vector2(x: p.x - 0.6'f32, y: p.y - 0.6'f32), 0.9'f32,
+      drawDisc(p, 2.2'f32, Color(r: 188, g: 194, b: 206, a: 255))
+      drawDisc(Vector2(x: p.x - 0.6'f32, y: p.y - 0.6'f32), 0.9'f32,
                  Color(r: 235, g: 240, b: 250, a: 255))
 
   # 6) Cracks once chipped: a couple of jagged dark forks scaled by damage.
@@ -100,9 +101,9 @@ proc drawBarricadeWall(wall: Wall) =
     let cracks = 1 + int(dmg * 2.0'f32)
     for c in 0 ..< cracks:
       let cy = (c.float32 / max(1.0'f32, cracks.float32 - 1.0'f32) - 0.5'f32) * halfLen * 1.2'f32
-      drawLine(lw(-halfThick * 0.7'f32, cy), lw(halfThick * 0.5'f32, cy + halfLen * 0.18'f32),
+      drawStroke(lw(-halfThick * 0.7'f32, cy), lw(halfThick * 0.5'f32, cy + halfLen * 0.18'f32),
                1.4'f32, Color(r: 18, g: 18, b: 22, a: 230))
-      drawLine(lw(halfThick * 0.5'f32, cy + halfLen * 0.18'f32),
+      drawStroke(lw(halfThick * 0.5'f32, cy + halfLen * 0.18'f32),
                lw(halfThick * 0.9'f32, cy - halfLen * 0.05'f32),
                1.2'f32, Color(r: 18, g: 18, b: 22, a: 210))
 
@@ -117,33 +118,33 @@ proc drawTurretWall(wall: Wall) =
   let sa = sin(ang)
 
   # Shadow + dark hex base plate (rotated so it doesn't look like a plain disc).
-  drawCircle(Vector2(x: cx, y: cy + 4.0'f32), r, Color(r: 0, g: 0, b: 0, a: 60))
+  drawDisc(Vector2(x: cx, y: cy + 4.0'f32), r, Color(r: 0, g: 0, b: 0, a: 60))
   drawPoly(Vector2(x: cx, y: cy), 6, r, radToDeg(ang), Color(r: 66, g: 70, b: 80, a: 255))
-  drawPolyLines(Vector2(x: cx, y: cy), 6, r, radToDeg(ang), 2.0'f32,
+  drawPolyOutline(Vector2(x: cx, y: cy), 6, r, radToDeg(ang), 2.0'f32,
                 Color(r: 150, g: 156, b: 168, a: 255))
   for i in 0 ..< 6:
     let a2 = ang + i.float32 * PI / 3.0'f32
-    drawCircle(Vector2(x: cx + cos(a2) * r * 0.80'f32, y: cy + sin(a2) * r * 0.80'f32),
+    drawDisc(Vector2(x: cx + cos(a2) * r * 0.80'f32, y: cy + sin(a2) * r * 0.80'f32),
                1.8'f32, Color(r: 182, g: 188, b: 200, a: 255))
 
   # Barrel: a thick segment from the hub out to the muzzle along the aim.
   let barLen = r * 1.18'f32
   let muzzle = Vector2(x: cx + ca * barLen, y: cy + sa * barLen)
-  drawLine(Vector2(x: cx, y: cy), muzzle, r * 0.36'f32, Color(r: 52, g: 55, b: 63, a: 255))
-  drawLine(Vector2(x: cx, y: cy), muzzle, r * 0.18'f32, Color(r: 92, g: 98, b: 110, a: 255))
-  drawCircle(muzzle, r * 0.18'f32, Color(r: 38, g: 40, b: 46, a: 255))
+  drawStroke(Vector2(x: cx, y: cy), muzzle, r * 0.36'f32, Color(r: 52, g: 55, b: 63, a: 255))
+  drawStroke(Vector2(x: cx, y: cy), muzzle, r * 0.18'f32, Color(r: 92, g: 98, b: 110, a: 255))
+  drawDisc(muzzle, r * 0.18'f32, Color(r: 38, g: 40, b: 46, a: 255))
 
   # Rotating turret dome over the hub.
-  drawCircle(Vector2(x: cx, y: cy), r * 0.58'f32, Color(r: 118, g: 124, b: 138, a: 255))
-  drawCircle(Vector2(x: cx - r * 0.15'f32, y: cy - r * 0.15'f32), r * 0.28'f32,
+  drawDisc(Vector2(x: cx, y: cy), r * 0.58'f32, Color(r: 118, g: 124, b: 138, a: 255))
+  drawDisc(Vector2(x: cx - r * 0.15'f32, y: cy - r * 0.15'f32), r * 0.28'f32,
              Color(r: 150, g: 156, b: 170, a: 220))   # specular highlight
-  drawCircleLines(cx.int32, cy.int32, r * 0.58'f32, Color(r: 172, g: 178, b: 192, a: 255))
+  drawCircleOutline(cx.int32, cy.int32, r * 0.58'f32, Color(r: 172, g: 178, b: 192, a: 255))
 
   # Targeting eye: heats from amber to white-hot as the next shot approaches.
   let heat = clamp(1.0'f32 - wall.shootTimer / 1.5'f32, 0.25'f32, 1.0'f32)
   let eye = Vector2(x: cx + ca * r * 0.24'f32, y: cy + sa * r * 0.24'f32)
-  drawCircle(eye, r * 0.17'f32, Color(r: uint8(120 + heat * 135), g: uint8(35 + heat * 60), b: 35, a: 255))
-  drawCircle(eye, r * 0.08'f32, Color(r: 255, g: uint8(160 + heat * 90), b: uint8(60 + heat * 120), a: 255))
+  drawDisc(eye, r * 0.17'f32, Color(r: uint8(120 + heat * 135), g: uint8(35 + heat * 60), b: 35, a: 255))
+  drawDisc(eye, r * 0.08'f32, Color(r: 255, g: uint8(160 + heat * 90), b: uint8(60 + heat * 120), a: 255))
 
 proc drawWall*(wall: Wall, player: Player) =
   if wall.permanent:
@@ -151,9 +152,9 @@ proc drawWall*(wall: Wall, player: Player) =
     let tint = wall.obstacleTint
     let body = Color(r: uint8(tint.r div 3), g: uint8(tint.g div 3),
                      b: uint8(tint.b div 3), a: 255)
-    drawCircle(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, body)
-    drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius, tint)
-    drawCircleLines(wall.pos.x.int32, wall.pos.y.int32, wall.radius * 0.55'f32,
+    drawDisc(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, body)
+    drawCircleOutline(wall.pos.x.int32, wall.pos.y.int32, wall.radius, tint)
+    drawCircleOutline(wall.pos.x.int32, wall.pos.y.int32, wall.radius * 0.55'f32,
                     withAlpha(tint, 120))
     # Damage cue: once chipped, show a shrinking HP bar so the player can read
     # that these obstacles are destructible (and, in boss rooms, re-forming).

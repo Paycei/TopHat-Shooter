@@ -955,7 +955,7 @@ proc closeScriptVM*() =
   callDepth = 0
 
 proc copyTable(L: LuaState, src: cint) =
-  ## Push a shallow copy of the table at `src`.
+  ## Push a shallow copy of the table at `src` (with the same metatable).
   let s = lua_absindex(L, src)
   lua_createtable(L, 0, 32)
   lua_pushnil(L)
@@ -963,6 +963,8 @@ proc copyTable(L: LuaState, src: cint) =
     lua_pushvalue(L, -2)
     lua_rotate(L, -2, 1)     # [copy, key, key, value]
     lua_rawset(L, -4)
+  if lua_getmetatable(L, s) != 0:
+    discard lua_setmetatable(L, -2)
 
 proc newScriptVM*(): tuple[vm: VM, base: ScriptTable] =
   ## A fresh sandboxed Lua state (closing the previous one) and the shared
@@ -1055,9 +1057,12 @@ proc newScriptVM*(): tuple[vm: VM, base: ScriptTable] =
   lua_settop(L, 0)
   (theVM, base)
 
-proc newModEnv*(base: ScriptTable): ScriptTable =
-  ## One mod's globals: its own copies of the library tables, falling through
-  ## to `base`, which it cannot reach (getmetatable(_ENV) is false).
+proc newModEnv*(base: ScriptTable, extra: openArray[string] = []): ScriptTable =
+  ## One mod's globals: its own copies of the library tables (Lua's, plus the
+  ## game's tables named in `extra`), falling through to `base`, which it
+  ## cannot reach (getmetatable(_ENV) is false). The copies are shallow: the
+  ## natives inside stay shared, but one mod replacing `draw.circle` or adding
+  ## to `spawn` changes only its own table.
   withL:
     lua_createtable(L, 0, 16)
     let env = lua_gettop(L)
@@ -1071,6 +1076,17 @@ proc newModEnv*(base: ScriptTable): ScriptTable =
       lua_rotate(L, -2, 1)
       lua_pop(L, 1)
       lua_rawset(L, env)
+    for name in extra:
+      discard lua_pushlstring(L, cstring(name), csize_t(name.len))
+      discard lua_pushlstring(L, cstring(name), csize_t(name.len))
+      discard lua_rawget(L, b)
+      if lua_type(L, -1) == LUA_TTABLE:
+        copyTable(L, -1)
+        lua_rotate(L, -2, 1)
+        lua_pop(L, 1)
+        lua_rawset(L, env)
+      else:
+        lua_pop(L, 2)
     discard lua_pushstring(L, "_G")
     lua_pushvalue(L, env)
     lua_rawset(L, env)
@@ -1084,6 +1100,13 @@ proc newModEnv*(base: ScriptTable): ScriptTable =
     discard lua_setmetatable(L, env)
     lua_pop(L, 1)   # base
     result = ScriptTable(r: refTop(L))
+
+proc tableKeysOf*(base: ScriptTable): seq[string] =
+  ## The string keys of `base` whose values are tables (the game's libraries,
+  ## for newModEnv's `extra`).
+  for (k, v) in entries(base):
+    if k.kind == vkString and v.kind == vkTable and k.str.s notin Libraries:
+      result.add(k.str.s)
 
 proc scriptMemoryUsed*(): int = memUsed
 

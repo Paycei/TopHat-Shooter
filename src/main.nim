@@ -1,6 +1,8 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
+import draw_prims, post_fx
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, input_intent, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
-import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_api], ui/mods_window
+import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples, mod_registry], ui/mods_window
+import ui/ui_theme
 
 when defined(mobile):
   import mobile_controls  # updateMobileControls / drawMobileControls hooks
@@ -19,21 +21,24 @@ var
   globalConfirmActive      = false
   globalConfirmContext     = cdcQuitToMenu
   globalConfirmRunMode     = gmWaveBased  # Mode of the run an abandon-checkpoint prompt is about
+  globalConfirmRunEnds     = false  # the run being left cannot be resumed (a mod's modRunResumable)
   globalConfirmFrameGuard  = 0.0'f32  # Prevents Q from instantly confirming on dialog open
   globalConfirmMouseGuard  = 0.0'f32  # anti-accident cooldown before mouse/button click is accepted
 
 const DEFAULT_CONFIRM_COOLDOWN = 1.5'f32  # standard anti-accident window (seconds)
 
 proc showGlobalConfirm(ctx: ConfirmDialogContext, cooldown: float32 = DEFAULT_CONFIRM_COOLDOWN,
-                       runMode: GameMode = gmWaveBased) =
+                       runMode: GameMode = gmWaveBased, runEnds = false) =
   ## `cooldown` is the seconds the YES button stays greyed out / counts down before it
   ## accepts a click. Pass 0.0 to make confirmation immediate (e.g. the main-menu Quit
   ## icon, where there's no in-progress run to protect). Defaults to the standard window
   ## so in-game quits keep the anti-accident delay. `runMode` words the abandon-restart
   ## prompt: wave mode restarts at wave 1, the other modes start a new run.
+  ## `runEnds`: leaving ends a run a mod made unresumable, instead of saving it.
   globalConfirmActive     = true
   globalConfirmContext    = ctx
   globalConfirmRunMode    = runMode
+  globalConfirmRunEnds    = runEnds
   globalConfirmFrameGuard = 0.15'f32  # Absorbs the key that opened the dialog
   globalConfirmMouseGuard = max(0.0'f32, cooldown)
 
@@ -57,24 +62,26 @@ proc drawGlobalConfirmDialog(): int =
   const BW: int32 = 170; const BH: int32 = 42
   beginUIScaleMode(overlayUIScaleFor(DW, DH))
   defer: endUIScaleMode()
+  let themedDialog = beginThemeLayer()
+  defer: endThemeLayer(themedDialog)
   let viewW = getVirtualScreenWidth(); let viewH = getVirtualScreenHeight()
   let mp = getVirtualMousePosition()
   let dx = (viewW - DW) div 2; let dy = (viewH - DH) div 2
 
   drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 160))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
-  drawRectangle(dx, dy, DW, DH, Color(r: 18, g: 22, b: 32, a: 255))
-  drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
-                     3, Color(r: 255, g: 80, b: 80, a: 255))
+  drawRectangle(dx, dy, DW, DH, uiSurface(18, 22, 32))
+  drawRectOutline(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
+                     3, uiLine(255, 80, 80))
 
   let tbH: int32 = 36
-  drawRectangle(dx, dy, DW, tbH, Color(r: 120, g: 28, b: 28, a: 255))
+  drawRectangle(dx, dy, DW, tbH, uiSurface(120, 28, 28))
   let titleStr = case globalConfirmContext
                  of cdcQuitToDesktop: t(tkConfirmQuitTitle)
                  of cdcQuitToMenu, cdcPostGameExit: t(tkConfirmExitTitle)
                  of cdcAbandonRestart, cdcAbandonExit: t(tkConfirmCheckpointTitle)
   let tW = measureText(titleStr, 16)
-  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, Color(r: 255, g: 200, b: 200, a: 255))
+  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, uiInk(255, 200, 200))
 
   let bodyStr = case globalConfirmContext
                 of cdcQuitToDesktop: t(tkConfirmQuitBody)
@@ -83,17 +90,19 @@ proc drawGlobalConfirmDialog(): int =
                   if globalConfirmRunMode == gmWaveBased: t(tkConfirmCheckpointRestartBody)
                   else: t(tkConfirmCheckpointNewRunBody)
   let bW = measureText(bodyStr, 19)
-  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, White)
+  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 24, 19, uiInk(White))
   # cdcPostGameExit has no subtitle: the run is already over and results are
   # already persisted, so there's no "unsaved progress" to warn about.
   let subStr = if globalConfirmContext in {cdcAbandonRestart, cdcAbandonExit}:
                  t(tkConfirmCheckpointSub)
                elif globalConfirmContext == cdcPostGameExit:
                  ""
+               elif globalConfirmRunEnds:
+                 t(tkConfirmRunEnds)
                else:
                  t(tkConfirmUnsaved)
   let sW = measureText(subStr, 13)
-  drawText(subStr, dx + (DW - sW) div 2, dy + tbH + 54, 13, Color(r: 200, g: 150, b: 150, a: 255))
+  drawText(subStr, dx + (DW - sW) div 2, dy + tbH + 54, 13, uiInk(200, 150, 150))
 
   let btnY = dy + DH - BH - 22
   let noX  = dx + (DW div 2) - BW - 12
@@ -104,23 +113,23 @@ proc drawGlobalConfirmDialog(): int =
   let keyReady   = globalConfirmMouseGuard  <= 0.0 and globalConfirmFrameGuard <= 0.0
 
   drawRectangle(noX, btnY, BW, BH,
-    if noHov: Color(r: 0, g: 145, b: 0, a: 255) else: Color(r: 0, g: 105, b: 0, a: 255))
-  drawRectangleLines(Rectangle(x: noX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+    if noHov: uiSurface(0, 145, 0) else: uiSurface(0, 105, 0))
+  drawRectOutline(Rectangle(x: noX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if noHov: 3 else: 2,
-    if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 195, b: 55, a: 255))
+    if noHov: uiLine(0, 255, 100) else: uiLine(0, 195, 55))
   let noTxt = t(tkConfirmCancelBtn); let nTW = measureText(noTxt, 14)
-  drawText(noTxt, noX + (BW - nTW) div 2, btnY + 13, 14, White)
+  drawText(noTxt, noX + (BW - nTW) div 2, btnY + 13, 14, uiInk(White))
 
   # YES button greyed out while mouse cooldown is active
-  let yesBg = if not mouseReady: Color(r: 90, g: 90, b: 90, a: 255)
-              elif yesHov:       Color(r: 158, g: 38, b: 38, a: 255)
-              else:              Color(r: 118, g: 28, b: 28, a: 255)
+  let yesBg = if not mouseReady: uiSurface(90, 90, 90)
+              elif yesHov:       uiSurface(158, 38, 38)
+              else:              uiSurface(118, 28, 28)
   drawRectangle(yesX, btnY, BW, BH, yesBg)
-  drawRectangleLines(Rectangle(x: yesX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+  drawRectOutline(Rectangle(x: yesX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if yesHov and mouseReady: 3 else: 2,
-    if not mouseReady:        Color(r: 140, g: 140, b: 140, a: 255)
-    elif yesHov:              Color(r: 255, g: 100, b: 100, a: 255)
-    else:                     Color(r: 195, g: 55, b: 55, a: 255))
+    if not mouseReady:        uiLine(140, 140, 140)
+    elif yesHov:              uiLine(255, 100, 100)
+    else:                     uiLine(195, 55, 55))
   # Show countdown while cooling down, normal label once ready
   let yesTxt = if not mouseReady: $(int(ceil(globalConfirmMouseGuard)))
                else:
@@ -129,7 +138,7 @@ proc drawGlobalConfirmDialog(): int =
                  of cdcQuitToMenu, cdcAbandonExit, cdcPostGameExit: t(tkConfirmExitBtn)
                  of cdcAbandonRestart: t(tkConfirmRestartBtn)
   let yTW = measureText(yesTxt, 14)
-  drawText(yesTxt, yesX + (BW - yTW) div 2, btnY + 13, 14, White)
+  drawText(yesTxt, yesX + (BW - yTW) div 2, btnY + 13, 14, uiInk(White))
 
   var decision = 0
   if isPointerPressed():
@@ -163,25 +172,27 @@ proc drawResumeDialog(): int =
   const BW: int32 = 180; const BH: int32 = 44
   beginUIScaleMode(overlayUIScaleFor(DW, DH))
   defer: endUIScaleMode()
+  let themedDialog = beginThemeLayer()
+  defer: endThemeLayer(themedDialog)
   let viewW = getVirtualScreenWidth(); let viewH = getVirtualScreenHeight()
   let mp = getVirtualMousePosition()
   let dx = (viewW - DW) div 2; let dy = (viewH - DH) div 2
 
   drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 170))
   drawRectangle((dx+7).int32, (dy+7).int32, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
-  drawRectangle(dx, dy, DW, DH, Color(r: 16, g: 24, b: 34, a: 255))
-  drawRectangleLines(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
-                     3, Color(r: 0, g: 200, b: 255, a: 255))
+  drawRectangle(dx, dy, DW, DH, uiSurface(16, 24, 34))
+  drawRectOutline(Rectangle(x: dx.float32, y: dy.float32, width: DW.float32, height: DH.float32),
+                     3, uiLine(0, 200, 255))
 
   let tbH: int32 = 36
-  drawRectangle(dx, dy, DW, tbH, Color(r: 20, g: 70, b: 100, a: 255))
+  drawRectangle(dx, dy, DW, tbH, uiSurface(20, 70, 100))
   let titleStr = t(tkResumeRunTitle)
   let tW = measureText(titleStr, 16)
-  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, Color(r: 200, g: 240, b: 255, a: 255))
+  drawText(titleStr, dx + (DW - tW) div 2, dy + 9, 16, uiInk(200, 240, 255))
 
   let bodyStr = t(tkResumeRunBody)
   let bW = measureText(bodyStr, 17)
-  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 34, 17, White)
+  drawText(bodyStr, dx + (DW - bW) div 2, dy + tbH + 34, 17, uiInk(White))
 
   let btnY = dy + DH - BH - 22
   let newX = dx + (DW div 2) - BW - 12
@@ -191,21 +202,21 @@ proc drawResumeDialog(): int =
 
   # New Run (amber: discards the save)
   drawRectangle(newX, btnY, BW, BH,
-    if newHov: Color(r: 150, g: 95, b: 0, a: 255) else: Color(r: 110, g: 70, b: 0, a: 255))
-  drawRectangleLines(Rectangle(x: newX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+    if newHov: uiSurface(150, 95, 0) else: uiSurface(110, 70, 0))
+  drawRectOutline(Rectangle(x: newX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if newHov: 3 else: 2,
-    if newHov: Color(r: 255, g: 180, b: 60, a: 255) else: Color(r: 200, g: 140, b: 40, a: 255))
+    if newHov: uiLine(255, 180, 60) else: uiLine(200, 140, 40))
   let newTxt = t(tkResumeNewRun); let nTW = measureText(newTxt, 14)
-  drawText(newTxt, newX + (BW - nTW) div 2, btnY + 14, 14, White)
+  drawText(newTxt, newX + (BW - nTW) div 2, btnY + 14, 14, uiInk(White))
 
   # Continue (cyan: resume)
   drawRectangle(contX, btnY, BW, BH,
-    if contHov: Color(r: 0, g: 130, b: 165, a: 255) else: Color(r: 0, g: 95, b: 125, a: 255))
-  drawRectangleLines(Rectangle(x: contX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
+    if contHov: uiSurface(0, 130, 165) else: uiSurface(0, 95, 125))
+  drawRectOutline(Rectangle(x: contX.float32, y: btnY.float32, width: BW.float32, height: BH.float32),
     if contHov: 3 else: 2,
-    if contHov: Color(r: 80, g: 220, b: 255, a: 255) else: Color(r: 0, g: 180, b: 220, a: 255))
+    if contHov: uiLine(80, 220, 255) else: uiLine(0, 180, 220))
   let contTxt = t(tkResumeContinue); let cTW = measureText(contTxt, 14)
-  drawText(contTxt, contX + (BW - cTW) div 2, btnY + 14, 14, White)
+  drawText(contTxt, contX + (BW - cTW) div 2, btnY + 14, 14, uiInk(White))
 
   var decision = 0
   if isPointerPressed():
@@ -478,19 +489,32 @@ proc endGameDrawing() =
   popMatrix()
   endTextureMode()
 
+  # Built-in post-processing (post_fx.nim): the glow is built off-screen first.
+  # A mod's post shader still runs last, over the composited frame.
+  let fxLevel = if globalSettings.isNil: pfxFull else: globalSettings.postFxLevel
+  let fx = postFxEnabled(fxLevel)
+  let modShader = postShaderActive()
+  var frame = addr renderTarget.texture   # a pointer: raylib textures can't be copied
+  if fx:
+    preparePostFx(renderTarget.texture, screenWidth.int32, screenHeight.int32)
+    if modShader: frame = composeToTexture(fxLevel, renderTarget.texture)
+
   beginDrawing()
   clearBackground(Black)  # Black bars for letterboxing
 
   # Draw the scaled render texture (through a mod's post-process shader, if any)
   let source = Rectangle(x: 0, y: 0,
-                         width: renderTarget.texture.width.float32,
-                         height: -renderTarget.texture.height.float32)
+                         width: frame[].width.float32,
+                         height: -frame[].height.float32)
   let dest = Rectangle(x: renderOffsetX, y: renderOffsetY,
                        width: screenWidth.float32 * renderScale,
                        height: screenHeight.float32 * renderScale)
-  let modShaded = beginPostShader(dest.width, dest.height, getTime().float32)
-  drawTexture(renderTarget.texture, source, dest, Vector2(x: 0, y: 0), 0, White)
-  if modShaded: endShaderMode()
+  if fx and not modShader:
+    drawComposited(fxLevel, frame[], source, dest)
+  else:
+    let modShaded = beginPostShader(dest.width, dest.height, getTime().float32)
+    drawTexture(frame[], source, dest, Vector2(x: 0, y: 0), 0, White)
+    if modShaded: endShaderMode()
 
   endDrawing()
 
@@ -620,20 +644,44 @@ proc drawCustomCursor*(time: float32) =
     let angle = time * 4.0 + i.float32 * PI / 4.0
     let x = mousePos.x + cos(angle) * cursorPulse
     let y = mousePos.y + sin(angle) * cursorPulse
-    drawCircle(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
+    drawDisc(Vector2(x: x, y: y), 2, Color(r: 255'u8, g: 200'u8, b: 50'u8, a: 200'u8))
 
   # Crosshair lines
-  drawLine(Vector2(x: mousePos.x - 8, y: mousePos.y),
+  drawStroke(Vector2(x: mousePos.x - 8, y: mousePos.y),
           Vector2(x: mousePos.x - 3, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x + 3, y: mousePos.y),
+  drawStroke(Vector2(x: mousePos.x + 3, y: mousePos.y),
           Vector2(x: mousePos.x + 8, y: mousePos.y), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y - 8),
+  drawStroke(Vector2(x: mousePos.x, y: mousePos.y - 8),
           Vector2(x: mousePos.x, y: mousePos.y - 3), 2, White)
-  drawLine(Vector2(x: mousePos.x, y: mousePos.y + 3),
+  drawStroke(Vector2(x: mousePos.x, y: mousePos.y + 3),
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
 
   # Center dot
-  drawCircle(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
+  drawDisc(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
+
+proc drawCknPointer(pos: Vector2) =
+  ## CKN OS's pointer: a plain white arrow with an ink rim, tip on the spot.
+  const outline = [(0.0, 0.0), (0.0, 17.0), (4.2, 13.2), (7.2, 19.6),
+                   (10.0, 18.4), (7.1, 12.1), (12.4, 12.1)]
+  const fill = [(0, 1, 2), (0, 2, 5), (0, 5, 6), (2, 3, 4), (2, 4, 5)]
+  proc at(i: int, dx = 0.0'f32, dy = 0.0'f32): Vector2 =
+    Vector2(x: pos.x + outline[i][0].float32 + dx, y: pos.y + outline[i][1].float32 + dy)
+  proc tri(a, b, c: Vector2, col: Color) =
+    # raylib only fills one winding; take the triangle either way round.
+    if (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) < 0.0'f32: drawTriangle(a, b, c, col)
+    else: drawTriangle(a, c, b, col)
+  for (a, b, c) in fill:
+    tri(at(a, 1.5, 2.0), at(b, 1.5, 2.0), at(c, 1.5, 2.0), withAlpha(CknShadow, 80))
+  for (a, b, c) in fill:
+    tri(at(a), at(b), at(c), White)
+  for i in 0 ..< outline.len:
+    drawStroke(at(i), at((i + 1) mod outline.len), 1.4'f32, CknInk)
+
+proc drawDesktopCursor(time: float32) =
+  ## The pointer over the desktop and its windows, in the interface theme.
+  case activeTheme().shell
+  of ssTopHat: drawCustomCursor(time)
+  of ssCkn: drawCknPointer(getVirtualMousePosition())
 
 proc isBondingGameplayState(state: GameState): bool =
   state in {gsPlaying, gsDeathSequence, gsPaused, gsShop, gsGameOver, gsCountdown,
@@ -642,6 +690,53 @@ proc isBondingGameplayState(state: GameState): bool =
 
 proc isBondingCombatState(state: GameState): bool =
   state in {gsPlaying, gsPvPPlaying}
+
+proc modeTheme(mode: GameMode): MusicTrack =
+  ## The music a run plays between bosses: Survival and Roguelite have their
+  ## own themes, everything else fights to the wave theme.
+  case mode
+  of gmTimeSurvival: mtSurvival
+  of gmRoguelite: mtRoguelite
+  of gmWaveBased, gmSandbox, gmPvP: mtWave
+
+proc runMusic(game: Game): MusicTrack =
+  ## A boss fight in any mode takes the boss theme.
+  if game.bossWaveManager.isBossActive(): mtBoss
+  else: modeTheme(game.mode)
+
+proc bossMusicTier(phase, phases: int, hpFraction: float32): int =
+  ## The boss theme climbs as the boss loses phases: its sparest arrangement
+  ## for the first phase, the fullest for the last, the middle one between. A
+  ## boss with a single phase turns at half its HP.
+  if phases <= 1: (if hpFraction > 0.5: 0 else: 2)
+  elif phase <= 0: 0
+  elif phase >= phases - 1: 2
+  else: 1
+
+proc runMusicTier(game: Game): int =
+  ## Which arrangement of the run's theme plays (see TIERS in sound.nim): the
+  ## music follows the run's progress and the boss's phases.
+  if game.bossWaveManager.isBossActive():
+    for enemy in game.enemies:
+      if enemy.isBoss:
+        return bossMusicTier(enemy.currentPhaseIndex, enemy.bossPhaseHpPools.len,
+                             enemy.hp / max(enemy.maxHp, 1.0'f32))
+    return 0
+  case game.mode
+  of gmTimeSurvival:
+    min(ord(survivalPhase(game)), 3)   # Overtime keeps Kernel Panic's
+  of gmRoguelite:
+    let room = currentDungeonRoom(game.rogueliteRun)
+    if room.isNil: 0
+    else:
+      case room.kind
+      of drkStart, drkShop: 0
+      of drkCombat: 1
+      of drkElite, drkBoss: 2
+  of gmWaveBased, gmSandbox, gmPvP:
+    if game.currentWave > 40: 2
+    elif game.currentWave > 20: 1
+    else: 0
 
 proc isMenuOrGameState(state: GameState): bool =
   ## Every bonding gameplay state, plus the pre-game menus.
@@ -732,7 +827,7 @@ proc main() =
   else:
     setConfigFlags(flags(WindowResizable))
 
-  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v6.3 Edition")
+  initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v6.4 Edition")
   setTargetFPS(targetFPS)
   setExitKey(Null)
   when defined(android):
@@ -823,6 +918,9 @@ proc main() =
   reloadMods(settings.enabledMods, settings.modCosmetics)
   if modsActive:
     initializeAllCosmetics()
+  # Installed example mods this build ships newer versions of: toasted once,
+  # on the first desktop visit (MODS.EXE tags them and says how to update).
+  var exampleUpdateCount = exampleUpdates().len
 
   let cheatMenu = initCheatMenu()
 
@@ -858,6 +956,7 @@ proc main() =
   var advancementSyncTimer = 0.0'f32  # Throttle for mid-run advancement checks
   var fullscreenToggleRequested = false  # Flag to request fullscreen toggle on next frame
   var lastFullscreenToggleTime = 0.0  # Debouncing for F11 key
+  var musicMuffled = false  # Critical health muffles the music (see setMusicMuffled)
   var appliedHudLayout = settings.hudLayout  # Last virtual-resolution applied to the window/pipeline
   # Last desktop-layer UI scale the windows were laid out for. Starts at 0 (an
   # impossible scale) so the first frame always lays them out for the saved one,
@@ -946,7 +1045,8 @@ proc main() =
         name: (if spanish and m.nameEs.len > 0: m.nameEs else: m.nameEn),
         description: (if spanish and m.descEs.len > 0: m.descEs else: m.descEn),
         modName: modName, baseName: baseName,
-        canContinue: hasSuspendSnapshot(m.base, m.key) or hasSavedRun(m.base, m.key) or
+        # A mode a mod made unresumable offers no saved run, only a restore point.
+        canContinue: (m.resumable and (hasSuspendSnapshot(m.base, m.key) or hasSavedRun(m.base, m.key))) or
                      hasBlockCheckpoint(m.base, m.key)))
   refreshModsWindow(globalWindowManager.mods)
   # Pre-load saved nickname into pvp window and host network manager
@@ -982,6 +1082,7 @@ proc main() =
     ## system from that profile's folder. Settings/stats are mutated in place
     ## (they are refs shared with the window manager); the advancement and
     ## roguelite profiles are replaced and re-propagated like elsewhere.
+    saveAllModStorage()   # the old profile's mod.storage, into the old profile's folder
     activeProfileSlot = slot
     setLastUsedProfileSlot(slot)
     currentDifficulty = loadProfileDifficulty(slot)
@@ -1133,12 +1234,46 @@ proc main() =
 
   proc checkpointLiveRun(game: Game) =
     ## Leaving a live run for the menu: checkpoint it so it can be resumed, or,
-    ## when it cannot be (see isUnresumableWonRun), record it as ended.
+    ## when it cannot be (see isUnresumableWonRun), record it as ended. A run a
+    ## mod made unresumable (modRunResumable) ends here too. Quitting is never a
+    ## loss, so it is recorded with died = false (no death counted; that is not a
+    ## win either: only the victory paths make one). Its saves are refused (and
+    ## older ones dropped) by saveRunState / suspendGame.
     if isUnresumableWonRun(game):
+      freezeRunTime(game)
+      persistRunResults(game, died = false)
+    elif not modRunResumable(game) and
+         game.state in {gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared,
+                        gsPowerUpSelect, gsRogueliteFloorSelect}:
       freezeRunTime(game)
       persistRunResults(game, died = false)
     saveRunState(game)
     suspendGame(game)  # Exact mid-run snapshot (primary resume path).
+
+  proc tickLifeLost(game: Game, dt: float32) =
+    ## Advance the "restore point spent" animation (consumeContinueLife arms it)
+    ## and fire its three cues off the same phase constants the drawing reads,
+    ## so each lands on the beat it describes: the drive being addressed, the
+    ## platter coasting down, and the break itself. The caller holds the run
+    ## still while it plays: the 2D countdown, or a 3D world's first frame.
+    game.lifeLostTimer = max(0.0'f32, game.lifeLostTimer - dt)
+    let lifeLostP = 1.0'f32 - game.lifeLostTimer / LifeLostAnimDuration
+    if game.lifeLostSoundStage < 1:
+      playSound(stRestoreAccess)
+      game.lifeLostSoundStage = 1
+    if game.lifeLostSoundStage < 2 and lifeLostP >= LifeLostCrackStart:
+      playSound(stRestoreSpinDown)
+      game.lifeLostSoundStage = 2
+    if game.lifeLostSoundStage < 3 and lifeLostP >= LifeLostShatterStart:
+      playSound(stRestoreShatter)
+      game.lifeLostSoundStage = 3
+
+  proc enterModWorld(game: Game, resumed: bool): bool =
+    ## A run of a base = "3d" mod game mode lives in its world, never on the 2D
+    ## arena: (re)enter it, fresh or continued. False for any other run.
+    if not modModeIs3D(game.modMode): return false
+    enterWorld3D(game, World3DOptions(modeKey: game.modMode, resumed: resumed))
+    true
 
   proc openRunStatsWindow() =
     ## Route the post-run "View Stats" action into the desktop stats window,
@@ -1167,6 +1302,17 @@ proc main() =
   var windowCloseRequested = false  # True once the OS close button is clicked
 
   while not windowCloseRequested:
+    # Mods: a mod that keeps blowing its per-frame script budget (in a run, on
+    # the desktop, in an app) is switched off; last frame's times are judged here.
+    modFrameCheck()
+    # Mod achievements unlocked last frame: a toast over the run, or on the desktop.
+    if advancementToasts.len > 0:
+      for msg in advancementToasts:
+        if not currentGame.isNil and isActiveRunState(currentGame.state):
+          currentGame.pendingToasts.add(msg)
+        else:
+          modNotices.add(msg)
+      advancementToasts.setLen(0)
     # Re-arm windowShouldClose each iteration; show confirm instead of quitting directly
     if windowShouldClose():
       let isInGame = currentGame.state in {gsPlaying, gsPaused, gsShop, gsCountdown,
@@ -1180,7 +1326,7 @@ proc main() =
       # Shutdown.exe icon).
       if settings.exitConfirmEnabled and isInGame and not isSandboxMode(currentGame.mode):
         if not globalConfirmActive:
-          showGlobalConfirm(cdcQuitToDesktop)
+          showGlobalConfirm(cdcQuitToDesktop, runEnds = not modRunResumable(currentGame))
       elif settings.exitConfirmEnabled and
            (currentGame.state in {gsMenu, gsGameOver, gsVictory, gsRunStats} or
             isSandboxMode(currentGame.mode)):
@@ -1285,8 +1431,18 @@ proc main() =
     setGamepadCursorMode(
       if currentGame.state in {gsPlaying, gsPvPPlaying} and
          not isSandboxMode(currentGame.mode) and
-         not globalConfirmActive: cmGameplayAim
+         not globalConfirmActive and not modUiHoldsInput(): cmGameplayAim
       else: cmMenuCursor)
+
+    # Mods' 2D camera (camera.zoom): only over a PvE run on the arena; the
+    # identity camera everywhere else (desktop, PvP, 3D worlds).
+    if not currentGame.isNil and currentGame.mode != gmPvP and currentGame.state != gs3DBoss and
+       isActiveRunState(currentGame.state) and currentGame.modWorld.camZoom > 1.0'f32:
+      setWorldCamera(currentGame.modWorld.camZoom, currentGame.modWorld.camCurX,
+                     currentGame.modWorld.camCurY, currentGame.screenWidth.float32,
+                     currentGame.screenHeight.float32)
+    else:
+      clearWorldCamera()
 
     # Tick down the global confirm guards
     if globalConfirmFrameGuard > 0:
@@ -1323,9 +1479,23 @@ proc main() =
          mobilePrevState in GameplayTouchStates:
         resetMobileControls()
       mobilePrevState = currentGame.state
+    # Critical health muffles the music while you fight: on at 25% of max HP,
+    # off again above 30% so regeneration ticks around the line don't flicker it.
+    let hpFraction =
+      case currentGame.state
+      of gsPlaying, gsDeathSequence:
+        currentGame.player.hp / max(currentGame.player.maxHp, 1.0'f32)
+      of gs3DBoss:
+        if activeWorld3D.isNil: 1.0'f32
+        else: activeWorld3D.player.health / max(activeWorld3D.player.maxHealth, 1.0'f32)
+      else: 1.0'f32
+    musicMuffled = if musicMuffled: hpFraction <= 0.30'f32 else: hpFraction <= 0.25'f32
+    setMusicMuffled(musicMuffled)
 
     # Update music stream (required for continuous playback)
     updateMusic()
+    # Mod videos and music: decoded and uploaded here, before anything draws.
+    updateModMedia(isActiveRunState(currentGame.state))
 
     # Handle fullscreen toggle with F11 (borderless window) with debouncing
     let currentTime = getTime()
@@ -1416,6 +1586,11 @@ proc main() =
           # Fresh profile: pick a language before the intro cinematic.
           currentGame.state = gsLanguageSelect
           languageSelectGuard = 0.18'f32
+        elif storyPending(settings, scIntro):
+          # An older save meeting a rewritten story: the language is already
+          # chosen, so the new intro plays straight away (once).
+          loreCinematic = newLoreCinematic()
+          currentGame.state = gsLoreIntro
         else:
           currentGame.state = gsMenu
 
@@ -1463,11 +1638,17 @@ proc main() =
       endGameDrawing()
 
     of gsLoreIntro:
-      # Tense score under the cinematic. Hold SPACE (3s) to skip, ENTER for 2x.
-      playMusic(mtBoss)
+      # The cutscene plays its own score (updateCutscene). Hold SPACE (3s) to
+      # skip, ENTER for 2x.
       updateLoreCinematic(loreCinematic, dt)
       if loreCinematic.complete:
-        settings.hasSeenIntro = true
+        # An older save that already unlocked endings gets pointed at their new
+        # versions (Settings > Cinematics marks them NEW until watched).
+        if settings.hasSeenIntro and settings.storySeen[scIntro] < StoryVersion and
+           (storyOutdated(settings, scWaveEnding) or storyOutdated(settings, scRogueliteEnding) or
+            storyOutdated(settings, scSurvivalEnding)):
+          showDesktopToast(osDesktop, t(tkStoryNewRecordings))
+        markStorySeen(settings, scIntro)
         discard saveSettings(settings)
         loreCinematic = newLoreCinematic()  # reset for safety
         currentGame.state = gsMenu
@@ -1482,13 +1663,12 @@ proc main() =
       if not endgameCinematicArmed:
         endgameCinematic = newEndgameCinematic()
         endgameCinematicArmed = true
-      playMusic(mtMenu)  # calmer score than the tense intro's boss theme
-      updateEndgameCinematic(endgameCinematic, dt)
+      updateEndgameCinematic(endgameCinematic, dt)  # drives its own score
       if endgameCinematic.complete:
         endgameCinematicArmed = false
-        if not settings.hasSeenEnding:
-          settings.hasSeenEnding = true
-          discard saveSettings(settings)
+        # Replays count too: watching the current version clears its NEW tag.
+        markStorySeen(settings, scWaveEnding)
+        discard saveSettings(settings)
         if endgameReplayMode:
           # Replayed from the desktop: there is no active run to congratulate.
           endgameReplayMode = false
@@ -1507,13 +1687,12 @@ proc main() =
       if not rogueliteEndCinematicArmed:
         rogueliteEndCinematic = newRogueliteEndCinematic()
         rogueliteEndCinematicArmed = true
-      playMusic(mtMenu)
-      updateRogueliteEndCinematic(rogueliteEndCinematic, dt)
+      updateRogueliteEndCinematic(rogueliteEndCinematic, dt)  # drives its own score
       if rogueliteEndCinematic.complete:
         rogueliteEndCinematicArmed = false
-        if not settings.hasSeenRogueliteEnding:
-          settings.hasSeenRogueliteEnding = true
-          discard saveSettings(settings)
+        # Replays count too: watching the current version clears its NEW tag.
+        markStorySeen(settings, scRogueliteEnding)
+        discard saveSettings(settings)
         if rogueliteEndReplayMode:
           # Replayed from the desktop: there is no active run to send off.
           rogueliteEndReplayMode = false
@@ -1532,13 +1711,17 @@ proc main() =
       if not survivalEndCinematicArmed:
         survivalEndCinematic = newSurvivalEndCinematic()
         survivalEndCinematicArmed = true
-      playMusic(mtMenu)
-      updateSurvivalEndCinematic(survivalEndCinematic, dt)
+      updateSurvivalEndCinematic(survivalEndCinematic, dt)  # drives its own score
       if survivalEndCinematic.complete:
         survivalEndCinematicArmed = false
-        if not settings.hasSeenSurvivalEnding:
-          settings.hasSeenSurvivalEnding = true
-          discard saveSettings(settings)
+        # The last story recording installs CKN OS; watching it the first time
+        # unlocks that as an interface theme (ui_theme.themeUnlocked).
+        let firstWatch = not themeUnlocked(findTheme("ckn"))
+        # Replays count too: watching the current version clears its NEW tag.
+        markStorySeen(settings, scSurvivalEnding)
+        discard saveSettings(settings)
+        if firstWatch and themeUnlocked(findTheme("ckn")):
+          showDesktopToast(osDesktop, t(tkThemeUnlockedToast))
         if survivalEndReplayMode:
           survivalEndReplayMode = false
           currentGame.state = gsMenu
@@ -1558,8 +1741,7 @@ proc main() =
       if activeCutscene.isNil:
         currentGame.state = gsMenu
       else:
-        playMusic(activeCutscene.musicTrack)
-        updateCutscene(activeCutscene, dt)
+        updateCutscene(activeCutscene, dt)  # also drives the cutscene's music
         if activeCutscene.complete:
           case cutsceneContinuation
           of cscMenu:
@@ -1786,7 +1968,9 @@ proc main() =
               currentGame.rogueliteProfile = rogueliteProfile
             var resumed = false
             if pendingResume:
-              if hasSuspendSnapshot(md.base, md.key):
+              # A mode a mod made unresumable resumes no saved run, only a
+              # restore point (saveRunState / suspendGame drop a leftover one).
+              if md.resumable and hasSuspendSnapshot(md.base, md.key):
                 if restoreGame(currentGame):
                   if currentGame.state == gsPlaying:
                     currentGame.state = gsCountdown
@@ -1795,7 +1979,7 @@ proc main() =
                   resumed = true
                 else:
                   deleteSuspendSnapshot(md.base, md.key)
-              if not resumed and applySavedRun(currentGame):
+              if not resumed and md.resumable and applySavedRun(currentGame):
                 initializeRunTracking(currentGame)
                 currentGame.selectedRogueliteTheme = 0
                 resumed = true
@@ -1901,6 +2085,11 @@ proc main() =
           .replace("$2", $pendingProfileRefund.cores))
         pendingProfileRefund = (0, 0)
 
+      if exampleUpdateCount > 0 and osDesktop.toasts.len < MAX_DESKTOP_TOASTS and
+         not globalConfirmActive:
+        showDesktopToast(osDesktop, t(tkModsUpdatesToast).replace("$1", $exampleUpdateCount))
+        exampleUpdateCount = 0
+
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
       var action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive and
                       not globalWindowManager.wantsTextInput(): handleDesktopInput(osDesktop, currentGame) else: -1
@@ -1955,6 +2144,15 @@ proc main() =
         elif updateResult.replaySandboxIntro: intro = newSandboxIntroCutscene()
         elif updateResult.replayPvPIntro: intro = newPvPIntroCutscene()
         if intro != nil and not globalConfirmActive:
+          # Watching the current version from Settings clears its NEW tag.
+          let watched =
+            if updateResult.replayWaveIntro: scWaveIntro
+            elif updateResult.replaySurvivalIntro: scSurvivalIntro
+            elif updateResult.replayRogueliteIntro: scRogueliteIntro
+            elif updateResult.replaySandboxIntro: scSandboxIntro
+            else: scPvPIntro
+          markStorySeen(settings, watched)
+          discard saveSettings(settings)
           activeCutscene = intro
           cutsceneContinuation = cscMenu
           currentGame.state = gsCutscene
@@ -1967,8 +2165,8 @@ proc main() =
 
       # Handle roguelite window Start button, show loading screen then enter game
       if updateResult.rogueliteLaunchGame and not globalConfirmActive:
-        if not settings.hasSeenRogueliteIntro:
-          settings.hasSeenRogueliteIntro = true
+        if storyPending(settings, scRogueliteIntro):
+          markStorySeen(settings, scRogueliteIntro)
           discard saveSettings(settings)
           activeCutscene = newRogueliteIntroCutscene()
           cutsceneContinuation = cscLaunchGame
@@ -2146,8 +2344,8 @@ proc main() =
         playSound(stMenuSelect)
         case action
         of 0:  # Play.exe - Wave-Based Mode
-          if not settings.hasSeenWaveModeIntro:
-            settings.hasSeenWaveModeIntro = true
+          if storyPending(settings, scWaveIntro):
+            markStorySeen(settings, scWaveIntro)
             discard saveSettings(settings)
             activeCutscene = newWaveIntroCutscene()
             cutsceneContinuation = cscDesktopIcon
@@ -2163,8 +2361,8 @@ proc main() =
             startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
             pendingGameMode = 0
         of 1:  # Survival.exe - Time Survival Mode
-          if not settings.hasSeenSurvivalIntro:
-            settings.hasSeenSurvivalIntro = true
+          if storyPending(settings, scSurvivalIntro):
+            markStorySeen(settings, scSurvivalIntro)
             discard saveSettings(settings)
             activeCutscene = newSurvivalIntroCutscene()
             cutsceneContinuation = cscDesktopIcon
@@ -2197,8 +2395,8 @@ proc main() =
           else:
             windowCloseRequested = true
         of 7:  # Sandbox.exe - Open Sandbox Setup Window
-          if not settings.hasSeenSandboxIntro:
-            settings.hasSeenSandboxIntro = true
+          if storyPending(settings, scSandboxIntro):
+            markStorySeen(settings, scSandboxIntro)
             discard saveSettings(settings)
             activeCutscene = newSandboxIntroCutscene()
             cutsceneContinuation = cscDesktopIcon
@@ -2209,8 +2407,8 @@ proc main() =
             resetSandboxWindow(globalWindowManager.sandbox)
             playSound(stMenuSelect)
         of 8:  # PvP.exe - Open PvP Window
-          if not settings.hasSeenPvPIntro:
-            settings.hasSeenPvPIntro = true
+          if storyPending(settings, scPvPIntro):
+            markStorySeen(settings, scPvPIntro)
             discard saveSettings(settings)
             activeCutscene = newPvPIntroCutscene()
             cutsceneContinuation = cscDesktopIcon
@@ -2256,7 +2454,7 @@ proc main() =
           let mi = findModMode(osDesktop.launchModKey)
           if mi >= 0:
             let md = modModes[mi]
-            if hasSuspendSnapshot(md.base, md.key) or hasSavedRun(md.base, md.key) or
+            if (md.resumable and (hasSuspendSnapshot(md.base, md.key) or hasSavedRun(md.base, md.key))) or
                hasBlockCheckpoint(md.base, md.key):
               resumePromptActive = true
               resumePromptMode = md.base
@@ -2271,8 +2469,8 @@ proc main() =
         playSound(stMenuSelect)
         case updateResult.iconToExecute
           of 0:  # Play.exe - Wave-Based Mode
-            if not settings.hasSeenWaveModeIntro:
-              settings.hasSeenWaveModeIntro = true
+            if storyPending(settings, scWaveIntro):
+              markStorySeen(settings, scWaveIntro)
               discard saveSettings(settings)
               activeCutscene = newWaveIntroCutscene()
               cutsceneContinuation = cscDesktopIcon
@@ -2288,8 +2486,8 @@ proc main() =
               startLoadingAnimation(osDesktop, "Launching Wave-Based Mode...")
               pendingGameMode = 0
           of 1:  # Survival.exe - Time Survival Mode
-            if not settings.hasSeenSurvivalIntro:
-              settings.hasSeenSurvivalIntro = true
+            if storyPending(settings, scSurvivalIntro):
+              markStorySeen(settings, scSurvivalIntro)
               discard saveSettings(settings)
               activeCutscene = newSurvivalIntroCutscene()
               cutsceneContinuation = cscDesktopIcon
@@ -2321,8 +2519,8 @@ proc main() =
             else:
               windowCloseRequested = true
           of 7:  # Sandbox.exe - Open Sandbox Setup Window
-            if not settings.hasSeenSandboxIntro:
-              settings.hasSeenSandboxIntro = true
+            if storyPending(settings, scSandboxIntro):
+              markStorySeen(settings, scSandboxIntro)
               discard saveSettings(settings)
               activeCutscene = newSandboxIntroCutscene()
               cutsceneContinuation = cscDesktopIcon
@@ -2333,8 +2531,8 @@ proc main() =
               resetSandboxWindow(globalWindowManager.sandbox)
               playSound(stMenuSelect)
           of 8:  # PvP.exe - Open PvP Window
-            if not settings.hasSeenPvPIntro:
-              settings.hasSeenPvPIntro = true
+            if storyPending(settings, scPvPIntro):
+              markStorySeen(settings, scPvPIntro)
               discard saveSettings(settings)
               activeCutscene = newPvPIntroCutscene()
               cutsceneContinuation = cscDesktopIcon
@@ -2461,7 +2659,7 @@ proc main() =
               pendingGameMode = 0
 
       # Draw custom cursor on menu
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -2476,10 +2674,7 @@ proc main() =
         updateMobileControls(dt)
 
       # Dynamic music based on game state
-      if currentGame.bossWaveManager.isBossActive():
-        playMusic(mtBoss)
-      else:
-        playMusic(mtWave)
+      playMusic(runMusic(currentGame), runMusicTier(currentGame))
 
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil and not cheatMenu.active:
@@ -2523,8 +2718,9 @@ proc main() =
         cheatMenu.active = false
         cheatCompleteRogueliteFloor(currentGame)
 
-      # A survival Data Cache reveal pauses the game like the cheat menu does.
-      let survivalRevealOpen = currentGame.survival.reveal.active
+      # A survival Data Cache reveal pauses the game like the cheat menu does;
+      # an open mod screen (ui.open) takes the gameplay input too.
+      let survivalRevealOpen = currentGame.survival.reveal.active or modUiHoldsInput()
 
       # Only process game input if cheat menu is not active and confirm dialog is not open
       if not cheatMenu.active and not globalConfirmActive and not survivalRevealOpen:
@@ -2672,9 +2868,9 @@ proc main() =
         if hasPowerUp(currentGame.player, puBloodPact) and currentGame.player.bloodPactCooldown <= 0:
           if currentGame.player.hp > 1.0 and currentGame.enemies.len > 0:
             const
-              BLOOD_PACT_ENEMY_FRAC = 0.25'f32   # share of a normal enemy's max HP per cast
+              BLOOD_PACT_ENEMY_FRAC = 0.20'f32   # share of a normal enemy's CURRENT HP per cast
               BLOOD_PACT_BOSS_FRAC  = 0.03'f32   # bosses only take a small share
-              BLOOD_PACT_BONUS_MULT = 1.25'f32   # bonus damage per point of HP sacrificed
+              BLOOD_PACT_BONUS_MULT = 1.0'f32    # bonus damage per point of HP sacrificed
             const
               BloodBright = Color(r: 235, g: 40, b: 40, a: 255)
               BloodDeep   = Color(r: 130, g: 0, b: 25, a: 255)
@@ -2690,7 +2886,7 @@ proc main() =
               if shieldBlocksHit(currentGame, enemy, currentGame.player.pos):
                 continue  # a Port Guard facing the caster takes it on the shield
               let intended = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
-                             else: enemy.maxHp * BLOOD_PACT_ENEMY_FRAC + bonus
+                             else: enemy.hp * BLOOD_PACT_ENEMY_FRAC + bonus
               # Bosses resist it like every other non-bullet damage path: phase
               # defense, the weak-point multiplier and the adds/shield gate.
               let dealt = applyEnemyHpDamage(enemy, intended * bossPassiveDamageTaken(enemy))
@@ -2883,14 +3079,21 @@ proc main() =
           addShake(currentGame.dopamine.screenShake, siMedium, NovaColor)
           anyActivated = true
 
+        # Mod power-ups with an active ability (register.powerup active)
+        if modActivateAbilities(currentGame):
+          anyActivated = true
+
         # Play sound if any ability was activated
         if anyActivated:
           playSound(stPowerUp)
+        modAbilityUsed(currentGame)   # mods: [Q] was pressed (after the built-in abilities)
 
       # Pause (don't actually pause in PvP mode to avoid desync)
       # Also skip if the confirm dialog is open (it acts as a hard pause)
       # In PvP the pause menu is shown but the sim keeps running (see gsPaused below).
-      if pausePressed() and not globalConfirmActive:
+      if isBackPressed() and not globalConfirmActive and modUiBack():
+        discard   # Esc / B closed the top mod screen instead
+      elif pausePressed() and not globalConfirmActive:
         currentGame.state = gsPaused
 
       # ORIENTATION.EXE: advance the tutorial from what the player just did.
@@ -3233,7 +3436,7 @@ proc main() =
 
       # Draw quit-confirmation dialog on top of everything if pending
       if currentGame.confirmQuitPending:
-        let confirmDlg = drawQuitConfirmDialog(currentGame)
+        let confirmDlg = drawQuitConfirmDialog(currentGame, not modRunResumable(currentGame))
         if confirmDlg.confirmed:
           currentGame.confirmQuitPending = false
           # Perform the actual quit-to-menu
@@ -3289,7 +3492,8 @@ proc main() =
            (currentGame.rogueliteRun.totalRoomsCleared > 0 or
             currentGame.rogueliteRun.shardsEarned > 0 or
             currentGame.rogueliteRun.coresEarned > 0):
-          discard commitRogueliteRunProgress(currentGame, true)
+          # Banked as a quit, not a death: quitting is never a loss.
+          discard commitRogueliteRunProgress(currentGame, false)
           setActiveRogueliteProfile(currentGame.rogueliteProfile)
         # The run is abandoned (and its shards were just banked), so its saves
         # must go too: left on disk, the run could be resumed and banked again.
@@ -3311,7 +3515,8 @@ proc main() =
         if not globalConfirmActive: startSelectedTheme()
       if isKeyPressed(Q):
         if not globalConfirmActive:
-          if settings.exitConfirmEnabled: showGlobalConfirm(cdcQuitToMenu)
+          if settings.exitConfirmEnabled:
+            showGlobalConfirm(cdcQuitToMenu, runEnds = not modRunResumable(currentGame))
           else: closeRogueliteFloorSelect()
 
       if isPointerPressed() and not globalConfirmActive:
@@ -3333,7 +3538,8 @@ proc main() =
         let cardY = panelY + 185
         let closeRect = rogueliteCloseButtonRect(screenWidth.int32, screenHeight.int32)
         if checkCollisionPointRec(mousePos, closeRect):
-          if settings.exitConfirmEnabled: showGlobalConfirm(cdcQuitToMenu)
+          if settings.exitConfirmEnabled:
+            showGlobalConfirm(cdcQuitToMenu, runEnds = not modRunResumable(currentGame))
           else: closeRogueliteFloorSelect()
         elif isFinalDungeonFloor(currentGame.rogueliteRun):
           if checkCollisionPointRec(mousePos, finalBossCardRect(screenWidth.int32, screenHeight.int32)):
@@ -3352,7 +3558,8 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
-      drawRogueliteFloorSelect(currentGame)
+      withTheme(stockTheme()):   # a run's screen, not the desktop's
+        drawRogueliteFloorSelect(currentGame)
       endUIScaleMode()
 
       # Draw the confirm dialog on top of everything. Two triggers share it here:
@@ -3376,12 +3583,15 @@ proc main() =
 
       if not globalConfirmActive:
         # Navigate shop with keyboard
+        let shopRows = shopRowCount(currentGame)   # the game's six, then mod rows
         if isKeyPressed(Down) or isKeyPressed(S):
-          currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod 6
+          currentGame.selectedShopItem = (currentGame.selectedShopItem + 1) mod shopRows
           markKeyboardUsed(currentGame)
+          keepShopSelectionVisible(currentGame)
         if isKeyPressed(Up) or isKeyPressed(W):
-          currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + 6) mod 6
+          currentGame.selectedShopItem = (currentGame.selectedShopItem - 1 + shopRows) mod shopRows
           markKeyboardUsed(currentGame)
+          keepShopSelectionVisible(currentGame)
 
         # Scroll the sidebar upgrade list with PageDown/PageUp or [/]
         if isKeyPressed(PageDown) or isKeyPressed(RightBracket):
@@ -3415,10 +3625,11 @@ proc main() =
           else:
             # Check shop item clicks
             var clickedItem = -1
-            for i in 0..5:
-              if checkCollisionPointRec(mousePos, L.itemRect(i)):
-                clickedItem = i
-                break
+            if checkCollisionPointRec(mousePos, L.listRect):   # clicks clip to the visible rows
+              for i in 0 ..< shopRowCount(currentGame):
+                if checkCollisionPointRec(mousePos, L.itemRect(i, currentGame.shopItemsScroll)):
+                  clickedItem = i
+                  break
 
             if clickedItem >= 0:
               # Clicked on an item - select and buy it
@@ -3459,26 +3670,13 @@ proc main() =
       endGameDrawing()
 
     of gsCountdown:
-      # Keep wave music during countdown
-      playMusic(mtWave)
+      # Keep the run's theme during the countdown
+      playMusic(modeTheme(currentGame.mode), runMusicTier(currentGame))
 
       # A pending life-lost animation owns the screen first: the countdown holds
       # where it is until the spent restore point has finished breaking up.
       if currentGame.lifeLostTimer > 0:
-        currentGame.lifeLostTimer = max(0.0'f32, currentGame.lifeLostTimer - dt)
-        let lifeLostP = 1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration
-        # Three dedicated cues, fired off the same phase constants the drawing
-        # reads, so each one lands on the beat it describes: the drive being
-        # addressed, the platter coasting down, and the break itself.
-        if currentGame.lifeLostSoundStage < 1:
-          playSound(stRestoreAccess)
-          currentGame.lifeLostSoundStage = 1
-        if currentGame.lifeLostSoundStage < 2 and lifeLostP >= LifeLostCrackStart:
-          playSound(stRestoreSpinDown)
-          currentGame.lifeLostSoundStage = 2
-        if currentGame.lifeLostSoundStage < 3 and lifeLostP >= LifeLostShatterStart:
-          playSound(stRestoreShatter)
-          currentGame.lifeLostSoundStage = 3
+        tickLifeLost(currentGame, dt)
       else:
         currentGame.countdownTimer -= dt
 
@@ -3499,7 +3697,7 @@ proc main() =
       # numerals are held back so the two do not fight over the centre.
       if currentGame.lifeLostTimer > 0:
         drawLifeLostOverlay(screenWidth, screenHeight, currentGame.livesUsed,
-                            difficultyMaxLives(currentGame.mode), UnlimitedLives,
+                            difficultyMaxLives(currentGame.mode, currentGame.modMode), UnlimitedLives,
                             1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration)
       else:
         # Draw stylish countdown overlay
@@ -3562,8 +3760,8 @@ proc main() =
       endGameDrawing()
 
     of gsWaveCleared:
-      # Keep wave music during wave cleared screen
-      playMusic(mtWave)
+      # Keep the run's theme during the wave cleared screen
+      playMusic(modeTheme(currentGame.mode), runMusicTier(currentGame))
 
       # Update wave cleared timer
       currentGame.waveClearedTimer -= dt
@@ -3943,6 +4141,9 @@ proc main() =
           currentGame.countdownTimer = 3.0
           currentGame.selectedRogueliteTheme = 0
           resumeRunTracking(currentGame)
+          # A 3D mod mode continues in a fresh world (resumed = true), which
+          # holds its first frame while the spent restore point breaks up.
+          discard enterModWorld(currentGame, resumed = true)
         elif mode == gmRoguelite:
           # Checkpoint failed to apply: a fresh roguelite starts at its setup.
           globalWindowManager.openWindow(widRoguelite)
@@ -3951,6 +4152,7 @@ proc main() =
           # Checkpoint failed to apply: fall back to a fresh run.
           currentGame.state = gsPlaying
           initializeRunTracking(currentGame)
+          discard enterModWorld(currentGame, resumed = false)
         playSound(stMenuSelect)
         statsSavedThisGame = false
 
@@ -3980,6 +4182,8 @@ proc main() =
         else:
           initializeRunTracking(currentGame)  # Start tracking
           currentGame.state = gsPlaying
+          # A 3D mod mode restarts in its world, not on an empty 2D arena.
+          discard enterModWorld(currentGame, resumed = false)
         playSound(stMenuSelect)
         statsSavedThisGame = false  # Reset for new game
 
@@ -4199,13 +4403,14 @@ proc main() =
       for i in 0..<(screenHeight div 3):
         let lineY = i * 3 + int(currentGame.time * 50.0) mod 3
         let alpha = uint8(3 + sin(currentGame.time + i.float32) * 3.0)
-        drawLine(Vector2(x: 0, y: lineY.float32),
+        drawStroke(Vector2(x: 0, y: lineY.float32),
                 Vector2(x: screenWidth.float32, y: lineY.float32),
                 1, Color(r: 40, g: 60, b: 80, a: alpha))
 
       if statsWin.window.visible:
         beginUIScaleMode(statsVp.scale)
-        drawStatsWindow(statsWin, currentGame)
+        themeLayer:
+          drawStatsWindow(statsWin, currentGame)
         endUIScaleMode()
         # Controls hint along the bottom edge
         beginUIScaleMode(overlayUIScale())
@@ -4426,18 +4631,47 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
-      drawRogueliteVictory(currentGame)
+      withTheme(stockTheme()):   # a run's screen, not the desktop's
+        drawRogueliteVictory(currentGame)
       endUIScaleMode()
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
     of gs3DBoss:
-      # 3D Boss fight
-      playMusic(mtBoss)
+      # 3D Boss fight: the boss theme climbs with the Orbital Commander's
+      # three phases (a 3D mod mode without the boss keeps the first tier)
+      let bossWorld = activeWorld3D
+      playMusic(mtBoss,
+                if bossWorld.isNil or not bossWorld.bossEnabled: 0
+                else: bossMusicTier(bossWorld.boss.phase - 1, 3,
+                                    bossWorld.boss.health / max(bossWorld.boss.maxHealth, 1.0'f32)))
 
-      # Update 3D game
-      if not cheatMenu.active:
+      # Update 3D game. A Continue into a 3D mod mode holds the world (its
+      # world3dStart included) while the spent restore point breaks up.
+      if currentGame.lifeLostTimer > 0:
+        tickLifeLost(currentGame, dt)
+      elif not cheatMenu.active:
         updateGame(currentGame, dt)
+
+      proc quitWorldRun() =
+        ## Quit a run from its 3D world to the desktop, like the 2D pause menu:
+        ## checkpoint it to resume (a mod-mode run resumes into a fresh world), or
+        ## end it when a mod made it unresumable. Never a loss. The 2D state is
+        ## put back for the checkpoint's state gate.
+        enableCursor()
+        currentGame.state = gsPlaying
+        checkpointLiveRun(currentGame)
+        cleanupGame(currentGame)
+        currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+        currentGame.discordClient = globalDiscordClient
+        currentGame.state = gsMenu
+        playSound(stMenuSelect)
+
+      if modeWorldQuit:
+        # A 3D mod mode's world was left (world3d.exit): that quits the run.
+        modeWorldQuit = false
+        quitWorldRun()
+        continue
 
       # Render 3D game directly (no 2D render target)
       if activeWorld3D != nil:
@@ -4445,6 +4679,10 @@ proc main() =
         beginDrawing()
         clearBackground(Black)
         renderGame3D(world)
+        if currentGame.lifeLostTimer > 0:
+          drawLifeLostOverlay(getScreenWidth(), getScreenHeight(), currentGame.livesUsed,
+                              difficultyMaxLives(currentGame.mode, currentGame.modMode), UnlimitedLives,
+                              1.0'f32 - currentGame.lifeLostTimer / LifeLostAnimDuration)
 
         # Draw cheat menu overlay if active
         drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
@@ -4452,18 +4690,9 @@ proc main() =
         endDrawing()
 
         if world.quitRequested:
-          # The 3D pause overlay's "quit to desktop": checkpoint the run like the
-          # 2D pause menu does (a mod-mode run resumes into a fresh world), then
-          # leave. The 2D state is put back for the checkpoint's state gate.
+          # The 3D pause overlay's "quit to desktop".
           finishWorld3D(world, w3Exit)
-          enableCursor()
-          currentGame.state = gsPlaying
-          checkpointLiveRun(currentGame)
-          cleanupGame(currentGame)
-          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
-          currentGame.discordClient = globalDiscordClient
-          currentGame.state = gsMenu
-          playSound(stMenuSelect)
+          quitWorldRun()
       else:
         # Safety: only recover if the 3D state is still active after update.
         if currentGame.state == gs3DBoss:
@@ -4479,7 +4708,7 @@ proc main() =
       if currentPvPGame.isCountingDown:
         playMusic(mtWave)
       else:
-        playMusic(mtBoss)  # Intense music for PvP
+        playMusic(mtBoss, 1)  # Intense music for PvP
 
       when defined(mobile):
         # Same twin-stick controls as single-player; capturePlayerInput reads
@@ -4572,10 +4801,13 @@ proc main() =
     of gsRunStats:
       if currentGame.previousState == gsVictory:
         persistRunResults(currentGame, died = false)
-    of gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared, gsPowerUpSelect:
+    of gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared, gsPowerUpSelect,
+       gsRogueliteFloorSelect, gs3DBoss:
       # Live play is normally checkpointed below, but a won run in endless
-      # cannot be, so it is recorded here instead of being lost.
-      if isUnresumableWonRun(currentGame):
+      # cannot be, so it is recorded here instead of being lost. Nor can a run
+      # a mod made unresumable: closing the game ends it (quitting is never a
+      # loss, so not as a death).
+      if isUnresumableWonRun(currentGame) or not modRunResumable(currentGame):
         freezeRunTime(currentGame)
         persistRunResults(currentGame, died = false)
     else:

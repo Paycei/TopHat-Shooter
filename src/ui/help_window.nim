@@ -2,8 +2,11 @@
 ## Terminal-style documentation viewer
 
 import raylib, strutils, math
+import ../draw_prims
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
+import ui_theme
 import ../gamepad_input, ../patches
+import ../modding/mod_registry
 from ../dungeon import rewardFolderName, rewardLabel
 
 const
@@ -69,7 +72,7 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
     pendingIconExecution: -1
   )
 
-  result.outputLines.add(("TopHat-ShooterOS Help System v6.3", Color(r: 0, g: 255, b: 255, a: 255), -1, 0))
+  result.outputLines.add(("TopHat-ShooterOS Help System v6.4", Color(r: 0, g: 255, b: 255, a: 255), -1, 0))
   result.outputLines.add(("Type 'help' for commands or a topic name to learn more.", White, -1, 0))
   result.outputLines.add(("", White, -1, 0))
 
@@ -140,11 +143,13 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.addOutput("", White)
       for helpCmd in getHelpCommands():
         help.addOutput("  " & helpCmd.cmd & " - " & helpCmd.desc, White)
+      for modCmd in modCommandHelp():   # loaded mods' commands (register.command)
+        help.addOutput("  " & modCmd.cmd & " - " & modCmd.desc & "  [MOD]", Color(r: 120, g: 220, b: 160, a: 255))
       help.addOutput("", White)
 
     of "clear":
       help.outputLines = @[
-        ("TopHat-ShooterOS Help System v6.3", Color(r: 0, g: 255, b: 255, a: 255), -1, 0),
+        ("TopHat-ShooterOS Help System v6.4", Color(r: 0, g: 255, b: 255, a: 255), -1, 0),
         ("Type 'help' for commands.", White, -1, 0),
         ("", White, -1, 0)
       ]
@@ -328,6 +333,10 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       for p in AllPatches:
         help.addOutput(patchKbLabel(p) & "  " & patchName(p), patchAccent(p), -1, 12)
         help.addOutput(patchDescription(p), LightGray, -1, 24)
+      for d in patchDefs:   # mods' patches (register.patch)
+        let relic = RogueliteRelic(relicType: rrtMod, modKey: d.key)
+        help.addOutput(patchKbLabel(relic) & "  " & patchName(relic) & "  [MOD]", patchAccent(relic), -1, 12)
+        help.addOutput(patchDescription(relic), LightGray, -1, 24)
       help.addOutput("", White)
       help.addOutput(t("help_recovery_heat"), head)
       help.addOutput(t("help_recovery_heat_body"), White, -1, 12)
@@ -406,7 +415,8 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       const Notices = [
         (tkHelpLicensesRaylib, staticRead("../../vendor/naylib/LICENSE-RAYLIB")),
         (tkHelpLicensesNaylib, staticRead("../../vendor/naylib/LICENSE")),
-        (tkHelpLicensesIntro, staticRead("../../vendor/lua/LICENSE"))]
+        (tkHelpLicensesIntro, staticRead("../../vendor/lua/LICENSE")),
+        (tkHelpLicensesPlMpeg, staticRead("../../vendor/pl_mpeg/LICENSE"))]
       let noticeColor = Color(r: 190, g: 200, b: 215, a: 255)
       for (intro, license) in Notices:
         help.addOutput("", White)
@@ -431,9 +441,14 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
       help.pendingIconExecution = 6  # diQuit = 6
 
     else:
-      help.addOutput(t(tkHelpUnknownCommand) & ": " & command, Red)
-      help.addOutput(t(tkHelpTypeHelp), LightGray)
-      help.addOutput("", White)
+      var modLines: seq[string]
+      if runModCommand(command, (if parts.len > 1: parts[1 .. ^1] else: @[]), modLines):
+        for line in modLines: help.addOutput(line, White)   # a mod's command
+        help.addOutput("", White)
+      else:
+        help.addOutput(t(tkHelpUnknownCommand) & ": " & command, Red)
+        help.addOutput(t(tkHelpTypeHelp), LightGray)
+        help.addOutput("", White)
 
   except Exception as e:
     # Catch any errors during command execution
@@ -549,10 +564,10 @@ proc drawHelpWindow*(help: HelpWindow) =
 
   # Terminal background
   drawRectangle(contentX.int32, contentY.int32, contentW.int32, contentH.int32,
-               Color(r: 5, g: 5, b: 10, a: 255))
-  drawRectangleLines(Rectangle(x: contentX.float32, y: contentY.float32,
+               uiSurface(5, 5, 10))
+  drawRectOutline(Rectangle(x: contentX.float32, y: contentY.float32,
                                 width: contentW.float32, height: contentH.float32),
-                    1, Color(r: 0, g: 200, b: 200, a: 255))
+                    1, uiLine(0, 200, 200))
 
   # Draw output lines (with scrolling, wrapping, and optional icons)
   var yPos = contentY + 10
@@ -580,14 +595,14 @@ proc drawHelpWindow*(help: HelpWindow) =
     if iconPresent and wrapped.len > 0:
       let iconX = (baseTextX + line.indent).int32
       if hasLockIcon:
-        drawLockIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), line.color)
+        drawLockIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), uiInk(line.color))
       else:
         drawPowerUpIcon(iconX, yPos.int32, int32(HELP_ICON_SIZE), PowerUpType(line.icon), line.color)
     
     var firstWrapped = true
     for wline in wrapped:
       let textX = baseTextX + line.indent + (if iconPresent and firstWrapped: HELP_ICON_SIZE + HELP_ICON_PADDING else: 0)
-      drawText(wline, textX.int32, yPos.int32, 14, line.color)
+      drawText(wline, textX.int32, yPos.int32, 14, uiInk(line.color))
       yPos += lineHeight
       firstWrapped = false
       if yPos + lineHeight > contentY + contentH - 50:
@@ -600,17 +615,17 @@ proc drawHelpWindow*(help: HelpWindow) =
   # Draw command prompt at bottom
   let promptY = contentY + contentH - 30
   drawRectangle(contentX.int32, promptY.int32, contentW.int32, 30,
-               Color(r: 10, g: 10, b: 15, a: 255))
+               uiSurface(10, 10, 15))
 
   let promptText = "$ " & help.currentInput
   drawText(promptText, (contentX + 10).int32, (promptY + 7).int32, 16,
-          Color(r: 0, g: 220, b: 220, a: 255))
+          uiInk(0, 220, 220))
 
   # Draw blinking cursor
   if (help.cursorBlink mod 1.0) < 0.5:
     let cursorX = contentX + 10 + measureText(promptText, 16)
     drawRectangle((cursorX + 2).int32, (promptY + 7).int32, 8, 16,
-                 Color(r: 0, g: 255, b: 255, a: 255))
+                 uiSurface(0, 255, 255))
 
   # Draw scroll indicator if needed
   if help.outputLines.len > visibleLines:
@@ -627,11 +642,11 @@ proc drawHelpWindow*(help: HelpWindow) =
 
     # Scroll track
     drawRectangle(scrollBarX.int32, scrollBarY.int32, 6, scrollBarH.int32,
-                 Color(r: 20, g: 20, b: 30, a: 255))
+                 uiSurface(20, 20, 30))
 
     # Scroll thumb
     drawRectangle(scrollBarX.int32, scrollThumbY.int32, 6, scrollThumbH.int32,
-                 Color(r: 0, g: 200, b: 200, a: 255))
+                 uiSurface(0, 200, 200))
 
   # Draw resize indicator
   drawResizeIndicator(help.window)

@@ -8,13 +8,15 @@
 
 import std/[os, strutils, math]
 import raylib, rlgl
+import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../save_system,
        ../gamepad_input
-import ../modding/[mod_state, mod_catalog, mod_examples, mod_assets, mod_hooks]
+import ui_theme
+import ../modding/[mod_state, mod_catalog, mod_examples, mod_assets, mod_hooks, mod_registry]
 
 type
   ModsTab* = enum
-    mtInstalled, mtModes, mtCosmetics, mtApps, mtLog
+    mtInstalled, mtModes, mtCosmetics, mtApps, mtAchievements, mtLog
 
   ModsWindow* = ref object
     window*: OSWindow
@@ -24,6 +26,7 @@ type
     listScroll*: int
     logScroll*: int
     logFollow*: bool
+    achScroll*: int           ## the Achievements tab's scroll (px)
     lastLogGen: int
     pending*: seq[string]     ## working copy of settings.enabledMods
     message*: string          ## transient status line under the buttons
@@ -41,6 +44,7 @@ type
     removeCooldown: float32   ## seconds until the confirmation's Remove unlocks
     applyConfirm: bool         ## pending Apply & Reload warning
     applyCooldown: float32
+    updates: seq[tuple[folder, installed, shipped: string]]  ## examples Install Examples would update
 
   ModModeRow* = object
     ## One mod game mode as the window shows it (filled by main.nim).
@@ -51,7 +55,7 @@ const
   ModsWindowW = 800
   ModsWindowH = 560
   TabH = 28
-  TabW = 146
+  TabW = 121
   AppRowH = 52
   AppHintH = 28  # the Apps tab's hint line, above its rows
   BannerH = 22
@@ -59,20 +63,22 @@ const
   ListW = 300
   RowH = 44
   CosRowH = 58
+  AchRowH = 56
   RemoveBtnH = 28'f32
   RemoveConfirmCooldown = 1.5'f32  # anti-accident window, like the quit dialog
   ApplyConfirmCooldown = 1.0'f32
   LogLineH = 15
 
-  ColAccent = Color(r: 120, g: 220, b: 160, a: 255)
-  ColPanel = Color(r: 12, g: 14, b: 20, a: 255)
-  ColRow = Color(r: 22, g: 26, b: 36, a: 255)
-  ColRowSel = Color(r: 28, g: 52, b: 44, a: 255)
-  ColText = Color(r: 225, g: 232, b: 240, a: 255)
-  ColMuted = Color(r: 145, g: 155, b: 170, a: 255)
-  ColOk = Color(r: 110, g: 230, b: 140, a: 255)
-  ColWarn = Color(r: 255, g: 190, b: 70, a: 255)
-  ColErr = Color(r: 255, g: 105, b: 95, a: 255)
+# The palette, drawn in the interface theme (ui_theme.nim).
+template ColAccent: Color = uiInk(120, 220, 160)
+template ColPanel: Color = uiSurface(12, 14, 20)
+template ColRow: Color = uiSurface(22, 26, 36)
+template ColRowSel: Color = uiSurface(28, 52, 44)
+template ColText: Color = uiInk(225, 232, 240)
+template ColMuted: Color = uiInk(145, 155, 170)
+template ColOk: Color = uiInk(110, 230, 140)
+template ColWarn: Color = uiInk(255, 190, 70)
+template ColErr: Color = uiInk(255, 105, 95)
 
 proc newModsWindow*(screenWidth, screenHeight: int, settings: Settings): ModsWindow =
   let osWin = newOSWindow(t(tkModsWindowTitle),
@@ -88,6 +94,7 @@ proc refreshModsWindow*(mw: ModsWindow) =
   mw.pending = mw.settings.enabledMods
   if not modeRowsBuilder.isNil:
     mw.modeRows = modeRowsBuilder()
+  mw.updates = exampleUpdates()
   if installedMods.len == 0: mw.selected = 0
   else: mw.selected = clamp(mw.selected, 0, installedMods.high)
 
@@ -158,6 +165,15 @@ proc hasPendingChanges(mw: ModsWindow): bool =
   for id in mw.settings.enabledMods:
     if id notin mw.pending: return true
   false
+
+proc updateFor(mw: ModsWindow, m: ModInfo): string =
+  ## The newer version this build ships of `m`, if `m` is an installed example
+  ## (by folder, which is what Install Examples replaces); "" otherwise.
+  if normalizedPath(parentDir(m.dir)) != normalizedPath(modsRootDir()): return ""
+  let folder = lastPathPart(m.dir)
+  for u in mw.updates:
+    if u.folder == folder: return u.shipped
+  ""
 
 proc toggleable(m: ModInfo): bool = m.status notin {msInvalid, msDuplicate}
 
@@ -247,6 +263,7 @@ proc removeMod(mw: ModsWindow) =
     mw.say(t(tkModsRemoveFailed), isError = true)
     return
   rescanInstalledMods(mw.settings.enabledMods)
+  mw.updates = exampleUpdates()
   # Forget the id unless another folder still provides it (a duplicate).
   var idStillInstalled = false
   for other in installedMods:
@@ -336,11 +353,18 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
         let (ok, written) = installExampleMods()
         if not ok:
           mw.say(t(tkModsExamplesFailed), isError = true)
-        elif written == 0:
+        elif written.len == 0:
           mw.say(t(tkModsExamplesUpToDate))
         else:
           mw.say(t(tkModsExamplesInstalled))
         rescanInstalledMods(mw.settings.enabledMods)
+        mw.updates = exampleUpdates()
+        # An enabled example that was just replaced still runs the script it loaded
+        # until the mods reload, so the game would go on playing the old version.
+        for m in installedMods:
+          if m.id in mw.settings.enabledMods and lastPathPart(m.dir) in written and
+             normalizedPath(parentDir(m.dir)) == normalizedPath(modsRootDir()):
+            modReloadRequested = true
     elif mw.tab == mtCosmetics:
       for i in 0 ..< modCosmetics.len:
         let ry = g.bodyY + i * CosRowH - mw.cosScroll
@@ -415,6 +439,11 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
     mw.logScroll = clamp(mw.logScroll, 0, maxScroll)
   of mtModes, mtApps:
     discard
+  of mtAchievements:
+    let maxScroll = max(0, advancementDefs.len * AchRowH - int(g.logArea.height))
+    if wheel != 0 and checkCollisionPointRec(mouse, g.logArea):
+      mw.achScroll = mw.achScroll - int(wheel * AchRowH.float32)
+    mw.achScroll = clamp(mw.achScroll, 0, maxScroll)
   of mtCosmetics:
     let maxScroll = max(0, modCosmetics.len * CosRowH - int(g.logArea.height))
     if wheel != 0 and checkCollisionPointRec(mouse, g.logArea):
@@ -425,11 +454,11 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
 proc drawButton(r: Rectangle, label: string, enabled, primary: bool) =
   let hovered = enabled and checkCollisionPointRec(getVirtualMousePosition(), r)
   let fill =
-    if not enabled: Color(r: 30, g: 34, b: 42, a: 255)
-    elif primary: (if hovered: Color(r: 60, g: 150, b: 100, a: 255) else: Color(r: 40, g: 120, b: 80, a: 255))
-    else: (if hovered: Color(r: 55, g: 62, b: 78, a: 255) else: Color(r: 38, g: 44, b: 58, a: 255))
+    if not enabled: uiSurface(30, 34, 42)
+    elif primary: (if hovered: uiSurface(60, 150, 100) else: uiSurface(40, 120, 80))
+    else: (if hovered: uiSurface(55, 62, 78) else: uiSurface(38, 44, 58))
   drawRectangle(r, fill)
-  drawRectangleLines(r, 1.0, if enabled: Color(r: 150, g: 200, b: 175, a: 180) else: Color(r: 70, g: 75, b: 85, a: 255))
+  drawRectOutline(r, 1.0, if enabled: uiLine(150, 200, 175, 180) else: uiLine(70, 75, 85))
   let tw = measureText(label, 14)
   drawText(label, int32(r.x + (r.width - tw.float32) / 2), int32(r.y + (r.height - 14) / 2), 14,
            if enabled: ColText else: ColMuted)
@@ -438,12 +467,12 @@ proc drawRemoveButton(r: Rectangle, enabled: bool, label = "") =
   ## Red: the one destructive button in the window.
   let hovered = enabled and checkCollisionPointRec(getVirtualMousePosition(), r)
   let fill =
-    if not enabled: Color(r: 60, g: 60, b: 64, a: 255)
-    elif hovered: Color(r: 158, g: 38, b: 38, a: 255)
-    else: Color(r: 118, g: 28, b: 28, a: 255)
+    if not enabled: uiSurface(60, 60, 64)
+    elif hovered: uiSurface(158, 38, 38)
+    else: uiSurface(118, 28, 28)
   drawRectangle(r, fill)
-  drawRectangleLines(r, 1.0, if enabled: Color(r: 255, g: 100, b: 100, a: 220)
-                             else: Color(r: 110, g: 110, b: 115, a: 255))
+  drawRectOutline(r, 1.0, if enabled: uiLine(255, 100, 100, 220)
+                             else: uiLine(110, 110, 115))
   let text = if label.len > 0: label else: t(tkModsRemove)
   let tw = measureText(text, 14)
   drawText(text, int32(r.x + (r.width - tw.float32) / 2), int32(r.y + (r.height - 14) / 2), 14,
@@ -451,8 +480,8 @@ proc drawRemoveButton(r: Rectangle, enabled: bool, label = "") =
 
 proc drawCheckbox(x, y: int32, checked, enabled: bool) =
   let r = Rectangle(x: x.float32, y: y.float32, width: 16, height: 16)
-  drawRectangle(r, Color(r: 8, g: 10, b: 14, a: 255))
-  drawRectangleLines(r, 1.0, if enabled: ColAccent else: Color(r: 70, g: 75, b: 85, a: 255))
+  drawRectangle(r, uiSurface(8, 10, 14))
+  drawRectOutline(r, 1.0, if enabled: ColAccent else: uiLine(70, 75, 85))
   if checked:
     drawRectangle(Rectangle(x: x.float32 + 4, y: y.float32 + 4, width: 8, height: 8), ColAccent)
 
@@ -486,13 +515,13 @@ proc drawRemoveConfirm(mw: ModsWindow, g: Geo) =
                 Color(r: 0, g: 0, b: 0, a: 150))
   let d = g.confirm
   drawRectangle(Rectangle(x: d.x + 6, y: d.y + 6, width: d.width, height: d.height), Color(r: 0, g: 0, b: 0, a: 140))
-  drawRectangle(d, Color(r: 18, g: 22, b: 32, a: 255))
-  drawRectangleLines(d, 2.0, Color(r: 255, g: 80, b: 80, a: 255))
+  drawRectangle(d, uiSurface(18, 22, 32))
+  drawRectOutline(d, 2.0, uiLine(255, 80, 80))
   let tbH = 30'i32
-  drawRectangle(Rectangle(x: d.x, y: d.y, width: d.width, height: tbH.float32), Color(r: 120, g: 28, b: 28, a: 255))
+  drawRectangle(Rectangle(x: d.x, y: d.y, width: d.width, height: tbH.float32), uiSurface(120, 28, 28))
   let title = t(tkModsRemoveTitle)
   drawText(title, int32(d.x + (d.width - measureText(title, 15).float32) / 2), int32(d.y) + 8, 15,
-           Color(r: 255, g: 200, b: 200, a: 255))
+           uiInk(255, 200, 200))
   let x = int32(d.x) + 18
   let w = int32(d.width) - 36
   var y = int32(d.y) + tbH + 14
@@ -501,7 +530,7 @@ proc drawRemoveConfirm(mw: ModsWindow, g: Geo) =
   y += 24
   drawText(fitWithEllipsis(t(tkModsFolder) & " " & lastPathPart(mw.removeTarget), w, 12), x, y, 12, ColMuted)
   y += 18
-  discard drawWrapped(t(tkModsRemoveSub), x, y, w, 12, Color(r: 200, g: 150, b: 150, a: 255),
+  discard drawWrapped(t(tkModsRemoveSub), x, y, w, 12, uiInk(200, 150, 150),
                       int32(g.confirmNo.y) - 4)
   drawButton(g.confirmNo, t(tkConfirmCancelBtn), true, true)
   let ready = mw.removeCooldown <= 0
@@ -515,21 +544,21 @@ proc drawApplyConfirm(mw: ModsWindow, g: Geo) =
   let d = g.confirm
   drawRectangle(Rectangle(x: d.x + 6, y: d.y + 6, width: d.width, height: d.height),
                 Color(r: 0, g: 0, b: 0, a: 140))
-  drawRectangle(d, Color(r: 18, g: 22, b: 32, a: 255))
-  drawRectangleLines(d, 2.0, Color(r: 255, g: 176, b: 32, a: 255))
+  drawRectangle(d, uiSurface(18, 22, 32))
+  drawRectOutline(d, 2.0, uiLine(255, 176, 32))
   let tbH = 30'i32
   drawRectangle(Rectangle(x: d.x, y: d.y, width: d.width, height: tbH.float32),
-                Color(r: 120, g: 75, b: 18, a: 255))
+                uiSurface(120, 75, 18))
   let title = t(tkModsRewardsWarningTitle)
   drawText(title, int32(d.x + (d.width - measureText(title, 15).float32) / 2), int32(d.y) + 8, 15,
-           Color(r: 255, g: 225, b: 170, a: 255))
+           uiInk(255, 225, 170))
   let x = int32(d.x) + 18
   let w = int32(d.width) - 36
   let bottom = int32(g.confirmNo.y) - 8
   var y = int32(d.y) + tbH + 14
   y = drawWrapped(t(tkModsRewardsWarningBody), x, y, w, 14, ColText, bottom)
   discard drawWrapped(t(tkModsRewardsWarningSub), x, y + 6, w, 12,
-                      Color(r: 255, g: 205, b: 120, a: 255), bottom)
+                      uiInk(255, 205, 120), bottom)
   drawButton(g.confirmNo, t(tkConfirmCancelBtn), true, false)
   let ready = mw.applyCooldown <= 0
   drawRemoveButton(g.confirmYes, ready,
@@ -541,7 +570,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
     # No list and no detail pane: the message gets the whole body.
     let area = g.logArea
     drawRectangle(area, ColPanel)
-    drawRectangleLines(area, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+    drawRectOutline(area, 1.0, uiLine(50, 60, 70))
     var y = int32(area.y) + 14
     let x = int32(area.x) + 12
     let w = int32(area.width) - 24
@@ -551,7 +580,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
     discard drawWrapped(t(tkModsEmptyHint), x, y + 8, w, 13, ColMuted, bottom)
   else:
     drawRectangle(g.list, ColPanel)
-    drawRectangleLines(g.list, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+    drawRectOutline(g.list, 1.0, uiLine(50, 60, 70))
     beginVirtualScissorMode(int32(g.list.x), int32(g.list.y), int32(g.list.width), int32(g.list.height))
     for i, m in installedMods:
       let ry = int32(g.list.y) + int32(i * RowH - mw.listScroll)
@@ -563,16 +592,21 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
       let (st, col) = mw.displayStatus(m)
       let verSt = fitWithEllipsis(m.version & "  " & st, int32(g.list.width) - 50, 11)
       drawText(verSt, int32(g.list.x) + 34, ry + 26, 11, col)
+      var tx = int32(g.list.x) + 34 + measureText(verSt, 11) + 10
+      if mw.updateFor(m).len > 0:
+        let tag = t(tkModsUpdateTag)
+        if tx + measureText(tag, 10) < int32(g.list.x + g.list.width) - 6:
+          drawText(tag, tx, ry + 27, 10, ColWarn)
+          tx += measureText(tag, 10) + 10
       if m.status != msInvalid and not m.disableAchievements:
         let tag = t(tkModsKeepsTag)
-        let tx = int32(g.list.x) + 34 + measureText(verSt, 11) + 10
         if tx + measureText(tag, 10) < int32(g.list.x + g.list.width) - 6:
           drawText(tag, tx, ry + 27, 10, ColOk)
-    endScissorMode()
+    endVirtualScissorMode()
 
     # detail pane
     drawRectangle(g.detail, ColPanel)
-    drawRectangleLines(g.detail, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+    drawRectOutline(g.detail, 1.0, uiLine(50, 60, 70))
     if mw.selected >= 0 and mw.selected < installedMods.len:
       let m = installedMods[mw.selected]
       let x = int32(g.detail.x) + 14
@@ -592,6 +626,9 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
         drawText(fitWithEllipsis(t(if m.disableAchievements: tkModsRewardsOff else: tkModsRewardsKept), w, 12),
                  x, y, 12, if m.disableAchievements: ColWarn else: ColOk)
         y += 20
+      let update = mw.updateFor(m)
+      if update.len > 0:
+        y = drawWrapped(t(tkModsUpdateAvailable).replace("$1", update), x, y, w, 12, ColWarn, bottom) + 6
       if m.description.len > 0:
         y = drawWrapped(m.description, x, y, w, 13, ColText, bottom) + 6
       if m.dependencies.len > 0:
@@ -600,12 +637,12 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
       if m.message.len > 0 and m.status != msLoaded:
         beginVirtualScissorMode(x, y, w, max(0'i32, bottom - y))
         discard drawWrapped(m.message, x, y, w, 11, ColErr, bottom)
-        endScissorMode()
+        endVirtualScissorMode()
       drawRemoveButton(g.removeBtn, mw.removeTarget.len == 0)
 
   # button bar
   drawButton(g.folderBtn, t(tkModsOpenFolder), true, false)
-  drawButton(g.examplesBtn, t(tkModsInstallExamples), true, false)
+  drawButton(g.examplesBtn, t(tkModsInstallExamples), true, mw.updates.len > 0)
   let pending = mw.hasPendingChanges()
   drawButton(g.applyBtn, t(tkModsApply), pending, true)
   if pending:
@@ -619,7 +656,7 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
 
 proc drawModes(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
-  drawRectangleLines(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  drawRectOutline(g.logArea, 1.0, uiLine(50, 60, 70))
   if mw.modeRows.len == 0:
     discard drawWrapped(t(tkModsNoModes), int32(g.x) + 14, int32(g.bodyY) + 14, int32(g.w) - 28, 13,
                         ColMuted, int32(g.bodyY + g.bodyH))
@@ -640,7 +677,7 @@ proc drawModes(mw: ModsWindow, g: Geo) =
 
 proc drawCosmetics(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
-  drawRectangleLines(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  drawRectOutline(g.logArea, 1.0, uiLine(50, 60, 70))
   if modCosmetics.len == 0:
     discard drawWrapped(t(tkModsNoCosmetics), int32(g.x) + 14, int32(g.bodyY) + 14, int32(g.w) - 28, 13,
                         ColMuted, int32(g.bodyY + g.bodyH))
@@ -661,9 +698,9 @@ proc drawCosmetics(mw: ModsWindow, g: Geo) =
     elif c.look.id > 0:
       drawModTexture(c.look.id, px.float32 + 21, py.float32 + 21, 40, 40, 0, White)
     elif c.hasPalette:
-      drawCircle(Vector2(x: px.float32 + 21, y: py.float32 + 21), 18, c.c1)
-      drawCircle(Vector2(x: px.float32 + 21, y: py.float32 + 21), 11, c.c2)
-      drawCircle(Vector2(x: px.float32 + 21, y: py.float32 + 21), 5, c.c3)
+      drawDisc(Vector2(x: px.float32 + 21, y: py.float32 + 21), 18, c.c1)
+      drawDisc(Vector2(x: px.float32 + 21, y: py.float32 + 21), 11, c.c2)
+      drawDisc(Vector2(x: px.float32 + 21, y: py.float32 + 21), 5, c.c3)
     let kindLabel = case c.kind
       of mckPlayer: t(tkModsKindPlayer)
       of mckBullet: t(tkModsKindBullet)
@@ -677,11 +714,11 @@ proc drawCosmetics(mw: ModsWindow, g: Geo) =
       drawText(fitWithEllipsis(c.description, textW, 11), textX, ry + 41, 11, ColMuted)
     drawButton(Rectangle(x: float32(g.x + g.w - 124), y: float32(ry + 14), width: 110, height: 30),
                (if equipped: t(tkModsUnequip) else: t(tkModsEquip)), true, not equipped)
-  endScissorMode()
+  endVirtualScissorMode()
 
 proc drawApps(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
-  drawRectangleLines(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  drawRectOutline(g.logArea, 1.0, uiLine(50, 60, 70))
   if modApps.len == 0:
     discard drawWrapped(t(tkModsNoApps), int32(g.x) + 14, int32(g.bodyY) + 14,
                         int32(g.w) - 28, 13, ColMuted, int32(g.bodyY + g.bodyH))
@@ -705,9 +742,55 @@ proc drawApps(mw: ModsWindow, g: Geo) =
              int32(g.logArea.x) + 20, ry + 28, 11, ColMuted)
     drawButton(btn, t(tkModsOpenApp), true, true)
 
+proc drawAchievements(mw: ModsWindow, g: Geo) =
+  ## The loaded mods' own achievements (register.advancement), this profile's
+  ## progress. They never touch the game's own advancements or rewards.
+  drawRectangle(g.logArea, ColPanel)
+  drawRectOutline(g.logArea, 1.0, uiLine(50, 60, 70))
+  if advancementDefs.len == 0:
+    discard drawWrapped(t(tkModsNoAchievements), int32(g.x) + 14, int32(g.bodyY) + 14,
+                        int32(g.w) - 28, 13, ColMuted, int32(g.bodyY + g.bodyH))
+    return
+  beginVirtualScissorMode(int32(g.logArea.x), int32(g.logArea.y), int32(g.logArea.width), int32(g.logArea.height))
+  for i in 0 ..< advancementDefs.len:
+    let d = advancementDefs[i]
+    let ry = int32(g.logArea.y) + 4 + int32(i * AchRowH - mw.achScroll)
+    if ry + AchRowH < int32(g.logArea.y) or ry > int32(g.logArea.y + g.logArea.height): continue
+    let st = advancementState(d.key)
+    let shown = st.unlocked or not d.hidden
+    drawRectangle(Rectangle(x: g.logArea.x + 4, y: ry.float32, width: g.logArea.width - 8,
+                            height: AchRowH - 4), ColRow)
+    let accent = uiInk(if st.unlocked: d.color else: Color(r: 90, g: 98, b: 112, a: 255))
+    drawRectangle(Rectangle(x: g.logArea.x + 4, y: ry.float32, width: 4, height: AchRowH - 4), accent)
+    let ix = int32(g.logArea.x) + 16
+    if d.iconTex > 0 and shown:
+      drawModTexture(d.iconTex, ix.float32 + 16, ry.float32 + 22, 32, 32, 0,
+                     if st.unlocked: White else: Color(r: 120, g: 120, b: 120, a: 255))
+    else:
+      drawCircleOutline(ix + 16, ry + 22, 14, accent)
+      drawText(if st.unlocked: "*" else: "?", ix + 12, ry + 14, 18, accent)
+    let textX = ix + 44
+    let textW = int32(g.logArea.width) - 44 - 200
+    drawText(fitWithEllipsis(if shown: advancementName(i) else: "???", textW, 15), textX, ry + 6, 15,
+             if st.unlocked: ColText else: ColMuted)
+    let desc = if shown: advancementDescription(i) else: t(tkModsHiddenAchievement)
+    drawText(fitWithEllipsis(desc, textW, 11), textX, ry + 25, 11, ColMuted)
+    drawText(fitWithEllipsis(d.key.split(':')[0], textW, 10), textX, ry + 39, 10, ColAccent)
+    # progress
+    let bx = int32(g.logArea.x + g.logArea.width) - 180
+    if st.unlocked:
+      drawText(t(tkModsAchievementDone) & (if st.unlockedAt.len > 0: "  " & st.unlockedAt else: ""),
+               bx, ry + 18, 12, ColOk)
+    else:
+      let frac = clamp(st.progress.float32 / max(1, d.goal).float32, 0'f32, 1'f32)
+      drawRectangle(bx, ry + 20, 160, 8, uiSurface(20, 26, 36))
+      drawRectangle(bx, ry + 20, int32(160 * frac), 8, d.color)
+      drawText($st.progress & " / " & $d.goal, bx, ry + 32, 10, ColMuted)
+  endVirtualScissorMode()
+
 proc drawLog(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
-  drawRectangleLines(g.logArea, 1.0, Color(r: 50, g: 60, b: 70, a: 255))
+  drawRectOutline(g.logArea, 1.0, uiLine(50, 60, 70))
   if modLog.len == 0:
     drawText(t(tkModsLogEmpty), int32(g.x) + 12, int32(g.bodyY) + 12, 13, ColMuted)
     return
@@ -722,7 +805,7 @@ proc drawLog(mw: ModsWindow, g: Geo) =
       of mlWarn: ColWarn
       of mlError: ColErr
     drawText(fitWithEllipsis(prefix & line.text, maxW, 11), int32(g.logArea.x) + 10, y, 11, col)
-  endScissorMode()
+  endVirtualScissorMode()
 
 proc drawModsWindow*(mw: ModsWindow) =
   if not mw.window.visible: return
@@ -732,12 +815,13 @@ proc drawModsWindow*(mw: ModsWindow) =
 
   # tabs
   let labels: array[ModsTab, string] = [t(tkModsTabInstalled), t(tkModsTabModes),
-                                        t(tkModsTabCosmetics), t(tkModsTabApps), t(tkModsTabLog)]
+                                        t(tkModsTabCosmetics), t(tkModsTabApps),
+                                        t(tkModsTabAchievements), t(tkModsTabLog)]
   for tab in ModsTab:
     let r = g.tabs[tab]
     let active = mw.tab == tab
-    drawRectangle(r, if active: Color(r: 30, g: 70, b: 55, a: 255) else: Color(r: 28, g: 32, b: 42, a: 255))
-    drawRectangleLines(r, 1.0, if active: ColAccent else: Color(r: 70, g: 78, b: 92, a: 255))
+    drawRectangle(r, if active: uiSurface(30, 70, 55) else: uiSurface(28, 32, 42))
+    drawRectOutline(r, 1.0, if active: ColAccent else: uiLine(70, 78, 92))
     let tw = measureText(labels[tab], 14)
     drawText(labels[tab], int32(r.x + (r.width - tw.float32) / 2), int32(r.y) + 7, 14,
              if active: ColText else: ColMuted)
@@ -746,9 +830,9 @@ proc drawModsWindow*(mw: ModsWindow) =
   let banner = Rectangle(x: g.x.float32, y: float32(g.y + TabH + 8), width: g.w.float32, height: BannerH.float32)
   let keeps = modsActive and not modsDisableAchievements   # every loaded mod keeps rewards
   let bannerText = t(if keeps: tkModsKeepsBanner else: tkModsCheatBanner)
-  drawRectangle(banner, if keeps: Color(r: 12, g: 42, b: 30, a: 255) else: Color(r: 48, g: 34, b: 8, a: 255))
-  drawRectangleLines(banner, 1.0, if keeps: Color(r: 60, g: 200, b: 140, a: 200)
-                                  else: Color(r: 255, g: 176, b: 32, a: 200))
+  drawRectangle(banner, if keeps: uiSurface(12, 42, 30) else: uiSurface(48, 34, 8))
+  drawRectOutline(banner, 1.0, if keeps: uiLine(60, 200, 140, 200)
+                                  else: uiLine(255, 176, 32, 200))
   let bannerSize = bestFitFontSize(bannerText, int32(g.w) - 16, 12, 10)
   drawText(fitWithEllipsis(bannerText, int32(g.w) - 16, bannerSize),
            int32(g.x) + 8, int32(banner.y) + (BannerH - bannerSize) div 2, bannerSize,
@@ -759,6 +843,7 @@ proc drawModsWindow*(mw: ModsWindow) =
   of mtModes: mw.drawModes(g)
   of mtCosmetics: mw.drawCosmetics(g)
   of mtApps: mw.drawApps(g)
+  of mtAchievements: mw.drawAchievements(g)
   of mtLog: mw.drawLog(g)
 
   if mw.removeTarget.len > 0:

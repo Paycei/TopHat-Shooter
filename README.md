@@ -10,12 +10,6 @@ whole game is a desktop operating system. You play a lone process defending the 
 kernel from a hostile takeover. The menus are desktop apps, the enemies are rogue processes
 and the bosses are hijacked system services.
 
-<!-- MEDIA PLACEHOLDER
-<p align="center">
-  <img src="media/1.gif" alt="Wave mode combat" width="800">
-</p>
--->
-
 > **You are on the `mobile-test` branch — the Android port.** It is the *same*
 > codebase as desktop, not a fork: mobile behaviour is gated behind two compile
 > flags (`-d:mobile` for touch controls, `-d:android` for platform specifics),
@@ -139,8 +133,8 @@ script is stopped instead of freezing the game. Runs with mods loaded keep their
 saves and earn no permanent rewards, unless every loaded mod
 opts out with `"disableAchievements": false` (for mods that only change looks).
 
-The included examples are *Hello HUD*, *Glass Cannon*, *House Rules*, *Survival Tweaks*,
-*Bouncer*, *Overclock Boss*, *Neon Pack*, *Retro CRT* and *Model Pack*. They live in
+The included examples are *Hello HUD*, *House Rules*, *Story Mode*, *Overclock*, *Necromancer*,
+*Chaos Engine*, *Content Pack*, *Cosmetics Pack*, *Media*, *3D Worlds* and *Critical Section*. They live in
 [`mods-sdk/examples/`](mods-sdk/examples), and the full API reference is in
 [`mods-sdk/MODDING.md`](mods-sdk/MODDING.md).
 
@@ -160,7 +154,8 @@ cd TopHat-Shooter
 nimble install        # fetch dependencies
 ```
 
-Already cloned without `--recursive`? Run `git submodule update --init`. The GitHub
+Already cloned without `--recursive`, or pulled a commit that moves the submodule to a newer
+naylib? Run `nimble submodules` (or `git submodule update --init`). The GitHub
 "Download ZIP" and the Releases page's source archives leave the submodule out, so build
 from a clone.
 
@@ -168,9 +163,10 @@ from a clone.
 |---|---|
 | `nimble debug` | Build and run `TopHatShooterOS-debug.exe` (debug build, cheat menu enabled) |
 | `nimble WinRelease` | Speed-optimized Windows build (MSVC) → `TopHatShooterOS.exe` |
-| `nimble WinReleaseMin` | Size-optimized Windows build → `TopHatShooterOS.exe` |
+| `nimble WinReleaseMin` | Size-optimized Windows build → `TopHat-ShooterOS-Min.exe` |
 | `nimble LinuxRelease` | Optimized Linux build → `TopHatShooterOS-linux-x86_64` |
 | `nimble ship` | All three release artifacts plus `SHA256SUMS.txt` in `ship/` (see [`tools/ship.ps1`](tools/ship.ps1)) |
+| `nimble submodules` | Check out `vendor/naylib` at the commit the game records (e.g. after a `git pull`) |
 
 `nimble ship` is the release pipeline and has extra requirements: PowerShell 7,
 niminst, Inno Setup, and a WSL distro with Nim for the Linux build. The script checks

@@ -7,9 +7,10 @@ new game modes, new looks. They are small programs written in **Lua 5.5**
 A mod can reach almost everything: every field of the game state (down to
 nested lists and objects), replace the game's own behaviour at dozens of
 points (movement, dash, shooting, bullets, pickups, the shop, level-ups,
-enemy AI, boss attacks...), hide the HUD and draw its own, build first-person 3D worlds, dress the game in
-textures and 3D models, post-process the screen with shaders, and add its
-own apps to the desktop.
+enemy AI, boss attacks...), hide the HUD and draw its own, build first-person 3D worlds,
+rewrite PvP matches (new modes, weapons and abilities), dress the game in
+textures, videos and 3D models, play its own music, write in its own fonts,
+post-process the screen with shaders, and add its own apps to the desktop.
 
 > **Modded runs count as cheated.** Any run started while at least one mod is
 > loaded earns no Data Shards, statistics, advancements or unlocks. The one
@@ -21,7 +22,7 @@ own apps to the desktop.
 ## Getting started
 
 1. Open **MODS.EXE** on the desktop and press **Install Examples**. That writes
-   this guide and a few example mods into your mods folder.
+   this guide and the example mods into your mods folder.
 2. Tick a mod, press **Apply & Reload**, start a run.
 3. Press **Open Folder**, copy an example folder, rename it, change the `id` in
    its `mod.json`, and start editing. Apply & Reload picks up your changes; the
@@ -115,6 +116,8 @@ one and `hooks.list()` returns every name. Three kinds:
 |---|---|---|
 | `runStart` | game, resumed | event: a run begins (or is resumed) |
 | `runEnd` | game, died | event |
+| `checkpoint` | game | cancel: true skips the restore point the base mode is about to save (see [Restore points](#restore-points)) |
+| `restorePointUsed` | game, used, max | event: a Continue spent a restore point; fires on the continued run's first frame, after `runStart` |
 | `update` | game, dt | event, every frame of play (dt in seconds), after the game's own update |
 | `preUpdate` | game, dt | event, every frame of play, before the game's own update |
 | `stateChange` | game, from, to | event: the run moved between screens (`"gsPlaying"`, `"gsPaused"`, `"gsShop"`, `"gsPowerUpSelect"`, `"gsGameOver"`, ...) |
@@ -144,6 +147,15 @@ one and `hooks.list()` returns every name. Three kinds:
 | `bulletUpdate` | bullet, dt | cancel: true skips the built-in movement (its lifetime still runs out) |
 | `bulletDraw` | bullet | cancel: true skips the built-in look |
 | `bulletHit` | damage, bullet, enemy | filter: a player bullet's damage on hit |
+| `bulletExpire` | bullet | event: a bullet's lifetime ran out (it missed) |
+| `thingSpawn` / `thingDeath` | thing | events: a thing joined the arena / its HP ran out (see [Things](#things-hazards-and-projectiles)) |
+| `statusApplied` | target, name, stacks | event: a status (see [Statuses](#statuses)) was applied to an enemy or the player |
+| `statusExpired` | target, name, expired | event: a status went away (`expired`: it ran out rather than being cleared) |
+| `enemyContact` | damage, enemy, player | filter: the damage of an enemy's (or a boss's) touch |
+| `bulletHitPlayer` | damage, bullet, player | filter: an enemy bullet landing on the player |
+| `cacheOpen` | tier, game, x, y | cancel: true takes a survival Data Cache without its rewards (`tier`: `"sctMinor"` ... `"sctKernel"`) |
+| `abilityUsed` | game | event: the player pressed [Q] (after the built-in abilities ran) |
+| `patchInstalled` | name, game | event: a roguelite patch was installed (`"rrtOverclock"`, or a mod patch's name) |
 | `playerDamaged` | amount, player | filter: damage the player is about to take |
 | `playerLethal` | player | cancel: true keeps the player alive (set `player.hp` yourself) |
 | `playerHeal` | amount, player | filter |
@@ -176,9 +188,35 @@ one and `hooks.list()` returns every name. Three kinds:
 | `world3dBossPhase` | phase | event: the 3D boss changed phase |
 | `world3dBossAttack` | phase, pattern | cancel: true stops that attack |
 | `world3dPickup` | pickup | cancel: true takes the pickup without its built-in effect |
+| `pvpStart`, `pvpEnd`, `pvpUpdate`, `pvpShoot`, ... | match, ... | the PvP hooks: see [PvP](#pvp), which has their table |
 
 Enemy types are named like the game's own (`"etCircle"`, `"etCube"`,
 `"etThread"`, `"etFragment"`...); `enemies.types()` lists them all.
+
+### Mod events
+
+Mods can talk to each other through events of their own. A hook name with a
+colon, `"<mod id>:<event>"`, is a mod event: `hooks.on` and `hooks.off` take
+it like any hook, and
+
+* `hooks.emit(name, ...)` calls every handler of `name`, in the order they
+  were added;
+* `hooks.filter(name, value, ...)` passes `value` through every handler (each
+  gets `(value, ...)` and may return a replacement) and returns the result.
+
+```lua
+-- necromancer/main.lua
+hooks.emit("necromancer:raised", ally, enemy)
+local souls = hooks.filter("necromancer:soulValue", 1, enemy)
+
+-- another mod
+hooks.on("necromancer:raised", function(ally, enemy) ally.data.glow = true end)
+hooks.on("necromancer:soulValue", function(n, enemy) return n * 2 end)
+```
+
+Name your events after your own mod id. An event that raises itself more than
+16 levels deep stops with an error, and the handlers of a mod that is switched
+off go with it.
 
 ## The game, the player, enemies and bullets
 
@@ -227,15 +265,39 @@ Methods:
   `game:enemiesNear(x, y, radius)`, `game:isMode("wave")` (also `"survival"`,
   `"roguelite"`, `"sandbox"` or a mod game mode id).
 * `player:powerUpLevel("puDoubleShot")`, `player:hasPowerUp(name)`.
-* `enemy:valid()`: still alive and still in the run.
+* `enemy:valid()`: still alive and still in the run; `bullet:valid()`: still
+  flying.
+
+### Your own data on an entity
+
+`e.data` (and `b.data` on a bullet) is a table of your own for that one enemy
+or bullet: put anything in it.
+
+```lua
+hooks.on("enemySpawn", function(e) e.data.hits = 0 end)
+hooks.on("bulletHit", function(dmg, b, e)
+  e.data.hits = (e.data.hits or 0) + 1
+  if e.data.hits >= 5 then return dmg * 3 end
+end)
+```
+
+* Each mod sees its own table: two mods' `e.data.hits` never collide.
+* It lives as long as the entity does (it is forgotten a moment after the
+  enemy dies or the bullet is gone).
+* Plain data (numbers, strings, booleans, tables) comes back when a suspended
+  run is resumed exactly (quitting to the desktop). A run restarted from a run
+  save or a restore point rebuilds its enemies, so their data starts empty:
+  keep what must survive that in `run.data`.
 
 ## Changing the game
 
 **Spawning.** `spawn.enemy(type, x, y [, {elite = true, difficulty = 3,
 onSpawn = fn}])`, `spawn.boss(id [, {x = .., y = .., onSpawn = fn}])` and
 `spawn.bullet{x, y, vx, vy, damage, radius, lifetime, fromPlayer, color}`.
-Hooks run in the middle of the game's own loops, so spawns happen at the end
-of the current frame; use `onSpawn` to set up what you spawned.
+Hooks run in the middle of the game's own loops, so spawns join the run at
+the end of the current frame. `spawn.enemy` and `spawn.bullet` return the new
+enemy or bullet right away: set it up, keep it, give it `data`; `valid()` is
+already true. `onSpawn` (and `spawn.boss`'s) runs when it joins.
 
 **Enemies.** `e:damage(amount [, source])` (bosses too: it drains the current
 phase), `e:kill()` (dies with its normal rewards; not bosses), `e:remove()`
@@ -325,6 +387,455 @@ movement (`circle_player`, `anchored`, `aggressive`, `defensive`, ...) or
 `boss.y` (like the built-in ones do). Without `weakPoint` a boss takes full
 damage everywhere.
 
+## Things, hazards and projectiles
+
+A **thing** is a new kind of object in the arena, one you design: an ally, a
+turret, an orbiting shield, an aura, a wall, a zone, a prop, a pickup. Register
+its kind while your mod loads, then spawn as many as you like during a run.
+
+```lua
+local TURRET = register.thing{
+  id = "turret", team = "player", motion = "static",
+  shape = "circle", radius = 14, color = "#60e0ff", hp = 12,
+  solid = true, hitByBullets = true,            -- enemies' shots wear it down
+  lifetime = 20,                                -- seconds (0 = forever)
+  weapon = {interval = 0.6, range = 320, damage = 1, speed = 380},
+  onDeath = function(t, game) fx.particles(t.x, t.y, "#60e0ff", 30) end,
+}
+hooks.on("placeWall", function(x, y, game)
+  spawn.thing(TURRET, x, y)
+  return true                                   -- no wall: a turret instead
+end)
+```
+
+`register.thing{...}` returns the kind's name (`"<your mod id>:<id>"`). Every
+field is optional except `id`, and an unknown field is an error:
+
+| Field | Meaning |
+|---|---|
+| `team` | `"player"` (an ally: hurts enemies, the enemies' shots hit it), `"enemy"` (hurts the player) or `"neutral"` (both) |
+| `shape`, `radius`, `w`, `h` | `"circle"` (radius) or `"rect"` (w x h, centred) |
+| `motion`, `speed` | `"static"`, `"free"` (flies on its `vx`/`vy`, with `friction` and `bounce` off the arena edges), `"followPlayer"` (keeps `orbitRadius` away), `"orbitPlayer"` (`speed` degrees per second at `orbitRadius`, from `orbitAngle`), `"chasePlayer"`, `"chaseEnemy"` (the nearest) |
+| `angle`, `spin` | degrees, degrees per second |
+| `hp` | 0 = cannot be hurt; `invulnerable = true` also ignores damage; `hpBar = false` hides its bar |
+| `contactDamage`, `contactInterval` | damage to what it touches on the other side, every `contactInterval` seconds (0.5) |
+| `solid` | pushes the player and regular enemies out of it |
+| `blocksBullets`, `hitByBullets` | stops the other side's bullets / takes their damage (a neutral thing: everyone's) |
+| `pickup`, `magnet` | taken when the player touches it (`onPickup`), and pulled toward a nearby player |
+| `persistent` | in the roguelite, follows the player into the next room (others are left behind) |
+| `lifetime`, `layer`, `color`, `scale`, `tag` | seconds alive (0 = forever), `"below"` / `"normal"` / `"above"` the actors, look, and a label you can search by |
+| `texture`, `model`, `look` | its look (`look` takes `scale`, `rotate` and `override.model`'s pose options) instead of the plain shape |
+| `weapon` | a turret: `{interval, range, speed, damage, count, spread, radius, lifetime, color, kind}`; it aims at the nearest target of the other side |
+| `update`, `updateEvery` | `fn(thing, dt, game)`, every frame or every `updateEvery` seconds |
+| `draw` | `fn(thing)` draws it yourself (world coordinates) |
+| `onSpawn(thing, game)`, `onDeath(thing, game)`, `onExpire(thing, game)` | it joined / its HP ran out / its lifetime ran out |
+| `onTouchPlayer(thing, player, game)`, `onTouchEnemy(thing, enemy, game)` | on contact (every `contactInterval`) |
+| `onHit(thing, bullet, damage)` | a bullet hit it: return the damage to take |
+| `onDamaged(thing, amount, source)` | any damage (`source`: `"bullet"`, `"explosion"`, `"script"`): return the amount |
+| `onPickup(thing, player, game)` | it was picked up; return `false` to leave it there |
+
+`spawn.thing(kind, x, y [, overrides])` returns the thing at once (it joins
+the arena at the end of the frame). The overrides take the instance fields of
+the table above (not the callbacks), `vx`/`vy`, `maxHp` and an `onSpawn`
+function. A run holds up to 4000 things.
+
+A thing works like an enemy in scripts: `t.x`, `t.y`, `t.vx`, `t.vy`, every
+field by name (`t.hp`, `t.speed`, `t.orbitRadius`...), the flags as booleans
+(`t.solid = false`), `t.data` (your own table, as on enemies), and
+`t:damage(n)`, `t:heal(n)`, `t:kill()`, `t:remove()`, `t:valid()`,
+`t:distanceTo(x, y | entity)`, `t:moveToward(x, y, speed, dt)` and
+`t:shoot(angle | {x =, y =} [, {speed, damage, kind, count, spread, radius,
+lifetime, color, pierce}])`. `game:things([kind or tag])` and
+`game:thingsNear(x, y, radius [, kind or tag])` find them.
+
+Things are saved with a suspended run (quitting to the desktop), not in run
+saves or restore points: rebuild them from `run.data` in `runStart`.
+
+### Hazards
+
+`spawn.hazard{...}` puts down a telegraphed danger: it shows a warning for
+`warn` seconds (always drawn, whatever your mod does: hazards must be fair),
+then hurts what `hurts` names for `active` seconds, once or every `tick`
+seconds.
+
+```lua
+spawn.hazard{shape = "circle", x = player.x, y = player.y, r = 90,
+             warn = 1.2, active = 0.3, damage = 2, hurts = "player", color = "#ff4040"}
+spawn.hazard{shape = "line", x = 0, y = 300, length = 1100, angle = 0, r = 18,
+             warn = 0.8, active = 1.5, tick = 0.25, damage = 1, hurts = "all"}
+```
+
+Shapes: `"circle"` (`r`), `"rect"` (`w`, `h`), `"line"` (`length` along
+`angle`, `r` wide each side), `"ring"` (`inner` to `r`). `hurts`: `"player"`
+(default), `"enemies"` or `"all"`. `onTrigger = fn(hazard, game)` runs when
+the warning ends. It returns the hazard (a thing of kind `"@hazard"`).
+
+### Projectiles and explosions
+
+`register.projectile{...}` gives bullets a behaviour of their own:
+
+```lua
+local SEEKER = register.projectile{
+  id = "seeker", pierce = 2, homing = 4,
+  onHit = function(b, e, dmg) e.speed = e.speed * 0.8 return dmg end,
+  onExpire = function(b) game:explode(b.x, b.y, 60, 2) end,
+}
+spawn.bullet{x = player.x, y = player.y, vx = 0, vy = -400, fromPlayer = true, kind = SEEKER}
+```
+
+Fields: `pierce` (enemies it passes through), `homing` (turn rate toward the
+nearest target), `update(bullet, dt, game)` (return true to move it
+yourself), `draw(bullet)`, `onHit(bullet, enemy, damage)` and
+`onHitPlayer(bullet, player, damage)` (return the damage) and
+`onExpire(bullet)`. `spawn.bullet` takes `kind`, `pierce` and `homing = true`
+too, and a turret's `weapon.kind` fires them.
+
+`game:explode(x, y, radius, damage [, {hurts = "enemies" | "player" | "all",
+color, shake = "small" | "medium" | "large"}])` hurts everything of that side
+in the circle (things too) and shows a burst.
+
+## Statuses
+
+A status is a named effect with stacks and a duration, on an enemy or on the
+player: burns, curses, marks, buffs.
+
+```lua
+local SOUL = register.status{
+  id = "soulBurn", name = {en = "Soul Burn", es = "Quemadura"}, color = "#a040ff",
+  maxStacks = 5, duration = 4, tickInterval = 0.5,
+  modifiers = {speed = -0.08, damageTaken = 0.1},   -- per stack
+  onTick = function(e, stacks) e:damage(0.2 * stacks) end,
+  onExpire = function(e) fx.particles(e.x, e.y, "#a040ff", 8) end,
+}
+hooks.on("bulletHit", function(dmg, b, e) e:applyStatus(SOUL) end)
+```
+
+* `register.status{...}` (while loading): `id`, `name`, `color`, `icon`
+  (a texture for its pip), `maxStacks` (1), `duration` (seconds, 3; 0 or less
+  lasts until cleared), `tickInterval` (seconds between `onTick`), and
+  `modifiers = {speed, damageTaken, damageDealt}`: fractions per stack
+  (`speed = -0.1` is 10% slower; `damageTaken = 0.2` takes 20% more). Callbacks:
+  `onApply(target, stacks, magnitude)`, `onTick(target, stacks, magnitude)`,
+  `onExpire(target)` and `draw(target, x, y, stacks)` (its pip over the target;
+  a coloured dot by default).
+* `e:applyStatus(name [, {duration, stacks = 1, magnitude = 1}])` adds stacks
+  (up to `maxStacks`) and refreshes the duration; `magnitude` scales the
+  modifiers. `e:status(name)` returns `{stacks, remaining, duration,
+  magnitude}` or nil; `e:clearStatus(name)` removes it. `player` has the same
+  three. `statuses.list()` names every status.
+* The game's own effects work by name too: on enemies `"fire"` and `"poison"`
+  (magnitude = damage per second), `"slow"` (magnitude 0 to 0.95, timed) and
+  `"frost"` (a lasting chill); on the player `"poison"`.
+* Speed modifiers move regular enemies only (bosses ignore slows, as with the
+  game's own). An enemy's `damageDealt` counts on its touch and its bullets,
+  not on boss attack patterns, lasers or hazards.
+* Enemy statuses run on the enemies' clock (Time Warp slows them too).
+
+## More content
+
+Every `register.*` here is a table of fields; an unknown field is an error.
+Names are `{en = ..., es = ...}` or a plain string; each call returns the
+content's full name (`"<your mod id>:<id>"`).
+
+### The `stats` table
+
+Shop items, consumables, patches (and content packs) can change the player's
+numbers without a line of code. `stats` maps a player field to a change:
+
+| Value | Means |
+|---|---|
+| `2` or `"+2"` / `"-2"` | add |
+| `"+10%"` / `"-10%"` | scale by 110% / 90% |
+| `"x0.95"` | multiply |
+| `"=3"` | set |
+
+```lua
+stats = {damage = "+10%", maxHp = 2, fireRate = "x0.95", walls = 3}
+```
+
+Any number field of the player works (`player:fields()` lists them); raising
+`maxHp` heals by the same amount.
+
+### Consumables
+
+```lua
+local MANA = register.consumable{
+  id = "mana", name = "Mana Cell", color = "#4080ff",
+  icon = "icons/mana.png",           -- or a function(x, y, radius, color); default: its initial
+  weight = 6,                        -- drop chance next to the game's own 100
+  modes = {"wave", "survival"},      -- empty: every mode
+  stats = {damage = "+5%"},
+  onPickup = function(player, game, x, y) fx.particles(x, y, "#4080ff", 20) end,
+}
+```
+
+Random drops roll yours in with the game's; `spawn.consumable(MANA, x, y)`
+drops one. The `pickup` hook sees its name as `kind`. Mod consumables do not
+count in the lifetime consumable statistics.
+
+### Shop items
+
+```lua
+register.shopItem{
+  id = "core", name = "Spare Core", description = "+3 walls",
+  cost = 12, costMult = 1.5, maxBuys = 5,   -- price x1.5 per purchase; 0 = no limit
+  modes = {"wave"}, minWave = 3, color = "#78dca0", icon = "icons/core.png",
+  stats = {walls = 3},
+  onBuy = function(player, game, bought) end,
+}
+```
+
+They appear after the shop's six rows (the list scrolls when it grows past
+them). Purchases go through the `shopBuy` hook (its index counts from 7 for
+yours) and the run statistics, and are saved with the run.
+
+### Active [Q] abilities
+
+A power-up can have an ability on the [Q] key:
+
+```lua
+register.powerup{
+  id = "nova", name = "Soul Nova", legendary = true,
+  active = {cooldown = 12, activate = function(player, level, game)
+    game:explode(player.x, player.y, 160, 3)
+    -- return false to say it did not fire (no cooldown)
+  end},
+}
+```
+
+It sits on the [Q] strip with the game's own, with its cooldown.
+
+### Roguelite patches
+
+```lua
+register.patch{
+  id = "ward", name = "KB Soul Ward", description = "+2 integrity; heals between rooms",
+  color = "#a040ff", icon = "icons/ward.png",
+  weight = 1,          -- chance in a draft; a game patch weighs 1
+  minFloor = 2,
+  stats = {maxHp = 2},
+  onInstall = function(player, game) end,
+  update = function(player, dt, game) end,   -- every frame of a run that has it
+}
+```
+
+They are offered on patch pedestals and /pkg stalls with the game's own,
+appear everywhere installed patches are listed, and are saved with the run
+(by name: a run whose mod is gone just loses them). `player:hasPatch(name)`
+checks for one (a game patch by its name, `"rrtOverclock"`).
+
+### Survival events
+
+```lua
+register.survivalEvent{
+  id = "storm", name = "Packet Storm", hint = "Survive the storm!",
+  color = "#40c0ff",
+  weights = {boot = 0, runtime = 20, overload = 25, panic = 25},  -- per phase
+  duration = 20, warmup = 2,
+  reward = "sctStandard",            -- a Data Cache on success (false: none)
+  onStart = function(ev, game) ev.data.hits = 0 end,
+  update = function(ev, game, dt)    -- "success" / "fail" end it; reaching duration succeeds
+    if ev.data.hits > 10 then return "fail" end
+  end,
+  onFinish = function(ev, game, success) end,
+  tracker = function(ev, game) return ev.data.hits .. " hits" end,   -- the HUD card's line
+  fraction = function(ev, game) return 1 - ev.live / ev.limit end,   -- its bar
+}
+```
+
+They join the random event draw by their weights (never twice in a row), with
+the game's banner and HUD card. `ev` has `name`, `elapsed`, `live` (seconds
+since the warmup ended), `warmup`, `limit`, `phase` and `data` (a table of
+yours for this event). The `survivalEvent` hook can veto one by its name. A
+running event is not saved with the run (the game's aren't either).
+
+### Achievements
+
+```lua
+local SLAYER = register.advancement{id = "slayer", name = "Soul Slayer",
+  description = "Raise 100 allies", goal = 100, hidden = false, icon = "icons/slayer.png"}
+hooks.on("enemyDeath", function(e) advancements.progress("slayer") end)
+```
+
+`advancements.progress(id [, amount])` (true when that unlocked it),
+`advancements.grant(id)` and `advancements.get(id)` (`{progress, goal,
+unlocked}`). They are your mod's own: kept per profile, shown in MODS.EXE's
+Achievements tab with a toast when one unlocks, and they unlock in any run,
+cheated or not. They never touch the game's advancements or their rewards.
+
+## In-run UI
+
+### Screens
+
+`ui.open{...}` puts a screen of yours over the run: a menu, a shop, a map, a
+minigame. While it is open the run holds still (unless `pause = false`) and
+the player's gameplay input (shooting, dash, walls, [Q]) waits.
+
+```lua
+local s = ui.open{
+  draw = function(w, h)           -- screen coordinates of the HUD (draw.*, ui.* widgets)
+    ui.panel(w / 2 - 150, h / 2 - 80, 300, 160, {title = "TERMINAL", color = "#40ff80"})
+    if ui.button(w / 2 - 60, h / 2 + 20, 120, 30, "CLOSE") then s:close() end
+  end,
+  update = function(dt) end,      -- every frame it is open
+  click = function(x, y, button) end,   -- a click no widget took ("left" / "right")
+  onClose = function() end,
+  pause = true, closeOnBack = true,     -- Esc / gamepad B closes it
+  layer = "hud",                  -- or "screen": raw screen pixels, over everything
+}
+```
+
+It returns `{id, close = fn, isOpen = fn}` (`s:close()`, `s:isOpen()`);
+`ui.close(s)`, `ui.isOpen(s)` and `ui.closeAll()` (your mod's) work too.
+Screens are never saved: a resumed run reopens what it needs in `runStart`.
+
+### Widgets
+
+Immediate mode: call them every frame you draw, and they return what the
+player did. They work in a screen's `draw`, a HUD card, an app's `draw` and
+`drawHud`, with the mouse or a gamepad (A clicks where the pad's cursor
+points).
+
+* `ui.panel(x, y, w, h [, {title, color}])` -> the y below its title
+* `ui.button(x, y, w, h, label [, {color, enabled}])` -> true the frame it is clicked
+* `ui.label(text, x, y [, {size, color, align = "left" | "center" | "right", width}])`
+  (wraps to `width`) -> the height it used
+* `ui.progress(x, y, w, h, fraction [, color])`
+* `ui.checkbox(x, y, label, checked)` -> the new value
+* `ui.slider(x, y, w, value, min, max)` -> the new value
+* `ui.pointer()` -> x, y, pressed, down
+
+### Dialogue, choices and cutscenes
+
+```lua
+ui.dialogue{
+  lines = {
+    {speaker = "KERNEL", text = "You are not supposed to be here.", portrait = KERNEL_TEX, color = "#ff4060"},
+    {speaker = "YOU", text = "Then why did you leave the door open?"},
+  },
+  choices = {"Fight", "Flee"},           -- on the last line (keys 1..9 work too)
+  onChoice = function(i) end, onDone = function() end,
+}
+ui.choose{title = "Pick a blessing", options = {
+  {title = "Fury", description = "+20% damage", icon = FURY_TEX, color = "#ff6040"},
+  {title = "Ward", description = "+3 integrity"},
+}, onPick = function(i) end, allowSkip = false}
+ui.cutscene{shots = {
+  {duration = 2, draw = function(t, w, h) draw.text("YEAR 2049", w / 2 - 80, h / 2, 30, "#ffffff") end},
+  {duration = 3, draw = function(t, w, h) draw.texture(CITY, w / 2, h / 2, {w = w}) end},
+}, skippable = true, onDone = function() end}
+```
+
+Space / Enter / a click (or A) advance and confirm; Esc / B skips (when
+`skippable`, default true; `ui.choose` only with `allowSkip`, and `onPick`
+then gets nil). Each returns its screen.
+
+### Toasts and banners
+
+`ui.toast(text)` shows a notification (over a run, or on the desktop).
+`ui.banner(title [, subtitle, color, seconds])` shows a big line over the run.
+
+### HUD cards
+
+```lua
+register.hudCard{id = "souls", title = "SOULS", color = "#a040ff", height = 34,
+  draw = function(x, y, w, h)
+    ui.progress(x, y + 4, w, 8, run.data.souls / 100, "#a040ff")
+    ui.label(run.data.souls .. " / 100", x, y + 16, {size = 12})
+  end, classic = true}
+```
+
+A card of yours in the HUD's run column (16:9, under the mode's own card), or
+at the top right in the classic and legacy HUDs (`classic = false` keeps it
+out of those). `measure = fn(w) -> height` sizes it every frame instead of
+`height` (0 hides it that frame: a mode's card can stay out of other runs).
+`hud.hide("run")` hides them with the rest of the run column.
+
+### Pause-menu actions
+
+`register.pauseAction{id = "skipIntro", name = "Skip the intro", onClick =
+fn(game)}` adds a button to a MODS tab in the pause menu (shown only when
+some are registered).
+
+## Camera and time
+
+**Camera.** `camera.zoom = 2` zooms into the arena (1 to 3; never out: the
+arena is all there is). `camera.x` / `camera.y` set where it looks (it stays
+inside the arena on its own), `camera.follow(true [, lerp])` keeps the player
+centred (`lerp`: how fast it catches up, per second; 0 snaps),
+`camera.reset()` shows the whole arena again. Aiming, the cursor and the
+gamepad follow the camera. `camera.toScreen(x, y)` gives the screen point an
+arena point is drawn at, `camera.toWorld(x, y)` the reverse. Each run starts
+with the whole arena; the camera only applies to the 2D arena (not PvP or 3D
+worlds).
+
+```lua
+hooks.on("bossSpawn", function(boss) camera.zoom = 1.6 camera.follow(true, 6) end)
+hooks.on("bossDeath", function() camera.reset() end)
+```
+
+**Time.** `time.scale` (0.1 to 2) runs the whole world faster or slower;
+`time.enemyScale` (0 to 2) only the enemies and their shots (0 freezes them).
+`time.hitstop(seconds [, scale])` freezes the world for a beat and
+`time.slowmo(seconds, scale [, ramp])` slows it down (easing back with `ramp`),
+like the game's own hit stop and slow motion. All of it resets with each run.
+
+## Commands
+
+```lua
+register.command{name = "souls", help = {en = "Shows your souls", es = "Muestra tus almas"},
+  run = function(args)              -- the words typed after it
+    return "You have " .. (mod.storage.souls or 0) .. " souls"   -- or a list of lines
+  end}
+```
+
+The Help terminal (HELP.EXE) runs it on the desktop and lists it under
+`help`.
+
+## Content packs
+
+A mod can be data only: put JSON files under `content/` in its folder (any
+depth). Each file holds one entry or a list; `type` says what it registers
+and every other field is that `register.*` call's table:
+
+```json
+[
+  {"type": "powerup", "id": "grit", "name": "Grit", "maxLevel": 3, "stats": {"maxHp": "+2"}},
+  {"type": "shopItem", "id": "core", "name": "Spare Core", "cost": 10, "stats": {"walls": 2}},
+  {"type": "consumable", "id": "mana", "color": "#4080ff", "weight": 5, "stats": {"damage": "+5%"}},
+  {"type": "enemy", "id": "brute", "base": "etCube", "hp": 9, "speed": 70, "color": "#ff8040"}
+]
+```
+
+Types: `powerup`, `enemy`, `boss`, `thing`, `projectile`, `status`,
+`consumable`, `shopItem`, `patch`, `survivalEvent`, `advancement`, `theme`
+(see [Interface themes](#interface-themes)), and `roster`, which is `roster.add` for a pack: `{"type": "roster", "mode":
+"wave", "enemy": "brute", "chance": 0.1, "fromWave": 3}` (a bare enemy id is
+the pack's own; `minTime` and `minFloor` work too). Files load
+in name order, after `main.lua` (if any), still while the mod loads. A mod
+with a `content/` folder needs no `main.lua` at all. JSON cannot hold
+functions, so what a pack registers does what its fields (and `stats`) say; a
+script can add the behaviour (`hooks.on`, `override.*`). A bad entry fails the
+mod with the file's name.
+
+## Difficulty
+
+`difficulty.scale{enemyHp, enemyDamage, enemySpeed, spawnPace, eliteChance,
+bossCooldown}` multiplies the game's difficulty levers for this run, on top
+of the profile's difficulty (`spawnPace` 1.5 spawns 50% faster, `bossCooldown`
+0.8 makes bosses attack more often). Each run starts at 1 everywhere: set it in
+`runStart`. `difficulty.get()` returns the profile (`"gdHard"`...) and the
+scale in force.
+
+## More of the player
+
+* The dash is tunable per run: `player.dashBurstMult` (speed multiple during
+  the burst, 3.4), `player.dashTime` (seconds of burst, 0.16) and
+  `player.dashRecharge` (seconds between dashes, 2.5). The HUD's dash meter
+  follows them.
+* `player:hurt(amount, {cause = "Lava"})`: when that hit is lethal the run ends
+  at once and the crash screen reads "Terminated by Lava".
+
 ## New power-ups and enemies
 
 ```lua
@@ -374,7 +885,7 @@ roster.add("wave", bouncer, {chance = 0.15, fromWave = 3})
 * The `powerUpChoices` filter gets the three offered names and may return a
   list of names to offer instead.
 
-There is room for 64 mod power-ups and 32 mod enemies across all loaded mods.
+There is room for 256 mod power-ups and 128 mod enemies across all loaded mods.
 Saves store mod content by name, so a run saved with a mod keeps its power-ups
 as long as that mod is loaded.
 
@@ -392,6 +903,7 @@ local MODE = register.gamemode{
   description = {en = "...", es = "..."},
   base = "wave",          -- "wave", "survival", "roguelite" or "3d": the rules it starts from
   spawning = true,        -- false: the base mode spawns nothing by itself
+  resumable = true,       -- false: quitting ends a run instead of saving it to resume
   icon = "icon.png",      -- optional desktop icon; color and desktop work the same way
   onStart = function(game, resumed) end,
 }
@@ -413,12 +925,77 @@ end)
   without a `color` it takes its base mode's color (Play blue, Survival orange,
   Roguelite teal). Mode icons come first among the mod icons, in registration
   order, tagged MOD.
+* **Quitting is never a loss**, in any mode. A run that is quit and cannot be
+  resumed ends with `runEnd(game, false)` and counts no death.
+* `resumable = false` turns off resuming a run you quit: leaving a run of the
+  mode (the pause menu's exit, Q in a 3D world's pause, `world3d.exit()` in a
+  3D mode, or closing the game) ends it instead of saving it, the exit prompt
+  says so, and the mode's desktop icon and MODS.EXE never
+  offer the Continue / New Run prompt for a saved run. Its
+  [restore points](#restore-points) are separate and keep working. A script
+  can decide for one run with `run.resumable` (see below).
 * `base = "3d"` makes a mode that plays entirely in a first-person 3D world
   (see [3D worlds](#3d-worlds)): it launches into an empty world that the
   world3d hooks build, `spawning` is off, and finishing the world with
   `world3d.finish(true)` wins the run. Example: `arena_3d`.
 * To change an **existing** mode instead, write the same hooks without a mode:
-  check `game:isMode("survival")` and so on (see the `survival_tweaks` example).
+  check `game:isMode("survival")` and so on (see the `chaos_engine` example).
+
+### Restore points
+
+When a run dies, the crash screen can offer **CONTINUE**: the run starts again
+from its last checkpoint and spends a restore point, drawn as a save platter in
+the meters on the crash, pause and victory screens. How many a run gets depends
+on the profile's difficulty and the base mode (wave: unlimited / 3 / 1 / 0 from
+Easy to Nightmare; survival and roguelite: 3 / 1 / 0 / 0), and each base mode
+saves its checkpoint at fixed points (the start of a boss block, a sector, a
+survival phase). A mode can take all of it over:
+
+```lua
+register.gamemode{
+  id = "gauntlet", base = "3d",
+  restorePoints = 2,           -- 2 on every difficulty
+  -- restorePoints = false       no restore points at all
+  -- restorePoints = "unlimited"
+  -- restorePoints = {easy = "unlimited", medium = 3, hard = 1}   nightmare keeps the base 0
+  restoreGlyphs = true,        -- false: continues work, but no meter and no loss animation
+}
+```
+
+* `restorePoints = false` switches the system off for the mode: no checkpoint
+  is ever written (not by the base mode, not by a script), the crash screen
+  offers no CONTINUE, and no restore-point meter or animation is drawn. A
+  number (0 to 1000) or `"unlimited"` is the budget on every difficulty; a
+  table sets it per difficulty, and a difficulty it leaves out keeps the base
+  mode's. `0` keeps the meter, reading NONE LEFT, like Nightmare. Anything
+  else is an error that names it.
+* A run that is past its win (endless waves, endless loops, Overtime) still has
+  no restore points, whatever the budget.
+* `run.restorePoints` is the run's side of it, read live: `enabled` (the mode
+  has the system), `max` and `left` (`math.huge` when unlimited), `used`,
+  `saved` (a checkpoint is there for CONTINUE to resume), `offline` (past the
+  win) and `glyphs` (the meters are drawn). `used` can be set (a whole number
+  from 0): giving one back or taking one away also updates the checkpoint, so
+  the crash screen agrees. The rest are read-only.
+* `run.restorePoints.save([label])` makes the run as it stands now, with its
+  `run.data`, the checkpoint CONTINUE resumes, and returns whether it was
+  written (not when the mode has none or a budget of 0, or the run is past its
+  win; with none `left` it is written, but CONTINUE stays off). `label` (`"ROUND 3"` or
+  `{en = "ROUND 3", es = "RONDA 3"}`) is what the button names: CONTINUE (ROUND
+  3); without one it names the base mode's wave, sector or clock.
+  `run.restorePoints.clear()` drops the checkpoint. A 3D mode has no
+  checkpoints of its own, so its script saves them; CONTINUE then opens a fresh
+  world with `resumed = true` (rebuild it from `run.data`, as on Continue after
+  quitting), and `restorePointUsed` tells it a restore point paid for it.
+* The `checkpoint` hook runs before each of the base mode's own checkpoints;
+  returning `true` skips it. To save your own instead, call
+  `run.restorePoints.save(label)` from that hook and return `true`.
+* `hud.hide("restorePoints")` hides the meters and the loss animation for the
+  run, in any mode (`hud.hide("all")` leaves them). `restoreGlyphs = false`
+  does it for every run of the mode.
+* Continue after **quitting** (the Continue / New Run prompt) is a saved run,
+  not a restore point, and is not affected by any of this: `resumable` turns
+  it off.
 
 ## Textures, sounds and cosmetics
 
@@ -428,7 +1005,12 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   `tex.height`); draw it inside a draw hook with
   `draw.texture(tex, x, y [, {w = .., h = .., rotation = degrees, tint = color,
   origin = "center" | "topleft"}])`.
-* Textures are PNG or GIF files, and an **animated GIF** plays by itself
+* Textures are images in any of these formats: **PNG, JPG, BMP, TGA, GIF,
+  QOI, PSD** (the merged image), **HDR, PIC, PPM/PGM, DDS, KTX, PKM, PVR** and
+  **ASTC** (the last four are GPU-compressed formats, which load only where
+  the graphics card supports them). Upper or lower case in the extension does
+  not matter. A video works as a texture too (see [Videos](#videos)).
+* An **animated GIF** plays by itself
   anywhere a texture goes (`draw.texture`, `override.texture`, cosmetics), at
   the frame delays saved in the file, looping. Every copy on screen shows the
   same frame. `tex.frames` is its number of frames and `tex.duration` one loop
@@ -438,8 +1020,10 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
   1/10 s, as in web browsers. GIF transparency is all or nothing per pixel, so
   use a PNG for soft edges.
 * `assets.sound("sfx/zap.wav")` returns a sound: `snd:play([volume, pitch])`.
+  WAV, OGG, MP3, FLAC or QOA. For music, and any sound that should loop or
+  be paused, use `assets.music` (see [Music](#music)).
 * `override.texture(target, file [, {scale = 1.2, rotate = true}])` draws an
-  image (PNG or GIF) instead of one of the game's bodies. Targets: `"player"`, `"enemy:<type>"`,
+  image or a video instead of one of the game's bodies. Targets: `"player"`, `"enemy:<type>"`,
   `"boss:<id>"`, `"bullet:player"`, `"bullet:enemy"`, `"powerup:<name>"` (its
   icon) and `"desktop"` (the wallpaper), plus the 3D-world targets `"boss3d"`,
   `"satellite3d"`, `"entity3d:<tag>"`, `"projectile3d:player"`,
@@ -454,9 +1038,20 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
 * `override.sound(name, file)` replaces one of the game's sounds (`shoot`,
   `enemyHit`, `enemyDeath`, `playerHit`, `coinPickup`, `powerUp`, `bossSpawn`,
   `explosion`, `wallPlace`, `teleport`, `menuNav`, `menuSelect`,
-  `waveComplete`, `shield`, `gameOver`, `buy`, ...). WAV, OGG or MP3.
+  `waveComplete`, `shield`, `gameOver`, `buy`, ...). WAV, OGG, MP3, FLAC or QOA.
 * `override.music(track, file)` replaces a music track: `"menu"`, `"wave"`,
-  `"powerUp"` or `"boss"`.
+  `"powerUp"`, `"boss"`, `"survival"` or `"roguelite"`, or a story cinematic's
+  score: `"storyIntro"`, `"storyRootAccess"`, `"storyBelow"` or `"storyUptime"`.
+  OGG, MP3, WAV, FLAC, QOA, or the tracker formats XM and MOD. Survival and
+  roguelite runs play their own theme, not `"wave"`; a boss fight in any mode
+  plays `"boss"`. Switching tracks takes a fraction of a second, and a track
+  starts from its top every time it comes in. The built-in wave, survival,
+  roguelite and boss themes change their arrangement with the run (the wave
+  number, the survival phase, the roguelite folder, the boss's phases) and
+  muffle while the player's integrity is critical; a replacement plays as it
+  is, looping from its end back to its start. A score plays once from the top in
+  time with its cinematic (fast-forwarding speeds it up) and does not loop, so
+  make it as long as the cinematic.
 * `register.cosmetic{kind = "player" | "bullet" | "desktop" | "cube", id = "neon",
   name = "Neon", description = "...", colors = {"#ff00ff", "#00ffff", "#ffffff"},
   texture = "skins/neon.png", scale = 1.2, rotate = true}` adds a cosmetic the
@@ -473,6 +1068,95 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
 Equipped mod cosmetics are remembered per profile and come back whenever the
 mod is loaded. In PvP everyone in the lobby sees each player's mod ship and
 bullet cosmetics.
+
+## Videos
+
+* `assets.video("clips/intro.mpg")` returns a video. A video goes everywhere
+  a texture goes: `draw.texture(clip, x, y, {...})`, `override.texture`,
+  `register.cosmetic{texture = ...}`, app and mode icons, `draw3d.billboard`,
+  `draw3d.texture` (a screen in a 3D world) and `shader:set` (a file name
+  ending in `.mpg` works there too, as with `assets.texture`).
+* **Format.** Videos are **MPEG-1 in an `.mpg` file** (with MP2 sound). The
+  game decodes them itself, so a video plays the same on every system. Convert
+  any other video (MP4, MOV, WebM, ...) with ffmpeg:
+
+  ```
+  ffmpeg -i in.mp4 -c:v mpeg1video -q:v 4 -c:a mp2 -b:a 192k -f mpeg out.mpg
+  ```
+
+  (`-an` leaves the sound out, `-s 640x360` shrinks the picture, and a lower
+  `-q:v` raises the quality. MPEG-1 takes the usual frame rates only: 24, 25,
+  30, 50 or 60.) Any other video file is an error that gives this command.
+* **A video plays while it is on screen.** It starts the first time it is
+  drawn and holds still, sound and all, while nothing draws it (a closed app,
+  a hidden wallpaper), so it costs nothing then. It runs on the wall clock,
+  like a GIF, and every copy on screen shows the same picture: one file is one
+  playback, whichever handle drew it. Until it first plays it shows its first
+  picture.
+* **A paused game is still drawn** under its pause screen (a run and a 3D
+  world alike), so a video it draws keeps playing, sound and all. Pause it
+  yourself while `world.paused` is true (or the run is paused) and play it
+  again after; the `media` example's Billboard Plaza does.
+* It loops unless `clip.loop = false`; it then stops on its last picture and
+  `clip.ended` turns true.
+* `clip:pause()`, `clip:play()` (an ended video starts over), `clip:stop()`
+  (pauses on the first picture) and `clip:seek(seconds)`.
+* Fields: `width`, `height`, `duration` and `time` (seconds), `fps`,
+  `playing` (moving right now), `paused`, `ended` and `hasAudio`. `loop`
+  (true) and `volume` (1, up to 4) can be set.
+* Its sound follows the game's sound volume. While a video's sound plays, the
+  game's own music waits, and goes on when it stops.
+* Decoding costs time every frame: up to 1280 x 720 at 30 frames a second is
+  comfortable; 1080p works but is heavy.
+
+## Music
+
+* `assets.music("music/theme.ogg")` returns a music track, streamed from the
+  file: OGG, MP3, WAV, FLAC, QOA, XM or MOD.
+* `theme:play()` (from where it was paused, else from the start),
+  `theme:pause()`, `theme:stop()` and `theme:seek(seconds)`.
+* Fields: `duration`, `time`, `playing` and `paused`; and settable `volume` (1,
+  up to 4), `loop` (true), `pitch` (1), `pan` (0; -1 is left, 1 right) and
+  `layer` (false).
+* It follows the game's music volume. While it plays (or is paused) the
+  game's own music waits, and goes on from where it was when yours stops;
+  playing a second track stops the first. A track with `layer = true` plays
+  over the game's music instead (ambience, a drone under a boss), and any
+  number of those can play at once.
+* A track started during a run stops when the run leaves the screen (game
+  over, quitting to the desktop); one started on the desktop (in an app, say)
+  plays on until you stop it.
+
+## Fonts
+
+* `assets.font("fonts/pixel.ttf" [, {size = 32, smooth = true, chars = "..."}])`
+  returns a font: **TTF** or **OTF**, **FNT** (BMFont, with its page images
+  beside it) or **BDF**.
+* Give it to `draw.text`, `draw.textWidth` or `draw3d.text` as the last
+  argument, alone or in a table with the letter spacing:
+  `draw.text("Score", 10, 10, 24, "#ffffff", font)` or
+  `draw.text("Score", 10, 10, 24, "#ffffff", {font = font, spacing = 2})`.
+  Text in your own font may be 1 to 400 pixels tall.
+* A TTF or OTF is made at `size` pixels (4 to 256, 32 by default) and scaled
+  from there, so text at that size is the sharpest; `font.size` tells it. FNT
+  and BDF fonts keep their own size. `smooth` (true for TTF/OTF, false for
+  FNT/BDF) blends the scaled edges rather than keeping hard pixels.
+* Every font carries ASCII and the accented letters of Western European
+  languages (what the game's own text uses). `chars` adds any others it should
+  have, for example `chars = "ĄĘŁŃŚŹŻ"` or a whole alphabet.
+
+## Data files
+
+Data your mod ships with (levels, dialogue, tables) reads from its folder:
+
+* `assets.text("data/story.txt")` returns a file's contents as a string.
+* `assets.json("data/levels.json")` returns its value: tables, numbers,
+  strings and booleans. A malformed file is an error with the line and column.
+* `assets.exists(path)` tells whether a file or folder exists in your mod.
+* `assets.list([folder])` returns the names in a folder of your mod (its top
+  folder without one), sorted; folder names end with `/`.
+
+Each file is at most 16 MB. Lua files load with `require`.
 
 ## 3D models
 
@@ -518,6 +1202,8 @@ the game's bodies, cosmetics, and your own drawing.
 | `spin` | 0 | keeps turning it about its up axis, degrees per second |
 | `animation` | the first | a name or a number (1 is the first); `false` holds the rest pose |
 | `speed` | 1 | animation speed |
+| `fade` | 0.2 | seconds a change of animation crossfades; 0 switches at once |
+| `key` | none | `draw.model` and `draw3d.model`: a string or number naming what you draw, so it crossfades when its animation changes |
 | `lit` | true | shaded by the light; `false` for flat colours |
 | `tint` | white | a colour multiplied over the model |
 
@@ -525,6 +1211,17 @@ Animations are skeletal (a mesh skinned to an armature) in GLB/glTF, IQM and
 M3D. They loop at 60 frames per second, which is the speed glTF and M3D
 animations were authored at, and up to 128 bones move a mesh. Each enemy
 starts its animation at its own point, so a crowd does not flap in step.
+
+**Crossfades.** When a body's animation changes, it blends from the pose on
+screen into the new animation over `fade` seconds instead of jumping. The
+bodies the game draws do this on their own: calling `override.model` again
+with another `animation` crossfades every player, enemy or boss wearing it,
+and so does setting a 3D entity's `modelAnim` (its `modelFade` sets the
+time). `draw.model` and `draw3d.model` draw a fresh copy every call, so give
+what you draw a `key` (a string or a number; an enemy's `id` works well, and
+each mod's keys are its own) and it crossfades the same way when the
+`animation` you pass changes. The rest pose (`animation = false`) fades in and
+out like any animation.
 
 Every copy on screen is drawn on its own, so keep enemy models light: a few
 hundred triangles each is plenty.
@@ -534,8 +1231,9 @@ hundred triangles each is plenty.
 The game has a first-person 3D mode (the Orbital Commander boss fight). Mods can
 enter it, change it, or build a whole game in it: a world of platforms, enemies
 that walk, orbit or shoot, pickups, a tunable weapon and your own HUD. The
-`arena_3d` example (**Cube Siege**) is a complete mode built this way, and
-`orbital_tweaks` changes the game's own 3D fight.
+`arena_3d` example has both: **Cube Siege**, a complete mode built this way,
+and changes to the game's own 3D fight. The `media` example's Billboard Plaza
+puts videos and images on screens and billboards in a world.
 
 ```lua
 hooks.on("world3dStart", function(world, resumed)
@@ -550,8 +1248,8 @@ end)
 * **A 3D game mode:** `register.gamemode{base = "3d", ...}` (see
   [Game modes](#game-modes)). Launching it goes straight into an **empty**
   world: no boss, nothing spawned, no 2D arena. The script builds everything.
-  Winning the world wins the run (the victory screen); losing it, or leaving
-  it, ends the run through the death screens.
+  Winning the world wins the run (the victory screen); losing it ends the run
+  through the death screens; leaving it quits the run (see Leaving below).
 * **From a 2D run:** `world3d.enter{boss = false, bossId = 7, keepHp = true}`
   opens a world at the end of the frame, through the fade to black. With
   `boss = true` it is the game's own boss fight (`bossId` 7, the Orbital
@@ -561,7 +1259,9 @@ end)
   or in a run that is a 3D mode already.
 * **Leaving:** `world3d.finish(true)` (or `false`, or `"won"` / `"lost"`; no
   argument means won) ends the world as won or lost, and `world3d.exit()` leaves
-  it (`"exit"`; in a 3D mode that counts as a loss). Both take effect at the end
+  it (`"exit"`). In a 3D mode leaving the world is quitting the run, never a
+  loss: back to the desktop, the run saved to resume like Q at the pause
+  (unless the mode is not `resumable`). Both take effect at the end
   of the frame. A world also ends by itself when the player dies
   (`rules.exitOnPlayerDeath`), when the boss dies (`rules.exitOnBossDeath`) and
   when `rules.timeLimit` runs out (a loss, or a win with `rules.timeLimitWins`).
@@ -669,7 +1369,7 @@ difficulty scales an entity's HP once, when it joins. Defaults: `hp` 30,
 | `tag`, `hp`, `maxHp`, `radius` | `radius` is the hit and touch size. An entity brought to 0 hp dies |
 | `pos`, `vel`, `yaw`, `x y z vx vy vz` | position, velocity, heading (degrees) |
 | `shape`, `color`, `size` | `"none"`, `"cube"` (`size` = full extents), `"sphere"` (drawn from `radius`), `"cylinder"` (from `radius`; `size.y` is its height) or `"model"` |
-| `model`, `modelScale`, `modelAnim`, `modelSpeed` | a model from `assets.model` (or a file name); setting one makes the shape `"model"`. `modelScale` 0 fits the model to the entity's diameter; `modelAnim` is an animation number (1 is the first, 0 the rest pose) |
+| `model`, `modelScale`, `modelAnim`, `modelSpeed`, `modelFade` | a model from `assets.model` (or a file name); setting one makes the shape `"model"`. `modelScale` 0 fits the model to the entity's diameter; `modelAnim` is an animation number (1 is the first, 0 the rest pose); changing it crossfades over `modelFade` seconds (0.2; 0 switches at once) |
 | `ai`, `speed`, `orbitRadius`, `range` | see below |
 | `contactDamage`, `contactTimer` | damage when it touches the player, at most once a second |
 | `fireInterval`, `fireTimer`, `projectileSpeed`, `projectileDamage` | shooting (an interval of 0 never shoots) |
@@ -752,10 +1452,30 @@ live ones (`for p in world:pickups() do`).
   `plane(x, y, z, w, d, color)`, `model(mdl, x, y, z [, options])` (the pose
   options of [3D models](#3d-models), plus `size`, the footprint in world
   units, 8 by default, or `scale`), `billboard(texture, x, y, z [, size = 8,
-  tint])` (a sprite that always faces the camera) and
-  `text(text, x, y, z [, size = 20, color])` (a label at a world point, size 10
-  to 120). `draw.*` there is an error (`draw.X is 2D: ... use the draw3d
+  tint])` (a sprite that always faces the camera, standing upright: `size`
+  is its height, the width follows the picture),
+  `texture(texture, x, y, z [, {w, h, yaw, pitch, roll, tint, frame, time}])`
+  (see below) and
+  `text(text, x, y, z [, size = 20, color, font])` (a label at a world point,
+  size 10 to 120 in the game's font; a [font](#fonts) of your own goes last). `draw.*` there is an error (`draw.X is 2D: ... use the draw3d
   library`), and so is `draw3d.*` anywhere else.
+* **Pictures fixed in the world:** `draw3d.texture` draws an image, a GIF or a
+  [video](#videos) as a flat panel that keeps its place and turn, unlike a
+  billboard: a screen, a sign, a poster, a decal. It is 8 tall unless given;
+  give `w` or `h` alone and the other follows the picture's shape, give both
+  to stretch it. Unturned it stands upright facing +z; `yaw`, `pitch` and
+  `roll` (degrees) turn it like a model, so `yaw = 90` faces +x and
+  `pitch = -90` lays it face up on the floor, its top toward -z. Both sides
+  show it the right way round. `frame` / `time` pick a GIF's frame as in
+  `draw.texture`, and `time` on the world's clock (`world.timeElapsed`)
+  stops it while the world is paused. To face a point (px, pz):
+  `yaw = math.deg(math.atan(px - x, pz - z))`. An unknown option is an error.
+  Pictures and billboards are unlit.
+* **See-through pictures:** fully see-through pixels (a GIF's background, a
+  PNG's empty corners) are not drawn at all, so they hide nothing behind them.
+  Half see-through ones (soft edges, a glow) still hide what is drawn after
+  them and behind them: draw those last, farthest first, as the `media`
+  example's plaza does with its orbs.
 * **On the screen** (`world3dDrawHud(world, w, h)`): the ordinary `draw`
   library, in pixels over the view, after the built-in HUD.
 * **Overriding the built-in looks:** `override.model(target, model)` and
@@ -845,17 +1565,23 @@ a world (and stop while it is paused).
   fresh world with `resumed = true` in `world3dStart` and in the mode's
   `onStart`. Rebuild the arena there, and keep what must carry on in
   `run.data` (the wave, the score, the HP), as `arena_3d` does.
-* Gameplay hooks do not run in PvP.
+* The world3d hooks never run in PvP, which has hooks of its own (see [PvP](#pvp)).
 
 ## Shaders
 
 GLSL fragment shaders can post-process the whole frame (desktop OpenGL 3.3,
-`#version 330`; see the `retro_crt` example for the inputs raylib passes).
+`#version 330`; see `crt.fs` in the `cosmetics` example for the inputs raylib passes).
 
-* `assets.shader("fx/crt.fs")` returns a shader. The game fills its `time`
-  (seconds) and `resolution` (pixels) uniforms; `shader:set(name, value)` sets
-  yours (a number, or a list of 2 to 4 numbers). A shader that does not
-  compile is an error with the reason.
+* `assets.shader("fx/crt.fs" [, "fx/crt.vs"])` returns a shader, with your own
+  vertex shader if you give one (it must use raylib's input names:
+  `vertexPosition`, `vertexTexCoord`, `vertexColor`, `mvp`). The game fills its
+  `time` (seconds) and `resolution` (pixels) uniforms; `shader:set(name, value)`
+  sets yours: a number, a list of 2 to 4 numbers, or a texture or video for a
+  `sampler2D` (up to 4 of them; a GIF shows its current frame, a video its
+  current picture). A shader that does not compile is an error with the reason.
+* The frame reaches the shader upside down, so `fragTexCoord` runs from the
+  bottom of the screen: sample your own texture at
+  `vec2(fragTexCoord.x, 1.0 - fragTexCoord.y)` to keep it upright.
 * `override.shader("game", shader)` runs it over every frame while a run is on
   screen; `override.shader("screen", shader)` over everything, desktop
   included. Pass `nil` to switch it off.
@@ -863,7 +1589,8 @@ GLSL fragment shaders can post-process the whole frame (desktop OpenGL 3.3,
 Phones draw with OpenGL ES, and the game converts your `#version 330` shader
 for it as it loads (`in` becomes `varying`, your `out vec4` becomes
 `gl_FragColor`, `texture()` becomes `texture2D()`, and floats get high
-precision where the phone has it). For one file to work on both, stay inside
+precision where the phone has it; in a vertex shader `in` becomes `attribute`
+and `out` becomes `varying`). For one file to work on both, stay inside
 what OpenGL ES 2.0 has:
 
 * Write float numbers with a point: `1.0`, not `1`. There is no automatic
@@ -880,8 +1607,10 @@ what OpenGL ES 2.0 has:
 `"all"`, `"player"` (health, power-ups), `"run"` (the wave / survival /
 sector panel), `"boss"`, `"combo"`, `"banners"`, `"abilities"`, `"hints"`,
 `"vignettes"`, `"docks"` (the widescreen side panels' background),
-`"damageNumbers"` and `"crosshair"` (3D worlds only; `"player"`, `"boss"`
-and `"damageNumbers"` also apply there). Every run starts with the full HUD, so hide parts from
+`"damageNumbers"`, `"crosshair"` (3D worlds only; `"player"`, `"boss"`
+and `"damageNumbers"` also apply there) and `"restorePoints"` (the
+[restore-point](#restore-points) meters on the crash, pause and victory screens,
+and the animation when one is spent; `"all"` leaves them). Every run starts with the full HUD, so hide parts from
 `runStart` (or a game mode's `onStart`).
 
 ## Apps
@@ -911,7 +1640,7 @@ register.app{
 | `update` | optional, `update(dt)`: runs every frame the window is open and not minimized (not while it is closed or minimized) |
 | `click` | optional, `click(x, y, button, w, h)`: a click inside the canvas (`"left"` or `"right"`), only when this window is the one under the pointer |
 | `drag` | optional, `drag(x, y, w, h)`: called while the left mouse button is held after a click in this app's canvas |
-| `icon` | optional: a texture or model (`assets.texture(...)` / `assets.model(...)`, or a file name: `.png` / `.gif` is a texture, anything else a model) shown in the desktop icon. Without one the icon shows a small window with the app's initial. A model icon also reads the pose options of `override.model` (`tilt`, `spin`, `animation`...) from the same table |
+| `icon` | optional: a texture or model (`assets.texture(...)` / `assets.model(...)`, or a file name: an image or video is a texture, anything else a model) shown in the desktop icon. Without one the icon shows a small window with the app's initial. A model icon also reads the pose options of `override.model` (`tilt`, `spin`, `animation`...) from the same table |
 | `color` | optional accent for the window and the icon tile (default: MODS.EXE green) |
 | `width`, `height` | optional canvas size in pixels (default 480 x 360; 240-960 wide, 160-640 tall) |
 | `resizable` | optional, default `false`. When `true` the player can drag the window's edge: `draw` and `click` then get the current canvas size, so lay out from `w` and `h`. Resizable windows open at least 400 x 300 |
@@ -920,7 +1649,74 @@ register.app{
 The desktop icons of mod apps sit in columns of their own after the game's
 icons, in the order the apps were registered, tagged MOD. Opening an app that is
 already open just brings its window to the front. Keep settings in
-`mod.storage` so they survive restarts (see `retro_crt`).
+`mod.storage` so they survive restarts (see `cosmetics`).
+
+## Interface themes
+
+The desktop, its windows, dialogs and notifications are drawn in an
+**interface theme**: TopHat-ShooterOS (the stock look), CKN OS (unlocked by the
+last story recording) or one a mod registers. The player picks it in
+**SETTINGS.sys > Interface > Theme**; the shop's SECRET tab also equips CKN
+OS. A run's own screens (the HUD, the pause menu, the crash screen) and the
+story cinematics always keep the stock look.
+
+```lua
+register.theme{
+  id = "midnight", name = {en = "Midnight", es = "Medianoche"},
+  base = "ckn",                 -- the hand-drawn pieces: "tophat" or "ckn"
+  surface = "#14182a",          -- window bodies and panels
+  raised = "#2b3350",           -- buttons, tabs, cards
+  text = "#eef2ff",             -- text
+  muted = "#8b93ad",            -- secondary text
+  accent = "#ff5fd2",           -- focus, selection, highlights
+  wallpaper = "art/night.png",  -- optional
+}
+```
+
+| Option | Meaning |
+|---|---|
+| `id` | required, unique in your mod (the theme is `<mod id>:<id>`, which register.theme returns) |
+| `name` | text or `{en = ..., es = ...}`: what Settings shows |
+| `base` | optional, default `"tophat"`. The theme's shell, the pieces drawn by hand: `"tophat"` has glowing square frames, the OS Grid wallpaper and the crosshair pointer; `"ckn"` has rounded frames with soft shadows, the CKN Dawn wallpaper, a Start button with CKN's logo and an arrow pointer. Either draws in your colours |
+| `surface`, `raised`, `text`, `muted`, `accent` | optional colours (`"#rrggbb"` or a table); each one left out is the base theme's |
+| `wallpaper` | optional texture (or file name): the free default wallpaper while the theme is on. A wallpaper the player equipped (shop or MODS.EXE) still wins |
+
+Every colour the game's interface draws plays a role, and your five colours
+anchor them, so you do not restyle windows one by one. A fill (a window's
+body, a panel, a button) lands between `surface` and `raised` by how raised it
+is on the stock theme; text lands between `muted` and `text`; the stock cyan
+accent becomes your `accent`. Every other hue keeps its meaning (red still
+reads as danger, green as done, gold as currency) at a lightness that reads on
+your surfaces, so a light `surface` makes a light theme. Pictures are never
+recoloured: skins, icons, wallpapers, previews and your own textures keep
+their colours in every theme. Themes register while the mod loads (like the
+other `register.*`), and a content pack can hold them too.
+
+The `theme` library:
+
+* `theme.current()` is the id of the theme the interface is drawn in, and
+  `theme.list()` the ids the player can pick right now (built-ins first, then
+  loaded mods' themes; CKN OS only once it is unlocked).
+* `theme.set(id)` makes `id` the player's theme and saves it, as if they
+  picked it in Settings. Your own themes work without the `"<mod id>:"`
+  prefix. It returns `false` for an unknown or still-locked theme. It changes
+  the player's choice, so call it from something they did (an app's button),
+  not every time the mod loads.
+* `theme.colors([id])` is a table of the theme in use (or of `id`): `id`,
+  `name`, `base`, `light` (a light theme) and its five colours.
+* `theme.surface(color)`, `theme.line(color)`, `theme.ink(color)` and
+  `theme.glow(color)` hand back the colour the game's own interface would draw
+  for `color` in the theme in use, in each role (a fill; a border; text; a
+  translucent highlight). Pass the colour you would use on the stock dark
+  theme. An app's canvas, and everything a mod draws, keep the colours given,
+  so an app that should follow the player's theme picks them through these:
+
+```lua
+draw = function(w, h)
+  draw.rect(0, 0, w, h, theme.surface("#0c0e14"))
+  draw.text("Hello", 20, 20, 20, theme.ink("#ffffff"))
+end
+```
 
 ## Mod keybinds
 
@@ -969,10 +1765,11 @@ optional raylib `GamepadButton` name and defaults to unbound.
   `draw.rect(x, y, w, h, color)`, `draw.rectLines(x, y, w, h, color [, thickness])`,
   `draw.line(x1, y1, x2, y2, color [, thickness])`,
   `draw.poly(x, y, sides, radius, rotationDegrees, color)`,
-  `draw.text(text, x, y, size, color)` (returns the width),
-  `draw.textWidth(text, size)`, and `draw.arena()`, which returns x, y, w, h
+  `draw.text(text, x, y, size, color [, font])` (returns the width),
+  `draw.textWidth(text, size [, font])`, and `draw.arena()`, which returns x, y, w, h
   of the arena (in `drawHud`, where it sits on screen: the widescreen side
-  panels are outside it). Text is at least size 10.
+  panels are outside it). Text in the game's own font is at least size 10; for
+  your own, see [Fonts](#fonts).
 * Colours: `{r = 255, g = 128, b = 0, a = 255}`, `{255, 128, 0}`, or
   `"#ff8000"` / `"#ff8000cc"`. `color.rgb(r, g, b [, a])` and `color.hex(s)`
   build the table form.
@@ -983,12 +1780,26 @@ optional raylib `GamepadButton` name and defaults to unbound.
 
 ## Your mod, the run, other mods
 
+* **Register while loading.** Every `register.*` call (and `roster.add`)
+  works only while your mod loads, in its main chunk (or a file it
+  `require`s from there): mods register in load order, so the same set of
+  mods always gets the same slots. Calling one from a hook, a timer or an app
+  is an error. `override.*` and `lang.*` work at any time.
+* Each mod has its own copy of every library table (`draw`, `spawn`, `hooks`,
+  `math`...): replacing `draw.circle` in yours changes nothing for other mods.
+
 * `mod.id`, `mod.name`, `mod.version`, `mod.author`; `mod.log(...)` and
   `mod.warn(...)` write to the Log tab (so does `print`).
 * `run.data` is a table saved with the run: plain numbers, strings, booleans
   and tables survive quitting and resuming (functions do not). You may also
   replace it whole (`run.data = {...}`). `run.active` is true while a run is
   on screen.
+* `run.resumable` says whether quitting saves this run to be resumed (the
+  mode's `resumable`, true for the game's own modes). Set it to `false` and
+  quitting ends the run instead, and a save already on disk goes at once;
+  `true` allows it again. It lasts for this run only, in any mode.
+* `run.restorePoints`: the run's restore points (see
+  [Restore points](#restore-points)).
 * `mod.storage` is a table kept between sessions, per profile (your mod's own
   settings, records or unlocks). It is saved when mods reload and when the game
   closes; `mod.saveStorage()` saves it right away. Same plain-data rule, 1 MB
@@ -1005,20 +1816,237 @@ replaces an example only when the game ships a newer version of it (a higher
 
 | Example | Shows |
 |---|---|
-| `hello_hud` | the basics: hooks, drawing in the arena and on the HUD, run.data |
-| `glass_cannon` | a new game mode with its own rules |
-| `survival_tweaks` | changing an existing mode (vetoing events, swapping spawns, XP) |
-| `bouncer` | a new enemy with its own movement and look, and a new power-up |
-| `overclock_boss` | a new boss with scripted attacks and movement, replacing a wave boss |
-| `neon_pack` | cosmetics: player skins (one an animated GIF), a bullet trail and a wallpaper (`disableAchievements: false`) |
-| `retro_crt` | a post-processing shader, and a desktop app to tune it (`disableAchievements: false`) |
-| `house_rules` | a mode that rewrites rules: dash, pickups, the shop, level-ups and its own HUD panel |
-| `model_pack` | 3D models: a ship skin, 3D bullets, a voxel desktop cube, an animated enemy and a model viewer app with a 3D icon (`disableAchievements: false`) |
-| `arena_3d` | a complete 3D game mode, Cube Siege: waves of entities with built-in AI, pickups, a shotgun tune, a custom HUD, `draw3d` effects and a resumable `run.data` |
-| `orbital_tweaks` | changing the game's own 3D boss fight: extra drones, a phase message and a hit filter |
+| `hello_hud` | the basics: hooks, drawing in the arena and on the HUD, run.data and a mod keybind (`disableAchievements: false`) |
+| `house_rules` | a new game mode that rewrites rules: dash, pickups, the shop, level-ups and its own HUD panel |
+| `story_mode` | a story told in a mode: a cutscene, dialogue with a portrait, a blessing chosen with `ui.choose`, a choice that changes the run through filters, a HUD card and a pause-menu action |
+| `overclock` | new content for wave mode: an enemy with its own movement and look, a power-up with levels, and a boss with scripted attacks and movement that replaces a wave boss |
+| `necromancer` | a status of its own (Soul Burn), allies as things (thralls raised from burning enemies), per-enemy data, and mod events and `mods.export` for other mods to build on |
+| `chaos_engine` | telegraphed hazards, the camera and time on boss fights, a shop item, a roguelite patch, a survival event, vetoes and filters on Time Survival, a mod achievement and a Help-terminal command |
+| `content_pack` | a mod without a script: power-ups, an enemy in wave mode's roster, a shop item and a consumable from JSON files under `content/` |
+| `cosmetics` | looks only: player skins (a palette, an animated GIF, a 3D model), bullets (a palette, a 3D model), a wallpaper, a voxel desktop cube, a CRT post-processing shader, and a desktop app (with a 3D icon) that tunes the shader and swaps an enemy for an animated model, kept in `mod.storage` (`disableAchievements: false`) |
+| `media` | videos and music in two files joined with `require`: a desktop app with a seek bar, a music track that takes over the game's music, a playlist read with `assets.json`, an LCD font and a video as its desktop icon; and Billboard Plaza, a 3D mode with pictures fixed in the world (`draw3d.texture`: a video with sound that gets louder as you walk up, a PNG, a GIF, a turning video, a floor decal), sprites that face you (`draw3d.billboard`, see-through ones drawn farthest first), entities drawn as a GIF, a screen you shoot to pause (`world3d.raycast`), videos held while the world is paused, and no resuming or restore points (`resumable = false`, `restorePoints = false`; `disableAchievements: false`) |
+| `arena_3d` | 3D worlds, both ways: Cube Siege, a complete 3D game mode (waves of entities with built-in AI, pickups, a shotgun tune, a custom HUD, `draw3d` and a `run.data` to continue from), and changes to the game's own 3D boss fight (extra drones, a phase message and a hit filter) |
+| `critical_section` | a PvP mode, Critical Section (king of the hill): lobby presets, scores and a moving zone in `match.data`, privileged rounds through `pvpShoot` and `match:spawnBullet` drawn by `pvpBulletDraw`, a blink on a mod keybind sent with `match:request` and shown everywhere with `match:broadcast`, the end decided by `pvpEnding` and `match:finish`, and its own HUD (`disableAchievements: false`) |
 
-## Multiplayer
+## PvP
 
-PvP lobbies are matched: the host refuses players whose loaded mods (ids,
-versions and every file) differ from its own. Gameplay hooks do not run in
-PvP; mod cosmetics, textures, models, sounds, text and `"screen"` shaders do.
+Mods can change PvP matches too: new rules and objectives, weapons, abilities,
+a HUD of their own, whole modes. The `critical_section` example is a complete
+one: king of the hill, with privileged rounds and a blink.
+
+### Who runs what
+
+Everyone in a PvP lobby runs the same mods: the host refuses a player whose
+loaded mods (ids, versions and every file) differ from its own. So every
+machine runs your script, but **only the host decides the match**: it moves the
+bullets, lands the hits, counts the kills and ends the match, and the clients
+are sent the result. Two kinds of hooks follow from that:
+
+* **Host hooks** change the match and fire on the host only: `pvpUpdate`,
+  `pvpShoot`, `pvpBulletUpdate`, `pvpBulletHit`, `pvpPlayerDamaged`,
+  `pvpPlayerLethal`, `pvpSpawnPoint`, `pvpPickup`, `pvpPackage`,
+  `pvpPlaceWall`, `pvpEnding` and `pvpRequest`.
+* **Every-machine hooks** draw and react, on the host and on each client:
+  `pvpStart`, `pvpEnd`, `pvpFrame`, the draw hooks, `pvpKill`, `pvpRespawn`
+  and `pvpBroadcast`. `match.isHost` tells the machines apart where it matters.
+
+What the host changes reaches every client by itself:
+
+* **The players**: position, HP and max HP, speed, damage, fire rate, bullet
+  speed, size (`radius`), walls, kills, team and the package buffs. Setting a
+  player's `x` / `y` on the host (or `match:teleport`) is a teleport: every
+  machine snaps the player there.
+* **The bullets**, with their size, damage, lifetime, colour, `kind` and `pierce`.
+* **`match.data`**, your mod's table for the match (below).
+
+Anything else a script changes stays on the machine that changed it: a client
+that sets `player.speed` only fights the host's next correction. The run side
+of the API does not exist in a match, which is not a run: no run hooks
+(`update`, `enemySpawn`, `shoot`...), no `game`, `player` or `run.data`, no
+`spawn.*`, things, statuses, camera or time. Mod cosmetics, textures, models,
+sounds, text and `"screen"` shaders all work, and every player sees everyone's
+mod ship and bullets.
+
+### PvP modes
+
+```lua
+local MODE = register.pvpmode{
+  id = "hill",
+  name = {en = "King of the Hill", es = "Rey de la Colina"},
+  description = {en = "Hold the hill to score.", es = "Ocupa la colina para puntuar."},
+  settings = {killLimit = false, timeLimit = 240, respawn = 2},
+  onStart = function(match) end,   -- every machine, right after pvpStart
+}
+```
+
+The host picks a mode in PVP.EXE's **Mode** row when hosting (the game's own
+rules are **Standard**); its name and description show over the countdown on
+every machine. Hooks fire in every match, so a mode's rules check
+`match:isMode(MODE)` (`match.mode` holds the key, `""` in a Standard match).
+
+`settings` are presets: picking the mode puts them into the lobby, and the
+host can still change them. They use the lobby's names and ranges: `hp`,
+`speed`, `damage`, `fireRate` (seconds between shots), `bulletSpeed`,
+`bulletSize`, `walls`, `killLimit`, `respawn` (seconds), `timeLimit`
+(seconds), `packages` (true / false) and `teams` (false, true, or 2 to 6
+teams). `killLimit`, `timeLimit`, `respawn` and `walls` take `false` (or 0)
+for off: with `killLimit = false` no number of kills ends the match, only the
+clock or your script does (the lobby shows it as OFF; only a mode can set it).
+Picking another mode puts the old one's presets back to the game's values. An
+unknown setting is an error that lists the names.
+
+### The match
+
+Every pvp hook gets the match. `match` is also a global, like `game` in a run.
+
+| Field | |
+|---|---|
+| `isHost` | this machine runs the match |
+| `mode` | the mode's key, `""` in a Standard match |
+| `localPlayer` | this machine's player |
+| `time`, `timeLeft` | seconds on the match clock, and left (`math.huge` with no time limit) |
+| `live`, `countdown`, `over` | playing, counting down, finished |
+| `teams`, `playerCount`, `width`, `height` | a team match; the player slots; the arena (1024 x 768) |
+| `settings` | a copy of the rules, by the names above (`hp`, `killLimit`, `teams`...) |
+| `data` | your mod's table for this match (below); the only field you can set |
+
+Players are the usual player objects (`p.hp`, `p.x`, `p.speed`, `p.kills`,
+`p.teamId`, `p:fields()`...) plus, in PvP, `p.index` (the slot, 1 to
+`playerCount`: the P1, P2... on screen), `p.name`, `p.deaths`, `p.streak`,
+`p.alive`, `p.connected` and `p.isLocal`, all read-only. Bullets add `b.owner`
+(the player who fired, or nil), `b.kind` and `b.pierce`.
+
+On every machine:
+
+* `match:players()` iterates the players still connected, alive or not:
+  `for p in match:players() do ... end`. `match:player(i)` gets one by slot.
+* `match:nearestPlayer(x, y [, maxDist [, except]])` returns the closest
+  living player.
+* `match:isMode(key)`, `match:fields()`.
+* `match:request(name [, data])` asks the host for something (below).
+* `match:toast(text [, color])`, `match:banner(text [, sub [, color]])` and
+  `match:particles(x, y [, color [, count]])` show something **on this machine
+  only** (text is `"Text"` or `{en = .., es = ..}`; broadcast to show it on
+  all of them).
+
+On the host only (a client gets an error: `match:spawnBullet() changes the
+match, which only the host does`):
+
+* `match:spawnBullet{x, y, vx, vy, owner, damage, radius, lifetime, color,
+  kind, pierce}` returns the new bullet. A bullet with an `owner` (a player)
+  never hits its owner or their teammates and counts in their accuracy; one
+  without hits everyone. `x` and `y` default to the owner's position,
+  `damage` to the owner's, `radius` to the match's bullet size, `lifetime` to 5
+  seconds. `kind` is any name you give your bullets, to draw or treat them
+  differently; `pierce` is how many players it goes through (each one once).
+  Like spawns in a run it joins at the next step of the frame, and every
+  machine sees it. An arena holds at most 512 bullets.
+* `match:removeBullet(bullet)`.
+* `match:damage(player, amount [, attacker])` hits like a bullet does:
+  FIREWALL.SYS blocks it, `pvpPlayerDamaged` sees it, and a kill counts for
+  `attacker`. `match:kill(player [, killer])` downs a player at once;
+  `match:heal(player, amount)` heals up to max HP.
+* `match:teleport(player, x, y)`: every machine snaps the player there.
+* `match:finish([winner [, reason]])` ends the match now. `winner` is a
+  player, a team (`"red"` or `"ptRed"`) or nil for a draw; `reason` (`"Text"` or
+  `{en = .., es = ..}`) is the line under the result, in each player's language.
+* `match:broadcast(name [, data])` (below).
+
+### match.data
+
+`match.data` is your mod's table for the match. The host's copy goes to every
+machine, so put there what the clients need to draw: a zone, the scores,
+cooldowns. It starts empty at each match (rematches too), goes out with the
+start signal (so it is there for the countdown), with the snapshots during
+play and with the result.
+
+* Plain data only (numbers, strings, booleans, tables), like `run.data`, up to
+  16 KB of it as JSON per mod.
+* On a client it is a copy, refilled with the host's whenever that changes.
+  Keep what a client works out for itself in your own variables.
+* The host's changes reach the clients within a snapshot (32 a second at the
+  lobby's default net quality).
+
+### Requests and broadcasts
+
+A player's machine asks the host for something with
+`match:request(name, data)`: the host's `pvpRequest(match, player, name, data)`
+hook gets it, as that player. The host tells everyone something with
+`match:broadcast(name, data)`: every machine's `pvpBroadcast(match, name, data)`
+gets it, the host's own included. That is how a key one player presses
+becomes something the host does and everyone sees:
+
+```lua
+hooks.on("pvpFrame", function(match)                  -- every machine: its own player
+  if input.bindPressed("blink") then
+    local x, y = input.mouse()
+    match:request("my_mod:blink", {x = x, y = y})
+  end
+end)
+
+hooks.on("pvpRequest", function(match, p, name, data) -- the host
+  if name ~= "my_mod:blink" or type(data) ~= "table" then return end
+  match:teleport(p, data.x, data.y)
+  match:broadcast("my_mod:flash", {x = data.x, y = data.y})
+end)
+
+hooks.on("pvpBroadcast", function(match, name, data)  -- every machine
+  if name == "my_mod:flash" then match:particles(data.x, data.y, "#64d8ff") end
+end)
+```
+
+* The host's own player uses the same path: `match:request` on the host goes
+  straight to its `pvpRequest`.
+* They arrive in order and exactly once, even over a connection that drops
+  packets (each is re-sent until the other side has it), but only during play:
+  what is sent during the countdown or on the result screen goes out when play
+  starts, and a rematch drops whatever is left of the last match.
+* A name is 1 to 64 characters (start it with your mod id); the data is plain
+  data, up to 8 KB of it as JSON.
+* A request is another machine's word: check its data before you act on it.
+
+### PvP hooks
+
+| Hook | Arguments | Runs on | Kind |
+|---|---|---|---|
+| `pvpStart` | match | every machine | event: a match (or rematch) is about to count down, with an empty `match.data`. The host places the players right after it (see `pvpSpawnPoint`) |
+| `pvpEnd` | match, winner | every machine | event: the match ended; `winner` is the player, the team's name or nil |
+| `pvpFrame` | match, dt | every machine | event: every frame of play, after the step (read your player's input here) |
+| `pvpUpdate` | match, dt | host | event: every frame of play, before the snapshot goes out |
+| `pvpDrawBackground` | match | every machine | draw in arena coordinates, on the floor under everything |
+| `pvpDrawWorld` | match | every machine | draw in arena coordinates, over everything |
+| `pvpDrawHud` | match, w, h | every machine | draw in screen coordinates, under the scoreboard, the countdown and the result |
+| `pvpPlayerDraw` | player, match | every machine | cancel: true skips the built-in body; `"all"` also skips its team ring, name and health bar |
+| `pvpBulletDraw` | bullet, match | every machine | cancel: true skips the built-in look |
+| `pvpShoot` | match, player, dirX, dirY, aimX, aimY | host | cancel: true replaces the shot (spawn your own) |
+| `pvpBulletUpdate` | bullet, dt, match | host | cancel: true skips the built-in movement (its lifetime still runs out) |
+| `pvpBulletHit` | damage, bullet, victim, match | host | filter: the damage; `false` lets the bullet fly on through |
+| `pvpPlayerDamaged` | amount, victim, attacker, match | host | filter: damage about to land (after FIREWALL.SYS), from bullets and `match:damage`; `attacker` may be nil |
+| `pvpPlayerLethal` | victim, attacker, match | host | cancel: true keeps the victim alive (set its `hp`, or it is left on 0.5) |
+| `pvpKill` | match, victim, killer | every machine | event (`killer` may be nil) |
+| `pvpRespawn` | match, player | every machine | event |
+| `pvpSpawnPoint` | match, player, x, y | host | return x, y to start or respawn the player somewhere else |
+| `pvpPickup` | match, player, kind | host | cancel: true takes the package without its effect (`kind`: `"pkChkdsk"`, `"pkFirewall"`, `"pkTurbo"`, `"pkOverclock"`, `"pkFork"`) |
+| `pvpPackage` | kind, match, power | host | filter: the package a port drops next (return another kind's name); `power` is the centre port |
+| `pvpPlaceWall` | match, player, x, y | host | cancel: true places no wall |
+| `pvpEnding` | match, reason | host | cancel: the rules are about to end the match (`"kills"`, `"time"` or `"elimination"`); true keeps it going. `"time"` is asked every frame until the match ends: call `match:finish` from it to name the winner yourself |
+| `pvpRequest` | match, player, name, data | host | a player's `match:request` |
+| `pvpBroadcast` | match, name, data | every machine | the host's `match:broadcast` |
+
+* A frame of a match runs: the network, then requests and broadcasts, then
+  this machine's own input (`pvpShoot` on the host). On the host: respawns
+  (`pvpSpawnPoint`, `pvpRespawn`), the other players' input, the time limit
+  (`pvpEnding`), the bullets (`pvpBulletUpdate`, `pvpBulletHit`, damage,
+  `pvpKill`), the packages, `pvpUpdate` and the snapshot. Last, on every
+  machine, timers and `pvpFrame`.
+* `timer.after` and `timer.every` run on the match clock during play, on the
+  machine that set them, and are cleared at each match.
+* `hud.hide` works in PvP for `"all"` (the whole match HUD: scores, clock,
+  ping, feed, walls and buffs), `"banners"` (callouts and package toasts),
+  `"vignettes"` and `"damageNumbers"`. Each match starts with everything shown.
+* `input.*` and mod keybinds work as in a run; `input.mouse()` is the arena
+  point under the cursor.
+* A mod switched off for errors on one machine is off there only; the host's
+  rules keep running everyone's match.
+* To test alone, start the game twice on one computer: host in one, and join
+  `127.0.0.1` from the other.

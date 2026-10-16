@@ -21,6 +21,7 @@
 
 import raylib, math
 import types, localization
+import modding/mod_registry
 
 type
   PatchCategory* = enum
@@ -36,7 +37,8 @@ type
     psStalled        # temporarily switched off
 
 const
-  AllPatches* = {succ(rrtNone)..high(RogueliteRelicType)}
+  AllPatches* = {succ(rrtNone)..pred(rrtMod)}
+    ## The game's own patches (mod patches live in mod_registry, keyed by name)
 
   # Tuning. Kept here so the description text, the effect code and any
   # tooltip all read the same numbers.
@@ -82,6 +84,7 @@ proc patchKey(p: RogueliteRelicType): string =
   of rrtCryptominer: "cryptominer"
   of rrtRaidMirror: "raid_mirror"
   of rrtPacketLoss: "packet_loss"
+  of rrtMod: "mod"
 
 proc patchKbNumber*(p: RogueliteRelicType): int =
   ## Fixed per patch, so a player learns "KB-3146" means Rollback.
@@ -103,12 +106,13 @@ proc patchKbNumber*(p: RogueliteRelicType): int =
   of rrtCryptominer: 3153
   of rrtRaidMirror: 3160
   of rrtPacketLoss: 3168
+  of rrtMod: 9000
 
 proc patchCategory*(p: RogueliteRelicType): PatchCategory =
   case p
   of rrtFirewallRule, rrtRollback, rrtEmergencyPatch, rrtPacketLoss: pcSecurity
   of rrtOverclock, rrtDefragmenter, rrtCronJob, rrtRaidMirror, rrtRootAccess,
-     rrtZipBomb: pcPerformance
+     rrtZipBomb, rrtMod: pcPerformance
   of rrtNone, rrtDiscountProtocol, rrtShardMagnet, rrtEliteDividend,
      rrtDraftCache, rrtGarbageCollector, rrtCryptominer: pcMaintenance
 
@@ -120,6 +124,17 @@ proc patchName*(p: RogueliteRelicType): string =
 
 proc patchDescription*(p: RogueliteRelicType): string =
   t("patch_" & patchKey(p) & "_desc")
+
+# A patch as owned (RogueliteRelic): a mod patch (rrtMod) reads its own
+# registered name, text and colour. Display code uses these overloads.
+proc patchName*(r: RogueliteRelic): string =
+  if r.relicType == rrtMod: modPatchName(r.modKey) else: patchName(r.relicType)
+
+proc patchDescription*(r: RogueliteRelic): string =
+  if r.relicType == rrtMod: modPatchDescription(r.modKey) else: patchDescription(r.relicType)
+
+proc patchKbLabel*(r: RogueliteRelic): string =
+  if r.relicType == rrtMod: "KB-" & $modPatchKb(r.modKey) else: patchKbLabel(r.relicType)
 
 proc patchCategoryName*(c: PatchCategory): string =
   case c
@@ -135,6 +150,9 @@ proc patchCategoryAccent*(c: PatchCategory): Color =
 
 proc patchAccent*(p: RogueliteRelicType): Color =
   patchCategoryAccent(patchCategory(p))
+
+proc patchAccent*(r: RogueliteRelic): Color =
+  if r.relicType == rrtMod: modPatchColor(r.modKey) else: patchAccent(r.relicType)
 
 proc hasPatch*(player: Player, p: RogueliteRelicType): bool =
   not player.isNil and p in player.patches

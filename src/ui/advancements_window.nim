@@ -1,7 +1,9 @@
 ## OS-themed advancement tracker window.
 
 import raylib, strutils, math
+import ../draw_prims
 import os_window, ../advancement, ../render_context, ../localization, ../types, ../roguelite, ../utils, ui_helpers
+import ui_theme
 
 type
   AdvancementsWindow* = ref object
@@ -99,9 +101,10 @@ proc drawTierChip(x, y, w, h: int, tier: AdvancementTier, solid: bool) =
                          withAlpha(White, 38))
     drawText(label, tx.int32, ty.int32, fs, Color(r: 16, g: 19, b: 27, a: 255))
   else:
-    drawRectangleRounded(rect, 0.5'f32, 6, withAlpha(c, 40))
-    drawRectangleRoundedLines(rect, 0.5'f32, 6, -1.0'f32, c)
-    drawText(label, tx.int32, ty.int32, fs, c)
+    let ink = uiInk(c)
+    drawRectangleRounded(rect, 0.5'f32, 6, withAlpha(ink, 40))
+    drawRectangleRoundedLines(rect, 0.5'f32, 6, -1.0'f32, ink)
+    drawText(label, tx.int32, ty.int32, fs, ink)
 
 proc statusColor(entry: AdvancementEntry): Color =
   if entry.claimed:
@@ -120,8 +123,9 @@ proc statusLabel(entry: AdvancementEntry): string =
     "In Progress"
 
 proc drawWrappedText(text: string, x, y, maxWidth: int, fontSize: int32,
-                     color: Color, maxLines: int = 6, lineGap: int = 6,
+                     stockColor: Color, maxLines: int = 6, lineGap: int = 6,
                      minSize: int32 = 9): int =
+  let color = uiInk(stockColor)
   var lineY = y
   let wrappedFontSize = bestWrapFontSize(text, maxWidth.int32, fontSize, maxLines, minSize)
   let lines = wrapTextLines(text, maxWidth.int32, wrappedFontSize)
@@ -135,7 +139,7 @@ proc drawProgressBar(x, y, width, height: int, ratio: float32, color: Color,
                      complete: bool = false, pulse: float32 = 0.0'f32) =
   let clamped = clamp(ratio, 0.0'f32, 1.0'f32)
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
-                Color(r: 12, g: 16, b: 24, a: 255))
+                uiSurface(12, 16, 24))
   let fillWidth = int(width.float32 * clamped)
   if fillWidth > 0:
     drawRectangleGradientH(x.int32, y.int32, fillWidth.int32, height.int32,
@@ -151,46 +155,46 @@ proc drawProgressBar(x, y, width, height: int, ratio: float32, color: Color,
   # Completed bars get a softly pulsing accent border; everyone else a flat one.
   let border =
     if complete: withAlpha(brighten(color, 30, color.a.int), 150 + int(90.0'f32 * pulse))
-    else: Color(r: 70, g: 82, b: 102, a: 255)
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+    else: uiLine(70, 82, 102)
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
                      1, border)
 
 proc drawPanel(x, y, width, height: int, title: string = "") =
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
-                Color(r: 19, g: 23, b: 34, a: 238))
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+                uiSurface(19, 23, 34, 238))
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
-                     1, Color(r: 68, g: 82, b: 106, a: 255))
+                     1, uiLine(68, 82, 106))
   if title.len > 0:
     drawRectangle(x.int32, y.int32, width.int32, 24,
-                  Color(r: 28, g: 34, b: 48, a: 255))
-    drawText(title, (x + 8).int32, (y + 5).int32, 13, Color(r: 120, g: 220, b: 255, a: 255))
+                  uiSurface(28, 34, 48))
+    drawText(title, (x + 8).int32, (y + 5).int32, 13, uiInk(120, 220, 255))
 
 proc drawButton(rect: Rectangle, label: string, enabled: bool, hovered: bool,
                 pulse: float32 = 0.0'f32) =
   let bg =
     if not enabled:
-      Color(r: 38, g: 42, b: 50, a: 255)
+      uiSurface(38, 42, 50)
     elif hovered:
-      Color(r: 0, g: 105, b: 130, a: 255)
+      uiSurface(0, 105, 130)
     else:
-      Color(r: 0, g: 70, b: 95, a: 255)
+      uiSurface(0, 70, 95)
   let border =
-    if not enabled: Color(r: 82, g: 90, b: 105, a: 255)
+    if not enabled: uiLine(82, 90, 105)
     elif pulse > 0.0'f32: Color(r: uint8(120 + int(135.0'f32 * pulse)), g: 210, b: 255, a: 255)
-    else: Color(r: 0, g: 210, b: 255, a: 255)
+    else: uiLine(0, 210, 255)
   let text =
-    if enabled: White
-    else: Color(r: 140, g: 145, b: 155, a: 255)
+    if enabled: uiInk(White)
+    else: uiInk(140, 145, 155)
 
   drawRectangle(rect.x.int32, rect.y.int32, rect.width.int32, rect.height.int32, bg)
   # Subtle vertical sheen so enabled buttons read as glassy rather than flat.
   if enabled:
     drawRectangleGradientV(rect.x.int32, rect.y.int32, rect.width.int32,
                            max(1, rect.height.int32 div 2),
-                           withAlpha(White, 30), withAlpha(White, 0))
-  drawRectangleLines(rect, (if enabled and pulse > 0.0'f32: 2 else: 1), border)
+                           withAlpha(uiSurface(White), 30), withAlpha(uiSurface(White), 0))
+  drawRectOutline(rect, (if enabled and pulse > 0.0'f32: 2 else: 1), border)
   let tw = measureText(label, 14)
   drawText(label, (rect.x.int32 + (rect.width.int32 - tw) div 2),
            (rect.y.int32 + 8), 14, text)
@@ -396,13 +400,13 @@ proc drawTierDiamond(cx, cy: int, size: float32, color: Color, filled: bool) =
   let center = Vector2(x: cx.float32, y: cy.float32)
   if filled:
     drawPoly(center, 4, size, 45.0'f32, color)
-  drawPolyLines(center, 4, size, 45.0'f32, 1.5'f32, color)
+  drawPolyOutline(center, 4, size, 45.0'f32, 1.5'f32, color)
 
 proc drawTierGroupHeader(x, y, w, h: int, tier: AdvancementTier,
                          totals: tuple[unlocked, total, unclaimed: int],
                          pulse: float32) =
   ## Section divider that opens each rarity group in the list.
-  let c = tierColor(tier)
+  let c = uiInk(tierColor(tier))
   drawRectangleGradientH(x.int32, y.int32, w.int32, h.int32,
                          withAlpha(c, 40), withAlpha(c, 0))
   drawRectangle(x.int32, y.int32, 3, h.int32, c)
@@ -412,30 +416,30 @@ proc drawTierGroupHeader(x, y, w, h: int, tier: AdvancementTier,
   let count = $totals.unlocked & " / " & $totals.total
   let cw = measureText(count, 11)
   drawText(count, (x + w - 10 - cw).int32, (y + (h - 11) div 2).int32, 11,
-           if totals.unclaimed > 0: Color(r: 255, g: 210, b: 70, a: 255)
+           if totals.unclaimed > 0: uiInk(255, 210, 70)
            elif totals.unlocked >= totals.total: c
-           else: Color(r: 140, g: 155, b: 175, a: 255))
+           else: uiInk(140, 155, 175))
   if totals.unclaimed > 0:
-    drawCircle(Vector2(x: (x + w - 18 - cw).float32, y: (y + h div 2).float32),
-               3.0'f32 + pulse * 1.5'f32, Color(r: 255, g: 210, b: 70, a: 255))
+    drawDisc(Vector2(x: (x + w - 18 - cw).float32, y: (y + h div 2).float32),
+               3.0'f32 + pulse * 1.5'f32, uiSurface(255, 210, 70))
   # Hairline under the label ties the group to the cards below it.
   drawRectangle(x.int32, (y + h - 1).int32, w.int32, 1, withAlpha(c, 70))
 
 proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
                          x, y, width, height: int, selected, hovered: bool) =
   let entry = advWin.profile.getAdvancementEntry(def.id)
-  let accent = tierColor(def.tier)
+  let accent = uiInk(tierColor(def.tier))
   let claimable = entry.unlocked and not entry.claimed
   let pulse = claimPulse(advWin.animTime)
   let bg = if selected:
-    Color(r: 28, g: 36, b: 50, a: 255)
+    uiSurface(28, 36, 50)
   elif hovered:
-    Color(r: 26, g: 33, b: 47, a: 255)
+    uiSurface(26, 33, 47)
   else:
-    Color(r: 22, g: 26, b: 37, a: 255)
+    uiSurface(22, 26, 37)
   let border = if claimable: withAlpha(brighten(accent, 20, accent.a.int), 170 + int(85.0'f32 * pulse))
                elif selected or hovered: accent
-               else: Color(r: 62, g: 74, b: 96, a: 255)
+               else: uiLine(62, 74, 96)
 
   if hovered:
     drawRectangle((x + 3).int32, (y + 3).int32, width.int32, height.int32,
@@ -443,7 +447,7 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
   drawRectangle(x.int32, y.int32, width.int32, height.int32, bg)
   # Claimable cards get a soft pulsing halo to pull the eye toward the reward.
   if claimable:
-    drawRectangleLines(Rectangle(x: (x - 1).float32, y: (y - 1).float32,
+    drawRectOutline(Rectangle(x: (x - 1).float32, y: (y - 1).float32,
                                  width: (width + 2).float32, height: (height + 2).float32),
                        2, withAlpha(accent, 35 + int(70.0'f32 * pulse)))
   # Untouched entries keep the rarity hue but at low alpha, so a group's
@@ -451,21 +455,21 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
   let untouched = not entry.unlocked and entry.progress <= 0.0'f32
   drawRectangle(x.int32, y.int32, 4, height.int32,
                 if untouched: withAlpha(accent, 90) else: accent)
-  drawRectangleLines(Rectangle(x: x.float32, y: y.float32,
+  drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
                      if claimable or selected or hovered: 2 else: 1, border)
 
   discard drawTextFit(def.name, (x + 12).int32, (y + 8).int32, (width - 136).int32, 16,
-                      if hovered or selected: White else: Color(r: 220, g: 228, b: 240, a: 255), 11)
+                      if hovered or selected: uiInk(White) else: uiInk(220, 228, 240), 11)
   drawTierChip(x + width - 72, y + 8, 64, 16, def.tier, false)
   # Payout preview sits between the title and the tier chip so the value of a
   # rarity is readable without opening the detail panel.
   let payout = "+" & $def.rewardShards
   let payoutW = measureText(payout, 11)
   drawText(payout, (x + width - 78 - payoutW).int32, (y + 10).int32, 11,
-           if entry.claimed: Color(r: 90, g: 160, b: 120, a: 255)
-           elif claimable: Color(r: 255, g: 210, b: 70, a: 255)
-           else: Color(r: 132, g: 146, b: 166, a: 255))
+           if entry.claimed: uiInk(90, 160, 120)
+           elif claimable: uiInk(255, 210, 70)
+           else: uiInk(132, 146, 166))
   discard drawWrappedText(def.description, x + 12, y + 30, width - 26, 12,
                           if hovered: Color(r: 185, g: 198, b: 215, a: 255)
                           else: Color(r: 165, g: 178, b: 195, a: 255), 2, 4, 10)
@@ -479,15 +483,15 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
     # Green check instead of a bare "100%" to mark the reward as collected.
     let cx = x + width - 66
     let cy = barY - 1
-    let check = Color(r: 90, g: 255, b: 150, a: 255)
+    let check = uiInk(90, 255, 150)
     # Two strokes drawn twice (1px offset) to read as a bold 2px checkmark.
     for off in 0..1:
-      drawLine((cx - 4).int32, (cy + off).int32, (cx - 1).int32, (cy + 4 + off).int32, check)
-      drawLine((cx - 1).int32, (cy + 4 + off).int32, (cx + 4).int32, (cy - 4 + off).int32, check)
+      drawStroke((cx - 4).int32, (cy + off).int32, (cx - 1).int32, (cy + 4 + off).int32, check)
+      drawStroke((cx - 1).int32, (cy + 4 + off).int32, (cx + 4).int32, (cy - 4 + off).int32, check)
     drawText(t(tkAdvDone), (x + width - 52).int32, (barY - 3).int32, 11, check)
   else:
     let pct = $int(ratio * 100.0'f32) & "%"
-    drawText(pct, (x + width - 58).int32, (barY - 3).int32, 12, statusColor(entry))
+    drawText(pct, (x + width - 58).int32, (barY - 3).int32, 12, uiInk(statusColor(entry)))
 
 proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   if advWin.isNil or advWin.window.isNil or not advWin.window.visible:
@@ -508,7 +512,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
 
   drawPanel(contentX, contentY, contentW, HeaderHeight, "")
   drawText(t(tkAdvControlTitle), (contentX + 14).int32, (contentY + 10).int32, 20,
-           Color(r: 120, g: 220, b: 255, a: 255))
+           uiInk(120, 220, 255))
 
   let totalDefs = getAdvancementDefinitions().len
   let unlocked = advWin.profile.totalUnlocked()
@@ -521,12 +525,12 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   discard drawWrappedText(t(tkAdvSyncDesc),
                           contentX + 14, contentY + 36, statX - contentX - 34, 13,
                           Color(r: 170, g: 185, b: 205, a: 255), 2, 4, 11)
-  drawText(t(tkAdvUnlockedCount), statX.int32, (contentY + 12).int32, 12, LightGray)
-  drawText($unlocked & " / " & $totalDefs, statX.int32, (contentY + 30).int32, 20, White)
-  drawText(t(tkAdvClaimedCount), (statX + 112).int32, (contentY + 12).int32, 12, LightGray)
-  drawText($claimed, (statX + 112).int32, (contentY + 30).int32, 20, Color(r: 90, g: 255, b: 150, a: 255))
-  drawText(t(tkAdvShardBalance), (statX + 205).int32, (contentY + 12).int32, 12, LightGray)
-  drawText($walletShards, (statX + 205).int32, (contentY + 30).int32, 20, Color(r: 255, g: 210, b: 70, a: 255))
+  drawText(t(tkAdvUnlockedCount), statX.int32, (contentY + 12).int32, 12, uiInk(LightGray))
+  drawText($unlocked & " / " & $totalDefs, statX.int32, (contentY + 30).int32, 20, uiInk(White))
+  drawText(t(tkAdvClaimedCount), (statX + 112).int32, (contentY + 12).int32, 12, uiInk(LightGray))
+  drawText($claimed, (statX + 112).int32, (contentY + 30).int32, 20, uiInk(90, 255, 150))
+  drawText(t(tkAdvShardBalance), (statX + 205).int32, (contentY + 12).int32, 12, uiInk(LightGray))
+  drawText($walletShards, (statX + 205).int32, (contentY + 30).int32, 20, uiInk(255, 210, 70))
 
   let claimAllRect = Rectangle(x: (contentX + contentW - 180).float32,
                                y: (contentY + 22).float32,
@@ -546,7 +550,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   let overall = if totalDefs > 0: claimed.float32 / totalDefs.float32 else: 0.0'f32
   let allDone = totalDefs > 0 and claimed >= totalDefs
   drawProgressBar(contentX + 14, contentY + HeaderHeight - 9, contentW - 28, 4,
-                  overall, Color(r: 255, g: 210, b: 70, a: 255), allDone, pulse)
+                  overall, uiInk(255, 210, 70), allDone, pulse)
 
   drawPanel(contentX, bodyY, SidebarWidth, bodyH, t(tkAdvCategories))
   var catY = bodyY + 32
@@ -556,46 +560,46 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
     let catRect = Rectangle(x: contentX.float32, y: catY.float32,
                             width: SidebarWidth.float32, height: 38.0)
     let hovered = canHover and checkCollisionPointRec(mousePos, catRect)
-    let bg = if active: Color(r: 0, g: 74, b: 100, a: 255)
-             elif hovered: Color(r: 34, g: 45, b: 60, a: 255)
-             else: Color(r: 24, g: 29, b: 40, a: 255)
-    let border = if active: Color(r: 0, g: 210, b: 255, a: 255)
-                 elif hovered: Color(r: 120, g: 220, b: 255, a: 255)
-                 else: Color(r: 62, g: 74, b: 96, a: 255)
+    let bg = if active: uiSurface(0, 74, 100)
+             elif hovered: uiSurface(34, 45, 60)
+             else: uiSurface(24, 29, 40)
+    let border = if active: uiLine(0, 210, 255)
+                 elif hovered: uiLine(120, 220, 255)
+                 else: uiLine(62, 74, 96)
     drawRectangle(contentX.int32, catY.int32, SidebarWidth.int32, 38, bg)
-    drawRectangleLines(catRect, if active or hovered: 2 else: 1, border)
+    drawRectOutline(catRect, if active or hovered: 2 else: 1, border)
     drawText(categoryName(category), (contentX + 9).int32, (catY + 7).int32, 14,
-             if active or hovered: White else: Color(r: 210, g: 220, b: 235, a: 255))
+             if active or hovered: uiInk(White) else: uiInk(210, 220, 235))
     let countText = $totals.unlocked & " / " & $totals.total
     drawText(countText, (contentX + SidebarWidth - 58).int32, (catY + 8).int32, 12,
-             if totals.unclaimed > 0: Color(r: 255, g: 210, b: 70, a: 255) else: LightGray)
+             if totals.unclaimed > 0: uiInk(255, 210, 70) else: uiInk(LightGray))
     if totals.unclaimed > 0:
       let dotPos = Vector2(x: (contentX + SidebarWidth - 15).float32, y: (catY + 26).float32)
-      let gold = Color(r: 255, g: 210, b: 70, a: 255)
-      drawCircle(dotPos, 4.0'f32 + pulse * 2.5'f32, withAlpha(gold, 60))
-      drawCircle(dotPos, 4.0'f32, gold)
+      let gold = uiInk(255, 210, 70)
+      drawDisc(dotPos, 4.0'f32 + pulse * 2.5'f32, withAlpha(gold, 60))
+      drawDisc(dotPos, 4.0'f32, gold)
     catY += 44
 
   # Rarity legend pinned to the bottom of the sidebar: the same ordering the
   # list is sorted by, doubling as a global per-tier completion readout.
   let legendY = bodyY + bodyH - LegendHeight - 8
   drawRectangle((contentX + 9).int32, (legendY - 10).int32, (SidebarWidth - 18).int32, 1,
-                Color(r: 62, g: 74, b: 96, a: 255))
+                uiSurface(62, 74, 96))
   drawText(t(tkAdvTierLegend).toUpperAscii(), (contentX + 10).int32, legendY.int32, 11,
-           Color(r: 120, g: 220, b: 255, a: 255))
+           uiInk(120, 220, 255))
   var tierY = legendY + 18
   for tier in allAdvancementTiers():
     let totals = advWin.profile.tierTotals(tier)
     let complete = totals.total > 0 and totals.unlocked >= totals.total
-    let c = tierColor(tier)
+    let c = uiInk(tierColor(tier))
     drawTierDiamond(contentX + 15, tierY + 5, 4.0'f32, c, complete)
     drawText(tierName(tier), (contentX + 25).int32, tierY.int32, 11, c)
     let count = $totals.unlocked & "/" & $totals.total
     let cw = measureText(count, 11)
     drawText(count, (contentX + SidebarWidth - 10 - cw).int32, tierY.int32, 11,
-             if totals.unclaimed > 0: Color(r: 255, g: 210, b: 70, a: 255)
+             if totals.unclaimed > 0: uiInk(255, 210, 70)
              elif complete: c
-             else: Color(r: 150, g: 165, b: 185, a: 255))
+             else: uiInk(150, 165, 185))
     let ratio = if totals.total > 0: totals.unlocked.float32 / totals.total.float32
                 else: 0.0'f32
     drawProgressBar(contentX + 10, tierY + 14, SidebarWidth - 20, 3, ratio, c,
@@ -637,7 +641,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
       let hovered = canHover and checkCollisionPointRec(mousePos, cardRect)
       drawAdvancementCard(advWin, def, listX + 8, rowY, ListWidth - 16, row.h,
                           def.id == advWin.selectedId, hovered)
-  endScissorMode()
+  endVirtualScissorMode()
 
   if totalH > listH:
     let trackX = listX + ListWidth - 8
@@ -648,10 +652,10 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
     let thumbH = max(26, int(trackH.float32 * listH.float32 / totalH.float32))
     let scrollRatio = advWin.scrollOffset.float32 / maxScroll.float32
     drawRectangle(trackX.int32, trackY.int32, 3, trackH.int32,
-                  Color(r: 45, g: 52, b: 68, a: 255))
+                  uiSurface(45, 52, 68))
     drawRectangle(trackX.int32,
                   (trackY + int(scrollRatio * (trackH - thumbH).float32)).int32,
-                  3, thumbH.int32, Color(r: 0, g: 210, b: 255, a: 255))
+                  3, thumbH.int32, uiSurface(0, 210, 255))
 
   let detailX = listX + ListWidth + Gap
   let detailW = contentW - SidebarWidth - ListWidth - Gap * 2
@@ -660,39 +664,39 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   let selectedDef = getAdvancementDefinition(advWin.selectedId)
   if selectedDef.id.len > 0:
     let entry = advWin.profile.getAdvancementEntry(selectedDef.id)
-    let accent = tierColor(selectedDef.tier)
+    let accent = uiInk(tierColor(selectedDef.tier))
     drawTierChip(detailX + 14, bodyY + 32, 78, 19, selectedDef.tier, true)
-    discard drawTextFit(selectedDef.name, (detailX + 14).int32, (bodyY + 55).int32, (detailW - 28).int32, 22, White, 12)
+    discard drawTextFit(selectedDef.name, (detailX + 14).int32, (bodyY + 55).int32, (detailW - 28).int32, 22, uiInk(White), 12)
     let descEnd = drawWrappedText(selectedDef.description, detailX + 14, bodyY + 90,
                                   detailW - 28, 14,
                                   Color(r: 180, g: 192, b: 210, a: 255), 4)
 
     let progressY = descEnd + 20
-    drawText(t(tkAdvProgress), (detailX + 14).int32, progressY.int32, 13, LightGray)
+    drawText(t(tkAdvProgress), (detailX + 14).int32, progressY.int32, 13, uiInk(LightGray))
     drawText(formatAdvancementProgress(entry, selectedDef),
-             (detailX + detailW - 118).int32, progressY.int32, 13, statusColor(entry))
+             (detailX + detailW - 118).int32, progressY.int32, 13, uiInk(statusColor(entry)))
     drawProgressBar(detailX + 14, progressY + 22, detailW - 28, 14,
                     advancementPercent(entry, selectedDef), accent, entry.unlocked, pulse)
 
     var infoY = progressY + 54
-    drawText(t(tkAdvStatus), (detailX + 14).int32, infoY.int32, 13, LightGray)
-    drawText(statusLabel(entry), (detailX + 95).int32, infoY.int32, 13, statusColor(entry))
+    drawText(t(tkAdvStatus), (detailX + 14).int32, infoY.int32, 13, uiInk(LightGray))
+    drawText(statusLabel(entry), (detailX + 95).int32, infoY.int32, 13, uiInk(statusColor(entry)))
     infoY += 26
-    drawText(t(tkAdvReward), (detailX + 14).int32, infoY.int32, 13, LightGray)
+    drawText(t(tkAdvReward), (detailX + 14).int32, infoY.int32, 13, uiInk(LightGray))
     drawText(payoutText(selectedDef), (detailX + 95).int32, infoY.int32, 13,
-             if entry.claimed: Color(r: 90, g: 255, b: 150, a: 255)
-             elif entry.unlocked: Color(r: 255, g: 210, b: 70, a: 255)
-             else: Color(r: 190, g: 220, b: 235, a: 255))
+             if entry.claimed: uiInk(90, 255, 150)
+             elif entry.unlocked: uiInk(255, 210, 70)
+             else: uiInk(190, 220, 235))
     infoY += 26
-    drawText(t(tkAdvCategoryLabel), (detailX + 14).int32, infoY.int32, 13, LightGray)
+    drawText(t(tkAdvCategoryLabel), (detailX + 14).int32, infoY.int32, 13, uiInk(LightGray))
     drawText(categoryName(selectedDef.category), (detailX + 95).int32, infoY.int32, 13,
-             Color(r: 210, g: 220, b: 235, a: 255))
+             uiInk(210, 220, 235))
 
     # Rarity context: where this entry's tier stands across the whole set, so
     # the payout above reads as "this is what this rarity is worth".
     let tierProgress = advWin.profile.tierTotals(selectedDef.tier)
     infoY += 26
-    drawText(t(tkAdvTierLegend), (detailX + 14).int32, infoY.int32, 13, LightGray)
+    drawText(t(tkAdvTierLegend), (detailX + 14).int32, infoY.int32, 13, uiInk(LightGray))
     drawText(tierName(selectedDef.tier) & "  " & $tierProgress.unlocked & " / " &
              $tierProgress.total, (detailX + 95).int32, infoY.int32, 13, accent)
     let tierRatio = if tierProgress.total > 0:
@@ -703,9 +707,9 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
                     pulse)
 
     if entry.unlockedAt.len > 0:
-      drawText(t(tkAdvUnlockedAt), (detailX + 14).int32, (bodyY + bodyH - 88).int32, 12, LightGray)
+      drawText(t(tkAdvUnlockedAt), (detailX + 14).int32, (bodyY + bodyH - 88).int32, 12, uiInk(LightGray))
       discard drawTextFit(entry.unlockedAt, (detailX + 95).int32, (bodyY + bodyH - 88).int32, (detailW - 105).int32, 12,
-                          Color(r: 160, g: 175, b: 195, a: 255))
+                          uiInk(160, 175, 195))
 
     let claimRect = Rectangle(x: (detailX + 14).float32,
                               y: (bodyY + bodyH - 52).float32,

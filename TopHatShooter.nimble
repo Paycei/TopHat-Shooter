@@ -1,6 +1,6 @@
 # Package
 
-version       = "6.3.3"
+version       = "6.4.0"
 author        = "Paycei"
 description   = "TopHat-ShooterOS"
 license       = "Apache 2.0"
@@ -16,13 +16,17 @@ task debug, "Run the game for development":
   exec "nim c -r --mm:orc -d:debug -o:TopHatShooterOS-debug.exe src/main.nim"
 
 task WinRelease, "Build the game for release":
-  exec "nim c --cc:vcc -d:danger --mm:orc --opt:speed --parallelBuild:0 --app:gui --panics:on --passC:\"/O2 /Oi /Ot /GS- /fp:fast /arch:AVX /GL /Gw /Gy /GF\" --passL:\"/link /LTCG /CGTHREADS:8 /OPT:REF /OPT:ICF\" --passL:icono.res -o:TopHatShooterOS.exe src/main.nim"
+  exec "nim c --cc:clang_cl --clang_cl.exe:vccexe.exe --clang_cl.linkerexe:vccexe.exe --passC:\"--platform:amd64 --command:clang-cl\" --passL:\"--platform:amd64 --command:clang-cl\" -d:danger --mm:orc --opt:speed --parallelBuild:0 --app:console --panics:on --passC:\"/O2 /Oi /Ot /w /GS- /fp:fast /arch:AVX -flto /Gw /Gy /GF\" --passL:\"-Wno-unknown-argument -flto opengl32.lib gdi32.lib winmm.lib user32.lib shell32.lib\" --passL:\"/link /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup /OPT:REF /OPT:ICF /opt:lldlto=3\" --passL:icono.res -o:TopHatShooterOS.exe src/main.nim"
 
 task WinReleaseMin, "Build the game for release, optimized for size":
-  exec "nim c --cc:vcc -d:danger --mm:orc --opt:size --parallelBuild:0 --app:gui --panics:on --passC:\"/O1 /Os /Oi /GS- /fp:fast /GL /Gy /Gw /GF\" --passL:\"/link /LTCG /CGTHREADS:8 /OPT:REF /OPT:ICF\" --passL:icono.res -o:TopHatShooterOS.exe src/main.nim"
+  exec "nim c --cc:clang_cl --clang_cl.exe:vccexe.exe --clang_cl.linkerexe:vccexe.exe --passC:\"--platform:amd64 --command:clang-cl\" --passL:\"--platform:amd64 --command:clang-cl\" -d:danger --mm:orc --opt:size --parallelBuild:0 --app:console --panics:on --passC:\"/clang:-Oz /Oi /w /GS- /fp:fast -flto /Gw /Gy /GF\" --passL:\"-Wno-unknown-argument -flto opengl32.lib gdi32.lib winmm.lib user32.lib shell32.lib\" --passL:\"/link /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup /OPT:REF /OPT:ICF\" --passL:icono.res -o:TopHat-ShooterOS-Min.exe src/main.nim"
 
 task LinuxRelease, "Build the game for release":
   exec "nim c -d:danger --mm:orc --opt:speed --parallelBuild:0 --app:gui --panics:on --passC:\"-mavx -mtune=generic -ffast-math -fno-stack-protector -ffunction-sections -fdata-sections -flto=auto -Wno-stringop-overflow\" --passL:\"-flto=auto -Wno-stringop-overflow -Wl,--gc-sections -s\" -o:TopHatShooterOS-linux-x86_64 src/main.nim"
+
+task submodules, "Check out git submodules (vendor/naylib) at the commits the game records":
+  exec "git submodule update --init --recursive"
+  exec "git submodule status"
 
 task ship, "Build installer + portable zip + Linux tarball into ship/":
   exec "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/ship.ps1"

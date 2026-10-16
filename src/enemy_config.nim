@@ -3,7 +3,7 @@
 ## and speed scaling. Which enemies spawn where is each mode's roster.
 ##
 ## Adding a new enemy:
-##   1. types.nim        -> add the EnemyType variant (above the etMod00..etMod31
+##   1. types.nim        -> add the EnemyType variant (above the FirstModEnemy..LastModEnemy
 ##                          block; keep etEnvironment last)
 ##   2. enemy_config.nim -> add a block in getEnemyConfig  (stats, attack, movement, speedScaling)
 ##   3. enemy.nim        -> add the update case in updateEnemy and the draw case in
@@ -112,7 +112,7 @@ proc modeFan(fireRate, bulletSpeed: float32, count: int, spread, damage: float32
 # enemy: its config (starting from a built-in type's), the built-in type whose
 # AI and look it borrows (`base`), its label and its rewards.
 type
-  ModEnemySlot* = etMod00..etMod31
+  ModEnemySlot* = FirstModEnemy..LastModEnemy
   ModEnemyInfo* = object
     bound*: bool
     key*: string        ## "<mod id>:<name>", never the slot name
@@ -123,7 +123,7 @@ type
 
 var modEnemies*: array[ModEnemySlot, ModEnemyInfo]
 
-proc isModEnemy*(et: EnemyType): bool {.inline.} = et in etMod00..etMod31
+proc isModEnemy*(et: EnemyType): bool {.inline.} = et in FirstModEnemy..LastModEnemy
 
 proc isEnemyLive*(et: EnemyType): bool {.inline.} =
   ## Built-in (not the environment sentinel), or a slot a loaded mod uses.
@@ -167,7 +167,7 @@ proc resetModEnemies*() =
 proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
   ## Returns the complete configuration for a given enemy type
   case enemyType
-  of etMod00..etMod31:
+  of FirstModEnemy..LastModEnemy:
     result = modEnemies[enemyType].config
     result.enemyType = enemyType
 

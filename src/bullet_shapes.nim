@@ -2,6 +2,7 @@
 ## Cosmetic shapes for player bullets
 
 import raylib, math
+import draw_prims
 import particle_types, localization, utils
 
 type
@@ -47,11 +48,11 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
 
   of bshCircle:
     # Glow ring
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius + 3,
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 3,
                withAlpha(glowColor, 60))
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius, color)
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius, color)
     # Off-center highlight gives the orb a rounded, energetic look
-    drawCircle(Vector2(x: pos.x - radius * 0.25, y: pos.y - radius * 0.25),
+    drawDisc(Vector2(x: pos.x - radius * 0.25, y: pos.y - radius * 0.25),
                radius * 0.35, Color(r: 255, g: 255, b: 255, a: 130))
 
   of bshTriangle:
@@ -73,12 +74,12 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
     for i in 0..<3:
       let a0 = rot + i.float32 * (2.0 * PI / 3.0)
       let a1 = rot + (i + 1).float32 * (2.0 * PI / 3.0)
-      drawLine(
+      drawStroke(
         Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
         Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
         1.5, color)
     # Glow
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius + 2,
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 2,
                withAlpha(glowColor, 40))
 
   of bshPentagon:
@@ -98,11 +99,11 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
     for i in 0..<5:
       let a0 = rot + i.float32 * (2.0 * PI / 5.0)
       let a1 = rot + (i + 1).float32 * (2.0 * PI / 5.0)
-      drawLine(
+      drawStroke(
         Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
         Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
         1.5, color)
-    drawCircle(Vector2(x: cx, y: cy), radius + 2,
+    drawDisc(Vector2(x: cx, y: cy), radius + 2,
                withAlpha(glowColor, 45))
 
   of bshDiamond:
@@ -119,23 +120,23 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
     drawTriangle(tip, tail, left,
                  withAlpha(color, 200))
     # Outline
-    drawLine(tip, right, 1.5, color)
-    drawLine(right, tail, 1.5, color)
-    drawLine(tail, left, 1.5, color)
-    drawLine(left, tip, 1.5, color)
+    drawStroke(tip, right, 1.5, color)
+    drawStroke(right, tail, 1.5, color)
+    drawStroke(tail, left, 1.5, color)
+    drawStroke(left, tip, 1.5, color)
     # Spinning secondary outline ring
     let spinRot = rot + t * 6.5
     let sr = radius * 0.7
     for si in 0..<4:
       let sa0 = spinRot + si.float32 * PI / 2.0
       let sa1 = spinRot + (si.float32 + 1.0) * PI / 2.0
-      drawLine(
+      drawStroke(
         Vector2(x: pos.x + cos(sa0) * sr, y: pos.y + sin(sa0) * sr),
         Vector2(x: pos.x + cos(sa1) * sr, y: pos.y + sin(sa1) * sr),
         1.0, Color(r: 255, g: 255, b: 255, a: 90))
     # Highlight
-    drawLine(tip, right, 1, Color(r: 255, g: 255, b: 255, a: 80))
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius + 2,
+    drawStroke(tip, right, 1, Color(r: 255, g: 255, b: 255, a: 80))
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 2,
                withAlpha(glowColor, 50))
 
   of bshSquare:
@@ -156,11 +157,11 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
     drawTriangle(tl, br, bl,
                  withAlpha(color, 200))
     # Outline
-    drawLine(tl, tr, 1.5, color)
-    drawLine(tr, br, 1.5, color)
-    drawLine(br, bl, 1.5, color)
-    drawLine(bl, tl, 1.5, color)
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius + 2,
+    drawStroke(tl, tr, 1.5, color)
+    drawStroke(tr, br, 1.5, color)
+    drawStroke(br, bl, 1.5, color)
+    drawStroke(bl, tl, 1.5, color)
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 2,
                withAlpha(glowColor, 45))
 
   of bshStar:
@@ -197,21 +198,21 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
       for i in 0..<3:
         let a0 = baseRot + i.float32 * (2.0 * PI / 3.0)
         let a1 = baseRot + (i + 1).float32 * (2.0 * PI / 3.0)
-        drawLine(
+        drawStroke(
           Vector2(x: cx + cos(a0) * (r + 1), y: cy + sin(a0) * (r + 1)),
           Vector2(x: cx + cos(a1) * (r + 1), y: cy + sin(a1) * (r + 1)),
           1.5, color)
     # Bright core dot
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius * 0.28, color)
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius * 0.28, color)
     # Counter-spinning inner hex ring for visual energy
     let starSpin = getTime() * -5.5
     let spinHexR = r * 0.42
     for si in 0..<6:
       let sa0 = starSpin + si.float32 * (PI / 3.0)
       let sa1 = starSpin + (si.float32 + 0.8) * (PI / 3.0)
-      drawLine(
+      drawStroke(
         Vector2(x: cx + cos(sa0) * spinHexR, y: cy + sin(sa0) * spinHexR),
         Vector2(x: cx + cos(sa1) * spinHexR, y: cy + sin(sa1) * spinHexR),
         1.0, Color(r: 255, g: 255, b: 255, a: 100))
-    drawCircle(Vector2(x: pos.x, y: pos.y), radius + 4,
+    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 4,
                withAlpha(glowColor, 55))

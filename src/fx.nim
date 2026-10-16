@@ -1,4 +1,5 @@
 import math, random, raylib
+import draw_prims
 import types, particle_types, utils
 
 const LIGHTNING_BOLT_DURATION* = 0.18'f32  # seconds the arc stays visible
@@ -81,19 +82,19 @@ proc drawShockwaveRings*(rings: seq[ShockwaveRing]) =
 
     # Interior wash: a faint filled disc conveys the *area*, not just the edge.
     let fillA = uint8(clamp(frac * 55.0, 0.0, 55.0))
-    drawCircle(Vector2(x: ring.pos.x, y: ring.pos.y), r,
+    drawDisc(Vector2(x: ring.pos.x, y: ring.pos.y), r,
                withAlpha(ring.color, fillA))
 
     # Bold boundary: three concentric outlines give a thick, unmistakable edge.
     let edgeA = uint8(clamp(frac * 255.0, 0.0, 255.0))
     let edge  = withAlpha(ring.color, edgeA)
-    drawCircleLines(cx, cy, r - 1.0'f32, edge)
-    drawCircleLines(cx, cy, r,          edge)
-    drawCircleLines(cx, cy, r + 1.0'f32, edge)
+    drawCircleOutline(cx, cy, r - 1.0'f32, edge)
+    drawCircleOutline(cx, cy, r,          edge)
+    drawCircleOutline(cx, cy, r + 1.0'f32, edge)
 
     # Bright inner highlight just inside the edge for extra pop/contrast.
     let hiA = uint8(clamp(frac * 200.0, 0.0, 200.0))
-    drawCircleLines(cx, cy, r - 3.0'f32, Color(r: 255, g: 255, b: 230, a: hiA))
+    drawCircleOutline(cx, cy, r - 3.0'f32, Color(r: 255, g: 255, b: 230, a: hiA))
 
 # ---------------------------------------------------------------------------
 # Boss death blast: the deallocation sweep that clears a dead boss's hazards.
@@ -152,7 +153,7 @@ proc drawBossDeathBlasts*(blasts: seq[BossDeathBlast]) =
 
     # Freed region: a faint wash plus a lattice of chords clipped to the circle,
     # so the cleared area reads as reclaimed address space instead of smoke.
-    drawCircle(Vector2(x: cx, y: cy), r,
+    drawDisc(Vector2(x: cx, y: cy), r,
                withAlpha(blast.color, blastAlpha(12.0'f32, fade)))
     let gridCol = withAlpha(blast.color, blastAlpha(30.0'f32, fade))
     var gx = floor((cx - r) / BlastGridCell) * BlastGridCell
@@ -161,7 +162,7 @@ proc drawBossDeathBlasts*(blasts: seq[BossDeathBlast]) =
       let h = r * r - d * d
       if h > 1.0'f32:
         let half = sqrt(h)
-        drawLine(Vector2(x: gx, y: cy - half), Vector2(x: gx, y: cy + half), 1, gridCol)
+        drawStroke(Vector2(x: gx, y: cy - half), Vector2(x: gx, y: cy + half), 1, gridCol)
       gx += BlastGridCell
     var gy = floor((cy - r) / BlastGridCell) * BlastGridCell
     while gy <= cy + r:
@@ -169,7 +170,7 @@ proc drawBossDeathBlasts*(blasts: seq[BossDeathBlast]) =
       let h = r * r - d * d
       if h > 1.0'f32:
         let half = sqrt(h)
-        drawLine(Vector2(x: cx - half, y: gy), Vector2(x: cx + half, y: gy), 1, gridCol)
+        drawStroke(Vector2(x: cx - half, y: gy), Vector2(x: cx + half, y: gy), 1, gridCol)
       gy += BlastGridCell
 
     # Trailing refresh rings: rows the sweep has already finished, redrawn
@@ -177,7 +178,7 @@ proc drawBossDeathBlasts*(blasts: seq[BossDeathBlast]) =
     for k in 1 .. 2:
       let tr = r - k.float32 * 15.0'f32
       if tr > 2.0'f32:
-        drawCircleLines(cx.int32, cy.int32, tr,
+        drawCircleOutline(cx.int32, cy.int32, tr,
                         withAlpha(blast.color, blastAlpha(70.0'f32 / k.float32, fade)))
 
     # Leading edge: a DASHED scan ring, not a solid circle, so it reads as a
@@ -192,10 +193,10 @@ proc drawBossDeathBlasts*(blasts: seq[BossDeathBlast]) =
       if i mod 4 == 3: continue          # a gap every fourth tick
       let a0 = phase + i.float32 * step
       let a1 = a0 + step * 0.7'f32
-      drawLine(Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
+      drawStroke(Vector2(x: cx + cos(a0) * r, y: cy + sin(a0) * r),
                Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r), 3, edgeCol)
       let ir = r - 3.0'f32
-      drawLine(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
+      drawStroke(Vector2(x: cx + cos(a0) * ir, y: cy + sin(a0) * ir),
                Vector2(x: cx + cos(a1) * ir, y: cy + sin(a1) * ir), 1, hotCol)
 
     # Glyphs riding just outside the edge, mutating as it advances: the
@@ -234,12 +235,12 @@ proc drawLightningBolts*(bolts: seq[LightningBolt]) =
       let ax = a.x.int32;  let ay = a.y.int32
       let bx = b.x.int32;  let by = b.y.int32
       # Glow pass (drawn first, wider conceptually: draw offset copies)
-      drawLine(ax - 1, ay,     bx - 1, by,     glowColor)
-      drawLine(ax + 1, ay,     bx + 1, by,     glowColor)
-      drawLine(ax,     ay - 1, bx,     by - 1, glowColor)
-      drawLine(ax,     ay + 1, bx,     by + 1, glowColor)
+      drawStroke(ax - 1, ay,     bx - 1, by,     glowColor)
+      drawStroke(ax + 1, ay,     bx + 1, by,     glowColor)
+      drawStroke(ax,     ay - 1, bx,     by - 1, glowColor)
+      drawStroke(ax,     ay + 1, bx,     by + 1, glowColor)
       # Core pass
-      drawLine(ax, ay, bx, by, coreColor)
+      drawStroke(ax, ay, bx, by, coreColor)
 
 const
   PATH_SHOCKWAVE_DURATION* = 0.60'f32  # total seconds the corridor stays visible
@@ -330,10 +331,10 @@ proc drawPathShockwaves*(waves: seq[PathShockwave]) =
     let railA = uint8(clamp(frac * 200.0, 0.0, 200.0))
     let rail  = withAlpha(wave.color, railA)
     for i in 0 ..< n - 1:
-      drawLine(Vector2(x: wave.points[i].x + offX[i],         y: wave.points[i].y + offY[i]),
+      drawStroke(Vector2(x: wave.points[i].x + offX[i],         y: wave.points[i].y + offY[i]),
                Vector2(x: wave.points[i + 1].x + offX[i + 1], y: wave.points[i + 1].y + offY[i + 1]),
                2.0'f32, rail)
-      drawLine(Vector2(x: wave.points[i].x - offX[i],         y: wave.points[i].y - offY[i]),
+      drawStroke(Vector2(x: wave.points[i].x - offX[i],         y: wave.points[i].y - offY[i]),
                Vector2(x: wave.points[i + 1].x - offX[i + 1], y: wave.points[i + 1].y - offY[i + 1]),
                2.0'f32, rail)
 
@@ -343,8 +344,8 @@ proc drawPathShockwaves*(waves: seq[PathShockwave]) =
     for i in 0 ..< wave.points.len - 1:
       let a = Vector2(x: wave.points[i].x,     y: wave.points[i].y)
       let b = Vector2(x: wave.points[i + 1].x, y: wave.points[i + 1].y)
-      drawLine(a, b, 4.0'f32, withAlpha(wave.color, coreA))
-      drawLine(a, b, 1.5'f32, Color(r: 245, g: 250, b: 255, a: coreA))
+      drawStroke(a, b, 4.0'f32, withAlpha(wave.color, coreA))
+      drawStroke(a, b, 1.5'f32, Color(r: 245, g: 250, b: 255, a: coreA))
 
     # 2) Travelling crest: walk backward accumulating length until we pass the
     #    distance the wave has covered, then interpolate inside that segment.
@@ -377,8 +378,8 @@ proc drawPathShockwaves*(waves: seq[PathShockwave]) =
       let hot = Color(r: 255, g: 255, b: 240, a: crestA)
       let barA = Vector2(x: crest.x + px * wave.width, y: crest.y + py * wave.width)
       let barB = Vector2(x: crest.x - px * wave.width, y: crest.y - py * wave.width)
-      drawLine(barA, barB, 5.0'f32, withAlpha(wave.color, crestA))
-      drawLine(barA, barB, 2.0'f32, hot)
-      drawCircle(Vector2(x: crest.x, y: crest.y), wave.width * 0.45'f32,
+      drawStroke(barA, barB, 5.0'f32, withAlpha(wave.color, crestA))
+      drawStroke(barA, barB, 2.0'f32, hot)
+      drawDisc(Vector2(x: crest.x, y: crest.y), wave.width * 0.45'f32,
                  withAlpha(wave.color, uint8(crestA.int * 3 div 4)))
-      drawCircle(Vector2(x: crest.x, y: crest.y), wave.width * 0.18'f32, hot)
+      drawDisc(Vector2(x: crest.x, y: crest.y), wave.width * 0.18'f32, hot)

@@ -1,4 +1,5 @@
 import raylib, strutils
+import draw_prims
 from std/unicode import runeLen, runeSubStr
 import types, boss_definitions, localization, utils
 
@@ -87,7 +88,7 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
 
     drawRectangle(int32(boxX), statsY, int32(boxWidth), int32(boxHeight),
       Color(r: 20, g: 20, b: 40, a: uint8(min(statsAlpha, 200))))
-    drawRectangleLines(int32(boxX), statsY, int32(boxWidth), int32(boxHeight),
+    drawRectOutline(int32(boxX), statsY, int32(boxWidth), int32(boxHeight),
       Color(r: 255, g: 215, b: 0, a: statsAlpha))
 
     # Draw stats

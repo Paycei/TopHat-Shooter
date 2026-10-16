@@ -1,5 +1,7 @@
 import raylib, random, math
+import draw_prims
 import particle_types, types, utils
+import modding/mod_registry
 
 # Icon drawing: simple, clear glyphs so each pickup reads at a glance.
 
@@ -55,10 +57,10 @@ proc drawInvincibilityIcon(cx, cy: int32, size: float32) =
     let x2 = cx.float32 + cos(angle) * outerRadius
     let y2 = cy.float32 + sin(angle) * outerRadius
 
-    drawLine(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3.0, magenta)
+    drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3.0, magenta)
 
   # Center circle
-  drawCircle(Vector2(x: cx.float32, y: cy.float32), 3, magenta)
+  drawDisc(Vector2(x: cx.float32, y: cy.float32), 3, magenta)
 
 proc drawFireRateIcon(cx, cy: int32, size: float32) =
   ## Simple lightning bolt (zigzag)
@@ -85,7 +87,7 @@ proc drawFireRateIcon(cx, cy: int32, size: float32) =
 
   # Outline for clarity
   for i in 0..5:
-    drawLine(points[i], points[(i + 1) mod 6], 2.0, Color(r: 200, g: 130, b: 0, a: 255))
+    drawStroke(points[i], points[(i + 1) mod 6], 2.0, Color(r: 200, g: 130, b: 0, a: 255))
 
 proc drawMagnetIcon(cx, cy: int32, size: float32) =
   ## Horseshoe magnet - U shape with colored ends
@@ -125,19 +127,19 @@ proc drawShieldIcon(cx, cy: int32, size: float32) =
   )
 
   # Shield border (outline)
-  drawLine(Vector2(x: cx.float32, y: (cy - 7).float32),
+  drawStroke(Vector2(x: cx.float32, y: (cy - 7).float32),
            Vector2(x: (cx - 6).float32, y: cy.float32), 2.0, cyan)
-  drawLine(Vector2(x: cx.float32, y: (cy - 7).float32),
+  drawStroke(Vector2(x: cx.float32, y: (cy - 7).float32),
            Vector2(x: (cx + 6).float32, y: cy.float32), 2.0, cyan)
-  drawLine(Vector2(x: (cx - 6).float32, y: cy.float32),
+  drawStroke(Vector2(x: (cx - 6).float32, y: cy.float32),
            Vector2(x: cx.float32, y: (cy + 7).float32), 2.0, cyan)
-  drawLine(Vector2(x: (cx + 6).float32, y: cy.float32),
+  drawStroke(Vector2(x: (cx + 6).float32, y: cy.float32),
            Vector2(x: cx.float32, y: (cy + 7).float32), 2.0, cyan)
 
   # Center cross for detail
-  drawLine(Vector2(x: cx.float32, y: (cy - 3).float32),
+  drawStroke(Vector2(x: cx.float32, y: (cy - 3).float32),
            Vector2(x: cx.float32, y: (cy + 3).float32), 2.0, cyan)
-  drawLine(Vector2(x: (cx - 3).float32, y: cy.float32),
+  drawStroke(Vector2(x: (cx - 3).float32, y: cy.float32),
            Vector2(x: (cx + 3).float32, y: cy.float32), 2.0, cyan)
 
 proc drawDoubleCoinIcon(cx, cy: int32, size: float32) =
@@ -146,13 +148,13 @@ proc drawDoubleCoinIcon(cx, cy: int32, size: float32) =
   let darkGold = Color(r: 200, g: 170, b: 0, a: 255)
 
   # Back coin (offset)
-  drawCircle(Vector2(x: (cx + 2).float32, y: (cy + 2).float32), 5, darkGold)
-  drawCircleLines(Vector2(x: (cx + 2).float32, y: (cy + 2).float32), 5,
+  drawDisc(Vector2(x: (cx + 2).float32, y: (cy + 2).float32), 5, darkGold)
+  drawCircleOutline(Vector2(x: (cx + 2).float32, y: (cy + 2).float32), 5,
                   Color(r: 150, g: 120, b: 0, a: 255))
 
   # Front coin
-  drawCircle(Vector2(x: (cx - 2).float32, y: (cy - 2).float32), 5, gold)
-  drawCircleLines(Vector2(x: (cx - 2).float32, y: (cy - 2).float32), 5, darkGold)
+  drawDisc(Vector2(x: (cx - 2).float32, y: (cy - 2).float32), 5, gold)
+  drawCircleOutline(Vector2(x: (cx - 2).float32, y: (cy - 2).float32), 5, darkGold)
 
   # "2x" text
   drawText("2x", cx - 5, cy - 4, 8, Color(r: 50, g: 40, b: 0, a: 255))
@@ -183,9 +185,9 @@ proc drawLifestealIcon(cx, cy: int32, size: float32) =
 
   # Simple heart shape using two circles and a triangle
   # Left circle
-  drawCircle(Vector2(x: (cx - 3).float32, y: (cy - 2).float32), 4, darkRed)
+  drawDisc(Vector2(x: (cx - 3).float32, y: (cy - 2).float32), 4, darkRed)
   # Right circle
-  drawCircle(Vector2(x: (cx + 3).float32, y: (cy - 2).float32), 4, darkRed)
+  drawDisc(Vector2(x: (cx + 3).float32, y: (cy - 2).float32), 4, darkRed)
   # Bottom triangle
   drawTriangle(
     Vector2(x: (cx - 6).float32, y: (cy - 2).float32),
@@ -195,7 +197,7 @@ proc drawLifestealIcon(cx, cy: int32, size: float32) =
   )
 
   # Small droplet inside heart
-  drawCircle(Vector2(x: cx.float32, y: cy.float32), 2, brightRed)
+  drawDisc(Vector2(x: cx.float32, y: cy.float32), 2, brightRed)
   drawTriangle(
     Vector2(x: cx.float32, y: (cy - 3).float32),
     Vector2(x: (cx - 2).float32, y: cy.float32),
@@ -230,9 +232,20 @@ proc drawConsumableIcon*(x, y, radius: float32, cType: ConsumableType, pulse: fl
     drawDamageBoostIcon(cx, cy, size)
   of ctLifesteal:
     drawLifestealIcon(cx, cy, size)
+  of ctMod:
+    discard   # drawn by drawConsumable (its look lives on the mod's registration)
 
-proc newConsumable*(x, y: float32, difficulty: float32): Consumable =
-  # Weighted selection based on difficulty
+proc newConsumable*(x, y: float32, difficulty: float32, mode = gmWaveBased): Consumable =
+  # Weighted selection based on difficulty. Mod consumables (register.consumable)
+  # add their weights on top of the game's 100.
+  let modWeight = if consumableDefs.len > 0: modConsumableWeight(mode) else: 0'f32
+  if modWeight > 0:
+    let r = rand(100'f32 + modWeight)
+    if r >= 100:
+      let key = rollModConsumable(mode, r - 100)
+      if key.len > 0:
+        return Consumable(pos: newVector2f(x, y), radius: 9, consumableType: ctMod,
+                          lifetime: 15.0, modKey: key)
   let roll = rand(100)
   var cType: ConsumableType
 
@@ -290,6 +303,7 @@ proc getConsumableColor(cType: ConsumableType): Color =
   of ctDoubleCoin: Color(r: 255, g: 223, b: 0, a: 255)    # Bright gold
   of ctDamageBoost: Color(r: 255, g: 69, b: 0, a: 255)    # Red-orange
   of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)       # Dark red
+  of ctMod: Color(r: 200, g: 200, b: 200, a: 255)         # (its registered colour, see drawConsumable)
 
 proc drawConsumable*(consumable: Consumable) =
   let t = getTime()
@@ -308,26 +322,31 @@ proc drawConsumable*(consumable: Consumable) =
     of ctDoubleCoin:   Color(r: 255, g: 230, b: 50,  a: 50)
     of ctDamageBoost:  Color(r: 255, g: 60,  b: 0,   a: 50)
     of ctLifesteal:    Color(r: 200, g: 0,   b: 0,   a: 50)
+    of ctMod:          withAlpha(modConsumableColor(consumable.modKey), 50)
 
   # Outer soft aura glow (two layers for depth)
   let auraR1 = size + 7 + sin(t * 4.0) * 2.5
   let auraR2 = size + 13 + sin(t * 3.0 + 1.0) * 3.0
-  drawCircle(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR2,
+  drawDisc(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR2,
     withAlpha(auraColor, uint8(auraColor.a.float32 * 0.5)))
-  drawCircle(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR1, auraColor)
+  drawDisc(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR1, auraColor)
 
   # 4 rotating sparkle dots around the aura ring
   for i in 0..<4:
     let sa = t * 2.2 + i.float32 * PI / 2.0
     let sr = auraR1 + 2.0
-    drawCircle(
+    drawDisc(
       Vector2(x: consumable.pos.x + cos(sa) * sr, y: consumable.pos.y + sin(sa) * sr),
       2.0, withAlpha(auraColor, 200))
 
   # Draw background circle
-  let color = getConsumableColor(consumable.consumableType)
-  drawCircle(Vector2(x: consumable.pos.x, y: consumable.pos.y), size, color)
-  drawCircleLines(consumable.pos.x.int32, consumable.pos.y.int32, size, Black)
+  let color = if consumable.consumableType == ctMod: modConsumableColor(consumable.modKey)
+              else: getConsumableColor(consumable.consumableType)
+  drawDisc(Vector2(x: consumable.pos.x, y: consumable.pos.y), size, color)
+  drawCircleOutline(consumable.pos.x.int32, consumable.pos.y.int32, size, Black)
+  if consumable.consumableType == ctMod:
+    drawModConsumableIcon(consumable.modKey, consumable.pos.x, consumable.pos.y, size)
+    return
 
   # Use new detailed icon system
   drawConsumableIcon(consumable.pos.x, consumable.pos.y,

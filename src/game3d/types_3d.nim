@@ -128,6 +128,7 @@ type
     modelScale*: float32
     modelAnim*: int        # animation index + 1; 0 = the rest pose
     modelSpeed*: float32
+    modelFade*: float32    # seconds a modelAnim change crossfades; 0 snaps
     ai*: EntityAI3D
     speed*: float32
     orbitRadius*: float32  # aiOrbit: distance kept from the player

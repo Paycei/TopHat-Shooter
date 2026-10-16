@@ -5,9 +5,10 @@
 ## cinematic_common helpers as the lore and endgame cinematics.
 
 import raylib, rlgl, math, strutils
+import ../draw_prims
 from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../localization, ../sound, ../boss_definitions,
-       ../enemy_config, cinematic_common, cutscene, ../utils
+       ../enemy_config, ../powerup_data, icon_drawing, cinematic_common, cutscene, ../utils
 from ../dungeon import themeName, themeAccent
 
 # ---------------------------------------------------------------------------
@@ -19,6 +20,11 @@ const
   RogueAccent   = Color(r: 160, g: 80,  b: 255, a: 255)  # purple
   SandboxAccent = Color(r: 180, g: 180, b: 180, a: 255)  # gray
   PvPAccent     = Color(r: 230, g: 60,  b: 60,  a: 255)  # red
+
+  ModeIntroSpeed = 1.0'f32
+    ## Real time, not the story's 1.2x: a mode intro is the player's briefing
+    ## on how the mode works, so it has to be readable on the first watch.
+  ModeIntroCaptionCps = 30.0'f32
 
 # ---------------------------------------------------------------------------
 # Shared simple backdrop (dark field, accent sweep)
@@ -54,11 +60,11 @@ proc newWaveRosterShot(): CutsceneDrawProc =
 
     drawSoftGlow(cx, cy, 130.0'f32 * open, colorA(WaveAccent, alpha * 40.0'f32), 1.0'f32)
     for i in 1..4:
-      drawCircleLines(Vector2(x: cx, y: cy), radarR * i.float32 / 4.0'f32 * open,
+      drawCircleOutline(Vector2(x: cx, y: cy), radarR * i.float32 / 4.0'f32 * open,
                       colorA(WaveAccent, alpha * (110.0'f32 - i.float32 * 14.0'f32)))
-    drawLine((cx - radarR * open).int32, cy.int32, (cx + radarR * open).int32, cy.int32,
+    drawStroke((cx - radarR * open).int32, cy.int32, (cx + radarR * open).int32, cy.int32,
              colorA(WaveAccent, alpha * 45.0'f32))
-    drawLine(cx.int32, (cy - radarR * open).int32, cx.int32, (cy + radarR * open).int32,
+    drawStroke(cx.int32, (cy - radarR * open).int32, cx.int32, (cy + radarR * open).int32,
              colorA(WaveAccent, alpha * 45.0'f32))
 
     # The sweep starts at twelve o'clock and fades a trail behind it.
@@ -66,7 +72,7 @@ proc newWaveRosterShot(): CutsceneDrawProc =
     let sweepA = -PI * 0.5'f32 + swept
     for k in 0..<14:
       let a = sweepA - k.float32 * 0.035'f32
-      drawLine(Vector2(x: cx, y: cy), Vector2(x: cx + cos(a) * radarR * open, y: cy + sin(a) * radarR * open),
+      drawStroke(Vector2(x: cx, y: cy), Vector2(x: cx + cos(a) * radarR * open, y: cy + sin(a) * radarR * open),
                2.0'f32, colorA(WaveAccent, alpha * (150.0'f32 - k.float32 * 10.0'f32)))
 
     # Each service is found as the sweep crosses it: ping, blip, and its name.
@@ -81,10 +87,10 @@ proc newWaveRosterShot(): CutsceneDrawProc =
       let by = cy + sin(ang) * radarR * blipDist[i] * open
       let age = (swept - rel) / sweepSpeed
       if age < 0.6'f32:
-        drawCircleLines(Vector2(x: bx, y: by), 6.0'f32 + age * 40.0'f32,
+        drawCircleOutline(Vector2(x: bx, y: by), 6.0'f32 + age * 40.0'f32,
                         Color(r: 255, g: 70, b: 70, a: alphaByte(alpha * (1.0'f32 - age / 0.6'f32) * 220.0'f32)))
       let pulse = 0.6'f32 + 0.4'f32 * sin(local * 6.0'f32 + i.float32)
-      drawCircle(Vector2(x: bx, y: by), 3.5'f32 + pulse * 2.0'f32,
+      drawDisc(Vector2(x: bx, y: by), 3.5'f32 + pulse * 2.0'f32,
                  Color(r: 255, g: 60, b: 60, a: alphaByte(alpha * 235.0'f32)))
       let w = measureText(name, 12)
       let lx = if cos(ang) >= 0.0'f32: bx.int32 + 10 else: bx.int32 - 10 - w
@@ -98,38 +104,75 @@ proc newWaveRosterShot(): CutsceneDrawProc =
 
     drawSubtitles([t(tkModeIntroWave1a), t(tkModeIntroWave1b)], sw, sh, alpha)
 
-proc drawWaveShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
-  let cx = sw.float32 * 0.5'f32
-  let cy = sh.float32 * 0.48'f32
-  let enter = easeInOut(local / (duration * 0.5'f32))
+proc newWavePlanShot(): CutsceneDrawProc =
+  ## WAVE PLAN: the loop the mode actually runs. A wave counter walks along,
+  ## level-ups install a patch on shooter.exe, and every fifth wave is a
+  ## service boss (the first two shown with their real models).
+  const waves = 10
+  const patches = [puMultiShot, puRapidFire, puBloodBullets]
+  let waveLabel = t(tkModeIntroWaveLabel)
+  let bossLabel = t(tkModeIntroWaveBoss)
+  var bosses: seq[Enemy]
 
-  # Player model drifting forward from the left.
-  let px = sw.float32 * (0.15'f32 + enter * 0.2'f32)
-  let py = cy + sin(local * 1.6'f32) * 14.0'f32
-  drawEquippedPlayerModel(newVector2f(px, py), 26.0'f32, local, alpha, 0.2'f32)
+  result = proc(local, duration: float32, sw, sh: int32, alpha: float32) =
+    if bosses.len == 0:
+      bosses = @[newCinematicBoss(1, sw, sh), newCinematicBoss(2, sw, sh)]
+    let x0 = sw.float32 * 0.1'f32
+    let x1 = sw.float32 * 0.9'f32
+    let segW = (x1 - x0) / waves.float32
+    let ty = sh.float32 * 0.55'f32
+    let progress = easeInOut(clamp01((local - 0.3'f32) / (duration * 0.78'f32))) * 6.6'f32
+    let current = int(progress)
 
-  # Enemy swarm approaching from the right.
-  for i in 0..<12:
-    let seed = i.float32 * 0.77'f32
-    let ex = sw.float32 * (0.95'f32 - enter * 0.22'f32) - seed * 18.0'f32
-    let ey = sh.float32 * (0.28'f32 + fractCoord(seed * 2.3'f32) * 0.46'f32)
-    let kind = case i mod 4
-      of 0: etCircle
-      of 1: etTriangle
-      of 2: etStar
-      else: etCube
-    drawRealEnemy(kind, ex, ey, 10.0'f32 + (i mod 3).float32 * 3.0'f32, local, i, 0,
-                  newVector2f(-60.0'f32, 0.0'f32))
+    # The wave strip.
+    for w in 0..<waves:
+      let sx = x0 + w.float32 * segW
+      let isBoss = (w + 1) mod 5 == 0
+      let done = w < current
+      let col = if isBoss: Color(r: 255, g: 90, b: 90, a: 255) else: WaveAccent
+      drawRectangle((sx + 3.0'f32).int32, ty.int32, (segW - 6.0'f32).int32, 26,
+                    colorA(col, alpha * (if done: 120.0'f32 else: 40.0'f32)))
+      drawRectOutline((sx + 3.0'f32).int32, ty.int32, (segW - 6.0'f32).int32, 26, colorA(col, alpha * 200.0'f32))
+      drawCenteredText($(w + 1), (sx + segW * 0.5'f32).int32, ty.int32 + 6, 16,
+                       Color(r: 240, g: 250, b: 255, a: alphaByte(alpha * 235.0'f32)))
+      if isBoss:
+        let bx = sx + segW * 0.5'f32
+        let reached = progress >= w.float32
+        drawCenteredText(bossLabel, bx.int32, ty.int32 + 34, 13, colorA(col, alpha * 220.0'f32))
+        drawCinematicBoss(bosses[(w + 1) div 5 - 1], bx, ty - 34.0'f32,
+                          if reached: 22.0'f32 else: 15.0'f32, 1.0'f32, 0)
+    drawText(waveLabel, x0.int32, ty.int32 - 22, 14, colorA(WaveAccent, alpha * 180.0'f32))
+    let cxp = x0 + progress * segW
+    drawTriangle(Vector2(x: cxp - 7.0'f32, y: ty + 40.0'f32), Vector2(x: cxp + 7.0'f32, y: ty + 40.0'f32),
+                 Vector2(x: cxp, y: ty + 30.0'f32), colorA(WaveAccent, alpha * 240.0'f32))
 
-  drawSoftGlow(cx, cy, 180.0'f32, colorA(WaveAccent, alpha * 30.0'f32), 1.0'f32)
-  drawSubtitles([t(tkModeIntroWave2a), t(tkModeIntroWave2b)], sw, sh, alpha)
+    # Above it, the job itself: shoot, level up, get patched.
+    let px = sw.float32 * 0.2'f32
+    let py = sh.float32 * 0.3'f32 + sin(local * 1.6'f32) * 8.0'f32
+    for i in 0..<10:
+      let ex = sw.float32 * (0.5'f32 + hash01(i.float32 * 1.3'f32) * 0.38'f32) - fractCoord(local * 0.2'f32 + i.float32 * 0.1'f32) * 60.0'f32
+      let ey = sh.float32 * (0.18'f32 + hash01(i.float32 + 3.0'f32) * 0.22'f32)
+      let kind = [etCircle, etTriangle, etStar, etCube][i mod 4]
+      drawRealEnemy(kind, ex, ey, 10.0'f32 + (i mod 3).float32 * 2.0'f32, local, i, 0, newVector2f(-60.0'f32, 0.0'f32))
+      let p = fractCoord(local * 2.0'f32 + i.float32 * 0.29'f32)
+      drawEquippedBulletModel(newVector2f(lerpF(px + 26.0'f32, ex, p), lerpF(py, ey, p)), 5.0'f32,
+                              arctan2(ey - py, ex - px), local, alpha * 0.9'f32)
+    drawEquippedPlayerModel(newVector2f(px, py), 22.0'f32, local, alpha, 0.2'f32)
+    for k in 0..<min(current, patches.len):
+      let since = local - (0.3'f32 + (k + 1).float32 / 6.6'f32 * duration * 0.78'f32)
+      let pop = clamp01(since / 0.25'f32)
+      let pt = patches[k]
+      drawPowerUpIcon((px - 46.0'f32 + k.float32 * 32.0'f32).int32, (py - 66.0'f32 - (1.0'f32 - pop) * 10.0'f32).int32,
+                      26, pt, colorA(powerUpDef(pt).color, alpha * pop * 255.0'f32))
+
+    drawSubtitles([t(tkModeIntroWave2a), t(tkModeIntroWave2b)], sw, sh, alpha)
 
 proc newWaveIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.0'f32, drawProc: newWaveRosterShot(), soundCue: stTeleport,
+      CutsceneShot(duration: 6.8'f32, drawProc: newWaveRosterShot(), soundCue: stTeleport,
                    label: t(tkModeIntroWaveRec1), iconIndex: 3),
-      CutsceneShot(duration: 5.0'f32, drawProc: drawWaveShot2, soundCue: stShoot,
+      CutsceneShot(duration: 7.2'f32, drawProc: newWavePlanShot(), soundCue: stShoot,
                    label: t(tkModeIntroWaveRec2), iconIndex: 0),
     ],
     accentColor      = WaveAccent,
@@ -137,7 +180,9 @@ proc newWaveIntroCutscene*(): Cutscene =
     titleCardSub     = t(tkModeIntroWaveTitle),
     drawBackdropProc = simpleBackdrop(WaveAccent),
     swayAmp          = 0.8'f32,
-    musicTrack       = mtBoss,
+    musicTrack       = mtWave,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )
 
 # ---------------------------------------------------------------------------
@@ -163,11 +208,11 @@ proc drawSurvShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   let sweep = (local / duration) * 360.0'f32
   drawRing(Vector2(x: cx, y: cy), dialR - 2.0'f32, dialR + 2.0'f32, -90.0'f32, -90.0'f32 + sweep, 48,
            colorA(SurvAccent, alpha * 215.0'f32))
-  drawCircleLines(Vector2(x: cx, y: cy), dialR, colorA(SurvAccent, alpha * 70.0'f32 * open))
+  drawCircleOutline(Vector2(x: cx, y: cy), dialR, colorA(SurvAccent, alpha * 70.0'f32 * open))
   for i in 0..<12:
     let a = i.float32 * PI * 2.0'f32 / 12.0'f32 - PI * 0.5'f32
     let r1 = dialR - (if i mod 3 == 0: 12.0'f32 else: 7.0'f32)
-    drawLine((cx + cos(a) * r1).int32, (cy + sin(a) * r1).int32,
+    drawStroke((cx + cos(a) * r1).int32, (cy + sin(a) * r1).int32,
              (cx + cos(a) * dialR).int32, (cy + sin(a) * dialR).int32,
              colorA(SurvAccent, alpha * (if i mod 3 == 0: 200.0'f32 else: 120.0'f32)))
 
@@ -210,7 +255,7 @@ proc drawSurvShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
   drawSoftGlow(cx, panelY.float32 + panelH.float32 * 0.5'f32, 240.0'f32,
                colorA(SurvAccent, alpha * 26.0'f32), 1.0'f32)
   drawRectangle(panelX, panelY, panelW, panelH, Color(r: 12, g: 8, b: 6, a: alphaByte(alpha * 200.0'f32)))
-  drawRectangleLines(panelX, panelY, panelW, panelH, colorA(SurvAccent, alpha * 150.0'f32))
+  drawRectOutline(panelX, panelY, panelW, panelH, colorA(SurvAccent, alpha * 150.0'f32))
 
   # Entries arrive on a steady cadence; once the panel is full it jumps a line
   # per entry, the way a real terminal log scrolls.
@@ -248,18 +293,18 @@ proc drawSurvShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
       elif phase > 0.5'f32 and phase < 0.53'f32: 16.0'f32 * sin((phase - 0.5'f32) / 0.03'f32 * PI)
       else: sin(phase * 40.0'f32) * 1.5'f32
     let p = Vector2(x: panelX.float32 + u * traceW, y: traceY + spike)
-    drawLine(prev, p, 2.0'f32, colorA(SurvAccent, alpha * 200.0'f32 * (0.35'f32 + u * 0.65'f32)))
+    drawStroke(prev, p, 2.0'f32, colorA(SurvAccent, alpha * 200.0'f32 * (0.35'f32 + u * 0.65'f32)))
     prev = p
-  drawCircle(prev, 3.5'f32, colorA(SurvAccent, alpha * 240.0'f32))
+  drawDisc(prev, 3.5'f32, colorA(SurvAccent, alpha * 240.0'f32))
 
   drawSubtitles([t(tkModeIntroSurv2a), t(tkModeIntroSurv2b)], sw, sh, alpha)
 
 proc newSurvivalIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.0'f32, drawProc: drawSurvShot1, soundCue: stShield,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawSurvShot1, soundCue: stShield,
                    label: t(tkModeIntroSurvRec1), iconIndex: 5),
-      CutsceneShot(duration: 5.0'f32, drawProc: drawSurvShot2, soundCue: stWaveComplete,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawSurvShot2, soundCue: stWaveComplete,
                    label: t(tkModeIntroSurvRec2), iconIndex: 10),
     ],
     accentColor      = SurvAccent,
@@ -267,21 +312,13 @@ proc newSurvivalIntroCutscene*(): Cutscene =
     titleCardSub     = t(tkModeIntroSurvTitle),
     drawBackdropProc = simpleBackdrop(SurvAccent),
     swayAmp          = 0.7'f32,
-    musicTrack       = mtMenu,
+    musicTrack       = mtSurvival,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )
 
 # ---------------------------------------------------------------------------
 # Roguelite intro shots
-
-proc hash01Mode(n: float32): float32 =
-  ## Deterministic 0..1 noise, so every playback stages identically.
-  fractCoord(sin(n * 12.9898'f32) * 43758.5453'f32)
-
-proc triAny(a, b, c: Vector2, col: Color) =
-  ## Winding-safe triangle (raylib culls one winding).
-  let cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
-  if cross < 0.0'f32: drawTriangle(a, b, c, col)
-  else: drawTriangle(a, c, b, col)
 
 proc lerpV(a, b: Vector2, t: float32): Vector2 =
   Vector2(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
@@ -330,10 +367,10 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
     triAny(left, right, bottom, fill)
     for g in 1..3:
       let u = g.float32 / 4.0'f32
-      drawLine(lerpV(left, top, u), lerpV(bottom, right, u), 1.0'f32, colorA(acc, la * 55.0'f32))
-      drawLine(lerpV(top, right, u), lerpV(left, bottom, u), 1.0'f32, colorA(acc, la * 55.0'f32))
+      drawStroke(lerpV(left, top, u), lerpV(bottom, right, u), 1.0'f32, colorA(acc, la * 55.0'f32))
+      drawStroke(lerpV(top, right, u), lerpV(left, bottom, u), 1.0'f32, colorA(acc, la * 55.0'f32))
     for (a, b) in [(left, top), (top, right), (right, bottom), (bottom, left)]:
-      drawLine(a, b, 2.0'f32, colorA(acc, la * 190.0'f32))
+      drawStroke(a, b, 2.0'f32, colorA(acc, la * 190.0'f32))
     let name = themeName(themes[k])
     let nw = measureText(name, 16)
     drawText(name, (cx - hw - 16.0'f32).int32 - nw, (y - 8.0'f32).int32, 16, colorA(acc, la * 230.0'f32))
@@ -343,13 +380,13 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   # The falling process: speed streaks above, a flash at each layer it breaks.
   let flash = 1.0'f32 - clamp01(nearest / 28.0'f32)
   for i in 0..<10:
-    let sx = cx + (hash01Mode(i.float32) - 0.5'f32) * 70.0'f32
+    let sx = cx + (hash01(i.float32) - 0.5'f32) * 70.0'f32
     let p = fractCoord(local * 2.2'f32 + i.float32 * 0.1'f32)
     let sy = playerY - 30.0'f32 - p * 150.0'f32
-    drawLine(sx.int32, sy.int32, sx.int32, (sy - 26.0'f32).int32,
+    drawStroke(sx.int32, sy.int32, sx.int32, (sy - 26.0'f32).int32,
              colorA(RogueAccent, alpha * (1.0'f32 - p) * 150.0'f32))
   if flash > 0.0'f32:
-    drawCircleLines(Vector2(x: cx, y: playerY), 26.0'f32 + flash * 60.0'f32,
+    drawCircleOutline(Vector2(x: cx, y: playerY), 26.0'f32 + flash * 60.0'f32,
                     Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * flash * 200.0'f32)))
   drawEquippedPlayerModel(newVector2f(cx, playerY), 22.0'f32, local, alpha, 0.25'f32 + flash * 0.5'f32)
 
@@ -357,10 +394,10 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   let gx = (sw - 60).int32
   let gTop = sh div 9 + 40
   let gBottom = sh - sh div 9 - 150
-  drawLine(gx, gTop, gx, gBottom, colorA(RogueAccent, alpha * 120.0'f32))
+  drawStroke(gx, gTop, gx, gBottom, colorA(RogueAccent, alpha * 120.0'f32))
   for k in 0..themes.high:
     let ty = gTop + int32((gBottom - gTop).float32 * k.float32 / themes.high.float32)
-    drawLine(gx - 5, ty, gx + 5, ty, colorA(themeAccent(themes[k]), alpha * 170.0'f32))
+    drawStroke(gx - 5, ty, gx + 5, ty, colorA(themeAccent(themes[k]), alpha * 170.0'f32))
   let frac = clamp01((depth - 100.0'f32 + gap) / (themes.len.float32 * gap))
   let my = gTop.float32 + (gBottom - gTop).float32 * frac
   drawTriangle(Vector2(x: gx.float32 - 8.0'f32, y: my - 6.0'f32), Vector2(x: gx.float32 - 8.0'f32, y: my + 6.0'f32),
@@ -371,30 +408,52 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
 
   drawSubtitles([t(tkModeIntroRogue1a), t(tkModeIntroRogue1b)], sw, sh, alpha)
 
-proc drawRogueShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
-  let cx = sw.float32 * 0.5'f32
-  let cy = sh.float32 * 0.45'f32
-  let progress = easeInOut(local / duration)
+proc newGuardianShot(): CutsceneDrawProc =
+  ## SECTOR GUARDIANS: the six processes that end each sector, as an old
+  ## terminal lists them. Real boss models, owner unknown: Act III answers who.
+  const ids = [17, 18, 19, 20, 21, 22]
+  var names: seq[string]
+  for id in ids:
+    names.add(getBossProcessName(id))
+  let legacy = t(tkBossTagLegacy)
+  let owner = t(tkModeIntroRogueOwner)
+  var bosses: seq[Enemy]
 
-  # Orbiting relic pickups.
-  for i in 0..<5:
-    let a = i.float32 * PI * 2.0'f32 / 5.0'f32 + local * 0.9'f32
-    let r = 90.0'f32 + sin(local * 2.0'f32 + i.float32) * 10.0'f32
-    let rx = cx + cos(a) * r
-    let ry = cy + sin(a) * r * 0.6'f32
-    drawSoftGlow(rx, ry, 28.0'f32 * progress, colorA(RogueAccent, alpha * 55.0'f32 * progress), 1.0'f32)
-    drawCircle(Vector2(x: rx, y: ry), 8.0'f32 * progress,
-               colorA(RogueAccent, alpha * 200.0'f32 * progress))
-
-  drawKernelModel(newVector2f(cx, cy), 34.0'f32, local, progress, alpha)
-  drawSubtitles([t(tkModeIntroRogue2a), t(tkModeIntroRogue2b)], sw, sh, alpha)
+  result = proc(local, duration: float32, sw, sh: int32, alpha: float32) =
+    if bosses.len == 0:
+      for id in ids:
+        bosses.add(newCinematicBoss(id, sw, sh))
+    let x = (sw.float32 * 0.16'f32).int32
+    let colW = min(sw - 2 * x, 620'i32)
+    let y0 = sh div 9 + 34
+    const rowH = 56'i32
+    drawRectangle(x - 18, y0 - 16, colW + 36, rowH * ids.len.int32 + 20,
+                  Color(r: 6, g: 4, b: 2, a: alphaByte(alpha * 220.0'f32)))
+    drawRectOutline(x - 18, y0 - 16, colW + 36, rowH * ids.len.int32 + 20, colorA(OldAmber, alpha * 80.0'f32))
+    for i, name in names:
+      let at = 0.35'f32 + i.float32 * 0.42'f32
+      if local < at:
+        break
+      let ry = y0 + i.int32 * rowH
+      let pop = easeOut(clamp01((local - at) / 0.25'f32))
+      drawCinematicBoss(bosses[i], (x + 18).float32, (ry + 16).float32, 15.0'f32 * pop, 1.0'f32, 0)
+      drawText(t(tkModeIntroRogueSector).replace("$1", intToStr(i + 1, 2)), x + 48, ry, 13,
+               colorA(OldAmber, alpha * 150.0'f32))
+      drawOldText(name, x + 48, ry + 16, 22, revealOver(local, at, 0.25'f32), local, alpha,
+                  centered = false, cursor = false)
+      let tagW = measureText(legacy, 12) + 14
+      drawRectOutline(x + colW - tagW, ry + 2, tagW, 18, colorA(OldAmber, alpha * pop * 180.0'f32))
+      drawText(legacy, x + colW - tagW + 7, ry + 5, 12, colorA(OldAmber, alpha * pop * 220.0'f32))
+      drawText(owner, x + colW - measureText(owner, 12), ry + 26, 12,
+               Color(r: 200, g: 170, b: 120, a: alphaByte(alpha * pop * 170.0'f32)))
+    drawSubtitles([t(tkModeIntroRogue2a), t(tkModeIntroRogue2b)], sw, sh, alpha)
 
 proc newRogueliteIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.0'f32, drawProc: drawRogueShot1, soundCue: stTeleport,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawRogueShot1, soundCue: stTeleport,
                    label: t(tkModeIntroRogueRec1), iconIndex: 4),
-      CutsceneShot(duration: 5.0'f32, drawProc: drawRogueShot2, soundCue: stPowerUp,
+      CutsceneShot(duration: 7.2'f32, drawProc: newGuardianShot(), soundCue: stPowerUp,
                    label: t(tkModeIntroRogueRec2), iconIndex: 7),
     ],
     accentColor      = RogueAccent,
@@ -402,7 +461,9 @@ proc newRogueliteIntroCutscene*(): Cutscene =
     titleCardSub     = t(tkModeIntroRogueTitle),
     drawBackdropProc = simpleBackdrop(RogueAccent),
     swayAmp          = 0.9'f32,
-    musicTrack       = mtBoss,
+    musicTrack       = mtRoguelite,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )
 
 # ---------------------------------------------------------------------------
@@ -430,16 +491,6 @@ proc drawSandboxShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
 
   drawSoftGlow(cx, cy, 110.0'f32 * open, colorA(SandboxAccent, alpha * 28.0'f32), 1.0'f32)
   drawSubtitles([t(tkModeIntroSandbox1a), t(tkModeIntroSandbox1b)], sw, sh, alpha)
-
-proc drawSandboxCursor(x, y, alpha: float32, pressed: bool) =
-  ## A plain OS pointer; it dips a pixel while "clicking".
-  let d = if pressed: 1.0'f32 else: 0.0'f32
-  let tip = Vector2(x: x + d, y: y + d)
-  let a = Vector2(x: tip.x, y: tip.y + 20.0'f32)
-  let b = Vector2(x: tip.x + 14.0'f32, y: tip.y + 14.0'f32)
-  triAny(Vector2(x: tip.x - 1.5'f32, y: tip.y - 2.0'f32), Vector2(x: a.x - 1.5'f32, y: a.y + 2.5'f32),
-         Vector2(x: b.x + 2.5'f32, y: b.y + 1.0'f32), Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * 220.0'f32)))
-  triAny(tip, a, b, Color(r: 245, g: 245, b: 245, a: alphaByte(alpha * 255.0'f32)))
 
 proc fitText(text: string, size, maxW: int32): string =
   ## Clip a label to maxW with a trailing "...", rune-safe for accents.
@@ -483,11 +534,11 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
   let grid = colorA(SandboxAccent, alpha * 22.0'f32)
   var gx = 0'i32
   while gx < sidebarX:
-    drawLine(gx, top, gx, bottom, grid)
+    drawStroke(gx, top, gx, bottom, grid)
     gx += 40
   var gy = top
   while gy < bottom:
-    drawLine(0, gy, sidebarX, gy, grid)
+    drawStroke(0, gy, sidebarX, gy, grid)
     gy += 40
 
   drawEquippedPlayerModel(newVector2f(playCx, playCy), 20.0'f32, local, alpha, 0.2'f32)
@@ -516,7 +567,7 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
 
   # The spawn list, drawn like the mode's own Enemies tab.
   drawRectangle(sidebarX, top, sidebarW, panelBottom - top, Color(r: 22, g: 22, b: 34, a: alphaByte(alpha * 240.0'f32)))
-  drawLine(sidebarX, top, sidebarX, panelBottom, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 220.0'f32)))
+  drawStroke(sidebarX, top, sidebarX, panelBottom, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 220.0'f32)))
   drawText(t(tkSandboxSpawnEnemies), bx, top + 14, 18, Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 240.0'f32)))
   for i, kind in listKinds:
     let y = buttonY(i)
@@ -528,7 +579,7 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
     let fill = Color(r: uint8(70.0'f32 + flash * 70.0'f32), g: uint8(70.0'f32 + flash * 70.0'f32),
                      b: uint8(120.0'f32 + flash * 90.0'f32), a: alphaByte(alpha * 245.0'f32))
     drawRectangle(bx, y, bw, btnH, fill)
-    drawRectangleLines(bx, y, bw, btnH, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 255.0'f32)))
+    drawRectOutline(bx, y, bw, btnH, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 255.0'f32)))
     # Small radius: some enemies (Star, Diamond) draw halos well past it.
     drawRealEnemy(kind, (bx + 18).float32, (y + btnH div 2).float32, 6.0'f32, local, 400 + i, 0)
     let cfg = getEnemyConfig(kind)
@@ -546,16 +597,16 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
       cursor = lerpV(prev, clickPoint(idx), easeInOut(clamp01((local - (tClick - travel)) / travel)))
     if local >= tClick and local < tClick + 0.12'f32:
       pressed = true
-  drawSandboxCursor(cursor.x, cursor.y, alpha, pressed)
+  drawStoryPointer(cursor.x, cursor.y, alpha, pressed)
 
   drawSubtitles([t(tkModeIntroSandbox2a), t(tkModeIntroSandbox2b)], sw, sh, alpha)
 
 proc newSandboxIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.2'f32, drawProc: drawSandboxShot1, soundCue: stMenuSelect,
+      CutsceneShot(duration: 7.0'f32, drawProc: drawSandboxShot1, soundCue: stMenuSelect,
                    label: t(tkModeIntroSandboxRec1), iconIndex: 10),
-      CutsceneShot(duration: 5.4'f32, drawProc: drawSandboxShot2, soundCue: stPowerUp,
+      CutsceneShot(duration: 7.2'f32, drawProc: drawSandboxShot2, soundCue: stPowerUp,
                    label: t(tkModeIntroSandboxRec2), iconIndex: 0),
     ],
     accentColor      = SandboxAccent,
@@ -564,6 +615,8 @@ proc newSandboxIntroCutscene*(): Cutscene =
     drawBackdropProc = simpleBackdrop(SandboxAccent),
     swayAmp          = 0.5'f32,
     musicTrack       = mtMenu,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )
 
 # ---------------------------------------------------------------------------
@@ -588,11 +641,11 @@ proc drawPvPShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
     let passed = ny.int32 <= scanY
     let nodeAlpha = if passed: alpha * 200.0'f32 else: 0.0'f32
     if nodeAlpha > 0:
-      drawCircle(Vector2(x: nx, y: ny), 6.0'f32, colorA(PvPAccent, nodeAlpha))
+      drawDisc(Vector2(x: nx, y: ny), 6.0'f32, colorA(PvPAccent, nodeAlpha))
       if i > 0:
         let px = sw.float32 * (0.15'f32 + fractCoord((i - 1).float32 * 5.37'f32) * 0.7'f32)
         let py = sh.float32 * (0.2'f32 + fractCoord((i - 1).float32 * 5.37'f32 * 1.7'f32) * 0.55'f32)
-        drawLine(nx.int32, ny.int32, px.int32, py.int32,
+        drawStroke(nx.int32, ny.int32, px.int32, py.int32,
                  colorA(PvPAccent, nodeAlpha * 0.4'f32))
 
   drawSoftGlow(cx, cy, 100.0'f32, colorA(PvPAccent, alpha * 25.0'f32), 1.0'f32)
@@ -631,8 +684,8 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
   var x = lx + 34.0'f32
   var k = 0
   while x < rx - 34.0'f32:
-    let flick = hash01Mode(k.float32 + floor(local * 18.0'f32))
-    drawLine(x.int32, cy.int32, (x + 9.0'f32).int32, cy.int32,
+    let flick = hash01(k.float32 + floor(local * 18.0'f32))
+    drawStroke(x.int32, cy.int32, (x + 9.0'f32).int32, cy.int32,
              colorA(PvPAccent, alpha * enter * (60.0'f32 + flick * 90.0'f32)))
     x += 16.0'f32
     inc k
@@ -643,7 +696,7 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
     let bx = lx + 34.0'f32 + (clashX - lx - 34.0'f32) * p
     let by = cy + sin(i.float32 * 2.1'f32 + local * 3.0'f32) * 16.0'f32 * (1.0'f32 - p)
     for tr in 1..3:
-      drawCircle(Vector2(x: bx - tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
+      drawDisc(Vector2(x: bx - tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
                  Color(r: 0, g: 230, b: 230, a: alphaByte(alpha * enter * (120.0'f32 - tr.float32 * 30.0'f32))))
     drawEquippedBulletModel(newVector2f(bx, by), 7.0'f32, 0.0'f32, local + i.float32, alpha * enter)
   for i in 0..<7:
@@ -651,39 +704,39 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
     let bx = rx - 34.0'f32 - (rx - 34.0'f32 - clashX) * p
     let by = cy + sin(i.float32 * 1.7'f32 + local * 3.0'f32) * 16.0'f32 * (1.0'f32 - p)
     for tr in 1..3:
-      drawCircle(Vector2(x: bx + tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
+      drawDisc(Vector2(x: bx + tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
                  colorA(PvPAccent, alpha * enter * (120.0'f32 - tr.float32 * 30.0'f32)))
-    drawCircle(Vector2(x: bx, y: by), 6.5'f32, Color(r: 255, g: 90, b: 90, a: alphaByte(alpha * enter * 240.0'f32)))
-    drawCircle(Vector2(x: bx, y: by), 3.0'f32, Color(r: 255, g: 220, b: 220, a: alphaByte(alpha * enter * 240.0'f32)))
+    drawDisc(Vector2(x: bx, y: by), 6.5'f32, Color(r: 255, g: 90, b: 90, a: alphaByte(alpha * enter * 240.0'f32)))
+    drawDisc(Vector2(x: bx, y: by), 3.0'f32, Color(r: 255, g: 220, b: 220, a: alphaByte(alpha * enter * 240.0'f32)))
 
   # The clash: sparks where the streams cancel out.
   drawSoftGlow(clashX, cy, 42.0'f32 + sin(local * 11.0'f32) * 8.0'f32,
                Color(r: 255, g: 120, b: 220, a: alphaByte(alpha * enter * 70.0'f32)), 1.0'f32)
   for i in 0..<10:
-    let a = hash01Mode(i.float32 + floor(local * 14.0'f32)) * PI * 2.0'f32
-    let len = 10.0'f32 + hash01Mode(i.float32 * 3.3'f32 + floor(local * 14.0'f32)) * 26.0'f32
-    drawLine(Vector2(x: clashX, y: cy), Vector2(x: clashX + cos(a) * len, y: cy + sin(a) * len), 2.0'f32,
+    let a = hash01(i.float32 + floor(local * 14.0'f32)) * PI * 2.0'f32
+    let len = 10.0'f32 + hash01(i.float32 * 3.3'f32 + floor(local * 14.0'f32)) * 26.0'f32
+    drawStroke(Vector2(x: clashX, y: cy), Vector2(x: clashX + cos(a) * len, y: cy + sin(a) * len), 2.0'f32,
              Color(r: 255, g: 235, b: 245, a: alphaByte(alpha * enter * 200.0'f32)))
 
   # The two processes.
   drawSoftGlow(lx, cy, 64.0'f32, Color(r: 0, g: 230, b: 230, a: alphaByte(alpha * 50.0'f32)), 1.0'f32)
   drawEquippedPlayerModel(newVector2f(lx, cy), 24.0'f32, local, alpha, 0.25'f32)
-  drawCircleLines(Vector2(x: lx, y: cy), 34.0'f32 + sin(local * 5.0'f32 + 1.0'f32) * 2.0'f32,
+  drawCircleOutline(Vector2(x: lx, y: cy), 34.0'f32 + sin(local * 5.0'f32 + 1.0'f32) * 2.0'f32,
                   Color(r: 0, g: 230, b: 230, a: alphaByte(alpha * 200.0'f32)))
   drawSoftGlow(rx, cy, 64.0'f32, colorA(PvPAccent, alpha * 50.0'f32), 1.0'f32)
   drawEquippedPlayerModel(newVector2f(rx, cy), 24.0'f32, -local, alpha, 0.25'f32)
-  drawCircleLines(Vector2(x: rx, y: cy), 34.0'f32 + sin(local * 5.0'f32) * 2.0'f32, colorA(PvPAccent, alpha * 200.0'f32))
+  drawCircleOutline(Vector2(x: rx, y: cy), 34.0'f32 + sin(local * 5.0'f32) * 2.0'f32, colorA(PvPAccent, alpha * 200.0'f32))
 
   drawSubtitles([t(tkModeIntroPvP3a), t(tkModeIntroPvP3b)], sw, sh, alpha)
 
 proc newPvPIntroCutscene*(): Cutscene =
   newCutscene(
     shots = @[
-      CutsceneShot(duration: 5.0'f32, drawProc: drawPvPShot1, soundCue: stTeleport,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawPvPShot1, soundCue: stTeleport,
                    label: t(tkModeIntroPvPRec1), iconIndex: 3),
-      CutsceneShot(duration: 5.0'f32, drawProc: drawPvPShot2, soundCue: stBossSpawn,
+      CutsceneShot(duration: 6.8'f32, drawProc: drawPvPShot2, soundCue: stBossSpawn,
                    label: t(tkModeIntroPvPRec2), iconIndex: 7),
-      CutsceneShot(duration: 4.8'f32, drawProc: drawPvPShot3, soundCue: stShoot,
+      CutsceneShot(duration: 6.6'f32, drawProc: drawPvPShot3, soundCue: stShoot,
                    label: t(tkModeIntroPvPRec3), iconIndex: 0,
                    glitchMod: 71, glitchWindow: 5),
     ],
@@ -693,4 +746,6 @@ proc newPvPIntroCutscene*(): Cutscene =
     drawBackdropProc = simpleBackdrop(PvPAccent),
     swayAmp          = 0.9'f32,
     musicTrack       = mtBoss,
+    playbackSpeed    = ModeIntroSpeed,
+    captionCps       = ModeIntroCaptionCps,
   )

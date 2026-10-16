@@ -1,4 +1,5 @@
 import raylib, math, strutils
+import draw_prims
 import types, d_systems, localization, utils
 
 proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
@@ -383,7 +384,7 @@ proc drawComboGutterCard*(combo: ComboSystem, gutterX, gutterW, topY: int32,
 
   drawRectangle(cardX, topY, cardW, cardH, Color(r: 8, g: 14, b: 22, a: uint8(min(accA, 210))))
   drawRectangle(cardX, topY, 2, cardH, withAlpha(tierColor, fadeAlpha))
-  drawRectangleLines(Rectangle(x: cardX.float32, y: topY.float32, width: cardW.float32, height: cardH.float32),
+  drawRectOutline(Rectangle(x: cardX.float32, y: topY.float32, width: cardW.float32, height: cardH.float32),
                      1, withAlpha(tierColor, uint8(accA * 90 div 255)))
 
   let comboText = if kc >= 20: t(tkComboInsane)

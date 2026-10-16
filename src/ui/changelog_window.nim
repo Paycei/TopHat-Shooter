@@ -19,7 +19,9 @@
 ## rationale and backstory do not.
 
 import raylib, strutils
+import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../settings, ../save_system
+import ui_theme
 from settings_window import drawCheckbox
 
 type
@@ -118,12 +120,52 @@ proc points(items: varargs[string]): string =
 # commit history since the previous release tag, not raw git subjects.
 let changelog: seq[ChangelogVersion] = @[
   ChangelogVersion(
-    titleEn: "Version 6.3.3",
-    titleEs: "Versión 6.3.3",
+    titleEn: "Version 6.4.0",
+    titleEs: "Versión 6.4.0",
     subtitleEn: "Changes since v6.3.2",
     subtitleEs: "Cambios desde v6.3.2",
     latest: true,
     entries: @[
+      # --- New ---
+      ChangelogEntry(category: clcNew,
+        headEn: "A new story",
+        headEs: "Una nueva historia",
+        en: points(
+          "The story has been rewritten from the ground up, and so has every cinematic. It now begins with a routine disk cleanup that finds a folder it is not allowed to delete.",
+          "TOPHAT, the kernel, now tells the story itself, and every cinematic is staged in the game's own interface: your desktop, its windows, the Task Manager, the crash screen.",
+          "Each story cinematic has its own soundtrack, composed to its scenes. Holding ENTER to fast forward now speeds the music up with the picture, like a tape.",
+          "The cinematics take their time, the endings most of all: longer scenes, slower captions and a held last image, so the moments that matter have room to land.",
+          "Skipping a cinematic now takes a 1.5 second hold instead of 3. The controls at the bottom were redesigned as two keys, hold ENTER for double speed and hold SPACE to skip, and the skip key fills up while you hold it.",
+          "The mode intros were rewritten to explain what each mode asks of you, and the wave and roguelite intros show the real bosses you will meet.",
+          "Saves from older versions get the new story too. The new intro plays the next time you pick your profile, each mode intro plays again on your next visit, and endings you already unlocked are marked NEW in SETTINGS.sys > Cinematics until you watch them.",
+          "The lore archive in the Help terminal, the boss descriptions and the first tutorial card were updated to match."),
+        es: points(
+          "La historia se ha reescrito desde cero, y con ella todas las cinemáticas. Ahora empieza con una limpieza de disco rutinaria que encuentra una carpeta que no se le permite borrar.",
+          "TOPHAT, el kernel, cuenta ahora la historia en persona, y cada cinemática ocurre dentro de la propia interfaz del juego: tu escritorio, sus ventanas, el Administrador de tareas, la pantalla de error.",
+          "Cada cinemática de la historia tiene su propia banda sonora, compuesta para sus escenas. Al mantener ENTER para avanzar rápido, la música se acelera junto con la imagen, como una cinta.",
+          "Las cinemáticas se toman su tiempo, sobre todo los finales: escenas más largas, subtítulos más pausados y una última imagen que se mantiene, para que los momentos importantes calen.",
+          "Saltar una cinemática ahora requiere mantener pulsado 1,5 segundos en lugar de 3. Los controles de la parte inferior se rediseñaron como dos teclas, mantén ENTER para velocidad doble y mantén ESPACIO para saltar, y la tecla de saltar se llena mientras la mantienes.",
+          "Las introducciones de los modos se reescribieron para explicar lo que te pide cada modo, y las de oleadas y roguelite muestran los jefes reales a los que te enfrentarás.",
+          "Las partidas guardadas de versiones anteriores también reciben la nueva historia. La nueva intro se reproduce la próxima vez que elijas tu perfil, cada intro de modo vuelve a reproducirse en tu próxima visita, y los finales que ya desbloqueaste aparecen marcados como NUEVO en CONFIG.sys > Cinemáticas hasta que los veas.",
+          "El archivo de la historia en la terminal de Ayuda, las descripciones de los jefes y la primera tarjeta del tutorial se actualizaron a juego.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Music that follows the run",
+        headEs: "Música que sigue a la partida",
+        en: points(
+          "The wave, Time Survival, Roguelite and boss themes now change their arrangement with the run. Later waves play their theme fuller and harder, each Time Survival phase steps its theme up from BOOT to KERNEL PANIC, the first folder of a sector and the /pkg stalls play the Roguelite theme calm while combat folders push it and /quarantine folders push it hardest, and a boss's theme climbs each time the boss loses a phase.",
+          "Every change lands on the bar line, so the band builds up or drops back with the run instead of cutting to another song.",
+          "When your integrity is critical the music muffles, and it opens back up once you heal."),
+        es: points(
+          "Los temas de oleadas, de Supervivencia, del roguelite y de jefe ahora cambian su arreglo con la partida. Las oleadas avanzadas tocan su tema más lleno y más duro, cada fase de Supervivencia sube su tema del ARRANQUE al PÁNICO DEL KERNEL, la primera carpeta de un sector y los puestos de /pkg tocan el tema del roguelite con calma mientras las carpetas de combate lo empujan y las de /quarantine lo empujan al máximo, y el tema de un jefe sube cada vez que el jefe pierde una fase.",
+          "Cada cambio cae en el compás, así que la banda crece o se retira con la partida en lugar de cortar a otra canción.",
+          "Cuando tu integridad es crítica la música se amortigua, y se vuelve a abrir en cuanto te curas.")),
+      ChangelogEntry(category: clcNew,
+        headEn: "Time Survival and Roguelite themes",
+        headEs: "Temas de Supervivencia y del roguelite",
+        en: points(
+          "Time Survival and Roguelite now have themes of their own instead of borrowing the wave music: a driving one that ticks like a clock running down, and a darker one that falls through the folders. A boss fight in either mode still plays the boss theme."),
+        es: points(
+          "Supervivencia y el roguelite ahora tienen temas propios en lugar de tomar prestada la música de oleadas: uno insistente que avanza como un reloj en cuenta atrás y otro más oscuro que desciende por las carpetas. Una pelea contra un jefe en cualquiera de los dos modos sigue sonando con el tema de jefe.")),
       # --- Improvements ---
       ChangelogEntry(category: clcImproved,
         headEn: "Engine update",
@@ -136,7 +178,52 @@ let changelog: seq[ChangelogVersion] = @[
           "El juego ahora funciona con la última versión de raylib, la biblioteca que mueve sus gráficos, su sonido y sus controles.",
           "Los contornos redondeados de tarjetas, botones e iconos se ven algo más nítidos. Todo conserva su tamaño y su posición.",
           "Escribir licenses en la terminal de Ayuda ahora también muestra las licencias de raylib y naylib.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Faster drawing",
+        headEs: "Dibujado más rápido",
+        en: points(
+          "Busy fights draw about twice as fast. Small shapes like particles, sparks and bullets take far less work, and each frame reaches the graphics card in a handful of batches instead of thousands.",
+          "Thin lines and outlines are now 1 pixel wide with Improved resolution (SSAA) on, as they are with it off. Before, they came out half as thick and faint."),
+        es: points(
+          "Los combates intensos se dibujan aproximadamente el doble de rápido. Las formas pequeñas como partículas, chispas y balas cuestan mucho menos, y cada fotograma llega a la tarjeta gráfica en unos pocos lotes en lugar de miles.",
+          "Las líneas y los contornos finos ahora miden 1 píxel de grosor con la Resolución mejorada (SSAA) activada, igual que sin ella. Antes salían la mitad de gruesos y tenues.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Music transitions",
+        headEs: "Transiciones de música",
+        en: points(
+          "Switching between the fight, the shop, a power-up pick and a boss now takes a fraction of a second, with a short fade instead of a hard cut.",
+          "A theme still starts from its opening every time it comes in, so every wave and every boss fight opens on its music."),
+        es: points(
+          "Pasar del combate a la tienda, a una elección de mejora o a un jefe ahora tarda una fracción de segundo, con un fundido breve en lugar de un corte seco.",
+          "Un tema sigue empezando desde su inicio cada vez que entra, así que cada oleada y cada pelea contra un jefe empiezan con su música.")),
+      ChangelogEntry(category: clcImproved,
+        headEn: "Overlapping sound effects",
+        headEs: "Efectos de sonido superpuestos",
+        en: points(
+          "Up to eight copies of a sound can now play at once instead of four, and a new one only cuts an old one short when all eight are still playing, so busy fights no longer chop off their own kills and explosions."),
+        es: points(
+          "Ahora pueden sonar hasta ocho copias de un mismo sonido a la vez en lugar de cuatro, y una nueva solo corta a una anterior cuando las ocho siguen sonando, así que los combates intensos ya no cortan sus propias bajas y explosiones.")),
       # --- Mods ---
+      ChangelogEntry(category: clcMods,
+        headEn: "Story scores in mods",
+        headEs: "Bandas sonoras de la historia en los mods",
+        en: points(
+          "override.music can now replace the scores of the four story cinematics: storyIntro, storyRootAccess, storyBelow and storyUptime.",
+          "A score plays once from the start, in time with its cinematic, and does not loop, so make it as long as the scene."),
+        es: points(
+          "override.music ahora puede reemplazar las bandas sonoras de las cuatro cinemáticas de la historia: storyIntro, storyRootAccess, storyBelow y storyUptime.",
+          "Una banda sonora se reproduce una vez desde el principio, al ritmo de su cinemática, y no se repite, así que hazla tan larga como la escena.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Survival and roguelite music in mods",
+        headEs: "Música de Supervivencia y del roguelite en los mods",
+        en: points(
+          "override.music can now replace the two new themes: survival and roguelite.",
+          "Time Survival and Roguelite runs no longer play the wave track, so a mod that replaces wave no longer changes their music.",
+          "A replacement plays as it is. The built-in wave, survival, roguelite and boss themes change their arrangement with the run and muffle at critical integrity; a replaced one does neither. Every track still starts from its beginning when it comes in."),
+        es: points(
+          "override.music ahora puede reemplazar los dos temas nuevos: survival y roguelite.",
+          "Las partidas de Supervivencia y del roguelite ya no usan la pista de oleadas, así que un mod que reemplaza wave ya no cambia su música.",
+          "Un reemplazo suena tal cual. Los temas wave, survival, roguelite y boss del juego cambian su arreglo con la partida y se amortiguan con la integridad crítica; uno reemplazado no hace ninguna de las dos cosas. Cada pista sigue empezando desde el principio cuando entra.")),
       ChangelogEntry(category: clcMods,
         headEn: "Drag mod apps",
         headEs: "Arrastra las apps de los mods",
@@ -151,17 +238,121 @@ let changelog: seq[ChangelogVersion] = @[
         headEs: "Animaciones de modelos más fluidas",
         en: points(
           "Animated 3D models no longer snap to a wrong pose on the last frame of each loop.",
-          "glTF and GLB models whose skeleton has no parent node now play their animations instead of standing still."),
+          "glTF and GLB models whose skeleton has no parent node now play their animations instead of standing still.",
+          "Animations now blend between their keyframes, so they stay smooth on high refresh rate monitors and when slowed down with speed."),
         es: points(
           "Los modelos 3D animados ya no saltan a una pose incorrecta en el último fotograma de cada ciclo.",
-          "Los modelos glTF y GLB cuyo esqueleto no tiene un nodo padre ahora reproducen sus animaciones en lugar de quedarse quietos.")),
+          "Los modelos glTF y GLB cuyo esqueleto no tiene un nodo padre ahora reproducen sus animaciones en lugar de quedarse quietos.",
+          "Las animaciones ahora se interpolan entre sus fotogramas clave, así que se ven fluidas en monitores de alta frecuencia y al ralentizarlas con speed.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Animation crossfades",
+        headEs: "Transiciones entre animaciones",
+        en: points(
+          "When a 3D model switches animation, it now blends from its current pose into the new one instead of jumping, the rest pose included.",
+          "Bodies replaced with override.model and the entities of 3D worlds do it on their own. draw.model and draw3d.model do it for whatever you give a key.",
+          "The new fade option, and modelFade on 3D entities, sets how long the blend takes: 0.2 seconds unless changed, and 0 switches at once."),
+        es: points(
+          "Cuando un modelo 3D cambia de animación, ahora pasa de su pose actual a la nueva con una transición suave en lugar de saltar, también desde y hacia la pose de reposo.",
+          "Los cuerpos reemplazados con override.model y las entidades de los mundos 3D lo hacen solos. draw.model y draw3d.model lo hacen con lo que lleve un key.",
+          "La nueva opción fade, y modelFade en las entidades 3D, fija cuánto dura la transición: 0,2 segundos salvo que se cambie, y 0 cambia al instante.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Videos, music and fonts in mods",
+        headEs: "Videos, música y fuentes en los mods",
+        en: points(
+          "Mods can now play videos (MPEG-1 .mpg files, which the game decodes itself, so they play the same everywhere). A video goes anywhere an image goes: in an app, on the HUD, as a wallpaper, a skin or a desktop icon.",
+          "Mods can play their own music tracks (OGG, MP3, WAV, FLAC, QOA, XM and MOD), which pause the game's music while they play, and write with their own fonts (TTF, OTF, FNT and BDF).",
+          "Mods can load images in many more formats (JPG, BMP, TGA, PSD, HDR, DDS and others), read data files (text and JSON) and hand images and videos to their shaders.",
+          "The new Media Player example plays a video and a music track in a desktop app. Typing licenses in the Help terminal now also lists PL_MPEG, which decodes MPEG-1 videos."),
+        es: points(
+          "Los mods ahora pueden reproducir videos (archivos .mpg MPEG-1, que el propio juego decodifica, así que se ven igual en todas partes). Un video va a cualquier lugar donde va una imagen: en una app, en el HUD, como fondo de escritorio, aspecto o icono del escritorio.",
+          "Los mods pueden reproducir sus propias pistas de música (OGG, MP3, WAV, FLAC, QOA, XM y MOD), que pausan la música del juego mientras suenan, y escribir con sus propias fuentes (TTF, OTF, FNT y BDF).",
+          "Los mods pueden cargar imágenes en muchos más formatos (JPG, BMP, TGA, PSD, HDR, DDS y otros), leer archivos de datos (texto y JSON) y pasar imágenes y videos a sus shaders.",
+          "El nuevo ejemplo Reproductor muestra un video y una pista de música en una app del escritorio. Escribir licenses en la terminal de Ayuda ahora también muestra PL_MPEG, que decodifica los videos MPEG-1.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Screens and signs in 3D worlds",
+        headEs: "Pantallas y letreros en los mundos 3D",
+        en: points(
+          "The new draw3d.texture draws an image, a GIF or a video as a flat panel fixed in a 3D world, so mods can build screens, signs, posters and floor decals that stay in place instead of turning to face you.",
+          "See-through pixels in 3D worlds no longer hide what is behind them. An entity or a draw3d.billboard picture with a see-through background used to cut its whole square out of anything drawn behind it.",
+          "The new Billboard Plaza example is a 3D mode to walk around: a big screen whose video gets louder as you approach, a poster, a neon sign, a turning column of videos and drifting drones. Shoot a screen to pause it."),
+        es: points(
+          "El nuevo draw3d.texture dibuja una imagen, un GIF o un video como un panel plano fijo en un mundo 3D, así que los mods pueden construir pantallas, letreros, carteles y calcomanías en el suelo que se quedan en su sitio en lugar de girar hacia ti.",
+          "Los píxeles transparentes de los mundos 3D ya no tapan lo que hay detrás. Una entidad o una imagen de draw3d.billboard con fondo transparente recortaba todo su cuadrado de lo que se dibujaba detrás.",
+          "El nuevo ejemplo Plaza de Carteles es un modo 3D para recorrer: una gran pantalla cuyo video suena más fuerte a medida que te acercas, un cartel, un letrero de neón, una columna giratoria de videos y drones a la deriva. Dispara a una pantalla para pausarla.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Restore points in mod game modes",
+        headEs: "Puntos de restauración en los modos de los mods",
+        en: points(
+          "A mod's game mode now decides its own restore points: how many a run gets on each difficulty, unlimited, or none at all. With none, its runs save no checkpoint, the crash screen offers no CONTINUE and no restore points are shown anywhere. Billboard Plaza has none.",
+          "Mods can also save a mode's checkpoint whenever they choose and name it on the CONTINUE button, skip the checkpoints the base mode would save, give restore points back or take them away during a run, and hide the restore point meters while keeping continues.",
+          "A 3D mod mode can now continue from a restore point, playing the restore point animation before its world returns. Restarting a 3D mod mode from the crash screen now starts its 3D world again instead of an empty arena."),
+        es: points(
+          "Un modo de juego de un mod ahora decide sus propios puntos de restauración: cuántos tiene cada partida en cada dificultad, ilimitados o ninguno. Sin ninguno, sus partidas no guardan punto de control, la pantalla de fallo no ofrece CONTINUAR y no se muestran puntos de restauración en ningún lado. Plaza de Carteles no tiene ninguno.",
+          "Los mods también pueden guardar el punto de control de un modo cuando quieran y darle nombre en el botón CONTINUAR, saltarse los puntos de control que guardaría el modo base, devolver o quitar puntos de restauración durante una partida, y ocultar los indicadores de puntos de restauración sin quitar las continuaciones.",
+          "Un modo 3D de un mod ahora puede continuar desde un punto de restauración, con la animación del punto de restauración antes de volver a su mundo. Reiniciar un modo 3D de un mod desde la pantalla de fallo ahora vuelve a empezar su mundo 3D en lugar de una arena vacía.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Mod modes can turn off resuming",
+        headEs: "Los modos de los mods pueden desactivar la reanudación",
+        en: points(
+          "A mod's game mode can now turn off resuming a run you quit. Leaving one of its runs ends it instead of saving it, without counting as a loss, and its desktop icon and MODS.EXE no longer offer to continue a saved run. Billboard Plaza works this way.",
+          "Mods can also turn it off, or back on, for a single run while it is being played.",
+          "Quitting never counts as a loss. Leaving the world of a 3D mod mode used to end the run on the crash screen as a death; it now quits to the desktop like the pause screen does.",
+          "When leaving a run that cannot be resumed, the exit prompt now says so instead of promising to save your progress. The exit prompt of the pause menu now also appears in Spanish."),
+        es: points(
+          "Un modo de juego de un mod ahora puede desactivar la reanudación de una partida que abandonas. Salir de una de sus partidas la termina en lugar de guardarla, sin contar como derrota, y su icono del escritorio y MODS.EXE ya no ofrecen continuar una partida guardada. Plaza de Carteles funciona así.",
+          "Los mods también pueden desactivarla, o volver a activarla, para una sola partida mientras se juega.",
+          "Abandonar nunca cuenta como derrota. Salir del mundo de un modo 3D de un mod antes terminaba la partida en la pantalla de fallo como una muerte; ahora vuelve al escritorio como desde la pantalla de pausa.",
+          "Al salir de una partida que no se puede reanudar, el aviso de salida ahora lo indica en lugar de prometer que se guardará el progreso. El aviso de salida del menú de pausa ahora también aparece en español.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Mods for PvP",
+        headEs: "Mods para el PvP",
+        en: points(
+          "Mods can now change PvP matches: new rules and objectives, weapons, abilities, their own HUD and whole PvP modes. The host runs the rules and every player sees the result, so a lobby still only needs everyone on the same mods.",
+          "PVP.EXE has a new Mode row when hosting. It offers the game's own rules and every PvP mode of the loaded mods, and picking one presets the lobby's settings for it. Every player sees the mode's name and description during the countdown.",
+          "The new Critical Section example is a PvP mode: hold a moving zone alone to score, fire privileged rounds from inside it and blink with F.",
+          "A color given to spawn.bullet now also colors bullets fired for the player, not only enemy ones."),
+        es: points(
+          "Los mods ahora pueden cambiar las partidas PvP: nuevas reglas y objetivos, armas, habilidades, su propio HUD y modos PvP completos. El anfitrión ejecuta las reglas y todos los jugadores ven el resultado, así que una sala solo sigue necesitando que todos tengan los mismos mods.",
+          "PVP.EXE tiene una nueva fila Modo al crear una partida. Ofrece las reglas del juego y todos los modos PvP de los mods cargados, y elegir uno ajusta la configuración de la sala para él. Todos los jugadores ven el nombre y la descripción del modo durante la cuenta atrás.",
+          "El nuevo ejemplo Sección Crítica es un modo PvP: ocupa a solas una zona que se mueve para puntuar, dispara balas privilegiadas desde dentro y salta con F.",
+          "Un color dado a spawn.bullet ahora también colorea las balas disparadas para el jugador, no solo las enemigas.")),
+      ChangelogEntry(category: clcMods,
+        en: "When the game ships a newer version of an example mod you installed, the desktop now tells you, and MODS.EXE tags that mod UPDATE, shows the new version and highlights Install Examples, which updates it. An enabled example that gets updated is reloaded right away, so the new version is the one you play.",
+        es: "Cuando el juego trae una versión más nueva de un mod de ejemplo que instalaste, el escritorio ahora te avisa, y MODS.EXE marca ese mod con NUEVA VERSIÓN, muestra la versión nueva y resalta Instalar ejemplos, que lo actualiza. Un ejemplo activado que se actualiza se recarga al momento, así que juegas la versión nueva."),
+
+      # --- Balance ---
+      ChangelogEntry(category: clcBalance,
+        headEn: "Auras and orbs hit half as hard",
+        headEs: "Auras y orbes golpean la mitad",
+        en: points(
+          "Every aura and orb power-up deals half its base damage. The share that grows with your Damage stat is unchanged, so they still scale with your build.",
+          "Auras: Fire 0.75 / 1.75 / 3.25 burn per second, Poison 0.4 / 1 / 2, Lightning and Blood 0.5 / 1.25 / 2.5, Arcane 1.75 / 3.75 / 5, Wind gusts 1 / 2 / 3.5, and the Slow Field chip 0.2 per second.",
+          "Orbs: 1.5 / 2.5 / 3.5 per hit (Arcane 2.25 / 3.75 / 5.25), and 2.25 for the legendary Elemental Orbs."),
+        es: points(
+          "Todas las mejoras de aura y de orbes hacen la mitad de su daño base. La parte que crece con tu estadística de Daño no cambia, así que siguen escalando con tu build.",
+          "Auras: Fuego 0,75 / 1,75 / 3,25 de quemadura por segundo, Veneno 0,4 / 1 / 2, Rayo y Sangre 0,5 / 1,25 / 2,5, Arcana 1,75 / 3,75 / 5, ráfagas de Viento 1 / 2 / 3,5, y el daño del Campo Lento 0,2 por segundo.",
+          "Orbes: 1,5 / 2,5 / 3,5 por golpe (Arcanos 2,25 / 3,75 / 5,25), y 2,25 para los Orbes Elementales legendarios.")),
+
+      # --- Fixes ---
+      ChangelogEntry(category: clcFixed,
+        en: "The last entry of the Sandbox spawn lists was invisible even when scrolled to the bottom, though it could still be clicked. It now shows.",
+        es: "La última entrada de las listas de invocación del Sandbox era invisible incluso con la lista desplazada al final, aunque se podía pulsar. Ahora se muestra."),
+      ChangelogEntry(category: clcFixed,
+        en: "Held chords in the music no longer drift further out of tune the longer a track plays, and high notes no longer turn gritty toward the end of a track. Every note now sounds the same at any point in a song.",
+        es: "Los acordes sostenidos de la música ya no se desafinan cada vez más mientras suena una pista, y las notas agudas ya no se vuelven ásperas hacia el final de una pista. Cada nota suena igual en cualquier punto de una canción."),
+      ChangelogEntry(category: clcFixed,
+        en: "The music no longer dips in volume each time a track loops, and the notes, drums and echoes that cross the loop point no longer cut off there.",
+        es: "La música ya no baja de volumen cada vez que una pista se repite, y las notas, los golpes de batería y los ecos que cruzan el punto de repetición ya no se cortan ahí."),
+      ChangelogEntry(category: clcFixed,
+        en: "In PvP, every shot looked faint and see-through on the screens of the players who joined. Shots now look the same on every screen as on the host's.",
+        es: "En el PvP, todos los disparos se veían tenues y transparentes en la pantalla de los jugadores que se unían. Ahora los disparos se ven en todas las pantallas igual que en la del anfitrión."),
     ]),
   ChangelogVersion(
     titleEn: "Version 6.3.2",
     titleEs: "Versión 6.3.2",
     subtitleEn: "Changes since v6.3.1",
     subtitleEs: "Cambios desde v6.3.1",
-    latest: true,
+    latest: false,
     entries: @[
       # --- Mods ---
       ChangelogEntry(category: clcMods,
@@ -1636,7 +1827,9 @@ proc legacyView(): bool =
 # Layout
 # The changelog is flattened into positioned lines. Wrapping all of it is not
 # free, so the result is cached and only rebuilt when the text width, the
-# language or the page (or view) changes.
+# language or the page (or view) changes. The cached lines keep the stock
+# colours below; they are themed where they are drawn, so switching the
+# interface theme needs no rebuild.
 
 const
   HeaderColor = Color(r: 230, g: 245, b: 255, a: 255)
@@ -1878,8 +2071,9 @@ proc updateChangelogWindow*(cl: ChangelogWindow, dt: float32,
     # Keep the offset valid if the window was just opened / language changed.
     cl.scrollOffset = clamp(cl.scrollOffset, 0, maxScroll)
 
-proc drawTextBold(text: string, x, y, size: int32, color: Color) =
+proc drawTextBold(text: string, x, y, size: int32, stockColor: Color) =
   ## Faux bold for the default bitmap font: the same glyphs 1px apart.
+  let color = uiInk(stockColor)
   drawText(text, x, y, size, color)
   drawText(text, x + 1, y, size, color)
 
@@ -1893,14 +2087,14 @@ proc latestBadgeWidth(): int32 =
   measureText(t(tkChangelogLatest), CL_SMALL_SIZE) + 12
 
 proc drawNavButton(r: Rectangle, pointsLeft, enabled, hovered: bool) =
-  let bg = if not enabled: Color(r: 18, g: 20, b: 26, a: 255)
-           elif hovered: Color(r: 60, g: 52, b: 34, a: 255)
-           else: Color(r: 30, g: 32, b: 40, a: 255)
-  let fg = if not enabled: Color(r: 60, g: 64, b: 74, a: 255)
-           elif hovered: Color(r: 255, g: 220, b: 150, a: 255)
-           else: AccentColor
+  let bg = if not enabled: uiSurface(18, 20, 26)
+           elif hovered: uiSurface(60, 52, 34)
+           else: uiSurface(30, 32, 40)
+  let fg = if not enabled: uiInk(60, 64, 74)
+           elif hovered: uiInk(255, 220, 150)
+           else: uiInk(AccentColor)
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, bg)
-  drawRectangleLines(r, (if enabled and hovered: 2.0'f32 else: 1.0'f32), fg)
+  drawRectOutline(r, (if enabled and hovered: 2.0'f32 else: 1.0'f32), fg)
   # Chevron as a filled triangle. raylib culls clockwise triangles, so both
   # arrows are listed counter-clockwise as seen on screen.
   let cx = r.x + r.width / 2
@@ -1934,7 +2128,7 @@ proc drawNavBar(cl: ChangelogWindow, g: ChangelogGeometry, mouse: Vector2) =
 
   let subtitle = versionSubtitle(v)
   drawText(subtitle, (midX - measureText(subtitle, CL_TEXT_SIZE) div 2).int32,
-           titleY + CL_LINE_H, CL_TEXT_SIZE, SubtitleColor)
+           titleY + CL_LINE_H, CL_TEXT_SIZE, uiInk(SubtitleColor))
 
   for i in 0 ..< changelog.len:
     let cell = pageDotRect(g, i)
@@ -1943,22 +2137,22 @@ proc drawNavBar(cl: ChangelogWindow, g: ChangelogGeometry, mouse: Vector2) =
     let dx = (cell.x + (cell.width - size.float32) / 2).int32
     let dy = (cell.y + (cell.height - size.float32) / 2).int32
     if i == cl.page:
-      drawRectangle(dx, dy, size, size, AccentColor)
+      drawRectangle(dx, dy, size, size, uiInk(AccentColor))
     else:
       drawRectangle(dx, dy, size, size,
-                    if hovered: Color(r: 150, g: 130, b: 95, a: 255)
-                    else: Color(r: 70, g: 76, b: 90, a: 255))
+                    if hovered: uiSurface(150, 130, 95)
+                    else: uiSurface(70, 76, 90))
 
   drawRectangle(g.contentX.int32 + 1, (g.contentY + g.navH).int32, g.contentW.int32 - 2, 1,
-                RuleColor)
+                uiLine(RuleColor))
 
 proc drawFooter(g: ChangelogGeometry, mouse: Vector2) =
-  drawRectangle(g.contentX.int32 + 1, g.footerY.int32, g.contentW.int32 - 2, 1, RuleColor)
+  drawRectangle(g.contentX.int32 + 1, g.footerY.int32, g.contentW.int32 - 2, 1, uiLine(RuleColor))
   let hovered = checkCollisionPointRec(mouse, g.checkbox)
   drawCheckbox(g.boxX, g.boxY, CL_CHECKBOX, legacyView(), hovered)
   drawText(t(tkChangelogLegacyView), (g.boxX + CL_CHECKBOX + 10).int32,
            (g.boxY + (CL_CHECKBOX - CL_TEXT_SIZE) div 2 + 1).int32, CL_TEXT_SIZE,
-           if hovered: HeadColor else: SubtitleColor)
+           uiInk(if hovered: HeadColor else: SubtitleColor))
 
 proc drawChangelogWindow*(cl: ChangelogWindow) =
   if not cl.window.visible:
@@ -1974,10 +2168,10 @@ proc drawChangelogWindow*(cl: ChangelogWindow) =
 
   # Panel background
   drawRectangle(g.contentX.int32, g.contentY.int32, g.contentW.int32, g.contentH.int32,
-               Color(r: 10, g: 12, b: 18, a: 255))
-  drawRectangleLines(Rectangle(x: g.contentX.float32, y: g.contentY.float32,
+               uiSurface(10, 12, 18))
+  drawRectOutline(Rectangle(x: g.contentX.float32, y: g.contentY.float32,
                                 width: g.contentW.float32, height: g.contentH.float32),
-                    1, Color(r: 255, g: 180, b: 80, a: 200))
+                    1, uiLine(255, 180, 80, 200))
 
   cl.ensureLayout(g, legacy)
   if not legacy:
@@ -2001,33 +2195,33 @@ proc drawChangelogWindow*(cl: ChangelogWindow) =
     of lkHeader:
       drawTextBold(line.text, x, y, CL_TITLE_SIZE, line.color)
       drawRectangle(baseX.int32, y + 36, (rightX - baseX).int32, 1,
-                    Color(r: 255, g: 180, b: 80, a: 120))
+                    uiSurface(255, 180, 80, 120))
     of lkVersion:
       drawTextBold(line.text, x, y, CL_TEXT_SIZE, line.color)
       if line.badge:
         drawLatestBadge(x + measureText(line.text, CL_TEXT_SIZE) + 12, y)
     of lkSubtitle:
-      drawText(line.text, x, y, CL_TEXT_SIZE, line.color)
+      drawText(line.text, x, y, CL_TEXT_SIZE, uiInk(line.color))
     of lkCategory:
       drawTextBold(line.text, x, y, CL_TEXT_SIZE, line.color)
       # A rule runs from the label to the right edge, marking the section.
       let ruleX = x + measureText(line.text, CL_TEXT_SIZE) + 12
       if ruleX < rightX:
         drawRectangle(ruleX, y + 9, rightX.int32 - ruleX, 2,
-                      Color(r: line.color.r, g: line.color.g, b: line.color.b, a: 80))
+                      uiSurface(Color(r: line.color.r, g: line.color.g, b: line.color.b, a: 80)))
     of lkHead:
       drawTextBold(line.text, x, y, CL_TEXT_SIZE, line.color)
     of lkBody:
-      drawText(line.text, x, y, CL_TEXT_SIZE, line.color)
+      drawText(line.text, x, y, CL_TEXT_SIZE, uiInk(line.color))
 
     case line.marker
     of mkNone: discard
     of mkSquare:
-      drawRectangle((baseX + 2).int32, y + 6, 7, 7, line.markerColor)
+      drawRectangle((baseX + 2).int32, y + 6, 7, 7, uiInk(line.markerColor))
     of mkPoint:
-      drawRectangle((baseX + CL_HEAD_INDENT + 4).int32, y + 8, 5, 5, line.markerColor)
+      drawRectangle((baseX + CL_HEAD_INDENT + 4).int32, y + 8, 5, 5, uiInk(line.markerColor))
 
-  endScissorMode()
+  endVirtualScissorMode()
 
   # Scrollbar
   let total = cl.layout.height
@@ -2038,9 +2232,9 @@ proc drawChangelogWindow*(cl: ChangelogWindow) =
     let thumbY = g.viewY + int(float32(g.viewH - thumbH) *
                                float32(cl.scrollOffset) / float32(maxScroll))
     drawRectangle(trackX.int32, g.viewY.int32, 5, g.viewH.int32,
-                 Color(r: 25, g: 28, b: 36, a: 255))
+                 uiSurface(25, 28, 36))
     drawRectangle(trackX.int32, thumbY.int32, 5, thumbH.int32,
-                 Color(r: 255, g: 180, b: 80, a: 230))
+                 uiSurface(255, 180, 80, 230))
 
   drawFooter(g, mouse)
   drawResizeIndicator(cl.window)

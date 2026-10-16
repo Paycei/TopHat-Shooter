@@ -20,10 +20,11 @@
 ## are handed back through the DungeonFrame that updateDungeon returns.
 
 import raylib, random, math, tables, strutils
+import draw_prims
 import gamepad_input, particle_types, types, roguelite, powerup, powerup_data, patches, player,
        particle_pool, sound, localization, boss_definitions, settings, coin, xp_orb, utils,
        game/combat, ui/icon_drawing, ui/ui_helpers
-import modding/mod_hooks, enemy_config, input_intent
+import modding/[mod_hooks, mod_registry], enemy_config, input_intent
 
 # ---------------------------------------------------------------------------
 # Proximity info card: the tooltip that floats over an interactable pickup
@@ -40,7 +41,7 @@ type
 
   ProximityCard* = object
     iconKind*: ProximityIconKind
-    patch*: RogueliteRelicType
+    patch*: RogueliteRelic
     powerUp*: PowerUpType
     reward*: RoomReward
     tag*: string          # small accent line: "KB-3101 // PERFORMANCE"
@@ -87,13 +88,13 @@ proc drawProximityCard*(card: ProximityCard, anchorX, anchorY: float32,
   drawRectangle(x, y, CardW, cardH, Color(r: 13, g: 18, b: 28, a: 238))
   drawRectangleGradientV(x, y, CardW, headerH + CardPad, withAlpha(accent, 46), withAlpha(accent, 0))
   drawRectangle(x, y, CardW, 3, accent)
-  drawRectangleLines(rect, 1.5, withAlpha(accent, 200))
+  drawRectOutline(rect, 1.5, withAlpha(accent, 200))
 
   # Icon tile.
   let ix = x + CardPad
   let iy = y + CardPad
   drawRectangle(ix, iy, IconBox, IconBox, Color(r: 8, g: 12, b: 20, a: 255))
-  drawRectangleLines(Rectangle(x: ix.float32, y: iy.float32, width: IconBox.float32,
+  drawRectOutline(Rectangle(x: ix.float32, y: iy.float32, width: IconBox.float32,
                                height: IconBox.float32), 1.0, withAlpha(accent, 150))
   case card.iconKind
   of pciPatch:
@@ -117,7 +118,7 @@ proc drawProximityCard*(card: ProximityCard, anchorX, anchorY: float32,
 
   # Action row: prompt on the left, price on the right.
   let ay = y + cardH - CardPad - 16
-  drawLine(x + CardPad, ay - 5, x + CardW - CardPad, ay - 5, withAlpha(accent, 60))
+  drawStroke(x + CardPad, ay - 5, x + CardW - CardPad, ay - 5, withAlpha(accent, 60))
   let blink = 0.75'f32 + 0.25'f32 * (if int(time * 2.0'f32) mod 2 == 0: 1.0'f32 else: 0.0'f32)
   let actionColor =
     if card.disabled: Color(r: 120, g: 126, b: 140, a: 255)
@@ -429,7 +430,7 @@ proc enemyTuningWave(enemyType: EnemyType): float32 =
   ## (see the roster table in spawnWaveEnemies). A type spawning far below
   ## this point needs its stats compressed.
   case enemyType
-  of etMod00..etMod31: enemyTuningWave(modEnemies[enemyType].base)
+  of FirstModEnemy..LastModEnemy: enemyTuningWave(modEnemies[enemyType].base)
   of etCircle: 1
   of etPentagon: 6
   of etTriangle: 11
@@ -869,7 +870,8 @@ proc spawnPatchChoice(game: Game, room: DungeonRoom, group: int) =
   for i, p in choices:
     let offset = (i.float32 - (choices.len - 1).float32 * 0.5'f32) * 130.0'f32
     let pk = newPickup(dpkPatchPedestal, newVector2f(c.x + offset, c.y))
-    pk.patch = p
+    pk.patch = p.relicType
+    pk.modPatch = p.modKey
     pk.group = group
     room.pickups.add(pk)
 
@@ -925,7 +927,8 @@ proc spawnShopStalls*(game: Game, room: DungeonRoom) =
   let patchRoll = rollPatchChoices(game.rogueliteRun, 1)
   if patchRoll.len > 0:
     let p = newPickup(dpkStallPatch, pos[2])
-    p.patch = patchRoll[0]
+    p.patch = patchRoll[0].relicType
+    p.modPatch = patchRoll[0].modKey
     p.spawnTimer = PickupSpawnTime
     room.pickups.add(p)
   let repair = newPickup(dpkStallRepair, pos[3])
@@ -940,9 +943,12 @@ proc restockStalls(game: Game, room: DungeonRoom) =
   ## Reroll every unsold power-up and patch stall to something new.
   var current: set[PowerUpType] = {}
   var currentPatches: set[RogueliteRelicType] = {}
+  var currentModPatches: seq[string]
   for p in room.pickups:
     if p.kind == dpkStallPowerUp: current.incl(p.powerUp.powerType)
-    if p.kind == dpkStallPatch: currentPatches.incl(p.patch)
+    if p.kind == dpkStallPatch:
+      if p.patch == rrtMod: currentModPatches.add(p.modPatch)
+      else: currentPatches.incl(p.patch)
   for p in room.pickups:
     if p.taken: continue
     case p.kind
@@ -953,10 +959,12 @@ proc restockStalls(game: Game, room: DungeonRoom) =
         current.incl(fresh[0].powerType)
         p.spawnTimer = 0
     of dpkStallPatch:
-      let fresh = rollPatchChoices(game.rogueliteRun, 1, currentPatches)
+      let fresh = rollPatchChoices(game.rogueliteRun, 1, currentPatches, currentModPatches)
       if fresh.len > 0:
-        p.patch = fresh[0]
-        currentPatches.incl(fresh[0])
+        p.patch = fresh[0].relicType
+        p.modPatch = fresh[0].modKey
+        if fresh[0].relicType == rrtMod: currentModPatches.add(fresh[0].modKey)
+        else: currentPatches.incl(fresh[0].relicType)
         p.spawnTimer = 0
     else:
       discard
@@ -988,6 +996,16 @@ proc wipeRoomEntities*(game: Game) =
   game.modeCombat.corpses = @[]
   game.modeCombat.husks = @[]
   game.modeCombat.auditTimer = 0
+  # Mod things stay only when `persistent` (allies that follow the player).
+  if game.modThings.len > 0:
+    var kept: seq[ModThing]
+    for t in game.modThings:
+      if tfPersistent in t.flags and tfDead notin t.flags and tfRemoved notin t.flags:
+        kept.add(t)
+      else:
+        dropEntityData(entityKey(EdThing, t.id))
+        hazardTriggers.del(t.id)
+    game.modThings = kept
 
 proc spawnRoomObstacles(game: Game, room: DungeonRoom) =
   ## A few permanent circular obstacles, kept away from doors and the center.
@@ -1285,7 +1303,11 @@ proc openRewardDraft(game: Game) =
   initializeRerollCost(game)
   game.state = gsPowerUpSelect
 
-proc announcePatch(game: Game, patch: RogueliteRelicType) =
+proc pickupRelic*(pk: DungeonPickup): RogueliteRelic =
+  ## The patch a pedestal or a stall holds (a mod patch by its name).
+  makeRelic(pk.patch, pk.modPatch)
+
+proc announcePatch(game: Game, patch: RogueliteRelic) =
   showPerk(game, game.player.pos + newVector2f(0, -44),
            patchKbLabel(patch) & " " & t("patch_applied"), patchAccent(patch))
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, patchAccent(patch), 28)
@@ -1316,11 +1338,11 @@ proc claimDungeonPickup*(game: Game, index: int): DungeonFrame =
                    else: prCommon
       result.install = PowerUp(powerType: pickup.powerUp.powerType, level: lvl, rarity: rarity)
     of dpkStallPatch:
-      if not installPatch(game, pickup.patch):
+      if not installPatch(game, pickup.pickupRelic):
         return
       game.player.coins -= price
       pickup.taken = true
-      announcePatch(game, pickup.patch)
+      announcePatch(game, pickup.pickupRelic)
     of dpkStallRepair:
       game.player.coins -= price
       pickup.taken = true
@@ -1345,7 +1367,7 @@ proc claimDungeonPickup*(game: Game, index: int): DungeonFrame =
     openRewardDraft(game)
     result.pauseSim = true
   of dpkPatchPedestal:
-    if not installPatch(game, pickup.patch):
+    if not installPatch(game, pickup.pickupRelic):
       return
     pickup.taken = true
     # The other updates in this offer are declined.
@@ -1353,7 +1375,7 @@ proc claimDungeonPickup*(game: Game, index: int): DungeonFrame =
       if other != pickup and other.group != 0 and other.group == pickup.group and not other.taken:
         other.taken = true
         spawnExplosionPooled(game.particlePool, other.pos.x, other.pos.y, Color(r: 120, g: 140, b: 170, a: 255), 12)
-    announcePatch(game, pickup.patch)
+    announcePatch(game, pickup.pickupRelic)
   of dpkCreditCache:
     pickup.taken = true
     game.player.coins += pickup.amount
@@ -1504,7 +1526,7 @@ proc drawFolderTab(x, y, w, h: float32, color: Color, fillAlpha: uint8) =
   let tabW = w * 0.42'f32
   drawRectangle(Rectangle(x: x, y: y - 5, width: tabW, height: 6), withAlpha(color, fillAlpha))
   drawRectangle(Rectangle(x: x, y: y, width: w, height: h), withAlpha(color, fillAlpha))
-  drawRectangleLines(Rectangle(x: x, y: y, width: w, height: h), 1.5, withAlpha(color, 230))
+  drawRectOutline(Rectangle(x: x, y: y, width: w, height: h), 1.5, withAlpha(color, 230))
 
 proc drawExitDoor(game: Game, ex: DungeonExit, open: bool, bossNumber: int) =
   let rect = doorRect(game, ex.dir)
@@ -1513,7 +1535,7 @@ proc drawExitDoor(game: Game, ex: DungeonExit, open: bool, bossNumber: int) =
   let pulse = 0.6'f32 + 0.4'f32 * sin(game.time * 3.4'f32)
   let alphaK = if open: 1.0'f32 else: 0.38'f32
   drawRectangle(rect, withAlpha(accent, uint8(70.0'f32 * alphaK * (if open: pulse else: 1.0'f32))))
-  drawRectangleLines(rect, 2.0, withAlpha(accent, uint8(235.0'f32 * alphaK)))
+  drawRectOutline(rect, 2.0, withAlpha(accent, uint8(235.0'f32 * alphaK)))
 
   # Label card just inside the door.
   const cardW = 150'f32
@@ -1558,15 +1580,15 @@ proc drawEntryDoor(game: Game) =
   ## The door the player came in by: closed behind them (no going back).
   let rect = doorRect(game, ddDown)
   drawRectangle(rect, Color(r: 60, g: 66, b: 80, a: 90))
-  drawRectangleLines(rect, 1.5, Color(r: 110, g: 118, b: 136, a: 160))
+  drawRectOutline(rect, 1.5, Color(r: 110, g: 118, b: 136, a: 160))
   let midY = (rect.y + rect.height / 2).int32
-  drawLine((rect.x + 18).int32, midY, (rect.x + rect.width - 18).int32, midY,
+  drawStroke((rect.x + 18).int32, midY, (rect.x + rect.width - 18).int32, midY,
            Color(r: 130, g: 138, b: 156, a: 160))
 
 proc drawPedestalBase(pos: Vector2f, accent: Color, time: float32) =
   drawEllipse(pos.x.int32, (pos.y + 18).int32, 24, 8, Color(r: 0, g: 0, b: 0, a: 90))
   drawEllipse(pos.x.int32, (pos.y + 15).int32, 22, 7, Color(r: 22, g: 30, b: 44, a: 235))
-  drawEllipseLines(pos.x.int32, (pos.y + 15).int32, 22, 7, withAlpha(accent, 190))
+  drawEllipseOutline(pos.x.int32, (pos.y + 15).int32, 22, 7, withAlpha(accent, 190))
 
 proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup) =
   let t = clamp(pickup.spawnTimer / PickupSpawnTime, 0.0'f32, 1.0'f32)
@@ -1574,7 +1596,7 @@ proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup
   let bob = sin(game.time * 2.6'f32 + index.float32) * 3.0'f32
   let accent =
     case pickup.kind
-    of dpkPatchPedestal, dpkStallPatch: patchAccent(pickup.patch)
+    of dpkPatchPedestal, dpkStallPatch: patchAccent(pickup.pickupRelic)
     of dpkDraftPackage: rewardAccent(rrwDraft)
     of dpkStallPowerUp: getPowerUpColor(pickup.powerUp.powerType)
     of dpkCreditCache: rewardAccent(rrwCredits)
@@ -1591,11 +1613,11 @@ proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup
   let size = int32(34.0'f32 * grow * (if isFocus: 1.12'f32 else: 1.0'f32))
   let ix = (pickup.pos.x - size.float32 / 2).int32
   let iy = (pickup.pos.y - size.float32 / 2 - 6 + bob).int32
-  drawCircle(Vector2(x: pickup.pos.x, y: pickup.pos.y - 6 + bob), size.float32 * 0.7'f32,
+  drawDisc(Vector2(x: pickup.pos.x, y: pickup.pos.y - 6 + bob), size.float32 * 0.7'f32,
              withAlpha(accent, uint8(if isFocus: 60 else: 34)))
   case pickup.kind
   of dpkPatchPedestal, dpkStallPatch:
-    drawPatchIcon(ix, iy, size, pickup.patch, accent)
+    drawPatchIcon(ix, iy, size, pickup.pickupRelic, accent)
   of dpkDraftPackage:
     drawRoomRewardIcon(ix, iy, size, rrwDraft, accent)
   of dpkStallPowerUp:
@@ -1623,7 +1645,7 @@ proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup
     let tagColor = if maxed: Color(r: 130, g: 136, b: 150, a: 255)
                    elif affordable: Color(r: 255, g: 215, b: 80, a: 255)
                    else: Color(r: 255, g: 110, b: 100, a: 255)
-    drawRectangleLines(Rectangle(x: tx.float32, y: ty.float32, width: tagW.float32, height: 18),
+    drawRectOutline(Rectangle(x: tx.float32, y: ty.float32, width: tagW.float32, height: 18),
                        1.0, withAlpha(tagColor, 180))
     if maxed:
       drawText(label, tx + 5, ty + 3, 13, tagColor)
@@ -1632,15 +1654,17 @@ proc drawPickup(game: Game, room: DungeonRoom, index: int, pickup: DungeonPickup
       drawText(label, tx + 19, ty + 3, 13, tagColor)
 
 proc pickupCard(game: Game, room: DungeonRoom, pickup: DungeonPickup): ProximityCard =
-  result.accent = patchAccent(pickup.patch)
+  let relic = pickup.pickupRelic
+  result.accent = patchAccent(relic)
   case pickup.kind
   of dpkPatchPedestal, dpkStallPatch:
     result.iconKind = pciPatch
-    result.patch = pickup.patch
-    result.tag = patchKbLabel(pickup.patch) & " // " &
-                 patchCategoryName(patchCategory(pickup.patch)).toUpperAscii()
-    result.title = patchName(pickup.patch)
-    result.body = patchDescription(pickup.patch)
+    result.patch = relic
+    result.tag = patchKbLabel(relic) & " // " &
+                 (if relic.relicType == rrtMod: "MOD"
+                  else: patchCategoryName(patchCategory(relic.relicType)).toUpperAscii())
+    result.title = patchName(relic)
+    result.body = patchDescription(relic)
     result.action = t("card_patch_action")
   of dpkStallPowerUp:
     let lvl = stallNextLevel(game, pickup)
@@ -1696,9 +1720,9 @@ proc drawExitPortal(game: Game) =
   const tau = 6.2831853'f32
 
   # Outer glow + dark core
-  drawCircle(Vector2(x: cx, y: cy), baseR * 1.4'f32,
+  drawDisc(Vector2(x: cx, y: cy), baseR * 1.4'f32,
              withAlpha(accent, uint8(40.0'f32 * scale)))
-  drawCircle(Vector2(x: cx, y: cy), baseR,
+  drawDisc(Vector2(x: cx, y: cy), baseR,
              Color(r: 8, g: 6, b: 18, a: uint8(235.0'f32 * scale)))
 
   # Swirling spiral arms made of fading dots
@@ -1713,21 +1737,21 @@ proc drawExitPortal(game: Game) =
       let px = cx + cos(ang) * rr
       let py = cy + sin(ang) * rr
       let aa = uint8(255.0'f32 * (1.0'f32 - frac) * scale)
-      drawCircle(Vector2(x: px, y: py), 1.5'f32 + (1.0'f32 - frac) * 2.5'f32,
+      drawDisc(Vector2(x: px, y: py), 1.5'f32 + (1.0'f32 - frac) * 2.5'f32,
                  withAlpha(accent, aa))
 
   # Rotating rim rings
   for k in 0..2:
     let rr = baseR * (0.6'f32 + k.float32 * 0.18'f32)
     let pulse = 0.6'f32 + 0.4'f32 * sin(tm * 3.0'f32 - k.float32)
-    drawCircleLines(cx.int32, cy.int32, rr,
+    drawCircleOutline(cx.int32, cy.int32, rr,
                     Color(r: accent.r, g: accent.g, b: accent.b,
                           a: uint8(200.0'f32 * pulse * scale)))
 
   # Spawn shockwave expanding outward while opening
   if spawnT < 1.0'f32:
     let shockR = ExitPortalRadius * (0.5'f32 + spawnT * 1.8'f32)
-    drawCircleLines(cx.int32, cy.int32, shockR,
+    drawCircleOutline(cx.int32, cy.int32, shockR,
                     Color(r: accent.r, g: accent.g, b: accent.b,
                           a: uint8(180.0'f32 * (1.0'f32 - spawnT))))
   else:
