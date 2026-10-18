@@ -1423,6 +1423,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - **moddable** `drawModsWindow(mw: ModsWindow)`
 - **moddable** `newModsWindow(screenWidth: int, screenHeight: int, settings: Settings): ModsWindow`
+- **moddable** `pollMarketplace(mw: ModsWindow): seq[string]`
 - **moddable** `refreshModsWindow(mw: ModsWindow)`
 - **moddable** `resetModsWindow(mw: ModsWindow)`
 - **moddable** `updateModsWindow(mw: ModsWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow])`

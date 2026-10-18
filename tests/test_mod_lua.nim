@@ -24,6 +24,15 @@ import mixin_bind_game   # binds the game's {.moddable.} procs imported above
 var failures = 0
 var passed = 0
 
+# The example mods live in the mod registry (github.com/Paycei/TopHat-Shooter-ModRoot,
+# its examples/ folder): read from a checkout of it next to this repository, or
+# wherever TOPHAT_EXAMPLES points. Without one, their checks are skipped.
+let examplesDir = getEnv("TOPHAT_EXAMPLES",
+                         currentSourcePath().parentDir / ".." / ".." / "TopHat-Shooter-ModRoot" / "examples")
+let haveExamples = dirExists(examplesDir)
+if not haveExamples:
+  echo "SKIP the example mods: no checkout of the mod registry at ", examplesDir
+
 let (vm, base) = newScriptVM()
 var printed: seq[string]
 vm.printSink = proc (s: string) = printed.add(s)
@@ -515,12 +524,13 @@ block world3d:
   resetHooks()
 
 # ------------------------------------------------- the 3D example mod ----
-# mods-sdk/examples/arena_3d (Cube Siege, plus its tweaks to the game's own
+# The registry's examples/arena_3d (Cube Siege, plus its tweaks to the game's own
 # boss-7 fight): its main.lua must compile, load against the real API, and
 # (driving the engine's hook helpers and action queue by hand, no window) play
 # both parts. Drawing hooks need a GL context and are not run.
 block examples3d:
-  const arenaSrc = staticRead("../mods-sdk/examples/arena_3d/main.lua")
+  if not haveExamples: break examples3d
+  let arenaSrc = readFile(examplesDir / "arena_3d" / "main.lua")
   try:
     discard vm.loadChunk(arenaSrc, "arena_3d/main.lua", newModEnv(base))
     inc passed
@@ -1605,11 +1615,12 @@ block engine:
   resetHooks()
 
 # ------------------------------------------------ M6: the 2D example mods ----
-# mods-sdk/examples/necromancer, story_mode and chaos_engine load against the
+# The registry's examples necromancer, story_mode and chaos_engine load against the
 # real API (story_mode's texture is stubbed: no GL context here) and play their
 # parts through the engine's hook helpers. A fourth mod listens to the
 # necromancer's events, as the example's comments invite.
 block examples2d:
+  if not haveExamples: break examples2d
   resetHooks()
   initModHooksVM(vm, base)
   installModApi(base)
@@ -1625,10 +1636,10 @@ block examples2d:
   putEnv("APPDATA", home)
   activeProfileSlot = 1
   resetAdvancementCache()
-  const exampleSrc = [
-    ("necromancer", staticRead("../mods-sdk/examples/necromancer/main.lua")),
-    ("story_mode", staticRead("../mods-sdk/examples/story_mode/main.lua")),
-    ("chaos_engine", staticRead("../mods-sdk/examples/chaos_engine/main.lua")),
+  let exampleSrc = [
+    ("necromancer", readFile(examplesDir / "necromancer" / "main.lua")),
+    ("story_mode", readFile(examplesDir / "story_mode" / "main.lua")),
+    ("chaos_engine", readFile(examplesDir / "chaos_engine" / "main.lua")),
     ("probe", "hooks.on('necromancer:raiseChance', function(c) return 1 end) " &
               "hooks.on('necromancer:raised', function(ally, e) raisedFrom = e.enemyType end) " &
               "function probe() return mods.get('necromancer').THRALL, raisedFrom end")]
@@ -1699,10 +1710,11 @@ block examples2d:
   removeDir(home)
 
 # ---------------------------------------------- the mixins example mod ----
-# mods-sdk/examples/mixins against the real API: its mixins wrap the game's own
+# The registry's examples/mixins against the real API: its mixins wrap the game's own
 # damage and offer procs, its data file counts runs, its screen opens over a
 # run. (Its minimap is GL work, which needs a window: the build covers that.)
 block examplesMixins:
+  if not haveExamples: break examplesMixins
   resetHooks()
   initModHooksVM(vm, base)
   installModApi(base)
@@ -1719,7 +1731,7 @@ block examplesMixins:
   putEnv("HOME", home)
   putEnv("APPDATA", home)
   activeProfileSlot = 1
-  let dir = currentSourcePath().parentDir / ".." / "mods-sdk" / "examples" / "mixins"
+  let dir = examplesDir / "mixins"
   let m = ModRuntime(id: "mixins", name: "Mixins Lab", version: "1.0.0", dir: dir,
                      env: newModEnv(base, tableKeysOf(base)), index: 0, runData: newScriptTable())
   mods = @[m]
@@ -1809,19 +1821,20 @@ block contentPacks:
       msg = mi.message
   check(st == msError and "content/c.json" in msg and "unknown type" in msg, "a bad entry fails the mod: " & msg)
   check(findShopItem("pack:core") < 0, "leaving nothing behind")
-  # the shipped content_pack example (JSON only, a roster entry included)
-  copyDir(currentSourcePath().parentDir / ".." / "mods-sdk" / "examples" / "content_pack", modsRootDir() / "content_pack")
-  reloadMods(@["content_pack"])
-  for mi in installedMods:
-    if mi.id == "content_pack":
-      st = mi.status
-      msg = mi.message
-  check(st == msLoaded, "the content_pack example loads: " & msg)
-  check(resolvePowerUpScriptName("content_pack:grit", pt) and resolvePowerUpScriptName("content_pack:overclock", pt) and
-        findShopItem("content_pack:core") >= 0 and findConsumable("content_pack:mana") >= 0 and
-        resolveEnemyName("content_pack:brute", et), "with all its content")
-  check(rosterEntries.len == 1 and rosterEntries[0].et == et and rosterEntries[0].fromWave == 4,
-        "and its brute in wave mode's roster")
+  # the content_pack example (JSON only, a roster entry included)
+  if haveExamples:
+    copyDir(examplesDir / "content_pack", modsRootDir() / "content_pack")
+    reloadMods(@["content_pack"])
+    for mi in installedMods:
+      if mi.id == "content_pack":
+        st = mi.status
+        msg = mi.message
+    check(st == msLoaded, "the content_pack example loads: " & msg)
+    check(resolvePowerUpScriptName("content_pack:grit", pt) and resolvePowerUpScriptName("content_pack:overclock", pt) and
+          findShopItem("content_pack:core") >= 0 and findConsumable("content_pack:mana") >= 0 and
+          resolveEnemyName("content_pack:brute", et), "with all its content")
+    check(rosterEntries.len == 1 and rosterEntries[0].et == et and rosterEntries[0].fromWave == 4,
+          "and its brute in wave mode's roster")
   writeFile(dir / "content" / "c.json", "{\"type\": \"roster\", \"mode\": \"wave\", \"enemy\": \"brute\", \"often\": 1}")
   reloadMods(@["pack"])
   for mi in installedMods:

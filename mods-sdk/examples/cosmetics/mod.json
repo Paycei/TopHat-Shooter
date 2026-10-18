@@ -1,9 +1,0 @@
-{
-  "id": "cosmetics",
-  "name": "Cosmetics Pack",
-  "version": "1.0.0",
-  "author": "Paycei",
-  "description": "Looks only, so runs keep their rewards. Cosmetics to equip in MODS.EXE > Cosmetics (a neon skin, an animated GIF skin, a 3D ship, neon and 3D bullets, a neon wallpaper and a voxel desktop cube), a CRT screen filter, and a desktop app to tune the filter and swap the Circle enemies for an animated 3D drone. Shows register.cosmetic with palettes, textures, GIFs and models, assets.model, draw.model, override.model, assets.shader, override.shader, register.app and mod.storage.",
-  "main": "main.lua",
-  "disableAchievements": false
-}

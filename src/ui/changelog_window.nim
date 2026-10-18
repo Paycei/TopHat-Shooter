@@ -265,12 +265,12 @@ let changelog: seq[ChangelogVersion] = @[
         headEn: "The complete mod API reference",
         headEs: "La referencia completa de la API de mods",
         en: points(
-          "Install Examples now also writes API.md, the list of everything a mod can use (every function, hook and game proc, with its parameters), generated from the game itself so it is always complete.",
+          "MODS.EXE's Modding Docs button writes the modding guide and API.md, the list of everything a mod can use (every function, hook and game proc, with its parameters), generated from the game itself so it is always complete.",
           "It also writes tophat.d.lua, which gives editors with the Lua language server completion for the whole API, and strings_en.json, every text of the game in English, to start a translation from.",
           "mod.json takes \"game\", the oldest game version a mod is made for: MODS.EXE warns when the game is older. In code, engine.version, engine.atLeast and engine.has tell what the game has.",
           "A new example mod, Mixins Lab, shows mixins, game procs, raylib drawing, files and a screen of its own."),
         es: points(
-          "Instalar ejemplos ahora también escribe API.md, la lista de todo lo que un mod puede usar (cada función, hook y procedimiento del juego, con sus parámetros), generada a partir del propio juego para que siempre esté completa.",
+          "El botón Guías de modding de MODS.EXE escribe la guía de modding y API.md, la lista de todo lo que un mod puede usar (cada función, hook y procedimiento del juego, con sus parámetros), generada a partir del propio juego para que siempre esté completa.",
           "También escribe tophat.d.lua, que da a los editores con el servidor de lenguaje de Lua autocompletado para toda la API, y strings_en.json, todos los textos del juego en inglés, para empezar una traducción.",
           "mod.json admite \"game\", la versión más antigua del juego para la que está hecho un mod: MODS.EXE avisa cuando el juego es más antiguo. En el código, engine.version, engine.atLeast y engine.has dicen lo que tiene el juego.",
           "Un nuevo mod de ejemplo, Mixins Lab, muestra los mixins, los procedimientos del juego, el dibujo con raylib, los archivos y una pantalla propia.")),
@@ -387,8 +387,24 @@ let changelog: seq[ChangelogVersion] = @[
           "El nuevo ejemplo Sección Crítica es un modo PvP: ocupa a solas una zona que se mueve para puntuar, dispara balas privilegiadas desde dentro y salta con F.",
           "Un color dado a spawn.bullet ahora también colorea las balas disparadas para el jugador, no solo las enemigas.")),
       ChangelogEntry(category: clcMods,
-        en: "When the game ships a newer version of an example mod you installed, the desktop now tells you, and MODS.EXE tags that mod UPDATE, shows the new version and highlights Install Examples, which updates it. An enabled example that gets updated is reloaded right away, so the new version is the one you play.",
-        es: "Cuando el juego trae una versión más nueva de un mod de ejemplo que instalaste, el escritorio ahora te avisa, y MODS.EXE marca ese mod con NUEVA VERSIÓN, muestra la versión nueva y resalta Instalar ejemplos, que lo actualiza. Un ejemplo activado que se actualiza se recarga al momento, así que juegas la versión nueva."),
+        headEn: "The mod Marketplace",
+        headEs: "El mercado de mods",
+        en: points(
+          "MODS.EXE has a new Marketplace tab: browse the mods published on the official registry and install them straight from GitHub. Every listed mod was reviewed before it was published, and what installs is exactly the version that was reviewed.",
+          "Installed mods are ticked for you: press Apply & Reload to play with them, as with any other mod. When a newer reviewed version is listed, the mod shows UPDATE in both tabs, and Update installs it. A loaded mod is swapped for its update when the mods reload.",
+          "The example mods moved to the Marketplace: the game no longer ships any mods. Install Examples became Modding Docs, which writes the modding guide and the API reference to your mods folder.",
+          "If you already have your own copy of a published mod (such as an example you installed before), the Marketplace says so and asks before replacing it. Remove works from the Marketplace too.",
+          "Downloads run in the background, with their progress in the tab, and can be cancelled. The list is remembered, so it still shows when you are offline.",
+          "Modders: put your mod in a GitHub repository and open a pull request to the registry to publish it. MODDING.md has a new Publishing your mod chapter. Starting the game with --mod-registry <folder> shows your own copy of the registry, to try an entry before sending it.",
+          "Downloads are secured by BearSSL, built into the game, so the Marketplace works the same on every computer. help licenses lists it."),
+        es: points(
+          "MODS.EXE tiene una nueva pestaña Mercado: explora los mods publicados en el registro oficial e instálalos directamente desde GitHub. Cada mod de la lista se revisó antes de publicarse, y lo que se instala es exactamente la versión revisada.",
+          "Los mods instalados quedan marcados: pulsa Aplicar y recargar para jugar con ellos, como con cualquier otro mod. Cuando se publica una versión revisada más nueva, el mod muestra NUEVA VERSIÓN en ambas pestañas, y Actualizar la instala. Un mod cargado se cambia por su actualización cuando los mods se recargan.",
+          "Los mods de ejemplo se trasladaron al Mercado: el juego ya no incluye ningún mod. Instalar ejemplos pasó a ser Guías de modding, que escribe la guía de modding y la referencia de la API en tu carpeta de mods.",
+          "Si ya tienes tu propia copia de un mod publicado (como un ejemplo que instalaste antes), el Mercado lo indica y pregunta antes de reemplazarla. Eliminar también funciona desde el Mercado.",
+          "Las descargas se hacen en segundo plano, con su progreso en la pestaña, y se pueden cancelar. La lista se recuerda, así que se sigue viendo sin conexión.",
+          "Para modders: sube tu mod a un repositorio de GitHub y abre un pull request al registro para publicarlo. MODDING.md tiene un nuevo capítulo, Publishing your mod. Iniciar el juego con --mod-registry <carpeta> muestra tu propia copia del registro, para probar una ficha antes de enviarla.",
+          "Las descargas se protegen con BearSSL, integrado en el juego, así que el Mercado funciona igual en todos los ordenadores. help licenses lo incluye.")),
 
       # --- Balance ---
       ChangelogEntry(category: clcBalance,

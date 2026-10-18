@@ -1,12 +1,12 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import draw_prims, post_fx
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
-import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples, mod_registry, mod_deep], ui/mods_window
+import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_registry, mod_deep, mod_market], ui/mods_window
 import ui/ui_theme
 import modding/mod_mixin_game   # last: binds every {.moddable.} proc imported above
 import modding/[mod_engine_game, mod_engine_ui]   # engine.call for the rest of the game's procs
 when defined(debug):
-  import modding/mod_apidoc   # nimble modapi (--dump-mod-api) and its staleness check
+  import modding/[mod_apidoc, mod_docs]   # nimble modapi (--dump-mod-api) and its staleness check
 
 # Global quit-confirmation dialog
 
@@ -824,6 +824,13 @@ proc main() =
   # rebuilt after a set that loaded anything. Safe mode: if the last session
   # went down with mods loaded, this one starts without them (the profile
   # keeps its list; MODS.EXE's Apply & Reload brings them back).
+  # The marketplace first: downloads finished last session are swapped in by
+  # the reload. `--mod-registry <folder|url>` points it at another registry
+  # (a checkout, to try an entry before its pull request).
+  block:
+    let args = commandLineParams()
+    let at = args.find("--mod-registry")
+    initMarketplace(if at >= 0 and at + 1 < args.len: args[at + 1] else: "")
   if modSessionCrashed():
     reloadMods(@[], settings.modCosmetics)
     modNotices.add(t(tkModsSafeMode))
@@ -831,9 +838,6 @@ proc main() =
     reloadMods(settings.enabledMods, settings.modCosmetics)
   if modsActive:
     initializeAllCosmetics()
-  # Installed example mods this build ships newer versions of: toasted once,
-  # on the first desktop visit (MODS.EXE tags them and says how to update).
-  var exampleUpdateCount = exampleUpdates().len
 
   let cheatMenu = initCheatMenu()
 
@@ -1945,6 +1949,10 @@ proc main() =
           showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
                            unlockedDef.name)
 
+      # Marketplace downloads that finished (installs swap in here, on the
+      # desktop); with MODS.EXE closed, what they say becomes toasts.
+      for line in pollMarketplace(globalWindowManager.mods):
+        modNotices.add(line)
       # MODS.EXE asked for a reload (Apply & Reload): done here, on the desktop,
       # so a run always sees one fixed mod set.
       if modReloadRequested and not globalConfirmActive:
@@ -1966,11 +1974,6 @@ proc main() =
           .replace("$1", $pendingProfileRefund.shards)
           .replace("$2", $pendingProfileRefund.cores))
         pendingProfileRefund = (0, 0)
-
-      if exampleUpdateCount > 0 and osDesktop.toasts.len < MAX_DESKTOP_TOASTS and
-         not globalConfirmActive:
-        showDesktopToast(osDesktop, t(tkModsUpdatesToast).replace("$1", $exampleUpdateCount))
-        exampleUpdateCount = 0
 
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
       var action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive and
@@ -4696,6 +4699,7 @@ proc main() =
   # Cleanup. The script VM closes first (its finalizers may still touch mod
   # assets), then mod textures and sounds, which are GPU/audio resources and
   # go before the device and the window do.
+  shutdownMarketplace()
   saveAllModStorage()
   closeModScripts()
   releaseScriptResources()

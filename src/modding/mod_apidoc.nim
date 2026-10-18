@@ -9,7 +9,7 @@
 ## under each native's `.reg("name")` in the modding sources (read at compile
 ## time), the hooks are ModHook's values with their comments, and the game's
 ## procs are the mixin slots the binders made. `nimble modapi` (a debug build's
-## --dump-mod-api) writes them; mod_examples embeds them for Install Examples,
+## --dump-mod-api) writes them; mod_docs embeds them for MODS.EXE's Modding Docs,
 ## and a debug build warns at startup when the embedded copy is out of date.
 
 import std/[strutils, tables, algorithm, os, json]

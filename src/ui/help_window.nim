@@ -417,7 +417,9 @@ proc executeCommand*(help: HelpWindow, cmd: string) {.moddable.} =
         (tkHelpLicensesRaylib, staticRead("../../vendor/naylib/LICENSE-RAYLIB")),
         (tkHelpLicensesNaylib, staticRead("../../vendor/naylib/LICENSE")),
         (tkHelpLicensesIntro, staticRead("../../vendor/lua/LICENSE")),
-        (tkHelpLicensesPlMpeg, staticRead("../../vendor/pl_mpeg/LICENSE"))]
+        (tkHelpLicensesPlMpeg, staticRead("../../vendor/pl_mpeg/LICENSE")),
+        (tkHelpLicensesBearSSL, staticRead("../../vendor/bearssl/LICENSE.txt")),
+        (tkHelpLicensesCaCerts, "")]   # (a notice, no license text to print)
       let noticeColor = Color(r: 190, g: 200, b: 215, a: 255)
       for (intro, license) in Notices:
         help.addOutput("", White)

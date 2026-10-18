@@ -629,6 +629,8 @@ type
     tkHelpLicensesRaylib = "help_licenses_raylib"
     tkHelpLicensesNaylib = "help_licenses_naylib"
     tkHelpLicensesPlMpeg = "help_licenses_pl_mpeg"
+    tkHelpLicensesBearSSL = "help_licenses_bearssl"
+    tkHelpLicensesCaCerts = "help_licenses_cacerts"
     tkHelpCmdLaunchIcons = "help_cmd_launch_icons"
 
     # Help System - Incident archive ("lore" command)
@@ -1918,7 +1920,7 @@ type
     tkModsRewardsWarningConfirm = "mods_rewards_warning_confirm"
     tkModsApply = "mods_apply"
     tkModsOpenFolder = "mods_open_folder"
-    tkModsInstallExamples = "mods_install_examples"
+    tkModsDocs = "mods_docs"
     tkModsEmpty = "mods_empty"
     tkModsEmptyHint = "mods_empty_hint"
     tkModsStatusLoaded = "mods_status_loaded"
@@ -1942,12 +1944,9 @@ type
     tkModsReloadedToast = "mods_reloaded_toast"
     tkModsSummaryLoaded = "mods_summary_loaded"
     tkModsSummaryFailed = "mods_summary_failed"
-    tkModsExamplesInstalled = "mods_examples_installed"
-    tkModsExamplesFailed = "mods_examples_failed"
-    tkModsExamplesUpToDate = "mods_examples_up_to_date"
+    tkModsDocsWritten = "mods_docs_written"
+    tkModsDocsFailed = "mods_docs_failed"
     tkModsUpdateTag = "mods_update_tag"
-    tkModsUpdateAvailable = "mods_update_available"
-    tkModsUpdatesToast = "mods_updates_toast"
     tkModsRemove = "mods_remove"
     tkModsRemoveTitle = "mods_remove_title"
     tkModsRemoveBody = "mods_remove_body"
@@ -1965,6 +1964,55 @@ type
     tkModsSafeMode = "mods_safe_mode"
     tkModsFullAccess = "mods_full_access"
     tkModsFrameTime = "mods_frame_time"
+    tkModsTabMarket = "mods_tab_market"
+    tkMarketRefresh = "market_refresh"
+    tkMarketInstall = "market_install"
+    tkMarketUpdate = "market_update"
+    tkMarketReinstall = "market_reinstall"
+    tkMarketReplace = "market_replace"
+    tkMarketViewRepo = "market_view_repo"
+    tkMarketTagInstalled = "market_tag_installed"
+    tkMarketTagLocal = "market_tag_local"
+    tkMarketTagQueued = "market_tag_queued"
+    tkMarketTagMarket = "market_tag_market"
+    tkMarketStateNone = "market_state_none"
+    tkMarketStateCurrent = "market_state_current"
+    tkMarketStateUpdate = "market_state_update"
+    tkMarketStateLocal = "market_state_local"
+    tkMarketStateQueued = "market_state_queued"
+    tkMarketDownloading = "market_downloading"
+    tkMarketRepo = "market_repo"
+    tkMarketCommit = "market_commit"
+    tkMarketReviewed = "market_reviewed"
+    tkMarketLoading = "market_loading"
+    tkMarketUpdatedAgo = "market_updated_ago"
+    tkMarketCached = "market_cached"
+    tkMarketJustNow = "market_just_now"
+    tkMarketMinutesAgo = "market_minutes_ago"
+    tkMarketHoursAgo = "market_hours_ago"
+    tkMarketOnDate = "market_on_date"
+    tkMarketEmpty = "market_empty"
+    tkMarketEmptyHint = "market_empty_hint"
+    tkMarketNoList = "market_no_list"
+    tkMarketTooNew = "market_too_new"
+    tkMarketListFailed = "market_list_failed"
+    tkMarketInstalled = "market_installed"
+    tkMarketUpdated = "market_updated"
+    tkMarketUpdating = "market_updating"
+    tkMarketInstallFailed = "market_install_failed"
+    tkMarketErrNetwork = "market_err_network"
+    tkMarketErrTimeout = "market_err_timeout"
+    tkMarketErrCancelled = "market_err_cancelled"
+    tkMarketErrCertificate = "market_err_certificate"
+    tkMarketErrClock = "market_err_clock"
+    tkMarketErrProtocol = "market_err_protocol"
+    tkMarketErrHttp = "market_err_http"
+    tkMarketErrArchive = "market_err_archive"
+    tkMarketErrMismatch = "market_err_mismatch"
+    tkMarketErrDisk = "market_err_disk"
+    tkMarketReplaceTitle = "market_replace_title"
+    tkMarketReplaceBody = "market_replace_body"
+    tkMarketReplaceSub = "market_replace_sub"
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -3075,6 +3123,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_licenses_raylib": "The game runs on raylib (www.raylib.com), used under the zlib/libpng license:",
     "help_licenses_naylib": "Its Nim bindings, naylib (github.com/planetis-m/naylib), are used under the MIT license:",
     "help_licenses_pl_mpeg": "MPEG-1 videos in mods are decoded by PL_MPEG (github.com/phoboslab/pl_mpeg), used under the MIT license:",
+    "help_licenses_bearssl": "Mod downloads are secured by BearSSL (bearssl.org), used under the MIT license:",
+    "help_licenses_cacerts": "The root certificates it trusts are Mozilla's (Mozilla Public License 2.0), as curl publishes them at curl.se/docs/caextract.html, which links their source.",
     "help_lore_topic": "INCIDENT ARCHIVE",
     "help_lore_intro": "TOPHAT's case files on the other root. New files decrypt as you recover their recordings.",
     "help_lore_act1_title": "ACT I: CLEANUP   [REC 00-05]",
@@ -4160,9 +4210,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_rewards_warning_confirm": "Load Mods",
     "mods_apply": "Apply & Reload",
     "mods_open_folder": "Open Folder",
-    "mods_install_examples": "Install Examples",
+    "mods_docs": "Modding Docs",
     "mods_empty": "No mods installed yet. Put each mod in its own folder inside:",
-    "mods_empty_hint": "Or press Install Examples to get a few to start from.",
+    "mods_empty_hint": "Or open the Marketplace tab: the example mods are there to start from.",
     "mods_status_loaded": "Loaded",
     "mods_status_disabled": "Disabled",
     "mods_status_error": "Error",
@@ -4184,12 +4234,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_reloaded_toast": "Mods reloaded",
     "mods_summary_loaded": "$1 loaded",
     "mods_summary_failed": "$1 failed",
-    "mods_examples_installed": "Example mods installed. Tick them and press Apply & Reload.",
-    "mods_examples_failed": "Could not write the example mods.",
-    "mods_examples_up_to_date": "The example mods are already up to date.",
+    "mods_docs_written": "MODDING.md and API.md are in the mods folder.",
+    "mods_docs_failed": "Could not write the modding docs.",
     "mods_update_tag": "UPDATE",
-    "mods_update_available": "Update available: v$1. Press Install Examples to get it. It replaces this mod's folder, so edits you made to its files are lost.",
-    "mods_updates_toast": "Example mod updates: $1. Open MODS.EXE",
     "mods_remove": "Remove",
     "mods_remove_title": "REMOVE MOD",
     "mods_remove_body": "Delete $1 and its folder?",
@@ -4206,7 +4253,56 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_kind_cube": "Desktop cube",
     "mods_safe_mode": "Mods are off: the game closed unexpectedly last time with mods loaded. Turn them back on in MODS.EXE (Apply & Reload).",
     "mods_full_access": "Mods run with full access to the game and your files.",
-    "mods_frame_time": "$1 ms/frame"
+    "mods_frame_time": "$1 ms/frame",
+    "mods_tab_market": "Marketplace",
+    "market_refresh": "Refresh",
+    "market_install": "Install",
+    "market_update": "Update",
+    "market_reinstall": "Reinstall",
+    "market_replace": "Replace",
+    "market_view_repo": "View on GitHub",
+    "market_tag_installed": "INSTALLED",
+    "market_tag_local": "YOUR COPY",
+    "market_tag_queued": "QUEUED",
+    "market_tag_market": "MARKETPLACE",
+    "market_state_none": "Not installed",
+    "market_state_current": "Installed: v$1",
+    "market_state_update": "Update available: v$1 -> v$2",
+    "market_state_local": "You have your own copy (v$1): installing replaces it.",
+    "market_state_queued": "Waiting for the download in progress...",
+    "market_downloading": "Downloading... $1",
+    "market_repo": "Repository:",
+    "market_commit": "Commit:",
+    "market_reviewed": "Reviewed before it was listed.",
+    "market_loading": "Fetching the mod list...",
+    "market_updated_ago": "List updated $1",
+    "market_cached": "Saved copy of the list ($1)",
+    "market_just_now": "just now",
+    "market_minutes_ago": "$1 min ago",
+    "market_hours_ago": "$1 h ago",
+    "market_on_date": "on $1",
+    "market_empty": "No mods have been published yet.",
+    "market_empty_hint": "Made one? Put it in a GitHub repository and open a pull request to the registry: MODDING.md explains how (Publishing your mod).",
+    "market_no_list": "The mod list has not been fetched yet. Press Refresh.",
+    "market_too_new": "The marketplace has changed in a newer version of the game: update the game to browse it.",
+    "market_list_failed": "The mod list could not be fetched",
+    "market_installed": "$1 installed. Press Apply & Reload to load it.",
+    "market_updated": "$1 updated.",
+    "market_updating": "$1 downloaded: the mods reload to update it.",
+    "market_install_failed": "$1 could not be installed",
+    "market_err_network": "no connection to GitHub",
+    "market_err_timeout": "GitHub took too long to answer",
+    "market_err_cancelled": "cancelled",
+    "market_err_certificate": "the connection is not secure (certificate rejected)",
+    "market_err_clock": "certificate rejected: check your PC's date and time",
+    "market_err_protocol": "the secure connection failed",
+    "market_err_http": "GitHub refused the download",
+    "market_err_archive": "the download is damaged",
+    "market_err_mismatch": "the download does not match its listing",
+    "market_err_disk": "its files could not be written",
+    "market_replace_title": "Replace your copy?",
+    "market_replace_body": "Install $1 from the marketplace?",
+    "market_replace_sub": "Your copy's folder is deleted and the marketplace version takes its place. Changes you made to it are lost."
   }.toTable,
 
   Spanish: {
@@ -5202,6 +5298,8 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "help_licenses_raylib": "El juego funciona con raylib (www.raylib.com), usado bajo la licencia zlib/libpng:",
     "help_licenses_naylib": "Sus bindings para Nim, naylib (github.com/planetis-m/naylib), se usan bajo la licencia MIT:",
     "help_licenses_pl_mpeg": "Los videos MPEG-1 de los mods se decodifican con PL_MPEG (github.com/phoboslab/pl_mpeg), usado bajo la licencia MIT:",
+    "help_licenses_bearssl": "Las descargas de mods se protegen con BearSSL (bearssl.org), usado bajo la licencia MIT:",
+    "help_licenses_cacerts": "Los certificados raíz en los que confía son los de Mozilla (Mozilla Public License 2.0), tal como curl los publica en curl.se/docs/caextract.html, que enlaza su código fuente.",
     "help_lore_topic": "ARCHIVO DEL INCIDENTE",
     "help_lore_intro": "Expedientes de TOPHAT sobre el otro root. Los nuevos se descifran al recuperar sus grabaciones.",
     "help_lore_act1_title": "ACTO I: LIMPIEZA   [REC 00-05]",
@@ -6399,9 +6497,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_rewards_warning_confirm": "Cargar mods",
     "mods_apply": "Aplicar y recargar",
     "mods_open_folder": "Abrir carpeta",
-    "mods_install_examples": "Instalar ejemplos",
+    "mods_docs": "Guías de modding",
     "mods_empty": "Aún no hay mods instalados. Coloca cada mod en su propia carpeta dentro de:",
-    "mods_empty_hint": "O pulsa Instalar ejemplos para empezar con algunos.",
+    "mods_empty_hint": "O abre la pestaña Mercado: allí están los mods de ejemplo para empezar.",
     "mods_status_loaded": "Cargado",
     "mods_status_disabled": "Desactivado",
     "mods_status_error": "Error",
@@ -6423,12 +6521,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_reloaded_toast": "Mods recargados",
     "mods_summary_loaded": "$1 cargados",
     "mods_summary_failed": "$1 con error",
-    "mods_examples_installed": "Mods de ejemplo instalados. Márcalos y pulsa Aplicar y recargar.",
-    "mods_examples_failed": "No se pudieron escribir los mods de ejemplo.",
-    "mods_examples_up_to_date": "Los mods de ejemplo ya están al día.",
+    "mods_docs_written": "MODDING.md y API.md están en la carpeta de mods.",
+    "mods_docs_failed": "No se pudieron escribir las guías de modding.",
     "mods_update_tag": "NUEVA VERSIÓN",
-    "mods_update_available": "Actualización disponible: v$1. Pulsa Instalar ejemplos para obtenerla. Reemplaza la carpeta de este mod, así que se pierden los cambios que hayas hecho en sus archivos.",
-    "mods_updates_toast": "Mods de ejemplo por actualizar: $1. Abre MODS.EXE",
     "mods_remove": "Eliminar",
     "mods_remove_title": "ELIMINAR MOD",
     "mods_remove_body": "¿Eliminar $1 y su carpeta?",
@@ -6445,7 +6540,56 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_kind_cube": "Cubo del escritorio",
     "mods_safe_mode": "Mods desactivados: el juego se cerró inesperadamente la última vez con mods cargados. Vuelve a activarlos en MODS.EXE (Aplicar y recargar).",
     "mods_full_access": "Los mods tienen acceso completo al juego y a tus archivos.",
-    "mods_frame_time": "$1 ms/fotograma"
+    "mods_frame_time": "$1 ms/fotograma",
+    "mods_tab_market": "Mercado",
+    "market_refresh": "Refrescar",
+    "market_install": "Instalar",
+    "market_update": "Actualizar",
+    "market_reinstall": "Reinstalar",
+    "market_replace": "Reemplazar",
+    "market_view_repo": "Ver en GitHub",
+    "market_tag_installed": "INSTALADO",
+    "market_tag_local": "TU COPIA",
+    "market_tag_queued": "EN COLA",
+    "market_tag_market": "MERCADO",
+    "market_state_none": "No instalado",
+    "market_state_current": "Instalado: v$1",
+    "market_state_update": "Nueva versión disponible: v$1 -> v$2",
+    "market_state_local": "Tienes tu propia copia (v$1): instalarlo la reemplaza.",
+    "market_state_queued": "Esperando a la descarga en curso...",
+    "market_downloading": "Descargando... $1",
+    "market_repo": "Repositorio:",
+    "market_commit": "Commit:",
+    "market_reviewed": "Revisado antes de publicarse.",
+    "market_loading": "Obteniendo la lista de mods...",
+    "market_updated_ago": "Lista actualizada $1",
+    "market_cached": "Copia guardada de la lista ($1)",
+    "market_just_now": "ahora mismo",
+    "market_minutes_ago": "hace $1 min",
+    "market_hours_ago": "hace $1 h",
+    "market_on_date": "el $1",
+    "market_empty": "Todavía no hay mods publicados.",
+    "market_empty_hint": "¿Has hecho uno? Súbelo a un repositorio de GitHub y abre un pull request al registro: MODDING.md explica cómo (Publishing your mod).",
+    "market_no_list": "La lista de mods aún no se ha obtenido. Pulsa Refrescar.",
+    "market_too_new": "El mercado ha cambiado en una versión más nueva del juego: actualiza el juego para verlo.",
+    "market_list_failed": "No se pudo obtener la lista de mods",
+    "market_installed": "$1 instalado. Pulsa Aplicar y recargar para cargarlo.",
+    "market_updated": "$1 actualizado.",
+    "market_updating": "$1 descargado: los mods se recargan para actualizarlo.",
+    "market_install_failed": "No se pudo instalar $1",
+    "market_err_network": "sin conexión con GitHub",
+    "market_err_timeout": "GitHub tardó demasiado en responder",
+    "market_err_cancelled": "cancelado",
+    "market_err_certificate": "la conexión no es segura (certificado rechazado)",
+    "market_err_clock": "certificado rechazado: revisa la fecha y la hora del PC",
+    "market_err_protocol": "falló la conexión segura",
+    "market_err_http": "GitHub rechazó la descarga",
+    "market_err_archive": "la descarga está dañada",
+    "market_err_mismatch": "la descarga no coincide con su ficha",
+    "market_err_disk": "no se pudieron escribir sus archivos",
+    "market_replace_title": "¿Reemplazar tu copia?",
+    "market_replace_body": "¿Instalar $1 desde el mercado?",
+    "market_replace_sub": "La carpeta de tu copia se borra y la versión del mercado ocupa su lugar. Se pierden los cambios que le hayas hecho."
   }.toTable
 }.toTable
 

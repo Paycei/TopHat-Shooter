@@ -16,9 +16,10 @@ PvP modes, textures, videos and 3D models, music, fonts, shaders, and apps of
 its own on the desktop.
 
 > **Mods are trusted.** A mod runs with full access to the game and to your
-> files, like any program you install. Mods on the official mod repository are
-> reviewed and approved before they are published; install mods from
-> anywhere else only if you trust who made them.
+> files, like any program you install. Mods in MODS.EXE's **Marketplace** (the
+> official registry, see [Publishing your mod](#publishing-your-mod)) are
+> reviewed and approved before they are listed; install mods from anywhere
+> else only if you trust who made them.
 
 > **Modded runs count as cheated.** Any run started while at least one mod is
 > loaded earns no Data Shards, statistics, advancements or unlocks. The one
@@ -29,18 +30,23 @@ its own on the desktop.
 
 ## Getting started
 
-1. Open **MODS.EXE** on the desktop and press **Install Examples**. That writes
-   this guide and the example mods into your mods folder.
-2. Tick a mod, press **Apply & Reload**, start a run.
-3. Press **Open Folder**, copy an example folder, rename it, change the `id` in
-   its `mod.json`, and start editing. Apply & Reload picks up your changes; the
-   **Log** tab shows `print` output and every error with its file and line,
+1. Open **MODS.EXE** on the desktop and install an example mod from the
+   **Marketplace** tab: the game ships no mods, and the examples are listed
+   there with the others (see [The examples](#the-examples)). **Modding Docs**,
+   in the Installed tab, writes this guide and the API reference into your mods
+   folder.
+2. Tick the mod, press **Apply & Reload**, start a run.
+3. Press **Open Folder**, copy the example's folder, rename it, change the `id`
+   in its `mod.json`, and start editing. Apply & Reload picks up your changes;
+   the **Log** tab shows `print` output and every error with its file and line,
    and the **Console** tab runs Lua as you type it.
-4. Keep **API.md** at hand (Install Examples writes it next to this guide): it
+4. Keep **API.md** at hand (Modding Docs writes it next to this guide): it
    lists every function, hook and proc this build has.
 
 Mods live in `<game data>/mods/<folder>/` (the folder Open Folder shows) or,
 for portable installs, in a `mods` folder next to the game executable.
+Published mods are in MODS.EXE's **Marketplace** tab, and
+[Publishing your mod](#publishing-your-mod) explains how to list yours there.
 
 ## mod.json
 
@@ -621,7 +627,7 @@ hand.
   path), and `mixin.has(name)` whether the game has a proc.
 * `"game"` in mod.json names the oldest game version your mod is made for (see
   [mod.json](#modjson)).
-* **API.md**, next to this guide in the mods folder (Install Examples writes
+* **API.md**, next to this guide in the mods folder (Modding Docs writes
   it), lists everything this build has: every library function with what it
   does, every hook, every one of the game's procs with its parameters (and
   whether it is moddable), raylib and `engine.globals`. It is generated from
@@ -2143,9 +2149,11 @@ optional raylib `GamepadButton` name and defaults to unbound.
 
 ## The examples
 
-**Install Examples** writes these into your mods folder. Pressing it again
-replaces an example only when the game ships a newer version of it (a higher
-`version` in its `mod.json`), so keep your own changes in a renamed copy:
+The example mods are in MODS.EXE's **Marketplace**, like every published mod:
+the game ships none of its own. Their source is the `examples/` folder of the
+[mod registry](https://github.com/Paycei/TopHat-Shooter-ModRoot/tree/main/examples).
+Updating one through the Marketplace replaces its folder, so keep your own
+changes in a renamed copy:
 
 | Example | Shows |
 |---|---|
@@ -2384,3 +2392,71 @@ end)
   call does nothing); the host's rules keep running everyone's match.
 * To test alone, start the game twice on one computer: host in one, and join
   `127.0.0.1` from the other.
+
+## Publishing your mod
+
+Mods reach players through **MODS.EXE's Marketplace**. It lists the mods of the
+official registry,
+[github.com/Paycei/TopHat-Shooter-ModRoot](https://github.com/Paycei/TopHat-Shooter-ModRoot).
+A mod stays in its own GitHub repository. The registry holds one file per mod,
+which points to that repository at a fixed commit: the one a maintainer
+reviewed.
+
+1. **Put the mod in a public GitHub repository.** `mod.json` goes at the root,
+   or in a subfolder (see `path` below). Set `version` in `mod.json`.
+2. **Push the commit to publish** to the repository's default branch and copy
+   its full id (`git rev-parse HEAD`).
+3. **Fork the registry and add `mods/<id>.json`**, named after your mod's `id`:
+
+   ```json
+   {
+     "id": "hello_hats",
+     "title": "Hello Hats",
+     "description": "Every enemy wears a tiny top hat. Purely cosmetic: rewards stay on.",
+     "repo": "https://github.com/your-name/hello-hats",
+     "commit": "4f1c2e8d0b6a5c3e9f7a1b2c4d6e8f0a1b3c5d7e",
+     "version": "1.0.0"
+   }
+   ```
+
+4. **Open a pull request.** Its check downloads your mod at that commit and
+   compares it with the entry. A maintainer then reviews the code and merges it.
+
+The fields:
+- **`title`** (1-48 characters) and **`description`** (one line, 1-240) are what
+  the Marketplace shows. They must use characters the game's font draws
+  (Latin-1: accents yes, emoji no).
+- **`commit`** is the full 40-character id, and it must be on the default branch.
+- **`version`** must equal the one in `mod.json` at that commit.
+- **`path`** (optional) is the folder that holds `mod.json`, when that is not
+  the repository's root.
+
+The author shown is the repository's owner.
+
+**Updating.** Push the new version (raise `version`), then open a pull request
+that changes `commit` and `version` in your entry. Players who installed the mod
+see it tagged UPDATE.
+
+**What players get.** The game downloads GitHub's archive of your repository at
+that commit. It checks that the archive is that commit and that its `mod.json`
+has the entry's `id`, then installs the folder holding `mod.json` into
+`<game data>/mods/<id>/`, byte for byte.
+- Keep the repository small, because the whole archive is downloaded.
+  `export-ignore` in a `.gitattributes` keeps files out of it, for example
+  `screenshots/ export-ignore`.
+- Git LFS files are not in GitHub's archives.
+- Files your `.gitignore` ignores are not in it either: GitHub's Lua template
+  ignores `*.obj`, which hides OBJ models (un-ignore them with `!*.obj`).
+- Symbolic links are skipped.
+
+**Trying your entry first.**
+- Clone the registry, add your entry, and start the game with
+  `--mod-registry <the clone's folder>`. The Marketplace then lists your copy of
+  the registry and installs from GitHub as usual.
+- The registry's `python tools/validate_registry.py --online mods/<id>.json`
+  runs the pull request's check on your machine.
+
+A mod from the Marketplace is a mod folder like any other: tick it and press
+Apply & Reload. The Installed tab tags it MARKETPLACE. If you already have a
+copy of that mod that you made yourself, installing asks first, then replaces
+your copy. An update of a loaded mod is swapped in when the mods reload.

@@ -8,7 +8,7 @@
 
 import std/[os, strutils, json, algorithm]
 import ../localization, ../settings, ../utils
-import lua_bridge, mod_state, mod_hooks, mod_api, mod_3d, mod_world2d, mod_content_api, mod_ui, mod_engine, mod_pvp, mod_theme, mod_catalog, mod_assets, mod_mixin, mod_rl
+import lua_bridge, mod_state, mod_hooks, mod_api, mod_3d, mod_world2d, mod_content_api, mod_ui, mod_engine, mod_pvp, mod_theme, mod_catalog, mod_assets, mod_mixin, mod_rl, mod_market
 
 proc summaryText*(): string =
   ## "3 loaded, 1 failed" style line for toasts and the log.
@@ -138,7 +138,9 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   resetModContent()
   let libraries = tableKeysOf(base)   # each mod gets its own copy of every game library
 
-  # 3. Discover and run.
+  # 3. Discover and run. Marketplace downloads of mods that were loaded wait
+  # for this point: the old copies' files (streams, script handles) are closed.
+  applyStagedMarketInstalls()
   installedMods = scanMods(enabled)
   let order = loadOrder(installedMods)
   var loadedIds: seq[string]

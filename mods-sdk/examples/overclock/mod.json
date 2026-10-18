@@ -1,8 +1,0 @@
-{
-  "id": "overclock",
-  "name": "Overclock",
-  "version": "1.0.0",
-  "author": "Paycei",
-  "description": "New content for wave mode: Bouncers ricochet around the arena from wave 3 on, PULSE_CORE.exe (a 3-level power-up) shocks every enemy near you, and OVERCLOCK, a two-phase boss with a scripted bullet ring and dash, replaces the wave 10 boss. Shows register.enemy, roster.add, register.powerup, register.boss and bossForWave.",
-  "main": "main.lua"
-}

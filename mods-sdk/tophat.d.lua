@@ -2075,6 +2075,8 @@ engine.mods_window = {}
 function engine.mods_window.drawModsWindow(mw) end
 ---newModsWindow(screenWidth: int, screenHeight: int, settings: Settings): ModsWindow
 function engine.mods_window.newModsWindow(screenWidth, screenHeight, settings) end
+---pollMarketplace(mw: ModsWindow): seq[string]
+function engine.mods_window.pollMarketplace(mw) end
 ---refreshModsWindow(mw: ModsWindow)
 function engine.mods_window.refreshModsWindow(mw) end
 ---resetModsWindow(mw: ModsWindow)
@@ -4565,6 +4567,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "mode_visuals.drawModeWarningTelegraph"
 ---| "mods_window.drawModsWindow"
 ---| "mods_window.newModsWindow"
+---| "mods_window.pollMarketplace"
 ---| "mods_window.refreshModsWindow"
 ---| "mods_window.resetModsWindow"
 ---| "mods_window.updateModsWindow"

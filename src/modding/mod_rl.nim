@@ -14,8 +14,7 @@
 ## and audio device's lifecycle and the frame itself (the game opens, draws
 ## and closes those), and the callback setters (scripts cannot be C callbacks).
 
-import raylib
-import mod_mixin_bind
+import mod_mixin_bind   # (raylib and rlgl come in through bindCallables' own imports)
 
 bindCallables(currentSourcePath(), ["../../vendor/naylib/src/raylib.nim", "../../vendor/naylib/src/rlgl.nim"],
   skip = @["initWindow", "closeWindow", "beginDrawing", "endDrawing", "swapScreenBuffer",

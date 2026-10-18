@@ -109,8 +109,8 @@ the firewall, and confirm that everyone is on the same network.
   <img src="media/3.png" alt="An example mod running in game" width="800">
 </p>
 
-Open **MODS.exe** on the desktop, press **Install Examples**, tick a mod and press
-**Apply & Reload**. Mods are written in **Lua 5.5** (the official implementation,
+Open **MODS.exe** on the desktop, install a mod from the **Marketplace** tab (the example
+mods are there: the game ships none of its own), tick it and press **Apply & Reload**. Mods are written in **Lua 5.5** (the official implementation,
 compiled into the game) and can:
 
 - add game modes, enemies, bosses and power-ups, or change the rules of the existing modes
@@ -122,23 +122,28 @@ compiled into the game) and can:
 - add screens of their own, new languages, and their own apps to MODS.exe
 
 Mods are trusted programs: they get the whole Lua standard library and every part of the
-game, like any program you install, so only install mods from people you trust (mods on
-the official repository are reviewed before they are published). A script that freezes
+game, like any program you install, so only install mods from people you trust. The mods in
+MODS.exe's **Marketplace** come from the
+[official registry](https://github.com/Paycei/TopHat-Shooter-ModRoot): each was reviewed
+before it was listed, and what installs is exactly the reviewed commit. To publish yours, put
+it in a GitHub repository and open a pull request there ("Publishing your mod" in the guide
+explains how). A script that freezes
 is stopped instead of freezing the game. Runs with mods loaded keep their own saves and
 earn no permanent rewards, unless every loaded mod opts out with
 `"disableAchievements": false` (for mods that only change looks).
 
-The included examples are *Hello HUD*, *House Rules*, *Story Mode*, *Overclock*, *Necromancer*,
+The example mods are *Hello HUD*, *House Rules*, *Story Mode*, *Overclock*, *Necromancer*,
 *Chaos Engine*, *Content Pack*, *Cosmetics Pack*, *Media*, *3D Worlds*, *Critical Section* and
-*Mixins Lab*. They live in [`mods-sdk/examples/`](mods-sdk/examples). The guide is
+*Mixins Lab*. They live in the mod registry's
+[`examples/`](https://github.com/Paycei/TopHat-Shooter-ModRoot/tree/main/examples). The guide is
 [`mods-sdk/MODDING.md`](mods-sdk/MODDING.md), and [`mods-sdk/API.md`](mods-sdk/API.md), generated
 from the game with `nimble modapi`, lists every function, hook and game proc a mod can use.
 
 ## Building from source
 
 **Requirements:** [Nim](https://nim-lang.org) 2.2.12 or newer with Nimble. Dependencies
-(`flatty`, `supersnappy`) come from `nimble install`. Raylib and Lua are compiled into the
-executable: Lua ships with the source, and raylib comes with its Nim bindings from the
+(`flatty`, `supersnappy`) come from `nimble install`. Raylib, Lua and BearSSL are compiled into
+the executable: Lua and BearSSL ship with the source, and raylib comes with its Nim bindings from the
 `vendor/naylib` git submodule, a maintained fork of
 [naylib](https://github.com/planetis-m/naylib) at [Paycei/naylib](https://github.com/Paycei/naylib).
 Windows release builds need the Visual C++ Build Tools.
@@ -176,7 +181,10 @@ game's enums make it refuse to build until new content is handled everywhere.
 ```bash
 nim check --mm:orc src/main.nim                # fast type-check, no binary
 nim r --mm:orc tests/test_spatial_grid.nim     # enemy spatial-grid queries
-nim r --mm:orc tests/test_mod_lua.nim          # mod runtime: stdlib, watchdog, errors
+nim r --mm:orc tests/test_mod_lua.nim          # mod runtime: stdlib, watchdog, errors (and the
+                                               # example mods, from a checkout of the mod registry
+                                               # next to this repo or at $TOPHAT_EXAMPLES)
+nim r --mm:orc tests/test_market.nim           # mod marketplace (add -d:online for GitHub)
 ```
 
 ### Where things live
@@ -212,4 +220,6 @@ Support is entirely optional and never gates any feature of the game.
 ## License
 
 Apache 2.0, see [LICENSE](LICENSE). Lua 5.5 is vendored under the MIT license
-(see [`vendor/lua/LICENSE`](vendor/lua/LICENSE)).
+(see [`vendor/lua/LICENSE`](vendor/lua/LICENSE)), and so is BearSSL
+(see [`vendor/bearssl/LICENSE.txt`](vendor/bearssl/LICENSE.txt)). The root certificates in
+[`vendor/cacert/`](vendor/cacert) are Mozilla's, under the Mozilla Public License 2.0.
