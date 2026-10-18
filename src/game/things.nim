@@ -220,6 +220,7 @@ proc applyHazard(game: Game, t: ModThing, grid: SpatialGrid, maxEnemyR: float32)
       if idx >= game.enemies.len: continue
       let e = game.enemies[idx]
       if e.hp <= 0 or not hazardHits(t, e.pos, e.radius): continue
+      if shieldBlocksHit(game, e, t.pos): continue   # a Port Guard facing the hazard
       let dealt = damageEnemy(e, hz.damage, consumesDiamondShield = false)
       if dealt > 0: showDamage(game, e.pos, dealt, true)
 
@@ -371,7 +372,9 @@ proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, m
           var r: RetVals
           discard callKind(thingKinds[ki].owner, thingKinds[ki].onTouchEnemy,
                            [wrapThing(t), wrapEnemy(e), wrapGame(game)], r)
-        if t.contactDamage > 0:
+        # (a blocked touch still counts: contactTimer keeps the spark from
+        # firing every frame)
+        if t.contactDamage > 0 and not shieldBlocksHit(game, e, t.pos):
           let dealt = damageEnemy(e, t.contactDamage, consumesDiamondShield = false)
           if dealt > 0: showDamage(game, e.pos, dealt, true)
         if not t.alive: break

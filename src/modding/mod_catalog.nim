@@ -48,6 +48,35 @@ proc modSearchDirs*(): seq[string] =
   if dirExists(portable) and normalizedPath(portable) != normalizedPath(result[0]):
     result.add(portable)
 
+when defined(windows):
+  proc removeDirectoryW(path: WideCString): int32 {.stdcall, dynlib: "kernel32",
+                                                   importc: "RemoveDirectoryW".}
+
+proc unlinkDir(path: string) =
+  ## Remove a folder link itself (a symbolic link or a junction), never what
+  ## it points at. On Windows a link to a folder is a folder (removeFile is
+  ## refused); elsewhere it is a file.
+  when defined(windows):
+    if removeDirectoryW(newWideCString(path)) == 0:
+      raiseOSError(osLastError(), path)
+  else:
+    removeFile(path)
+
+proc removeModFolder*(dir: string) =
+  ## removeDir that never follows a link. A modder often links a checkout
+  ## into the mods folder, and removeDir lists a link's target before
+  ## removing the link: it emptied the checkout, .git included. A link (the
+  ## folder itself or one inside it) is unlinked instead. Raises OSError.
+  if symlinkExists(dir):
+    unlinkDir(dir)
+    return
+  for kind, path in walkDir(dir):
+    case kind
+    of pcLinkToDir: unlinkDir(path)
+    of pcDir: removeModFolder(path)
+    of pcFile, pcLinkToFile: removeFile(path)
+  removeDir(dir)   # (empty now)
+
 proc validId(id: string): bool =
   if id.len == 0 or id.len > 40: return false
   for c in id:

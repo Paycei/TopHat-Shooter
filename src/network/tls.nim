@@ -133,6 +133,15 @@ proc runUntil(c: TlsConn, target: cuint): bool =
       continue
     sslEngineFlush(c.cc.eng, 0)
 
+proc tlsClose*(c: TlsConn) =
+  ## Drop the connection (no close_notify: every request says Connection: close).
+  if c.open:
+    c.open = false
+    try:
+      c.sock.close()
+    except CatchableError:
+      discard
+
 proc tlsConnect*(host: string, port = 443, cancel: ptr Atomic[bool] = nil,
                  connectMs = 10_000, idleMs = 30_000): TlsConn =
   ## Open a TCP connection and set up a TLS session for `host` (its name is
@@ -141,17 +150,17 @@ proc tlsConnect*(host: string, port = 443, cancel: ptr Atomic[bool] = nil,
   result = TlsConn(cancel: cancel, idleMs: idleMs)
   try:
     result.sock = newSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, buffered = false)
+    result.open = true   # from here tlsClose closes the socket, connected or not
     result.sock.connect(host, Port(port), connectMs)
   except TimeoutError:
     result.fail(tlsTimeout, "connecting to " & host & " timed out")
-    return
   except OSError as e:
     result.fail(tlsNetwork, "cannot connect to " & host & ": " & e.msg)
-    return
   except CatchableError as e:
     result.fail(tlsNetwork, "cannot connect to " & host & ": " & e.msg)
+  if result.error != tlsOk:
+    tlsClose(result)
     return
-  result.open = true
   sslClientInitFull(result.cc, addr result.xc, addr MozillaTrustAnchors[0],
                     csize_t(MozillaTrustAnchors.len))
   result.iobuf = newSeq[uint8](SSL_BUFSIZE_BIDI)
@@ -186,12 +195,3 @@ proc tlsRead*(c: TlsConn, buf: pointer, size: int): int =
   result = min(int(avail), size)
   copyMem(buf, src, result)
   sslEngineRecvappAck(c.cc.eng, csize_t(result))
-
-proc tlsClose*(c: TlsConn) =
-  ## Drop the connection (no close_notify: every request says Connection: close).
-  if c.open:
-    c.open = false
-    try:
-      c.sock.close()
-    except CatchableError:
-      discard

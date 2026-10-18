@@ -64,11 +64,18 @@ proc wrapTextLines*(text: string, maxWidth, fontSize: int32,
     currentLine = word
     if breakLongWords and measureText(word, fontSize) > maxWidth:
       var chunk = ""
-      for ch in word:
+      var i = 0
+      while i < word.len:
+        # One character: a byte and its UTF-8 continuation bytes, so a cut
+        # never splits an accented letter (half of one draws as '?').
+        var j = i + 1
+        while j < word.len and (ord(word[j]) and 0xC0) == 0x80: inc j
+        let ch = word[i ..< j]
         if chunk.len > 0 and measureText(chunk & ch, fontSize) > maxWidth:
           result.add(chunk)
           chunk = ""
         chunk.add(ch)
+        i = j
       currentLine = chunk
 
   if currentLine.len > 0:

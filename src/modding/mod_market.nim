@@ -203,7 +203,7 @@ proc loadRecords() =
   let path = marketDir() / "installed.json"
   if not fileExists(path): return
   try:
-    for n in parseFile(path){"mods"}:
+    for n in parseFile(path){"mods"}.getElems():   # (json's items only asserts the kind)
       records.add(MarketRecord(id: n{"id"}.getStr, folder: n{"folder"}.getStr, repo: n{"repo"}.getStr,
                                commit: n{"commit"}.getStr, path: n{"path"}.getStr,
                                version: n{"version"}.getStr))
@@ -325,7 +325,7 @@ proc loadRegistryCache() =
     let j = parseFile(path)
     if j{"source"}.getStr != marketRegistrySource: return
     var files: seq[tuple[name, text: string]]
-    for e in j{"entries"}:
+    for e in j{"entries"}.getElems():
       files.add((e{"id"}.getStr & ".json", $e))
     discard applyRegistry($(%*{"format": j{"format"}.getInt(1)}), files, j{"commit"}.getStr,
                           j{"fetchedAt"}.getFloat, live = false)
@@ -571,7 +571,9 @@ proc swapStaged(id: string): string =
   var leftovers = @[stage]
   for m in moved: leftovers.add(m.dst)
   for dir in leftovers:
-    try: removeDir(dir)
+    # A replaced copy may be a link to a modder's checkout: moveFile moved the
+    # link, and only the link may go.
+    try: removeModFolder(dir)
     except OSError, IOError: discard   # cleaned at the next start
   ""
 
@@ -638,10 +640,11 @@ proc initMarketplace*(registry = "") =
   if registry.len > 0: marketRegistrySource = registry
   try:
     removeDir(downloadRoot())
-    removeDir(trashRoot())
+    removeModFolder(trashRoot())   # replaced copies, links among them
     if dirExists(stagingRoot()):
       for kind, path in walkDir(stagingRoot()):
-        if not fileExists(path / "stage.json"): removeDir(path)
+        if kind in {pcDir, pcLinkToDir} and not fileExists(path / "stage.json"):
+          removeModFolder(path)
   except OSError, IOError:
     discard
   loadRecords()

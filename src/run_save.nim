@@ -212,33 +212,34 @@ proc applyPlayerJson(p: Player, j: JsonNode) =
 
   if j.hasKey("powerUps"):
     p.powerUps = @[]
-    for pu in j["powerUps"]:
+    for pu in jsonItems(j["powerUps"]):
       # A mod power-up whose mod is gone is dropped, never turned into another.
+      # ({} access: an entry of the wrong shape is skipped, not a crash.)
       var pt: PowerUpType
-      if not parsePowerUpSaveName(pu["t"].getStr(), pt):
+      if not parsePowerUpSaveName(pu{"t"}.getStr(), pt):
         continue
       p.powerUps.add(PowerUp(
         powerType: pt,
-        level: pu["l"].getInt(),
+        level: pu{"l"}.getInt(1),
         rarity: parseRarity(pu.getOrDefault("r").getStr("prCommon"))))
 
   if j.hasKey("rotatingOrbs"):
     p.rotatingOrbs = @[]
-    for o in j["rotatingOrbs"]:
+    for o in jsonItems(j["rotatingOrbs"]):
       p.rotatingOrbs.add(RotatingOrb(
-        angle: o["angle"].getFloat().float32,
-        radius: o["radius"].getFloat().float32,
-        elementType: parseElement(o["element"].getStr()),
-        orbLevel: o["level"].getInt(1),
+        angle: o{"angle"}.getFloat().float32,
+        radius: o{"radius"}.getFloat().float32,
+        elementType: parseElement(o{"element"}.getStr()),
+        orbLevel: o{"level"}.getInt(1),
         hitEnemies: @[]))
   f("orbRotationAngle", p.orbRotationAngle)
 
   if j.hasKey("shieldHealths"):
     p.shieldHealths = @[]
-    for s in j["shieldHealths"]: p.shieldHealths.add(s.getFloat().float32)
+    for s in jsonItems(j["shieldHealths"]): p.shieldHealths.add(s.getFloat().float32)
   if j.hasKey("shieldRegenTimers"):
     p.shieldRegenTimers = @[]
-    for s in j["shieldRegenTimers"]: p.shieldRegenTimers.add(s.getFloat().float32)
+    for s in jsonItems(j["shieldRegenTimers"]): p.shieldRegenTimers.add(s.getFloat().float32)
   f("shieldMaxHealth", p.shieldMaxHealth); f("shieldRegenDelay", p.shieldRegenDelay)
   f("singularityShield", p.singularityShield)
   f("singularityShieldMaxPct", p.singularityShieldMaxPct)
@@ -588,7 +589,7 @@ proc applySavedRun*(game: Game, file: string = ""): bool {.moddable.} =
     game.metaCoresEarned = max(0, j.getOrDefault("metaCoresEarned").getInt(0))
     game.time = j.getOrDefault("time").getFloat(0.0).float32
     game.pendingLevelDrafts = max(0, j.getOrDefault("pendingLevelDrafts").getInt(0))
-    if j.hasKey("player"):
+    if j.hasKey("player") and j["player"].kind == JObject:
       applyPlayerJson(game.player, j["player"])
 
     # Restore the shop price/gain curves. Counters only: the purchases they paid

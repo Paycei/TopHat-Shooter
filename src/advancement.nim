@@ -465,8 +465,8 @@ proc loadAdvancementCompletionForSlot*(slot: int): float32 {.moddable.} =
     if not fileExists(path):
       return 0.0
     let node = parseJson(readFile(path))
-    if node.hasKey("entries"):
-      for item in node["entries"]:
+    if node.kind == JObject and node.hasKey("entries"):
+      for item in jsonItems(node["entries"]):
         # Stale ids from removed advancements must not inflate the ratio.
         if item.getOrDefault("unlocked").getBool(false) and
            hasDefinition(item.getOrDefault("id").getStr("")):
@@ -869,6 +869,7 @@ proc advancementProfileToJson(profile: AdvancementProfile): JsonNode {.moddable.
   }
 
 proc jsonToAdvancementProfile(node: JsonNode): AdvancementProfile {.moddable.} =
+  needObject(node)
   result = AdvancementProfile(
     version: node.getOrDefault("version").getInt(AdvancementProfileVersion),
     entries: @[],
@@ -877,7 +878,7 @@ proc jsonToAdvancementProfile(node: JsonNode): AdvancementProfile {.moddable.} =
   )
 
   if node.hasKey("entries"):
-    for item in node["entries"]:
+    for item in jsonItems(node["entries"]):
       var entry = AdvancementEntry(
         id: item.getOrDefault("id").getStr(""),
         progress: item.getOrDefault("progress").getFloat(0.0).float32,
@@ -889,7 +890,7 @@ proc jsonToAdvancementProfile(node: JsonNode): AdvancementProfile {.moddable.} =
         result.entries.add(entry)
 
   if node.hasKey("recentUnlocks"):
-    for item in node["recentUnlocks"]:
+    for item in jsonItems(node["recentUnlocks"]):
       result.recentUnlocks.add(item.getStr())
   # Saves from before the menu toast queue existed accumulated unlocks here
   # without ever consuming them; keep only the latest few to avoid toast spam.

@@ -271,6 +271,7 @@ proc explodeAt(game: Game, x, y, r, dmg: float32, hurtPlayer, hurtEnemies: bool,
       let dy = e.pos.y - y
       let rr = r + e.radius
       if dx * dx + dy * dy <= rr * rr:
+        if shieldBlocksHit(game, e, c): continue   # a Port Guard facing the blast
         let dealt = damageEnemy(e, dmg, consumesDiamondShield = false)
         if dealt > 0: showDamage(game, e.pos, dealt, true)
   for t in game.modThings:

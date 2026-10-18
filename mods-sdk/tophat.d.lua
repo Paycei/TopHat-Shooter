@@ -2679,6 +2679,8 @@ function engine.save_system.loadSettings(settings) end
 function engine.save_system.markStorySeen(settings, cine) end
 ---migrateLegacySaveFiles()
 function engine.save_system.migrateLegacySaveFiles() end
+---needObject(j: JsonNode)
+function engine.save_system.needObject(j) end
 ---profileExists(slot: int): bool
 function engine.save_system.profileExists(slot) end
 ---saveLastRunStats(runStats: RunStatistics): bool

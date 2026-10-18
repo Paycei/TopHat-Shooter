@@ -1,6 +1,8 @@
 ## Core Networking Layer for PvP Mode
 
 import net, nativesockets, flatty, supersnappy, times, strutils, math
+import std/typetraits   # supportsCopyMem: what flatty copies raw (flatty imports it too)
+import flatty/objvar    # flatty's object-variant helpers, for readNet
 import network_types, ../types
 import ../modding/[mod_state, mod_assets]
 
@@ -14,16 +16,148 @@ const
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 100
   PACKET_MAGIC = "THS1"
+  MaxPacketPayload = 2 * 1024 * 1024
+    ## Largest decompressed packet accepted. A full datagram decompresses to
+    ## ~1.4 MB at most (snappy's best ratio is ~21:1), and supersnappy
+    ## allocates whatever size a packet declares before decoding a byte.
 
 # Serialization (flatty payloads wrapped with supersnappy compression)
 
 proc serialize(packet: Packet): string {.inline.} =
   PACKET_MAGIC & supersnappy.compress(packet.toFlatty())
 
-proc deserialize(data: string): Packet {.inline.} =
+# Decoding. Every datagram is decoded before anything checks who sent it, and
+# flatty trusts the lengths and enum tags it reads: it leans on Nim's runtime
+# checks, which -d:danger compiles out, so a 14-byte datagram claiming a 2^40
+# byte string ran the game out of memory. readNet reads flatty's layout (the
+# wire format is unchanged) but checks every read against what is left of the
+# packet, lets a length allocate no more than the bytes that could fill it,
+# and checks every enum's range. A malformed packet raises ValueError.
+
+proc malformed() {.noinline, noreturn.} =
+  raise newException(ValueError, "Malformed packet")
+
+template need(s: string, i, n: int) =
+  if n > s.len - i: malformed()
+
+proc readNet(s: string, i: var int, x: var bool)
+proc readNet(s: string, i: var int, x: var string)
+proc readNet[T: SomeNumber](s: string, i: var int, x: var T)
+proc readNet[T: enum](s: string, i: var int, x: var T)
+proc readNet[T](s: string, i: var int, x: var seq[T])
+proc readNet[N, T](s: string, i: var int, x: var array[N, T])
+proc readNet[T: tuple](s: string, i: var int, x: var T)
+proc readNet(s: string, i: var int, x: var object)
+
+proc wireMin(T: typedesc): int =
+  ## The fewest bytes one T takes on the wire (what a declared count may cost).
+  when T is bool: 1
+  elif T is SomeNumber: sizeof(T)
+  elif T is enum: 8
+  elif T is string or T is seq: 8
+  elif T is array:
+    when supportsCopyMem(T): sizeof(T)
+    else: default(T).len * wireMin(typeof(default(T)[0]))
+  elif T is tuple or T is object:
+    var n = 0
+    for f in default(T).fields: n += wireMin(typeof(f))
+    n
+  else:
+    {.error: "a packet field type readNet does not decode".}
+
+proc tidyNet[T](x: var T) =
+  ## A value copied raw (a seq or array of plain data): its bools and enums
+  ## arrived as raw bytes, so the bools are normalised, the enums checked.
+  when T is bool:
+    x = cast[uint8](x) != 0
+  elif T is enum:
+    if ord(x) < ord(low(T)) or ord(x) > ord(high(T)): malformed()
+  elif T is array:
+    for e in x.mitems: tidyNet(e)
+  elif T is tuple or T is object:
+    for f in x.fields: tidyNet(f)
+
+proc readNet(s: string, i: var int, x: var bool) =
+  need(s, i, 1)
+  x = s[i] != '\0'
+  inc i
+
+proc readNet[T: SomeNumber](s: string, i: var int, x: var T) =
+  need(s, i, sizeof(T))
+  copyMem(addr x, unsafeAddr s[i], sizeof(T))
+  i += sizeof(T)
+
+proc readNet[T: enum](s: string, i: var int, x: var T) =
+  static: doAssert T is Ordinal, "readNet: an enum with holes in a packet"
+  var v: int64
+  readNet(s, i, v)
+  if v < ord(low(T)) or v > ord(high(T)): malformed()
+  x = T(v)
+
+proc readNet(s: string, i: var int, x: var string) =
+  var n: int64
+  readNet(s, i, n)
+  if n < 0 or n > s.len - i: malformed()
+  x = s.substr(i, i + n.int - 1)
+  i += n.int
+
+proc readNet[T](s: string, i: var int, x: var seq[T]) =
+  var n: int64
+  readNet(s, i, n)
+  const unit = when supportsCopyMem(T): sizeof(T) else: max(1, wireMin(T))
+  if n < 0 or n > (s.len - i) div unit: malformed()
+  x.setLen(n.int)
+  when supportsCopyMem(T):
+    if n > 0:
+      copyMem(addr x[0], unsafeAddr s[i], n.int * sizeof(T))
+      i += n.int * sizeof(T)
+      for e in x.mitems: tidyNet(e)
+  else:
+    for e in x.mitems: readNet(s, i, e)
+
+proc readNet[N, T](s: string, i: var int, x: var array[N, T]) =
+  when supportsCopyMem(T):
+    if sizeof(x) > 0:
+      need(s, i, sizeof(x))
+      copyMem(addr x, unsafeAddr s[i], sizeof(x))
+      i += sizeof(x)
+      tidyNet(x)
+  else:
+    for e in x.mitems: readNet(s, i, e)
+
+proc readNet[T: tuple](s: string, i: var int, x: var T) =
+  for e in x.fields: readNet(s, i, e)
+
+proc readNet(s: string, i: var int, x: var object) =
+  when x.isObjectVariant:
+    var kind: typeof(x.discriminatorField)
+    readNet(s, i, kind)
+    new(x, kind)
+    for name, e in x.fieldPairs:
+      when name != x.discriminatorFieldName:
+        readNet(s, i, e)
+  else:
+    for e in x.fields: readNet(s, i, e)
+
+proc snappyDeclaredLen(data: string, start: int): int64 =
+  ## The decompressed size a snappy block starts with (a varint of up to 5
+  ## bytes), -1 when it is cut short.
+  var shift = 0
+  for i in start ..< min(data.len, start + 5):
+    let b = ord(data[i])
+    result = result or (int64(b and 0x7F) shl shift)
+    if b < 0x80: return
+    shift += 7
+  result = -1
+
+proc deserialize(data: string): Packet =
   if data.len <= PACKET_MAGIC.len or not data.startsWith(PACKET_MAGIC):
     raise newException(ValueError, "Unsupported packet encoding")
-  supersnappy.uncompress(data[PACKET_MAGIC.len .. data.high]).fromFlatty(Packet)
+  let declared = snappyDeclaredLen(data, PACKET_MAGIC.len)
+  if declared < 0 or declared > MaxPacketPayload: malformed()
+  let raw = supersnappy.uncompress(data[PACKET_MAGIC.len .. data.high])
+  var i = 0
+  readNet(raw, i, result)
 
 type
   NetworkEventKind* = enum
@@ -80,6 +214,9 @@ type
     hostPort*: Port       ## its connection accept). remoteAddr is whatever the
                           ## user typed -- possibly a hostname -- so it can't be
                           ## compared against a datagram's source.
+    hostIp: IpAddress     ## Client: hostAddress parsed. Packets go here once
+    hostIpKnown: bool     ## connected: sendTo(string) looks a hostname up on
+                          ## every call, on the frame.
 
 # Construction
 
@@ -124,6 +261,7 @@ proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
                    nickname: string = "Player") =
   nm.remoteAddr = host
   nm.remotePort = Port(port)
+  nm.hostIpKnown = false
   var packet = newPacket(ptConnectionRequest)
   packet.version = NETWORK_VERSION
   packet.playerName = nickname
@@ -150,8 +288,18 @@ proc sendPacket*(nm: NetworkManager, packet: Packet) =
       try: nm.socket.sendTo(client.address, client.port, data)
       except: echo "[NETWORK] Failed to send to ", client.address, ":", client.port.int
   elif nm.role == nrClient and nm.isConnected and nm.remoteAddr != "":
-    try: nm.socket.sendTo(nm.remoteAddr, nm.remotePort, data)
+    try:
+      if nm.hostIpKnown: nm.socket.sendTo(nm.hostIp, nm.hostPort, data)
+      else: nm.socket.sendTo(nm.remoteAddr, nm.remotePort, data)
     except: echo "[NETWORK] Failed to send packet: ", getCurrentExceptionMsg()
+
+proc sendTo(nm: NetworkManager, address: string, port: Port, packet: Packet) =
+  ## One packet to one address (pollEvents' replies): a failed send is logged,
+  ## never raised out of the poll.
+  try:
+    nm.socket.sendTo(address, port, serialize(packet))
+  except CatchableError:
+    echo "[NETWORK] Failed to send to ", address, ":", port.int, ": ", getCurrentExceptionMsg()
 
 proc sendPing*(nm: NetworkManager, pingId: int) =
   var packet = newPacket(ptPing)
@@ -341,7 +489,7 @@ proc pollEvents*(nm: NetworkManager,
         deny.connectionReason = "Version mismatch (host " & NETWORK_VERSION & ", client " & packet.version & ")"
         deny.assignedPlayerIndex = -1
         deny.connectedPlayers = @[]
-        nm.socket.sendTo(address, port, serialize(deny))
+        nm.sendTo(address, port, deny)
         echo "[NETWORK] Connection denied (version mismatch): host=", NETWORK_VERSION, " client=", packet.version
         continue
 
@@ -354,7 +502,7 @@ proc pollEvents*(nm: NetworkManager,
         deny.connectionReason = "Mods don't match (host: " & hostMods & "; you: " & clientMods & ")"
         deny.assignedPlayerIndex = -1
         deny.connectedPlayers = @[]
-        nm.socket.sendTo(address, port, serialize(deny))
+        nm.sendTo(address, port, deny)
         echo "[NETWORK] Connection denied (mod mismatch): host=", modFingerprintHex, " client=", packet.modFingerprint
         continue
 
@@ -365,7 +513,7 @@ proc pollEvents*(nm: NetworkManager,
         deny.connectionReason = "Match already in progress"
         deny.assignedPlayerIndex = -1
         deny.connectedPlayers = @[]
-        nm.socket.sendTo(address, port, serialize(deny))
+        nm.sendTo(address, port, deny)
         echo "[NETWORK] Connection denied (match in progress): ", address, ":", port.int
         continue
 
@@ -374,7 +522,7 @@ proc pollEvents*(nm: NetworkManager,
         deny.connectionReason = "Room is full (" & $nm.clients.len & "/" & $(nm.maxPlayers - 1) & " clients)"
         deny.assignedPlayerIndex = -1
         deny.connectedPlayers = @[]
-        nm.socket.sendTo(address, port, serialize(deny))
+        nm.sendTo(address, port, deny)
         echo "[NETWORK] Connection denied (full): ", address, ":", port.int
         continue
 
@@ -400,7 +548,7 @@ proc pollEvents*(nm: NetworkManager,
       accept.connectionReason = "Connection accepted"
       accept.assignedPlayerIndex = assignedIndex
       accept.connectedPlayers = roster
-      nm.socket.sendTo(address, port, serialize(accept))
+      nm.sendTo(address, port, accept)
 
       # Notify all OTHER existing clients about the updated player list
       if nm.clients.len > 1:  # Only if there are other clients besides the new one
@@ -434,6 +582,11 @@ proc pollEvents*(nm: NetworkManager,
         nm.timeoutDisabled = false
         nm.hostAddress = address
         nm.hostPort = port
+        try:
+          nm.hostIp = parseIpAddress(address)   # (a datagram's source: numeric)
+          nm.hostIpKnown = true
+        except ValueError:
+          nm.hostIpKnown = false
         result.add(NetworkEvent(kind: neConnect,
           connectPlayerIndex: packet.assignedPlayerIndex,
           remoteAddress: address,
@@ -507,7 +660,7 @@ proc pollEvents*(nm: NetworkManager,
       pong.pingId = packet.pingId
       pong.sendTime = packet.sendTime
       if nm.role == nrHost:
-        nm.socket.sendTo(address, port, serialize(pong))
+        nm.sendTo(address, port, pong)
       else:
         nm.sendPacket(pong)
     else:

@@ -122,6 +122,7 @@ proc gameModeStatsToJson(stats: GameModeStats): JsonNode =
   }
 
 proc jsonToGameModeStats(jsonNode: JsonNode, stats: var GameModeStats) =
+  needObject(jsonNode)
   if jsonNode.hasKey("gamesPlayed"):
     stats.gamesPlayed = jsonNode["gamesPlayed"].getInt()
   if jsonNode.hasKey("totalKills"):
@@ -162,6 +163,7 @@ proc statisticsToJson(stats: Statistics): JsonNode {.moddable.} =
   }
 
 proc jsonToStatistics(jsonNode: JsonNode, stats: Statistics) {.moddable.} =
+  needObject(jsonNode)
   if jsonNode.hasKey("waveMode"):
     jsonToGameModeStats(jsonNode["waveMode"], stats.waveMode)
   if jsonNode.hasKey("timeMode"):
@@ -178,7 +180,7 @@ proc jsonToStatistics(jsonNode: JsonNode, stats: Statistics) {.moddable.} =
     stats.lastPlayDate = jsonNode["lastPlayDate"].getStr()
   if jsonNode.hasKey("defeatedBossIDs"):
     stats.defeatedBossIDs = @[]
-    for idNode in jsonNode["defeatedBossIDs"]:
+    for idNode in jsonItems(jsonNode["defeatedBossIDs"]):
       stats.defeatedBossIDs.add(idNode.getInt())
 
 # HELPER FUNCTIONS

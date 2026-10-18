@@ -287,7 +287,7 @@ proc removeMod(mw: ModsWindow) =
     mw.say(t(tkModsRemoveFailed), isError = true)
     return
   try:
-    removeDir(m.dir)
+    removeModFolder(m.dir)   # (a linked folder: only the link goes)
   except IOError, OSError:
     rescanInstalledMods(mw.settings.enabledMods)
     mw.say(t(tkModsRemoveFailed), isError = true)

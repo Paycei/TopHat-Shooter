@@ -368,8 +368,9 @@ Methods:
 * `enemy:valid()`: still alive and still in the run; `bullet:valid()`: still
   flying.
 * `enemy:kill()` (with rewards; a boss skips its remaining phases),
-  `enemy:remove()` (no death, no rewards; a removed boss is not defeated, so
-  its boss wave only ends when you end it), `enemy:heal(n)`.
+  `enemy:remove()` (no death, no rewards; a boss is never removed, since its
+  boss wave only ends through its defeat: `enemy:kill()` defeats it at once),
+  `enemy:heal(n)`.
 
 ### The game's global state
 
@@ -389,6 +390,13 @@ engine.globals.roguelite.dataShards = engine.globals.roguelite.dataShards + 100
 
 Changes are saved when the game saves that state (settings when you leave
 Settings or close the game, the profile at the end of a run...).
+
+The profile's progression loads after the mods do, so that its saves can
+name your mod's content: while your main chunk runs (at startup, and again
+when the player switches profile), `stats`, `roguelite`, `advancements` and
+`runStats` hold nothing yet at startup and the previous profile's data after
+a switch, and what you change in them is lost. Read and change them from a
+hook (`frame`, `runStart`...), which only runs once the profile is loaded.
 
 ### Your own data on an entity
 

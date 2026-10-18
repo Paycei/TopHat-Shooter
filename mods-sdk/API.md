@@ -2027,6 +2027,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `loadSettings(settings: Settings): bool`
 - **moddable** `markStorySeen(settings: Settings, cine: StoryCinematic)`
 - **moddable** `migrateLegacySaveFiles()`
+- `needObject(j: JsonNode)`
 - **moddable** `profileExists(slot: int): bool`
 - **moddable** `runStatisticsToJson(runStats: RunStatistics): JsonNode` (wrap only: scripts cannot call it)
 - **moddable** `saveLastRunStats(runStats: RunStatistics): bool`

@@ -1160,9 +1160,9 @@ proc installContentLibraries(base: ScriptTable) =
     e.hp = 0
     if e.requiredHits > 0: e.hitCount = max(e.hitCount, e.requiredHits)
   enemyMethods.reg("remove") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## Vanishes at the end of the frame: no death, no rewards. A removed boss
-    ## is not defeated either, so its boss wave only ends when the mod ends
-    ## it (game:endWave()).
+    ## Vanishes at the end of the frame: no death, no rewards. A boss is never
+    ## removed: its phases and its boss wave only end through its defeat
+    ## (enemy:kill() defeats it at once).
     let e = vm.selfEnemy(args, "remove")
     queueModAction(ModAction(kind: makRemoveEnemy, owner: vm.requireOwner("enemy:remove"), target: e))
   enemyMethods.reg("heal") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):

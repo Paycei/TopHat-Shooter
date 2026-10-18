@@ -114,6 +114,7 @@ proc readEntryFrom(f: File, e: ZipEntry, data: var string): string =
     if e.compSize != e.size: return e.name & ": damaged entry"
     data = move comp
   of 8:
+    if e.compSize == 0 and e.size > 0: return e.name & ": damaged entry"
     data = newString(e.size)
     if e.size > 0:
       # sinflate reports how much it wrote, also when it stopped at an error:

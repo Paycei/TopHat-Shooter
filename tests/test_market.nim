@@ -285,6 +285,51 @@ block installs:
         not dirExists(marketRoot / "staging" / "delta") and
         fileExists(marketRoot / "staging" / "omega" / "stage.json"), "startup: leftovers cleared")
 
+# --------------------------------------------------------- linked folders ----
+block linkedFolders:
+  # A modder's checkout linked into the mods folder (a junction on Windows):
+  # replacing or removing the mod drops the link and never touches the
+  # checkout. removeDir lists a link's target before removing the link, and
+  # emptied the checkout, .git included.
+  proc linkDir(target, link: string): bool =
+    when defined(windows):
+      execShellCmd("mklink /J " & quoteShell(link) & " " & quoteShell(target) & " >NUL") == 0
+    else:
+      try:
+        createSymlink(target, link)
+        true
+      except OSError:
+        false
+  let checkout = home / "checkout_kappa"
+  createDir(checkout / ".git")
+  writeFile(checkout / ".git" / "HEAD", "ref: refs/heads/main")
+  writeFile(checkout / "mod.json", $(%*{"id": "kappa"}))
+  writeFile(checkout / "main.lua", "-- dev")
+  let intact = proc (): bool =
+    fileExists(checkout / "main.lua") and fileExists(checkout / ".git" / "HEAD")
+  if not linkDir(checkout, mods / "kappa_dev"):
+    echo "SKIP linked folders: could not make a link"
+  else:
+    rescanInstalledMods(@[])
+    check(marketState(entryFor("kappa")) == mkLocalCopy, "link: a linked checkout is a local copy")
+    stage("kappa")
+    applyStagedMarketInstalls()
+    rescanInstalledMods(@[])
+    check(fileExists(mods / "kappa" / "main.lua") and not symlinkExists(mods / "kappa_dev") and
+          intact(), "link: replacing a linked copy keeps the checkout")
+    # MODS.EXE's Remove: the folder a link
+    check(linkDir(checkout, mods / "kappa_link"), "link: made")
+    removeModFolder(mods / "kappa_link")
+    check(not symlinkExists(mods / "kappa_link") and intact(),
+          "remove: a linked folder loses only its link")
+    # ...or a link inside the folder
+    createDir(mods / "holder")
+    writeFile(mods / "holder" / "own.lua", "-- own")
+    check(linkDir(checkout, mods / "holder" / "assets"), "link: made inside a folder")
+    removeModFolder(mods / "holder")
+    check(not dirExists(mods / "holder") and intact(),
+          "remove: a link inside a mod folder is unlinked, not emptied")
+
 # ----------------------------------------------------------------- online ----
 when defined(online):
   block https:
