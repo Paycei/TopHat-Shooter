@@ -2,7 +2,7 @@
 <#
   Builds the three TopHat-ShooterOS release artifacts into ship/:
 
-    TopHatShooterOS-PORTABLE.zip          nimble WinReleaseFull (speed, full LTO)
+    TopHatShooterOS-PORTABLE.zip          nimble WinRelease (speed, full LTO)
     TopHatShooterOS-Installer_<ver>.exe   the same exe + niminst/Inno
     TopHatShooterOS-linux-x86_64.tar.gz   nimble LinuxRelease, inside WSL
     SHA256SUMS.txt
@@ -96,12 +96,12 @@ function Assert-Naylib {
 }
 
 function Build-Windows {
-    # One WinReleaseFull (speed, full LTO) build feeds both Windows artifacts:
+    # One WinRelease (speed, full LTO) build feeds both Windows artifacts:
     # the portable zip and the installer ship the same exe.
     Use-Msvc
-    Run 'nimble' @('--accept', 'WinReleaseFull') 'nimble WinReleaseFull'
+    Run 'nimble' @('--accept', 'WinRelease') 'nimble WinRelease'
     $exe = Join-Path $RepoRoot $WinExeName
-    if (-not (Test-Path $exe)) { throw "WinReleaseFull finished but $WinExeName was not produced." }
+    if (-not (Test-Path $exe)) { throw "WinRelease finished but $WinExeName was not produced." }
     Compress-Archive -Path $exe -DestinationPath (Join-Path $ShipDir $PortableName) -CompressionLevel Optimal -Force
 
     Push-Location $RepoRoot     # niminst resolves the .ini's paths from the CWD
