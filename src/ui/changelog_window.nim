@@ -1890,7 +1890,6 @@ proc newChangelogWindow*(screenWidth, screenHeight: int): ChangelogWindow {.modd
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 180, b: 80, a: 255),  # amber
-    owtHelp,
     resizable = false
   )
 

@@ -9,7 +9,6 @@ type
     siMedium,     # 2-3px for enemy kill
     siLarge,      # 3-5px for boss hit
     siMassive,    # 8-12px for boss kill
-    siCritical,   # Double intensity for crits
     siPowerUp     # 4px for power-up collection
 
 proc newScreenShake*(): ScreenShake {.moddable.} =
@@ -49,9 +48,6 @@ proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity,
     shake.intensity = max(shake.intensity, float32(rand(9.0..13.0)))
     shake.duration = 0.3
     shake.decayRate = 0.5  # Slow decay for dramatic effect
-  of siCritical:
-    shake.intensity = max(shake.intensity, float32(rand(1.8..2.8)) * 1.5)
-    shake.duration = 0.09
   of siPowerUp:
     shake.intensity = max(shake.intensity, 5.0)
     shake.duration = 0.2
@@ -96,7 +92,7 @@ proc newComboSystem*(): ComboSystem {.moddable.} =
     lastPerfectWaveBonus: 0
   )
 
-proc getComboWindow*(combo: ComboSystem): float32 {.moddable.} =
+proc getComboWindow(combo: ComboSystem): float32 {.moddable.} =
   ## Get the dynamic combo window based on current combo count
   ## Window gets shorter as combo increases to increase difficulty
   let baseWindow = 4.0  # Starting window
@@ -133,7 +129,7 @@ proc addComboKill*(combo: var ComboSystem, currentTime: float32): int {.moddable
 
   return combo.bonusCoins
 
-proc updateCombo*(combo: var ComboSystem, dt: float32, currentTime: float32) {.moddable.} =
+proc updateCombo(combo: var ComboSystem, dt: float32, currentTime: float32) {.moddable.} =
   ## Update combo system with "coyote time" - players get 0.1s extra grace period
   let currentWindow = getComboWindow(combo)
   let coyoteTime = 0.1  # Extra buffer time not shown on timer (like coyote jump)
@@ -183,7 +179,7 @@ proc newMicroRewardTracker*(): MicroRewardTracker {.moddable.} =
     rewards: @[]
   )
 
-proc updateRewards*(tracker: var MicroRewardTracker, dt: float32) {.moddable.} =
+proc updateRewards(tracker: var MicroRewardTracker, dt: float32) {.moddable.} =
   var i = 0
   while i < tracker.rewards.len:
     tracker.rewards[i].displayTimer -= dt
@@ -204,7 +200,6 @@ proc newSlowMotion*(): SlowMotion {.moddable.} =
     timeScale: 1.0,
     duration: 0,
     maxDuration: 0,
-    slowType: smtNone,
     hitStopTimer: 0,
     hitStopScale: 1.0,
     rampToNormal: false
@@ -221,17 +216,11 @@ proc activateSlowMo*(slowMo: var SlowMotion, slowType: SlowMotionType) {.moddabl
   ## are, by construction, rare.
   slowMo.rampToNormal = false
   case slowType
-  of smtNone, smtKill:
+  of smtNone:
     return
   of smtBossKill:
     slowMo.timeScale = 0.3
     slowMo.duration = 0.55
-  of smtPowerUp:
-    slowMo.timeScale = 0.15
-    slowMo.duration = 0.12
-  of smtWaveComplete:
-    slowMo.timeScale = 0.45
-    slowMo.duration = 0.3
   of smtResume:
     # Easing back in after a modal. Ramped rather than flat: dropping the player
     # into a live battlefield at full speed is disorienting, and a flat slow that
@@ -244,7 +233,6 @@ proc activateSlowMo*(slowMo: var SlowMotion, slowType: SlowMotionType) {.moddabl
 
   slowMo.maxDuration = slowMo.duration
   slowMo.active = true
-  slowMo.slowType = slowType
 
 proc activateCustomSlowMo*(slowMo: var SlowMotion, scale, duration: float32, ramp: bool) {.moddable.} =
   ## A mod's time.slowmo: `scale` for `duration` real seconds, easing back to
@@ -254,7 +242,6 @@ proc activateCustomSlowMo*(slowMo: var SlowMotion, scale, duration: float32, ram
   slowMo.maxDuration = slowMo.duration
   slowMo.rampToNormal = ramp
   slowMo.active = slowMo.duration > 0
-  slowMo.slowType = smtResume   # (only the ramp and the scale matter while it runs)
 
 proc triggerHitStop*(slowMo: var SlowMotion, duration: float32,
                      scale: float32 = HitStopScaleNormal) {.moddable.} =
@@ -269,7 +256,7 @@ proc triggerHitStop*(slowMo: var SlowMotion, duration: float32,
     slowMo.hitStopTimer = duration
   slowMo.hitStopScale = min(slowMo.hitStopScale, scale)
 
-proc updateSlowMo*(slowMo: var SlowMotion, realDt: float32) {.moddable.} =
+proc updateSlowMo(slowMo: var SlowMotion, realDt: float32) {.moddable.} =
   ## Tick both time layers. MUST be fed real, unscaled dt: decaying these timers
   ## with the dt they scale is what makes a freeze latch on permanently.
   if slowMo.hitStopTimer > 0:
@@ -283,7 +270,6 @@ proc updateSlowMo*(slowMo: var SlowMotion, realDt: float32) {.moddable.} =
       slowMo.active = false
       slowMo.duration = 0
       slowMo.timeScale = 1.0
-      slowMo.slowType = smtNone
       slowMo.rampToNormal = false
 
 proc worldTimeScale*(slowMo: SlowMotion): float32 {.moddable.} =
@@ -303,7 +289,7 @@ proc worldTimeScale*(slowMo: SlowMotion): float32 {.moddable.} =
 
 # WAVE STATS TRACKER
 
-proc newWaveStats*(waveNumber: int): WaveStats {.moddable.} =
+proc newWaveStats(waveNumber: int): WaveStats {.moddable.} =
   result = WaveStats(
     waveNumber: waveNumber,
     kills: 0,
@@ -314,11 +300,10 @@ proc newWaveStats*(waveNumber: int): WaveStats {.moddable.} =
     damageTaken: 0,
     shotsFired: 0,
     shotsHit: 0,
-    isPerfect: true,
     maxCombo: 0
   )
 
-proc updateStats*(stats: var WaveStats, dt: float32) {.moddable.} =
+proc updateStats(stats: var WaveStats, dt: float32) {.moddable.} =
   stats.survivalTime += dt
 
 proc recordKill*(stats: var WaveStats, damage: float32) {.moddable.} =

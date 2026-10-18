@@ -175,7 +175,7 @@ proc uiScalePresetIndex*(scale: float32): int {.moddable.} =
     if abs(UIScalePresets[i] - scale) < abs(UIScalePresets[result] - scale):
       result = i
 
-proc snapUIScale*(scale: float32): float32 {.moddable.} =
+proc snapUIScale(scale: float32): float32 {.moddable.} =
   UIScalePresets[uiScalePresetIndex(scale)]
 
 # Save profiles: every save file lives inside one of MaxProfileSlots per-profile
@@ -327,13 +327,13 @@ proc migrateLegacySaveFiles*() {.moddable.} =
     echo "Warning: legacy save migration failed: ", e.msg
 
 # Path to the save files
-proc getSettingsPath*(): string {.moddable.} =
+proc getSettingsPath(): string {.moddable.} =
   getAppDataPath() / "settings.json"
 
 proc getStatsPath*(): string {.moddable.} =
   getAppDataPath() / "stats.json"
 
-proc getLastRunStatsPath*(): string {.moddable.} =
+proc getLastRunStatsPath(): string {.moddable.} =
   getAppDataPath() / "last_run.json"
 
 proc deleteLastRunStats*(): bool {.moddable.} =
@@ -351,7 +351,7 @@ proc deleteLastRunStats*(): bool {.moddable.} =
     return false
 
 # Convert Settings to JSON
-proc settingsToJson*(settings: Settings): JsonNode {.moddable.} =
+proc settingsToJson(settings: Settings): JsonNode {.moddable.} =
   result = %* {
     "fpsLimit": settings.fpsLimit,
     "volume": settings.volume,
@@ -424,7 +424,7 @@ proc settingsToJson*(settings: Settings): JsonNode {.moddable.} =
   result["storySeen"] = storyObj
 
 # Load Settings from JSON
-proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) {.moddable.} =
+proc jsonToSettings(jsonNode: JsonNode, settings: Settings) {.moddable.} =
   if jsonNode.hasKey("fpsLimit"):
     settings.fpsLimit = jsonNode["fpsLimit"].getInt().int32
 
@@ -878,7 +878,7 @@ proc comparisonStatsToJson(stats: ComparisonStats): JsonNode =
   }
 
 # Convert RunStatistics to JSON
-proc runStatisticsToJson*(runStats: RunStatistics): JsonNode {.moddable.} =
+proc runStatisticsToJson(runStats: RunStatistics): JsonNode {.moddable.} =
   if runStats.isNil:
     return newJNull()
 

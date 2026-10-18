@@ -97,7 +97,6 @@ proc newFeedbackWindow*(screenWidth, screenHeight: int): FeedbackWindow {.moddab
     (screenHeight - FEEDBACK_WINDOW_HEIGHT) div 2,
     FEEDBACK_WINDOW_WIDTH, FEEDBACK_WINDOW_HEIGHT,
     ColAccent,
-    owtHelp,
     resizable = false
   )
   FeedbackWindow(window: osWin, kind: fkBug, includeInfo: true,

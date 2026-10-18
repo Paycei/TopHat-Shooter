@@ -404,7 +404,7 @@ proc spawnEntity(vm: VM, t: ScriptTable): ScriptValue =
   if t.hasField("hp") and not t.hasField("maxHp"): e.maxHp = e.hp
   elif t.hasField("maxHp") and not t.hasField("hp"): e.hp = e.maxHp
   let cb = rawGetStr(t, "onSpawn")
-  if cb.kind notin {vkNil, vkFunction, vkNative}:
+  if cb.kind notin {vkNil, vkFunction}:
     vm.runtimeError("world3d.spawn.onSpawn must be a function")
   queueWorld3DAction(World3DAction(kind: wkSpawnEntity, owner: currentModIdx, entity: e, callback: cb))
   wrapEntity3D(e)

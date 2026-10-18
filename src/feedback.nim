@@ -121,7 +121,7 @@ proc kindLabel(kind: FeedbackKind): string =
   of fkIdea: "enhancement"
   of fkOther: ""
 
-proc systemInfoLines*(): seq[string] =
+proc systemInfoLines(): seq[string] =
   ## What the developer needs to reproduce a report, and nothing identifying:
   ## no paths, user names, profile names or hardware serials.
   let build = when defined(debug): "debug" else: "release"
@@ -148,7 +148,7 @@ proc issueTitle(kind: FeedbackKind, title, body: string): string =
       t = t[0 ..< 60] & "..."
   "[" & kindTag(kind) & "] " & t
 
-proc composeReport*(kind: FeedbackKind, title, body: string,
+proc composeReport(kind: FeedbackKind, title, body: string,
                     includeInfo: bool): string =
   ## The Markdown body of the issue (and of the copied / saved report).
   result = "### " & kindTag(kind) & "\n\n"

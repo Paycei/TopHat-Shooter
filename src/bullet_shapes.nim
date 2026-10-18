@@ -18,23 +18,22 @@ type
   BulletShapeData* = object
     name*: string
     description*: string
-    isUnlocked*: bool
 
 var bulletShapeDatabase*: array[BulletShapeType, BulletShapeData]
 
 proc initializeBulletShapes*() {.moddable.} =
   bulletShapeDatabase[bshCircle] = BulletShapeData(
-    name: t("bshape_circle"), description: t("bshape_circle_desc"), isUnlocked: true)
+    name: t("bshape_circle"), description: t("bshape_circle_desc"))
   bulletShapeDatabase[bshTriangle] = BulletShapeData(
-    name: t("bshape_triangle"), description: t("bshape_triangle_desc"), isUnlocked: true)
+    name: t("bshape_triangle"), description: t("bshape_triangle_desc"))
   bulletShapeDatabase[bshDiamond] = BulletShapeData(
-    name: t("bshape_diamond"), description: t("bshape_diamond_desc"), isUnlocked: true)
+    name: t("bshape_diamond"), description: t("bshape_diamond_desc"))
   bulletShapeDatabase[bshSquare] = BulletShapeData(
-    name: t("bshape_square"), description: t("bshape_square_desc"), isUnlocked: true)
+    name: t("bshape_square"), description: t("bshape_square_desc"))
   bulletShapeDatabase[bshPentagon] = BulletShapeData(
-    name: t("bshape_pentagon"), description: t("bshape_pentagon_desc"), isUnlocked: true)
+    name: t("bshape_pentagon"), description: t("bshape_pentagon_desc"))
   bulletShapeDatabase[bshStar] = BulletShapeData(
-    name: t("bshape_star"), description: t("bshape_star_desc"), isUnlocked: true)
+    name: t("bshape_star"), description: t("bshape_star_desc"))
 
 proc getBulletShapeData*(s: BulletShapeType): BulletShapeData = bulletShapeDatabase[s]
 

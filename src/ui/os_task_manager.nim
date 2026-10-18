@@ -21,7 +21,7 @@ const
   BUTTON_HEIGHT = 40
   BUTTON_SPACING = 15
 
-proc isMouseOverRect*(mousePos: Vector2, x, y, width, height: int32): bool {.moddable.} =
+proc isMouseOverRect(mousePos: Vector2, x, y, width, height: int32): bool {.moddable.} =
   ## Helper to check if mouse is over a rectangle
   result = mousePos.x >= x.float32 and mousePos.x <= (x + width).float32 and
            mousePos.y >= y.float32 and mousePos.y <= (y + height).float32
@@ -56,7 +56,7 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
 
   drawText(text, x + (width - textWidth) div 2, y + 10, 14, textColor)
 
-proc taskManagerTabs*(game: Game): seq[TaskManagerTab] {.moddable.} =
+proc taskManagerTabs(game: Game): seq[TaskManagerTab] {.moddable.} =
   ## The tabs this run shows, left to right. Patches only exist in a roguelite
   ## run, so only that mode gets their tab.
   result =

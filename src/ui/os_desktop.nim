@@ -37,13 +37,6 @@ type
     iconColor*: Color
     modKey*: string   ## diModApp / diModMode only: the app's or mode's key ("<mod id>:<id>")
 
-  WindowState* = ref object
-    opened*: bool
-    x*, y*: int
-    width*, height*: int
-    title*: string
-    minimized*: bool
-
   DesktopToast* = object
     text*: string
     timer*: float32
@@ -52,7 +45,6 @@ type
     icons*: seq[DesktopIcon]
     selectedIcon*: int
     time*: float32
-    windows*: seq[WindowState]
     mousePos*: Vector2
     loadingActive*: bool
     loadingProgress*: float32
@@ -385,7 +377,6 @@ proc newOSDesktop*(): OSDesktop {.moddable.} =
     gridRows: DESKTOP_GRID_ROWS,
     selectedIcon: 0,
     time: 0,
-    windows: @[],
     loadingActive: false,
     loadingProgress: 0.0,
     loadingText: "",

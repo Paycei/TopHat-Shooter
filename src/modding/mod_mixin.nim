@@ -361,7 +361,9 @@ proc installModMixin*(base: ScriptTable) =
     var firstErr = ""
     for s in slots:
       if s.call.isNil:
-        firstErr = s.name & " cannot be called from a script (" & s.problem & ")"
+        let why = if s.problem.len > 0: s.problem
+                  else: "only its own module calls it: mixins can wrap it, scripts cannot call it"
+        firstErr = s.name & " cannot be called from a script (" & why & ")"
         continue
       try:
         s.call(vm, args, ret)

@@ -34,25 +34,25 @@ proc colorA*(color: Color, alpha: float32): Color = withAlpha(color, alpha)  # d
 
 # Equipped cosmetics (mirrors what the player has selected in the shop)
 
-proc equippedSkin*(): SkinType {.moddable.} =
+proc equippedSkin(): SkinType {.moddable.} =
   if globalSettings.isNil:
     skDefault
   else:
     SkinType(clamp(globalSettings.playerSkin, ord(low(SkinType)), ord(high(SkinType))))
 
-proc equippedShape*(): ShapeType {.moddable.} =
+proc equippedShape(): ShapeType {.moddable.} =
   if globalSettings.isNil:
     shHexagon
   else:
     ShapeType(clamp(globalSettings.playerShape, ord(low(ShapeType)), ord(high(ShapeType))))
 
-proc equippedBulletSkin*(): BulletSkinType {.moddable.} =
+proc equippedBulletSkin(): BulletSkinType {.moddable.} =
   if globalSettings.isNil:
     bskDefault
   else:
     BulletSkinType(clamp(globalSettings.bulletSkin, ord(low(BulletSkinType)), ord(high(BulletSkinType))))
 
-proc equippedBulletShape*(): BulletShapeType {.moddable.} =
+proc equippedBulletShape(): BulletShapeType {.moddable.} =
   if globalSettings.isNil:
     bshCircle
   else:
@@ -132,7 +132,7 @@ proc drawEquippedBulletModel*(pos: Vector2f, radius: float32, travelAngle: float
                         colorA(primary, alpha * primary.a.float32),
                         colorA(glow, alpha * glow.a.float32))
 
-proc cinematicEnemy*(enemyType: EnemyType, x, y: float32, difficulty: float32 = 12.0'f32,
+proc cinematicEnemy(enemyType: EnemyType, x, y: float32, difficulty: float32 = 12.0'f32,
                     id: int = 0, threat: int = 0): Enemy {.moddable.} =
   var dummyGame = Game(nextEnemyId: id)
   result = newEnemy(x, y, difficulty, enemyType, dummyGame)
@@ -174,12 +174,6 @@ proc drawCinematicBoss*(boss: Enemy, x, y, radius: float32,
   boss.entranceTimer = 0
   boss.spawnTimer = 0
   drawEnemy(boss)
-
-proc drawRealBossModel*(x, y, radius, time: float32, screenWidth, screenHeight: int32,
-                        hpFraction: float32 = 0.16'f32, phaseIndex: int = 3) {.moddable.} =
-  ## Root itself (boss 12), built fresh for a one-off draw.
-  drawCinematicBoss(spawnBoss(screenWidth, screenHeight, 25.0'f32, 12, 60),
-                    x, y, radius, hpFraction, phaseIndex)
 
 # Text / atmosphere
 
@@ -299,7 +293,7 @@ proc drawSubtitlesFrom*(lines: openArray[string], startAt: float32,
   captionClock = clock
   captionShotDuration = duration
 
-proc drawFilmGrain*(screenWidth, screenHeight: int32, time: float32, alpha: float32) {.moddable.} =
+proc drawFilmGrain(screenWidth, screenHeight: int32, time: float32, alpha: float32) {.moddable.} =
   var i = 0
   while i < 150:
     let seed = i.float32 * 19.31'f32 + floor(time * 18.0'f32) * 7.13'f32
@@ -308,21 +302,6 @@ proc drawFilmGrain*(screenWidth, screenHeight: int32, time: float32, alpha: floa
     let a = alphaByte(alpha * (0.35'f32 + fractCoord(sin(seed + 91.0'f32) * 91.3'f32)))
     drawRectangle(x, y, 1, 1, Color(r: 255, g: 255, b: 255, a: a))
     inc i
-
-proc drawDataRain*(screenWidth, screenHeight: int32, time, intensity: float32,
-                   color: Color = Color(r: 0, g: 235, b: 210, a: 255)) {.moddable.} =
-  var col = 0
-  while col < screenWidth div 18 + 2:
-    let x = (col * 18).int32 + int32(sin(col.float32 * 3.7'f32) * 4.0'f32)
-    let speed = 55.0'f32 + (col mod 7).float32 * 18.0'f32
-    let y = ((time * speed + col.float32 * 47.0'f32) mod (screenHeight.float32 + 140.0'f32)) - 120.0'f32
-    let alpha = alphaByte(intensity * (55.0'f32 + (col mod 5).float32 * 24.0'f32))
-    let digit = if (col + time.int) mod 2 == 0: "1" else: "0"
-    drawText(digit, x, y.int32, 14, withAlpha(color, alpha))
-    if col mod 5 == 0:
-      drawRectangle(x, (y + 20.0'f32).int32, 2, 46,
-                    withAlpha(color, alphaByte(intensity * 24.0'f32)))
-    inc col
 
 proc drawTapeChange*(screenWidth, screenHeight: int32, local: float32,
                     frame: int, time: float32) {.moddable.} =
@@ -603,7 +582,7 @@ proc drawCrashPanel*(sw, sh: int32, alpha, time: float32) {.moddable.} =
   drawText(code, px + 66, py + 158, fitFontSize(code, pw - 110, 14),
            Color(r: 230, g: 235, b: 245, a: alphaByte(alpha * 255.0'f32)))
 
-proc serviceWindowHeight*(rows: int): float32 {.moddable.} =
+proc serviceWindowHeight(rows: int): float32 {.moddable.} =
   30.0'f32 + 34.0'f32 + rows.float32 * 27.0'f32 + 10.0'f32
 
 proc drawServiceWindow*(x, y, w: float32, title, colService, colOwner: string,

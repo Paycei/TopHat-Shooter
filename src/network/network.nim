@@ -10,7 +10,7 @@ const
   # bullet, and a busy match with FORK.EXE triple shots can pass 8 KB; a smaller
   # buffer silently truncated those datagrams and they failed to deserialize.
   MAX_PACKET_SIZE = 65507
-  NETWORK_VERSION* = "2.5.0"
+  NETWORK_VERSION* = "2.6.0"
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 100
   PACKET_MAGIC = "THS1"
@@ -252,7 +252,6 @@ proc announceRosterAfterLeave(nm: NetworkManager, getCosmeticsCallback: HostCosm
       var accept = newPacket(ptConnectionAccept)
       accept.connectionReason = "Player list updated"
       accept.assignedPlayerIndex = client.playerIndex
-      accept.maxPlayersInRoom = nm.maxPlayers
       accept.connectedPlayers = roster
       try:
         nm.socket.sendTo(client.address, client.port, serialize(accept))
@@ -341,7 +340,6 @@ proc pollEvents*(nm: NetworkManager,
         var deny = newPacket(ptConnectionDenied)
         deny.connectionReason = "Version mismatch (host " & NETWORK_VERSION & ", client " & packet.version & ")"
         deny.assignedPlayerIndex = -1
-        deny.maxPlayersInRoom = nm.maxPlayers
         deny.connectedPlayers = @[]
         nm.socket.sendTo(address, port, serialize(deny))
         echo "[NETWORK] Connection denied (version mismatch): host=", NETWORK_VERSION, " client=", packet.version
@@ -355,7 +353,6 @@ proc pollEvents*(nm: NetworkManager,
         let clientMods = if packet.modList.len > 0: packet.modList else: "none"
         deny.connectionReason = "Mods don't match (host: " & hostMods & "; you: " & clientMods & ")"
         deny.assignedPlayerIndex = -1
-        deny.maxPlayersInRoom = nm.maxPlayers
         deny.connectedPlayers = @[]
         nm.socket.sendTo(address, port, serialize(deny))
         echo "[NETWORK] Connection denied (mod mismatch): host=", modFingerprintHex, " client=", packet.modFingerprint
@@ -367,7 +364,6 @@ proc pollEvents*(nm: NetworkManager,
         var deny = newPacket(ptConnectionDenied)
         deny.connectionReason = "Match already in progress"
         deny.assignedPlayerIndex = -1
-        deny.maxPlayersInRoom = nm.maxPlayers
         deny.connectedPlayers = @[]
         nm.socket.sendTo(address, port, serialize(deny))
         echo "[NETWORK] Connection denied (match in progress): ", address, ":", port.int
@@ -377,7 +373,6 @@ proc pollEvents*(nm: NetworkManager,
         var deny = newPacket(ptConnectionDenied)
         deny.connectionReason = "Room is full (" & $nm.clients.len & "/" & $(nm.maxPlayers - 1) & " clients)"
         deny.assignedPlayerIndex = -1
-        deny.maxPlayersInRoom = nm.maxPlayers
         deny.connectedPlayers = @[]
         nm.socket.sendTo(address, port, serialize(deny))
         echo "[NETWORK] Connection denied (full): ", address, ":", port.int
@@ -404,7 +399,6 @@ proc pollEvents*(nm: NetworkManager,
       var accept = newPacket(ptConnectionAccept)
       accept.connectionReason = "Connection accepted"
       accept.assignedPlayerIndex = assignedIndex
-      accept.maxPlayersInRoom = nm.maxPlayers
       accept.connectedPlayers = roster
       nm.socket.sendTo(address, port, serialize(accept))
 

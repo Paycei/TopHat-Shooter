@@ -77,7 +77,7 @@ proc flagOf(name: string): ThingFlag =
 
 proc fnField(vm: VM, t: ScriptTable, key, what: string): ScriptValue =
   result = rawGetStr(t, key)
-  if result.kind notin {vkNil, vkFunction, vkNative}:
+  if result.kind notin {vkNil, vkFunction}:
     vm.runtimeError(what & "." & key & " must be a function")
 
 proc applyThingFields(vm: VM, th: ModThing, t: ScriptTable, what: string) =
@@ -135,7 +135,7 @@ proc wrapThingFor(t: ModThing): ScriptValue {.nimcall.} =
   if thingClass.isNil: NilValue
   else: vud(Userdata(cls: thingClass, box: ThingBox(t: t, g: modCtx.game), key: cast[pointer](t)))
 
-proc unwrapThing*(v: ScriptValue): ModThing =
+proc unwrapThing(v: ScriptValue): ModThing =
   if v.kind == vkUserdata and v.ud.cls == thingClass: ThingBox(v.ud.box).t else: nil
 
 proc selfThing(vm: VM, args: openArray[ScriptValue], fname: string): ModThing =
@@ -260,7 +260,7 @@ proc scriptBullet(vm: VM, owner: int, x, y, angleDeg: float32, opts: ScriptTable
     if i == 0: result = wrapBullet(b)
 
 # ------------------------------------------------------------- explode ----
-proc explodeAt*(game: Game, x, y, r, dmg: float32, hurtPlayer, hurtEnemies: bool, color: Color,
+proc explodeAt(game: Game, x, y, r, dmg: float32, hurtPlayer, hurtEnemies: bool, color: Color,
                 shake: string) =
   ## game:explode: hurts what is inside the circle now (no list changes).
   let c = newVector2f(x, y)

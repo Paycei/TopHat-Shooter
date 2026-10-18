@@ -1552,7 +1552,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) {.moddable.}
     drawRing(sv(16, 16), 6.2, 7.6, 0, 360, 24, light)
     drawDisc(sv(16, 16), 4.2, ink)
 
-proc shopIconAccent*(itemIndex: int): Color {.moddable.} =
+proc shopIconAccent(itemIndex: int): Color {.moddable.} =
   ## Signature hue per shop slot, so the rows read apart at a glance.
   case itemIndex
   of 0: Color(r: 255, g: 122, b: 72, a: 255)    # damage -- hot orange

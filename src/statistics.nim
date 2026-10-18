@@ -149,7 +149,7 @@ proc jsonToGameModeStats(jsonNode: JsonNode, stats: var GameModeStats) =
   if jsonNode.hasKey("longestSurvivalTime"):
     stats.longestSurvivalTime = jsonNode["longestSurvivalTime"].getFloat()
 
-proc statisticsToJson*(stats: Statistics): JsonNode {.moddable.} =
+proc statisticsToJson(stats: Statistics): JsonNode {.moddable.} =
   result = %* {
     "waveMode": gameModeStatsToJson(stats.waveMode),
     "timeMode": gameModeStatsToJson(stats.timeMode),
@@ -161,7 +161,7 @@ proc statisticsToJson*(stats: Statistics): JsonNode {.moddable.} =
     "defeatedBossIDs": stats.defeatedBossIDs
   }
 
-proc jsonToStatistics*(jsonNode: JsonNode, stats: Statistics) {.moddable.} =
+proc jsonToStatistics(jsonNode: JsonNode, stats: Statistics) {.moddable.} =
   if jsonNode.hasKey("waveMode"):
     jsonToGameModeStats(jsonNode["waveMode"], stats.waveMode)
   if jsonNode.hasKey("timeMode"):

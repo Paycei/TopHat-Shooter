@@ -14,7 +14,7 @@ const MAX_SOUND_VOICES = 8
 type
   SoundType* = enum
     stShoot, stEnemyHit, stEnemyDeath, stPlayerHit, stCoinPickup, stPowerUp,
-    stBossSpawn, stExplosion, stWallPlace, stTeleport, stMenuNav, stMenuSelect,
+    stBossSpawn, stExplosion, stTeleport, stMenuNav, stMenuSelect,
     stWaveComplete, stShield, stGameOver, stBuy,
     # Restore-point animation cues (see ui/ui_helpers.drawLifeLostOverlay)
     stRestoreAccess, stRestoreSpinDown, stRestoreShatter
@@ -164,19 +164,19 @@ const
   UptimeMachineAt* = 5.8'f32       ## shot 4: "THIS IS MY MACHINE."
   UptimeMachineDur* = 1.6'f32
 
-proc shotStart*(shots: openArray[float32], index: int): float32 {.moddable.} =
+proc shotStart(shots: openArray[float32], index: int): float32 {.moddable.} =
   ## Cutscene time at which shot `index` begins.
   for i in 0..<min(index, shots.len):
     result += shots[i]
 
-proc totalLength*(shots: openArray[float32]): float32 {.moddable.} =
+proc totalLength(shots: openArray[float32]): float32 {.moddable.} =
   shotStart(shots, shots.len)
 
-proc scoreTime*(shots: openArray[float32], index: int, local: float32): float32 {.moddable.} =
+proc scoreTime(shots: openArray[float32], index: int, local: float32): float32 {.moddable.} =
   ## Real-time position in the score of `local` cutscene seconds into shot `index`.
   (shotStart(shots, index) + local) / StoryPlaybackSpeed
 
-proc scoreLength*(shots: openArray[float32]): float32 {.moddable.} =
+proc scoreLength(shots: openArray[float32]): float32 {.moddable.} =
   ## Length of a cinematic's score in real seconds, tail included.
   totalLength(shots) / StoryPlaybackSpeed + ScoreTail
 
@@ -244,7 +244,6 @@ proc getSoundCacheFile(soundType: SoundType): string =
     of stPowerUp: "powerup"
     of stBossSpawn: "boss"
     of stExplosion: "explosion"
-    of stWallPlace: "wall"
     of stTeleport: "teleport"
     of stMenuNav: "menunav"
     of stMenuSelect: "menuselect"
@@ -2233,39 +2232,6 @@ proc createExplosion(filename: string) =
 
   writeWavFile(filename, samples, sampleRate)
 
-proc createWallPlace(filename: string) =
-  # Solid, satisfying placement sound
-  let sampleRate: uint32 = 44100
-  let duration = 0.2
-  let frameCount = int(sampleRate.float32 * duration)
-  var samples = newSeq[int16](frameCount)
-
-  for i in 0..<frameCount:
-    let t = i.float32 / sampleRate.float32
-    let progress = t / duration
-
-    # Low thud with quick pitch drop
-    let thudFreq = 140.0 * exp(-progress * 12.0)
-    let thud = sin(2.0 * PI * thudFreq * t) * 0.5
-
-    # Click for definition
-    let click = if progress < 0.04:
-      sin(2.0 * PI * 800.0 * t) * (1.0 - progress / 0.04) * 0.3
-    else:
-      0.0
-
-    # Short noise burst
-    let noise = if progress < 0.06:
-      rand(-1.0..1.0) * (1.0 - progress / 0.06) * 0.15
-    else:
-      0.0
-
-    let envelope = exp(-progress * 15.0)
-    let value = (thud + click + noise) * envelope
-    samples[i] = int16(value * 32767.0 * 0.5)
-
-  writeWavFile(filename, samples, sampleRate)
-
 proc createTeleport(filename: string) =
   # Advanced sci-fi teleportation effect
   let sampleRate: uint32 = 44100
@@ -2709,7 +2675,6 @@ proc generateSoundFile(soundType: SoundType) =
   of stPowerUp: createPowerUp(cacheFile)
   of stBossSpawn: createBossSpawn(cacheFile)
   of stExplosion: createExplosion(cacheFile)
-  of stWallPlace: createWallPlace(cacheFile)
   of stTeleport: createTeleport(cacheFile)
   of stMenuNav: createMenuNav(cacheFile)
   of stMenuSelect: createMenuSelect(cacheFile)
@@ -2973,7 +2938,6 @@ proc pitchVariation(soundType: SoundType): float32 =
   of stShoot: 0.10
   of stEnemyDeath: 0.09
   of stExplosion: 0.08
-  of stWallPlace: 0.07
   of stShield: 0.05
   of stCoinPickup, stTeleport, stPlayerHit: 0.04
   of stMenuNav: 0.02
@@ -2987,7 +2951,7 @@ proc panSpread(soundType: SoundType): float32 =
   ## Random stereo offset for battlefield sounds; UI and jingles stay centered.
   ## Pan is in raylib's [-1, 1] range where 0 is center (NOT the older 0.5).
   case soundType
-  of stShoot, stEnemyHit, stEnemyDeath, stExplosion, stCoinPickup, stWallPlace: 0.12
+  of stShoot, stEnemyHit, stEnemyDeath, stExplosion, stCoinPickup: 0.12
   else: 0.0
 
 proc minReplayInterval(soundType: SoundType): float64 =

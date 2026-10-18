@@ -44,7 +44,7 @@ proc playerInertiaSizeScale(player: Player): float32 =
   let safeRadius = max(player.radius, 1.0'f32)
   clamp(sqrt(safeRadius / PlayerInertiaReferenceRadius), 0.75'f32, 1.85'f32)
 
-proc dataHarvestRangeMult*(player: Player): float32 {.moddable.} =
+proc dataHarvestRangeMult(player: Player): float32 {.moddable.} =
   ## DATA_HARVEST.dll widens the pickup/collection aura: +25% / +50% / +100%
   ## at levels 1 / 2 / 3 (mirrors its XP multiplier in xp_orb.nim).
   case getPowerUpLevel(player, puDataHarvest)
@@ -85,7 +85,7 @@ proc dashBurstOf*(p: Player): float32 {.inline, moddable.} =
   ## The dash's tunables (Player.dashBurstMult / dashTime / dashRecharge, which
   ## scripts may change); 0 reads as the default (a Player not made by newPlayer).
   if p.dashBurstMult > 0: p.dashBurstMult else: DashSpeedMult
-proc dashTimeOf*(p: Player): float32 {.inline, moddable.} =
+proc dashTimeOf(p: Player): float32 {.inline, moddable.} =
   if p.dashTime > 0: p.dashTime else: DashDuration
 proc dashRechargeOf*(p: Player): float32 {.inline, moddable.} =
   if p.dashRecharge > 0: p.dashRecharge else: DashCooldownTime
@@ -735,18 +735,14 @@ proc drawPlayer*(player: Player) {.moddable.} =
   # now orbits the player. Colored by the equipped desktop-cube skin.
   if player.hasOrbitalCube:
     let cubeSkin = CubeSkinType(clamp(player.cubeSkinType, 0, ord(high(CubeSkinType))))
-    let cubeData = getCubeSkinData(cubeSkin)
     let orbitAngle = time * 1.3
     let orbitDist = player.radius * 2.5 + sin(time * 2.1) * 3.0
     let cubeCenter = Vector2(
       x: player.pos.x + cos(orbitAngle) * orbitDist,
       y: player.pos.y + sin(orbitAngle) * orbitDist * 0.72 + sin(time * 3.1) * 2.0)
-    let cubeHeart = if cubeSkin == cskCompanion: Color(r: 244, g: 116, b: 150, a: 255)
-                    else: Color(r: 0, g: 0, b: 0, a: 0)
     # A mod's cube model replaces the desktop cube, so it is what orbits here too.
     if not drawCubeModModel(cubeCenter.x, cubeCenter.y, 8.0'f32, time * 0.9'f32, time * 1.4'f32, 0):
-      drawMiniCube(cubeCenter, 8.0'f32, time, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
-                  isD20 = cubeSkin == cskD20, skin = cubeSkin, secretStyle = true)
+      drawMiniCube(cubeCenter, 8.0'f32, time, skin = cubeSkin)
 
   # Roguelite class emblem: a run-scoped cosmetic marking the chosen starter
   # kit. Body/side-mounted (and an inner orbit for the Arcanist), so it never

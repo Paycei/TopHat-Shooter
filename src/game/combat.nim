@@ -33,7 +33,7 @@ proc bossPassiveDamageTaken*(enemy: Enemy): float32 {.moddable.} =
   # bullet path in game.nim.
   if enemy.defenseMultiplier > 0:
     result /= enemy.defenseMultiplier
-  result *= bossWeakPointDamageMultiplier(enemy, bwdsPassive)
+  result *= bossWeakPointDamageMultiplier(enemy)
   # Boss gate: while adds are alive or the overload shield is up (and no
   # vulnerability window is open), throttle non-bullet damage too. Otherwise a
   # DoT/aura/explosion build could chip a sealed boss and skip the mechanic.
@@ -381,7 +381,7 @@ proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) {.moddable
 
 const DAMAGE_NUMBER_INTERVAL = 0.5'f32
 
-proc dotNumberInterval*(elementType: ElementType): float32 {.moddable.} =
+proc dotNumberInterval(elementType: ElementType): float32 {.moddable.} =
   ## Per-element damage-number cadence: fire reads as a rapid burn (frequent
   ## small numbers), poison as a slow drip (rare chunky numbers).
   case elementType
@@ -389,7 +389,7 @@ proc dotNumberInterval*(elementType: ElementType): float32 {.moddable.} =
   of etPoison: 1.0'f32
   else: DAMAGE_NUMBER_INTERVAL
 
-proc tickAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator,
+proc tickAccumulator(game: Game, enemy: Enemy, acc: var DamageAccumulator,
                       damage: float32, damageType: DamageType, wasCrit: bool = false,
                       interval: float32 = DAMAGE_NUMBER_INTERVAL) {.moddable.} =
   if acc.lastTime == 0:
@@ -406,7 +406,7 @@ proc tickAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator,
     acc.hadCrit = false
     acc.lastTime = game.time
 
-proc flushAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator) {.moddable.} =
+proc flushAccumulator(game: Game, enemy: Enemy, acc: var DamageAccumulator) {.moddable.} =
   if acc.total > 0:
     game.showDamage(enemy.pos, acc.total, fromPlayer = true,
                     isCritical = acc.hadCrit, damageType = acc.damageType)

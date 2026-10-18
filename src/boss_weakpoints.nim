@@ -41,11 +41,9 @@ proc initBossWeakPointState*(spec: BossWeakPointDefinition, bossId: int): BossWe
   result.exposureDuration = spec.exposureDuration
   result.cooldownDuration = spec.cooldownDuration
   result.targetHitRadius = spec.targetHitRadius
-  result.phaseIndex = 0
   result.lastDashActive = false
   result.omegaWindowsCompleted = 0
   result.realTargetIndex = -1
-  result.lastBossPos = newVector2f(0, 0)
 
 proc resetBossWeakPointForPhase*(enemy: Enemy, spec: BossWeakPointDefinition,
                                  phaseIndex: int, delay: float32 = 0.6'f32) {.moddable.} =
@@ -67,11 +65,9 @@ proc resetBossWeakPointForPhase*(enemy: Enemy, spec: BossWeakPointDefinition,
   enemy.weakPoint.exposureDuration = spec.exposureDuration
   enemy.weakPoint.cooldownDuration = spec.cooldownDuration
   enemy.weakPoint.targetHitRadius = spec.targetHitRadius
-  enemy.weakPoint.phaseIndex = phaseIndex
   enemy.weakPoint.lastDashActive = enemy.isDashing
   enemy.weakPoint.omegaWindowsCompleted = 0
   enemy.weakPoint.realTargetIndex = -1
-  enemy.weakPoint.lastBossPos = enemy.pos
 
 proc targetTint(kind: BossWeakObjectiveKind, idx: int, active, decoy: bool): Color =
   var color = case kind
@@ -339,7 +335,6 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
     enemy.weakPoint.exposedTimer = max(0.0'f32, enemy.weakPoint.exposedTimer - dt)
     if enemy.weakPoint.exposedTimer <= 0:
       enemy.weakPoint.cooldownTimer = enemy.weakPoint.cooldownDuration
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
 
@@ -348,14 +343,12 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
 
   let kind = effectiveWeakKind(enemy)
   if kind == bwoNone or enemy.invulnerabilityTimer > 0 or enemy.weakPoint.cooldownTimer > 0:
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
 
   if kind == bwoSatelliteSet:
     if enemy.satellites.len > 0 and enemy.weakPoint.progress == 0:
       enemy.weakPoint.required = max(1, enemy.satellites.len)
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
 
@@ -364,7 +357,6 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
     # legion, not to shoot orbiting targets. The legion is tracked in game.nim
     # (required/progress derived from the live guard count); the last guard down
     # opens the window via openBossSummonWindow. Spawn no orbit targets here.
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
 
@@ -374,7 +366,6 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
     if enemy.weakPoint.lastDashActive and not enemy.isDashing and
        enemy.chargeState != ccReaim and enemy.weakPoint.targets.len == 0:
       spawnBackPlate(enemy, playerPos)
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     syncTargetActivity(enemy, kind)
     return
@@ -405,7 +396,6 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
       discard
 
   syncTargetActivity(enemy, kind)
-  enemy.weakPoint.lastBossPos = enemy.pos
   enemy.weakPoint.lastDashActive = enemy.isDashing
 
 proc resolveBossWeakPointTargetHit*(enemy: Enemy, bulletPos: Vector2f,
@@ -484,10 +474,7 @@ proc openBossSummonWindow*(enemy: Enemy): tuple[opened: bool, bonusDamage: float
   openVulnerabilityWindow(enemy, dur)
   (true, bonusDamage)
 
-proc bossWeakPointCoreHit*(enemy: Enemy, bulletPos: Vector2f, bulletRadius: float32): bool {.moddable.} =
-  false
-
-proc bossWeakPointDamageMultiplier*(enemy: Enemy, source: BossWeakDamageSource): float32 {.moddable.} =
+proc bossWeakPointDamageMultiplier*(enemy: Enemy): float32 {.moddable.} =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return 1.0'f32
 

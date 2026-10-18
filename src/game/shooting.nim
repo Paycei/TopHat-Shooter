@@ -161,7 +161,6 @@ proc shootBullet*(game: Game, direction: Vector2f) {.moddable.} =
       bulletRadius *= getHeavyRoundsSizeMultiplier(heavyLevel)
 
     # Apply critical hit chance using pre-calculated stats and capture if it was a crit
-    let baseDamagePreCrit = damage  # Store pre-crit value for puCriticalHit tracking
     let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, damage)
     damage = damageWithCrit
 
@@ -237,7 +236,6 @@ proc shootBullet*(game: Game, direction: Vector2f) {.moddable.} =
           bulletShape = game.player.bulletShapeType
         )
         bullet.radius = bulletRadius
-        bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
         bullet.roomEchoMultiplier = roomEchoMultiplier
         assignBulletId(game, bullet)
@@ -275,7 +273,6 @@ proc shootBullet*(game: Game, direction: Vector2f) {.moddable.} =
         bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
-      bullet.baseDamagePreCrit = baseDamagePreCrit
       bullet.rageMultiplier = rageMultiplier
       bullet.roomEchoMultiplier = roomEchoMultiplier
       assignBulletId(game, bullet)
@@ -316,7 +313,6 @@ proc shootBullet*(game: Game, direction: Vector2f) {.moddable.} =
           bulletShape = game.player.bulletShapeType
         )
         bullet.radius = bulletRadius
-        bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
         bullet.roomEchoMultiplier = roomEchoMultiplier
         assignBulletId(game, bullet)
@@ -347,7 +343,6 @@ proc shootBullet*(game: Game, direction: Vector2f) {.moddable.} =
         bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
-      bullet.baseDamagePreCrit = baseDamagePreCrit
       bullet.rageMultiplier = rageMultiplier
       bullet.roomEchoMultiplier = roomEchoMultiplier
       assignBulletId(game, bullet)
@@ -385,7 +380,6 @@ proc shootBullet*(game: Game, direction: Vector2f) {.moddable.} =
         bulletShape = game.player.bulletShapeType
       )
       mirror.radius = bulletRadius
-      mirror.baseDamagePreCrit = baseDamagePreCrit
       mirror.rageMultiplier = rageMultiplier
       assignBulletId(game, mirror)
       game.bullets.add(mirror)
@@ -435,7 +429,6 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) {
     damage *= 0.7
 
   # Roll for critical hit
-  let burstBaseDamagePreCrit = damage  # Store pre-crit value for puCriticalHit tracking
   let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(burstStats, damage)
   damage = damageWithCrit
 
@@ -484,7 +477,6 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) {
         bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
-      bullet.baseDamagePreCrit = burstBaseDamagePreCrit
       bullet.rageMultiplier = burstRageMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
@@ -517,7 +509,6 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) {
       bulletShape = game.player.bulletShapeType
     )
     bullet.radius = bulletRadius
-    bullet.baseDamagePreCrit = burstBaseDamagePreCrit
     bullet.rageMultiplier = burstRageMultiplier
     assignBulletId(game, bullet)
     game.bullets.add(bullet)

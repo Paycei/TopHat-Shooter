@@ -199,7 +199,7 @@ proc searchlightLive*(w: AttackWarning): bool {.inline, moddable.} =
 # --- Safe Mode (Omega, survival) --------------------------------------------
 # pos = bubble start, targetPos = bubble end, lifetime spans telegraph + cast.
 
-proc safeModeProgress*(w: AttackWarning): float32 {.moddable.} =
+proc safeModeProgress(w: AttackWarning): float32 {.moddable.} =
   ## 0 at the end of the telegraph, 1 when the cast ends.
   let castLen = max(0.01'f32, w.maxLifetime - SafeModeTelegraph)
   clamp((warningAge(w) - SafeModeTelegraph) / castLen, 0.0'f32, 1.0'f32)

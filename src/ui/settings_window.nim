@@ -92,7 +92,6 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 200, g: 100, b: 255, a: 255),  # Purple
-    owtSettings,
     resizable = false
   )
 
@@ -136,13 +135,13 @@ const
   SettingsTabWidth = 105
   SettingsTabGap = 8
 
-proc tabContentOriginY*(window: OSWindow): int {.moddable.} =
+proc tabContentOriginY(window: OSWindow): int {.moddable.} =
   ## Top of the tab content area -- what drawSettingsWindow passes each tab as
   ## its `contentY`. Hit-testing has to use the identical value, and
   ## updateSettingsWindow's own `contentY` is 5px lower than this.
   window.y + TITLE_BAR_HEIGHT + 55
 
-proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) {.moddable.} =
+proc drawTab(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) {.moddable.} =
   let bgColor = if isActive:
     uiSurface(0, 60, 80)
   elif isHovered:
@@ -203,7 +202,7 @@ proc drawCheckbox*(x, y, size: int, checked: bool, hovered: bool) {.moddable.} =
             Vector2(x: (x + size - 3).float32, y: (y + 3).float32),
             3, checkColor)
 
-proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool,
+proc drawSlider(x, y, width, height: int, value: float32, hovered: bool,
                 showTicks: bool = false, tickValues: seq[int] = @[]) {.moddable.} =
   # Background
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
@@ -244,7 +243,7 @@ proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool,
   drawRectangle(handleX.int32, (y - 3).int32, 10, 2,
                uiGlow(255, 255, 255, 90))
 
-proc drawSectionHeader*(x, y, width: int, title: string, iconChar: char, color: Color) {.moddable.} =
+proc drawSectionHeader(x, y, width: int, title: string, iconChar: char, color: Color) {.moddable.} =
   ## Draw a section divider with colored icon square
   # Colored icon square: a badge, in its own colours in every theme
   drawRectangle(x.int32, y.int32, 20, 22, color)
@@ -568,7 +567,7 @@ proc nextHudStyle(style: HudStyle): HudStyle =
   of hsModern: hsLegacy
   of hsLegacy: hsModern
 
-proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
+proc drawGraphicsTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   var yPos = contentY + 15
 
   # Section: Display
@@ -850,7 +849,7 @@ proc drawCycleButton(rect: Rectangle, label: string, hovered: bool,
            textY + (16 - labelSize) div 2, labelSize, uiInk(White))
   drawText(">", (rect.x + rect.width - 22).int32, textY, 18, arrowColor(1, canInc))
 
-proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
+proc drawInterfaceTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   let mousePos = getVirtualMousePosition()
   let s = settingsWin.settings
 
@@ -949,7 +948,7 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
                  interfaceToggleValue(s, ic), checkCollisionPointRec(mousePos, rect))
     drawText(interfaceToggleLabel(ic), (rect.x + 34).int32, (rect.y + 5).int32, 16, uiInk(White))
 
-proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
+proc drawAudioTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   var yPos = contentY + 15
 
   # Section: Volume Control
@@ -1060,7 +1059,7 @@ type
     modRowsY*: int
     modResetY*: int
 
-proc controlsLayout*(contentY, contentH: int): ControlsLayout {.moddable.} =
+proc controlsLayout(contentY, contentH: int): ControlsLayout {.moddable.} =
   var y = contentY + 10
   result.inputHeaderY = y
   y += 34
@@ -1312,7 +1311,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     let thumbY = contentY + (viewH - thumbH) * settingsWin.modKeybindScroll div maxScroll
     drawRectangle(barX.int32, thumbY.int32, 4, thumbH.int32, uiSurface(Gold))
 
-proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
+proc drawGameplayTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   var yPos = contentY + 15
 
   # Section: Assistance
@@ -1423,7 +1422,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
              (contentX + (contentW - statusWidth) div 2).int32,
              (contentY + 344).int32, 14, uiInk(LightGray))
 
-proc drawCinematicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
+proc drawCinematicsTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   ## Gallery of every replayable cutscene, split into Story and Mode Intros.
   ## Unlocked entries are clickable; locked ones render greyed and inert.
   let mousePos = getVirtualMousePosition()

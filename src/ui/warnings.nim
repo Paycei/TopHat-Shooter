@@ -143,7 +143,7 @@ proc spawnArcLatticeInto*(warnings: var seq[AttackWarning], particlePool: Partic
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 255, b: 150, a: 255), 16)
 
-proc computeRicochetPath*(startPos, startDir: Vector2f, bounces: int,
+proc computeRicochetPath(startPos, startDir: Vector2f, bounces: int,
                           screenWidth, screenHeight: int32): seq[Vector2f] {.moddable.} =
   ## Trace a beam from startPos along startDir, reflecting off the four screen
   ## edges, recording a vertex at every bounce. Returns the polyline
@@ -734,7 +734,7 @@ proc spawnOmegaQuadrantsInto*(warnings: var seq[AttackWarning], particlePool: Pa
 
 const BossDashDistance* = 350.0'f32  ## generic boss dash length (the Juggernaut's charges aim their own)
 
-proc isJuggernautCharge*(specialData: string): bool {.moddable.} =
+proc isJuggernautCharge(specialData: string): bool {.moddable.} =
   ## The bapDash modes that run as a charge combo (game/bosses.nim).
   specialData in ["charge_attack", "double_charge", "rage_charge"]
 

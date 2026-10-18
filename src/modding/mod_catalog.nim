@@ -216,7 +216,7 @@ proc loadOrder*(catalog: var seq[ModInfo]): seq[int] =
     placed.add(catalog[pick].id)
     remaining.delete(remaining.find(pick))
 
-proc modFiles*(dir: string): seq[string] =
+proc modFiles(dir: string): seq[string] =
   ## Every file of a mod, as sorted relative paths.
   try:
     for path in walkDirRec(dir, relative = true):

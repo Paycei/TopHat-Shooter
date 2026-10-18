@@ -1,7 +1,7 @@
-import raylib, math, strutils
+import raylib, math
 import modding/mod_patch_core
 import draw_prims
-import types, d_systems, localization, utils
+import types, d_systems, localization, utils, ui/ui_helpers
 
 proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
                           currentTime: float32, posX, posY: int32) {.moddable.} =
@@ -282,20 +282,6 @@ proc bannerEase(age, duration: float32): float32 =
   clamp(age / SLIDE_TIME, 0.0'f32, 1.0'f32) *
     clamp((duration - age) / SLIDE_TIME, 0.0'f32, 1.0'f32)
 
-proc wrapBannerText(text: string, maxWidth, fontSize: int32): seq[string] =
-  ## Greedy word wrap (a word wider than the line gets a line of its own).
-  var line = ""
-  for word in text.split(' '):
-    if word.len == 0: continue
-    let candidate = if line.len == 0: word else: line & " " & word
-    if line.len > 0 and measureText(candidate, fontSize) > maxWidth:
-      result.add(line)
-      line = word
-    else:
-      line = candidate
-  if line.len > 0:
-    result.add(line)
-
 proc drawLabelBanner*(title, subtitle: string, age: float32, screenWidth, topY: int32,
                       accent: Color, duration: float32 = 2.4'f32) {.moddable.} =
   ## A centered pill that drops in under `topY`: a bold title and an optional
@@ -336,8 +322,8 @@ proc drawLabelBannerGutter*(title, subtitle: string, age: float32,
   let cardW: int32 = min(gutterW - 8, 163'i32)
   const titleSize: int32 = 18
   const subSize: int32 = 12
-  let titleLines = wrapBannerText(title, cardW - 12, titleSize)
-  let subLines = if subtitle.len > 0: wrapBannerText(subtitle, cardW - 12, subSize) else: @[]
+  let titleLines = wrapTextLines(title, cardW - 12, titleSize)
+  let subLines = if subtitle.len > 0: wrapTextLines(subtitle, cardW - 12, subSize) else: @[]
   let cardH: int32 = 12 + titleLines.len.int32 * (titleSize + 4) +
                      subLines.len.int32 * (subSize + 3) + (if subLines.len > 0: 4 else: 0)
   let slideOff = int32((1.0'f32 - ease) * (cardW.float32 + 12.0'f32))

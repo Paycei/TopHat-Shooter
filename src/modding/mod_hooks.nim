@@ -264,7 +264,7 @@ proc modKeybindByKey*(key: string): ModKeybind =
       return b
   nil
 
-proc modKeybindGamepadDown*(b: ModKeybind): bool =
+proc modKeybindGamepadDown(b: ModKeybind): bool =
   let pad = activeGamepad()
   b != nil and pad >= 0 and b.padBind != GamepadButton.Unknown and
     isGamepadButtonDown(pad, b.padBind)
@@ -286,7 +286,7 @@ proc modKeybindReleased*(b: ModKeybind): bool =
     (pad >= 0 and b.padBind != GamepadButton.Unknown and
      isGamepadButtonReleased(pad, b.padBind))
 
-proc resetModKeybinds*() =
+proc resetModKeybinds() =
   modKeybinds.setLen(0)
 
 proc dropModKeybinds*(owner: int) =
@@ -365,7 +365,7 @@ proc unwrapEnemy*(v: ScriptValue): Enemy =
 proc unwrapBullet*(v: ScriptValue): Bullet =
   if v.kind == vkUserdata and v.ud.cls == bulletClass: BulletBox(v.ud.box).b else: nil
 
-proc wrapMatch*(m: ScriptedMatch): ScriptValue =
+proc wrapMatch(m: ScriptedMatch): ScriptValue =
   if m.isNil or matchClass.isNil: NilValue
   else: vud(Userdata(cls: matchClass, box: MatchBox(m: m), key: cast[pointer](m)))
 
@@ -449,7 +449,7 @@ proc requireLoading*(vm: VM, what: string): int =
 var scriptSafe*: bool
   ## The script running now was entered at a safe point (callAs's `safe`).
 
-proc structuralWritesAllowed*(): bool {.inline.} = scriptSafe or modLoading
+proc structuralWritesAllowed(): bool {.inline.} = scriptSafe or modLoading
 
 proc requireStructural*(vm: VM, what: string) =
   if not structuralWritesAllowed():
@@ -488,7 +488,7 @@ proc disableMod*(idx: int, reason: string) =
   hudNotice = m.name & ": " & reason
   hudNoticeTimer = 6.0
 
-proc reportModError*(idx: int, err: string) =
+proc reportModError(idx: int, err: string) =
   if QuitSentinel in err: return   # os.exit unwinding the script, not an error
   if idx < 0 or idx >= mods.len:
     modLogAdd(mlError, "", err)
@@ -560,9 +560,6 @@ proc removeCustomHandler*(name: string, fn: ScriptValue, owner: int) =
   else: customHandlers[name] = kept
 
 const MaxCustomDepth* = MaxScriptNesting   ## hooks.emit / hooks.filter nesting
-
-proc customHandlerCount*(name: string): int =
-  customHandlers.getOrDefault(name).len
 
 proc emitCustom*(name: string, args: openArray[ScriptValue]): bool =
   ## hooks.emit: every handler of `name`, in registration order. False when
@@ -666,7 +663,7 @@ proc fire*(h: ModHook, args: openArray[ScriptValue], safe = false) =
   for hd in hs:
     discard callAs(hd.owner, hd.fn, args, r, safe = safe)
 
-proc fireCancel*(h: ModHook, args: openArray[ScriptValue], safe = false): bool =
+proc fireCancel(h: ModHook, args: openArray[ScriptValue], safe = false): bool =
   ## True as soon as one handler returns true ("cancel the vanilla behaviour").
   let hs = handlers[h]
   var r: RetVals
@@ -676,7 +673,7 @@ proc fireCancel*(h: ModHook, args: openArray[ScriptValue], safe = false): bool =
       return true
   false
 
-proc filterNum*(h: ModHook, value: float64, args: openArray[ScriptValue]): float64 =
+proc filterNum(h: ModHook, value: float64, args: openArray[ScriptValue]): float64 =
   ## Each handler gets (value, args...) and may return a number to replace it.
   result = value
   let hs = handlers[h]
@@ -929,7 +926,7 @@ modRestoreRuleImpl = restoreRuleOf
 var resumeOverride: tuple[game: Game, on: bool]
   ## run.resumable for one run (the Game it was set on); the mode's flag otherwise
 
-proc modModeResumable*(key: string): bool =
+proc modModeResumable(key: string): bool =
   ## Whether runs of mod game mode `key` are saved to resume when the player
   ## quits (register.gamemode resumable; built-in modes always are).
   if key.len == 0 or modModes.len == 0: return true
@@ -1004,7 +1001,7 @@ proc modAppName*(i: int, spanish: bool): string =
 
 proc modAppDraw*(i: int, w, h, mx, my: float32) =
   ## Called with the canvas already translated to (0, 0) and scissored.
-  if i < 0 or i >= modApps.len or modApps[i].draw.kind notin {vkFunction, vkNative}: return
+  if i < 0 or i >= modApps.len or modApps[i].draw.kind != vkFunction: return
   let prev = modCtx.drawing
   let prevArena = modCtx.hudArena
   modCtx.drawing = dtHud
@@ -1017,20 +1014,20 @@ proc modAppDraw*(i: int, w, h, mx, my: float32) =
   modCtx.hudArena = prevArena
 
 proc modAppUpdate*(i: int, dt: float32) =
-  if i < 0 or i >= modApps.len or modApps[i].update.kind notin {vkFunction, vkNative}: return
+  if i < 0 or i >= modApps.len or modApps[i].update.kind != vkFunction: return
   var r: RetVals
   discard callAs(modApps[i].owner, modApps[i].update, [vnum(dt.float64)], r)
 
 proc modAppClick*(i: int, x, y: float32, button: string, w, h: float32) =
   ## click(x, y, button, w, h): canvas coordinates, and the canvas size.
-  if i < 0 or i >= modApps.len or modApps[i].click.kind notin {vkFunction, vkNative}: return
+  if i < 0 or i >= modApps.len or modApps[i].click.kind != vkFunction: return
   var r: RetVals
   discard callAs(modApps[i].owner, modApps[i].click,
                  [vnum(x.float64), vnum(y.float64), vstr(button), vnum(w.float64), vnum(h.float64)], r)
 
 proc modAppDrag*(i: int, x, y: float32, w, h: float32) =
   ## drag(x, y, w, h): canvas coordinates while the left mouse button is held.
-  if i < 0 or i >= modApps.len or modApps[i].drag.kind notin {vkFunction, vkNative}: return
+  if i < 0 or i >= modApps.len or modApps[i].drag.kind != vkFunction: return
   var r: RetVals
   discard callAs(modApps[i].owner, modApps[i].drag,
                  [vnum(x.float64), vnum(y.float64), vnum(w.float64), vnum(h.float64)], r)
@@ -1135,7 +1132,7 @@ proc modBeginFrame*(game: Game) =
       fire(hkRunStart, [wrapGame(game), vbool(resumed)], safe = true)
     if game.modMode.len > 0:
       let mi = findModMode(game.modMode)
-      if mi >= 0 and modModes[mi].onStart.kind in {vkFunction, vkNative}:
+      if mi >= 0 and modModes[mi].onStart.kind == vkFunction:
         var r: RetVals
         discard callAs(modModes[mi].owner, modModes[mi].onStart, [wrapGame(game), vbool(resumed)], r)
     if restoreSpentPending:
@@ -1336,7 +1333,7 @@ proc filterEnemyType(h: ModHook, et: EnemyType, args: openArray[ScriptValue]): E
 # simulation, outside every loop, the same frame.
 type
   ModActionKind* = enum
-    makSpawnEnemy, makSpawnBoss, makRemoveEnemy, makSpawnBullet, makRemoveBullet,
+    makSpawnBoss, makRemoveEnemy, makRemoveBullet,
     makStartWave, makEndWave, makWin, makLose, makPowerUpDraft,
     makGivePowerUp, makTakePowerUp, makSpawnCoin, makSpawnXp, makSpawnConsumable,
     makEnter3D,
@@ -1347,16 +1344,9 @@ type
   ModAction* = object
     kind*: ModActionKind
     owner*: int
-    enemyType*: EnemyType
-    x*, y*, vx*, vy*: float32
+    x*, y*: float32
     bossId*: int
-    elite*: bool
-    difficulty*: float32   ## < 0: the run's current difficulty
     target*: Enemy
-    damage*, radius*, lifetime*: float32
-    fromPlayer*: bool
-    color*: Color
-    hasColor*: bool
     callback*: ScriptValue ## called with the spawned enemy
     bullet*: Bullet
     powerType*: PowerUpType
@@ -1377,7 +1367,7 @@ proc queueModAction*(a: ModAction) =
   modActions.add(a)
 
 proc modActionDone*(a: ModAction, spawned: Enemy) =
-  if a.callback.kind in {vkFunction, vkNative} and not spawned.isNil:
+  if a.callback.kind == vkFunction and not spawned.isNil:
     var r: RetVals
     discard callAs(a.owner, a.callback, [wrapEnemy(spawned)], r)
 
@@ -1442,7 +1432,7 @@ proc modActivateAbilities*(game: Game): bool =
         if activeCooldownOf.isNil: 1'f32 else: max(0'f32, activeCooldownOf(pt))
       result = true
 
-proc attackTable*(attack: BossAttack): ScriptValue =
+proc attackTable(attack: BossAttack): ScriptValue =
   let t = newScriptTable()
   rawSet(t, vstr("type"), vstr($attack.attackType))
   rawSet(t, vstr("damage"), vnum(attack.damage.float64))
@@ -1519,7 +1509,7 @@ proc modEnemyUpdate*(e: Enemy, dt: float32): bool =
   if modCtx.inPvP: return false
   if enemyUpdateFns.len > 0:
     let f = enemyUpdateFns.getOrDefault(ord(e.enemyType))
-    if f.fn.kind in {vkFunction, vkNative}:
+    if f.fn.kind == vkFunction:
       var r: RetVals
       if callAs(f.owner, f.fn, [wrapEnemy(e), vnum(dt.float64), wrapGame(modCtx.game)], r) and
          r.count > 0 and r.first.kind == vkBool and r.first.b:
@@ -1534,13 +1524,13 @@ proc modEnemyDraw*(e: Enemy): bool =
   defer: modCtx.drawing = prev
   if e.isBoss and bossDrawFns.len > 0:
     let f = bossDrawFns.getOrDefault(e.bossDefinitionID)
-    if f.fn.kind in {vkFunction, vkNative}:
+    if f.fn.kind == vkFunction:
       var r: RetVals
       if callAs(f.owner, f.fn, [wrapEnemy(e)], r):
         return true
   if not e.isBoss and enemyDrawFns.len > 0:
     let f = enemyDrawFns.getOrDefault(ord(e.enemyType))
-    if f.fn.kind in {vkFunction, vkNative}:
+    if f.fn.kind == vkFunction:
       var r: RetVals
       if callAs(f.owner, f.fn, [wrapEnemy(e)], r):
         return true
@@ -1574,7 +1564,7 @@ proc modBossAttack*(game: Game, boss: Enemy, attack: BossAttack): bool =
   if not isModAttack:
     return false
   let f = bossAttackFns.getOrDefault(attack.specialData)
-  if f.fn.kind in {vkFunction, vkNative}:
+  if f.fn.kind == vkFunction:
     var r: RetVals
     discard callAs(f.owner, f.fn, [wrapEnemy(boss), attackTable(attack), wrapGame(game)], r)
   true
@@ -1583,7 +1573,7 @@ proc modBossBehavior*(game: Game, boss: Enemy, behavior: string, dt: float32): b
   ## "mod:" movement behaviours. True when handled.
   if not behavior.startsWith("mod:"): return false
   let f = bossBehaviorFns.getOrDefault(behavior)
-  if f.fn.kind in {vkFunction, vkNative}:
+  if f.fn.kind == vkFunction:
     var r: RetVals
     discard callAs(f.owner, f.fn, [wrapEnemy(boss), vnum(dt.float64), wrapGame(game)], r)
   true
@@ -1819,7 +1809,7 @@ proc unwrapPickup3D*(v: ScriptValue): Pickup3D =
 # sweeps the dead after the stage.
 type
   World3DActionKind* = enum
-    wkSpawnEntity, wkSpawnProjectile, wkSpawnPickup, wkFinish
+    wkSpawnEntity, wkSpawnProjectile, wkSpawnPickup
 
   World3DAction* = object
     kind*: World3DActionKind
@@ -1827,7 +1817,6 @@ type
     entity*: Entity3D          ## wkSpawnEntity: already built (id assigned), not yet in the world
     projectile*: Projectile3D  ## wkSpawnProjectile
     pickup*: Pickup3D          ## wkSpawnPickup
-    result*: World3DResult     ## wkFinish
     callback*: ScriptValue     ## wkSpawnEntity: called with the entity once it is in the world
 
 var world3dActions*: seq[World3DAction]
@@ -1849,7 +1838,7 @@ proc queueWorld3DAction*(a: World3DAction) =
 
 proc world3DActionDone*(a: World3DAction) =
   ## The engine calls this once a wkSpawnEntity is in the world.
-  if a.callback.kind in {vkFunction, vkNative} and not a.entity.isNil:
+  if a.callback.kind == vkFunction and not a.entity.isNil:
     var r: RetVals
     discard callAs(a.owner, a.callback, [wrapEntity3D(a.entity)], r)
 
@@ -2099,7 +2088,7 @@ proc scriptToJson*(v: ScriptValue): string =
   ## A message's data for the wire ("" for nil; functions and userdata drop out).
   if v.kind == vkNil: "" else: $toJsonNode(v)
 
-proc jsonToScript*(s: string): ScriptValue =
+proc jsonToScript(s: string): ScriptValue =
   ## The other side's JSON back into a script value (nil if absent or malformed).
   if s.len == 0 or not jsonDepthOk(s): return NilValue
   try: fromJsonNode(parseJson(s))
@@ -2175,7 +2164,7 @@ proc modPvPMatchStart*(m: ScriptedMatch, modeKey: string) =
   for md in mods: md.entityData.clear()   # b.data of the last match's bullets
   if hookActive(hkPvpStart): fire(hkPvpStart, [wrapMatch(m)])
   let i = findPvPMode(modeKey)
-  if i >= 0 and pvpModes[i].onStart.kind in {vkFunction, vkNative}:
+  if i >= 0 and pvpModes[i].onStart.kind == vkFunction:
     var r: RetVals
     discard callAs(pvpModes[i].owner, pvpModes[i].onStart, [wrapMatch(m)], r)
 

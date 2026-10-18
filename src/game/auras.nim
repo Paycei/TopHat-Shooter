@@ -35,7 +35,7 @@ const
     ## afterglow. The renderer splits a single 1->0 timer back into those phases,
     ## so no extra per-slot state is needed on the player.
 
-proc getAuraRadius*(level: int): float32 {.moddable.} =
+proc getAuraRadius(level: int): float32 {.moddable.} =
   ## Standard aura radius band based on level (before the per-aura share below).
   ## Chosen so that even the tightest aura's share beats the old flat
   ## 187.5/250/312.5 radii - every aura gained range, none lost it.
@@ -55,7 +55,7 @@ proc auraSlotOf*(auraType: PowerUpType): AuraSlot {.moddable.} =
   of puBloodAura: asBlood
   else: asSlow
 
-proc auraWaveEase*(travel: float32): float32 {.moddable.} =
+proc auraWaveEase(travel: float32): float32 {.moddable.} =
   ## Shape of the wavefront's outward run: fast off the player, settling into
   ## the border. Shared by the hit test and the renderer, so what sweeps an
   ## enemy is exactly the ring the player saw arrive - same contract as
@@ -90,7 +90,7 @@ proc auraWaveCatches*(player: Player, enemy: Enemy, slot: AuraSlot,
   enemy.auraWaveHitSeq[slot] = player.auraPulseSeq[slot]
   true
 
-proc getAuraRangeMult*(auraType: PowerUpType): float32 {.moddable.} =
+proc getAuraRangeMult(auraType: PowerUpType): float32 {.moddable.} =
   ## Each aura takes a different share of the radius band so a player running
   ## several auras sees distinct concentric rings instead of one thick blob.
   ## Ordering is by role: control auras reach furthest, burst damage least.

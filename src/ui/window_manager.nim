@@ -83,7 +83,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.feedback.window.visible = false
   result.mods.window.visible = false
 
-proc getAllWindows*(wm: WindowManager): seq[OSWindow] {.moddable.} =
+proc getAllWindows(wm: WindowManager): seq[OSWindow] {.moddable.} =
   ## Get all windows in a single sequence
   result = @[
     wm.settings.window,
@@ -102,7 +102,7 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] {.moddable.} =
   for app in wm.modApps:
     result.add(app.window)
 
-proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] {.moddable.} =
+proc getVisibleWindows(wm: WindowManager): seq[OSWindow] {.moddable.} =
   ## Get only visible windows, sorted by z-order (highest first)
   result = @[]
   for window in wm.getAllWindows():
@@ -183,7 +183,7 @@ proc closeAllWindows*(wm: WindowManager) {.moddable.} =
   wm.mods.window.visible = false
   wm.modApps.setLen(0)
 
-proc windowUIScale*(window: OSWindow, requested: float32,
+proc windowUIScale(window: OSWindow, requested: float32,
                     screenWidth, screenHeight: int): float32 {.moddable.} =
   ## The interface scale this one window can actually be drawn at.
   ##
@@ -240,7 +240,7 @@ proc pointerIn(window: OSWindow, requested: float32,
   result = getVirtualMousePosition()
   popUIScale()
 
-proc applyWindowScales*(wm: WindowManager, uiScale: float32,
+proc applyWindowScales(wm: WindowManager, uiScale: float32,
                         screenWidth, screenHeight: int) {.moddable.} =
   ## Publish every window's resolved scale onto the window itself, before
   ## anything walks the list. handleOSWindowInput decides which window owns a
@@ -366,7 +366,6 @@ type
   WindowUpdateResult* = object
     fullscreenToggle*: bool
     shopClosed*: bool
-    rogueliteClosed*: bool
     rogueliteLaunchGame*: bool  ## True when user pressed Start in the roguelite window
     iconToExecute*: int
     pvpGameReady*: bool  # True when PvP connection is established
@@ -389,7 +388,6 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
   ## Update all visible windows and handle their inputs
   result.fullscreenToggle = false
   result.shopClosed = false
-  result.rogueliteClosed = false
   result.rogueliteLaunchGame = false
   result.iconToExecute = -1
   result.pvpGameReady = false
@@ -504,7 +502,6 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
 
     elif window == wm.roguelite.window:
       let rogueliteResult = updateRogueliteWindow(wm.roguelite, dt, visibleWindows, screenWidth, screenHeight, currentGame)
-      result.rogueliteClosed = rogueliteResult.shouldClose
       result.rogueliteLaunchGame = rogueliteResult.launchGame
       if rogueliteResult.shouldClose:
         wm.roguelite.window.visible = false

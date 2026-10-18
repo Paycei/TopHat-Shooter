@@ -51,7 +51,6 @@ type
     skyColor*: Color
     floorColor*: Color
     wallColor*: Color
-    environmentIntensity*: float32  # For phase transitions
     gravity*: float32               # world units/s^2 (negative pulls down)
     boundsRadius*: float32          # the player is kept inside this radius
     deathPlaneY*: float32           # falling below this kills the player
@@ -75,11 +74,6 @@ type
     active*: bool
     orbitSpeed*: float32  # Variable orbit speed per satellite
 
-  BossClone* = object
-    pos*: Vector3f
-    lifetime*: float32
-    alpha*: float32
-
   Boss3D* = object
     pos*: Vector3f
     health*: float32
@@ -90,11 +84,8 @@ type
     moveTimer*: float32
     phaseTransitionTimer*: float32  # Brief invulnerability during phase changes
     attackPattern*: int  # Current attack pattern index
-    patternTimer*: float32  # Timer for pattern rotation
-    shieldHealth*: float32
     teleportTimer*: float32
     gravityWells*: seq[GravityWell]
-    berserkModeActive*: bool  # Phase 5 final stand
 
   DamageNumber3D* = object
     pos*: Vector3f

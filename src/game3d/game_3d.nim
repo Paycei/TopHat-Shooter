@@ -24,7 +24,7 @@ const
 
 # CONSTRUCTION
 
-proc allocId3D*(world: Game3D): int {.moddable.} =
+proc allocId3D(world: Game3D): int {.moddable.} =
   ## Ids are never reused within a world; 0 means "none".
   result = world.nextId
   inc world.nextId
@@ -230,7 +230,7 @@ proc damageBoss3D*(world: Game3D, amount: float32) {.moddable.} =
 
 # CONTENT
 
-proc addEntity3D*(world: Game3D, e: Entity3D) {.moddable.} =
+proc addEntity3D(world: Game3D, e: Entity3D) {.moddable.} =
   ## An entity joins the world: profile difficulty scales its HP once, here.
   if e.id == 0: e.id = allocId3D(world)
   e.hp *= difficultyEnemyHpMult()
@@ -273,8 +273,6 @@ proc processWorld3DActions*(world: Game3D) {.moddable.} =
         else:
           a.pickup.alive = false
           a.pickup.removed = true
-    of wkFinish:
-      requestFinish3D(world, a.result)
 
 # RAYCAST
 

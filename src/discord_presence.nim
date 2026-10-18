@@ -33,7 +33,6 @@ type
     pipe: File
     connected: bool
     nonce: int
-    lastHeartbeat: float
     lastUpdateTime: float
     # Threading support
     thread: Thread[DiscordClient]
@@ -65,7 +64,6 @@ proc newDiscordClient*(clientId: string): DiscordClient =
     clientId: clientId,
     connected: false,
     nonce: 0,
-    lastHeartbeat: 0.0,
     lastUpdateTime: 0.0,
     threadRunning: false,
     hasUpdate: false,
@@ -168,7 +166,6 @@ proc connectSync(client: DiscordClient): bool =
     if response.opcode == OPCODES.FRAME:
       let json = parseJson(response.data)
       if json.hasKey("cmd") and json["cmd"].getStr() == "DISPATCH":
-        client.lastHeartbeat = epochTime()
         return true
   except:
     discard
@@ -342,10 +339,6 @@ proc updatePresence*(client: DiscordClient, presence: DiscordRichPresence) =
   client.pendingPresence = presence
   client.hasUpdate = true
   release(client.updateLock)
-
-proc runCallbacks*(client: DiscordClient) =
-  ## No-op for compatibility - thread handles everything
-  discard
 
 proc isConnected*(client: DiscordClient): bool =
   ## Check if the Discord client is connected

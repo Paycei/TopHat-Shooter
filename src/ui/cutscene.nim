@@ -92,7 +92,7 @@ proc newCutscene*(shots: seq[CutsceneShot],
     fastForwardActive: false, skipHoldTimer: 0, lastShotPlayed: -1
   )
 
-proc shotAt*(c: Cutscene, time: float32): tuple[idx: int, local: float32, duration: float32] {.moddable.} =
+proc shotAt(c: Cutscene, time: float32): tuple[idx: int, local: float32, duration: float32] {.moddable.} =
   var cursor = 0.0'f32
   for i, shot in c.shots:
     if time < cursor + shot.duration:
@@ -101,7 +101,7 @@ proc shotAt*(c: Cutscene, time: float32): tuple[idx: int, local: float32, durati
   let last = c.shots.high
   (last, c.shots[last].duration, c.shots[last].duration)
 
-proc shotFade*(local, duration: float32): float32 {.moddable.} =
+proc shotFade(local, duration: float32): float32 {.moddable.} =
   min(easeInOut(local / 1.35'f32), easeInOut((duration - local) / 1.55'f32))
 
 # ---------------------------------------------------------------------------

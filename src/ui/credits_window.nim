@@ -65,7 +65,6 @@ proc newCreditsWindow*(screenWidth, screenHeight: int): CreditsWindow {.moddable
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 110, b: 160, a: 255),  # pink
-    owtHelp,
     resizable = false
   )
 

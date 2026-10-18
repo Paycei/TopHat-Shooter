@@ -461,7 +461,7 @@ proc applyWindowMode(fullscreen: bool) =
                      (monitorHeight - screenHeight) div 2)
   updateRenderScale()
 
-proc hasMouseMoved*(game: Game): bool =
+proc hasMouseMoved(game: Game): bool =
   ## Detects if mouse has actually moved (not just hovering)
   let currentPos = getVirtualMousePosition()
   let dx = abs(currentPos.x - game.lastMousePos.x)
@@ -527,7 +527,7 @@ proc draftGameplayInputHeld(): bool =
       return true
   false
 
-proc updateMouseTracking*(game: Game) =
+proc updateMouseTracking(game: Game) =
   ## Updates mouse position tracking and resets keyboard flag if mouse moved
   let currentPos = getVirtualMousePosition()
   if hasMouseMoved(game):
@@ -539,12 +539,12 @@ proc updateMouseTracking*(game: Game) =
     game.keyboardUsedRecently = false
   game.lastMousePos = newVector2f(currentPos.x, currentPos.y)
 
-proc markKeyboardUsed*(game: Game) =
+proc markKeyboardUsed(game: Game) =
   ## Marks that keyboard was just used, disabling mouse selection temporarily
   game.keyboardUsedRecently = true
   game.mouseMovedRecently = false
 
-proc drawCustomCursor*(time: float32) =
+proc drawCustomCursor(time: float32) =
   ## Draw custom crosshair cursor (only when system cursor is hidden)
   let mousePos = getVirtualMousePosition()
   let cursorPulse = sin(time * 8.0) * 2 + 8
@@ -1632,8 +1632,6 @@ proc main() =
           case cutsceneContinuation
           of cscMenu:
             currentGame.state = gsMenu
-          of cscVictory:
-            currentGame.state = gsVictory
           of cscLaunchGame:
             # Mode-intro finished: start the loading animation and hand off to gsMenu.
             # Mark the intro as seen + save happens in the mode-launch helper (Stage 3).
@@ -2460,7 +2458,6 @@ proc main() =
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
         try:
-          runCallbacks(currentGame.discordClient)
           updateDiscordForMenu(currentGame.discordClient)
         except Exception as e:
           echo "Discord error in menu: ", e.msg
@@ -2555,7 +2552,6 @@ proc main() =
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil and not cheatMenu.active:
         try:
-          runCallbacks(currentGame.discordClient)
           updateDiscordForPlaying(currentGame.discordClient, currentGame)
         except Exception as e:
           echo "Discord error during gameplay: ", e.msg
@@ -3242,7 +3238,6 @@ proc main() =
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
         try:
-          runCallbacks(currentGame.discordClient)
           updateDiscordForPaused(currentGame.discordClient, currentGame)
         except Exception as e:
           echo "Discord error while paused: ", e.msg
@@ -4593,7 +4588,6 @@ proc main() =
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
         try:
-          runCallbacks(currentGame.discordClient)
           updateDiscordForPvP(currentGame.discordClient, currentPvPGame)
         except Exception as e:
           echo "Discord error during PvP: ", e.msg

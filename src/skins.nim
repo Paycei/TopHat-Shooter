@@ -29,7 +29,6 @@ type
     secondaryColor*: Color
     coreColor*: Color
     isAnimated*: bool      # Whether skin uses time-based color animation
-    isUnlocked*: bool      # Whether player has unlocked this skin
 
 # Global skin database
 var skinDatabase*: array[SkinType, SkinData]
@@ -42,8 +41,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 0, g: 200, b: 200, a: 255),
     secondaryColor: Color(r: 0, g: 150, b: 200, a: 255),
     coreColor: Color(r: 255, g: 255, b: 255, a: 255),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   skinDatabase[skNeonPink] = SkinData(
@@ -52,8 +50,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 255, g: 0, b: 180, a: 255),
     secondaryColor: Color(r: 200, g: 0, b: 150, a: 255),
     coreColor: Color(r: 255, g: 150, b: 230, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skEmerald] = SkinData(
@@ -62,8 +59,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 0, g: 255, b: 100, a: 255),
     secondaryColor: Color(r: 0, g: 200, b: 80, a: 255),
     coreColor: Color(r: 200, g: 255, b: 200, a: 255),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   skinDatabase[skSunset] = SkinData(
@@ -72,8 +68,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 255, g: 100, b: 0, a: 255),
     secondaryColor: Color(r: 255, g: 50, b: 0, a: 255),
     coreColor: Color(r: 255, g: 200, b: 100, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skAmethyst] = SkinData(
@@ -82,8 +77,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 150, g: 0, b: 255, a: 255),
     secondaryColor: Color(r: 120, g: 0, b: 200, a: 255),
     coreColor: Color(r: 220, g: 180, b: 255, a: 255),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   skinDatabase[skGold] = SkinData(
@@ -92,8 +86,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 255, g: 215, b: 0, a: 255),
     secondaryColor: Color(r: 255, g: 180, b: 0, a: 255),
     coreColor: Color(r: 255, g: 255, b: 200, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skIce] = SkinData(
@@ -102,8 +95,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 150, g: 220, b: 255, a: 255),
     secondaryColor: Color(r: 100, g: 180, b: 255, a: 255),
     coreColor: Color(r: 240, g: 250, b: 255, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skShadow] = SkinData(
@@ -112,8 +104,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 60, g: 60, b: 80, a: 255),
     secondaryColor: Color(r: 40, g: 40, b: 60, a: 255),
     coreColor: Color(r: 180, g: 180, b: 200, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skRainbow] = SkinData(
@@ -122,8 +113,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 255, g: 0, b: 0, a: 255),
     secondaryColor: Color(r: 200, g: 0, b: 200, a: 255),
     coreColor: Color(r: 255, g: 255, b: 255, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skMatrix] = SkinData(
@@ -132,8 +122,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 0, g: 255, b: 0, a: 255),
     secondaryColor: Color(r: 0, g: 180, b: 0, a: 255),
     coreColor: Color(r: 180, g: 255, b: 180, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skVoid] = SkinData(
@@ -142,8 +131,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 80, g: 0, b: 120, a: 255),
     secondaryColor: Color(r: 50, g: 0, b: 80, a: 255),
     coreColor: Color(r: 150, g: 100, b: 200, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skPlasma] = SkinData(
@@ -152,8 +140,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 100, g: 100, b: 255, a: 255),
     secondaryColor: Color(r: 150, g: 50, b: 255, a: 255),
     coreColor: Color(r: 200, g: 200, b: 255, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skStars] = SkinData(
@@ -162,8 +149,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 255, g: 240, b: 140, a: 255),
     secondaryColor: Color(r: 220, g: 190, b: 90, a: 255),
     coreColor: Color(r: 255, g: 255, b: 255, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   skinDatabase[skLightning] = SkinData(
@@ -172,8 +158,7 @@ proc initializeSkins*() {.moddable.} =
     primaryColor: Color(r: 120, g: 190, b: 255, a: 255),
     secondaryColor: Color(r: 90, g: 140, b: 255, a: 255),
     coreColor: Color(r: 240, g: 250, b: 255, a: 255),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
 proc getSkinColors*(skinType: SkinType, time: float32): tuple[primary, secondary, core: Color] {.moddable.} =

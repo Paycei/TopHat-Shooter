@@ -6,6 +6,7 @@ import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context, ../utils
 import ../modding/[mod_hooks, mod_registry]
+import ui_helpers
 
 const
   SHOP_BASE_WIDTH: int32 = 950     # classic (4:3) width -- do not change
@@ -108,7 +109,7 @@ proc itemRect*(l: ShopLayout, i: int, scroll: int32 = 0): Rectangle {.moddable.}
             y: float32(l.itemsY + int32(i) * (ITEM_HEIGHT + ITEM_SPACING) - scroll),
             width: l.itemW.float32, height: ITEM_HEIGHT.float32)
 
-proc listHeight*(l: ShopLayout): int32 {.moddable.} =
+proc listHeight(l: ShopLayout): int32 {.moddable.} =
   ## The purchase list's visible height (down to the bottom panel).
   l.bottomY - 8 - l.itemsY
 
@@ -154,44 +155,10 @@ proc shopFitText(text: string, maxWidth, fontSize: int32,
     t = t[0..^2]
   return (t & "...", fs)
 
-proc shopWrapText(text: string, maxWidth, fontSize: int32): seq[string] =
-  ## Word-wraps text into lines that each fit within maxWidth pixels at fontSize.
-  ## Words that are individually wider than maxWidth are hard-broken at the character level.
-  result = @[]
-  var words: seq[string] = @[]
-  for w in text.splitWhitespace():
-    words.add(w)
-  if words.len == 0:
-    return
-
-  var currentLine = ""
-  for word in words:
-    let candidate = if currentLine.len == 0: word else: currentLine & " " & word
-    if measureText(candidate, fontSize) <= maxWidth:
-      currentLine = candidate
-    else:
-      if currentLine.len > 0:
-        result.add(currentLine)
-      # If the bare word is still too wide, hard-break it character by character
-      if measureText(word, fontSize) > maxWidth:
-        var chunk = ""
-        for ch in word:
-          if measureText(chunk & $ch, fontSize) <= maxWidth:
-            chunk &= $ch
-          else:
-            if chunk.len > 0:
-              result.add(chunk)
-            chunk = $ch
-        currentLine = chunk
-      else:
-        currentLine = word
-  if currentLine.len > 0:
-    result.add(currentLine)
-
-proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
+proc drawWrappedDesc(text: string, x, y, maxWidth, fontSize: int32,
                      color: Color, lineSpacing: int32 = 2): int32 =
   ## Draws word-wrapped text, returning the total pixel height consumed.
-  let lines = shopWrapText(text, maxWidth, fontSize)
+  let lines = wrapTextLines(text, maxWidth, fontSize, breakLongWords = true)
   let lineHeight = fontSize + lineSpacing
   for i, line in lines:
     drawText(line, x, y + int32(i) * lineHeight, fontSize, color)
@@ -205,13 +172,13 @@ proc initShopItems*(): array[6, ShopItem] {.moddable.} =
   result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: SHOP_BASE_COSTS[4], bought: 0)
   result[5] = ShopItem(name: t(tkShopWallX4), description: t(tkShopWallX4Desc), baseCost: SHOP_BASE_COSTS[5], bought: 0)
 
-proc getCurrentCost*(item: ShopItem): int {.moddable.} =
+proc getCurrentCost(item: ShopItem): int {.moddable.} =
   result = (item.baseCost.float32 * pow(SHOP_COST_MULTIPLIER.float32, item.bought.float32)).int
 
-proc shopDamageGain*(purchaseNumber: int): float32 {.moddable.} =
+proc shopDamageGain(purchaseNumber: int): float32 {.moddable.} =
   SHOP_DAMAGE_GAIN * pow(SHOP_DAMAGE_SCALE, max(0, purchaseNumber - 1).float32)
 
-proc shopHealthGain*(purchaseNumber: int): int {.moddable.} =
+proc shopHealthGain(purchaseNumber: int): int {.moddable.} =
   SHOP_HEALTH_GAIN_BASE + purchaseNumber div 2
 
 proc applyShopPurchaseEffect*(game: Game, index: int, purchaseNumber: int, healHealth: bool = true) {.moddable.} =
@@ -537,7 +504,7 @@ proc drawShop*(game: Game) {.moddable.} =
     for powerUp in game.player.powerUps:
       totalContentH += 18  # name row
       let desc = getPowerUpDescription(powerUp.powerType, powerUp.level, game.player.damage)
-      let wrappedLines = shopWrapText(desc, sidebarDescMaxW, 10)
+      let wrappedLines = wrapTextLines(desc, sidebarDescMaxW, 10, breakLongWords = true)
       totalContentH += int32(wrappedLines.len) * 12 + 4  # desc rows
   totalContentH += 8  # bottom padding
 
@@ -579,7 +546,7 @@ proc drawShop*(game: Game) {.moddable.} =
       upgradeY += 18
 
       let desc = getPowerUpDescription(powerUp.powerType, powerUp.level, game.player.damage)
-      let descHeight = drawWrappedText(desc, upgradeX + 8, upgradeY,
+      let descHeight = drawWrappedDesc(desc, upgradeX + 8, upgradeY,
                                        sidebarDescMaxW, 10,
                                        Color(r: 150, g: 160, b: 170, a: 255))
       upgradeY += descHeight + 4

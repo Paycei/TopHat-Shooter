@@ -3078,15 +3078,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pack_sunset": "Sunset Bundle",
     "pack_emerald": "Emerald Bundle",
     "pack_neon_pink": "Neon Pink Bundle",
-    "pack_neon_pink_desc": "Neon Pink skins with heart bursts",
     "pack_amethyst": "Amethyst Bundle",
-    "pack_amethyst_desc": "Every Amethyst cosmetic",
     "pack_matrix": "Matrix Bundle",
-    "pack_matrix_desc": "Every Matrix Code cosmetic",
     "pack_stars": "Starfall Bundle",
-    "pack_stars_desc": "Every Starfall cosmetic",
     "pack_lightning": "Storm Bundle",
-    "pack_lightning_desc": "Every Storm Surge cosmetic",
 
     # Help System
     "help_window_title": "Help System - Terminal",
@@ -5253,15 +5248,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "pack_sunset": "Paquete Atardecer",
     "pack_emerald": "Paquete Esmeralda",
     "pack_neon_pink": "Paquete Rosa Neon",
-    "pack_neon_pink_desc": "Rosa Neon con corazones",
     "pack_amethyst": "Paquete Amatista",
-    "pack_amethyst_desc": "Todos los cosméticos Amatista",
     "pack_matrix": "Paquete Matrix",
-    "pack_matrix_desc": "Todos los cosméticos Matrix",
     "pack_stars": "Paquete Estelar",
-    "pack_stars_desc": "Todos los cosméticos Estelares",
     "pack_lightning": "Paquete Tormenta",
-    "pack_lightning_desc": "Todos los cosméticos Tormenta",
 
     # Help System
     "help_window_title": "Sistema de Ayuda - Terminal",
@@ -6756,7 +6746,7 @@ proc nextLanguageSetting*(setting: string): string {.moddable.} =
   for l in modLanguages: all.add l.id
   all[(all.find(setting) + 1) mod all.len]   # (an unknown one: English)
 
-proc modLanguageText*(english: string): string {.moddable.} =
+proc modLanguageText(english: string): string {.moddable.} =
   ## A mod's own text in the mod language in use ("" if it has none).
   if activeModLanguage.len > 0:
     modLanguageTexts.withValue(activeModLanguage, texts):

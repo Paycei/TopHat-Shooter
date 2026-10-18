@@ -833,7 +833,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   # They die when hit again (hp becomes <= 0)
   return enemy.hp >= EnemyMinAliveHp
 
-proc drawCustomBoss*(enemy: Enemy) {.moddable.} =
+proc drawCustomBoss(enemy: Enemy) {.moddable.} =
   ## Redesigned boss visuals
   let time    = getTime()
   let pulse   = sin(time * 2.5) * 0.5 + 0.5    # fast pulse  0..1
@@ -1479,7 +1479,7 @@ proc drawCustomBoss*(enemy: Enemy) {.moddable.} =
 
     else: discard
 
-proc drawBossPhaseTransition*(enemy: Enemy) {.moddable.} =
+proc drawBossPhaseTransition(enemy: Enemy) {.moddable.} =
   ## Epic per-boss phase-change animation. Plays while a boss is invulnerable
   ## during a phase transition (driven entirely by `invulnerabilityTimer`, which
   ## is only ever set by `transitionBossToPhase`). The boss is frozen for this
@@ -1847,7 +1847,7 @@ proc drawThreatAura(enemy: Enemy) =
       drawRectangle(px.int32, pipY.int32, 5, 5, withAlpha(color, 230))
       drawRectOutline(px.int32, pipY.int32, 5, 5, Color(r: 255, g: 255, b: 255, a: 150))
 
-proc drawOmegaGlyph*(cx, cy, r, thick: float32, col: Color) {.moddable.} =
+proc drawOmegaGlyph(cx, cy, r, thick: float32, col: Color) {.moddable.} =
   ## A programmatic Ω: a ring open at the bottom (raylib ring angles: 0 deg =
   ## +x, clockwise on screen, so the 45..135 gap faces down) plus two
   ## outward-running feet at the arc ends. Used by the Omega Entity's warning
@@ -3014,19 +3014,6 @@ proc drawAttackWarning*(warning: AttackWarning) {.moddable.} =
                   else: Color(r: 255, g: 130, b: 30, a: 255)
     drawMeteorWarning(warning.pos, spawn, warning.bulletRadius, baseCol,
                       warningProgress(warning))
-
-  of awtBurst:
-    # Draw circular burst warning (generic / unused fallback, kept for safety)
-    drawCircleOutline(warning.pos.x.int32, warning.pos.y.int32, 50.0 + pulse,
-                   Color(r: 255, g: 100, b: 0, a: alpha))
-    drawCircleOutline(warning.pos.x.int32, warning.pos.y.int32, 70.0 + pulse,
-                   Color(r: 255, g: 100, b: 0, a: (alpha div 2)))
-  of awtFake:
-    # Generic fallback fake, kept for safety
-    drawCircleOutline(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse,
-                   Color(r: 255, g: 255, b: 0, a: alpha))
-    drawText("!", (warning.pos.x - 8).int32, (warning.pos.y - 12).int32, 24,
-            Color(r: 255, g: 255, b: 0, a: alpha))
 
   # Triangle
   of awtTriangleDash:
@@ -5072,7 +5059,6 @@ proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: 
       isDashing: false,
       dashVelocity: newVector2f(0, 0),
       dashDuration: 0,
-      dashMaxDuration: 0,
       dashTargetPos: newVector2f(0, 0),
       pendingDashLocked: false,
       pendingDashStart: newVector2f(0, 0),
@@ -5081,11 +5067,10 @@ proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: 
       activeEffects: default(array[ElementType, ActiveEffect])
     )
 
-proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy {.moddable.} =
+proc spawnBoss*(screenWidth, screenHeight: int32, waveNumber: int): Enemy {.moddable.} =
   ## The wave campaign's boss for `waveNumber` (bosses 1-12 on every
   ## BossWaveInterval-th wave, boss 12 repeating past the campaign), or nil
-  ## when `waveNumber` is not a boss wave. `difficulty`/`bossCount` are unused
-  ## (stats come from the wave slot) and kept for the existing callers.
+  ## when `waveNumber` is not a boss wave. Its stats come from the wave slot.
   if not isBossWave(waveNumber):
     return nil
   spawnBossById(screenWidth, screenHeight, getCustomBossNumber(waveNumber), waveNumber)
@@ -5200,9 +5185,6 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
           availableTypes.delete(j)
           break
 
-  # For backward compatibility, set primary eliteType to first in list
-  enemy.eliteType = if enemy.eliteTypes.len > 0: enemy.eliteTypes[0] else: etNone
-
   # Multiplier for multiple effects (diminishing returns)
   # 1 effect = 100%, 2 effects = 70% effectiveness to prevent stacking exponentially
   let effectMultiplier = if enemy.eliteTypes.len >= 2: 0.7 else: 1.0
@@ -5295,7 +5277,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
     enemy.radius *= 1.15
     enemy.collisionRadius *= 1.15
 
-proc getEliteAuraColor*(eliteType: EliteType): Color {.moddable.} =
+proc getEliteAuraColor(eliteType: EliteType): Color {.moddable.} =
   ## Returns the aura color for each elite type
   case eliteType
   of etNone: White  # Should never be called

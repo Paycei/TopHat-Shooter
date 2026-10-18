@@ -37,7 +37,7 @@ const BlockCheckpointFile = "run_checkpoint.json"
 ## while mods are loaded, so a modded session reads and deletes only its own
 ## files and each mod set (and mod game mode) gets separate slots.
 
-proc runSaveFileFor*(mode: GameMode, modMode: string = ""): string {.moddable.} =
+proc runSaveFileFor(mode: GameMode, modMode: string = ""): string {.moddable.} =
   "run_save_" & $mode & saveSlotTag(modMode) & ".json"
 
 proc blockCheckpointFileFor(mode: GameMode, modMode: string = ""): string =
@@ -55,7 +55,7 @@ proc isBlockCheckpointFile(file: string): bool =
   # Every checkpoint name (any mode, any mod slot) shares this stem.
   file.startsWith("run_checkpoint")
 
-proc getRunSavePath*(file: string): string {.moddable.} =
+proc getRunSavePath(file: string): string {.moddable.} =
   getAppDataPath() / file
 
 # Block-checkpoint presence cache. The game-over screen asks "is there a

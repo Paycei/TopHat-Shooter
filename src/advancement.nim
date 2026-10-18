@@ -423,10 +423,10 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
 proc getAdvancementDefinitions*(): seq[AdvancementDefinition] {.moddable.} =
   AllAdvancementDefs
 
-proc getAdvancementsPath*(): string {.moddable.} =
+proc getAdvancementsPath(): string {.moddable.} =
   getAppDataPath() / "advancements.json"
 
-proc newAdvancementProfile*(): AdvancementProfile {.moddable.} =
+proc newAdvancementProfile(): AdvancementProfile {.moddable.} =
   result = AdvancementProfile(
     version: AdvancementProfileVersion,
     entries: @[],
@@ -437,7 +437,7 @@ proc newAdvancementProfile*(): AdvancementProfile {.moddable.} =
     result.entries.add(AdvancementEntry(id: def.id, progress: 0.0, unlocked: false,
                                         claimed: false, unlockedAt: ""))
 
-proc findEntryIndex*(profile: AdvancementProfile, id: string): int {.moddable.} =
+proc findEntryIndex(profile: AdvancementProfile, id: string): int {.moddable.} =
   if profile.isNil:
     return -1
   for i in 0..<profile.entries.len:
@@ -475,7 +475,7 @@ proc loadAdvancementCompletionForSlot*(slot: int): float32 {.moddable.} =
     return 0.0
   min(1.0'f32, unlocked.float32 / total.float32)
 
-proc ensureAdvancementEntries*(profile: AdvancementProfile) {.moddable.} =
+proc ensureAdvancementEntries(profile: AdvancementProfile) {.moddable.} =
   if profile.isNil:
     return
   if profile.version < AdvancementProfileVersion:
@@ -851,7 +851,7 @@ proc advancementEntryToJson(entry: AdvancementEntry): JsonNode =
     "unlockedAt": entry.unlockedAt
   }
 
-proc advancementProfileToJson*(profile: AdvancementProfile): JsonNode {.moddable.} =
+proc advancementProfileToJson(profile: AdvancementProfile): JsonNode {.moddable.} =
   var entries = newJArray()
   if not profile.isNil:
     for entry in profile.entries:
@@ -868,7 +868,7 @@ proc advancementProfileToJson*(profile: AdvancementProfile): JsonNode {.moddable
     "recentUnlocks": recent
   }
 
-proc jsonToAdvancementProfile*(node: JsonNode): AdvancementProfile {.moddable.} =
+proc jsonToAdvancementProfile(node: JsonNode): AdvancementProfile {.moddable.} =
   result = AdvancementProfile(
     version: node.getOrDefault("version").getInt(AdvancementProfileVersion),
     entries: @[],

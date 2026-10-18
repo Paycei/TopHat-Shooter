@@ -33,7 +33,7 @@ const
   JuggernautSpeedCost*   = 0.40'f32  ## Move speed lost per point of damage bonus (up to -18%)
   JuggernautPlatingHp*   = 3.0'f32   ## Max HP the plating itself bolts on (counts as invested)
 
-proc juggernautInvestedHp*(player: Player): float32 {.inline, moddable.} =
+proc juggernautInvestedHp(player: Player): float32 {.inline, moddable.} =
   ## Max HP the build actually bought/earned, with automatic growth excluded.
   max(0.0'f32, player.maxHp - player.baselineMaxHp)
 
@@ -49,7 +49,7 @@ proc juggernautSpeedMult*(player: Player): float32 {.moddable.} =
 
 # --- Bulwark (puBulwark) -----------------------------------------------------
 
-proc bulwarkMaxBonus*(level: int): float32 {.inline, moddable.} =
+proc bulwarkMaxBonus(level: int): float32 {.inline, moddable.} =
   ## Damage bonus at completely intact plating (full HP), by level.
   case level
   of 0: 0.0'f32
@@ -214,7 +214,7 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
 const ORB_ORBIT_RADIUS_BASE = 42.0
 const ORB_ORBIT_RING_GAP    = 34.0
 
-proc getOrbRingRadius*(player: Player, level: int): float32 {.moddable.} =
+proc getOrbRingRadius(player: Player, level: int): float32 {.moddable.} =
   ## Level 1 -> ring 1, level 2 -> ring 2, level 3 -> ring 3, level 4 (legendary) -> ring 4.
   ## All orbs of the same level share exactly one ring, different levels never touch.
   result = player.radius * 4.5 + ORB_ORBIT_RADIUS_BASE +
@@ -265,7 +265,7 @@ proc redistributeAllOrbs*(player: Player) {.moddable.} =
       player.rotatingOrbs[idx].radius = r
       player.rotatingOrbs[idx].angle  = float32(j) * PI * 2.0 / float32(totalOrbs)
 
-proc createRotatingOrbs*(player: Player, level: int) {.moddable.} =
+proc createRotatingOrbs(player: Player, level: int) {.moddable.} =
   ## Legendary: adds 1 orb of each of the 7 elements on ring 4 (outermost).
   ## Clears existing level-4 orbs first so reapply never duplicates them.
   var i = 0
@@ -284,7 +284,7 @@ proc createRotatingOrbs*(player: Player, level: int) {.moddable.} =
     ))
   redistributeAllOrbs(player)
 
-proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) {.moddable.} =
+proc createElementalOrbs(player: Player, elementType: ElementType, level: int) {.moddable.} =
   ## Replace all orbs of this element, tagged with the new level.
   ## Level 1 -> 4 orbs on ring 1, level 2 -> 8 orbs on ring 2, level 3 -> 12 orbs on ring 3.
   ## All other elements' orbs are untouched, redistributeAllOrbs re-spaces every ring.
@@ -331,7 +331,7 @@ proc getHeavyRoundsSizeMultiplier*(level: int): float32 {.moddable.} =
   of 2: 1.2
   else: 1.25
 
-proc rotatingShieldHealth*(level: int): float32 {.moddable.} =
+proc rotatingShieldHealth(level: int): float32 {.moddable.} =
   ## Health of each Rotating Shield segment (100/250/400 displayed HP, as the
   ## tooltips say). Single table for both the first pickup and upgrades, which
   ## used to disagree (upgrades applied 4.0/5.0).
@@ -340,14 +340,14 @@ proc rotatingShieldHealth*(level: int): float32 {.moddable.} =
   of 2: 2.5
   else: 4.0
 
-proc rotatingShieldRegenDelay*(level: int): float32 {.moddable.} =
+proc rotatingShieldRegenDelay(level: int): float32 {.moddable.} =
   ## Seconds before a broken segment re-forms (6s / 5s / 3s).
   case level
   of 1: 6.0
   of 2: 5.0
   else: 3.0
 
-proc getFortifiedMaxHpBonus*(level: int): float32 {.moddable.} =
+proc getFortifiedMaxHpBonus(level: int): float32 {.moddable.} =
   ## TOTAL max-HP granted by Fortified at the given level (250/500/750 displayed).
   ## Cumulative, not per-level: an upgrade must apply the difference between two
   ## calls, never the whole value again.

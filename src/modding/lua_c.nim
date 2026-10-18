@@ -68,23 +68,15 @@ const
   LUA_TNONE* = -1.cint
   LUA_TNIL* = 0.cint
   LUA_TBOOLEAN* = 1.cint
-  LUA_TLIGHTUSERDATA* = 2.cint
   LUA_TNUMBER* = 3.cint
   LUA_TSTRING* = 4.cint
   LUA_TTABLE* = 5.cint
   LUA_TFUNCTION* = 6.cint
   LUA_TUSERDATA* = 7.cint
-  LUA_TTHREAD* = 8.cint
 
   LUA_RIDX_GLOBALS* = 2
-  LUA_NOREF* = -2.cint
-  LUA_REFNIL* = -1.cint
 
   LUA_MASKCOUNT* = cint(1 shl 3)
-  LUA_LOADED_TABLE* = "_LOADED"
-
-  LUA_GCCOLLECT* = 2.cint
-  LUA_GCCOUNT* = 3.cint
 
 {.push importc, cdecl.}
 proc lua_newstate*(f: LuaAlloc, ud: pointer, seed: cuint): LuaState
@@ -106,7 +98,6 @@ proc lua_toboolean*(L: LuaState, idx: cint): cint
 proc lua_tolstring*(L: LuaState, idx: cint, len: ptr csize_t): cstring
 proc lua_rawlen*(L: LuaState, idx: cint): uint64
 proc lua_touserdata*(L: LuaState, idx: cint): pointer
-proc lua_topointer*(L: LuaState, idx: cint): pointer
 proc lua_rawequal*(L: LuaState, idx1, idx2: cint): cint
 
 proc lua_pushnil*(L: LuaState)
@@ -116,7 +107,6 @@ proc lua_pushlstring*(L: LuaState, s: cstring, len: csize_t): cstring
 proc lua_pushstring*(L: LuaState, s: cstring): cstring
 proc lua_pushcclosure*(L: LuaState, fn: LuaCFunction, n: cint)
 proc lua_pushboolean*(L: LuaState, b: cint)
-proc lua_pushlightuserdata*(L: LuaState, p: pointer)
 
 proc lua_rawget*(L: LuaState, idx: cint): cint
 proc lua_rawgeti*(L: LuaState, idx: cint, n: LuaInteger): cint
@@ -130,11 +120,9 @@ proc lua_rawseti*(L: LuaState, idx: cint, n: LuaInteger)
 proc lua_rawsetp*(L: LuaState, idx: cint, p: pointer)
 proc lua_setmetatable*(L: LuaState, objindex: cint): cint
 
-proc lua_pcallk*(L: LuaState, nargs, nresults, errfunc: cint, ctx: int, k: pointer): cint
-proc lua_callk*(L: LuaState, nargs, nresults: cint, ctx: int, k: pointer)
+proc lua_pcallk(L: LuaState, nargs, nresults, errfunc: cint, ctx: int, k: pointer): cint
 proc lua_error*(L: LuaState): cint
 proc lua_next*(L: LuaState, idx: cint): cint
-proc lua_gc*(L: LuaState, what: cint): cint {.varargs.}
 proc lua_sethook*(L: LuaState, fn: LuaHook, mask, count: cint)
 proc lua_gethook*(L: LuaState): LuaHook
 proc lua_gethookcount*(L: LuaState): cint
@@ -166,5 +154,3 @@ template lua_upvalueindex*(i: int): cint = LUA_REGISTRYINDEX - cint(i)
 template lua_pop*(L: LuaState, n: int) = lua_settop(L, cint(-n - 1))
 template lua_pcall*(L: LuaState, nargs, nresults, errfunc: cint): cint =
   lua_pcallk(L, nargs, nresults, errfunc, 0, nil)
-template lua_insert*(L: LuaState, idx: cint) = lua_rotate(L, idx, 1)
-template lua_newtable*(L: LuaState) = lua_createtable(L, 0, 0)

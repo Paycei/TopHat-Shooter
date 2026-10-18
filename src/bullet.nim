@@ -108,7 +108,7 @@ proc drawBossBulletTrail(bullet: Bullet, trailColor: Color) =
     drawDisc(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
                withAlpha(trailColor, trailAlpha))
 
-proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32) {.moddable.} =
+proc drawBossBulletShape(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32) {.moddable.} =
   ## Draw a boss bullet using its assigned shape, with rotation and glow.
   let cx = bullet.pos.x
   let cy = bullet.pos.y
@@ -588,7 +588,7 @@ proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool {.moddable.} =
 
 ## Utility functions for bullet synergies and cloning
 
-proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
+proc cloneBullet(original: Bullet, newPos: Vector2f, newVel: Vector2f,
                   damageMultiplier: float32 = 1.0, speedMultiplier: float32 = 1.0,
                   radiusMultiplier: float32 = 1.0, preventSplit: bool = false): Bullet {.moddable.} =
   ## Clone a bullet preserving ALL its properties for perfect synergy

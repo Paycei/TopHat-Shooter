@@ -143,6 +143,6 @@ proc installModEngine*(base: ScriptTable) =
     var c = CommandDef(name: name, owner: owner)
     (c.helpEn, c.helpEs) = vm.textPair(rawGetStr(t, "help"), "register.command.help")
     c.run = rawGetStr(t, "run")
-    if c.run.kind notin {vkFunction, vkNative}: vm.runtimeError("register.command needs run = function(args)")
+    if c.run.kind != vkFunction: vm.runtimeError("register.command needs run = function(args)")
     commandDefs.add(c)
     ret.setRet(vstr(name))

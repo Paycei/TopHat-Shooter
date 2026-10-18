@@ -153,7 +153,7 @@ proc setEntityData*(vm: VM, kind: int64, id: int, val: ScriptValue, what: string
   if val.kind != vkTable: vm.runtimeError(what & ".data must be a table")
   mods[owner].entityData[entityKey(kind, id)] = val.tbl
 
-proc bulletDataId*(vm: VM, b: Bullet): int =
+proc bulletDataId(vm: VM, b: Bullet): int =
   ## A bullet's id for b.data, given on first use (0 = never needed one). PvP
   ## bullets always have one (pvp_game numbers them from 1).
   if b.bulletId == 0:
@@ -1014,13 +1014,13 @@ proc bossFromTable(vm: VM, t: ScriptTable, base: BossDefinition, id: int, owner:
     let fns = rawGetStr(t, key)
     if fns.kind == vkTable:
       for (k, f) in pairsCursor(fns.tbl):
-        if k.kind != vkString or f.kind notin {vkFunction, vkNative}:
+        if k.kind != vkString or f.kind != vkFunction:
           vm.runtimeError("boss." & key & " must map names to functions")
         let route = "mod:" & bossKey & ":" & k.str.s
         if fnTable == 0: bossAttackFns[route] = ScriptFn(owner: owner, fn: f)
         else: bossBehaviorFns[route] = ScriptFn(owner: owner, fn: f)
   let draw = rawGetStr(t, "draw")
-  if draw.kind in {vkFunction, vkNative}:
+  if draw.kind == vkFunction:
     bossDrawFns[id] = ScriptFn(owner: owner, fn: draw)
   let process = rawGetStr(t, "process")
   if process.kind == vkString:
@@ -1312,7 +1312,7 @@ proc installContentLibraries(base: ScriptTable) =
     let fields = newScriptTable()
     for (k, v) in pairsCursor(src):
       if k.kind == vkString and k.str.s in ["update", "draw"]:
-        if v.kind notin {vkFunction, vkNative}:
+        if v.kind != vkFunction:
           vm.runtimeError("override.enemy: " & k.str.s & " must be a function")
         if k.str.s == "update": enemyUpdateFns[ord(et)] = ScriptFn(owner: owner, fn: v)
         else: enemyDrawFns[ord(et)] = ScriptFn(owner: owner, fn: v)
@@ -1467,7 +1467,7 @@ proc modPowerUpTextImpl(pt: PowerUpType, level: int, wantName: bool): string {.n
   let s = puScripts[pt]
   if wantName:
     return pickLang(s.nameEn, s.nameEs)
-  if s.descFn.kind in {vkFunction, vkNative}:
+  if s.descFn.kind == vkFunction:
     var r: RetVals
     if callAs(s.owner, s.descFn, [vnum(level)], r) and r.count > 0 and r.first.kind == vkString:
       return r.first.str.s
@@ -1480,7 +1480,7 @@ proc modPowerUpAppliedImpl(player: Player, pt: PowerUpType, level: int) {.nimcal
   if not isModPowerUp(pt): return
   let s = puScripts[pt]
   applyStatDeltas(player, s.stats)
-  if s.onPickup.kind in {vkFunction, vkNative}:
+  if s.onPickup.kind == vkFunction:
     var r: RetVals
     discard callForPowerUp(pt, ScriptFn(owner: s.owner, fn: s.onPickup),
                            [wrapPlayer(player), vnum(level), wrapGame(modCtx.game)], r)
@@ -1488,7 +1488,7 @@ proc modPowerUpAppliedImpl(player: Player, pt: PowerUpType, level: int) {.nimcal
 proc modPowerUpIconImpl(pt: PowerUpType, color: Color): bool {.nimcall.} =
   if not isModPowerUp(pt): return false
   let s = puScripts[pt]
-  if s.icon.kind notin {vkFunction, vkNative}: return false
+  if s.icon.kind != vkFunction: return false
   let prev = modCtx.drawing
   modCtx.drawing = dtHud
   defer: modCtx.drawing = prev
@@ -1590,7 +1590,7 @@ proc installNewContent(base: ScriptTable) =
     if s.nameEn.len == 0: s.nameEn = key.split(':')[1].toUpperAscii & ".exe"
     let d = rawGetStr(t, "description")
     case d.kind
-    of vkFunction, vkNative: s.descFn = d
+    of vkFunction: s.descFn = d
     of vkTable:
       if rawGetStr(d.tbl, "en").kind != vkNil or rawGetStr(d.tbl, "es").kind != vkNil:
         s.descEn = vm.textList(rawGetStr(d.tbl, "en"), "description.en")
@@ -1612,15 +1612,15 @@ proc installNewContent(base: ScriptTable) =
     # Per-frame and per-hit behaviour, run only while the player has it (and
     # credited to it in the run statistics).
     let upd = rawGetStr(t, "update")
-    if upd.kind in {vkFunction, vkNative}: powerUpUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
+    if upd.kind == vkFunction: powerUpUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
     let hit = rawGetStr(t, "onHit")
-    if hit.kind in {vkFunction, vkNative}: powerUpHitFns[ord(slot)] = ScriptFn(owner: owner, fn: hit)
+    if hit.kind == vkFunction: powerUpHitFns[ord(slot)] = ScriptFn(owner: owner, fn: hit)
     # An active [Q] ability: active = {cooldown = seconds, activate = fn(player, level, game)}
     let act = rawGetStr(t, "active")
     if act.kind == vkTable:
       vm.checkKeys(act.tbl, ["cooldown", "activate"], "register.powerup.active")
       let fn = rawGetStr(act.tbl, "activate")
-      if fn.kind notin {vkFunction, vkNative}:
+      if fn.kind != vkFunction:
         vm.runtimeError("register.powerup.active needs activate = function(player, level, game)")
       let cd = rawGetStr(act.tbl, "cooldown")
       def.activeCooldown = if cd.kind == vkNumber and abs(cd.n) < 1.0e6: max(0.0, cd.n).float32 else: 5'f32
@@ -1683,9 +1683,9 @@ proc installNewContent(base: ScriptTable) =
                                     config: cfg)
     enemyOwners[slot] = owner
     let upd = rawGetStr(t, "update")
-    if upd.kind in {vkFunction, vkNative}: enemyUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
+    if upd.kind == vkFunction: enemyUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
     let drw = rawGetStr(t, "draw")
-    if drw.kind in {vkFunction, vkNative}: enemyDrawFns[ord(slot)] = ScriptFn(owner: owner, fn: drw)
+    if drw.kind == vkFunction: enemyDrawFns[ord(slot)] = ScriptFn(owner: owner, fn: drw)
     invalidateEnemyConfigCache()
     ret.setRet(vstr(key))
 
@@ -1705,9 +1705,9 @@ proc installNewContent(base: ScriptTable) =
     setPowerUpDef(pt, def)
     # Extra behaviour on top of the built-in one (credited to it in the stats).
     let upd = rawGetStr(t, "update")
-    if upd.kind in {vkFunction, vkNative}: powerUpUpdateFns[ord(pt)] = ScriptFn(owner: owner, fn: upd)
+    if upd.kind == vkFunction: powerUpUpdateFns[ord(pt)] = ScriptFn(owner: owner, fn: upd)
     let hit = rawGetStr(t, "onHit")
-    if hit.kind in {vkFunction, vkNative}: powerUpHitFns[ord(pt)] = ScriptFn(owner: owner, fn: hit)
+    if hit.kind == vkFunction: powerUpHitFns[ord(pt)] = ScriptFn(owner: owner, fn: hit)
 
   let rosterT = newScriptTable()
   rosterT.reg("add") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -1755,7 +1755,7 @@ proc installNewContent(base: ScriptTable) =
 var soundClass, shaderClass, musicClass: UdClass
 var textureClass*, modelClass*, videoClass*: UdClass
 
-proc resolveModPath*(m: ModRuntime, rel: string): string
+proc resolveModPath(m: ModRuntime, rel: string): string
 
 proc modPath(vm: VM, rel, what: string): string =
   ## Where the calling mod's path points (the file may not exist).
@@ -2428,7 +2428,7 @@ proc installAssetLibraries(base: ScriptTable) =
     for (field, dest) in [("draw", addr app.draw), ("update", addr app.update),
                           ("click", addr app.click), ("drag", addr app.drag)]:
       let f = rawGetStr(t, field)
-      if f.kind in {vkFunction, vkNative}: dest[] = f
+      if f.kind == vkFunction: dest[] = f
       elif f.kind != vkNil: vm.runtimeError("register.app: " & field & " must be a function")
     if app.draw.kind == vkNil: vm.runtimeError("register.app needs a draw function")
     app.color = ModAppDefaultColor
@@ -2498,7 +2498,7 @@ proc installModApi*(base: ScriptTable) =
   installAssetLibraries(base)
 
 # ---------------------------------------------------------- per mod env ----
-proc resolveModPath*(m: ModRuntime, rel: string): string =
+proc resolveModPath(m: ModRuntime, rel: string): string =
   ## Where a script's path points: relative paths start in the mod's own
   ## folder, absolute ones go anywhere (mods are trusted).
   if rel.isAbsolute: normalizedPath(rel) else: normalizedPath(m.dir / rel)
@@ -2766,7 +2766,7 @@ proc installModEnv*(m: ModRuntime) =
     if path.len == 0:
       if colon < 0:
         let stock = rawGetStr(modBase, "require")
-        if stock.kind in {vkFunction, vkNative}:
+        if stock.kind == vkFunction:
           vm.callValue(stock, [vstr(name)], ret)
           return
       vm.runtimeError("require: module '" & module & "' not found in mod '" & mods[owner].id &

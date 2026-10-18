@@ -32,13 +32,11 @@ type
     logScroll*: int
     logFollow*: bool
     achScroll*: int           ## the Achievements tab's scroll (px)
-    lastLogGen: int
     pending*: seq[string]     ## working copy of settings.enabledMods
     message*: string          ## transient status line under the buttons
     messageTimer*: float32
     messageIsError*: bool
     modeRows*: seq[ModModeRow]
-    modeSelected*: int
     launchRequest*: int       ## index into modeRows to launch, -1 = none
     launchResume*: bool
     cosScroll*: int
@@ -99,7 +97,7 @@ template ColErr: Color = uiInk(255, 105, 95)
 proc newModsWindow*(screenWidth, screenHeight: int, settings: Settings): ModsWindow {.moddable.} =
   let osWin = newOSWindow(t(tkModsWindowTitle),
                           (screenWidth - ModsWindowW) div 2, (screenHeight - ModsWindowH) div 2,
-                          ModsWindowW, ModsWindowH, ColAccent, owtSettings, resizable = false)
+                          ModsWindowW, ModsWindowH, ColAccent, resizable = false)
   ModsWindow(window: osWin, settings: settings, logFollow: true, launchRequest: -1)
 
 var modeRowsBuilder*: proc (): seq[ModModeRow] {.closure.}
@@ -634,7 +632,6 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
       mw.logFollow = mw.logScroll >= maxScroll
     if mw.logFollow:
       mw.logScroll = maxScroll
-    mw.lastLogGen = modLogGeneration
     mw.logScroll = clamp(mw.logScroll, 0, maxScroll)
   of mtMarket:
     let maxScroll = max(0, marketEntries.len * RowH - int(g.marketList.height))

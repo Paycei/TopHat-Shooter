@@ -61,7 +61,7 @@ const
   BodySize = 12'i32
   BodyLines = 4
 
-proc drawProximityCard*(card: ProximityCard, anchorX, anchorY: float32,
+proc drawProximityCard(card: ProximityCard, anchorX, anchorY: float32,
                         worldW, worldH: int32, time: float32) {.moddable.} =
   ## Draw the card centred above (anchorX, anchorY) in world space, flipped
   ## below the anchor when there is no room above, clamped to the arena.
@@ -134,7 +134,7 @@ proc drawProximityCard*(card: ProximityCard, anchorX, anchorY: float32,
              if card.affordable: Color(r: 255, g: 220, b: 90, a: 255)
              else: Color(r: 255, g: 110, b: 100, a: 255))
 
-proc noCreditsLabel*(): string {.moddable.} =
+proc noCreditsLabel(): string {.moddable.} =
   t("pkg_need_credits")
 
 const
@@ -323,7 +323,7 @@ proc rewardLabel*(reward: RoomReward): string {.moddable.} =
   ## What the folder pays, in words, for the door subtitle.
   if reward == rrwNone: "" else: t("room_reward_" & rewardFolderKey(reward))
 
-proc rewardAccent*(reward: RoomReward): Color {.moddable.} =
+proc rewardAccent(reward: RoomReward): Color {.moddable.} =
   case reward
   of rrwNone: Color(r: 150, g: 170, b: 200, a: 255)
   of rrwDraft: Color(r: 110, g: 220, b: 255, a: 255)
@@ -349,7 +349,7 @@ proc currentDungeonRoom*(run: RogueliteRun): DungeonRoom {.moddable.} =
     return nil
   run.floor.rooms[clamp(run.floor.currentRoom, 0, run.floor.rooms.high)]
 
-proc doorRect*(game: Game, dir: DoorDir): Rectangle {.moddable.} =
+proc doorRect(game: Game, dir: DoorDir): Rectangle {.moddable.} =
   let w = game.screenWidth.float32
   let h = game.screenHeight.float32
   case dir
@@ -366,7 +366,7 @@ proc doorRect*(game: Game, dir: DoorDir): Rectangle {.moddable.} =
     Rectangle(x: w - DoorZoneDepth, y: h / 2 - DoorZoneWidth / 2,
               width: DoorZoneDepth, height: DoorZoneWidth)
 
-proc doorSpawnPos*(game: Game, enteredThrough: DoorDir): Vector2f {.moddable.} =
+proc doorSpawnPos(game: Game, enteredThrough: DoorDir): Vector2f {.moddable.} =
   ## Where the player appears after arriving through the given door.
   let w = game.screenWidth.float32
   let h = game.screenHeight.float32
@@ -380,13 +380,13 @@ proc doorSpawnPos*(game: Game, enteredThrough: DoorDir): Vector2f {.moddable.} =
 proc roomCenter(game: Game): Vector2f =
   newVector2f(game.screenWidth.float32 / 2, game.screenHeight.float32 / 2)
 
-proc exitsOf*(floor: DungeonFloor, room: DungeonRoom): seq[DungeonExit] {.moddable.} =
+proc exitsOf(floor: DungeonFloor, room: DungeonRoom): seq[DungeonExit] {.moddable.} =
   ## The doors out of `room`: the exits of the next layer (none past SERVICE).
   if floor.isNil or room.isNil or room.layer + 1 >= floor.layers.len:
     return @[]
   floor.layers[room.layer + 1].exits
 
-proc exitsOpen*(room: DungeonRoom): bool {.moddable.} =
+proc exitsOpen(room: DungeonRoom): bool {.moddable.} =
   ## A folder's exits open once it is cleared AND its reward is collected.
   not room.isNil and room.kind != drkBoss and room.cleared and room.rewardClaimed
 
@@ -477,13 +477,6 @@ proc tuneDungeonEnemyStats*(enemy: Enemy, run: RogueliteRun, room: DungeonRoom) 
   # Special attacks that read config values directly (mage meteorites, etc.)
   # apply this factor at their own creation sites.
   enemy.damageTuning = rangedFactor
-
-proc dungeonBossDifficulty*(run: RogueliteRun): float32 {.moddable.} =
-  let def = themeDef(run.floor.theme)
-  let heatRank = heatChallengeRank(run.heat)
-  run.floorNumber.float32 * 1.1'f32 * def.pressureMod +
-    heatRank.float32 * RogueliteHeatBossDifficultyPerTier +
-    run.endlessLoop.float32 * 1.5'f32
 
 proc dungeonBossNumberFor*(theme: DungeonFloorTheme,
                            floorNumber, endlessLoop, heat: int): int {.moddable.} =
@@ -675,7 +668,7 @@ proc generateFloor*(game: Game, theme: DungeonFloorTheme, floorNumber: int): Dun
                                               encounterSeed: rng.rand(1_000_000_000),
                                               obstacleSeed: rng.rand(1_000_000_000))]
 
-proc dungeonDensityWave*(run: RogueliteRun, room: DungeonRoom): int {.moddable.} =
+proc dungeonDensityWave(run: RogueliteRun, room: DungeonRoom): int {.moddable.} =
   ## The wave-curve slot for a folder's CROWD SIZE (and the matching per-enemy
   ## rebate): its threat, i.e. roughly how many folders the player has grown
   ## through. Deliberately NOT dungeonRoomWaveEquivalent (threat x2.5), which
@@ -797,7 +790,7 @@ proc generateThemeChoices*(run: RogueliteRun) {.moddable.} =
 proc newPickup(kind: DungeonPickupKind, pos: Vector2f): DungeonPickup =
   DungeonPickup(pos: pos, kind: kind, taken: false, patch: rrtNone)
 
-proc isStall*(kind: DungeonPickupKind): bool {.moddable.} =
+proc isStall(kind: DungeonPickupKind): bool {.moddable.} =
   kind in {dpkStallPowerUp, dpkStallPatch, dpkStallRepair, dpkStallRestock}
 
 proc isInteractPickup(kind: DungeonPickupKind): bool =
@@ -819,7 +812,7 @@ proc stallNextLevel(game: Game, pickup: DungeonPickup): int =
   let next = getPowerUpLevel(game.player, pt) + 1
   if next > getPowerUpMaxLevel(pt): 0 else: next
 
-proc stallPrice*(game: Game, room: DungeonRoom, pickup: DungeonPickup): int {.moddable.} =
+proc stallPrice(game: Game, room: DungeonRoom, pickup: DungeonPickup): int {.moddable.} =
   let run = game.rogueliteRun
   let base =
     case pickup.kind
@@ -876,7 +869,7 @@ proc spawnPatchChoice(game: Game, room: DungeonRoom, group: int) =
     pk.group = group
     room.pickups.add(pk)
 
-proc spawnRoomReward*(game: Game, room: DungeonRoom) {.moddable.} =
+proc spawnRoomReward(game: Game, room: DungeonRoom) {.moddable.} =
   ## Materialize what a cleared folder pays, in the middle of the room.
   if room.isNil or room.rewardSpawned: return
   room.rewardSpawned = true
@@ -911,7 +904,7 @@ proc stallPositions(game: Game): array[5, Vector2f] =
   for i in 0..4:
     result[i] = newVector2f(c.x + xs[i], c.y - 30 + ys[i])
 
-proc spawnShopStalls*(game: Game, room: DungeonRoom) {.moddable.} =
+proc spawnShopStalls(game: Game, room: DungeonRoom) {.moddable.} =
   ## /pkg: two power-up packages, a patch, a repair and a restock, in an arc.
   if room.isNil or room.rewardSpawned: return
   room.rewardSpawned = true
@@ -973,7 +966,7 @@ proc restockStalls(game: Game, room: DungeonRoom) =
 # ---------------------------------------------------------------------------
 # Room state changes
 
-proc wipeRoomEntities*(game: Game) {.moddable.} =
+proc wipeRoomEntities(game: Game) {.moddable.} =
   ## Rooms do not persist live entities; clear everything transient.
   game.enemies = @[]
   game.bullets = @[]
@@ -1282,7 +1275,7 @@ proc markBossRoomCleared*(game: Game) {.moddable.} =
   collectAllXpOrbs(game)
   game.waveInProgress = false
 
-proc exitPortalPos*(game: Game): Vector2f {.moddable.} =
+proc exitPortalPos(game: Game): Vector2f {.moddable.} =
   ## The boss-clear portal always forms at the center of the SERVICE room.
   roomCenter(game)
 
@@ -1304,7 +1297,7 @@ proc openRewardDraft(game: Game) =
   initializeRerollCost(game)
   game.state = gsPowerUpSelect
 
-proc pickupRelic*(pk: DungeonPickup): RogueliteRelic {.moddable.} =
+proc pickupRelic(pk: DungeonPickup): RogueliteRelic {.moddable.} =
   ## The patch a pedestal or a stall holds (a mod patch by its name).
   makeRelic(pk.patch, pk.modPatch)
 
@@ -1314,7 +1307,7 @@ proc announcePatch(game: Game, patch: RogueliteRelic) =
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, patchAccent(patch), 28)
   playSound(stPowerUp, 0.85)
 
-proc claimDungeonPickup*(game: Game, index: int): DungeonFrame {.moddable.} =
+proc claimDungeonPickup(game: Game, index: int): DungeonFrame {.moddable.} =
   ## Apply one pickup of the live room (touch or [E]). Stalls charge credits
   ## and refuse when unaffordable. Shared by the input path and test harnesses.
   let run = game.rogueliteRun

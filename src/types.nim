@@ -163,7 +163,6 @@ type
 
   CutsceneContinuation* = enum
     cscMenu,       ## after cutscene -> gsMenu (intro, settings replays)
-    cscVictory,    ## after cutscene -> gsVictory (first endgame win)
     cscLaunchGame, ## after cutscene -> startLoadingAnimation + pendingGameMode
     cscDesktopIcon ## after cutscene -> gsMenu, then re-run the desktop icon that
                    ## started it (a first-time mode intro): its intro is now seen,
@@ -641,8 +640,6 @@ type
     awtNone
     awtCross            # regular enemy cross-laser telegraph
     awtMeteor           # falling rock / satellite column (real game bullet on expiry)
-    awtBurst            # generic circular burst (fallback, rarely used)
-    awtFake             # generic fake "!" marker (fallback)
     awtTriangleDash     # triangle enemy dash launch flash
     awtHexTeleport      # hexagon enemy teleport destination
     awtTricksterDecoy   # trickster's false (harmless) marker
@@ -718,7 +715,6 @@ type
     laserPattern*: string        # Pattern type: "cross_laser", "rotating_grid", "prismatic_cage"
     enemyType*: EnemyType        # Type of enemy creating this attack
     targetPos*: Vector2f         # Target coordinates for satellite laser
-    fromSatellite*: bool         # Flag for satellite laser warnings
     # Teleport bullet data (for delayed bullet spawning)
     bulletCount*: int            # Number of bullets to spawn
     bulletSpeed*: float32        # Speed of bullets
@@ -962,7 +958,7 @@ type
     laserTarget*: Vector2f  # Current player coordinates to target
     laserChargeTime*: float32  # Time to charge before firing
     activeLaser*: Laser  # Persistent beam instance for the whole firing phase, kept alive
-                         # (not recreated) so hasHitPlayer isn't reset every couple of frames
+                         # (not recreated every couple of frames)
     activeWarning*: AttackWarning  # This satellite's own charge telegraph. Kept per satellite
                                    # so several charging at once never share one warning.
 
@@ -980,11 +976,6 @@ type
     bwoClockNodes,
     bwoChaosAnomalies,
     bwoOmegaCycle
-
-  BossWeakDamageSource* = enum
-    bwdsPassive,
-    bwdsDirectBody,
-    bwdsDirectWeakCore
 
   BossWeakPointDefinition* = object
     kind*: BossWeakObjectiveKind
@@ -1083,11 +1074,9 @@ type
     exposureDuration*: float32
     cooldownDuration*: float32
     targetHitRadius*: float32
-    phaseIndex*: int
     lastDashActive*: bool
     omegaWindowsCompleted*: int
     realTargetIndex*: int
-    lastBossPos*: Vector2f
 
   DamageAccumulator* = object
     total*: float32
@@ -1139,7 +1128,7 @@ type
     attackExecuteTimer*: float32
     attackPhase*: int  # 0=patrol, 1=warning, 2=execute
     dashCooldown*: float32
-    activeCrossLaser*: Laser  # etCross dash-laser instance, kept alive (not recreated) for the whole dash so hasHitPlayer isn't reset every frame
+    activeCrossLaser*: Laser  # etCross dash-laser instance, kept alive (not recreated) for the whole dash
     fakeWarningTimer*: float32
     clonePositions*: seq[Vector2f]
     cloneTimer*: float32
@@ -1147,7 +1136,6 @@ type
     cursed*: bool  # Marked by the Curse power-up; player deals bonus damage to this enemy
     curseRolled*: bool  # True once curse eligibility has been evaluated (roll happens once per enemy)
     isElite*: bool  # Whether this is an elite enemy
-    eliteType*: EliteType  # Type of elite modifier
     eliteTypes*: seq[EliteType]  # Multiple elite types for high-wave elites
     eliteAuraPhase*: float32  # For animating the elite aura
     threatLevel*: int  # Visual threat tier used by high-heat roguelite/enemy scaling
@@ -1185,7 +1173,6 @@ type
     isDashing*: bool  # Whether boss is currently executing a dash
     dashVelocity*: Vector2f  # Velocity during dash
     dashDuration*: float32  # Remaining dash duration
-    dashMaxDuration*: float32  # Total dash duration for this attack
     dashTargetPos*: Vector2f  # Exact endpoint for the current committed dash
     pendingDashLocked*: bool  # True while a dash warning has locked the next dash line
     pendingDashStart*: Vector2f  # Exact start point shown by the dash warning
@@ -1267,7 +1254,6 @@ type
     isBonusFromMultiShot*: bool  # True if this is a bonus bullet from Multi-Shot
     isBonusFromDoubleShot*: bool  # True if this is a bonus bullet from Double Shot
     wasCrit*: bool  # True if this bullet rolled a critical hit
-    baseDamagePreCrit*: float32  # Damage before crit multiplier (for puCriticalHit tracking)
     isSpecialRound*: bool  # True if this is a special round (every Nth bullet)
     isFromWallTurret*: bool  # True if this bullet was fired by a Wall Turret
     isFromRadialBurst*: bool  # True if this bullet was fired by Radial Burst
@@ -1506,7 +1492,6 @@ type
   LightningBolt* = ref object
     ## A short-lived jagged lightning arc drawn between two world positions.
     startPos*: Vector2f
-    endPos*: Vector2f
     lifetime*: float32       # Remaining display time
     maxLifetime*: float32
     segments*: seq[Vector2f] # Pre-computed jagged waypoints (including start & end)
@@ -1560,7 +1545,6 @@ type
     damage*: int            # Damage dealt
     lifetime*: float32      # How long the laser stays
     maxLifetime*: float32   # Original duration
-    hasHitPlayer*: bool     # Track if already damaged player this laser
     rotation*: float32      # Rotation angle in radians (for rotating lasers)
     enemyType*: EnemyType   # Type of enemy that created this laser
     sourceEnemyId*: int     # ID of the enemy that fired this beam (-1 = unowned)
@@ -1664,13 +1648,13 @@ type
     rewards*: seq[MicroReward]
 
   SlowMotionType* = enum
-    smtNone, smtKill, smtBossKill, smtPowerUp, smtWaveComplete,
+    smtNone, smtBossKill,
     smtResume        ## easing back into a live battlefield after a modal
 
   SlowMotion* = object
     ## World-time juice. Two independent layers, combined by `worldTimeScale`:
     ##   * slow motion -- a soft, medium-length dilation for big moments (boss
-    ##     kills, wave clears). `active`/`timeScale`/`duration`.
+    ##     kills, easing back in after a modal). `active`/`timeScale`/`duration`.
     ##   * hit stop    -- a hard, 2-4 frame freeze on impact, the primitive that
     ##     makes a hit read as WEIGHT rather than as a number changing.
     ## Both timers are ticked with REAL dt (see `updateSlowMo`); decaying them
@@ -1679,7 +1663,6 @@ type
     timeScale*: float32
     duration*: float32
     maxDuration*: float32
-    slowType*: SlowMotionType
     hitStopTimer*: float32     ## Remaining hard freeze, in real seconds
     hitStopScale*: float32     ## World dt multiplier while frozen (near 0)
     rampToNormal*: bool        ## interpolate timeScale -> 1.0 across the duration
@@ -1695,7 +1678,6 @@ type
     damageTaken*: float32
     shotsFired*: int
     shotsHit*: int
-    isPerfect*: bool
     maxCombo*: int
 
   WaveCelebration* = object
@@ -1715,18 +1697,14 @@ type
     bossTitle*: string
     bossTag*: string    ## lore line above the name ("HIJACKED SERVICE: ..."); "" = none
     isRoot*: bool       ## the Root itself (boss 12): card switches to its magenta palette
-    bossHp*: float32
     phase*: int
 
   RealTimeStats* = object
     dps*: float32
     damageDealt*: float32
-    lastDamageTime*: float32
     kills*: int
     coinsPerMinute*: float32
     totalCoins*: int
-    lastCoinTime*: float32
-    powerLevel*: int
     damageHistory*: seq[(float32, float32)]  # (timestamp, damage) for rolling window
 
   DopamineState* = object
@@ -1821,8 +1799,6 @@ type
     echoClock*: float32
     echoShotLatch*: bool        # the player fired since the last sample
     auditTimer*: float32        # > 0: Audit Lock is freezing the room
-    auditOrigin*: Vector2f      # where the player stood when the audit locked
-    auditBreached*: bool        # the player already paid for moving this audit
 
   SurvivalPendingSpawn* = object
     ## An enemy queued to appear after `delay` seconds. In-arena spawns are
@@ -1869,7 +1845,6 @@ type
     progressStep*: int         # last 25% step chimed
     rogueId*: int              # Rogue Process enemy id (-1 before it spawns)
     modKey*: string            # sekMod: the registered event
-    modOutcome*: int32         # sekMod: 0 running, 1 success, 2 fail (its update decides)
 
   SurvivalState* = object
     event*: SurvivalEvent
@@ -2016,7 +1991,6 @@ type
     keyboardUsedRecently*: bool  # True if keyboard was just used (disables mouse temporarily)
     previousState*: GameState  # Track where we came from to return correctly
     nextEnemyId*: int  # Counter for assigning unique IDs to enemies
-    showRunStatsGraphs*: bool  # Toggle for showing graphs in run stats screen
     sandboxSidebarOpen*: bool  # Is the sandbox control sidebar visible
     sandboxSelectedTab*: int  # Current tab in sandbox UI (0=Enemies, 1=Bosses, 2=PowerUps, 3=Controls)
     sandboxScrollOffset*: int32  # Scroll position in sidebar
@@ -2240,7 +2214,7 @@ proc calculateWaveEnemyCount*(waveNumber: int): int =
   ##   wave 1 -> 10, wave 10 -> ~46, wave 40 -> ~123, wave 100 -> ~244
   result = int(10 + 6.5 * pow(float(waveNumber - 1), 0.78))
 
-proc legacyWaveEnemyCount*(waveNumber: int): float =
+proc legacyWaveEnemyCount(waveNumber: int): float =
   ## The pre-swarm density curve, kept ONLY as the reference point that
   ## waveDensityRebate normalises against. Never used for spawning.
   8 + 3.0 * pow(float(waveNumber - 1), 0.6)
@@ -2275,7 +2249,7 @@ proc densityWave*(game: Game): int =
     if game.rogueliteRun.isNil: 1 else: max(1, game.rogueliteRun.roomDensityWave)
   else: 0
 
-proc survivalDensityRebate*(clock: float32): float32 =
+proc survivalDensityRebate(clock: float32): float32 =
   ## Time Survival's per-enemy multiplier. The horde spawner keeps several
   ## times as many bodies on screen as the old one-at-a-time trickle, so every
   ## per-enemy grant (HP, coins, consumables, healing) is scaled down as the
@@ -2582,7 +2556,6 @@ proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32
   ## Creates a warning for satellite laser attacks that extend through a target point
   result = newAttackWarning(satelliteX, satelliteY, awtSatelliteLaser, duration, sourceEnemyId)
   result.targetPos = newVector2f(targetX, targetY)
-  result.fromSatellite = true
 
 proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle, sourceEnemyId: int = -1): Laser =
   Laser(
@@ -2593,7 +2566,6 @@ proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage
     damage: damage,
     lifetime: duration,
     maxLifetime: duration,
-    hasHitPlayer: false,
     rotation: rotation,
     enemyType: enemyType,
     sourceEnemyId: sourceEnemyId
@@ -2656,7 +2628,7 @@ const
   # which killed the boss instead of breaking it into its next phase.
   EnemyMinAliveHp* = 0.01'f32
 
-proc diminishedBulletSpeedGain*(currentSpeed, gain: float32): float32 =
+proc diminishedBulletSpeedGain(currentSpeed, gain: float32): float32 =
   ## Keeps early bullet-speed gains intact, then tapers later gains smoothly.
   if gain <= 0.0:
     return gain
@@ -2796,6 +2768,11 @@ proc wallContactNormal*(wall: Wall, p: Vector2f): Vector2f =
   if len < 0.0001'f32: return newVector2f(0, -1)
   newVector2f(wx / len, wy / len)
 
+proc inPickupRange*(pos: Vector2f, radius: float32, player: Player): bool {.moddable.} =
+  ## A pickup touching the player is collected; the magnet widens that to 80 px.
+  let collectRange = if player.magnetTimer > 0: 80.0'f32 else: radius + player.radius
+  distance(pos, player.pos) < collectRange
+
 proc polylineLength*(path: seq[Vector2f]): float32 =
   ## Total arc length of a polyline (sum of segment lengths).
   result = 0.0'f32
@@ -2812,7 +2789,7 @@ proc orbitalSweepCenter*(warning: AttackWarning): Vector2f =
                        0.0'f32, 1.0'f32)
   warning.pos + (warning.targetPos - warning.pos) * progress
 
-proc escapementTime*(t: float32): float32 =
+proc escapementTime(t: float32): float32 =
   ## Warps continuous seconds into Timekeeper escapement seconds: time only
   ## advances during the first ClockTickMove of each ClockTickPeriod, then
   ## holds - so anything driven by it moves in discrete snaps while covering

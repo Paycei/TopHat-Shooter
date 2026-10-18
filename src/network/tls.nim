@@ -60,7 +60,6 @@ type
     cancel: ptr Atomic[bool]
     idleMs: int
     open: bool
-    eof: bool                ## the server closed the TCP connection
     error*: TlsError
     detail*: string          ## English, for the log
 
@@ -102,8 +101,7 @@ proc lowWrite(c: TlsConn, buf: ptr uint8, len: int): int =
 proc lowRead(c: TlsConn, buf: ptr uint8, len: int): int =
   if not c.waitSocket(write = false): return -1
   result = c.sock.recv(buf, len)
-  if result == 0: c.eof = true
-  elif result < 0: c.fail(tlsNetwork, "receive failed: " & osErrorMsg(osLastError()))
+  if result < 0: c.fail(tlsNetwork, "receive failed: " & osErrorMsg(osLastError()))
 
 proc runUntil(c: TlsConn, target: cuint): bool =
   ## Move records until the engine is in one of the `target` states; false

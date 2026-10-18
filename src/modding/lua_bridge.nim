@@ -38,7 +38,6 @@ import lua_c
 type
   ValueKind* = enum
     vkNil, vkBool, vkNumber, vkString, vkTable, vkFunction,
-    vkNative,   ## never produced (natives are functions); kept for kind sets
     vkUserdata, vkOther
 
   ScriptStr* = ref object
@@ -53,7 +52,6 @@ type
     r: LuaRef
   ScriptFunc* = ref object
     r: LuaRef
-  Closure* = ScriptFunc
 
   ScriptValue* = object
     case kind*: ValueKind
@@ -64,7 +62,7 @@ type
       isInt*: bool      ## a Lua integer (prints without ".0")
     of vkString: str*: ScriptStr
     of vkTable: tbl*: ScriptTable
-    of vkFunction, vkNative: fn*: ScriptFunc
+    of vkFunction: fn*: ScriptFunc
     of vkUserdata: ud*: Userdata
     of vkOther: other: LuaRef   ## threads and anything else Nim only carries
 
@@ -145,7 +143,6 @@ var
   natSlots: seq[NativeBox]
   natFree: seq[int32]
   callDepth: int
-  memUsed: int
   watchClock: proc (): float64 {.nimcall.} = epochTime
   watchCallLimit = DefaultCallLimit   ## the default limit (tests shorten it)
   watchFrameLimit = FrameLimit
@@ -166,7 +163,6 @@ proc `=destroy`(x: LuaRefObj) =
 proc `=copy`(dest: var LuaRefObj, src: LuaRefObj) {.error.}
 
 # ------------------------------------------------------------- basics ----
-proc newStr*(s: string): ScriptStr = ScriptStr(s: s)
 proc vnum*(n: float64): ScriptValue {.inline.} = ScriptValue(kind: vkNumber, n: n)
 proc vnum*(n: int): ScriptValue {.inline.} = ScriptValue(kind: vkNumber, n: n.float64, isInt: true)
 proc vbool*(b: bool): ScriptValue {.inline.} = ScriptValue(kind: vkBool, b: b)
@@ -187,12 +183,9 @@ proc typeName*(v: ScriptValue): string =
   of vkNumber: "number"
   of vkString: "string"
   of vkTable: "table"
-  of vkFunction, vkNative: "function"
+  of vkFunction: "function"
   of vkUserdata: v.ud.cls.name
   of vkOther: "userdata"
-
-proc raiseScript*(msg: string) {.noreturn.} =
-  raise newException(ScriptError, msg)
 
 proc setRet*(ret: var RetVals, v: ScriptValue) {.inline.} =
   ret.count = 1
@@ -276,15 +269,11 @@ proc lua_concat(L: LuaState, n: cint) {.importc, cdecl.}
 
 proc luaAlloc(ud, p: pointer, osize, nsize: csize_t): pointer {.cdecl.} =
   ## There is no memory cap: this only fails when the machine is out of
-  ## memory. memUsed is what scriptMemoryUsed reports.
+  ## memory.
   if nsize == 0:
-    if p != nil:
-      memUsed -= osize.int
-      c_free(p)
+    c_free(p)
     return nil
-  result = c_realloc(p, nsize)
-  if result != nil:
-    memUsed += nsize.int - (if p != nil: osize.int else: 0)
+  c_realloc(p, nsize)
 
 # Procs that leave through lua_error (a longjmp) must not register a Nim
 # stack-trace frame: debug builds push one on entry and pop it on return, and
@@ -438,7 +427,7 @@ proc pushValue(L: LuaState, v: ScriptValue) =
   of vkString:
     discard lua_pushlstring(L, cstring(v.str.s), csize_t(v.str.s.len))
   of vkTable: pushRef(L, v.tbl.r)
-  of vkFunction, vkNative: pushRef(L, v.fn.r)
+  of vkFunction: pushRef(L, v.fn.r)
   of vkUserdata: pushUserdata(L, v.ud)
   of vkOther: pushRef(L, v.other)
 
@@ -554,8 +543,6 @@ proc rawSet*(t: ScriptTable, k, v: ScriptValue) =
     pushValue(L, v)
     lua_rawset(L, -3)
     lua_pop(L, 1)
-
-proc rawSetStr*(t: ScriptTable, s: string, v: ScriptValue) = rawSet(t, vstr(s), v)
 
 proc len*(t: ScriptTable): int =
   ## The raw length (the border of the array part).
@@ -1006,7 +993,6 @@ proc closeScriptVM*() =
   udFree.setLen(0)
   natSlots.setLen(0)
   natFree.setLen(0)
-  memUsed = 0
   callDepth = 0
   watchTripped = false
   idleStart = 0.0
@@ -1160,18 +1146,12 @@ proc tableKeysOf*(base: ScriptTable): seq[string] =
        k.str.s != "package":
       result.add(k.str.s)
 
-proc scriptMemoryUsed*(): int = memUsed
-
 # ------------------------------------------------------------ arg helpers ----
 proc arg*(args: openArray[ScriptValue], i: int): ScriptValue {.inline.} =
   if i < args.len: args[i] else: NilValue
 
 proc argError*(vm: VM, fname: string, i: int, msg: string) {.noreturn.} =
   vm.runtimeError("bad argument #" & $(i + 1) & " to '" & fname & "' (" & msg & ")")
-
-proc checkAny*(vm: VM, args: openArray[ScriptValue], i: int, fname: string): ScriptValue =
-  if i >= args.len: vm.argError(fname, i, "value expected")
-  args[i]
 
 proc checkNum*(vm: VM, args: openArray[ScriptValue], i: int, fname: string): float64 =
   let v = arg(args, i)
@@ -1211,7 +1191,7 @@ proc checkTable*(vm: VM, args: openArray[ScriptValue], i: int, fname: string): S
 
 proc checkFunc*(vm: VM, args: openArray[ScriptValue], i: int, fname: string): ScriptValue =
   let v = arg(args, i)
-  if v.kind notin {vkFunction, vkNative}:
+  if v.kind != vkFunction:
     vm.argError(fname, i, "function expected, got " & (if i < args.len: typeName(v) else: "no value"))
   v
 

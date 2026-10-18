@@ -39,8 +39,6 @@ type
     searchVisible*: bool
     focusIndex*: int    # Focused index within the filtered list (0..n-1)
     previewOpen*: bool
-    previewKind*: CosmeticKind
-    previewIndex*: int
     animationTime*: float32
     statusMessage*: string
     statusTimer*: float32
@@ -93,7 +91,6 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 150, b: 50, a: 255),  # Orange accent for shop
-    owtSettings,
     resizable = false
   )
 
@@ -118,8 +115,6 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     searchVisible: false,
     focusIndex: 0,
     previewOpen: false,
-    previewKind: ckPlayerSkin,
-    previewIndex: -1,
     animationTime: 0,
     statusMessage: "",
     statusTimer: 0.0,
@@ -133,7 +128,7 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     maxScrollOffset: 0.0
   )
 
-proc saveSkinSelectionImmediately*(shop: ShopWindow) {.moddable.} =
+proc saveSkinSelectionImmediately(shop: ShopWindow) {.moddable.} =
   ## Save skin selection to settings file immediately
   if shop.playerSkinChanged:
     globalSettings.playerSkin = shop.selectedPlayerSkin.int
@@ -247,57 +242,18 @@ proc fitTextSize(text: string, maxWidth: int32, startSize: int32, minSize: int32
   while result > minSize and measureText(text, result) > maxWidth:
     dec result
 
-proc wrapTwoLines*(text: string, maxWidth: int32, fontSize: int32 = 10): tuple[line1: string, line2: string] {.moddable.} =
-  var line1 = ""
-  var line2 = ""
-  var words = text.split(' ')
-  var currentLine = ""
-  for w in words:
-    let testLine = if currentLine.len > 0: currentLine & " " & w else: w
-    if measureText(testLine, fontSize) <= maxWidth:
-      currentLine = testLine
-    else:
-      if line1.len == 0:
-        line1 = currentLine
-        currentLine = w
-      else:
-        line2 = currentLine
-        break
-  if line1.len == 0:
-    line1 = currentLine
-  elif line2.len == 0 and currentLine.len > 0:
-    line2 = currentLine
-  return (line1: line1, line2: line2)
+proc wrapTwoLines(text: string, maxWidth: int32, fontSize: int32 = 10): tuple[line1: string, line2: string] {.moddable.} =
+  let lines = wrapTextLines(text, maxWidth, fontSize)
+  (line1: if lines.len > 0: lines[0] else: "",
+   line2: if lines.len > 1: lines[1] else: "")
 
-proc wrapIntoLines(text: string, maxWidth: int32, fontSize: int32, maxLines: int): seq[string] =
-  result = @[]
-  var cur = ""
-  for w in text.split(' '):
-    let test = if cur.len > 0: cur & " " & w else: w
-    if measureText(test, fontSize) <= maxWidth:
-      cur = test
-    else:
-      if result.len < maxLines - 1:
-        if cur.len > 0: result.add(cur)
-        cur = w
-      else:
-        break
-  if cur.len > 0 and result.len < maxLines:
-    result.add(cur)
-
-proc wrapDescAutoSize*(text: string, maxWidth: int32, startSize: int32 = 11, minSize: int32 = 8): tuple[line1, line2, line3: string, fontSize: int32] {.moddable.} =
-  for size in countdown(startSize, minSize):
-    let lines = wrapIntoLines(text, maxWidth, size, 3)
-    if lines.join(" ").strip() == text.strip():
-      return (line1: if lines.len > 0: lines[0] else: "",
-              line2: if lines.len > 1: lines[1] else: "",
-              line3: if lines.len > 2: lines[2] else: "",
-              fontSize: size)
-  let lines = wrapIntoLines(text, maxWidth, minSize, 3)
-  return (line1: if lines.len > 0: lines[0] else: "",
-          line2: if lines.len > 1: lines[1] else: "",
-          line3: if lines.len > 2: lines[2] else: "",
-          fontSize: minSize)
+proc wrapDescAutoSize(text: string, maxWidth: int32, startSize: int32 = 11, minSize: int32 = 8): tuple[line1, line2, line3: string, fontSize: int32] {.moddable.} =
+  let size = bestWrapFontSize(text, maxWidth, startSize, 3, minSize)
+  let lines = wrapTextLines(text, maxWidth, size)
+  (line1: if lines.len > 0: lines[0] else: "",
+   line2: if lines.len > 1: lines[1] else: "",
+   line3: if lines.len > 2: lines[2] else: "",
+   fontSize: size)
 
 proc themeOwnsDefaultBg(): bool =
   ## The free default background is the interface theme's own wallpaper
@@ -314,7 +270,7 @@ proc desktopBgText(bg: DesktopBgType): tuple[name, desc: string] =
   else:
     (getDesktopBgData(bg).name, getDesktopBgData(bg).description)
 
-proc visibleCosmeticIndices*(kind: CosmeticKind, query: string): seq[int] {.moddable.} =
+proc visibleCosmeticIndices(kind: CosmeticKind, query: string): seq[int] {.moddable.} =
   var q = query.toLowerAscii()
   result = @[]
   for i in 0..<cosmeticCount(kind):
@@ -469,7 +425,7 @@ template cardPreview(x, y: int, body: untyped) =
   cosmeticPreview(x + 10, y + 12, SKIN_BOX_WIDTH - 20, 66):
     body
 
-proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
+proc drawPlayerSkinPreview(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a player skin with shop icon style
   let (primaryColor, secondaryColor, coreColor) = getSkinColors(skinType, time)
 
@@ -543,7 +499,7 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
+proc drawBulletSkinPreview(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a bullet skin
   let (primaryColor, glowColor, trailColor) = getBulletSkinColors(skinType, time)
 
@@ -624,7 +580,7 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
+proc drawBulletShapePreview(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a player bullet shape
   let bgColor = if isSelected: uiSurface(0, 60, 80)
                 elif isHovered: uiSurface(60, 60, 70)
@@ -680,7 +636,7 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
+proc drawShapePreview(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a player shape
   # Background box
   let bgColor = if isSelected:
@@ -751,7 +707,7 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
+proc drawParticlePreview(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a particle effect
   let (primaryColor, secondaryColor) = getParticleSkinColors(particleType, time)
 
@@ -852,7 +808,7 @@ proc endPreviewClip(clip: PreviewClip) =
   else:
     endVirtualScissorMode()
 
-proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
+proc drawDesktopBgPreview(x, y: int, bgType: DesktopBgType, time: float32,
                             isSelected: bool, isHovered: bool,
                             isUnlocked: bool = true, canBuy: bool = false,
                             cost: CosmeticCost, costText: string = "") {.moddable.} =
@@ -948,7 +904,7 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
+proc drawCubeSkinPreview(x, y: int, skinType: CubeSkinType, time: float32,
                            isSelected: bool, isHovered: bool,
                            isUnlocked: bool = true, canBuy: bool = false,
                            cost: CosmeticCost, costText: string = "") {.moddable.} =
@@ -1647,10 +1603,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
       let actual = visible[shop.focusIndex]
       handleCosmeticClick(shop, curKind, actual)
     if isKeyPressed(Space):
-      let actual = visible[shop.focusIndex]
       shop.previewOpen = true
-      shop.previewKind = curKind
-      shop.previewIndex = actual
 
   # Reset hover state, keyboard focus will set hoveredSkin below
   shop.hoveredSkin = -1
@@ -1817,19 +1770,14 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
       # The player's shape with the mini desktop cube (in the equipped cube
       # skin's colors) circling it live.
       let previewY = (cardY + 105).float32
-      let cubeData = getCubeSkinData(shop.selectedCubeSkin)
       let orbitAngle = time * 1.3'f32
       let orbitDist = 24.0'f32 * 2.1'f32 + sin(time * 2.1'f32) * 3.0'f32
-      let cubeHeart = if shop.selectedCubeSkin == cskCompanion: Color(r: 244, g: 116, b: 150, a: 255)
-                      else: Color(r: 0, g: 0, b: 0, a: 0)
       secretPreview(cardX, cardY):
         drawPlayerShape(newVector2f(centerX, previewY), 24.0'f32, shop.selectedShape,
                         primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
         drawMiniCube(Vector2(x: centerX + cos(orbitAngle) * orbitDist,
                              y: previewY + sin(orbitAngle) * orbitDist * 0.72'f32),
-                     8.0'f32, time, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
-                     isD20 = shop.selectedCubeSkin == cskD20, skin = shop.selectedCubeSkin,
-                     secretStyle = true)
+                     8.0'f32, time, skin = shop.selectedCubeSkin)
     of siCheaterHat:
       # The shamefully pristine pointy hat.
       let previewY = (cardY + 110).float32

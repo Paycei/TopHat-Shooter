@@ -206,7 +206,6 @@ proc generateArena*(theme: string, radius: float32): Arena3D {.moddable.} =
         currentRotation: 0.0
       ))
 
-  result.environmentIntensity = 0.0
   result.gravity = GRAVITY
   result.boundsRadius = 450.0
   result.deathPlaneY = -50.0

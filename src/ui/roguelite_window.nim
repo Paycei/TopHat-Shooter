@@ -29,7 +29,7 @@ proc newRogueliteWindow*(screenWidth, screenHeight: int, profile: RogueliteProfi
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
   let osWin = newOSWindow(t("roguelite_setup_title"), windowX, windowY, windowWidth, windowHeight,
-                          Color(r: 0, g: 220, b: 255, a: 255), owtSettings, resizable = false)
+                          Color(r: 0, g: 220, b: 255, a: 255), resizable = false)
   osWin.visible = false
   result = RogueliteWindow(window: osWin, celebrationTimer: 0.0,
                            celebrationHeat: RogueliteMinHeat, knownHeat: -1)

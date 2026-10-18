@@ -122,7 +122,7 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 16'u32  # bumped: mod consumables/patches/events/shop rows/[Q] (15: statuses; 14: things)
+  SnapFormatVersion = 17'u32  # bumped: unread fields removed (16: mod consumables/patches/events/shop rows/[Q]; 15: statuses; 14: things)
   HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
 
 proc layoutFingerprint(): uint32 =
@@ -185,7 +185,7 @@ proc getU32(s: string, off: int): uint32 =
 
 const LegacySuspendFile = "suspend.snap"
 
-proc getSuspendPath*(mode: GameMode, modMode: string = ""): string {.moddable.} =
+proc getSuspendPath(mode: GameMode, modMode: string = ""): string {.moddable.} =
   ## One snapshot per mode, so starting or quitting a run in one mode can never
   ## discard another mode's suspended run. saveSlotTag keeps modded sessions
   ## on their own files (see run_save.runSaveFileFor).

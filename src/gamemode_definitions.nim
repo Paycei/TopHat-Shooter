@@ -10,7 +10,6 @@ type
     name*: string
     description*: string
     usesWaves*: bool           # Uses wave-based spawning
-    hasTimeLimit*: bool        # Has time-based gameplay
     allowsCheats*: bool        # Cheats menu available
     difficultyScale*: float32 # How fast difficulty increases
     playerStartCoins*: int    # Starting coins for player
@@ -24,7 +23,6 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition {.moddable.} =
       name: t(tkGameModeWaveBased),
       description: t(tkGameModeWaveBasedDesc),
       usesWaves: true,
-      hasTimeLimit: false,
       allowsCheats: true,
       difficultyScale: 1.0,
       playerStartCoins: 0
@@ -36,7 +34,6 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition {.moddable.} =
       name: t(tkGameModeTimeSurvival),
       description: t(tkGameModeTimeSurvivalDesc),
       usesWaves: false,
-      hasTimeLimit: false,
       allowsCheats: true,   # Enables the cheat menu's survival-specific tab (cmtSurvival)
       difficultyScale: 1.0,
       playerStartCoins: 0
@@ -48,7 +45,6 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition {.moddable.} =
       name: t(tkGameModeSandbox),
       description: t(tkGameModeSandboxDesc),
       usesWaves: false,
-      hasTimeLimit: false,
       allowsCheats: true,
       difficultyScale: 0.0,  # No automatic difficulty scaling
       playerStartCoins: 0
@@ -60,7 +56,6 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition {.moddable.} =
       name: t(tkGameModePvP),
       description: t(tkGameModePvPDesc),
       usesWaves: false,
-      hasTimeLimit: true,
       allowsCheats: false,
       difficultyScale: 0.0,
       playerStartCoins: 100
@@ -72,7 +67,6 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition {.moddable.} =
       name: t("gamemode_roguelite_name"),
       description: t("gamemode_roguelite_desc"),
       usesWaves: true,
-      hasTimeLimit: false,
       allowsCheats: true,
       difficultyScale: 1.0,
       playerStartCoins: 0
@@ -98,10 +92,6 @@ proc shouldUseWaves*(mode: GameMode): bool {.moddable.} =
 proc canUseCheats*(mode: GameMode): bool {.moddable.} =
   ## Check if cheats are allowed in this mode
   getGameModeDefinition(mode).allowsCheats
-
-proc hasTimeLimit*(mode: GameMode): bool {.moddable.} =
-  ## Check if this mode has time-based gameplay
-  getGameModeDefinition(mode).hasTimeLimit
 
 proc isSandboxMode*(mode: GameMode): bool {.moddable.} =
   ## Quick check if this is sandbox mode

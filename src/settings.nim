@@ -19,7 +19,7 @@ proc isPowerUpDiscovered*(pt: PowerUpType): bool {.moddable.} =
   if pt >= FirstModPowerUp: return isPowerUpLive(pt)
   $pt in globalSettings.discoveredPowerUps
 
-proc newDefaultSettings*(): Settings {.moddable.} =
+proc newDefaultSettings(): Settings {.moddable.} =
   ## Fresh Settings object holding only the built-in defaults (no disk access,
   ## no global registration). Used both at first boot and to wipe leftover
   ## state before loading a different profile's settings file.

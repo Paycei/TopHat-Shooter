@@ -87,7 +87,7 @@ proc patchKey(p: RogueliteRelicType): string =
   of rrtPacketLoss: "packet_loss"
   of rrtMod: "mod"
 
-proc patchKbNumber*(p: RogueliteRelicType): int {.moddable.} =
+proc patchKbNumber(p: RogueliteRelicType): int {.moddable.} =
   ## Fixed per patch, so a player learns "KB-3146" means Rollback.
   case p
   of rrtNone: 0
@@ -143,7 +143,7 @@ proc patchCategoryName*(c: PatchCategory): string {.moddable.} =
   of pcPerformance: t("patch_category_performance")
   of pcMaintenance: t("patch_category_maintenance")
 
-proc patchCategoryAccent*(c: PatchCategory): Color {.moddable.} =
+proc patchCategoryAccent(c: PatchCategory): Color {.moddable.} =
   case c
   of pcSecurity: Color(r: 90, g: 200, b: 255, a: 255)
   of pcPerformance: Color(r: 255, g: 150, b: 70, a: 255)

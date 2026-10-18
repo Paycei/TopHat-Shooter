@@ -5,7 +5,7 @@ import raylib, math, random
 import ../modding/mod_patch_core
 import types_3d, engine_3d
 
-proc newWeapon3D*(): Weapon3D {.moddable.} =
+proc newWeapon3D(): Weapon3D {.moddable.} =
   Weapon3D(
     ammo: 500,        # Increased from 150 for longer fights
     maxAmmo: 500,     # Increased from 150 for longer fights

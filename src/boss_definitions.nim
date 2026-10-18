@@ -32,7 +32,7 @@ proc clearModBosses*() {.moddable.} =
   modBossProcessNames.clear()
 
 
-proc bossWeakTier*(bossID: int): int {.moddable.} =
+proc bossWeakTier(bossID: int): int {.moddable.} =
   ## Weak-point resistance tier (1-4). The wave campaign keys it on the boss
   ## number; the mode rosters map onto the wave boss they stand in for: the
   ## survival bosses replace bosses 3 / 6 / 9 / 12, the roguelite guardians
@@ -49,7 +49,7 @@ proc bossWeakTier*(bossID: int): int {.moddable.} =
     of 17..22: 2
     else: 0
 
-proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition {.moddable.} =
+proc bossWeakPointDefinitionFor(bossID: int): BossWeakPointDefinition {.moddable.} =
   # Body damage is heavily resisted; the real damage happens in the weak-point
   # vulnerability window. The body/window gap (not raw HP) is what forces players
   # to engage mechanics instead of facetanking. The gap widens on higher bosses
@@ -3935,7 +3935,7 @@ var
   vanillaBossCache: Table[int, BossDefinition]
   vanillaBossCacheLang: Language
 
-proc vanillaBossDefinition*(bossNumber: int): BossDefinition {.moddable.} =
+proc vanillaBossDefinition(bossNumber: int): BossDefinition {.moddable.} =
   ## The built-in definition, ignoring mods (reference numbers use this).
   if vanillaBossCacheLang != getLanguage():
     vanillaBossCache.clear()
@@ -4059,7 +4059,7 @@ proc bossAuthoredSlotWave*(bossId: int): int {.moddable.} =
   of 23: 60
   else: modBossSlotWaves.getOrDefault(bossId, 60)
 
-proc bossSlotHpBudget*(slotWave: float32): float32 {.moddable.} =
+proc bossSlotHpBudget(slotWave: float32): float32 {.moddable.} =
   ## Total HP the campaign gives a boss at this slot (the boss holding the
   ## slot's base HP on getScaledBossHP's curve), before profile difficulty.
   let w = max(BossWaveInterval.float32, slotWave)
@@ -4080,7 +4080,7 @@ proc bossSlotDamageRef*(slotWave: float32): float32 {.moddable.} =
   let frac = pos - lo.float32
   BossSlotDamageRef[lo] + (BossSlotDamageRef[min(lo + 1, 11)] - BossSlotDamageRef[lo]) * frac
 
-proc rescaleBossPools*(boss: Enemy, factor: float32) {.moddable.} =
+proc rescaleBossPools(boss: Enemy, factor: float32) {.moddable.} =
   ## Scale a spawned boss's whole HP budget (current, max, total, and every
   ## phase pool) by `factor`, keeping the phase proportions.
   boss.hp *= factor

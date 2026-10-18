@@ -35,10 +35,10 @@ proc heatChallengeRank*(heat: int): int {.moddable.} =
   ## Heat 1 is the default baseline, Heat 2/3 add challenge.
   max(0, clamp(heat, RogueliteMinHeat, RogueliteMaxHeat) - RogueliteMinHeat)
 
-proc getRogueliteProfilePath*(): string {.moddable.} =
+proc getRogueliteProfilePath(): string {.moddable.} =
   getAppDataPath() / "roguelite_profile.json"
 
-proc initRogueliteProfile*(): RogueliteProfile {.moddable.} =
+proc initRogueliteProfile(): RogueliteProfile {.moddable.} =
   result = RogueliteProfile(
     version: RogueliteProfileVersion,
     dataShards: 0,
@@ -71,7 +71,7 @@ proc hasRelic*(run: RogueliteRun, relicType: RogueliteRelicType): bool {.moddabl
       return true
   false
 
-proc hasModRelic*(run: RogueliteRun, modKey: string): bool {.moddable.} =
+proc hasModRelic(run: RogueliteRun, modKey: string): bool {.moddable.} =
   ## A mod patch (rrtMod) by its registered name.
   if run.isNil: return false
   for relic in run.relics:
@@ -82,7 +82,7 @@ proc hasModRelic*(run: RogueliteRun, modKey: string): bool {.moddable.} =
 proc hasRelic*(run: RogueliteRun, relic: RogueliteRelic): bool {.moddable.} =
   if relic.relicType == rrtMod: run.hasModRelic(relic.modKey) else: run.hasRelic(relic.relicType)
 
-proc ownedModPatches*(run: RogueliteRun): seq[string] {.moddable.} =
+proc ownedModPatches(run: RogueliteRun): seq[string] {.moddable.} =
   if run.isNil: return
   for relic in run.relics:
     if relic.relicType == rrtMod: result.add(relic.modKey)
@@ -94,7 +94,7 @@ proc ensureString(list: var seq[string], value: string) =
       return
   list.add(value)
 
-proc normalizeRogueliteProfile*(profile: RogueliteProfile) {.moddable.} =
+proc normalizeRogueliteProfile(profile: RogueliteProfile) {.moddable.} =
   ## Stamp the current version and restore the invariants every profile must
   ## hold (default cosmetics owned, Heat in range, no negative wallet).
   if profile.isNil: return
@@ -154,7 +154,7 @@ proc legacyRelicCost(relic: RogueliteRelicType): tuple[shards, cores: int] =
   of rrtEliteDividend: (260, 8)
   else: (0, 0)   # Discount Protocol was free; later patches were never sold
 
-proc legacyUnlockRefund*(j: JsonNode): tuple[shards, cores: int] {.moddable.} =
+proc legacyUnlockRefund(j: JsonNode): tuple[shards, cores: int] {.moddable.} =
   ## Everything a v4 profile JSON spent in the old unlock shop.
   if j.isNil or j.kind != JObject:
     return
@@ -199,7 +199,7 @@ proc parseStringSeq(j: JsonNode): seq[string] =
     if value.len > 0 and value notin result:
       result.add(value)
 
-proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode {.moddable.} =
+proc rogueliteProfileToJson(profile: RogueliteProfile): JsonNode {.moddable.} =
   %* {
     "version": profile.version,
     "dataShards": profile.dataShards,
@@ -222,7 +222,7 @@ proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode {.moddable.} =
     "recursionLevel": profile.recursionLevel
   }
 
-proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile {.moddable.} =
+proc jsonToRogueliteProfile(j: JsonNode): RogueliteProfile {.moddable.} =
   ## Parse a profile. A pre-v5 profile is migrated in place: its unlock-shop
   ## spend is credited back and recorded in pendingProfileRefund. The caller
   ## (loadRogueliteProfile) saves right away so the refund can't repeat.
@@ -460,7 +460,7 @@ proc syncPlayerPatches*(game: Game) {.moddable.} =
   for relic in game.rogueliteRun.relics:
     game.player.patches.incl(relic.relicType)
 
-proc unownedPatches*(run: RogueliteRun,
+proc unownedPatches(run: RogueliteRun,
                      exclude: set[RogueliteRelicType] = {}): seq[RogueliteRelicType] {.moddable.} =
   for p in AllPatches:
     if p notin exclude and not run.hasRelic(p):
@@ -702,7 +702,7 @@ proc makeCost(dataShards: int, cores: int = 0): CosmeticCost =
     cores: cores
   )
 
-proc isFree*(cost: CosmeticCost): bool {.moddable.} =
+proc isFree(cost: CosmeticCost): bool {.moddable.} =
   cost.dataShards <= 0 and cost.cores <= 0
 
 proc ensureId(list: var seq[string], id: string) =
@@ -729,14 +729,14 @@ const CosmeticInfo: array[CosmeticKind, tuple[count, defaultIndex: int]] = [
   ckCubeSkin:    (ord(high(CubeSkinType)) + 1,    ord(cskDefault)),
 ]
 
-proc defaultCosmeticIndex*(kind: CosmeticKind): int = CosmeticInfo[kind].defaultIndex
+proc defaultCosmeticIndex(kind: CosmeticKind): int = CosmeticInfo[kind].defaultIndex
 
 proc cosmeticCount*(kind: CosmeticKind): int = CosmeticInfo[kind].count
 
 proc isValidCosmeticIndex*(kind: CosmeticKind, index: int): bool {.moddable.} =
   index >= 0 and index < cosmeticCount(kind)
 
-proc cosmeticId*(kind: CosmeticKind, index: int): string {.moddable.} =
+proc cosmeticId(kind: CosmeticKind, index: int): string {.moddable.} =
   if not isValidCosmeticIndex(kind, index):
     return ""
   case kind
@@ -773,7 +773,7 @@ proc equippedIndex(settings: Settings, kind: CosmeticKind): var int =
   of ckDesktopBg: return settings.desktopBg
   of ckCubeSkin: return settings.cubeSkin
 
-proc ensureBaseCosmeticUnlocks*(profile: RogueliteProfile) {.moddable.} =
+proc ensureBaseCosmeticUnlocks(profile: RogueliteProfile) {.moddable.} =
   if profile.isNil:
     return
   for kind in CosmeticKind:

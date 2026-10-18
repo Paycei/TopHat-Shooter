@@ -24,11 +24,8 @@ proc getBoss3D*(bossId: int): Boss3D {.moddable.} =
       satellites: @[],
       phaseTransitionTimer: 0.0,
       attackPattern: 0,
-      patternTimer: 0.0,
-      shieldHealth: 0.0,
       teleportTimer: 0.0,
-      gravityWells: @[],
-      berserkModeActive: false
+      gravityWells: @[]
     )
 
     # Phase 1: Initialize 4 satellites - MUST destroy ALL to damage core
@@ -56,11 +53,8 @@ proc getBoss3D*(bossId: int): Boss3D {.moddable.} =
       satellites: @[],
       phaseTransitionTimer: 0.0,
       attackPattern: 0,
-      patternTimer: 0.0,
-      shieldHealth: 0.0,
       teleportTimer: 0.0,
-      gravityWells: @[],
-      berserkModeActive: false
+      gravityWells: @[]
     )
 
 # PHASE TRANSITION LOGIC
@@ -70,25 +64,21 @@ proc initiatePhaseTransition(boss: var Boss3D, newPhase: int, arena: var Arena3D
   boss.phase = newPhase
   boss.phaseTransitionTimer = 2.0
   boss.attackPattern = 0
-  boss.patternTimer = 0.0
 
   case newPhase
   of 2:  # PHASE 2: Core exposed, gravity mechanics
     # Change environment dramatically
     arena.skyColor = Color(r: 40, g: 10, b: 60, a: 255)
     arena.floorColor = Color(r: 60, g: 20, b: 80, a: 255)
-    arena.environmentIntensity = 0.6
     # Platforms start rotating
     for platform in arena.platforms.mitems:
       if platform.rotationSpeed == 0.0:
         platform.rotationSpeed = 0.3
 
   of 3:  # PHASE 3: Final stand
-    boss.berserkModeActive = true
     # Environment becomes chaotic
     arena.skyColor = Color(r: 80, g: 0, b: 20, a: 255)
     arena.floorColor = Color(r: 100, g: 10, b: 30, a: 255)
-    arena.environmentIntensity = 1.0
     # Faster platform rotation
     for platform in arena.platforms.mitems:
       platform.rotationSpeed = 0.6

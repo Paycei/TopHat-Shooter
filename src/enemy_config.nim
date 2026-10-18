@@ -69,7 +69,6 @@ type
     attack*: EnemyAttackConfig
 
     # Special behaviors
-    hasSpecialBehavior*: bool
     specialBehaviorType*: string  # "dash", "teleport", "clone", "warning_attack", etc.
     specialCooldown*: float32
     specialData*: string          # JSON-like data for special mechanics
@@ -195,7 +194,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
       ),
 
       hasRangedAttack: false,
-      hasSpecialBehavior: false,
       requiresScreenEntry: false,
       usesHitCount: false,
       speedScaling: 10.0
@@ -241,7 +239,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 10.0      # Large pentagon bullet
       ),
 
-      hasSpecialBehavior: false,
       requiresScreenEntry: true,
       usesHitCount: false,
       speedScaling: 3.0
@@ -271,7 +268,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
 
       hasRangedAttack: false,
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "erratic_dash",
       specialCooldown: 3.0,  # Random 2-3 seconds
       specialData: "zigzag_pattern|dash_range:150|dash_multiplier:3.0",
@@ -305,7 +301,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
 
       hasRangedAttack: false,
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "proximity_dash",
       specialCooldown: 2.0,
       specialData: "dash_range:150",
@@ -356,7 +351,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: false,
       requiresScreenEntry: true,  # Must enter screen before attacking
       usesHitCount: false,
       speedScaling: 3.0
@@ -402,7 +396,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "teleport_chaos",
       specialCooldown: 3.5,   # Randomized 2.5-3.5
       specialData: "chaotic_shooting",
@@ -436,7 +429,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
 
       hasRangedAttack: false,  # Uses laser during dash, not bullets
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "warning_laser_dash",
       specialCooldown: 3.0,    # Time between attack cycles
       specialData: "warning_duration:1.2|dash_duration:0.5|laser_length:120|rotation_speed:12.5",
@@ -486,7 +478,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "dash_shooting",
       specialCooldown: 3.5,   # Randomized
       specialData: "shoots_on_dash|shoots_periodically",
@@ -541,7 +532,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletLifetime: 3.0
       ),
 
-      hasSpecialBehavior: false,
       requiresScreenEntry: true,
       usesHitCount: false,
       speedScaling: 3.0
@@ -587,7 +577,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "fake_warning_teleport",
       specialCooldown: 4.0,   # Randomized 3-5
       specialData: "fake_warning:1.0|teleport_shoot",
@@ -637,7 +626,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "clone_teleport",
       specialCooldown: 3.0,   # Randomized 2-3.5
       specialData: "clone_count:3|shoot_from_clones:60%",
@@ -687,7 +675,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 12.0  # Massive bullet
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "charge_shot",
       specialCooldown: 2.0,   # Cooldown after firing
       specialData: "charge_time:3.0|trigger_range:500|cooldown:2.0|color_shift",  # Trigger range increased to 500 (was 300)
@@ -737,7 +724,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 8.0  # Larger magic bullets
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "summon_meteorites",
       specialCooldown: 4.0,   # Meteorite summon cooldown
       specialData: "meteorite_count:2|meteorite_count_random:1|warning_time:1.5|damage:3",
@@ -775,7 +761,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
   of etInterrupt:
     result = modeMelee(etInterrupt, t(tkEnemyInterruptName), t(tkEnemyInterruptDesc),
                        1.4, 10.0, 2.0, Color(r: 255, g: 150, b: 40, a: 255), 92.0, 6.0)
-    result.hasSpecialBehavior = true
     result.specialBehaviorType = "kamikaze"
 
   # ---- Roguelite rooms (legacy processes) ---------------------------------
@@ -838,7 +823,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
       ),
 
       hasRangedAttack: false,
-      hasSpecialBehavior: false,
       requiresScreenEntry: false,
       usesHitCount: false,
       speedScaling: 0.0

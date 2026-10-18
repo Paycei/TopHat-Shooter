@@ -330,7 +330,7 @@ proc rogueliteBackdrop(time, totalDuration: float32, sw, sh: int32) =
 # ---------------------------------------------------------------------------
 # Public factory
 
-proc newRogueliteEndCutscene*(): Cutscene {.moddable.} =
+proc newRogueliteEndCutscene(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: BelowShots[0], drawProc: drawDescendShot, soundCue: stTeleport,

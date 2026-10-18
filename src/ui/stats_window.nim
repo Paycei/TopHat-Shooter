@@ -31,7 +31,7 @@ type
   PowerUpListGeom* = object
     panelX*, panelY*, panelW*, panelH*: int
     listY*, listH*: int      # inner viewport, below the pinned column header
-    footerY*, footerH*: int  # pinned total row at the panel bottom (0 = none)
+    footerY*: int            # pinned total row at the panel bottom
 
   ## One row of the healing panel. `overheal` is the part of the source's output
   ## that landed on a full HP bar -- shown so a source that heals constantly but
@@ -67,10 +67,10 @@ const
   OverhealColor = Color(r: 150, g: 160, b: 170, a: 255)
 
 # HELPER PROCS (FORMATTING)
-proc formatPercent*(value: float32): string {.moddable.} =
+proc formatPercent(value: float32): string {.moddable.} =
   result = value.formatFloat(ffDecimal, 1) & "%"
 
-proc formatLargeNumber*(value: float32): string {.moddable.} =
+proc formatLargeNumber(value: float32): string {.moddable.} =
   if value >= 1_000_000:
     result = (value / 1_000_000).formatFloat(ffDecimal, 1) & "M"
   elif value >= 1_000:
@@ -78,12 +78,12 @@ proc formatLargeNumber*(value: float32): string {.moddable.} =
   else:
     result = value.formatFloat(ffDecimal, 1)
 
-proc formatDuration*(seconds: float32): string {.moddable.} =
+proc formatDuration(seconds: float32): string {.moddable.} =
   let mins = int(seconds) div 60
   let secs = int(seconds) mod 60
   result = align($mins, 2, '0') & ":" & align($secs, 2, '0')
 
-proc getQualityColor*(value: float32, threshold: float32 = 50.0): Color {.moddable.} =
+proc getQualityColor(value: float32, threshold: float32 = 50.0): Color {.moddable.} =
   if value >= threshold:
     return Color(r: 80, g: 255, b: 80, a: 255)
   elif value >= threshold * 0.5:
@@ -98,7 +98,7 @@ proc getQualityColor*(value: float32, threshold: float32 = 50.0): Color {.moddab
 # drift apart -- a scrollbar that clamps against a different row count than the
 # one being drawn is the classic way these lists end up unreachable at the end.
 
-proc buildDamageRanking*(runStats: RunStatistics): seq[(PowerUpType, float32)] {.moddable.} =
+proc buildDamageRanking(runStats: RunStatistics): seq[(PowerUpType, float32)] {.moddable.} =
   ## Power-ups that dealt damage this run, highest first.
   result = @[]
   for ptype, damage in runStats.powerUps.damageContribution:
@@ -107,7 +107,7 @@ proc buildDamageRanking*(runStats: RunStatistics): seq[(PowerUpType, float32)] {
   if result.len > 1:
     result.sort(proc (a, b: (PowerUpType, float32)): int = cmp(b[1], a[1]))
 
-proc buildHealingSources*(runStats: RunStatistics): seq[HealingSourceRow] {.moddable.} =
+proc buildHealingSources(runStats: RunStatistics): seq[HealingSourceRow] {.moddable.} =
   ## Every source that healed this run, most HP restored first. All of it is
   ## measured at the point the HP actually went in (see trackHealing /
   ## trackConsumableHealing), so no row is reconstructed here. The old estimate
@@ -135,7 +135,7 @@ proc buildHealingSources*(runStats: RunStatistics): seq[HealingSourceRow] {.modd
       result = cmp(b.restored, a.restored)
       if result == 0: result = cmp(b.overheal, a.overheal))
 
-proc powerUpListGeometry*(window: OSWindow): array[3, PowerUpListGeom] {.moddable.} =
+proc powerUpListGeometry(window: OSWindow): array[3, PowerUpListGeom] {.moddable.} =
   ## Three equal columns -- timeline, damage ranking, healing sources -- filling
   ## the tab body below the title/summary header block.
   let contentX = window.x + WINDOW_PADDING
@@ -169,10 +169,9 @@ proc powerUpListGeometry*(window: OSWindow): array[3, PowerUpListGeom] {.moddabl
       listH: listH,
       # Derived from the list bottom, not the panel bottom, so the footer's
       # divider rule can never be drawn over the last visible row.
-      footerY: listY + listH + 6,
-      footerH: footerH)
+      footerY: listY + listH + 6)
 
-proc powerUpRowCounts*(runStats: RunStatistics): array[3, int] {.moddable.} =
+proc powerUpRowCounts(runStats: RunStatistics): array[3, int] {.moddable.} =
   ## Row count of each list, used to derive the maximum scroll offset.
   if runStats.isNil:
     return [0, 0, 0]
@@ -180,7 +179,7 @@ proc powerUpRowCounts*(runStats: RunStatistics): array[3, int] {.moddable.} =
    buildDamageRanking(runStats).len,
    buildHealingSources(runStats).len]
 
-proc rankingColumns*(g: PowerUpListGeom):
+proc rankingColumns(g: PowerUpListGeom):
     tuple[rankX, nameX, nameMax, valueRight, percentRight, scrollbarX: int] {.moddable.} =
   ## Column x-positions shared by the damage and healing ranking panels. Both
   ## panels are the same table shape, so the offsets live here once -- and the
@@ -193,7 +192,7 @@ proc rankingColumns*(g: PowerUpListGeom):
    percentRight: g.panelX + g.panelW - PercentColRight,
    scrollbarX: g.panelX + g.panelW - ScrollbarInset)
 
-proc timelineColumns*(g: PowerUpListGeom):
+proc timelineColumns(g: PowerUpListGeom):
     tuple[timeX, nameX, nameMax, levelRight, scrollbarX: int] {.moddable.} =
   ## Column x-positions for the pick-timeline panel.
   let levelRight = g.panelX + g.panelW - PercentColRight
@@ -214,7 +213,6 @@ proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWi
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 200, b: 50, a: 255),
-    owtStatistics,
     resizable = false
   )
 
@@ -292,7 +290,7 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
 
 # VISUAL HELPER PROCEDURES
 
-proc drawMetricCard*(x, y, width, height: int, title: string, value: string,
+proc drawMetricCard(x, y, width, height: int, title: string, value: string,
                     icon: char, color: Color) {.moddable.} =
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                uiSurface(25, 25, 35))
@@ -308,7 +306,7 @@ proc drawMetricCard*(x, y, width, height: int, title: string, value: string,
   drawText(title, (x + 40).int32, (y + 10).int32, 14, uiInk(LightGray))
   drawText(value, (x + 40).int32, (y + 30).int32, 20, uiInk(White))
 
-proc drawStatPanel*(x, y, width, height: int, title: string) {.moddable.} =
+proc drawStatPanel(x, y, width, height: int, title: string) {.moddable.} =
   ## Draw a panel background with title
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                uiSurface(25, 25, 35))
@@ -342,7 +340,7 @@ proc fitText*(text: string, maxWidth: int, fontSize: int32 = 13): string {.modda
       return candidate
   result = ""
 
-proc drawListScrollbar*(x, y, height: int, scrollOffset, contentHeight, viewportHeight: int) {.moddable.} =
+proc drawListScrollbar(x, y, height: int, scrollOffset, contentHeight, viewportHeight: int) {.moddable.} =
   ## Thin track + proportional thumb along a list's right edge. Nothing is drawn
   ## when everything already fits, so short lists stay visually clean.
   if contentHeight <= viewportHeight or height <= 0:
@@ -391,13 +389,13 @@ proc drawHealingTooltip(row: HealingSourceRow, anchor: Vector2, bounds: OSWindow
   for i in 0 ..< lines.len:
     drawText(lines[i][0], (x + Pad).int32, (y + Pad + i * LineH).int32, FontSize, lines[i][1])
 
-proc drawStatLine*(x, y: int, label: string, value: string, valueColor: Color = White) {.moddable.} =
+proc drawStatLine(x, y: int, label: string, value: string, valueColor: Color = White) {.moddable.} =
   ## Draw a single stat line
   drawText(label, x.int32, y.int32, 14, uiInk(180, 190, 200))
   let valueWidth = measureText(value, 14)
   drawText(value, (x + 260 - valueWidth).int32, y.int32, 14, uiInk(valueColor))
 
-proc drawMiniGraph*(x, y, width, height: int, title: string,
+proc drawMiniGraph(x, y, width, height: int, title: string,
                    dataPoints: seq[(float32, float32)], maxValue: float32,
                    color: Color, animTime: float32) {.moddable.} =
   ## Draw a time-series line graph

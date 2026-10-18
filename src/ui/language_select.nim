@@ -12,8 +12,7 @@ import ../modding/mod_patch_core
 import ../draw_prims
 
 const
-  LangEnglish* = 0
-  LangSpanish* = 1
+  LangSpanish* = 1   ## the option index of Spanish (English is 0)
 
 proc languageOptionRects*(screenWidth, screenHeight: int32): array[2, Rectangle] {.moddable.} =
   ## Geometry for the two selectable cards. Shared by the draw proc and the

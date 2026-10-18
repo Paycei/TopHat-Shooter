@@ -70,7 +70,7 @@ proc xpRequiredForLevel*(level: int, mode: GameMode): int {.moddable.} =
       XpBaseToLevel + n * XpPerLevelStep
   modXpToLevel(base, level, mode)   # mods may reshape the curve (xpToLevel hook)
 
-proc enemyXpValue*(enemy: Enemy): int {.moddable.} =
+proc enemyXpValue(enemy: Enemy): int {.moddable.} =
   ## Small per-enemy XP grant, shaped like enemyCoinValue but smaller magnitudes.
   if enemy.isBoss:
     result = 40
@@ -118,12 +118,12 @@ proc newXpOrb*(x, y: float32, value: int = 1): XpOrb {.moddable.} =
     lifetime: XpOrbLifetime
   )
 
-proc updateXpOrb*(orb: XpOrb, dt: float32): bool {.moddable.} =
+proc updateXpOrb(orb: XpOrb, dt: float32): bool {.moddable.} =
   ## Tick the orb's lifetime; returns false when it should be removed.
   orb.lifetime -= dt
   orb.lifetime > 0
 
-proc drawXpOrb*(orb: XpOrb) {.moddable.} =
+proc drawXpOrb(orb: XpOrb) {.moddable.} =
   let t = getTime()
   let pulse = 1.0 + 0.22 * sin(t * 6.0)
   let size = orb.radius * pulse
@@ -141,13 +141,9 @@ proc drawXpOrb*(orb: XpOrb) {.moddable.} =
   drawCircleOutline(orb.pos.x.int32, orb.pos.y.int32, size,
                   Color(r: 180, g: 255, b: 220, a: a))
 
-proc moveXpOrbToPlayer*(orb: XpOrb, playerPos: Vector2f, dt: float32) {.moddable.} =
+proc moveXpOrbToPlayer(orb: XpOrb, playerPos: Vector2f, dt: float32) {.moddable.} =
   let dir = (playerPos - orb.pos).normalize()
   orb.pos = orb.pos + dir * XpOrbPullSpeed * dt
-
-proc checkPlayerCollision(orb: XpOrb, player: Player): bool =
-  let collectRange = if player.magnetTimer > 0: 80.0 else: orb.radius + player.radius
-  distance(orb.pos, player.pos) < collectRange
 
 proc dataHarvestMultiplier(player: Player): float32 =
   ## DATA_HARVEST.dll: +25% / +50% / +100% XP per enemy at levels 1 / 2 / 3.
@@ -201,7 +197,7 @@ proc dropEnemyXp*(game: Game, enemy: Enemy) {.moddable.} =
   else:
     game.xpOrbs.add(newXpOrb(clamped.x, clamped.y, total))
 
-proc collectXpOrb*(game: Game, orb: XpOrb) {.moddable.} =
+proc collectXpOrb(game: Game, orb: XpOrb) {.moddable.} =
   ## The player touched `orb`: its XP and feedback (the caller removes it).
   game.player.xp += orb.value
   playSound(stCoinPickup, 0.35, 1.4)  # higher pitch than coins
@@ -234,11 +230,11 @@ proc updateGameXpOrbs*(game: Game, dt: float32) {.moddable.} =
     if magnetAll:
       moveXpOrbToPlayer(game.xpOrbs[i], game.player.pos, dt)
 
-    if checkPlayerCollision(game.xpOrbs[i], game.player) and
+    if inPickupRange(game.xpOrbs[i].pos, game.xpOrbs[i].radius, game.player) and
        modPickup(game, "xp", game.xpOrbs[i].value.float64):
       game.xpOrbs.delete(i)   # a mod took it (pickup hook)
       continue
-    if checkPlayerCollision(game.xpOrbs[i], game.player):
+    if inPickupRange(game.xpOrbs[i].pos, game.xpOrbs[i].radius, game.player):
       collectXpOrb(game, game.xpOrbs[i])
       game.xpOrbs.delete(i)
       continue

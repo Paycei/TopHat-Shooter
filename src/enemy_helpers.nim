@@ -25,7 +25,7 @@ proc approachVelocity*(current, target: Vector2f, acceleration, dt: float32): Ve
   let blend = 1.0'f32 - pow(0.001'f32, acceleration * dt)
   current + (target - current) * clamp(blend, 0.0'f32, 1.0'f32)
 
-proc enemyInertiaSizeScale*(enemy: Enemy): float32 {.moddable.} =
+proc enemyInertiaSizeScale(enemy: Enemy): float32 {.moddable.} =
   let referenceRadius =
     if enemy.isBoss: BossInertiaReferenceRadius
     else: EnemyInertiaReferenceRadius
@@ -42,7 +42,7 @@ proc applyEnemyInertia*(enemy: var Enemy, desiredVel: Vector2f, dt: float32,
   enemy.vel = approachVelocity(enemy.vel, desiredVel, smoothing, dt)
   enemy.vel
 
-proc desiredVelocityFromNext*(currentPos, desiredNextPos: Vector2f, dt: float32): Vector2f {.moddable.} =
+proc desiredVelocityFromNext(currentPos, desiredNextPos: Vector2f, dt: float32): Vector2f {.moddable.} =
   if dt <= 0:
     return newVector2f(0, 0)
   (desiredNextPos - currentPos) * (1.0'f32 / dt)

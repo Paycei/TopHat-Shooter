@@ -15,7 +15,6 @@ type
   ShapeData* = object
     name*: string
     description*: string
-    isUnlocked*: bool
 
 # Global shape database
 var shapeDatabase*: array[ShapeType, ShapeData]
@@ -24,26 +23,22 @@ proc initializeShapes*() =
   ## Initialize all available shapes with their data
   shapeDatabase[shHexagon] = ShapeData(
     name: t("shape_hexagon"),
-    description: t("shape_hexagon_desc"),
-    isUnlocked: true
+    description: t("shape_hexagon_desc")
   )
 
   shapeDatabase[shTriangle] = ShapeData(
     name: t("shape_triangle"),
-    description: t("shape_triangle_desc"),
-    isUnlocked: true
+    description: t("shape_triangle_desc")
   )
 
   shapeDatabase[shSquare] = ShapeData(
     name: t("shape_square"),
-    description: t("shape_square_desc"),
-    isUnlocked: true
+    description: t("shape_square_desc")
   )
 
   shapeDatabase[shCircle] = ShapeData(
     name: t("shape_circle"),
-    description: t("shape_circle_desc"),
-    isUnlocked: true
+    description: t("shape_circle_desc")
   )
 
 proc getShapeData*(shapeType: ShapeType): ShapeData =
@@ -177,18 +172,12 @@ proc drawRogueliteClassCosmetic*(pos: Vector2f, radius: float32, time: float32,
     discard
 
 proc drawMiniCube*(center: Vector2, size: float32, time: float32,
-                   edgeColor, glowColor: Color,
-                   heartColor: Color = Color(r: 0, g: 0, b: 0, a: 0),
-                   isD20: bool = false,
-                   skin: CubeSkinType = cskDefault,
-                   secretStyle: bool = false) =
+                   skin: CubeSkinType = cskDefault) =
   ## The desktop cube, pocket-sized: the orbital-cube secret cosmetic on the
   ## player and its shop preview. Drawn by the desktop cube's own renderer
-  ## (cube_render.nim) so every skin looks the same here as on the desktop;
-  ## the colour arguments are kept for callers, the skin supplies its own.
-  let shown = if isD20: cskD20 else: skin
+  ## (cube_render.nim) so every skin looks the same here as on the desktop.
   drawZeroGravityWallpaperCube(center.x, center.y, size, time,
-                               time * 0.9'f32, time * 1.4'f32, 0.0'f32, shown,
+                               time * 0.9'f32, time * 1.4'f32, 0.0'f32, skin,
                                compact = true)
 
 proc drawPlayerShape*(pos: Vector2f, radius: float32, shapeType: ShapeType,

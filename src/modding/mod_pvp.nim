@@ -426,7 +426,7 @@ proc installModPvP*(base: ScriptTable) =
     elif s.kind != vkNil:
       vm.runtimeError("register.pvpmode: settings must be a table")
     let os = rawGetStr(t, "onStart")
-    if os.kind in {vkFunction, vkNative}: m.onStart = os
+    if os.kind == vkFunction: m.onStart = os
     elif os.kind != vkNil: vm.runtimeError("register.pvpmode: onStart must be a function")
     pvpModes.add(m)
     ret.setRet(vstr(key))

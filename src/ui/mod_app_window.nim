@@ -44,7 +44,7 @@ proc newModAppWindow*(key: string, screenWidth, screenHeight: int): ModAppWindow
     w = max(w, MIN_WINDOW_WIDTH)
     h = max(h, MIN_WINDOW_HEIGHT)
   let osWin = newOSWindow(appTitle(key), (screenWidth - w) div 2,
-                          max(0, (screenHeight - h) div 2), w, h, color, owtSettings,
+                          max(0, (screenHeight - h) div 2), w, h, color,
                           resizable = resizable)
   result = ModAppWindow(window: osWin, key: key, draggingCanvas: false)
 

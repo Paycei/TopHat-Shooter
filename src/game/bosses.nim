@@ -864,34 +864,34 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
       enemy.vel = newVector2f(0, 0)
 
 
-proc spawnThunderstrike*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
+proc spawnThunderstrike(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnThunderstrikeInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnArcLattice*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
+proc spawnArcLattice(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnArcLatticeInto(game.attackWarnings, game.particlePool, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnRicochetLaser*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
+proc spawnRicochetLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnRicochetLaserInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
 proc spawnVoidRifts*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnVoidRiftsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnOrbitalSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
+proc spawnOrbitalSweep(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnOrbitalSweepInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnSeismicFissure*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
+proc spawnSeismicFissure(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnSeismicFissureInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnPrismRays*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
+proc spawnPrismRays(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnPrismRaysInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnClockSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
+proc spawnClockSweep(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnClockSweepInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnChaosWeave*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
+proc spawnChaosWeave(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnChaosWeaveInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnOmegaQuadrants*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
+proc spawnOmegaQuadrants(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnOmegaQuadrantsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase,
                                    lesson = attack.specialData == "omega_judgement_lesson")
 
@@ -2609,7 +2609,6 @@ proc launchCharge(game: var Game, enemy: Enemy) =
   enemy.dashVelocity = dir * speed
   enemy.vel = enemy.dashVelocity
   enemy.dashDuration = dist / speed
-  enemy.dashMaxDuration = enemy.dashDuration
   enemy.dashTargetPos = target
   enemy.pendingDashLocked = false
   enemy.chargeState = ccCharging
@@ -2712,7 +2711,6 @@ proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase:
   enemy.dashVelocity = dashDir * dashSpeed
   enemy.vel = enemy.dashVelocity
   enemy.dashDuration = dashTime
-  enemy.dashMaxDuration = dashTime
   enemy.dashTargetPos = dashTarget
   enemy.pendingDashLocked = false
 

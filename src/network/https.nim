@@ -17,7 +17,6 @@ type
     status*: int         ## the last response's HTTP status (0 if none arrived)
     error*: TlsError     ## tlsOk with ok = false: an HTTP-level failure
     detail*: string      ## English, for the log
-    bytes*: int          ## body bytes written
 
 const
   MaxRedirects = 5
@@ -25,7 +24,7 @@ const
   MaxHeaders = 100
   ReadChunk = 16384
 
-proc splitHttpsUrl*(url: string, host: var string, port: var int, path: var string): bool =
+proc splitHttpsUrl(url: string, host: var string, port: var int, path: var string): bool =
   ## "https://host[:port]/path" -> parts. No std/uri (the game does not use it).
   const Scheme = "https://"
   if url.len <= Scheme.len or url[0 ..< Scheme.len].toLowerAscii != Scheme: return false
@@ -207,7 +206,6 @@ proc httpsGetToFile*(url, dest: string, received: ptr Atomic[int] = nil,
           break
     else:
       complete = r.copyBody(f, length, written, received)
-    result.bytes = written
     if not complete:
       result.failWith(conn, "the download was cut short (" & $written & " bytes)")
       return

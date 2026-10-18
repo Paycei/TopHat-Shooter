@@ -191,9 +191,6 @@ proc addTheme*(th: UiTheme): bool {.moddable.} =
   themes.add(th)
   true
 
-proc allThemes*(): seq[UiTheme] = themes
-  ## Every registered theme, locked ones included.
-
 proc themeUnlocked*(th: UiTheme): bool {.moddable.} =
   ## CKN OS is what gets installed over TopHat-ShooterOS at the end of Act IV
   ## (UPTIME, the last story recording), so watching that ending unlocks it:
@@ -230,8 +227,8 @@ proc activeTheme*(): UiTheme {.moddable.} =
   ## The theme being drawn in: the player's, or one a caller forced.
   if forced.len > 0: forced[^1] else: chosenTheme()
 
-proc forceTheme*(th: UiTheme) = forced.add(th)
-proc unforceTheme*() {.moddable.} =
+proc forceTheme(th: UiTheme) = forced.add(th)
+proc unforceTheme() {.moddable.} =
   if forced.len > 0: forced.setLen(forced.len - 1)
 
 template withTheme*(th: UiTheme, body: untyped) =

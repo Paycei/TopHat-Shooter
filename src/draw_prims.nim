@@ -65,7 +65,7 @@ proc segmentsAt(radius, scale: float32): int32 =
   n += n and 1
   clamp(n, 6'i32, 64'i32)
 
-proc circleSegments*(radius: float32): int32 =
+proc circleSegments(radius: float32): int32 =
   ## Segment count drawDisc and drawCircleOutline use for `radius` right now.
   segmentsAt(radius, drawScale())
 

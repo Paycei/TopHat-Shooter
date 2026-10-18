@@ -247,7 +247,7 @@ proc endgameBackdrop(time, totalDuration: float32, sw, sh: int32) =
 # ---------------------------------------------------------------------------
 # Public factory
 
-proc newEndgameCutscene*(): Cutscene {.moddable.} =
+proc newEndgameCutscene(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: RootAccessShots[0], drawProc: newCutOffShot(), soundCue: stExplosion,

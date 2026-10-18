@@ -8,17 +8,11 @@ import ../render_context
 import ui_theme, ../utils
 
 type
-  OSWindowType* = enum
-    owtSettings
-    owtStatistics
-    owtHelp
-
   OSWindow* = ref object
     x*, y*: int
     width*, height*: int
     title*: string
     iconColor*: Color
-    windowType*: OSWindowType
     visible*: bool
     minimized*: bool
     focused*: bool
@@ -56,7 +50,7 @@ proc uiScaleOfWindow*(window: OSWindow): float32 {.moddable.} =
   else: window.uiScale
 
 proc newOSWindow*(title: string, x, y, width, height: int,
-                 iconColor: Color, windowType: OSWindowType, resizable: bool = true): OSWindow {.moddable.} =
+                 iconColor: Color, resizable: bool = true): OSWindow {.moddable.} =
   result = OSWindow(
     x: x,
     y: y,
@@ -64,7 +58,6 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     height: height,
     title: title,
     iconColor: iconColor,
-    windowType: windowType,
     visible: false,
     minimized: false,
     focused: true,
@@ -79,17 +72,17 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     uiScale: 1.0'f32
   )
 
-proc startMinimizeAnimation*(window: OSWindow) {.moddable.} =
+proc startMinimizeAnimation(window: OSWindow) {.moddable.} =
   ## Instantly minimize - no animation
   window.minimized = true
   window.savedWidth = window.width
   window.savedHeight = window.height
 
-proc startRestoreAnimation*(window: OSWindow) {.moddable.} =
+proc startRestoreAnimation(window: OSWindow) {.moddable.} =
   ## Instantly restore - no animation
   window.minimized = false
 
-proc bringWindowToFront*(window: OSWindow, allWindows: openArray[OSWindow]) {.moddable.} =
+proc bringWindowToFront(window: OSWindow, allWindows: openArray[OSWindow]) {.moddable.} =
   ## Bring this window to the front of all other windows
   ## Updates z-order so this window is drawn on top
   if window.isNil or not window.visible:
@@ -117,7 +110,7 @@ proc bringWindowToFront*(window: OSWindow, allWindows: openArray[OSWindow]) {.mo
 proc updateOSWindow*(window: OSWindow, dt: float32) {.moddable.} =
   window.time += dt
 
-proc isPointInTitleBar*(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
+proc isPointInTitleBar(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
   if not window.visible:
     return false
 
@@ -188,7 +181,7 @@ proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindo
 
   return true
 
-proc isPointInCloseButton*(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
+proc isPointInCloseButton(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
   if not window.visible or window.minimized:
     return false
 
@@ -201,7 +194,7 @@ proc isPointInCloseButton*(window: OSWindow, mouseX, mouseY: float32): bool {.mo
            mouseY >= buttonY.float32 and
            mouseY <= (buttonY + buttonSize).float32
 
-proc isPointInMinimizeButton*(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
+proc isPointInMinimizeButton(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
   if not window.visible:
     return false
 
@@ -225,7 +218,7 @@ proc isPointInMinimizeButton*(window: OSWindow, mouseX, mouseY: float32): bool {
              mouseY >= buttonY.float32 and
              mouseY <= (buttonY + buttonSize).float32
 
-proc getResizeEdge*(window: OSWindow, mouseX, mouseY: float32): int {.moddable.} =
+proc getResizeEdge(window: OSWindow, mouseX, mouseY: float32): int {.moddable.} =
   ## Returns which edge is being hovered for resizing
   ## 0=none, 1=right, 2=bottom, 3=corner
   if not window.visible or window.minimized or not window.resizable:

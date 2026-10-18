@@ -165,7 +165,7 @@ proc initComparisonStats*(): ComparisonStats {.moddable.} =
     cautionRating: 50.0
   )
 
-proc initRunStatistics*(): RunStatistics {.moddable.} =
+proc initRunStatistics(): RunStatistics {.moddable.} =
   RunStatistics(
     startTime: $now(),
     endTime: "",
@@ -186,13 +186,13 @@ proc initRunStatistics*(): RunStatistics {.moddable.} =
 var currentRunStats*: RunStatistics = nil
 
 # RUN LIFECYCLE
-proc startNewRun*(gameMode: GameMode) {.moddable.} =
+proc startNewRun(gameMode: GameMode) {.moddable.} =
   currentRunStats = initRunStatistics()
   currentRunStats.gameMode = gameMode
   currentRunStats.startTime = $now()
   echo "[Stats] New run started: ", gameMode
 
-proc calculatePlayStyle*() {.moddable.} =
+proc calculatePlayStyle() {.moddable.} =
   if currentRunStats.isNil: return
   let run = currentRunStats
 
@@ -285,7 +285,7 @@ proc calculateDerivedMetrics*() {.moddable.} =
 # LAST RUN STORAGE
 var lastCompletedRun*: RunStatistics = nil
 
-proc cloneRunStatistics*(src: RunStatistics): RunStatistics {.moddable.} =
+proc cloneRunStatistics(src: RunStatistics): RunStatistics {.moddable.} =
   ## Value-copy of a run's stats. Every field is a value type (seq/Table/string/
   ## scalars), so a single object assignment deep-copies the whole record. Used so
   ## the "last run" snapshot cannot keep mutating when the same run object keeps
@@ -295,7 +295,7 @@ proc cloneRunStatistics*(src: RunStatistics): RunStatistics {.moddable.} =
   result = RunStatistics()
   result[] = src[]
 
-proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool) {.moddable.} =
+proc endRun(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool) {.moddable.} =
   if currentRunStats.isNil:
     return
 
@@ -312,7 +312,7 @@ proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool
   calculateDerivedMetrics()
   echo "[Stats] Run ended - Wave: ", waveReached, " Score: ", finalScore
 
-proc updateDPS*(damage: float32) {.moddable.} =
+proc updateDPS(damage: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   let currentTime = currentRunStats.runDuration
@@ -370,11 +370,11 @@ proc recordDamageDealt*(damage: float32) {.moddable.} =
   updateDPS(damage)
 
 # COMBAT TRACKING
-proc recordShotFired*() {.moddable.} =
+proc recordShotFired() {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.combat.shotsFired += 1
 
-proc recordShotHit*(damage: float32, enemyType: EnemyType, isCrit: bool = false,
+proc recordShotHit(damage: float32, enemyType: EnemyType, isCrit: bool = false,
                     countsAsShot: bool = true) {.moddable.} =
   ## Shot bookkeeping only -- the damage itself is booked by recordDamageDealt at
   ## the point it is applied. countsAsShot is false for the second and later
@@ -390,7 +390,7 @@ proc recordShotHit*(damage: float32, enemyType: EnemyType, isCrit: bool = false,
   if damage > currentRunStats.combat.largestSingleHit:
     currentRunStats.combat.largestSingleHit = damage
 
-proc recordShotMissed*() {.moddable.} =
+proc recordShotMissed() {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.combat.shotsMissed += 1
 
@@ -420,7 +420,7 @@ proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: fl
     position: pos
   ))
 
-proc recordDamageTaken*(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2f) {.moddable.} =
+proc recordDamageTaken(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2f) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.combat.totalDamageTaken += damage
@@ -443,11 +443,11 @@ proc recordDamageTaken*(damage: float32, enemyType: EnemyType, gameTime: float32
     position: playerPos
   ))
 
-proc recordDamageAvoided*(amount: float32) {.moddable.} =
+proc recordDamageAvoided(amount: float32) {.moddable.} =
   if currentRunStats.isNil or amount <= 0.0: return
   currentRunStats.movement.damageAvoided += amount
 
-proc recordSpecialMechanic*(mechType: string) {.moddable.} =
+proc recordSpecialMechanic(mechType: string) {.moddable.} =
   if currentRunStats.isNil: return
 
   case mechType
@@ -460,7 +460,7 @@ proc recordSpecialMechanic*(mechType: string) {.moddable.} =
   else: discard
 
 # MOVEMENT TRACKING
-proc updateMovement*(player: Player, dt: float32, gameTime: float32) {.moddable.} =
+proc updateMovement(player: Player, dt: float32, gameTime: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   let speed = player.vel.length()
@@ -480,7 +480,7 @@ proc updateMovement*(player: Player, dt: float32, gameTime: float32) {.moddable.
   if player.invincibilityTimer > 0 or player.phaseShiftInvulnTimer > 0 or player.parryActive:
     currentRunStats.movement.timeInvincible += dt
 
-proc recordLegendaryAbility*(abilityType: string, gameTime: float32, playerPos: Vector2f) {.moddable.} =
+proc recordLegendaryAbility(abilityType: string, gameTime: float32, playerPos: Vector2f) {.moddable.} =
   if currentRunStats.isNil: return
 
   case abilityType
@@ -497,7 +497,7 @@ proc recordLegendaryAbility*(abilityType: string, gameTime: float32, playerPos: 
     position: playerPos
   ))
 
-proc recordNearDeath*(gameTime: float32, playerPos: Vector2f) {.moddable.} =
+proc recordNearDeath(gameTime: float32, playerPos: Vector2f) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.movement.nearDeathCount += 1
@@ -510,11 +510,11 @@ proc recordNearDeath*(gameTime: float32, playerPos: Vector2f) {.moddable.} =
   ))
 
 # RESOURCE TRACKING
-proc recordCoinEarned*(amount: int) {.moddable.} =
+proc recordCoinEarned(amount: int) {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.resources.coinsEarned += amount
 
-proc recordCoinSpent*(amount: int, itemName: string, gameTime: float32) {.moddable.} =
+proc recordCoinSpent(amount: int, itemName: string, gameTime: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.resources.coinsSpent += amount
@@ -533,7 +533,7 @@ proc recordRerollSpent*(amount: int) {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.resources.coinsSpent += amount
 
-proc recordWallPlaced*(gameTime: float32, pos: Vector2f) {.moddable.} =
+proc recordWallPlaced(gameTime: float32, pos: Vector2f) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.resources.wallsPlaced += 1
@@ -545,17 +545,17 @@ proc recordWallPlaced*(gameTime: float32, pos: Vector2f) {.moddable.} =
     position: pos
   ))
 
-proc recordWallDestroyed*(damageBlocked: float32) {.moddable.} =
+proc recordWallDestroyed(damageBlocked: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.resources.wallsDestroyed += 1
   currentRunStats.resources.wallDamageBlocked += damageBlocked
 
-proc recordWallDamaged*() {.moddable.} =
+proc recordWallDamaged() {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.resources.wallsDamaged += 1
 
-proc recordConsumable*(consumType: ConsumableType) {.moddable.} =
+proc recordConsumable(consumType: ConsumableType) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.resources.consumablesCollected += 1
@@ -607,7 +607,7 @@ proc rewindPowerUpPicks(stats: var PowerUpStats, checkpointTime: float32) =
   for pick in kept:
     tallyPick(stats, pick[1])
 
-proc recordPowerUpChosen*(powerUp: PowerUp, gameTime: float32) {.moddable.} =
+proc recordPowerUpChosen(powerUp: PowerUp, gameTime: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.powerUps.powerUpsChosen.add((gameTime, powerUp))
@@ -621,14 +621,14 @@ proc recordPowerUpChosen*(powerUp: PowerUp, gameTime: float32) {.moddable.} =
     position: newVector2f(0, 0)
   ))
 
-proc recordPowerUpDamage*(powerType: PowerUpType, damage: float32) {.moddable.} =
+proc recordPowerUpDamage(powerType: PowerUpType, damage: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   if not currentRunStats.powerUps.damageContribution.hasKey(powerType):
     currentRunStats.powerUps.damageContribution[powerType] = 0.0
   currentRunStats.powerUps.damageContribution[powerType] += damage
 
-proc recordPowerUpHealing*(powerType: PowerUpType, restored, overheal: float32) {.moddable.} =
+proc recordPowerUpHealing(powerType: PowerUpType, restored, overheal: float32) {.moddable.} =
   if currentRunStats.isNil: return
   if restored > 0.0'f32:
     currentRunStats.powerUps.healingContribution.mgetOrPut(powerType, 0.0'f32) += restored
@@ -709,7 +709,7 @@ proc trackLevelUpHealing*(game: Game, requested, restored: float32) {.moddable.}
                      currentRunStats.powerUps.overhealFromLevelUps)
 
 # PERFORMANCE TRACKING
-proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) {.moddable.} =
+proc recordWaveComplete(waveNumber: int, waveTime: float32, gameTime: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.performance.waveTimes.add(waveTime)
@@ -728,7 +728,7 @@ proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) 
     position: newVector2f(0, 0)
   ))
 
-proc updateRunDuration*(dt: float32) {.moddable.} =
+proc updateRunDuration(dt: float32) {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.runDuration += dt
 
@@ -769,7 +769,6 @@ proc initializeRunTracking*(game: Game) {.moddable.} =
   # Fresh counters hold nothing the lifetime statistics have seen yet.
   game.statsBaseCoins = 0
   game.statsBaseBosses = 0
-  game.showRunStatsGraphs = true
 
 proc resumeRunTracking*(game: Game) {.moddable.} =
   ## Keep accumulating into the CURRENT run's statistics instead of starting a
@@ -798,7 +797,6 @@ proc resumeRunTracking*(game: Game) {.moddable.} =
     # the cut-off for the picks the rollback took away.
     rewindPowerUpPicks(currentRunStats.powerUps, game.time)
     echo "[Stats] Run resumed from checkpoint - carrying accumulated stats"
-  game.showRunStatsGraphs = true
 
 proc finalizeRunTracking*(game: Game, died: bool) {.moddable.} =
   ## died is false for the wave-60 victory screen and for a banked roguelite cash
@@ -883,7 +881,6 @@ proc trackPlayerDamage*(game: Game, enemyType: EnemyType) {.moddable.} =
 
   recordDamageTaken(damage, enemyType, game.time, game.player.pos)
   game.dopamine.waveStats.damageTaken += damage
-  game.dopamine.waveStats.isPerfect = false
 
   if game.player.hp > 0 and game.player.hp < game.player.maxHp * NearDeathHpFraction:
     recordNearDeath(game.time, game.player.pos)

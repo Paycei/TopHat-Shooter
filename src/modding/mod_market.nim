@@ -112,7 +112,7 @@ proc fontText(s: string, maxChars: int): bool =
     inc chars
   chars in 1 .. maxChars and s.strip == s
 
-proc splitRepo*(repo: string, owner, name: var string): bool =
+proc splitRepo(repo: string, owner, name: var string): bool =
   ## "https://github.com/<owner>/<name>" (no ".git", no trailing slash).
   const Prefix = "https://github.com/"
   if not repo.startsWith(Prefix): return false

@@ -42,7 +42,7 @@ func normalized(a: CubePoint): CubePoint {.inline.} =
   let l = sqrt(dot(a, a))
   if l > 1.0e-6'f32: a * (1.0'f32 / l) else: a
 
-proc rotateCubePoint*(point: CubePoint, angleX, angleY, angleZ: float32): CubePoint {.moddable.} =
+proc rotateCubePoint(point: CubePoint, angleX, angleY, angleZ: float32): CubePoint {.moddable.} =
   ## X, then Y, then Z: the order the desktop's drag-and-spin angles assume.
   let sinX = sin(angleX)
   let cosX = cos(angleX)
@@ -63,7 +63,7 @@ proc rotateCubePoint*(point: CubePoint, angleX, angleY, angleZ: float32): CubePo
 
 const CameraDistance = 4.2'f32
 
-proc projectCubePoint*(point: CubePoint, centerX, centerY, scale: float32): Vector2 {.moddable.} =
+proc projectCubePoint(point: CubePoint, centerX, centerY, scale: float32): Vector2 {.moddable.} =
   let depth = max(1.35'f32, CameraDistance - point.z)
   let perspective = CameraDistance / depth
   Vector2(x: centerX + point.x * scale * perspective,

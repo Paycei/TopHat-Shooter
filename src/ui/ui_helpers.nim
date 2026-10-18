@@ -6,6 +6,7 @@ import raylib, strutils, math
 import ../modding/mod_patch_core
 import ../draw_prims
 import ../localization, ../types
+import ui_theme
 
 type TextAlign* = enum
   taLeft, taCenter, taRight
@@ -47,20 +48,28 @@ proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string {.moddabl
     result.setLen(n)
   result = result.strip(leading = false) & ".."
 
-proc wrapTextLines*(text: string, maxWidth, fontSize: int32): seq[string] {.moddable.} =
-  ## Greedy word-wrap to lines no wider than `maxWidth` at `fontSize`.
-  let words = text.splitWhitespace()
-  if words.len == 0:
-    return @[]
-
+proc wrapTextLines*(text: string, maxWidth, fontSize: int32,
+                    breakLongWords = false): seq[string] {.moddable.} =
+  ## Greedy word-wrap to lines no wider than `maxWidth` at `fontSize`. A word
+  ## wider than a line gets a line of its own, or with `breakLongWords` is cut
+  ## into pieces that fit.
   var currentLine = ""
-  for word in words:
+  for word in text.splitWhitespace():
     let candidate = if currentLine.len == 0: word else: currentLine & " " & word
-    if currentLine.len == 0 or measureText(candidate, fontSize) <= maxWidth:
+    if (currentLine.len == 0 and not breakLongWords) or measureText(candidate, fontSize) <= maxWidth:
       currentLine = candidate
-    else:
+      continue
+    if currentLine.len > 0:
       result.add(currentLine)
-      currentLine = word
+    currentLine = word
+    if breakLongWords and measureText(word, fontSize) > maxWidth:
+      var chunk = ""
+      for ch in word:
+        if chunk.len > 0 and measureText(chunk & ch, fontSize) > maxWidth:
+          result.add(chunk)
+          chunk = ""
+        chunk.add(ch)
+      currentLine = chunk
 
   if currentLine.len > 0:
     result.add(currentLine)
@@ -75,6 +84,20 @@ proc bestWrapFontSize*(text: string, maxWidth, preferredSize: int32,
     if wrapTextLines(text, maxWidth, result).len <= maxLines:
       return
     dec result
+
+proc drawWrappedText*(text: string, x, y, maxWidth: int, fontSize: int32, stockColor: Color,
+                      maxLines: int = 3, lineGap: int = 5, minSize: int32 = 9): int {.moddable.} =
+  ## `text` word-wrapped into at most `maxLines` lines, shrunk toward `minSize`
+  ## until it fits, in the theme's ink. Returns the y below the last line.
+  result = y
+  if maxLines <= 0:
+    return
+  let size = bestWrapFontSize(text, maxWidth.int32, fontSize, maxLines, minSize)
+  let lines = wrapTextLines(text, maxWidth.int32, size)
+  let color = uiInk(stockColor)
+  for idx in 0 ..< min(lines.len, maxLines):
+    drawText(lines[idx], x.int32, result.int32, size, color)
+    result += size.int + lineGap
 
 # ---------------------------------------------------------------------------
 # Restore-point glyph.
@@ -110,7 +133,7 @@ proc shade(c: Color, f: float32): Color =
         g: uint8(clamp(c.g.float32 * f, 0.0, 255.0)),
         b: uint8(clamp(c.b.float32 * f, 0.0, 255.0)), a: c.a)
 
-proc drawRestorePointIcon*(cx, cy, size: float32, body, accent, led: Color,
+proc drawRestorePointIcon(cx, cy, size: float32, body, accent, led: Color,
                            spin: float32 = 0.0) {.moddable.} =
   ## One restore point. `size` is the radius, so the glyph spans 2*size.
   ## `spin` rotates the rim ticks: static in the meters, spinning down to a stop

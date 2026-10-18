@@ -236,7 +236,7 @@ proc setPowerUpDef*(pt: PowerUpType, def: PowerUpDef) {.moddable.} =
   powerUpDefs[pt] = def
   rebuildPowerUpPools()
 
-proc vanillaPowerUpDef*(pt: PowerUpType): PowerUpDef {.moddable.} =
+proc vanillaPowerUpDef(pt: PowerUpType): PowerUpDef {.moddable.} =
   if isModPowerUp(pt): PowerUpDef(pool: puppNormal, maxLevel: 1, color: Gray)
   else: vanillaPowerUpDefs[pt]
 

@@ -29,7 +29,6 @@ type
     particleCount*: int        # How many particles to spawn
     particleSpeed*: float32    # Speed of particles
     isAnimated*: bool          # Whether colors animate over time
-    isUnlocked*: bool          # Whether player has unlocked this
 
 # Global particle skin database
 var particleSkinDatabase*: array[ParticleSkinType, ParticleSkinData]
@@ -43,8 +42,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 0, g: 150, b: 200, a: 255),
     particleCount: 8,
     particleSpeed: 100.0,
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   particleSkinDatabase[pskFire] = ParticleSkinData(
@@ -54,8 +52,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 255, g: 200, b: 0, a: 255),
     particleCount: 12,
     particleSpeed: 120.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   particleSkinDatabase[pskIce] = ParticleSkinData(
@@ -65,8 +62,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 200, g: 240, b: 255, a: 255),
     particleCount: 10,
     particleSpeed: 80.0,
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
   particleSkinDatabase[pskToxic] = ParticleSkinData(
     name: t("particle_toxic"),
@@ -75,8 +71,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 150, g: 200, b: 0, a: 255),
     particleCount: 15,
     particleSpeed: 60.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   particleSkinDatabase[pskPlasma] = ParticleSkinData(
@@ -86,8 +81,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 100, g: 150, b: 255, a: 255),
     particleCount: 10,
     particleSpeed: 150.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   particleSkinDatabase[pskGold] = ParticleSkinData(
@@ -97,8 +91,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 255, g: 250, b: 150, a: 255),
     particleCount: 14,
     particleSpeed: 90.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   particleSkinDatabase[pskShadow] = ParticleSkinData(
@@ -108,8 +101,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 40, g: 20, b: 60, a: 255),
     particleCount: 12,
     particleSpeed: 70.0,
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
   particleSkinDatabase[pskRainbow] = ParticleSkinData(
     name: t("particle_rainbow"),
@@ -118,8 +110,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 0, g: 255, b: 255, a: 255),
     particleCount: 16,
     particleSpeed: 110.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   particleSkinDatabase[pskStars] = ParticleSkinData(
@@ -129,8 +120,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 255, g: 255, b: 255, a: 255),
     particleCount: 8,
     particleSpeed: 85.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   particleSkinDatabase[pskHearts] = ParticleSkinData(
@@ -140,8 +130,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 255, g: 150, b: 200, a: 255),
     particleCount: 6,
     particleSpeed: 75.0,
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   particleSkinDatabase[pskLightning] = ParticleSkinData(
@@ -151,8 +140,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 255, g: 255, b: 200, a: 255),
     particleCount: 10,
     particleSpeed: 180.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
   particleSkinDatabase[pskVoid] = ParticleSkinData(
     name: t("particle_void"),
@@ -161,8 +149,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 80, g: 40, b: 120, a: 255),
     particleCount: 12,
     particleSpeed: 95.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   particleSkinDatabase[pskAmethyst] = ParticleSkinData(
@@ -172,8 +159,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 220, g: 180, b: 255, a: 255),
     particleCount: 12,
     particleSpeed: 100.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   particleSkinDatabase[pskMatrix] = ParticleSkinData(
@@ -183,8 +169,7 @@ proc initializeParticleSkins*() =
     secondaryColor: Color(r: 150, g: 255, b: 180, a: 255),
     particleCount: 14,
     particleSpeed: 130.0,
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
 proc getParticleSkinColors*(skinType: ParticleSkinType, time: float32): tuple[primary, secondary: Color] =

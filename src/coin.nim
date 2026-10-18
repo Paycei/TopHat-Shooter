@@ -50,7 +50,7 @@ proc updateCoin*(coin: Coin, dt: float32, totalCoins: int): bool {.moddable.} =
       return coin.lifetime > 0
   return true  # Keep coin if under limit
 
-proc drawCoin*(coin: Coin) {.moddable.} =
+proc drawCoin(coin: Coin) {.moddable.} =
   let t = getTime()
   # Pulsing effect (more intense for boss coins)
   let pulseSpeed = if coin.isBossCoin: 8.0 else: 5.0
@@ -121,14 +121,13 @@ proc drawCoin*(coin: Coin) {.moddable.} =
              (coin.pos.y - fontSize.float32 / 2).int32, fontSize.int32, Black)
 
 proc checkPlayerCollision*(coin: Coin, player: Player): bool {.moddable.} =
-  let collectRange = if player.magnetTimer > 0: 80.0 else: coin.radius + player.radius
-  distance(coin.pos, player.pos) < collectRange
+  inPickupRange(coin.pos, coin.radius, player)
 
-proc checkAuraCollision*(coin: Coin, player: Player, auraRadius: float32): bool {.moddable.} =
+proc checkAuraCollision(coin: Coin, player: Player, auraRadius: float32): bool {.moddable.} =
   # Check if coin is within player's collection aura
   distance(coin.pos, player.pos) < auraRadius
 
-proc moveCoinToPlayer*(coin: Coin, playerPos: Vector2f, dt: float32) {.moddable.} =
+proc moveCoinToPlayer(coin: Coin, playerPos: Vector2f, dt: float32) {.moddable.} =
   ## Accelerating pull: coins start drifting and then snap home. A flat 300 px/s
   ## was slower than a boosted player, so pulled coins could trail forever
   ## without ever being collected. Scaling with proximity also gives the pickup
@@ -139,7 +138,7 @@ proc moveCoinToPlayer*(coin: Coin, playerPos: Vector2f, dt: float32) {.moddable.
   let pullSpeed = 300.0'f32 + 420.0'f32 * (1.0'f32 - min(1.0'f32, dist / 140.0'f32))
   coin.pos = coin.pos + dir * pullSpeed * dt
 
-proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int {.moddable.} =
+proc enemyCoinValue(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int {.moddable.} =
   if enemy.isBoss:
     let baseAmount = if mode == gmWaveBased:
       50 + (currentWave div BossWaveInterval) * 10  # +10 coins per boss number
@@ -254,7 +253,7 @@ proc collectAllCoins*(game: Game) {.moddable.} =
     game.currencyIndicators.add(newCurrencyIndicator(
       game.player.pos.x, game.player.pos.y - 18, totalValue, cikCredits))
 
-proc collectCoin*(game: Game, coin: Coin): bool {.moddable.} =
+proc collectCoin(game: Game, coin: Coin): bool {.moddable.} =
   ## The player touched `coin`: its credits, feedback and stats (the caller
   ## removes it). True: it was the boss wave's coin and the wave can end.
   let isBossCoin = coin.isBossCoin

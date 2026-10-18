@@ -24,7 +24,7 @@ import particle_types, types, enemy, player, bullet, particle_pool, d_systems,
 # ---------------------------------------------------------------------------
 # Shared helpers
 
-proc hazardHitPlayer*(game: var Game, damage: float32, cause: DeathCause,
+proc hazardHitPlayer(game: var Game, damage: float32, cause: DeathCause,
                       dmgType: DamageType, source: Enemy = nil,
                       sourceType = etEnvironment, interval = 0.0'f32): bool {.discardable, moddable.} =
   ## One hit from a roster hazard. `interval` > 0 marks a continuous hazard,
@@ -112,7 +112,6 @@ proc resetModeCombat*(game: var Game) {.moddable.} =
   game.modeCombat.corpses.setLen(0)
   game.modeCombat.husks.setLen(0)
   game.modeCombat.auditTimer = 0
-  game.modeCombat.auditBreached = false
 
 # ---------------------------------------------------------------------------
 # Deaths
@@ -543,15 +542,12 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
         w.lasersCreated = true
         w.targetPos = game.player.pos
         game.modeCombat.auditTimer = w.lifetime
-        game.modeCombat.auditOrigin = game.player.pos
-        game.modeCombat.auditBreached = false
         addShake(game.dopamine.screenShake, siSmall)
       game.modeCombat.auditTimer = max(game.modeCombat.auditTimer, w.lifetime)
       if not w.bulletsCreated and age >= AuditTelegraph + AuditGrace:
         let moved = distance(game.player.pos, w.targetPos) > AuditMoveTolerance
         if moved or game.modeCombat.echoShotLatch:
           w.bulletsCreated = true   # breach: one hit per audit
-          game.modeCombat.auditBreached = true
           hazardHitPlayer(game, w.bulletDamage, dcLaser, dtArcane)
           spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                                Color(r: 255, g: 80, b: 80, a: 255), 18)

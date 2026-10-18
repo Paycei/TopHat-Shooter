@@ -476,7 +476,9 @@ end)
 
 `engine.<module>.<proc>(...)` calls any of those procs (the game's public
 version, so other mods' wraps apply); `engine.call("module.proc", ...)` is the
-same by name. Arguments a proc has defaults for may be left out.
+same by name. Arguments a proc has defaults for may be left out. A proc only
+its own module calls is *wrap only* in API.md: mixins can wrap it, scripts
+cannot call it.
 
 ```lua
 engine.game.startWave(game)

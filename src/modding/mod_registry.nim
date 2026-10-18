@@ -64,7 +64,7 @@ var
   wrapThingImpl*: proc (t: ModThing): ScriptValue {.nimcall.}
     ## Filled by mod_world2d; nil (no wrapper) until then.
 
-proc isFn*(v: ScriptValue): bool {.inline.} = v.kind in {vkFunction, vkNative}
+proc isFn*(v: ScriptValue): bool {.inline.} = v.kind == vkFunction
 
 proc wrapThing*(t: ModThing): ScriptValue =
   if t.isNil or wrapThingImpl.isNil: NilValue else: wrapThingImpl(t)
@@ -102,17 +102,13 @@ proc thingCall*(t: ModThing, which: proc (k: ThingKind): ScriptValue {.nimcall.}
   let k = thingKinds[i]
   callKind(k.owner, which(k), args, r)
 
-proc thingHas*(t: ModThing, which: proc (k: ThingKind): ScriptValue {.nimcall.}): bool =
-  let i = findThingKind(t.kind)
-  i >= 0 and which(thingKinds[i]).isFn and kindAlive(thingKinds[i].owner)
-
 proc numResult*(r: RetVals, fallback: float32): float32 =
   ## A callback's number result (NaN and non-numbers keep `fallback`).
   if r.count > 0 and r.first.kind == vkNumber and r.first.n == r.first.n: r.first.n.float32
   else: fallback
 
 # ---------------------------------------------------- projectile routes ----
-proc projectileOf*(b: Bullet): int {.inline.} =
+proc projectileOf(b: Bullet): int {.inline.} =
   if b.modKind.len == 0 or projectileKinds.len == 0: -1 else: findProjectileKind(b.modKind)
 
 proc steerToward(b: Bullet, target: Vector2f, rate, dt: float32) =
@@ -130,7 +126,7 @@ proc steerToward(b: Bullet, target: Vector2f, rate, dt: float32) =
   ny /= n
   b.vel = Vector2f(x: nx * speed, y: ny * speed)
 
-proc modProjectileUpdate*(b: Bullet, dt: float32): bool =
+proc modProjectileUpdate(b: Bullet, dt: float32): bool =
   ## True: the kind moved the bullet itself this frame. A homing kind steers
   ## first (toward the nearest enemy, or the player for an enemy's shot).
   let i = projectileOf(b)
@@ -156,7 +152,7 @@ proc modProjectileUpdate*(b: Bullet, dt: float32): bool =
   callKind(k.owner, k.update, [wrapBullet(b), vnum(dt.float64), wrapGame(modCtx.game)], r) and
     r.count > 0 and r.first.kind == vkBool and r.first.b
 
-proc modProjectileDraw*(b: Bullet): bool =
+proc modProjectileDraw(b: Bullet): bool =
   ## True: the kind drew the bullet.
   let i = projectileOf(b)
   if i < 0 or modCtx.inPvP or not projectileKinds[i].draw.isFn: return false
@@ -167,7 +163,7 @@ proc modProjectileDraw*(b: Bullet): bool =
   discard callKind(projectileKinds[i].owner, projectileKinds[i].draw, [wrapBullet(b)], r)
   true
 
-proc modProjectileHit*(b: Bullet, e: Enemy, damage: float32): float32 =
+proc modProjectileHit(b: Bullet, e: Enemy, damage: float32): float32 =
   ## The kind's onHit(bullet, enemy, damage) -> damage.
   result = damage
   let i = projectileOf(b)
@@ -177,7 +173,7 @@ proc modProjectileHit*(b: Bullet, e: Enemy, damage: float32): float32 =
               [wrapBullet(b), wrapEnemy(e), vnum(damage.float64)], r):
     result = max(0'f32, numResult(r, damage))
 
-proc modProjectileHitPlayer*(b: Bullet, damage: float32): float32 =
+proc modProjectileHitPlayer(b: Bullet, damage: float32): float32 =
   ## The kind's onHitPlayer(bullet, player, damage) -> damage.
   result = damage
   let i = projectileOf(b)
@@ -187,7 +183,7 @@ proc modProjectileHitPlayer*(b: Bullet, damage: float32): float32 =
               [wrapBullet(b), wrapPlayer(modCtx.game.player), vnum(damage.float64)], r):
     result = max(0'f32, numResult(r, damage))
 
-proc modProjectileExpire*(b: Bullet) =
+proc modProjectileExpire(b: Bullet) =
   let i = projectileOf(b)
   if i < 0 or modCtx.inPvP: return
   var r: RetVals
@@ -249,10 +245,10 @@ proc recomputeStatuses(list: seq[ModStatusInst], speed, taken, dealt: var float3
     taken += statusDefs[i].damageTaken * k
     dealt += statusDefs[i].damageDealt * k
 
-proc refreshStatuses*(e: Enemy) =
+proc refreshStatuses(e: Enemy) =
   recomputeStatuses(e.modStatuses, e.statusSpeed, e.statusDamageTaken, e.statusDamageDealt)
 
-proc refreshStatuses*(p: Player) =
+proc refreshStatuses(p: Player) =
   recomputeStatuses(p.modStatuses, p.statusSpeed, p.statusDamageTaken, p.statusDamageDealt)
 
 proc statusAt(list: seq[ModStatusInst], key: string): int =
@@ -379,7 +375,7 @@ type
     op*: StatOp
     value*: float32
 
-proc statFieldOk*(field: string): bool =
+proc statFieldOk(field: string): bool =
   ## A numeric field of the player.
   var found = false
   let v = reflectGet(Player(), field, found)
@@ -736,7 +732,7 @@ proc modEventTable(game: Game, i: int): ScriptValue =
                                                entityKey(EdEvent, game.survival.eventsStarted))))
   vtable(t)
 
-proc modEventCall*(game: Game, which: proc (d: SurvivalEventDef): ScriptValue {.nimcall.},
+proc modEventCall(game: Game, which: proc (d: SurvivalEventDef): ScriptValue {.nimcall.},
                    extra: openArray[ScriptValue], r: var RetVals): bool =
   ## One of the running mod event's callbacks, with (ev, game, extra...).
   let i = findSurvivalEvent(game.survival.event.modKey)
@@ -1074,7 +1070,7 @@ proc drawModUi*(layer: ModalLayer, w, h: int32, mx, my: float32) =
   modCtx.hudArena = prevArena
 
 # ---- HUD cards
-proc liveHudCards*(): seq[int] =
+proc liveHudCards(): seq[int] =
   for i, c in hudCardDefs:
     if liveOwner(c.owner): result.add(i)
 

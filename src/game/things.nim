@@ -95,7 +95,7 @@ proc pushOut(t: ModThing, p: var Vector2f, r: float32) =
     else:
       p.x = t.pos.x + rr
 
-proc hazardHits*(t: ModThing, p: Vector2f, r: float32): bool {.moddable.} =
+proc hazardHits(t: ModThing, p: Vector2f, r: float32): bool {.moddable.} =
   ## Is the circle (p, r) inside the hazard's area?
   let hz = t.hazard
   case hz.shape
@@ -580,14 +580,3 @@ proc joinThing*(game: Game, t: ModThing, callback: ScriptValue, owner: int): boo
   if callback.isFn: discard callKind(owner, callback, [wrapThing(t)], r)
   modThingSpawn(t)
   true
-
-proc keepPersistentThings*(game: Game) {.moddable.} =
-  ## A roguelite room change: only `persistent` things follow the player.
-  if game.modThings.len == 0: return
-  var kept: seq[ModThing]
-  for t in game.modThings:
-    if tfPersistent in t.flags and t.alive: kept.add(t)
-    else:
-      dropEntityData(entityKey(EdThing, t.id))
-      hazardTriggers.del(t.id)
-  game.modThings = kept

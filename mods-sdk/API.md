@@ -523,7 +523,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `advancement`
 
 - **moddable** `advancementPercent(entry: AdvancementEntry, def: AdvancementDefinition): float32`
-- **moddable** `advancementProfileToJson(profile: AdvancementProfile): JsonNode`
+- **moddable** `advancementProfileToJson(profile: AdvancementProfile): JsonNode` (wrap only: scripts cannot call it)
 - **moddable** `allAdvancementCategories(): array[0 .. 4, AdvancementCategory]`
 - **moddable** `allAdvancementTiers(): array[0 .. 4, AdvancementTier]`
 - **moddable** `categoryDescription(category: AdvancementCategory): string`
@@ -533,18 +533,18 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `claimAdvancement(profile: AdvancementProfile, id: string, wallet: RogueliteProfile): tuple[claimed: bool, shards: int, cores: int]`
 - **moddable** `claimAllAdvancements(profile: AdvancementProfile, wallet: RogueliteProfile): tuple[count: int, shards: int, cores: int]`
 - **moddable** `definitionsForCategory(category: AdvancementCategory): seq[AdvancementDefinition]`
-- **moddable** `ensureAdvancementEntries(profile: AdvancementProfile)`
-- **moddable** `findEntryIndex(profile: AdvancementProfile, id: string): int`
+- **moddable** `ensureAdvancementEntries(profile: AdvancementProfile)` (wrap only: scripts cannot call it)
+- **moddable** `findEntryIndex(profile: AdvancementProfile, id: string): int` (wrap only: scripts cannot call it)
 - **moddable** `formatAdvancementProgress(entry: AdvancementEntry, def: AdvancementDefinition): string`
 - **moddable** `getAdvancementDefinition(id: string): AdvancementDefinition`
 - **moddable** `getAdvancementDefinitions(): seq[AdvancementDefinition]`
 - **moddable** `getAdvancementEntry(profile: AdvancementProfile, id: string): AdvancementEntry`
-- **moddable** `getAdvancementsPath(): string`
+- **moddable** `getAdvancementsPath(): string` (wrap only: scripts cannot call it)
 - **moddable** `isAdvancementUnlocked(profile: AdvancementProfile, id: string): bool`
-- **moddable** `jsonToAdvancementProfile(node: JsonNode): AdvancementProfile`
+- **moddable** `jsonToAdvancementProfile(node: JsonNode): AdvancementProfile` (wrap only: scripts cannot call it)
 - **moddable** `loadAdvancementCompletionForSlot(slot: int): float32`
 - **moddable** `loadAdvancements(): AdvancementProfile`
-- **moddable** `newAdvancementProfile(): AdvancementProfile`
+- **moddable** `newAdvancementProfile(): AdvancementProfile` (wrap only: scripts cannot call it)
 - **moddable** `resetAdvancementCategory(profile: AdvancementProfile, category: AdvancementCategory): bool`
 - **moddable** `resetAdvancements(profile: AdvancementProfile): bool`
 - `rewardCores(def: AdvancementDefinition): int`
@@ -567,7 +567,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - **moddable** `drawAdvancementsWindow(advWin: AdvancementsWindow)`
 - **moddable** `newAdvancementsWindow(screenWidth: int, screenHeight: int, profile: AdvancementProfile, rogueliteProfile: RogueliteProfile): AdvancementsWindow`
-- **moddable** `payoutText(def: AdvancementDefinition): string`
+- **moddable** `payoutText(def: AdvancementDefinition): string` (wrap only: scripts cannot call it)
 - **moddable** `tierColor(tier: AdvancementTier): Color`
 - **moddable** `updateAdvancementsWindow(advWin: AdvancementsWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): bool`
 
@@ -577,15 +577,15 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `auraSlotOf(auraType: PowerUpType): AuraSlot`
 - **moddable** `auraWaveAlreadyHit(player: Player, enemy: Enemy, slot: AuraSlot): bool`
 - **moddable** `auraWaveCatches(player: Player, enemy: Enemy, slot: AuraSlot, frontRadius: float32): bool`
-- **moddable** `auraWaveEase(travel: float32): float32`
+- **moddable** `auraWaveEase(travel: float32): float32` (wrap only: scripts cannot call it)
 - **moddable** `auraWaveFrontRadius(elapsed: float32, maxRadius: float32): float32`
 - **moddable** `drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32, charge: float32, flash: float32)`
 - **moddable** `getAuraConfig(auraType: PowerUpType, level: int): AuraConfig`
 - **moddable** `getAuraPulseColor(auraType: PowerUpType): Color`
 - **moddable** `getAuraPulseInterval(auraType: PowerUpType, level: int, hasMastery: bool): float32`
 - **moddable** `getAuraRadiusFor(auraType: PowerUpType, level: int): float32`
-- **moddable** `getAuraRadius(level: int): float32`
-- **moddable** `getAuraRangeMult(auraType: PowerUpType): float32`
+- **moddable** `getAuraRadius(level: int): float32` (wrap only: scripts cannot call it)
+- **moddable** `getAuraRangeMult(auraType: PowerUpType): float32` (wrap only: scripts cannot call it)
 - **moddable** `markAuraWaveHit(player: Player, enemy: Enemy, slot: AuraSlot)`
 
 ### `background_fx`
@@ -608,9 +608,9 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `bossName(bossNumber: int): string`
 - **moddable** `bossRosterProblems(): seq[string]`
 - **moddable** `bossSlotDamageRef(slotWave: float32): float32`
-- **moddable** `bossSlotHpBudget(slotWave: float32): float32`
-- **moddable** `bossWeakPointDefinitionFor(bossID: int): BossWeakPointDefinition`
-- **moddable** `bossWeakTier(bossID: int): int`
+- **moddable** `bossSlotHpBudget(slotWave: float32): float32` (wrap only: scripts cannot call it)
+- **moddable** `bossWeakPointDefinitionFor(bossID: int): BossWeakPointDefinition` (wrap only: scripts cannot call it)
+- **moddable** `bossWeakTier(bossID: int): int` (wrap only: scripts cannot call it)
 - **moddable** `clearModBosses()`
 - **moddable** `getBossDefinition(bossNumber: int): BossDefinition`
 - **moddable** `getBossPhaseHpPools(boss: BossDefinition, scaledHp: float32): seq[float32]`
@@ -625,13 +625,12 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `isRootBoss(bossNumber: int): bool`
 - **moddable** `modBossIdsSorted(): seq[int]`
 - **moddable** `normalizeBossToSlot(boss: Enemy, slotWave: float32, hpScale: float32)`
-- **moddable** `rescaleBossPools(boss: Enemy, factor: float32)`
-- **moddable** `vanillaBossDefinition(bossNumber: int): BossDefinition`
+- **moddable** `rescaleBossPools(boss: Enemy, factor: float32)` (wrap only: scripts cannot call it)
+- **moddable** `vanillaBossDefinition(bossNumber: int): BossDefinition` (wrap only: scripts cannot call it)
 
 ### `boss_weakpoints`
 
-- **moddable** `bossWeakPointCoreHit(enemy: Enemy, bulletPos: Vector2f, bulletRadius: float32): bool`
-- **moddable** `bossWeakPointDamageMultiplier(enemy: Enemy, source: BossWeakDamageSource): float32`
+- **moddable** `bossWeakPointDamageMultiplier(enemy: Enemy): float32`
 - **moddable** `drawBossWeakPoints(enemy: Enemy, showHints: bool)`
 - **moddable** `initBossWeakPointState(spec: BossWeakPointDefinition, bossId: int): BossWeakPointState`
 - **moddable** `openBossSummonWindow(enemy: Enemy): tuple[opened: bool, bonusDamage: float32]`
@@ -650,15 +649,15 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `executeCustomBossAttack(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition)`
 - **moddable** `livingRoyalGuardCount(game: Game): int`
 - **moddable** `retireSatelliteHazards(game: var Game, sat: OrbitalSatellite)`
-- **moddable** `spawnArcLattice(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
-- **moddable** `spawnChaosWeave(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
-- **moddable** `spawnClockSweep(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
-- **moddable** `spawnOmegaQuadrants(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
-- **moddable** `spawnOrbitalSweep(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
-- **moddable** `spawnPrismRays(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
-- **moddable** `spawnRicochetLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
-- **moddable** `spawnSeismicFissure(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
-- **moddable** `spawnThunderstrike(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
+- **moddable** `spawnArcLattice(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)` (wrap only: scripts cannot call it)
+- **moddable** `spawnChaosWeave(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)` (wrap only: scripts cannot call it)
+- **moddable** `spawnClockSweep(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)` (wrap only: scripts cannot call it)
+- **moddable** `spawnOmegaQuadrants(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)` (wrap only: scripts cannot call it)
+- **moddable** `spawnOrbitalSweep(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)` (wrap only: scripts cannot call it)
+- **moddable** `spawnPrismRays(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)` (wrap only: scripts cannot call it)
+- **moddable** `spawnRicochetLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)` (wrap only: scripts cannot call it)
+- **moddable** `spawnSeismicFissure(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)` (wrap only: scripts cannot call it)
+- **moddable** `spawnThunderstrike(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)` (wrap only: scripts cannot call it)
 - **moddable** `spawnVoidRifts(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
 - **moddable** `thinnedForLaserOverlap(attack: BossAttack): BossAttack`
 - **moddable** `transitionBossToPhase(game: var Game, enemy: Enemy, bossDef: BossDefinition, nextPhaseIndex: int)`
@@ -675,10 +674,10 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `checkBulletEnemyCollision(bullet: Bullet, enemy: Enemy): bool`
 - **moddable** `checkBulletPlayerCollision(bullet: Bullet, player: Player): bool`
 - **moddable** `checkBulletWallCollision(bullet: Bullet, wall: Wall): bool`
-- **moddable** `cloneBullet(original: Bullet, newPos: Vector2f, newVel: Vector2f, damageMultiplier: float32, speedMultiplier: float32, radiusMultiplier: float32, preventSplit: bool): Bullet`
+- **moddable** `cloneBullet(original: Bullet, newPos: Vector2f, newVel: Vector2f, damageMultiplier: float32, speedMultiplier: float32, radiusMultiplier: float32, preventSplit: bool): Bullet` (wrap only: scripts cannot call it)
 - **moddable** `createEchoBullet(game: Game, sourceBullet: Bullet, damageMultiplier: float32, speedMultiplier: float32, lifetime: float32)`
 - **moddable** `createSplitBullets(game: Game, sourceBullet: Bullet, splitCount: int, damageMultiplier: float32, speedMultiplier: float32)`
-- **moddable** `drawBossBulletShape(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32)`
+- **moddable** `drawBossBulletShape(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32)` (wrap only: scripts cannot call it)
 - **moddable** `drawBullet(bullet: Bullet, hasOvercharge: bool, hasBloodBullets: bool, gameTime: float32)`
 - **moddable** `isOffScreen(bullet: Bullet, screenWidth: int32, screenHeight: int32): bool`
 - **moddable** `newBullet(x: float32, y: float32, direction: Vector2f, speed: float32, damage: float32, fromPlayer: bool, isHoming: bool, isPiercing: bool, isExplosive: bool, hasBounce: bool, canSplit: bool, slowAmount: float32, poisonDuration: float32, fireDuration: float32, windPushForce: float32, isPentagon: bool, isEcho: bool, isBossBullet: bool, isArcaneBullet: bool, sourceEnemyId: int, sourceEnemyType: EnemyType, isBonusFromMultiShot: bool, isBonusFromDoubleShot: bool, wasCrit: bool, isSpecialRound: bool, isFromWallTurret: bool, isFromRadialBurst: bool, isFromBulletSplit: bool, isRicochet: bool, isParried: bool, colorOverride: Color, bulletSkin: int, bulletId: int, parentBulletId: int, ownerPlayerIndex: int, bossBulletShape: int, bulletRadius: float32, bulletShape: int): Bullet`
@@ -727,47 +726,45 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `cheat`
 
-- **moddable** `applyPermanentPowerUpCheat(game: var Game, powerUpType: PowerUpType, level: int)`
-- **moddable** `applyRogueliteCurrencyCheat(game: var Game, shards: int, cores: int)`
-- **moddable** `applyRoguelitePatchCheat(game: var Game, patch: RogueliteRelic): bool`
-- **moddable** `applyRoguelitePatchCheat(game: var Game, patch: RogueliteRelicType): bool`
-- **moddable** `applyStatCheat(game: var Game, stat: string, value: float32)`
-- **moddable** `applySurvivalBossCheat(game: var Game)`
-- **moddable** `applySurvivalCacheCheat(game: var Game, tier: SurvivalCacheTier)`
-- **moddable** `applySurvivalEventCheat(game: var Game, kind: SurvivalEventKind)`
-- **moddable** `applySurvivalJumpToFinalCheat(game: var Game)`
-- **moddable** `applySurvivalSkipPhaseCheat(game: var Game)`
-- **moddable** `applySurvivalTimeCheat(game: var Game, deltaSeconds: float32)`
-- **moddable** `applyWaveCheat(game: var Game, action: string)`
+- **moddable** `applyPermanentPowerUpCheat(game: var Game, powerUpType: PowerUpType, level: int)` (wrap only: scripts cannot call it)
+- **moddable** `applyRogueliteCurrencyCheat(game: var Game, shards: int, cores: int)` (wrap only: scripts cannot call it)
+- **moddable** `applyRoguelitePatchCheat(game: var Game, patch: RogueliteRelic): bool` (wrap only: scripts cannot call it)
+- **moddable** `applyRoguelitePatchCheat(game: var Game, patch: RogueliteRelicType): bool` (wrap only: scripts cannot call it)
+- **moddable** `applyStatCheat(game: var Game, stat: string, value: float32)` (wrap only: scripts cannot call it)
+- **moddable** `applySurvivalBossCheat(game: var Game)` (wrap only: scripts cannot call it)
+- **moddable** `applySurvivalCacheCheat(game: var Game, tier: SurvivalCacheTier)` (wrap only: scripts cannot call it)
+- **moddable** `applySurvivalEventCheat(game: var Game, kind: SurvivalEventKind)` (wrap only: scripts cannot call it)
+- **moddable** `applySurvivalJumpToFinalCheat(game: var Game)` (wrap only: scripts cannot call it)
+- **moddable** `applySurvivalSkipPhaseCheat(game: var Game)` (wrap only: scripts cannot call it)
+- **moddable** `applySurvivalTimeCheat(game: var Game, deltaSeconds: float32)` (wrap only: scripts cannot call it)
+- **moddable** `applyWaveCheat(game: var Game, action: string)` (wrap only: scripts cannot call it)
 - **moddable** `checkCheatSequence(menu: CheatMenu, game: var Game, currentTime: float32)`
-- **moddable** `discoverAllPowerUpsCheat(game: var Game)`
+- **moddable** `discoverAllPowerUpsCheat(game: var Game)` (wrap only: scripts cannot call it)
 - **moddable** `drawCheatMenu(menu: CheatMenu, game: var Game, screenWidth: int32, screenHeight: int32)`
 - **moddable** `initCheatMenu(): CheatMenu`
-- **moddable** `removePermanentPowerUpCheat(game: var Game, powerUpType: PowerUpType)`
-- **moddable** `setGameModesUnlockedCheat(unlocked: bool)`
-- **moddable** `undiscoverAllPowerUpsCheat(game: var Game)`
+- **moddable** `removePermanentPowerUpCheat(game: var Game, powerUpType: PowerUpType)` (wrap only: scripts cannot call it)
+- **moddable** `setGameModesUnlockedCheat(unlocked: bool)` (wrap only: scripts cannot call it)
+- **moddable** `undiscoverAllPowerUpsCheat(game: var Game)` (wrap only: scripts cannot call it)
 - **moddable** `updateCheatMenu(menu: CheatMenu, game: var Game)`
 
 ### `cinematic_common`
 
 - `alphaByte(v: float32): uint8`
 - **moddable** `beginStoryCamera(focusX: float32, focusY: float32, screenX: float32, screenY: float32, scale: float32)`
-- **moddable** `cinematicEnemy(enemyType: EnemyType, x: float32, y: float32, difficulty: float32, id: int, threat: int): Enemy`
+- **moddable** `cinematicEnemy(enemyType: EnemyType, x: float32, y: float32, difficulty: float32, id: int, threat: int): Enemy` (wrap only: scripts cannot call it)
 - **moddable** `clamp01(v: float32): float32`
 - `colorA(color: Color, alpha: float32): Color`
 - **moddable** `drawCenteredText(text: string, x: int32, y: int32, size: int32, color: Color)`
 - **moddable** `drawCinematicBoss(boss: Enemy, x: float32, y: float32, radius: float32, hpFraction: float32, phaseIndex: int)`
 - **moddable** `drawCinematicOverlay(screenWidth: int32, screenHeight: int32, time: float32, frame: int, scanlineOffset: float32, totalDuration: float32, shotLabel: string, liveText: string, iconIndex: int, glitchHot: bool, controls: CinematicControls, accent: Color)`
 - **moddable** `drawCrashPanel(sw: int32, sh: int32, alpha: float32, time: float32)`
-- **moddable** `drawDataRain(screenWidth: int32, screenHeight: int32, time: float32, intensity: float32, color: Color)`
 - **moddable** `drawEquippedBulletModel(pos: Vector2f, radius: float32, travelAngle: float32, time: float32, alpha: float32)`
 - **moddable** `drawEquippedPlayerModel(pos: Vector2f, radius: float32, time: float32, alpha: float32, glowBoost: float32)`
-- **moddable** `drawFilmGrain(screenWidth: int32, screenHeight: int32, time: float32, alpha: float32)`
+- **moddable** `drawFilmGrain(screenWidth: int32, screenHeight: int32, time: float32, alpha: float32)` (wrap only: scripts cannot call it)
 - **moddable** `drawFootageFrame(sw: int32, sh: int32, scale: float32, alpha: float32)`
 - **moddable** `drawHalo(centerX: float32, centerY: float32, radius: float32, color: Color, intensity: float32)`
 - **moddable** `drawKernelModel(pos: Vector2f, radius: float32, time: float32, boot: float32, alpha: float32, hat: bool)`
 - **moddable** `drawOldText(text: string, x: int32, y: int32, size: int32, reveal: float32, local: float32, alpha: float32, color: Color, centered: bool, cursor: bool)`
-- **moddable** `drawRealBossModel(x: float32, y: float32, radius: float32, time: float32, screenWidth: int32, screenHeight: int32, hpFraction: float32, phaseIndex: int)`
 - **moddable** `drawRealEnemy(enemyType: EnemyType, x: float32, y: float32, radius: float32, time: float32, id: int, threat: int, vel: Vector2f)`
 - **moddable** `drawServiceWindow(x: float32, y: float32, w: float32, title: string, colService: string, colOwner: string, names: openArray[string], flipTimes: openArray[float32], local: float32, alpha: float32, fromOwner: string, toOwner: string, fromColor: Color, toColor: Color)`
 - **moddable** `drawStoryButton(x: float32, y: float32, w: float32, h: float32, label: string, alpha: float32, pressed: bool, primary: bool)`
@@ -780,32 +777,32 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `easeInOut(t: float32): float32`
 - **moddable** `easeOut(t: float32): float32`
 - **moddable** `endStoryCamera()`
-- **moddable** `equippedBulletShape(): BulletShapeType`
-- **moddable** `equippedBulletSkin(): BulletSkinType`
-- **moddable** `equippedShape(): ShapeType`
-- **moddable** `equippedSkin(): SkinType`
+- **moddable** `equippedBulletShape(): BulletShapeType` (wrap only: scripts cannot call it)
+- **moddable** `equippedBulletSkin(): BulletSkinType` (wrap only: scripts cannot call it)
+- **moddable** `equippedShape(): ShapeType` (wrap only: scripts cannot call it)
+- **moddable** `equippedSkin(): SkinType` (wrap only: scripts cannot call it)
 - **moddable** `fitFontSize(text: string, maxW: int32, preferred: int32, minSize: int32): int32`
 - **moddable** `fractCoord(value: float32): float32`
 - **moddable** `hash01(n: float32): float32`
 - `lerpF(a: float32, b: float32, t: float32): float32`
 - **moddable** `newCinematicBoss(bossId: int, screenWidth: int32, screenHeight: int32): Enemy`
 - **moddable** `revealOver(local: float32, startAt: float32, dur: float32): float32`
-- **moddable** `serviceWindowHeight(rows: int): float32`
+- **moddable** `serviceWindowHeight(rows: int): float32` (wrap only: scripts cannot call it)
 - **moddable** `triAny(a: Vector2, b: Vector2, c: Vector2, col: Color)`
 
 ### `coin`
 
 - **moddable** `awardMetaCurrency(game: Game, shards: int, cores: int)`
-- **moddable** `checkAuraCollision(coin: Coin, player: Player, auraRadius: float32): bool`
+- **moddable** `checkAuraCollision(coin: Coin, player: Player, auraRadius: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `checkPlayerCollision(coin: Coin, player: Player): bool`
 - **moddable** `clampLootPosition(x: float32, y: float32, screenWidth: int32, screenHeight: int32): tuple[x: float32, y: float32]`
 - **moddable** `collectAllCoins(game: Game)`
-- **moddable** `collectCoin(game: Game, coin: Coin): bool`
-- **moddable** `drawCoin(coin: Coin)`
+- **moddable** `collectCoin(game: Game, coin: Coin): bool` (wrap only: scripts cannot call it)
+- **moddable** `drawCoin(coin: Coin)` (wrap only: scripts cannot call it)
 - **moddable** `drawGameCoins(game: Game)`
 - **moddable** `dropEnemyCoin(game: Game, enemy: Enemy)`
-- **moddable** `enemyCoinValue(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int`
-- **moddable** `moveCoinToPlayer(coin: Coin, playerPos: Vector2f, dt: float32)`
+- **moddable** `enemyCoinValue(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int` (wrap only: scripts cannot call it)
+- **moddable** `moveCoinToPlayer(coin: Coin, playerPos: Vector2f, dt: float32)` (wrap only: scripts cannot call it)
 - **moddable** `newCoin(x: float32, y: float32, value: int, isBoss: bool): Coin`
 - **moddable** `spawnMagnetCoins(game: Game)`
 - **moddable** `updateCoinsWaveCleared(game: Game, dt: float32)`
@@ -827,11 +824,11 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `calculateContactDamageToEnemy(player: Player, enemy: Enemy): tuple[damage: float32, wasCrit: bool]`
 - **moddable** `damageEnemy(enemy: Enemy, baseDamage: float32, consumesDiamondShield: bool): float32`
 - **moddable** `densityHealScale(game: Game): float32`
-- **moddable** `dotNumberInterval(elementType: ElementType): float32`
+- **moddable** `dotNumberInterval(elementType: ElementType): float32` (wrap only: scripts cannot call it)
 - **moddable** `flushAccumulatedAuraDamage(game: Game, enemy: Enemy)`
 - **moddable** `flushAccumulatedContactDamage(game: Game, enemy: Enemy)`
 - **moddable** `flushAccumulatedDotDamage(game: Game, enemy: Enemy)`
-- **moddable** `flushAccumulator(game: Game, enemy: Enemy, acc: var DamageAccumulator)`
+- **moddable** `flushAccumulator(game: Game, enemy: Enemy, acc: var DamageAccumulator)` (wrap only: scripts cannot call it)
 - **moddable** `rageDamageMultiplier(player: Player): float32`
 - **moddable** `setEnemyHp(enemy: Enemy, hp: float32)`
 - **moddable** `shieldBlocksHit(game: Game, enemy: Enemy, hitFrom: Vector2f): bool`
@@ -839,12 +836,12 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `showDamage(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool, isCritical: bool, damageType: DamageType)`
 - **moddable** `showPerk(game: Game, pos: Vector2f, text: string, color: Color)`
 - **moddable** `showPlayerDamageTaken(game: Game, damageType: DamageType)`
-- **moddable** `tickAccumulator(game: Game, enemy: Enemy, acc: var DamageAccumulator, damage: float32, damageType: DamageType, wasCrit: bool, interval: float32)`
+- **moddable** `tickAccumulator(game: Game, enemy: Enemy, acc: var DamageAccumulator, damage: float32, damageType: DamageType, wasCrit: bool, interval: float32)` (wrap only: scripts cannot call it)
 
 ### `consumable`
 
 - **moddable** `checkPlayerCollision(consumable: Consumable, player: Player): bool`
-- **moddable** `drawConsumableIcon(x: float32, y: float32, radius: float32, cType: ConsumableType, pulse: float32)`
+- **moddable** `drawConsumableIcon(x: float32, y: float32, cType: ConsumableType)` (wrap only: scripts cannot call it)
 - **moddable** `drawConsumable(consumable: Consumable)`
 - **moddable** `isInPlayerAura(consumable: Consumable, player: Player): bool`
 - **moddable** `moveConsumableToPlayer(consumable: Consumable, playerPos: Vector2f, dt: float32)`
@@ -861,8 +858,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `cube_render`
 
 - **moddable** `drawZeroGravityWallpaperCube(centerX: float32, centerY: float32, size: float32, time: float32, angleX: float32, angleY: float32, angleZ: float32, skin: CubeSkinType, glowBoost: float32, compact: bool)`
-- **moddable** `projectCubePoint(point: CubePoint, centerX: float32, centerY: float32, scale: float32): Vector2`
-- **moddable** `rotateCubePoint(point: CubePoint, angleX: float32, angleY: float32, angleZ: float32): CubePoint`
+- **moddable** `projectCubePoint(point: CubePoint, centerX: float32, centerY: float32, scale: float32): Vector2` (wrap only: scripts cannot call it)
+- **moddable** `rotateCubePoint(point: CubePoint, angleX: float32, angleY: float32, angleZ: float32): CubePoint` (wrap only: scripts cannot call it)
 
 ### `cube_skins`
 
@@ -873,13 +870,12 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - **moddable** `drawCutscene(c: Cutscene, sw: int, sh: int)`
 - **moddable** `newCutscene(shots: seq[CutsceneShot], accentColor: Color, titleCardText: string, titleCardSub: string, drawBackdropProc: CutsceneBackdropProc, swayAmp: float32, skipHoldRequired: float32, fastForwardMult: float32, musicTrack: MusicTrack, cornerTag: string, playbackSpeed: float32, speaker: string, captionCps: float32): Cutscene` (parameter drawBackdropProc is a CutsceneBackdropProc)
-- **moddable** `shotAt(c: Cutscene, time: float32): tuple[idx: int, local: float32, duration: float32]`
-- **moddable** `shotFade(local: float32, duration: float32): float32`
+- **moddable** `shotAt(c: Cutscene, time: float32): tuple[idx: int, local: float32, duration: float32]` (wrap only: scripts cannot call it)
+- **moddable** `shotFade(local: float32, duration: float32): float32` (wrap only: scripts cannot call it)
 - **moddable** `updateCutscene(c: Cutscene, dt: float32)`
 
 ### `d_enhancements`
 
-- **moddable** `calculatePowerLevel(stats: var RealTimeStats, player: Player)`
 - **moddable** `drawBossIntroductionGutter(intro: BossIntroduction, gutterX: int32, gutterW: int32, topY: int32): int32`
 - **moddable** `drawBossIntroduction(intro: BossIntroduction, screenWidth: int32, screenHeight: int32)`
 - **moddable** `drawWaveCelebrationGutter(celebration: WaveCelebration, gutterX: int32, gutterW: int32, topY: int32): int32`
@@ -891,7 +887,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `recordDamage(stats: var RealTimeStats, damage: float32, currentTime: float32)`
 - **moddable** `recordKill(stats: var RealTimeStats)`
 - **moddable** `startCelebration(celebration: var WaveCelebration, waveNum: int, stats: WaveStats)`
-- **moddable** `startIntroduction(intro: var BossIntroduction, name: string, title: string, hp: float32, tag: string, isRoot: bool)`
+- **moddable** `startIntroduction(intro: var BossIntroduction, name: string, title: string, tag: string, isRoot: bool)`
 - **moddable** `updateCelebration(celebration: var WaveCelebration, dt: float32): bool`
 - **moddable** `updateIntroduction(intro: var BossIntroduction, dt: float32): bool`
 
@@ -904,7 +900,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `calculateAccuracy(stats: var WaveStats)`
 - **moddable** `checkPerfectWaveCombo(combo: var ComboSystem, waveEnemyCount: int): int`
 - **moddable** `getComboMultiplier(combo: ComboSystem): string`
-- **moddable** `getComboWindow(combo: ComboSystem): float32`
+- **moddable** `getComboWindow(combo: ComboSystem): float32` (wrap only: scripts cannot call it)
 - **moddable** `getShakeOffset(shake: ScreenShake): Vector2f`
 - **moddable** `initEnhancedDopamine(dopamine: var DopamineState)`
 - **moddable** `newComboSystem(): ComboSystem`
@@ -912,7 +908,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `newMicroRewardTracker(): MicroRewardTracker`
 - **moddable** `newScreenShake(): ScreenShake`
 - **moddable** `newSlowMotion(): SlowMotion`
-- **moddable** `newWaveStats(waveNumber: int): WaveStats`
+- **moddable** `newWaveStats(waveNumber: int): WaveStats` (wrap only: scripts cannot call it)
 - **moddable** `recordCoin(stats: var WaveStats)`
 - **moddable** `recordCombo(stats: var WaveStats, combo: int)`
 - **moddable** `recordKill(stats: var WaveStats, damage: float32)`
@@ -920,12 +916,12 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `shouldShowCombo(combo: ComboSystem): bool`
 - **moddable** `startWaveCombo(combo: var ComboSystem)`
 - **moddable** `triggerHitStop(slowMo: var SlowMotion, duration: float32, scale: float32)`
-- **moddable** `updateCombo(combo: var ComboSystem, dt: float32, currentTime: float32)`
+- **moddable** `updateCombo(combo: var ComboSystem, dt: float32, currentTime: float32)` (wrap only: scripts cannot call it)
 - **moddable** `updateDopamine(dopamine: var DopamineState, dt: float32)`
-- **moddable** `updateRewards(tracker: var MicroRewardTracker, dt: float32)`
+- **moddable** `updateRewards(tracker: var MicroRewardTracker, dt: float32)` (wrap only: scripts cannot call it)
 - **moddable** `updateShake(shake: var ScreenShake, dt: float32)`
-- **moddable** `updateSlowMo(slowMo: var SlowMotion, realDt: float32)`
-- **moddable** `updateStats(stats: var WaveStats, dt: float32)`
+- **moddable** `updateSlowMo(slowMo: var SlowMotion, realDt: float32)` (wrap only: scripts cannot call it)
+- **moddable** `updateStats(stats: var WaveStats, dt: float32)` (wrap only: scripts cannot call it)
 - **moddable** `worldTimeScale(slowMo: SlowMotion): float32`
 
 ### `d_visuals`
@@ -957,7 +953,6 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `draw_prims`
 
-- `circleSegments(radius: float32): int32`
 - `drawBandArc(center: Vector2, innerRadius: float32, outerRadius: float32, startAngle: float32, endAngle: float32, edgeColor: Color, midColor: Color)`
 - `drawCircleOutline(center: Vector2, radius: float32, color: Color)`
 - `drawCircleOutline(center: Vector2, radius: float32, thick: float32, color: Color)`
@@ -993,35 +988,34 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - **moddable** `appendRoom(game: Game, exitIdx: int): DungeonRoom`
 - **moddable** `beginSectorRooms(game: Game)`
-- **moddable** `claimDungeonPickup(game: Game, index: int): DungeonFrame`
+- **moddable** `claimDungeonPickup(game: Game, index: int): DungeonFrame` (wrap only: scripts cannot call it)
 - **moddable** `consumeDungeonSpawn(game: Game)`
 - **moddable** `currentDungeonRoom(run: RogueliteRun): DungeonRoom`
-- **moddable** `doorRect(game: Game, dir: DoorDir): Rectangle`
-- **moddable** `doorSpawnPos(game: Game, enteredThrough: DoorDir): Vector2f`
+- **moddable** `doorRect(game: Game, dir: DoorDir): Rectangle` (wrap only: scripts cannot call it)
+- **moddable** `doorSpawnPos(game: Game, enteredThrough: DoorDir): Vector2f` (wrap only: scripts cannot call it)
 - **moddable** `drawDungeonOverlay(game: Game)`
-- **moddable** `drawProximityCard(card: ProximityCard, anchorX: float32, anchorY: float32, worldW: int32, worldH: int32, time: float32)`
-- **moddable** `dungeonBossDifficulty(run: RogueliteRun): float32`
+- **moddable** `drawProximityCard(card: ProximityCard, anchorX: float32, anchorY: float32, worldW: int32, worldH: int32, time: float32)` (wrap only: scripts cannot call it)
 - **moddable** `dungeonBossNumberFor(theme: DungeonFloorTheme, floorNumber: int, endlessLoop: int, heat: int): int`
 - **moddable** `dungeonBossNumber(game: Game): int`
-- **moddable** `dungeonDensityWave(run: RogueliteRun, room: DungeonRoom): int`
+- **moddable** `dungeonDensityWave(run: RogueliteRun, room: DungeonRoom): int` (wrap only: scripts cannot call it)
 - **moddable** `dungeonEffectiveThreat(run: RogueliteRun, room: DungeonRoom): int`
 - **moddable** `dungeonEliteRoll(run: RogueliteRun, room: DungeonRoom): int`
 - **moddable** `dungeonEnemyDifficulty(run: RogueliteRun, room: DungeonRoom): float32`
 - **moddable** `dungeonRoomWaveEquivalent(run: RogueliteRun, room: DungeonRoom): float32`
 - **moddable** `dungeonSpawnAllowance(game: Game): int`
 - **moddable** `enterRoom(game: Game, roomIdx: int, enteredThrough: DoorDir, resumed: bool)`
-- **moddable** `exitPortalPos(game: Game): Vector2f`
-- **moddable** `exitsOf(floor: DungeonFloor, room: DungeonRoom): seq[DungeonExit]`
-- **moddable** `exitsOpen(room: DungeonRoom): bool`
+- **moddable** `exitPortalPos(game: Game): Vector2f` (wrap only: scripts cannot call it)
+- **moddable** `exitsOf(floor: DungeonFloor, room: DungeonRoom): seq[DungeonExit]` (wrap only: scripts cannot call it)
+- **moddable** `exitsOpen(room: DungeonRoom): bool` (wrap only: scripts cannot call it)
 - **moddable** `generateFloor(game: Game, theme: DungeonFloorTheme, floorNumber: int): DungeonFloor`
 - **moddable** `generateThemeChoices(run: RogueliteRun)`
 - **moddable** `isFinalDungeonFloor(run: RogueliteRun): bool`
-- **moddable** `isStall(kind: DungeonPickupKind): bool`
+- **moddable** `isStall(kind: DungeonPickupKind): bool` (wrap only: scripts cannot call it)
 - **moddable** `markBossRoomCleared(game: Game)`
-- **moddable** `noCreditsLabel(): string`
+- **moddable** `noCreditsLabel(): string` (wrap only: scripts cannot call it)
 - **moddable** `onRoomCleared(game: Game)`
-- **moddable** `pickupRelic(pk: DungeonPickup): RogueliteRelic`
-- **moddable** `rewardAccent(reward: RoomReward): Color`
+- **moddable** `pickupRelic(pk: DungeonPickup): RogueliteRelic` (wrap only: scripts cannot call it)
+- **moddable** `rewardAccent(reward: RoomReward): Color` (wrap only: scripts cannot call it)
 - **moddable** `rewardFolderName(reward: RoomReward): string`
 - **moddable** `rewardLabel(reward: RoomReward): string`
 - **moddable** `rollEncounterEnemyType(run: RogueliteRun, room: DungeonRoom): EnemyType`
@@ -1029,9 +1023,9 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `sectorRewardLayers(floor: DungeonFloor): int`
 - **moddable** `selectFloorTheme(game: Game, choiceIndex: int)`
 - **moddable** `spawnRogueliteExitPortal(game: Game)`
-- **moddable** `spawnRoomReward(game: Game, room: DungeonRoom)`
-- **moddable** `spawnShopStalls(game: Game, room: DungeonRoom)`
-- **moddable** `stallPrice(game: Game, room: DungeonRoom, pickup: DungeonPickup): int`
+- **moddable** `spawnRoomReward(game: Game, room: DungeonRoom)` (wrap only: scripts cannot call it)
+- **moddable** `spawnShopStalls(game: Game, room: DungeonRoom)` (wrap only: scripts cannot call it)
+- **moddable** `stallPrice(game: Game, room: DungeonRoom, pickup: DungeonPickup): int` (wrap only: scripts cannot call it)
 - **moddable** `startDungeonFloor(game: Game, theme: DungeonFloorTheme)`
 - **moddable** `themeAccent(theme: DungeonFloorTheme): Color`
 - **moddable** `themeDef(theme: DungeonFloorTheme): DungeonThemeDef`
@@ -1041,7 +1035,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `tuneDungeonBossStats(boss: Enemy, run: RogueliteRun)`
 - **moddable** `tuneDungeonEnemyStats(enemy: Enemy, run: RogueliteRun, room: DungeonRoom)`
 - **moddable** `updateDungeon(game: Game, dt: float32): DungeonFrame`
-- **moddable** `wipeRoomEntities(game: Game)`
+- **moddable** `wipeRoomEntities(game: Game)` (wrap only: scripts cannot call it)
 
 ### `effects`
 
@@ -1055,31 +1049,31 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - **moddable** `drawEndgameCinematic(endg: EndgameCinematic, screenWidth: int, screenHeight: int)`
 - `newEndgameCinematic(): EndgameCinematic`
-- **moddable** `newEndgameCutscene(): Cutscene`
+- **moddable** `newEndgameCutscene(): Cutscene` (wrap only: scripts cannot call it)
 - **moddable** `updateEndgameCinematic(endg: EndgameCinematic, dt: float32)`
 
 ### `enemy`
 
 - **moddable** `drawAttackWarning(warning: AttackWarning)`
-- **moddable** `drawBossPhaseTransition(enemy: Enemy)`
+- **moddable** `drawBossPhaseTransition(enemy: Enemy)` (wrap only: scripts cannot call it)
 - **moddable** `drawChargeWindup(enemy: Enemy)`
-- **moddable** `drawCustomBoss(enemy: Enemy)`
+- **moddable** `drawCustomBoss(enemy: Enemy)` (wrap only: scripts cannot call it)
 - **moddable** `drawEliteAura(enemy: Enemy, gameTime: float32)`
 - **moddable** `drawEliteOverlay(enemy: Enemy, gameTime: float32)`
 - **moddable** `drawEnemy(enemy: Enemy)`
 - **moddable** `drawLaser(laser: Laser)`
 - **moddable** `drawLegionTethers(boss: Enemy, enemies: seq[Enemy])`
 - **moddable** `drawMeteorWarning(impact: Vector2f, source: Vector2f, radius: float32, baseCol: Color, progress: float32, blastRadius: float32)`
-- **moddable** `drawOmegaGlyph(cx: float32, cy: float32, r: float32, thick: float32, col: Color)`
+- **moddable** `drawOmegaGlyph(cx: float32, cy: float32, r: float32, thick: float32, col: Color)` (wrap only: scripts cannot call it)
 - **moddable** `drawRicochetLaserBeam(warning: AttackWarning)`
 - **moddable** `drawRoyalGuardRegalia(enemy: Enemy)`
 - **moddable** `drawSignatureAttackActive(warning: AttackWarning)`
-- **moddable** `getEliteAuraColor(eliteType: EliteType): Color`
+- **moddable** `getEliteAuraColor(eliteType: EliteType): Color` (wrap only: scripts cannot call it)
 - **moddable** `isLivingRoyalGuard(e: Enemy): bool`
 - **moddable** `makeElite(enemy: Enemy, waveNumber: int, scalingWave: int, chanceScale: float32, force: bool, forcedEffects: int)`
 - **moddable** `newEnemy(x: float32, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy`
 - **moddable** `spawnBossById(screenWidth: int32, screenHeight: int32, bossId: int, scalingWave: int): Enemy`
-- **moddable** `spawnBoss(screenWidth: int32, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy`
+- **moddable** `spawnBoss(screenWidth: int32, screenHeight: int32, waveNumber: int): Enemy`
 - **moddable** `updateEliteEffects(enemy: Enemy, dt: float32)`
 - **moddable** `updateEnemy(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool`
 
@@ -1105,8 +1099,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `checkScreenBoundaryCollision(enemy: Enemy, nextPos: Vector2f, game: Game, config: EnemyConfig): bool`
 - **moddable** `checkScreenEntry(enemy: var Enemy, game: Game)`
 - **moddable** `checkWallCollision(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], currentTime: float32, game: var Game): bool`
-- **moddable** `desiredVelocityFromNext(currentPos: Vector2f, desiredNextPos: Vector2f, dt: float32): Vector2f`
-- **moddable** `enemyInertiaSizeScale(enemy: Enemy): float32`
+- **moddable** `desiredVelocityFromNext(currentPos: Vector2f, desiredNextPos: Vector2f, dt: float32): Vector2f` (wrap only: scripts cannot call it)
+- **moddable** `enemyInertiaSizeScale(enemy: Enemy): float32` (wrap only: scripts cannot call it)
 - **moddable** `executeRangedAttack(enemy: var Enemy, playerPos: Vector2f, game: var Game)`
 - **moddable** `forceScreenEntry(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, game: Game): Vector2f`
 - **moddable** `getSpecialFloat(data: Table[string, string], key: string, default: float32): float32`
@@ -1139,14 +1133,12 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `feedback`
 
-- `composeReport(kind: FeedbackKind, title: string, body: string, includeInfo: bool): string`
 - `copyReport(kind: FeedbackKind, title: string, body: string, includeInfo: bool)`
 - `hasContent(title: string, body: string): bool`
 - `openExternalUrl(url: string)`
 - `openSupportUrl(url: string)`
 - `saveReport(kind: FeedbackKind, title: string, body: string, includeInfo: bool): string`
 - `sendToGitHub(kind: FeedbackKind, title: string, body: string, includeInfo: bool): SendResult`
-- `systemInfoLines(): seq[string]`
 
 ### `feedback_window`
 
@@ -1172,41 +1164,41 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `game`
 
-- **moddable** `applyLevelUpStatBoost(game: Game)`
-- **moddable** `bankRunLevelUps(game: Game)`
+- **moddable** `applyLevelUpStatBoost(game: Game)` (wrap only: scripts cannot call it)
+- **moddable** `bankRunLevelUps(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `beginDraftResume(game: var Game)`
-- **moddable** `beginEnter3D(game: Game, opts: World3DOptions)`
-- **moddable** `bossDefeated(manager: var BossWaveManager)`
-- **moddable** `canSpawnBoss(manager: BossWaveManager): bool`
-- **moddable** `canStartNewWave(manager: BossWaveManager): bool`
+- **moddable** `beginEnter3D(game: Game, opts: World3DOptions)` (wrap only: scripts cannot call it)
+- **moddable** `bossDefeated(manager: var BossWaveManager)` (wrap only: scripts cannot call it)
+- **moddable** `canSpawnBoss(manager: BossWaveManager): bool` (wrap only: scripts cannot call it)
+- **moddable** `canStartNewWave(manager: BossWaveManager): bool` (wrap only: scripts cannot call it)
 - **moddable** `cheatCompleteRogueliteFloor(game: var Game)`
-- **moddable** `checkPendingLevelDraft(game: Game)`
+- **moddable** `checkPendingLevelDraft(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `cleanupGame(game: Game)`
-- **moddable** `clearBossWave(manager: var BossWaveManager)`
-- **moddable** `collectConsumable(game: var Game, c: Consumable)`
-- **moddable** `completeBossWave(game: Game)`
+- **moddable** `clearBossWave(manager: var BossWaveManager)` (wrap only: scripts cannot call it)
+- **moddable** `collectConsumable(game: var Game, c: Consumable)` (wrap only: scripts cannot call it)
+- **moddable** `completeBossWave(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `drawDeathSequenceOverlay(game: Game)`
 - **moddable** `drawGameOver(game: Game)`
 - **moddable** `drawGame(game: Game)`
 - **moddable** `drawVictory(game: Game)`
 - **moddable** `enterWorld3D(game: Game, opts: World3DOptions)`
-- **moddable** `fireConfiguredEnemyShot(game: var Game, enemy: Enemy)`
+- **moddable** `fireConfiguredEnemyShot(game: var Game, enemy: Enemy)` (wrap only: scripts cannot call it)
 - **moddable** `hudInterfaceScale(): float32`
 - `isBossActive(manager: BossWaveManager): bool`
 - `isBossCoinActive(manager: BossWaveManager): bool`
 - **moddable** `newGame(screenWidth: int32, screenHeight: int32, playerSkin: int, bulletSkin: int, playerShape: int, particleSkin: int, bulletShape: int): Game`
-- **moddable** `resolveBulletEnemyHit(game: var Game, bullet: Bullet, target: Enemy, echoParent: Bullet, dt: float32): bool`
+- **moddable** `resolveBulletEnemyHit(game: var Game, bullet: Bullet, target: Enemy, echoParent: Bullet, dt: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `setGameMode(game: Game, mode: GameMode)`
-- **moddable** `spawnConfiguredBoss(game: Game, bossDifficulty: float32, bossBlockWave: int, bossId: int)`
-- **moddable** `spawnWaveEnemies(game: Game, count: int)`
+- **moddable** `spawnConfiguredBoss(game: Game, bossBlockWave: int, bossId: int)` (wrap only: scripts cannot call it)
+- **moddable** `spawnWaveEnemies(game: Game, count: int)` (wrap only: scripts cannot call it)
 - **moddable** `startWave(game: Game)`
-- **moddable** `tickBossAttacks(game: var Game, enemy: Enemy, bossDef: BossDefinition, dt: float32)`
+- **moddable** `tickBossAttacks(game: var Game, enemy: Enemy, bossDef: BossDefinition, dt: float32)` (wrap only: scripts cannot call it)
 - **moddable** `updateGame(game: var Game, dt: float32)`
 
 ### `game_3d`
 
-- **moddable** `addEntity3D(world: Game3D, e: Entity3D)`
-- **moddable** `allocId3D(world: Game3D): int`
+- **moddable** `addEntity3D(world: Game3D, e: Entity3D)` (wrap only: scripts cannot call it)
+- **moddable** `allocId3D(world: Game3D): int` (wrap only: scripts cannot call it)
 - **moddable** `damageBoss3D(world: Game3D, amount: float32)`
 - **moddable** `damageEntity3D(world: Game3D, e: Entity3D, amount: float32): float32`
 - **moddable** `damagePlayer3D(world: Game3D, amount: float32, source: string, entity: Entity3D): float32`
@@ -1233,7 +1225,6 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `getAllGameModes(): seq[GameModeDefinition]`
 - **moddable** `getGameModeDefinition(mode: GameMode): GameModeDefinition`
 - **moddable** `getGameModeName(mode: GameMode): string`
-- **moddable** `hasTimeLimit(mode: GameMode): bool`
 - **moddable** `isPvPMode(mode: GameMode): bool`
 - **moddable** `isRogueliteMode(mode: GameMode): bool`
 - **moddable** `isSandboxMode(mode: GameMode): bool`
@@ -1280,11 +1271,11 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `help_window`
 
-- **moddable** `addOutput(help: HelpWindow, text: string, color: Color, icon: int, indent: int)`
-- **moddable** `bottomScrollOffset(help: HelpWindow): int`
+- **moddable** `addOutput(help: HelpWindow, text: string, color: Color, icon: int, indent: int)` (wrap only: scripts cannot call it)
+- **moddable** `bottomScrollOffset(help: HelpWindow): int` (wrap only: scripts cannot call it)
 - **moddable** `drawHelpWindow(help: HelpWindow)`
-- **moddable** `executeCommand(help: HelpWindow, cmd: string)`
-- **moddable** `getHelpCommands(): seq[HelpCommand]`
+- **moddable** `executeCommand(help: HelpWindow, cmd: string)` (wrap only: scripts cannot call it)
+- **moddable** `getHelpCommands(): seq[HelpCommand]` (wrap only: scripts cannot call it)
 - **moddable** `newHelpWindow(screenWidth: int, screenHeight: int): HelpWindow`
 - **moddable** `updateHelpWindow(help: HelpWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): int`
 
@@ -1309,7 +1300,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawServiceIcon(x: int32, y: int32, size: int32, color: Color)`
 - **moddable** `drawShopIconTile(x: int32, y: int32, size: int32, itemIndex: int, enabled: bool, selected: bool)`
 - **moddable** `drawShopIcon(x: int32, y: int32, size: int32, itemIndex: int, color: Color)`
-- **moddable** `shopIconAccent(itemIndex: int): Color`
+- **moddable** `shopIconAccent(itemIndex: int): Color` (wrap only: scripts cannot call it)
 
 ### `language_select`
 
@@ -1338,7 +1329,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `languageSetting(): string`
 - **moddable** `missingTranslations(): seq[string]`
 - **moddable** `modLanguageIndex(id: string): int`
-- **moddable** `modLanguageText(english: string): string`
+- **moddable** `modLanguageText(english: string): string` (wrap only: scripts cannot call it)
 - **moddable** `nextLanguageSetting(setting: string): string`
 - **moddable** `pickText(en: string, es: string): string`
 - **moddable** `setLanguage(lang: Language)`
@@ -1353,7 +1344,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - **moddable** `drawLoreCinematic(lore: LoreCinematic, screenWidth: int, screenHeight: int)`
 - `newLoreCinematic(): LoreCinematic`
-- **moddable** `newLoreCutscene(): Cutscene`
+- **moddable** `newLoreCutscene(): Cutscene` (wrap only: scripts cannot call it)
 - **moddable** `updateLoreCinematic(lore: LoreCinematic, dt: float32)`
 
 ### `mod_app_window`
@@ -1387,7 +1378,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `rayWallDistance(origin: Vector2f, dir: Vector2f, maxLen: float32, walls: seq[Wall]): float32`
 - **moddable** `safeModeBubble(w: AttackWarning): tuple[center: Vector2f, radius: float32]`
 - **moddable** `safeModeFlooding(w: AttackWarning): bool`
-- **moddable** `safeModeProgress(w: AttackWarning): float32`
+- **moddable** `safeModeProgress(w: AttackWarning): float32` (wrap only: scripts cannot call it)
 - **moddable** `searchlightAngle(w: AttackWarning, beam: int): float32`
 - **moddable** `searchlightLive(w: AttackWarning): bool`
 - **moddable** `warningAge(w: AttackWarning): float32`
@@ -1402,7 +1393,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `mode_mechanics`
 
-- **moddable** `hazardHitPlayer(game: var Game, damage: float32, cause: DeathCause, dmgType: DamageType, source: Enemy, sourceType: EnemyType, interval: float32): bool`
+- **moddable** `hazardHitPlayer(game: var Game, damage: float32, cause: DeathCause, dmgType: DamageType, source: Enemy, sourceType: EnemyType, interval: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `onModeEnemyKilled(game: var Game, enemy: Enemy)`
 - **moddable** `pageInQuietly(game: var Game, w: AttackWarning)`
 - **moddable** `recordPlayerEcho(game: var Game, aimDir: Vector2f, firing: bool, dt: float32)`
@@ -1512,7 +1503,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawStatChip(x: int32, y: int32, w: int32, h: int32, label: string, value: string, stockColor: Color, icon: CurrencyIconType)`
 - **moddable** `finalBossCardRect(screenWidth: int32, screenHeight: int32): Rectangle`
 - **moddable** `rogueliteCloseButtonRect(screenWidth: int32, screenHeight: int32): Rectangle`
-- **moddable** `roguelitePanelRect(screenWidth: int32, screenHeight: int32): Rectangle`
+- **moddable** `roguelitePanelRect(screenWidth: int32, screenHeight: int32): Rectangle` (wrap only: scripts cannot call it)
 - **moddable** `rogueliteVictoryButtonRects(screenWidth: int32, screenHeight: int32): tuple[continueBtn: Rectangle, cashOut: Rectangle]`
 
 ### `os_shop`
@@ -1522,15 +1513,15 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `buyShopItem(game: Game, index: int)`
 - **moddable** `closeRect(l: ShopLayout): Rectangle`
 - **moddable** `drawShop(game: Game)`
-- **moddable** `getCurrentCost(item: ShopItem): int`
+- **moddable** `getCurrentCost(item: ShopItem): int` (wrap only: scripts cannot call it)
 - **moddable** `initShopItems(): array[0 .. 5, ShopItem]`
 - **moddable** `itemRect(l: ShopLayout, i: int, scroll: int32): Rectangle`
 - **moddable** `keepShopSelectionVisible(game: Game)`
-- **moddable** `listHeight(l: ShopLayout): int32`
+- **moddable** `listHeight(l: ShopLayout): int32` (wrap only: scripts cannot call it)
 - **moddable** `listRect(l: ShopLayout): Rectangle`
 - **moddable** `sandboxWaveAverageConfig(base: SandboxConfig, wave: int): SandboxConfig`
-- **moddable** `shopDamageGain(purchaseNumber: int): float32`
-- **moddable** `shopHealthGain(purchaseNumber: int): int`
+- **moddable** `shopDamageGain(purchaseNumber: int): float32` (wrap only: scripts cannot call it)
+- **moddable** `shopHealthGain(purchaseNumber: int): int` (wrap only: scripts cannot call it)
 - **moddable** `shopLayout(): ShopLayout`
 - **moddable** `shopRowCount(game: Game): int`
 
@@ -1551,25 +1542,25 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawOSTaskManager(game: Game, selectedTab: TaskManagerTab): tuple[resumeClicked: bool, settingsClicked: bool, exitClicked: bool,
       newTab: TaskManagerTab]`
 - **moddable** `drawQuitConfirmDialog(game: Game, runEnds: bool): tuple[confirmed: bool, cancelled: bool]`
-- **moddable** `isMouseOverRect(mousePos: Vector2, x: int32, y: int32, width: int32, height: int32): bool`
+- **moddable** `isMouseOverRect(mousePos: Vector2, x: int32, y: int32, width: int32, height: int32): bool` (wrap only: scripts cannot call it)
 - **moddable** `stepTaskManagerTab(game: Game, current: TaskManagerTab, step: int): TaskManagerTab`
-- **moddable** `taskManagerTabs(game: Game): seq[TaskManagerTab]`
+- **moddable** `taskManagerTabs(game: Game): seq[TaskManagerTab]` (wrap only: scripts cannot call it)
 
 ### `os_window`
 
-- **moddable** `bringWindowToFront(window: OSWindow, allWindows: openArray[OSWindow])`
+- **moddable** `bringWindowToFront(window: OSWindow, allWindows: openArray[OSWindow])` (wrap only: scripts cannot call it)
 - **moddable** `drawResizeIndicator(window: OSWindow)`
 - **moddable** `drawWindowChrome(window: OSWindow)`
-- **moddable** `getResizeEdge(window: OSWindow, mouseX: float32, mouseY: float32): int`
+- **moddable** `getResizeEdge(window: OSWindow, mouseX: float32, mouseY: float32): int` (wrap only: scripts cannot call it)
 - **moddable** `handleOSWindowInput(window: OSWindow, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): bool`
-- **moddable** `isPointInCloseButton(window: OSWindow, mouseX: float32, mouseY: float32): bool`
-- **moddable** `isPointInMinimizeButton(window: OSWindow, mouseX: float32, mouseY: float32): bool`
-- **moddable** `isPointInTitleBar(window: OSWindow, mouseX: float32, mouseY: float32): bool`
+- **moddable** `isPointInCloseButton(window: OSWindow, mouseX: float32, mouseY: float32): bool` (wrap only: scripts cannot call it)
+- **moddable** `isPointInMinimizeButton(window: OSWindow, mouseX: float32, mouseY: float32): bool` (wrap only: scripts cannot call it)
+- **moddable** `isPointInTitleBar(window: OSWindow, mouseX: float32, mouseY: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `isPointInWindow(window: OSWindow, mouseX: float32, mouseY: float32): bool`
 - **moddable** `isWindowTopmostAtPoint(window: OSWindow, mouseX: float32, mouseY: float32, allWindows: openArray[OSWindow]): bool`
-- **moddable** `newOSWindow(title: string, x: int, y: int, width: int, height: int, iconColor: Color, windowType: OSWindowType, resizable: bool): OSWindow`
-- **moddable** `startMinimizeAnimation(window: OSWindow)`
-- **moddable** `startRestoreAnimation(window: OSWindow)`
+- **moddable** `newOSWindow(title: string, x: int, y: int, width: int, height: int, iconColor: Color, resizable: bool): OSWindow`
+- **moddable** `startMinimizeAnimation(window: OSWindow)` (wrap only: scripts cannot call it)
+- **moddable** `startRestoreAnimation(window: OSWindow)` (wrap only: scripts cannot call it)
 - **moddable** `uiScaleOfWindow(window: OSWindow): float32`
 - **moddable** `updateOSWindow(window: OSWindow, dt: float32)`
 
@@ -1622,14 +1613,14 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `hasPatch(player: Player, p: RogueliteRelicType): bool`
 - **moddable** `patchAccent(p: RogueliteRelicType): Color`
 - **moddable** `patchAccent(r: RogueliteRelic): Color`
-- **moddable** `patchCategoryAccent(c: PatchCategory): Color`
+- **moddable** `patchCategoryAccent(c: PatchCategory): Color` (wrap only: scripts cannot call it)
 - **moddable** `patchCategoryName(c: PatchCategory): string`
 - **moddable** `patchCategory(p: RogueliteRelicType): PatchCategory`
 - **moddable** `patchDescription(p: RogueliteRelicType): string`
 - **moddable** `patchDescription(r: RogueliteRelic): string`
 - **moddable** `patchKbLabel(p: RogueliteRelicType): string`
 - **moddable** `patchKbLabel(r: RogueliteRelic): string`
-- **moddable** `patchKbNumber(p: RogueliteRelicType): int`
+- **moddable** `patchKbNumber(p: RogueliteRelicType): int` (wrap only: scripts cannot call it)
 - **moddable** `patchName(p: RogueliteRelicType): string`
 - **moddable** `patchName(r: RogueliteRelic): string`
 - **moddable** `patchPrice(player: Player, base: int): int`
@@ -1646,8 +1637,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `activateSpeedBoost(player: Player)`
 - **moddable** `dashBurstOf(p: Player): float32`
 - **moddable** `dashRechargeOf(p: Player): float32`
-- **moddable** `dashTimeOf(p: Player): float32`
-- **moddable** `dataHarvestRangeMult(player: Player): float32`
+- **moddable** `dashTimeOf(p: Player): float32` (wrap only: scripts cannot call it)
+- **moddable** `dataHarvestRangeMult(player: Player): float32` (wrap only: scripts cannot call it)
 - **moddable** `drawPlayer(player: Player)`
 - **moddable** `hasAnyOrbPowerUp(player: Player): bool`
 - **moddable** `heal(player: Player, amount: float32): float32`
@@ -1659,7 +1650,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - **moddable** `fireWeapon(player: var Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool`
 - **moddable** `newPlayer3D(startPos: Vector3f, health2D: float32): Player3D`
-- **moddable** `newWeapon3D(): Weapon3D`
+- **moddable** `newWeapon3D(): Weapon3D` (wrap only: scripts cannot call it)
 - **moddable** `reload(player: var Player3D)`
 - **moddable** `updatePlayer(player: var Player3D, camera: FPSCamera, arena: Arena3D, dt: float32): bool`
 - **moddable** `updateWeapon(player: var Player3D, dt: float32)`
@@ -1677,17 +1668,17 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `applyPowerUp(player: Player, powerUp: PowerUp)`
 - **moddable** `attemptRerollPowerUps(game: Game): bool`
 - **moddable** `bulwarkDamageBonus(player: Player): float32`
-- **moddable** `bulwarkMaxBonus(level: int): float32`
-- **moddable** `createElementalOrbs(player: Player, elementType: ElementType, level: int)`
-- **moddable** `createRotatingOrbs(player: Player, level: int)`
+- **moddable** `bulwarkMaxBonus(level: int): float32` (wrap only: scripts cannot call it)
+- **moddable** `createElementalOrbs(player: Player, elementType: ElementType, level: int)` (wrap only: scripts cannot call it)
+- **moddable** `createRotatingOrbs(player: Player, level: int)` (wrap only: scripts cannot call it)
 - **moddable** `drawPowerUpSelectionExhausted(game: Game)`
 - **moddable** `drawPowerUpSelection(game: Game)`
 - **moddable** `generatePowerUpChoices(player: Player, isLegendary: bool, allowedPowerFamilies: set[RoguelitePowerFamily], mode: GameMode): array[0 .. 2, PowerUp]`
 - **moddable** `getElementColor(elementType: ElementType): Color`
 - **moddable** `getElementDamage(level: int): float32`
-- **moddable** `getFortifiedMaxHpBonus(level: int): float32`
+- **moddable** `getFortifiedMaxHpBonus(level: int): float32` (wrap only: scripts cannot call it)
 - **moddable** `getHeavyRoundsSizeMultiplier(level: int): float32`
-- **moddable** `getOrbRingRadius(player: Player, level: int): float32`
+- **moddable** `getOrbRingRadius(player: Player, level: int): float32` (wrap only: scripts cannot call it)
 - **moddable** `getPowerUpLevel(player: Player, powerType: PowerUpType): int`
 - **moddable** `hasPowerUp(player: Player, powerType: PowerUpType): bool`
 - **moddable** `initPowerUpRollAnimation(game: Game)`
@@ -1695,11 +1686,11 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `isOfferable(player: Player, pt: PowerUpType, allowed: set[RoguelitePowerFamily], mode: GameMode): bool`
 - **moddable** `isPowerUpPoolExhausted(player: Player, isLegendary: bool, allowedPowerFamilies: set[RoguelitePowerFamily], mode: GameMode): bool`
 - **moddable** `juggernautDamageBonus(player: Player): float32`
-- **moddable** `juggernautInvestedHp(player: Player): float32`
+- **moddable** `juggernautInvestedHp(player: Player): float32` (wrap only: scripts cannot call it)
 - **moddable** `juggernautSpeedMult(player: Player): float32`
 - **moddable** `redistributeAllOrbs(player: Player)`
-- **moddable** `rotatingShieldHealth(level: int): float32`
-- **moddable** `rotatingShieldRegenDelay(level: int): float32`
+- **moddable** `rotatingShieldHealth(level: int): float32` (wrap only: scripts cannot call it)
+- **moddable** `rotatingShieldRegenDelay(level: int): float32` (wrap only: scripts cannot call it)
 - **moddable** `skipPowerUpRollAnimation(game: Game)`
 - **moddable** `updatePowerUpRollAnimation(game: Game, deltaTime: float32)`
 
@@ -1724,7 +1715,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `resolvePowerUpScriptName(s: string, pt: var PowerUpType): bool`
 - **moddable** `rollStopTimes(isLegendary: bool): array[0 .. 2, float32]`
 - **moddable** `setPowerUpDef(pt: PowerUpType, def: PowerUpDef)`
-- **moddable** `vanillaPowerUpDef(pt: PowerUpType): PowerUpDef`
+- **moddable** `vanillaPowerUpDef(pt: PowerUpType): PowerUpDef` (wrap only: scripts cannot call it)
 
 ### `profile_select`
 
@@ -1735,22 +1726,22 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `pvp_game`
 
-- **moddable** `applyPlayerInput(pvp: PvPGameState, playerIndex: int, input: PlayerInput, dt: float32): Vector2f`
-- **moddable** `areTeammates(pvp: PvPGameState, playerIdx1: int, playerIdx2: int): bool`
-- **moddable** `assignPlayerToTeam(playerIndex: int, maxPlayers: int, teamsEnabled: bool): PvPTeam`
-- **moddable** `canRematch(pvp: PvPGameState): bool`
-- **moddable** `capturePlayerInput(pvp: PvPGameState, dt: float32): PlayerInput`
-- **moddable** `checkLastSideStanding(pvp: PvPGameState): bool`
-- **moddable** `connectedPlayerCount(pvp: PvPGameState): int`
-- **moddable** `connectedTeams(pvp: PvPGameState): seq[PvPTeam]`
-- **moddable** `disconnectPlayer(pvp: PvPGameState, playerIndex: int)`
-- **moddable** `drawPackageIcon(kind: PvPPackageKind, cx: float32, cy: float32, size: float32, color: Color)`
+- **moddable** `applyPlayerInput(pvp: PvPGameState, playerIndex: int, input: PlayerInput, dt: float32): Vector2f` (wrap only: scripts cannot call it)
+- **moddable** `areTeammates(pvp: PvPGameState, playerIdx1: int, playerIdx2: int): bool` (wrap only: scripts cannot call it)
+- **moddable** `assignPlayerToTeam(playerIndex: int, maxPlayers: int, teamsEnabled: bool): PvPTeam` (wrap only: scripts cannot call it)
+- **moddable** `canRematch(pvp: PvPGameState): bool` (wrap only: scripts cannot call it)
+- **moddable** `capturePlayerInput(pvp: PvPGameState, dt: float32): PlayerInput` (wrap only: scripts cannot call it)
+- **moddable** `checkLastSideStanding(pvp: PvPGameState): bool` (wrap only: scripts cannot call it)
+- **moddable** `connectedPlayerCount(pvp: PvPGameState): int` (wrap only: scripts cannot call it)
+- **moddable** `connectedTeams(pvp: PvPGameState): seq[PvPTeam]` (wrap only: scripts cannot call it)
+- **moddable** `disconnectPlayer(pvp: PvPGameState, playerIndex: int)` (wrap only: scripts cannot call it)
+- **moddable** `drawPackageIcon(kind: PvPPackageKind, cx: float32, cy: float32, size: float32, color: Color)` (wrap only: scripts cannot call it)
 - **moddable** `drawPvP(pvp: PvPGameState, uiScale: float32)`
 - **moddable** `getTeamColor(team: PvPTeam): Color`
 - **moddable** `getTeamName(team: PvPTeam): string`
-- **moddable** `handleDisconnect(pvp: PvPGameState, disconnectedIndex: int, reason: string)`
-- **moddable** `handleNetworkEvents(pvp: PvPGameState)`
-- **moddable** `localResult(pvp: PvPGameState): int`
+- **moddable** `handleDisconnect(pvp: PvPGameState, disconnectedIndex: int, reason: string)` (wrap only: scripts cannot call it)
+- **moddable** `handleNetworkEvents(pvp: PvPGameState)` (wrap only: scripts cannot call it)
+- **moddable** `localResult(pvp: PvPGameState): int` (wrap only: scripts cannot call it)
 - **moddable** `modBanner(pvp: PvPGameState, text: string, sub: string, color: Color)`
 - **moddable** `modBroadcast(pvp: PvPGameState, name: string, data: string): bool`
 - **moddable** `modDamage(pvp: PvPGameState, victim: int, attacker: int, amount: float32)`
@@ -1764,35 +1755,33 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `modToast(pvp: PvPGameState, text: string, color: Color)`
 - **moddable** `newPvPGameState(screenWidth: int32, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType: int, bulletSkinType: int, shapeType: int,
           particleSkinType: int, nickname: string]], teamsEnabled: bool, playerTeamAssignments: seq[int], interpolationEnabled: bool, config: PvPConfig): PvPGameState`
-- **moddable** `packageBlurb(kind: PvPPackageKind): string`
-- **moddable** `packageColor(kind: PvPPackageKind): Color`
-- **moddable** `packageDuration(kind: PvPPackageKind): float32`
-- **moddable** `packageFromInt(value: int): PvPPackageKind`
-- **moddable** `packageName(kind: PvPPackageKind): string`
+- **moddable** `packageBlurb(kind: PvPPackageKind): string` (wrap only: scripts cannot call it)
+- **moddable** `packageColor(kind: PvPPackageKind): Color` (wrap only: scripts cannot call it)
+- **moddable** `packageDuration(kind: PvPPackageKind): float32` (wrap only: scripts cannot call it)
+- **moddable** `packageFromInt(value: int): PvPPackageKind` (wrap only: scripts cannot call it)
+- **moddable** `packageName(kind: PvPPackageKind): string` (wrap only: scripts cannot call it)
 - **moddable** `playerIndexOf(pvp: PvPGameState, p: Player): int`
 - **moddable** `playerName(pvp: PvPGameState, playerIndex: int): string`
-- **moddable** `portLayout(arenaW: float32, arenaH: float32): seq[tuple[pos: Vector2f, isPower: bool]]`
+- **moddable** `portLayout(arenaW: float32, arenaH: float32): seq[tuple[pos: Vector2f, isPower: bool]]` (wrap only: scripts cannot call it)
 - **moddable** `pvpBulletAlive(pvp: PvPGameState, b: Bullet): bool`
-- **moddable** `reconcileState(pvp: PvPGameState, serverState: NetworkGameState)`
-- **moddable** `resetMatchState(pvp: PvPGameState)`
-- **moddable** `restartMatch(pvp: PvPGameState)`
-- **moddable** `rollPackage(isPower: bool): PvPPackageKind`
+- **moddable** `reconcileState(pvp: PvPGameState, serverState: NetworkGameState)` (wrap only: scripts cannot call it)
+- **moddable** `resetMatchState(pvp: PvPGameState)` (wrap only: scripts cannot call it)
+- **moddable** `restartMatch(pvp: PvPGameState)` (wrap only: scripts cannot call it)
+- **moddable** `rollPackage(isPower: bool): PvPPackageKind` (wrap only: scripts cannot call it)
 - **moddable** `startCountdown(pvp: PvPGameState)`
-- **moddable** `tickPvP(pvp: PvPGameState, input: PlayerInput, dt: float32, rematchPressed: bool)`
-- **moddable** `updateBullets(pvp: PvPGameState, dt: float32)`
-- **moddable** `updatePvPClient(pvp: PvPGameState, dt: float32)`
-- **moddable** `updatePvPServer(pvp: PvPGameState, dt: float32)`
+- **moddable** `tickPvP(pvp: PvPGameState, input: PlayerInput, dt: float32, rematchPressed: bool)` (wrap only: scripts cannot call it)
+- **moddable** `updateBullets(pvp: PvPGameState, dt: float32)` (wrap only: scripts cannot call it)
+- **moddable** `updatePvPClient(pvp: PvPGameState, dt: float32)` (wrap only: scripts cannot call it)
+- **moddable** `updatePvPServer(pvp: PvPGameState, dt: float32)` (wrap only: scripts cannot call it)
 - **moddable** `updatePvP(pvp: PvPGameState, dt: float32)`
 
 ### `pvp_window`
 
-- **moddable** `censorIP(ip: string): string`
+- **moddable** `censorIP(ip: string): string` (wrap only: scripts cannot call it)
 - **moddable** `connectToGame(pvpWin: PvPWindow, ip: string, port: int, skinType: int, bulletSkinType: int, shapeType: int, particleSkinType: int, nickname: string)`
 - **moddable** `drawPvPWindowContent(pvpWin: PvPWindow, contentX: int, contentY: int, contentWidth: int, contentHeight: int)`
-- **moddable** `getLocalIP(): string`
-- **moddable** `getTeamColor(team: PvPTeam): Color`
-- **moddable** `getTeamForPlayer(playerIndex: int, numTeams: int): PvPTeam`
-- **moddable** `getTeamName(team: PvPTeam): string`
+- **moddable** `getLocalIP(): string` (wrap only: scripts cannot call it)
+- **moddable** `getTeamForPlayer(playerIndex: int, numTeams: int): PvPTeam` (wrap only: scripts cannot call it)
 - **moddable** `handlePvPWindowClick(pvpWin: PvPWindow, contentX: int, contentY: int, contentWidth: int, contentHeight: int): int`
 - **moddable** `handlePvPWindowInput(pvpWin: PvPWindow)`
 - **moddable** `newPvPWindow(screenWidth: int, screenHeight: int): PvPWindow`
@@ -1837,7 +1826,6 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `setWorldCamera(zoom: float32, cx: float32, cy: float32, worldW: float32, worldH: float32)`
 - `setWorldView(offsetX: float32, offsetY: float32, scale: float32)`
 - `updateRenderInputTransform(scale: float32, offsetX: float32, offsetY: float32, virtualWidth: int32, virtualHeight: int32)`
-- `worldCameraActive(): bool`
 - `worldToVirtual(p: Vector2): Vector2`
 
 ### `roguelite`
@@ -1853,26 +1841,25 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `completeRogueliteBoss(game: Game)`
 - **moddable** `cosmeticCost(kind: CosmeticKind, index: int): CosmeticCost`
 - `cosmeticCount(kind: CosmeticKind): int`
-- **moddable** `cosmeticId(kind: CosmeticKind, index: int): string`
+- **moddable** `cosmeticId(kind: CosmeticKind, index: int): string` (wrap only: scripts cannot call it)
 - **moddable** `cosmeticIsUnlocked(profile: RogueliteProfile, kind: CosmeticKind, index: int): bool`
-- `defaultCosmeticIndex(kind: CosmeticKind): int`
-- **moddable** `ensureBaseCosmeticUnlocks(profile: RogueliteProfile)`
-- **moddable** `getRogueliteProfilePath(): string`
-- **moddable** `hasModRelic(run: RogueliteRun, modKey: string): bool`
+- **moddable** `ensureBaseCosmeticUnlocks(profile: RogueliteProfile)` (wrap only: scripts cannot call it)
+- **moddable** `getRogueliteProfilePath(): string` (wrap only: scripts cannot call it)
+- **moddable** `hasModRelic(run: RogueliteRun, modKey: string): bool` (wrap only: scripts cannot call it)
 - **moddable** `hasRelic(run: RogueliteRun, relic: RogueliteRelic): bool`
 - **moddable** `hasRelic(run: RogueliteRun, relicType: RogueliteRelicType): bool`
 - **moddable** `heatChallengeRank(heat: int): int`
-- **moddable** `initRogueliteProfile(): RogueliteProfile`
+- **moddable** `initRogueliteProfile(): RogueliteProfile` (wrap only: scripts cannot call it)
 - **moddable** `installPatch(game: Game, patch: RogueliteRelicType, modKey: string): bool`
 - **moddable** `installPatch(game: Game, relic: RogueliteRelic): bool`
-- **moddable** `isFree(cost: CosmeticCost): bool`
+- **moddable** `isFree(cost: CosmeticCost): bool` (wrap only: scripts cannot call it)
 - **moddable** `isValidCosmeticIndex(kind: CosmeticKind, index: int): bool`
-- **moddable** `jsonToRogueliteProfile(j: JsonNode): RogueliteProfile`
-- **moddable** `legacyUnlockRefund(j: JsonNode): tuple[shards: int, cores: int]`
+- **moddable** `jsonToRogueliteProfile(j: JsonNode): RogueliteProfile` (wrap only: scripts cannot call it)
+- **moddable** `legacyUnlockRefund(j: JsonNode): tuple[shards: int, cores: int]` (wrap only: scripts cannot call it)
 - **moddable** `loadRogueliteProfile(): RogueliteProfile`
 - **moddable** `makeRelic(relicType: RogueliteRelicType, modKey: string): RogueliteRelic`
-- **moddable** `normalizeRogueliteProfile(profile: RogueliteProfile)`
-- **moddable** `ownedModPatches(run: RogueliteRun): seq[string]`
+- **moddable** `normalizeRogueliteProfile(profile: RogueliteProfile)` (wrap only: scripts cannot call it)
+- **moddable** `ownedModPatches(run: RogueliteRun): seq[string]` (wrap only: scripts cannot call it)
 - **moddable** `packIsOwned(profile: RogueliteProfile, id: CosmeticPackId): bool`
 - **moddable** `packMemberCount(id: CosmeticPackId): int`
 - **moddable** `packOwnedCount(profile: RogueliteProfile, id: CosmeticPackId): int`
@@ -1882,7 +1869,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `purchasePack(profile: RogueliteProfile, id: CosmeticPackId): bool`
 - **moddable** `resetRogueliteProfile(profile: RogueliteProfile): bool`
 - **moddable** `rogueliteContinueEndless(run: RogueliteRun)`
-- **moddable** `rogueliteProfileToJson(profile: RogueliteProfile): JsonNode`
+- **moddable** `rogueliteProfileToJson(profile: RogueliteProfile): JsonNode` (wrap only: scripts cannot call it)
 - **moddable** `rollPatchChoices(run: RogueliteRun, count: int, exclude: set[RogueliteRelicType], excludeKeys: seq[string]): seq[RogueliteRelic]`
 - **moddable** `sanitizeEquippedCosmetics(settings: Settings, profile: RogueliteProfile): bool`
 - **moddable** `saveRogueliteProfile(profile: RogueliteProfile): bool`
@@ -1892,14 +1879,14 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `survivalEventShardReward(phaseIndex: int, rogue: bool): int`
 - **moddable** `survivalMinuteShardReward(minute: int): int`
 - **moddable** `syncPlayerPatches(game: Game)`
-- **moddable** `unownedPatches(run: RogueliteRun, exclude: set[RogueliteRelicType]): seq[RogueliteRelicType]`
+- **moddable** `unownedPatches(run: RogueliteRun, exclude: set[RogueliteRelicType]): seq[RogueliteRelicType]` (wrap only: scripts cannot call it)
 - **moddable** `waveClearShardReward(wave: int): int`
 
 ### `roguelite_end_cinematic`
 
 - **moddable** `drawRogueliteEndCinematic(c: RogueliteEndCinematic, screenWidth: int, screenHeight: int)`
 - `newRogueliteEndCinematic(): RogueliteEndCinematic`
-- **moddable** `newRogueliteEndCutscene(): Cutscene`
+- **moddable** `newRogueliteEndCutscene(): Cutscene` (wrap only: scripts cannot call it)
 - **moddable** `updateRogueliteEndCinematic(c: RogueliteEndCinematic, dt: float32)`
 
 ### `roguelite_window`
@@ -1922,12 +1909,12 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `deleteBlockCheckpoint(mode: GameMode, modMode: string)`
 - **moddable** `deleteRunSave(file: string)`
 - **moddable** `deleteRunSave(mode: GameMode, modMode: string)`
-- **moddable** `getRunSavePath(file: string): string`
+- **moddable** `getRunSavePath(file: string): string` (wrap only: scripts cannot call it)
 - **moddable** `hasBlockCheckpoint(mode: GameMode, modMode: string): bool`
 - **moddable** `hasSavedRun(mode: GameMode, modMode: string): bool`
 - **moddable** `invalidateBlockCheckpointCache()`
 - **moddable** `markCheckpointCurrencyBanked(game: Game)`
-- **moddable** `runSaveFileFor(mode: GameMode, modMode: string): string`
+- **moddable** `runSaveFileFor(mode: GameMode, modMode: string): string` (wrap only: scripts cannot call it)
 - **moddable** `saveBlockCheckpoint(game: Game, scripted: bool, labelEn: string, labelEs: string): bool`
 - **moddable** `saveRunState(game: Game, file: string, bypassStateGate: bool)`
 - **moddable** `setRestorePointsUsed(game: Game, used: int)`
@@ -1935,10 +1922,10 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `run_statistics`
 
 - **moddable** `calculateDerivedMetrics()`
-- **moddable** `calculatePlayStyle()`
+- **moddable** `calculatePlayStyle()` (wrap only: scripts cannot call it)
 - **moddable** `clearLastCompletedRun()`
-- **moddable** `cloneRunStatistics(src: RunStatistics): RunStatistics`
-- **moddable** `endRun(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool)`
+- **moddable** `cloneRunStatistics(src: RunStatistics): RunStatistics` (wrap only: scripts cannot call it)
+- **moddable** `endRun(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool)` (wrap only: scripts cannot call it)
 - **moddable** `finalizeRunTracking(game: Game, died: bool)`
 - **moddable** `getLastRunStats(): RunStatistics`
 - **moddable** `hasLastRunStats(): bool`
@@ -1949,33 +1936,33 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `initPerformanceStats(): PerformanceStats`
 - **moddable** `initPowerUpStats(): PowerUpStats`
 - **moddable** `initResourceStats(): ResourceStats`
-- **moddable** `initRunStatistics(): RunStatistics`
+- **moddable** `initRunStatistics(): RunStatistics` (wrap only: scripts cannot call it)
 - **moddable** `initializeRunTracking(game: Game)`
 - **moddable** `loadLastCompletedRun(loadedStats: RunStatistics)`
-- **moddable** `recordCoinEarned(amount: int)`
-- **moddable** `recordCoinSpent(amount: int, itemName: string, gameTime: float32)`
-- **moddable** `recordConsumable(consumType: ConsumableType)`
-- **moddable** `recordDamageAvoided(amount: float32)`
+- **moddable** `recordCoinEarned(amount: int)` (wrap only: scripts cannot call it)
+- **moddable** `recordCoinSpent(amount: int, itemName: string, gameTime: float32)` (wrap only: scripts cannot call it)
+- **moddable** `recordConsumable(consumType: ConsumableType)` (wrap only: scripts cannot call it)
+- **moddable** `recordDamageAvoided(amount: float32)` (wrap only: scripts cannot call it)
 - **moddable** `recordDamageDealt(damage: float32)`
-- **moddable** `recordDamageTaken(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2f)`
+- **moddable** `recordDamageTaken(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2f)` (wrap only: scripts cannot call it)
 - **moddable** `recordKill(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2f)`
-- **moddable** `recordLegendaryAbility(abilityType: string, gameTime: float32, playerPos: Vector2f)`
-- **moddable** `recordNearDeath(gameTime: float32, playerPos: Vector2f)`
-- **moddable** `recordPowerUpChosen(powerUp: PowerUp, gameTime: float32)`
-- **moddable** `recordPowerUpDamage(powerType: PowerUpType, damage: float32)`
-- **moddable** `recordPowerUpHealing(powerType: PowerUpType, restored: float32, overheal: float32)`
+- **moddable** `recordLegendaryAbility(abilityType: string, gameTime: float32, playerPos: Vector2f)` (wrap only: scripts cannot call it)
+- **moddable** `recordNearDeath(gameTime: float32, playerPos: Vector2f)` (wrap only: scripts cannot call it)
+- **moddable** `recordPowerUpChosen(powerUp: PowerUp, gameTime: float32)` (wrap only: scripts cannot call it)
+- **moddable** `recordPowerUpDamage(powerType: PowerUpType, damage: float32)` (wrap only: scripts cannot call it)
+- **moddable** `recordPowerUpHealing(powerType: PowerUpType, restored: float32, overheal: float32)` (wrap only: scripts cannot call it)
 - **moddable** `recordRerollSpent(amount: int)`
-- **moddable** `recordShotFired()`
-- **moddable** `recordShotHit(damage: float32, enemyType: EnemyType, isCrit: bool, countsAsShot: bool)`
-- **moddable** `recordShotMissed()`
-- **moddable** `recordSpecialMechanic(mechType: string)`
-- **moddable** `recordWallDamaged()`
-- **moddable** `recordWallDestroyed(damageBlocked: float32)`
-- **moddable** `recordWallPlaced(gameTime: float32, pos: Vector2f)`
-- **moddable** `recordWaveComplete(waveNumber: int, waveTime: float32, gameTime: float32)`
+- **moddable** `recordShotFired()` (wrap only: scripts cannot call it)
+- **moddable** `recordShotHit(damage: float32, enemyType: EnemyType, isCrit: bool, countsAsShot: bool)` (wrap only: scripts cannot call it)
+- **moddable** `recordShotMissed()` (wrap only: scripts cannot call it)
+- **moddable** `recordSpecialMechanic(mechType: string)` (wrap only: scripts cannot call it)
+- **moddable** `recordWallDamaged()` (wrap only: scripts cannot call it)
+- **moddable** `recordWallDestroyed(damageBlocked: float32)` (wrap only: scripts cannot call it)
+- **moddable** `recordWallPlaced(gameTime: float32, pos: Vector2f)` (wrap only: scripts cannot call it)
+- **moddable** `recordWaveComplete(waveNumber: int, waveTime: float32, gameTime: float32)` (wrap only: scripts cannot call it)
 - **moddable** `resumeRunTracking(game: Game)`
 - **moddable** `saveLastCompletedRun()`
-- **moddable** `startNewRun(gameMode: GameMode)`
+- **moddable** `startNewRun(gameMode: GameMode)` (wrap only: scripts cannot call it)
 - **moddable** `takeFrameDamageDealt(): float32`
 - **moddable** `trackBulletDespawn(game: Game, bullet: Bullet, hitEnemy: bool)`
 - **moddable** `trackBulletFired(game: Game)`
@@ -2001,9 +1988,9 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `trackWallDestruction(game: Game, damageBlocked: float32)`
 - **moddable** `trackWallPlacement(game: Game, pos: Vector2f)`
 - **moddable** `trackWaveCompletion(game: Game, waveNumber: int, waveTime: float32)`
-- **moddable** `updateDPS(damage: float32)`
-- **moddable** `updateMovement(player: Player, dt: float32, gameTime: float32)`
-- **moddable** `updateRunDuration(dt: float32)`
+- **moddable** `updateDPS(damage: float32)` (wrap only: scripts cannot call it)
+- **moddable** `updateMovement(player: Player, dt: float32, gameTime: float32)` (wrap only: scripts cannot call it)
+- **moddable** `updateRunDuration(dt: float32)` (wrap only: scripts cannot call it)
 
 ### `sandbox`
 
@@ -2014,11 +2001,11 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `sandbox_window`
 
 - **moddable** `applySandboxConfig(game: Game)`
-- **moddable** `baseSandboxConfig(): SandboxConfig`
-- **moddable** `drawSandboxWindowContent(sw: SandboxWindow, cx: int32, cy: int32, cw: int32, ch: int32)`
+- **moddable** `baseSandboxConfig(): SandboxConfig` (wrap only: scripts cannot call it)
+- **moddable** `drawSandboxWindowContent(sw: SandboxWindow, cx: int32, cy: int32, cw: int32, ch: int32)` (wrap only: scripts cannot call it)
 - **moddable** `drawSandboxWindow(sw: SandboxWindow)`
 - **moddable** `newSandboxWindow(screenWidth: int, screenHeight: int): SandboxWindow`
-- **moddable** `playerToSandboxConfig(p: Player): SandboxConfig`
+- **moddable** `playerToSandboxConfig(p: Player): SandboxConfig` (wrap only: scripts cannot call it)
 - **moddable** `resetSandboxWindow(sw: SandboxWindow)`
 - **moddable** `updateSandboxWindow(sw: SandboxWindow, dt: float32, allWindows: openArray[OSWindow], screenWidth: int, screenHeight: int): SandboxWindowResult`
 
@@ -2028,25 +2015,25 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `deleteLastRunStats(): bool`
 - **moddable** `deleteProfile(slot: int): bool`
 - **moddable** `getAppDataPath(): string`
-- **moddable** `getLastRunStatsPath(): string`
+- **moddable** `getLastRunStatsPath(): string` (wrap only: scripts cannot call it)
 - **moddable** `getLastUsedProfileSlot(): int`
 - **moddable** `getProfileDir(slot: int): string`
 - **moddable** `getRootDataPath(): string`
-- **moddable** `getSettingsPath(): string`
+- **moddable** `getSettingsPath(): string` (wrap only: scripts cannot call it)
 - **moddable** `getStatsPath(): string`
-- **moddable** `jsonToSettings(jsonNode: JsonNode, settings: Settings)`
+- **moddable** `jsonToSettings(jsonNode: JsonNode, settings: Settings)` (wrap only: scripts cannot call it)
 - **moddable** `loadLastRunStats(): RunStatistics`
 - **moddable** `loadProfileDifficulty(slot: int): GameDifficulty`
 - **moddable** `loadSettings(settings: Settings): bool`
 - **moddable** `markStorySeen(settings: Settings, cine: StoryCinematic)`
 - **moddable** `migrateLegacySaveFiles()`
 - **moddable** `profileExists(slot: int): bool`
-- **moddable** `runStatisticsToJson(runStats: RunStatistics): JsonNode`
+- **moddable** `runStatisticsToJson(runStats: RunStatistics): JsonNode` (wrap only: scripts cannot call it)
 - **moddable** `saveLastRunStats(runStats: RunStatistics): bool`
 - **moddable** `saveSettings(settings: Settings): bool`
 - **moddable** `setLastUsedProfileSlot(slot: int)`
-- **moddable** `settingsToJson(settings: Settings): JsonNode`
-- **moddable** `snapUIScale(scale: float32): float32`
+- **moddable** `settingsToJson(settings: Settings): JsonNode` (wrap only: scripts cannot call it)
+- **moddable** `snapUIScale(scale: float32): float32` (wrap only: scripts cannot call it)
 - **moddable** `storyOutdated(settings: Settings, cine: StoryCinematic): bool`
 - **moddable** `storyPending(settings: Settings, cine: StoryCinematic): bool`
 - **moddable** `uiScalePresetIndex(scale: float32): int`
@@ -2057,7 +2044,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `damageNumberScaleOf(settings: Settings): float32`
 - **moddable** `initSettings(): Settings`
 - **moddable** `isPowerUpDiscovered(pt: PowerUpType): bool`
-- **moddable** `newDefaultSettings(): Settings`
+- **moddable** `newDefaultSettings(): Settings` (wrap only: scripts cannot call it)
 - **moddable** `reloadSettingsFromDisk(settings: Settings)`
 - **moddable** `screenShakeScaleOf(settings: Settings): float32`
 - **moddable** `showDamageNumbersOf(settings: Settings): bool`
@@ -2065,26 +2052,26 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `settings_window`
 
-- **moddable** `controlsLayout(contentY: int, contentH: int): ControlsLayout`
-- **moddable** `drawAudioTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)`
+- **moddable** `controlsLayout(contentY: int, contentH: int): ControlsLayout` (wrap only: scripts cannot call it)
+- **moddable** `drawAudioTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)` (wrap only: scripts cannot call it)
 - **moddable** `drawCheckbox(x: int, y: int, size: int, checked: bool, hovered: bool)`
-- **moddable** `drawCinematicsTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)`
+- **moddable** `drawCinematicsTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)` (wrap only: scripts cannot call it)
 - **moddable** `drawControlsTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)`
-- **moddable** `drawGameplayTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)`
-- **moddable** `drawGraphicsTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)`
-- **moddable** `drawInterfaceTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)`
-- **moddable** `drawSectionHeader(x: int, y: int, width: int, title: string, iconChar: char, color: Color)`
+- **moddable** `drawGameplayTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)` (wrap only: scripts cannot call it)
+- **moddable** `drawGraphicsTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)` (wrap only: scripts cannot call it)
+- **moddable** `drawInterfaceTab(settingsWin: SettingsWindow, contentX: int, contentY: int, contentW: int, contentH: int)` (wrap only: scripts cannot call it)
+- **moddable** `drawSectionHeader(x: int, y: int, width: int, title: string, iconChar: char, color: Color)` (wrap only: scripts cannot call it)
 - **moddable** `drawSettingsWindow(settingsWin: SettingsWindow)`
-- **moddable** `drawSlider(x: int, y: int, width: int, height: int, value: float32, hovered: bool, showTicks: bool, tickValues: seq[int])`
-- **moddable** `drawTab(tabName: string, x: int, y: int, width: int, height: int, isActive: bool, isHovered: bool)`
+- **moddable** `drawSlider(x: int, y: int, width: int, height: int, value: float32, hovered: bool, showTicks: bool, tickValues: seq[int])` (wrap only: scripts cannot call it)
+- **moddable** `drawTab(tabName: string, x: int, y: int, width: int, height: int, isActive: bool, isHovered: bool)` (wrap only: scripts cannot call it)
 - **moddable** `newSettingsWindow(screenWidth: int, screenHeight: int, settings: Settings, stats: Statistics, advancementProfile: AdvancementProfile, rogueliteProfile: RogueliteProfile): SettingsWindow`
-- **moddable** `tabContentOriginY(window: OSWindow): int`
+- **moddable** `tabContentOriginY(window: OSWindow): int` (wrap only: scripts cannot call it)
 - **moddable** `updateSettingsWindow(settingsWin: SettingsWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool]`
 
 ### `shapes`
 
 - `drawCheaterHat(pos: Vector2f, radius: float32, time: float32, alpha: float32)`
-- `drawMiniCube(center: Vector2, size: float32, time: float32, edgeColor: Color, glowColor: Color, heartColor: Color, isD20: bool, skin: CubeSkinType, secretStyle: bool)`
+- `drawMiniCube(center: Vector2, size: float32, time: float32, skin: CubeSkinType)`
 - `drawPlayerShape(pos: Vector2f, radius: float32, shapeType: ShapeType, baseColor: Color, secondaryColor: Color, coreColor: Color, time: float32, rotation: float32, pulse: float32, glowIntensity: float32)`
 - `drawRogueliteClassCosmetic(pos: Vector2f, radius: float32, time: float32, kit: int, bodyColor: Color)`
 - `drawTopHat(pos: Vector2f, radius: float32, time: float32, alpha: float32, accent: Color)`
@@ -2098,20 +2085,20 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `shop_window`
 
-- **moddable** `drawBulletShapePreview(x: int, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)`
-- **moddable** `drawBulletSkinPreview(x: int, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)`
-- **moddable** `drawCubeSkinPreview(x: int, y: int, skinType: CubeSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)`
-- **moddable** `drawDesktopBgPreview(x: int, y: int, bgType: DesktopBgType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)`
-- **moddable** `drawParticlePreview(x: int, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)`
-- **moddable** `drawPlayerSkinPreview(x: int, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)`
-- **moddable** `drawShapePreview(x: int, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)`
+- **moddable** `drawBulletShapePreview(x: int, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)` (wrap only: scripts cannot call it)
+- **moddable** `drawBulletSkinPreview(x: int, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)` (wrap only: scripts cannot call it)
+- **moddable** `drawCubeSkinPreview(x: int, y: int, skinType: CubeSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)` (wrap only: scripts cannot call it)
+- **moddable** `drawDesktopBgPreview(x: int, y: int, bgType: DesktopBgType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)` (wrap only: scripts cannot call it)
+- **moddable** `drawParticlePreview(x: int, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)` (wrap only: scripts cannot call it)
+- **moddable** `drawPlayerSkinPreview(x: int, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)` (wrap only: scripts cannot call it)
+- **moddable** `drawShapePreview(x: int, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool, canBuy: bool, cost: CosmeticCost, costText: string)` (wrap only: scripts cannot call it)
 - **moddable** `drawShopWindow(shop: ShopWindow)`
 - **moddable** `newShopWindow(screenWidth: int, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType, rogueliteProfile: RogueliteProfile): ShopWindow`
-- **moddable** `saveSkinSelectionImmediately(shop: ShopWindow)`
+- **moddable** `saveSkinSelectionImmediately(shop: ShopWindow)` (wrap only: scripts cannot call it)
 - **moddable** `updateShopWindow(shop: ShopWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): bool`
-- **moddable** `visibleCosmeticIndices(kind: CosmeticKind, query: string): seq[int]`
-- **moddable** `wrapDescAutoSize(text: string, maxWidth: int32, startSize: int32, minSize: int32): tuple[line1: string, line2: string, line3: string, fontSize: int32]`
-- **moddable** `wrapTwoLines(text: string, maxWidth: int32, fontSize: int32): tuple[line1: string, line2: string]`
+- **moddable** `visibleCosmeticIndices(kind: CosmeticKind, query: string): seq[int]` (wrap only: scripts cannot call it)
+- **moddable** `wrapDescAutoSize(text: string, maxWidth: int32, startSize: int32, minSize: int32): tuple[line1: string, line2: string, line3: string, fontSize: int32]` (wrap only: scripts cannot call it)
+- **moddable** `wrapTwoLines(text: string, maxWidth: int32, fontSize: int32): tuple[line1: string, line2: string]` (wrap only: scripts cannot call it)
 
 ### `skins`
 
@@ -2135,21 +2122,21 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `playMusic(track: MusicTrack, tier: int)`
 - **moddable** `playSound(soundType: SoundType, volumeMultiplier: float32, pitch: float32)`
 - **moddable** `restoreVanillaSounds()`
-- **moddable** `scoreLength(shots: openArray[float32]): float32`
-- **moddable** `scoreTime(shots: openArray[float32], index: int, local: float32): float32`
+- **moddable** `scoreLength(shots: openArray[float32]): float32` (wrap only: scripts cannot call it)
+- **moddable** `scoreTime(shots: openArray[float32], index: int, local: float32): float32` (wrap only: scripts cannot call it)
 - **moddable** `setGameVolume(volume: float32)`
 - **moddable** `setModMusic(track: MusicTrack, path: string): bool`
 - **moddable** `setModSound(st: SoundType, path: string): bool`
 - **moddable** `setMusicMuffled(muffled: bool)`
 - **moddable** `setMusicVolume(volume: float32)`
-- **moddable** `shotStart(shots: openArray[float32], index: int): float32`
+- **moddable** `shotStart(shots: openArray[float32], index: int): float32` (wrap only: scripts cannot call it)
 - **moddable** `soundLoadLabel(): string`
 - **moddable** `soundLoadProgress(): float32`
 - **moddable** `startAssetGeneration(): int`
 - **moddable** `startScore(track: MusicTrack): bool`
 - **moddable** `stopMusic()`
 - **moddable** `syncScore(track: MusicTrack, position: float32, rate: float32)`
-- **moddable** `totalLength(shots: openArray[float32]): float32`
+- **moddable** `totalLength(shots: openArray[float32]): float32` (wrap only: scripts cannot call it)
 - **moddable** `updateMusic()`
 
 ### `statistics`
@@ -2157,102 +2144,102 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `formatTime(seconds: float32): string`
 - **moddable** `hasDefeatedBoss(stats: Statistics, bossDefinitionID: int): bool`
 - **moddable** `initStatistics(): Statistics`
-- **moddable** `jsonToStatistics(jsonNode: JsonNode, stats: Statistics)`
+- **moddable** `jsonToStatistics(jsonNode: JsonNode, stats: Statistics)` (wrap only: scripts cannot call it)
 - **moddable** `loadStatistics(stats: Statistics): bool`
 - **moddable** `markBossDefeated(stats: Statistics, bossDefinitionID: int)`
 - **moddable** `resetStatistics(stats: Statistics)`
 - **moddable** `saveStatistics(stats: Statistics): bool`
-- **moddable** `statisticsToJson(stats: Statistics): JsonNode`
+- **moddable** `statisticsToJson(stats: Statistics): JsonNode` (wrap only: scripts cannot call it)
 - **moddable** `updateStatsForMode(stats: Statistics, mode: GameMode, scoreReached: int, timeSurvived: float32, kills: int, coins: int, bossesKilled: int, died: bool, newGame: bool, runKills: int, runCoins: int, runTime: float32)`
 
 ### `stats_window`
 
-- **moddable** `buildDamageRanking(runStats: RunStatistics): seq[(PowerUpType, float32)]`
-- **moddable** `buildHealingSources(runStats: RunStatistics): seq[HealingSourceRow]`
-- **moddable** `drawListScrollbar(x: int, y: int, height: int, scrollOffset: int, contentHeight: int, viewportHeight: int)`
-- **moddable** `drawMetricCard(x: int, y: int, width: int, height: int, title: string, value: string, icon: char, color: Color)`
-- **moddable** `drawMiniGraph(x: int, y: int, width: int, height: int, title: string, dataPoints: seq[(float32, float32)], maxValue: float32, color: Color, animTime: float32)`
-- **moddable** `drawStatLine(x: int, y: int, label: string, value: string, valueColor: Color)`
-- **moddable** `drawStatPanel(x: int, y: int, width: int, height: int, title: string)`
+- **moddable** `buildDamageRanking(runStats: RunStatistics): seq[(PowerUpType, float32)]` (wrap only: scripts cannot call it)
+- **moddable** `buildHealingSources(runStats: RunStatistics): seq[HealingSourceRow]` (wrap only: scripts cannot call it)
+- **moddable** `drawListScrollbar(x: int, y: int, height: int, scrollOffset: int, contentHeight: int, viewportHeight: int)` (wrap only: scripts cannot call it)
+- **moddable** `drawMetricCard(x: int, y: int, width: int, height: int, title: string, value: string, icon: char, color: Color)` (wrap only: scripts cannot call it)
+- **moddable** `drawMiniGraph(x: int, y: int, width: int, height: int, title: string, dataPoints: seq[(float32, float32)], maxValue: float32, color: Color, animTime: float32)` (wrap only: scripts cannot call it)
+- **moddable** `drawStatLine(x: int, y: int, label: string, value: string, valueColor: Color)` (wrap only: scripts cannot call it)
+- **moddable** `drawStatPanel(x: int, y: int, width: int, height: int, title: string)` (wrap only: scripts cannot call it)
 - **moddable** `drawStatsWindow(statsWin: StatsWindow, game: Game)`
 - **moddable** `fitText(text: string, maxWidth: int, fontSize: int32): string`
-- **moddable** `formatDuration(seconds: float32): string`
-- **moddable** `formatLargeNumber(value: float32): string`
-- **moddable** `formatPercent(value: float32): string`
-- **moddable** `getQualityColor(value: float32, threshold: float32): Color`
+- **moddable** `formatDuration(seconds: float32): string` (wrap only: scripts cannot call it)
+- **moddable** `formatLargeNumber(value: float32): string` (wrap only: scripts cannot call it)
+- **moddable** `formatPercent(value: float32): string` (wrap only: scripts cannot call it)
+- **moddable** `getQualityColor(value: float32, threshold: float32): Color` (wrap only: scripts cannot call it)
 - **moddable** `newStatsWindow(screenWidth: int, screenHeight: int, stats: Statistics): StatsWindow`
-- **moddable** `powerUpListGeometry(window: OSWindow): array[0 .. 2, PowerUpListGeom]`
-- **moddable** `powerUpRowCounts(runStats: RunStatistics): array[0 .. 2, int]`
+- **moddable** `powerUpListGeometry(window: OSWindow): array[0 .. 2, PowerUpListGeom]` (wrap only: scripts cannot call it)
+- **moddable** `powerUpRowCounts(runStats: RunStatistics): array[0 .. 2, int]` (wrap only: scripts cannot call it)
 - **moddable** `rankingColumns(g: PowerUpListGeom): tuple[rankX: int, nameX: int, nameMax: int, valueRight: int, percentRight: int,
-      scrollbarX: int]`
-- **moddable** `timelineColumns(g: PowerUpListGeom): tuple[timeX: int, nameX: int, nameMax: int, levelRight: int, scrollbarX: int]`
+      scrollbarX: int]` (wrap only: scripts cannot call it)
+- **moddable** `timelineColumns(g: PowerUpListGeom): tuple[timeX: int, nameX: int, nameMax: int, levelRight: int, scrollbarX: int]` (wrap only: scripts cannot call it)
 - **moddable** `updateStatsWindow(statsWin: StatsWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): bool`
 
 ### `survival`
 
-- **moddable** `addSurvivalEnemy(game: Game, pos: Vector2f, enemyType: EnemyType, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool): Enemy`
-- **moddable** `canOpenSurvivalCache(game: Game): bool`
-- **moddable** `cancelSurvivalEvent(game: Game)`
+- **moddable** `addSurvivalEnemy(game: Game, pos: Vector2f, enemyType: EnemyType, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool): Enemy` (wrap only: scripts cannot call it)
+- **moddable** `canOpenSurvivalCache(game: Game): bool` (wrap only: scripts cannot call it)
+- **moddable** `cancelSurvivalEvent(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `drawSurvivalBannerGutter(game: Game, gutterX: int32, gutterW: int32, topY: int32): int32`
 - **moddable** `drawSurvivalBanner(game: Game, screenWidth: int32, topY: int32)`
 - **moddable** `drawSurvivalCacheReveal(game: Game, screenWidth: int32, screenHeight: int32)`
-- **moddable** `drawSurvivalChests(game: Game)`
+- **moddable** `drawSurvivalChests(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `drawSurvivalDockCard(game: Game, x: int32, y: int32, withLevel: bool): int32`
-- **moddable** `drawSurvivalEventsOver(game: Game)`
-- **moddable** `drawSurvivalEventsUnder(game: Game)`
+- **moddable** `drawSurvivalEventsOver(game: Game)` (wrap only: scripts cannot call it)
+- **moddable** `drawSurvivalEventsUnder(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `drawSurvivalHUD(game: Game, screenWidth: int32, screenHeight: int32)`
-- **moddable** `drawSurvivalSpawnMarkers(game: Game)`
+- **moddable** `drawSurvivalSpawnMarkers(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `drawSurvivalWorldOver(game: Game)`
 - **moddable** `drawSurvivalWorldUnder(game: Game)`
-- **moddable** `dropSurvivalCache(game: var Game, pos: Vector2f, tier: SurvivalCacheTier)`
+- **moddable** `dropSurvivalCache(game: var Game, pos: Vector2f, tier: SurvivalCacheTier)` (wrap only: scripts cannot call it)
 - **moddable** `formatSurvivalClock(seconds: float32): string`
 - **moddable** `newSurvivalEnemy(game: Game, pos: Vector2f, enemyType: EnemyType, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool): Enemy`
 - **moddable** `onSurvivalBossDefeated(game: var Game, bossPos: Vector2f): bool`
 - **moddable** `onSurvivalEnemyKilled(game: var Game, enemy: Enemy)`
-- **moddable** `onSurvivalEventKill(game: var Game, enemy: Enemy)`
-- **moddable** `openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2f): bool`
-- **moddable** `pickFodderType(game: Game): EnemyType`
+- **moddable** `onSurvivalEventKill(game: var Game, enemy: Enemy)` (wrap only: scripts cannot call it)
+- **moddable** `openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2f): bool` (wrap only: scripts cannot call it)
+- **moddable** `pickFodderType(game: Game): EnemyType` (wrap only: scripts cannot call it)
 - **moddable** `prepareSurvivalBossArrival(game: var Game)`
-- **moddable** `queueRing(game: Game, count: int, radius: float32, delay: float32, tag: SurvivalTag, allowElite: bool): int`
-- **moddable** `queueSurvivalSpawn(game: Game, pos: Vector2f, enemyType: EnemyType, delay: float32, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool, telegraph: bool): bool`
-- **moddable** `reclaimSurvivalFodder(game: Game, keep: int)`
-- **moddable** `setSurvivalBanner(game: Game, kind: SurvivalBannerKind, event: SurvivalEventKind, modKey: string)`
+- **moddable** `queueRing(game: Game, count: int, radius: float32, delay: float32, tag: SurvivalTag, allowElite: bool): int` (wrap only: scripts cannot call it)
+- **moddable** `queueSurvivalSpawn(game: Game, pos: Vector2f, enemyType: EnemyType, delay: float32, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool, telegraph: bool): bool` (wrap only: scripts cannot call it)
+- **moddable** `reclaimSurvivalFodder(game: Game, keep: int)` (wrap only: scripts cannot call it)
+- **moddable** `setSurvivalBanner(game: Game, kind: SurvivalBannerKind, event: SurvivalEventKind, modKey: string)` (wrap only: scripts cannot call it)
 - **moddable** `startSurvivalEvent(game: var Game, kind: SurvivalEventKind, modKey: string)`
 - **moddable** `survivalAliveCount(game: Game): int`
 - **moddable** `survivalCacheAccent(tier: SurvivalCacheTier): Color`
-- **moddable** `survivalCacheFallbackShards(tier: SurvivalCacheTier): int`
-- **moddable** `survivalCacheLevels(tier: SurvivalCacheTier): int`
-- **moddable** `survivalCacheNameKey(tier: SurvivalCacheTier): TranslationKey`
+- **moddable** `survivalCacheFallbackShards(tier: SurvivalCacheTier): int` (wrap only: scripts cannot call it)
+- **moddable** `survivalCacheLevels(tier: SurvivalCacheTier): int` (wrap only: scripts cannot call it)
+- **moddable** `survivalCacheNameKey(tier: SurvivalCacheTier): TranslationKey` (wrap only: scripts cannot call it)
 - **moddable** `survivalCacheWalls(tier: SurvivalCacheTier): int`
-- **moddable** `survivalDensityTarget(game: Game): float32`
-- **moddable** `survivalEventActive(game: Game): bool`
-- **moddable** `survivalEventColor(kind: SurvivalEventKind): Color`
-- **moddable** `survivalEventColor(kind: SurvivalEventKind, modKey: string): Color`
-- **moddable** `survivalEventDuration(kind: SurvivalEventKind): float32`
-- **moddable** `survivalEventHintKey(kind: SurvivalEventKind): TranslationKey`
-- **moddable** `survivalEventHint(kind: SurvivalEventKind, modKey: string): string`
-- **moddable** `survivalEventNameKey(kind: SurvivalEventKind): TranslationKey`
+- **moddable** `survivalDensityTarget(game: Game): float32` (wrap only: scripts cannot call it)
+- **moddable** `survivalEventActive(game: Game): bool` (wrap only: scripts cannot call it)
+- **moddable** `survivalEventColor(kind: SurvivalEventKind): Color` (wrap only: scripts cannot call it)
+- **moddable** `survivalEventColor(kind: SurvivalEventKind, modKey: string): Color` (wrap only: scripts cannot call it)
+- **moddable** `survivalEventDuration(kind: SurvivalEventKind): float32` (wrap only: scripts cannot call it)
+- **moddable** `survivalEventHintKey(kind: SurvivalEventKind): TranslationKey` (wrap only: scripts cannot call it)
+- **moddable** `survivalEventHint(kind: SurvivalEventKind, modKey: string): string` (wrap only: scripts cannot call it)
+- **moddable** `survivalEventNameKey(kind: SurvivalEventKind): TranslationKey` (wrap only: scripts cannot call it)
 - **moddable** `survivalEventName(kind: SurvivalEventKind, modKey: string): string`
 - **moddable** `survivalHudStackBottom(game: Game): int32`
-- **moddable** `survivalPhaseDescKey(phase: SurvivalPhase): TranslationKey`
+- **moddable** `survivalPhaseDescKey(phase: SurvivalPhase): TranslationKey` (wrap only: scripts cannot call it)
 - **moddable** `survivalPhaseNameKey(phase: SurvivalPhase): TranslationKey`
 - **moddable** `survivalPhaseReachedLabel(game: Game): string`
-- **moddable** `survivalRefillRate(game: Game): float32`
-- **moddable** `survivalTrackerInfo(game: Game): tuple[detail: string, frac: float32, remaining: float32]`
+- **moddable** `survivalRefillRate(game: Game): float32` (wrap only: scripts cannot call it)
+- **moddable** `survivalTrackerInfo(game: Game): tuple[detail: string, frac: float32, remaining: float32]` (wrap only: scripts cannot call it)
 - **moddable** `updateSurvivalCacheReveal(game: Game, dt: float32): bool`
-- **moddable** `updateSurvivalChests(game: var Game, dt: float32)`
-- **moddable** `updateSurvivalDensity(game: Game, dt: float32)`
+- **moddable** `updateSurvivalChests(game: var Game, dt: float32)` (wrap only: scripts cannot call it)
+- **moddable** `updateSurvivalDensity(game: Game, dt: float32)` (wrap only: scripts cannot call it)
 - **moddable** `updateSurvivalEvent(game: var Game, dt: float32)`
-- **moddable** `updateSurvivalFormations(game: Game)`
-- **moddable** `updateSurvivalPending(game: Game, dt: float32)`
-- **moddable** `updateSurvivalScheduler(game: var Game)`
+- **moddable** `updateSurvivalFormations(game: Game)` (wrap only: scripts cannot call it)
+- **moddable** `updateSurvivalPending(game: Game, dt: float32)` (wrap only: scripts cannot call it)
+- **moddable** `updateSurvivalScheduler(game: var Game)` (wrap only: scripts cannot call it)
 - **moddable** `updateSurvival(game: var Game, dt: float32)`
 
 ### `survival_end_cinematic`
 
 - **moddable** `drawSurvivalEndCinematic(c: SurvivalEndCinematic, screenWidth: int, screenHeight: int)`
 - `newSurvivalEndCinematic(): SurvivalEndCinematic`
-- **moddable** `newSurvivalEndCutscene(): Cutscene`
+- **moddable** `newSurvivalEndCutscene(): Cutscene` (wrap only: scripts cannot call it)
 - **moddable** `updateSurvivalEndCinematic(c: SurvivalEndCinematic, dt: float32)`
 
 ### `suspend`
@@ -2266,7 +2253,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `fromFlatty(s: string, i: var int, x: var array[puMod000 .. puMod255, float32])`
 - `fromFlatty(s: string, i: var int, x: var array[puMod000 .. puMod255, float32])`
 - `fromFlatty(s: string, i: var int, x: var pointer)` (parameter x is a pointer)
-- **moddable** `getSuspendPath(mode: GameMode, modMode: string): string`
+- **moddable** `getSuspendPath(mode: GameMode, modMode: string): string` (wrap only: scripts cannot call it)
 - **moddable** `hasSuspendSnapshot(mode: GameMode, modMode: string): bool`
 - **moddable** `restoreGame(target: var Game): bool`
 - **moddable** `suspendGame(game: Game)`
@@ -2285,9 +2272,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `collideThingBullets(game: Game)`
 - **moddable** `damageThing(game: Game, t: ModThing, amount: float32, source: string): float32`
 - **moddable** `drawThings(game: Game, layer: ThingLayer)`
-- **moddable** `hazardHits(t: ModThing, p: Vector2f, r: float32): bool`
+- **moddable** `hazardHits(t: ModThing, p: Vector2f, r: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `joinThing(game: Game, t: ModThing, callback: ScriptValue, owner: int): bool`
-- **moddable** `keepPersistentThings(game: Game)`
 - **moddable** `killThing(game: Game, t: ModThing)`
 - **moddable** `overlapsCircle(t: ModThing, p: Vector2f, r: float32): bool`
 - **moddable** `removeThing(t: ModThing)`
@@ -2330,17 +2316,15 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `difficultyEnemySpeedMult(): float32`
 - `difficultyMaxLives(mode: GameMode, modMode: string): int`
 - **moddable** `difficultySpawnPaceMult(): float32`
-- `diminishedBulletSpeedGain(currentSpeed: float32, gain: float32): float32`
 - `effectiveSlow(enemy: Enemy): float32`
 - `elementColor(elementType: ElementType): Color`
 - `elementDamageType(elementType: ElementType): DamageType`
-- `escapementTime(t: float32): float32`
 - `freezeRunTime(game: Game)`
 - `getEffectiveSpeed(baseSpeed: float32, waveNumber: int): float32`
+- **moddable** `inPickupRange(pos: Vector2f, radius: float32, player: Player): bool`
 - `initSurvivalState(): SurvivalState`
 - `isOmegaBoss(id: int): bool`
 - `isWaveBossId(id: int): bool`
-- `legacyWaveEnemyCount(waveNumber: int): float`
 - `livesRemaining(used: int, mode: GameMode, modMode: string): int`
 - `modRestoreRule(modMode: string): ModRestoreRule`
 - `multiplyBulletSpeedDiminished(currentSpeed: float32, multiplier: float32): float32`
@@ -2359,7 +2343,6 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `survivalBossBlockWave(bossNumber: int): int`
 - `survivalBossId(bossNumber: int): int`
 - `survivalBossTime(bossNumber: int): float32`
-- `survivalDensityRebate(clock: float32): float32`
 - `survivalNextBossTime(game: Game): float32`
 - `survivalOvertimeMinutes(game: Game): float32`
 - `survivalPhaseIndex(game: Game): int`
@@ -2379,16 +2362,16 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawEndlessRestorePanel(x: int32, y: int32, width: int32, mode: GameMode, time: float32, height: int32)`
 - **moddable** `drawLifeLostOverlay(screenW: int32, screenH: int32, used: int, maxLives: int, unlimitedSentinel: int, progress: float32)`
 - **moddable** `drawLivesPanel(x: int32, y: int32, width: int32, used: int, maxLives: int, unlimitedSentinel: int, time: float32, height: int32)`
-- **moddable** `drawRestorePointIcon(cx: float32, cy: float32, size: float32, body: Color, accent: Color, led: Color, spin: float32)`
+- **moddable** `drawRestorePointIcon(cx: float32, cy: float32, size: float32, body: Color, accent: Color, led: Color, spin: float32)` (wrap only: scripts cannot call it)
 - **moddable** `drawTextFit(text: string, x: int32, y: int32, maxWidth: int32, fontSize: int32, color: Color, minSize: int32, align: TextAlign): int32`
+- **moddable** `drawWrappedText(text: string, x: int, y: int, maxWidth: int, fontSize: int32, stockColor: Color, maxLines: int, lineGap: int, minSize: int32): int`
 - **moddable** `fitWithEllipsis(text: string, maxWidth: int32, fontSize: int32): string`
-- **moddable** `wrapTextLines(text: string, maxWidth: int32, fontSize: int32): seq[string]`
+- **moddable** `wrapTextLines(text: string, maxWidth: int32, fontSize: int32, breakLongWords: bool): seq[string]`
 
 ### `ui_theme`
 
 - **moddable** `activeTheme(): UiTheme`
 - **moddable** `addTheme(th: UiTheme): bool`
-- `allThemes(): seq[UiTheme]`
 - **moddable** `beginKeepAlpha()`
 - **moddable** `beginThemeLayer(): bool`
 - **moddable** `chooseTheme(id: string): bool`
@@ -2399,7 +2382,6 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `endKeepAlpha()`
 - **moddable** `endThemeLayer(began: bool)`
 - **moddable** `findTheme(id: string): UiTheme`
-- `forceTheme(th: UiTheme)`
 - **moddable** `mixColor(a: Color, b: Color, t: float32): Color`
 - **moddable** `newTheme(id: string, shell: ShellStyle, surface: Color, raised: Color, text: Color, muted: Color, accent: Color, owner: int, name: string, nameEs: string, wallpaper: int): UiTheme`
 - `stockTheme(): UiTheme`
@@ -2413,7 +2395,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `uiLine(r: int, g: int, b: int, a: int): Color`
 - `uiSurface(c: Color): Color`
 - `uiSurface(r: int, g: int, b: int, a: int): Color`
-- **moddable** `unforceTheme()`
+- **moddable** `unforceTheme()` (wrap only: scripts cannot call it)
 - **moddable** `unlockedThemes(): seq[UiTheme]`
 
 ### `utils`
@@ -2443,8 +2425,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `warnings`
 
 - **moddable** `addBossAttackWarningInto(warnings: var seq[AttackWarning], player: Player, enemy: Enemy, attack: BossAttack)`
-- **moddable** `computeRicochetPath(startPos: Vector2f, startDir: Vector2f, bounces: int, screenWidth: int32, screenHeight: int32): seq[Vector2f]`
-- **moddable** `isJuggernautCharge(specialData: string): bool`
+- **moddable** `computeRicochetPath(startPos: Vector2f, startDir: Vector2f, bounces: int, screenWidth: int32, screenHeight: int32): seq[Vector2f]` (wrap only: scripts cannot call it)
+- **moddable** `isJuggernautCharge(specialData: string): bool` (wrap only: scripts cannot call it)
 - **moddable** `spawnArcLatticeInto(warnings: var seq[AttackWarning], particlePool: ParticlePool, screenWidth: int32, screenHeight: int32, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
 - **moddable** `spawnChaosWeaveInto(warnings: var seq[AttackWarning], particlePool: ParticlePool, player: Player, screenWidth: int32, screenHeight: int32, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
 - **moddable** `spawnClockSweepInto(warnings: var seq[AttackWarning], particlePool: ParticlePool, player: Player, screenWidth: int32, screenHeight: int32, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
@@ -2458,12 +2440,12 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `window_manager`
 
-- **moddable** `applyWindowScales(wm: WindowManager, uiScale: float32, screenWidth: int, screenHeight: int)`
+- **moddable** `applyWindowScales(wm: WindowManager, uiScale: float32, screenWidth: int, screenHeight: int)` (wrap only: scripts cannot call it)
 - **moddable** `closeAllWindows(wm: WindowManager)`
 - **moddable** `closeWindow(wm: WindowManager, id: WindowID)`
 - **moddable** `drawAllWindows(wm: WindowManager, game: Game, uiScale: float32, screenWidth: int, screenHeight: int)`
-- **moddable** `getAllWindows(wm: WindowManager): seq[OSWindow]`
-- **moddable** `getVisibleWindows(wm: WindowManager): seq[OSWindow]`
+- **moddable** `getAllWindows(wm: WindowManager): seq[OSWindow]` (wrap only: scripts cannot call it)
+- **moddable** `getVisibleWindows(wm: WindowManager): seq[OSWindow]` (wrap only: scripts cannot call it)
 - **moddable** `handleWindowClick(wm: WindowManager, uiScale: float32, screenWidth: int, screenHeight: int): bool`
 - **moddable** `isMouseOverAnyWindow(wm: WindowManager, uiScale: float32, screenWidth: int, screenHeight: int): bool`
 - **moddable** `newWindowManager(screenWidth: int, screenHeight: int, gameSettings: Settings, gameStats: Statistics, advancementProfile: AdvancementProfile, rogueliteProfile: RogueliteProfile): WindowManager`
@@ -2472,21 +2454,21 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `relayoutWindows(wm: WindowManager, uiScale: float32, screenWidth: int, screenHeight: int)`
 - **moddable** `updateAllWindows(wm: WindowManager, dt: float32, uiScale: float32, screenWidth: int, screenHeight: int, currentGame: Game): WindowUpdateResult`
 - **moddable** `wantsTextInput(wm: WindowManager): bool`
-- **moddable** `windowUIScale(window: OSWindow, requested: float32, screenWidth: int, screenHeight: int): float32`
+- **moddable** `windowUIScale(window: OSWindow, requested: float32, screenWidth: int, screenHeight: int): float32` (wrap only: scripts cannot call it)
 - **moddable** `windowViewport(window: OSWindow, requested: float32, screenWidth: int, screenHeight: int): tuple[scale: float32, w: int, h: int]`
 
 ### `xp_orb`
 
 - **moddable** `collectAllXpOrbs(game: Game)`
-- **moddable** `collectXpOrb(game: Game, orb: XpOrb)`
+- **moddable** `collectXpOrb(game: Game, orb: XpOrb)` (wrap only: scripts cannot call it)
 - **moddable** `drawGameXpOrbs(game: Game)`
-- **moddable** `drawXpOrb(orb: XpOrb)`
+- **moddable** `drawXpOrb(orb: XpOrb)` (wrap only: scripts cannot call it)
 - **moddable** `dropEnemyXp(game: Game, enemy: Enemy)`
-- **moddable** `enemyXpValue(enemy: Enemy): int`
-- **moddable** `moveXpOrbToPlayer(orb: XpOrb, playerPos: Vector2f, dt: float32)`
+- **moddable** `enemyXpValue(enemy: Enemy): int` (wrap only: scripts cannot call it)
+- **moddable** `moveXpOrbToPlayer(orb: XpOrb, playerPos: Vector2f, dt: float32)` (wrap only: scripts cannot call it)
 - **moddable** `newXpOrb(x: float32, y: float32, value: int): XpOrb`
 - **moddable** `updateGameXpOrbs(game: Game, dt: float32)`
-- **moddable** `updateXpOrb(orb: XpOrb, dt: float32): bool`
+- **moddable** `updateXpOrb(orb: XpOrb, dt: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `xpRequiredForLevel(level: int, mode: GameMode): int`
 
 ## raylib

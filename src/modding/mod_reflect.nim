@@ -18,7 +18,7 @@ import ../particle_types
 import lua_bridge
 
 # ---------------------------------------------------------------- to script ----
-proc vec2Value*(x, y: float64): ScriptValue =
+proc vec2Value(x, y: float64): ScriptValue =
   let t = newScriptTable()
   rawSet(t, vstr("x"), vnum(x))
   rawSet(t, vstr("y"), vnum(y))
@@ -181,12 +181,6 @@ proc reflectSet*[T: ref object](vm: VM, obj: T, name: string, val: ScriptValue):
         assignScript(vm, v, val, fname)
         return true
   false
-
-proc reflectNames*[T: ref object](obj: T): seq[string] =
-  ## Every field a script can read (for `obj:fields()` and the docs).
-  for fname, v in fieldPairs(obj[]):
-    when compiles(toScript(v)):
-      result.add(fname)
 
 # ------------------------------------------------------ whole objects ----
 proc objToValue*[T](v: T): ScriptValue =

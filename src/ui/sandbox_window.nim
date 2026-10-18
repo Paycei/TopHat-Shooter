@@ -38,12 +38,12 @@ type
 
 # --- Config helpers -------------------------------------------------------
 
-proc playerToSandboxConfig*(p: Player): SandboxConfig {.moddable.} =
+proc playerToSandboxConfig(p: Player): SandboxConfig {.moddable.} =
   SandboxConfig(maxHp: p.maxHp, damage: p.damage, fireRate: p.fireRate,
                 speed: p.speed, bulletSpeed: p.bulletSpeed, walls: p.walls,
                 coins: p.coins, startWave: 1)
 
-proc baseSandboxConfig*(): SandboxConfig {.moddable.} =
+proc baseSandboxConfig(): SandboxConfig {.moddable.} =
   ## Wave-1 baseline, read straight from a fresh Player so it never drifts
   ## out of sync with newPlayer's defaults.
   playerToSandboxConfig(newPlayer(0, 0))
@@ -150,7 +150,7 @@ proc newSandboxWindow*(screenWidth, screenHeight: int): SandboxWindow {.moddable
   let windowY = (screenHeight - windowHeight) div 2
   let osWin = newOSWindow(t(tkSandboxSetupTitle), windowX, windowY,
                           windowWidth, windowHeight,
-                          Color(r: 255, g: 210, b: 60, a: 255), owtSettings,
+                          Color(r: 255, g: 210, b: 60, a: 255),
                           resizable = false)
   osWin.visible = false
   result = SandboxWindow(window: osWin, config: baseSandboxConfig(),
@@ -310,7 +310,7 @@ proc drawSetupButton(r: Rectangle, label: string, fill, border, text: Color,
   drawText(label, r.x.int32 + (r.width.int32 - tw) div 2,
            r.y.int32 + (r.height.int32 - fontSize) div 2, fontSize, uiInk(text))
 
-proc drawSandboxWindowContent*(sw: SandboxWindow, cx, cy, cw, ch: int32) {.moddable.} =
+proc drawSandboxWindowContent(sw: SandboxWindow, cx, cy, cw, ch: int32) {.moddable.} =
   let lay = computeLayout(cx, cy, cw, ch)
   let mp = getVirtualMousePosition()
 

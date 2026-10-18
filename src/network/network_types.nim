@@ -173,7 +173,6 @@ type
     of ptConnectionAccept, ptConnectionDenied:
       connectionReason*: string
       assignedPlayerIndex*: int
-      maxPlayersInRoom*: int
       connectedPlayers*: seq[ConnectedPlayerInfo]
     of ptPlayerListUpdate:
       updatedPlayers*: seq[ConnectedPlayerInfo]

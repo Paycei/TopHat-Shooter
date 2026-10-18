@@ -26,7 +26,7 @@ proc finiteNum(vm: VM, v: ScriptValue, what: string): float32 =
 
 proc fnOf(vm: VM, t: ScriptTable, key, what: string): ScriptValue =
   result = rawGetStr(t, key)
-  if result.kind notin {vkNil, vkFunction, vkNative}:
+  if result.kind notin {vkNil, vkFunction}:
     vm.runtimeError(what & "." & key & " must be a function")
 
 # --------------------------------------------------------------- statuses ----
@@ -253,7 +253,7 @@ const
   WeightKeys = ["boot", "runtime", "overload", "panic"]
   AdvancementKeys = ["id", "name", "description", "icon", "color", "goal", "hidden"]
 
-proc readStats*(vm: VM, v: ScriptValue, what: string): seq[StatDelta] =
+proc readStats(vm: VM, v: ScriptValue, what: string): seq[StatDelta] =
   ## The `stats` DSL: {damage = "+10%", maxHp = 2, fireRate = "x0.95", walls = "=10"}.
   if v.kind == vkNil: return
   if v.kind != vkTable: vm.runtimeError(what & ".stats must be a table {field = change}")
@@ -269,7 +269,7 @@ proc readIcon(vm: VM, t: ScriptTable, what: string, tex: var int, fn: var Script
   let ic = rawGetStr(t, "icon")
   case ic.kind
   of vkNil: discard
-  of vkFunction, vkNative: fn = ic
+  of vkFunction: fn = ic
   else: tex = vm.textureId(ic, what & ".icon")
 
 proc colorOr(vm: VM, t: ScriptTable, what: string, def: Color): Color =

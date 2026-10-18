@@ -49,7 +49,7 @@ proc optColor(vm: VM, opts: ScriptValue, key, what: string, def: Color): Color =
 
 proc fnOr(vm: VM, t: ScriptTable, key, what: string): ScriptValue =
   result = rawGetStr(t, key)
-  if result.kind notin {vkNil, vkFunction, vkNative}:
+  if result.kind notin {vkNil, vkFunction}:
     vm.runtimeError(what & "." & key & " must be a function")
 
 proc modalHandle(id: int): ScriptValue =

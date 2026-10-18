@@ -104,6 +104,8 @@ type
     values: seq[tuple[name, kind: string]]
   ApiProc = tuple[name, signature, note: string, moddable: bool]
 
+const WrapOnly = "wrap only: scripts cannot call it"
+
 proc docFor(docs: Table[string, string], path, tableName, name: string): string =
   result = docs.getOrDefault("@" & path)
   if result.len == 0: result = docs.getOrDefault(tableName & "T." & name)
@@ -120,7 +122,7 @@ proc kindName(v: ScriptValue): string =
   of vkNumber: "number"
   of vkString: "string"
   of vkTable: "table"
-  of vkFunction, vkNative: "function"
+  of vkFunction: "function"
   else: "userdata"
 
 proc isRecord(t: ScriptTable): bool =
@@ -138,7 +140,7 @@ proc walkLib(docs: Table[string, string], t: ScriptTable, path: string, depth: i
     let v = rawGetStr(t, k)
     let p = path & "." & k
     if skipFn(p): continue   # (listed with the game's procs or raylib instead)
-    if v.kind in {vkFunction, vkNative}:
+    if v.kind == vkFunction:
       lib.fns.add((p, docFor(docs, p, tableName, k)))
     elif v.kind == vkTable and depth < 2 and not isRecord(v.tbl):
       subs.add((p, v.tbl))
@@ -169,7 +171,8 @@ proc collect(): tuple[libs: seq[ApiLib], procs: seq[ApiProc], globals: seq[strin
       let v = rawGetStr(modBase, k)
       if v.kind == vkTable: walkLib(docs, v.tbl, k, 1, skipFn, result.libs)
   for s in mixinSlots:
-    let note = if s.isModdable: (if s.supported: "" else: s.problem)
+    let note = if s.isModdable:
+                 (if not s.supported: s.problem elif s.call.isNil: WrapOnly else: "")
                elif s.call.isNil: s.problem
                else: ""
     result.procs.add((s.name, s.signature, note, s.isModdable))
@@ -273,7 +276,10 @@ proc buildModApi*(): tuple[md, lua: string] =
         lua.add "\nengine." & m & " = {}\n"
     md.add "- " & (if p.moddable: "**moddable** " else: "") & "`" & p.signature & "`" &
            (if p.note.len > 0: " (" & p.note & ")" else: "") & "\n"
-    if p.moddable and p.note.len == 0 and p.name notin moddableNames: moddableNames.add(p.name)
+    if p.moddable and (p.note.len == 0 or p.note == WrapOnly) and p.name notin moddableNames:
+      moddableNames.add(p.name)
+    if p.note == WrapOnly:
+      continue
     if p.name != lastLuaFn:
       lastLuaFn = p.name
       lua.add "---" & p.signature & "\nfunction engine." & p.name & "(" &
@@ -313,7 +319,7 @@ proc buildModApi*(): tuple[md, lua: string] =
   lua.add "\n---@type EngineGlobals\nengine.globals = {}\n"
   (md, lua)
 
-proc buildStringsJson*(): string =
+proc buildStringsJson(): string =
   ## Every text key with its English, in the game's own order (grouped by
   ## where it shows): a translation starts as a copy of this file.
   result = "{\n"

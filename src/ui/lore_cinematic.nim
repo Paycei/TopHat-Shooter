@@ -558,7 +558,7 @@ proc loreBackdrop(time, _: float32, sw, sh: int32) =
 # ---------------------------------------------------------------------------
 # Public factory
 
-proc newLoreCutscene*(): Cutscene {.moddable.} =
+proc newLoreCutscene(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: IntroShots[0], drawProc: newCleanupShot(), soundCue: stMenuSelect,

@@ -71,7 +71,7 @@ proc drawScanlines(x, y, w, h: int32, color: Color) =
   for yy in countup(y + 6, y + h - 4, 10):
     drawStroke(x + 1, yy.int32, x + w - 2, yy.int32, color)
 
-proc roguelitePanelRect*(screenWidth, screenHeight: int32): Rectangle {.moddable.} =
+proc roguelitePanelRect(screenWidth, screenHeight: int32): Rectangle {.moddable.} =
   Rectangle(
     x: ((screenWidth - PanelW) div 2).float32,
     y: ((screenHeight - PanelH) div 2).float32,
@@ -189,21 +189,6 @@ proc drawMeter(x, y, w, h: int32, value: float32, stockColor: Color) =
   drawRectangle(x, y, w, h, uiSurface(30, 36, 48))
   drawRectangle(x, y, int32(w.float32 * clamp(value, 0.0'f32, 1.0'f32)), h, withAlpha(color, 210))
   drawRectOutline(x, y, w, h, withAlpha(color, 210))
-
-proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
-                     stockColor: Color, maxLines: int32 = 3, lineGap: int32 = 5,
-                     minSize: int32 = 9): int32 =
-  let color = uiInk(stockColor)
-  result = y
-  if maxLines <= 0:
-    return
-
-  let wrappedFontSize = bestWrapFontSize(text, maxWidth, fontSize, maxLines, minSize)
-  let lines = wrapTextLines(text, maxWidth, wrappedFontSize)
-  let linesToDraw = min(lines.len, maxLines.int)
-  for idx in 0..<linesToDraw:
-    drawText(lines[idx], x, result, wrappedFontSize, color)
-    result += wrappedFontSize + lineGap
 
 proc rectAt(x, y, w, h: int32): Rectangle =
   Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32)

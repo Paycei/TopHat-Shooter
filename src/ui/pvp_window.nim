@@ -4,7 +4,7 @@
 import raylib, strutils, net, math, algorithm
 import ../modding/mod_patch_core
 import ../draw_prims
-import os_window, ../network/network, ../network/network_types, ../types, ../localization, ../render_context
+import os_window, ../network/network, ../network/network_types, ../types, ../localization, ../render_context, ../pvp_game
 import ui_theme
 from ui_helpers import fitWithEllipsis
 from ../modding/mod_hooks import pvpModes, findPvPMode, pvpModeName, pvpModeDescription,
@@ -40,7 +40,6 @@ type
     connectedPlayers*: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]]
     assignedPlayerIndex*: int  # Client's player index assigned by host (-1 if host)
     keepAliveTimer*: float32  # Timer for sending keep-alive pings
-    connectedNicknames*: seq[string]  # Nicknames of all connected players (indexed by player index)
     # Text selection support
     selectionStart*: int  # Selection start position (-1 if no selection)
     selectionEnd*: int    # Selection end position
@@ -71,7 +70,7 @@ const
   ModeRowH = 46   ## the host config's Mode row: everything under it sits this much lower
   TaskbarH = 40   ## os_desktop's taskbar: the window stays clear of it
 
-proc getLocalIP*(): string {.moddable.} =
+proc getLocalIP(): string {.moddable.} =
   result = "127.0.0.1"
   try:
     let sock = newSocket(Domain.AF_INET, SockType.SOCK_DGRAM, Protocol.IPPROTO_UDP)
@@ -87,7 +86,7 @@ proc getLocalIP*(): string {.moddable.} =
     discard
   return result
 
-proc censorIP*(ip: string): string {.moddable.} =
+proc censorIP(ip: string): string {.moddable.} =
   if ip == "127.0.0.1":
     return ip
   let parts = ip.split(".")
@@ -96,7 +95,7 @@ proc censorIP*(ip: string): string {.moddable.} =
   else:
     return ip
 
-proc getTeamForPlayer*(playerIndex: int, numTeams: int): PvPTeam {.moddable.} =
+proc getTeamForPlayer(playerIndex: int, numTeams: int): PvPTeam {.moddable.} =
   if numTeams == 2:
     return if playerIndex mod 2 == 0: ptRed else: ptBlue
   elif numTeams == 3:
@@ -126,26 +125,6 @@ proc getTeamForPlayer*(playerIndex: int, numTeams: int): PvPTeam {.moddable.} =
     of 4: return ptOrange
     else: return ptPurple
 
-proc getTeamColor*(team: PvPTeam): Color {.moddable.} =
-  case team
-  of ptRed:    return Color(r: 255, g: 60,  b: 60,  a: 255)
-  of ptBlue:   return Color(r: 60,  g: 120, b: 255, a: 255)
-  of ptGreen:  return Color(r: 60,  g: 255, b: 120, a: 255)
-  of ptYellow: return Color(r: 255, g: 220, b: 60,  a: 255)
-  of ptOrange: return Color(r: 255, g: 165, b: 0,   a: 255)
-  of ptPurple: return Color(r: 200, g: 100, b: 255, a: 255)
-  of ptNone:   return White
-
-proc getTeamName*(team: PvPTeam): string {.moddable.} =
-  case team
-  of ptRed:    return t(tkPvPTeamRed)
-  of ptBlue:   return t(tkPvPTeamBlue)
-  of ptGreen:  return t(tkPvPTeamGreen)
-  of ptYellow: return t(tkPvPTeamYellow)
-  of ptOrange: return t(tkPvPTeamOrange)
-  of ptPurple: return t(tkPvPTeamPurple)
-  of ptNone:   return t(tkPvPTeamNone)
-
 proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow {.moddable.} =
   let windowWidth = 600
   let windowHeight = 670 + ModeRowH # Sized to the hosting-config screen (the tallest state)
@@ -154,7 +133,7 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow {.moddable.} =
   let localIP = getLocalIP()
   result = PvPWindow(
     window: newOSWindow(t(tkPvPTitle), windowX, windowY, windowWidth, windowHeight,
-                       Color(r: 100, g: 200, b: 100, a: 255), owtHelp, resizable = false),
+                       Color(r: 100, g: 200, b: 100, a: 255), resizable = false),
     networkManager: newNetworkManager(),
     state: plsMainMenu,
     isHost: false,
@@ -180,7 +159,6 @@ proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow {.moddable.} =
     keepAliveTimer: 0.0,
     inputNickname: "Player",
     editingNickname: false,
-    connectedNicknames: @[],
     selectionStart: -1,
     selectionEnd: -1,
     mouseDownPos: Vector2(x: 0, y: 0),
@@ -378,7 +356,6 @@ proc resetPvPWindow*(pvpWin: PvPWindow) {.moddable.} =
   pvpWin.remoteShapeType = 0
   pvpWin.remoteParticleSkinType = 0
   pvpWin.connectedPlayers = @[]
-  pvpWin.connectedNicknames = @[]
   pvpWin.assignedPlayerIndex = -1
   pvpWin.keepAliveTimer = 0.0
   pvpWin.showIPs = false

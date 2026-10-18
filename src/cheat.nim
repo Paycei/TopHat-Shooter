@@ -207,7 +207,7 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) {.moddable.} =
     elif wheelMove > 0:
       menu.scrollOffset = max(0, menu.scrollOffset - 1)
 
-proc applyWaveCheat*(game: var Game, action: string) {.moddable.} =
+proc applyWaveCheat(game: var Game, action: string) {.moddable.} =
   case action
   of "skip":
     game.enemies.setLen(0)
@@ -226,12 +226,12 @@ proc applyWaveCheat*(game: var Game, action: string) {.moddable.} =
   else:
     discard
 
-proc applyPermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType, level: int) {.moddable.} =
+proc applyPermanentPowerUpCheat(game: var Game, powerUpType: PowerUpType, level: int) {.moddable.} =
   # ApplyPowerUp owns both the stat change and the owned-power-up list update.
   applyPowerUp(game.player, PowerUp(powerType: powerUpType, level: level, rarity: prCommon))
   playSound(stPowerUp)
 
-proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) {.moddable.} =
+proc removePermanentPowerUpCheat(game: var Game, powerUpType: PowerUpType) {.moddable.} =
   # Capture the live speed BEFORE the rebuild below. The rebuild reconstructs speed
   # from base + shop + remaining power-ups only, so it would discard any manual speed
   # set via the cheat menu (applyStatCheat). No power-up currently applies a speed
@@ -279,7 +279,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) {.mo
 
   playSound(stMenuSelect)
 
-proc applyStatCheat*(game: var Game, stat: string, value: float32) {.moddable.} =
+proc applyStatCheat(game: var Game, stat: string, value: float32) {.moddable.} =
   case stat
   of "health":
     game.player.hp = min(value, game.player.maxHp)
@@ -297,7 +297,7 @@ proc applyStatCheat*(game: var Game, stat: string, value: float32) {.moddable.} 
     discard
   playSound(stMenuSelect)
 
-proc discoverAllPowerUpsCheat*(game: var Game) {.moddable.} =
+proc discoverAllPowerUpsCheat(game: var Game) {.moddable.} =
   ## Fill the persistent discovery codex with every PowerUpType, keyed the same
   ## way death.nim records a first install (`$powerUp.powerType`), then save so
   ## the "NEW" badge on the selection screen clears for all power-ups.
@@ -310,7 +310,7 @@ proc discoverAllPowerUpsCheat*(game: var Game) {.moddable.} =
   discard saveSettings(globalSettings)
   playSound(stMenuSelect)
 
-proc undiscoverAllPowerUpsCheat*(game: var Game) {.moddable.} =
+proc undiscoverAllPowerUpsCheat(game: var Game) {.moddable.} =
   ## Clear the discovery codex so every power-up reads as undiscovered again
   ## (useful for re-testing the first-discovery toast and the "NEW" badge).
   if globalSettings.isNil: return
@@ -318,7 +318,7 @@ proc undiscoverAllPowerUpsCheat*(game: var Game) {.moddable.} =
   discard saveSettings(globalSettings)
   playSound(stMenuNav)
 
-proc setGameModesUnlockedCheat*(unlocked: bool) {.moddable.} =
+proc setGameModesUnlockedCheat(unlocked: bool) {.moddable.} =
   ## Flip every progression-gated mode (Time Survival, Roguelite) at once and
   ## save, so the desktop launchers reflect it without a restart. Debug builds
   ## only, both ways: unlocking is a permanent reward a cheated run must not
@@ -329,7 +329,7 @@ proc setGameModesUnlockedCheat*(unlocked: bool) {.moddable.} =
   discard saveSettings(globalSettings)
   playSound(if unlocked: stMenuSelect else: stMenuNav)
 
-proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) {.moddable.} =
+proc applyRogueliteCurrencyCheat(game: var Game, shards: int, cores: int) {.moddable.} =
   ## Adjust the persisted meta currencies (data shards / cores) used to buy
   ## roguelite unlocks, and immediately save so the roguelite window reflects it.
   ## Debug builds only: the currency is permanent, so a player-facing cheat
@@ -343,7 +343,7 @@ proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) {.mod
 var cheatPatchPick = succ(rrtNone)
   ## Patch the roguelite tab's picker currently shows.
 
-proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelic): bool {.moddable.} =
+proc applyRoguelitePatchCheat(game: var Game, patch: RogueliteRelic): bool {.moddable.} =
   ## Apply a patch (a mod's too) to the live run. Marks the run cheated in release builds.
   if game.rogueliteRun.isNil: return false
   if ANTICHEAT_ENABLED:
@@ -351,10 +351,10 @@ proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelic): bool {.mo
   result = installPatch(game, patch)
   playSound(if result: stPowerUp else: stMenuNav)
 
-proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelicType): bool {.moddable.} =
+proc applyRoguelitePatchCheat(game: var Game, patch: RogueliteRelicType): bool {.moddable.} =
   applyRoguelitePatchCheat(game, makeRelic(patch))
 
-proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) {.moddable.} =
+proc applySurvivalTimeCheat(game: var Game, deltaSeconds: float32) {.moddable.} =
   ## Fast-forward (or rewind) the survival clock. In time-survival mode difficulty
   ## is recomputed from game.survivalTime every frame (game.difficulty =
   ## survivalTime/SurvivalDifficultyRamp * scale, see updateGame), so this clock is
@@ -372,7 +372,7 @@ proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) {.moddable.}
     game.cheatsUsed = true
   playSound(stMenuSelect)
 
-proc applySurvivalBossCheat*(game: var Game) {.moddable.} =
+proc applySurvivalBossCheat(game: var Game) {.moddable.} =
   ## Force the next survival boss to spawn now instead of at its scheduled time
   ## on the survival clock. The spawn still goes through
   ## bossWaveManager.canSpawnBoss(), so this won't stack a boss on top of one
@@ -380,7 +380,7 @@ proc applySurvivalBossCheat*(game: var Game) {.moddable.} =
   game.survival.cheatForceBoss = true
   playSound(stBossSpawn)
 
-proc applySurvivalEventCheat*(game: var Game, kind: SurvivalEventKind) {.moddable.} =
+proc applySurvivalEventCheat(game: var Game, kind: SurvivalEventKind) {.moddable.} =
   ## Start a System Event right now (replacing any running one). The scheduler
   ## picks the request up on the next live frame, outside a boss fight.
   if ANTICHEAT_ENABLED:
@@ -388,7 +388,7 @@ proc applySurvivalEventCheat*(game: var Game, kind: SurvivalEventKind) {.moddabl
   game.survival.cheatEventKind = kind
   playSound(stMenuSelect)
 
-proc applySurvivalCacheCheat*(game: var Game, tier: SurvivalCacheTier) {.moddable.} =
+proc applySurvivalCacheCheat(game: var Game, tier: SurvivalCacheTier) {.moddable.} =
   ## Drop a Data Cache of `tier` next to the player.
   if ANTICHEAT_ENABLED:
     game.cheatsUsed = true
@@ -405,7 +405,7 @@ proc syncSurvivalCheatClock(game: var Game, clock: float32) =
   if ANTICHEAT_ENABLED:
     game.cheatsUsed = true
 
-proc applySurvivalSkipPhaseCheat*(game: var Game) {.moddable.} =
+proc applySurvivalSkipPhaseCheat(game: var Game) {.moddable.} =
   ## Jump the clock to 5 s before the next boss (its warning fires at once).
   if game.bossWaveManager.active:
     playSound(stMenuNav)
@@ -413,7 +413,7 @@ proc applySurvivalSkipPhaseCheat*(game: var Game) {.moddable.} =
   syncSurvivalCheatClock(game, survivalNextBossTime(game) - 5.0'f32)
   playSound(stMenuSelect)
 
-proc applySurvivalJumpToFinalCheat*(game: var Game) {.moddable.} =
+proc applySurvivalJumpToFinalCheat(game: var Game) {.moddable.} =
   ## Skip to 19:55, 5 s before the final boss, with the first three phase
   ## bosses counted as beaten.
   if game.bossWaveManager.active or game.survival.victoryAchieved:

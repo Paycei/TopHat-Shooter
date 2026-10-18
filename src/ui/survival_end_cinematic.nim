@@ -237,7 +237,7 @@ proc survivalBackdrop(time, totalDuration: float32, sw, sh: int32) =
 # ---------------------------------------------------------------------------
 # Public factory
 
-proc newSurvivalEndCutscene*(): Cutscene {.moddable.} =
+proc newSurvivalEndCutscene(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: UptimeShots[0], drawProc: drawUptimeShot, soundCue: stShield,

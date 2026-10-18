@@ -39,7 +39,6 @@ proc spawnLightningBoltInto*(bolts: var seq[LightningBolt], fromPos, toPos: Vect
 
   bolts.add(LightningBolt(
     startPos:    fromPos,
-    endPos:      toPos,
     lifetime:    LIGHTNING_BOLT_DURATION,
     maxLifetime: LIGHTNING_BOLT_DURATION,
     segments:    segs,

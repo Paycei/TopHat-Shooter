@@ -5,7 +5,7 @@ import modding/mod_patch_core
 import draw_prims
 from std/unicode import runeSubStr, runeLen
 import types, enemy, enemy_config, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
-import game3d/types_3d
+import game3d/types_3d, ui/ui_helpers
 
 const
   SIDEBAR_WIDTH = 300
@@ -92,37 +92,6 @@ proc spawnSandboxEnemy(game: Game, enemyType: EnemyType) =
     partner.linkId = enemy.id
     enemy.linkId = partner.id
     game.enemies.add(partner)
-
-proc wrapSandboxText(text: string, maxWidth, fontSize: int32): seq[string] =
-  result = @[]
-  var words: seq[string] = @[]
-  for word in text.splitWhitespace():
-    words.add(word)
-  if words.len == 0:
-    return
-
-  var line = ""
-  for word in words:
-    let candidate = if line.len == 0: word else: line & " " & word
-    if measureText(candidate, fontSize) <= maxWidth:
-      line = candidate
-    else:
-      if line.len > 0:
-        result.add(line)
-      if measureText(word, fontSize) > maxWidth:
-        var chunk = ""
-        for ch in word:
-          if measureText(chunk & $ch, fontSize) <= maxWidth:
-            chunk &= $ch
-          else:
-            if chunk.len > 0:
-              result.add(chunk)
-            chunk = $ch
-        line = chunk
-      else:
-        line = word
-  if line.len > 0:
-    result.add(line)
 
 proc sandboxContentHeight(selectedTab: int): int32 =
   case selectedTab
@@ -271,7 +240,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
 
       let desc = if discovered: getPowerUpDescription(powerType, 1, game.player.damage)
                  else: t(tkSandboxPowerupLockedDesc)
-      let descLines = wrapSandboxText(desc, cardWidth - 64, 10)
+      let descLines = wrapTextLines(desc, cardWidth - 64, 10, breakLongWords = true)
       let maxLines = min(3, descLines.len)
       for i in 0..<maxLines:
         drawText(descLines[i], textX, currentY + 39 + int32(i * 12), 10,

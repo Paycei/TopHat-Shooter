@@ -309,7 +309,7 @@ proc assignValue*[F](vm: VM, p: ptr F, val: ScriptValue, path: string, fresh: bo
     elif val.kind == vkNil: p[] = nil
     else: vm.runtimeError(path & " expects a table, got " & typeName(val))
   elif F is ScriptFunc:
-    if val.kind in {vkFunction, vkNative}: p[] = val.fn
+    if val.kind == vkFunction: p[] = val.fn
     elif val.kind == vkNil: p[] = nil
     else: vm.runtimeError(path & " expects a function, got " & typeName(val))
   elif F is ScriptStr:

@@ -78,17 +78,17 @@ proc rebuildEnemyGrid(game: Game) =
 proc startBossWave(manager: var BossWaveManager) =
   manager.active = true; manager.coinActive = false
 
-proc bossDefeated*(manager: var BossWaveManager) {.moddable.} =
+proc bossDefeated(manager: var BossWaveManager) {.moddable.} =
   manager.active = false; manager.coinActive = true
 
-proc clearBossWave*(manager: var BossWaveManager) {.moddable.} =
+proc clearBossWave(manager: var BossWaveManager) {.moddable.} =
   manager.active = false
   manager.coinActive = false
 
-proc canStartNewWave*(manager: BossWaveManager): bool {.moddable.} =
+proc canStartNewWave(manager: BossWaveManager): bool {.moddable.} =
   not manager.active and not manager.coinActive
 
-proc canSpawnBoss*(manager: BossWaveManager): bool {.moddable.} =
+proc canSpawnBoss(manager: BossWaveManager): bool {.moddable.} =
   manager.canStartNewWave()
 
 proc isBossActive*(manager: BossWaveManager): bool = manager.active
@@ -128,7 +128,7 @@ proc cleanupGame*(game: Game) {.moddable.} =
   if not game.player.isNil:
     game.player.rotatingOrbs = @[]
 
-proc applyLevelUpStatBoost*(game: Game) {.moddable.} =
+proc applyLevelUpStatBoost(game: Game) {.moddable.} =
   let player = game.player
   ## Per-level reward in every run-leveling mode (wave, roguelite, survival):
   ## a small balanced stat bundle plus a partial heal.
@@ -151,7 +151,7 @@ proc applyLevelUpStatBoost*(game: Game) {.moddable.} =
   let levelHeal = player.maxHp * LevelHealFraction
   trackLevelUpHealing(game, levelHeal, heal(player, levelHeal))
 
-proc bankRunLevelUps*(game: Game) {.moddable.} =
+proc bankRunLevelUps(game: Game) {.moddable.} =
   ## Cash in any levels the accumulated XP affords in one pass (multi-level),
   ## apply the stat boosts immediately, and queue one power-up draft per level
   ## gained. The drafts themselves are opened by checkPendingLevelDraft on
@@ -196,7 +196,7 @@ proc bankRunLevelUps*(game: Game) {.moddable.} =
              t("roguelite_level_up") & " " & $game.player.rogueliteLevel,
              Color(r: 120, g: 255, b: 180, a: 255))
 
-proc checkPendingLevelDraft*(game: Game) {.moddable.} =
+proc checkPendingLevelDraft(game: Game) {.moddable.} =
   ## Opens one queued level-up draft, but only in normal play (gsPlaying), never
   ## while a modal is up. Opening the queued drafts one-per-frame chains
   ## multi-level-ups: each draft pauses the sim, the player picks,
@@ -496,7 +496,7 @@ proc startWave*(game: Game) {.moddable.} =
     game.player.celestialVeilCharges = 2
   modWaveStart(game)
 
-proc spawnWaveEnemies*(game: Game, count: int) {.moddable.} =
+proc spawnWaveEnemies(game: Game, count: int) {.moddable.} =
   # Spawn multiple enemies at once
   for _ in 0..<count:
     if game.waveEnemiesRemaining > 0:
@@ -780,7 +780,7 @@ proc checkWaveComplete(game: Game): bool =
 # Boss waves
 # (BossWaveManager accessors are hoisted above the lifecycle section so the
 # lifecycle/wave procs that call them are defined after their definitions.)
-proc completeBossWave*(game: Game) {.moddable.} =
+proc completeBossWave(game: Game) {.moddable.} =
   ## Centralized boss wave completion - handles cleanup, advancement, power-up
   # Captured BEFORE the increment below: this is the wave whose boss was just
   # beaten. getCustomBossNumber needs the boss-wave value (a multiple of
@@ -887,8 +887,7 @@ proc completeBossWave*(game: Game) {.moddable.} =
   else:
     game.state = gsPowerUpSelect
 
-proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: int,
-                          bossId = 0) {.moddable.} =
+proc spawnConfiguredBoss(game: Game, bossBlockWave: int, bossId = 0) {.moddable.} =
   ## Schedules a boss. Wave mode passes only its boss-block wave (the boss is
   ## that block's campaign boss). The Survival and Roguelite rosters pass an
   ## explicit `bossId`: it spawns at its authored slot and, when
@@ -911,8 +910,7 @@ proc spawnConfiguredBoss*(game: Game, bossDifficulty: float32, bossBlockWave: in
         normalizeBossToSlot(boss, bossBlockWave.float32)
       boss
     else:
-      spawnBoss(game.screenWidth, game.screenHeight,
-                bossDifficulty, game.bossCount, bossBlockWave)
+      spawnBoss(game.screenWidth, game.screenHeight, bossBlockWave)
   if pending != nil:
     # Unique id: mode mechanics link minions and hazards to their boss by id.
     pending.id = game.nextEnemyId
@@ -947,7 +945,7 @@ proc enterWorld3D*(game: Game, opts: World3DOptions) {.moddable.} =
   game.state = gs3DBoss
   disableCursor()  # For mouse look
 
-proc beginEnter3D*(game: Game, opts: World3DOptions) {.moddable.} =
+proc beginEnter3D(game: Game, opts: World3DOptions) {.moddable.} =
   ## Enter a 3D world through the fade to black (the sandbox button, world3d.enter).
   pendingWorld3D = opts
   game.transitioning = true
@@ -1005,18 +1003,11 @@ proc processModActions(game: Game) =
   var deferred: seq[ModAction]
   for a in actions:
     case a.kind
-    of makSpawnEnemy:
-      let difficulty = if a.difficulty >= 0: a.difficulty else: game.difficulty
-      let e = newEnemy(a.x, a.y, difficulty, a.enemyType, game)
-      if a.elite:
-        makeElite(e, game.currentWave, force = true)
-      game.enemies.add(e)
-      modActionDone(a, e)
     of makSpawnBoss:
       if game.pendingBoss != nil:
         deferred.add(a)  # one boss arrives at a time
         continue
-      spawnConfiguredBoss(game, 1.0, 0, a.bossId)
+      spawnConfiguredBoss(game, 0, a.bossId)
       if game.pendingBoss != nil:
         if a.x != 0 or a.y != 0:
           game.pendingBoss.targetPos = newVector2f(a.x, a.y)
@@ -1042,15 +1033,6 @@ proc processModActions(game: Game) =
       else:
         let p = modPendingEnemies.find(a.target)
         if p >= 0: modPendingEnemies.delete(p)
-    of makSpawnBullet:
-      let dir = newVector2f(a.vx, a.vy)
-      let speed = sqrt(a.vx * a.vx + a.vy * a.vy)
-      let b = newBullet(a.x, a.y, (if speed > 0: dir * (1.0'f32 / speed) else: newVector2f(1, 0)),
-                        speed, a.damage, fromPlayer = a.fromPlayer)
-      if a.radius > 0: b.radius = a.radius
-      if a.lifetime > 0: b.lifetime = a.lifetime
-      if a.hasColor: b.colorOverride = a.color
-      game.bullets.add(b)
     of makRemoveBullet:
       let idx = game.bullets.find(a.bullet)
       if idx >= 0: game.bullets.delete(idx)
@@ -1160,7 +1142,7 @@ proc updateBossArenaGameplay(game: var Game, dt: float32) =
     if playerDied:
       beginPlayerDeathSequence(game, dcHazard)
 
-proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: float32) =
+proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
   var i = 0
   while i < game.attackWarnings.len:
     # Audit Lock freezes every other hazard mid-flight (the audit itself runs).
@@ -1822,7 +1804,6 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32, effectiveDt: flo
         game.showPlayerDamageTaken(dtLaser)
 
         game.player.laserHitCooldown = LaserHitInterval
-        game.lasers[j].hasHitPlayer = true
 
     # Remove expired lasers
     if game.lasers[j].lifetime <= 0:
@@ -2392,7 +2373,7 @@ proc updatePlayerFiring(game: var Game, dt: float32) =
   # The Mirror Cache replays this; the Audit Lock reads the trigger.
   recordPlayerEcho(game, shootDir, isFiring, dt)
 
-proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
+proc updatePlayerAndAuras(game: var Game, dt: float32) =
   # Update player (with wall collision)
   game.player.outOfCombatSpeedBoost = game.mode == gmRoguelite and not game.waveInProgress
   if not modPlayerUpdate(game.player, dt):
@@ -2584,7 +2565,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32, effectiveDt: float32) =
 
   updatePlayerFiring(game, dt)
 
-proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
+proc updateEnemySpawning(game: var Game, dt: float32) =
   # MODE-SPECIFIC ENEMY SPAWNING
   if not isSandboxMode(game.mode):
     if shouldUseWaves(game.mode):
@@ -2772,12 +2753,6 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
     # Boss wave spawning - don't spawn if there's a boss coin waiting to be collected
     if game.wavesUntilBoss == 0 and game.bossWaveManager.canSpawnBoss() and game.state == gsPlaying:
       game.bossCount += 1
-      # Scale boss difficulty based on wave number (every 3 waves = +1 difficulty)
-      let bossDifficulty = if game.mode == gmRoguelite and game.rogueliteRun != nil and
-                              game.rogueliteRun.floor != nil:
-        dungeonBossDifficulty(game.rogueliteRun)
-      else:
-        (game.currentWave - 1).float32 / 3.0
       # Use a boss wave that maps to the boss block (ceil to next multiple of
       # BossWaveInterval). This allows debug spawns when wavesUntilBoss is forced
       # to 0 (boss appears for the current boss block: waves 1-5 => boss 1,
@@ -2788,12 +2763,12 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
         # Omega Entity's roguelite kit); tuneDungeonBossStats then rescales it
         # from its authored slot to the sector's.
         let bossId = dungeonBossNumber(game)
-        spawnConfiguredBoss(game, bossDifficulty, bossAuthoredSlotWave(bossId), bossId)
+        spawnConfiguredBoss(game, bossAuthoredSlotWave(bossId), bossId)
         if game.pendingBoss != nil:
           tuneDungeonBossStats(game.pendingBoss, game.rogueliteRun)
       else:
         let bossBlockWave = ((game.currentWave - 1) div BossWaveInterval + 1) * BossWaveInterval
-        spawnConfiguredBoss(game, bossDifficulty, bossBlockWave)
+        spawnConfiguredBoss(game, bossBlockWave)
 
     elif isTimeSurvivalMode(game.mode):
       # Bosses close each 5:00 phase on the survival clock (then every 2:30 in
@@ -2807,10 +2782,9 @@ proc updateEnemySpawning(game: var Game, dt: float32, effectiveDt: float32) =
         # Entity's survival kit closes Kernel Panic, and Overtime rotates
         # them at ever later slots (rescaled to the Omega curve there).
         let bossBlockWave = survivalBossBlockWave(game.bossCount)
-        let bossDifficulty = max(game.difficulty, (bossBlockWave - 1).float32 / 3.0)
         prepareSurvivalBossArrival(game)
         resetModeCombat(game)
-        spawnConfiguredBoss(game, bossDifficulty, bossBlockWave,
+        spawnConfiguredBoss(game, bossBlockWave,
                             survivalBossId(game.bossCount))
       # TIME SURVIVAL MODE: horde, System Events and caches live in survival.nim
       updateSurvival(game, dt)
@@ -2847,7 +2821,7 @@ proc detonateBossCorpse(game: var Game, boss: Enemy) =
   # Pitched-down teleport blip under the blast: the process being unloaded.
   playSound(stTeleport, 0.5, 0.55)
 
-proc fireConfiguredEnemyShot*(game: var Game, enemy: Enemy) {.moddable.} =
+proc fireConfiguredEnemyShot(game: var Game, enemy: Enemy) {.moddable.} =
   ## A regular enemy's config-driven shot (its EnemyConfig attack), once its
   ## shootTimer passes the fire rate. Octagons are left out: their fire is
   ## owned by executeRangedAttack in updateEnemy, and listing them here too
@@ -2933,7 +2907,7 @@ proc fireConfiguredEnemyShot*(game: var Game, enemy: Enemy) {.moddable.} =
 
       enemy.shootTimer = 0
 
-proc tickBossAttacks*(game: var Game, enemy: Enemy, bossDef: BossDefinition,
+proc tickBossAttacks(game: var Game, enemy: Enemy, bossDef: BossDefinition,
                       dt: float32) {.moddable.} =
   ## A boss's attack countdowns this frame: each attack of its phase telegraphs
   ## (addBossAttackWarning) shortly before its timer runs out and fires through
@@ -4043,7 +4017,7 @@ proc cheatCompleteRogueliteFloor*(game: var Game) {.moddable.} =
     game.cheatRogueliteDirectFloorSelect = true
     game.state = gsPowerUpSelect
 
-proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
+proc updateBossSatellites(game: var Game, dt: float32) =
   # Update boss satellites (persistent orbiting satellites)
   # Screen dims are frame-constant, so the laser's max reach is computed once here
   # rather than per satellite per frame.
@@ -4140,7 +4114,7 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
                 game.lasers.add(newLaserObj)
                 enemy.satellites[i].activeLaser = newLaserObj
               else:
-                # Keep the existing laser (and its hasHitPlayer flag) in sync.
+                # Keep the existing laser in sync.
                 enemy.satellites[i].activeLaser.pos = enemy.satellites[i].pos
                 enemy.satellites[i].activeLaser.rotation = targetAngle
                 enemy.satellites[i].activeLaser.lifetime =
@@ -4199,7 +4173,7 @@ proc updateBossSatellites(game: var Game, dt: float32, effectiveDt: float32) =
           # Already deleted, continue
           i -= 1
 
-proc resolveBulletEnemyHit*(game: var Game, bullet: Bullet, target: Enemy, echoParent: Bullet,
+proc resolveBulletEnemyHit(game: var Game, bullet: Bullet, target: Enemy, echoParent: Bullet,
                             dt: float32): bool {.moddable.} =
   ## A player bullet touching `target` (checkBulletEnemyCollision): damage,
   ## on-hit effects, explosions, ricochet, pierce and split. True: the bullet
@@ -4240,7 +4214,6 @@ proc resolveBulletEnemyHit*(game: var Game, bullet: Bullet, target: Enemy, echoP
 
   # Use the bullet's stored crit status (rolled when bullet was created)
   let isCrit = bullet.wasCrit
-  let weakCoreHit = bossWeakPointCoreHit(target, bullet.pos, bullet.radius)
   let bossIsInvulnerable =
     target.isBoss and target.invulnerabilityTimer > 0
   # A Port Guard's shield took the shot (set below): nothing that rides
@@ -4319,8 +4292,7 @@ proc resolveBulletEnemyHit*(game: var Game, bullet: Bullet, target: Enemy, echoP
       else:
         actualDamage *= modeEnemyDamageTakenMult(target, hitFrom)
 
-    let weakDamageSource = if weakCoreHit: bwdsDirectWeakCore else: bwdsDirectBody
-    actualDamage *= bossWeakPointDamageMultiplier(target, weakDamageSource)
+    actualDamage *= bossWeakPointDamageMultiplier(target)
     # Engagement gates: while adds are alive or the overload shield is up (and
     # no vulnerability window is open), body damage barely leaks through, so
     # the player must resolve the mechanic instead of shooting the body.
@@ -5202,7 +5174,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
     i += 1
 
-proc collectConsumable*(game: var Game, c: Consumable) {.moddable.} =
+proc collectConsumable(game: var Game, c: Consumable) {.moddable.} =
   ## The player touched consumable `c`: its effect, feedback and stats (the
   ## caller removes it).
   playSound(stPowerUp, 0.6)
@@ -5289,7 +5261,7 @@ proc collectConsumable*(game: var Game, c: Consumable) {.moddable.} =
   spawnExplosionPooled(game.particlePool, c.pos.x, c.pos.y,
                 particleColor, 10)
 
-proc updateProjectilesAndCleanup(game: var Game, dt: float32, effectiveDt: float32) =
+proc updateProjectilesAndCleanup(game: var Game, dt: float32) =
   # Update meteorites (from etMage enemy)
   var i = 0
   while i < game.meteorites.len:
@@ -5597,9 +5569,6 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
       game.frameCount += 1
       return
 
-  # Update real-time stats power level
-  calculatePowerLevel(game.dopamine.realTimeStats, game.player)
-
   # WORLD TIME PIPELINE
   # Three layers feed the simulation's delta time, combined here once:
   #   juiceScale  -- hit stop / slow motion (d_systems). Ticked on REAL dt inside
@@ -5642,8 +5611,7 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
       let boss = game.enemies[^1]
       modBossSpawn(boss, game)
       let bossDef = getBossDefinition(boss.bossDefinitionID)
-      let introBossHp = if boss.bossTotalMaxHp > 0.0'f32: boss.bossTotalMaxHp else: boss.maxHp
-      startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description, introBossHp,
+      startIntroduction(game.dopamine.bossIntro, bossDef.name, bossDef.description,
                         getBossServiceTag(boss.bossDefinitionID), isRootBoss(boss.bossDefinitionID))
 
       for i in 0..<60:
@@ -5718,9 +5686,9 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   let hpBeforeSim = game.player.hp
   if modsActive: updateModUi(dt)   # open mod screens that let the run go on
   modPreUpdate(game, simDt)
-  updateAttackWarningsAndLasers(game, simDt, effectiveDt)
-  updatePlayerAndAuras(game, simDt, effectiveDt)
-  updateEnemySpawning(game, simDt, effectiveDt)
+  updateAttackWarningsAndLasers(game, simDt)
+  updatePlayerAndAuras(game, simDt)
+  updateEnemySpawning(game, simDt)
   # Mod things: after spawning, before the enemy loop, so the kills they make
   # resolve in this frame's enemy loop and the bullets they block are gone
   # before the bullet loop.
@@ -5729,9 +5697,9 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
     updateThings(game, simDt, effectiveDt, enemyGrid, gridMaxEnemyRadius)
     collideThingBullets(game)
   updateEnemiesAndBossAttacks(game, simDt, effectiveDt)
-  updateBossSatellites(game, simDt, effectiveDt)
+  updateBossSatellites(game, simDt)
   updateBulletsAndHits(game, simDt, effectiveDt)
-  updateProjectilesAndCleanup(game, simDt, effectiveDt)
+  updateProjectilesAndCleanup(game, simDt)
   # Last in the block on purpose: every hazard this frame could spawn already
   # exists, so a sweep launched this frame sees all of them.
   updateBossDeathBlasts(game, simDt)

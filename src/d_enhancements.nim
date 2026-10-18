@@ -2,7 +2,7 @@ import raylib, strutils
 import modding/mod_patch_core
 import draw_prims
 from std/unicode import runeLen, runeSubStr
-import types, boss_definitions, localization, utils
+import types, boss_definitions, localization, utils, ui/ui_helpers
 
 # WAVE CELEBRATION SYSTEM
 proc newWaveCelebration*(): WaveCelebration {.moddable.} =
@@ -118,37 +118,21 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
       drawStat(t(tkWaveCelebMaxCombo), $(celebration.stats.maxCombo) & "x", lineY, statsAlpha)
 
 # TEXT WRAPPING (shared by the fullscreen boss card and the gutter cards)
-proc wrapTextToWidth(text: string, fontSize, maxWidth: int32): seq[string] =
-  ## Greedy word-wrap so a label fits inside a card of the given width.
-  result = @[]
-  var current = ""
-  for word in text.split(' '):
-    if word.len == 0:
-      continue
-    let candidate = if current.len == 0: word else: current & " " & word
-    if measureText(candidate, fontSize) <= maxWidth or current.len == 0:
-      current = candidate
-    else:
-      result.add(current)
-      current = word
-  if current.len > 0:
-    result.add(current)
-
 proc balancedWrap(text: string, fontSize, maxWidth: int32): seq[string] =
   ## Fewest lines that fit maxWidth, then the narrowest width that keeps that
   ## count, so a two-line description splits evenly instead of leaving a
   ## one-word orphan on its last line. Greedy line count only grows as the
   ## width shrinks, so a binary search finds that width.
-  result = wrapTextToWidth(text, fontSize, maxWidth)
+  result = wrapTextLines(text, maxWidth, fontSize)
   if result.len <= 1:
     return
   var lo = maxWidth div 3
   var hi = maxWidth
   while hi - lo > 4:
     let mid = (lo + hi) div 2
-    if wrapTextToWidth(text, fontSize, mid).len <= result.len: hi = mid
+    if wrapTextLines(text, mid, fontSize).len <= result.len: hi = mid
     else: lo = mid
-  result = wrapTextToWidth(text, fontSize, hi)
+  result = wrapTextLines(text, hi, fontSize)
 
 # BOSS INTRODUCTION SYSTEM
 # The card names the boss and, in the lore layer, the TOPHAT service the Root
@@ -169,11 +153,10 @@ proc newBossIntroduction*(): BossIntroduction {.moddable.} =
     bossTitle: "",
     bossTag: "",
     isRoot: false,
-    bossHp: 0,
     phase: 0
   )
 
-proc startIntroduction*(intro: var BossIntroduction, name: string, title: string, hp: float32,
+proc startIntroduction*(intro: var BossIntroduction, name: string, title: string,
                         tag: string = "", isRoot: bool = false) {.moddable.} =
   intro.active = true
   intro.timer = 0
@@ -182,7 +165,6 @@ proc startIntroduction*(intro: var BossIntroduction, name: string, title: string
   intro.bossTitle = title
   intro.bossTag = tag
   intro.isRoot = isRoot
-  intro.bossHp = hp
   intro.phase = 0
 
 proc bossIntroTextAlpha(intro: BossIntroduction): float32 =
@@ -292,7 +274,7 @@ proc drawWaveCelebrationGutter*(celebration: WaveCelebration,
   else:
     t(tkWaveClearedText) & " " & $celebration.waveNumber & " CLEARED"
   let titleFont: int32 = 15
-  let titleLines = wrapTextToWidth(waveText, titleFont, cardW - 10)
+  let titleLines = wrapTextLines(waveText, cardW - 10, titleFont)
 
   # Stat rows (only when revealed).
   var statRows: seq[(string, string)] = @[]
@@ -355,11 +337,11 @@ proc drawBossIntroductionGutter*(intro: BossIntroduction,
     if intro.bossTag.len == 0: newSeq[string]()
     elif measureText(intro.bossTag, tagFont) <= cardW - 10: @[intro.bossTag]
     elif tagCut > 0: @[intro.bossTag[0 .. tagCut], intro.bossTag[tagCut + 2 .. ^1]]
-    else: wrapTextToWidth(intro.bossTag, tagFont, cardW - 10)
+    else: wrapTextLines(intro.bossTag, cardW - 10, tagFont)
   let nameFont: int32 = 22
-  let nameLines = wrapTextToWidth(intro.bossName, nameFont, cardW - 10)
+  let nameLines = wrapTextLines(intro.bossName, cardW - 10, nameFont)
   let titleFont: int32 = 13
-  let titleLines = wrapTextToWidth(intro.bossTitle, titleFont, cardW - 10)
+  let titleLines = wrapTextLines(intro.bossTitle, cardW - 10, titleFont)
 
   let tagH = if tagLines.len > 0: tagLines.len.int32 * (tagFont + 2) + 4'i32 else: 0'i32
   let nameH = nameLines.len.int32 * (nameFont + 3)
@@ -403,12 +385,9 @@ proc newRealTimeStats*(): RealTimeStats {.moddable.} =
   result = RealTimeStats(
     dps: 0,
     damageDealt: 0,
-    lastDamageTime: 0,
     kills: 0,
     coinsPerMinute: 0,
-    totalCoins: 0,
-    lastCoinTime: 0,
-    powerLevel: 100
+    totalCoins: 0
   )
   # Initialize damage history for rolling window
   result.damageHistory = @[]
@@ -436,23 +415,14 @@ proc recordDamage*(stats: var RealTimeStats, damage: float32, currentTime: float
     1.0
 
   stats.dps = windowDamage / max(windowDuration, 1.0)
-  stats.lastDamageTime = currentTime
 
 proc recordKill*(stats: var RealTimeStats) {.moddable.} =
   stats.kills += 1
 
 proc recordCoin*(stats: var RealTimeStats, currentTime: float32) {.moddable.} =
   stats.totalCoins += 1
-  stats.lastCoinTime = currentTime
 
   # Calculate coins per minute
   if currentTime > 0:
     stats.coinsPerMinute = (stats.totalCoins.float32 / currentTime) * 60.0
 
-proc calculatePowerLevel*(stats: var RealTimeStats, player: Player) {.moddable.} =
-  ## Calculate overall power level based on stats and upgrades
-  var power = 100
-  power += player.powerUps.len * 50
-  power += int(player.damage * 10.0)
-  power += int(player.maxHp * 5.0)
-  stats.powerLevel = power

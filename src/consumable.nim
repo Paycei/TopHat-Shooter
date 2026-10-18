@@ -6,7 +6,7 @@ import modding/mod_registry
 
 # Icon drawing: simple, clear glyphs so each pickup reads at a glance.
 
-proc drawHealthIcon(cx, cy: int32, size: float32) =
+proc drawHealthIcon(cx, cy: int32) =
   ## Simple plus/cross symbol (medical cross)
   let white = Color(r: 255, g: 255, b: 255, a: 255)
   let thickness: int32 = 3
@@ -17,7 +17,7 @@ proc drawHealthIcon(cx, cy: int32, size: float32) =
   # Horizontal bar
   drawRectangle(cx - 5, cy - 1, 10, thickness, white)
 
-proc drawCoinIcon(cx, cy: int32, size: float32) =
+proc drawCoinIcon(cx, cy: int32) =
   ## Simple $ symbol
   let gold = Color(r: 255, g: 215, b: 0, a: 255)
 
@@ -25,7 +25,7 @@ proc drawCoinIcon(cx, cy: int32, size: float32) =
   drawText("$", cx - 4, cy - 6, 14, Color(r: 50, g: 40, b: 0, a: 255))  # Shadow
   drawText("$", cx - 5, cy - 7, 14, gold)
 
-proc drawSpeedIcon(cx, cy: int32, size: float32) =
+proc drawSpeedIcon(cx, cy: int32) =
   ## Three horizontal arrow lines (motion lines)
   let cyan = Color(r: 0, g: 255, b: 255, a: 255)
 
@@ -43,7 +43,7 @@ proc drawSpeedIcon(cx, cy: int32, size: float32) =
       cyan
     )
 
-proc drawInvincibilityIcon(cx, cy: int32, size: float32) =
+proc drawInvincibilityIcon(cx, cy: int32) =
   ## Simple star shape
   let magenta = Color(r: 255, g: 0, b: 255, a: 255)
 
@@ -63,7 +63,7 @@ proc drawInvincibilityIcon(cx, cy: int32, size: float32) =
   # Center circle
   drawDisc(Vector2(x: cx.float32, y: cy.float32), 3, magenta)
 
-proc drawFireRateIcon(cx, cy: int32, size: float32) =
+proc drawFireRateIcon(cx, cy: int32) =
   ## Simple lightning bolt (zigzag)
   let orange = Color(r: 255, g: 165, b: 0, a: 255)
 
@@ -90,7 +90,7 @@ proc drawFireRateIcon(cx, cy: int32, size: float32) =
   for i in 0..5:
     drawStroke(points[i], points[(i + 1) mod 6], 2.0, Color(r: 200, g: 130, b: 0, a: 255))
 
-proc drawMagnetIcon(cx, cy: int32, size: float32) =
+proc drawMagnetIcon(cx, cy: int32) =
   ## Horseshoe magnet - U shape with colored ends
   let purple = Color(r: 147, g: 51, b: 234, a: 255)
   let red = Color(r: 255, g: 0, b: 0, a: 255)
@@ -105,7 +105,7 @@ proc drawMagnetIcon(cx, cy: int32, size: float32) =
   # Bottom connector
   drawRectangle(cx - 6, cy + 3, 12, 3, purple)
 
-proc drawShieldIcon(cx, cy: int32, size: float32) =
+proc drawShieldIcon(cx, cy: int32) =
   ## Classic shield shape
   let cyan = Color(r: 0, g: 255, b: 255, a: 255)
   let dark = Color(r: 0, g: 150, b: 150, a: 255)
@@ -143,7 +143,7 @@ proc drawShieldIcon(cx, cy: int32, size: float32) =
   drawStroke(Vector2(x: (cx - 3).float32, y: cy.float32),
            Vector2(x: (cx + 3).float32, y: cy.float32), 2.0, cyan)
 
-proc drawDoubleCoinIcon(cx, cy: int32, size: float32) =
+proc drawDoubleCoinIcon(cx, cy: int32) =
   ## Two coins stacked with "2x" text
   let gold = Color(r: 255, g: 223, b: 0, a: 255)
   let darkGold = Color(r: 200, g: 170, b: 0, a: 255)
@@ -160,7 +160,7 @@ proc drawDoubleCoinIcon(cx, cy: int32, size: float32) =
   # "2x" text
   drawText("2x", cx - 5, cy - 4, 8, Color(r: 50, g: 40, b: 0, a: 255))
 
-proc drawDamageBoostIcon(cx, cy: int32, size: float32) =
+proc drawDamageBoostIcon(cx, cy: int32) =
   ## Simple upward arrow with exclamation
   let redOrange = Color(r: 255, g: 69, b: 0, a: 255)
 
@@ -179,7 +179,7 @@ proc drawDamageBoostIcon(cx, cy: int32, size: float32) =
   drawRectangle(cx - 1, cy - 1, 2, 4, Color(r: 255, g: 255, b: 255, a: 255))
   drawRectangle(cx - 1, cy + 4, 2, 2, Color(r: 255, g: 255, b: 255, a: 255))
 
-proc drawLifestealIcon(cx, cy: int32, size: float32) =
+proc drawLifestealIcon(cx, cy: int32) =
   ## Heart with droplet inside
   let darkRed = Color(r: 139, g: 0, b: 0, a: 255)
   let brightRed = Color(r: 255, g: 50, b: 50, a: 255)
@@ -206,33 +206,32 @@ proc drawLifestealIcon(cx, cy: int32, size: float32) =
     brightRed
   )
 
-proc drawConsumableIcon*(x, y, radius: float32, cType: ConsumableType, pulse: float32) {.moddable.} =
-  ## Central icon dispatcher with pulse animation
-  let size = radius * pulse
+proc drawConsumableIcon(x, y: float32, cType: ConsumableType) {.moddable.} =
+  ## Central icon dispatcher: each glyph is drawn at a fixed size.
   let cx = x.int32
   let cy = y.int32
 
   case cType
   of ctHealth:
-    drawHealthIcon(cx, cy, size)
+    drawHealthIcon(cx, cy)
   of ctCoin:
-    drawCoinIcon(cx, cy, size)
+    drawCoinIcon(cx, cy)
   of ctSpeed:
-    drawSpeedIcon(cx, cy, size)
+    drawSpeedIcon(cx, cy)
   of ctInvincibility:
-    drawInvincibilityIcon(cx, cy, size)
+    drawInvincibilityIcon(cx, cy)
   of ctFireRate:
-    drawFireRateIcon(cx, cy, size)
+    drawFireRateIcon(cx, cy)
   of ctMagnet:
-    drawMagnetIcon(cx, cy, size)
+    drawMagnetIcon(cx, cy)
   of ctShieldBoost:
-    drawShieldIcon(cx, cy, size)
+    drawShieldIcon(cx, cy)
   of ctDoubleCoin:
-    drawDoubleCoinIcon(cx, cy, size)
+    drawDoubleCoinIcon(cx, cy)
   of ctDamageBoost:
-    drawDamageBoostIcon(cx, cy, size)
+    drawDamageBoostIcon(cx, cy)
   of ctLifesteal:
-    drawLifestealIcon(cx, cy, size)
+    drawLifestealIcon(cx, cy)
   of ctMod:
     discard   # drawn by drawConsumable (its look lives on the mod's registration)
 
@@ -350,8 +349,7 @@ proc drawConsumable*(consumable: Consumable) {.moddable.} =
     return
 
   # Use new detailed icon system
-  drawConsumableIcon(consumable.pos.x, consumable.pos.y,
-                    consumable.radius, consumable.consumableType, pulse)
+  drawConsumableIcon(consumable.pos.x, consumable.pos.y, consumable.consumableType)
 
 proc checkPlayerCollision*(consumable: Consumable, player: Player): bool {.moddable.} =
   distance(consumable.pos, player.pos) < consumable.radius + player.radius

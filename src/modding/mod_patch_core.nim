@@ -45,7 +45,7 @@ var mixinMainThread* {.threadvar.}: bool
   ## True on the game's main thread only: worker threads (sound, Discord)
   ## always run the original body.
 
-proc raiseMixinPending*() {.noinline.} =
+proc raiseMixinPending() {.noinline.} =
   var e = mixinPending
   mixinPending = nil
   if e.isNil: e = newException(CatchableError, "mixin: the original raised, but the error was lost")
