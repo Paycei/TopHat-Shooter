@@ -2,7 +2,7 @@
 <#
   Builds the three TopHat-ShooterOS release artifacts into ship/:
 
-    TopHatShooterOS-PORTABLE.zip          nimble WinRelease (speed, full LTO)
+    TopHatShooterOS-PORTABLE.zip          nimble WinRelease
     TopHatShooterOS-Installer_<ver>.exe   the same exe + niminst/Inno
     TopHatShooterOS-linux-x86_64.tar.gz   nimble LinuxRelease, inside WSL
     SHA256SUMS.txt

@@ -12,7 +12,7 @@
 ## not the enemy. Assign the whole field (`e.pos = {x = 5, y = 0}`) or use the
 ## x/y shortcuts mod_api adds.
 
-import std/strutils
+import std/[strutils, tables]
 import raylib
 import ../particle_types
 import lua_bridge
@@ -123,11 +123,31 @@ proc assignScript*(vm: VM, dest: var string, v: ScriptValue, field: string) =
     vm.runtimeError("field '" & field & "' expects a string, got " & typeName(v))
   dest = if v.kind == vkString: v.str.s else: numToStr(v.n)
 
+proc findName(names: var Table[string, int], s: string, o: var int): bool =
+  names.withValue(nimIdentNormalize(s), v):
+    o = v[]
+    return true
+  false
+
+proc enumByName[E: enum](s: string): E =
+  ## parseEnum[E](s) (style-insensitive, ValueError when no value has that
+  ## name) through a table built on first use: parseEnum is a `case` over
+  ## every name, ~100 KB of code for TranslationKey alone.
+  when E is Ordinal:
+    var names {.global.}: Table[string, int]
+    if names.len == 0:
+      for e in E: names[nimIdentNormalize($e)] = ord(e)
+    var o: int
+    if not names.findName(s, o): raise newException(ValueError, "Invalid enum value: " & s)
+    E(o)
+  else:   # (a holey enum)
+    parseEnum[E](s)
+
 proc assignScript*[E: enum](vm: VM, dest: var E, v: ScriptValue, field: string) =
   if v.kind != vkString:
     vm.runtimeError("field '" & field & "' expects a name, got " & typeName(v))
   try:
-    dest = parseEnum[E](v.str.s)
+    dest = enumByName[E](v.str.s)
   except ValueError:
     vm.runtimeError("field '" & field & "' has no value named '" & v.str.s & "'")
 
@@ -150,7 +170,7 @@ proc assignScript*[E: enum](vm: VM, dest: var set[E], v: ScriptValue, field: str
     if x.kind != vkString:
       vm.runtimeError("field '" & field & "' expects a list of names")
     try:
-      s.incl(parseEnum[E](x.str.s))
+      s.incl(enumByName[E](x.str.s))
     except ValueError:
       vm.runtimeError("field '" & field & "' has no value named '" & x.str.s & "'")
   dest = s

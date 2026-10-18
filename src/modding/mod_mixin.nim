@@ -54,8 +54,13 @@ type
     problem*: string          ## why not
     flag: ptr bool
     layers: seq[MixinLayer]
-    orig*: NativeProc         ## the original body (set by the binder)
-    call*: NativeProc         ## the public proc, mixins included (engine.call)
+    orig*: SlotNative         ## the original body (set by the binder)
+    call*: SlotNative         ## the public proc, mixins included (engine.call)
+
+  SlotNative* = proc (vm: VM, args: openArray[ScriptValue], ret: var RetVals) {.nimcall.}
+    ## A slot's natives capture nothing: storing a nimcall one is a pointer
+    ## write, where a closure cost refcounting code per slot in the binders'
+    ## module init (~0.4 MB of the exe over every slot).
 
   ChainStatus* = enum
     csValue        ## the scripts produced the result (frame value)
@@ -123,6 +128,12 @@ proc mixArgOpen*[E](data: pointer, n: int, path: string): ScriptValue =
 
 proc argError(vm: VM, msg: string) {.noreturn.} =
   raise newException(MixinArgError, msg)
+
+proc mixArgCount*(name: string, required, n, got: int) {.noreturn, noinline.} =
+  ## engine.call got too few or too many arguments for `name` (one copy of
+  ## this message code, not one inlined into every generated native).
+  raise newException(MixinArgError, name & " takes " &
+    (if required == n: $n else: $required & " to " & $n) & " arguments, got " & $got)
 
 proc mixTake*[T](vm: VM, v: ScriptValue, frame: MixinFrame, i: int, tmp: var T,
                  isVar: bool, path: string): ptr T =

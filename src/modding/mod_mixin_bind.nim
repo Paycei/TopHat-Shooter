@@ -113,8 +113,7 @@ proc callNative(params: seq[ParamInfo], ret: NimNode, required: int, name: strin
   var callBody = newStmtList()
   callBody.add quote do:
     if `sargs`.len < `required` or `sargs`.len > `n`:
-      raise newException(MixinArgError, `name` & " takes " &
-        (if `required` == `n`: $`n` else: $`required` & " to " & $`n`) & " arguments, got " & $`sargs`.len)
+      mixArgCount(`name`, `required`, `n`, `sargs`.len)
   var argExprs: seq[NimNode]
   for i, p in params:
     let si = scriptIdx[i]
@@ -170,7 +169,8 @@ proc callNative(params: seq[ParamInfo], ret: NimNode, required: int, name: strin
     caseStmt.add nnkOfBranch.newTree(newLit(k), branch)
   caseStmt.add nnkElse.newTree(nnkDiscardStmt.newTree(newEmptyNode()))
   callBody.add caseStmt
-  newProc(newEmptyNode(), nativeParams(), callBody, nnkLambda)
+  result = newProc(newEmptyNode(), nativeParams(), callBody, nnkLambda)
+  result.addPragma(ident"nimcall")   # (a SlotNative)
 
 proc supportExprs(params: seq[ParamInfo], ret: NimNode): tuple[supported, problem: NimNode] =
   ## Compile-time expressions: whether every parameter and the result are
@@ -355,6 +355,7 @@ macro bindOne(van: typed, flag: typed, disp: typed, name: static string,
     except CatchableError as `ex`:
       vanillaRaised(`of2`, `ex`, `name`)
   let origProc = newProc(newEmptyNode(), nativeParams(), origBody, nnkLambda)
+  origProc.addPragma(ident"nimcall")
 
   # ---- call: the public proc (engine.call), defaults filled in by Nim
   let target = (if qualifier.len == 0: public else: newDotExpr(ident(qualifier), public))

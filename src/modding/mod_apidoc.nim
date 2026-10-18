@@ -12,9 +12,9 @@
 ## --dump-mod-api) writes them; mod_docs embeds them for MODS.EXE's Modding Docs,
 ## and a debug build warns at startup when the embedded copy is out of date.
 
-import std/[strutils, tables, algorithm, os, json]
-import lua_bridge, mod_hooks, mod_mixin, mod_deep
-import ../utils, ../localization
+import std/[strutils, tables, algorithm, os]
+import lua_bridge, mod_hooks, mod_mixin, mod_deep, mod_docs
+import ../utils
 
 # ------------------------------------------------- docs from the source ----
 const DocSources = ["mod_api.nim", "mod_ui.nim", "mod_3d.nim", "mod_world2d.nim",
@@ -319,17 +319,6 @@ proc buildModApi*(): tuple[md, lua: string] =
   lua.add "\n---@type EngineGlobals\nengine.globals = {}\n"
   (md, lua)
 
-proc buildStringsJson(): string =
-  ## Every text key with its English, in the game's own order (grouped by
-  ## where it shows): a translation starts as a copy of this file.
-  result = "{\n"
-  var first = true
-  for key in TranslationKey:
-    if not first: result.add(",\n")
-    first = false
-    result.add("  " & escapeJson($key) & ": " & escapeJson(builtinText(English, $key)))
-  result.add("\n}\n")
-
 proc dumpModApi*(dir: string): bool =
   ## Write API.md, tophat.d.lua and strings_en.json into `dir`. False on a
   ## write error.
@@ -338,7 +327,7 @@ proc dumpModApi*(dir: string): bool =
     createDir(dir)
     writeFile(dir / "API.md", md)
     writeFile(dir / "tophat.d.lua", lua)
-    writeFile(dir / "strings_en.json", buildStringsJson())
+    writeFile(dir / "strings_en.json", englishStringsJson())
     true
   except IOError, OSError:
     false

@@ -935,6 +935,11 @@ block openData:
   runDeferredCalls()
   check(g.state == gsShop, "the state changed at the safe point")
   g.state = gsPlaying
+  ok("enum names match style-insensitively", "game.state = 'gs_shop'", [])
+  runDeferredCalls()
+  check(g.state == gsShop, "...like parseEnum did")
+  g.state = gsPlaying
+  bad("an unknown enum name is an error", "game.state = 'gsNope'", "has no value named 'gsNope'")
 
   # ---- engine.globals
   registerModGlobal("openNumber", addr openNumber)
@@ -963,6 +968,8 @@ block openData:
   check(runMix("mixin.remove(hd)") == "" and applyEnemyHpDamage(target, 5) == 5, "and back")
   let (dv, de) = runIn(mm.env, "return engine.types.difficultyEnemyHpMult()")
   check(de.len == 0 and dv.len == 1 and dv[0].kind == vkNumber, "engine.<module>.<proc> calls the game: " & de)
+  let ae = runIn(mm.env, "return engine.types.difficultyEnemyHpMult(1, 2, 3)")[1]
+  check("types.difficultyEnemyHpMult takes 0 arguments, got 3" in ae, "engine.call names the arity it wants: " & ae)
   check(runIn(mm.env, "return #mixin.list('combat.') > 3")[0][0].b, "mixin.list names the game's procs")
 
   # ---- rl: raylib for scripts (what works without a window)
