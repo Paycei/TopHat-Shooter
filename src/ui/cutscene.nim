@@ -7,6 +7,7 @@
 ## (lore_cinematic.nim, endgame_cinematic.nim, mode_intros.nim).
 
 import raylib, rlgl, math
+import ../modding/mod_patch_core
 import ../localization, ../sound, ../gamepad_input, cinematic_common
 
 type
@@ -77,7 +78,7 @@ proc newCutscene*(shots: seq[CutsceneShot],
                   cornerTag: string = "",
                   playbackSpeed: float32 = CutscenePlaybackSpeed,
                   speaker: string = StorySpeaker,
-                  captionCps: float32 = 46.0'f32): Cutscene =
+                  captionCps: float32 = 46.0'f32): Cutscene {.moddable.} =
   var total = 0.0'f32
   for s in shots: total += s.duration
   Cutscene(
@@ -91,7 +92,7 @@ proc newCutscene*(shots: seq[CutsceneShot],
     fastForwardActive: false, skipHoldTimer: 0, lastShotPlayed: -1
   )
 
-proc shotAt*(c: Cutscene, time: float32): tuple[idx: int, local: float32, duration: float32] =
+proc shotAt*(c: Cutscene, time: float32): tuple[idx: int, local: float32, duration: float32] {.moddable.} =
   var cursor = 0.0'f32
   for i, shot in c.shots:
     if time < cursor + shot.duration:
@@ -100,12 +101,12 @@ proc shotAt*(c: Cutscene, time: float32): tuple[idx: int, local: float32, durati
   let last = c.shots.high
   (last, c.shots[last].duration, c.shots[last].duration)
 
-proc shotFade*(local, duration: float32): float32 =
+proc shotFade*(local, duration: float32): float32 {.moddable.} =
   min(easeInOut(local / 1.35'f32), easeInOut((duration - local) / 1.55'f32))
 
 # ---------------------------------------------------------------------------
 
-proc updateCutscene*(c: Cutscene, dt: float32) =
+proc updateCutscene*(c: Cutscene, dt: float32) {.moddable.} =
   if c.complete: return
   # Keyboard ENTER / pad A fast-forward; keyboard SPACE / pad B hold to skip.
   c.fastForwardActive = isKeyDown(Enter) or isGamepadConfirmDown()
@@ -138,7 +139,7 @@ proc updateCutscene*(c: Cutscene, dt: float32) =
   if c.time >= c.totalDuration:
     c.complete = true
 
-proc drawCutscene*(c: Cutscene, sw, sh: int) =
+proc drawCutscene*(c: Cutscene, sw, sh: int) {.moddable.} =
   let (idx, local, duration) = c.shotAt(c.time)
   let alpha = shotFade(local, duration)
   let shot  = c.shots[idx]

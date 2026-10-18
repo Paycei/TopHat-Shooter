@@ -7,16 +7,17 @@
 ## unless every loaded mod opts out with "disableAchievements": false.
 
 import std/[os, strutils, math]
+import ../modding/mod_patch_core
 import raylib, rlgl
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../save_system,
-       ../gamepad_input
+       ../gamepad_input, ../utils
 import ui_theme
 import ../modding/[mod_state, mod_catalog, mod_examples, mod_assets, mod_hooks, mod_registry]
 
 type
   ModsTab* = enum
-    mtInstalled, mtModes, mtCosmetics, mtApps, mtAchievements, mtLog
+    mtInstalled, mtModes, mtCosmetics, mtApps, mtAchievements, mtLog, mtConsole
 
   ModsWindow* = ref object
     window*: OSWindow
@@ -45,6 +46,9 @@ type
     applyConfirm: bool         ## pending Apply & Reload warning
     applyCooldown: float32
     updates: seq[tuple[folder, installed, shipped: string]]  ## examples Install Examples would update
+    consoleInput*: string     ## the Console's line being typed (UTF-8)
+    consoleHistory*: seq[string]
+    consoleHistoryAt: int     ## the history entry Up/Down shows (len = the new line)
 
   ModModeRow* = object
     ## One mod game mode as the window shows it (filled by main.nim).
@@ -68,6 +72,8 @@ const
   RemoveConfirmCooldown = 1.5'f32  # anti-accident window, like the quit dialog
   ApplyConfirmCooldown = 1.0'f32
   LogLineH = 15
+  ConsoleInputH = 26
+  ConsoleMaxInput = 4000   # bytes of one entry
 
 # The palette, drawn in the interface theme (ui_theme.nim).
 template ColAccent: Color = uiInk(120, 220, 160)
@@ -80,7 +86,7 @@ template ColOk: Color = uiInk(110, 230, 140)
 template ColWarn: Color = uiInk(255, 190, 70)
 template ColErr: Color = uiInk(255, 105, 95)
 
-proc newModsWindow*(screenWidth, screenHeight: int, settings: Settings): ModsWindow =
+proc newModsWindow*(screenWidth, screenHeight: int, settings: Settings): ModsWindow {.moddable.} =
   let osWin = newOSWindow(t(tkModsWindowTitle),
                           (screenWidth - ModsWindowW) div 2, (screenHeight - ModsWindowH) div 2,
                           ModsWindowW, ModsWindowH, ColAccent, owtSettings, resizable = false)
@@ -89,7 +95,7 @@ proc newModsWindow*(screenWidth, screenHeight: int, settings: Settings): ModsWin
 var modeRowsBuilder*: proc (): seq[ModModeRow] {.closure.}
   ## Installed by main.nim: the Game Modes rows (it knows the save files).
 
-proc refreshModsWindow*(mw: ModsWindow) =
+proc refreshModsWindow*(mw: ModsWindow) {.moddable.} =
   ## Re-read the enabled list (after a reload or a profile switch).
   mw.pending = mw.settings.enabledMods
   if not modeRowsBuilder.isNil:
@@ -98,7 +104,7 @@ proc refreshModsWindow*(mw: ModsWindow) =
   if installedMods.len == 0: mw.selected = 0
   else: mw.selected = clamp(mw.selected, 0, installedMods.high)
 
-proc resetModsWindow*(mw: ModsWindow) =
+proc resetModsWindow*(mw: ModsWindow) {.moddable.} =
   ## On open: pick up folders dropped in since the last reload, and re-read the
   ## title so a language switch since startup shows up.
   mw.window.title = t(tkModsWindowTitle)
@@ -113,6 +119,7 @@ type Geo = object
   x, y, w, h: int
   bodyY, bodyH: int
   list, detail, logArea: Rectangle
+  consoleLog, consoleInput: Rectangle   ## the Console: the log over its input line
   tabs: array[ModsTab, Rectangle]
   applyBtn, folderBtn, examplesBtn, removeBtn: Rectangle
   confirm, confirmNo, confirmYes: Rectangle
@@ -122,9 +129,11 @@ proc geometry(mw: ModsWindow): Geo =
   result.y = mw.window.y + TITLE_BAR_HEIGHT + WINDOW_PADDING
   result.w = mw.window.width - WINDOW_PADDING * 2
   result.h = mw.window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING * 2
+  let tabCount = ord(high(ModsTab)) + 1
+  let tabW = min(TabW, (result.w - 6 * (tabCount - 1)) div tabCount)
   for tab in ModsTab:
-    result.tabs[tab] = Rectangle(x: float32(result.x + ord(tab) * (TabW + 6)), y: result.y.float32,
-                                 width: TabW.float32, height: TabH.float32)
+    result.tabs[tab] = Rectangle(x: float32(result.x + ord(tab) * (tabW + 6)), y: result.y.float32,
+                                 width: tabW.float32, height: TabH.float32)
   result.bodyY = result.y + TabH + 8 + BannerH + 8
   result.bodyH = result.y + result.h - ButtonH - 10 - result.bodyY
   result.list = Rectangle(x: result.x.float32, y: result.bodyY.float32,
@@ -133,6 +142,10 @@ proc geometry(mw: ModsWindow): Geo =
                             width: float32(result.w - ListW - 12), height: result.bodyH.float32)
   result.logArea = Rectangle(x: result.x.float32, y: result.bodyY.float32,
                              width: result.w.float32, height: result.bodyH.float32)
+  result.consoleLog = Rectangle(x: result.x.float32, y: result.bodyY.float32, width: result.w.float32,
+                                height: float32(result.bodyH - ConsoleInputH - 6))
+  result.consoleInput = Rectangle(x: result.x.float32, y: float32(result.bodyY + result.bodyH - ConsoleInputH),
+                                  width: result.w.float32, height: ConsoleInputH.float32)
   let by = float32(result.y + result.h - ButtonH)
   let applyW = max(170'i32, measureText(t(tkModsApply), 14) + 30).float32
   result.applyBtn = Rectangle(x: float32(result.x + result.w) - applyW, y: by,
@@ -282,6 +295,46 @@ proc removeMod(mw: ModsWindow) =
 
 proc logLines(): int = modLog.len
 
+proc wantsTextInput*(mw: ModsWindow): bool {.moddable.} =
+  ## The Console owns the keyboard while it is the tab in front.
+  not mw.isNil and mw.window.visible and not mw.window.minimized and mw.window.focused and
+    mw.tab == mtConsole
+
+proc addConsoleChar(mw: ModsWindow, c: int32) =
+  ## A typed character, as UTF-8 (the font draws Latin-1, U+0020..U+00FF).
+  if c < 32 or c > 255 or c == 127 or mw.consoleInput.len >= ConsoleMaxInput: return
+  if c < 128: mw.consoleInput.add(char(c))
+  else:
+    mw.consoleInput.add(char(0xC0 or (c shr 6)))
+    mw.consoleInput.add(char(0x80 or (c and 0x3F)))
+
+proc updateConsole(mw: ModsWindow) =
+  ## Typing, Enter (run), Up / Down (history).
+  var c = getCharPressed()
+  while c > 0:
+    mw.addConsoleChar(c)
+    c = getCharPressed()
+  if (isKeyPressed(KeyboardKey.Backspace) or isKeyPressedRepeat(KeyboardKey.Backspace)) and
+     mw.consoleInput.len > 0:
+    var n = mw.consoleInput.len - 1
+    while n > 0 and (ord(mw.consoleInput[n]) and 0xC0) == 0x80: dec n   # a whole UTF-8 character
+    mw.consoleInput.setLen(n)
+  if isKeyPressed(KeyboardKey.Up) and mw.consoleHistoryAt > 0:
+    dec mw.consoleHistoryAt
+    mw.consoleInput = mw.consoleHistory[mw.consoleHistoryAt]
+  elif isKeyPressed(KeyboardKey.Down) and mw.consoleHistoryAt < mw.consoleHistory.len:
+    inc mw.consoleHistoryAt
+    mw.consoleInput = if mw.consoleHistoryAt < mw.consoleHistory.len: mw.consoleHistory[mw.consoleHistoryAt]
+                      else: ""
+  if (isKeyPressed(KeyboardKey.Enter) or isKeyPressed(KeyboardKey.KpEnter)) and
+     mw.consoleInput.strip.len > 0:
+    let src = mw.consoleInput
+    if mw.consoleHistory.len == 0 or mw.consoleHistory[^1] != src: mw.consoleHistory.add(src)
+    mw.consoleHistoryAt = mw.consoleHistory.len
+    mw.consoleInput = ""
+    mw.logFollow = true
+    runConsole(src)
+
 # --------------------------------------------------------------- update ----
 proc appOpenBtn(g: Geo, i: int): Rectangle =
   ## The Open button of Apps tab row `i` (rows sit under the one-line hint).
@@ -289,7 +342,7 @@ proc appOpenBtn(g: Geo, i: int): Rectangle =
             width: 110, height: 30)
 
 proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: int,
-                       allWindows: openArray[OSWindow]) =
+                       allWindows: openArray[OSWindow]) {.moddable.} =
   updateOSWindow(mw.window, dt)
   if not mw.window.visible: return
   # Back cancels an open remove confirmation instead of closing the window.
@@ -410,6 +463,7 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
           mw.listScroll = (mw.selected + 1) * RowH - visible * RowH
     if isKeyPressed(KeyboardKey.Tab):
       mw.tab = ModsTab((ord(mw.tab) + 1) mod (ord(high(ModsTab)) + 1))
+  if mw.wantsTextInput(): mw.updateConsole()
 
   if mw.tab == mtApps and modApps.len > 0:
     mw.appSelected = clamp(mw.appSelected, 0, modApps.high)
@@ -428,9 +482,10 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
     if wheel != 0 and checkCollisionPointRec(mouse, g.list):
       mw.listScroll = mw.listScroll - int(wheel * RowH.float32)
     mw.listScroll = clamp(mw.listScroll, 0, maxScroll)
-  of mtLog:
-    let maxScroll = max(0, logLines() * LogLineH - int(g.logArea.height) + 8)
-    if wheel != 0 and checkCollisionPointRec(mouse, g.logArea):
+  of mtLog, mtConsole:
+    let area = if mw.tab == mtLog: g.logArea else: g.consoleLog
+    let maxScroll = max(0, logLines() * LogLineH - int(area.height) + 8)
+    if wheel != 0 and checkCollisionPointRec(mouse, area):
       mw.logScroll = mw.logScroll - int(wheel * 3 * LogLineH.float32)
       mw.logFollow = mw.logScroll >= maxScroll
     if mw.logFollow:
@@ -621,11 +676,21 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
       y += 18
       let (st, col) = mw.displayStatus(m)
       drawText(st, x, y, 13, col)
+      if m.status == msLoaded:
+        # How much of each frame its scripts take (smoothed): mods are never
+        # switched off for being slow, so this is how a player spots one.
+        for rt in mods:
+          if rt.id == m.id:
+            let ms = t(tkModsFrameTime).replace("$1", formatFloat(rt.avgFrameMs, ffDecimal, 2))
+            drawText(ms, x + measureText(st, 13) + 12, y + 1, 12, ColMuted)
       y += 20
       if m.status != msInvalid:
         drawText(fitWithEllipsis(t(if m.disableAchievements: tkModsRewardsOff else: tkModsRewardsKept), w, 12),
                  x, y, 12, if m.disableAchievements: ColWarn else: ColOk)
         y += 20
+      if needsNewerGame(m):
+        y = drawWrapped(t(tkModsNeedsNewerGame).replace("$1", m.game).replace("$2", GameVersion),
+                        x, y, w, 12, ColWarn, bottom) + 6
       let update = mw.updateFor(m)
       if update.len > 0:
         y = drawWrapped(t(tkModsUpdateAvailable).replace("$1", update), x, y, w, 12, ColWarn, bottom) + 6
@@ -633,7 +698,8 @@ proc drawInstalled(mw: ModsWindow, g: Geo) =
         y = drawWrapped(m.description, x, y, w, 13, ColText, bottom) + 6
       if m.dependencies.len > 0:
         y = drawWrapped(t(tkModsRequires) & " " & m.dependencies.join(", "), x, y, w, 12, ColMuted, bottom) + 4
-      y = drawWrapped(t(tkModsFolder) & " " & m.dir, x, y, w, 11, ColMuted, bottom) + 8
+      y = drawWrapped(t(tkModsFolder) & " " & m.dir, x, y, w, 11, ColMuted, bottom) + 4
+      y = drawWrapped(t(tkModsFullAccess), x, y, w, 11, ColMuted, bottom) + 8
       if m.message.len > 0 and m.status != msLoaded:
         beginVirtualScissorMode(x, y, w, max(0'i32, bottom - y))
         discard drawWrapped(m.message, x, y, w, 11, ColErr, bottom)
@@ -788,26 +854,49 @@ proc drawAchievements(mw: ModsWindow, g: Geo) =
       drawText($st.progress & " / " & $d.goal, bx, ry + 32, 10, ColMuted)
   endVirtualScissorMode()
 
-proc drawLog(mw: ModsWindow, g: Geo) =
-  drawRectangle(g.logArea, ColPanel)
-  drawRectOutline(g.logArea, 1.0, uiLine(50, 60, 70))
+proc drawLog(mw: ModsWindow, g: Geo, area: Rectangle) =
+  drawRectangle(area, ColPanel)
+  drawRectOutline(area, 1.0, uiLine(50, 60, 70))
   if modLog.len == 0:
     drawText(t(tkModsLogEmpty), int32(g.x) + 12, int32(g.bodyY) + 12, 13, ColMuted)
     return
-  beginVirtualScissorMode(int32(g.logArea.x), int32(g.logArea.y), int32(g.logArea.width), int32(g.logArea.height))
-  let maxW = int32(g.logArea.width) - 20
+  beginVirtualScissorMode(int32(area.x), int32(area.y), int32(area.width), int32(area.height))
+  let maxW = int32(area.width) - 20
   for i, line in modLog:
-    let y = int32(g.logArea.y) + 6 + int32(i * LogLineH - mw.logScroll)
-    if y + LogLineH < int32(g.logArea.y) or y > int32(g.logArea.y + g.logArea.height): continue
+    let y = int32(area.y) + 6 + int32(i * LogLineH - mw.logScroll)
+    if y + LogLineH < int32(area.y) or y > int32(area.y + area.height): continue
     let prefix = if line.modId.len > 0: "[" & line.modId & "] " else: ""
     let col = case line.level
       of mlInfo: ColText
       of mlWarn: ColWarn
       of mlError: ColErr
-    drawText(fitWithEllipsis(prefix & line.text, maxW, 11), int32(g.logArea.x) + 10, y, 11, col)
+    drawText(fitWithEllipsis(prefix & line.text, maxW, 11), int32(area.x) + 10, y, 11, col)
   endVirtualScissorMode()
 
-proc drawModsWindow*(mw: ModsWindow) =
+proc drawConsole(mw: ModsWindow, g: Geo) =
+  ## The log, and under it the line being typed (its end, when it is long).
+  mw.drawLog(g, g.consoleLog)
+  let r = g.consoleInput
+  drawRectangle(r, uiSurface(16, 20, 28))
+  drawRectOutline(r, 1.0, if mw.window.focused: ColAccent else: uiLine(70, 78, 92))
+  let x = int32(r.x) + 8
+  let y = int32(r.y) + 7
+  let room = int32(r.width) - 30
+  let tx = x + 14
+  drawText(">", x, y, 12, ColAccent)
+  if mw.consoleInput.len == 0:
+    drawText(fitWithEllipsis(t(tkModsConsoleHint), room, 12), tx, y, 12, ColMuted)
+  var shown = mw.consoleInput
+  while shown.len > 0 and measureText(shown, 12) > room:   # keep the end (the caret) in view
+    var n = 1
+    while n < shown.len and (ord(shown[n]) and 0xC0) == 0x80: inc n
+    shown = shown[n .. ^1]
+  if shown.len > 0: drawText(shown, tx, y, 12, ColText)
+  if mw.window.focused and int(getTime() * 2.0) mod 2 == 0:   # the caret
+    let cx = tx + (if shown.len > 0: measureText(shown, 12) + 1 else: 0)
+    drawRectangle(cx, y - 1, 2, 14, ColText)
+
+proc drawModsWindow*(mw: ModsWindow) {.moddable.} =
   if not mw.window.visible: return
   drawWindowChrome(mw.window)
   if mw.window.minimized: return
@@ -816,14 +905,16 @@ proc drawModsWindow*(mw: ModsWindow) =
   # tabs
   let labels: array[ModsTab, string] = [t(tkModsTabInstalled), t(tkModsTabModes),
                                         t(tkModsTabCosmetics), t(tkModsTabApps),
-                                        t(tkModsTabAchievements), t(tkModsTabLog)]
+                                        t(tkModsTabAchievements), t(tkModsTabLog),
+                                        t(tkModsTabConsole)]
   for tab in ModsTab:
     let r = g.tabs[tab]
     let active = mw.tab == tab
     drawRectangle(r, if active: uiSurface(30, 70, 55) else: uiSurface(28, 32, 42))
     drawRectOutline(r, 1.0, if active: ColAccent else: uiLine(70, 78, 92))
-    let tw = measureText(labels[tab], 14)
-    drawText(labels[tab], int32(r.x + (r.width - tw.float32) / 2), int32(r.y) + 7, 14,
+    let size = bestFitFontSize(labels[tab], int32(r.width) - 12, 14, 10)   # (7 tabs: narrow ones)
+    let tw = measureText(labels[tab], size)
+    drawText(labels[tab], int32(r.x + (r.width - tw.float32) / 2), int32(r.y) + (TabH - size) div 2, size,
              if active: ColText else: ColMuted)
 
   # the rule players must know
@@ -844,7 +935,8 @@ proc drawModsWindow*(mw: ModsWindow) =
   of mtCosmetics: mw.drawCosmetics(g)
   of mtApps: mw.drawApps(g)
   of mtAchievements: mw.drawAchievements(g)
-  of mtLog: mw.drawLog(g)
+  of mtLog: mw.drawLog(g, g.logArea)
+  of mtConsole: mw.drawConsole(g)
 
   if mw.removeTarget.len > 0:
     mw.drawRemoveConfirm(g)

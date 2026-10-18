@@ -8,6 +8,7 @@
 ## keeps pointing at the right rows.
 
 import raylib, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../render_context, icon_drawing, ../utils, ui_helpers
 from ../player import dashRechargeOf
@@ -608,7 +609,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
       drawText(moreText, panelX + COMBINED_PANEL_PADDING + 7, yOffset, 8,
               Color(r: 120, g: 120, b: 120, a: 255))
 
-proc drawLegacyStatusPanel*(game: Game, x, y: int32) =
+proc drawLegacyStatusPanel*(game: Game, x, y: int32) {.moddable.} =
   ## Draw unified HUD panel combining status and wave/powerup info
   # Keep the remembered position inside the layer's logical viewport. Changing
   # the UI scale resizes that viewport under a panel that was dragged to fit the
@@ -717,7 +718,7 @@ proc drawLegacyStatusPanel*(game: Game, x, y: int32) =
 
   drawHUDPanelContent(game, finalPanelX, yOffset, COMBINED_PANEL_WIDTH, showMinimizeIcon = true)
 
-proc drawLegacyBorderPanel*(game: Game) =
+proc drawLegacyBorderPanel*(game: Game) {.moddable.} =
   ## Fixed-position status column for the Border HUD layout, pinned to the top-left
   ## screen edge. No dragging or minimize behavior.
   drawHUDPanelContent(game, 0, 0, BORDER_PANEL_WIDTH, showMinimizeIcon = false)

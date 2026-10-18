@@ -14,6 +14,7 @@
 ## translucent light adds to what is under it instead of darkening it.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../desktop_bg_skins, ../utils
 from ui_theme import beginKeepAlpha, endKeepAlpha
@@ -1707,7 +1708,7 @@ proc drawCubeOrbit(w, h, time: float32, ringCol, nodeCol: Color, strength: float
     drawGlow(node, 9.0'f32 * u, withAlpha(nodeCol, 110.0'f32 * strength))
     drawDisc(node, max(0.6'f32, (2.2'f32 + i.float32 * 0.3'f32) * u), withAlpha(mixCol(nodeCol, rgba(255, 255, 255), 0.4'f32), 220.0'f32 * strength))
 
-proc drawDesktopBgScene*(bgType: DesktopBgType, screenWidth, screenHeight: int32, time: float32) =
+proc drawDesktopBgScene*(bgType: DesktopBgType, screenWidth, screenHeight: int32, time: float32) {.moddable.} =
   ## A purchasable background, whole: its scene, the cube's orbit rings and a
   ## shade behind the icon column. The desktop and the shop's preview card
   ## both draw this; the caller draws the cube on top. dbgDefault is the

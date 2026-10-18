@@ -74,9 +74,12 @@ proc teamArg(vm: VM, v: ScriptValue, what: string): PvPTeam =
   vm.runtimeError(what & ": unknown team '" & s & "' (red, blue, green, yellow, orange, purple)")
 
 proc localText(vm: VM, v: ScriptValue, what: string): string =
-  ## "Text" or {en = .., es = ..}, in this machine's language.
+  ## "Text" or {en = .., es = .., <mod language> = ..}, in this machine's language.
+  if v.kind == vkTable and activeModLanguage.len > 0:
+    let own = rawGetStr(v.tbl, activeModLanguage)
+    if own.kind == vkString: return own.str.s
   let (en, es) = vm.textPair(v, what)
-  if getLanguage() == Spanish and es.len > 0: es else: en
+  pickText(en, es)
 
 proc messageArgs(vm: VM, args: openArray[ScriptValue], fname: string): tuple[name, data: string] =
   result.name = vm.checkStr(args, 1, fname)
@@ -305,8 +308,8 @@ proc installMatchMethods() =
                           numOr("y", (if ownerP.isNil: 0'f32 else: ownerP.pos.y)))
     let vel = newVector2f(numOr("vx", 0), numOr("vy", 0))
     let damage = max(0'f32, numOr("damage", (if ownerP.isNil: pvp.config.startDamage else: ownerP.damage)))
-    let radius = clamp(numOr("radius", pvp.config.bulletRadius), 1'f32, 200'f32)
-    let life = clamp(numOr("lifetime", PvPBulletLife), 0.05'f32, 60'f32)
+    let radius = max(numOr("radius", pvp.config.bulletRadius), 0.5'f32)
+    let life = max(numOr("lifetime", PvPBulletLife), 0.01'f32)
     let cv = rawGetStr(t, "color")
     let color = if cv.kind == vkNil: Color(r: 0, g: 0, b: 0, a: 0)
                 else: parseColor(vm, cv, "match:spawnBullet's color")
@@ -315,7 +318,7 @@ proc installMatchMethods() =
     if kv.kind == vkString: kind = kv.str.s
     elif kv.kind != vkNil: vm.runtimeError("match:spawnBullet's kind must be a string")
     if kind.len > MaxModMsgName: vm.runtimeError("match:spawnBullet's kind is too long (" & $MaxModMsgName & " max)")
-    let pierce = clamp(int(numOr("pierce", 0)), 0, 100)
+    let pierce = clamp(int(numOr("pierce", 0)), 0, int32.high)
     let b = pvp.modSpawnBullet(owner, pos, vel, damage, radius, life, color, kind, pierce)
     if b.isNil:
       vm.runtimeError("match:spawnBullet: the arena already holds " & $MaxPvPBullets & " bullets")

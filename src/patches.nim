@@ -20,6 +20,7 @@
 ##   5. Implement the effect at its hook, gated on hasPatch(player, ...).
 
 import raylib, math
+import modding/mod_patch_core
 import types, localization
 import modding/mod_registry
 
@@ -86,7 +87,7 @@ proc patchKey(p: RogueliteRelicType): string =
   of rrtPacketLoss: "packet_loss"
   of rrtMod: "mod"
 
-proc patchKbNumber*(p: RogueliteRelicType): int =
+proc patchKbNumber*(p: RogueliteRelicType): int {.moddable.} =
   ## Fixed per patch, so a player learns "KB-3146" means Rollback.
   case p
   of rrtNone: 0
@@ -108,7 +109,7 @@ proc patchKbNumber*(p: RogueliteRelicType): int =
   of rrtPacketLoss: 3168
   of rrtMod: 9000
 
-proc patchCategory*(p: RogueliteRelicType): PatchCategory =
+proc patchCategory*(p: RogueliteRelicType): PatchCategory {.moddable.} =
   case p
   of rrtFirewallRule, rrtRollback, rrtEmergencyPatch, rrtPacketLoss: pcSecurity
   of rrtOverclock, rrtDefragmenter, rrtCronJob, rrtRaidMirror, rrtRootAccess,
@@ -116,52 +117,52 @@ proc patchCategory*(p: RogueliteRelicType): PatchCategory =
   of rrtNone, rrtDiscountProtocol, rrtShardMagnet, rrtEliteDividend,
      rrtDraftCache, rrtGarbageCollector, rrtCryptominer: pcMaintenance
 
-proc patchKbLabel*(p: RogueliteRelicType): string =
+proc patchKbLabel*(p: RogueliteRelicType): string {.moddable.} =
   "KB-" & $patchKbNumber(p)
 
-proc patchName*(p: RogueliteRelicType): string =
+proc patchName*(p: RogueliteRelicType): string {.moddable.} =
   t("patch_" & patchKey(p) & "_name")
 
-proc patchDescription*(p: RogueliteRelicType): string =
+proc patchDescription*(p: RogueliteRelicType): string {.moddable.} =
   t("patch_" & patchKey(p) & "_desc")
 
 # A patch as owned (RogueliteRelic): a mod patch (rrtMod) reads its own
 # registered name, text and colour. Display code uses these overloads.
-proc patchName*(r: RogueliteRelic): string =
+proc patchName*(r: RogueliteRelic): string {.moddable.} =
   if r.relicType == rrtMod: modPatchName(r.modKey) else: patchName(r.relicType)
 
-proc patchDescription*(r: RogueliteRelic): string =
+proc patchDescription*(r: RogueliteRelic): string {.moddable.} =
   if r.relicType == rrtMod: modPatchDescription(r.modKey) else: patchDescription(r.relicType)
 
-proc patchKbLabel*(r: RogueliteRelic): string =
+proc patchKbLabel*(r: RogueliteRelic): string {.moddable.} =
   if r.relicType == rrtMod: "KB-" & $modPatchKb(r.modKey) else: patchKbLabel(r.relicType)
 
-proc patchCategoryName*(c: PatchCategory): string =
+proc patchCategoryName*(c: PatchCategory): string {.moddable.} =
   case c
   of pcSecurity: t("patch_category_security")
   of pcPerformance: t("patch_category_performance")
   of pcMaintenance: t("patch_category_maintenance")
 
-proc patchCategoryAccent*(c: PatchCategory): Color =
+proc patchCategoryAccent*(c: PatchCategory): Color {.moddable.} =
   case c
   of pcSecurity: Color(r: 90, g: 200, b: 255, a: 255)
   of pcPerformance: Color(r: 255, g: 150, b: 70, a: 255)
   of pcMaintenance: Color(r: 130, g: 230, b: 150, a: 255)
 
-proc patchAccent*(p: RogueliteRelicType): Color =
+proc patchAccent*(p: RogueliteRelicType): Color {.moddable.} =
   patchCategoryAccent(patchCategory(p))
 
-proc patchAccent*(r: RogueliteRelic): Color =
+proc patchAccent*(r: RogueliteRelic): Color {.moddable.} =
   if r.relicType == rrtMod: modPatchColor(r.modKey) else: patchAccent(r.relicType)
 
-proc hasPatch*(player: Player, p: RogueliteRelicType): bool =
+proc hasPatch*(player: Player, p: RogueliteRelicType): bool {.moddable.} =
   not player.isNil and p in player.patches
 
 const ChargePatches* = {rrtRollback, rrtFirewallRule, rrtOverclock}
   ## The patches with a live state (exactly the non-passive branches of
   ## patchStatus). The HUD lists them first so their tag is never hidden.
 
-proc patchStatus*(game: Game, p: RogueliteRelicType): PatchStatus =
+proc patchStatus*(game: Game, p: RogueliteRelicType): PatchStatus {.moddable.} =
   ## Only the charge patches have a state worth showing; the rest just run.
   case p
   of rrtRollback:
@@ -172,25 +173,25 @@ proc patchStatus*(game: Game, p: RogueliteRelicType): PatchStatus =
     if game.player.overclockStallTimer > 0: psStalled else: psPassive
   else: psPassive
 
-proc patchStatusLabel*(s: PatchStatus): string =
+proc patchStatusLabel*(s: PatchStatus): string {.moddable.} =
   case s
   of psPassive: t("patch_status_active")
   of psReady: t("patch_status_ready")
   of psUsed: t("patch_status_used")
   of psStalled: t("patch_status_stalled")
 
-proc patchStatusColor*(s: PatchStatus): Color =
+proc patchStatusColor*(s: PatchStatus): Color {.moddable.} =
   case s
   of psPassive: Color(r: 100, g: 255, b: 100, a: 255)
   of psReady: Color(r: 120, g: 255, b: 190, a: 255)
   of psUsed: Color(r: 150, g: 150, b: 165, a: 255)
   of psStalled: Color(r: 255, g: 165, b: 70, a: 255)
 
-proc patchSpent*(game: Game, p: RogueliteRelicType): bool =
+proc patchSpent*(game: Game, p: RogueliteRelicType): bool {.moddable.} =
   ## Drawn dimmed: its charge is gone or it is stalled.
   patchStatus(game, p) in {psUsed, psStalled}
 
-proc patchPrice*(player: Player, base: int): int =
+proc patchPrice*(player: Player, base: int): int {.moddable.} =
   ## The ONE Discount Protocol rule, used by draft rerolls and /pkg stalls
   ## alike, so the patch text can never drift from what it charges again.
   if base <= 0:

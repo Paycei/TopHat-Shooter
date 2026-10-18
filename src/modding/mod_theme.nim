@@ -89,10 +89,11 @@ proc installModTheme*(base: ScriptTable) =
     ret.setRet(vtable(t))
   themeT.reg("set") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## theme.set(id) -> true: the player's theme is now `id` (saved, as if
-    ## picked in Settings). false: no such theme, or a locked one. Your own
-    ## themes can be named without the "<mod id>:" prefix.
+    ## picked in Settings), even one the player has not unlocked. false: no
+    ## such theme. Your own themes can be named without the "<mod id>:" prefix.
     let th = resolveTheme(vm.checkStr(args, 0, "theme.set"))
-    let ok = not th.isNil and chooseTheme(th.id)
+    let ok = not th.isNil and not globalSettings.isNil
+    if ok: globalSettings.interfaceTheme = th.id
     if ok and not globalSettings.isNil:
       discard saveSettings(globalSettings)
     ret.setRet(vbool(ok))

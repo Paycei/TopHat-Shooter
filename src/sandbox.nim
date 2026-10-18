@@ -1,6 +1,7 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
 import raylib, std/strutils, random
+import modding/mod_patch_core
 import draw_prims
 from std/unicode import runeSubStr, runeLen
 import types, enemy, enemy_config, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
@@ -393,7 +394,7 @@ proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int
     drawStroke(trackX + 2, midY + dy, trackX + SCROLLBAR_WIDTH - 3, midY + dy,
              Color(r: 200, g: 220, b: 255, a: 100))
 
-proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
+proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) {.moddable.} =
   # The sidebar is a screen-edge UI panel: anchor it to the VIRTUAL screen edge
   # (in widescreen the world is narrower than the virtual screen, so the world
   # width would put it in the wrong place). Both parameters are interface sizes
@@ -612,7 +613,7 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
     game.fadeAlpha = 0.0
     return
 
-proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
+proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) {.moddable.} =
   if not game.sandboxSidebarOpen:
     # Check toggle button click
     if isPointerPressed():
@@ -706,7 +707,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
     else:
       discard
 
-proc updateSandboxMode*(game: Game, dt: float32) =
+proc updateSandboxMode*(game: Game, dt: float32) {.moddable.} =
   # Apply god mode
   if game.sandboxGodMode:
     game.player.hp = game.player.maxHp

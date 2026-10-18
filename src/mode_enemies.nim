@@ -9,6 +9,7 @@
 ## (newEnemy) and damage can reach the player.
 
 import raylib, math, random
+import modding/mod_patch_core
 import particle_types, types, wall, enemy_config, enemy_helpers, bullet, mode_hazards
 
 const
@@ -17,7 +18,7 @@ const
   RequestRestorerRevive* = 92    ## Restorer: channel finished, raise the corpse
   RequestFragmentSlam* = 93      ## Fragment: landed its pounce, crash down (mode_mechanics)
 
-proc isBallistic*(enemy: Enemy): bool {.inline.} =
+proc isBallistic*(enemy: Enemy): bool {.inline, moddable.} =
   enemy.ballisticVel.x != 0.0'f32 or enemy.ballisticVel.y != 0.0'f32
 
 proc moveToward(enemy: var Enemy, target: Vector2f, speed, dt: float32,
@@ -554,7 +555,7 @@ proc updateCorruptor(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
 # ---------------------------------------------------------------------------
 
 proc updateModeEnemy*(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed: float32,
-                      walls: seq[Wall], currentTime: float32, game: var Game) =
+                      walls: seq[Wall], currentTime: float32, game: var Game) {.moddable.} =
   ## One frame of a Survival/Roguelite roster enemy (haste and slows are
   ## already folded into `effectiveSpeed` by updateEnemy).
   case enemy.enemyType
@@ -591,7 +592,7 @@ proc updateModeEnemy*(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed:
   else:
     discard
 
-proc modeEnemyDamageTakenMult*(enemy: Enemy, hitFrom: Vector2f): float32 =
+proc modeEnemyDamageTakenMult*(enemy: Enemy, hitFrom: Vector2f): float32 {.moddable.} =
   ## Directional armour of the roster: Port Guards block the front outright
   ## (handled as a block by the caller, see shieldBlocksHit), Drivers take
   ## little from the front and double while stunned. `hitFrom` is where the

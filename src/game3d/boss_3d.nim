@@ -1,6 +1,7 @@
 ## 3D Boss Module - The Orbital Commander
 
 import raylib, math, random
+import ../modding/mod_patch_core
 import ../draw_prims
 import types_3d, engine_3d, ../modding/[mod_hooks, mod_assets]
 
@@ -10,7 +11,7 @@ const
 
 # BOSS INITIALIZATION
 
-proc getBoss3D*(bossId: int): Boss3D =
+proc getBoss3D*(bossId: int): Boss3D {.moddable.} =
   case bossId
   of 7:  # The Orbital Commander
     result = Boss3D(
@@ -268,7 +269,7 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
     boss.attackPattern += 1
 
 proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D],
-                 arena: var Arena3D, dt: float32) =
+                 arena: var Arena3D, dt: float32) {.moddable.} =
 
   boss.moveTimer += dt
 
@@ -374,7 +375,7 @@ proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Pr
 
 # RENDERING
 
-proc drawBoss*(boss: Boss3D, cam: Camera) =
+proc drawBoss*(boss: Boss3D, cam: Camera) {.moddable.} =
   ## `cam` places billboards for texture overrides (override.texture("boss3d", ...)).
   # Phase transition flash
   if boss.phaseTransitionTimer > 0:
@@ -429,7 +430,7 @@ proc drawBoss*(boss: Boss3D, cam: Camera) =
       if not satLook:
         drawSphere(Vector3(x: sat.pos.x, y: sat.pos.y, z: sat.pos.z), 6.0, fade(satColor, 0.2))
 
-proc drawGravityWells*(boss: Boss3D) =
+proc drawGravityWells*(boss: Boss3D) {.moddable.} =
   for well in boss.gravityWells:
     if well.active:
       let progress = well.lifetime / 6.0
@@ -443,7 +444,7 @@ proc drawGravityWells*(boss: Boss3D) =
       drawSphereWires(Vector3(x: well.pos.x, y: well.pos.y, z: well.pos.z),
                      well.radius, 8, 8, fade(Color(r: 200, g: 0, b: 200, a: 255), alpha * 0.5))
 
-proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
+proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) {.moddable.} =
   for sat in boss.satellites:
     if sat.active:
       let barPos = Vector3(x: sat.pos.x, y: sat.pos.y + 10.0, z: sat.pos.z)
@@ -477,7 +478,7 @@ proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) =
         drawRectOutline(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                           int32(barWidth), int32(barHeight), White)
 
-proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3f] =
+proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3f] {.moddable.} =
   ## world3dHit may rescale the projectile's damage.
   # Phase transition invulnerability
   if boss.phaseTransitionTimer > 0:

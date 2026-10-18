@@ -3,6 +3,39 @@
 
 import raylib, std/[strutils, math]
 
+# Version
+
+proc readNimbleVersion(): string {.compileTime.} =
+  ## The .nimble file is the single source of the version (tools/ship.ps1 reads
+  ## it too), so nothing can be stamped with a stale number.
+  for line in staticRead("../TopHatShooter.nimble").splitLines():
+    let l = line.strip()
+    if l.startsWith("version"):
+      let parts = l.split('"')
+      if parts.len >= 2:
+        return parts[1]
+  "unknown"
+
+const GameVersion* = readNimbleVersion()
+
+proc versionAtLeast*(have, want: string): bool =
+  ## "1.12.0" against "1.9": part by part as numbers, a missing part being 0
+  ## (and the digits a part starts with, so "2.0-beta" reads as 2.0).
+  let a = have.split('.')
+  let b = want.split('.')
+  for i in 0 ..< max(a.len, b.len):
+    var x, y = 0
+    if i < a.len:
+      for c in a[i]:
+        if c notin Digits: break
+        x = x * 10 + (ord(c) - ord('0'))
+    if i < b.len:
+      for c in b[i]:
+        if c notin Digits: break
+        y = y * 10 + (ord(c) - ord('0'))
+    if x != y: return x > y
+  true
+
 # Enum parsing
 
 proc parseEnumOr*[T: enum](s: string, default: T): T =

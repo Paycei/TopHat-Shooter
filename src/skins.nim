@@ -2,6 +2,7 @@
 ## Defines available player skins and rendering functions
 
 import raylib, math
+import modding/mod_patch_core
 import localization
 
 type
@@ -33,7 +34,7 @@ type
 # Global skin database
 var skinDatabase*: array[SkinType, SkinData]
 
-proc initializeSkins*() =
+proc initializeSkins*() {.moddable.} =
   ## Initialize all available skins with their data
   skinDatabase[skDefault] = SkinData(
     name: t("skin_default"),
@@ -175,7 +176,7 @@ proc initializeSkins*() =
     isUnlocked: true
   )
 
-proc getSkinColors*(skinType: SkinType, time: float32): tuple[primary, secondary, core: Color] =
+proc getSkinColors*(skinType: SkinType, time: float32): tuple[primary, secondary, core: Color] {.moddable.} =
   ## Get the colors for a skin, applying animations if needed
   let skin = skinDatabase[skinType]
 
@@ -288,6 +289,6 @@ proc getSkinColors*(skinType: SkinType, time: float32): tuple[primary, secondary
     # Fallback to static colors
     return (skin.primaryColor, skin.secondaryColor, skin.coreColor)
 
-proc getSkinData*(skinType: SkinType): SkinData =
+proc getSkinData*(skinType: SkinType): SkinData {.moddable.} =
   ## Get the data for a specific skin
   return skinDatabase[skinType]

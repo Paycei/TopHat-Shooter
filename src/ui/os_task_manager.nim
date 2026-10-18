@@ -2,6 +2,7 @@
 ## Pause menu styled as system task manager with mouse support
 
 import raylib, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../powerup_data, ../localization, ../render_context, ../survival, ../patches, ../utils
 import ui_helpers, icon_drawing
@@ -20,7 +21,7 @@ const
   BUTTON_HEIGHT = 40
   BUTTON_SPACING = 15
 
-proc isMouseOverRect*(mousePos: Vector2, x, y, width, height: int32): bool =
+proc isMouseOverRect*(mousePos: Vector2, x, y, width, height: int32): bool {.moddable.} =
   ## Helper to check if mouse is over a rectangle
   result = mousePos.x >= x.float32 and mousePos.x <= (x + width).float32 and
            mousePos.y >= y.float32 and mousePos.y <= (y + height).float32
@@ -55,7 +56,7 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
 
   drawText(text, x + (width - textWidth) div 2, y + 10, 14, textColor)
 
-proc taskManagerTabs*(game: Game): seq[TaskManagerTab] =
+proc taskManagerTabs*(game: Game): seq[TaskManagerTab] {.moddable.} =
   ## The tabs this run shows, left to right. Patches only exist in a roguelite
   ## run, so only that mode gets their tab.
   result =
@@ -66,7 +67,7 @@ proc taskManagerTabs*(game: Game): seq[TaskManagerTab] =
   if pauseActionDefs.len > 0 and livePauseActions().len > 0:
     result.add(tmtMods)   # loaded mods' actions (register.pauseAction)
 
-proc stepTaskManagerTab*(game: Game, current: TaskManagerTab, step: int): TaskManagerTab =
+proc stepTaskManagerTab*(game: Game, current: TaskManagerTab, step: int): TaskManagerTab {.moddable.} =
   ## The tab `step` places from `current`, wrapping (Left/Right in the menu).
   let tabs = taskManagerTabs(game)
   let at = max(0, tabs.find(current))
@@ -426,7 +427,7 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
     drawText(value, x + 300, yOffset, 14, White)
     yOffset += 25
 
-proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cancelled: bool] =
+proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cancelled: bool] {.moddable.} =
   ## Draw an OS-style "Are you sure?" confirmation dialog over the task manager.
   ## `runEnds`: the run cannot be resumed (a mod's modRunResumable), so leaving
   ## ends it instead of saving it, and the dialog says so.
@@ -532,7 +533,7 @@ proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cance
   if isKeyPressed(Q)     and keyReady: result.confirmed = true
   if isKeyPressed(Enter) and keyReady: result.confirmed = true
 
-proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeClicked, settingsClicked, exitClicked: bool, newTab: TaskManagerTab] =
+proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeClicked, settingsClicked, exitClicked: bool, newTab: TaskManagerTab] {.moddable.} =
   ## Draw the task manager (pause menu)
   ## Returns tuple indicating which button was clicked (if any) and which tab should be selected
   result.resumeClicked = false

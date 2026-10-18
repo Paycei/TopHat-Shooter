@@ -1,9 +1,10 @@
 import random, math, raylib
+import ../modding/mod_patch_core
 import types, particle_pool, particle_types
 
 proc spawnThunderstrikeInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                              player: Player, screenWidth, screenHeight: int32,
-                             enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+                             enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   ## Thunderstrike: predictive telegraphed ground strikes
   let count  = max(1, attack.projectileCount)
   let radius = if attack.durationOrRadius > 0: attack.durationOrRadius else: 70.0'f32
@@ -52,7 +53,7 @@ proc spawnThunderstrikeInto*(warnings: var seq[AttackWarning], particlePool: Par
 
 proc spawnVoidRiftsInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                          player: Player, screenWidth, screenHeight: int32,
-                         enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+                         enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   ## The Void Dancer's signature: tear N rifts in space. Each rift is telegraphed
   ## (a cracking purple tear + expanding danger ring) for the full wind-up, then
   ## collapses into a lethal zone that spits a slow radial spray of void bullets.
@@ -113,7 +114,7 @@ proc spawnVoidRiftsInto*(warnings: var seq[AttackWarning], particlePool: Particl
 
 proc spawnArcLatticeInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                           screenWidth, screenHeight: int32,
-                          enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+                          enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   ## Arc lattice: radial beams with a safe wedge
   let beams = clamp(attack.projectileCount, 6, 16)
   let dmg   = attack.damage * phase.damageMultiplier
@@ -143,7 +144,7 @@ proc spawnArcLatticeInto*(warnings: var seq[AttackWarning], particlePool: Partic
                        Color(r: 255, g: 255, b: 150, a: 255), 16)
 
 proc computeRicochetPath*(startPos, startDir: Vector2f, bounces: int,
-                          screenWidth, screenHeight: int32): seq[Vector2f] =
+                          screenWidth, screenHeight: int32): seq[Vector2f] {.moddable.} =
   ## Trace a beam from startPos along startDir, reflecting off the four screen
   ## edges, recording a vertex at every bounce. Returns the polyline
   ## [start, hit1, hit2, ... , end]. Pure screen-edge reflection (no walls).
@@ -194,7 +195,7 @@ proc computeRicochetPath*(startPos, startDir: Vector2f, bounces: int,
 
 proc spawnRicochetLaserInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                              player: Player, screenWidth, screenHeight: int32,
-                             enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+                             enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   ## The Laser Architect's signature beam: a single ray aimed at the player that
   ## ricochets off the screen edges many times, telegraphed for the full wind-up
   ## then lethal along its whole length for a short active flash.
@@ -230,7 +231,7 @@ proc spawnRicochetLaserInto*(warnings: var seq[AttackWarning], particlePool: Par
 
 proc spawnOrbitalSweepInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                             player: Player, screenWidth, screenHeight: int32,
-                            enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+                            enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   ## The Orbital Commander's signature: a kill-satellite enters off one screen
   ## edge and drags a screen-spanning energy wall across the WHOLE arena at
   ## constant speed. The wall has one safe data-gap; because the gap sits at a
@@ -311,7 +312,7 @@ proc spawnOrbitalSweepInto*(warnings: var seq[AttackWarning], particlePool: Part
 
 proc spawnSeismicFissureInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                               player: Player, screenWidth, screenHeight: int32,
-                              enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+                              enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   ## The Berserker Juggernaut's signature: the ground cracks from the boss
   ## toward the player and erupts step by step - a marching chain of staggered
   ## detonations. Each step is its own warning whose extra lifetime IS the
@@ -381,7 +382,7 @@ proc spawnSeismicFissureInto*(warnings: var seq[AttackWarning], particlePool: Pa
 
 proc spawnPrismRaysInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                          player: Player, screenWidth, screenHeight: int32,
-                         enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+                         enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   ## The Prism Architect's signature, a two-beat REFRACTION CASCADE. Beat one:
   ## the boss feeds a beam into a focal prism conjured beside the player, which
   ## splits it into a FINITE star of rays. Beat two: every ray end ignites a
@@ -456,7 +457,7 @@ proc spawnPrismRaysInto*(warnings: var seq[AttackWarning], particlePool: Particl
 
 proc spawnClockSweepInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                           player: Player, screenWidth, screenHeight: int32,
-                          enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+                          enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   ## The Timekeeper's signature: clock hands materialize around a fixed pivot
   ## (the boss's position at cast time) and sweep the arena while lethal. The
   ## player survives by rotating with a gap between hands. The hands' angle is
@@ -493,7 +494,7 @@ proc spawnClockSweepInto*(warnings: var seq[AttackWarning], particlePool: Partic
 
 proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                           player: Player, screenWidth, screenHeight: int32,
-                          enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+                          enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   ## The Chaos Weaver's signature: jagged threads of raw entropy are stitched
   ## across the whole arena by a visible needle, pull taut, then snap lethal
   ## IN STITCH ORDER (per-thread stagger encoded as extra lifetime, like the
@@ -611,7 +612,7 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
 proc spawnOmegaQuadrantsInto*(warnings: var seq[AttackWarning], particlePool: ParticlePool,
                               player: Player, screenWidth, screenHeight: int32,
                               enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition,
-                              lesson: bool = false) =
+                              lesson: bool = false) {.moddable.} =
   ## The Omega Entity's judgement: the shelter HOPS. Every beat all grid cells
   ## but one erupt, and the surviving gold-marked shelter is a different,
   ## edge-adjacent cell each beat, so the player must migrate every beat while
@@ -733,12 +734,12 @@ proc spawnOmegaQuadrantsInto*(warnings: var seq[AttackWarning], particlePool: Pa
 
 const BossDashDistance* = 350.0'f32  ## generic boss dash length (the Juggernaut's charges aim their own)
 
-proc isJuggernautCharge*(specialData: string): bool =
+proc isJuggernautCharge*(specialData: string): bool {.moddable.} =
   ## The bapDash modes that run as a charge combo (game/bosses.nim).
   specialData in ["charge_attack", "double_charge", "rage_charge"]
 
 proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
-                               enemy: Enemy, attack: BossAttack) =
+                               enemy: Enemy, attack: BossAttack) {.moddable.} =
   const WARNING_DURATION = 0.45'f32
 
   if attack.specialData in ["thunderstrike", "arc_lattice"]:

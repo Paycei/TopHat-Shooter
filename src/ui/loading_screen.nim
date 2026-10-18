@@ -1,4 +1,5 @@
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../localization, background_fx
 
@@ -22,7 +23,7 @@ type
     animTime*: float32
     levels: array[WaveBars, float32]
 
-proc newLoadingScreen*(): LoadingScreen =
+proc newLoadingScreen*(): LoadingScreen {.moddable.} =
   result = LoadingScreen(
     progress: 0.0,
     displayProgress: 0.0,
@@ -37,7 +38,7 @@ proc newLoadingScreen*(): LoadingScreen =
   for i in 0..<WaveBars:
     result.levels[i] = 0.35'f32 + abs(sin(i.float32 * 0.7'f32)) * 0.45'f32
 
-proc update*(screen: LoadingScreen, dt: float32) =
+proc update*(screen: LoadingScreen, dt: float32) {.moddable.} =
   screen.animTime += dt
 
   # Ease the bar toward the reported value. Generation finishes one whole asset
@@ -57,15 +58,15 @@ proc update*(screen: LoadingScreen, dt: float32) =
     let target = clamp(0.2'f32 + abs(signal) * 1.0'f32, 0.12, 1.0)
     screen.levels[i] += (target - screen.levels[i]) * clamp(dt * 12.0, 0.0'f32, 1.0'f32)
 
-proc setProgress*(screen: LoadingScreen, progress: float32, message: string = "") =
+proc setProgress*(screen: LoadingScreen, progress: float32, message: string = "") {.moddable.} =
   screen.progress = clamp(progress, 0.0, 1.0)
   if message.len > 0:
     screen.message = message
 
-proc setStage*(screen: LoadingScreen, stage: LoadingStage) =
+proc setStage*(screen: LoadingScreen, stage: LoadingStage) {.moddable.} =
   screen.stage = stage
 
-proc setAssetCounts*(screen: LoadingScreen, done, total: int) =
+proc setAssetCounts*(screen: LoadingScreen, done, total: int) {.moddable.} =
   screen.assetsDone = done
   screen.assetsTotal = total
 
@@ -102,7 +103,7 @@ proc drawStagePill(x, y: int32, label: string, state: int, animTime: float32): i
   drawText(label, x + padX + 14, y + 4, 14, fg)
   result = w
 
-proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) =
+proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) {.moddable.} =
   drawSharedBackdrop(screenWidth, screenHeight, screen.animTime * 0.7,
                      Color(r: 9, g: 12, b: 24, a: 255),
                      Color(r: 18, g: 20, b: 34, a: 255),

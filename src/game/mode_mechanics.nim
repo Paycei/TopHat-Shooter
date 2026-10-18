@@ -16,6 +16,7 @@
 ## dying enemy is left to the main loop.
 
 import raylib, math, random
+import ../modding/mod_patch_core
 import particle_types, types, enemy, player, bullet, particle_pool, d_systems,
        run_statistics, sound, survival, xp_orb, gamemode_definitions,
        mode_hazards, game/combat, game/death
@@ -25,7 +26,7 @@ import particle_types, types, enemy, player, bullet, particle_pool, d_systems,
 
 proc hazardHitPlayer*(game: var Game, damage: float32, cause: DeathCause,
                       dmgType: DamageType, source: Enemy = nil,
-                      sourceType = etEnvironment, interval = 0.0'f32): bool {.discardable.} =
+                      sourceType = etEnvironment, interval = 0.0'f32): bool {.discardable, moddable.} =
   ## One hit from a roster hazard. `interval` > 0 marks a continuous hazard,
   ## gated like every beam by the player's laserHitCooldown. Boss hazards
   ## pass dcLaser (the death screen credits the living boss).
@@ -76,7 +77,7 @@ proc offArenaOutbound(game: Game, e: Enemy, margin: float32): bool =
 # ---------------------------------------------------------------------------
 # Echo (Mirror Cache replays it)
 
-proc recordPlayerEcho*(game: var Game, aimDir: Vector2f, firing: bool, dt: float32) =
+proc recordPlayerEcho*(game: var Game, aimDir: Vector2f, firing: bool, dt: float32) {.moddable.} =
   ## Sample the player's position, aim and trigger at EchoSampleRate Hz into a
   ## ring buffer. Also latches "fired this frame" for the Audit Lock.
   let mc = addr game.modeCombat
@@ -106,7 +107,7 @@ proc echoSampleAgo(game: Game, seconds: float32): EchoSample =
   let back = clamp(int(seconds * EchoSampleRate), 0, mc.echo.len - 1)
   mc.echo[(mc.echoHead - back + mc.echo.len) mod mc.echo.len]
 
-proc resetModeCombat*(game: var Game) =
+proc resetModeCombat*(game: var Game) {.moddable.} =
   ## Drop the transient roster state (a room/horde wipe or a new fight).
   game.modeCombat.corpses.setLen(0)
   game.modeCombat.husks.setLen(0)
@@ -128,7 +129,7 @@ proc interruptBlast(game: var Game, e: Enemy, radius: float32) =
     if distance(other.pos, e.pos) <= radius + other.radius:
       discard applyEnemyHpDamage(other, other.maxHp * InterruptBlastEnemyFrac)
 
-proc onModeEnemyKilled*(game: var Game, enemy: Enemy) =
+proc onModeEnemyKilled*(game: var Game, enemy: Enemy) {.moddable.} =
   ## Death hooks of the roster (called from the main death path).
   if enemy.isBoss:
     return
@@ -244,7 +245,7 @@ proc fragmentSlam(game: var Game, frag: Enemy) =
       addShake(game.dopamine.screenShake, siSmall)
       playSound(stPlayerHit, 0.4)
 
-proc updateModeMechanics*(game: var Game, dt: float32) =
+proc updateModeMechanics*(game: var Game, dt: float32) {.moddable.} =
   ## Once per frame, before the enemy loop.
   let mc = addr game.modeCombat
 
@@ -391,7 +392,7 @@ proc pageInWall(game: var Game, w: AttackWarning) =
                       obstacleTint: tint))
   spawnExplosionPooled(game.particlePool, w.pos.x, w.pos.y, Color(r: 200, g: 160, b: 255, a: 255), 20)
 
-proc pageInQuietly*(game: var Game, w: AttackWarning) =
+proc pageInQuietly*(game: var Game, w: AttackWarning) {.moddable.} =
   ## A dead Supervisor's pending page-ins still land (no crush), so the room
   ## keeps its cover.
   if w.lasersCreated or w.lifetime > PageFaultActive:
@@ -399,7 +400,7 @@ proc pageInQuietly*(game: var Game, w: AttackWarning) =
   w.lasersCreated = true
   pageInWall(game, w)
 
-proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) =
+proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddable.} =
   let age = warningAge(w)
   case w.attackType
   of awtCorruptTile:

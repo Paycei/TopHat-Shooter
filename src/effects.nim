@@ -1,4 +1,5 @@
 import types
+import modding/mod_patch_core
 
 # Poison stacking: the longer an enemy stays poisoned, the harder each tick
 # hits. Bosses reach the same cap but ramp at half speed, so poison needs
@@ -10,10 +11,10 @@ const
   PoisonMaxStacksNormal* = 10.0'f32   # up to 2x poison damage
   PoisonMaxStacksBoss* = 10.0'f32     # same ceiling, but takes 20s of uptime
 
-proc poisonStackCap*(enemy: Enemy): float32 =
+proc poisonStackCap*(enemy: Enemy): float32 {.moddable.} =
   if enemy.isBoss: PoisonMaxStacksBoss else: PoisonMaxStacksNormal
 
-proc poisonStackMultiplier*(enemy: Enemy): float32 =
+proc poisonStackMultiplier*(enemy: Enemy): float32 {.moddable.} =
   ## Current poison damage multiplier from accumulated stacks. Single source of
   ## truth: the tick in updateEffects, the damage-number share in game.nim and
   ## Conduit's detonation burst all read this.
@@ -28,7 +29,7 @@ proc nullEffect(et: ElementType): EffectInstance =
 # Previene stacking de efectos iguales pero permite fallback a efecto de menor poder
 
 proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
-                  duration: float32, source: string, hadMastery: bool = false) =
+                  duration: float32, source: string, hadMastery: bool = false) {.moddable.} =
   ## Aplica un efecto al enemigo. Si ya existe uno del mismo tipo:
   ## - Si el nuevo es más fuerte (mayor dps), lo reemplaza y guarda el anterior como fallback
   ## - Si el actual está INACTIVO/terminado, aplica el nuevo igual
@@ -89,7 +90,7 @@ proc applyEffect*(enemy: Enemy, effectType: ElementType, damagePerSec: float32,
         enemy.activeEffects[effectType] = updated
     # Weaker than active primary, ignore
 
-proc updateEffects*(enemy: Enemy, dt: float32): float32 =
+proc updateEffects*(enemy: Enemy, dt: float32): float32 {.moddable.} =
   ## Actualiza todos los efectos del enemigo y retorna el daño total a aplicar
   ## Retorna: daño total que debe aplicarse este frame
 
@@ -134,6 +135,6 @@ proc updateEffects*(enemy: Enemy, dt: float32): float32 =
 
   return totalDamage
 
-proc hasActiveEffect*(enemy: Enemy, elementType: ElementType): bool =
+proc hasActiveEffect*(enemy: Enemy, elementType: ElementType): bool {.moddable.} =
   ## Retorna true si hay un efecto activo de ese tipo
   enemy.activeEffects[elementType].primary.isActive

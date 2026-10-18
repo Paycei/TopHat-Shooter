@@ -11,6 +11,7 @@
 ##   5. Add the localization keys and entries for the name and description in both english and spanish in localization.nim.
 
 import raylib, strformat, math, strutils
+import modding/mod_patch_core
 import types, localization
 
 # Registry types
@@ -179,7 +180,7 @@ var
 
 proc isModPowerUp*(pt: PowerUpType): bool {.inline.} = pt >= FirstModPowerUp
 
-proc isPowerUpLive*(pt: PowerUpType): bool {.inline.} =
+proc isPowerUpLive*(pt: PowerUpType): bool {.inline, moddable.} =
   ## Built-in, or a mod slot a loaded mod is using. Lists and pools show only these.
   not isModPowerUp(pt) or modPowerUps[pt].bound
 
@@ -188,12 +189,12 @@ proc powerUpDef*(pt: PowerUpType): PowerUpDef {.inline.} = powerUpDefs[pt]
 const VanillaPowerUpCount* = ord(puDataHarvest) - ord(low(PowerUpType)) + 1
   ## Built-in power-ups only (the codex total).
 
-proc powerUpSaveName*(pt: PowerUpType): string =
+proc powerUpSaveName*(pt: PowerUpType): string {.moddable.} =
   ## What saves store: the enum name, or "mod:<mod id>:<name>" for a mod slot,
   ## whose number only means something under one mod set.
   if isModPowerUp(pt): "mod:" & modPowerUps[pt].key else: $pt
 
-proc parsePowerUpSaveName*(s: string, pt: var PowerUpType): bool =
+proc parsePowerUpSaveName*(s: string, pt: var PowerUpType): bool {.moddable.} =
   ## False for anything that does not exist right now: an unknown name, a mod
   ## that is not loaded, or a raw slot name (never valid on disk).
   if s.startsWith("mod:"):
@@ -209,20 +210,20 @@ proc parsePowerUpSaveName*(s: string, pt: var PowerUpType): bool =
   except ValueError:
     false
 
-proc powerUpScriptName*(pt: PowerUpType): string =
+proc powerUpScriptName*(pt: PowerUpType): string {.moddable.} =
   ## The name scripts use: "puDoubleShot", or "<mod id>:<name>" for a mod's.
   if isModPowerUp(pt): modPowerUps[pt].key else: $pt
 
-proc resolvePowerUpScriptName*(s: string, pt: var PowerUpType): bool =
+proc resolvePowerUpScriptName*(s: string, pt: var PowerUpType): bool {.moddable.} =
   if ':' in s: parsePowerUpSaveName("mod:" & s, pt)
   else: parsePowerUpSaveName(s, pt)
 
-proc livePowerUps*(): seq[PowerUpType] =
+proc livePowerUps*(): seq[PowerUpType] {.moddable.} =
   ## Every power-up that exists right now: built-ins plus bound mod slots.
   for pt in PowerUpType:
     if isPowerUpLive(pt): result.add(pt)
 
-proc rebuildPowerUpPools*() =
+proc rebuildPowerUpPools*() {.moddable.} =
   legendaryPool.setLen(0)
   normalPool.setLen(0)
   for pt in PowerUpType:
@@ -231,15 +232,15 @@ proc rebuildPowerUpPools*() =
     of puppLegendary: legendaryPool.add(pt)
     of puppNormal: normalPool.add(pt)
 
-proc setPowerUpDef*(pt: PowerUpType, def: PowerUpDef) =
+proc setPowerUpDef*(pt: PowerUpType, def: PowerUpDef) {.moddable.} =
   powerUpDefs[pt] = def
   rebuildPowerUpPools()
 
-proc vanillaPowerUpDef*(pt: PowerUpType): PowerUpDef =
+proc vanillaPowerUpDef*(pt: PowerUpType): PowerUpDef {.moddable.} =
   if isModPowerUp(pt): PowerUpDef(pool: puppNormal, maxLevel: 1, color: Gray)
   else: vanillaPowerUpDefs[pt]
 
-proc resetPowerUpDefs*() =
+proc resetPowerUpDefs*() {.moddable.} =
   ## Back to the built-in registry with every mod slot unbound.
   for pt in PowerUpType:
     powerUpDefs[pt] = vanillaPowerUpDef(pt)
@@ -256,15 +257,15 @@ proc modPowerUpDisplay(pt: PowerUpType, level: int, wantName: bool): string =
 
 # Inline lookup helpers
 
-proc getPowerUpColor*(pt: PowerUpType): Color {.inline.} =
+proc getPowerUpColor*(pt: PowerUpType): Color {.inline, moddable.} =
   powerUpDefs[pt].color
 
-proc getPowerUpMaxLevel*(pt: PowerUpType): int {.inline.} =
+proc getPowerUpMaxLevel*(pt: PowerUpType): int {.inline, moddable.} =
   powerUpDefs[pt].maxLevel
 
 # Active ([Q]) abilities: live state, shared by the [Q] strip and the pause menu
 
-proc abilityCooldown*(player: Player, pt: PowerUpType): float32 =
+proc abilityCooldown*(player: Player, pt: PowerUpType): float32 {.moddable.} =
   ## Seconds until a [Q] ability can fire again (0 for everything else).
   if pt in FirstModPowerUp..LastModPowerUp:
     return player.modAbilityCooldowns[pt]   # register.powerup{active = ...}
@@ -278,7 +279,7 @@ proc abilityCooldown*(player: Player, pt: PowerUpType): float32 =
   of puNova: player.novaCooldown
   else: 0.0'f32
 
-proc abilityReady*(player: Player, pt: PowerUpType): bool =
+proc abilityReady*(player: Player, pt: PowerUpType): bool {.moddable.} =
   ## Off cooldown and allowed to fire right now.
   abilityCooldown(player, pt) <= 0.0'f32 and
     (case pt
@@ -287,7 +288,7 @@ proc abilityReady*(player: Player, pt: PowerUpType): bool =
      of puNova: not player.novaActive
      else: true)
 
-proc recursionDamageBonusForLevel*(level: int): float32 {.inline.} =
+proc recursionDamageBonusForLevel*(level: int): float32 {.inline, moddable.} =
   ## TOTAL fractional damage bonus for holding Recursion at the given level --
   ## cumulative, not per-rung. Reaching level 3 is worth +20% in all, so an
   ## upgrade must apply the difference between two calls, never the whole value
@@ -302,7 +303,7 @@ proc recursionDamageBonusForLevel*(level: int): float32 {.inline.} =
 
 # Names
 
-proc getPowerUpName*(powerType: PowerUpType): string =
+proc getPowerUpName*(powerType: PowerUpType): string {.moddable.} =
   case powerType
   of FirstModPowerUp..LastModPowerUp: modPowerUpDisplay(powerType, 0, true)
   of puDoubleShot: t(tkPowerupDoubleShot)
@@ -396,7 +397,7 @@ proc getPowerUpName*(powerType: PowerUpType): string =
 
 # Descriptions
 
-proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: float32 = 1.0): string =
+proc getPowerUpDescription*(powerType: PowerUpType, level: int, playerDamage: float32 = 1.0): string {.moddable.} =
   # Helper: format "base + scaled (pct%)", values are multiplied x100 for display
   proc dmg(base: float32, scalePct: float32, pd: float32): string =
     let baseVal = round(base * 100).int
@@ -769,7 +770,7 @@ const
   RollBrakeDuration*     = 0.45'f32   ## seconds of cubic ease-out before a slot locks
   RollUnlockDelay*       = 0.12'f32   ## beat after the last slot settles before input opens
 
-proc rollStopTimes*(isLegendary: bool): array[3, float32] =
+proc rollStopTimes*(isLegendary: bool): array[3, float32] {.moddable.} =
   ## When each of the three reels locks, in seconds from the start of the roll.
   if isLegendary: [1.1'f32, 1.7'f32, 2.4'f32]
   else:           [0.6'f32, 0.85'f32, 1.15'f32]

@@ -15,6 +15,7 @@
 ## Like the other game/ modules it never imports game.
 
 import std/[math, sets, tables]
+import ../modding/mod_patch_core
 import raylib
 import ../draw_prims
 import ../types, ../particle_types, ../player, ../bullet, ../enemy_helpers, ../run_statistics, ../particle_pool
@@ -32,14 +33,14 @@ var
   thingGridMaxR: float32
 
 # ---------------------------------------------------------------- helpers ----
-proc alive*(t: ModThing): bool {.inline.} =
+proc alive*(t: ModThing): bool {.inline, moddable.} =
   tfDead notin t.flags and tfRemoved notin t.flags
 
 proc extentRadius(t: ModThing): float32 {.inline.} =
   ## The radius of a circle that contains the thing (for grid queries).
   if t.shape == tsRect: 0.5'f32 * sqrt(t.w * t.w + t.h * t.h) else: t.radius
 
-proc overlapsCircle*(t: ModThing, p: Vector2f, r: float32): bool =
+proc overlapsCircle*(t: ModThing, p: Vector2f, r: float32): bool {.moddable.} =
   ## Does the thing's body touch the circle (p, r)?
   if t.shape == tsRect:
     let hw = t.w * 0.5'f32
@@ -94,7 +95,7 @@ proc pushOut(t: ModThing, p: var Vector2f, r: float32) =
     else:
       p.x = t.pos.x + rr
 
-proc hazardHits*(t: ModThing, p: Vector2f, r: float32): bool =
+proc hazardHits*(t: ModThing, p: Vector2f, r: float32): bool {.moddable.} =
   ## Is the circle (p, r) inside the hazard's area?
   let hz = t.hazard
   case hz.shape
@@ -130,7 +131,7 @@ proc hurtsPlayer(t: ModThing): bool {.inline.} = t.team != ttPlayer
 proc hurtsEnemies(t: ModThing): bool {.inline.} = t.team != ttEnemy
 
 # ------------------------------------------------------- damage and death ----
-proc killThing*(game: Game, t: ModThing) =
+proc killThing*(game: Game, t: ModThing) {.moddable.} =
   ## Its HP ran out (or a script killed it): onDeath, the thingDeath hook, gone.
   if not t.alive: return
   t.flags.incl(tfDead)
@@ -141,7 +142,7 @@ proc killThing*(game: Game, t: ModThing) =
   modThingDeath(t)
   spawnExplosionPooled(game.particlePool, t.pos.x, t.pos.y, t.color, 10)
 
-proc damageThing*(game: Game, t: ModThing, amount: float32, source: string = "script"): float32 =
+proc damageThing*(game: Game, t: ModThing, amount: float32, source: string = "script"): float32 {.moddable.} =
   ## Damage actually dealt (its kind's onDamaged may change it). `source`:
   ## "bullet", "enemy", "explosion" or "script".
   if not t.alive or amount <= 0 or tfInvulnerable in t.flags or t.maxHp <= 0:
@@ -157,7 +158,7 @@ proc damageThing*(game: Game, t: ModThing, amount: float32, source: string = "sc
   t.hitFlash = 0.12
   if t.hp <= 0: killThing(game, t)
 
-proc removeThing*(t: ModThing) =
+proc removeThing*(t: ModThing) {.moddable.} =
   ## Gone at the end of the frame: no death, no onDeath.
   t.flags.incl(tfRemoved)
 
@@ -301,7 +302,7 @@ proc moveThing(game: Game, t: ModThing, dt: float32) =
                         game.player.pos.y + sin(a) * t.orbitRadius)
   t.angle += t.spin * dt
 
-proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, maxEnemyR: float32) =
+proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, maxEnemyR: float32) {.moddable.} =
   ## One frame of every thing (see the module comment for the order). `grid`
   ## holds game.enemies as of this frame; nothing here adds or deletes enemies.
   if game.modThings.len == 0: return
@@ -417,7 +418,7 @@ proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, m
         discard callKind(thingKinds[ki].owner, thingKinds[ki].update,
                          [wrapThing(t), vnum(step.float64), wrapGame(game)], r)
 
-proc sweepThings*(game: Game) =
+proc sweepThings*(game: Game) {.moddable.} =
   ## Drop dead and removed things (and what was kept about them).
   if game.modThings.len == 0: return
   var gone = false
@@ -444,7 +445,7 @@ proc hitBy(t: ModThing, b: Bullet): bool {.inline.} =
   tfHitByBullets in t.flags and
     (t.team == ttNeutral or (t.team == ttPlayer) != b.fromPlayer)
 
-proc collideThingBullets*(game: Game) =
+proc collideThingBullets*(game: Game) {.moddable.} =
   ## Bullets against things, outside the bullet loop: build a grid over the
   ## things, walk the bullets once, mark the ones that hit, compact once.
   if game.modThings.len == 0 or game.bullets.len == 0: return
@@ -540,7 +541,7 @@ proc drawThingBody(t: ModThing, k: int) =
                     b: uint8(min(255, t.color.b.int + 60)), a: t.color.a)
     drawCircleOutline(t.pos.x.int32, t.pos.y.int32, t.radius * scale, rim)
 
-proc drawThings*(game: Game, layer: ThingLayer) =
+proc drawThings*(game: Game, layer: ThingLayer) {.moddable.} =
   ## World coordinates. Hazards always draw their telegraph, whatever their
   ## kind or a script does: hazards must be fair.
   if game.modThings.len == 0: return
@@ -567,12 +568,11 @@ proc drawThings*(game: Game, layer: ThingLayer) =
                               width: w * clamp(t.hp / t.maxHp, 0'f32, 1'f32), height: 3), t.color)
 
 # ---------------------------------------------------------------- joining ----
-proc joinThing*(game: Game, t: ModThing, callback: ScriptValue, owner: int): bool =
-  ## processModActions: a built thing joins the arena (false: the cap is full).
+proc joinThing*(game: Game, t: ModThing, callback: ScriptValue, owner: int): bool {.moddable.} =
+  ## processModActions: a built thing joins the arena (false: it died first).
   let p = modPendingThings.find(t)
   if p >= 0: modPendingThings.delete(p)
   if not t.alive: return false
-  if game.modThings.len >= MaxModThings: return false
   game.modThings.add(t)
   var r: RetVals
   discard thingCall(t, proc (k: ThingKind): ScriptValue {.nimcall.} = k.onSpawn,
@@ -581,7 +581,7 @@ proc joinThing*(game: Game, t: ModThing, callback: ScriptValue, owner: int): boo
   modThingSpawn(t)
   true
 
-proc keepPersistentThings*(game: Game) =
+proc keepPersistentThings*(game: Game) {.moddable.} =
   ## A roguelite room change: only `persistent` things follow the player.
   if game.modThings.len == 0: return
   var kept: seq[ModThing]

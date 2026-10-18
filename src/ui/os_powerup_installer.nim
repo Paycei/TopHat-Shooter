@@ -3,6 +3,7 @@
 # The roll animation system is handled in powerup.nim
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context, ../settings, ui_helpers, ../utils
 
@@ -42,7 +43,7 @@ type
     rerollX*, rerollY*, rerollW*, rerollH*: int32
     continueX*, continueY*, continueW*, continueH*: int32
 
-proc installerLayout*(): InstallerLayout =
+proc installerLayout*(): InstallerLayout {.moddable.} =
   ## Widescreen (16:9) hands the panel ~260 extra pixels. Rather than banking it
   ## as margin, it is split between the three cards (~73px each) and the gaps
   ## between them (+20px), so descriptions wrap into fewer lines and the icon /
@@ -79,23 +80,23 @@ proc installerLayout*(): InstallerLayout =
   result.continueX = result.winX + (result.winW - result.continueW) div 2
   result.continueY = result.winY + result.winH - 100
 
-proc cardX*(l: InstallerLayout, i: int): int32 =
+proc cardX*(l: InstallerLayout, i: int): int32 {.moddable.} =
   ## Left edge of card `i` (0..2).
   l.cardsX + int32(i) * (l.cardW + l.cardSpacing)
 
-proc cardRect*(l: InstallerLayout, i: int): Rectangle =
+proc cardRect*(l: InstallerLayout, i: int): Rectangle {.moddable.} =
   Rectangle(x: l.cardX(i).float32, y: l.cardsY.float32,
             width: l.cardW.float32, height: l.cardH.float32)
 
-proc closeRect*(l: InstallerLayout): Rectangle =
+proc closeRect*(l: InstallerLayout): Rectangle {.moddable.} =
   Rectangle(x: l.closeX.float32, y: l.closeY.float32,
             width: l.closeSize.float32, height: l.closeSize.float32)
 
-proc rerollRect*(l: InstallerLayout): Rectangle =
+proc rerollRect*(l: InstallerLayout): Rectangle {.moddable.} =
   Rectangle(x: l.rerollX.float32, y: l.rerollY.float32,
             width: l.rerollW.float32, height: l.rerollH.float32)
 
-proc continueRect*(l: InstallerLayout): Rectangle =
+proc continueRect*(l: InstallerLayout): Rectangle {.moddable.} =
   Rectangle(x: l.continueX.float32, y: l.continueY.float32,
             width: l.continueW.float32, height: l.continueH.float32)
 
@@ -444,7 +445,7 @@ proc drawSlotLockEffect(cardX, cardY, cardW, cardH: int32,
     drawText(powerUpName, nx + 2, ny + 2, 18, Color(r: 0, g: 0, b: 0, a: tA))
     drawText(powerUpName, nx, ny, 18, withAlpha(ac, tA))
 
-proc drawOSPowerUpInstaller*(game: Game) =
+proc drawOSPowerUpInstaller*(game: Game) {.moddable.} =
   ## Draw the power-up selection screen with slot machine roll animation.
   let screenWidth  = getVirtualScreenWidth()
   let screenHeight = getVirtualScreenHeight()
@@ -664,7 +665,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
           if canAfford: Color(r: 255, g: 215, b: 0, a: 255) else: Color(r: 120, g: 120, b: 130, a: 255))
   drawText("[R]", rerollX + rerollW + 10, buttonY + 13, 14, Color(r: 200, g: 200, b: 200, a: 255))
 
-proc drawPowerUpInstallerExhausted*(game: Game) =
+proc drawPowerUpInstallerExhausted*(game: Game) {.moddable.} =
   ## Shown in place of the normal installer when every power-up in the pool is
   ## already at its maximum level. Displays a completion badge and a Continue button.
   let screenWidth  = getVirtualScreenWidth()

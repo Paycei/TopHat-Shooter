@@ -1,4 +1,5 @@
 import raylib, rlgl, math, tables
+import ../modding/mod_patch_core
 import types, player, particle_pool, particle_types, powerup, game/combat, game/bullets
 from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, trackHealing
 
@@ -255,7 +256,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
   of etNone:
     discard
 
-proc updateOrbitalWeapons*(game: var Game, dt: float32) =
+proc updateOrbitalWeapons*(game: var Game, dt: float32) {.moddable.} =
   ## Update all rotating orbs and handle collisions with enemies
 
   # Check if player has any orb power-ups

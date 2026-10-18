@@ -2,6 +2,7 @@
 ## Defines available bullet skins and rendering functions
 
 import raylib, math
+import modding/mod_patch_core
 import localization
 
 type
@@ -33,7 +34,7 @@ type
 # Global bullet skin database
 var bulletSkinDatabase*: array[BulletSkinType, BulletSkinData]
 
-proc initializeBulletSkins*() =
+proc initializeBulletSkins*() {.moddable.} =
   ## Initialize all available bullet skins with their data
   bulletSkinDatabase[bskDefault] = BulletSkinData(
     name: t("bullet_default"),
@@ -175,7 +176,7 @@ proc initializeBulletSkins*() =
     isUnlocked: true
   )
 
-proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primary, glow, trail: Color] =
+proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primary, glow, trail: Color] {.moddable.} =
   ## Get the colors for a bullet skin, applying animations if needed
   let skin = bulletSkinDatabase[skinType]
 
@@ -242,6 +243,6 @@ proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primar
   else:
     return (skin.primaryColor, skin.glowColor, skin.trailColor)
 
-proc getBulletSkinData*(skinType: BulletSkinType): BulletSkinData =
+proc getBulletSkinData*(skinType: BulletSkinType): BulletSkinData {.moddable.} =
   ## Get the data for a specific bullet skin
   return bulletSkinDatabase[skinType]

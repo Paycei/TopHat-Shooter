@@ -10,6 +10,7 @@
 ## mtStoryBelow score in sound.nim.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import particle_types, background_fx, ../shapes, ../localization, ../sound, ../boss_definitions,
        cinematic_common, cutscene
@@ -329,7 +330,7 @@ proc rogueliteBackdrop(time, totalDuration: float32, sw, sh: int32) =
 # ---------------------------------------------------------------------------
 # Public factory
 
-proc newRogueliteEndCutscene*(): Cutscene =
+proc newRogueliteEndCutscene*(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: BelowShots[0], drawProc: drawDescendShot, soundCue: stTeleport,
@@ -362,8 +363,8 @@ type RogueliteEndCinematic* = Cutscene
 
 proc newRogueliteEndCinematic*(): RogueliteEndCinematic = newRogueliteEndCutscene()
 
-proc updateRogueliteEndCinematic*(c: RogueliteEndCinematic, dt: float32) =
+proc updateRogueliteEndCinematic*(c: RogueliteEndCinematic, dt: float32) {.moddable.} =
   updateCutscene(c, dt)
 
-proc drawRogueliteEndCinematic*(c: RogueliteEndCinematic, screenWidth, screenHeight: int) =
+proc drawRogueliteEndCinematic*(c: RogueliteEndCinematic, screenWidth, screenHeight: int) {.moddable.} =
   drawCutscene(c, screenWidth, screenHeight)

@@ -10,6 +10,7 @@
 ## it without dragging in the others.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../utils, ../render_context
 
@@ -35,12 +36,12 @@ const
   DockTrackBg* = Color(r: 4, g: 10, b: 16, a: 235)
     ## Unfilled part of a bar.
 
-proc drawShadowText*(text: string, x, y, size: int32, color: Color) =
+proc drawShadowText*(text: string, x, y, size: int32, color: Color) {.moddable.} =
   ## Text lifted off the card by a 1px drop shadow.
   drawText(text, x + 1, y + 1, size, withAlpha(DockShadow, min(DockShadow.a, color.a)))
   drawText(text, x, y, size, color)
 
-proc drawDockBands*(time: float32) =
+proc drawDockBands*(time: float32) {.moddable.} =
   ## Paint the two side bands behind the docked HUD. Drawn in plain virtual
   ## coordinates (outside any UI-scale layer) and derived from the world view,
   ## so it covers exactly the strips the arena leaves at every interface scale.
@@ -90,7 +91,7 @@ proc drawDockBands*(time: float32) =
                          withAlpha(DockAccent, 150), withAlpha(DockAccent, 0))
 
 proc drawDockCard*(x, y, w, h: int32, accent: Color = DockAccent,
-                   bg: Color = DockCardBg) =
+                   bg: Color = DockCardBg) {.moddable.} =
   ## A docked card: solid body, an accent spine on the left and a thin rim.
   drawRectangle(x, y, w, h, bg)
   drawRectangle(x, y, 2, h, withAlpha(accent, 210))
@@ -98,7 +99,7 @@ proc drawDockCard*(x, y, w, h: int32, accent: Color = DockAccent,
                      1, withAlpha(accent, 55))
 
 proc drawDockHeader*(x, y, w: int32, title: string, accent: Color = DockAccent,
-                     right: string = "", rightColor: Color = DockDim): int32 {.discardable.} =
+                     right: string = "", rightColor: Color = DockDim): int32 {.discardable, moddable.} =
   ## Title strip across the top of a card; returns the y just below it.
   drawRectangle(x + 2, y, w - 2, DockHeaderH, withAlpha(accent, 34))
   drawRectangle(x + 2, y + DockHeaderH - 1, w - 2, 1, withAlpha(accent, 70))
@@ -109,7 +110,7 @@ proc drawDockHeader*(x, y, w: int32, title: string, accent: Color = DockAccent,
   y + DockHeaderH
 
 proc drawDockBar*(x, y, w, h: int32, frac: float32, fill: Color,
-                  rim: Color = Color(r: 0, g: 0, b: 0, a: 0)) =
+                  rim: Color = Color(r: 0, g: 0, b: 0, a: 0)) {.moddable.} =
   ## A horizontal meter: dark track, `frac` of it filled, a 1px highlight on
   ## top of the fill, and an optional rim.
   drawRectangle(x, y, w, h, DockTrackBg)

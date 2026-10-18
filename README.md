@@ -27,8 +27,9 @@ and the bosses are hijacked system services.
 - **Four difficulties:** Easy, Medium, Hard and Nightmare, one profile each. Restore
   points let you continue after a death. How many you get depends on the difficulty,
   and Nightmare has none.
-- **Mods:** Lua 5.5 scripts, textures, animated GIFs, 3D models and shaders, all run in
-  a sandbox. Nine example mods ship with the game.
+- **Mods:** Lua 5.5 scripts with full access to the game (its own code, its data, raylib),
+  textures, animated GIFs, 3D models, shaders and new languages. Twelve example mods ship
+  with the game.
 - **Progression:** Data Shards and Cores from the three PvE modes, 39 advancements, cosmetic skins
   for your player, bullets, particles, the desktop cube and the wallpaper, plus story
   cinematics and a lore archive.
@@ -117,17 +118,21 @@ compiled into the game) and can:
   PNGs, animated GIFs or 3D models (glTF/GLB, OBJ, IQM, VOX, M3D)
 - replace built-in behaviour (movement, dash, shooting, pickups, the shop, level-ups,
   enemy AI, boss attacks), hide the HUD and draw their own, or add screen shaders
-- add their own apps to MODS.exe
+- wrap or replace any of the game's own procs (mixins), call them, and draw with raylib directly
+- add screens of their own, new languages, and their own apps to MODS.exe
 
-Mods run in a sandbox: they can't touch your files or the network, and a runaway
-script is stopped instead of freezing the game. Runs with mods loaded keep their own
-saves and earn no permanent rewards, unless every loaded mod
-opts out with `"disableAchievements": false` (for mods that only change looks).
+Mods are trusted programs: they get the whole Lua standard library and every part of the
+game, like any program you install, so only install mods from people you trust (mods on
+the official repository are reviewed before they are published). A script that freezes
+is stopped instead of freezing the game. Runs with mods loaded keep their own saves and
+earn no permanent rewards, unless every loaded mod opts out with
+`"disableAchievements": false` (for mods that only change looks).
 
 The included examples are *Hello HUD*, *House Rules*, *Story Mode*, *Overclock*, *Necromancer*,
-*Chaos Engine*, *Content Pack*, *Cosmetics Pack*, *Media*, *3D Worlds* and *Critical Section*. They live in
-[`mods-sdk/examples/`](mods-sdk/examples), and the full API reference is in
-[`mods-sdk/MODDING.md`](mods-sdk/MODDING.md).
+*Chaos Engine*, *Content Pack*, *Cosmetics Pack*, *Media*, *3D Worlds*, *Critical Section* and
+*Mixins Lab*. They live in [`mods-sdk/examples/`](mods-sdk/examples). The guide is
+[`mods-sdk/MODDING.md`](mods-sdk/MODDING.md), and [`mods-sdk/API.md`](mods-sdk/API.md), generated
+from the game with `nimble modapi`, lists every function, hook and game proc a mod can use.
 
 ## Building from source
 
@@ -171,7 +176,7 @@ game's enums make it refuse to build until new content is handled everywhere.
 ```bash
 nim check --mm:orc src/main.nim                # fast type-check, no binary
 nim r --mm:orc tests/test_spatial_grid.nim     # enemy spatial-grid queries
-nim r --mm:orc tests/test_mod_lua.nim          # mod runtime: sandbox, limits, errors
+nim r --mm:orc tests/test_mod_lua.nim          # mod runtime: stdlib, watchdog, errors
 ```
 
 ### Where things live

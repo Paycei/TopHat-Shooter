@@ -1,4 +1,5 @@
 import raylib, math, random
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, particle, particle_pool, powerup, patches, sound, d_systems, d_enhancements, run_statistics, game/combat, gamemode_definitions, enemy_config
 import modding/mod_hooks
@@ -10,12 +11,12 @@ const RogueliteCoinScale* = 0.45'f32
   ## Roguelite kill-drop credit scale (measured: unscaled drops paid ~1600 of a
   ## run's ~2400 credits against stalls costing 55-250).
 
-proc clampLootPosition*(x, y: float32, screenWidth, screenHeight: int32): tuple[x, y: float32] =
+proc clampLootPosition*(x, y: float32, screenWidth, screenHeight: int32): tuple[x, y: float32] {.moddable.} =
   ## Clamps a position to be within screen bounds with margin
   result.x = clamp(x, LOOT_MARGIN, screenWidth.float32 - LOOT_MARGIN)
   result.y = clamp(y, LOOT_MARGIN, screenHeight.float32 - LOOT_MARGIN)
 
-proc newCoin*(x, y: float32, value: int = 1, isBoss: bool = false): Coin =
+proc newCoin*(x, y: float32, value: int = 1, isBoss: bool = false): Coin {.moddable.} =
   # Scale coin radius based on value for visual feedback
   # Cap scaling at value 10 to prevent coins from becoming too large
   let baseRadius = 6.0
@@ -33,7 +34,7 @@ proc newCoin*(x, y: float32, value: int = 1, isBoss: bool = false): Coin =
     isBossCoin: isBoss
   )
 
-proc updateCoin*(coin: Coin, dt: float32, totalCoins: int): bool =
+proc updateCoin*(coin: Coin, dt: float32, totalCoins: int): bool {.moddable.} =
   # Coins despawn based on total count, not time
   # Keep coins until there are too many (> 150)
   # The boss coin is exempt: wave mode only advances once it is picked up, so
@@ -49,7 +50,7 @@ proc updateCoin*(coin: Coin, dt: float32, totalCoins: int): bool =
       return coin.lifetime > 0
   return true  # Keep coin if under limit
 
-proc drawCoin*(coin: Coin) =
+proc drawCoin*(coin: Coin) {.moddable.} =
   let t = getTime()
   # Pulsing effect (more intense for boss coins)
   let pulseSpeed = if coin.isBossCoin: 8.0 else: 5.0
@@ -119,15 +120,15 @@ proc drawCoin*(coin: Coin) =
     drawText(text, (coin.pos.x - textWidth.float32 / 2).int32,
              (coin.pos.y - fontSize.float32 / 2).int32, fontSize.int32, Black)
 
-proc checkPlayerCollision*(coin: Coin, player: Player): bool =
+proc checkPlayerCollision*(coin: Coin, player: Player): bool {.moddable.} =
   let collectRange = if player.magnetTimer > 0: 80.0 else: coin.radius + player.radius
   distance(coin.pos, player.pos) < collectRange
 
-proc checkAuraCollision*(coin: Coin, player: Player, auraRadius: float32): bool =
+proc checkAuraCollision*(coin: Coin, player: Player, auraRadius: float32): bool {.moddable.} =
   # Check if coin is within player's collection aura
   distance(coin.pos, player.pos) < auraRadius
 
-proc moveCoinToPlayer*(coin: Coin, playerPos: Vector2f, dt: float32) =
+proc moveCoinToPlayer*(coin: Coin, playerPos: Vector2f, dt: float32) {.moddable.} =
   ## Accelerating pull: coins start drifting and then snap home. A flat 300 px/s
   ## was slower than a boosted player, so pulled coins could trail forever
   ## without ever being collected. Scaling with proximity also gives the pickup
@@ -138,7 +139,7 @@ proc moveCoinToPlayer*(coin: Coin, playerPos: Vector2f, dt: float32) =
   let pullSpeed = 300.0'f32 + 420.0'f32 * (1.0'f32 - min(1.0'f32, dist / 140.0'f32))
   coin.pos = coin.pos + dir * pullSpeed * dt
 
-proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int =
+proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int {.moddable.} =
   if enemy.isBoss:
     let baseAmount = if mode == gmWaveBased:
       50 + (currentWave div BossWaveInterval) * 10  # +10 coins per boss number
@@ -185,7 +186,7 @@ proc enemyCoinValue*(enemy: Enemy, mode: GameMode, currentWave: int, difficulty:
     result = (result.float32 * 1.5).int
   result = modCoinValue(enemy, result)
 
-proc dropEnemyCoin*(game: Game, enemy: Enemy) =
+proc dropEnemyCoin*(game: Game, enemy: Enemy) {.moddable.} =
   var coinValue = enemyCoinValue(enemy, game.mode, game.currentWave, game.difficulty)
   # Density normalisation (wave mode). Coin value is granted per enemy, so the
   # ~4x head count would otherwise pay out ~4x per wave -- a measured run earned
@@ -216,7 +217,7 @@ proc dropEnemyCoin*(game: Game, enemy: Enemy) =
   let requiresBossCoin = enemy.isBoss and game.mode == gmWaveBased
   game.coins.add(newCoin(clampedPos.x, clampedPos.y, coinValue, requiresBossCoin))
 
-proc awardMetaCurrency*(game: Game, shards: int, cores: int = 0) =
+proc awardMetaCurrency*(game: Game, shards: int, cores: int = 0) {.moddable.} =
   ## Wave/survival reward: bank Data Shards / Cores into the profile wallet the
   ## cosmetic shop spends from, tally them for the end-of-run screens, and float
   ## the amounts over the player. A cheated run earns nothing from here on (what
@@ -234,7 +235,7 @@ proc awardMetaCurrency*(game: Game, shards: int, cores: int = 0) =
   if cores > 0:
     showCurrency(game, game.player.pos + newVector2f(28, -26), cores, cikCores)
 
-proc collectAllCoins*(game: Game) =
+proc collectAllCoins*(game: Game) {.moddable.} =
   ## Auto-bank every coin on the floor when the room is cleared, applying the
   ## same multipliers as contact pickup (Lucky Coins, Double Coin).
   if game.coins.len == 0: return
@@ -253,7 +254,32 @@ proc collectAllCoins*(game: Game) =
     game.currencyIndicators.add(newCurrencyIndicator(
       game.player.pos.x, game.player.pos.y - 18, totalValue, cikCredits))
 
-proc updateGameCoins*(game: Game, dt: float32): bool =
+proc collectCoin*(game: Game, coin: Coin): bool {.moddable.} =
+  ## The player touched `coin`: its credits, feedback and stats (the caller
+  ## removes it). True: it was the boss wave's coin and the wave can end.
+  let isBossCoin = coin.isBossCoin
+  var coinValue = coin.value
+  if hasPowerUp(game.player, puLuckyCoins):
+    coinValue *= 2
+  if game.player.doubleCoinTimer > 0:
+    coinValue *= 2
+  game.player.coins += coinValue
+  showCurrency(game, coin.pos, coinValue, cikCredits)
+
+  trackCoinPickup(game, coinValue)
+
+  recordCoin(game.dopamine.realTimeStats, game.dopamine.currentTime)
+  recordCoin(game.dopamine.waveStats)
+  playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
+  let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold
+  spawnExplosionPooled(game.particlePool, coin.pos.x, coin.pos.y, coinParticleColor, if isBossCoin: 20 else: 6)
+
+  if isBossCoin and game.bossWaveManager.coinActive:
+    game.bossWaveManager.coinActive = false
+    if shouldUseWaves(game.mode):
+      result = true
+
+proc updateGameCoins*(game: Game, dt: float32): bool {.moddable.} =
   ## Update all coins, handle collection, and magnet/aura movement.
   ## Returns true if a boss coin was collected and completeBossWave should be called.
   # Recovery: the wave is waiting on a boss coin that no longer exists (a run
@@ -292,34 +318,14 @@ proc updateGameCoins*(game: Game, dt: float32): bool =
       game.coins.delete(i)   # a mod took it (pickup hook); boss coins always count
       continue
     if checkPlayerCollision(game.coins[i], game.player):
-      let isBossCoin = game.coins[i].isBossCoin
-      var coinValue = game.coins[i].value
-      if hasPowerUp(game.player, puLuckyCoins):
-        coinValue *= 2
-      if game.player.doubleCoinTimer > 0:
-        coinValue *= 2
-      game.player.coins += coinValue
-      showCurrency(game, game.coins[i].pos, coinValue, cikCredits)
-
-      trackCoinPickup(game, coinValue)
-
-      recordCoin(game.dopamine.realTimeStats, game.dopamine.currentTime)
-      recordCoin(game.dopamine.waveStats)
-      playSound(stCoinPickup, if isBossCoin: 0.8 else: 0.5)
-      let coinParticleColor = if isBossCoin: Color(r: 255, g: 50, b: 50, a: 255) else: Gold
-      spawnExplosionPooled(game.particlePool, game.coins[i].pos.x, game.coins[i].pos.y, coinParticleColor, if isBossCoin: 20 else: 6)
-
-      if isBossCoin and game.bossWaveManager.coinActive:
-        game.bossWaveManager.coinActive = false
-        if shouldUseWaves(game.mode):
-          result = true
-
+      if collectCoin(game, game.coins[i]):
+        result = true
       game.coins.delete(i)
       continue
 
     i += 1
 
-proc updateCoinsWaveCleared*(game: Game, dt: float32) =
+proc updateCoinsWaveCleared*(game: Game, dt: float32) {.moddable.} =
   ## Simplified coin update for the brief gsWaveCleared window.
   ## Intentionally skips stat recording, achievement checks, and boss-coin logic.
   var i = 0
@@ -349,7 +355,7 @@ proc updateCoinsWaveCleared*(game: Game, dt: float32) =
 
     i += 1
 
-proc spawnMagnetCoins*(game: Game) =
+proc spawnMagnetCoins*(game: Game) {.moddable.} =
   for _ in 0..<3:
     let angle = rand(1.0) * PI * 2.0
     let dist = 50.0 + rand(150.0)
@@ -358,6 +364,6 @@ proc spawnMagnetCoins*(game: Game) =
     let clampedPos = clampLootPosition(coinX, coinY, game.screenWidth, game.screenHeight)
     game.coins.add(newCoin(clampedPos.x, clampedPos.y, 1))
 
-proc drawGameCoins*(game: Game) =
+proc drawGameCoins*(game: Game) {.moddable.} =
   for coin in game.coins:
     drawCoin(coin)

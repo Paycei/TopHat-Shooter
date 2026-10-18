@@ -7,6 +7,7 @@
 ## Leaf module: imports only math and types.
 
 import math
+import modding/mod_patch_core
 import particle_types, types
 
 const
@@ -125,17 +126,17 @@ const
   LkgDoorWidth* = 150.0'f32
   LkgPurgeDelay* = 0.45'f32          ## Share of the run before the purge front leaves the centre
 
-proc echoCapacity*(): int {.inline.} =
+proc echoCapacity*(): int {.inline, moddable.} =
   int(EchoSampleRate * EchoBufferSeconds)
 
-proc warningAge*(w: AttackWarning): float32 {.inline.} =
+proc warningAge*(w: AttackWarning): float32 {.inline, moddable.} =
   ## Seconds since the warning was spawned.
   w.maxLifetime - w.lifetime
 
 # ---------------------------------------------------------------------------
 # Geometry
 
-proc pointSegmentDistance*(p, a, b: Vector2f): float32 =
+proc pointSegmentDistance*(p, a, b: Vector2f): float32 {.moddable.} =
   let abx = b.x - a.x
   let aby = b.y - a.y
   let denom = abx * abx + aby * aby
@@ -146,7 +147,7 @@ proc pointSegmentDistance*(p, a, b: Vector2f): float32 =
   let dy = p.y - (a.y + aby * t)
   sqrt(dx * dx + dy * dy)
 
-proc portGuardBlocks*(enemy: Enemy, hitFrom: Vector2f): bool =
+proc portGuardBlocks*(enemy: Enemy, hitFrom: Vector2f): bool {.moddable.} =
   ## True when a hit arriving from `hitFrom` lands on a Port Guard's shield
   ## (rotation = shield facing).
   if enemy.enemyType != etPortGuard or enemy.hp <= 0:
@@ -172,7 +173,7 @@ proc rayCircleHit(origin, dir: Vector2f, center: Vector2f, radius: float32): flo
   let t = -b - sqrt(disc)
   if t < 0: -1.0'f32 else: t
 
-proc rayWallDistance*(origin, dir: Vector2f, maxLen: float32, walls: seq[Wall]): float32 =
+proc rayWallDistance*(origin, dir: Vector2f, maxLen: float32, walls: seq[Wall]): float32 {.moddable.} =
   ## How far a (unit-direction) ray travels before a standing wall stops it.
   ## Slab walls are approximated by their inscribed circle along the face.
   result = maxLen
@@ -188,29 +189,29 @@ proc rayWallDistance*(origin, dir: Vector2f, maxLen: float32, walls: seq[Wall]):
 # ricochetPath = per-beam clipped end points (refreshed every frame by the
 # resolver, read by the renderer).
 
-proc searchlightAngle*(w: AttackWarning, beam: int): float32 =
+proc searchlightAngle*(w: AttackWarning, beam: int): float32 {.moddable.} =
   let age = max(0.0'f32, warningAge(w) - SearchlightTelegraph)
   w.laserAngles[beam] + w.bulletSpeed * age
 
-proc searchlightLive*(w: AttackWarning): bool {.inline.} =
+proc searchlightLive*(w: AttackWarning): bool {.inline, moddable.} =
   warningAge(w) >= SearchlightTelegraph and w.lifetime > 0
 
 # --- Safe Mode (Omega, survival) --------------------------------------------
 # pos = bubble start, targetPos = bubble end, lifetime spans telegraph + cast.
 
-proc safeModeProgress*(w: AttackWarning): float32 =
+proc safeModeProgress*(w: AttackWarning): float32 {.moddable.} =
   ## 0 at the end of the telegraph, 1 when the cast ends.
   let castLen = max(0.01'f32, w.maxLifetime - SafeModeTelegraph)
   clamp((warningAge(w) - SafeModeTelegraph) / castLen, 0.0'f32, 1.0'f32)
 
-proc safeModeBubble*(w: AttackWarning): tuple[center: Vector2f, radius: float32] =
+proc safeModeBubble*(w: AttackWarning): tuple[center: Vector2f, radius: float32] {.moddable.} =
   let p = safeModeProgress(w)
   let s = p * p * (3.0'f32 - 2.0'f32 * p)   # smoothstep drift
   (newVector2f(w.pos.x + (w.targetPos.x - w.pos.x) * s,
                w.pos.y + (w.targetPos.y - w.pos.y) * s),
    SafeModeStartRadius + (SafeModeEndRadius - SafeModeStartRadius) * p)
 
-proc safeModeFlooding*(w: AttackWarning): bool {.inline.} =
+proc safeModeFlooding*(w: AttackWarning): bool {.inline, moddable.} =
   warningAge(w) >= SafeModeTelegraph and w.lifetime > 0
 
 # --- Last Known Good (Omega, roguelite) -------------------------------------
@@ -218,7 +219,7 @@ proc safeModeFlooding*(w: AttackWarning): bool {.inline.} =
 # laserPattern = the four door labels joined by '|', pos = room centre,
 # laserLength = distance from the centre to the farthest corner.
 
-proc lkgDoorRect*(door: int, screenW, screenH: float32): tuple[x, y, w, h: float32] =
+proc lkgDoorRect*(door: int, screenW, screenH: float32): tuple[x, y, w, h: float32] {.moddable.} =
   ## The alcove in front of door `door` that shelters the player.
   let half = LkgDoorWidth / 2.0'f32
   case door
@@ -227,11 +228,11 @@ proc lkgDoorRect*(door: int, screenW, screenH: float32): tuple[x, y, w, h: float
   of 2: (screenW / 2 - half, screenH - LkgDoorDepth, LkgDoorWidth, LkgDoorDepth)
   else: (0.0'f32, screenH / 2 - half, LkgDoorDepth, LkgDoorWidth)
 
-proc lkgInDoor*(door: int, p: Vector2f, screenW, screenH: float32): bool =
+proc lkgInDoor*(door: int, p: Vector2f, screenW, screenH: float32): bool {.moddable.} =
   let r = lkgDoorRect(door, screenW, screenH)
   p.x >= r.x and p.x <= r.x + r.w and p.y >= r.y and p.y <= r.y + r.h
 
-proc lkgPurgeRadius*(w: AttackWarning): float32 =
+proc lkgPurgeRadius*(w: AttackWarning): float32 {.moddable.} =
   ## The purge front, from 0 at the end of the reveal to the far corners by
   ## the judgement.
   let runLen = max(0.01'f32, w.maxLifetime - LkgReveal - LkgActive)
@@ -246,10 +247,10 @@ proc lkgPurgeRadius*(w: AttackWarning): float32 =
 # moving segment of PacketCars packets, a pure function of the warning's age,
 # so it hits once per pass instead of once per car.
 
-proc packetLinkLength*(w: AttackWarning): float32 {.inline.} =
+proc packetLinkLength*(w: AttackWarning): float32 {.inline, moddable.} =
   distance(w.pos, w.targetPos)
 
-proc packetTrain*(w: AttackWarning): tuple[live: bool, tail, head: Vector2f] =
+proc packetTrain*(w: AttackWarning): tuple[live: bool, tail, head: Vector2f] {.moddable.} =
   ## The stretch of the link the train covers right now (clipped to the link).
   let run = warningAge(w) - w.laserDuration
   if run < 0: return (false, w.pos, w.pos)

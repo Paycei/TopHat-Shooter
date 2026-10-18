@@ -52,7 +52,7 @@ proc readApply(vm: VM, v: ScriptValue, fname: string): ApplyOpts =
     result.magnitude = vm.finiteNum(m, fname & ".magnitude")
     result.hasMagnitude = true
   let s = rawGetStr(v.tbl, "stacks")
-  if s.kind != vkNil: result.stacks = clamp(int(vm.finiteNum(s, fname & ".stacks")), 1, 1000)
+  if s.kind != vkNil: result.stacks = max(int(vm.finiteNum(s, fname & ".stacks")), 1)
 
 proc statusTable(inst: ModStatusInst): ScriptValue =
   let t = newScriptTable()
@@ -83,7 +83,7 @@ proc installStatuses(base: ScriptTable) =
     let ic = rawGetStr(t, "icon")
     if ic.kind != vkNil: d.iconTex = vm.textureId(ic, "register.status.icon")
     let ms = rawGetStr(t, "maxStacks")
-    if ms.kind != vkNil: d.maxStacks = clamp(int(vm.finiteNum(ms, "register.status.maxStacks")), 1, 1000)
+    if ms.kind != vkNil: d.maxStacks = max(int(vm.finiteNum(ms, "register.status.maxStacks")), 1)
     let du = rawGetStr(t, "duration")
     if du.kind != vkNil: d.duration = vm.finiteNum(du, "register.status.duration")
     let ti = rawGetStr(t, "tickInterval")
@@ -122,10 +122,10 @@ proc installStatuses(base: ScriptTable) =
       applyEffect(e, etPoison, (if o.hasMagnitude: o.magnitude else: 1'f32), dur, "mod")
       ret.setRet(TrueValue)
     of "slow":
-      applySlow(e, clamp((if o.hasMagnitude: o.magnitude else: 0.4'f32), 0'f32, 0.95'f32), dur)
+      applySlow(e, clamp((if o.hasMagnitude: o.magnitude else: 0.4'f32), 0'f32, 1'f32), dur)
       ret.setRet(TrueValue)
     of "frost":
-      applyFrostChill(e, clamp((if o.hasMagnitude: o.magnitude else: 0.25'f32), 0'f32, 0.95'f32))
+      applyFrostChill(e, clamp((if o.hasMagnitude: o.magnitude else: 0.25'f32), 0'f32, 1'f32))
       ret.setRet(TrueValue)
     else:
       discard vm.statusKey(name, "enemy:applyStatus")
@@ -231,7 +231,7 @@ proc installDifficulty(base: ScriptTable) =
     for l in DifficultyLever:
       let v = rawGetStr(t, $l)
       if v.kind != vkNil:
-        modDifficultyScale[ord(l)] = clamp(vm.finiteNum(v, "difficulty.scale." & $l), 0.05'f32, 20'f32)
+        modDifficultyScale[ord(l)] = max(vm.finiteNum(v, "difficulty.scale." & $l), 0.001'f32)   # (spawn pace divides by it)
   diffT.reg("get") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## difficulty.get() -> {profile = "gdHard", enemyHp = .., ...} (the scale in force)
     let t = newScriptTable()
@@ -318,9 +318,9 @@ proc installRegistries(base: ScriptTable) =
     (d.descEn, d.descEs) = vm.textPair(rawGetStr(t, "description"), "register.shopItem.description")
     d.color = vm.colorOr(t, "register.shopItem", Color(r: 120, g: 220, b: 160, a: 255))
     vm.readIcon(t, "register.shopItem", d.iconTex, d.icon)
-    d.cost = clamp(int(vm.numOr(t, "cost", "register.shopItem", 10)), 0, 1_000_000)
-    d.costMult = clamp(vm.numOr(t, "costMult", "register.shopItem", 1.8), 1'f32, 10'f32)
-    d.maxBuys = clamp(int(vm.numOr(t, "maxBuys", "register.shopItem", 0)), 0, 1000)
+    d.cost = max(int(vm.numOr(t, "cost", "register.shopItem", 10)), 0)
+    d.costMult = max(vm.numOr(t, "costMult", "register.shopItem", 1.8), 0'f32)
+    d.maxBuys = max(int(vm.numOr(t, "maxBuys", "register.shopItem", 0)), 0)
     d.minWave = max(0, int(vm.numOr(t, "minWave", "register.shopItem", 0)))
     d.modes = vm.parseModes(rawGetStr(t, "modes"))
     d.stats = vm.readStats(rawGetStr(t, "stats"), "register.shopItem")
@@ -413,7 +413,7 @@ proc installRegistries(base: ScriptTable) =
     var fn = NilValue
     vm.readIcon(t, "register.advancement", d.iconTex, fn)
     if fn.kind != vkNil: vm.runtimeError("register.advancement.icon must be a texture")
-    d.goal = clamp(int(vm.numOr(t, "goal", "register.advancement", 1)), 1, 1_000_000_000)
+    d.goal = max(int(vm.numOr(t, "goal", "register.advancement", 1)), 1)
     d.hidden = truthy(rawGetStr(t, "hidden"))
     addAdvancementDef(d)
     ret.setRet(vstr(key))
@@ -425,8 +425,6 @@ proc installRegistries(base: ScriptTable) =
     var key = vm.checkStr(args, 0, fname)
     if ':' notin key: key = mods[owner].id & ":" & key
     if findAdvancement(key) < 0: vm.argError(fname, 0, "no achievement '" & key & "' (register.advancement it)")
-    if advancementDefs[findAdvancement(key)].owner != owner:
-      vm.argError(fname, 0, "'" & key & "' belongs to another mod")
     key
   advT.reg("progress") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## advancements.progress(id [, amount = 1]) -> true when this unlocked it

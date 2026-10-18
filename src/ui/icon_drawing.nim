@@ -2,6 +2,7 @@
 ## All icons drawn programmatically using shapes with depth and polish
 
 import raylib, rlgl, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../utils
 import ../modding/[mod_assets, mod_registry]
@@ -16,7 +17,7 @@ type
     ciXp
 
 proc drawLockIcon*(x, y, size: int32,
-                   color: Color = Color(r: 170, g: 182, b: 198, a: 255)) =
+                   color: Color = Color(r: 170, g: 182, b: 198, a: 255)) {.moddable.} =
   ## Programmatic padlock used to mark undiscovered / locked content. Drawn to
   ## fill the `size` x `size` box anchored at (x, y), mirroring drawPowerUpIcon's
   ## footprint so it slots into the same icon area.
@@ -48,7 +49,7 @@ proc drawLockIcon*(x, y, size: int32,
                 max(1'i32, int32(s * 0.06)), int32(s * 0.17), khColor)
 
 proc drawCurrencyIcon*(cx, cy, size: int32, iconType: CurrencyIconType,
-                       alpha: uint8 = 255) =
+                       alpha: uint8 = 255) {.moddable.} =
   ## Draw compact currency/status icons for HUDs and shops.
   if iconType == ciNone:
     return
@@ -575,7 +576,7 @@ var modPowerUpIconDraw*: proc (pt: PowerUpType, color: Color): bool {.nimcall.}
   ## MODS.EXE (set by mod_api): draws a mod power-up's own icon inside the
   ## 32x32 icon grid. False when the mod has none, so the stock glyph shows.
 
-proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
+proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {.moddable.} =
   ## Power-up glyph in the shared icon style (see the glyph kit above): one
   ## bold ink-rimmed silhouette per power-up, shaded only from `color`, so
   ## the registry hue, dimmed states and fades (death recap card) all carry.
@@ -1444,7 +1445,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) =
 # Shop upgrade icons
 # ---------------------------------------------------------------------------
 
-proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
+proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) {.moddable.} =
   ## Shop upgrade glyph, indexed by shop slot: 0 damage, 1 fire rate, 2 move
   ## speed, 3 max health, 4 bullet speed, 5 walls. Any other index draws a
   ## gear, which the cinematic recorder overlay relies on. Same glyph kit and
@@ -1551,7 +1552,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) =
     drawRing(sv(16, 16), 6.2, 7.6, 0, 360, 24, light)
     drawDisc(sv(16, 16), 4.2, ink)
 
-proc shopIconAccent*(itemIndex: int): Color =
+proc shopIconAccent*(itemIndex: int): Color {.moddable.} =
   ## Signature hue per shop slot, so the rows read apart at a glance.
   case itemIndex
   of 0: Color(r: 255, g: 122, b: 72, a: 255)    # damage -- hot orange
@@ -1562,7 +1563,7 @@ proc shopIconAccent*(itemIndex: int): Color =
   of 5: Color(r: 178, g: 150, b: 255, a: 255)   # walls -- violet
   else: Color(r: 100, g: 200, b: 255, a: 255)
 
-proc drawShopIconTile*(x, y, size: int32, itemIndex: int, enabled, selected: bool) =
+proc drawShopIconTile*(x, y, size: int32, itemIndex: int, enabled, selected: bool) {.moddable.} =
   ## App-style tile (dark glass square, accent frame) holding a shop glyph.
   ## Unaffordable rows drop to a dim grey, so the colour itself says whether
   ## the upgrade can be bought.
@@ -1605,7 +1606,7 @@ proc iconRefreshBadge(c: Vector2, r: float32, pal: IconPalette) =
 
 proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color)
 
-proc drawPatchIcon*(x, y, size: int32, relic: RogueliteRelic, color: Color) =
+proc drawPatchIcon*(x, y, size: int32, relic: RogueliteRelic, color: Color) {.moddable.} =
   ## A patch as the player owns it: a mod patch draws its own look (texture or
   ## icon function), or the game's mod glyph.
   if relic.relicType == rrtMod and
@@ -1613,7 +1614,7 @@ proc drawPatchIcon*(x, y, size: int32, relic: RogueliteRelic, color: Color) =
     return
   drawPatchIcon(x, y, size, relic.relicType, color)
 
-proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) =
+proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) {.moddable.} =
   ## Patch glyph filling the (size x size) box at (x, y).
   if size <= 0:
     return
@@ -1744,7 +1745,7 @@ proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) 
 # Roguelite folder-reward icons (door labels, HUD breadcrumb)
 # ---------------------------------------------------------------------------
 
-proc drawRoomRewardIcon*(x, y, size: int32, reward: RoomReward, color: Color) =
+proc drawRoomRewardIcon*(x, y, size: int32, reward: RoomReward, color: Color) {.moddable.} =
   ## What a folder pays, shown on its door: an install package, a patch, a
   ## credit stack, a restore platter, a shard, a package stall, or a
   ## quarantine warning.
@@ -1800,7 +1801,7 @@ proc drawRoomRewardIcon*(x, y, size: int32, reward: RoomReward, color: Color) =
     iconRect(14.7, 11.5, 17.3, 20, ink)
     drawDisc(sv(16, 22.2), 1.5, ink)
 
-proc drawServiceIcon*(x, y, size: int32, color: Color) =
+proc drawServiceIcon*(x, y, size: int32, color: Color) {.moddable.} =
   ## The sector's SERVICE (boss) door: a gear with a hot core.
   if size <= 0:
     return

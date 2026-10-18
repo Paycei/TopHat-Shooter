@@ -24,6 +24,7 @@
 ## top and bottom faces +Z, and right = up x normal.
 
 import raylib, math
+import modding/mod_patch_core
 import draw_prims, cube_skins, utils
 
 type
@@ -41,7 +42,7 @@ func normalized(a: CubePoint): CubePoint {.inline.} =
   let l = sqrt(dot(a, a))
   if l > 1.0e-6'f32: a * (1.0'f32 / l) else: a
 
-proc rotateCubePoint*(point: CubePoint, angleX, angleY, angleZ: float32): CubePoint =
+proc rotateCubePoint*(point: CubePoint, angleX, angleY, angleZ: float32): CubePoint {.moddable.} =
   ## X, then Y, then Z: the order the desktop's drag-and-spin angles assume.
   let sinX = sin(angleX)
   let cosX = cos(angleX)
@@ -62,7 +63,7 @@ proc rotateCubePoint*(point: CubePoint, angleX, angleY, angleZ: float32): CubePo
 
 const CameraDistance = 4.2'f32
 
-proc projectCubePoint*(point: CubePoint, centerX, centerY, scale: float32): Vector2 =
+proc projectCubePoint*(point: CubePoint, centerX, centerY, scale: float32): Vector2 {.moddable.} =
   let depth = max(1.35'f32, CameraDistance - point.z)
   let perspective = CameraDistance / depth
   Vector2(x: centerX + point.x * scale * perspective,
@@ -878,7 +879,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
                                    angleX, angleY, angleZ: float32,
                                    skin: CubeSkinType = cskDefault,
                                    glowBoost: float32 = 0.0'f32,
-                                   compact = false) =
+                                   compact = false) {.moddable.} =
   ## The cube in skin `skin`, `size` its half-width. `glowBoost` (0..1) fans
   ## the Jack-O'-Node's candle. `compact` is the pocket-sized orbital cube: a
   ## tighter halo and no orbiting motes.

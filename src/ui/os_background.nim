@@ -1,6 +1,7 @@
 ## OS-Style Background System
 
 import raylib, math, random
+import ../modding/mod_patch_core
 import ../draw_prims
 import particle_types, ../types, background_fx, ../utils
 from ui_theme import beginKeepAlpha, endKeepAlpha
@@ -93,7 +94,7 @@ proc rotatingBandActive(bg: OSBackgroundState, playerPos: Vector2f,
 proc activeHazardBand(bg: OSBackgroundState): int =
   (floor(bg.bossArenaPhase / 2.65).int mod BOSS_ARENA_RING_COUNT)
 
-proc getBossArenaCombatBonus*(bg: OSBackgroundState): tuple[damageMult: float32, fireRateMult: float32] =
+proc getBossArenaCombatBonus*(bg: OSBackgroundState): tuple[damageMult: float32, fireRateMult: float32] {.moddable.} =
   let activeBonus = bg.bossArenaMode in [barmBoon, barmRotating]
   if activeBonus and bg.bossArenaBonusIntensity > 0.01:
     result.damageMult = 1.0 + 0.08 * bg.bossArenaBonusIntensity
@@ -104,7 +105,7 @@ proc getBossArenaCombatBonus*(bg: OSBackgroundState): tuple[damageMult: float32,
 
 proc updateBossArenaField*(bg: var OSBackgroundState, dt: float32, playerPos: Vector2f,
                            playerRadius: float32, screenWidth, screenHeight: int32,
-                           bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32] =
+                           bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32] {.moddable.} =
   result = (damageTriggered: false, damage: 0.0'f32)
 
   bg.bossArenaPlayerX = playerPos.x
@@ -160,7 +161,7 @@ proc drawArenaEdgeVignette(screenWidth, screenHeight: int32, intensity: float32)
     Color(r: 0, g: 0, b: 0, a: 0), edgeColor)
 
 proc drawArenaFloor*(screenWidth, screenHeight: int32, time: float32, accent: Color,
-                     tinted = false, alert = 0.0'f32) =
+                     tinted = false, alert = 0.0'f32) {.moddable.} =
   ## The arena's floor, shared by every PvE mode and PvP: the deep backdrop
   ## with its drifting grid, light pooling at the centre and in the quadrants,
   ## a slow hexagon plate, concentric guide rings with nodes sweeping round
@@ -386,7 +387,7 @@ proc drawGameplayRingOverlay(bg: OSBackgroundState, screenWidth, screenHeight: i
     drawGlow(p, 46.0'f32, glowColor)
     drawGlow(p, 86.0'f32, withAlpha(glowColor, glowColor.a.float32 * 0.45'f32))
 
-proc newOSBackground*(): OSBackgroundState =
+proc newOSBackground*(): OSBackgroundState {.moddable.} =
   result = OSBackgroundState(
     dataPackets: @[],
     circuitLines: @[],
@@ -412,7 +413,7 @@ proc newOSBackground*(): OSBackgroundState =
       pulseOffset: (i.float32 * 0.5)
     ))
 
-proc spawnWavePulse*(bg: var OSBackgroundState, cx, cy: float32, color: Color) =
+proc spawnWavePulse*(bg: var OSBackgroundState, cx, cy: float32, color: Color) {.moddable.} =
   ## Call this at wave start/end to emit an expanding pulse ring.
   bg.wavePulseRings.add(WavePulseRing(
     centerX: cx,
@@ -424,7 +425,7 @@ proc spawnWavePulse*(bg: var OSBackgroundState, cx, cy: float32, color: Color) =
   ))
 
 proc updateOSBackground*(bg: var OSBackgroundState, dt: float32, playerHP: float32, maxHP: float32,
-                         bossActive: bool, screenWidth, screenHeight: int32) =
+                         bossActive: bool, screenWidth, screenHeight: int32) {.moddable.} =
   bg.gridPulseTime += dt
 
   let safeMaxHp = max(maxHP, 0.01'f32)
@@ -488,7 +489,7 @@ proc updateOSBackground*(bg: var OSBackgroundState, dt: float32, playerHP: float
 
 proc drawOSBackground*(bg: OSBackgroundState, screenWidth, screenHeight: int32,
                        showArenaVignette: bool = true,
-                       accentOverride: Color = Color(r: 0, g: 0, b: 0, a: 0)) =
+                       accentOverride: Color = Color(r: 0, g: 0, b: 0, a: 0)) {.moddable.} =
   ## The arena behind the run: its floor, the boss-arena zones, the data
   ## streams crossing it, wave pulses and the danger washes. Translucent light
   ## adds to the floor instead of darkening the frame (see ui_theme).

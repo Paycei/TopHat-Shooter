@@ -16,6 +16,7 @@
 ## dungeon tuning wave, cheat menu, in-world label).
 
 import raylib, math, random, strutils
+import modding/mod_patch_core
 import types, localization
 
 type
@@ -125,19 +126,19 @@ var modEnemies*: array[ModEnemySlot, ModEnemyInfo]
 
 proc isModEnemy*(et: EnemyType): bool {.inline.} = et in FirstModEnemy..LastModEnemy
 
-proc isEnemyLive*(et: EnemyType): bool {.inline.} =
+proc isEnemyLive*(et: EnemyType): bool {.inline, moddable.} =
   ## Built-in (not the environment sentinel), or a slot a loaded mod uses.
   et != etEnvironment and (not isModEnemy(et) or modEnemies[et].bound)
 
-proc enemyAiType*(et: EnemyType): EnemyType {.inline.} =
+proc enemyAiType*(et: EnemyType): EnemyType {.inline, moddable.} =
   ## The type whose update/draw branch runs: a mod enemy borrows its base's.
   if isModEnemy(et): modEnemies[et].base else: et
 
-proc enemySaveName*(et: EnemyType): string =
+proc enemySaveName*(et: EnemyType): string {.moddable.} =
   ## What saves store: the enum name, or "mod:<mod id>:<name>" for a mod slot.
   if isModEnemy(et): "mod:" & modEnemies[et].key else: $et
 
-proc parseEnemySaveName*(s: string, et: var EnemyType): bool =
+proc parseEnemySaveName*(s: string, et: var EnemyType): bool {.moddable.} =
   if s.startsWith("mod:"):
     let key = s[4 .. ^1]
     for slot in ModEnemySlot:
@@ -151,15 +152,15 @@ proc parseEnemySaveName*(s: string, et: var EnemyType): bool =
   except ValueError:
     false
 
-proc enemyScriptName*(et: EnemyType): string =
+proc enemyScriptName*(et: EnemyType): string {.moddable.} =
   ## The name scripts use: "etCube", or "<mod id>:<name>" for a mod's.
   if isModEnemy(et): modEnemies[et].key else: $et
 
-proc resolveEnemyScriptName*(s: string, et: var EnemyType): bool =
+proc resolveEnemyScriptName*(s: string, et: var EnemyType): bool {.moddable.} =
   if ':' in s: parseEnemySaveName("mod:" & s, et)
   else: parseEnemySaveName(s, et) and et != etEnvironment
 
-proc resetModEnemies*() =
+proc resetModEnemies*() {.moddable.} =
   for et in ModEnemySlot:
     modEnemies[et] = ModEnemyInfo(base: etCircle)
 
@@ -853,11 +854,11 @@ var
   enemyConfigFilled: array[EnemyType, bool]
   enemyConfigCacheLang: Language
 
-proc invalidateEnemyConfigCache*() =
+proc invalidateEnemyConfigCache*() {.moddable.} =
   for et in EnemyType:
     enemyConfigFilled[et] = false
 
-proc vanillaEnemyConfig*(enemyType: EnemyType): EnemyConfig =
+proc vanillaEnemyConfig*(enemyType: EnemyType): EnemyConfig {.moddable.} =
   ## The built-in config, ignoring mods.
   buildEnemyConfig(enemyType)
 
@@ -875,7 +876,7 @@ proc getEnemyConfig*(enemyType: EnemyType): lent EnemyConfig =
 
 # HELPER FUNCTIONS
 
-proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] =
+proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] {.moddable.} =
   ## Calculate scaled stats based on difficulty (wave number).
   ## Speed scaling is driven by config.speedScaling, set it in getEnemyConfig.
   # Wave-mode midgame was spiking too hard, so regular HP now ramps more gently.

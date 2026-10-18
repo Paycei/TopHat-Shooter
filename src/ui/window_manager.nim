@@ -2,6 +2,7 @@
 ## Centralized window handling with state management
 
 import raylib, algorithm, sequtils, math
+import ../modding/mod_patch_core
 import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, mods_window, mod_app_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 import ../gamepad_input, ../render_context
 import ../modding/mod_hooks
@@ -42,7 +43,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
                        gameSettings: Settings,
                        gameStats: Statistics,
                        advancementProfile: AdvancementProfile,
-                       rogueliteProfile: RogueliteProfile): WindowManager =
+                       rogueliteProfile: RogueliteProfile): WindowManager {.moddable.} =
   ## Create a new window manager with all windows pre-initialized
   result = WindowManager(
     settings: newSettingsWindow(screenWidth, screenHeight, gameSettings,
@@ -82,7 +83,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.feedback.window.visible = false
   result.mods.window.visible = false
 
-proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
+proc getAllWindows*(wm: WindowManager): seq[OSWindow] {.moddable.} =
   ## Get all windows in a single sequence
   result = @[
     wm.settings.window,
@@ -101,7 +102,7 @@ proc getAllWindows*(wm: WindowManager): seq[OSWindow] =
   for app in wm.modApps:
     result.add(app.window)
 
-proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] =
+proc getVisibleWindows*(wm: WindowManager): seq[OSWindow] {.moddable.} =
   ## Get only visible windows, sorted by z-order (highest first)
   result = @[]
   for window in wm.getAllWindows():
@@ -124,7 +125,7 @@ proc bringToFront(wm: WindowManager, window: OSWindow) =
     if w != window:
       w.focused = false
 
-proc openWindow*(wm: WindowManager, id: WindowID) =
+proc openWindow*(wm: WindowManager, id: WindowID) {.moddable.} =
   ## Open a specific window and bring it to front
   var window: OSWindow
 
@@ -150,7 +151,7 @@ proc openWindow*(wm: WindowManager, id: WindowID) =
 
   wm.bringToFront(window)
 
-proc closeWindow*(wm: WindowManager, id: WindowID) =
+proc closeWindow*(wm: WindowManager, id: WindowID) {.moddable.} =
   ## Close a specific window
   case id
   of widSettings: wm.settings.window.visible = false
@@ -166,7 +167,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) =
   of widFeedback: wm.feedback.window.visible = false
   of widMods: wm.mods.window.visible = false
 
-proc closeAllWindows*(wm: WindowManager) =
+proc closeAllWindows*(wm: WindowManager) {.moddable.} =
   ## Close all open desktop windows (e.g. when starting a game)
   wm.settings.window.visible = false
   wm.help.window.visible = false
@@ -183,7 +184,7 @@ proc closeAllWindows*(wm: WindowManager) =
   wm.modApps.setLen(0)
 
 proc windowUIScale*(window: OSWindow, requested: float32,
-                    screenWidth, screenHeight: int): float32 =
+                    screenWidth, screenHeight: int): float32 {.moddable.} =
   ## The interface scale this one window can actually be drawn at.
   ##
   ## Scaling down always works. Scaling *up* shrinks the logical viewport a
@@ -206,7 +207,7 @@ proc windowUIScale*(window: OSWindow, requested: float32,
 
 proc windowViewport*(window: OSWindow, requested: float32,
                      screenWidth, screenHeight: int):
-                     tuple[scale: float32, w, h: int] =
+                     tuple[scale: float32, w, h: int] {.moddable.} =
   ## `window`'s own scale plus the logical viewport it lays out and is
   ## hit-tested in at that scale. Rounded up, to match what the window's own
   ## getVirtualScreenWidth/Height report once it is inside that layer.
@@ -214,7 +215,7 @@ proc windowViewport*(window: OSWindow, requested: float32,
   (scale, ceil(screenWidth.float32 / scale).int, ceil(screenHeight.float32 / scale).int)
 
 proc openModApp*(wm: WindowManager, key: string, uiScale: float32,
-                 screenWidth, screenHeight: int) =
+                 screenWidth, screenHeight: int) {.moddable.} =
   ## Open the window of mod app `key`, or bring the one already open to front.
   ## An app that a reload removed cannot be opened.
   if findModApp(key) < 0: return
@@ -240,7 +241,7 @@ proc pointerIn(window: OSWindow, requested: float32,
   popUIScale()
 
 proc applyWindowScales*(wm: WindowManager, uiScale: float32,
-                        screenWidth, screenHeight: int) =
+                        screenWidth, screenHeight: int) {.moddable.} =
   ## Publish every window's resolved scale onto the window itself, before
   ## anything walks the list. handleOSWindowInput decides which window owns a
   ## click by testing the *other* windows too, and it can only translate the
@@ -250,7 +251,7 @@ proc applyWindowScales*(wm: WindowManager, uiScale: float32,
     window.uiScale = windowUIScale(window, uiScale, screenWidth, screenHeight)
 
 proc relayoutWindows*(wm: WindowManager, uiScale: float32,
-                      screenWidth, screenHeight: int) =
+                      screenWidth, screenHeight: int) {.moddable.} =
   ## React to a change in the logical viewport windows lay out in: the
   ## classic <-> widescreen toggle (X axis only) or a UI-scale change (both
   ## axes). Closed windows are re-centered -- their position is already treated
@@ -292,7 +293,7 @@ proc relayoutWindows*(wm: WindowManager, uiScale: float32,
     window.uiScale = vp.scale
 
 proc handleWindowClick*(wm: WindowManager, uiScale: float32,
-                        screenWidth, screenHeight: int): bool =
+                        screenWidth, screenHeight: int): bool {.moddable.} =
   ## Handle mouse clicks on windows. Returns true if a window consumed the click
   if not isPointerPressed():
     return false
@@ -337,7 +338,7 @@ proc handleWindowClick*(wm: WindowManager, uiScale: float32,
   return false  # No window at click position
 
 proc isMouseOverAnyWindow*(wm: WindowManager, uiScale: float32,
-                           screenWidth, screenHeight: int): bool =
+                           screenWidth, screenHeight: int): bool {.moddable.} =
   ## Check if mouse is over any visible window (for blocking desktop interaction)
   for window in wm.getVisibleWindows():
     if not window.minimized:
@@ -354,12 +355,12 @@ proc isMouseOverAnyWindow*(wm: WindowManager, uiScale: float32,
 
   return false
 
-proc wantsTextInput*(wm: WindowManager): bool =
+proc wantsTextInput*(wm: WindowManager): bool {.moddable.} =
   ## True while a window's text field owns the keyboard. The desktop's icon
   ## navigation (WASD/arrows, E/Enter) is otherwise only blocked by the mouse
   ## hovering a window, so typing "e" with the cursor parked elsewhere would
   ## launch an icon.
-  wm.feedback.wantsTextInput()
+  wm.feedback.wantsTextInput() or wm.mods.wantsTextInput()   # (the MODS.EXE Console)
 
 type
   WindowUpdateResult* = object
@@ -384,7 +385,7 @@ type
     modModeResume*: bool          # ...via Continue rather than Launch
 
 proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
-                       screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult =
+                       screenWidth, screenHeight: int, currentGame: Game): WindowUpdateResult {.moddable.} =
   ## Update all visible windows and handle their inputs
   result.fullscreenToggle = false
   result.shopClosed = false
@@ -584,7 +585,7 @@ proc drawWindow(wm: WindowManager, window: OSWindow, game: Game,
         break
 
 proc drawAllWindows*(wm: WindowManager, game: Game, uiScale: float32,
-                     screenWidth, screenHeight: int) =
+                     screenWidth, screenHeight: int) {.moddable.} =
   ## Draw all visible windows in z-order, each inside its own scale layer.
   wm.applyWindowScales(uiScale, screenWidth, screenHeight)
   var visibleWindows = wm.getAllWindows().filterIt(it.visible)

@@ -8,13 +8,14 @@
 ## bilingual title, so a player of either language understands it.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 
 const
   LangEnglish* = 0
   LangSpanish* = 1
 
-proc languageOptionRects*(screenWidth, screenHeight: int32): array[2, Rectangle] =
+proc languageOptionRects*(screenWidth, screenHeight: int32): array[2, Rectangle] {.moddable.} =
   ## Geometry for the two selectable cards. Shared by the draw proc and the
   ## hit-testing in the main loop so they can never drift apart.
   const
@@ -26,6 +27,23 @@ proc languageOptionRects*(screenWidth, screenHeight: int32): array[2, Rectangle]
   let y      = screenHeight.float32 / 2.0'f32 - cardH / 2.0'f32 + 30.0'f32
   result[0] = Rectangle(x: startX, y: y, width: cardW, height: cardH)
   result[1] = Rectangle(x: startX + cardW + gap, y: y, width: cardW, height: cardH)
+
+proc modLanguageOptionRects*(screenWidth, screenHeight: int32, count: int): seq[Rectangle] {.moddable.} =
+  ## The mods' languages (register.language): rows of small buttons under the
+  ## two cards, centred, four to a row.
+  const
+    buttonW = 180.0'f32
+    buttonH = 36.0'f32
+    gap = 14.0'f32
+    perRow = 4
+  let cards = languageOptionRects(screenWidth, screenHeight)
+  let top = cards[0].y + cards[0].height + 26.0'f32
+  for i in 0 ..< count:
+    let row = i div perRow
+    let inRow = min(count - row * perRow, perRow)
+    let rowW = inRow.float32 * buttonW + (inRow - 1).float32 * gap
+    let x = (screenWidth.float32 - rowW) / 2.0'f32 + (i mod perRow).float32 * (buttonW + gap)
+    result.add Rectangle(x: x, y: top + row.float32 * (buttonH + gap), width: buttonW, height: buttonH)
 
 proc drawCenteredText(text: string, cx, y, size: int32, color: Color) =
   let w = measureText(text, size)
@@ -100,7 +118,7 @@ proc drawLanguageCard(rect: Rectangle, hovered: bool, time: float32,
                    Color(r: 130, g: 150, b: 170, a: 220))
 
 proc drawLanguageSelect*(screenWidth, screenHeight: int32, time: float32,
-                         mousePos: Vector2) =
+                         mousePos: Vector2, modLanguageNames: seq[string] = @[]) {.moddable.} =
   ## Draw the whole first-run language picker. Hit-testing happens in the main
   ## loop using `languageOptionRects`.
   clearBackground(Color(r: 12, g: 15, b: 22, a: 255))
@@ -123,3 +141,13 @@ proc drawLanguageSelect*(screenWidth, screenHeight: int32, time: float32,
                    drawUSFlag, "English", "[1]  Click")
   drawLanguageCard(rects[1], checkCollisionPointRec(mousePos, rects[1]), time,
                    drawSpainFlag, "Español", "[2]  Clic")
+
+  # The mods' languages, by their own names (a mod's text, so no flag).
+  for i, r in modLanguageOptionRects(screenWidth, screenHeight, modLanguageNames.len):
+    let hovered = checkCollisionPointRec(mousePos, r)
+    drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32,
+                  if hovered: Color(r: 30, g: 42, b: 60, a: 255) else: Color(r: 22, g: 28, b: 40, a: 255))
+    drawRectOutline(r, if hovered: 2.0'f32 else: 1.0'f32,
+                    if hovered: Color(r: 0, g: 220, b: 255, a: 255) else: Color(r: 70, g: 86, b: 110, a: 255))
+    drawCenteredText(modLanguageNames[i], (r.x + r.width / 2.0'f32).int32, (r.y + 9.0'f32).int32, 18,
+                     if hovered: White else: Color(r: 220, g: 230, b: 245, a: 255))

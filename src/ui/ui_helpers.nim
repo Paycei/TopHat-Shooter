@@ -3,6 +3,7 @@
 ## which knows anything about ui/, so it is safe to use from any ui/ module.
 
 import raylib, strutils, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../localization, ../types
 
@@ -10,7 +11,7 @@ type TextAlign* = enum
   taLeft, taCenter, taRight
 
 proc bestFitFontSize*(text: string, maxWidth, preferredSize: int32,
-                      minSize: int32 = 9): int32 =
+                      minSize: int32 = 9): int32 {.moddable.} =
   ## Shrink from preferredSize until `text` fits in `maxWidth` (or minSize).
   result = preferredSize
   if maxWidth <= 0:
@@ -19,7 +20,7 @@ proc bestFitFontSize*(text: string, maxWidth, preferredSize: int32,
     dec result
 
 proc drawTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: Color,
-                  minSize: int32 = 9, align: TextAlign = taLeft): int32 {.discardable.} =
+                  minSize: int32 = 9, align: TextAlign = taLeft): int32 {.discardable, moddable.} =
   ## Draw `text` at the largest size that fits `maxWidth`; returns the size used.
   result = bestFitFontSize(text, maxWidth, fontSize, minSize)
   let textW = measureText(text, result)
@@ -30,10 +31,10 @@ proc drawTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: Color,
   drawText(text, drawX, y, result, color)
 
 proc drawCenteredTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: Color,
-                          minSize: int32 = 9): int32 {.discardable.} =
+                          minSize: int32 = 9): int32 {.discardable, moddable.} =
   drawTextFit(text, x, y, maxWidth, fontSize, color, minSize, taCenter)
 
-proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string =
+proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string {.moddable.} =
   ## `text` cut down (with a trailing "..") until it is at most maxWidth wide.
   ## Trims whole UTF-8 characters, so an accented letter is never split.
   result = text
@@ -46,7 +47,7 @@ proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string =
     result.setLen(n)
   result = result.strip(leading = false) & ".."
 
-proc wrapTextLines*(text: string, maxWidth, fontSize: int32): seq[string] =
+proc wrapTextLines*(text: string, maxWidth, fontSize: int32): seq[string] {.moddable.} =
   ## Greedy word-wrap to lines no wider than `maxWidth` at `fontSize`.
   let words = text.splitWhitespace()
   if words.len == 0:
@@ -65,7 +66,7 @@ proc wrapTextLines*(text: string, maxWidth, fontSize: int32): seq[string] =
     result.add(currentLine)
 
 proc bestWrapFontSize*(text: string, maxWidth, preferredSize: int32,
-                       maxLines: int, minSize: int32 = 9): int32 =
+                       maxLines: int, minSize: int32 = 9): int32 {.moddable.} =
   ## Largest size at which the wrapped text needs at most `maxLines` lines.
   result = preferredSize
   if maxWidth <= 0:
@@ -110,7 +111,7 @@ proc shade(c: Color, f: float32): Color =
         b: uint8(clamp(c.b.float32 * f, 0.0, 255.0)), a: c.a)
 
 proc drawRestorePointIcon*(cx, cy, size: float32, body, accent, led: Color,
-                           spin: float32 = 0.0) =
+                           spin: float32 = 0.0) {.moddable.} =
   ## One restore point. `size` is the radius, so the glyph spans 2*size.
   ## `spin` rotates the rim ticks: static in the meters, spinning down to a stop
   ## in the loss animation, which is what makes a dying platter read as dying.
@@ -183,7 +184,7 @@ proc livesStatusText(used, maxLives, unlimitedSentinel: int): string =
     else: ""
 
 proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
-                     time: float32, height: int32 = LivesPanelHeight) =
+                     time: float32, height: int32 = LivesPanelHeight) {.moddable.} =
   ## Framed restore-point meter. Contents are centered as one group so the panel
   ## reads the same at any width.
   let remaining = if maxLives == unlimitedSentinel: unlimitedSentinel
@@ -253,7 +254,7 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
              else: Color(r: 120, g: 235, b: 160, a: 255))
 
 proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
-                              height: int32 = LivesPanelHeight) =
+                              height: int32 = LivesPanelHeight) {.moddable.} =
   ## Stand-in for the meter once a run has been won and plays on past it (see
   ## restorePointsOffline in types.nim): wave mode's endless waves, the
   ## roguelite's endless loops, survival's Overtime. The win deleted the block
@@ -371,7 +372,7 @@ proc smoothStep(t: float32): float32 =
   u * u * (3.0 - 2.0 * u)
 
 proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
-                          unlimitedSentinel: int, progress: float32) =
+                          unlimitedSentinel: int, progress: float32) {.moddable.} =
   ## Full-screen "you just spent a restore point" sequence. `used` is the count
   ## AFTER the spend, so the platter that dies is the one at index `remaining`.
   ##

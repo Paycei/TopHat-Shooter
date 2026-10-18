@@ -240,6 +240,50 @@ type
     score*, kills*, wave*: int  # counters scripts may use
     nextId*: int
 
+# Like types.nim's Enemy/Bullet list iterators: yield copies, re-check the
+# length, so a script growing or shrinking a world's lists mid-walk is safe.
+iterator items*(a: seq[Entity3D]): Entity3D {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield a[i]
+    inc i
+
+iterator pairs*(a: seq[Entity3D]): tuple[key: int, val: Entity3D] {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield (i, a[i])
+    inc i
+
+iterator items*(a: seq[Projectile3D]): Projectile3D {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield a[i]
+    inc i
+
+iterator pairs*(a: seq[Projectile3D]): tuple[key: int, val: Projectile3D] {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield (i, a[i])
+    inc i
+
+iterator items*(a: seq[Pickup3D]): Pickup3D {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield a[i]
+    inc i
+
+iterator pairs*(a: seq[Pickup3D]): tuple[key: int, val: Pickup3D] {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield (i, a[i])
+    inc i
+
 var activeWorld3D*: Game3D
   ## The 3D world in play (nil outside one). Game.game3D only marks that a
   ## world exists; this global holds the reference so low modules can reach it.
@@ -249,8 +293,5 @@ var pendingWorld3D*: World3DOptions
   ## completes; set by whoever starts the fade (sandbox.nim's button, beginEnter3D).
 
 const
-  MaxEntities3D* = 4000      ## script-made content is capped: a runaway loop must not eat the heap
-  MaxProjectiles3D* = 20000
-  MaxPickups3D* = 2000
-  MaxDamageNumbers3D* = 300
-  MaxPellets3D* = 100
+  MaxDamageNumbers3D* = 300  ## floating numbers on screen at once (the oldest go first)
+  MaxPellets3D* = 1000       ## shots per trigger pull: a script's weapon.pellets = 1e9 must not hang the frame

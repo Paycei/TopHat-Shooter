@@ -76,7 +76,8 @@ proc installModEngine*(base: ScriptTable) =
       of "zoom":
         if g.modWorld.camZoom <= 0:
           (g.modWorld.camX, g.modWorld.camY) = camTarget(g)
-        g.modWorld.camZoom = clamp(v, 1'f32, 3'f32)
+        if not (v > 0'f32): vm.runtimeError("camera.zoom must be above 0")
+        g.modWorld.camZoom = v
       of "x", "y":
         if g.modWorld.camZoom <= 0:
           g.modWorld.camZoom = 1
@@ -91,14 +92,14 @@ proc installModEngine*(base: ScriptTable) =
   timeT.reg("hitstop") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## time.hitstop(seconds [, scale = 0.05]): freeze the world for a beat (real seconds)
     let g = vm.runGameOrError("time.hitstop")
-    triggerHitStop(g.dopamine.slowMotion, clamp(vm.checkNum(args, 0, "hitstop").float32, 0'f32, 2'f32),
-                   clamp(vm.optNum(args, 1, "hitstop", 0.05).float32, 0'f32, 1'f32))
+    triggerHitStop(g.dopamine.slowMotion, max(vm.checkNum(args, 0, "hitstop").float32, 0'f32),
+                   max(vm.optNum(args, 1, "hitstop", 0.05).float32, 0'f32))
   timeT.reg("slowmo") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## time.slowmo(seconds, scale [, ramp = false]): slow motion (real seconds),
     ## easing back to normal over it with ramp
     let g = vm.runGameOrError("time.slowmo")
     activateCustomSlowMo(g.dopamine.slowMotion, vm.checkNum(args, 1, "slowmo").float32,
-                         clamp(vm.checkNum(args, 0, "slowmo").float32, 0'f32, 10'f32), truthy(arg(args, 2)))
+                         max(vm.checkNum(args, 0, "slowmo").float32, 0'f32), truthy(arg(args, 2)))
   timeT.meta = newScriptTable()
   rawSet(timeT.meta, vstr("__index"), vnative(newNative("time_index",
     proc (vm: VM, args: openArray[ScriptValue], ret: var RetVals) =
@@ -115,9 +116,9 @@ proc installModEngine*(base: ScriptTable) =
       let g = vm.runGameOrError("time." & name)
       let v = vm.finite(arg(args, 2), "time." & name)
       case name
-      of "scale": g.modWorld.timeScale = clamp(v, 0.1'f32, 2'f32)
+      of "scale": g.modWorld.timeScale = max(v, 0.01'f32)   # 0 reads as "not set"; dt must not be 0
       of "enemyScale":
-        g.modWorld.enemyTimeScale = clamp(v, 0'f32, 2'f32)
+        g.modWorld.enemyTimeScale = max(v, 0'f32)              # 0: enemies stand still
         g.modWorld.enemyTimeSet = true
       else: vm.runtimeError("time." & name & " cannot be set (scale, enemyScale)"))))
   rawSet(base, vstr("time"), vtable(timeT))

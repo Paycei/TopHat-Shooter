@@ -2,6 +2,7 @@
 ## Network lobby interface as an OS-style window
 
 import raylib, strutils, net, math, algorithm
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../network/network, ../network/network_types, ../types, ../localization, ../render_context
 import ui_theme
@@ -70,7 +71,7 @@ const
   ModeRowH = 46   ## the host config's Mode row: everything under it sits this much lower
   TaskbarH = 40   ## os_desktop's taskbar: the window stays clear of it
 
-proc getLocalIP*(): string =
+proc getLocalIP*(): string {.moddable.} =
   result = "127.0.0.1"
   try:
     let sock = newSocket(Domain.AF_INET, SockType.SOCK_DGRAM, Protocol.IPPROTO_UDP)
@@ -86,7 +87,7 @@ proc getLocalIP*(): string =
     discard
   return result
 
-proc censorIP*(ip: string): string =
+proc censorIP*(ip: string): string {.moddable.} =
   if ip == "127.0.0.1":
     return ip
   let parts = ip.split(".")
@@ -95,7 +96,7 @@ proc censorIP*(ip: string): string =
   else:
     return ip
 
-proc getTeamForPlayer*(playerIndex: int, numTeams: int): PvPTeam =
+proc getTeamForPlayer*(playerIndex: int, numTeams: int): PvPTeam {.moddable.} =
   if numTeams == 2:
     return if playerIndex mod 2 == 0: ptRed else: ptBlue
   elif numTeams == 3:
@@ -125,7 +126,7 @@ proc getTeamForPlayer*(playerIndex: int, numTeams: int): PvPTeam =
     of 4: return ptOrange
     else: return ptPurple
 
-proc getTeamColor*(team: PvPTeam): Color =
+proc getTeamColor*(team: PvPTeam): Color {.moddable.} =
   case team
   of ptRed:    return Color(r: 255, g: 60,  b: 60,  a: 255)
   of ptBlue:   return Color(r: 60,  g: 120, b: 255, a: 255)
@@ -135,7 +136,7 @@ proc getTeamColor*(team: PvPTeam): Color =
   of ptPurple: return Color(r: 200, g: 100, b: 255, a: 255)
   of ptNone:   return White
 
-proc getTeamName*(team: PvPTeam): string =
+proc getTeamName*(team: PvPTeam): string {.moddable.} =
   case team
   of ptRed:    return t(tkPvPTeamRed)
   of ptBlue:   return t(tkPvPTeamBlue)
@@ -145,7 +146,7 @@ proc getTeamName*(team: PvPTeam): string =
   of ptPurple: return t(tkPvPTeamPurple)
   of ptNone:   return t(tkPvPTeamNone)
 
-proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow =
+proc newPvPWindow*(screenWidth, screenHeight: int): PvPWindow {.moddable.} =
   let windowWidth = 600
   let windowHeight = 670 + ModeRowH # Sized to the hosting-config screen (the tallest state)
   let windowX = (screenWidth - windowWidth) div 2
@@ -212,7 +213,7 @@ proc pickPvPMode(pvpWin: PvPWindow, key: string) =
     pvpWin.teamsEnabled = true
     pvpWin.numTeams = teams
 
-proc startHosting*(pvpWin: PvPWindow) =
+proc startHosting*(pvpWin: PvPWindow) {.moddable.} =
   pvpWin.isHost = true
   pvpWin.state = plsHostingActive
   pvpWin.hostIP = pvpWin.cachedLocalIP
@@ -233,7 +234,7 @@ proc startHosting*(pvpWin: PvPWindow) =
 proc connectToGame*(pvpWin: PvPWindow, ip: string, port: int,
                    skinType: int = 0, bulletSkinType: int = 0,
                    shapeType: int = 0, particleSkinType: int = 0,
-                   nickname: string = "Player") =
+                   nickname: string = "Player") {.moddable.} =
   pvpWin.isHost = false
   pvpWin.state = plsConnecting
   pvpWin.connectionTimeout = CONNECTION_TIMEOUT
@@ -247,7 +248,7 @@ proc connectToGame*(pvpWin: PvPWindow, ip: string, port: int,
     pvpWin.state = plsError
     pvpWin.errorMessage = t("pvp_failed_connect") & getCurrentExceptionMsg()
 
-proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] = nil) =
+proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] = nil) {.moddable.} =
   pvpWin.cursorBlink += dt
   if pvpWin.state == plsConnected or pvpWin.state == plsHostingActive:
     pvpWin.keepAliveTimer += dt
@@ -364,7 +365,7 @@ proc updatePvPWindow*(pvpWin: PvPWindow, dt: float32, getCosmetics: proc(): tupl
   else:
     discard
 
-proc resetPvPWindow*(pvpWin: PvPWindow) =
+proc resetPvPWindow*(pvpWin: PvPWindow) {.moddable.} =
   if pvpWin.networkManager != nil:
     cleanup(pvpWin.networkManager)
   pvpWin.networkManager = newNetworkManager()
@@ -503,7 +504,7 @@ proc drawInputField(fx, fy, fw, fh, textOffX, textOffY, fontSize: int, active: b
              Vector2(x: cx.float32, y: (fy + fh - textOffY + 2).float32), 2,
              uiLine(0, 210, 255))
 
-proc handlePvPWindowInput*(pvpWin: PvPWindow) =
+proc handlePvPWindowInput*(pvpWin: PvPWindow) {.moddable.} =
   if not pvpWin.window.visible or pvpWin.window.minimized:
     return
   if pvpWin.state != plsJoining and pvpWin.state != plsHostingConfig:
@@ -764,7 +765,7 @@ proc handlePvPWindowInput*(pvpWin: PvPWindow) =
       if pvpWin.editingNickname:
         pvpWin.cursorPos = pvpWin.inputNickname.len
 
-proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, contentHeight: int) =
+proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, contentHeight: int) {.moddable.} =
   let mousePos = getVirtualMousePosition()
 
   case pvpWin.state
@@ -1379,7 +1380,7 @@ proc drawPvPWindowContent*(pvpWin: PvPWindow, contentX, contentY, contentWidth, 
                    mousePos.y >= backBY.float32 and mousePos.y <= (backBY + 48).float32
     drawDangerButton(backBX, backBY, 200, 48, t("pvp_back"), backHov2, 22)
 
-proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, contentHeight: int): int =
+proc handlePvPWindowClick*(pvpWin: PvPWindow, contentX, contentY, contentWidth, contentHeight: int): int {.moddable.} =
   ## Returns: 0 = no action, 1 = host config, 2 = join, 3 = back/cancel, 4 = connect, 5 = start game, 6 = start hosting
   if not isPointerPressed():
     return 0

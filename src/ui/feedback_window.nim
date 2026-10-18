@@ -11,6 +11,7 @@
 ## Enter can never also drive the desktop's icon navigation behind it.
 
 import raylib, std/[unicode, strutils, math]
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../feedback
 import ui_theme, ../utils
@@ -89,7 +90,7 @@ proc kindHint(kind: FeedbackKind): string =
   of fkIdea: t(tkFeedbackHintIdea)
   of fkOther: t(tkFeedbackHintOther)
 
-proc newFeedbackWindow*(screenWidth, screenHeight: int): FeedbackWindow =
+proc newFeedbackWindow*(screenWidth, screenHeight: int): FeedbackWindow {.moddable.} =
   let osWin = newOSWindow(
     t(tkFeedbackWindowTitle),
     (screenWidth - FEEDBACK_WINDOW_WIDTH) div 2,
@@ -102,7 +103,7 @@ proc newFeedbackWindow*(screenWidth, screenHeight: int): FeedbackWindow =
   FeedbackWindow(window: osWin, kind: fkBug, includeInfo: true,
                  active: ffTitle, hover: -1)
 
-proc resetFeedbackView*(fw: FeedbackWindow) =
+proc resetFeedbackView*(fw: FeedbackWindow) {.moddable.} =
   ## Called on every open. The draft survives closing the window (Esc must not
   ## eat a half-written report); only focus and the stale status reset. The
   ## title is re-read so a language switch since startup shows up here too.
@@ -112,7 +113,7 @@ proc resetFeedbackView*(fw: FeedbackWindow) =
   fw.statusTimer = 0
   fw.backspaceHeld = 0
 
-proc wantsTextInput*(fw: FeedbackWindow): bool =
+proc wantsTextInput*(fw: FeedbackWindow): bool {.moddable.} =
   ## True while keystrokes belong to one of this window's fields.
   fw.window.visible and fw.window.focused and not fw.window.minimized and
     fw.active != ffNone
@@ -287,7 +288,7 @@ proc runAction(fw: FeedbackWindow, id: int) =
 
 proc updateFeedbackWindow*(fw: FeedbackWindow, dt: float32,
                            screenWidth, screenHeight: int,
-                           allWindows: openArray[OSWindow]) =
+                           allWindows: openArray[OSWindow]) {.moddable.} =
   updateOSWindow(fw.window, dt)
   if not fw.window.visible:
     return
@@ -385,7 +386,7 @@ proc drawButton(r: Rectangle, label: string, fill: Color, hovered: bool) =
   drawCenteredTextFit(label, r.x.int32 + 5, r.y.int32 + (r.height.int32 - 15) div 2,
                       r.width.int32 - 10, 15, uiInk(White))
 
-proc drawFeedbackWindow*(fw: FeedbackWindow) =
+proc drawFeedbackWindow*(fw: FeedbackWindow) {.moddable.} =
   if not fw.window.visible:
     return
 

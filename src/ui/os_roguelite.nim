@@ -1,4 +1,5 @@
 import raylib, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../roguelite, ../patches, ../powerup_data, ../dungeon, ../localization, ../render_context, ../utils, icon_drawing, ui_helpers
 from ../boss_definitions import bossName
@@ -70,14 +71,14 @@ proc drawScanlines(x, y, w, h: int32, color: Color) =
   for yy in countup(y + 6, y + h - 4, 10):
     drawStroke(x + 1, yy.int32, x + w - 2, yy.int32, color)
 
-proc roguelitePanelRect*(screenWidth, screenHeight: int32): Rectangle =
+proc roguelitePanelRect*(screenWidth, screenHeight: int32): Rectangle {.moddable.} =
   Rectangle(
     x: ((screenWidth - PanelW) div 2).float32,
     y: ((screenHeight - PanelH) div 2).float32,
     width: PanelW.float32,
     height: PanelH.float32)
 
-proc rogueliteCloseButtonRect*(screenWidth, screenHeight: int32): Rectangle =
+proc rogueliteCloseButtonRect*(screenWidth, screenHeight: int32): Rectangle {.moddable.} =
   let panel = roguelitePanelRect(screenWidth, screenHeight)
   Rectangle(
     x: panel.x + PanelW.float32 - CloseButtonSize.float32 - 10,
@@ -222,7 +223,7 @@ proc drawCloseButton(x, y: int32, stockColor: Color, hovered: bool = false) =
   drawStroke(x + CloseButtonSize - 8, y + 8, x + 8, y + CloseButtonSize - 8, lineColor)
 
 proc drawStatChip*(x, y, w, h: int32, label, value: string, stockColor: Color,
-                  icon: CurrencyIconType = ciNone) =
+                  icon: CurrencyIconType = ciNone) {.moddable.} =
   let color = uiInk(stockColor)
   drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 90))
   drawSoftFill(x, y, w, h, uiSurface(26, 36, 54, 244),
@@ -263,7 +264,7 @@ proc drawHeatStepButton(rect: Rectangle, label: string, enabled, hovered: bool, 
   discard drawCenteredTextFit(label, x + 4, y + 6, w - 8, 20,
                               if enabled: color else: uiInk(110, 118, 132), 12)
 
-proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
+proc drawHeatPanel*(game: Game, x, y, w, h: int32) {.moddable.} =
   let profile = game.rogueliteProfile
   let maxHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
   let selectedHeat = clamp(game.selectedRogueliteHeat, RogueliteMinHeat, maxHeat)
@@ -403,7 +404,7 @@ proc drawProgressRail(run: RogueliteRun, x, y, w: int32) =
     discard drawCenteredTextFit(label, px - (step div 2), y + 14, step, 11, LightGray, 8)
 
 proc drawPanel*(x, y, w, h: int32, title: string, stockColor: Color, closeHovered: bool = false,
-               omitTitleBar: bool = false) =
+               omitTitleBar: bool = false) {.moddable.} =
   let color = uiInk(stockColor)
   drawRectangle(x + 7, y + 7, w, h, Color(r: 0, g: 0, b: 0, a: 115))
   drawSoftFill(x, y, w, h, uiSurface(17, 24, 38, 250),
@@ -445,7 +446,7 @@ proc drawBossGlyph(cx, cy: int32, stockColor: Color) =
                     Vector2(x: (cx - 10).float32, y: (cy + 10).float32),
                     Vector2(x: (cx + 10).float32, y: (cy + 10).float32), color)
 
-proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, stockColor: Color, hovered: bool = false) =
+proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, stockColor: Color, hovered: bool = false) {.moddable.} =
   let color = uiInk(stockColor)
   let bgTop = if active: uiSurface(36, 86, 92)
               elif hovered: uiSurface(48, 61, 82)
@@ -465,7 +466,7 @@ proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, stockColor
   discard drawCenteredTextFit(label, x + 7, y + (h - fontSize) div 2, w - 14, 15,
                               if active or hovered: color else: uiInk(LightGray), 9)
 
-proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected: bool, hovered: bool = false) =
+proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected: bool, hovered: bool = false) {.moddable.} =
   ## A boot profile. All three are always available: the roguelite no longer
   ## sells them ("earn, don't buy").
   let stockColor = if selected: Color(r: 0, g: 220, b: 255, a: 255)
@@ -547,7 +548,7 @@ proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, floorB
   discard drawWrappedText(themeDescription(theme), x + 16, y + 215, CardW - 32, 13,
                           Color(r: 180, g: 192, b: 210, a: 255), 2, 4)
 
-proc finalBossCardRect*(screenWidth, screenHeight: int32): Rectangle =
+proc finalBossCardRect*(screenWidth, screenHeight: int32): Rectangle {.moddable.} =
   ## Geometry of the single special final-boss card. Shared by the renderer and
   ## the floor-select input handler so the hit-test matches what is drawn.
   let panelX = (screenWidth - PanelW) div 2
@@ -610,7 +611,7 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
                       Color(r: crimson.r, g: crimson.g, b: crimson.b,
                             a: uint8(170.0'f32 + pulse * 80.0'f32)))
 
-proc drawRogueliteFloorSelect*(game: Game) =
+proc drawRogueliteFloorSelect*(game: Game) {.moddable.} =
   let x = (getVirtualScreenWidth() - PanelW) div 2
   let y = (getVirtualScreenHeight() - PanelH) div 2
   let canHover = mouseHoverEnabled(game)
@@ -671,7 +672,7 @@ proc drawRogueliteFloorSelect*(game: Game) =
     drawCenteredTextFit(t("dungeon_floor_select_tip"), x + 60, y + PanelH - 63, PanelW - 120, 14, Color(r: 255, g: 210, b: 110, a: 255))
   drawCenteredTextFit(t("roguelite_sector_controls"), x + 60, y + PanelH - 35, PanelW - 120, 15, LightGray)
 
-proc rogueliteVictoryButtonRects*(screenWidth, screenHeight: int32): tuple[continueBtn, cashOut: Rectangle] =
+proc rogueliteVictoryButtonRects*(screenWidth, screenHeight: int32): tuple[continueBtn, cashOut: Rectangle] {.moddable.} =
   ## Shared geometry so the ending screen's click hit-tests (main.nim) match the draw.
   let panel = roguelitePanelRect(screenWidth, screenHeight)
   const BtnW = 300'i32
@@ -698,7 +699,7 @@ proc drawRogueliteEndButton(rect: Rectangle, label: string, stockColor: Color, h
   discard drawCenteredTextFit(label, x + 12, y + (h - fs) div 2, w - 24, fs,
     (if highlighted: Color(r: 255, g: 255, b: 255, a: 255) else: color))
 
-proc drawRogueliteVictory*(game: Game) =
+proc drawRogueliteVictory*(game: Game) {.moddable.} =
   ## The roguelite ending screen: shown the moment the final floor boss falls
   ## (and on every subsequent endless-loop completion). Celebrates the win, recaps
   ## the run, and offers the cash-out / push-deeper decision.

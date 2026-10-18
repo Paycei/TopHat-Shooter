@@ -8,7 +8,7 @@
 ##   NativeProc       a Nim function scripts can call (reg / vnative).
 ##   UdClass/Userdata a Nim object scripts see as a Lua userdata, its fields and
 ##                    methods served by the class's procs (__index & co).
-##   protectedCall    runs a script function with an instruction budget.
+##   protectedCall    runs a script function under the watchdog.
 ##
 ## Error discipline. Lua raises errors with longjmp, which must never jump
 ## over a Nim frame (it would skip its destructors and `finally`s). So:
@@ -20,11 +20,17 @@
 ##    a frame that holds nothing to clean up;
 ##  * Lua code is only ever entered through lua_pcall.
 ##
-## Sandbox. Scripts get base/coroutine/string/table/math/utf8 (no io, os,
-## package, debug, load, dofile). Each mod has its own globals table falling
-## through to a shared library table it cannot reach (__metatable), its own
-## copies of the library tables, and the string metatable is locked. The
-## instruction budget and the memory cap cannot be swallowed by pcall.
+## Trust. Mods are approved before they are published, so scripts are not
+## sandboxed: they get every standard library (io, os, debug, package, load,
+## string.dump...) and every metatable. Only native modules are left out
+## (lua_loadlib_nodl.c), so a mod runs the same on every platform. Each mod
+## has its own globals table falling through to the shared library table, and
+## its own copies of the library tables, so two mods don't trip over each
+## other's names (a mod can still reach the shared table: getmetatable(_ENV)).
+##
+## Watchdog. The one guard left: a script that does not return within a few
+## seconds (a frozen loop) is stopped with an error, so a bug cannot hang the
+## game. Once it trips, pcall cannot keep the script running.
 
 import std/[strutils, math, times]
 import lua_c
@@ -102,6 +108,7 @@ type
   VM* = ref object
     L*: LuaState
     printSink*: proc (s: string) {.closure.}
+    warnSink*: proc (s: string) {.closure.}   ## warn() and errors in __gc
 
   ScriptError* = object of CatchableError
     positioned*: bool        ## the message already starts with "file:line:"
@@ -117,8 +124,13 @@ type
 const
   TagUserdata = 0x55445431'i32
   TagNative = 0x4e415431'i32
-  HookGranularity = 1000      ## instructions between budget checks
-  MemoryCap = 256 * 1024 * 1024  ## all mods together
+  HookGranularity = 10_000    ## instructions between watchdog checks
+  DefaultCallLimit* = 5.0     ## seconds a script call may run before the watchdog stops it
+  LoadLimit* = 30.0           ## the same for a mod's main chunk (loading may build a lot)
+  FrameLimit* = 10.0          ## all script calls of one frame together
+  MaxScriptNesting* = 100     ## script -> game -> script ... levels (the C stack is finite)
+  QuitSentinel* = "(the game is closing: os.exit)"
+    ## the error os.exit unwinds a script with; never reported as a mod error
 
 template NilValue*: ScriptValue = ScriptValue(kind: vkNil)
 template TrueValue*: ScriptValue = ScriptValue(kind: vkBool, b: true)
@@ -132,10 +144,20 @@ var
   udFree: seq[int32]
   natSlots: seq[NativeBox]
   natFree: seq[int32]
-  steps, budget: int64
-  budgetBlown, memBlown: bool
   callDepth: int
   memUsed: int
+  watchClock: proc (): float64 {.nimcall.} = epochTime
+  watchCallLimit = DefaultCallLimit   ## the default limit (tests shorten it)
+  watchFrameLimit = FrameLimit
+  watchLimit: float64                 ## the limit of the outermost call in progress
+  watchStart: float64                 ## when it started
+  idleStart: float64                  ## first tick of Lua running outside any call (a __gc)
+  watchFrameSpent: float64            ## finished outermost calls this frame
+  watchFrameArmed: bool               ## resetWatchdogFrame has run (the game's frame loop)
+  watchTripped: bool
+  watchMsg: string
+  modQuitRequested*: bool             ## os.exit was called: main.nim closes the game
+  modQuitCode*: int
 
 proc `=destroy`(x: LuaRefObj) =
   if x.gen == luaGen and not liveL.isNil and x.id > 0:
@@ -253,8 +275,8 @@ proc c_free(p: pointer) {.importc: "free", header: "<stdlib.h>".}
 proc lua_concat(L: LuaState, n: cint) {.importc, cdecl.}
 
 proc luaAlloc(ud, p: pointer, osize, nsize: csize_t): pointer {.cdecl.} =
-  ## Never fails on purpose (a failing allocation would raise from wherever
-  ## Nim happened to be); going over the cap is raised from the hook instead.
+  ## There is no memory cap: this only fails when the machine is out of
+  ## memory. memUsed is what scriptMemoryUsed reports.
   if nsize == 0:
     if p != nil:
       memUsed -= osize.int
@@ -263,27 +285,47 @@ proc luaAlloc(ud, p: pointer, osize, nsize: csize_t): pointer {.cdecl.} =
   result = c_realloc(p, nsize)
   if result != nil:
     memUsed += nsize.int - (if p != nil: osize.int else: 0)
-    if memUsed > MemoryCap: memBlown = true
 
 # Procs that leave through lua_error (a longjmp) must not register a Nim
 # stack-trace frame: debug builds push one on entry and pop it on return, and
 # a frame that is jumped over stays linked to a dead stack forever.
 {.push stackTrace: off, lineTrace: off.}
 
-proc raiseGuard(L: LuaState, level: cint): cint {.cdecl.} =
-  ## The budget / memory guard's error, "file:line: ..." at `level`.
-  luaL_where(L, level)
-  if budgetBlown: discard lua_pushstring(L, "script ran too long (possible infinite loop)")
-  else: discard lua_pushstring(L, "scripts ran out of memory (256 MB for all mods)")
+proc raiseWatchdog(L: LuaState): cint {.cdecl.} =
+  ## The watchdog's error, "file:line: ..." where the script was.
+  luaL_where(L, 0)
+  discard lua_pushlstring(L, cstring(watchMsg), csize_t(watchMsg.len))
   lua_concat(L, 2)
   lua_error(L)
 
 proc countHook(L: LuaState, ar: pointer) {.cdecl.} =
-  ## Every HookGranularity instructions. Holds no Nim state, so it may raise.
-  steps += HookGranularity
-  if steps > budget: budgetBlown = true
-  if budgetBlown or memBlown:
-    discard raiseGuard(L, 0)
+  ## Every HookGranularity instructions (coroutines inherit it). Holds no Nim
+  ## state, so it may raise. Once tripped it fires on every instruction of the
+  ## thread it catches, so `while true do pcall(f) end` cannot outlive it: the
+  ## first instruction outside the pcall raises again.
+  if watchTripped:
+    lua_sethook(L, countHook, LUA_MASKCOUNT, 1)
+    discard raiseWatchdog(L)
+  if lua_gethookcount(L) == 1:   # left over from an earlier trip
+    lua_sethook(L, countHook, LUA_MASKCOUNT, HookGranularity)
+  let now = watchClock()
+  var limit, spent: float64
+  if callDepth > 0:
+    limit = watchLimit
+    spent = now - watchStart
+    if watchFrameArmed and watchFrameSpent + spent > watchFrameLimit:
+      limit = 0.0
+  else:
+    # Lua running outside every call: a finalizer (__gc) during an allocation.
+    if idleStart == 0.0: idleStart = now
+    limit = watchCallLimit
+    spent = now - idleStart
+  if spent > limit:
+    watchTripped = true
+    watchMsg = "script did not return for " & $int(spent + 0.5) &
+               " s (frozen?): stopped by the watchdog"
+    lua_sethook(L, countHook, LUA_MASKCOUNT, 1)
+    discard raiseWatchdog(L)
 
 proc panicFn(L: LuaState): cint {.cdecl.} =
   ## An error outside every protected call: a bug in this bridge, never a mod's.
@@ -333,7 +375,10 @@ proc allocNatSlot(b: NativeBox): int32 =
     natSlots.add(b)
 
 proc payloadAt(L: LuaState, idx: cint): ptr UdPayload {.inline.} =
-  if lua_type(L, idx) != LUA_TUSERDATA: return nil
+  ## Our userdata are exactly one UdPayload; anything else (an io file
+  ## handle is two pointers) is not ours, whatever its first bytes hold.
+  if lua_type(L, idx) != LUA_TUSERDATA or
+     lua_rawlen(L, idx) != uint64(sizeof(UdPayload)): return nil
   cast[ptr UdPayload](lua_touserdata(L, idx))
 
 proc userdataAt(L: LuaState, idx: cint): Userdata =
@@ -435,7 +480,7 @@ template luaEntry(name, body: untyped) =
 
 # --------------------------------------------------------------- natives ----
 luaEntry(nativeTrampoline):
-  let pl = cast[ptr UdPayload](lua_touserdata(L, lua_upvalueindex(1)))
+  let pl = payloadAt(L, lua_upvalueindex(1))   # debug.setupvalue can change it
   if pl.isNil or pl.tag != TagNative or pl.slot < 0 or pl.slot >= natSlots.len.int32 or
      natSlots[pl.slot].isNil:
     raise newException(ScriptError, "stale native function")
@@ -687,9 +732,6 @@ proc ensureClass(L: LuaState, cls: UdClass) =
   setField(L, "__tostring", udTostring)
   setField(L, "__eq", udEq)
   setField(L, "__gc", slotGc)
-  discard lua_pushstring(L, "__metatable")   # getmetatable(ud) -> false
-  lua_pushboolean(L, 0)
-  lua_rawset(L, -3)
   cls.mt = refTop(L)
   if cls.cached:
     lua_createtable(L, 0, 0)
@@ -742,37 +784,64 @@ proc errorText(L: LuaState, idx: cint): string =
   else:
     result = "(error object is a " & $lua_type(L, idx) & " value)"
 
-proc beginBudget(b: int) =
+proc beginCall(L: LuaState, limit: float64): bool =
+  ## Enter a script call; false when calls already nest MaxScriptNesting deep.
+  ## The outermost call starts the watchdog's clock (a nested one, from a
+  ## native inside a script, runs on the outer call's).
+  if callDepth >= MaxScriptNesting: return false
   if callDepth == 0:
-    steps = 0
-    budget = b.int64
-    budgetBlown = false
+    watchTripped = false
+    idleStart = 0.0
+    watchLimit = if limit > 0.0: limit else: watchCallLimit
+    watchStart = watchClock()
+    if lua_gethook(L).isNil:   # a mod's debug.sethook() took the watchdog off
+      lua_sethook(L, countHook, LUA_MASKCOUNT, HookGranularity)
   inc callDepth
+  true
 
-proc endBudget(L: LuaState) =
+proc endCall(L: LuaState) =
   dec callDepth
   if callDepth == 0:
-    budgetBlown = false
-    if memBlown:
-      discard lua_gc(L, LUA_GCCOLLECT)
-      memBlown = memUsed > MemoryCap
+    watchFrameSpent += watchClock() - watchStart
+    idleStart = 0.0
+    if watchTripped:
+      watchTripped = false
+      lua_sethook(L, countHook, LUA_MASKCOUNT, HookGranularity)
+
+const NestingError = "scripts call each other more than " & $MaxScriptNesting &
+                     " levels deep (a hook or event raising itself?)"
+
+proc setWatchdogClock*(clock: proc (): float64 {.nimcall.}) =
+  ## The watchdog's clock (main.nim passes raylib's monotonic timer once the
+  ## window exists; until then the wall clock).
+  watchClock = clock
+
+proc setWatchdogLimits*(call = DefaultCallLimit, frame = FrameLimit) =
+  ## Seconds a call / a whole frame of calls may run (tests shorten them).
+  watchCallLimit = call
+  watchFrameLimit = frame
+
+proc resetWatchdogFrame*() =
+  ## Once per frame: the per-frame total starts again.
+  watchFrameSpent = 0.0
+  watchFrameArmed = true
 
 proc protectedCall*(vm: VM, f: ScriptValue, args: openArray[ScriptValue],
-                    ret: var RetVals, budget: int): string =
-  ## Run `f` with an instruction budget (a nested call, from a native inside a
-  ## script, keeps the outer one). "" on success, else the error with a
-  ## traceback. Budget and memory errors cannot be caught by the script.
+                    ret: var RetVals, limit = 0.0): string =
+  ## Run `f` under the watchdog (`limit` seconds for an outermost call, 0 =
+  ## the default; a nested call keeps the outer one's). "" on success, else
+  ## the error with a traceback.
   let L = vm.L
   ret = RetVals()
   if L.isNil: return "no script VM"
+  if not beginCall(L, limit): return NestingError
   let base = lua_gettop(L)
   discard lua_checkstack(L, cint(args.len + 8))
   lua_pushcclosure(L, tracebackHandler, 0)
   pushValue(L, f)
   for a in args: pushValue(L, a)
-  beginBudget(budget)
   let st = lua_pcall(L, args.len.cint, LUA_MULTRET, base + 1)
-  endBudget(L)
+  endCall(L)
   if st != LUA_OK:
     result = errorText(L, -1)
     lua_settop(L, base)
@@ -787,13 +856,13 @@ proc callValue*(vm: VM, f: ScriptValue, args: openArray[ScriptValue], ret: var R
   ## Call from inside a native: errors come back as a ScriptError (already
   ## positioned), which the native's trampoline turns back into a Lua error.
   let L = vm.L
+  if not beginCall(L, 0.0): raise newException(ScriptError, NestingError)
   let base = lua_gettop(L)
   discard lua_checkstack(L, cint(args.len + 8))
   pushValue(L, f)
   for a in args: pushValue(L, a)
-  beginBudget(int(budget))
   let st = lua_pcall(L, args.len.cint, LUA_MULTRET, 0)
-  endBudget(L)
+  endCall(L)
   if st != LUA_OK:
     let msg = errorText(L, -1)
     lua_settop(L, base)
@@ -807,10 +876,10 @@ proc callValue*(vm: VM, f: ScriptValue, args: openArray[ScriptValue], ret: var R
   lua_settop(L, base)
 
 proc loadChunk*(vm: VM, src, chunkName: string, env: ScriptTable): ScriptFunc =
-  ## Compile a source file (text only, never bytecode) into a function whose
-  ## globals are `env`. Raises ScriptError on a syntax error.
+  ## Compile a chunk (source, or bytecode from string.dump / luac) into a
+  ## function whose globals are `env`. Raises ScriptError on a syntax error.
   let L = vm.L
-  let st = luaL_loadbufferx(L, cstring(src), csize_t(src.len), cstring("@" & chunkName), "t")
+  let st = luaL_loadbufferx(L, cstring(src), csize_t(src.len), cstring("@" & chunkName), "bt")
   if st != LUA_OK:
     let msg = errorText(L, -1)
     lua_pop(L, 1)
@@ -836,74 +905,48 @@ proc tostr*(vm: VM, v: ScriptValue): string =
     else: v.ud.cls.name
   else: typeName(v)
 
-# --------------------------------------------------- script-safe pcall ----
-{.push stackTrace: off, lineTrace: off.}
-
-proc safePcall(L: LuaState): cint {.cdecl.} =
-  ## pcall that cannot swallow the budget or memory guard.
-  let n = lua_gettop(L)
-  if n < 1:
-    luaL_where(L, 1)
-    discard lua_pushstring(L, "bad argument #1 to 'pcall' (value expected)")
-    lua_concat(L, 2)
-    return lua_error(L)
-  let st = lua_pcall(L, n - 1, LUA_MULTRET, 0)
-  if budgetBlown or memBlown: return raiseGuard(L, 1)
-  lua_pushboolean(L, cint(st == LUA_OK))
-  lua_insert(L, 1)
-  if st == LUA_OK: lua_gettop(L) else: 2
-
-proc safeXpcall(L: LuaState): cint {.cdecl.} =
-  let n = lua_gettop(L)
-  if lua_type(L, 2) != LUA_TFUNCTION:
-    luaL_where(L, 1)
-    discard lua_pushstring(L, "bad argument #2 to 'xpcall' (function expected)")
-    lua_concat(L, 2)
-    return lua_error(L)
-  lua_pushboolean(L, 1)
-  lua_pushvalue(L, 1)
-  lua_rotate(L, 3, 2)
-  let st = lua_pcall(L, n - 2, LUA_MULTRET, 2)
-  if budgetBlown or memBlown: return raiseGuard(L, 1)
-  if st != LUA_OK:
-    lua_pushboolean(L, 0)
-    lua_pushvalue(L, -2)
-    return 2
-  lua_gettop(L) - 2
-
-proc safeResume(L: LuaState): cint {.cdecl.} =
-  ## coroutine.resume that cannot swallow the guard either (upvalue: the real one).
-  let n = lua_gettop(L)
-  lua_pushvalue(L, lua_upvalueindex(1))
-  lua_insert(L, 1)
-  lua_callk(L, n, LUA_MULTRET, 0, nil)
-  if budgetBlown or memBlown: return raiseGuard(L, 1)
-  lua_gettop(L)
-
-{.pop.}
-
 luaEntry(logNative):
   if lua_type(L, 1) == LUA_TSTRING and not theVM.printSink.isNil:
     theVM.printSink(toValue(L, 1).str.s)
   0.cint
 
-luaEntry(collectGarbage):
-  ## collectgarbage("count" | "collect" | "step"): the rest could stop the GC.
-  let opt = if lua_type(L, 1) == LUA_TSTRING: toValue(L, 1).str.s else: "collect"
-  case opt
-  of "count":
-    lua_pushnumber(L, memUsed.float64 / 1024.0)
-    1.cint
-  of "collect", "step":
-    discard lua_gc(L, LUA_GCCOLLECT)
-    lua_pushinteger(L, 0)
-    1.cint
-  else:
-    raise newException(ScriptError, "bad argument #1 to 'collectgarbage' (only \"count\", \"collect\" and \"step\" are available)")
+luaEntry(quitNative):
+  ## os.exit([code]): the game closes at the end of the frame (saving as its
+  ## Quit does); the script unwinds with QuitSentinel, which is not reported.
+  modQuitRequested = true
+  modQuitCode = case lua_type(L, 1)
+    of LUA_TBOOLEAN: (if lua_toboolean(L, 1) != 0: 0 else: 1)
+    of LUA_TNUMBER: int(lua_tointegerx(L, 1, nil))
+    else: 0
+  if modQuitRequested: raise newException(ScriptError, QuitSentinel)
+  0.cint
+
+var
+  warnBuf: string
+  warnOn = true
+
+proc warnFn(ud: pointer, msg: cstring, tocont: cint) {.cdecl.} =
+  ## Lua's warnings (warn(), an error inside a __gc) go to the mod log.
+  ## Called from inside Lua, possibly mid-allocation: never raises.
+  try:
+    if msg.isNil: return
+    let piece = $msg
+    if warnBuf.len == 0 and tocont == 0 and piece.len > 0 and piece[0] == '@':
+      if piece == "@on": warnOn = true
+      elif piece == "@off": warnOn = false
+      return
+    warnBuf.add(piece)
+    if tocont == 0:
+      let whole = warnBuf
+      warnBuf = ""
+      if warnOn and not theVM.isNil and not theVM.warnSink.isNil:
+        theVM.warnSink(whole)
+  except CatchableError:
+    discard
 
 # ------------------------------------------------------------- the VM ----
 const Prelude = """
-local log, select, tostring, concat = ...
+local log, select, tostring, concat, quit = ...
 function print(...)
   local parts = {}
   for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
@@ -928,13 +971,27 @@ function string.split(s, sep)
   end
 end
 function string.trim(s) return (string.gsub(s, "^%s*(.-)%s*$", "%1")) end
+-- The game formats and parses numbers with the C locale.
+local setlocale = os.setlocale
+function os.setlocale(locale, category)
+  if locale ~= nil and locale ~= "C" and
+     (category == nil or category == "all" or category == "numeric") then
+    error("os.setlocale: the game needs the C number format; change 'collate', " ..
+          "'ctype', 'monetary' or 'time' instead", 2)
+  end
+  return setlocale(locale, category)
+end
+function os.exit(code) quit(code) end
+function debug.debug() error("debug.debug reads a terminal, which the game does not have", 2) end
 """
 
 const
   SharedGlobals = ["assert", "error", "getmetatable", "ipairs", "next", "pairs", "rawequal",
                    "rawget", "rawlen", "rawset", "select", "setmetatable", "tonumber",
-                   "tostring", "type", "_VERSION"]
-  Libraries = ["coroutine", "table", "string", "math", "utf8"]
+                   "tostring", "type", "_VERSION", "load", "loadfile", "dofile", "pcall",
+                   "xpcall", "collectgarbage", "warn", "require", "package"]
+  Libraries = ["coroutine", "table", "string", "math", "utf8", "io", "os", "debug"]
+    ## copied per mod; `package` stays one table (require's searchers read it)
 
 proc closeScriptVM*() =
   ## Close the Lua state: every userdata lets go of its Nim object, every
@@ -950,9 +1007,12 @@ proc closeScriptVM*() =
   natSlots.setLen(0)
   natFree.setLen(0)
   memUsed = 0
-  memBlown = false
-  budgetBlown = false
   callDepth = 0
+  watchTripped = false
+  idleStart = 0.0
+  watchFrameSpent = 0.0
+  warnBuf = ""
+  warnOn = true
 
 proc copyTable(L: LuaState, src: cint) =
   ## Push a shallow copy of the table at `src` (with the same metatable).
@@ -967,40 +1027,45 @@ proc copyTable(L: LuaState, src: cint) =
     discard lua_setmetatable(L, -2)
 
 proc newScriptVM*(): tuple[vm: VM, base: ScriptTable] =
-  ## A fresh sandboxed Lua state (closing the previous one) and the shared
-  ## library table every mod env falls through to.
+  ## A fresh Lua state (closing the previous one) and the shared library
+  ## table every mod env falls through to.
   closeScriptVM()
   let L = lua_newstate(luaAlloc, nil, cuint(int64(epochTime() * 1000.0) and 0x7fffffff))
   discard lua_atpanic(L, panicFn)
   liveL = L
   theVM = VM(L: L)
   lua_sethook(L, countHook, LUA_MASKCOUNT, HookGranularity)
-  steps = 0
-  budget = 50_000_000
+  lua_setwarnf(L, warnFn, nil)
 
-  # Libraries into the state's own globals (scripts never see that table).
-  for (name, opener) in [("_G", luaopen_base), ("coroutine", luaopen_coroutine),
-                         ("table", luaopen_table), ("string", luaopen_string),
-                         ("math", luaopen_math), ("utf8", luaopen_utf8)]:
+  # Every standard library into the state's own globals. LUA_NOENV: the
+  # player's LUA_PATH / LUA_CPATH environment must not change how mods load.
+  discard lua_pushstring(L, "LUA_NOENV")
+  lua_pushboolean(L, 1)
+  lua_rawset(L, LUA_REGISTRYINDEX)
+  for (name, opener) in [("_G", luaopen_base), ("package", luaopen_package),
+                         ("coroutine", luaopen_coroutine), ("table", luaopen_table),
+                         ("io", luaopen_io), ("os", luaopen_os), ("string", luaopen_string),
+                         ("math", luaopen_math), ("utf8", luaopen_utf8), ("debug", luaopen_debug)]:
     luaL_requiref(L, cstring(name), opener, 1)
     lua_pop(L, 1)
-
-  # Lock the string metatable (getmetatable("") -> false) and drop dump.
-  discard lua_pushstring(L, "")
-  if lua_getmetatable(L, -1) != 0:
-    discard lua_pushstring(L, "__metatable")
-    lua_pushboolean(L, 0)
-    lua_rawset(L, -3)
-    lua_pop(L, 1)
-  lua_pop(L, 1)
   discard lua_rawgeti(L, LUA_REGISTRYINDEX, LUA_RIDX_GLOBALS)
   let globals = lua_gettop(L)
-  discard lua_pushstring(L, "string")
+
+  # package: no search paths of its own (each mod's require finds its files
+  # and other mods'; a mod may still add to package.path), no C searchers.
+  discard lua_pushstring(L, "package")
   discard lua_rawget(L, globals)
-  discard lua_pushstring(L, "dump")
-  lua_pushnil(L)
-  lua_rawset(L, -3)
-  lua_pop(L, 1)
+  for field in ["path", "cpath"]:
+    discard lua_pushstring(L, cstring(field))
+    discard lua_pushstring(L, "")
+    lua_rawset(L, -3)
+  discard lua_pushstring(L, "searchers")
+  discard lua_rawget(L, -2)
+  if lua_type(L, -1) == LUA_TTABLE:
+    for i in [4, 3]:
+      lua_pushnil(L)
+      lua_rawseti(L, -2, i.int64)
+  lua_pop(L, 2)
 
   # The shared library table.
   lua_createtable(L, 0, 40)
@@ -1015,19 +1080,6 @@ proc newScriptVM*(): tuple[vm: VM, base: ScriptTable] =
     discard lua_pushstring(L, cstring(name))
     discard lua_rawget(L, globals)
     lua_rawset(L, baseIdx)
-  for (name, fn) in [("pcall", LuaCFunction(safePcall)), ("xpcall", LuaCFunction(safeXpcall)),
-                     ("collectgarbage", LuaCFunction(collectGarbage))]:
-    discard lua_pushstring(L, cstring(name))
-    lua_pushcclosure(L, fn, 0)
-    lua_rawset(L, baseIdx)
-  discard lua_pushstring(L, "coroutine")
-  discard lua_rawget(L, globals)
-  discard lua_pushstring(L, "resume")
-  discard lua_pushstring(L, "resume")
-  discard lua_rawget(L, -3)
-  lua_pushcclosure(L, safeResume, 1)
-  lua_rawset(L, -3)
-  lua_pop(L, 1)
   let base = ScriptTable(r: refAt(L, baseIdx))
 
   # gc-only metatable for native boxes
@@ -1037,7 +1089,8 @@ proc newScriptVM*(): tuple[vm: VM, base: ScriptTable] =
   lua_rawset(L, -3)
   gcMeta = refTop(L)
 
-  # Prelude: print, 5.1 names (unpack, math.pow), and the game's extras.
+  # Prelude: print, 5.1 names (unpack, math.pow), the game's extras, and
+  # os.setlocale / os.exit / debug.debug made safe for a game.
   discard luaL_loadbufferx(L, Prelude, csize_t(Prelude.len), "=prelude", "t")
   lua_pushvalue(L, baseIdx)
   discard lua_setupvalue(L, -2, 1)
@@ -1051,7 +1104,8 @@ proc newScriptVM*(): tuple[vm: VM, base: ScriptTable] =
   discard lua_rawget(L, -2)
   lua_rotate(L, -2, 1)
   lua_pop(L, 1)
-  if lua_pcall(L, 4, 0, 0) != LUA_OK:
+  lua_pushcclosure(L, quitNative, 0)
+  if lua_pcall(L, 5, 0, 0) != LUA_OK:
     stderr.writeLine("mod prelude failed: ", errorText(L, -1))
     lua_pop(L, 1)
   lua_settop(L, 0)
@@ -1059,10 +1113,10 @@ proc newScriptVM*(): tuple[vm: VM, base: ScriptTable] =
 
 proc newModEnv*(base: ScriptTable, extra: openArray[string] = []): ScriptTable =
   ## One mod's globals: its own copies of the library tables (Lua's, plus the
-  ## game's tables named in `extra`), falling through to `base`, which it
-  ## cannot reach (getmetatable(_ENV) is false). The copies are shallow: the
-  ## natives inside stay shared, but one mod replacing `draw.circle` or adding
-  ## to `spawn` changes only its own table.
+  ## game's tables named in `extra`), falling through to `base`
+  ## (getmetatable(_ENV).__index: what every mod shares). The copies are
+  ## shallow: the natives inside stay shared, but one mod replacing
+  ## `draw.circle` or adding to `spawn` changes only its own table.
   withL:
     lua_createtable(L, 0, 16)
     let env = lua_gettop(L)
@@ -1090,12 +1144,9 @@ proc newModEnv*(base: ScriptTable, extra: openArray[string] = []): ScriptTable =
     discard lua_pushstring(L, "_G")
     lua_pushvalue(L, env)
     lua_rawset(L, env)
-    lua_createtable(L, 0, 2)
+    lua_createtable(L, 0, 1)
     discard lua_pushstring(L, "__index")
     lua_pushvalue(L, b)
-    lua_rawset(L, -3)
-    discard lua_pushstring(L, "__metatable")
-    lua_pushboolean(L, 0)
     lua_rawset(L, -3)
     discard lua_setmetatable(L, env)
     lua_pop(L, 1)   # base
@@ -1105,7 +1156,8 @@ proc tableKeysOf*(base: ScriptTable): seq[string] =
   ## The string keys of `base` whose values are tables (the game's libraries,
   ## for newModEnv's `extra`).
   for (k, v) in entries(base):
-    if k.kind == vkString and v.kind == vkTable and k.str.s notin Libraries:
+    if k.kind == vkString and v.kind == vkTable and k.str.s notin Libraries and
+       k.str.s != "package":
       result.add(k.str.s)
 
 proc scriptMemoryUsed*(): int = memUsed

@@ -1,5 +1,6 @@
 ## Language and localization system for TopHat-ShooterOS
-import std/tables
+import std/[tables, strutils]
+import modding/mod_patch_core
 
 type
   Language* = enum
@@ -1894,6 +1895,9 @@ type
     tkModsTabInstalled = "mods_tab_installed"
     tkModsTabModes = "mods_tab_modes"
     tkModsTabLog = "mods_tab_log"
+    tkModsTabConsole = "mods_tab_console"
+    tkModsNeedsNewerGame = "mods_needs_newer_game"
+    tkModsConsoleHint = "mods_console_hint"
     tkModsTabAchievements = "mods_tab_achievements"
     tkModsNoAchievements = "mods_no_achievements"
     tkModsHiddenAchievement = "mods_hidden_achievement"
@@ -1958,6 +1962,9 @@ type
     tkModsKindBullet = "mods_kind_bullet"
     tkModsKindDesktop = "mods_kind_desktop"
     tkModsKindCube = "mods_kind_cube"
+    tkModsSafeMode = "mods_safe_mode"
+    tkModsFullAccess = "mods_full_access"
+    tkModsFrameTime = "mods_frame_time"
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -4129,6 +4136,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_tab_installed": "Installed",
     "mods_tab_modes": "Game Modes",
     "mods_tab_log": "Log",
+    "mods_tab_console": "Console",
+    "mods_needs_newer_game": "Made for game version $1 or newer (this is $2): parts of it may not work.",
+    "mods_console_hint": "Lua with the whole game API. Enter runs it, Up / Down: history. Output goes to the log.",
     "mods_tab_achievements": "Achievements",
     "mods_no_achievements": "None of the loaded mods has achievements of its own. They are the mods' own: they never change the game's advancements or their rewards.",
     "mods_hidden_achievement": "A hidden achievement.",
@@ -4193,7 +4203,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_kind_player": "Player skin",
     "mods_kind_bullet": "Bullet skin",
     "mods_kind_desktop": "Desktop",
-    "mods_kind_cube": "Desktop cube"
+    "mods_kind_cube": "Desktop cube",
+    "mods_safe_mode": "Mods are off: the game closed unexpectedly last time with mods loaded. Turn them back on in MODS.EXE (Apply & Reload).",
+    "mods_full_access": "Mods run with full access to the game and your files.",
+    "mods_frame_time": "$1 ms/frame"
   }.toTable,
 
   Spanish: {
@@ -6362,6 +6375,9 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_tab_installed": "Instalados",
     "mods_tab_modes": "Modos de juego",
     "mods_tab_log": "Registro",
+    "mods_tab_console": "Consola",
+    "mods_needs_newer_game": "Hecho para la versión $1 del juego o posterior (esta es la $2): puede que partes no funcionen.",
+    "mods_console_hint": "Lua con toda la API del juego. Enter lo ejecuta, Arriba / Abajo: historial. La salida va al registro.",
     "mods_tab_achievements": "Logros",
     "mods_no_achievements": "Ningún mod cargado tiene logros propios. Son de los mods: nunca cambian los avances del juego ni sus recompensas.",
     "mods_hidden_achievement": "Un logro oculto.",
@@ -6426,7 +6442,10 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_kind_player": "Aspecto del jugador",
     "mods_kind_bullet": "Aspecto de las balas",
     "mods_kind_desktop": "Escritorio",
-    "mods_kind_cube": "Cubo del escritorio"
+    "mods_kind_cube": "Cubo del escritorio",
+    "mods_safe_mode": "Mods desactivados: el juego se cerró inesperadamente la última vez con mods cargados. Vuelve a activarlos en MODS.EXE (Aplicar y recargar).",
+    "mods_full_access": "Los mods tienen acceso completo al juego y a tus archivos.",
+    "mods_frame_time": "$1 ms/fotograma"
   }.toTable
 }.toTable
 
@@ -6442,18 +6461,66 @@ var onLanguageChange*: proc() = nil
 var modTranslations: array[localization.Language, Table[system.string, system.string]]
 var modTranslationsActive: bool
 
-proc setModTranslation*(lang: localization.Language, key, value: string) =
+proc setModTranslation*(lang: localization.Language, key, value: string) {.moddable.} =
   modTranslations[lang][key] = value
   modTranslationsActive = true
 
-proc clearModTranslations*() =
+proc clearModTranslations*() {.moddable.} =
   for lang in localization.Language:
     modTranslations[lang].clear()
   modTranslationsActive = false
 
+# Mod languages (register.language): a mod's own language, shown over the
+# built-in language it is based on, whose strings fill its gaps. Its strings
+# come from register.language / lang.set("<id>", ...), its names for the mods'
+# own things from text tables ({en = "Souls", fr = "Ames"}). Settings store it
+# by id (settings.language), so it comes back once its mod has loaded.
+type ModLanguage* = object
+  id*, name*: system.string
+  base*: localization.Language
+
+var
+  modLanguages*: seq[ModLanguage]
+  modLanguageStrings: Table[system.string, Table[system.string, system.string]]
+    ## language id -> key -> text
+  modLanguageTexts: Table[system.string, Table[system.string, system.string]]
+    ## language id -> a mod text's English -> its translation
+  activeModLanguage*: system.string   ## the mod language in use ("": a built-in one)
+
+proc modLanguageIndex*(id: string): int {.moddable.} =
+  for i, l in modLanguages:
+    if l.id == id: return i
+  -1
+
+proc addModLanguage*(id, name: string, base: localization.Language) {.moddable.} =
+  ## (Registered again: a new name or base replaces the old.)
+  let i = modLanguageIndex(id)
+  if i >= 0:
+    if name.len > 0: modLanguages[i].name = name
+    modLanguages[i].base = base
+  else:
+    modLanguages.add(ModLanguage(id: id, name: (if name.len > 0: name else: id), base: base))
+
+proc setModLanguageString*(id, key, value: string) {.moddable.} =
+  modLanguageStrings.mgetOrPut(id, initTable[system.string, system.string]())[key] = value
+
+proc setModLanguageText*(id, english, value: string) {.moddable.} =
+  modLanguageTexts.mgetOrPut(id, initTable[system.string, system.string]())[english] = value
+
+proc clearModLanguages*() {.moddable.} =
+  ## Every mod language and its text (a reload: the mods register them again).
+  ## The one in use stays named, so useLanguage can put it back once they have.
+  modLanguages.setLen(0)
+  modLanguageStrings.clear()
+  modLanguageTexts.clear()
+
 # Get translation for a key
-proc t*(key: string): string =
+proc t*(key: string): string {.moddable.} =
   ## Get translation for the current language
+  if activeModLanguage.len > 0:   # a mod language over its base language
+    modLanguageStrings.withValue(activeModLanguage, strings):
+      strings[].withValue(key, text):
+        return text[]
   if modTranslationsActive:
     if modTranslations[currentLanguage].hasKey(key):
       return modTranslations[currentLanguage][key]
@@ -6470,7 +6537,7 @@ proc t*(key: string): string =
   else:
     return key  # Return key itself as last resort
 
-proc missingTranslations*(): seq[string] =
+proc missingTranslations*(): seq[string] {.moddable.} =
   ## TranslationKey entries absent from a language table. t() silently falls
   ## back to English and then to the raw key, so the compiler never catches a
   ## missing string; debug builds report these at startup.
@@ -6479,23 +6546,84 @@ proc missingTranslations*(): seq[string] =
       if not translations.hasKey(lang) or not translations[lang].hasKey($key):
         result.add($lang & ": " & $key)
 
+proc builtinText*(lang: Language, key: string): string {.moddable.} =
+  ## A string of the game's own tables, without any mod's text ("" if there is
+  ## none): what the generated strings_en.json for translators lists.
+  if translations.hasKey(lang) and translations[lang].hasKey(key): translations[lang][key]
+  else: ""
+
 # Get translation for a TranslationKey enum
-proc t*(key: TranslationKey): string =
+proc t*(key: TranslationKey): string {.moddable.} =
   ## Get translation for the current language using enum
   return t($key)
 
 # Set current language
-proc setLanguage*(lang: Language) =
+proc setLanguage*(lang: Language) {.moddable.} =
+  activeModLanguage = ""
   currentLanguage = lang
   if not onLanguageChange.isNil:
     onLanguageChange()
 
 # Get current language
-proc getLanguage*(): Language =
+proc getLanguage*(): Language {.moddable.} =
   return currentLanguage
 
 # Get language name for display
-proc getLanguageName*(lang: Language): string =
+proc getLanguageName*(lang: Language): string {.moddable.} =
   case lang
   of English: "English"
   of Spanish: "Español"
+
+proc useLanguage*(setting: string): bool {.moddable.} =
+  ## Switch language by its settings name: "english", "spanish" or a mod
+  ## language's id. False (and English) when there is no such language, e.g.
+  ## its mod is not loaded.
+  try:
+    setLanguage(parseEnum[Language](setting))
+    return true
+  except ValueError:
+    discard
+  let i = modLanguageIndex(setting)
+  if i < 0:
+    setLanguage(English)
+    return false
+  activeModLanguage = modLanguages[i].id
+  currentLanguage = modLanguages[i].base
+  if not onLanguageChange.isNil:
+    onLanguageChange()
+  true
+
+proc languageSetting*(): string {.moddable.} =
+  ## The settings name of the language in use.
+  if activeModLanguage.len > 0: activeModLanguage else: $currentLanguage
+
+proc languageDisplayName*(setting: string): string {.moddable.} =
+  ## What the language picker shows for a settings name.
+  try:
+    return getLanguageName(parseEnum[Language](setting))
+  except ValueError:
+    discard
+  let i = modLanguageIndex(setting)
+  if i >= 0: modLanguages[i].name else: getLanguageName(English)
+
+proc nextLanguageSetting*(setting: string): string {.moddable.} =
+  ## The settings cycle: English, Spanish, then the mod languages.
+  var all = @[$English, $Spanish]
+  for l in modLanguages: all.add l.id
+  all[(all.find(setting) + 1) mod all.len]   # (an unknown one: English)
+
+proc modLanguageText*(english: string): string {.moddable.} =
+  ## A mod's own text in the mod language in use ("" if it has none).
+  if activeModLanguage.len > 0:
+    modLanguageTexts.withValue(activeModLanguage, texts):
+      texts[].withValue(english, text):
+        return text[]
+  ""
+
+proc pickText*(en, es: string): string {.moddable.} =
+  ## A mod's own text in the language in use: the mod language's translation
+  ## of `en`, else the Spanish text (in Spanish), else the English.
+  if activeModLanguage.len > 0:
+    let m = modLanguageText(en)
+    if m.len > 0: return m
+  if currentLanguage == Spanish and es.len > 0: es else: en

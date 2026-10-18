@@ -15,6 +15,7 @@
 ## classic panel sums up front to size its background.
 
 import raylib, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../settings, ../render_context, icon_drawing, ../utils, ui_helpers, hud_dock
 from ../player import dashRechargeOf
@@ -439,7 +440,7 @@ proc drawWaveBody(game: Game, cx, cw, y: int32): int32 =
                  if game.wavesUntilBoss <= 0: Color(r: 255, g: 130, b: 90, a: 255) else: DockDim)
   y + WaveBodyH
 
-proc drawWaveDockCard*(game: Game, x, y: int32): int32 =
+proc drawWaveDockCard*(game: Game, x, y: int32): int32 {.moddable.} =
   ## Widescreen right-dock objective card for wave mode. Returns the y below it.
   let h = DockHeaderH + 6 + WaveBodyH + 2
   let accent = if game.bossWaveManager.active: Color(r: 255, g: 90, b: 90, a: 255) else: DockAccent
@@ -604,7 +605,7 @@ proc drawRogueliteBlock(game: Game, cx, cw, y: int32, withTitle, withLevel: bool
                                "+" & $run.coresEarned, RogueCoreColor)
   yOffset
 
-proc drawRogueliteDockCard*(game: Game, x, y: int32): int32 =
+proc drawRogueliteDockCard*(game: Game, x, y: int32): int32 {.moddable.} =
   ## Widescreen right-dock objective card for a dungeon run. Returns the y below it.
   let run = game.rogueliteRun
   if run.isNil:
@@ -620,7 +621,7 @@ proc drawRogueliteDockCard*(game: Game, x, y: int32): int32 =
                              withTitle = false, withLevel = false)
   y + h
 
-proc drawPatchDockCard*(game: Game, x, y, bottom, floorBottom: int32): int32 =
+proc drawPatchDockCard*(game: Game, x, y, bottom, floorBottom: int32): int32 {.moddable.} =
   ## Widescreen right-dock PATCHES card, stacked under the SECTOR card: the
   ## run's patches by name, in as many rows as fit above `bottom` (the caller
   ## keeps the boss cards' room below that). When that leaves nothing, the
@@ -658,12 +659,12 @@ const
   StatusCardPadTop = 6'i32
   StatusCardPadBottom = 3'i32
 
-proc statusCardHeight*(game: Game): int32 =
+proc statusCardHeight*(game: Game): int32 {.moddable.} =
   DockHeaderH + StatusCardPadTop + HpBlockH +
     (if modeShowsLevel(game): LevelRowH else: 0) +
     ResourceRowH + DashRowH + StatusCardPadBottom
 
-proc drawPlayerDock*(game: Game, x, top, bottom: int32) =
+proc drawPlayerDock*(game: Game, x, top, bottom: int32) {.moddable.} =
   ## The left dock's STATUS card (pinned to `top`) and PROCESSES card (filling
   ## down to `bottom`, which the caller moves up to make room for whatever it
   ## docks under it). The left dock is the power-ups'; a roguelite run's
@@ -757,7 +758,7 @@ proc keyHintWidth(h: KeyHint): int32 =
 proc wallPlacementText(game: Game): string =
   t(tkGameWallPlace) & "  (" & $game.player.walls & " " & t(tkGameWallPlaceRemaining) & ")"
 
-proc drawControlsDockCard*(game: Game, x, bottom: int32): int32 =
+proc drawControlsDockCard*(game: Game, x, bottom: int32): int32 {.moddable.} =
   ## Bottom-anchored key hints for the left dock, read from the live bindings
   ## (keyboard or pad, whichever is active) so a rebound control is shown under
   ## its real key. Two to a row when they fit, otherwise one per row. While a
@@ -803,7 +804,7 @@ proc drawControlsDockCard*(game: Game, x, bottom: int32): int32 =
                   keyMaxW = cw div 2)
   y
 
-proc drawControlsStrip*(game: Game, centerX, y: int32) =
+proc drawControlsStrip*(game: Game, centerX, y: int32) {.moddable.} =
   ## Classic layout: the same live key hints as the dock card, as one row
   ## centred on `centerX`, or the wall-placement prompt while placing.
   if game.wallPlacementMode and game.player.walls > 0:
@@ -909,7 +910,7 @@ proc drawClassicTitleBar(x, y: int32, minimized: bool) =
     drawStroke(Vector2(x: iconX.float32, y: iconY.float32),
              Vector2(x: (iconX + 10).float32, y: iconY.float32), 2, ACCENT_COLOR)
 
-proc drawCombinedHUDPanel*(game: Game, x, y: int32) =
+proc drawCombinedHUDPanel*(game: Game, x, y: int32) {.moddable.} =
   ## Classic floating STATUS panel (draggable by its title, minimizable).
   # Keep the remembered position inside the layer's logical viewport. Changing
   # the UI scale resizes that viewport under a panel that was dragged to fit the

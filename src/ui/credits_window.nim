@@ -7,6 +7,7 @@
 ## the buttons cannot be clicked. The credits above it are unaffected.
 
 import raylib
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../feedback
 import ui_theme
@@ -53,7 +54,7 @@ proc creditsWindowHeight(): int =
   if supportPanelVisible():
     result += SUPPORT_PANEL_HEIGHT
 
-proc newCreditsWindow*(screenWidth, screenHeight: int): CreditsWindow =
+proc newCreditsWindow*(screenWidth, screenHeight: int): CreditsWindow {.moddable.} =
   let windowWidth = CREDITS_WINDOW_WIDTH
   let windowHeight = creditsWindowHeight()
   let windowX = (screenWidth - windowWidth) div 2
@@ -104,7 +105,7 @@ proc supportButtonRects(cw: CreditsWindow): seq[Rectangle] =
 
 proc updateCreditsWindow*(cw: CreditsWindow, dt: float32,
                           screenWidth, screenHeight: int,
-                          allWindows: openArray[OSWindow]) =
+                          allWindows: openArray[OSWindow]) {.moddable.} =
   ## Update window chrome and handle support-button clicks. Closing is signalled
   ## by setting cw.window.visible = false (handled here), like the help window.
   updateOSWindow(cw.window, dt)
@@ -148,7 +149,7 @@ proc drawSupportButton(r: Rectangle, link: SupportLink, hovered: bool) =
            r.y.int32 + (r.height.int32 - fontSize) div 2,
            fontSize, link.text)
 
-proc drawCreditsWindow*(cw: CreditsWindow) =
+proc drawCreditsWindow*(cw: CreditsWindow) {.moddable.} =
   if not cw.window.visible:
     return
 

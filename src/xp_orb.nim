@@ -1,4 +1,5 @@
 import raylib, math, random
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, particle_pool, sound, powerup, patches, particle, enemy_config
 import modding/mod_hooks
@@ -45,7 +46,7 @@ proc clampXpDrop(x, y: float32, sw, sh: int32): tuple[x, y: float32] =
   result.x = clamp(x, XpLootMargin, sw.float32 - XpLootMargin)
   result.y = clamp(y, XpLootMargin, sh.float32 - XpLootMargin)
 
-proc xpRequiredForLevel*(level: int, mode: GameMode): int =
+proc xpRequiredForLevel*(level: int, mode: GameMode): int {.moddable.} =
   ## XP to clear `level`, per mode.
   ##
   ## Wave mode adds a quadratic term: it runs for dozens of waves, and because
@@ -69,7 +70,7 @@ proc xpRequiredForLevel*(level: int, mode: GameMode): int =
       XpBaseToLevel + n * XpPerLevelStep
   modXpToLevel(base, level, mode)   # mods may reshape the curve (xpToLevel hook)
 
-proc enemyXpValue*(enemy: Enemy): int =
+proc enemyXpValue*(enemy: Enemy): int {.moddable.} =
   ## Small per-enemy XP grant, shaped like enemyCoinValue but smaller magnitudes.
   if enemy.isBoss:
     result = 40
@@ -109,7 +110,7 @@ proc enemyXpValue*(enemy: Enemy): int =
     result *= 2
   result = modXpValue(enemy, result)
 
-proc newXpOrb*(x, y: float32, value: int = 1): XpOrb =
+proc newXpOrb*(x, y: float32, value: int = 1): XpOrb {.moddable.} =
   result = XpOrb(
     pos: newVector2f(x, y),
     radius: 5.0,
@@ -117,12 +118,12 @@ proc newXpOrb*(x, y: float32, value: int = 1): XpOrb =
     lifetime: XpOrbLifetime
   )
 
-proc updateXpOrb*(orb: XpOrb, dt: float32): bool =
+proc updateXpOrb*(orb: XpOrb, dt: float32): bool {.moddable.} =
   ## Tick the orb's lifetime; returns false when it should be removed.
   orb.lifetime -= dt
   orb.lifetime > 0
 
-proc drawXpOrb*(orb: XpOrb) =
+proc drawXpOrb*(orb: XpOrb) {.moddable.} =
   let t = getTime()
   let pulse = 1.0 + 0.22 * sin(t * 6.0)
   let size = orb.radius * pulse
@@ -140,7 +141,7 @@ proc drawXpOrb*(orb: XpOrb) =
   drawCircleOutline(orb.pos.x.int32, orb.pos.y.int32, size,
                   Color(r: 180, g: 255, b: 220, a: a))
 
-proc moveXpOrbToPlayer*(orb: XpOrb, playerPos: Vector2f, dt: float32) =
+proc moveXpOrbToPlayer*(orb: XpOrb, playerPos: Vector2f, dt: float32) {.moddable.} =
   let dir = (playerPos - orb.pos).normalize()
   orb.pos = orb.pos + dir * XpOrbPullSpeed * dt
 
@@ -156,7 +157,7 @@ proc dataHarvestMultiplier(player: Player): float32 =
   of 2: 1.5
   else: 2.0
 
-proc dropEnemyXp*(game: Game, enemy: Enemy) =
+proc dropEnemyXp*(game: Game, enemy: Enemy) {.moddable.} =
   ## Drop XP orb(s) at the dead enemy's position in the run-leveling modes.
   ## Bosses split their lump into a small cluster for a satisfying shower of orbs.
   ##
@@ -200,7 +201,17 @@ proc dropEnemyXp*(game: Game, enemy: Enemy) =
   else:
     game.xpOrbs.add(newXpOrb(clamped.x, clamped.y, total))
 
-proc updateGameXpOrbs*(game: Game, dt: float32) =
+proc collectXpOrb*(game: Game, orb: XpOrb) {.moddable.} =
+  ## The player touched `orb`: its XP and feedback (the caller removes it).
+  game.player.xp += orb.value
+  playSound(stCoinPickup, 0.35, 1.4)  # higher pitch than coins
+  spawnExplosionPooled(game.particlePool, orb.pos.x, orb.pos.y,
+                       Color(r: 90, g: 255, b: 170, a: 255), 5)
+  # Floating "+N" pickup indicator, mirroring the coin pickup feedback.
+  game.currencyIndicators.add(newCurrencyIndicator(
+    orb.pos.x, orb.pos.y, orb.value, cikXp))
+
+proc updateGameXpOrbs*(game: Game, dt: float32) {.moddable.} =
   ## Lifetime decay, aura/magnet homing, and pickup. Mirrors updateGameCoins.
   # Roguelite: an orb never expires. Its folder vacuums every orb at clear
   # (collectAllXpOrbs), and a pulsed swarm can leave orbs lying for longer
@@ -228,19 +239,13 @@ proc updateGameXpOrbs*(game: Game, dt: float32) =
       game.xpOrbs.delete(i)   # a mod took it (pickup hook)
       continue
     if checkPlayerCollision(game.xpOrbs[i], game.player):
-      game.player.xp += game.xpOrbs[i].value
-      playSound(stCoinPickup, 0.35, 1.4)  # higher pitch than coins
-      spawnExplosionPooled(game.particlePool, game.xpOrbs[i].pos.x, game.xpOrbs[i].pos.y,
-                           Color(r: 90, g: 255, b: 170, a: 255), 5)
-      # Floating "+N" pickup indicator, mirroring the coin pickup feedback.
-      game.currencyIndicators.add(newCurrencyIndicator(
-        game.xpOrbs[i].pos.x, game.xpOrbs[i].pos.y, game.xpOrbs[i].value, cikXp))
+      collectXpOrb(game, game.xpOrbs[i])
       game.xpOrbs.delete(i)
       continue
 
     i += 1
 
-proc collectAllXpOrbs*(game: Game) =
+proc collectAllXpOrbs*(game: Game) {.moddable.} =
   ## Bank every orb on the floor at once (a roguelite folder clearing), so the
   ## final kills' XP counts toward the level-ups banked right after. Mirrors
   ## coin.nim's collectAllCoins.
@@ -255,6 +260,6 @@ proc collectAllXpOrbs*(game: Game) =
     game.currencyIndicators.add(newCurrencyIndicator(
       game.player.pos.x + 18, game.player.pos.y - 8, total, cikXp))
 
-proc drawGameXpOrbs*(game: Game) =
+proc drawGameXpOrbs*(game: Game) {.moddable.} =
   for orb in game.xpOrbs:
     drawXpOrb(orb)

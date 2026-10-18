@@ -40,6 +40,7 @@
 ## games tolerate re-seeded randomness after a resume.
 
 import os, deques, strutils, tables
+import modding/mod_patch_core
 import types, save_system, run_statistics, tutorial
 import modding/[mod_state, mod_hooks]
 import discord_presence  # DiscordClient (no-op flatty overload)
@@ -86,9 +87,9 @@ proc fromFlatty*(s: string, i: var int, x: var ParticlePool) = x = nil
 
 # flatty's array copy indexes x[0.N], which an array keyed by the mod
 # power-up slots (puMod000..puMod255, ordinal 88+) can't take: walk it instead.
-proc toFlatty*(s: var string, x: array[FirstModPowerUp..LastModPowerUp, float32]) =
+proc toFlatty*(s: var string, x: array[FirstModPowerUp..LastModPowerUp, float32]) {.moddable.} =
   for e in x: s.toFlatty(e)
-proc fromFlatty*(s: string, i: var int, x: var array[FirstModPowerUp..LastModPowerUp, float32]) =
+proc fromFlatty*(s: string, i: var int, x: var array[FirstModPowerUp..LastModPowerUp, float32]) {.moddable.} =
   for e in x.mitems: s.fromFlatty(i, e)
 
 proc toFlatty*(s: var string, x: RogueliteProfile) = discard
@@ -184,7 +185,7 @@ proc getU32(s: string, off: int): uint32 =
 
 const LegacySuspendFile = "suspend.snap"
 
-proc getSuspendPath*(mode: GameMode, modMode: string = ""): string =
+proc getSuspendPath*(mode: GameMode, modMode: string = ""): string {.moddable.} =
   ## One snapshot per mode, so starting or quitting a run in one mode can never
   ## discard another mode's suspended run. saveSlotTag keeps modded sessions
   ## on their own files (see run_save.runSaveFileFor).
@@ -212,7 +213,7 @@ proc migrateLegacySuspendSnapshot() =
   except CatchableError:
     echo "Warning: could not migrate legacy suspend snapshot"
 
-proc deleteSuspendSnapshot*(mode: GameMode, modMode: string = "") =
+proc deleteSuspendSnapshot*(mode: GameMode, modMode: string = "") {.moddable.} =
   ## Remove this mode's exact snapshot for the current profile, if any.
   migrateLegacySuspendSnapshot()
   try:
@@ -222,7 +223,7 @@ proc deleteSuspendSnapshot*(mode: GameMode, modMode: string = "") =
   except CatchableError:
     echo "Warning: could not delete suspend snapshot"
 
-proc hasSuspendSnapshot*(mode: GameMode, modMode: string = ""): bool =
+proc hasSuspendSnapshot*(mode: GameMode, modMode: string = ""): bool {.moddable.} =
   ## Cheap existence check. Full validity (magic/version/fingerprint) is only
   ## confirmed by restoreGame; callers fall back to run_save when restore fails.
   migrateLegacySuspendSnapshot()
@@ -237,7 +238,7 @@ proc isSupportedSuspendMode(mode: GameMode): bool =
 const ResumableStates = {gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared,
                          gsPowerUpSelect, gsRogueliteFloorSelect}
 
-proc suspendGame*(game: Game) =
+proc suspendGame*(game: Game) {.moddable.} =
   ## Write an exact snapshot of the live simulation to this mode's snapshot file.
   ## Mirrors run_save's guards: no-op for unsupported modes / non-resumable
   ## states, and DELETES any stale snapshot for a finished/failed run. Because
@@ -321,7 +322,7 @@ proc relinkSharedRefs(g: Game) =
       if not s.activeWarning.isNil:
         s.activeWarning = listTwin(g.attackWarnings, s.activeWarning)
 
-proc restoreGame*(target: var Game): bool =
+proc restoreGame*(target: var Game): bool {.moddable.} =
   ## Rebuild the exact simulation onto `target` (which the caller has already
   ## constructed via newGame + setGameMode(savedMode) and assigned the live
   ## discordClient / rogueliteProfile). On success `target` is REPLACED by the

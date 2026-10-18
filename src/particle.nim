@@ -1,4 +1,5 @@
 import raylib, random, math, strutils
+import modding/mod_patch_core
 import particle_types, types, utils, ui/icon_drawing
 
 ## FLOATING LABEL MOTION
@@ -80,7 +81,7 @@ proc stepFloatMotion[T](label: T, dt: float32): bool =
   label.lifetime += dt
   result = label.lifetime < label.maxLifetime
 
-proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritical: bool = false, damageType: DamageType = dtDefault): DamageNumber =
+proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritical: bool = false, damageType: DamageType = dtDefault): DamageNumber {.moddable.} =
   # Crits launch harder but in a NARROWER cone: more height, less sideways
   # travel, so the standout hit stays near the impact where the eye already is.
   let speedMin = if isCritical: 185.0'f32 else: 150.0'f32
@@ -103,7 +104,7 @@ proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritic
     result.sizeScale = result.sizeScale * 1.05
 
 proc newCurrencyIndicator*(x, y: float32, amount: int,
-                           kind: CurrencyIndicatorKind = cikCredits): CurrencyIndicator =
+                           kind: CurrencyIndicatorKind = cikCredits): CurrencyIndicator {.moddable.} =
   # Data shards fire every wave, tighter spread so they don't wander off-screen
   let spreadScale = if kind == cikDataShards: 0.50'f32 else: 0.85'f32
   # Shards stay visible longer since they're the most important roguelite number
@@ -125,7 +126,7 @@ proc newCurrencyIndicator*(x, y: float32, amount: int,
   # number alone would look detached from it.
   initFloatMotion(result, 170.0'f32, 16.0'f32, 0.45'f32)
 
-proc newPerkIndicator*(x, y: float32, text: string, color: Color): PerkIndicator =
+proc newPerkIndicator*(x, y: float32, text: string, color: Color): PerkIndicator {.moddable.} =
   ## Floating "+SHIELD" style label for consumable pickups. Drifts upward like
   ## a damage number, then gravity pulls it back down as it fades out.
   ## Words are wider than numbers, so these launch tamer and barely tilt.
@@ -139,13 +140,13 @@ proc newPerkIndicator*(x, y: float32, text: string, color: Color): PerkIndicator
   )
   initFloatMotion(result, 152.0'f32, 12.0'f32, 0.5'f32)
 
-proc updateDamageNumber*(dmgNum: DamageNumber, dt: float32): bool =
+proc updateDamageNumber*(dmgNum: DamageNumber, dt: float32): bool {.moddable.} =
   stepFloatMotion(dmgNum, dt)
 
-proc updateCurrencyIndicator*(indicator: CurrencyIndicator, dt: float32): bool =
+proc updateCurrencyIndicator*(indicator: CurrencyIndicator, dt: float32): bool {.moddable.} =
   stepFloatMotion(indicator, dt)
 
-proc updatePerkIndicator*(indicator: PerkIndicator, dt: float32): bool =
+proc updatePerkIndicator*(indicator: PerkIndicator, dt: float32): bool {.moddable.} =
   stepFloatMotion(indicator, dt)
 
 # FLOATING LABEL RENDERING
@@ -206,7 +207,7 @@ proc drawFloatingLabel(text: string, centerX, centerY: float32, fontSize: int32,
 
   stamp(0.0'f32, 0.0'f32, color)
 
-proc drawDamageNumber*(dmgNum: DamageNumber, scale: float32 = 1.0'f32) =
+proc drawDamageNumber*(dmgNum: DamageNumber, scale: float32 = 1.0'f32) {.moddable.} =
   ## `scale` is the player's damage-number size setting. It is applied after the
   ## readability floor below, so the floor keeps holding the *default* size up
   ## without overriding someone who deliberately asked for smaller labels.
@@ -319,7 +320,7 @@ proc drawDamageNumber*(dmgNum: DamageNumber, scale: float32 = 1.0'f32) =
                     dmgNum.rotation, color, alpha,
                     (if dmgNum.isCritical: 0.28'f32 else: 0.18'f32))
 
-proc drawCurrencyIndicator*(indicator: CurrencyIndicator) =
+proc drawCurrencyIndicator*(indicator: CurrencyIndicator) {.moddable.} =
   let fade = floatFade(indicator.lifetime, indicator.maxLifetime, 0.5'f32)
   let alpha = (1.0'f32 - fade) * 255.0'f32
   let popScale = floatPop(indicator.lifetime, fade, 0.30'f32, indicator.sizeScale)
@@ -349,7 +350,7 @@ proc drawCurrencyIndicator*(indicator: CurrencyIndicator) =
                     y.float32 + scaledFontSize.float32 * 0.5, scaledFontSize,
                     indicator.rotation, color, alpha, 0.24'f32)
 
-proc drawPerkIndicator*(indicator: PerkIndicator) =
+proc drawPerkIndicator*(indicator: PerkIndicator) {.moddable.} =
   ## Draws a floating "+SHIELD" / "+SPEED" style consumable pickup label.
   let fade = floatFade(indicator.lifetime, indicator.maxLifetime, 0.5'f32)
   let alpha = (1.0'f32 - fade) * 255.0'f32

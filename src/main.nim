@@ -1,8 +1,12 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import draw_prims, post_fx
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
-import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples, mod_registry], ui/mods_window
+import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples, mod_registry, mod_deep], ui/mods_window
 import ui/ui_theme
+import modding/mod_mixin_game   # last: binds every {.moddable.} proc imported above
+import modding/[mod_engine_game, mod_engine_ui]   # engine.call for the rest of the game's procs
+when defined(debug):
+  import modding/mod_apidoc   # nimble modapi (--dump-mod-api) and its staleness check
 
 # Global quit-confirmation dialog
 
@@ -392,6 +396,8 @@ proc updateRenderScale() =
                              screenWidth.int32, screenHeight.int32)
   updateWorldView()
 
+var frameState = gsSplash   ## the state this frame runs (mods' drawOverlay hook)
+
 proc beginGameDrawing() =
   ## Begin drawing to the virtual render target
   beginTextureMode(renderTarget)
@@ -403,6 +409,7 @@ proc beginGameDrawing() =
 
 proc endGameDrawing() =
   ## End drawing to render target and blit to screen with letterboxing
+  modDrawOverlay(frameState, screenWidth, screenHeight)   # mods: over everything, any state
   popMatrix()
   endTextureMode()
 
@@ -700,7 +707,7 @@ proc main() =
   when defined(debug):
     # Wiring the compiler cannot see: untranslated keys and boss IDs whose
     # per-ID tables (weak point, process name, definition) were missed.
-    for problem in missingTranslations() & bossRosterProblems():
+    for problem in missingTranslations() & bossRosterProblems() & unboundModdables():
       echo "[self-check] ", problem
 
   # Save-profile bootstrap: convert pre-profile saves into profile 1, then
@@ -731,6 +738,7 @@ proc main() =
     setConfigFlags(flags(WindowResizable))
 
   initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v6.4 Edition")
+  useMonotonicScriptClock()   # the mod watchdog times scripts on raylib's clock
   setTargetFPS(targetFPS)
   setExitKey(Null)
   hideCursor()  # Hide default cursor for custom cursor
@@ -813,8 +821,14 @@ proc main() =
 
   # Mods (MODS.EXE): this profile's enabled mods load once the window, sounds
   # and cosmetics exist. Mod strings can rename cosmetics, so the databases are
-  # rebuilt after a set that loaded anything.
-  reloadMods(settings.enabledMods, settings.modCosmetics)
+  # rebuilt after a set that loaded anything. Safe mode: if the last session
+  # went down with mods loaded, this one starts without them (the profile
+  # keeps its list; MODS.EXE's Apply & Reload brings them back).
+  if modSessionCrashed():
+    reloadMods(@[], settings.modCosmetics)
+    modNotices.add(t(tkModsSafeMode))
+  else:
+    reloadMods(settings.enabledMods, settings.modCosmetics)
   if modsActive:
     initializeAllCosmetics()
   # Installed example mods this build ships newer versions of: toasted once,
@@ -917,6 +931,26 @@ proc main() =
 
   # Initialize window manager with all windows
   globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile)
+  # Mods: main()'s long-lived state, reachable from engine.globals (these
+  # locals live as long as the game does; a new run or profile is seen as is).
+  registerModGlobal("game", addr currentGame)
+  registerModGlobal("desktop", addr osDesktop)
+  registerModGlobal("windows", addr globalWindowManager)
+  registerModGlobal("advancements", addr advancementProfile)
+  when defined(debug):
+    # The mod API reference must match this build: `nimble modapi` runs this
+    # exe with --dump-mod-api <dir>, which writes it from a VM with no mods
+    # (here: once every engine global is registered).
+    let cliArgs = commandLineParams()
+    let dumpAt = cliArgs.find("--dump-mod-api")
+    if dumpAt >= 0:
+      reloadMods(@[])
+      let dir = if dumpAt + 1 < cliArgs.len: cliArgs[dumpAt + 1] else: "mods-sdk"
+      let written = dumpModApi(dir)
+      echo(if written: "mod API written to " & dir else: "could not write the mod API to " & dir)
+      quit(if written: 0 else: 1)
+    if not modsActive and buildModApi().md != embeddedModApi():
+      echo "[self-check] mods-sdk/API.md is out of date: run `nimble modapi`"
   # MODS.EXE Game Modes rows: every mod game mode, and whether its own save
   # slots hold a run to continue.
   modeRowsBuilder = proc (): seq[ModModeRow] =
@@ -930,8 +964,8 @@ proc main() =
       for r in mods:
         if r.index == m.owner: modName = r.name
       result.add(ModModeRow(
-        name: (if spanish and m.nameEs.len > 0: m.nameEs else: m.nameEn),
-        description: (if spanish and m.descEs.len > 0: m.descEs else: m.descEn),
+        name: pickText(m.nameEn, if spanish: m.nameEs else: ""),
+        description: pickText(m.descEn, if spanish: m.descEs else: ""),
         modName: modName, baseName: baseName,
         # A mode a mod made unresumable offers no saved run, only a restore point.
         canContinue: (m.resumable and (hasSuspendSnapshot(m.base, m.key) or hasSavedRun(m.base, m.key))) or
@@ -1190,9 +1224,18 @@ proc main() =
   var windowCloseRequested = false  # True once the OS close button is clicked
 
   while not windowCloseRequested:
-    # Mods: a mod that keeps blowing its per-frame script budget (in a run, on
-    # the desktop, in an app) is switched off; last frame's times are judged here.
-    modFrameCheck()
+    # Mods: last frame's script time goes into MODS.EXE's ms/frame, and the
+    # watchdog's per-frame total starts again. os.exit closes the game the
+    # normal way (saving the run like the window's close button).
+    modFrameTick()
+    runDeferredCalls()   # a safe point: no list of the game is being walked
+    releaseScriptResources()   # what scripts let go of last frame, now that it is drawn
+    if modQuitWanted():
+      windowCloseRequested = true
+      break
+    modFrame(currentGame.state, getFrameTime())
+    applyScreenRequests(currentGame)   # screens.go / back (mod screens, gsModScreen)
+    frameState = currentGame.state
     # Mod achievements unlocked last frame: a toast over the run, or on the desktop.
     if advancementToasts.len > 0:
       for msg in advancementToasts:
@@ -1205,7 +1248,8 @@ proc main() =
     if windowShouldClose():
       let isInGame = currentGame.state in {gsPlaying, gsPaused, gsShop, gsCountdown,
                                            gsWaveCleared, gsPowerUpSelect, gsDeathSequence,
-                                           gsRogueliteFloorSelect, gsPvPPlaying, gs3DBoss}
+                                           gsRogueliteFloorSelect, gsPvPPlaying, gs3DBoss} or
+                     (currentGame.state == gsModScreen and screenOverRun)
       # Show the quit-confirm popup when an active game session is running (full
       # anti-accident cooldown to protect the in-progress run). The main menu, the
       # game-over/victory screens (and the run-stats screen reached from them), and
@@ -1284,7 +1328,8 @@ proc main() =
 
     # Mods' 2D camera (camera.zoom): only over a PvE run on the arena; the
     # identity camera everywhere else (desktop, PvP, 3D worlds).
-    if not currentGame.isNil and currentGame.mode != gmPvP and currentGame.state != gs3DBoss and
+    if not currentGame.isNil and currentGame.mode != gmPvP and
+       currentGame.state notin {gs3DBoss, gsModScreen} and
        isActiveRunState(currentGame.state) and currentGame.modWorld.camZoom > 1.0'f32:
       setWorldCamera(currentGame.modWorld.camZoom, currentGame.modWorld.camCurX,
                      currentGame.modWorld.camCurY, currentGame.screenWidth.float32,
@@ -1332,8 +1377,10 @@ proc main() =
 
     # A 3D world belongs to the game that entered it: a replaced game (profile
     # switch, new mode) or a state that left gs3DBoss must not leave it dangling.
+    # (A mod screen opened over the world keeps it: it comes back on screens.back.)
+    let worldState = if currentGame.state == gsModScreen: screenBaseState() else: currentGame.state
     if activeWorld3D != nil and (currentGame.game3D != cast[pointer](activeWorld3D) or
-                                 currentGame.state != gs3DBoss):
+                                 worldState != gs3DBoss):
       activeWorld3D = nil
       currentGame.game3D = nil
 
@@ -1342,7 +1389,17 @@ proc main() =
     if not isActiveRunState(currentGame.state):
       modOutsideRun(currentGame.state == gsPvPPlaying)
     modWatchState(currentGame)
-    postShaderInRun = isActiveRunState(currentGame.state)
+    postShaderInRun = isActiveRunState(currentGame.state) and currentGame.state != gsModScreen
+
+    # Mods: a screenUpdate handler returning true takes this frame over (the
+    # state's own update and drawing are skipped; screenDraw paints it).
+    frameState = currentGame.state
+    if modScreenUpdate(currentGame.state, dt):
+      beginGameDrawing()
+      modScreenDraw(frameState, screenWidth, screenHeight)
+      drawCustomCursor(getTime().float32)
+      endGameDrawing()
+      continue
 
     case currentGame.state
     of gsSplash:
@@ -1426,22 +1483,28 @@ proc main() =
 
       let mousePos = getVirtualMousePosition()
       let rects = languageOptionRects(screenWidth.int32, screenHeight.int32)
+      var modLanguageNames: seq[string]   # register.language: under the two cards
+      for l in modLanguages: modLanguageNames.add(l.name)
+      let modRects = modLanguageOptionRects(screenWidth.int32, screenHeight.int32, modLanguageNames.len)
 
       # Pick by clicking a card or pressing 1 / 2.
-      var chosen = -1
+      var chosen = ""
       if languageSelectGuard <= 0:
         if isPointerPressed():
           for i, r in rects:
             if checkCollisionPointRec(mousePos, r):
-              chosen = i
+              chosen = if i == LangSpanish: $Spanish else: $English
               break
-        if isKeyPressed(KeyboardKey.One): chosen = LangEnglish
-        elif isKeyPressed(KeyboardKey.Two): chosen = LangSpanish
+          for i, r in modRects:
+            if checkCollisionPointRec(mousePos, r):
+              chosen = modLanguages[i].id
+              break
+        if isKeyPressed(KeyboardKey.One): chosen = $English
+        elif isKeyPressed(KeyboardKey.Two): chosen = $Spanish
 
-      if chosen >= 0:
-        let lang = if chosen == LangSpanish: Spanish else: English
-        setLanguage(lang)
-        settings.language = $lang
+      if chosen.len > 0:
+        discard useLanguage(chosen)
+        settings.language = chosen
         discard saveSettings(settings)
         playSound(stMenuSelect)
         # Rebuild now: the startup instance resolved its tape labels and title
@@ -1451,7 +1514,8 @@ proc main() =
         currentGame.state = gsLoreIntro
 
       beginGameDrawing()
-      drawLanguageSelect(screenWidth.int32, screenHeight.int32, currentGame.time, mousePos)
+      drawLanguageSelect(screenWidth.int32, screenHeight.int32, currentGame.time, mousePos,
+                         modLanguageNames)
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
@@ -4565,6 +4629,19 @@ proc main() =
       drawCustomCursor(currentPvPGame.gameTime)
       endGameDrawing()
 
+    of gsModScreen:
+      # A mod's own screen (register.screen, opened with screens.go). Over a
+      # run, the run holds still underneath until screens.back.
+      tickModScreen(dt)
+      beginGameDrawing()
+      if drawModScreen(screenWidth, screenHeight):
+        drawCustomCursor(getTime().float32)
+      endGameDrawing()
+
+  # A run under a mod screen is saved as the state it holds still in.
+  if not currentGame.isNil and currentGame.state == gsModScreen:
+    currentGame.state = screenBaseState()
+
   # A run that has ended but was not persisted yet -- the window was closed on
   # an ending screen or during the death playback -- is recorded now, since
   # those states are not resumable and the run would otherwise just vanish.
@@ -4616,13 +4693,19 @@ proc main() =
       # Ignore Discord disconnect errors during shutdown
       discard
 
-  # Cleanup. Mod textures and sounds are GPU/audio resources: they go before
-  # the device and the window do.
+  # Cleanup. The script VM closes first (its finalizers may still touch mod
+  # assets), then mod textures and sounds, which are GPU/audio resources and
+  # go before the device and the window do.
   saveAllModStorage()
+  closeModScripts()
+  releaseScriptResources()
   unloadModAssets()
+  endModSession()
   stopMusic()
   closeSoundSystem(globalSoundSystem)
   closeWindow()
+  if modQuitWanted() and modQuitExitCode() != 0:
+    quit(modQuitExitCode())
 
 when isMainModule:
   main()

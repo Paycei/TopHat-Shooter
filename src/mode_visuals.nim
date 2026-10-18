@@ -10,6 +10,7 @@
 ## solid body, dark rim, bright accent.
 
 import raylib, math, strutils
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, utils, localization, mode_hazards
 
@@ -57,7 +58,7 @@ proc centeredText(text: string, x, y: float32, size: int32, col: Color) =
 # ---------------------------------------------------------------------------
 # Enemies
 
-proc drawModeEnemy*(enemy: Enemy) =
+proc drawModeEnemy*(enemy: Enemy) {.moddable.} =
   let t = getTime().float32
   let cx = enemy.pos.x
   let cy = enemy.pos.y
@@ -382,7 +383,7 @@ proc drawModeEnemy*(enemy: Enemy) =
   else:
     drawDisc(v2(cx, cy), r, col)
 
-proc drawEnemyTethers*(enemies: seq[Enemy]) =
+proc drawEnemyTethers*(enemies: seq[Enemy]) {.moddable.} =
   ## The Deadlock mesh (a link is lethal once both ends are armed) and the
   ## Forkmother's process-tree lines to her children (harmless: they only show
   ## where the children are). Ungated: a link is a hazard.
@@ -428,7 +429,7 @@ proc drawEnemyTethers*(enemies: seq[Enemy]) =
         continue
       dashedLine(e.pos, partner.pos, 5, 7, 1.2, Color(r: 255, g: 120, b: 190, a: 110), -t * 30.0'f32)
 
-proc drawHusks*(husks: seq[HuskRecord]) =
+proc drawHusks*(husks: seq[HuskRecord]) {.moddable.} =
   ## Fallen Zombie Processes waiting to stand back up: walk over one to reap it.
   let t = getTime().float32
   for h in husks:
@@ -444,7 +445,7 @@ proc drawHusks*(husks: seq[HuskRecord]) =
 # ---------------------------------------------------------------------------
 # Boss bodies (13-15, 17-22)
 
-proc drawModeBossBody*(enemy: Enemy) =
+proc drawModeBossBody*(enemy: Enemy) {.moddable.} =
   let t = getTime().float32
   let pulse = sin(t * 2.5'f32) * 0.5'f32 + 0.5'f32
   let breathe = sin(t * 1.0'f32) * 0.5'f32 + 0.5'f32
@@ -624,7 +625,7 @@ proc drawModeBossBody*(enemy: Enemy) =
 # ---------------------------------------------------------------------------
 # Warnings
 
-proc drawModeWarningTelegraph*(w: AttackWarning) =
+proc drawModeWarningTelegraph*(w: AttackWarning) {.moddable.} =
   ## Hint-gated wind-up cues.
   let t = getTime().float32
   case w.attackType
@@ -668,7 +669,7 @@ proc drawModeWarningTelegraph*(w: AttackWarning) =
   else:
     discard
 
-proc drawModeWarningActive*(w: AttackWarning) =
+proc drawModeWarningActive*(w: AttackWarning) {.moddable.} =
   ## Ungated: every lethal state, and the tells a mechanic cannot work without.
   let t = getTime().float32
   case w.attackType

@@ -2,6 +2,7 @@
 ## Handles multiplayer player vs player combat with optional team support
 
 import raylib, rlgl, math, times, strutils, sequtils, algorithm, random
+import modding/mod_patch_core
 import draw_prims
 from std/unicode import nil   # toUpper for accented team names, without its split/strip overloads
 import types, player, bullet, wall, particle, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, ui/background_fx, d_systems, modding/mod_assets
@@ -94,18 +95,18 @@ const
   PowerPackages*   = [pkOverclock, pkFork]
   UtilityPackages* = [pkChkdsk, pkFirewall, pkTurbo]
 
-proc packageFromInt*(value: int): PvPPackageKind =
+proc packageFromInt*(value: int): PvPPackageKind {.moddable.} =
   ## Kind from a raw ordinal off the wire. A plain PvPPackageKind(value) is
   ## unchecked in release builds, so a bad value would become an invalid enum.
   if value < ord(low(PvPPackageKind)) or value > ord(high(PvPPackageKind)): pkChkdsk
   else: PvPPackageKind(value)
 
-proc rollPackage*(isPower: bool): PvPPackageKind =
+proc rollPackage*(isPower: bool): PvPPackageKind {.moddable.} =
   ## Host only: the kind a port will drop next (clients learn it from snapshots).
   if isPower: PowerPackages[rand(PowerPackages.high)]
   else: UtilityPackages[rand(UtilityPackages.high)]
 
-proc portLayout*(arenaW, arenaH: float32): seq[tuple[pos: Vector2f, isPower: bool]] =
+proc portLayout*(arenaW, arenaH: float32): seq[tuple[pos: Vector2f, isPower: bool]] {.moddable.} =
   ## Centre power port plus four quadrant utility ports. Symmetric left/right
   ## and top/bottom, so neither the 1v1 spawns (x = 25% / 75%) nor the team
   ## spawns (left / right edges) start closer to anything than their rival.
@@ -117,7 +118,7 @@ proc portLayout*(arenaW, arenaH: float32): seq[tuple[pos: Vector2f, isPower: boo
     (pos: newVector2f(arenaW * 0.75'f32, arenaH * 0.75'f32), isPower: false)
   ]
 
-proc packageDuration*(kind: PvPPackageKind): float32 =
+proc packageDuration*(kind: PvPPackageKind): float32 {.moddable.} =
   ## Timed buff length, 0 for instant / until-consumed packages.
   case kind
   of pkChkdsk, pkFirewall: 0.0'f32
@@ -125,7 +126,7 @@ proc packageDuration*(kind: PvPPackageKind): float32 =
   of pkOverclock: OverclockDuration
   of pkFork: ForkDuration
 
-proc packageName*(kind: PvPPackageKind): string =
+proc packageName*(kind: PvPPackageKind): string {.moddable.} =
   case kind
   of pkChkdsk: t(tkPvPPkgChkdsk)
   of pkFirewall: t(tkPvPPkgFirewall)
@@ -133,7 +134,7 @@ proc packageName*(kind: PvPPackageKind): string =
   of pkOverclock: t(tkPvPPkgOverclock)
   of pkFork: t(tkPvPPkgFork)
 
-proc packageBlurb*(kind: PvPPackageKind): string =
+proc packageBlurb*(kind: PvPPackageKind): string {.moddable.} =
   case kind
   of pkChkdsk: t(tkPvPPkgChkdskBlurb)
   of pkFirewall: t(tkPvPPkgFirewallBlurb)
@@ -141,7 +142,7 @@ proc packageBlurb*(kind: PvPPackageKind): string =
   of pkOverclock: t(tkPvPPkgOverclockBlurb)
   of pkFork: t(tkPvPPkgForkBlurb)
 
-proc packageColor*(kind: PvPPackageKind): Color =
+proc packageColor*(kind: PvPPackageKind): Color {.moddable.} =
   ## Firewall and Turbo match the player-body effects they switch on (the cyan
   ## shield bubble and the green-cyan speed trail in drawPlayer), so the pickup
   ## and its effect read as the same thing.
@@ -152,7 +153,7 @@ proc packageColor*(kind: PvPPackageKind): Color =
   of pkOverclock: Color(r: 255, g: 185, b: 40, a: 255)
   of pkFork: Color(r: 255, g: 95, b: 205, a: 255)
 
-proc drawPackageIcon*(kind: PvPPackageKind, cx, cy, size: float32, color: Color) =
+proc drawPackageIcon*(kind: PvPPackageKind, cx, cy, size: float32, color: Color) {.moddable.} =
   ## Programmatic glyph centred on (cx, cy); `size` is the half-extent. Shapes
   ## are chunky on purpose: the icon has to read at ~10 px on a HUD pill.
   let s = size
@@ -351,7 +352,7 @@ type
     shake: ScreenShake
     hurtFlash: float32
 
-proc getTeamName*(team: PvPTeam): string =
+proc getTeamName*(team: PvPTeam): string {.moddable.} =
   ## Get the display name for a team
   case team
   of ptRed:
@@ -369,7 +370,7 @@ proc getTeamName*(team: PvPTeam): string =
   of ptNone:
     return t(tkPvPTeamNone)
 
-proc getTeamColor*(team: PvPTeam): Color =
+proc getTeamColor*(team: PvPTeam): Color {.moddable.} =
   ## Get the display color for a team
   case team
   of ptRed:
@@ -387,7 +388,7 @@ proc getTeamColor*(team: PvPTeam): Color =
   of ptNone:
     return White
 
-proc assignPlayerToTeam*(playerIndex: int, maxPlayers: int, teamsEnabled: bool): PvPTeam =
+proc assignPlayerToTeam*(playerIndex: int, maxPlayers: int, teamsEnabled: bool): PvPTeam {.moddable.} =
   ## Assign a player to a team based on their index
   if not teamsEnabled:
     return ptNone
@@ -563,7 +564,7 @@ proc pvpPacket(pvp: PvPGameState, kind: PacketType): Packet {.inline.} =
   result = newPacket(kind, pvp.serverTick)
   result.matchId = pvp.matchId
 
-proc playerIndexOf*(pvp: PvPGameState, p: Player): int =
+proc playerIndexOf*(pvp: PvPGameState, p: Player): int {.moddable.} =
   ## The slot of `p` in this match, -1 if it is not one of its players.
   for i, x in pvp.players:
     if x == p: return i
@@ -611,7 +612,7 @@ proc outboxPrefix(outbox: seq[ModNetMsg]): seq[ModNetMsg] =
     if result.len > 0 and bytes > ModMsgPacketBudget: break
     result.add(msg)
 
-proc modRequest*(pvp: PvPGameState, name, data: string): bool =
+proc modRequest*(pvp: PvPGameState, name, data: string): bool {.moddable.} =
   ## match:request. False when too many are still waiting for the host.
   if pvp.isHostSide:
     # The host's own player asks itself: no network involved.
@@ -624,7 +625,7 @@ proc modRequest*(pvp: PvPGameState, name, data: string): bool =
   pvp.modUrgent = true
   true
 
-proc modBroadcast*(pvp: PvPGameState, name, data: string): bool =
+proc modBroadcast*(pvp: PvPGameState, name, data: string): bool {.moddable.} =
   ## match:broadcast (host). The host hears its own too, at the next safe
   ## point of the frame. False when a client has stopped acknowledging.
   if pvp.modOutbox.len >= MaxModOutbox:
@@ -696,7 +697,7 @@ proc deliverModMessages(pvp: PvPGameState) =
     for b in broadcasts:
       modPvPBroadcast(pvp, b.name, b.data)
 
-proc playerName*(pvp: PvPGameState, playerIndex: int): string =
+proc playerName*(pvp: PvPGameState, playerIndex: int): string {.moddable.} =
   if playerIndex >= 0 and playerIndex < pvp.playerNicknames.len and
      pvp.playerNicknames[playerIndex].len > 0:
     pvp.playerNicknames[playerIndex]
@@ -715,7 +716,7 @@ proc playerColor(pvp: PvPGameState, playerIndex: int): Color =
   else:
     Color(r: 255, g: 200, b: 100, a: 255)
 
-proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]], teamsEnabled: bool = false, playerTeamAssignments: seq[int] = @[], interpolationEnabled: bool = true, config: PvPConfig = defaultPvPConfig()): PvPGameState =
+proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]], teamsEnabled: bool = false, playerTeamAssignments: seq[int] = @[], interpolationEnabled: bool = true, config: PvPConfig = defaultPvPConfig()): PvPGameState {.moddable.} =
   let emptyInput = PlayerInput(
     tick: 0,
     playerIndex: 0,
@@ -850,7 +851,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
   result.toastAge = ToastTime
   resetPorts(result)
 
-proc resetMatchState*(pvp: PvPGameState) =
+proc resetMatchState*(pvp: PvPGameState) {.moddable.} =
   ## Put the arena back to the opening state of a match, keeping the roster
   ## (nicknames, cosmetics, teams, who is still connected). Shared by the host's
   ## rematch and by clients adopting it, so both sides start from identical state.
@@ -986,7 +987,7 @@ proc sendGameStartPacket(pvp: PvPGameState) =
   packet.modData = modDataPayload(pvp, force = true)
   pvp.networkManager.sendPacket(packet)
 
-proc startCountdown*(pvp: PvPGameState) =
+proc startCountdown*(pvp: PvPGameState) {.moddable.} =
   ## A match's countdown. Mods hear pvpStart first; then the host places
   ## everyone at their spawn points (which a mod may have moved) and rolls the
   ## ports, before the start signal carries both to the clients.
@@ -1006,7 +1007,7 @@ proc startCountdown*(pvp: PvPGameState) =
   if pvp.networkManager.isHost():
     sendGameStartPacket(pvp)
 
-proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
+proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput {.moddable.} =
   var moveDir = newVector2f(0, 0)
   let kb = globalSettings.keybinds
   if isKeyDown(kb[kaMoveUp]): moveDir.y -= 1
@@ -1085,7 +1086,7 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
     dashDir: pvp.pendingDashDir
   )
 
-proc areTeammates*(pvp: PvPGameState, playerIdx1, playerIdx2: int): bool =
+proc areTeammates*(pvp: PvPGameState, playerIdx1, playerIdx2: int): bool {.moddable.} =
   ## Check if two players are on the same team
   if not pvp.teamsEnabled:
     return false
@@ -1255,7 +1256,7 @@ proc fxRespawn(pvp: PvPGameState, idx: int) =
     playSound(stTeleport, 0.7'f32)
   modPvPRespawn(pvp, pvp.players[idx])
 
-proc localResult*(pvp: PvPGameState): int =
+proc localResult*(pvp: PvPGameState): int {.moddable.} =
   ## 1 = the local player (or their team) won, -1 = lost, 0 = draw / no winner.
   if pvp.teamsEnabled:
     if pvp.winnerTeam == ptNone: return 0
@@ -1566,7 +1567,7 @@ proc spawnPvPBullet(pvp: PvPGameState, owner: int, dir: Vector2f, damage: float3
 
 proc modSpawnBullet*(pvp: PvPGameState, owner: int, pos, vel: Vector2f,
                      damage, radius, life: float32, color: Color, kind: string,
-                     pierce: int): Bullet =
+                     pierce: int): Bullet {.moddable.} =
   ## match:spawnBullet (host). Made now so the script gets it back at once, but
   ## it joins the match at the next safe point of the frame: hooks fire inside
   ## the bullet loop. nil when the arena is full.
@@ -1590,7 +1591,7 @@ proc flushModBullets(pvp: PvPGameState) =
   for b in pending:
     if b.lifetime > 0: joinBullet(pvp, b)
 
-proc pvpBulletAlive*(pvp: PvPGameState, b: Bullet): bool =
+proc pvpBulletAlive*(pvp: PvPGameState, b: Bullet): bool {.moddable.} =
   ## bullet:valid() in PvP: still flying (or about to join).
   b.lifetime > 0 and (b in pvp.bullets or b in pvp.modBullets)
 
@@ -1610,7 +1611,7 @@ proc fireShot(pvp: PvPGameState, owner: int, aimPos: Vector2f) =
   playSound(stShoot, if owner == pvp.localPlayerIndex: 1.0'f32 else: 0.35'f32)
 
 proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput,
-                       dt: float32): Vector2f {.discardable.} =
+                       dt: float32): Vector2f {.discardable, moddable.} =
   ## Apply input to a player (used by both client and server). Returns the
   ## velocity the player actually moved with, which the client records for
   ## reconcile replay.
@@ -1714,7 +1715,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput,
         # ptWallPlace arrives from the host (typically within one RTT).
         playSound(stPowerUp)
 
-proc updateBullets*(pvp: PvPGameState, dt: float32) =
+proc updateBullets*(pvp: PvPGameState, dt: float32) {.moddable.} =
   ## Update bullets (server-side authoritative)
   var i = 0
   while i < pvp.bullets.len:
@@ -1851,26 +1852,26 @@ proc respawnPlayer(pvp: PvPGameState, idx: int) =
 # What the match object of mod_pvp does. The host-only ones are refused there
 # on clients; these assume they run on the host.
 
-proc modDamage*(pvp: PvPGameState, victim, attacker: int, amount: float32) =
+proc modDamage*(pvp: PvPGameState, victim, attacker: int, amount: float32) {.moddable.} =
   ## match:damage: through the same door as a bullet (FIREWALL.SYS, the
   ## pvpPlayerDamaged filter, the kill credit), but not counted as a shot.
   if victim < 0 or victim >= pvp.players.len or pvp.gameOver: return
   applyHit(pvp, victim, attacker, amount, fromBullet = false)
 
-proc modKill*(pvp: PvPGameState, victim, killer: int) =
+proc modKill*(pvp: PvPGameState, victim, killer: int) {.moddable.} =
   ## match:kill: down at once, crediting `killer` (-1 = nobody).
   if victim < 0 or victim >= pvp.players.len or pvp.gameOver: return
   if pvp.players[victim].hp <= 0: return
   pvp.players[victim].hp = 0
   registerKill(pvp, killer, victim)
 
-proc modHeal*(pvp: PvPGameState, idx: int, amount: float32) =
+proc modHeal*(pvp: PvPGameState, idx: int, amount: float32) {.moddable.} =
   if idx < 0 or idx >= pvp.players.len: return
   let p = pvp.players[idx]
   if p.hp > 0:
     p.hp = min(p.maxHp, p.hp + max(0'f32, amount))
 
-proc modTeleport*(pvp: PvPGameState, idx: int, pos: Vector2f) =
+proc modTeleport*(pvp: PvPGameState, idx: int, pos: Vector2f) {.moddable.} =
   ## match:teleport (and a script setting a PvP player's x / y on the host):
   ## the next snapshot tells every machine to snap there.
   if idx < 0 or idx >= pvp.players.len: return
@@ -1881,7 +1882,7 @@ proc modTeleport*(pvp: PvPGameState, idx: int, pos: Vector2f) =
   if idx == pvp.localPlayerIndex:
     pvp.localPosCorrection = newVector2f(0, 0)
 
-proc modFinish*(pvp: PvPGameState, winnerIdx: int, team: PvPTeam, text: string) =
+proc modFinish*(pvp: PvPGameState, winnerIdx: int, team: PvPTeam, text: string) {.moddable.} =
   ## match:finish: the match ends now, by the mode's rules. A winning player in
   ## team mode wins for their team.
   if pvp.gameOver: return
@@ -1890,17 +1891,17 @@ proc modFinish*(pvp: PvPGameState, winnerIdx: int, team: PvPTeam, text: string) 
     t = pvp.players[winnerIdx].teamId
   endMatch(pvp, winnerIdx, t, erScripted, text)
 
-proc modToast*(pvp: PvPGameState, text: string, color: Color) =
+proc modToast*(pvp: PvPGameState, text: string, color: Color) {.moddable.} =
   ## match:toast: this machine only (broadcast it to show it everywhere).
   pvp.showToast(text, color)
 
-proc modBanner*(pvp: PvPGameState, text, sub: string, color: Color) =
+proc modBanner*(pvp: PvPGameState, text, sub: string, color: Color) {.moddable.} =
   pvp.showBanner(text, sub, color)
 
-proc modParticles*(pvp: PvPGameState, x, y: float32, color: Color, count: int) =
+proc modParticles*(pvp: PvPGameState, x, y: float32, color: Color, count: int) {.moddable.} =
   spawnExplosionPooled(pvp.particlePool, x, y, color, clamp(count, 1, 200).int32)
 
-proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
+proc updatePvPServer*(pvp: PvPGameState, dt: float32) {.moddable.} =
   ## Server-side update (host only)
   pvp.serverTick += 1
   pvp.gameTime += dt
@@ -2143,7 +2144,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
       pvp.players[localIdx].bulletSpeed = gameState.players[localIdx].bulletSpeed
       pvp.players[localIdx].invincibilityTimer = gameState.players[localIdx].invincibilityTimer
 
-proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
+proc updatePvPClient*(pvp: PvPGameState, dt: float32) {.moddable.} =
   ## Client-side update (prediction + reconciliation)
   ## Input is now applied immediately in main updatePvP for responsive feel
   ## This function handles additional client-only updates
@@ -2274,7 +2275,7 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
   # Update particles locally
   updateParticlePool(pvp.particlePool, dt)
 
-proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
+proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) {.moddable.} =
   ## Reconcile client state with authoritative server state
   ## Server is ALWAYS authoritative - client just renders smoothly
 
@@ -2508,13 +2509,13 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       if team != ptNone:
         pvp.teamScores[team].kills += pvp.players[i].kills
 
-proc connectedPlayerCount*(pvp: PvPGameState): int =
+proc connectedPlayerCount*(pvp: PvPGameState): int {.moddable.} =
   ## Count how many players are still connected (not disconnected)
   for i in 0..<pvp.players.len:
     if i < pvp.playerConnected.len and pvp.playerConnected[i]:
       result += 1
 
-proc connectedTeams*(pvp: PvPGameState): seq[PvPTeam] =
+proc connectedTeams*(pvp: PvPGameState): seq[PvPTeam] {.moddable.} =
   ## Return list of teams that still have at least one connected player
   for i in 0..<pvp.players.len:
     if i < pvp.playerConnected.len and pvp.playerConnected[i]:
@@ -2522,7 +2523,7 @@ proc connectedTeams*(pvp: PvPGameState): seq[PvPTeam] =
       if team != ptNone and team notin result:
         result.add(team)
 
-proc disconnectPlayer*(pvp: PvPGameState, playerIndex: int) =
+proc disconnectPlayer*(pvp: PvPGameState, playerIndex: int) {.moddable.} =
   ## Remove a player from active play without ending the game.
   if playerIndex < 0 or playerIndex >= pvp.players.len: return
   pvp.playerConnected[playerIndex] = false
@@ -2530,7 +2531,7 @@ proc disconnectPlayer*(pvp: PvPGameState, playerIndex: int) =
   pvp.respawnTimers[playerIndex] = 0  # Stop any pending respawn
   echo "[PVP] Player ", playerIndex, " removed from active play"
 
-proc checkLastSideStanding*(pvp: PvPGameState): bool =
+proc checkLastSideStanding*(pvp: PvPGameState): bool {.moddable.} =
   ## Returns true if the game should end because only one side remains.
   if pvp.teamsEnabled:
     return pvp.connectedTeams().len <= 1
@@ -2544,11 +2545,11 @@ proc markLeft(pvp: PvPGameState, playerIndex: int) =
     pvp.pushFeed(KillFeedEntry(kind: kfLeft, actor: playerIndex, target: -1, age: 0))
   pvp.disconnectPlayer(playerIndex)
 
-proc canRematch*(pvp: PvPGameState): bool =
+proc canRematch*(pvp: PvPGameState): bool {.moddable.} =
   ## Host: a rematch needs someone left to play against.
   pvp.networkManager.isHost() and pvp.gameOver and not pvp.checkLastSideStanding()
 
-proc restartMatch*(pvp: PvPGameState) =
+proc restartMatch*(pvp: PvPGameState) {.moddable.} =
   ## Host: next match, same lobby. Clients follow the moment any packet with
   ## the new matchId reaches them, normally the ptGameStart sent right here.
   if not canRematch(pvp): return
@@ -2566,7 +2567,7 @@ proc adoptMatch(pvp: PvPGameState, newMatchId: int) =
   beginMatchScripts(pvp)   # pvpStart for the new match (the host's came with restartMatch)
   echo "[PVP] Joining rematch ", newMatchId
 
-proc handleDisconnect*(pvp: PvPGameState, disconnectedIndex: int, reason: string) =
+proc handleDisconnect*(pvp: PvPGameState, disconnectedIndex: int, reason: string) {.moddable.} =
   ## Handle a player disconnecting - either end the game (2-player) or
   ## remove them and continue (3+ player).
   let wasTimeout = reason == "Connection timeout"
@@ -2613,7 +2614,7 @@ proc endReasonFromInt(value: int): PvPEndReason =
   if value < ord(low(PvPEndReason)) or value > ord(high(PvPEndReason)): erNone
   else: PvPEndReason(value)
 
-proc handleNetworkEvents*(pvp: PvPGameState) =
+proc handleNetworkEvents*(pvp: PvPGameState) {.moddable.} =
   ## Process all network events
   # Create callback to provide host's cosmetics when accepting connections
   proc getHostCosmetics(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] =
@@ -2900,7 +2901,7 @@ proc updatePresentation(pvp: PvPGameState, dt: float32) =
     pvp.hurtFlash = max(0.0'f32, pvp.hurtFlash - dt)
   updateShake(pvp.shake, dt)
 
-proc tickPvP*(pvp: PvPGameState, input: PlayerInput, dt: float32, rematchPressed = false) =
+proc tickPvP*(pvp: PvPGameState, input: PlayerInput, dt: float32, rematchPressed = false) {.moddable.} =
   ## One frame of the match given an already-captured local input. Split out of
   ## updatePvP so a headless harness can drive the real netcode with scripted
   ## input (updatePvP only adds the keyboard / pad capture on top).
@@ -3013,7 +3014,7 @@ proc tickPvP*(pvp: PvPGameState, input: PlayerInput, dt: float32, rematchPressed
     pvp.lastPingTime = pvp.gameTime
     pvp.networkManager.sendPing(pvp.serverTick)
 
-proc updatePvP*(pvp: PvPGameState, dt: float32) =
+proc updatePvP*(pvp: PvPGameState, dt: float32) {.moddable.} =
   ## Main PvP update function: capture the local input, then run the frame.
   if pvp.localPlayerIndex < 0 or pvp.localPlayerIndex >= pvp.players.len:
     echo "[PVP ERROR] Invalid local player index: ", pvp.localPlayerIndex, " (max: ", pvp.players.len - 1, ")"
@@ -3614,7 +3615,7 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
     drawToast(pvp, viewW, viewH)
 
 
-proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
+proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) {.moddable.} =
   # The local player's mod bullet skin must not dress everyone's shots here.
   pvpDrawing = true
   defer: pvpDrawing = false

@@ -2,21 +2,24 @@
 # vendored Lua 5.5).
 #   nim r --mm:orc tests/test_mod_lua.nim
 # Lua itself is tested upstream; these check what the bridge promises: the
-# sandbox, per-mod isolation, the instruction budget and memory cap that no
-# script can swallow, error positions, natives, userdata classes and the
-# table API the mod modules use.
+# whole standard library (minus native modules), per-mod globals, the
+# watchdog that no script can outlive, error positions, natives, userdata
+# classes and the table API the mod modules use.
 
 import std/[strutils, times, tables, os]
 import ../src/modding/lua_bridge
-import ../src/types
+import ../src/types, ../src/localization
 import ../src/game3d/[game_3d, engine_3d, player_3d]
 import ../src/modding/[mod_hooks, mod_api, mod_3d, mod_assets, mod_world2d, mod_registry, mod_content_api, mod_ui,
                        mod_engine, mod_loader, mod_state]
 import ../src/render_context, raylib
-import ../src/modding/mod_catalog
+import ../src/modding/[mod_catalog, mod_deep]
 import ../src/save_system, ../src/enemy_helpers, ../src/enemy, ../src/particle_pool, ../src/particle_types
 import ../src/game/[things, combat]
 import ../src/player, ../src/consumable, ../src/roguelite, ../src/patches, ../src/survival, ../src/powerup_data
+import ../src/powerup
+import ../src/modding/[mod_mixin_bind, mod_rl]
+import mixin_bind_game   # binds the game's {.moddable.} procs imported above
 
 var failures = 0
 var passed = 0
@@ -28,17 +31,17 @@ vm.printSink = proc (s: string) = printed.add(s)
 proc show(v: ScriptValue): string =
   if v.kind == vkString: "\"" & v.str.s & "\"" else: vm.tostr(v)
 
-proc runIn(env: ScriptTable, src: string, budget = 50_000_000): (seq[ScriptValue], string) =
+proc runIn(env: ScriptTable, src: string, limit = 0.0): (seq[ScriptValue], string) =
   var r: RetVals
   try:
     let f = vm.loadChunk(src, "test/main.lua", env)
-    let err = vm.protectedCall(vfunc(f), [], r, budget)
+    let err = vm.protectedCall(vfunc(f), [], r, limit)
     (r.toSeq, err)
   except ScriptError as e:
     (@[], e.msg)
 
-proc runChunk(src: string, budget = 50_000_000): (seq[ScriptValue], string) =
-  runIn(newModEnv(base), src, budget)
+proc runChunk(src: string, limit = 0.0): (seq[ScriptValue], string) =
+  runIn(newModEnv(base), src, limit)
 
 proc expect(name, src: string, expected: openArray[string]) =
   let (vals, err) = runChunk(src)
@@ -84,11 +87,37 @@ expectErr("NaN keys stay errors (Lua keeps IEEE math even in fast-math builds)",
 expect("print goes to the log", "print('a', 1, nil, true, 2.5) return 1", ["1"])
 check(printed.len > 0 and printed[^1] == "a\t1\tnil\ttrue\t2.5", "print output: " & $printed)
 
-# -------------------------------------------------------------- sandbox ----
-expect("no outside world", "return io, os, debug, package, load, loadfile, dofile, require, string.dump",
-       ["nil", "nil", "nil", "nil", "nil", "nil", "nil", "nil", "nil"])
-expect("locked metatables", "return getmetatable(_ENV), getmetatable('')", ["false", "false"])
-expectErr("collectgarbage is limited", "collectgarbage('stop')", "only")
+# ---------------------------------------------------------------- trust ----
+expect("the whole standard library",
+       "return type(io.open), type(os.time), type(debug.traceback), type(package.loaded), type(load), " &
+       "type(loadfile), type(dofile), type(string.dump), type(require), type(warn)",
+       ["\"function\"", "\"function\"", "\"function\"", "\"table\"", "\"function\"",
+        "\"function\"", "\"function\"", "\"function\"", "\"function\"", "\"function\""])
+expect("no native modules", "local f, msg, where = package.loadlib('x.dll', 'f') " &
+       "return f, where, msg:find('dynamic libraries not enabled', 1, true) ~= nil, package.cpath, #package.searchers",
+       ["nil", "\"absent\"", "true", "\"\"", "2"])
+expect("open metatables", "return type(getmetatable(_ENV).__index), getmetatable('').__index == getmetatable(_ENV).__index.string",
+       ["\"table\"", "true"])
+expect("bytecode round-trips", "local f = load(string.dump(function(a) return a * 3 end)) return f(4)", ["12"])
+expect("collectgarbage is complete",
+       "collectgarbage('stop') local off = collectgarbage('isrunning') collectgarbage('restart') " &
+       "return off, collectgarbage('isrunning')", ["false", "true"])
+block files:
+  let p = (getTempDir() / "tophat_lua_io_test.txt").replace('\\', '/')
+  expect("io round-trip", "local p = '" & p & "' local f = assert(io.open(p, 'w')) f:write('hi', 42) f:close() " &
+         "local g = assert(io.open(p)) local s = g:read('a') g:close() return s, os.remove(p)",
+         ["\"hi42\"", "true"])
+  check(not fileExists(p), "os.remove removed it")
+expect("os", "return math.type(os.time()), os.date('!%Y-%m-%d', 0), os.getenv('TOPHAT_NO_SUCH_VARIABLE')",
+       ["\"integer\"", "\"1970-01-01\"", "nil"])
+expect("os.date takes C99 formats everywhere", "return os.date('!%F %T', 0)", ["\"1970-01-01 00:00:00\""])
+expectErr("the number locale stays C", "os.setlocale('de_DE')", "C number format")
+expect("other locale queries work", "return os.setlocale()", ["\"C\""])
+block quitting:
+  expectErr("os.exit unwinds the script", "os.exit(3) return 1", QuitSentinel)
+  check(modQuitRequested and modQuitCode == 3, "os.exit asks the game to close, with its code")
+  modQuitRequested = false
+  modQuitCode = 0
 block isolation:
   let a = newModEnv(base)
   let b = newModEnv(base)
@@ -100,13 +129,21 @@ block isolation:
   check(v2.len == 2 and v2[0].kind == vkNumber and v2[1].str.s == "Y",
         "a mod keeps its own globals; string methods stay intact")
 
-# --------------------------------------------------------------- guards ----
-expectErr("endless loop", "while true do end", "ran too long")
-expectErr("not through pcall", "local ok = pcall(function() while true do end end) return 'escaped'", "ran too long")
-expectErr("not through xpcall", "xpcall(function() while true do end end, function() return 'no' end) return 'escaped'", "ran too long")
-expectErr("not through coroutines", "local co = coroutine.create(function() while true do end end) coroutine.resume(co) return 'escaped'", "ran too long")
-expectErr("memory cap", "local t = {} for i = 1, 1e9 do t[i] = ('x'):rep(4096) .. i end", "out of memory")
-expect("memory comes back", "return collectgarbage('count') < 64 * 1024", ["true"])
+# ------------------------------------------------------------- watchdog ----
+setWatchdogLimits(call = 0.2)
+expectErr("endless loop", "while true do end", "watchdog")
+expectErr("not through pcall", "while true do pcall(function() while true do end end) end", "watchdog")
+expectErr("not through xpcall",
+          "while true do xpcall(function() while true do end end, function() return 'no' end) end", "watchdog")
+expectErr("not through coroutines",
+          "local co = coroutine.create(function() while true do end end) while true do coroutine.resume(co) end",
+          "watchdog")
+expect("pcall catches ordinary errors", "local ok, e = pcall(error, 'boom', 0) return ok, e", ["false", "\"boom\""])
+discard runChunk("debug.sethook()")   # a mod taking the hook off...
+expectErr("...gets it back on its next call", "while true do end", "watchdog")
+setWatchdogLimits()
+expect("no memory cap", "local t = {} for i = 1, 300 do t[i] = ('x'):rep(1024 * 1024) .. i end return #t", ["300"])
+expect("memory comes back", "collectgarbage() return collectgarbage('count') < 64 * 1024", ["true"])
 expectErr("deep recursion", "local function f(n) return 1 + f(n + 1) end return f(1)", "stack overflow")
 expectErr("deep nesting", "return " & "(".repeat(400) & "1" & ")".repeat(400), "")
 expect("still healthy afterwards", "return 1 + 1", ["2"])
@@ -174,7 +211,11 @@ block userdata:
   expectErr("class errors are script errors", "LIST.x = 1", "list only takes numbers")
   expect("same object, same value", "local t = {} t[LIST] = 1 return LIST == LIST2, t[LIST2], rawequal(LIST, LIST2)",
          ["true", "1", "true"])
-  expect("metatable hidden", "return getmetatable(LIST)", ["false"])
+  expect("metatable open", "return type(getmetatable(LIST)), getmetatable(LIST).__name", ["\"table\"", "\"list\""])
+  expectErr("a file handle is not mistaken for game userdata",
+            "return getmetatable(LIST).__index(io.stdout, 1)", "attempt to index a userdata")
+  expect("nor freed as one", "getmetatable(LIST).__gc(io.stdout) return io.type(io.stdout), LIST == io.stdout",
+         ["\"file\"", "false"])
   let plain = UdClass(name: "thing")
   rawSet(base, vstr("THING"), vud(Userdata(cls: plain, key: nil)))
   expectErr("no length", "return #THING", "length of a thing")
@@ -768,6 +809,7 @@ block foundations:
 
   # ---- mod.storage stays in the profile it was read from
   let home = getTempDir() / "tophat_test_home"
+  removeDir(home)   # a run that crashed must not leave its state to the next
   putEnv("HOME", home)
   putEnv("APPDATA", home)   # what getRootDataPath reads on Windows
   activeProfileSlot = 1
@@ -783,6 +825,163 @@ block foundations:
         "storage written to the old profile's folder")
   activeProfileSlot = 1
   removeDir(home)
+  modOutsideRun(false)
+  resetHooks()
+
+# ------------------------------------------------- open data (trusted) ----
+# Everything is writable (the player's progression too); lists and tables
+# grow and shrink at safe points; the game's globals are reachable; and
+# engine.defer runs a function at the next safe point.
+var openNumber = 3
+var openTable = initTable[string, int]()
+block openData:
+  resetHooks()
+  initModHooksVM(vm, base)
+  installModApi(base)
+  installMod3D(base)
+  resetModContent()
+  let libs = tableKeysOf(base)
+  let m = ModRuntime(id: "open", name: "open", version: "1.0.0", env: newModEnv(base, libs),
+                     index: 0, runData: newScriptTable())
+  mods.add(m)
+  installModEnv(m)
+  proc run(src: string, safe: bool): (seq[ScriptValue], string) =
+    currentModIdx = 0
+    scriptSafe = safe
+    result = runIn(m.env, src)
+    scriptSafe = false
+    currentModIdx = -1
+  proc ok(name, src: string, expected: openArray[string], safe = false) =
+    let (vals, err) = run(src, safe)
+    if err.len > 0:
+      echo "FAIL ", name, ": error ", err.splitLines()[0]
+      inc failures
+      return
+    var got: seq[string]
+    for v in vals: got.add(show(v))
+    if got != @expected:
+      echo "FAIL ", name, "\n  expected ", @expected, "\n  got      ", got
+      inc failures
+    else:
+      inc passed
+  proc bad(name, src, fragment: string, safe = false) =
+    let (_, err) = run(src, safe)
+    if err.len == 0 or fragment notin err:
+      echo "FAIL ", name, ": expected an error containing '", fragment, "', got '", err.splitLines()[0], "'"
+      inc failures
+    else:
+      inc passed
+
+  let g = Game(player: Player(hp: 10, maxHp: 10), screenWidth: 1024, screenHeight: 768,
+               nextEnemyId: 1, difficulty: 1.0, state: gsPlaying, mode: gmWaveBased)
+  modBeginFrame(g)
+  let e1 = newEnemy(100, 100, 1.0, etCircle, g)
+  g.enemies.add(e1)
+
+  # ---- lists
+  bad("a list changes length only at a safe point", "game.enemies:add(game.enemies[1])", "safe point")
+  ok("list:add", "game.enemies:add(game.enemies[1]) return #game.enemies, game.enemies[2] == game.enemies[1]",
+     ["2", "true"], safe = true)
+  ok("list:remove", "game.enemies:remove(2) return #game.enemies", ["1"], safe = true)
+  ok("list:insert (position first, like table.insert)",
+     "game.pendingToasts:add('b') game.pendingToasts:insert(1, 'a') return #game.pendingToasts, game.pendingToasts[1]",
+     ["2", "\"a\""], safe = true)
+  ok("list:copy is plain data", "local c = game.pendingToasts:copy() c[1] = 'z' return type(c), game.pendingToasts[1]",
+     ["\"table\"", "\"a\""])
+  ok("list:clear", "game.pendingToasts:clear() return #game.pendingToasts", ["0"], safe = true)
+  ok("a list from a table, tuples from tables",
+     "game.modShopBought = {{key = 'x', bought = 2}} return #game.modShopBought, game.modShopBought[1].bought",
+     ["1", "2"], safe = true)
+  bad("an enemy list takes enemies", "game.enemies:add(5)", "expects an enemy", safe = true)
+  check(g.enemies.len == 1 and g.enemies[0] == e1, "the enemy list is intact")
+
+  # ---- tables
+  registerModGlobal("openTable", addr openTable)
+  ok("a table grows at a safe point", "local t = engine.globals.openTable t.kills = 5 return t.kills, #t",
+     ["5", "1"], safe = true)
+  bad("...and only there", "engine.globals.openTable.deaths = 1", "safe point")
+  ok("an entry changes anywhere", "engine.globals.openTable.kills = 6 return engine.globals.openTable.kills", ["6"])
+  check(openTable["kills"] == 6, "...for the game too")
+  ok("pairs over a table", "local n = 0 for k, v in pairs(engine.globals.openTable) do n = n + v end return n", ["6"])
+  ok("nil removes an entry", "engine.globals.openTable.kills = nil return #engine.globals.openTable", ["0"], safe = true)
+
+  # ---- enemies and bosses
+  ok("an enemy becomes another type", "game.enemies[1].type = 'etCube' return game.enemies[1].type", ["\"etCube\""])
+  check(e1.enemyType == etCube, "...for the game too")
+  ok("hp is set outright; a sliver reads as spent", "local e = game.enemies[1] e.hp = 0.00001 return e.hp", ["0"])
+  setEnemyHp(e1, 5)
+  ok("maxHp is writable", "local e = game.enemies[1] e.maxHp = 40 return e.maxHp", ["40"])
+  bad("identity stays read-only", "game.enemies[1].id = 9", "read-only")
+  bad("the reward rule stays read-only", "game.cheatsUsed = false", "read-only")
+
+  # ---- engine.defer and game.state
+  ok("engine.defer waits for a safe point",
+     "engine.defer(function() deferred = #game.enemies game.enemies:add(game.enemies[1]) end) return deferred",
+     ["nil"])
+  runDeferredCalls()
+  ok("...where lists may grow", "return deferred, #game.enemies", ["1", "2"])
+  g.enemies.setLen(1)
+  ok("game.state changes at the next safe point", "game.state = 'gsShop' return game.state", ["\"gsPlaying\""])
+  runDeferredCalls()
+  check(g.state == gsShop, "the state changed at the safe point")
+  g.state = gsPlaying
+
+  # ---- engine.globals
+  registerModGlobal("openNumber", addr openNumber)
+  ok("engine.globals reads the game's globals", "return engine.globals.openNumber", ["3"])
+  ok("...and writes them", "engine.globals.openNumber = 11 return engine.globals.openNumber", ["11"])
+  check(openNumber == 11, "the global changed")
+  ok("engine.globals lists what it has",
+     "local names = {} for k in pairs(engine.globals) do names[k] = true end return names.settings, names.openNumber",
+     ["true", "true"])
+  bad("an unknown global names the ones there are", "return engine.globals.nope", "it has")
+
+  # ---- mixins on the game's own code
+  installModMixin(base)
+  let mm = ModRuntime(id: "mixer", name: "mixer", version: "1.0.0", env: newModEnv(base, tableKeysOf(base)),
+                      index: 1, runData: newScriptTable())
+  mods.add(mm)
+  proc runMix(src: string): string =
+    currentModIdx = 1
+    result = runIn(mm.env, src)[1]
+    currentModIdx = -1
+  let target = newEnemy(0, 0, 1.0, etCircle, g)
+  target.hp = 100
+  check(runMix("hd = mixin.wrap('combat.applyEnemyHpDamage', function(orig, e, dmg) return orig(e, dmg * 2) end)") == "",
+        "wrap the game's damage door")
+  check(applyEnemyHpDamage(target, 5) == 10 and target.hp == 90, "the game's own call is doubled: " & $target.hp)
+  check(runMix("mixin.remove(hd)") == "" and applyEnemyHpDamage(target, 5) == 5, "and back")
+  let (dv, de) = runIn(mm.env, "return engine.types.difficultyEnemyHpMult()")
+  check(de.len == 0 and dv.len == 1 and dv[0].kind == vkNumber, "engine.<module>.<proc> calls the game: " & de)
+  check(runIn(mm.env, "return #mixin.list('combat.') > 3")[0][0].b, "mixin.list names the game's procs")
+
+  # ---- rl: raylib for scripts (what works without a window)
+  installModRl(base)
+  let rlEnv = newModEnv(base, tableKeysOf(base))
+  proc rlOk(name, src: string, expected: openArray[string]) =
+    currentModIdx = 1
+    let (vals, err) = runIn(rlEnv, src)
+    currentModIdx = -1
+    var got: seq[string]
+    for v in vals: got.add(show(v))
+    check(err.len == 0 and got == @expected, name & ": " & (if err.len > 0: err.splitLines()[0] else: $got))
+  rlOk("rl colours", "return rl.Red.r, rl.RayWhite.g", ["230", "245"])
+  rlOk("rl takes tables for its structs",
+       "return rl.checkCollisionRecs({x = 0, y = 0, width = 10, height = 10}, {x = 5, y = 5, width = 10, height = 10})",
+       ["true"])
+  rlOk("an out parameter comes back after the result",
+       "local hit, p = rl.checkCollisionLines({x = 0, y = 0}, {x = 10, y = 10}, {x = 0, y = 10}, {x = 10, y = 0}) " &
+       "return hit, p.x, p.y", ["true", "5", "5"])
+  rlOk("overloads by arity", "return rl.vector2Distance ~= nil or rl.checkCollisionPointRec ~= nil", ["true"])
+  rlOk("a resource handle (an image, no GPU needed)",
+       "img = rl.genImageColor(4, 3, rl.Red) return img.width, img.height, img.owned, tostring(img)",
+       ["4", "3", "true", "\"Image\""])
+  rlOk("a var resource parameter edits the handle's own resource",
+       "rl.imageResize(img, 8, 6) return img.width, img.height", ["8", "6"])
+  rlOk("rl.unload", "local ok = rl.unload(img) return ok, (pcall(function() return img.width end))", ["true", "false"])
+  releaseScriptResources()
+  check(true, "the unload ran after the 'frame'")
+
   modOutsideRun(false)
   resetHooks()
 
@@ -861,11 +1060,10 @@ block things2d:
   ok1("joined", "return #game:things(), #game:things('first'), #game:thingsNear(100, 100, 5), a:valid(), a.data.souls",
       ["2", "1", "1", "true", "3"])
 
-  # ---- the join cap
-  while g.modThings.len < MaxModThings - 1:
+  # ---- no cap (mods are trusted)
+  while g.modThings.len < 5000:
     g.modThings.add(ModThing(kind: "necro:ally", id: 100000 + g.modThings.len))
-  ok1("one more fits", "spawn.thing(ALLY, 0, 0) return 1", ["1"])
-  err1("the cap holds", "spawn.thing(ALLY, 0, 0)", "already holds")
+  ok1("no cap on things", "spawn.thing(ALLY, 0, 0) spawn.thing(ALLY, 0, 0) return 1", ["1"])
   modActions.setLen(0)
   modPendingThings.setLen(0)
   g.modThings.setLen(2)
@@ -1014,6 +1212,7 @@ block registries:
   installContentApi(base)
   resetModContent()
   let home = getTempDir() / "tophat_test_home3"
+  removeDir(home)   # a run that crashed must not leave its state to the next
   putEnv("HOME", home)
   putEnv("APPDATA", home)
   activeProfileSlot = 1
@@ -1219,7 +1418,114 @@ block inRunUi:
   let g2 = Game(player: newPlayer(100, 100), state: gsPlaying, mode: gmWaveBased)
   modBeginFrame(g2)
   check(modModals.len == 0, "a new run starts with no mod screens")
+
+  # ---- mod screens: register.screen + screens.go / back (gsModScreen)
+  ok4("register.screen",
+      "log = {} register.screen{id = 'map', enter = function(from, n) log[#log+1] = 'enter ' .. from .. ' ' .. tostring(n) end, " &
+      "update = function(dt) log[#log+1] = 'update' end, draw = function(w, h) log[#log+1] = 'draw' end, " &
+      "leave = function(to) log[#log+1] = 'leave ' .. to end} " &
+      "register.screen{id = 'inv', draw = function() end} return 1",
+      ["1"], loading = true)
+  err4("screen is strict", "register.screen{id = 'z', drw = function() end}", "unknown field 'drw'", loading = true)
+  err4("screens.go needs a registered screen", "screens.go('nope')", "no screen 'story:nope'")
+  let gs = Game(player: newPlayer(100, 100), state: gsPlaying, mode: gmWaveBased)
+  ok4("screens.go opens at the next frame's top", "screens.go('map', 7) return screens.current()", ["nil"])
+  applyScreenRequests(gs)
+  check(gs.state == gsModScreen and activeScreen == "story:map" and screenOverRun, "over the run: " & $gs.state)
+  check(isActiveRunState(gs.state), "the run is still the run on screen")
+  tickModScreen(0.016)
+  check(drawModScreen(1024, 768), "the game's pointer by default")
+  ok4("enter got where it came from", "return table.concat(log, ',')", ["\"enter gsPlaying 7,update,draw\""])
+  ok4("a second screen", "screens.go('inv') return 1", ["1"])
+  applyScreenRequests(gs)
+  check(activeScreen == "story:inv" and screenDepth() == 2, "stacked: " & activeScreen)
+  ok4("back", "screens.back() return 1", ["1"])
+  applyScreenRequests(gs)
+  check(activeScreen == "story:map" and gs.state == gsModScreen, "back to the first screen")
+  ok4("back again", "screens.back() return screens.depth()", ["1"])
+  applyScreenRequests(gs)
+  check(gs.state == gsPlaying and activeScreen == "" and not screenOverRun, "back to the run: " & $gs.state)
+  ok4("leave ran", "return log[#log]", ["\"leave gsPlaying\""])
+  ok4("open again", "screens.go('map') return 1", ["1"])
+  applyScreenRequests(gs)
+  gs.state = gsGameOver   # the game moved on by itself (a game over, a script)
+  applyScreenRequests(gs)
+  check(activeScreen == "" and gs.state == gsGameOver, "the screens are left when the state moves on")
+  ok4("screens.list", "return #screens.list()", ["2"])
   modOutsideRun(false)
+  resetHooks()
+
+# ------------------------------------------------------ mod languages ----
+block modLanguages:
+  resetHooks()
+  initModHooksVM(vm, base)
+  installModApi(base)
+  installMod3D(base)
+  installWorld2D(base)
+  installContentApi(base)
+  installModUi(base)
+  resetModContent()
+  clearModTranslations()
+  clearModLanguages()
+  let m = ModRuntime(id: "lingo", name: "lingo", version: "1", env: newModEnv(base, tableKeysOf(base)),
+                     index: 0, runData: newScriptTable())
+  mods.add(m)
+  installModEnv(m)
+  proc runL(src: string, loading = false): (seq[ScriptValue], string) =
+    if loading: beginModLoad(0) else: currentModIdx = 0
+    result = runIn(m.env, src)
+    if loading: endModLoad() else: currentModIdx = -1
+  proc okL(name, src: string, expected: openArray[string], loading = false) =
+    let (vals, err) = runL(src, loading)
+    var got: seq[string]
+    for v in vals: got.add(show(v))
+    check(err.len == 0 and got == @expected, name & ": " & (if err.len > 0: err.splitLines()[0] else: $got))
+  let playEn = t(tkDesktopIconPlay)
+  let survivalEn = t(tkDesktopIconSurvival)
+  okL("register.language",
+      "return register.language{id = 'fr', name = 'Francais', base = 'en', " &
+      "strings = {desktop_icon_play = 'JOUER'}}", ["\"fr\""], loading = true)
+  okL("a mod text in it", "register.hudCard{id = 'souls', title = {en = 'Souls', es = 'Almas', fr = 'Ames'}, " &
+      "draw = function() end} return #lang.list()", ["3"], loading = true)
+  let (_, strictErr) = runL("register.language{id = 'de', nmae = 'Deutsch'}", loading = true)
+  check("unknown field 'nmae'" in strictErr, "register.language is strict: " & strictErr)
+  let (_, builtinErr) = runL("register.language{id = 'es'}", loading = true)
+  check("built in" in builtinErr, "en / es are not mod languages: " & builtinErr)
+  check(t(tkDesktopIconPlay) == playEn and pickText("Souls", "Almas") == "Souls", "English until it is used")
+  okL("lang.use", "return lang.use('fr'), lang.current()", ["true", "\"fr\""])
+  check(t(tkDesktopIconPlay) == "JOUER", "its strings: " & t(tkDesktopIconPlay))
+  check(t(tkDesktopIconSurvival) == survivalEn, "its gaps show the base language")
+  check(pickText("Souls", "Almas") == "Ames", "a mod's own text in it: " & pickText("Souls", "Almas"))
+  check(languageSetting() == "fr" and languageDisplayName("fr") == "Francais", "settings name and display name")
+  check(nextLanguageSetting("spanish") == "fr" and nextLanguageSetting("fr") == "english", "the settings cycle")
+  okL("lang.use('es')", "return lang.use('es'), lang.current()", ["true", "\"es\""])
+  check(pickText("Souls", "Almas") == "Almas" and activeModLanguage == "", "a built-in language again")
+  okL("an unknown language", "return lang.use('xx')", ["false"])
+  check(getLanguage() == English, "falls back to English")
+  check(useLanguage("fr"), "back to the mod language")
+  dropModText(0)
+  check(modLanguageIndex("fr") < 0 and t(tkDesktopIconPlay) == playEn, "its mod gone, its language goes")
+  setLanguage(English)
+
+  # ---- MODS.EXE's Console: expressions show their values, globals persist
+  proc lastLog(): string = (if modLog.len > 0: modLog[^1].text else: "")
+  runConsole("1 + 2")
+  check(lastLog() == "= 3", "an expression shows its value: " & lastLog())
+  runConsole("x = 20")
+  check(lastLog() == "> x = 20", "a statement just runs: " & lastLog())
+  runConsole("x + 1, 'hi'")
+  check(lastLog() == "= 21, \"hi\"", "its globals persist: " & lastLog())
+  runConsole("return lang.current()")
+  check(lastLog() == "> return lang.current()", "(a return statement runs too)")
+  runConsole("nothingHere")
+  check(lastLog() == "= nil", "nil shows: " & lastLog())
+  runConsole("1 +")
+  check(modLog[^1].level == mlError, "a syntax error is logged: " & lastLog())
+  runConsole("error('boom')")
+  var boom = false
+  for i in max(0, modLog.len - 8) ..< modLog.len:   # (the log is capped: no fixed index)
+    if modLog[i].level == mlError and "boom" in modLog[i].text: boom = true
+  check(boom, "a runtime error is logged (with its traceback): " & lastLog())
   resetHooks()
 
 # --------------------------------------------------- M5: engine control ----
@@ -1277,7 +1583,9 @@ block engine:
   updateModCamera(g, 0.016)
   check(g.modWorld.camZoom == 2 and g.modWorld.camCurX == 256 and g.modWorld.camCurY == 192,
         "following the player, clamped inside the arena: " & $g.modWorld.camCurX & "," & $g.modWorld.camCurY)
-  ok5("zoom is clamped", "camera.zoom = 9 return camera.zoom", ["3"])
+  ok5("zoom has no ceiling", "camera.zoom = 9 return camera.zoom", ["9"])
+  err5("but must be above 0", "camera.zoom = 0", "above 0")
+  ok5("back to 3 (what the old clamp left)", "camera.zoom = 3 return camera.zoom", ["3"])
   setWorldView(0, 0, 1)
   setWorldCamera(2, 512, 384)
   let wp = worldToVirtual(Vector2(x: 512, y: 384))
@@ -1312,6 +1620,7 @@ block examples2d:
   installModEngine(base)
   resetModContent()
   let home = getTempDir() / "tophat_test_home6"
+  removeDir(home)   # a run that crashed must not leave its state to the next
   putEnv("HOME", home)
   putEnv("APPDATA", home)
   activeProfileSlot = 1
@@ -1389,6 +1698,76 @@ block examples2d:
   resetHooks()
   removeDir(home)
 
+# ---------------------------------------------- the mixins example mod ----
+# mods-sdk/examples/mixins against the real API: its mixins wrap the game's own
+# damage and offer procs, its data file counts runs, its screen opens over a
+# run. (Its minimap is GL work, which needs a window: the build covers that.)
+block examplesMixins:
+  resetHooks()
+  initModHooksVM(vm, base)
+  installModApi(base)
+  installMod3D(base)
+  installWorld2D(base)
+  installContentApi(base)
+  installModUi(base)
+  installModEngine(base)
+  installModMixin(base)
+  installModRl(base)
+  resetModContent()
+  let home = getTempDir() / "tophat_test_home7"
+  removeDir(home)
+  putEnv("HOME", home)
+  putEnv("APPDATA", home)
+  activeProfileSlot = 1
+  let dir = currentSourcePath().parentDir / ".." / "mods-sdk" / "examples" / "mixins"
+  let m = ModRuntime(id: "mixins", name: "Mixins Lab", version: "1.0.0", dir: dir,
+                     env: newModEnv(base, tableKeysOf(base)), index: 0, runData: newScriptTable())
+  mods = @[m]
+  installModEnv(m)
+  beginModLoad(0)
+  let (_, err) = runIn(m.env, readFile(dir / "main.lua"))
+  endModLoad()
+  check(err.len == 0, "mixins loads" & (if err.len > 0: ": " & err.splitLines()[0] else: ""))
+  check(mixinActive("combat.damageEnemy") and mixinActive("powerup.generatePowerUpChoices"), "its mixins are on")
+  let g = Game(player: newPlayer(500, 400), state: gsPlaying, mode: gmWaveBased,
+               screenWidth: 1024, screenHeight: 768, nextEnemyId: 1, difficulty: 1.0,
+               particlePool: newParticlePool())
+  var registeredGame {.global.}: Game   # engine.globals.game (main.nim's currentGame in the game)
+  registeredGame = g
+  registerModGlobal("game", addr registeredGame)
+  modBeginFrame(g)   # runStart
+  let runsFile = getAppDataPath() / "mod_data" / "mixins" / "runs.txt"
+  check(fileExists(runsFile) and readFile(runsFile) == "1", "its data file counts the run")
+  discard generatePowerUpChoices(g.player, false, {rpfCore..rpfBlood}, gmWaveBased)
+  proc boss(): Enemy =
+    result = newEnemy(500, 200, 1.0, etCircle, g)
+    result.isBoss = true
+    result.maxHp = 1000
+    result.hp = 1000
+  let wrapped = damageEnemy(boss(), 8)
+  currentModIdx = 0
+  discard runIn(m.env, "screens.go('lab')")
+  currentModIdx = -1
+  applyScreenRequests(g)
+  check(g.state == gsModScreen and activeScreen == "mixins:lab" and "lab opened over gsPlaying" in modLog[^1].text,
+        "its screen opens over the run")
+  tickModScreen(0.016)
+  requestScreenBack()
+  applyScreenRequests(g)
+  check(g.state == gsPlaying, "and Esc's back brings the run back")
+  var mixinsErrors: seq[string]
+  for line in modLog:
+    if line.level == mlError and line.modId == "mixins": mixinsErrors.add(line.text)
+  check(mods[0].errorCount == 0, "no error from its hooks, mixins or screen: " & mixinsErrors.join(" | "))
+  dropHandlersOf(0)   # the mod goes away: its mixins with it
+  let plain = damageEnemy(boss(), 8)
+  check(not mixinActive("combat.damageEnemy") and abs(wrapped - plain * 1.25) < 0.001,
+        "the game's own damage call went through its wrap: " & $wrapped & " vs " & $plain)
+  registeredGame = nil
+  modOutsideRun(false)
+  resetHooks()
+  removeDir(home)
+
 closeScriptVM()
 
 # ------------------------------------------- M5: content packs (a reload) ----
@@ -1396,6 +1775,7 @@ closeScriptVM()
 # its own VM: this block runs last.)
 block contentPacks:
   let home = getTempDir() / "tophat_test_home5"
+  removeDir(home)   # a run that crashed must not leave its state to the next
   putEnv("HOME", home)
   putEnv("APPDATA", home)
   activeProfileSlot = 1

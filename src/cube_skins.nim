@@ -2,6 +2,7 @@
 ## Defines colour themes for the interactive 3-D cube on the OS desktop (drawn by cube_render.nim)
 
 import raylib
+import modding/mod_patch_core
 import localization
 
 type
@@ -28,7 +29,7 @@ type
 
 var cubeSkinDatabase*: array[CubeSkinType, CubeSkinData]
 
-proc initializeCubeSkins*() =
+proc initializeCubeSkins*() {.moddable.} =
   cubeSkinDatabase[cskDefault] = CubeSkinData(
     name: t("csk_default"), description: t("csk_default_desc"),
     faceColor: Color(r: 18,  g: 116, b: 168, a: 255),
@@ -110,5 +111,5 @@ proc initializeCubeSkins*() =
     edgeColor: Color(r: 205, g: 160, b: 60,  a: 255),
     glowColor: Color(r: 200, g: 40,  b: 20,  a: 190))
 
-proc getCubeSkinData*(skinType: CubeSkinType): CubeSkinData =
+proc getCubeSkinData*(skinType: CubeSkinType): CubeSkinData {.moddable.} =
   cubeSkinDatabase[skinType]

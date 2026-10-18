@@ -1,10 +1,11 @@
 import raylib, strutils
+import modding/mod_patch_core
 import draw_prims
 from std/unicode import runeLen, runeSubStr
 import types, boss_definitions, localization, utils
 
 # WAVE CELEBRATION SYSTEM
-proc newWaveCelebration*(): WaveCelebration =
+proc newWaveCelebration*(): WaveCelebration {.moddable.} =
   result = WaveCelebration(
     active: false,
     animationTimer: 0,
@@ -14,7 +15,7 @@ proc newWaveCelebration*(): WaveCelebration =
     statsRevealTimer: 0
   )
 
-proc startCelebration*(celebration: var WaveCelebration, waveNum: int, stats: WaveStats) =
+proc startCelebration*(celebration: var WaveCelebration, waveNum: int, stats: WaveStats) {.moddable.} =
   celebration.active = true
   celebration.animationTimer = 0
   celebration.waveNumber = waveNum
@@ -22,7 +23,7 @@ proc startCelebration*(celebration: var WaveCelebration, waveNum: int, stats: Wa
   celebration.showStats = false
   celebration.statsRevealTimer = 0
 
-proc updateCelebration*(celebration: var WaveCelebration, dt: float32): bool =
+proc updateCelebration*(celebration: var WaveCelebration, dt: float32): bool {.moddable.} =
   ## Update celebration, returns true if still active
   if not celebration.active:
     return false
@@ -41,7 +42,7 @@ proc updateCelebration*(celebration: var WaveCelebration, dt: float32): bool =
   return true
 
 proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeight: int32,
-                          originX: int32 = 0) =
+                          originX: int32 = 0) {.moddable.} =
   ## Fullscreen celebration overlay. `originX`/`screenWidth` describe the column it
   ## fills: classic passes the whole screen, widescreen passes the 1024-wide world
   ## column so the overlay keeps its 4:3 proportions instead of stretching over the
@@ -159,7 +160,7 @@ const
   BossIntroFade = 0.25'f32      # text fade-in and fade-out length
   BossIntroTagCps = 70.0'f32    # service tag types out at this many chars/s
 
-proc newBossIntroduction*(): BossIntroduction =
+proc newBossIntroduction*(): BossIntroduction {.moddable.} =
   result = BossIntroduction(
     active: false,
     timer: 0,
@@ -173,7 +174,7 @@ proc newBossIntroduction*(): BossIntroduction =
   )
 
 proc startIntroduction*(intro: var BossIntroduction, name: string, title: string, hp: float32,
-                        tag: string = "", isRoot: bool = false) =
+                        tag: string = "", isRoot: bool = false) {.moddable.} =
   intro.active = true
   intro.timer = 0
   intro.maxTime = BossIntroDuration
@@ -204,7 +205,7 @@ proc bossIntroPalette(intro: BossIntroduction): tuple[name, tag: Color] =
   else:
     (Color(r: 255, g: 100, b: 100, a: 255), Color(r: 255, g: 175, b: 70, a: 255))
 
-proc updateIntroduction*(intro: var BossIntroduction, dt: float32): bool =
+proc updateIntroduction*(intro: var BossIntroduction, dt: float32): bool {.moddable.} =
   ## Update introduction, returns true if still active
   if not intro.active:
     return false
@@ -223,7 +224,7 @@ proc updateIntroduction*(intro: var BossIntroduction, dt: float32): bool =
 
   return true
 
-proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: int32) =
+proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: int32) {.moddable.} =
   if not intro.active:
     return
 
@@ -273,7 +274,7 @@ proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: i
 # alpha animation logic of the fullscreen versions but drop the fullscreen
 # darken (which would cover the centered gameplay world) and wrap their text.
 proc drawWaveCelebrationGutter*(celebration: WaveCelebration,
-                                gutterX, gutterW, topY: int32): int32 =
+                                gutterX, gutterW, topY: int32): int32 {.moddable.} =
   ## Right-gutter card. Returns the next stack Y (== topY when nothing is drawn).
   if not celebration.active:
     return topY
@@ -331,7 +332,7 @@ proc drawWaveCelebrationGutter*(celebration: WaveCelebration,
   return cardY + cardH + 6
 
 proc drawBossIntroductionGutter*(intro: BossIntroduction,
-                                 gutterX, gutterW, topY: int32): int32 =
+                                 gutterX, gutterW, topY: int32): int32 {.moddable.} =
   ## Right-gutter card. Returns the next stack Y (== topY when nothing is drawn).
   if not intro.active:
     return topY
@@ -398,7 +399,7 @@ proc drawBossIntroductionGutter*(intro: BossIntroduction,
   return cardY + cardH + 6
 
 # REAL-TIME STATS HUD
-proc newRealTimeStats*(): RealTimeStats =
+proc newRealTimeStats*(): RealTimeStats {.moddable.} =
   result = RealTimeStats(
     dps: 0,
     damageDealt: 0,
@@ -412,7 +413,7 @@ proc newRealTimeStats*(): RealTimeStats =
   # Initialize damage history for rolling window
   result.damageHistory = @[]
 
-proc recordDamage*(stats: var RealTimeStats, damage: float32, currentTime: float32) =
+proc recordDamage*(stats: var RealTimeStats, damage: float32, currentTime: float32) {.moddable.} =
   stats.damageDealt += damage
 
   # Add damage event to history with timestamp
@@ -437,10 +438,10 @@ proc recordDamage*(stats: var RealTimeStats, damage: float32, currentTime: float
   stats.dps = windowDamage / max(windowDuration, 1.0)
   stats.lastDamageTime = currentTime
 
-proc recordKill*(stats: var RealTimeStats) =
+proc recordKill*(stats: var RealTimeStats) {.moddable.} =
   stats.kills += 1
 
-proc recordCoin*(stats: var RealTimeStats, currentTime: float32) =
+proc recordCoin*(stats: var RealTimeStats, currentTime: float32) {.moddable.} =
   stats.totalCoins += 1
   stats.lastCoinTime = currentTime
 
@@ -448,7 +449,7 @@ proc recordCoin*(stats: var RealTimeStats, currentTime: float32) =
   if currentTime > 0:
     stats.coinsPerMinute = (stats.totalCoins.float32 / currentTime) * 60.0
 
-proc calculatePowerLevel*(stats: var RealTimeStats, player: Player) =
+proc calculatePowerLevel*(stats: var RealTimeStats, player: Player) {.moddable.} =
   ## Calculate overall power level based on stats and upgrades
   var power = 100
   power += player.powerUps.len * 50

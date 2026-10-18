@@ -19,6 +19,7 @@
 ## rationale and backstory do not.
 
 import raylib, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../settings, ../save_system
 import ui_theme
@@ -204,6 +205,75 @@ let changelog: seq[ChangelogVersion] = @[
         es: points(
           "Ahora pueden sonar hasta ocho copias de un mismo sonido a la vez en lugar de cuatro, y una nueva solo corta a una anterior cuando las ocho siguen sonando, así que los combates intensos ya no cortan sus propias bajas y explosiones.")),
       # --- Mods ---
+      ChangelogEntry(category: clcMods,
+        headEn: "Mods have full access",
+        headEs: "Los mods tienen acceso completo",
+        en: points(
+          "Mods are trusted programs now: they get all of Lua's standard library, including files (io), the operating system (os), load, require and the debug library.",
+          "require can load another mod's modules (\"other_mod:module\"), and relative paths in io and the other file functions start in the mod's own folder.",
+          "There are no more limits on a mod's memory, speed or spawns, and no mod is switched off for erroring or for being slow. A watchdog still stops a script that freezes for 5 seconds, so a bug cannot hang the game.",
+          "MODS.EXE shows how many milliseconds each mod takes per frame. If the game closes unexpectedly with mods loaded, the next launch starts with mods off; Apply & Reload turns them back on.",
+          "Mods still cannot load native code, so every mod runs the same on Windows, Linux and Android."),
+        es: points(
+          "Los mods ahora son programas de confianza: tienen toda la biblioteca estándar de Lua, incluidos los archivos (io), el sistema operativo (os), load, require y la biblioteca debug.",
+          "require puede cargar módulos de otro mod (\"otro_mod:modulo\"), y las rutas relativas de io y de las demás funciones de archivos empiezan en la carpeta del propio mod.",
+          "Ya no hay límites de memoria, de velocidad ni de apariciones para los mods, y ningún mod se desactiva por dar errores o por ir lento. Un vigilante sigue deteniendo un script que se congela durante 5 segundos, para que un fallo no pueda colgar el juego.",
+          "MODS.EXE muestra cuántos milisegundos tarda cada mod por fotograma. Si el juego se cierra inesperadamente con mods cargados, el siguiente arranque empieza con los mods desactivados; Aplicar y recargar los vuelve a activar.",
+          "Los mods siguen sin poder cargar código nativo, así que cada mod funciona igual en Windows, Linux y Android.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Mods can change all of the game's data",
+        headEs: "Los mods pueden cambiar todos los datos del juego",
+        en: points(
+          "Every field of the run is writable now, including a boss's HP and phase, an enemy's type and the game's state. Fields can point at other objects, and objects can be copied.",
+          "Lists grow and shrink (list:add, :insert, :remove, :clear, :resize) and tables read and write by key. Changing a list's size only works at a safe point; engine.defer runs a function at the next one.",
+          "engine.globals reaches the game outside the run: settings, lifetime statistics, the roguelite profile, advancements, the sound system, the desktop and every window. Real progression is writable, so mods can build their own; modded runs still follow the reward rule.",
+          "No more limits on things, 3D entities, projectiles, pickups, open screens or spawns per frame, and most value ranges are gone (camera zoom, time scale, difficulty, text sizes, shop prices, status stacks...).",
+          "Bosses can be killed, removed and healed by mods, any of the game's enemies can be the base of a mod enemy, spawn.bullet takes explosive and bounces, and theme.set can pick a locked theme."),
+        es: points(
+          "Ahora se puede escribir cualquier campo de la partida, incluidos la vida y la fase de un jefe, el tipo de un enemigo y el estado del juego. Los campos pueden apuntar a otros objetos, y los objetos se pueden copiar.",
+          "Las listas crecen y se encogen (list:add, :insert, :remove, :clear, :resize) y las tablas se leen y escriben por clave. Cambiar el tamaño de una lista solo funciona en un punto seguro; engine.defer ejecuta una función en el siguiente.",
+          "engine.globals llega al juego fuera de la partida: los ajustes, las estadísticas totales, el perfil del roguelite, los logros, el sistema de sonido, el escritorio y todas las ventanas. El progreso real se puede escribir, así que los mods pueden crear el suyo; las partidas con mods siguen la regla de recompensas.",
+          "Se acabaron los límites de cosas, entidades 3D, proyectiles, objetos recogibles, pantallas abiertas y apariciones por fotograma, y casi todos los rangos de valores (zoom de la cámara, escala de tiempo, dificultad, tamaños de texto, precios de la tienda, acumulaciones de estados...).",
+          "Los mods pueden matar, quitar y curar jefes, cualquier enemigo del juego puede ser la base de un enemigo de un mod, spawn.bullet acepta explosive y bounces, y theme.set puede elegir un tema bloqueado.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Mods can change the game's own code",
+        headEs: "Los mods pueden cambiar el propio código del juego",
+        en: points(
+          "Mixins: every one of the game's behaviour procs (combat, enemies, bosses, waves, power-ups, the modes, saves, the HUD, the windows, the desktop...) can be wrapped by a mod with mixin.wrap, before, after or replace, to change what it does or to replace it outright. Several mods can wrap the same proc, in priority order.",
+          "engine.<module>.<proc>() calls any of the game's procs, other mods' mixins included.",
+          "rl.* is raylib itself, the library the game draws, plays sound and reads input with: textures, render textures, fonts, sounds, shaders and models a mod loads unload themselves once dropped.",
+          "Enemy shots, boss attack timers, bullet hits and pickups are procs of their own now, so mods can wrap those too."),
+        es: points(
+          "Mixins: cualquier procedimiento de comportamiento del juego (combate, enemigos, jefes, oleadas, mejoras, los modos, los guardados, el HUD, las ventanas, el escritorio...) se puede envolver desde un mod con mixin.wrap, before, after o replace, para cambiar lo que hace o reemplazarlo por completo. Varios mods pueden envolver el mismo procedimiento, por orden de prioridad.",
+          "engine.<módulo>.<procedimiento>() llama a cualquier procedimiento del juego, con los mixins de otros mods incluidos.",
+          "rl.* es el propio raylib, la biblioteca con la que el juego dibuja, reproduce sonido y lee la entrada: las texturas, texturas de renderizado, fuentes, sonidos, shaders y modelos que carga un mod se descargan solos cuando ya nadie los usa.",
+          "Los disparos de los enemigos, los temporizadores de ataque de los jefes, los impactos de las balas y los objetos recogibles ahora son procedimientos propios, así que los mods también pueden envolverlos.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "Mod screens, languages and a console",
+        headEs: "Pantallas, idiomas y una consola para los mods",
+        en: points(
+          "register.screen adds a screen of the mod's own, a state of the game like the desktop or a run, opened with screens.go and left with screens.back. Over a run, the run holds still underneath.",
+          "New hooks run in every state, the desktop and menus included: frame, screenUpdate (which can take a whole frame over) and drawOverlay.",
+          "register.language adds a language to the game. It appears in Settings and on the first-run language screen, and mods can name their own things in it.",
+          "MODS.EXE has a Console tab that runs Lua as you type it, with the whole mod API."),
+        es: points(
+          "register.screen añade una pantalla propia del mod, un estado del juego como el escritorio o una partida, que se abre con screens.go y se deja con screens.back. Sobre una partida, la partida queda en pausa debajo.",
+          "Nuevos hooks que se ejecutan en todos los estados, escritorio y menús incluidos: frame, screenUpdate (que puede quedarse con un fotograma entero) y drawOverlay.",
+          "register.language añade un idioma al juego. Aparece en Ajustes y en la pantalla de idioma del primer arranque, y los mods pueden nombrar sus propias cosas en él.",
+          "MODS.EXE tiene una pestaña Consola que ejecuta Lua a medida que lo escribes, con toda la API de mods.")),
+      ChangelogEntry(category: clcMods,
+        headEn: "The complete mod API reference",
+        headEs: "La referencia completa de la API de mods",
+        en: points(
+          "Install Examples now also writes API.md, the list of everything a mod can use (every function, hook and game proc, with its parameters), generated from the game itself so it is always complete.",
+          "It also writes tophat.d.lua, which gives editors with the Lua language server completion for the whole API, and strings_en.json, every text of the game in English, to start a translation from.",
+          "mod.json takes \"game\", the oldest game version a mod is made for: MODS.EXE warns when the game is older. In code, engine.version, engine.atLeast and engine.has tell what the game has.",
+          "A new example mod, Mixins Lab, shows mixins, game procs, raylib drawing, files and a screen of its own."),
+        es: points(
+          "Instalar ejemplos ahora también escribe API.md, la lista de todo lo que un mod puede usar (cada función, hook y procedimiento del juego, con sus parámetros), generada a partir del propio juego para que siempre esté completa.",
+          "También escribe tophat.d.lua, que da a los editores con el servidor de lenguaje de Lua autocompletado para toda la API, y strings_en.json, todos los textos del juego en inglés, para empezar una traducción.",
+          "mod.json admite \"game\", la versión más antigua del juego para la que está hecho un mod: MODS.EXE avisa cuando el juego es más antiguo. En el código, engine.version, engine.atLeast y engine.has dicen lo que tiene el juego.",
+          "Un nuevo mod de ejemplo, Mixins Lab, muestra los mixins, los procedimientos del juego, el dibujo con raylib, los archivos y una pantalla propia.")),
       ChangelogEntry(category: clcMods,
         headEn: "Story scores in mods",
         headEs: "Bandas sonoras de la historia en los mods",
@@ -1793,7 +1863,7 @@ proc versionSubtitle(v: ChangelogVersion): string =
   let s = if getLanguage() == Spanish: v.subtitleEs else: v.subtitleEn
   if s.len == 0: t(tkChangelogSince) else: s
 
-proc newChangelogWindow*(screenWidth, screenHeight: int): ChangelogWindow =
+proc newChangelogWindow*(screenWidth, screenHeight: int): ChangelogWindow {.moddable.} =
   let windowWidth = CHANGELOG_WINDOW_WIDTH
   let windowHeight = CHANGELOG_WINDOW_HEIGHT
   let windowX = (screenWidth - windowWidth) div 2
@@ -1814,7 +1884,7 @@ proc newChangelogWindow*(screenWidth, screenHeight: int): ChangelogWindow =
     page: 0
   )
 
-proc resetChangelogView*(cl: ChangelogWindow) =
+proc resetChangelogView*(cl: ChangelogWindow) {.moddable.} =
   ## Called when the window is opened: newest version, scrolled to the top.
   cl.page = 0
   cl.scrollOffset = 0
@@ -2018,7 +2088,7 @@ proc toggleLegacyView(cl: ChangelogWindow) =
 
 proc updateChangelogWindow*(cl: ChangelogWindow, dt: float32,
                             screenWidth, screenHeight: int,
-                            allWindows: openArray[OSWindow]) =
+                            allWindows: openArray[OSWindow]) {.moddable.} =
   ## Update window chrome, paging and scrolling. Closing is signalled by
   ## setting cl.window.visible = false (handled here), matching the help window.
   updateOSWindow(cl.window, dt)
@@ -2154,7 +2224,7 @@ proc drawFooter(g: ChangelogGeometry, mouse: Vector2) =
            (g.boxY + (CL_CHECKBOX - CL_TEXT_SIZE) div 2 + 1).int32, CL_TEXT_SIZE,
            uiInk(if hovered: HeadColor else: SubtitleColor))
 
-proc drawChangelogWindow*(cl: ChangelogWindow) =
+proc drawChangelogWindow*(cl: ChangelogWindow) {.moddable.} =
   if not cl.window.visible:
     return
 

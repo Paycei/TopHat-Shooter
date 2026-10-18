@@ -2,6 +2,7 @@
 ## System diagnostics and performance metrics
 
 import raylib, strutils, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../powerup, ../localization, ../render_context, ../powerup_data, icon_drawing, ../utils, hud_dock
 
@@ -81,7 +82,7 @@ proc countActiveTimers(game: Game): int =
   if game.player.phaseShiftInvulnTimer > 0: result += 1
   if game.player.parryActive: result += 1
 
-proc debugPanelHeight*(game: Game): int32 =
+proc debugPanelHeight*(game: Game): int32 {.moddable.} =
   ## Height of the expanded panel this frame. Shared by the draw and by the
   ## widescreen left dock, which stacks the panel above its key hints.
   result = DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 2  # Header (reduced spacing)
@@ -115,7 +116,7 @@ proc debugPanelHeight*(game: Game): int32 =
   result += 3  # Extra pixels at bottom
 
 proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
-                     docked: bool = true) =
+                     docked: bool = true) {.moddable.} =
   ## Draw comprehensive debug and diagnostics panel.
   ## Classic floats it (draggable, minimizable; x/y are ignored in favour of the
   ## remembered position). Widescreen (anchorLeftDefault) pins it in the left
@@ -678,7 +679,7 @@ proc legendaryExpandedHeight(count: int, alignRightGutter, docked: bool): int32 
   (DEBUG_PANEL_PADDING * 2 + DEBUG_TITLE_HEIGHT + 9 +
    iconsBlockH + LEGENDARY_Q_FOOTER_HEIGHT).int32
 
-proc legendaryPanelHeight*(game: Game, alignRightGutter: bool, docked: bool = true): int32 =
+proc legendaryPanelHeight*(game: Game, alignRightGutter: bool, docked: bool = true): int32 {.moddable.} =
   ## Height the [Q] strip occupies this frame (0 when there is nothing on it).
   ## The modern widescreen dock stacks its combo card on top of it.
   let count = legendaryAbilities(game).len
@@ -689,7 +690,7 @@ proc legendaryPanelHeight*(game: Game, alignRightGutter: bool, docked: bool = tr
   legendaryExpandedHeight(count, alignRightGutter, docked)
 
 proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
-                                 alignRightGutter: bool = false, docked: bool = true) =
+                                 alignRightGutter: bool = false, docked: bool = true) {.moddable.} =
   ## Draw compact legendary Q ability cooldown strip.
   ## Widescreen (alignRightGutter): fixed at the bottom of the right band -- a
   ## card of the modern dock, four icons to a row, when `docked`; the legacy

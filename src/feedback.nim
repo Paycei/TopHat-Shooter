@@ -11,7 +11,7 @@
 
 import std/[strutils, times, os]
 import raylib
-import save_system, settings, types, localization
+import save_system, settings, types, localization, utils
 
 # ---------------------------------------------------------------------------
 # External links: project support / donation buttons and the browser opener.
@@ -106,19 +106,6 @@ const
   # Staying well under that means the page always opens intact; anything
   # longer is handed over through the clipboard instead.
   MaxIssueUrlLen = 6000
-
-proc readNimbleVersion(): string {.compileTime.} =
-  ## The .nimble file is the single source of the version (tools/ship.ps1 reads
-  ## it too), so the report can never be stamped with a stale number.
-  for line in staticRead("../TopHatShooter.nimble").splitLines():
-    let l = line.strip()
-    if l.startsWith("version"):
-      let parts = l.split('"')
-      if parts.len >= 2:
-        return parts[1]
-  "unknown"
-
-const GameVersion* = readNimbleVersion()
 
 proc kindTag(kind: FeedbackKind): string =
   case kind

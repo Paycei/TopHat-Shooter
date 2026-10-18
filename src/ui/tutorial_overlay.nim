@@ -11,6 +11,7 @@
 ## so a rebound control is always taught under its real key.
 
 import raylib, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../particle_types, ../tutorial, ../localization, ../settings, ../render_context, ../utils, os_combined_hud
 
@@ -393,7 +394,7 @@ proc drawCard(game: Game, s: TutorialState) =
     drawRectangle(cardX + CardPad, y + FooterSize + 3, int32(fw.float32 * hold), 2,
                   withAlpha(ThreatColor, 230.0'f32 * alpha))
 
-proc drawTutorialOverlay*(game: Game, hudScale: float32) =
+proc drawTutorialOverlay*(game: Game, hudScale: float32) {.moddable.} =
   ## Call right after drawGame, outside any UI-scale layer.
   if not isTutorialActive(game):
     return

@@ -1,6 +1,7 @@
 ## Shared animated background helpers used across menus and arenas.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../utils
 export utils  # propagate shared color/alpha helpers to importers of this module
@@ -20,7 +21,7 @@ proc fractCoord(value: float32): float32 =
 proc brightenChannel(value: uint8, delta: int): uint8 =
   uint8(clamp(value.int + delta, 0, 255))
 
-proc drawSoftGlow*(centerX, centerY, radius: float32, color: Color, intensity: float32 = 1.0'f32) =
+proc drawSoftGlow*(centerX, centerY, radius: float32, color: Color, intensity: float32 = 1.0'f32) {.moddable.} =
   if radius <= 0.0 or intensity <= 0.0:
     return
 
@@ -113,7 +114,7 @@ proc drawSharedBackdrop*(screenWidth, screenHeight: int32, time: float32,
                          topColor, bottomColor: Color,
                          gridColor, nodeColor, accentColor: Color,
                          starAlphaScale: float32 = 1.0'f32,
-                         sweepAlphaScale: float32 = 1.0'f32) =
+                         sweepAlphaScale: float32 = 1.0'f32) {.moddable.} =
   drawRectangleGradientV(0, 0, screenWidth, screenHeight, topColor, bottomColor)
 
   var band = 0

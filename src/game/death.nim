@@ -1,4 +1,5 @@
 import raylib, rlgl, random, math
+import ../modding/mod_patch_core
 import draw_prims
 import types, settings, save_system, run_save, suspend, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite, game/bullets, ui/icon_drawing, utils
 import modding/mod_hooks
@@ -27,7 +28,7 @@ proc getDeathSequenceTimeScale(timer: float32): float32 =
 
   DEATH_FAST_SCALE
 
-proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) =
+proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) {.moddable.} =
   ## Centralized install feedback so every selected power-up feels like an event.
   ## `quiet` skips the per-install card, shake and sound: a survival Data Cache
   ## installs several at once and shows them on its own reveal overlay.
@@ -82,7 +83,7 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) =
                        accent, if powerUp.rarity == prLegendary: 72 else: 46)
   playSound(stPowerUp, if powerUp.rarity == prLegendary: 1.0 else: 0.85)
 
-proc drawRecentPowerUpInstall*(game: Game) =
+proc drawRecentPowerUpInstall*(game: Game) {.moddable.} =
   if game.recentPowerUpTimer <= 0.0 or game.recentPowerUpMaxTimer <= 0.0:
     return
 
@@ -219,7 +220,7 @@ proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
   return ("", false)
 
 proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
-                               source: Enemy = nil, sourceType: EnemyType = etEnvironment) =
+                               source: Enemy = nil, sourceType: EnemyType = etEnvironment) {.moddable.} =
   ## Starts the delayed singleplayer death playback before the game-over screen.
   if game.state == gsDeathSequence or game.state == gsGameOver:
     return
@@ -264,7 +265,7 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   spawnPlayerDeathExplosion(game)
   addShake(game.dopamine.screenShake, siMassive)
 
-proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
+proc updateDeathSequencePlayback*(game: var Game, dt: float32) {.moddable.} =
   game.deathSequenceTimer += dt
   game.deathSequenceTimeScale = getDeathSequenceTimeScale(game.deathSequenceTimer)
   let worldDt = dt * game.deathSequenceTimeScale

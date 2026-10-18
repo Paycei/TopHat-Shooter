@@ -2,6 +2,7 @@
 ## Terminal-style documentation viewer
 
 import raylib, strutils, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
 import ui_theme
@@ -27,7 +28,7 @@ type
     cursorBlink*: float32
     pendingIconExecution*: int  # -1 = none, 0-6 = icon to execute (6 = sandbox)
 
-proc getHelpCommands*(): seq[HelpCommand] =
+proc getHelpCommands*(): seq[HelpCommand] {.moddable.} =
   ## Returns help commands with translated descriptions
   @[
     ("help", t(tkHelpCmdHelp)),
@@ -47,7 +48,7 @@ proc getHelpCommands*(): seq[HelpCommand] =
     (t(tkHelpLaunchTopics), t(tkHelpCmdLaunchIcons))
   ]
 
-proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
+proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow {.moddable.} =
   let windowWidth = 700
   let windowHeight = 500
   let windowX = (screenWidth - windowWidth) div 2
@@ -76,7 +77,7 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
   result.outputLines.add(("Type 'help' for commands or a topic name to learn more.", White, -1, 0))
   result.outputLines.add(("", White, -1, 0))
 
-proc addOutput*(help: HelpWindow, text: string, color: Color = White, icon: int = -1, indent: int = 0) =
+proc addOutput*(help: HelpWindow, text: string, color: Color = White, icon: int = -1, indent: int = 0) {.moddable.} =
   help.outputLines.add((text, color, icon, indent))
 
 proc wrapTextToWidth(text: string, maxWidth: int32, fontSize: int32): seq[string] =
@@ -115,7 +116,7 @@ proc wrapTextToWidth(text: string, maxWidth: int32, fontSize: int32): seq[string
 proc iconStatusText(actionKey, iconKey: TranslationKey): string =
   t(actionKey).replace("$1", t(iconKey))
 
-proc executeCommand*(help: HelpWindow, cmd: string) =
+proc executeCommand*(help: HelpWindow, cmd: string) {.moddable.} =
   help.commandHistory.add(cmd)
 
   # Echo the command
@@ -465,7 +466,7 @@ proc entryVisualLines(help: HelpWindow, idx: int): int =
     availableW = availableW - int32(HELP_ICON_SIZE + HELP_ICON_PADDING)
   max(1, wrapTextToWidth(line.text, max(availableW, 20'i32), 14'i32).len)
 
-proc bottomScrollOffset*(help: HelpWindow): int =
+proc bottomScrollOffset*(help: HelpWindow): int {.moddable.} =
   ## First entry to draw so the LAST entry is on screen. Scrolling counts entries
   ## but long entries wrap onto several lines, so a fixed `len - 15` left the tail
   ## of paragraph output (the lore archive, long boss dossiers) unreachable.
@@ -482,7 +483,7 @@ proc bottomScrollOffset*(help: HelpWindow): int =
     dec start
   min(start, max(0, help.outputLines.len - 1))
 
-proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): int =
+proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): int {.moddable.} =
   ## Returns icon to execute: -1 = none, 0-6 = desktop icon index (6 = sandbox)
   ## Window closing is handled by setting help.window.visible = false
   updateOSWindow(help.window, dt)
@@ -540,7 +541,7 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
 
   return -1  # No icon to execute
 
-proc drawHelpWindow*(help: HelpWindow) =
+proc drawHelpWindow*(help: HelpWindow) {.moddable.} =
   if not help.window.visible:
     return
 

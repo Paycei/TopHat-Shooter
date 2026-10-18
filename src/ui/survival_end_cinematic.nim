@@ -11,6 +11,7 @@
 ## mtStoryUptime score in sound.nim.
 
 import raylib, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import particle_types, background_fx, ../types, ../shapes, ../localization, ../sound,
        cinematic_common, cutscene, os_desktop, ui_theme
@@ -236,7 +237,7 @@ proc survivalBackdrop(time, totalDuration: float32, sw, sh: int32) =
 # ---------------------------------------------------------------------------
 # Public factory
 
-proc newSurvivalEndCutscene*(): Cutscene =
+proc newSurvivalEndCutscene*(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: UptimeShots[0], drawProc: drawUptimeShot, soundCue: stShield,
@@ -268,8 +269,8 @@ type SurvivalEndCinematic* = Cutscene
 
 proc newSurvivalEndCinematic*(): SurvivalEndCinematic = newSurvivalEndCutscene()
 
-proc updateSurvivalEndCinematic*(c: SurvivalEndCinematic, dt: float32) =
+proc updateSurvivalEndCinematic*(c: SurvivalEndCinematic, dt: float32) {.moddable.} =
   updateCutscene(c, dt)
 
-proc drawSurvivalEndCinematic*(c: SurvivalEndCinematic, screenWidth, screenHeight: int) =
+proc drawSurvivalEndCinematic*(c: SurvivalEndCinematic, screenWidth, screenHeight: int) {.moddable.} =
   drawCutscene(c, screenWidth, screenHeight)

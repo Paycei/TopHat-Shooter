@@ -1,4 +1,5 @@
 import raylib, math
+import ../modding/mod_patch_core
 import types, bullet, particle_skins, particle_types, powerup, patches, sound, run_statistics, fx, game/combat, game/bullets
 import modding/mod_hooks
 
@@ -111,7 +112,7 @@ proc fireLightspeedTracer(game: Game, origin, dir: Vector2f, stats: combat.Comba
   # Instant beam visual from the muzzle to the struck enemy.
   spawnLightningBoltInto(game.lightningBolts, origin, bestEnemy.pos)
 
-proc shootBullet*(game: Game, direction: Vector2f) =
+proc shootBullet*(game: Game, direction: Vector2f) {.moddable.} =
   # Calculate all combat stats once at the start
   var stats = calculateCombatStats(game.player)
   applyBossArenaCombatBonus(game, stats)
@@ -406,7 +407,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, direction, skinType, game.time)
 
 # Helper to fire delayed double-shot bursts
-proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
+proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) {.moddable.} =
   # Calculate combat stats once for the burst
   var burstStats = calculateCombatStats(game.player)
   applyBossArenaCombatBonus(game, burstStats)

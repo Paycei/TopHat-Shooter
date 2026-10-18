@@ -2,6 +2,7 @@
 ## Shop screen redesigned as a modern OS storefront interface
 
 import raylib, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context, ../utils
 import ../modding/[mod_hooks, mod_registry]
@@ -64,7 +65,7 @@ type
     bottomY*: int32
     buyX*, buyY*, buyW*, buyH*: int32
 
-proc shopLayout*(): ShopLayout =
+proc shopLayout*(): ShopLayout {.moddable.} =
   ## Widescreen (16:9) hands the panel ~300 extra pixels. 40% goes to the active-
   ## upgrades sidebar (whose wrapped power-up descriptions are the most cramped
   ## element on this screen) and the remaining 60% to the purchase rows. In
@@ -100,29 +101,29 @@ proc shopLayout*(): ShopLayout =
 
 const ShopVanillaRows* = 6   ## the game's own rows; mod rows (register.shopItem) follow
 
-proc itemRect*(l: ShopLayout, i: int, scroll: int32 = 0): Rectangle =
+proc itemRect*(l: ShopLayout, i: int, scroll: int32 = 0): Rectangle {.moddable.} =
   ## Clickable/hover rect of shop row `i` (0..5, then mod rows), the list
   ## scrolled by `scroll` pixels.
   Rectangle(x: l.itemsX.float32,
             y: float32(l.itemsY + int32(i) * (ITEM_HEIGHT + ITEM_SPACING) - scroll),
             width: l.itemW.float32, height: ITEM_HEIGHT.float32)
 
-proc listHeight*(l: ShopLayout): int32 =
+proc listHeight*(l: ShopLayout): int32 {.moddable.} =
   ## The purchase list's visible height (down to the bottom panel).
   l.bottomY - 8 - l.itemsY
 
-proc listRect*(l: ShopLayout): Rectangle =
+proc listRect*(l: ShopLayout): Rectangle {.moddable.} =
   Rectangle(x: l.itemsX.float32, y: l.itemsY.float32, width: l.itemW.float32,
             height: l.listHeight.float32)
 
-proc shopRowCount*(game: Game): int =
+proc shopRowCount*(game: Game): int {.moddable.} =
   ## Every row the shop shows this run: the game's six, then the mods'.
   ShopVanillaRows + modShopRows(game).len
 
 proc shopMaxScroll(game: Game, l: ShopLayout): int32 =
   max(0'i32, int32(shopRowCount(game)) * (ITEM_HEIGHT + ITEM_SPACING) - ITEM_SPACING - l.listHeight)
 
-proc keepShopSelectionVisible*(game: Game) =
+proc keepShopSelectionVisible*(game: Game) {.moddable.} =
   ## Scroll so the selected row is fully in view (keyboard / pad navigation).
   let l = shopLayout()
   let top = int32(game.selectedShopItem) * (ITEM_HEIGHT + ITEM_SPACING)
@@ -131,11 +132,11 @@ proc keepShopSelectionVisible*(game: Game) =
     game.shopItemsScroll = top + ITEM_HEIGHT - l.listHeight
   game.shopItemsScroll = clamp(game.shopItemsScroll, 0'i32, shopMaxScroll(game, l))
 
-proc closeRect*(l: ShopLayout): Rectangle =
+proc closeRect*(l: ShopLayout): Rectangle {.moddable.} =
   Rectangle(x: l.closeX.float32, y: l.closeY.float32,
             width: l.closeSize.float32, height: l.closeSize.float32)
 
-proc buyRect*(l: ShopLayout): Rectangle =
+proc buyRect*(l: ShopLayout): Rectangle {.moddable.} =
   Rectangle(x: l.buyX.float32, y: l.buyY.float32,
             width: l.buyW.float32, height: l.buyH.float32)
 
@@ -196,7 +197,7 @@ proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
     drawText(line, x, y + int32(i) * lineHeight, fontSize, color)
   result = int32(lines.len) * lineHeight
 
-proc initShopItems*(): array[6, ShopItem] =
+proc initShopItems*(): array[6, ShopItem] {.moddable.} =
   result[0] = ShopItem(name: t(tkShopDamagePlus), description: t(tkShopDamagePlusDesc), baseCost: SHOP_BASE_COSTS[0], bought: 0)
   result[1] = ShopItem(name: t(tkShopFireRatePlus), description: t(tkShopFireRatePlusDesc), baseCost: SHOP_BASE_COSTS[1], bought: 0)
   result[2] = ShopItem(name: t(tkShopMoveSpeedPlus), description: t(tkShopMoveSpeedPlusDesc), baseCost: SHOP_BASE_COSTS[2], bought: 0)
@@ -204,16 +205,16 @@ proc initShopItems*(): array[6, ShopItem] =
   result[4] = ShopItem(name: t(tkShopBulletSpeedPlus), description: t(tkShopBulletSpeedPlusDesc), baseCost: SHOP_BASE_COSTS[4], bought: 0)
   result[5] = ShopItem(name: t(tkShopWallX4), description: t(tkShopWallX4Desc), baseCost: SHOP_BASE_COSTS[5], bought: 0)
 
-proc getCurrentCost*(item: ShopItem): int =
+proc getCurrentCost*(item: ShopItem): int {.moddable.} =
   result = (item.baseCost.float32 * pow(SHOP_COST_MULTIPLIER.float32, item.bought.float32)).int
 
-proc shopDamageGain*(purchaseNumber: int): float32 =
+proc shopDamageGain*(purchaseNumber: int): float32 {.moddable.} =
   SHOP_DAMAGE_GAIN * pow(SHOP_DAMAGE_SCALE, max(0, purchaseNumber - 1).float32)
 
-proc shopHealthGain*(purchaseNumber: int): int =
+proc shopHealthGain*(purchaseNumber: int): int {.moddable.} =
   SHOP_HEALTH_GAIN_BASE + purchaseNumber div 2
 
-proc applyShopPurchaseEffect*(game: Game, index: int, purchaseNumber: int, healHealth: bool = true) =
+proc applyShopPurchaseEffect*(game: Game, index: int, purchaseNumber: int, healHealth: bool = true) {.moddable.} =
   case index
   of 0:
     game.player.damage += shopDamageGain(purchaseNumber)
@@ -243,7 +244,7 @@ proc waveEnemyCoinEstimate(wave: int): float32 =
                    2.9, 3.0, 3.1, 3.4, 3.95, 4.7]
   tierAvg[min((wave - 1) div 5, tierAvg.high)]
 
-proc sandboxWaveAverageConfig*(base: SandboxConfig, wave: int): SandboxConfig =
+proc sandboxWaveAverageConfig*(base: SandboxConfig, wave: int): SandboxConfig {.moddable.} =
   ## Estimate the stat loadout a typical player would have *entering* `wave`,
   ## starting from `base` (the wave-1 baseline stats). Rather than assuming a
   ## fixed number of shop purchases, this replays the run wave by wave with the
@@ -421,7 +422,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
                                   width: badgeW.float32, height: 16.0), 1.0, badgeBorder)
     drawText(badgeText, badgeX + 5, badgeY + 3, 10, badgeText2Color)
 
-proc drawShop*(game: Game) =
+proc drawShop*(game: Game) {.moddable.} =
   let screenWidth = getVirtualScreenWidth()
   let screenHeight = getVirtualScreenHeight()
 
@@ -840,7 +841,7 @@ proc buyModShopItem(game: Game, row: int) =
   trackShopPurchase(game, name, cost)
   modShopBuyDone(game, di, bought + 1)
 
-proc buyShopItem*(game: Game, index: int) =
+proc buyShopItem*(game: Game, index: int) {.moddable.} =
   if index >= ShopVanillaRows:
     buyModShopItem(game, index - ShopVanillaRows)
     return

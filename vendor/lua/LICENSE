@@ -1,8 +1,10 @@
 Lua 5.5.1 (https://www.lua.org), vendored unmodified from lua-5.5.1.tar.gz
 (sha256 1c4b4068d67061f2a2231ad2b5422e77acea1487ea9890f6320af614f4373dce).
-Only the language core and the libraries the mod sandbox exposes are kept:
-the standalone interpreters (lua.c, luac.c) and the io, os, package and debug
-libraries (liolib.c, loslib.c, loadlib.c, ldblib.c, linit.c) are left out.
+The language core and every standard library are kept; only the standalone
+interpreters (lua.c, luac.c) and linit.c are left out. The game compiles
+loslib.c and loadlib.c through two small wrappers of its own
+(src/modding/lua_oslib.c, src/modding/lua_loadlib_nodl.c) that set
+compile-time options before including them; no file here is modified.
 
 Copyright (C) 1994-2026 Lua.org, PUC-Rio.
 

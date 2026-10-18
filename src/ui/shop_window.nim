@@ -2,6 +2,7 @@
 ## OS-themed window for player and bullet customization with tabs
 
 import raylib, rlgl, math, strformat, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../cube_render, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets, ui_theme
 from ../modding/mod_hooks import mods
@@ -81,7 +82,7 @@ const
   MOD_CARD_PAD = 15
   MOD_SECTION_H = 24
 
-proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow =
+proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow {.moddable.} =
   let windowWidth = 820
   let windowHeight = 560
   let windowX = (screenWidth - windowWidth) div 2
@@ -132,7 +133,7 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     maxScrollOffset: 0.0
   )
 
-proc saveSkinSelectionImmediately*(shop: ShopWindow) =
+proc saveSkinSelectionImmediately*(shop: ShopWindow) {.moddable.} =
   ## Save skin selection to settings file immediately
   if shop.playerSkinChanged:
     globalSettings.playerSkin = shop.selectedPlayerSkin.int
@@ -246,7 +247,7 @@ proc fitTextSize(text: string, maxWidth: int32, startSize: int32, minSize: int32
   while result > minSize and measureText(text, result) > maxWidth:
     dec result
 
-proc wrapTwoLines*(text: string, maxWidth: int32, fontSize: int32 = 10): tuple[line1: string, line2: string] =
+proc wrapTwoLines*(text: string, maxWidth: int32, fontSize: int32 = 10): tuple[line1: string, line2: string] {.moddable.} =
   var line1 = ""
   var line2 = ""
   var words = text.split(' ')
@@ -284,7 +285,7 @@ proc wrapIntoLines(text: string, maxWidth: int32, fontSize: int32, maxLines: int
   if cur.len > 0 and result.len < maxLines:
     result.add(cur)
 
-proc wrapDescAutoSize*(text: string, maxWidth: int32, startSize: int32 = 11, minSize: int32 = 8): tuple[line1, line2, line3: string, fontSize: int32] =
+proc wrapDescAutoSize*(text: string, maxWidth: int32, startSize: int32 = 11, minSize: int32 = 8): tuple[line1, line2, line3: string, fontSize: int32] {.moddable.} =
   for size in countdown(startSize, minSize):
     let lines = wrapIntoLines(text, maxWidth, size, 3)
     if lines.join(" ").strip() == text.strip():
@@ -313,7 +314,7 @@ proc desktopBgText(bg: DesktopBgType): tuple[name, desc: string] =
   else:
     (getDesktopBgData(bg).name, getDesktopBgData(bg).description)
 
-proc visibleCosmeticIndices*(kind: CosmeticKind, query: string): seq[int] =
+proc visibleCosmeticIndices*(kind: CosmeticKind, query: string): seq[int] {.moddable.} =
   var q = query.toLowerAscii()
   result = @[]
   for i in 0..<cosmeticCount(kind):
@@ -468,7 +469,7 @@ template cardPreview(x, y: int, body: untyped) =
   cosmeticPreview(x + 10, y + 12, SKIN_BOX_WIDTH - 20, 66):
     body
 
-proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a player skin with shop icon style
   let (primaryColor, secondaryColor, coreColor) = getSkinColors(skinType, time)
 
@@ -542,7 +543,7 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a bullet skin
   let (primaryColor, glowColor, trailColor) = getBulletSkinColors(skinType, time)
 
@@ -623,7 +624,7 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a player bullet shape
   let bgColor = if isSelected: uiSurface(0, 60, 80)
                 elif isHovered: uiSurface(60, 60, 70)
@@ -679,7 +680,7 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a player shape
   # Background box
   let bgColor = if isSelected:
@@ -750,7 +751,7 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a particle effect
   let (primaryColor, secondaryColor) = getParticleSkinColors(particleType, time)
 
@@ -854,7 +855,7 @@ proc endPreviewClip(clip: PreviewClip) =
 proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
                             isSelected: bool, isHovered: bool,
                             isUnlocked: bool = true, canBuy: bool = false,
-                            cost: CosmeticCost, costText: string = "") =
+                            cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a card preview for a desktop background skin
   let (bgName, bgDesc) = desktopBgText(bgType)
 
@@ -950,7 +951,7 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
 proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
                            isSelected: bool, isHovered: bool,
                            isUnlocked: bool = true, canBuy: bool = false,
-                           cost: CosmeticCost, costText: string = "") =
+                           cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a card preview for a cube skin using simple 2-D isometric-style cube
   let skinData = getCubeSkinData(skinType)
 
@@ -1346,7 +1347,7 @@ proc drawModsTabContent(shop: ShopWindow, contentX, contentY, contentWidth, cont
     let thumbY = gridTop.float32 + (shop.scrollOffset / shop.maxScrollOffset) * (gridHeight.float32 - thumbH)
     drawRectangle(sbX.int32, thumbY.int32, 10, thumbH.int32, uiSurface(120, 220, 160, 200))
 
-proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
+proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool {.moddable.} =
   ## Update shop window. Returns true if window should close
   if shop.isNil or shop.window.isNil:
     return true
@@ -1856,7 +1857,7 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
   else:
     drawText(secretLockedHint(info), (contentX + 10).int32, (infoPanelY + 18).int32, 13, uiInk(Gray))
 
-proc drawShopWindow*(shop: ShopWindow) =
+proc drawShopWindow*(shop: ShopWindow) {.moddable.} =
   ## Draw the shop window
   if shop.isNil or shop.window.isNil:
     return

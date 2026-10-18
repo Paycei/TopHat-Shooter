@@ -2,6 +2,7 @@
 ## Cosmetic shapes for player bullets
 
 import raylib, math
+import modding/mod_patch_core
 import draw_prims
 import particle_types, localization, utils
 
@@ -21,7 +22,7 @@ type
 
 var bulletShapeDatabase*: array[BulletShapeType, BulletShapeData]
 
-proc initializeBulletShapes*() =
+proc initializeBulletShapes*() {.moddable.} =
   bulletShapeDatabase[bshCircle] = BulletShapeData(
     name: t("bshape_circle"), description: t("bshape_circle_desc"), isUnlocked: true)
   bulletShapeDatabase[bshTriangle] = BulletShapeData(
@@ -41,7 +42,7 @@ proc getBulletShapeData*(s: BulletShapeType): BulletShapeData = bulletShapeDatab
 
 proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
                              shape: BulletShapeType, travelAngle: float32,
-                             color, glowColor: Color) =
+                             color, glowColor: Color) {.moddable.} =
   ## Draw one player bullet with the chosen cosmetic shape.
 
   case shape

@@ -1,10 +1,11 @@
 ﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers, boss_weakpoints, effects
+import modding/mod_patch_core
 import draw_prims
 import particle_types, utils, mode_enemies, mode_visuals
 import modding/[mod_state, mod_hooks, mod_assets]
 export mode_enemies
 
-proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
+proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy {.moddable.} =
   # Get enemy configuration
   let config = getEnemyConfig(enemyType)
 
@@ -100,7 +101,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   if modsActive:
     modEnemySpawn(result)
 
-proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
+proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool {.moddable.} =
   # Mods: a script can take over an enemy's AI (its own `update`, or the
   # enemyUpdate hook returning true); it stays alive while it has HP.
   if modsActive and modEnemyUpdate(enemy, dt):
@@ -832,7 +833,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   # They die when hit again (hp becomes <= 0)
   return enemy.hp >= EnemyMinAliveHp
 
-proc drawCustomBoss*(enemy: Enemy) =
+proc drawCustomBoss*(enemy: Enemy) {.moddable.} =
   ## Redesigned boss visuals
   let time    = getTime()
   let pulse   = sin(time * 2.5) * 0.5 + 0.5    # fast pulse  0..1
@@ -1478,7 +1479,7 @@ proc drawCustomBoss*(enemy: Enemy) =
 
     else: discard
 
-proc drawBossPhaseTransition*(enemy: Enemy) =
+proc drawBossPhaseTransition*(enemy: Enemy) {.moddable.} =
   ## Epic per-boss phase-change animation. Plays while a boss is invulnerable
   ## during a phase transition (driven entirely by `invulnerabilityTimer`, which
   ## is only ever set by `transitionBossToPhase`). The boss is frozen for this
@@ -1846,7 +1847,7 @@ proc drawThreatAura(enemy: Enemy) =
       drawRectangle(px.int32, pipY.int32, 5, 5, withAlpha(color, 230))
       drawRectOutline(px.int32, pipY.int32, 5, 5, Color(r: 255, g: 255, b: 255, a: 150))
 
-proc drawOmegaGlyph*(cx, cy, r, thick: float32, col: Color) =
+proc drawOmegaGlyph*(cx, cy, r, thick: float32, col: Color) {.moddable.} =
   ## A programmatic Ω: a ring open at the bottom (raylib ring angles: 0 deg =
   ## +x, clockwise on screen, so the 45..135 gap faces down) plus two
   ## outward-running feet at the arc ends. Used by the Omega Entity's warning
@@ -1892,7 +1893,7 @@ proc drawOmegaFinalFormHalo(enemy: Enemy) =
                        y: enemy.pos.y + sin(ang) * (outer - 9.0'f32)),
                2.0, Color(r: 255'u8, g: 240'u8, b: 255'u8, a: uint8(220.0'f32 * (1.0'f32 - rush))))
 
-proc drawEnemy*(enemy: Enemy) =
+proc drawEnemy*(enemy: Enemy) {.moddable.} =
   ## Draws an enemy based on its type. Bosses are forwarded to drawCustomBoss.
   # Spawn ring: expanding coloured circle that fades out as the enemy materialises
   if enemy.spawnRingTimer > 0:
@@ -2883,7 +2884,7 @@ proc rampAlpha(warning: AttackWarning, base, span: float32,
 
 proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
                         baseCol: Color, progress: float32,
-                        blastRadius: float32 = 0.0'f32) =
+                        blastRadius: float32 = 0.0'f32) {.moddable.} =
   ## The single, shared incoming-meteorite telegraph used by EVERY meteor: the
   ## boss bapMeteor warning columns AND the real Meteorite rocks (etMage and the
   ## boss signature modes). `source` is the off-screen entry point, so the streak
@@ -2976,7 +2977,7 @@ proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
                        y: impact.y + sin(a) * (br - 9.0'f32)),
                2.0'f32, Color(r: 255, g: 130, b: 50, a: hotA))
 
-proc drawAttackWarning*(warning: AttackWarning) =
+proc drawAttackWarning*(warning: AttackWarning) {.moddable.} =
   let alpha = fadeAlpha(warning)
   let pulse = warningPulse()
   # Sampled once: getTime() is an FFI call and several branches used it inside
@@ -4258,7 +4259,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # decision about its visual at compile time.
     discard
 
-proc drawRicochetLaserBeam*(warning: AttackWarning) =
+proc drawRicochetLaserBeam*(warning: AttackWarning) {.moddable.} =
   ## Live lethal pass for the ricochet beam, drawn ungated (independent of the
   ## showHints telegraph gate) so the active beam is always visible like a Laser.
   ## The beam-front races along the path (RicochetLaserSweep) for an "advancing
@@ -4296,7 +4297,7 @@ proc drawRicochetLaserBeam*(warning: AttackWarning) =
     drawDisc(Vector2(x: head.x, y: head.y), halfW * 0.6 + 3.0,
                Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
 
-proc drawChargeWindup*(enemy: Enemy) =
+proc drawChargeWindup*(enemy: Enemy) {.moddable.} =
   ## Juggernaut charge wind-up, drawn UNGATED by showHints. The locked lane is
   ## the hint; but a charge too fast to walk away from must always announce
   ## its direction and its moment, or hints-off turns it into a blind hit.
@@ -4336,11 +4337,11 @@ proc drawChargeWindup*(enemy: Enemy) =
 
 const RoyalGuardGold* = Color(r: 240, g: 190, b: 50, a: 255)
 
-proc isLivingRoyalGuard*(e: Enemy): bool {.inline.} =
+proc isLivingRoyalGuard*(e: Enemy): bool {.inline, moddable.} =
   ## A Summoner King Royal Guard still standing (see game/bosses.nim).
   e.royalGuard and e.spawnedByBoss and e.hp > 0
 
-proc drawRoyalGuardRegalia*(enemy: Enemy) =
+proc drawRoyalGuardRegalia*(enemy: Enemy) {.moddable.} =
   ## Marks a Royal Guard out of the legion around it, drawn ungated like the
   ## elite overlay: it is the enemy's identity, not a hint. A gold rim, a
   ## crown over the head, and a health bar once it is hurt, because a guard
@@ -4383,7 +4384,7 @@ proc drawRoyalGuardRegalia*(enemy: Enemy) =
     drawRectangle(barX.int32, barY.int32, (barW * frac).int32, 4, gold)
     drawRectOutline(barX.int32, barY.int32, barW.int32, 4, backing)
 
-proc drawLegionTethers*(boss: Enemy, enemies: seq[Enemy]) =
+proc drawLegionTethers*(boss: Enemy, enemies: seq[Enemy]) {.moddable.} =
   ## Gold chains from a sealed Summoner King to each Royal Guard holding the
   ## seal, links flowing outward from the King. Ungated: in a crowd of
   ## legionnaires and wave enemies the chains are what says WHICH bodies break
@@ -4416,7 +4417,7 @@ proc drawLegionTethers*(boss: Enemy, enemies: seq[Enemy]) =
                  withAlpha(RoyalGuardGold, alpha))
       s += Link + Gap
 
-proc drawSignatureAttackActive*(warning: AttackWarning) =
+proc drawSignatureAttackActive*(warning: AttackWarning) {.moddable.} =
   ## Live lethal pass for the bosses 7-12 signature attacks, drawn ungated
   ## (independent of the showHints telegraph gate) so the kill moment is always
   ## visible - with hints off the wind-up telegraph is hidden, but the actual
@@ -4777,7 +4778,7 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
     # hints off.
     discard
 
-proc drawLaser*(laser: Laser) =
+proc drawLaser*(laser: Laser) {.moddable.} =
   # Calculate alpha based on lifetime with accelerated fade
   let fadePercent = laser.lifetime / laser.maxLifetime
 
@@ -4957,7 +4958,7 @@ proc drawLaser*(laser: Laser) =
   else:
     discard
 
-proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: int): Enemy =
+proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: int): Enemy {.moddable.} =
   ## Builds boss `bossId` (1..MaxBossId) with the stats of `scalingWave` on the
   ## boss curve (getScaledBossHP & co.). Never nil. The mode rosters spawn at
   ## their authored slot (bossAuthoredSlotWave) and are then rescaled by
@@ -5080,7 +5081,7 @@ proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: 
       activeEffects: default(array[ElementType, ActiveEffect])
     )
 
-proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
+proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy {.moddable.} =
   ## The wave campaign's boss for `waveNumber` (bosses 1-12 on every
   ## BossWaveInterval-th wave, boss 12 repeating past the campaign), or nil
   ## when `waveNumber` is not a boss wave. `difficulty`/`bossCount` are unused
@@ -5091,7 +5092,7 @@ proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount
 
 proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
                 chanceScale: float32 = 1.0'f32, force: bool = false,
-                forcedEffects: int = 0) =
+                forcedEffects: int = 0) {.moddable.} =
   ## Converts a regular enemy into an elite with enhanced stats and special abilities
   ## Elite chance increases with wave number, but the midgame ramp is kept gentler.
   ## Dual-modifier elites are delayed so waves 20-35 do not suddenly feel boss-like.
@@ -5294,7 +5295,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
     enemy.radius *= 1.15
     enemy.collisionRadius *= 1.15
 
-proc getEliteAuraColor*(eliteType: EliteType): Color =
+proc getEliteAuraColor*(eliteType: EliteType): Color {.moddable.} =
   ## Returns the aura color for each elite type
   case eliteType
   of etNone: White  # Should never be called
@@ -5305,7 +5306,7 @@ proc getEliteAuraColor*(eliteType: EliteType): Color =
   of etRegenerative: Color(r: 255, g: 100, b: 255, a: 255)  # Magenta
   of etShielded: Color(r: 100, g: 200, b: 255, a: 255)  # Cyan
 
-proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
+proc drawEliteAura*(enemy: Enemy, gameTime: float32) {.moddable.} =
   ## Draws the visual aura around elite enemies
   ## For multi-elite enemies (wave 25+), draws layered auras with different colors
   if not enemy.isElite or enemy.eliteTypes.len == 0:
@@ -5413,7 +5414,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       Color(r: 150, g: 220, b: 255, a: 255)
     )
 
-proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) =
+proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) {.moddable.} =
   ## Drawn AFTER drawEnemy, places colored outline and orbit crown on top of the body
   if not enemy.isElite or enemy.eliteTypes.len == 0:
     return
@@ -5489,7 +5490,7 @@ proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) =
     of etNone:
       discard
 
-proc updateEliteEffects*(enemy: Enemy, dt: float32) =
+proc updateEliteEffects*(enemy: Enemy, dt: float32) {.moddable.} =
   ## Updates elite-specific effects like regeneration
   ## Handles multiple elite types (wave 25+)
   if not enemy.isElite:

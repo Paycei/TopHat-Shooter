@@ -1,10 +1,11 @@
 import raylib, rlgl, random
+import ../modding/mod_patch_core
 import types, particle, particle_pool, particle_types, powerup, patches, run_statistics, boss_weakpoints, ui/os_background, player, mode_hazards
 import modding/mod_hooks
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
-proc shieldBlocksHit*(game: Game, enemy: Enemy, hitFrom: Vector2f): bool =
+proc shieldBlocksHit*(game: Game, enemy: Enemy, hitFrom: Vector2f): bool {.moddable.} =
   ## A Port Guard's shield negates any player damage arriving from its front,
   ## not just bullets: orbs, auras, chains, blasts, the ram, Thorns. `hitFrom`
   ## is where the hit comes from -- the player for anything that emanates from
@@ -20,7 +21,7 @@ proc shieldBlocksHit*(game: Game, enemy: Enemy, hitFrom: Vector2f): bool =
                        Color(r: 255, g: 220, b: 150, a: 255), 4)
   true
 
-proc bossPassiveDamageTaken*(enemy: Enemy): float32 =
+proc bossPassiveDamageTaken*(enemy: Enemy): float32 {.moddable.} =
   ## Fraction of a non-bullet hit a boss actually takes: phase defense, the
   ## weak-point body/window multiplier and the adds/shield gate. 1.0 for
   ## non-bosses. Any damage path that skips damageEnemy() (Conduit, Aftershock,
@@ -76,7 +77,7 @@ proc applyEliteModifiers(enemy: Enemy, baseDamage: float32,
     enemy.diamondShieldActive = false
     result = 0
 
-proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
+proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 {.moddable.} =
   ## Applies raw HP damage. Bosses only lose HP from the active phase pool.
   ##
   ## Also the single choke point where the run's total damage dealt is recorded:
@@ -131,8 +132,18 @@ proc applyEnemyHpDamage*(enemy: Enemy, damage: float32): float32 =
   recordDamageDealt(damage)
   damage
 
+proc setEnemyHp*(enemy: Enemy, hp: float32) {.moddable.} =
+  ## A script setting an enemy's HP outright: not damage, so no hooks,
+  ## multipliers or damage stats. A boss's is its current phase pool; a value
+  ## below the alive threshold reads as spent (like applyEnemyHpDamage's
+  ## residue flush), so the main enemy loop moves the boss to its next phase
+  ## or defeats it the normal way.
+  var v = max(0.0'f32, hp)
+  if v > 0.0'f32 and v < EnemyMinAliveHp: v = 0.0'f32
+  enemy.hp = v
+
 proc damageEnemy*(enemy: Enemy, baseDamage: float32,
-                  consumesDiamondShield: bool = true): float32 =
+                  consumesDiamondShield: bool = true): float32 {.moddable.} =
   ## Helper to apply damage to enemy with elite modifiers
   ## Combines applyEliteModifiers and HP reduction in one call
   ## Returns the actual damage dealt after modifiers
@@ -167,7 +178,7 @@ type CombatStats* = object
   critMultiplier*: float32  # Critical hit damage multiplier
   hasCrit*: bool            # Whether player has crit power-up
 
-proc rageDamageMultiplier*(player: Player): float32 =
+proc rageDamageMultiplier*(player: Player): float32 {.moddable.} =
   ## Rage's damage multiplier at the current HP. Single source of truth: the
   ## bullet path stamps it onto each bullet so the hit block can isolate Rage's
   ## share, and calculateCombatStats applies it to the damage itself.
@@ -182,7 +193,7 @@ proc rageDamageMultiplier*(player: Player): float32 =
       result = 1.0'f32 + (hpLost * 10.0'f32 * bonusPerTenPercent)
       break
 
-proc calculateCombatStats*(player: Player): CombatStats =
+proc calculateCombatStats*(player: Player): CombatStats {.moddable.} =
   ## Calculates all combat stats in one place
   ## Single source of truth for damage, fire rate, crit chance calculations
   result.baseDamage = player.damage
@@ -303,12 +314,12 @@ proc calculateCombatStats*(player: Player): CombatStats =
     result.critMultiplier = 2.0
   modCombatStats(player, result.damage, result.fireRate, result.critChance, result.critMultiplier)
 
-proc applyBossArenaCombatBonus*(game: Game, stats: var CombatStats) =
+proc applyBossArenaCombatBonus*(game: Game, stats: var CombatStats) {.moddable.} =
   let bonus = getBossArenaCombatBonus(game.osBackground)
   stats.damage *= bonus.damageMult
   stats.fireRate *= bonus.fireRateMult
 
-proc applyCriticalHitWithFlag*(stats: CombatStats, baseDamage: float32): tuple[damage: float32, wasCrit: bool] =
+proc applyCriticalHitWithFlag*(stats: CombatStats, baseDamage: float32): tuple[damage: float32, wasCrit: bool] {.moddable.} =
   ## Applies critical hit using pre-calculated stats
   ## Returns tuple with damage and whether a crit occurred
   if not stats.hasCrit:
@@ -319,17 +330,17 @@ proc applyCriticalHitWithFlag*(stats: CombatStats, baseDamage: float32): tuple[d
   else:
     return (baseDamage, false)
 
-proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float32 =
+proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float32 {.moddable.} =
   applyCriticalHitWithFlag(stats, baseDamage).damage
 
 # DAMAGE NUMBERS HELPER
 
 proc showDamage*(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool,
-                isCritical: bool = false, damageType: DamageType = dtDefault) =
+                isCritical: bool = false, damageType: DamageType = dtDefault) {.moddable.} =
   ## Centralized helper to create and display damage numbers
   game.damageNumbers.add(newDamageNumber(pos.x, pos.y, damage, fromPlayer, isCritical, damageType))
 
-proc showPlayerDamageTaken*(game: Game, damageType: DamageType = dtDefault) =
+proc showPlayerDamageTaken*(game: Game, damageType: DamageType = dtDefault) {.moddable.} =
   ## Damage number for the hit takeDamage just resolved, showing what it actually
   ## cost (player.lastDamageTaken). A hit that invincibility, a shield charge,
   ## Celestial Veil, a dodge or the Singularity shield swallowed shows nothing,
@@ -340,13 +351,13 @@ proc showPlayerDamageTaken*(game: Game, damageType: DamageType = dtDefault) =
                     isCritical = false, damageType = damageType)
 
 proc showCurrency*(game: Game, pos: Vector2f, amount: int,
-                   kind: CurrencyIndicatorKind = cikCredits) =
+                   kind: CurrencyIndicatorKind = cikCredits) {.moddable.} =
   ## Centralized helper for floating currency pickup indicators.
   if amount == 0:
     return
   game.currencyIndicators.add(newCurrencyIndicator(pos.x, pos.y, amount, kind))
 
-proc densityHealScale*(game: Game): float32 =
+proc densityHealScale*(game: Game): float32 {.moddable.} =
   ## Density normalisation for healing that is granted PER HIT or PER KILL.
   ##
   ## The same trap as coins and XP, and the one that actually decided runs.
@@ -363,14 +374,14 @@ proc densityHealScale*(game: Game): float32 =
   ## base amounts, so it follows automatically.
   densityRebate(game)
 
-proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) =
+proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) {.moddable.} =
   ## Centralized helper for floating "+SHIELD" / "+SPEED" style consumable
   ## pickup indicators.
   game.perkIndicators.add(newPerkIndicator(pos.x, pos.y, text, color))
 
 const DAMAGE_NUMBER_INTERVAL = 0.5'f32
 
-proc dotNumberInterval*(elementType: ElementType): float32 =
+proc dotNumberInterval*(elementType: ElementType): float32 {.moddable.} =
   ## Per-element damage-number cadence: fire reads as a rapid burn (frequent
   ## small numbers), poison as a slow drip (rare chunky numbers).
   case elementType
@@ -380,7 +391,7 @@ proc dotNumberInterval*(elementType: ElementType): float32 =
 
 proc tickAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator,
                       damage: float32, damageType: DamageType, wasCrit: bool = false,
-                      interval: float32 = DAMAGE_NUMBER_INTERVAL) =
+                      interval: float32 = DAMAGE_NUMBER_INTERVAL) {.moddable.} =
   if acc.lastTime == 0:
     acc.lastTime = game.time
   acc.total += damage
@@ -395,7 +406,7 @@ proc tickAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator,
     acc.hadCrit = false
     acc.lastTime = game.time
 
-proc flushAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator) =
+proc flushAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator) {.moddable.} =
   if acc.total > 0:
     game.showDamage(enemy.pos, acc.total, fromPlayer = true,
                     isCritical = acc.hadCrit, damageType = acc.damageType)
@@ -403,29 +414,29 @@ proc flushAccumulator*(game: Game, enemy: Enemy, acc: var DamageAccumulator) =
     acc.hadCrit = false
 
 proc accumulateAndShowAuraDamage*(game: Game, enemy: Enemy, actualDamage: float32,
-                                  damageType: DamageType, wasCrit: bool = false) =
+                                  damageType: DamageType, wasCrit: bool = false) {.moddable.} =
   tickAccumulator(game, enemy, enemy.auraAcc, actualDamage, damageType, wasCrit)
 
-proc flushAccumulatedAuraDamage*(game: Game, enemy: Enemy) =
+proc flushAccumulatedAuraDamage*(game: Game, enemy: Enemy) {.moddable.} =
   flushAccumulator(game, enemy, enemy.auraAcc)
 
 proc accumulateDotDamage*(game: Game, enemy: Enemy, elementType: ElementType,
-                          actualDamage: float32) =
+                          actualDamage: float32) {.moddable.} =
   tickAccumulator(game, enemy, enemy.dotAccs[elementType], actualDamage,
                   elementDamageType(elementType),
                   interval = dotNumberInterval(elementType))
 
-proc flushAccumulatedDotDamage*(game: Game, enemy: Enemy) =
+proc flushAccumulatedDotDamage*(game: Game, enemy: Enemy) {.moddable.} =
   for et in ElementType:
     flushAccumulator(game, enemy, enemy.dotAccs[et])
 
-proc accumulateAndShowContactDamage*(game: Game, enemy: Enemy, actualDamage: float32) =
+proc accumulateAndShowContactDamage*(game: Game, enemy: Enemy, actualDamage: float32) {.moddable.} =
   tickAccumulator(game, enemy, enemy.contactAcc, actualDamage, dtDefault)
 
-proc flushAccumulatedContactDamage*(game: Game, enemy: Enemy) =
+proc flushAccumulatedContactDamage*(game: Game, enemy: Enemy) {.moddable.} =
   flushAccumulator(game, enemy, enemy.contactAcc)
 
-proc calculateContactDamageToEnemy*(player: Player, enemy: Enemy): tuple[damage: float32, wasCrit: bool] =
+proc calculateContactDamageToEnemy*(player: Player, enemy: Enemy): tuple[damage: float32, wasCrit: bool] {.moddable.} =
   ## Player ramming into an enemy deals damage based on:
   ##   - player.damage  (scales with all damage power-ups)
   ##   - player speed   (moving fast = hits harder, standing still = weak tap)
@@ -455,7 +466,7 @@ proc calculateContactDamageToEnemy*(player: Player, enemy: Enemy): tuple[damage:
 # THORNS REFLECTION HELPER
 
 proc applyThornsReflection*(game: var Game, player: Player, damageToReflect: float32,
-                            targetEnemy: Enemy, reflectType: string): float32 =
+                            targetEnemy: Enemy, reflectType: string): float32 {.moddable.} =
   ## Centralized thorns reflection calculation
   ## reflectType: "contact" for enemy contact, "bullet" for enemy bullets, "boss" for boss contact
   ## Returns actual damage dealt (after shields/reductions)

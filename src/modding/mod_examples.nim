@@ -26,6 +26,9 @@ template embed(file: string): seq[string] = chunked(staticRead(Sdk & file))
 const
   Sdk = "../../mods-sdk/"
   ModdingDoc = embed("MODDING.md")
+  ApiDoc = embed("API.md")           ## (nimble modapi writes these three from the game)
+  ApiDefs = embed("tophat.d.lua")
+  EnglishStrings = embed("strings_en.json")
   ExampleFiles: seq[tuple[path: string, data: seq[string]]] = @[
     ("hello_hud/mod.json", embed("examples/hello_hud/mod.json")),
     ("hello_hud/main.lua", embed("examples/hello_hud/main.lua")),
@@ -73,7 +76,14 @@ const
     ("arena_3d/main.lua", embed("examples/arena_3d/main.lua")),
     ("critical_section/mod.json", embed("examples/critical_section/mod.json")),
     ("critical_section/main.lua", embed("examples/critical_section/main.lua")),
+    ("mixins/mod.json", embed("examples/mixins/mod.json")),
+    ("mixins/main.lua", embed("examples/mixins/main.lua")),
+    ("mixins/util.lua", embed("examples/mixins/util.lua")),
   ]
+
+proc embeddedModApi*(): string =
+  ## The API reference this build ships (debug builds check it is current).
+  ApiDoc.join
 
 proc exampleModIds*(): seq[string] =
   for (path, _) in ExampleFiles:
@@ -166,15 +176,19 @@ proc wipeExample(root, folder: string): bool =
     discard
 
 proc installExampleMods*(): tuple[ok: bool, written: seq[string]] =
-  ## Write MODDING.md (always refreshed) and every example that is missing or
-  ## older than the one this build ships (see exampleNeedsWrite). A replaced
-  ## example's folder is wiped first (see wipeExample), so a file an older
-  ## version shipped can't linger next to the new one. `written` lists the
-  ## folders of the examples written; `ok` is false if anything failed.
+  ## Write MODDING.md, API.md, tophat.d.lua and strings_en.json (always
+  ## refreshed) and every example that is missing or older than the one this
+  ## build ships (see exampleNeedsWrite). A replaced example's folder is wiped
+  ## first (see wipeExample), so a file an older version shipped can't linger
+  ## next to the new one. `written` lists the folders of the examples written;
+  ## `ok` is false if anything failed.
   let root = modsRootDir()
   result.ok = true
   try:
     writeFile(root / "MODDING.md", ModdingDoc.join)
+    writeFile(root / "API.md", ApiDoc.join)
+    writeFile(root / "tophat.d.lua", ApiDefs.join)   # LuaLS: autocompletion in an editor
+    writeFile(root / "strings_en.json", EnglishStrings.join)   # the base of a translation
   except IOError, OSError:
     result.ok = false
   for folder in exampleModIds():

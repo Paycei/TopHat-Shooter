@@ -2,10 +2,11 @@
 ## Draw enemies with modern process/threat labels
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../utils, ../enemy_config
 
-proc getEnemyProcessName*(enemy: Enemy): string =
+proc getEnemyProcessName*(enemy: Enemy): string {.moddable.} =
   ## Generate a process name for an enemy based on type
   let baseNames = case enemy.enemyType
     of FirstModEnemy..LastModEnemy: modEnemies[enemy.enemyType].label
@@ -64,7 +65,7 @@ proc getEnemyProcessName*(enemy: Enemy): string =
 
   result = prefix & baseNames & "_" & $idSuffix & ext
 
-proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = true) =
+proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = true) {.moddable.} =
   if not enabled or enemy.entranceTimer > 0:
     return  # Don't show label if disabled or during entrance
 
@@ -259,7 +260,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
               Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.7)))
       drawText(hpText, hpTextX.int32, barY.int32, hpTextSize.int32, White)
 
-proc drawEnemyWarningIndicator*(enemy: Enemy) =
+proc drawEnemyWarningIndicator*(enemy: Enemy) {.moddable.} =
   ## Draw warning indicator for dangerous enemies
   if not (enemy.isElite or enemy.isBoss):
     return

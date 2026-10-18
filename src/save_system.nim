@@ -1,4 +1,5 @@
 import json, os, std/tables, strutils, raylib
+import modding/mod_patch_core
 import particle_types, run_statistics, types, utils, powerup_data, enemy_config
 
 # Settings type definition (moved from settings_types.nim)
@@ -150,31 +151,31 @@ proc unlockStoryFlag(settings: Settings, cine: StoryCinematic) =
   of scSandboxIntro: settings.hasSeenSandboxIntro = true
   of scPvPIntro: settings.hasSeenPvPIntro = true
 
-proc storyOutdated*(settings: Settings, cine: StoryCinematic): bool =
+proc storyOutdated*(settings: Settings, cine: StoryCinematic): bool {.moddable.} =
   ## Unlocked, but last watched before the current version of the story: the
   ## Cinematics tab marks it NEW.
   not settings.isNil and settings.storyFlag(cine) and settings.storySeen[cine] < StoryVersion
 
-proc storyPending*(settings: Settings, cine: StoryCinematic): bool =
+proc storyPending*(settings: Settings, cine: StoryCinematic): bool {.moddable.} =
   ## Should this cinematic play at its usual trigger? Never seen, or seen only
   ## in an older version.
   not settings.isNil and (not settings.storyFlag(cine) or settings.storySeen[cine] < StoryVersion)
 
-proc markStorySeen*(settings: Settings, cine: StoryCinematic) =
+proc markStorySeen*(settings: Settings, cine: StoryCinematic) {.moddable.} =
   ## Unlocks it (the hasSeen* flag) and records that this version was watched.
   if settings.isNil:
     return
   settings.unlockStoryFlag(cine)
   settings.storySeen[cine] = StoryVersion
 
-proc uiScalePresetIndex*(scale: float32): int =
+proc uiScalePresetIndex*(scale: float32): int {.moddable.} =
   ## Index of the UIScalePresets entry nearest `scale`.
   result = 0
   for i in 1 .. UIScalePresets.high:
     if abs(UIScalePresets[i] - scale) < abs(UIScalePresets[result] - scale):
       result = i
 
-proc snapUIScale*(scale: float32): float32 =
+proc snapUIScale*(scale: float32): float32 {.moddable.} =
   UIScalePresets[uiScalePresetIndex(scale)]
 
 # Save profiles: every save file lives inside one of MaxProfileSlots per-profile
@@ -187,7 +188,7 @@ const MaxProfileSlots* = 4  # one per GameDifficulty, so every difficulty fits
 
 var activeProfileSlot* = 1  # 1..MaxProfileSlots; all get*Path procs point here
 
-proc getRootDataPath*(): string =
+proc getRootDataPath*(): string {.moddable.} =
   ## Base save directory shared by all profiles (and holder of the last-used
   ## slot marker). Per-profile data must go through getAppDataPath instead.
   when defined(windows):
@@ -212,11 +213,11 @@ proc getRootDataPath*(): string =
     except:
       echo "Warning: Could not create save directory: ", result
 
-proc getProfileDir*(slot: int): string =
+proc getProfileDir*(slot: int): string {.moddable.} =
   getRootDataPath() / "profiles" / $slot
 
 # Get the active profile's data directory (all save files live here)
-proc getAppDataPath*(): string =
+proc getAppDataPath*(): string {.moddable.} =
   result = getProfileDir(activeProfileSlot)
 
   # Create directory if it doesn't exist
@@ -233,10 +234,10 @@ proc getProfileMetaPath(slot: int): string =
 proc getLastUsedSlotPath(): string =
   getRootDataPath() / "profiles.json"
 
-proc profileExists*(slot: int): bool =
+proc profileExists*(slot: int): bool {.moddable.} =
   fileExists(getProfileMetaPath(slot))
 
-proc loadProfileDifficulty*(slot: int): GameDifficulty =
+proc loadProfileDifficulty*(slot: int): GameDifficulty {.moddable.} =
   ## Difficulty recorded in the slot's profile.json; medium (the legacy
   ## balance) when the file is missing or unreadable.
   result = gdMedium
@@ -249,7 +250,7 @@ proc loadProfileDifficulty*(slot: int): GameDifficulty =
   except CatchableError:
     echo "Warning: could not read profile meta for slot ", slot
 
-proc createProfile*(slot: int, difficulty: GameDifficulty): bool =
+proc createProfile*(slot: int, difficulty: GameDifficulty): bool {.moddable.} =
   ## Creates the slot folder and its profile.json meta. Safe to call on an
   ## existing slot (rewrites the meta only).
   try:
@@ -262,7 +263,7 @@ proc createProfile*(slot: int, difficulty: GameDifficulty): bool =
     echo "Error: could not create profile ", slot
     false
 
-proc deleteProfile*(slot: int): bool =
+proc deleteProfile*(slot: int): bool {.moddable.} =
   ## Removes the whole slot folder (all of that profile's save data).
   try:
     if dirExists(getProfileDir(slot)):
@@ -273,7 +274,7 @@ proc deleteProfile*(slot: int): bool =
     echo "Error: could not delete profile ", slot
     false
 
-proc getLastUsedProfileSlot*(): int =
+proc getLastUsedProfileSlot*(): int {.moddable.} =
   ## Slot the player used last session (for preloading settings at boot and
   ## highlighting on the profile-select screen). Defaults to 1.
   result = 1
@@ -286,13 +287,13 @@ proc getLastUsedProfileSlot*(): int =
   except CatchableError:
     echo "Warning: could not read last-used profile slot"
 
-proc setLastUsedProfileSlot*(slot: int) =
+proc setLastUsedProfileSlot*(slot: int) {.moddable.} =
   try:
     writeFile(getLastUsedSlotPath(), pretty(%* {"lastUsedSlot": slot}))
   except CatchableError:
     echo "Warning: could not persist last-used profile slot"
 
-proc migrateLegacySaveFiles*() =
+proc migrateLegacySaveFiles*() {.moddable.} =
   ## One-time conversion from the pre-profile layout: save files that sit
   ## directly in the root data dir are moved into profile 1, which is stamped
   ## with medium difficulty (the balance those saves were played on).
@@ -326,16 +327,16 @@ proc migrateLegacySaveFiles*() =
     echo "Warning: legacy save migration failed: ", e.msg
 
 # Path to the save files
-proc getSettingsPath*(): string =
+proc getSettingsPath*(): string {.moddable.} =
   getAppDataPath() / "settings.json"
 
-proc getStatsPath*(): string =
+proc getStatsPath*(): string {.moddable.} =
   getAppDataPath() / "stats.json"
 
-proc getLastRunStatsPath*(): string =
+proc getLastRunStatsPath*(): string {.moddable.} =
   getAppDataPath() / "last_run.json"
 
-proc deleteLastRunStats*(): bool =
+proc deleteLastRunStats*(): bool {.moddable.} =
   try:
     let savePath = getLastRunStatsPath()
     if fileExists(savePath):
@@ -350,7 +351,7 @@ proc deleteLastRunStats*(): bool =
     return false
 
 # Convert Settings to JSON
-proc settingsToJson*(settings: Settings): JsonNode =
+proc settingsToJson*(settings: Settings): JsonNode {.moddable.} =
   result = %* {
     "fpsLimit": settings.fpsLimit,
     "volume": settings.volume,
@@ -423,7 +424,7 @@ proc settingsToJson*(settings: Settings): JsonNode =
   result["storySeen"] = storyObj
 
 # Load Settings from JSON
-proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
+proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) {.moddable.} =
   if jsonNode.hasKey("fpsLimit"):
     settings.fpsLimit = jsonNode["fpsLimit"].getInt().int32
 
@@ -647,7 +648,7 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
     settings.aimAssistEnabled = jsonNode["aimAssistEnabled"].getBool()
 
 # Save Settings to file
-proc saveSettings*(settings: Settings): bool =
+proc saveSettings*(settings: Settings): bool {.moddable.} =
   let savePath = getSettingsPath()
   try:
     writeFile(savePath, settingsToJson(settings).pretty())
@@ -658,7 +659,7 @@ proc saveSettings*(settings: Settings): bool =
     return false
 
 # Load Settings from file
-proc loadSettings*(settings: Settings): bool =
+proc loadSettings*(settings: Settings): bool {.moddable.} =
   let savePath = getSettingsPath()
   if not fileExists(savePath):
     echo "No save file found at ", savePath, ", using default settings"
@@ -877,7 +878,7 @@ proc comparisonStatsToJson(stats: ComparisonStats): JsonNode =
   }
 
 # Convert RunStatistics to JSON
-proc runStatisticsToJson*(runStats: RunStatistics): JsonNode =
+proc runStatisticsToJson*(runStats: RunStatistics): JsonNode {.moddable.} =
   if runStats.isNil:
     return newJNull()
 
@@ -923,7 +924,7 @@ proc runStatisticsToJson*(runStats: RunStatistics): JsonNode =
   }
 
 # Save last run statistics to file
-proc saveLastRunStats*(runStats: RunStatistics): bool =
+proc saveLastRunStats*(runStats: RunStatistics): bool {.moddable.} =
   try:
     if runStats.isNil:
       echo "No run stats to save"
@@ -1220,7 +1221,7 @@ proc jsonToRunStatistics(j: JsonNode): RunStatistics =
       result.rogueliteRelics.add(relicName.getStr())
 
 # Load last run statistics from file
-proc loadLastRunStats*(): RunStatistics =
+proc loadLastRunStats*(): RunStatistics {.moddable.} =
   try:
     let savePath = getLastRunStatsPath()
     if not fileExists(savePath):

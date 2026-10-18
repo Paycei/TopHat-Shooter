@@ -590,7 +590,7 @@ proc installWorld3dLibrary(base: ScriptTable) =
   t.reg("shake") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## world3d.shake(intensity) -- the camera trembles for `intensity` seconds (max 5)
     let w = vm.requireWorld("world3d.shake")
-    w.camera.shakeTime = clamp(vm.numArg(args, 0, "shake"), 0'f32, 5'f32)
+    w.camera.shakeTime = max(vm.numArg(args, 0, "shake"), 0'f32)
   t.reg("damageBoss") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## world3d.damageBoss(n) -> true if this world has a boss to hurt (its HP is not writable)
     let w = vm.requireWorld("world3d.damageBoss")
@@ -679,8 +679,8 @@ proc installDraw3dLibrary(base: ScriptTable) =
     vm.requireDrawing3D("sphereWires")
     let p = vm.vec3Arg(args, 0, "sphereWires")
     let r = vm.numArg(args, 3, "sphereWires")
-    let rings = clamp(vm.optInt(args, 5, "sphereWires", 8), 3, 64).int32
-    let slices = clamp(vm.optInt(args, 6, "sphereWires", 8), 3, 64).int32
+    let rings = clamp(vm.optInt(args, 5, "sphereWires", 8), 3, 1024).int32   # (geometry built in a loop)
+    let slices = clamp(vm.optInt(args, 6, "sphereWires", 8), 3, 1024).int32
     drawSphereWires(Vector3(x: p.x, y: p.y, z: p.z), r, rings, slices,
                     parseColor(vm, arg(args, 4), "draw3d.sphereWires"))
   t.reg("cylinder") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -689,7 +689,7 @@ proc installDraw3dLibrary(base: ScriptTable) =
     let p = vm.vec3Arg(args, 0, "cylinder")
     let r = vm.numArg(args, 3, "cylinder")
     let h = vm.numArg(args, 4, "cylinder")
-    let slices = clamp(vm.optInt(args, 6, "cylinder", 16), 3, 64).int32
+    let slices = clamp(vm.optInt(args, 6, "cylinder", 16), 3, 1024).int32
     drawCylinder(Vector3(x: p.x, y: p.y - h / 2, z: p.z), r, r, h, slices,
                  parseColor(vm, arg(args, 5), "draw3d.cylinder"))
   t.reg("cylinderWires") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -697,7 +697,7 @@ proc installDraw3dLibrary(base: ScriptTable) =
     let p = vm.vec3Arg(args, 0, "cylinderWires")
     let r = vm.numArg(args, 3, "cylinderWires")
     let h = vm.numArg(args, 4, "cylinderWires")
-    let slices = clamp(vm.optInt(args, 6, "cylinderWires", 16), 3, 64).int32
+    let slices = clamp(vm.optInt(args, 6, "cylinderWires", 16), 3, 1024).int32
     drawCylinderWires(Vector3(x: p.x, y: p.y - h / 2, z: p.z), r, r, h, slices,
                       parseColor(vm, arg(args, 5), "draw3d.cylinderWires"))
   t.reg("line") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -710,7 +710,7 @@ proc installDraw3dLibrary(base: ScriptTable) =
   t.reg("grid") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## draw3d.grid([slices = 10, spacing = 1, y = 0]) -- a grid on the floor plane around the origin
     vm.requireDrawing3D("grid")
-    let slices = clamp(vm.optInt(args, 0, "grid", 10), 1, 500).int32
+    let slices = clamp(vm.optInt(args, 0, "grid", 10), 1, 10_000).int32
     let spacing = vm.optNumArg(args, 1, "grid", 1)
     let y = vm.optNumArg(args, 2, "grid", 0)
     rlgl.pushMatrix()
@@ -807,11 +807,10 @@ proc installDraw3dLibrary(base: ScriptTable) =
     let p = vm.vec3Arg(args, 1, "text")
     let (font, spacing) = vm.textFont(arg(args, 6), "draw3d.text")
     let size = (if font > 0: fontSize(vm.optNum(args, 4, "text", 20)).int32
-                else: clamp(vm.optInt(args, 4, "text", 20), 10, 120).int32)
+                else: clamp(vm.optInt(args, 4, "text", 20), 1, 100_000).int32)
     let color = if arg(args, 5).kind == vkNil: White else: parseColor(vm, arg(args, 5), "draw3d.text")
-    if world3dLabels.len < MaxWorld3DLabels:
-      world3dLabels.add(World3DLabel(pos: p, text: s, size: size, color: color, font: font,
-                                     spacing: spacing))
+    world3dLabels.add(World3DLabel(pos: p, text: s, size: size, color: color, font: font,
+                                   spacing: spacing))
 
   rawSet(base, vstr("draw3d"), vtable(t))
 
@@ -827,3 +826,14 @@ proc installMod3D*(base: ScriptTable) =
   wrapEntity3DImpl = wrapEntityImpl
   wrapProjectile3DImpl = wrapProjectileImpl
   wrapPickup3DImpl = wrapPickupImpl
+  unwrapWorld3DImpl = proc (v: ScriptValue): Game3D {.nimcall.} =
+    if v.kind == vkUserdata and v.ud.cls == worldClass: WorldBox(v.ud.box).w else: nil
+  unwrapEntity3DImpl = proc (v: ScriptValue): Entity3D {.nimcall.} =
+    let b = unwrapEntity(v)
+    if b.isNil: nil else: b.e
+  unwrapProjectile3DImpl = proc (v: ScriptValue): Projectile3D {.nimcall.} =
+    let b = unwrapProjectile(v)
+    if b.isNil: nil else: b.p
+  unwrapPickup3DImpl = proc (v: ScriptValue): Pickup3D {.nimcall.} =
+    let b = unwrapPickup(v)
+    if b.isNil: nil else: b.p

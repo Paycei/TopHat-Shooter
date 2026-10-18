@@ -7,58 +7,59 @@
 ## so the outro reads as a sibling of the intro.
 
 import raylib, rlgl, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../settings, ../save_system, ../skins, ../shapes, ../bullet_skins, ../bullet_shapes, ../enemy, ../enemy_config, icon_drawing, ../utils, ../localization
 
 # Maths / colour helpers
 
-proc clamp01*(v: float32): float32 =
+proc clamp01*(v: float32): float32 {.moddable.} =
   clamp(v, 0.0'f32, 1.0'f32)
 
-proc easeInOut*(t: float32): float32 =
+proc easeInOut*(t: float32): float32 {.moddable.} =
   let x = clamp01(t)
   x * x * (3.0'f32 - 2.0'f32 * x)
 
-proc easeOut*(t: float32): float32 =
+proc easeOut*(t: float32): float32 {.moddable.} =
   let x = clamp01(t)
   1.0'f32 - pow(1.0'f32 - x, 3.0'f32)
 
 proc alphaByte*(v: float32): uint8 = clampByteF(v)  # delegate to utils.clampByteF
 
-proc fractCoord*(value: float32): float32 =
+proc fractCoord*(value: float32): float32 {.moddable.} =
   value - floor(value).float32
 
 proc colorA*(color: Color, alpha: float32): Color = withAlpha(color, alpha)  # delegate to utils.withAlpha
 
 # Equipped cosmetics (mirrors what the player has selected in the shop)
 
-proc equippedSkin*(): SkinType =
+proc equippedSkin*(): SkinType {.moddable.} =
   if globalSettings.isNil:
     skDefault
   else:
     SkinType(clamp(globalSettings.playerSkin, ord(low(SkinType)), ord(high(SkinType))))
 
-proc equippedShape*(): ShapeType =
+proc equippedShape*(): ShapeType {.moddable.} =
   if globalSettings.isNil:
     shHexagon
   else:
     ShapeType(clamp(globalSettings.playerShape, ord(low(ShapeType)), ord(high(ShapeType))))
 
-proc equippedBulletSkin*(): BulletSkinType =
+proc equippedBulletSkin*(): BulletSkinType {.moddable.} =
   if globalSettings.isNil:
     bskDefault
   else:
     BulletSkinType(clamp(globalSettings.bulletSkin, ord(low(BulletSkinType)), ord(high(BulletSkinType))))
 
-proc equippedBulletShape*(): BulletShapeType =
+proc equippedBulletShape*(): BulletShapeType {.moddable.} =
   if globalSettings.isNil:
     bshCircle
   else:
     BulletShapeType(clamp(globalSettings.bulletShape, ord(low(BulletShapeType)), ord(high(BulletShapeType))))
 
 proc drawEquippedPlayerModel*(pos: Vector2f, radius: float32, time: float32,
-                             alpha: float32 = 1.0'f32, glowBoost: float32 = 0.0'f32) =
+                             alpha: float32 = 1.0'f32, glowBoost: float32 = 0.0'f32) {.moddable.} =
   let pulse = sin(time * 2.0'f32) * 0.5'f32 + 0.5'f32
   let rotation = time * 0.5'f32
   let (primary, secondary, core) = getSkinColors(equippedSkin(), time)
@@ -69,7 +70,7 @@ proc drawEquippedPlayerModel*(pos: Vector2f, radius: float32, time: float32,
                   time, rotation, pulse, 0.4'f32 + pulse * 0.2'f32 + glowBoost)
 
 proc drawKernelModel*(pos: Vector2f, radius: float32, time: float32,
-                     boot: float32, alpha: float32 = 1.0'f32, hat: bool = true) =
+                     boot: float32, alpha: float32 = 1.0'f32, hat: bool = true) {.moddable.} =
   ## The TOPHAT kernel itself: a hexagonal core wrapped in counter-rotating
   ## containment arcs. `boot` (0..1) drives the wake-up, the shell scales in,
   ## the core lens charges, and the tophat drops on as the final stage.
@@ -119,7 +120,7 @@ proc drawKernelModel*(pos: Vector2f, radius: float32, time: float32,
     drawTopHat(hatPos, r, time, alpha * hatT)
 
 proc drawEquippedBulletModel*(pos: Vector2f, radius: float32, travelAngle: float32,
-                             time: float32, alpha: float32 = 1.0'f32) =
+                             time: float32, alpha: float32 = 1.0'f32) {.moddable.} =
   let (primary, glow, trail) = getBulletSkinColors(equippedBulletSkin(), time)
   for i in 1..4:
     let tx = pos.x - cos(travelAngle) * i.float32 * radius * 1.45'f32
@@ -132,7 +133,7 @@ proc drawEquippedBulletModel*(pos: Vector2f, radius: float32, travelAngle: float
                         colorA(glow, alpha * glow.a.float32))
 
 proc cinematicEnemy*(enemyType: EnemyType, x, y: float32, difficulty: float32 = 12.0'f32,
-                    id: int = 0, threat: int = 0): Enemy =
+                    id: int = 0, threat: int = 0): Enemy {.moddable.} =
   var dummyGame = Game(nextEnemyId: id)
   result = newEnemy(x, y, difficulty, enemyType, dummyGame)
   result.id = id
@@ -145,7 +146,7 @@ proc cinematicEnemy*(enemyType: EnemyType, x, y: float32, difficulty: float32 = 
   result.threatLevel = threat
 
 proc drawRealEnemy*(enemyType: EnemyType, x, y, radius, time: float32,
-                   id: int = 0, threat: int = 0, vel: Vector2f = newVector2f(0, 0)) =
+                   id: int = 0, threat: int = 0, vel: Vector2f = newVector2f(0, 0)) {.moddable.} =
   let config = getEnemyConfig(enemyType)
   let e = cinematicEnemy(enemyType, x, y, 18.0'f32, id, threat)
   e.radius = radius
@@ -156,13 +157,13 @@ proc drawRealEnemy*(enemyType: EnemyType, x, y, radius, time: float32,
   e.dashTimer = if enemyType == etTriangle: 0.35'f32 else: e.dashTimer
   drawEnemy(e)
 
-proc newCinematicBoss*(bossId: int, screenWidth, screenHeight: int32): Enemy =
+proc newCinematicBoss*(bossId: int, screenWidth, screenHeight: int32): Enemy {.moddable.} =
   ## Boss `bossId` built once for a shot to pose; draw it with drawCinematicBoss.
   ## Campaign bosses use their own wave slot so they wear their real kit.
   spawnBossById(screenWidth, screenHeight, bossId, max(5, bossId * 5))
 
 proc drawCinematicBoss*(boss: Enemy, x, y, radius: float32,
-                        hpFraction: float32 = 1.0'f32, phaseIndex: int = 0) =
+                        hpFraction: float32 = 1.0'f32, phaseIndex: int = 0) {.moddable.} =
   boss.pos = newVector2f(x, y)
   boss.targetPos = boss.pos
   boss.startPos = boss.pos
@@ -175,14 +176,14 @@ proc drawCinematicBoss*(boss: Enemy, x, y, radius: float32,
   drawEnemy(boss)
 
 proc drawRealBossModel*(x, y, radius, time: float32, screenWidth, screenHeight: int32,
-                        hpFraction: float32 = 0.16'f32, phaseIndex: int = 3) =
+                        hpFraction: float32 = 0.16'f32, phaseIndex: int = 3) {.moddable.} =
   ## Root itself (boss 12), built fresh for a one-off draw.
   drawCinematicBoss(spawnBoss(screenWidth, screenHeight, 25.0'f32, 12, 60),
                     x, y, radius, hpFraction, phaseIndex)
 
 # Text / atmosphere
 
-proc drawCenteredText*(text: string, x, y: int32, size: int32, color: Color) =
+proc drawCenteredText*(text: string, x, y: int32, size: int32, color: Color) {.moddable.} =
   let w = measureText(text, size)
   drawText(text, x - w div 2, y, size, color)
 
@@ -207,7 +208,7 @@ const
   CaptionLineGap = 0.2'f32      # pause between finishing one line and starting the next
   CaptionMaxShare = 0.5'f32     # all lines finish within this share of the shot
 
-proc fitFontSize*(text: string, maxW, preferred: int32, minSize: int32 = 10): int32 =
+proc fitFontSize*(text: string, maxW, preferred: int32, minSize: int32 = 10): int32 {.moddable.} =
   result = preferred
   while result > minSize and measureText(text, result) > maxW:
     dec result
@@ -225,7 +226,7 @@ proc drawSpeakerChip(name: string, cx, y: int32, alpha: float32) =
   drawText(name, x + 28, y + 4, size, colorA(captionAccent, alpha * 235.0'f32))
 
 proc drawSubtitles*(lines: openArray[string], screenWidth, screenHeight: int32,
-                   alpha: float32) =
+                   alpha: float32) {.moddable.} =
   ## Captions type out left to right behind a blinking block cursor, like the
   ## incident log they are read from. Each line is laid out at its FINAL centered
   ## position, so the text never slides while it types.
@@ -282,7 +283,7 @@ proc drawSubtitles*(lines: openArray[string], screenWidth, screenHeight: int32,
     lineStart = lineEnd + CaptionLineGap
 
 proc drawSubtitlesFrom*(lines: openArray[string], startAt: float32,
-                        screenWidth, screenHeight: int32, alpha: float32) =
+                        screenWidth, screenHeight: int32, alpha: float32) {.moddable.} =
   ## drawSubtitles held back until `startAt` into the shot, so a caption can
   ## follow the beat it explains instead of spoiling it.
   if captionClock < 0.0'f32:
@@ -298,7 +299,7 @@ proc drawSubtitlesFrom*(lines: openArray[string], startAt: float32,
   captionClock = clock
   captionShotDuration = duration
 
-proc drawFilmGrain*(screenWidth, screenHeight: int32, time: float32, alpha: float32) =
+proc drawFilmGrain*(screenWidth, screenHeight: int32, time: float32, alpha: float32) {.moddable.} =
   var i = 0
   while i < 150:
     let seed = i.float32 * 19.31'f32 + floor(time * 18.0'f32) * 7.13'f32
@@ -309,7 +310,7 @@ proc drawFilmGrain*(screenWidth, screenHeight: int32, time: float32, alpha: floa
     inc i
 
 proc drawDataRain*(screenWidth, screenHeight: int32, time, intensity: float32,
-                   color: Color = Color(r: 0, g: 235, b: 210, a: 255)) =
+                   color: Color = Color(r: 0, g: 235, b: 210, a: 255)) {.moddable.} =
   var col = 0
   while col < screenWidth div 18 + 2:
     let x = (col * 18).int32 + int32(sin(col.float32 * 3.7'f32) * 4.0'f32)
@@ -324,7 +325,7 @@ proc drawDataRain*(screenWidth, screenHeight: int32, time, intensity: float32,
     inc col
 
 proc drawTapeChange*(screenWidth, screenHeight: int32, local: float32,
-                    frame: int, time: float32) =
+                    frame: int, time: float32) {.moddable.} =
   ## Brief VHS "channel switch" burst at the start of each shot. Transient by
   ## design (~0.18s) so it punctuates cuts without fighting the scene or subtitles.
   const window = 0.18'f32
@@ -402,7 +403,7 @@ proc drawCinematicOverlay*(screenWidth, screenHeight: int32,
                            time: float32, frame: int, scanlineOffset: float32,
                            totalDuration: float32, shotLabel, liveText: string,
                            iconIndex: int, glitchHot: bool, controls: CinematicControls,
-                           accent: Color = Color(r: 0, g: 230, b: 230, a: 255)) =
+                           accent: Color = Color(r: 0, g: 230, b: 230, a: 255)) {.moddable.} =
   ## The full VHS recorder UI: scanlines, tracking glitches, letterbox bars,
   ## shot label + LIVE marker, and the bottom bar (timeline, then the two hold
   ## actions as keycap chips). `accent` tints the active chrome so each
@@ -465,7 +466,7 @@ const
 
 proc lerpF*(a, b, t: float32): float32 = a + (b - a) * t
 
-proc drawHalo*(centerX, centerY, radius: float32, color: Color, intensity: float32 = 1.0'f32) =
+proc drawHalo*(centerX, centerY, radius: float32, color: Color, intensity: float32 = 1.0'f32) {.moddable.} =
   ## A glow that fades to nothing at its rim. background_fx.drawSoftGlow keeps
   ## its outermost disc at full alpha, which reads as a hard-edged plate at the
   ## sizes a cinematic uses; this spreads the same light over more, fainter
@@ -478,18 +479,18 @@ proc drawHalo*(centerX, centerY, radius: float32, color: Color, intensity: float
     let a = color.a.float32 * intensity * 0.32'f32 * (1.0'f32 - t + 1.0'f32 / layers.float32)
     drawDisc(Vector2(x: centerX, y: centerY), radius * t, withAlpha(color, alphaByte(a)))
 
-proc hash01*(n: float32): float32 =
+proc hash01*(n: float32): float32 {.moddable.} =
   ## Deterministic 0..1 noise so the staging is identical on every playback.
   fractCoord(sin(n * 12.9898'f32) * 43758.5453'f32)
 
-proc triAny*(a, b, c: Vector2, col: Color) =
+proc triAny*(a, b, c: Vector2, col: Color) {.moddable.} =
   ## Winding-safe triangle: raylib culls one winding.
   let cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
   if cross < 0.0'f32: drawTriangle(a, b, c, col)
   else: drawTriangle(a, c, b, col)
 
 proc drawStoryWindow*(x, y, w, h: float32, title: string, alpha: float32,
-                      iconColor: Color = ChromeCyan, border: Color = ChromeCyan) =
+                      iconColor: Color = ChromeCyan, border: Color = ChromeCyan) {.moddable.} =
   ## A focused TopHat-ShooterOS window, as drawWindowChrome draws one.
   let xi = x.int32
   let yi = y.int32
@@ -512,7 +513,7 @@ proc drawStoryWindow*(x, y, w, h: float32, title: string, alpha: float32,
   drawRectangle(minX + 5, yi + 19, 10, 2, Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 255.0'f32)))
 
 proc drawStoryButton*(x, y, w, h: float32, label: string, alpha: float32,
-                      pressed: bool = false, primary: bool = false) =
+                      pressed: bool = false, primary: bool = false) {.moddable.} =
   let xi = x.int32 + (if pressed: 1'i32 else: 0'i32)
   let yi = y.int32 + (if pressed: 1'i32 else: 0'i32)
   let fill =
@@ -527,7 +528,7 @@ proc drawStoryButton*(x, y, w, h: float32, label: string, alpha: float32,
   drawCenteredText(label, xi + w.int32 div 2, yi + (h.int32 - size) div 2, size,
                    Color(r: 240, g: 250, b: 255, a: alphaByte(alpha * 255.0'f32)))
 
-proc drawStoryProgress*(x, y, w, h, frac, alpha: float32, color: Color = ChromeCyan) =
+proc drawStoryProgress*(x, y, w, h, frac, alpha: float32, color: Color = ChromeCyan) {.moddable.} =
   let xi = x.int32
   let yi = y.int32
   drawRectangle(xi, yi, w.int32, h.int32, Color(r: 12, g: 18, b: 26, a: alphaByte(alpha * 235.0'f32)))
@@ -537,7 +538,7 @@ proc drawStoryProgress*(x, y, w, h, frac, alpha: float32, color: Color = ChromeC
                            colorA(color, alpha * 150.0'f32))
   drawRectOutline(xi, yi, w.int32, h.int32, Color(r: 70, g: 120, b: 130, a: alphaByte(alpha * 200.0'f32)))
 
-proc drawStoryPointer*(x, y, alpha: float32, pressed: bool = false) =
+proc drawStoryPointer*(x, y, alpha: float32, pressed: bool = false) {.moddable.} =
   ## A plain OS arrow pointer; it dips a pixel while clicking.
   let d = if pressed: 1.0'f32 else: 0.0'f32
   let tip = Vector2(x: x + d, y: y + d)
@@ -547,14 +548,14 @@ proc drawStoryPointer*(x, y, alpha: float32, pressed: bool = false) =
          Vector2(x: b.x + 2.5'f32, y: b.y + 1.0'f32), Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * 220.0'f32)))
   triAny(tip, a, b, Color(r: 245, g: 245, b: 245, a: alphaByte(alpha * 255.0'f32)))
 
-proc revealOver*(local, startAt, dur: float32): float32 =
+proc revealOver*(local, startAt, dur: float32): float32 {.moddable.} =
   ## 0..1 progress of a line that types out from `startAt` over `dur` seconds.
   ## Fixed durations (not characters per second) keep the typing landing on
   ## the score's beep whatever the language.
   clamp01((local - startAt) / dur)
 
 proc drawOldText*(text: string, x, y: int32, size: int32, reveal, local, alpha: float32,
-                  color: Color = OldAmber, centered: bool = true, cursor: bool = true) =
+                  color: Color = OldAmber, centered: bool = true, cursor: bool = true) {.moddable.} =
   ## Root's voice: phosphor text with a block cursor, typed out by `reveal`.
   ## Laid out at its final position so it never slides while it types.
   if alpha <= 0.0'f32:
@@ -572,7 +573,7 @@ proc drawOldText*(text: string, x, y: int32, size: int32, reveal, local, alpha: 
       cx += max(measureText("a a", size) - measureText("aa", size), size div 4)
     drawRectangle(cx, y + 1, max(4'i32, size div 2), size - 2, colorA(color, alpha * 230.0'f32))
 
-proc drawCrashPanel*(sw, sh: int32, alpha, time: float32) =
+proc drawCrashPanel*(sw, sh: int32, alpha, time: float32) {.moddable.} =
   ## The game's own crash screen, condensed: same blue, same sad face, same text.
   drawRectangle(0, 0, sw, sh, Color(r: 12, g: 35, b: 68, a: alphaByte(alpha * 250.0'f32)))
   for i in 0..<(sh div 4):
@@ -602,13 +603,13 @@ proc drawCrashPanel*(sw, sh: int32, alpha, time: float32) =
   drawText(code, px + 66, py + 158, fitFontSize(code, pw - 110, 14),
            Color(r: 230, g: 235, b: 245, a: alphaByte(alpha * 255.0'f32)))
 
-proc serviceWindowHeight*(rows: int): float32 =
+proc serviceWindowHeight*(rows: int): float32 {.moddable.} =
   30.0'f32 + 34.0'f32 + rows.float32 * 27.0'f32 + 10.0'f32
 
 proc drawServiceWindow*(x, y, w: float32, title, colService, colOwner: string,
                         names: openArray[string], flipTimes: openArray[float32],
                         local, alpha: float32,
-                        fromOwner, toOwner: string, fromColor, toColor: Color) =
+                        fromOwner, toOwner: string, fromColor, toColor: Color) {.moddable.} =
   ## TOPHAT's service list with an owner column. Row i changes owner from
   ## `fromOwner` to `toOwner` at `flipTimes[i]`, with a flash. Act I uses it
   ## for the hijack (tophat -> root), Act II for the return (root -> tophat).
@@ -630,7 +631,7 @@ proc drawServiceWindow*(x, y, w: float32, title, colService, colOwner: string,
     drawText(if flipped: toOwner else: fromOwner, ownerX, ry, 17,
              colorA(if flipped: toColor else: fromColor, alpha * 255.0'f32))
 
-proc beginStoryCamera*(focusX, focusY, screenX, screenY, scale: float32) =
+proc beginStoryCamera*(focusX, focusY, screenX, screenY, scale: float32) {.moddable.} =
   ## Film a full-screen scene (the desktop) as footage: the scene point
   ## (focusX, focusY) lands on (screenX, screenY), scaled by `scale`. Moving
   ## the focus and scale over a shot pushes the camera in. Pair with
@@ -640,10 +641,10 @@ proc beginStoryCamera*(focusX, focusY, screenX, screenY, scale: float32) =
   scalef(scale, scale, 1.0'f32)
   translatef(-focusX, -focusY, 0.0'f32)
 
-proc endStoryCamera*() =
+proc endStoryCamera*() {.moddable.} =
   popMatrix()
 
-proc drawFootageFrame*(sw, sh: int32, scale, alpha: float32) =
+proc drawFootageFrame*(sw, sh: int32, scale, alpha: float32) {.moddable.} =
   ## Inside a story camera: the edge of the filmed screen.
   drawRectOutline(Rectangle(x: 0.0'f32, y: 0.0'f32, width: sw.float32, height: sh.float32),
                   2.0'f32 / max(0.1'f32, scale), Color(r: 90, g: 150, b: 170, a: alphaByte(alpha * 150.0'f32)))

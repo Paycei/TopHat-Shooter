@@ -2,6 +2,7 @@
 ## Two phases: BIOS amber POST -> kernel model reveal with title and press-any-key.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import particle_types, ../localization, ../hardware_info, ../shapes, ../sound, background_fx, cinematic_common
 
@@ -402,7 +403,7 @@ proc drawSplashComplete(splash: SplashScreen, sw, sh: int32) =
 # ---------------------------------------------------------------------------
 # Public API
 
-proc newSplashScreen*(): SplashScreen =
+proc newSplashScreen*(): SplashScreen {.moddable.} =
   let (lines, ramMB) = buildBiosLines()  # detect real hardware once, at construction
   SplashScreen(
     phase: bpBIOS, timer: 0, phaseTimer: 0,
@@ -416,7 +417,7 @@ proc handOffToKernel(splash: SplashScreen) =
   splash.phaseTimer = 0
   playSound(stMenuSelect, 0.55'f32, 0.9'f32)  # boot handoff blip
 
-proc fastForwardSplash*(splash: SplashScreen) =
+proc fastForwardSplash*(splash: SplashScreen) {.moddable.} =
   ## Any key during the boot fast-forwards it: skip the rest of the POST, then
   ## snap the kernel reveal to its settled (press-any-key) state.
   case splash.phase
@@ -426,7 +427,7 @@ proc fastForwardSplash*(splash: SplashScreen) =
   of bpComplete:
     splash.phaseTimer = max(splash.phaseTimer, 1.5'f32 * 0.85'f32)
 
-proc updateSplashScreen*(splash: SplashScreen, dt: float32) =
+proc updateSplashScreen*(splash: SplashScreen, dt: float32) {.moddable.} =
   splash.timer          += dt
   splash.scanlineOffset += dt * 90.0'f32
   splash.phaseTimer     += dt
@@ -455,7 +456,7 @@ proc updateSplashScreen*(splash: SplashScreen, dt: float32) =
     if splash.kernelBoot >= 0.85'f32:
       splash.complete = true  # enable skip only once "press any key" is visible
 
-proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
+proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) {.moddable.} =
   let sw = screenWidth.int32
   let sh = screenHeight.int32
   case splash.phase

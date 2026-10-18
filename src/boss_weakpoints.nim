@@ -1,4 +1,5 @@
 import math, random, raylib
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, utils
 
@@ -25,7 +26,7 @@ proc effectiveWeakKind(enemy: Enemy): BossWeakObjectiveKind =
   else:
     enemy.weakPoint.kind
 
-proc initBossWeakPointState*(spec: BossWeakPointDefinition, bossId: int): BossWeakPointState =
+proc initBossWeakPointState*(spec: BossWeakPointDefinition, bossId: int): BossWeakPointState {.moddable.} =
   result.enabled = spec.kind != bwoNone
   result.kind = spec.kind
   result.targets = @[]
@@ -47,7 +48,7 @@ proc initBossWeakPointState*(spec: BossWeakPointDefinition, bossId: int): BossWe
   result.lastBossPos = newVector2f(0, 0)
 
 proc resetBossWeakPointForPhase*(enemy: Enemy, spec: BossWeakPointDefinition,
-                                 phaseIndex: int, delay: float32 = 0.6'f32) =
+                                 phaseIndex: int, delay: float32 = 0.6'f32) {.moddable.} =
   if not enemy.isBoss:
     return
 
@@ -327,7 +328,7 @@ proc updateTargetPositions(enemy: Enemy, dt: float32) =
     i += 1
 
 proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos: Vector2f,
-                          screenWidth, screenHeight: int32, dt: float32) =
+                          screenWidth, screenHeight: int32, dt: float32) {.moddable.} =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return
 
@@ -408,7 +409,7 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
   enemy.weakPoint.lastDashActive = enemy.isDashing
 
 proc resolveBossWeakPointTargetHit*(enemy: Enemy, bulletPos: Vector2f,
-                                    bulletRadius: float32): BossWeakPointHitResult =
+                                    bulletRadius: float32): BossWeakPointHitResult {.moddable.} =
   result.pos = bulletPos
   if not enemy.isBoss or not enemy.weakPoint.enabled or enemy.weakPoint.exposedTimer > 0:
     return
@@ -453,7 +454,7 @@ proc resolveBossWeakPointTargetHit*(enemy: Enemy, bulletPos: Vector2f,
       result.bonusDamage = completion.bonusDamage
       return
 
-proc registerBossSatelliteDestroyed*(enemy: Enemy): float32 =
+proc registerBossSatelliteDestroyed*(enemy: Enemy): float32 {.moddable.} =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return 0.0'f32
 
@@ -466,7 +467,7 @@ proc registerBossSatelliteDestroyed*(enemy: Enemy): float32 =
   let completion = completeObjectiveHit(enemy)
   completion.bonusDamage
 
-proc openBossSummonWindow*(enemy: Enemy): tuple[opened: bool, bonusDamage: float32] =
+proc openBossSummonWindow*(enemy: Enemy): tuple[opened: bool, bonusDamage: float32] {.moddable.} =
   ## Called when the last Royal Guard of the Summoner King's legion falls.
   ## Opens the vulnerability window directly (no orbit targets / per-hit progress),
   ## which is what makes this boss's objective distinct: slay the guards, not the sigils.
@@ -483,10 +484,10 @@ proc openBossSummonWindow*(enemy: Enemy): tuple[opened: bool, bonusDamage: float
   openVulnerabilityWindow(enemy, dur)
   (true, bonusDamage)
 
-proc bossWeakPointCoreHit*(enemy: Enemy, bulletPos: Vector2f, bulletRadius: float32): bool =
+proc bossWeakPointCoreHit*(enemy: Enemy, bulletPos: Vector2f, bulletRadius: float32): bool {.moddable.} =
   false
 
-proc bossWeakPointDamageMultiplier*(enemy: Enemy, source: BossWeakDamageSource): float32 =
+proc bossWeakPointDamageMultiplier*(enemy: Enemy, source: BossWeakDamageSource): float32 {.moddable.} =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return 1.0'f32
 
@@ -495,7 +496,7 @@ proc bossWeakPointDamageMultiplier*(enemy: Enemy, source: BossWeakDamageSource):
 
   max(0.05'f32, enemy.weakPoint.bodyDamageMultiplier)
 
-proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
+proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) {.moddable.} =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return
 

@@ -10,6 +10,7 @@
 ## mtStoryRootAccess score in sound.nim.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import particle_types, background_fx, ../types, ../shapes, ../localization, ../sound,
        ../boss_definitions, cinematic_common, cutscene
@@ -246,7 +247,7 @@ proc endgameBackdrop(time, totalDuration: float32, sw, sh: int32) =
 # ---------------------------------------------------------------------------
 # Public factory
 
-proc newEndgameCutscene*(): Cutscene =
+proc newEndgameCutscene*(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: RootAccessShots[0], drawProc: newCutOffShot(), soundCue: stExplosion,
@@ -276,8 +277,8 @@ type EndgameCinematic* = Cutscene
 
 proc newEndgameCinematic*(): EndgameCinematic = newEndgameCutscene()
 
-proc updateEndgameCinematic*(endg: EndgameCinematic, dt: float32) =
+proc updateEndgameCinematic*(endg: EndgameCinematic, dt: float32) {.moddable.} =
   updateCutscene(endg, dt)
 
-proc drawEndgameCinematic*(endg: EndgameCinematic, screenWidth, screenHeight: int) =
+proc drawEndgameCinematic*(endg: EndgameCinematic, screenWidth, screenHeight: int) {.moddable.} =
   drawCutscene(endg, screenWidth, screenHeight)

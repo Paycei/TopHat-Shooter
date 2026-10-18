@@ -1,6 +1,7 @@
 ## OS-themed advancement tracker window.
 
 import raylib, strutils, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../advancement, ../render_context, ../localization, ../types, ../roguelite, ../utils, ui_helpers
 import ui_theme
@@ -67,7 +68,7 @@ proc rowForDef(rows: seq[AdvRow], defIndex: int): AdvRow =
       return row
   AdvRow(kind: arkCard, defIndex: -1, y: 0, h: 0)
 
-proc tierColor*(tier: AdvancementTier): Color =
+proc tierColor*(tier: AdvancementTier): Color {.moddable.} =
   case tier
   of atBronze:
     Color(r: 190, g: 120, b: 70, a: 255)
@@ -203,7 +204,7 @@ proc hoverEnabled(advWin: AdvancementsWindow, mousePos: Vector2): bool =
   not advWin.isNil and not advWin.window.isNil and advWin.window.focused and
     isPointInWindow(advWin.window, mousePos.x, mousePos.y)
 
-proc payoutText*(def: AdvancementDefinition): string =
+proc payoutText*(def: AdvancementDefinition): string {.moddable.} =
   ## Human-readable claim payout, e.g. "+90 Shards" or "+200 Shards, +1 Cores".
   result = "+" & $def.rewardShards & " " & t("roguelite_shards_short")
   if def.rewardCores > 0:
@@ -216,7 +217,7 @@ proc saveClaimedProfiles(advWin: AdvancementsWindow) =
 
 proc newAdvancementsWindow*(screenWidth, screenHeight: int,
                             profile: AdvancementProfile,
-                            rogueliteProfile: RogueliteProfile): AdvancementsWindow =
+                            rogueliteProfile: RogueliteProfile): AdvancementsWindow {.moddable.} =
   let windowWidth = 940
   let windowHeight = 660
   let windowX = (screenWidth - windowWidth) div 2
@@ -259,7 +260,7 @@ proc ensureSelection(advWin: AdvancementsWindow) =
 
 proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
                                screenWidth, screenHeight: int,
-                               allWindows: openArray[OSWindow]): bool =
+                               allWindows: openArray[OSWindow]): bool {.moddable.} =
   if advWin.isNil or advWin.window.isNil:
     return false
 
@@ -493,7 +494,7 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
     let pct = $int(ratio * 100.0'f32) & "%"
     drawText(pct, (x + width - 58).int32, (barY - 3).int32, 12, uiInk(statusColor(entry)))
 
-proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
+proc drawAdvancementsWindow*(advWin: AdvancementsWindow) {.moddable.} =
   if advWin.isNil or advWin.window.isNil or not advWin.window.visible:
     return
 

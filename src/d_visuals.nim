@@ -1,9 +1,10 @@
 import raylib, math, strutils
+import modding/mod_patch_core
 import draw_prims
 import types, d_systems, localization, utils
 
 proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
-                          currentTime: float32, posX, posY: int32) =
+                          currentTime: float32, posX, posY: int32) {.moddable.} =
   ## Draw combo display at a custom position (used for power-up select screen)
   if not shouldShowCombo(combo):
     return
@@ -131,14 +132,14 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
 
   drawRectangle(barX, barY, barFillWidth, barHeight, barColor)
 
-proc drawCombo*(combo: ComboSystem, screenWidth, screenHeight: int32, currentTime: float32) =
+proc drawCombo*(combo: ComboSystem, screenWidth, screenHeight: int32, currentTime: float32) {.moddable.} =
   ## Default combo display in middle-right of screen
   let baseX = screenWidth - 120
   let baseY = screenHeight div 2
   drawComboAtPosition(combo, screenWidth, screenHeight, currentTime, baseX, baseY)
 
 # MICRO-REWARD DISPLAY
-proc drawMicroRewards*(tracker: MicroRewardTracker) =
+proc drawMicroRewards*(tracker: MicroRewardTracker) {.moddable.} =
   # Micro-rewards are now very subtle - just small text floating up
   for reward in tracker.rewards:
     if reward.displayTimer <= 0:
@@ -164,7 +165,7 @@ proc drawMicroRewards*(tracker: MicroRewardTracker) =
 # Shows for the first 1.5 s of each wave.
 proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
                            screenWidth, screenHeight: int32,
-                           isBossWarning: bool = false) =
+                           isBossWarning: bool = false) {.moddable.} =
   const SHOW_DURATION = 1.5
   const SLIDE_TIME    = 0.22
   if waveAge < 0 or waveAge > SHOW_DURATION:
@@ -217,7 +218,7 @@ proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
 # gutterX/gutterW describe the right gutter (x start and width) in virtual coords.
 proc drawWaveStartBannerGutter*(waveNumber: int, waveAge: float32,
                                 gutterX, gutterW, topY: int32,
-                                isBossWarning: bool = false): int32 =
+                                isBossWarning: bool = false): int32 {.moddable.} =
   ## Compact vertical card in the right gutter. Returns the next stack Y (== topY
   ## when nothing is drawn) so the caller can flow the column from a running cursor.
   const SHOW_DURATION = 1.5
@@ -296,7 +297,7 @@ proc wrapBannerText(text: string, maxWidth, fontSize: int32): seq[string] =
     result.add(line)
 
 proc drawLabelBanner*(title, subtitle: string, age: float32, screenWidth, topY: int32,
-                      accent: Color, duration: float32 = 2.4'f32) =
+                      accent: Color, duration: float32 = 2.4'f32) {.moddable.} =
   ## A centered pill that drops in under `topY`: a bold title and an optional
   ## one-line subtitle, edged in `accent`.
   let ease = bannerEase(age, duration)
@@ -324,7 +325,7 @@ proc drawLabelBanner*(title, subtitle: string, age: float32, screenWidth, topY: 
 
 proc drawLabelBannerGutter*(title, subtitle: string, age: float32,
                             gutterX, gutterW, topY: int32, accent: Color,
-                            duration: float32 = 2.4'f32): int32 =
+                            duration: float32 = 2.4'f32): int32 {.moddable.} =
   ## Widescreen right-gutter variant: a card that slides in from the right with
   ## the title and subtitle wrapped to the gutter. Returns the next stack Y
   ## (== topY when nothing is drawn).
@@ -363,7 +364,7 @@ proc drawLabelBannerGutter*(title, subtitle: string, age: float32,
 # scale/pulse feel, a decay/timer bar underneath, and tier-escalating colors.
 # Styled to match the OS border-HUD language (dark bg, accent stripe, thin edge).
 proc drawComboGutterCard*(combo: ComboSystem, gutterX, gutterW, topY: int32,
-                          currentTime: float32) =
+                          currentTime: float32) {.moddable.} =
   if not shouldShowCombo(combo):
     return
   let multiplier = getComboMultiplier(combo)

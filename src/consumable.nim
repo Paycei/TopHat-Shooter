@@ -1,4 +1,5 @@
 import raylib, random, math
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, utils
 import modding/mod_registry
@@ -205,7 +206,7 @@ proc drawLifestealIcon(cx, cy: int32, size: float32) =
     brightRed
   )
 
-proc drawConsumableIcon*(x, y, radius: float32, cType: ConsumableType, pulse: float32) =
+proc drawConsumableIcon*(x, y, radius: float32, cType: ConsumableType, pulse: float32) {.moddable.} =
   ## Central icon dispatcher with pulse animation
   let size = radius * pulse
   let cx = x.int32
@@ -235,7 +236,7 @@ proc drawConsumableIcon*(x, y, radius: float32, cType: ConsumableType, pulse: fl
   of ctMod:
     discard   # drawn by drawConsumable (its look lives on the mod's registration)
 
-proc newConsumable*(x, y: float32, difficulty: float32, mode = gmWaveBased): Consumable =
+proc newConsumable*(x, y: float32, difficulty: float32, mode = gmWaveBased): Consumable {.moddable.} =
   # Weighted selection based on difficulty. Mod consumables (register.consumable)
   # add their weights on top of the game's 100.
   let modWeight = if consumableDefs.len > 0: modConsumableWeight(mode) else: 0'f32
@@ -277,7 +278,7 @@ proc newConsumable*(x, y: float32, difficulty: float32, mode = gmWaveBased): Con
     lifetime: 15.0
   )
 
-proc newSpecificConsumable*(x, y: float32, cType: ConsumableType): Consumable =
+proc newSpecificConsumable*(x, y: float32, cType: ConsumableType): Consumable {.moddable.} =
   ## Create a consumable of a specific type (for boss drops, etc.)
   result = Consumable(
     pos: newVector2f(x, y),
@@ -286,7 +287,7 @@ proc newSpecificConsumable*(x, y: float32, cType: ConsumableType): Consumable =
     lifetime: 15.0
   )
 
-proc updateConsumable*(consumable: Consumable, dt: float32): bool =
+proc updateConsumable*(consumable: Consumable, dt: float32): bool {.moddable.} =
   consumable.lifetime -= dt
   return consumable.lifetime > 0
 
@@ -305,7 +306,7 @@ proc getConsumableColor(cType: ConsumableType): Color =
   of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)       # Dark red
   of ctMod: Color(r: 200, g: 200, b: 200, a: 255)         # (its registered colour, see drawConsumable)
 
-proc drawConsumable*(consumable: Consumable) =
+proc drawConsumable*(consumable: Consumable) {.moddable.} =
   let t = getTime()
   let pulse = 1.0 + 0.15 * sin(t * 6.0)
   let size = consumable.radius * pulse
@@ -352,14 +353,14 @@ proc drawConsumable*(consumable: Consumable) =
   drawConsumableIcon(consumable.pos.x, consumable.pos.y,
                     consumable.radius, consumable.consumableType, pulse)
 
-proc checkPlayerCollision*(consumable: Consumable, player: Player): bool =
+proc checkPlayerCollision*(consumable: Consumable, player: Player): bool {.moddable.} =
   distance(consumable.pos, player.pos) < consumable.radius + player.radius
 
-proc isInPlayerAura*(consumable: Consumable, player: Player): bool =
+proc isInPlayerAura*(consumable: Consumable, player: Player): bool {.moddable.} =
   # Check if consumable is within player's collection aura
   distance(consumable.pos, player.pos) < player.auraRadius
 
-proc moveConsumableToPlayer*(consumable: Consumable, playerPos: Vector2f, dt: float32) =
+proc moveConsumableToPlayer*(consumable: Consumable, playerPos: Vector2f, dt: float32) {.moddable.} =
   let dir = (playerPos - consumable.pos).normalize()
   let pullSpeed = 300.0
   consumable.pos = consumable.pos + dir * pullSpeed * dt

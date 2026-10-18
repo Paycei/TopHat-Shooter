@@ -2,6 +2,7 @@
 ## Game Over as Modern System Crash, Victory as System Secured
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../localization, ../render_context, ../utils, ../survival
 from ../roguelite import RogueliteFloorsToWin
@@ -185,7 +186,7 @@ proc composeDeathCause(game: Game): tuple[verb: string, killer: string, isBoss: 
 
 proc drawSystemCrash*(game: Game, selectedButton: int = 0,
                       showContinue: bool = false, continueAt: int = 1,
-                      livesUsed: int = 0, continueLabel: string = "") =
+                      livesUsed: int = 0, continueLabel: string = "") {.moddable.} =
   ## Draw the enhanced Game Over screen as a modern system crash.
   ## Without a checkpoint: 0=Restart, 1=Stats, 2=Exit.
   ## With a checkpoint (showContinue): 0=Continue, 1=Restart, 2=Stats, 3=Exit.
@@ -431,7 +432,7 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
           Color(r: 180, g: 190, b: 200, a: 255))
 
-proc drawSystemSecured*(game: Game, selectedButton: int = 0) =
+proc drawSystemSecured*(game: Game, selectedButton: int = 0) {.moddable.} =
   ## Draw the wave-60 final-boss Victory screen as "system secured" (and, with
   ## survival text, the 20:00 survival win as "system stabilized").
   ## selectedButton: 0=Continue Endless / Enter Overtime, 1=View Stats,

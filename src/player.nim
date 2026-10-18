@@ -1,4 +1,5 @@
 import raylib, math, random, std/deques
+import modding/mod_patch_core
 import draw_prims
 import gamepad_input, particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, settings, utils
 import modding/[mod_hooks, mod_assets]
@@ -43,7 +44,7 @@ proc playerInertiaSizeScale(player: Player): float32 =
   let safeRadius = max(player.radius, 1.0'f32)
   clamp(sqrt(safeRadius / PlayerInertiaReferenceRadius), 0.75'f32, 1.85'f32)
 
-proc dataHarvestRangeMult*(player: Player): float32 =
+proc dataHarvestRangeMult*(player: Player): float32 {.moddable.} =
   ## DATA_HARVEST.dll widens the pickup/collection aura: +25% / +50% / +100%
   ## at levels 1 / 2 / 3 (mirrors its XP multiplier in xp_orb.nim).
   case getPowerUpLevel(player, puDataHarvest)
@@ -80,16 +81,16 @@ proc orbCoreColor(elementType: ElementType, base: Color): Color =
   of etBlood: Color(r: 255, g: 150, b: 150, a: 255)
   else: brighten(base, 45)
 
-proc dashBurstOf*(p: Player): float32 {.inline.} =
+proc dashBurstOf*(p: Player): float32 {.inline, moddable.} =
   ## The dash's tunables (Player.dashBurstMult / dashTime / dashRecharge, which
   ## scripts may change); 0 reads as the default (a Player not made by newPlayer).
   if p.dashBurstMult > 0: p.dashBurstMult else: DashSpeedMult
-proc dashTimeOf*(p: Player): float32 {.inline.} =
+proc dashTimeOf*(p: Player): float32 {.inline, moddable.} =
   if p.dashTime > 0: p.dashTime else: DashDuration
-proc dashRechargeOf*(p: Player): float32 {.inline.} =
+proc dashRechargeOf*(p: Player): float32 {.inline, moddable.} =
   if p.dashRecharge > 0: p.dashRecharge else: DashCooldownTime
 
-proc newPlayer*(x, y: float32): Player =
+proc newPlayer*(x, y: float32): Player {.moddable.} =
   result = Player(
     dashBurstMult: DashSpeedMult,
     dashTime: DashDuration,
@@ -189,14 +190,14 @@ proc newPlayer*(x, y: float32): Player =
     healPowerMult: 1.0,
   )
 
-proc hasAnyOrbPowerUp*(player: Player): bool =
+proc hasAnyOrbPowerUp*(player: Player): bool {.moddable.} =
   ## Check if player has any orb power-up equipped (rotating legendary + all elemental orbs)
   if hasPowerUp(player, puRotatingOrbs): return true
   for orbType in elementalOrbTypes:
     if hasPowerUp(player, orbType): return true
   return false
 
-proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
+proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) {.moddable.} =
   # Update powerup timers
   if player.speedBoostTimer > 0:
     player.speedBoostTimer -= dt
@@ -531,7 +532,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if not hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
     player.rotatingOrbs = @[]
 
-proc drawPlayer*(player: Player) =
+proc drawPlayer*(player: Player) {.moddable.} =
   # Mods (playerDraw): a script-drawn body replaces the built-in one.
   if hookActive(hkPlayerDraw) and modPlayerDraw(player):
     return
@@ -1207,7 +1208,7 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   # Return true if HP reached 0 or below (death condition)
   return player.hp <= 0
 
-proc takeDamage*(player: Player, damage: float32): bool =
+proc takeDamage*(player: Player, damage: float32): bool {.moddable.} =
   ## Single intake point for all PvE damage to the player. The profile
   ## difficulty scales here so every source (contact, bullets, lasers,
   ## meteors, explosions) is covered without touching each call site.
@@ -1223,7 +1224,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
       return false
   takeDamageRaw(player, dealt)
 
-proc heal*(player: Player, amount: float32): float32 {.discardable.} =
+proc heal*(player: Player, amount: float32): float32 {.discardable, moddable.} =
   ## Applies the player's heal-power multiplier and clamps to max HP, returning
   ## the HP that was ACTUALLY restored. Healing statistics track the return value
   ## rather than the amount requested, so a heal that lands at full HP is worth
@@ -1234,14 +1235,14 @@ proc heal*(player: Player, amount: float32): float32 {.discardable.} =
   if player.hp > player.maxHp: player.hp = player.maxHp
   player.hp - before
 
-proc activateSpeedBoost*(player: Player) =
+proc activateSpeedBoost*(player: Player) {.moddable.} =
   player.speedBoostTimer = 5.0
 
-proc activateInvincibility*(player: Player) =
+proc activateInvincibility*(player: Player) {.moddable.} =
   player.invincibilityTimer = 3.0
 
-proc activateFireRateBoost*(player: Player) =
+proc activateFireRateBoost*(player: Player) {.moddable.} =
   player.fireRateBoostTimer = 8.0
 
-proc activateMagnet*(player: Player) =
+proc activateMagnet*(player: Player) {.moddable.} =
   player.magnetTimer = 10.0

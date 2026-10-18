@@ -2,6 +2,7 @@
 ## Centralizes gamemode configuration and behavior
 
 import types, localization
+import modding/mod_patch_core
 
 type
   GameModeDefinition* = object
@@ -14,7 +15,7 @@ type
     difficultyScale*: float32 # How fast difficulty increases
     playerStartCoins*: int    # Starting coins for player
 
-proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
+proc getGameModeDefinition*(mode: GameMode): GameModeDefinition {.moddable.} =
   ## Returns the definition for a specific game mode
   case mode
   of gmWaveBased:
@@ -77,7 +78,7 @@ proc getGameModeDefinition*(mode: GameMode): GameModeDefinition =
       playerStartCoins: 0
     )
 
-proc getAllGameModes*(): seq[GameModeDefinition] =
+proc getAllGameModes*(): seq[GameModeDefinition] {.moddable.} =
   ## Returns all available game modes
   result = @[
     getGameModeDefinition(gmWaveBased),
@@ -86,38 +87,38 @@ proc getAllGameModes*(): seq[GameModeDefinition] =
     getGameModeDefinition(gmSandbox)
   ]
 
-proc getGameModeName*(mode: GameMode): string =
+proc getGameModeName*(mode: GameMode): string {.moddable.} =
   ## Returns the display name for a game mode
   getGameModeDefinition(mode).name
 
-proc shouldUseWaves*(mode: GameMode): bool =
+proc shouldUseWaves*(mode: GameMode): bool {.moddable.} =
   ## Check if this mode uses wave-based spawning
   getGameModeDefinition(mode).usesWaves
 
-proc canUseCheats*(mode: GameMode): bool =
+proc canUseCheats*(mode: GameMode): bool {.moddable.} =
   ## Check if cheats are allowed in this mode
   getGameModeDefinition(mode).allowsCheats
 
-proc hasTimeLimit*(mode: GameMode): bool =
+proc hasTimeLimit*(mode: GameMode): bool {.moddable.} =
   ## Check if this mode has time-based gameplay
   getGameModeDefinition(mode).hasTimeLimit
 
-proc isSandboxMode*(mode: GameMode): bool =
+proc isSandboxMode*(mode: GameMode): bool {.moddable.} =
   ## Quick check if this is sandbox mode
   mode == gmSandbox
 
-proc isPvPMode*(mode: GameMode): bool =
+proc isPvPMode*(mode: GameMode): bool {.moddable.} =
   ## Quick check if this is PvP mode
   mode == gmPvP
 
-proc isRogueliteMode*(mode: GameMode): bool =
+proc isRogueliteMode*(mode: GameMode): bool {.moddable.} =
   ## Quick check if this is roguelite mode
   mode == gmRoguelite
 
-proc isWaveMode*(mode: GameMode): bool =
+proc isWaveMode*(mode: GameMode): bool {.moddable.} =
   ## Quick check if this is wave-based mode
   mode == gmWaveBased
 
-proc isTimeSurvivalMode*(mode: GameMode): bool =
+proc isTimeSurvivalMode*(mode: GameMode): bool {.moddable.} =
   ## Quick check if this is time survival mode
   mode == gmTimeSurvival

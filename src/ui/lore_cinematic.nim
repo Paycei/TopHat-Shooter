@@ -10,6 +10,7 @@
 ## change a beat there, never as a literal here.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../localization, ../sound, ../boss_definitions,
@@ -557,7 +558,7 @@ proc loreBackdrop(time, _: float32, sw, sh: int32) =
 # ---------------------------------------------------------------------------
 # Public factory
 
-proc newLoreCutscene*(): Cutscene =
+proc newLoreCutscene*(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: IntroShots[0], drawProc: newCleanupShot(), soundCue: stMenuSelect,
@@ -590,8 +591,8 @@ type LoreCinematic* = Cutscene
 
 proc newLoreCinematic*(): LoreCinematic = newLoreCutscene()
 
-proc updateLoreCinematic*(lore: LoreCinematic, dt: float32) =
+proc updateLoreCinematic*(lore: LoreCinematic, dt: float32) {.moddable.} =
   updateCutscene(lore, dt)
 
-proc drawLoreCinematic*(lore: LoreCinematic, screenWidth, screenHeight: int) =
+proc drawLoreCinematic*(lore: LoreCinematic, screenWidth, screenHeight: int) {.moddable.} =
   drawCutscene(lore, screenWidth, screenHeight)

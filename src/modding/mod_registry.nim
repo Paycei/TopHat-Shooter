@@ -363,9 +363,9 @@ proc enemyDamageDealtMult*(e: Enemy): float32 {.inline.} =
   if e.isNil or e.modStatuses.len == 0: 1'f32 else: max(0'f32, 1 + e.statusDamageDealt)
 
 # ------------------------------------------------------------- languages ----
-proc pickText*(en, es: string): string {.inline.} =
-  ## A mod's {en, es} text in the game's language (English when no Spanish).
-  if getLanguage() == Spanish and es.len > 0: es else: en
+# (pickText, a mod's {en, es, <mod language>} text in the language in use, is
+# localization's; the registry's users get it from here.)
+export localization.pickText
 
 # ------------------------------------------------------ the `stats` DSL ----
 # Declarative stat changes for data-only content: {damage = "+10%",
@@ -910,7 +910,7 @@ proc runModCommand*(name: string, args: seq[string], lines: var seq[string]): bo
 # ======================================================== camera and time ====
 proc modWorldTimeScale*(game: Game): float32 {.inline.} =
   ## time.scale: the whole world's clock (1 when no mod set it).
-  if game.modWorld.timeScale > 0: clamp(game.modWorld.timeScale, 0.1'f32, 2'f32) else: 1'f32
+  if game.modWorld.timeScale > 0: max(game.modWorld.timeScale, 0.01'f32) else: 1'f32
 
 proc updateModCamera*(game: Game, dt: float32) =
   ## camera.follow and the easing toward the camera's target (real time).
@@ -1085,7 +1085,7 @@ proc hudCardHeight(i, w: int): int =
     var r: RetVals
     if callKind(c.owner, c.measure, [vnum(w)], r) and r.count > 0 and r.first.kind == vkNumber and
        r.first.n == r.first.n:
-      result = clamp(int(r.first.n), 0, 600)
+      result = clamp(int(r.first.n), 0, 100_000)   # (int conversion range)
 
 proc drawModHudCards*(x, y, w: int32, classic: bool, mx, my: float32): int32 =
   ## register.hudCard cards stacked from (x, y), `w` wide; the y below the
@@ -1128,6 +1128,145 @@ proc runPauseAction*(i: int) =
 
 proc pauseActionName*(i: int): string = pickText(pauseActionDefs[i].nameEn, pauseActionDefs[i].nameEs)
 
+# =========================================================== mod screens ====
+# register.screen: a screen of the game's own (the gsModScreen state), opened
+# with screens.go and left with screens.back. The screens opened on top of each
+# other form a stack over one state of the game (the desktop, a run...), which
+# comes back once the last is left. Over a run, the run holds still underneath
+# and stays the run on screen for scripts (screenOverRun).
+type
+  ModScreenDef* = object
+    id*: string               ## "<mod id>:<name>"
+    owner*: int
+    enter*, update*, draw*, leave*, back*: ScriptValue
+    cursor*: bool             ## the game's pointer over the screen
+  ScreenStep = tuple[state: GameState, screen: string]
+    ## what screens.back() returns to: the game's state, or (gsModScreen) a screen
+  ScreenRequest = enum srNone, srGo, srBack, srClose
+
+var
+  modScreenDefs*: seq[ModScreenDef]
+  activeScreen*: string           ## the screen gsModScreen shows ("": none)
+  screenStack: seq[ScreenStep]
+  screenRequest: ScreenRequest
+  requestedScreen: string
+  requestedArgs: seq[ScriptValue]
+
+proc screenIndex*(id: string): int =
+  for i, d in modScreenDefs:
+    if d.id == id: return i
+  -1
+
+proc screenBaseState*(): GameState =
+  ## The game's own state under the open mod screens (gsMenu if none is open).
+  if screenStack.len > 0: screenStack[0].state else: gsMenu
+
+proc screenDepth*(): int =
+  ## Mod screens open (the one showing included).
+  (if activeScreen.len > 0: 1 else: 0) + max(screenStack.len - 1, 0)
+
+proc requestScreen*(id: string, args: openArray[ScriptValue]) =
+  ## screens.go: open `id` at the next frame's top (a safe point).
+  screenRequest = srGo
+  requestedScreen = id
+  requestedArgs = @args
+
+proc requestScreenBack*() =
+  screenRequest = srBack
+
+proc requestScreensClose*() =
+  screenRequest = srClose
+
+proc screenCall(i: int, fn: ScriptValue, args: openArray[ScriptValue], r: var RetVals,
+                safe = false): bool =
+  let owner = modScreenDefs[i].owner
+  if not fn.isFn or not kindAlive(owner): return false
+  callAs(owner, fn, args, r, safe = safe)
+
+proc leaveScreen(to: string) =
+  let i = screenIndex(activeScreen)
+  if i >= 0:
+    var r: RetVals
+    discard screenCall(i, modScreenDefs[i].leave, [vstr(to)], r, safe = true)
+  activeScreen = ""
+
+proc restoreBase(game: Game) =
+  ## Leave every mod screen: back to the game's state under them.
+  let base = screenBaseState()
+  if activeScreen.len > 0: leaveScreen($base)
+  screenStack.setLen(0)
+  if game.state == gsModScreen: game.state = base
+
+proc popScreen(game: Game) =
+  ## screens.back(): the screen (or the game's state) below this one.
+  while screenStack.len > 0:
+    let step = screenStack.pop()
+    if step.state != gsModScreen:
+      if activeScreen.len > 0: leaveScreen($step.state)
+      game.state = step.state
+      return
+    if screenIndex(step.screen) >= 0:   # (a screen whose mod went away is skipped)
+      if activeScreen.len > 0: leaveScreen(step.screen)
+      activeScreen = step.screen
+      return
+  restoreBase(game)
+
+proc applyScreenRequests*(game: Game) =
+  ## main.nim, at the top of every frame (a safe point): carry out screens.go /
+  ## back / closeAll, and notice the screens being left some other way (the
+  ## state was set elsewhere, a mod went away).
+  if game.isNil: return
+  if activeScreen.len > 0 and game.state != gsModScreen:
+    leaveScreen($game.state)   # the game (or a script) moved on by itself
+    screenStack.setLen(0)
+  let req = screenRequest
+  screenRequest = srNone
+  case req
+  of srNone: discard
+  of srGo:
+    let i = screenIndex(requestedScreen)
+    if i >= 0:
+      let source = if activeScreen.len > 0: activeScreen else: $game.state
+      if activeScreen.len > 0:
+        screenStack.add((gsModScreen, activeScreen))
+        leaveScreen(requestedScreen)
+      else:
+        screenStack.add((game.state, ""))
+      activeScreen = requestedScreen
+      game.state = gsModScreen
+      var r: RetVals
+      discard screenCall(i, modScreenDefs[i].enter, @[vstr(source)] & requestedArgs, r, safe = true)
+  of srBack: popScreen(game)
+  of srClose: restoreBase(game)
+  requestedArgs.setLen(0)
+  if game.state == gsModScreen and screenIndex(activeScreen) < 0:
+    if screenStack.len > 0: popScreen(game)   # its mod went away (or none was ever open)
+    else: game.state = gsMenu
+  screenOverRun = game.state == gsModScreen and isActiveRunState(screenBaseState())
+
+proc tickModScreen*(dt: float32) =
+  ## The gsModScreen frame's update: Esc / gamepad B runs the screen's back
+  ## (true keeps it open), else goes back; then its update(dt), a safe point.
+  let i = screenIndex(activeScreen)
+  if i < 0: return
+  var r: RetVals
+  if isBackPressed():
+    let handled = screenCall(i, modScreenDefs[i].back, [], r, safe = true) and
+                  r.count > 0 and r.first.kind == vkBool and r.first.b
+    if not handled: requestScreenBack()
+  discard screenCall(i, modScreenDefs[i].update, [vnum(dt.float64)], r, safe = true)
+
+proc drawModScreen*(w, h: int32): bool =
+  ## Its draw(w, h) in virtual screen coordinates. True: draw the game's pointer.
+  let i = screenIndex(activeScreen)
+  if i < 0: return true
+  modCtx.drawing = dtHud
+  modCtx.hudArena = (0.0, 0.0, w.float64, h.float64)
+  var r: RetVals
+  discard screenCall(i, modScreenDefs[i].draw, [vnum(w.int), vnum(h.int)], r)
+  modCtx.drawing = dtNone
+  modScreenDefs[i].cursor
+
 # -------------------------------------------------------------- teardown ----
 proc resetRegistry() {.nimcall.} =
   thingKinds.setLen(0)
@@ -1153,6 +1292,7 @@ proc resetRegistry() {.nimcall.} =
   hudCardDefs.setLen(0)
   pauseActionDefs.setLen(0)
   commandDefs.setLen(0)
+  modScreenDefs.setLen(0)   # (an open one is left at the next frame's top)
 
 proc dropRegistryOf(owner: int) {.nimcall.} =
   var keptT: seq[ThingKind]
@@ -1202,6 +1342,10 @@ proc dropRegistryOf(owner: int) {.nimcall.} =
   for m in modModals:
     if m.owner != owner: keptModals.add(m)
   modModals = keptModals
+  var keptScreens: seq[ModScreenDef]
+  for s in modScreenDefs:
+    if s.owner != owner: keptScreens.add(s)
+  modScreenDefs = keptScreens
 
 addModTeardown(resetRegistry, dropRegistryOf)
 onNewRun.add(clearModModals)   # a new run starts with no mod screens open

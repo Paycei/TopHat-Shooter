@@ -2,6 +2,7 @@
 ## Main menu as an operating system desktop
 
 import raylib, rlgl, math, strutils, strformat, times, tables
+import ../modding/mod_patch_core
 import ../draw_prims
 from std/unicode import runeAt, toUpper, `$`
 import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../cube_render, ../utils
@@ -265,7 +266,7 @@ proc desktopGridRows(screenHeight: int): int =
                DESKTOP_GRID_START_Y - ICON_HOVER_BOTTOM
   clamp(usable div ICON_SPACING + 1, 1, DESKTOP_GRID_ROWS)
 
-proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
+proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) {.moddable.} =
   ## Re-flow the desktop icons for the current logical viewport. The grid is
   ## column-major and fills top-to-bottom, so a shorter viewport simply starts a
   ## new column sooner rather than running off the bottom. The corner icons
@@ -327,7 +328,7 @@ proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
       icon.y = max(cornerY - above * ICON_SPACING, DESKTOP_GRID_START_Y)
       inc cornerSlot
 
-proc newOSDesktop*(): OSDesktop =
+proc newOSDesktop*(): OSDesktop {.moddable.} =
   result = OSDesktop(
     icons: @[
       DesktopIcon(iconType: diPlay, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y,
@@ -549,7 +550,7 @@ proc nlerpToward(qw, qx, qy, qz: var float32, tw, tx, ty, tz, t: float32) =
     qw = rw / l; qx = rx / l; qy = ry / l; qz = rz / l
 
 proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = false,
-                      screenWidth: int, screenHeight: int) =
+                      screenWidth: int, screenHeight: int) {.moddable.} =
   desktop.time += dt
 
   # Mod apps come and go with reloads; then keep corner-anchored icons glued to
@@ -1050,7 +1051,7 @@ proc drawIconDisc(cx, cy, r: float32, fill, edge: Color, thick: float32 = 2.0) =
   drawDisc(v2(cx, cy), r, fill)
   drawRing(v2(cx, cy), r - thick, r, 0.0, 360.0, 32, edge)
 
-proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
+proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) {.moddable.} =
   ## Tile, glyph and label. Exported so cutscenes can stage the real desktop
   ## (the lore intro's flood shot corrupts these very icons). The tile and
   ## glyph are the app's picture, the same in every theme; the label is the
@@ -1614,7 +1615,7 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
 proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                           cubeRotX, cubeRotY, cubeRotZ: float32,
                           cubeOffsetX: float32 = 0.0, cubeOffsetY: float32 = 0.0,
-                          modCube = false) =
+                          modCube = false) {.moddable.} =
   ## `modCube`: the live desktop, where a mod's cube model stands in for the
   ## cube (the shop's preview cards keep showing the built-in one).
   # Translucent light adds up instead of darkening the frame (see ui_theme).
@@ -1971,7 +1972,7 @@ proc drawDawnGlow(cx, cy, radius: float32, color: Color) =
     drawDisc(Vector2(x: cx, y: cy), radius * i.float32 / Layers.float32,
              withAlpha(color, perLayer * 255.0'f32))
 
-proc drawCknWallpaper*(w, h, t: float32, desktop: OSDesktop = nil) =
+proc drawCknWallpaper*(w, h, t: float32, desktop: OSDesktop = nil) {.moddable.} =
   ## CKN OS's own wallpaper, its logo as a landscape: a dawn sky, the sun
   ## half-risen on the horizon right under the cube, the logo's blue arcs
   ## around it. Below the line lies the old floor, a faint grid running to the
@@ -2048,7 +2049,7 @@ proc drawCknWallpaper*(w, h, t: float32, desktop: OSDesktop = nil) =
   if not desktop.isNil:
     drawDesktopCube(desktop, w, h)
 
-proc drawThemeWallpaper*(th: UiTheme, w, h, time: float32, desktop: OSDesktop = nil) =
+proc drawThemeWallpaper*(th: UiTheme, w, h, time: float32, desktop: OSDesktop = nil) {.moddable.} =
   ## The free default background in theme `th`: a mod theme's own image (the
   ## cube floating over it), else its shell's wallpaper. `desktop` supplies the
   ## live cube; without one (a shop thumbnail) the stock wallpaper shows an
@@ -2072,7 +2073,7 @@ proc drawThemeWallpaper*(th: UiTheme, w, h, time: float32, desktop: OSDesktop = 
 
 proc drawOSDesktopLayer(desktop: OSDesktop, screenWidth, screenHeight: int)
 
-proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
+proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) {.moddable.} =
   ## Draw the active desktop background. If the player has selected a desktop
   ## background from settings/shop use that otherwise fall back to the
   ## interface theme's own wallpaper. The lore intro films this desktop as
@@ -2152,14 +2153,14 @@ proc drawOSDesktopLayer(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Transient OS-style toasts above the taskbar (bottom-right), stacked
   drawToastStack(desktop, screenWidth.int32, (screenHeight - TASKBAR_HEIGHT).int32)
 
-proc showDesktopToast*(desktop: OSDesktop, text: string) =
+proc showDesktopToast*(desktop: OSDesktop, text: string) {.moddable.} =
   if desktop.isNil: return
   # Keep the sequence bounded to the max visible stack
   if desktop.toasts.len >= MAX_DESKTOP_TOASTS:
     desktop.toasts.delete(0)
   desktop.toasts.add(DesktopToast(text: text, timer: 5.0'f32))
 
-proc tickDesktopToasts*(desktop: OSDesktop, dt: float32) =
+proc tickDesktopToasts*(desktop: OSDesktop, dt: float32) {.moddable.} =
   ## Tick toast timers outside the full desktop update (e.g. during gameplay).
   if desktop.isNil or desktop.toasts.len == 0: return
   var newToasts: seq[DesktopToast] = @[]
@@ -2170,7 +2171,7 @@ proc tickDesktopToasts*(desktop: OSDesktop, dt: float32) =
       newToasts.add(nt)
   desktop.toasts = newToasts
 
-proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int32) =
+proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int32) {.moddable.} =
   ## Draw the toast stack in the bottom-right corner without the full desktop frame.
   if desktop.isNil or desktop.toasts.len == 0: return
   themeLayer:
@@ -2223,7 +2224,7 @@ proc iconGridIndex(desktop: OSDesktop, col, row: int): int =
     result += desktopColLen(desktop, i)
   result += clamp(row, 0, desktopColLen(desktop, c) - 1)
 
-proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
+proc handleDesktopInput*(desktop: OSDesktop, game: Game): int {.moddable.} =
   ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements, 11=Changelog, 12=Credits, 13=Feedback, 14=Mods, 15=a mod app / 16=a mod game mode (desktop.launchModKey)
   ## Returns -1 if no action
   ## Note: Window occlusion should be handled by the calling code
@@ -2313,7 +2314,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
 
   return -1
 
-proc startLoadingAnimation*(desktop: OSDesktop, text: string) =
+proc startLoadingAnimation*(desktop: OSDesktop, text: string) {.moddable.} =
   ## Start a loading animation with the given text
   desktop.loadingActive = true
   desktop.loadingProgress = 0.0
@@ -2345,7 +2346,7 @@ proc drawCknLoadingOverlay(desktop: OSDesktop, screenWidth, screenHeight: int, t
 
 proc drawLoadingOverlayLayer(desktop: OSDesktop, screenWidth, screenHeight: int)
 
-proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
+proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) {.moddable.} =
   ## Draw the loading animation overlay if active
   if not desktop.loadingActive:
     return

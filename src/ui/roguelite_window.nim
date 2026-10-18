@@ -5,6 +5,7 @@
 ## and Heat N+1 unlocks by winning a run at Heat N.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound, ../utils
 import ui_theme
@@ -22,7 +23,7 @@ type
     celebrationHeat*: int
     knownHeat: int      ## Highest Heat this window has shown (-1 = not yet seen)
 
-proc newRogueliteWindow*(screenWidth, screenHeight: int, profile: RogueliteProfile = nil): RogueliteWindow =
+proc newRogueliteWindow*(screenWidth, screenHeight: int, profile: RogueliteProfile = nil): RogueliteWindow {.moddable.} =
   let windowWidth = RoguelitePanelW + 20
   let windowHeight = TITLE_BAR_HEIGHT + RoguelitePanelH + 20
   let windowX = (screenWidth - windowWidth) div 2
@@ -111,7 +112,7 @@ proc stepHeat(game: Game, profile: RogueliteProfile, target: int) =
     game.rogueliteHeatPulseDirection = if next > prev: 1 else: -1
 
 proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openArray[OSWindow],
-                            screenWidth, screenHeight: int, game: Game): RogueliteWindowResult =
+                            screenWidth, screenHeight: int, game: Game): RogueliteWindowResult {.moddable.} =
   ## Update roguelite window. Returns result indicating close and/or game launch.
   result = RogueliteWindowResult(shouldClose: false, launchGame: false)
   if rw.isNil or rw.window.isNil:
@@ -236,7 +237,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
       result.shouldClose = true
       return
 
-proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
+proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) {.moddable.} =
   if rw.isNil or rw.window.isNil:
     return
   if not rw.window.visible:

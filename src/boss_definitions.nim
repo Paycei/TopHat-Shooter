@@ -2,6 +2,7 @@
 ## Allows complete customization of boss behavior, properties, attacks, and phases
 
 import math, raylib, tables
+import modding/mod_patch_core
 import localization, types
 
 # Mods (MODS.EXE): bosses registered by mods (IDs >= ModBossIdBase) and
@@ -15,7 +16,7 @@ var
 
 proc hasModBoss*(bossId: int): bool {.inline.} = modBossDefs.hasKey(bossId)
 
-proc modBossIdsSorted*(): seq[int] =
+proc modBossIdsSorted*(): seq[int] {.moddable.} =
   ## Bosses mods registered (not built-in IDs they replaced), in ID order.
   for id in modBossDefs.keys:
     if id >= ModBossIdBase: result.add(id)
@@ -25,13 +26,13 @@ proc modBossIdsSorted*(): seq[int] =
       swap(result[j - 1], result[j])
       dec j
 
-proc clearModBosses*() =
+proc clearModBosses*() {.moddable.} =
   modBossDefs.clear()
   modBossSlotWaves.clear()
   modBossProcessNames.clear()
 
 
-proc bossWeakTier*(bossID: int): int =
+proc bossWeakTier*(bossID: int): int {.moddable.} =
   ## Weak-point resistance tier (1-4). The wave campaign keys it on the boss
   ## number; the mode rosters map onto the wave boss they stand in for: the
   ## survival bosses replace bosses 3 / 6 / 9 / 12, the roguelite guardians
@@ -48,7 +49,7 @@ proc bossWeakTier*(bossID: int): int =
     of 17..22: 2
     else: 0
 
-proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
+proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition {.moddable.} =
   # Body damage is heavily resisted; the real damage happens in the weak-point
   # vulnerability window. The body/window gap (not raw HP) is what forces players
   # to engage mechanics instead of facetanking. The gap widens on higher bosses
@@ -104,7 +105,7 @@ proc bossWeakPointDefinitionFor*(bossID: int): BossWeakPointDefinition =
   of 22: spec(bwoVoidRifts, 1, 3)       # find the real copy
   else: BossWeakPointDefinition(kind: bwoNone)
 
-proc isRootBoss*(bossNumber: int): bool =
+proc isRootBoss*(bossNumber: int): bool {.moddable.} =
   ## The Omega Entity (boss 12 and its two mode kits) is root itself: the
   ## superuser of the system TopHat-ShooterOS was installed over. The wave
   ## bosses are TOPHAT services it re-owned, the survival bosses spawn from the
@@ -112,7 +113,7 @@ proc isRootBoss*(bossNumber: int): bool =
   ## own services. Same model the story cinematics use.
   isOmegaBoss(bossNumber)
 
-proc getBossProcessName*(bossNumber: int): string =
+proc getBossProcessName*(bossNumber: int): string {.moddable.} =
   ## In-fiction process name of the service the boss was made from.
   case bossNumber
   of 1: t(tkBoss1Process)
@@ -138,7 +139,7 @@ proc getBossProcessName*(bossNumber: int): string =
   of 22: t(tkBoss22Process)
   else: modBossProcessNames.getOrDefault(bossNumber, "")
 
-proc getBossServiceTag*(bossNumber: int): string =
+proc getBossServiceTag*(bossNumber: int): string {.moddable.} =
   ## "HIJACKED SERVICE: scheduler.exe" line for the boss intro card and Help
   ## list; "HIJACKER: root (uid 0)" for root itself, "FLOOD SPAWN" for the
   ## survival bosses and "LEGACY PROCESS" for the roguelite guardians. Empty
@@ -3934,7 +3935,7 @@ var
   vanillaBossCache: Table[int, BossDefinition]
   vanillaBossCacheLang: Language
 
-proc vanillaBossDefinition*(bossNumber: int): BossDefinition =
+proc vanillaBossDefinition*(bossNumber: int): BossDefinition {.moddable.} =
   ## The built-in definition, ignoring mods (reference numbers use this).
   if vanillaBossCacheLang != getLanguage():
     vanillaBossCache.clear()
@@ -3943,24 +3944,24 @@ proc vanillaBossDefinition*(bossNumber: int): BossDefinition =
     vanillaBossCache[bossNumber] = buildVanillaBossDefinition(bossNumber)
   vanillaBossCache[bossNumber]
 
-proc getBossDefinition*(bossNumber: int): BossDefinition =
+proc getBossDefinition*(bossNumber: int): BossDefinition {.moddable.} =
   ## The definition a boss ID fights with: a mod's, if one registered or
   ## replaced it, else the built-in one.
   if modBossDefs.len > 0 and modBossDefs.hasKey(bossNumber):
     return modBossDefs[bossNumber]
   vanillaBossDefinition(bossNumber)
 
-proc bossName*(bossNumber: int): string =
+proc bossName*(bossNumber: int): string {.moddable.} =
   ## Display name of any boss ID (the Omega kits share boss 12's name).
   getBossDefinition(bossNumber).name
 
 # Helper Functions
 
-proc isBossWave*(waveNumber: int): bool =
+proc isBossWave*(waveNumber: int): bool {.moddable.} =
   ## Checks if the current wave should spawn a custom boss (every BossWaveInterval waves, no limit)
   waveNumber mod BossWaveInterval == 0
 
-proc getCustomBossNumber*(waveNumber: int): int =
+proc getCustomBossNumber*(waveNumber: int): int {.moddable.} =
   ## Returns the custom boss number (1-12) for the given wave
   ## After the last campaign boss wave, continues with boss 12
   if waveNumber <= 0 or waveNumber mod BossWaveInterval != 0:
@@ -3972,7 +3973,7 @@ proc getCustomBossNumber*(waveNumber: int): int =
 
   return bossNumber
 
-proc getBossPhaseHpPools*(boss: BossDefinition, scaledHp: float32): seq[float32] =
+proc getBossPhaseHpPools*(boss: BossDefinition, scaledHp: float32): seq[float32] {.moddable.} =
   ## Splits total boss HP into one pool per phase using the existing threshold gaps.
   if scaledHp <= 0.0'f32 or boss.phases.len == 0:
     return @[max(scaledHp, 0.01'f32)]
@@ -4009,7 +4010,7 @@ proc endlessSteps(waveNumber: int): float32 =
   ## once an endless run pushes past wave 60.
   max(0.0'f32, bossTierSteps(waveNumber) - 11.0)
 
-proc getScaledBossHP*(baseBoss: BossDefinition, waveNumber: int): float32 =
+proc getScaledBossHP*(baseBoss: BossDefinition, waveNumber: int): float32 {.moddable.} =
   ## Scales boss HP by scaling step, not raw wave count, to avoid extreme midgame cliffs.
   let waveScale = 1.0 + bossTierSteps(waveNumber) * 0.20  # 20% increase per step
   # Endless-only buff. endlessSteps is exactly 0 for every campaign boss (waves 5-60)
@@ -4018,12 +4019,12 @@ proc getScaledBossHP*(baseBoss: BossDefinition, waveNumber: int): float32 =
   # growth) so endless bosses stop getting melted.
   baseBoss.baseHP * waveScale * pow(1.08'f32, endlessSteps(waveNumber))
 
-proc getScaledBossSpeed*(baseBoss: BossDefinition, waveNumber: int): float32 =
+proc getScaledBossSpeed*(baseBoss: BossDefinition, waveNumber: int): float32 {.moddable.} =
   ## Scales boss speed more gently so later bosses stay threatening without becoming frantic.
   let waveScale = 1.0 + bossTierSteps(waveNumber) * 0.03
   baseBoss.baseSpeed * waveScale
 
-proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): float32 =
+proc getScaledBossDamage*(baseBoss: BossDefinition, waveNumber: int): float32 {.moddable.} =
   ## Scales boss damage based on wave number
   let additionalDamage = (waveNumber - 5) div 15  # +1 damage every 15 waves
   # Endless-only buff (see getScaledBossHP): 1.0 for every campaign boss, compounds past wave 60
@@ -4046,7 +4047,7 @@ const BossSlotDamageRef = [1.0'f32, 1.0, 2.0, 2.5, 6.0, 8.0, 10.5, 14.0, 16.5, 1
   ## Median attack damage of wave bosses 1..12 (their slots 5..60): the
   ## per-slot "how hard does a boss hit here" reference.
 
-proc bossAuthoredSlotWave*(bossId: int): int =
+proc bossAuthoredSlotWave*(bossId: int): int {.moddable.} =
   ## The wave slot a boss definition's numbers are written for.
   case bossId
   of 1..12: bossId * BossWaveInterval
@@ -4058,7 +4059,7 @@ proc bossAuthoredSlotWave*(bossId: int): int =
   of 23: 60
   else: modBossSlotWaves.getOrDefault(bossId, 60)
 
-proc bossSlotHpBudget*(slotWave: float32): float32 =
+proc bossSlotHpBudget*(slotWave: float32): float32 {.moddable.} =
   ## Total HP the campaign gives a boss at this slot (the boss holding the
   ## slot's base HP on getScaledBossHP's curve), before profile difficulty.
   let w = max(BossWaveInterval.float32, slotWave)
@@ -4068,7 +4069,7 @@ proc bossSlotHpBudget*(slotWave: float32): float32 =
   # Always the built-in holder: a mod replacing a boss must not move the scale.
   vanillaBossDefinition(holder).baseHP * (1.0'f32 + steps * 0.20'f32) * pow(1.08'f32, endless)
 
-proc bossSlotDamageRef*(slotWave: float32): float32 =
+proc bossSlotDamageRef*(slotWave: float32): float32 {.moddable.} =
   ## Typical boss attack damage at this slot, interpolated between the
   ## campaign bosses and compounding like getScaledBossDamage past wave 60.
   let w = max(BossWaveInterval.float32, slotWave)
@@ -4079,7 +4080,7 @@ proc bossSlotDamageRef*(slotWave: float32): float32 =
   let frac = pos - lo.float32
   BossSlotDamageRef[lo] + (BossSlotDamageRef[min(lo + 1, 11)] - BossSlotDamageRef[lo]) * frac
 
-proc rescaleBossPools*(boss: Enemy, factor: float32) =
+proc rescaleBossPools*(boss: Enemy, factor: float32) {.moddable.} =
   ## Scale a spawned boss's whole HP budget (current, max, total, and every
   ## phase pool) by `factor`, keeping the phase proportions.
   boss.hp *= factor
@@ -4088,7 +4089,7 @@ proc rescaleBossPools*(boss: Enemy, factor: float32) =
   for i in 0..<boss.bossPhaseHpPools.len:
     boss.bossPhaseHpPools[i] *= factor
 
-proc normalizeBossToSlot*(boss: Enemy, slotWave: float32, hpScale = 1.0'f32) =
+proc normalizeBossToSlot*(boss: Enemy, slotWave: float32, hpScale = 1.0'f32) {.moddable.} =
   ## Rescale a boss spawned at its authored slot so it fights with the HP and
   ## attack damage of `slotWave` instead (up or down). The spawned pool already
   ## carries the profile difficulty multiplier, and a ratio keeps it. Attack
@@ -4106,7 +4107,7 @@ proc normalizeBossToSlot*(boss: Enemy, slotWave: float32, hpScale = 1.0'f32) =
   boss.rangedDamage *= dmgFactor
   boss.damageTuning = dmgFactor
 
-proc bossRosterProblems*(): seq[string] =
+proc bossRosterProblems*(): seq[string] {.moddable.} =
   ## Per-ID wiring the compiler cannot check (boss IDs are plain ints with
   ## `else` branches everywhere): every ID must resolve to its own definition,
   ## carry a weak point and a process name. Reported by debug builds at startup.

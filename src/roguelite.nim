@@ -1,4 +1,5 @@
 import json, os, random, strutils, math
+import modding/mod_patch_core
 import modding/[mod_hooks, mod_registry]
 import types, settings, save_system, powerup, powerup_data, patches, xp_orb, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
 
@@ -30,14 +31,14 @@ var pendingProfileRefund*: tuple[shards, cores: int]
 proc saveRogueliteProfile*(profile: RogueliteProfile): bool
 proc commitRogueliteRunProgress*(game: Game, died: bool): bool
 
-proc heatChallengeRank*(heat: int): int =
+proc heatChallengeRank*(heat: int): int {.moddable.} =
   ## Heat 1 is the default baseline, Heat 2/3 add challenge.
   max(0, clamp(heat, RogueliteMinHeat, RogueliteMaxHeat) - RogueliteMinHeat)
 
-proc getRogueliteProfilePath*(): string =
+proc getRogueliteProfilePath*(): string {.moddable.} =
   getAppDataPath() / "roguelite_profile.json"
 
-proc initRogueliteProfile*(): RogueliteProfile =
+proc initRogueliteProfile*(): RogueliteProfile {.moddable.} =
   result = RogueliteProfile(
     version: RogueliteProfileVersion,
     dataShards: 0,
@@ -60,17 +61,17 @@ proc initRogueliteProfile*(): RogueliteProfile =
     recursionLevel: 0
   )
 
-proc makeRelic*(relicType: RogueliteRelicType, modKey = ""): RogueliteRelic =
+proc makeRelic*(relicType: RogueliteRelicType, modKey = ""): RogueliteRelic {.moddable.} =
   RogueliteRelic(relicType: relicType, modKey: if relicType == rrtMod: modKey else: "")
 
-proc hasRelic*(run: RogueliteRun, relicType: RogueliteRelicType): bool =
+proc hasRelic*(run: RogueliteRun, relicType: RogueliteRelicType): bool {.moddable.} =
   if run.isNil: return false
   for relic in run.relics:
     if relic.relicType == relicType:
       return true
   false
 
-proc hasModRelic*(run: RogueliteRun, modKey: string): bool =
+proc hasModRelic*(run: RogueliteRun, modKey: string): bool {.moddable.} =
   ## A mod patch (rrtMod) by its registered name.
   if run.isNil: return false
   for relic in run.relics:
@@ -78,10 +79,10 @@ proc hasModRelic*(run: RogueliteRun, modKey: string): bool =
       return true
   false
 
-proc hasRelic*(run: RogueliteRun, relic: RogueliteRelic): bool =
+proc hasRelic*(run: RogueliteRun, relic: RogueliteRelic): bool {.moddable.} =
   if relic.relicType == rrtMod: run.hasModRelic(relic.modKey) else: run.hasRelic(relic.relicType)
 
-proc ownedModPatches*(run: RogueliteRun): seq[string] =
+proc ownedModPatches*(run: RogueliteRun): seq[string] {.moddable.} =
   if run.isNil: return
   for relic in run.relics:
     if relic.relicType == rrtMod: result.add(relic.modKey)
@@ -93,7 +94,7 @@ proc ensureString(list: var seq[string], value: string) =
       return
   list.add(value)
 
-proc normalizeRogueliteProfile*(profile: RogueliteProfile) =
+proc normalizeRogueliteProfile*(profile: RogueliteProfile) {.moddable.} =
   ## Stamp the current version and restore the invariants every profile must
   ## hold (default cosmetics owned, Heat in range, no negative wallet).
   if profile.isNil: return
@@ -153,7 +154,7 @@ proc legacyRelicCost(relic: RogueliteRelicType): tuple[shards, cores: int] =
   of rrtEliteDividend: (260, 8)
   else: (0, 0)   # Discount Protocol was free; later patches were never sold
 
-proc legacyUnlockRefund*(j: JsonNode): tuple[shards, cores: int] =
+proc legacyUnlockRefund*(j: JsonNode): tuple[shards, cores: int] {.moddable.} =
   ## Everything a v4 profile JSON spent in the old unlock shop.
   if j.isNil or j.kind != JObject:
     return
@@ -198,7 +199,7 @@ proc parseStringSeq(j: JsonNode): seq[string] =
     if value.len > 0 and value notin result:
       result.add(value)
 
-proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode =
+proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode {.moddable.} =
   %* {
     "version": profile.version,
     "dataShards": profile.dataShards,
@@ -221,7 +222,7 @@ proc rogueliteProfileToJson*(profile: RogueliteProfile): JsonNode =
     "recursionLevel": profile.recursionLevel
   }
 
-proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile =
+proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile {.moddable.} =
   ## Parse a profile. A pre-v5 profile is migrated in place: its unlock-shop
   ## spend is credited back and recorded in pendingProfileRefund. The caller
   ## (loadRogueliteProfile) saves right away so the refund can't repeat.
@@ -282,7 +283,7 @@ proc jsonToRogueliteProfile*(j: JsonNode): RogueliteProfile =
     pendingProfileRefund.cores += refund.cores
   normalizeRogueliteProfile(result)
 
-proc loadRogueliteProfile*(): RogueliteProfile =
+proc loadRogueliteProfile*(): RogueliteProfile {.moddable.} =
   try:
     let path = getRogueliteProfilePath()
     if not fileExists(path):
@@ -299,7 +300,7 @@ proc loadRogueliteProfile*(): RogueliteProfile =
     echo "Error loading roguelite profile: ", e.msg
     result = initRogueliteProfile()
 
-proc saveRogueliteProfile*(profile: RogueliteProfile): bool =
+proc saveRogueliteProfile*(profile: RogueliteProfile): bool {.moddable.} =
   try:
     if profile.isNil: return false
     normalizeRogueliteProfile(profile)
@@ -309,7 +310,7 @@ proc saveRogueliteProfile*(profile: RogueliteProfile): bool =
     echo "Error saving roguelite profile: ", e.msg
     false
 
-proc resetRogueliteProfile*(profile: RogueliteProfile): bool =
+proc resetRogueliteProfile*(profile: RogueliteProfile): bool {.moddable.} =
   ## Reset an existing roguelite profile in place so active references stay valid.
   if profile.isNil:
     return false
@@ -340,7 +341,7 @@ proc resetRogueliteProfile*(profile: RogueliteProfile): bool =
 # Runs
 
 proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
-                         starterKit: RogueliteStarterKit, heat: int) =
+                         starterKit: RogueliteStarterKit, heat: int) {.moddable.} =
   normalizeRogueliteProfile(profile)
   let maxUnlockedHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
   let clampedHeat = clamp(heat, RogueliteMinHeat, maxUnlockedHeat)
@@ -415,7 +416,7 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
 # ---------------------------------------------------------------------------
 # Patches
 
-proc installPatch*(game: Game, patch: RogueliteRelicType, modKey = ""): bool =
+proc installPatch*(game: Game, patch: RogueliteRelicType, modKey = ""): bool {.moddable.} =
   ## THE way a patch enters a run: records it on the run (the persisted list),
   ## mirrors it onto the player (what the effect hooks test), and arms any
   ## charge it starts with. False if there is no run or it is already applied.
@@ -447,10 +448,10 @@ proc installPatch*(game: Game, patch: RogueliteRelicType, modKey = ""): bool =
     discard
   true
 
-proc installPatch*(game: Game, relic: RogueliteRelic): bool =
+proc installPatch*(game: Game, relic: RogueliteRelic): bool {.moddable.} =
   installPatch(game, relic.relicType, relic.modKey)
 
-proc syncPlayerPatches*(game: Game) =
+proc syncPlayerPatches*(game: Game) {.moddable.} =
   ## Rebuild the player's patch mirror from the run (after a checkpoint
   ## restore, which rebuilds the run's relic list from JSON).
   if game.player.isNil: return
@@ -460,14 +461,14 @@ proc syncPlayerPatches*(game: Game) =
     game.player.patches.incl(relic.relicType)
 
 proc unownedPatches*(run: RogueliteRun,
-                     exclude: set[RogueliteRelicType] = {}): seq[RogueliteRelicType] =
+                     exclude: set[RogueliteRelicType] = {}): seq[RogueliteRelicType] {.moddable.} =
   for p in AllPatches:
     if p notin exclude and not run.hasRelic(p):
       result.add(p)
 
 proc rollPatchChoices*(run: RogueliteRun, count: int,
                        exclude: set[RogueliteRelicType] = {},
-                       excludeKeys: seq[string] = @[]): seq[RogueliteRelic] =
+                       excludeKeys: seq[string] = @[]): seq[RogueliteRelic] {.moddable.} =
   ## Up to `count` distinct patches this run doesn't have yet. Fewer (possibly
   ## none) once the pool runs dry; callers fall back to another reward. Mod
   ## patches (register.patch) join the draw with their own weight (a game
@@ -509,7 +510,7 @@ proc awardHeatBossEconomy(game: Game) =
   if heatRank >= 2:
     game.rogueliteRun.coresEarned += 4 * (1 + game.rogueliteRun.endlessLoop)
 
-proc completeRogueliteBoss*(game: Game) =
+proc completeRogueliteBoss*(game: Game) {.moddable.} =
   ## Sector SERVICE shut down: bank rewards and either advance to the next
   ## sector's theme select or close out a win (and roll into the endless loop).
   if game.rogueliteRun.isNil: return
@@ -561,7 +562,7 @@ proc completeRogueliteBoss*(game: Game) =
     if not game.rogueliteProfile.isNil:
       discard saveRogueliteProfile(game.rogueliteProfile)
 
-proc rogueliteContinueEndless*(run: RogueliteRun) =
+proc rogueliteContinueEndless*(run: RogueliteRun) {.moddable.} =
   ## Player chose "Continue" on the ending screen: roll the completed run into the
   ## next endless loop. Mirrors the floor-reset the old completeRogueliteBoss did
   ## inline, now gated behind the victory-screen choice.
@@ -576,7 +577,7 @@ proc rogueliteContinueEndless*(run: RogueliteRun) =
   run.usedThemes = {}
   run.pendingFloorSelect = true
 
-proc commitRogueliteRunProgress*(game: Game, died: bool): bool =
+proc commitRogueliteRunProgress*(game: Game, died: bool): bool {.moddable.} =
   if game.rogueliteProfile.isNil or game.rogueliteRun.isNil:
     return false
 
@@ -623,20 +624,20 @@ proc commitRogueliteRunProgress*(game: Game, died: bool): bool =
 const MetaRewardBossTierCap* = 12
   ## The wave-60 boss. Endless waves and long survival runs keep paying this tier.
 
-proc waveClearShardReward*(wave: int): int =
+proc waveClearShardReward*(wave: int): int {.moddable.} =
   ## A regular (non-boss) wave cleared: 1 shard early on, 8 by wave 59.
   1 + max(1, wave) div 8
 
-proc bossShardReward*(bossTier: int): int =
+proc bossShardReward*(bossTier: int): int {.moddable.} =
   ## Boss N is the same fight in wave and survival mode, so it pays the same:
   ## 12 shards for the first boss, 56 for the final one.
   8 + 4 * clamp(bossTier, 1, MetaRewardBossTierCap)
 
-proc bossCoreReward*(bossTier: int): int =
+proc bossCoreReward*(bossTier: int): int {.moddable.} =
   ## Cores start at boss 3 (wave 15) and top out at 4.
   clamp(bossTier, 1, MetaRewardBossTierCap) div 3
 
-proc survivalMinuteShardReward*(minute: int): int =
+proc survivalMinuteShardReward*(minute: int): int {.moddable.} =
   ## Each whole minute on the survival clock: 2 shards, +1 every third minute.
   2 + max(1, minute) div 3
 
@@ -649,25 +650,25 @@ proc survivalBossTier(bossNumber: int): int =
   ## Overtime keeps fighting the final one.
   clamp(bossNumber * 3, 3, MetaRewardBossTierCap)
 
-proc survivalBossShardReward*(bossNumber: int): int =
+proc survivalBossShardReward*(bossNumber: int): int {.moddable.} =
   ## Survival boss bounty. There are four bosses instead of the thirteen the
   ## old 90 s cadence fought by 20:00, so each pays double its wave-mode tier:
   ## 40 / 64 / 88 / 112, then 84 per Overtime boss.
   if bossNumber > 4: 84
   else: 2 * bossShardReward(survivalBossTier(bossNumber))
 
-proc survivalBossCoreReward*(bossNumber: int): int =
+proc survivalBossCoreReward*(bossNumber: int): int {.moddable.} =
   ## 2 / 4 / 6 / 8 Cores for the phase bosses, 6 per Overtime boss.
   if bossNumber > 4: 6
   else: 2 * bossCoreReward(survivalBossTier(bossNumber))
 
-proc survivalEventShardReward*(phaseIndex: int, rogue: bool): int =
+proc survivalEventShardReward*(phaseIndex: int, rogue: bool): int {.moddable.} =
   ## A System Event cleared (3 + 2 per phase) or a Rogue Process killed
   ## (6 + 3 per phase). phaseIndex is 0 for Boot through 4 for Overtime.
   let p = clamp(phaseIndex, 0, 4)
   if rogue: 6 + 3 * p else: 3 + 2 * p
 
-proc bankMetaCurrency*(shards, cores: int): bool =
+proc bankMetaCurrency*(shards, cores: int): bool {.moddable.} =
   ## Credit the live wallet and save it. False when nothing was credited (no
   ## active profile, or nothing to bank).
   let profile = activeRogueliteProfile
@@ -701,7 +702,7 @@ proc makeCost(dataShards: int, cores: int = 0): CosmeticCost =
     cores: cores
   )
 
-proc isFree*(cost: CosmeticCost): bool =
+proc isFree*(cost: CosmeticCost): bool {.moddable.} =
   cost.dataShards <= 0 and cost.cores <= 0
 
 proc ensureId(list: var seq[string], id: string) =
@@ -732,10 +733,10 @@ proc defaultCosmeticIndex*(kind: CosmeticKind): int = CosmeticInfo[kind].default
 
 proc cosmeticCount*(kind: CosmeticKind): int = CosmeticInfo[kind].count
 
-proc isValidCosmeticIndex*(kind: CosmeticKind, index: int): bool =
+proc isValidCosmeticIndex*(kind: CosmeticKind, index: int): bool {.moddable.} =
   index >= 0 and index < cosmeticCount(kind)
 
-proc cosmeticId*(kind: CosmeticKind, index: int): string =
+proc cosmeticId*(kind: CosmeticKind, index: int): string {.moddable.} =
   if not isValidCosmeticIndex(kind, index):
     return ""
   case kind
@@ -772,14 +773,14 @@ proc equippedIndex(settings: Settings, kind: CosmeticKind): var int =
   of ckDesktopBg: return settings.desktopBg
   of ckCubeSkin: return settings.cubeSkin
 
-proc ensureBaseCosmeticUnlocks*(profile: RogueliteProfile) =
+proc ensureBaseCosmeticUnlocks*(profile: RogueliteProfile) {.moddable.} =
   if profile.isNil:
     return
   for kind in CosmeticKind:
     ensureId(unlockedList(profile, kind), cosmeticId(kind, defaultCosmeticIndex(kind)))
 
 proc cosmeticIsUnlocked*(profile: RogueliteProfile, kind: CosmeticKind,
-                         index: int): bool =
+                         index: int): bool {.moddable.} =
   if not isValidCosmeticIndex(kind, index):
     return false
   if index == defaultCosmeticIndex(kind):
@@ -794,7 +795,7 @@ proc addCosmeticUnlock(profile: RogueliteProfile, kind: CosmeticKind, index: int
     return
   ensureId(unlockedList(profile, kind), cosmeticId(kind, index))
 
-proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
+proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost {.moddable.} =
   if not isValidCosmeticIndex(kind, index) or index == defaultCosmeticIndex(kind):
     return makeCost(0)
 
@@ -891,7 +892,7 @@ proc cosmeticCost*(kind: CosmeticKind, index: int): CosmeticCost =
     of cskD20:     makeCost(220, 10)
 
 proc canAffordCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
-                        index: int): bool =
+                        index: int): bool {.moddable.} =
   if profile.isNil or not isValidCosmeticIndex(kind, index):
     return false
   if cosmeticIsUnlocked(profile, kind, index):
@@ -902,7 +903,7 @@ proc canAffordCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
     profile.cores >= cost.cores
 
 proc purchaseCosmetic*(profile: RogueliteProfile, kind: CosmeticKind,
-                       index: int): bool =
+                       index: int): bool {.moddable.} =
   if profile.isNil or not isValidCosmeticIndex(kind, index):
     return false
   ensureBaseCosmeticUnlocks(profile)
@@ -986,14 +987,14 @@ const allCosmeticPacks*: array[CosmeticPackId, CosmeticPack] = [
     members: @[(ckPlayerSkin, ord(skLightning)), (ckBulletSkin, ord(bskLightning)), (ckParticle, ord(pskLightning))]),
 ]
 
-proc packMemberCount*(id: CosmeticPackId): int =
+proc packMemberCount*(id: CosmeticPackId): int {.moddable.} =
   allCosmeticPacks[id].members.len
 
 proc applyDiscount(cost: CosmeticCost, factor: float32): CosmeticCost =
   makeCost(max(0, int(round(cost.dataShards.float32 * factor))),
            max(0, int(round(cost.cores.float32 * factor))))
 
-proc packUnownedRetail*(profile: RogueliteProfile, id: CosmeticPackId): CosmeticCost =
+proc packUnownedRetail*(profile: RogueliteProfile, id: CosmeticPackId): CosmeticCost {.moddable.} =
   ## Retail sum of only the members the player does not yet own.
   for m in allCosmeticPacks[id].members:
     if not cosmeticIsUnlocked(profile, m.kind, m.index):
@@ -1001,24 +1002,24 @@ proc packUnownedRetail*(profile: RogueliteProfile, id: CosmeticPackId): Cosmetic
       result.dataShards += c.dataShards
       result.cores += c.cores
 
-proc packPrice*(profile: RogueliteProfile, id: CosmeticPackId): CosmeticCost =
+proc packPrice*(profile: RogueliteProfile, id: CosmeticPackId): CosmeticCost {.moddable.} =
   ## What the player pays right now: discounted price of the unowned members.
   applyDiscount(packUnownedRetail(profile, id), PackDiscount)
 
-proc packOwnedCount*(profile: RogueliteProfile, id: CosmeticPackId): int =
+proc packOwnedCount*(profile: RogueliteProfile, id: CosmeticPackId): int {.moddable.} =
   for m in allCosmeticPacks[id].members:
     if cosmeticIsUnlocked(profile, m.kind, m.index): inc result
 
-proc packIsOwned*(profile: RogueliteProfile, id: CosmeticPackId): bool =
+proc packIsOwned*(profile: RogueliteProfile, id: CosmeticPackId): bool {.moddable.} =
   packOwnedCount(profile, id) >= allCosmeticPacks[id].members.len
 
-proc canAffordPack*(profile: RogueliteProfile, id: CosmeticPackId): bool =
+proc canAffordPack*(profile: RogueliteProfile, id: CosmeticPackId): bool {.moddable.} =
   if profile.isNil or packIsOwned(profile, id):
     return false
   let price = packPrice(profile, id)
   profile.dataShards >= price.dataShards and profile.cores >= price.cores
 
-proc purchasePack*(profile: RogueliteProfile, id: CosmeticPackId): bool =
+proc purchasePack*(profile: RogueliteProfile, id: CosmeticPackId): bool {.moddable.} =
   ## Buy every not-yet-owned member of the pack at the discounted price in one
   ## transaction: deduct once, unlock all, save once. False if already fully
   ## owned or unaffordable.
@@ -1041,7 +1042,7 @@ proc purchasePack*(profile: RogueliteProfile, id: CosmeticPackId): bool =
   true
 
 proc sanitizeEquippedCosmetics*(settings: Settings,
-                                profile: RogueliteProfile): bool =
+                                profile: RogueliteProfile): bool {.moddable.} =
   if settings.isNil:
     return false
   ensureBaseCosmeticUnlocks(profile)

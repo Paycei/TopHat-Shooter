@@ -11,6 +11,7 @@
 ## fields is written next to its definition in boss_definitions.nim.
 
 import raylib, math, random, strutils, algorithm
+import ../modding/mod_patch_core
 import particle_types, types, enemy, bullet, particle_pool, d_systems,
        mode_hazards, dungeon
 
@@ -21,7 +22,7 @@ const ModeBossAttacks* = [
   "empty_trash", "undelete", "audit_lock", "packet_switching", "page_fault",
   "stale_copy", "last_known_good"]
 
-proc isModeBossAttack*(specialData: string): bool =
+proc isModeBossAttack*(specialData: string): bool {.moddable.} =
   specialData in ModeBossAttacks
 
 proc arenaClamp(game: Game, p: Vector2f, pad: float32): Vector2f =
@@ -511,7 +512,7 @@ proc lastKnownGood(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32
 # ---------------------------------------------------------------------------
 
 proc executeModeBossAttack*(game: var Game, boss: Enemy, attack: BossAttack,
-                            phase: BossPhaseDefinition) =
+                            phase: BossPhaseDefinition) {.moddable.} =
   let dmg = attack.damage * phase.damageMultiplier
   case attack.specialData
   of "fork_children": forkChildren(game, boss, attack, dmg)
@@ -535,7 +536,7 @@ proc executeModeBossAttack*(game: var Game, boss: Enemy, attack: BossAttack,
   of "last_known_good": lastKnownGood(game, boss, attack, dmg)
   else: discard
 
-proc retireModeBossHazards*(game: var Game, boss: Enemy) =
+proc retireModeBossHazards*(game: var Game, boss: Enemy) {.moddable.} =
   ## A phase break ends the boss's standing casts (emitters, beams, echoes,
   ## restore points, mega-casts, dormant bombs). Nodes already laid (heat
   ## trail, footprints, lanes, vents) play out.

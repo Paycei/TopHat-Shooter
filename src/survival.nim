@@ -10,6 +10,7 @@
 # Like the game/ modules, it must never import game.
 
 import raylib, random, math, strutils
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, localization, utils, sound, d_systems, d_visuals, roguelite,
        enemy, enemy_helpers, particle_pool, consumable, coin, player, powerup,
@@ -73,7 +74,7 @@ const
     [0, 20, 25, 15, 25, 0, 15, 0],   # Kernel Panic
     [0, 20, 25, 15, 25, 0, 15, 0]]   # Overtime
 
-proc survivalEventDuration*(kind: SurvivalEventKind): float32 =
+proc survivalEventDuration*(kind: SurvivalEventKind): float32 {.moddable.} =
   ## Warmup + live time + resolution beat, used to keep events from running
   ## into a boss.
   case kind
@@ -93,7 +94,7 @@ proc survivalEventDurationOf(kind: SurvivalEventKind, modKey: string): float32 =
       return survivalEventDefs[i].warmup + survivalEventDefs[i].duration + 1.0'f32
   survivalEventDuration(kind)
 
-proc survivalEventColor*(kind: SurvivalEventKind): Color =
+proc survivalEventColor*(kind: SurvivalEventKind): Color {.moddable.} =
   case kind
   of sekNone: Color(r: 0, g: 200, b: 255, a: 255)
   of sekMemoryLeak: Color(r: 120, g: 255, b: 120, a: 255)
@@ -104,13 +105,13 @@ proc survivalEventColor*(kind: SurvivalEventKind): Color =
   of sekOverclock: Color(r: 255, g: 215, b: 60, a: 255)
   of sekMod: Color(r: 200, g: 200, b: 255, a: 255)
 
-proc survivalEventColor*(kind: SurvivalEventKind, modKey: string): Color =
+proc survivalEventColor*(kind: SurvivalEventKind, modKey: string): Color {.moddable.} =
   ## A mod event's own colour; the game's otherwise.
   if kind == sekMod: modEventColor(modKey) else: survivalEventColor(kind)
 
 # --- Data Caches ---------------------------------------------------------------
 
-proc survivalCacheLevels*(tier: SurvivalCacheTier): int =
+proc survivalCacheLevels*(tier: SurvivalCacheTier): int {.moddable.} =
   ## Free power-up levels a cache grants.
   case tier
   of sctMinor: 1
@@ -118,7 +119,7 @@ proc survivalCacheLevels*(tier: SurvivalCacheTier): int =
   of sctRare: 2     # plus a 40% chance of a legendary (see openSurvivalCache)
   of sctKernel: 3
 
-proc survivalCacheWalls*(tier: SurvivalCacheTier): int =
+proc survivalCacheWalls*(tier: SurvivalCacheTier): int {.moddable.} =
   ## Survival has no shop any more, and the shop was its only wall source.
   case tier
   of sctMinor: 1
@@ -126,7 +127,7 @@ proc survivalCacheWalls*(tier: SurvivalCacheTier): int =
   of sctRare: 3
   of sctKernel: 5
 
-proc survivalCacheFallbackShards*(tier: SurvivalCacheTier): int =
+proc survivalCacheFallbackShards*(tier: SurvivalCacheTier): int {.moddable.} =
   ## Paid per level that finds nothing left to upgrade.
   case tier
   of sctMinor: 4
@@ -134,7 +135,7 @@ proc survivalCacheFallbackShards*(tier: SurvivalCacheTier): int =
   of sctRare: 6
   of sctKernel: 8
 
-proc survivalCacheAccent*(tier: SurvivalCacheTier): Color =
+proc survivalCacheAccent*(tier: SurvivalCacheTier): Color {.moddable.} =
   case tier
   of sctMinor: Color(r: 0, g: 210, b: 255, a: 255)
   of sctStandard: Color(r: 90, g: 255, b: 150, a: 255)
@@ -144,7 +145,7 @@ proc survivalCacheAccent*(tier: SurvivalCacheTier): Color =
 # --- Text ------------------------------------------------------------------------
 # Exhaustive, so a new phase, event or tier fails `nim check` until it has text.
 
-proc survivalPhaseNameKey*(phase: SurvivalPhase): TranslationKey =
+proc survivalPhaseNameKey*(phase: SurvivalPhase): TranslationKey {.moddable.} =
   case phase
   of spBoot: tkSurvivalPhaseBoot
   of spRuntime: tkSurvivalPhaseRuntime
@@ -152,7 +153,7 @@ proc survivalPhaseNameKey*(phase: SurvivalPhase): TranslationKey =
   of spKernelPanic: tkSurvivalPhaseKernelPanic
   of spOvertime: tkSurvivalPhaseOvertime
 
-proc survivalPhaseDescKey*(phase: SurvivalPhase): TranslationKey =
+proc survivalPhaseDescKey*(phase: SurvivalPhase): TranslationKey {.moddable.} =
   case phase
   of spBoot: tkSurvivalPhaseBootDesc
   of spRuntime: tkSurvivalPhaseRuntimeDesc
@@ -160,7 +161,7 @@ proc survivalPhaseDescKey*(phase: SurvivalPhase): TranslationKey =
   of spKernelPanic: tkSurvivalPhaseKernelPanicDesc
   of spOvertime: tkSurvivalPhaseOvertimeDesc
 
-proc survivalEventNameKey*(kind: SurvivalEventKind): TranslationKey =
+proc survivalEventNameKey*(kind: SurvivalEventKind): TranslationKey {.moddable.} =
   case kind
   of sekNone: tkSurvivalTrackerIncoming
   of sekMemoryLeak: tkSurvivalEventMemoryLeak
@@ -171,7 +172,7 @@ proc survivalEventNameKey*(kind: SurvivalEventKind): TranslationKey =
   of sekOverclock: tkSurvivalEventOverclock
   of sekMod: tkSurvivalTrackerIncoming   # named by survivalEventName
 
-proc survivalEventHintKey*(kind: SurvivalEventKind): TranslationKey =
+proc survivalEventHintKey*(kind: SurvivalEventKind): TranslationKey {.moddable.} =
   case kind
   of sekNone: tkSurvivalTrackerIncoming
   of sekMemoryLeak: tkSurvivalEventMemoryLeakHint
@@ -182,28 +183,28 @@ proc survivalEventHintKey*(kind: SurvivalEventKind): TranslationKey =
   of sekOverclock: tkSurvivalEventOverclockHint
   of sekMod: tkSurvivalTrackerIncoming
 
-proc survivalEventName*(kind: SurvivalEventKind, modKey: string): string =
+proc survivalEventName*(kind: SurvivalEventKind, modKey: string): string {.moddable.} =
   ## Every event's display name, a mod event's own included.
   if kind == sekMod: modEventName(modKey) else: t(survivalEventNameKey(kind))
 
-proc survivalEventHint*(kind: SurvivalEventKind, modKey: string): string =
+proc survivalEventHint*(kind: SurvivalEventKind, modKey: string): string {.moddable.} =
   if kind == sekMod: modEventHint(modKey) else: t(survivalEventHintKey(kind))
 
-proc survivalCacheNameKey*(tier: SurvivalCacheTier): TranslationKey =
+proc survivalCacheNameKey*(tier: SurvivalCacheTier): TranslationKey {.moddable.} =
   case tier
   of sctMinor: tkSurvivalCacheMinor
   of sctStandard: tkSurvivalCacheStandard
   of sctRare: tkSurvivalCacheRare
   of sctKernel: tkSurvivalCacheKernel
 
-proc formatSurvivalClock*(seconds: float32): string =
+proc formatSurvivalClock*(seconds: float32): string {.moddable.} =
   ## "m:ss" (minutes unpadded), for countdowns and the phase row.
   let total = max(0, int(ceil(max(0.0'f32, seconds))))
   let m = total div 60
   let s = total mod 60
   $m & ":" & (if s < 10: "0" else: "") & $s
 
-proc survivalPhaseReachedLabel*(game: Game): string =
+proc survivalPhaseReachedLabel*(game: Game): string {.moddable.} =
   ## "KERNEL PANIC", or "OVERTIME +3:12" once the run is past 20:00.
   let ph = survivalPhase(game)
   result = t(survivalPhaseNameKey(ph))
@@ -246,7 +247,7 @@ const
     (etDaemon, 480.0'f32, 3),    # Runtime: hastes the crowd around it
     (etInterrupt, 630.0'f32, 7)] # Overload: kamikaze that also hits the horde
 
-proc survivalAliveCount*(game: Game): int =
+proc survivalAliveCount*(game: Game): int {.moddable.} =
   ## Living non-boss enemies plus queued spawns: what the density target and
   ## the hard cap measure.
   result = game.survival.pending.len
@@ -296,7 +297,7 @@ proc pickRosterType(game: Game): EnemyType =
     result = etThread
   result = modSurvivalSpawn(game, result)
 
-proc pickFodderType*(game: Game): EnemyType =
+proc pickFodderType*(game: Game): EnemyType {.moddable.} =
   ## Formations are made of melee chasers so they keep their shape as they
   ## close in: Threads, with Fork Bombs mixed in from Overload on.
   if survivalPhaseIndex(game) >= 2 and rosterUnlocked(game, etForkBomb) and rand(99) < 20:
@@ -310,7 +311,7 @@ proc inArena(game: Game, pos: Vector2f): bool =
 
 proc newSurvivalEnemy*(game: Game, pos: Vector2f, enemyType: EnemyType,
                        tag: SurvivalTag = stgNone, hpMult: float32 = 1.0'f32,
-                       speedMult: float32 = 1.0'f32, allowElite: bool = true): Enemy =
+                       speedMult: float32 = 1.0'f32, allowElite: bool = true): Enemy {.moddable.} =
   ## Build (but don't add) a survival enemy at the live difficulty, normalised
   ## for horde density.
   let d = game.difficulty
@@ -345,7 +346,7 @@ proc newSurvivalEnemy*(game: Game, pos: Vector2f, enemyType: EnemyType,
 
 proc addSurvivalEnemy*(game: Game, pos: Vector2f, enemyType: EnemyType,
                        tag: SurvivalTag = stgNone, hpMult: float32 = 1.0'f32,
-                       speedMult: float32 = 1.0'f32, allowElite: bool = true): Enemy {.discardable.} =
+                       speedMult: float32 = 1.0'f32, allowElite: bool = true): Enemy {.discardable, moddable.} =
   result = newSurvivalEnemy(game, pos, enemyType, tag, hpMult, speedMult, allowElite)
   game.enemies.add(result)
   if enemyType == etDeadlock:
@@ -361,7 +362,7 @@ proc addSurvivalEnemy*(game: Game, pos: Vector2f, enemyType: EnemyType,
 proc queueSurvivalSpawn*(game: Game, pos: Vector2f, enemyType: EnemyType, delay: float32,
                          tag: SurvivalTag = stgNone, hpMult: float32 = 1.0'f32,
                          speedMult: float32 = 1.0'f32, allowElite: bool = true,
-                         telegraph: bool = false): bool {.discardable.} =
+                         telegraph: bool = false): bool {.discardable, moddable.} =
   ## Queue a spawn. False (nothing queued) when the queue or the horde is full.
   if game.survival.pending.len >= SurvivalMaxPending or
      survivalAliveCount(game) >= SurvivalMaxAlive:
@@ -372,7 +373,7 @@ proc queueSurvivalSpawn*(game: Game, pos: Vector2f, enemyType: EnemyType, delay:
     telegraph: telegraph))
   true
 
-proc updateSurvivalPending*(game: Game, dt: float32) =
+proc updateSurvivalPending*(game: Game, dt: float32) {.moddable.} =
   ## Materialize queued spawns whose delay has run out.
   var i = 0
   while i < game.survival.pending.len:
@@ -423,7 +424,7 @@ proc eventDensityMult(game: Game): tuple[target, refill: float32] =
   of sekUploadZone: (1.15'f32, 1.0'f32)
   else: (1.0'f32, 1.0'f32)
 
-proc survivalDensityTarget*(game: Game): float32 =
+proc survivalDensityTarget*(game: Game): float32 {.moddable.} =
   ## How many non-boss enemies the spawner keeps alive right now.
   let ph = survivalPhase(game)
   result =
@@ -441,7 +442,7 @@ proc survivalDensityTarget*(game: Game): float32 =
   # Ease into the run: the first seconds build up instead of arriving full.
   result = min(result, 6.0'f32 + 0.8'f32 * game.survivalTime)
 
-proc survivalRefillRate*(game: Game): float32 =
+proc survivalRefillRate*(game: Game): float32 {.moddable.} =
   ## Spawns per second the density spawner may add.
   let ph = survivalPhase(game)
   result =
@@ -468,7 +469,7 @@ proc spawnPack(game: Game, count: int) =
       et = etThread
     addSurvivalEnemy(game, edgeScatter(game, anchor, 36), et)
 
-proc updateSurvivalDensity*(game: Game, dt: float32) =
+proc updateSurvivalDensity*(game: Game, dt: float32) {.moddable.} =
   ## Top the horde up toward the density target.
   let target = survivalDensityTarget(game)
   game.survival.debugTarget = target
@@ -505,7 +506,7 @@ proc slotBlocked(game: Game, pos: Vector2f, radius: float32): bool =
       return true
 
 proc queueRing*(game: Game, count: int, radius: float32, delay: float32,
-                tag: SurvivalTag = stgNone, allowElite: bool = true): int =
+                tag: SurvivalTag = stgNone, allowElite: bool = true): int {.moddable.} =
   ## A ring of chasers around the player. Slots squeezed against the arena
   ## edge clamp just outside it (they walk in); slots the clamp drags too close
   ## to the player, or into a wall, are dropped, so that side of the ring is
@@ -556,7 +557,7 @@ proc pickFormation(game: Game): SurvivalFormation =
     roll -= weights[f]
   sfStream
 
-proc updateSurvivalFormations*(game: Game) =
+proc updateSurvivalFormations*(game: Game) {.moddable.} =
   ## Fire the next set piece once its time comes. Runs on the survival clock,
   ## so it pauses with it during boss fights and drafts.
   if game.survivalTime < game.survival.formationClock:
@@ -575,7 +576,7 @@ proc updateSurvivalFormations*(game: Game) =
   game.survival.formationClock = game.survivalTime + SurvivalFormationGap[ph] +
     rand(-SurvivalFormationJitter[ph]..SurvivalFormationJitter[ph])
 
-proc reclaimSurvivalFodder*(game: Game, keep: int) =
+proc reclaimSurvivalFodder*(game: Game, keep: int) {.moddable.} =
   ## A boss is arriving: the OS reclaims most of the horde so the fight starts
   ## on a readable board. Keeps the `keep` plain enemies nearest the player (and
   ## every elite); the rest vanish with a small puff and drop nothing.
@@ -607,7 +608,7 @@ proc reclaimSurvivalFodder*(game: Game, keep: int) =
       spawnExplosionPooled(game.particlePool, e.pos.x, e.pos.y, e.color, 3)
   game.enemies = kept
 
-proc drawSurvivalSpawnMarkers*(game: Game) =
+proc drawSurvivalSpawnMarkers*(game: Game) {.moddable.} =
   ## Pulsing markers where telegraphed spawns are about to appear.
   let now = getTime().float32
   for p in game.survival.pending:
@@ -645,7 +646,7 @@ const
   CacheRareLegendaryChance = 40   # % chance a Rare cache adds a legendary
   CacheFallbackHeal = 0.15'f32    # of max HP, when nothing is left to upgrade
 
-proc dropSurvivalCache*(game: var Game, pos: Vector2f, tier: SurvivalCacheTier) =
+proc dropSurvivalCache*(game: var Game, pos: Vector2f, tier: SurvivalCacheTier) {.moddable.} =
   let p = clampLootPosition(pos.x, pos.y, game.screenWidth, game.screenHeight)
   let at = newVector2f(p.x, p.y)
   game.survival.chests.add(SurvivalChest(pos: at, tier: tier, age: 0.0'f32))
@@ -654,7 +655,7 @@ proc dropSurvivalCache*(game: var Game, pos: Vector2f, tier: SurvivalCacheTier) 
   spawnShockwaveRing(game, at, 46.0'f32, accent)
   playSound(stCoinPickup, 0.8, 0.8)
 
-proc canOpenSurvivalCache*(game: Game): bool =
+proc canOpenSurvivalCache*(game: Game): bool {.moddable.} =
   ## Same gating as the dungeon's pedestals: only in live play, never on top of
   ## a boss fight or a level-up draft that is about to open.
   game.state == gsPlaying and game.player.hp > 0 and
@@ -675,7 +676,7 @@ proc rollCacheLevel(game: var Game): PowerUp =
   let pt = pool[rand(pool.high)]
   PowerUp(powerType: pt, level: getPowerUpLevel(game.player, pt) + 1, rarity: prCommon)
 
-proc openSurvivalCache*(game: var Game, tier: SurvivalCacheTier, at: Vector2f): bool {.discardable.} =
+proc openSurvivalCache*(game: var Game, tier: SurvivalCacheTier, at: Vector2f): bool {.discardable, moddable.} =
   ## Apply a cache's rewards and start its reveal. False: a mod's cacheOpen
   ## handler took it instead (gone, no rewards of its own, no reveal).
   if hookActive(hkCacheOpen) and modCacheOpen(game, $tier, at.x, at.y):
@@ -715,7 +716,7 @@ proc openSurvivalCache*(game: var Game, tier: SurvivalCacheTier, at: Vector2f): 
   addShake(game.dopamine.screenShake, siMedium, accent)
   playSound(stRestoreAccess, 0.9)
 
-proc updateSurvivalChests*(game: var Game, dt: float32) =
+proc updateSurvivalChests*(game: var Game, dt: float32) {.moddable.} =
   ## Age, magnet and open the caches on the floor. At most one opens per frame
   ## (its reveal pauses the sim, so a pile opens one reveal after another).
   let canOpen = canOpenSurvivalCache(game)
@@ -734,7 +735,7 @@ proc updateSurvivalChests*(game: var Game, dt: float32) =
       return
     inc i
 
-proc drawSurvivalChests*(game: Game) =
+proc drawSurvivalChests*(game: Game) {.moddable.} =
   ## A Data Cache: a small bobbing crate in its tier colour with a glowing seam,
   ## a chip glyph, a light beam for the better tiers and a pulsing floor ring.
   let now = getTime().float32
@@ -819,11 +820,11 @@ const
   OverclockTime = 15.0'f32
   RogueColor = Color(r: 220, g: 90, b: 255, a: 255)
 
-proc survivalEventActive*(game: Game): bool {.inline.} =
+proc survivalEventActive*(game: Game): bool {.inline, moddable.} =
   game.survival.event.kind != sekNone
 
 proc setSurvivalBanner*(game: Game, kind: SurvivalBannerKind,
-                        event: SurvivalEventKind = sekNone, modKey = "") =
+                        event: SurvivalEventKind = sekNone, modKey = "") {.moddable.} =
   game.survival.bannerKind = kind
   game.survival.bannerEvent = event
   game.survival.bannerModKey = modKey
@@ -906,7 +907,7 @@ proc pickRogueType(game: Game): EnemyType =
 
 # --- Lifecycle -------------------------------------------------------------------
 
-proc startSurvivalEvent*(game: var Game, kind: SurvivalEventKind, modKey = "") =
+proc startSurvivalEvent*(game: var Game, kind: SurvivalEventKind, modKey = "") {.moddable.} =
   if kind == sekNone:
     return
   # Mods (survivalEvent) may veto an event (a mod event by its name).
@@ -1006,7 +1007,7 @@ proc finishSurvivalEvent(game: var Game, success: bool, rewardAt: Vector2f) =
   game.survival.event = SurvivalEvent(kind: sekNone, rogueId: -1)
   scheduleNextEvent(game)
 
-proc cancelSurvivalEvent*(game: Game) =
+proc cancelSurvivalEvent*(game: Game) {.moddable.} =
   ## Drop the running event without reward or banner (a boss is arriving, a
   ## cheat forced another one, or the run is being restored).
   case game.survival.event.kind
@@ -1089,7 +1090,7 @@ proc leakEmitPoint(game: Game, edge: int, frac: float32): Vector2f =
   of 2: newVector2f(s * w, h + 30.0'f32)
   else: newVector2f(-30.0'f32, s * h)
 
-proc updateSurvivalEvent*(game: var Game, dt: float32) =
+proc updateSurvivalEvent*(game: var Game, dt: float32) {.moddable.} =
   ## Advance the running event by `dt` survival-clock seconds.
   if not survivalEventActive(game):
     return
@@ -1181,7 +1182,7 @@ proc updateSurvivalEvent*(game: var Game, dt: float32) =
     if outcome > 0:
       finishSurvivalEvent(game, outcome == 1, lootPointNearPlayer(game))
 
-proc onSurvivalEventKill*(game: var Game, enemy: Enemy) =
+proc onSurvivalEventKill*(game: var Game, enemy: Enemy) {.moddable.} =
   ## Kill hook for event-tagged enemies.
   case enemy.survivalTag
   of stgNone: discard
@@ -1232,7 +1233,7 @@ proc pickRandomEvent(game: Game, rogueAt: float32): tuple[kind: SurvivalEventKin
     roll -= e.w
   (pool[^1].kind, pool[^1].key)
 
-proc updateSurvivalScheduler*(game: var Game) =
+proc updateSurvivalScheduler*(game: var Game) {.moddable.} =
   ## Start the next event when its time comes. Called on frames where the
   ## survival clock is running (no boss alive).
   let s = addr game.survival
@@ -1268,7 +1269,7 @@ proc updateSurvivalScheduler*(game: var Game) =
 
 # --- HUD tracker --------------------------------------------------------------------
 
-proc survivalTrackerInfo*(game: Game): tuple[detail: string, frac: float32, remaining: float32] =
+proc survivalTrackerInfo*(game: Game): tuple[detail: string, frac: float32, remaining: float32] {.moddable.} =
   ## What the HUD's event card shows: a status line, a 0..1 bar and the
   ## seconds left.
   let ev = game.survival.event
@@ -1333,7 +1334,7 @@ proc drawEdgeGlow(game: Game, edge: int, color: Color, depth: float32) =
   of 2: drawGradientQuad(v(0, h - depth), v(0, h), v(w, h), v(w, h - depth), clear, color, color, clear)
   else: drawGradientQuad(v(0, 0), v(0, h), v(depth, h), v(depth, 0), color, color, clear, clear)
 
-proc drawSurvivalEventsUnder*(game: Game) =
+proc drawSurvivalEventsUnder*(game: Game) {.moddable.} =
   ## Event telegraphs and zones, drawn under the actors: light along an edge,
   ## rings of light round the player, a glowing upload pad, the Rogue
   ## Process's landing beam. The sizes are the events' own (BreachRadius,
@@ -1461,7 +1462,7 @@ proc drawRoguePointer(game: Game, target: Vector2f, pulse: float32) =
                Vector2(x: back.x + side.x * 7.0'f32, y: back.y + side.y * 7.0'f32),
                Vector2(x: back.x - side.x * 7.0'f32, y: back.y - side.y * 7.0'f32), c)
 
-proc drawSurvivalEventsOver*(game: Game) =
+proc drawSurvivalEventsOver*(game: Game) {.moddable.} =
   ## Rogue Process arrival (border pulse, landing flash, name callout), then
   ## its label, HP bar and a pointer from the player to it.
   let ev = game.survival.event
@@ -1527,7 +1528,7 @@ const
   EliteCacheCooldown = 60.0'f32  # survival-clock seconds between elite caches
   BossArrivalKeep = 20           # plain enemies left standing when a boss arrives
 
-proc updateSurvival*(game: var Game, dt: float32) =
+proc updateSurvival*(game: var Game, dt: float32) {.moddable.} =
   ## Per-frame survival step: banners, the horde, formations, events, caches.
   ## Runs after game.nim has ticked the survival clock for this frame.
   if game.state != gsPlaying:
@@ -1569,14 +1570,14 @@ proc updateSurvival*(game: var Game, dt: float32) =
     updateSurvivalEvent(game, dt)
   updateSurvivalChests(game, dt)
 
-proc prepareSurvivalBossArrival*(game: var Game) =
+proc prepareSurvivalBossArrival*(game: var Game) {.moddable.} =
   ## A boss is about to spawn: end the running event and reclaim most of the
   ## horde so the fight starts on a readable board.
   cancelSurvivalEvent(game)
   reclaimSurvivalFodder(game, BossArrivalKeep)
   game.survival.spawnBudget = 0.0'f32
 
-proc onSurvivalBossDefeated*(game: var Game, bossPos: Vector2f): bool =
+proc onSurvivalBossDefeated*(game: var Game, bossPos: Vector2f): bool {.moddable.} =
   ## Boss bounty and its Kernel cache. True when this was the final boss (the
   ## run is won; the caller routes to the victory screen).
   let k = game.bossCount
@@ -1595,7 +1596,7 @@ proc onSurvivalBossDefeated*(game: var Game, bossPos: Vector2f): bool =
     return true
   false
 
-proc onSurvivalEnemyKilled*(game: var Game, enemy: Enemy) =
+proc onSurvivalEnemyKilled*(game: var Game, enemy: Enemy) {.moddable.} =
   ## Kill hook: event bookkeeping, and the occasional cache from an elite.
   if enemy.isBoss:
     return
@@ -1607,13 +1608,13 @@ proc onSurvivalEnemyKilled*(game: var Game, enemy: Enemy) =
     s.lastEliteCacheClock = game.survivalTime
     dropSurvivalCache(game, enemy.pos, sctMinor)
 
-proc drawSurvivalWorldUnder*(game: Game) =
+proc drawSurvivalWorldUnder*(game: Game) {.moddable.} =
   ## Event zones and telegraphs, spawn markers and caches (under the actors).
   drawSurvivalEventsUnder(game)
   drawSurvivalSpawnMarkers(game)
   drawSurvivalChests(game)
 
-proc drawSurvivalWorldOver*(game: Game) =
+proc drawSurvivalWorldOver*(game: Game) {.moddable.} =
   ## Overlays that must sit on top of the enemies (the Rogue Process label).
   drawSurvivalEventsOver(game)
 
@@ -1642,7 +1643,7 @@ proc flipAt(i: int): float32 {.inline.} =
 proc allFlippedAt(r: SurvivalCacheReveal): float32 =
   flipAt(r.items.len) + 0.1'f32
 
-proc updateSurvivalCacheReveal*(game: Game, dt: float32): bool =
+proc updateSurvivalCacheReveal*(game: Game, dt: float32): bool {.moddable.} =
   ## Advance the reveal. True on the frame it closes.
   let r = addr game.survival.reveal
   if not r.active:
@@ -1724,7 +1725,7 @@ proc drawRevealCard(x, y: int32, pu: PowerUp, flip: float32, accent: Color, time
   drawRectOutline(tagX, tagY, tagW, 17, edge)
   drawText(tag, tagX + 6, tagY + 2, 13, edge)
 
-proc drawSurvivalCacheReveal*(game: Game, screenWidth, screenHeight: int32) =
+proc drawSurvivalCacheReveal*(game: Game, screenWidth, screenHeight: int32) {.moddable.} =
   let r = game.survival.reveal
   if not r.active:
     return
@@ -1791,7 +1792,7 @@ const
   SurvivalTrackerH: int32 = 52
   SurvivalDockTrackerH: int32 = 46   # widescreen: the event as a docked card
 
-proc survivalHudStackBottom*(game: Game): int32 =
+proc survivalHudStackBottom*(game: Game): int32 {.moddable.} =
   ## Bottom of the survival HUD stack: the card, plus the event card when an
   ## event is running.
   if survivalEventActive(game):
@@ -1895,7 +1896,7 @@ proc stopwatchReadout(survivedT: float32): tuple[mmss, centis: string] =
   ((if mins < 10: "0" else: "") & $mins & ":" & (if secs < 10: "0" else: "") & $secs,
    "." & (if centis < 10: "0" else: "") & $centis)
 
-proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) =
+proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) {.moddable.} =
   ## Classic (4:3) survival HUD, top-centre: one rounded "OS card" holding the
   ## survived-time stopwatch, the phase row (phase name + countdown to the next
   ## boss) and the run level + XP bar. While a System Event runs, a second card
@@ -2071,7 +2072,7 @@ proc drawRunTimeline(game: Game, x, y, w: int32, dim: bool) =
                 else: withAlpha(color, 110)
     drawRectangle(sx + segW - 2, y - 2, 2, h + 4, notch)
 
-proc drawSurvivalDockCard*(game: Game, x, y: int32, withLevel: bool = false): int32 =
+proc drawSurvivalDockCard*(game: Game, x, y: int32, withLevel: bool = false): int32 {.moddable.} =
   ## Widescreen survival HUD, docked at the top of the right band: the phase,
   ## the stopwatch, the countdown to the next boss and the run timeline, sized
   ## to the band. The modern HUD shows the run level and XP bar in its left
@@ -2179,7 +2180,7 @@ proc survivalBannerContent(game: Game): tuple[title, subtitle: string, accent: C
     (t(tkSurvivalFinalInbound), t(tkSurvivalBossInboundSub),
      Color(r: 255, g: 60, b: 60, a: 255), 3.5'f32)
 
-proc drawSurvivalBanner*(game: Game, screenWidth, topY: int32) =
+proc drawSurvivalBanner*(game: Game, screenWidth, topY: int32) {.moddable.} =
   ## Classic layout: the latest announcement, centred under the HUD stack.
   let c = survivalBannerContent(game)
   if c.title.len == 0:
@@ -2187,7 +2188,7 @@ proc drawSurvivalBanner*(game: Game, screenWidth, topY: int32) =
   drawLabelBanner(c.title, c.subtitle, game.time - game.survival.bannerStart,
                   screenWidth, topY, c.accent, c.duration)
 
-proc drawSurvivalBannerGutter*(game: Game, gutterX, gutterW, topY: int32): int32 =
+proc drawSurvivalBannerGutter*(game: Game, gutterX, gutterW, topY: int32): int32 {.moddable.} =
   ## Widescreen layout: the same announcement as a right-gutter card.
   let c = survivalBannerContent(game)
   if c.title.len == 0:

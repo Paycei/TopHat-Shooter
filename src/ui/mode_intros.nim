@@ -5,6 +5,7 @@
 ## cinematic_common helpers as the lore and endgame cinematics.
 
 import raylib, rlgl, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../localization, ../sound, ../boss_definitions,
@@ -167,7 +168,7 @@ proc newWavePlanShot(): CutsceneDrawProc =
 
     drawSubtitles([t(tkModeIntroWave2a), t(tkModeIntroWave2b)], sw, sh, alpha)
 
-proc newWaveIntroCutscene*(): Cutscene =
+proc newWaveIntroCutscene*(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: 6.8'f32, drawProc: newWaveRosterShot(), soundCue: stTeleport,
@@ -299,7 +300,7 @@ proc drawSurvShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
 
   drawSubtitles([t(tkModeIntroSurv2a), t(tkModeIntroSurv2b)], sw, sh, alpha)
 
-proc newSurvivalIntroCutscene*(): Cutscene =
+proc newSurvivalIntroCutscene*(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: 6.8'f32, drawProc: drawSurvShot1, soundCue: stShield,
@@ -448,7 +449,7 @@ proc newGuardianShot(): CutsceneDrawProc =
                Color(r: 200, g: 170, b: 120, a: alphaByte(alpha * pop * 170.0'f32)))
     drawSubtitles([t(tkModeIntroRogue2a), t(tkModeIntroRogue2b)], sw, sh, alpha)
 
-proc newRogueliteIntroCutscene*(): Cutscene =
+proc newRogueliteIntroCutscene*(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: 6.8'f32, drawProc: drawRogueShot1, soundCue: stTeleport,
@@ -601,7 +602,7 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
 
   drawSubtitles([t(tkModeIntroSandbox2a), t(tkModeIntroSandbox2b)], sw, sh, alpha)
 
-proc newSandboxIntroCutscene*(): Cutscene =
+proc newSandboxIntroCutscene*(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: 7.0'f32, drawProc: drawSandboxShot1, soundCue: stMenuSelect,
@@ -729,7 +730,7 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
 
   drawSubtitles([t(tkModeIntroPvP3a), t(tkModeIntroPvP3b)], sw, sh, alpha)
 
-proc newPvPIntroCutscene*(): Cutscene =
+proc newPvPIntroCutscene*(): Cutscene {.moddable.} =
   newCutscene(
     shots = @[
       CutsceneShot(duration: 6.8'f32, drawProc: drawPvPShot1, soundCue: stTeleport,

@@ -1,4 +1,5 @@
 ﻿import raylib, std/tables, std/deques, discord_presence, particle_types, math
+import modding/mod_patch_core
 
 type
   KeyAction* = enum
@@ -146,7 +147,8 @@ type
   GameState* = enum
     gsSplash, gsProfileSelect, gsLanguageSelect, gsLoreIntro, gsMenu, gsPlaying, gsPaused, gsShop, gsGameOver, gsCountdown, gsWaveCleared, gsPowerUpSelect, gsRunStats, gsPvPPlaying, gs3DBoss,
     gsRogueliteFloorSelect, gsDeathSequence, gsVictory, gsEndgameCinematic, gsCutscene,
-    gsRogueliteVictory, gsRogueliteEndCinematic, gsSurvivalEndCinematic
+    gsRogueliteVictory, gsRogueliteEndCinematic, gsSurvivalEndCinematic,
+    gsModScreen  ## a mod's own screen (register.screen); last, so saved ordinals keep their meaning
 
   GameDifficulty* = enum
     ## Per-profile difficulty picked when a save profile is created.
@@ -2067,6 +2069,42 @@ type
     confirmQuitFrameGuard*: float32  # Short guard so Q-open and Q-confirm can't fire on the same frame
     wallPlacementMode*: bool   # Whether the player is in wall-placement mode (E toggles, RMB/walls=0 exits)
 
+# Entity lists that scripts can change while the game walks them. The
+# stdlib's seq iterators hand out a reference into the list's buffer and only
+# assert (compiled out in release builds) that its length did not change, so a
+# mod growing game.enemies from a hook would leave the loop reading freed
+# memory, and shrinking it would read past the end. These overloads (picked
+# over the generic ones for these element types) yield copies of the refs and
+# re-check the length every step: growth is safe (new entries are not visited,
+# as before), shrinking just ends the walk early.
+iterator items*(a: seq[Enemy]): Enemy {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield a[i]
+    inc i
+
+iterator pairs*(a: seq[Enemy]): tuple[key: int, val: Enemy] {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield (i, a[i])
+    inc i
+
+iterator items*(a: seq[Bullet]): Bullet {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield a[i]
+    inc i
+
+iterator pairs*(a: seq[Bullet]): tuple[key: int, val: Bullet] {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield (i, a[i])
+    inc i
+
 # Selected difficulty of the active save profile. Set at boot / on profile
 # switch (main.nim) and read by the spawn/damage choke points below. Medium is
 # the pre-difficulty-system balance, so its multipliers are exactly 1.0.
@@ -2087,7 +2125,6 @@ const BossWaveInterval* = 5
 
 const MaxBossId* = 23
 
-const MaxModThings* = 4000  ## things alive at once in a run (spawns past it are refused)
 
 const
   FirstModPowerUp* = puMod000  ## the reserved power-up slots mods bind (register.powerup)
@@ -2389,21 +2426,21 @@ var modDifficultyScale* = [1'f32, 1, 1, 1, 1, 1]
 
 template modLever(l: DifficultyLever): float32 = modDifficultyScale[ord(l)]
 
-proc difficultyEnemyHpMult*(): float32 =
+proc difficultyEnemyHpMult*(): float32 {.moddable.} =
   (case currentDifficulty
    of gdEasy: 0.75'f32
    of gdMedium: 1.0'f32
    of gdHard: 1.40'f32
    of gdNightmare: 1.80'f32) * modLever(dlEnemyHp)
 
-proc difficultyEnemyDamageMult*(): float32 =
+proc difficultyEnemyDamageMult*(): float32 {.moddable.} =
   (case currentDifficulty
    of gdEasy: 0.70'f32
    of gdMedium: 1.0'f32
    of gdHard: 1.40'f32
    of gdNightmare: 1.80'f32) * modLever(dlEnemyDamage)
 
-proc difficultyEnemySpeedMult*(): float32 =
+proc difficultyEnemySpeedMult*(): float32 {.moddable.} =
   ## Regular-enemy movement speed. Bosses are excluded: their movement is
   ## choreographed (orbit landing radii, dash lanes), so they get harder through
   ## difficultyBossCooldownMult instead.
@@ -2412,7 +2449,7 @@ proc difficultyEnemySpeedMult*(): float32 =
    of gdHard: 1.12'f32
    of gdNightmare: 1.22'f32) * modLever(dlEnemySpeed)
 
-proc difficultySpawnPaceMult*(): float32 =
+proc difficultySpawnPaceMult*(): float32 {.moddable.} =
   ## Divides the delay between spawn ticks. A wave's head count is unchanged
   ## (every per-enemy reward is normalised against calculateWaveEnemyCount, see
   ## waveDensityRebate), so this packs the same wave into a shorter window: more
@@ -2422,14 +2459,14 @@ proc difficultySpawnPaceMult*(): float32 =
    of gdHard: 1.25'f32
    of gdNightmare: 1.50'f32) * modLever(dlSpawnPace)
 
-proc difficultyEliteChanceMult*(): float32 =
+proc difficultyEliteChanceMult*(): float32 {.moddable.} =
   ## Scales the per-enemy elite roll in makeElite.
   (case currentDifficulty
    of gdEasy, gdMedium: 1.0'f32
    of gdHard: 1.5'f32
    of gdNightmare: 2.0'f32) * modLever(dlEliteChance)
 
-proc difficultyBossCooldownMult*(): float32 =
+proc difficultyBossCooldownMult*(): float32 {.moddable.} =
   ## Scales every custom-boss attack cooldown (lower = attacks more often).
   ## Phase-transition silences are left alone, so a boss still resumes exactly
   ## when its invulnerability ends.

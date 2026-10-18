@@ -1,4 +1,5 @@
 import raylib, math
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, bullet_skins, bullet_shapes, utils
 import modding/[mod_assets, mod_hooks]
@@ -32,7 +33,7 @@ const bossBulletShapeTable = [
   4,  # 23: Omega (roguelite) -> cross
 ]
 
-proc bossBulletShapeFor*(bossId: int): int =
+proc bossBulletShapeFor*(bossId: int): int {.moddable.} =
   if bossId in 1..MaxBossId: bossBulletShapeTable[bossId] else: 0
 
 ## Bullets ease their alpha down over the final `BulletFadeOutTime` seconds of
@@ -107,7 +108,7 @@ proc drawBossBulletTrail(bullet: Bullet, trailColor: Color) =
     drawDisc(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
                withAlpha(trailColor, trailAlpha))
 
-proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32) =
+proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32) {.moddable.} =
   ## Draw a boss bullet using its assigned shape, with rotation and glow.
   let cx = bullet.pos.x
   let cy = bullet.pos.y
@@ -212,7 +213,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 colorOverride: Color = Color(r: 0, g: 0, b: 0, a: 0),
                 bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1,
                 ownerPlayerIndex: int = -1, bossBulletShape: int = 0,
-                bulletRadius: float32 = 0.0, bulletShape: int = 0): Bullet =
+                bulletRadius: float32 = 0.0, bulletShape: int = 0): Bullet {.moddable.} =
   # Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
 
@@ -265,7 +266,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     result.radius = bulletRadius
   modBulletSpawn(result)   # mods may reshape any bullet before it flies
 
-proc updateBullet*(bullet: Bullet, dt: float32): bool =
+proc updateBullet*(bullet: Bullet, dt: float32): bool {.moddable.} =
   # Track distance traveled for Overcharge power-up
   let movement = bullet.vel * dt
   bullet.travelDistance += movement.length()
@@ -274,12 +275,12 @@ proc updateBullet*(bullet: Bullet, dt: float32): bool =
   bullet.lifetime -= dt
   return bullet.lifetime > 0
 
-proc assignBulletId*(game: Game, bullet: Bullet) =
+proc assignBulletId*(game: Game, bullet: Bullet) {.moddable.} =
   ## Assign a unique ID to a bullet for parent-child tracking
   game.bulletIdCounter += 1
   bullet.bulletId = game.bulletIdCounter
 
-proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false, gameTime: float32 = 0.0) =
+proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false, gameTime: float32 = 0.0) {.moddable.} =
   if modBulletDraw(bullet): return   # a mod drew it (bulletDraw hook)
   # Get base color from bullet skin for player bullets
   var color: Color
@@ -569,19 +570,19 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
         drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, outerRadius,
                        faded(withAlpha(outerGlow, outerGlow.a div 2)))
 
-proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool =
+proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool {.moddable.} =
   bullet.pos.x < -50 or bullet.pos.x > screenWidth.float32 + 50 or
   bullet.pos.y < -50 or bullet.pos.y > screenHeight.float32 + 50
 
-proc checkBulletEnemyCollision*(bullet: Bullet, enemy: Enemy): bool =
+proc checkBulletEnemyCollision*(bullet: Bullet, enemy: Enemy): bool {.moddable.} =
   if not bullet.fromPlayer: return false
   distance(bullet.pos, enemy.pos) < bullet.radius + enemy.radius
 
-proc checkBulletPlayerCollision*(bullet: Bullet, player: Player): bool =
+proc checkBulletPlayerCollision*(bullet: Bullet, player: Player): bool {.moddable.} =
   if bullet.fromPlayer: return false
   distance(bullet.pos, player.pos) < bullet.radius + player.radius
 
-proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool =
+proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool {.moddable.} =
   if bullet.fromPlayer: return false # Player bullets pass through walls
   wallOverlapsCircle(wall, bullet.pos, bullet.radius)
 
@@ -589,7 +590,7 @@ proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool =
 
 proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
                   damageMultiplier: float32 = 1.0, speedMultiplier: float32 = 1.0,
-                  radiusMultiplier: float32 = 1.0, preventSplit: bool = false): Bullet =
+                  radiusMultiplier: float32 = 1.0, preventSplit: bool = false): Bullet {.moddable.} =
   ## Clone a bullet preserving ALL its properties for perfect synergy
   ## This ensures Split Shot, Echo, and other effects inherit all bullet modifiers
   result = newBullet(
@@ -651,7 +652,7 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     result.echoHitEnemies.add(enemyIdx)
 
 proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
-                        damageMultiplier: float32 = 0.5, speedMultiplier: float32 = 0.7) =
+                        damageMultiplier: float32 = 0.5, speedMultiplier: float32 = 0.7) {.moddable.} =
   ## Create damage-only split fragments.
   ## Split Shot creates extra hits, but child bullets should not become full
   ## carriers for piercing, ricochet, explosive, elemental, or other on-hit
@@ -711,7 +712,7 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
 
 proc createEchoBullet*(game: Game, sourceBullet: Bullet,
                       damageMultiplier: float32 = 0.4, speedMultiplier: float32 = 0.5,
-                      lifetime: float32 = 0.35) =
+                      lifetime: float32 = 0.35) {.moddable.} =
   ## Create a damage-only echo trail bullet.
   ## Echoes inherit the source's current damage and visuals, but not recursive
   ## shot modifiers or on-hit effects.

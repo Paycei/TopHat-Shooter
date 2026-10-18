@@ -7,8 +7,8 @@
 ## from the desktop, never during a run, so a run always sees one fixed set.
 
 import std/[os, strutils, json, algorithm]
-import ../localization
-import lua_bridge, mod_state, mod_hooks, mod_api, mod_3d, mod_world2d, mod_content_api, mod_ui, mod_engine, mod_pvp, mod_theme, mod_catalog, mod_assets
+import ../localization, ../settings, ../utils
+import lua_bridge, mod_state, mod_hooks, mod_api, mod_3d, mod_world2d, mod_content_api, mod_ui, mod_engine, mod_pvp, mod_theme, mod_catalog, mod_assets, mod_mixin, mod_rl
 
 proc summaryText*(): string =
   ## "3 loaded, 1 failed" style line for toasts and the log.
@@ -79,15 +79,42 @@ proc loadContentPacks(vm: VM, m: ModRuntime): string =
         fn = rawGetStr(regV.tbl, typ)
         callArgs = @[fromJsonNode(body)]
       var r: RetVals
-      let err = protectedCall(vm, fn, callArgs, r, LoadStepBudget)
+      let err = protectedCall(vm, fn, callArgs, r, LoadLimit)
       if err.len > 0: return where & ": " & err.splitLines()[0]
   ""
+
+# ------------------------------------------------------------ safe mode ----
+# Mods are trusted, so nothing switches one off while it runs; instead, a game
+# that went down with mods loaded starts the next time without them. A marker
+# in the mods folder says "mods are loaded right now": written by every reload
+# that loaded something, removed by one that did not and by a clean shutdown.
+
+proc sessionMarker(): string = modsRootDir() / ".session"
+
+proc modSessionCrashed*(): bool =
+  ## At launch: the last session ended without shutting down, with mods loaded.
+  fileExists(sessionMarker())
+
+proc markModSession() =
+  try:
+    if modsActive: writeFile(sessionMarker(), "mods loaded: " & loadedModIds.join(", "))
+    elif fileExists(sessionMarker()): removeFile(sessionMarker())
+  except IOError, OSError:
+    discard
+
+proc endModSession*() =
+  ## A clean shutdown.
+  try:
+    if fileExists(sessionMarker()): removeFile(sessionMarker())
+  except IOError, OSError:
+    discard
 
 proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   # 1. Tear the previous set down (keeping what the old set stored).
   saveAllModStorage()
   unloadModAssets()
   clearModTranslations()
+  clearModLanguages()
   resetHooks()
   modsActive = false
   modsDisableAchievements = false
@@ -106,6 +133,8 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   installModEngine(base)
   installModPvP(base)
   installModTheme(base)
+  installModMixin(base)   # (after mod_api: it fills the engine table)
+  installModRl(base)      # (after mod_mixin: rl is engine.raylib)
   resetModContent()
   let libraries = tableKeysOf(base)   # each mod gets its own copy of every game library
 
@@ -114,6 +143,7 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   let order = loadOrder(installedMods)
   var loadedIds: seq[string]
   var loadedInfos: seq[ModInfo]
+  var fingerprint = FingerprintStart
   for ci in order:
     var failedDep = ""
     for d in installedMods[ci].dependencies:
@@ -126,6 +156,7 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
       statusLog(installedMods[ci])
       continue
     let info = installedMods[ci]
+    let withThis = fingerprintMix(fingerprint, info)   # its files as they were before it ran
     let m = ModRuntime(id: info.id, name: info.name, version: info.version,
                        author: info.author, dir: info.dir, index: mods.len,
                        runData: newScriptTable())
@@ -136,10 +167,10 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
     try:
       beginModLoad(m.index)
       if info.main.len > 0:   # (a content-only mod has no script)
-        let src = readFile(info.dir / info.main)
+        let src = readFile(modMainPath(info))
         let cl = vm.loadChunk(src, info.id & "/" & info.main, m.env)
         var r: RetVals
-        err = protectedCall(vm, vfunc(cl), [], r, LoadStepBudget)
+        err = protectedCall(vm, vfunc(cl), [], r, LoadLimit)
       if err.len == 0:
         err = loadContentPacks(vm, m)
     except ScriptError as e:
@@ -159,6 +190,10 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
       installedMods[ci].status = msLoaded
       loadedIds.add(info.id)
       loadedInfos.add(info)
+      fingerprint = withThis
+      if needsNewerGame(info):
+        modLogAdd(mlWarn, info.id, "made for game version " & info.game & " or newer (this is " &
+                  GameVersion & "): parts of it may not work")
     statusLog(installedMods[ci])
 
   # 4. Publish the new set.
@@ -166,10 +201,16 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   modsActive = loadedIds.len > 0
   for info in loadedInfos:
     if info.disableAchievements: modsDisableAchievements = true
-  modFingerprintHex = if modsActive: computeFingerprint(loadedInfos) else: ""
+  modFingerprintHex = if modsActive: fingerprintHex(fingerprint) else: ""
   if modsActive:
     captureModRunData = captureRunData
   applyEquippedCosmetics(equippedCosmetics)
+  # A mod's language is in the settings by id: in use again now that its mod
+  # registered it (English while it is not loaded), and every cached string
+  # (skin names...) is redone with the new set's text.
+  if not globalSettings.isNil:
+    discard useLanguage(globalSettings.language)
+  markModSession()
   modLogAdd(mlInfo, "", "mods reloaded: " & summaryText() &
             (if modsActive: " (set " & modFingerprintHex & ")" else: "") &
             (if not modsActive: ""

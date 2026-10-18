@@ -1,4 +1,5 @@
 import raylib, rlgl, random, math
+import ../modding/mod_patch_core
 import types, enemy, bullet, boss_definitions, particle_pool, particle_types, d_systems, enemy_helpers, boss_weakpoints, ui/warnings, game/bullets, game/mode_boss_attacks, mode_hazards
 import modding/[mod_state, mod_hooks]
 export pointSegmentDistance  # beam hit tests (shared with the roster hazards)
@@ -46,7 +47,7 @@ proc resetBossBehaviorState(enemy: Enemy, specialBehavior: string) =
     enemy.teleportTimer = 0.0
     enemy.shockwaveTimer = 0.0
 
-proc bossPhaseMaxHp*(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 =
+proc bossPhaseMaxHp*(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 {.moddable.} =
   if phaseIndex >= 0 and phaseIndex < enemy.bossPhaseHpPools.len:
     return max(enemy.bossPhaseHpPools[phaseIndex], 0.01'f32)
 
@@ -55,7 +56,7 @@ proc bossPhaseMaxHp*(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 =
 
   max(enemy.maxHp, 0.01'f32)
 
-proc livingRoyalGuardCount*(game: Game): int =
+proc livingRoyalGuardCount*(game: Game): int {.moddable.} =
   ## Royal Guards still standing. They alone hold the Summoner King's seal,
   ## freeze its next summon and fill its objective pips; the legion's rank and
   ## file around them never do.
@@ -63,7 +64,7 @@ proc livingRoyalGuardCount*(game: Game): int =
     if isLivingRoyalGuard(other):
       result += 1
 
-proc retireSatelliteHazards*(game: var Game, sat: OrbitalSatellite) =
+proc retireSatelliteHazards*(game: var Game, sat: OrbitalSatellite) {.moddable.} =
   ## A satellite that is destroyed or dismissed takes its beam and its charge
   ## telegraph with it. Both live in the shared game lists, so without this a
   ## destroyed satellite's laser kept firing from where it died for the rest of
@@ -80,7 +81,7 @@ proc retireSatelliteHazards*(game: var Game, sat: OrbitalSatellite) =
         break
 
 proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinition,
-                           nextPhaseIndex: int) =
+                           nextPhaseIndex: int) {.moddable.} =
   if nextPhaseIndex < 0 or nextPhaseIndex >= bossDef.phases.len:
     return
 
@@ -173,7 +174,7 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
     enemy.weakPoint.required = max(1, livingRoyalGuardCount(game))
   modBossPhase(enemy, nextPhaseIndex)
 
-proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool =
+proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool {.moddable.} =
   ## Breaks a boss into its next phase once the current phase pool is spent.
   ## The depletion test must match the death test in `updateEnemy`
   ## (`hp >= EnemyMinAliveHp`): a stricter `hp > 0` check left float residue in
@@ -220,7 +221,7 @@ proc bossLivingAddsCount(game: Game, enemy: Enemy): int =
   ## pressure, not a lock one straggler across the arena can hold shut.
   enemy.satellites.len + livingRoyalGuardCount(game)
 
-proc updateBossMechanics*(game: var Game, enemy: Enemy, dt: float32) =
+proc updateBossMechanics*(game: var Game, enemy: Enemy, dt: float32) {.moddable.} =
   if not enemy.isBoss:
     return
 
@@ -350,7 +351,7 @@ proc tryBossBehaviorTeleport(game: Game, enemy: Enemy, dt: float32,
     game, enemy, minRadius, maxRadius, effectColor, effectSize, minPlayerDistance
   )
 
-proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDefinition, dt: float32) =
+proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDefinition, dt: float32) {.moddable.} =
   ## Updates boss movement based on phase specialBehavior
   if phase.specialBehavior == "":
     return
@@ -863,38 +864,38 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
       enemy.vel = newVector2f(0, 0)
 
 
-proc spawnThunderstrike*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnThunderstrike*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnThunderstrikeInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnArcLattice*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnArcLattice*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnArcLatticeInto(game.attackWarnings, game.particlePool, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnRicochetLaser*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnRicochetLaser*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnRicochetLaserInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnVoidRifts*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnVoidRifts*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnVoidRiftsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnOrbitalSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnOrbitalSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnOrbitalSweepInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnSeismicFissure*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnSeismicFissure*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnSeismicFissureInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnPrismRays*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnPrismRays*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnPrismRaysInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnClockSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnClockSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnClockSweepInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnChaosWeave*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnChaosWeave*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnChaosWeaveInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnOmegaQuadrants*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnOmegaQuadrants*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnOmegaQuadrantsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase,
                                    lesson = attack.specialData == "omega_judgement_lesson")
 
-proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) =
+proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) {.moddable.} =
   warnings.addBossAttackWarningInto(game.attackWarnings, game.player, enemy, attack)
 
 proc spawnBossBullet(game: var Game, enemy: Enemy, attack: BossAttack,
@@ -956,7 +957,7 @@ proc spiralBulletColor(progress: float32): Color =
   proc mix(a, b: int): uint8 = uint8(a.float32 + (b - a).float32 * t)
   Color(r: mix(90, 255), g: mix(235, 215), b: mix(255, 60), a: 255)
 
-proc updateBossSpiralStream*(game: var Game, enemy: Enemy, dt: float32) =
+proc updateBossSpiralStream*(game: var Game, enemy: Enemy, dt: float32) {.moddable.} =
   ## Per-frame driver for the bapSpiral emitter armed by execBossAttackSpiral.
   ## Releases one spiral step (spiralEmitArms bullets) every spiralEmitInterval
   ## seconds, advancing the emission angle each step so the trail spirals.
@@ -2624,7 +2625,7 @@ proc launchCharge(game: var Game, enemy: Enemy) =
                            start.x + cos(angle) * 60.0, start.y + sin(angle) * 60.0,
                            Color(r: 255, g: 50, b: 0, a: 255), 5)
 
-proc endChargeComboCharge*(game: var Game, enemy: Enemy) =
+proc endChargeComboCharge*(game: var Game, enemy: Enemy) {.moddable.} =
   ## Called by game.nim on the frame a charge reaches its locked endpoint.
   if enemy.chargeState != ccCharging:
     return
@@ -2638,7 +2639,7 @@ proc endChargeComboCharge*(game: var Game, enemy: Enemy) =
     enemy.chargeState = ccWinded
     enemy.chargeTimer = JuggernautChargeWinded
 
-proc updateChargeCombo*(game: var Game, enemy: Enemy, dt: float32) =
+proc updateChargeCombo*(game: var Game, enemy: Enemy, dt: float32) {.moddable.} =
   ## Ticks the windup / reaim / winded beats. The charge itself moves through
   ## the shared boss-dash block in game.nim.
   case enemy.chargeState
@@ -2821,13 +2822,13 @@ const LaserOverlapSuppressed* = {bapTargeted, bapBurst, bapWave, bapBarrage,
   ## player is already reading, whereas an aimed volley on top of a beam wall
   ## removes the one lane the beam left open.
 
-proc bossLaserActiveDuration*(configuredDuration: float32): float32 =
+proc bossLaserActiveDuration*(configuredDuration: float32): float32 {.moddable.} =
   ## The single formula turning a definition's configured beam duration into the
   ## lethal window. Both the spawn site (game.nim) and the threat estimate below
   ## go through it so they can never disagree about how long a beam lives.
   configuredDuration * LaserActiveDurationScale
 
-proc bossLaserThreatRemaining*(game: Game): float32 =
+proc bossLaserThreatRemaining*(game: Game): float32 {.moddable.} =
   ## Seconds until the arena is free of beam-like threat: the longest remaining
   ## life among live lasers, beam warnings still in their telegraph (telegraph
   ## plus the lethal window it will become), and any live Orbital Sweep wall.
@@ -2852,14 +2853,14 @@ proc bossLaserThreatRemaining*(game: Game): float32 =
   if result < LaserThreatFloor:
     result = 0.0
 
-proc thinnedForLaserOverlap*(attack: BossAttack): BossAttack =
+proc thinnedForLaserOverlap*(attack: BossAttack): BossAttack {.moddable.} =
   ## Halved-density copy of an aimed attack, for when it fires anyway because
   ## the beam window is too long to be worth waiting out.
   result = attack
   result.projectileCount = max(1, int(attack.projectileCount.float32 *
                                       LaserOverlapDensityScale))
 
-proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
+proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) {.moddable.} =
   ## Executes a single boss attack based on its pattern type
   # Dungeon mode compresses boss attack damage toward the floor's threat
   # (boss definitions assume the player power of their wave-mode slot).
