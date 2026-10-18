@@ -6,6 +6,7 @@ import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
 import ui_theme
+from ../network/tls import BearSSLLicense
 import ../gamepad_input, ../patches
 import ../modding/mod_registry
 from ../dungeon import rewardFolderName, rewardLabel
@@ -418,7 +419,7 @@ proc executeCommand*(help: HelpWindow, cmd: string) {.moddable.} =
         (tkHelpLicensesNaylib, staticRead("../../vendor/naylib/LICENSE")),
         (tkHelpLicensesIntro, staticRead("../../vendor/lua/LICENSE")),
         (tkHelpLicensesPlMpeg, staticRead("../../vendor/pl_mpeg/LICENSE")),
-        (tkHelpLicensesBearSSL, staticRead("../../vendor/bearssl/LICENSE.txt")),
+        (tkHelpLicensesBearSSL, BearSSLLicense),
         (tkHelpLicensesCaCerts, "")]   # (a notice, no license text to print)
       let noticeColor = Color(r: 190, g: 200, b: 215, a: 255)
       for (intro, license) in Notices:

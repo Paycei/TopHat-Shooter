@@ -142,8 +142,9 @@ from the game with `nimble modapi`, lists every function, hook and game proc a m
 ## Building from source
 
 **Requirements:** [Nim](https://nim-lang.org) 2.2.12 or newer with Nimble. Dependencies
-(`flatty`, `supersnappy`) come from `nimble install`. Raylib, Lua and BearSSL are compiled into
-the executable: Lua and BearSSL ship with the source, and raylib comes with its Nim bindings from the
+(`flatty`, `supersnappy`, `bearssl`) come from `nimble install`. Raylib, Lua and BearSSL are compiled
+into the executable: Lua ships with the source, BearSSL comes from the `bearssl` package (its first
+build applies a patch with `git` or `patch`, so one of them must be on the PATH), and raylib comes with its Nim bindings from the
 `vendor/naylib` git submodule, a maintained fork of
 [naylib](https://github.com/planetis-m/naylib) at [Paycei/naylib](https://github.com/Paycei/naylib).
 Windows release builds need the Visual C++ Build Tools.
@@ -220,6 +221,6 @@ Support is entirely optional and never gates any feature of the game.
 ## License
 
 Apache 2.0, see [LICENSE](LICENSE). Lua 5.5 is vendored under the MIT license
-(see [`vendor/lua/LICENSE`](vendor/lua/LICENSE)), and so is BearSSL
-(see [`vendor/bearssl/LICENSE.txt`](vendor/bearssl/LICENSE.txt)). The root certificates in
-[`vendor/cacert/`](vendor/cacert) are Mozilla's, under the Mozilla Public License 2.0.
+(see [`vendor/lua/LICENSE`](vendor/lua/LICENSE)). BearSSL, compiled in from the
+[`bearssl`](https://github.com/status-im/nim-bearssl) Nimble package, is under the MIT license too,
+and the root certificates that package ships are Mozilla's, under the Mozilla Public License 2.0.
