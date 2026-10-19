@@ -14,7 +14,7 @@ import ../modding/mod_patch_core
 import raylib, math, random
 from rlgl import getShaderIdDefault
 import ../draw_prims
-import types_3d, engine_3d, player_3d, boss_3d, ../types, ../localization, ../settings
+import types_3d, engine_3d, player_3d, boss_3d, ../types, ../utils, ../localization, ../settings
 import ../modding/[mod_hooks, mod_assets]
 
 export types_3d
@@ -43,10 +43,10 @@ proc newEntity3D*(world: Game3D, tag = ""): Entity3D {.moddable.} =
     projectileSpeed: 150.0, projectileDamage: 10.0,
     alive: true)
 
-proc newPickup3D*(world: Game3D, pos: Vector3f, kind: string, value: float32): Pickup3D {.moddable.} =
+proc newPickup3D*(world: Game3D, pos: Vector3, kind: string, value: float32): Pickup3D {.moddable.} =
   Pickup3D(id: allocId3D(world), pos: pos, kind: kind, value: value, radius: 4.0, alive: true)
 
-proc newProjectile3D*(pos, vel: Vector3f, damage: float32, fromPlayer: bool): Projectile3D {.moddable.} =
+proc newProjectile3D*(pos, vel: Vector3, damage: float32, fromPlayer: bool): Projectile3D {.moddable.} =
   Projectile3D(pos: pos, vel: vel, damage: damage, lifetime: 6.0, fromPlayer: fromPlayer, active: true)
 
 proc initGame3D*(opts: World3DOptions, player2D: Player): Game3D {.moddable.} =
@@ -74,7 +74,7 @@ proc initGame3D*(opts: World3DOptions, player2D: Player): Game3D {.moddable.} =
 
 # DAMAGE NUMBERS
 
-proc spawnDamageNumber3D*(damageNumbers: var seq[DamageNumber3D], pos: Vector3f, damage: float32,
+proc spawnDamageNumber3D*(damageNumbers: var seq[DamageNumber3D], pos: Vector3, damage: float32,
                           color = Color()) {.moddable.} =
   ## Create a new damage number at the given position (color alpha 0 = yellow)
   let horizontalSpread = vec3(
@@ -131,11 +131,11 @@ proc raylibCamera*(camera: FPSCamera): Camera {.moddable.} =
     projection: CameraProjection.Perspective
   )
 
-proc worldToScreen3D*(camera: FPSCamera, pos: Vector3f): tuple[x, y: float32, visible: bool] {.moddable.} =
+proc worldToScreen3D*(camera: FPSCamera, pos: Vector3): tuple[x, y: float32, visible: bool] {.moddable.} =
   ## Where a world point lands on the screen; `visible` = in front of the
   ## camera and inside the window.
   let s = getWorldToScreen(Vector3(x: pos.x, y: pos.y, z: pos.z), raylibCamera(camera))
-  let ahead = dot(pos - camera.position, camera.target - camera.position) > 0
+  let ahead = dotProduct(pos - camera.position, camera.target - camera.position) > 0
   (s.x, s.y, ahead and s.x >= 0 and s.x <= getScreenWidth().float32 and
              s.y >= 0 and s.y <= getScreenHeight().float32)
 
@@ -156,7 +156,7 @@ proc drawDamageNumbers(damageNumbers: seq[DamageNumber3D], camera: FPSCamera) =
       let damageText = $int(dmg.damage)
       let fontSize = max(8'i32, int32(24.0'f32 * damageNumberScaleOf(globalSettings)))
       let base = if dmg.color.a > 0: dmg.color else: Color(r: 255, g: 255, b: 100, a: 255)
-      let color = Color(r: base.r, g: base.g, b: base.b, a: alpha.uint8)
+      let color = withAlpha(base, alpha.uint8)
 
       # Draw with shadow for better visibility
       drawText(damageText, int32(screenPos.x) - 1, int32(screenPos.y) - 1, fontSize, Black)
@@ -280,15 +280,15 @@ type
   RayHit3D* = object
     kind*: string        ## "none", "platform", "floor", "entity", "boss" or "satellite"
     dist*: float32
-    pos*: Vector3f
+    pos*: Vector3
     entity*: Entity3D    ## the entity hit, when kind == "entity"
     platform*: int       ## index into arena.platforms, when kind == "platform"
 
-proc raySphere(origin, dir, center: Vector3f, radius: float32): float32 =
+proc raySphere(origin, dir, center: Vector3, radius: float32): float32 =
   ## Distance along a unit ray to a sphere, -1 for a miss.
   let oc = origin - center
-  let b = dot(oc, dir)
-  let c = dot(oc, oc) - radius * radius
+  let b = dotProduct(oc, dir)
+  let c = dotProduct(oc, oc) - radius * radius
   let disc = b * b - c
   if disc < 0: return -1
   let t = -b - sqrt(disc)
@@ -296,7 +296,7 @@ proc raySphere(origin, dir, center: Vector3f, radius: float32): float32 =
   elif -b + sqrt(disc) >= 0: 0.0'f32   # started inside
   else: -1
 
-proc rayBox(origin, dir, center, half: Vector3f): float32 =
+proc rayBox(origin, dir, center, half: Vector3): float32 =
   ## Slab test against an axis-aligned box, -1 for a miss.
   var tMin = 0.0'f32
   var tMax = 1.0e30'f32
@@ -316,7 +316,7 @@ proc rayBox(origin, dir, center, half: Vector3f): float32 =
       if tMin > tMax: return -1
   tMin
 
-proc raycast3D*(world: Game3D, origin, dir: Vector3f, maxDist: float32): RayHit3D {.moddable.} =
+proc raycast3D*(world: Game3D, origin, dir: Vector3, maxDist: float32): RayHit3D {.moddable.} =
   ## The nearest platform, live entity, boss core or satellite along a ray.
   let d = dir.normalize()
   result = RayHit3D(kind: "none", dist: maxDist)
@@ -359,7 +359,7 @@ proc raycast3D*(world: Game3D, origin, dir: Vector3f, maxDist: float32): RayHit3
 
 # FRAME STAGES
 
-proc landOnPlatform(e: Entity3D, nextPos: var Vector3f, arena: Arena3D) =
+proc landOnPlatform(e: Entity3D, nextPos: var Vector3, arena: Arena3D) =
   ## A falling entity comes to rest on a platform's top or the arena's solid floor.
   if e.vel.y > 0: return
   let footBefore = e.pos.y - e.radius
@@ -464,7 +464,7 @@ proc updateEntities(world: Game3D, dt: float32) =
           world.player.pos.x += push.x * overlap
           world.player.pos.z += push.z * overlap
 
-proc homingTarget(world: Game3D, pos: Vector3f): tuple[found: bool, pos: Vector3f] =
+proc homingTarget(world: Game3D, pos: Vector3): tuple[found: bool, pos: Vector3] =
   ## The nearest thing a player's homing shot can chase.
   var best = 1.0e30'f32
   for e in world.entities:
@@ -486,7 +486,7 @@ proc updateProjectiles(world: Game3D, dt: float32, holdEnemyHoming = false) =
   # player, the player's chase the nearest entity or the boss.
   for proj in world.projectiles:
     if proj.isHoming and proj.active and not (holdEnemyHoming and not proj.fromPlayer):
-      var aim: Vector3f
+      var aim: Vector3
       var chase = true
       if proj.fromPlayer:
         let target = homingTarget(world, proj.pos)

@@ -41,11 +41,7 @@ proc drawSoftFill(x, y, w, h: int32, topColor, bottomColor: Color) =
     let t = if bands <= 1: 0.0'f32 else: i.float32 / (bands - 1).float32
     let by = y + i * bandH
     let bh = if i == bands - 1: h - bandH * i else: bandH
-    let color = Color(
-      r: uint8(topColor.r.float32 * (1.0'f32 - t) + bottomColor.r.float32 * t),
-      g: uint8(topColor.g.float32 * (1.0'f32 - t) + bottomColor.g.float32 * t),
-      b: uint8(topColor.b.float32 * (1.0'f32 - t) + bottomColor.b.float32 * t),
-      a: uint8(topColor.a.float32 * (1.0'f32 - t) + bottomColor.a.float32 * t))
+    let color = colorLerp(topColor, bottomColor, t)
     drawRectangle(x, by, w, bh, color)
 
 proc drawCornerBrackets(x, y, w, h, length, thickness: int32, color: Color) =

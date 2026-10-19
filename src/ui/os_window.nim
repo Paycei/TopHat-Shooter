@@ -375,9 +375,9 @@ proc drawCknWindowChrome(window: OSWindow, th: UiTheme) =
   let h = if window.minimized: TITLE_BAR_HEIGHT else: window.height
   let x = window.x.float32
   let y = window.y.float32
-  let hairline = mixColor(th.surface, th.raised, 0.75'f32)
-  let titleFill = if window.focused: mixColor(th.surface, th.accent, 0.12'f32)
-                  else: mixColor(th.surface, th.raised, 0.25'f32)
+  let hairline = colorLerp(th.surface, th.raised, 0.75'f32)
+  let titleFill = if window.focused: colorLerp(th.surface, th.accent, 0.12'f32)
+                  else: colorLerp(th.surface, th.raised, 0.25'f32)
   let border = if window.focused: withAlpha(th.accent, 190) else: hairline
   drawCknPanel(Rectangle(x: x, y: y, width: w.float32, height: h.float32), Radius,
                if window.minimized: titleFill else: th.surface, border,
@@ -396,7 +396,7 @@ proc drawCknWindowChrome(window: OSWindow, th: UiTheme) =
 
   let mousePos = getVirtualMousePosition()
   let buttonY = window.y + 5
-  let hoverFill = mixColor(th.surface, th.raised, 0.5'f32)
+  let hoverFill = colorLerp(th.surface, th.raised, 0.5'f32)
   if window.minimized:
     let restoreX = window.x + window.savedWidth - 25
     let hoverRestore = isPointInMinimizeButton(window, mousePos.x, mousePos.y)

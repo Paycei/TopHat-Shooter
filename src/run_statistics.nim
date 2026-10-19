@@ -14,7 +14,7 @@ type
     eventType*: GameEventType
     value*: float32
     details*: string
-    position*: Vector2f
+    position*: Vector2
 
   # COMBAT STATISTICS
   CombatStats* = object
@@ -33,7 +33,7 @@ type
   # MOVEMENT & SURVIVABILITY
   MovementStats* = object
     totalDistanceTraveled*, averageSpeed*: float32
-    positionHeatmap*: seq[Vector2f]
+    positionHeatmap*: seq[Vector2]
     phaseShiftsUsed*, timeWarpsUsed*, parriesUsed*, successfulParries*: int
     totalPhaseShiftDistance*, totalTimeWarpDuration*: float32
     timeInvincible*, timeAtCriticalHP*, timeAtLowHP*: float32
@@ -394,7 +394,7 @@ proc recordShotMissed() {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.combat.shotsMissed += 1
 
-proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2f) {.moddable.} =
+proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.combat.totalKills += 1
@@ -420,7 +420,7 @@ proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: fl
     position: pos
   ))
 
-proc recordDamageTaken(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2f) {.moddable.} =
+proc recordDamageTaken(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.combat.totalDamageTaken += damage
@@ -480,7 +480,7 @@ proc updateMovement(player: Player, dt: float32, gameTime: float32) {.moddable.}
   if player.invincibilityTimer > 0 or player.phaseShiftInvulnTimer > 0 or player.parryActive:
     currentRunStats.movement.timeInvincible += dt
 
-proc recordLegendaryAbility(abilityType: string, gameTime: float32, playerPos: Vector2f) {.moddable.} =
+proc recordLegendaryAbility(abilityType: string, gameTime: float32, playerPos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   case abilityType
@@ -497,7 +497,7 @@ proc recordLegendaryAbility(abilityType: string, gameTime: float32, playerPos: V
     position: playerPos
   ))
 
-proc recordNearDeath(gameTime: float32, playerPos: Vector2f) {.moddable.} =
+proc recordNearDeath(gameTime: float32, playerPos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.movement.nearDeathCount += 1
@@ -526,14 +526,14 @@ proc recordCoinSpent(amount: int, itemName: string, gameTime: float32) {.moddabl
     eventType: geShopPurchase,
     value: amount.float32,
     details: itemName,
-    position: newVector2f(0, 0)
+    position: vec2(0, 0)
   ))
 
 proc recordRerollSpent*(amount: int) {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.resources.coinsSpent += amount
 
-proc recordWallPlaced(gameTime: float32, pos: Vector2f) {.moddable.} =
+proc recordWallPlaced(gameTime: float32, pos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.resources.wallsPlaced += 1
@@ -618,7 +618,7 @@ proc recordPowerUpChosen(powerUp: PowerUp, gameTime: float32) {.moddable.} =
     eventType: gePowerUpChosen,
     value: powerUp.level.float32,
     details: $powerUp.powerType & " Lv" & $powerUp.level,
-    position: newVector2f(0, 0)
+    position: vec2(0, 0)
   ))
 
 proc recordPowerUpDamage(powerType: PowerUpType, damage: float32) {.moddable.} =
@@ -725,7 +725,7 @@ proc recordWaveComplete(waveNumber: int, waveTime: float32, gameTime: float32) {
     eventType: geWaveComplete,
     value: waveNumber.float32,
     details: waveDescription,
-    position: newVector2f(0, 0)
+    position: vec2(0, 0)
   ))
 
 proc updateRunDuration(dt: float32) {.moddable.} =
@@ -862,6 +862,14 @@ proc trackBulletDespawn*(game: Game, bullet: Bullet, hitEnemy: bool) {.moddable.
     recordShotMissed()
 
 proc trackEnemyKilled*(game: Game, enemy: Enemy) {.moddable.} =
+  ## THE single entry point for "the player killed an enemy": it moves every
+  ## kill counter at once (player.kills, the wave's and the run's), so they can
+  ## no longer disagree. A boss kill also books its HP as the wave's top damage.
+  inc game.player.kills
+  inc game.dopamine.waveStats.kills
+  if enemy.isBoss:
+    let bossHp = if enemy.bossTotalMaxHp > 0.0'f32: enemy.bossTotalMaxHp else: enemy.maxHp
+    game.dopamine.waveStats.topDamage = max(game.dopamine.waveStats.topDamage, bossHp)
   recordKill(enemy.enemyType, enemy.isElite, enemy.isBoss, game.time, enemy.pos)
 
 const NearDeathHpFraction = 0.15'f32
@@ -925,13 +933,24 @@ proc trackDamageAvoided*(game: Game) {.moddable.} =
   recordDamageAvoided(game.player.lastDamageAvoided)
 
 # Resource Integration
-proc trackCoinPickup*(game: Game, amount: int) {.moddable.} =
+proc gainCredits*(game: Game, amount: int) {.moddable.} =
+  ## THE single entry point for credits the player earns in a run: coins,
+  ## combo and perfect-wave bonuses, caches, sector rewards. It pays the wallet
+  ## and books the amount everywhere credits are reported (run stats, the wave
+  ## celebration, the debug panel's coins/minute), so no source goes missing.
+  if amount <= 0: return
+  game.player.coins += amount
   recordCoinEarned(amount)
+  game.dopamine.waveStats.coinsEarned += amount
+  game.dopamine.realTimeStats.totalCoins += amount
+  if game.dopamine.currentTime > 0:
+    game.dopamine.realTimeStats.coinsPerMinute =
+      game.dopamine.realTimeStats.totalCoins.float32 / game.dopamine.currentTime * 60.0'f32
 
 proc trackShopPurchase*(game: Game, itemName: string, cost: int) {.moddable.} =
   recordCoinSpent(cost, itemName, game.time)
 
-proc trackWallPlacement*(game: Game, pos: Vector2f) {.moddable.} =
+proc trackWallPlacement*(game: Game, pos: Vector2) {.moddable.} =
   recordWallPlaced(game.time, pos)
 
 proc trackWallDestruction*(game: Game, damageBlocked: float32) {.moddable.} =

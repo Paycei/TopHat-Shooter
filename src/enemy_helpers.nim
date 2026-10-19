@@ -20,7 +20,7 @@ proc randomEdgeSpawnPos*(screenWidth, screenHeight: int32,
   of 2: (rand(screenWidth.int).float32, screenHeight.float32 + margin)
   else: (-margin, rand(screenHeight.int).float32)
 
-proc approachVelocity*(current, target: Vector2f, acceleration, dt: float32): Vector2f {.moddable.} =
+proc approachVelocity*(current, target: Vector2, acceleration, dt: float32): Vector2 {.moddable.} =
   ## Framerate-independent velocity easing shared by enemy movement patterns.
   let blend = 1.0'f32 - pow(0.001'f32, acceleration * dt)
   current + (target - current) * clamp(blend, 0.0'f32, 1.0'f32)
@@ -32,9 +32,9 @@ proc enemyInertiaSizeScale(enemy: Enemy): float32 {.moddable.} =
   let safeRadius = max(enemy.radius, 1.0'f32)
   clamp(sqrt(safeRadius / referenceRadius), 0.75'f32, 2.4'f32)
 
-proc applyEnemyInertia*(enemy: var Enemy, desiredVel: Vector2f, dt: float32,
+proc applyEnemyInertia*(enemy: var Enemy, desiredVel: Vector2, dt: float32,
                         acceleration: float32 = EnemyInertiaAcceleration,
-                        braking: float32 = EnemyInertiaBraking): Vector2f {.moddable.} =
+                        braking: float32 = EnemyInertiaBraking): Vector2 {.moddable.} =
   let sizeScale = enemyInertiaSizeScale(enemy)
   let smoothing =
     if desiredVel.length() > 0.01'f32: acceleration / sizeScale
@@ -42,12 +42,12 @@ proc applyEnemyInertia*(enemy: var Enemy, desiredVel: Vector2f, dt: float32,
   enemy.vel = approachVelocity(enemy.vel, desiredVel, smoothing, dt)
   enemy.vel
 
-proc desiredVelocityFromNext(currentPos, desiredNextPos: Vector2f, dt: float32): Vector2f {.moddable.} =
+proc desiredVelocityFromNext(currentPos, desiredNextPos: Vector2, dt: float32): Vector2 {.moddable.} =
   if dt <= 0:
-    return newVector2f(0, 0)
+    return vec2(0, 0)
   (desiredNextPos - currentPos) * (1.0'f32 / dt)
 
-proc nextInertialEnemyPos*(enemy: var Enemy, desiredNextPos: Vector2f, dt: float32): Vector2f {.moddable.} =
+proc nextInertialEnemyPos*(enemy: var Enemy, desiredNextPos: Vector2, dt: float32): Vector2 {.moddable.} =
   let desiredVel = desiredVelocityFromNext(enemy.pos, desiredNextPos, dt)
   enemy.pos + applyEnemyInertia(enemy, desiredVel, dt) * dt
 
@@ -85,7 +85,7 @@ proc getSpecialInt*(data: Table[string, string], key: string, default: int): int
 
 # ATTACK EXECUTION
 
-proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game) {.moddable.} =
+proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2, game: var Game) {.moddable.} =
   ## Centralized ranged attack execution using enemy config
   ## Replaces all hardcoded bullet creation logic
 
@@ -125,11 +125,11 @@ proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game)
       # For random full-circle spread (Hexagon)
       if attack.spreadAngle > 6.0:  # Full circle
         let randomAngle = rand(1.0) * PI * 2.0
-        bulletDir = newVector2f(cos(randomAngle), sin(randomAngle))
+        bulletDir = vec2(cos(randomAngle), sin(randomAngle))
       else:
         # Linear spread
         let spreadOffset = (i.float32 - (bulletCount - 1).float32 / 2.0) * (attack.spreadAngle / max(1.0, (bulletCount - 1).float32))
-        bulletDir = newVector2f(
+        bulletDir = vec2(
           dir.x * cos(spreadOffset) - dir.y * sin(spreadOffset),
           dir.x * sin(spreadOffset) + dir.y * cos(spreadOffset)
         )
@@ -137,7 +137,7 @@ proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game)
     # Apply inaccuracy (random spread)
     if attack.inaccuracyAmount > 0:
       let inaccuracy = (rand(1.0) - 0.5) * attack.inaccuracyAmount
-      bulletDir = newVector2f(
+      bulletDir = vec2(
         bulletDir.x * cos(inaccuracy) - bulletDir.y * sin(inaccuracy),
         bulletDir.x * sin(inaccuracy) + bulletDir.y * cos(inaccuracy)
       )
@@ -179,7 +179,7 @@ proc executeRangedAttack*(enemy: var Enemy, playerPos: Vector2f, game: var Game)
 
 # MOVEMENT HELPERS
 
-proc maintainOptimalDistance*(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, config: EnemyConfig): Vector2f {.moddable.} =
+proc maintainOptimalDistance*(enemy: Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32, config: EnemyConfig): Vector2 {.moddable.} =
   ## Movement behavior for ranged enemies that maintain distance
   ## Returns next position based on distance to player
 
@@ -201,10 +201,10 @@ proc maintainOptimalDistance*(enemy: Enemy, playerPos: Vector2f, dt: float32, ef
 
   # Optimal range - strafe/float sideways
   else:
-    let tangent = newVector2f(-dir.y, dir.x)
+    let tangent = vec2(-dir.y, dir.x)
     return enemy.pos + tangent * effectiveSpeed * 0.3 * dt
 
-proc forceScreenEntry*(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, game: Game): Vector2f {.moddable.} =
+proc forceScreenEntry*(enemy: Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32, game: Game): Vector2 {.moddable.} =
   ## Force ranged enemies to enter screen before engaging
   ## Returns position moving toward screen center
 
@@ -215,7 +215,7 @@ proc forceScreenEntry*(enemy: Enemy, playerPos: Vector2f, dt: float32, effective
   # Move toward screen center
   let screenCenterX = game.screenWidth.float32 / 2.0
   let screenCenterY = game.screenHeight.float32 / 2.0
-  let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+  let towardCenter = (vec2(screenCenterX, screenCenterY) - enemy.pos).normalize()
 
   return enemy.pos + towardCenter * effectiveSpeed * dt
 
@@ -226,7 +226,7 @@ proc checkScreenEntry*(enemy: var Enemy, game: Game) {.moddable.} =
        enemy.pos.y > enemy.radius and enemy.pos.y < game.screenHeight.float32 - enemy.radius:
       enemy.hasEnteredScreen = true
 
-proc checkScreenBoundaryCollision*(enemy: Enemy, nextPos: Vector2f, game: Game, config: EnemyConfig): bool {.moddable.} =
+proc checkScreenBoundaryCollision*(enemy: Enemy, nextPos: Vector2, game: Game, config: EnemyConfig): bool {.moddable.} =
   ## Check if ranged enemy would leave screen bounds
   ## Returns true if movement should be blocked
 
@@ -244,7 +244,7 @@ proc checkScreenBoundaryCollision*(enemy: Enemy, nextPos: Vector2f, game: Game, 
   # Block movement if moving away from center
   let screenCenterX = game.screenWidth.float32 / 2.0
   let screenCenterY = game.screenHeight.float32 / 2.0
-  let towardCenter = (newVector2f(screenCenterX, screenCenterY) - enemy.pos).normalize()
+  let towardCenter = (vec2(screenCenterX, screenCenterY) - enemy.pos).normalize()
   let movementDir = (nextPos - enemy.pos).normalize()
   let dotProduct = towardCenter.x * movementDir.x + towardCenter.y * movementDir.y
 
@@ -252,7 +252,7 @@ proc checkScreenBoundaryCollision*(enemy: Enemy, nextPos: Vector2f, game: Game, 
 
 # COLLISION HELPERS
 
-proc checkWallCollision*(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], currentTime: float32, game: var Game): bool {.moddable.} =
+proc checkWallCollision*(enemy: var Enemy, nextPos: Vector2, walls: seq[Wall], currentTime: float32, game: var Game): bool {.moddable.} =
   ## Check wall collision and apply damage
   ## Returns true if collision occurred
 
@@ -276,7 +276,7 @@ proc checkWallCollision*(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], 
 
 # SIMPLE MOVEMENT PATTERNS
 
-proc chasePlayer*(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32): Vector2f {.moddable.} =
+proc chasePlayer*(enemy: Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32): Vector2 {.moddable.} =
   ## Simple chase movement toward player
   let dir = (playerPos - enemy.pos).normalize()
   return enemy.pos + dir * effectiveSpeed * dt
@@ -341,7 +341,7 @@ proc rebuild*[T](grid: var SpatialGrid, enemies: seq[T],
     let cy = gridClampi(int((p.y - minY) * invCell), 0, rows - 1)
     grid.cells[cy * cols + cx].add(int32(idx))
 
-iterator nearby*(grid: SpatialGrid, pos: Vector2f, radius: float32): int =
+iterator nearby*(grid: SpatialGrid, pos: Vector2, radius: float32): int =
   ## Yield every enemy index in the cells overlapping the AABB
   ## [pos - radius, pos + radius]. A non-lossy superset of the enemies within
   ## `radius` of `pos`; the caller must still run its precise distance test.

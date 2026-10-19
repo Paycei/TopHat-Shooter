@@ -133,10 +133,6 @@ proc turn(a, b: float32): float32 =
   ## Signed shortest turn from angle b to angle a, in radians.
   floorMod(a - b + PI.float32, 2.0'f32 * PI.float32) - PI.float32
 
-proc smooth(e0, e1, x: float32): float32 =
-  let t = clamp((x - e0) / (e1 - e0), 0.0'f32, 1.0'f32)
-  t * t * (3.0'f32 - 2.0'f32 * t)
-
 let
   stockS = labOf(StockSurface)
   stockR = labOf(StockRaised)
@@ -259,14 +255,14 @@ proc hueFor(th: UiTheme, h: float32): float32 =
   ## accent; on a light theme yellows lean amber, since pure yellow turns olive
   ## at the lightness paper needs.
   result = h + turn(hueOf(th.ac), hueOf(stockA)) *
-               (1.0'f32 - smooth(0.5236'f32, 1.2217'f32, abs(turn(h, hueOf(stockA)))))
+               (1.0'f32 - smoothstep(0.5236'f32, 1.2217'f32, abs(turn(h, hueOf(stockA)))))
   if th.light:
-    result -= 0.314159'f32 * (1.0'f32 - smooth(0.20944'f32, 0.610865'f32, abs(turn(h, 1.658063'f32))))
+    result -= 0.314159'f32 * (1.0'f32 - smoothstep(0.20944'f32, 0.610865'f32, abs(turn(h, 1.658063'f32))))
 
 proc mapColor(th: UiTheme, c: Color, role: UiRole): Color =
   let x = labOf(c)
   let C = chromaOf(x)
-  let neutral = 1.0'f32 - smooth(0.02'f32, 0.06'f32, C)
+  let neutral = 1.0'f32 - smoothstep(0.02'f32, 0.06'f32, C)
   var L: float32
   var tint: tuple[a, b: float32]
   case role
@@ -282,7 +278,7 @@ proc mapColor(th: UiTheme, c: Color, role: UiRole): Color =
     let e = (x.L - stockM.L) / (1.0'f32 - stockM.L)
     let neutralL = th.m.L + e * (th.t.L - th.m.L)
     let vividL = th.ac.L + (x.L - stockA.L) / (1.0'f32 - stockM.L) * (th.t.L - th.m.L) * 0.5'f32
-    L = neutralL + (vividL - neutralL) * smooth(0.05'f32, 0.13'f32, C)
+    L = neutralL + (vividL - neutralL) * smoothstep(0.05'f32, 0.13'f32, C)
     let k = clamp(e, 0.0'f32, 1.0'f32)
     tint = (th.m.a + (th.t.a - th.m.a) * k, th.m.b + (th.t.b - th.m.b) * k)
   let h = if C > 0.00001'f32: th.hueFor(hueOf(x)) else: 0.0'f32
@@ -313,18 +309,10 @@ proc uiInk*(c: Color): Color = themed(c, urInk)
 proc uiGlow*(c: Color): Color = themed(c, urGlow)
   ## Translucent light: halos, hover glows, sheens.
 
-proc rgba(r, g, b, a: int): Color {.inline.} =
-  Color(r: uint8(r), g: uint8(g), b: uint8(b), a: uint8(a))
-
 proc uiSurface*(r, g, b: int, a = 255): Color = uiSurface(rgba(r, g, b, a))
 proc uiLine*(r, g, b: int, a = 255): Color = uiLine(rgba(r, g, b, a))
 proc uiInk*(r, g, b: int, a = 255): Color = uiInk(rgba(r, g, b, a))
 proc uiGlow*(r, g, b: int, a = 255): Color = uiGlow(rgba(r, g, b, a))
-
-proc mixColor*(a, b: Color, t: float32): Color {.moddable.} =
-  ## Straight sRGB blend, `t` of the way from a to b (alpha too).
-  template ch(x, y: uint8): uint8 = uint8(x.float32 + (y.float32 - x.float32) * clamp(t, 0.0'f32, 1.0'f32) + 0.5'f32)
-  Color(r: ch(a.r, b.r), g: ch(a.g, b.g), b: ch(a.b, b.b), a: ch(a.a, b.a))
 
 # ---------------------------------------------------------------------------
 # The frame's alpha

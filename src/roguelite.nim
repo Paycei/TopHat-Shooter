@@ -1,7 +1,7 @@
 import json, os, random, strutils, math
 import modding/mod_patch_core
 import modding/[mod_hooks, mod_registry]
-import types, settings, save_system, powerup, powerup_data, patches, xp_orb, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
+import types, settings, save_system, run_statistics, powerup, powerup_data, patches, xp_orb, skins, bullet_skins, bullet_shapes, shapes, particle_skins, desktop_bg_skins, cube_skins
 
 const
   RogueliteProfileVersion* = 5
@@ -520,8 +520,8 @@ proc completeRogueliteBoss*(game: Game) {.moddable.} =
                         run.endlessLoop * 24
   run.shardsEarned += bossShardReward
   awardHeatBossEconomy(game)
-  game.player.coins += 25 + run.floorNumber * 8 + heatRank * 7 +
-                       run.endlessLoop * 10
+  gainCredits(game, 25 + run.floorNumber * 8 + heatRank * 7 +
+                    run.endlessLoop * 10)
   game.wavesUntilBoss = 999
 
   if not game.cheatsUsed and not game.rogueliteProfile.isNil:
@@ -533,7 +533,7 @@ proc completeRogueliteBoss*(game: Game) {.moddable.} =
 
   # SectorProtocol: bonus coins on floor completion
   if game.player.hasSectorProtocol:
-    game.player.coins += 15
+    gainCredits(game, 15)
 
   if run.floorNumber >= RogueliteFloorsToWin:
     # Final floor boss down. Bank the win immediately (so a victory is never lost),

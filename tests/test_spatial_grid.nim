@@ -36,7 +36,7 @@ proc main() =
       let e = Enemy()
       # Spawn across the play area incl. just off-screen (still inside the grid
       # margin), so clamping is exercised but stays out of on-screen query range.
-      e.pos = newVector2f(rand(-150.0 .. ScreenW.float + 150.0).float32,
+      e.pos = vec2(rand(-150.0 .. ScreenW.float + 150.0).float32,
                           rand(-150.0 .. ScreenH.float + 150.0).float32)
       e.radius = rand(8.0 .. 40.0).float32
       enemies.add(e)
@@ -46,7 +46,7 @@ proc main() =
 
     # A handful of random on-screen queries per layout.
     for _ in 0 ..< 8:
-      let qp = newVector2f(rand(0.0 .. ScreenW.float).float32,
+      let qp = vec2(rand(0.0 .. ScreenW.float).float32,
                            rand(0.0 .. ScreenH.float).float32)
       let qr = rand(4.0 .. 160.0).float32
 

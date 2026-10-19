@@ -141,20 +141,6 @@ proc buyRect*(l: ShopLayout): Rectangle {.moddable.} =
   Rectangle(x: l.buyX.float32, y: l.buyY.float32,
             width: l.buyW.float32, height: l.buyH.float32)
 
-proc shopFitText(text: string, maxWidth, fontSize: int32,
-                 minSize: int32 = 8): tuple[text: string, size: int32] =
-  ## Shrinks font size first, then truncates with "..." so text fits within maxWidth pixels.
-  var fs = fontSize
-  while fs > minSize and measureText(text, fs) > maxWidth:
-    dec fs
-  if measureText(text, fs) <= maxWidth:
-    return (text, fs)
-  # Still too wide, truncate character by character
-  var t = text
-  while t.len > 0 and measureText(t & "...", fs) > maxWidth:
-    t = t[0..^2]
-  return (t & "...", fs)
-
 proc drawWrappedDesc(text: string, x, y, maxWidth, fontSize: int32,
                      color: Color, lineSpacing: int32 = 2): int32 =
   ## Draws word-wrapped text, returning the total pixel height consumed.
@@ -360,7 +346,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
     else:
       Color(r: 90, g: 95, b: 100, a: 255)
     let btnDescMaxW = width - (textX - x) - 8  # available pixels right of the icon
-    let (fittedBtnDesc, fittedBtnDescSize) = shopFitText(description, btnDescMaxW, 10)
+    let (fittedBtnDesc, fittedBtnDescSize) = fitTextAndSize(description, btnDescMaxW, 10, 8)
     drawText(fittedBtnDesc, textX, y + 24, fittedBtnDescSize, descColor)
 
   # Cost display and owned count on same line to save space
@@ -785,7 +771,7 @@ proc drawShop*(game: Game) {.moddable.} =
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
 
   # Center dot
-  drawDisc(Vector2(x: mousePos.x, y: mousePos.y), 2, Gold)
+  drawDisc(mousePos, 2, Gold)
 
 proc buyModShopItem(game: Game, row: int) =
   ## A mod row (register.shopItem): its own price curve and buy limit, the

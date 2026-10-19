@@ -5,7 +5,7 @@ import raylib, strutils, std/tables, algorithm
 import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../statistics, ../run_statistics, ../types, ../powerup_data, ../localization, ../render_context, ../utils
-import ui_theme
+import ui_theme, ui_helpers
 
 type
   StatsTab* = enum
@@ -317,28 +317,6 @@ proc drawStatPanel(x, y, width, height: int, title: string) {.moddable.} =
   drawRectangle(x.int32, y.int32, width.int32, 28,
                uiSurface(35, 35, 45))
   drawText(title, (x + 8).int32, (y + 6).int32, 14, uiInk(0, 180, 255))
-
-proc fitText*(text: string, maxWidth: int, fontSize: int32 = 13): string {.moddable.} =
-  ## Text truncated with ".." until it fits maxWidth. Guards the name columns:
-  ## a long power-up name (or a wider Spanish translation of a future one) must
-  ## never smear across the right-aligned figures next to it. ASCII ".." rather
-  ## than a single ellipsis character because the raylib default font stops at
-  ## U+00FF and has no ellipsis glyph.
-  if maxWidth <= 0:
-    return ""
-  if measureText(text, fontSize) <= maxWidth.int32:
-    return text
-  var cut = text.len
-  while cut > 0:
-    dec cut
-    # Never cut inside a multi-byte UTF-8 sequence -- the Spanish tables carry
-    # accented characters and half a codepoint renders as garbage.
-    while cut > 0 and (text[cut].uint8 and 0xC0'u8) == 0x80'u8:
-      dec cut
-    let candidate = text[0 ..< cut] & ".."
-    if measureText(candidate, fontSize) <= maxWidth.int32:
-      return candidate
-  result = ""
 
 proc drawListScrollbar(x, y, height: int, scrollOffset, contentHeight, viewportHeight: int) {.moddable.} =
   ## Thin track + proportional thumb along a list's right edge. Nothing is drawn
@@ -851,7 +829,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) {.moddable.} =
           let powerup = choice[1]
           let rarityColor = if powerup.rarity == prLegendary: uiInk(Gold) else: uiInk(White)
           drawText(formatDuration(choice[0]), col.timeX.int32, rowY.int32, 13, uiInk(LightGray))
-          drawText(fitText(getPowerUpName(powerup.powerType), col.nameMax),
+          drawText(fitWithEllipsis(getPowerUpName(powerup.powerType), col.nameMax.int32, 13),
                   col.nameX.int32, rowY.int32, 13, rarityColor)
           let levelText = t(tkStatsLevelPrefix) & $powerup.level
           drawText(levelText, (col.levelRight - measureText(levelText, 13)).int32,
@@ -872,7 +850,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) {.moddable.} =
         let col = rankingColumns(g)
         let headerY = g.panelY + 36
         drawText("#", col.rankX.int32, headerY.int32, 12, headerColor)
-        drawText(fitText(t(tkStatsPowerUp), col.nameMax, 12), col.nameX.int32, headerY.int32, 12, headerColor)
+        drawText(fitWithEllipsis(t(tkStatsPowerUp), col.nameMax.int32, 12), col.nameX.int32, headerY.int32, 12, headerColor)
         let dmgHeader = t(tkStatsDamageColumnLabel)
         drawText(dmgHeader, (col.valueRight - measureText(dmgHeader, 12)).int32,
                 headerY.int32, 12, headerColor)
@@ -899,7 +877,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) {.moddable.} =
             else: White
 
           drawText($rank & ".", col.rankX.int32, rowY.int32, 13, uiInk(medalColor))
-          drawText(fitText(getPowerUpName(entry[0]), col.nameMax), col.nameX.int32, rowY.int32, 13, uiInk(White))
+          drawText(fitWithEllipsis(getPowerUpName(entry[0]), col.nameMax.int32, 13), col.nameX.int32, rowY.int32, 13, uiInk(White))
           # Damage is stored in internal units; BALANCE_MULTIPLIER scales it to
           # the same numbers the floating damage text shows in-game.
           let valueText = formatLargeNumber(entry[1] * BALANCE_MULTIPLIER)
@@ -931,7 +909,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) {.moddable.} =
         let col = rankingColumns(g)
         let headerY = g.panelY + 36
         drawText("#", col.rankX.int32, headerY.int32, 12, healColor)
-        drawText(fitText(t(tkStatsSourceColumnLabel), col.nameMax, 12), col.nameX.int32, headerY.int32, 12, healColor)
+        drawText(fitWithEllipsis(t(tkStatsSourceColumnLabel), col.nameMax.int32, 12), col.nameX.int32, headerY.int32, 12, healColor)
         let healHeader = t(tkStatsHealingColumnLabel)
         drawText(healHeader, (col.valueRight - measureText(healHeader, 12)).int32,
                 headerY.int32, 12, healColor)
@@ -980,7 +958,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) {.moddable.} =
                             withAlpha(uiInk(OverhealColor), 40))
 
           drawText($rank & ".", col.rankX.int32, rowY.int32, 13, uiInk(medalColor))
-          drawText(fitText(entry.name, col.nameMax), col.nameX.int32, rowY.int32, 13, uiInk(White))
+          drawText(fitWithEllipsis(entry.name, col.nameMax.int32, 13), col.nameX.int32, rowY.int32, 13, uiInk(White))
           let valueText = formatLargeNumber(entry.restored * BALANCE_MULTIPLIER)
           drawText(valueText, (col.valueRight - measureText(valueText, 13)).int32,
                   rowY.int32, 13, healColor)

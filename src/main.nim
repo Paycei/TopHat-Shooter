@@ -537,7 +537,7 @@ proc updateMouseTracking(game: Game) =
   if isPointerPressed() or isMouseButtonPressed(Right) or isMouseButtonPressed(Middle):
     game.mouseMovedRecently = true
     game.keyboardUsedRecently = false
-  game.lastMousePos = newVector2f(currentPos.x, currentPos.y)
+  game.lastMousePos = vec2(currentPos.x, currentPos.y)
 
 proc markKeyboardUsed(game: Game) =
   ## Marks that keyboard was just used, disabling mouse selection temporarily
@@ -567,7 +567,7 @@ proc drawCustomCursor(time: float32) =
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
 
   # Center dot
-  drawDisc(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
+  drawDisc(mousePos, 2, Red)
 
 proc drawCknPointer(pos: Vector2) =
   ## CKN OS's pointer: a plain white arrow with an ink rim, tip on the spot.
@@ -2624,7 +2624,7 @@ proc main() =
           # the virtual pointer here would skew placement by the gutter width
           # and disagree with the ghost preview in drawGame (also world coords).
           let mousePos = getWorldMousePosition()
-          let wallPos = newVector2f(mousePos.x, mousePos.y)
+          let wallPos = vec2(mousePos.x, mousePos.y)
           let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
           if inRange and isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
                                               currentGame.enemies, 25,
@@ -2674,7 +2674,7 @@ proc main() =
           let invulnDuration = 0.5  # 0.5 second invulnerability after dash
 
           # Calculate dash direction - PRIORITIZE movement keys
-          var dashDir = newVector2f(0, 0)
+          var dashDir = vec2(0, 0)
           let kb = globalSettings.keybinds
           if isKeyDown(kb[kaMoveUp]): dashDir.y -= 1
           if isKeyDown(kb[kaMoveDown]): dashDir.y += 1
@@ -2697,7 +2697,7 @@ proc main() =
             var landing = shiftStart
             for step in countdown(10, 1):
               let reach = dashDistance.float32 * step.float32 / 10.0'f32
-              let candidate = newVector2f(
+              let candidate = vec2(
                 clamp(shiftStart.x + dashDir.x * reach, currentGame.player.radius,
                       currentGame.screenWidth.float32 - currentGame.player.radius),
                 clamp(shiftStart.y + dashDir.y * reach, currentGame.player.radius,
@@ -2916,7 +2916,7 @@ proc main() =
             # run a wide loop just sees enemies fly away from nothing. Feed the
             # sampled path (oldest first) to a swept shockwave; the crest then
             # retraces the route backwards exactly like the damage resolution.
-            var pathPoints: seq[Vector2f] = @[]
+            var pathPoints: seq[Vector2] = @[]
             for p in history:
               pathPoints.add(p)
             spawnPathShockwave(currentGame, pathPoints, shockwaveWidth, AftershockColor)
@@ -3304,7 +3304,6 @@ proc main() =
       globalWindowManager.drawAllWindows(currentGame, desktopUIScale(),
                                          screenWidth.int, screenHeight.int)
 
-
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       # (separate from the in-game quit-to-menu confirm dialog)
       if globalConfirmActive:
@@ -3647,7 +3646,7 @@ proc main() =
       updatePlayer(currentGame.player, dt, currentGame.screenWidth, currentGame.screenHeight, currentGame.walls)
 
       # Update coins and handle collection
-      updateCoinsWaveCleared(currentGame, dt)
+      discard updateGameCoins(currentGame, dt)
 
       # Update particles and remove dead ones
 

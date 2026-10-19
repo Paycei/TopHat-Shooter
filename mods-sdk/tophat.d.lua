@@ -888,8 +888,6 @@ function engine.cinematic_common.easeInOut(t) end
 function engine.cinematic_common.easeOut(t) end
 ---endStoryCamera()
 function engine.cinematic_common.endStoryCamera() end
----fitFontSize(text: string, maxW: int32, preferred: int32, minSize: int32): int32
-function engine.cinematic_common.fitFontSize(text, maxW, preferred, minSize) end
 ---fractCoord(value: float32): float32
 function engine.cinematic_common.fractCoord(value) end
 ---hash01(n: float32): float32
@@ -906,24 +904,24 @@ function engine.cinematic_common.triAny(a, b, c, col) end
 engine.coin = {}
 ---awardMetaCurrency(game: Game, shards: int, cores: int)
 function engine.coin.awardMetaCurrency(game, shards, cores) end
----checkPlayerCollision(coin: Coin, player: Player): bool
-function engine.coin.checkPlayerCollision(coin, player) end
----clampLootPosition(x: float32, y: float32, screenWidth: int32, screenHeight: int32): tuple[x: float32, y: float32]
-function engine.coin.clampLootPosition(x, y, screenWidth, screenHeight) end
+---coinPickupValue(player: Player, value: int): int
+function engine.coin.coinPickupValue(player, value) end
 ---collectAllCoins(game: Game)
 function engine.coin.collectAllCoins(game) end
+---collectPickup(game: Game, coin: Coin): bool
+function engine.coin.collectPickup(game, coin) end
 ---drawGameCoins(game: Game)
 function engine.coin.drawGameCoins(game) end
 ---dropEnemyCoin(game: Game, enemy: Enemy)
 function engine.coin.dropEnemyCoin(game, enemy) end
 ---newCoin(x: float32, y: float32, value: int, isBoss: bool): Coin
 function engine.coin.newCoin(x, y, value, isBoss) end
+---pickupAlive(game: Game, coin: Coin, dt: float32, count: int): bool
+function engine.coin.pickupAlive(game, coin, dt, count) end
+---pickupTrail(coin: Coin): Color
+function engine.coin.pickupTrail(coin) end
 ---spawnMagnetCoins(game: Game)
 function engine.coin.spawnMagnetCoins(game) end
----updateCoinsWaveCleared(game: Game, dt: float32)
-function engine.coin.updateCoinsWaveCleared(game, dt) end
----updateCoin(coin: Coin, dt: float32, totalCoins: int): bool
-function engine.coin.updateCoin(coin, dt, totalCoins) end
 ---updateGameCoins(game: Game, dt: float32): bool
 function engine.coin.updateGameCoins(game, dt) end
 
@@ -976,20 +974,22 @@ function engine.combat.showPerk(game, pos, text, color) end
 function engine.combat.showPlayerDamageTaken(game, damageType) end
 
 engine.consumable = {}
----checkPlayerCollision(consumable: Consumable, player: Player): bool
-function engine.consumable.checkPlayerCollision(consumable, player) end
+---consumableColor(c: Consumable): Color
+function engine.consumable.consumableColor(c) end
+---consumablePerkLabel(c: Consumable): string
+function engine.consumable.consumablePerkLabel(c) end
 ---drawConsumable(consumable: Consumable)
 function engine.consumable.drawConsumable(consumable) end
----isInPlayerAura(consumable: Consumable, player: Player): bool
-function engine.consumable.isInPlayerAura(consumable, player) end
----moveConsumableToPlayer(consumable: Consumable, playerPos: Vector2f, dt: float32)
-function engine.consumable.moveConsumableToPlayer(consumable, playerPos, dt) end
 ---newConsumable(x: float32, y: float32, difficulty: float32, mode: GameMode): Consumable
 function engine.consumable.newConsumable(x, y, difficulty, mode) end
 ---newSpecificConsumable(x: float32, y: float32, cType: ConsumableType): Consumable
 function engine.consumable.newSpecificConsumable(x, y, cType) end
----updateConsumable(consumable: Consumable, dt: float32): bool
-function engine.consumable.updateConsumable(consumable, dt) end
+---pickupAlive(game: Game, consumable: Consumable, dt: float32, count: int): bool
+function engine.consumable.pickupAlive(game, consumable, dt, count) end
+---pickupTrail(consumable: Consumable): Color
+function engine.consumable.pickupTrail(consumable) end
+---startConsumableBuff(player: Player, ct: ConsumableType)
+function engine.consumable.startConsumableBuff(player, ct) end
 
 engine.credits_window = {}
 ---drawCreditsWindow(cw: CreditsWindow)
@@ -1032,12 +1032,8 @@ function engine.d_enhancements.newBossIntroduction() end
 function engine.d_enhancements.newRealTimeStats() end
 ---newWaveCelebration(): WaveCelebration
 function engine.d_enhancements.newWaveCelebration() end
----recordCoin(stats: var RealTimeStats, currentTime: float32)
-function engine.d_enhancements.recordCoin(stats, currentTime) end
 ---recordDamage(stats: var RealTimeStats, damage: float32, currentTime: float32)
 function engine.d_enhancements.recordDamage(stats, damage, currentTime) end
----recordKill(stats: var RealTimeStats)
-function engine.d_enhancements.recordKill(stats) end
 ---startCelebration(celebration: var WaveCelebration, waveNum: int, stats: WaveStats)
 function engine.d_enhancements.startCelebration(celebration, waveNum, stats) end
 ---startIntroduction(intro: var BossIntroduction, name: string, title: string, tag: string, isRoot: bool)
@@ -1076,12 +1072,8 @@ function engine.d_systems.newMicroRewardTracker() end
 function engine.d_systems.newScreenShake() end
 ---newSlowMotion(): SlowMotion
 function engine.d_systems.newSlowMotion() end
----recordCoin(stats: var WaveStats)
-function engine.d_systems.recordCoin(stats) end
 ---recordCombo(stats: var WaveStats, combo: int)
 function engine.d_systems.recordCombo(stats, combo) end
----recordKill(stats: var WaveStats, damage: float32)
-function engine.d_systems.recordKill(stats, damage) end
 ---resetWaveStats(dopamine: var DopamineState, waveNumber: int)
 function engine.d_systems.resetWaveStats(dopamine, waveNumber) end
 ---shouldShowCombo(combo: ComboSystem): bool
@@ -1462,6 +1454,8 @@ function engine.game.beginDraftResume(game) end
 function engine.game.cheatCompleteRogueliteFloor(game) end
 ---cleanupGame(game: Game)
 function engine.game.cleanupGame(game) end
+---collectPickup(game: Game, c: Consumable): bool
+function engine.game.collectPickup(game, c) end
 ---drawDeathSequenceOverlay(game: Game)
 function engine.game.drawDeathSequenceOverlay(game) end
 ---drawGameOver(game: Game)
@@ -2142,15 +2136,15 @@ function engine.patches.patchStatusLabel(s) end
 ---patchStatus(game: Game, p: RogueliteRelicType): PatchStatus
 function engine.patches.patchStatus(game, p) end
 
+engine.pickup = {}
+---clampLootPosition(x: float32, y: float32, screenWidth: int32, screenHeight: int32): tuple[x: float32, y: float32]
+function engine.pickup.clampLootPosition(x, y, screenWidth, screenHeight) end
+---magnetPullsAll(player: Player): bool
+function engine.pickup.magnetPullsAll(player) end
+---pullTowardPlayer(pos: var Vector2f, playerPos: Vector2f, dt: float32)
+function engine.pickup.pullTowardPlayer(pos, playerPos, dt) end
+
 engine.player = {}
----activateFireRateBoost(player: Player)
-function engine.player.activateFireRateBoost(player) end
----activateInvincibility(player: Player)
-function engine.player.activateInvincibility(player) end
----activateMagnet(player: Player)
-function engine.player.activateMagnet(player) end
----activateSpeedBoost(player: Player)
-function engine.player.activateSpeedBoost(player) end
 ---dashBurstOf(p: Player): float32
 function engine.player.dashBurstOf(p) end
 ---dashRechargeOf(p: Player): float32
@@ -2555,6 +2549,8 @@ function engine.run_statistics.calculateDerivedMetrics() end
 function engine.run_statistics.clearLastCompletedRun() end
 ---finalizeRunTracking(game: Game, died: bool)
 function engine.run_statistics.finalizeRunTracking(game, died) end
+---gainCredits(game: Game, amount: int)
+function engine.run_statistics.gainCredits(game, amount) end
 ---getLastRunStats(): RunStatistics
 function engine.run_statistics.getLastRunStats() end
 ---hasLastRunStats(): bool
@@ -2595,8 +2591,6 @@ function engine.run_statistics.trackBulletDespawn(game, bullet, hitEnemy) end
 function engine.run_statistics.trackBulletFired(game) end
 ---trackBulletHit(game: Game, bullet: Bullet, enemy: Enemy, damage: float32)
 function engine.run_statistics.trackBulletHit(game, bullet, enemy, damage) end
----trackCoinPickup(game: Game, amount: int)
-function engine.run_statistics.trackCoinPickup(game, amount) end
 ---trackCombo(game: Game, comboCount: int)
 function engine.run_statistics.trackCombo(game, comboCount) end
 ---trackConsumableHealing(game: Game, requested: float32, restored: float32)
@@ -2849,8 +2843,6 @@ function engine.statistics.updateStatsForMode(stats, mode, scoreReached, timeSur
 engine.stats_window = {}
 ---drawStatsWindow(statsWin: StatsWindow, game: Game)
 function engine.stats_window.drawStatsWindow(statsWin, game) end
----fitText(text: string, maxWidth: int, fontSize: int32): string
-function engine.stats_window.fitText(text, maxWidth, fontSize) end
 ---newStatsWindow(screenWidth: int, screenHeight: int, stats: Statistics): StatsWindow
 function engine.stats_window.newStatsWindow(screenWidth, screenHeight, stats) end
 ---updateStatsWindow(statsWin: StatsWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): bool
@@ -3145,6 +3137,10 @@ function engine.ui_helpers.drawLivesPanel(x, y, width, used, maxLives, unlimited
 function engine.ui_helpers.drawTextFit(text, x, y, maxWidth, fontSize, color, minSize, align) end
 ---drawWrappedText(text: string, x: int, y: int, maxWidth: int, fontSize: int32, stockColor: Color, maxLines: int, lineGap: int, minSize: int32): int
 function engine.ui_helpers.drawWrappedText(text, x, y, maxWidth, fontSize, stockColor, maxLines, lineGap, minSize) end
+---fitPathTail(path: string, maxWidth: int32, fontSize: int32, sep: char): string
+function engine.ui_helpers.fitPathTail(path, maxWidth, fontSize, sep) end
+---fitTextAndSize(text: string, maxWidth: int32, preferredSize: int32, minSize: int32): tuple[text: string, size: int32]
+function engine.ui_helpers.fitTextAndSize(text, maxWidth, preferredSize, minSize) end
 ---fitWithEllipsis(text: string, maxWidth: int32, fontSize: int32): string
 function engine.ui_helpers.fitWithEllipsis(text, maxWidth, fontSize) end
 ---wrapTextLines(text: string, maxWidth: int32, fontSize: int32, breakLongWords: bool): seq[string]
@@ -3292,12 +3288,18 @@ function engine.window_manager.windowViewport(window, requested, screenWidth, sc
 engine.xp_orb = {}
 ---collectAllXpOrbs(game: Game)
 function engine.xp_orb.collectAllXpOrbs(game) end
+---collectPickup(game: Game, orb: XpOrb): bool
+function engine.xp_orb.collectPickup(game, orb) end
 ---drawGameXpOrbs(game: Game)
 function engine.xp_orb.drawGameXpOrbs(game) end
 ---dropEnemyXp(game: Game, enemy: Enemy)
 function engine.xp_orb.dropEnemyXp(game, enemy) end
 ---newXpOrb(x: float32, y: float32, value: int): XpOrb
 function engine.xp_orb.newXpOrb(x, y, value) end
+---pickupAlive(game: Game, orb: XpOrb, dt: float32, count: int): bool
+function engine.xp_orb.pickupAlive(game, orb, dt, count) end
+---pickupTrail(orb: XpOrb): Color
+function engine.xp_orb.pickupTrail(orb) end
 ---updateGameXpOrbs(game: Game, dt: float32)
 function engine.xp_orb.updateGameXpOrbs(game, dt) end
 ---xpRequiredForLevel(level: int, mode: GameMode): int
@@ -3511,7 +3513,6 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "cinematic_common.equippedBulletSkin"
 ---| "cinematic_common.equippedShape"
 ---| "cinematic_common.equippedSkin"
----| "cinematic_common.fitFontSize"
 ---| "cinematic_common.fractCoord"
 ---| "cinematic_common.hash01"
 ---| "cinematic_common.newCinematicBoss"
@@ -3519,20 +3520,17 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "cinematic_common.serviceWindowHeight"
 ---| "cinematic_common.triAny"
 ---| "coin.awardMetaCurrency"
----| "coin.checkAuraCollision"
----| "coin.checkPlayerCollision"
----| "coin.clampLootPosition"
+---| "coin.coinPickupValue"
 ---| "coin.collectAllCoins"
----| "coin.collectCoin"
+---| "coin.collectPickup"
 ---| "coin.drawCoin"
 ---| "coin.drawGameCoins"
 ---| "coin.dropEnemyCoin"
 ---| "coin.enemyCoinValue"
----| "coin.moveCoinToPlayer"
 ---| "coin.newCoin"
+---| "coin.pickupAlive"
+---| "coin.pickupTrail"
 ---| "coin.spawnMagnetCoins"
----| "coin.updateCoinsWaveCleared"
----| "coin.updateCoin"
 ---| "coin.updateGameCoins"
 ---| "combat.accumulateAndShowAuraDamage"
 ---| "combat.accumulateAndShowContactDamage"
@@ -3560,14 +3558,15 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "combat.showPerk"
 ---| "combat.showPlayerDamageTaken"
 ---| "combat.tickAccumulator"
----| "consumable.checkPlayerCollision"
+---| "consumable.consumableColor"
+---| "consumable.consumablePerkLabel"
 ---| "consumable.drawConsumableIcon"
 ---| "consumable.drawConsumable"
----| "consumable.isInPlayerAura"
----| "consumable.moveConsumableToPlayer"
 ---| "consumable.newConsumable"
 ---| "consumable.newSpecificConsumable"
----| "consumable.updateConsumable"
+---| "consumable.pickupAlive"
+---| "consumable.pickupTrail"
+---| "consumable.startConsumableBuff"
 ---| "credits_window.drawCreditsWindow"
 ---| "credits_window.newCreditsWindow"
 ---| "credits_window.updateCreditsWindow"
@@ -3587,9 +3586,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "d_enhancements.newBossIntroduction"
 ---| "d_enhancements.newRealTimeStats"
 ---| "d_enhancements.newWaveCelebration"
----| "d_enhancements.recordCoin"
 ---| "d_enhancements.recordDamage"
----| "d_enhancements.recordKill"
 ---| "d_enhancements.startCelebration"
 ---| "d_enhancements.startIntroduction"
 ---| "d_enhancements.updateCelebration"
@@ -3610,9 +3607,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "d_systems.newScreenShake"
 ---| "d_systems.newSlowMotion"
 ---| "d_systems.newWaveStats"
----| "d_systems.recordCoin"
 ---| "d_systems.recordCombo"
----| "d_systems.recordKill"
 ---| "d_systems.resetWaveStats"
 ---| "d_systems.shouldShowCombo"
 ---| "d_systems.startWaveCombo"
@@ -3790,7 +3785,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "game.checkPendingLevelDraft"
 ---| "game.cleanupGame"
 ---| "game.clearBossWave"
----| "game.collectConsumable"
+---| "game.collectPickup"
 ---| "game.completeBossWave"
 ---| "game.drawDeathSequenceOverlay"
 ---| "game.drawGameOver"
@@ -4064,10 +4059,9 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "patches.patchStatusColor"
 ---| "patches.patchStatusLabel"
 ---| "patches.patchStatus"
----| "player.activateFireRateBoost"
----| "player.activateInvincibility"
----| "player.activateMagnet"
----| "player.activateSpeedBoost"
+---| "pickup.clampLootPosition"
+---| "pickup.magnetPullsAll"
+---| "pickup.pullTowardPlayer"
 ---| "player.dashBurstOf"
 ---| "player.dashRechargeOf"
 ---| "player.dashTimeOf"
@@ -4139,6 +4133,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "profile_select.refreshSlots"
 ---| "profile_select.updateProfileSelect"
 ---| "pvp_game.applyPlayerInput"
+---| "pvp_game.applyPlayerNet"
 ---| "pvp_game.areTeammates"
 ---| "pvp_game.assignPlayerToTeam"
 ---| "pvp_game.canRematch"
@@ -4273,6 +4268,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "run_statistics.cloneRunStatistics"
 ---| "run_statistics.endRun"
 ---| "run_statistics.finalizeRunTracking"
+---| "run_statistics.gainCredits"
 ---| "run_statistics.getLastRunStats"
 ---| "run_statistics.hasLastRunStats"
 ---| "run_statistics.hasValidRunStats"
@@ -4313,7 +4309,6 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "run_statistics.trackBulletDespawn"
 ---| "run_statistics.trackBulletFired"
 ---| "run_statistics.trackBulletHit"
----| "run_statistics.trackCoinPickup"
 ---| "run_statistics.trackCombo"
 ---| "run_statistics.trackConsumableHealing"
 ---| "run_statistics.trackConsumablePickup"
@@ -4464,7 +4459,6 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "stats_window.drawStatLine"
 ---| "stats_window.drawStatPanel"
 ---| "stats_window.drawStatsWindow"
----| "stats_window.fitText"
 ---| "stats_window.formatDuration"
 ---| "stats_window.formatLargeNumber"
 ---| "stats_window.formatPercent"
@@ -4592,6 +4586,8 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "ui_helpers.drawRestorePointIcon"
 ---| "ui_helpers.drawTextFit"
 ---| "ui_helpers.drawWrappedText"
+---| "ui_helpers.fitPathTail"
+---| "ui_helpers.fitTextAndSize"
 ---| "ui_helpers.fitWithEllipsis"
 ---| "ui_helpers.wrapTextLines"
 ---| "ui_theme.activeTheme"
@@ -4651,15 +4647,15 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "window_manager.windowUIScale"
 ---| "window_manager.windowViewport"
 ---| "xp_orb.collectAllXpOrbs"
----| "xp_orb.collectXpOrb"
+---| "xp_orb.collectPickup"
 ---| "xp_orb.drawGameXpOrbs"
 ---| "xp_orb.drawXpOrb"
 ---| "xp_orb.dropEnemyXp"
 ---| "xp_orb.enemyXpValue"
----| "xp_orb.moveXpOrbToPlayer"
 ---| "xp_orb.newXpOrb"
+---| "xp_orb.pickupAlive"
+---| "xp_orb.pickupTrail"
 ---| "xp_orb.updateGameXpOrbs"
----| "xp_orb.updateXpOrb"
 ---| "xp_orb.xpRequiredForLevel"
 
 ---beginBlendMode(mode: BlendMode)

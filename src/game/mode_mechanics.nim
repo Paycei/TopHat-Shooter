@@ -51,7 +51,7 @@ proc findLiving(game: Game, id: int): Enemy =
       return e
   nil
 
-proc buildRosterEnemy(game: var Game, pos: Vector2f, et: EnemyType,
+proc buildRosterEnemy(game: var Game, pos: Vector2, et: EnemyType,
                       fromBoss: bool, tag = stgNone, allowElite = false): Enemy =
   ## A roster enemy born mid-fight (split, fork, revive). In survival it goes
   ## through the horde constructor (density rebate, soft girth); elsewhere it
@@ -71,13 +71,13 @@ proc offArenaOutbound(game: Game, e: Enemy, margin: float32): bool =
   let outside = e.pos.x < -margin or e.pos.y < -margin or
                 e.pos.x > w + margin or e.pos.y > h + margin
   if not outside: return false
-  let fromCenter = e.pos - newVector2f(w / 2, h / 2)
+  let fromCenter = e.pos - vec2(w / 2, h / 2)
   fromCenter.x * e.ballisticVel.x + fromCenter.y * e.ballisticVel.y > 0
 
 # ---------------------------------------------------------------------------
 # Echo (Mirror Cache replays it)
 
-proc recordPlayerEcho*(game: var Game, aimDir: Vector2f, firing: bool, dt: float32) {.moddable.} =
+proc recordPlayerEcho*(game: var Game, aimDir: Vector2, firing: bool, dt: float32) {.moddable.} =
   ## Sample the player's position, aim and trigger at EchoSampleRate Hz into a
   ## ring buffer. Also latches "fired this frame" for the Audit Lock.
   let mc = addr game.modeCombat
@@ -139,7 +139,7 @@ proc onModeEnemyKilled*(game: var Game, enemy: Enemy) {.moddable.} =
       if isTimeSurvivalMode(game.mode) and survivalAliveCount(game) >= SurvivalMaxAlive:
         break
       let a = rand(PI * 2.0).float32
-      let off = newVector2f(cos(a), sin(a)) * (10.0'f32 * s)
+      let off = vec2(cos(a), sin(a)) * (10.0'f32 * s)
       let t = buildRosterEnemy(game, enemy.pos + off, etThread, enemy.spawnedByBoss,
                                enemy.survivalTag)
       t.vel = off * 14.0'f32
@@ -188,7 +188,7 @@ proc splitSeed(game: var Game, seed: Enemy) =
     child.contactDamage = seed.contactDamage
     child.color = seed.color
     child.linkId = seed.linkId
-    child.ballisticVel = newVector2f(cos(a), sin(a)) * speed
+    child.ballisticVel = vec2(cos(a), sin(a)) * speed
     child.generation = seed.generation - 1
     child.modeTimer = if child.generation > 0: beat else: beat * 1.4'f32
     child.targetPos = seed.targetPos
@@ -224,7 +224,7 @@ proc forkBombFork(game: var Game, bomb: Enemy) =
   if isTimeSurvivalMode(game.mode) and survivalAliveCount(game) >= SurvivalMaxAlive:
     return
   let a = rand(PI * 2.0).float32
-  let copy = buildRosterEnemy(game, bomb.pos + newVector2f(cos(a), sin(a)) * (bomb.radius * 1.8'f32),
+  let copy = buildRosterEnemy(game, bomb.pos + vec2(cos(a), sin(a)) * (bomb.radius * 1.8'f32),
                               etForkBomb, bomb.spawnedByBoss, bomb.survivalTag)
   copy.generation = bomb.generation + 1
   bomb.generation = bomb.generation + 1   # the original has now forked too
@@ -358,7 +358,7 @@ proc spawnMarchRank(game: var Game, w: AttackWarning) =
   ## A rank of ballistic Threads across the lane, in two staggered rows so
   ## there is no gap to walk through: the player shoots one.
   let dir = (w.targetPos - w.pos).normalize()
-  let perp = newVector2f(-dir.y, dir.x)
+  let perp = vec2(-dir.y, dir.x)
   let bodies = max(4, w.bulletCount)
   let halfSpan = w.laserLength
   let spacing = (halfSpan * 2.0'f32) / (bodies - 1).float32
@@ -468,10 +468,10 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       return
     w.pos = boss.pos
     if w.ricochetPath.len != w.laserAngles.len:
-      w.ricochetPath = newSeq[Vector2f](w.laserAngles.len)
+      w.ricochetPath = newSeq[Vector2](w.laserAngles.len)
     for b in 0..<w.laserAngles.len:
       let a = searchlightAngle(w, b)
-      let dir = newVector2f(cos(a), sin(a))
+      let dir = vec2(cos(a), sin(a))
       let len = rayWallDistance(w.pos + dir * (boss.radius * 0.6'f32), dir, SearchlightLength, game.walls) +
                 boss.radius * 0.6'f32
       w.ricochetPath[b] = w.pos + dir * len
@@ -505,7 +505,7 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       for k in 0..<FileBombShrapnel:
         let a = offset + k.float32 * PI * 2.0'f32 / FileBombShrapnel.float32
         game.bullets.add(newBullet(
-          x = w.pos.x, y = w.pos.y, direction = newVector2f(cos(a), sin(a)),
+          x = w.pos.x, y = w.pos.y, direction = vec2(cos(a), sin(a)),
           speed = w.bulletSpeed, damage = w.bulletDamage * 0.6'f32, fromPlayer = false,
           isBossBullet = true, sourceEnemyId = w.sourceEnemyId))
 
@@ -572,7 +572,7 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       if distance(game.player.pos, w.pos) <= w.bulletRadius + game.player.radius:
         hazardHitPlayer(game, w.bulletDamage, dcLaser, dtExplosion)
         var away = game.player.pos - w.pos
-        if away.length() < 1.0'f32: away = newVector2f(1, 0)
+        if away.length() < 1.0'f32: away = vec2(1, 0)
         game.player.pos = w.pos + away.normalize() * (w.bulletRadius + game.player.radius + 4.0'f32)
       pageInWall(game, w)
       addShake(game.dopamine.screenShake, siSmall)
@@ -591,7 +591,7 @@ proc resolveModeWarning*(game: var Game, w: AttackWarning, dt: float32) {.moddab
       w.bulletSpeed -= dt   # repurposed: echo fire cooldown
       if s.fired and w.bulletSpeed <= 0 and age >= w.laserDuration + EchoFadeIn:
         w.bulletSpeed = EchoShotInterval
-        let dir = newVector2f(cos(s.aim), sin(s.aim))
+        let dir = vec2(cos(s.aim), sin(s.aim))
         game.bullets.add(newBullet(
           x = s.pos.x + dir.x * EchoRadius, y = s.pos.y + dir.y * EchoRadius,
           direction = dir, speed = 260.0'f32, damage = w.bulletDamage * 0.6'f32,

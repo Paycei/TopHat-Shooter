@@ -15,7 +15,7 @@
 import std/[tables, math, strutils, os]
 from std/unicode import runes
 import raylib, rlgl
-import ../types, ../sound
+import ../types, ../sound, ../utils
 import mod_media
 
 type
@@ -751,8 +751,7 @@ proc poseSkeletonBlend(m: var ModModel, animA: int, frameA: float32,
 proc fadeWeight(t: AnimTrack, now: float): float32 =
   ## How much of t.anim is on screen (1 = the fade is over), eased in and out.
   if t.fade <= 0: return 1
-  let x = clamp((now - t.start) / t.fade, 0.0, 1.0).float32
-  x * x * (3 - 2 * x)
+  smoothstep(((now - t.start) / t.fade).float32)
 
 proc crossfade(id: int, key: AnimKey, anim: int, frame, fade: float32):
                tuple[fromAnim: int, fromFrame, weight: float32] =

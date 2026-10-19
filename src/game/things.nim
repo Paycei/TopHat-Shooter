@@ -18,7 +18,7 @@ import std/[math, sets, tables]
 import ../modding/mod_patch_core
 import raylib
 import ../draw_prims
-import ../types, ../particle_types, ../player, ../bullet, ../enemy_helpers, ../run_statistics, ../particle_pool
+import ../types, ../utils, ../particle_types, ../player, ../bullet, ../enemy_helpers, ../run_statistics, ../particle_pool
 import combat, death
 import ../modding/[lua_bridge, mod_hooks, mod_registry, mod_assets]
 
@@ -40,7 +40,7 @@ proc extentRadius(t: ModThing): float32 {.inline.} =
   ## The radius of a circle that contains the thing (for grid queries).
   if t.shape == tsRect: 0.5'f32 * sqrt(t.w * t.w + t.h * t.h) else: t.radius
 
-proc overlapsCircle*(t: ModThing, p: Vector2f, r: float32): bool {.moddable.} =
+proc overlapsCircle*(t: ModThing, p: Vector2, r: float32): bool {.moddable.} =
   ## Does the thing's body touch the circle (p, r)?
   if t.shape == tsRect:
     let hw = t.w * 0.5'f32
@@ -56,7 +56,7 @@ proc overlapsCircle*(t: ModThing, p: Vector2f, r: float32): bool {.moddable.} =
     let rr = r + t.radius
     dx * dx + dy * dy <= rr * rr
 
-proc pushOut(t: ModThing, p: var Vector2f, r: float32) =
+proc pushOut(t: ModThing, p: var Vector2, r: float32) =
   ## Move the circle (p, r) out of a solid thing.
   if t.shape == tsRect:
     let hw = t.w * 0.5'f32
@@ -95,7 +95,7 @@ proc pushOut(t: ModThing, p: var Vector2f, r: float32) =
     else:
       p.x = t.pos.x + rr
 
-proc hazardHits(t: ModThing, p: Vector2f, r: float32): bool {.moddable.} =
+proc hazardHits(t: ModThing, p: Vector2, r: float32): bool {.moddable.} =
   ## Is the circle (p, r) inside the hazard's area?
   let hz = t.hazard
   case hz.shape
@@ -165,7 +165,7 @@ proc removeThing*(t: ModThing) {.moddable.} =
 # ----------------------------------------------------------------- turret ----
 proc fireWeapon(game: Game, t: ModThing, w: ThingWeapon): bool =
   ## False: nothing in range (the turret stays ready).
-  var target: Vector2f
+  var target: Vector2
   var found = false
   var bestD = w.range * w.range
   if t.team == ttEnemy:
@@ -195,7 +195,7 @@ proc fireWeapon(game: Game, t: ModThing, w: ThingWeapon): bool =
   for i in 0 ..< n:
     let off = degToRad(w.spread) * (i.float32 - (n - 1).float32 * 0.5'f32)
     let a = base + off
-    let b = newBullet(t.pos.x, t.pos.y, newVector2f(cos(a), sin(a)), w.speed, w.damage,
+    let b = newBullet(t.pos.x, t.pos.y, vec2(cos(a), sin(a)), w.speed, w.damage,
                       fromPlayer = t.team != ttEnemy)
     if w.radius > 0: b.radius = w.radius
     if w.lifetime > 0: b.lifetime = w.lifetime
@@ -249,7 +249,7 @@ proc tickHazard(game: Game, t: ModThing, dt: float32, grid: SpatialGrid, maxEnem
     removeThing(t)
 
 # ------------------------------------------------------------------ update ----
-proc nearestEnemy(game: Game, p: Vector2f): Enemy =
+proc nearestEnemy(game: Game, p: Vector2): Enemy =
   var bestD = 1.0e12'f32
   for e in game.enemies:
     if e.hp <= 0: continue
@@ -282,7 +282,7 @@ proc moveThing(game: Game, t: ModThing, dt: float32) =
     if t.motion == tmChaseEnemy:
       let e = nearestEnemy(game, t.pos)
       if e.isNil:
-        t.vel = newVector2f(0, 0)
+        t.vel = vec2(0, 0)
         return
       target = e.pos
       stopAt = e.radius * 0.5'f32
@@ -291,15 +291,15 @@ proc moveThing(game: Game, t: ModThing, dt: float32) =
     let d = sqrt(dx * dx + dy * dy)
     if d > stopAt and d > 0.001:
       let step = min(t.speed * dt, d - stopAt)
-      t.vel = newVector2f(dx / d * t.speed, dy / d * t.speed)
+      t.vel = vec2(dx / d * t.speed, dy / d * t.speed)
       t.pos.x += dx / d * step
       t.pos.y += dy / d * step
     else:
-      t.vel = newVector2f(0, 0)
+      t.vel = vec2(0, 0)
   of tmOrbitPlayer:
     t.orbitAngle += t.speed * dt   # degrees per second
     let a = degToRad(t.orbitAngle)
-    t.pos = newVector2f(game.player.pos.x + cos(a) * t.orbitRadius,
+    t.pos = vec2(game.player.pos.x + cos(a) * t.orbitRadius,
                         game.player.pos.y + sin(a) * t.orbitRadius)
   t.angle += t.spin * dt
 
@@ -498,14 +498,14 @@ proc drawHazard(t: ModThing, time: float32) =
   let pulse = 0.5'f32 + 0.5'f32 * sin(time * 12)
   let fillA = if hz.phase == 0: uint8(40 + 50 * pulse) else: 170'u8
   let lineA = if hz.phase == 0: 230'u8 else: 255'u8
-  let fill = Color(r: c.r, g: c.g, b: c.b, a: fillA)
+  let fill = withAlpha(c, fillA)
   c.a = lineA
   # how far the warning has run, as a growing inner shape
   let progress = if hz.phase == 0 and hz.warn > 0: clamp(hz.timer / hz.warn, 0'f32, 1'f32) else: 1'f32
   case hz.shape
   of hzNone: discard
   of hzCircle:
-    drawDisc(Vector2(x: t.pos.x, y: t.pos.y), t.radius * (if hz.phase == 0: progress else: 1), fill)
+    drawDisc(t.pos, t.radius * (if hz.phase == 0: progress else: 1), fill)
     drawCircleOutline(t.pos.x.int32, t.pos.y.int32, t.radius, c)
   of hzRect:
     let r = Rectangle(x: t.pos.x - t.w * 0.5'f32, y: t.pos.y - t.h * 0.5'f32, width: t.w, height: t.h)
@@ -516,11 +516,11 @@ proc drawHazard(t: ModThing, time: float32) =
   of hzLine:
     let a = degToRad(t.angle)
     let e = Vector2(x: t.pos.x + cos(a) * hz.length, y: t.pos.y + sin(a) * hz.length)
-    let s = Vector2(x: t.pos.x, y: t.pos.y)
+    let s = t.pos
     drawLine(s, e, max(1'f32, t.radius * 2 * (if hz.phase == 0: progress else: 1)), fill)
     drawStroke(s, e, 1, c)
   of hzRing:
-    drawRing(Vector2(x: t.pos.x, y: t.pos.y), hz.inner, t.radius, 0, 360, 48, fill)
+    drawRing(t.pos, hz.inner, t.radius, 0, 360, 48, fill)
     drawCircleOutline(t.pos.x.int32, t.pos.y.int32, t.radius, c)
     drawCircleOutline(t.pos.x.int32, t.pos.y.int32, max(1'f32, hz.inner), c)
 
@@ -539,7 +539,7 @@ proc drawThingBody(t: ModThing, k: int) =
     drawRectangle(Rectangle(x: t.pos.x, y: t.pos.y, width: w, height: h),
                   Vector2(x: w * 0.5'f32, y: h * 0.5'f32), t.angle, tint)
   else:
-    drawDisc(Vector2(x: t.pos.x, y: t.pos.y), t.radius * scale, tint)
+    drawDisc(t.pos, t.radius * scale, tint)
     let rim = Color(r: uint8(min(255, t.color.r.int + 60)), g: uint8(min(255, t.color.g.int + 60)),
                     b: uint8(min(255, t.color.b.int + 60)), a: t.color.a)
     drawCircleOutline(t.pos.x.int32, t.pos.y.int32, t.radius * scale, rim)

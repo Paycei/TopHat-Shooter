@@ -298,7 +298,7 @@ proc jsonToPickup(j: JsonNode): DungeonPickup =
   let relic = parseRelicSave(j.getOrDefault("patch").getStr("rrtNone"))
   DungeonPickup(
     kind: parsePickupKind(j.getOrDefault("kind").getStr()),
-    pos: newVector2f(j.getOrDefault("x").getFloat().float32, j.getOrDefault("y").getFloat().float32),
+    pos: vec2(j.getOrDefault("x").getFloat().float32, j.getOrDefault("y").getFloat().float32),
     taken: j.getOrDefault("taken").getBool(false),
     patch: relic.relicType,
     modPatch: relic.modKey,
@@ -673,7 +673,7 @@ proc applySavedRun*(game: Game, file: string = ""): bool {.moddable.} =
       for c in j.getOrDefault("survivalChests").getElems():
         s.chests.add(SurvivalChest(
           tier: parseEnumOr(c.getOrDefault("t").getStr(""), sctMinor),
-          pos: newVector2f(c.getOrDefault("x").getFloat(0.0).float32,
+          pos: vec2(c.getOrDefault("x").getFloat(0.0).float32,
                            c.getOrDefault("y").getFloat(0.0).float32),
           age: 1.0'f32))
       game.survival = s

@@ -93,6 +93,61 @@ proc darken*(color: Color, amount: int, alpha: int = 255): Color =
     a: clampByte(alpha)
   )
 
+# Colour helpers shared by every renderer. A straight blend (alpha included)
+# is raylib's colorLerp; these cover what it does not.
+
+proc rgba*(r, g, b: int, a = 255): Color {.inline.} =
+  ## A colour from int channels, each clamped to 0..255.
+  Color(r: clampByte(r), g: clampByte(g), b: clampByte(b), a: clampByte(a))
+
+proc rgba*(r, g, b: int, a: float32): Color {.inline.} =
+  ## The same with a float alpha (0..255, clamped), for an alpha that is worked out.
+  Color(r: clampByte(r), g: clampByte(g), b: clampByte(b), a: clampByteF(a))
+
+proc scaleAlpha*(c: Color, k: float32): Color {.inline.} =
+  ## `c` faded to `k` (0..1) of its own alpha: relative to the tint, so an
+  ## already translucent colour fades from where it is, never brightens.
+  withAlpha(c, c.a.float32 * clamp(k, 0.0'f32, 1.0'f32))
+
+proc lerpRgb*(c, target: Color, t: float32): Color {.inline.} =
+  ## `c` pulled `t` of the way to `target` in RGB, keeping c's own alpha.
+  withAlpha(colorLerp(c, target, t), c.a)
+
+proc clearOf*(c: Color): Color {.inline.} =
+  ## `c` fully transparent: the far end of a fade-out gradient keeps its tint,
+  ## so the blend never greys on the way.
+  withAlpha(c, 0'u8)
+
+# Small maths shared by the procedural visuals
+
+proc clamp01*(v: float32): float32 {.inline.} = clamp(v, 0.0'f32, 1.0'f32)
+
+proc fract01*(v: float32): float32 {.inline.} = v - floor(v)
+
+proc wrapCoord*(value, limit: float32): float32 {.inline.} =
+  ## `value` wrapped into 0 ..< `limit` (0 when there is no range): a drifting
+  ## position that loops round the screen or a tile.
+  if limit <= 0.0'f32: return 0.0'f32
+  value - floor(value / limit) * limit
+
+proc hash01*(seed: float32): float32 {.inline.} =
+  ## Deterministic pseudo-random in [0,1): the same seed always gives the same
+  ## value, so procedural staging is identical on every frame and playback.
+  fract01(sin(seed * 12.9898'f32) * 43758.5453'f32)
+
+proc smoothstep*(t: float32): float32 {.inline.} =
+  ## Ease in and out over 0..1 (t is clamped).
+  let x = clamp01(t)
+  x * x * (3.0'f32 - 2.0'f32 * x)
+
+proc smoothstep*(e0, e1, x: float32): float32 {.inline.} =
+  ## 0 at e0, 1 at e1, eased in between.
+  smoothstep((x - e0) / (e1 - e0))
+
+proc easeOutCubic*(t: float32): float32 {.inline.} =
+  ## Fast start, gentle landing over 0..1 (t is clamped).
+  1.0'f32 - pow(1.0'f32 - clamp01(t), 3.0'f32)
+
 # UI display
 
 # COLORS

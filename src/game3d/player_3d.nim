@@ -67,7 +67,7 @@ proc reload*(player: var Player3D) {.moddable.} =
   elif player.weapon.reloadTimer <= 0 and player.weapon.ammo < player.weapon.maxAmmo:
     player.weapon.reloadTimer = player.weapon.reloadTime
 
-proc newPlayer3D*(startPos: Vector3f, health2D: float32): Player3D {.moddable.} =
+proc newPlayer3D*(startPos: Vector3, health2D: float32): Player3D {.moddable.} =
   Player3D(
     pos: startPos,
     vel: vec3(0, 0, 0),

@@ -8,7 +8,7 @@ import raylib, math
 import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound, ../utils
-import ui_theme
+import ui_theme, ui_helpers
 
 const HeatUnlockCelebrationDuration = 1.35'f32
 
@@ -84,9 +84,7 @@ proc drawHeatUnlockCelebration(rw: RogueliteWindow, panelX, panelY: int32) =
                      2.5'f32, withAlpha(gold, alpha))
   drawCurrencyIcon(bannerX + 32, bannerY + bannerH div 2, 34, ciHeat, alpha)
   let label = t("roguelite_heat") & " " & $rw.celebrationHeat & " " & t("roguelite_heat_now_open")
-  var labelFont: int32 = 20
-  while labelFont > 12 and measureText(label, labelFont) > bannerW - 76:
-    dec labelFont
+  let labelFont = bestFitFontSize(label, bannerW - 76, 20, 12)
   drawText(label, bannerX + 58, bannerY + (bannerH - labelFont) div 2, labelFont, withAlpha(gold, alpha))
 
 proc buttonRects(panelX, panelY: int32): tuple[start, back: Rectangle] =

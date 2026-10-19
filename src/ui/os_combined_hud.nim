@@ -511,15 +511,7 @@ proc drawSectorName(floor: DungeonFloor, cx, cw, y: int32) =
 
 proc drawSectorPath(floor: DungeonFloor, cx, cw, y: int32) =
   ## Breadcrumb, trimmed from the LEFT so the folder you are in stays visible.
-  var path = sectorPath(floor)
-  if measureText(path, 10) > cw:
-    # Drop whole leading folders, never half a name.
-    var tail = path
-    while measureText(".." & tail, 10) > cw:
-      let cut = tail.find('\\', 1)
-      if cut < 0: break
-      tail = tail[cut .. ^1]
-    path = ".." & tail
+  let path = fitPathTail(sectorPath(floor), cw, 10)
   drawShadowText(path, cx, y, 10, withAlpha(themeAccent(floor.theme), 215))
 
 proc drawSectorTrack(game: Game, floor: DungeonFloor, cx, cw, y: int32) =

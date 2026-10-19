@@ -505,9 +505,7 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) {.moddable.} =
                     2, Color(r: 0, g: 200, b: 100, a: 255))
   # "[OK]" at a fixed size/offset overflowed the right edge of the 100px box.
   # Shrink until it fits the inner width, then center it in both axes.
-  var iconSize = 60'i32
-  while iconSize > 12'i32 and measureText("[OK]", iconSize) > 84'i32:
-    iconSize -= 2'i32
+  let iconSize = bestFitFontSize("[OK]", 84, 60, 12)
   let iconTextW = measureText("[OK]", iconSize)
   drawText("[OK]", iconBoxX + (100'i32 - iconTextW) div 2'i32,
           yOffset + (100'i32 - iconSize) div 2'i32, iconSize,

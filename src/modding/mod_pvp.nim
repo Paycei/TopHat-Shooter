@@ -46,10 +46,6 @@ proc hostMatch(vm: VM, args: openArray[ScriptValue], fname: string): PvPGameStat
     vm.runtimeError("match:" & fname & "() changes the match, which only the host does " &
                     "(check match.isHost; a client asks the host with match:request)")
 
-proc finite(vm: VM, v: ScriptValue, what: string): float32 =
-  if v.kind == vkNumber and abs(v.n) < 1.0e9: return v.n.float32   # (NaN fails too)
-  vm.runtimeError(what & " must be a finite number")
-
 proc playerArg(vm: VM, pvp: PvPGameState, v: ScriptValue, what: string): int =
   ## A player of this match, as the object or its index (1-based) -> its slot.
   if v.kind == vkNumber:
@@ -298,15 +294,13 @@ proc installMatchMethods() =
     let t = vm.checkTable(args, 1, "spawnBullet")
     vm.checkKeys(t, BulletKeys, "match:spawnBullet")
     let owner = vm.optPlayerArg(pvp, rawGetStr(t, "owner"), "match:spawnBullet's owner")
-    proc numOr(key: string, def: float32): float32 =
-      let v = rawGetStr(t, key)
-      if v.kind == vkNil: def else: vm.finite(v, "match:spawnBullet's " & key)
+    proc numOr(key: string, def: float32): float32 = vm.numField(t, key, "match:spawnBullet", def)
     let ownerP = if owner >= 0: pvp.players[owner] else: nil
     if ownerP.isNil and (rawGetStr(t, "x").kind == vkNil or rawGetStr(t, "y").kind == vkNil):
       vm.runtimeError("match:spawnBullet needs x and y (or an owner to fire from)")
-    let pos = newVector2f(numOr("x", (if ownerP.isNil: 0'f32 else: ownerP.pos.x)),
+    let pos = vec2(numOr("x", (if ownerP.isNil: 0'f32 else: ownerP.pos.x)),
                           numOr("y", (if ownerP.isNil: 0'f32 else: ownerP.pos.y)))
-    let vel = newVector2f(numOr("vx", 0), numOr("vy", 0))
+    let vel = vec2(numOr("vx", 0), numOr("vy", 0))
     let damage = max(0'f32, numOr("damage", (if ownerP.isNil: pvp.config.startDamage else: ownerP.damage)))
     let radius = max(numOr("radius", pvp.config.bulletRadius), 0.5'f32)
     let life = max(numOr("lifetime", PvPBulletLife), 0.01'f32)
@@ -350,7 +344,7 @@ proc installMatchMethods() =
     ## match:teleport(player, x, y) -- every machine snaps it there
     let pvp = vm.hostMatch(args, "teleport")
     pvp.modTeleport(vm.playerArg(pvp, arg(args, 1), "match:teleport's player"),
-                    newVector2f(vm.finite(arg(args, 2), "match:teleport's x"),
+                    vec2(vm.finite(arg(args, 2), "match:teleport's x"),
                                 vm.finite(arg(args, 3), "match:teleport's y")))
   matchMethods.reg("finish") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## match:finish([winner [, reason]]) -- ends the match now. winner: a

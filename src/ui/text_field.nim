@@ -30,7 +30,7 @@
 import raylib, std/[strutils, math]
 from std/unicode import Rune, runes, toUTF8
 import ../modding/mod_patch_core
-import ../render_context
+import ../render_context, ../utils
 import os_window, ui_helpers, ui_theme
 
 type
@@ -98,7 +98,7 @@ proc fieldStyle*(fontSize: int32, ink: Color, accent: Color, padX: int32 = 8,
   ## The usual style: `ink` text and a 2 px caret of it, and a translucent
   ## `accent` selection (stock colours).
   TextFieldStyle(fontSize: fontSize, padX: padX, caretWidth: 2, ink: ink, caretInk: ink,
-                 selectInk: Color(r: accent.r, g: accent.g, b: accent.b, a: 90), align: align)
+                 selectInk: withAlpha(accent, 90), align: align)
 
 # ---------------------------------------------------------------- text ----
 proc isCont(c: char): bool {.inline.} = (c.uint8 and 0xC0'u8) == 0x80'u8

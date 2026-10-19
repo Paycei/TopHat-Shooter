@@ -3,7 +3,6 @@
 import raylib, std/strutils, random
 import modding/mod_patch_core
 import draw_prims
-from std/unicode import runeSubStr, runeLen
 import types, enemy, enemy_config, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
 import game3d/types_3d, ui/ui_helpers
 
@@ -24,20 +23,6 @@ const
 proc isSandboxLegendaryPowerUp(powerType: PowerUpType): bool {.inline.} =
   ## Derived from the registry.
   powerUpDef(powerType).pool == puppLegendary
-
-proc fitSandboxText(text: string, maxWidth, fontSize: int32,
-                    minSize: int32 = 8): tuple[text: string, size: int32] =
-  var fs = fontSize
-  while fs > minSize and measureText(text, fs) > maxWidth:
-    dec fs
-  if measureText(text, fs) <= maxWidth:
-    return (text, fs)
-
-  # Trim whole characters, not bytes: Spanish text is multi-byte UTF-8.
-  var fitted = text
-  while fitted.len > 0 and measureText(fitted & "...", fs) > maxWidth:
-    fitted = fitted.runeSubStr(0, fitted.runeLen - 1)
-  (fitted & "...", fs)
 
 # One list per spawn tab, shared by the draw pass, the click handler and the
 # scroll height, so the three can never drift apart.
@@ -134,9 +119,9 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
       let config = getEnemyConfig(enemyType)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 70, b: 120, a: 255))
       drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 100, g: 100, b: 150, a: 255))
-      let (nameText, nameSize) = fitSandboxText(sandboxEnemyTag(enemyType) & config.name, buttonWidth - 10, 16)
+      let (nameText, nameSize) = fitTextAndSize(sandboxEnemyTag(enemyType) & config.name, buttonWidth - 10, 16, 8)
       drawText(nameText, contentX + 5, currentY + 5, nameSize, White)
-      let (descText, descSize) = fitSandboxText(config.description, buttonWidth - 10, 12)
+      let (descText, descSize) = fitTextAndSize(config.description, buttonWidth - 10, 12, 8)
       drawText(descText, contentX + 5, currentY + 20, descSize, Color(r: 180, g: 180, b: 180, a: 255))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
@@ -158,10 +143,10 @@ proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
       let bossDef = getBossDefinition(bossId)
       drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 50, b: 50, a: 255))
       drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 80, b: 80, a: 255))
-      let (nameText, nameSize) = fitSandboxText($bossId & ". " & sandboxBossTag(bossId) & bossDef.name,
-                                                buttonWidth - 10, 16)
+      let (nameText, nameSize) = fitTextAndSize($bossId & ". " & sandboxBossTag(bossId) & bossDef.name,
+                                                buttonWidth - 10, 16, 8)
       drawText(nameText, contentX + 5, currentY + 5, nameSize, Red)
-      let (descText, descSize) = fitSandboxText(bossDef.description, buttonWidth - 10, 12)
+      let (descText, descSize) = fitTextAndSize(bossDef.description, buttonWidth - 10, 12, 8)
       drawText(descText, contentX + 5, currentY + 20, descSize, Color(r: 200, g: 150, b: 150, a: 255))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
@@ -230,7 +215,7 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
 
       let displayName = if discovered: getPowerUpName(powerType)
                         else: t(tkSandboxPowerupLockedName)
-      let (nameText, nameSize) = fitSandboxText(displayName, badgeX - textX - 5, 13)
+      let (nameText, nameSize) = fitTextAndSize(displayName, badgeX - textX - 5, 13, 8)
       drawText(nameText, textX, currentY + 8, nameSize,
                if discovered: White else: Color(r: 170, g: 180, b: 195, a: 255))
 
@@ -402,7 +387,7 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) {.moddabl
     else:
       Color(r: 60, g: 60, b: 60, a: 255)
     drawRectangle(int32(tabX), int32(currentY), int32(tabWidth), int32(TAB_HEIGHT - 5), tabColor)
-    let (fittedTabName, fittedTabSize) = fitSandboxText(tabName, tabWidth - 4, 14, 9)
+    let (fittedTabName, fittedTabSize) = fitTextAndSize(tabName, tabWidth - 4, 14, 9)
     let textWidth = measureText(fittedTabName, fittedTabSize)
     drawText(fittedTabName, int32(tabX + (tabWidth - textWidth) div 2),
              int32(currentY + 10), fittedTabSize, White)

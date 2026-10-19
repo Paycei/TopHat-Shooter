@@ -4,7 +4,7 @@
 ## Built on `fieldPairs` (a system iterator, no macros): the loop unrolls at
 ## compile time into one name comparison per field, and `when compiles` keeps
 ## only fields of a type scripts can hold (numbers, booleans, strings, enums
-## as their names, Vector2f/Vector2 as {x, y} tables and Color as {r, g, b, a}).
+## as their names, Vector2 as {x, y} tables and Color as {r, g, b, a}).
 ## Everything else (seqs, refs, nested objects) is simply not visible. A new
 ## field on Player/Enemy/Bullet/Game is therefore scriptable automatically.
 ##
@@ -38,7 +38,6 @@ proc toScript*(v: SomeInteger): ScriptValue {.inline.} =
 proc toScript*(v: bool): ScriptValue {.inline.} = vbool(v)
 proc toScript*(v: string): ScriptValue {.inline.} = vstr(v)
 proc toScript*[E: enum](v: E): ScriptValue {.inline.} = vstr($v)
-proc toScript*(v: Vector2f): ScriptValue = vec2Value(v.x, v.y)
 proc toScript*(v: Vector2): ScriptValue = vec2Value(v.x, v.y)
 proc toScript*(v: Color): ScriptValue = colorValue(v)
 proc toScript*[E: enum](s: set[E]): ScriptValue =
@@ -94,6 +93,27 @@ proc parseColor*(vm: VM, v: ScriptValue, what: string): Color =
       vm.runtimeError(what & ": colour string is not valid hex")
   else:
     vm.runtimeError(what & ": colour expected (table or \"#rrggbb\"), got " & typeName(v))
+
+# A script's number becomes a float32 position, speed or size, and some of
+# them are cast to int further on. NaN and huge values are refused here, at
+# the edge, so nothing downstream ever sees one: every native that reads a
+# number out of a script table goes through these.
+
+proc finite*(vm: VM, v: ScriptValue, what: string): float32 =
+  ## A finite number (NaN and huge values are rejected).
+  if v.kind == vkNumber and abs(v.n) < 1.0e9: return v.n.float32
+  vm.runtimeError(what & " must be a finite number" &
+                  (if v.kind == vkNumber: "" else: ", got " & typeName(v)))
+
+proc numField*(vm: VM, t: ScriptTable, key, what: string, def: float32): float32 =
+  ## t[key] as a finite number, or `def` when it is absent (errors say what.key).
+  let v = rawGetStr(t, key)
+  if v.kind == vkNil: def else: vm.finite(v, what & "." & key)
+
+proc colorField*(vm: VM, t: ScriptTable, key, what: string, def: Color): Color =
+  ## t[key] as a colour (see parseColor), or `def` when it is absent.
+  let v = rawGetStr(t, key)
+  if v.kind == vkNil: def else: parseColor(vm, v, what & "." & key)
 
 proc parseVec*(vm: VM, v: ScriptValue, what: string): tuple[x, y: float64] =
   if v.kind == vkTable:
@@ -151,10 +171,6 @@ proc assignScript*[E: enum](vm: VM, dest: var E, v: ScriptValue, field: string) 
   except ValueError:
     vm.runtimeError("field '" & field & "' has no value named '" & v.str.s & "'")
 
-proc assignScript*(vm: VM, dest: var Vector2f, v: ScriptValue, field: string) =
-  let (x, y) = parseVec(vm, v, field)
-  dest = Vector2f(x: x.float32, y: y.float32)
-
 proc assignScript*(vm: VM, dest: var Vector2, v: ScriptValue, field: string) =
   let (x, y) = parseVec(vm, v, field)
   dest = Vector2(x: x.float32, y: y.float32)
@@ -206,7 +222,7 @@ proc reflectSet*[T: ref object](vm: VM, obj: T, name: string, val: ScriptValue):
 proc objToValue*[T](v: T): ScriptValue =
   ## A plain-data snapshot of any object (configs, boss definitions): nested
   ## objects become tables, seqs become arrays. For reading and copying only.
-  when T is Vector2f or T is Vector2:
+  when T is Vector2 or T is Vector2:
     vec2Value(v.x, v.y)
   elif T is Color:
     colorValue(v)
@@ -241,7 +257,7 @@ proc applyTable*[T: object](vm: VM, obj: var T, t: ScriptTable, what: string,
     var done = false
     for fname, f in fieldPairs(obj):
       if not done and fname == name:
-        when f is object and not (f is Vector2f or f is Vector2 or f is Color):
+        when f is object and not (f is Vector2 or f is Vector2 or f is Color):
           if v.kind != vkTable:
             vm.runtimeError(what & "." & name & " must be a table")
           applyTable(vm, f, v.tbl, what & "." & name)

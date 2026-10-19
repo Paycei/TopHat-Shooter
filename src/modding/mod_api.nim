@@ -179,7 +179,7 @@ const
     ## The enemy's identity (scripts' per-entity data, the spatial grid and
     ## the boss bookkeeping key on these); bossTotalMaxHp follows the pools.
 
-proc posGet*(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
+proc posGet*(pos, vel: Vector2, name: string, found: var bool): ScriptValue =
   found = true
   case name
   of "x": vnum(pos.x.float64)
@@ -190,7 +190,7 @@ proc posGet*(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
     found = false
     NilValue
 
-proc posSet*(vm: VM, pos, vel: var Vector2f, name: string, v: ScriptValue): bool =
+proc posSet*(vm: VM, pos, vel: var Vector2, name: string, v: ScriptValue): bool =
   case name
   of "x": pos.x = vm.checkNum([v], 0, "x").float32
   of "y": pos.y = vm.checkNum([v], 0, "y").float32
@@ -1033,13 +1033,11 @@ proc bossFromTable(vm: VM, t: ScriptTable, base: BossDefinition, id: int, owner:
 
 proc buildScriptBullet*(vm: VM, t: ScriptTable): Bullet =
   ## spawn.bullet's table -> a bullet, not yet in the run.
-  proc num(key: string, def: float64): float32 =
-    let v = rawGetStr(t, key)
-    if v.kind == vkNumber: v.n.float32 else: def.float32
+  proc num(key: string, def: float32): float32 = vm.numField(t, key, "spawn.bullet", def)
   let vx = num("vx", 0)
   let vy = num("vy", 200)
   let speed = sqrt(vx * vx + vy * vy)
-  let dir = if speed > 0: newVector2f(vx / speed, vy / speed) else: newVector2f(1, 0)
+  let dir = if speed > 0: vec2(vx / speed, vy / speed) else: vec2(1, 0)
   result = newBullet(num("x", 0), num("y", 0), dir, speed, num("damage", 1),
                      fromPlayer = truthy(rawGetStr(t, "fromPlayer")))
   let r = num("radius", 0)
@@ -1256,7 +1254,7 @@ proc installContentLibraries(base: ScriptTable) =
   fxT.reg("damageNumber") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## fx.damageNumber(x, y, amount [, critical])
     let g = vm.requireRunGame()
-    showDamage(g, newVector2f(vm.checkNum(args, 0, "damageNumber").float32,
+    showDamage(g, vec2(vm.checkNum(args, 0, "damageNumber").float32,
                               vm.checkNum(args, 1, "damageNumber").float32),
                vm.checkNum(args, 2, "damageNumber").float32, fromPlayer = true,
                isCritical = truthy(arg(args, 3)))

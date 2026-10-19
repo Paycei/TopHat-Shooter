@@ -39,7 +39,7 @@ proc getBulletShapeData*(s: BulletShapeType): BulletShapeData = bulletShapeDatab
 
 # Drawing
 
-proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
+proc drawPlayerBulletShape*(pos: Vector2, radius: float32,
                              shape: BulletShapeType, travelAngle: float32,
                              color, glowColor: Color) {.moddable.} =
   ## Draw one player bullet with the chosen cosmetic shape.
@@ -48,9 +48,9 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
 
   of bshCircle:
     # Glow ring
-    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 3,
+    drawDisc(pos, radius + 3,
                withAlpha(glowColor, 60))
-    drawDisc(Vector2(x: pos.x, y: pos.y), radius, color)
+    drawDisc(pos, radius, color)
     # Off-center highlight gives the orb a rounded, energetic look
     drawDisc(Vector2(x: pos.x - radius * 0.25, y: pos.y - radius * 0.25),
                radius * 0.35, Color(r: 255, g: 255, b: 255, a: 130))
@@ -79,7 +79,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
         Vector2(x: cx + cos(a1) * r, y: cy + sin(a1) * r),
         1.5, color)
     # Glow
-    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 2,
+    drawDisc(pos, radius + 2,
                withAlpha(glowColor, 40))
 
   of bshPentagon:
@@ -136,7 +136,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
         1.0, Color(r: 255, g: 255, b: 255, a: 90))
     # Highlight
     drawStroke(tip, right, 1, Color(r: 255, g: 255, b: 255, a: 80))
-    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 2,
+    drawDisc(pos, radius + 2,
                withAlpha(glowColor, 50))
 
   of bshSquare:
@@ -161,7 +161,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
     drawStroke(tr, br, 1.5, color)
     drawStroke(br, bl, 1.5, color)
     drawStroke(bl, tl, 1.5, color)
-    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 2,
+    drawDisc(pos, radius + 2,
                withAlpha(glowColor, 45))
 
   of bshStar:
@@ -203,7 +203,7 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
           Vector2(x: cx + cos(a1) * (r + 1), y: cy + sin(a1) * (r + 1)),
           1.5, color)
     # Bright core dot
-    drawDisc(Vector2(x: pos.x, y: pos.y), radius * 0.28, color)
+    drawDisc(pos, radius * 0.28, color)
     # Counter-spinning inner hex ring for visual energy
     let starSpin = getTime() * -5.5
     let spinHexR = r * 0.42
@@ -214,5 +214,5 @@ proc drawPlayerBulletShape*(pos: Vector2f, radius: float32,
         Vector2(x: cx + cos(sa0) * spinHexR, y: cy + sin(sa0) * spinHexR),
         Vector2(x: cx + cos(sa1) * spinHexR, y: cy + sin(sa1) * spinHexR),
         1.0, Color(r: 255, g: 255, b: 255, a: 100))
-    drawDisc(Vector2(x: pos.x, y: pos.y), radius + 4,
+    drawDisc(pos, radius + 4,
                withAlpha(glowColor, 55))

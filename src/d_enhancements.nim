@@ -385,7 +385,6 @@ proc newRealTimeStats*(): RealTimeStats {.moddable.} =
   result = RealTimeStats(
     dps: 0,
     damageDealt: 0,
-    kills: 0,
     coinsPerMinute: 0,
     totalCoins: 0
   )
@@ -416,13 +415,6 @@ proc recordDamage*(stats: var RealTimeStats, damage: float32, currentTime: float
 
   stats.dps = windowDamage / max(windowDuration, 1.0)
 
-proc recordKill*(stats: var RealTimeStats) {.moddable.} =
-  stats.kills += 1
-
-proc recordCoin*(stats: var RealTimeStats, currentTime: float32) {.moddable.} =
-  stats.totalCoins += 1
-
-  # Calculate coins per minute
-  if currentTime > 0:
-    stats.coinsPerMinute = (stats.totalCoins.float32 / currentTime) * 60.0
+# totalCoins / coinsPerMinute are written by run_statistics.gainCredits, the
+# one door every credit the player earns goes through.
 

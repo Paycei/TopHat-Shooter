@@ -1,7 +1,7 @@
 import raylib, rlgl, random, math, strutils, algorithm
 import modding/mod_patch_core
 import draw_prims
-import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_debug_panel, ui/os_combined_hud, ui/os_legacy_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_helpers, ui/hud_dock, boss_weakpoints, mode_hazards, mode_visuals, game/mode_mechanics
+import types, settings, save_system, player, enemy, bullet, consumable, coin, xp_orb, pickup, wall, boss_definitions, particle, particle_pool, particle_types, effects, powerup, patches, sound, d_systems, d_visuals, d_enhancements, survival, render_context, roguelite, dungeon, gamemode_definitions, run_statistics, statistics, enemy_config, enemy_helpers, localization, game3d/game_3d, ui/os_shop, ui/os_background, ui/os_debug_panel, ui/os_combined_hud, ui/os_legacy_hud, ui/os_system_screens, ui/os_enemy_labels, ui/ui_helpers, ui/hud_dock, boss_weakpoints, mode_hazards, mode_visuals, game/mode_mechanics
 
 # Gameplay subsystem modules. game.nim is the top of the dependency DAG.
 
@@ -24,7 +24,7 @@ proc drawVolatilePrimed(enemy: Enemy, time: float32) =
   if count < 2: return
   let flick = sin(time * 12.0'f32 + enemy.id.float32) * 0.5'f32 + 0.5'f32
   let r = enemy.radius + 7.0'f32 + flick * 2.0'f32
-  let center = Vector2(x: enemy.pos.x, y: enemy.pos.y)
+  let center = enemy.pos
   drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r,
                   withAlpha(VOLATILE_COLOR, uint8(110.0'f32 + flick * 100.0'f32)))
   let span = 360.0'f32 / count.float32
@@ -192,7 +192,7 @@ proc bankRunLevelUps(game: Game) {.moddable.} =
     playSound(stPowerUp)
     spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                          Color(r: 120, g: 255, b: 180, a: 255), 24)
-    showPerk(game, newVector2f(game.player.pos.x, game.player.pos.y - 28),
+    showPerk(game, vec2(game.player.pos.x, game.player.pos.y - 28),
              t("roguelite_level_up") & " " & $game.player.rogueliteLevel,
              Color(r: 120, g: 255, b: 180, a: 255))
 
@@ -316,7 +316,7 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
     runHadDeath: false,
     flawlessWaveVictory: false,
     # Mouse tracking for menu navigation
-    lastMousePos: newVector2f(0, 0),
+    lastMousePos: vec2(0, 0),
     mouseMovedRecently: false,
     keyboardUsedRecently: false,
     # State tracking for settings return
@@ -726,13 +726,13 @@ proc spawnDungeonEnemies(game: Game, count: int) =
     # the bottom door).
     var (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
     for _ in 0..5:
-      if distance(newVector2f(x, y), game.player.pos) >= 200.0'f32: break
+      if distance(vec2(x, y), game.player.pos) >= 200.0'f32: break
       (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight)
     if enemyType == etMimic:
       # A Mimic doesn't walk in: it is already lying in the room, posing as a
       # file, clear of the obstacles and well away from the player.
       for _ in 0..20:
-        let p = newVector2f(rand(80.0'f32..(game.screenWidth.float32 - 80.0'f32)),
+        let p = vec2(rand(80.0'f32..(game.screenWidth.float32 - 80.0'f32)),
                             rand(80.0'f32..(game.screenHeight.float32 - 80.0'f32)))
         var blocked = distance(p, game.player.pos) < 220.0'f32
         for wall in game.walls:
@@ -932,7 +932,6 @@ var modeWorldQuit*: bool
   ## the way Q at the world's pause does (saved to resume, or ended when a mod
   ## made the run unresumable).
 
-
 proc enterWorld3D*(game: Game, opts: World3DOptions) {.moddable.} =
   ## Enter a 3D world now. activeWorld3D holds the world; Game.game3D only
   ## marks that one exists (the pointer is never serialized or suspended).
@@ -1010,7 +1009,7 @@ proc processModActions(game: Game) =
       spawnConfiguredBoss(game, 0, a.bossId)
       if game.pendingBoss != nil:
         if a.x != 0 or a.y != 0:
-          game.pendingBoss.targetPos = newVector2f(a.x, a.y)
+          game.pendingBoss.targetPos = vec2(a.x, a.y)
         modActionDone(a, game.pendingBoss)
     of makJoinEnemy:
       # spawn.enemy built it when the script asked (the handle it returned)
@@ -1301,7 +1300,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
             bulletIdx.float32 * PI * 2.0 / game.attackWarnings[i].bulletCount.float32 + rand(0.4)
           else:
             bulletIdx.float32 * PI * 2.0 / game.attackWarnings[i].bulletCount.float32
-          let dir = newVector2f(cos(angle), sin(angle))
+          let dir = vec2(cos(angle), sin(angle))
 
           # Spawn bullet from this teleport location
           let warnSourceId = game.attackWarnings[i].sourceEnemyId
@@ -1337,7 +1336,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
       # columns this resolves to straight down; for diagonal comets it follows the
       # angled path the warning drew, keeping the telegraph honest.
       let mDelta = w.pos - w.targetPos
-      let mDir = if mDelta.x == 0 and mDelta.y == 0: newVector2f(0, 1)
+      let mDir = if mDelta.x == 0 and mDelta.y == 0: vec2(0, 1)
                  else: mDelta.normalize()
       game.bullets.add(newBullet(
         x = w.targetPos.x, y = w.targetPos.y,
@@ -1368,7 +1367,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
         if not w.bulletsCreated:
           for b in 0..<3:
             spawnLightningBolt(game,
-              newVector2f(w.targetPos.x + (rand(24.0) - 12.0), -40.0),
+              vec2(w.targetPos.x + (rand(24.0) - 12.0), -40.0),
               w.targetPos)
           spawnExplosionPooled(game.particlePool, w.targetPos.x, w.targetPos.y,
                                Color(r: 255, g: 255, b: 190, a: 255), 30)
@@ -1427,7 +1426,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
             let ang = b.float32 * (PI * 2.0) / burst.float32
             game.bullets.add(newBullet(
               x = w.targetPos.x, y = w.targetPos.y,
-              direction = newVector2f(cos(ang), sin(ang)),
+              direction = vec2(cos(ang), sin(ang)),
               speed = w.bulletSpeed,
               damage = w.bulletDamage,
               fromPlayer = false, isBossBullet = true,
@@ -1504,8 +1503,8 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
         if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
           let c = orbitalSweepCenter(w)
           let ang = w.bulletSpreadAngle
-          let v = newVector2f(cos(ang), sin(ang))    # travel direction
-          let u = newVector2f(-sin(ang), cos(ang))   # along the wall
+          let v = vec2(cos(ang), sin(ang))    # travel direction
+          let u = vec2(-sin(ang), cos(ang))   # along the wall
           let rel = game.player.pos - c
           let dAcross = rel.x * v.x + rel.y * v.y
           let dAlong = rel.x * u.x + rel.y * u.y
@@ -1613,7 +1612,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
             game.bullets.add(newBullet(
               x = w.pos.x + cos(ca) * 22.0'f32,
               y = w.pos.y + sin(ca) * 22.0'f32,
-              direction = newVector2f(cos(ca), sin(ca)),
+              direction = vec2(cos(ca), sin(ca)),
               speed = ClockChimeSpeed,
               damage = w.bulletDamage * 0.6'f32,
               fromPlayer = false, isBossBullet = true,
@@ -1626,7 +1625,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
         if game.player.laserHitCooldown <= 0 and game.player.invincibilityTimer <= 0:
           for hand in 0 ..< max(1, w.laserCount):
             let ang = clockSweepHandAngle(w, hand)
-            let tip = newVector2f(w.pos.x + cos(ang) * w.bulletRadius,
+            let tip = vec2(w.pos.x + cos(ang) * w.bulletRadius,
                                   w.pos.y + sin(ang) * w.bulletRadius)
             if pointSegmentDistance(game.player.pos, w.pos, tip) <=
                w.laserLength + game.player.radius:
@@ -1658,7 +1657,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
             let ang = ringOffset + b.float32 * (PI * 2.0) / ringCount.float32
             game.bullets.add(newBullet(
               x = w.pos.x, y = w.pos.y,
-              direction = newVector2f(cos(ang), sin(ang)),
+              direction = vec2(cos(ang), sin(ang)),
               speed = w.bulletSpeed, damage = w.bulletDamage,
               fromPlayer = false, isBossBullet = true,
               sourceEnemyId = w.sourceEnemyId,
@@ -1729,7 +1728,7 @@ proc updateAttackWarningsAndLasers(game: var Game, dt: float32) =
               let ang = emberOfs + b.float32 * (PI * 2.0) / emberN.float32
               game.bullets.add(newBullet(
                 x = w.pos.x, y = w.pos.y,
-                direction = newVector2f(cos(ang), sin(ang)),
+                direction = vec2(cos(ang), sin(ang)),
                 speed = OmegaEmberSpeed, damage = w.bulletDamage * 0.5'f32,
                 fromPlayer = false, isBossBullet = true,
                 sourceEnemyId = w.sourceEnemyId, bossBulletShape = emberShape,
@@ -2130,7 +2129,7 @@ proc updatePlayerAuras(game: var Game, dt: float32) =
         let delta = enemy.pos - game.player.pos
         let awayFromPlayer =
           if delta.length() > 0.01'f32: delta.normalize()
-          else: newVector2f(0, -1)
+          else: vec2(0, -1)
 
         # Stronger up close, with a floor so enemies at the rim still get moved.
         # Bosses barely budge so they can't be kited around by the aura alone.
@@ -2272,7 +2271,7 @@ proc updatePulseArmor(game: var Game) =
           let delta = enemy.pos - game.player.pos
           let awayFromPlayer =
             if delta.length() > 0.01'f32: delta.normalize()
-            else: newVector2f(0, -1)
+            else: vec2(0, -1)
 
           # Stronger when closer, but with a floor so edge enemies still get launched.
           # Bosses resist the shove heavily so they don't get yanked around.
@@ -2306,7 +2305,7 @@ proc updatePulseArmor(game: var Game) =
 proc updatePlayerFiring(game: var Game, dt: float32) =
   # Check shooting
   let pointerPos = getWorldMousePosition()
-  var mousePos = newVector2f(pointerPos.x, pointerPos.y)
+  var mousePos = vec2(pointerPos.x, pointerPos.y)
   if isGamepadActive():
     # Twin-stick aim: the right stick gives a direction, not a position, so
     # project an aim point at a fixed radius from the player. With aim assist
@@ -2317,12 +2316,12 @@ proc updatePlayerFiring(game: var Game, dt: float32) =
     const AimPointRadius = 240.0'f32
     const AssistMaxRange = 600.0'f32
     const AssistConeHalfAngle = PI.float32 / 10.0'f32  # 18 degrees
-    mousePos = newVector2f(game.player.pos.x + dir.x * AimPointRadius,
+    mousePos = vec2(game.player.pos.x + dir.x * AimPointRadius,
                            game.player.pos.y + dir.y * AimPointRadius)
     if globalSettings.aimAssistEnabled:
       var bestScore = float32.high
       for enemy in game.enemies:
-        let toEnemy = newVector2f(enemy.pos.x - game.player.pos.x,
+        let toEnemy = vec2(enemy.pos.x - game.player.pos.x,
                                   enemy.pos.y - game.player.pos.y)
         let dist = toEnemy.length()
         if dist < 1.0'f32 or dist > AssistMaxRange:
@@ -2335,11 +2334,11 @@ proc updatePlayerFiring(game: var Game, dt: float32) =
         let score = angleOffset + dist * 0.001'f32
         if score < bestScore:
           bestScore = score
-          mousePos = newVector2f(enemy.pos.x, enemy.pos.y)
+          mousePos = vec2(enemy.pos.x, enemy.pos.y)
     mousePos.x = clamp(mousePos.x, 0.0'f32, game.screenWidth.float32)
     mousePos.y = clamp(mousePos.y, 0.0'f32, game.screenHeight.float32)
-    setGamepadAimPointWorld(Vector2(x: mousePos.x, y: mousePos.y))
-  let shootDir = newVector2f(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
+    setGamepadAimPointWorld(mousePos)
+  let shootDir = vec2(mousePos.x - game.player.pos.x, mousePos.y - game.player.pos.y)
 
   # Handle delayed double-shot bursts (rapid succession)
   # LEGENDARY Double Shot: Only 1 additional burst after 0.08s delay
@@ -2414,7 +2413,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32) =
       # Fire circle of bullets
       for i in 0..<bulletCount:
         let angle = (i.float32 / bulletCount.float32) * PI * 2.0
-        let direction = newVector2f(cos(angle), sin(angle))
+        let direction = vec2(cos(angle), sin(angle))
 
         # Create bullet with player's current stats
         let damageWithCrit = applyCriticalHitFromStats(stats, stats.damage)
@@ -2460,7 +2459,7 @@ proc updatePlayerAndAuras(game: var Game, dt: float32) =
         game.bullets.add(newBullet(
           x = game.player.pos.x,
           y = game.player.pos.y,
-          direction = newVector2f(cos(angle), sin(angle)),
+          direction = vec2(cos(angle), sin(angle)),
           speed = game.player.bulletSpeed,
           damage = applyCriticalHitFromStats(stats, stats.damage),
           fromPlayer = true,
@@ -2725,9 +2724,8 @@ proc updateEnemySpawning(game: var Game, dt: float32) =
         # Check for perfect wave combo bonus
         let perfectWaveBonus = checkPerfectWaveCombo(game.dopamine.comboSystem, game.waveEnemiesTotal)
         if perfectWaveBonus > 0:
-          game.player.coins += perfectWaveBonus
+          gainCredits(game, perfectWaveBonus)
           playSound(stCoinPickup)  # Play coin sound for bonus
-          trackCoinPickup(game, perfectWaveBonus)
           trackPerfectWave()  # Track for statistics
 
         # Wave celebration removed from here - now only happens after boss defeat
@@ -2804,8 +2802,8 @@ proc detonateBossCorpse(game: var Game, boss: Enemy) =
   let w = game.screenWidth.float32
   let h = game.screenHeight.float32
   var reach = 0.0'f32
-  for corner in [newVector2f(0, 0), newVector2f(w, 0),
-                 newVector2f(0, h), newVector2f(w, h)]:
+  for corner in [vec2(0, 0), vec2(w, 0),
+                 vec2(0, h), vec2(w, h)]:
     reach = max(reach, distance(boss.pos, corner))
   spawnBossDeathBlast(game, boss.pos, reach + 260.0'f32, boss.id)
 
@@ -2848,7 +2846,7 @@ proc fireConfiguredEnemyShot(game: var Game, enemy: Enemy) {.moddable.} =
       if attackConfig.usesBurst:
         for i in 0..<attackConfig.burstCount:
           let spreadAngle = (i - (attackConfig.burstCount div 2)).float32 * attackConfig.spreadAngle
-          let spreadDir = newVector2f(
+          let spreadDir = vec2(
             dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
             dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
           )
@@ -2873,16 +2871,16 @@ proc fireConfiguredEnemyShot(game: var Game, enemy: Enemy) {.moddable.} =
       else:
         # Non-burst shooting
         for i in 0..<attackConfig.bulletCount:
-          var shootDir: Vector2f
+          var shootDir: Vector2
 
           if attackConfig.spreadAngle >= 6.0:  # Full circle (chaotic)
             # Random direction for chaotic enemies like Hexagon
             let angle = rand(1.0) * PI * 2.0
-            shootDir = newVector2f(cos(angle), sin(angle))
+            shootDir = vec2(cos(angle), sin(angle))
           else:
             # Spread pattern
             let spreadAngle = (i - (attackConfig.bulletCount div 2)).float32 * attackConfig.spreadAngle
-            shootDir = newVector2f(
+            shootDir = vec2(
               dir.x * cos(spreadAngle) - dir.y * sin(spreadAngle),
               dir.x * sin(spreadAngle) + dir.y * cos(spreadAngle)
             )
@@ -2979,7 +2977,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
 
   var enemyIdx = 0
   var bossDefeated = false
-  var defeatedBossPos = newVector2f(game.screenWidth.float32 * 0.5'f32,
+  var defeatedBossPos = vec2(game.screenWidth.float32 * 0.5'f32,
                                     game.screenHeight.float32 * 0.5'f32)
   while enemyIdx < game.enemies.len:
     var enemy = game.enemies[enemyIdx]
@@ -3112,7 +3110,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
       enemy.knockbackVel.x *= decay
       enemy.knockbackVel.y *= decay
       if enemy.knockbackVel.length() < 5.0:
-        enemy.knockbackVel = newVector2f(0, 0)
+        enemy.knockbackVel = vec2(0, 0)
 
     if not updateEnemy(enemy, game.player.pos, effectiveDt, game.walls, game.time, game):  # Use slowed time
       # Safety net for the boss phase invariant: any damage path that emptied the
@@ -3285,7 +3283,8 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
             # Clamp consumable position to be in bounds (for enemies killed out-of-bounds)
             game.consumables.add(newConsumable(clampedPos.x, clampedPos.y, consumableDifficulty, game.mode))
 
-      game.player.kills += 1
+      # Every kill counter (the player's, the wave's, the run's) in one place.
+      trackEnemyKilled(game, enemy)
 
       # Lifesteal consumable - heal 50 HP per kill
       if game.player.lifestealTimer > 0:
@@ -3295,8 +3294,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         # Show heal damage number
         if restored > 0:
           showDamage(game, game.player.pos, restored, true, false, dtHeal)
-
-      recordKill(game.dopamine.realTimeStats)
 
       if enemy.isBoss:
         # Boss kill - MASSIVE effects: a hard bite of hit stop to punctuate the
@@ -3309,9 +3306,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         addShake(game.dopamine.screenShake, siMassive, BOSS_DEATH_BLAST_COLOR)
         triggerHitStop(game.dopamine.slowMotion, 0.13'f32, HitStopScaleHeavy)
         activateSlowMo(game.dopamine.slowMotion, smtBossKill)
-        # Record kill with high damage for stats
-        let bossKillHp = if enemy.bossTotalMaxHp > 0.0'f32: enemy.bossTotalMaxHp else: enemy.maxHp
-        recordKill(game.dopamine.waveStats, bossKillHp)
       else:
         # Regular enemy kill - standard effects. Hit stop, NOT slow motion: see
         # activateSlowMo's note on why a per-kill dilation latches the game into
@@ -3333,7 +3327,6 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           # kills there punch at most five times a second.
           triggerHitStop(game.dopamine.slowMotion, 0.035'f32)
           game.survival.lastKillHitStop = game.time
-        recordKill(game.dopamine.waveStats, 0)  # Don't track individual enemy damage for non-bosses
 
       # Track combo and award bonus coins (but not for boss minions)
       if not enemy.spawnedByBoss:
@@ -3343,15 +3336,11 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
         if comboBonus > 0 and game.mode == gmRoguelite:
           comboBonus = int(round(comboBonus.float32 * RogueliteCoinScale))
         if comboBonus > 0:
-          game.player.coins += comboBonus
-          trackCoinPickup(game, comboBonus)
+          gainCredits(game, comboBonus)
           recordCombo(game.dopamine.waveStats, game.dopamine.comboSystem.killCount)
 
         # Track combo statistics for run stats
         trackCombo(game, game.dopamine.comboSystem.killCount)
-
-      # Track enemy kill for statistics
-      trackEnemyKilled(game, enemy)
 
       # Roster death hooks: Fork Bomb splits, Zombie husks, Interrupt pops,
       # corpses a Restorer can raise.
@@ -3402,7 +3391,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           inc minedCredits
         if hasPatch(game.player, rrtCryptominer) and rand(1.0'f32) < densityRebate(game):
           inc minedCredits
-        game.player.coins += minedCredits
+        gainCredits(game, minedCredits)
 
       # LastTransmission: chance to heal 0.5 HP on kill
       if hasPowerUp(game.player, puLastTransmission) and not enemy.isBoss:
@@ -3618,7 +3607,7 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
           enemy.megaCastTimer = 0
           enemy.megaCastTotal = 0
         else:
-          enemy.vel = newVector2f(0, 0)
+          enemy.vel = vec2(0, 0)
 
       # Update boss behavior based on specialBehavior. The boss holds completely
       # still during a phase-change transition (and while channelling a mega
@@ -3925,9 +3914,9 @@ proc updateEnemiesAndBossAttacks(game: var Game, dt: float32, effectiveDt: float
     let shardDelta = game.rogueliteRun.shardsEarned - prevShards
     let coreDelta  = game.rogueliteRun.coresEarned  - prevCores
     if shardDelta > 0:
-      showCurrency(game, game.player.pos + newVector2f(0, -40), shardDelta, cikDataShards)
+      showCurrency(game, game.player.pos + vec2(0, -40), shardDelta, cikDataShards)
     if coreDelta > 0:
-      showCurrency(game, game.player.pos + newVector2f(28, -26), coreDelta, cikCores)
+      showCurrency(game, game.player.pos + vec2(28, -26), coreDelta, cikCores)
     game.powerUpChoices = generatePowerUpChoices(game.player, true, AllPowerFamilies, game.mode)
     game.selectedPowerUp = 0
     initPowerUpRollAnimation(game)
@@ -4421,7 +4410,6 @@ proc resolveBulletEnemyHit(game: var Game, bullet: Bullet, target: Enemy, echoPa
                          curseDamage + volatileBonusDamage + resonanceBonusDamage
     trackBulletHit(game, bullet, target, totalHitDamage)
 
-
     # POWER-UP CREDIT PARTITION FOR THIS HIT
     #
     # Multiplier power-ups (Overcharge, Rage, Special Rounds, Crit, the
@@ -4897,7 +4885,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
           let angle = angle1 + t * (angle2 - angle1)
           let shieldX = game.player.pos.x + cos(angle) * shieldRadius
           let shieldY = game.player.pos.y + sin(angle) * shieldRadius
-          let shieldPos = newVector2f(shieldX, shieldY)
+          let shieldPos = vec2(shieldX, shieldY)
 
           if distance(bullet.pos, shieldPos) < bullet.radius + 4:  # Reduced from +6 to +4
             hitShield = true
@@ -5051,7 +5039,7 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
         if game.player.parryActive:
           # Bounce toward the enemy that shot the bullet
           # If enemy is dead, bounce toward where it was when it shot
-          var targetPos: Vector2f
+          var targetPos: Vector2
           var foundTarget = false
 
           # Try to find the living enemy that shot this bullet by ID
@@ -5174,9 +5162,12 @@ proc updateBulletsAndHits(game: var Game, dt: float32, effectiveDt: float32) =
 
     i += 1
 
-proc collectConsumable(game: var Game, c: Consumable) {.moddable.} =
-  ## The player touched consumable `c`: its effect, feedback and stats (the
-  ## caller removes it).
+proc collectPickup*(game: Game, c: Consumable): bool {.moddable.} =
+  ## The player touched consumable `c`: a mod's pickup hook may take it, else
+  ## its effect, feedback and stats (the caller removes it). Its colour, label
+  ## and buff duration come from consumable.nim's spec.
+  if modPickup(game, (if c.consumableType == ctMod: c.modKey else: $c.consumableType), 0):
+    return
   playSound(stPowerUp, 0.6)
 
   # Track consumable pickup for statistics (a mod's are not counted)
@@ -5200,66 +5191,23 @@ proc collectConsumable(game: var Game, c: Consumable) {.moddable.} =
     # Double coin multiplier applies here; Cornucopia gives 8 coins instead of 5
     let baseCoin = if game.player.hasBountiful: 8 else: 5
     let coinValue = if game.player.doubleCoinTimer > 0: baseCoin * 2 else: baseCoin
-    game.player.coins += coinValue
+    gainCredits(game, coinValue)
     showCurrency(game, c.pos, coinValue, cikCredits)
-  of ctSpeed:
-    activateSpeedBoost(game.player)
-    if game.player.hasBountiful:
-      game.player.speedBoostTimer *= 1.5'f32
-    showPerk(game, game.player.pos, "+SPEED", Cyan)
-  of ctInvincibility:
-    activateInvincibility(game.player)
-    if game.player.hasBountiful:
-      game.player.invincibilityTimer *= 1.5'f32
-    showPerk(game, game.player.pos, "+INVINCIBLE", Magenta)
-  of ctFireRate:
-    activateFireRateBoost(game.player)
-    if game.player.hasBountiful:
-      game.player.fireRateBoostTimer *= 1.5'f32
-    showPerk(game, game.player.pos, "+FIRE RATE", Orange)
   of ctMagnet:
-    activateMagnet(game.player)
+    startConsumableBuff(game.player, ctMagnet)
     spawnMagnetCoins(game)
-    showPerk(game, game.player.pos, "+MAGNET", Purple)
-  of ctShieldBoost:
-    # Cornucopia: 3 hits (up from 2), 15s duration (up from 10s)
-    if game.player.hasBountiful:
-      game.player.shieldBoostTimer = 15.0
-      game.player.shieldHits = 3
-    else:
-      game.player.shieldBoostTimer = 10.0
-      game.player.shieldHits = 2
-    showPerk(game, game.player.pos, "+SHIELD", Color(r: 100, g: 200, b: 255, a: 255))
-  of ctDoubleCoin:
-    game.player.doubleCoinTimer = if game.player.hasBountiful: 15.0 else: 10.0
-    showPerk(game, game.player.pos, "+DOUBLE COIN", Color(r: 255, g: 223, b: 0, a: 255))
-  of ctDamageBoost:
-    game.player.damageBoostTimer = if game.player.hasBountiful: 15.0 else: 10.0
-    showPerk(game, game.player.pos, "+DAMAGE", Color(r: 255, g: 69, b: 0, a: 255))
-  of ctLifesteal:
-    game.player.lifestealTimer = if game.player.hasBountiful: 22.0 else: 15.0
-    showPerk(game, game.player.pos, "+LIFESTEAL", Color(r: 220, g: 20, b: 20, a: 255))
+  of ctSpeed, ctInvincibility, ctFireRate, ctShieldBoost, ctDoubleCoin, ctDamageBoost, ctLifesteal:
+    # Cornucopia lengthens each (and gives the shield a third hit): see the spec.
+    startConsumableBuff(game.player, c.consumableType)
   of ctMod:
     # register.consumable: its stats and its onPickup
-    showPerk(game, game.player.pos, "+" & modConsumableName(c.modKey).toUpperAscii,
-             modConsumableColor(c.modKey))
     modConsumablePickup(game, c)
 
-  let particleColor = case c.consumableType
-    of ctHealth: Green
-    of ctCoin: Gold
-    of ctSpeed: Cyan
-    of ctInvincibility: Magenta
-    of ctFireRate: Orange
-    of ctMagnet: Purple
-    of ctShieldBoost: Cyan
-    of ctDoubleCoin: Color(r: 255, g: 223, b: 0, a: 255)
-    of ctDamageBoost: Color(r: 255, g: 69, b: 0, a: 255)
-    of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)
-    of ctMod: modConsumableColor(c.modKey)
-
-  spawnExplosionPooled(game.particlePool, c.pos.x, c.pos.y,
-                particleColor, 10)
+  let color = consumableColor(c)
+  let label = consumablePerkLabel(c)
+  if label.len > 0:
+    showPerk(game, game.player.pos, label, color)
+  spawnExplosionPooled(game.particlePool, c.pos.x, c.pos.y, color, 10)
 
 proc updateProjectilesAndCleanup(game: var Game, dt: float32) =
   # Update meteorites (from etMage enemy)
@@ -5369,33 +5317,8 @@ proc updateProjectilesAndCleanup(game: var Game, dt: float32) =
     bankRunLevelUps(game)
     checkPendingLevelDraft(game)
 
-  # Update consumables
-  i = 0
-  while i < game.consumables.len:
-    if not updateConsumable(game.consumables[i], dt):
-      game.consumables.delete(i)
-      continue
-
-    # Check if consumable is in player's collection aura (auto-collect)
-    if isInPlayerAura(game.consumables[i], game.player):
-      # Pull consumable toward player with magnet animation
-      moveConsumableToPlayer(game.consumables[i], game.player.pos, dt)
-
-      # Add subtle particle trail for magnet effect
-      spawnTimedParticlesPooled(game.particlePool, game.consumables[i].pos.x, game.consumables[i].pos.y,
-                         18.0, Purple, 1, dt)
-
-    if checkPlayerCollision(game.consumables[i], game.player) and
-       modPickup(game, (if game.consumables[i].consumableType == ctMod: game.consumables[i].modKey
-                        else: $game.consumables[i].consumableType), 0):
-      game.consumables.delete(i)   # a mod took it (pickup hook)
-      continue
-    if checkPlayerCollision(game.consumables[i], game.player):
-      collectConsumable(game, game.consumables[i])
-      game.consumables.delete(i)
-      continue
-
-    i += 1
+  # Update consumables (pickup.nim: the same pull and pickup as coins and orbs)
+  discard updatePickups(game, game.consumables, dt)
 
   # Update walls
   i = 0
@@ -6266,7 +6189,7 @@ proc drawBossSatellite(sat: OrbitalSatellite, time: float32, isObjective: bool) 
     drawStroke(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y - targetSize),
              Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y + targetSize), 2.0, tColor)
     # Inner dot
-    drawDisc(Vector2(x: sat.laserTarget.x, y: sat.laserTarget.y), 3.5,
+    drawDisc(sat.laserTarget, 3.5,
                Color(r: 255, g: 255, b: 255, a: tAlpha))
     # Outer pulsing ring
     drawCircleOutline(sat.laserTarget.x.int32, sat.laserTarget.y.int32,
@@ -6397,21 +6320,21 @@ proc drawGame*(game: Game) {.moddable.} =
       # Falling meteorite: a molten rock with a fiery tail streaming behind it.
       let r = meteorite.radius
       let dir = meteorite.vel.normalize()   # zero-safe; falls back to (0,0)
-      let td = if dir.x == 0 and dir.y == 0: newVector2f(0, 1) else: dir
+      let td = if dir.x == 0 and dir.y == 0: vec2(0, 1) else: dir
       # Tapering flame puffs trailing opposite the travel direction.
       for t in 1 .. 6:
         let f = t.float32
-        let tp = newVector2f(meteorite.pos.x - td.x * r * f * 0.85'f32,
+        let tp = vec2(meteorite.pos.x - td.x * r * f * 0.85'f32,
                              meteorite.pos.y - td.y * r * f * 0.85'f32)
         let tr = max(2.0'f32, r * (1.0'f32 - f * 0.14'f32))
         let a = uint8(clamp(210.0'f32 - f * 32.0'f32, 0.0'f32, 255.0'f32))
         let gg = uint8(clamp(190.0'f32 - f * 26.0'f32, 50.0'f32, 255.0'f32))
-        drawDisc(Vector2(x: tp.x, y: tp.y), tr, Color(r: 255, g: gg, b: 30, a: a))
+        drawDisc(tp, tr, Color(r: 255, g: gg, b: 30, a: a))
       # Outer heat glow.
-      drawDisc(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), r + 6,
+      drawDisc(meteorite.pos, r + 6,
                  Color(r: 255, g: 140, b: 0, a: 70))
       # Molten body.
-      drawDisc(Vector2(x: meteorite.pos.x, y: meteorite.pos.y), r,
+      drawDisc(meteorite.pos, r,
                  Color(r: 255, g: 90, b: 0, a: 255))
       # Dark rocky core, offset toward the trailing edge so the front looks hottest.
       drawDisc(Vector2(x: meteorite.pos.x - td.x * r * 0.25'f32,
@@ -6590,7 +6513,7 @@ proc drawGame*(game: Game) {.moddable.} =
 
         # Closing ring: sweeps a full turn over the wind-up, so how much arc is
         # left is literally how much time is left.
-        drawRing(Vector2(x: enemy.pos.x, y: enemy.pos.y),
+        drawRing(enemy.pos,
                  shellRad + 22.0'f32 * (1.0'f32 - charge),
                  shellRad + 22.0'f32 * (1.0'f32 - charge) + 2.5'f32,
                  -90.0'f32, -90.0'f32 + 360.0'f32 * charge, 48,
@@ -6600,7 +6523,7 @@ proc drawGame*(game: Game) {.moddable.} =
         let dropDist = 46.0'f32 * (1.0'f32 - charge)
         for v in 0..5:
           let a = spin + v.float32 * PI / 3.0
-          let dir = Vector2f(x: cos(a), y: sin(a))
+          let dir = Vector2(x: cos(a), y: sin(a))
           let tip  = Vector2(x: enemy.pos.x + dir.x * (shellRad + dropDist),
                              y: enemy.pos.y + dir.y * (shellRad + dropDist))
           let tail = Vector2(x: enemy.pos.x + dir.x * (shellRad + dropDist + 12.0'f32),
@@ -6611,7 +6534,7 @@ proc drawGame*(game: Game) {.moddable.} =
                      Color(r: 200, g: 245, b: 255, a: warnA))
 
         # Faint inner bloom that swells into the shell's fill.
-        drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), shellRad,
+        drawDisc(enemy.pos, shellRad,
                    Color(r: 90, g: 200, b: 255, a: uint8(charge * 26.0'f32)))
 
       # Overload shield: rotating cyan hex shell that bounces body shots back.
@@ -6626,7 +6549,7 @@ proc drawGame*(game: Game) {.moddable.} =
           let cur = Vector2(x: enemy.pos.x + cos(a) * shRad, y: enemy.pos.y + sin(a) * shRad)
           drawStroke(prev, cur, 3.0'f32, Color(r: 90, g: 200, b: 255, a: sha))
           prev = cur
-        drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), shRad,
+        drawDisc(enemy.pos, shRad,
                    Color(r: 90, g: 200, b: 255, a: uint8(sha.int div 8)))
         if globalSettings == nil or globalSettings.showHints:
           let st = t(tkEnemyOverloadHoldFire)
@@ -6876,7 +6799,7 @@ proc drawGame*(game: Game) {.moddable.} =
   if game.state != gsShop and game.wallPlacementMode and game.player.walls > 0:
     const WallPlaceRange = 250.0'f32
     let mousePos = getWorldMousePosition()
-    let cursorPos = newVector2f(mousePos.x, mousePos.y)
+    let cursorPos = vec2(mousePos.x, mousePos.y)
     let inRange = distance(cursorPos, game.player.pos) <= WallPlaceRange
     let validPos = isValidWallPlacement(cursorPos, game.player.pos, game.walls, game.enemies, 25,
                                         game.screenWidth, game.screenHeight)
@@ -6892,7 +6815,7 @@ proc drawGame*(game: Game) {.moddable.} =
     let ringA = uint8(clamp(150.0 + pulse * 105.0, 0.0, 255.0))
 
     # Subtle fill so the buildable zone reads as an area, not just an edge.
-    drawDisc(Vector2(x: game.player.pos.x, y: game.player.pos.y), WallPlaceRange,
+    drawDisc(game.player.pos, WallPlaceRange,
                Color(r: 90, g: 130, b: 255, a: 14))
 
     # Boundary: outer glow -> bright core -> inner highlight (3-pass, like the
@@ -6919,7 +6842,7 @@ proc drawGame*(game: Game) {.moddable.} =
     let ghostEdge = if canPlace: Color(r: 80, g: 255, b: 80, a: 200)
                     else: Color(r: 255, g: 60, b: 60, a: 200)
     if hasPowerUp(game.player, puWallTurrets):
-      drawDisc(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostFill)
+      drawDisc(cursorPos, 25, ghostFill)
       drawCircleOutline(cursorPos.x.int32, cursorPos.y.int32, 25, ghostEdge)
     else:
       # Mirror drawBarricadeWall: thin along the outward normal, broad across.
@@ -7240,7 +7163,7 @@ proc drawDeathSequenceOverlay*(game: Game) {.moddable.} =
   # line up with the player wherever the world pass actually drew them.
   let vw = getVirtualScreenWidth()
   let vh = getVirtualScreenHeight()
-  let playerPos = worldToVirtual(Vector2(x: game.player.pos.x, y: game.player.pos.y))
+  let playerPos = worldToVirtual(game.player.pos)
   let playerX = playerPos.x
   let playerY = playerPos.y
 

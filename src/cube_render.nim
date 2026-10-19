@@ -25,24 +25,9 @@
 
 import raylib, math
 import modding/mod_patch_core
-import draw_prims, cube_skins, utils
+import draw_prims, cube_skins, utils, vec
 
-type
-  CubePoint* = object
-    x*, y*, z*: float32
-
-func cp(x, y, z: float32): CubePoint {.inline.} = CubePoint(x: x, y: y, z: z)
-func `+`(a, b: CubePoint): CubePoint {.inline.} = cp(a.x + b.x, a.y + b.y, a.z + b.z)
-func `-`(a, b: CubePoint): CubePoint {.inline.} = cp(a.x - b.x, a.y - b.y, a.z - b.z)
-func `*`(a: CubePoint, k: float32): CubePoint {.inline.} = cp(a.x * k, a.y * k, a.z * k)
-func dot(a, b: CubePoint): float32 {.inline.} = a.x * b.x + a.y * b.y + a.z * b.z
-func cross(a, b: CubePoint): CubePoint {.inline.} =
-  cp(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)
-func normalized(a: CubePoint): CubePoint {.inline.} =
-  let l = sqrt(dot(a, a))
-  if l > 1.0e-6'f32: a * (1.0'f32 / l) else: a
-
-proc rotateCubePoint(point: CubePoint, angleX, angleY, angleZ: float32): CubePoint {.moddable.} =
+proc rotateCubePoint(point: Vector3, angleX, angleY, angleZ: float32): Vector3 {.moddable.} =
   ## X, then Y, then Z: the order the desktop's drag-and-spin angles assume.
   let sinX = sin(angleX)
   let cosX = cos(angleX)
@@ -59,11 +44,11 @@ proc rotateCubePoint(point: CubePoint, angleX, angleY, angleZ: float32): CubePoi
   let zRotX = x * cosZ - y * sinZ
   y = x * sinZ + y * cosZ
   x = zRotX
-  cp(x, y, z)
+  vec3(x, y, z)
 
 const CameraDistance = 4.2'f32
 
-proc projectCubePoint(point: CubePoint, centerX, centerY, scale: float32): Vector2 {.moddable.} =
+proc projectCubePoint(point: Vector3, centerX, centerY, scale: float32): Vector2 {.moddable.} =
   let depth = max(1.35'f32, CameraDistance - point.z)
   let perspective = CameraDistance / depth
   Vector2(x: centerX + point.x * scale * perspective,
@@ -73,31 +58,12 @@ proc projectCubePoint(point: CubePoint, centerX, centerY, scale: float32): Vecto
 # Small helpers
 # ---------------------------------------------------------------------------
 
-func fract01(x: float32): float32 {.inline.} = x - floor(x)
-
-func hash01(seed: float32): float32 {.inline.} =
-  fract01(sin(seed * 12.9898'f32) * 43758.5453'f32)
-
-func mixC(a, b: Color, t: float32): Color =
-  let k = clamp(t, 0.0'f32, 1.0'f32)
-  Color(r: clampByteF(a.r.float32 + (b.r.float32 - a.r.float32) * k),
-        g: clampByteF(a.g.float32 + (b.g.float32 - a.g.float32) * k),
-        b: clampByteF(a.b.float32 + (b.b.float32 - a.b.float32) * k),
-        a: clampByteF(a.a.float32 + (b.a.float32 - a.a.float32) * k))
-
-func rgba(r, g, b: int, a = 255): Color {.inline.} =
-  Color(r: clampByte(r), g: clampByte(g), b: clampByte(b), a: clampByte(a))
-
-func fade(c: Color, k: float32): Color {.inline.} =
-  ## `c` with its alpha scaled by `k`.
-  withAlpha(c, c.a.float32 * clamp(k, 0.0'f32, 1.0'f32))
-
 let
-  LightModel = normalized(cp(0.442'f32, -0.694'f32, 0.568'f32))
+  LightModel = normalize(vec3(0.442'f32, -0.694'f32, 0.568'f32))
     ## Painted-on diffuse light, in the cube's own space (see the header).
-  LightView = normalized(cp(-0.42'f32, -0.62'f32, 0.66'f32))
+  LightView = normalize(vec3(-0.42'f32, -0.62'f32, 0.66'f32))
     ## The gloss light, in view space: up and to the left, in front.
-  HalfView = normalized(LightView + cp(0.0'f32, 0.0'f32, 1.0'f32))
+  HalfView = normalize(LightView + vec3(0.0'f32, 0.0'f32, 1.0'f32))
 
 # ---------------------------------------------------------------------------
 # Materials
@@ -197,12 +163,12 @@ proc lookFor(skin: CubeSkinType): CubeLook =
     result.edge = data.edgeColor; result.edgeGlow = rgba(200, 120, 30, 110)
     result.backEdge = 0.0
 
-proc shadeAt(look: CubeLook, nModel, nView: CubePoint, alphaScale = 1.0'f32): Color =
+proc shadeAt(look: CubeLook, nModel, nView: Vector3, alphaScale = 1.0'f32): Color =
   ## One lit corner: painted-on diffuse, then the view-space glass rim and gloss.
-  let diffuse = clamp(dot(nModel, LightModel) * 0.5'f32 + 0.5'f32, 0.0'f32, 1.0'f32)
+  let diffuse = clamp(dotProduct(nModel, LightModel) * 0.5'f32 + 0.5'f32, 0.0'f32, 1.0'f32)
   let ndv = clamp(nView.z, 0.0'f32, 1.0'f32)
   let fres = pow(1.0'f32 - ndv, 2.4'f32)
-  let spec = pow(max(0.0'f32, dot(nView, HalfView)), look.specPower) * look.specAmt
+  let spec = pow(max(0.0'f32, dotProduct(nView, HalfView)), look.specPower) * look.specAmt
   template ch(f: untyped): uint8 =
     clampByteF(look.base.f.float32 + (look.lit.f.float32 - look.base.f.float32) * diffuse +
                look.rim.f.float32 * fres * look.rimAmt + look.spec.f.float32 * spec)
@@ -214,11 +180,11 @@ proc shadeAt(look: CubeLook, nModel, nView: CubePoint, alphaScale = 1.0'f32): Co
 # ---------------------------------------------------------------------------
 
 const
-  CubeVerts: array[8, CubePoint] = [
-    CubePoint(x: -1, y: -1, z: -1), CubePoint(x: 1, y: -1, z: -1),
-    CubePoint(x: 1, y: 1, z: -1), CubePoint(x: -1, y: 1, z: -1),
-    CubePoint(x: -1, y: -1, z: 1), CubePoint(x: 1, y: -1, z: 1),
-    CubePoint(x: 1, y: 1, z: 1), CubePoint(x: -1, y: 1, z: 1)]
+  CubeVerts: array[8, Vector3] = [
+    Vector3(x: -1, y: -1, z: -1), Vector3(x: 1, y: -1, z: -1),
+    Vector3(x: 1, y: 1, z: -1), Vector3(x: -1, y: 1, z: -1),
+    Vector3(x: -1, y: -1, z: 1), Vector3(x: 1, y: -1, z: 1),
+    Vector3(x: 1, y: 1, z: 1), Vector3(x: -1, y: 1, z: 1)]
   CubeFaceCorners: array[6, array[4, int]] = [
     [0, 1, 2, 3], [4, 7, 6, 5], [0, 4, 5, 1], [3, 2, 6, 7], [1, 5, 6, 2], [0, 3, 7, 4]]
   CubeEdges: array[12, array[2, int]] = [
@@ -242,8 +208,8 @@ const CubeEdgeFacesTable = cubeEdgeFaces()
 type
   CubeFace = object
     idx: int
-    n, up, right: CubePoint      ## model-space frame
-    rn, rUp, rRight: CubePoint   ## the same, turned
+    n, up, right: Vector3      ## model-space frame
+    rn, rUp, rRight: Vector3   ## the same, turned
     facing: bool
     depth: float32
 
@@ -251,10 +217,10 @@ type
     cx, cy, size, k: float32     ## centre, half-width, line scale
     ax, ay, az: float32
 
-proc turn(v: CubeView, p: CubePoint): CubePoint {.inline.} =
+proc turn(v: CubeView, p: Vector3): Vector3 {.inline.} =
   rotateCubePoint(p, v.ax, v.ay, v.az)
 
-proc proj(v: CubeView, p: CubePoint): Vector2 {.inline.} =
+proc proj(v: CubeView, p: Vector3): Vector2 {.inline.} =
   projectCubePoint(p, v.cx, v.cy, v.size)
 
 proc fp(v: CubeView, f: CubeFace, u, w: float32): Vector2 {.inline.} =
@@ -263,17 +229,17 @@ proc fp(v: CubeView, f: CubeFace, u, w: float32): Vector2 {.inline.} =
   v.proj(f.rn + f.rRight * u + f.rUp * w)
 
 proc faceOf(v: CubeView, idx: int): CubeFace =
-  var n = cp(0, 0, 0)
+  var n = vec3(0, 0, 0)
   for c in CubeFaceCorners[idx]:
     n = n + CubeVerts[c]
   n = n * 0.25'f32
-  let up = if abs(n.y) < 0.5'f32: cp(0, -1, 0) else: cp(0, 0, 1)
-  let right = cross(up, n)
+  let up = if abs(n.y) < 0.5'f32: vec3(0, -1, 0) else: vec3(0, 0, 1)
+  let right = crossProduct(up, n)
   result = CubeFace(idx: idx, n: n, up: up, right: right,
                     rn: v.turn(n), rUp: v.turn(up), rRight: v.turn(right))
   # Seen from the pinhole, not just "normal points at +z": with perspective a
   # face is visible while the camera is anywhere in front of its plane.
-  result.facing = dot(result.rn, cp(0, 0, CameraDistance) - result.rn) > 0.0'f32
+  result.facing = dotProduct(result.rn, vec3(0, 0, CameraDistance) - result.rn) > 0.0'f32
   result.depth = result.rn.z
 
 proc faceLine(v: CubeView, f: CubeFace, u0, w0, u1, w1, width: float32, col: Color) =
@@ -313,8 +279,8 @@ proc faceFill(v: CubeView, f: CubeFace, look: CubeLook, cells: int, interior: bo
       let offs = f.right * u + f.up * w
       let rOffs = f.rRight * u + f.rUp * w
       pts[i][j] = v.proj(f.rn + rOffs)
-      let nb = normalized(f.n + offs * look.bend)
-      let rnb = normalized(f.rn + rOffs * look.bend)
+      let nb = normalize(f.n + offs * look.bend)
+      let rnb = normalize(f.rn + rOffs * look.bend)
       cols[i][j] = if interior: shadeAt(look, nb * -1.0'f32, rnb * -1.0'f32, 0.7'f32)
                    else: shadeAt(look, nb, rnb)
   for i in 0 ..< n:
@@ -340,7 +306,7 @@ proc drawStarGlint(p: Vector2, r: float32, col: Color) =
   drawTaperedLine(p, Vector2(x: p.x + r, y: p.y), w, 0.0'f32, col, clear)
   drawTaperedLine(Vector2(x: p.x, y: p.y - r), p, 0.0'f32, w, clear, col)
   drawTaperedLine(p, Vector2(x: p.x, y: p.y + r), w, 0.0'f32, col, clear)
-  drawGlow(p, r * 0.55'f32, fade(col, 0.7'f32))
+  drawGlow(p, r * 0.55'f32, scaleAlpha(col, 0.7'f32))
 
 proc drawBevel(v: CubeView, f: CubeFace, inset: float32, col: Color) =
   ## A thin line inset parallel to the face's edges: the glass's polished bevel.
@@ -436,8 +402,8 @@ proc drawJackStem(v: CubeView, f: CubeFace, time: float32) =
     let cur = v.proj(v.turn(p))
     let w0 = v.size * (0.17'f32 - 0.05'f32 * (t - 1.0'f32 / Segs.float32))
     let w1 = v.size * (0.17'f32 - 0.05'f32 * t)
-    let c0 = mixC(rgba(52, 60, 20), rgba(108, 118, 48), t - 0.25'f32)
-    let c1 = mixC(rgba(52, 60, 20), rgba(108, 118, 48), t)
+    let c0 = colorLerp(rgba(52, 60, 20), rgba(108, 118, 48), t - 0.25'f32)
+    let c1 = colorLerp(rgba(52, 60, 20), rgba(108, 118, 48), t)
     drawDisc(prev, w0 * 0.5'f32, c0)   # round joints: a curled stalk, not a bar
     drawTaperedLine(prev, cur, w0, w1, c0, c1)
     prev = cur
@@ -474,7 +440,7 @@ proc drawCyberPanel(v: CubeView, f: CubeFace, time: float32) =
   drawGlow(c, max(1.5'f32, nodeR * 3.2'f32), rgba(80, 245, 255, 150))
   drawDisc(c, max(0.7'f32, nodeR), mag)
 
-proc diePips(n: CubePoint): int =
+proc diePips(n: Vector3): int =
   ## The die's value on the face with normal `n`: 1:+Z 6:-Z 2:+X 5:-X 3:+Y 4:-Y
   ## (opposite faces sum to 7; os_desktop's dice-roll quaternions rely on it).
   if n.z > 0.5'f32: 1
@@ -690,7 +656,7 @@ proc drawPlasmaCore(v: CubeView, time: float32) =
       let t = s.float32 / Segs.float32
       var p = target * t
       if s < Segs:
-        p = p + cp(hash01(seed + s.float32 * 2.1'f32) - 0.5'f32,
+        p = p + vec3(hash01(seed + s.float32 * 2.1'f32) - 0.5'f32,
                    hash01(seed + s.float32 * 3.7'f32) - 0.5'f32,
                    hash01(seed + s.float32 * 5.3'f32) - 0.5'f32) * 0.32'f32
       let cur = v.proj(v.turn(p))
@@ -709,13 +675,13 @@ const
   D20InvPhi = 0.6180339887'f32 ## 1/phi: scales the classic (0,+-1,+-phi)
     ## icosahedron vertices so every vertex's largest axis component reaches
     ## exactly 1, matching the unit cube's own reach at the same `size`.
-  D20Verts: array[12, CubePoint] = [
-    CubePoint(x: -D20InvPhi, y: 1.0, z: 0.0), CubePoint(x: D20InvPhi, y: 1.0, z: 0.0),
-    CubePoint(x: -D20InvPhi, y: -1.0, z: 0.0), CubePoint(x: D20InvPhi, y: -1.0, z: 0.0),
-    CubePoint(x: 0.0, y: -D20InvPhi, z: 1.0), CubePoint(x: 0.0, y: D20InvPhi, z: 1.0),
-    CubePoint(x: 0.0, y: -D20InvPhi, z: -1.0), CubePoint(x: 0.0, y: D20InvPhi, z: -1.0),
-    CubePoint(x: 1.0, y: 0.0, z: -D20InvPhi), CubePoint(x: 1.0, y: 0.0, z: D20InvPhi),
-    CubePoint(x: -1.0, y: 0.0, z: -D20InvPhi), CubePoint(x: -1.0, y: 0.0, z: D20InvPhi)]
+  D20Verts: array[12, Vector3] = [
+    Vector3(x: -D20InvPhi, y: 1.0, z: 0.0), Vector3(x: D20InvPhi, y: 1.0, z: 0.0),
+    Vector3(x: -D20InvPhi, y: -1.0, z: 0.0), Vector3(x: D20InvPhi, y: -1.0, z: 0.0),
+    Vector3(x: 0.0, y: -D20InvPhi, z: 1.0), Vector3(x: 0.0, y: D20InvPhi, z: 1.0),
+    Vector3(x: 0.0, y: -D20InvPhi, z: -1.0), Vector3(x: 0.0, y: D20InvPhi, z: -1.0),
+    Vector3(x: 1.0, y: 0.0, z: -D20InvPhi), Vector3(x: 1.0, y: 0.0, z: D20InvPhi),
+    Vector3(x: -1.0, y: 0.0, z: -D20InvPhi), Vector3(x: -1.0, y: 0.0, z: D20InvPhi)]
   ## Standard indexed icosahedron face list (12 verts / 20 tri faces / 30
   ## edges, Euler check: 12 - 30 + 20 = 2).
   D20Faces: array[20, array[3, int]] = [
@@ -752,23 +718,23 @@ proc drawD20(v: CubeView, time: float32, look: CubeLook) =
   ## Dragon's Fang: a real icosahedron standing in for the cube. Obsidian
   ## facets with a gold sheen, gold inlaid edges, and engraved seven-segment
   ## numerals on every facet that faces the camera.
-  var rotated: array[12, CubePoint]
+  var rotated: array[12, Vector3]
   var projected: array[12, Vector2]
   for i in 0 ..< 12:
     rotated[i] = v.turn(D20Verts[i])
     projected[i] = v.proj(rotated[i])
 
-  var normal: array[20, CubePoint]
+  var normal: array[20, Vector3]
   var facing: array[20, bool]
   for i in 0 ..< 20:
-    var n = cp(0, 0, 0)
-    var c = cp(0, 0, 0)
+    var n = vec3(0, 0, 0)
+    var c = vec3(0, 0, 0)
     for corner in D20Faces[i]:
       n = n + D20Verts[corner]
       c = c + rotated[corner]
-    normal[i] = normalized(n)
+    normal[i] = normalize(n)
     c = c * (1.0'f32 / 3.0'f32)
-    facing[i] = dot(v.turn(normal[i]), cp(0, 0, CameraDistance) - c) > 0.0'f32
+    facing[i] = dotProduct(v.turn(normal[i]), vec3(0, 0, CameraDistance) - c) > 0.0'f32
 
   let gold = look.edge
   let glow = look.edgeGlow
@@ -778,7 +744,7 @@ proc drawD20(v: CubeView, time: float32, look: CubeLook) =
     if not facing[i]: continue
     var cols: array[3, Color]
     for k, corner in D20Faces[i]:
-      let nb = normalized(normal[i] * 0.72'f32 + normalized(D20Verts[corner]) * 0.28'f32)
+      let nb = normalize(normal[i] * 0.72'f32 + normalize(D20Verts[corner]) * 0.28'f32)
       cols[k] = shadeAt(look, nb, v.turn(nb))
     drawGradientTriangle(projected[D20Faces[i][0]], projected[D20Faces[i][1]],
                          projected[D20Faces[i][2]], cols[0], cols[1], cols[2])
@@ -824,10 +790,10 @@ proc drawD20(v: CubeView, time: float32, look: CubeLook) =
 
     # Numeral basis: the facet's tangent frame, linearised at its centre.
     let n = normal[i]
-    let refAxis = if abs(n.y) < 0.5'f32: cp(0, -1, 0) else: cp(0, 0, 1)
-    let tanUp = normalized(refAxis - n * dot(n, refAxis))
-    let right3d = cross(n, tanUp)
-    var fc3d = cp(0, 0, 0)
+    let refAxis = if abs(n.y) < 0.5'f32: vec3(0, -1, 0) else: vec3(0, 0, 1)
+    let tanUp = normalize(refAxis - n * dotProduct(n, refAxis))
+    let right3d = crossProduct(n, tanUp)
+    var fc3d = vec3(0, 0, 0)
     for corner in D20Faces[i]:
       fc3d = fc3d + rotated[corner]
     fc3d = fc3d * (1.0'f32 / 3.0'f32)
@@ -849,7 +815,7 @@ proc drawD20(v: CubeView, time: float32, look: CubeLook) =
       drawGradientTriangle(anchor, prev, cur, rgba(4, 3, 6, 120), rgba(10, 8, 10, 60), rgba(10, 8, 10, 60))
       drawStroke(prev, cur, 0.6'f32 * v.k, withAlpha(gold, clampByteF(120.0'f32 * ink)))
       prev = cur
-    let digitGlow = withAlpha(glow, clampByteF(glow.a.float32 * ink))
+    let digitGlow = scaleAlpha(glow, ink)
     let digitInk = withAlpha(rgba(255, 222, 140), clampByteF(255.0'f32 * ink))
     template seg(u0, w0, u1, w1: float32) =
       drawGlowLine(np(u0, w0), np(u1, w1), 3.0'f32 * v.k, digitGlow)
@@ -892,18 +858,18 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
 
   # The light the cube throws around itself, and the motes riding in it.
   if compact:
-    drawGlow(c, size * 2.3'f32, fade(look.halo, 0.32'f32))
+    drawGlow(c, size * 2.3'f32, scaleAlpha(look.halo, 0.32'f32))
   else:
-    drawGlow(c, size * 3.2'f32, fade(look.halo, (0.3'f32 + pulse * 0.1'f32)))
-    drawGlow(c, size * 1.55'f32, fade(look.halo, 0.2'f32))
+    drawGlow(c, size * 3.2'f32, scaleAlpha(look.halo, (0.3'f32 + pulse * 0.1'f32)))
+    drawGlow(c, size * 1.55'f32, scaleAlpha(look.halo, 0.2'f32))
     for i in 0 ..< 5:
       let orbitAngle = time * (0.18'f32 + i.float32 * 0.018'f32) + i.float32 * PI.float32 * 0.42'f32
       let orbitRadius = size * (1.42'f32 + i.float32 * 0.09'f32)
       let mote = Vector2(x: centerX + cos(orbitAngle) * orbitRadius,
                          y: centerY + sin(orbitAngle * 0.78'f32) * orbitRadius * 0.28'f32)
-      drawGlow(mote, (3.0'f32 + i.float32 * 0.4'f32) * v.k, fade(look.halo, 0.5'f32))
+      drawGlow(mote, (3.0'f32 + i.float32 * 0.4'f32) * v.k, scaleAlpha(look.halo, 0.5'f32))
       drawDisc(mote, (1.0'f32 + i.float32 * 0.1'f32) * v.k,
-               mixC(look.halo, rgba(255, 255, 255), 0.6'f32))
+               colorLerp(look.halo, rgba(255, 255, 255), 0.6'f32))
 
   if skin == cskD20:
     # A different solid entirely (12 verts / 20 faces), not a paint job.
@@ -943,8 +909,8 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
       for e, edge in CubeEdges:
         let fs = CubeEdgeFacesTable[e]
         if facingByIdx[fs[0]] or facingByIdx[fs[1]]: continue
-        v.drawEdge(pts[edge[0]], pts[edge[1]], fade(look.edge, look.backEdge),
-                   fade(look.edgeGlow, look.backEdge * 0.6'f32), coreW * 0.8'f32, glowW * 0.7'f32)
+        v.drawEdge(pts[edge[0]], pts[edge[1]], scaleAlpha(look.edge, look.backEdge),
+                   scaleAlpha(look.edgeGlow, look.backEdge * 0.6'f32), coreW * 0.8'f32, glowW * 0.7'f32)
 
   # Inside the glass.
   case skin
@@ -956,7 +922,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     let flick = 0.8'f32 + 0.2'f32 * sin(time * 7.3'f32) + 0.06'f32 * sin(time * 17.0'f32)
     drawGlow(c, size * 1.0'f32, rgba(255, 170, 50, int(min(255.0'f32, (90.0'f32 + gb * 120.0'f32) * flick))))
   of cskNeon, cskMatrix, cskCyber:
-    drawGlow(c, size * 0.8'f32, fade(look.halo, 0.25'f32))
+    drawGlow(c, size * 0.8'f32, scaleAlpha(look.halo, 0.25'f32))
   else: discard
 
   # Near faces, each with its painted details right after its own fill.
@@ -1004,11 +970,11 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     cornerShown[edge[1]] = true
     let silhouette = f0 != f1
     v.drawEdge(pts[edge[0]], pts[edge[1]],
-               (if silhouette: look.edge else: fade(look.edge, 0.82'f32)),
+               (if silhouette: look.edge else: scaleAlpha(look.edge, 0.82'f32)),
                look.edgeGlow, (if silhouette: coreW * 1.15'f32 else: coreW), glowW)
   for i in 0 ..< 8:
     if cornerShown[i]:
-      drawGlow(pts[i], glowW * 0.55'f32, fade(look.edgeGlow, 0.8'f32))
+      drawGlow(pts[i], glowW * 0.55'f32, scaleAlpha(look.edgeGlow, 0.8'f32))
       drawDisc(pts[i], coreW * 0.55'f32, look.edge)
 
   # Neon Pulse: three sparks chasing round a loop of the edges.
@@ -1016,7 +982,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     for p in 0 ..< 3:
       let t = fract01(time * 0.22'f32 + p.float32 / 3.0'f32) * NeonLoop.len.float32
       let seg = int(t) mod NeonLoop.len
-      let lf = t - floor(t)
+      let lf = fract01(t)
       let a = NeonLoop[seg]
       let b = NeonLoop[(seg + 1) mod NeonLoop.len]
       let pa = pts[a]
@@ -1034,7 +1000,7 @@ proc drawZeroGravityWallpaperCube*(centerX, centerY, size, time,
     var bestDot = -2.0'f32
     for i in 0 ..< 8:
       if not cornerShown[i]: continue
-      let d = dot(normalized(v.turn(CubeVerts[i])), LightView)
+      let d = dotProduct(normalize(v.turn(CubeVerts[i])), LightView)
       if d > bestDot:
         bestDot = d
         best = i

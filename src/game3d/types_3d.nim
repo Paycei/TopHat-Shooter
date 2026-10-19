@@ -2,23 +2,22 @@
 ## Contains all 3D-specific type definitions for the 3D engine
 
 import raylib
+import ../vec
+export vec
 
 type
-  Vector3f* = object
-    x*, y*, z*: float32
-
   FPSCamera* = object
-    position*: Vector3f
-    target*: Vector3f
-    up*: Vector3f
+    position*: Vector3
+    target*: Vector3
+    up*: Vector3
     fovy*: float32
     yaw*, pitch*: float32
     shake*: float32
     shakeTime*: float32
 
   Platform3D* = object
-    pos*: Vector3f
-    size*: Vector3f
+    pos*: Vector3
+    size*: Vector3
     color*: Color
     moving*: bool
     moveSpeed*: float32
@@ -28,8 +27,8 @@ type
     currentRotation*: float32
 
   Projectile3D* = ref object
-    pos*: Vector3f
-    vel*: Vector3f
+    pos*: Vector3
+    vel*: Vector3
     damage*: float32
     lifetime*: float32
     fromPlayer*: bool
@@ -59,14 +58,14 @@ type
     floorY*: float32
 
   GravityWell* = object
-    pos*: Vector3f
+    pos*: Vector3
     strength*: float32
     radius*: float32
     lifetime*: float32
     active*: bool
 
   BossSatellite* = object
-    pos*: Vector3f
+    pos*: Vector3
     angle*: float32
     distance*: float32
     health*: float32
@@ -75,7 +74,7 @@ type
     orbitSpeed*: float32  # Variable orbit speed per satellite
 
   Boss3D* = object
-    pos*: Vector3f
+    pos*: Vector3
     health*: float32
     maxHealth*: float32
     phase*: int
@@ -88,8 +87,8 @@ type
     gravityWells*: seq[GravityWell]
 
   DamageNumber3D* = object
-    pos*: Vector3f
-    vel*: Vector3f
+    pos*: Vector3
+    vel*: Vector3
     damage*: float32
     lifetime*: float32
     maxLifetime*: float32
@@ -108,13 +107,13 @@ type
     ## only: scripts keep their own state in tables keyed by `id`.
     id*: int
     tag*: string           # mod-chosen kind
-    pos*, vel*: Vector3f
+    pos*, vel*: Vector3
     yaw*: float32          # degrees, about the up axis
     hp*, maxHp*: float32
     radius*: float32       # hit and contact radius
     color*: Color
     shape*: EntityShape3D
-    size*: Vector3f        # esCube: full extents; esCylinder: y = height
+    size*: Vector3        # esCube: full extents; esCylinder: y = height
     modelId*: int          # mod_assets model id (esModel); -1 none
     modelScale*: float32
     modelAnim*: int        # animation index + 1; 0 = the rest pose
@@ -136,13 +135,13 @@ type
     invulnerable*: bool    # takes hits without losing hp
     alive*: bool
     age*: float32
-    wanderDir*: Vector3f   # aiWander heading
+    wanderDir*: Vector3   # aiWander heading
     wanderTimer*: float32
     removed*: bool         # swept out of the world (or removed before it joined): gone for scripts
 
   Pickup3D* = ref object
     id*: int
-    pos*: Vector3f
+    pos*: Vector3
     kind*: string          # "health", "ammo" or a mod-chosen tag
     value*: float32
     radius*: float32
@@ -168,8 +167,8 @@ type
     infiniteAmmo*: bool
 
   Player3D* = object
-    pos*: Vector3f
-    vel*: Vector3f
+    pos*: Vector3
+    vel*: Vector3
     health*: float32
     maxHealth*: float32
     speed*: float32
@@ -225,7 +224,7 @@ type
     resumed*: bool
     carryHp*: bool
     startFired*: bool           # world3dStart has fired
-    spawnPos*: Vector3f
+    spawnPos*: Vector3
     timeElapsed*: float32
     paused*: bool
     score*, kills*, wave*: int  # counters scripts may use

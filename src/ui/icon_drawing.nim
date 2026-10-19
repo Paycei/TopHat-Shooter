@@ -140,38 +140,26 @@ type
     ink, base, light, pale, shade, deep: Color
     steel, steelLight, steelDark: Color   ## near-neutral metal/bone, barely tinted
 
-proc mixShade(c, target: Color, t: float32): Color =
-  ## Blend `c` toward `target` by `t` (0..1), keeping c's alpha. Stays inside
-  ## the two colours, so unlike `min(c.r + n, 255)` on a uint8 it can't wrap
-  ## (that wrap is what painted magenta/lime streaks on the old icons).
-  Color(r: uint8(c.r.float32 + (target.r.float32 - c.r.float32) * t),
-        g: uint8(c.g.float32 + (target.g.float32 - c.g.float32) * t),
-        b: uint8(c.b.float32 + (target.b.float32 - c.b.float32) * t),
-        a: c.a)
-
 proc iconPalette(color: Color): IconPalette =
   ## Metal stays close to neutral steel instead of taking the accent: a
   ## blade tinted solid yellow or peach is what made the first pass look
   ## machine-made. The accent goes on hilts, bands and trim instead.
   IconPalette(ink: Color(r: 8, g: 11, b: 18, a: uint8(color.a.int * 220 div 255)),
               base: color,
-              light: mixShade(color, White, 0.42'f32),
-              pale: mixShade(color, White, 0.78'f32),
-              shade: mixShade(color, Black, 0.22'f32),
-              deep: mixShade(color, Black, 0.45'f32),
-              steel: mixShade(Color(r: 184, g: 193, b: 208, a: color.a), color, 0.12'f32),
-              steelLight: mixShade(Color(r: 234, g: 239, b: 246, a: color.a), color, 0.06'f32),
-              steelDark: mixShade(Color(r: 98, g: 108, b: 126, a: color.a), color, 0.14'f32))
+              light: lerpRgb(color, White, 0.42'f32),
+              pale: lerpRgb(color, White, 0.78'f32),
+              shade: lerpRgb(color, Black, 0.22'f32),
+              deep: lerpRgb(color, Black, 0.45'f32),
+              steel: lerpRgb(Color(r: 184, g: 193, b: 208, a: color.a), color, 0.12'f32),
+              steelLight: lerpRgb(Color(r: 234, g: 239, b: 246, a: color.a), color, 0.06'f32),
+              steelDark: lerpRgb(Color(r: 98, g: 108, b: 126, a: color.a), color, 0.14'f32))
 
-proc faded(c: Color, f: float32): Color =
-  ## Scale alpha, relative to the caller's (possibly already faded) tint.
-  withAlpha(c, int(c.a.float32 * f))
-
-proc faded(p: IconPalette, f: float32): IconPalette =
-  IconPalette(ink: faded(p.ink, f), base: faded(p.base, f), light: faded(p.light, f),
-              pale: faded(p.pale, f), shade: faded(p.shade, f), deep: faded(p.deep, f),
-              steel: faded(p.steel, f), steelLight: faded(p.steelLight, f),
-              steelDark: faded(p.steelDark, f))
+proc scaleAlpha(p: IconPalette, f: float32): IconPalette =
+  ## Every colour of the palette faded together (scaleAlpha).
+  IconPalette(ink: scaleAlpha(p.ink, f), base: scaleAlpha(p.base, f), light: scaleAlpha(p.light, f),
+              pale: scaleAlpha(p.pale, f), shade: scaleAlpha(p.shade, f), deep: scaleAlpha(p.deep, f),
+              steel: scaleAlpha(p.steel, f), steelLight: scaleAlpha(p.steelLight, f),
+              steelDark: scaleAlpha(p.steelDark, f))
 
 proc sv(x, y: float32): Vector2 {.inline.} = Vector2(x: x, y: y)
 
@@ -542,7 +530,7 @@ proc iconBrickWall(pal: IconPalette) =
   for m in Merlons:
     iconRect(m[0] - 1.3'f32, 3.2, m[1] + 1.3'f32, 10, pal.ink)
   iconRect(3.5, 9, 28.5, 28.5, pal.deep)
-  let warm = mixShade(pal.base, pal.light, 0.35'f32)
+  let warm = lerpRgb(pal.base, pal.light, 0.35'f32)
   for m in Merlons:
     iconBrick(m[0], 4.5, m[1], 9, pal.base, pal.light, pal.shade)
   iconBrick(3.5, 10, 15.5, 15.5, pal.base, pal.light, pal.shade)
@@ -613,8 +601,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
       drawDisc(sv(12.5, 12.5), 1.6, pale)
   of puDoubleShot:
     # Two-round burst; the trailing round sits a step back.
-    drawStroke(sv(3, 10), sv(8.5, 10), 1.8, faded(light, 0.6))
-    drawStroke(sv(1.5, 22), sv(5.5, 22), 1.8, faded(light, 0.6))
+    drawStroke(sv(3, 10), sv(8.5, 10), 1.8, scaleAlpha(light, 0.6))
+    drawStroke(sv(1.5, 22), sv(5.5, 22), 1.8, scaleAlpha(light, 0.6))
     iconBullet(sv(19, 10), 0, 17, pal)
     iconBullet(sv(16, 22), 0, 17, pal)
 
@@ -622,7 +610,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
     # Three shields riding a tilted orbit round their wearer; the near one
     # passes in front of them.
     const Tilt = -15.0'f32
-    iconTiltedRing(mid, Tilt, 0.5, 11.3, 12.7, 0, 360, faded(light, 0.55))
+    iconTiltedRing(mid, Tilt, 0.5, 11.3, 12.7, 0, 360, scaleAlpha(light, 0.55))
     for a in [215.0'f32, 330.0'f32]:
       let p = iconOrbitPt(mid, 12, 6, Tilt, a)
       iconShield(p.x, p.y - 4.6'f32, 8, 9.5, pal)
@@ -635,7 +623,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
     let (p0, p1, p2) = (sv(3.5, 28.5), sv(4.5, 18), sv(11, 16.3))
     for i in countup(0, 8, 2):
       drawStroke(qbez(p0, p1, p2, i.float32 / 10.0'f32),
-               qbez(p0, p1, p2, (i + 1).float32 / 10.0'f32), 1.8, faded(light, 0.8))
+               qbez(p0, p1, p2, (i + 1).float32 / 10.0'f32), 1.8, scaleAlpha(light, 0.8))
     iconBullet(sv(16.5, 13.3), -29.5, 11, pal)
     let target = sv(25, 8.5)
     iconShape([sv(target.x, target.y - 2.8'f32), sv(target.x + 2.8'f32, target.y),
@@ -664,7 +652,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
     # Three rounds fanning out of one muzzle.
     let muzzle = sv(5, 16)
     for a in [-36.0'f32, 0.0'f32, 36.0'f32]:
-      drawStroke(muzzle, polar(muzzle, 9, a), 1.4, faded(light, 0.55))
+      drawStroke(muzzle, polar(muzzle, 9, a), 1.4, scaleAlpha(light, 0.55))
     for a in [-36.0'f32, 0.0'f32, 36.0'f32]:
       iconBullet(polar(muzzle, 16, a), a, 13, pal)
     iconDisc(muzzle, 3.4, light, ink)
@@ -708,7 +696,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
   of puOvercharge:
     # A round gathering power the farther it flies: charge bars rising
     # along its track.
-    drawStroke(sv(2.5, 22.5), sv(17.5, 22.5), 1.3, faded(light, 0.5))
+    drawStroke(sv(2.5, 22.5), sv(17.5, 22.5), 1.3, scaleAlpha(light, 0.5))
     for (x, h, col) in [(4.5'f32, 4.0'f32, shade), (9.5'f32, 7.5'f32, base),
                         (14.5'f32, 11.5'f32, light)]:
       iconInkRect(x - 1.6'f32, 21 - h, x + 1.6'f32, 21, col, ink)
@@ -731,7 +719,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
     iconInkRect(3.5, 26.2, 28.5, 28.2, shade, ink)
     let pivot = sv(10.8, 5)
     let swung = polar(pivot, 15, 115)
-    iconArc(pivot, 15, 95, 108, 1.2, faded(light, 0.6))
+    iconArc(pivot, 15, 95, 108, 1.2, scaleAlpha(light, 0.6))
     for px in [16.0'f32, 21.2'f32, 26.4'f32]:
       drawStroke(sv(px, 5), sv(px, 19.5), 0.8, light)
     drawStroke(pivot, swung, 0.8, light)
@@ -773,12 +761,12 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
 
   of puBulletSpeed:
     # Lightspeed: an instant tracer beam flaring where it lands.
-    drawStroke(sv(5, 16), sv(25, 16), 7.0, faded(base, 0.28))
+    drawStroke(sv(5, 16), sv(25, 16), 7.0, scaleAlpha(base, 0.28))
     drawStroke(sv(5, 16), sv(25, 16), 4.6, ink)
     drawStroke(sv(5, 16), sv(25, 16), 3.0, light)
     drawStroke(sv(5, 16), sv(25, 16), 1.1, pale)
-    drawStroke(sv(9, 10.5), sv(16, 10.5), 1.4, faded(light, 0.55))
-    drawStroke(sv(12, 21.5), sv(19, 21.5), 1.4, faded(light, 0.55))
+    drawStroke(sv(9, 10.5), sv(16, 10.5), 1.4, scaleAlpha(light, 0.55))
+    drawStroke(sv(12, 21.5), sv(19, 21.5), 1.4, scaleAlpha(light, 0.55))
     iconDisc(sv(5, 16), 3.4, base, ink)
     iconImpact(sv(25, 16), 2.8, 6.4, 8, 0, 360, pale, ink)
     drawDisc(sv(25, 16), 1.8, pale)
@@ -790,7 +778,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
       drawRectangleRounded(Rectangle(x: 1.7, y: y0 - 1.3'f32, width: 17.6, height: 6.0), 0.9, 6, ink)
       drawRectangleRounded(Rectangle(x: 3, y: y0, width: 15, height: 3.4), 0.9, 6,
                            if i == 1: light else: base)
-      iconRect(5, y0 + 0.5'f32, 16, y0 + 1.2'f32, faded(pale, 0.7))
+      iconRect(5, y0 + 0.5'f32, 16, y0 + 1.2'f32, scaleAlpha(pale, 0.7))
     let coin = sv(21.5, 12.5)
     iconShadedDisc(coin, 8, base, shade, ink)
     iconArc(coin, 5.6, 0, 360, 1.3, light)
@@ -821,10 +809,10 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
   of puDodgeChance:
     # Evasion: the body sways clear as a round whizzes past.
     let body = sv(10, 19)
-    iconArc(body, 9.5, -30, 30, 1.6, faded(light, 0.75))
-    iconArc(body, 12.5, -20, 20, 1.4, faded(light, 0.45))
+    iconArc(body, 9.5, -30, 30, 1.6, scaleAlpha(light, 0.75))
+    iconArc(body, 12.5, -20, 20, 1.4, scaleAlpha(light, 0.45))
     iconShadedDisc(body, 6.5, base, shade, ink)
-    drawStroke(polar(sv(23.5, 10), 6.5, 115), polar(sv(23.5, 10), 16, 115), 1.6, faded(light, 0.6))
+    drawStroke(polar(sv(23.5, 10), 6.5, 115), polar(sv(23.5, 10), 16, 115), 1.6, scaleAlpha(light, 0.6))
     iconBullet(sv(23.5, 10), -65, 12, pal)
 
   of puBulletRicochet:
@@ -902,7 +890,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
     # One round breaking into fragments.
     let split = sv(17, 16)
     for a in [-38.0'f32, 0.0'f32, 38.0'f32]:
-      drawStroke(split, polar(split, 8, a), 1.4, faded(light, 0.6))
+      drawStroke(split, polar(split, 8, a), 1.4, scaleAlpha(light, 0.6))
     for a in [-38.0'f32, 0.0'f32, 38.0'f32]:
       let p = polar(split, 10.5, a)
       iconShape([polar(p, 3.4, a), polar(p, 1.7, a + 90.0'f32),
@@ -913,7 +901,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
   of puChainLightning, puLightningAura, puLightningOrb, puLightningMastery:
     # Chain lightning: jagged arcs jumping from one target to the next, with
     # a stray fork crackling off into the air.
-    drawCircleGradient(Vector2(x: 16, y: 16), 15.0, faded(base, 0.25), faded(base, 0))
+    drawCircleGradient(Vector2(x: 16, y: 16), 15.0, scaleAlpha(base, 0.25), scaleAlpha(base, 0))
     let (a, b, c) = (sv(5.5, 24.5), sv(14.5, 8), sv(26.5, 21.5))
     let bc = iconZigzag(b, c, 5, 2.6)
     let arcs = [(iconZigzag(a, b, 5, 2.6), 2.4'f32), (bc, 2.4'f32),
@@ -936,7 +924,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
     iconFan(liquid, base)
     drawStroke(liquid[0], liquid[^1], 1.2, pale)
     drawRectangleRounded(Rectangle(x: 11.5, y: 3.2, width: 9, height: 3.4), 0.5, 4, light)
-    iconArc(bulb, 6, 200, 250, 1.3, faded(light, 0.8))
+    iconArc(bulb, 6, 200, 250, 1.3, scaleAlpha(light, 0.8))
     # Bubbles as rings, not dots, so they read as air in the liquid.
     for (p, r) in [(sv(13, 23.5), 1.8'f32), (sv(19, 25.3), 1.2'f32),
                    (sv(17.5, 15.5), 1.4'f32), (sv(15, 10.5), 1.0'f32)]:
@@ -998,7 +986,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
 
   of puGravityWell:
     # Singularity: a black hole wrapped in a tilted accretion disc.
-    drawCircleGradient(Vector2(x: 16, y: 16), 15.0, faded(base, 0.25), faded(base, 0))
+    drawCircleGradient(Vector2(x: 16, y: 16), 15.0, scaleAlpha(base, 0.25), scaleAlpha(base, 0))
     iconTiltedRing(mid, -22, 0.42, 8.0, 15.0, 180, 360, ink)     # far half
     iconTiltedRing(mid, -22, 0.42, 9.3, 13.7, 180, 360, shade)
     drawDisc(mid, 7.9, ink)
@@ -1010,18 +998,18 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
   of puPhaseShift:
     # Phase Walker: dash forward out of a hollow afterimage.
     for yy in [12.5'f32, 17.0'f32, 21.5'f32]:
-      drawStroke(sv(10, yy), sv(20, yy), 1.5, faded(light, 0.55))
+      drawStroke(sv(10, yy), sv(20, yy), 1.5, scaleAlpha(light, 0.55))
     let ghost = sv(8, 17)
-    drawDisc(ghost, 5.5, faded(light, 0.22))
+    drawDisc(ghost, 5.5, scaleAlpha(light, 0.22))
     for i in 0..7:
       let a = i.float32 * 45.0'f32
-      iconArc(ghost, 5.5, a, a + 26.0'f32, 1.3, faded(pale, 0.75))
+      iconArc(ghost, 5.5, a, a + 26.0'f32, 1.3, scaleAlpha(pale, 0.75))
     iconShadedDisc(sv(23, 17), 6.5, base, shade, ink)
 
   of puEchoShots:
     # A round trailed by fading echoes of itself.
-    iconBullet(sv(5.5, 16), 0, 8, faded(pal, 0.3))
-    iconBullet(sv(13, 16), 0, 11, faded(pal, 0.55))
+    iconBullet(sv(5.5, 16), 0, 8, scaleAlpha(pal, 0.3))
+    iconBullet(sv(13, 16), 0, 11, scaleAlpha(pal, 0.55))
     iconBullet(sv(22.5, 16), 0, 13, pal)
 
   of puRotatingOrbs, puArcaneBullets, puArcaneAura, puArcaneOrb, puArcaneMastery:
@@ -1067,7 +1055,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
   of puHeavyRounds:
     # Cannonball ploughing forward.
     for yy in [11.0'f32, 16.5'f32, 22.0'f32]:
-      drawStroke(sv(1.5, yy), sv(6.5, yy), 1.8, faded(light, 0.6))
+      drawStroke(sv(1.5, yy), sv(6.5, yy), 1.8, scaleAlpha(light, 0.6))
     iconShadedDisc(sv(18.5, 16.5), 10.5, base, shade, ink)
     iconArc(sv(17.2, 15.2), 6.4, 195, 255, 1.3, light)
 
@@ -1155,8 +1143,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
     # A starlit veil domed over its wearer, with its two charges (the two
     # hits it turns aside each wave) shown as pips above.
     let foot = sv(16, 26)
-    drawCircleSector(foot, 12, 180, 360, 32, faded(base, 0.45))
-    iconArc(foot, 10.2, 200, 250, 1.2, faded(pale, 0.8))
+    drawCircleSector(foot, 12, 180, 360, 32, scaleAlpha(base, 0.45))
+    iconArc(foot, 10.2, 200, 250, 1.2, scaleAlpha(pale, 0.8))
     for (p, r) in [(sv(10.5, 19), 0.8'f32), (sv(21.5, 17), 0.9'f32), (sv(13, 15.5), 0.6'f32),
                    (sv(19.5, 21.5), 0.6'f32)]:
       drawDisc(p, r, pale)
@@ -1168,7 +1156,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
 
   of puVolatile:
     # Unstable core: a cracked orb with energy flaring out through the splits.
-    drawCircleGradient(Vector2(x: 16, y: 16), 15.0, faded(base, 0.35), faded(base, 0))
+    drawCircleGradient(Vector2(x: 16, y: 16), 15.0, scaleAlpha(base, 0.35), scaleAlpha(base, 0))
     for (a, len) in [(-60.0'f32, 15.0'f32), (70.0'f32, 13.5'f32), (185.0'f32, 14.5'f32)]:
       iconTaper(polar(mid, 5, a), polar(mid, 10.5, a + 14.0'f32), polar(mid, len, a - 6.0'f32),
                 6.0, false, pale, ink)
@@ -1186,7 +1174,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
       let a = if side < 0: 180.0'f32 else: 0.0'f32
       let src = sv(16.0'f32 + side * 4.0'f32, 10)
       iconArc(src, 7.5, a - 25.0'f32, a + 25.0'f32, 1.5, light)
-      iconArc(src, 10.5, a - 18.0'f32, a + 18.0'f32, 1.3, faded(light, 0.6))
+      iconArc(src, 10.5, a - 18.0'f32, a + 18.0'f32, 1.3, scaleAlpha(light, 0.6))
     iconRect(9.2, 3, 14.8, 16, ink)
     iconRect(17.2, 3, 22.8, 16, ink)
     drawRing(sv(16, 16), 1.2, 6.8, 0, 180, 20, ink)
@@ -1235,7 +1223,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
 
   of puNova:
     # Rounds frozen in a ring around a pause mark, about to be released.
-    iconArc(mid, 11.5, 0, 360, 1.0, faded(light, 0.35))
+    iconArc(mid, 11.5, 0, 360, 1.0, scaleAlpha(light, 0.35))
     for i in 0..7:
       let a = i.float32 * 45.0'f32 + 22.5'f32
       let p = polar(mid, 11.5, a)
@@ -1346,7 +1334,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
                    elif (row + col) mod 2 == 0: base
                    else: shade
         iconRect(x0, y0, x0 + 7.5'f32, y0 + 7.5'f32, fill)
-        iconRect(x0, y0, x0 + 7.5'f32, y0 + 0.9'f32, faded(pale, 0.5))
+        iconRect(x0, y0, x0 + 7.5'f32, y0 + 0.9'f32, scaleAlpha(pale, 0.5))
     iconDisc(mid, 2.7, pale, ink)
 
   of puCrisisMode:
@@ -1403,8 +1391,8 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
     # Cleared room sending a charged volley out through its door.
     iconInkStroke([sv(28, 12), sv(28, 4), sv(4, 4), sv(4, 28), sv(28, 28), sv(28, 20)],
                   2.4, base, ink)
-    iconArc(sv(20.5, 16), 5, -40, 40, 1.4, faded(light, 0.9))
-    iconArc(sv(20.5, 16), 8, -40, 40, 1.4, faded(light, 0.55))
+    iconArc(sv(20.5, 16), 5, -40, 40, 1.4, scaleAlpha(light, 0.9))
+    iconArc(sv(20.5, 16), 8, -40, 40, 1.4, scaleAlpha(light, 0.55))
     # Staggered volley (lined up flush, three rounds read as a letter E).
     iconBullet(sv(11.5, 22), -30, 9, pal)
     iconBullet(sv(12.5, 11.5), -30, 9, pal)
@@ -1415,7 +1403,7 @@ proc drawPowerUpIcon*(x, y, size: int32, powerType: PowerUpType, color: Color) {
     iconRaggedBurst(sv(10, 21.5), 0.72, -50, pal)
     for i, t in [0.3'f32, 0.55'f32, 0.8'f32]:
       drawDisc(qbez(sv(12, 14), sv(13, 5), sv(20, 7), t), 1.0'f32 + i.float32 * 0.2'f32,
-                 faded(light, 0.8))
+                 scaleAlpha(light, 0.8))
     let coin = sv(23, 11.5)
     iconShadedDisc(coin, 6, base, shade, ink)
     iconArc(coin, 4, 0, 360, 1.2, light)
@@ -1475,7 +1463,7 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) {.moddable.}
       for s in 0..4:
         let a0 = a + s.float32 * 10.0'f32
         iconArc(c, 13.9, a0, a0 + 10.5'f32, 0.6'f32 + s.float32 * 0.4'f32,
-                faded(light, 0.3'f32 + s.float32 * 0.17'f32))
+                scaleAlpha(light, 0.3'f32 + s.float32 * 0.17'f32))
     iconShadedDisc(c, 11, pal.steel, pal.steelDark, ink)
     iconArc(c, 9.2, 0, 360, 1.0, pal.steelDark)
     for i in 0..5:
@@ -1515,9 +1503,9 @@ proc drawShopIcon*(x, y, size: int32, itemIndex: int, color: Color) {.moddable.}
     iconRect(14.3, 10.5, 17.7, 20.5, pale)
 
   of 4: # Bullet Speed + -- bullet with speed streaks
-    drawStroke(sv(1.5, 16), sv(8.5, 16), 2.2, faded(light, 200.0'f32 / 255.0'f32))
-    drawStroke(sv(3.5, 11.5), sv(8.5, 11.5), 1.8, faded(light, 130.0'f32 / 255.0'f32))
-    drawStroke(sv(3.5, 20.5), sv(8.5, 20.5), 1.8, faded(light, 130.0'f32 / 255.0'f32))
+    drawStroke(sv(1.5, 16), sv(8.5, 16), 2.2, scaleAlpha(light, 200.0'f32 / 255.0'f32))
+    drawStroke(sv(3.5, 11.5), sv(8.5, 11.5), 1.8, scaleAlpha(light, 130.0'f32 / 255.0'f32))
+    drawStroke(sv(3.5, 20.5), sv(8.5, 20.5), 1.8, scaleAlpha(light, 130.0'f32 / 255.0'f32))
     # Body + half-ellipse nose as one outline.
     var shell: array[11, Vector2]
     shell[0] = sv(11, 20)
@@ -1640,8 +1628,8 @@ proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) 
   of rrtShardMagnet:
     # A Data Shard with a magnet's pull lines.
     iconShard(sv(15.5, 19.5), -8, 12, 6.5, pale, light, ink)
-    iconArc(sv(15.5, 13), 8.5, 200, 250, 1.3, faded(pale, 0.8))
-    iconArc(sv(15.5, 13), 8.5, 290, 340, 1.3, faded(pale, 0.8))
+    iconArc(sv(15.5, 13), 8.5, 200, 250, 1.3, scaleAlpha(pale, 0.8))
+    iconArc(sv(15.5, 13), 8.5, 290, 340, 1.3, scaleAlpha(pale, 0.8))
   of rrtEliteDividend:
     # Rising bar chart.
     iconInkRect(9.5, 15, 12.5, 19.5, pale, ink)
@@ -1723,7 +1711,7 @@ proc drawPatchIcon*(x, y, size: int32, patch: RogueliteRelicType, color: Color) 
     for cx in [11.8'f32, 19.2'f32]:
       iconDisc(sv(cx, 13), 3.6, pale, ink)
       drawDisc(sv(cx, 13), 1.0, ink)
-    drawStroke(sv(15.5, 7.5), sv(15.5, 18.5), 0.9, faded(pale, 0.7))
+    drawStroke(sv(15.5, 7.5), sv(15.5, 18.5), 0.9, scaleAlpha(pale, 0.7))
   of rrtPacketLoss:
     # A packet stream with one dropped.
     for px in [9.2'f32, 12.6'f32]:
@@ -1786,7 +1774,7 @@ proc drawRoomRewardIcon*(x, y, size: int32, reward: RoomReward, color: Color) {.
   of rrwRepair:
     # Restore platter with a plus on its face.
     iconShadedDisc(sv(16, 16), 12, pal.steel, pal.steelDark, ink)
-    iconArc(sv(16, 16), 9, 0, 360, 1.0, faded(pal.steelLight, 0.6))
+    iconArc(sv(16, 16), 9, 0, 360, 1.0, scaleAlpha(pal.steelLight, 0.6))
     iconPlus(sv(16, 16), 5.2, base, ink)
   of rrwShop:
     # Package with a price tag.

@@ -498,7 +498,7 @@ type
     dpkStallRestock    # /pkg: reroll the unsold power-up and patch stalls
 
   DungeonPickup* = ref object
-    pos*: Vector2f
+    pos*: Vector2
     kind*: DungeonPickupKind
     taken*: bool             # (stall prices are derived live: see stallPrice in dungeon.nim)
     patch*: RogueliteRelicType   # pedestal / patch stall
@@ -701,7 +701,7 @@ type
     ccWinded     ## combo spent: stands still with its back plate cracked open
 
   AttackWarning* = ref object
-    pos*: Vector2f
+    pos*: Vector2
     attackType*: AttackWarningType
     lifetime*: float32
     maxLifetime*: float32
@@ -714,7 +714,7 @@ type
     lasersCreated*: bool         # Flag to track if lasers were already created
     laserPattern*: string        # Pattern type: "cross_laser", "rotating_grid", "prismatic_cage"
     enemyType*: EnemyType        # Type of enemy creating this attack
-    targetPos*: Vector2f         # Target coordinates for satellite laser
+    targetPos*: Vector2         # Target coordinates for satellite laser
     # Teleport bullet data (for delayed bullet spawning)
     bulletCount*: int            # Number of bullets to spawn
     bulletSpeed*: float32        # Speed of bullets
@@ -724,7 +724,7 @@ type
     isBossTeleportTarget*: bool  # True if boss should teleport to this position
     bulletRadius*: float32       # Bullet radius for delayed-spawn attacks (e.g. meteors)
     overrideColor*: Color        # Optional color tint for this warning (alpha=0 = use default)
-    ricochetPath*: seq[Vector2f] # Precomputed bounce vertices for "ricochet_laser" beams
+    ricochetPath*: seq[Vector2] # Precomputed bounce vertices for "ricochet_laser" beams
 
   ElementType* = enum
     etPoison,      # Green - poison damage over time
@@ -761,8 +761,8 @@ type
     sourceId*: int           ## who applied it (an enemy id, 0 = none)
 
   Player* = ref object
-    pos*: Vector2f
-    vel*: Vector2f
+    pos*: Vector2
+    vel*: Vector2
     radius*: float32
     baseRadius*: float32
     hp*: float32
@@ -833,7 +833,7 @@ type
     timeWarpMaxUsesPerWave*: int  # Fixed at 2 uses per wave (single-level legendary)
     phaseShiftCooldown*: float32
     phaseShiftInvulnTimer*: float32
-    lastPhaseShiftPos*: Vector2f
+    lastPhaseShiftPos*: Vector2
     # BASE DASH -- available from wave 1, unlike the power-up abilities above.
     # A run used to start with exactly two verbs (move, shoot) and stay there
     # until a legendary happened to be offered; the dash is the third verb every
@@ -841,7 +841,7 @@ type
     # teleport, so it reads as movement skill instead of a get-out-of-jail card.
     dashTimer*: float32        ## remaining dash burst (0 = not dashing)
     dashCooldown*: float32     ## time until the next dash is available
-    dashDir*: Vector2f         ## locked-in direction for the current dash
+    dashDir*: Vector2         ## locked-in direction for the current dash
     dashReadyFlash*: float32   ## counts down after the cooldown hits 0; drives the "recharged" snap
                                ## (a draw pass can only see the cooldown's VALUE, never the frame it
                                ## crossed zero, so the moment has to be recorded by the update)
@@ -903,7 +903,7 @@ type
     conduitCooldown*: float32   # Countdown to next use (0 = ready)
     # Aftershock (Legendary active)
     aftershockCooldown*: float32    # Countdown to next use (0 = ready)
-    aftershockPosHistory*: Deque[Vector2f]  # Last 2s of positions (sampled every 0.05s)
+    aftershockPosHistory*: Deque[Vector2]  # Last 2s of positions (sampled every 0.05s)
     aftershockSampleTimer*: float32       # Accumulator for position sampling
     # Nova (Legendary active)
     novaCooldown*: float32      # Countdown to next use (0 = ready)
@@ -947,7 +947,7 @@ type
     fallback*: EffectInstance
 
   OrbitalSatellite* = object
-    pos*: Vector2f
+    pos*: Vector2
     angle*: float32
     radius*: float32
     rotationSpeed*: float32  # Speed of orbital rotation
@@ -955,7 +955,7 @@ type
     shootTimer*: float32
     owner*: int  # Enemy ID
     laserActive*: bool
-    laserTarget*: Vector2f  # Current player coordinates to target
+    laserTarget*: Vector2  # Current player coordinates to target
     laserChargeTime*: float32  # Time to charge before firing
     activeLaser*: Laser  # Persistent beam instance for the whole firing phase, kept alive
                          # (not recreated every couple of frames)
@@ -1042,7 +1042,7 @@ type
     weakPoint*: BossWeakPointDefinition
 
   BossWeakPointTarget* = object
-    pos*: Vector2f
+    pos*: Vector2
     angle*: float32
     orbitRadius*: float32
     orbitSpeed*: float32
@@ -1090,9 +1090,9 @@ type
     statusSpeed*, statusDamageTaken*, statusDamageDealt*: float32
       ## Their summed modifiers, as fractions (kept current by mod_registry)
     auraWaveHitSeq*: array[AuraSlot, int32]  # Last aura pulse (per slot) whose wavefront already hit this enemy
-    pos*: Vector2f
-    vel*: Vector2f
-    knockbackVel*: Vector2f       # Residual knockback impulse (Pulse Armor etc.); decays independently of chase AI
+    pos*: Vector2
+    vel*: Vector2
+    knockbackVel*: Vector2       # Residual knockback impulse (Pulse Armor etc.); decays independently of chase AI
     radius*: float32              # Combat hitbox (visual size, used for bullets/player collision)
     collisionRadius*: float32     # Enemy-to-enemy collision hitbox
     hp*: float32
@@ -1115,8 +1115,8 @@ type
     lastWallDamageTime*: float32
     hexTeleportTimer*: float32
     entranceTimer*: float32
-    startPos*: Vector2f            # Position at start of entrance animation
-    targetPos*: Vector2f
+    startPos*: Vector2            # Position at start of entrance animation
+    targetPos*: Vector2
     slowTimer*: float32
     slowAmount*: float32          # Timed slow (see applySlow); cleared when slowTimer runs out
     frostSlowAmount*: float32     # Permanent chill from Frost Shots / Frost orbs. Kept apart
@@ -1130,7 +1130,7 @@ type
     dashCooldown*: float32
     activeCrossLaser*: Laser  # etCross dash-laser instance, kept alive (not recreated) for the whole dash
     fakeWarningTimer*: float32
-    clonePositions*: seq[Vector2f]
+    clonePositions*: seq[Vector2]
     cloneTimer*: float32
     hasEnteredScreen*: bool  # Tracks if ranged enemy is fully inside screen
     cursed*: bool  # Marked by the Curse power-up; player deals bonus damage to this enemy
@@ -1171,12 +1171,12 @@ type
     defenseMultiplier*: float32  # Damage reduction multiplier
     debuffResistance*: float32  # Stun/slow resistance multiplier
     isDashing*: bool  # Whether boss is currently executing a dash
-    dashVelocity*: Vector2f  # Velocity during dash
+    dashVelocity*: Vector2  # Velocity during dash
     dashDuration*: float32  # Remaining dash duration
-    dashTargetPos*: Vector2f  # Exact endpoint for the current committed dash
+    dashTargetPos*: Vector2  # Exact endpoint for the current committed dash
     pendingDashLocked*: bool  # True while a dash warning has locked the next dash line
-    pendingDashStart*: Vector2f  # Exact start point shown by the dash warning
-    pendingDashTarget*: Vector2f  # Exact endpoint shown by the dash warning
+    pendingDashStart*: Vector2  # Exact start point shown by the dash warning
+    pendingDashTarget*: Vector2  # Exact endpoint shown by the dash warning
     # Juggernaut charge combo (boss 8, see JuggernautCharge* consts). Rides on
     # the dash fields above for the movement itself; these track the combo.
     chargeState*: ChargeComboState
@@ -1214,11 +1214,11 @@ type
     modeTimer*: float32     # Per-type clock of the mode rosters (fork charge, hop, seed flight, tile drop...)
     hasteAmount*: float32   # Speed bonus fraction (Priority Daemon aura, Dispatcher boost)
     hasteTimer*: float32    # Seconds of haste left
-    ballisticVel*: Vector2f # Non-zero: flies straight at this velocity (fork seeds, payload orbs, marching ranks)
+    ballisticVel*: Vector2 # Non-zero: flies straight at this velocity (fork seeds, payload orbs, marching ranks)
 
   Bullet* = ref object
-    pos*: Vector2f
-    vel*: Vector2f
+    pos*: Vector2
+    vel*: Vector2
     radius*: float32
     damage*: float32
     fromPlayer*: bool
@@ -1236,7 +1236,7 @@ type
     isPentagon*: bool  # Special pentagon-shaped bullets
     hitEnemies*: seq[int]  # Track enemy indices already hit by this bullet
     sourceEnemyId*: int  # ID of the enemy that shot this bullet
-    sourceEnemyPos*: Vector2f  # Position where the bullet was shot from
+    sourceEnemyPos*: Vector2  # Position where the bullet was shot from
     sourceEnemyType*: EnemyType  # Type of enemy that shot this bullet
     travelDistance*: float32  # Track distance
     isEcho*: bool  # True if this is an echo clone bullet
@@ -1314,7 +1314,7 @@ type
     id*: int
     kind*: string            ## the registered kind, "<mod id>:<id>" ("@hazard" for spawn.hazard)
     tag*: string
-    pos*, vel*: Vector2f
+    pos*, vel*: Vector2
     angle*, spin*: float32   ## degrees, degrees per second
     motion*: ThingMotion
     speed*, friction*, bounce*: float32
@@ -1349,7 +1349,7 @@ type
     deathLabel*: string      ## player:hurt(n, {cause = "Lava"}): the killer the death screen names
 
   Coin* = ref object
-    pos*: Vector2f
+    pos*: Vector2
     radius*: float32
     value*: int
     lifetime*: float32
@@ -1359,20 +1359,20 @@ type
     ## Roguelite-only experience particle. Mirrors Coin: drops on enemy death,
     ## auto-homes to the player via the collection aura / magnet, and on pickup
     ## adds `value` to the player's run XP (see xp_orb.nim).
-    pos*: Vector2f
+    pos*: Vector2
     radius*: float32
     value*: int
     lifetime*: float32
 
   Consumable* = ref object
-    pos*: Vector2f
+    pos*: Vector2
     radius*: float32
     consumableType*: ConsumableType
     lifetime*: float32
     modKey*: string   # ctMod: the registered consumable ("<mod id>:<id>")
 
   Wall* = ref object
-    pos*: Vector2f
+    pos*: Vector2
     radius*: float32
     hp*: float32
     maxHp*: float32
@@ -1388,7 +1388,7 @@ type
   PendingWallRespawn* = object
     ## A boss-room obstacle that was smashed and is waiting to re-form. Kept off
     ## game.walls so it stops colliding while broken; re-added when timer expires.
-    pos*: Vector2f
+    pos*: Vector2
     radius*: float32
     maxHp*: float32
     tint*: Color
@@ -1423,8 +1423,8 @@ type
     deRollback      # Rollback patch caught a lethal hit
 
   DamageNumber* = ref object
-    pos*: Vector2f          # Current position
-    vel*: Vector2f          # Velocity (moves upward and fades)
+    pos*: Vector2          # Current position
+    vel*: Vector2          # Velocity (moves upward and fades)
     damage*: float32        # Amount of damage to display
     lifetime*: float32      # How long the number has existed
     maxLifetime*: float32   # Total duration before disappearing
@@ -1450,8 +1450,8 @@ type
     cikXp          # run-leveling XP orb pickup (roguelite + time-survival)
 
   CurrencyIndicator* = ref object
-    pos*: Vector2f
-    vel*: Vector2f
+    pos*: Vector2
+    vel*: Vector2
     amount*: int
     lifetime*: float32
     maxLifetime*: float32
@@ -1471,8 +1471,8 @@ type
   PerkIndicator* = ref object
     ## Floating "+SHIELD" / "+SPEED" style label shown when the player picks up
     ## a consumable buff. Drifts up from the player like a damage number.
-    pos*: Vector2f          # Current position
-    vel*: Vector2f          # Velocity (moves upward and fades, then falls)
+    pos*: Vector2          # Current position
+    vel*: Vector2          # Velocity (moves upward and fades, then falls)
     text*: string           # Label text, e.g. "+SHIELD"
     color*: Color            # Tint for the text
     lifetime*: float32       # How long the indicator has existed
@@ -1491,10 +1491,10 @@ type
 
   LightningBolt* = ref object
     ## A short-lived jagged lightning arc drawn between two world positions.
-    startPos*: Vector2f
+    startPos*: Vector2
     lifetime*: float32       # Remaining display time
     maxLifetime*: float32
-    segments*: seq[Vector2f] # Pre-computed jagged waypoints (including start & end)
+    segments*: seq[Vector2] # Pre-computed jagged waypoints (including start & end)
     color*: Color            # Glow tint; the core stays near-white (chain lightning
                              # is pale blue, Blood Pact tethers are red, etc.)
 
@@ -1503,7 +1503,7 @@ type
     ## from a point. Aftershock traces the corridor the player just ran through,
     ## so a plain circular ring cannot show where the damage landed - the crest
     ## travels back along the path while the swath behind it glows and fades.
-    points*: seq[Vector2f]   # Ordered path; index 0 is the OLDEST position
+    points*: seq[Vector2]   # Ordered path; index 0 is the OLDEST position
     width*: float32          # Half-width of the damaging corridor
     lifetime*: float32       # Remaining display time
     maxLifetime*: float32
@@ -1513,7 +1513,7 @@ type
     ## An expanding ring that snaps out to a target radius and holds there
     ## while fading, used to telegraph the *true size* of an AoE blast (e.g. the
     ## Star enemy's death explosion) so the lethal boundary is legible.
-    pos*: Vector2f
+    pos*: Vector2
     maxRadius*: float32      # The exact radius the ring grows to (the kill edge)
     lifetime*: float32       # Remaining display time
     maxLifetime*: float32
@@ -1529,7 +1529,7 @@ type
     ## It is purely a clear. It deals no damage to the player, to surviving
     ## minions or to anything else, which is why there is no damage field here
     ## and no collision code anywhere that reads one.
-    pos*: Vector2f
+    pos*: Vector2
     sourceEnemyId*: int      # Only hazards fired by THIS boss are swept away
     radius*: float32         # Leading edge; everything inside it is already gone
     maxRadius*: float32      # Where the sweep stops (sized to cover the arena)
@@ -1538,7 +1538,7 @@ type
     color*: Color
 
   Laser* = ref object
-    pos*: Vector2f          # Center position
+    pos*: Vector2          # Center position
     direction*: int         # 0=horizontal, 1=vertical, 2=both (cross)
     length*: float32        # How far the laser extends
     thickness*: float32     # Width of the laser beam
@@ -1550,9 +1550,9 @@ type
     sourceEnemyId*: int     # ID of the enemy that fired this beam (-1 = unowned)
 
   Meteorite* = ref object
-    pos*: Vector2f          # Current position
-    targetPos*: Vector2f    # Where it will land
-    vel*: Vector2f          # Velocity (falling)
+    pos*: Vector2          # Current position
+    targetPos*: Vector2    # Where it will land
+    vel*: Vector2          # Velocity (falling)
     radius*: float32        # Size of meteorite
     damage*: int            # Damage on impact
     warningTimer*: float32  # Time before impact
@@ -1619,7 +1619,7 @@ type
     coinActive*: bool    # True when boss coin needs to be collected
 
   ScreenShake* = object
-    offset*: Vector2f
+    offset*: Vector2
     intensity*: float32
     duration*: float32
     maxDuration*: float32
@@ -1642,7 +1642,7 @@ type
     message*: string
     coins*: int
     displayTimer*: float32
-    pos*: Vector2f
+    pos*: Vector2
 
   MicroRewardTracker* = object
     rewards*: seq[MicroReward]
@@ -1702,9 +1702,8 @@ type
   RealTimeStats* = object
     dps*: float32
     damageDealt*: float32
-    kills*: int
-    coinsPerMinute*: float32
-    totalCoins*: int
+    coinsPerMinute*: float32   # credits earned per minute (gainCredits)
+    totalCoins*: int           # credits earned (gainCredits)
     damageHistory*: seq[(float32, float32)]  # (timestamp, damage) for rolling window
 
   DopamineState* = object
@@ -1765,7 +1764,7 @@ type
 
   CorpseRecord* = object
     ## A recently killed roguelite enemy a Restorer can bring back.
-    pos*: Vector2f
+    pos*: Vector2
     enemyType*: EnemyType
     maxHp*: float32
     radius*: float32
@@ -1774,7 +1773,7 @@ type
 
   HuskRecord* = object
     ## A fallen Zombie Process waiting to stand back up (walk over it to reap).
-    pos*: Vector2f
+    pos*: Vector2
     maxHp*: float32
     radius*: float32
     speed*: float32
@@ -1785,7 +1784,7 @@ type
 
   EchoSample* = object
     ## One tick of the player's recent history (Mirror Cache replays these).
-    pos*: Vector2f
+    pos*: Vector2
     aim*: float32
     fired*: bool
 
@@ -1803,7 +1802,7 @@ type
   SurvivalPendingSpawn* = object
     ## An enemy queued to appear after `delay` seconds. In-arena spawns are
     ## telegraphed with a marker for that time so nothing pops onto the player.
-    pos*: Vector2f
+    pos*: Vector2
     enemyType*: EnemyType
     delay*: float32
     tag*: SurvivalTag
@@ -1814,7 +1813,7 @@ type
 
   SurvivalChest* = object
     ## A Data Cache lying on the floor; walking over it opens it.
-    pos*: Vector2f
+    pos*: Vector2
     tier*: SurvivalCacheTier
     age*: float32
 
@@ -1839,7 +1838,7 @@ type
     spawned*: int              # enemies (or meteors) the event has produced
     killed*: int               # tagged enemies killed (Memory Leak)
     emitDone*: bool
-    zonePos*: Vector2f         # Upload Zone centre / Rogue Process spawn point
+    zonePos*: Vector2         # Upload Zone centre / Rogue Process spawn point
     zoneRadius*: float32
     progress*: float32         # Upload Zone fill, 0..1
     progressStep*: int         # last 25% step chimed
@@ -1986,7 +1985,7 @@ type
     flawlessWaveVictory*: bool  # One-shot: wave mode was just beaten with runHadDeath still false (consumed in main.nim)
     cheatRogueliteSkipFloor*: bool  # Roguelite cheat: request to complete the current floor (consumed in main.nim)
     cheatRogueliteDirectFloorSelect*: bool  # Roguelite cheat: after the post-skip draft, jump straight to floor select instead of an (often unreachable) exit portal (consumed in main.nim)
-    lastMousePos*: Vector2f  # Track mouse position to detect movement
+    lastMousePos*: Vector2  # Track mouse position to detect movement
     mouseMovedRecently*: bool  # True if mouse has moved since last keyboard input
     keyboardUsedRecently*: bool  # True if keyboard was just used (disables mouse temporarily)
     previousState*: GameState  # Track where we came from to return correctly
@@ -2098,7 +2097,6 @@ const BossWaveInterval* = 5
 # names) stays a plain lookup.
 
 const MaxBossId* = 23
-
 
 const
   FirstModPowerUp* = puMod000  ## the reserved power-up slots mods bind (register.powerup)
@@ -2529,7 +2527,7 @@ proc newAttackWarning*(x, y: float32, attackType: AttackWarningType,
   ## are zero-initialized by Nim, so only the non-default fields are set here;
   ## the specialized constructors below layer their extra fields on top.
   AttackWarning(
-    pos: newVector2f(x, y),
+    pos: vec2(x, y),
     attackType: attackType,
     lifetime: duration,
     maxLifetime: duration,
@@ -2555,11 +2553,11 @@ proc newSatelliteLaserWarning*(satelliteX, satelliteY, targetX, targetY: float32
                                duration: float32, sourceEnemyId: int = -1): AttackWarning =
   ## Creates a warning for satellite laser attacks that extend through a target point
   result = newAttackWarning(satelliteX, satelliteY, awtSatelliteLaser, duration, sourceEnemyId)
-  result.targetPos = newVector2f(targetX, targetY)
+  result.targetPos = vec2(targetX, targetY)
 
 proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage: int, duration: float32, rotation: float32 = 0.0, enemyType: EnemyType = etCircle, sourceEnemyId: int = -1): Laser =
   Laser(
-    pos: newVector2f(x, y),
+    pos: vec2(x, y),
     direction: direction,
     length: length,
     thickness: thickness,
@@ -2574,9 +2572,9 @@ proc newLaser*(x, y: float32, direction: int, length, thickness: float32, damage
 proc newMeteorite*(targetX, targetY: float32, spawnX, spawnY: float32, damage: int, warningTime: float32, sourceEnemyId: int = -1): Meteorite =
   ## Create a new meteorite that falls from the sky
   Meteorite(
-    pos: newVector2f(spawnX, spawnY),
-    targetPos: newVector2f(targetX, targetY),
-    vel: newVector2f(0, 0),
+    pos: vec2(spawnX, spawnY),
+    targetPos: vec2(targetX, targetY),
+    vel: vec2(0, 0),
     radius: 15.0,
     damage: damage,
     warningTimer: warningTime,
@@ -2712,7 +2710,7 @@ proc getEffectiveSpeed*(baseSpeed: float32, waveNumber: int): float32 =
 # and the placement preview (game.nim) so shape never drifts between them.
 const WallSlabThicknessRatio* = 0.44'f32
 
-proc wallOverlapsCircle*(wall: Wall, center: Vector2f, radius: float32): bool =
+proc wallOverlapsCircle*(wall: Wall, center: Vector2, radius: float32): bool =
   ## True if a circle (entity at `center`, given `radius`) overlaps the wall's
   ## collision shape. Turret/obstacle walls stay circular; slab walls use an
   ## oriented-rectangle (OBB-vs-circle) test in the slab's local frame.
@@ -2733,15 +2731,15 @@ proc wallOverlapsCircle*(wall: Wall, center: Vector2f, radius: float32): bool =
   let oy = localY - clamp(localY, -halfLen, halfLen)
   return ox * ox + oy * oy < radius * radius
 
-proc wallContactNormal*(wall: Wall, p: Vector2f): Vector2f =
+proc wallContactNormal*(wall: Wall, p: Vector2): Vector2 =
   ## Outward unit surface normal at point `p` (direction from the wall surface
   ## toward `p`). Lets entities slide along wall faces by removing the velocity
   ## component along this normal, instead of dead-stopping on contact.
   if not wall.slabShape:
     let d = p - wall.pos
     let len = sqrt(d.x * d.x + d.y * d.y)
-    if len < 0.0001'f32: return newVector2f(0, -1)
-    return newVector2f(d.x / len, d.y / len)
+    if len < 0.0001'f32: return vec2(0, -1)
+    return vec2(d.x / len, d.y / len)
 
   let halfLen = wall.radius
   let halfThick = wall.radius * WallSlabThicknessRatio
@@ -2765,21 +2763,21 @@ proc wallContactNormal*(wall: Wall, p: Vector2f): Vector2f =
   let wx = ox * nx - oy * ny
   let wy = ox * ny + oy * nx
   let len = sqrt(wx * wx + wy * wy)
-  if len < 0.0001'f32: return newVector2f(0, -1)
-  newVector2f(wx / len, wy / len)
+  if len < 0.0001'f32: return vec2(0, -1)
+  vec2(wx / len, wy / len)
 
-proc inPickupRange*(pos: Vector2f, radius: float32, player: Player): bool {.moddable.} =
+proc inPickupRange*(pos: Vector2, radius: float32, player: Player): bool {.moddable.} =
   ## A pickup touching the player is collected; the magnet widens that to 80 px.
   let collectRange = if player.magnetTimer > 0: 80.0'f32 else: radius + player.radius
   distance(pos, player.pos) < collectRange
 
-proc polylineLength*(path: seq[Vector2f]): float32 =
+proc polylineLength*(path: seq[Vector2]): float32 =
   ## Total arc length of a polyline (sum of segment lengths).
   result = 0.0'f32
   for s in 0 ..< path.len - 1:
     result += distance(path[s], path[s + 1])
 
-proc orbitalSweepCenter*(warning: AttackWarning): Vector2f =
+proc orbitalSweepCenter*(warning: AttackWarning): Vector2 =
   ## Centre of the Orbital Commander's moving scan wall as a pure function of
   ## the warning's remaining lifetime: parked at the entry edge (pos) through
   ## the telegraph, then travelling linearly to the exit edge (targetPos) over
@@ -2834,7 +2832,7 @@ proc clockSweepHandAngle*(warning: AttackWarning, hand: int,
   else:
     base + warning.bulletSpeed * elapsedActive
 
-proc ricochetSweptPath*(path: seq[Vector2f], frontDist: float32): seq[Vector2f] =
+proc ricochetSweptPath*(path: seq[Vector2], frontDist: float32): seq[Vector2] =
   ## The first `frontDist` units of `path`, ending at the exact beam-front point.
   ## Used to animate the ricochet beam "advancing" along its bounce route: the
   ## returned polyline is everything the beam-front has reached so far.

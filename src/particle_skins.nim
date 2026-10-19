@@ -321,15 +321,15 @@ proc shootingParticleGlow(skinType: ParticleSkinType): float32 =
   else:
     0.9'f32
 
-proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vector2f,
+proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vector2,
                              skinType: ParticleSkinType, time: float32) =
   ## Spawn particles when player shoots, using the selected particle skin
   let skin = particleSkinDatabase[skinType]
   let (primaryColor, secondaryColor) = getParticleSkinColors(skinType, time)
   let shootDir =
     if direction.length() > 0.01'f32: direction.normalize()
-    else: newVector2f(1.0, 0.0)
-  let sideDir = newVector2f(-shootDir.y, shootDir.x)
+    else: vec2(1.0, 0.0)
+  let sideDir = vec2(-shootDir.y, shootDir.x)
   let boostedCount = scaledParticleBurstCount(pool, skin.particleCount + max(3, skin.particleCount div 3))
 
   discard pool.acquireParticleDetailed(
@@ -387,7 +387,7 @@ proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vecto
     let lightningCount = scaledParticleBurstCount(pool, 3)
     for i in 0..<lightningCount:
       let angle = i.float32 * 0.18'f32 - 0.18'f32 + rand(0.1).float32
-      let boltDir = newVector2f(
+      let boltDir = vec2(
         shootDir.x * cos(angle) - shootDir.y * sin(angle),
         shootDir.x * sin(angle) + shootDir.y * cos(angle)
       )
@@ -407,7 +407,7 @@ proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vecto
     let orbitCount = scaledParticleBurstCount(pool, skin.particleCount div 2)
     for i in 0..<orbitCount:
       let angle = i.float32 * 0.18'f32 - 0.18'f32
-      let orbitDir = newVector2f(
+      let orbitDir = vec2(
         shootDir.x * cos(angle) - shootDir.y * sin(angle),
         shootDir.x * sin(angle) + shootDir.y * cos(angle)
       )
@@ -429,7 +429,7 @@ proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vecto
     let swirlCount = scaledParticleBurstCount(pool, 4)
     for i in 0..<swirlCount:
       let angle = i.float32 * 0.25'f32 - 0.375'f32
-      let swirlDir = newVector2f(
+      let swirlDir = vec2(
         shootDir.x * cos(angle) - shootDir.y * sin(angle),
         shootDir.x * sin(angle) + shootDir.y * cos(angle)
       )

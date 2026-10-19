@@ -14,10 +14,6 @@ import lua_bridge, mod_hooks, mod_reflect, mod_api
 
 const ThemeKeys = ["id", "name", "base", "surface", "raised", "text", "muted", "accent", "wallpaper"]
 
-proc colorOr(vm: VM, t: ScriptTable, key: string, def: Color): Color =
-  let v = rawGetStr(t, key)
-  if v.kind == vkNil: def else: parseColor(vm, v, "register.theme: " & key)
-
 proc colorArg(vm: VM, args: openArray[ScriptValue], fname: string): Color =
   if args.len == 0: vm.runtimeError(fname & ": colour expected")
   parseColor(vm, args[0], fname)
@@ -67,9 +63,9 @@ proc installModTheme*(base: ScriptTable) =
     let (nameEn, nameEs) = vm.textPair(rawGetStr(t, "name"), "name")
     let wv = rawGetStr(t, "wallpaper")
     let th = newTheme(key, shell,
-                      vm.colorOr(t, "surface", b.surface), vm.colorOr(t, "raised", b.raised),
-                      vm.colorOr(t, "text", b.text), vm.colorOr(t, "muted", b.muted),
-                      vm.colorOr(t, "accent", b.accent),
+                      vm.colorField(t, "surface", "register.theme", b.surface), vm.colorField(t, "raised", "register.theme", b.raised),
+                      vm.colorField(t, "text", "register.theme", b.text), vm.colorField(t, "muted", "register.theme", b.muted),
+                      vm.colorField(t, "accent", "register.theme", b.accent),
                       owner = owner, name = (if nameEn.len > 0: nameEn else: key), nameEs = nameEs,
                       wallpaper = (if wv.kind == vkNil: 0 else: vm.textureId(wv, "register.theme")))
     if not addTheme(th):

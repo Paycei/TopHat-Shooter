@@ -57,7 +57,7 @@ const
 # COMMON HELPER FUNCTIONS FOR POWER-UP CALCULATIONS
 
 # Lightning visuals moved to src/fx.nim (forwarding stubs kept)
-proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2f,
+proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2,
                          color: Color = fx.DEFAULT_BOLT_COLOR) {.moddable.} =
   fx.spawnLightningBoltInto(game.lightningBolts, fromPos, toPos, color)
 
@@ -68,7 +68,7 @@ proc drawLightningBolts*(game: Game) {.moddable.} =
   fx.drawLightningBolts(game.lightningBolts)
 
 # AoE-blast boundary rings (Star death explosion, etc.), forwarding stubs
-proc spawnShockwaveRing*(game: var Game, pos: Vector2f, maxRadius: float32, color: Color) {.moddable.} =
+proc spawnShockwaveRing*(game: var Game, pos: Vector2, maxRadius: float32, color: Color) {.moddable.} =
   fx.spawnShockwaveRingInto(game.shockwaveRings, pos, maxRadius, color)
 
 proc updateShockwaveRings*(game: var Game, dt: float32) {.moddable.} =
@@ -78,7 +78,7 @@ proc drawShockwaveRings*(game: Game) {.moddable.} =
   fx.drawShockwaveRings(game.shockwaveRings)
 
 # Path-swept blast corridors (Aftershock), forwarding stubs
-proc spawnPathShockwave*(game: var Game, points: seq[Vector2f], width: float32,
+proc spawnPathShockwave*(game: var Game, points: seq[Vector2], width: float32,
                          color: Color) {.moddable.} =
   fx.spawnPathShockwaveInto(game.pathShockwaves, points, width, color)
 
@@ -93,7 +93,7 @@ proc drawPathShockwaves*(game: Game) {.moddable.} =
 # corpse can be tinted to match the wave it launches.
 export BOSS_DEATH_BLAST_COLOR
 
-proc spawnBossDeathBlast*(game: var Game, pos: Vector2f, maxRadius: float32,
+proc spawnBossDeathBlast*(game: var Game, pos: Vector2, maxRadius: float32,
                           sourceEnemyId: int,
                           color: Color = fx.BOSS_DEATH_BLAST_COLOR) {.moddable.} =
   fx.spawnBossDeathBlastInto(game.bossDeathBlasts, pos, maxRadius, sourceEnemyId, color)
@@ -101,7 +101,7 @@ proc spawnBossDeathBlast*(game: var Game, pos: Vector2f, maxRadius: float32,
 proc drawBossDeathBlasts*(game: Game) {.moddable.} =
   fx.drawBossDeathBlasts(game.bossDeathBlasts)
 
-proc blastFreeFizzle(game: var Game, pos: Vector2f, color: Color) =
+proc blastFreeFizzle(game: var Game, pos: Vector2, color: Color) =
   ## The little puff left where the sweep freed one hazard. Angular shards
   ## rather than a soft puff, so an erased projectile reads as data being
   ## dropped rather than as something burning up.
@@ -155,10 +155,10 @@ proc blastFreeBeam(game: var Game, laser: Laser, color: Color) =
             laser.rotation + Quarter, laser.rotation - Quarter]
     else: @[laser.rotation]
   for a in arms:
-    blastFreeFizzle(game, newVector2f(laser.pos.x + cos(a) * laser.length,
+    blastFreeFizzle(game, vec2(laser.pos.x + cos(a) * laser.length,
                                       laser.pos.y + sin(a) * laser.length), color)
 
-proc blastHasReached(blast: BossDeathBlast, pos: Vector2f,
+proc blastHasReached(blast: BossDeathBlast, pos: Vector2,
                      extra: float32 = 0.0'f32): bool =
   ## Has the sweep's edge covered this hazard yet? `extra` is the hazard's own
   ## reach past that point, which is what makes a beam wait until the wave has

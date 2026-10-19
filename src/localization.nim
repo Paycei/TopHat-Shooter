@@ -1123,7 +1123,6 @@ type
     tkOSCknStartButton = "os_ckn_start_button"
     tkOSCknEdition = "os_ckn_edition"
 
-
     # PvP Lobby
     tkPvPTitle = "pvp_title"
     tkPvPHostGame = "pvp_host_game"
@@ -1305,6 +1304,15 @@ type
     tkWaveCelebCoins = "wave_celeb_coins"
     tkWaveCelebMaxCombo = "wave_celeb_max_combo"
 
+    # Consumable pickup labels (consumablePerkLabel)
+    tkPerkSpeed = "perk_speed"
+    tkPerkInvincible = "perk_invincible"
+    tkPerkFireRate = "perk_fire_rate"
+    tkPerkMagnet = "perk_magnet"
+    tkPerkShield = "perk_shield"
+    tkPerkDoubleCoin = "perk_double_coin"
+    tkPerkDamage = "perk_damage"
+    tkPerkLifesteal = "perk_lifesteal"
 
     # Combo display (d_visuals)
     tkComboInsane = "combo_insane"
@@ -1314,7 +1322,6 @@ type
     tkComboPerfectWave = "combo_perfect_wave"
     tkComboPerfectStreak = "combo_perfect_streak"
     tkComboCoins = "combo_coins"
-
 
     # 3D Boss Game HUD
     tkGame3DHp = "game3d_hp"
@@ -2667,7 +2674,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Stats Labels
     "stats_play_style_balanced": "Balanced",
 
-
     # General
     "general_cancel": "Cancel",
 
@@ -2679,7 +2685,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "wave_celeb_time": "Time",
     "wave_celeb_coins": "Coins Earned",
     "wave_celeb_max_combo": "Max Combo",
-
+    "perk_speed": "+SPEED",
+    "perk_invincible": "+INVINCIBLE",
+    "perk_fire_rate": "+FIRE RATE",
+    "perk_magnet": "+MAGNET",
+    "perk_shield": "+SHIELD",
+    "perk_double_coin": "+DOUBLE COIN",
+    "perk_damage": "+DAMAGE",
+    "perk_lifesteal": "+LIFESTEAL",
 
     # Combo display
     "combo_insane": "INSANE!",
@@ -2689,7 +2702,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "combo_perfect_wave": "PERFECT WAVE!",
     "combo_perfect_streak": "PERFECT x",
     "combo_coins": "coins!",
-
 
     # 3D Boss Game HUD
     "game3d_hp": "HP",
@@ -5535,7 +5547,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     # Stats Labels
     "stats_play_style_balanced": "Equilibrado",
 
-
     # General
     "general_cancel": "Cancelar",
 
@@ -5547,7 +5558,14 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "wave_celeb_time": "Tiempo",
     "wave_celeb_coins": "Monedas Ganadas",
     "wave_celeb_max_combo": "Combo Máximo",
-
+    "perk_speed": "+VELOCIDAD",
+    "perk_invincible": "+INVENCIBLE",
+    "perk_fire_rate": "+CADENCIA",
+    "perk_magnet": "+IMÁN",
+    "perk_shield": "+ESCUDO",
+    "perk_double_coin": "+MONEDAS x2",
+    "perk_damage": "+DAÑO",
+    "perk_lifesteal": "+ROBO DE VIDA",
 
     # Combo display
     "combo_insane": "¡LOCURA!",
@@ -5557,7 +5575,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "combo_perfect_wave": "¡OLEADA PERFECTA!",
     "combo_perfect_streak": "PERFECTA x",
     "combo_coins": "monedas!",
-
 
     # 3D Boss Game HUD
     "game3d_hp": "HP",

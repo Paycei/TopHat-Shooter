@@ -24,7 +24,7 @@ proc spawnThunderstrikeInto*(warnings: var seq[AttackWarning], particlePool: Par
     var tries = 0
     var farEnough = false
     while tries < 12:
-      p = newVector2f(radius + rand(w - radius * 2.0),
+      p = vec2(radius + rand(w - radius * 2.0),
                       radius + rand(h - radius * 2.0))
       inc tries
       if distance(p, player.pos) >= minDist:
@@ -35,7 +35,7 @@ proc spawnThunderstrikeInto*(warnings: var seq[AttackWarning], particlePool: Par
       # to the legal ring instead of accepting a strike on top of the player.
       var away = p - player.pos
       if away.x == 0 and away.y == 0:
-        away = newVector2f(1.0'f32, 0.0'f32)
+        away = vec2(1.0'f32, 0.0'f32)
       p = player.pos + away.normalize() * minDist
       p.x = clamp(p.x, radius, w - radius)
       p.y = clamp(p.y, radius, h - radius)
@@ -83,7 +83,7 @@ proc spawnVoidRiftsInto*(warnings: var seq[AttackWarning], particlePool: Particl
     var tries = 0
     var farEnough = false
     while tries < 12:
-      p = newVector2f(radius + rand(w - radius * 2.0),
+      p = vec2(radius + rand(w - radius * 2.0),
                       radius + rand(h - radius * 2.0))
       inc tries
       if distance(p, player.pos) >= minDist:
@@ -94,7 +94,7 @@ proc spawnVoidRiftsInto*(warnings: var seq[AttackWarning], particlePool: Particl
       # to the legal ring instead of collapsing a rift on top of the player.
       var away = p - player.pos
       if away.x == 0 and away.y == 0:
-        away = newVector2f(1.0'f32, 0.0'f32)
+        away = vec2(1.0'f32, 0.0'f32)
       p = player.pos + away.normalize() * minDist
       p.x = clamp(p.x, radius, w - radius)
       p.y = clamp(p.y, radius, h - radius)
@@ -135,7 +135,7 @@ proc spawnArcLatticeInto*(warnings: var seq[AttackWarning], particlePool: Partic
     if inGap: continue
     let ang = k.float32 * (PI * 2.0) / beams.float32
     var w = newAttackWarning(cx, cy, awtArcBeam, total, enemy.id)
-    w.targetPos = newVector2f(cx + cos(ang) * reach, cy + sin(ang) * reach)
+    w.targetPos = vec2(cx + cos(ang) * reach, cy + sin(ang) * reach)
     w.laserLength = thick
     w.bulletDamage = dmg
     warnings.add(w)
@@ -143,8 +143,8 @@ proc spawnArcLatticeInto*(warnings: var seq[AttackWarning], particlePool: Partic
   spawnExplosionPooled(particlePool, enemy.pos.x, enemy.pos.y,
                        Color(r: 255, g: 255, b: 150, a: 255), 16)
 
-proc computeRicochetPath(startPos, startDir: Vector2f, bounces: int,
-                          screenWidth, screenHeight: int32): seq[Vector2f] {.moddable.} =
+proc computeRicochetPath(startPos, startDir: Vector2, bounces: int,
+                          screenWidth, screenHeight: int32): seq[Vector2] {.moddable.} =
   ## Trace a beam from startPos along startDir, reflecting off the four screen
   ## edges, recording a vertex at every bounce. Returns the polyline
   ## [start, hit1, hit2, ... , end]. Pure screen-edge reflection (no walls).
@@ -154,31 +154,31 @@ proc computeRicochetPath(startPos, startDir: Vector2f, bounces: int,
   var o = startPos
   var d = startDir.normalize()
   if d.length() < 0.0001'f32:
-    d = newVector2f(1, 0)
+    d = vec2(1, 0)
   result = @[o]
 
   for _ in 0 .. bounces:
     # Distance to the next vertical edge (x = 0 or x = w) and horizontal edge.
     var bestT = 1.0e9'f32
-    var normal = newVector2f(0, 0)
+    var normal = vec2(0, 0)
 
     if d.x > EPS:
       let t = (w - o.x) / d.x
       if t > EPS and t < bestT:
-        bestT = t; normal = newVector2f(-1, 0)
+        bestT = t; normal = vec2(-1, 0)
     elif d.x < -EPS:
       let t = (0.0'f32 - o.x) / d.x
       if t > EPS and t < bestT:
-        bestT = t; normal = newVector2f(1, 0)
+        bestT = t; normal = vec2(1, 0)
 
     if d.y > EPS:
       let t = (h - o.y) / d.y
       if t > EPS and t < bestT:
-        bestT = t; normal = newVector2f(0, -1)
+        bestT = t; normal = vec2(0, -1)
     elif d.y < -EPS:
       let t = (0.0'f32 - o.y) / d.y
       if t > EPS and t < bestT:
-        bestT = t; normal = newVector2f(0, 1)
+        bestT = t; normal = vec2(0, 1)
 
     if bestT >= 1.0e9'f32:
       break  # Beam is parallel to and inside both axes (shouldn't happen)
@@ -188,7 +188,7 @@ proc computeRicochetPath(startPos, startDir: Vector2f, bounces: int,
 
     # Reflect the direction about the edge normal: d' = d - 2(d·n)n
     let dot = d.x * normal.x + d.y * normal.y
-    d = newVector2f(d.x - 2.0'f32 * dot * normal.x,
+    d = vec2(d.x - 2.0'f32 * dot * normal.x,
                     d.y - 2.0'f32 * dot * normal.y).normalize()
     # Nudge off the surface so the next iteration doesn't re-hit the same edge.
     o = hit + d * EPS
@@ -205,7 +205,7 @@ proc spawnRicochetLaserInto*(warnings: var seq[AttackWarning], particlePool: Par
 
   var aim = (player.pos - enemy.pos).normalize()
   if aim.length() < 0.0001'f32:
-    aim = newVector2f(1, 0)
+    aim = vec2(1, 0)
 
   let path = computeRicochetPath(enemy.pos, aim, bounces, screenWidth, screenHeight)
 
@@ -215,7 +215,7 @@ proc spawnRicochetLaserInto*(warnings: var seq[AttackWarning], particlePool: Par
   # "charging an ultimate" beat.
   enemy.megaCastTimer = total
   enemy.megaCastTotal = total
-  enemy.vel = newVector2f(0, 0)
+  enemy.vel = vec2(0, 0)
   enemy.isDashing = false
 
   var w = newAttackWarning(enemy.pos.x, enemy.pos.y, awtRicochetLaser, total, enemy.id)
@@ -261,35 +261,35 @@ proc spawnOrbitalSweepInto*(warnings: var seq[AttackWarning], particlePool: Part
   const HEADING_OFFSETS = [0, 2, 1]
   for k in 0 ..< sweeps:
     let heading = (baseHeading + (if sweeps > 1: HEADING_OFFSETS[k] else: 0)) mod 4
-    var startC, endC: Vector2f
+    var startC, endC: Vector2
     var travelAngle: float32
     var halfSpan: float32
     case heading
     of 0:  # entering left edge, travelling right; wall is vertical
-      startC = newVector2f(-MARGIN, h * 0.5'f32)
-      endC   = newVector2f(w + MARGIN, h * 0.5'f32)
+      startC = vec2(-MARGIN, h * 0.5'f32)
+      endC   = vec2(w + MARGIN, h * 0.5'f32)
       travelAngle = 0.0'f32
       halfSpan = h * 0.5'f32 + MARGIN
     of 1:  # entering right edge, travelling left
-      startC = newVector2f(w + MARGIN, h * 0.5'f32)
-      endC   = newVector2f(-MARGIN, h * 0.5'f32)
+      startC = vec2(w + MARGIN, h * 0.5'f32)
+      endC   = vec2(-MARGIN, h * 0.5'f32)
       travelAngle = PI
       halfSpan = h * 0.5'f32 + MARGIN
     of 2:  # entering top edge, travelling down; wall is horizontal
-      startC = newVector2f(w * 0.5'f32, -MARGIN)
-      endC   = newVector2f(w * 0.5'f32, h + MARGIN)
+      startC = vec2(w * 0.5'f32, -MARGIN)
+      endC   = vec2(w * 0.5'f32, h + MARGIN)
       travelAngle = PI * 0.5'f32
       halfSpan = w * 0.5'f32 + MARGIN
     else:  # entering bottom edge, travelling up
-      startC = newVector2f(w * 0.5'f32, h + MARGIN)
-      endC   = newVector2f(w * 0.5'f32, -MARGIN)
+      startC = vec2(w * 0.5'f32, h + MARGIN)
+      endC   = vec2(w * 0.5'f32, -MARGIN)
       travelAngle = PI * 1.5'f32
       halfSpan = w * 0.5'f32 + MARGIN
 
     # The safe lane lands somewhere in the middle 70% of the wall, re-rolled a
     # few times if it sits on the player: the scan must force movement, never
     # reward standing still.
-    let u = newVector2f(-sin(travelAngle), cos(travelAngle))  # along the wall
+    let u = vec2(-sin(travelAngle), cos(travelAngle))  # along the wall
     let playerAlong = (player.pos.x - startC.x) * u.x + (player.pos.y - startC.y) * u.y
     var gapOffset = 0.0'f32
     for tries in 0 ..< 6:
@@ -347,7 +347,7 @@ proc spawnSeismicFissureInto*(warnings: var seq[AttackWarning], particlePool: Pa
   let lead = player.pos + player.vel * 0.35'f32
   var dir = (lead - enemy.pos).normalize()
   if dir.length() < 0.0001'f32:
-    dir = newVector2f(1, 0)
+    dir = vec2(1, 0)
   let spacing = radius * 1.45'f32
 
   # spreadAngle > 0 makes the chain FORK: the first two steps are shared, then
@@ -357,8 +357,8 @@ proc spawnSeismicFissureInto*(warnings: var seq[AttackWarning], particlePool: Pa
   let baseAng = arctan2(dir.y, dir.x)
   var branchDirs = @[dir]
   if forkHalf > 0.001'f32:
-    branchDirs = @[newVector2f(cos(baseAng - forkHalf), sin(baseAng - forkHalf)),
-                   newVector2f(cos(baseAng + forkHalf), sin(baseAng + forkHalf))]
+    branchDirs = @[vec2(cos(baseAng - forkHalf), sin(baseAng - forkHalf)),
+                   vec2(cos(baseAng + forkHalf), sin(baseAng + forkHalf))]
 
   var stepIdx = 0
   for k in 0 ..< steps:
@@ -403,7 +403,7 @@ proc spawnPrismRaysInto*(warnings: var seq[AttackWarning], particlePool: Particl
   # and a slight offset keeps "stand still" from being an accidental safe spot.
   var focus = player.pos + player.vel * (PrismRayTelegraph * 0.3'f32)
   let sideAng = rand(1.0) * PI * 2.0
-  focus = focus + newVector2f(cos(sideAng), sin(sideAng)) * 60.0'f32
+  focus = focus + vec2(cos(sideAng), sin(sideAng)) * 60.0'f32
   focus.x = clamp(focus.x, 80.0'f32, w - 80.0'f32)
   focus.y = clamp(focus.y, 80.0'f32, h - 80.0'f32)
 
@@ -412,7 +412,7 @@ proc spawnPrismRaysInto*(warnings: var seq[AttackWarning], particlePool: Particl
   var path = @[enemy.pos, focus]
   for k in 0 ..< rays:
     let ang = baseAng + k.float32 * spacing
-    path.add(newVector2f(focus.x + cos(ang) * reach, focus.y + sin(ang) * reach))
+    path.add(vec2(focus.x + cos(ang) * reach, focus.y + sin(ang) * reach))
 
   var warn = newAttackWarning(enemy.pos.x, enemy.pos.y, awtPrismRays,
                               PrismRayTelegraph + PrismRayActive, enemy.id)
@@ -441,7 +441,7 @@ proc spawnPrismRaysInto*(warnings: var seq[AttackWarning], particlePool: Particl
     let backAng = baseAng + k.float32 * spacing + PI  # from mini back to focus
     for j in 0 ..< miniRays:
       let ang = backAng + (j.float32 + 0.5'f32) * miniSpacing
-      mpath.add(newVector2f(mf.x + cos(ang) * miniReach, mf.y + sin(ang) * miniReach))
+      mpath.add(vec2(mf.x + cos(ang) * miniReach, mf.y + sin(ang) * miniReach))
     let total = PrismRayTelegraph + PrismRayActive + PrismMiniTelegraph +
                 PrismRayActive + m.float32 * PrismMiniStagger
     var mw = newAttackWarning(mf.x, mf.y, awtPrismRays, total, enemy.id)
@@ -509,28 +509,28 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
   let w = screenWidth.float32
   let h = screenHeight.float32
 
-  proc edgePoint(): Vector2f =
+  proc edgePoint(): Vector2 =
     case rand(3)
-    of 0: newVector2f(rand(w), 0.0'f32)
-    of 1: newVector2f(rand(w), h)
-    of 2: newVector2f(0.0'f32, rand(h))
-    else: newVector2f(w, rand(h))
+    of 0: vec2(rand(w), 0.0'f32)
+    of 1: vec2(rand(w), h)
+    of 2: vec2(0.0'f32, rand(h))
+    else: vec2(w, rand(h))
 
-  proc segIntersect(a1, a2, b1, b2: Vector2f): (bool, Vector2f) =
+  proc segIntersect(a1, a2, b1, b2: Vector2): (bool, Vector2) =
     ## Proper segment-segment intersection; endpoints (outer 5%) excluded so
     ## knots never land exactly on a shared vertex.
     let r = a2 - a1
     let s = b2 - b1
     let denom = r.x * s.y - r.y * s.x
-    if abs(denom) < 0.0001'f32: return (false, newVector2f(0, 0))
+    if abs(denom) < 0.0001'f32: return (false, vec2(0, 0))
     let qp = b1 - a1
     let ti = (qp.x * s.y - qp.y * s.x) / denom
     let u = (qp.x * r.y - qp.y * r.x) / denom
     if ti < 0.05'f32 or ti > 0.95'f32 or u < 0.05'f32 or u > 0.95'f32:
-      return (false, newVector2f(0, 0))
+      return (false, vec2(0, 0))
     (true, a1 + r * ti)
 
-  var threadPaths: seq[seq[Vector2f]] = @[]
+  var threadPaths: seq[seq[Vector2]] = @[]
   for t in 0 ..< threads:
     var a = edgePoint()
     var b = edgePoint()
@@ -542,7 +542,7 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
     if t == 0:
       # First thread threatens the player's area: pass near (not through) them.
       let jitterAng = rand(1.0) * PI * 2.0
-      let mid = player.pos + newVector2f(cos(jitterAng), sin(jitterAng)) * 70.0'f32
+      let mid = player.pos + vec2(cos(jitterAng), sin(jitterAng)) * 70.0'f32
       let dir = (b - a).normalize()
       a = mid - dir * max(w, h)
       b = mid + dir * max(w, h)
@@ -552,7 +552,7 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
     # Kink the thread: subdivide and jitter perpendicular to the main run.
     const KINKS = 5
     let run = b - a
-    let perp = newVector2f(-run.y, run.x).normalize()
+    let perp = vec2(-run.y, run.x).normalize()
     var path = @[a]
     for k in 1 .. KINKS:
       let along = a + run * (k.float32 / (KINKS + 1).float32)
@@ -573,7 +573,7 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
 
   # Knots: pin a marker wherever two threads cross (deduped, hard-capped).
   # They tear open shortly after the LAST thread snaps.
-  var knots: seq[Vector2f] = @[]
+  var knots: seq[Vector2] = @[]
   for i in 0 ..< threadPaths.len:
     for j in i + 1 ..< threadPaths.len:
       for si in 0 ..< threadPaths[i].len - 1:
@@ -590,7 +590,7 @@ proc spawnChaosWeaveInto*(warnings: var seq[AttackWarning], particlePool: Partic
               knots.add(p)
   if knots.len > ChaosKnotMax:
     # Keep an even spread of the crossings rather than the first N.
-    var picked: seq[Vector2f] = @[]
+    var picked: seq[Vector2] = @[]
     for n in 0 ..< ChaosKnotMax:
       picked.add(knots[(n * knots.len) div ChaosKnotMax])
     knots = picked
@@ -640,13 +640,13 @@ proc spawnOmegaQuadrantsInto*(warnings: var seq[AttackWarning], particlePool: Pa
   let h = screenHeight.float32
   let cellW = w / grid.float32
   let cellH = h / grid.float32
-  let halfExt = newVector2f(cellW * 0.5'f32, cellH * 0.5'f32)
+  let halfExt = vec2(cellW * 0.5'f32, cellH * 0.5'f32)
 
-  proc centerOf(cell: (int, int)): Vector2f =
-    newVector2f((cell[0].float32 + 0.5'f32) * cellW,
+  proc centerOf(cell: (int, int)): Vector2 =
+    vec2((cell[0].float32 + 0.5'f32) * cellW,
                 (cell[1].float32 + 0.5'f32) * cellH)
 
-  proc cellOf(p: Vector2f): (int, int) =
+  proc cellOf(p: Vector2): (int, int) =
     (clamp(int(p.x / cellW), 0, grid - 1), clamp(int(p.y / cellH), 0, grid - 1))
 
   # The frozen boss squats on this cell for the whole channel - it is banned
@@ -717,7 +717,7 @@ proc spawnOmegaQuadrantsInto*(warnings: var seq[AttackWarning], particlePool: Pa
   let castTotal = sparedPop + OmegaQuadActive
   enemy.megaCastTimer = castTotal
   enemy.megaCastTotal = castTotal
-  enemy.vel = newVector2f(0, 0)
+  enemy.vel = vec2(0, 0)
   enemy.isDashing = false
 
   # Cast opening: judgement sparks bloom at every cell's heart.
@@ -772,9 +772,9 @@ proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
     if attack.attackType == bapDash:
       let toPlayer = player.pos - enemy.pos
       let d = sqrt(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y)
-      let dir = if d > 0.01: newVector2f(toPlayer.x / d, toPlayer.y / d)
-                else: newVector2f(1.0'f32, 0.0'f32)
-      newVector2f(enemy.pos.x + dir.x * BossDashDistance, enemy.pos.y + dir.y * BossDashDistance)
+      let dir = if d > 0.01: vec2(toPlayer.x / d, toPlayer.y / d)
+                else: vec2(1.0'f32, 0.0'f32)
+      vec2(enemy.pos.x + dir.x * BossDashDistance, enemy.pos.y + dir.y * BossDashDistance)
     else:
       player.pos
 
@@ -782,7 +782,7 @@ proc addBossAttackWarningInto*(warnings: var seq[AttackWarning], player: Player,
     enemy.pendingDashLocked = true
     enemy.pendingDashStart = enemy.pos
     enemy.pendingDashTarget = warningTargetPos
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
 
   # The snipe reticle belongs ON the target: drawn at the boss it read as a
   # random marker that "did nothing". Other warnings stay boss-anchored.

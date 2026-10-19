@@ -24,4 +24,5 @@ bindModdablesIn(currentSourcePath(), [
   "../wall.nim",
   "../xp_orb.nim",
   "../coin.nim",
-  "../consumable.nim"])
+  "../consumable.nim",
+  "../pickup.nim"])

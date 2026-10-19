@@ -781,7 +781,6 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `equippedBulletSkin(): BulletSkinType` (wrap only: scripts cannot call it)
 - **moddable** `equippedShape(): ShapeType` (wrap only: scripts cannot call it)
 - **moddable** `equippedSkin(): SkinType` (wrap only: scripts cannot call it)
-- **moddable** `fitFontSize(text: string, maxW: int32, preferred: int32, minSize: int32): int32`
 - **moddable** `fractCoord(value: float32): float32`
 - **moddable** `hash01(n: float32): float32`
 - `lerpF(a: float32, b: float32, t: float32): float32`
@@ -793,20 +792,17 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `coin`
 
 - **moddable** `awardMetaCurrency(game: Game, shards: int, cores: int)`
-- **moddable** `checkAuraCollision(coin: Coin, player: Player, auraRadius: float32): bool` (wrap only: scripts cannot call it)
-- **moddable** `checkPlayerCollision(coin: Coin, player: Player): bool`
-- **moddable** `clampLootPosition(x: float32, y: float32, screenWidth: int32, screenHeight: int32): tuple[x: float32, y: float32]`
+- **moddable** `coinPickupValue(player: Player, value: int): int`
 - **moddable** `collectAllCoins(game: Game)`
-- **moddable** `collectCoin(game: Game, coin: Coin): bool` (wrap only: scripts cannot call it)
+- **moddable** `collectPickup(game: Game, coin: Coin): bool`
 - **moddable** `drawCoin(coin: Coin)` (wrap only: scripts cannot call it)
 - **moddable** `drawGameCoins(game: Game)`
 - **moddable** `dropEnemyCoin(game: Game, enemy: Enemy)`
 - **moddable** `enemyCoinValue(enemy: Enemy, mode: GameMode, currentWave: int, difficulty: float32): int` (wrap only: scripts cannot call it)
-- **moddable** `moveCoinToPlayer(coin: Coin, playerPos: Vector2f, dt: float32)` (wrap only: scripts cannot call it)
 - **moddable** `newCoin(x: float32, y: float32, value: int, isBoss: bool): Coin`
+- **moddable** `pickupAlive(game: Game, coin: Coin, dt: float32, count: int): bool`
+- **moddable** `pickupTrail(coin: Coin): Color`
 - **moddable** `spawnMagnetCoins(game: Game)`
-- **moddable** `updateCoinsWaveCleared(game: Game, dt: float32)`
-- **moddable** `updateCoin(coin: Coin, dt: float32, totalCoins: int): bool`
 - **moddable** `updateGameCoins(game: Game, dt: float32): bool`
 
 ### `combat`
@@ -840,14 +836,15 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `consumable`
 
-- **moddable** `checkPlayerCollision(consumable: Consumable, player: Player): bool`
+- **moddable** `consumableColor(c: Consumable): Color`
+- **moddable** `consumablePerkLabel(c: Consumable): string`
 - **moddable** `drawConsumableIcon(x: float32, y: float32, cType: ConsumableType)` (wrap only: scripts cannot call it)
 - **moddable** `drawConsumable(consumable: Consumable)`
-- **moddable** `isInPlayerAura(consumable: Consumable, player: Player): bool`
-- **moddable** `moveConsumableToPlayer(consumable: Consumable, playerPos: Vector2f, dt: float32)`
 - **moddable** `newConsumable(x: float32, y: float32, difficulty: float32, mode: GameMode): Consumable`
 - **moddable** `newSpecificConsumable(x: float32, y: float32, cType: ConsumableType): Consumable`
-- **moddable** `updateConsumable(consumable: Consumable, dt: float32): bool`
+- **moddable** `pickupAlive(game: Game, consumable: Consumable, dt: float32, count: int): bool`
+- **moddable** `pickupTrail(consumable: Consumable): Color`
+- **moddable** `startConsumableBuff(player: Player, ct: ConsumableType)`
 
 ### `credits_window`
 
@@ -883,9 +880,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `newBossIntroduction(): BossIntroduction`
 - **moddable** `newRealTimeStats(): RealTimeStats`
 - **moddable** `newWaveCelebration(): WaveCelebration`
-- **moddable** `recordCoin(stats: var RealTimeStats, currentTime: float32)`
 - **moddable** `recordDamage(stats: var RealTimeStats, damage: float32, currentTime: float32)`
-- **moddable** `recordKill(stats: var RealTimeStats)`
 - **moddable** `startCelebration(celebration: var WaveCelebration, waveNum: int, stats: WaveStats)`
 - **moddable** `startIntroduction(intro: var BossIntroduction, name: string, title: string, tag: string, isRoot: bool)`
 - **moddable** `updateCelebration(celebration: var WaveCelebration, dt: float32): bool`
@@ -909,9 +904,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `newScreenShake(): ScreenShake`
 - **moddable** `newSlowMotion(): SlowMotion`
 - **moddable** `newWaveStats(waveNumber: int): WaveStats` (wrap only: scripts cannot call it)
-- **moddable** `recordCoin(stats: var WaveStats)`
 - **moddable** `recordCombo(stats: var WaveStats, combo: int)`
-- **moddable** `recordKill(stats: var WaveStats, damage: float32)`
 - **moddable** `resetWaveStats(dopamine: var DopamineState, waveNumber: int)`
 - **moddable** `shouldShowCombo(combo: ComboSystem): bool`
 - **moddable** `startWaveCombo(combo: var ComboSystem)`
@@ -1175,7 +1168,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `checkPendingLevelDraft(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `cleanupGame(game: Game)`
 - **moddable** `clearBossWave(manager: var BossWaveManager)` (wrap only: scripts cannot call it)
-- **moddable** `collectConsumable(game: var Game, c: Consumable)` (wrap only: scripts cannot call it)
+- **moddable** `collectPickup(game: Game, c: Consumable): bool`
 - **moddable** `completeBossWave(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `drawDeathSequenceOverlay(game: Game)`
 - **moddable** `drawGameOver(game: Game)`
@@ -1631,12 +1624,14 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `patchStatusLabel(s: PatchStatus): string`
 - **moddable** `patchStatus(game: Game, p: RogueliteRelicType): PatchStatus`
 
+### `pickup`
+
+- **moddable** `clampLootPosition(x: float32, y: float32, screenWidth: int32, screenHeight: int32): tuple[x: float32, y: float32]`
+- **moddable** `magnetPullsAll(player: Player): bool`
+- **moddable** `pullTowardPlayer(pos: var Vector2f, playerPos: Vector2f, dt: float32)`
+
 ### `player`
 
-- **moddable** `activateFireRateBoost(player: Player)`
-- **moddable** `activateInvincibility(player: Player)`
-- **moddable** `activateMagnet(player: Player)`
-- **moddable** `activateSpeedBoost(player: Player)`
 - **moddable** `dashBurstOf(p: Player): float32`
 - **moddable** `dashRechargeOf(p: Player): float32`
 - **moddable** `dashTimeOf(p: Player): float32` (wrap only: scripts cannot call it)
@@ -1729,6 +1724,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `pvp_game`
 
 - **moddable** `applyPlayerInput(pvp: PvPGameState, playerIndex: int, input: PlayerInput, dt: float32): Vector2f` (wrap only: scripts cannot call it)
+- **moddable** `applyPlayerNet(pvp: PvPGameState, i: int, s: PlayerStateNet, remote: bool)` (wrap only: scripts cannot call it)
 - **moddable** `areTeammates(pvp: PvPGameState, playerIdx1: int, playerIdx2: int): bool` (wrap only: scripts cannot call it)
 - **moddable** `assignPlayerToTeam(playerIndex: int, maxPlayers: int, teamsEnabled: bool): PvPTeam` (wrap only: scripts cannot call it)
 - **moddable** `canRematch(pvp: PvPGameState): bool` (wrap only: scripts cannot call it)
@@ -1930,6 +1926,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `cloneRunStatistics(src: RunStatistics): RunStatistics` (wrap only: scripts cannot call it)
 - **moddable** `endRun(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool)` (wrap only: scripts cannot call it)
 - **moddable** `finalizeRunTracking(game: Game, died: bool)`
+- **moddable** `gainCredits(game: Game, amount: int)`
 - **moddable** `getLastRunStats(): RunStatistics`
 - **moddable** `hasLastRunStats(): bool`
 - **moddable** `hasValidRunStats(): bool`
@@ -1970,7 +1967,6 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `trackBulletDespawn(game: Game, bullet: Bullet, hitEnemy: bool)`
 - **moddable** `trackBulletFired(game: Game)`
 - **moddable** `trackBulletHit(game: Game, bullet: Bullet, enemy: Enemy, damage: float32)`
-- **moddable** `trackCoinPickup(game: Game, amount: int)`
 - **moddable** `trackCombo(game: Game, comboCount: int)`
 - **moddable** `trackConsumableHealing(game: Game, requested: float32, restored: float32)`
 - **moddable** `trackConsumablePickup(game: Game, consumType: ConsumableType)`
@@ -2168,7 +2164,6 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawStatLine(x: int, y: int, label: string, value: string, valueColor: Color)` (wrap only: scripts cannot call it)
 - **moddable** `drawStatPanel(x: int, y: int, width: int, height: int, title: string)` (wrap only: scripts cannot call it)
 - **moddable** `drawStatsWindow(statsWin: StatsWindow, game: Game)`
-- **moddable** `fitText(text: string, maxWidth: int, fontSize: int32): string`
 - **moddable** `formatDuration(seconds: float32): string` (wrap only: scripts cannot call it)
 - **moddable** `formatLargeNumber(value: float32): string` (wrap only: scripts cannot call it)
 - **moddable** `formatPercent(value: float32): string` (wrap only: scripts cannot call it)
@@ -2388,6 +2383,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawRestorePointIcon(cx: float32, cy: float32, size: float32, body: Color, accent: Color, led: Color, spin: float32)` (wrap only: scripts cannot call it)
 - **moddable** `drawTextFit(text: string, x: int32, y: int32, maxWidth: int32, fontSize: int32, color: Color, minSize: int32, align: TextAlign): int32`
 - **moddable** `drawWrappedText(text: string, x: int, y: int, maxWidth: int, fontSize: int32, stockColor: Color, maxLines: int, lineGap: int, minSize: int32): int`
+- **moddable** `fitPathTail(path: string, maxWidth: int32, fontSize: int32, sep: char): string`
+- **moddable** `fitTextAndSize(text: string, maxWidth: int32, preferredSize: int32, minSize: int32): tuple[text: string, size: int32]`
 - **moddable** `fitWithEllipsis(text: string, maxWidth: int32, fontSize: int32): string`
 - **moddable** `wrapTextLines(text: string, maxWidth: int32, fontSize: int32, breakLongWords: bool): seq[string]`
 
@@ -2484,15 +2481,15 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `xp_orb`
 
 - **moddable** `collectAllXpOrbs(game: Game)`
-- **moddable** `collectXpOrb(game: Game, orb: XpOrb)` (wrap only: scripts cannot call it)
+- **moddable** `collectPickup(game: Game, orb: XpOrb): bool`
 - **moddable** `drawGameXpOrbs(game: Game)`
 - **moddable** `drawXpOrb(orb: XpOrb)` (wrap only: scripts cannot call it)
 - **moddable** `dropEnemyXp(game: Game, enemy: Enemy)`
 - **moddable** `enemyXpValue(enemy: Enemy): int` (wrap only: scripts cannot call it)
-- **moddable** `moveXpOrbToPlayer(orb: XpOrb, playerPos: Vector2f, dt: float32)` (wrap only: scripts cannot call it)
 - **moddable** `newXpOrb(x: float32, y: float32, value: int): XpOrb`
+- **moddable** `pickupAlive(game: Game, orb: XpOrb, dt: float32, count: int): bool`
+- **moddable** `pickupTrail(orb: XpOrb): Color`
 - **moddable** `updateGameXpOrbs(game: Game, dt: float32)`
-- **moddable** `updateXpOrb(orb: XpOrb, dt: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `xpRequiredForLevel(level: int, mode: GameMode): int`
 
 ## raylib

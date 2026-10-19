@@ -8,6 +8,7 @@
 
 import raylib, rlgl, math
 import ../modding/mod_patch_core
+import ../utils
 import ../localization, ../sound, ../gamepad_input, cinematic_common
 
 type
@@ -102,7 +103,7 @@ proc shotAt(c: Cutscene, time: float32): tuple[idx: int, local: float32, duratio
   (last, c.shots[last].duration, c.shots[last].duration)
 
 proc shotFade(local, duration: float32): float32 {.moddable.} =
-  min(easeInOut(local / 1.35'f32), easeInOut((duration - local) / 1.55'f32))
+  min(smoothstep(local / 1.35'f32), smoothstep((duration - local) / 1.55'f32))
 
 # ---------------------------------------------------------------------------
 
@@ -172,9 +173,9 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) {.moddable.} =
 
   drawTapeChange(sW, sH, local, c.frame, c.time)
 
-  let fadeIn  = 1.0'f32 - easeInOut(c.time / 0.75'f32)
-  let fadeOut = easeInOut((c.time - (c.totalDuration - 0.9'f32)) / 0.9'f32)
-  let fadeA   = alphaByte(max(fadeIn, fadeOut) * 255.0'f32)
+  let fadeIn  = 1.0'f32 - smoothstep(c.time / 0.75'f32)
+  let fadeOut = smoothstep((c.time - (c.totalDuration - 0.9'f32)) / 0.9'f32)
+  let fadeA   = clampByteF(max(fadeIn, fadeOut) * 255.0'f32)
 
   let glitchHot = shot.glitchMod > 0 and (c.frame mod shot.glitchMod) < shot.glitchWindow
   let pad = isGamepadActive()
@@ -200,14 +201,14 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) {.moddable.} =
     let cy = sH div 2 - 30
     # A dark band behind the card: it reads as the tape's label laid over the
     # scene, not as text competing with it.
-    drawRectangle(0, cy - 34, sW, 128, Color(r: 0, g: 0, b: 0, a: alphaByte(a * 165.0'f32)))
+    drawRectangle(0, cy - 34, sW, 128, Color(r: 0, g: 0, b: 0, a: clampByteF(a * 165.0'f32)))
     let ruleW = (sW.float32 * 0.32'f32 * a).int32
-    drawRectangle(cx - ruleW, cy - 16, ruleW * 2, 2, colorA(c.accentColor, a * 170.0'f32))
-    drawRectangle(cx - ruleW, cy + 54, ruleW * 2, 2, colorA(c.accentColor, a * 170.0'f32))
+    drawRectangle(cx - ruleW, cy - 16, ruleW * 2, 2, withAlpha(c.accentColor, a * 170.0'f32))
+    drawRectangle(cx - ruleW, cy + 54, ruleW * 2, 2, withAlpha(c.accentColor, a * 170.0'f32))
     drawCenteredText(c.titleCardText, cx, cy, 40,
-                     Color(r: 255, g: 255, b: 255, a: alphaByte(a * 255.0'f32)))
+                     Color(r: 255, g: 255, b: 255, a: clampByteF(a * 255.0'f32)))
     drawCenteredText(c.titleCardSub, cx, (cy + 60).int32, 16,
-                     colorA(c.accentColor, a * 200.0'f32))
+                     withAlpha(c.accentColor, a * 200.0'f32))
 
   if fadeA > 0:
     drawRectangle(0, 0, sW, sH, Color(r: 0, g: 0, b: 0, a: fadeA))

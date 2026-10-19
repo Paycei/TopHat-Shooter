@@ -111,7 +111,7 @@ proc numResult*(r: RetVals, fallback: float32): float32 =
 proc projectileOf(b: Bullet): int {.inline.} =
   if b.modKind.len == 0 or projectileKinds.len == 0: -1 else: findProjectileKind(b.modKind)
 
-proc steerToward(b: Bullet, target: Vector2f, rate, dt: float32) =
+proc steerToward(b: Bullet, target: Vector2, rate, dt: float32) =
   let speed = sqrt(b.vel.x * b.vel.x + b.vel.y * b.vel.y)
   let dx = target.x - b.pos.x
   let dy = target.y - b.pos.y
@@ -124,7 +124,7 @@ proc steerToward(b: Bullet, target: Vector2f, rate, dt: float32) =
   if n <= 0.0001: return
   nx /= n
   ny /= n
-  b.vel = Vector2f(x: nx * speed, y: ny * speed)
+  b.vel = Vector2(x: nx * speed, y: ny * speed)
 
 proc modProjectileUpdate(b: Bullet, dt: float32): bool =
   ## True: the kind moved the bullet itself this frame. A homing kind steers
@@ -329,7 +329,7 @@ template statusOps(T: typedesc, wrap: untyped) =
 statusOps(Enemy, wrapEnemy)
 statusOps(Player, wrapPlayer)
 
-proc drawStatusPips*(pos: Vector2f, radius: float32, list: seq[ModStatusInst], wrapped: ScriptValue) =
+proc drawStatusPips*(pos: Vector2, radius: float32, list: seq[ModStatusInst], wrapped: ScriptValue) =
   ## Small pips over an enemy (or the player): one per status, or the
   ## status's own `draw(target, x, y)` when it has one.
   if list.len == 0 or modCtx.inPvP: return

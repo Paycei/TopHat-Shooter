@@ -226,7 +226,7 @@ proc getAuraConfig*(auraType: PowerUpType, level: int): AuraConfig {.moddable.} 
       visualStyle: avsFlames
     )
 
-proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: float32) =
+proc drawAuraWave(pos: Vector2, config: AuraConfig, time: float32, travel: float32) =
   ## One outbound pulse: a wavefront that leaves the player and expands until it
   ## lands exactly on the aura border at travel == 1. `travel` is normalized
   ## progress, eased out so the wave launches fast and settles into the rim.
@@ -250,7 +250,7 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
   # Trailing wash between the wave and the ground it already covered. This is
   # what makes it read as a wave sweeping the field rather than a growing circle.
   let innerTrail = max(0.0'f32, r - 26.0'f32 - config.radius * 0.06'f32)
-  drawRing(Vector2(x: pos.x, y: pos.y), innerTrail, r, 0.0, 360.0, 64,
+  drawRing(pos, innerTrail, r, 0.0, 360.0, 64,
            edgeColor(46.0'f32 * (1.0'f32 - travel * 0.5'f32)))
 
   # Core of the wavefront: three tight rings so the leading edge has weight.
@@ -351,7 +351,7 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
       drawDisc(Vector2(x: dx - cos(angle) * size, y: dy - sin(angle) * size), size * 0.55,
                  Color(r: 150, g: 25, b: 25, a: uint8(180.0 * (1.0 - travel * 0.35))))
 
-proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
+proc drawAuraEffect*(pos: Vector2, config: AuraConfig, time: float32,
                      charge: float32 = 1.0, flash: float32 = 0.0) {.moddable.} =
   ## Unified aura drawing function that handles all visual styles.
   ## `charge` is progress toward the next pulse (0..1), drawn as a sweep along
@@ -384,13 +384,13 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
   # Kept faint: several stacked auras fill on top of each other.
   let bodyAlpha = uint8(clamp(config.coreColor.a.float32 * 0.55 * (0.85 + 0.15 * pulse),
                               0.0'f32, 255.0'f32))
-  drawDisc(Vector2(x: pos.x, y: pos.y), config.radius,
+  drawDisc(pos, config.radius,
              Color(r: config.ringColor.r, g: config.ringColor.g,
                    b: config.ringColor.b, a: bodyAlpha))
 
   # Draw core glow (common to all auras); firing briefly kicks it
   let coreAlpha = uint8(min(255.0'f32, config.coreColor.a.float32 * (1.0 + burst * 2.0)))
-  drawDisc(Vector2(x: pos.x, y: pos.y),
+  drawDisc(pos,
              config.radius * 0.3 * pulse * (1.0 + burst * 0.35),
              Color(r: config.coreColor.r, g: config.coreColor.g,
                    b: config.coreColor.b, a: coreAlpha))
@@ -573,7 +573,7 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
   # each ring is at its own radius and fills at its own rate.
   let clamped = clamp(charge, 0.0'f32, 1.0'f32)
   if clamped > 0.001:
-    drawRing(Vector2(x: pos.x, y: pos.y), config.radius - 6.0, config.radius - 1.5,
+    drawRing(pos, config.radius - 6.0, config.radius - 1.5,
              -90.0, -90.0 + 360.0 * clamped, 48,
              Color(r: br, g: bg, b: bb, a: uint8(90 + 70.0 * clamped)))
 

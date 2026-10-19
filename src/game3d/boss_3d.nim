@@ -3,7 +3,7 @@
 import raylib, math, random
 import ../modding/mod_patch_core
 import ../draw_prims
-import types_3d, engine_3d, ../modding/[mod_hooks, mod_assets]
+import types_3d, ../modding/[mod_hooks, mod_assets]
 
 const
   PHASE2_THRESHOLD = 0.66  # Transition to Phase 2 when HP drops to 66% (and all satellites destroyed)
@@ -468,7 +468,7 @@ proc drawSatelliteHealthbars*(boss: Boss3D, camera: FPSCamera) {.moddable.} =
         drawRectOutline(int32(screenPos.x - barWidth / 2), int32(screenPos.y - barHeight / 2),
                           int32(barWidth), int32(barHeight), White)
 
-proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3f] {.moddable.} =
+proc takeBossDamage*(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3] {.moddable.} =
   ## world3dHit may rescale the projectile's damage.
   # Phase transition invulnerability
   if boss.phaseTransitionTimer > 0:

@@ -351,7 +351,7 @@ proc suspendGame*(game: Game) {.moddable.} =
 # retireSatelliteHazards can no longer find it. The copies are field-for-field
 # identical to their list entry, so each is swapped back for that entry.
 
-proc samePos(a, b: Vector2f): bool {.inline.} =
+proc samePos(a, b: Vector2): bool {.inline.} =
   a.x == b.x and a.y == b.y
 
 proc listTwin(lasers: seq[Laser], copy: Laser): Laser =

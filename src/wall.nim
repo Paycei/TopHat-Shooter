@@ -18,7 +18,7 @@ proc newWall*(x, y: float32, player: Player): Wall {.moddable.} =
   let facing = arctan2(y - player.pos.y, x - player.pos.x)
 
   result = Wall(
-    pos: newVector2f(x, y),
+    pos: vec2(x, y),
     radius: 25,
     hp: maxHp,
     maxHp: maxHp,
@@ -153,7 +153,7 @@ proc drawWall*(wall: Wall, player: Player) {.moddable.} =
     let tint = wall.obstacleTint
     let body = Color(r: uint8(tint.r div 3), g: uint8(tint.g div 3),
                      b: uint8(tint.b div 3), a: 255)
-    drawDisc(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, body)
+    drawDisc(wall.pos, wall.radius, body)
     drawCircleOutline(wall.pos.x.int32, wall.pos.y.int32, wall.radius, tint)
     drawCircleOutline(wall.pos.x.int32, wall.pos.y.int32, wall.radius * 0.55'f32,
                     withAlpha(tint, 120))
@@ -195,10 +195,10 @@ proc takeDamage*(wall: Wall, damage: float32) {.moddable.} =
   wall.hp -= damage
   if wall.hp < 0: wall.hp = 0
 
-proc checkPlayerWallCollision*(playerPos: Vector2f, playerRadius: float32, wall: Wall): bool {.moddable.} =
+proc checkPlayerWallCollision*(playerPos: Vector2, playerRadius: float32, wall: Wall): bool {.moddable.} =
   wallOverlapsCircle(wall, playerPos, playerRadius)
 
-proc isValidWallPlacement*(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall], enemies: seq[Enemy],
+proc isValidWallPlacement*(pos: Vector2, playerPos: Vector2, walls: seq[Wall], enemies: seq[Enemy],
                            radius: float32, worldWidth, worldHeight: int32): bool {.moddable.} =
   ## `pos` is in WORLD coords. In the widescreen layout the cursor can sit in the
   ## side gutters, which is world x < 0 or x > worldWidth, so the arena bounds

@@ -236,11 +236,6 @@ proc drawLockGlyph(x, y: int32, color: Color) =
   drawRectOutline(x + 2, y + 8, 16, 14, color)
   drawDisc(Vector2(x: (x + 10).float32, y: (y + 15).float32), 2, color)
 
-proc fitTextSize(text: string, maxWidth: int32, startSize: int32, minSize: int32 = 7): int32 =
-  result = startSize
-  while result > minSize and measureText(text, result) > maxWidth:
-    dec result
-
 proc wrapTwoLines(text: string, maxWidth: int32, fontSize: int32 = 10): tuple[line1: string, line2: string] {.moddable.} =
   let lines = wrapTextLines(text, maxWidth, fontSize)
   (line1: if lines.len > 0: lines[0] else: "",
@@ -337,7 +332,7 @@ proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cos
     parts.add((icon: ciDataShards, amount: cost.dataShards))
 
   if parts.len == 0:
-    let fontSize = fitTextSize(statusText, pillW - 8, 10, 6)
+    let fontSize = bestFitFontSize(statusText, pillW - 8, 10, 6)
     let statusWidth = measureText(statusText, fontSize)
     drawText(statusText, (x + (SKIN_BOX_WIDTH - statusWidth) div 2).int32, (y + 121).int32, fontSize, statusColor)
     return
@@ -351,7 +346,7 @@ proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cos
     let txtW = int32(measureText($p.amount, 11))
     iconAreaWidth += iconSize + paddingBetween + txtW + interPartGap
 
-  let fontSize = fitTextSize(statusText, pillW - iconAreaWidth - 8, 10, 6)
+  let fontSize = bestFitFontSize(statusText, pillW - iconAreaWidth - 8, 10, 6)
   let statusWidth = measureText(statusText, fontSize)
   let statusX = x + (SKIN_BOX_WIDTH - statusWidth - iconAreaWidth) div 2
   drawText(statusText, statusX.int32, (y + 121).int32, fontSize, statusColor)
@@ -470,7 +465,7 @@ proc drawPlayerSkinPreview(x, y: int, skinType: SkinType, shapeType: ShapeType, 
   # Draw player using the shape system
   cardPreview(x, y):
     drawPlayerShape(
-      Vector2f(x: centerX, y: centerY),
+      Vector2(x: centerX, y: centerY),
       playerRadius,
       shapeType,
       primaryColor,
@@ -614,7 +609,7 @@ proc drawBulletShapePreview(x, y: int, shapeType: BulletShapeType, time: float32
   let glowColor   = Color(r: 0, g: 255, b: 255, a: 80)
   let travelAngle = 0.0  # flying right, arrow uses this for orientation
   cardPreview(x, y):
-    drawPlayerBulletShape(Vector2f(x: cx, y: cy), rScaled, shapeType, travelAngle, previewColor, glowColor)
+    drawPlayerBulletShape(Vector2(x: cx, y: cy), rScaled, shapeType, travelAngle, previewColor, glowColor)
 
     # Trail dots to give motion feel
     for i in 1..3:
@@ -687,7 +682,7 @@ proc drawShapePreview(x, y: int, shapeType: ShapeType, time: float32, isSelected
 
   # Draw shape using the same rendering as in-game
   cardPreview(x, y):
-    drawPlayerShape(newVector2f(centerX, centerY), shapeRadiusScaled, shapeType,
+    drawPlayerShape(vec2(centerX, centerY), shapeRadiusScaled, shapeType,
                    baseColor, secondaryColor, coreColor, time, rotation, pulse, glowIntensity)
 
   # Shape name
@@ -1205,7 +1200,7 @@ proc drawModCosmeticPreview(shop: ShopWindow, c: ModCosmetic, x, y, border: int)
   elif c.hasPalette:
     case c.kind
     of mckPlayer:
-      drawPlayerShape(Vector2f(x: cx, y: cy), 15.0'f32, shop.selectedShape, c.c1, c.c2, c.c3,
+      drawPlayerShape(Vector2(x: cx, y: cy), 15.0'f32, shop.selectedShape, c.c1, c.c2, c.c3,
                       shop.animationTime, shop.animationTime * 0.5'f32, 0.5'f32, 1.0'f32)
     of mckBullet:
       # A glowing dot with a fading trail behind it.
@@ -1264,7 +1259,7 @@ proc drawModCard(shop: ShopWindow, idx, x, y: int) =
   drawRectOutline(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: 20.0'f32),
                      1.0'f32, pillColor)
   let label = if equipped: t("shop_equipped") else: t(tkModsEquip)
-  let fs = fitTextSize(label, pillW - 8, 11, 6)
+  let fs = bestFitFontSize(label, pillW - 8, 11, 6)
   drawText(label, (x + (MOD_CARD_W - measureText(label, fs)) div 2).int32, (pillY + 4).int32, fs, pillColor)
 
   # Border last, so nothing drawn inside the card can cover it.
@@ -1658,7 +1653,7 @@ template secretPreview(cardX, cardY: int, body: untyped) =
     body
 
 proc drawSecretCardLabels(cardX, cardY: int, equipped: bool, name: string) =
-  let nameSize = fitTextSize(name, (SECRET_CARD_W - 16).int32, 16, 10)
+  let nameSize = bestFitFontSize(name, (SECRET_CARD_W - 16).int32, 16, 10)
   let nameW = measureText(name, nameSize)
   drawText(name, (cardX + (SECRET_CARD_W - nameW) div 2).int32,
            (cardY + 158 + (16 - nameSize) div 2).int32, nameSize, uiInk(White))
@@ -1749,9 +1744,9 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
       # On the player's current skin and shape.
       let previewY = (cardY + 110).float32
       secretPreview(cardX, cardY):
-        drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
+        drawPlayerShape(vec2(centerX, previewY), 30.0'f32, shop.selectedShape,
                         primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
-        drawTopHat(newVector2f(centerX, previewY), 30.0'f32, time, 1.0'f32, primary)
+        drawTopHat(vec2(centerX, previewY), 30.0'f32, time, 1.0'f32, primary)
     of siOrbitalCube:
       # The player's shape with the mini desktop cube (in the equipped cube
       # skin's colors) circling it live.
@@ -1759,7 +1754,7 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
       let orbitAngle = time * 1.3'f32
       let orbitDist = 24.0'f32 * 2.1'f32 + sin(time * 2.1'f32) * 3.0'f32
       secretPreview(cardX, cardY):
-        drawPlayerShape(newVector2f(centerX, previewY), 24.0'f32, shop.selectedShape,
+        drawPlayerShape(vec2(centerX, previewY), 24.0'f32, shop.selectedShape,
                         primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
         drawMiniCube(Vector2(x: centerX + cos(orbitAngle) * orbitDist,
                              y: previewY + sin(orbitAngle) * orbitDist * 0.72'f32),
@@ -1768,9 +1763,9 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
       # The shamefully pristine pointy hat.
       let previewY = (cardY + 110).float32
       secretPreview(cardX, cardY):
-        drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
+        drawPlayerShape(vec2(centerX, previewY), 30.0'f32, shop.selectedShape,
                         primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
-        drawCheaterHat(newVector2f(centerX, previewY), 30.0'f32, time)
+        drawCheaterHat(vec2(centerX, previewY), 30.0'f32, time)
     of siCknTheme:
       drawCknThemePreview(cardX, cardY, time)
     drawSecretCardLabels(cardX, cardY, secretEquipped(item), secretName(item))
@@ -1830,7 +1825,7 @@ proc drawShopWindow*(shop: ShopWindow) {.moddable.} =
     if active:
       drawRectangle(tabX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, uiSurface(td.underline))
     let label = t(td.labelKey)
-    let fs = fitTextSize(label, labelMaxW, 12, 8)
+    let fs = bestFitFontSize(label, labelMaxW, 12, 8)
     let labelX = tabX + (tabWidth - measureText(label, fs)) div 2
     drawText(label, labelX.int32, (tabY + 13 + (12 - fs) div 2).int32, fs, if active: uiInk(White) else: uiInk(Gray))
 

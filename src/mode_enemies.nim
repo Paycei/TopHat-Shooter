@@ -21,15 +21,15 @@ const
 proc isBallistic*(enemy: Enemy): bool {.inline, moddable.} =
   enemy.ballisticVel.x != 0.0'f32 or enemy.ballisticVel.y != 0.0'f32
 
-proc moveToward(enemy: var Enemy, target: Vector2f, speed, dt: float32,
+proc moveToward(enemy: var Enemy, target: Vector2, speed, dt: float32,
                 walls: seq[Wall], currentTime: float32, game: var Game): bool =
   ## Inertial step toward `target`. Returns true when a wall blocked it.
   let toT = target - enemy.pos
   let d = toT.length()
-  let desired = if d > 1.0'f32: toT * (speed / d) else: newVector2f(0, 0)
+  let desired = if d > 1.0'f32: toT * (speed / d) else: vec2(0, 0)
   let nextPos = enemy.pos + applyEnemyInertia(enemy, desired, dt) * dt
   if checkWallCollision(enemy, nextPos, walls, currentTime, game):
-    discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+    discard applyEnemyInertia(enemy, vec2(0, 0), dt)
     return true
   enemy.pos = nextPos
   false
@@ -42,14 +42,14 @@ proc onScreen(enemy: Enemy, game: Game): bool {.inline.} =
   enemy.pos.x > 0 and enemy.pos.y > 0 and
     enemy.pos.x < game.screenWidth.float32 and enemy.pos.y < game.screenHeight.float32
 
-proc addDashLane(game: var Game, enemy: Enemy, fromPos, toPos: Vector2f, duration, width: float32) =
+proc addDashLane(game: var Game, enemy: Enemy, fromPos, toPos: Vector2, duration, width: float32) =
   var w = newAttackWarning(fromPos.x, fromPos.y, awtEnemyDashLane, duration, enemy.id)
   w.targetPos = toPos
   w.bulletRadius = width
   w.enemyType = enemy.enemyType
   game.attackWarnings.add(w)
 
-proc rangedStep(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed: float32,
+proc rangedStep(enemy: var Enemy, playerPos: Vector2, dt, effectiveSpeed: float32,
                 walls: seq[Wall], currentTime: float32, game: var Game) =
   ## The Cube-style loop: enter the arena, hold range, fire from the config.
   let config = getEnemyConfig(enemy.enemyType)
@@ -63,10 +63,10 @@ proc rangedStep(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed: float
      not checkScreenBoundaryCollision(enemy, nextPos, game, config):
     enemy.pos = nextPos
   else:
-    discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+    discard applyEnemyInertia(enemy, vec2(0, 0), dt)
   executeRangedAttack(enemy, playerPos, game)
 
-proc holdRange(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed: float32,
+proc holdRange(enemy: var Enemy, playerPos: Vector2, dt, effectiveSpeed: float32,
                optimal, retreat: float32, walls: seq[Wall], currentTime: float32,
                game: var Game) =
   ## Keep-away movement for support enemies (no config lookup per frame).
@@ -76,7 +76,7 @@ proc holdRange(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed: float3
   let target =
     if d < retreat: enemy.pos - dir * 60.0'f32
     elif d > optimal: enemy.pos + dir * 60.0'f32
-    else: enemy.pos + newVector2f(-dir.y, dir.x) * 30.0'f32
+    else: enemy.pos + vec2(-dir.y, dir.x) * 30.0'f32
   let speed = if d > optimal: effectiveSpeed * 0.7'f32 else: effectiveSpeed
   discard moveToward(enemy, target, speed, dt, walls, currentTime, game)
 
@@ -85,7 +85,7 @@ proc fireRing(game: var Game, enemy: Enemy, count: int, speed, damage: float32,
   for i in 0..<count:
     let a = offset + i.float32 * PI * 2.0'f32 / count.float32
     game.bullets.add(newBullet(
-      x = enemy.pos.x, y = enemy.pos.y, direction = newVector2f(cos(a), sin(a)),
+      x = enemy.pos.x, y = enemy.pos.y, direction = vec2(cos(a), sin(a)),
       speed = speed, damage = damage, fromPlayer = false,
       sourceEnemyId = enemy.id, sourceEnemyType = enemy.enemyType))
 
@@ -101,10 +101,10 @@ proc updateBallistic(enemy: var Enemy, dt: float32) =
   if enemy.generation >= 0:
     enemy.modeTimer -= dt
     if enemy.modeTimer <= 0 and enemy.generation == 0:
-      enemy.ballisticVel = newVector2f(0, 0)
+      enemy.ballisticVel = vec2(0, 0)
       enemy.hasEnteredScreen = true
 
-proc updateThread(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateThread(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                   walls: seq[Wall], currentTime: float32, game: var Game) =
   if isBallistic(enemy):
     updateBallistic(enemy, dt)
@@ -113,11 +113,11 @@ proc updateThread(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
   # folds in as it closes, so a swarm arrives as ribbons.
   let toP = playerPos - enemy.pos
   let d = max(0.001'f32, toP.length())
-  let perp = newVector2f(-toP.y / d, toP.x / d)
+  let perp = vec2(-toP.y / d, toP.x / d)
   let lane = enemy.rotation * clamp(d / 260.0'f32, 0.0'f32, 1.0'f32)
   discard moveToward(enemy, playerPos + perp * lane, speed, dt, walls, currentTime, game)
 
-proc updateForkBomb(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateForkBomb(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                     walls: seq[Wall], currentTime: float32, game: var Game) =
   discard moveToward(enemy, playerPos, speed, dt, walls, currentTime, game)
   # An ignored bomb forks a copy of itself (copies never fork again). Boss
@@ -128,7 +128,7 @@ proc updateForkBomb(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
     if enemy.modeTimer >= ForkBombSelfForkTime:
       enemy.attackPhase = RequestForkBombFork
 
-proc updateDeadlock(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateDeadlock(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                     walls: seq[Wall], currentTime: float32, game: var Game) =
   ## A mutex. Every Deadlock is linked to every other one within
   ## DeadlockMaxTether (the mesh, burned in game/mode_mechanics), so the group
@@ -139,7 +139,7 @@ proc updateDeadlock(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
   let center = playerPos + game.player.vel * 0.5'f32
   var bearing = enemy.pos - center
   if bearing.length() < 1.0'f32:
-    bearing = newVector2f(cos(enemy.id.float32), sin(enemy.id.float32))
+    bearing = vec2(cos(enemy.id.float32), sin(enemy.id.float32))
   let mine = arctan2(bearing.y, bearing.x)
   # Slide around the ring, away from the Deadlocks on nearby bearings.
   var shift = 0.0'f32
@@ -152,10 +152,10 @@ proc updateDeadlock(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
     let away = if d > 0.0'f32 or (d == 0.0'f32 and enemy.id > o.id): 1.0'f32 else: -1.0'f32
     shift += away * (PI - abs(d))
   let slot = mine + clamp(shift * 0.5'f32, -1.2'f32, 1.2'f32)
-  let target = center + newVector2f(cos(slot), sin(slot)) * 150.0'f32
+  let target = center + vec2(cos(slot), sin(slot)) * 150.0'f32
   discard moveToward(enemy, target, speed, dt, walls, currentTime, game)
 
-proc updateInterrupt(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateInterrupt(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                      walls: seq[Wall], currentTime: float32, game: var Game) =
   case enemy.attackPhase
   of 0:
@@ -168,12 +168,12 @@ proc updateInterrupt(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
       enemy.targetPos.y = clamp(enemy.targetPos.y, 20.0'f32, game.screenHeight.float32 - 20.0'f32)
       enemy.attackPhase = 1
       enemy.attackExecuteTimer = InterruptMarkTime
-      enemy.vel = newVector2f(0, 0)
+      enemy.vel = vec2(0, 0)
       addDashLane(game, enemy, enemy.pos, enemy.targetPos, InterruptMarkTime + 0.3'f32,
                   InterruptBlastRadius)
   of 1:
     enemy.attackExecuteTimer -= dt
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     if enemy.attackExecuteTimer <= 0:
       enemy.attackPhase = 2
   of 2:
@@ -192,8 +192,8 @@ proc updateInterrupt(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
 # ---------------------------------------------------------------------------
 # Roguelite rooms
 
-proc fragmentMark(enemy: Enemy, playerPos: Vector2f, lead: float32,
-                  walls: seq[Wall], game: Game): Vector2f =
+proc fragmentMark(enemy: Enemy, playerPos: Vector2, lead: float32,
+                  walls: seq[Wall], game: Game): Vector2 =
   ## Where a pounce lands: the player's position `lead` seconds ahead on their
   ## current heading, pulled in to the longest pounce, kept in the arena, and
   ## slid back toward the Fragment while it would land inside an obstacle.
@@ -214,7 +214,7 @@ proc fragmentMark(enemy: Enemy, playerPos: Vector2f, lead: float32,
     if not blocked: break
     result = result + (enemy.pos - result) * 0.25'f32
 
-proc updateFragment(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateFragment(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                     walls: seq[Wall], currentTime: float32, game: var Game) =
   ## Skitters in on short hops. In range it crouches and marks where the
   ## player is heading (the mark tracks, then locks), then pounces onto the
@@ -232,7 +232,7 @@ proc updateFragment(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
        distance(enemy.pos, playerPos) < FragmentPounceRange:
       enemy.attackPhase = 1
       enemy.modeTimer = 0
-      enemy.vel = newVector2f(0, 0)
+      enemy.vel = vec2(0, 0)
       enemy.targetPos = fragmentMark(enemy, playerPos,
                                      FragmentTrackTime + FragmentLockTime + FragmentLeapTime,
                                      walls, game)
@@ -247,7 +247,7 @@ proc updateFragment(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
       enemy.vel = enemy.vel * pow(0.02'f32, dt)
   of 1:
     # Crouched: the mark leads the player all the way to the impact.
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     enemy.modeTimer += dt
     enemy.targetPos = fragmentMark(enemy, playerPos,
                                    max(0.0'f32, FragmentTrackTime - enemy.modeTimer) +
@@ -258,7 +258,7 @@ proc updateFragment(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
       enemy.modeTimer = 0
   of 2:
     # Locked: the mark stays put, whatever the player does now.
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     enemy.modeTimer += dt
     if enemy.modeTimer >= FragmentLockTime:
       enemy.attackPhase = 3
@@ -273,11 +273,11 @@ proc updateFragment(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
     enemy.pos = enemy.startPos + (enemy.targetPos - enemy.startPos) * k
     enemy.vel = (enemy.targetPos - enemy.startPos) * (1.0'f32 / FragmentLeapTime)
     if k >= 1.0'f32:
-      enemy.vel = newVector2f(0, 0)
+      enemy.vel = vec2(0, 0)
       enemy.attackPhase = RequestFragmentSlam
   of 4:
     # Grounded after the slam.
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     enemy.modeTimer -= dt
     if enemy.modeTimer <= 0:
       enemy.attackPhase = 0
@@ -286,7 +286,7 @@ proc updateFragment(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
   else:
     discard
 
-proc updatePortGuard(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updatePortGuard(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                      walls: seq[Wall], currentTime: float32, game: var Game) =
   # rotation = shield facing. It turns slowly, so circling it works.
   let want = arctan2(playerPos.y - enemy.pos.y, playerPos.x - enemy.pos.x)
@@ -299,7 +299,7 @@ proc updatePortGuard(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
   let pace = if abs(diff) < 0.6'f32: speed else: speed * 0.25'f32
   discard moveToward(enemy, playerPos, pace, dt, walls, currentTime, game)
 
-proc updateSentry(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateSentry(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                   walls: seq[Wall], currentTime: float32, game: var Game) =
   if enemy.attackPhase == 0:
     if enemy.modeTimer == 0.0'f32:
@@ -308,7 +308,7 @@ proc updateSentry(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
       for attempt in 0..14:
         let a = rand(PI * 2.0)
         let r = 200.0'f32 + rand(120.0).float32
-        let p = newVector2f(
+        let p = vec2(
           clamp(playerPos.x + cos(a) * r, 60.0'f32, game.screenWidth.float32 - 60.0'f32),
           clamp(playerPos.y + sin(a) * r, 60.0'f32, game.screenHeight.float32 - 60.0'f32))
         var blocked = false
@@ -324,28 +324,28 @@ proc updateSentry(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
     if blocked or distance(enemy.pos, enemy.targetPos) < 10.0'f32 or
        enemy.modeTimer > SentryPostTimeout:
       enemy.attackPhase = 1   # rooted
-      enemy.vel = newVector2f(0, 0)
+      enemy.vel = vec2(0, 0)
       enemy.hasEnteredScreen = true
       enemy.shootTimer = 1.0'f32
   else:
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     enemy.rotation = arctan2(playerPos.y - enemy.pos.y, playerPos.x - enemy.pos.x)
     enemy.shootTimer += dt
     executeRangedAttack(enemy, playerPos, game)
 
-proc updateMimic(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateMimic(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                  walls: seq[Wall], currentTime: float32, game: var Game) =
   case enemy.attackPhase
   of 0:
     # Dormant: a harmless-looking file. Contact never lands while it sleeps.
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     enemy.lastContactDamageTime = currentTime
     if distance(enemy.pos, playerPos) < MimicWakeRadius or enemy.hp < enemy.maxHp - 0.0001'f32:
       enemy.attackPhase = 1
       enemy.modeTimer = MimicLungeTime
       let toP = playerPos - enemy.pos
       let d = max(0.001'f32, toP.length())
-      enemy.ballisticVel = newVector2f(0, 0)
+      enemy.ballisticVel = vec2(0, 0)
       enemy.vel = toP * (MimicLungeSpeed / d)
       let dmg = max(0.5'f32, enemy.contactDamage * 0.7'f32)
       fireRing(game, enemy, 6, 170.0'f32, dmg, arctan2(toP.y, toP.x))
@@ -360,7 +360,7 @@ proc updateMimic(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
   else:
     discard moveToward(enemy, playerPos, speed, dt, walls, currentTime, game)
 
-proc updateRestorer(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateRestorer(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                     walls: seq[Wall], currentTime: float32, game: var Game) =
   proc corpseIndex(game: Game, id: int): int =
     for i, c in game.modeCombat.corpses:
@@ -394,7 +394,7 @@ proc updateRestorer(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
       enemy.attackPhase = 2
       enemy.attackExecuteTimer = RestorerChannelTime
   of 2:
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     let idx = corpseIndex(game, enemy.id)
     if idx < 0:
       enemy.attackPhase = 0
@@ -410,7 +410,7 @@ proc updateRestorer(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
     if enemy.attackExecuteTimer <= 0:
       enemy.attackPhase = RequestRestorerRevive
   else:
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
 
 proc bounceOffArena(enemy: var Enemy, game: Game): bool =
   let r = enemy.radius
@@ -425,7 +425,7 @@ proc bounceOffArena(enemy: var Enemy, game: Game): bool =
   elif enemy.pos.y > h - r and enemy.vel.y > 0:
     enemy.vel.y = -enemy.vel.y; enemy.pos.y = h - r; result = true
 
-proc updatePacket(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updatePacket(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                   walls: seq[Wall], currentTime: float32, game: var Game) =
   case enemy.attackPhase
   of 0:
@@ -472,7 +472,7 @@ proc updatePacket(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
       enemy.attackPhase = 0
       enemy.modeTimer = 0
 
-proc updateDriver(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateDriver(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                   walls: seq[Wall], currentTime: float32, game: var Game) =
   case enemy.attackPhase
   of 0:
@@ -491,11 +491,11 @@ proc updateDriver(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
       enemy.targetPos = toP   # locked charge heading
       enemy.attackPhase = 1
       enemy.attackExecuteTimer = DriverWindup
-      enemy.vel = newVector2f(0, 0)
+      enemy.vel = vec2(0, 0)
       addDashLane(game, enemy, enemy.pos, enemy.pos + toP * 560.0'f32, DriverWindup,
                   enemy.radius)
   of 1:
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     enemy.attackExecuteTimer -= dt
     if enemy.attackExecuteTimer <= 0:
       enemy.attackPhase = 2
@@ -520,7 +520,7 @@ proc updateDriver(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
         hitWall.takeDamage(2.0'f32)
       enemy.attackPhase = 3
       enemy.attackExecuteTimer = DriverStunTime
-      enemy.vel = newVector2f(0, 0)
+      enemy.vel = vec2(0, 0)
       keepInArena(enemy, game, r)
     elif enemy.modeTimer <= 0:
       enemy.attackPhase = 0
@@ -529,13 +529,13 @@ proc updateDriver(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
     else:
       enemy.pos = nextPos
   else:
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     enemy.attackExecuteTimer -= dt
     if enemy.attackExecuteTimer <= 0:
       enemy.attackPhase = 0
       enemy.modeTimer = DriverRecover
 
-proc updateCorruptor(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
+proc updateCorruptor(enemy: var Enemy, playerPos: Vector2, dt, speed: float32,
                      walls: seq[Wall], currentTime: float32, game: var Game) =
   holdRange(enemy, playerPos, dt, speed, 200.0'f32, 120.0'f32, walls, currentTime, game)
   enemy.modeTimer += dt
@@ -554,7 +554,7 @@ proc updateCorruptor(enemy: var Enemy, playerPos: Vector2f, dt, speed: float32,
 
 # ---------------------------------------------------------------------------
 
-proc updateModeEnemy*(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed: float32,
+proc updateModeEnemy*(enemy: var Enemy, playerPos: Vector2, dt, effectiveSpeed: float32,
                       walls: seq[Wall], currentTime: float32, game: var Game) {.moddable.} =
   ## One frame of a Survival/Roguelite roster enemy (haste and slows are
   ## already folded into `effectiveSpeed` by updateEnemy).
@@ -592,7 +592,7 @@ proc updateModeEnemy*(enemy: var Enemy, playerPos: Vector2f, dt, effectiveSpeed:
   else:
     discard
 
-proc modeEnemyDamageTakenMult*(enemy: Enemy, hitFrom: Vector2f): float32 {.moddable.} =
+proc modeEnemyDamageTakenMult*(enemy: Enemy, hitFrom: Vector2): float32 {.moddable.} =
   ## Directional armour of the roster: Port Guards block the front outright
   ## (handled as a block by the caller, see shieldBlocksHit), Drivers take
   ## little from the front and double while stunned. `hitFrom` is where the

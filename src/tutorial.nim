@@ -47,7 +47,7 @@ type
     doneTimer*: float32   ## > 0 while an action step's "DONE" beat plays
     skipHold*: float32    ## seconds the skip key has been held
     targetIds*: seq[int]  ## enemy ids of the practice targets
-    lastPlayerPos: Vector2f
+    lastPlayerPos: Vector2
     moved: float32
     fireTime: float32
     wasDashing: bool

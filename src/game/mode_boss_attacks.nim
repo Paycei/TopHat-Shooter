@@ -25,8 +25,8 @@ const ModeBossAttacks* = [
 proc isModeBossAttack*(specialData: string): bool {.moddable.} =
   specialData in ModeBossAttacks
 
-proc arenaClamp(game: Game, p: Vector2f, pad: float32): Vector2f =
-  newVector2f(clamp(p.x, pad, game.screenWidth.float32 - pad),
+proc arenaClamp(game: Game, p: Vector2, pad: float32): Vector2 =
+  vec2(clamp(p.x, pad, game.screenWidth.float32 - pad),
               clamp(p.y, pad, game.screenHeight.float32 - pad))
 
 proc beginMegaCast(enemy: Enemy, total: float32) =
@@ -34,7 +34,7 @@ proc beginMegaCast(enemy: Enemy, total: float32) =
   ## countdown paused (the boss attack loop breaks while this runs).
   enemy.megaCastTimer = total
   enemy.megaCastTotal = total
-  enemy.vel = newVector2f(0, 0)
+  enemy.vel = vec2(0, 0)
   enemy.isDashing = false
 
 proc livingGuards(game: Game): int =
@@ -42,7 +42,7 @@ proc livingGuards(game: Game): int =
     if e.royalGuard and e.spawnedByBoss and e.hp > 0:
       inc result
 
-proc minion(game: var Game, boss: Enemy, pos: Vector2f, et: EnemyType): Enemy =
+proc minion(game: var Game, boss: Enemy, pos: Vector2, et: EnemyType): Enemy =
   ## A boss-spawned roster unit: no loot, engages at once. Its stats follow
   ## the live difficulty like any enemy; units that ARE the attack (seeds,
   ## orbs, ranks) take the attack's (slot-tuned) damage instead.
@@ -50,7 +50,7 @@ proc minion(game: var Game, boss: Enemy, pos: Vector2f, et: EnemyType): Enemy =
   result.spawnedByBoss = true
   result.hasEnteredScreen = true
 
-proc bossShot(game: var Game, boss: Enemy, pos, dir: Vector2f, speed, damage: float32) =
+proc bossShot(game: var Game, boss: Enemy, pos, dir: Vector2, speed, damage: float32) =
   game.bullets.add(newBullet(
     x = pos.x, y = pos.y, direction = dir, speed = speed, damage = damage,
     fromPlayer = false, isBossBullet = true, sourceEnemyId = boss.id,
@@ -67,7 +67,7 @@ proc forkChildren(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32)
   let spin = rand(PI * 2.0).float32
   for i in 0..<count:
     let a = spin + i.float32 * PI * 2.0'f32 / count.float32
-    let pos = arenaClamp(game, boss.pos + newVector2f(cos(a), sin(a)) * (boss.radius + ring), 30.0'f32)
+    let pos = arenaClamp(game, boss.pos + vec2(cos(a), sin(a)) * (boss.radius + ring), 30.0'f32)
     let child = minion(game, boss, pos, etForkBomb)
     child.royalGuard = true
     child.linkId = boss.id
@@ -97,8 +97,8 @@ proc exponentialFork(game: var Game, boss: Enemy, attack: BossAttack, dmg: float
   let roots = if twin: @[aim - 0.5'f32, aim + 0.5'f32] else: @[aim]
   var tree = newAttackWarning(boss.pos.x, boss.pos.y, awtForkTree,
                               beat * depth.float32 + beat * 1.4'f32, boss.id)
-  proc grow(path: var seq[Vector2f], p: Vector2f, heading: float32, level: int) =
-    let q = p + newVector2f(cos(heading), sin(heading)) * (speed * 1.25'f32 * beat)
+  proc grow(path: var seq[Vector2], p: Vector2, heading: float32, level: int) =
+    let q = p + vec2(cos(heading), sin(heading)) * (speed * 1.25'f32 * beat)
     path.add(p)
     path.add(q)
     if level > 0:
@@ -114,10 +114,10 @@ proc exponentialFork(game: var Game, boss: Enemy, attack: BossAttack, dmg: float
     seed.contactDamage = dmg
     seed.color = boss.color
     seed.linkId = boss.id
-    seed.ballisticVel = newVector2f(cos(r), sin(r)) * speed
+    seed.ballisticVel = vec2(cos(r), sin(r)) * speed
     seed.generation = depth
     seed.modeTimer = beat
-    seed.targetPos = newVector2f(branch, beat)   # carried to every child split
+    seed.targetPos = vec2(branch, beat)   # carried to every child split
     game.enemies.add(seed)
   game.attackWarnings.add(tree)
 
@@ -130,8 +130,8 @@ proc forkRing(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32) =
   for k in 0..<n:
     let a0 = offset + k.float32 * PI * 2.0'f32 / n.float32
     let a1 = a0 + PI / n.float32
-    bossShot(game, boss, boss.pos, newVector2f(cos(a0), sin(a0)), speed, dmg)
-    bossShot(game, boss, boss.pos, newVector2f(cos(a1), sin(a1)), speed * 0.72'f32, dmg)
+    bossShot(game, boss, boss.pos, vec2(cos(a0), sin(a0)), speed, dmg)
+    bossShot(game, boss, boss.pos, vec2(cos(a1), sin(a1)), speed * 0.72'f32, dmg)
 
 proc payloadRing(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32) =
   ## Slow orbs that hatch into Threads wherever they stop: the flood grows.
@@ -146,7 +146,7 @@ proc payloadRing(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32) 
     orb.collisionRadius = orb.radius * 0.4'f32
     orb.contactDamage = dmg * 0.5'f32
     orb.color = Color(r: 255, g: 60, b: 200, a: 255)
-    orb.ballisticVel = newVector2f(cos(a), sin(a)) * (attack.projectileSpeed * 0.6'f32)
+    orb.ballisticVel = vec2(cos(a), sin(a)) * (attack.projectileSpeed * 0.6'f32)
     orb.generation = 0
     orb.modeTimer = 1.1'f32
     orb.rotation = rand(-60.0'f32..60.0'f32)
@@ -161,17 +161,17 @@ proc marchingOrders(game: var Game, boss: Enemy, attack: BossAttack, dmg: float3
   let bodies = max(4, int(attack.durationOrRadius))
   var side = rand(3)
   for r in 0..<ranks:
-    var start, dir: Vector2f
+    var start, dir: Vector2
     var halfSpan: float32
     let s = side mod 4
     if s == 0:
-      start = newVector2f(-30, h / 2); dir = newVector2f(1, 0); halfSpan = h / 2 - 20
+      start = vec2(-30, h / 2); dir = vec2(1, 0); halfSpan = h / 2 - 20
     elif s == 1:
-      start = newVector2f(w / 2, -30); dir = newVector2f(0, 1); halfSpan = w / 2 - 20
+      start = vec2(w / 2, -30); dir = vec2(0, 1); halfSpan = w / 2 - 20
     elif s == 2:
-      start = newVector2f(w + 30, h / 2); dir = newVector2f(-1, 0); halfSpan = h / 2 - 20
+      start = vec2(w + 30, h / 2); dir = vec2(-1, 0); halfSpan = h / 2 - 20
     else:
-      start = newVector2f(w / 2, h + 30); dir = newVector2f(0, -1); halfSpan = w / 2 - 20
+      start = vec2(w / 2, h + 30); dir = vec2(0, -1); halfSpan = w / 2 - 20
     let lane = newAttackWarning(start.x, start.y, awtMarchLane,
                                 MarchLaneTelegraph + r.float32 * MarchRankStagger, boss.id)
     lane.targetPos = start + dir * 100.0'f32
@@ -200,7 +200,7 @@ proc heatTrail(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32) =
                             max(1.0'f32, attack.durationOrRadius), boss.id)
   em.bulletRadius = if attack.bulletRadius > 0: attack.bulletRadius else: 16.0'f32
   em.bulletDamage = dmg
-  em.targetPos = newVector2f(-9999, -9999)
+  em.targetPos = vec2(-9999, -9999)
   game.attackWarnings.add(em)
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                        Color(r: 255, g: 120, b: 30, a: 255), 14)
@@ -222,19 +222,19 @@ proc thermalVents(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32)
     sumX[k] += e.pos.x
     sumY[k] += e.pos.y
   let n = max(1, attack.projectileCount)
-  var spots: seq[Vector2f] = @[]
+  var spots: seq[Vector2] = @[]
   for _ in 0..<n:
     var best = -1
     for k in 0..<counts.len:
       if counts[k] >= 3 and (best < 0 or counts[k] > counts[best]):
         best = k
     if best < 0: break
-    spots.add(newVector2f(sumX[best] / counts[best].float32, sumY[best] / counts[best].float32))
+    spots.add(vec2(sumX[best] / counts[best].float32, sumY[best] / counts[best].float32))
     counts[best] = 0
   # Too few crowds (a thin horde, the sandbox): vent around the player instead.
   while spots.len < n:
     let a = rand(PI * 2.0).float32
-    spots.add(arenaClamp(game, game.player.pos + newVector2f(cos(a), sin(a)) * rand(40.0'f32..130.0'f32), 30.0'f32))
+    spots.add(arenaClamp(game, game.player.pos + vec2(cos(a), sin(a)) * rand(40.0'f32..130.0'f32), 30.0'f32))
   for p in spots:
     var v = newAttackWarning(p.x, p.y, awtThermalVent, ThermalVentTelegraph + ThermalVentActive, boss.id)
     v.bulletRadius = max(40.0'f32, attack.durationOrRadius)
@@ -249,7 +249,7 @@ proc safeMode(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32) =
   let start = arenaClamp(game, game.player.pos, SafeModeStartRadius * 0.6'f32)
   let a = rand(PI * 2.0).float32
   let drift = min(max(40.0'f32, attack.projectileSpeed) * castLen, 320.0'f32)
-  let finish = arenaClamp(game, start + newVector2f(cos(a), sin(a)) * drift, SafeModeEndRadius + 10.0'f32)
+  let finish = arenaClamp(game, start + vec2(cos(a), sin(a)) * drift, SafeModeEndRadius + 10.0'f32)
   var w = newAttackWarning(start.x, start.y, awtSafeMode, total, boss.id)
   w.targetPos = finish
   w.bulletDamage = dmg
@@ -281,7 +281,7 @@ proc portGuards(game: var Game, boss: Enemy, attack: BossAttack) =
   let count = max(1, attack.projectileCount)
   for i in 0..<count:
     let a = rand(PI * 2.0).float32
-    let pos = arenaClamp(game, boss.pos + newVector2f(cos(a), sin(a)) * (boss.radius + 50.0'f32), 30.0'f32)
+    let pos = arenaClamp(game, boss.pos + vec2(cos(a), sin(a)) * (boss.radius + 50.0'f32), 30.0'f32)
     let g = minion(game, boss, pos, etPortGuard)
     g.rotation = arctan2(game.player.pos.y - pos.y, game.player.pos.x - pos.x)
     game.enemies.add(g)
@@ -292,17 +292,17 @@ proc emptyTrash(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32) =
   ## burst together at the purge. Walk over or shoot them to shred them first.
   let count = max(1, attack.projectileCount)
   let fuse = max(1.5'f32, attack.durationOrRadius)
-  var placed: seq[Vector2f] = @[]
+  var placed: seq[Vector2] = @[]
   # One bomb lands at the player's feet: tidy it up or eat the purge.
   block:
     let a = rand(PI * 2.0).float32
-    let near = arenaClamp(game, game.player.pos + newVector2f(cos(a), sin(a)) * 48.0'f32, 70.0'f32)
+    let near = arenaClamp(game, game.player.pos + vec2(cos(a), sin(a)) * 48.0'f32, 70.0'f32)
     if distance(near, boss.pos) > boss.radius + 30.0'f32:
       placed.add(near)
   var attempts = 0
   while placed.len < count and attempts < 80:
     inc attempts
-    let p = newVector2f(rand(70.0'f32..(game.screenWidth.float32 - 70.0'f32)),
+    let p = vec2(rand(70.0'f32..(game.screenWidth.float32 - 70.0'f32)),
                         rand(70.0'f32..(game.screenHeight.float32 - 70.0'f32)))
     if distance(p, game.player.pos) < 140.0'f32: continue
     if distance(p, boss.pos) < boss.radius + 30.0'f32: continue
@@ -367,13 +367,13 @@ proc packetSwitching(game: var Game, boss: Enemy, attack: BossAttack, dmg: float
       c = playerCoord
     c = clamp(c, 30.0'f32, span - 30.0'f32)
     let forward = k mod 2 == 0
-    var a, b: Vector2f
+    var a, b: Vector2
     if horizontal:
-      a = newVector2f(if forward: 0.0'f32 else: w, c)
-      b = newVector2f(if forward: w else: 0.0'f32, c)
+      a = vec2(if forward: 0.0'f32 else: w, c)
+      b = vec2(if forward: w else: 0.0'f32, c)
     else:
-      a = newVector2f(c, if forward: 0.0'f32 else: h)
-      b = newVector2f(c, if forward: h else: 0.0'f32)
+      a = vec2(c, if forward: 0.0'f32 else: h)
+      b = vec2(c, if forward: h else: 0.0'f32)
     let len = distance(a, b)
     let trainSpeed = speed * 1.25'f32   # enemy-bullet pace
     let travel = (len + PacketCars.float32 * PacketCarSpacing) / trainSpeed
@@ -414,7 +414,7 @@ proc pageFault(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32) =
   let room = max(0, PageFaultMaxWalls - wallsNow)
   # One footprint where the player stands, one where they will be when it
   # lands: standing still and running on autopilot both get crushed.
-  var targets: seq[Vector2f] = @[]
+  var targets: seq[Vector2] = @[]
   for p in [game.player.pos, game.player.pos + game.player.vel * telegraph]:
     let q = arenaClamp(game, p, 60.0'f32)
     var clear = distance(q, boss.pos) > boss.radius + 70.0'f32
@@ -425,7 +425,7 @@ proc pageFault(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32) =
   var attempts = 0
   while targets.len < min(count, room) and attempts < 60:
     inc attempts
-    let p = newVector2f(rand(90.0'f32..(game.screenWidth.float32 - 90.0'f32)),
+    let p = vec2(rand(90.0'f32..(game.screenWidth.float32 - 90.0'f32)),
                         rand(90.0'f32..(game.screenHeight.float32 - 90.0'f32)))
     if distance(p, boss.pos) < boss.radius + 80.0'f32: continue
     var ok = true
@@ -493,7 +493,7 @@ proc lastKnownGood(game: var Game, boss: Enemy, attack: BossAttack, dmg: float32
   var byDist: seq[tuple[d: float32, door: int]] = @[]
   for door in 0..3:
     let r = lkgDoorRect(door, w, h)
-    byDist.add((distance(game.player.pos, newVector2f(r.x + r.w / 2, r.y + r.h / 2)), door))
+    byDist.add((distance(game.player.pos, vec2(r.x + r.w / 2, r.y + r.h / 2)), door))
   byDist.sort(proc (x, y: tuple[d: float32, door: int]): int = cmp(x.d, y.d))
   let realDoor = byDist[rand(1)].door
   var labels: seq[string] = @[]

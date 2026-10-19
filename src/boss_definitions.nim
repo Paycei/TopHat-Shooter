@@ -31,7 +31,6 @@ proc clearModBosses*() {.moddable.} =
   modBossSlotWaves.clear()
   modBossProcessNames.clear()
 
-
 proc bossWeakTier(bossID: int): int {.moddable.} =
   ## Weak-point resistance tier (1-4). The wave campaign keys it on the boss
   ## number; the mode rosters map onto the wave boss they stand in for: the

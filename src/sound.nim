@@ -2927,7 +2927,6 @@ proc initSoundSystem*(): SoundSystem {.moddable.} =
     echo "ERROR initializing sound system: ", e.msg
     return SoundSystem(enabled: false, masterVolume: 0.5, musicVolume: 0.5, initialized: false)
 
-
 # PLAYBACK FUNCTIONS
 proc pitchVariation(soundType: SoundType): float32 =
   ## Max random pitch deviation per play. Constantly repeated combat sounds

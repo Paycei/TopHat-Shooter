@@ -16,10 +16,6 @@ proc runGameOrError(vm: VM, what: string): Game =
   result = modCtx.game
   if result.isNil or modCtx.inPvP: vm.runtimeError(what & " needs a run in progress (not PvP)")
 
-proc finite(vm: VM, v: ScriptValue, what: string): float32 =
-  if v.kind == vkNumber and abs(v.n) < 1.0e9: return v.n.float32
-  vm.runtimeError(what & " must be a finite number")
-
 proc camTarget(g: Game): tuple[x, y: float32] =
   let w = g.modWorld
   if w.camZoom <= 0: (g.screenWidth.float32 / 2, g.screenHeight.float32 / 2)

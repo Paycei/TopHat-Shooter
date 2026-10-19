@@ -1,15 +1,14 @@
 import raylib, math, random
 import modding/mod_patch_core
 import draw_prims
-import particle_types, types, particle_pool, sound, powerup, patches, particle, enemy_config
+import particle_types, types, particle_pool, pickup, sound, powerup, particle, enemy_config
 import modding/mod_hooks
 
 ## Experience orbs for the run-leveling modes (wave, roguelite + time-survival).
-## This module is a deliberate sibling of
-## `coin.nim`: XP orbs drop on enemy death, auto-home to the player through the
-## collection aura (and from anywhere while a Magnet consumable is active), and
-## on pickup add to the player's run XP. It imports only low-level modules and
-## NEVER imports `game` (game.nim sits above it and wires it into the frame loop).
+## XP orbs drop on enemy death, reach the player like every ground pickup
+## (pickup.nim: the collection aura, the magnet), and on pickup add to the
+## player's run XP. It imports only low-level modules and NEVER imports `game`
+## (game.nim sits above it and wires it into the frame loop).
 
 const
   XpBaseToLevel* = 10      # XP needed to clear level 1
@@ -38,13 +37,7 @@ const
                            ## end of sectors 1..4 at Heat 1; this lands ~4 / 7.5
                            ## / 11 / 15 levels (18n + 7.5n(n-1) XP for n levels).
                            ## Re-solve it if the room budgets change.
-  XpOrbPullSpeed = 320.0   # homing speed in px/s (slightly snappier than coins)
   XpOrbLifetime = 18.0     # seconds before an uncollected orb fades out
-  XpLootMargin = 50.0      # keep drops this far from the screen edge (cf. coin.nim)
-
-proc clampXpDrop(x, y: float32, sw, sh: int32): tuple[x, y: float32] =
-  result.x = clamp(x, XpLootMargin, sw.float32 - XpLootMargin)
-  result.y = clamp(y, XpLootMargin, sh.float32 - XpLootMargin)
 
 proc xpRequiredForLevel*(level: int, mode: GameMode): int {.moddable.} =
   ## XP to clear `level`, per mode.
@@ -112,16 +105,24 @@ proc enemyXpValue(enemy: Enemy): int {.moddable.} =
 
 proc newXpOrb*(x, y: float32, value: int = 1): XpOrb {.moddable.} =
   result = XpOrb(
-    pos: newVector2f(x, y),
+    pos: vec2(x, y),
     radius: 5.0,
     value: value,
     lifetime: XpOrbLifetime
   )
 
-proc updateXpOrb(orb: XpOrb, dt: float32): bool {.moddable.} =
+proc pickupAlive*(game: Game, orb: XpOrb, dt: float32, count: int): bool {.moddable.} =
   ## Tick the orb's lifetime; returns false when it should be removed.
+  # Roguelite: an orb never expires. Its folder vacuums every orb at clear
+  # (collectAllXpOrbs), and a pulsed swarm can leave orbs lying for longer
+  # than the lifetime; expiring them silently deleted earned XP.
+  if game.mode == gmRoguelite:
+    orb.lifetime = max(orb.lifetime, 2.0)
   orb.lifetime -= dt
   orb.lifetime > 0
+
+proc pickupTrail*(orb: XpOrb): Color {.moddable.} =
+  Color(r: 90, g: 255, b: 170, a: 150)
 
 proc drawXpOrb(orb: XpOrb) {.moddable.} =
   let t = getTime()
@@ -132,18 +133,14 @@ proc drawXpOrb(orb: XpOrb) {.moddable.} =
   let a = uint8(255.0 * fade)
   let glowA = uint8(70.0 * fade)
   # Soft cyan-green glow + bright core (visually distinct from gold coins).
-  drawDisc(Vector2(x: orb.pos.x, y: orb.pos.y), size + 4 + pulse * 1.5,
+  drawDisc(orb.pos, size + 4 + pulse * 1.5,
              Color(r: 80, g: 255, b: 200, a: glowA))
-  drawDisc(Vector2(x: orb.pos.x, y: orb.pos.y), size,
+  drawDisc(orb.pos, size,
              Color(r: 90, g: 255, b: 170, a: a))
-  drawDisc(Vector2(x: orb.pos.x, y: orb.pos.y), size * 0.5,
+  drawDisc(orb.pos, size * 0.5,
              Color(r: 220, g: 255, b: 240, a: a))
   drawCircleOutline(orb.pos.x.int32, orb.pos.y.int32, size,
                   Color(r: 180, g: 255, b: 220, a: a))
-
-proc moveXpOrbToPlayer(orb: XpOrb, playerPos: Vector2f, dt: float32) {.moddable.} =
-  let dir = (playerPos - orb.pos).normalize()
-  orb.pos = orb.pos + dir * XpOrbPullSpeed * dt
 
 proc dataHarvestMultiplier(player: Player): float32 =
   ## DATA_HARVEST.dll: +25% / +50% / +100% XP per enemy at levels 1 / 2 / 3.
@@ -183,7 +180,7 @@ proc dropEnemyXp*(game: Game, enemy: Enemy) {.moddable.} =
   # Survival's Overclock event doubles XP while it runs.
   if game.mode == gmTimeSurvival and game.survival.xpMult > 1.0'f32:
     total = int(total.float32 * game.survival.xpMult)
-  let clamped = clampXpDrop(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
+  let clamped = clampLootPosition(enemy.pos.x, enemy.pos.y, game.screenWidth, game.screenHeight)
   if enemy.isBoss:
     # Spread the boss XP across several orbs around the death point.
     const orbCount = 8
@@ -197,8 +194,11 @@ proc dropEnemyXp*(game: Game, enemy: Enemy) {.moddable.} =
   else:
     game.xpOrbs.add(newXpOrb(clamped.x, clamped.y, total))
 
-proc collectXpOrb(game: Game, orb: XpOrb) {.moddable.} =
-  ## The player touched `orb`: its XP and feedback (the caller removes it).
+proc collectPickup*(game: Game, orb: XpOrb): bool {.moddable.} =
+  ## The player touched `orb`: a mod's pickup hook may take it, else its XP
+  ## and feedback (the caller removes it).
+  if modPickup(game, "xp", orb.value.float64):
+    return
   game.player.xp += orb.value
   playSound(stCoinPickup, 0.35, 1.4)  # higher pitch than coins
   spawnExplosionPooled(game.particlePool, orb.pos.x, orb.pos.y,
@@ -208,38 +208,8 @@ proc collectXpOrb(game: Game, orb: XpOrb) {.moddable.} =
     orb.pos.x, orb.pos.y, orb.value, cikXp))
 
 proc updateGameXpOrbs*(game: Game, dt: float32) {.moddable.} =
-  ## Lifetime decay, aura/magnet homing, and pickup. Mirrors updateGameCoins.
-  # Roguelite: an orb never expires. Its folder vacuums every orb at clear
-  # (collectAllXpOrbs), and a pulsed swarm can leave orbs lying for longer
-  # than the lifetime; expiring them silently deleted earned XP.
-  let noExpiry = game.mode == gmRoguelite
-  let magnetAll = game.player.magnetTimer > 0 or hasPatch(game.player, rrtGarbageCollector)
-  var i = 0
-  while i < game.xpOrbs.len:
-    if noExpiry:
-      game.xpOrbs[i].lifetime = max(game.xpOrbs[i].lifetime, 2.0)
-    if not updateXpOrb(game.xpOrbs[i], dt):
-      game.xpOrbs.delete(i)
-      continue
-
-    # Auto-home when inside the collection aura, or anywhere while Magnet is up.
-    if distance(game.xpOrbs[i].pos, game.player.pos) < game.player.auraRadius:
-      moveXpOrbToPlayer(game.xpOrbs[i], game.player.pos, dt)
-      spawnTimedParticlesPooled(game.particlePool, game.xpOrbs[i].pos.x, game.xpOrbs[i].pos.y,
-                         18.0, Color(r: 90, g: 255, b: 170, a: 150), 1, dt)
-    if magnetAll:
-      moveXpOrbToPlayer(game.xpOrbs[i], game.player.pos, dt)
-
-    if inPickupRange(game.xpOrbs[i].pos, game.xpOrbs[i].radius, game.player) and
-       modPickup(game, "xp", game.xpOrbs[i].value.float64):
-      game.xpOrbs.delete(i)   # a mod took it (pickup hook)
-      continue
-    if inPickupRange(game.xpOrbs[i].pos, game.xpOrbs[i].radius, game.player):
-      collectXpOrb(game, game.xpOrbs[i])
-      game.xpOrbs.delete(i)
-      continue
-
-    i += 1
+  ## Lifetime decay, aura/magnet homing, and pickup (pickup.nim).
+  discard updatePickups(game, game.xpOrbs, dt)
 
 proc collectAllXpOrbs*(game: Game) {.moddable.} =
   ## Bank every orb on the floor at once (a roguelite folder clearing), so the

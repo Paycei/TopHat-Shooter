@@ -6,7 +6,7 @@ import ../modding/mod_patch_core
 import ../draw_prims
 import ../sound, ../save_system, os_window, ../localization, ../render_context, ../gamepad_input, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types, ../modding/mod_hooks
 import ui_theme, text_field
-from ui_helpers import TextAlign
+from ui_helpers import TextAlign, bestFitFontSize
 
 type
   SettingsTab* = enum
@@ -857,9 +857,7 @@ proc drawCycleButton(rect: Rectangle, label: string, hovered: bool,
     else: uiInk(LightGray)
   let textY = (rect.y + (rect.height - 16) / 2).int32
   # A long value (a theme's name) shrinks to stay clear of the arrows.
-  var labelSize = 16'i32
-  while labelSize > 10 and measureText(label, labelSize).float32 > rect.width - 56:
-    dec labelSize
+  let labelSize = bestFitFontSize(label, (rect.width - 56).int32, 16, 10)
   let textWidth = measureText(label, labelSize)
   drawText("<", (rect.x + 10).int32, textY, 18, arrowColor(-1, canDec))
   drawText(label, (rect.x + (rect.width - textWidth.float32) / 2).int32,

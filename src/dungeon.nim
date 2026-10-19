@@ -23,7 +23,7 @@ import raylib, random, math, tables, strutils
 import modding/mod_patch_core
 import draw_prims
 import gamepad_input, particle_types, types, roguelite, powerup, powerup_data, patches, player,
-       particle_pool, sound, localization, boss_definitions, settings, coin, xp_orb, utils,
+       particle_pool, sound, localization, boss_definitions, settings, coin, xp_orb, utils, run_statistics,
        game/combat, ui/icon_drawing, ui/ui_helpers
 import modding/[mod_hooks, mod_registry], enemy_config
 
@@ -366,19 +366,19 @@ proc doorRect(game: Game, dir: DoorDir): Rectangle {.moddable.} =
     Rectangle(x: w - DoorZoneDepth, y: h / 2 - DoorZoneWidth / 2,
               width: DoorZoneDepth, height: DoorZoneWidth)
 
-proc doorSpawnPos(game: Game, enteredThrough: DoorDir): Vector2f {.moddable.} =
+proc doorSpawnPos(game: Game, enteredThrough: DoorDir): Vector2 {.moddable.} =
   ## Where the player appears after arriving through the given door.
   let w = game.screenWidth.float32
   let h = game.screenHeight.float32
   const inset = 86'f32
   case enteredThrough
-  of ddUp: newVector2f(w / 2, inset)
-  of ddDown: newVector2f(w / 2, h - inset)
-  of ddLeft: newVector2f(inset, h / 2)
-  of ddRight: newVector2f(w - inset, h / 2)
+  of ddUp: vec2(w / 2, inset)
+  of ddDown: vec2(w / 2, h - inset)
+  of ddLeft: vec2(inset, h / 2)
+  of ddRight: vec2(w - inset, h / 2)
 
-proc roomCenter(game: Game): Vector2f =
-  newVector2f(game.screenWidth.float32 / 2, game.screenHeight.float32 / 2)
+proc roomCenter(game: Game): Vector2 =
+  vec2(game.screenWidth.float32 / 2, game.screenHeight.float32 / 2)
 
 proc exitsOf(floor: DungeonFloor, room: DungeonRoom): seq[DungeonExit] {.moddable.} =
   ## The doors out of `room`: the exits of the next layer (none past SERVICE).
@@ -722,7 +722,6 @@ proc beginSectorRooms*(game: Game) {.moddable.} =
 # ---------------------------------------------------------------------------
 # Theme selection between sectors
 
-
 proc isFinalDungeonFloor*(run: RogueliteRun): bool {.moddable.} =
   ## The final sector offers one special "final boss" arena (always boss 12)
   ## instead of a three-theme roll. Gates generation, rendering and input.
@@ -787,7 +786,7 @@ proc generateThemeChoices*(run: RogueliteRun) {.moddable.} =
 # ---------------------------------------------------------------------------
 # Pickups: rewards and stalls
 
-proc newPickup(kind: DungeonPickupKind, pos: Vector2f): DungeonPickup =
+proc newPickup(kind: DungeonPickupKind, pos: Vector2): DungeonPickup =
   DungeonPickup(pos: pos, kind: kind, taken: false, patch: rrtNone)
 
 proc isStall(kind: DungeonPickupKind): bool {.moddable.} =
@@ -863,7 +862,7 @@ proc spawnPatchChoice(game: Game, room: DungeonRoom, group: int) =
   let c = roomCenter(game)
   for i, p in choices:
     let offset = (i.float32 - (choices.len - 1).float32 * 0.5'f32) * 130.0'f32
-    let pk = newPickup(dpkPatchPedestal, newVector2f(c.x + offset, c.y))
+    let pk = newPickup(dpkPatchPedestal, vec2(c.x + offset, c.y))
     pk.patch = p.relicType
     pk.modPatch = p.modKey
     pk.group = group
@@ -897,12 +896,12 @@ proc spawnRoomReward(game: Game, room: DungeonRoom) {.moddable.} =
     room.rewardClaimed = true
   refreshRewardClaimed(room)
 
-proc stallPositions(game: Game): array[5, Vector2f] =
+proc stallPositions(game: Game): array[5, Vector2] =
   let c = roomCenter(game)
   const xs = [-250'f32, -125'f32, 0'f32, 125'f32, 250'f32]
   const ys = [34'f32, 8'f32, -6'f32, 8'f32, 34'f32]
   for i in 0..4:
-    result[i] = newVector2f(c.x + xs[i], c.y - 30 + ys[i])
+    result[i] = vec2(c.x + xs[i], c.y - 30 + ys[i])
 
 proc spawnShopStalls(game: Game, room: DungeonRoom) {.moddable.} =
   ## /pkg: two power-up packages, a patch, a repair and a restock, in an arc.
@@ -1018,7 +1017,7 @@ proc spawnRoomObstacles(game: Game, room: DungeonRoom) =
     inc attempts
     let x = 130'f32 + rng.rand(1.0).float32 * (w - 260'f32)
     let y = 120'f32 + rng.rand(1.0).float32 * (h - 240'f32)
-    let pos = newVector2f(x, y)
+    let pos = vec2(x, y)
     # Keep the center (reward drop) and every door lane free
     if abs(x - w / 2) < 170 and abs(y - h / 2) < 120: continue
     if abs(x - w / 2) < 110 and (y < 170 or y > h - 170): continue
@@ -1145,7 +1144,7 @@ proc enterRoom*(game: Game, roomIdx: int, enteredThrough: DoorDir,
   wipeRoomEntities(game)
   game.player.pos = if room.kind == drkStart: roomCenter(game)
                     else: doorSpawnPos(game, enteredThrough)
-  game.player.vel = newVector2f(0, 0)
+  game.player.vel = vec2(0, 0)
   run.roomDensityWave = dungeonDensityWave(run, room)
 
   if room.kind in {drkCombat, drkElite, drkBoss}:
@@ -1240,15 +1239,15 @@ proc onRoomCleared*(game: Game) {.moddable.} =
     if run.hasRelic(rrtEliteDividend):
       credits += EliteDividendCredits
       shardBonus += int(ceil(EliteDividendShards.float32 * shardMult))
-    game.player.coins += credits
-    showCurrency(game, game.player.pos + newVector2f(-24, -28), credits, cikCredits)
+    gainCredits(game, credits)
+    showCurrency(game, game.player.pos + vec2(-24, -28), credits, cikCredits)
     if heatRank > 0:
       run.coresEarned += heatRank + run.endlessLoop
-      showCurrency(game, game.player.pos + newVector2f(22, -20),
+      showCurrency(game, game.player.pos + vec2(22, -20),
                    heatRank + run.endlessLoop, cikCores)
 
   run.shardsEarned += max(1, shardBonus)
-  showCurrency(game, game.player.pos + newVector2f(0, -36), max(1, shardBonus), cikDataShards)
+  showCurrency(game, game.player.pos + vec2(0, -36), max(1, shardBonus), cikDataShards)
 
   # Defragmenter patch: a cleared folder compacts integrity back.
   if hasPatch(game.player, rrtDefragmenter):
@@ -1275,7 +1274,7 @@ proc markBossRoomCleared*(game: Game) {.moddable.} =
   collectAllXpOrbs(game)
   game.waveInProgress = false
 
-proc exitPortalPos(game: Game): Vector2f {.moddable.} =
+proc exitPortalPos(game: Game): Vector2 {.moddable.} =
   ## The boss-clear portal always forms at the center of the SERVICE room.
   roomCenter(game)
 
@@ -1302,7 +1301,7 @@ proc pickupRelic(pk: DungeonPickup): RogueliteRelic {.moddable.} =
   makeRelic(pk.patch, pk.modPatch)
 
 proc announcePatch(game: Game, patch: RogueliteRelic) =
-  showPerk(game, game.player.pos + newVector2f(0, -44),
+  showPerk(game, game.player.pos + vec2(0, -44),
            patchKbLabel(patch) & " " & t("patch_applied"), patchAccent(patch))
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y, patchAccent(patch), 28)
   playSound(stPowerUp, 0.85)
@@ -1372,7 +1371,7 @@ proc claimDungeonPickup(game: Game, index: int): DungeonFrame {.moddable.} =
     announcePatch(game, pickup.pickupRelic)
   of dpkCreditCache:
     pickup.taken = true
-    game.player.coins += pickup.amount
+    gainCredits(game, pickup.amount)
     showCurrency(game, pickup.pos, pickup.amount, cikCredits)
     playSound(stCoinPickup, 0.8)
   of dpkRepairKit:
@@ -1580,7 +1579,7 @@ proc drawEntryDoor(game: Game) =
   drawStroke((rect.x + 18).int32, midY, (rect.x + rect.width - 18).int32, midY,
            Color(r: 130, g: 138, b: 156, a: 160))
 
-proc drawPedestalBase(pos: Vector2f, accent: Color, time: float32) =
+proc drawPedestalBase(pos: Vector2, accent: Color, time: float32) =
   drawEllipse(pos.x.int32, (pos.y + 18).int32, 24, 8, Color(r: 0, g: 0, b: 0, a: 90))
   drawEllipse(pos.x.int32, (pos.y + 15).int32, 22, 7, Color(r: 22, g: 30, b: 44, a: 235))
   drawEllipseOutline(pos.x.int32, (pos.y + 15).int32, 22, 7, withAlpha(accent, 190))

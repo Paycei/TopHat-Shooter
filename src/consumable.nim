@@ -1,8 +1,75 @@
-import raylib, random, math
+import raylib, random, math, strutils
 import modding/mod_patch_core
 import draw_prims
-import particle_types, types, utils
+import particle_types, types, utils, localization
 import modding/mod_registry
+
+# What each built-in consumable is, as data. Its effect lives in collectPickup
+# (game.nim); a mod's consumable (ctMod) is read from its registration
+# (register.consumable) instead, so every reader goes through the procs below.
+
+type
+  ConsumableSpec = object
+    color: Color                ## its one colour: body, aura, pull trail,
+                                ## pickup burst and floating label
+    duration: float32           ## buff seconds (0: an instant pickup)
+    bountifulDuration: float32  ## the same with Cornucopia (hasBountiful)
+
+const vanillaConsumableSpecs: array[ConsumableType, ConsumableSpec] = [
+  ctHealth: ConsumableSpec(color: Color(r: 50, g: 255, b: 50, a: 255)),
+  ctCoin: ConsumableSpec(color: Color(r: 255, g: 215, b: 0, a: 255)),
+  ctSpeed: ConsumableSpec(color: Cyan, duration: 5.0, bountifulDuration: 7.5),
+  ctInvincibility: ConsumableSpec(color: Color(r: 255, g: 0, b: 255, a: 255),
+                                  duration: 3.0, bountifulDuration: 4.5),
+  ctFireRate: ConsumableSpec(color: Color(r: 255, g: 165, b: 0, a: 255),
+                             duration: 8.0, bountifulDuration: 12.0),
+  ctMagnet: ConsumableSpec(color: Color(r: 147, g: 51, b: 234, a: 255),
+                           duration: 10.0, bountifulDuration: 10.0),
+  ctShieldBoost: ConsumableSpec(color: Color(r: 100, g: 200, b: 255, a: 255),
+                                duration: 10.0, bountifulDuration: 15.0),
+  ctDoubleCoin: ConsumableSpec(color: Color(r: 255, g: 223, b: 0, a: 255),
+                               duration: 10.0, bountifulDuration: 15.0),
+  ctDamageBoost: ConsumableSpec(color: Color(r: 255, g: 69, b: 0, a: 255),
+                                duration: 10.0, bountifulDuration: 15.0),
+  ctLifesteal: ConsumableSpec(color: Color(r: 220, g: 20, b: 20, a: 255),
+                              duration: 15.0, bountifulDuration: 22.0),
+  ctMod: ConsumableSpec(color: Color(r: 200, g: 200, b: 200, a: 255))]
+
+proc consumableColor*(c: Consumable): Color {.moddable.} =
+  if c.consumableType == ctMod: modConsumableColor(c.modKey)
+  else: vanillaConsumableSpecs[c.consumableType].color
+
+proc consumablePerkLabel*(c: Consumable): string {.moddable.} =
+  ## The floating "+SPEED" shown on pickup. "" for health and coin, which float
+  ## the amount they gave instead.
+  case c.consumableType
+  of ctHealth, ctCoin: ""
+  of ctSpeed: t(tkPerkSpeed)
+  of ctInvincibility: t(tkPerkInvincible)
+  of ctFireRate: t(tkPerkFireRate)
+  of ctMagnet: t(tkPerkMagnet)
+  of ctShieldBoost: t(tkPerkShield)
+  of ctDoubleCoin: t(tkPerkDoubleCoin)
+  of ctDamageBoost: t(tkPerkDamage)
+  of ctLifesteal: t(tkPerkLifesteal)
+  of ctMod: "+" & modConsumableName(c.modKey).toUpperAscii
+
+proc startConsumableBuff*(player: Player, ct: ConsumableType) {.moddable.} =
+  ## Start (or refresh) a timed consumable's buff, for its spec's duration.
+  let s = vanillaConsumableSpecs[ct]
+  let duration = if player.hasBountiful: s.bountifulDuration else: s.duration
+  case ct
+  of ctSpeed: player.speedBoostTimer = duration
+  of ctInvincibility: player.invincibilityTimer = duration
+  of ctFireRate: player.fireRateBoostTimer = duration
+  of ctMagnet: player.magnetTimer = duration
+  of ctShieldBoost:
+    player.shieldBoostTimer = duration
+    player.shieldHits = if player.hasBountiful: 3 else: 2  # Cornucopia: 3 hits
+  of ctDoubleCoin: player.doubleCoinTimer = duration
+  of ctDamageBoost: player.damageBoostTimer = duration
+  of ctLifesteal: player.lifestealTimer = duration
+  of ctHealth, ctCoin, ctMod: discard
 
 # Icon drawing: simple, clear glyphs so each pickup reads at a glance.
 
@@ -244,7 +311,7 @@ proc newConsumable*(x, y: float32, difficulty: float32, mode = gmWaveBased): Con
     if r >= 100:
       let key = rollModConsumable(mode, r - 100)
       if key.len > 0:
-        return Consumable(pos: newVector2f(x, y), radius: 9, consumableType: ctMod,
+        return Consumable(pos: vec2(x, y), radius: 9, consumableType: ctMod,
                           lifetime: 15.0, modKey: key)
   let roll = rand(100)
   var cType: ConsumableType
@@ -271,7 +338,7 @@ proc newConsumable*(x, y: float32, difficulty: float32, mode = gmWaveBased): Con
     cType = ctLifesteal
 
   result = Consumable(
-    pos: newVector2f(x, y),
+    pos: vec2(x, y),
     radius: 8,
     consumableType: cType,
     lifetime: 15.0
@@ -280,56 +347,33 @@ proc newConsumable*(x, y: float32, difficulty: float32, mode = gmWaveBased): Con
 proc newSpecificConsumable*(x, y: float32, cType: ConsumableType): Consumable {.moddable.} =
   ## Create a consumable of a specific type (for boss drops, etc.)
   result = Consumable(
-    pos: newVector2f(x, y),
+    pos: vec2(x, y),
     radius: 8,
     consumableType: cType,
     lifetime: 15.0
   )
 
-proc updateConsumable*(consumable: Consumable, dt: float32): bool {.moddable.} =
+proc pickupAlive*(game: Game, consumable: Consumable, dt: float32, count: int): bool {.moddable.} =
   consumable.lifetime -= dt
-  return consumable.lifetime > 0
+  consumable.lifetime > 0
 
-proc getConsumableColor(cType: ConsumableType): Color =
-  ## Get the background color for each consumable type
-  case cType
-  of ctHealth: Color(r: 50, g: 255, b: 50, a: 255)        # Bright green
-  of ctCoin: Color(r: 255, g: 215, b: 0, a: 255)          # Gold
-  of ctSpeed: Cyan                                          # Cyan
-  of ctInvincibility: Color(r: 255, g: 0, b: 255, a: 255) # Magenta
-  of ctFireRate: Color(r: 255, g: 165, b: 0, a: 255)      # Orange
-  of ctMagnet: Color(r: 147, g: 51, b: 234, a: 255)       # Purple
-  of ctShieldBoost: Cyan                                    # Cyan
-  of ctDoubleCoin: Color(r: 255, g: 223, b: 0, a: 255)    # Bright gold
-  of ctDamageBoost: Color(r: 255, g: 69, b: 0, a: 255)    # Red-orange
-  of ctLifesteal: Color(r: 139, g: 0, b: 0, a: 255)       # Dark red
-  of ctMod: Color(r: 200, g: 200, b: 200, a: 255)         # (its registered colour, see drawConsumable)
+proc pickupTrail*(consumable: Consumable): Color {.moddable.} =
+  withAlpha(consumableColor(consumable), 150)
 
 proc drawConsumable*(consumable: Consumable) {.moddable.} =
   let t = getTime()
   let pulse = 1.0 + 0.15 * sin(t * 6.0)
   let size = consumable.radius * pulse
 
-  # Per-type aura color
-  let auraColor = case consumable.consumableType
-    of ctHealth:       Color(r: 50,  g: 255, b: 80,  a: 50)
-    of ctCoin:         Color(r: 255, g: 215, b: 0,   a: 50)
-    of ctSpeed:        Color(r: 0,   g: 220, b: 255, a: 50)
-    of ctInvincibility:Color(r: 255, g: 0,   b: 255, a: 50)
-    of ctFireRate:     Color(r: 255, g: 140, b: 0,   a: 50)
-    of ctMagnet:       Color(r: 180, g: 80,  b: 255, a: 50)
-    of ctShieldBoost:  Color(r: 100, g: 200, b: 255, a: 50)
-    of ctDoubleCoin:   Color(r: 255, g: 230, b: 50,  a: 50)
-    of ctDamageBoost:  Color(r: 255, g: 60,  b: 0,   a: 50)
-    of ctLifesteal:    Color(r: 200, g: 0,   b: 0,   a: 50)
-    of ctMod:          withAlpha(modConsumableColor(consumable.modKey), 50)
+  let color = consumableColor(consumable)
+  let auraColor = withAlpha(color, 50)
 
   # Outer soft aura glow (two layers for depth)
   let auraR1 = size + 7 + sin(t * 4.0) * 2.5
   let auraR2 = size + 13 + sin(t * 3.0 + 1.0) * 3.0
-  drawDisc(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR2,
-    withAlpha(auraColor, uint8(auraColor.a.float32 * 0.5)))
-  drawDisc(Vector2(x: consumable.pos.x, y: consumable.pos.y), auraR1, auraColor)
+  drawDisc(consumable.pos, auraR2,
+    scaleAlpha(auraColor, 0.5'f32))
+  drawDisc(consumable.pos, auraR1, auraColor)
 
   # 4 rotating sparkle dots around the aura ring
   for i in 0..<4:
@@ -340,9 +384,7 @@ proc drawConsumable*(consumable: Consumable) {.moddable.} =
       2.0, withAlpha(auraColor, 200))
 
   # Draw background circle
-  let color = if consumable.consumableType == ctMod: modConsumableColor(consumable.modKey)
-              else: getConsumableColor(consumable.consumableType)
-  drawDisc(Vector2(x: consumable.pos.x, y: consumable.pos.y), size, color)
+  drawDisc(consumable.pos, size, color)
   drawCircleOutline(consumable.pos.x.int32, consumable.pos.y.int32, size, Black)
   if consumable.consumableType == ctMod:
     drawModConsumableIcon(consumable.modKey, consumable.pos.x, consumable.pos.y, size)
@@ -350,15 +392,3 @@ proc drawConsumable*(consumable: Consumable) {.moddable.} =
 
   # Use new detailed icon system
   drawConsumableIcon(consumable.pos.x, consumable.pos.y, consumable.consumableType)
-
-proc checkPlayerCollision*(consumable: Consumable, player: Player): bool {.moddable.} =
-  distance(consumable.pos, player.pos) < consumable.radius + player.radius
-
-proc isInPlayerAura*(consumable: Consumable, player: Player): bool {.moddable.} =
-  # Check if consumable is within player's collection aura
-  distance(consumable.pos, player.pos) < player.auraRadius
-
-proc moveConsumableToPlayer*(consumable: Consumable, playerPos: Vector2f, dt: float32) {.moddable.} =
-  let dir = (playerPos - consumable.pos).normalize()
-  let pullSpeed = 300.0
-  consumable.pos = consumable.pos + dir * pullSpeed * dt

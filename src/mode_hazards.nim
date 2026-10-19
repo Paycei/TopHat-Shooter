@@ -8,7 +8,7 @@
 
 import math
 import modding/mod_patch_core
-import particle_types, types
+import particle_types, types, utils
 
 const
   # --- Enemies -------------------------------------------------------------
@@ -136,7 +136,7 @@ proc warningAge*(w: AttackWarning): float32 {.inline, moddable.} =
 # ---------------------------------------------------------------------------
 # Geometry
 
-proc pointSegmentDistance*(p, a, b: Vector2f): float32 {.moddable.} =
+proc pointSegmentDistance*(p, a, b: Vector2): float32 {.moddable.} =
   let abx = b.x - a.x
   let aby = b.y - a.y
   let denom = abx * abx + aby * aby
@@ -147,7 +147,7 @@ proc pointSegmentDistance*(p, a, b: Vector2f): float32 {.moddable.} =
   let dy = p.y - (a.y + aby * t)
   sqrt(dx * dx + dy * dy)
 
-proc portGuardBlocks*(enemy: Enemy, hitFrom: Vector2f): bool {.moddable.} =
+proc portGuardBlocks*(enemy: Enemy, hitFrom: Vector2): bool {.moddable.} =
   ## True when a hit arriving from `hitFrom` lands on a Port Guard's shield
   ## (rotation = shield facing).
   if enemy.enemyType != etPortGuard or enemy.hp <= 0:
@@ -161,7 +161,7 @@ proc portGuardBlocks*(enemy: Enemy, hitFrom: Vector2f): bool {.moddable.} =
   while diff < -PI: diff += 2.0'f32 * PI
   abs(diff) < PortGuardShieldHalfArc
 
-proc rayCircleHit(origin, dir: Vector2f, center: Vector2f, radius: float32): float32 =
+proc rayCircleHit(origin, dir: Vector2, center: Vector2, radius: float32): float32 =
   ## Distance along the (unit) ray to the circle, or -1 when it misses.
   let ox = origin.x - center.x
   let oy = origin.y - center.y
@@ -173,7 +173,7 @@ proc rayCircleHit(origin, dir: Vector2f, center: Vector2f, radius: float32): flo
   let t = -b - sqrt(disc)
   if t < 0: -1.0'f32 else: t
 
-proc rayWallDistance*(origin, dir: Vector2f, maxLen: float32, walls: seq[Wall]): float32 {.moddable.} =
+proc rayWallDistance*(origin, dir: Vector2, maxLen: float32, walls: seq[Wall]): float32 {.moddable.} =
   ## How far a (unit-direction) ray travels before a standing wall stops it.
   ## Slab walls are approximated by their inscribed circle along the face.
   result = maxLen
@@ -204,10 +204,10 @@ proc safeModeProgress(w: AttackWarning): float32 {.moddable.} =
   let castLen = max(0.01'f32, w.maxLifetime - SafeModeTelegraph)
   clamp((warningAge(w) - SafeModeTelegraph) / castLen, 0.0'f32, 1.0'f32)
 
-proc safeModeBubble*(w: AttackWarning): tuple[center: Vector2f, radius: float32] {.moddable.} =
+proc safeModeBubble*(w: AttackWarning): tuple[center: Vector2, radius: float32] {.moddable.} =
   let p = safeModeProgress(w)
-  let s = p * p * (3.0'f32 - 2.0'f32 * p)   # smoothstep drift
-  (newVector2f(w.pos.x + (w.targetPos.x - w.pos.x) * s,
+  let s = smoothstep(p)   # eases in and out
+  (vec2(w.pos.x + (w.targetPos.x - w.pos.x) * s,
                w.pos.y + (w.targetPos.y - w.pos.y) * s),
    SafeModeStartRadius + (SafeModeEndRadius - SafeModeStartRadius) * p)
 
@@ -228,7 +228,7 @@ proc lkgDoorRect*(door: int, screenW, screenH: float32): tuple[x, y, w, h: float
   of 2: (screenW / 2 - half, screenH - LkgDoorDepth, LkgDoorWidth, LkgDoorDepth)
   else: (0.0'f32, screenH / 2 - half, LkgDoorDepth, LkgDoorWidth)
 
-proc lkgInDoor*(door: int, p: Vector2f, screenW, screenH: float32): bool {.moddable.} =
+proc lkgInDoor*(door: int, p: Vector2, screenW, screenH: float32): bool {.moddable.} =
   let r = lkgDoorRect(door, screenW, screenH)
   p.x >= r.x and p.x <= r.x + r.w and p.y >= r.y and p.y <= r.y + r.h
 
@@ -250,7 +250,7 @@ proc lkgPurgeRadius*(w: AttackWarning): float32 {.moddable.} =
 proc packetLinkLength*(w: AttackWarning): float32 {.inline, moddable.} =
   distance(w.pos, w.targetPos)
 
-proc packetTrain*(w: AttackWarning): tuple[live: bool, tail, head: Vector2f] {.moddable.} =
+proc packetTrain*(w: AttackWarning): tuple[live: bool, tail, head: Vector2] {.moddable.} =
   ## The stretch of the link the train covers right now (clipped to the link).
   let run = warningAge(w) - w.laserDuration
   if run < 0: return (false, w.pos, w.pos)

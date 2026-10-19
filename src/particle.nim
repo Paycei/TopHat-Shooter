@@ -38,7 +38,7 @@ proc rollFloatSide(): float32 =
   else: 1.0'f32
 
 proc randomFloatVelocity(minSpeed, maxSpeed: float32,
-                         spreadScale: float32 = 1.0'f32): Vector2f =
+                         spreadScale: float32 = 1.0'f32): Vector2 =
   ## Polar launch measured off straight-up, so a wide angle trades height for
   ## sideways travel exactly like a real toss -- angle and speed vary together
   ## instead of being two independent axes.
@@ -46,7 +46,7 @@ proc randomFloatVelocity(minSpeed, maxSpeed: float32,
     frand(FloatSpreadMinDeg, FloatSpreadMaxDeg * spreadScale)
   let a = degToRad(deg)
   let speed = frand(minSpeed, maxSpeed)
-  newVector2f(sin(a) * speed, -cos(a) * speed)
+  vec2(sin(a) * speed, -cos(a) * speed)
 
 proc initFloatMotion[T](label: T, gravity, swayMax: float32,
                         spinScale: float32 = 1.0'f32) =
@@ -89,7 +89,7 @@ proc newDamageNumber*(x, y: float32, damage: float32, fromPlayer: bool, isCritic
   let spreadScale = if isCritical: 0.70'f32 else: 1.0'f32
 
   result = DamageNumber(
-    pos: newVector2f(x + frand(-10.0, 10.0), y + frand(-6.0, 4.0)),
+    pos: vec2(x + frand(-10.0, 10.0), y + frand(-6.0, 4.0)),
     vel: randomFloatVelocity(speedMin, speedMax, spreadScale),
     damage: damage,
     lifetime: 0,
@@ -115,7 +115,7 @@ proc newCurrencyIndicator*(x, y: float32, amount: int,
     of cikXp:                1.10'f32   # snappy: XP picks up constantly, keep it brief
 
   result = CurrencyIndicator(
-    pos: newVector2f(x + frand(-5.0, 5.0), y + frand(-4.0, 3.0)),
+    pos: vec2(x + frand(-5.0, 5.0), y + frand(-4.0, 3.0)),
     vel: randomFloatVelocity(118.0, 172.0, spreadScale),
     amount: amount,
     lifetime: 0,
@@ -131,7 +131,7 @@ proc newPerkIndicator*(x, y: float32, text: string, color: Color): PerkIndicator
   ## a damage number, then gravity pulls it back down as it fades out.
   ## Words are wider than numbers, so these launch tamer and barely tilt.
   result = PerkIndicator(
-    pos: newVector2f(x + frand(-4.0, 4.0), y),
+    pos: vec2(x + frand(-4.0, 4.0), y),
     vel: randomFloatVelocity(112.0, 156.0, 0.55'f32),
     text: text,
     color: color,

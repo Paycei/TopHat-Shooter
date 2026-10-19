@@ -13,7 +13,7 @@ import raylib, random, math, strutils
 import modding/mod_patch_core
 import draw_prims
 import particle_types, types, localization, utils, sound, d_systems, d_visuals, roguelite,
-       enemy, enemy_helpers, particle_pool, consumable, coin, player, powerup,
+       enemy, enemy_helpers, particle_pool, consumable, coin, pickup, player, powerup,
        powerup_data, gamepad_input, game/bullets, game/death, ui/os_background, ui/icon_drawing,
        ui/hud_dock, ui/ui_helpers
 import modding/[mod_hooks, mod_registry]
@@ -305,11 +305,11 @@ proc pickFodderType(game: Game): EnemyType {.moddable.} =
   else:
     etThread
 
-proc inArena(game: Game, pos: Vector2f): bool =
+proc inArena(game: Game, pos: Vector2): bool =
   pos.x >= 0 and pos.y >= 0 and
     pos.x <= game.screenWidth.float32 and pos.y <= game.screenHeight.float32
 
-proc newSurvivalEnemy*(game: Game, pos: Vector2f, enemyType: EnemyType,
+proc newSurvivalEnemy*(game: Game, pos: Vector2, enemyType: EnemyType,
                        tag: SurvivalTag = stgNone, hpMult: float32 = 1.0'f32,
                        speedMult: float32 = 1.0'f32, allowElite: bool = true): Enemy {.moddable.} =
   ## Build (but don't add) a survival enemy at the live difficulty, normalised
@@ -344,7 +344,7 @@ proc newSurvivalEnemy*(game: Game, pos: Vector2f, enemyType: EnemyType,
     # elites per minute stay where the old spawner had them.
     makeElite(result, int(d * 2.0'f32), chanceScale = rebate)
 
-proc addSurvivalEnemy(game: Game, pos: Vector2f, enemyType: EnemyType,
+proc addSurvivalEnemy(game: Game, pos: Vector2, enemyType: EnemyType,
                        tag: SurvivalTag = stgNone, hpMult: float32 = 1.0'f32,
                        speedMult: float32 = 1.0'f32, allowElite: bool = true): Enemy {.discardable, moddable.} =
   result = newSurvivalEnemy(game, pos, enemyType, tag, hpMult, speedMult, allowElite)
@@ -352,14 +352,14 @@ proc addSurvivalEnemy(game: Game, pos: Vector2f, enemyType: EnemyType,
   if enemyType == etDeadlock:
     # A Deadlock is always a linked pair: its partner arrives beside it and
     # the two split to flank the player with the tether between them.
-    let side = newVector2f(rand(-1.0'f32..1.0'f32), rand(-1.0'f32..1.0'f32)).normalize()
+    let side = vec2(rand(-1.0'f32..1.0'f32), rand(-1.0'f32..1.0'f32)).normalize()
     let partner = newSurvivalEnemy(game, pos + side * 70.0'f32, etDeadlock, tag, hpMult,
                                    speedMult, allowElite)
     partner.linkId = result.id
     result.linkId = partner.id
     game.enemies.add(partner)
 
-proc queueSurvivalSpawn(game: Game, pos: Vector2f, enemyType: EnemyType, delay: float32,
+proc queueSurvivalSpawn(game: Game, pos: Vector2, enemyType: EnemyType, delay: float32,
                          tag: SurvivalTag = stgNone, hpMult: float32 = 1.0'f32,
                          speedMult: float32 = 1.0'f32, allowElite: bool = true,
                          telegraph: bool = false): bool {.discardable, moddable.} =
@@ -388,14 +388,14 @@ proc updateSurvivalPending(game: Game, dt: float32) {.moddable.} =
       continue
     inc i
 
-proc edgePointAwayFromPlayer(game: Game, margin: float32 = 30): Vector2f =
+proc edgePointAwayFromPlayer(game: Game, margin: float32 = 30): Vector2 =
   ## Random off-screen edge point, re-rolled a few times to keep new spawns
   ## from landing right on top of a player hugging that edge.
-  var best = newVector2f(0, 0)
+  var best = vec2(0, 0)
   var bestDist = -1.0'f32
   for _ in 0..3:
     let (x, y) = randomEdgeSpawnPos(game.screenWidth, game.screenHeight, margin)
-    let p = newVector2f(x, y)
+    let p = vec2(x, y)
     let dist = distance(p, game.player.pos)
     if dist >= SurvivalEdgeMinGap:
       return p
@@ -404,12 +404,12 @@ proc edgePointAwayFromPlayer(game: Game, margin: float32 = 30): Vector2f =
       bestDist = dist
   best
 
-proc edgeScatter(game: Game, anchor: Vector2f, spread: float32): Vector2f =
+proc edgeScatter(game: Game, anchor: Vector2, spread: float32): Vector2 =
   ## A point near `anchor` pushed further off-screen, so a pack arrives as a
   ## clump rather than a line.
   let w = game.screenWidth.float32
   let h = game.screenHeight.float32
-  var p = anchor + newVector2f(rand(-spread..spread), rand(-spread..spread))
+  var p = anchor + vec2(rand(-spread..spread), rand(-spread..spread))
   if anchor.x < 0: p.x = min(p.x, -10.0'f32)
   elif anchor.x > w: p.x = max(p.x, w + 10.0'f32)
   if anchor.y < 0: p.y = min(p.y, -10.0'f32)
@@ -495,12 +495,12 @@ proc updateSurvivalDensity(game: Game, dt: float32) {.moddable.} =
 
 # --- Set-piece formations ----------------------------------------------------------
 
-proc clampNearArena(game: Game, pos: Vector2f, pad: float32): Vector2f =
+proc clampNearArena(game: Game, pos: Vector2, pad: float32): Vector2 =
   ## Clamp to the arena grown by `pad` (negative pad = inset).
-  newVector2f(clamp(pos.x, -pad, game.screenWidth.float32 + pad),
+  vec2(clamp(pos.x, -pad, game.screenWidth.float32 + pad),
               clamp(pos.y, -pad, game.screenHeight.float32 + pad))
 
-proc slotBlocked(game: Game, pos: Vector2f, radius: float32): bool =
+proc slotBlocked(game: Game, pos: Vector2, radius: float32): bool =
   for wall in game.walls:
     if wall.hp > 0 and wallOverlapsCircle(wall, pos, radius):
       return true
@@ -516,7 +516,7 @@ proc queueRing(game: Game, count: int, radius: float32, delay: float32,
   let spin = rand(PI * 2.0)
   for i in 0..<count:
     let a = spin + i.float32 * PI * 2.0 / count.float32
-    let raw = game.player.pos + newVector2f(cos(a), sin(a)) * radius
+    let raw = game.player.pos + vec2(cos(a), sin(a)) * radius
     let pos = clampNearArena(game, raw, 24.0'f32)
     if distance(pos, game.player.pos) < SurvivalRingMinGap or slotBlocked(game, pos, 14.0'f32):
       continue
@@ -539,7 +539,7 @@ proc spawnSwarm(game: Game, count: int) =
   let h = game.screenHeight.float32
   let cx = if game.player.pos.x < w * 0.5'f32: w + 40.0'f32 else: -40.0'f32
   let cy = if game.player.pos.y < h * 0.5'f32: h + 40.0'f32 else: -40.0'f32
-  let corner = newVector2f(cx, cy)
+  let corner = vec2(cx, cy)
   for _ in 0..<count:
     discard queueSurvivalSpawn(game, edgeScatter(game, corner, 70), pickFodderType(game),
                                rand(0.4'f32))
@@ -646,9 +646,9 @@ const
   CacheRareLegendaryChance = 40   # % chance a Rare cache adds a legendary
   CacheFallbackHeal = 0.15'f32    # of max HP, when nothing is left to upgrade
 
-proc dropSurvivalCache(game: var Game, pos: Vector2f, tier: SurvivalCacheTier) {.moddable.} =
+proc dropSurvivalCache(game: var Game, pos: Vector2, tier: SurvivalCacheTier) {.moddable.} =
   let p = clampLootPosition(pos.x, pos.y, game.screenWidth, game.screenHeight)
-  let at = newVector2f(p.x, p.y)
+  let at = vec2(p.x, p.y)
   game.survival.chests.add(SurvivalChest(pos: at, tier: tier, age: 0.0'f32))
   let accent = survivalCacheAccent(tier)
   spawnExplosionPooled(game.particlePool, at.x, at.y, accent, 18)
@@ -676,7 +676,7 @@ proc rollCacheLevel(game: var Game): PowerUp =
   let pt = pool[rand(pool.high)]
   PowerUp(powerType: pt, level: getPowerUpLevel(game.player, pt) + 1, rarity: prCommon)
 
-proc openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2f): bool {.discardable, moddable.} =
+proc openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2): bool {.discardable, moddable.} =
   ## Apply a cache's rewards and start its reveal. False: a mod's cacheOpen
   ## handler took it instead (gone, no rewards of its own, no reveal).
   if hookActive(hkCacheOpen) and modCacheOpen(game, $tier, at.x, at.y):
@@ -873,7 +873,7 @@ proc removeEnemy(game: Game, id: int) =
       game.enemies.delete(i)
       return
 
-proc arenaPointAround(game: Game, minDist, maxDist, margin: float32): Vector2f =
+proc arenaPointAround(game: Game, minDist, maxDist, margin: float32): Vector2 =
   ## A free point in the arena between minDist and maxDist from the player,
   ## re-rolled a few times; falls back to the arena point mirrored across the
   ## centre from the player.
@@ -882,7 +882,7 @@ proc arenaPointAround(game: Game, minDist, maxDist, margin: float32): Vector2f =
   for _ in 0..15:
     let a = rand(PI * 2.0)
     let d = rand(minDist..maxDist)
-    let p = game.player.pos + newVector2f(cos(a), sin(a)) * d
+    let p = game.player.pos + vec2(cos(a), sin(a)) * d
     if p.x < margin or p.y < margin or p.x > w - margin or p.y > h - margin:
       continue
     var blocked = false
@@ -892,12 +892,12 @@ proc arenaPointAround(game: Game, minDist, maxDist, margin: float32): Vector2f =
         break
     if not blocked:
       return p
-  newVector2f(clamp(w - game.player.pos.x, margin, w - margin),
+  vec2(clamp(w - game.player.pos.x, margin, w - margin),
               clamp(h - game.player.pos.y, margin, h - margin))
 
-proc lootPointNearPlayer(game: Game): Vector2f =
+proc lootPointNearPlayer(game: Game): Vector2 =
   let a = rand(PI * 2.0)
-  game.player.pos + newVector2f(cos(a), sin(a)) * rand(60.0'f32..90.0'f32)
+  game.player.pos + vec2(cos(a), sin(a)) * rand(60.0'f32..90.0'f32)
 
 proc pickRogueType(game: Game): EnemyType =
   ## The champion comes from the roster's single-body regulars: a giant Thread
@@ -962,7 +962,7 @@ proc scheduleNextEvent(game: Game) =
   game.survival.nextEventClock = game.survivalTime + SurvivalEventGap[ph] +
     rand(-SurvivalEventJitter[ph]..SurvivalEventJitter[ph])
 
-proc finishSurvivalEvent(game: var Game, success: bool, rewardAt: Vector2f) =
+proc finishSurvivalEvent(game: var Game, success: bool, rewardAt: Vector2) =
   let kind = game.survival.event.kind
   let modKey = game.survival.event.modKey
   let p = survivalPhaseIndex(game)
@@ -986,7 +986,7 @@ proc finishSurvivalEvent(game: var Game, success: bool, rewardAt: Vector2f) =
       awardMetaCurrency(game, survivalEventShardReward(p, false))
     of sekCorruptedSector:
       let at = lootPointNearPlayer(game)
-      let lp = newVector2f(clamp(at.x, 50.0'f32, game.screenWidth.float32 - 50.0'f32),
+      let lp = vec2(clamp(at.x, 50.0'f32, game.screenWidth.float32 - 50.0'f32),
                            clamp(at.y, 50.0'f32, game.screenHeight.float32 - 50.0'f32))
       game.consumables.add(newSpecificConsumable(lp.x, lp.y, ctHealth))
       awardMetaCurrency(game, survivalEventShardReward(p, false))
@@ -1060,16 +1060,16 @@ proc spawnRogueProcess(game: var Game) =
 proc spawnSectorMeteor(game: Game, phaseIndex: int) =
   let w = game.screenWidth.float32
   let h = game.screenHeight.float32
-  var target: Vector2f
+  var target: Vector2
   if rand(99) < 45:
     # Aimed where the player is heading, so standing still is not an answer
     # and running in a straight line is not either.
     target = game.player.pos + game.player.vel * 0.5'f32 +
-             newVector2f(rand(-40.0'f32..40.0'f32), rand(-40.0'f32..40.0'f32))
+             vec2(rand(-40.0'f32..40.0'f32), rand(-40.0'f32..40.0'f32))
   else:
     let a = rand(PI * 2.0)
-    target = game.player.pos + newVector2f(cos(a), sin(a)) * rand(SectorRadius)
-  target = newVector2f(clamp(target.x, 30.0'f32, w - 30.0'f32),
+    target = game.player.pos + vec2(cos(a), sin(a)) * rand(SectorRadius)
+  target = vec2(clamp(target.x, 30.0'f32, w - 30.0'f32),
                        clamp(target.y, 30.0'f32, h - 30.0'f32))
   let m = newMeteorite(target.x, target.y, target.x + rand(-80.0'f32..80.0'f32),
                        target.y - 650.0'f32, 1 + phaseIndex, 1.1'f32, -1)
@@ -1078,17 +1078,17 @@ proc spawnSectorMeteor(game: Game, phaseIndex: int) =
   game.meteorites.add(m)
   inc game.survival.event.spawned
 
-proc leakEmitPoint(game: Game, edge: int, frac: float32): Vector2f =
+proc leakEmitPoint(game: Game, edge: int, frac: float32): Vector2 =
   ## A point just outside `edge` that sweeps across its middle 60% as the leak
   ## runs, so the torrent visibly travels.
   let w = game.screenWidth.float32
   let h = game.screenHeight.float32
   let s = clamp(0.2'f32 + 0.6'f32 * frac + rand(-0.04'f32..0.04'f32), 0.05'f32, 0.95'f32)
   case edge
-  of 0: newVector2f(s * w, -30.0'f32)
-  of 1: newVector2f(w + 30.0'f32, s * h)
-  of 2: newVector2f(s * w, h + 30.0'f32)
-  else: newVector2f(-30.0'f32, s * h)
+  of 0: vec2(s * w, -30.0'f32)
+  of 1: vec2(w + 30.0'f32, s * h)
+  of 2: vec2(s * w, h + 30.0'f32)
+  else: vec2(-30.0'f32, s * h)
 
 proc updateSurvivalEvent*(game: var Game, dt: float32) {.moddable.} =
   ## Advance the running event by `dt` survival-clock seconds.
@@ -1346,7 +1346,7 @@ proc drawSurvivalEventsUnder(game: Game) {.moddable.} =
   let pulse = sin(now * 8.0'f32) * 0.5'f32 + 0.5'f32
   let color = survivalEventColor(ev.kind, ev.modKey)
   let live = ev.elapsed - ev.warmup
-  let player = Vector2(x: game.player.pos.x, y: game.player.pos.y)
+  let player = game.player.pos
   case ev.kind
   of sekNone: discard
   of sekMemoryLeak:
@@ -1366,7 +1366,7 @@ proc drawSurvivalEventsUnder(game: Game) {.moddable.} =
                      withAlpha(color, a * 0.7'f32))
   of sekUploadZone:
     let inside = distance(game.player.pos, ev.zonePos) <= ev.zoneRadius
-    let center = Vector2(x: ev.zonePos.x, y: ev.zonePos.y)
+    let center = ev.zonePos
     let rimA = 150.0'f32 + pulse * 100.0'f32
     drawRadialGradient(center, ev.zoneRadius, ev.zoneRadius,
                        withAlpha(color, if inside: 34 else: 14), withAlpha(color, if inside: 96 else: 58), reSmooth)
@@ -1443,7 +1443,7 @@ proc drawSurvivalEventsUnder(game: Game) {.moddable.} =
   of sekMod:
     discard   # a mod event draws itself (drawWorld)
 
-proc drawRoguePointer(game: Game, target: Vector2f, pulse: float32) =
+proc drawRoguePointer(game: Game, target: Vector2, pulse: float32) =
   ## A chevron orbiting the player, aimed at the Rogue Process (or where it
   ## is about to land).
   let toTarget = target - game.player.pos
@@ -1451,14 +1451,14 @@ proc drawRoguePointer(game: Game, target: Vector2f, pulse: float32) =
     return
   let dir = toTarget.normalize()
   let tip = game.player.pos + dir * (game.player.radius + 34.0'f32)
-  let side = newVector2f(-dir.y, dir.x)
+  let side = vec2(-dir.y, dir.x)
   let back = tip - dir * 12.0'f32
   let a = uint8(160.0'f32 + pulse * 95.0'f32)
-  let c = Color(r: RogueColor.r, g: RogueColor.g, b: RogueColor.b, a: a)
-  drawTriangle(Vector2(x: tip.x, y: tip.y),
+  let c = withAlpha(RogueColor, a)
+  drawTriangle(tip,
                Vector2(x: back.x - side.x * 7.0'f32, y: back.y - side.y * 7.0'f32),
                Vector2(x: back.x + side.x * 7.0'f32, y: back.y + side.y * 7.0'f32), c)
-  drawTriangle(Vector2(x: tip.x, y: tip.y),
+  drawTriangle(tip,
                Vector2(x: back.x + side.x * 7.0'f32, y: back.y + side.y * 7.0'f32),
                Vector2(x: back.x - side.x * 7.0'f32, y: back.y - side.y * 7.0'f32), c)
 
@@ -1577,7 +1577,7 @@ proc prepareSurvivalBossArrival*(game: var Game) {.moddable.} =
   reclaimSurvivalFodder(game, BossArrivalKeep)
   game.survival.spawnBudget = 0.0'f32
 
-proc onSurvivalBossDefeated*(game: var Game, bossPos: Vector2f): bool {.moddable.} =
+proc onSurvivalBossDefeated*(game: var Game, bossPos: Vector2): bool {.moddable.} =
   ## Boss bounty and its Kernel cache. True when this was the final boss (the
   ## run is won; the caller routes to the victory screen).
   let k = game.bossCount

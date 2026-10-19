@@ -4,7 +4,7 @@
 import raylib, strutils, math
 import ../modding/mod_patch_core
 import ../draw_prims
-import ../types, ../powerup, ../localization, ../render_context, ../powerup_data, icon_drawing, ../utils, hud_dock
+import ../types, ../powerup, ../localization, ../render_context, ../powerup_data, icon_drawing, ../utils, hud_dock, ui_helpers
 
 const
   DBG_FULL_W = 200        # classic debug panel width
@@ -964,12 +964,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     $readyCount & " ready"
   else:
     "cooling down"
-  var displayFooter = footerText
-  let footerMaxW = panelWidth - LEGENDARY_Q_PADDING * 2
-  while measureText(displayFooter, 9) > footerMaxW and displayFooter.len > 3:
-    displayFooter = displayFooter[0..^2]
-  if displayFooter.len < footerText.len:
-    displayFooter = displayFooter[0..^2] & ".."
+  let displayFooter = fitWithEllipsis(footerText, panelWidth - LEGENDARY_Q_PADDING * 2, 9)
   let footerW = measureText(displayFooter, 9)
   drawText(displayFooter, actualX + panelWidth div 2 - footerW div 2 + 1,
            qYOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 125))

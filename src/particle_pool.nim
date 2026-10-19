@@ -67,7 +67,7 @@ proc drawSimplifiedParticle(particle: ptr Particle, pos: Vector2, mainColor, cor
       if velLen > 0.01'f32: particle.vel.normalize()
       else:
         let angle = particle.rotation * PI.float32 / 180.0'f32
-        newVector2f(cos(angle), sin(angle))
+        vec2(cos(angle), sin(angle))
     let streakLength = max(1.5'f32, particle.size * (1.2'f32 + min(1.8'f32, velLen / 150.0'f32)))
     drawStroke(
       (particle.pos.x - dir.x * streakLength * 0.4'f32).int32,
@@ -81,14 +81,10 @@ proc drawSimplifiedParticle(particle: ptr Particle, pos: Vector2, mainColor, cor
   of psEmber, psSoft:
     drawDisc(pos, max(0.7'f32, particle.size * 0.75'f32), mainColor)
 
-proc alphaScaled(color: Color, scale: float32): Color =
-  result = color
-  result.a = clampByteF(color.a.float32 * scale)
-
 proc newParticleTemplate(): Particle =
   Particle(
-    pos: newVector2f(0, 0),
-    vel: newVector2f(0, 0),
+    pos: vec2(0, 0),
+    vel: vec2(0, 0),
     color: Color(r: 0, g: 0, b: 0, a: 0),
     coreColor: Color(r: 0, g: 0, b: 0, a: 0),
     lifetime: 0.0,
@@ -215,7 +211,7 @@ proc updateParticlePool*(pool: ParticlePool, dt: float32) =
     let lifeRatio =
       if particle.maxLifetime > 0: clamp(particle.lifetime / particle.maxLifetime, 0.0'f32, 1.0'f32)
       else: 0.0'f32
-    let sizeEase = lifeRatio * lifeRatio * (3.0'f32 - 2.0'f32 * lifeRatio)
+    let sizeEase = smoothstep(lifeRatio)
     particle.size = particle.endSize + (particle.startSize - particle.endSize) * sizeEase
 
     if not isParticleWithinSimulationBounds(particle, screenWidth, screenHeight):
@@ -247,10 +243,10 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer,
       if particle.maxLifetime > 0: clamp(particle.lifetime / particle.maxLifetime, 0.0'f32, 1.0'f32)
       else: 0.0'f32
     let fade = sqrt(lifeRatio)
-    let mainColor = alphaScaled(particle.color, fade)
-    let haloColor = alphaScaled(particle.color, fade * 0.24'f32 * (0.8'f32 + particle.glow * 0.35'f32))
-    let coreColor = alphaScaled(particle.coreColor, fade * 0.9'f32)
-    let pos = Vector2(x: particle.pos.x, y: particle.pos.y)
+    let mainColor = scaleAlpha(particle.color, fade)
+    let haloColor = scaleAlpha(particle.color, fade * 0.24'f32 * (0.8'f32 + particle.glow * 0.35'f32))
+    let coreColor = scaleAlpha(particle.coreColor, fade * 0.9'f32)
+    let pos = particle.pos
 
     if renderSettings.drawHalos and particle.glow > 0:
       drawDisc(pos, particle.size * (1.5'f32 + particle.glow * 0.45'f32), haloColor)
@@ -269,14 +265,14 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer,
         if velLen > 0.01'f32: particle.vel.normalize()
         else:
           let angle = particle.rotation * PI.float32 / 180.0'f32
-          newVector2f(cos(angle), sin(angle))
+          vec2(cos(angle), sin(angle))
       let streakLength = particle.size * (1.5'f32 + min(2.8'f32, velLen / 110.0'f32))
       let startPos = Vector2(x: particle.pos.x - dir.x * streakLength * 0.45'f32,
                              y: particle.pos.y - dir.y * streakLength * 0.45'f32)
       let endPos = Vector2(x: particle.pos.x + dir.x * streakLength * 0.55'f32,
                            y: particle.pos.y + dir.y * streakLength * 0.55'f32)
       let thickness = max(1.0'f32, particle.size * 0.38'f32)
-      let perp = newVector2f(-dir.y, dir.x)
+      let perp = vec2(-dir.y, dir.x)
       for layer in -1..1:
         let offset = perp * (thickness * 0.45'f32 * layer.float32)
         drawStroke(
@@ -286,7 +282,7 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer,
         )
       drawDisc(pos, max(0.8'f32, particle.size * 0.24'f32), coreColor)
     of psEmber:
-      drawDisc(pos, particle.size * 0.95'f32, alphaScaled(mainColor, 0.88'f32))
+      drawDisc(pos, particle.size * 0.95'f32, scaleAlpha(mainColor, 0.88'f32))
       drawDisc(pos, max(0.6'f32, particle.size * 0.32'f32), coreColor)
     of psShard:
       drawPoly(pos, 4, particle.size, particle.rotation, mainColor)

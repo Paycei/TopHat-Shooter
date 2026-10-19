@@ -1824,7 +1824,7 @@ var world3dActions*: seq[World3DAction]
 type World3DLabel* = object
   ## draw3d.text: a label anchored to a point in the world. Text cannot be drawn
   ## inside the 3D camera, so the engine draws these after it, once per frame.
-  pos*: Vector3f
+  pos*: Vector3
   text*: string
   size*: int32
   color*: Color
@@ -2246,7 +2246,7 @@ proc modPvPBulletDraw*(m: ScriptedMatch, b: Bullet): bool =
   fireCancel(hkPvpBulletDraw, [wrapBullet(b), wrapMatch(m)])
 
 # ---- the match itself (host)
-proc modPvPShoot*(m: ScriptedMatch, p: Player, dir, aim: Vector2f): bool =
+proc modPvPShoot*(m: ScriptedMatch, p: Player, dir, aim: Vector2): bool =
   hookActive(hkPvpShoot) and
     fireCancel(hkPvpShoot, [wrapMatch(m), wrapPlayer(p), vnum(dir.x.float64), vnum(dir.y.float64),
                             vnum(aim.x.float64), vnum(aim.y.float64)])
@@ -2289,7 +2289,7 @@ proc modPvPPlayerLethal*(m: ScriptedMatch, victim, attacker: Player): bool =
   hookActive(hkPvpPlayerLethal) and
     fireCancel(hkPvpPlayerLethal, [wrapPlayer(victim), wrapPlayer(attacker), wrapMatch(m)])
 
-proc modPvPSpawnPoint*(m: ScriptedMatch, p: Player, pos: var Vector2f) =
+proc modPvPSpawnPoint*(m: ScriptedMatch, p: Player, pos: var Vector2) =
   ## A player is about to (re)spawn at `pos`: a handler may return x, y instead.
   if not hookActive(hkPvpSpawnPoint): return
   let hs = handlers[hkPvpSpawnPoint]
@@ -2300,7 +2300,7 @@ proc modPvPSpawnPoint*(m: ScriptedMatch, p: Player, pos: var Vector2f) =
       let x = r.first
       let y = r.retAt(1)
       if x.kind == vkNumber and y.kind == vkNumber and abs(x.n) < 1.0e9 and abs(y.n) < 1.0e9:
-        pos = newVector2f(x.n.float32, y.n.float32)
+        pos = vec2(x.n.float32, y.n.float32)
 
 proc modPvPPickup*(m: ScriptedMatch, p: Player, kind: string): bool =
   hookActive(hkPvpPickup) and fireCancel(hkPvpPickup, [wrapMatch(m), wrapPlayer(p), vstr(kind)])

@@ -139,9 +139,7 @@ proc drawSupportButton(r: Rectangle, link: SupportLink, hovered: bool) =
   drawRectOutline(r, (if hovered: 2.0 else: 1.5),
                      uiLine(Color(r: 255, g: 255, b: 255, a: if hovered: 220 else: 120)))
   # Shrink the caption until it fits so brand names never spill out of the pill.
-  var fontSize = 15'i32
-  while fontSize > 9 and measureText(link.label, fontSize) > r.width.int32 - 12:
-    dec fontSize
+  let fontSize = bestFitFontSize(link.label, r.width.int32 - 12, 15)
   let tw = measureText(link.label, fontSize)
   drawText(link.label,
            r.x.int32 + (r.width.int32 - tw) div 2,

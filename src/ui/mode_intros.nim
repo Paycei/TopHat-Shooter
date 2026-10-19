@@ -7,9 +7,8 @@
 import raylib, rlgl, math, strutils
 import ../modding/mod_patch_core
 import ../draw_prims
-from std/unicode import runeLen, runeSubStr
 import particle_types, background_fx, ../types, ../localization, ../sound, ../boss_definitions,
-       ../enemy_config, ../powerup_data, icon_drawing, cinematic_common, cutscene, ../utils
+       ../enemy_config, ../powerup_data, icon_drawing, cinematic_common, cutscene, ../utils, ui_helpers
 from ../dungeon import themeName, themeAccent
 
 # ---------------------------------------------------------------------------
@@ -57,16 +56,16 @@ proc newWaveRosterShot(): CutsceneDrawProc =
     let cx = sw.float32 * 0.5'f32
     let cy = sh.float32 * 0.47'f32
     let radarR = 172.0'f32
-    let open = easeOut(local / (duration * 0.3'f32))
+    let open = easeOutCubic(local / (duration * 0.3'f32))
 
-    drawSoftGlow(cx, cy, 130.0'f32 * open, colorA(WaveAccent, alpha * 40.0'f32), 1.0'f32)
+    drawSoftGlow(cx, cy, 130.0'f32 * open, withAlpha(WaveAccent, alpha * 40.0'f32), 1.0'f32)
     for i in 1..4:
       drawCircleOutline(Vector2(x: cx, y: cy), radarR * i.float32 / 4.0'f32 * open,
-                      colorA(WaveAccent, alpha * (110.0'f32 - i.float32 * 14.0'f32)))
+                      withAlpha(WaveAccent, alpha * (110.0'f32 - i.float32 * 14.0'f32)))
     drawStroke((cx - radarR * open).int32, cy.int32, (cx + radarR * open).int32, cy.int32,
-             colorA(WaveAccent, alpha * 45.0'f32))
+             withAlpha(WaveAccent, alpha * 45.0'f32))
     drawStroke(cx.int32, (cy - radarR * open).int32, cx.int32, (cy + radarR * open).int32,
-             colorA(WaveAccent, alpha * 45.0'f32))
+             withAlpha(WaveAccent, alpha * 45.0'f32))
 
     # The sweep starts at twelve o'clock and fades a trail behind it.
     let swept = local * sweepSpeed
@@ -74,7 +73,7 @@ proc newWaveRosterShot(): CutsceneDrawProc =
     for k in 0..<14:
       let a = sweepA - k.float32 * 0.035'f32
       drawStroke(Vector2(x: cx, y: cy), Vector2(x: cx + cos(a) * radarR * open, y: cy + sin(a) * radarR * open),
-               2.0'f32, colorA(WaveAccent, alpha * (150.0'f32 - k.float32 * 10.0'f32)))
+               2.0'f32, withAlpha(WaveAccent, alpha * (150.0'f32 - k.float32 * 10.0'f32)))
 
     # Each service is found as the sweep crosses it: ping, blip, and its name.
     var found = 0
@@ -89,19 +88,19 @@ proc newWaveRosterShot(): CutsceneDrawProc =
       let age = (swept - rel) / sweepSpeed
       if age < 0.6'f32:
         drawCircleOutline(Vector2(x: bx, y: by), 6.0'f32 + age * 40.0'f32,
-                        Color(r: 255, g: 70, b: 70, a: alphaByte(alpha * (1.0'f32 - age / 0.6'f32) * 220.0'f32)))
+                        Color(r: 255, g: 70, b: 70, a: clampByteF(alpha * (1.0'f32 - age / 0.6'f32) * 220.0'f32)))
       let pulse = 0.6'f32 + 0.4'f32 * sin(local * 6.0'f32 + i.float32)
       drawDisc(Vector2(x: bx, y: by), 3.5'f32 + pulse * 2.0'f32,
-                 Color(r: 255, g: 60, b: 60, a: alphaByte(alpha * 235.0'f32)))
+                 Color(r: 255, g: 60, b: 60, a: clampByteF(alpha * 235.0'f32)))
       let w = measureText(name, 12)
       let lx = if cos(ang) >= 0.0'f32: bx.int32 + 10 else: bx.int32 - 10 - w
       let labelA = alpha * clamp01(age / 0.25'f32)
-      drawText(name, lx + 1, by.int32 - 5, 12, Color(r: 0, g: 0, b: 0, a: alphaByte(labelA * 200.0'f32)))
-      drawText(name, lx, by.int32 - 6, 12, Color(r: 255, g: 120, b: 120, a: alphaByte(labelA * 240.0'f32)))
+      drawText(name, lx + 1, by.int32 - 5, 12, Color(r: 0, g: 0, b: 0, a: clampByteF(labelA * 200.0'f32)))
+      drawText(name, lx, by.int32 - 6, 12, Color(r: 255, g: 120, b: 120, a: clampByteF(labelA * 240.0'f32)))
 
     let header = t(tkModeIntroWaveRoster) & ": " & $found & "/" & $services.len
     drawCenteredText(header, sw div 2, (cy - radarR - 38.0'f32).int32, 16,
-                     Color(r: 255, g: 110, b: 110, a: alphaByte(alpha * open * 230.0'f32)))
+                     Color(r: 255, g: 110, b: 110, a: clampByteF(alpha * open * 230.0'f32)))
 
     drawSubtitles([t(tkModeIntroWave1a), t(tkModeIntroWave1b)], sw, sh, alpha)
 
@@ -122,7 +121,7 @@ proc newWavePlanShot(): CutsceneDrawProc =
     let x1 = sw.float32 * 0.9'f32
     let segW = (x1 - x0) / waves.float32
     let ty = sh.float32 * 0.55'f32
-    let progress = easeInOut(clamp01((local - 0.3'f32) / (duration * 0.78'f32))) * 6.6'f32
+    let progress = smoothstep(clamp01((local - 0.3'f32) / (duration * 0.78'f32))) * 6.6'f32
     let current = int(progress)
 
     # The wave strip.
@@ -132,39 +131,39 @@ proc newWavePlanShot(): CutsceneDrawProc =
       let done = w < current
       let col = if isBoss: Color(r: 255, g: 90, b: 90, a: 255) else: WaveAccent
       drawRectangle((sx + 3.0'f32).int32, ty.int32, (segW - 6.0'f32).int32, 26,
-                    colorA(col, alpha * (if done: 120.0'f32 else: 40.0'f32)))
-      drawRectOutline((sx + 3.0'f32).int32, ty.int32, (segW - 6.0'f32).int32, 26, colorA(col, alpha * 200.0'f32))
+                    withAlpha(col, alpha * (if done: 120.0'f32 else: 40.0'f32)))
+      drawRectOutline((sx + 3.0'f32).int32, ty.int32, (segW - 6.0'f32).int32, 26, withAlpha(col, alpha * 200.0'f32))
       drawCenteredText($(w + 1), (sx + segW * 0.5'f32).int32, ty.int32 + 6, 16,
-                       Color(r: 240, g: 250, b: 255, a: alphaByte(alpha * 235.0'f32)))
+                       Color(r: 240, g: 250, b: 255, a: clampByteF(alpha * 235.0'f32)))
       if isBoss:
         let bx = sx + segW * 0.5'f32
         let reached = progress >= w.float32
-        drawCenteredText(bossLabel, bx.int32, ty.int32 + 34, 13, colorA(col, alpha * 220.0'f32))
+        drawCenteredText(bossLabel, bx.int32, ty.int32 + 34, 13, withAlpha(col, alpha * 220.0'f32))
         drawCinematicBoss(bosses[(w + 1) div 5 - 1], bx, ty - 34.0'f32,
                           if reached: 22.0'f32 else: 15.0'f32, 1.0'f32, 0)
-    drawText(waveLabel, x0.int32, ty.int32 - 22, 14, colorA(WaveAccent, alpha * 180.0'f32))
+    drawText(waveLabel, x0.int32, ty.int32 - 22, 14, withAlpha(WaveAccent, alpha * 180.0'f32))
     let cxp = x0 + progress * segW
     drawTriangle(Vector2(x: cxp - 7.0'f32, y: ty + 40.0'f32), Vector2(x: cxp + 7.0'f32, y: ty + 40.0'f32),
-                 Vector2(x: cxp, y: ty + 30.0'f32), colorA(WaveAccent, alpha * 240.0'f32))
+                 Vector2(x: cxp, y: ty + 30.0'f32), withAlpha(WaveAccent, alpha * 240.0'f32))
 
     # Above it, the job itself: shoot, level up, get patched.
     let px = sw.float32 * 0.2'f32
     let py = sh.float32 * 0.3'f32 + sin(local * 1.6'f32) * 8.0'f32
     for i in 0..<10:
-      let ex = sw.float32 * (0.5'f32 + hash01(i.float32 * 1.3'f32) * 0.38'f32) - fractCoord(local * 0.2'f32 + i.float32 * 0.1'f32) * 60.0'f32
+      let ex = sw.float32 * (0.5'f32 + hash01(i.float32 * 1.3'f32) * 0.38'f32) - fract01(local * 0.2'f32 + i.float32 * 0.1'f32) * 60.0'f32
       let ey = sh.float32 * (0.18'f32 + hash01(i.float32 + 3.0'f32) * 0.22'f32)
       let kind = [etCircle, etTriangle, etStar, etCube][i mod 4]
-      drawRealEnemy(kind, ex, ey, 10.0'f32 + (i mod 3).float32 * 2.0'f32, local, i, 0, newVector2f(-60.0'f32, 0.0'f32))
-      let p = fractCoord(local * 2.0'f32 + i.float32 * 0.29'f32)
-      drawEquippedBulletModel(newVector2f(lerpF(px + 26.0'f32, ex, p), lerpF(py, ey, p)), 5.0'f32,
+      drawRealEnemy(kind, ex, ey, 10.0'f32 + (i mod 3).float32 * 2.0'f32, local, i, 0, vec2(-60.0'f32, 0.0'f32))
+      let p = fract01(local * 2.0'f32 + i.float32 * 0.29'f32)
+      drawEquippedBulletModel(vec2(lerp(px + 26.0'f32, ex, p), lerp(py, ey, p)), 5.0'f32,
                               arctan2(ey - py, ex - px), local, alpha * 0.9'f32)
-    drawEquippedPlayerModel(newVector2f(px, py), 22.0'f32, local, alpha, 0.2'f32)
+    drawEquippedPlayerModel(vec2(px, py), 22.0'f32, local, alpha, 0.2'f32)
     for k in 0..<min(current, patches.len):
       let since = local - (0.3'f32 + (k + 1).float32 / 6.6'f32 * duration * 0.78'f32)
       let pop = clamp01(since / 0.25'f32)
       let pt = patches[k]
       drawPowerUpIcon((px - 46.0'f32 + k.float32 * 32.0'f32).int32, (py - 66.0'f32 - (1.0'f32 - pop) * 10.0'f32).int32,
-                      26, pt, colorA(powerUpDef(pt).color, alpha * pop * 255.0'f32))
+                      26, pt, withAlpha(powerUpDef(pt).color, alpha * pop * 255.0'f32))
 
     drawSubtitles([t(tkModeIntroWave2a), t(tkModeIntroWave2b)], sw, sh, alpha)
 
@@ -200,35 +199,35 @@ proc drawSurvShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   ## clock starts slow and accelerates while the swarm gathers at the light's edge.
   let cx = sw.float32 * 0.5'f32
   let cy = sh.float32 * 0.40'f32
-  let open = easeOut(local / (duration * 0.4'f32))
+  let open = easeOutCubic(local / (duration * 0.4'f32))
   let dialR = 92.0'f32
 
-  drawSoftGlow(cx, cy, 190.0'f32 * open, colorA(SurvAccent, alpha * 44.0'f32), 1.0'f32)
+  drawSoftGlow(cx, cy, 190.0'f32 * open, withAlpha(SurvAccent, alpha * 44.0'f32), 1.0'f32)
 
   # Uptime dial: one slow sweep across the shot, ticked like a clock face.
   let sweep = (local / duration) * 360.0'f32
   drawRing(Vector2(x: cx, y: cy), dialR - 2.0'f32, dialR + 2.0'f32, -90.0'f32, -90.0'f32 + sweep, 48,
-           colorA(SurvAccent, alpha * 215.0'f32))
-  drawCircleOutline(Vector2(x: cx, y: cy), dialR, colorA(SurvAccent, alpha * 70.0'f32 * open))
+           withAlpha(SurvAccent, alpha * 215.0'f32))
+  drawCircleOutline(Vector2(x: cx, y: cy), dialR, withAlpha(SurvAccent, alpha * 70.0'f32 * open))
   for i in 0..<12:
     let a = i.float32 * PI * 2.0'f32 / 12.0'f32 - PI * 0.5'f32
     let r1 = dialR - (if i mod 3 == 0: 12.0'f32 else: 7.0'f32)
     drawStroke((cx + cos(a) * r1).int32, (cy + sin(a) * r1).int32,
              (cx + cos(a) * dialR).int32, (cy + sin(a) * dialR).int32,
-             colorA(SurvAccent, alpha * (if i mod 3 == 0: 200.0'f32 else: 120.0'f32)))
+             withAlpha(SurvAccent, alpha * (if i mod 3 == 0: 200.0'f32 else: 120.0'f32)))
 
   # The flood arriving: more processes circle the edge of the light as time runs.
   let enemyKinds = [etThread, etForkBomb, etThread, etZombie, etWatchdog, etThread, etDeadlock, etInterrupt]
   let arrived = min(12, 3 + int(local * 2.2'f32))
   for i in 0..<arrived:
     let a = i.float32 * PI * 2.0'f32 / 12.0'f32 + local * 0.28'f32
-    let settle = easeOut(clamp01((local - i.float32 * 0.35'f32) / 0.9'f32))
+    let settle = easeOutCubic(clamp01((local - i.float32 * 0.35'f32) / 0.9'f32))
     let r = 150.0'f32 + (1.0'f32 - settle) * 140.0'f32 + sin(local * 1.5'f32 + i.float32) * 14.0'f32
     drawRealEnemy(enemyKinds[i mod enemyKinds.len], cx + cos(a) * r, cy + sin(a) * r * 0.72'f32,
                   10.0'f32, local, i, 0)
 
   # The defender at the heart of the dial.
-  drawEquippedPlayerModel(newVector2f(cx, cy), 20.0'f32 * (0.7'f32 + open * 0.3'f32), local, alpha, 0.22'f32)
+  drawEquippedPlayerModel(vec2(cx, cy), 20.0'f32 * (0.7'f32 + open * 0.3'f32), local, alpha, 0.22'f32)
 
   # Uptime readout below the swarm ring: starts at zero and accelerates. It
   # never counts down.
@@ -236,9 +235,9 @@ proc drawSurvShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   let label = t(tkModeIntroSurvUptime)
   let readA = alpha * open
   let readY = cy + 150.0'f32 * 0.72'f32 + 32.0'f32
-  drawCenteredText(label, sw div 2, readY.int32, 14, colorA(SurvAccent, readA * 170.0'f32))
+  drawCenteredText(label, sw div 2, readY.int32, 14, withAlpha(SurvAccent, readA * 170.0'f32))
   drawCenteredText(formatUptime(uptime), sw div 2, (readY + 18.0'f32).int32, 30,
-                   Color(r: 255, g: 235, b: 210, a: alphaByte(readA * 240.0'f32)))
+                   Color(r: 255, g: 235, b: 210, a: clampByteF(readA * 240.0'f32)))
 
   drawSubtitles([t(tkModeIntroSurv1a), t(tkModeIntroSurv1b)], sw, sh, alpha)
 
@@ -254,9 +253,9 @@ proc drawSurvShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
   let panelH = rowH * visibleRows + 16
 
   drawSoftGlow(cx, panelY.float32 + panelH.float32 * 0.5'f32, 240.0'f32,
-               colorA(SurvAccent, alpha * 26.0'f32), 1.0'f32)
-  drawRectangle(panelX, panelY, panelW, panelH, Color(r: 12, g: 8, b: 6, a: alphaByte(alpha * 200.0'f32)))
-  drawRectOutline(panelX, panelY, panelW, panelH, colorA(SurvAccent, alpha * 150.0'f32))
+               withAlpha(SurvAccent, alpha * 26.0'f32), 1.0'f32)
+  drawRectangle(panelX, panelY, panelW, panelH, Color(r: 12, g: 8, b: 6, a: clampByteF(alpha * 200.0'f32)))
+  drawRectOutline(panelX, panelY, panelW, panelH, withAlpha(SurvAccent, alpha * 150.0'f32))
 
   # Entries arrive on a steady cadence; once the panel is full it jumps a line
   # per entry, the way a real terminal log scrolls.
@@ -275,11 +274,11 @@ proc drawSurvShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
     let appear = if isNewest: clamp01(frac / 0.2'f32) else: 1.0'f32
     let rowA = alpha * appear * (if isNewest: 245.0'f32 else: 150.0'f32)
     let stamp = "[" & formatUptime((n + 1) * 60) & "]"
-    drawText(stamp, panelX + 16, y, 18, colorA(SurvAccent, rowA))
+    drawText(stamp, panelX + 16, y, 18, withAlpha(SurvAccent, rowA))
     drawText(held, msgX, y, 18,
-             Color(r: 255, g: 235, b: 210, a: alphaByte(rowA)))
+             Color(r: 255, g: 235, b: 210, a: clampByteF(rowA)))
     if isNewest:
-      drawRectangle(panelX + 4, y + 2, 3, 16, colorA(SurvAccent, rowA))
+      drawRectangle(panelX + 4, y + 2, 3, 16, withAlpha(SurvAccent, rowA))
 
   # Heartbeat trace under the log, scrolling left: the process is still alive.
   let traceY = (panelY + panelH + 58).float32
@@ -288,15 +287,15 @@ proc drawSurvShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
   const segments = 88
   for i in 1..segments:
     let u = i.float32 / segments.float32
-    let phase = fractCoord(u * 3.0'f32 - local * 0.9'f32)
+    let phase = fract01(u * 3.0'f32 - local * 0.9'f32)
     let spike =
       if phase > 0.46'f32 and phase < 0.5'f32: -38.0'f32 * sin((phase - 0.46'f32) / 0.04'f32 * PI)
       elif phase > 0.5'f32 and phase < 0.53'f32: 16.0'f32 * sin((phase - 0.5'f32) / 0.03'f32 * PI)
       else: sin(phase * 40.0'f32) * 1.5'f32
     let p = Vector2(x: panelX.float32 + u * traceW, y: traceY + spike)
-    drawStroke(prev, p, 2.0'f32, colorA(SurvAccent, alpha * 200.0'f32 * (0.35'f32 + u * 0.65'f32)))
+    drawStroke(prev, p, 2.0'f32, withAlpha(SurvAccent, alpha * 200.0'f32 * (0.35'f32 + u * 0.65'f32)))
     prev = p
-  drawDisc(prev, 3.5'f32, colorA(SurvAccent, alpha * 240.0'f32))
+  drawDisc(prev, 3.5'f32, withAlpha(SurvAccent, alpha * 240.0'f32))
 
   drawSubtitles([t(tkModeIntroSurv2a), t(tkModeIntroSurv2b)], sw, sh, alpha)
 
@@ -321,9 +320,6 @@ proc newSurvivalIntroCutscene*(): Cutscene {.moddable.} =
 # ---------------------------------------------------------------------------
 # Roguelite intro shots
 
-proc lerpV(a, b: Vector2, t: float32): Vector2 =
-  Vector2(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
-
 proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   ## STACK MAP as an actual descent: the camera falls with the process through
   ## the sector layers (the same themes the floor picker offers), toward the
@@ -333,7 +329,7 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   const gap = 150.0'f32
   let cx = sw.float32 * 0.5'f32
   let playerY = sh.float32 * 0.38'f32
-  let depth = easeInOut(local / duration) * gap * 5.4'f32
+  let depth = smoothstep(local / duration) * gap * 5.4'f32
   let firstY = playerY + 100.0'f32
   let hw = 235.0'f32
   let hh = 52.0'f32
@@ -342,7 +338,7 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   let bottomY = firstY + themes.high.float32 * gap - depth
   let near = clamp01(depth / (gap * 5.4'f32))
   drawSoftGlow(cx, bottomY, 150.0'f32 + sin(local * 3.0'f32) * 20.0'f32,
-               Color(r: 170, g: 40, b: 255, a: alphaByte(alpha * (25.0'f32 + near * 45.0'f32))), 1.0'f32)
+               Color(r: 170, g: 40, b: 255, a: clampByteF(alpha * (25.0'f32 + near * 45.0'f32))), 1.0'f32)
 
   var passed = 0
   var nearest = 1.0e9'f32
@@ -363,49 +359,49 @@ proc drawRogueShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
     let top = Vector2(x: cx, y: y - hh)
     let right = Vector2(x: cx + hw, y: y)
     let bottom = Vector2(x: cx, y: y + hh)
-    let fill = colorA(acc, la * 34.0'f32)
+    let fill = withAlpha(acc, la * 34.0'f32)
     triAny(left, top, right, fill)
     triAny(left, right, bottom, fill)
     for g in 1..3:
       let u = g.float32 / 4.0'f32
-      drawStroke(lerpV(left, top, u), lerpV(bottom, right, u), 1.0'f32, colorA(acc, la * 55.0'f32))
-      drawStroke(lerpV(top, right, u), lerpV(left, bottom, u), 1.0'f32, colorA(acc, la * 55.0'f32))
+      drawStroke(lerp(left, top, u), lerp(bottom, right, u), 1.0'f32, withAlpha(acc, la * 55.0'f32))
+      drawStroke(lerp(top, right, u), lerp(left, bottom, u), 1.0'f32, withAlpha(acc, la * 55.0'f32))
     for (a, b) in [(left, top), (top, right), (right, bottom), (bottom, left)]:
-      drawStroke(a, b, 2.0'f32, colorA(acc, la * 190.0'f32))
+      drawStroke(a, b, 2.0'f32, withAlpha(acc, la * 190.0'f32))
     let name = themeName(themes[k])
     let nw = measureText(name, 16)
-    drawText(name, (cx - hw - 16.0'f32).int32 - nw, (y - 8.0'f32).int32, 16, colorA(acc, la * 230.0'f32))
+    drawText(name, (cx - hw - 16.0'f32).int32 - nw, (y - 8.0'f32).int32, 16, withAlpha(acc, la * 230.0'f32))
     drawText(intToStr(k + 1, 2), (cx + hw + 14.0'f32).int32, (y - 8.0'f32).int32, 16,
-             colorA(acc, la * 150.0'f32))
+             withAlpha(acc, la * 150.0'f32))
 
   # The falling process: speed streaks above, a flash at each layer it breaks.
   let flash = 1.0'f32 - clamp01(nearest / 28.0'f32)
   for i in 0..<10:
     let sx = cx + (hash01(i.float32) - 0.5'f32) * 70.0'f32
-    let p = fractCoord(local * 2.2'f32 + i.float32 * 0.1'f32)
+    let p = fract01(local * 2.2'f32 + i.float32 * 0.1'f32)
     let sy = playerY - 30.0'f32 - p * 150.0'f32
     drawStroke(sx.int32, sy.int32, sx.int32, (sy - 26.0'f32).int32,
-             colorA(RogueAccent, alpha * (1.0'f32 - p) * 150.0'f32))
+             withAlpha(RogueAccent, alpha * (1.0'f32 - p) * 150.0'f32))
   if flash > 0.0'f32:
     drawCircleOutline(Vector2(x: cx, y: playerY), 26.0'f32 + flash * 60.0'f32,
-                    Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * flash * 200.0'f32)))
-  drawEquippedPlayerModel(newVector2f(cx, playerY), 22.0'f32, local, alpha, 0.25'f32 + flash * 0.5'f32)
+                    Color(r: 255, g: 255, b: 255, a: clampByteF(alpha * flash * 200.0'f32)))
+  drawEquippedPlayerModel(vec2(cx, playerY), 22.0'f32, local, alpha, 0.25'f32 + flash * 0.5'f32)
 
   # Depth gauge on the right edge.
   let gx = (sw - 60).int32
   let gTop = sh div 9 + 40
   let gBottom = sh - sh div 9 - 150
-  drawStroke(gx, gTop, gx, gBottom, colorA(RogueAccent, alpha * 120.0'f32))
+  drawStroke(gx, gTop, gx, gBottom, withAlpha(RogueAccent, alpha * 120.0'f32))
   for k in 0..themes.high:
     let ty = gTop + int32((gBottom - gTop).float32 * k.float32 / themes.high.float32)
-    drawStroke(gx - 5, ty, gx + 5, ty, colorA(themeAccent(themes[k]), alpha * 170.0'f32))
+    drawStroke(gx - 5, ty, gx + 5, ty, withAlpha(themeAccent(themes[k]), alpha * 170.0'f32))
   let frac = clamp01((depth - 100.0'f32 + gap) / (themes.len.float32 * gap))
   let my = gTop.float32 + (gBottom - gTop).float32 * frac
   drawTriangle(Vector2(x: gx.float32 - 8.0'f32, y: my - 6.0'f32), Vector2(x: gx.float32 - 8.0'f32, y: my + 6.0'f32),
-               Vector2(x: gx.float32 + 2.0'f32, y: my), colorA(RogueAccent, alpha * 240.0'f32))
+               Vector2(x: gx.float32 + 2.0'f32, y: my), withAlpha(RogueAccent, alpha * 240.0'f32))
   let sector = t(tkModeIntroRogueSector).replace("$1", intToStr(passed + 1, 2))
   let sw2 = measureText(sector, 16)
-  drawText(sector, gx - 16 - sw2, my.int32 - 8, 16, colorA(RogueAccent, alpha * 230.0'f32))
+  drawText(sector, gx - 16 - sw2, my.int32 - 8, 16, withAlpha(RogueAccent, alpha * 230.0'f32))
 
   drawSubtitles([t(tkModeIntroRogue1a), t(tkModeIntroRogue1b)], sw, sh, alpha)
 
@@ -429,24 +425,24 @@ proc newGuardianShot(): CutsceneDrawProc =
     let y0 = sh div 9 + 34
     const rowH = 56'i32
     drawRectangle(x - 18, y0 - 16, colW + 36, rowH * ids.len.int32 + 20,
-                  Color(r: 6, g: 4, b: 2, a: alphaByte(alpha * 220.0'f32)))
-    drawRectOutline(x - 18, y0 - 16, colW + 36, rowH * ids.len.int32 + 20, colorA(OldAmber, alpha * 80.0'f32))
+                  Color(r: 6, g: 4, b: 2, a: clampByteF(alpha * 220.0'f32)))
+    drawRectOutline(x - 18, y0 - 16, colW + 36, rowH * ids.len.int32 + 20, withAlpha(OldAmber, alpha * 80.0'f32))
     for i, name in names:
       let at = 0.35'f32 + i.float32 * 0.42'f32
       if local < at:
         break
       let ry = y0 + i.int32 * rowH
-      let pop = easeOut(clamp01((local - at) / 0.25'f32))
+      let pop = easeOutCubic(clamp01((local - at) / 0.25'f32))
       drawCinematicBoss(bosses[i], (x + 18).float32, (ry + 16).float32, 15.0'f32 * pop, 1.0'f32, 0)
       drawText(t(tkModeIntroRogueSector).replace("$1", intToStr(i + 1, 2)), x + 48, ry, 13,
-               colorA(OldAmber, alpha * 150.0'f32))
+               withAlpha(OldAmber, alpha * 150.0'f32))
       drawOldText(name, x + 48, ry + 16, 22, revealOver(local, at, 0.25'f32), local, alpha,
                   centered = false, cursor = false)
       let tagW = measureText(legacy, 12) + 14
-      drawRectOutline(x + colW - tagW, ry + 2, tagW, 18, colorA(OldAmber, alpha * pop * 180.0'f32))
-      drawText(legacy, x + colW - tagW + 7, ry + 5, 12, colorA(OldAmber, alpha * pop * 220.0'f32))
+      drawRectOutline(x + colW - tagW, ry + 2, tagW, 18, withAlpha(OldAmber, alpha * pop * 180.0'f32))
+      drawText(legacy, x + colW - tagW + 7, ry + 5, 12, withAlpha(OldAmber, alpha * pop * 220.0'f32))
       drawText(owner, x + colW - measureText(owner, 12), ry + 26, 12,
-               Color(r: 200, g: 170, b: 120, a: alphaByte(alpha * pop * 170.0'f32)))
+               Color(r: 200, g: 170, b: 120, a: clampByteF(alpha * pop * 170.0'f32)))
     drawSubtitles([t(tkModeIntroRogue2a), t(tkModeIntroRogue2b)], sw, sh, alpha)
 
 proc newRogueliteIntroCutscene*(): Cutscene {.moddable.} =
@@ -473,7 +469,7 @@ proc newRogueliteIntroCutscene*(): Cutscene {.moddable.} =
 proc drawSandboxShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   let cx = sw.float32 * 0.5'f32
   let cy = sh.float32 * 0.42'f32
-  let open = easeOut(local / (duration * 0.6'f32))
+  let open = easeOutCubic(local / (duration * 0.6'f32))
 
   # Scrolling terminal text.
   let lines = [t(tkModeIntroSandboxTerm1),
@@ -488,19 +484,10 @@ proc drawSandboxShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
     let yp = cy - 60.0'f32 + i.float32 * 22.0'f32
     drawText(line, (cx - 190.0'f32).int32, yp.int32, 16,
              Color(r: SandboxAccent.r, g: SandboxAccent.g, b: SandboxAccent.b,
-                   a: alphaByte(alpha * appear * 200.0'f32)))
+                   a: clampByteF(alpha * appear * 200.0'f32)))
 
-  drawSoftGlow(cx, cy, 110.0'f32 * open, colorA(SandboxAccent, alpha * 28.0'f32), 1.0'f32)
+  drawSoftGlow(cx, cy, 110.0'f32 * open, withAlpha(SandboxAccent, alpha * 28.0'f32), 1.0'f32)
   drawSubtitles([t(tkModeIntroSandbox1a), t(tkModeIntroSandbox1b)], sw, sh, alpha)
-
-proc fitText(text: string, size, maxW: int32): string =
-  ## Clip a label to maxW with a trailing "...", rune-safe for accents.
-  if measureText(text, size) <= maxW:
-    return text
-  var n = text.runeLen
-  while n > 0 and measureText(text.runeSubStr(0, n) & "...", size) > maxW:
-    dec n
-  text.runeSubStr(0, n) & "..."
 
 proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
   ## SPAWN TOOLS, the way the real mode works: the pointer clicks a process in
@@ -532,7 +519,7 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
     Vector2(x: (bx + bw div 2 + 40).float32, y: buttonY(i).float32 + btnH.float32 * 0.5'f32)
 
   # Test floor grid over the play area.
-  let grid = colorA(SandboxAccent, alpha * 22.0'f32)
+  let grid = withAlpha(SandboxAccent, alpha * 22.0'f32)
   var gx = 0'i32
   while gx < sidebarX:
     drawStroke(gx, top, gx, bottom, grid)
@@ -542,7 +529,7 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
     drawStroke(0, gy, sidebarX, gy, grid)
     gy += 40
 
-  drawEquippedPlayerModel(newVector2f(playCx, playCy), 20.0'f32, local, alpha, 0.2'f32)
+  drawEquippedPlayerModel(vec2(playCx, playCy), 20.0'f32, local, alpha, 0.2'f32)
 
   # Every click spawns its process just outside an edge; it walks in and
   # settles around the player.
@@ -558,18 +545,18 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
       else: Vector2(x: sidebarX.float32 * f, y: bottom.float32 + 18.0'f32)
     let ga = k.float32 * PI * 2.0'f32 / clicks.len.float32 + 0.4'f32
     let gather = Vector2(x: playCx + cos(ga) * 120.0'f32, y: playCy + sin(ga) * 88.0'f32)
-    let p = easeOut(clamp01((local - tClick) / 1.5'f32))
-    let pos = lerpV(entry, gather, p)
+    let p = easeOutCubic(clamp01((local - tClick) / 1.5'f32))
+    let pos = lerp(entry, gather, p)
     let dx = gather.x - entry.x
     let dy = gather.y - entry.y
     let len = max(1.0'f32, sqrt(dx * dx + dy * dy))
     drawRealEnemy(listKinds[idx], pos.x, pos.y, 12.0'f32, local, 300 + k, 0,
-                  newVector2f(dx / len * 90.0'f32 * (1.0'f32 - p), dy / len * 90.0'f32 * (1.0'f32 - p)))
+                  vec2(dx / len * 90.0'f32 * (1.0'f32 - p), dy / len * 90.0'f32 * (1.0'f32 - p)))
 
   # The spawn list, drawn like the mode's own Enemies tab.
-  drawRectangle(sidebarX, top, sidebarW, panelBottom - top, Color(r: 22, g: 22, b: 34, a: alphaByte(alpha * 240.0'f32)))
-  drawStroke(sidebarX, top, sidebarX, panelBottom, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 220.0'f32)))
-  drawText(t(tkSandboxSpawnEnemies), bx, top + 14, 18, Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 240.0'f32)))
+  drawRectangle(sidebarX, top, sidebarW, panelBottom - top, Color(r: 22, g: 22, b: 34, a: clampByteF(alpha * 240.0'f32)))
+  drawStroke(sidebarX, top, sidebarX, panelBottom, Color(r: 100, g: 100, b: 150, a: clampByteF(alpha * 220.0'f32)))
+  drawText(t(tkSandboxSpawnEnemies), bx, top + 14, 18, Color(r: 255, g: 255, b: 255, a: clampByteF(alpha * 240.0'f32)))
   for i, kind in listKinds:
     let y = buttonY(i)
     var flash = 0.0'f32
@@ -578,15 +565,15 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
       if idx == i and local >= tClick:
         flash = max(flash, 1.0'f32 - clamp01((local - tClick) / 0.25'f32))
     let fill = Color(r: uint8(70.0'f32 + flash * 70.0'f32), g: uint8(70.0'f32 + flash * 70.0'f32),
-                     b: uint8(120.0'f32 + flash * 90.0'f32), a: alphaByte(alpha * 245.0'f32))
+                     b: uint8(120.0'f32 + flash * 90.0'f32), a: clampByteF(alpha * 245.0'f32))
     drawRectangle(bx, y, bw, btnH, fill)
-    drawRectOutline(bx, y, bw, btnH, Color(r: 100, g: 100, b: 150, a: alphaByte(alpha * 255.0'f32)))
+    drawRectOutline(bx, y, bw, btnH, Color(r: 100, g: 100, b: 150, a: clampByteF(alpha * 255.0'f32)))
     # Small radius: some enemies (Star, Diamond) draw halos well past it.
     drawRealEnemy(kind, (bx + 18).float32, (y + btnH div 2).float32, 6.0'f32, local, 400 + i, 0)
     let cfg = getEnemyConfig(kind)
-    drawText(cfg.name, bx + 40, y + 4, 16, Color(r: 255, g: 255, b: 255, a: alphaByte(alpha * 245.0'f32)))
-    drawText(fitText(cfg.description, 12, bw - 48), bx + 40, y + 21, 12,
-             Color(r: 180, g: 180, b: 180, a: alphaByte(alpha * 230.0'f32)))
+    drawText(cfg.name, bx + 40, y + 4, 16, Color(r: 255, g: 255, b: 255, a: clampByteF(alpha * 245.0'f32)))
+    drawText(fitWithEllipsis(cfg.description, bw - 48, 12), bx + 40, y + 21, 12,
+             Color(r: 180, g: 180, b: 180, a: clampByteF(alpha * 230.0'f32)))
 
   # The pointer: glides onto each button just before its click.
   var cursor = Vector2(x: playCx + 150.0'f32, y: playCy + 90.0'f32)
@@ -595,7 +582,7 @@ proc drawSandboxShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
     let tClick = clickStart + k.float32 * clickEvery
     let prev = if k == 0: Vector2(x: playCx + 150.0'f32, y: playCy + 90.0'f32) else: clickPoint(clicks[k - 1])
     if local >= tClick - travel:
-      cursor = lerpV(prev, clickPoint(idx), easeInOut(clamp01((local - (tClick - travel)) / travel)))
+      cursor = lerp(prev, clickPoint(idx), smoothstep(clamp01((local - (tClick - travel)) / travel)))
     if local >= tClick and local < tClick + 0.12'f32:
       pressed = true
   drawStoryPointer(cursor.x, cursor.y, alpha, pressed)
@@ -626,50 +613,50 @@ proc newSandboxIntroCutscene*(): Cutscene {.moddable.} =
 proc drawPvPShot1(local, duration: float32, sw, sh: int32, alpha: float32) =
   let cx = sw.float32 * 0.5'f32
   let cy = sh.float32 * 0.45'f32
-  let scan = easeInOut(local / duration)
+  let scan = smoothstep(local / duration)
 
   # Network scan lines sweeping down.
   let scanY = (scan * (sh.float32 + 60.0'f32) - 40.0'f32).int32
-  drawRectangle(0, scanY, sw, 2, colorA(PvPAccent, alpha * 200.0'f32))
+  drawRectangle(0, scanY, sw, 2, withAlpha(PvPAccent, alpha * 200.0'f32))
   drawRectangleGradientV(0, max(0, scanY - 40), sw, min(40, scanY),
-                         colorA(PvPAccent, 0.0'f32), colorA(PvPAccent, alpha * 50.0'f32))
+                         withAlpha(PvPAccent, 0.0'f32), withAlpha(PvPAccent, alpha * 50.0'f32))
 
   # Node connections.
   for i in 0..<6:
     let seed = i.float32 * 5.37'f32
-    let nx = sw.float32 * (0.15'f32 + fractCoord(seed) * 0.7'f32)
-    let ny = sh.float32 * (0.2'f32 + fractCoord(seed * 1.7'f32) * 0.55'f32)
+    let nx = sw.float32 * (0.15'f32 + fract01(seed) * 0.7'f32)
+    let ny = sh.float32 * (0.2'f32 + fract01(seed * 1.7'f32) * 0.55'f32)
     let passed = ny.int32 <= scanY
     let nodeAlpha = if passed: alpha * 200.0'f32 else: 0.0'f32
     if nodeAlpha > 0:
-      drawDisc(Vector2(x: nx, y: ny), 6.0'f32, colorA(PvPAccent, nodeAlpha))
+      drawDisc(Vector2(x: nx, y: ny), 6.0'f32, withAlpha(PvPAccent, nodeAlpha))
       if i > 0:
-        let px = sw.float32 * (0.15'f32 + fractCoord((i - 1).float32 * 5.37'f32) * 0.7'f32)
-        let py = sh.float32 * (0.2'f32 + fractCoord((i - 1).float32 * 5.37'f32 * 1.7'f32) * 0.55'f32)
+        let px = sw.float32 * (0.15'f32 + fract01((i - 1).float32 * 5.37'f32) * 0.7'f32)
+        let py = sh.float32 * (0.2'f32 + fract01((i - 1).float32 * 5.37'f32 * 1.7'f32) * 0.55'f32)
         drawStroke(nx.int32, ny.int32, px.int32, py.int32,
-                 colorA(PvPAccent, nodeAlpha * 0.4'f32))
+                 withAlpha(PvPAccent, nodeAlpha * 0.4'f32))
 
-  drawSoftGlow(cx, cy, 100.0'f32, colorA(PvPAccent, alpha * 25.0'f32), 1.0'f32)
+  drawSoftGlow(cx, cy, 100.0'f32, withAlpha(PvPAccent, alpha * 25.0'f32), 1.0'f32)
   drawSubtitles([t(tkModeIntroPvP1a), t(tkModeIntroPvP1b)], sw, sh, alpha)
 
 proc drawPvPShot2(local, duration: float32, sw, sh: int32, alpha: float32) =
   let cy = sh.float32 * 0.48'f32
-  let enter = easeInOut(local / (duration * 0.55'f32))
+  let enter = smoothstep(local / (duration * 0.55'f32))
 
   # Two player models facing each other.
   let p1x = sw.float32 * (0.5'f32 - 0.18'f32 * enter)
   let p2x = sw.float32 * (0.5'f32 + 0.18'f32 * enter)
-  drawEquippedPlayerModel(newVector2f(p1x, cy), 22.0'f32, local, alpha, 0.18'f32)
-  drawEquippedPlayerModel(newVector2f(p2x, cy), 22.0'f32, -local, alpha, 0.18'f32)
+  drawEquippedPlayerModel(vec2(p1x, cy), 22.0'f32, local, alpha, 0.18'f32)
+  drawEquippedPlayerModel(vec2(p2x, cy), 22.0'f32, -local, alpha, 0.18'f32)
 
   # VS label.
-  let vsAlpha = alpha * easeInOut((local - 1.0'f32) / 0.6'f32)
+  let vsAlpha = alpha * smoothstep((local - 1.0'f32) / 0.6'f32)
   if vsAlpha > 0.0'f32:
     let vsW = measureText("VS", 40)
     drawText("VS", sw div 2 - vsW div 2, (cy - 22).int32, 40,
-             colorA(PvPAccent, vsAlpha * 220.0'f32))
+             withAlpha(PvPAccent, vsAlpha * 220.0'f32))
 
-  drawSoftGlow(sw.float32 * 0.5'f32, cy, 110.0'f32 * enter, colorA(PvPAccent, alpha * 35.0'f32), 1.0'f32)
+  drawSoftGlow(sw.float32 * 0.5'f32, cy, 110.0'f32 * enter, withAlpha(PvPAccent, alpha * 35.0'f32), 1.0'f32)
   drawSubtitles([t(tkModeIntroPvP2a), t(tkModeIntroPvP2b)], sw, sh, alpha)
 
 proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
@@ -679,7 +666,7 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
   let lx = sw.float32 * 0.2'f32
   let rx = sw.float32 * 0.8'f32
   let clashX = sw.float32 * 0.5'f32 + sin(local * 1.4'f32) * 55.0'f32
-  let enter = easeOut(local / (duration * 0.3'f32))
+  let enter = easeOutCubic(local / (duration * 0.3'f32))
 
   # The link itself: a flickering dashed line between the two nodes.
   var x = lx + 34.0'f32
@@ -687,46 +674,46 @@ proc drawPvPShot3(local, duration: float32, sw, sh: int32, alpha: float32) =
   while x < rx - 34.0'f32:
     let flick = hash01(k.float32 + floor(local * 18.0'f32))
     drawStroke(x.int32, cy.int32, (x + 9.0'f32).int32, cy.int32,
-             colorA(PvPAccent, alpha * enter * (60.0'f32 + flick * 90.0'f32)))
+             withAlpha(PvPAccent, alpha * enter * (60.0'f32 + flick * 90.0'f32)))
     x += 16.0'f32
     inc k
 
   # Friendly stream (your bullet skin) and hostile stream, meeting at the clash.
   for i in 0..<7:
-    let p = fractCoord(local * 1.1'f32 + i.float32 / 7.0'f32)
+    let p = fract01(local * 1.1'f32 + i.float32 / 7.0'f32)
     let bx = lx + 34.0'f32 + (clashX - lx - 34.0'f32) * p
     let by = cy + sin(i.float32 * 2.1'f32 + local * 3.0'f32) * 16.0'f32 * (1.0'f32 - p)
     for tr in 1..3:
       drawDisc(Vector2(x: bx - tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
-                 Color(r: 0, g: 230, b: 230, a: alphaByte(alpha * enter * (120.0'f32 - tr.float32 * 30.0'f32))))
-    drawEquippedBulletModel(newVector2f(bx, by), 7.0'f32, 0.0'f32, local + i.float32, alpha * enter)
+                 Color(r: 0, g: 230, b: 230, a: clampByteF(alpha * enter * (120.0'f32 - tr.float32 * 30.0'f32))))
+    drawEquippedBulletModel(vec2(bx, by), 7.0'f32, 0.0'f32, local + i.float32, alpha * enter)
   for i in 0..<7:
-    let p = fractCoord(local * 1.1'f32 + (i.float32 + 0.5'f32) / 7.0'f32)
+    let p = fract01(local * 1.1'f32 + (i.float32 + 0.5'f32) / 7.0'f32)
     let bx = rx - 34.0'f32 - (rx - 34.0'f32 - clashX) * p
     let by = cy + sin(i.float32 * 1.7'f32 + local * 3.0'f32) * 16.0'f32 * (1.0'f32 - p)
     for tr in 1..3:
       drawDisc(Vector2(x: bx + tr.float32 * 9.0'f32, y: by), 6.0'f32 - tr.float32 * 1.4'f32,
-                 colorA(PvPAccent, alpha * enter * (120.0'f32 - tr.float32 * 30.0'f32)))
-    drawDisc(Vector2(x: bx, y: by), 6.5'f32, Color(r: 255, g: 90, b: 90, a: alphaByte(alpha * enter * 240.0'f32)))
-    drawDisc(Vector2(x: bx, y: by), 3.0'f32, Color(r: 255, g: 220, b: 220, a: alphaByte(alpha * enter * 240.0'f32)))
+                 withAlpha(PvPAccent, alpha * enter * (120.0'f32 - tr.float32 * 30.0'f32)))
+    drawDisc(Vector2(x: bx, y: by), 6.5'f32, Color(r: 255, g: 90, b: 90, a: clampByteF(alpha * enter * 240.0'f32)))
+    drawDisc(Vector2(x: bx, y: by), 3.0'f32, Color(r: 255, g: 220, b: 220, a: clampByteF(alpha * enter * 240.0'f32)))
 
   # The clash: sparks where the streams cancel out.
   drawSoftGlow(clashX, cy, 42.0'f32 + sin(local * 11.0'f32) * 8.0'f32,
-               Color(r: 255, g: 120, b: 220, a: alphaByte(alpha * enter * 70.0'f32)), 1.0'f32)
+               Color(r: 255, g: 120, b: 220, a: clampByteF(alpha * enter * 70.0'f32)), 1.0'f32)
   for i in 0..<10:
     let a = hash01(i.float32 + floor(local * 14.0'f32)) * PI * 2.0'f32
     let len = 10.0'f32 + hash01(i.float32 * 3.3'f32 + floor(local * 14.0'f32)) * 26.0'f32
     drawStroke(Vector2(x: clashX, y: cy), Vector2(x: clashX + cos(a) * len, y: cy + sin(a) * len), 2.0'f32,
-             Color(r: 255, g: 235, b: 245, a: alphaByte(alpha * enter * 200.0'f32)))
+             Color(r: 255, g: 235, b: 245, a: clampByteF(alpha * enter * 200.0'f32)))
 
   # The two processes.
-  drawSoftGlow(lx, cy, 64.0'f32, Color(r: 0, g: 230, b: 230, a: alphaByte(alpha * 50.0'f32)), 1.0'f32)
-  drawEquippedPlayerModel(newVector2f(lx, cy), 24.0'f32, local, alpha, 0.25'f32)
+  drawSoftGlow(lx, cy, 64.0'f32, Color(r: 0, g: 230, b: 230, a: clampByteF(alpha * 50.0'f32)), 1.0'f32)
+  drawEquippedPlayerModel(vec2(lx, cy), 24.0'f32, local, alpha, 0.25'f32)
   drawCircleOutline(Vector2(x: lx, y: cy), 34.0'f32 + sin(local * 5.0'f32 + 1.0'f32) * 2.0'f32,
-                  Color(r: 0, g: 230, b: 230, a: alphaByte(alpha * 200.0'f32)))
-  drawSoftGlow(rx, cy, 64.0'f32, colorA(PvPAccent, alpha * 50.0'f32), 1.0'f32)
-  drawEquippedPlayerModel(newVector2f(rx, cy), 24.0'f32, -local, alpha, 0.25'f32)
-  drawCircleOutline(Vector2(x: rx, y: cy), 34.0'f32 + sin(local * 5.0'f32) * 2.0'f32, colorA(PvPAccent, alpha * 200.0'f32))
+                  Color(r: 0, g: 230, b: 230, a: clampByteF(alpha * 200.0'f32)))
+  drawSoftGlow(rx, cy, 64.0'f32, withAlpha(PvPAccent, alpha * 50.0'f32), 1.0'f32)
+  drawEquippedPlayerModel(vec2(rx, cy), 24.0'f32, -local, alpha, 0.25'f32)
+  drawCircleOutline(Vector2(x: rx, y: cy), 34.0'f32 + sin(local * 5.0'f32) * 2.0'f32, withAlpha(PvPAccent, alpha * 200.0'f32))
 
   drawSubtitles([t(tkModeIntroPvP3a), t(tkModeIntroPvP3b)], sw, sh, alpha)
 

@@ -7,7 +7,7 @@
 ## switching styles keeps the panel where the player left it and the tutorial
 ## keeps pointing at the right rows.
 
-import raylib, math, strutils
+import raylib, math
 import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../render_context, icon_drawing, ../utils, ui_helpers
@@ -186,16 +186,8 @@ proc drawRogueliteHudBlock(game: Game, panelX, panelW: int32, yOffset: var int32
     yOffset += RogueHudPathH + RogueHudPipsH
   else:
     # Breadcrumb, trimmed from the LEFT so the folder you are in stays visible.
-    var path = sectorPath(floor)
     const pathSize: int32 = 9
-    if measureText(path, pathSize) > contentW:
-      # Drop whole leading folders, never half a name.
-      var tail = path
-      while measureText(".." & tail, pathSize) > contentW:
-        let cut = tail.find('\\', 1)
-        if cut < 0: break
-        tail = tail[cut .. ^1]
-      path = ".." & tail
+    let path = fitPathTail(sectorPath(floor), contentW, pathSize)
     drawShadowText(path, textX, yOffset + 1, pathSize, themeAccent(floor.theme))
     yOffset += RogueHudPathH
 
@@ -570,13 +562,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
                       powerUp.powerType, iconColor)
 
       # Power-up name (shortened)
-      let processName = getPowerUpName(powerUp.powerType)
-      var displayName = processName
-      let maxWidth = panelW - 84
-      while measureText(displayName, 9) > maxWidth and displayName.len > 3:
-        displayName = displayName[0..^2]
-      if displayName.len < processName.len:
-        displayName = displayName[0..^2] & ".."
+      let displayName = fitWithEllipsis(getPowerUpName(powerUp.powerType), panelW - 84, 9)
 
       drawText(displayName, panelX + COMBINED_PANEL_PADDING + 31, yOffset + 3, 9,
               if powerUp.rarity == prLegendary:

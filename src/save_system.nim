@@ -982,7 +982,7 @@ proc jsonToGameEvent(j: JsonNode): GameEvent =
     eventType: parseGameEventType(j["eventType"].getStr()),
     value: j["value"].getFloat().float32,
     details: j["details"].getStr(),
-    position: newVector2f(
+    position: vec2(
       j["position"]["x"].getFloat().float32,
       j["position"]["y"].getFloat().float32
     )
@@ -1049,7 +1049,7 @@ proc jsonToMovementStats(j: JsonNode): MovementStats =
   # Parse position heatmap
   for pos in jsonItems(j["positionHeatmap"]):
     needObject(pos)
-    result.positionHeatmap.add(newVector2f(
+    result.positionHeatmap.add(vec2(
       pos["x"].getFloat().float32,
       pos["y"].getFloat().float32
     ))

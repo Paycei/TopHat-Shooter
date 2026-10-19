@@ -52,11 +52,6 @@ const
   ShootKeys = ["speed", "damage", "kind", "radius", "lifetime", "color", "count", "spread", "pierce"]
 
 # ------------------------------------------------------------- helpers ----
-proc finite(vm: VM, v: ScriptValue, what: string): float32 =
-  if v.kind == vkNumber and abs(v.n) < 1.0e9: return v.n.float32
-  if v.kind == vkNumber: vm.runtimeError(what & " must be a finite number")
-  vm.runtimeError(what & " must be a number, got " & typeName(v))
-
 proc enumField[E: enum](vm: VM, v: ScriptValue, what: string): E =
   if v.kind != vkString: vm.runtimeError(what & " must be a name")
   for e in E:
@@ -186,7 +181,7 @@ proc buildThing(vm: VM, kind: int, g: Game, x, y: float32): ModThing =
   result = if kind >= 0: copyThing(thingKinds[kind].proto) else: defaultThing()
   result.kind = if kind >= 0: thingKinds[kind].key else: HazardKind
   result.id = newThingId(g)
-  result.pos = newVector2f(x, y)
+  result.pos = vec2(x, y)
   if result.maxHp <= 0 and result.hp > 0: result.maxHp = result.hp
   result.flags.excl({tfDead, tfRemoved})
   if kind >= 0 and thingKinds[kind].weapon.enabled:
@@ -248,7 +243,7 @@ proc scriptBullet(vm: VM, owner: int, x, y, angleDeg: float32, opts: ScriptTable
       else: discard
   for i in 0 ..< count:
     let a = degToRad(angleDeg + spread * (i.float32 - (count - 1).float32 * 0.5'f32))
-    let b = newBullet(x, y, newVector2f(cos(a), sin(a)), speed, damage, fromPlayer = fromPlayer)
+    let b = newBullet(x, y, vec2(cos(a), sin(a)), speed, damage, fromPlayer = fromPlayer)
     if radius > 0: b.radius = radius
     if lifetime > 0: b.lifetime = lifetime
     if color.a > 0: b.colorOverride = color
@@ -263,7 +258,7 @@ proc scriptBullet(vm: VM, owner: int, x, y, angleDeg: float32, opts: ScriptTable
 proc explodeAt(game: Game, x, y, r, dmg: float32, hurtPlayer, hurtEnemies: bool, color: Color,
                 shake: string) =
   ## game:explode: hurts what is inside the circle now (no list changes).
-  let c = newVector2f(x, y)
+  let c = vec2(x, y)
   if hurtEnemies:
     for e in game.enemies:
       if e.hp <= 0: continue
@@ -352,7 +347,7 @@ proc installWorld2D*(base: ScriptTable) =
     let dy = y - t.pos.y
     let d = sqrt(dx * dx + dy * dy)
     if d <= step or d < 0.001:
-      t.pos = newVector2f(x, y)
+      t.pos = vec2(x, y)
       ret.setRet(TrueValue)
     else:
       t.pos.x += dx / d * step
@@ -515,9 +510,7 @@ proc installWorld2D*(base: ScriptTable) =
     let g = vm.requireRunGame()
     let t = vm.checkTable(args, 0, "spawn.hazard")
     vm.checkKeys(t, HazardKeys, "spawn.hazard")
-    proc num(key: string, def: float32): float32 =
-      let v = rawGetStr(t, key)
-      if v.kind == vkNil: def else: vm.finite(v, "spawn.hazard." & key)
+    proc num(key: string, def: float32): float32 = vm.numField(t, key, "spawn.hazard", def)
     let th = vm.buildThing(-1, g, num("x", 0), num("y", 0))
     th.motion = tmStatic
     th.color = Color(r: 255, g: 60, b: 60, a: 255)

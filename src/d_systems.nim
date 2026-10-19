@@ -13,7 +13,7 @@ type
 
 proc newScreenShake*(): ScreenShake {.moddable.} =
   result = ScreenShake(
-    offset: Vector2f(x: 0, y: 0),
+    offset: Vector2(x: 0, y: 0),
     intensity: 0,
     duration: 0,
     maxDuration: 0,
@@ -74,7 +74,7 @@ proc updateShake*(shake: var ScreenShake, dt: float32) {.moddable.} =
     shake.intensity = 0
     shake.tintColor.a = 0
 
-proc getShakeOffset*(shake: ScreenShake): Vector2f {.moddable.} =
+proc getShakeOffset*(shake: ScreenShake): Vector2 {.moddable.} =
   return shake.offset
 
 # COMBO SYSTEM
@@ -306,20 +306,13 @@ proc newWaveStats(waveNumber: int): WaveStats {.moddable.} =
 proc updateStats(stats: var WaveStats, dt: float32) {.moddable.} =
   stats.survivalTime += dt
 
-proc recordKill*(stats: var WaveStats, damage: float32) {.moddable.} =
-  stats.kills += 1
-  if damage > stats.topDamage:
-    stats.topDamage = damage
-
-# WaveStats.shotsFired / shotsHit / damageTaken are written by run_statistics
-# (trackBulletFired, trackBulletHit, trackPlayerDamage) so that one code path
-# owns both the run totals and the per-wave ones. The old recordShot/
-# recordDamageTaken pair here was a second writer that nothing ever called with
-# a hit, which is why the celebration screen always reported 0% accuracy and
-# never lost its FLAWLESS tag.
-
-proc recordCoin*(stats: var WaveStats) {.moddable.} =
-  stats.coinsEarned += 1
+# WaveStats.kills / topDamage / coinsEarned / shotsFired / shotsHit /
+# damageTaken are written by run_statistics (trackEnemyKilled, gainCredits,
+# trackBulletFired, trackBulletHit, trackPlayerDamage) so that one code path
+# owns both the run totals and the per-wave ones. Second writers here drifted:
+# an old recordShot/recordDamageTaken pair nothing ever called with a hit left
+# the celebration at 0% accuracy, and a per-pickup recordCoin counted coins
+# instead of credits and missed every bonus.
 
 proc recordCombo*(stats: var WaveStats, combo: int) {.moddable.} =
   if combo > stats.maxCombo:

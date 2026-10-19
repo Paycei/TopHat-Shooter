@@ -125,8 +125,8 @@ let roster: seq[ConnectedPlayerInfo] = @[
   (index: 1, skinType: 5, bulletSkinType: 6, shapeType: 7, particleSkinType: 8, nickname: "ñandú")]
 
 proc playerNet(i: int): PlayerStateNet =
-  PlayerStateNet(playerIndex: i, isActive: i mod 2 == 0, pos: newVector2f(1.5, -2),
-                 vel: newVector2f(3, 4), hp: 2.5, maxHp: 3, coins: 7, kills: i, walls: 2,
+  PlayerStateNet(playerIndex: i, isActive: i mod 2 == 0, pos: vec2(1.5, -2),
+                 vel: vec2(3, 4), hp: 2.5, maxHp: 3, coins: 7, kills: i, walls: 2,
                  damage: 1.25, speed: 200, fireRate: 0.375, bulletSpeed: 425,
                  invincibilityTimer: 0.5, teamId: 2, skinType: 3, bulletSkinType: 4,
                  shapeType: 5, particleSkinType: 6, nickname: "p" & $i, deaths: 1,
@@ -135,13 +135,13 @@ proc playerNet(i: int): PlayerStateNet =
                  modSkin: 2, modBulletSkin: -1, radius: 12, warp: 3)
 
 proc bulletNet(i: int): BulletStateNet =
-  BulletStateNet(id: 1_000_000 + i, pos: newVector2f(i.float32, 2), vel: newVector2f(3, 4),
+  BulletStateNet(id: 1_000_000 + i, pos: vec2(i.float32, 2), vel: vec2(3, 4),
                  radius: 7.5, damage: 1, fromPlayerIndex: i mod 2, isPiercing: true,
                  isExplosive: i mod 3 == 0, isHoming: false, bulletSkin: 2, life: 1.5,
                  color: col, kind: (if i mod 2 == 0: "laser" else: ""), pierce: 2)
 
 proc wallNet(i: int): WallStateNet =
-  WallStateNet(pos: newVector2f(i.float32, 5), radius: 20, hp: 3, maxHp: 4, ownerIndex: i mod 2)
+  WallStateNet(pos: vec2(i.float32, 5), radius: 20, hp: 3, maxHp: 4, ownerIndex: i mod 2)
 
 proc sample(kind: PacketType): Packet =
   result = newPacket(kind, 42)
@@ -172,12 +172,12 @@ proc sample(kind: PacketType): Packet =
     cfg.pickupsEnabled = false
     cfg.modMode = "mymod:king"
     result.pvpConfig = cfg
-    result.spawnPositions = @[newVector2f(1, 2), newVector2f(3, 4)]
+    result.spawnPositions = @[vec2(1, 2), vec2(3, 4)]
   of ptPlayerInput:
-    result.input = PlayerInput(tick: 7, playerIndex: 1, moveDir: newVector2f(0.6, -0.8),
-                               shooting: true, mousePos: newVector2f(100, 200),
-                               placingWall: true, wallPos: newVector2f(5, 6), timestamp: 1.5,
-                               dt: 0.016, dashSeq: 2, dashDir: newVector2f(1, 0))
+    result.input = PlayerInput(tick: 7, playerIndex: 1, moveDir: vec2(0.6, -0.8),
+                               shooting: true, mousePos: vec2(100, 200),
+                               placingWall: true, wallPos: vec2(5, 6), timestamp: 1.5,
+                               dt: 0.016, dashSeq: 2, dashDir: vec2(1, 0))
     result.modMsgs = @[ModNetMsg(seq: 1, name: "hi", data: "{}"),
                        ModNetMsg(seq: 2, name: "buy", data: """{"item":3}""")]
     result.modAck = 4
@@ -221,7 +221,7 @@ proc sample(kind: PacketType): Packet =
     result.sendTime = 1.25
   of ptPlayerRespawn:
     result.respawnIndex = 1
-    result.respawnPos = newVector2f(10, 20)
+    result.respawnPos = vec2(10, 20)
   of ptPickupTaken:
     result.pickupPort = 2
     result.pickupKind = 1

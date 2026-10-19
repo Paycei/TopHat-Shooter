@@ -260,7 +260,6 @@ block perf:
   check(err.len == 0 and vals.len == 1 and vals[0].n == 75025.0, "fib(25)")
   echo "fib(25) in ", formatFloat(ms, ffDecimal, 1), " ms"
 
-
 # ------------------------------------------------------------- 3D worlds ----
 # The script API of the 3D worlds (src/modding/mod_3d.nim), everything that
 # runs without a window: wrappers, fields, the action queue, stale-world safety,
@@ -1057,7 +1056,7 @@ block things2d:
   check(thingKinds.len == 2 and projectileKinds.len == 1, "kinds registered")
 
   # ---- spawning
-  let g = Game(player: Player(hp: 10, maxHp: 10, radius: 12, pos: newVector2f(500, 500)), screenWidth: 1024,
+  let g = Game(player: Player(hp: 10, maxHp: 10, radius: 12, pos: vec2(500, 500)), screenWidth: 1024,
                screenHeight: 768, nextEnemyId: 1, difficulty: 1.0, state: gsPlaying, mode: gmWaveBased,
                particlePool: newParticlePool())
   modBeginFrame(g)
@@ -1101,7 +1100,7 @@ block things2d:
   sweepThings(g)
   check(g.modThings.len == 1, "the spent hazard is gone")
   # the ally sits on the enemy: contact damage, and its turret fires a bullet
-  g.modThings[0].pos = newVector2f(300, 300)
+  g.modThings[0].pos = vec2(300, 300)
   updateThings(g, 0.3, 0.3, grid, 40)
   check(e.hp < afterHazard, "contact damage hit the enemy")
   check(g.bullets.len >= 1 and g.bullets[^1].fromPlayer, "the turret fired")

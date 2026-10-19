@@ -6,7 +6,7 @@ from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, tr
 # ORBITAL WEAPONS SYSTEM
 
 proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
-                    baseDamage: float32, orbPos: Vector2f,
+                    baseDamage: float32, orbPos: Vector2,
                     stats: CombatStats) =
   ## Apply damage from orb to enemy (the caller owns the hit cooldown)
 
@@ -75,7 +75,7 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
                   isCritical = damageWithCrit > actualBaseDamage, damageType = dtDefault)
 
 proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
-                     baseDamage: float32, orbPos: Vector2f, dt: float32,
+                     baseDamage: float32, orbPos: Vector2, dt: float32,
                      stats: CombatStats, shielded: bool) =
   ## Apply element-specific effects from orb to enemy. `shielded` = a Port
   ## Guard's shield took the orb: its burns and lifesteal ride on damage that
@@ -299,7 +299,7 @@ proc updateOrbitalWeapons*(game: var Game, dt: float32) {.moddable.} =
     let angle = orbRotDir * game.player.orbRotationAngle + orb.angle
     let orbX = game.player.pos.x + cos(angle) * orb.radius
     let orbY = game.player.pos.y + sin(angle) * orb.radius
-    let orbPos = newVector2f(orbX, orbY)
+    let orbPos = vec2(orbX, orbY)
 
     # Check collisions with enemies
     for enemy in game.enemies:

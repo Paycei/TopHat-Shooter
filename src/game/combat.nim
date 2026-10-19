@@ -5,7 +5,7 @@ import modding/mod_hooks
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
-proc shieldBlocksHit*(game: Game, enemy: Enemy, hitFrom: Vector2f): bool {.moddable.} =
+proc shieldBlocksHit*(game: Game, enemy: Enemy, hitFrom: Vector2): bool {.moddable.} =
   ## A Port Guard's shield negates any player damage arriving from its front,
   ## not just bullets: orbs, auras, chains, blasts, the ram, Thorns. `hitFrom`
   ## is where the hit comes from -- the player for anything that emanates from
@@ -335,7 +335,7 @@ proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float3
 
 # DAMAGE NUMBERS HELPER
 
-proc showDamage*(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool,
+proc showDamage*(game: Game, pos: Vector2, damage: float32, fromPlayer: bool,
                 isCritical: bool = false, damageType: DamageType = dtDefault) {.moddable.} =
   ## Centralized helper to create and display damage numbers
   game.damageNumbers.add(newDamageNumber(pos.x, pos.y, damage, fromPlayer, isCritical, damageType))
@@ -350,7 +350,7 @@ proc showPlayerDamageTaken*(game: Game, damageType: DamageType = dtDefault) {.mo
     game.showDamage(game.player.pos, taken, fromPlayer = false,
                     isCritical = false, damageType = damageType)
 
-proc showCurrency*(game: Game, pos: Vector2f, amount: int,
+proc showCurrency*(game: Game, pos: Vector2, amount: int,
                    kind: CurrencyIndicatorKind = cikCredits) {.moddable.} =
   ## Centralized helper for floating currency pickup indicators.
   if amount == 0:
@@ -374,7 +374,7 @@ proc densityHealScale*(game: Game): float32 {.moddable.} =
   ## base amounts, so it follows automatically.
   densityRebate(game)
 
-proc showPerk*(game: Game, pos: Vector2f, text: string, color: Color) {.moddable.} =
+proc showPerk*(game: Game, pos: Vector2, text: string, color: Color) {.moddable.} =
   ## Centralized helper for floating "+SHIELD" / "+SPEED" style consumable
   ## pickup indicators.
   game.perkIndicators.add(newPerkIndicator(pos.x, pos.y, text, color))

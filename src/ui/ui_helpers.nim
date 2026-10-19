@@ -5,7 +5,7 @@
 import raylib, strutils, math
 import ../modding/mod_patch_core
 import ../draw_prims
-import ../localization, ../types
+import ../localization, ../types, ../utils
 import ui_theme
 
 type TextAlign* = enum
@@ -37,7 +37,8 @@ proc drawCenteredTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: 
 
 proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string {.moddable.} =
   ## `text` cut down (with a trailing "..") until it is at most maxWidth wide.
-  ## Trims whole UTF-8 characters, so an accented letter is never split.
+  ## Trims whole UTF-8 characters, so an accented letter is never split. Two
+  ## ASCII dots, not an ellipsis: raylib's default font stops at U+00FF.
   result = text
   if measureText(result, fontSize) <= maxWidth:
     return
@@ -47,6 +48,25 @@ proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string {.moddabl
       dec n
     result.setLen(n)
   result = result.strip(leading = false) & ".."
+
+proc fitTextAndSize*(text: string, maxWidth, preferredSize: int32,
+                     minSize: int32 = 9): tuple[text: string, size: int32] {.moddable.} =
+  ## Shrink first (bestFitFontSize); what still does not fit at minSize is cut
+  ## with fitWithEllipsis.
+  result.size = bestFitFontSize(text, maxWidth, preferredSize, minSize)
+  result.text = fitWithEllipsis(text, maxWidth, result.size)
+
+proc fitPathTail*(path: string, maxWidth, fontSize: int32, sep = '\\'): string {.moddable.} =
+  ## A path trimmed from the LEFT ("..\b\c"), so the folder you are in stays
+  ## visible. Drops whole leading folders, never half a name.
+  if measureText(path, fontSize) <= maxWidth:
+    return path
+  var tail = path
+  while measureText(".." & tail, fontSize) > maxWidth:
+    let cut = tail.find(sep, 1)
+    if cut < 0: break
+    tail = tail[cut .. ^1]
+  ".." & tail
 
 proc wrapTextLines*(text: string, maxWidth, fontSize: int32,
                     breakLongWords = false): seq[string] {.moddable.} =
@@ -345,9 +365,6 @@ const
   SpinRate = 7.0'f32      ## radians/unit-progress while the platter is alive
   FocusZoom = 1.7'f32     ## how much closer the camera holds before pulling back
 
-proc withAlphaF(c: Color, mult: float32): Color =
-  Color(r: c.r, g: c.g, b: c.b, a: uint8(clamp(c.a.float32 * mult, 0.0, 255.0)))
-
 proc easeOutBack(t: float32): float32 =
   ## Overshoot-and-settle, used for the entrance slam and the unlimited re-form.
   let u = t - 1.0
@@ -396,11 +413,6 @@ proc drawFracture(cx, cy, size, reveal, jitter, alpha: float32) =
              Color(r: 8, g: 12, b: 18, a: uint8(235.0 * alpha)))
     drawStroke(Vector2(x: ax, y: ay - 1.0), Vector2(x: bx, y: by - 1.0), 1.0,
              Color(r: 200, g: 245, b: 255, a: uint8(160.0 * alpha)))
-proc smoothStep(t: float32): float32 =
-  ## Ease in and out, for the camera pull-back.
-  let u = clamp(t, 0.0'f32, 1.0'f32)
-  u * u * (3.0 - 2.0 * u)
-
 proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
                           unlimitedSentinel: int, progress: float32) {.moddable.} =
   ## Full-screen "you just spent a restore point" sequence. `used` is the count
@@ -433,7 +445,7 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
              else: 1.0 + (1.0 - easeOutBack(entrance)) * 0.55
 
   # Camera pull-back. 0 = held on the dead platter, 1 = the full row of slots.
-  let reveal = smoothStep(phaseT(p, LifeLostSettleStart, LifeLostRevealEnd))
+  let reveal = smoothstep(phaseT(p, LifeLostSettleStart, LifeLostRevealEnd))
   let zoom = (FocusZoom + (1.0 - FocusZoom) * reveal) * slam
   let size = BigIconSize * zoom
 
@@ -467,9 +479,9 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
       let gx = targetX + (i - target).float32 * advance
       let live = i < remaining
       drawRestorePointIcon(gx, cy, size,
-                           withAlphaF(if live: RpBody else: RpDeadBody, siblingAlpha),
-                           withAlphaF(if live: RpAccent else: RpDeadAccent, siblingAlpha),
-                           withAlphaF(if live: RpLed else: RpDeadLed, siblingAlpha),
+                           scaleAlpha(if live: RpBody else: RpDeadBody, siblingAlpha),
+                           scaleAlpha(if live: RpAccent else: RpDeadAccent, siblingAlpha),
+                           scaleAlpha(if live: RpLed else: RpDeadLed, siblingAlpha),
                            if live: p * SpinRate else: 0.0)
 
   # --- the restore point being consumed ---
@@ -480,17 +492,17 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
     let shudder = sin(p * 120.0) * 3.0 * crackT
     let ledFlicker = if crackT > 0.35: abs(sin(p * 45.0)) * (1.0 - crackT) else: 1.0
     drawRestorePointIcon(targetX + shudder, cy, size,
-                         withAlphaF(shade(RpBody, 1.0 - 0.55 * crackT), alpha),
-                         withAlphaF(shade(RpAccent, 1.0 - 0.5 * crackT), alpha),
-                         withAlphaF(RpLed, alpha * ledFlicker * (1.0 - crackT)),
+                         scaleAlpha(shade(RpBody, 1.0 - 0.55 * crackT), alpha),
+                         scaleAlpha(shade(RpAccent, 1.0 - 0.5 * crackT), alpha),
+                         scaleAlpha(RpLed, alpha * ledFlicker * (1.0 - crackT)),
                          p * SpinRate * decel)
     if crackT > 0.0:
       drawFracture(targetX, cy, size, crackT, shudder, alpha)
   else:
     # Gone: the dead socket stays put, and rides the pull-back into its slot.
-    drawRestorePointIcon(targetX, cy, size, withAlphaF(RpDeadBody, alpha),
-                         withAlphaF(RpDeadAccent, alpha),
-                         withAlphaF(RpDeadLed, alpha))
+    drawRestorePointIcon(targetX, cy, size, scaleAlpha(RpDeadBody, alpha),
+                         scaleAlpha(RpDeadAccent, alpha),
+                         scaleAlpha(RpDeadLed, alpha))
 
     if shatterT < 1.0:
       # Read-failure ring: marks the instant the platter gave way. Capped just
@@ -499,7 +511,7 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
       if shatterT < 0.55:
         let rt = shatterT / 0.55
         drawCircleOutline(int32(targetX), int32(cy), size * (0.6 + rt * 1.9),
-                        withAlphaF(RpAccent, alpha * (1.0 - rt)))
+                        scaleAlpha(RpAccent, alpha * (1.0 - rt)))
       # The save scatters. Alpha falls off quadratically so the shards stay
       # solid through most of the arc and only thin out at the very end.
       for f in 0 ..< FragmentCount:
@@ -510,14 +522,14 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
         let fy = cy + sin(ang) * dist + 260.0 * shatterT * shatterT * zoom
         drawShard(fx, fy, size * 0.28 * (1.0 - shatterT * 0.45),
                   ang + shatterT * 7.0,
-                  withAlphaF(RpAccent, alpha * (1.0 - shatterT * shatterT)))
+                  scaleAlpha(RpAccent, alpha * (1.0 - shatterT * shatterT)))
 
     # Unlimited never really spends one: the save rebuilds itself.
     if unlimited and reformT > 0.0:
       drawRestorePointIcon(targetX, cy, size * clamp(easeOutBack(reformT), 0.0'f32, 1.4'f32),
-                           withAlphaF(RpBody, alpha * reformT),
-                           withAlphaF(RpAccent, alpha * reformT),
-                           withAlphaF(RpLed, alpha * reformT),
+                           scaleAlpha(RpBody, alpha * reformT),
+                           scaleAlpha(RpAccent, alpha * reformT),
+                           scaleAlpha(RpLed, alpha * reformT),
                            reformT * SpinRate)
 
   # Impact flash on the break.

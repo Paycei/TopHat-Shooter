@@ -1,7 +1,7 @@
 import raylib, math
 import modding/mod_patch_core
 import draw_prims
-import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types, enemy_config, modding/mod_state
+import types, utils, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types, enemy_config, modding/mod_state
 
 # ENABLE/DISABLE CHEATS
 # Release-build toggle: flip to `false` to ship a build with no cheat menu.
@@ -394,7 +394,7 @@ proc applySurvivalCacheCheat(game: var Game, tier: SurvivalCacheTier) {.moddable
     game.cheatsUsed = true
   let x = clamp(game.player.pos.x + 80.0'f32, 50.0'f32, game.screenWidth.float32 - 50.0'f32)
   let y = clamp(game.player.pos.y, 50.0'f32, game.screenHeight.float32 - 50.0'f32)
-  game.survival.chests.add(SurvivalChest(pos: newVector2f(x, y), tier: tier, age: 1.0'f32))
+  game.survival.chests.add(SurvivalChest(pos: vec2(x, y), tier: tier, age: 1.0'f32))
   playSound(stCoinPickup)
 
 proc syncSurvivalCheatClock(game: var Game, clock: float32) =
@@ -1179,17 +1179,11 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
   let run = game.rogueliteRun
   let profile = game.rogueliteProfile
 
-  # Lighten a button colour on hover using int math so we never overflow uint8.
-  proc lighten(c: Color): Color =
-    Color(r: uint8(min(255, c.r.int + 40)),
-          g: uint8(min(255, c.g.int + 40)),
-          b: uint8(min(255, c.b.int + 40)), a: 255)
-
   # Local button helper: draws a labelled button, returns true when clicked.
   proc btn(bx, by, bw, bh: int32, label: string, base, border: Color): bool =
     let rect = Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
-    drawRectangle(bx, by, bw, bh, if hovered: lighten(base) else: base)
+    drawRectangle(bx, by, bw, bh, if hovered: brighten(base, 40) else: base)
     drawRectOutline(bx, by, bw, bh, border)
     let tw = measureText(label, 12)
     drawText(label, bx + (bw - tw) div 2, by + (bh - 12) div 2, 12, White)
@@ -1289,17 +1283,11 @@ proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
   ## tab's button helpers and hardcoded-English convention (no localization keys).
   var currentY = y + 8
 
-  # Lighten a button colour on hover using int math so we never overflow uint8.
-  proc lighten(c: Color): Color =
-    Color(r: uint8(min(255, c.r.int + 40)),
-          g: uint8(min(255, c.g.int + 40)),
-          b: uint8(min(255, c.b.int + 40)), a: 255)
-
   # Local button helper: draws a labelled button, returns true when clicked.
   proc btn(bx, by, bw, bh: int32, label: string, base, border: Color): bool =
     let rect = Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
-    drawRectangle(bx, by, bw, bh, if hovered: lighten(base) else: base)
+    drawRectangle(bx, by, bw, bh, if hovered: brighten(base, 40) else: base)
     drawRectOutline(bx, by, bw, bh, border)
     let tw = measureText(label, 12)
     drawText(label, bx + (bw - tw) div 2, by + (bh - 12) div 2, 12, White)

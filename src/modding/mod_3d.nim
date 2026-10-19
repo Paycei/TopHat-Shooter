@@ -55,12 +55,6 @@ proc requireWorld(vm: VM, fname: string): Game3D =
   if result.isNil:
     vm.runtimeError(fname & " needs an active 3D world (world3d.active() is false)")
 
-proc num(vm: VM, v: ScriptValue, what: string): float32 =
-  ## A finite number (NaN and huge values are rejected).
-  if v.kind == vkNumber and abs(v.n) < 1.0e9: return v.n.float32
-  if v.kind == vkNumber: vm.runtimeError(what & " must be a finite number")
-  vm.runtimeError(what & " must be a number, got " & typeName(v))
-
 proc numArg(vm: VM, args: openArray[ScriptValue], i: int, fname: string): float32 =
   let v = arg(args, i)
   if v.kind == vkNumber and abs(v.n) < 1.0e9: return v.n.float32
@@ -69,10 +63,6 @@ proc numArg(vm: VM, args: openArray[ScriptValue], i: int, fname: string): float3
 
 proc optNumArg(vm: VM, args: openArray[ScriptValue], i: int, fname: string, def: float32): float32 =
   if arg(args, i).kind == vkNil: def else: vm.numArg(args, i, fname)
-
-proc numField(vm: VM, t: ScriptTable, key, what: string, def: float32): float32 =
-  let v = rawGetStr(t, key)
-  if v.kind == vkNil: def else: vm.num(v, what & "." & key)
 
 proc boolField(t: ScriptTable, key: string, def: bool): bool =
   let v = rawGetStr(t, key)
@@ -103,7 +93,7 @@ proc modelValue(id: int): ScriptValue =
   if id <= 0 or modelClass.isNil: NilValue
   else: vud(Userdata(cls: modelClass, handle: id, key: cast[pointer](id + 300000)))
 
-proc vec3Arg(vm: VM, args: openArray[ScriptValue], i: int, fname: string): Vector3f =
+proc vec3Arg(vm: VM, args: openArray[ScriptValue], i: int, fname: string): Vector3 =
   vec3(vm.numArg(args, i, fname), vm.numArg(args, i + 1, fname), vm.numArg(args, i + 2, fname))
 
 proc worldAlive(w: Game3D): proc (): bool {.closure.} =
@@ -168,7 +158,7 @@ proc selfPickup(vm: VM, args: openArray[ScriptValue], fname: string): PickupBox 
   if result.isNil: vm.runtimeError("pickup:" & fname & "() needs a pickup (call it with ':')")
 
 # ------------------------------------------------------- position shortcuts ----
-proc posGet(pos, vel: Vector3f, name: string, found: var bool): ScriptValue =
+proc posGet(pos, vel: Vector3, name: string, found: var bool): ScriptValue =
   found = true
   case name
   of "x": vnum(pos.x.float64)
@@ -181,14 +171,14 @@ proc posGet(pos, vel: Vector3f, name: string, found: var bool): ScriptValue =
     found = false
     NilValue
 
-proc posSet(vm: VM, pos, vel: var Vector3f, name: string, v: ScriptValue): bool =
+proc posSet(vm: VM, pos, vel: var Vector3, name: string, v: ScriptValue): bool =
   case name
-  of "x": pos.x = vm.num(v, "x")
-  of "y": pos.y = vm.num(v, "y")
-  of "z": pos.z = vm.num(v, "z")
-  of "vx": vel.x = vm.num(v, "vx")
-  of "vy": vel.y = vm.num(v, "vy")
-  of "vz": vel.z = vm.num(v, "vz")
+  of "x": pos.x = vm.finite(v, "x")
+  of "y": pos.y = vm.finite(v, "y")
+  of "z": pos.z = vm.finite(v, "z")
+  of "vx": vel.x = vm.finite(v, "vx")
+  of "vy": vel.y = vm.finite(v, "vy")
+  of "vz": vel.z = vm.finite(v, "vz")
   else: return false
   true
 
@@ -288,7 +278,7 @@ proc makeClasses() =
     let p = vm.livePickup(b)
     let name = keyName(key)
     var found = false
-    result = posGet(p.pos, Vector3f(), name, found)
+    result = posGet(p.pos, Vector3(), name, found)
     if found and name in ["x", "y", "z"]: return
     let w = b.w
     result = deepGet(p, name, "pickup", found,
@@ -297,7 +287,7 @@ proc makeClasses() =
   pickupClass.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
     let p = vm.livePickup(PickupBox(ud.box))
     let name = keyName(key)
-    var noVel = Vector3f()
+    var noVel = Vector3()
     if name in ["x", "y", "z"] and posSet(vm, p.pos, noVel, name, val): return
     if not deepSet(vm, p, name, val, "pickup"):
       vm.runtimeError("pickup has no field '" & name & "'")
@@ -389,7 +379,7 @@ proc spawnEntity(vm: VM, t: ScriptTable): ScriptValue =
   let e = newEntity3D(w, if tagV.kind == vkString: tagV.str.s else: "")
   let sz = rawGetStr(t, "size")
   if sz.kind == vkNumber:            # a number = a cube / cylinder of that size
-    let s = vm.num(sz, "world3d.spawn.size")
+    let s = vm.finite(sz, "world3d.spawn.size")
     e.size = vec3(s, s, s)
     skip.add("size")
   applyTable(vm, e[], t, "world3d.spawn", skip)
@@ -427,7 +417,7 @@ proc spawnProjectile(vm: VM, t: ScriptTable): ScriptValue =
   let h = rawGetStr(t, "homing")
   if h.kind == vkNumber:
     p.isHoming = h.n > 0
-    p.homingStrength = vm.num(h, "world3d.projectile.homing")
+    p.homingStrength = vm.finite(h, "world3d.projectile.homing")
   elif h.kind != vkNil and truthy(h):
     p.isHoming = true
     p.homingStrength = 200.0
@@ -742,20 +732,20 @@ proc installDraw3dLibrary(base: ScriptTable) =
       let sc = rawGetStr(opts.tbl, "scale")
       let sz = rawGetStr(opts.tbl, "size")
       if sc.kind != vkNil:
-        scale = vm.num(sc, "draw3d.model.scale")
+        scale = vm.finite(sc, "draw3d.model.scale")
         if not (scale > 0): vm.runtimeError("draw3d.model.scale must be positive")
       elif sz.kind != vkNil:
-        let s = vm.num(sz, "draw3d.model.size")
+        let s = vm.finite(sz, "draw3d.model.size")
         if not (s > 0): vm.runtimeError("draw3d.model.size must be positive")
         scale = s / modelFootprint(id)
       let fr = rawGetStr(opts.tbl, "frame")
       let tm = rawGetStr(opts.tbl, "time")
       if fr.kind != vkNil and pose.anim > 0:
-        let f = vm.num(fr, "draw3d.model.frame")
+        let f = vm.finite(fr, "draw3d.model.frame")
         pose.speed = 1
         time = floorMod(f.float - 1.0, modelAnimFrames(id, pose.anim).float) / ModelFps
       elif tm.kind != vkNil:
-        time = vm.num(tm, "draw3d.model.time").float
+        time = vm.finite(tm, "draw3d.model.time").float
     drawModelWorld3D(id, p.x, p.y, p.z, scale, pose.yaw, pose.pitch, pose.roll, pose, White, time,
                      vm.readAnimKey(opts, "draw3d.model"))
   t.reg("billboard") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):

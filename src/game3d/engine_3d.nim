@@ -5,43 +5,7 @@ import raylib, math
 import ../modding/mod_patch_core
 import types_3d
 
-proc vec3*(x, y, z: float32): Vector3f {.moddable.} =
-  Vector3f(x: x, y: y, z: z)
-
-proc `+`*(a, b: Vector3f): Vector3f =
-  vec3(a.x + b.x, a.y + b.y, a.z + b.z)
-
-proc `-`*(a, b: Vector3f): Vector3f =
-  vec3(a.x - b.x, a.y - b.y, a.z - b.z)
-
-proc `*`*(v: Vector3f, s: float32): Vector3f =
-  vec3(v.x * s, v.y * s, v.z * s)
-
-proc `/`*(v: Vector3f, s: float32): Vector3f =
-  vec3(v.x / s, v.y / s, v.z / s)
-
-proc length*(v: Vector3f): float32 {.moddable.} =
-  sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
-
-proc normalize*(v: Vector3f): Vector3f {.moddable.} =
-  let len = v.length()
-  if len > 0: vec3(v.x / len, v.y / len, v.z / len)
-  else: vec3(0, 0, 0)
-
-proc distance*(a, b: Vector3f): float32 {.moddable.} =
-  (b - a).length()
-
-proc dot*(a, b: Vector3f): float32 {.moddable.} =
-  a.x * b.x + a.y * b.y + a.z * b.z
-
-proc cross*(a, b: Vector3f): Vector3f {.moddable.} =
-  vec3(
-    a.y * b.z - a.z * b.y,
-    a.z * b.x - a.x * b.z,
-    a.x * b.y - a.y * b.x
-  )
-
-proc initCamera3D*(pos: Vector3f): FPSCamera {.moddable.} =
+proc initCamera3D*(pos: Vector3): FPSCamera {.moddable.} =
   FPSCamera(
     position: pos,
     target: pos + vec3(0, 0, -1),
@@ -75,7 +39,7 @@ proc updateCamera*(cam: var FPSCamera, mouseDelta: Vector2, sensitivity: float32
   else:
     cam.shake = 0
 
-proc getForward*(cam: FPSCamera): Vector3f {.moddable.} =
+proc getForward*(cam: FPSCamera): Vector3 {.moddable.} =
   # Convert to radians
   let yawRad = degToRad(cam.yaw)
   let pitchRad = degToRad(cam.pitch)
@@ -85,7 +49,7 @@ proc getForward*(cam: FPSCamera): Vector3f {.moddable.} =
   result.y = sin(pitchRad)
   result.z = sin(yawRad) * cos(pitchRad)
 
-proc getRight*(cam: FPSCamera): Vector3f {.moddable.} =
+proc getRight*(cam: FPSCamera): Vector3 {.moddable.} =
   # Convert to radians
   let yawRad = degToRad(cam.yaw)
 
@@ -99,7 +63,7 @@ proc addShake*(cam: var FPSCamera, intensity: float32) {.moddable.} =
 
 const GRAVITY* = -20.0
 
-proc checkCollision*(pos: Vector3f, radius: float32, platforms: seq[Platform3D]): (bool, Platform3D) {.moddable.} =
+proc checkCollision*(pos: Vector3, radius: float32, platforms: seq[Platform3D]): (bool, Platform3D) {.moddable.} =
   for platform in platforms:
     let dx = abs(pos.x - platform.pos.x)
     let dz = abs(pos.z - platform.pos.z)

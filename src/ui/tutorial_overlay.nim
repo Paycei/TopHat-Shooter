@@ -39,10 +39,6 @@ const
   KeyPadX = 5'i32
   EnterTime = 0.25'f32        # card slide-in per step
 
-proc easeOutCubic(x: float32): float32 =
-  let c = clamp(x, 0.0'f32, 1.0'f32)
-  1.0'f32 - pow(1.0'f32 - c, 3.0'f32)
-
 # ---------------------------------------------------------------------------
 # Binding labels
 
@@ -160,13 +156,13 @@ proc drawRichLine(line: seq[Token], x, y, size: int32, textColor: Color, alpha: 
     if tok.key:
       let kh = size + 4
       let ky = y - 3
-      drawRectangle(cx, ky, w, kh, withAlpha(KeyBg, KeyBg.a.float32 * alpha))
+      drawRectangle(cx, ky, w, kh, scaleAlpha(KeyBg, alpha))
       drawRectangle(cx, ky + kh - 2, w, 2, withAlpha(Accent, 120.0'f32 * alpha))  # keycap lip
       drawRectOutline(Rectangle(x: cx.float32, y: ky.float32, width: w.float32, height: kh.float32),
                          1, withAlpha(Accent, 180.0'f32 * alpha))
       drawText(tok.text, cx + KeyPadX, y - 1, size - 2, withAlpha(KeyText, 255.0'f32 * alpha))
     else:
-      drawText(tok.text, cx, y, size, withAlpha(textColor, textColor.a.float32 * alpha))
+      drawText(tok.text, cx, y, size, scaleAlpha(textColor, alpha))
     cx += w
 
 proc drawRich(s: string, x, y, size: int32, textColor: Color, alpha: float32) =
@@ -205,8 +201,8 @@ proc stepBody(step: TutorialStep): string =
 # ---------------------------------------------------------------------------
 # World cues (raw virtual space: drawn after drawGame's world pass closed)
 
-proc toScreen(p: Vector2f): Vector2 =
-  worldToVirtual(Vector2(x: p.x, y: p.y))
+proc toScreen(p: Vector2): Vector2 =
+  worldToVirtual(p)
 
 proc drawCornerBrackets(c: Vector2, half, arm: float32, color: Color) =
   for sx in [-1.0'f32, 1.0'f32]:
@@ -305,7 +301,7 @@ proc drawCard(game: Game, s: TutorialState) =
 
   # Fade the card while the player is underneath it, so it never hides them.
   let scale = getActiveUIScale()
-  let pv = worldToVirtual(Vector2(x: game.player.pos.x, y: game.player.pos.y))
+  let pv = worldToVirtual(game.player.pos)
   let pl = Vector2(x: pv.x / scale, y: pv.y / scale)
   let cardRect = Rectangle(x: cardX.float32 - 20, y: cardY.float32 - 20,
                            width: cardW.float32 + 40, height: cardH.float32 + 40)
@@ -315,8 +311,8 @@ proc drawCard(game: Game, s: TutorialState) =
   let edge = if done: DoneColor else: Accent
 
   # Body + chrome
-  drawRectangle(cardX, cardY, cardW, cardH, withAlpha(CardBg, CardBg.a.float32 * alpha))
-  drawRectangle(cardX, cardY, cardW, TitleBarH, withAlpha(TitleBarBg, TitleBarBg.a.float32 * alpha))
+  drawRectangle(cardX, cardY, cardW, cardH, scaleAlpha(CardBg, alpha))
+  drawRectangle(cardX, cardY, cardW, TitleBarH, scaleAlpha(TitleBarBg, alpha))
   drawRectangle(cardX, cardY, 2, cardH, withAlpha(edge, 220.0'f32 * alpha))
   drawRectOutline(Rectangle(x: cardX.float32, y: cardY.float32,
                                width: cardW.float32, height: cardH.float32),

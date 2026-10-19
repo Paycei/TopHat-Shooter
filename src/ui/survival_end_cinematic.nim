@@ -12,15 +12,16 @@
 
 import raylib, math, strutils
 import ../modding/mod_patch_core
+import ../utils
 import ../draw_prims
 import particle_types, background_fx, ../types, ../shapes, ../localization, ../sound,
-       cinematic_common, cutscene, os_desktop, ui_theme
+       cinematic_common, cutscene, os_desktop, ui_theme, ui_helpers
 
 const
   SurAccent* = Color(r: 255, g: 120, b: 50, a: 255)   # ember-orange "uptime"
   HatCyan = Color(r: 0, g: 230, b: 230, a: 255)
 
-proc drawHatWearer(pos: Vector2f, radius, local, alpha, glow: float32) =
+proc drawHatWearer(pos: Vector2, radius, local, alpha, glow: float32) =
   ## shooter.exe as it is by now: root access, hat and all.
   drawEquippedPlayerModel(pos, radius, local, alpha, glow)
   drawTopHat(pos, radius, local, alpha)
@@ -32,30 +33,30 @@ proc drawUptimeShot(local, duration: float32, screenWidth, screenHeight: int32,
                     alpha: float32) =
   let cx = screenWidth.float32 * 0.5'f32
   let cy = screenHeight.float32 * 0.40'f32
-  drawHalo(cx, cy, 200.0'f32, colorA(SurAccent, alpha * 44.0'f32), 1.0'f32)
-  let sweep = fractCoord(local * 0.9'f32) * 360.0'f32
+  drawHalo(cx, cy, 200.0'f32, withAlpha(SurAccent, alpha * 44.0'f32), 1.0'f32)
+  let sweep = fract01(local * 0.9'f32) * 360.0'f32
   drawRing(Vector2(x: cx, y: cy), 88.0'f32, 92.0'f32, -90.0'f32, -90.0'f32 + sweep, 48,
-           colorA(SurAccent, alpha * 210.0'f32))
-  drawCircleOutline(Vector2(x: cx, y: cy), 90.0'f32, colorA(SurAccent, alpha * 70.0'f32))
+           withAlpha(SurAccent, alpha * 210.0'f32))
+  drawCircleOutline(Vector2(x: cx, y: cy), 90.0'f32, withAlpha(SurAccent, alpha * 70.0'f32))
   for i in 0..<12:
     let a = i.float32 * PI * 2.0'f32 / 12.0'f32 - PI * 0.5'f32
     drawStroke((cx + cos(a) * 82.0'f32).int32, (cy + sin(a) * 82.0'f32).int32,
                (cx + cos(a) * 90.0'f32).int32, (cy + sin(a) * 90.0'f32).int32,
-               colorA(SurAccent, alpha * 130.0'f32))
+               withAlpha(SurAccent, alpha * 130.0'f32))
   let kinds = [etThread, etForkBomb, etZombie, etThread, etWatchdog, etDaemon, etThread, etInterrupt]
   for i in 0..<14:
     let a = i.float32 * PI * 2.0'f32 / 14.0'f32 + local * 0.3'f32
     let r = 150.0'f32 + sin(local * 1.4'f32 + i.float32) * 22.0'f32
     drawRealEnemy(kinds[i mod kinds.len], cx + cos(a) * r, cy + sin(a) * r * 0.72'f32, 11.0'f32,
                   local, i, if i mod 6 == 0: 1 else: 0)
-  drawHatWearer(newVector2f(cx, cy), 24.0'f32, local, alpha, 0.24'f32)
+  drawHatWearer(vec2(cx, cy), 24.0'f32, local, alpha, 0.24'f32)
 
   # The counter that matters here: days, not seconds.
   let days = int(pow(clamp01(local / (duration * 0.85'f32)), 1.6'f32) * 1460.0'f32)
   let readY = (cy + 150.0'f32).int32
-  drawCenteredText(t(tkSurEndUptimeLabel), screenWidth div 2, readY, 14, colorA(SurAccent, alpha * 170.0'f32))
+  drawCenteredText(t(tkSurEndUptimeLabel), screenWidth div 2, readY, 14, withAlpha(SurAccent, alpha * 170.0'f32))
   drawCenteredText(t(tkSurEndDays).replace("$1", $days), screenWidth div 2, readY + 18, 30,
-                   Color(r: 255, g: 235, b: 210, a: alphaByte(alpha * 240.0'f32)))
+                   Color(r: 255, g: 235, b: 210, a: clampByteF(alpha * 240.0'f32)))
   drawSubtitles([t(tkSurEndUptime1), t(tkSurEndUptime2)], screenWidth, screenHeight, alpha)
 
 # ---------------------------------------------------------------------------
@@ -65,8 +66,8 @@ proc drawSurgeShot(local, duration: float32, screenWidth, screenHeight: int32,
                    alpha: float32) =
   let cx = screenWidth.float32 * 0.5'f32
   let cy = screenHeight.float32 * 0.42'f32
-  let close = easeInOut(local / duration)
-  let vig = alphaByte(alpha * close * 90.0'f32)
+  let close = smoothstep(local / duration)
+  let vig = clampByteF(alpha * close * 90.0'f32)
   let vw = (screenWidth.float32 * 0.4'f32).int32
   drawRectangleGradientH(0, 0, vw, screenHeight, Color(r: 255, g: 40, b: 20, a: vig), Color(r: 255, g: 40, b: 20, a: 0))
   drawRectangleGradientH(screenWidth - vw, 0, vw, screenHeight, Color(r: 255, g: 40, b: 20, a: 0),
@@ -78,26 +79,26 @@ proc drawSurgeShot(local, duration: float32, screenWidth, screenHeight: int32,
     let r = startR * (1.0'f32 - close * 0.86'f32)
     drawRealEnemy(kinds[i mod kinds.len], cx + cos(ang) * r, cy + sin(ang) * r * 0.8'f32,
                   10.0'f32 + (i mod 4).float32 * 3.0'f32, local, i, if i mod 5 == 0: 2 else: 0,
-                  newVector2f(-cos(ang) * 120.0'f32, -sin(ang) * 120.0'f32))
+                  vec2(-cos(ang) * 120.0'f32, -sin(ang) * 120.0'f32))
   let flare = 0.24'f32 + close * 0.5'f32 + sin(local * 9.0'f32) * 0.1'f32
-  drawHalo(cx, cy, 70.0'f32 + close * 30.0'f32, colorA(SurAccent, alpha * (60.0'f32 + close * 60.0'f32)), 1.0'f32)
-  drawHatWearer(newVector2f(cx, cy), 24.0'f32, local, alpha, flare)
+  drawHalo(cx, cy, 70.0'f32 + close * 30.0'f32, withAlpha(SurAccent, alpha * (60.0'f32 + close * 60.0'f32)), 1.0'f32)
+  drawHatWearer(vec2(cx, cy), 24.0'f32, local, alpha, flare)
 
   # The machine's temperature, on the way to its trip point.
-  let temp = lerpF(64.0'f32, 99.0'f32, close)
+  let temp = lerp(64.0'f32, 99.0'f32, close)
   let gx = screenWidth - 90
   let gTop = screenHeight div 9 + 50
   let gH = (screenHeight.float32 * 0.36'f32).int32
   let heat = clamp01((temp - 60.0'f32) / 40.0'f32)
-  let heatCol = Color(r: 255, g: uint8(lerpF(200, 40, heat)), b: uint8(lerpF(80, 20, heat)), a: 255)
-  drawRectangle(gx, gTop, 18, gH, Color(r: 20, g: 12, b: 10, a: alphaByte(alpha * 220.0'f32)))
+  let heatCol = Color(r: 255, g: uint8(lerp(200, 40, heat)), b: uint8(lerp(80, 20, heat)), a: 255)
+  drawRectangle(gx, gTop, 18, gH, Color(r: 20, g: 12, b: 10, a: clampByteF(alpha * 220.0'f32)))
   let fill = int32(gH.float32 * heat)
-  drawRectangle(gx, gTop + gH - fill, 18, fill, colorA(heatCol, alpha * 230.0'f32))
-  drawRectOutline(gx, gTop, 18, gH, colorA(SurAccent, alpha * 160.0'f32))
+  drawRectangle(gx, gTop + gH - fill, 18, fill, withAlpha(heatCol, alpha * 230.0'f32))
+  drawRectOutline(gx, gTop, 18, gH, withAlpha(SurAccent, alpha * 160.0'f32))
   let label = t(tkSurEndTemp)
-  drawText(label, gx + 9 - measureText(label, 12) div 2, gTop - 32, 12, colorA(SurAccent, alpha * 200.0'f32))
+  drawText(label, gx + 9 - measureText(label, 12) div 2, gTop - 32, 12, withAlpha(SurAccent, alpha * 200.0'f32))
   let reading = $int(temp) & "°C"   # UTF-8 degree sign; the font covers U+00B0
-  drawCenteredText(reading, gx + 9, gTop - 16, 14, colorA(heatCol, alpha * 255.0'f32))
+  drawCenteredText(reading, gx + 9, gTop - 16, 14, withAlpha(heatCol, alpha * 255.0'f32))
   drawSubtitles([t(tkSurEndSurge1), t(tkSurEndSurge2)], screenWidth, screenHeight, alpha)
 
 # ---------------------------------------------------------------------------
@@ -122,7 +123,7 @@ proc newReinstallShot(): CutsceneDrawProc =
   let warn = t(tkSurEndInstallerWarn)
 
   result = proc(local, duration: float32, sw, sh: int32, alpha: float32) =
-    let frac = easeInOut(clamp01((local - UptimeFormatAt) / (duration - UptimeFormatAt - 1.0'f32)))
+    let frac = smoothstep(clamp01((local - UptimeFormatAt) / (duration - UptimeFormatAt - 1.0'f32)))
     # TopHat-ShooterOS's icons, wiped left to right as the format runs.
     let rowY = (sh.float32 * 0.52'f32).int32
     let spacing = min(100.0'f32, (sw.float32 * 0.84'f32) / icons.len.float32)
@@ -141,8 +142,8 @@ proc newReinstallShot(): CutsceneDrawProc =
       if reach > 0.0'f32:
         for k in 0..<10:
           let ny = rowY + int32(hash01(k.float32 + floor(local * 20.0'f32) + i.float32) * ICON_SIZE.float32)
-          drawRectangle(ix.int32, ny, ICON_SIZE, 3, Color(r: 220, g: 230, b: 240, a: alphaByte(alpha * reach * 230.0'f32)))
-        drawRectangle(ix.int32, rowY, ICON_SIZE, ICON_SIZE + 40, Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * reach * 200.0'f32)))
+          drawRectangle(ix.int32, ny, ICON_SIZE, 3, Color(r: 220, g: 230, b: 240, a: clampByteF(alpha * reach * 230.0'f32)))
+        drawRectangle(ix.int32, rowY, ICON_SIZE, ICON_SIZE + 40, Color(r: 0, g: 0, b: 0, a: clampByteF(alpha * reach * 200.0'f32)))
 
     # The installer: light, rounded, polite. Not ours.
     let pw = min(560.0'f32, sw.float32 * 0.62'f32)
@@ -151,24 +152,24 @@ proc newReinstallShot(): CutsceneDrawProc =
     let py = (sh div 9).float32 + 26.0'f32
     let rec = Rectangle(x: px, y: py, width: pw, height: ph)
     drawRectangleRounded(Rectangle(x: px + 4.0'f32, y: py + 6.0'f32, width: pw, height: ph), 0.08'f32, 8,
-                         Color(r: 0, g: 0, b: 0, a: alphaByte(alpha * 90.0'f32)))
-    drawRectangleRounded(rec, 0.08'f32, 8, colorA(CknPaper, alpha * 255.0'f32))
-    drawText(title, px.int32 + 84, py.int32 + 26, fitFontSize(title, pw.int32 - 110, 22), colorA(CknInk, alpha * 255.0'f32))
+                         Color(r: 0, g: 0, b: 0, a: clampByteF(alpha * 90.0'f32)))
+    drawRectangleRounded(rec, 0.08'f32, 8, withAlpha(CknPaper, alpha * 255.0'f32))
+    drawText(title, px.int32 + 84, py.int32 + 26, bestFitFontSize(title, pw.int32 - 110, 22), withAlpha(CknInk, alpha * 255.0'f32))
     drawCknLogo(px + 46.0'f32, py + 46.0'f32, 22.0'f32, alpha)
-    drawText(formatting, px.int32 + 30, py.int32 + 86, fitFontSize(formatting, pw.int32 - 60, 16),
-             colorA(CknInk, alpha * 230.0'f32))
+    drawText(formatting, px.int32 + 30, py.int32 + 86, bestFitFontSize(formatting, pw.int32 - 60, 16),
+             withAlpha(CknInk, alpha * 230.0'f32))
     let bx = px + 30.0'f32
     let by = py + 112.0'f32
     let bw = pw - 60.0'f32
     drawRectangleRounded(Rectangle(x: bx, y: by, width: bw, height: 12.0'f32), 0.5'f32, 6,
-                         Color(r: 205, g: 214, b: 228, a: alphaByte(alpha * 255.0'f32)))
+                         Color(r: 205, g: 214, b: 228, a: clampByteF(alpha * 255.0'f32)))
     if frac > 0.0'f32:
       drawRectangleRounded(Rectangle(x: bx, y: by, width: max(12.0'f32, bw * frac), height: 12.0'f32), 0.5'f32, 6,
-                           colorA(CknBlue, alpha * 255.0'f32))
+                           withAlpha(CknBlue, alpha * 255.0'f32))
     let pct = $int(frac * 100.0'f32) & "%"
-    drawText(pct, (bx + bw).int32 - measureText(pct, 14), by.int32 + 18, 14, colorA(CknInk, alpha * 200.0'f32))
-    drawText(warn, px.int32 + 30, py.int32 + 150, fitFontSize(warn, pw.int32 - 120, 13),
-             Color(r: 120, g: 128, b: 145, a: alphaByte(alpha * 255.0'f32)))
+    drawText(pct, (bx + bw).int32 - measureText(pct, 14), by.int32 + 18, 14, withAlpha(CknInk, alpha * 200.0'f32))
+    drawText(warn, px.int32 + 30, py.int32 + 150, bestFitFontSize(warn, pw.int32 - 120, 13),
+             Color(r: 120, g: 128, b: 145, a: clampByteF(alpha * 255.0'f32)))
     drawSubtitles([t(tkSurEndReinstall1), t(tkSurEndReinstall2)], sw, sh, alpha)
 
 # ---------------------------------------------------------------------------
@@ -178,23 +179,23 @@ proc drawUnallocatedShot(local, duration: float32, sw, sh: int32, alpha: float32
   drawRectangle(-20, -20, sw + 40, sh + 40, Color(r: 0, g: 0, b: 0, a: 255))
   let endA = clamp01((duration - local) / 1.2'f32)
   # The new OS's welcome screen, then the camera sinks below it.
-  let sink = easeInOut(clamp01((local - UptimeSinkAt) / 1.0'f32))
+  let sink = smoothstep(clamp01((local - UptimeSinkAt) / 1.0'f32))
   let top = (sh div 9).float32
   let panelH = sh.float32 * 0.44'f32
   let panelY = top - sink * (panelH + 60.0'f32)
   let bootA = clamp01((local - UptimeNewBootAt) / 0.4'f32)
   if panelY + panelH > top:
-    drawRectangle(0, panelY.int32, sw, panelH.int32, colorA(CknPaper, bootA * 255.0'f32))
+    drawRectangle(0, panelY.int32, sw, panelH.int32, withAlpha(CknPaper, bootA * 255.0'f32))
     drawCknLogo(sw.float32 * 0.5'f32, panelY + panelH * 0.4'f32, 34.0'f32, bootA)
     drawCenteredText("CKN OS", sw div 2, (panelY + panelH * 0.4'f32 + 20.0'f32).int32, 30,
-                     colorA(CknInk, bootA * 255.0'f32))
+                     withAlpha(CknInk, bootA * 255.0'f32))
     let welcome = t(tkSurEndWelcome)
     drawCenteredText(welcome, sw div 2, (panelY + panelH * 0.4'f32 + 60.0'f32).int32,
-                     fitFontSize(welcome, sw - 80, 18), colorA(CknInk, bootA * 200.0'f32))
+                     bestFitFontSize(welcome, sw - 80, 18), withAlpha(CknInk, bootA * 200.0'f32))
     # Its partition table, the floor everything older now lives under.
     let floorY = (panelY + panelH + 18.0'f32).int32
-    drawRectangle(0, floorY, sw, 2, colorA(CknBlue, bootA * 200.0'f32))
-    drawText(t(tkEndPartitionTable), sw div 9, floorY + 8, 13, colorA(CknBlue, bootA * 180.0'f32))
+    drawRectangle(0, floorY, sw, 2, withAlpha(CknBlue, bootA * 200.0'f32))
+    drawText(t(tkEndPartitionTable), sw div 9, floorY + 8, 13, withAlpha(CknBlue, bootA * 180.0'f32))
 
   # Below it: the hat, and the words root said first.
   let cy = (sh.float32 * 0.38'f32).int32
@@ -203,8 +204,8 @@ proc drawUnallocatedShot(local, duration: float32, sw, sh: int32, alpha: float32
     let size = 40'i32
     let widest = max(measureText(t(tkLoreWho), size), measureText(t(tkLoreMachine), size))
     let hx = (sw div 2 - widest div 2 - 52).float32
-    drawHalo(hx, cy.float32 + 18.0'f32, 70.0'f32, colorA(HatCyan, a * 80.0'f32), 1.0'f32)
-    drawTopHat(newVector2f(hx, cy.float32 + 36.0'f32), 26.0'f32, local, a)
+    drawHalo(hx, cy.float32 + 18.0'f32, 70.0'f32, withAlpha(HatCyan, a * 80.0'f32), 1.0'f32)
+    drawTopHat(vec2(hx, cy.float32 + 36.0'f32), 26.0'f32, local, a)
     let second = local >= UptimeMachineAt
     drawOldText(t(tkLoreWho), sw div 2, cy, size, revealOver(local, UptimeWhoAt, UptimeWhoDur), local, a,
                 HatCyan, cursor = not second)
@@ -216,7 +217,7 @@ proc drawUnallocatedShot(local, duration: float32, sw, sh: int32, alpha: float32
 # Per-shot shake overrides
 
 proc surgeShake(time, local, duration, alpha: float32): float32 =
-  sin(time * 40.0'f32) * 2.8'f32 * alpha * easeInOut(local / duration)
+  sin(time * 40.0'f32) * 2.8'f32 * alpha * smoothstep(local / duration)
 
 proc crashShake(time, local, duration, alpha: float32): float32 =
   sin(time * 45.0'f32) * 7.0'f32 * exp(-local * 6.0'f32)
@@ -230,8 +231,8 @@ proc survivalBackdrop(time, totalDuration: float32, sw, sh: int32) =
                      Color(r: 6, g: 3, b: 2, a: 255),
                      Color(r: 14, g: 8, b: 6, a: 255),
                      Color(r: 40, g: 20, b: 12, a: 30),
-                     Color(r: 150, g: 70, b: 30, a: alphaByte(40.0'f32 - cool * 22.0'f32)),
-                     Color(r: 255, g: 110, b: 40, a: alphaByte(34.0'f32 - cool * 20.0'f32)),
+                     Color(r: 150, g: 70, b: 30, a: clampByteF(40.0'f32 - cool * 22.0'f32)),
+                     Color(r: 255, g: 110, b: 40, a: clampByteF(34.0'f32 - cool * 20.0'f32)),
                      0.55, 0.5)
 
 # ---------------------------------------------------------------------------
