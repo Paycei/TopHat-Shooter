@@ -1896,7 +1896,6 @@ type
     tkModsWindowTitle = "mods_window_title"
     tkModsTabInstalled = "mods_tab_installed"
     tkModsTabModes = "mods_tab_modes"
-    tkModsTabLog = "mods_tab_log"
     tkModsTabConsole = "mods_tab_console"
     tkModsNeedsNewerGame = "mods_needs_newer_game"
     tkModsConsoleHint = "mods_console_hint"
@@ -1953,10 +1952,7 @@ type
     tkModsRemoveSub = "mods_remove_sub"
     tkModsRemoved = "mods_removed"
     tkModsRemoveFailed = "mods_remove_failed"
-    tkModsTabCosmetics = "mods_tab_cosmetics"
-    tkModsNoCosmetics = "mods_no_cosmetics"
     tkModsEquip = "mods_equip"
-    tkModsUnequip = "mods_unequip"
     tkModsKindPlayer = "mods_kind_player"
     tkModsKindBullet = "mods_kind_bullet"
     tkModsKindDesktop = "mods_kind_desktop"
@@ -4180,7 +4176,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_window_title": "Mods - Mod Manager",
     "mods_tab_installed": "Installed",
     "mods_tab_modes": "Game Modes",
-    "mods_tab_log": "Log",
     "mods_tab_console": "Console",
     "mods_needs_newer_game": "Made for game version $1 or newer (this is $2): parts of it may not work.",
     "mods_console_hint": "Lua with the whole game API. Enter runs it, Up / Down: history. Output goes to the log.",
@@ -4238,10 +4233,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_remove_sub": "Its files are deleted from disk. This cannot be undone.",
     "mods_removed": "$1 removed.",
     "mods_remove_failed": "Could not delete the mod folder (a file may be in use).",
-    "mods_tab_cosmetics": "Cosmetics",
-    "mods_no_cosmetics": "No mod cosmetics loaded. Mods add them with register.cosmetic.",
     "mods_equip": "Equip",
-    "mods_unequip": "Unequip",
     "mods_kind_player": "Player skin",
     "mods_kind_bullet": "Bullet skin",
     "mods_kind_desktop": "Desktop",
@@ -6462,7 +6454,6 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_window_title": "Mods - Gestor de Mods",
     "mods_tab_installed": "Instalados",
     "mods_tab_modes": "Modos de juego",
-    "mods_tab_log": "Registro",
     "mods_tab_console": "Consola",
     "mods_needs_newer_game": "Hecho para la versión $1 del juego o posterior (esta es la $2): puede que partes no funcionen.",
     "mods_console_hint": "Lua con toda la API del juego. Enter lo ejecuta, Arriba / Abajo: historial. La salida va al registro.",
@@ -6520,10 +6511,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "mods_remove_sub": "Sus archivos se borran del disco. No se puede deshacer.",
     "mods_removed": "$1 eliminado.",
     "mods_remove_failed": "No se pudo borrar la carpeta del mod (puede que un archivo esté en uso).",
-    "mods_tab_cosmetics": "Cosméticos",
-    "mods_no_cosmetics": "No hay cosméticos de mods cargados. Los mods los añaden con register.cosmetic.",
     "mods_equip": "Equipar",
-    "mods_unequip": "Quitar",
     "mods_kind_player": "Aspecto del jugador",
     "mods_kind_bullet": "Aspecto de las balas",
     "mods_kind_desktop": "Escritorio",

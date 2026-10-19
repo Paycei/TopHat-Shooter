@@ -4,7 +4,7 @@
 ## runs in main.nim, from the desktop, never mid-run). Marketplace: the mods
 ## published on the registry (mod_market.nim), installed and updated from
 ## GitHub. Game Modes: modes that loaded mods registered (launch/continue).
-## Log: print output and errors.
+## Console: Lua typed in, over the log (print output and errors).
 ## The banner states the one rule players must know: modded runs are cheated,
 ## unless every loaded mod opts out with "disableAchievements": false.
 
@@ -21,7 +21,7 @@ import ../feedback
 
 type
   ModsTab* = enum
-    mtInstalled, mtMarket, mtModes, mtCosmetics, mtApps, mtAchievements, mtLog, mtConsole
+    mtInstalled, mtMarket, mtModes, mtApps, mtAchievements, mtConsole
 
   ModsWindow* = ref object
     window*: OSWindow
@@ -39,7 +39,6 @@ type
     modeRows*: seq[ModModeRow]
     launchRequest*: int       ## index into modeRows to launch, -1 = none
     launchResume*: bool
-    cosScroll*: int
     appSelected*: int         ## register.app row highlighted in the Apps tab
     openAppRequest*: string   ## key of the app to open, "" = none (consumed by the window manager)
     removeTarget: string      ## folder the remove confirmation is about ("" = closed)
@@ -70,7 +69,6 @@ const
   ButtonH = 32
   ListW = 300
   RowH = 44
-  CosRowH = 58
   AchRowH = 56
   RemoveBtnH = 28'f32
   RemoveConfirmCooldown = 1.5'f32  # anti-accident window, like the quit dialog
@@ -525,15 +523,6 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
         openFolder(modsRootDir())
       elif checkCollisionPointRec(mouse, g.refreshBtn):
         marketRefresh()
-    elif mw.tab == mtCosmetics:
-      for i in 0 ..< modCosmetics.len:
-        let ry = g.bodyY + i * CosRowH - mw.cosScroll
-        let btn = Rectangle(x: float32(g.x + g.w - 124), y: float32(ry + 14), width: 110, height: 30)
-        if ry + CosRowH > g.bodyY and ry < g.bodyY + g.bodyH and
-           checkCollisionPointRec(mouse, btn):
-          toggleCosmetic(i)
-          mw.settings.modCosmetics = equippedEntries()
-          discard saveSettings(mw.settings)
     elif mw.tab == mtApps:
       for i in 0 ..< modApps.len:
         if checkCollisionPointRec(mouse, appOpenBtn(g, i)):
@@ -604,8 +593,8 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
     if wheel != 0 and checkCollisionPointRec(mouse, g.list):
       mw.listScroll = mw.listScroll - int(wheel * RowH.float32)
     mw.listScroll = clamp(mw.listScroll, 0, maxScroll)
-  of mtLog, mtConsole:
-    let area = if mw.tab == mtLog: g.logArea else: g.consoleLog
+  of mtConsole:
+    let area = g.consoleLog
     let maxScroll = max(0, logLines() * LogLineH - int(area.height) + 8)
     if wheel != 0 and checkCollisionPointRec(mouse, area):
       mw.logScroll = mw.logScroll - int(wheel * 3 * LogLineH.float32)
@@ -625,11 +614,6 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
     if wheel != 0 and checkCollisionPointRec(mouse, g.logArea):
       mw.achScroll = mw.achScroll - int(wheel * AchRowH.float32)
     mw.achScroll = clamp(mw.achScroll, 0, maxScroll)
-  of mtCosmetics:
-    let maxScroll = max(0, modCosmetics.len * CosRowH - int(g.logArea.height))
-    if wheel != 0 and checkCollisionPointRec(mouse, g.logArea):
-      mw.cosScroll = mw.cosScroll - int(wheel * CosRowH.float32)
-    mw.cosScroll = clamp(mw.cosScroll, 0, maxScroll)
 
 # ----------------------------------------------------------------- draw ----
 proc drawButton(r: Rectangle, label: string, enabled, primary: bool) =
@@ -1045,47 +1029,6 @@ proc drawModes(mw: ModsWindow, g: Geo) =
     drawButton(Rectangle(x: float32(g.x + g.w - 112), y: float32(y + 16), width: 110, height: 30),
                t(tkModsContinue), row.canContinue, false)
 
-proc drawCosmetics(mw: ModsWindow, g: Geo) =
-  drawRectangle(g.logArea, ColPanel)
-  drawRectOutline(g.logArea, 1.0, uiLine(50, 60, 70))
-  if modCosmetics.len == 0:
-    discard drawWrapped(t(tkModsNoCosmetics), int32(g.x) + 14, int32(g.bodyY) + 14, int32(g.w) - 28, 13,
-                        ColMuted, int32(g.bodyY + g.bodyH))
-    return
-  beginVirtualScissorMode(int32(g.logArea.x), int32(g.logArea.y), int32(g.logArea.width), int32(g.logArea.height))
-  for i, c in modCosmetics:
-    let ry = int32(g.bodyY + i * CosRowH - mw.cosScroll)
-    if ry + CosRowH < int32(g.bodyY) or ry > int32(g.bodyY + g.bodyH): continue
-    let equipped = equippedCosmetic[c.kind] == i + 1
-    drawRectangle(Rectangle(x: g.x.float32 + 2, y: ry.float32 + 2, width: g.w.float32 - 4,
-                            height: CosRowH - 4), if equipped: ColRowSel else: ColRow)
-    # preview: the model (turning) or texture it draws with, else the palette
-    # swatches. A desktop cosmetic shows its wallpaper over its cube model.
-    let px = int32(g.x) + 10
-    let py = ry + 7
-    if c.look.model > 0 and (c.kind != mckDesktop or c.look.id == 0):
-      drawModelIcon(c.look.model, px.float32 + 21, py.float32 + 21, 40, c.look.pose)
-    elif c.look.id > 0:
-      drawModTexture(c.look.id, px.float32 + 21, py.float32 + 21, 40, 40, 0, White)
-    elif c.hasPalette:
-      drawDisc(Vector2(x: px.float32 + 21, y: py.float32 + 21), 18, c.c1)
-      drawDisc(Vector2(x: px.float32 + 21, y: py.float32 + 21), 11, c.c2)
-      drawDisc(Vector2(x: px.float32 + 21, y: py.float32 + 21), 5, c.c3)
-    let kindLabel = case c.kind
-      of mckPlayer: t(tkModsKindPlayer)
-      of mckBullet: t(tkModsKindBullet)
-      of mckDesktop: t(tkModsKindDesktop)
-      of mckCube: t(tkModsKindCube)
-    let textX = px + 54
-    let textW = int32(g.w) - 54 - 150
-    drawText(fitWithEllipsis(c.name, textW, 15), textX, ry + 8, 15, ColText)
-    drawText(fitWithEllipsis(kindLabel & "   " & c.key, textW, 11), textX, ry + 27, 11, ColAccent)
-    if c.description.len > 0:
-      drawText(fitWithEllipsis(c.description, textW, 11), textX, ry + 41, 11, ColMuted)
-    drawButton(Rectangle(x: float32(g.x + g.w - 124), y: float32(ry + 14), width: 110, height: 30),
-               (if equipped: t(tkModsUnequip) else: t(tkModsEquip)), true, not equipped)
-  endVirtualScissorMode()
-
 proc drawApps(mw: ModsWindow, g: Geo) =
   drawRectangle(g.logArea, ColPanel)
   drawRectOutline(g.logArea, 1.0, uiLine(50, 60, 70))
@@ -1199,15 +1142,14 @@ proc drawModsWindow*(mw: ModsWindow) {.moddable.} =
 
   # tabs
   let labels: array[ModsTab, string] = [t(tkModsTabInstalled), t(tkModsTabMarket), t(tkModsTabModes),
-                                        t(tkModsTabCosmetics), t(tkModsTabApps),
-                                        t(tkModsTabAchievements), t(tkModsTabLog),
+                                        t(tkModsTabApps), t(tkModsTabAchievements),
                                         t(tkModsTabConsole)]
   for tab in ModsTab:
     let r = g.tabs[tab]
     let active = mw.tab == tab
     drawRectangle(r, if active: uiSurface(30, 70, 55) else: uiSurface(28, 32, 42))
     drawRectOutline(r, 1.0, if active: ColAccent else: uiLine(70, 78, 92))
-    let size = bestFitFontSize(labels[tab], int32(r.width) - 12, 14, 10)   # (8 tabs: narrow ones)
+    let size = bestFitFontSize(labels[tab], int32(r.width) - 12, 14, 10)   # (6 tabs: narrow ones)
     let tw = measureText(labels[tab], size)
     drawText(labels[tab], int32(r.x + (r.width - tw.float32) / 2), int32(r.y) + (TabH - size) div 2, size,
              if active: ColText else: ColMuted)
@@ -1228,10 +1170,8 @@ proc drawModsWindow*(mw: ModsWindow) {.moddable.} =
   of mtInstalled: mw.drawInstalled(g)
   of mtMarket: mw.drawMarket(g)
   of mtModes: mw.drawModes(g)
-  of mtCosmetics: mw.drawCosmetics(g)
   of mtApps: mw.drawApps(g)
   of mtAchievements: mw.drawAchievements(g)
-  of mtLog: mw.drawLog(g, g.logArea)
   of mtConsole: mw.drawConsole(g)
 
   if mw.removeTarget.len > 0:

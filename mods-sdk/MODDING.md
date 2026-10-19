@@ -71,7 +71,7 @@ Published mods are in MODS.EXE's **Marketplace** tab, and
   or fails, this mod is skipped.
 * `loadAfter`: mods that load first *if* they are enabled.
 * `game`: the oldest game version the mod is made for (`"6.4.0"`). On an
-  older game it still loads, but MODS.EXE and the Log warn that parts of it
+  older game it still loads, but MODS.EXE and the Console warn that parts of it
   may not work. In code, `engine.version` and `engine.atLeast` tell the same.
 * `disableAchievements`: `true` (the default) makes every run with this mod
   loaded cheated. Set `false` only for mods that don't change how a run plays
@@ -97,7 +97,7 @@ integers and floats (`7 // 2` is `3`, `7 / 2` is `3.5`), bitwise operators,
 Every standard library is there: `string`, `table`, `math`, `utf8`,
 `coroutine`, `io`, `os`, `debug`, `package` and the base functions (`load`,
 `loadfile`, `dofile`, `pcall`, `collectgarbage`, `string.dump`...). `print`
-and `warn` write to the Log tab. A few things differ from a stand-alone Lua,
+and `warn` write to the Console's log. A few things differ from a stand-alone Lua,
 because this one lives inside a game:
 
 * Relative paths mean your mod's folder: `io.open("data/notes.txt")`,
@@ -168,7 +168,7 @@ so that a bug cannot hang the game:
   coroutine; `debug.sethook()` with no hook takes it off until your next call.
 * The watchdog cannot stop C code that never returns: a pathological string
   pattern, a blocking `io.read`, or a command run by `os.execute`.
-* Errors go to the Log tab (a repeated error is folded into a count) and the
+* Errors go to the Console's log (a repeated error is folded into a count) and the
   game carries on. MODS.EXE shows how many milliseconds each mod's scripts
   take per frame.
 * If the game goes down while mods are loaded, the next launch starts with
@@ -625,8 +625,7 @@ hand.
   (with Ctrl, a word at a time), Shift or the mouse selects, and Ctrl+A, C,
   X, V, Z and Y do what they do everywhere. A pasted block becomes one line.
 * An expression shows its value (`= 3`); a statement just runs. Globals you
-  define stay for the next line. Output and errors go to the log above it
-  (the Log tab shows them too).
+  define stay for the next line. Output and errors go to the log above it.
 * It sees what every mod sees: `engine.globals.game.player.hp = 99`,
   `mixin.signature("combat.damageEnemy")`, `mods.get("necromancer")`.
 * It runs at a safe point and belongs to no mod: what is a mod's own
@@ -1416,8 +1415,8 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
 * `register.cosmetic{kind = "player" | "bullet" | "desktop" | "cube", id = "neon",
   name = "Neon", description = "...", colors = {"#ff00ff", "#00ffff", "#ffffff"},
   texture = "skins/neon.png", scale = 1.2, rotate = true}` adds a cosmetic the
-  player equips in **MODS.EXE > Cosmetics**, or in the Shop's **MODS** tab
-  (shown while a loaded mod has cosmetics). `colors` is a palette for the
+  player equips in the Shop's **MODS** tab (shown while a loaded mod has
+  cosmetics). `colors` is a palette for the
   built-in shapes (player: body, trim, core; bullets: body, glow, trail); a
   `texture` or a `model` (see 3D models below) replaces the drawing. Desktop
   cosmetics take a texture (the wallpaper; `cube = true` keeps the desktop
@@ -2027,7 +2026,7 @@ register.theme{
 | `name` | text or `{en = ..., es = ...}`: what Settings shows |
 | `base` | optional, default `"tophat"`. The theme's shell, the pieces drawn by hand: `"tophat"` has glowing square frames, the OS Grid wallpaper and the crosshair pointer; `"ckn"` has rounded frames with soft shadows, the CKN Dawn wallpaper, a Start button with CKN's logo and an arrow pointer. Either draws in your colours |
 | `surface`, `raised`, `text`, `muted`, `accent` | optional colours (`"#rrggbb"` or a table); each one left out is the base theme's |
-| `wallpaper` | optional texture (or file name): the free default wallpaper while the theme is on. A wallpaper the player equipped (shop or MODS.EXE) still wins |
+| `wallpaper` | optional texture (or file name): the free default wallpaper while the theme is on. A wallpaper the player equipped in the shop still wins |
 
 Every colour the game's interface draws plays a role, and your five colours
 anchor them, so you do not restyle windows one by one. A fill (a window's
@@ -2137,7 +2136,7 @@ optional raylib `GamepadButton` name and defaults to unbound.
   `math`...): replacing `draw.circle` in yours changes nothing for other mods.
 
 * `mod.id`, `mod.name`, `mod.version`, `mod.author`; `mod.log(...)` and
-  `mod.warn(...)` write to the Log tab (so does `print`).
+  `mod.warn(...)` write to the Console's log (so does `print`).
 * `run.data` is a table saved with the run: plain numbers, strings, booleans
   and tables survive quitting and resuming (functions do not). You may also
   replace it whole (`run.data = {...}`). `run.active` is true while a run is

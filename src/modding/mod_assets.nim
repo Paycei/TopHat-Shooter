@@ -347,7 +347,7 @@ proc loadModShader*(path: string, err: var string, vertexPath = ""): int =
   try:
     var s = loadShader(vertexPath, path)
     if s.id == 0 or s.id == getShaderIdDefault():
-      err = "the shader did not compile (GLSL 330 expected; the Log tab has the reason)"
+      err = "the shader did not compile (GLSL 330 expected; the Console has the reason)"
       return 0
     let t = getShaderLocation(s, "time")
     let r = getShaderLocation(s, "resolution")
