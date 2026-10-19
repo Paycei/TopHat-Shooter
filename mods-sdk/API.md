@@ -1278,6 +1278,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `getHelpCommands(): seq[HelpCommand]` (wrap only: scripts cannot call it)
 - **moddable** `newHelpWindow(screenWidth: int, screenHeight: int): HelpWindow`
 - **moddable** `updateHelpWindow(help: HelpWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): int`
+- **moddable** `wantsTextInput(help: HelpWindow): bool`
 
 ### `hud_dock`
 
@@ -1553,6 +1554,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawWindowChrome(window: OSWindow)`
 - **moddable** `getResizeEdge(window: OSWindow, mouseX: float32, mouseY: float32): int` (wrap only: scripts cannot call it)
 - **moddable** `handleOSWindowInput(window: OSWindow, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): bool`
+- **moddable** `hasKeyboard(window: OSWindow): bool`
 - **moddable** `isPointInCloseButton(window: OSWindow, mouseX: float32, mouseY: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `isPointInMinimizeButton(window: OSWindow, mouseX: float32, mouseY: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `isPointInTitleBar(window: OSWindow, mouseX: float32, mouseY: float32): bool` (wrap only: scripts cannot call it)
@@ -1790,6 +1792,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `updatePvPWindow(pvpWin: PvPWindow, dt: float32, getCosmetics: proc (): tuple[skinType: int, bulletSkinType: int, shapeType: int,
                particleSkinType: int])` (parameter getCosmetics is a proc (): tuple[skinType: int, bulletSkinType: int, shapeType: int,
                particleSkinType: int])
+- **moddable** `wantsTextInput(pvpWin: PvPWindow): bool`
 
 ### `render_context`
 
@@ -2068,6 +2071,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `newSettingsWindow(screenWidth: int, screenHeight: int, settings: Settings, stats: Statistics, advancementProfile: AdvancementProfile, rogueliteProfile: RogueliteProfile): SettingsWindow`
 - **moddable** `tabContentOriginY(window: OSWindow): int` (wrap only: scripts cannot call it)
 - **moddable** `updateSettingsWindow(settingsWin: SettingsWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool]`
+- **moddable** `wantsTextInput(settingsWin: SettingsWindow): bool`
 
 ### `shapes`
 
@@ -2098,6 +2102,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `saveSkinSelectionImmediately(shop: ShopWindow)` (wrap only: scripts cannot call it)
 - **moddable** `updateShopWindow(shop: ShopWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): bool`
 - **moddable** `visibleCosmeticIndices(kind: CosmeticKind, query: string): seq[int]` (wrap only: scripts cannot call it)
+- **moddable** `wantsTextInput(shop: ShopWindow): bool`
 - **moddable** `wrapDescAutoSize(text: string, maxWidth: int32, startSize: int32, minSize: int32): tuple[line1: string, line2: string, line3: string, fontSize: int32]` (wrap only: scripts cannot call it)
 - **moddable** `wrapTwoLines(text: string, maxWidth: int32, fontSize: int32): tuple[line1: string, line2: string]` (wrap only: scripts cannot call it)
 
@@ -2266,6 +2271,23 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `toFlatty(s: var string, x: array[puMod000 .. puMod255, float32])`
 - `toFlatty(s: var string, x: array[puMod000 .. puMod255, float32])`
 - `toFlatty(s: var string, x: pointer)` (parameter x is a pointer)
+
+### `text_field`
+
+- **moddable** `drawTextField(f: TextField, box: Rectangle, active: bool)`
+- **moddable** `fieldStyle(fontSize: int32, ink: Color, accent: Color, padX: int32, align: TextAlign): TextFieldStyle`
+- **moddable** `focusField(f: TextField, fields: openArray[TextField])`
+- **moddable** `focusNext(fields: openArray[TextField], backwards: bool)`
+- **moddable** `hasSelection(f: TextField): bool`
+- **moddable** `insertText(f: TextField, s: string)`
+- **moddable** `newTextField(style: TextFieldStyle, text: string, maxChars: int, allowed: set[char], multiline: bool, keepHistory: bool): TextField`
+- **moddable** `selectAll(f: TextField)`
+- **moddable** `selectedText(f: TextField): string`
+- **moddable** `setText(f: TextField, s: string)`
+- **moddable** `submitLine(f: TextField): string`
+- **moddable** `typingIn(window: OSWindow, f: TextField): bool`
+- **moddable** `updateTextFields(fields: openArray[TextField], boxes: openArray[Rectangle], dt: float32, active: bool): TextFieldInput`
+- **moddable** `updateTextField(f: TextField, box: Rectangle, dt: float32, active: bool): TextFieldInput`
 
 ### `things`
 
@@ -2453,6 +2475,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `openModApp(wm: WindowManager, key: string, uiScale: float32, screenWidth: int, screenHeight: int)`
 - **moddable** `openWindow(wm: WindowManager, id: WindowID)`
 - **moddable** `relayoutWindows(wm: WindowManager, uiScale: float32, screenWidth: int, screenHeight: int)`
+- **moddable** `unfocusAllWindows(wm: WindowManager)`
 - **moddable** `updateAllWindows(wm: WindowManager, dt: float32, uiScale: float32, screenWidth: int, screenHeight: int, currentGame: Game): WindowUpdateResult`
 - **moddable** `wantsTextInput(wm: WindowManager): bool`
 - **moddable** `windowUIScale(window: OSWindow, requested: float32, screenWidth: int, screenHeight: int): float32` (wrap only: scripts cannot call it)

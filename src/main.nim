@@ -2,7 +2,7 @@ import raylib, rlgl, random, math, strutils, os, std/deques
 import draw_prims, post_fx
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
 import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_registry, mod_deep, mod_market], ui/mods_window
-import ui/ui_theme
+import ui/ui_theme, ui/text_field
 import modding/mod_mixin_game   # last: binds every {.moddable.} proc imported above
 import modding/[mod_engine_game, mod_engine_ui]   # engine.call for the rest of the game's procs
 when defined(debug):
@@ -976,7 +976,7 @@ proc main() =
                      hasBlockCheckpoint(m.base, m.key)))
   refreshModsWindow(globalWindowManager.mods)
   # Pre-load saved nickname into pvp window and host network manager
-  globalWindowManager.pvp.inputNickname = settings.pvpNickname
+  globalWindowManager.pvp.nicknameField.setText(settings.pvpNickname)
   globalWindowManager.pvp.networkManager.hostNickname = settings.pvpNickname
 
   proc setActiveRogueliteProfile(profile: RogueliteProfile) =
@@ -1047,7 +1047,7 @@ proc main() =
       if not globalWindowManager.advancements.isNil:
         globalWindowManager.advancements.profile = advancementProfile
       if not globalWindowManager.pvp.isNil:
-        globalWindowManager.pvp.inputNickname = settings.pvpNickname
+        globalWindowManager.pvp.nicknameField.setText(settings.pvpNickname)
         globalWindowManager.pvp.networkManager.hostNickname = settings.pvpNickname
 
   proc refreshAdvancementProfile() =
@@ -1902,9 +1902,12 @@ proc main() =
       # hit-tested in its own scale layer (they no longer share one), so the
       # window manager resolves the pointer per window rather than taking one.
       # (Skip when the confirm dialog is open so nothing behind it is clickable.)
+      # A press on the desktop itself takes the keyboard back from the windows.
       if not globalConfirmActive:
-        discard globalWindowManager.handleWindowClick(desktopUIScale(),
-                                                     screenWidth.int, screenHeight.int)
+        if not globalWindowManager.handleWindowClick(desktopUIScale(),
+                                                    screenWidth.int, screenHeight.int) and
+           isPointerPressed():
+          globalWindowManager.unfocusAllWindows()
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(
         desktopUIScale(), screenWidth.int, screenHeight.int)
 
@@ -2092,7 +2095,7 @@ proc main() =
             bulletSkinType: globalSettings.bulletSkin,
             shapeType: globalSettings.playerShape,
             particleSkinType: globalSettings.particleEffect,
-            nickname: globalWindowManager.pvp.inputNickname
+            nickname: globalWindowManager.pvp.nicknameField.text
           ))
 
           # Add all connected clients with their nicknames
@@ -2166,18 +2169,18 @@ proc main() =
         of 3:  # Back/Cancel
           resetPvPWindow(globalWindowManager.pvp)
         of 4:  # Connect
-          if globalWindowManager.pvp.inputIP.len > 0:
+          if globalWindowManager.pvp.ipField.text.len > 0:
             var port = pvp_window.DEFAULT_PORT
             try:
-              port = parseInt(globalWindowManager.pvp.inputPort)
+              port = parseInt(globalWindowManager.pvp.portField.text)
             except ValueError:
               port = pvp_window.DEFAULT_PORT
             # Save and apply nickname before connecting
-            let chosenNick = if globalWindowManager.pvp.inputNickname.len > 0:
-              globalWindowManager.pvp.inputNickname else: "Player"
+            let chosenNick = if globalWindowManager.pvp.nicknameField.text.len > 0:
+              globalWindowManager.pvp.nicknameField.text else: "Player"
             settings.pvpNickname = chosenNick
             discard saveSettings(settings)
-            connectToGame(globalWindowManager.pvp, globalWindowManager.pvp.inputIP, port,
+            connectToGame(globalWindowManager.pvp, globalWindowManager.pvp.ipField.text, port,
                          settings.playerSkin, settings.bulletSkin,
                          settings.playerShape, settings.particleEffect,
                          chosenNick)
@@ -2186,7 +2189,7 @@ proc main() =
           var gameConnectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]] = @[]
 
           # Add host (player 0) with their nickname
-          let hostNickname = globalWindowManager.pvp.inputNickname
+          let hostNickname = globalWindowManager.pvp.nicknameField.text
           gameConnectedPlayers.add((
             index: 0,
             skinType: globalSettings.playerSkin,
@@ -2213,8 +2216,8 @@ proc main() =
           echo "[MAIN] Host sent game start signal with ", gameConnectedPlayers.len, " players"
         of 6:  # Start Hosting
           # Save and apply host nickname
-          let hostNick = if globalWindowManager.pvp.inputNickname.len > 0:
-            globalWindowManager.pvp.inputNickname else: "Player"
+          let hostNick = if globalWindowManager.pvp.nicknameField.text.len > 0:
+            globalWindowManager.pvp.nicknameField.text else: "Player"
           settings.pvpNickname = hostNick
           discard saveSettings(settings)
           globalWindowManager.pvp.networkManager.hostNickname = hostNick
@@ -3178,8 +3181,10 @@ proc main() =
         currentGame.confirmQuitFrameGuard = max(0.0'f32, currentGame.confirmQuitFrameGuard - dt)
 
       # Only handle pause menu controls if no window is blocking interaction
-      # and neither confirm dialog is active
-      if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
+      # (by the pointer, or a text field taking the keys) and neither confirm
+      # dialog is active
+      if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending and
+         not globalWindowManager.wantsTextInput():
         # Pause menu navigation - Tab switching (Left/Right, A/D or the D-pad),
         # cycling through whichever tabs this mode shows.
         let keyLeft = isKeyPressed(Left) or isKeyPressed(A)

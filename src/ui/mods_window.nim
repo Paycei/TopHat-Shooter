@@ -15,7 +15,7 @@ import raylib, rlgl
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../save_system,
        ../gamepad_input, ../utils
-import ui_theme
+import ui_theme, text_field
 import ../modding/[mod_state, mod_catalog, mod_docs, mod_assets, mod_hooks, mod_registry, mod_market]
 import ../feedback
 
@@ -47,9 +47,7 @@ type
     removeCooldown: float32   ## seconds until the confirmation's Remove unlocks
     applyConfirm: bool         ## pending Apply & Reload warning
     applyCooldown: float32
-    consoleInput*: string     ## the Console's line being typed (UTF-8)
-    consoleHistory*: seq[string]
-    consoleHistoryAt: int     ## the history entry Up/Down shows (len = the new line)
+    console*: TextField       ## the Console's line (Up / Down: the lines run before)
     marketSelected*: int      ## the Marketplace row highlighted
     marketScroll*: int
     marketAsked: bool         ## the list was refreshed (if stale) since the window opened
@@ -79,7 +77,7 @@ const
   ApplyConfirmCooldown = 1.0'f32
   LogLineH = 15
   ConsoleInputH = 26
-  ConsoleMaxInput = 4000   # bytes of one entry
+  ConsoleMaxInput = 4000   # characters of one entry
   MarketFooterH = 20       # the list's "updated N min ago" line
   MarketStaleSeconds = 15.0 * 60.0
 
@@ -98,7 +96,12 @@ proc newModsWindow*(screenWidth, screenHeight: int, settings: Settings): ModsWin
   let osWin = newOSWindow(t(tkModsWindowTitle),
                           (screenWidth - ModsWindowW) div 2, (screenHeight - ModsWindowH) div 2,
                           ModsWindowW, ModsWindowH, ColAccent, resizable = false)
-  ModsWindow(window: osWin, settings: settings, logFollow: true, launchRequest: -1)
+  let console = newTextField(fieldStyle(12, Color(r: 225, g: 232, b: 240, a: 255),
+                                        Color(r: 120, g: 220, b: 160, a: 255), padX = 4),
+                             maxChars = ConsoleMaxInput, keepHistory = true)
+  console.focused = true   # (the tab's only field)
+  ModsWindow(window: osWin, settings: settings, logFollow: true, launchRequest: -1,
+             console: console)
 
 var modeRowsBuilder*: proc (): seq[ModModeRow] {.closure.}
   ## Installed by main.nim: the Game Modes rows (it knows the save files).
@@ -399,40 +402,17 @@ proc wantsTextInput*(mw: ModsWindow): bool {.moddable.} =
   not mw.isNil and mw.window.visible and not mw.window.minimized and mw.window.focused and
     mw.tab == mtConsole
 
-proc addConsoleChar(mw: ModsWindow, c: int32) =
-  ## A typed character, as UTF-8 (the font draws Latin-1, U+0020..U+00FF).
-  if c < 32 or c > 255 or c == 127 or mw.consoleInput.len >= ConsoleMaxInput: return
-  if c < 128: mw.consoleInput.add(char(c))
-  else:
-    mw.consoleInput.add(char(0xC0 or (c shr 6)))
-    mw.consoleInput.add(char(0x80 or (c and 0x3F)))
+proc consoleFieldBox(g: Geo): Rectangle =
+  ## The Console's text box: its input line past the ">" prompt.
+  Rectangle(x: g.consoleInput.x + 18, y: g.consoleInput.y, width: g.consoleInput.width - 26,
+            height: g.consoleInput.height)
 
-proc updateConsole(mw: ModsWindow) =
-  ## Typing, Enter (run), Up / Down (history).
-  var c = getCharPressed()
-  while c > 0:
-    mw.addConsoleChar(c)
-    c = getCharPressed()
-  if (isKeyPressed(KeyboardKey.Backspace) or isKeyPressedRepeat(KeyboardKey.Backspace)) and
-     mw.consoleInput.len > 0:
-    var n = mw.consoleInput.len - 1
-    while n > 0 and (ord(mw.consoleInput[n]) and 0xC0) == 0x80: dec n   # a whole UTF-8 character
-    mw.consoleInput.setLen(n)
-  if isKeyPressed(KeyboardKey.Up) and mw.consoleHistoryAt > 0:
-    dec mw.consoleHistoryAt
-    mw.consoleInput = mw.consoleHistory[mw.consoleHistoryAt]
-  elif isKeyPressed(KeyboardKey.Down) and mw.consoleHistoryAt < mw.consoleHistory.len:
-    inc mw.consoleHistoryAt
-    mw.consoleInput = if mw.consoleHistoryAt < mw.consoleHistory.len: mw.consoleHistory[mw.consoleHistoryAt]
-                      else: ""
-  if (isKeyPressed(KeyboardKey.Enter) or isKeyPressed(KeyboardKey.KpEnter)) and
-     mw.consoleInput.strip.len > 0:
-    let src = mw.consoleInput
-    if mw.consoleHistory.len == 0 or mw.consoleHistory[^1] != src: mw.consoleHistory.add(src)
-    mw.consoleHistoryAt = mw.consoleHistory.len
-    mw.consoleInput = ""
+proc updateConsole(mw: ModsWindow, g: Geo, dt: float32) =
+  ## The line edits like any text box (text_field.nim); Enter runs it.
+  let res = updateTextField(mw.console, consoleFieldBox(g), dt, mw.wantsTextInput())
+  if res.submitted and mw.console.text.strip.len > 0:
     mw.logFollow = true
-    runConsole(src)
+    runConsole(mw.console.submitLine())
 
 # --------------------------------------------------------------- update ----
 proc appOpenBtn(g: Geo, i: int): Rectangle =
@@ -605,7 +585,7 @@ proc updateModsWindow*(mw: ModsWindow, dt: float32, screenWidth, screenHeight: i
           mw.marketScroll = (mw.marketSelected + 1) * RowH - visible * RowH
     if isKeyPressed(KeyboardKey.Tab):
       mw.tab = ModsTab((ord(mw.tab) + 1) mod (ord(high(ModsTab)) + 1))
-  if mw.wantsTextInput(): mw.updateConsole()
+  if mw.tab == mtConsole: mw.updateConsole(g, dt)
 
   if mw.tab == mtApps and modApps.len > 0:
     mw.appSelected = clamp(mw.appSelected, 0, modApps.high)
@@ -1203,22 +1183,13 @@ proc drawConsole(mw: ModsWindow, g: Geo) =
   let r = g.consoleInput
   drawRectangle(r, uiSurface(16, 20, 28))
   drawRectOutline(r, 1.0, if mw.window.focused: ColAccent else: uiLine(70, 78, 92))
-  let x = int32(r.x) + 8
+  let box = consoleFieldBox(g)
   let y = int32(r.y) + 7
-  let room = int32(r.width) - 30
-  let tx = x + 14
-  drawText(">", x, y, 12, ColAccent)
-  if mw.consoleInput.len == 0:
-    drawText(fitWithEllipsis(t(tkModsConsoleHint), room, 12), tx, y, 12, ColMuted)
-  var shown = mw.consoleInput
-  while shown.len > 0 and measureText(shown, 12) > room:   # keep the end (the caret) in view
-    var n = 1
-    while n < shown.len and (ord(shown[n]) and 0xC0) == 0x80: inc n
-    shown = shown[n .. ^1]
-  if shown.len > 0: drawText(shown, tx, y, 12, ColText)
-  if mw.window.focused and int(getTime() * 2.0) mod 2 == 0:   # the caret
-    let cx = tx + (if shown.len > 0: measureText(shown, 12) + 1 else: 0)
-    drawRectangle(cx, y - 1, 2, 14, ColText)
+  drawText(">", int32(r.x) + 8, y, 12, ColAccent)
+  if mw.console.text.len == 0:
+    drawText(fitWithEllipsis(t(tkModsConsoleHint), int32(box.width) - 8, 12),
+             int32(box.x) + 4, y, 12, ColMuted)
+  drawTextField(mw.console, box, mw.wantsTextInput())
 
 proc drawModsWindow*(mw: ModsWindow) {.moddable.} =
   if not mw.window.visible: return

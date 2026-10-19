@@ -621,6 +621,9 @@ call before putting it in a mod, read the game's state, or fix something by
 hand.
 
 * Enter runs the line; Up and Down go through what you typed before.
+* The line edits like any text box: the arrows, Home and End move the caret
+  (with Ctrl, a word at a time), Shift or the mouse selects, and Ctrl+A, C,
+  X, V, Z and Y do what they do everywhere. A pasted block becomes one line.
 * An expression shows its value (`= 3`); a statement just runs. Globals you
   define stay for the next line. Output and errors go to the log above it
   (the Log tab shows them too).

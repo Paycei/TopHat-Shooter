@@ -107,6 +107,10 @@ proc bringWindowToFront(window: OSWindow, allWindows: openArray[OSWindow]) {.mod
     if not w.isNil and w != window:
       w.focused = false
 
+proc hasKeyboard*(window: OSWindow): bool {.moddable.} =
+  ## Keystrokes go to the focused window, while it is open and not minimized.
+  not window.isNil and window.visible and not window.minimized and window.focused
+
 proc updateOSWindow*(window: OSWindow, dt: float32) {.moddable.} =
   window.time += dt
 

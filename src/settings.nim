@@ -28,8 +28,6 @@ proc newDefaultSettings(): Settings {.moddable.} =
     vsyncEnabled: true,
     volume: 0.5,
     musicVolume: 0.5,
-    inputBuffer: "60",
-    editingFPS: false,
     fullscreen: true,
     renderResolutionMode: rrmEnabled,
     postFxLevel: pfxSubtle,

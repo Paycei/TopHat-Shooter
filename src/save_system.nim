@@ -42,8 +42,6 @@ type
     fpsLimit*: int32
     volume*: float32
     musicVolume*: float32
-    inputBuffer*: string
-    editingFPS*: bool
     fullscreen*: bool
     renderResolutionMode*: RenderResolutionMode
     postFxLevel*: PostFxLevel  # Built-in post-processing (bloom, vignette, grade)

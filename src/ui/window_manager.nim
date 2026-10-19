@@ -360,7 +360,15 @@ proc wantsTextInput*(wm: WindowManager): bool {.moddable.} =
   ## navigation (WASD/arrows, E/Enter) is otherwise only blocked by the mouse
   ## hovering a window, so typing "e" with the cursor parked elsewhere would
   ## launch an icon.
-  wm.feedback.wantsTextInput() or wm.mods.wantsTextInput()   # (the MODS.EXE Console)
+  wm.feedback.wantsTextInput() or wm.mods.wantsTextInput() or   # (the MODS.EXE Console)
+    wm.help.wantsTextInput() or wm.shop.wantsTextInput() or wm.pvp.wantsTextInput() or
+    wm.settings.wantsTextInput()
+
+proc unfocusAllWindows*(wm: WindowManager) {.moddable.} =
+  ## A press on the desktop itself: no window has the keyboard any more, so
+  ## what is typed next drives the desktop instead of a field out of sight.
+  for w in wm.getAllWindows():
+    w.focused = false
 
 type
   WindowUpdateResult* = object

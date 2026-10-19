@@ -5,7 +5,8 @@ import raylib, rlgl, strutils, math
 import ../modding/mod_patch_core
 import ../draw_prims
 import ../sound, ../save_system, os_window, ../localization, ../render_context, ../gamepad_input, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types, ../modding/mod_hooks
-import ui_theme
+import ui_theme, text_field
+from ui_helpers import TextAlign
 
 type
   SettingsTab* = enum
@@ -30,8 +31,8 @@ type
     advancementProfile*: AdvancementProfile
     rogueliteProfile*: RogueliteProfile
 
-    # UI state
-    editingFPS*: bool
+    # The FPS limit box (focused while it is being edited)
+    fpsField*: TextField
 
     # Slider state
     draggingVolume*: bool
@@ -102,7 +103,8 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     stats: stats,
     advancementProfile: advancementProfile,
     rogueliteProfile: rogueliteProfile,
-    editingFPS: false,
+    fpsField: newTextField(fieldStyle(16, White, Gold, padX = 6, align = TextAlign.taCenter), maxChars = 4,
+                           allowed = {'0' .. '9'}),
     draggingVolume: false,
     draggingMusic: false,
     draggingDamageSize: false,
@@ -140,6 +142,28 @@ proc tabContentOriginY(window: OSWindow): int {.moddable.} =
   ## its `contentY`. Hit-testing has to use the identical value, and
   ## updateSettingsWindow's own `contentY` is 5px lower than this.
   window.y + TITLE_BAR_HEIGHT + 55
+
+proc fpsBox(window: OSWindow): Rectangle =
+  ## The Graphics tab's FPS limit box (drawn and hit-tested alike).
+  Rectangle(x: float32(window.x + WINDOW_PADDING + 320), y: float32(tabContentOriginY(window) + 145),
+            width: 110, height: 35)
+
+proc wantsTextInput*(settingsWin: SettingsWindow): bool {.moddable.} =
+  ## True while the FPS limit box takes the keystrokes.
+  not settingsWin.isNil and settingsWin.currentTab == stGraphics and
+    typingIn(settingsWin.window, settingsWin.fpsField)
+
+proc commitFpsLimit(settingsWin: SettingsWindow): bool =
+  ## Leave the FPS box: a limit of 1..9999 typed in it takes effect (true).
+  settingsWin.fpsField.focused = false
+  try:
+    let fps = parseInt(settingsWin.fpsField.text)
+    if fps >= 1 and fps <= 9999:
+      settingsWin.settings.fpsLimit = fps.int32
+      setTargetFPS(settingsWin.settings.fpsLimit)
+      return true
+  except ValueError:
+    discard
 
 proc drawTab(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) {.moddable.} =
   let bgColor = if isActive:
@@ -620,26 +644,19 @@ proc drawGraphicsTab(settingsWin: SettingsWindow, contentX, contentY, contentW, 
   drawText(t(tkSettingsRenderResolutionDesc), renderModeButtonX.int32, yPos.int32, 14, uiInk(LightGray))
   yPos += 25
 
-  # FPS Limit: text input for custom values
+  # FPS Limit: a text box for custom values (the limit itself while not edited)
   drawText(t(tkSettingsFpsLimit), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
-  let boxX = contentX + 320
-  let boxY = yPos - 5
-  let boxWidth = 110
-  let boxHeight = 35
-  drawRectangle(boxX.int32, boxY.int32, boxWidth.int32, boxHeight.int32,
-               if settingsWin.editingFPS: uiSurface(100, 100, 150)
-               else: uiSurface(60, 60, 80))
-  drawRectOutline(Rectangle(x: boxX.float32, y: boxY.float32,
-                                width: boxWidth.float32, height: boxHeight.float32),
-                    if settingsWin.editingFPS: 2.0'f32 else: 1.0'f32,
-                    if settingsWin.editingFPS: uiLine(Gold) else: uiLine(100, 100, 120))
-  let displayText = if settingsWin.editingFPS:
-    settingsWin.settings.inputBuffer & "_"
+  let box = fpsBox(settingsWin.window)
+  let editing = settingsWin.fpsField.focused
+  drawRectangle(box, if editing: uiSurface(100, 100, 150) else: uiSurface(60, 60, 80))
+  drawRectOutline(box, if editing: 2.0'f32 else: 1.0'f32,
+                  if editing: uiLine(Gold) else: uiLine(100, 100, 120))
+  if editing:
+    drawTextField(settingsWin.fpsField, box, hasKeyboard(settingsWin.window))
   else:
-    $settingsWin.settings.fpsLimit
-  let textWidth = measureText(displayText, 16)
-  drawText(displayText, (boxX + (boxWidth - textWidth) div 2).int32,
-          (boxY + (boxHeight - 16) div 2).int32, 16, uiInk(White))
+    let limitText = $settingsWin.settings.fpsLimit
+    drawText(limitText, int32(box.x) + (int32(box.width) - measureText(limitText, 16)) div 2,
+             int32(box.y) + (int32(box.height) - 16) div 2, 16, uiInk(White))
 
   yPos += 40
 
@@ -1495,7 +1512,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       tabX += SettingsTabWidth + SettingsTabGap
 
   # Tab switching with number keys (blocked while editing FPS or capturing a rebind)
-  if not settingsWin.window.minimized and not settingsWin.editingFPS and
+  if not settingsWin.window.minimized and not settingsWin.fpsField.focused and
      settingsWin.rebindingAction < 0 and settingsWin.rebindingGamepadAction < 0 and
      settingsWin.rebindingModKey < 0 and settingsWin.rebindingModPad < 0:
     if isKeyPressed(One): settingsWin.currentTab = stGraphics
@@ -1531,30 +1548,6 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-      # FPS text input box
-      let boxX = contentX + 320
-      let boxY = contentY + 145
-      let boxWidth = 110
-      let boxHeight = 35
-      let boxHit = mousePos.x >= boxX.float32 and mousePos.x <= (boxX + boxWidth).float32 and
-                   mousePos.y >= boxY.float32 and mousePos.y <= (boxY + boxHeight).float32
-      if boxHit:
-        if not settingsWin.editingFPS:
-          settingsWin.editingFPS = true
-          settingsWin.settings.inputBuffer = $settingsWin.settings.fpsLimit
-      else:
-        if settingsWin.editingFPS:
-          if settingsWin.settings.inputBuffer.len > 0:
-            try:
-              let newFps = parseInt(settingsWin.settings.inputBuffer)
-              if newFps >= 1 and newFps <= 9999:
-                settingsWin.settings.fpsLimit = newFps.int32
-                setTargetFPS(settingsWin.settings.fpsLimit)
-                settingsChanged = true
-            except:
-              discard
-          settingsWin.editingFPS = false
-
       # VSync checkbox
       let vsyncCheckX = contentX + 320
       let vsyncCheckY = contentY + 190
@@ -1576,29 +1569,21 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-    # Keyboard input for FPS text box
-    if settingsWin.editingFPS:
-      # Drained in a loop -- one poll per frame dropped everything raylib had
-      # already queued behind the first character.
-      var key = getCharPressed()
-      while key > 0:
-        if key < 256:
-          let ch = char(key)
-          if ch in '0'..'9' and settingsWin.settings.inputBuffer.len < 4:
-            settingsWin.settings.inputBuffer.add(ch)
-        key = getCharPressed()
-      if isKeyPressed(Backspace) and settingsWin.settings.inputBuffer.len > 0:
-        settingsWin.settings.inputBuffer.setLen(settingsWin.settings.inputBuffer.len - 1)
-      if isKeyPressed(Enter) and settingsWin.settings.inputBuffer.len > 0:
-        try:
-          let newFps = parseInt(settingsWin.settings.inputBuffer)
-          if newFps >= 1 and newFps <= 9999:
-            settingsWin.settings.fpsLimit = newFps.int32
-            setTargetFPS(settingsWin.settings.fpsLimit)
-            settingsChanged = true
-        except:
-          discard
-        settingsWin.editingFPS = false
+  # The FPS limit box: it opens on the current limit, all of it selected, and
+  # Enter, a press elsewhere or leaving the tab (or the window) applies it.
+  let fps = settingsWin.fpsField
+  let fpsActive = settingsWin.currentTab == stGraphics and hasKeyboard(settingsWin.window)
+  let fpsRect = fpsBox(settingsWin.window)
+  if fps.focused and (not fpsActive or
+                      (isPointerPressed() and not checkCollisionPointRec(mousePos, fpsRect))):
+    settingsChanged = commitFpsLimit(settingsWin) or settingsChanged
+  let wasEditing = fps.focused
+  let fpsInput = updateTextField(fps, fpsRect, dt, fpsActive)
+  if fpsInput.clicked and not wasEditing:
+    fps.setText($settingsWin.settings.fpsLimit)
+    fps.selectAll()
+  if fpsInput.submitted:
+    settingsChanged = commitFpsLimit(settingsWin) or settingsChanged
 
   # Handle Interface tab interactions
   if settingsWin.currentTab != stInterface:

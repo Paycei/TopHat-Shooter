@@ -4,7 +4,7 @@
 import raylib, rlgl, math, strformat, strutils
 import ../modding/mod_patch_core
 import ../draw_prims
-import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../cube_render, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets, ui_theme
+import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../cube_render, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets, ui_theme, text_field
 from ../modding/mod_hooks import mods
 
 type
@@ -34,8 +34,7 @@ type
     hoveredSkin*: int  # -1 for none
     scrollOffset*: float32
     scrollVelocity*: float32
-    searchQuery*: string
-    searchFocused*: bool
+    search*: TextField  ## the cosmetic search (Ctrl+F); focused while it is being typed in
     searchVisible*: bool
     focusIndex*: int    # Focused index within the filtered list (0..n-1)
     previewOpen*: bool
@@ -110,8 +109,8 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     hoveredSkin: -1,
     scrollOffset: 0.0,
     scrollVelocity: 0.0,
-    searchQuery: "",
-    searchFocused: false,
+    search: newTextField(fieldStyle(12, White, Color(r: 255, g: 150, b: 50, a: 255)),
+                         maxChars = 60),
     searchVisible: false,
     focusIndex: 0,
     previewOpen: false,
@@ -269,6 +268,16 @@ proc desktopBgText(bg: DesktopBgType): tuple[name, desc: string] =
     else: (t(tkCknWallpaperName), t(tkCknWallpaperDesc))
   else:
     (getDesktopBgData(bg).name, getDesktopBgData(bg).description)
+
+proc shopSearchBox(contentX, contentWidth, headerY: int): Rectangle =
+  ## The search box, top-centre of the grid tabs' header (update and draw alike).
+  let w = min(200, contentWidth - 120)
+  Rectangle(x: float32(contentX + (contentWidth - w) div 2), y: float32(headerY + 8),
+            width: w.float32, height: 28)
+
+proc wantsTextInput*(shop: ShopWindow): bool {.moddable.} =
+  ## True while the search box takes the keystrokes.
+  not shop.isNil and shop.searchVisible and typingIn(shop.window, shop.search)
 
 proc visibleCosmeticIndices(kind: CosmeticKind, query: string): seq[int] {.moddable.} =
   var q = query.toLowerAscii()
@@ -1508,7 +1517,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
                 elif shop.currentTab == stCubeSkins: ckCubeSkin
                 else: ckParticle
 
-  var visible = visibleCosmeticIndices(curKind, shop.searchQuery)
+  var visible = visibleCosmeticIndices(curKind, shop.search.text)
   let items = visible.len
 
   let cardTotalW = SKIN_BOX_WIDTH + SKIN_BOX_PADDING
@@ -1516,45 +1525,22 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
   let totalRows = if items == 0: 0 else: (items + columns - 1) div columns
   let totalContentHeight = totalRows * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) + 10
   shop.maxScrollOffset = max(0.0, totalContentHeight.float32 - gridHeight.float32)
-  # Simple search box hit area in header (top-center)
-  let searchW = min(200, contentWidth - 120)
-  let searchX = contentX + (contentWidth - searchW) div 2
-  let searchY = headerY + 8
-  let searchH = 28
+  let searchBox = shopSearchBox(contentX, contentWidth, headerY)
 
   # Toggle search visibility with Ctrl+F (topmost only)
   let ctrlPressed = isKeyDown(LeftControl) or isKeyDown(RightControl)
   if isTopmost and ctrlPressed and isKeyPressed(F):
     shop.searchVisible = not shop.searchVisible
-    if shop.searchVisible:
-      shop.searchFocused = true
-    else:
-      shop.searchFocused = false
+    shop.search.focused = shop.searchVisible
 
-  # Click handling only when search is visible
-  if shop.searchVisible and isTopmost and shop.window.handledClickThisFrame:
-    if mouseX >= searchX and mouseX < searchX + searchW and mouseY >= searchY and mouseY < searchY + searchH:
-      shop.searchFocused = true
-    else:
-      # clicking outside search closes focus (unless clicking inside grid)
-      if not (mouseX >= contentX and mouseX < contentX + contentWidth and mouseY >= gridY and mouseY < gridY + gridHeight):
-        shop.searchFocused = false
-
-  # Handle text input when search is focused
-  if shop.searchFocused and isTopmost:
-    # Drained in a loop -- one poll per frame dropped everything raylib had
-    # already queued behind the first character.
-    var key = getCharPressed()
-    while key > 0:
-      if key < 256:
-        let ch = char(key)
-        if ch >= ' ' and ch <= '~' and shop.searchQuery.len < 60:
-          shop.searchQuery.add(ch)
-      key = getCharPressed()
-    if isKeyPressed(Backspace) and shop.searchQuery.len > 0:
-      shop.searchQuery.setLen(shop.searchQuery.len - 1)
-    if isKeyPressed(Enter):
-      shop.searchFocused = false
+  if shop.searchVisible:
+    # A press elsewhere lets go of the search (one in the grid keeps it).
+    if hasKeyboard(shop.window) and isPointerPressed() and
+       not checkCollisionPointRec(mousePos, searchBox) and
+       not (mouseX >= contentX and mouseX < contentX + contentWidth and mouseY >= gridY and mouseY < gridY + gridHeight):
+      shop.search.focused = false
+    if updateTextField(shop.search, searchBox, dt, hasKeyboard(shop.window)).submitted:
+      shop.search.focused = false
 
   # Check if mouse is in grid area for wheel and hover
   let inGridArea = mouseX >= contentX and mouseX < contentX + contentWidth and
@@ -1582,7 +1568,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
   let scrollInt = int(round(shop.scrollOffset))
 
   # Keyboard navigation & focus (only when topmost and not typing)
-  if isTopmost and not shop.searchFocused and items > 0 and not shop.window.dragging:
+  if isTopmost and not shop.search.focused and items > 0 and not shop.window.dragging:
     if shop.focusIndex >= items: shop.focusIndex = items - 1
     if shop.focusIndex < 0: shop.focusIndex = 0
     if isKeyPressed(Left):
@@ -1645,8 +1631,8 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
       shop.previewOpen = false
   elif isTopmost and isKeyPressed(Escape):
     # If search is focused, close search first; otherwise close the shop
-    if shop.searchFocused:
-      shop.searchFocused = false
+    if shop.search.focused:
+      shop.search.focused = false
     else:
       shop.window.visible = false
       return true
@@ -1911,7 +1897,7 @@ proc drawShopWindow*(shop: ShopWindow) {.moddable.} =
                 elif shop.currentTab == stCubeSkins: ckCubeSkin
                 else: ckParticle
 
-  var visible = visibleCosmeticIndices(curKind, shop.searchQuery)
+  var visible = visibleCosmeticIndices(curKind, shop.search.text)
   let items = visible.len
 
   let cardTotalW = SKIN_BOX_WIDTH + SKIN_BOX_PADDING
@@ -1932,17 +1918,15 @@ proc drawShopWindow*(shop: ShopWindow) {.moddable.} =
   shop.maxScrollOffset = max(0.0, totalContentHeight.float32 - gridHeight.float32)
 
   # Draw search box in header (top-center) only when visible
-  let searchW = min(200, contentWidth - 120)
-  let searchX = contentX + (contentWidth - searchW) div 2
-  let searchY = headerY + 8
-  let searchH = 28
   if shop.searchVisible:
-    let searchBg = if shop.searchFocused: uiSurface(45, 45, 55) else: uiSurface(35, 35, 45)
-    drawRectangle(searchX.int32, searchY.int32, searchW.int32, searchH.int32, searchBg)
-    drawRectOutline(Rectangle(x: searchX.float32, y: searchY.float32, width: searchW.float32, height: searchH.float32),
-                       if shop.searchFocused: 2.0'f32 else: 1.0'f32, if shop.searchFocused: uiLine(255, 150, 50) else: uiLine(60, 60, 70))
-    let searchLabel = if shop.searchQuery.len == 0: "Search..." else: shop.searchQuery
-    drawText(searchLabel, (searchX + 8).int32, (searchY + 6).int32, 12, if shop.searchQuery.len == 0: uiInk(120, 120, 130) else: uiInk(White))
+    let searchBox = shopSearchBox(contentX, contentWidth, headerY)
+    let focused = shop.search.focused
+    drawRectangle(searchBox, if focused: uiSurface(45, 45, 55) else: uiSurface(35, 35, 45))
+    drawRectOutline(searchBox, if focused: 2.0'f32 else: 1.0'f32,
+                    if focused: uiLine(255, 150, 50) else: uiLine(60, 60, 70))
+    if shop.search.text.len == 0:
+      drawText("Search...", searchBox.x.int32 + 12, searchBox.y.int32 + 8, 12, uiInk(120, 120, 130))
+    drawTextField(shop.search, searchBox, hasKeyboard(shop.window))
 
   # Draw grid inside a single scissor region
   beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)

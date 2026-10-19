@@ -1622,6 +1622,8 @@ function engine.help_window.drawHelpWindow(help) end
 function engine.help_window.newHelpWindow(screenWidth, screenHeight) end
 ---updateHelpWindow(help: HelpWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): int
 function engine.help_window.updateHelpWindow(help, dt, screenWidth, screenHeight, allWindows) end
+---wantsTextInput(help: HelpWindow): bool
+function engine.help_window.wantsTextInput(help) end
 
 engine.hud_dock = {}
 ---drawDockBands(time: float32)
@@ -2026,6 +2028,8 @@ function engine.os_window.drawResizeIndicator(window) end
 function engine.os_window.drawWindowChrome(window) end
 ---handleOSWindowInput(window: OSWindow, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): bool
 function engine.os_window.handleOSWindowInput(window, screenWidth, screenHeight, allWindows) end
+---hasKeyboard(window: OSWindow): bool
+function engine.os_window.hasKeyboard(window) end
 ---isPointInWindow(window: OSWindow, mouseX: float32, mouseY: float32): bool
 function engine.os_window.isPointInWindow(window, mouseX, mouseY) end
 ---isWindowTopmostAtPoint(window: OSWindow, mouseX: float32, mouseY: float32, allWindows: openArray[OSWindow]): bool
@@ -2341,6 +2345,8 @@ function engine.pvp_window.startHosting(pvpWin) end
 ---updatePvPWindow(pvpWin: PvPWindow, dt: float32, getCosmetics: proc (): tuple[skinType: int, bulletSkinType: int, shapeType: int,
                particleSkinType: int])
 function engine.pvp_window.updatePvPWindow(pvpWin, dt, getCosmetics) end
+---wantsTextInput(pvpWin: PvPWindow): bool
+function engine.pvp_window.wantsTextInput(pvpWin) end
 
 engine.render_context = {}
 ---applyTextFilterFor(drawScale: float32)
@@ -2725,6 +2731,8 @@ function engine.settings_window.drawSettingsWindow(settingsWin) end
 function engine.settings_window.newSettingsWindow(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile) end
 ---updateSettingsWindow(settingsWin: SettingsWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool]
 function engine.settings_window.updateSettingsWindow(settingsWin, dt, screenWidth, screenHeight, allWindows) end
+---wantsTextInput(settingsWin: SettingsWindow): bool
+function engine.settings_window.wantsTextInput(settingsWin) end
 
 engine.shapes = {}
 ---drawCheaterHat(pos: Vector2f, radius: float32, time: float32, alpha: float32)
@@ -2755,6 +2763,8 @@ function engine.shop_window.drawShopWindow(shop) end
 function engine.shop_window.newShopWindow(screenWidth, screenHeight, currentPlayerSkin, currentBulletSkin, currentShape, currentParticle, currentBulletShape, rogueliteProfile) end
 ---updateShopWindow(shop: ShopWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow]): bool
 function engine.shop_window.updateShopWindow(shop, dt, screenWidth, screenHeight, allWindows) end
+---wantsTextInput(shop: ShopWindow): bool
+function engine.shop_window.wantsTextInput(shop) end
 
 engine.skins = {}
 ---getSkinColors(skinType: SkinType, time: float32): tuple[primary: Color, secondary: Color, core: Color]
@@ -2929,6 +2939,36 @@ function engine.suspend.toFlatty(s, x) end
 ---@overload fun(s, x)
 ---@overload fun(s, x)
 ---@overload fun(s, x)
+
+engine.text_field = {}
+---drawTextField(f: TextField, box: Rectangle, active: bool)
+function engine.text_field.drawTextField(f, box, active) end
+---fieldStyle(fontSize: int32, ink: Color, accent: Color, padX: int32, align: TextAlign): TextFieldStyle
+function engine.text_field.fieldStyle(fontSize, ink, accent, padX, align) end
+---focusField(f: TextField, fields: openArray[TextField])
+function engine.text_field.focusField(f, fields) end
+---focusNext(fields: openArray[TextField], backwards: bool)
+function engine.text_field.focusNext(fields, backwards) end
+---hasSelection(f: TextField): bool
+function engine.text_field.hasSelection(f) end
+---insertText(f: TextField, s: string)
+function engine.text_field.insertText(f, s) end
+---newTextField(style: TextFieldStyle, text: string, maxChars: int, allowed: set[char], multiline: bool, keepHistory: bool): TextField
+function engine.text_field.newTextField(style, text, maxChars, allowed, multiline, keepHistory) end
+---selectAll(f: TextField)
+function engine.text_field.selectAll(f) end
+---selectedText(f: TextField): string
+function engine.text_field.selectedText(f) end
+---setText(f: TextField, s: string)
+function engine.text_field.setText(f, s) end
+---submitLine(f: TextField): string
+function engine.text_field.submitLine(f) end
+---typingIn(window: OSWindow, f: TextField): bool
+function engine.text_field.typingIn(window, f) end
+---updateTextFields(fields: openArray[TextField], boxes: openArray[Rectangle], dt: float32, active: bool): TextFieldInput
+function engine.text_field.updateTextFields(fields, boxes, dt, active) end
+---updateTextField(f: TextField, box: Rectangle, dt: float32, active: bool): TextFieldInput
+function engine.text_field.updateTextField(f, box, dt, active) end
 
 engine.things = {}
 ---alive(t: ModThing): bool
@@ -3240,6 +3280,8 @@ function engine.window_manager.openModApp(wm, key, uiScale, screenWidth, screenH
 function engine.window_manager.openWindow(wm, id) end
 ---relayoutWindows(wm: WindowManager, uiScale: float32, screenWidth: int, screenHeight: int)
 function engine.window_manager.relayoutWindows(wm, uiScale, screenWidth, screenHeight) end
+---unfocusAllWindows(wm: WindowManager)
+function engine.window_manager.unfocusAllWindows(wm) end
 ---updateAllWindows(wm: WindowManager, dt: float32, uiScale: float32, screenWidth: int, screenHeight: int, currentGame: Game): WindowUpdateResult
 function engine.window_manager.updateAllWindows(wm, dt, uiScale, screenWidth, screenHeight, currentGame) end
 ---wantsTextInput(wm: WindowManager): bool
@@ -3803,6 +3845,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "help_window.getHelpCommands"
 ---| "help_window.newHelpWindow"
 ---| "help_window.updateHelpWindow"
+---| "help_window.wantsTextInput"
 ---| "hud_dock.drawDockBands"
 ---| "hud_dock.drawDockBar"
 ---| "hud_dock.drawDockCard"
@@ -3987,6 +4030,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "os_window.drawWindowChrome"
 ---| "os_window.getResizeEdge"
 ---| "os_window.handleOSWindowInput"
+---| "os_window.hasKeyboard"
 ---| "os_window.isPointInCloseButton"
 ---| "os_window.isPointInMinimizeButton"
 ---| "os_window.isPointInTitleBar"
@@ -4151,6 +4195,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "pvp_window.newPvPWindow"
 ---| "pvp_window.resetPvPWindow"
 ---| "pvp_window.startHosting"
+---| "pvp_window.wantsTextInput"
 ---| "roguelite.bankMetaCurrency"
 ---| "roguelite.beginRogueliteRun"
 ---| "roguelite.bossCoreReward"
@@ -4353,6 +4398,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "settings_window.newSettingsWindow"
 ---| "settings_window.tabContentOriginY"
 ---| "settings_window.updateSettingsWindow"
+---| "settings_window.wantsTextInput"
 ---| "shooting.fireDoubleShotBurst"
 ---| "shooting.shootBullet"
 ---| "shop_window.drawBulletShapePreview"
@@ -4367,6 +4413,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "shop_window.saveSkinSelectionImmediately"
 ---| "shop_window.updateShopWindow"
 ---| "shop_window.visibleCosmeticIndices"
+---| "shop_window.wantsTextInput"
 ---| "shop_window.wrapDescAutoSize"
 ---| "shop_window.wrapTwoLines"
 ---| "skins.getSkinColors"
@@ -4494,6 +4541,20 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "suspend.restoreGame"
 ---| "suspend.suspendGame"
 ---| "suspend.toFlatty"
+---| "text_field.drawTextField"
+---| "text_field.fieldStyle"
+---| "text_field.focusField"
+---| "text_field.focusNext"
+---| "text_field.hasSelection"
+---| "text_field.insertText"
+---| "text_field.newTextField"
+---| "text_field.selectAll"
+---| "text_field.selectedText"
+---| "text_field.setText"
+---| "text_field.submitLine"
+---| "text_field.typingIn"
+---| "text_field.updateTextFields"
+---| "text_field.updateTextField"
 ---| "things.alive"
 ---| "things.collideThingBullets"
 ---| "things.damageThing"
@@ -4584,6 +4645,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "window_manager.openModApp"
 ---| "window_manager.openWindow"
 ---| "window_manager.relayoutWindows"
+---| "window_manager.unfocusAllWindows"
 ---| "window_manager.updateAllWindows"
 ---| "window_manager.wantsTextInput"
 ---| "window_manager.windowUIScale"
