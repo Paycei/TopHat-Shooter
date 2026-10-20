@@ -138,23 +138,20 @@ block entries:
         "entry: valid, owner from the repo")
   check(entryErr(entryText(path = "mods/demo")) == "", "entry: a subfolder path")
   check(entryErr(entryText(title = "Música ñandú")) == "", "entry: Latin-1 title")
-  check(entryErr(entryText(id = "Demo")) != "", "entry: id charset")
   check(entryErr(entryText(), "other") != "", "entry: file name must match the id")
-  check(entryErr(entryText(title = "x".repeat(49))) != "", "entry: title length")
-  check(entryErr(entryText(title = "")) != "", "entry: empty title")
-  check(entryErr(entryText(title = "Hat \u{1F3A9}")) != "", "entry: a character the font lacks")
-  check(entryErr(entryText(description = "two\nlines")) != "", "entry: one-line description")
-  check(entryErr(entryText(description = "d".repeat(241))) != "", "entry: description length")
+  var refused = @[entryText(id = "Demo"), entryText(title = "x".repeat(49)), entryText(title = ""),
+                  entryText(title = "Hat \u{1F3A9}"),   # a character the font lacks
+                  entryText(description = "two\nlines"), entryText(description = "d".repeat(241)),
+                  entryText(commit = "abc123"), entryText(commit = Commit.toUpperAscii),
+                  entryText(version = "v1"), """{"id": 3}"""]
   for repo in ["https://github.com/someone/demo.git", "https://github.com/someone/demo/",
                "https://gitlab.com/someone/demo", "http://github.com/someone/demo",
                "https://github.com/someone"]:
-    check(entryErr(entryText(repo = repo)) != "", "entry: refuses repo " & repo)
-  check(entryErr(entryText(commit = "abc123")) != "", "entry: short commit")
-  check(entryErr(entryText(commit = Commit.toUpperAscii)) != "", "entry: uppercase commit")
-  check(entryErr(entryText(version = "v1")) != "", "entry: version")
+    refused.add(entryText(repo = repo))
   for path in ["../x", "a//b", "/a", "a/", "a/./b"]:
-    check(entryErr(entryText(path = path)) != "", "entry: refuses path " & path)
-  check(entryErr("""{"id": 3}""") != "", "entry: wrong types")
+    refused.add(entryText(path = path))
+  for text in refused:
+    check(entryErr(text) != "", "entry: refuses " & text)
 
 # --------------------------------------------------------------- registry ----
 let registry = home / "registry"

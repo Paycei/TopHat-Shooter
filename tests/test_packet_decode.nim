@@ -105,7 +105,7 @@ for n in 0 ..< 300:
 let evil = newSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP, buffered = false)
 let clientPort = client.socket.getLocalAddr()[1]
 for (name, data) in hostile:
-  check(data.len <= 65507, "hostile datagram fits one datagram: " & name)
+  doAssert data.len <= 65507, "hostile datagram must fit one datagram: " & name
   try:
     evil.sendTo("127.0.0.1", Port(HostPort), data)
     evil.sendTo("127.0.0.1", clientPort, data)

@@ -4,7 +4,7 @@
 # Every shape of proc in tests/mixin_fixture.nim is wrapped from Lua and
 # called from Nim, the way the game calls its own procs.
 
-import std/[strutils, times]
+import std/strutils
 import ../src/modding/[lua_bridge, mod_hooks, mod_state]
 import mixin_fixture
 import ../src/modding/mod_mixin_bind
@@ -183,14 +183,6 @@ check("not moddable" in lua("mixin.wrap('mixin_fixture.helper', function(o, x) e
 discard lua("mixin.wrap('mixin_fixture.plain', function(orig, a, b) return 0 end)")
 resetHooks()
 check(plain(1) == 12 and not mixinActive("mixin_fixture.plain"), "a reload takes every mixin off")
-
-# ---- the cost of an unwrapped call (one bool check)
-block cost:
-  var acc = 0
-  let t0 = cpuTime()
-  for i in 0 ..< 20_000_000: acc += plain(i and 7)
-  let ms = (cpuTime() - t0) * 1000.0
-  echo "20M unwrapped calls: ", formatFloat(ms, ffDecimal, 1), " ms (", acc mod 7, ")"
 
 echo passed, " passed, ", failures, " failed"
 if failures > 0: quit(1)
