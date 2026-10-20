@@ -174,15 +174,15 @@ proc loadModTexture*(path: string, err: var string): int =
   try:
     if ext == ".gif":
       let data = readFile(path)
-      var count = [0'i32]
+      var count: int32
       let img = loadImageAnimFromMemory(".gif", data.toOpenArrayByte(0, data.high), count)
-      if count[0] <= 1:
+      if count <= 1:
         t.frames.add(loadTextureFromImage(img))
       else:
         # The frames come as one RGBA buffer, one whole image after another.
         let px = cast[ptr UncheckedArray[Color]](img.data)
         let n = img.width.int * img.height.int
-        for f in 0 ..< count[0].int:
+        for f in 0 ..< count.int:
           t.frames.add(loadTextureFromData(toOpenArray(px, f * n, f * n + n - 1),
                                            img.width, img.height))
         let delays = gifFrameDelays(data)

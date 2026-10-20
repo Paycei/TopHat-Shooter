@@ -71,7 +71,8 @@ if not fileExists(thisDir() & "/vendor/naylib/src/raylib.nim"):
   quit "vendor/naylib is empty: run `git submodule update --init` (or clone with --recursive).", 1
 
 # Mod models skin on the GPU (LookShader in mod_assets.nim), so raylib must
-# upload the bone index/weight vertex buffers. naylib leaves that off by default.
+# upload the bone index/weight vertex buffers. naylib turns it on by default since
+# raylib 6.2; it is defined here anyway so the game never depends on that default.
 switch("define", "NaylibSupportGpuSkinning")
 
 # Mods load every file format raylib can decode (mod_assets.nim ImageExts /

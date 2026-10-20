@@ -579,7 +579,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `auraWaveCatches(player: Player, enemy: Enemy, slot: AuraSlot, frontRadius: float32): bool`
 - **moddable** `auraWaveEase(travel: float32): float32` (wrap only: scripts cannot call it)
 - **moddable** `auraWaveFrontRadius(elapsed: float32, maxRadius: float32): float32`
-- **moddable** `drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32, charge: float32, flash: float32)`
+- **moddable** `drawAuraEffect(pos: Vector2, config: AuraConfig, time: float32, charge: float32, flash: float32)`
 - **moddable** `getAuraConfig(auraType: PowerUpType, level: int): AuraConfig`
 - **moddable** `getAuraPulseColor(auraType: PowerUpType): Color`
 - **moddable** `getAuraPulseInterval(auraType: PowerUpType, level: int, hasMastery: bool): float32`
@@ -599,7 +599,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawGravityWells(boss: Boss3D)`
 - **moddable** `drawSatelliteHealthbars(boss: Boss3D, camera: FPSCamera)`
 - **moddable** `getBoss3D(bossId: int): Boss3D`
-- **moddable** `takeBossDamage(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3f]`
+- **moddable** `takeBossDamage(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3]`
 - **moddable** `updateBoss(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D], arena: var Arena3D, dt: float32)`
 
 ### `boss_definitions`
@@ -636,8 +636,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `openBossSummonWindow(enemy: Enemy): tuple[opened: bool, bonusDamage: float32]`
 - **moddable** `registerBossSatelliteDestroyed(enemy: Enemy): float32`
 - **moddable** `resetBossWeakPointForPhase(enemy: Enemy, spec: BossWeakPointDefinition, phaseIndex: int, delay: float32)`
-- **moddable** `resolveBossWeakPointTargetHit(enemy: Enemy, bulletPos: Vector2f, bulletRadius: float32): BossWeakPointHitResult`
-- **moddable** `updateBossWeakPoint(enemy: Enemy, spec: BossWeakPointDefinition, playerPos: Vector2f, screenWidth: int32, screenHeight: int32, dt: float32)`
+- **moddable** `resolveBossWeakPointTargetHit(enemy: Enemy, bulletPos: Vector2, bulletRadius: float32): BossWeakPointHitResult`
+- **moddable** `updateBossWeakPoint(enemy: Enemy, spec: BossWeakPointDefinition, playerPos: Vector2, screenWidth: int32, screenHeight: int32, dt: float32)`
 
 ### `bosses`
 
@@ -674,18 +674,18 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `checkBulletEnemyCollision(bullet: Bullet, enemy: Enemy): bool`
 - **moddable** `checkBulletPlayerCollision(bullet: Bullet, player: Player): bool`
 - **moddable** `checkBulletWallCollision(bullet: Bullet, wall: Wall): bool`
-- **moddable** `cloneBullet(original: Bullet, newPos: Vector2f, newVel: Vector2f, damageMultiplier: float32, speedMultiplier: float32, radiusMultiplier: float32, preventSplit: bool): Bullet` (wrap only: scripts cannot call it)
+- **moddable** `cloneBullet(original: Bullet, newPos: Vector2, newVel: Vector2, damageMultiplier: float32, speedMultiplier: float32, radiusMultiplier: float32, preventSplit: bool): Bullet` (wrap only: scripts cannot call it)
 - **moddable** `createEchoBullet(game: Game, sourceBullet: Bullet, damageMultiplier: float32, speedMultiplier: float32, lifetime: float32)`
 - **moddable** `createSplitBullets(game: Game, sourceBullet: Bullet, splitCount: int, damageMultiplier: float32, speedMultiplier: float32)`
 - **moddable** `drawBossBulletShape(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32)` (wrap only: scripts cannot call it)
 - **moddable** `drawBullet(bullet: Bullet, hasOvercharge: bool, hasBloodBullets: bool, gameTime: float32)`
 - **moddable** `isOffScreen(bullet: Bullet, screenWidth: int32, screenHeight: int32): bool`
-- **moddable** `newBullet(x: float32, y: float32, direction: Vector2f, speed: float32, damage: float32, fromPlayer: bool, isHoming: bool, isPiercing: bool, isExplosive: bool, hasBounce: bool, canSplit: bool, slowAmount: float32, poisonDuration: float32, fireDuration: float32, windPushForce: float32, isPentagon: bool, isEcho: bool, isBossBullet: bool, isArcaneBullet: bool, sourceEnemyId: int, sourceEnemyType: EnemyType, isBonusFromMultiShot: bool, isBonusFromDoubleShot: bool, wasCrit: bool, isSpecialRound: bool, isFromWallTurret: bool, isFromRadialBurst: bool, isFromBulletSplit: bool, isRicochet: bool, isParried: bool, colorOverride: Color, bulletSkin: int, bulletId: int, parentBulletId: int, ownerPlayerIndex: int, bossBulletShape: int, bulletRadius: float32, bulletShape: int): Bullet`
+- **moddable** `newBullet(x: float32, y: float32, direction: Vector2, speed: float32, damage: float32, fromPlayer: bool, isHoming: bool, isPiercing: bool, isExplosive: bool, hasBounce: bool, canSplit: bool, slowAmount: float32, poisonDuration: float32, fireDuration: float32, windPushForce: float32, isPentagon: bool, isEcho: bool, isBossBullet: bool, isArcaneBullet: bool, sourceEnemyId: int, sourceEnemyType: EnemyType, isBonusFromMultiShot: bool, isBonusFromDoubleShot: bool, wasCrit: bool, isSpecialRound: bool, isFromWallTurret: bool, isFromRadialBurst: bool, isFromBulletSplit: bool, isRicochet: bool, isParried: bool, colorOverride: Color, bulletSkin: int, bulletId: int, parentBulletId: int, ownerPlayerIndex: int, bossBulletShape: int, bulletRadius: float32, bulletShape: int): Bullet`
 - **moddable** `updateBullet(bullet: Bullet, dt: float32): bool`
 
 ### `bullet_shapes`
 
-- **moddable** `drawPlayerBulletShape(pos: Vector2f, radius: float32, shape: BulletShapeType, travelAngle: float32, color: Color, glowColor: Color)`
+- **moddable** `drawPlayerBulletShape(pos: Vector2, radius: float32, shape: BulletShapeType, travelAngle: float32, color: Color, glowColor: Color)`
 - `getBulletShapeData(s: BulletShapeType): BulletShapeData`
 - **moddable** `initializeBulletShapes()`
 
@@ -706,10 +706,10 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawShockwaveRings(game: Game)`
 - **moddable** `getBulletDamageType(bullet: Bullet): DamageType`
 - **moddable** `getExplosionRadius(level: int): float32`
-- **moddable** `spawnBossDeathBlast(game: var Game, pos: Vector2f, maxRadius: float32, sourceEnemyId: int, color: Color)`
-- **moddable** `spawnLightningBolt(game: var Game, fromPos: Vector2f, toPos: Vector2f, color: Color)`
-- **moddable** `spawnPathShockwave(game: var Game, points: seq[Vector2f], width: float32, color: Color)`
-- **moddable** `spawnShockwaveRing(game: var Game, pos: Vector2f, maxRadius: float32, color: Color)`
+- **moddable** `spawnBossDeathBlast(game: var Game, pos: Vector2, maxRadius: float32, sourceEnemyId: int, color: Color)`
+- **moddable** `spawnLightningBolt(game: var Game, fromPos: Vector2, toPos: Vector2, color: Color)`
+- **moddable** `spawnPathShockwave(game: var Game, points: seq[Vector2], width: float32, color: Color)`
+- **moddable** `spawnShockwaveRing(game: var Game, pos: Vector2, maxRadius: float32, color: Color)`
 - **moddable** `updateBossDeathBlasts(game: var Game, dt: float32)`
 - **moddable** `updateLightningBolts(game: var Game, dt: float32)`
 - **moddable** `updatePathShockwaves(game: var Game, dt: float32)`
@@ -749,23 +749,20 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `cinematic_common`
 
-- `alphaByte(v: float32): uint8`
 - **moddable** `beginStoryCamera(focusX: float32, focusY: float32, screenX: float32, screenY: float32, scale: float32)`
 - **moddable** `cinematicEnemy(enemyType: EnemyType, x: float32, y: float32, difficulty: float32, id: int, threat: int): Enemy` (wrap only: scripts cannot call it)
-- **moddable** `clamp01(v: float32): float32`
-- `colorA(color: Color, alpha: float32): Color`
 - **moddable** `drawCenteredText(text: string, x: int32, y: int32, size: int32, color: Color)`
 - **moddable** `drawCinematicBoss(boss: Enemy, x: float32, y: float32, radius: float32, hpFraction: float32, phaseIndex: int)`
 - **moddable** `drawCinematicOverlay(screenWidth: int32, screenHeight: int32, time: float32, frame: int, scanlineOffset: float32, totalDuration: float32, shotLabel: string, liveText: string, iconIndex: int, glitchHot: bool, controls: CinematicControls, accent: Color)`
 - **moddable** `drawCrashPanel(sw: int32, sh: int32, alpha: float32, time: float32)`
-- **moddable** `drawEquippedBulletModel(pos: Vector2f, radius: float32, travelAngle: float32, time: float32, alpha: float32)`
-- **moddable** `drawEquippedPlayerModel(pos: Vector2f, radius: float32, time: float32, alpha: float32, glowBoost: float32)`
+- **moddable** `drawEquippedBulletModel(pos: Vector2, radius: float32, travelAngle: float32, time: float32, alpha: float32)`
+- **moddable** `drawEquippedPlayerModel(pos: Vector2, radius: float32, time: float32, alpha: float32, glowBoost: float32)`
 - **moddable** `drawFilmGrain(screenWidth: int32, screenHeight: int32, time: float32, alpha: float32)` (wrap only: scripts cannot call it)
 - **moddable** `drawFootageFrame(sw: int32, sh: int32, scale: float32, alpha: float32)`
 - **moddable** `drawHalo(centerX: float32, centerY: float32, radius: float32, color: Color, intensity: float32)`
-- **moddable** `drawKernelModel(pos: Vector2f, radius: float32, time: float32, boot: float32, alpha: float32, hat: bool)`
+- **moddable** `drawKernelModel(pos: Vector2, radius: float32, time: float32, boot: float32, alpha: float32, hat: bool)`
 - **moddable** `drawOldText(text: string, x: int32, y: int32, size: int32, reveal: float32, local: float32, alpha: float32, color: Color, centered: bool, cursor: bool)`
-- **moddable** `drawRealEnemy(enemyType: EnemyType, x: float32, y: float32, radius: float32, time: float32, id: int, threat: int, vel: Vector2f)`
+- **moddable** `drawRealEnemy(enemyType: EnemyType, x: float32, y: float32, radius: float32, time: float32, id: int, threat: int, vel: Vector2)`
 - **moddable** `drawServiceWindow(x: float32, y: float32, w: float32, title: string, colService: string, colOwner: string, names: openArray[string], flipTimes: openArray[float32], local: float32, alpha: float32, fromOwner: string, toOwner: string, fromColor: Color, toColor: Color)`
 - **moddable** `drawStoryButton(x: float32, y: float32, w: float32, h: float32, label: string, alpha: float32, pressed: bool, primary: bool)`
 - **moddable** `drawStoryPointer(x: float32, y: float32, alpha: float32, pressed: bool)`
@@ -774,16 +771,11 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawSubtitlesFrom(lines: openArray[string], startAt: float32, screenWidth: int32, screenHeight: int32, alpha: float32)`
 - **moddable** `drawSubtitles(lines: openArray[string], screenWidth: int32, screenHeight: int32, alpha: float32)`
 - **moddable** `drawTapeChange(screenWidth: int32, screenHeight: int32, local: float32, frame: int, time: float32)`
-- **moddable** `easeInOut(t: float32): float32`
-- **moddable** `easeOut(t: float32): float32`
 - **moddable** `endStoryCamera()`
 - **moddable** `equippedBulletShape(): BulletShapeType` (wrap only: scripts cannot call it)
 - **moddable** `equippedBulletSkin(): BulletSkinType` (wrap only: scripts cannot call it)
 - **moddable** `equippedShape(): ShapeType` (wrap only: scripts cannot call it)
 - **moddable** `equippedSkin(): SkinType` (wrap only: scripts cannot call it)
-- **moddable** `fractCoord(value: float32): float32`
-- **moddable** `hash01(n: float32): float32`
-- `lerpF(a: float32, b: float32, t: float32): float32`
 - **moddable** `newCinematicBoss(bossId: int, screenWidth: int32, screenHeight: int32): Enemy`
 - **moddable** `revealOver(local: float32, startAt: float32, dur: float32): float32`
 - **moddable** `serviceWindowHeight(rows: int): float32` (wrap only: scripts cannot call it)
@@ -827,10 +819,10 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `flushAccumulator(game: Game, enemy: Enemy, acc: var DamageAccumulator)` (wrap only: scripts cannot call it)
 - **moddable** `rageDamageMultiplier(player: Player): float32`
 - **moddable** `setEnemyHp(enemy: Enemy, hp: float32)`
-- **moddable** `shieldBlocksHit(game: Game, enemy: Enemy, hitFrom: Vector2f): bool`
-- **moddable** `showCurrency(game: Game, pos: Vector2f, amount: int, kind: CurrencyIndicatorKind)`
-- **moddable** `showDamage(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool, isCritical: bool, damageType: DamageType)`
-- **moddable** `showPerk(game: Game, pos: Vector2f, text: string, color: Color)`
+- **moddable** `shieldBlocksHit(game: Game, enemy: Enemy, hitFrom: Vector2): bool`
+- **moddable** `showCurrency(game: Game, pos: Vector2, amount: int, kind: CurrencyIndicatorKind)`
+- **moddable** `showDamage(game: Game, pos: Vector2, damage: float32, fromPlayer: bool, isCritical: bool, damageType: DamageType)`
+- **moddable** `showPerk(game: Game, pos: Vector2, text: string, color: Color)`
 - **moddable** `showPlayerDamageTaken(game: Game, damageType: DamageType)`
 - **moddable** `tickAccumulator(game: Game, enemy: Enemy, acc: var DamageAccumulator, damage: float32, damageType: DamageType, wasCrit: bool, interval: float32)` (wrap only: scripts cannot call it)
 
@@ -855,8 +847,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `cube_render`
 
 - **moddable** `drawZeroGravityWallpaperCube(centerX: float32, centerY: float32, size: float32, time: float32, angleX: float32, angleY: float32, angleZ: float32, skin: CubeSkinType, glowBoost: float32, compact: bool)`
-- **moddable** `projectCubePoint(point: CubePoint, centerX: float32, centerY: float32, scale: float32): Vector2` (wrap only: scripts cannot call it)
-- **moddable** `rotateCubePoint(point: CubePoint, angleX: float32, angleY: float32, angleZ: float32): CubePoint` (wrap only: scripts cannot call it)
+- **moddable** `projectCubePoint(point: Vector3, centerX: float32, centerY: float32, scale: float32): Vector2` (wrap only: scripts cannot call it)
+- **moddable** `rotateCubePoint(point: Vector3, angleX: float32, angleY: float32, angleZ: float32): Vector3` (wrap only: scripts cannot call it)
 
 ### `cube_skins`
 
@@ -896,7 +888,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `checkPerfectWaveCombo(combo: var ComboSystem, waveEnemyCount: int): int`
 - **moddable** `getComboMultiplier(combo: ComboSystem): string`
 - **moddable** `getComboWindow(combo: ComboSystem): float32` (wrap only: scripts cannot call it)
-- **moddable** `getShakeOffset(shake: ScreenShake): Vector2f`
+- **moddable** `getShakeOffset(shake: ScreenShake): Vector2`
 - **moddable** `initEnhancedDopamine(dopamine: var DopamineState)`
 - **moddable** `newComboSystem(): ComboSystem`
 - **moddable** `newDopamineState(): DopamineState`
@@ -985,7 +977,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `consumeDungeonSpawn(game: Game)`
 - **moddable** `currentDungeonRoom(run: RogueliteRun): DungeonRoom`
 - **moddable** `doorRect(game: Game, dir: DoorDir): Rectangle` (wrap only: scripts cannot call it)
-- **moddable** `doorSpawnPos(game: Game, enteredThrough: DoorDir): Vector2f` (wrap only: scripts cannot call it)
+- **moddable** `doorSpawnPos(game: Game, enteredThrough: DoorDir): Vector2` (wrap only: scripts cannot call it)
 - **moddable** `drawDungeonOverlay(game: Game)`
 - **moddable** `drawProximityCard(card: ProximityCard, anchorX: float32, anchorY: float32, worldW: int32, worldH: int32, time: float32)` (wrap only: scripts cannot call it)
 - **moddable** `dungeonBossNumberFor(theme: DungeonFloorTheme, floorNumber: int, endlessLoop: int, heat: int): int`
@@ -997,7 +989,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `dungeonRoomWaveEquivalent(run: RogueliteRun, room: DungeonRoom): float32`
 - **moddable** `dungeonSpawnAllowance(game: Game): int`
 - **moddable** `enterRoom(game: Game, roomIdx: int, enteredThrough: DoorDir, resumed: bool)`
-- **moddable** `exitPortalPos(game: Game): Vector2f` (wrap only: scripts cannot call it)
+- **moddable** `exitPortalPos(game: Game): Vector2` (wrap only: scripts cannot call it)
 - **moddable** `exitsOf(floor: DungeonFloor, room: DungeonRoom): seq[DungeonExit]` (wrap only: scripts cannot call it)
 - **moddable** `exitsOpen(room: DungeonRoom): bool` (wrap only: scripts cannot call it)
 - **moddable** `generateFloor(game: Game, theme: DungeonFloorTheme, floorNumber: int): DungeonFloor`
@@ -1056,7 +1048,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawEnemy(enemy: Enemy)`
 - **moddable** `drawLaser(laser: Laser)`
 - **moddable** `drawLegionTethers(boss: Enemy, enemies: seq[Enemy])`
-- **moddable** `drawMeteorWarning(impact: Vector2f, source: Vector2f, radius: float32, baseCol: Color, progress: float32, blastRadius: float32)`
+- **moddable** `drawMeteorWarning(impact: Vector2, source: Vector2, radius: float32, baseCol: Color, progress: float32, blastRadius: float32)`
 - **moddable** `drawOmegaGlyph(cx: float32, cy: float32, r: float32, thick: float32, col: Color)` (wrap only: scripts cannot call it)
 - **moddable** `drawRicochetLaserBeam(warning: AttackWarning)`
 - **moddable** `drawRoyalGuardRegalia(enemy: Enemy)`
@@ -1068,7 +1060,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `spawnBossById(screenWidth: int32, screenHeight: int32, bossId: int, scalingWave: int): Enemy`
 - **moddable** `spawnBoss(screenWidth: int32, screenHeight: int32, waveNumber: int): Enemy`
 - **moddable** `updateEliteEffects(enemy: Enemy, dt: float32)`
-- **moddable** `updateEnemy(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool`
+- **moddable** `updateEnemy(enemy: var Enemy, playerPos: Vector2, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool`
 
 ### `enemy_config`
 
@@ -1086,43 +1078,37 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `enemy_helpers`
 
-- **moddable** `applyEnemyInertia(enemy: var Enemy, desiredVel: Vector2f, dt: float32, acceleration: float32, braking: float32): Vector2f`
-- **moddable** `approachVelocity(current: Vector2f, target: Vector2f, acceleration: float32, dt: float32): Vector2f`
-- **moddable** `chasePlayer(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32): Vector2f`
-- **moddable** `checkScreenBoundaryCollision(enemy: Enemy, nextPos: Vector2f, game: Game, config: EnemyConfig): bool`
+- **moddable** `applyEnemyInertia(enemy: var Enemy, desiredVel: Vector2, dt: float32, acceleration: float32, braking: float32): Vector2`
+- **moddable** `approachVelocity(current: Vector2, target: Vector2, acceleration: float32, dt: float32): Vector2`
+- **moddable** `chasePlayer(enemy: Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32): Vector2`
+- **moddable** `checkScreenBoundaryCollision(enemy: Enemy, nextPos: Vector2, game: Game, config: EnemyConfig): bool`
 - **moddable** `checkScreenEntry(enemy: var Enemy, game: Game)`
-- **moddable** `checkWallCollision(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], currentTime: float32, game: var Game): bool`
-- **moddable** `desiredVelocityFromNext(currentPos: Vector2f, desiredNextPos: Vector2f, dt: float32): Vector2f` (wrap only: scripts cannot call it)
+- **moddable** `checkWallCollision(enemy: var Enemy, nextPos: Vector2, walls: seq[Wall], currentTime: float32, game: var Game): bool`
+- **moddable** `desiredVelocityFromNext(currentPos: Vector2, desiredNextPos: Vector2, dt: float32): Vector2` (wrap only: scripts cannot call it)
 - **moddable** `enemyInertiaSizeScale(enemy: Enemy): float32` (wrap only: scripts cannot call it)
-- **moddable** `executeRangedAttack(enemy: var Enemy, playerPos: Vector2f, game: var Game)`
-- **moddable** `forceScreenEntry(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, game: Game): Vector2f`
+- **moddable** `executeRangedAttack(enemy: var Enemy, playerPos: Vector2, game: var Game)`
+- **moddable** `forceScreenEntry(enemy: Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32, game: Game): Vector2`
 - **moddable** `getSpecialFloat(data: Table[string, string], key: string, default: float32): float32`
 - **moddable** `getSpecialInt(data: Table[string, string], key: string, default: int): int`
-- **moddable** `maintainOptimalDistance(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, config: EnemyConfig): Vector2f`
-- **moddable** `nextInertialEnemyPos(enemy: var Enemy, desiredNextPos: Vector2f, dt: float32): Vector2f`
+- **moddable** `maintainOptimalDistance(enemy: Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32, config: EnemyConfig): Vector2`
+- **moddable** `nextInertialEnemyPos(enemy: var Enemy, desiredNextPos: Vector2, dt: float32): Vector2`
 - **moddable** `parseSpecialData(data: string): Table[string, string]`
 - **moddable** `randomEdgeSpawnPos(screenWidth: int32, screenHeight: int32, margin: float32): tuple[x: float32, y: float32]`
 
 ### `engine_3d`
 
 - **moddable** `addShake(cam: var FPSCamera, intensity: float32)`
-- **moddable** `checkCollision(pos: Vector3f, radius: float32, platforms: seq[Platform3D]): (bool, Platform3D)`
-- **moddable** `cross(a: Vector3f, b: Vector3f): Vector3f`
-- **moddable** `distance(a: Vector3f, b: Vector3f): float32`
-- **moddable** `dot(a: Vector3f, b: Vector3f): float32`
+- **moddable** `checkCollision(pos: Vector3, radius: float32, platforms: seq[Platform3D]): (bool, Platform3D)`
 - **moddable** `drawArena(arena: Arena3D)`
 - **moddable** `drawPlatform(platform: Platform3D)`
 - **moddable** `drawProjectile(proj: Projectile3D)`
 - **moddable** `effectiveRadius(proj: Projectile3D): float32`
 - **moddable** `generateArena(theme: string, radius: float32): Arena3D`
-- **moddable** `getForward(cam: FPSCamera): Vector3f`
-- **moddable** `getRight(cam: FPSCamera): Vector3f`
-- **moddable** `initCamera3D(pos: Vector3f): FPSCamera`
-- **moddable** `length(v: Vector3f): float32`
-- **moddable** `normalize(v: Vector3f): Vector3f`
+- **moddable** `getForward(cam: FPSCamera): Vector3`
+- **moddable** `getRight(cam: FPSCamera): Vector3`
+- **moddable** `initCamera3D(pos: Vector3): FPSCamera`
 - **moddable** `updateCamera(cam: var FPSCamera, mouseDelta: Vector2, sensitivity: float32)`
 - **moddable** `updatePlatforms(platforms: var seq[Platform3D], dt: float32)`
-- **moddable** `vec3(x: float32, y: float32, z: float32): Vector3f`
 
 ### `feedback`
 
@@ -1147,10 +1133,10 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawLightningBolts(bolts: seq[LightningBolt])`
 - **moddable** `drawPathShockwaves(waves: seq[PathShockwave])`
 - **moddable** `drawShockwaveRings(rings: seq[ShockwaveRing])`
-- **moddable** `spawnBossDeathBlastInto(blasts: var seq[BossDeathBlast], pos: Vector2f, maxRadius: float32, sourceEnemyId: int, color: Color)`
-- **moddable** `spawnLightningBoltInto(bolts: var seq[LightningBolt], fromPos: Vector2f, toPos: Vector2f, color: Color)`
-- **moddable** `spawnPathShockwaveInto(waves: var seq[PathShockwave], points: seq[Vector2f], width: float32, color: Color)`
-- **moddable** `spawnShockwaveRingInto(rings: var seq[ShockwaveRing], pos: Vector2f, maxRadius: float32, color: Color)`
+- **moddable** `spawnBossDeathBlastInto(blasts: var seq[BossDeathBlast], pos: Vector2, maxRadius: float32, sourceEnemyId: int, color: Color)`
+- **moddable** `spawnLightningBoltInto(bolts: var seq[LightningBolt], fromPos: Vector2, toPos: Vector2, color: Color)`
+- **moddable** `spawnPathShockwaveInto(waves: var seq[PathShockwave], points: seq[Vector2], width: float32, color: Color)`
+- **moddable** `spawnShockwaveRingInto(rings: var seq[ShockwaveRing], pos: Vector2, maxRadius: float32, color: Color)`
 - **moddable** `updateLightningBolts(bolts: var seq[LightningBolt], dt: float32)`
 - **moddable** `updatePathShockwaves(waves: var seq[PathShockwave], dt: float32)`
 - **moddable** `updateShockwaveRings(rings: var seq[ShockwaveRing], dt: float32)`
@@ -1200,17 +1186,17 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `initGame3D(opts: World3DOptions, player2D: Player): Game3D`
 - **moddable** `killEntity3D(world: Game3D, e: Entity3D, credit: bool)`
 - **moddable** `newEntity3D(world: Game3D, tag: string): Entity3D`
-- **moddable** `newPickup3D(world: Game3D, pos: Vector3f, kind: string, value: float32): Pickup3D`
-- **moddable** `newProjectile3D(pos: Vector3f, vel: Vector3f, damage: float32, fromPlayer: bool): Projectile3D`
+- **moddable** `newPickup3D(world: Game3D, pos: Vector3, kind: string, value: float32): Pickup3D`
+- **moddable** `newProjectile3D(pos: Vector3, vel: Vector3, damage: float32, fromPlayer: bool): Projectile3D`
 - **moddable** `processWorld3DActions(world: Game3D)`
-- **moddable** `raycast3D(world: Game3D, origin: Vector3f, dir: Vector3f, maxDist: float32): RayHit3D`
+- **moddable** `raycast3D(world: Game3D, origin: Vector3, dir: Vector3, maxDist: float32): RayHit3D`
 - **moddable** `raylibCamera(camera: FPSCamera): Camera`
 - **moddable** `renderGame3D(world: Game3D)`
 - **moddable** `requestFinish3D(world: Game3D, result: World3DResult)`
-- **moddable** `spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3f, damage: float32, color: Color)`
+- **moddable** `spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3, damage: float32, color: Color)`
 - **moddable** `sweepDead(world: Game3D)`
 - **moddable** `updateGame3D(world: Game3D, dt: float32)`
-- **moddable** `worldToScreen3D(camera: FPSCamera, pos: Vector3f): tuple[x: float32, y: float32, visible: bool]`
+- **moddable** `worldToScreen3D(camera: FPSCamera, pos: Vector3): tuple[x: float32, y: float32, visible: bool]`
 
 ### `gamemode_definitions`
 
@@ -1356,21 +1342,21 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `mode_enemies`
 
 - **moddable** `isBallistic(enemy: Enemy): bool`
-- **moddable** `modeEnemyDamageTakenMult(enemy: Enemy, hitFrom: Vector2f): float32`
-- **moddable** `updateModeEnemy(enemy: var Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, walls: seq[Wall], currentTime: float32, game: var Game)`
+- **moddable** `modeEnemyDamageTakenMult(enemy: Enemy, hitFrom: Vector2): float32`
+- **moddable** `updateModeEnemy(enemy: var Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32, walls: seq[Wall], currentTime: float32, game: var Game)`
 
 ### `mode_hazards`
 
 - **moddable** `echoCapacity(): int`
 - **moddable** `lkgDoorRect(door: int, screenW: float32, screenH: float32): tuple[x: float32, y: float32, w: float32, h: float32]`
-- **moddable** `lkgInDoor(door: int, p: Vector2f, screenW: float32, screenH: float32): bool`
+- **moddable** `lkgInDoor(door: int, p: Vector2, screenW: float32, screenH: float32): bool`
 - **moddable** `lkgPurgeRadius(w: AttackWarning): float32`
 - **moddable** `packetLinkLength(w: AttackWarning): float32`
-- **moddable** `packetTrain(w: AttackWarning): tuple[live: bool, tail: Vector2f, head: Vector2f]`
-- **moddable** `pointSegmentDistance(p: Vector2f, a: Vector2f, b: Vector2f): float32`
-- **moddable** `portGuardBlocks(enemy: Enemy, hitFrom: Vector2f): bool`
-- **moddable** `rayWallDistance(origin: Vector2f, dir: Vector2f, maxLen: float32, walls: seq[Wall]): float32`
-- **moddable** `safeModeBubble(w: AttackWarning): tuple[center: Vector2f, radius: float32]`
+- **moddable** `packetTrain(w: AttackWarning): tuple[live: bool, tail: Vector2, head: Vector2]`
+- **moddable** `pointSegmentDistance(p: Vector2, a: Vector2, b: Vector2): float32`
+- **moddable** `portGuardBlocks(enemy: Enemy, hitFrom: Vector2): bool`
+- **moddable** `rayWallDistance(origin: Vector2, dir: Vector2, maxLen: float32, walls: seq[Wall]): float32`
+- **moddable** `safeModeBubble(w: AttackWarning): tuple[center: Vector2, radius: float32]`
 - **moddable** `safeModeFlooding(w: AttackWarning): bool`
 - **moddable** `safeModeProgress(w: AttackWarning): float32` (wrap only: scripts cannot call it)
 - **moddable** `searchlightAngle(w: AttackWarning, beam: int): float32`
@@ -1390,7 +1376,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `hazardHitPlayer(game: var Game, damage: float32, cause: DeathCause, dmgType: DamageType, source: Enemy, sourceType: EnemyType, interval: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `onModeEnemyKilled(game: var Game, enemy: Enemy)`
 - **moddable** `pageInQuietly(game: var Game, w: AttackWarning)`
-- **moddable** `recordPlayerEcho(game: var Game, aimDir: Vector2f, firing: bool, dt: float32)`
+- **moddable** `recordPlayerEcho(game: var Game, aimDir: Vector2, firing: bool, dt: float32)`
 - **moddable** `resetModeCombat(game: var Game)`
 - **moddable** `resolveModeWarning(game: var Game, w: AttackWarning, dt: float32)`
 - **moddable** `updateModeMechanics(game: var Game, dt: float32)`
@@ -1425,7 +1411,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `getBossArenaCombatBonus(bg: OSBackgroundState): tuple[damageMult: float32, fireRateMult: float32]`
 - **moddable** `newOSBackground(): OSBackgroundState`
 - **moddable** `spawnWavePulse(bg: var OSBackgroundState, cx: float32, cy: float32, color: Color)`
-- **moddable** `updateBossArenaField(bg: var OSBackgroundState, dt: float32, playerPos: Vector2f, playerRadius: float32, screenWidth: int32, screenHeight: int32, bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32]`
+- **moddable** `updateBossArenaField(bg: var OSBackgroundState, dt: float32, playerPos: Vector2, playerRadius: float32, screenWidth: int32, screenHeight: int32, bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32]`
 - **moddable** `updateOSBackground(bg: var OSBackgroundState, dt: float32, playerHP: float32, maxHP: float32, bossActive: bool, screenWidth: int32, screenHeight: int32)`
 
 ### `os_combined_hud`
@@ -1594,14 +1580,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `getParticleSkinColors(skinType: ParticleSkinType, time: float32): tuple[primary: Color, secondary: Color]`
 - `getParticleSkinData(skinType: ParticleSkinType): ParticleSkinData`
 - `initializeParticleSkins()`
-- `spawnShootingParticles(pool: ParticlePool, x: float32, y: float32, direction: Vector2f, skinType: ParticleSkinType, time: float32)`
-
-### `particle_types`
-
-- `distance(a: Vector2f, b: Vector2f): float32`
-- `length(v: Vector2f): float32`
-- `newVector2f(x: float32, y: float32): Vector2f`
-- `normalize(v: Vector2f): Vector2f`
+- `spawnShootingParticles(pool: ParticlePool, x: float32, y: float32, direction: Vector2, skinType: ParticleSkinType, time: float32)`
 
 ### `patches`
 
@@ -1628,7 +1607,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - **moddable** `clampLootPosition(x: float32, y: float32, screenWidth: int32, screenHeight: int32): tuple[x: float32, y: float32]`
 - **moddable** `magnetPullsAll(player: Player): bool`
-- **moddable** `pullTowardPlayer(pos: var Vector2f, playerPos: Vector2f, dt: float32)`
+- **moddable** `pullTowardPlayer(pos: var Vector2, playerPos: Vector2, dt: float32)`
 
 ### `player`
 
@@ -1646,7 +1625,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `player_3d`
 
 - **moddable** `fireWeapon(player: var Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool`
-- **moddable** `newPlayer3D(startPos: Vector3f, health2D: float32): Player3D`
+- **moddable** `newPlayer3D(startPos: Vector3, health2D: float32): Player3D`
 - **moddable** `newWeapon3D(): Weapon3D` (wrap only: scripts cannot call it)
 - **moddable** `reload(player: var Player3D)`
 - **moddable** `updatePlayer(player: var Player3D, camera: FPSCamera, arena: Arena3D, dt: float32): bool`
@@ -1723,7 +1702,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `pvp_game`
 
-- **moddable** `applyPlayerInput(pvp: PvPGameState, playerIndex: int, input: PlayerInput, dt: float32): Vector2f` (wrap only: scripts cannot call it)
+- **moddable** `applyPlayerInput(pvp: PvPGameState, playerIndex: int, input: PlayerInput, dt: float32): Vector2` (wrap only: scripts cannot call it)
 - **moddable** `applyPlayerNet(pvp: PvPGameState, i: int, s: PlayerStateNet, remote: bool)` (wrap only: scripts cannot call it)
 - **moddable** `areTeammates(pvp: PvPGameState, playerIdx1: int, playerIdx2: int): bool` (wrap only: scripts cannot call it)
 - **moddable** `assignPlayerToTeam(playerIndex: int, maxPlayers: int, teamsEnabled: bool): PvPTeam` (wrap only: scripts cannot call it)
@@ -1748,8 +1727,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `modKill(pvp: PvPGameState, victim: int, killer: int)`
 - **moddable** `modParticles(pvp: PvPGameState, x: float32, y: float32, color: Color, count: int)`
 - **moddable** `modRequest(pvp: PvPGameState, name: string, data: string): bool`
-- **moddable** `modSpawnBullet(pvp: PvPGameState, owner: int, pos: Vector2f, vel: Vector2f, damage: float32, radius: float32, life: float32, color: Color, kind: string, pierce: int): Bullet`
-- **moddable** `modTeleport(pvp: PvPGameState, idx: int, pos: Vector2f)`
+- **moddable** `modSpawnBullet(pvp: PvPGameState, owner: int, pos: Vector2, vel: Vector2, damage: float32, radius: float32, life: float32, color: Color, kind: string, pierce: int): Bullet`
+- **moddable** `modTeleport(pvp: PvPGameState, idx: int, pos: Vector2)`
 - **moddable** `modToast(pvp: PvPGameState, text: string, color: Color)`
 - **moddable** `newPvPGameState(screenWidth: int32, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType: int, bulletSkinType: int, shapeType: int,
           particleSkinType: int, nickname: string]], teamsEnabled: bool, playerTeamAssignments: seq[int], interpolationEnabled: bool, config: PvPConfig): PvPGameState`
@@ -1760,7 +1739,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `packageName(kind: PvPPackageKind): string` (wrap only: scripts cannot call it)
 - **moddable** `playerIndexOf(pvp: PvPGameState, p: Player): int`
 - **moddable** `playerName(pvp: PvPGameState, playerIndex: int): string`
-- **moddable** `portLayout(arenaW: float32, arenaH: float32): seq[tuple[pos: Vector2f, isPower: bool]]` (wrap only: scripts cannot call it)
+- **moddable** `portLayout(arenaW: float32, arenaH: float32): seq[tuple[pos: Vector2, isPower: bool]]` (wrap only: scripts cannot call it)
 - **moddable** `pvpBulletAlive(pvp: PvPGameState, b: Bullet): bool`
 - **moddable** `reconcileState(pvp: PvPGameState, serverState: NetworkGameState)` (wrap only: scripts cannot call it)
 - **moddable** `resetMatchState(pvp: PvPGameState)` (wrap only: scripts cannot call it)
@@ -1944,10 +1923,10 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `recordConsumable(consumType: ConsumableType)` (wrap only: scripts cannot call it)
 - **moddable** `recordDamageAvoided(amount: float32)` (wrap only: scripts cannot call it)
 - **moddable** `recordDamageDealt(damage: float32)`
-- **moddable** `recordDamageTaken(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2f)` (wrap only: scripts cannot call it)
-- **moddable** `recordKill(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2f)`
-- **moddable** `recordLegendaryAbility(abilityType: string, gameTime: float32, playerPos: Vector2f)` (wrap only: scripts cannot call it)
-- **moddable** `recordNearDeath(gameTime: float32, playerPos: Vector2f)` (wrap only: scripts cannot call it)
+- **moddable** `recordDamageTaken(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2)` (wrap only: scripts cannot call it)
+- **moddable** `recordKill(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2)`
+- **moddable** `recordLegendaryAbility(abilityType: string, gameTime: float32, playerPos: Vector2)` (wrap only: scripts cannot call it)
+- **moddable** `recordNearDeath(gameTime: float32, playerPos: Vector2)` (wrap only: scripts cannot call it)
 - **moddable** `recordPowerUpChosen(powerUp: PowerUp, gameTime: float32)` (wrap only: scripts cannot call it)
 - **moddable** `recordPowerUpDamage(powerType: PowerUpType, damage: float32)` (wrap only: scripts cannot call it)
 - **moddable** `recordPowerUpHealing(powerType: PowerUpType, restored: float32, overheal: float32)` (wrap only: scripts cannot call it)
@@ -1958,7 +1937,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `recordSpecialMechanic(mechType: string)` (wrap only: scripts cannot call it)
 - **moddable** `recordWallDamaged()` (wrap only: scripts cannot call it)
 - **moddable** `recordWallDestroyed(damageBlocked: float32)` (wrap only: scripts cannot call it)
-- **moddable** `recordWallPlaced(gameTime: float32, pos: Vector2f)` (wrap only: scripts cannot call it)
+- **moddable** `recordWallPlaced(gameTime: float32, pos: Vector2)` (wrap only: scripts cannot call it)
 - **moddable** `recordWaveComplete(waveNumber: int, waveTime: float32, gameTime: float32)` (wrap only: scripts cannot call it)
 - **moddable** `resumeRunTracking(game: Game)`
 - **moddable** `saveLastCompletedRun()`
@@ -1985,7 +1964,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `trackTimeWarp(game: Game, duration: float32)`
 - **moddable** `trackWallDamaged(game: Game)`
 - **moddable** `trackWallDestruction(game: Game, damageBlocked: float32)`
-- **moddable** `trackWallPlacement(game: Game, pos: Vector2f)`
+- **moddable** `trackWallPlacement(game: Game, pos: Vector2)`
 - **moddable** `trackWaveCompletion(game: Game, waveNumber: int, waveTime: float32)`
 - **moddable** `updateDPS(damage: float32)` (wrap only: scripts cannot call it)
 - **moddable** `updateMovement(player: Player, dt: float32, gameTime: float32)` (wrap only: scripts cannot call it)
@@ -2071,18 +2050,18 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `shapes`
 
-- `drawCheaterHat(pos: Vector2f, radius: float32, time: float32, alpha: float32)`
+- `drawCheaterHat(pos: Vector2, radius: float32, time: float32, alpha: float32)`
 - `drawMiniCube(center: Vector2, size: float32, time: float32, skin: CubeSkinType)`
-- `drawPlayerShape(pos: Vector2f, radius: float32, shapeType: ShapeType, baseColor: Color, secondaryColor: Color, coreColor: Color, time: float32, rotation: float32, pulse: float32, glowIntensity: float32)`
-- `drawRogueliteClassCosmetic(pos: Vector2f, radius: float32, time: float32, kit: int, bodyColor: Color)`
-- `drawTopHat(pos: Vector2f, radius: float32, time: float32, alpha: float32, accent: Color)`
+- `drawPlayerShape(pos: Vector2, radius: float32, shapeType: ShapeType, baseColor: Color, secondaryColor: Color, coreColor: Color, time: float32, rotation: float32, pulse: float32, glowIntensity: float32)`
+- `drawRogueliteClassCosmetic(pos: Vector2, radius: float32, time: float32, kit: int, bodyColor: Color)`
+- `drawTopHat(pos: Vector2, radius: float32, time: float32, alpha: float32, accent: Color)`
 - `getShapeData(shapeType: ShapeType): ShapeData`
 - `initializeShapes()`
 
 ### `shooting`
 
-- **moddable** `fireDoubleShotBurst(game: Game, direction: Vector2f, hasMultiShot: bool)`
-- **moddable** `shootBullet(game: Game, direction: Vector2f)`
+- **moddable** `fireDoubleShotBurst(game: Game, direction: Vector2, hasMultiShot: bool)`
+- **moddable** `shootBullet(game: Game, direction: Vector2)`
 
 ### `shop_window`
 
@@ -2178,7 +2157,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `survival`
 
-- **moddable** `addSurvivalEnemy(game: Game, pos: Vector2f, enemyType: EnemyType, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool): Enemy` (wrap only: scripts cannot call it)
+- **moddable** `addSurvivalEnemy(game: Game, pos: Vector2, enemyType: EnemyType, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool): Enemy` (wrap only: scripts cannot call it)
 - **moddable** `canOpenSurvivalCache(game: Game): bool` (wrap only: scripts cannot call it)
 - **moddable** `cancelSurvivalEvent(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `drawSurvivalBannerGutter(game: Game, gutterX: int32, gutterW: int32, topY: int32): int32`
@@ -2192,17 +2171,17 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawSurvivalSpawnMarkers(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `drawSurvivalWorldOver(game: Game)`
 - **moddable** `drawSurvivalWorldUnder(game: Game)`
-- **moddable** `dropSurvivalCache(game: var Game, pos: Vector2f, tier: SurvivalCacheTier)` (wrap only: scripts cannot call it)
+- **moddable** `dropSurvivalCache(game: var Game, pos: Vector2, tier: SurvivalCacheTier)` (wrap only: scripts cannot call it)
 - **moddable** `formatSurvivalClock(seconds: float32): string`
-- **moddable** `newSurvivalEnemy(game: Game, pos: Vector2f, enemyType: EnemyType, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool): Enemy`
-- **moddable** `onSurvivalBossDefeated(game: var Game, bossPos: Vector2f): bool`
+- **moddable** `newSurvivalEnemy(game: Game, pos: Vector2, enemyType: EnemyType, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool): Enemy`
+- **moddable** `onSurvivalBossDefeated(game: var Game, bossPos: Vector2): bool`
 - **moddable** `onSurvivalEnemyKilled(game: var Game, enemy: Enemy)`
 - **moddable** `onSurvivalEventKill(game: var Game, enemy: Enemy)` (wrap only: scripts cannot call it)
-- **moddable** `openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2f): bool` (wrap only: scripts cannot call it)
+- **moddable** `openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2): bool` (wrap only: scripts cannot call it)
 - **moddable** `pickFodderType(game: Game): EnemyType` (wrap only: scripts cannot call it)
 - **moddable** `prepareSurvivalBossArrival(game: var Game)`
 - **moddable** `queueRing(game: Game, count: int, radius: float32, delay: float32, tag: SurvivalTag, allowElite: bool): int` (wrap only: scripts cannot call it)
-- **moddable** `queueSurvivalSpawn(game: Game, pos: Vector2f, enemyType: EnemyType, delay: float32, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool, telegraph: bool): bool` (wrap only: scripts cannot call it)
+- **moddable** `queueSurvivalSpawn(game: Game, pos: Vector2, enemyType: EnemyType, delay: float32, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool, telegraph: bool): bool` (wrap only: scripts cannot call it)
 - **moddable** `reclaimSurvivalFodder(game: Game, keep: int)` (wrap only: scripts cannot call it)
 - **moddable** `setSurvivalBanner(game: Game, kind: SurvivalBannerKind, event: SurvivalEventKind, modKey: string)` (wrap only: scripts cannot call it)
 - **moddable** `startSurvivalEvent(game: var Game, kind: SurvivalEventKind, modKey: string)`
@@ -2290,10 +2269,10 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `collideThingBullets(game: Game)`
 - **moddable** `damageThing(game: Game, t: ModThing, amount: float32, source: string): float32`
 - **moddable** `drawThings(game: Game, layer: ThingLayer)`
-- **moddable** `hazardHits(t: ModThing, p: Vector2f, r: float32): bool` (wrap only: scripts cannot call it)
+- **moddable** `hazardHits(t: ModThing, p: Vector2, r: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `joinThing(game: Game, t: ModThing, callback: ScriptValue, owner: int): bool`
 - **moddable** `killThing(game: Game, t: ModThing)`
-- **moddable** `overlapsCircle(t: ModThing, p: Vector2f, r: float32): bool`
+- **moddable** `overlapsCircle(t: ModThing, p: Vector2, r: float32): bool`
 - **moddable** `removeThing(t: ModThing)`
 - **moddable** `sweepThings(game: Game)`
 - **moddable** `updateThings(game: Game, simDt: float32, effectiveDt: float32, grid: SpatialGrid, maxEnemyR: float32)`
@@ -2339,7 +2318,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `elementDamageType(elementType: ElementType): DamageType`
 - `freezeRunTime(game: Game)`
 - `getEffectiveSpeed(baseSpeed: float32, waveNumber: int): float32`
-- **moddable** `inPickupRange(pos: Vector2f, radius: float32, player: Player): bool`
+- **moddable** `inPickupRange(pos: Vector2, radius: float32, player: Player): bool`
 - `initSurvivalState(): SurvivalState`
 - `isOmegaBoss(id: int): bool`
 - `isWaveBossId(id: int): bool`
@@ -2351,12 +2330,12 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `newLaser(x: float32, y: float32, direction: int, length: float32, thickness: float32, damage: int, duration: float32, rotation: float32, enemyType: EnemyType, sourceEnemyId: int): Laser`
 - `newMeteorite(targetX: float32, targetY: float32, spawnX: float32, spawnY: float32, damage: int, warningTime: float32, sourceEnemyId: int): Meteorite`
 - `newSatelliteLaserWarning(satelliteX: float32, satelliteY: float32, targetX: float32, targetY: float32, duration: float32, sourceEnemyId: int): AttackWarning`
-- `orbitalSweepCenter(warning: AttackWarning): Vector2f`
-- `polylineLength(path: seq[Vector2f]): float32`
+- `orbitalSweepCenter(warning: AttackWarning): Vector2`
+- `polylineLength(path: seq[Vector2]): float32`
 - `restorePointsOffline(game: Game): bool`
 - `restorePointsShown(game: Game): bool`
 - `resumeRunTime(game: Game)`
-- `ricochetSweptPath(path: seq[Vector2f], frontDist: float32): seq[Vector2f]`
+- `ricochetSweptPath(path: seq[Vector2], frontDist: float32): seq[Vector2]`
 - `runElapsedTime(game: Game): float32`
 - `survivalBossBlockWave(bossNumber: int): int`
 - `survivalBossId(bossNumber: int): int`
@@ -2368,8 +2347,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `survivalPhase(game: Game): SurvivalPhase`
 - `survivalRogueTime(index: int): float32`
 - `teamFromInt(value: int): PvPTeam`
-- `wallContactNormal(wall: Wall, p: Vector2f): Vector2f`
-- `wallOverlapsCircle(wall: Wall, center: Vector2f, radius: float32): bool`
+- `wallContactNormal(wall: Wall, p: Vector2): Vector2`
+- `wallOverlapsCircle(wall: Wall, center: Vector2, radius: float32): bool`
 - `waveDensityRebate(waveNumber: int): float32`
 
 ### `ui_helpers`
@@ -2402,7 +2381,6 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `endKeepAlpha()`
 - **moddable** `endThemeLayer(began: bool)`
 - **moddable** `findTheme(id: string): UiTheme`
-- **moddable** `mixColor(a: Color, b: Color, t: float32): Color`
 - **moddable** `newTheme(id: string, shell: ShellStyle, surface: Color, raised: Color, text: Color, muted: Color, accent: Color, owner: int, name: string, nameEs: string, wallpaper: int): UiTheme`
 - `stockTheme(): UiTheme`
 - **moddable** `themeName(th: UiTheme): string`
@@ -2422,20 +2400,37 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - `brighten(color: Color, amount: float32): Color`
 - `brighten(color: Color, amount: int, alpha: int): Color`
+- `clamp01(v: float32): float32`
 - `clampByteF(value: float32): uint8`
 - `clampByte(value: int): uint8`
+- `clearOf(c: Color): Color`
 - `darken(color: Color, amount: int, alpha: int): Color`
+- `easeOutCubic(t: float32): float32`
 - `formatHealthDisplay(value: float32): string`
+- `fract01(v: float32): float32`
+- `hash01(seed: float32): float32`
+- `lerpRgb(c: Color, target: Color, t: float32): Color`
+- `rgba(r: int, g: int, b: int, a: float32): Color`
+- `rgba(r: int, g: int, b: int, a: int): Color`
+- `scaleAlpha(c: Color, k: float32): Color`
+- `smoothstep(e0: float32, e1: float32, x: float32): float32`
+- `smoothstep(t: float32): float32`
 - `versionAtLeast(have: string, want: string): bool`
 - `withAlpha(color: Color, alpha: float32): Color`
 - `withAlpha(color: Color, alpha: int): Color`
 - `withAlpha(color: Color, alpha: uint8): Color`
+- `wrapCoord(value: float32, limit: float32): float32`
+
+### `vec`
+
+- `vec2(x: float32, y: float32): Vector2`
+- `vec3(x: float32, y: float32, z: float32): Vector3`
 
 ### `wall`
 
-- **moddable** `checkPlayerWallCollision(playerPos: Vector2f, playerRadius: float32, wall: Wall): bool`
+- **moddable** `checkPlayerWallCollision(playerPos: Vector2, playerRadius: float32, wall: Wall): bool`
 - **moddable** `drawWall(wall: Wall, player: Player)`
-- **moddable** `isValidWallPlacement(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall], enemies: seq[Enemy], radius: float32, worldWidth: int32, worldHeight: int32): bool`
+- **moddable** `isValidWallPlacement(pos: Vector2, playerPos: Vector2, walls: seq[Wall], enemies: seq[Enemy], radius: float32, worldWidth: int32, worldHeight: int32): bool`
 - **moddable** `newWall(x: float32, y: float32, player: Player): Wall`
 - **moddable** `processPendingWallRespawns(pending: var seq[PendingWallRespawn], walls: var seq[Wall], enemies: seq[Enemy], player: Player, particlePool: ParticlePool, dt: float32)`
 - **moddable** `processWallTurret(wall: var Wall, enemies: seq[Enemy], bullets: var seq[Bullet], player: Player, particlePool: ParticlePool, dt: float32, screenWidth: int32, screenHeight: int32)`
@@ -2445,7 +2440,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `warnings`
 
 - **moddable** `addBossAttackWarningInto(warnings: var seq[AttackWarning], player: Player, enemy: Enemy, attack: BossAttack)`
-- **moddable** `computeRicochetPath(startPos: Vector2f, startDir: Vector2f, bounces: int, screenWidth: int32, screenHeight: int32): seq[Vector2f]` (wrap only: scripts cannot call it)
+- **moddable** `computeRicochetPath(startPos: Vector2, startDir: Vector2, bounces: int, screenWidth: int32, screenHeight: int32): seq[Vector2]` (wrap only: scripts cannot call it)
 - **moddable** `isJuggernautCharge(specialData: string): bool` (wrap only: scripts cannot call it)
 - **moddable** `spawnArcLatticeInto(warnings: var seq[AttackWarning], particlePool: ParticlePool, screenWidth: int32, screenHeight: int32, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
 - **moddable** `spawnChaosWeaveInto(warnings: var seq[AttackWarning], particlePool: ParticlePool, player: Player, screenWidth: int32, screenHeight: int32, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition)`
@@ -2878,7 +2873,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `rl.loadFont(fileName: string): Font`
 - `rl.loadFont(fileName: string, fontSize: int32, codepoints: openArray[int32]): Font`
 - `rl.loadFont(fileName: string, fontSize: int32, glyphCount: int32): Font`
-- `rl.loadImageAnimFromMemory(fileType: string, fileData: openArray[uint8], frames: openArray[int32]): Image`
+- `rl.loadImageAnimFromMemory(fileType: string, fileData: openArray[uint8], frames: var int32): Image`
 - `rl.loadImageAnim(fileName: string, frames: var int32): Image`
 - `rl.loadImageColors(image: Image): RArray[Color]`
 - `rl.loadImageFromMemory(fileType: string, fileData: openArray[uint8]): Image`

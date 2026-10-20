@@ -612,7 +612,7 @@ function engine.auras.auraWaveAlreadyHit(player, enemy, slot) end
 function engine.auras.auraWaveCatches(player, enemy, slot, frontRadius) end
 ---auraWaveFrontRadius(elapsed: float32, maxRadius: float32): float32
 function engine.auras.auraWaveFrontRadius(elapsed, maxRadius) end
----drawAuraEffect(pos: Vector2f, config: AuraConfig, time: float32, charge: float32, flash: float32)
+---drawAuraEffect(pos: Vector2, config: AuraConfig, time: float32, charge: float32, flash: float32)
 function engine.auras.drawAuraEffect(pos, config, time, charge, flash) end
 ---getAuraConfig(auraType: PowerUpType, level: int): AuraConfig
 function engine.auras.getAuraConfig(auraType, level) end
@@ -640,7 +640,7 @@ function engine.boss_3d.drawGravityWells(boss) end
 function engine.boss_3d.drawSatelliteHealthbars(boss, camera) end
 ---getBoss3D(bossId: int): Boss3D
 function engine.boss_3d.getBoss3D(bossId) end
----takeBossDamage(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3f]
+---takeBossDamage(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3]
 function engine.boss_3d.takeBossDamage(boss, projectile) end
 ---updateBoss(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D], arena: var Arena3D, dt: float32)
 function engine.boss_3d.updateBoss(boss, player, projectiles, arena, dt) end
@@ -696,9 +696,9 @@ function engine.boss_weakpoints.openBossSummonWindow(enemy) end
 function engine.boss_weakpoints.registerBossSatelliteDestroyed(enemy) end
 ---resetBossWeakPointForPhase(enemy: Enemy, spec: BossWeakPointDefinition, phaseIndex: int, delay: float32)
 function engine.boss_weakpoints.resetBossWeakPointForPhase(enemy, spec, phaseIndex, delay) end
----resolveBossWeakPointTargetHit(enemy: Enemy, bulletPos: Vector2f, bulletRadius: float32): BossWeakPointHitResult
+---resolveBossWeakPointTargetHit(enemy: Enemy, bulletPos: Vector2, bulletRadius: float32): BossWeakPointHitResult
 function engine.boss_weakpoints.resolveBossWeakPointTargetHit(enemy, bulletPos, bulletRadius) end
----updateBossWeakPoint(enemy: Enemy, spec: BossWeakPointDefinition, playerPos: Vector2f, screenWidth: int32, screenHeight: int32, dt: float32)
+---updateBossWeakPoint(enemy: Enemy, spec: BossWeakPointDefinition, playerPos: Vector2, screenWidth: int32, screenHeight: int32, dt: float32)
 function engine.boss_weakpoints.updateBossWeakPoint(enemy, spec, playerPos, screenWidth, screenHeight, dt) end
 
 engine.bosses = {}
@@ -754,13 +754,13 @@ function engine.bullet.createSplitBullets(game, sourceBullet, splitCount, damage
 function engine.bullet.drawBullet(bullet, hasOvercharge, hasBloodBullets, gameTime) end
 ---isOffScreen(bullet: Bullet, screenWidth: int32, screenHeight: int32): bool
 function engine.bullet.isOffScreen(bullet, screenWidth, screenHeight) end
----newBullet(x: float32, y: float32, direction: Vector2f, speed: float32, damage: float32, fromPlayer: bool, isHoming: bool, isPiercing: bool, isExplosive: bool, hasBounce: bool, canSplit: bool, slowAmount: float32, poisonDuration: float32, fireDuration: float32, windPushForce: float32, isPentagon: bool, isEcho: bool, isBossBullet: bool, isArcaneBullet: bool, sourceEnemyId: int, sourceEnemyType: EnemyType, isBonusFromMultiShot: bool, isBonusFromDoubleShot: bool, wasCrit: bool, isSpecialRound: bool, isFromWallTurret: bool, isFromRadialBurst: bool, isFromBulletSplit: bool, isRicochet: bool, isParried: bool, colorOverride: Color, bulletSkin: int, bulletId: int, parentBulletId: int, ownerPlayerIndex: int, bossBulletShape: int, bulletRadius: float32, bulletShape: int): Bullet
+---newBullet(x: float32, y: float32, direction: Vector2, speed: float32, damage: float32, fromPlayer: bool, isHoming: bool, isPiercing: bool, isExplosive: bool, hasBounce: bool, canSplit: bool, slowAmount: float32, poisonDuration: float32, fireDuration: float32, windPushForce: float32, isPentagon: bool, isEcho: bool, isBossBullet: bool, isArcaneBullet: bool, sourceEnemyId: int, sourceEnemyType: EnemyType, isBonusFromMultiShot: bool, isBonusFromDoubleShot: bool, wasCrit: bool, isSpecialRound: bool, isFromWallTurret: bool, isFromRadialBurst: bool, isFromBulletSplit: bool, isRicochet: bool, isParried: bool, colorOverride: Color, bulletSkin: int, bulletId: int, parentBulletId: int, ownerPlayerIndex: int, bossBulletShape: int, bulletRadius: float32, bulletShape: int): Bullet
 function engine.bullet.newBullet(x, y, direction, speed, damage, fromPlayer, isHoming, isPiercing, isExplosive, hasBounce, canSplit, slowAmount, poisonDuration, fireDuration, windPushForce, isPentagon, isEcho, isBossBullet, isArcaneBullet, sourceEnemyId, sourceEnemyType, isBonusFromMultiShot, isBonusFromDoubleShot, wasCrit, isSpecialRound, isFromWallTurret, isFromRadialBurst, isFromBulletSplit, isRicochet, isParried, colorOverride, bulletSkin, bulletId, parentBulletId, ownerPlayerIndex, bossBulletShape, bulletRadius, bulletShape) end
 ---updateBullet(bullet: Bullet, dt: float32): bool
 function engine.bullet.updateBullet(bullet, dt) end
 
 engine.bullet_shapes = {}
----drawPlayerBulletShape(pos: Vector2f, radius: float32, shape: BulletShapeType, travelAngle: float32, color: Color, glowColor: Color)
+---drawPlayerBulletShape(pos: Vector2, radius: float32, shape: BulletShapeType, travelAngle: float32, color: Color, glowColor: Color)
 function engine.bullet_shapes.drawPlayerBulletShape(pos, radius, shape, travelAngle, color, glowColor) end
 ---getBulletShapeData(s: BulletShapeType): BulletShapeData
 function engine.bullet_shapes.getBulletShapeData(s) end
@@ -794,13 +794,13 @@ function engine.bullets.drawShockwaveRings(game) end
 function engine.bullets.getBulletDamageType(bullet) end
 ---getExplosionRadius(level: int): float32
 function engine.bullets.getExplosionRadius(level) end
----spawnBossDeathBlast(game: var Game, pos: Vector2f, maxRadius: float32, sourceEnemyId: int, color: Color)
+---spawnBossDeathBlast(game: var Game, pos: Vector2, maxRadius: float32, sourceEnemyId: int, color: Color)
 function engine.bullets.spawnBossDeathBlast(game, pos, maxRadius, sourceEnemyId, color) end
----spawnLightningBolt(game: var Game, fromPos: Vector2f, toPos: Vector2f, color: Color)
+---spawnLightningBolt(game: var Game, fromPos: Vector2, toPos: Vector2, color: Color)
 function engine.bullets.spawnLightningBolt(game, fromPos, toPos, color) end
----spawnPathShockwave(game: var Game, points: seq[Vector2f], width: float32, color: Color)
+---spawnPathShockwave(game: var Game, points: seq[Vector2], width: float32, color: Color)
 function engine.bullets.spawnPathShockwave(game, points, width, color) end
----spawnShockwaveRing(game: var Game, pos: Vector2f, maxRadius: float32, color: Color)
+---spawnShockwaveRing(game: var Game, pos: Vector2, maxRadius: float32, color: Color)
 function engine.bullets.spawnShockwaveRing(game, pos, maxRadius, color) end
 ---updateBossDeathBlasts(game: var Game, dt: float32)
 function engine.bullets.updateBossDeathBlasts(game, dt) end
@@ -836,14 +836,8 @@ function engine.cheat.initCheatMenu() end
 function engine.cheat.updateCheatMenu(menu, game) end
 
 engine.cinematic_common = {}
----alphaByte(v: float32): uint8
-function engine.cinematic_common.alphaByte(v) end
 ---beginStoryCamera(focusX: float32, focusY: float32, screenX: float32, screenY: float32, scale: float32)
 function engine.cinematic_common.beginStoryCamera(focusX, focusY, screenX, screenY, scale) end
----clamp01(v: float32): float32
-function engine.cinematic_common.clamp01(v) end
----colorA(color: Color, alpha: float32): Color
-function engine.cinematic_common.colorA(color, alpha) end
 ---drawCenteredText(text: string, x: int32, y: int32, size: int32, color: Color)
 function engine.cinematic_common.drawCenteredText(text, x, y, size, color) end
 ---drawCinematicBoss(boss: Enemy, x: float32, y: float32, radius: float32, hpFraction: float32, phaseIndex: int)
@@ -852,19 +846,19 @@ function engine.cinematic_common.drawCinematicBoss(boss, x, y, radius, hpFractio
 function engine.cinematic_common.drawCinematicOverlay(screenWidth, screenHeight, time, frame, scanlineOffset, totalDuration, shotLabel, liveText, iconIndex, glitchHot, controls, accent) end
 ---drawCrashPanel(sw: int32, sh: int32, alpha: float32, time: float32)
 function engine.cinematic_common.drawCrashPanel(sw, sh, alpha, time) end
----drawEquippedBulletModel(pos: Vector2f, radius: float32, travelAngle: float32, time: float32, alpha: float32)
+---drawEquippedBulletModel(pos: Vector2, radius: float32, travelAngle: float32, time: float32, alpha: float32)
 function engine.cinematic_common.drawEquippedBulletModel(pos, radius, travelAngle, time, alpha) end
----drawEquippedPlayerModel(pos: Vector2f, radius: float32, time: float32, alpha: float32, glowBoost: float32)
+---drawEquippedPlayerModel(pos: Vector2, radius: float32, time: float32, alpha: float32, glowBoost: float32)
 function engine.cinematic_common.drawEquippedPlayerModel(pos, radius, time, alpha, glowBoost) end
 ---drawFootageFrame(sw: int32, sh: int32, scale: float32, alpha: float32)
 function engine.cinematic_common.drawFootageFrame(sw, sh, scale, alpha) end
 ---drawHalo(centerX: float32, centerY: float32, radius: float32, color: Color, intensity: float32)
 function engine.cinematic_common.drawHalo(centerX, centerY, radius, color, intensity) end
----drawKernelModel(pos: Vector2f, radius: float32, time: float32, boot: float32, alpha: float32, hat: bool)
+---drawKernelModel(pos: Vector2, radius: float32, time: float32, boot: float32, alpha: float32, hat: bool)
 function engine.cinematic_common.drawKernelModel(pos, radius, time, boot, alpha, hat) end
 ---drawOldText(text: string, x: int32, y: int32, size: int32, reveal: float32, local: float32, alpha: float32, color: Color, centered: bool, cursor: bool)
 function engine.cinematic_common.drawOldText(text, x, y, size, reveal, local_, alpha, color, centered, cursor) end
----drawRealEnemy(enemyType: EnemyType, x: float32, y: float32, radius: float32, time: float32, id: int, threat: int, vel: Vector2f)
+---drawRealEnemy(enemyType: EnemyType, x: float32, y: float32, radius: float32, time: float32, id: int, threat: int, vel: Vector2)
 function engine.cinematic_common.drawRealEnemy(enemyType, x, y, radius, time, id, threat, vel) end
 ---drawServiceWindow(x: float32, y: float32, w: float32, title: string, colService: string, colOwner: string, names: openArray[string], flipTimes: openArray[float32], local: float32, alpha: float32, fromOwner: string, toOwner: string, fromColor: Color, toColor: Color)
 function engine.cinematic_common.drawServiceWindow(x, y, w, title, colService, colOwner, names, flipTimes, local_, alpha, fromOwner, toOwner, fromColor, toColor) end
@@ -882,18 +876,8 @@ function engine.cinematic_common.drawSubtitlesFrom(lines, startAt, screenWidth, 
 function engine.cinematic_common.drawSubtitles(lines, screenWidth, screenHeight, alpha) end
 ---drawTapeChange(screenWidth: int32, screenHeight: int32, local: float32, frame: int, time: float32)
 function engine.cinematic_common.drawTapeChange(screenWidth, screenHeight, local_, frame, time) end
----easeInOut(t: float32): float32
-function engine.cinematic_common.easeInOut(t) end
----easeOut(t: float32): float32
-function engine.cinematic_common.easeOut(t) end
 ---endStoryCamera()
 function engine.cinematic_common.endStoryCamera() end
----fractCoord(value: float32): float32
-function engine.cinematic_common.fractCoord(value) end
----hash01(n: float32): float32
-function engine.cinematic_common.hash01(n) end
----lerpF(a: float32, b: float32, t: float32): float32
-function engine.cinematic_common.lerpF(a, b, t) end
 ---newCinematicBoss(bossId: int, screenWidth: int32, screenHeight: int32): Enemy
 function engine.cinematic_common.newCinematicBoss(bossId, screenWidth, screenHeight) end
 ---revealOver(local: float32, startAt: float32, dur: float32): float32
@@ -962,13 +946,13 @@ function engine.combat.flushAccumulatedDotDamage(game, enemy) end
 function engine.combat.rageDamageMultiplier(player) end
 ---setEnemyHp(enemy: Enemy, hp: float32)
 function engine.combat.setEnemyHp(enemy, hp) end
----shieldBlocksHit(game: Game, enemy: Enemy, hitFrom: Vector2f): bool
+---shieldBlocksHit(game: Game, enemy: Enemy, hitFrom: Vector2): bool
 function engine.combat.shieldBlocksHit(game, enemy, hitFrom) end
----showCurrency(game: Game, pos: Vector2f, amount: int, kind: CurrencyIndicatorKind)
+---showCurrency(game: Game, pos: Vector2, amount: int, kind: CurrencyIndicatorKind)
 function engine.combat.showCurrency(game, pos, amount, kind) end
----showDamage(game: Game, pos: Vector2f, damage: float32, fromPlayer: bool, isCritical: bool, damageType: DamageType)
+---showDamage(game: Game, pos: Vector2, damage: float32, fromPlayer: bool, isCritical: bool, damageType: DamageType)
 function engine.combat.showDamage(game, pos, damage, fromPlayer, isCritical, damageType) end
----showPerk(game: Game, pos: Vector2f, text: string, color: Color)
+---showPerk(game: Game, pos: Vector2, text: string, color: Color)
 function engine.combat.showPerk(game, pos, text, color) end
 ---showPlayerDamageTaken(game: Game, damageType: DamageType)
 function engine.combat.showPlayerDamageTaken(game, damageType) end
@@ -1058,7 +1042,7 @@ function engine.d_systems.calculateAccuracy(stats) end
 function engine.d_systems.checkPerfectWaveCombo(combo, waveEnemyCount) end
 ---getComboMultiplier(combo: ComboSystem): string
 function engine.d_systems.getComboMultiplier(combo) end
----getShakeOffset(shake: ScreenShake): Vector2f
+---getShakeOffset(shake: ScreenShake): Vector2
 function engine.d_systems.getShakeOffset(shake) end
 ---initEnhancedDopamine(dopamine: var DopamineState)
 function engine.d_systems.initEnhancedDopamine(dopamine) end
@@ -1282,7 +1266,7 @@ function engine.enemy.drawEnemy(enemy) end
 function engine.enemy.drawLaser(laser) end
 ---drawLegionTethers(boss: Enemy, enemies: seq[Enemy])
 function engine.enemy.drawLegionTethers(boss, enemies) end
----drawMeteorWarning(impact: Vector2f, source: Vector2f, radius: float32, baseCol: Color, progress: float32, blastRadius: float32)
+---drawMeteorWarning(impact: Vector2, source: Vector2, radius: float32, baseCol: Color, progress: float32, blastRadius: float32)
 function engine.enemy.drawMeteorWarning(impact, source, radius, baseCol, progress, blastRadius) end
 ---drawRicochetLaserBeam(warning: AttackWarning)
 function engine.enemy.drawRicochetLaserBeam(warning) end
@@ -1302,7 +1286,7 @@ function engine.enemy.spawnBossById(screenWidth, screenHeight, bossId, scalingWa
 function engine.enemy.spawnBoss(screenWidth, screenHeight, waveNumber) end
 ---updateEliteEffects(enemy: Enemy, dt: float32)
 function engine.enemy.updateEliteEffects(enemy, dt) end
----updateEnemy(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool
+---updateEnemy(enemy: var Enemy, playerPos: Vector2, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool
 function engine.enemy.updateEnemy(enemy, playerPos, dt, walls, currentTime, game) end
 
 engine.enemy_config = {}
@@ -1330,29 +1314,29 @@ function engine.enemy_config.resolveEnemyScriptName(s, et) end
 function engine.enemy_config.vanillaEnemyConfig(enemyType) end
 
 engine.enemy_helpers = {}
----applyEnemyInertia(enemy: var Enemy, desiredVel: Vector2f, dt: float32, acceleration: float32, braking: float32): Vector2f
+---applyEnemyInertia(enemy: var Enemy, desiredVel: Vector2, dt: float32, acceleration: float32, braking: float32): Vector2
 function engine.enemy_helpers.applyEnemyInertia(enemy, desiredVel, dt, acceleration, braking) end
----approachVelocity(current: Vector2f, target: Vector2f, acceleration: float32, dt: float32): Vector2f
+---approachVelocity(current: Vector2, target: Vector2, acceleration: float32, dt: float32): Vector2
 function engine.enemy_helpers.approachVelocity(current, target, acceleration, dt) end
----chasePlayer(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32): Vector2f
+---chasePlayer(enemy: Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32): Vector2
 function engine.enemy_helpers.chasePlayer(enemy, playerPos, dt, effectiveSpeed) end
----checkScreenBoundaryCollision(enemy: Enemy, nextPos: Vector2f, game: Game, config: EnemyConfig): bool
+---checkScreenBoundaryCollision(enemy: Enemy, nextPos: Vector2, game: Game, config: EnemyConfig): bool
 function engine.enemy_helpers.checkScreenBoundaryCollision(enemy, nextPos, game, config) end
 ---checkScreenEntry(enemy: var Enemy, game: Game)
 function engine.enemy_helpers.checkScreenEntry(enemy, game) end
----checkWallCollision(enemy: var Enemy, nextPos: Vector2f, walls: seq[Wall], currentTime: float32, game: var Game): bool
+---checkWallCollision(enemy: var Enemy, nextPos: Vector2, walls: seq[Wall], currentTime: float32, game: var Game): bool
 function engine.enemy_helpers.checkWallCollision(enemy, nextPos, walls, currentTime, game) end
----executeRangedAttack(enemy: var Enemy, playerPos: Vector2f, game: var Game)
+---executeRangedAttack(enemy: var Enemy, playerPos: Vector2, game: var Game)
 function engine.enemy_helpers.executeRangedAttack(enemy, playerPos, game) end
----forceScreenEntry(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, game: Game): Vector2f
+---forceScreenEntry(enemy: Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32, game: Game): Vector2
 function engine.enemy_helpers.forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game) end
 ---getSpecialFloat(data: Table[string, string], key: string, default: float32): float32
 function engine.enemy_helpers.getSpecialFloat(data, key, default) end
 ---getSpecialInt(data: Table[string, string], key: string, default: int): int
 function engine.enemy_helpers.getSpecialInt(data, key, default) end
----maintainOptimalDistance(enemy: Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, config: EnemyConfig): Vector2f
+---maintainOptimalDistance(enemy: Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32, config: EnemyConfig): Vector2
 function engine.enemy_helpers.maintainOptimalDistance(enemy, playerPos, dt, effectiveSpeed, config) end
----nextInertialEnemyPos(enemy: var Enemy, desiredNextPos: Vector2f, dt: float32): Vector2f
+---nextInertialEnemyPos(enemy: var Enemy, desiredNextPos: Vector2, dt: float32): Vector2
 function engine.enemy_helpers.nextInertialEnemyPos(enemy, desiredNextPos, dt) end
 ---parseSpecialData(data: string): Table[string, string]
 function engine.enemy_helpers.parseSpecialData(data) end
@@ -1362,14 +1346,8 @@ function engine.enemy_helpers.randomEdgeSpawnPos(screenWidth, screenHeight, marg
 engine.engine_3d = {}
 ---addShake(cam: var FPSCamera, intensity: float32)
 function engine.engine_3d.addShake(cam, intensity) end
----checkCollision(pos: Vector3f, radius: float32, platforms: seq[Platform3D]): (bool, Platform3D)
+---checkCollision(pos: Vector3, radius: float32, platforms: seq[Platform3D]): (bool, Platform3D)
 function engine.engine_3d.checkCollision(pos, radius, platforms) end
----cross(a: Vector3f, b: Vector3f): Vector3f
-function engine.engine_3d.cross(a, b) end
----distance(a: Vector3f, b: Vector3f): float32
-function engine.engine_3d.distance(a, b) end
----dot(a: Vector3f, b: Vector3f): float32
-function engine.engine_3d.dot(a, b) end
 ---drawArena(arena: Arena3D)
 function engine.engine_3d.drawArena(arena) end
 ---drawPlatform(platform: Platform3D)
@@ -1380,22 +1358,16 @@ function engine.engine_3d.drawProjectile(proj) end
 function engine.engine_3d.effectiveRadius(proj) end
 ---generateArena(theme: string, radius: float32): Arena3D
 function engine.engine_3d.generateArena(theme, radius) end
----getForward(cam: FPSCamera): Vector3f
+---getForward(cam: FPSCamera): Vector3
 function engine.engine_3d.getForward(cam) end
----getRight(cam: FPSCamera): Vector3f
+---getRight(cam: FPSCamera): Vector3
 function engine.engine_3d.getRight(cam) end
----initCamera3D(pos: Vector3f): FPSCamera
+---initCamera3D(pos: Vector3): FPSCamera
 function engine.engine_3d.initCamera3D(pos) end
----length(v: Vector3f): float32
-function engine.engine_3d.length(v) end
----normalize(v: Vector3f): Vector3f
-function engine.engine_3d.normalize(v) end
 ---updateCamera(cam: var FPSCamera, mouseDelta: Vector2, sensitivity: float32)
 function engine.engine_3d.updateCamera(cam, mouseDelta, sensitivity) end
 ---updatePlatforms(platforms: var seq[Platform3D], dt: float32)
 function engine.engine_3d.updatePlatforms(platforms, dt) end
----vec3(x: float32, y: float32, z: float32): Vector3f
-function engine.engine_3d.vec3(x, y, z) end
 
 engine.feedback = {}
 ---copyReport(kind: FeedbackKind, title: string, body: string, includeInfo: bool)
@@ -1432,13 +1404,13 @@ function engine.fx.drawLightningBolts(bolts) end
 function engine.fx.drawPathShockwaves(waves) end
 ---drawShockwaveRings(rings: seq[ShockwaveRing])
 function engine.fx.drawShockwaveRings(rings) end
----spawnBossDeathBlastInto(blasts: var seq[BossDeathBlast], pos: Vector2f, maxRadius: float32, sourceEnemyId: int, color: Color)
+---spawnBossDeathBlastInto(blasts: var seq[BossDeathBlast], pos: Vector2, maxRadius: float32, sourceEnemyId: int, color: Color)
 function engine.fx.spawnBossDeathBlastInto(blasts, pos, maxRadius, sourceEnemyId, color) end
----spawnLightningBoltInto(bolts: var seq[LightningBolt], fromPos: Vector2f, toPos: Vector2f, color: Color)
+---spawnLightningBoltInto(bolts: var seq[LightningBolt], fromPos: Vector2, toPos: Vector2, color: Color)
 function engine.fx.spawnLightningBoltInto(bolts, fromPos, toPos, color) end
----spawnPathShockwaveInto(waves: var seq[PathShockwave], points: seq[Vector2f], width: float32, color: Color)
+---spawnPathShockwaveInto(waves: var seq[PathShockwave], points: seq[Vector2], width: float32, color: Color)
 function engine.fx.spawnPathShockwaveInto(waves, points, width, color) end
----spawnShockwaveRingInto(rings: var seq[ShockwaveRing], pos: Vector2f, maxRadius: float32, color: Color)
+---spawnShockwaveRingInto(rings: var seq[ShockwaveRing], pos: Vector2, maxRadius: float32, color: Color)
 function engine.fx.spawnShockwaveRingInto(rings, pos, maxRadius, color) end
 ---updateLightningBolts(bolts: var seq[LightningBolt], dt: float32)
 function engine.fx.updateLightningBolts(bolts, dt) end
@@ -1498,13 +1470,13 @@ function engine.game_3d.initGame3D(opts, player2D) end
 function engine.game_3d.killEntity3D(world, e, credit) end
 ---newEntity3D(world: Game3D, tag: string): Entity3D
 function engine.game_3d.newEntity3D(world, tag) end
----newPickup3D(world: Game3D, pos: Vector3f, kind: string, value: float32): Pickup3D
+---newPickup3D(world: Game3D, pos: Vector3, kind: string, value: float32): Pickup3D
 function engine.game_3d.newPickup3D(world, pos, kind, value) end
----newProjectile3D(pos: Vector3f, vel: Vector3f, damage: float32, fromPlayer: bool): Projectile3D
+---newProjectile3D(pos: Vector3, vel: Vector3, damage: float32, fromPlayer: bool): Projectile3D
 function engine.game_3d.newProjectile3D(pos, vel, damage, fromPlayer) end
 ---processWorld3DActions(world: Game3D)
 function engine.game_3d.processWorld3DActions(world) end
----raycast3D(world: Game3D, origin: Vector3f, dir: Vector3f, maxDist: float32): RayHit3D
+---raycast3D(world: Game3D, origin: Vector3, dir: Vector3, maxDist: float32): RayHit3D
 function engine.game_3d.raycast3D(world, origin, dir, maxDist) end
 ---raylibCamera(camera: FPSCamera): Camera
 function engine.game_3d.raylibCamera(camera) end
@@ -1512,13 +1484,13 @@ function engine.game_3d.raylibCamera(camera) end
 function engine.game_3d.renderGame3D(world) end
 ---requestFinish3D(world: Game3D, result: World3DResult)
 function engine.game_3d.requestFinish3D(world, result) end
----spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3f, damage: float32, color: Color)
+---spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3, damage: float32, color: Color)
 function engine.game_3d.spawnDamageNumber3D(damageNumbers, pos, damage, color) end
 ---sweepDead(world: Game3D)
 function engine.game_3d.sweepDead(world) end
 ---updateGame3D(world: Game3D, dt: float32)
 function engine.game_3d.updateGame3D(world, dt) end
----worldToScreen3D(camera: FPSCamera, pos: Vector3f): tuple[x: float32, y: float32, visible: bool]
+---worldToScreen3D(camera: FPSCamera, pos: Vector3): tuple[x: float32, y: float32, visible: bool]
 function engine.game_3d.worldToScreen3D(camera, pos) end
 
 engine.gamemode_definitions = {}
@@ -1740,9 +1712,9 @@ function engine.mode_boss_attacks.retireModeBossHazards(game, boss) end
 engine.mode_enemies = {}
 ---isBallistic(enemy: Enemy): bool
 function engine.mode_enemies.isBallistic(enemy) end
----modeEnemyDamageTakenMult(enemy: Enemy, hitFrom: Vector2f): float32
+---modeEnemyDamageTakenMult(enemy: Enemy, hitFrom: Vector2): float32
 function engine.mode_enemies.modeEnemyDamageTakenMult(enemy, hitFrom) end
----updateModeEnemy(enemy: var Enemy, playerPos: Vector2f, dt: float32, effectiveSpeed: float32, walls: seq[Wall], currentTime: float32, game: var Game)
+---updateModeEnemy(enemy: var Enemy, playerPos: Vector2, dt: float32, effectiveSpeed: float32, walls: seq[Wall], currentTime: float32, game: var Game)
 function engine.mode_enemies.updateModeEnemy(enemy, playerPos, dt, effectiveSpeed, walls, currentTime, game) end
 
 engine.mode_hazards = {}
@@ -1750,21 +1722,21 @@ engine.mode_hazards = {}
 function engine.mode_hazards.echoCapacity() end
 ---lkgDoorRect(door: int, screenW: float32, screenH: float32): tuple[x: float32, y: float32, w: float32, h: float32]
 function engine.mode_hazards.lkgDoorRect(door, screenW, screenH) end
----lkgInDoor(door: int, p: Vector2f, screenW: float32, screenH: float32): bool
+---lkgInDoor(door: int, p: Vector2, screenW: float32, screenH: float32): bool
 function engine.mode_hazards.lkgInDoor(door, p, screenW, screenH) end
 ---lkgPurgeRadius(w: AttackWarning): float32
 function engine.mode_hazards.lkgPurgeRadius(w) end
 ---packetLinkLength(w: AttackWarning): float32
 function engine.mode_hazards.packetLinkLength(w) end
----packetTrain(w: AttackWarning): tuple[live: bool, tail: Vector2f, head: Vector2f]
+---packetTrain(w: AttackWarning): tuple[live: bool, tail: Vector2, head: Vector2]
 function engine.mode_hazards.packetTrain(w) end
----pointSegmentDistance(p: Vector2f, a: Vector2f, b: Vector2f): float32
+---pointSegmentDistance(p: Vector2, a: Vector2, b: Vector2): float32
 function engine.mode_hazards.pointSegmentDistance(p, a, b) end
----portGuardBlocks(enemy: Enemy, hitFrom: Vector2f): bool
+---portGuardBlocks(enemy: Enemy, hitFrom: Vector2): bool
 function engine.mode_hazards.portGuardBlocks(enemy, hitFrom) end
----rayWallDistance(origin: Vector2f, dir: Vector2f, maxLen: float32, walls: seq[Wall]): float32
+---rayWallDistance(origin: Vector2, dir: Vector2, maxLen: float32, walls: seq[Wall]): float32
 function engine.mode_hazards.rayWallDistance(origin, dir, maxLen, walls) end
----safeModeBubble(w: AttackWarning): tuple[center: Vector2f, radius: float32]
+---safeModeBubble(w: AttackWarning): tuple[center: Vector2, radius: float32]
 function engine.mode_hazards.safeModeBubble(w) end
 ---safeModeFlooding(w: AttackWarning): bool
 function engine.mode_hazards.safeModeFlooding(w) end
@@ -1792,7 +1764,7 @@ engine.mode_mechanics = {}
 function engine.mode_mechanics.onModeEnemyKilled(game, enemy) end
 ---pageInQuietly(game: var Game, w: AttackWarning)
 function engine.mode_mechanics.pageInQuietly(game, w) end
----recordPlayerEcho(game: var Game, aimDir: Vector2f, firing: bool, dt: float32)
+---recordPlayerEcho(game: var Game, aimDir: Vector2, firing: bool, dt: float32)
 function engine.mode_mechanics.recordPlayerEcho(game, aimDir, firing, dt) end
 ---resetModeCombat(game: var Game)
 function engine.mode_mechanics.resetModeCombat(game) end
@@ -1846,7 +1818,7 @@ function engine.os_background.getBossArenaCombatBonus(bg) end
 function engine.os_background.newOSBackground() end
 ---spawnWavePulse(bg: var OSBackgroundState, cx: float32, cy: float32, color: Color)
 function engine.os_background.spawnWavePulse(bg, cx, cy, color) end
----updateBossArenaField(bg: var OSBackgroundState, dt: float32, playerPos: Vector2f, playerRadius: float32, screenWidth: int32, screenHeight: int32, bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32]
+---updateBossArenaField(bg: var OSBackgroundState, dt: float32, playerPos: Vector2, playerRadius: float32, screenWidth: int32, screenHeight: int32, bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32]
 function engine.os_background.updateBossArenaField(bg, dt, playerPos, playerRadius, screenWidth, screenHeight, bossActive, currentWave) end
 ---updateOSBackground(bg: var OSBackgroundState, dt: float32, playerHP: float32, maxHP: float32, bossActive: bool, screenWidth: int32, screenHeight: int32)
 function engine.os_background.updateOSBackground(bg, dt, playerHP, maxHP, bossActive, screenWidth, screenHeight) end
@@ -2093,18 +2065,8 @@ function engine.particle_skins.getParticleSkinColors(skinType, time) end
 function engine.particle_skins.getParticleSkinData(skinType) end
 ---initializeParticleSkins()
 function engine.particle_skins.initializeParticleSkins() end
----spawnShootingParticles(pool: ParticlePool, x: float32, y: float32, direction: Vector2f, skinType: ParticleSkinType, time: float32)
+---spawnShootingParticles(pool: ParticlePool, x: float32, y: float32, direction: Vector2, skinType: ParticleSkinType, time: float32)
 function engine.particle_skins.spawnShootingParticles(pool, x, y, direction, skinType, time) end
-
-engine.particle_types = {}
----distance(a: Vector2f, b: Vector2f): float32
-function engine.particle_types.distance(a, b) end
----length(v: Vector2f): float32
-function engine.particle_types.length(v) end
----newVector2f(x: float32, y: float32): Vector2f
-function engine.particle_types.newVector2f(x, y) end
----normalize(v: Vector2f): Vector2f
-function engine.particle_types.normalize(v) end
 
 engine.patches = {}
 ---hasPatch(player: Player, p: RogueliteRelicType): bool
@@ -2141,7 +2103,7 @@ engine.pickup = {}
 function engine.pickup.clampLootPosition(x, y, screenWidth, screenHeight) end
 ---magnetPullsAll(player: Player): bool
 function engine.pickup.magnetPullsAll(player) end
----pullTowardPlayer(pos: var Vector2f, playerPos: Vector2f, dt: float32)
+---pullTowardPlayer(pos: var Vector2, playerPos: Vector2, dt: float32)
 function engine.pickup.pullTowardPlayer(pos, playerPos, dt) end
 
 engine.player = {}
@@ -2165,7 +2127,7 @@ function engine.player.updatePlayer(player, dt, screenWidth, screenHeight, walls
 engine.player_3d = {}
 ---fireWeapon(player: var Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool
 function engine.player_3d.fireWeapon(player, camera, projectiles) end
----newPlayer3D(startPos: Vector3f, health2D: float32): Player3D
+---newPlayer3D(startPos: Vector3, health2D: float32): Player3D
 function engine.player_3d.newPlayer3D(startPos, health2D) end
 ---reload(player: var Player3D)
 function engine.player_3d.reload(player) end
@@ -2301,9 +2263,9 @@ function engine.pvp_game.modKill(pvp, victim, killer) end
 function engine.pvp_game.modParticles(pvp, x, y, color, count) end
 ---modRequest(pvp: PvPGameState, name: string, data: string): bool
 function engine.pvp_game.modRequest(pvp, name, data) end
----modSpawnBullet(pvp: PvPGameState, owner: int, pos: Vector2f, vel: Vector2f, damage: float32, radius: float32, life: float32, color: Color, kind: string, pierce: int): Bullet
+---modSpawnBullet(pvp: PvPGameState, owner: int, pos: Vector2, vel: Vector2, damage: float32, radius: float32, life: float32, color: Color, kind: string, pierce: int): Bullet
 function engine.pvp_game.modSpawnBullet(pvp, owner, pos, vel, damage, radius, life, color, kind, pierce) end
----modTeleport(pvp: PvPGameState, idx: int, pos: Vector2f)
+---modTeleport(pvp: PvPGameState, idx: int, pos: Vector2)
 function engine.pvp_game.modTeleport(pvp, idx, pos) end
 ---modToast(pvp: PvPGameState, text: string, color: Color)
 function engine.pvp_game.modToast(pvp, text, color) end
@@ -2575,7 +2537,7 @@ function engine.run_statistics.initializeRunTracking(game) end
 function engine.run_statistics.loadLastCompletedRun(loadedStats) end
 ---recordDamageDealt(damage: float32)
 function engine.run_statistics.recordDamageDealt(damage) end
----recordKill(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2f)
+---recordKill(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2)
 function engine.run_statistics.recordKill(enemyType, isElite, isBoss, gameTime, pos) end
 ---recordRerollSpent(amount: int)
 function engine.run_statistics.recordRerollSpent(amount) end
@@ -2627,7 +2589,7 @@ function engine.run_statistics.trackTimeWarp(game, duration) end
 function engine.run_statistics.trackWallDamaged(game) end
 ---trackWallDestruction(game: Game, damageBlocked: float32)
 function engine.run_statistics.trackWallDestruction(game, damageBlocked) end
----trackWallPlacement(game: Game, pos: Vector2f)
+---trackWallPlacement(game: Game, pos: Vector2)
 function engine.run_statistics.trackWallPlacement(game, pos) end
 ---trackWaveCompletion(game: Game, waveNumber: int, waveTime: float32)
 function engine.run_statistics.trackWaveCompletion(game, waveNumber, waveTime) end
@@ -2729,15 +2691,15 @@ function engine.settings_window.updateSettingsWindow(settingsWin, dt, screenWidt
 function engine.settings_window.wantsTextInput(settingsWin) end
 
 engine.shapes = {}
----drawCheaterHat(pos: Vector2f, radius: float32, time: float32, alpha: float32)
+---drawCheaterHat(pos: Vector2, radius: float32, time: float32, alpha: float32)
 function engine.shapes.drawCheaterHat(pos, radius, time, alpha) end
 ---drawMiniCube(center: Vector2, size: float32, time: float32, skin: CubeSkinType)
 function engine.shapes.drawMiniCube(center, size, time, skin) end
----drawPlayerShape(pos: Vector2f, radius: float32, shapeType: ShapeType, baseColor: Color, secondaryColor: Color, coreColor: Color, time: float32, rotation: float32, pulse: float32, glowIntensity: float32)
+---drawPlayerShape(pos: Vector2, radius: float32, shapeType: ShapeType, baseColor: Color, secondaryColor: Color, coreColor: Color, time: float32, rotation: float32, pulse: float32, glowIntensity: float32)
 function engine.shapes.drawPlayerShape(pos, radius, shapeType, baseColor, secondaryColor, coreColor, time, rotation, pulse, glowIntensity) end
----drawRogueliteClassCosmetic(pos: Vector2f, radius: float32, time: float32, kit: int, bodyColor: Color)
+---drawRogueliteClassCosmetic(pos: Vector2, radius: float32, time: float32, kit: int, bodyColor: Color)
 function engine.shapes.drawRogueliteClassCosmetic(pos, radius, time, kit, bodyColor) end
----drawTopHat(pos: Vector2f, radius: float32, time: float32, alpha: float32, accent: Color)
+---drawTopHat(pos: Vector2, radius: float32, time: float32, alpha: float32, accent: Color)
 function engine.shapes.drawTopHat(pos, radius, time, alpha, accent) end
 ---getShapeData(shapeType: ShapeType): ShapeData
 function engine.shapes.getShapeData(shapeType) end
@@ -2745,9 +2707,9 @@ function engine.shapes.getShapeData(shapeType) end
 function engine.shapes.initializeShapes() end
 
 engine.shooting = {}
----fireDoubleShotBurst(game: Game, direction: Vector2f, hasMultiShot: bool)
+---fireDoubleShotBurst(game: Game, direction: Vector2, hasMultiShot: bool)
 function engine.shooting.fireDoubleShotBurst(game, direction, hasMultiShot) end
----shootBullet(game: Game, direction: Vector2f)
+---shootBullet(game: Game, direction: Vector2)
 function engine.shooting.shootBullet(game, direction) end
 
 engine.shop_window = {}
@@ -2865,9 +2827,9 @@ function engine.survival.drawSurvivalWorldOver(game) end
 function engine.survival.drawSurvivalWorldUnder(game) end
 ---formatSurvivalClock(seconds: float32): string
 function engine.survival.formatSurvivalClock(seconds) end
----newSurvivalEnemy(game: Game, pos: Vector2f, enemyType: EnemyType, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool): Enemy
+---newSurvivalEnemy(game: Game, pos: Vector2, enemyType: EnemyType, tag: SurvivalTag, hpMult: float32, speedMult: float32, allowElite: bool): Enemy
 function engine.survival.newSurvivalEnemy(game, pos, enemyType, tag, hpMult, speedMult, allowElite) end
----onSurvivalBossDefeated(game: var Game, bossPos: Vector2f): bool
+---onSurvivalBossDefeated(game: var Game, bossPos: Vector2): bool
 function engine.survival.onSurvivalBossDefeated(game, bossPos) end
 ---onSurvivalEnemyKilled(game: var Game, enemy: Enemy)
 function engine.survival.onSurvivalEnemyKilled(game, enemy) end
@@ -2975,7 +2937,7 @@ function engine.things.drawThings(game, layer) end
 function engine.things.joinThing(game, t, callback, owner) end
 ---killThing(game: Game, t: ModThing)
 function engine.things.killThing(game, t) end
----overlapsCircle(t: ModThing, p: Vector2f, r: float32): bool
+---overlapsCircle(t: ModThing, p: Vector2, r: float32): bool
 function engine.things.overlapsCircle(t, p, r) end
 ---removeThing(t: ModThing)
 function engine.things.removeThing(t) end
@@ -3055,7 +3017,7 @@ function engine.types.elementDamageType(elementType) end
 function engine.types.freezeRunTime(game) end
 ---getEffectiveSpeed(baseSpeed: float32, waveNumber: int): float32
 function engine.types.getEffectiveSpeed(baseSpeed, waveNumber) end
----inPickupRange(pos: Vector2f, radius: float32, player: Player): bool
+---inPickupRange(pos: Vector2, radius: float32, player: Player): bool
 function engine.types.inPickupRange(pos, radius, player) end
 ---initSurvivalState(): SurvivalState
 function engine.types.initSurvivalState() end
@@ -3079,9 +3041,9 @@ function engine.types.newLaser(x, y, direction, length, thickness, damage, durat
 function engine.types.newMeteorite(targetX, targetY, spawnX, spawnY, damage, warningTime, sourceEnemyId) end
 ---newSatelliteLaserWarning(satelliteX: float32, satelliteY: float32, targetX: float32, targetY: float32, duration: float32, sourceEnemyId: int): AttackWarning
 function engine.types.newSatelliteLaserWarning(satelliteX, satelliteY, targetX, targetY, duration, sourceEnemyId) end
----orbitalSweepCenter(warning: AttackWarning): Vector2f
+---orbitalSweepCenter(warning: AttackWarning): Vector2
 function engine.types.orbitalSweepCenter(warning) end
----polylineLength(path: seq[Vector2f]): float32
+---polylineLength(path: seq[Vector2]): float32
 function engine.types.polylineLength(path) end
 ---restorePointsOffline(game: Game): bool
 function engine.types.restorePointsOffline(game) end
@@ -3089,7 +3051,7 @@ function engine.types.restorePointsOffline(game) end
 function engine.types.restorePointsShown(game) end
 ---resumeRunTime(game: Game)
 function engine.types.resumeRunTime(game) end
----ricochetSweptPath(path: seq[Vector2f], frontDist: float32): seq[Vector2f]
+---ricochetSweptPath(path: seq[Vector2], frontDist: float32): seq[Vector2]
 function engine.types.ricochetSweptPath(path, frontDist) end
 ---runElapsedTime(game: Game): float32
 function engine.types.runElapsedTime(game) end
@@ -3113,9 +3075,9 @@ function engine.types.survivalPhase(game) end
 function engine.types.survivalRogueTime(index) end
 ---teamFromInt(value: int): PvPTeam
 function engine.types.teamFromInt(value) end
----wallContactNormal(wall: Wall, p: Vector2f): Vector2f
+---wallContactNormal(wall: Wall, p: Vector2): Vector2
 function engine.types.wallContactNormal(wall, p) end
----wallOverlapsCircle(wall: Wall, center: Vector2f, radius: float32): bool
+---wallOverlapsCircle(wall: Wall, center: Vector2, radius: float32): bool
 function engine.types.wallOverlapsCircle(wall, center, radius) end
 ---waveDensityRebate(waveNumber: int): float32
 function engine.types.waveDensityRebate(waveNumber) end
@@ -3171,8 +3133,6 @@ function engine.ui_theme.endKeepAlpha() end
 function engine.ui_theme.endThemeLayer(began) end
 ---findTheme(id: string): UiTheme
 function engine.ui_theme.findTheme(id) end
----mixColor(a: Color, b: Color, t: float32): Color
-function engine.ui_theme.mixColor(a, b, t) end
 ---newTheme(id: string, shell: ShellStyle, surface: Color, raised: Color, text: Color, muted: Color, accent: Color, owner: int, name: string, nameEs: string, wallpaper: int): UiTheme
 function engine.ui_theme.newTheme(id, shell, surface, raised, text, muted, accent, owner, name, nameEs, wallpaper) end
 ---stockTheme(): UiTheme
@@ -3200,27 +3160,55 @@ engine.utils = {}
 ---brighten(color: Color, amount: float32): Color
 function engine.utils.brighten(color, amount) end
 ---@overload fun(color, amount, alpha)
+---clamp01(v: float32): float32
+function engine.utils.clamp01(v) end
 ---clampByteF(value: float32): uint8
 function engine.utils.clampByteF(value) end
 ---clampByte(value: int): uint8
 function engine.utils.clampByte(value) end
+---clearOf(c: Color): Color
+function engine.utils.clearOf(c) end
 ---darken(color: Color, amount: int, alpha: int): Color
 function engine.utils.darken(color, amount, alpha) end
+---easeOutCubic(t: float32): float32
+function engine.utils.easeOutCubic(t) end
 ---formatHealthDisplay(value: float32): string
 function engine.utils.formatHealthDisplay(value) end
+---fract01(v: float32): float32
+function engine.utils.fract01(v) end
+---hash01(seed: float32): float32
+function engine.utils.hash01(seed) end
+---lerpRgb(c: Color, target: Color, t: float32): Color
+function engine.utils.lerpRgb(c, target, t) end
+---rgba(r: int, g: int, b: int, a: float32): Color
+function engine.utils.rgba(r, g, b, a) end
+---@overload fun(r, g, b, a)
+---scaleAlpha(c: Color, k: float32): Color
+function engine.utils.scaleAlpha(c, k) end
+---smoothstep(e0: float32, e1: float32, x: float32): float32
+function engine.utils.smoothstep(e0, e1, x) end
+---@overload fun(t)
 ---versionAtLeast(have: string, want: string): bool
 function engine.utils.versionAtLeast(have, want) end
 ---withAlpha(color: Color, alpha: float32): Color
 function engine.utils.withAlpha(color, alpha) end
 ---@overload fun(color, alpha)
 ---@overload fun(color, alpha)
+---wrapCoord(value: float32, limit: float32): float32
+function engine.utils.wrapCoord(value, limit) end
+
+engine.vec = {}
+---vec2(x: float32, y: float32): Vector2
+function engine.vec.vec2(x, y) end
+---vec3(x: float32, y: float32, z: float32): Vector3
+function engine.vec.vec3(x, y, z) end
 
 engine.wall = {}
----checkPlayerWallCollision(playerPos: Vector2f, playerRadius: float32, wall: Wall): bool
+---checkPlayerWallCollision(playerPos: Vector2, playerRadius: float32, wall: Wall): bool
 function engine.wall.checkPlayerWallCollision(playerPos, playerRadius, wall) end
 ---drawWall(wall: Wall, player: Player)
 function engine.wall.drawWall(wall, player) end
----isValidWallPlacement(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall], enemies: seq[Enemy], radius: float32, worldWidth: int32, worldHeight: int32): bool
+---isValidWallPlacement(pos: Vector2, playerPos: Vector2, walls: seq[Wall], enemies: seq[Enemy], radius: float32, worldWidth: int32, worldHeight: int32): bool
 function engine.wall.isValidWallPlacement(pos, playerPos, walls, enemies, radius, worldWidth, worldHeight) end
 ---newWall(x: float32, y: float32, player: Player): Wall
 function engine.wall.newWall(x, y, player) end
@@ -3485,7 +3473,6 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "cheat.updateCheatMenu"
 ---| "cinematic_common.beginStoryCamera"
 ---| "cinematic_common.cinematicEnemy"
----| "cinematic_common.clamp01"
 ---| "cinematic_common.drawCenteredText"
 ---| "cinematic_common.drawCinematicBoss"
 ---| "cinematic_common.drawCinematicOverlay"
@@ -3506,15 +3493,11 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "cinematic_common.drawSubtitlesFrom"
 ---| "cinematic_common.drawSubtitles"
 ---| "cinematic_common.drawTapeChange"
----| "cinematic_common.easeInOut"
----| "cinematic_common.easeOut"
 ---| "cinematic_common.endStoryCamera"
 ---| "cinematic_common.equippedBulletShape"
 ---| "cinematic_common.equippedBulletSkin"
 ---| "cinematic_common.equippedShape"
 ---| "cinematic_common.equippedSkin"
----| "cinematic_common.fractCoord"
----| "cinematic_common.hash01"
 ---| "cinematic_common.newCinematicBoss"
 ---| "cinematic_common.revealOver"
 ---| "cinematic_common.serviceWindowHeight"
@@ -3742,9 +3725,6 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "enemy_helpers.randomEdgeSpawnPos"
 ---| "engine_3d.addShake"
 ---| "engine_3d.checkCollision"
----| "engine_3d.cross"
----| "engine_3d.distance"
----| "engine_3d.dot"
 ---| "engine_3d.drawArena"
 ---| "engine_3d.drawPlatform"
 ---| "engine_3d.drawProjectile"
@@ -3753,11 +3733,8 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "engine_3d.getForward"
 ---| "engine_3d.getRight"
 ---| "engine_3d.initCamera3D"
----| "engine_3d.length"
----| "engine_3d.normalize"
 ---| "engine_3d.updateCamera"
 ---| "engine_3d.updatePlatforms"
----| "engine_3d.vec3"
 ---| "feedback_window.drawFeedbackWindow"
 ---| "feedback_window.newFeedbackWindow"
 ---| "feedback_window.resetFeedbackView"
@@ -4602,7 +4579,6 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "ui_theme.endKeepAlpha"
 ---| "ui_theme.endThemeLayer"
 ---| "ui_theme.findTheme"
----| "ui_theme.mixColor"
 ---| "ui_theme.newTheme"
 ---| "ui_theme.themeName"
 ---| "ui_theme.themeUnlocked"
@@ -5308,7 +5284,7 @@ function rl.loadFontFromImage(image, key, firstChar) end
 function rl.loadFontFromMemory(fileType, fileData, fontSize, codepoints) end
 ---loadFont(fileName: string): Font
 function rl.loadFont(fileName) end
----loadImageAnimFromMemory(fileType: string, fileData: openArray[uint8], frames: openArray[int32]): Image
+---loadImageAnimFromMemory(fileType: string, fileData: openArray[uint8], frames: var int32): Image
 function rl.loadImageAnimFromMemory(fileType, fileData, frames) end
 ---loadImageAnim(fileName: string, frames: var int32): Image
 function rl.loadImageAnim(fileName, frames) end
