@@ -122,7 +122,9 @@ compiled into the game) and can:
 - add screens of their own, new languages, and their own apps to MODS.exe
 
 Mods are trusted programs: they get the whole Lua standard library and every part of the
-game, like any program you install, so only install mods from people you trust. The mods in
+game, like any program you install, so only install mods from people you trust. Their files
+are kept to their own folders: a mod reads its folder and its data folder in your profile,
+and writes only the data folder. The mods in
 MODS.exe's **Marketplace** come from the
 [official registry](https://github.com/Paycei/TopHat-Shooter-ModRoot): each was reviewed
 before it was listed, and what installs is exactly the reviewed commit. To publish yours, put

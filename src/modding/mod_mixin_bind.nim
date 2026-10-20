@@ -91,11 +91,31 @@ proc nativeParams(): array[4, NimNode] =
    newIdentDefs(ident"sargs", nnkBracketExpr.newTree(ident"openArray", bindSym"ScriptValue")),
    newIdentDefs(ident"ret", nnkVarTy.newTree(bindSym"RetVals"))]
 
+const TextOnlyPaths = ["ui_helpers.fitPathTail"]
+  ## procs whose path parameter is only text (never opened)
+
+proc isPathParam(p: ParamInfo): bool =
+  ## A string parameter that names a file or folder (raylib's fileName,
+  ## vsFileName...; the game's path, dir, file...).
+  if p.isVar or p.isOpen or p.typ.kind != nnkSym or $p.typ != "string": return false
+  let n = p.name.toLowerAscii
+  n in ["path", "dir", "file", "folder", "dest", "destdir"] or
+    n.endsWith("filename") or n.endsWith("filepath") or n.endsWith("dirpath")
+
+proc writesFiles(name: string): bool =
+  ## Whether a proc's path arguments are written to (by its name, after the
+  ## module's): those may only point into the mod's mod.dataDir().
+  let n = name[name.rfind('.') + 1 .. ^1].toLowerAscii
+  for verb in ["save", "export", "write", "delete", "remove", "make", "create", "rename",
+               "move", "copy", "take", "dump", "extract", "install", "forget"]:
+    if n.startsWith(verb): return true
+
 proc callNative(params: seq[ParamInfo], ret: NimNode, required: int, name: string,
                 target: NimNode): NimNode =
   ## The native engine.call runs: `target` (a proc, or a symbol of one) with
   ## a script's arguments, the missing trailing ones left to their defaults.
   ## `out` parameters take no argument: they come back after the result.
+  ## Path arguments go through the mod file sandbox (gatedPath).
   var scriptIdx: seq[int]   # per parameter: the script argument it reads (-1: an out one)
   var n = 0
   var required = required
@@ -136,6 +156,10 @@ proc callNative(params: seq[ParamInfo], ret: NimNode, required: int, name: strin
       callBody.add newIfStmt((infix(newDotExpr(sargs, ident"len"), ">", newLit(si)),
         newAssignment(pv, newCall(bindSym"mixTake", vmP, newCall(bindSym"arg", sargs, newLit(si)),
                                   newNilLit(), newLit(si), t, newLit(p.isVar), path))))
+      if isPathParam(p) and name notin TextOnlyPaths:
+        callBody.add newIfStmt((infix(newDotExpr(sargs, ident"len"), ">", newLit(si)),
+          newAssignment(nnkBracketExpr.newTree(pv), newCall(bindSym"gatedPath", vmP,
+            nnkBracketExpr.newTree(pv), newLit(writesFiles(name)), path))))
       argExprs.add (if p.isSink: newCall(ident"move", nnkBracketExpr.newTree(pv))
                     else: nnkBracketExpr.newTree(pv))
   var outVals: seq[NimNode]   # `out` parameters come back after the result

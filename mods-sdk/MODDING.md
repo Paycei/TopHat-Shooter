@@ -15,8 +15,10 @@ level-ups, enemy AI, boss attacks...), its own HUD, first-person 3D worlds,
 PvP modes, textures, videos and 3D models, music, fonts, shaders, and apps of
 its own on the desktop.
 
-> **Mods are trusted.** A mod runs with full access to the game and to your
-> files, like any program you install. Mods in MODS.EXE's **Marketplace** (the
+> **Mods are trusted.** A mod runs with full access to the game, like any
+> program you install. Its files are the exception: a mod reads only its own
+> folder and its data folder, and writes only its data folder (see
+> [Files](#files)). Mods in MODS.EXE's **Marketplace** (the
 > official registry, see [Publishing your mod](#publishing-your-mod)) are
 > reviewed and approved before they are listed; install mods from anywhere
 > else only if you trust who made them.
@@ -100,14 +102,9 @@ Every standard library is there: `string`, `table`, `math`, `utf8`,
 and `warn` write to the Console's log. A few things differ from a stand-alone Lua,
 because this one lives inside a game:
 
-* Relative paths mean your mod's folder: `io.open("data/notes.txt")`,
-  `io.lines`, `io.input`/`io.output`, `loadfile`, `dofile`, `os.remove` and
-  `os.rename` all start there. Absolute paths go anywhere. `mod.dir` is your
-  folder and `mod.path("x")` the absolute path of a relative one.
-* Write your own files into `mod.dataDir()`, a folder of yours in the
-  player's profile. Files written into your mod folder change the mod's
-  fingerprint, which moves its saved runs to a new slot (and PvP only matches
-  players whose mods are identical).
+* Files stay in your mod's own folders (see [Files](#files)): relative paths
+  mean your mod's folder, which is read-only, and `mod.dataDir()` is the one
+  place you can write.
 * `load`, `loadfile` and `dofile` give the code they load your mod's globals
   unless you pass another environment. A chunk may be source or bytecode
   (`string.dump`, `luac` 5.5).
@@ -152,6 +149,30 @@ sees it.
 Lua 5.5 prints whole floats with a decimal point (`10 / 2` is `5.0`); use
 `//`, `math.floor` or `math.round` for whole numbers, or `%d` in
 `string.format`.
+
+### Files
+
+A mod's files live in two folders of its own, and nowhere else:
+
+* **Its folder** (`mod.dir`), read-only. Relative paths start here:
+  `io.open("data/notes.txt")`, `io.lines`, `io.input`, `loadfile`, `dofile`,
+  `require`, `assets.*` and the file arguments of `rl.*` (`rl.loadTexture`)
+  and `engine.*`. `mod.path("x")` is the absolute path of a relative one.
+* **Its data folder** (`mod.dataDir()`, a folder of yours in the player's
+  profile), read and write: the only place `io.open(path, "w")`,
+  `io.output`, `os.remove`, `os.rename` and `rl.export*` / `rl.takeScreenshot`
+  work. Pass it absolute: `io.open(mod.dataDir() .. "/save.txt", "w")`.
+  (Your mod's folder is read-only because a file written there would change
+  the mod's fingerprint, which moves its saved runs to a new slot, and PvP
+  only matches players whose mods are identical.)
+
+Any other path, absolute or climbing out with `..`, is refused: the Lua
+functions fail the way a file without permission does (`nil, "...: Permission
+denied"`) and say why in the Console's log, and the game's own functions
+(`mod.path`, `assets.*`, `rl.*`, `engine.*`) raise an error. `os.tmpname`
+names a file outside your folders, so it always fails: make your own name in
+`mod.dataDir()`. Another mod's modules are still yours to `require("<its
+id>:<module>")`.
 
 ### The watchdog
 
@@ -1508,7 +1529,7 @@ bullet cosmetics.
 ## Data files
 
 Data your mod ships with (levels, dialogue, tables) reads from its folder (or
-any absolute path):
+its data folder, see [Files](#files)):
 
 * `assets.text("data/story.txt")` returns a file's contents as a string.
 * `assets.json("data/levels.json")` returns its value: tables, numbers,
@@ -2150,9 +2171,9 @@ optional raylib `GamepadButton` name and defaults to unbound.
 * `mod.storage` is a table kept between sessions, per profile (your mod's own
   settings, records or unlocks). It is saved when mods reload and when the game
   closes; `mod.saveStorage()` saves it right away. Same plain-data rule.
-* `mod.dir`, `mod.path(rel)` and `mod.dataDir()`: your folder, an absolute
-  path, and a folder of yours in the profile to write files into (see
-  [The language](#the-language)).
+* `mod.dir`, `mod.path(rel)` and `mod.dataDir()`: your folder (read-only), an
+  absolute path in it, and a folder of yours in the profile, the only place
+  to write files (see [Files](#files)).
 * `mods.export(value)` publishes an API; another mod reads it with
   `mods.get("your_id")` (list yours in its `dependencies` so you load first),
   or requires its modules directly with `require("your_id:module")`.

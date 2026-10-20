@@ -112,11 +112,13 @@ expect("collectgarbage is complete",
        "collectgarbage('stop') local off = collectgarbage('isrunning') collectgarbage('restart') " &
        "return off, collectgarbage('isrunning')", ["false", "true"])
 block files:
+  # Outside a mod's own code no file opens (the sandbox, see "files" below).
   let p = (getTempDir() / "tophat_lua_io_test.txt").replace('\\', '/')
-  expect("io round-trip", "local p = '" & p & "' local f = assert(io.open(p, 'w')) f:write('hi', 42) f:close() " &
-         "local g = assert(io.open(p)) local s = g:read('a') g:close() return s, os.remove(p)",
-         ["\"hi42\"", "true"])
-  check(not fileExists(p), "os.remove removed it")
+  expect("no file opens outside a mod's code",
+         "local f, err = io.open('" & p & "', 'w') return f, err:find('denied', 1, true) ~= nil, " &
+         "(loadfile('" & p & "')), (os.remove('" & p & "'))",
+         ["nil", "true", "nil", "nil"])
+  check(not fileExists(p), "nothing was written")
 expect("os", "return math.type(os.time()), os.date('!%Y-%m-%d', 0), os.getenv('TOPHAT_NO_SUCH_VARIABLE')",
        ["\"integer\"", "\"1970-01-01\"", "nil"])
 expect("os.date takes C99 formats everywhere", "return os.date('!%F %T', 0)", ["\"1970-01-01 00:00:00\""])
@@ -833,6 +835,49 @@ block foundations:
         not fileExists(getProfileDir(2) / "mod_data" / "keeper.json"),
         "storage written to the old profile's folder")
   activeProfileSlot = 1
+
+  # ---- files: a mod reads its folder and mod.dataDir(), writes only the latter
+  let boxDir = home / "mods" / "boxed"
+  createDir(boxDir / "lib")
+  writeFile(boxDir / "notes.txt", "own file")
+  writeFile(boxDir / "lib" / "helper.lua", "return 'helped'")
+  writeFile(home / "secret.txt", "not the mod's")
+  let bx = ModRuntime(id: "boxed", name: "boxed", version: "1", env: newModEnv(base, libs),
+                      dir: boxDir, index: mods.len, runData: newScriptTable())
+  mods.add(bx)
+  installModEnv(bx)
+  let secret = (home / "secret.txt").replace('\\', '/')
+  okAs(bx.index, "reads its own folder",
+       "local f = assert(io.open('notes.txt')) local s = f:read('a') f:close() " &
+       "local line for l in io.lines('notes.txt') do line = l end " &
+       "return s, loadfile('lib/helper.lua')(), require('lib.helper'), line",
+       ["\"own file\"", "\"helped\"", "\"helped\"", "\"own file\""])
+  okAs(bx.index, "its folder is read-only",
+       "return io.open('notes.txt', 'a') == nil, io.open('new.txt', 'w') == nil, " &
+       "os.remove('notes.txt') == nil, os.rename('notes.txt', mod.dataDir() .. '/moved.txt') == nil",
+       ["true", "true", "true", "true"])
+  check(readFile(boxDir / "notes.txt") == "own file" and not fileExists(boxDir / "new.txt"),
+        "the mod's folder is unchanged")
+  okAs(bx.index, "writes and reads mod.dataDir()",
+       "local d = mod.dataDir() local f = assert(io.open(d .. '/save.txt', 'w')) f:write('kept') f:close() " &
+       "assert(os.rename(d .. '/save.txt', d .. '/kept.txt')) " &
+       "local g = assert(io.open(d .. '/kept.txt')) local s = g:read('a') g:close() " &
+       "return s, os.remove(d .. '/kept.txt')",
+       ["\"kept\"", "true"])
+  okAs(bx.index, "nothing outside its folders opens",
+       "return io.open('" & secret & "') == nil, io.open('../../secret.txt') == nil, " &
+       "loadfile('../../secret.txt') == nil, pcall(dofile, '" & secret & "') == false, " &
+       "io.open(mod.dataDir() .. '/../boxed.json', 'w') == nil, pcall(io.lines, '../../secret.txt') == false",
+       ["true", "true", "true", "true", "true", "true"])
+  okAs(bx.index, "nor through package.path or the original tables",
+       "package.path = '" & (home.replace('\\', '/')) & "/?.txt' " &
+       "local ok = pcall(require, 'secret') package.path = '' " &
+       "return ok, getmetatable(_ENV).__index.io.open('" & secret & "') == nil, " &
+       "package.loaded.io.open('" & secret & "') == nil, (pcall(os.tmpname))",
+       ["false", "true", "true", "false"])
+  errAs(bx.index, "mod.path stays inside", "return mod.path('../../secret.txt')", "outside the mod's folders")
+  errAs(bx.index, "assets stay inside", "return assets.text('" & secret & "')", "outside the mod's folders")
+  check(readFile(home / "secret.txt") == "not the mod's", "the outside file is untouched")
   removeDir(home)
   modOutsideRun(false)
   resetHooks()
@@ -982,6 +1027,15 @@ block openData:
     for v in vals: got.add(show(v))
     check(err.len == 0 and got == @expected, name & ": " & (if err.len > 0: err.splitLines()[0] else: $got))
   rlOk("rl colours", "return rl.Red.r, rl.RayWhite.g", ["230", "245"])
+  block rlFiles:
+    mm.dir = getTempDir() / "tophat_mixer_mod"
+    currentModIdx = 1
+    let e1 = runIn(rlEnv, "return rl.loadTexture('../../outside.png')")[1]
+    let e2 = runIn(rlEnv, "return rl.exportImage(rl.genImageColor(2, 2, rl.Red), 'shot.png')")[1]
+    currentModIdx = -1
+    mm.dir = ""
+    check("outside the mod's folders" in e1, "rl's file arguments stay in the mod's folders: " & e1)
+    check("read-only" in e2, "rl writes only to mod.dataDir(): " & e2)
   rlOk("rl takes tables for its structs",
        "return rl.checkCollisionRecs({x = 0, y = 0, width = 10, height = 10}, {x = 5, y = 5, width = 10, height = 10})",
        ["true"])

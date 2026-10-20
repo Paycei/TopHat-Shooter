@@ -3,7 +3,8 @@
 ## The C sources are compiled straight into the executable (no DLL), so every
 ## build target (MSVC, the WSL Linux build, the Android NDK) gets the same Lua:
 ## the core and every standard library, the package library without native
-## modules (lua_loadlib_nodl.c).
+## modules (lua_loadlib_nodl.c), and the io, os, auxiliary and package
+## libraries' file calls routed through the mod file sandbox (lua_files.h).
 ## Only what lua_bridge.nim uses is declared here; the macros of lua.h are
 ## re-expressed as templates. Everything else in the mod system goes through
 ## lua_bridge, never through these directly.
@@ -39,16 +40,16 @@ else:
 {.compile("../../vendor/lua/lundump.c", LuaCFlags).}
 {.compile("../../vendor/lua/lvm.c", LuaCFlags).}
 {.compile("../../vendor/lua/lzio.c", LuaCFlags).}
-{.compile("../../vendor/lua/lauxlib.c", LuaCFlags).}
+{.compile("lua_auxlib.c", LuaCFlags).}        # lauxlib.c, loadfile inside the mod file sandbox
 {.compile("../../vendor/lua/lbaselib.c", LuaCFlags).}
 {.compile("../../vendor/lua/lcorolib.c", LuaCFlags).}
 {.compile("../../vendor/lua/lmathlib.c", LuaCFlags).}
 {.compile("../../vendor/lua/lstrlib.c", LuaCFlags).}
 {.compile("../../vendor/lua/ltablib.c", LuaCFlags).}
 {.compile("../../vendor/lua/lutf8lib.c", LuaCFlags).}
-{.compile("../../vendor/lua/liolib.c", LuaCFlags).}
+{.compile("lua_iolib.c", LuaCFlags).}         # liolib.c, inside the mod file sandbox
 {.compile("../../vendor/lua/ldblib.c", LuaCFlags).}
-{.compile("lua_oslib.c", LuaCFlags).}        # loslib.c, same os.date formats everywhere
+{.compile("lua_oslib.c", LuaCFlags).}        # loslib.c, same os.date formats everywhere, sandboxed
 {.compile("lua_loadlib_nodl.c", LuaCFlags).} # loadlib.c, no native modules
 
 type

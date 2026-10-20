@@ -20,10 +20,13 @@
 ##    a frame that holds nothing to clean up;
 ##  * Lua code is only ever entered through lua_pcall.
 ##
-## Trust. Mods are approved before they are published, so scripts are not
-## sandboxed: they get every standard library (io, os, debug, package, load,
-## string.dump...) and every metatable. Only native modules are left out
-## (lua_loadlib_nodl.c), so a mod runs the same on every platform. Each mod
+## Trust. Mods are approved before they are published, so scripts get every
+## standard library (io, os, debug, package, load, string.dump...) and every
+## metatable. Two things are kept from them: native modules
+## (lua_loadlib_nodl.c), so a mod runs the same on every platform, and files
+## outside the mod's own folders: every file the io, os, loadfile and package
+## libraries open goes through `fileGate` (lua_files.h), which lets a mod read
+## its folder and its mod.dataDir() and write only the latter. Each mod
 ## has its own globals table falling through to the shared library table, and
 ## its own copies of the library tables, so two mods don't trip over each
 ## other's names (a mod can still reach the shared table: getmetatable(_ENV)).
@@ -930,6 +933,35 @@ proc warnFn(ud: pointer, msg: cstring, tocont: cint) {.cdecl.} =
         theVM.warnSink(whole)
   except CatchableError:
     discard
+
+# ------------------------------------------------------- the file gate ----
+var fileGate*: proc (path: string, write, quiet: bool): tuple[path, err: string] {.nimcall.}
+  ## The mod file sandbox (set by mod_api): the absolute path a script's
+  ## `path` means, or why the running mod may not open it (`err`, logged to
+  ## the mod's log unless `quiet`). Every file the Lua libraries open goes
+  ## through it (lua_files.h), and so do the path arguments of engine.call
+  ## and rl.* (gatedPath); nil refuses all.
+
+proc tophatFileCheck(path: cstring, write: cint, outp: ptr UncheckedArray[char],
+                     cap: cint): cint {.exportc: "tophat_file_check", cdecl.} =
+  ## Called by lua_files.h from inside a Lua library call: returns normally,
+  ## never raises (the C caller turns a refusal into EACCES).
+  try:
+    if path.isNil or fileGate.isNil: return 0
+    let (real, err) = fileGate($path, write != 0, quiet = false)
+    if err.len > 0 or real.len == 0 or real.len >= cap.int or '\0' in real: return 0
+    copyMem(outp, real.cstring, real.len + 1)
+    1
+  except CatchableError:
+    0
+
+proc gatedPath*(vm: VM, path: string, write: bool, what: string): string =
+  ## A path argument of engine.call / rl.* where the running mod may use it
+  ## (an error otherwise).
+  if fileGate.isNil: vm.runtimeError(what & ": scripts cannot use files here")
+  let (real, err) = fileGate(path, write, quiet = true)
+  if err.len > 0: vm.runtimeError(what & ": " & err)
+  real
 
 # ------------------------------------------------------------- the VM ----
 const Prelude = """

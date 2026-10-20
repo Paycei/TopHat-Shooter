@@ -1753,12 +1753,59 @@ proc installNewContent(base: ScriptTable) =
 var soundClass, shaderClass, musicClass: UdClass
 var textureClass*, modelClass*, videoClass*: UdClass
 
-proc resolveModPath(m: ModRuntime, rel: string): string
+# ------------------------------------------------------ file sandbox ----
+# A mod reads files in its own folder and in its mod.dataDir() (a folder of
+# its own in the profile), and writes only in mod.dataDir(): its folder is
+# read-only (a file written there would change its fingerprint and move its
+# saves). Relative paths start in the mod's folder. The game's natives check
+# paths here; the Lua libraries' own file calls do too, through fileGate.
+
+proc modDataDir(m: ModRuntime): string =
+  ## In the profile folder mod.storage was read from (see storagePath).
+  (if m.storageDir.len > 0: m.storageDir else: getAppDataPath() / "mod_data") / m.id
+
+proc insideDir(path, dir: string): bool =
+  ## `path` is `dir` or below it (both normalized; case-blind on Windows).
+  var p = path
+  var d = dir
+  when defined(windows):
+    p = p.replace('/', '\\').toLowerAscii
+    d = d.replace('/', '\\').toLowerAscii
+  while d.len > 1 and d[^1] in {'/', '\\'}: d.setLen(d.len - 1)
+  p == d or (p.len > d.len and p.startsWith(d) and p[d.len] in {'/', '\\'})
+
+proc confineModPath(m: ModRuntime, rel: string, write: bool): tuple[path, err: string] =
+  ## Where a script's path points and whether the mod may use it there
+  ## (`err` says why not).
+  let full = normalizedPath(if rel.isAbsolute: rel else: m.dir / rel)
+  let data = normalizedPath(modDataDir(m))
+  if insideDir(full, data):
+    if write:
+      try: createDir(data)
+      except OSError, IOError: discard
+    return (full, "")
+  if m.dir.len > 0 and insideDir(full, normalizedPath(m.dir)):
+    if not write: return (full, "")
+    return ("", "'" & rel & "' is in the mod's folder, which is read-only (write to mod.dataDir())")
+  ("", "'" & rel & "' is outside the mod's folders (a mod reads its folder and mod.dataDir(), " &
+       "and writes only mod.dataDir())")
+
+proc modFileGate(path: string, write, quiet: bool): tuple[path, err: string] =
+  ## lua_bridge's fileGate, for the running mod.
+  if currentModIdx < 0 or currentModIdx >= mods.len:
+    return ("", "files can only be opened by a mod's own code")
+  let m = mods[currentModIdx]
+  result = confineModPath(m, path, write)
+  if result.err.len > 0 and not quiet: modLogAdd(mlWarn, m.id, "file refused: " & result.err)
+
+fileGate = modFileGate
 
 proc modPath(vm: VM, rel, what: string): string =
   ## Where the calling mod's path points (the file may not exist).
   let owner = vm.requireOwner(what)
-  resolveModPath(mods[owner], rel)
+  let (path, err) = confineModPath(mods[owner], rel, write = false)
+  if err.len > 0: vm.runtimeError(what & ": " & err)
+  path
 
 proc modFile(vm: VM, rel, what: string): string =
   result = vm.modPath(rel, what)
@@ -2496,11 +2543,6 @@ proc installModApi*(base: ScriptTable) =
   installAssetLibraries(base)
 
 # ---------------------------------------------------------- per mod env ----
-proc resolveModPath(m: ModRuntime, rel: string): string =
-  ## Where a script's path points: relative paths start in the mod's own
-  ## folder, absolute ones go anywhere (mods are trusted).
-  if rel.isAbsolute: normalizedPath(rel) else: normalizedPath(m.dir / rel)
-
 proc storagePath(m: ModRuntime): string =
   ## In the profile folder the storage was read from: a profile switch must
   ## never write one profile's mod.storage into another's folder.
@@ -2598,16 +2640,16 @@ proc installRestorePoints(): ScriptTable =
                         "hide the meters with hud.hide(\"restorePoints\"))"))))
 
 const EnvPrelude = """
-local env, resolve = ...
--- Code a mod loads gets the mod's globals unless it says otherwise, and
--- relative paths are the mod's own folder (absolute ones go anywhere).
+local env = ...
+-- Code a mod loads gets the mod's globals unless it says otherwise. (Which
+-- files it may load, and where relative paths start, is the file sandbox's
+-- business: lua_files.h.)
 local load0, loadfile0 = load, loadfile
 function load(chunk, chunkname, mode, ...)
   if select("#", ...) == 0 then return load0(chunk, chunkname, mode, env) end
   return load0(chunk, chunkname, mode, (...))
 end
 function loadfile(filename, mode, ...)
-  if filename ~= nil then filename = resolve(filename) end
   if select("#", ...) == 0 then return loadfile0(filename, mode, env) end
   return loadfile0(filename, mode, (...))
 end
@@ -2616,29 +2658,13 @@ function dofile(filename)
   if not f then error(err, 2) end
   return f()
 end
-local open0, lines0, input0, output0 = io.open, io.lines, io.input, io.output
-function io.open(path, mode) return open0(resolve(path), mode) end
-function io.lines(path, ...)
-  if path == nil then return lines0() end
-  return lines0(resolve(path), ...)
-end
-function io.input(f) if type(f) == "string" then f = resolve(f) end return input0(f) end
-function io.output(f) if type(f) == "string" then f = resolve(f) end return output0(f) end
-local remove0, rename0 = os.remove, os.rename
-function os.remove(path) return remove0(resolve(path)) end
-function os.rename(from, to) return rename0(resolve(from), resolve(to)) end
 """
 
 proc installEnvPrelude(m: ModRuntime) =
-  ## The mod's own load / loadfile / dofile / io / os.remove / os.rename (in
-  ## its copies of the libraries), so its relative paths mean its folder.
-  let owner = m
-  let resolveFn = vnative(newNative("resolve", proc (vm: VM, args: openArray[ScriptValue], ret: var RetVals) =
-    let a = arg(args, 0)
-    ret.setRet(if a.kind == vkString: vstr(resolveModPath(owner, a.str.s)) else: a)))
+  ## The mod's own load / loadfile / dofile, which default to its globals.
   let cl = modVM.loadChunk(EnvPrelude, m.id & "/(environment)", m.env)
   var r: RetVals
-  let err = protectedCall(modVM, vfunc(cl), [vtable(m.env), resolveFn], r)
+  let err = protectedCall(modVM, vfunc(cl), [vtable(m.env)], r)
   if err.len > 0: modLogAdd(mlError, m.id, "environment: " & err)
 
 proc installModEnv*(m: ModRuntime) =
@@ -2665,15 +2691,17 @@ proc installModEnv*(m: ModRuntime) =
   let storageOwner = m
   modT.reg("saveStorage") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ret.setRet(vbool(saveModStorage(storageOwner)))
-  # Files: mod.dir is the mod's folder, mod.path(rel) an absolute path from a
-  # relative one, mod.dataDir() a folder of the mod's own in the profile
-  # (where to write: files written into the mod folder change its
-  # fingerprint, which moves its saves to a new slot).
+  # Files (the file sandbox above): mod.dir is the mod's folder (read-only),
+  # mod.path(rel) an absolute path from a relative one, mod.dataDir() a
+  # folder of the mod's own in the profile, the only place it may write.
   rawSet(modT, vstr("dir"), vstr(m.dir))
   modT.reg("path") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ret.setRet(vstr(resolveModPath(storageOwner, vm.checkStr(args, 0, "path"))))
+    let rel = vm.checkStr(args, 0, "path")
+    let (path, err) = confineModPath(storageOwner, rel, write = false)
+    if err.len > 0: vm.runtimeError("mod.path: " & err)
+    ret.setRet(vstr(path))
   modT.reg("dataDir") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    let dir = getAppDataPath() / "mod_data" / storageOwner.id
+    let dir = modDataDir(storageOwner)
     try: createDir(dir)
     except OSError, IOError: vm.runtimeError("mod.dataDir: cannot create " & dir)
     ret.setRet(vstr(dir))
@@ -2757,7 +2785,8 @@ proc installModEnv*(m: ModRuntime) =
     let tries = if module.endsWith(".lua"): @[stem] else: @[stem & ".lua", stem / "init.lua"]
     var path, rel = ""
     for t in tries:
-      let p = resolveModPath(mods[owner], t)
+      let (p, err) = confineModPath(mods[owner], t, write = false)
+      if err.len > 0: vm.runtimeError("require: " & err)
       if fileExists(p):
         (path, rel) = (p, t)
         break
