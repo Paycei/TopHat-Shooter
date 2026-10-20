@@ -206,33 +206,33 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
   if debugPanelMinimized and not anchorLeftDefault:
     # Draw minimized panel (just header)
     drawRectangle(finalPanelX, yOffset, debugPanelW, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
-                 Color(r: 5, g: 15, b: 25, a: 45))
+                 hudSurface(Color(r: 5, g: 15, b: 25, a: 45)))
 
     # Cyan accent stripe (left edge in widescreen to match the border HUD column).
     drawRectangle((if anchorLeftDefault: finalPanelX else: finalPanelX + debugPanelW - 2),
                  yOffset, 2, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
-                 Color(r: 0, g: 220, b: 255, a: 180))
+                 uiInk(Color(r: 0, g: 220, b: 255, a: 180)))
 
     # Panel border
     drawRectOutline(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
                                   width: debugPanelW.float32,
                                   height: (DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT).float32),
-                      DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
+                      DEBUG_PANEL_BORDER, uiLine(Color(r: 0, g: 220, b: 255, a: 80)))
 
     yOffset += DEBUG_PANEL_PADDING
 
     # Header with minimize indicator
-    drawRectangle(finalPanelX, yOffset, debugPanelW - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
+    drawRectangle(finalPanelX, yOffset, debugPanelW - 2, DEBUG_TITLE_HEIGHT, uiGlow(HEADER_BG_COLOR))
 
     drawText(t("debug_panel_diagnostics"), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
-            Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(t("debug_panel_diagnostics"), finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
+            textShadow(140))
+    drawText(t("debug_panel_diagnostics"), finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, uiInk(ACCENT_COLOR))
 
     # Draw maximize icon (square)
     let iconX = finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 12
     let iconY = yOffset + 4
     drawRectOutline(Rectangle(x: iconX.float32, y: iconY.float32, width: 10, height: 10),
-                      1, ACCENT_COLOR)
+                      1, uiLine(ACCENT_COLOR))
 
     return  # Don't draw rest of panel
 
@@ -246,17 +246,17 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
   else:
     # Main panel background with gradient effect (matching other panels)
     drawRectangle(finalPanelX, yOffset, debugPanelW, contentHeight,
-                 Color(r: 5, g: 15, b: 25, a: 45))
+                 hudSurface(Color(r: 5, g: 15, b: 25, a: 45)))
 
     # Cyan accent stripe (left edge in the legacy gutter, to match its status panel).
     drawRectangle((if anchorLeftDefault: finalPanelX else: finalPanelX + debugPanelW - 2),
                  yOffset, 2, contentHeight,
-                 Color(r: 0, g: 220, b: 255, a: 180))
+                 uiInk(Color(r: 0, g: 220, b: 255, a: 180)))
 
     # Panel border with glow effect (cyan theme matching other panels)
     drawRectOutline(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
                                   width: debugPanelW.float32, height: contentHeight.float32),
-                      DEBUG_PANEL_BORDER, Color(r: 0, g: 220, b: 255, a: 80))
+                      DEBUG_PANEL_BORDER, uiLine(Color(r: 0, g: 220, b: 255, a: 80)))
 
   yOffset += DEBUG_PANEL_PADDING
 
@@ -267,10 +267,10 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
                    t(tkDebugPanelDiagnostics))
   else:
     # Section header bar - same treatment as the classic status header.
-    drawRectangle(finalPanelX, yOffset, debugPanelW - 2, DEBUG_TITLE_HEIGHT, HEADER_BG_COLOR)
+    drawRectangle(finalPanelX, yOffset, debugPanelW - 2, DEBUG_TITLE_HEIGHT, uiGlow(HEADER_BG_COLOR))
     drawText(t(tkDebugPanelDiagnostics), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 3, 11,
-            Color(r: 0, g: 0, b: 0, a: 140))
-    drawText(t(tkDebugPanelDiagnostics), finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, ACCENT_COLOR)
+            textShadow(140))
+    drawText(t(tkDebugPanelDiagnostics), finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset + 2, 11, uiInk(ACCENT_COLOR))
 
   # Draw minimize icon (horizontal line) - classic only; widescreen is a plain
   # non-interactive section, so it carries no window affordances.
@@ -279,14 +279,14 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
     let iconY = yOffset + 9
     drawStroke(Vector2(x: iconX.float32, y: iconY.float32),
             Vector2(x: (iconX + 10).float32, y: iconY.float32),
-            2, ACCENT_COLOR)
+            2, uiLine(ACCENT_COLOR))
 
   yOffset += DEBUG_TITLE_HEIGHT + 2
 
   # FPS and entity count in compact single line
   let statsSectionWidth: int32 = debugPanelW - (DEBUG_PANEL_PADDING * 2) - 4
   drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 2, yOffset - 1, statsSectionWidth, 16,
-               Color(r: 0, g: 30, b: 40, a: 50))
+               uiSurface(Color(r: 0, g: 30, b: 40, a: 50)))
 
   # FPS display - green when good, yellow/red when bad
   let fps = getFPS()
@@ -298,27 +298,27 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
     Color(r: 255, g: 100, b: 100, a: 255)
 
   drawText(t(tkDebugPanelFPS) & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 9,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText(t(tkDebugPanelFPS) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
-          Color(r: 180, g: 200, b: 220, a: 255))
+          uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
 
   drawText($fps, finalPanelX + DEBUG_PANEL_PADDING + 32, yOffset + 1, 11,
-          Color(r: 0, g: 0, b: 0, a: 150))
-  drawText($fps, finalPanelX + DEBUG_PANEL_PADDING + 31, yOffset, 11, fpsColor)
+          textShadow(150))
+  drawText($fps, finalPanelX + DEBUG_PANEL_PADDING + 31, yOffset, 11, uiInk(fpsColor))
 
   # Entity count - purple color
   let totalEntities = game.enemies.len + game.bullets.len
   let entityX = finalPanelX + debugPanelW div 2 + 2
 
   drawText(t(tkDebugPanelEntities) & ":", entityX + 1, yOffset + 1, 9,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText(t(tkDebugPanelEntities) & ":", entityX, yOffset, 9,
-          Color(r: 180, g: 200, b: 220, a: 255))
+          uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
 
   drawText($totalEntities, entityX + 28, yOffset + 1, 11,
-          Color(r: 0, g: 0, b: 0, a: 150))
+          textShadow(150))
   drawText($totalEntities, entityX + 27, yOffset, 11,
-          Color(r: 180, g: 100, b: 255, a: 255))
+          uiInk(Color(r: 180, g: 100, b: 255, a: 255)))
 
   yOffset += 18
 
@@ -338,12 +338,12 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
       elif drawMs <= 12.0'f32: Color(r: 255, g: 220, b: 100, a: 255)
       else: Color(r: 255, g: 100, b: 100, a: 255)
     drawText("upd", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
-            Color(r: 180, g: 200, b: 220, a: 255))
+            uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
     drawText(formatFloat(updMs.float, ffDecimal, 1) & "ms",
-            finalPanelX + DEBUG_PANEL_PADDING + 30, yOffset, 10, updColor)
-    drawText("draw", entityX, yOffset, 9, Color(r: 180, g: 200, b: 220, a: 255))
+            finalPanelX + DEBUG_PANEL_PADDING + 30, yOffset, 10, uiInk(updColor))
+    drawText("draw", entityX, yOffset, 9, uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
     drawText(formatFloat(drawMs.float, ffDecimal, 1) & "ms",
-            entityX + 32, yOffset, 10, drawColor)
+            entityX + 32, yOffset, 10, uiInk(drawColor))
   yOffset += 16
 
   # ACTIVE EFFECTS
@@ -351,137 +351,137 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
     # Section separator line - cyan
     drawStroke(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 2).float32, y: yOffset.float32),
             Vector2(x: (finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 2).float32, y: yOffset.float32),
-            1, Color(r: 0, g: 220, b: 255, a: 120))
+            1, uiLine(Color(r: 0, g: 220, b: 255, a: 120)))
     yOffset += 3
 
     drawText(t(tkDebugPanelActiveEffects) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset + 1, 9,
-            Color(r: 0, g: 0, b: 0, a: 130))
+            textShadow(130))
     drawText(t(tkDebugPanelActiveEffects) & ":", finalPanelX + DEBUG_PANEL_PADDING + 4, yOffset, 9,
-            Color(r: 200, g: 220, b: 240, a: 255))
+            uiInk(Color(r: 200, g: 220, b: 240, a: 255)))
     yOffset += 12
 
     # Speed boost - cyan color
     if game.player.speedBoostTimer > 0:
       drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
                    debugPanelW - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                   Color(r: 0, g: 30, b: 40, a: 50))
+                   uiSurface(Color(r: 0, g: 30, b: 40, a: 50)))
 
       let timeLeft = game.player.speedBoostTimer.int + 1
       drawText("[>] " & t(tkDebugPanelEffectSpeed), finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-              Color(r: 0, g: 0, b: 0, a: 140))
+              textShadow(140))
       drawText("[>] " & t(tkDebugPanelEffectSpeed), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-              Color(r: 100, g: 220, b: 255, a: 255))
+              uiInk(Color(r: 100, g: 220, b: 255, a: 255)))
 
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 24,
-              yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 140))
+              yOffset + 1, 9, textShadow(140))
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 25,
-              yOffset, 9, Color(r: 180, g: 200, b: 220, a: 255))
+              yOffset, 9, uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
       yOffset += DEBUG_LINE_HEIGHT
 
     # Invincibility - magenta color
     if game.player.invincibilityTimer > 0:
       drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
                    debugPanelW - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                   Color(r: 30, g: 0, b: 30, a: 50))
+                   uiSurface(Color(r: 30, g: 0, b: 30, a: 50)))
 
       let timeLeft = game.player.invincibilityTimer.int + 1
       drawText("[S] " & t(tkDebugPanelEffectInvuln), finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-              Color(r: 0, g: 0, b: 0, a: 140))
+              textShadow(140))
       drawText("[S] " & t(tkDebugPanelEffectInvuln), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-              Color(r: 255, g: 100, b: 255, a: 255))
+              uiInk(Color(r: 255, g: 100, b: 255, a: 255)))
 
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 24,
-              yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 140))
+              yOffset + 1, 9, textShadow(140))
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 25,
-              yOffset, 9, Color(r: 180, g: 200, b: 220, a: 255))
+              yOffset, 9, uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
       yOffset += DEBUG_LINE_HEIGHT
 
     # Fire rate boost - orange color
     if game.player.fireRateBoostTimer > 0:
       drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 2, yOffset - 1,
                    debugPanelW - (DEBUG_PANEL_PADDING * 2) - 4, DEBUG_LINE_HEIGHT,
-                   Color(r: 30, g: 20, b: 0, a: 50))
+                   uiSurface(Color(r: 30, g: 20, b: 0, a: 50)))
 
       let timeLeft = game.player.fireRateBoostTimer.int + 1
       drawText("[F] " & t(tkDebugPanelEffectFire), finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-              Color(r: 0, g: 0, b: 0, a: 140))
+              textShadow(140))
       drawText("[F] " & t(tkDebugPanelEffectFire), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-              Color(r: 255, g: 150, b: 50, a: 255))
+              uiInk(Color(r: 255, g: 150, b: 50, a: 255)))
 
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 24,
-              yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 140))
+              yOffset + 1, 9, textShadow(140))
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 25,
-              yOffset, 9, Color(r: 180, g: 200, b: 220, a: 255))
+              yOffset, 9, uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
       yOffset += DEBUG_LINE_HEIGHT
 
     # Magnet
     if game.player.magnetTimer > 0:
       drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
                    debugPanelW - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT,
-                   Color(r: 12, g: 18, b: 28, a: 50))
+                   uiSurface(Color(r: 12, g: 18, b: 28, a: 50)))
 
       let timeLeft = game.player.magnetTimer.int + 1
       drawText("[M] " & t(tkDebugPanelEffectMagnet), finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
-              Color(r: 0, g: 0, b: 0, a: 140))
+              textShadow(140))
       drawText("[M] " & t(tkDebugPanelEffectMagnet), finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
-              Color(r: 200, g: 100, b: 255, a: 255))
+              uiInk(Color(r: 200, g: 100, b: 255, a: 255)))
 
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 30,
-              yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+              yOffset + 1, 10, textShadow(140))
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 31,
-              yOffset, 10, Color(r: 180, g: 200, b: 220, a: 255))
+              yOffset, 10, uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
       yOffset += DEBUG_LINE_HEIGHT
 
     # Time Warp
     if game.player.timeWarpActive:
       drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
                    debugPanelW - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT,
-                   Color(r: 18, g: 25, b: 35, a: 70))
+                   uiSurface(Color(r: 18, g: 25, b: 35, a: 70)))
 
       let timeLeft = game.player.timeWarpDuration.int + 1
       drawText("[T] " & t(tkDebugPanelEffectTimeWarp), finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
-              Color(r: 0, g: 0, b: 0, a: 140))
+              textShadow(140))
       drawText("[T] " & t(tkDebugPanelEffectTimeWarp), finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
-              Color(r: 100, g: 255, b: 255, a: 255))
+              uiInk(Color(r: 100, g: 255, b: 255, a: 255)))
 
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 30,
-              yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+              yOffset + 1, 10, textShadow(140))
       drawText($timeLeft & "s", finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 31,
-              yOffset, 10, Color(r: 180, g: 200, b: 220, a: 255))
+              yOffset, 10, uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
       yOffset += DEBUG_LINE_HEIGHT
 
     # Phase Shift invulnerability
     if game.player.phaseShiftInvulnTimer > 0:
       drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
                    debugPanelW - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT,
-                   Color(r: 12, g: 18, b: 28, a: 50))
+                   uiSurface(Color(r: 12, g: 18, b: 28, a: 50)))
 
       drawText(t(tkDebugPanelEffectPhase), finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
-              Color(r: 0, g: 0, b: 0, a: 140))
+              textShadow(140))
       drawText(t(tkDebugPanelEffectPhase), finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
-              Color(r: 150, g: 255, b: 200, a: 255))
+              uiInk(Color(r: 150, g: 255, b: 200, a: 255)))
 
       drawText(t(tkDebugPanelActive), finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 40,
-              yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+              yOffset + 1, 10, textShadow(140))
       drawText(t(tkDebugPanelActive), finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 41,
-              yOffset, 10, Color(r: 180, g: 200, b: 220, a: 255))
+              yOffset, 10, uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
       yOffset += DEBUG_LINE_HEIGHT
 
     # Parry
     if game.player.parryActive:
       drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
                    debugPanelW - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT,
-                   Color(r: 18, g: 25, b: 35, a: 70))
+                   uiSurface(Color(r: 18, g: 25, b: 35, a: 70)))
 
       drawText(t(tkDebugPanelEffectParry), finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 11,
-              Color(r: 0, g: 0, b: 0, a: 140))
+              textShadow(140))
       drawText(t(tkDebugPanelEffectParry), finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 11,
-              Color(r: 255, g: 255, b: 100, a: 255))
+              uiInk(Color(r: 255, g: 255, b: 100, a: 255)))
 
       drawText(t(tkDebugPanelActive), finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 40,
-              yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 140))
+              yOffset + 1, 10, textShadow(140))
       drawText(t(tkDebugPanelActive), finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 41,
-              yOffset, 10, Color(r: 180, g: 200, b: 220, a: 255))
+              yOffset, 10, uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
       yOffset += DEBUG_LINE_HEIGHT
 
     yOffset += DEBUG_SECTION_SPACING
@@ -490,13 +490,13 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
   # Section separator line
   drawStroke(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
           Vector2(x: (finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
-          1, Color(r: 0, g: 200, b: 255, a: 100))
+          1, uiLine(Color(r: 0, g: 200, b: 255, a: 100)))
   yOffset += 4
 
   drawText(t(tkDebugPanelCombatStats) & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText(t(tkDebugPanelCombatStats) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-          Color(r: 200, g: 220, b: 240, a: 255))
+          uiInk(Color(r: 200, g: 220, b: 240, a: 255)))
   yOffset += 14
 
   let stats = getDisplayStats(game.player)
@@ -504,46 +504,46 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
   # Stats background box (compact)
   drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
                debugPanelW - (DEBUG_PANEL_PADDING * 2) - 6, DEBUG_LINE_HEIGHT * 3 + 2,
-               Color(r: 15, g: 20, b: 28, a: 70))
+               uiSurface(Color(r: 15, g: 20, b: 28, a: 70)))
 
   # Damage (multiplied by 100, showing decimals with precision)
   let damageText = formatHealthDisplay(stats.damage)
   drawText(t(tkDebugPanelDamage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText(t(tkDebugPanelDamage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
-          Color(r: 180, g: 200, b: 220, a: 255))
+          uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
 
   drawText(damageText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 46,
-          yOffset + 1, 11, Color(r: 0, g: 0, b: 0, a: 150))
+          yOffset + 1, 11, textShadow(150))
   drawText(damageText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 47,
-          yOffset, 11, Color(r: 255, g: 150, b: 100, a: 255))
+          yOffset, 11, uiInk(Color(r: 255, g: 150, b: 100, a: 255)))
   yOffset += DEBUG_LINE_HEIGHT
 
   # Fire rate (shots per second)
   let shotsPerSec = 1.0 / stats.fireRate
   let fireRateText = formatFloat(shotsPerSec, ffDecimal, 2) & "/s"
   drawText(t(tkDebugPanelFireRate) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText(t(tkDebugPanelFireRate) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
-          Color(r: 180, g: 200, b: 220, a: 255))
+          uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
 
   drawText(fireRateText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 46,
-          yOffset + 1, 11, Color(r: 0, g: 0, b: 0, a: 150))
+          yOffset + 1, 11, textShadow(150))
   drawText(fireRateText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 47,
-          yOffset, 11, Color(r: 255, g: 200, b: 100, a: 255))
+          yOffset, 11, uiInk(Color(r: 255, g: 200, b: 100, a: 255)))
   yOffset += DEBUG_LINE_HEIGHT
 
   # Speed
   let speedText = formatFloat(stats.speed, ffDecimal, 2)
   drawText(t(tkDebugPanelSpeed) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText(t(tkDebugPanelSpeed) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
-          Color(r: 180, g: 200, b: 220, a: 255))
+          uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
 
   drawText(speedText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 46,
-          yOffset + 1, 11, Color(r: 0, g: 0, b: 0, a: 150))
+          yOffset + 1, 11, textShadow(150))
   drawText(speedText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 47,
-          yOffset, 11, Color(r: 100, g: 200, b: 255, a: 255))
+          yOffset, 11, uiInk(Color(r: 100, g: 200, b: 255, a: 255)))
   yOffset += DEBUG_LINE_HEIGHT + 6
 
   # LOW HP BONUSES
@@ -551,13 +551,13 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
     # Section separator line
     drawStroke(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
             Vector2(x: (finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
-            1, Color(r: 255, g: 100, b: 100, a: 120))
+            1, uiLine(Color(r: 255, g: 100, b: 100, a: 120)))
     yOffset += 4
 
     drawText(t(tkDebugPanelLowHPBonuses) & ":", finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 10,
-            Color(r: 0, g: 0, b: 0, a: 130))
+            textShadow(130))
     drawText(t(tkDebugPanelLowHPBonuses) & ":", finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 10,
-            Color(r: 255, g: 120, b: 120, a: 255))
+            uiInk(Color(r: 255, g: 120, b: 120, a: 255)))
     yOffset += 14
 
     # Background box for bonuses (compact)
@@ -568,7 +568,7 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
     drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
                  debugPanelW - (DEBUG_PANEL_PADDING * 2) - 6,
                  int32((DEBUG_LINE_HEIGHT * bonusCount) + 2),
-                 Color(r: 25, g: 15, b: 15, a: 80))
+                 uiSurface(Color(r: 25, g: 15, b: 15, a: 80)))
 
     # Rage bonus
     if hasPowerUp(game.player, puRage):
@@ -580,15 +580,15 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
       let rageBonus = ((1.0 - hpPercent) * 100.0 * rageMultiplier).int
 
       drawText("[X] " & t(tkDebugPanelRage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
-              Color(r: 0, g: 0, b: 0, a: 130))
+              textShadow(130))
       drawText("[X] " & t(tkDebugPanelRage) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
-              Color(r: 255, g: 100, b: 100, a: 255))
+              uiInk(Color(r: 255, g: 100, b: 100, a: 255)))
 
       let bonusText = "+" & $rageBonus & "% dmg"
       drawText(bonusText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 66,
-              yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 150))
+              yOffset + 1, 10, textShadow(150))
       drawText(bonusText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 67,
-              yOffset, 10, Color(r: 255, g: 150, b: 150, a: 255))
+              yOffset, 10, uiInk(Color(r: 255, g: 150, b: 150, a: 255)))
       yOffset += DEBUG_LINE_HEIGHT
 
     # Berserker bonus
@@ -601,62 +601,62 @@ proc drawDebugPanel*(game: Game, x, y: int32, anchorLeftDefault: bool = false,
       let berserkBonus = ((1.0 - hpPercent) * 100.0 * berserkMultiplier).int
 
       drawText("[!] " & t(tkDebugPanelBerserker) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 10,
-              Color(r: 0, g: 0, b: 0, a: 130))
+              textShadow(130))
       drawText("[!] " & t(tkDebugPanelBerserker) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 10,
-              Color(r: 255, g: 150, b: 50, a: 255))
+              uiInk(Color(r: 255, g: 150, b: 50, a: 255)))
 
       let bonusText = "+" & $berserkBonus & "% rate"
       drawText(bonusText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 66,
-              yOffset + 1, 10, Color(r: 0, g: 0, b: 0, a: 150))
+              yOffset + 1, 10, textShadow(150))
       drawText(bonusText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 67,
-              yOffset, 10, Color(r: 255, g: 200, b: 150, a: 255))
+              yOffset, 10, uiInk(Color(r: 255, g: 200, b: 150, a: 255)))
       yOffset += DEBUG_LINE_HEIGHT
 
   # REAL-TIME STATS
   # Section separator line
   drawStroke(Vector2(x: (finalPanelX + DEBUG_PANEL_PADDING + 3).float32, y: yOffset.float32),
           Vector2(x: (finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 3).float32, y: yOffset.float32),
-          1, Color(r: 100, g: 200, b: 255, a: 100))
+          1, uiLine(Color(r: 100, g: 200, b: 255, a: 100)))
   yOffset += 3
 
   drawText(t(tkDebugPanelRunStats), finalPanelX + DEBUG_PANEL_PADDING + 6, yOffset + 1, 9,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText(t(tkDebugPanelRunStats), finalPanelX + DEBUG_PANEL_PADDING + 5, yOffset, 9,
-          Color(r: 200, g: 220, b: 240, a: 255))
+          uiInk(Color(r: 200, g: 220, b: 240, a: 255)))
   yOffset += 11
 
   # Background box for real-time stats (compact - only 2 stats)
   drawRectangle(finalPanelX + DEBUG_PANEL_PADDING + 3, yOffset - 1,
                debugPanelW - (DEBUG_PANEL_PADDING * 2) - 6,
                int32((DEBUG_LINE_HEIGHT * 2) + 2),
-               Color(r: 15, g: 20, b: 25, a: 80))
+               uiSurface(Color(r: 15, g: 20, b: 25, a: 80)))
 
   let rtStats = game.dopamine.realTimeStats
 
   # DPS (most important combat stat)
   drawText("[X] " & t(tkDebugPanelDps) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 9,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText("[X] " & t(tkDebugPanelDps) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 9,
-          Color(r: 180, g: 200, b: 220, a: 255))
+          uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
 
   let dpsText = $(int(rtStats.dps))
   drawText(dpsText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 50,
-          yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 150))
+          yOffset + 1, 9, textShadow(150))
   drawText(dpsText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 51,
-          yOffset, 9, Color(r: 255, g: 100, b: 100, a: 255))
+          yOffset, 9, uiInk(Color(r: 255, g: 100, b: 100, a: 255)))
   yOffset += DEBUG_LINE_HEIGHT
 
   # Coins per minute (economy stat)
   drawText("[$] " & t(tkDebugPanelCmin) & ":", finalPanelX + DEBUG_PANEL_PADDING + 8, yOffset + 1, 9,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText("[$] " & t(tkDebugPanelCmin) & ":", finalPanelX + DEBUG_PANEL_PADDING + 7, yOffset, 9,
-          Color(r: 180, g: 200, b: 220, a: 255))
+          uiInk(Color(r: 180, g: 200, b: 220, a: 255)))
 
   let cpmText = $(int(rtStats.coinsPerMinute))
   drawText(cpmText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 50,
-          yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 150))
+          yOffset + 1, 9, textShadow(150))
   drawText(cpmText, finalPanelX + debugPanelW - DEBUG_PANEL_PADDING - 51,
-          yOffset, 9, Color(r: 255, g: 215, b: 0, a: 255))
+          yOffset, 9, uiInk(Color(r: 255, g: 215, b: 0, a: 255)))
 
 proc legendaryAbilities(game: Game): seq[PowerUp] =
   ## Installed power-ups that live on the [Q] strip, in install order.
@@ -799,67 +799,67 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     let glyphX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
     if legendaryPanelMinimized:
       drawRectOutline(Rectangle(x: glyphX.float32, y: (actualY + 3).float32, width: 10, height: 10),
-                         1, Color(r: 255, g: 230, b: 145, a: 255))
+                         1, uiLine(Color(r: 255, g: 230, b: 145, a: 255)))
       return
     drawStroke(Vector2(x: glyphX.float32, y: (actualY + 8).float32),
              Vector2(x: (glyphX + 10).float32, y: (actualY + 8).float32),
-             2, Color(r: 255, g: 230, b: 145, a: 255))
+             2, uiLine(Color(r: 255, g: 230, b: 145, a: 255)))
 
   # If minimized, only draw header bar
   if legendaryPanelMinimized:
     drawRectangle(actualX, actualY, panelWidth, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
-                 Color(r: 5, g: 15, b: 25, a: 58))
+                 hudSurface(Color(r: 5, g: 15, b: 25, a: 58)))
     drawRectangle(actualX + panelWidth - 2, actualY, 2, DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT,
-                 Color(r: 255, g: 215, b: 80, a: 165))
+                 uiInk(Color(r: 255, g: 215, b: 80, a: 165)))
     drawRectOutline(Rectangle(x: actualX.float32, y: actualY.float32,
                                   width: panelWidth.float32,
                                   height: (DEBUG_PANEL_PADDING + DEBUG_TITLE_HEIGHT).float32),
-                      DEBUG_PANEL_BORDER, Color(r: 255, g: 215, b: 80, a: 75))
+                      DEBUG_PANEL_BORDER, uiLine(Color(r: 255, g: 215, b: 80, a: 75)))
     var qYOffset = actualY + DEBUG_PANEL_PADDING
     drawRectangle(actualX, qYOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT,
-                  Color(r: 120, g: 86, b: 0, a: 55))
+                  uiGlow(Color(r: 120, g: 86, b: 0, a: 55)))
     drawText("[Q] " & t(tkDebugPanelAbilities), actualX + DEBUG_PANEL_PADDING + 5, qYOffset + 3, 11,
-            Color(r: 0, g: 0, b: 0, a: 140))
+            textShadow(140))
     drawText("[Q] " & t(tkDebugPanelAbilities), actualX + DEBUG_PANEL_PADDING + 4, qYOffset + 2, 11,
-            Color(r: 255, g: 230, b: 145, a: 255))
+            uiInk(Color(r: 255, g: 230, b: 145, a: 255)))
     let countW = measureText(countText, 10)
     drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW,
-             qYOffset + 2, 10, Color(r: 255, g: 238, b: 170, a: 230))
+             qYOffset + 2, 10, uiInk(Color(r: 255, g: 238, b: 170, a: 230)))
     let miniIconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
     let miniIconY = qYOffset + 4
     drawRectOutline(Rectangle(x: miniIconX.float32, y: miniIconY.float32, width: 10, height: 10),
-                      1, Color(r: 255, g: 230, b: 145, a: 255))
+                      1, uiLine(Color(r: 255, g: 230, b: 145, a: 255)))
     return
 
   var qYOffset = actualY + DEBUG_PANEL_PADDING
   if not dockCard:
     drawRectangle(actualX, actualY, panelWidth, qContentHeight,
-                  Color(r: 5, g: 15, b: 25, a: 58))
+                  hudSurface(Color(r: 5, g: 15, b: 25, a: 58)))
     drawRectangle(actualX, actualY + qContentHeight - 1, panelWidth, 1,
-                  Color(r: 255, g: 215, b: 80, a: 95))
+                  uiLine(Color(r: 255, g: 215, b: 80, a: 95)))
     drawRectangle(actualX + panelWidth - 2, actualY, 2, qContentHeight,
-                  Color(r: 255, g: 215, b: 80, a: 165))
+                  uiInk(Color(r: 255, g: 215, b: 80, a: 165)))
     drawRectOutline(Rectangle(x: actualX.float32, y: actualY.float32,
                                   width: panelWidth.float32, height: qContentHeight.float32),
-                      DEBUG_PANEL_BORDER, Color(r: 255, g: 215, b: 80, a: 75))
+                      DEBUG_PANEL_BORDER, uiLine(Color(r: 255, g: 215, b: 80, a: 75)))
 
     drawRectangle(actualX, qYOffset, panelWidth - 2, DEBUG_TITLE_HEIGHT,
-                  Color(r: 120, g: 86, b: 0, a: 55))
+                  uiGlow(Color(r: 120, g: 86, b: 0, a: 55)))
     drawText("[Q] " & t(tkDebugPanelAbilities), actualX + DEBUG_PANEL_PADDING + 5, qYOffset + 3, 11,
-            Color(r: 0, g: 0, b: 0, a: 140))
+            textShadow(140))
     drawText("[Q] " & t(tkDebugPanelAbilities), actualX + DEBUG_PANEL_PADDING + 4, qYOffset + 2, 11,
-            Color(r: 255, g: 230, b: 145, a: 255))
+            uiInk(Color(r: 255, g: 230, b: 145, a: 255)))
     let countW = measureText(countText, 10)
     drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW + 1,
-             qYOffset + 3, 10, Color(r: 0, g: 0, b: 0, a: 130))
+             qYOffset + 3, 10, textShadow(130))
     drawText(countText, actualX + panelWidth - DEBUG_PANEL_PADDING - 24 - countW,
-             qYOffset + 2, 10, Color(r: 255, g: 238, b: 170, a: 235))
+             qYOffset + 2, 10, uiInk(Color(r: 255, g: 238, b: 170, a: 235)))
 
     let miniIconX = actualX + panelWidth - DEBUG_PANEL_PADDING - 12
     let miniIconY = qYOffset + 9
     drawStroke(Vector2(x: miniIconX.float32, y: miniIconY.float32),
             Vector2(x: (miniIconX + 10).float32, y: miniIconY.float32),
-            2, Color(r: 255, g: 230, b: 145, a: 255))
+            2, uiLine(Color(r: 255, g: 230, b: 145, a: 255)))
 
   qYOffset += DEBUG_TITLE_HEIGHT + 6
   let iconsTop = qYOffset
@@ -895,11 +895,11 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     let exhausted = powerUp.powerType == puTimeWarp and
                     game.player.timeWarpUsesThisWave >= game.player.timeWarpMaxUsesPerWave
     let bgColor = if active:
-      withAlpha(accent, 96)
+      withAlpha(uiGlow(accent), 96)
     elif ready:
-      withAlpha(accent, clampByte(58 + int(pulse * 32.0'f32)))
+      withAlpha(uiGlow(accent), clampByte(58 + int(pulse * 32.0'f32)))
     else:
-      Color(r: 12, g: 16, b: 23, a: 145)
+      uiSurface(12, 16, 23, 145)
     let borderColor = if ready or active:
       withAlpha(accent, 220)
     else:
@@ -911,7 +911,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     drawRectOutline(Rectangle(x: iconX.float32, y: iconY.float32,
                                   width: LEGENDARY_Q_ICON_SIZE.float32,
                                   height: LEGENDARY_Q_ICON_SIZE.float32),
-                       1, borderColor)
+                       1, uiLine(borderColor))
     drawPowerUpIcon(iconX + 3, iconY + 3, LEGENDARY_Q_ICON_SIZE - 6, powerUp.powerType,
                     if ready or active: accent else: withAlpha(accent, 145))
 
@@ -924,7 +924,7 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
     let progressW = max(0'i32, (LEGENDARY_Q_ICON_SIZE.float32 * progress).int32)
     if progressW > 0:
       drawRectangle(iconX, iconY + LEGENDARY_Q_ICON_SIZE - 3,
-                    progressW, 3, withAlpha(accent, 215))
+                    progressW, 3, withAlpha(uiInk(accent), 215))
 
     if not ready and not active:
       drawRectangle(iconX, iconY, LEGENDARY_Q_ICON_SIZE, LEGENDARY_Q_ICON_SIZE,
@@ -937,9 +937,9 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
         "--"
       let textW = measureText(statusText, 12)
       drawText(statusText, iconX + LEGENDARY_Q_ICON_SIZE div 2 - textW div 2 + 1,
-               iconY + 8, 12, Color(r: 0, g: 0, b: 0, a: 200))
+               iconY + 8, 12, textShadow(200))
       drawText(statusText, iconX + LEGENDARY_Q_ICON_SIZE div 2 - textW div 2,
-               iconY + 7, 12, Color(r: 230, g: 236, b: 245, a: 235))
+               iconY + 7, 12, uiInk(Color(r: 230, g: 236, b: 245, a: 235)))
 
     let iconRect = Rectangle(x: iconX.float32, y: iconY.float32,
                              width: LEGENDARY_Q_ICON_SIZE.float32,
@@ -967,6 +967,6 @@ proc drawLegendaryPowerUpsPanel*(game: Game, screenWidth, screenHeight: int32,
   let displayFooter = fitWithEllipsis(footerText, panelWidth - LEGENDARY_Q_PADDING * 2, 9)
   let footerW = measureText(displayFooter, 9)
   drawText(displayFooter, actualX + panelWidth div 2 - footerW div 2 + 1,
-           qYOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 125))
+           qYOffset + 1, 9, textShadow(125))
   drawText(displayFooter, actualX + panelWidth div 2 - footerW div 2,
-           qYOffset, 9, Color(r: 210, g: 220, b: 235, a: 210))
+           qYOffset, 9, uiInk(Color(r: 210, g: 220, b: 235, a: 210)))

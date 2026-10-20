@@ -6,7 +6,8 @@ import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../localization, ../render_context, ../utils, ../survival
 from ../roguelite import RogueliteFloorsToWin
-import ui_helpers, icon_drawing
+import ui_helpers, icon_drawing, ui_theme
+from hud_dock import textShadow
 
 const
   SCREEN_WIDTH = 900
@@ -47,11 +48,11 @@ proc drawModernButton(x, y, width, height: int32, text: string,
       if isPrimary: Color(r: 175, g: 45, b: 45, a: 255)
       else: Color(r: 115, g: 32, b: 36, a: 255)
 
-  drawRectangle(x, y, width, height, bgColor)
+  drawRectangle(x, y, width, height, uiSurface(bgColor))
 
   # Top highlight
   drawRectangle(x, y, width, 2,
-               Color(r: 255, g: 255, b: 255, a: 40))
+               uiGlow(Color(r: 255, g: 255, b: 255, a: 40)))
 
   # Border with pulse for primary
   let pulse = sin(time * 4.0) * 0.3 + 0.7
@@ -69,7 +70,7 @@ proc drawModernButton(x, y, width, height: int32, text: string,
   let borderWidth = if isPrimary: 2.5 else: 2.0
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
-                    borderWidth, borderColor)
+                    borderWidth, uiLine(borderColor))
 
   # Button text. When a hotkey hint is present we stack two centered lines
   # (16px label + 12px hint with a 4px gap); otherwise the label is vertically
@@ -80,23 +81,23 @@ proc drawModernButton(x, y, width, height: int32, text: string,
   let labelY = if hotkey.len > 0: y + 7 else: y + (height - 16) div 2
 
   # Shadow for text
-  drawText(text, textX + 1, labelY + 1, 16, Color(r: 0, g: 0, b: 0, a: 120))
-  drawText(text, textX, labelY, 16, White)
+  drawText(text, textX + 1, labelY + 1, 16, textShadow(120))
+  drawText(text, textX, labelY, 16, uiInk(White))
 
   # Hotkey hint
   if hotkey.len > 0:
     let hkWidth = measureText(hotkey, 12)
     let hkX = x + (width - hkWidth) div 2
     drawText(hotkey, hkX, labelY + 20, 12,
-            Color(r: 200, g: 210, b: 220, a: 255))
+            uiInk(Color(r: 200, g: 210, b: 220, a: 255)))
 
 proc drawStat(x, y: int32, label, value: string, icon: string = "-",
               valueColor: Color = White) =
   ## Draw a formatted stat line with icon
-  drawText(icon, x, y, 16, Color(r: 0, g: 180, b: 255, a: 255))
-  drawText(label, x + 30, y + 2, 15, Color(r: 180, g: 190, b: 200, a: 255))
+  drawText(icon, x, y, 16, uiInk(Color(r: 0, g: 180, b: 255, a: 255)))
+  drawText(label, x + 30, y + 2, 15, uiInk(Color(r: 180, g: 190, b: 200, a: 255)))
 
-  drawText(value, x + 450, y + 2, 15, valueColor)
+  drawText(value, x + 450, y + 2, 15, uiInk(valueColor))
 
 proc runCurrencyBanked(game: Game): tuple[shards, cores: int] =
   ## What this run paid into the shared wallet. Roguelite reads its run's
@@ -125,14 +126,14 @@ proc drawShopCurrencyBanked(game: Game, windowX, statsY: int32) =
   # Right-aligned to the content margin; the stat values end well short of it.
   let x = windowX + SCREEN_WIDTH - 30 - panelW
   let panelH = headerH + rowH * 2 + 8
-  drawRectangle(x, statsY, panelW, panelH, Color(r: 14, g: 30, b: 52, a: 235))
-  drawRectangle(x, statsY, panelW, headerH, Color(r: 0, g: 90, b: 130, a: 150))
+  drawRectangle(x, statsY, panelW, panelH, uiSurface(Color(r: 14, g: 30, b: 52, a: 235)))
+  drawRectangle(x, statsY, panelW, headerH, uiSurface(Color(r: 0, g: 90, b: 130, a: 150)))
   drawRectOutline(Rectangle(x: x.float32, y: statsY.float32,
                                width: panelW.float32, height: panelH.float32),
-                     1, Color(r: 0, g: 200, b: 255, a: 170))
+                     1, uiLine(Color(r: 0, g: 200, b: 255, a: 170)))
   let title = t(tkGameOverShopCurrencyBanked)
   drawText(title, x + (panelW - measureText(title, 12)) div 2, statsY + 5, 12,
-           Color(r: 170, g: 235, b: 255, a: 255))
+           uiInk(Color(r: 170, g: 235, b: 255, a: 255)))
 
   let rows = [
     (icon: ciDataShards, amount: banked.shards, label: t("roguelite_data_shards"),
@@ -146,9 +147,9 @@ proc drawShopCurrencyBanked(game: Game, windowX, statsY: int32) =
     let alpha: uint8 = if row.amount > 0: 255 else: 110
     drawCurrencyIcon(x + 22, rowY + rowH div 2, 20, row.icon, alpha)
     let amountText = "+" & $row.amount
-    drawText(amountText, x + 42, rowY + 6, 18, withAlpha(row.color, alpha))
+    drawText(amountText, x + 42, rowY + 6, 18, uiInk(withAlpha(row.color, alpha)))
     drawText(row.label, x + 42 + measureText(amountText, 18) + 10, rowY + 9, 13,
-             Color(r: 180, g: 190, b: 200, a: alpha))
+             uiInk(Color(r: 180, g: 190, b: 200, a: alpha)))
     rowY += rowH
 
 proc survivalBossesBeaten(game: Game): int =
@@ -204,11 +205,11 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
     let lineY = i * 4 + int32(game.time * 100.0) mod 4
     let alpha = uint8(5 + sin(game.time * 2.0 + i.float32) * 5.0)
     drawRectangle(0, lineY, screenWidth, 2,
-                 Color(r: 20, g: 50, b: 90, a: alpha))
+                 uiLine(Color(r: 20, g: 50, b: 90, a: alpha)))
 
   # Full screen dark blue background (modern BSOD style)
   drawRectangle(0, 0, screenWidth, screenHeight,
-               Color(r: 12, g: 35, b: 68, a: 250))
+               uiSurface(Color(r: 12, g: 35, b: 68, a: 250)))
 
   # Calculate center position
   let windowX = (screenWidth - SCREEN_WIDTH) div 2
@@ -216,13 +217,13 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
 
   # Error window with modern styling
   drawRectangle(windowX - 10, windowY - 10, SCREEN_WIDTH + 20, SCREEN_HEIGHT + 20,
-               Color(r: 18, g: 45, b: 85, a: 255))
+               uiSurface(Color(r: 18, g: 45, b: 85, a: 255)))
 
   # Window border
   drawRectOutline(Rectangle(x: (windowX - 10).float32, y: (windowY - 10).float32,
                                 width: (SCREEN_WIDTH + 20).float32,
                                 height: (SCREEN_HEIGHT + 20).float32),
-                    3, Color(r: 60, g: 120, b: 200, a: 255))
+                    3, uiLine(Color(r: 60, g: 120, b: 200, a: 255)))
 
   var yOffset = windowY + 28
 
@@ -230,22 +231,22 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   let pulse = sin(game.time * 2.0) * 0.2 + 0.8
   let faceX = windowX + 30
   drawText(":(", faceX, yOffset, 64,
-          Color(r: uint8(210 * pulse), g: uint8(90 * pulse), b: uint8(95 * pulse), a: 255))
+          uiInk(Color(r: uint8(210 * pulse), g: uint8(90 * pulse), b: uint8(95 * pulse), a: 255)))
 
   drawText(t(tkGameOverCriticalFailure), faceX + 92, yOffset + 10, 34,
-          Color(r: 255, g: 95, b: 95, a: 255))
+          uiInk(Color(r: 255, g: 95, b: 95, a: 255)))
 
   let iconBoxX = windowX + SCREEN_WIDTH - 108
-  drawRectangle(iconBoxX, yOffset, 78, 78, Color(r: 60, g: 24, b: 28, a: 255))
+  drawRectangle(iconBoxX, yOffset, 78, 78, uiSurface(Color(r: 60, g: 24, b: 28, a: 255)))
   drawRectOutline(Rectangle(x: iconBoxX.float32, y: yOffset.float32, width: 78.0, height: 78.0),
-                    2, Color(r: 220, g: 80, b: 80, a: 255))
-  drawText("[X]", iconBoxX + 15, yOffset + 17, 44, Color(r: 255, g: 120, b: 120, a: 255))
+                    2, uiLine(Color(r: 220, g: 80, b: 80, a: 255)))
+  drawText("[X]", iconBoxX + 15, yOffset + 17, 44, uiInk(Color(r: 255, g: 120, b: 120, a: 255)))
 
   yOffset += 86
 
   # Short subtitle
   drawText(t(tkGameOverErrorMsg), windowX + 30, yOffset, 16,
-          Color(r: 210, g: 220, b: 235, a: 255))
+          uiInk(Color(r: 210, g: 220, b: 235, a: 255)))
   yOffset += 30
 
   # Cause of termination banner (headline of the redesign)
@@ -253,21 +254,21 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   const bannerH = 66
   let bannerPulse = sin(game.time * 3.0) * 0.25 + 0.75
   drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, bannerH,
-               Color(r: 46, g: 18, b: 22, a: 255))
+               uiSurface(Color(r: 46, g: 18, b: 22, a: 255)))
   drawRectOutline(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
                                 width: (SCREEN_WIDTH - 60).float32, height: bannerH.float32),
-                    2.0, Color(r: uint8(255 * bannerPulse), g: 70, b: 70, a: 255))
-  drawText("[X]", windowX + 48, yOffset + 18, 30, Color(r: 255, g: 90, b: 90, a: 255))
+                    2.0, uiLine(Color(r: uint8(255 * bannerPulse), g: 70, b: 70, a: 255)))
+  drawText("[X]", windowX + 48, yOffset + 18, 30, uiInk(Color(r: 255, g: 90, b: 90, a: 255)))
   drawText(t(tkGameOverCauseLabel), windowX + 98, yOffset + 12, 13,
-          Color(r: 205, g: 150, b: 150, a: 255))
+          uiInk(Color(r: 205, g: 150, b: 150, a: 255)))
 
   let verbX = windowX + 98
-  drawText(cause.verb, verbX, yOffset + 32, 22, Color(r: 235, g: 235, b: 240, a: 255))
+  drawText(cause.verb, verbX, yOffset + 32, 22, uiInk(Color(r: 235, g: 235, b: 240, a: 255)))
   if cause.killer.len > 0:
     let verbW = measureText(cause.verb, 22)
     let nameColor = if cause.isBoss: Color(r: 255, g: 170, b: 40, a: 255)
                     else: Color(r: 255, g: 120, b: 120, a: 255)
-    drawText(cause.killer, verbX + verbW + 10, yOffset + 32, 22, nameColor)
+    drawText(cause.killer, verbX + verbW + 10, yOffset + 32, 22, uiInk(nameColor))
     if cause.isBoss:
       # Boss tag pill after the name
       let nameW = measureText(cause.killer, 22)
@@ -280,19 +281,19 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
 
   # Error code line (thin, themed)
   drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, 30,
-               Color(r: 25, g: 45, b: 75, a: 255))
+               uiSurface(Color(r: 25, g: 45, b: 75, a: 255)))
   drawRectOutline(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
                                 width: (SCREEN_WIDTH - 60).float32, height: 30.0),
-                    1, Color(r: 60, g: 100, b: 160, a: 255))
-  drawText("[!]", windowX + 40, yOffset + 6, 16, Color(r: 255, g: 200, b: 100, a: 255))
+                    1, uiLine(Color(r: 60, g: 100, b: 160, a: 255)))
+  drawText("[!]", windowX + 40, yOffset + 6, 16, uiInk(Color(r: 255, g: 200, b: 100, a: 255)))
   drawText(t(tkGameOverErrorCode), windowX + 66, yOffset + 8, 14,
-          Color(r: 230, g: 235, b: 245, a: 255))
+          uiInk(Color(r: 230, g: 235, b: 245, a: 255)))
   yOffset += 38
 
   # Session diagnostics (the translation already includes the "=== ... ==="
   # decoration, mirroring the victory screen's report header).
   drawText(t(tkGameOverSessionDiagnostics), windowX + 30, yOffset, 16,
-          Color(r: 150, g: 180, b: 220, a: 255))
+          uiInk(Color(r: 150, g: 180, b: 220, a: 255)))
   yOffset += 26
 
   # Format time. runElapsedTime, not game.time: the run clock is frozen when the
@@ -425,12 +426,12 @@ proc drawSystemCrash*(game: Game, selectedButton: int = 0,
   # Footer warning text
   let footerY = windowY + SCREEN_HEIGHT - 35
   drawRectangle(windowX, footerY, SCREEN_WIDTH, 35,
-               Color(r: 30, g: 60, b: 110, a: 255))
+               uiSurface(Color(r: 30, g: 60, b: 110, a: 255)))
 
   let footerText = t(tkGameOverSystemFailedFooter)
   let footerWidth = measureText(footerText, 13)
   drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
-          Color(r: 180, g: 190, b: 200, a: 255))
+          uiInk(Color(r: 180, g: 190, b: 200, a: 255)))
 
 proc drawSystemSecured*(game: Game, selectedButton: int = 0) {.moddable.} =
   ## Draw the wave-60 final-boss Victory screen as "system secured" (and, with
@@ -448,11 +449,11 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) {.moddable.} =
     let y = int32(((particleTime * 50.0) mod screenHeight.float32))
     let alpha = uint8(30 + sin(particleTime * 3.0) * 20.0)
 
-    drawRectangle(x, y, 2, 2, Color(r: 100, g: 255, b: 150, a: alpha))
+    drawRectangle(x, y, 2, 2, uiGlow(Color(r: 100, g: 255, b: 150, a: alpha)))
 
   # Dark background with green tint
   drawRectangle(0, 0, screenWidth, screenHeight,
-               Color(r: 10, g: 28, b: 18, a: 250))
+               uiSurface(Color(r: 10, g: 28, b: 18, a: 250)))
 
   # Calculate center position
   let windowX = (screenWidth - SCREEN_WIDTH) div 2
@@ -461,17 +462,17 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) {.moddable.} =
   # Success window background with glow
   let glowPulse = sin(game.time * 2.5) * 0.15 + 0.85
   drawRectangle(windowX - 15, windowY - 15, SCREEN_WIDTH + 30, SCREEN_HEIGHT + 30,
-               Color(r: uint8(0 * glowPulse), g: uint8(255 * glowPulse),
-                     b: uint8(100 * glowPulse), a: 40))
+               uiGlow(Color(r: uint8(0 * glowPulse), g: uint8(255 * glowPulse),
+                     b: uint8(100 * glowPulse), a: 40)))
 
   drawRectangle(windowX - 10, windowY - 10, SCREEN_WIDTH + 20, SCREEN_HEIGHT + 20,
-               Color(r: 20, g: 40, b: 30, a: 255))
+               uiSurface(Color(r: 20, g: 40, b: 30, a: 255)))
 
   # Window border with glow
   drawRectOutline(Rectangle(x: (windowX - 10).float32, y: (windowY - 10).float32,
                                 width: (SCREEN_WIDTH + 20).float32,
                                 height: (SCREEN_HEIGHT + 20).float32),
-                    3, Color(r: 0, g: 255, b: 120, a: 255))
+                    3, uiLine(Color(r: 0, g: 255, b: 120, a: 255)))
 
   var yOffset = windowY + 30
 
@@ -490,60 +491,60 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) {.moddable.} =
     let layerW = measureText("[OK]", layerSize)
     drawText("[OK]", centerX - layerW div 2, centerY - layerSize div 2,
             layerSize,
-            Color(r: 0, g: uint8(255 * checkPulse), b: uint8(120 * checkPulse),
-                  a: uint8(30 / i.float32)))
+            uiInk(Color(r: 0, g: uint8(255 * checkPulse), b: uint8(120 * checkPulse),
+                  a: uint8(30 / i.float32))))
 
   drawText("[OK]", checkX, yOffset, checkSize.int32,
-          Color(r: 0, g: 255, b: 120, a: 255))
+          uiInk(Color(r: 0, g: 255, b: 120, a: 255)))
 
   # Success icon box
   let iconBoxX = windowX + SCREEN_WIDTH - 120
   drawRectangle(iconBoxX, yOffset, 100, 100,
-               Color(r: 25, g: 50, b: 35, a: 255))
+               uiSurface(Color(r: 25, g: 50, b: 35, a: 255)))
   drawRectOutline(Rectangle(x: iconBoxX.float32, y: yOffset.float32,
                                 width: 100.0, height: 100.0),
-                    2, Color(r: 0, g: 200, b: 100, a: 255))
+                    2, uiLine(Color(r: 0, g: 200, b: 100, a: 255)))
   # "[OK]" at a fixed size/offset overflowed the right edge of the 100px box.
   # Shrink until it fits the inner width, then center it in both axes.
   let iconSize = bestFitFontSize("[OK]", 84, 60, 12)
   let iconTextW = measureText("[OK]", iconSize)
   drawText("[OK]", iconBoxX + (100'i32 - iconTextW) div 2'i32,
           yOffset + (100'i32 - iconSize) div 2'i32, iconSize,
-          Color(r: 100, g: 255, b: 150, a: 255))
+          uiInk(Color(r: 100, g: 255, b: 150, a: 255)))
 
   yOffset += 104
 
   # Main victory message
   let successTitle = t(if survival: tkSurvivalVictoryTitle else: tkVictoryTitle)
   drawText(successTitle, windowX + 30, yOffset, 40,
-          Color(r: 100, g: 255, b: 150, a: 255))
+          uiInk(Color(r: 100, g: 255, b: 150, a: 255)))
   yOffset += 46
 
   # Congratulatory subtitle
   drawText(t(if survival: tkSurvivalVictorySubtitle else: tkVictorySubtitle), windowX + 30, yOffset, 18,
-          Color(r: 200, g: 255, b: 220, a: 255))
+          uiInk(Color(r: 200, g: 255, b: 220, a: 255)))
   yOffset += 32
 
   # Status box
   drawRectangle(windowX + 30, yOffset, SCREEN_WIDTH - 60, 35,
-               Color(r: 25, g: 45, b: 35, a: 255))
+               uiSurface(Color(r: 25, g: 45, b: 35, a: 255)))
   drawRectOutline(Rectangle(x: (windowX + 30).float32, y: yOffset.float32,
                                 width: (SCREEN_WIDTH - 60).float32, height: 35.0),
-                    1, Color(r: 0, g: 180, b: 100, a: 255))
+                    1, uiLine(Color(r: 0, g: 180, b: 100, a: 255)))
 
   let statusIconX = windowX + 40
-  drawText("[OK]", statusIconX, yOffset + 6, 20, Color(r: 100, g: 255, b: 150, a: 255))
+  drawText("[OK]", statusIconX, yOffset + 6, 20, uiInk(Color(r: 100, g: 255, b: 150, a: 255)))
   # Place the label after the measured icon width (+ padding) so the 4-char
   # "[OK]" token can't bleed into the status text.
   let statusTextX = statusIconX + measureText("[OK]", 20) + 14
   drawText(t(if survival: tkSurvivalVictoryStatus else: tkVictoryStatus),
           statusTextX, yOffset + 10, 14,
-          Color(r: 200, g: 255, b: 220, a: 255))
+          uiInk(Color(r: 200, g: 255, b: 220, a: 255)))
   yOffset += 44
 
   # Final diagnostics header
   drawText(t(tkVictoryReportHeader), windowX + 30, yOffset, 16,
-          Color(r: 150, g: 220, b: 180, a: 255))
+          uiInk(Color(r: 150, g: 220, b: 180, a: 255)))
   yOffset += 28
 
   # Format time (frozen at run end -- see the note on the game-over screen).
@@ -619,7 +620,7 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) {.moddable.} =
   # Footer success text
   let footerY = windowY + SCREEN_HEIGHT - 35
   drawRectangle(windowX, footerY, SCREEN_WIDTH, 35,
-               Color(r: 30, g: 60, b: 45, a: 255))
+               uiSurface(Color(r: 30, g: 60, b: 45, a: 255)))
 
   # On the run that first earned the kernel tophat, the footer announces the
   # secret unlock instead of the endless-mode hint.
@@ -628,9 +629,9 @@ proc drawSystemSecured*(game: Game, selectedButton: int = 0) {.moddable.} =
     let secretWidth = measureText(secretText, 13)
     let secretPulse = sin(game.time * 4.0) * 0.5 + 0.5
     drawText(secretText, windowX + (SCREEN_WIDTH - secretWidth) div 2, footerY + 10, 13,
-            Color(r: uint8(120 + secretPulse * 135), g: 255, b: 255, a: 255))
+            uiInk(Color(r: uint8(120 + secretPulse * 135), g: 255, b: 255, a: 255)))
   else:
     let footerText = t(if survival: tkSurvivalVictoryFooter else: tkVictoryFooter)
     let footerWidth = measureText(footerText, 13)
     drawText(footerText, windowX + (SCREEN_WIDTH - footerWidth) div 2, footerY + 10, 13,
-            Color(r: 180, g: 220, b: 190, a: 255))
+            uiInk(Color(r: 180, g: 220, b: 190, a: 255)))

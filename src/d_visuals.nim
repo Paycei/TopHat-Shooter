@@ -1,7 +1,7 @@
 import raylib, math
 import modding/mod_patch_core
 import draw_prims
-import types, d_systems, localization, utils, ui/ui_helpers
+import types, d_systems, localization, utils, ui/ui_helpers, ui/hud_dock
 
 proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
                           currentTime: float32, posX, posY: int32) {.moddable.} =
@@ -39,11 +39,11 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   for i in countdown(3, 1):
     let glowAlpha = uint8((fadeAlpha.float32 * 0.3 * (4 - i).float32 / 3.0).int)
     let glowColor = withAlpha(comboColor, glowAlpha)
-    drawText(multiplier, (baseX - i).int32, (baseY - i).int32, finalFontSize, glowColor)
-    drawText(multiplier, (baseX + i).int32, (baseY + i).int32, finalFontSize, glowColor)
+    drawText(multiplier, (baseX - i).int32, (baseY - i).int32, finalFontSize, uiOverlay(glowColor))
+    drawText(multiplier, (baseX + i).int32, (baseY + i).int32, finalFontSize, uiOverlay(glowColor))
 
   # Main multiplier text
-  drawText(multiplier, baseX.int32, baseY.int32, finalFontSize, comboColor)
+  drawText(multiplier, baseX.int32, baseY.int32, finalFontSize, uiOverlay(comboColor))
 
   # "COMBO!" text below with emphasis
   let comboLabelSize = int32(12.0 * scale)
@@ -60,7 +60,7 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   drawText(comboText, labelX + 1, labelY + 1, comboLabelSize,
     Color(r: 0, g: 0, b: 0, a: uint8(fadeAlpha.float32 * 0.6)))
   drawText(comboText, labelX, labelY, comboLabelSize,
-    Color(r: 255, g: 255, b: 100, a: fadeAlpha))
+    uiOverlay(Color(r: 255, g: 255, b: 100, a: fadeAlpha)))
 
   # Track vertical offset for stacking notifications
   var notificationY = labelY + comboLabelSize + 8
@@ -75,7 +75,7 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
     drawText(bonusText, bonusX + 1, notificationY + 1, 16,
       Color(r: 0, g: 0, b: 0, a: uint8(bonusAlpha.float32 * 0.7)))
     drawText(bonusText, bonusX, notificationY, 16,
-      Color(r: 255, g: 215, b: 0, a: bonusAlpha))
+      uiOverlay(Color(r: 255, g: 215, b: 0, a: bonusAlpha)))
     notificationY += 22
 
   # Perfect wave combo notification (if earned) - TONED DOWN VERSION
@@ -101,13 +101,13 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
 
     # Subtle background
     drawRectangle(boxX, boxY, boxWidth, boxHeight,
-      Color(r: 40, g: 60, b: 0, a: uint8(perfectAlpha.float32 * 0.5)))
+      uiOverlay(Color(r: 40, g: 60, b: 0, a: uint8(perfectAlpha.float32 * 0.5))))
 
     # Draw text with simple shadow - no pulsing
     drawText(perfectText, perfectX + 1, notificationY + 1, perfectFontSize,
       Color(r: 0, g: 0, b: 0, a: uint8(perfectAlpha.float32 * 0.7)))
     drawText(perfectText, perfectX, notificationY, perfectFontSize,
-      Color(r: 255, g: 220, b: 80, a: perfectAlpha))  # Softer yellow
+      uiOverlay(Color(r: 255, g: 220, b: 80, a: perfectAlpha)))  # Softer yellow
     notificationY += 24
 
   # TIMER BAR
@@ -122,7 +122,7 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   let barX = baseX.int32 + (finalFontSize div 2) - (barWidth div 2)
 
   drawRectangle(barX, barY, barWidth, barHeight,
-    Color(r: 20, g: 20, b: 20, a: uint8(fadeAlpha.float32 * 0.8)))
+    uiOverlay(Color(r: 20, g: 20, b: 20, a: uint8(fadeAlpha.float32 * 0.8))))
 
   let barFillWidth = int32(barWidth.float32 * timePercent)
   let barColor = if timePercent > 0.25:
@@ -130,7 +130,7 @@ proc drawComboAtPosition*(combo: ComboSystem, screenWidth, screenHeight: int32,
   else:
     Color(r: 255, g: 80, b: 80, a: fadeAlpha)
 
-  drawRectangle(barX, barY, barFillWidth, barHeight, barColor)
+  drawRectangle(barX, barY, barFillWidth, barHeight, uiOverlay(barColor))
 
 proc drawCombo*(combo: ComboSystem, screenWidth, screenHeight: int32, currentTime: float32) {.moddable.} =
   ## Default combo display in middle-right of screen
@@ -185,15 +185,15 @@ proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
     Color(r: 160, g: 40, b: 0, a: uint8(ease * 200))
   else:
     Color(r: 10, g: 30, b: 50, a: uint8(ease * 200))
-  drawRectangle(0, bannerY, screenWidth, bannerH, bgColor)
+  drawRectangle(0, bannerY, screenWidth, bannerH, hudSurface(bgColor))
 
   # Accent lines top and bottom
   let accentColor = if isBossWarning:
     Color(r: 255, g: 100, b: 0, a: alpha)
   else:
     Color(r: 0, g: 200, b: 255, a: alpha)
-  drawRectangle(0, bannerY, screenWidth, 2, accentColor)
-  drawRectangle(0, bannerY + bannerH - 2, screenWidth, 2, accentColor)
+  drawRectangle(0, bannerY, screenWidth, 2, uiInk(accentColor))
+  drawRectangle(0, bannerY + bannerH - 2, screenWidth, 2, uiInk(accentColor))
 
   # Wave text, centred
   let waveLabel = if isBossWarning:
@@ -207,9 +207,9 @@ proc drawWaveStartBanner*(waveNumber: int, waveAge: float32,
 
   # Shadow
   drawText(waveLabel, textX + 1, textY + 1, fontSize,
-    Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.6)))
+    textShadow(uint8(alpha.float32 * 0.6)))
   # Main
-  drawText(waveLabel, textX, textY, fontSize, accentColor)
+  drawText(waveLabel, textX, textY, fontSize, uiInk(accentColor))
 
 # WAVE START BANNER - WIDESCREEN GUTTER VARIANT
 # Compact vertical card that lives inside the right gutter instead of a
@@ -250,23 +250,23 @@ proc drawWaveStartBannerGutter*(waveNumber: int, waveAge: float32,
     Color(r: 160, g: 40, b: 0, a: uint8(ease * 210))
   else:
     Color(r: 10, g: 30, b: 50, a: uint8(ease * 210))
-  drawRectangle(cardX, cardY, cardW, cardH, bgColor)
+  drawRectangle(cardX, cardY, cardW, cardH, hudSurface(bgColor))
 
   let accentColor = if isBossWarning:
     Color(r: 255, g: 100, b: 0, a: alpha)
   else:
     Color(r: 0, g: 200, b: 255, a: alpha)
   # Vertical accent bars on the card sides.
-  drawRectangle(cardX, cardY, 2, cardH, accentColor)
-  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, accentColor)
+  drawRectangle(cardX, cardY, 2, cardH, uiInk(accentColor))
+  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, uiInk(accentColor))
 
   var ty = cardY + 6
   for ln in lines:
     let tw = measureText(ln, fontSize)
     let tx = cardX + (cardW - tw) div 2
     drawText(ln, tx + 1, ty + 1, fontSize,
-      Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.6)))
-    drawText(ln, tx, ty, fontSize, accentColor)
+      textShadow(uint8(alpha.float32 * 0.6)))
+    drawText(ln, tx, ty, fontSize, uiInk(accentColor))
     ty += lineH
   return cardY + cardH + 6
 
@@ -299,15 +299,15 @@ proc drawLabelBanner*(title, subtitle: string, age: float32, screenWidth, topY: 
   let boxY = topY - int32((1.0'f32 - ease) * 16.0'f32)
   let alpha = ease * 255.0'f32
   let rect = Rectangle(x: boxX.float32, y: boxY.float32, width: boxW.float32, height: boxH.float32)
-  drawRectangleRounded(rect, 0.3'f32, 6, Color(r: 8, g: 16, b: 26, a: uint8(ease * 215.0'f32)))
-  drawRectangleRoundedLines(rect, 0.3'f32, 6, -2.0'f32, withAlpha(accent, alpha))
+  drawRectangleRounded(rect, 0.3'f32, 6, hudSurface(Color(r: 8, g: 16, b: 26, a: uint8(ease * 215.0'f32))))
+  drawRectangleRoundedLines(rect, 0.3'f32, 6, -2.0'f32, uiLine(withAlpha(accent, alpha)))
   let tx = boxX + (boxW - titleW) div 2
   let ty = boxY + 8
-  drawText(title, tx + 1, ty + 1, titleSize, Color(r: 0, g: 0, b: 0, a: uint8(alpha * 0.6'f32)))
-  drawText(title, tx, ty, titleSize, withAlpha(accent, alpha))
+  drawText(title, tx + 1, ty + 1, titleSize, textShadow(uint8(alpha * 0.6'f32)))
+  drawText(title, tx, ty, titleSize, uiInk(withAlpha(accent, alpha)))
   if subtitle.len > 0:
     drawText(subtitle, boxX + (boxW - subW) div 2, ty + titleSize + 6, subSize,
-             Color(r: 215, g: 230, b: 240, a: uint8(alpha)))
+             uiInk(Color(r: 215, g: 230, b: 240, a: uint8(alpha))))
 
 proc drawLabelBannerGutter*(title, subtitle: string, age: float32,
                             gutterX, gutterW, topY: int32, accent: Color,
@@ -328,20 +328,20 @@ proc drawLabelBannerGutter*(title, subtitle: string, age: float32,
                      subLines.len.int32 * (subSize + 3) + (if subLines.len > 0: 4 else: 0)
   let slideOff = int32((1.0'f32 - ease) * (cardW.float32 + 12.0'f32))
   let cardX = gutterX + (gutterW - cardW) div 2 + slideOff
-  drawRectangle(cardX, topY, cardW, cardH, Color(r: 8, g: 16, b: 26, a: uint8(ease * 215.0'f32)))
-  drawRectangle(cardX, topY, 2, cardH, withAlpha(accent, alpha))
-  drawRectangle(cardX + cardW - 2, topY, 2, cardH, withAlpha(accent, alpha))
+  drawRectangle(cardX, topY, cardW, cardH, hudSurface(Color(r: 8, g: 16, b: 26, a: uint8(ease * 215.0'f32))))
+  drawRectangle(cardX, topY, 2, cardH, uiInk(withAlpha(accent, alpha)))
+  drawRectangle(cardX + cardW - 2, topY, 2, cardH, uiInk(withAlpha(accent, alpha)))
   var y = topY + 6
   for ln in titleLines:
     let lw = measureText(ln, titleSize)
-    drawText(ln, cardX + (cardW - lw) div 2, y, titleSize, withAlpha(accent, alpha))
+    drawText(ln, cardX + (cardW - lw) div 2, y, titleSize, uiInk(withAlpha(accent, alpha)))
     y += titleSize + 4
   if subLines.len > 0:
     y += 4
   for ln in subLines:
     let lw = measureText(ln, subSize)
     drawText(ln, cardX + (cardW - lw) div 2, y, subSize,
-             Color(r: 215, g: 230, b: 240, a: uint8(alpha)))
+             uiInk(Color(r: 215, g: 230, b: 240, a: uint8(alpha))))
     y += subSize + 3
   topY + cardH + 6
 
@@ -369,17 +369,17 @@ proc drawComboGutterCard*(combo: ComboSystem, gutterX, gutterW, topY: int32,
   let fadeAlpha = uint8(min(combo.displayTimer, 1.0) * 255.0)
   let accA = fadeAlpha.int
 
-  drawRectangle(cardX, topY, cardW, cardH, Color(r: 8, g: 14, b: 22, a: uint8(min(accA, 210))))
-  drawRectangle(cardX, topY, 2, cardH, withAlpha(tierColor, fadeAlpha))
+  drawRectangle(cardX, topY, cardW, cardH, hudSurface(Color(r: 8, g: 14, b: 22, a: uint8(min(accA, 210)))))
+  drawRectangle(cardX, topY, 2, cardH, uiInk(withAlpha(tierColor, fadeAlpha)))
   drawRectOutline(Rectangle(x: cardX.float32, y: topY.float32, width: cardW.float32, height: cardH.float32),
-                     1, withAlpha(tierColor, uint8(accA * 90 div 255)))
+                     1, uiLine(withAlpha(tierColor, uint8(accA * 90 div 255))))
 
   let comboText = if kc >= 20: t(tkComboInsane)
                   elif kc >= 15: t(tkComboCrazy)
                   elif kc >= 10: t(tkComboSick)
                   else: t(tkComboLabel)
   drawText(comboText, cardX + 8, topY + 6, 11,
-    withAlpha(tierColor, fadeAlpha))
+    uiInk(withAlpha(tierColor, fadeAlpha)))
 
   let pulse = (sin(combo.displayTimer * 8.0) + 1.0) * 0.5
   let baseSize = min(30.0 + kc.float32 * 1.2, 46.0)
@@ -387,13 +387,13 @@ proc drawComboGutterCard*(combo: ComboSystem, gutterX, gutterW, topY: int32,
   let mw = measureText(multiplier, mult)
   let mx = cardX + (cardW - mw) div 2
   let my = topY + 20
-  drawText(multiplier, mx + 2, my + 2, mult, Color(r: 0, g: 0, b: 0, a: uint8(accA * 60 div 255)))
-  drawText(multiplier, mx, my, mult, withAlpha(tierColor, fadeAlpha))
+  drawText(multiplier, mx + 2, my + 2, mult, textShadow(uint8(accA * 60 div 255)))
+  drawText(multiplier, mx, my, mult, uiInk(withAlpha(tierColor, fadeAlpha)))
 
   # Decay bar underneath (displayTimer runs 5 -> 0).
   let barY = topY + cardH - 10
   let barW = cardW - 16
   let frac = clamp(combo.displayTimer / 5.0'f32, 0.0'f32, 1.0'f32)
-  drawRectangle(cardX + 8, barY, barW, 5, Color(r: 20, g: 26, b: 36, a: fadeAlpha))
+  drawRectangle(cardX + 8, barY, barW, 5, uiSurface(Color(r: 20, g: 26, b: 36, a: fadeAlpha)))
   drawRectangle(cardX + 8, barY, int32(barW.float32 * frac), 5,
-    withAlpha(tierColor, fadeAlpha))
+    uiInk(withAlpha(tierColor, fadeAlpha)))

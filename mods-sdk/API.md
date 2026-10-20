@@ -270,6 +270,7 @@ The Lua 5.5 standard library is all there too (`io`, `os`, `debug`, `package`, `
 - `theme.ink`: theme.ink(color) -> text (or a glyph) in the theme in use
 - `theme.line`: theme.line(color) -> a border or divider in the theme in use
 - `theme.list`: theme.list() -> the ids of every theme the player can pick right now
+- `theme.overlay`: theme.overlay(color) -> text or a mark straight over the arena (no panel behind it)
 - `theme.set`: theme.set(id) -> true: the player's theme is now `id` (saved, as if picked in Settings), even one the player has not unlocked. false: no such theme. Your own themes can be named without the "<mod id>:" prefix.
 - `theme.surface`: theme.surface(color) -> a fill (panel, card, button) in the theme in use
 
@@ -1265,7 +1266,10 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawDockBar(x: int32, y: int32, w: int32, h: int32, frac: float32, fill: Color, rim: Color)`
 - **moddable** `drawDockCard(x: int32, y: int32, w: int32, h: int32, accent: Color, bg: Color)`
 - **moddable** `drawDockHeader(x: int32, y: int32, w: int32, title: string, accent: Color, right: string, rightColor: Color): int32`
+- **moddable** `drawOverlayText(text: string, x: int32, y: int32, size: int32, color: Color)`
 - **moddable** `drawShadowText(text: string, x: int32, y: int32, size: int32, color: Color)`
+- **moddable** `hudSurface(c: Color): Color`
+- **moddable** `textShadow(alpha: uint8): Color`
 
 ### `icon_drawing`
 
@@ -2383,6 +2387,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `findTheme(id: string): UiTheme`
 - **moddable** `newTheme(id: string, shell: ShellStyle, surface: Color, raised: Color, text: Color, muted: Color, accent: Color, owner: int, name: string, nameEs: string, wallpaper: int): UiTheme`
 - `stockTheme(): UiTheme`
+- **moddable** `themeIsLight(): bool`
 - **moddable** `themeName(th: UiTheme): string`
 - **moddable** `themeUnlocked(th: UiTheme): bool`
 - `uiGlow(c: Color): Color`
@@ -2391,6 +2396,8 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `uiInk(r: int, g: int, b: int, a: int): Color`
 - `uiLine(c: Color): Color`
 - `uiLine(r: int, g: int, b: int, a: int): Color`
+- `uiOverlay(c: Color): Color`
+- `uiOverlay(r: int, g: int, b: int, a: int): Color`
 - `uiSurface(c: Color): Color`
 - `uiSurface(r: int, g: int, b: int, a: int): Color`
 - **moddable** `unforceTheme()` (wrap only: scripts cannot call it)

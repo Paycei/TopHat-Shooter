@@ -5,7 +5,7 @@ import raylib, math, strutils
 import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../powerup_data, ../localization, ../render_context, ../survival, ../patches, ../utils
-import ui_helpers, icon_drawing
+import ui_helpers, icon_drawing, ui_theme
 import ../modding/mod_registry
 
 const
@@ -35,7 +35,7 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
   else:
     Color(r: 25, g: 35, b: 50, a: 255)
 
-  drawRectangle(x, y, width, TAB_HEIGHT, bgColor)
+  drawRectangle(x, y, width, TAB_HEIGHT, uiSurface(bgColor))
 
   # Tab border
   let borderColor = if active:
@@ -45,7 +45,7 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
 
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: TAB_HEIGHT.float32),
-                    if active: 2 else: 1, borderColor)
+                    if active: 2 else: 1, uiLine(borderColor))
 
   # Tab text
   let textWidth = measureText(text, 14)
@@ -54,7 +54,7 @@ proc drawTaskManagerTab(x, y, width: int32, text: string, active: bool, hovered:
   else:
     Color(r: 150, g: 150, b: 150, a: 255)
 
-  drawText(text, x + (width - textWidth) div 2, y + 10, 14, textColor)
+  drawText(text, x + (width - textWidth) div 2, y + 10, 14, uiInk(textColor))
 
 proc taskManagerTabs(game: Game): seq[TaskManagerTab] {.moddable.} =
   ## The tabs this run shows, left to right. Patches only exist in a roguelite
@@ -123,7 +123,7 @@ proc inspectorLayout(x, y, width, height: int32): InspectorLayout =
   result.paneH = y + height - top - InspectorHintH
 
 proc drawInspectorTitle(text: string, x, y: int32) =
-  drawText(text, x + 10, y + 10, 16, InspectorAccent)
+  drawText(text, x + 10, y + 10, 16, uiInk(InspectorAccent))
 
 proc navigateInspector(nav: var InspectorNav, count: int, lay: InspectorLayout,
                        mouseSupported: bool) =
@@ -161,46 +161,46 @@ proc drawInspectorRowFrame(lay: InspectorLayout, slot: int, selected: bool): int
   ## Background of the `slot`-th visible row; returns its y.
   result = lay.listY + slot.int32 * InspectorRowH
   if selected:
-    drawRectangle(lay.listX, result, InspectorListW, InspectorRowH, withAlpha(InspectorAccent, 45))
+    drawRectangle(lay.listX, result, InspectorListW, InspectorRowH, uiGlow(withAlpha(InspectorAccent, 45)))
     drawRectOutline(Rectangle(x: lay.listX.float32, y: result.float32,
                                  width: InspectorListW.float32, height: InspectorRowH.float32),
-                       1, withAlpha(InspectorAccent, 170))
+                       1, uiLine(withAlpha(InspectorAccent, 170)))
   elif slot mod 2 == 0:
-    drawRectangle(lay.listX, result, InspectorListW, InspectorRowH, Color(r: 30, g: 35, b: 45, a: 100))
+    drawRectangle(lay.listX, result, InspectorListW, InspectorRowH, uiSurface(Color(r: 30, g: 35, b: 45, a: 100)))
 
 proc drawInspectorRowText(lay: InspectorLayout, ry: int32, tag, name: string, nameColor: Color,
                           status: string, statusColor: Color, tagW: int32) =
   ## A row's text after its 16px glyph: a dim tag column (KB number, version),
   ## the name, and the status right-aligned.
-  drawText(tag, lay.listX + 26, ry + 3, 12, InspectorDim)
+  drawText(tag, lay.listX + 26, ry + 3, 12, uiInk(InspectorDim))
   let statusW = measureText(status, 12)
-  drawText(status, lay.listX + InspectorListW - 6 - statusW, ry + 3, 12, statusColor)
+  drawText(status, lay.listX + InspectorListW - 6 - statusW, ry + 3, 12, uiInk(statusColor))
   let nameX = lay.listX + 26 + tagW + 8
   drawText(fitWithEllipsis(name, lay.listX + InspectorListW - 6 - statusW - 8 - nameX, 12),
-           nameX, ry + 3, 12, nameColor)
+           nameX, ry + 3, 12, uiInk(nameColor))
 
 proc drawInspectorScrollbar(lay: InspectorLayout, count: int, nav: InspectorNav) =
   if count <= lay.rows.int:
     return
   let trackX = lay.listX + InspectorListW + 3
   let trackH = lay.rows * InspectorRowH
-  drawRectangle(trackX, lay.listY, 3, trackH, Color(r: 40, g: 48, b: 60, a: 255))
+  drawRectangle(trackX, lay.listY, 3, trackH, uiSurface(Color(r: 40, g: 48, b: 60, a: 255)))
   let thumbH = max(12'i32, trackH * lay.rows div count.int32)
   let thumbY = lay.listY + (trackH - thumbH) * nav.scroll.int32 div max(1, count - lay.rows.int).int32
-  drawRectangle(trackX, thumbY, 3, thumbH, withAlpha(InspectorAccent, 200))
+  drawRectangle(trackX, thumbY, 3, thumbH, uiInk(withAlpha(InspectorAccent, 200)))
 
 proc drawInspectorPane(lay: InspectorLayout, accent: Color): tuple[iconX, iconY, textX, textW: int32] =
   ## The pane's frame and the backdrop of its big glyph. Returns where the
   ## glyph goes and the column the name / subtitle lines to its right use.
   let (x, y, w, h) = (lay.paneX, lay.paneY, lay.paneW, lay.paneH)
-  drawRectangle(x, y, w, h, Color(r: 28, g: 34, b: 46, a: 255))
-  drawRectangle(x, y, 3, h, accent)
+  drawRectangle(x, y, w, h, uiSurface(Color(r: 28, g: 34, b: 46, a: 255)))
+  drawRectangle(x, y, 3, h, uiInk(accent))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32),
-                     1, withAlpha(accent, 110))
+                     1, uiLine(withAlpha(accent, 110)))
   result.iconX = x + 16
   result.iconY = y + 16
   drawRectangle(result.iconX - 4, result.iconY - 4, InspectorIcon + 8, InspectorIcon + 8,
-                withAlpha(accent, 30))
+                uiGlow(withAlpha(accent, 30)))
   result.textX = result.iconX + InspectorIcon + 14
   result.textW = x + w - 14 - result.textX
 
@@ -214,7 +214,7 @@ proc drawInspectorBody(lay: InspectorLayout, blocks: openArray[tuple[caption, te
   let top = lay.paneY + 16 + InspectorIcon + 18
   let bottom = lay.paneY + lay.paneH - 30
   drawStroke(Vector2(x: x.float32, y: (top - 8).float32),
-           Vector2(x: (x + w).float32, y: (top - 8).float32), 1, Color(r: 60, g: 70, b: 85, a: 255))
+           Vector2(x: (x + w).float32, y: (top - 8).float32), 1, uiLine(Color(r: 60, g: 70, b: 85, a: 255)))
 
   var needed = 0'i32
   for b in blocks:
@@ -225,26 +225,26 @@ proc drawInspectorBody(lay: InspectorLayout, blocks: openArray[tuple[caption, te
   var ly = top
   for b in blocks:
     if b.caption.len > 0:
-      drawText(b.caption, x, ly, 10, InspectorDim)
+      drawText(b.caption, x, ly, 10, uiInk(InspectorDim))
       ly += 16
     for line in wrapTextLines(b.text, w, size):
       if ly + size > bottom: break
-      drawText(line, x, ly, size, b.color)
+      drawText(line, x, ly, size, uiInk(b.color))
       ly += size + 6
     ly += 6
 
   let label = t("os_status") & ": "
   let sy = lay.paneY + lay.paneH - 26
-  drawText(label, x, sy, 12, LightGray)
-  drawText(statusLabel, x + measureText(label, 12), sy, 12, statusColor)
+  drawText(label, x, sy, 12, uiInk(LightGray))
+  drawText(statusLabel, x + measureText(label, 12), sy, 12, uiInk(statusColor))
 
 proc drawInspectorHint(lay: InspectorLayout, text: string) =
-  drawText(text, lay.paneX, lay.paneY + lay.paneH + 5, 10, InspectorDim)
+  drawText(text, lay.paneX, lay.paneY + lay.paneH + 5, 10, uiInk(InspectorDim))
 
 proc drawInspectorEmpty(text: string, x, y, width: int32) =
   var ly = y + 10 + InspectorTitleH
   for line in wrapTextLines(text, width - 40, 14):
-    drawText(line, x + 20, ly, 14, Gray)
+    drawText(line, x + 20, ly, 14, uiInk(Gray))
     ly += 20
 
 # --- Patches -----------------------------------------------------------------
@@ -281,12 +281,12 @@ proc drawPatchesTab(game: Game, x, y, width, height: int32, mouseSupported: bool
   let accent = patchAccent(patch)
   let p = drawInspectorPane(lay, accent)
   drawPatchIcon(p.iconX, p.iconY, InspectorIcon, patch, accent)
-  drawText(fitWithEllipsis(patchName(patch), p.textW, 18), p.textX, p.iconY + 2, 18, White)
+  drawText(fitWithEllipsis(patchName(patch), p.textW, 18), p.textX, p.iconY + 2, 18, uiInk(White))
   let kb = patchKbLabel(patch)
-  drawText(kb, p.textX, p.iconY + 28, 12, Color(r: 140, g: 150, b: 165, a: 255))
+  drawText(kb, p.textX, p.iconY + 28, 12, uiInk(Color(r: 140, g: 150, b: 165, a: 255)))
   drawText(if patch.relicType == rrtMod: "MOD"
            else: patchCategoryName(patchCategory(patch.relicType)).toUpperAscii,
-           p.textX + measureText(kb, 12) + 12, p.iconY + 28, 12, accent)
+           p.textX + measureText(kb, 12) + 12, p.iconY + 28, 12, uiInk(accent))
   let status = patchStatus(game, patch.relicType)
   drawInspectorBody(lay, [(caption: "", text: patchDescription(patch),
                            color: Color(r: 215, g: 225, b: 235, a: 255))],
@@ -356,14 +356,14 @@ proc drawProcessesTab(game: Game, x, y, width, height: int32, mouseSupported: bo
   let p = drawInspectorPane(lay, color)
   drawPowerUpIcon(p.iconX, p.iconY, InspectorIcon, pt, color)
   drawText(fitWithEllipsis(getPowerUpName(pt), p.textW, 18), p.textX, p.iconY + 2, 18,
-           if pu.rarity == prLegendary: Color(r: 255, g: 232, b: 145, a: 255) else: White)
+           uiInk(if pu.rarity == prLegendary: Color(r: 255, g: 232, b: 145, a: 255) else: White))
   let maxLevel = max(pu.level, getPowerUpMaxLevel(pt))
   let rank = if pu.rarity == prLegendary: t("os_legendary")
              else: t("os_level_of").replace("$1", $pu.level).replace("$2", $maxLevel)
-  drawText(rank, p.textX, p.iconY + 28, 12, color)
+  drawText(rank, p.textX, p.iconY + 28, 12, uiInk(color))
   if powerUpDef(pt).inLegendaryPanel:
     drawText(t("os_active_ability"), p.textX + measureText(rank, 12) + 12, p.iconY + 28, 12,
-             Color(r: 140, g: 150, b: 165, a: 255))
+             uiInk(Color(r: 140, g: 150, b: 165, a: 255)))
 
   let damage = game.player.damage
   var blocks = @[(caption: "", text: getPowerUpDescription(pt, pu.level, damage),
@@ -397,7 +397,7 @@ proc drawModsTab(game: Game, x, y, width, height: int32, mouseSupported: bool) =
     runPauseAction(actions[modsNav.selection])
   let p = drawInspectorPane(lay, InspectorAccent)
   drawText(fitWithEllipsis(pauseActionName(actions[modsNav.selection]), p.textW, 18), p.textX,
-           p.iconY + 2, 18, White)
+           p.iconY + 2, 18, uiInk(White))
   drawInspectorHint(lay, t("os_mod_actions_hint"))
 
 proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
@@ -405,7 +405,7 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
   var yOffset = y + 10
 
   drawText(t("os_system_performance") & ":", x + 10, yOffset, 16,
-          Color(r: 0, g: 200, b: 255, a: 255))
+          uiInk(Color(r: 0, g: 200, b: 255, a: 255)))
   yOffset += 30
 
   # Current session stats
@@ -423,8 +423,8 @@ proc drawPerformanceTab(game: Game, x, y, width, height: int32, time: float32) =
 
   for stat in stats:
     let (label, value) = stat
-    drawText(label & ":", x + 30, yOffset, 14, LightGray)
-    drawText(value, x + 300, yOffset, 14, White)
+    drawText(label & ":", x + 30, yOffset, 14, uiInk(LightGray))
+    drawText(value, x + 300, yOffset, 14, uiInk(White))
     yOffset += 25
 
 proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cancelled: bool] {.moddable.} =
@@ -453,28 +453,28 @@ proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cance
   # Dialog shadow
   drawRectangle(dx + 6, dy + 6, DW, DH, Color(r: 0, g: 0, b: 0, a: 140))
   # Dialog background
-  drawRectangle(dx, dy, DW, DH, Color(r: 20, g: 25, b: 35, a: 255))
+  drawRectangle(dx, dy, DW, DH, uiSurface(Color(r: 20, g: 25, b: 35, a: 255)))
   drawRectOutline(Rectangle(x: dx.float32, y: dy.float32,
                                width: DW.float32, height: DH.float32),
-                     3, Color(r: 255, g: 80, b: 80, a: 255))
+                     3, uiLine(Color(r: 255, g: 80, b: 80, a: 255)))
 
   # Title bar
   let tbH: int32 = 35
-  drawRectangle(dx, dy, DW, tbH, Color(r: 120, g: 30, b: 30, a: 255))
+  drawRectangle(dx, dy, DW, tbH, uiSurface(Color(r: 120, g: 30, b: 30, a: 255)))
   let titleStr = t(tkConfirmExitTitle)
   let titleW = measureText(titleStr, 16)
   drawText(titleStr, dx + (DW - titleW) div 2, dy + 8, 16,
-           Color(r: 255, g: 200, b: 200, a: 255))
+           uiInk(Color(r: 255, g: 200, b: 200, a: 255)))
 
   # Body text
   let bodyStr = t(tkConfirmExitBody)
   let bodyW = measureText(bodyStr, 18)
-  drawText(bodyStr, dx + (DW - bodyW) div 2, dy + tbH + 28, 18, White)
+  drawText(bodyStr, dx + (DW - bodyW) div 2, dy + tbH + 28, 18, uiInk(White))
 
   let subStr = t(if runEnds: tkConfirmRunEnds else: tkConfirmUnsaved)
   let subW = measureText(subStr, 13)
   drawText(subStr, dx + (DW - subW) div 2, dy + tbH + 58, 13,
-           Color(r: 200, g: 150, b: 150, a: 255))
+           uiInk(Color(r: 200, g: 150, b: 150, a: 255)))
 
   # Buttons row
   let btnY: int32  = dy + DH - BTN_H - 22
@@ -491,14 +491,14 @@ proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cance
 
   # Cancel button (green: safe)
   let noBg = if noHov: Color(r: 0, g: 150, b: 0, a: 255) else: Color(r: 0, g: 110, b: 0, a: 255)
-  drawRectangle(noX, btnY, BTN_W, BTN_H, noBg)
+  drawRectangle(noX, btnY, BTN_W, BTN_H, uiSurface(noBg))
   drawRectOutline(Rectangle(x: noX.float32, y: btnY.float32,
                                width: BTN_W.float32, height: BTN_H.float32),
                      if noHov: 3 else: 2,
-                     if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 200, b: 60, a: 255))
+                     uiLine(if noHov: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 200, b: 60, a: 255)))
   let noText = t(tkConfirmCancelBtn)
   let noTW = measureText(noText, 14)
-  drawText(noText, noX + (BTN_W - noTW) div 2, btnY + 12, 14, White)
+  drawText(noText, noX + (BTN_W - noTW) div 2, btnY + 12, 14, uiInk(White))
 
   # Confirm button (red: destructive) greyed while mouse cooldown is active
   let yesBg = if not mouseReady:
@@ -508,12 +508,12 @@ proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cance
   else:
     Color(r: 120, g: 30, b: 30, a: 255)
 
-  drawRectangle(yesX, btnY, BTN_W, BTN_H, yesBg)
+  drawRectangle(yesX, btnY, BTN_W, BTN_H, uiSurface(yesBg))
   drawRectOutline(Rectangle(x: yesX.float32, y: btnY.float32,
                                width: BTN_W.float32, height: BTN_H.float32),
                      if (yesHov and mouseReady): 3 else: 2,
-                     if not mouseReady: Color(r: 140, g: 140, b: 140, a: 255)
-                     elif yesHov: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 200, g: 60, b: 60, a: 255))
+                     uiLine(if not mouseReady: Color(r: 140, g: 140, b: 140, a: 255)
+                     elif yesHov: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 200, g: 60, b: 60, a: 255)))
 
   # Replace quit text with remaining seconds while mouse-cooldown is active
   let yesText = if mouseReady:
@@ -521,7 +521,7 @@ proc drawQuitConfirmDialog*(game: Game, runEnds = false): tuple[confirmed, cance
   else:
     $(int(ceil(game.pauseMenuExitCooldown)))
   let yesTW = measureText(yesText, 14)
-  drawText(yesText, yesX + (BTN_W - yesTW) div 2, btnY + 12, 14, White)
+  drawText(yesText, yesX + (BTN_W - yesTW) div 2, btnY + 12, 14, uiInk(White))
 
   # Input keyboard uses keyReady (frame-guard only); mouse uses mouseReady (2 s cooldown).
   if isPointerPressed():
@@ -560,19 +560,19 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
 
   # Window background
   drawRectangle(windowX, windowY, TASK_MANAGER_WIDTH, TASK_MANAGER_HEIGHT,
-               Color(r: 20, g: 25, b: 35, a: 255))
+               uiSurface(Color(r: 20, g: 25, b: 35, a: 255)))
 
   # Window border
   drawRectOutline(Rectangle(x: windowX.float32, y: windowY.float32,
                                 width: TASK_MANAGER_WIDTH.float32, height: TASK_MANAGER_HEIGHT.float32),
-                    3, Color(r: 0, g: 200, b: 255, a: 255))
+                    3, uiLine(Color(r: 0, g: 200, b: 255, a: 255)))
 
   # Title bar
   drawRectangle(windowX, windowY, TASK_MANAGER_WIDTH, TITLE_BAR_HEIGHT,
-               Color(r: 35, g: 45, b: 60, a: 255))
+               uiSurface(Color(r: 35, g: 45, b: 60, a: 255)))
 
   drawText(t("os_system_manager"), windowX + 15, windowY + 8, 18,
-          Color(r: 0, g: 200, b: 255, a: 255))
+          uiInk(Color(r: 0, g: 200, b: 255, a: 255)))
 
   # Tabs: Processes and Performance, plus Patches in a roguelite run.
   let tabY = windowY + TITLE_BAR_HEIGHT
@@ -650,15 +650,15 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   else:
     Color(r: 120, g: 30, b: 30, a: 255)
 
-  drawRectangle(buttonsStartX, buttonY, 180, BUTTON_HEIGHT, exitBgColor)
+  drawRectangle(buttonsStartX, buttonY, 180, BUTTON_HEIGHT, uiSurface(exitBgColor))
   drawRectOutline(Rectangle(x: buttonsStartX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
                     if exitHovered: 3 else: 2,
-                    if exitHovered: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 255, g: 80, b: 80, a: 255))
+                    uiLine(if exitHovered: Color(r: 255, g: 100, b: 100, a: 255) else: Color(r: 255, g: 80, b: 80, a: 255)))
   let exitText = "[Q] EXIT"
   let exitWidth = measureText(exitText, 14)
   drawText(exitText, buttonsStartX + (180 - exitWidth) div 2,
-          buttonY + 12, 14, White)
+          buttonY + 12, 14, uiInk(White))
 
   # Settings button
   let settingsBgColor = if settingsHovered:
@@ -666,15 +666,15 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   else:
     Color(r: 60, g: 70, b: 85, a: 255)
 
-  drawRectangle(settingsX, buttonY, 180, BUTTON_HEIGHT, settingsBgColor)
+  drawRectangle(settingsX, buttonY, 180, BUTTON_HEIGHT, uiSurface(settingsBgColor))
   drawRectOutline(Rectangle(x: settingsX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
                     if settingsHovered: 3 else: 2,
-                    if settingsHovered: Color(r: 150, g: 170, b: 190, a: 255) else: Color(r: 120, g: 140, b: 160, a: 255))
+                    uiLine(if settingsHovered: Color(r: 150, g: 170, b: 190, a: 255) else: Color(r: 120, g: 140, b: 160, a: 255)))
   let settingsText = "[TAB] SETTINGS"
   let settingsWidth = measureText(settingsText, 14)
   drawText(settingsText, settingsX + (180 - settingsWidth) div 2,
-          buttonY + 12, 14, White)
+          buttonY + 12, 14, uiInk(White))
 
   # Resume button
   let resumeBgColor = if resumeHovered:
@@ -682,16 +682,16 @@ proc drawOSTaskManager*(game: Game, selectedTab: TaskManagerTab): tuple[resumeCl
   else:
     Color(r: 0, g: 120, b: 0, a: 255)
 
-  drawRectangle(resumeX, buttonY, 180, BUTTON_HEIGHT, resumeBgColor)
+  drawRectangle(resumeX, buttonY, 180, BUTTON_HEIGHT, uiSurface(resumeBgColor))
   drawRectOutline(Rectangle(x: resumeX.float32, y: buttonY.float32,
                                 width: 180.0, height: BUTTON_HEIGHT.float32),
                     if resumeHovered: 3 else: 2,
-                    if resumeHovered: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 255, b: 0, a: 255))
+                    uiLine(if resumeHovered: Color(r: 0, g: 255, b: 100, a: 255) else: Color(r: 0, g: 255, b: 0, a: 255)))
   let resumeText = "[SPACE] RESUME"
   let resumeWidth = measureText(resumeText, 14)
   drawText(resumeText, resumeX + (180 - resumeWidth) div 2,
-          buttonY + 12, 14, White)
+          buttonY + 12, 14, uiInk(White))
 
   # Status message
   drawText(t("os_system_paused") & " - " & t("os_press_space_continue"),
-          windowX + 20, windowY + TASK_MANAGER_HEIGHT - 30, 12, LightGray)
+          windowX + 20, windowY + TASK_MANAGER_HEIGHT - 30, 12, uiInk(LightGray))

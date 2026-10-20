@@ -14,6 +14,7 @@ import raylib, math, strutils
 import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../particle_types, ../tutorial, ../localization, ../settings, ../render_context, ../utils, os_combined_hud
+import hud_dock
 
 const
   Accent = Color(r: 0, g: 220, b: 255, a: 255)
@@ -156,13 +157,13 @@ proc drawRichLine(line: seq[Token], x, y, size: int32, textColor: Color, alpha: 
     if tok.key:
       let kh = size + 4
       let ky = y - 3
-      drawRectangle(cx, ky, w, kh, scaleAlpha(KeyBg, alpha))
-      drawRectangle(cx, ky + kh - 2, w, 2, withAlpha(Accent, 120.0'f32 * alpha))  # keycap lip
+      drawRectangle(cx, ky, w, kh, uiSurface(scaleAlpha(KeyBg, alpha)))
+      drawRectangle(cx, ky + kh - 2, w, 2, uiInk(withAlpha(Accent, 120.0'f32 * alpha)))  # keycap lip
       drawRectOutline(Rectangle(x: cx.float32, y: ky.float32, width: w.float32, height: kh.float32),
-                         1, withAlpha(Accent, 180.0'f32 * alpha))
-      drawText(tok.text, cx + KeyPadX, y - 1, size - 2, withAlpha(KeyText, 255.0'f32 * alpha))
+                         1, uiLine(withAlpha(Accent, 180.0'f32 * alpha)))
+      drawText(tok.text, cx + KeyPadX, y - 1, size - 2, uiInk(withAlpha(KeyText, 255.0'f32 * alpha)))
     else:
-      drawText(tok.text, cx, y, size, scaleAlpha(textColor, alpha))
+      drawText(tok.text, cx, y, size, uiInk(scaleAlpha(textColor, alpha)))
     cx += w
 
 proc drawRich(s: string, x, y, size: int32, textColor: Color, alpha: float32) =
@@ -221,29 +222,29 @@ proc drawWorldCues(game: Game, s: TutorialState) =
     let fade = 1.0'f32 - s.progress * 0.6'f32
     let c = toScreen(game.player.pos)
     let r = (game.player.radius + 16.0'f32 + pulse * 6.0'f32) * scale
-    drawCircleOutline(c.x.int32, c.y.int32, r, withAlpha(Accent, (140.0'f32 + 90.0'f32 * pulse) * fade))
-    drawCircleOutline(c.x.int32, c.y.int32, r + 5.0'f32 * scale, withAlpha(Accent, 60.0'f32 * fade))
+    drawCircleOutline(c.x.int32, c.y.int32, r, uiOverlay(withAlpha(Accent, (140.0'f32 + 90.0'f32 * pulse) * fade)))
+    drawCircleOutline(c.x.int32, c.y.int32, r + 5.0'f32 * scale, uiOverlay(withAlpha(Accent, 60.0'f32 * fade)))
     let label = t(tkTutorialYou)
     let lw = measureText(label, 14)
     let ly = (c.y - r - 22.0'f32).int32
     drawText(label, c.x.int32 - lw div 2 + 1, ly + 1, 14, withAlpha(Black, 160.0'f32 * fade))
-    drawText(label, c.x.int32 - lw div 2, ly, 14, withAlpha(Accent, 255.0'f32 * fade))
+    drawText(label, c.x.int32 - lw div 2, ly, 14, uiOverlay(withAlpha(Accent, 255.0'f32 * fade)))
   of tsTargets:
     for enemy in game.enemies:
       if enemy.id in s.targetIds:
         let c = toScreen(enemy.pos)
         let half = (enemy.radius + 9.0'f32 + pulse * 4.0'f32) * scale
         drawCornerBrackets(c, half, half * 0.45'f32,
-                           withAlpha(ThreatColor, 170.0'f32 + 85.0'f32 * pulse))
+                           uiOverlay(withAlpha(ThreatColor, 170.0'f32 + 85.0'f32 * pulse)))
   of tsLoot:
     for orb in game.xpOrbs:
       let c = toScreen(orb.pos)
       drawCircleOutline(c.x.int32, c.y.int32, (9.0'f32 + pulse * 4.0'f32) * scale,
-                      withAlpha(DoneColor, 120.0'f32 + 100.0'f32 * pulse))
+                      uiOverlay(withAlpha(DoneColor, 120.0'f32 + 100.0'f32 * pulse)))
     for coin in game.coins:
       let c = toScreen(coin.pos)
       drawCircleOutline(c.x.int32, c.y.int32, (10.0'f32 + pulse * 4.0'f32) * scale,
-                      withAlpha(CoinColor, 120.0'f32 + 100.0'f32 * pulse))
+                      uiOverlay(withAlpha(CoinColor, 120.0'f32 + 100.0'f32 * pulse)))
   else:
     discard
 
@@ -256,10 +257,10 @@ proc highlightRow(r: Rectangle, color: Color, time: float32) =
   let pulse = 0.5'f32 + 0.5'f32 * sin(time * 6.0'f32)
   let grow = 2.0'f32 + pulse * 2.0'f32
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32,
-                withAlpha(color, 22.0'f32 + 22.0'f32 * pulse))
+                uiGlow(withAlpha(color, 22.0'f32 + 22.0'f32 * pulse)))
   drawRectOutline(Rectangle(x: r.x - grow, y: r.y - grow,
                                width: r.width + grow * 2.0'f32, height: r.height + grow * 2.0'f32),
-                     2, withAlpha(color, 150.0'f32 + 100.0'f32 * pulse))
+                     2, uiLine(withAlpha(color, 150.0'f32 + 100.0'f32 * pulse)))
 
 proc rowOrPanel(r: Rectangle): Rectangle =
   ## A minimized classic panel draws no rows; point at what is left of it.
@@ -283,6 +284,7 @@ proc drawHudHighlights(game: Game, s: TutorialState) =
 # Instruction card
 
 proc drawCheck(x, y: float32, color: Color) =
+  let color = uiInk(color)
   drawStroke(Vector2(x: x, y: y + 6), Vector2(x: x + 5, y: y + 11), 3, color)
   drawStroke(Vector2(x: x + 5, y: y + 11), Vector2(x: x + 14, y: y), 3, color)
 
@@ -311,15 +313,15 @@ proc drawCard(game: Game, s: TutorialState) =
   let edge = if done: DoneColor else: Accent
 
   # Body + chrome
-  drawRectangle(cardX, cardY, cardW, cardH, scaleAlpha(CardBg, alpha))
-  drawRectangle(cardX, cardY, cardW, TitleBarH, scaleAlpha(TitleBarBg, alpha))
-  drawRectangle(cardX, cardY, 2, cardH, withAlpha(edge, 220.0'f32 * alpha))
+  drawRectangle(cardX, cardY, cardW, cardH, hudSurface(scaleAlpha(CardBg, alpha)))
+  drawRectangle(cardX, cardY, cardW, TitleBarH, uiSurface(scaleAlpha(TitleBarBg, alpha)))
+  drawRectangle(cardX, cardY, 2, cardH, uiInk(withAlpha(edge, 220.0'f32 * alpha)))
   drawRectOutline(Rectangle(x: cardX.float32, y: cardY.float32,
                                width: cardW.float32, height: cardH.float32),
-                     1, withAlpha(edge, 120.0'f32 * alpha))
+                     1, uiLine(withAlpha(edge, 120.0'f32 * alpha)))
 
   # Title bar: process name + step pips (done / current / pending)
-  drawText(t(tkTutorialHeader), cardX + 10, cardY + 6, 12, withAlpha(Accent, 255.0'f32 * alpha))
+  drawText(t(tkTutorialHeader), cardX + 10, cardY + 6, 12, uiInk(withAlpha(Accent, 255.0'f32 * alpha)))
   const pip = 8'i32
   const pipGap = 4'i32
   let stepCount = TutorialStep.high.ord + 1
@@ -328,23 +330,23 @@ proc drawCard(game: Game, s: TutorialState) =
   for st in TutorialStep:
     let r = Rectangle(x: px.float32, y: py.float32, width: pip.float32, height: pip.float32)
     if st < s.step or (st == s.step and done):
-      drawRectangle(r, withAlpha(DoneColor, 200.0'f32 * alpha))
+      drawRectangle(r, uiInk(withAlpha(DoneColor, 200.0'f32 * alpha)))
     elif st == s.step:
       let blink = 0.5'f32 + 0.5'f32 * sin(game.time * 6.0'f32)
-      drawRectangle(r, withAlpha(Accent, (140.0'f32 + 110.0'f32 * blink) * alpha))
+      drawRectangle(r, uiInk(withAlpha(Accent, (140.0'f32 + 110.0'f32 * blink) * alpha)))
     else:
-      drawRectOutline(r, 1, withAlpha(MutedColor, 160.0'f32 * alpha))
+      drawRectOutline(r, 1, uiLine(withAlpha(MutedColor, 160.0'f32 * alpha)))
     px += pip + pipGap
 
   # Step title, with a DONE stamp while an action step's beat plays
   var y = cardY + TitleBarH + 10
   drawText(stepTitle(s.step), cardX + CardPad, y, TitleSize,
-           withAlpha(if done: DoneColor else: White, 255.0'f32 * alpha))
+           uiInk(withAlpha(if done: DoneColor else: White, 255.0'f32 * alpha)))
   if done:
     let doneText = t(tkTutorialDone)
     let dw = measureText(doneText, 16)
     let dx = cardX + cardW - CardPad - dw
-    drawText(doneText, dx, y + 2, 16, withAlpha(DoneColor, 255.0'f32 * alpha))
+    drawText(doneText, dx, y + 2, 16, uiInk(withAlpha(DoneColor, 255.0'f32 * alpha)))
     drawCheck((dx - 22).float32, (y + 3).float32, withAlpha(DoneColor, 255.0'f32 * alpha))
   y += TitleSize + 12
 
@@ -369,13 +371,13 @@ proc drawCard(game: Game, s: TutorialState) =
   let barW = max(40'i32, textW - labelW)
   let barY = y + RowSize div 2 - 3
   let barColor = if done: DoneColor elif s.step.isRead: MutedColor else: Accent
-  drawRectangle(cardX + CardPad, barY, barW, 6, withAlpha(Color(r: 20, g: 32, b: 44, a: 255), 220.0'f32 * alpha))
+  drawRectangle(cardX + CardPad, barY, barW, 6, uiSurface(withAlpha(Color(r: 20, g: 32, b: 44, a: 255), 220.0'f32 * alpha)))
   let fillW = int32(barW.float32 * clamp(s.progress, 0.0'f32, 1.0'f32))
   if fillW > 0:
-    drawRectangle(cardX + CardPad, barY, fillW, 6, withAlpha(barColor, 230.0'f32 * alpha))
+    drawRectangle(cardX + CardPad, barY, fillW, 6, uiInk(withAlpha(barColor, 230.0'f32 * alpha)))
   drawRectOutline(Rectangle(x: (cardX + CardPad).float32, y: barY.float32,
                                width: barW.float32, height: 6),
-                     1, withAlpha(barColor, 140.0'f32 * alpha))
+                     1, uiLine(withAlpha(barColor, 140.0'f32 * alpha)))
   if label.len > 0:
     drawRich(label, cardX + CardPad + barW + 12, y, RowSize,
              if s.step.isRead: BodyColor else: Accent, alpha)
@@ -388,7 +390,7 @@ proc drawCard(game: Game, s: TutorialState) =
     let fw = richWidth(layoutRich(footer, int32.high, FooterSize)[0], FooterSize)
     let hold = clamp(s.skipHold / SkipHoldTime, 0.0'f32, 1.0'f32)
     drawRectangle(cardX + CardPad, y + FooterSize + 3, int32(fw.float32 * hold), 2,
-                  withAlpha(ThreatColor, 230.0'f32 * alpha))
+                  uiInk(withAlpha(ThreatColor, 230.0'f32 * alpha)))
 
 proc drawTutorialOverlay*(game: Game, hudScale: float32) {.moddable.} =
   ## Call right after drawGame, outside any UI-scale layer.

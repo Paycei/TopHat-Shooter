@@ -4,7 +4,7 @@
 import raylib, math
 import ../modding/mod_patch_core
 import ../draw_prims
-import ../types, ../utils, ../enemy_config
+import ../types, ../utils, ../enemy_config, hud_dock
 
 proc getEnemyProcessName*(enemy: Enemy): string {.moddable.} =
   ## Generate a process name for an enemy based on type
@@ -117,7 +117,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
   else:
     Color(r: 22, g: 28, b: 38, a: bgAlpha)
 
-  drawRectangle(labelX.int32, labelY.int32, totalWidth.int32, labelHeight.int32, bgColor)
+  drawRectangle(labelX.int32, labelY.int32, totalWidth.int32, labelHeight.int32, hudSurface(bgColor))
 
   # Top accent bar based on threat level (toned down for elites)
   let accentColor = if enemy.isBoss:
@@ -128,7 +128,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     Color(r: 0, g: 180, b: 255, a: uint8(alpha.float32 * 0.8))
 
   let accentHeight = if enemy.isBoss or enemy.isElite: 3 else: 2
-  drawRectangle(labelX.int32, labelY.int32, totalWidth.int32, accentHeight.int32, accentColor)
+  drawRectangle(labelX.int32, labelY.int32, totalWidth.int32, accentHeight.int32, uiInk(accentColor))
 
   # Animated glow for bosses
   if enemy.isBoss:
@@ -139,7 +139,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     drawRectOutline(
       Rectangle(x: (labelX - 2).float32, y: (labelY - 2).float32,
                width: (totalWidth + 4).float32, height: (labelHeight + 4).float32),
-      1, Color(r: 255, g: 100, b: 100, a: glowAlpha)
+      1, uiLine(Color(r: 255, g: 100, b: 100, a: glowAlpha))
     )
 
   # Label border with enhanced styling (toned down for elites)
@@ -153,7 +153,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
   let borderWidth = if enemy.isBoss: 2.0 elif enemy.isElite: 1.5 else: 1.0
   drawRectOutline(Rectangle(x: labelX, y: labelY,
                                 width: totalWidth.float32, height: labelHeight.float32),
-                    borderWidth, borderColor)
+                    borderWidth, uiLine(borderColor))
 
   # Process name with better formatting (toned down for elites)
   let textColor = if enemy.isBoss:
@@ -168,11 +168,11 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
   let iconY = labelY.int32 + 4
 
   if enemy.isBoss:
-    drawText("[X]", iconX, iconY, fontSize, Color(r: 220, g: 80, b: 80, a: alpha))
+    drawText("[X]", iconX, iconY, fontSize, uiInk(Color(r: 220, g: 80, b: 80, a: alpha)))
   elif enemy.isElite:
-    drawText("[E]", iconX, iconY, fontSize, Color(r: 200, g: 180, b: 80, a: alpha))
+    drawText("[E]", iconX, iconY, fontSize, uiInk(Color(r: 200, g: 180, b: 80, a: alpha)))
   else:
-    drawText("*", iconX, iconY - 1, fontSize - 2, accentColor)
+    drawText("*", iconX, iconY - 1, fontSize - 2, uiInk(accentColor))
 
   let textX = if enemy.isBoss or enemy.isElite: iconX + 16 else: iconX + 12
 
@@ -199,14 +199,14 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
 
     # Shadow
     drawText(hitText, (hitTextX + 1).int32, (hitTextY + 1).int32, hitTextSize,
-            Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.7)))
+            textShadow(uint8(alpha.float32 * 0.7)))
     # Main text
-    drawText(hitText, hitTextX.int32, hitTextY.int32, hitTextSize, hitColor)
+    drawText(hitText, hitTextX.int32, hitTextY.int32, hitTextSize, uiInk(hitColor))
 
-    drawText(processName, textX, iconY, fontSize, textColor)
+    drawText(processName, textX, iconY, fontSize, uiInk(textColor))
   else:
     # Regular enemies: just draw the process name
-    drawText(processName, textX, iconY, fontSize, textColor)
+    drawText(processName, textX, iconY, fontSize, uiInk(textColor))
 
   if drawLabelHealthBar and (enemy.isElite or enemy.maxHp > 30) and enemy.enemyType != etStar:
     let barY = labelY + 14  # Closer to label (was 18)
@@ -217,7 +217,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
 
     # Bar background with depth
     drawRectangle(barX.int32, barY.int32, barWidth.int32, barHeight.int32,
-                 Color(r: 30, g: 35, b: 45, a: uint8(alpha.float32 * 0.9)))
+                 uiSurface(Color(r: 30, g: 35, b: 45, a: uint8(alpha.float32 * 0.9))))
 
     # Bar fill with gradient effect
     let fillWidth = (barWidth.float32 * hpPercent)
@@ -232,7 +232,7 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
     else:
       Color(r: 255, g: 100, b: 100, a: alpha)
 
-    drawRectangle(barX.int32, barY.int32, fillWidth.int32, barHeight.int32, barColor)
+    drawRectangle(barX.int32, barY.int32, fillWidth.int32, barHeight.int32, uiInk(barColor))
 
     # Shine effect on health bar (toned down for elites)
     let shineAlpha = if enemy.isElite:
@@ -241,12 +241,12 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
       uint8(alpha.float32 * 0.3)
 
     drawRectangle(barX.int32, barY.int32, fillWidth.int32, 2,
-                 Color(r: 255, g: 255, b: 255, a: shineAlpha))
+                 uiGlow(Color(r: 255, g: 255, b: 255, a: shineAlpha)))
 
     # Bar border
     drawRectOutline(Rectangle(x: barX, y: barY,
                                   width: barWidth.float32, height: barHeight.float32),
-                      1, Color(r: 70, g: 85, b: 100, a: uint8(alpha.float32 * 0.8)))
+                      1, uiLine(Color(r: 70, g: 85, b: 100, a: uint8(alpha.float32 * 0.8))))
 
     # HP text for bosses and elites - smaller text (multiplied by 100, showing decimals)
     if enemy.isBoss or enemy.isElite:
@@ -257,8 +257,8 @@ proc drawEnemyLabel*(enemy: Enemy, showHealthBar: bool = true, enabled: bool = t
 
       # Text shadow
       drawText(hpText, (hpTextX + 1).int32, (barY + 1).int32, hpTextSize.int32,
-              Color(r: 0, g: 0, b: 0, a: uint8(alpha.float32 * 0.7)))
-      drawText(hpText, hpTextX.int32, barY.int32, hpTextSize.int32, White)
+              textShadow(uint8(alpha.float32 * 0.7)))
+      drawText(hpText, hpTextX.int32, barY.int32, hpTextSize.int32, uiInk(White))
 
 proc drawEnemyWarningIndicator*(enemy: Enemy) {.moddable.} =
   ## Draw warning indicator for dangerous enemies
@@ -294,7 +294,7 @@ proc drawEnemyWarningIndicator*(enemy: Enemy) {.moddable.} =
   else:
     Color(r: 200, g: 170, b: 60, a: glowAlpha)
 
-  drawDisc(iconX.int32, iconY.int32, (glowSize div 2).float32, glowColor)
+  drawDisc(iconX.int32, iconY.int32, (glowSize div 2).float32, uiOverlay(glowColor))
 
   # Warning triangle (no exclamation mark)
   let size = if enemy.isBoss: 9.0 else: 7.0
@@ -305,5 +305,5 @@ proc drawEnemyWarningIndicator*(enemy: Enemy) {.moddable.} =
     Vector2(x: x, y: y + size),              # Bottom point
     Vector2(x: x - size, y: y - size),       # Top left
     Vector2(x: x + size, y: y - size),       # Top right
-    warningColor
+    uiOverlay(warningColor)
   )

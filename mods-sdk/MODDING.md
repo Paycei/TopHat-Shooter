@@ -2021,12 +2021,14 @@ already open just brings its window to the front. Keep settings in
 
 ## Interface themes
 
-The desktop, its windows, dialogs and notifications are drawn in an
-**interface theme**: TopHat-ShooterOS (the stock look), CKN OS (unlocked by the
-last story recording) or one a mod registers. The player picks it in
+The whole interface is drawn in an **interface theme**: the desktop, its
+windows, dialogs and notifications, and a run's too (the HUD, its cards and
+banners, the pause menu, shop, installer and crash screen, the PvP and 3D
+HUDs). It is TopHat-ShooterOS (the stock look), CKN OS (unlocked by the last
+story recording) or one a mod registers. The player picks it in
 **SETTINGS.sys > Interface > Theme**; the shop's SECRET tab also equips CKN
-OS. A run's own screens (the HUD, the pause menu, the crash screen) and the
-story cinematics always keep the stock look.
+OS. The game world (enemies, bullets, damage numbers, attack warnings) and
+the story cinematics keep their own colours.
 
 ```lua
 register.theme{
@@ -2072,12 +2074,18 @@ The `theme` library:
   not every time the mod loads.
 * `theme.colors([id])` is a table of the theme in use (or of `id`): `id`,
   `name`, `base`, `light` (a light theme) and its five colours.
-* `theme.surface(color)`, `theme.line(color)`, `theme.ink(color)` and
-  `theme.glow(color)` hand back the colour the game's own interface would draw
-  for `color` in the theme in use, in each role (a fill; a border; text; a
-  translucent highlight). Pass the colour you would use on the stock dark
-  theme. An app's canvas, and everything a mod draws, keep the colours given,
-  so an app that should follow the player's theme picks them through these:
+* `theme.surface(color)`, `theme.line(color)`, `theme.ink(color)`,
+  `theme.glow(color)` and `theme.overlay(color)` hand back the colour the
+  game's own interface would draw for `color` in the theme in use, in each
+  role (a fill; a border; text; a translucent highlight; text or a mark drawn
+  straight over the arena, with no panel behind it, which keeps its lightness
+  so it still reads over the dark world on a light theme). Pass the colour you
+  would use on the stock dark theme. The `ui` widgets (`ui.panel`, `ui.button`,
+  `ui.label`, `ui.progress`, `ui.checkbox`, `ui.slider`, `ui.banner`) and
+  `register.hudCard` cards already wear the theme: give them stock colours,
+  never ones from these functions. An app's canvas, and everything a mod draws
+  with `draw.*`, keep the colours given, so an app that should follow the
+  player's theme picks them through these:
 
 ```lua
 draw = function(w, h)

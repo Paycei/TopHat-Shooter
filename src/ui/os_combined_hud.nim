@@ -62,7 +62,7 @@ proc modeShowsLevel(game: Game): bool =
   game.mode in {gmWaveBased, gmRoguelite, gmTimeSurvival}
 
 proc drawDivider(cx, cw, y: int32) =
-  drawRectangle(cx, y + 3, cw, 1, withAlpha(DockAccent, 60))
+  drawRectangle(cx, y + 3, cw, 1, withAlpha(uiLine(DockAccent), 60))
 
 # ---------------------------------------------------------------------------
 # Status rows
@@ -103,8 +103,8 @@ proc drawHpBlock(game: Game, cx, cw, y: int32): int32 =
     let shieldW = int32(cw.float32 * (covered / max(p.maxHp, 0.01'f32)))
     if shieldW > 0:
       let sx = cx + fillW - shieldW
-      drawRectangle(sx, barY, shieldW, barH, Color(r: 155, g: 80, b: 255, a: 185))
-      drawRectangle(sx, barY, shieldW, 2, Color(r: 210, g: 170, b: 255, a: 235))
+      drawRectangle(sx, barY, shieldW, barH, uiInk(155, 80, 255, 185))
+      drawRectangle(sx, barY, shieldW, 2, uiInk(210, 170, 255, 235))
 
   # One notch per 100 displayed HP while they stay readable.
   let segs = int(p.maxHp)
@@ -116,7 +116,7 @@ proc drawHpBlock(game: Game, cx, cw, y: int32): int32 =
   let rim = if low: Color(r: 255, g: 80, b: 80, a: uint8(120.0'f32 + 120.0'f32 * pulse))
             else: withAlpha(DockAccent, 110)
   drawRectOutline(Rectangle(x: cx.float32, y: barY.float32, width: cw.float32,
-                               height: barH.float32), 1, rim)
+                               height: barH.float32), 1, uiLine(rim))
   y + HpBlockH
 
 proc drawLevelRow(game: Game, cx, cw, y: int32): int32 =
@@ -139,7 +139,8 @@ proc drawLevelRow(game: Game, cx, cw, y: int32): int32 =
   y + LevelRowH
 
 proc drawWallGlyph(x, y: int32, color: Color) =
-  ## A little two-course brick wall, 13x10.
+  ## A little two-course brick wall, 13x10, in ink.
+  let color = uiInk(color)
   drawRectangle(x, y, 6, 4, color)
   drawRectangle(x + 7, y, 6, 4, color)
   drawRectangle(x, y + 5, 2, 4, color)
@@ -154,12 +155,12 @@ proc drawResourceTiles(game: Game, cx, cw, y: int32): int32 =
   let wallW = cw - gap - creditW
   lastStatsRowRect = Rectangle(x: (cx - 3).float32, y: (y - 2).float32,
                                width: (cw + 6).float32, height: (tileH + 4).float32)
-  let tileBg = Color(r: 0, g: 26, b: 38, a: 150)
+  let tileBg = uiSurface(0, 26, 38, 150)
 
   # Credits
   drawRectangle(cx, y, creditW, tileH, tileBg)
   drawRectOutline(Rectangle(x: cx.float32, y: y.float32, width: creditW.float32,
-                               height: tileH.float32), 1, Color(r: 255, g: 215, b: 0, a: 60))
+                               height: tileH.float32), 1, uiLine(255, 215, 0, 60))
   drawCurrencyIcon(cx + 12, y + tileH div 2, 15, ciCredits)
   let coinText = $game.player.coins
   let coinSize = bestFitFontSize(coinText, creditW - 30, 20, 10)
@@ -173,7 +174,7 @@ proc drawResourceTiles(game: Game, cx, cw, y: int32): int32 =
   let wallColor = if hasWalls: DockAccent else: Color(r: 90, g: 110, b: 125, a: 220)
   drawRectangle(wx, y, wallW, tileH, tileBg)
   drawRectOutline(Rectangle(x: wx.float32, y: y.float32, width: wallW.float32,
-                               height: tileH.float32), 1, withAlpha(wallColor, 70))
+                               height: tileH.float32), 1, withAlpha(uiLine(wallColor), 70))
   drawWallGlyph(wx + 6, y + (tileH - 9) div 2, wallColor)
   let wallText = $game.player.walls
   let wallSize = bestFitFontSize(wallText, wallW - 26, 20, 10)
@@ -234,8 +235,8 @@ proc drawLevelPips(pu: PowerUp, rightX, y: int32, color: Color): int32 =
   ## legendaries (single-level) get a gold diamond. Returns the width used.
   if pu.rarity == prLegendary:
     let c = Vector2(x: (rightX - 5).float32, y: (y + 5).float32)
-    drawPoly(c, 4, 5.0'f32, 0.0'f32, LegendaryGold)
-    drawPolyOutline(c, 4, 5.5'f32, 0.0'f32, Color(r: 255, g: 245, b: 190, a: 255))
+    drawPoly(c, 4, 5.0'f32, 0.0'f32, uiInk(LegendaryGold))
+    drawPolyOutline(c, 4, 5.5'f32, 0.0'f32, uiLine(255, 245, 190))
     return 11
   let total = max(pu.level, getPowerUpMaxLevel(pu.powerType))
   if total > 5:
@@ -249,26 +250,26 @@ proc drawLevelPips(pu: PowerUp, rightX, y: int32, color: Color): int32 =
   for i in 0..<total:
     let px = rightX - w + i.int32 * (pipW + pipGap)
     if i < pu.level:
-      drawRectangle(px, y + 1, pipW, 8, withAlpha(color, 235))
+      drawRectangle(px, y + 1, pipW, 8, withAlpha(uiInk(color), 235))
     else:
       drawRectOutline(Rectangle(x: px.float32, y: (y + 1).float32, width: pipW.float32,
-                                   height: 8.0'f32), 1, withAlpha(color, 90))
+                                   height: 8.0'f32), 1, withAlpha(uiLine(color), 90))
   w
 
 proc drawProcessRow(game: Game, pu: PowerUp, cx, cw, y: int32, fresh: bool, shade: bool) =
   let legendary = pu.rarity == prLegendary
   let color = if legendary: LegendaryGold else: getPowerUpColor(pu.powerType)
   if shade:
-    drawRectangle(cx - 2, y, cw + 4, ProcessRowH, Color(r: 255, g: 255, b: 255, a: 7))
+    drawRectangle(cx - 2, y, cw + 4, ProcessRowH, uiGlow(255, 255, 255, 7))
   # Newest install breathes so the last pick is easy to find.
   let pulse = if fresh: 0.5'f32 + 0.5'f32 * sin(game.time * 6.0'f32) else: 0.0'f32
   let glow = if legendary: 70 + int(pulse * 45.0'f32) else: 34 + int(pulse * 40.0'f32)
   const box = 16'i32
   let by = y + (ProcessRowH - box) div 2
-  drawRectangle(cx, by, box, box, withAlpha(color, glow))
+  drawRectangle(cx, by, box, box, withAlpha(uiGlow(color), glow))
   drawRectOutline(Rectangle(x: cx.float32, y: by.float32, width: box.float32,
                                height: box.float32), 1,
-                     withAlpha(color, if legendary: 240 else: 170))
+                     withAlpha(uiLine(color), if legendary: 240 else: 170))
   drawPowerUpIcon(cx + 1, by + 1, box - 2, pu.powerType, color)
 
   let pipsW = drawLevelPips(pu, cx + cw, y + (ProcessRowH - 10) div 2, color)
@@ -316,13 +317,13 @@ proc drawPatchRow(game: Game, patch: RogueliteRelic, cx, cw, y: int32,
   let spent = status in {psUsed, psStalled}
   let color = patchAccent(patch)
   if shade:
-    drawRectangle(cx - 2, y, cw + 4, ProcessRowH, Color(r: 255, g: 255, b: 255, a: 7))
+    drawRectangle(cx - 2, y, cw + 4, ProcessRowH, uiGlow(255, 255, 255, 7))
   let pulse = if fresh: 0.5'f32 + 0.5'f32 * sin(game.time * 6.0'f32) else: 0.0'f32
   const box = 16'i32
   let by = y + (ProcessRowH - box) div 2
-  drawRectangle(cx, by, box, box, withAlpha(color, if spent: 18 else: 34 + int(pulse * 40.0'f32)))
+  drawRectangle(cx, by, box, box, withAlpha(uiGlow(color), if spent: 18 else: 34 + int(pulse * 40.0'f32)))
   drawRectOutline(Rectangle(x: cx.float32, y: by.float32, width: box.float32,
-                               height: box.float32), 1, withAlpha(color, if spent: 80 else: 170))
+                               height: box.float32), 1, withAlpha(uiLine(color), if spent: 80 else: 170))
   drawPatchIcon(cx + 1, by + 1, box - 2, patch, if spent: withAlpha(color, 90) else: color)
 
   let textY = y + (ProcessRowH - 10) div 2
@@ -425,13 +426,13 @@ proc drawWaveBody(game: Game, cx, cw, y: int32): int32 =
     let isBossCell = i == BossWaveInterval - 1
     let base = if isBossCell: Color(r: 255, g: 90, b: 70, a: 255) else: DockAccent
     if i < slot:
-      drawRectangle(bx, trackY, cellW, cellH, withAlpha(base, 170))
+      drawRectangle(bx, trackY, cellW, cellH, withAlpha(uiInk(base), 170))
     elif i == slot:
-      drawRectangle(bx, trackY, cellW, cellH, withAlpha(base, uint8(120.0'f32 + 120.0'f32 * pulse)))
+      drawRectangle(bx, trackY, cellW, cellH, withAlpha(uiInk(base), uint8(120.0'f32 + 120.0'f32 * pulse)))
     else:
-      drawRectangle(bx, trackY, cellW, cellH, DockTrackBg)
+      drawRectangle(bx, trackY, cellW, cellH, uiSurface(DockTrackBg))
     drawRectOutline(Rectangle(x: bx.float32, y: trackY.float32, width: cellW.float32,
-                                 height: cellH.float32), 1, withAlpha(base, 150))
+                                 height: cellH.float32), 1, withAlpha(uiLine(base), 150))
   let trackText = if game.wavesUntilBoss <= 0: t(tkHUDBossWave)
                   else: t(tkHUDBossInWaves).replace("$1", $game.wavesUntilBoss)
   let trackX = cx + BossWaveInterval.int32 * (cellW + cellGap) + 3
@@ -496,7 +497,8 @@ proc rogueliteTitle(run: RogueliteRun, maxW: int32): string =
     result = full
 
 proc drawFolderGlyph(x, y: int32, color: Color) =
-  ## A 16x13 folder: a tab on the top-left over a filled body.
+  ## A 16x13 folder: a tab on the top-left over a filled body, in ink.
+  let color = uiInk(color)
   drawRectangle(x, y, 7, 3, color)
   drawRectangle(x, y + 2, 16, 11, withAlpha(color, 90))
   drawRectOutline(Rectangle(x: x.float32, y: (y + 2).float32, width: 16, height: 11), 1, color)
@@ -535,18 +537,18 @@ proc drawSectorTrack(game: Game, floor: DungeonFloor, cx, cw, y: int32) =
     let layer = i + 1
     if layer > layers:
       # SERVICE
-      drawRectangle(rect, if atBoss: withAlpha(RogueServiceColor, uint8(110.0'f32 + 130.0'f32 * pulse))
-                          else: DockTrackBg)
-      drawRectOutline(rect, 1, withAlpha(RogueServiceColor, if atBoss: 255 else: 170))
+      drawRectangle(rect, if atBoss: withAlpha(uiInk(RogueServiceColor), uint8(110.0'f32 + 130.0'f32 * pulse))
+                          else: uiSurface(DockTrackBg))
+      drawRectOutline(rect, 1, withAlpha(uiLine(RogueServiceColor), if atBoss: 255 else: 170))
     else:
       if layer < current or (layer == current and currentDungeonRoom(run).cleared):
-        drawRectangle(rect, withAlpha(DockAccent, 200))
-        drawRectangle(bx, y + 1, w, 1, Color(r: 255, g: 255, b: 255, a: 70))
+        drawRectangle(rect, withAlpha(uiInk(DockAccent), 200))
+        drawRectangle(bx, y + 1, w, 1, uiGlow(255, 255, 255, 70))
       elif layer == current:
-        drawRectangle(rect, Color(r: 255, g: 255, b: 255, a: uint8(90.0'f32 + 150.0'f32 * pulse)))
+        drawRectangle(rect, withAlpha(uiInk(White), uint8(90.0'f32 + 150.0'f32 * pulse)))
       else:
-        drawRectangle(rect, DockTrackBg)
-      drawRectOutline(rect, 1, withAlpha(DockAccent, 170))
+        drawRectangle(rect, uiSurface(DockTrackBg))
+      drawRectOutline(rect, 1, withAlpha(uiLine(DockAccent), 170))
 
   let capY = y + RogueHudTrackH
   let folder = t("roguelite_hud_folder").replace("$1", $clamp(current, 0, layers))
@@ -712,21 +714,25 @@ proc bindLabel(action: KeyAction): string =
   if isGamepadActive(): gamepadBindLabel(globalSettings.gamepadBinds[action])
   else: shortKeyLabel(globalSettings.keybinds[action])
 
-proc drawKeyHint(x, y, w: int32, key, label: string, active: bool, keyMaxW: int32 = 0) =
+proc drawKeyHint(x, y, w: int32, key, label: string, active: bool, keyMaxW: int32 = 0,
+                 overArena = false) =
   ## A keycap followed by what it does, fitted into `w`. The keycap may take up
-  ## to `keyMaxW` (half the cell when 0) before its text shrinks.
+  ## to `keyMaxW` (half the cell when 0) before its text shrinks. `overArena`:
+  ## the label sits on the world, not on a card (the classic strip).
   let keySize = bestFitFontSize(key, (if keyMaxW > 0: keyMaxW else: w div 2) - 8, 10, 7)
   let capW = measureText(key, keySize) + 8
-  let rim = if active: withAlpha(DockAccent, 170) else: withAlpha(DockDim, 90)
-  drawRectangle(x, y, capW, 13, Color(r: 22, g: 36, b: 52, a: 245))
+  let rim = if active: withAlpha(uiLine(DockAccent), 170) else: withAlpha(uiLine(DockDim), 90)
+  drawRectangle(x, y, capW, 13, uiSurface(22, 36, 52, 245))
   drawRectangle(x, y + 12, capW, 1, rim)
   drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: capW.float32, height: 13), 1, rim)
   drawText(key, x + 4, y + 2 + (10 - keySize) div 2, keySize,
-           if active: DockInk else: DockDim)
+           uiInk(if active: DockInk else: DockDim))
   let labelW = w - capW - 4
   if labelW > 8:
-    drawShadowText(label, x + capW + 4, y + 2, bestFitFontSize(label, labelW, 10, 7),
-                   if active: Color(r: 190, g: 210, b: 225, a: 255) else: withAlpha(DockDim, 170))
+    let labelColor = if active: Color(r: 190, g: 210, b: 225, a: 255) else: withAlpha(DockDim, 170)
+    let size = bestFitFontSize(label, labelW, 10, 7)
+    if overArena: drawOverlayText(label, x + capW + 4, y + 2, size, labelColor)
+    else: drawShadowText(label, x + capW + 4, y + 2, size, labelColor)
 
 type KeyHint = tuple[key, label: string, active: bool]
 
@@ -802,7 +808,7 @@ proc drawControlsStrip*(game: Game, centerX, y: int32) {.moddable.} =
   if game.wallPlacementMode and game.player.walls > 0:
     let text = wallPlacementText(game)
     let w = measureText(text, 20)
-    drawShadowText(text, centerX - w div 2, y - 3, 20, Color(r: 180, g: 235, b: 185, a: 255))
+    drawOverlayText(text, centerX - w div 2, y - 3, 20, Color(r: 180, g: 235, b: 185, a: 255))
     return
   const gap = 14'i32
   let hints = controlHints(game)
@@ -812,7 +818,7 @@ proc drawControlsStrip*(game: Game, centerX, y: int32) {.moddable.} =
   var x = centerX - total div 2
   for h in hints:
     let w = keyHintWidth(h)
-    drawKeyHint(x, y, w, h.key, h.label, h.active, keyMaxW = w)
+    drawKeyHint(x, y, w, h.key, h.label, h.active, keyMaxW = w, overArena = true)
     x += w + gap
 
 # ---------------------------------------------------------------------------
@@ -849,11 +855,11 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32) =
                                   width: panelW.float32, height: totalH.float32)
   lastLevelBarRect = Rectangle()  # re-published below only by the modes that level
 
-  drawRectangle(panelX, panelY, panelW, totalH, Color(r: 5, g: 13, b: 22, a: 150))
-  drawRectangle(panelX, panelY, 2, totalH, Color(r: 0, g: 220, b: 255, a: 180))
+  drawRectangle(panelX, panelY, panelW, totalH, hudSurface(Color(r: 5, g: 13, b: 22, a: 150)))
+  drawRectangle(panelX, panelY, 2, totalH, uiInk(0, 220, 255, 180))
   drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                width: panelW.float32, height: totalH.float32),
-                     1, Color(r: 0, g: 220, b: 255, a: 80))
+                     1, uiLine(0, 220, 255, 80))
 
   var y = panelY + COMBINED_PANEL_PADDING + COMBINED_TITLE_HEIGHT + 6
   y = drawHpBlock(game, cx, cw, y)
@@ -888,19 +894,19 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32) =
 
 proc drawClassicTitleBar(x, y: int32, minimized: bool) =
   drawRectangle(x + 2, y + COMBINED_PANEL_PADDING, COMBINED_PANEL_WIDTH - 2,
-                COMBINED_TITLE_HEIGHT, HEADER_BG_COLOR)
+                COMBINED_TITLE_HEIGHT, uiGlow(HEADER_BG_COLOR))
   drawShadowText(t(tkGameStatus), x + COMBINED_PANEL_PADDING + 4,
                  y + COMBINED_PANEL_PADDING + 4, 10, ACCENT_COLOR)
   let iconX = x + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - 12
   if minimized:
     # Maximize glyph (square)
     drawRectOutline(Rectangle(x: iconX.float32, y: (y + COMBINED_PANEL_PADDING + 4).float32,
-                                 width: 10, height: 10), 1, ACCENT_COLOR)
+                                 width: 10, height: 10), 1, uiInk(ACCENT_COLOR))
   else:
     # Minimize glyph (horizontal line)
     let iconY = y + COMBINED_PANEL_PADDING + 9
     drawStroke(Vector2(x: iconX.float32, y: iconY.float32),
-             Vector2(x: (iconX + 10).float32, y: iconY.float32), 2, ACCENT_COLOR)
+             Vector2(x: (iconX + 10).float32, y: iconY.float32), 2, uiInk(ACCENT_COLOR))
 
 proc drawCombinedHUDPanel*(game: Game, x, y: int32) {.moddable.} =
   ## Classic floating STATUS panel (draggable by its title, minimizable).
@@ -960,11 +966,11 @@ proc drawCombinedHUDPanel*(game: Game, x, y: int32) {.moddable.} =
     lastStatsRowRect = Rectangle()
     lastDashRowRect = Rectangle()
     lastLevelBarRect = Rectangle()
-    drawRectangle(finalX, finalY, COMBINED_PANEL_WIDTH, h, Color(r: 5, g: 13, b: 22, a: 150))
-    drawRectangle(finalX, finalY, 2, h, Color(r: 0, g: 220, b: 255, a: 180))
+    drawRectangle(finalX, finalY, COMBINED_PANEL_WIDTH, h, hudSurface(Color(r: 5, g: 13, b: 22, a: 150)))
+    drawRectangle(finalX, finalY, 2, h, uiInk(0, 220, 255, 180))
     drawRectOutline(Rectangle(x: finalX.float32, y: finalY.float32,
                                  width: COMBINED_PANEL_WIDTH.float32, height: h.float32),
-                       1, Color(r: 0, g: 220, b: 255, a: 80))
+                       1, uiLine(0, 220, 255, 80))
     drawClassicTitleBar(finalX, finalY, minimized = true)
     return
 

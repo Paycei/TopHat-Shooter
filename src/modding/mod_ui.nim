@@ -137,17 +137,17 @@ proc installModUi*(base: ScriptTable) =
     let enabled = opts.kind != vkTable or rawGetStr(opts.tbl, "enabled").kind == vkNil or
                   truthy(rawGetStr(opts.tbl, "enabled"))
     let hover = enabled and not uiPointer.consumed and inside(x, y, w, h)
-    let bg = if not enabled: Color(r: 30, g: 34, b: 42, a: 230)
-             elif hover and uiPointer.down: withAlpha(col, 120)
-             elif hover: withAlpha(col, 70)
-             else: Color(r: 14, g: 22, b: 34, a: 235)
+    let bg = if not enabled: uiSurface(30, 34, 42, 230)
+             elif hover and uiPointer.down: withAlpha(uiGlow(col), 120)
+             elif hover: withAlpha(uiGlow(col), 70)
+             else: uiSurface(14, 22, 34, 235)
     drawRectangle(Rectangle(x: x, y: y, width: w, height: h), bg)
     drawRectOutline(Rectangle(x: x, y: y, width: w, height: h), if hover: 2 else: 1,
-                    if enabled: withAlpha(col, if hover: 255 else: 170) else: Color(r: 70, g: 76, b: 88, a: 255))
+                    if enabled: withAlpha(uiLine(col), if hover: 255 else: 170) else: uiLine(70, 76, 88))
     let size = clamp(int32(h * 0.45), 10, 22)
     let tw = measureText(label, size)
     drawText(label, int32(x + (w - tw.float32) / 2), int32(y + (h - size.float32) / 2), size,
-             if enabled: Color(r: 230, g: 240, b: 250, a: 255) else: Color(r: 110, g: 116, b: 128, a: 255))
+             if enabled: uiInk(230, 240, 250) else: uiInk(110, 116, 128))
     let clicked = hover and uiPointer.pressed
     if clicked: uiPointer.consumed = true
     ret.setRet(vbool(clicked))
@@ -192,7 +192,7 @@ proc installModUi*(base: ScriptTable) =
         of "center": x + ((if width > 0: width else: 0) - lw) / 2 - (if width > 0: 0'f32 else: 0)
         of "right": x + (if width > 0: width else: 0) - lw
         else: x
-      drawText(line, lx.int32, ly.int32, size, col)
+      drawText(line, lx.int32, ly.int32, size, uiInk(col))
       ly += size.float32 + 3
     ret.setRet(vnum((ly - y).float64))
   uiT.reg("progress") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -211,14 +211,14 @@ proc installModUi*(base: ScriptTable) =
     var checked = truthy(arg(args, 3))
     let w = 22'f32 + measureText(label, 14).float32
     let hover = not uiPointer.consumed and inside(x, y, w, 16)
-    drawRectangle(Rectangle(x: x, y: y, width: 16, height: 16), Color(r: 14, g: 22, b: 34, a: 235))
+    drawRectangle(Rectangle(x: x, y: y, width: 16, height: 16), uiSurface(14, 22, 34, 235))
     drawRectOutline(Rectangle(x: x, y: y, width: 16, height: 16), 1,
-                    withAlpha(WidgetColor, if hover: 255 else: 160))
+                    withAlpha(uiLine(WidgetColor), if hover: 255 else: 160))
     if hover and uiPointer.pressed:
       checked = not checked
       uiPointer.consumed = true
-    if checked: drawRectangle(Rectangle(x: x + 4, y: y + 4, width: 8, height: 8), WidgetColor)
-    drawText(label, int32(x + 22), int32(y + 1), 14, Color(r: 228, g: 240, b: 250, a: 255))
+    if checked: drawRectangle(Rectangle(x: x + 4, y: y + 4, width: 8, height: 8), uiInk(WidgetColor))
+    drawText(label, int32(x + 22), int32(y + 1), 14, uiInk(228, 240, 250))
     ret.setRet(vbool(checked))
   uiT.reg("slider") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## ui.slider(x, y, w, value, min, max) -> value (dragged while held over it)
@@ -235,7 +235,7 @@ proc installModUi*(base: ScriptTable) =
       if uiPointer.pressed: uiPointer.consumed = true
     let frac = if hi != lo: ((v - lo) / (hi - lo)).float32 else: 0'f32
     drawDockBar(x.int32, int32(y - 2), w.int32, 4, frac, WidgetColor)
-    drawDisc(Vector2(x: x + w * frac, y: y), if hover: 7 else: 6, WidgetColor)
+    drawDisc(Vector2(x: x + w * frac, y: y), if hover: 7 else: 6, uiInk(WidgetColor))
     ret.setRet(vnum(v))
   uiT.reg("pointer") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## ui.pointer() -> x, y, pressed, down: the pointer in what you are drawing

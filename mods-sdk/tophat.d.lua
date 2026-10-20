@@ -333,6 +333,8 @@ function theme.ink(...) end
 function theme.line(...) end
 ---theme.list() -> the ids of every theme the player can pick right now
 function theme.list(...) end
+---theme.overlay(color) -> text or a mark straight over the arena (no panel behind it)
+function theme.overlay(...) end
 ---theme.set(id) -> true: the player's theme is now `id` (saved, as if picked in Settings), even one the player has not unlocked. false: no such theme. Your own themes can be named without the "<mod id>:" prefix.
 function theme.set(...) end
 ---theme.surface(color) -> a fill (panel, card, button) in the theme in use
@@ -1600,8 +1602,14 @@ function engine.hud_dock.drawDockBar(x, y, w, h, frac, fill, rim) end
 function engine.hud_dock.drawDockCard(x, y, w, h, accent, bg) end
 ---drawDockHeader(x: int32, y: int32, w: int32, title: string, accent: Color, right: string, rightColor: Color): int32
 function engine.hud_dock.drawDockHeader(x, y, w, title, accent, right, rightColor) end
+---drawOverlayText(text: string, x: int32, y: int32, size: int32, color: Color)
+function engine.hud_dock.drawOverlayText(text, x, y, size, color) end
 ---drawShadowText(text: string, x: int32, y: int32, size: int32, color: Color)
 function engine.hud_dock.drawShadowText(text, x, y, size, color) end
+---hudSurface(c: Color): Color
+function engine.hud_dock.hudSurface(c) end
+---textShadow(alpha: uint8): Color
+function engine.hud_dock.textShadow(alpha) end
 
 engine.icon_drawing = {}
 ---drawCurrencyIcon(cx: int32, cy: int32, size: int32, iconType: CurrencyIconType, alpha: uint8)
@@ -3137,6 +3145,8 @@ function engine.ui_theme.findTheme(id) end
 function engine.ui_theme.newTheme(id, shell, surface, raised, text, muted, accent, owner, name, nameEs, wallpaper) end
 ---stockTheme(): UiTheme
 function engine.ui_theme.stockTheme() end
+---themeIsLight(): bool
+function engine.ui_theme.themeIsLight() end
 ---themeName(th: UiTheme): string
 function engine.ui_theme.themeName(th) end
 ---themeUnlocked(th: UiTheme): bool
@@ -3149,6 +3159,9 @@ function engine.ui_theme.uiInk(c) end
 ---@overload fun(r, g, b, a)
 ---uiLine(c: Color): Color
 function engine.ui_theme.uiLine(c) end
+---@overload fun(r, g, b, a)
+---uiOverlay(c: Color): Color
+function engine.ui_theme.uiOverlay(c) end
 ---@overload fun(r, g, b, a)
 ---uiSurface(c: Color): Color
 function engine.ui_theme.uiSurface(c) end
@@ -3822,7 +3835,10 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "hud_dock.drawDockBar"
 ---| "hud_dock.drawDockCard"
 ---| "hud_dock.drawDockHeader"
+---| "hud_dock.drawOverlayText"
 ---| "hud_dock.drawShadowText"
+---| "hud_dock.hudSurface"
+---| "hud_dock.textShadow"
 ---| "icon_drawing.drawCurrencyIcon"
 ---| "icon_drawing.drawLockIcon"
 ---| "icon_drawing.drawPatchIcon"
@@ -4580,6 +4596,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "ui_theme.endThemeLayer"
 ---| "ui_theme.findTheme"
 ---| "ui_theme.newTheme"
+---| "ui_theme.themeIsLight"
 ---| "ui_theme.themeName"
 ---| "ui_theme.themeUnlocked"
 ---| "ui_theme.unforceTheme"

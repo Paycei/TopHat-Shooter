@@ -115,4 +115,7 @@ proc installModTheme*(base: ScriptTable) =
   themeT.reg("glow") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## theme.glow(color) -> a translucent highlight in the theme in use
     ret.setRet(colorValue(uiGlow(vm.colorArg(args, "theme.glow"))))
+  themeT.reg("overlay") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## theme.overlay(color) -> text or a mark straight over the arena (no panel behind it)
+    ret.setRet(colorValue(uiOverlay(vm.colorArg(args, "theme.overlay"))))
   rawSet(base, vstr("theme"), vtable(themeT))

@@ -251,13 +251,13 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
       Color(r: uint8(255.0 * pulse), g: uint8(70.0 * pulse), b: uint8(80.0 * pulse), a: 255)
     else:
       Color(r: 70, g: 115, b: 175, a: 255)
-  drawRectangle(x, y, width, height, bg)
+  drawRectangle(x, y, width, height, uiSurface(bg))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
-                     2.0, border)
+                     2.0, uiLine(border))
   # Left accent bar, so the strip is identifiable from the corner of the eye.
   drawRectangle(x, y, 4'i32, height,
-                if critical: Color(r: 190, g: 40, b: 55, a: 255) else: RpAccent)
+                uiInk(if critical: Color(r: 190, g: 40, b: 55, a: 255) else: RpAccent))
 
   # Centered group: RESTORE POINTS  <glyphs>  [status]
   let label = t(tkRestorePointsLabel)
@@ -275,7 +275,7 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
   var cursor = x + (width - groupW) div 2
   let cy = y.float32 + height.float32 * 0.5
   drawText(label, cursor, int32(cy) - PanelFontSize div 2, PanelFontSize,
-           Color(r: 190, g: 202, b: 216, a: 255))
+           uiInk(190, 202, 216))
   cursor += labelW + IconLabelGap
 
   if maxLives == unlimitedSentinel:
@@ -300,8 +300,8 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
   if statusW > 0:
     cursor += IconLabelGap
     drawText(status, cursor, int32(cy) - PanelFontSize div 2, PanelFontSize,
-             if critical or low: Color(r: 255, g: 120, b: 120, a: 255)
-             else: Color(r: 120, g: 235, b: 160, a: 255))
+             uiInk(if critical or low: Color(r: 255, g: 120, b: 120, a: 255)
+                   else: Color(r: 120, g: 235, b: 160, a: 255)))
 
 proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
                               height: int32 = LivesPanelHeight) {.moddable.} =
@@ -314,11 +314,11 @@ proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
   ## screens keep their layout; one dead platter plus a warning replaces the
   ## glyph row. `mode` only picks the wording (survival says Overtime).
   let pulse = sin(time * 3.0) * 0.2 + 0.8
-  drawRectangle(x, y, width, height, Color(r: 46, g: 16, b: 20, a: 255))
+  drawRectangle(x, y, width, height, uiSurface(46, 16, 20))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
-                     2.0, Color(r: uint8(220.0 * pulse), g: 60, b: 70, a: 255))
-  drawRectangle(x, y, 4'i32, height, Color(r: 190, g: 40, b: 55, a: 255))
+                     2.0, uiLine(Color(r: uint8(220.0 * pulse), g: 60, b: 70, a: 255)))
+  drawRectangle(x, y, 4'i32, height, uiInk(190, 40, 55))
 
   # Centered group: RESTORE POINTS  <dead platter>  OFFLINE: ...
   # The warning shrinks to fit: it runs long in Spanish and the pause window's
@@ -336,13 +336,12 @@ proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
   var cursor = x + (width - groupW) div 2
   let cy = y.float32 + height.float32 * 0.5
   drawText(label, cursor, int32(cy) - PanelFontSize div 2, PanelFontSize,
-           Color(r: 190, g: 202, b: 216, a: 255))
+           uiInk(190, 202, 216))
   cursor += labelW + IconLabelGap
   drawRestorePointIcon(cursor.float32 + PanelIconSize, cy, PanelIconSize,
                        RpDeadBody, RpDeadAccent, RpDeadLed)
   cursor += glyphW + IconLabelGap
-  drawText(status, cursor, int32(cy) - statusSize div 2, statusSize,
-           Color(r: 255, g: 120, b: 120, a: 255))
+  drawText(status, cursor, int32(cy) - statusSize div 2, statusSize, uiInk(255, 120, 120))
 
 # ---------------------------------------------------------------------------
 # "Restore point spent" animation.
@@ -470,7 +469,7 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
   let titleW = measureText(title, titleSize)
   let titleY = cy - (128.0 + 46.0 * (1.0 - reveal)) * slam
   drawText(title, int32(cx) - titleW div 2, int32(titleY), titleSize,
-           Color(r: 255, g: 120, b: 110, a: uint8(255.0 * alpha)))
+           uiOverlay(Color(r: 255, g: 120, b: 110, a: uint8(255.0 * alpha))))
 
   # --- siblings (drawn first, so shards from the break pass over them) ---
   if siblingAlpha > 0.0:
@@ -547,4 +546,4 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
       let sa = alpha * phaseT(p, LifeLostRevealEnd, LifeLostRevealEnd + 0.06)
       let col = if unlimited: Color(r: 120, g: 235, b: 160, a: uint8(255.0 * sa))
                 else: Color(r: 255, g: 120, b: 120, a: uint8(255.0 * sa))
-      drawText(status, int32(cx) - statusW div 2, int32(cy + 112.0), 30, col)
+      drawText(status, int32(cx) - statusW div 2, int32(cy + 112.0), 30, uiOverlay(col))

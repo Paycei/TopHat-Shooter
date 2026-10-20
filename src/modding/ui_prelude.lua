@@ -70,7 +70,7 @@ function ui.dialogue(opts)
       local shown = string.sub(line.text or "", 1, math.floor(t * speed))
       local ty = by + 28
       for _, l in ipairs(wrap(shown, bx + bw - 16 - tx, 16)) do
-        draw.text(l, tx, ty, 16, "#e4f0fa")
+        draw.text(l, tx, ty, 16, theme.ink("#e4f0fa"))
         ty = ty + 20
       end
       if i == #lines and opts.choices and fullyShown() then
@@ -85,7 +85,7 @@ function ui.dialogue(opts)
           if input.pressed(tostring(k)) then finish(k) end
         end
       elseif fullyShown() then
-        draw.text(i < #lines and "[SPACE] >" or "[SPACE] OK", bx + bw - 90, by + bh - 22, 12, col)
+        draw.text(i < #lines and "[SPACE] >" or "[SPACE] OK", bx + bw - 90, by + bh - 22, 12, theme.ink(col))
       end
     end,
   }
@@ -116,7 +116,7 @@ function ui.choose(opts)
     draw = function(w, h)
       draw.rect(0, 0, w, h, {0, 0, 0, 150})
       if opts.title then
-        draw.text(opts.title, (w - draw.textWidth(opts.title, 28)) / 2, h * 0.18, 28, "#e4f0fa")
+        draw.text(opts.title, (w - draw.textWidth(opts.title, 28)) / 2, h * 0.18, 28, theme.overlay("#e4f0fa"))
       end
       local n = #options
       local cw = math.min(220, (w - 80 - (n - 1) * 20) / n)
@@ -129,7 +129,7 @@ function ui.choose(opts)
         local px, py = ui.pointer()
         if px >= x and px < x + cw and py >= y0 and py < y0 + ch then sel = k end
         ui.panel(x, y0, cw, ch, {color = col, title = (k == sel) and "> SELECT" or " "})
-        if k == sel then draw.rectLines(x - 3, y0 - 3, cw + 6, ch + 6, col, 2) end
+        if k == sel then draw.rectLines(x - 3, y0 - 3, cw + 6, ch + 6, theme.line(col), 2) end
         local ty = y0 + 28
         if o.icon then
           draw.texture(o.icon, x + cw / 2, ty + 36, {w = 64, h = 64})
@@ -140,7 +140,7 @@ function ui.choose(opts)
         if ui.button(x + 10, y0 + ch - 38, cw - 20, 28, "CHOOSE", {color = col}) then pick(k) end
       end
       if opts.allowSkip then
-        draw.text("[ESC] skip", (w - draw.textWidth("[ESC] skip", 12)) / 2, y0 + ch + 20, 12, "#87a0b6")
+        draw.text("[ESC] skip", (w - draw.textWidth("[ESC] skip", 12)) / 2, y0 + ch + 20, 12, theme.overlay("#87a0b6"))
       end
     end,
   }

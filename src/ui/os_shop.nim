@@ -6,7 +6,8 @@ import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../localization, ../powerup_data, ../sound, ../run_statistics, icon_drawing, ../render_context, ../utils
 import ../modding/[mod_hooks, mod_registry]
-import ui_helpers
+import ui_helpers, ui_theme
+from hud_dock import textShadow
 
 const
   SHOP_BASE_WIDTH: int32 = 950     # classic (4:3) width -- do not change
@@ -147,7 +148,7 @@ proc drawWrappedDesc(text: string, x, y, maxWidth, fontSize: int32,
   let lines = wrapTextLines(text, maxWidth, fontSize, breakLongWords = true)
   let lineHeight = fontSize + lineSpacing
   for i, line in lines:
-    drawText(line, x, y + int32(i) * lineHeight, fontSize, color)
+    drawText(line, x, y + int32(i) * lineHeight, fontSize, uiInk(color))
   result = int32(lines.len) * lineHeight
 
 proc initShopItems*(): array[6, ShopItem] {.moddable.} =
@@ -273,14 +274,14 @@ proc drawModShopIconTile(x, y, size: int32, defIdx: int, enabled, selected: bool
   let d = shopItemDefs[defIdx]
   let accent = if enabled: d.color else: Color(r: 118, g: 126, b: 140, a: 150)
   let tile = Rectangle(x: x.float32, y: y.float32, width: size.float32, height: size.float32)
-  drawRectangleRounded(tile, 0.22, 6, Color(r: 12, g: 16, b: 26, a: 255))
+  drawRectangleRounded(tile, 0.22, 6, uiSurface(Color(r: 12, g: 16, b: 26, a: 255)))
   drawRectangleRoundedLines(tile, 0.22, 6, if selected: -2.0'f32 else: -1.5'f32,
-                            withAlpha(accent, if selected: 255 elif enabled: 150 else: 70))
+                            uiLine(withAlpha(accent, if selected: 255 elif enabled: 150 else: 70)))
   let c = size.float32 / 2
   if not drawModShopIcon(defIdx, x.float32 + c, y.float32 + c, size.float32 * 0.7'f32):
     let name = pickText(d.nameEn, d.nameEs)
     let ch = if name.len > 0: $name[0].toUpperAscii else: "?"
-    drawText(ch, x + size div 2 - measureText(ch, 20) div 2, y + size div 2 - 10, 20, accent)
+    drawText(ch, x + size div 2 - measureText(ch, 20) div 2, y + size div 2 - 10, 20, uiInk(accent))
 
 proc drawModernShopButton(x, y, width, height: int32, text: string,
                          cost: int, canAfford: bool, isSelected: bool,
@@ -301,12 +302,12 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   else:
     Color(r: 45, g: 55, b: 70, a: 255)
 
-  drawRectangle(x, y, width, height, bgColor)
+  drawRectangle(x, y, width, height, uiSurface(bgColor))
 
   # Top highlight
   if canAfford:
     drawRectangle(x, y, width, 2,
-                 Color(r: 255, g: 255, b: 255, a: 30))
+                 uiGlow(Color(r: 255, g: 255, b: 255, a: 30)))
 
   # Border with pulse for selected
   let borderColor = if not canAfford:
@@ -320,7 +321,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   let borderWidth = if isSelected: 2.5 else: 2.0
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
-                    borderWidth, borderColor)
+                    borderWidth, uiLine(borderColor))
 
   # Icon - drawn programmatically on an app-style tile in the slot's own hue
   const ICON_TILE: int32 = 38
@@ -337,7 +338,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
     White
 
   let textX = x + 50
-  drawText(text, textX, y + 8, 14, textColor)
+  drawText(text, textX, y + 8, 14, uiInk(textColor))
 
   # Description (if provided), fit within the button so it never overflows
   if description.len > 0:
@@ -347,7 +348,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
       Color(r: 90, g: 95, b: 100, a: 255)
     let btnDescMaxW = width - (textX - x) - 8  # available pixels right of the icon
     let (fittedBtnDesc, fittedBtnDescSize) = fitTextAndSize(description, btnDescMaxW, 10, 8)
-    drawText(fittedBtnDesc, textX, y + 24, fittedBtnDescSize, descColor)
+    drawText(fittedBtnDesc, textX, y + 24, fittedBtnDescSize, uiInk(descColor))
 
   # Cost display and owned count on same line to save space
   let costText = $cost & " " & t(tkShopCredits)
@@ -359,7 +360,7 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
   drawCurrencyIcon(textX + 7, y + 48, 14, ciCredits,
                    if canAfford: 255'u8 else: 130'u8)
   let costTextX = textX + 18
-  drawText(costText, costTextX, y + 42, 11, costColor)
+  drawText(costText, costTextX, y + 42, 11, uiInk(costColor))
 
   # Bought counter badge (top-right of button)
   if boughtCount > 0:
@@ -370,10 +371,10 @@ proc drawModernShopButton(x, y, width, height: int32, text: string,
     let badgeBg = Color(r: 0, g: 80, b: 40, a: 220)
     let badgeBorder = Color(r: 0, g: 200, b: 100, a: 255)
     let badgeText2Color = Color(r: 120, g: 255, b: 160, a: 255)
-    drawRectangle(badgeX, badgeY, badgeW, 16.int32, badgeBg)
+    drawRectangle(badgeX, badgeY, badgeW, 16.int32, uiSurface(badgeBg))
     drawRectOutline(Rectangle(x: badgeX.float32, y: badgeY.float32,
-                                  width: badgeW.float32, height: 16.0), 1.0, badgeBorder)
-    drawText(badgeText, badgeX + 5, badgeY + 3, 10, badgeText2Color)
+                                  width: badgeW.float32, height: 16.0), 1.0, uiLine(badgeBorder))
+    drawText(badgeText, badgeX + 5, badgeY + 3, 10, uiInk(badgeText2Color))
 
 proc drawShop*(game: Game) {.moddable.} =
   let screenWidth = getVirtualScreenWidth()
@@ -384,7 +385,7 @@ proc drawShop*(game: Game) {.moddable.} =
     let lineY = i * 4 + int32(game.time * 80.0) mod 4
     let alpha = uint8(3 + sin(game.time * 2.0 + i.float32) * 3.0)
     drawRectangle(0, lineY, screenWidth, 2,
-                 Color(r: 0, g: 100, b: 150, a: alpha))
+                 uiLine(Color(r: 0, g: 100, b: 150, a: alpha)))
 
   # Dark overlay
   drawRectangle(0, 0, screenWidth, screenHeight, Color(r: 0, g: 0, b: 0, a: 240))
@@ -416,46 +417,46 @@ proc drawShop*(game: Game) {.moddable.} =
 
   # Window background
   drawRectangle(windowX, windowY, windowW, windowH,
-               Color(r: 26, g: 32, b: 44, a: 255))
+               uiSurface(Color(r: 26, g: 32, b: 44, a: 255)))
 
   # Grid texture
   for i in 0..<(windowH div 40):
     let lineY = windowY + int32(i * 40)
     drawRectangle(windowX, lineY, windowW, int32(1),
-                 Color(r: 30, g: 36, b: 48, a: 255))
+                 uiLine(Color(r: 30, g: 36, b: 48, a: 255)))
 
   # Window borders
   drawRectOutline(Rectangle(x: windowX.float32, y: windowY.float32,
                                 width: windowW.float32, height: windowH.float32),
-                    4, Color(r: 0, g: 180, b: 255, a: 255))
+                    4, uiLine(Color(r: 0, g: 180, b: 255, a: 255)))
   drawRectOutline(Rectangle(x: (windowX + 2).float32, y: (windowY + 2).float32,
                                 width: (windowW - 4).float32, height: (windowH - 4).float32),
-                    1, Color(r: 60, g: 75, b: 95, a: 255))
+                    1, uiLine(Color(r: 60, g: 75, b: 95, a: 255)))
 
   # Title bar
   drawRectangle(windowX, windowY, windowW, TITLE_BAR_HEIGHT,
-               Color(r: 40, g: 52, b: 70, a: 255))
+               uiSurface(Color(r: 40, g: 52, b: 70, a: 255)))
   drawRectangle(windowX, windowY, windowW, 2,
-               Color(r: 80, g: 100, b: 130, a: 255))
+               uiLine(Color(r: 80, g: 100, b: 130, a: 255)))
   drawRectangle(windowX, windowY + TITLE_BAR_HEIGHT - 1, windowW, 1,
-               Color(r: 0, g: 140, b: 200, a: 255))
+               uiLine(Color(r: 0, g: 140, b: 200, a: 255)))
 
   # Title text
   let titleText = "[$] " & t(tkShopCreditStore)
   let titleColor = Color(r: 100, g: 200, b: 255, a: 255)
-  drawText(titleText, windowX + 17, windowY + 13, 22, Color(r: 0, g: 0, b: 0, a: 120))
-  drawText(titleText, windowX + 15, windowY + 11, 22, titleColor)
+  drawText(titleText, windowX + 17, windowY + 13, 22, textShadow(120))
+  drawText(titleText, windowX + 15, windowY + 11, 22, uiInk(titleColor))
 
   # Close button
   let buttonSize = L.closeSize
   let closeButtonY = L.closeY
   let closeX = L.closeX
   drawRectangle(closeX, closeButtonY, buttonSize, buttonSize,
-               Color(r: 220, g: 50, b: 50, a: 255))
+               uiSurface(Color(r: 220, g: 50, b: 50, a: 255)))
   drawRectOutline(Rectangle(x: closeX.float32, y: closeButtonY.float32,
                                 width: buttonSize.float32, height: buttonSize.float32),
-                    1, Color(r: 180, g: 30, b: 30, a: 255))
-  drawText("X", closeX + 8, closeButtonY + 5, 18, White)
+                    1, uiLine(Color(r: 180, g: 30, b: 30, a: 255)))
+  drawText("X", closeX + 8, closeButtonY + 5, 18, uiInk(White))
 
   # Sidebar for owned upgrades
   let sidebarX = L.sidebarX
@@ -469,16 +470,16 @@ proc drawShop*(game: Game) {.moddable.} =
   let contentInnerW: int32 = sidebarWidth - SCROLLBAR_W - 2  # leave room for scrollbar
 
   drawRectangle(sidebarX, sidebarY, sidebarWidth, sidebarHeight,
-               Color(r: 30, g: 38, b: 52, a: 255))
+               uiSurface(Color(r: 30, g: 38, b: 52, a: 255)))
   drawRectOutline(Rectangle(x: sidebarX.float32, y: sidebarY.float32,
                                 width: sidebarWidth.float32, height: sidebarHeight.float32),
-                    1, Color(r: 0, g: 140, b: 200, a: 255))
+                    1, uiLine(Color(r: 0, g: 140, b: 200, a: 255)))
 
   # Sidebar header (drawn above scissor region so it is always visible)
   drawRectangle(sidebarX, sidebarY, sidebarWidth, HEADER_H,
-               Color(r: 40, g: 50, b: 65, a: 255))
+               uiSurface(Color(r: 40, g: 50, b: 65, a: 255)))
   drawText("[L] " & t(tkShopActiveUpgrades), sidebarX + 10, sidebarY + 9, 16,
-          Color(r: 150, g: 200, b: 255, a: 255))
+          uiInk(Color(r: 150, g: 200, b: 255, a: 255)))
 
   # measure total content height (dry run, no drawing)
   let upgradeX = sidebarX + 12
@@ -515,9 +516,9 @@ proc drawShop*(game: Game) {.moddable.} =
 
   if game.player.powerUps.len == 0:
     drawText(t(tkShopNoPermanent), upgradeX, upgradeY, 13,
-            Color(r: 150, g: 160, b: 170, a: 255))
+            uiInk(Color(r: 150, g: 160, b: 170, a: 255)))
     upgradeY += 18
-    drawText(t(tkShopDefeatWaves), upgradeX, upgradeY, 12, LightGray)
+    drawText(t(tkShopDefeatWaves), upgradeX, upgradeY, 12, uiInk(LightGray))
   else:
     for powerUp in game.player.powerUps:
       let name = getPowerUpName(powerUp.powerType)
@@ -525,10 +526,10 @@ proc drawShop*(game: Game) {.moddable.} =
       let rarityColor = if powerUp.rarity == prLegendary: Gold
                        else: Color(r: 200, g: 220, b: 255, a: 255)
 
-      drawText("> " & name, upgradeX, upgradeY, 14, rarityColor)
+      drawText("> " & name, upgradeX, upgradeY, 14, uiInk(rarityColor))
       let levelWidth = measureText(levelText, 11)
       drawText(levelText, sidebarX + sidebarWidth - SCROLLBAR_W - levelWidth - 10, upgradeY + 2, 11,
-              Color(r: 100, g: 200, b: 255, a: 255))
+              uiInk(Color(r: 100, g: 200, b: 255, a: 255)))
       upgradeY += 18
 
       let desc = getPowerUpDescription(powerUp.powerType, powerUp.level, game.player.damage)
@@ -544,31 +545,31 @@ proc drawShop*(game: Game) {.moddable.} =
     let sbX = sidebarX + sidebarWidth - SCROLLBAR_W - 1
     let sbTrackH = contentAreaH
     drawRectangle(sbX, contentAreaY, SCROLLBAR_W, sbTrackH,
-                 Color(r: 20, g: 28, b: 40, a: 200))
+                 uiSurface(Color(r: 20, g: 28, b: 40, a: 200)))
     let thumbRatio = contentAreaH.float32 / totalContentH.float32
     let thumbH = max(20'i32, int32(sbTrackH.float32 * thumbRatio))
     let thumbY = contentAreaY + int32(float32(sbTrackH - thumbH) *
                    (game.shopSidebarScroll.float32 / maxScroll.float32))
     drawRectangle(sbX + 1, thumbY, SCROLLBAR_W - 2, thumbH,
-                 Color(r: 0, g: 160, b: 220, a: 200))
+                 uiInk(Color(r: 0, g: 160, b: 220, a: 200)))
     # top/bottom fade hints when content overflows
     if game.shopSidebarScroll > 0:
       for i in 0'i32..7'i32:
         drawRectangle(sidebarX, contentAreaY + i, sidebarWidth - SCROLLBAR_W - 1, 1,
-                     Color(r: 30, g: 38, b: 52, a: uint8(200 - i * 25)))
+                     uiSurface(Color(r: 30, g: 38, b: 52, a: uint8(200 - i * 25))))
     if game.shopSidebarScroll < maxScroll:
       for i in 0'i32..7'i32:
         let fy = contentAreaY + contentAreaH - 1 - i
         drawRectangle(sidebarX, fy, sidebarWidth - SCROLLBAR_W - 1, 1,
-                     Color(r: 30, g: 38, b: 52, a: uint8(200 - i * 25)))
+                     uiSurface(Color(r: 30, g: 38, b: 52, a: uint8(200 - i * 25))))
 
   # Re-draw the header border line on top of any content that bled through
   drawRectangle(sidebarX, sidebarY + HEADER_H - 1, sidebarWidth, 1,
-               Color(r: 0, g: 100, b: 160, a: 180))
+               uiLine(Color(r: 0, g: 100, b: 160, a: 180)))
 
   # Shop items area
   drawText("v " & t(tkShopAvailablePurchases), L.headerX, L.headerY, 16,
-          Color(r: 200, g: 220, b: 240, a: 255))
+          uiInk(Color(r: 200, g: 220, b: 240, a: 255)))
 
   # Rows: the game's six, then any mod rows (register.shopItem). Past what
   # fits, the list scrolls (wheel, or following the selection).
@@ -625,31 +626,31 @@ proc drawShop*(game: Game) {.moddable.} =
     let thumbH = max(20'i32, int32(trackH.float32 * trackH.float32 / (trackH + maxItemScroll).float32))
     let thumbY = L.itemsY + int32(float32(trackH - thumbH) * scroll.float32 / maxItemScroll.float32)
     let sbX = L.itemsX + L.itemW + 3
-    drawRectangle(sbX, L.itemsY, 4, trackH, Color(r: 20, g: 28, b: 40, a: 200))
-    drawRectangle(sbX, thumbY, 4, thumbH, Color(r: 0, g: 160, b: 220, a: 200))
+    drawRectangle(sbX, L.itemsY, 4, trackH, uiSurface(Color(r: 20, g: 28, b: 40, a: 200)))
+    drawRectangle(sbX, thumbY, 4, thumbH, uiInk(Color(r: 0, g: 160, b: 220, a: 200)))
 
   # Bottom panel with controls - reduced height
   let bottomY = L.bottomY
   drawRectangle(windowX, bottomY, windowW, 65,
-               Color(r: 30, g: 38, b: 52, a: 255))
+               uiSurface(Color(r: 30, g: 38, b: 52, a: 255)))
   drawRectangle(windowX, bottomY, windowW, 2,
-               Color(r: 0, g: 140, b: 200, a: 255))
+               uiLine(Color(r: 0, g: 140, b: 200, a: 255)))
 
   # Control instructions with modern styling
   let ctrlY = bottomY + 10
   drawText(t(tkShopControls), windowX + 20, ctrlY, 13,
-          Color(r: 0, g: 180, b: 255, a: 255))
+          uiInk(Color(r: 0, g: 180, b: 255, a: 255)))
 
   let instructY = ctrlY + 18
-  drawText(t("os_shop_navigate") & t(tkShopNavigate), windowX + 20, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText(t("os_shop_navigate") & t(tkShopNavigate), windowX + 20, instructY, 11, uiInk(Color(r: 200, g: 210, b: 220, a: 255)))
 
-  drawText(t("os_shop_select") & t(tkShopBuy), windowX + 180, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText(t("os_shop_select") & t(tkShopBuy), windowX + 180, instructY, 11, uiInk(Color(r: 200, g: 210, b: 220, a: 255)))
 
   let exitHintText = if game.mode == gmRoguelite:
     t("os_shop_exit") & t("roguelite_back")
   else:
     t("os_shop_exit") & t(tkShopContinue)
-  drawText(exitHintText, windowX + 300, instructY, 11, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText(exitHintText, windowX + 300, instructY, 11, uiInk(Color(r: 200, g: 210, b: 220, a: 255)))
 
   # Purchase button for selected item (large, prominent)
   let canBuy =
@@ -681,16 +682,16 @@ proc drawShop*(game: Game) {.moddable.} =
 
   # Credits box background
   drawRectangle(creditsBoxX, creditsBoxY, creditsBoxWidth, creditsBoxHeight,
-               Color(r: 40, g: 50, b: 30, a: 255))
+               uiSurface(Color(r: 40, g: 50, b: 30, a: 255)))
 
   # Top highlight
   drawRectangle(creditsBoxX, creditsBoxY, creditsBoxWidth, 2,
-               Color(r: 255, g: 220, b: 0, a: 60))
+               uiGlow(Color(r: 255, g: 220, b: 0, a: 60)))
 
   # Border
   drawRectOutline(Rectangle(x: creditsBoxX.float32, y: creditsBoxY.float32,
                                 width: creditsBoxWidth.float32, height: creditsBoxHeight.float32),
-                    2, Color(r: 255, g: 215, b: 0, a: 200))
+                    2, uiLine(Color(r: 255, g: 215, b: 0, a: 200)))
 
   # Coin icon
   let coinIconX = creditsBoxX + 15
@@ -700,13 +701,13 @@ proc drawShop*(game: Game) {.moddable.} =
   # Credits amount text
   let creditsText = $game.player.coins & " " & t(tkShopCredits)
   drawText(creditsText, creditsBoxX + 40, creditsBoxY + 7, 18,
-          Color(r: 0, g: 0, b: 0, a: 120))
+          textShadow(120))
   drawText(creditsText, creditsBoxX + 38, creditsBoxY + 5, 18,
-          Color(r: 255, g: 240, b: 100, a: 255))
+          uiInk(Color(r: 255, g: 240, b: 100, a: 255)))
 
   # Small label below
   drawText(t("shop_available_balance"), creditsBoxX + 40, creditsBoxY + 24, 9,
-          Color(r: 180, g: 180, b: 150, a: 255))
+          uiInk(Color(r: 180, g: 180, b: 150, a: 255)))
 
   # Button shadow
   if canBuy:
@@ -719,12 +720,12 @@ proc drawShop*(game: Game) {.moddable.} =
   else:
     Color(r: 55, g: 60, b: 70, a: 255)
 
-  drawRectangle(buyButtonX, buyButtonY, buyButtonWidth, buyButtonHeight, buyBgColor)
+  drawRectangle(buyButtonX, buyButtonY, buyButtonWidth, buyButtonHeight, uiSurface(buyBgColor))
 
   # Top highlight
   if canBuy:
     drawRectangle(buyButtonX, buyButtonY, buyButtonWidth, 2,
-                 Color(r: 255, g: 255, b: 255, a: 40))
+                 uiGlow(Color(r: 255, g: 255, b: 255, a: 40)))
 
   # Border with pulse
   let buyBorderColor = if canBuy:
@@ -735,7 +736,7 @@ proc drawShop*(game: Game) {.moddable.} =
 
   drawRectOutline(Rectangle(x: buyButtonX.float32, y: buyButtonY.float32,
                                 width: buyButtonWidth.float32, height: buyButtonHeight.float32),
-                    2.5, buyBorderColor)
+                    2.5, uiLine(buyBorderColor))
 
   # Button text
   let buyText = if canBuy:
@@ -745,11 +746,14 @@ proc drawShop*(game: Game) {.moddable.} =
   let buyTextWidth = measureText(buyText, 16)
   let buyTextX = buyButtonX + (buyButtonWidth - buyTextWidth) div 2
 
-  drawText(buyText, buyTextX + 1, buyButtonY + 13, 16, Color(r: 0, g: 0, b: 0, a: 120))
+  drawText(buyText, buyTextX + 1, buyButtonY + 13, 16, textShadow(120))
   drawText(buyText, buyTextX, buyButtonY + 12, 16,
-          if canBuy: White else: Color(r: 150, g: 155, b: 160, a: 255))
+          uiInk(if canBuy: White else: Color(r: 150, g: 155, b: 160, a: 255)))
 
-  # Draw custom cursor
+  # Draw custom cursor (TopHat-ShooterOS's crosshair; another theme's pointer
+  # is drawn by main.nim's drawDesktopCursor)
+  if activeTheme().shell != ssTopHat:
+    return
   let mousePos = getVirtualMousePosition()
   let cursorPulse = sin(game.time * 8.0) * 2 + 8
 

@@ -16,6 +16,7 @@ from rlgl import getShaderIdDefault
 import ../draw_prims
 import types_3d, engine_3d, player_3d, boss_3d, ../types, ../utils, ../localization, ../settings
 import ../modding/[mod_hooks, mod_assets]
+import ../ui/hud_dock   # hudSurface, and the interface theme (ui_theme)
 
 export types_3d
 
@@ -823,23 +824,23 @@ proc renderGame3D*(world: Game3D) {.moddable.} =
   if showDamageNumbersOf(globalSettings) and not hudHidden(hpDamageNumbers):
     drawDamageNumbers(world.damageNumbers, world.camera)
 
-  # 2D HUD
+  # 2D HUD, in the interface theme
   if showBoss or showPlayer:
-    drawRectangle(10, 10, 320, if showBoss: 150 else: 60, fade(Black, 0.7))
+    drawRectangle(10, 10, 320, if showBoss: 150 else: 60, hudSurface(fade(Black, 0.7)))
   if showPlayer:
-    drawText(t(tkGame3DHp) & ": " & $int(world.player.health), 20, 20, 20, Red)
+    drawText(t(tkGame3DHp) & ": " & $int(world.player.health), 20, 20, 20, uiInk(Red))
     let ammoText = if world.player.weapon.reloadTimer > 0: t(tkGame3DReloading)
                    elif world.player.weapon.infiniteAmmo: t(tkGame3DAmmo) & ": --"
                    else: t(tkGame3DAmmo) & ": " & $world.player.weapon.ammo & "/" & $world.player.weapon.maxAmmo
-    drawText(ammoText, 20, 45, 20, Yellow)
+    drawText(ammoText, 20, 45, 20, uiInk(Yellow))
 
   if showBoss:
     # Boss health bar
     let bossHpPercent = world.boss.health / world.boss.maxHealth
-    drawText(t(tkGame3DBossHp) & ":", 20, 70, 18, White)
-    drawRectangle(20, 92, 280, 20, Color(r: 50, g: 0, b: 0, a: 200))
-    drawRectangle(20, 92, int32(280.0 * bossHpPercent), 20, Color(r: 255, g: 50, b: 50, a: 255))
-    drawRectOutline(20, 92, 280, 20, White)
+    drawText(t(tkGame3DBossHp) & ":", 20, 70, 18, uiInk(White))
+    drawRectangle(20, 92, 280, 20, uiSurface(50, 0, 0, 200))
+    drawRectangle(20, 92, int32(280.0 * bossHpPercent), 20, uiInk(255, 50, 50))
+    drawRectOutline(20, 92, 280, 20, uiLine(White))
 
     # Phase indicator with color
     let phaseColor = case world.boss.phase
@@ -849,7 +850,7 @@ proc renderGame3D*(world: Game3D) {.moddable.} =
       else: White
 
     let phaseText = t(tkGame3DPhase) & " " & $world.boss.phase & "/3"
-    drawText(phaseText, 20, 120, 20, phaseColor)
+    drawText(phaseText, 20, 120, 20, uiInk(phaseColor))
 
     # Satellite count (Phase 1 only)
     if world.boss.phase == 1:
@@ -859,7 +860,7 @@ proc renderGame3D*(world: Game3D) {.moddable.} =
           activeSats += 1
 
       if activeSats > 0:
-        drawText(t(tkGame3DSatellites) & ": " & $activeSats & " (" & t(tkGame3DDestroyAll) & ")", 20, 145, 16, Color(r: 255, g: 200, b: 50, a: 255))
+        drawText(t(tkGame3DSatellites) & ": " & $activeSats & " (" & t(tkGame3DDestroyAll) & ")", 20, 145, 16, uiInk(255, 200, 50))
 
     # Phase transition warning
     if world.boss.phaseTransitionTimer > 0:
@@ -867,7 +868,7 @@ proc renderGame3D*(world: Game3D) {.moddable.} =
       let textWidth = measureText(warningText, 40)
       let flashAlpha = (sin(world.boss.phaseTransitionTimer * 10.0) * 0.5 + 0.5) * 255.0
       drawText(warningText, (getScreenWidth() - textWidth) div 2, 100, 40,
-               fade(Color(r: 255, g: 255, b: 0, a: 255), flashAlpha / 255.0))
+               uiOverlay(fade(Color(r: 255, g: 255, b: 0, a: 255), flashAlpha / 255.0)))
 
   # Crosshair
   let centerX = getScreenWidth() div 2
@@ -891,6 +892,6 @@ proc renderGame3D*(world: Game3D) {.moddable.} =
     # Dark overlay
     drawRectangle(0, 0, getScreenWidth(), getScreenHeight(), fade(Black, 0.5))
 
-    drawText(pauseText, centerX - textWidth1 div 2, centerY - 30, 40, White)
-    drawText(resumeText, centerX - textWidth2 div 2, centerY + 20, 20, LightGray)
-    drawText(quitText, centerX - textWidth3 div 2, centerY + 50, 20, LightGray)
+    drawText(pauseText, centerX - textWidth1 div 2, centerY - 30, 40, uiOverlay(White))
+    drawText(resumeText, centerX - textWidth2 div 2, centerY + 20, 20, uiOverlay(LightGray))
+    drawText(quitText, centerX - textWidth3 div 2, centerY + 50, 20, uiOverlay(LightGray))

@@ -1680,17 +1680,17 @@ proc drawRevealCard(x, y: int32, pu: PowerUp, flip: float32, accent: Color, time
   let edge = if legendary: Color(r: 255, g: 215, b: 0, a: 255) else: accent
   let rect = Rectangle(x: rx.float32, y: y.float32, width: w.float32, height: CardH.float32)
   if not faceUp:
-    drawRectangleRounded(rect, 0.12'f32, 6, Color(r: 18, g: 26, b: 40, a: 250))
-    drawRectangleRoundedLines(rect, 0.12'f32, 6, -2.0'f32, withAlpha(accent, 200))
+    drawRectangleRounded(rect, 0.12'f32, 6, uiSurface(Color(r: 18, g: 26, b: 40, a: 250)))
+    drawRectangleRoundedLines(rect, 0.12'f32, 6, -2.0'f32, uiLine(withAlpha(accent, 200)))
     if w > 40:
       let pulse = sin(time * 6.0'f32) * 0.5'f32 + 0.5'f32
       let q = "?"
       let qw = measureText(q, 44)
       drawText(q, cx - qw div 2, y + CardH div 2 - 22, 44,
-               withAlpha(accent, int(140.0'f32 + pulse * 100.0'f32)))
+               uiInk(withAlpha(accent, int(140.0'f32 + pulse * 100.0'f32))))
     return
-  drawRectangleRounded(rect, 0.12'f32, 6, Color(r: 12, g: 20, b: 32, a: 250))
-  drawRectangleRoundedLines(rect, 0.12'f32, 6, -2.0'f32, edge)
+  drawRectangleRounded(rect, 0.12'f32, 6, uiSurface(Color(r: 12, g: 20, b: 32, a: 250)))
+  drawRectangleRoundedLines(rect, 0.12'f32, 6, -2.0'f32, uiLine(edge))
   if w < CardW - 10:
     return   # still mid-flip: only the frame reads at this width
   const iconSize = 56'i32
@@ -1699,7 +1699,7 @@ proc drawRevealCard(x, y: int32, pu: PowerUp, flip: float32, accent: Color, time
   var ny = y + 12 + iconSize + 8
   for ln in wrapTextLines(getPowerUpName(pu.powerType), CardW - 12, 12):
     let lw = measureText(ln, 12)
-    drawText(ln, cx - lw div 2, ny, 12, Color(r: 225, g: 235, b: 245, a: 255))
+    drawText(ln, cx - lw div 2, ny, 12, uiInk(Color(r: 225, g: 235, b: 245, a: 255)))
     ny += 14
   let tag =
     if legendary: t(tkSurvivalCacheLegendary)
@@ -1708,9 +1708,9 @@ proc drawRevealCard(x, y: int32, pu: PowerUp, flip: float32, accent: Color, time
   let tagW = measureText(tag, 13) + 12
   let tagX = cx - tagW div 2
   let tagY = y + CardH - 24
-  drawRectangle(tagX, tagY, tagW, 17, withAlpha(edge, 60))
-  drawRectOutline(tagX, tagY, tagW, 17, edge)
-  drawText(tag, tagX + 6, tagY + 2, 13, edge)
+  drawRectangle(tagX, tagY, tagW, 17, uiGlow(withAlpha(edge, 60)))
+  drawRectOutline(tagX, tagY, tagW, 17, uiLine(edge))
+  drawText(tag, tagX + 6, tagY + 2, 13, uiInk(edge))
 
 proc drawSurvivalCacheReveal*(game: Game, screenWidth, screenHeight: int32) {.moddable.} =
   let r = game.survival.reveal
@@ -1728,13 +1728,13 @@ proc drawSurvivalCacheReveal*(game: Game, screenWidth, screenHeight: int32) {.mo
   let panelY = (screenHeight - panelH) div 2 - int32((1.0'f32 - fadeIn) * 20.0'f32)
   let panel = Rectangle(x: panelX.float32, y: panelY.float32,
                         width: panelW.float32, height: panelH.float32)
-  drawRectangleRounded(panel, 0.06'f32, 8, Color(r: 8, g: 14, b: 24, a: 240))
-  drawRectangleRoundedLines(panel, 0.06'f32, 8, -2.0'f32, accent)
+  drawRectangleRounded(panel, 0.06'f32, 8, hudSurface(Color(r: 8, g: 14, b: 24, a: 240)))
+  drawRectangleRoundedLines(panel, 0.06'f32, 8, -2.0'f32, uiLine(accent))
   # Title bar
-  drawRectangle(panelX + 2, panelY + 2, panelW - 4, 34, withAlpha(accent, 40))
+  drawRectangle(panelX + 2, panelY + 2, panelW - 4, 34, uiGlow(withAlpha(accent, 40)))
   let title = t(survivalCacheNameKey(r.tier)) & "  //  " & t(tkSurvivalCacheDecrypted)
   let titleW = measureText(title, 20)
-  drawText(title, panelX + (panelW - titleW) div 2, panelY + 9, 20, accent)
+  drawText(title, panelX + (panelW - titleW) div 2, panelY + 9, 20, uiInk(accent))
 
   # Cards
   let cardsX = panelX + (panelW - cardsW) div 2
@@ -1756,7 +1756,7 @@ proc drawSurvivalCacheReveal*(game: Game, screenWidth, screenHeight: int32) {.mo
   if bonus.len > 0:
     let line = bonus.join("   ")
     let bw = measureText(line, 15)
-    drawText(line, panelX + (panelW - bw) div 2, bonusY, 15, Color(r: 200, g: 230, b: 245, a: 255))
+    drawText(line, panelX + (panelW - bw) div 2, bonusY, 15, uiInk(Color(r: 200, g: 230, b: 245, a: 255)))
 
   # Continue hint once everything is face up
   if r.timer >= allFlippedAt(r):
@@ -1764,7 +1764,7 @@ proc drawSurvivalCacheReveal*(game: Game, screenWidth, screenHeight: int32) {.mo
     let hw = measureText(hint, 12)
     let pulse = sin(game.time * 4.0'f32) * 0.5'f32 + 0.5'f32
     drawText(hint, panelX + (panelW - hw) div 2, panelY + panelH - 22, 12,
-             Color(r: 160, g: 180, b: 200, a: uint8(150.0'f32 + pulse * 100.0'f32)))
+             uiInk(Color(r: 160, g: 180, b: 200, a: uint8(150.0'f32 + pulse * 100.0'f32))))
 
 # --- HUD ------------------------------------------------------------------------
 
@@ -1803,28 +1803,28 @@ proc drawSurvivalTracker(game: Game, x, y, w: int32) =
   let color = survivalEventColor(ev.kind, ev.modKey)
   let info = survivalTrackerInfo(game)
   let rect = Rectangle(x: x.float32, y: y.float32, width: w.float32, height: SurvivalTrackerH.float32)
-  drawRectangleRounded(rect, 0.25'f32, 6, Color(r: 8, g: 18, b: 28, a: 205))
-  drawRectangleRoundedLines(rect, 0.25'f32, 6, -1.5'f32, withAlpha(color, 170))
+  drawRectangleRounded(rect, 0.25'f32, 6, hudSurface(Color(r: 8, g: 18, b: 28, a: 205)))
+  drawRectangleRoundedLines(rect, 0.25'f32, 6, -1.5'f32, uiLine(withAlpha(color, 170)))
   const pad: int32 = 12
   let name = survivalEventName(ev.kind, ev.modKey)
-  drawText(name, x + pad + 1, y + 7, 14, Color(r: 0, g: 0, b: 0, a: 140))
-  drawText(name, x + pad, y + 6, 14, color)
+  drawText(name, x + pad + 1, y + 7, 14, textShadow(140))
+  drawText(name, x + pad, y + 6, 14, uiInk(color))
   let clock = formatSurvivalClock(info.remaining)
   let cw = measureText(clock, 14)
   let urgent = info.remaining <= 5.0'f32 and ev.kind != sekOverclock
   let pulse = sin(game.time * 10.0'f32) * 0.5'f32 + 0.5'f32
   let clockColor = if urgent: Color(r: 255, g: uint8(90.0'f32 + pulse * 80.0'f32), b: 90, a: 255)
                    else: Color(r: 225, g: 240, b: 250, a: 255)
-  drawText(clock, x + w - pad - cw, y + 6, 14, clockColor)
+  drawText(clock, x + w - pad - cw, y + 6, 14, uiInk(clockColor))
   let barX = x + pad
   let barY = y + 25
   let barW = w - pad * 2
-  drawRectangle(barX, barY, barW, 7, Color(r: 10, g: 25, b: 35, a: 220))
+  drawRectangle(barX, barY, barW, 7, uiSurface(Color(r: 10, g: 25, b: 35, a: 220)))
   let fillW = int32(barW.float32 * clamp(info.frac, 0.0'f32, 1.0'f32))
   if fillW > 0:
-    drawRectangle(barX, barY, fillW, 7, withAlpha(color, 230))
-  drawRectOutline(barX, barY, barW, 7, withAlpha(color, 120))
-  drawText(info.detail, barX, y + 36, 11, Color(r: 190, g: 215, b: 230, a: 255))
+    drawRectangle(barX, barY, fillW, 7, uiInk(withAlpha(color, 230)))
+  drawRectOutline(barX, barY, barW, 7, uiLine(withAlpha(color, 120)))
+  drawText(info.detail, barX, y + 36, 11, uiInk(Color(r: 190, g: 215, b: 230, a: 255)))
 
 proc drawSurvivalTrackerDock(game: Game, x, y: int32): int32 =
   ## The running event as a docked card (widescreen right band). Returns the y
@@ -1853,12 +1853,14 @@ proc drawSurvivalTrackerDock(game: Game, x, y: int32): int32 =
 proc drawStopwatchIcon(cx, cy, r, survivedT: float32, accent, handColor: Color) =
   ## Handheld stopwatch glyph. The hand sweeps once per minute of survival time;
   ## since survivalTime freezes during a boss, the hand visibly stops there
-  ## (reinforced by the gray-out + pause glyph at the call sites).
+  ## (reinforced by the gray-out + pause glyph at the call sites). Drawn in ink.
+  let accent = uiInk(accent)
+  let handColor = uiInk(handColor)
   # Crown: a little button + stem on top so the icon reads as a stopwatch.
   drawRectangle((cx - 2.0).int32, (cy - r - 4.0).int32, 4, 4, accent)
   drawDisc(Vector2(x: cx, y: cy - r - 4.5), 2.0'f32, accent)
   # Face: dark fill, outer rim, faint inner rim, and 12/3/6/9 tick marks.
-  drawDisc(Vector2(x: cx, y: cy), r + 1.0, Color(r: 6, g: 16, b: 24, a: 220))
+  drawDisc(Vector2(x: cx, y: cy), r + 1.0, uiSurface(6, 16, 24, 220))
   drawCircleOutline(cx.int32, cy.int32, r, accent)
   drawCircleOutline(cx.int32, cy.int32, r - 1.0, withAlpha(accent, 90))
   for q in 0..<4:
@@ -1891,7 +1893,7 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) {.moddable.}
 
   const xpFill    = Color(r: 90,  g: 255, b: 170, a: 235)   # XP green
   const xpGold    = Color(r: 255, g: 215, b: 60,  a: 245)   # Overclock
-  const inkShadow = Color(r: 0,   g: 0,   b: 0,   a: 140)
+  let inkShadow = textShadow(140)
 
   # The survival clock pauses during a boss fight (survivalTime stops accumulating).
   # Gray the stopwatch out and show a pause glyph so the frozen clock reads as
@@ -1952,9 +1954,9 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) {.moddable.}
   # --- Card background ----------------------------------------------------
   let panelRect = Rectangle(x: panelX.float32, y: panelY.float32,
                             width: panelW.float32, height: panelH.float32)
-  drawRectangleRounded(panelRect, 0.28'f32, 6, Color(r: 8, g: 18, b: 28, a: 205))
+  drawRectangleRounded(panelRect, 0.28'f32, 6, hudSurface(Color(r: 8, g: 18, b: 28, a: 205)))
   drawRectangleRoundedLines(panelRect, 0.28'f32, 6, -1.5'f32,
-                            withAlpha(accent, 150))
+                            uiLine(withAlpha(accent, 150)))
 
   # --- Row 1: stopwatch icon + MM:SS.CC -----------------------------------
   let timerRowX = panelX + (panelW - timerRowW) div 2
@@ -1966,40 +1968,40 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) {.moddable.}
   let digitsX = timerRowX + clockBox + (timerSlotW - timerDigitsW) div 2
   if not bossActive:
     drawText(timeStr, digitsX, timerY - 1, timerSize,
-             withAlpha(accent, 55))
+             uiGlow(withAlpha(accent, 55)))
   drawText(timeStr, digitsX + 1, timerY + 1, timerSize, inkShadow)
-  drawText(timeStr, digitsX, timerY, timerSize, digitColor)
+  drawText(timeStr, digitsX, timerY, timerSize, uiInk(digitColor))
   # Centiseconds: smaller + dimmer, baseline-aligned under the big digits.
   let centiX = timerRowX + clockBox + timerSlotW + centiGap
   let centiY = timerY + (timerSize - centiSize)
   drawText(centiStr, centiX + 1, centiY + 1, centiSize, inkShadow)
   drawText(centiStr, centiX, centiY, centiSize,
-           withAlpha(digitColor, 175))
+           uiInk(withAlpha(digitColor, 175)))
   # Pause glyph (two bars) past the centiseconds while the clock is frozen by a boss.
   if bossActive:
     let pbX = centiX + centiSlotW + 8
     let pbY = timerY + 4
     let pbH = timerSize - 8
-    drawRectangle(pbX, pbY, 4, pbH, accent)
-    drawRectangle(pbX + 7, pbY, 4, pbH, accent)
+    drawRectangle(pbX, pbY, 4, pbH, uiInk(accent))
+    drawRectangle(pbX + 7, pbY, 4, pbH, uiInk(accent))
 
   # --- Divider between the clock and the phase row ------------------------
   let divY = (timerY + timerSize + vGap div 2).float32
   drawStroke(Vector2(x: (panelX + padX).float32, y: divY),
            Vector2(x: (panelX + panelW - padX).float32, y: divY),
-           1.0'f32, withAlpha(accent, 55))
+           1.0'f32, uiLine(withAlpha(accent, 55)))
 
   # --- Row 2: phase chip + name, countdown to the next boss ---------------
   let phaseY = timerY + timerSize + vGap
   let rowX = panelX + padX
-  drawRectangle(rowX, phaseY + 3, 8, 8, phaseColor)
+  drawRectangle(rowX, phaseY + 3, 8, 8, uiInk(phaseColor))
   drawText(phaseName, rowX + 12 + 1, phaseY + 1, phaseSize, inkShadow)
-  drawText(phaseName, rowX + 12, phaseY, phaseSize, phaseColor)
+  drawText(phaseName, rowX + 12, phaseY, phaseSize, uiInk(phaseColor))
   let cdW = measureText(countdown.text, phaseSize)
   let pulse = sin(game.time * 8.0'f32) * 0.5'f32 + 0.5'f32
   let cdColor = if countdown.urgent: Color(r: 255, g: uint8(80.0'f32 + pulse * 90.0'f32), b: 80, a: 255)
                 else: Color(r: 190, g: 210, b: 225, a: 255)
-  drawText(countdown.text, panelX + panelW - padX - cdW, phaseY, phaseSize, cdColor)
+  drawText(countdown.text, panelX + panelW - padX - cdW, phaseY, phaseSize, uiInk(cdColor))
 
   # --- Row 3: level label + XP bar ----------------------------------------
   let overclock = game.survival.event.kind == sekOverclock
@@ -2008,16 +2010,16 @@ proc drawSurvivalHUD*(game: Game, screenWidth, screenHeight: int32) {.moddable.}
   let lblY = barY + (barH - lblSize) div 2
   drawText(lvlLabel, barRowX + 1, lblY + 1, lblSize, inkShadow)
   drawText(lvlLabel, barRowX, lblY, lblSize,
-           if overclock: xpGold else: Color(r: 150, g: 255, b: 210, a: 255))
+           uiInk(if overclock: xpGold else: Color(r: 150, g: 255, b: 210, a: 255)))
   let barX = barRowX + lblW + lblGap
-  drawRectangle(barX, barY, barW, barH, Color(r: 10, g: 30, b: 25, a: 200))
+  drawRectangle(barX, barY, barW, barH, uiSurface(Color(r: 10, g: 30, b: 25, a: 200)))
   let ratio = clamp(game.player.xp.float32 /
                     max(1, game.player.xpToNextLevel).float32, 0.0, 1.0)
   let fillW = int32(barW.float32 * ratio)
   if fillW > 0:
-    drawRectangle(barX, barY, fillW, barH, if overclock: xpGold else: xpFill)
+    drawRectangle(barX, barY, fillW, barH, uiInk(if overclock: xpGold else: xpFill))
   drawRectOutline(barX, barY, barW, barH,
-                     if overclock: xpGold else: Color(r: 120, g: 220, b: 190, a: 170))
+                     uiLine(if overclock: xpGold else: Color(r: 120, g: 220, b: 190, a: 170)))
 
   # --- Event card ------------------------------------------------------------
   if survivalEventActive(game):
@@ -2045,19 +2047,19 @@ proc drawRunTimeline(game: Game, x, y, w: int32, dim: bool) =
     let sx = x + i.int32 * (segW + gap)
     let start = i.float32 * SurvivalPhaseLength
     let frac = clamp((st - start) / SurvivalPhaseLength, 0.0'f32, 1.0'f32)
-    drawRectangle(sx, y, segW, h, DockTrackBg)
+    drawRectangle(sx, y, segW, h, uiSurface(DockTrackBg))
     let fw = int32(segW.float32 * frac)
     if fw > 0:
-      drawRectangle(sx, y, fw, h, withAlpha(color, if dim: 110 else: 215))
+      drawRectangle(sx, y, fw, h, uiInk(withAlpha(color, if dim: 110 else: 215)))
     drawRectOutline(Rectangle(x: sx.float32, y: y.float32, width: segW.float32,
-                                 height: h.float32), 1, withAlpha(color, 130))
+                                 height: h.float32), 1, uiLine(withAlpha(color, 130)))
     # Boss notch at the segment's end; lit once that boss is down.
     let beaten = game.bossCount - (if game.bossWaveManager.active: 1 else: 0) > i
     let live = not beaten and frac >= 1.0'f32
     let notch = if beaten: withAlpha(color, 255)
                 elif live: Color(r: 255, g: 255, b: 255, a: uint8(140.0'f32 + 115.0'f32 * pulse))
                 else: withAlpha(color, 110)
-    drawRectangle(sx + segW - 2, y - 2, 2, h + 4, notch)
+    drawRectangle(sx + segW - 2, y - 2, 2, h + 4, uiInk(notch))
 
 proc drawSurvivalDockCard*(game: Game, x, y: int32, withLevel: bool = false): int32 {.moddable.} =
   ## Widescreen survival HUD, docked at the top of the right band: the phase,
@@ -2080,7 +2082,7 @@ proc drawSurvivalDockCard*(game: Game, x, y: int32, withLevel: bool = false): in
   let right = if phase == spOvertime: "" else: $(ord(phase) + 1) & "/" & $SurvivalFinalBoss
   let phaseName = t(survivalPhaseNameKey(phase))
   let top = drawDockHeader(x, y, DockCardW, "", phaseColor, right, DockInk)
-  drawRectangle(x + DockPad, y + 4, 7, 7, phaseColor)
+  drawRectangle(x + DockPad, y + 4, 7, 7, uiInk(phaseColor))
   let nameW = DockContentW - 12 - measureText(right, 10) - 6
   drawShadowText(phaseName, x + DockPad + 12, y + 3, bestFitFontSize(phaseName, nameW, 10, 7),
                  phaseColor)
@@ -2102,13 +2104,13 @@ proc drawSurvivalDockCard*(game: Game, x, y: int32, withLevel: bool = false): in
   let rowW = iconBox + slotW + 2 + centiW
   let rowX = cx + max(0'i32, (cw - rowW) div 2)
   if bossActive:
-    drawRectangle(rowX + 4, cy + 7, 5, 16, accent)
-    drawRectangle(rowX + 12, cy + 7, 5, 16, accent)
+    drawRectangle(rowX + 4, cy + 7, 5, 16, uiInk(accent))
+    drawRectangle(rowX + 12, cy + 7, 5, 16, uiInk(accent))
   else:
     drawStopwatchIcon((rowX + 9).float32, (cy + 16).float32, 9.0'f32, clampedT, accent, digitColor)
   let digitsX = rowX + iconBox + (slotW - measureText(timeStr, timerSize)) div 2
   if not bossActive:
-    drawText(timeStr, digitsX, cy - 1, timerSize, withAlpha(accent, 55))
+    drawText(timeStr, digitsX, cy - 1, timerSize, uiGlow(withAlpha(accent, 55)))
   drawShadowText(timeStr, digitsX, cy, timerSize, digitColor)
   drawShadowText(centiStr, rowX + iconBox + slotW + 2, cy + timerSize - centiSize, centiSize,
                  withAlpha(digitColor, 175))

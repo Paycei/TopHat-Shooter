@@ -1058,14 +1058,14 @@ proc drawModUi*(layer: ModalLayer, w, h: int32, mx, my: float32) =
     let bw = max(measureText(modBanner.title, 26), measureText(modBanner.subtitle, 14)) + 60
     let bx = (w - bw) div 2
     let by = h div 4
-    drawRectangle(bx, by, bw, 70, Color(r: 6, g: 10, b: 18, a: uint8(210 * a)))
-    drawRectangle(bx, by, bw, 3, withAlpha(modBanner.color, int(255 * a)))
-    drawRectangle(bx, by + 67, bw, 3, withAlpha(modBanner.color, int(255 * a)))
+    drawRectangle(bx, by, bw, 70, hudSurface(Color(r: 6, g: 10, b: 18, a: uint8(210 * a))))
+    drawRectangle(bx, by, bw, 3, withAlpha(uiInk(modBanner.color), int(255 * a)))
+    drawRectangle(bx, by + 67, bw, 3, withAlpha(uiInk(modBanner.color), int(255 * a)))
     drawText(modBanner.title, (w - measureText(modBanner.title, 26)) div 2, by + 12, 26,
-             withAlpha(modBanner.color, int(255 * a)))
+             withAlpha(uiInk(modBanner.color), int(255 * a)))
     if modBanner.subtitle.len > 0:
       drawText(modBanner.subtitle, (w - measureText(modBanner.subtitle, 14)) div 2, by + 44, 14,
-               Color(r: 220, g: 230, b: 240, a: uint8(255 * a)))
+               uiInk(Color(r: 220, g: 230, b: 240, a: uint8(255 * a))))
   modCtx.drawing = prevDraw
   modCtx.hudArena = prevArena
 

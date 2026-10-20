@@ -9,6 +9,7 @@ import types, player, bullet, wall, particle, particle_pool, particle_types, sou
 import modding/mod_hooks   # pvp* hooks; the script API itself is mod_pvp (high layer)
 from ui/os_background import drawArenaFloor
 from ui/ui_helpers import wrapTextLines
+import ui/hud_dock   # hudSurface / textShadow, and the interface theme (ui_theme)
 
 const
   WALL_PLACEMENT_RANGE* = 250.0  # Max distance from player at which a wall can be placed
@@ -3090,32 +3091,32 @@ proc drawKillFeed(pvp: PvPGameState, rightX, topY: int32) =
     let x0 = rightX - total - pad * 2
     let involvesLocal = e.actor == local or (e.kind == kfKill and e.target == local)
     drawRectangle(x0, y, total + pad * 2, rowH - 2,
-                  if involvesLocal: Color(r: 20, g: 50, b: 70, a: uint8(a * 0.75'f32))
-                  else: Color(r: 0, g: 0, b: 0, a: uint8(a * 0.55'f32)))
+                  hudSurface(if involvesLocal: Color(r: 20, g: 50, b: 70, a: uint8(a * 0.75'f32))
+                  else: Color(r: 0, g: 0, b: 0, a: uint8(a * 0.55'f32))))
     if involvesLocal:
       drawRectOutline(Rectangle(x: x0.float32, y: y.float32, width: (total + pad * 2).float32,
                                    height: (rowH - 2).float32), 1,
-                         Color(r: 0, g: 200, b: 255, a: uint8(a * 0.6'f32)))
+                         uiLine(Color(r: 0, g: 200, b: 255, a: uint8(a * 0.6'f32))))
     var x = x0 + pad
     let ty = y + (rowH - 2 - size) div 2
     if wL > 0:
-      drawText(leftText, x, ty, size, withAlpha(leftCol, a))
+      drawText(leftText, x, ty, size, uiInk(withAlpha(leftCol, a)))
       x += wL + gap
     if glyphW > 0:
       let gy = (y + (rowH - 2) div 2).float32
       if e.kind == kfKill:
         # A bullet with a short trail
         drawStroke(Vector2(x: x.float32, y: gy), Vector2(x: (x + glyphW - 6).float32, y: gy), 2,
-                 Color(r: 255, g: 220, b: 150, a: uint8(a * 0.6'f32)))
-        drawDisc(Vector2(x: (x + glyphW - 4).float32, y: gy), 3.5, Color(r: 255, g: 240, b: 200, a: uint8(a)))
+                 uiLine(Color(r: 255, g: 220, b: 150, a: uint8(a * 0.6'f32))))
+        drawDisc(Vector2(x: (x + glyphW - 4).float32, y: gy), 3.5, uiInk(Color(r: 255, g: 240, b: 200, a: uint8(a))))
       else:
         drawPackageIcon(e.pkg, (x + glyphW div 2).float32, gy, 6.5, withAlpha(packageColor(e.pkg), a))
       x += glyphW + gap
-    drawText(rightText, x, ty, size, withAlpha(rightCol, a))
+    drawText(rightText, x, ty, size, uiInk(withAlpha(rightCol, a)))
     x += wR
     if wT > 0:
       x += gap * 2
-      drawText(e.tag, x, y + (rowH - 2 - 14) div 2, 14, withAlpha(Gold, a))
+      drawText(e.tag, x, y + (rowH - 2 - 14) div 2, 14, uiInk(withAlpha(Gold, a)))
     y += rowH
 
 proc drawBanner(pvp: PvPGameState, viewW, viewH: int32) =
@@ -3131,9 +3132,9 @@ proc drawBanner(pvp: PvPGameState, viewW, viewH: int32) =
   let y = int32(viewH.float32 * 0.2'f32) - size div 2
   let bandW = max(w, if hasSub: measureText(pvp.bannerSub, 18) else: 0'i32) + 60
   drawRectangle(viewW div 2 - bandW div 2, y - 10, bandW, size + 20 + (if hasSub: 24'i32 else: 0'i32),
-                Color(r: 0, g: 0, b: 0, a: uint8(a * 0.5'f32)))
-  drawText(pvp.bannerText, viewW div 2 - w div 2 + 2, y + 2, size, Color(r: 0, g: 0, b: 0, a: uint8(a * 0.7'f32)))
-  drawText(pvp.bannerText, viewW div 2 - w div 2, y, size, withAlpha(pvp.bannerColor, a))
+                hudSurface(Color(r: 0, g: 0, b: 0, a: uint8(a * 0.5'f32))))
+  drawText(pvp.bannerText, viewW div 2 - w div 2 + 2, y + 2, size, textShadow(uint8(a * 0.7'f32)))
+  drawText(pvp.bannerText, viewW div 2 - w div 2, y, size, uiInk(withAlpha(pvp.bannerColor, a)))
   if hasSub:
     drawTextCentered(pvp.bannerSub, viewW div 2, y + size + 6, 18,
                      withAlpha(Color(r: 255, g: 235, b: 170, a: 255), a))
@@ -3147,10 +3148,10 @@ proc drawToast(pvp: PvPGameState, viewW, viewH: int32) =
   let w = measureText(pvp.toastText, size)
   let x = viewW div 2 - w div 2
   let y = viewH - 104
-  drawRectangle(x - 12, y - 6, w + 24, size + 12, Color(r: 0, g: 0, b: 0, a: uint8(a * 0.65'f32)))
+  drawRectangle(x - 12, y - 6, w + 24, size + 12, hudSurface(Color(r: 0, g: 0, b: 0, a: uint8(a * 0.65'f32))))
   drawRectOutline(Rectangle(x: (x - 12).float32, y: (y - 6).float32, width: (w + 24).float32,
-                               height: (size + 12).float32), 1, withAlpha(pvp.toastColor, a))
-  drawText(pvp.toastText, x, y, size, withAlpha(pvp.toastColor, a))
+                               height: (size + 12).float32), 1, uiLine(withAlpha(pvp.toastColor, a)))
+  drawText(pvp.toastText, x, y, size, uiInk(withAlpha(pvp.toastColor, a)))
 
 proc drawBuffPills(pvp: PvPGameState, x, bottomY: int32) =
   ## Active package effects on the local player, stacked upward from bottomY,
@@ -3173,14 +3174,14 @@ proc drawBuffPills(pvp: PvPGameState, x, bottomY: int32) =
     let label = if total > 0: packageName(b.kind) & "  " & formatFloat(b.remaining, ffDecimal, 1) & "s"
                 else: packageName(b.kind)
     let w = 28 + measureText(label, size) + 10
-    drawRectangle(x, y, w, h, Color(r: 0, g: 0, b: 0, a: 160))
+    drawRectangle(x, y, w, h, hudSurface(Color(r: 0, g: 0, b: 0, a: 160)))
     drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32), 1,
-                       withAlpha(col, 170))
+                       uiLine(withAlpha(col, 170)))
     drawPackageIcon(b.kind, (x + 14).float32, (y + h div 2).float32, 7.0, col)
-    drawText(label, x + 28, y + (h - size) div 2, size, col)
+    drawText(label, x + 28, y + (h - size) div 2, size, uiInk(col))
     if total > 0:
       let frac = clamp(b.remaining / total, 0.0'f32, 1.0'f32)
-      drawRectangle(x + 2, y + h - 4, int32((w - 4).float32 * frac), 2, col)
+      drawRectangle(x + 2, y + h - 4, int32((w - 4).float32 * frac), 2, uiInk(col))
 
 proc boardOrder(pvp: PvPGameState): seq[int] =
   ## Kills descending, then fewest deaths, then slot order.
@@ -3245,23 +3246,23 @@ proc drawScoreBoard(pvp: PvPGameState, centerX, top: int32, final: bool): int32 
   let x0 = centerX - tableW div 2
   let panelH = 24 + rows.len.int32 * rowH + 8
 
-  drawRectangle(x0 - 12, top - 10, tableW + 24, panelH + 16, Color(r: 10, g: 14, b: 24, a: 225))
+  drawRectangle(x0 - 12, top - 10, tableW + 24, panelH + 16, hudSurface(Color(r: 10, g: 14, b: 24, a: 225)))
   drawRectOutline(Rectangle(x: (x0 - 12).float32, y: (top - 10).float32,
                                width: (tableW + 24).float32, height: (panelH + 16).float32),
-                     1, Color(r: 70, g: 100, b: 150, a: 210))
+                     1, uiLine(Color(r: 70, g: 100, b: 150, a: 210)))
 
   let headerCol = Color(r: 150, g: 160, b: 185, a: 255)
-  drawText("#", x0 + 10, top, headerSize, headerCol)
-  drawText(t(tkPvPBoardPlayer), x0 + rankW, top, headerSize, headerCol)
+  drawText("#", x0 + 10, top, headerSize, uiInk(headerCol))
+  drawText(t(tkPvPBoardPlayer), x0 + rankW, top, headerSize, uiInk(headerCol))
   var cx = x0 + rankW + nameW
   for k, h in headers:
-    drawText(h, cx + colWs[k] - 10 - measureText(h, headerSize), top, headerSize, headerCol)
+    drawText(h, cx + colWs[k] - 10 - measureText(h, headerSize), top, headerSize, uiInk(headerCol))
     cx += colWs[k]
 
   template cell(k: int, text: string, col: Color) =
     var colX = x0 + rankW + nameW
     for j in 0..<k: colX += colWs[j]
-    drawText(text, colX + colWs[k] - 10 - measureText(text, valueSize), textY, valueSize, col)
+    drawText(text, colX + colWs[k] - 10 - measureText(text, valueSize), textY, valueSize, uiInk(col))
 
   var y = top + 24
   var rank = 0
@@ -3269,8 +3270,8 @@ proc drawScoreBoard(pvp: PvPGameState, centerX, top: int32, final: bool): int32 
     let textY = y + (rowH - 2 - valueSize) div 2
     if row.isTeam:
       let col = getTeamColor(row.team)
-      drawRectangle(x0 - 6, y, tableW + 12, rowH - 2, withAlpha(col, 38))
-      drawText(getTeamName(row.team), x0 + 10, textY, valueSize, col)
+      drawRectangle(x0 - 6, y, tableW + 12, rowH - 2, uiGlow(withAlpha(col, 38)))
+      drawText(getTeamName(row.team), x0 + 10, textY, valueSize, uiInk(col))
       cell(0, $pvp.teamScores[row.team].kills, col)
       rank = 0
       y += rowH
@@ -3280,10 +3281,10 @@ proc drawScoreBoard(pvp: PvPGameState, centerX, top: int32, final: bool): int32 
     let connected = i >= pvp.playerConnected.len or pvp.playerConnected[i]
     let rowAlpha = if connected: 255 else: 110
     if i == local:
-      drawRectangle(x0 - 6, y, tableW + 12, rowH - 2, Color(r: 0, g: 200, b: 255, a: 34))
+      drawRectangle(x0 - 6, y, tableW + 12, rowH - 2, uiGlow(Color(r: 0, g: 200, b: 255, a: 34)))
     let valueCol = withAlpha(Color(r: 235, g: 240, b: 250, a: 255), rowAlpha)
-    drawText($rank, x0 + 10, textY, valueSize, withAlpha(headerCol, rowAlpha))
-    drawText(pvp.playerName(i), x0 + rankW, textY, valueSize, withAlpha(pvp.playerColor(i), rowAlpha))
+    drawText($rank, x0 + 10, textY, valueSize, uiInk(withAlpha(headerCol, rowAlpha)))
+    drawText(pvp.playerName(i), x0 + rankW, textY, valueSize, uiInk(withAlpha(pvp.playerColor(i), rowAlpha)))
     let s = pvp.stats[i]
     cell(0, $pvp.players[i].kills, valueCol)
     cell(1, $s.deaths, valueCol)
@@ -3332,13 +3333,13 @@ proc drawAwards(pvp: PvPGameState, viewW, top: int32) =
   let cardW = min(210'i32, (viewW - 40 - gap * (n - 1)) div n)
   var x = viewW div 2 - (cardW * n + gap * (n - 1)) div 2
   for a in awards:
-    drawRectangle(x, top, cardW, AwardCardH, Color(r: 14, g: 18, b: 30, a: 230))
+    drawRectangle(x, top, cardW, AwardCardH, hudSurface(Color(r: 14, g: 18, b: 30, a: 230)))
     drawRectOutline(Rectangle(x: x.float32, y: top.float32, width: cardW.float32,
-                                 height: AwardCardH.float32), 1, Color(r: 255, g: 203, b: 0, a: 150))
+                                 height: AwardCardH.float32), 1, uiLine(Color(r: 255, g: 203, b: 0, a: 150)))
     let cx = x + cardW div 2
-    drawTextCentered(a.title, cx, top + 6, 14, Gold)
-    drawTextCentered(pvp.playerName(a.player), cx, top + 23, 16, pvp.playerColor(a.player))
-    drawTextCentered(a.desc, cx, top + 42, 12, Color(r: 160, g: 165, b: 185, a: 255))
+    drawTextCentered(a.title, cx, top + 6, 14, uiInk(Gold))
+    drawTextCentered(pvp.playerName(a.player), cx, top + 23, 16, uiInk(pvp.playerColor(a.player)))
+    drawTextCentered(a.desc, cx, top + 42, 12, uiInk(Color(r: 160, g: 165, b: 185, a: 255)))
     x += cardW + gap
 
 proc keyPromptWidth(key, label: string): int32 =
@@ -3349,11 +3350,11 @@ proc drawKeyPrompt(x, y: int32, key, label: string, enabled = true) =
   let kw = measureText(key, 16) + 14
   let a = if enabled: 255 else: 110
   drawRectangleRounded(Rectangle(x: x.float32, y: y.float32, width: kw.float32, height: 24), 0.25, 4,
-                       Color(r: 40, g: 46, b: 62, a: uint8(a)))
+                       uiSurface(Color(r: 40, g: 46, b: 62, a: uint8(a))))
   drawRectangleRoundedLines(Rectangle(x: x.float32, y: y.float32, width: kw.float32, height: 24), 0.25, 4,
-                            -1, withAlpha(Color(r: 150, g: 170, b: 210, a: 255), a))
-  drawText(key, x + 7, y + 4, 16, withAlpha(White, a))
-  drawText(label, x + kw + 8, y + 3, 18, withAlpha(White, a))
+                            -1, uiLine(withAlpha(Color(r: 150, g: 170, b: 210, a: 255), a)))
+  drawText(key, x + 7, y + 4, 16, uiInk(withAlpha(White, a)))
+  drawText(label, x + kw + 8, y + 3, 18, uiOverlay(withAlpha(White, a)))
 
 proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
   drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 200))
@@ -3378,7 +3379,7 @@ proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
       else: Yellow
   var headSize = 50'i32
   if measureText(headline, headSize) > viewW - 40: headSize = 34
-  drawTextCentered(headline, viewW div 2, 40, headSize, headCol)
+  drawTextCentered(headline, viewW div 2, 40, headSize, uiOverlay(headCol))
 
   let reasonText = case pvp.endReason
     of erTimeLimit: t(tkPvPEndTimeLimit)
@@ -3392,7 +3393,7 @@ proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
     of erNone, erKillLimit, erHostLeft: ""
   if reasonText.len > 0:
     let reasonSize = if measureText(reasonText, 20) > viewW - 40: 14'i32 else: 20'i32  # a mod's line may run long
-    drawTextCentered(reasonText, viewW div 2, 40 + headSize + 8, reasonSize, Color(r: 200, g: 200, b: 200, a: 255))
+    drawTextCentered(reasonText, viewW div 2, 40 + headSize + 8, reasonSize, uiOverlay(Color(r: 200, g: 200, b: 200, a: 255)))
 
   let tableBottom = drawScoreBoard(pvp, viewW div 2, 138, final = true)
 
@@ -3414,7 +3415,7 @@ proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
       noteY = promptY
     else:
       drawTextCentered(t(tkPvPRematchNeedsPlayers), viewW div 2, noteY, 18,
-                       Color(r: 170, g: 170, b: 185, a: 255))
+                       uiOverlay(Color(r: 170, g: 170, b: 185, a: 255)))
       drawKeyPrompt(viewW div 2 - keyPromptWidth(leaveKey, t(tkPvPPromptLeave)) div 2, promptY,
                     leaveKey, t(tkPvPPromptLeave))
   else:
@@ -3425,7 +3426,7 @@ proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
       # Pulse so it reads as "working", not frozen
       let pulse = 0.6'f32 + 0.4'f32 * sin(raylib.getTime().float32 * 3.0'f32)
       drawTextCentered(note, viewW div 2, noteY, 18,
-                       withAlpha(Color(r: 170, g: 190, b: 220, a: 255), 255.0'f32 * pulse))
+                       uiOverlay(withAlpha(Color(r: 170, g: 190, b: 220, a: 255), 255.0'f32 * pulse)))
     drawKeyPrompt(viewW div 2 - keyPromptWidth(leaveKey, t(tkPvPPromptLeave)) div 2, promptY,
                   leaveKey, t(tkPvPPromptLeave))
 
@@ -3456,7 +3457,7 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
         scoreText &= "  |  "
       scoreText &= getTeamName(team) & ": " & $pvp.teamScores[team].kills
 
-    drawTextCentered(scoreText, viewW div 2, 10, 20, White)
+    drawTextCentered(scoreText, viewW div 2, 10, 20, uiOverlay(White))
   else:
     # Free-for-all: individual scores. Big lobbies used to run this line off
     # both screen edges, so past 4 players it shows the top 3 plus you (the
@@ -3476,7 +3477,7 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
       scoreText &= pvp.playerName(i) & ": " & $pvp.players[i].kills &
                    (if disconnected: " (x)" else: "")
 
-    drawTextCentered(scoreText, viewW div 2, 10, 20, White)
+    drawTextCentered(scoreText, viewW div 2, 10, 20, uiOverlay(White))
 
   # Time, use only ASCII so raylib's default bitmap font can render it
   let timeText = if pvp.config.timeLimit <= 0:
@@ -3491,15 +3492,15 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
   let timeY = 35
   # Background pill for readability on any background
   drawRectangle((timeX - 6).int32, (timeY - 3).int32, (timeTextW + 12).int32, 26,
-                Color(r: 0, g: 0, b: 0, a: 140))
-  drawText(timeText, timeX.int32, timeY.int32, 20, White)
+                hudSurface(Color(r: 0, g: 0, b: 0, a: 140)))
+  drawText(timeText, timeX.int32, timeY.int32, 20, uiInk(White))
 
   # Latency
   if pvp.networkManager.isClient():
     # Clamp latency to prevent int overflow (float32 -> int conversion can overflow)
     let pingValue = min(pvp.networkManager.getLatency(), 9999.0).int
     let latencyText = "Ping: " & $pingValue & "ms"
-    drawText(latencyText, 10, 10, 20, Yellow)
+    drawText(latencyText, 10, 10, 20, uiOverlay(Yellow))
 
   # Kill feed (top-right, under the score line's height)
   drawKillFeed(pvp, viewW - 10, 66)
@@ -3513,14 +3514,14 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
   let wallLabelW = measureText(wallLabel, 20)
   let pillColor = if modeActive: Color(r: 0, g: 60, b: 20, a: 200)
                   else: Color(r: 0, g: 0, b: 0, a: 140)
-  drawRectangle(8, viewH - 38, wallLabelW + 14, 28, pillColor)
+  drawRectangle(8, viewH - 38, wallLabelW + 14, 28, hudSurface(pillColor))
   if modeActive:
     drawRectOutline(Rectangle(x: 8, y: (viewH - 38).float32,
                                  width: (wallLabelW + 14).float32, height: 28), 1,
-                       Color(r: 80, g: 255, b: 80, a: 200))
+                       uiLine(Color(r: 80, g: 255, b: 80, a: 200)))
   drawText(wallLabel, 15, viewH - 32, 20,
-           if wallCount > 0: Color(r: 100, g: 220, b: 100, a: 255)
-           else: Color(r: 180, g: 180, b: 180, a: 160))
+           uiInk(if wallCount > 0: Color(r: 100, g: 220, b: 100, a: 255)
+           else: Color(r: 180, g: 180, b: 180, a: 160)))
 
   # Active package effects, stacked above the walls pill
   drawBuffPills(pvp, 8, viewH - 38)
@@ -3536,11 +3537,11 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
       let gap = spaceWidth(28)
       let w = measureText(lead, 28) + gap + measureText(name, 28)
       let x = viewW div 2 - w div 2
-      drawText(lead, x, y, 28, Color(r: 255, g: 90, b: 90, a: 255))
-      drawText(name, x + measureText(lead, 28) + gap, y, 28, pvp.playerColor(killer))
+      drawText(lead, x, y, 28, uiOverlay(Color(r: 255, g: 90, b: 90, a: 255)))
+      drawText(name, x + measureText(lead, 28) + gap, y, 28, uiOverlay(pvp.playerColor(killer)))
       y += 38
     drawTextCentered(t(tkPvPRespawningIn) & " " & $(pvp.respawnTimers[localIdx].int + 1) & "...",
-                     viewW div 2, y, 20, Color(r: 100, g: 200, b: 255, a: 255))
+                     viewW div 2, y, 20, uiOverlay(Color(r: 100, g: 200, b: 255, a: 255)))
 
   # Callout banner and package toast
   if not hudHidden(hpBanners):
@@ -3746,6 +3747,9 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) {.moddable.} =
   # viewport.
   let hudScale = max(uiScale, 0.0001'f32)
   beginUIScaleMode(hudScale)
+  # The HUD wears the interface theme (ui_theme.themeLayer), to the end of the proc.
+  let hudThemed = beginThemeLayer()
+  defer: endThemeLayer(hudThemed)
   let viewW = getVirtualScreenWidth()
   let viewH = getVirtualScreenHeight()
 
@@ -3768,17 +3772,17 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) {.moddable.} =
     let noticeA = uint8(clamp(hudNoticeTimer, 0.0'f32, 1.0'f32) * 235)
     let noticeW = measureText(hudNotice, 12) + 20
     let noticeX = (viewW - noticeW) div 2
-    drawRectangle(noticeX, 62, noticeW, 22, Color(r: 38, g: 14, b: 12, a: noticeA))
+    drawRectangle(noticeX, 62, noticeW, 22, hudSurface(Color(r: 38, g: 14, b: 12, a: noticeA)))
     drawRectOutline(Rectangle(x: noticeX.float32, y: 62, width: noticeW.float32, height: 22), 1.0,
-                    Color(r: 255, g: 105, b: 95, a: noticeA))
-    drawText(hudNotice, noticeX + 10, 67, 12, Color(r: 255, g: 180, b: 170, a: noticeA))
+                    uiLine(Color(r: 255, g: 105, b: 95, a: noticeA)))
+    drawText(hudNotice, noticeX + 10, 67, 12, uiInk(Color(r: 255, g: 180, b: 170, a: noticeA)))
 
   # Live process table while Tab (pad: Select) is held
   let boardHeld = isKeyDown(KeyboardKey.Tab) or
                   (isGamepadActive() and isGamepadButtonDown(activeGamepad(), GamepadButton.MiddleLeft))
   if boardHeld and not pvp.gameOver:
     drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 110))
-    drawTextCentered(t(tkPvPBoardTitle), viewW div 2, 92, 22, Color(r: 0, g: 200, b: 255, a: 255))
+    drawTextCentered(t(tkPvPBoardTitle), viewW div 2, 92, 22, uiOverlay(0, 200, 255))
     discard drawScoreBoard(pvp, viewW div 2, 130, final = false)
 
   # Countdown overlay (don't show if game is over)
@@ -3792,18 +3796,18 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) {.moddable.} =
     drawText(countdownText,
             viewW div 2 - textWidth div 2,
             viewH div 2 - 40,
-            80, Yellow)
+            80, uiOverlay(Yellow))
 
     # A mod's PvP mode: what this match is about, before it starts
     if pvp.config.modMode.len > 0:
       let spanish = getLanguage() == Spanish
       let title = unicode.toUpper(pvpModeName(pvp.config.modMode, spanish))
       let titleSize = if measureText(title, 30) > viewW - 40: 22'i32 else: 30'i32
-      drawTextCentered(title, viewW div 2, viewH div 2 - 150, titleSize, Color(r: 0, g: 200, b: 255, a: 255))
+      drawTextCentered(title, viewW div 2, viewH div 2 - 150, titleSize, uiOverlay(0, 200, 255))
       var lineY = viewH div 2 - 112
       for line in wrapTextLines(pvpModeDescription(pvp.config.modMode, spanish), viewW - 120, 16):
         if lineY > viewH div 2 - 62: break   # three lines at most, clear of the number
-        drawTextCentered(line, viewW div 2, lineY, 16, Color(r: 210, g: 220, b: 235, a: 255))
+        drawTextCentered(line, viewW div 2, lineY, 16, uiOverlay(210, 220, 235))
         lineY += 22
 
     # Controls reminder: the dash and the scoreboard are easy to miss otherwise.
@@ -3815,7 +3819,7 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) {.moddable.} =
     let boardKey = if pad: gamepadBindLabel(GamepadButton.MiddleLeft) else: "Tab"
     let hint = "[" & dashKey & "] " & t("keybind_dash") & "      [" & wallKey & "] " &
                t(tkPvPHintWall) & "      [" & boardKey & "] " & t(tkPvPHintScores)
-    drawTextCentered(hint, viewW div 2, viewH div 2 + 70, 18, Color(r: 190, g: 200, b: 220, a: 255))
+    drawTextCentered(hint, viewW div 2, viewH div 2 + 70, 18, uiOverlay(190, 200, 220))
 
     # Draw arrow pointing to local player with "YOU" label. The arrow anchors to
     # a WORLD entity (player position) but is drawn in the HUD pass, so shift its

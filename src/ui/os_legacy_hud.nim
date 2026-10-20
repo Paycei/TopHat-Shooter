@@ -10,7 +10,8 @@
 import raylib, math
 import ../modding/mod_patch_core
 import ../draw_prims
-import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../render_context, icon_drawing, ../utils, ui_helpers
+import ../types, ../localization, ../powerup_data, ../patches, ../roguelite, ../dungeon, ../render_context, icon_drawing, ../utils, ui_helpers, ui_theme
+from hud_dock import textShadow, hudSurface
 from ../player import dashRechargeOf
 from os_combined_hud import leftPanelMinimized, leftPanelPos, leftPanelDragging,
                             leftPanelDragOffset, lastStatusPanelRect, lastStatsRowRect,
@@ -42,24 +43,24 @@ proc drawLevelXpBar(game: Game, panelX, panelW, yOffset: int32) =
   let lvlLabel = t("roguelite_level") & " " & $game.player.rogueliteLevel
   const lvlSize: int32 = 9
   drawText(lvlLabel, panelX + COMBINED_PANEL_PADDING + 7, yOffset + 1, lvlSize,
-          Color(r: 0, g: 0, b: 0, a: 130))
+          textShadow(130))
   drawText(lvlLabel, panelX + COMBINED_PANEL_PADDING + 6, yOffset, lvlSize,
-          Color(r: 150, g: 255, b: 210, a: 255))
+          uiInk(Color(r: 150, g: 255, b: 210, a: 255)))
   let labelW = measureText(lvlLabel, lvlSize)
   let barX = panelX + COMBINED_PANEL_PADDING + 6 + labelW + 6
   let barRight = panelX + panelW - COMBINED_PANEL_PADDING - 6
   let barW = max(10'i32, barRight - barX)
   const barH: int32 = 6
   let barY = yOffset + (lvlSize - barH) div 2
-  drawRectangle(barX, barY, barW, barH, Color(r: 10, g: 30, b: 25, a: 180))
+  drawRectangle(barX, barY, barW, barH, uiSurface(Color(r: 10, g: 30, b: 25, a: 180)))
   let ratio = clamp(game.player.xp.float32 /
                     max(1, game.player.xpToNextLevel).float32, 0.0, 1.0)
   let fillW = int32(barW.float32 * ratio)
   if fillW > 0:
-    drawRectangle(barX, barY, fillW, barH, Color(r: 90, g: 255, b: 170, a: 230))
+    drawRectangle(barX, barY, fillW, barH, uiInk(Color(r: 90, g: 255, b: 170, a: 230)))
   drawRectOutline(Rectangle(x: barX.float32, y: barY.float32,
                                width: barW.float32, height: barH.float32),
-                     1, Color(r: 120, g: 220, b: 190, a: 160))
+                     1, uiLine(Color(r: 120, g: 220, b: 190, a: 160)))
 
 proc drawDashRow(game: Game, panelX, panelW, yOffset: int32) =
   ## DASH recharge strip: glyph + label on the left, a thin bar, and either the
@@ -83,14 +84,14 @@ proc drawDashRow(game: Game, panelX, panelW, yOffset: int32) =
   let glyphColor = if ready: Color(r: 120, g: 255, b: 225, a: 255)
                    else: Color(r: 90, g: 140, b: 170, a: 220)
   drawText("[>]", panelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, labelSize,
-          Color(r: 0, g: 0, b: 0, a: 100))
-  drawText("[>]", panelX + COMBINED_PANEL_PADDING + 5, yOffset, labelSize, glyphColor)
+          textShadow(100))
+  drawText("[>]", panelX + COMBINED_PANEL_PADDING + 5, yOffset, labelSize, uiInk(glyphColor))
 
   let label = t(tkHUDDash)
   let labelX = panelX + COMBINED_PANEL_PADDING + 24
   drawText(label, labelX, yOffset, labelSize,
-          if ready: Color(r: 200, g: 245, b: 255, a: 255)
-          else: Color(r: 140, g: 165, b: 185, a: 230))
+          if ready: uiInk(Color(r: 200, g: 245, b: 255, a: 255))
+          else: uiInk(Color(r: 140, g: 165, b: 185, a: 230)))
 
   # Right-hand readout: exact seconds while recharging (one decimal, rounded up
   # so it never shows 0.0 while still spent), READY once it is back. Formatted
@@ -108,7 +109,7 @@ proc drawDashRow(game: Game, panelX, panelW, yOffset: int32) =
   let barW = max(10'i32, barRight - barX)
   let barY = yOffset + 2
 
-  drawRectangle(barX, barY, barW, barH, Color(r: 10, g: 20, b: 30, a: 110))
+  drawRectangle(barX, barY, barW, barH, uiSurface(Color(r: 10, g: 20, b: 30, a: 110)))
   let fillW = int32(barW.float32 * progress)
   if fillW > 0:
     let fillColor = if ready:
@@ -118,16 +119,16 @@ proc drawDashRow(game: Game, panelX, panelW, yOffset: int32) =
       Color(r: uint8(40.0'f32 + 50.0'f32 * progress),
             g: uint8(140.0'f32 + 105.0'f32 * progress),
             b: uint8(190.0'f32 + 65.0'f32 * progress), a: 220)
-    drawRectangle(barX, barY, fillW, barH, fillColor)
+    drawRectangle(barX, barY, fillW, barH, uiInk(fillColor))
   drawRectOutline(Rectangle(x: barX.float32, y: barY.float32,
                                width: barW.float32, height: barH.float32),
-                    1, Color(r: 0, g: 220, b: 255, a: if ready: 150 else: 90))
+                    1, uiLine(Color(r: 0, g: 220, b: 255, a: if ready: 150 else: 90)))
 
   let rightX = panelX + panelW - COMBINED_PANEL_PADDING - rightW
-  drawText(rightText, rightX + 1, yOffset + 1, labelSize, Color(r: 0, g: 0, b: 0, a: 120))
+  drawText(rightText, rightX + 1, yOffset + 1, labelSize, textShadow(120))
   drawText(rightText, rightX, yOffset, labelSize,
-          if ready: Color(r: uint8(140.0'f32 + 100.0'f32 * pulse), g: 255, b: 225, a: 255)
-          else: Color(r: 170, g: 200, b: 220, a: 235))
+          if ready: uiInk(Color(r: uint8(140.0'f32 + 100.0'f32 * pulse), g: 255, b: 225, a: 255))
+          else: uiInk(Color(r: 170, g: 200, b: 220, a: 235)))
 
 # ---------------------------------------------------------------------------
 # Roguelite sector block: title, folder breadcrumb, progress pips to SERVICE,
@@ -159,8 +160,9 @@ proc rogueliteHudHeight(game: Game, panelW: int32): int32 =
     result += rows * RogueHudPatchPitch + 2
 
 proc drawShadowText(text: string, x, y, size: int32, color: Color) =
-  drawText(text, x + 1, y + 1, size, Color(r: 0, g: 0, b: 0, a: 130))
-  drawText(text, x, y, size, color)
+  ## Themed as ink.
+  drawText(text, x + 1, y + 1, size, textShadow(130))
+  drawText(text, x, y, size, uiInk(color))
 
 proc drawRogueliteHudBlock(game: Game, panelX, panelW: int32, yOffset: var int32) =
   let run = game.rogueliteRun
@@ -169,7 +171,7 @@ proc drawRogueliteHudBlock(game: Game, panelX, panelW: int32, yOffset: var int32
 
   drawStroke(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
           Vector2(x: (panelX + panelW - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
-          1, Color(r: 0, g: 200, b: 255, a: 100))
+          1, uiLine(Color(r: 0, g: 200, b: 255, a: 100)))
   yOffset += 3
 
   # DEEP RECOVERY // SECTOR 2/4
@@ -199,11 +201,11 @@ proc drawRogueliteHudBlock(game: Game, panelX, panelW: int32, yOffset: var int32
     for layer in 1..layers:
       let rect = Rectangle(x: px.float32, y: py.float32, width: 9, height: 6)
       if layer < current or (layer == current and currentDungeonRoom(run).cleared):
-        drawRectangle(rect, Color(r: 0, g: 200, b: 255, a: 200))
+        drawRectangle(rect, uiInk(Color(r: 0, g: 200, b: 255, a: 200)))
       elif layer == current:
         let pulse = uint8(150.0 + sin(game.time * 5.0) * 90.0)
-        drawRectangle(rect, Color(r: 255, g: 255, b: 255, a: pulse))
-      drawRectOutline(rect, 1, Color(r: 0, g: 200, b: 255, a: 170))
+        drawRectangle(rect, uiInk(Color(r: 255, g: 255, b: 255, a: pulse)))
+      drawRectOutline(rect, 1, uiLine(Color(r: 0, g: 200, b: 255, a: 170)))
       px += 12
     let atBoss = current > layers
     let service = "> " & t("room_reward_service")
@@ -279,28 +281,28 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
 
   # Main panel background - more transparent and colorful
   drawRectangle(panelX, yOffset, panelW, totalHeight.int32,
-               Color(r: 5, g: 15, b: 25, a: 45))
+               hudSurface(Color(r: 5, g: 15, b: 25, a: 45)))
 
   # Cyan accent stripe on left edge
   drawRectangle(panelX, yOffset, 2, totalHeight.int32,
-               Color(r: 0, g: 220, b: 255, a: 180))
+               uiInk(Color(r: 0, g: 220, b: 255, a: 180)))
 
   # Panel border with cyan glow - more transparent
   drawRectOutline(Rectangle(x: panelX.float32, y: yOffset.float32,
                                 width: panelW.float32, height: totalHeight.float32),
-                    1, Color(r: 0, g: 220, b: 255, a: 80))
+                    1, uiLine(Color(r: 0, g: 220, b: 255, a: 80)))
 
   yOffset += COMBINED_PANEL_PADDING
 
   # STATUS HEADER
   # Header bar background - colorful cyan (clickable to minimize)
   drawRectangle(panelX + 2, yOffset, panelW - 2, COMBINED_TITLE_HEIGHT,
-               HEADER_BG_COLOR)
+               uiGlow(HEADER_BG_COLOR))
 
   drawText(t(tkGameStatus), panelX + COMBINED_PANEL_PADDING + 5, yOffset + 3, 11,
-          Color(r: 0, g: 0, b: 0, a: 140))
+          textShadow(140))
   drawText(t(tkGameStatus), panelX + COMBINED_PANEL_PADDING + 4, yOffset + 2, 11,
-          ACCENT_COLOR)
+          uiInk(ACCENT_COLOR))
 
   # Draw minimize icon (horizontal line)
   if showMinimizeIcon:
@@ -308,7 +310,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
     let iconY = yOffset + 9
     drawStroke(Vector2(x: iconX.float32, y: iconY.float32),
             Vector2(x: (iconX + 10).float32, y: iconY.float32),
-            2, ACCENT_COLOR)
+            2, uiInk(ACCENT_COLOR))
 
   yOffset += COMBINED_TITLE_HEIGHT + 2
 
@@ -318,29 +320,29 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
   let barHeight: int32 = 10
 
   # HP label with shadow
-  drawText("HP", panelX + COMBINED_PANEL_PADDING + 1, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 120))
-  drawText("HP", panelX + COMBINED_PANEL_PADDING, yOffset, 9, Color(r: 220, g: 240, b: 255, a: 255))
+  drawText("HP", panelX + COMBINED_PANEL_PADDING + 1, yOffset + 1, 9, textShadow(120))
+  drawText("HP", panelX + COMBINED_PANEL_PADDING, yOffset, 9, uiInk(Color(r: 220, g: 240, b: 255, a: 255)))
 
   # HP value on right (multiplied by 100, showing decimals)
   let hpText = formatHealthDisplay(game.player.hp) & "/" & formatHealthDisplay(game.player.maxHp)
   let hpTextWidth = measureText(hpText, 9)
   drawText(hpText, panelX + panelW - COMBINED_PANEL_PADDING - hpTextWidth + 1, yOffset + 1, 9,
-          Color(r: 0, g: 0, b: 0, a: 120))
+          textShadow(120))
   drawText(hpText, panelX + panelW - COMBINED_PANEL_PADDING - hpTextWidth, yOffset, 9,
-          Color(r: 255, g: 255, b: 255, a: 255))
+          uiInk(Color(r: 255, g: 255, b: 255, a: 255)))
 
   yOffset += 10
 
   # HP bar background - semi-transparent
   drawRectangle(panelX + COMBINED_PANEL_PADDING, yOffset, barWidth, barHeight,
-               Color(r: 10, g: 20, b: 30, a: 60))
+               uiSurface(Color(r: 10, g: 20, b: 30, a: 60)))
 
   # HP bar fill - vibrant colors
   let fillWidth = (barWidth.float32 * hpPercent).int32
   let barColor = if hpPercent > 0.6: Color(r: 0, g: 255, b: 120, a: 220)
                 elif hpPercent > 0.3: Color(r: 255, g: 220, b: 0, a: 220)
                 else: Color(r: 255, g: 80, b: 80, a: 220)
-  drawRectangle(panelX + COMBINED_PANEL_PADDING, yOffset, fillWidth, barHeight, barColor)
+  drawRectangle(panelX + COMBINED_PANEL_PADDING, yOffset, fillWidth, barHeight, uiInk(barColor))
 
   # Singularity shield overlay, purple tint on the rightmost portion of the HP fill
   # covering however many HP points the shield currently protects
@@ -350,15 +352,15 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
     if shieldBarWidth > 0:
       let shieldBarX = panelX + COMBINED_PANEL_PADDING + fillWidth - shieldBarWidth
       drawRectangle(shieldBarX, yOffset, shieldBarWidth, barHeight,
-                   Color(r: 155, g: 80, b: 255, a: 170))
+                   uiInk(Color(r: 155, g: 80, b: 255, a: 170)))
       # Bright top-edge highlight for crispness
       drawRectangle(shieldBarX, yOffset, shieldBarWidth, 2,
-                   Color(r: 210, g: 170, b: 255, a: 230))
+                   uiInk(Color(r: 210, g: 170, b: 255, a: 230)))
 
   # Bar border - cyan accent
   drawRectOutline(Rectangle(x: (panelX + COMBINED_PANEL_PADDING).float32, y: yOffset.float32,
                                 width: barWidth.float32, height: barHeight.float32),
-                    1, Color(r: 0, g: 220, b: 255, a: 120))
+                    1, uiLine(Color(r: 0, g: 220, b: 255, a: 120)))
 
   yOffset += barHeight + 4
 
@@ -368,24 +370,24 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
   # Background box for stats - semi-transparent with cyan tint
   drawRectangle(panelX + COMBINED_PANEL_PADDING + 2, yOffset - 1,
                panelW - (COMBINED_PANEL_PADDING * 2) - 4, 12,
-               Color(r: 0, g: 30, b: 40, a: 50))
+               uiSurface(Color(r: 0, g: 30, b: 40, a: 50)))
 
   # Charges - bright cyan
-  drawText("[#]", panelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 100))
-  drawText("[#]", panelX + COMBINED_PANEL_PADDING + 5, yOffset, 9, Color(r: 0, g: 220, b: 255, a: 255))
+  drawText("[#]", panelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9, textShadow(100))
+  drawText("[#]", panelX + COMBINED_PANEL_PADDING + 5, yOffset, 9, uiInk(Color(r: 0, g: 220, b: 255, a: 255)))
   let chargeText = $game.player.walls
   drawText(chargeText, panelX + COMBINED_PANEL_PADDING + 17, yOffset, 10,
-          if game.player.walls > 0: Color(r: 255, g: 255, b: 255, a: 255)
-          else: Color(r: 120, g: 120, b: 120, a: 200))
+          if game.player.walls > 0: uiInk(Color(r: 255, g: 255, b: 255, a: 255))
+          else: uiInk(Color(r: 120, g: 120, b: 120, a: 200)))
 
   # Coins - bright gold
   drawCurrencyIcon(panelX + panelW div 2 - 11, yOffset + 6, 12, ciCredits)
-  drawText($game.player.coins, panelX + panelW div 2 - 1, yOffset, 10, Color(r: 255, g: 255, b: 255, a: 255))
+  drawText($game.player.coins, panelX + panelW div 2 - 1, yOffset, 10, uiInk(Color(r: 255, g: 255, b: 255, a: 255)))
 
   # Processes - purple
-  drawText("[*]", panelX + panelW - 40 + 1, yOffset + 1, 9, Color(r: 0, g: 0, b: 0, a: 100))
-  drawText("[*]", panelX + panelW - 40, yOffset, 9, Color(r: 180, g: 100, b: 255, a: 255))
-  drawText($game.player.powerUps.len, panelX + panelW - 27, yOffset, 10, Color(r: 255, g: 255, b: 255, a: 255))
+  drawText("[*]", panelX + panelW - 40 + 1, yOffset + 1, 9, textShadow(100))
+  drawText("[*]", panelX + panelW - 40, yOffset, 9, uiInk(Color(r: 180, g: 100, b: 255, a: 255)))
+  drawText($game.player.powerUps.len, panelX + panelW - 27, yOffset, 10, uiInk(Color(r: 255, g: 255, b: 255, a: 255)))
 
   yOffset += 14
 
@@ -398,14 +400,14 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
     # Separator line
     drawStroke(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
             Vector2(x: (panelX + panelW - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
-            1, Color(r: 0, g: 200, b: 255, a: 100))
+            1, uiLine(Color(r: 0, g: 200, b: 255, a: 100)))
     yOffset += 3
 
     # Wave header - compact
     drawText(t(tkGameWaveInfo), panelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9,
-            Color(r: 0, g: 0, b: 0, a: 100))
+            textShadow(100))
     drawText(t(tkGameWaveInfo), panelX + COMBINED_PANEL_PADDING + 5, yOffset, 9,
-            Color(r: 150, g: 150, b: 150, a: 255))
+            uiInk(Color(r: 150, g: 150, b: 150, a: 255)))
     yOffset += 10
 
     # Wave display - compact
@@ -420,8 +422,8 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
       Color(r: 120, g: 255, b: 120, a: 255)
 
     drawText(waveDisplay, panelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 11,
-            Color(r: 0, g: 0, b: 0, a: 130))
-    drawText(waveDisplay, panelX + COMBINED_PANEL_PADDING + 7, yOffset, 11, waveColor)
+            textShadow(130))
+    drawText(waveDisplay, panelX + COMBINED_PANEL_PADDING + 7, yOffset, 11, uiInk(waveColor))
     yOffset += 13
 
     # Enemy Counter (single bar that empties as enemies are killed)
@@ -449,16 +451,16 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
       )
 
       drawText("[!]", panelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 14,
-              Color(r: 0, g: 0, b: 0, a: 130))
-      drawText("[!]", panelX + COMBINED_PANEL_PADDING + 7, yOffset, 14, pulseColor)
+              textShadow(130))
+      drawText("[!]", panelX + COMBINED_PANEL_PADDING + 7, yOffset, 14, uiInk(pulseColor))
 
       # Enemy count display
       let countText = $totalRemaining & " " & t(tkGameLeft)
       let countWidth = measureText(countText, 12)
       let countX = panelX + panelW - COMBINED_PANEL_PADDING - countWidth - 5
 
-      drawText(countText, countX + 1, yOffset + 2, 12, Color(r: 0, g: 0, b: 0, a: 130))
-      drawText(countText, countX, yOffset + 1, 12, threatColor)
+      drawText(countText, countX + 1, yOffset + 2, 12, textShadow(130))
+      drawText(countText, countX, yOffset + 1, 12, uiInk(threatColor))
 
       yOffset += 14
 
@@ -468,11 +470,11 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
 
       # Bar background (empty state)
       drawRectangle(panelX + COMBINED_PANEL_PADDING, yOffset, barWidth, 6,
-                   Color(r: 15, g: 20, b: 25, a: 120))
+                   uiSurface(Color(r: 15, g: 20, b: 25, a: 120)))
 
       # Bar fill (remaining enemies - starts full, decreases as you kill)
       let fillWidth = (barWidth.float32 * barFillPercent).int32
-      drawRectangle(panelX + COMBINED_PANEL_PADDING, yOffset, fillWidth, 6, threatColor)
+      drawRectangle(panelX + COMBINED_PANEL_PADDING, yOffset, fillWidth, 6, uiInk(threatColor))
 
       # Border
       drawRectOutline(Rectangle(
@@ -480,7 +482,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
         y: yOffset.float32,
         width: barWidth.float32,
         height: 6.0
-      ), 1, Color(r: 0, g: 200, b: 255, a: 140))
+      ), 1, uiLine(Color(r: 0, g: 200, b: 255, a: 140)))
 
       yOffset += 8
 
@@ -492,17 +494,17 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
 
     if game.bossWaveManager.active:
       drawText("[X] " & t(tkGameBossFight), panelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
-              Color(r: 0, g: 0, b: 0, a: 130))
+              textShadow(130))
       drawText("[X] " & t(tkGameBossFight), panelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
-              Color(r: 255, g: 100, b: 100, a: 255))
+              uiInk(Color(r: 255, g: 100, b: 100, a: 255)))
       yOffset += 12
 
     elif game.bossWaveManager.coinActive:
       let pulseAlpha = (sin(game.time * 4.0) * 60 + 195).int.uint8
       drawText("[$] " & t(tkGameCollect), panelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 10,
-              Color(r: 0, g: 0, b: 0, a: 130))
+              textShadow(130))
       drawText("[$] " & t(tkGameCollect), panelX + COMBINED_PANEL_PADDING + 7, yOffset, 10,
-              Color(r: 255, g: 215, b: 0, a: pulseAlpha))
+              uiInk(Color(r: 255, g: 215, b: 0, a: pulseAlpha)))
       yOffset += 12
 
   # ROGUELITE SECTOR BLOCK (see drawRogueliteHudBlock)
@@ -514,16 +516,16 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
     # Separator line
     drawStroke(Vector2(x: (panelX + COMBINED_PANEL_PADDING + 3).float32, y: yOffset.float32),
             Vector2(x: (panelX + panelW - COMBINED_PANEL_PADDING - 3).float32, y: yOffset.float32),
-            1, Color(r: 0, g: 200, b: 255, a: 100))
+            1, uiLine(Color(r: 0, g: 200, b: 255, a: 100)))
     yOffset += 3
 
     # "Active Processes" header - compact
     let processCount = game.player.powerUps.len
     let processHeader = t(tkGameActive) & " [" & $processCount & "]:"
     drawText(processHeader, panelX + COMBINED_PANEL_PADDING + 6, yOffset + 1, 9,
-            Color(r: 0, g: 0, b: 0, a: 100))
+            textShadow(100))
     drawText(processHeader, panelX + COMBINED_PANEL_PADDING + 5, yOffset, 9,
-            Color(r: 200, g: 220, b: 240, a: 255))
+            uiInk(Color(r: 200, g: 220, b: 240, a: 255)))
     yOffset += 10
 
     # List newest power-ups first so the last install cannot vanish behind "+more".
@@ -538,7 +540,7 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
 
       drawRectangle(panelX + COMBINED_PANEL_PADDING + 3, yOffset - 1,
                    panelW - (COMBINED_PANEL_PADDING * 2) - 6, COMBINED_ITEM_HEIGHT,
-                   rowBg)
+                   uiSurface(rowBg))
 
       let iconColor = if powerUp.rarity == prLegendary:
         Color(r: 255, g: 215, b: 0, a: 255)
@@ -553,11 +555,11 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
       drawRectangle(panelX + COMBINED_PANEL_PADDING + 7, yOffset + 3, 18, 18,
                     Color(r: 0, g: 0, b: 0, a: 125))
       drawRectangle(panelX + COMBINED_PANEL_PADDING + 6, yOffset + 2, 18, 18,
-                    withAlpha(iconColor, glowAlpha))
+                    withAlpha(uiGlow(iconColor), glowAlpha))
       drawRectOutline(Rectangle(x: (panelX + COMBINED_PANEL_PADDING + 6).float32,
                                     y: (yOffset + 2).float32,
                                     width: 18.0, height: 18.0),
-                        1, withAlpha(iconColor, if powerUp.rarity == prLegendary: 240 else: 170))
+                        1, withAlpha(uiLine(iconColor), if powerUp.rarity == prLegendary: 240 else: 170))
       drawPowerUpIcon(panelX + COMBINED_PANEL_PADDING + 7, yOffset + 3, 16,
                       powerUp.powerType, iconColor)
 
@@ -566,19 +568,19 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
 
       drawText(displayName, panelX + COMBINED_PANEL_PADDING + 31, yOffset + 3, 9,
               if powerUp.rarity == prLegendary:
-                Color(r: 255, g: 232, b: 145, a: 255)
+                uiInk(Color(r: 255, g: 232, b: 145, a: 255))
               else:
-                Color(r: 230, g: 238, b: 245, a: 255))
+                uiInk(Color(r: 230, g: 238, b: 245, a: 255)))
 
       let hintText = if powerUp.rarity == prLegendary: "LEGENDARY" else: "PROCESS"
       drawText(hintText, panelX + COMBINED_PANEL_PADDING + 31, yOffset + 15, 6,
-               withAlpha(iconColor, if powerUp.rarity == prLegendary: 230 else: 150))
+               withAlpha(uiInk(iconColor), if powerUp.rarity == prLegendary: 230 else: 150))
 
       # Level indicator
       let levelText = if powerUp.rarity == prLegendary: "*" else: "L" & $powerUp.level
       let levelWidth = measureText(levelText, 10)
       drawText(levelText, panelX + panelW - COMBINED_PANEL_PADDING - levelWidth - 5,
-              yOffset + 7, 10, withAlpha(iconColor, 235))
+              yOffset + 7, 10, withAlpha(uiInk(iconColor), 235))
 
       yOffset += COMBINED_ITEM_HEIGHT
 
@@ -588,12 +590,12 @@ proc drawHUDPanelContent(game: Game, panelX, panelY, panelW: int32, showMinimize
 
       drawRectangle(panelX + COMBINED_PANEL_PADDING + 3, yOffset - 1,
                    panelW - (COMBINED_PANEL_PADDING * 2) - 6, COMBINED_POWERUP_OVERFLOW_HEIGHT,
-                   Color(r: 20, g: 25, b: 35, a: 100))
+                   uiSurface(Color(r: 20, g: 25, b: 35, a: 100)))
 
       drawText(moreText, panelX + COMBINED_PANEL_PADDING + 8, yOffset + 1, 8,
-              Color(r: 0, g: 0, b: 0, a: 100))
+              textShadow(100))
       drawText(moreText, panelX + COMBINED_PANEL_PADDING + 7, yOffset, 8,
-              Color(r: 120, g: 120, b: 120, a: 255))
+              uiInk(Color(r: 120, g: 120, b: 120, a: 255)))
 
 proc drawLegacyStatusPanel*(game: Game, x, y: int32) {.moddable.} =
   ## Draw unified HUD panel combining status and wave/powerup info
@@ -671,34 +673,34 @@ proc drawLegacyStatusPanel*(game: Game, x, y: int32) {.moddable.} =
     lastLevelBarRect = Rectangle()
     # Draw minimized panel (just header)
     drawRectangle(finalPanelX, yOffset, COMBINED_PANEL_WIDTH, COMBINED_PANEL_PADDING + COMBINED_TITLE_HEIGHT,
-                 Color(r: 5, g: 15, b: 25, a: 45))
+                 hudSurface(Color(r: 5, g: 15, b: 25, a: 45)))
 
     # Cyan accent stripe on left edge
     drawRectangle(finalPanelX, yOffset, 2, COMBINED_PANEL_PADDING + COMBINED_TITLE_HEIGHT,
-                 Color(r: 0, g: 220, b: 255, a: 180))
+                 uiInk(Color(r: 0, g: 220, b: 255, a: 180)))
 
     # Panel border
     drawRectOutline(Rectangle(x: finalPanelX.float32, y: yOffset.float32,
                                   width: COMBINED_PANEL_WIDTH.float32,
                                   height: (COMBINED_PANEL_PADDING + COMBINED_TITLE_HEIGHT).float32),
-                      1, Color(r: 0, g: 220, b: 255, a: 80))
+                      1, uiLine(Color(r: 0, g: 220, b: 255, a: 80)))
 
     yOffset += COMBINED_PANEL_PADDING
 
     # Header with minimize indicator
     drawRectangle(finalPanelX + 2, yOffset, COMBINED_PANEL_WIDTH - 2, COMBINED_TITLE_HEIGHT,
-                 HEADER_BG_COLOR)
+                 uiGlow(HEADER_BG_COLOR))
 
     drawText(t(tkGameStatus), finalPanelX + COMBINED_PANEL_PADDING + 5, yOffset + 3, 11,
-            Color(r: 0, g: 0, b: 0, a: 140))
+            textShadow(140))
     drawText(t(tkGameStatus), finalPanelX + COMBINED_PANEL_PADDING + 4, yOffset + 2, 11,
-            ACCENT_COLOR)
+            uiInk(ACCENT_COLOR))
 
     # Draw maximize icon (square)
     let iconX = finalPanelX + COMBINED_PANEL_WIDTH - COMBINED_PANEL_PADDING - 12
     let iconY = yOffset + 4
     drawRectOutline(Rectangle(x: iconX.float32, y: iconY.float32, width: 10, height: 10),
-                      1, ACCENT_COLOR)
+                      1, uiInk(ACCENT_COLOR))
 
     return  # Don't draw rest of panel
 

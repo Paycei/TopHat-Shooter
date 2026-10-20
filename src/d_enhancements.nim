@@ -2,7 +2,7 @@ import raylib, strutils
 import modding/mod_patch_core
 import draw_prims
 from std/unicode import runeLen, runeSubStr
-import types, boss_definitions, localization, utils, ui/ui_helpers
+import types, boss_definitions, localization, utils, ui/ui_helpers, ui/hud_dock
 
 # WAVE CELEBRATION SYSTEM
 proc newWaveCelebration*(): WaveCelebration {.moddable.} =
@@ -71,10 +71,10 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
     for offsetY in [-2, 0, 2]:
       if offsetX != 0 or offsetY != 0:
         drawText(waveText, int32(textX + offsetX), int32(textY + offsetY), 48.int32,
-          Color(r: 255, g: 215, b: 0, a: 50))
+          uiOverlay(Color(r: 255, g: 215, b: 0, a: 50)))
 
   drawText(waveText, textX, textY, 48.int32,
-    Color(r: 255, g: 215, b: 0, a: 255))
+    uiOverlay(Color(r: 255, g: 215, b: 0, a: 255)))
 
   # Draw stats if revealed
   if celebration.showStats:
@@ -88,9 +88,9 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
     let boxX = centerX - (boxWidth div 2)
 
     drawRectangle(int32(boxX), statsY, int32(boxWidth), int32(boxHeight),
-      Color(r: 20, g: 20, b: 40, a: uint8(min(statsAlpha, 200))))
+      hudSurface(Color(r: 20, g: 20, b: 40, a: uint8(min(statsAlpha, 200)))))
     drawRectOutline(int32(boxX), statsY, int32(boxWidth), int32(boxHeight),
-      Color(r: 255, g: 215, b: 0, a: statsAlpha))
+      uiLine(Color(r: 255, g: 215, b: 0, a: statsAlpha)))
 
     # Draw stats
     var lineY = statsY + 20
@@ -100,10 +100,10 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
       let labelText = label & ":"
       let valueText = value
       drawText(labelText, int32(boxX + 20), y, 18.int32,
-        Color(r: 200, g: 200, b: 200, a: alpha))
+        uiInk(Color(r: 200, g: 200, b: 200, a: alpha)))
       let valueWidth = measureText(valueText, 18.int32)
       drawText(valueText, int32(boxX + boxWidth - valueWidth - 20), y, 18.int32,
-        Color(r: 255, g: 255, b: 255, a: alpha))
+        uiInk(Color(r: 255, g: 255, b: 255, a: alpha)))
 
     drawStat(t(tkWaveCelebKills), $celebration.stats.kills, lineY, statsAlpha)
     lineY += lineHeight
@@ -230,17 +230,17 @@ proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: i
     let fullW = measureText(intro.bossTag, tagSize)
     let tagX = cx - fullW div 2
     let typed = bossIntroTypedTag(intro)
-    drawText(typed, tagX, tagY, tagSize, withAlpha(tagColor, clampByteF(a * 235.0'f32)))
+    drawText(typed, tagX, tagY, tagSize, uiOverlay(withAlpha(tagColor, clampByteF(a * 235.0'f32))))
     let ruleA = clampByteF(a * 150.0'f32)
-    drawRectangle(tagX - 44, tagY + tagSize div 2 - 1, 32, 2, withAlpha(tagColor, ruleA))
-    drawRectangle(tagX + fullW + 12, tagY + tagSize div 2 - 1, 32, 2, withAlpha(tagColor, ruleA))
+    drawRectangle(tagX - 44, tagY + tagSize div 2 - 1, 32, 2, uiOverlay(withAlpha(tagColor, ruleA)))
+    drawRectangle(tagX + fullW + 12, tagY + tagSize div 2 - 1, 32, 2, uiOverlay(withAlpha(tagColor, ruleA)))
 
   # Boss name with a drop shadow.
   let nameW = measureText(intro.bossName, 48'i32)
   let nameX = cx - nameW div 2
   drawText(intro.bossName, nameX + 2, centerY - 38, 48'i32,
     Color(r: 0, g: 0, b: 0, a: clampByteF(a * 128.0'f32)))
-  drawText(intro.bossName, nameX, centerY - 40, 48'i32, withAlpha(nameColor, clampByteF(a * 255.0'f32)))
+  drawText(intro.bossName, nameX, centerY - 40, 48'i32, uiOverlay(withAlpha(nameColor, clampByteF(a * 255.0'f32))))
 
   # Lore description, wrapped so the longer dossier lines stay on screen.
   const descSize = 20'i32
@@ -248,7 +248,7 @@ proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: i
   var dy = centerY + 20
   for ln in descLines:
     let w = measureText(ln, descSize)
-    drawText(ln, cx - w div 2, dy, descSize, Color(r: 190, g: 190, b: 195, a: clampByteF(a * 255.0'f32)))
+    drawText(ln, cx - w div 2, dy, descSize, uiOverlay(Color(r: 190, g: 190, b: 195, a: clampByteF(a * 255.0'f32))))
     dy += descSize + 4
 
 # WIDESCREEN GUTTER VARIANTS
@@ -291,25 +291,25 @@ proc drawWaveCelebrationGutter*(celebration: WaveCelebration,
   let cardH = 10'i32 + titleH + statH
   let statsAlpha = uint8(min(celebration.statsRevealTimer * 255.0, 255.0))
 
-  drawRectangle(cardX, cardY, cardW, cardH, Color(r: 20, g: 20, b: 40, a: uint8(min(titleAlpha, 210))))
-  drawRectangle(cardX, cardY, 2, cardH, Color(r: 255, g: 215, b: 0, a: titleAlpha))
-  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, Color(r: 255, g: 215, b: 0, a: titleAlpha))
+  drawRectangle(cardX, cardY, cardW, cardH, hudSurface(Color(r: 20, g: 20, b: 40, a: uint8(min(titleAlpha, 210)))))
+  drawRectangle(cardX, cardY, 2, cardH, uiInk(Color(r: 255, g: 215, b: 0, a: titleAlpha)))
+  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, uiInk(Color(r: 255, g: 215, b: 0, a: titleAlpha)))
 
   var ty = cardY + 5
   for ln in titleLines:
     let tw = measureText(ln, titleFont)
     drawText(ln, cardX + (cardW - tw) div 2, ty, titleFont,
-      Color(r: 255, g: 215, b: 0, a: titleAlpha))
+      uiInk(Color(r: 255, g: 215, b: 0, a: titleAlpha)))
     ty += titleFont + 3
 
   if statRows.len > 0:
     ty += 4
     for row in statRows:
       drawText(row[0], cardX + 8, ty, 12,
-        Color(r: 200, g: 200, b: 200, a: statsAlpha))
+        uiInk(Color(r: 200, g: 200, b: 200, a: statsAlpha)))
       let vw = measureText(row[1], 12)
       drawText(row[1], cardX + cardW - 8 - vw, ty, 12,
-        Color(r: 255, g: 255, b: 255, a: statsAlpha))
+        uiInk(Color(r: 255, g: 255, b: 255, a: statsAlpha)))
       ty += 16
   return cardY + cardH + 6
 
@@ -349,9 +349,9 @@ proc drawBossIntroductionGutter*(intro: BossIntroduction,
   let cardH = 12'i32 + tagH + nameH + 6'i32 + titleH
 
   let bg = if intro.isRoot: Color(r: 28, g: 6, b: 24, a: 255) else: Color(r: 25, g: 8, b: 8, a: 255)
-  drawRectangle(cardX, cardY, cardW, cardH, withAlpha(bg, clampByteF(a * 200.0'f32)))
-  drawRectangle(cardX, cardY, 2, cardH, withAlpha(nameColor, nameAlpha))
-  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, withAlpha(nameColor, nameAlpha))
+  drawRectangle(cardX, cardY, cardW, cardH, hudSurface(withAlpha(bg, clampByteF(a * 200.0'f32))))
+  drawRectangle(cardX, cardY, 2, cardH, uiInk(withAlpha(nameColor, nameAlpha)))
+  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, uiInk(withAlpha(nameColor, nameAlpha)))
 
   var ty = cardY + 6
   if tagLines.len > 0:
@@ -363,20 +363,20 @@ proc drawBossIntroductionGutter*(intro: BossIntroduction,
       remaining -= lnLen + 1   # +1 for the space the line break consumed
       let tw = measureText(ln, tagFont)
       drawText(shown, cardX + (cardW - tw) div 2, ty, tagFont,
-        withAlpha(tagColor, clampByteF(a * 235.0'f32)))
+        uiInk(withAlpha(tagColor, clampByteF(a * 235.0'f32))))
       ty += tagFont + 2
     ty += 4
   for ln in nameLines:
     let tw = measureText(ln, nameFont)
     let tx = cardX + (cardW - tw) div 2
-    drawText(ln, tx + 1, ty + 1, nameFont, Color(r: 0, g: 0, b: 0, a: uint8(nameAlpha div 2)))
-    drawText(ln, tx, ty, nameFont, withAlpha(nameColor, nameAlpha))
+    drawText(ln, tx + 1, ty + 1, nameFont, textShadow(uint8(nameAlpha div 2)))
+    drawText(ln, tx, ty, nameFont, uiInk(withAlpha(nameColor, nameAlpha)))
     ty += nameFont + 3
   ty += 6
   for ln in titleLines:
     let tw = measureText(ln, titleFont)
     drawText(ln, cardX + (cardW - tw) div 2, ty, titleFont,
-      Color(r: 180, g: 180, b: 180, a: nameAlpha))
+      uiInk(Color(r: 180, g: 180, b: 180, a: nameAlpha)))
     ty += titleFont + 2
   return cardY + cardH + 6
 

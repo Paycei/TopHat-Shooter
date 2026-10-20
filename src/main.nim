@@ -588,7 +588,9 @@ proc drawCknPointer(pos: Vector2) =
     drawStroke(at(i), at((i + 1) mod outline.len), 1.4'f32, CknInk)
 
 proc drawDesktopCursor(time: float32) =
-  ## The pointer over the desktop and its windows, in the interface theme.
+  ## The pointer over the desktop, its windows and a run's menu screens (pause,
+  ## shop, installer, endings), in the interface theme. Live play keeps the
+  ## crosshair: there it is the aim, not a pointer.
   case activeTheme().shell
   of ssTopHat: drawCustomCursor(time)
   of ssCkn: drawCknPointer(getVirtualMousePosition())
@@ -1451,7 +1453,7 @@ proc main() =
     if modScreenUpdate(currentGame.state, dt):
       beginGameDrawing()
       modScreenDraw(frameState, screenWidth, screenHeight)
-      drawCustomCursor(getTime().float32)
+      drawDesktopCursor(getTime().float32)
       endGameDrawing()
       continue
 
@@ -3127,7 +3129,8 @@ proc main() =
 
       # Normal 2D rendering
       drawGame(currentGame)
-      drawTutorialOverlay(currentGame, hudInterfaceScale())
+      themeLayer:
+        drawTutorialOverlay(currentGame, hudInterfaceScale())
 
       # Interface drawn over live gameplay, so it takes the HUD scale. The modal
       # dialog and toasts below scale in layers of their own, exactly as they do
@@ -3135,7 +3138,8 @@ proc main() =
       beginUIScaleMode(hudInterfaceScale())
       # Draw sandbox UI if in sandbox mode (it hit-tests inside its own draw)
       if isSandboxMode(currentGame.mode):
-        drawSandboxSidebar(currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
+        themeLayer:
+          drawSandboxSidebar(currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
 
       # Draw cheat menu overlay if active
       drawCheatMenu(cheatMenu, currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
@@ -3154,7 +3158,7 @@ proc main() =
           let text = t(tkGame3DEntering)
           let textWidth = measureText(text, 30)
           drawText(text, screenWidth div 2 - textWidth div 2,
-                  screenHeight div 2, 30, White)
+                  screenHeight div 2, 30, uiOverlay(White))
 
       # Desktop toasts overlay (advancement unlocks etc.)
       tickDesktopToasts(osDesktop, dt)
@@ -3314,7 +3318,9 @@ proc main() =
       # Draw OS-style Task Manager pause menu and handle mouse interactions. It
       # hit-tests inside its own draw, so one scale layer covers both halves.
       beginUIScaleMode(overlayUIScaleFor(TaskManagerPanelW, TaskManagerPanelH))
+      let pauseThemed = beginThemeLayer()
       let menuResult = drawOSTaskManager(currentGame, currentGame.pauseMenuTab)
+      endThemeLayer(pauseThemed)
       endUIScaleMode()
 
       # Handle tab changes from mouse (only if no windows are blocking and no confirm is open)
@@ -3362,7 +3368,9 @@ proc main() =
 
       # Draw quit-confirmation dialog on top of everything if pending
       if currentGame.confirmQuitPending:
+        let quitThemed = beginThemeLayer()
         let confirmDlg = drawQuitConfirmDialog(currentGame, not modRunResumable(currentGame))
+        endThemeLayer(quitThemed)
         if confirmDlg.confirmed:
           currentGame.confirmQuitPending = false
           # Perform the actual quit-to-menu
@@ -3382,7 +3390,7 @@ proc main() =
           currentGame.pauseMenuExitCooldown = 2.0  # prevent immediate re-trigger
 
       # Draw custom cursor on top of everything (including the confirm dialog)
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -3484,7 +3492,7 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
-      withTheme(stockTheme()):   # a run's screen, not the desktop's
+      themeLayer:
         drawRogueliteFloorSelect(currentGame)
       endUIScaleMode()
 
@@ -3497,7 +3505,7 @@ proc main() =
           if globalConfirmContext == cdcQuitToDesktop: windowCloseRequested = true
           else: closeRogueliteFloorSelect()
 
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
       endGameDrawing()
 
     of gsShop:
@@ -3582,7 +3590,8 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
       beginUIScaleMode(overlayUIScaleFor(ShopPanelW, ShopPanelH))
-      drawShop(currentGame)
+      themeLayer:
+        drawShop(currentGame)
       endUIScaleMode()
 
       # Draw quit-confirmation dialog on top of everything if triggered by OS close button
@@ -3591,7 +3600,7 @@ proc main() =
         if r == 1: windowCloseRequested = true
 
       # Draw custom cursor
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -3616,6 +3625,7 @@ proc main() =
       # subtitle are UI over the live arena, so they take the HUD scale and
       # measure against that layer's viewport.
       beginUIScaleMode(hudInterfaceScale())
+      let countdownThemed = beginThemeLayer()
       let screenWidth = getVirtualScreenWidth()
       let screenHeight = getVirtualScreenHeight()
 
@@ -3650,7 +3660,7 @@ proc main() =
                   (screenWidth div 2 - glowWidth div 2).int32,
                   (screenHeight div 2 - glowSize div 2).int32,
                   glowSize.int32,
-                  Color(r: 255, g: 200, b: 0, a: glowAlpha))
+                  uiOverlay(Color(r: 255, g: 200, b: 0, a: glowAlpha)))
 
         # Main text
         let textColor = if countdownValue > 0.5:
@@ -3662,7 +3672,7 @@ proc main() =
                 screenWidth div 2 - textWidth div 2,
                 screenHeight div 2 - textSize div 2,
                 textSize,
-                textColor)
+                uiOverlay(textColor))
 
         # Subtitle
         let subtitle = "READY?"
@@ -3671,8 +3681,9 @@ proc main() =
                 screenWidth div 2 - subWidth div 2,
                 screenHeight div 2 + 80,
                 40,
-                Color(r: 255, g: 255, b: 100, a: alpha))
+                uiOverlay(Color(r: 255, g: 255, b: 100, a: alpha)))
 
+      endThemeLayer(countdownThemed)
       endUIScaleMode()
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
@@ -3753,8 +3764,7 @@ proc main() =
               Color(r: 0, g: 0, b: 0, a: 100))
 
       # Main text
-      drawText(waveText, textX, textY, waveTextSize,
-              Color(r: 150, g: 255, b: 150, a: 255))
+      drawText(waveText, textX, textY, waveTextSize, uiOverlay(150, 255, 150))
 
       endUIScaleMode()
 
@@ -3857,13 +3867,14 @@ proc main() =
 
         beginGameDrawing()
         beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
-        drawPowerUpSelectionExhausted(currentGame)
+        themeLayer:
+          drawPowerUpSelectionExhausted(currentGame)
         endUIScaleMode()
         if globalConfirmActive:
           let r = drawGlobalConfirmDialog()
           if r == 1: windowCloseRequested = true
         drawInGameToasts(osDesktop)
-        drawCustomCursor(currentGame.time)
+        drawDesktopCursor(currentGame.time)
         endGameDrawing()
 
       else:
@@ -3987,7 +3998,8 @@ proc main() =
 
         beginGameDrawing()
         beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
-        drawPowerUpSelection(currentGame)
+        themeLayer:
+          drawPowerUpSelection(currentGame)
         endUIScaleMode()
 
         # Draw quit-confirmation dialog on top of everything if triggered by OS close button
@@ -3996,7 +4008,7 @@ proc main() =
           if r == 1: windowCloseRequested = true
 
         drawInGameToasts(osDesktop)
-        drawCustomCursor(currentGame.time)
+        drawDesktopCursor(currentGame.time)
         endGameDrawing()
 
     of gsGameOver:
@@ -4222,7 +4234,8 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
-      drawGameOver(currentGame)
+      themeLayer:
+        drawGameOver(currentGame)
       endUIScaleMode()
 
       # Confirmation dialog: OS close button (quit contexts) or the
@@ -4237,7 +4250,7 @@ proc main() =
         # r == -1: cancelled, dialog already dismissed
 
       # Draw custom cursor on game over screen
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -4324,13 +4337,13 @@ proc main() =
 
       beginGameDrawing()
       # Dark OS backdrop with subtle scan lines behind the floating window
-      clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+      clearBackground(uiSurface(20, 20, 30))
       for i in 0..<(screenHeight div 3):
         let lineY = i * 3 + int(currentGame.time * 50.0) mod 3
         let alpha = uint8(3 + sin(currentGame.time + i.float32) * 3.0)
         drawStroke(Vector2(x: 0, y: lineY.float32),
                 Vector2(x: screenWidth.float32, y: lineY.float32),
-                1, Color(r: 40, g: 60, b: 80, a: alpha))
+                1, uiLine(Color(r: 40, g: 60, b: 80, a: alpha)))
 
       if statsWin.window.visible:
         beginUIScaleMode(statsVp.scale)
@@ -4342,18 +4355,17 @@ proc main() =
         let footerText = t(tkStatsControlsFooter)
         let footerWidth = measureText(footerText, 14)
         drawText(footerText, (getVirtualScreenWidth() - footerWidth) div 2,
-                getVirtualScreenHeight() - 26, 14,
-                Color(r: 0, g: 180, b: 255, a: 255))
+                getVirtualScreenHeight() - 26, 14, uiInk(0, 180, 255))
         endUIScaleMode()
       elif currentGame.state == gsRunStats:
         # Fallback if no stats available (skipped on the one frame where the
         # window was just dismissed and we are about to leave this state)
         beginUIScaleMode(overlayUIScale())
         drawText(t(tkSystemNoStatistics),
-                getVirtualScreenWidth() div 2 - 150, getVirtualScreenHeight() div 2, 24, Red)
+                getVirtualScreenWidth() div 2 - 150, getVirtualScreenHeight() div 2, 24, uiInk(Red))
         drawText(t(tkSystemPressESCToReturn),
                 getVirtualScreenWidth() div 2 - 120, getVirtualScreenHeight() div 2 + 40,
-                18, LightGray)
+                18, uiInk(LightGray))
         endUIScaleMode()
 
       if globalConfirmActive:
@@ -4363,7 +4375,7 @@ proc main() =
           of cdcPostGameExit: doReturnToMenuFromStats()
           else: windowCloseRequested = true
 
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
       endGameDrawing()
 
     of gsVictory:
@@ -4474,7 +4486,8 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
-      drawVictory(currentGame)
+      themeLayer:
+        drawVictory(currentGame)
       endUIScaleMode()
       if globalConfirmActive:
         let r = drawGlobalConfirmDialog()
@@ -4482,7 +4495,7 @@ proc main() =
           case globalConfirmContext
           of cdcPostGameExit: doReturnToMenuFromVictory()
           else: windowCloseRequested = true
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
       endGameDrawing()
 
     of gsRogueliteVictory:
@@ -4556,10 +4569,10 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
-      withTheme(stockTheme()):   # a run's screen, not the desktop's
+      themeLayer:
         drawRogueliteVictory(currentGame)
       endUIScaleMode()
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
       endGameDrawing()
 
     of gs3DBoss:
@@ -4685,8 +4698,11 @@ proc main() =
       # run, the run holds still underneath until screens.back.
       tickModScreen(dt)
       beginGameDrawing()
-      if drawModScreen(screenWidth, screenHeight):
-        drawCustomCursor(getTime().float32)
+      let screenThemed = beginThemeLayer()
+      let screenDrawn = drawModScreen(screenWidth, screenHeight)
+      endThemeLayer(screenThemed)
+      if screenDrawn:
+        drawDesktopCursor(getTime().float32)
       endGameDrawing()
 
   # A run under a mod screen is saved as the state it holds still in.

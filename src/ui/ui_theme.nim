@@ -1,7 +1,10 @@
 ## Interface themes: how the OS layer looks. That is the desktop, the taskbar,
-## every window and what it shows, the dialogs and the toasts, but not a run
-## (the HUD and the in-run screens) and not the story cinematics, which stage
-## TopHat-ShooterOS itself (withTheme(stockTheme())).
+## every window and what it shows, the dialogs and the toasts, and a run's
+## interface too: the HUD, the in-run screens (pause, shop, power-up install,
+## crash and victory screens) and the cards and banners over the arena. Not the
+## story cinematics, which stage TopHat-ShooterOS itself
+## (withTheme(stockTheme())), and not the game world (enemies, bullets,
+## damage numbers, vignettes).
 ##
 ## A theme is data (UiTheme): five anchor colours and the shell it wears. The
 ## shell (ShellStyle) is the set of hand-drawn pieces: window chrome, default
@@ -17,12 +20,14 @@
 ##   uiLine(c)     a border, divider or outline
 ##   uiInk(c)      text, and glyphs drawn like text
 ##   uiGlow(c)     translucent light: halos, hover glows, sheens
+##   uiOverlay(c)  ink drawn straight over the arena, with no surface behind it
 ## The stock theme hands `c` back untouched, so TopHat-ShooterOS draws exactly
 ## as it was written. Any other theme maps it onto its anchors in OKLab:
 ## lightness by role (a surface's elevation between the theme's surface and
 ## raised colours, text between its muted and text colours), the stock cyan
 ## accent onto the theme's accent, and every other hue kept, so red still
-## reads as danger, green as OK and gold as currency. Whatever is not passed
+## reads as danger, green as OK and gold as currency (an overlay keeps its own
+## lightness too, so it still reads over the dark world). Whatever is not passed
 ## through a role keeps its own colours: shadows and scrims, and every picture
 ## (skins, icons, wallpapers, mod images).
 
@@ -54,7 +59,7 @@ type
     ssCkn = "ckn"         ## paper frames, CKN Dawn, the arrow pointer
 
   UiRole = enum
-    urSurface, urLine, urInk, urGlow
+    urSurface, urLine, urInk, urGlow, urOverlay
 
   Lab = tuple[L, a, b: float32]
 
@@ -250,13 +255,13 @@ addModTeardown(resetModThemes, dropModThemes)
 # ---------------------------------------------------------------------------
 # Roles
 
-proc hueFor(th: UiTheme, h: float32): float32 =
+proc hueFor(th: UiTheme, h: float32, onPaper: bool): float32 =
   ## A chromatic colour's hue: the stock cyan band turns to the theme's
-  ## accent; on a light theme yellows lean amber, since pure yellow turns olive
-  ## at the lightness paper needs.
+  ## accent; on a light theme's paper yellows lean amber, since pure yellow
+  ## turns olive at the lightness paper needs.
   result = h + turn(hueOf(th.ac), hueOf(stockA)) *
                (1.0'f32 - smoothstep(0.5236'f32, 1.2217'f32, abs(turn(h, hueOf(stockA)))))
-  if th.light:
+  if onPaper and th.light:
     result -= 0.314159'f32 * (1.0'f32 - smoothstep(0.20944'f32, 0.610865'f32, abs(turn(h, 1.658063'f32))))
 
 proc mapColor(th: UiTheme, c: Color, role: UiRole): Color =
@@ -281,7 +286,12 @@ proc mapColor(th: UiTheme, c: Color, role: UiRole): Color =
     L = neutralL + (vividL - neutralL) * smoothstep(0.05'f32, 0.13'f32, C)
     let k = clamp(e, 0.0'f32, 1.0'f32)
     tint = (th.m.a + (th.t.a - th.m.a) * k, th.m.b + (th.t.b - th.m.b) * k)
-  let h = if C > 0.00001'f32: th.hueFor(hueOf(x)) else: 0.0'f32
+  of urOverlay:
+    # Over the world, not paper: the colour keeps its lightness (and a neutral
+    # its own tint), only the accent's hue and the theme's chroma change.
+    L = x.L
+    tint = (x.a, x.b)
+  let h = if C > 0.00001'f32: th.hueFor(hueOf(x), role != urOverlay) else: 0.0'f32
   let a = (C * th.chroma * cos(h)) * (1.0'f32 - neutral) + tint.a * neutral
   let b = (C * th.chroma * sin(h)) * (1.0'f32 - neutral) + tint.b * neutral
   var alpha = c.a
@@ -308,11 +318,22 @@ proc uiInk*(c: Color): Color = themed(c, urInk)
   ## Text, and glyphs drawn like text.
 proc uiGlow*(c: Color): Color = themed(c, urGlow)
   ## Translucent light: halos, hover glows, sheens.
+proc uiOverlay*(c: Color): Color = themed(c, urOverlay)
+  ## Ink drawn straight over the arena, with no surface behind it (a banner,
+  ## the combo counter, the countdown): it keeps its lightness, so it still
+  ## reads over the dark world on a light theme, and only its hue follows the
+  ## theme's accent.
 
 proc uiSurface*(r, g, b: int, a = 255): Color = uiSurface(rgba(r, g, b, a))
 proc uiLine*(r, g, b: int, a = 255): Color = uiLine(rgba(r, g, b, a))
 proc uiInk*(r, g, b: int, a = 255): Color = uiInk(rgba(r, g, b, a))
 proc uiGlow*(r, g, b: int, a = 255): Color = uiGlow(rgba(r, g, b, a))
+proc uiOverlay*(r, g, b: int, a = 255): Color = uiOverlay(rgba(r, g, b, a))
+
+proc themeIsLight*(): bool {.moddable.} =
+  ## The active theme draws on a light surface: what is drawn on it adapts
+  ## (dark drop shadows under text turn to mud on paper, so they are left out).
+  activeTheme().light
 
 # ---------------------------------------------------------------------------
 # The frame's alpha

@@ -5716,21 +5716,21 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
     let glowA = uint8(clamp(50.0'f32 + pulseT * 150.0'f32, 0.0, 255.0))
     drawRectOutline(Rectangle(x: (panelX - 2).float32, y: (panelY - 2).float32,
                                  width: (panelW + 4).float32, height: (cardH + 4).float32),
-                       2, withAlpha(activeColor, glowA.int))
+                       2, withAlpha(uiLine(activeColor), glowA.int))
     drawRectangle(panelX + 3, panelY + 4, panelW, cardH, Color(r: 0, g: 0, b: 0, a: 110))
-    drawRectangle(panelX, panelY, panelW, cardH, Color(r: 8, g: 12, b: 19, a: 236))
-    drawRectangle(panelX, panelY, panelW, 4, activeColor)
+    drawRectangle(panelX, panelY, panelW, cardH, hudSurface(Color(r: 8, g: 12, b: 19, a: 236)))
+    drawRectangle(panelX, panelY, panelW, 4, uiInk(activeColor))
     drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                  width: panelW.float32, height: cardH.float32),
-                       2, withAlpha(activeColor, 230))
+                       2, withAlpha(uiLine(activeColor), 230))
 
     # Header: CRITICAL PROCESS label, big boss name, compact phase text.
-    drawText(t(tkBossThreatCritical), panelX + 11, panelY + 7, 8, withAlpha(activeColor, 240))
+    drawText(t(tkBossThreatCritical), panelX + 11, panelY + 7, 8, withAlpha(uiInk(activeColor), 240))
     let nameSize = bestFitFontSize(threatName, panelW - 22, 18, 10)
-    drawText(threatName, panelX + 12, panelY + 18, nameSize, Color(r: 0, g: 0, b: 0, a: 150))
-    drawText(threatName, panelX + 11, panelY + 17, nameSize, Color(r: 240, g: 247, b: 255, a: 255))
+    drawText(threatName, panelX + 12, panelY + 18, nameSize, textShadow(150))
+    drawText(threatName, panelX + 11, panelY + 17, nameSize, uiInk(Color(r: 240, g: 247, b: 255, a: 255)))
     let phaseSize = bestFitFontSize(phaseText, panelW - 22, 9, 7)
-    drawText(phaseText, panelX + 11, panelY + 34, phaseSize, withAlpha(activeColor, 245))
+    drawText(phaseText, panelX + 11, panelY + 34, phaseSize, withAlpha(uiInk(activeColor), 245))
 
     # Vertical HP bar (current phase pool), filling bottom-to-top.
     let barTop = panelY + 46
@@ -5738,22 +5738,22 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
     let barAreaH = max(20'i32, barBot - barTop)
     let barW = 52'i32
     let barX = panelX + 13
-    drawRectangle(barX, barTop, barW, barAreaH, Color(r: 10, g: 14, b: 20, a: 235))
+    drawRectangle(barX, barTop, barW, barAreaH, uiSurface(Color(r: 10, g: 14, b: 20, a: 235)))
     let fillH = int32(barAreaH.float32 * hpFrac)
     if fillH > 0:
       let fy = barBot - fillH
       let bright = Color(r: min(255, activeColor.r.int + 80).uint8,
                          g: min(255, activeColor.g.int + 80).uint8,
                          b: min(255, activeColor.b.int + 80).uint8, a: 255)
-      drawRectangleGradientV(barX, fy, barW, fillH, bright, withAlpha(activeColor, 235))
-      drawRectangle(barX, fy, barW, 2, Color(r: 255, g: 255, b: 255, a: 205))
+      drawRectangleGradientV(barX, fy, barW, fillH, uiInk(bright), withAlpha(uiInk(activeColor), 235))
+      drawRectangle(barX, fy, barW, 2, uiGlow(Color(r: 255, g: 255, b: 255, a: 205)))
     drawRectOutline(Rectangle(x: barX.float32, y: barTop.float32,
                                  width: barW.float32, height: barAreaH.float32),
-                       2, withAlpha(activeColor, 235))
+                       2, withAlpha(uiLine(activeColor), 235))
     # HP value under the bar.
     let hpValW = measureText(hpText, 9)
     drawText(hpText, barX + barW div 2 - hpValW div 2, barBot + 4, 9,
-             Color(r: 210, g: 225, b: 240, a: 255))
+             uiInk(Color(r: 210, g: 225, b: 240, a: 255)))
 
     # Phase-pip column beside the bar (P1 at the bottom, PN at the top).
     let pipX = barX + barW + 9
@@ -5770,30 +5770,30 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
         elif revealAll: (false, 70)
         else: (false, 40)
       if pfill:
-        drawRectangle(pipX, py, pipW, pipH, withAlpha(pcol, pa))
+        drawRectangle(pipX, py, pipW, pipH, withAlpha(uiInk(pcol), pa))
       else:
-        drawRectangle(pipX, py, pipW, pipH, Color(r: 14, g: 20, b: 28, a: 200))
+        drawRectangle(pipX, py, pipW, pipH, uiSurface(Color(r: 14, g: 20, b: 28, a: 200)))
       drawRectOutline(Rectangle(x: pipX.float32, y: py.float32, width: pipW.float32, height: pipH.float32),
-                         1, withAlpha(pcol, pa))
+                         1, withAlpha(uiLine(pcol), pa))
       if pipH >= 12:
         drawText("P" & $(p + 1), pipX + 3, py + (pipH - 8) div 2, 8,
-                 if p == currentPhase: White else: withAlpha(pcol, pa))
+                 if p == currentPhase: uiInk(White) else: withAlpha(uiInk(pcol), pa))
 
     # Firewall / phase-transition invulnerability indicator.
     if enemy.invulnerabilityTimer > 0:
       let shieldText = t(tkBossPhaseFirewall)
       let stW = measureText(shieldText, 9)
       drawText(shieldText, panelX + panelW div 2 - stW div 2, panelY + cardH - 12, 9,
-               withAlpha(activeColor, uint8(clamp(190.0'f32 + pulseT * 65.0'f32, 0.0, 255.0)).int))
+               withAlpha(uiInk(activeColor), uint8(clamp(190.0'f32 + pulseT * 65.0'f32, 0.0, 255.0)).int))
     return panelY + cardH + 6
 
   # ----- Classic horizontal boss bar (widescreen returned early above) -----
   drawRectangle(panelX + 3, panelY + 4, panelW, panelH, Color(r: 0, g: 0, b: 0, a: 110))
-  drawRectangle(panelX, panelY, panelW, panelH, Color(r: 8, g: 12, b: 19, a: 232))
-  drawRectangle(panelX, panelY, panelW, 3, activeColor)
+  drawRectangle(panelX, panelY, panelW, panelH, hudSurface(Color(r: 8, g: 12, b: 19, a: 232)))
+  drawRectangle(panelX, panelY, panelW, 3, uiInk(activeColor))
   drawRectOutline(Rectangle(x: panelX.float32, y: panelY.float32,
                                width: panelW.float32, height: panelH.float32),
-                     1, withAlpha(activeColor, 210))
+                     1, withAlpha(uiLine(activeColor), 210))
 
   let threatName = getEnemyProcessName(enemy)
   let phaseName =
@@ -5806,12 +5806,12 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
   let hpText = formatHealthDisplay(enemy.hp) & " / " & formatHealthDisplay(enemy.maxHp)
 
   block:
-    drawText(t(tkBossThreatCritical), panelX + 11, panelY + 7, 8, withAlpha(activeColor, 240))
-    drawText(threatName, panelX + 11, panelY + 17, 13, Color(r: 238, g: 245, b: 255, a: 255))
+    drawText(t(tkBossThreatCritical), panelX + 11, panelY + 7, 8, withAlpha(uiInk(activeColor), 240))
+    drawText(threatName, panelX + 11, panelY + 17, 13, uiInk(Color(r: 238, g: 245, b: 255, a: 255)))
     let phaseTextW = measureText(phaseText, 10)
-    drawText(phaseText, panelX + panelW - phaseTextW - 11, panelY + 9, 10, withAlpha(activeColor, 240))
+    drawText(phaseText, panelX + panelW - phaseTextW - 11, panelY + 9, 10, withAlpha(uiInk(activeColor), 240))
     let hpTextW = measureText(hpText, 10)
-    drawText(hpText, panelX + panelW - hpTextW - 11, panelY + 23, 10, Color(r: 210, g: 225, b: 240, a: 255))
+    drawText(hpText, panelX + panelW - hpTextW - 11, panelY + 23, 10, uiInk(Color(r: 210, g: 225, b: 240, a: 255)))
 
   let barX = panelX + 12
   let barW = panelW - 24
@@ -5834,36 +5834,36 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
       elif i == currentPhase: 255
       else: 85
     let rowBg = if i == currentPhase:
-      Color(r: 24, g: 30, b: 42, a: 230)
+      uiSurface(Color(r: 24, g: 30, b: 42, a: 230))
     else:
-      Color(r: 12, g: 17, b: 25, a: 210)
+      uiSurface(Color(r: 12, g: 17, b: 25, a: 210))
 
     drawRectangle(barX, y, barW, 9, rowBg)
     if fillW > 0:
       drawRectangleGradientH(barX, y, fillW, 9,
-                             withAlpha(phaseColor, rowAlpha),
-                             Color(r: min(255, phaseColor.r.int + 70).uint8,
-                                   g: min(255, phaseColor.g.int + 70).uint8,
-                                   b: min(255, phaseColor.b.int + 70).uint8,
-                                   a: rowAlpha.uint8))
-      drawRectangle(barX, y, fillW, 2, Color(r: 255, g: 255, b: 255, a: uint8(rowAlpha div 4)))
+                             withAlpha(uiInk(phaseColor), rowAlpha),
+                             uiInk(Color(r: min(255, phaseColor.r.int + 70).uint8,
+                                         g: min(255, phaseColor.g.int + 70).uint8,
+                                         b: min(255, phaseColor.b.int + 70).uint8,
+                                         a: rowAlpha.uint8)))
+      drawRectangle(barX, y, fillW, 2, uiGlow(Color(r: 255, g: 255, b: 255, a: uint8(rowAlpha div 4))))
 
     let label = "P" & $(i + 1)
     drawText(label, barX + 4, y + 1, 8,
-             if i == currentPhase: White else: withAlpha(phaseColor, rowAlpha))
+             if i == currentPhase: uiInk(White) else: withAlpha(uiInk(phaseColor), rowAlpha))
 
     if i < currentPhase:
-      drawText(t(tkBossThreatBreached), barX + barW - 52, y + 1, 8, Color(r: 255, g: 190, b: 110, a: 180))
+      drawText(t(tkBossThreatBreached), barX + barW - 52, y + 1, 8, uiInk(Color(r: 255, g: 190, b: 110, a: 180)))
     elif i > currentPhase:
-      drawText(t(tkBossThreatLocked), barX + barW - 40, y + 1, 8, Color(r: 120, g: 140, b: 160, a: 160))
+      drawText(t(tkBossThreatLocked), barX + barW - 40, y + 1, 8, uiInk(Color(r: 120, g: 140, b: 160, a: 160)))
     else:
       let poolText = formatHealthDisplay(enemy.hp) & "/" & formatHealthDisplay(phaseMax)
       let poolTextW = measureText(poolText, 8)
-      drawText(poolText, barX + barW - poolTextW - 6, y + 1, 8, White)
+      drawText(poolText, barX + barW - poolTextW - 6, y + 1, 8, uiInk(White))
 
     drawRectOutline(Rectangle(x: barX.float32, y: y.float32,
                                  width: barW.float32, height: 9.0'f32),
-                       1, withAlpha(phaseColor, rowAlpha))
+                       1, withAlpha(uiLine(phaseColor), rowAlpha))
     y += rowH
 
   if enemy.invulnerabilityTimer > 0:
@@ -5872,12 +5872,12 @@ proc drawBossPhaseHud(game: Game, enemy: Enemy, topY: int32 = 10,
     let shieldW = measureText(shieldText, 10) + 16
     let shieldX = panelX + panelW div 2 - shieldW div 2
     let shieldY = panelY + panelH - 15
-    drawRectangle(shieldX, shieldY, shieldW, 12, Color(r: 5, g: 15, b: 24, a: 235))
-    drawRectangle(shieldX, shieldY, int32(shieldW.float32 * shieldPct), 12, withAlpha(activeColor, 125))
+    drawRectangle(shieldX, shieldY, shieldW, 12, uiSurface(Color(r: 5, g: 15, b: 24, a: 235)))
+    drawRectangle(shieldX, shieldY, int32(shieldW.float32 * shieldPct), 12, withAlpha(uiInk(activeColor), 125))
     drawRectOutline(Rectangle(x: shieldX.float32, y: shieldY.float32,
                                  width: shieldW.float32, height: 12.0'f32),
-                       1, withAlpha(activeColor, 255))
-    drawText(shieldText, shieldX + 8, shieldY + 2, 10, White)
+                       1, withAlpha(uiLine(activeColor), 255))
+    drawText(shieldText, shieldX + 8, shieldY + 2, 10, uiInk(White))
 
   return panelY + panelH + 6
 
@@ -6888,6 +6888,11 @@ proc drawGame*(game: Game) {.moddable.} =
   let hudLayout = if globalSettings == nil: hlClassic else: globalSettings.hudLayout
   let hudStyle = if globalSettings == nil: hsModern else: globalSettings.hudStyle
 
+  # The HUD wears the interface theme: its layer keeps the frame opaque under
+  # a light theme's translucent paper (ui_theme.themeLayer), to the end of the proc.
+  let hudThemed = beginThemeLayer()
+  defer: endThemeLayer(hudThemed)
+
   # Modern widescreen: paint the side bands the docked HUD lives in. Before the
   # vignettes, so damage feedback still washes over the whole screen.
   if hudLayout == hlWidescreen and hudStyle == hsModern and not hudHidden(hpDocks):
@@ -7142,10 +7147,10 @@ proc drawGame*(game: Game) {.moddable.} =
     let noticeW = measureText(hudNotice, 12) + 20
     let noticeX = (vw - noticeW) div 2
     let noticeY = if hudLayout == hlWidescreen: 30'i32 else: 58'i32
-    drawRectangle(noticeX, noticeY, noticeW, 22, Color(r: 38, g: 14, b: 12, a: noticeA))
+    drawRectangle(noticeX, noticeY, noticeW, 22, hudSurface(Color(r: 38, g: 14, b: 12, a: noticeA)))
     drawRectOutline(Rectangle(x: noticeX.float32, y: noticeY.float32, width: noticeW.float32,
-                                 height: 22), 1.0, Color(r: 255, g: 105, b: 95, a: noticeA))
-    drawText(hudNotice, noticeX + 10, noticeY + 5, 12, Color(r: 255, g: 180, b: 170, a: noticeA))
+                                 height: 22), 1.0, uiLine(Color(r: 255, g: 105, b: 95, a: noticeA)))
+    drawText(hudNotice, noticeX + 10, noticeY + 5, 12, uiInk(Color(r: 255, g: 180, b: 170, a: noticeA)))
 
   endUIScaleMode()   # closes the interface layer opened before the HUD panel
 
