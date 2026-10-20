@@ -23,6 +23,7 @@ const
   OpenKeys = ["draw", "update", "click", "onClose", "pause", "closeOnBack", "layer"]
   HudCardKeys = ["id", "title", "color", "height", "measure", "draw", "classic"]
   PauseActionKeys = ["id", "name", "onClick"]
+  ScreenKeys = ["id", "enter", "update", "draw", "leave", "back", "cursor"]
   WidgetColor = Color(r: 0, g: 200, b: 255, a: 255)
 
   Prelude = staticRead("ui_prelude.lua")
@@ -48,7 +49,7 @@ proc optColor(vm: VM, opts: ScriptValue, key, what: string, def: Color): Color =
 
 proc fnOr(vm: VM, t: ScriptTable, key, what: string): ScriptValue =
   result = rawGetStr(t, key)
-  if result.kind notin {vkNil, vkFunction, vkNative}:
+  if result.kind notin {vkNil, vkFunction}:
     vm.runtimeError(what & "." & key & " must be a function")
 
 proc modalHandle(id: int): ScriptValue =
@@ -99,7 +100,6 @@ proc installModUi*(base: ScriptTable) =
       of "screen": m.layer = mlScreen
       else: vm.runtimeError("ui.open.layer must be \"hud\" or \"screen\"")
     elif l.kind != vkNil: vm.runtimeError("ui.open.layer must be \"hud\" or \"screen\"")
-    if modModals.len >= 32: vm.runtimeError("ui.open: 32 screens are already open")
     ret.setRet(modalHandle(openModModal(m)))
   uiT.reg("close") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     closeModModal(vm.handleId(arg(args, 0), "close"))
@@ -137,17 +137,17 @@ proc installModUi*(base: ScriptTable) =
     let enabled = opts.kind != vkTable or rawGetStr(opts.tbl, "enabled").kind == vkNil or
                   truthy(rawGetStr(opts.tbl, "enabled"))
     let hover = enabled and not uiPointer.consumed and inside(x, y, w, h)
-    let bg = if not enabled: Color(r: 30, g: 34, b: 42, a: 230)
-             elif hover and uiPointer.down: withAlpha(col, 120)
-             elif hover: withAlpha(col, 70)
-             else: Color(r: 14, g: 22, b: 34, a: 235)
+    let bg = if not enabled: uiSurface(30, 34, 42, 230)
+             elif hover and uiPointer.down: withAlpha(uiGlow(col), 120)
+             elif hover: withAlpha(uiGlow(col), 70)
+             else: uiSurface(14, 22, 34, 235)
     drawRectangle(Rectangle(x: x, y: y, width: w, height: h), bg)
     drawRectOutline(Rectangle(x: x, y: y, width: w, height: h), if hover: 2 else: 1,
-                    if enabled: withAlpha(col, if hover: 255 else: 170) else: Color(r: 70, g: 76, b: 88, a: 255))
+                    if enabled: withAlpha(uiLine(col), if hover: 255 else: 170) else: uiLine(70, 76, 88))
     let size = clamp(int32(h * 0.45), 10, 22)
     let tw = measureText(label, size)
     drawText(label, int32(x + (w - tw.float32) / 2), int32(y + (h - size.float32) / 2), size,
-             if enabled: Color(r: 230, g: 240, b: 250, a: 255) else: Color(r: 110, g: 116, b: 128, a: 255))
+             if enabled: uiInk(230, 240, 250) else: uiInk(110, 116, 128))
     let clicked = hover and uiPointer.pressed
     if clicked: uiPointer.consumed = true
     ret.setRet(vbool(clicked))
@@ -165,7 +165,7 @@ proc installModUi*(base: ScriptTable) =
     if opts.kind == vkTable:
       vm.checkKeys(opts.tbl, ["size", "color", "align", "width"], "ui.label")
       let s = rawGetStr(opts.tbl, "size")
-      if s.kind == vkNumber: size = clamp(int32(s.n), 8, 96)
+      if s.kind == vkNumber and abs(s.n) < 100_000: size = max(int32(s.n), 1'i32)
       let a = rawGetStr(opts.tbl, "align")
       if a.kind == vkString: align = a.str.s
       let wv = rawGetStr(opts.tbl, "width")
@@ -192,7 +192,7 @@ proc installModUi*(base: ScriptTable) =
         of "center": x + ((if width > 0: width else: 0) - lw) / 2 - (if width > 0: 0'f32 else: 0)
         of "right": x + (if width > 0: width else: 0) - lw
         else: x
-      drawText(line, lx.int32, ly.int32, size, col)
+      drawText(line, lx.int32, ly.int32, size, uiInk(col))
       ly += size.float32 + 3
     ret.setRet(vnum((ly - y).float64))
   uiT.reg("progress") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -211,14 +211,14 @@ proc installModUi*(base: ScriptTable) =
     var checked = truthy(arg(args, 3))
     let w = 22'f32 + measureText(label, 14).float32
     let hover = not uiPointer.consumed and inside(x, y, w, 16)
-    drawRectangle(Rectangle(x: x, y: y, width: 16, height: 16), Color(r: 14, g: 22, b: 34, a: 235))
+    drawRectangle(Rectangle(x: x, y: y, width: 16, height: 16), uiSurface(14, 22, 34, 235))
     drawRectOutline(Rectangle(x: x, y: y, width: 16, height: 16), 1,
-                    withAlpha(WidgetColor, if hover: 255 else: 160))
+                    withAlpha(uiLine(WidgetColor), if hover: 255 else: 160))
     if hover and uiPointer.pressed:
       checked = not checked
       uiPointer.consumed = true
-    if checked: drawRectangle(Rectangle(x: x + 4, y: y + 4, width: 8, height: 8), WidgetColor)
-    drawText(label, int32(x + 22), int32(y + 1), 14, Color(r: 228, g: 240, b: 250, a: 255))
+    if checked: drawRectangle(Rectangle(x: x + 4, y: y + 4, width: 8, height: 8), uiInk(WidgetColor))
+    drawText(label, int32(x + 22), int32(y + 1), 14, uiInk(228, 240, 250))
     ret.setRet(vbool(checked))
   uiT.reg("slider") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## ui.slider(x, y, w, value, min, max) -> value (dragged while held over it)
@@ -235,7 +235,7 @@ proc installModUi*(base: ScriptTable) =
       if uiPointer.pressed: uiPointer.consumed = true
     let frac = if hi != lo: ((v - lo) / (hi - lo)).float32 else: 0'f32
     drawDockBar(x.int32, int32(y - 2), w.int32, 4, frac, WidgetColor)
-    drawDisc(Vector2(x: x + w * frac, y: y), if hover: 7 else: 6, WidgetColor)
+    drawDisc(Vector2(x: x + w * frac, y: y), if hover: 7 else: 6, uiInk(WidgetColor))
     ret.setRet(vnum(v))
   uiT.reg("pointer") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## ui.pointer() -> x, y, pressed, down: the pointer in what you are drawing
@@ -252,7 +252,7 @@ proc installModUi*(base: ScriptTable) =
   uiT.reg("banner") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## ui.banner(title [, subtitle, color, seconds = 2.5]): a big centred line over the run
     discard vm.requireRunGame()
-    let secs = clamp(vm.optNum(args, 3, "banner", 2.5).float32, 0.2'f32, 30'f32)
+    let secs = max(vm.optNum(args, 3, "banner", 2.5).float32, 0.01'f32)
     modBanner = (vm.checkStr(args, 0, "banner"), vm.optStr(args, 1, "banner", ""),
                  (if arg(args, 2).kind == vkNil: WidgetColor else: parseColor(vm, arg(args, 2), "ui.banner")),
                  secs, secs)
@@ -274,7 +274,7 @@ proc installModUi*(base: ScriptTable) =
     let col = rawGetStr(t, "color")
     if col.kind != vkNil: c.color = parseColor(vm, col, "register.hudCard.color")
     let h = rawGetStr(t, "height")
-    if h.kind == vkNumber: c.height = clamp(int(h.n), 0, 600)
+    if h.kind == vkNumber and abs(h.n) < 100_000: c.height = max(int(h.n), 0)
     elif h.kind != vkNil: vm.runtimeError("register.hudCard.height must be a number")
     c.measure = vm.fnOr(t, "measure", "register.hudCard")
     c.draw = vm.fnOr(t, "draw", "register.hudCard")
@@ -300,11 +300,69 @@ proc installModUi*(base: ScriptTable) =
     pauseActionDefs.add(a)
     ret.setRet(vstr(key))
 
+  # ---- register.screen / screens: a whole screen of the game (gsModScreen)
+  registerT.reg("screen") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## register.screen{id = "map", enter = fn(from, ...), update = fn(dt),
+    ##   draw = fn(w, h), leave = fn(to), back = fn() -> true keeps it open,
+    ##   cursor = true} -> "<mod id>:map"
+    let owner = vm.requireLoading("register.screen")
+    let t = vm.checkTable(args, 0, "register.screen")
+    vm.checkKeys(t, ScreenKeys, "register.screen")
+    let key = mods[owner].id & ":" & vm.checkName(t, "register.screen")
+    if screenIndex(key) >= 0: vm.runtimeError("register.screen: '" & key & "' is already registered")
+    var s = ModScreenDef(id: key, owner: owner, cursor: true)
+    s.enter = vm.fnOr(t, "enter", "register.screen")
+    s.update = vm.fnOr(t, "update", "register.screen")
+    s.draw = vm.fnOr(t, "draw", "register.screen")
+    s.leave = vm.fnOr(t, "leave", "register.screen")
+    s.back = vm.fnOr(t, "back", "register.screen")
+    if not s.draw.isFn: vm.runtimeError("register.screen needs draw = function(w, h)")
+    let cur = rawGetStr(t, "cursor")
+    if cur.kind != vkNil: s.cursor = truthy(cur)
+    modScreenDefs.add(s)
+    ret.setRet(vstr(key))
+
+  proc screenKey(vm: VM, name, what: string): string =
+    ## "map" is the calling mod's own screen; "other_mod:map" anyone's.
+    result = name
+    if ':' notin name and currentModIdx >= 0 and currentModIdx < mods.len:
+      result = mods[currentModIdx].id & ":" & name
+    if screenIndex(result) < 0:
+      vm.runtimeError(what & ": no screen '" & result & "' (register.screen)")
+
+  let screensT = newScriptTable()
+  screensT.reg("go") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## screens.go(id, ...): open the screen at the top of the next frame; its
+    ## enter(from, ...) gets the state or screen it came from and these values.
+    ## Over a run, the run holds still underneath until the screens are left.
+    let key = screenKey(vm, vm.checkStr(args, 0, "screens.go"), "screens.go")
+    if modCtx.inPvP:
+      vm.runtimeError("screens.go: not during a PvP match (the match would stop; draw with the pvp hooks)")
+    requestScreen(key, (if args.len > 1: args[1 .. ^1] else: @[]))
+  screensT.reg("back") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## screens.back(): the screen below this one, or the game's state under them all.
+    requestScreenBack()
+  screensT.reg("closeAll") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## screens.closeAll(): straight back to the game's state under every screen.
+    requestScreensClose()
+  screensT.reg("current") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## screens.current() -> the id of the screen showing, or nil.
+    ret.setRet(if activeScreen.len > 0: vstr(activeScreen) else: NilValue)
+  screensT.reg("depth") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## screens.depth() -> how many mod screens are open (the one showing included).
+    ret.setRet(vnum(screenDepth()))
+  screensT.reg("list") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## screens.list() -> every registered screen's id.
+    let lt = newScriptTable()
+    for i, s in modScreenDefs: rawSet(lt, vnum(i + 1), vstr(s.id))
+    ret.setRet(vtable(lt))
+  rawSet(base, vstr("screens"), vtable(screensT))
+
   # ---- the game-shipped screens, in Lua (ui.dialogue, ui.choose, ui.cutscene)
   try:
     let cl = modVM.loadChunk(Prelude, "=ui_prelude", base)
     var r: RetVals
-    let err = protectedCall(modVM, vfunc(cl), [], r, LoadStepBudget)
+    let err = protectedCall(modVM, vfunc(cl), [], r, LoadLimit)
     if err.len > 0: modLogAdd(mlError, "", "ui prelude: " & err)
   except ScriptError as e:
     modLogAdd(mlError, "", "ui prelude: " & e.msg)

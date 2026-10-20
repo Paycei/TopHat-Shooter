@@ -1,4 +1,5 @@
 import raylib, rlgl, random, math
+import ../modding/mod_patch_core
 import types, enemy, bullet, boss_definitions, particle_pool, particle_types, d_systems, enemy_helpers, boss_weakpoints, ui/warnings, game/bullets, game/mode_boss_attacks, mode_hazards
 import modding/[mod_state, mod_hooks]
 export pointSegmentDistance  # beam hit tests (shared with the roster hazards)
@@ -46,7 +47,7 @@ proc resetBossBehaviorState(enemy: Enemy, specialBehavior: string) =
     enemy.teleportTimer = 0.0
     enemy.shockwaveTimer = 0.0
 
-proc bossPhaseMaxHp*(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 =
+proc bossPhaseMaxHp*(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 {.moddable.} =
   if phaseIndex >= 0 and phaseIndex < enemy.bossPhaseHpPools.len:
     return max(enemy.bossPhaseHpPools[phaseIndex], 0.01'f32)
 
@@ -55,7 +56,7 @@ proc bossPhaseMaxHp*(enemy: Enemy, phaseIndex: int, phaseCount: int): float32 =
 
   max(enemy.maxHp, 0.01'f32)
 
-proc livingRoyalGuardCount*(game: Game): int =
+proc livingRoyalGuardCount*(game: Game): int {.moddable.} =
   ## Royal Guards still standing. They alone hold the Summoner King's seal,
   ## freeze its next summon and fill its objective pips; the legion's rank and
   ## file around them never do.
@@ -63,7 +64,7 @@ proc livingRoyalGuardCount*(game: Game): int =
     if isLivingRoyalGuard(other):
       result += 1
 
-proc retireSatelliteHazards*(game: var Game, sat: OrbitalSatellite) =
+proc retireSatelliteHazards*(game: var Game, sat: OrbitalSatellite) {.moddable.} =
   ## A satellite that is destroyed or dismissed takes its beam and its charge
   ## telegraph with it. Both live in the shared game lists, so without this a
   ## destroyed satellite's laser kept firing from where it died for the rest of
@@ -80,7 +81,7 @@ proc retireSatelliteHazards*(game: var Game, sat: OrbitalSatellite) =
         break
 
 proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinition,
-                           nextPhaseIndex: int) =
+                           nextPhaseIndex: int) {.moddable.} =
   if nextPhaseIndex < 0 or nextPhaseIndex >= bossDef.phases.len:
     return
 
@@ -104,7 +105,7 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
   # be hurt while drawBossPhaseTransition plays its per-boss animation.
   enemy.invulnerabilityTimer = BOSS_PHASE_INVULNERABILITY_DURATION
   enemy.bossPhaseBreakFlashTimer = 0.9'f32
-  enemy.vel = newVector2f(0, 0)
+  enemy.vel = vec2(0, 0)
   enemy.isDashing = false
   enemy.dashDuration = 0
   # A phase break cancels a charge combo mid-flight; its locked lane goes with
@@ -173,7 +174,7 @@ proc transitionBossToPhase*(game: var Game, enemy: Enemy, bossDef: BossDefinitio
     enemy.weakPoint.required = max(1, livingRoyalGuardCount(game))
   modBossPhase(enemy, nextPhaseIndex)
 
-proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool =
+proc tryAdvanceBossPhase*(game: var Game, enemy: Enemy): bool {.moddable.} =
   ## Breaks a boss into its next phase once the current phase pool is spent.
   ## The depletion test must match the death test in `updateEnemy`
   ## (`hp >= EnemyMinAliveHp`): a stricter `hp > 0` check left float residue in
@@ -220,7 +221,7 @@ proc bossLivingAddsCount(game: Game, enemy: Enemy): int =
   ## pressure, not a lock one straggler across the arena can hold shut.
   enemy.satellites.len + livingRoyalGuardCount(game)
 
-proc updateBossMechanics*(game: var Game, enemy: Enemy, dt: float32) =
+proc updateBossMechanics*(game: var Game, enemy: Enemy, dt: float32) {.moddable.} =
   if not enemy.isBoss:
     return
 
@@ -318,7 +319,7 @@ proc performBossBehaviorTeleport(game: Game, enemy: Enemy, minRadius, maxRadius:
   for _ in 0..<8:
     let angle = rand(PI * 2.0)
     let radius = bossBehaviorRand(minRadius, maxRadius)
-    let candidate = newVector2f(
+    let candidate = vec2(
       clamp(game.player.pos.x + cos(angle) * radius, margin, game.screenWidth.float32 - margin),
       clamp(game.player.pos.y + sin(angle) * radius, margin, game.screenHeight.float32 - margin)
     )
@@ -350,12 +351,12 @@ proc tryBossBehaviorTeleport(game: Game, enemy: Enemy, dt: float32,
     game, enemy, minRadius, maxRadius, effectColor, effectSize, minPlayerDistance
   )
 
-proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDefinition, dt: float32) =
+proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDefinition, dt: float32) {.moddable.} =
   ## Updates boss movement based on phase specialBehavior
   if phase.specialBehavior == "":
     return
   if enemy.pendingDashLocked:
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     enemy.pos = enemy.pendingDashStart
     return
   if enemy.isDashing:
@@ -363,7 +364,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     return
   if enemy.chargeState == ccWinded:
     # Spent after a charge combo: rooted to the spot, which is the opening.
-    enemy.vel = newVector2f(0, 0)
+    enemy.vel = vec2(0, 0)
     return
   # Mods: "mod:<name>" behaviours are scripted movement.
   if modsActive and modBossBehavior(game, enemy, phase.specialBehavior, dt):
@@ -379,7 +380,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
   of "anchored":
     # Gatekeeper: holds the middle of its room, turning in place (its beams do
     # the sweeping), drifting back if knocked away.
-    let home = newVector2f(centerX, centerY)
+    let home = vec2(centerX, centerY)
     let d = distance(enemy.pos, home)
     if d > 12.0'f32:
       let toHome = (home - enemy.pos).normalize()
@@ -395,7 +396,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let targetY = centerY + sin(angle) * orbitRadius
 
     # Move toward target position smoothly using velocity
-    let toTarget = (newVector2f(targetX, targetY) - enemy.pos).normalize()
+    let toTarget = (vec2(targetX, targetY) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toTarget * enemy.speed * dt
 
   of "circle_player":
@@ -406,7 +407,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let nextAngle = currentAngle + orbitAngularSpeed * dt
     let desiredX = game.player.pos.x + cos(nextAngle) * orbitRadius
     let desiredY = game.player.pos.y + sin(nextAngle) * orbitRadius
-    let toDes = newVector2f(desiredX - enemy.pos.x, desiredY - enemy.pos.y)
+    let toDes = vec2(desiredX - enemy.pos.x, desiredY - enemy.pos.y)
     let desDist = sqrt(toDes.x * toDes.x + toDes.y * toDes.y)
     if desDist > 0.1:
       let step = min(enemy.speed * 1.2 * dt, desDist)
@@ -423,7 +424,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
       let retreatDir = toPlayer * -1.0
       enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.85 * dt
     else:
-      let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
+      let strafeDir = vec2(-toPlayer.y, toPlayer.x)
       let driftDir = (strafeDir * 0.75 + toPlayer * 0.25).normalize()
       enemy.pos = enemy.pos + driftDir * enemy.speed * 0.45 * dt
 
@@ -432,7 +433,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let patternPhase = game.time * 1.0
     let targetX = centerX + sin(patternPhase) * 150.0
     let targetY = centerY + cos(patternPhase) * 150.0
-    let toDes = newVector2f(targetX - enemy.pos.x, targetY - enemy.pos.y)
+    let toDes = vec2(targetX - enemy.pos.x, targetY - enemy.pos.y)
     let desDist = sqrt(toDes.x * toDes.x + toDes.y * toDes.y)
     if desDist > 0.1:
       let step = min(enemy.speed * 1.1 * dt, desDist)
@@ -447,7 +448,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
   of "clone_assault":
     # Erratic movement toward player with smooth direction blending (sin-based, no frame dependency)
     let cloneBlend = sin(game.time * PI) * 0.5 + 0.5  # 0..1, completes one cycle per 2s
-    let perpDir = newVector2f(-toPlayer.y, toPlayer.x)
+    let perpDir = vec2(-toPlayer.y, toPlayer.x)
     let blendedDir = (toPlayer * cloneBlend + perpDir * (1.0 - cloneBlend)).normalize()
     enemy.pos = enemy.pos + blendedDir * enemy.speed * dt
 
@@ -455,12 +456,12 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     # Chaotic unpredictable movement, time-based multi-frequency angle
     let randomAngle = game.time * 1.3 + sin(game.time * 2.7 + enemy.pos.x * 0.01) * PI +
                       cos(game.time * 1.9 + enemy.pos.y * 0.01) * PI
-    let randomDir = newVector2f(cos(randomAngle), sin(randomAngle))
+    let randomDir = vec2(cos(randomAngle), sin(randomAngle))
     enemy.pos = enemy.pos + randomDir * enemy.speed * dt
 
   of "laser_web":
     let webPhase = game.time * 0.9
-    let webTarget = newVector2f(centerX + sin(webPhase) * 135.0,
+    let webTarget = vec2(centerX + sin(webPhase) * 135.0,
                                 centerY + sin(webPhase * 2.0) * 80.0)
     let toWeb = (webTarget - enemy.pos).normalize()
     enemy.pos = enemy.pos + toWeb * enemy.speed * 0.55 * dt
@@ -468,7 +469,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
   of "laser_chaos":
     # Rapid erratic movement
     let angle = game.time * 3.0 + enemy.pos.x * 0.01
-    let chaosDir = newVector2f(cos(angle), sin(angle))
+    let chaosDir = vec2(cos(angle), sin(angle))
     enemy.pos = enemy.pos + chaosDir * enemy.speed * dt * 0.8
 
   of "slow_charge":
@@ -485,7 +486,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let jitterX = cos(jitterAngle) * chargeJitter + cos(jitterAngle * 1.7) * chargeJitter * 0.5
     let jitterY = sin(jitterAngle) * chargeJitter + sin(jitterAngle * 1.3) * chargeJitter * 0.5
 
-    enemy.pos = enemy.pos + baseMove + newVector2f(jitterX, jitterY)
+    enemy.pos = enemy.pos + baseMove + vec2(jitterX, jitterY)
 
     # Constant electric particles, timer-gated to ~6 spawns/sec regardless of fps
     if (game.time mod 0.15) < dt:
@@ -497,7 +498,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
   of "electric_surge":
     # Rapid zigzag movement like lightning bolt, smooth continuous direction, not discrete phase buckets
     let surgeAngle = arctan2(toPlayer.y, toPlayer.x) + sin(game.time * 15.0) * 0.5
-    let surgeDir = newVector2f(cos(surgeAngle), sin(surgeAngle))
+    let surgeDir = vec2(cos(surgeAngle), sin(surgeAngle))
     enemy.pos = enemy.pos + surgeDir * enemy.speed * 1.0 * dt
 
     # Electric particles, gated to ~10 spawns/sec, not every frame
@@ -509,7 +510,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     # Ultra-chaotic movement without forced teleports; this phase should feel unstable,
     # but still preserve readable boss positioning.
     let dischargeAngle = game.time * 18.0 + sin(game.time * 37.0) * 0.7
-    let chaosDir = newVector2f(cos(dischargeAngle), sin(dischargeAngle))
+    let chaosDir = vec2(cos(dischargeAngle), sin(dischargeAngle))
     let chaseBlend = sin(game.time * 2.6) * 0.5 + 0.5
     let dischargeDir = (chaosDir * (0.65 + chaseBlend * 0.25) + toPlayer * 0.35).normalize()
     enemy.pos = enemy.pos + dischargeDir * enemy.speed * 0.95 * dt
@@ -523,7 +524,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let orbitRadius = 200.0
     let orbitX = centerX + cos(orbitAngle) * orbitRadius
     let orbitY = centerY + sin(orbitAngle) * orbitRadius
-    let toOrbit = (newVector2f(orbitX, orbitY) - enemy.pos).normalize()
+    let toOrbit = (vec2(orbitX, orbitY) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toOrbit * enemy.speed * dt
 
   of "satellite_swarm":
@@ -540,13 +541,13 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let margin = enemy.radius + 10.0
     targetX = clamp(targetX, margin, game.screenWidth.float32 - margin)
     targetY = clamp(targetY, margin, game.screenHeight.float32 - margin)
-    let toSwarm = (newVector2f(targetX, targetY) - enemy.pos).normalize()
+    let toSwarm = (vec2(targetX, targetY) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toSwarm * enemy.speed * 1.1 * dt
 
   of "electric_storm":
     # Fast erratic movement
     let angle = game.time * 2.5
-    let stormDir = newVector2f(cos(angle + enemy.pos.x * 0.02), sin(angle + enemy.pos.y * 0.02))
+    let stormDir = vec2(cos(angle + enemy.pos.x * 0.02), sin(angle + enemy.pos.y * 0.02))
     enemy.pos = enemy.pos + stormDir * enemy.speed * dt
 
   of "overcharged":
@@ -556,7 +557,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
   of "deploy_satellites":
     # Hold a broad command orbit while satellites do the area control.
     let deployAngle = game.time * 0.55
-    let deployTarget = newVector2f(centerX + cos(deployAngle) * 170.0,
+    let deployTarget = vec2(centerX + cos(deployAngle) * 170.0,
                                    centerY + sin(deployAngle) * 115.0)
     let toDeploy = (deployTarget - enemy.pos).normalize()
     enemy.pos = enemy.pos + toDeploy * enemy.speed * 0.65 * dt
@@ -569,7 +570,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let moNextAngle = moCurrentAngle + moAngularSpeed * dt
     let moDesiredX = game.player.pos.x + cos(moNextAngle) * moOrbitRadius
     let moDesiredY = game.player.pos.y + sin(moNextAngle) * moOrbitRadius
-    let moDes = newVector2f(moDesiredX - enemy.pos.x, moDesiredY - enemy.pos.y)
+    let moDes = vec2(moDesiredX - enemy.pos.x, moDesiredY - enemy.pos.y)
     let moDist = sqrt(moDes.x * moDes.x + moDes.y * moDes.y)
     if moDist > 0.1:
       let moStep = min(enemy.speed * 1.1 * dt, moDist)
@@ -584,7 +585,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let ocNextAngle = ocCurrentAngle + ocAngularSpeed * dt
     let ocDesiredX = game.player.pos.x + cos(ocNextAngle) * ocOrbitRadius
     let ocDesiredY = game.player.pos.y + sin(ocNextAngle) * ocOrbitRadius
-    let ocDes = newVector2f(ocDesiredX - enemy.pos.x, ocDesiredY - enemy.pos.y)
+    let ocDes = vec2(ocDesiredX - enemy.pos.x, ocDesiredY - enemy.pos.y)
     let ocDist = sqrt(ocDes.x * ocDes.x + ocDes.y * ocDes.y)
     if ocDist > 0.1:
       let ocStep = min(enemy.speed * 1.3 * dt, ocDist)
@@ -599,7 +600,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     # Rapid aggressive movement with smooth direction blending (sin-based, no frame dependency)
     # blend = 1 -> full chase, blend = 0 -> full strafe, cycles on a 3s period
     let enrageBlend = sin(game.time * (PI * 2.0 / 3.0)) * 0.5 + 0.5
-    let sideDir = newVector2f(-toPlayer.y, toPlayer.x)
+    let sideDir = vec2(-toPlayer.y, toPlayer.x)
     let enrageDir = (toPlayer * enrageBlend + sideDir * (1.0 - enrageBlend)).normalize()
     enemy.pos = enemy.pos + enrageDir * enemy.speed * dt
 
@@ -613,7 +614,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let meteorRadius = 180.0 + cos(game.time * 1.5) * 30.0
     let meteorX = game.player.pos.x + cos(meteorAngle) * meteorRadius
     let meteorY = game.player.pos.y + sin(meteorAngle) * meteorRadius
-    let toTarget = (newVector2f(meteorX, meteorY) - enemy.pos).normalize()
+    let toTarget = (vec2(meteorX, meteorY) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toTarget * enemy.speed * dt
 
   of "summon_frenzy":
@@ -629,15 +630,15 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
         let retreatDir = toPlayer * -1.0
         enemy.pos = enemy.pos + retreatDir * enemy.speed * 0.8 * dt
       else:
-        let toCenter = (newVector2f(centerX, centerY) - enemy.pos).normalize()
-        let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
+        let toCenter = (vec2(centerX, centerY) - enemy.pos).normalize()
+        let strafeDir = vec2(-toPlayer.y, toPlayer.x)
         let holdDir = (strafeDir * 0.65 + toCenter * 0.35).normalize()
         enemy.pos = enemy.pos + holdDir * enemy.speed * 0.45 * dt
 
   of "berserk_rampage":
     # Extremely fast aggressive chase with wild movements (Berserker phase 3)
     let berserkerAngle = sin(game.time * 8.0) * 0.6
-    let wildDir = newVector2f(
+    let wildDir = vec2(
       toPlayer.x * cos(berserkerAngle) - toPlayer.y * sin(berserkerAngle),
       toPlayer.x * sin(berserkerAngle) + toPlayer.y * cos(berserkerAngle)
     )
@@ -649,7 +650,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let prismAngle = game.time * 0.5
     let prismX = centerX + cos(prismAngle) * prismOrbitRadius
     let prismY = centerY + sin(prismAngle) * prismOrbitRadius
-    let toOrbit = (newVector2f(prismX, prismY) - enemy.pos).normalize()
+    let toOrbit = (vec2(prismX, prismY) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toOrbit * enemy.speed * 0.6 * dt
 
   of "prism_array":
@@ -657,7 +658,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let figure8Time = game.time * 1.5
     let figure8X = centerX + sin(figure8Time) * 150.0
     let figure8Y = centerY + sin(figure8Time * 2.0) * 100.0
-    let toFigure8 = (newVector2f(figure8X, figure8Y) - enemy.pos).normalize()
+    let toFigure8 = (vec2(figure8X, figure8Y) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toFigure8 * enemy.speed * dt
 
   of "light_cascade":
@@ -673,7 +674,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     sweepY = clamp(sweepY, margin, game.screenHeight.float32 - margin)
 
     # Smooth movement toward sweep target instead of instant position assignment
-    let toSweep = (newVector2f(sweepX, sweepY) - enemy.pos).normalize()
+    let toSweep = (vec2(sweepX, sweepY) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toSweep * enemy.speed * 1.1 * dt
 
   of "slow_time":
@@ -690,7 +691,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     # Ultra-fast blinking movement (Timekeeper phase 3)
     # Smooth blend between charge-at-player and strafe on a 0.5s cycle
     let collapseBlend = sin(game.time * PI * 2.0) * 0.5 + 0.5  # 0..1 at 1Hz (0.5s per half)
-    let strafeDir = newVector2f(-toPlayer.y, toPlayer.x)
+    let strafeDir = vec2(-toPlayer.y, toPlayer.x)
     # High blend -> charge fast, low blend -> strafe
     let collapseBurst = isBossBehaviorBurstActive(enemy, dt, 0.4, 2.8, 3.6)
     let chaseContrib = toPlayer * (if collapseBurst: 1.15 else: 0.8) * collapseBlend
@@ -703,7 +704,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     # Multi-frequency time-based angle, looks chaotic but smooth, no per-frame rand
     let chaosFactor = sin(game.time * 7.0 + enemy.pos.x * 0.03) * 0.8
     let chaosAngle = game.time * 2.1 + sin(game.time * 5.3) * PI * 0.7
-    let chaosDir = newVector2f(cos(chaosAngle + chaosFactor), sin(chaosAngle + chaosFactor))
+    let chaosDir = vec2(cos(chaosAngle + chaosFactor), sin(chaosAngle + chaosFactor))
     enemy.pos = enemy.pos + chaosDir * enemy.speed * 0.9 * dt
 
   of "entropy_field":
@@ -720,7 +721,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     entropyY = clamp(entropyY, margin, game.screenHeight.float32 - margin)
 
     # Smooth movement toward orbit target instead of instant position assignment
-    let toEntropy = (newVector2f(entropyX, entropyY) - enemy.pos).normalize()
+    let toEntropy = (vec2(entropyX, entropyY) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toEntropy * enemy.speed * 0.95 * dt
 
   of "total_chaos":
@@ -733,7 +734,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
       let newY = game.player.pos.y + sin(chaosAngle) * chaosDist
 
       # Ensure within bounds
-      enemy.pos = newVector2f(
+      enemy.pos = vec2(
         clamp(newX, 50.0, game.screenWidth.float32 - 50.0),
         clamp(newY, 50.0, game.screenHeight.float32 - 50.0)
       )
@@ -746,7 +747,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
       # Erratic movement with random speed bursts
       let speedMult = 0.82 + rand(0.12)  # 82% to 94% speed between burst moments
       let wildAngle = game.time * 8.5 + sin(game.time * 4.0) * 1.2
-      let wildDir = newVector2f(
+      let wildDir = vec2(
         cos(wildAngle + sin(game.time * 8.0)),
         sin(wildAngle + cos(game.time * 11.0))
       )
@@ -758,14 +759,14 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     let balanceRadius = 190.0
     let balanceX = centerX + cos(balanceAngle) * balanceRadius
     let balanceY = centerY + sin(balanceAngle) * balanceRadius
-    let toBalance = (newVector2f(balanceX, balanceY) - enemy.pos).normalize()
+    let toBalance = (vec2(balanceX, balanceY) - enemy.pos).normalize()
     enemy.pos = enemy.pos + toBalance * enemy.speed * dt
 
   of "aggressive_mixed":
     # Alternating between chase and strafe (Omega Entity phase 2), sin-based blend, no frame dependency
     # Completes one full chase->strafe cycle every 1.5s
     let mixedBlend = sin(game.time * (PI * 2.0 / 1.5)) * 0.5 + 0.5  # 0..1
-    let mixedStrafe = newVector2f(-toPlayer.y, toPlayer.x)
+    let mixedStrafe = vec2(-toPlayer.y, toPlayer.x)
     let mixedDir = (toPlayer * mixedBlend + mixedStrafe * ((1.0 - mixedBlend) * 0.75)).normalize()
     enemy.pos = enemy.pos + mixedDir * enemy.speed * dt
 
@@ -780,7 +781,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
       enemy.pos = enemy.pos + toPlayer * enemy.speed * dt
     else:
       # Optimal range - circle strafe
-      let adaptStrafe = newVector2f(-toPlayer.y, toPlayer.x)
+      let adaptStrafe = vec2(-toPlayer.y, toPlayer.x)
       enemy.pos = enemy.pos + adaptStrafe * enemy.speed * 0.9 * dt
 
   of "final_form":
@@ -800,14 +801,14 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
         let margin = enemy.radius + 10.0
         newX = clamp(newX, margin, game.screenWidth.float32 - margin)
         newY = clamp(newY, margin, game.screenHeight.float32 - margin)
-        enemy.pos = newVector2f(newX, newY)
+        enemy.pos = vec2(newX, newY)
       else:
         enemy.pos = enemy.pos + toPlayer * enemy.speed * 0.95 * dt
     of 3, 4:
       # Circle strafe at high speed (smooth velocity-based, not instant position set)
       let finalOrbitAngle = game.time * 2.5  # slowed from 5.0 to avoid jitter
       let finalOrbitRadius = 180.0
-      let orbitTarget = newVector2f(
+      let orbitTarget = vec2(
         game.player.pos.x + cos(finalOrbitAngle) * finalOrbitRadius,
         game.player.pos.y + sin(finalOrbitAngle) * finalOrbitRadius
       )
@@ -816,7 +817,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
     else:
       # Erratic chaos movement
       let chaosAngle = game.time * 8.0 + sin(game.time * 3.0)
-      let chaosDir = newVector2f(cos(chaosAngle), sin(chaosAngle))
+      let chaosDir = vec2(cos(chaosAngle), sin(chaosAngle))
       enemy.pos = enemy.pos + chaosDir * enemy.speed * 0.95 * dt
 
   of "enraged":
@@ -827,7 +828,7 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
 
     # Primary movement: Aggressive chase with weaving patterns
     let baseChase = toPlayer * enragedSpeed * dt
-    let weaveOffset = newVector2f(
+    let weaveOffset = vec2(
       sin(enragedAngle) * 20.0 * dt,
       cos(enragedAngle * 1.3) * 20.0 * dt
     )
@@ -860,45 +861,44 @@ proc updateCustomBossBehavior*(game: Game, enemy: var Enemy, phase: BossPhaseDef
       discard applyEnemyInertia(enemy, desiredVel, dt, accel, brake)
       enemy.pos = enemy.pos + enemy.vel * dt
     elif frameDistance > teleportDistance:
-      enemy.vel = newVector2f(0, 0)
+      enemy.vel = vec2(0, 0)
 
-
-proc spawnThunderstrike*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnThunderstrike(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnThunderstrikeInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnArcLattice*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnArcLattice(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnArcLatticeInto(game.attackWarnings, game.particlePool, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnRicochetLaser*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnRicochetLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnRicochetLaserInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnVoidRifts*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnVoidRifts*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnVoidRiftsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnOrbitalSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnOrbitalSweep(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnOrbitalSweepInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnSeismicFissure*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnSeismicFissure(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnSeismicFissureInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnPrismRays*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnPrismRays(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnPrismRaysInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnClockSweep*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnClockSweep(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnClockSweepInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnChaosWeave*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnChaosWeave(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnChaosWeaveInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase)
 
-proc spawnOmegaQuadrants*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) =
+proc spawnOmegaQuadrants(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition) {.moddable.} =
   warnings.spawnOmegaQuadrantsInto(game.attackWarnings, game.particlePool, game.player, game.screenWidth, game.screenHeight, enemy, attack, phase,
                                    lesson = attack.specialData == "omega_judgement_lesson")
 
-proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) =
+proc addBossAttackWarning*(game: var Game, enemy: Enemy, attack: BossAttack) {.moddable.} =
   warnings.addBossAttackWarningInto(game.attackWarnings, game.player, enemy, attack)
 
 proc spawnBossBullet(game: var Game, enemy: Enemy, attack: BossAttack,
-                     phase: BossPhaseDefinition, dir: Vector2f,
+                     phase: BossPhaseDefinition, dir: Vector2,
                      speed = -1.0'f32, damage = -1.0'f32,
                      origin = enemy.pos) =
   ## Canonical boss-bullet spawn, from the boss's own position unless an
@@ -913,7 +913,7 @@ proc spawnBossBullet(game: var Game, enemy: Enemy, attack: BossAttack,
     bossBulletShape = bossBulletShapeFor(enemy.bossDefinitionID),
     bulletRadius = attack.bulletRadius))
 
-proc execBossAttackSpiral(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackSpiral(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # A real spiral can't be fired in one instant from a single point - that is
   # always a ring. Instead we arm an emitter (updated each frame in
   # updateBossSpiralStream) that releases the volley's bullets one step at a
@@ -952,11 +952,9 @@ proc spiralBulletColor(progress: float32): Color =
   ## fired) end -> bright gold at the trailing (inner, last fired) end. The hue
   ## sweep makes the arm's winding direction read at a glance, and both ends
   ## contrast the bosses' usual pink bullets so the spiral pops off the field.
-  let t = clamp(progress, 0.0'f32, 1.0'f32)
-  proc mix(a, b: int): uint8 = uint8(a.float32 + (b - a).float32 * t)
-  Color(r: mix(90, 255), g: mix(235, 215), b: mix(255, 60), a: 255)
+  colorLerp(Color(r: 90, g: 235, b: 255, a: 255), Color(r: 255, g: 215, b: 60, a: 255), progress)
 
-proc updateBossSpiralStream*(game: var Game, enemy: Enemy, dt: float32) =
+proc updateBossSpiralStream*(game: var Game, enemy: Enemy, dt: float32) {.moddable.} =
   ## Per-frame driver for the bapSpiral emitter armed by execBossAttackSpiral.
   ## Releases one spiral step (spiralEmitArms bullets) every spiralEmitInterval
   ## seconds, advancing the emission angle each step so the trail spirals.
@@ -974,7 +972,7 @@ proc updateBossSpiralStream*(game: var Game, enemy: Enemy, dt: float32) =
     let col = spiralBulletColor(progress)
     for k in 0..<arms:
       let angle = enemy.spiralEmitAngle + k.float32 * (PI * 2.0 / arms.float32)
-      let dir = newVector2f(cos(angle), sin(angle))
+      let dir = vec2(cos(angle), sin(angle))
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = enemy.spiralEmitSpeed, damage = enemy.spiralEmitDamage,
@@ -990,16 +988,16 @@ proc updateBossSpiralStream*(game: var Game, enemy: Enemy, dt: float32) =
     enemy.spiralEmitRemaining -= 1
     enemy.spiralEmitTimer += enemy.spiralEmitInterval
 
-proc execBossAttackBurst(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackBurst(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # Rapid burst in spread pattern
   let baseAngle = arctan2(toPlayer.y, toPlayer.x)
   for i in 0..<attack.projectileCount:
     let offset = (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
     let angle = baseAngle + offset
-    let dir = newVector2f(cos(angle), sin(angle))
+    let dir = vec2(cos(angle), sin(angle))
     spawnBossBullet(game, enemy, attack, phase, dir)
 
-proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # SpecialData modes:
   # - "rainbow_wave": Colorful cascading pattern (Boss 9)
   # - "temporal_wave": Time-distorted slow bullets (Boss 10)
@@ -1016,14 +1014,14 @@ proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase:
     # dashed seam; the gaps between crossings are the dodge.
     const needleSilver = Color(r: 235, g: 235, b: 255, a: 255)
     let aim = arctan2(toPlayer.y, toPlayer.x)
-    let fwd = newVector2f(cos(aim), sin(aim))
-    let perp = newVector2f(-fwd.y, fwd.x)
+    let fwd = vec2(cos(aim), sin(aim))
+    let perp = vec2(-fwd.y, fwd.x)
     let count = max(3, attack.projectileCount)
     for i in 0..<count:
       let side = if i mod 2 == 0: 1.0'f32 else: -1.0'f32
       let origin = enemy.pos + perp * (side * 24.0'f32) + fwd * (enemy.radius + 8.0'f32)
       let crossAng = aim - side * 0.14'f32   # lean back across the seam
-      let dir = newVector2f(cos(crossAng), sin(crossAng))
+      let dir = vec2(cos(crossAng), sin(crossAng))
       let sp = attack.projectileSpeed *
                (0.8'f32 + 0.4'f32 * i.float32 / max(1, count - 1).float32)
       game.bullets.add(newBullet(
@@ -1047,7 +1045,7 @@ proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase:
   for i in 0..<attack.projectileCount:
     let t = i.float32 / attack.projectileCount.float32
     let angle = t * attack.spreadAngle.degToRad() - attack.spreadAngle.degToRad() / 2.0 + arctan2(toPlayer.y, toPlayer.x)
-    let dir = newVector2f(cos(angle), sin(angle))
+    let dir = vec2(cos(angle), sin(angle))
 
     let bulletSpeed = attack.projectileSpeed * speedMultiplier
 
@@ -1066,7 +1064,7 @@ proc execBossAttackWave(game: var Game, enemy: Enemy, attack: BossAttack, phase:
     else:
       discard
 
-proc execBossAttackTargeted(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackTargeted(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # Direct shots at player
   # SpecialData modes:
   # - "royal_sigils": Summoner King - a fan of slow golden homing sigils that
@@ -1086,7 +1084,7 @@ proc execBossAttackTargeted(game: var Game, enemy: Enemy, attack: BossAttack, ph
     let count = max(1, attack.projectileCount)
     for i in 0..<count:
       let offset = (i.float32 - count.float32 / 2.0) * attack.spreadAngle.degToRad() / count.float32
-      let dir = newVector2f(cos(baseAngle + offset), sin(baseAngle + offset))
+      let dir = vec2(cos(baseAngle + offset), sin(baseAngle + offset))
       var sigil = newBullet(
         x = enemy.pos.x, y = enemy.pos.y, direction = dir,
         speed = attack.projectileSpeed, damage = attack.damage * phase.damageMultiplier,
@@ -1102,10 +1100,10 @@ proc execBossAttackTargeted(game: var Game, enemy: Enemy, attack: BossAttack, ph
       (i.float32 - attack.projectileCount.float32 / 2.0) * attack.spreadAngle.degToRad() / attack.projectileCount.float32
     else: 0.0
     let angle = arctan2(toPlayer.y, toPlayer.x) + spread
-    let dir = newVector2f(cos(angle), sin(angle))
+    let dir = vec2(cos(angle), sin(angle))
     spawnBossBullet(game, enemy, attack, phase, dir)
 
-proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # Perfect ring of bullets with thematic variants
   # SpecialData modes:
   # - "time_ring": Temporal distortion ring with pulsing cyan bullets (Boss 10)
@@ -1121,8 +1119,8 @@ proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phas
     let spinBase = game.time * 0.4
     for i in 0..<count:
       let ang = spinBase + i.float32 * PI * 2.0 / count.float32
-      let radial = newVector2f(cos(ang), sin(ang))
-      let tangent = newVector2f(-radial.y, radial.x)
+      let radial = vec2(cos(ang), sin(ang))
+      let tangent = vec2(-radial.y, radial.x)
       # Radial + tangential mix = every bullet leaves on a pinwheel heading.
       let dir = (radial * 0.8'f32 + tangent * 0.6'f32).normalize()
       # Speed climbs around the ring: the "thread end" outruns the rest and
@@ -1159,7 +1157,7 @@ proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phas
   # Create circle of bullets
   for i in 0..<attack.projectileCount:
     let angle = i.float32 * PI * 2.0 / attack.projectileCount.float32 + rotationOffset
-    let dir = newVector2f(cos(angle), sin(angle))
+    let dir = vec2(cos(angle), sin(angle))
     spawnBossBullet(game, enemy, attack, phase, dir, speed = bulletSpeed)
 
     # Add temporal particle trail for time_ring
@@ -1169,7 +1167,7 @@ proc execBossAttackCircle(game: var Game, enemy: Enemy, attack: BossAttack, phas
       let trailY = enemy.pos.y + sin(angle) * trailRadius
       spawnExplosionPooled(game.particlePool, trailX, trailY, particleColor, 2)
 
-proc execBossAttackLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # Boss laser with proper warning system
   # Laser patterns customized via specialData
   # EXISTING: "cross_laser", "rotating_grid", "prismatic_cage", "laser_snipe"
@@ -1358,7 +1356,7 @@ proc execBossAttackLaser(game: var Game, enemy: Enemy, attack: BossAttack, phase
     enemy.id  # Pass enemy ID so warning can follow boss
   ))
 
-proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # Massive bullet spray with multiple themes
   # SpecialData modes:
   # - "voltage_burst": Electric explosion with yellow bullets (Boss 6)
@@ -1390,7 +1388,7 @@ proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, pha
                 else: Color(r: 255, g: 235, b: 255, a: 255)
       game.bullets.add(newBullet(
         x = enemy.pos.x, y = enemy.pos.y,
-        direction = newVector2f(cos(ang), sin(ang)),
+        direction = vec2(cos(ang), sin(ang)),
         speed = attack.projectileSpeed,
         damage = attack.damage * phase.damageMultiplier,
         fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
@@ -1550,7 +1548,7 @@ proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, pha
     else:
       i.float32 * PI * 2.0 / bulletCount.float32
 
-    let dir = newVector2f(cos(angle), sin(angle))
+    let dir = vec2(cos(angle), sin(angle))
 
     # Randomize speed ±25% for chaos
     let speed = if isChaosAttack:
@@ -1591,7 +1589,7 @@ proc execBossAttackBarrage(game: var Game, enemy: Enemy, attack: BossAttack, pha
 
   spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
 
-proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # Expanding ring with multiple thematic variants
   # SpecialData modes:
   # - "electric_discharge": Electric shockwave with crackling particles (Boss 6)
@@ -1633,7 +1631,7 @@ proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase
         let ang = gapAng + GapHalf + (i.float32 + 0.5'f32) / RingCount.float32 * arcSpan
         game.bullets.add(newBullet(
           x = enemy.pos.x, y = enemy.pos.y,
-          direction = newVector2f(cos(ang), sin(ang)),
+          direction = vec2(cos(ang), sin(ang)),
           speed = ringSpeeds[ring],
           damage = attack.damage * phase.damageMultiplier,
           fromPlayer = false, isBossBullet = true, sourceEnemyId = enemy.id,
@@ -1685,7 +1683,7 @@ proc execBossAttackPulse(game: var Game, enemy: Enemy, attack: BossAttack, phase
   # Create expanding pulse ring
   for i in 0..<bulletCount:
     let angle = i.float32 * PI * 2.0 / bulletCount.float32
-    let dir = newVector2f(cos(angle), sin(angle))
+    let dir = vec2(cos(angle), sin(angle))
     spawnBossBullet(game, enemy, attack, phase, dir)
 
   # MODE-SPECIFIC VISUAL ENHANCEMENTS
@@ -1903,17 +1901,17 @@ proc livingLegionFodderCount(game: Game): int =
     if other.spawnedByBoss and not other.royalGuard and other.hp > 0:
       result += 1
 
-proc legionSlotBlocked(game: Game, pos: Vector2f, radius: float32): bool =
+proc legionSlotBlocked(game: Game, pos: Vector2, radius: float32): bool =
   ## A slot inside a standing dungeon obstacle would wedge its legionnaire.
   for wall in game.walls:
     if wall.hp > 0 and wallOverlapsCircle(wall, pos, radius):
       return true
 
-proc clampToArena(game: Game, pos: Vector2f, pad: float32): Vector2f =
-  newVector2f(clamp(pos.x, pad, game.screenWidth.float32 - pad),
+proc clampToArena(game: Game, pos: Vector2, pad: float32): Vector2 =
+  vec2(clamp(pos.x, pad, game.screenWidth.float32 - pad),
               clamp(pos.y, pad, game.screenHeight.float32 - pad))
 
-proc raiseLegionnaire(game: var Game, pos: Vector2f, enemyType: EnemyType, guard: bool) =
+proc raiseLegionnaire(game: var Game, pos: Vector2, enemyType: EnemyType, guard: bool) =
   # Fixed stat difficulty: summons never outscale the fight they belong to.
   # newEnemy primes each type's movement state (triangles start mid wind-up),
   # which on a ring 300 px out is the right beat for a first dash.
@@ -1938,7 +1936,7 @@ proc raiseLegionnaire(game: var Game, pos: Vector2f, enemyType: EnemyType, guard
                        (if guard: RoyalGuardGold else: Color(r: 90, g: 230, b: 110, a: 255)),
                        (if guard: 14 else: 5))
 
-proc musterRing(game: var Game, center: Vector2f, ringR: float32,
+proc musterRing(game: var Game, center: Vector2, ringR: float32,
                 fodder, guards: int, fodderType: EnemyType) =
   ## One ring around `center`, guards spread evenly through it.
   let total = fodder + guards
@@ -1950,7 +1948,7 @@ proc musterRing(game: var Game, center: Vector2f, ringR: float32,
   let spin = rand(PI * 2.0)
   for i in 0..<total:
     let a = spin + i.float32 * PI * 2.0 / total.float32
-    let pos = clampToArena(game, center + newVector2f(cos(a), sin(a)) * ringR, 24.0'f32)
+    let pos = clampToArena(game, center + vec2(cos(a), sin(a)) * ringR, 24.0'f32)
     raiseLegionnaire(game, pos, fodderType, uint8(i) in guardSlots)
 
 proc encircleRing(game: var Game, fodder: int) =
@@ -1963,14 +1961,14 @@ proc encircleRing(game: var Game, fodder: int) =
   let spin = rand(PI * 2.0)
   for i in 0..<fodder:
     let a = spin + i.float32 * PI * 2.0 / fodder.float32
-    let raw = game.player.pos + newVector2f(cos(a), sin(a)) * LegionEncircleRadius
+    let raw = game.player.pos + vec2(cos(a), sin(a)) * LegionEncircleRadius
     let pos = clampToArena(game, raw, 24.0'f32)
     if distance(pos, game.player.pos) < LegionEncircleMinGap or
        legionSlotBlocked(game, pos, 14.0'f32):
       continue
     raiseLegionnaire(game, pos, (if i mod 4 == 3: etTriangle else: etCircle), false)
 
-proc execBossAttackSummon(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackSummon(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   let guards = legionGuardCount(attack.specialData)
   let fodder = clamp(LegionFodderCap - livingLegionFodderCount(game), 0, attack.projectileCount)
   let ringR = enemy.radius + LegionMusterRing
@@ -1995,7 +1993,7 @@ proc execBossAttackSummon(game: var Game, enemy: Enemy, attack: BossAttack, phas
 
   spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 15)
 
-proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # Falling projectiles from above, screen-wide barrage with a guaranteed dodge gap
   # SpecialData modes:
   # - "warn_impact":    Show warnings before meteors arrive
@@ -2082,7 +2080,7 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
     let rockR = (if attack.bulletRadius > 0: attack.bulletRadius else: 9.0'f32) * 1.25'f32
     let dirSign = if rand(1.0) < 0.5: 1.0'f32 else: -1.0'f32   # sweep left or right
     let ang = 0.45'f32 * dirSign                               # ~26deg from vertical
-    let dir = newVector2f(sin(ang), cos(ang))                  # down-and-sideways
+    let dir = vec2(sin(ang), cos(ang))                  # down-and-sideways
     # Anchor BOTH endpoints screen-relative and SOLVE the travel length, so the
     # spawn->impact distance is identical for every comet at any resolution (see
     # the boss-meteor resolution-scaling note). CRITICAL: the comet bullet is
@@ -2112,7 +2110,7 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
     let spacing = if count > 1: bandWidth / (count - 1).float32 else: 0.0'f32
     for k in 0 ..< count:
       let sx = bandLo + k.float32 * spacing                    # on-screen top entry
-      let spawn = newVector2f(sx, spawnY)
+      let spawn = vec2(sx, spawnY)
       let impact = spawn + dir * travel                        # on-screen bottom impact
       var w = newAttackWarning(impact.x, impact.y, awtMeteor, warn, enemy.id)
       w.targetPos = spawn
@@ -2174,14 +2172,14 @@ proc execBossAttackMeteor(game: var Game, enemy: Enemy, attack: BossAttack, phas
 
   for targetX in meteorXs:
     var w = newAttackWarning(targetX, impactY, awtMeteor, warningTime, enemy.id)
-    w.targetPos = newVector2f(targetX, -50.0)   # bullet spawn point
+    w.targetPos = vec2(targetX, -50.0)   # bullet spawn point
     w.bulletSpeed = attack.projectileSpeed
     w.bulletDamage = attack.damage * phase.damageMultiplier
     w.bulletRadius = bRadius
     w.overrideColor = meteorColor
     game.attackWarnings.add(w)
 
-proc execBossAttackOrbit(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackOrbit(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # ORBITAL SATELLITE SYSTEM
   # Creates persistent satellites that orbit, shoot, and can be destroyed
   # SpecialData modes:
@@ -2230,7 +2228,7 @@ proc execBossAttackOrbit(game: var Game, enemy: Enemy, attack: BossAttack, phase
       for i in 0..<satsThisLayer:
         let angle = i.float32 * (PI * 2.0 / satsThisLayer.float32) + angleOffset
         enemy.satellites.add(OrbitalSatellite(
-          pos: newVector2f(
+          pos: vec2(
             enemy.pos.x + cos(angle) * layerRadius,
             enemy.pos.y + sin(angle) * layerRadius
           ),
@@ -2270,7 +2268,7 @@ proc execBossAttackOrbit(game: var Game, enemy: Enemy, attack: BossAttack, phase
           let ringY = enemy.pos.y + sin(angle) * ringRadius
           spawnExplosionPooled(game.particlePool, ringX, ringY, satelliteColor, 3)
 
-proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # CHAIN LIGHTNING SYSTEM
   # Chain mechanics with visual lightning arcs
   # SpecialData modes:
@@ -2294,7 +2292,7 @@ proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase
   # Create chain lightning in multiple directions
   for i in 0..<chainCount:
     let baseAngle = i.float32 * (PI * 2.0 / chainCount.float32) + rand(0.3)
-    let dir = newVector2f(cos(baseAngle), sin(baseAngle))
+    let dir = vec2(cos(baseAngle), sin(baseAngle))
 
     var currentDamage = attack.damage * phase.damageMultiplier
     var lastX = enemy.pos.x
@@ -2312,7 +2310,7 @@ proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase
         break
 
       # VISUAL: Persistent jagged lightning arc between chain points
-      spawnLightningBolt(game, newVector2f(lastX, lastY), newVector2f(chainX, chainY))
+      spawnLightningBolt(game, vec2(lastX, lastY), vec2(chainX, chainY))
 
       # Create bullet at chain point
       game.bullets.add(newBullet(
@@ -2339,7 +2337,7 @@ proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase
     if chainMode == "chain_storm" and rand(100) < 40:
       # 40% chance to create a branch
       let branchAngle = baseAngle + (if rand(2) == 0: 0.6 else: -0.6)
-      let branchDir = newVector2f(cos(branchAngle), sin(branchAngle))
+      let branchDir = vec2(cos(branchAngle), sin(branchAngle))
       let branchDist = 120.0
       let branchX = enemy.pos.x + branchDir.x * branchDist
       let branchY = enemy.pos.y + branchDir.y * branchDist
@@ -2347,7 +2345,7 @@ proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase
       if branchX > 0 and branchX < game.screenWidth.float32 and
          branchY > 0 and branchY < game.screenHeight.float32:
         # VISUAL: Persistent lightning arc for branch
-        spawnLightningBolt(game, enemy.pos, newVector2f(branchX, branchY))
+        spawnLightningBolt(game, enemy.pos, vec2(branchX, branchY))
 
         game.bullets.add(newBullet(
           x = branchX, y = branchY,
@@ -2367,7 +2365,7 @@ proc execBossAttackChain(game: var Game, enemy: Enemy, attack: BossAttack, phase
 
   spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, explosionColor, explosionSize)
 
-proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # Teleport to new location and shoot - customized via specialData
   # "afterimage_burst" = creates multiple images with burst effect
   # "triple_clone" = teleports to 3 locations simultaneously
@@ -2396,7 +2394,7 @@ proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, ph
   # being accepted too close (the old fail-open was the "teleported onto me"
   # bug).
   let minTeleportDist = 200.0'f32 + enemy.radius + game.player.radius
-  var teleportWarningPositions: seq[Vector2f] = @[]
+  var teleportWarningPositions: seq[Vector2] = @[]
   for t in 0..<teleportCount:
     var newX, newY: float32
     var attempts = 0
@@ -2412,13 +2410,13 @@ proc execBossAttackTeleport(game: var Game, enemy: Enemy, attack: BossAttack, ph
         break
     if not farEnough:
       # Push the last roll out to the legal ring around the player.
-      var away = newVector2f(newX, newY) - game.player.pos
+      var away = vec2(newX, newY) - game.player.pos
       if away.x == 0 and away.y == 0:
-        away = newVector2f(1.0'f32, 0.0'f32)
+        away = vec2(1.0'f32, 0.0'f32)
       let pushed = game.player.pos + away.normalize() * minTeleportDist
       newX = clamp(pushed.x, enemy.radius, game.screenWidth.float32 - enemy.radius)
       newY = clamp(pushed.y, enemy.radius, game.screenHeight.float32 - enemy.radius)
-    teleportWarningPositions.add(newVector2f(newX, newY))
+    teleportWarningPositions.add(vec2(newX, newY))
 
   # Create pre-warning indicators at each teleport location
   let warningDuration = case teleportMode
@@ -2499,14 +2497,14 @@ proc chargeComboLength(specialData: string): int =
   of "rage_charge": 3
   else: 1
 
-proc juggernautChargeTarget(start, playerPos: Vector2f, pad: float32,
-                            screenWidth, screenHeight: int32): Vector2f =
+proc juggernautChargeTarget(start, playerPos: Vector2, pad: float32,
+                            screenWidth, screenHeight: int32): Vector2 =
   ## Through the player's spot and JuggernautChargeOvershoot beyond it, so a
   ## charge that is not sidestepped always connects. Shortened ALONG the line
   ## to stay on screen: a per-axis clamp would bend the lane off the player.
   let toPlayer = playerPos - start
   let d = toPlayer.length()
-  let dir = if d > 0.01'f32: toPlayer * (1.0'f32 / d) else: newVector2f(1, 0)
+  let dir = if d > 0.01'f32: toPlayer * (1.0'f32 / d) else: vec2(1, 0)
   var dist = clamp(d + JuggernautChargeOvershoot,
                    JuggernautChargeMinDist, JuggernautChargeMaxDist)
   let maxX = screenWidth.float32 - pad
@@ -2527,7 +2525,7 @@ proc beginChargeAim(game: Game, enemy: Enemy, windup: float32) =
   ## Plants the Juggernaut for a tracking wind-up of `windup` seconds.
   enemy.pendingDashLocked = true  # holds the body still at pendingDashStart
   enemy.pendingDashStart = enemy.pos
-  enemy.vel = newVector2f(0, 0)
+  enemy.vel = vec2(0, 0)
   enemy.chargeTimer = windup
   trackChargeLine(game, enemy)
 
@@ -2598,7 +2596,7 @@ proc launchCharge(game: var Game, enemy: Enemy) =
   let start = enemy.pendingDashStart
   let target = enemy.pendingDashTarget
   let dist = distance(start, target)
-  let dir = if dist > 0.01'f32: (target - start).normalize() else: newVector2f(1, 0)
+  let dir = if dist > 0.01'f32: (target - start).normalize() else: vec2(1, 0)
   let speed = max(enemy.dashVelocity.length(), 1.0'f32)  # locked at commit
   # The last charge of a multi-charge combo is the big one.
   let finale = enemy.chargeState == ccReaim and enemy.chargesLeft == 1
@@ -2608,7 +2606,6 @@ proc launchCharge(game: var Game, enemy: Enemy) =
   enemy.dashVelocity = dir * speed
   enemy.vel = enemy.dashVelocity
   enemy.dashDuration = dist / speed
-  enemy.dashMaxDuration = enemy.dashDuration
   enemy.dashTargetPos = target
   enemy.pendingDashLocked = false
   enemy.chargeState = ccCharging
@@ -2624,7 +2621,7 @@ proc launchCharge(game: var Game, enemy: Enemy) =
                            start.x + cos(angle) * 60.0, start.y + sin(angle) * 60.0,
                            Color(r: 255, g: 50, b: 0, a: 255), 5)
 
-proc endChargeComboCharge*(game: var Game, enemy: Enemy) =
+proc endChargeComboCharge*(game: var Game, enemy: Enemy) {.moddable.} =
   ## Called by game.nim on the frame a charge reaches its locked endpoint.
   if enemy.chargeState != ccCharging:
     return
@@ -2638,7 +2635,7 @@ proc endChargeComboCharge*(game: var Game, enemy: Enemy) =
     enemy.chargeState = ccWinded
     enemy.chargeTimer = JuggernautChargeWinded
 
-proc updateChargeCombo*(game: var Game, enemy: Enemy, dt: float32) =
+proc updateChargeCombo*(game: var Game, enemy: Enemy, dt: float32) {.moddable.} =
   ## Ticks the windup / reaim / winded beats. The charge itself moves through
   ## the shared boss-dash block in game.nim.
   case enemy.chargeState
@@ -2666,11 +2663,11 @@ proc updateChargeCombo*(game: var Game, enemy: Enemy, dt: float32) =
       enemy.chargeTimer = 0
       enemy.chargeState = ccIdle
 
-proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # Generic boss dash (the Void Dancer's blink-dash, the Timekeeper's lunge).
   # The Juggernaut's charges never reach this: they run as a charge combo.
   var dashStart = enemy.pos
-  var dashTarget: Vector2f
+  var dashTarget: Vector2
   var dashDist: float32
   if enemy.pendingDashLocked:
     dashStart = enemy.pendingDashStart
@@ -2711,7 +2708,6 @@ proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase:
   enemy.dashVelocity = dashDir * dashSpeed
   enemy.vel = enemy.dashVelocity
   enemy.dashDuration = dashTime
-  enemy.dashMaxDuration = dashTime
   enemy.dashTargetPos = dashTarget
   enemy.pendingDashLocked = false
 
@@ -2733,7 +2729,7 @@ proc execBossAttackDash(game: var Game, enemy: Enemy, attack: BossAttack, phase:
 
   spawnExplosionPooled(game.particlePool, enemy.pos.x, enemy.pos.y, phase.color, 20)
 
-proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # PRECISION SNIPE SYSTEM - Boss 7 Orbital Commander
   # The snipe is SATELLITE fire: every shot originates from one of the boss's
   # live orbital satellites, dead-aimed at the player from that satellite's
@@ -2756,13 +2752,13 @@ proc execBossAttackSnipe(game: var Game, enemy: Enemy, attack: BossAttack, phase
     let sat = enemy.satellites[i mod enemy.satellites.len]
     let toTarget = game.player.pos - sat.pos
     let d = sqrt(toTarget.x * toTarget.x + toTarget.y * toTarget.y)
-    let dir = if d > 0.01: newVector2f(toTarget.x / d, toTarget.y / d)
-              else: newVector2f(1.0'f32, 0.0'f32)
+    let dir = if d > 0.01: vec2(toTarget.x / d, toTarget.y / d)
+              else: vec2(1.0'f32, 0.0'f32)
     spawnBossBullet(game, enemy, attack, phase, dir, origin = sat.pos)
     # Muzzle flash at the firing satellite, not the boss
     spawnExplosionPooled(game.particlePool, sat.pos.x, sat.pos.y, bulletColor, 8)
 
-proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2f) =
+proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition, toPlayer: Vector2) =
   # LEGION VOLLEY (Summoner King) - every living Royal Guard throws a short
   # spear of LegionVolleyFan shots at the player in unison, which makes the
   # guards the priority targets twice over. The rank and file never fire: a
@@ -2779,7 +2775,7 @@ proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack
       for k in 0..<LegionVolleyFan:
         let off = (k.float32 - (LegionVolleyFan - 1).float32 * 0.5'f32) * spearStep
         spawnBossBullet(game, enemy, attack, phase,
-                        newVector2f(cos(base + off), sin(base + off)), origin = other.pos)
+                        vec2(cos(base + off), sin(base + off)), origin = other.pos)
       spawnExplosionPooled(game.particlePool, other.pos.x, other.pos.y, RoyalGuardGold, 8)
       firedFromGuards += 1
 
@@ -2789,7 +2785,7 @@ proc execBossAttackMinionVolley(game: var Game, enemy: Enemy, attack: BossAttack
     let count = max(3, attack.projectileCount)
     for i in 0..<count:
       let offset = (i.float32 - count.float32 / 2.0) * attack.spreadAngle.degToRad() / count.float32
-      let dir = newVector2f(cos(baseAngle + offset), sin(baseAngle + offset))
+      let dir = vec2(cos(baseAngle + offset), sin(baseAngle + offset))
       spawnBossBullet(game, enemy, attack, phase, dir)
   else:
     # Green command pulse from the boss telegraphs that the legion just fired.
@@ -2821,13 +2817,13 @@ const LaserOverlapSuppressed* = {bapTargeted, bapBurst, bapWave, bapBarrage,
   ## player is already reading, whereas an aimed volley on top of a beam wall
   ## removes the one lane the beam left open.
 
-proc bossLaserActiveDuration*(configuredDuration: float32): float32 =
+proc bossLaserActiveDuration*(configuredDuration: float32): float32 {.moddable.} =
   ## The single formula turning a definition's configured beam duration into the
   ## lethal window. Both the spawn site (game.nim) and the threat estimate below
   ## go through it so they can never disagree about how long a beam lives.
   configuredDuration * LaserActiveDurationScale
 
-proc bossLaserThreatRemaining*(game: Game): float32 =
+proc bossLaserThreatRemaining*(game: Game): float32 {.moddable.} =
   ## Seconds until the arena is free of beam-like threat: the longest remaining
   ## life among live lasers, beam warnings still in their telegraph (telegraph
   ## plus the lethal window it will become), and any live Orbital Sweep wall.
@@ -2852,14 +2848,14 @@ proc bossLaserThreatRemaining*(game: Game): float32 =
   if result < LaserThreatFloor:
     result = 0.0
 
-proc thinnedForLaserOverlap*(attack: BossAttack): BossAttack =
+proc thinnedForLaserOverlap*(attack: BossAttack): BossAttack {.moddable.} =
   ## Halved-density copy of an aimed attack, for when it fires anyway because
   ## the beam window is too long to be worth waiting out.
   result = attack
   result.projectileCount = max(1, int(attack.projectileCount.float32 *
                                       LaserOverlapDensityScale))
 
-proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) =
+proc executeCustomBossAttack*(game: var Game, enemy: Enemy, attack: BossAttack, phase: BossPhaseDefinition, bossDef: BossDefinition) {.moddable.} =
   ## Executes a single boss attack based on its pattern type
   # Dungeon mode compresses boss attack damage toward the floor's threat
   # (boss definitions assume the player power of their wave-mode slot).

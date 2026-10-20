@@ -1,4 +1,5 @@
 import json, times, os
+import modding/mod_patch_core
 import save_system, types
 
 type
@@ -31,7 +32,7 @@ type
 var globalStats*: Statistics
 
 # INITIALIZATION
-proc initStatistics*(): Statistics =
+proc initStatistics*(): Statistics {.moddable.} =
   result = Statistics(
     waveMode: GameModeStats(
       gamesPlayed: 0,
@@ -86,7 +87,7 @@ proc initStatistics*(): Statistics =
   )
   globalStats = result
 
-proc resetStatistics*(stats: Statistics) =
+proc resetStatistics*(stats: Statistics) {.moddable.} =
   ## Reset an existing statistics object in place so any UI references stay valid.
   if stats.isNil:
     return
@@ -121,6 +122,7 @@ proc gameModeStatsToJson(stats: GameModeStats): JsonNode =
   }
 
 proc jsonToGameModeStats(jsonNode: JsonNode, stats: var GameModeStats) =
+  needObject(jsonNode)
   if jsonNode.hasKey("gamesPlayed"):
     stats.gamesPlayed = jsonNode["gamesPlayed"].getInt()
   if jsonNode.hasKey("totalKills"):
@@ -148,7 +150,7 @@ proc jsonToGameModeStats(jsonNode: JsonNode, stats: var GameModeStats) =
   if jsonNode.hasKey("longestSurvivalTime"):
     stats.longestSurvivalTime = jsonNode["longestSurvivalTime"].getFloat()
 
-proc statisticsToJson*(stats: Statistics): JsonNode =
+proc statisticsToJson(stats: Statistics): JsonNode {.moddable.} =
   result = %* {
     "waveMode": gameModeStatsToJson(stats.waveMode),
     "timeMode": gameModeStatsToJson(stats.timeMode),
@@ -160,7 +162,8 @@ proc statisticsToJson*(stats: Statistics): JsonNode =
     "defeatedBossIDs": stats.defeatedBossIDs
   }
 
-proc jsonToStatistics*(jsonNode: JsonNode, stats: Statistics) =
+proc jsonToStatistics(jsonNode: JsonNode, stats: Statistics) {.moddable.} =
+  needObject(jsonNode)
   if jsonNode.hasKey("waveMode"):
     jsonToGameModeStats(jsonNode["waveMode"], stats.waveMode)
   if jsonNode.hasKey("timeMode"):
@@ -177,11 +180,11 @@ proc jsonToStatistics*(jsonNode: JsonNode, stats: Statistics) =
     stats.lastPlayDate = jsonNode["lastPlayDate"].getStr()
   if jsonNode.hasKey("defeatedBossIDs"):
     stats.defeatedBossIDs = @[]
-    for idNode in jsonNode["defeatedBossIDs"]:
+    for idNode in jsonItems(jsonNode["defeatedBossIDs"]):
       stats.defeatedBossIDs.add(idNode.getInt())
 
 # HELPER FUNCTIONS
-proc formatTime*(seconds: float32): string =
+proc formatTime*(seconds: float32): string {.moddable.} =
   let totalSecs = int(seconds)
   let hours = totalSecs div 3600
   let minutes = (totalSecs mod 3600) div 60
@@ -200,7 +203,7 @@ proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
                          timeSurvived: float32, kills: int, coins: int,
                          bossesKilled: int, died: bool,
                          newGame: bool = true, runKills: int = -1, runCoins: int = -1,
-                         runTime: float32 = -1.0'f32) =
+                         runTime: float32 = -1.0'f32) {.moddable.} =
   ## Only the three real progression modes have lifetime records. Sandbox, PvP
   ## and the 3D boss used to fall through into the time-survival bucket and
   ## pollute its games/kills/best-score totals.
@@ -267,7 +270,7 @@ proc updateStatsForMode*(stats: Statistics, mode: GameMode, scoreReached: int,
         (modeStats.averageWaveReached * float32(modeStats.gamesPlayed - 1) + float32(scoreReached)) /
         float32(modeStats.gamesPlayed)
 
-proc markBossDefeated*(stats: Statistics, bossDefinitionID: int) =
+proc markBossDefeated*(stats: Statistics, bossDefinitionID: int) {.moddable.} =
   ## Record that the player has defeated this boss at least once. Used to decide
   ## whether the boss's full phase layout may be revealed in the phase HUD.
   if stats.isNil or bossDefinitionID <= 0:
@@ -275,11 +278,11 @@ proc markBossDefeated*(stats: Statistics, bossDefinitionID: int) =
   if bossDefinitionID notin stats.defeatedBossIDs:
     stats.defeatedBossIDs.add(bossDefinitionID)
 
-proc hasDefeatedBoss*(stats: Statistics, bossDefinitionID: int): bool =
+proc hasDefeatedBoss*(stats: Statistics, bossDefinitionID: int): bool {.moddable.} =
   not stats.isNil and bossDefinitionID in stats.defeatedBossIDs
 
 # SAVE/LOAD
-proc saveStatistics*(stats: Statistics): bool =
+proc saveStatistics*(stats: Statistics): bool {.moddable.} =
   let savePath = getStatsPath()
   try:
     writeFile(savePath, statisticsToJson(stats).pretty())
@@ -289,7 +292,7 @@ proc saveStatistics*(stats: Statistics): bool =
     echo "Error saving statistics to ", savePath
     return false
 
-proc loadStatistics*(stats: Statistics): bool =
+proc loadStatistics*(stats: Statistics): bool {.moddable.} =
   let savePath = getStatsPath()
   if not fileExists(savePath):
     echo "No statistics file found at ", savePath, ", using default stats"

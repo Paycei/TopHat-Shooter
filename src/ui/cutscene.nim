@@ -7,6 +7,8 @@
 ## (lore_cinematic.nim, endgame_cinematic.nim, mode_intros.nim).
 
 import raylib, rlgl, math
+import ../modding/mod_patch_core
+import ../utils
 import ../localization, ../sound, ../gamepad_input, cinematic_common
 
 when defined(mobile):
@@ -82,7 +84,7 @@ proc newCutscene*(shots: seq[CutsceneShot],
                   cornerTag: string = "",
                   playbackSpeed: float32 = CutscenePlaybackSpeed,
                   speaker: string = StorySpeaker,
-                  captionCps: float32 = 46.0'f32): Cutscene =
+                  captionCps: float32 = 46.0'f32): Cutscene {.moddable.} =
   var total = 0.0'f32
   for s in shots: total += s.duration
   # Every cinematic factory takes the 3.0s default; capping here rather than
@@ -100,7 +102,7 @@ proc newCutscene*(shots: seq[CutsceneShot],
     fastForwardActive: false, skipHoldTimer: 0, lastShotPlayed: -1
   )
 
-proc shotAt*(c: Cutscene, time: float32): tuple[idx: int, local: float32, duration: float32] =
+proc shotAt(c: Cutscene, time: float32): tuple[idx: int, local: float32, duration: float32] {.moddable.} =
   var cursor = 0.0'f32
   for i, shot in c.shots:
     if time < cursor + shot.duration:
@@ -109,12 +111,12 @@ proc shotAt*(c: Cutscene, time: float32): tuple[idx: int, local: float32, durati
   let last = c.shots.high
   (last, c.shots[last].duration, c.shots[last].duration)
 
-proc shotFade*(local, duration: float32): float32 =
-  min(easeInOut(local / 1.35'f32), easeInOut((duration - local) / 1.55'f32))
+proc shotFade(local, duration: float32): float32 {.moddable.} =
+  min(smoothstep(local / 1.35'f32), smoothstep((duration - local) / 1.55'f32))
 
 # ---------------------------------------------------------------------------
 
-proc updateCutscene*(c: Cutscene, dt: float32) =
+proc updateCutscene*(c: Cutscene, dt: float32) {.moddable.} =
   ## The single input path for every cinematic in the game (the lore intro, the
   ## three endgame outros, and the five mode intros all route through here), so
   ## the mobile branch below is what makes all of them skippable at once.
@@ -161,7 +163,7 @@ proc updateCutscene*(c: Cutscene, dt: float32) =
   if c.time >= c.totalDuration:
     c.complete = true
 
-proc drawCutscene*(c: Cutscene, sw, sh: int) =
+proc drawCutscene*(c: Cutscene, sw, sh: int) {.moddable.} =
   let (idx, local, duration) = c.shotAt(c.time)
   let alpha = shotFade(local, duration)
   let shot  = c.shots[idx]
@@ -194,9 +196,9 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) =
 
   drawTapeChange(sW, sH, local, c.frame, c.time)
 
-  let fadeIn  = 1.0'f32 - easeInOut(c.time / 0.75'f32)
-  let fadeOut = easeInOut((c.time - (c.totalDuration - 0.9'f32)) / 0.9'f32)
-  let fadeA   = alphaByte(max(fadeIn, fadeOut) * 255.0'f32)
+  let fadeIn  = 1.0'f32 - smoothstep(c.time / 0.75'f32)
+  let fadeOut = smoothstep((c.time - (c.totalDuration - 0.9'f32)) / 0.9'f32)
+  let fadeA   = clampByteF(max(fadeIn, fadeOut) * 255.0'f32)
 
   let glitchHot = shot.glitchMod > 0 and (c.frame mod shot.glitchMod) < shot.glitchWindow
   let pad = isGamepadActive()
@@ -231,14 +233,14 @@ proc drawCutscene*(c: Cutscene, sw, sh: int) =
     let cy = sH div 2 - 30
     # A dark band behind the card: it reads as the tape's label laid over the
     # scene, not as text competing with it.
-    drawRectangle(0, cy - 34, sW, 128, Color(r: 0, g: 0, b: 0, a: alphaByte(a * 165.0'f32)))
+    drawRectangle(0, cy - 34, sW, 128, Color(r: 0, g: 0, b: 0, a: clampByteF(a * 165.0'f32)))
     let ruleW = (sW.float32 * 0.32'f32 * a).int32
-    drawRectangle(cx - ruleW, cy - 16, ruleW * 2, 2, colorA(c.accentColor, a * 170.0'f32))
-    drawRectangle(cx - ruleW, cy + 54, ruleW * 2, 2, colorA(c.accentColor, a * 170.0'f32))
+    drawRectangle(cx - ruleW, cy - 16, ruleW * 2, 2, withAlpha(c.accentColor, a * 170.0'f32))
+    drawRectangle(cx - ruleW, cy + 54, ruleW * 2, 2, withAlpha(c.accentColor, a * 170.0'f32))
     drawCenteredText(c.titleCardText, cx, cy, 40,
-                     Color(r: 255, g: 255, b: 255, a: alphaByte(a * 255.0'f32)))
+                     Color(r: 255, g: 255, b: 255, a: clampByteF(a * 255.0'f32)))
     drawCenteredText(c.titleCardSub, cx, (cy + 60).int32, 16,
-                     colorA(c.accentColor, a * 200.0'f32))
+                     withAlpha(c.accentColor, a * 200.0'f32))
 
   if fadeA > 0:
     drawRectangle(0, 0, sW, sH, Color(r: 0, g: 0, b: 0, a: fadeA))

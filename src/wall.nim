@@ -1,8 +1,9 @@
 import std/math, raylib
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, powerup, bullet, particle_pool, utils
 
-proc newWall*(x, y: float32, player: Player): Wall =
+proc newWall*(x, y: float32, player: Player): Wall {.moddable.} =
   # Calculate HP based on WallMaster powerup
   let baseHp = 10.0
   let wallMasterLevel = getPowerUpLevel(player, puWallMaster)
@@ -17,7 +18,7 @@ proc newWall*(x, y: float32, player: Player): Wall =
   let facing = arctan2(y - player.pos.y, x - player.pos.x)
 
   result = Wall(
-    pos: newVector2f(x, y),
+    pos: vec2(x, y),
     radius: 25,
     hp: maxHp,
     maxHp: maxHp,
@@ -29,7 +30,7 @@ proc newWall*(x, y: float32, player: Player): Wall =
     slabShape: not hasPowerUp(player, puWallTurrets)
   )
 
-proc updateWall*(wall: Wall, dt: float32): bool =
+proc updateWall*(wall: Wall, dt: float32): bool {.moddable.} =
   if wall.permanent:
     # Dungeon obstacles ignore the duration timer, but enemies (and bosses) can
     # now smash them: a permanent wall lives only while it still has HP.
@@ -146,13 +147,13 @@ proc drawTurretWall(wall: Wall) =
   drawDisc(eye, r * 0.17'f32, Color(r: uint8(120 + heat * 135), g: uint8(35 + heat * 60), b: 35, a: 255))
   drawDisc(eye, r * 0.08'f32, Color(r: 255, g: uint8(160 + heat * 90), b: uint8(60 + heat * 120), a: 255))
 
-proc drawWall*(wall: Wall, player: Player) =
+proc drawWall*(wall: Wall, player: Player) {.moddable.} =
   if wall.permanent:
     # Dungeon obstacle: solid block tinted with the floor theme accent
     let tint = wall.obstacleTint
     let body = Color(r: uint8(tint.r div 3), g: uint8(tint.g div 3),
                      b: uint8(tint.b div 3), a: 255)
-    drawDisc(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, body)
+    drawDisc(wall.pos, wall.radius, body)
     drawCircleOutline(wall.pos.x.int32, wall.pos.y.int32, wall.radius, tint)
     drawCircleOutline(wall.pos.x.int32, wall.pos.y.int32, wall.radius * 0.55'f32,
                     withAlpha(tint, 120))
@@ -190,15 +191,15 @@ proc drawWall*(wall: Wall, player: Player) =
                   else: Color(r: 230, g: 80, b: 60, a: 255)
     drawRectangle(barX, barY, (barWidth * hpPercent).int32, barHeight.int32, fillCol)
 
-proc takeDamage*(wall: Wall, damage: float32) =
+proc takeDamage*(wall: Wall, damage: float32) {.moddable.} =
   wall.hp -= damage
   if wall.hp < 0: wall.hp = 0
 
-proc checkPlayerWallCollision*(playerPos: Vector2f, playerRadius: float32, wall: Wall): bool =
+proc checkPlayerWallCollision*(playerPos: Vector2, playerRadius: float32, wall: Wall): bool {.moddable.} =
   wallOverlapsCircle(wall, playerPos, playerRadius)
 
-proc isValidWallPlacement*(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall], enemies: seq[Enemy],
-                           radius: float32, worldWidth, worldHeight: int32): bool =
+proc isValidWallPlacement*(pos: Vector2, playerPos: Vector2, walls: seq[Wall], enemies: seq[Enemy],
+                           radius: float32, worldWidth, worldHeight: int32): bool {.moddable.} =
   ## `pos` is in WORLD coords. In the widescreen layout the cursor can sit in the
   ## side gutters, which is world x < 0 or x > worldWidth, so the arena bounds
   ## have to be rejected explicitly -- the pointer is no longer confined to the
@@ -225,7 +226,7 @@ proc isValidWallPlacement*(pos: Vector2f, playerPos: Vector2f, walls: seq[Wall],
 
 proc processWallTurret*(wall: var Wall, enemies: seq[Enemy], bullets: var seq[Bullet],
                         player: Player, particlePool: ParticlePool, dt: float32,
-                        screenWidth: int32, screenHeight: int32) =
+                        screenWidth: int32, screenHeight: int32) {.moddable.} =
   # Handles turret cooldown, target selection and bullet spawn for a single wall
   if not hasPowerUp(player, puWallTurrets):
     return
@@ -303,7 +304,7 @@ proc processWallTurret*(wall: var Wall, enemies: seq[Enemy], bullets: var seq[Bu
 
 proc processPendingWallRespawns*(pending: var seq[PendingWallRespawn], walls: var seq[Wall],
                                 enemies: seq[Enemy], player: Player, particlePool: ParticlePool,
-                                dt: float32) =
+                                dt: float32) {.moddable.} =
   var i = 0
   while i < pending.len:
     pending[i].timer -= dt

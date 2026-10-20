@@ -20,13 +20,9 @@ const
   ApplyKeys = ["duration", "stacks", "magnitude"]
   BuiltinEnemyStatuses = ["fire", "poison", "slow", "frost"]
 
-proc finiteNum(vm: VM, v: ScriptValue, what: string): float32 =
-  if v.kind == vkNumber and abs(v.n) < 1.0e9: return v.n.float32
-  vm.runtimeError(what & " must be a finite number")
-
 proc fnOf(vm: VM, t: ScriptTable, key, what: string): ScriptValue =
   result = rawGetStr(t, key)
-  if result.kind notin {vkNil, vkFunction, vkNative}:
+  if result.kind notin {vkNil, vkFunction}:
     vm.runtimeError(what & "." & key & " must be a function")
 
 # --------------------------------------------------------------- statuses ----
@@ -45,14 +41,14 @@ proc readApply(vm: VM, v: ScriptValue, fname: string): ApplyOpts =
   vm.checkKeys(v.tbl, ApplyKeys, fname)
   let d = rawGetStr(v.tbl, "duration")
   if d.kind != vkNil:
-    result.duration = vm.finiteNum(d, fname & ".duration")
+    result.duration = vm.finite(d, fname & ".duration")
     result.hasDuration = true
   let m = rawGetStr(v.tbl, "magnitude")
   if m.kind != vkNil:
-    result.magnitude = vm.finiteNum(m, fname & ".magnitude")
+    result.magnitude = vm.finite(m, fname & ".magnitude")
     result.hasMagnitude = true
   let s = rawGetStr(v.tbl, "stacks")
-  if s.kind != vkNil: result.stacks = clamp(int(vm.finiteNum(s, fname & ".stacks")), 1, 1000)
+  if s.kind != vkNil: result.stacks = max(int(vm.finite(s, fname & ".stacks")), 1)
 
 proc statusTable(inst: ModStatusInst): ScriptValue =
   let t = newScriptTable()
@@ -83,11 +79,11 @@ proc installStatuses(base: ScriptTable) =
     let ic = rawGetStr(t, "icon")
     if ic.kind != vkNil: d.iconTex = vm.textureId(ic, "register.status.icon")
     let ms = rawGetStr(t, "maxStacks")
-    if ms.kind != vkNil: d.maxStacks = clamp(int(vm.finiteNum(ms, "register.status.maxStacks")), 1, 1000)
+    if ms.kind != vkNil: d.maxStacks = max(int(vm.finite(ms, "register.status.maxStacks")), 1)
     let du = rawGetStr(t, "duration")
-    if du.kind != vkNil: d.duration = vm.finiteNum(du, "register.status.duration")
+    if du.kind != vkNil: d.duration = vm.finite(du, "register.status.duration")
     let ti = rawGetStr(t, "tickInterval")
-    if ti.kind != vkNil: d.tickInterval = max(0'f32, vm.finiteNum(ti, "register.status.tickInterval"))
+    if ti.kind != vkNil: d.tickInterval = max(0'f32, vm.finite(ti, "register.status.tickInterval"))
     if d.tickInterval > 0 and d.tickInterval < 0.05: d.tickInterval = 0.05
     let mods2 = rawGetStr(t, "modifiers")
     if mods2.kind == vkTable:
@@ -95,7 +91,7 @@ proc installStatuses(base: ScriptTable) =
       for (field, dest) in [("speed", addr d.speed), ("damageTaken", addr d.damageTaken),
                             ("damageDealt", addr d.damageDealt)]:
         let v = rawGetStr(mods2.tbl, field)
-        if v.kind != vkNil: dest[] = vm.finiteNum(v, "register.status.modifiers." & field)
+        if v.kind != vkNil: dest[] = vm.finite(v, "register.status.modifiers." & field)
     elif mods2.kind != vkNil: vm.runtimeError("register.status.modifiers must be a table")
     for (field, dest) in [("onApply", addr d.onApply), ("onTick", addr d.onTick),
                           ("onExpire", addr d.onExpire), ("draw", addr d.draw)]:
@@ -122,10 +118,10 @@ proc installStatuses(base: ScriptTable) =
       applyEffect(e, etPoison, (if o.hasMagnitude: o.magnitude else: 1'f32), dur, "mod")
       ret.setRet(TrueValue)
     of "slow":
-      applySlow(e, clamp((if o.hasMagnitude: o.magnitude else: 0.4'f32), 0'f32, 0.95'f32), dur)
+      applySlow(e, clamp((if o.hasMagnitude: o.magnitude else: 0.4'f32), 0'f32, 1'f32), dur)
       ret.setRet(TrueValue)
     of "frost":
-      applyFrostChill(e, clamp((if o.hasMagnitude: o.magnitude else: 0.25'f32), 0'f32, 0.95'f32))
+      applyFrostChill(e, clamp((if o.hasMagnitude: o.magnitude else: 0.25'f32), 0'f32, 1'f32))
       ret.setRet(TrueValue)
     else:
       discard vm.statusKey(name, "enemy:applyStatus")
@@ -231,7 +227,7 @@ proc installDifficulty(base: ScriptTable) =
     for l in DifficultyLever:
       let v = rawGetStr(t, $l)
       if v.kind != vkNil:
-        modDifficultyScale[ord(l)] = clamp(vm.finiteNum(v, "difficulty.scale." & $l), 0.05'f32, 20'f32)
+        modDifficultyScale[ord(l)] = max(vm.finite(v, "difficulty.scale." & $l), 0.001'f32)   # (spawn pace divides by it)
   diffT.reg("get") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## difficulty.get() -> {profile = "gdHard", enemyHp = .., ...} (the scale in force)
     let t = newScriptTable()
@@ -239,7 +235,6 @@ proc installDifficulty(base: ScriptTable) =
     for l in DifficultyLever: rawSet(t, vstr($l), vnum(modDifficultyScale[ord(l)].float64))
     ret.setRet(vtable(t))
   rawSet(base, vstr("difficulty"), vtable(diffT))
-
 
 # =========================================================== M3 registries ====
 const
@@ -253,7 +248,7 @@ const
   WeightKeys = ["boot", "runtime", "overload", "panic"]
   AdvancementKeys = ["id", "name", "description", "icon", "color", "goal", "hidden"]
 
-proc readStats*(vm: VM, v: ScriptValue, what: string): seq[StatDelta] =
+proc readStats(vm: VM, v: ScriptValue, what: string): seq[StatDelta] =
   ## The `stats` DSL: {damage = "+10%", maxHp = 2, fireRate = "x0.95", walls = "=10"}.
   if v.kind == vkNil: return
   if v.kind != vkTable: vm.runtimeError(what & ".stats must be a table {field = change}")
@@ -269,16 +264,8 @@ proc readIcon(vm: VM, t: ScriptTable, what: string, tex: var int, fn: var Script
   let ic = rawGetStr(t, "icon")
   case ic.kind
   of vkNil: discard
-  of vkFunction, vkNative: fn = ic
+  of vkFunction: fn = ic
   else: tex = vm.textureId(ic, what & ".icon")
-
-proc colorOr(vm: VM, t: ScriptTable, what: string, def: Color): Color =
-  let c = rawGetStr(t, "color")
-  if c.kind == vkNil: def else: parseColor(vm, c, what & ".color")
-
-proc numOr(vm: VM, t: ScriptTable, key, what: string, def: float32): float32 =
-  let v = rawGetStr(t, key)
-  if v.kind == vkNil: def else: vm.finiteNum(v, what & "." & key)
 
 proc installRegistries(base: ScriptTable) =
   let registerT = rawGetStr(base, "register").tbl
@@ -294,9 +281,9 @@ proc installRegistries(base: ScriptTable) =
     var d = ConsumableDef(key: key, owner: owner, weight: 5)
     (d.nameEn, d.nameEs) = vm.textPair(rawGetStr(t, "name"), "register.consumable.name")
     if d.nameEn.len == 0: d.nameEn = key.split(':')[1]
-    d.color = vm.colorOr(t, "register.consumable", Color(r: 120, g: 200, b: 255, a: 255))
+    d.color = vm.colorField(t, "color", "register.consumable", Color(r: 120, g: 200, b: 255, a: 255))
     vm.readIcon(t, "register.consumable", d.iconTex, d.icon)
-    d.weight = max(0'f32, vm.numOr(t, "weight", "register.consumable", 5))
+    d.weight = max(0'f32, vm.numField(t, "weight", "register.consumable", 5))
     d.modes = vm.parseModes(rawGetStr(t, "modes"))
     d.stats = vm.readStats(rawGetStr(t, "stats"), "register.consumable")
     d.onPickup = vm.fnOf(t, "onPickup", "register.consumable")
@@ -316,12 +303,12 @@ proc installRegistries(base: ScriptTable) =
     (d.nameEn, d.nameEs) = vm.textPair(rawGetStr(t, "name"), "register.shopItem.name")
     if d.nameEn.len == 0: d.nameEn = key.split(':')[1]
     (d.descEn, d.descEs) = vm.textPair(rawGetStr(t, "description"), "register.shopItem.description")
-    d.color = vm.colorOr(t, "register.shopItem", Color(r: 120, g: 220, b: 160, a: 255))
+    d.color = vm.colorField(t, "color", "register.shopItem", Color(r: 120, g: 220, b: 160, a: 255))
     vm.readIcon(t, "register.shopItem", d.iconTex, d.icon)
-    d.cost = clamp(int(vm.numOr(t, "cost", "register.shopItem", 10)), 0, 1_000_000)
-    d.costMult = clamp(vm.numOr(t, "costMult", "register.shopItem", 1.8), 1'f32, 10'f32)
-    d.maxBuys = clamp(int(vm.numOr(t, "maxBuys", "register.shopItem", 0)), 0, 1000)
-    d.minWave = max(0, int(vm.numOr(t, "minWave", "register.shopItem", 0)))
+    d.cost = max(int(vm.numField(t, "cost", "register.shopItem", 10)), 0)
+    d.costMult = max(vm.numField(t, "costMult", "register.shopItem", 1.8), 0'f32)
+    d.maxBuys = max(int(vm.numField(t, "maxBuys", "register.shopItem", 0)), 0)
+    d.minWave = max(0, int(vm.numField(t, "minWave", "register.shopItem", 0)))
     d.modes = vm.parseModes(rawGetStr(t, "modes"))
     d.stats = vm.readStats(rawGetStr(t, "stats"), "register.shopItem")
     d.onBuy = vm.fnOf(t, "onBuy", "register.shopItem")
@@ -341,10 +328,10 @@ proc installRegistries(base: ScriptTable) =
     (d.nameEn, d.nameEs) = vm.textPair(rawGetStr(t, "name"), "register.patch.name")
     if d.nameEn.len == 0: d.nameEn = key.split(':')[1]
     (d.descEn, d.descEs) = vm.textPair(rawGetStr(t, "description"), "register.patch.description")
-    d.color = vm.colorOr(t, "register.patch", Color(r: 170, g: 140, b: 255, a: 255))
+    d.color = vm.colorField(t, "color", "register.patch", Color(r: 170, g: 140, b: 255, a: 255))
     vm.readIcon(t, "register.patch", d.iconTex, d.icon)
-    d.weight = max(0'f32, vm.numOr(t, "weight", "register.patch", 1))
-    d.minFloor = max(1, int(vm.numOr(t, "minFloor", "register.patch", 1)))
+    d.weight = max(0'f32, vm.numField(t, "weight", "register.patch", 1))
+    d.minFloor = max(1, int(vm.numField(t, "minFloor", "register.patch", 1)))
     d.stats = vm.readStats(rawGetStr(t, "stats"), "register.patch")
     d.onInstall = vm.fnOf(t, "onInstall", "register.patch")
     d.update = vm.fnOf(t, "update", "register.patch")
@@ -368,16 +355,16 @@ proc installRegistries(base: ScriptTable) =
     (d.nameEn, d.nameEs) = vm.textPair(rawGetStr(t, "name"), "register.survivalEvent.name")
     if d.nameEn.len == 0: d.nameEn = key.split(':')[1]
     (d.hintEn, d.hintEs) = vm.textPair(rawGetStr(t, "hint"), "register.survivalEvent.hint")
-    d.color = vm.colorOr(t, "register.survivalEvent", Color(r: 120, g: 200, b: 255, a: 255))
+    d.color = vm.colorField(t, "color", "register.survivalEvent", Color(r: 120, g: 200, b: 255, a: 255))
     let w = rawGetStr(t, "weights")
     if w.kind == vkTable:
       vm.checkKeys(w.tbl, WeightKeys, "register.survivalEvent.weights")
       for i, name in WeightKeys:
         let v = rawGetStr(w.tbl, name)
-        d.weights[i] = if v.kind == vkNil: 0'f32 else: max(0'f32, vm.finiteNum(v, "weights." & name))
+        d.weights[i] = if v.kind == vkNil: 0'f32 else: max(0'f32, vm.finite(v, "weights." & name))
     elif w.kind != vkNil: vm.runtimeError("register.survivalEvent.weights must be a table")
-    d.duration = max(0'f32, vm.numOr(t, "duration", "register.survivalEvent", 20))
-    d.warmup = max(0'f32, vm.numOr(t, "warmup", "register.survivalEvent", 2))
+    d.duration = max(0'f32, vm.numField(t, "duration", "register.survivalEvent", 20))
+    d.warmup = max(0'f32, vm.numField(t, "warmup", "register.survivalEvent", 2))
     let rw = rawGetStr(t, "reward")
     case rw.kind
     of vkNil: discard
@@ -409,11 +396,11 @@ proc installRegistries(base: ScriptTable) =
     (d.nameEn, d.nameEs) = vm.textPair(rawGetStr(t, "name"), "register.advancement.name")
     if d.nameEn.len == 0: d.nameEn = key.split(':')[1]
     (d.descEn, d.descEs) = vm.textPair(rawGetStr(t, "description"), "register.advancement.description")
-    d.color = vm.colorOr(t, "register.advancement", Color(r: 255, g: 210, b: 80, a: 255))
+    d.color = vm.colorField(t, "color", "register.advancement", Color(r: 255, g: 210, b: 80, a: 255))
     var fn = NilValue
     vm.readIcon(t, "register.advancement", d.iconTex, fn)
     if fn.kind != vkNil: vm.runtimeError("register.advancement.icon must be a texture")
-    d.goal = clamp(int(vm.numOr(t, "goal", "register.advancement", 1)), 1, 1_000_000_000)
+    d.goal = max(int(vm.numField(t, "goal", "register.advancement", 1)), 1)
     d.hidden = truthy(rawGetStr(t, "hidden"))
     addAdvancementDef(d)
     ret.setRet(vstr(key))
@@ -425,8 +412,6 @@ proc installRegistries(base: ScriptTable) =
     var key = vm.checkStr(args, 0, fname)
     if ':' notin key: key = mods[owner].id & ":" & key
     if findAdvancement(key) < 0: vm.argError(fname, 0, "no achievement '" & key & "' (register.advancement it)")
-    if advancementDefs[findAdvancement(key)].owner != owner:
-      vm.argError(fname, 0, "'" & key & "' belongs to another mod")
     key
   advT.reg("progress") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## advancements.progress(id [, amount = 1]) -> true when this unlocked it

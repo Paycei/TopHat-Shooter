@@ -1,4 +1,5 @@
 import raylib, math, random
+import modding/mod_patch_core
 import particle_types, types
 
 type
@@ -8,12 +9,11 @@ type
     siMedium,     # 2-3px for enemy kill
     siLarge,      # 3-5px for boss hit
     siMassive,    # 8-12px for boss kill
-    siCritical,   # Double intensity for crits
     siPowerUp     # 4px for power-up collection
 
-proc newScreenShake*(): ScreenShake =
+proc newScreenShake*(): ScreenShake {.moddable.} =
   result = ScreenShake(
-    offset: Vector2f(x: 0, y: 0),
+    offset: Vector2(x: 0, y: 0),
     intensity: 0,
     duration: 0,
     maxDuration: 0,
@@ -22,7 +22,7 @@ proc newScreenShake*(): ScreenShake =
   )
 
 proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity,
-               tint: Color = Color(r: 0, g: 0, b: 0, a: 0)) =
+               tint: Color = Color(r: 0, g: 0, b: 0, a: 0)) {.moddable.} =
   ## Add screen shake with specified intensity and optional color tint.
   ##
   ## These used to be tuned "SUBTLE": a kill moved the camera 0.6-1.0 px and a
@@ -48,9 +48,6 @@ proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity,
     shake.intensity = max(shake.intensity, float32(rand(9.0..13.0)))
     shake.duration = 0.3
     shake.decayRate = 0.5  # Slow decay for dramatic effect
-  of siCritical:
-    shake.intensity = max(shake.intensity, float32(rand(1.8..2.8)) * 1.5)
-    shake.duration = 0.09
   of siPowerUp:
     shake.intensity = max(shake.intensity, 5.0)
     shake.duration = 0.2
@@ -58,7 +55,7 @@ proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity,
   shake.maxDuration = shake.duration
   shake.tintColor = tint
 
-proc updateShake*(shake: var ScreenShake, dt: float32) =
+proc updateShake*(shake: var ScreenShake, dt: float32) {.moddable.} =
   ## Update screen shake, applying decay over time
   if shake.duration > 0:
     shake.duration -= dt
@@ -77,12 +74,12 @@ proc updateShake*(shake: var ScreenShake, dt: float32) =
     shake.intensity = 0
     shake.tintColor.a = 0
 
-proc getShakeOffset*(shake: ScreenShake): Vector2f =
+proc getShakeOffset*(shake: ScreenShake): Vector2 {.moddable.} =
   return shake.offset
 
 # COMBO SYSTEM
 
-proc newComboSystem*(): ComboSystem =
+proc newComboSystem*(): ComboSystem {.moddable.} =
   result = ComboSystem(
     killCount: 0,
     lastKillTime: 0,
@@ -95,7 +92,7 @@ proc newComboSystem*(): ComboSystem =
     lastPerfectWaveBonus: 0
   )
 
-proc getComboWindow*(combo: ComboSystem): float32 =
+proc getComboWindow(combo: ComboSystem): float32 {.moddable.} =
   ## Get the dynamic combo window based on current combo count
   ## Window gets shorter as combo increases to increase difficulty
   let baseWindow = 4.0  # Starting window
@@ -105,7 +102,7 @@ proc getComboWindow*(combo: ComboSystem): float32 =
   let windowReduction = combo.killCount.float32 * 0.15
   result = max(minWindow, baseWindow - windowReduction)
 
-proc addComboKill*(combo: var ComboSystem, currentTime: float32): int =
+proc addComboKill*(combo: var ComboSystem, currentTime: float32): int {.moddable.} =
   ## Add a kill to combo, returns bonus coins earned
   let currentWindow = getComboWindow(combo)
 
@@ -132,7 +129,7 @@ proc addComboKill*(combo: var ComboSystem, currentTime: float32): int =
 
   return combo.bonusCoins
 
-proc updateCombo*(combo: var ComboSystem, dt: float32, currentTime: float32) =
+proc updateCombo(combo: var ComboSystem, dt: float32, currentTime: float32) {.moddable.} =
   ## Update combo system with "coyote time" - players get 0.1s extra grace period
   let currentWindow = getComboWindow(combo)
   let coyoteTime = 0.1  # Extra buffer time not shown on timer (like coyote jump)
@@ -148,21 +145,21 @@ proc updateCombo*(combo: var ComboSystem, dt: float32, currentTime: float32) =
   if combo.displayTimer > 0:
     combo.displayTimer -= dt
 
-proc getComboMultiplier*(combo: ComboSystem): string =
+proc getComboMultiplier*(combo: ComboSystem): string {.moddable.} =
   if combo.killCount >= 2:
     return $combo.killCount & "x"
   return ""
 
-proc shouldShowCombo*(combo: ComboSystem): bool =
+proc shouldShowCombo*(combo: ComboSystem): bool {.moddable.} =
   return combo.displayTimer > 0 and combo.killCount >= 2
 
-proc startWaveCombo*(combo: var ComboSystem) =
+proc startWaveCombo*(combo: var ComboSystem) {.moddable.} =
   ## Reset per-wave tracking at the start of each wave
   combo.waveKillCount = 0
   combo.waveComboBreaks = 0
   combo.lastPerfectWaveBonus = 0
 
-proc checkPerfectWaveCombo*(combo: var ComboSystem, waveEnemyCount: int): int =
+proc checkPerfectWaveCombo*(combo: var ComboSystem, waveEnemyCount: int): int {.moddable.} =
   ## Check if the wave was cleared without ever breaking the combo.
   ## waveEnemyCount must match exactly the kills tracked this wave.
   if combo.waveComboBreaks == 0 and combo.waveKillCount >= waveEnemyCount and waveEnemyCount > 0:
@@ -177,12 +174,12 @@ proc checkPerfectWaveCombo*(combo: var ComboSystem, waveEnemyCount: int): int =
     return 0
 
 # MICRO-REWARD TRACKER
-proc newMicroRewardTracker*(): MicroRewardTracker =
+proc newMicroRewardTracker*(): MicroRewardTracker {.moddable.} =
   result = MicroRewardTracker(
     rewards: @[]
   )
 
-proc updateRewards*(tracker: var MicroRewardTracker, dt: float32) =
+proc updateRewards(tracker: var MicroRewardTracker, dt: float32) {.moddable.} =
   var i = 0
   while i < tracker.rewards.len:
     tracker.rewards[i].displayTimer -= dt
@@ -197,19 +194,18 @@ const
   HitStopScaleNormal* = 0.06'f32   ## near-freeze; not 0 so trails/particles creep
   HitStopScaleHeavy*  = 0.02'f32   ## boss / elite impacts bite harder
 
-proc newSlowMotion*(): SlowMotion =
+proc newSlowMotion*(): SlowMotion {.moddable.} =
   result = SlowMotion(
     active: false,
     timeScale: 1.0,
     duration: 0,
     maxDuration: 0,
-    slowType: smtNone,
     hitStopTimer: 0,
     hitStopScale: 1.0,
     rampToNormal: false
   )
 
-proc activateSlowMo*(slowMo: var SlowMotion, slowType: SlowMotionType) =
+proc activateSlowMo*(slowMo: var SlowMotion, slowType: SlowMotionType) {.moddable.} =
   ## Activate the soft slow-motion layer.
   ##
   ## NOTE: there is deliberately no per-kill case here any more. A 0.15 s / 0.5x
@@ -220,17 +216,11 @@ proc activateSlowMo*(slowMo: var SlowMotion, slowType: SlowMotionType) =
   ## are, by construction, rare.
   slowMo.rampToNormal = false
   case slowType
-  of smtNone, smtKill:
+  of smtNone:
     return
   of smtBossKill:
     slowMo.timeScale = 0.3
     slowMo.duration = 0.55
-  of smtPowerUp:
-    slowMo.timeScale = 0.15
-    slowMo.duration = 0.12
-  of smtWaveComplete:
-    slowMo.timeScale = 0.45
-    slowMo.duration = 0.3
   of smtResume:
     # Easing back in after a modal. Ramped rather than flat: dropping the player
     # into a live battlefield at full speed is disorienting, and a flat slow that
@@ -243,9 +233,8 @@ proc activateSlowMo*(slowMo: var SlowMotion, slowType: SlowMotionType) =
 
   slowMo.maxDuration = slowMo.duration
   slowMo.active = true
-  slowMo.slowType = slowType
 
-proc activateCustomSlowMo*(slowMo: var SlowMotion, scale, duration: float32, ramp: bool) =
+proc activateCustomSlowMo*(slowMo: var SlowMotion, scale, duration: float32, ramp: bool) {.moddable.} =
   ## A mod's time.slowmo: `scale` for `duration` real seconds, easing back to
   ## normal over it when `ramp`.
   slowMo.timeScale = clamp(scale, 0.05'f32, 1.0'f32)
@@ -253,10 +242,9 @@ proc activateCustomSlowMo*(slowMo: var SlowMotion, scale, duration: float32, ram
   slowMo.maxDuration = slowMo.duration
   slowMo.rampToNormal = ramp
   slowMo.active = slowMo.duration > 0
-  slowMo.slowType = smtResume   # (only the ramp and the scale matter while it runs)
 
 proc triggerHitStop*(slowMo: var SlowMotion, duration: float32,
-                     scale: float32 = HitStopScaleNormal) =
+                     scale: float32 = HitStopScaleNormal) {.moddable.} =
   ## Freeze the world for `duration` real seconds.
   ##
   ## Hit stop is the cheapest weight primitive in action games: holding the
@@ -268,7 +256,7 @@ proc triggerHitStop*(slowMo: var SlowMotion, duration: float32,
     slowMo.hitStopTimer = duration
   slowMo.hitStopScale = min(slowMo.hitStopScale, scale)
 
-proc updateSlowMo*(slowMo: var SlowMotion, realDt: float32) =
+proc updateSlowMo(slowMo: var SlowMotion, realDt: float32) {.moddable.} =
   ## Tick both time layers. MUST be fed real, unscaled dt: decaying these timers
   ## with the dt they scale is what makes a freeze latch on permanently.
   if slowMo.hitStopTimer > 0:
@@ -282,10 +270,9 @@ proc updateSlowMo*(slowMo: var SlowMotion, realDt: float32) =
       slowMo.active = false
       slowMo.duration = 0
       slowMo.timeScale = 1.0
-      slowMo.slowType = smtNone
       slowMo.rampToNormal = false
 
-proc worldTimeScale*(slowMo: SlowMotion): float32 =
+proc worldTimeScale*(slowMo: SlowMotion): float32 {.moddable.} =
   ## Combined multiplier the simulation should apply to its delta time.
   ## Hit stop dominates slow motion while it is running.
   if slowMo.hitStopTimer > 0:
@@ -302,7 +289,7 @@ proc worldTimeScale*(slowMo: SlowMotion): float32 =
 
 # WAVE STATS TRACKER
 
-proc newWaveStats*(waveNumber: int): WaveStats =
+proc newWaveStats(waveNumber: int): WaveStats {.moddable.} =
   result = WaveStats(
     waveNumber: waveNumber,
     kills: 0,
@@ -313,39 +300,31 @@ proc newWaveStats*(waveNumber: int): WaveStats =
     damageTaken: 0,
     shotsFired: 0,
     shotsHit: 0,
-    isPerfect: true,
     maxCombo: 0
   )
 
-proc updateStats*(stats: var WaveStats, dt: float32) =
+proc updateStats(stats: var WaveStats, dt: float32) {.moddable.} =
   stats.survivalTime += dt
 
-proc recordKill*(stats: var WaveStats, damage: float32) =
-  stats.kills += 1
-  if damage > stats.topDamage:
-    stats.topDamage = damage
+# WaveStats.kills / topDamage / coinsEarned / shotsFired / shotsHit /
+# damageTaken are written by run_statistics (trackEnemyKilled, gainCredits,
+# trackBulletFired, trackBulletHit, trackPlayerDamage) so that one code path
+# owns both the run totals and the per-wave ones. Second writers here drifted:
+# an old recordShot/recordDamageTaken pair nothing ever called with a hit left
+# the celebration at 0% accuracy, and a per-pickup recordCoin counted coins
+# instead of credits and missed every bonus.
 
-# WaveStats.shotsFired / shotsHit / damageTaken are written by run_statistics
-# (trackBulletFired, trackBulletHit, trackPlayerDamage) so that one code path
-# owns both the run totals and the per-wave ones. The old recordShot/
-# recordDamageTaken pair here was a second writer that nothing ever called with
-# a hit, which is why the celebration screen always reported 0% accuracy and
-# never lost its FLAWLESS tag.
-
-proc recordCoin*(stats: var WaveStats) =
-  stats.coinsEarned += 1
-
-proc recordCombo*(stats: var WaveStats, combo: int) =
+proc recordCombo*(stats: var WaveStats, combo: int) {.moddable.} =
   if combo > stats.maxCombo:
     stats.maxCombo = combo
 
-proc calculateAccuracy*(stats: var WaveStats) =
+proc calculateAccuracy*(stats: var WaveStats) {.moddable.} =
   if stats.shotsFired > 0:
     stats.accuracy = (stats.shotsHit.float32 / stats.shotsFired.float32) * 100.0
   else:
     stats.accuracy = 0
 
-proc newDopamineState*(): DopamineState =
+proc newDopamineState*(): DopamineState {.moddable.} =
   result = DopamineState(
     screenShake: newScreenShake(),
     comboSystem: newComboSystem(),
@@ -355,7 +334,7 @@ proc newDopamineState*(): DopamineState =
     currentTime: 0
   )
 
-proc updateDopamine*(dopamine: var DopamineState, dt: float32) =
+proc updateDopamine*(dopamine: var DopamineState, dt: float32) {.moddable.} =
   ## Fed REAL dt. Every timer in here is presentation-time, not world-time:
   ## shake decay, combo windows and reward banners must keep running at normal
   ## speed while the world itself is frozen or dilated.
@@ -366,13 +345,13 @@ proc updateDopamine*(dopamine: var DopamineState, dt: float32) =
   updateRewards(dopamine.microRewards, dt)
   updateStats(dopamine.waveStats, dt)
 
-proc resetWaveStats*(dopamine: var DopamineState, waveNumber: int) =
+proc resetWaveStats*(dopamine: var DopamineState, waveNumber: int) {.moddable.} =
   dopamine.waveStats = newWaveStats(waveNumber)
 
 # Add initialization for enhanced features
 import d_enhancements
 
-proc initEnhancedDopamine*(dopamine: var DopamineState) =
+proc initEnhancedDopamine*(dopamine: var DopamineState) {.moddable.} =
   dopamine.waveCelebration = newWaveCelebration()
   dopamine.bossIntro = newBossIntroduction()
   dopamine.realTimeStats = newRealTimeStats()

@@ -46,10 +46,6 @@ proc hostMatch(vm: VM, args: openArray[ScriptValue], fname: string): PvPGameStat
     vm.runtimeError("match:" & fname & "() changes the match, which only the host does " &
                     "(check match.isHost; a client asks the host with match:request)")
 
-proc finite(vm: VM, v: ScriptValue, what: string): float32 =
-  if v.kind == vkNumber and abs(v.n) < 1.0e9: return v.n.float32   # (NaN fails too)
-  vm.runtimeError(what & " must be a finite number")
-
 proc playerArg(vm: VM, pvp: PvPGameState, v: ScriptValue, what: string): int =
   ## A player of this match, as the object or its index (1-based) -> its slot.
   if v.kind == vkNumber:
@@ -74,9 +70,12 @@ proc teamArg(vm: VM, v: ScriptValue, what: string): PvPTeam =
   vm.runtimeError(what & ": unknown team '" & s & "' (red, blue, green, yellow, orange, purple)")
 
 proc localText(vm: VM, v: ScriptValue, what: string): string =
-  ## "Text" or {en = .., es = ..}, in this machine's language.
+  ## "Text" or {en = .., es = .., <mod language> = ..}, in this machine's language.
+  if v.kind == vkTable and activeModLanguage.len > 0:
+    let own = rawGetStr(v.tbl, activeModLanguage)
+    if own.kind == vkString: return own.str.s
   let (en, es) = vm.textPair(v, what)
-  if getLanguage() == Spanish and es.len > 0: es else: en
+  pickText(en, es)
 
 proc messageArgs(vm: VM, args: openArray[ScriptValue], fname: string): tuple[name, data: string] =
   result.name = vm.checkStr(args, 1, fname)
@@ -295,18 +294,16 @@ proc installMatchMethods() =
     let t = vm.checkTable(args, 1, "spawnBullet")
     vm.checkKeys(t, BulletKeys, "match:spawnBullet")
     let owner = vm.optPlayerArg(pvp, rawGetStr(t, "owner"), "match:spawnBullet's owner")
-    proc numOr(key: string, def: float32): float32 =
-      let v = rawGetStr(t, key)
-      if v.kind == vkNil: def else: vm.finite(v, "match:spawnBullet's " & key)
+    proc numOr(key: string, def: float32): float32 = vm.numField(t, key, "match:spawnBullet", def)
     let ownerP = if owner >= 0: pvp.players[owner] else: nil
     if ownerP.isNil and (rawGetStr(t, "x").kind == vkNil or rawGetStr(t, "y").kind == vkNil):
       vm.runtimeError("match:spawnBullet needs x and y (or an owner to fire from)")
-    let pos = newVector2f(numOr("x", (if ownerP.isNil: 0'f32 else: ownerP.pos.x)),
+    let pos = vec2(numOr("x", (if ownerP.isNil: 0'f32 else: ownerP.pos.x)),
                           numOr("y", (if ownerP.isNil: 0'f32 else: ownerP.pos.y)))
-    let vel = newVector2f(numOr("vx", 0), numOr("vy", 0))
+    let vel = vec2(numOr("vx", 0), numOr("vy", 0))
     let damage = max(0'f32, numOr("damage", (if ownerP.isNil: pvp.config.startDamage else: ownerP.damage)))
-    let radius = clamp(numOr("radius", pvp.config.bulletRadius), 1'f32, 200'f32)
-    let life = clamp(numOr("lifetime", PvPBulletLife), 0.05'f32, 60'f32)
+    let radius = max(numOr("radius", pvp.config.bulletRadius), 0.5'f32)
+    let life = max(numOr("lifetime", PvPBulletLife), 0.01'f32)
     let cv = rawGetStr(t, "color")
     let color = if cv.kind == vkNil: Color(r: 0, g: 0, b: 0, a: 0)
                 else: parseColor(vm, cv, "match:spawnBullet's color")
@@ -315,7 +312,7 @@ proc installMatchMethods() =
     if kv.kind == vkString: kind = kv.str.s
     elif kv.kind != vkNil: vm.runtimeError("match:spawnBullet's kind must be a string")
     if kind.len > MaxModMsgName: vm.runtimeError("match:spawnBullet's kind is too long (" & $MaxModMsgName & " max)")
-    let pierce = clamp(int(numOr("pierce", 0)), 0, 100)
+    let pierce = clamp(int(numOr("pierce", 0)), 0, int32.high)
     let b = pvp.modSpawnBullet(owner, pos, vel, damage, radius, life, color, kind, pierce)
     if b.isNil:
       vm.runtimeError("match:spawnBullet: the arena already holds " & $MaxPvPBullets & " bullets")
@@ -347,7 +344,7 @@ proc installMatchMethods() =
     ## match:teleport(player, x, y) -- every machine snaps it there
     let pvp = vm.hostMatch(args, "teleport")
     pvp.modTeleport(vm.playerArg(pvp, arg(args, 1), "match:teleport's player"),
-                    newVector2f(vm.finite(arg(args, 2), "match:teleport's x"),
+                    vec2(vm.finite(arg(args, 2), "match:teleport's x"),
                                 vm.finite(arg(args, 3), "match:teleport's y")))
   matchMethods.reg("finish") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## match:finish([winner [, reason]]) -- ends the match now. winner: a
@@ -423,7 +420,7 @@ proc installModPvP*(base: ScriptTable) =
     elif s.kind != vkNil:
       vm.runtimeError("register.pvpmode: settings must be a table")
     let os = rawGetStr(t, "onStart")
-    if os.kind in {vkFunction, vkNative}: m.onStart = os
+    if os.kind == vkFunction: m.onStart = os
     elif os.kind != vkNil: vm.runtimeError("register.pvpmode: onStart must be a function")
     pvpModes.add(m)
     ret.setRet(vstr(key))

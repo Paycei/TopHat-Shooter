@@ -1,4 +1,5 @@
 import math, random, raylib
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, utils
 
@@ -10,7 +11,7 @@ type
     wrongTarget*: bool
     completed*: bool
     bonusDamage*: float32
-    pos*: Vector2f
+    pos*: Vector2
 
 proc effectiveWeakKind(enemy: Enemy): BossWeakObjectiveKind =
   if not enemy.isBoss:
@@ -25,7 +26,7 @@ proc effectiveWeakKind(enemy: Enemy): BossWeakObjectiveKind =
   else:
     enemy.weakPoint.kind
 
-proc initBossWeakPointState*(spec: BossWeakPointDefinition, bossId: int): BossWeakPointState =
+proc initBossWeakPointState*(spec: BossWeakPointDefinition, bossId: int): BossWeakPointState {.moddable.} =
   result.enabled = spec.kind != bwoNone
   result.kind = spec.kind
   result.targets = @[]
@@ -40,14 +41,12 @@ proc initBossWeakPointState*(spec: BossWeakPointDefinition, bossId: int): BossWe
   result.exposureDuration = spec.exposureDuration
   result.cooldownDuration = spec.cooldownDuration
   result.targetHitRadius = spec.targetHitRadius
-  result.phaseIndex = 0
   result.lastDashActive = false
   result.omegaWindowsCompleted = 0
   result.realTargetIndex = -1
-  result.lastBossPos = newVector2f(0, 0)
 
 proc resetBossWeakPointForPhase*(enemy: Enemy, spec: BossWeakPointDefinition,
-                                 phaseIndex: int, delay: float32 = 0.6'f32) =
+                                 phaseIndex: int, delay: float32 = 0.6'f32) {.moddable.} =
   if not enemy.isBoss:
     return
 
@@ -66,11 +65,9 @@ proc resetBossWeakPointForPhase*(enemy: Enemy, spec: BossWeakPointDefinition,
   enemy.weakPoint.exposureDuration = spec.exposureDuration
   enemy.weakPoint.cooldownDuration = spec.cooldownDuration
   enemy.weakPoint.targetHitRadius = spec.targetHitRadius
-  enemy.weakPoint.phaseIndex = phaseIndex
   enemy.weakPoint.lastDashActive = enemy.isDashing
   enemy.weakPoint.omegaWindowsCompleted = 0
   enemy.weakPoint.realTargetIndex = -1
-  enemy.weakPoint.lastBossPos = enemy.pos
 
 proc targetTint(kind: BossWeakObjectiveKind, idx: int, active, decoy: bool): Color =
   var color = case kind
@@ -98,13 +95,13 @@ proc targetTint(kind: BossWeakObjectiveKind, idx: int, active, decoy: bool): Col
     color.a = 110
   color
 
-proc clampTargetPos(pos: Vector2f, screenWidth, screenHeight: int32, margin: float32): Vector2f =
-  newVector2f(
+proc clampTargetPos(pos: Vector2, screenWidth, screenHeight: int32, margin: float32): Vector2 =
+  vec2(
     clamp(pos.x, margin, screenWidth.float32 - margin),
     clamp(pos.y, margin, screenHeight.float32 - margin)
   )
 
-proc addTarget(enemy: Enemy, kind: BossWeakObjectiveKind, idx: int, pos: Vector2f,
+proc addTarget(enemy: Enemy, kind: BossWeakObjectiveKind, idx: int, pos: Vector2,
                angle, orbitRadius, orbitSpeed, life: float32,
                active: bool, decoy: bool, relativeToBoss: bool) =
   enemy.weakPoint.targets.add(BossWeakPointTarget(
@@ -133,11 +130,11 @@ proc spawnOrbitTargets(enemy: Enemy, kind: BossWeakObjectiveKind, count: int,
     let angle = angleOffset + enemy.weakPoint.pulseTimer * 0.35'f32 +
                 i.float32 * TwoPi.float32 / safeCount.float32
     let active = (not sequence) or i == enemy.weakPoint.sequenceIndex
-    let pos = enemy.pos + newVector2f(cos(angle) * orbitRadius, sin(angle) * orbitRadius)
+    let pos = enemy.pos + vec2(cos(angle) * orbitRadius, sin(angle) * orbitRadius)
     addTarget(enemy, kind, i, pos, angle, orbitRadius, orbitSpeed, 0, active, false, true)
 
 proc spawnStaticTargets(enemy: Enemy, kind: BossWeakObjectiveKind, count: int,
-                        playerPos: Vector2f, screenWidth, screenHeight: int32,
+                        playerPos: Vector2, screenWidth, screenHeight: int32,
                         life: float32) =
   enemy.weakPoint.targets = @[]
   enemy.weakPoint.realTargetIndex = -1
@@ -145,24 +142,24 @@ proc spawnStaticTargets(enemy: Enemy, kind: BossWeakObjectiveKind, count: int,
   for i in 0..<safeCount:
     let angle = enemy.weakPoint.pulseTimer * 0.9'f32 + i.float32 * TwoPi.float32 / safeCount.float32
     let center = if i mod 2 == 0: playerPos else: enemy.pos
-    let offset = newVector2f(cos(angle) * 95.0'f32, sin(angle) * 72.0'f32)
+    let offset = vec2(cos(angle) * 95.0'f32, sin(angle) * 72.0'f32)
     let pos = clampTargetPos(center + offset, screenWidth, screenHeight, 48.0'f32)
     addTarget(enemy, kind, i, pos, angle, 0, 0, life, true, false, false)
 
-proc spawnVoidRifts(enemy: Enemy, playerPos: Vector2f, screenWidth, screenHeight: int32) =
+proc spawnVoidRifts(enemy: Enemy, playerPos: Vector2, screenWidth, screenHeight: int32) =
   enemy.weakPoint.targets = @[]
   let count = max(3, enemy.weakPoint.required + 2)
   enemy.weakPoint.realTargetIndex = rand(count - 1)
   for i in 0..<count:
     let angle = enemy.weakPoint.pulseTimer * 1.1'f32 + i.float32 * TwoPi.float32 / count.float32
     let center = (enemy.pos + playerPos) * 0.5'f32
-    let pos = clampTargetPos(center + newVector2f(cos(angle) * 130.0'f32,
+    let pos = clampTargetPos(center + vec2(cos(angle) * 130.0'f32,
                                                  sin(angle) * 90.0'f32),
                              screenWidth, screenHeight, 48.0'f32)
     addTarget(enemy, bwoVoidRifts, i, pos, angle, 0, 0, 4.0'f32,
               true, i != enemy.weakPoint.realTargetIndex, false)
 
-proc spawnBackPlate(enemy: Enemy, playerPos: Vector2f) =
+proc spawnBackPlate(enemy: Enemy, playerPos: Vector2) =
   ## Spawn 3 cracked armour-plate shards in a fan on the Juggernaut's back,
   ## exposed after a dash ends.  Centre shard + two flanking shards ±32°.
   enemy.weakPoint.targets = @[]
@@ -173,7 +170,7 @@ proc spawnBackPlate(enemy: Enemy, playerPos: Vector2f) =
   if away.length() < 0.01'f32:
     away = (enemy.pos - playerPos).normalize()
   if away.length() < 0.01'f32:
-    away = newVector2f(1, 0)
+    away = vec2(1, 0)
 
   let baseAngle = arctan2(away.y, away.x)
   let orbitR    = enemy.radius * 0.72'f32  # a bit further out for visibility
@@ -183,7 +180,7 @@ proc spawnBackPlate(enemy: Enemy, playerPos: Vector2f) =
 
   for i in 0..<3:
     let a   = baseAngle + offsets[i]
-    let pos = enemy.pos + newVector2f(cos(a) * orbitR, sin(a) * orbitR)
+    let pos = enemy.pos + vec2(cos(a) * orbitR, sin(a) * orbitR)
     addTarget(enemy, bwoDashBackPlate, i, pos, a, orbitR, 0.0'f32, life,
               true, false, true)
 
@@ -323,11 +320,11 @@ proc updateTargetPositions(enemy: Enemy, dt: float32) =
       let angle = enemy.weakPoint.targets[i].angle
       let orbitRadius = enemy.weakPoint.targets[i].orbitRadius
       enemy.weakPoint.targets[i].pos =
-        enemy.pos + newVector2f(cos(angle) * orbitRadius, sin(angle) * orbitRadius)
+        enemy.pos + vec2(cos(angle) * orbitRadius, sin(angle) * orbitRadius)
     i += 1
 
-proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos: Vector2f,
-                          screenWidth, screenHeight: int32, dt: float32) =
+proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos: Vector2,
+                          screenWidth, screenHeight: int32, dt: float32) {.moddable.} =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return
 
@@ -338,7 +335,6 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
     enemy.weakPoint.exposedTimer = max(0.0'f32, enemy.weakPoint.exposedTimer - dt)
     if enemy.weakPoint.exposedTimer <= 0:
       enemy.weakPoint.cooldownTimer = enemy.weakPoint.cooldownDuration
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
 
@@ -347,14 +343,12 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
 
   let kind = effectiveWeakKind(enemy)
   if kind == bwoNone or enemy.invulnerabilityTimer > 0 or enemy.weakPoint.cooldownTimer > 0:
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
 
   if kind == bwoSatelliteSet:
     if enemy.satellites.len > 0 and enemy.weakPoint.progress == 0:
       enemy.weakPoint.required = max(1, enemy.satellites.len)
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
 
@@ -363,7 +357,6 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
     # legion, not to shoot orbiting targets. The legion is tracked in game.nim
     # (required/progress derived from the live guard count); the last guard down
     # opens the window via openBossSummonWindow. Spawn no orbit targets here.
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     return
 
@@ -373,7 +366,6 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
     if enemy.weakPoint.lastDashActive and not enemy.isDashing and
        enemy.chargeState != ccReaim and enemy.weakPoint.targets.len == 0:
       spawnBackPlate(enemy, playerPos)
-    enemy.weakPoint.lastBossPos = enemy.pos
     enemy.weakPoint.lastDashActive = enemy.isDashing
     syncTargetActivity(enemy, kind)
     return
@@ -404,11 +396,10 @@ proc updateBossWeakPoint*(enemy: Enemy, spec: BossWeakPointDefinition, playerPos
       discard
 
   syncTargetActivity(enemy, kind)
-  enemy.weakPoint.lastBossPos = enemy.pos
   enemy.weakPoint.lastDashActive = enemy.isDashing
 
-proc resolveBossWeakPointTargetHit*(enemy: Enemy, bulletPos: Vector2f,
-                                    bulletRadius: float32): BossWeakPointHitResult =
+proc resolveBossWeakPointTargetHit*(enemy: Enemy, bulletPos: Vector2,
+                                    bulletRadius: float32): BossWeakPointHitResult {.moddable.} =
   result.pos = bulletPos
   if not enemy.isBoss or not enemy.weakPoint.enabled or enemy.weakPoint.exposedTimer > 0:
     return
@@ -453,7 +444,7 @@ proc resolveBossWeakPointTargetHit*(enemy: Enemy, bulletPos: Vector2f,
       result.bonusDamage = completion.bonusDamage
       return
 
-proc registerBossSatelliteDestroyed*(enemy: Enemy): float32 =
+proc registerBossSatelliteDestroyed*(enemy: Enemy): float32 {.moddable.} =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return 0.0'f32
 
@@ -466,7 +457,7 @@ proc registerBossSatelliteDestroyed*(enemy: Enemy): float32 =
   let completion = completeObjectiveHit(enemy)
   completion.bonusDamage
 
-proc openBossSummonWindow*(enemy: Enemy): tuple[opened: bool, bonusDamage: float32] =
+proc openBossSummonWindow*(enemy: Enemy): tuple[opened: bool, bonusDamage: float32] {.moddable.} =
   ## Called when the last Royal Guard of the Summoner King's legion falls.
   ## Opens the vulnerability window directly (no orbit targets / per-hit progress),
   ## which is what makes this boss's objective distinct: slay the guards, not the sigils.
@@ -483,10 +474,7 @@ proc openBossSummonWindow*(enemy: Enemy): tuple[opened: bool, bonusDamage: float
   openVulnerabilityWindow(enemy, dur)
   (true, bonusDamage)
 
-proc bossWeakPointCoreHit*(enemy: Enemy, bulletPos: Vector2f, bulletRadius: float32): bool =
-  false
-
-proc bossWeakPointDamageMultiplier*(enemy: Enemy, source: BossWeakDamageSource): float32 =
+proc bossWeakPointDamageMultiplier*(enemy: Enemy): float32 {.moddable.} =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return 1.0'f32
 
@@ -495,7 +483,7 @@ proc bossWeakPointDamageMultiplier*(enemy: Enemy, source: BossWeakDamageSource):
 
   max(0.05'f32, enemy.weakPoint.bodyDamageMultiplier)
 
-proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
+proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) {.moddable.} =
   if not enemy.isBoss or not enemy.weakPoint.enabled:
     return
 
@@ -553,7 +541,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                  Vector2(x: enemy.pos.x + cos(a) * rEnd,   y: enemy.pos.y + sin(a) * rEnd),
                  if t mod 2 == 0: 3.5'f32 else: 1.8'f32, rimCol)
       drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, innerR, coreCol)
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), innerR * 0.85'f32,
+      drawDisc(enemy.pos, innerR * 0.85'f32,
                  Color(r: 255, g: 40, b: 0,
                        a: uint8(clamp(40.0'f32 + pulse * 50.0'f32, 0.0'f32, 100.0'f32))))
 
@@ -571,7 +559,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
         drawStroke(Vector2(x: enemy.pos.x + cos(a) * r1, y: enemy.pos.y + sin(a) * r1),
                  Vector2(x: enemy.pos.x + cos(a) * r2, y: enemy.pos.y + sin(a) * r2),
                  2.5'f32, col)
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r1,
+      drawDisc(enemy.pos, r1,
                  withAlpha(col, alpha div 6))
 
     of bwoSummonSigils:
@@ -589,7 +577,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
           prev = curr
       drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r + 7.0'f32,
                       withAlpha(col, alpha div 3))
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(enemy.pos, r,
                  withAlpha(col, alpha div 8))
 
     of bwoMeteorCracks:
@@ -605,7 +593,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                  Vector2(x: enemy.pos.x + cos(a) * len, y: enemy.pos.y + sin(a) * len),
                  if c mod 2 == 0: 3.0'f32 else: 1.5'f32, col)
       drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r, col)
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(enemy.pos, r,
                  withAlpha(col, alpha div 8))
 
     of bwoLaserPrisms, bwoPrismSequence:
@@ -626,7 +614,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                  3.8'f32, pCols[s])
       drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r + 8.0'f32,
                       Color(r: 200, g: 200, b: 255, a: alpha div 3))
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(enemy.pos, r,
                  Color(r: 200, g: 200, b: 255, a: alpha div 10))
 
     of bwoVoidRifts:
@@ -643,7 +631,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
         drawStroke(Vector2(x: enemy.pos.x + cos(a) * r1, y: enemy.pos.y + sin(a) * r1),
                  Vector2(x: enemy.pos.x + cos(a) * r2, y: enemy.pos.y + sin(a) * r2),
                  2.2'f32, col)
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r1,
+      drawDisc(enemy.pos, r1,
                  withAlpha(col, alpha div 8))
 
     of bwoCoilSequence:
@@ -662,7 +650,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
           drawStroke(Vector2(x: enemy.pos.x + cos(a1) * r, y: enemy.pos.y + sin(a1) * r),
                    Vector2(x: enemy.pos.x + cos(a2) * r, y: enemy.pos.y + sin(a2) * r),
                    3.0'f32, col)
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(enemy.pos, r,
                  withAlpha(col, alpha div 7))
 
     of bwoSatelliteSet:
@@ -672,7 +660,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r, col)
       drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, r + 10.0'f32,
                       withAlpha(col, alpha div 2))
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(enemy.pos, r,
                  withAlpha(col, alpha div 8))
 
     of bwoClockNodes:
@@ -688,11 +676,11 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                  Vector2(x: enemy.pos.x + cos(a) * r, y: enemy.pos.y + sin(a) * r),
                  if t mod 3 == 0: 2.5'f32 else: 1.5'f32, col)
       let handA = time * PI * 2.0'f32 - PI.float32 * 0.5'f32
-      drawStroke(Vector2(x: enemy.pos.x, y: enemy.pos.y),
+      drawStroke(enemy.pos,
                Vector2(x: enemy.pos.x + cos(handA) * (r - 5.0'f32),
                        y: enemy.pos.y + sin(handA) * (r - 5.0'f32)),
                2.8'f32, col)
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(enemy.pos, r,
                  withAlpha(col, alpha div 8))
 
     of bwoChaosAnomalies:
@@ -710,7 +698,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
         drawStroke(Vector2(x: enemy.pos.x + cos(a) * r,          y: enemy.pos.y + sin(a) * r),
                  Vector2(x: enemy.pos.x + cos(a) * (r + 20.0'f32), y: enemy.pos.y + sin(a) * (r + 20.0'f32)),
                  2.2'f32, cCols[s mod 3])
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), r,
+      drawDisc(enemy.pos, r,
                  Color(r: 200, g: 100, b: 200, a: alpha div 8))
 
     else:
@@ -784,7 +772,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let pOut   = Vector2(x: target.pos.x - nx * tipOut, y: target.pos.y - ny * tipOut)
       let pLeft  = Vector2(x: target.pos.x + tx * side,   y: target.pos.y + ty * side)
       let pRight = Vector2(x: target.pos.x - tx * side,   y: target.pos.y - ty * side)
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * sc, glowCol)
+      drawDisc(target.pos, cr * sc, glowCol)
       let fillCol = Color(r: shardCol.r div 3, g: shardCol.g div 4, b: 0, a: uint8(min(180, activeAlpha.int)))
       drawTriangle(pIn, pLeft, pRight, fillCol)
       drawTriangle(pOut, pRight, pLeft, fillCol)
@@ -798,7 +786,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let midBotR  = Vector2(x: (pOut.x + pRight.x) * 0.5'f32, y: (pOut.y + pRight.y) * 0.5'f32)
       drawStroke(midLeft,  midBotR, 1.5'f32, crackCol)
       drawStroke(midRight, midBotL, 1.5'f32, crackCol)
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), 2.5'f32 * sc, crackCol)
+      drawDisc(target.pos, 2.5'f32 * sc, crackCol)
       if showHints:
         drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * sc + 4.0'f32,
                         withAlpha(shardCol, uint8(activeAlpha.int div 5)))
@@ -808,7 +796,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let col     = Color(r: 175, g: 90, b: 255, a: activeAlpha)
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 2.6'f32 else: 0.45'f32)
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(target.pos, cr * scale, glowCol)
       for s in 0..<4:
         let a = spin + s.float32 * PI * 0.5'f32
         drawStroke(Vector2(x: target.pos.x + cos(a) * cr * 0.22'f32 * scale,
@@ -828,7 +816,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 0.85'f32 else: 0.18'f32)
       let rune    = cr * 0.80'f32 * scale
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(target.pos, cr * scale, glowCol)
       for tri in 0..<2:
         let off  = tri.float32 * PI / 3.0'f32 + spin
         var prev = Vector2(x: target.pos.x + cos(off) * rune, y: target.pos.y + sin(off) * rune)
@@ -837,7 +825,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
           let curr = Vector2(x: target.pos.x + cos(a) * rune, y: target.pos.y + sin(a) * rune)
           drawStroke(prev, curr, lw, col)
           prev = curr
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.17'f32 * scale,
+      drawDisc(target.pos, cr * 0.17'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
       drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
@@ -849,7 +837,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let col     = Color(r: 255, g: 138, b: 38, a: activeAlpha)
       let glowCol = withAlpha(col, activeAlpha div 4)
       let jit     = target.index.float32 * 0.7'f32   # each crack looks unique
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(target.pos, cr * scale, glowCol)
       for c in 0..<8:
         let a     = c.float32 * PI / 4.0'f32 + jit
         let outer = cr * (if c mod 2 == 0: 0.92'f32 else: 0.60'f32) * scale
@@ -857,7 +845,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
         drawStroke(Vector2(x: target.pos.x + cos(a) * inner, y: target.pos.y + sin(a) * inner),
                  Vector2(x: target.pos.x + cos(a) * outer, y: target.pos.y + sin(a) * outer),
                  if c mod 2 == 0: lw else: lw * 0.55'f32, col)
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.19'f32 * scale,
+      drawDisc(target.pos, cr * 0.19'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
       drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
@@ -874,14 +862,14 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 0.65'f32 else: 0.12'f32)
       let triR    = cr * 0.82'f32 * scale
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(target.pos, cr * scale, glowCol)
       var prev = Vector2(x: target.pos.x + cos(spin) * triR, y: target.pos.y + sin(spin) * triR)
       for v in 1..3:
         let a    = spin + v.float32 * TwoPi.float32 / 3.0'f32
         let curr = Vector2(x: target.pos.x + cos(a) * triR, y: target.pos.y + sin(a) * triR)
         drawStroke(prev, curr, lw, col)
         prev = curr
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.19'f32 * scale,
+      drawDisc(target.pos, cr * 0.19'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
       drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
@@ -895,7 +883,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let col     = if isDecoy: Color(r: 88, g: 58, b: 155, a: uint8(activeAlpha.int * 7 div 10))
                     else:       Color(r: 215, g: 58, b: 255, a: activeAlpha)
       let glowCol = withAlpha(col, uint8(activeAlpha.int div 4))
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(target.pos, cr * scale, glowCol)
       if isDecoy:
         # Decoy: slow cross + dim ring: clearly "wrong"
         let spinD = time * 0.5'f32
@@ -921,7 +909,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
             drawStroke(Vector2(x: target.pos.x + cos(a1) * ri, y: target.pos.y + sin(a1) * ri),
                      Vector2(x: target.pos.x + cos(a2) * ri, y: target.pos.y + sin(a2) * ri),
                      2.5'f32, col)
-        drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.20'f32 * scale,
+        drawDisc(target.pos, cr * 0.20'f32 * scale,
                    withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
         drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
@@ -933,7 +921,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let col     = Color(r: 255, g: 238, b: 65, a: activeAlpha)
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 3.6'f32 else: 0.75'f32)
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(target.pos, cr * scale, glowCol)
       for arc in 0..<2:
         let dir = if arc == 0: 1.0'f32 else: -1.0'f32
         let sa  = spin * dir + arc.float32 * PI
@@ -947,7 +935,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                    Vector2(x: target.pos.x + cos(a2) * cr * 0.82'f32 * scale,
                            y: target.pos.y + sin(a2) * cr * 0.82'f32 * scale),
                    lw, col)
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.18'f32 * scale,
+      drawDisc(target.pos, cr * 0.18'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
       drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
@@ -964,14 +952,14 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 1.55'f32 else: 0.28'f32)
       let triR    = cr * 0.82'f32 * scale
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(target.pos, cr * scale, glowCol)
       var prev = Vector2(x: target.pos.x + cos(spin) * triR, y: target.pos.y + sin(spin) * triR)
       for v in 1..3:
         let a    = spin + v.float32 * TwoPi.float32 / 3.0'f32
         let curr = Vector2(x: target.pos.x + cos(a) * triR, y: target.pos.y + sin(a) * triR)
         drawStroke(prev, curr, lw, col)
         prev = curr
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.18'f32 * scale,
+      drawDisc(target.pos, cr * 0.18'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
       drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
@@ -982,7 +970,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       # Timekeeper: miniature clock face: hand sweeps in sync with sequenceIndex advance
       let col     = Color(r: 75, g: 255, b: 225, a: activeAlpha)
       let glowCol = withAlpha(col, activeAlpha div 4)
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(target.pos, cr * scale, glowCol)
       drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * 0.85'f32 * scale, col)
       for t in 0..<4:
         let a = t.float32 * PI * 0.5'f32 - PI.float32 * 0.5'f32
@@ -993,7 +981,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
                  2.0'f32, col)
       if target.active:
         let handA = time * PI * 2.0'f32 - PI.float32 * 0.5'f32
-        drawStroke(Vector2(x: target.pos.x, y: target.pos.y),
+        drawStroke(target.pos,
                  Vector2(x: target.pos.x + cos(handA) * cr * 0.60'f32 * scale,
                          y: target.pos.y + sin(handA) * cr * 0.60'f32 * scale),
                  2.5'f32, col)
@@ -1012,7 +1000,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let glowCol = withAlpha(col, activeAlpha div 4)
       let spin    = time * (if target.active: 3.1'f32 else: 0.5'f32) +
                     target.index.float32 * 1.3'f32
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale, glowCol)
+      drawDisc(target.pos, cr * scale, glowCol)
       # Star outline: alternate outer (tip) and inner (valley) radii
       for s in 0..<12:
         let a1  = spin + s.float32 * TwoPi.float32 / 12.0'f32
@@ -1022,7 +1010,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
         drawStroke(Vector2(x: target.pos.x + cos(a1) * r1, y: target.pos.y + sin(a1) * r1),
                  Vector2(x: target.pos.x + cos(a2) * r2, y: target.pos.y + sin(a2) * r2),
                  lw, col)
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * 0.18'f32 * scale,
+      drawDisc(target.pos, cr * 0.18'f32 * scale,
                  withAlpha(col, uint8(activeAlpha.int * 3 div 4)))
       drawCircleOutline(target.pos.x.int32, target.pos.y.int32, cr * scale, glowCol)
       if showHints:
@@ -1034,7 +1022,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       var color = target.color
       color.a = activeAlpha
       let ringRadius = target.hitRadius * (0.72'f32 + pulse * 0.12'f32)
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y),
+      drawDisc(target.pos,
                  max(5.0'f32, ringRadius * 0.35'f32),
                  withAlpha(color, activeAlpha div 3))
       drawCircleOutline(target.pos.x.int32, target.pos.y.int32, ringRadius, color)
@@ -1054,7 +1042,7 @@ proc drawBossWeakPoints*(enemy: Enemy, showHints: bool = true) =
       let ft   = target.wrongHitFlash / 0.45'f32
       let fA   = uint8(clamp(ft * 210.0'f32, 0.0'f32, 255.0'f32))
       let expO = (1.0'f32 - ft) * 10.0'f32
-      drawDisc(Vector2(x: target.pos.x, y: target.pos.y), cr * scale * 1.05'f32,
+      drawDisc(target.pos, cr * scale * 1.05'f32,
                  Color(r: 255, g: 20, b: 20, a: uint8(clamp(ft * 72.0'f32, 0.0'f32, 100.0'f32))))
       drawCircleOutline(target.pos.x.int32, target.pos.y.int32,
                       cr * scale + 3.0'f32 + expO,

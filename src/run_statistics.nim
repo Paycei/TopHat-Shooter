@@ -1,4 +1,5 @@
 ﻿import types, std/tables, times, math, strutils, boss_definitions
+import modding/mod_patch_core
 import particle_types
 
 # Tracks ALL measurable gameplay data for analysis and visualization
@@ -13,7 +14,7 @@ type
     eventType*: GameEventType
     value*: float32
     details*: string
-    position*: Vector2f
+    position*: Vector2
 
   # COMBAT STATISTICS
   CombatStats* = object
@@ -32,7 +33,7 @@ type
   # MOVEMENT & SURVIVABILITY
   MovementStats* = object
     totalDistanceTraveled*, averageSpeed*: float32
-    positionHeatmap*: seq[Vector2f]
+    positionHeatmap*: seq[Vector2]
     phaseShiftsUsed*, timeWarpsUsed*, parriesUsed*, successfulParries*: int
     totalPhaseShiftDistance*, totalTimeWarpDuration*: float32
     timeInvincible*, timeAtCriticalHP*, timeAtLowHP*: float32
@@ -125,22 +126,22 @@ type
                              # In-memory only: read by the live advancement sync.
 
 # INITIALIZATION HELPERS
-proc initCombatStats*(): CombatStats =
+proc initCombatStats*(): CombatStats {.moddable.} =
   CombatStats(
     killsByType: initTable[EnemyType, int](),
     damageTakenByType: initTable[EnemyType, float32]()
   )
 
-proc initMovementStats*(): MovementStats =
+proc initMovementStats*(): MovementStats {.moddable.} =
   MovementStats(positionHeatmap: @[])
 
-proc initResourceStats*(): ResourceStats =
+proc initResourceStats*(): ResourceStats {.moddable.} =
   ResourceStats(
     consumablesByType: initTable[ConsumableType, int](),
     shopPurchases: @[]
   )
 
-proc initPowerUpStats*(): PowerUpStats =
+proc initPowerUpStats*(): PowerUpStats {.moddable.} =
   PowerUpStats(
     powerUpsChosen: @[],
     damageContribution: initTable[PowerUpType, float32](),
@@ -149,7 +150,7 @@ proc initPowerUpStats*(): PowerUpStats =
     overhealContribution: initTable[PowerUpType, float32]()
   )
 
-proc initPerformanceStats*(): PerformanceStats =
+proc initPerformanceStats*(): PerformanceStats {.moddable.} =
   PerformanceStats(
     waveTimes: @[],
     dpsHistory: @[],
@@ -157,14 +158,14 @@ proc initPerformanceStats*(): PerformanceStats =
     killStreakHistory: @[]
   )
 
-proc initComparisonStats*(): ComparisonStats =
+proc initComparisonStats*(): ComparisonStats {.moddable.} =
   ComparisonStats(
     playStyle: "Balanced",
     aggressionRating: 50.0,
     cautionRating: 50.0
   )
 
-proc initRunStatistics*(): RunStatistics =
+proc initRunStatistics(): RunStatistics {.moddable.} =
   RunStatistics(
     startTime: $now(),
     endTime: "",
@@ -185,13 +186,13 @@ proc initRunStatistics*(): RunStatistics =
 var currentRunStats*: RunStatistics = nil
 
 # RUN LIFECYCLE
-proc startNewRun*(gameMode: GameMode) =
+proc startNewRun(gameMode: GameMode) {.moddable.} =
   currentRunStats = initRunStatistics()
   currentRunStats.gameMode = gameMode
   currentRunStats.startTime = $now()
   echo "[Stats] New run started: ", gameMode
 
-proc calculatePlayStyle*() =
+proc calculatePlayStyle() {.moddable.} =
   if currentRunStats.isNil: return
   let run = currentRunStats
 
@@ -213,7 +214,7 @@ proc calculatePlayStyle*() =
   run.comparison.cautionRating = clamp(
     (run.movement.longestNoDamageStreak / max(1.0, run.runDuration)) * 100.0, 0.0, 100.0)
 
-proc calculateDerivedMetrics*() =
+proc calculateDerivedMetrics*() {.moddable.} =
   if currentRunStats.isNil: return
 
   let totalShots = currentRunStats.combat.shotsFired
@@ -284,7 +285,7 @@ proc calculateDerivedMetrics*() =
 # LAST RUN STORAGE
 var lastCompletedRun*: RunStatistics = nil
 
-proc cloneRunStatistics*(src: RunStatistics): RunStatistics =
+proc cloneRunStatistics(src: RunStatistics): RunStatistics {.moddable.} =
   ## Value-copy of a run's stats. Every field is a value type (seq/Table/string/
   ## scalars), so a single object assignment deep-copies the whole record. Used so
   ## the "last run" snapshot cannot keep mutating when the same run object keeps
@@ -294,7 +295,7 @@ proc cloneRunStatistics*(src: RunStatistics): RunStatistics =
   result = RunStatistics()
   result[] = src[]
 
-proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool) =
+proc endRun(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool, died: bool) {.moddable.} =
   if currentRunStats.isNil:
     return
 
@@ -311,7 +312,7 @@ proc endRun*(player: Player, waveReached: int, finalScore: int, cheatsUsed: bool
   calculateDerivedMetrics()
   echo "[Stats] Run ended - Wave: ", waveReached, " Score: ", finalScore
 
-proc updateDPS*(damage: float32) =
+proc updateDPS(damage: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   let currentTime = currentRunStats.runDuration
@@ -352,11 +353,11 @@ var frameDamageDealt*: float32 = 0.0'f32
   ## reach, so updateGame drains this once a frame instead. Without it the HUD
   ## would still show gun-only DPS while the end-of-run figure covers everything.
 
-proc takeFrameDamageDealt*(): float32 =
+proc takeFrameDamageDealt*(): float32 {.moddable.} =
   result = frameDamageDealt
   frameDamageDealt = 0.0'f32
 
-proc recordDamageDealt*(damage: float32) =
+proc recordDamageDealt*(damage: float32) {.moddable.} =
   ## THE single entry point for "the player dealt damage". Called from
   ## applyEnemyHpDamage (combat.nim), so auras, DoT ticks, orbitals, explosions,
   ## thorns, chain lightning and every activated ability land here alongside
@@ -369,12 +370,12 @@ proc recordDamageDealt*(damage: float32) =
   updateDPS(damage)
 
 # COMBAT TRACKING
-proc recordShotFired*() =
+proc recordShotFired() {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.combat.shotsFired += 1
 
-proc recordShotHit*(damage: float32, enemyType: EnemyType, isCrit: bool = false,
-                    countsAsShot: bool = true) =
+proc recordShotHit(damage: float32, enemyType: EnemyType, isCrit: bool = false,
+                    countsAsShot: bool = true) {.moddable.} =
   ## Shot bookkeeping only -- the damage itself is booked by recordDamageDealt at
   ## the point it is applied. countsAsShot is false for the second and later
   ## enemies a piercing or ricocheting bullet touches: those are extra contacts
@@ -389,11 +390,11 @@ proc recordShotHit*(damage: float32, enemyType: EnemyType, isCrit: bool = false,
   if damage > currentRunStats.combat.largestSingleHit:
     currentRunStats.combat.largestSingleHit = damage
 
-proc recordShotMissed*() =
+proc recordShotMissed() {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.combat.shotsMissed += 1
 
-proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2f) =
+proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.combat.totalKills += 1
@@ -419,7 +420,7 @@ proc recordKill*(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: fl
     position: pos
   ))
 
-proc recordDamageTaken*(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2f) =
+proc recordDamageTaken(damage: float32, enemyType: EnemyType, gameTime: float32, playerPos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.combat.totalDamageTaken += damage
@@ -442,11 +443,11 @@ proc recordDamageTaken*(damage: float32, enemyType: EnemyType, gameTime: float32
     position: playerPos
   ))
 
-proc recordDamageAvoided*(amount: float32) =
+proc recordDamageAvoided(amount: float32) {.moddable.} =
   if currentRunStats.isNil or amount <= 0.0: return
   currentRunStats.movement.damageAvoided += amount
 
-proc recordSpecialMechanic*(mechType: string) =
+proc recordSpecialMechanic(mechType: string) {.moddable.} =
   if currentRunStats.isNil: return
 
   case mechType
@@ -459,7 +460,7 @@ proc recordSpecialMechanic*(mechType: string) =
   else: discard
 
 # MOVEMENT TRACKING
-proc updateMovement*(player: Player, dt: float32, gameTime: float32) =
+proc updateMovement(player: Player, dt: float32, gameTime: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   let speed = player.vel.length()
@@ -479,7 +480,7 @@ proc updateMovement*(player: Player, dt: float32, gameTime: float32) =
   if player.invincibilityTimer > 0 or player.phaseShiftInvulnTimer > 0 or player.parryActive:
     currentRunStats.movement.timeInvincible += dt
 
-proc recordLegendaryAbility*(abilityType: string, gameTime: float32, playerPos: Vector2f) =
+proc recordLegendaryAbility(abilityType: string, gameTime: float32, playerPos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   case abilityType
@@ -496,7 +497,7 @@ proc recordLegendaryAbility*(abilityType: string, gameTime: float32, playerPos: 
     position: playerPos
   ))
 
-proc recordNearDeath*(gameTime: float32, playerPos: Vector2f) =
+proc recordNearDeath(gameTime: float32, playerPos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.movement.nearDeathCount += 1
@@ -509,11 +510,11 @@ proc recordNearDeath*(gameTime: float32, playerPos: Vector2f) =
   ))
 
 # RESOURCE TRACKING
-proc recordCoinEarned*(amount: int) =
+proc recordCoinEarned(amount: int) {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.resources.coinsEarned += amount
 
-proc recordCoinSpent*(amount: int, itemName: string, gameTime: float32) =
+proc recordCoinSpent(amount: int, itemName: string, gameTime: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.resources.coinsSpent += amount
@@ -525,14 +526,14 @@ proc recordCoinSpent*(amount: int, itemName: string, gameTime: float32) =
     eventType: geShopPurchase,
     value: amount.float32,
     details: itemName,
-    position: newVector2f(0, 0)
+    position: vec2(0, 0)
   ))
 
-proc recordRerollSpent*(amount: int) =
+proc recordRerollSpent*(amount: int) {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.resources.coinsSpent += amount
 
-proc recordWallPlaced*(gameTime: float32, pos: Vector2f) =
+proc recordWallPlaced(gameTime: float32, pos: Vector2) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.resources.wallsPlaced += 1
@@ -544,17 +545,17 @@ proc recordWallPlaced*(gameTime: float32, pos: Vector2f) =
     position: pos
   ))
 
-proc recordWallDestroyed*(damageBlocked: float32) =
+proc recordWallDestroyed(damageBlocked: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.resources.wallsDestroyed += 1
   currentRunStats.resources.wallDamageBlocked += damageBlocked
 
-proc recordWallDamaged*() =
+proc recordWallDamaged() {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.resources.wallsDamaged += 1
 
-proc recordConsumable*(consumType: ConsumableType) =
+proc recordConsumable(consumType: ConsumableType) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.resources.consumablesCollected += 1
@@ -606,7 +607,7 @@ proc rewindPowerUpPicks(stats: var PowerUpStats, checkpointTime: float32) =
   for pick in kept:
     tallyPick(stats, pick[1])
 
-proc recordPowerUpChosen*(powerUp: PowerUp, gameTime: float32) =
+proc recordPowerUpChosen(powerUp: PowerUp, gameTime: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.powerUps.powerUpsChosen.add((gameTime, powerUp))
@@ -617,17 +618,17 @@ proc recordPowerUpChosen*(powerUp: PowerUp, gameTime: float32) =
     eventType: gePowerUpChosen,
     value: powerUp.level.float32,
     details: $powerUp.powerType & " Lv" & $powerUp.level,
-    position: newVector2f(0, 0)
+    position: vec2(0, 0)
   ))
 
-proc recordPowerUpDamage*(powerType: PowerUpType, damage: float32) =
+proc recordPowerUpDamage(powerType: PowerUpType, damage: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   if not currentRunStats.powerUps.damageContribution.hasKey(powerType):
     currentRunStats.powerUps.damageContribution[powerType] = 0.0
   currentRunStats.powerUps.damageContribution[powerType] += damage
 
-proc recordPowerUpHealing*(powerType: PowerUpType, restored, overheal: float32) =
+proc recordPowerUpHealing(powerType: PowerUpType, restored, overheal: float32) {.moddable.} =
   if currentRunStats.isNil: return
   if restored > 0.0'f32:
     currentRunStats.powerUps.healingContribution.mgetOrPut(powerType, 0.0'f32) += restored
@@ -664,7 +665,7 @@ proc healOutcome(game: Game, requested, restored: float32): tuple[restored, over
   (restored: got, overheal: gross - got)
 
 proc trackHealing*(game: Game, source: PowerUpType, requested, restored: float32,
-                   bloodMasteryMult = 1.0'f32) =
+                   bloodMasteryMult = 1.0'f32) {.moddable.} =
   ## Books one power-up heal: what it restored and what it overhealed, each split
   ## between the source, Blood Mastery and puHealPower. `restored` must be the
   ## return value of heal(), so the healing column only ever counts HP that went
@@ -691,7 +692,7 @@ proc trackBucketHealing(game: Game, requested, restored: float32,
   overhealBucket += over * split.source
   recordPowerUpHealing(puHealPower, got * split.healPower, over * split.healPower)
 
-proc trackConsumableHealing*(game: Game, requested, restored: float32) =
+proc trackConsumableHealing*(game: Game, requested, restored: float32) {.moddable.} =
   ## Health pickups are not a power-up, so their base healing gets its own bucket
   ## instead of being reconstructed in the stats window from a pickup count and a
   ## duplicated formula (which missed Cornucopia's +40% and used end-of-run maxHp).
@@ -700,7 +701,7 @@ proc trackConsumableHealing*(game: Game, requested, restored: float32) =
                      currentRunStats.powerUps.healingFromConsumables,
                      currentRunStats.powerUps.overhealFromConsumables)
 
-proc trackLevelUpHealing*(game: Game, requested, restored: float32) =
+proc trackLevelUpHealing*(game: Game, requested, restored: float32) {.moddable.} =
   ## The partial heal granted by a run level-up, same split as above.
   if currentRunStats.isNil: return
   trackBucketHealing(game, requested, restored,
@@ -708,7 +709,7 @@ proc trackLevelUpHealing*(game: Game, requested, restored: float32) =
                      currentRunStats.powerUps.overhealFromLevelUps)
 
 # PERFORMANCE TRACKING
-proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) =
+proc recordWaveComplete(waveNumber: int, waveTime: float32, gameTime: float32) {.moddable.} =
   if currentRunStats.isNil: return
 
   currentRunStats.performance.waveTimes.add(waveTime)
@@ -724,22 +725,22 @@ proc recordWaveComplete*(waveNumber: int, waveTime: float32, gameTime: float32) 
     eventType: geWaveComplete,
     value: waveNumber.float32,
     details: waveDescription,
-    position: newVector2f(0, 0)
+    position: vec2(0, 0)
   ))
 
-proc updateRunDuration*(dt: float32) =
+proc updateRunDuration(dt: float32) {.moddable.} =
   if currentRunStats.isNil: return
   currentRunStats.runDuration += dt
 
 # DERIVED METRICS CALCULATION
 
-proc saveLastCompletedRun*() =
+proc saveLastCompletedRun*() {.moddable.} =
   ## Store a copy of the current run for viewing (save to disk handled externally)
   if not currentRunStats.isNil:
     lastCompletedRun = cloneRunStatistics(currentRunStats)
     echo "[Stats] Last run saved to memory"
 
-proc loadLastCompletedRun*(loadedStats: RunStatistics) =
+proc loadLastCompletedRun*(loadedStats: RunStatistics) {.moddable.} =
   ## Load a previously completed run from external source
   if not loadedStats.isNil:
     lastCompletedRun = loadedStats
@@ -747,18 +748,18 @@ proc loadLastCompletedRun*(loadedStats: RunStatistics) =
   else:
     echo "[Stats] No previous run data provided"
 
-proc hasLastRunStats*(): bool =
+proc hasLastRunStats*(): bool {.moddable.} =
   result = not lastCompletedRun.isNil
 
-proc getLastRunStats*(): RunStatistics =
+proc getLastRunStats*(): RunStatistics {.moddable.} =
   result = lastCompletedRun
 
-proc clearLastCompletedRun*() =
+proc clearLastCompletedRun*() {.moddable.} =
   ## Clear the in-memory completed-run snapshot used by stats and advancements.
   lastCompletedRun = nil
 
 # Game Lifecycle
-proc initializeRunTracking*(game: Game) =
+proc initializeRunTracking*(game: Game) {.moddable.} =
   startNewRun(game.mode)
   # A run resumed from a checkpoint keeps its wave/floor progress but lost its
   # in-memory statistics with the process. Seed the clock from the restored run
@@ -768,9 +769,8 @@ proc initializeRunTracking*(game: Game) =
   # Fresh counters hold nothing the lifetime statistics have seen yet.
   game.statsBaseCoins = 0
   game.statsBaseBosses = 0
-  game.showRunStatsGraphs = true
 
-proc resumeRunTracking*(game: Game) =
+proc resumeRunTracking*(game: Game) {.moddable.} =
   ## Keep accumulating into the CURRENT run's statistics instead of starting a
   ## fresh record. Used by the game-over "Continue" path: resuming from the last
   ## boss-block checkpoint continues the same run, so kills, power-ups collected,
@@ -797,9 +797,8 @@ proc resumeRunTracking*(game: Game) =
     # the cut-off for the picks the rollback took away.
     rewindPowerUpPicks(currentRunStats.powerUps, game.time)
     echo "[Stats] Run resumed from checkpoint - carrying accumulated stats"
-  game.showRunStatsGraphs = true
 
-proc finalizeRunTracking*(game: Game, died: bool) =
+proc finalizeRunTracking*(game: Game, died: bool) {.moddable.} =
   ## died is false for the wave-60 victory screen and for a banked roguelite cash
   ## out; it used to be hardcoded true, so every won run was recorded as a death.
   let waveReached =
@@ -830,11 +829,11 @@ proc finalizeRunTracking*(game: Game, died: bool) =
   if not currentRunStats.isNil:
     currentRunStats.modded = game.modded
 
-proc hasValidRunStats*(): bool =
+proc hasValidRunStats*(): bool {.moddable.} =
   result = not currentRunStats.isNil and currentRunStats.runDuration > 0
 
 # Combat Integration
-proc trackBulletFired*(game: Game) =
+proc trackBulletFired*(game: Game) {.moddable.} =
   ## Counts one player projectile. EVERY player bullet must pass through here,
   ## including the ones spawned by split, ricochet, echo, radial burst and wall
   ## turrets: their contacts are counted as hits, so leaving them out of the
@@ -842,7 +841,7 @@ proc trackBulletFired*(game: Game) =
   recordShotFired()
   game.dopamine.waveStats.shotsFired += 1
 
-proc trackBulletHit*(game: Game, bullet: Bullet, enemy: Enemy, damage: float32) =
+proc trackBulletHit*(game: Game, bullet: Bullet, enemy: Enemy, damage: float32) {.moddable.} =
   ## One trigger pull is one shot however many enemies the bullet goes on to
   ## touch, so only the first contact counts towards shotsHit (and the crit
   ## tally). Without this, piercing and ricochet builds report accuracy well
@@ -858,11 +857,19 @@ proc trackBulletHit*(game: Game, bullet: Bullet, enemy: Enemy, damage: float32) 
   if bullet.isHoming: recordSpecialMechanic("homing")
   if bullet.hasSplit: recordSpecialMechanic("split")
 
-proc trackBulletDespawn*(game: Game, bullet: Bullet, hitEnemy: bool) =
+proc trackBulletDespawn*(game: Game, bullet: Bullet, hitEnemy: bool) {.moddable.} =
   if not hitEnemy and bullet.piercedEnemies == 0 and bullet.lifetime > 0.1:
     recordShotMissed()
 
-proc trackEnemyKilled*(game: Game, enemy: Enemy) =
+proc trackEnemyKilled*(game: Game, enemy: Enemy) {.moddable.} =
+  ## THE single entry point for "the player killed an enemy": it moves every
+  ## kill counter at once (player.kills, the wave's and the run's), so they can
+  ## no longer disagree. A boss kill also books its HP as the wave's top damage.
+  inc game.player.kills
+  inc game.dopamine.waveStats.kills
+  if enemy.isBoss:
+    let bossHp = if enemy.bossTotalMaxHp > 0.0'f32: enemy.bossTotalMaxHp else: enemy.maxHp
+    game.dopamine.waveStats.topDamage = max(game.dopamine.waveStats.topDamage, bossHp)
   recordKill(enemy.enemyType, enemy.isElite, enemy.isBoss, game.time, enemy.pos)
 
 const NearDeathHpFraction = 0.15'f32
@@ -870,7 +877,7 @@ const NearDeathHpFraction = 0.15'f32
   ## display units (BALANCE_MULTIPLIER = 100) but compared against internal HP,
   ## whose starting maximum is 9 -- so every hit in the run logged a near-death.
 
-proc trackPlayerDamage*(game: Game, enemyType: EnemyType) =
+proc trackPlayerDamage*(game: Game, enemyType: EnemyType) {.moddable.} =
   ## Books what the hit ACTUALLY cost, read from player.lastDamageTaken rather
   ## than the damage that was offered. A hit that was dodged, parried, blocked by
   ## a shield charge or eaten by Celestial Veil leaves that at 0, so it is
@@ -882,13 +889,12 @@ proc trackPlayerDamage*(game: Game, enemyType: EnemyType) =
 
   recordDamageTaken(damage, enemyType, game.time, game.player.pos)
   game.dopamine.waveStats.damageTaken += damage
-  game.dopamine.waveStats.isPerfect = false
 
   if game.player.hp > 0 and game.player.hp < game.player.maxHp * NearDeathHpFraction:
     recordNearDeath(game.time, game.player.pos)
 
 # Combo and Perfect Wave Integration
-proc trackCombo*(game: Game, comboCount: int) =
+proc trackCombo*(game: Game, comboCount: int) {.moddable.} =
   ## Track combo statistics
   if currentRunStats.isNil:
     return
@@ -902,58 +908,69 @@ proc trackCombo*(game: Game, comboCount: int) =
     currentRunStats.combat.totalCombos += 1
     currentRunStats.combat.comboSum += comboCount
 
-proc trackPerfectWave*() =
+proc trackPerfectWave*() {.moddable.} =
   ## Track when a perfect wave is achieved
   if currentRunStats.isNil:
     return
   currentRunStats.combat.perfectWaves += 1
 
 # Movement Integration
-proc trackMovementFrame*(game: Game, dt: float32) =
+proc trackMovementFrame*(game: Game, dt: float32) {.moddable.} =
   updateMovement(game.player, dt, game.time)
   updateRunDuration(dt)
 
-proc trackPhaseShift*(game: Game, distanceTraveled: float32) =
+proc trackPhaseShift*(game: Game, distanceTraveled: float32) {.moddable.} =
   recordLegendaryAbility("phase_shift", game.time, game.player.pos)
   if currentRunStats.isNil: return
   currentRunStats.movement.totalPhaseShiftDistance += distanceTraveled
 
-proc trackTimeWarp*(game: Game, duration: float32) =
+proc trackTimeWarp*(game: Game, duration: float32) {.moddable.} =
   recordLegendaryAbility("time_warp", game.time, game.player.pos)
   if currentRunStats.isNil: return
   currentRunStats.movement.totalTimeWarpDuration += duration
 
-proc trackDamageAvoided*(game: Game) =
+proc trackDamageAvoided*(game: Game) {.moddable.} =
   recordDamageAvoided(game.player.lastDamageAvoided)
 
 # Resource Integration
-proc trackCoinPickup*(game: Game, amount: int) =
+proc gainCredits*(game: Game, amount: int) {.moddable.} =
+  ## THE single entry point for credits the player earns in a run: coins,
+  ## combo and perfect-wave bonuses, caches, sector rewards. It pays the wallet
+  ## and books the amount everywhere credits are reported (run stats, the wave
+  ## celebration, the debug panel's coins/minute), so no source goes missing.
+  if amount <= 0: return
+  game.player.coins += amount
   recordCoinEarned(amount)
+  game.dopamine.waveStats.coinsEarned += amount
+  game.dopamine.realTimeStats.totalCoins += amount
+  if game.dopamine.currentTime > 0:
+    game.dopamine.realTimeStats.coinsPerMinute =
+      game.dopamine.realTimeStats.totalCoins.float32 / game.dopamine.currentTime * 60.0'f32
 
-proc trackShopPurchase*(game: Game, itemName: string, cost: int) =
+proc trackShopPurchase*(game: Game, itemName: string, cost: int) {.moddable.} =
   recordCoinSpent(cost, itemName, game.time)
 
-proc trackWallPlacement*(game: Game, pos: Vector2f) =
+proc trackWallPlacement*(game: Game, pos: Vector2) {.moddable.} =
   recordWallPlaced(game.time, pos)
 
-proc trackWallDestruction*(game: Game, damageBlocked: float32) =
+proc trackWallDestruction*(game: Game, damageBlocked: float32) {.moddable.} =
   recordWallDestroyed(damageBlocked)
 
-proc trackWallDamaged*(game: Game) =
+proc trackWallDamaged*(game: Game) {.moddable.} =
   recordWallDamaged()
 
-proc trackConsumablePickup*(game: Game, consumType: ConsumableType) =
+proc trackConsumablePickup*(game: Game, consumType: ConsumableType) {.moddable.} =
   recordConsumable(consumType)
 
 # Power-Up Integration
-proc trackPowerUpSelection*(game: Game, powerUp: PowerUp) =
+proc trackPowerUpSelection*(game: Game, powerUp: PowerUp) {.moddable.} =
   recordPowerUpChosen(powerUp, game.time)
 
-proc trackPowerUpDamage*(game: Game, powerType: PowerUpType, damage: float32) =
+proc trackPowerUpDamage*(game: Game, powerType: PowerUpType, damage: float32) {.moddable.} =
   recordPowerUpDamage(powerType, damage)
 
 proc trackPowerUpDamageWithMastery*(game: Game, basePower, masteryPower: PowerUpType,
-                                    damage: float32, masteryMult: float32) =
+                                    damage: float32, masteryMult: float32) {.moddable.} =
   ## Splits one hit between the ability and the elemental mastery amplifying it,
   ## instead of handing the FULL post-mastery damage to both. With
   ## MasteryDamageMult = 2.5 the old double-credit reported 250% of the hit to the
@@ -972,5 +989,5 @@ proc trackPowerUpDamageWithMastery*(game: Game, basePower, masteryPower: PowerUp
     recordPowerUpDamage(basePower, damage)
 
 # Performance Integration
-proc trackWaveCompletion*(game: Game, waveNumber: int, waveTime: float32) =
+proc trackWaveCompletion*(game: Game, waveNumber: int, waveTime: float32) {.moddable.} =
   recordWaveComplete(waveNumber, waveTime, game.time)

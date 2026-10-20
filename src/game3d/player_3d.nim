@@ -2,9 +2,10 @@
 ## Handles 3D player movement, shooting, and weapon systems
 
 import raylib, math, random
+import ../modding/mod_patch_core
 import types_3d, engine_3d
 
-proc newWeapon3D*(): Weapon3D =
+proc newWeapon3D(): Weapon3D {.moddable.} =
   Weapon3D(
     ammo: 500,        # Increased from 150 for longer fights
     maxAmmo: 500,     # Increased from 150 for longer fights
@@ -16,7 +17,7 @@ proc newWeapon3D*(): Weapon3D =
     pellets: 1
   )
 
-proc updateWeapon*(player: var Player3D, dt: float32) =
+proc updateWeapon*(player: var Player3D, dt: float32) {.moddable.} =
   if player.weapon.fireTimer > 0:
     player.weapon.fireTimer -= dt
   if player.weapon.reloadTimer > 0:
@@ -25,12 +26,12 @@ proc updateWeapon*(player: var Player3D, dt: float32) =
       player.weapon.reloadTimer = 0
       player.weapon.ammo = player.weapon.maxAmmo
 
-proc weaponReady*(player: Player3D): bool =
+proc weaponReady*(player: Player3D): bool {.moddable.} =
   ## Whether pulling the trigger now fires a shot.
   (player.weapon.ammo > 0 or player.weapon.infiniteAmmo) and
     player.weapon.fireTimer <= 0 and player.weapon.reloadTimer <= 0
 
-proc fireWeapon*(player: var Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool =
+proc fireWeapon*(player: var Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool {.moddable.} =
   if weaponReady(player):
     if not player.weapon.infiniteAmmo:
       player.weapon.ammo -= 1
@@ -60,13 +61,13 @@ proc fireWeapon*(player: var Player3D, camera: FPSCamera, projectiles: var seq[P
     return true
   false
 
-proc reload*(player: var Player3D) =
+proc reload*(player: var Player3D) {.moddable.} =
   if player.weapon.reloadTime <= 0:
     player.weapon.ammo = player.weapon.maxAmmo
   elif player.weapon.reloadTimer <= 0 and player.weapon.ammo < player.weapon.maxAmmo:
     player.weapon.reloadTimer = player.weapon.reloadTime
 
-proc newPlayer3D*(startPos: Vector3f, health2D: float32): Player3D =
+proc newPlayer3D*(startPos: Vector3, health2D: float32): Player3D {.moddable.} =
   Player3D(
     pos: startPos,
     vel: vec3(0, 0, 0),
@@ -84,7 +85,7 @@ proc newPlayer3D*(startPos: Vector3f, health2D: float32): Player3D =
     gravityScale: 1.0
   )
 
-proc updatePlayer*(player: var Player3D, camera: FPSCamera, arena: Arena3D, dt: float32): bool =
+proc updatePlayer*(player: var Player3D, camera: FPSCamera, arena: Arena3D, dt: float32): bool {.moddable.} =
   ## Movement, gravity, platform landings and the arena bounds. True when the
   ## player fell through the death plane (the caller decides what that means).
   if player.invulnTimer > 0:

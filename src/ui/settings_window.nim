@@ -2,9 +2,11 @@
 ## Tabbed settings interface matching the OS visual language
 
 import raylib, rlgl, strutils, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../sound, ../save_system, os_window, ../localization, ../render_context, ../gamepad_input, ../statistics, ../run_statistics, ../advancement, ../roguelite, ../types, ../modding/mod_hooks
-import ui_theme
+import ui_theme, text_field
+from ui_helpers import TextAlign, bestFitFontSize
 
 proc checkboxHit*(p: Vector2, x, y: int): bool =
   ## Hit test for the 25x25 checkboxes this window is built from. On mobile the
@@ -43,8 +45,8 @@ type
     advancementProfile*: AdvancementProfile
     rogueliteProfile*: RogueliteProfile
 
-    # UI state
-    editingFPS*: bool
+    # The FPS limit box (focused while it is being edited)
+    fpsField*: TextField
 
     # Slider state
     draggingVolume*: bool
@@ -94,7 +96,7 @@ type
 proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
                         stats: Statistics = nil,
                         advancementProfile: AdvancementProfile = nil,
-                        rogueliteProfile: RogueliteProfile = nil): SettingsWindow =
+                        rogueliteProfile: RogueliteProfile = nil): SettingsWindow {.moddable.} =
   let windowWidth = 700
   let windowHeight = 620   # Controls also shows the loaded-mod keybind subsection
   let windowX = (screenWidth - windowWidth) div 2
@@ -105,7 +107,6 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 200, g: 100, b: 255, a: 255),  # Purple
-    owtSettings,
     resizable = false
   )
 
@@ -116,7 +117,8 @@ proc newSettingsWindow*(screenWidth, screenHeight: int, settings: Settings,
     stats: stats,
     advancementProfile: advancementProfile,
     rogueliteProfile: rogueliteProfile,
-    editingFPS: false,
+    fpsField: newTextField(fieldStyle(16, White, Gold, padX = 6, align = TextAlign.taCenter), maxChars = 4,
+                           allowed = {'0' .. '9'}),
     draggingVolume: false,
     draggingMusic: false,
     draggingDamageSize: false,
@@ -149,13 +151,35 @@ const
   SettingsTabWidth = 105
   SettingsTabGap = 8
 
-proc tabContentOriginY*(window: OSWindow): int =
+proc tabContentOriginY(window: OSWindow): int {.moddable.} =
   ## Top of the tab content area -- what drawSettingsWindow passes each tab as
   ## its `contentY`. Hit-testing has to use the identical value, and
   ## updateSettingsWindow's own `contentY` is 5px lower than this.
   window.y + TITLE_BAR_HEIGHT + 55
 
-proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) =
+proc fpsBox(window: OSWindow): Rectangle =
+  ## The Graphics tab's FPS limit box (drawn and hit-tested alike).
+  Rectangle(x: float32(window.x + WINDOW_PADDING + 320), y: float32(tabContentOriginY(window) + 145),
+            width: 110, height: 35)
+
+proc wantsTextInput*(settingsWin: SettingsWindow): bool {.moddable.} =
+  ## True while the FPS limit box takes the keystrokes.
+  not settingsWin.isNil and settingsWin.currentTab == stGraphics and
+    typingIn(settingsWin.window, settingsWin.fpsField)
+
+proc commitFpsLimit(settingsWin: SettingsWindow): bool =
+  ## Leave the FPS box: a limit of 1..9999 typed in it takes effect (true).
+  settingsWin.fpsField.focused = false
+  try:
+    let fps = parseInt(settingsWin.fpsField.text)
+    if fps >= 1 and fps <= 9999:
+      settingsWin.settings.fpsLimit = fps.int32
+      setTargetFPS(settingsWin.settings.fpsLimit)
+      return true
+  except ValueError:
+    discard
+
+proc drawTab(tabName: string, x, y, width, height: int, isActive: bool, isHovered: bool) {.moddable.} =
   let bgColor = if isActive:
     uiSurface(0, 60, 80)
   elif isHovered:
@@ -185,7 +209,7 @@ proc drawTab*(tabName: string, x, y, width, height: int, isActive: bool, isHover
   let textColor = if isActive: uiInk(Gold) else: uiInk(White)
   drawText(tabName, textX.int32, textY.int32, 16, textColor)
 
-proc drawCheckbox*(x, y, size: int, checked: bool, hovered: bool) =
+proc drawCheckbox*(x, y, size: int, checked: bool, hovered: bool) {.moddable.} =
   let bgColor = if checked:
     uiSurface(15, 75, 30)
   elif hovered:
@@ -216,8 +240,8 @@ proc drawCheckbox*(x, y, size: int, checked: bool, hovered: bool) =
             Vector2(x: (x + size - 3).float32, y: (y + 3).float32),
             3, checkColor)
 
-proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool,
-                showTicks: bool = false, tickValues: seq[int] = @[]) =
+proc drawSlider(x, y, width, height: int, value: float32, hovered: bool,
+                showTicks: bool = false, tickValues: seq[int] = @[]) {.moddable.} =
   # Background
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                uiSurface(30, 30, 42))
@@ -257,7 +281,7 @@ proc drawSlider*(x, y, width, height: int, value: float32, hovered: bool,
   drawRectangle(handleX.int32, (y - 3).int32, 10, 2,
                uiGlow(255, 255, 255, 90))
 
-proc drawSectionHeader*(x, y, width: int, title: string, iconChar: char, color: Color) =
+proc drawSectionHeader(x, y, width: int, title: string, iconChar: char, color: Color) {.moddable.} =
   ## Draw a section divider with colored icon square
   # Colored icon square: a badge, in its own colours in every theme
   drawRectangle(x.int32, y.int32, 20, 22, color)
@@ -587,7 +611,7 @@ const DisplayTogglesLive = not defined(android)
   ## dimmed and ignore taps. They keep their slots so every row below them stays
   ## where the hardcoded hit rects in updateSettingsWindow expect it.
 
-proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
+proc drawGraphicsTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   var yPos = contentY + 15
 
   # Section: Display
@@ -639,26 +663,19 @@ proc drawGraphicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
   drawText(t(tkSettingsRenderResolutionDesc), renderModeButtonX.int32, yPos.int32, 14, uiInk(LightGray))
   yPos += 25
 
-  # FPS Limit: text input for custom values
+  # FPS Limit: a text box for custom values (the limit itself while not edited)
   drawText(t(tkSettingsFpsLimit), (contentX + 40).int32, yPos.int32, 18, uiInk(White))
-  let boxX = contentX + 320
-  let boxY = yPos - 5
-  let boxWidth = 110
-  let boxHeight = 35
-  drawRectangle(boxX.int32, boxY.int32, boxWidth.int32, boxHeight.int32,
-               if settingsWin.editingFPS: uiSurface(100, 100, 150)
-               else: uiSurface(60, 60, 80))
-  drawRectOutline(Rectangle(x: boxX.float32, y: boxY.float32,
-                                width: boxWidth.float32, height: boxHeight.float32),
-                    if settingsWin.editingFPS: 2.0'f32 else: 1.0'f32,
-                    if settingsWin.editingFPS: uiLine(Gold) else: uiLine(100, 100, 120))
-  let displayText = if settingsWin.editingFPS:
-    settingsWin.settings.inputBuffer & "_"
+  let box = fpsBox(settingsWin.window)
+  let editing = settingsWin.fpsField.focused
+  drawRectangle(box, if editing: uiSurface(100, 100, 150) else: uiSurface(60, 60, 80))
+  drawRectOutline(box, if editing: 2.0'f32 else: 1.0'f32,
+                  if editing: uiLine(Gold) else: uiLine(100, 100, 120))
+  if editing:
+    drawTextField(settingsWin.fpsField, box, hasKeyboard(settingsWin.window))
   else:
-    $settingsWin.settings.fpsLimit
-  let textWidth = measureText(displayText, 16)
-  drawText(displayText, (boxX + (boxWidth - textWidth) div 2).int32,
-          (boxY + (boxHeight - 16) div 2).int32, 16, uiInk(White))
+    let limitText = $settingsWin.settings.fpsLimit
+    drawText(limitText, int32(box.x) + (int32(box.width) - measureText(limitText, 16)) div 2,
+             int32(box.y) + (int32(box.height) - 16) div 2, 16, uiInk(White))
 
   yPos += 40
 
@@ -881,16 +898,14 @@ proc drawCycleButton(rect: Rectangle, label: string, hovered: bool,
     else: uiInk(LightGray)
   let textY = (rect.y + (rect.height - 16) / 2).int32
   # A long value (a theme's name) shrinks to stay clear of the arrows.
-  var labelSize = 16'i32
-  while labelSize > 10 and measureText(label, labelSize).float32 > rect.width - 56:
-    dec labelSize
+  let labelSize = bestFitFontSize(label, (rect.width - 56).int32, 16, 10)
   let textWidth = measureText(label, labelSize)
   drawText("<", (rect.x + 10).int32, textY, 18, arrowColor(-1, canDec))
   drawText(label, (rect.x + (rect.width - textWidth.float32) / 2).int32,
            textY + (16 - labelSize) div 2, labelSize, uiInk(White))
   drawText(">", (rect.x + rect.width - 22).int32, textY, 18, arrowColor(1, canInc))
 
-proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
+proc drawInterfaceTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   let mousePos = getVirtualMousePosition()
   let s = settingsWin.settings
 
@@ -992,7 +1007,7 @@ proc drawInterfaceTab*(settingsWin: SettingsWindow, contentX, contentY, contentW
                  checkCollisionPointRec(mousePos, interfaceHitRect(ic, contentX, contentY, contentW)))
     drawText(interfaceToggleLabel(ic), (rect.x + 34).int32, (rect.y + 5).int32, 16, uiInk(White))
 
-proc drawAudioTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
+proc drawAudioTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   var yPos = contentY + 15
 
   # Section: Volume Control
@@ -1103,7 +1118,7 @@ type
     modRowsY*: int
     modResetY*: int
 
-proc controlsLayout*(contentY, contentH: int): ControlsLayout =
+proc controlsLayout(contentY, contentH: int): ControlsLayout {.moddable.} =
   var y = contentY + 10
   result.inputHeaderY = y
   y += 34
@@ -1134,7 +1149,7 @@ proc controlsLayout*(contentY, contentH: int): ControlsLayout =
     y += modKeybinds.len * ClKbRowStride + 6
     result.modResetY = y
 
-proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
+proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   # All vertical offsets come from controlsLayout so the click handling in
   # handleSettingsInput reads the exact same numbers.
   let lay = controlsLayout(contentY, contentH)
@@ -1355,7 +1370,7 @@ proc drawControlsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
     let thumbY = contentY + (viewH - thumbH) * settingsWin.modKeybindScroll div maxScroll
     drawRectangle(barX.int32, thumbY.int32, 4, thumbH.int32, uiSurface(Gold))
 
-proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
+proc drawGameplayTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   var yPos = contentY + 15
 
   # Section: Assistance
@@ -1428,8 +1443,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
                     1, if langHovered: uiLine(Gold) else: uiLine(100, 100, 120))
 
   # Display current language with arrows
-  let currentLang = try: parseEnum[Language](settingsWin.settings.language) except: English
-  let langDisplayText = getLanguageName(currentLang)
+  let langDisplayText = languageDisplayName(languageSetting())   # (a mod language's own name)
   let langTextWidth = measureText(langDisplayText, 18)
   drawText("<", langButtonX.int32 + 10, yPos.int32, 18, uiInk(LightGray))
   drawText(langDisplayText, (langButtonX + (langButtonWidth - langTextWidth) div 2).int32, yPos.int32, 18, uiInk(White))
@@ -1458,7 +1472,7 @@ proc drawGameplayTab*(settingsWin: SettingsWindow, contentX, contentY, contentW,
              (contentX + (contentW - statusWidth) div 2).int32,
              (contentY + 344).int32, 14, uiInk(LightGray))
 
-proc drawCinematicsTab*(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) =
+proc drawCinematicsTab(settingsWin: SettingsWindow, contentX, contentY, contentW, contentH: int) {.moddable.} =
   ## Gallery of every replayable cutscene, split into Story and Mode Intros.
   ## Unlocked entries are clickable; locked ones render greyed and inert.
   let mousePos = getVirtualMousePosition()
@@ -1488,7 +1502,7 @@ proc drawCinematicsTab*(settingsWin: SettingsWindow, contentX, contentY, content
       drawText(tag, tx + 5, ty + 2, 11, uiInk(40, 24, 0))
 
 proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
-                          screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] =
+                          screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): tuple[shouldClose: bool, fullscreenToggle: bool] {.moddable.} =
   ## Returns (shouldClose, fullscreenToggleRequested)
   updateOSWindow(settingsWin.window, dt)
 
@@ -1531,7 +1545,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       tabX += SettingsTabWidth + SettingsTabGap
 
   # Tab switching with number keys (blocked while editing FPS or capturing a rebind)
-  if not settingsWin.window.minimized and not settingsWin.editingFPS and
+  if not settingsWin.window.minimized and not settingsWin.fpsField.focused and
      settingsWin.rebindingAction < 0 and settingsWin.rebindingGamepadAction < 0 and
      settingsWin.rebindingModKey < 0 and settingsWin.rebindingModPad < 0:
     if isKeyPressed(One): settingsWin.currentTab = stGraphics
@@ -1566,30 +1580,6 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-      # FPS text input box
-      let boxX = contentX + 320
-      let boxY = contentY + 145
-      let boxWidth = 110
-      let boxHeight = 35
-      let boxHit = mousePos.x >= boxX.float32 and mousePos.x <= (boxX + boxWidth).float32 and
-                   mousePos.y >= boxY.float32 and mousePos.y <= (boxY + boxHeight).float32
-      if boxHit:
-        if not settingsWin.editingFPS:
-          settingsWin.editingFPS = true
-          settingsWin.settings.inputBuffer = $settingsWin.settings.fpsLimit
-      else:
-        if settingsWin.editingFPS:
-          if settingsWin.settings.inputBuffer.len > 0:
-            try:
-              let newFps = parseInt(settingsWin.settings.inputBuffer)
-              if newFps >= 1 and newFps <= 9999:
-                settingsWin.settings.fpsLimit = newFps.int32
-                setTargetFPS(settingsWin.settings.fpsLimit)
-                settingsChanged = true
-            except:
-              discard
-          settingsWin.editingFPS = false
-
       # VSync checkbox
       let vsyncCheckX = contentX + 320
       let vsyncCheckY = contentY + 190
@@ -1610,31 +1600,21 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
         playSound(stMenuSelect)
         settingsChanged = true
 
-    # Keyboard input for FPS text box
-    if settingsWin.editingFPS:
-      setTextInputActive(true, tikNumeric)
-      setTextInputPreview(settingsWin.settings.inputBuffer)
-      # Drained in a loop -- one poll per frame dropped everything raylib had
-      # already queued behind the first character.
-      var key = pollCharPressed()
-      while key > 0:
-        if key > 0 and key < 256:
-          let ch = char(key)
-          if ch in '0'..'9' and settingsWin.settings.inputBuffer.len < 4:
-            settingsWin.settings.inputBuffer.add(ch)
-        key = pollCharPressed()
-      if pollBackspacePressed() and settingsWin.settings.inputBuffer.len > 0:
-        settingsWin.settings.inputBuffer.setLen(settingsWin.settings.inputBuffer.len - 1)
-      if pollEnterPressed() and settingsWin.settings.inputBuffer.len > 0:
-        try:
-          let newFps = parseInt(settingsWin.settings.inputBuffer)
-          if newFps >= 1 and newFps <= 9999:
-            settingsWin.settings.fpsLimit = newFps.int32
-            setTargetFPS(settingsWin.settings.fpsLimit)
-            settingsChanged = true
-        except:
-          discard
-        settingsWin.editingFPS = false
+  # The FPS limit box: it opens on the current limit, all of it selected, and
+  # Enter, a press elsewhere or leaving the tab (or the window) applies it.
+  let fps = settingsWin.fpsField
+  let fpsActive = settingsWin.currentTab == stGraphics and hasKeyboard(settingsWin.window)
+  let fpsRect = fpsBox(settingsWin.window)
+  if fps.focused and (not fpsActive or
+                      (isPointerPressed() and not checkCollisionPointRec(mousePos, fpsRect))):
+    settingsChanged = commitFpsLimit(settingsWin) or settingsChanged
+  let wasEditing = fps.focused
+  let fpsInput = updateTextField(fps, fpsRect, dt, fpsActive)
+  if fpsInput.clicked and not wasEditing:
+    fps.setText($settingsWin.settings.fpsLimit)
+    fps.selectAll()
+  if fpsInput.submitted:
+    settingsChanged = commitFpsLimit(settingsWin) or settingsChanged
 
   # Handle Interface tab interactions
   if settingsWin.currentTab != stInterface:
@@ -2010,11 +1990,10 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
       let langButtonHeight = 35
       if mousePos.x >= langButtonX.float32 and mousePos.x <= (langButtonX + langButtonWidth).float32 and
          mousePos.y >= langButtonY.float32 and mousePos.y <= (langButtonY + langButtonHeight).float32:
-        # Cycle to next language
-        let currentLang = try: parseEnum[Language](settingsWin.settings.language) except: English
-        let nextLang = if currentLang == English: Spanish else: English
-        settingsWin.settings.language = $nextLang
-        setLanguage(nextLang)
+        # Cycle to next language: English, Spanish, then the mods' (register.language)
+        let nextLang = nextLanguageSetting(languageSetting())
+        settingsWin.settings.language = nextLang
+        discard useLanguage(nextLang)
         playSound(stMenuSelect)
         settingsChanged = true
 
@@ -2040,7 +2019,7 @@ proc updateSettingsWindow*(settingsWin: SettingsWindow, dt: float32,
 
   return (false, fullscreenToggle)
 
-proc drawSettingsWindow*(settingsWin: SettingsWindow) =
+proc drawSettingsWindow*(settingsWin: SettingsWindow) {.moddable.} =
   if not settingsWin.window.visible:
     return
 

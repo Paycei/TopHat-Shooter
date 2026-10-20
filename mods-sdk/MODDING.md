@@ -1,16 +1,27 @@
 # TopHat-ShooterOS modding guide
 
 Mods change how the game plays: new rules, new enemies, bosses and power-ups,
-new game modes, new looks. They are small programs written in **Lua 5.5**
-(the real thing, built into the game), run in a sandbox.
+new game modes, new looks. They are programs written in **Lua 5.5** (the real
+thing, built into the game) with the whole standard library: files, the OS,
+`require`, `load`, `debug`.
 
-A mod can reach almost everything: every field of the game state (down to
-nested lists and objects), replace the game's own behaviour at dozens of
-points (movement, dash, shooting, bullets, pickups, the shop, level-ups,
-enemy AI, boss attacks...), hide the HUD and draw its own, build first-person 3D worlds,
-rewrite PvP matches (new modes, weapons and abilities), dress the game in
-textures, videos and 3D models, play its own music, write in its own fonts,
-post-process the screen with shaders, and add its own apps to the desktop.
+A mod can reach everything: every field of the game state (down to nested
+lists and objects) and its global state (settings, statistics, the profile),
+every one of the game's own procs (call them, or wrap and replace them with
+mixins), raylib itself, the screens of the game (add its own) and its
+languages (add new ones). On top of that it gets a friendly layer: hooks at
+the moments that matter (movement, dash, shooting, bullets, pickups, the shop,
+level-ups, enemy AI, boss attacks...), its own HUD, first-person 3D worlds,
+PvP modes, textures, videos and 3D models, music, fonts, shaders, and apps of
+its own on the desktop.
+
+> **Mods are trusted.** A mod runs with full access to the game, like any
+> program you install. Its files are the exception: a mod reads only its own
+> folder and its data folder, and writes only its data folder (see
+> [Files](#files)). Mods in MODS.EXE's **Marketplace** (the
+> official registry, see [Publishing your mod](#publishing-your-mod)) are
+> reviewed and approved before they are listed; install mods from anywhere
+> else only if you trust who made them.
 
 > **Modded runs count as cheated.** Any run started while at least one mod is
 > loaded earns no Data Shards, statistics, advancements or unlocks. The one
@@ -21,15 +32,23 @@ post-process the screen with shaders, and add its own apps to the desktop.
 
 ## Getting started
 
-1. Open **MODS.EXE** on the desktop and press **Install Examples**. That writes
-   this guide and the example mods into your mods folder.
-2. Tick a mod, press **Apply & Reload**, start a run.
-3. Press **Open Folder**, copy an example folder, rename it, change the `id` in
-   its `mod.json`, and start editing. Apply & Reload picks up your changes; the
-   **Log** tab shows `print` output and every error with its file and line.
+1. Open **MODS.EXE** on the desktop and install an example mod from the
+   **Marketplace** tab: the game ships no mods, and the examples are listed
+   there with the others (see [The examples](#the-examples)). **Modding Docs**,
+   in the Installed tab, writes this guide and the API reference into your mods
+   folder.
+2. Tick the mod, press **Apply & Reload**, start a run.
+3. Press **Open Folder**, copy the example's folder, rename it, change the `id`
+   in its `mod.json`, and start editing. Apply & Reload picks up your changes;
+   the **Log** tab shows `print` output and every error with its file and line,
+   and the **Console** tab runs Lua as you type it.
+4. Keep **API.md** at hand (Modding Docs writes it next to this guide): it
+   lists every function, hook and proc this build has.
 
 Mods live in `<game data>/mods/<folder>/` (the folder Open Folder shows) or,
 for portable installs, in a `mods` folder next to the game executable.
+Published mods are in MODS.EXE's **Marketplace** tab, and
+[Publishing your mod](#publishing-your-mod) explains how to list yours there.
 
 ## mod.json
 
@@ -43,6 +62,7 @@ for portable installs, in a `mods` folder next to the game executable.
   "main": "main.lua",
   "dependencies": ["other_mod"],
   "loadAfter": ["optional_mod"],
+  "game": "6.4.0",
   "disableAchievements": true
 }
 ```
@@ -52,6 +72,9 @@ for portable installs, in a `mods` folder next to the game executable.
 * `dependencies`: mods that must be enabled and load first. If one is missing
   or fails, this mod is skipped.
 * `loadAfter`: mods that load first *if* they are enabled.
+* `game`: the oldest game version the mod is made for (`"6.4.0"`). On an
+  older game it still loads, but MODS.EXE and the Console warn that parts of it
+  may not work. In code, `engine.version` and `engine.atLeast` tell the same.
 * `disableAchievements`: `true` (the default) makes every run with this mod
   loaded cheated. Set `false` only for mods that don't change how a run plays
   (cosmetics, shaders, HUD readouts, apps). A run keeps its Data Shards,
@@ -73,34 +96,104 @@ metatables, coroutines, string patterns (`match`, `gmatch`, `gsub`), `goto`,
 integers and floats (`7 // 2` is `3`, `7 / 2` is `3.5`), bitwise operators,
 `<const>` locals and so on.
 
-The libraries are `string`, `table`, `math`, `utf8`, `coroutine` and the base
-functions (`print` writes to the Log tab). Left out, because a mod must not
-reach your computer: `io`, `os`, `package`, `debug`, `load`, `loadfile` and
-`dofile`; `collectgarbage` only takes `"count"`, `"collect"` and `"step"`.
+Every standard library is there: `string`, `table`, `math`, `utf8`,
+`coroutine`, `io`, `os`, `debug`, `package` and the base functions (`load`,
+`loadfile`, `dofile`, `pcall`, `collectgarbage`, `string.dump`...). `print`
+and `warn` write to the Console's log. A few things differ from a stand-alone Lua,
+because this one lives inside a game:
+
+* Files stay in your mod's own folders (see [Files](#files)): relative paths
+  mean your mod's folder, which is read-only, and `mod.dataDir()` is the one
+  place you can write.
+* `load`, `loadfile` and `dofile` give the code they load your mod's globals
+  unless you pass another environment. A chunk may be source or bytecode
+  (`string.dump`, `luac` 5.5).
+* No native modules: `package.loadlib` and C modules are switched off, so a
+  mod runs the same on Windows, Linux and Android. `package.path` starts
+  empty (see `require` below); you may add to it.
+* `os.exit([code])` closes the game the normal way at the end of the frame
+  (the run is saved like the window's close button saves it); your script
+  stops there.
+* `os.setlocale` cannot change the number format (`"numeric"` or `"all"`):
+  the game reads and writes numbers in the C format. The other categories
+  work.
+* `debug.debug` is not available: the game has no terminal.
+* `io.popen` and `os.execute` run commands in the game's working folder with
+  the platform's shell, so they are the one part of a mod that behaves
+  differently on each platform.
+* On Windows a file opened in text mode (`"r"`, `"w"`) turns `"\n"` into
+  `"\r\n"` when written and back when read. Open it with `"rb"` / `"wb"` to
+  keep the exact bytes, the same on every platform.
+* `os.clock()` is the processor time the game has used, not the time that has
+  passed: use the `dt` your hooks get for time in play, and `os.time()` for the
+  date.
 
 A few extras: `math.clamp(x, lo, hi)`, `math.lerp(a, b, t)`, `math.sign(x)`,
 `math.round(x)`, `string.split(s [, sep])`, `string.trim(s)`, and the Lua 5.1
 names `unpack`, `math.pow` and `math.atan2` for older code.
 
-`require("folder.file")` runs `folder/file.lua` from your own mod folder once
-and returns what it returned.
+`require("folder.file")` runs `folder/file.lua` (or `folder/file/init.lua`)
+from your mod folder once and returns what it returned; `require("lib/x.lua")`
+takes a path instead. `require("other_id:folder.file")` loads a module of
+another loaded mod, in that mod's globals (list it in `dependencies` so it
+loads first). Every module loads once and is kept in
+`package.loaded["<mod id>:<module>"]`, so two mods requiring the same module
+share it. Any other name goes on to Lua's own `require` (`package.preload`,
+`package.path`).
 
 Each mod has its own globals: two mods can both define `update` or change
-`math` without touching each other.
+`math` without touching each other. What every mod shares sits one level
+down, in `getmetatable(_ENV).__index`: change something there and every mod
+sees it.
 
 Lua 5.5 prints whole floats with a decimal point (`10 / 2` is `5.0`); use
 `//`, `math.floor` or `math.round` for whole numbers, or `%d` in
 `string.format`.
 
-### Safety rails
+### Files
 
-* A script that runs too long (an endless loop) is stopped with an error
-  rather than freezing the game. `pcall`, `xpcall` and coroutines cannot
-  catch that error.
-* All mods together may use up to 256 MB; going over is an error in whatever
-  script is running.
-* A mod that keeps erroring, or keeps taking more than 8 ms of a frame, is
-  switched off for the session with a notice. The game carries on.
+A mod's files live in two folders of its own, and nowhere else:
+
+* **Its folder** (`mod.dir`), read-only. Relative paths start here:
+  `io.open("data/notes.txt")`, `io.lines`, `io.input`, `loadfile`, `dofile`,
+  `require`, `assets.*` and the file arguments of `rl.*` (`rl.loadTexture`)
+  and `engine.*`. `mod.path("x")` is the absolute path of a relative one.
+* **Its data folder** (`mod.dataDir()`, a folder of yours in the player's
+  profile), read and write: the only place `io.open(path, "w")`,
+  `io.output`, `os.remove`, `os.rename` and `rl.export*` / `rl.takeScreenshot`
+  work. Pass it absolute: `io.open(mod.dataDir() .. "/save.txt", "w")`.
+  (Your mod's folder is read-only because a file written there would change
+  the mod's fingerprint, which moves its saved runs to a new slot, and PvP
+  only matches players whose mods are identical.)
+
+Any other path, absolute or climbing out with `..`, is refused: the Lua
+functions fail the way a file without permission does (`nil, "...: Permission
+denied"`) and say why in the Console's log, and the game's own functions
+(`mod.path`, `assets.*`, `rl.*`, `engine.*`) raise an error. `os.tmpname`
+names a file outside your folders, so it always fails: make your own name in
+`mod.dataDir()`. Another mod's modules are still yours to `require("<its
+id>:<module>")`.
+
+### The watchdog
+
+Mods are trusted, so nothing limits their memory, their speed or how much
+they spawn, and nothing switches a mod off for erroring. One guard is left,
+so that a bug cannot hang the game:
+
+* A script call that does not return within 5 seconds (30 seconds for a
+  mod's main chunk while it loads, and 10 seconds for all of one frame's
+  calls together) is stopped with an error naming the line it was on.
+  `pcall`, `xpcall` and coroutines cannot keep it running. Long work belongs
+  in a coroutine you resume a little every frame.
+* `debug.sethook` with a hook of your own takes the watchdog off that
+  coroutine; `debug.sethook()` with no hook takes it off until your next call.
+* The watchdog cannot stop C code that never returns: a pathological string
+  pattern, a blocking `io.read`, or a command run by `os.execute`.
+* Errors go to the Console's log (a repeated error is folded into a count) and the
+  game carries on. MODS.EXE shows how many milliseconds each mod's scripts
+  take per frame.
+* If the game goes down while mods are loaded, the next launch starts with
+  every mod off and says so; Apply & Reload in MODS.EXE turns them back on.
 * `help licenses` in the Help terminal shows Lua's license.
 
 ## Hooks
@@ -189,6 +282,10 @@ one and `hooks.list()` returns every name. Three kinds:
 | `world3dBossAttack` | phase, pattern | cancel: true stops that attack |
 | `world3dPickup` | pickup | cancel: true takes the pickup without its built-in effect |
 | `pvpStart`, `pvpEnd`, `pvpUpdate`, `pvpShoot`, ... | match, ... | the PvP hooks: see [PvP](#pvp), which has their table |
+| `frame` | state, dt | event, the top of every frame in every state (the desktop and menus too; `state` is a GameState name such as `"gsMenu"`), a safe point. No run objects: see [Screens and the frame](#screens-and-the-frame) |
+| `screenUpdate` | state, dt | cancel: true takes this frame over (the state's own update and drawing are skipped; `screenDraw` paints it) |
+| `screenDraw` | state, w, h | draw the frame a `screenUpdate` took, in screen coordinates |
+| `drawOverlay` | state, w, h | draw over everything, in every state, every frame (screen coordinates) |
 
 Enemy types are named like the game's own (`"etCircle"`, `"etCube"`,
 `"etThread"`, `"etFragment"`...); `enemies.types()` lists them all.
@@ -223,8 +320,8 @@ off go with it.
 `game` and `player` are always available during a run (they are also passed
 to most hooks). Enemies and bullets come from hooks and iterators.
 
-**Every field can be read by name, and almost all can be written**, all the
-way down: numbers, flags, text and enums, but also nested objects and lists.
+**Every field can be read by name and written**, all the way down: numbers,
+flags, text and enums, but also nested objects, lists and tables.
 
 ```lua
 player.damage = player.damage * 1.5
@@ -242,19 +339,43 @@ for name, value in pairs(game.bossWaveManager) do print(name, value) end
 * Vector and colour fields come back as copies (`{x = .., y = ..}`,
   `{r, g, b, a}`). Change them by assigning the whole value:
   `e.pos = {x = 100, y = 200}`. A nested object can also be assigned from a
-  table of its fields, and a list from a list (element by element).
-* Lists keep their length: add and remove things with the API (`spawn.*`,
-  `e:remove()`, `player:give`...), not by writing past the end.
+  table of its fields (or from another object of its kind, which copies it),
+  and a list from a list.
+* Object fields can point somewhere else: `e.target = otherEnemy`, or `nil`
+  where the game allows one.
 * Nested objects and list entries are live views, not copies: keep one in a
   variable and it follows the game. If what it pointed at is gone (a list
-  shrank), using it is an error that says so.
-* Read-only: `game.mode`, `game.state` and the modding bookkeeping fields;
-  `player.baselineMaxHp`; an enemy's `id`, `enemyType`, `isBoss`,
-  `bossDefinitionID`, `currentPhaseIndex`, and a boss's `hp`/`maxHp`;
-  everything under `game.rogueliteProfile` (it is your real progression).
+  shrank), using it is an error that says so. `x:copy()` gives a plain table
+  of its data that survives it.
+* Lists grow and shrink: `list:add(v)`, `list:insert([pos,] v)`,
+  `list:remove([pos])`, `list:clear()`, `list:resize(n)`. A new item can be a
+  table of its fields, another object of its kind, or (in an entity list) an
+  entity. Tables (fields keyed by names, enums or numbers) read and write by
+  key; a new key adds an entry and `nil` removes one.
+* Changing how many items a list or table holds only works at a **safe
+  point**, where the game is not walking its lists: while your mod loads, in
+  a timer, in the `preUpdate`, `update`, `runStart`, `frame` and
+  `screenUpdate` hooks, in an app or a screen (`ui.open`'s and
+  `register.screen`'s), in the Console, and in an `engine.defer` function.
+  Anywhere else (a hook the game
+  fires from inside one of its loops) the change is refused with an error;
+  wrap it in `engine.defer(function() ... end)`, which runs it at the next
+  safe point (after the frame's simulation, or at the top of the next frame).
+* Setting an enemy's `hp` sets it outright (it is not damage: no hooks, no
+  stats); a boss's is its current phase pool, and an empty pool moves the
+  boss to its next phase, or defeats it, the normal way. `maxHp`, `type`,
+  `bossDefinitionID` and `currentPhaseIndex` (a real phase change) are
+  writable too, and so is `game.state`, which changes at the next safe point.
+* A few fields stay read-only because the game keys on them: an enemy's `id`
+  and `isBoss`; the run's `mode`, its save slot, the screen size, and the
+  reward rule's `modded` / `cheatsUsed` / `modFingerprint`.
+* **Your real progression is writable** (`game.rogueliteProfile` and
+  everything in `engine.globals`, below), so a mod can build its own
+  meta-progression or unlock things. The reward rule still holds: a run with
+  a mod that disables achievements earns nothing on its own.
 * Writing nonsense (a negative size, an index past a list's end in a field the
   game uses as one) can break the run or crash the game: the game trusts its
-  own numbers. Modded runs never touch your real saves, but be careful.
+  own numbers.
 
 Methods:
 
@@ -267,6 +388,36 @@ Methods:
 * `player:powerUpLevel("puDoubleShot")`, `player:hasPowerUp(name)`.
 * `enemy:valid()`: still alive and still in the run; `bullet:valid()`: still
   flying.
+* `enemy:kill()` (with rewards; a boss skips its remaining phases),
+  `enemy:remove()` (no death, no rewards; a boss is never removed, since its
+  boss wave only ends through its defeat: `enemy:kill()` defeats it at once),
+  `enemy:heal(n)`.
+
+### The game's global state
+
+`engine.globals` reaches everything outside the run, read and written like
+`game`: `settings` (the player's settings), `stats` (lifetime statistics),
+`roguelite` (the roguelite profile), `advancements`, `runStats` (the run's
+statistics), `sound` (the sound system), `difficulty`, `language`,
+`profileSlot`, `game` (the run on screen, if any), `world3d`, `desktop` (the
+desktop and its icons) and `windows` (every window of the OS: the shop,
+settings, stats...). `for name in pairs(engine.globals) do print(name) end`
+lists them.
+
+```lua
+engine.globals.settings.screenShakeScale = 0
+engine.globals.roguelite.dataShards = engine.globals.roguelite.dataShards + 100
+```
+
+Changes are saved when the game saves that state (settings when you leave
+Settings or close the game, the profile at the end of a run...).
+
+The profile's progression loads after the mods do, so that its saves can
+name your mod's content: while your main chunk runs (at startup, and again
+when the player switches profile), `stats`, `roguelite`, `advancements` and
+`runStats` hold nothing yet at startup and the previous profile's data after
+a switch, and what you change in them is lost. Read and change them from a
+hook (`frame`, `runStart`...), which only runs once the profile is loaded.
 
 ### Your own data on an entity
 
@@ -289,6 +440,236 @@ end)
   save or a restore point rebuilds its enemies, so their data starts empty:
   keep what must survive that in `run.data`.
 
+## Mixins: changing the game's own code
+
+Hooks fire at the moments the game offers them. **Mixins** go further: they
+wrap the game's own procs, the functions its code is made of, so a mod can
+change what any of them does, with or without the original.
+
+```lua
+-- every hit an enemy takes is doubled
+mixin.wrap("combat.applyEnemyHpDamage", function(orig, enemy, damage)
+  return orig(enemy, damage * 2)
+end)
+
+-- the power-up offer: change the three choices the game rolled
+mixin.after("powerup.generatePowerUpChoices", function(choices, player, legendary, families, mode)
+  choices[1].powerType = "puDoubleShot"
+  return choices
+end)
+
+-- replace a boss's whole mechanics step
+mixin.replace("bosses.updateBossMechanics", function(game, boss, dt)
+  boss.speed = 50
+end)
+```
+
+* `mixin.wrap(name, fn(orig, ...) [, {priority = n}])`: `fn` gets the call's
+  arguments, plus `orig`, the rest of the chain (the next mod's wrap, or the
+  game's original). Call `orig` with the arguments you want (the same, or
+  changed), as many times as you like, or not at all; what `fn` returns is
+  the result. It returns a handle for `mixin.remove(handle)`.
+* `mixin.before(name, fn(...))`: runs first; returning anything but `nil`
+  cancels the call, and that value is the result.
+  `mixin.after(name, fn(result, ...))`: runs after the original; a non-`nil`
+  return replaces the result. `mixin.replace(name, fn(...))`: the original
+  never runs.
+* Several mods can wrap the same proc: the highest `priority` runs outermost,
+  then load order. A wrap can be added and removed at any time (from a hook,
+  a timer, an app).
+* Names are `<module>.<proc>`: `mixin.list([prefix])` lists every one the
+  game has, `mixin.signature(name)` shows its parameters and result, and
+  `mixin.has(name)` tells whether one exists. An overloaded proc (two procs
+  sharing a name) is named with its parameter types:
+  `"localization.t(string)"`.
+* **Arguments.** Numbers, text, booleans and enum names are themselves;
+  entities are the usual wrappers; other objects are proxies like `game.*`.
+  An object passed by value is borrowed for the call: change it and the
+  original sees the change, but it reads "no longer exists" after the call
+  (`:copy()` it to keep it). A `var` parameter is the caller's own variable:
+  writing it, or passing `orig` a table for it, changes what the caller has.
+  Objects the game keeps by reference stay valid after the call.
+* **Results** come back the same way: return what `orig` returned (edited or
+  not), a table of fields for an object, or a value of your own.
+* **Errors.** A wrap that errors is logged and the call goes on without it;
+  the original never runs twice because of it. If the game's own code raises
+  an error inside the chain and no wrap handles it (`pcall(orig, ...)`), the
+  game gets the error as if no mod were there.
+* A wrapped proc costs a little more than a hook on every call; wrap procs
+  that run thousands of times a frame (an enemy's update, the damage door)
+  with care, and watch MODS.EXE's ms/frame.
+* Wraps run wherever the game calls the proc: in a run, on the desktop, in
+  PvP (on every machine: the host's game decides what counts).
+
+## The engine
+
+`engine.<module>.<proc>(...)` calls any of those procs (the game's public
+version, so other mods' wraps apply); `engine.call("module.proc", ...)` is the
+same by name. Arguments a proc has defaults for may be left out. A proc only
+its own module calls is *wrap only* in API.md: mixins can wrap it, scripts
+cannot call it.
+
+```lua
+engine.game.startWave(game)
+local stats = engine.combat.calculateCombatStats(player)
+print(engine.types.difficultyEnemyHpMult())
+```
+
+`engine.globals` is the game's global state (see
+[The game's global state](#the-games-global-state)), and `engine.defer(fn)`
+runs `fn` at the next safe point.
+
+## raylib
+
+`rl` is raylib itself, the library the game draws, plays sound and reads input
+with, and `rl.gl` is rlgl, the layer under it. Every function is there by its
+Nim name (`rl.drawCircle`, `rl.loadTexture`, `rl.isKeyPressed`,
+`rl.gl.pushMatrix`...); API.md lists them all with their parameters.
+
+```lua
+hooks.on("drawHud", function(game, w, h)
+  rl.drawCircleLines(w // 2, h // 2, 40, rl.Gold)
+  rl.drawFPS(10, 10)
+end)
+```
+
+* Vectors, rectangles, colours and cameras are tables (`{x = 1, y = 2}`,
+  `{x = .., y = .., width = .., height = ..}`, `{r = .., g = .., b = .., a = ..}`);
+  `rl.Red`, `rl.RayWhite` and the rest are raylib's colours. Enums are their
+  names: `rl.isKeyPressed("F7")`, `rl.beginBlendMode("Additive")`. Overloads
+  (several functions sharing a name) are tried in order.
+* An `out` parameter comes back after the result:
+  `local hit, point = rl.checkCollisionLines(a, b, c, d)`.
+* Textures, fonts, sounds, music, models, shaders, render textures... are
+  **handles**. One your mod loads (`rl.loadTexture(mod.path("art/ship.png"))`)
+  is yours: it is unloaded once nothing holds it, after the frame being drawn,
+  and `rl.unload(handle)` unloads it now. One the game or raylib keeps
+  (`rl.getFontDefault()`, a render texture's `.texture`) is a view and is never
+  unloaded by you.
+* Draw from the draw hooks, a screen's `draw`, an app or a `ui.open` screen:
+  they run while the game draws its frame, in virtual screen coordinates
+  (1024 x 768, wider in widescreen). Draw into a render texture of your own
+  **outside** the game's drawing, in the `frame` hook at the top of the frame:
+  `rl.beginTextureMode` inside the game's drawing would end the game's own
+  texture mode. The `mixins` example draws its minimap that way.
+* Left out on purpose: opening and closing the window and the audio device,
+  starting and ending the frame (the game does those) and the callback setters.
+  `os.exit` closes the game.
+* raylib trusts what it gets: a wrong size, an unloaded handle or a draw outside
+  a frame can crash the game.
+
+## Screens and the frame
+
+**A screen of your own** is a state of the game, like the desktop, a run or
+the game-over screen:
+
+```lua
+register.screen{
+  id = "map",                            -- registered as "<your id>:map"
+  enter = function(from, ...) end,       -- opened (from: the state or screen it came from)
+  update = function(dt) end,             -- every frame it shows (a safe point)
+  draw = function(w, h) end,             -- every frame, in screen coordinates
+  leave = function(to) end,              -- left (to: where it went)
+  back = function() return true end,     -- Esc / gamepad B: true keeps it open
+  cursor = true,                         -- the game's pointer over it (the default)
+}
+screens.go("map", ...)   -- opens at the top of the next frame; ... goes to enter
+```
+
+* `screens.back()` returns to the screen below, or to the game's state under
+  them all; `screens.closeAll()` goes straight there. Without a `back`
+  function, Esc goes back. `enter` runs when `screens.go` opens a screen, not
+  when `screens.back` returns to it.
+* Opened over a run, the run holds still underneath and stays the run on
+  screen: `game`, `run.data` and the run's hooks keep working (the simulation
+  does not run), and closing the game there saves the run as it was. Opened
+  from the desktop, it comes back to the desktop.
+* `screens.current()` is the id showing (or `nil`), `screens.depth()` how many
+  are open and `screens.list()` every registered screen. Another mod's screen
+  opens by its full id.
+* If the game moves on by itself (a game over, a script setting `game.state`),
+  the screens are left and each `leave` runs. Screens cannot open during a PvP
+  match: the match would stop.
+
+**The frame itself.** Four hooks run in every state, the desktop and the menus
+included: `frame(state, dt)` at the top of every frame (a safe point);
+`screenUpdate(state, dt)`, which takes the frame over when a handler returns
+true (the state's own update and drawing are skipped, and
+`screenDraw(state, w, h)` paints the frame instead); and
+`drawOverlay(state, w, h)`, drawn over everything. They get no run objects:
+reach the game through `engine.globals` (`engine.globals.game` is the run on
+screen). With mixins on the game's own update and draw procs
+(`game.updateGame`, `game.drawGame`...), nothing on screen is out of reach.
+
+## Languages
+
+A mod can add a language to the game:
+
+```lua
+register.language{
+  id = "fr",                  -- the language's id: letters, digits, _ and -
+  name = "Français",          -- what the language pickers show
+  base = "en",                -- its gaps show this built-in language ("en" or "es")
+  strings = assets.json("fr.json"),   -- the game's text keys -> your text
+}
+```
+
+* `strings_en.json`, next to this guide in the mods folder, lists every text
+  key of the game with its English: copy it, translate the values and load the
+  copy as above. A key you leave out shows the base language.
+  `lang.text(key)` shows a key's text in the language in use.
+* Your mod's own texts take the language too: write
+  `{en = "Souls", es = "Almas", fr = "Âmes"}` wherever a text is asked for
+  (names, descriptions, titles, toasts).
+* `lang.set("fr", key, text)` and `lang.add{fr = {key = text}}` add strings to
+  a language, yours or another mod's: a translation pack is a mod that only
+  adds strings (list the language's mod in `loadAfter`), or that registers the
+  language itself. Registering an id again adds to it.
+* The language shows in Settings (the language button cycles through every
+  language) and on the first-run language screen. The player's choice is kept
+  by id: while its mod is not loaded, the game shows English.
+* `lang.current()` is `"en"`, `"es"` or the id in use, `lang.list()` every
+  language (`{id = .., name = ..}`), and `lang.use(id)` switches to one (and
+  makes it the player's choice, saved with their settings).
+* The game's font has the Latin-1 letters only (U+0020 to U+00FF): accents,
+  ñ, ç, ß and the like work; another script needs a font of your own
+  (`assets.font`) drawn by your own code.
+
+## The console
+
+MODS.EXE's **Console** tab runs Lua as you type it, with the whole API: try a
+call before putting it in a mod, read the game's state, or fix something by
+hand.
+
+* Enter runs the line; Up and Down go through what you typed before.
+* The line edits like any text box: the arrows, Home and End move the caret
+  (with Ctrl, a word at a time), Shift or the mouse selects, and Ctrl+A, C,
+  X, V, Z and Y do what they do everywhere. A pasted block becomes one line.
+* An expression shows its value (`= 3`); a statement just runs. Globals you
+  define stay for the next line. Output and errors go to the log above it.
+* It sees what every mod sees: `engine.globals.game.player.hp = 99`,
+  `mixin.signature("combat.damageEnemy")`, `mods.get("necromancer")`.
+* It runs at a safe point and belongs to no mod: what is a mod's own
+  (`register.*`, `mod.*`, a mod's `run.data`) works only in mod code.
+
+## Versions and the API reference
+
+* `engine.version` is the game's version (`"6.4.0"`) and
+  `engine.atLeast("6.4")` tells whether this game is that version or newer.
+  `engine.has("screens.go")` tells whether the API has something (a dotted
+  path), and `mixin.has(name)` whether the game has a proc.
+* `"game"` in mod.json names the oldest game version your mod is made for (see
+  [mod.json](#modjson)).
+* **API.md**, next to this guide in the mods folder (Modding Docs writes
+  it), lists everything this build has: every library function with what it
+  does, every hook, every one of the game's procs with its parameters (and
+  whether it is moddable), raylib and `engine.globals`. It is generated from
+  the game itself, so it is always complete.
+* **tophat.d.lua** is the same for your editor: open the mods folder in an
+  editor with the Lua language server (the "Lua" extension of VS Code, for
+  one) and you get completion and signatures for the whole API, hook names and
+  moddable proc names included.
+
 ## Changing the game
 
 **Spawning.** `spawn.enemy(type, x, y [, {elite = true, difficulty = 3,
@@ -300,8 +681,8 @@ enemy or bullet right away: set it up, keep it, give it `data`; `valid()` is
 already true. `onSpawn` (and `spawn.boss`'s) runs when it joins.
 
 **Enemies.** `e:damage(amount [, source])` (bosses too: it drains the current
-phase), `e:kill()` (dies with its normal rewards; not bosses), `e:remove()`
-(vanishes, no rewards; not bosses), `e:heal(amount)`. The player has
+phase), `e:kill()` (dies with its normal rewards; a boss skips its remaining
+phases), `e:remove()` (vanishes, no rewards), `e:heal(amount)`. The player has
 `player:heal(amount [, source])` and `player:hurt(amount)`. `source` is a
 power-up name: the damage or healing is credited to it in the run statistics
 (inside a power-up's own `update`, `onHit` or `onPickup` that happens by
@@ -1055,8 +1436,8 @@ Files load from your own mod folder (paths relative to it; `..` is refused).
 * `register.cosmetic{kind = "player" | "bullet" | "desktop" | "cube", id = "neon",
   name = "Neon", description = "...", colors = {"#ff00ff", "#00ffff", "#ffffff"},
   texture = "skins/neon.png", scale = 1.2, rotate = true}` adds a cosmetic the
-  player equips in **MODS.EXE > Cosmetics**, or in the Shop's **MODS** tab
-  (shown while a loaded mod has cosmetics). `colors` is a palette for the
+  player equips in the Shop's **MODS** tab (shown while a loaded mod has
+  cosmetics). `colors` is a palette for the
   built-in shapes (player: body, trim, core; bullets: body, glow, trail); a
   `texture` or a `model` (see 3D models below) replaces the drawing. Desktop
   cosmetics take a texture (the wallpaper; `cube = true` keeps the desktop
@@ -1147,7 +1528,8 @@ bullet cosmetics.
 
 ## Data files
 
-Data your mod ships with (levels, dialogue, tables) reads from its folder:
+Data your mod ships with (levels, dialogue, tables) reads from its folder (or
+its data folder, see [Files](#files)):
 
 * `assets.text("data/story.txt")` returns a file's contents as a string.
 * `assets.json("data/levels.json")` returns its value: tables, numbers,
@@ -1156,7 +1538,7 @@ Data your mod ships with (levels, dialogue, tables) reads from its folder:
 * `assets.list([folder])` returns the names in a folder of your mod (its top
   folder without one), sorted; folder names end with `/`.
 
-Each file is at most 16 MB. Lua files load with `require`.
+Lua files load with `require`; `io` reads and writes anything else.
 
 ## 3D models
 
@@ -1653,12 +2035,14 @@ already open just brings its window to the front. Keep settings in
 
 ## Interface themes
 
-The desktop, its windows, dialogs and notifications are drawn in an
-**interface theme**: TopHat-ShooterOS (the stock look), CKN OS (unlocked by the
-last story recording) or one a mod registers. The player picks it in
+The whole interface is drawn in an **interface theme**: the desktop, its
+windows, dialogs and notifications, and a run's too (the HUD, its cards and
+banners, the pause menu, shop, installer and crash screen, the PvP and 3D
+HUDs). It is TopHat-ShooterOS (the stock look), CKN OS (unlocked by the last
+story recording) or one a mod registers. The player picks it in
 **SETTINGS.sys > Interface > Theme**; the shop's SECRET tab also equips CKN
-OS. A run's own screens (the HUD, the pause menu, the crash screen) and the
-story cinematics always keep the stock look.
+OS. The game world (enemies, bullets, damage numbers, attack warnings) and
+the story cinematics keep their own colours.
 
 ```lua
 register.theme{
@@ -1679,7 +2063,7 @@ register.theme{
 | `name` | text or `{en = ..., es = ...}`: what Settings shows |
 | `base` | optional, default `"tophat"`. The theme's shell, the pieces drawn by hand: `"tophat"` has glowing square frames, the OS Grid wallpaper and the crosshair pointer; `"ckn"` has rounded frames with soft shadows, the CKN Dawn wallpaper, a Start button with CKN's logo and an arrow pointer. Either draws in your colours |
 | `surface`, `raised`, `text`, `muted`, `accent` | optional colours (`"#rrggbb"` or a table); each one left out is the base theme's |
-| `wallpaper` | optional texture (or file name): the free default wallpaper while the theme is on. A wallpaper the player equipped (shop or MODS.EXE) still wins |
+| `wallpaper` | optional texture (or file name): the free default wallpaper while the theme is on. A wallpaper the player equipped in the shop still wins |
 
 Every colour the game's interface draws plays a role, and your five colours
 anchor them, so you do not restyle windows one by one. A fill (a window's
@@ -1704,12 +2088,18 @@ The `theme` library:
   not every time the mod loads.
 * `theme.colors([id])` is a table of the theme in use (or of `id`): `id`,
   `name`, `base`, `light` (a light theme) and its five colours.
-* `theme.surface(color)`, `theme.line(color)`, `theme.ink(color)` and
-  `theme.glow(color)` hand back the colour the game's own interface would draw
-  for `color` in the theme in use, in each role (a fill; a border; text; a
-  translucent highlight). Pass the colour you would use on the stock dark
-  theme. An app's canvas, and everything a mod draws, keep the colours given,
-  so an app that should follow the player's theme picks them through these:
+* `theme.surface(color)`, `theme.line(color)`, `theme.ink(color)`,
+  `theme.glow(color)` and `theme.overlay(color)` hand back the colour the
+  game's own interface would draw for `color` in the theme in use, in each
+  role (a fill; a border; text; a translucent highlight; text or a mark drawn
+  straight over the arena, with no panel behind it, which keeps its lightness
+  so it still reads over the dark world on a light theme). Pass the colour you
+  would use on the stock dark theme. The `ui` widgets (`ui.panel`, `ui.button`,
+  `ui.label`, `ui.progress`, `ui.checkbox`, `ui.slider`, `ui.banner`) and
+  `register.hudCard` cards already wear the theme: give them stock colours,
+  never ones from these functions. An app's canvas, and everything a mod draws
+  with `draw.*`, keep the colours given, so an app that should follow the
+  player's theme picks them through these:
 
 ```lua
 draw = function(w, h)
@@ -1789,7 +2179,7 @@ optional raylib `GamepadButton` name and defaults to unbound.
   `math`...): replacing `draw.circle` in yours changes nothing for other mods.
 
 * `mod.id`, `mod.name`, `mod.version`, `mod.author`; `mod.log(...)` and
-  `mod.warn(...)` write to the Log tab (so does `print`).
+  `mod.warn(...)` write to the Console's log (so does `print`).
 * `run.data` is a table saved with the run: plain numbers, strings, booleans
   and tables survive quitting and resuming (functions do not). You may also
   replace it whole (`run.data = {...}`). `run.active` is true while a run is
@@ -1802,17 +2192,23 @@ optional raylib `GamepadButton` name and defaults to unbound.
   [Restore points](#restore-points)).
 * `mod.storage` is a table kept between sessions, per profile (your mod's own
   settings, records or unlocks). It is saved when mods reload and when the game
-  closes; `mod.saveStorage()` saves it right away. Same plain-data rule, 1 MB
-  at most.
+  closes; `mod.saveStorage()` saves it right away. Same plain-data rule.
+* `mod.dir`, `mod.path(rel)` and `mod.dataDir()`: your folder (read-only), an
+  absolute path in it, and a folder of yours in the profile, the only place
+  to write files (see [Files](#files)).
 * `mods.export(value)` publishes an API; another mod reads it with
-  `mods.get("your_id")` (list yours in its `dependencies` so you load first).
-  `mods.isLoaded(id)` and `mods.list()` tell what else is running.
+  `mods.get("your_id")` (list yours in its `dependencies` so you load first),
+  or requires its modules directly with `require("your_id:module")`.
+  `mods.isLoaded(id)`, `mods.list()` and `mods.dir(id)` tell what else is
+  running and where it lives.
 
 ## The examples
 
-**Install Examples** writes these into your mods folder. Pressing it again
-replaces an example only when the game ships a newer version of it (a higher
-`version` in its `mod.json`), so keep your own changes in a renamed copy:
+The example mods are in MODS.EXE's **Marketplace**, like every published mod:
+the game ships none of its own. Their source is the `examples/` folder of the
+[mod registry](https://github.com/Paycei/TopHat-Shooter-ModRoot/tree/main/examples).
+Updating one through the Marketplace replaces its folder, so keep your own
+changes in a renamed copy:
 
 | Example | Shows |
 |---|---|
@@ -1826,6 +2222,7 @@ replaces an example only when the game ships a newer version of it (a higher
 | `cosmetics` | looks only: player skins (a palette, an animated GIF, a 3D model), bullets (a palette, a 3D model), a wallpaper, a voxel desktop cube, a CRT post-processing shader, and a desktop app (with a 3D icon) that tunes the shader and swaps an enemy for an animated model, kept in `mod.storage` (`disableAchievements: false`) |
 | `media` | videos and music in two files joined with `require`: a desktop app with a seek bar, a music track that takes over the game's music, a playlist read with `assets.json`, an LCD font and a video as its desktop icon; and Billboard Plaza, a 3D mode with pictures fixed in the world (`draw3d.texture`: a video with sound that gets louder as you walk up, a PNG, a GIF, a turning video, a floor decal), sprites that face you (`draw3d.billboard`, see-through ones drawn farthest first), entities drawn as a GIF, a screen you shoot to pause (`world3d.raycast`), videos held while the world is paused, and no resuming or restore points (`resumable = false`, `restorePoints = false`; `disableAchievements: false`) |
 | `arena_3d` | 3D worlds, both ways: Cube Siege, a complete 3D game mode (waves of entities with built-in AI, pickups, a shotgun tune, a custom HUD, `draw3d` and a `run.data` to continue from), and changes to the game's own 3D boss fight (extra drones, a phase message and a hit filter) |
+| `mixins` | the open side: wraps the game's damage and power-up offer procs (`mixin.wrap`, `mixin.after`), calls a game proc (`engine.player.heal`), draws a minimap into a raylib render texture in the `frame` hook, keeps a file in `mod.dataDir()` with `io`, loads a module of its own with `require`, and opens a screen of its own with F7 (`register.screen`) |
 | `critical_section` | a PvP mode, Critical Section (king of the hill): lobby presets, scores and a moving zone in `match.data`, privileged rounds through `pvpShoot` and `match:spawnBullet` drawn by `pvpBulletDraw`, a blink on a mod keybind sent with `match:request` and shown everywhere with `match:broadcast`, the end decided by `pvpEnding` and `match:finish`, and its own HUD (`disableAchievements: false`) |
 
 ## PvP
@@ -2046,7 +2443,75 @@ end)
   `"vignettes"` and `"damageNumbers"`. Each match starts with everything shown.
 * `input.*` and mod keybinds work as in a run; `input.mouse()` is the arena
   point under the cursor.
-* A mod switched off for errors on one machine is off there only; the host's
-  rules keep running everyone's match.
+* A script error on one machine stays there (the error is logged and that
+  call does nothing); the host's rules keep running everyone's match.
 * To test alone, start the game twice on one computer: host in one, and join
   `127.0.0.1` from the other.
+
+## Publishing your mod
+
+Mods reach players through **MODS.EXE's Marketplace**. It lists the mods of the
+official registry,
+[github.com/Paycei/TopHat-Shooter-ModRoot](https://github.com/Paycei/TopHat-Shooter-ModRoot).
+A mod stays in its own GitHub repository. The registry holds one file per mod,
+which points to that repository at a fixed commit: the one a maintainer
+reviewed.
+
+1. **Put the mod in a public GitHub repository.** `mod.json` goes at the root,
+   or in a subfolder (see `path` below). Set `version` in `mod.json`.
+2. **Push the commit to publish** to the repository's default branch and copy
+   its full id (`git rev-parse HEAD`).
+3. **Fork the registry and add `mods/<id>.json`**, named after your mod's `id`:
+
+   ```json
+   {
+     "id": "hello_hats",
+     "title": "Hello Hats",
+     "description": "Every enemy wears a tiny top hat. Purely cosmetic: rewards stay on.",
+     "repo": "https://github.com/your-name/hello-hats",
+     "commit": "4f1c2e8d0b6a5c3e9f7a1b2c4d6e8f0a1b3c5d7e",
+     "version": "1.0.0"
+   }
+   ```
+
+4. **Open a pull request.** Its check downloads your mod at that commit and
+   compares it with the entry. A maintainer then reviews the code and merges it.
+
+The fields:
+- **`title`** (1-48 characters) and **`description`** (one line, 1-240) are what
+  the Marketplace shows. They must use characters the game's font draws
+  (Latin-1: accents yes, emoji no).
+- **`commit`** is the full 40-character id, and it must be on the default branch.
+- **`version`** must equal the one in `mod.json` at that commit.
+- **`path`** (optional) is the folder that holds `mod.json`, when that is not
+  the repository's root.
+
+The author shown is the repository's owner.
+
+**Updating.** Push the new version (raise `version`), then open a pull request
+that changes `commit` and `version` in your entry. Players who installed the mod
+see it tagged UPDATE.
+
+**What players get.** The game downloads GitHub's archive of your repository at
+that commit. It checks that the archive is that commit and that its `mod.json`
+has the entry's `id`, then installs the folder holding `mod.json` into
+`<game data>/mods/<id>/`, byte for byte.
+- Keep the repository small, because the whole archive is downloaded.
+  `export-ignore` in a `.gitattributes` keeps files out of it, for example
+  `screenshots/ export-ignore`.
+- Git LFS files are not in GitHub's archives.
+- Files your `.gitignore` ignores are not in it either: GitHub's Lua template
+  ignores `*.obj`, which hides OBJ models (un-ignore them with `!*.obj`).
+- Symbolic links are skipped.
+
+**Trying your entry first.**
+- Clone the registry, add your entry, and start the game with
+  `--mod-registry <the clone's folder>`. The Marketplace then lists your copy of
+  the registry and installs from GitHub as usual.
+- The registry's `python tools/validate_registry.py --online mods/<id>.json`
+  runs the pull request's check on your machine.
+
+A mod from the Marketplace is a mod folder like any other: tick it and press
+Apply & Reload. The Installed tab tags it MARKETPLACE. If you already have a
+copy of that mod that you made yourself, installing asks first, then replaces
+your copy. An update of a loaded mod is swapped in when the mods reload.

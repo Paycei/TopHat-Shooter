@@ -2,6 +2,8 @@
 ## Two phases: BIOS amber POST -> kernel model reveal with title and press-any-key.
 
 import raylib, math
+import ../modding/mod_patch_core
+import ../utils
 import ../draw_prims
 import particle_types, ../localization, ../hardware_info, ../shapes, ../sound, background_fx, cinematic_common
 
@@ -205,43 +207,43 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
     let hintW = measureText(hint, 16)
     drawText(hint, sw - hintW - 20, sh - 30, 16,
              Color(r: 255, g: 200, b: 80,
-                   a: alphaByte(140.0'f32 + sin(splash.timer * 4.0'f32) * 60.0'f32)))
+                   a: clampByteF(140.0'f32 + sin(splash.timer * 4.0'f32) * 60.0'f32)))
 
   # Brand column on the right: a hero TOPHAT emblem above an etched version plate.
   # This is the protagonist of the BIOS screen and a cold-amber foreshadow of the
   # cyan kernel-with-tophat that headlines the next splash.
   let bFade  = clamp01(splash.phaseTimer * 4.0'f32)
-  let bA     = alphaByte(bFade * 255.0'f32)
+  let bA     = clampByteF(bFade * 255.0'f32)
   let bW     = 240'i32
   let bH     = 138'i32
   let cx     = (sw.float32 * 0.74'f32).int32
   let pulse  = sin(splash.timer * 2.2'f32) * 0.5'f32 + 0.5'f32
 
   # Hero emblem: the amber firmware tophat, presented on a glowing pedestal.
-  let heroIn = easeOut(clamp01(splash.phaseTimer * 2.2'f32))
+  let heroIn = easeOutCubic(clamp01(splash.phaseTimer * 2.2'f32))
   let heroR  = min(sw, sh).float32 * 0.092'f32 * (0.74'f32 + heroIn * 0.26'f32)
   let heroY  = (sh.float32 * 0.30'f32) - (1.0'f32 - heroIn) * 26.0'f32
   let amber  = Color(r: 255, g: 188, b: 56, a: 255)
   # Faint aura behind the dark crown so the silhouette reads against the panel.
   drawSoftGlow(cx.float32, heroY - heroR * 0.5'f32, heroR * (1.12'f32 + pulse * 0.1'f32),
-               Color(r: 225, g: 135, b: 18, a: alphaByte(heroIn * (24.0'f32 + pulse * 8.0'f32))), 1.0'f32)
+               Color(r: 225, g: 135, b: 18, a: clampByteF(heroIn * (24.0'f32 + pulse * 8.0'f32))), 1.0'f32)
   # Stage pedestal: a bright base line under the brim grounds the emblem.
   drawRectangle((cx.float32 - heroR).int32, heroY.int32, (heroR * 2.0'f32).int32, 2,
-                Color(r: 235, g: 170, b: 50, a: alphaByte(heroIn * 220.0'f32)))
-  drawTopHat(newVector2f(cx.float32, heroY), heroR, splash.timer, heroIn, amber)
+                Color(r: 235, g: 170, b: 50, a: clampByteF(heroIn * 220.0'f32)))
+  drawTopHat(vec2(cx.float32, heroY), heroR, splash.timer, heroIn, amber)
 
   let badgeX = cx - bW div 2
   let badgeY = (sh.float32 * 0.47'f32).int32
 
   # Amber bloom behind the plate so it reads as a lit element, not a flat decal.
   drawSoftGlow(cx.float32, (badgeY + bH div 2).float32, (bW.float32 * 0.78'f32),
-               Color(r: 200, g: 120, b: 10, a: alphaByte(bFade * (40.0'f32 + pulse * 20.0'f32))), 1.3'f32)
+               Color(r: 200, g: 120, b: 10, a: clampByteF(bFade * (40.0'f32 + pulse * 20.0'f32))), 1.3'f32)
 
   # Recessed panel: dark fill, then a top-down sheen so the plate looks beveled.
   drawRectangle(badgeX, badgeY, bW.int32, bH.int32,
-                Color(r: 26, g: 16, b: 2, a: alphaByte(bFade * 244.0'f32)))
+                Color(r: 26, g: 16, b: 2, a: clampByteF(bFade * 244.0'f32)))
   drawRectangleGradientV(badgeX, badgeY, bW.int32, (bH div 2).int32,
-                         Color(r: 90, g: 56, b: 8, a: alphaByte(bFade * 70.0'f32)),
+                         Color(r: 90, g: 56, b: 8, a: clampByteF(bFade * 70.0'f32)),
                          Color(r: 26, g: 16, b: 2, a: 0))
 
   # Double bevel border: bright outer rule + a dimmer inset rule.
@@ -250,7 +252,7 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
                      2.0'f32, Color(r: 235, g: 165, b: 40, a: bA))
   drawRectOutline(Rectangle(x: badgeX.float32 + 6.0'f32, y: badgeY.float32 + 6.0'f32,
                                width: bW.float32 - 12.0'f32, height: bH.float32 - 12.0'f32),
-                     1.0'f32, Color(r: 150, g: 95, b: 18, a: alphaByte(bFade * 180.0'f32)))
+                     1.0'f32, Color(r: 150, g: 95, b: 18, a: clampByteF(bFade * 180.0'f32)))
 
   # L-shaped registration ticks at each corner, like a socketed chip.
   let tk = 14
@@ -267,11 +269,11 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   let hdr  = "FIRMWARE REV"
   let hdrW = measureText(hdr, 12)
   drawText(hdr, cx - hdrW div 2, badgeY + 16, 12,
-           Color(r: 210, g: 150, b: 40, a: alphaByte(bFade * 210.0'f32)))
+           Color(r: 210, g: 150, b: 40, a: clampByteF(bFade * 210.0'f32)))
 
   # The headline version, with a soft amber halo to lift it off the plate.
   drawSoftGlow(cx.float32, (badgeY + 62).float32, 46.0'f32,
-               Color(r: 255, g: 190, b: 40, a: alphaByte(bFade * 70.0'f32)), 1.0'f32)
+               Color(r: 255, g: 190, b: 40, a: clampByteF(bFade * 70.0'f32)), 1.0'f32)
   let v6W = measureText("6.4", 56)
   drawText("6.4", cx - v6W div 2, badgeY + 32, 56,
            Color(r: 255, g: 224, b: 96, a: bA))
@@ -280,7 +282,7 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   let lineY = badgeY + 98
   let halfW = 64
   drawRectangle((cx - halfW).int32, lineY.int32, (halfW * 2).int32, 1,
-                Color(r: 180, g: 120, b: 30, a: alphaByte(bFade * 200.0'f32)))
+                Color(r: 180, g: 120, b: 30, a: clampByteF(bFade * 200.0'f32)))
   for sx in [-halfW, halfW]:
     drawPoly(Vector2(x: (cx + sx).float32, y: (lineY + 1).float32), 4, 3.0'f32, 45.0'f32,
              Color(r: 235, g: 170, b: 50, a: bA))
@@ -293,15 +295,15 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   # Phosphor shimmer: the whole tube breathes slightly, like a warm CRT.
   let flick = sin(splash.timer * 11.0'f32) * 0.5'f32 + sin(splash.timer * 6.7'f32) * 0.5'f32
   drawRectangle(0, 0, sw, sh,
-                Color(r: 255, g: 180, b: 60, a: alphaByte(4.0'f32 + flick * 3.0'f32)))
+                Color(r: 255, g: 180, b: 60, a: clampByteF(4.0'f32 + flick * 3.0'f32)))
 
   # CRT power-on: the amber monitor warms up, opening from a centre line.
   let warm = clamp01(splash.phaseTimer / 0.32'f32)
   if warm < 1.0'f32:
-    drawCRTAperture(sw, sh, easeOut(warm), Color(r: 255, g: 225, b: 130, a: 255))
+    drawCRTAperture(sw, sh, easeOutCubic(warm), Color(r: 255, g: 225, b: 130, a: 255))
     let flash = 1.0'f32 - warm
     drawRectangle(0, 0, sw, sh,
-                  Color(r: 255, g: 235, b: 180, a: alphaByte(flash * flash * 120.0'f32)))
+                  Color(r: 255, g: 235, b: 180, a: clampByteF(flash * flash * 120.0'f32)))
 
   # CRT power-off: collapse back to a bright line as the BIOS hands off to the
   # kernel reveal. The kernel phase re-opens from this same line (in cyan), so
@@ -309,10 +311,10 @@ proc drawSplashBIOS(splash: SplashScreen, sw, sh: int32) =
   let tLeft = BIOS_DUR - splash.phaseTimer
   if tLeft < BIOS_OFF:
     let cf = clamp01(1.0'f32 - tLeft / BIOS_OFF)
-    drawCRTAperture(sw, sh, 1.0'f32 - easeInOut(cf),
+    drawCRTAperture(sw, sh, 1.0'f32 - smoothstep(cf),
                     Color(r: 255, g: 230, b: 150, a: 255))
     drawRectangle(0, 0, sw, sh,
-                  Color(r: 255, g: 210, b: 140, a: alphaByte(cf * cf * 70.0'f32)))
+                  Color(r: 255, g: 210, b: 140, a: clampByteF(cf * cf * 70.0'f32)))
 
 proc drawSplashComplete(splash: SplashScreen, sw, sh: int32) =
   let cx = sw.float32 * 0.5'f32
@@ -346,7 +348,7 @@ proc drawSplashComplete(splash: SplashScreen, sw, sh: int32) =
 
   # Kernel model materialising
   let kernelR = min(sw, sh).float32 * 0.12'f32
-  drawKernelModel(newVector2f(cx, cy), kernelR, splash.timer, splash.kernelBoot, 1.0'f32)
+  drawKernelModel(vec2(cx, cy), kernelR, splash.timer, splash.kernelBoot, 1.0'f32)
 
   # Spark + shockwave as the tophat seats onto the kernel (the wake-up finale).
   # Keyed to kernelBoot, which is monotonic and freezes at 1.0, so this fires
@@ -355,14 +357,14 @@ proc drawSplashComplete(splash: SplashScreen, sw, sh: int32) =
   if seat > 0.0'f32 and seat < 1.0'f32:
     let s = sin(seat * PI)  # 0 -> 1 -> 0 bell over the seat window
     drawSoftGlow(cx, cy, kernelR * (1.6'f32 + s * 1.4'f32),
-                 Color(r: 210, g: 255, b: 250, a: alphaByte(s * 95.0'f32)), 1.2'f32)
+                 Color(r: 210, g: 255, b: 250, a: clampByteF(s * 95.0'f32)), 1.2'f32)
     let ringR = kernelR * (1.1'f32 + seat * 2.2'f32)
     drawRing(Vector2(x: cx, y: cy), ringR - 2.0'f32, ringR + 2.0'f32,
              0.0'f32, 360.0'f32, 48,
-             Color(r: 180, g: 255, b: 250, a: alphaByte(s * 150.0'f32)))
+             Color(r: 180, g: 255, b: 250, a: clampByteF(s * 150.0'f32)))
 
   # Title fades in with the kernel
-  let titleA = alphaByte(clamp01(splash.kernelBoot / 0.7'f32) * 230.0'f32)
+  let titleA = clampByteF(clamp01(splash.kernelBoot / 0.7'f32) * 230.0'f32)
   if titleA > 0:
     let tY = (cy + kernelR * 3.3'f32).int32
     drawSoftGlow(cx, tY.float32 + 16.0'f32, 100.0'f32,
@@ -382,7 +384,7 @@ proc drawSplashComplete(splash: SplashScreen, sw, sh: int32) =
     let pulse   = sin(splash.timer * 3.2'f32) * 0.5'f32 + 0.5'f32
     let lightY  = sh.float32 - 38.0'f32
 
-    let pkA   = alphaByte(pkFade * (150.0'f32 + pulse * 100.0'f32))
+    let pkA   = clampByteF(pkFade * (150.0'f32 + pulse * 100.0'f32))
     let pkStr = t(tkSystemPressAnyKey)
     let pkW   = measureText(pkStr, 20)
     drawText(pkStr, sw div 2 - pkW div 2, (lightY - 10.0'f32).int32, 20,
@@ -394,15 +396,15 @@ proc drawSplashComplete(splash: SplashScreen, sw, sh: int32) =
   # collapsed to, but now in cyan, completing the monitor-switch bridge.
   let on = clamp01(splash.phaseTimer / 0.30'f32)
   if on < 1.0'f32:
-    drawCRTAperture(sw, sh, easeOut(on), Color(r: 150, g: 240, b: 245, a: 255))
+    drawCRTAperture(sw, sh, easeOutCubic(on), Color(r: 150, g: 240, b: 245, a: 255))
     let flash = 1.0'f32 - on
     drawRectangle(0, 0, sw, sh,
-                  Color(r: 120, g: 230, b: 240, a: alphaByte(flash * flash * 90.0'f32)))
+                  Color(r: 120, g: 230, b: 240, a: clampByteF(flash * flash * 90.0'f32)))
 
 # ---------------------------------------------------------------------------
 # Public API
 
-proc newSplashScreen*(): SplashScreen =
+proc newSplashScreen*(): SplashScreen {.moddable.} =
   let (lines, ramMB) = buildBiosLines()  # detect real hardware once, at construction
   SplashScreen(
     phase: bpBIOS, timer: 0, phaseTimer: 0,
@@ -416,7 +418,7 @@ proc handOffToKernel(splash: SplashScreen) =
   splash.phaseTimer = 0
   playSound(stMenuSelect, 0.55'f32, 0.9'f32)  # boot handoff blip
 
-proc fastForwardSplash*(splash: SplashScreen) =
+proc fastForwardSplash*(splash: SplashScreen) {.moddable.} =
   ## Any key during the boot fast-forwards it: skip the rest of the POST, then
   ## snap the kernel reveal to its settled (press-any-key) state.
   case splash.phase
@@ -426,7 +428,7 @@ proc fastForwardSplash*(splash: SplashScreen) =
   of bpComplete:
     splash.phaseTimer = max(splash.phaseTimer, 1.5'f32 * 0.85'f32)
 
-proc updateSplashScreen*(splash: SplashScreen, dt: float32) =
+proc updateSplashScreen*(splash: SplashScreen, dt: float32) {.moddable.} =
   splash.timer          += dt
   splash.scanlineOffset += dt * 90.0'f32
   splash.phaseTimer     += dt
@@ -455,7 +457,7 @@ proc updateSplashScreen*(splash: SplashScreen, dt: float32) =
     if splash.kernelBoot >= 0.85'f32:
       splash.complete = true  # enable skip only once "press any key" is visible
 
-proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) =
+proc drawSplashScreen*(splash: SplashScreen, screenWidth, screenHeight: int) {.moddable.} =
   let sw = screenWidth.int32
   let sh = screenHeight.int32
   case splash.phase

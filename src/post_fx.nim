@@ -19,6 +19,7 @@
 ## If any shader fails to compile the pass switches itself off for the session.
 
 import raylib, rlgl
+import modding/mod_patch_core
 from save_system import PostFxLevel, pfxOff, pfxSubtle, pfxFull
 
 const
@@ -201,10 +202,10 @@ proc blurPair(a, b: RenderTexture2D) =
   pass(b.texture, a)
   endShaderMode()
 
-proc postFxEnabled*(level: PostFxLevel): bool =
+proc postFxEnabled*(level: PostFxLevel): bool {.moddable.} =
   level != pfxOff and load()
 
-proc preparePostFx*(frame: Texture2D, virtualW, virtualH: int32) =
+proc preparePostFx*(frame: Texture2D, virtualW, virtualH: int32) {.moddable.} =
   ## Builds this frame's glow from the finished frame. Call outside any
   ## drawing (after endTextureMode, before beginDrawing).
   ensureTargets(virtualW, virtualH)
@@ -235,13 +236,13 @@ proc beginComposite(level: PostFxLevel, w, h: float32) =
   setShaderValueTexture(composite, locNear, nearA.texture)
   setShaderValueTexture(composite, locWide, wideA.texture)
 
-proc drawComposited*(level: PostFxLevel, frame: Texture2D, source, dest: Rectangle) =
+proc drawComposited*(level: PostFxLevel, frame: Texture2D, source, dest: Rectangle) {.moddable.} =
   ## The final blit, through the composite. Inside beginDrawing.
   beginComposite(level, dest.width, dest.height)
   drawTexture(frame, source, dest, Vector2(x: 0, y: 0), 0, White)
   endShaderMode()
 
-proc composeToTexture*(level: PostFxLevel, frame: Texture2D): ptr Texture2D =
+proc composeToTexture*(level: PostFxLevel, frame: Texture2D): ptr Texture2D {.moddable.} =
   ## The composite into an off-screen target the size of `frame`, for a mod's
   ## post-process shader to read. Outside any drawing. The result is stored
   ## like any render texture (draw it with a flipped source).

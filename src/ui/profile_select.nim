@@ -11,6 +11,7 @@
 ## bilingual (English / Spanish, plain ASCII).
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../save_system, ../types, ../advancement
 import ../gamepad_input
@@ -35,7 +36,7 @@ type
 const
   DeleteConfirmCooldown = 2.0'f32  # anti-accident window, like the quit dialog
 
-proc refreshSlots*(state: ProfileSelectState) =
+proc refreshSlots*(state: ProfileSelectState) {.moddable.} =
   for slot in 1..MaxProfileSlots:
     state.slots[slot].exists = profileExists(slot)
     if state.slots[slot].exists:
@@ -45,7 +46,7 @@ proc refreshSlots*(state: ProfileSelectState) =
       state.slots[slot].difficulty = gdMedium
       state.slots[slot].completion = 0.0
 
-proc newProfileSelectState*(): ProfileSelectState =
+proc newProfileSelectState*(): ProfileSelectState {.moddable.} =
   result = ProfileSelectState(mode: psmSlots)
   refreshSlots(result)
 
@@ -121,7 +122,7 @@ proc difficultyLabel(d: GameDifficulty): string =
 
 proc updateProfileSelect*(state: ProfileSelectState, dt: float32,
                           mousePos: Vector2,
-                          screenWidth, screenHeight: int32): int =
+                          screenWidth, screenHeight: int32): int {.moddable.} =
   ## Processes one frame of input. Creating/deleting profiles happens in here;
   ## returns the chosen slot (1..MaxProfileSlots) once the player picks a
   ## profile to play on, 0 otherwise.
@@ -303,7 +304,7 @@ proc drawDeleteConfirmDialog(state: ProfileSelectState, screenWidth, screenHeigh
                    (rects.yesBtn.y + 13).int32, 14, White)
 
 proc drawProfileSelect*(state: ProfileSelectState, screenWidth, screenHeight: int32,
-                        time: float32, mousePos: Vector2, activeSlot: int) =
+                        time: float32, mousePos: Vector2, activeSlot: int) {.moddable.} =
   case state.mode
   of psmSlots:
     drawScreenFrame(screenWidth, screenHeight,

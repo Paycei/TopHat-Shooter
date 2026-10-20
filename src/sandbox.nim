@@ -1,10 +1,10 @@
 ﻿# SANDBOX MODE - Testing and Development Tools
 
 import raylib, std/strutils, random
+import modding/mod_patch_core
 import draw_prims
-from std/unicode import runeSubStr, runeLen
 import types, enemy, enemy_config, enemy_helpers, powerup, powerup_data, boss_definitions, localization, render_context, settings, ui/icon_drawing, utils
-import game3d/types_3d
+import game3d/types_3d, ui/ui_helpers, ui/hud_dock
 
 const
   SIDEBAR_WIDTH = 300
@@ -23,20 +23,6 @@ const
 proc isSandboxLegendaryPowerUp(powerType: PowerUpType): bool {.inline.} =
   ## Derived from the registry.
   powerUpDef(powerType).pool == puppLegendary
-
-proc fitSandboxText(text: string, maxWidth, fontSize: int32,
-                    minSize: int32 = 8): tuple[text: string, size: int32] =
-  var fs = fontSize
-  while fs > minSize and measureText(text, fs) > maxWidth:
-    dec fs
-  if measureText(text, fs) <= maxWidth:
-    return (text, fs)
-
-  # Trim whole characters, not bytes: Spanish text is multi-byte UTF-8.
-  var fitted = text
-  while fitted.len > 0 and measureText(fitted & "...", fs) > maxWidth:
-    fitted = fitted.runeSubStr(0, fitted.runeLen - 1)
-  (fitted & "...", fs)
 
 # One list per spawn tab, shared by the draw pass, the click handler and the
 # scroll height, so the three can never drift apart.
@@ -92,37 +78,6 @@ proc spawnSandboxEnemy(game: Game, enemyType: EnemyType) =
     enemy.linkId = partner.id
     game.enemies.add(partner)
 
-proc wrapSandboxText(text: string, maxWidth, fontSize: int32): seq[string] =
-  result = @[]
-  var words: seq[string] = @[]
-  for word in text.splitWhitespace():
-    words.add(word)
-  if words.len == 0:
-    return
-
-  var line = ""
-  for word in words:
-    let candidate = if line.len == 0: word else: line & " " & word
-    if measureText(candidate, fontSize) <= maxWidth:
-      line = candidate
-    else:
-      if line.len > 0:
-        result.add(line)
-      if measureText(word, fontSize) > maxWidth:
-        var chunk = ""
-        for ch in word:
-          if measureText(chunk & $ch, fontSize) <= maxWidth:
-            chunk &= $ch
-          else:
-            if chunk.len > 0:
-              result.add(chunk)
-            chunk = $ch
-        line = chunk
-      else:
-        line = word
-  if line.len > 0:
-    result.add(line)
-
 proc sandboxContentHeight(selectedTab: int): int32 =
   case selectedTab
   of 0:
@@ -155,44 +110,44 @@ proc drawEnemiesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   let contentX: int32 = sidebarX + SIDEBAR_PADDING
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
 
-  drawText(t(tkSandboxSpawnEnemies), contentX, currentY, 18, White)
+  drawText(t(tkSandboxSpawnEnemies), contentX, currentY, 18, uiInk(White))
   currentY += 25
 
   # Every enemy type with a spawn button (wave, then survival, then roguelite).
   for enemyType in sandboxEnemies():
     if currentY + BUTTON_HEIGHT > startY and currentY < screenHeight:  # Only draw visible items
       let config = getEnemyConfig(enemyType)
-      drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 70, b: 120, a: 255))
-      drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 100, g: 100, b: 150, a: 255))
-      let (nameText, nameSize) = fitSandboxText(sandboxEnemyTag(enemyType) & config.name, buttonWidth - 10, 16)
-      drawText(nameText, contentX + 5, currentY + 5, nameSize, White)
-      let (descText, descSize) = fitSandboxText(config.description, buttonWidth - 10, 12)
-      drawText(descText, contentX + 5, currentY + 20, descSize, Color(r: 180, g: 180, b: 180, a: 255))
+      drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(Color(r: 70, g: 70, b: 120, a: 255)))
+      drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiLine(Color(r: 100, g: 100, b: 150, a: 255)))
+      let (nameText, nameSize) = fitTextAndSize(sandboxEnemyTag(enemyType) & config.name, buttonWidth - 10, 16, 8)
+      drawText(nameText, contentX + 5, currentY + 5, nameSize, uiInk(White))
+      let (descText, descSize) = fitTextAndSize(config.description, buttonWidth - 10, 12, 8)
+      drawText(descText, contentX + 5, currentY + 20, descSize, uiInk(Color(r: 180, g: 180, b: 180, a: 255)))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
   currentY += 10
   if currentY + BUTTON_HEIGHT > startY and currentY < screenHeight:
-    drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 70, b: 70, a: 255))
-    drawText(t(tkSandboxSpawn10Random), contentX + 5, currentY + 10, 16, Yellow)
+    drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(Color(r: 120, g: 70, b: 70, a: 255)))
+    drawText(t(tkSandboxSpawn10Random), contentX + 5, currentY + 10, 16, uiInk(Yellow))
 
 proc drawBossesTab(game: Game, sidebarX, startY, screenHeight: int32) =
   var currentY: int32 = startY + 10 - game.sandboxScrollOffset
   let contentX: int32 = sidebarX + SIDEBAR_PADDING
   let buttonWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
 
-  drawText(t(tkSandboxSpawnBosses), contentX, currentY, 18, White)
+  drawText(t(tkSandboxSpawnBosses), contentX, currentY, 18, uiInk(White))
   currentY += 25
 
   for bossId in sandboxBossIds():
     if currentY + BUTTON_HEIGHT > startY and currentY < screenHeight:
       let bossDef = getBossDefinition(bossId)
-      drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 50, b: 50, a: 255))
-      drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 80, b: 80, a: 255))
-      let (nameText, nameSize) = fitSandboxText($bossId & ". " & sandboxBossTag(bossId) & bossDef.name,
-                                                buttonWidth - 10, 16)
-      drawText(nameText, contentX + 5, currentY + 5, nameSize, Red)
-      let (descText, descSize) = fitSandboxText(bossDef.description, buttonWidth - 10, 12)
-      drawText(descText, contentX + 5, currentY + 20, descSize, Color(r: 200, g: 150, b: 150, a: 255))
+      drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(Color(r: 120, g: 50, b: 50, a: 255)))
+      drawRectOutline(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiLine(Color(r: 150, g: 80, b: 80, a: 255)))
+      let (nameText, nameSize) = fitTextAndSize($bossId & ". " & sandboxBossTag(bossId) & bossDef.name,
+                                                buttonWidth - 10, 16, 8)
+      drawText(nameText, contentX + 5, currentY + 5, nameSize, uiInk(Red))
+      let (descText, descSize) = fitTextAndSize(bossDef.description, buttonWidth - 10, 12, 8)
+      drawText(descText, contentX + 5, currentY + 20, descSize, uiInk(Color(r: 200, g: 150, b: 150, a: 255)))
     currentY += BUTTON_HEIGHT + BUTTON_SPACING
 
 proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
@@ -200,10 +155,10 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
   let contentX: int32 = sidebarX + SIDEBAR_PADDING
   let cardWidth: int32 = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2
 
-  drawText(t(tkSandboxPowerupVisuals), contentX, currentY, 18, White)
+  drawText(t(tkSandboxPowerupVisuals), contentX, currentY, 18, uiInk(White))
   currentY += 24
   drawText(t(tkSandboxVisualsSubtitle), contentX, currentY, 10,
-           Color(r: 170, g: 185, b: 200, a: 255))
+           uiInk(Color(r: 170, g: 185, b: 200, a: 255)))
   currentY += 20
 
   for powerType in livePowerUps():
@@ -224,20 +179,20 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
       else:
         Color(r: 80, g: 150, b: 200, a: 210)
 
-      drawRectangle(contentX, currentY, cardWidth, POWERUP_ITEM_HEIGHT, bgColor)
-      drawRectangle(contentX, currentY, 3, POWERUP_ITEM_HEIGHT, accent)
+      drawRectangle(contentX, currentY, cardWidth, POWERUP_ITEM_HEIGHT, uiSurface(bgColor))
+      drawRectangle(contentX, currentY, 3, POWERUP_ITEM_HEIGHT, uiInk(accent))
       drawRectOutline(Rectangle(x: contentX.float32, y: currentY.float32,
                                    width: cardWidth.float32, height: POWERUP_ITEM_HEIGHT.float32),
-                         1, borderColor)
+                         1, uiLine(borderColor))
 
       let iconX = contentX + 10
       let iconY = currentY + 11
       drawRectangle(iconX - 3, iconY - 3, POWERUP_ICON_SIZE + 6, POWERUP_ICON_SIZE + 6,
-                    Color(r: 10, g: 16, b: 24, a: 190))
+                    uiSurface(Color(r: 10, g: 16, b: 24, a: 190)))
       drawRectOutline(Rectangle(x: (iconX - 3).float32, y: (iconY - 3).float32,
                                    width: (POWERUP_ICON_SIZE + 6).float32,
                                    height: (POWERUP_ICON_SIZE + 6).float32),
-                         1, withAlpha(accent, 180))
+                         1, uiLine(withAlpha(accent, 180)))
       if discovered:
         drawPowerUpIcon(iconX, iconY, POWERUP_ICON_SIZE, powerType, accent)
       else:
@@ -250,34 +205,34 @@ proc drawPowerUpsVisualsTab(game: Game, sidebarX, startY, screenHeight: int32) =
       let badgeWidth = measureText(badgeText, 9) + 8
       let badgeX = contentX + cardWidth - badgeWidth - 7
       drawRectangle(badgeX, currentY + 7, badgeWidth, 14,
-                    if not discovered: Color(r: 58, g: 64, b: 76, a: 230)
+                    uiSurface(if not discovered: Color(r: 58, g: 64, b: 76, a: 230)
                     elif isLegendary: Color(r: 120, g: 86, b: 16, a: 230)
-                    else: Color(r: 34, g: 88, b: 116, a: 230))
+                    else: Color(r: 34, g: 88, b: 116, a: 230)))
       drawText(badgeText, badgeX + 4, currentY + 10, 9,
-               if not discovered: Color(r: 175, g: 185, b: 200, a: 255)
+               uiInk(if not discovered: Color(r: 175, g: 185, b: 200, a: 255)
                elif isLegendary: Color(r: 255, g: 230, b: 120, a: 255)
-               else: Color(r: 160, g: 225, b: 255, a: 255))
+               else: Color(r: 160, g: 225, b: 255, a: 255)))
 
       let displayName = if discovered: getPowerUpName(powerType)
                         else: t(tkSandboxPowerupLockedName)
-      let (nameText, nameSize) = fitSandboxText(displayName, badgeX - textX - 5, 13)
+      let (nameText, nameSize) = fitTextAndSize(displayName, badgeX - textX - 5, 13, 8)
       drawText(nameText, textX, currentY + 8, nameSize,
-               if discovered: White else: Color(r: 170, g: 180, b: 195, a: 255))
+               uiInk(if discovered: White else: Color(r: 170, g: 180, b: 195, a: 255)))
 
       if discovered:
         drawText(t(tkSandboxLv1Preview), textX, currentY + 25, 9,
-                 Color(r: 120, g: 200, b: 255, a: 255))
+                 uiInk(Color(r: 120, g: 200, b: 255, a: 255)))
 
       let desc = if discovered: getPowerUpDescription(powerType, 1, game.player.damage)
                  else: t(tkSandboxPowerupLockedDesc)
-      let descLines = wrapSandboxText(desc, cardWidth - 64, 10)
+      let descLines = wrapTextLines(desc, cardWidth - 64, 10, breakLongWords = true)
       let maxLines = min(3, descLines.len)
       for i in 0..<maxLines:
         drawText(descLines[i], textX, currentY + 39 + int32(i * 12), 10,
-                 Color(r: 185, g: 194, b: 205, a: 255))
+                 uiInk(Color(r: 185, g: 194, b: 205, a: 255)))
       if descLines.len > maxLines:
         drawText("...", textX, currentY + 39 + int32(maxLines * 12), 10,
-                 Color(r: 150, g: 160, b: 170, a: 255))
+                 uiInk(Color(r: 150, g: 160, b: 170, a: 255)))
 
     currentY += POWERUP_ITEM_HEIGHT + BUTTON_SPACING
 
@@ -288,69 +243,69 @@ proc drawControlsTab(game: Game, sidebarX, startY, screenHeight: int32) =
 
   # God Mode toggle
   let godModeColor = if game.sandboxGodMode: Green else: Color(r: 80, g: 80, b: 80, a: 255)
-  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, godModeColor)
-  drawText(t(tkSandboxGodMode) & " " & (if game.sandboxGodMode: t(tkCommonOn) else: t(tkCommonOff)), contentX + 5, currentY + 10, 16, White)
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(godModeColor))
+  drawText(t(tkSandboxGodMode) & " " & (if game.sandboxGodMode: t(tkCommonOn) else: t(tkCommonOff)), contentX + 5, currentY + 10, 16, uiInk(White))
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
 
   # Freeze Enemies toggle
   let freezeColor = if game.sandboxFreezeEnemies: Color(r: 100, g: 150, b: 255, a: 255) else: Color(r: 80, g: 80, b: 80, a: 255)
-  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, freezeColor)
-  drawText(t(tkSandboxFreezeEnemies) & " " & (if game.sandboxFreezeEnemies: t(tkCommonOn) else: t(tkCommonOff)), contentX + 5, currentY + 10, 16, White)
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(freezeColor))
+  drawText(t(tkSandboxFreezeEnemies) & " " & (if game.sandboxFreezeEnemies: t(tkCommonOn) else: t(tkCommonOff)), contentX + 5, currentY + 10, 16, uiInk(White))
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
 
   # Clear All Enemies button
-  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 50, b: 50, a: 255))
-  drawText(t(tkSandboxClearAllEnemies), contentX + 5, currentY + 10, 16, White)
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(Color(r: 150, g: 50, b: 50, a: 255)))
+  drawText(t(tkSandboxClearAllEnemies), contentX + 5, currentY + 10, 16, uiInk(White))
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
 
   # Wave controls
-  drawText(t(tkSandboxWave) & " " & $game.currentWave, contentX, currentY, 16, White)
+  drawText(t(tkSandboxWave) & " " & $game.currentWave, contentX, currentY, 16, uiInk(White))
   currentY += 25
-  drawRectangle(contentX, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 80, g: 80, b: 120, a: 255))
-  drawText(t(tkSandboxWaveMinus), contentX + 5, currentY + 10, 16, White)
-  drawRectangle(contentX + buttonWidth div 2 + 3, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 80, g: 80, b: 120, a: 255))
-  drawText(t(tkSandboxWavePlus), contentX + buttonWidth div 2 + 8, currentY + 10, 16, White)
+  drawRectangle(contentX, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, uiSurface(Color(r: 80, g: 80, b: 120, a: 255)))
+  drawText(t(tkSandboxWaveMinus), contentX + 5, currentY + 10, 16, uiInk(White))
+  drawRectangle(contentX + buttonWidth div 2 + 3, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, uiSurface(Color(r: 80, g: 80, b: 120, a: 255)))
+  drawText(t(tkSandboxWavePlus), contentX + buttonWidth div 2 + 8, currentY + 10, 16, uiInk(White))
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
 
   # Difficulty controls
-  drawText(t(tkSandboxDifficulty) & " " & formatFloat(game.difficulty, ffDecimal, 1), contentX, currentY, 16, White)
+  drawText(t(tkSandboxDifficulty) & " " & formatFloat(game.difficulty, ffDecimal, 1), contentX, currentY, 16, uiInk(White))
   currentY += 25
-  drawRectangle(contentX, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 120, g: 80, b: 80, a: 255))
-  drawText(t(tkSandboxDiffMinus), contentX + 5, currentY + 10, 16, White)
-  drawRectangle(contentX + buttonWidth div 2 + 3, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, Color(r: 120, g: 80, b: 80, a: 255))
-  drawText(t(tkSandboxDiffPlus), contentX + buttonWidth div 2 + 8, currentY + 10, 16, White)
+  drawRectangle(contentX, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, uiSurface(Color(r: 120, g: 80, b: 80, a: 255)))
+  drawText(t(tkSandboxDiffMinus), contentX + 5, currentY + 10, 16, uiInk(White))
+  drawRectangle(contentX + buttonWidth div 2 + 3, currentY, buttonWidth div 2 - 3, BUTTON_HEIGHT, uiSurface(Color(r: 120, g: 80, b: 80, a: 255)))
+  drawText(t(tkSandboxDiffPlus), contentX + buttonWidth div 2 + 8, currentY + 10, 16, uiInk(White))
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
 
   # Player stats
-  drawText(t(tkSandboxHP) & " " & $game.player.hp & "/" & $game.player.maxHp, contentX, currentY, 14, White)
+  drawText(t(tkSandboxHP) & " " & $game.player.hp & "/" & $game.player.maxHp, contentX, currentY, 14, uiInk(White))
   currentY += 20
-  drawText(t(tkSandboxCoins) & " " & $game.player.coins, contentX, currentY, 14, Gold)
+  drawText(t(tkSandboxCoins) & " " & $game.player.coins, contentX, currentY, 14, uiInk(Gold))
   currentY += 20
-  drawText(t(tkSandboxEnemies) & " " & $game.enemies.len, contentX, currentY, 14, White)
+  drawText(t(tkSandboxEnemies) & " " & $game.enemies.len, contentX, currentY, 14, uiInk(White))
   currentY += 25
 
   # Heal button
-  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 50, g: 150, b: 50, a: 255))
-  drawText(t(tkSandboxHealFull), contentX + 5, currentY + 10, 16, White)
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(Color(r: 50, g: 150, b: 50, a: 255)))
+  drawText(t(tkSandboxHealFull), contentX + 5, currentY + 10, 16, uiInk(White))
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
 
-  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 180, g: 140, b: 0, a: 255))
-  drawText(t(tkSandboxAddCoins), contentX + 5, currentY + 10, 16, White)
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(Color(r: 180, g: 140, b: 0, a: 255)))
+  drawText(t(tkSandboxAddCoins), contentX + 5, currentY + 10, 16, uiInk(White))
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
 
-  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 70, g: 120, b: 180, a: 255))
-  drawText(t(tkSandboxOpenShop), contentX + 5, currentY + 10, 16, White)
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(Color(r: 70, g: 120, b: 180, a: 255)))
+  drawText(t(tkSandboxOpenShop), contentX + 5, currentY + 10, 16, uiInk(White))
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 5
 
   # Open Power-Up Selection button
-  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 120, g: 70, b: 180, a: 255))
-  drawText(t(tkSandboxRollPowerUps), contentX + 5, currentY + 10, 16, White)
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(Color(r: 120, g: 70, b: 180, a: 255)))
+  drawText(t(tkSandboxRollPowerUps), contentX + 5, currentY + 10, 16, uiInk(White))
   currentY += BUTTON_HEIGHT + BUTTON_SPACING + 10
 
   # Enter Boss #7 3D Mode button
-  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, Color(r: 150, g: 100, b: 255, a: 255))
-  drawText(t(tkSandboxEnterBoss3d), contentX + 5, currentY + 5, 16, White)
-  drawText(t(tkSandboxTest3dArena), contentX + 5, currentY + 20, 12, Color(r: 200, g: 200, b: 200, a: 255))
+  drawRectangle(contentX, currentY, buttonWidth, BUTTON_HEIGHT, uiSurface(Color(r: 150, g: 100, b: 255, a: 255)))
+  drawText(t(tkSandboxEnterBoss3d), contentX + 5, currentY + 5, 16, uiInk(White))
+  drawText(t(tkSandboxTest3dArena), contentX + 5, currentY + 20, 12, uiInk(Color(r: 200, g: 200, b: 200, a: 255)))
 
 proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int32) =
   ## Draws a draggable scrollbar on the right edge of the sidebar.
@@ -365,10 +320,10 @@ proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int
 
   # Track background
   drawRectangle(trackX, trackY, SCROLLBAR_WIDTH, trackH,
-                Color(r: 30, g: 30, b: 40, a: 180))
+                uiSurface(Color(r: 30, g: 30, b: 40, a: 180)))
   drawRectOutline(Rectangle(x: trackX.float32, y: trackY.float32,
                                width: SCROLLBAR_WIDTH.float32, height: trackH.float32),
-                     1, Color(r: 60, g: 60, b: 80, a: 180))
+                     1, uiLine(Color(r: 60, g: 60, b: 80, a: 180)))
 
   # Thumb size proportional to visible / total content
   let contentH  = sandboxContentHeight(game.sandboxSelectedTab)
@@ -386,14 +341,14 @@ proc drawSandboxScrollbar(game: Game, sidebarX, contentStartY, screenHeight: int
   else:
     Color(r: 90, g: 130, b: 190, a: 210)
 
-  drawRectangle(trackX + 1, thumbY, SCROLLBAR_WIDTH - 2, thumbH, thumbColor)
+  drawRectangle(trackX + 1, thumbY, SCROLLBAR_WIDTH - 2, thumbH, uiInk(thumbColor))
   # Subtle grip lines
   let midY = thumbY + thumbH div 2
   for dy in [-4'i32, 0'i32, 4'i32]:
     drawStroke(trackX + 2, midY + dy, trackX + SCROLLBAR_WIDTH - 3, midY + dy,
-             Color(r: 200, g: 220, b: 255, a: 100))
+             uiLine(Color(r: 200, g: 220, b: 255, a: 100)))
 
-proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
+proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) {.moddable.} =
   # The sidebar is a screen-edge UI panel: anchor it to the VIRTUAL screen edge
   # (in widescreen the world is narrower than the virtual screen, so the world
   # width would put it in the wrong place). Both parameters are interface sizes
@@ -404,21 +359,21 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
     # Draw toggle button when closed
     let toggleX = viewW - 50
     let toggleY = screenHeight div 2 - 30
-    drawRectangle(toggleX, toggleY, 40, 60, Color(r: 50, g: 50, b: 50, a: 200))
-    drawText(t(tkSandboxToggle), toggleX + 8, toggleY + 18, 24, White)
+    drawRectangle(toggleX, toggleY, 40, 60, hudSurface(Color(r: 50, g: 50, b: 50, a: 200)))
+    drawText(t(tkSandboxToggle), toggleX + 8, toggleY + 18, 24, uiInk(White))
     return
 
   # Draw sidebar background
   let sidebarX = viewW - SIDEBAR_WIDTH
-  drawRectangle(sidebarX, 0, SIDEBAR_WIDTH, screenHeight, Color(r: 40, g: 40, b: 40, a: 230))
+  drawRectangle(sidebarX, 0, SIDEBAR_WIDTH, screenHeight, hudSurface(Color(r: 40, g: 40, b: 40, a: 230)))
 
   # Draw close button
   let closeX = sidebarX + SIDEBAR_WIDTH - 35
-  drawRectangle(closeX, 5, 30, 30, Color(r: 150, g: 50, b: 50, a: 255))
-  drawText(t(tkSandboxClose), closeX + 8, 8, 20, White)
+  drawRectangle(closeX, 5, 30, 30, uiSurface(Color(r: 150, g: 50, b: 50, a: 255)))
+  drawText(t(tkSandboxClose), closeX + 8, 8, 20, uiInk(White))
 
   # Draw title
-  drawText(t(tkSandboxTitle), sidebarX + 10, 10, 20, Yellow)
+  drawText(t(tkSandboxTitle), sidebarX + 10, 10, 20, uiInk(Yellow))
 
   # Draw tabs
   let tabs = [t(tkSandboxTabEnemies), t(tkSandboxTabBosses), "Pwr", t(tkSandboxTabControls)]
@@ -431,11 +386,11 @@ proc drawSandboxSidebar*(game: Game, screenWidth, screenHeight: int32) =
       Color(r: 70, g: 130, b: 180, a: 255)
     else:
       Color(r: 60, g: 60, b: 60, a: 255)
-    drawRectangle(int32(tabX), int32(currentY), int32(tabWidth), int32(TAB_HEIGHT - 5), tabColor)
-    let (fittedTabName, fittedTabSize) = fitSandboxText(tabName, tabWidth - 4, 14, 9)
+    drawRectangle(int32(tabX), int32(currentY), int32(tabWidth), int32(TAB_HEIGHT - 5), uiSurface(tabColor))
+    let (fittedTabName, fittedTabSize) = fitTextAndSize(tabName, tabWidth - 4, 14, 9)
     let textWidth = measureText(fittedTabName, fittedTabSize)
     drawText(fittedTabName, int32(tabX + (tabWidth - textWidth) div 2),
-             int32(currentY + 10), fittedTabSize, White)
+             int32(currentY + 10), fittedTabSize, uiInk(White))
 
   currentY += TAB_HEIGHT + 5
 
@@ -612,7 +567,7 @@ proc handleControlsTabClick(game: Game, mousePos: Vector2, sidebarX, screenWidth
     game.fadeAlpha = 0.0
     return
 
-proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
+proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) {.moddable.} =
   if not game.sandboxSidebarOpen:
     # Check toggle button click
     if isPointerPressed():
@@ -707,7 +662,7 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) =
     else:
       discard
 
-proc updateSandboxMode*(game: Game, dt: float32) =
+proc updateSandboxMode*(game: Game, dt: float32) {.moddable.} =
   # Apply god mode
   if game.sandboxGodMode:
     game.player.hp = game.player.maxHp

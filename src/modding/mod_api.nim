@@ -13,30 +13,48 @@
 import std/[os, strutils, tables, json, math, algorithm]
 import raylib
 import ../draw_prims
-import ../types, ../particle_types, ../localization, ../render_context, ../settings, ../powerup
-import ../enemy_config, ../boss_definitions, ../player, ../enemy, ../bullet, ../game/combat, ../game/death, ../d_systems, ../particle_pool, ../sound
+import ../types, ../particle_types, ../localization, ../render_context, ../settings, ../powerup, ../utils
+import ../enemy_config, ../boss_definitions, ../player, ../enemy, ../bullet, ../game/combat, ../game/death, ../game/bosses, ../d_systems, ../particle_pool, ../sound
 import ../powerup_data, ../ui/icon_drawing, ../save_system, ../run_statistics, ../run_save, ../suspend
+import ../statistics, ../roguelite
+import ../game3d/types_3d
 import mod_assets, mod_media
 import lua_bridge, mod_state, mod_hooks, mod_reflect, mod_deep, mod_registry
 
 var
   gameMethods*, playerMethods*, enemyMethods*, bulletMethods*: ScriptTable
     ## The methods tables (the high-layer API modules add their own methods).
-  textEntries: seq[tuple[lang: Language, key, value: string, owner: int]]
+  textEntries: seq[tuple[lang, key, value: string, owner: int, isText: bool]]
     ## Every string a mod added, so a mod that fails to load can be undone.
+    ## `lang`: "english", "spanish" or a mod language's id; `isText`: a mod
+    ## text's translation, keyed by its English ({en = .., fr = ..}).
+  languageDefs: seq[tuple[lang: ModLanguage, owner: int]]   ## register.language
 
-proc addModText(lang: Language, key, value: string, owner: int) =
-  textEntries.add((lang, key, value, owner))
-  setModTranslation(lang, key, value)
+proc applyModText(lang, key, value: string, isText: bool) =
+  if isText: setModLanguageText(lang, key, value)
+  elif lang == $English: setModTranslation(English, key, value)
+  elif lang == $Spanish: setModTranslation(Spanish, key, value)
+  else: setModLanguageString(lang, key, value)
+
+proc addModText(lang, key, value: string, owner: int, isText = false) =
+  textEntries.add((lang, key, value, owner, isText))
+  applyModText(lang, key, value, isText)
 
 proc dropModText*(owner: int) =
-  ## Forget one mod's strings and rebuild the overlay from everyone else's.
+  ## Forget one mod's strings and languages and rebuild the overlay from
+  ## everyone else's.
   var kept: typeof(textEntries)
   for e in textEntries:
     if e.owner != owner: kept.add(e)
   textEntries = kept
+  var keptLangs: typeof(languageDefs)
+  for d in languageDefs:
+    if d.owner != owner: keptLangs.add(d)
+  languageDefs = keptLangs
   clearModTranslations()
-  for e in textEntries: setModTranslation(e.lang, e.key, e.value)
+  clearModLanguages()
+  for d in languageDefs: addModLanguage(d.lang.id, d.lang.name, d.lang.base)
+  for e in textEntries: applyModText(e.lang, e.key, e.value, e.isText)
 
 # ------------------------------------------------------------- helpers ----
 proc keyName*(key: ScriptValue): string {.inline.} =
@@ -135,7 +153,7 @@ proc setEntityData*(vm: VM, kind: int64, id: int, val: ScriptValue, what: string
   if val.kind != vkTable: vm.runtimeError(what & ".data must be a table")
   mods[owner].entityData[entityKey(kind, id)] = val.tbl
 
-proc bulletDataId*(vm: VM, b: Bullet): int =
+proc bulletDataId(vm: VM, b: Bullet): int =
   ## A bullet's id for b.data, given on first use (0 = never needed one). PvP
   ## bullets always have one (pvp_game numbers them from 1).
   if b.bulletId == 0:
@@ -147,15 +165,21 @@ proc bulletDataId*(vm: VM, b: Bullet): int =
 
 # ----------------------------------------------------------- classes ----
 const
-  GameReadOnly = ["mode", "state", "modded", "cheatsUsed", "modFingerprint", "modMode",
-                  "modRunData", "screenWidth", "screenHeight", "modWorld"]
-  PlayerReadOnly = ["baselineMaxHp"]
+  GameReadOnly = ["mode", "modMode", "modded", "cheatsUsed", "modFingerprint", "modRunData",
+                  "screenWidth", "screenHeight"]
+    ## Mods are trusted; these stay read-only because something keys on them:
+    ## mode / modMode name the run's save slots, modded / cheatsUsed /
+    ## modFingerprint are the reward rule (a run with mods is cheated unless
+    ## every mod opts out), modRunData is rebuilt from run.data on save, and
+    ## the screen size is recomputed every frame. game.state is writable: the
+    ## change happens at the next safe point.
   PvPPlayerExtras* = ["index", "name", "deaths", "streak", "connected", "alive", "isLocal"]
     ## What a PvP player shows besides its fields (mod_pvp's pvpPlayerField)
-  EnemyReadOnly = ["id", "enemyType", "isBoss", "bossDefinitionID", "currentPhaseIndex",
-                   "bossTotalMaxHp"]
+  EnemyReadOnly = ["id", "isBoss", "bossTotalMaxHp"]
+    ## The enemy's identity (scripts' per-entity data, the spatial grid and
+    ## the boss bookkeeping key on these); bossTotalMaxHp follows the pools.
 
-proc posGet*(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
+proc posGet*(pos, vel: Vector2, name: string, found: var bool): ScriptValue =
   found = true
   case name
   of "x": vnum(pos.x.float64)
@@ -166,7 +190,7 @@ proc posGet*(pos, vel: Vector2f, name: string, found: var bool): ScriptValue =
     found = false
     NilValue
 
-proc posSet*(vm: VM, pos, vel: var Vector2f, name: string, v: ScriptValue): bool =
+proc posSet*(vm: VM, pos, vel: var Vector2, name: string, v: ScriptValue): bool =
   case name
   of "x": pos.x = vm.checkNum([v], 0, "x").float32
   of "y": pos.y = vm.checkNum([v], 0, "y").float32
@@ -192,6 +216,15 @@ proc makeClasses() =
     if g.isNil: vm.runtimeError("no run in progress")
     let name = keyName(key)
     if name in GameReadOnly: vm.runtimeError("game." & name & " is read-only")
+    if name == "state":
+      # A state change mid-frame would leave main.nim's state machine halfway
+      # through the old state's branch: it happens at the next safe point.
+      var st: GameState
+      assignScript(vm, st, val, "game.state")
+      let target = g
+      deferCall(currentModIdx, vnative(newNative("setState",
+        proc (vm: VM, a: openArray[ScriptValue], r: var RetVals) = target.state = st)))
+      return
     if not deepSet(vm, g, name, val, "game"):
       vm.runtimeError("game has no field '" & name & "'")
   gameClass.tostr = proc (ud: Userdata): string = "game"
@@ -215,7 +248,6 @@ proc makeClasses() =
     let p = unwrapPlayer(vud(ud))
     if p.isNil: vm.runtimeError("no run in progress")
     let name = keyName(key)
-    if name in PlayerReadOnly: vm.runtimeError("player." & name & " is read-only")
     if not modCtx.match.isNil and name in PvPPlayerExtras:
       vm.runtimeError("player." & name & " is read-only")
     if posSet(vm, p.pos, p.vel, name, val):
@@ -247,8 +279,48 @@ proc makeClasses() =
       return
     if name in EnemyReadOnly:
       vm.runtimeError("enemy." & name & " is read-only")
-    if e.isBoss and name in ["hp", "maxHp"]:
-      vm.runtimeError("a boss's " & name & " is read-only (use boss:damage(amount))")
+    case name
+    of "hp":
+      # Set outright (not damage): a boss's is its current phase pool, and an
+      # emptied pool moves it on (or defeats it) in the enemy loop.
+      setEnemyHp(e, vm.checkNum([val], 0, "hp").float32)
+      return
+    of "maxHp":
+      let v = vm.checkNum([val], 0, "maxHp").float32
+      if not (v > 0.0'f32): vm.runtimeError("enemy.maxHp must be above 0")
+      e.maxHp = v
+      if e.isBoss and e.currentPhaseIndex >= 0 and e.currentPhaseIndex < e.bossPhaseHpPools.len:
+        e.bossPhaseHpPools[e.currentPhaseIndex] = v
+        var total = 0.0'f32
+        for pool in e.bossPhaseHpPools: total += pool
+        e.bossTotalMaxHp = total
+      return
+    of "type", "enemyType":
+      # Becomes another kind of enemy (its AI and look from the next frame).
+      var et: EnemyType
+      if val.kind != vkString or not resolveEnemyName(val.str.s, et) or not isEnemyLive(et):
+        vm.runtimeError("enemy." & name & " must be an enemy type name (enemies.types())")
+      e.enemyType = et
+      return
+    of "bossDefinitionID":
+      let id = vm.checkInt([val], 0, "bossDefinitionID")
+      if not e.isBoss: vm.runtimeError("enemy.bossDefinitionID: not a boss")
+      if getBossDefinition(id).phases.len == 0:
+        vm.runtimeError("enemy.bossDefinitionID: no boss " & $id)
+      e.bossDefinitionID = id
+      return
+    of "currentPhaseIndex":
+      # A real phase change (HP pool, speed, attacks, the phase banner).
+      if not e.isBoss: vm.runtimeError("enemy.currentPhaseIndex: not a boss")
+      let def = getBossDefinition(e.bossDefinitionID)
+      let idx = vm.checkInt([val], 0, "currentPhaseIndex")
+      if idx < 0 or idx >= def.phases.len:
+        vm.runtimeError("enemy.currentPhaseIndex: this boss has phases 0 to " & $(def.phases.len - 1))
+      var g = modCtx.game
+      if g.isNil: vm.runtimeError("enemy.currentPhaseIndex needs a run in progress")
+      transitionBossToPhase(g, e, def, idx)
+      return
+    else: discard
     if posSet(vm, e.pos, e.vel, name, val): return
     if not deepSet(vm, e, name, val, "enemy"):
       vm.runtimeError("enemy has no field '" & name & "'")
@@ -432,11 +504,20 @@ proc mouseButtonFromArg(vm: VM, v: ScriptValue): MouseButton =
     else: discard
   vm.runtimeError("mouse button must be \"left\", \"right\" or \"middle\"")
 
-proc parseLanguage(vm: VM, s: string): Language =
+proc parseLanguage(vm: VM, s: string): string =
+  ## A language's settings name: "english", "spanish" or a mod language's id
+  ## (register.language; its strings may come before it is registered).
   case s.toLowerAscii
-  of "en", "english": English
-  of "es", "spanish", "espanol": Spanish
-  else: vm.runtimeError("unknown language '" & s & "' (use \"en\" or \"es\")")
+  of "en", "english": $English
+  of "es", "spanish", "espanol": $Spanish
+  else:
+    if s.len == 0 or s.len > 32 or not s.allCharsInSet(IdentChars + {'-'}):
+      vm.runtimeError("'" & s & "' is not a language (\"en\", \"es\" or a register.language id)")
+    s
+
+proc languageCode(setting: string): string =
+  ## lang.current's name for a language: "en" / "es" / the mod language's id.
+  if setting == $English: "en" elif setting == $Spanish: "es" else: setting
 
 proc installLibraries(base: ScriptTable) =
   # ---- hooks
@@ -592,7 +673,7 @@ proc installLibraries(base: ScriptTable) =
                   parseColor(vm, arg(args, 4), "draw.text"))
       ret.setRet(vnum(measureModText(font, s, size, spacing).float64))
       return
-    let size = clamp(vm.checkInt(args, 3, "text"), 10, 200).int32
+    let size = clamp(vm.checkInt(args, 3, "text"), 1, 100_000).int32   # (int32 range)
     drawText(s, vm.checkInt(args, 1, "text").int32, vm.checkInt(args, 2, "text").int32, size,
              parseColor(vm, arg(args, 4), "draw.text"))
     ret.setRet(vnum(measureText(s, size).int))
@@ -614,7 +695,7 @@ proc installLibraries(base: ScriptTable) =
       ret.setRet(vnum(measureModText(font, vm.checkStr(args, 0, "textWidth"),
                                      fontSize(vm.optNum(args, 1, "textWidth", 10)), spacing).float64))
       return
-    let size = clamp(vm.optInt(args, 1, "textWidth", 10), 10, 200).int32
+    let size = clamp(vm.optInt(args, 1, "textWidth", 10), 1, 100_000).int32
     ret.setRet(vnum(measureText(vm.checkStr(args, 0, "textWidth"), size).int))
   rawSet(base, vstr("draw"), vtable(drawT))
 
@@ -657,7 +738,28 @@ proc installLibraries(base: ScriptTable) =
   langT.reg("text") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ret.setRet(vstr(t(vm.checkStr(args, 0, "text"))))
   langT.reg("current") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ret.setRet(vstr(if getLanguage() == Spanish: "es" else: "en"))
+    ## lang.current() -> "en", "es" or the id of the mod language in use
+    ret.setRet(vstr(languageCode(languageSetting())))
+  langT.reg("use") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## lang.use("fr") -> true: switch the game's language (and the setting);
+    ## false: no such language is loaded (the game falls back to English)
+    let setting = vm.parseLanguage(vm.checkStr(args, 0, "lang.use"))
+    if not globalSettings.isNil: globalSettings.language = setting
+    ret.setRet(vbool(useLanguage(setting)))
+  langT.reg("list") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## lang.list() -> {{id = "en", name = "English"}, {id = "es", ...}, <mod languages>}
+    let lt = newScriptTable()
+    var n = 0
+    template entry(id, name: string) =
+      let e = newScriptTable()
+      rawSet(e, vstr("id"), vstr(id))
+      rawSet(e, vstr("name"), vstr(name))
+      inc n
+      rawSet(lt, vnum(n), vtable(e))
+    entry("en", getLanguageName(English))
+    entry("es", getLanguageName(Spanish))
+    for l in modLanguages: entry(l.id, l.name)
+    ret.setRet(vtable(lt))
   langT.reg("set") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## lang.set("en", "my_key", "Text") -- also overrides built-in strings
     let owner = vm.requireOwner("lang.set")
@@ -691,12 +793,79 @@ proc installLibraries(base: ScriptTable) =
     ret.setRet(NilValue)
   modsT.reg("isLoaded") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ret.setRet(vbool(vm.checkStr(args, 0, "isLoaded") in loadedModIds))
+  modsT.reg("dir") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## mods.dir("other_id") -> that loaded mod's folder (nil if it is not loaded)
+    let id = vm.checkStr(args, 0, "dir")
+    for m in mods:
+      if m.id == id:
+        ret.setRet(vstr(m.dir))
+        return
+    ret.setRet(NilValue)
   modsT.reg("list") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     var ids: seq[string]
     for m in mods:
       if not m.disabled: ids.add(m.id)
     ret.setRet(namesTable(ids))
   rawSet(base, vstr("mods"), vtable(modsT))
+
+  # ---- engine: the game itself (its global state; later its procs)
+  let engineT = newScriptTable()
+  engineT.reg("defer") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## engine.defer(fn): run fn at the next safe point (after this frame's
+    ## simulation, or at the top of the next frame), where lists may grow
+    ## and shrink.
+    deferCall(vm.requireOwner("engine.defer"), vm.checkFunc(args, 0, "defer"))
+  let globalsCls = UdClass(name: "globals")
+  globalsCls.index = proc (vm: VM, ud: Userdata, key: ScriptValue): ScriptValue =
+    let name = keyName(key)
+    var found = false
+    result = modGlobalGet(name, found)
+    if not found:
+      vm.runtimeError("engine.globals has no '" & name & "' (it has " & modGlobalNames().join(", ") & ")")
+  globalsCls.newindex = proc (vm: VM, ud: Userdata, key, val: ScriptValue) =
+    if not modGlobalSet(vm, keyName(key), val):
+      vm.runtimeError("engine.globals has no '" & keyName(key) & "'")
+  globalsCls.next = proc (vm: VM, ud: Userdata, key: ScriptValue, k, v: var ScriptValue): bool =
+    let names = modGlobalNames()
+    var at = 0
+    if key.kind == vkString:
+      at = names.find(key.str.s) + 1
+      if at == 0: return false
+    if at >= names.len: return false
+    var found = false
+    k = vstr(names[at])
+    v = modGlobalGet(names[at], found)
+    true
+  globalsCls.tostr = proc (ud: Userdata): string = "engine.globals"
+  rawSet(engineT, vstr("globals"), vud(Userdata(cls: globalsCls, key: nil)))
+  rawSet(engineT, vstr("version"), vstr(GameVersion))
+  engineT.reg("atLeast") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## engine.atLeast("1.12") -> whether this game is that version or newer
+    ret.setRet(vbool(versionAtLeast(GameVersion, vm.checkStr(args, 0, "engine.atLeast"))))
+  engineT.reg("has") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## engine.has("screens.go") -> whether the API has it (a dotted path from
+    ## the globals every mod sees; for the game's procs, mixin.has)
+    var cur = vtable(modBase)
+    for part in vm.checkStr(args, 0, "engine.has").split('.'):
+      if cur.kind != vkTable or part.len == 0:
+        cur = NilValue
+        break
+      cur = rawGetStr(cur.tbl, part)
+    ret.setRet(vbool(cur.kind != vkNil))
+  rawSet(base, vstr("engine"), vtable(engineT))
+
+  # What engine.globals reaches from here (main.nim adds its own: the run on
+  # screen, the desktop, the windows, the advancement profile). The player's
+  # real progression is in there too: mods are trusted.
+  registerModGlobal("settings", addr globalSettings)
+  registerModGlobal("stats", addr globalStats)
+  registerModGlobal("roguelite", addr activeRogueliteProfile)
+  registerModGlobal("runStats", addr currentRunStats)
+  registerModGlobal("sound", addr globalSoundSystem)
+  registerModGlobal("difficulty", addr currentDifficulty)
+  registerModGlobal("language", addr currentLanguage)
+  registerModGlobal("profileSlot", addr activeProfileSlot)
+  registerModGlobal("world3d", addr activeWorld3D)
 
   # ---- the current run
   rawSet(base, vstr("game"), vud(Userdata(cls: gameClass, box: GameBox(g: nil), key: nil)))
@@ -845,13 +1014,13 @@ proc bossFromTable(vm: VM, t: ScriptTable, base: BossDefinition, id: int, owner:
     let fns = rawGetStr(t, key)
     if fns.kind == vkTable:
       for (k, f) in pairsCursor(fns.tbl):
-        if k.kind != vkString or f.kind notin {vkFunction, vkNative}:
+        if k.kind != vkString or f.kind != vkFunction:
           vm.runtimeError("boss." & key & " must map names to functions")
         let route = "mod:" & bossKey & ":" & k.str.s
         if fnTable == 0: bossAttackFns[route] = ScriptFn(owner: owner, fn: f)
         else: bossBehaviorFns[route] = ScriptFn(owner: owner, fn: f)
   let draw = rawGetStr(t, "draw")
-  if draw.kind in {vkFunction, vkNative}:
+  if draw.kind == vkFunction:
     bossDrawFns[id] = ScriptFn(owner: owner, fn: draw)
   let process = rawGetStr(t, "process")
   if process.kind == vkString:
@@ -864,13 +1033,11 @@ proc bossFromTable(vm: VM, t: ScriptTable, base: BossDefinition, id: int, owner:
 
 proc buildScriptBullet*(vm: VM, t: ScriptTable): Bullet =
   ## spawn.bullet's table -> a bullet, not yet in the run.
-  proc num(key: string, def: float64): float32 =
-    let v = rawGetStr(t, key)
-    if v.kind == vkNumber: v.n.float32 else: def.float32
+  proc num(key: string, def: float32): float32 = vm.numField(t, key, "spawn.bullet", def)
   let vx = num("vx", 0)
   let vy = num("vy", 200)
   let speed = sqrt(vx * vx + vy * vy)
-  let dir = if speed > 0: newVector2f(vx / speed, vy / speed) else: newVector2f(1, 0)
+  let dir = if speed > 0: vec2(vx / speed, vy / speed) else: vec2(1, 0)
   result = newBullet(num("x", 0), num("y", 0), dir, speed, num("damage", 1),
                      fromPlayer = truthy(rawGetStr(t, "fromPlayer")))
   let r = num("radius", 0)
@@ -889,7 +1056,6 @@ proc installContentLibraries(base: ScriptTable) =
     ## is already true; onSpawn runs when it joins).
     let owner = vm.requireOwner("spawn.enemy")
     let g = vm.requireRunGame()
-    if modActionsFull(): vm.runtimeError("spawn.enemy: too many spawns queued this frame")
     let et = vm.checkEnemyType(args, 0, "enemy")
     let x = vm.checkNum(args, 1, "enemy").float32
     let y = vm.checkNum(args, 2, "enemy").float32
@@ -931,7 +1097,6 @@ proc installContentLibraries(base: ScriptTable) =
     let owner = vm.requireOwner("spawn.bullet")
     discard vm.requireRunGame()
     let t = vm.checkTable(args, 0, "bullet")
-    if modActionsFull(): vm.runtimeError("spawn.bullet: too many spawns queued this frame")
     let b = vm.buildScriptBullet(t)
     modPendingBullets.add(b)
     queueModAction(ModAction(kind: makJoinBullet, owner: owner, bullet: b))
@@ -984,19 +1149,23 @@ proc installContentLibraries(base: ScriptTable) =
       trackPowerUpDamage(modCtx.game, src.pt, dealt)
     ret.setRet(vnum(dealt.float64))
   enemyMethods.reg("kill") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## Dies this frame with the normal rewards. Bosses: use boss:damage(n).
+    ## Dies this frame with the normal rewards. A boss skips its remaining
+    ## phases and is defeated the normal way (rewards, the boss wave ending).
     let e = vm.selfEnemy(args, "kill")
-    if e.isBoss: vm.runtimeError("a boss cannot be killed outright; use boss:damage(amount)")
+    if e.isBoss:
+      let phases = getBossDefinition(e.bossDefinitionID).phases.len
+      if phases > 0: e.currentPhaseIndex = phases - 1
     e.hp = 0
     if e.requiredHits > 0: e.hitCount = max(e.hitCount, e.requiredHits)
   enemyMethods.reg("remove") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
-    ## Vanishes at the end of the frame: no death, no rewards. Not for bosses.
+    ## Vanishes at the end of the frame: no death, no rewards. A boss is never
+    ## removed: its phases and its boss wave only end through its defeat
+    ## (enemy:kill() defeats it at once).
     let e = vm.selfEnemy(args, "remove")
-    if e.isBoss: vm.runtimeError("a boss cannot be removed")
     queueModAction(ModAction(kind: makRemoveEnemy, owner: vm.requireOwner("enemy:remove"), target: e))
   enemyMethods.reg("heal") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## Up to its maxHp (a boss: its current phase pool's).
     let e = vm.selfEnemy(args, "heal")
-    if e.isBoss: vm.runtimeError("a boss cannot be healed by mods")
     e.hp = min(e.maxHp, e.hp + max(0.0, vm.checkNum(args, 1, "heal")).float32)
   playerMethods.reg("heal") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## player:heal(amount [, source]) -> HP actually restored. `source` credits
@@ -1081,11 +1250,11 @@ proc installContentLibraries(base: ScriptTable) =
     spawnExplosionPooled(g.particlePool, vm.checkNum(args, 0, "particles").float32,
                          vm.checkNum(args, 1, "particles").float32,
                          parseColor(vm, arg(args, 2), "fx.particles"),
-                         clamp(vm.optInt(args, 3, "particles", 20), 1, 200))
+                         max(vm.optInt(args, 3, "particles", 20), 1))
   fxT.reg("damageNumber") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## fx.damageNumber(x, y, amount [, critical])
     let g = vm.requireRunGame()
-    showDamage(g, newVector2f(vm.checkNum(args, 0, "damageNumber").float32,
+    showDamage(g, vec2(vm.checkNum(args, 0, "damageNumber").float32,
                               vm.checkNum(args, 1, "damageNumber").float32),
                vm.checkNum(args, 2, "damageNumber").float32, fromPlayer = true,
                isCritical = truthy(arg(args, 3)))
@@ -1141,7 +1310,7 @@ proc installContentLibraries(base: ScriptTable) =
     let fields = newScriptTable()
     for (k, v) in pairsCursor(src):
       if k.kind == vkString and k.str.s in ["update", "draw"]:
-        if v.kind notin {vkFunction, vkNative}:
+        if v.kind != vkFunction:
           vm.runtimeError("override.enemy: " & k.str.s & " must be a function")
         if k.str.s == "update": enemyUpdateFns[ord(et)] = ScriptFn(owner: owner, fn: v)
         else: enemyDrawFns[ord(et)] = ScriptFn(owner: owner, fn: v)
@@ -1166,6 +1335,38 @@ proc installContentLibraries(base: ScriptTable) =
 
   # ---- register
   let registerT = newScriptTable()
+  registerT.reg("language") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## register.language{id = "fr", name = "Francais", base = "en" | "es",
+    ##   strings = {key = "text", ...}} -> "fr": a language of the game, listed
+    ## in Settings and the first-run picker. Its gaps show the base language.
+    ## Registering the same id again (another mod, a translation pack) adds
+    ## strings; lang.set("fr", key, text) does too.
+    let owner = vm.requireLoading("register.language")
+    let t = vm.checkTable(args, 0, "register.language")
+    vm.checkKeys(t, ["id", "name", "base", "strings"], "register.language")
+    let idV = rawGetStr(t, "id")
+    if idV.kind != vkString: vm.runtimeError("register.language needs id = \"<language id>\"")
+    let id = vm.parseLanguage(idV.str.s)
+    if id in [$English, $Spanish]:
+      vm.runtimeError("register.language: '" & idV.str.s & "' is built in (add its strings with lang.set)")
+    let baseV = rawGetStr(t, "base")
+    var base = English
+    if baseV.kind == vkString and vm.parseLanguage(baseV.str.s) == $Spanish: base = Spanish
+    elif baseV.kind != vkNil and not (baseV.kind == vkString and vm.parseLanguage(baseV.str.s) == $English):
+      vm.runtimeError("register.language.base must be \"en\" or \"es\"")
+    let nameV = rawGetStr(t, "name")
+    if nameV.kind notin {vkNil, vkString}: vm.runtimeError("register.language.name must be a string")
+    let name = if nameV.kind == vkString: nameV.str.s else: ""
+    languageDefs.add((ModLanguage(id: id, name: name, base: base), owner))
+    addModLanguage(id, name, base)
+    let s = rawGetStr(t, "strings")
+    if s.kind == vkTable:
+      for (k, v) in pairsCursor(s.tbl):
+        if k.kind != vkString or v.kind != vkString:
+          vm.runtimeError("register.language.strings must map keys to text")
+        addModText(id, k.str.s, v.str.s, owner)
+    elif s.kind != vkNil: vm.runtimeError("register.language.strings must be a table")
+    ret.setRet(vstr(id))
   registerT.reg("keybind") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     let owner = vm.requireLoading("register.keybind")
     let t = vm.checkTable(args, 0, "register.keybind")
@@ -1229,13 +1430,20 @@ var
   enemyOwners: array[ModEnemySlot, int]
 
 proc textPair*(vm: VM, v: ScriptValue, what: string): tuple[en, es: string] =
-  ## "Text" or {en = "Text", es = "Texto"}.
+  ## "Text" or {en = "Text", es = "Texto"}; any other key is a mod language's
+  ## ({en = "Souls", fr = "Ames"}), which pickText shows while it is in use
+  ## (texts a mod registers while it loads; a runtime text picks itself).
   case v.kind
   of vkString: (v.str.s, "")
   of vkTable:
     let en = rawGetStr(v.tbl, "en")
     let es = rawGetStr(v.tbl, "es")
-    ((if en.kind == vkString: en.str.s else: ""), (if es.kind == vkString: es.str.s else: ""))
+    let enText = if en.kind == vkString: en.str.s else: ""
+    if enText.len > 0 and modLoading and currentModIdx >= 0:
+      for (k, tv) in pairsCursor(v.tbl):
+        if k.kind == vkString and tv.kind == vkString and k.str.s notin ["en", "es"]:
+          addModText(vm.parseLanguage(k.str.s), enText, tv.str.s, currentModIdx, isText = true)
+    (enText, (if es.kind == vkString: es.str.s else: ""))
   of vkNil: ("", "")
   else: vm.runtimeError(what & " must be a string or {en = .., es = ..}")
 
@@ -1250,14 +1458,14 @@ proc textList(vm: VM, v: ScriptValue, what: string): seq[string] =
   else: vm.runtimeError(what & " must be a string or a list of strings")
 
 proc pickLang(en, es: string): string {.inline.} =
-  if getLanguage() == Spanish and es.len > 0: es else: en
+  pickText(en, es)
 
 proc modPowerUpTextImpl(pt: PowerUpType, level: int, wantName: bool): string {.nimcall.} =
   if not isModPowerUp(pt): return ""
   let s = puScripts[pt]
   if wantName:
     return pickLang(s.nameEn, s.nameEs)
-  if s.descFn.kind in {vkFunction, vkNative}:
+  if s.descFn.kind == vkFunction:
     var r: RetVals
     if callAs(s.owner, s.descFn, [vnum(level)], r) and r.count > 0 and r.first.kind == vkString:
       return r.first.str.s
@@ -1270,7 +1478,7 @@ proc modPowerUpAppliedImpl(player: Player, pt: PowerUpType, level: int) {.nimcal
   if not isModPowerUp(pt): return
   let s = puScripts[pt]
   applyStatDeltas(player, s.stats)
-  if s.onPickup.kind in {vkFunction, vkNative}:
+  if s.onPickup.kind == vkFunction:
     var r: RetVals
     discard callForPowerUp(pt, ScriptFn(owner: s.owner, fn: s.onPickup),
                            [wrapPlayer(player), vnum(level), wrapGame(modCtx.game)], r)
@@ -1278,7 +1486,7 @@ proc modPowerUpAppliedImpl(player: Player, pt: PowerUpType, level: int) {.nimcal
 proc modPowerUpIconImpl(pt: PowerUpType, color: Color): bool {.nimcall.} =
   if not isModPowerUp(pt): return false
   let s = puScripts[pt]
-  if s.icon.kind notin {vkFunction, vkNative}: return false
+  if s.icon.kind != vkFunction: return false
   let prev = modCtx.drawing
   modCtx.drawing = dtHud
   defer: modCtx.drawing = prev
@@ -1380,7 +1588,7 @@ proc installNewContent(base: ScriptTable) =
     if s.nameEn.len == 0: s.nameEn = key.split(':')[1].toUpperAscii & ".exe"
     let d = rawGetStr(t, "description")
     case d.kind
-    of vkFunction, vkNative: s.descFn = d
+    of vkFunction: s.descFn = d
     of vkTable:
       if rawGetStr(d.tbl, "en").kind != vkNil or rawGetStr(d.tbl, "es").kind != vkNil:
         s.descEn = vm.textList(rawGetStr(d.tbl, "en"), "description.en")
@@ -1402,15 +1610,15 @@ proc installNewContent(base: ScriptTable) =
     # Per-frame and per-hit behaviour, run only while the player has it (and
     # credited to it in the run statistics).
     let upd = rawGetStr(t, "update")
-    if upd.kind in {vkFunction, vkNative}: powerUpUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
+    if upd.kind == vkFunction: powerUpUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
     let hit = rawGetStr(t, "onHit")
-    if hit.kind in {vkFunction, vkNative}: powerUpHitFns[ord(slot)] = ScriptFn(owner: owner, fn: hit)
+    if hit.kind == vkFunction: powerUpHitFns[ord(slot)] = ScriptFn(owner: owner, fn: hit)
     # An active [Q] ability: active = {cooldown = seconds, activate = fn(player, level, game)}
     let act = rawGetStr(t, "active")
     if act.kind == vkTable:
       vm.checkKeys(act.tbl, ["cooldown", "activate"], "register.powerup.active")
       let fn = rawGetStr(act.tbl, "activate")
-      if fn.kind notin {vkFunction, vkNative}:
+      if fn.kind != vkFunction:
         vm.runtimeError("register.powerup.active needs activate = function(player, level, game)")
       let cd = rawGetStr(act.tbl, "cooldown")
       def.activeCooldown = if cd.kind == vkNumber and abs(cd.n) < 1.0e6: max(0.0, cd.n).float32 else: 5'f32
@@ -1443,8 +1651,8 @@ proc installNewContent(base: ScriptTable) =
     let b = rawGetStr(t, "base")
     if b.kind == vkString:
       var parsed: EnemyType
-      if not resolveEnemyScriptName(b.str.s, parsed) or parsed notin etCircle..etMage:
-        vm.runtimeError("register.enemy: base must be a wave-mode enemy (etCircle ... etMage), got '" &
+      if not resolveEnemyScriptName(b.str.s, parsed) or isModEnemy(parsed) or parsed == etEnvironment:
+        vm.runtimeError("register.enemy: base must be one of the game's own enemy types, got '" &
                         b.str.s & "'")
       base = parsed
     var cfg = vanillaEnemyConfig(base)
@@ -1473,9 +1681,9 @@ proc installNewContent(base: ScriptTable) =
                                     config: cfg)
     enemyOwners[slot] = owner
     let upd = rawGetStr(t, "update")
-    if upd.kind in {vkFunction, vkNative}: enemyUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
+    if upd.kind == vkFunction: enemyUpdateFns[ord(slot)] = ScriptFn(owner: owner, fn: upd)
     let drw = rawGetStr(t, "draw")
-    if drw.kind in {vkFunction, vkNative}: enemyDrawFns[ord(slot)] = ScriptFn(owner: owner, fn: drw)
+    if drw.kind == vkFunction: enemyDrawFns[ord(slot)] = ScriptFn(owner: owner, fn: drw)
     invalidateEnemyConfigCache()
     ret.setRet(vstr(key))
 
@@ -1495,9 +1703,9 @@ proc installNewContent(base: ScriptTable) =
     setPowerUpDef(pt, def)
     # Extra behaviour on top of the built-in one (credited to it in the stats).
     let upd = rawGetStr(t, "update")
-    if upd.kind in {vkFunction, vkNative}: powerUpUpdateFns[ord(pt)] = ScriptFn(owner: owner, fn: upd)
+    if upd.kind == vkFunction: powerUpUpdateFns[ord(pt)] = ScriptFn(owner: owner, fn: upd)
     let hit = rawGetStr(t, "onHit")
-    if hit.kind in {vkFunction, vkNative}: powerUpHitFns[ord(pt)] = ScriptFn(owner: owner, fn: hit)
+    if hit.kind == vkFunction: powerUpHitFns[ord(pt)] = ScriptFn(owner: owner, fn: hit)
 
   let rosterT = newScriptTable()
   rosterT.reg("add") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
@@ -1537,22 +1745,67 @@ proc installNewContent(base: ScriptTable) =
   rawSet(base, vstr("powerups"), vtable(powerupsT))
 
 # ================================================================== assets ====
-# assets.texture / assets.model / assets.sound load files from the mod's own
-# folder; override.texture/model/sound/music swap the game's look and sound;
-# register.cosmetic adds skins players equip in MODS.EXE.
-
-const MaxModDataFile = 16_000_000   ## assets.text / assets.json
+# assets.texture / assets.model / assets.sound load files (relative paths are
+# the mod's own folder, absolute ones anywhere); override.texture/model/sound/
+# music swap the game's look and sound; register.cosmetic adds skins players
+# equip in MODS.EXE.
 
 var soundClass, shaderClass, musicClass: UdClass
 var textureClass*, modelClass*, videoClass*: UdClass
 
-proc safeModPath*(m: ModRuntime, rel: string): string
+# ------------------------------------------------------ file sandbox ----
+# A mod reads files in its own folder and in its mod.dataDir() (a folder of
+# its own in the profile), and writes only in mod.dataDir(): its folder is
+# read-only (a file written there would change its fingerprint and move its
+# saves). Relative paths start in the mod's folder. The game's natives check
+# paths here; the Lua libraries' own file calls do too, through fileGate.
+
+proc modDataDir(m: ModRuntime): string =
+  ## In the profile folder mod.storage was read from (see storagePath).
+  (if m.storageDir.len > 0: m.storageDir else: getAppDataPath() / "mod_data") / m.id
+
+proc insideDir(path, dir: string): bool =
+  ## `path` is `dir` or below it (both normalized; case-blind on Windows).
+  var p = path
+  var d = dir
+  when defined(windows):
+    p = p.replace('/', '\\').toLowerAscii
+    d = d.replace('/', '\\').toLowerAscii
+  while d.len > 1 and d[^1] in {'/', '\\'}: d.setLen(d.len - 1)
+  p == d or (p.len > d.len and p.startsWith(d) and p[d.len] in {'/', '\\'})
+
+proc confineModPath(m: ModRuntime, rel: string, write: bool): tuple[path, err: string] =
+  ## Where a script's path points and whether the mod may use it there
+  ## (`err` says why not).
+  let full = normalizedPath(if rel.isAbsolute: rel else: m.dir / rel)
+  let data = normalizedPath(modDataDir(m))
+  if insideDir(full, data):
+    if write:
+      try: createDir(data)
+      except OSError, IOError: discard
+    return (full, "")
+  if m.dir.len > 0 and insideDir(full, normalizedPath(m.dir)):
+    if not write: return (full, "")
+    return ("", "'" & rel & "' is in the mod's folder, which is read-only (write to mod.dataDir())")
+  ("", "'" & rel & "' is outside the mod's folders (a mod reads its folder and mod.dataDir(), " &
+       "and writes only mod.dataDir())")
+
+proc modFileGate(path: string, write, quiet: bool): tuple[path, err: string] =
+  ## lua_bridge's fileGate, for the running mod.
+  if currentModIdx < 0 or currentModIdx >= mods.len:
+    return ("", "files can only be opened by a mod's own code")
+  let m = mods[currentModIdx]
+  result = confineModPath(m, path, write)
+  if result.err.len > 0 and not quiet: modLogAdd(mlWarn, m.id, "file refused: " & result.err)
+
+fileGate = modFileGate
 
 proc modPath(vm: VM, rel, what: string): string =
-  ## A path inside the calling mod's folder (which may not exist).
+  ## Where the calling mod's path points (the file may not exist).
   let owner = vm.requireOwner(what)
-  result = safeModPath(mods[owner], rel)
-  if result.len == 0: vm.runtimeError(what & ": '" & rel & "' is outside the mod folder")
+  let (path, err) = confineModPath(mods[owner], rel, write = false)
+  if err.len > 0: vm.runtimeError(what & ": " & err)
+  path
 
 proc modFile(vm: VM, rel, what: string): string =
   result = vm.modPath(rel, what)
@@ -1983,16 +2236,12 @@ proc installAssetLibraries(base: ScriptTable) =
     ## assets.text("data/story.txt") -> the file's contents (a string)
     let rel = vm.checkStr(args, 0, "text")
     let path = vm.modFile(rel, "assets.text")
-    if getFileSize(path) > MaxModDataFile:
-      vm.runtimeError("assets.text: " & rel & " is larger than 16 MB")
     try: ret.setRet(vstr(readFile(path)))
     except IOError: vm.runtimeError("assets.text: cannot read " & rel)
   assetsT.reg("json") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## assets.json("data/levels.json") -> its value (tables, numbers, strings, booleans)
     let rel = vm.checkStr(args, 0, "json")
     let path = vm.modFile(rel, "assets.json")
-    if getFileSize(path) > MaxModDataFile:
-      vm.runtimeError("assets.json: " & rel & " is larger than 16 MB")
     var node: JsonNode
     try: node = parseJson(readFile(path))
     except IOError: vm.runtimeError("assets.json: cannot read " & rel)
@@ -2224,7 +2473,7 @@ proc installAssetLibraries(base: ScriptTable) =
     for (field, dest) in [("draw", addr app.draw), ("update", addr app.update),
                           ("click", addr app.click), ("drag", addr app.drag)]:
       let f = rawGetStr(t, field)
-      if f.kind in {vkFunction, vkNative}: dest[] = f
+      if f.kind == vkFunction: dest[] = f
       elif f.kind != vkNil: vm.runtimeError("register.app: " & field & " must be a function")
     if app.draw.kind == vkNil: vm.runtimeError("register.app needs a draw function")
     app.color = ModAppDefaultColor
@@ -2234,7 +2483,7 @@ proc installAssetLibraries(base: ScriptTable) =
     for (field, dest, lo, hi) in [("width", addr app.width, ModAppMinW, ModAppMaxW),
                                   ("height", addr app.height, ModAppMinH, ModAppMaxH)]:
       let v = rawGetStr(t, field)
-      if v.kind == vkNumber and abs(v.n) < 1.0e9: dest[] = clamp(int(v.n), lo, hi)
+      if v.kind == vkNumber and abs(v.n) < 1.0e9: dest[] = max(int(v.n), lo)   # (the window chrome needs the minimum)
       elif v.kind != vkNil: vm.runtimeError("register.app: " & field & " must be a number")
     app.resizable = truthy(rawGetStr(t, "resizable"))
     modApps.add(app)
@@ -2285,6 +2534,7 @@ proc installAssetLibraries(base: ScriptTable) =
 proc installModApi*(base: ScriptTable) =
   ## Build the classes and the shared library tables (once per reload).
   textEntries.setLen(0)
+  languageDefs.setLen(0)
   makeClasses()
   installMethods()
   installLibraries(base)
@@ -2293,21 +2543,6 @@ proc installModApi*(base: ScriptTable) =
   installAssetLibraries(base)
 
 # ---------------------------------------------------------- per mod env ----
-proc safeModPath*(m: ModRuntime, rel: string): string =
-  ## A path inside the mod's own folder, or "" if `rel` tries to leave it.
-  if rel.len == 0 or rel.isAbsolute or ':' in rel or rel.startsWith("/") or
-     rel.startsWith("\\"):
-    return ""
-  for part in rel.replace('\\', '/').split('/'):
-    if part == "..":
-      return ""
-  let full = normalizedPath(m.dir / rel)
-  let root = normalizedPath(m.dir)
-  if not full.startsWith(root): return ""
-  full
-
-const MaxStorageBytes = 1_000_000
-
 proc storagePath(m: ModRuntime): string =
   ## In the profile folder the storage was read from: a profile switch must
   ## never write one profile's mod.storage into another's folder.
@@ -2333,9 +2568,6 @@ proc saveModStorage*(m: ModRuntime): bool =
   if m.storage.isNil: return true
   try:
     let text = $toJsonNode(vtable(m.storage))
-    if text.len > MaxStorageBytes:
-      modLogAdd(mlError, m.id, "mod.storage is over 1 MB; not saved")
-      return false
     if m.storageDir.len == 0: return true   # never loaded: nothing of it to keep
     createDir(m.storageDir)
     writeFile(storagePath(m), text)
@@ -2407,6 +2639,34 @@ proc installRestorePoints(): ScriptTable =
         vm.runtimeError("run.restorePoints." & name & " cannot be set (only used can; " &
                         "hide the meters with hud.hide(\"restorePoints\"))"))))
 
+const EnvPrelude = """
+local env = ...
+-- Code a mod loads gets the mod's globals unless it says otherwise. (Which
+-- files it may load, and where relative paths start, is the file sandbox's
+-- business: lua_files.h.)
+local load0, loadfile0 = load, loadfile
+function load(chunk, chunkname, mode, ...)
+  if select("#", ...) == 0 then return load0(chunk, chunkname, mode, env) end
+  return load0(chunk, chunkname, mode, (...))
+end
+function loadfile(filename, mode, ...)
+  if select("#", ...) == 0 then return loadfile0(filename, mode, env) end
+  return loadfile0(filename, mode, (...))
+end
+function dofile(filename)
+  local f, err = loadfile(filename)
+  if not f then error(err, 2) end
+  return f()
+end
+"""
+
+proc installEnvPrelude(m: ModRuntime) =
+  ## The mod's own load / loadfile / dofile, which default to its globals.
+  let cl = modVM.loadChunk(EnvPrelude, m.id & "/(environment)", m.env)
+  var r: RetVals
+  let err = protectedCall(modVM, vfunc(cl), [vtable(m.env)], r)
+  if err.len > 0: modLogAdd(mlError, m.id, "environment: " & err)
+
 proc installModEnv*(m: ModRuntime) =
   let env = m.env
   let modT = newScriptTable()
@@ -2431,7 +2691,22 @@ proc installModEnv*(m: ModRuntime) =
   let storageOwner = m
   modT.reg("saveStorage") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ret.setRet(vbool(saveModStorage(storageOwner)))
+  # Files (the file sandbox above): mod.dir is the mod's folder (read-only),
+  # mod.path(rel) an absolute path from a relative one, mod.dataDir() a
+  # folder of the mod's own in the profile, the only place it may write.
+  rawSet(modT, vstr("dir"), vstr(m.dir))
+  modT.reg("path") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let rel = vm.checkStr(args, 0, "path")
+    let (path, err) = confineModPath(storageOwner, rel, write = false)
+    if err.len > 0: vm.runtimeError("mod.path: " & err)
+    ret.setRet(vstr(path))
+  modT.reg("dataDir") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    let dir = modDataDir(storageOwner)
+    try: createDir(dir)
+    except OSError, IOError: vm.runtimeError("mod.dataDir: cannot create " & dir)
+    ret.setRet(vstr(dir))
   rawSet(env, vstr("mod"), vtable(modT))
+  installEnvPrelude(m)
 
   # run.restorePoints: the death-surviving checkpoint and its budget, live
   let restoreT = installRestorePoints()
@@ -2477,28 +2752,60 @@ proc installModEnv*(m: ModRuntime) =
         vm.runtimeError("run." & keyName(arg(args, 1)) & " cannot be set"))))
   rawSet(env, vstr("run"), vtable(runT))
 
-  # require("folder.file") -> runs <mod>/folder/file.lua once, returns its value
-  let loaded = newScriptTable()
+  # require("folder.file") runs <mod>/folder/file.lua (or folder/file/init.lua;
+  # "folder/file.lua" spelled as a path works too) once and returns its value;
+  # require("other_id:folder.file") does the same for a loaded mod's module, in
+  # that mod's globals. Each module loads once, kept in the shared
+  # package.loaded["<id>:<module>"]. A name with no such file goes on to Lua's
+  # own require (package.preload, package.path, the standard library names).
   env.reg("require") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     let name = vm.checkStr(args, 0, "require")
-    let cached = rawGetStr(loaded, name)
-    if cached.kind != vkNil:
-      ret.setRet(cached)
-      return
-    let rel = name.replace('.', '/') & ".lua"
-    let path = safeModPath(mods[idx], rel)
+    var owner = idx
+    var module = name
+    let colon = name.find(':')
+    if colon > 0:
+      let id = name[0 ..< colon]
+      module = name[colon + 1 .. ^1]
+      owner = -1
+      for i, other in mods:
+        if other.id == id and not other.disabled: owner = i
+      if owner < 0:
+        vm.runtimeError("require: no loaded mod '" & id & "' (list it in mod.json's " &
+                        "\"dependencies\" so it loads first)")
+    let key = mods[owner].id & ":" & module
+    let pkg = rawGetStr(modBase, "package")
+    let loadedV = if pkg.kind == vkTable: rawGetStr(pkg.tbl, "loaded") else: NilValue
+    if loadedV.kind == vkTable:
+      let cached = rawGetStr(loadedV.tbl, key)
+      if cached.kind != vkNil:
+        ret.setRet(cached)
+        return
+    let asPath = '/' in module or '\\' in module or module.endsWith(".lua")
+    let stem = if asPath: module else: module.replace('.', '/')
+    let tries = if module.endsWith(".lua"): @[stem] else: @[stem & ".lua", stem / "init.lua"]
+    var path, rel = ""
+    for t in tries:
+      let (p, err) = confineModPath(mods[owner], t, write = false)
+      if err.len > 0: vm.runtimeError("require: " & err)
+      if fileExists(p):
+        (path, rel) = (p, t)
+        break
     if path.len == 0:
-      vm.runtimeError("require: '" & name & "' is outside the mod folder")
-    if not fileExists(path):
-      vm.runtimeError("require: module '" & name & "' not found (looked for " & rel & ")")
+      if colon < 0:
+        let stock = rawGetStr(modBase, "require")
+        if stock.kind == vkFunction:
+          vm.callValue(stock, [vstr(name)], ret)
+          return
+      vm.runtimeError("require: module '" & module & "' not found in mod '" & mods[owner].id &
+                      "' (looked for " & tries.join(", ") & ")")
     var src = ""
     try:
       src = readFile(path)
     except IOError:
       vm.runtimeError("require: cannot read " & rel)
-    let cl = vm.loadChunk(src, mods[idx].id & "/" & rel, mods[idx].env)
+    let cl = vm.loadChunk(src, mods[owner].id & "/" & rel.replace('\\', '/'), mods[owner].env)
     var r: RetVals
-    vm.callValue(vfunc(cl), [vstr(name)], r)
+    vm.callValue(vfunc(cl), [vstr(name), vstr(path)], r)
     let v = if r.count > 0 and r.first.kind != vkNil: r.first else: TrueValue
-    rawSet(loaded, vstr(name), v)
+    if loadedV.kind == vkTable: rawSet(loadedV.tbl, vstr(key), v)
     ret.setRet(v)

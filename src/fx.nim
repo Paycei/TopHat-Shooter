@@ -1,4 +1,5 @@
 import math, random, raylib
+import modding/mod_patch_core
 import draw_prims
 import types, particle_types, utils
 
@@ -7,8 +8,8 @@ const LIGHTNING_SEGMENTS*      = 8
 
 const DEFAULT_BOLT_COLOR* = Color(r: 140, g: 200, b: 255, a: 255)  # pale blue chain lightning
 
-proc spawnLightningBoltInto*(bolts: var seq[LightningBolt], fromPos, toPos: Vector2f,
-                             color: Color = DEFAULT_BOLT_COLOR) =
+proc spawnLightningBoltInto*(bolts: var seq[LightningBolt], fromPos, toPos: Vector2,
+                             color: Color = DEFAULT_BOLT_COLOR) {.moddable.} =
   ## Spawn a short-lived jagged lightning arc between two world positions.
   ## `color` tints the glow only; the core stays near-white so every arc still
   ## reads as electricity regardless of which power-up spawned it.
@@ -24,7 +25,7 @@ proc spawnLightningBoltInto*(bolts: var seq[LightningBolt], fromPos, toPos: Vect
   # Jag amplitude: ~15% of total length, decreasing toward endpoints
   let ampBase = len * 0.15'f32
 
-  var segs: seq[Vector2f] = @[fromPos]
+  var segs: seq[Vector2] = @[fromPos]
   for i in 1..<LIGHTNING_SEGMENTS:
     let t = float32(i) / float32(LIGHTNING_SEGMENTS)
     # Linear interpolation base point
@@ -33,12 +34,11 @@ proc spawnLightningBoltInto*(bolts: var seq[LightningBolt], fromPos, toPos: Vect
     # Random jag perpendicular: envelope tapers at both ends
     let env   = 1.0'f32 - abs(t * 2.0'f32 - 1.0'f32)
     let jag   = (rand(1.0) * 2.0 - 1.0).float32 * ampBase * env
-    segs.add(newVector2f(bx + px * jag, by + py * jag))
+    segs.add(vec2(bx + px * jag, by + py * jag))
   segs.add(toPos)
 
   bolts.add(LightningBolt(
     startPos:    fromPos,
-    endPos:      toPos,
     lifetime:    LIGHTNING_BOLT_DURATION,
     maxLifetime: LIGHTNING_BOLT_DURATION,
     segments:    segs,
@@ -47,8 +47,8 @@ proc spawnLightningBoltInto*(bolts: var seq[LightningBolt], fromPos, toPos: Vect
 
 const SHOCKWAVE_RING_DURATION* = 0.45'f32  # seconds the boundary ring stays visible
 
-proc spawnShockwaveRingInto*(rings: var seq[ShockwaveRing], pos: Vector2f,
-                             maxRadius: float32, color: Color) =
+proc spawnShockwaveRingInto*(rings: var seq[ShockwaveRing], pos: Vector2,
+                             maxRadius: float32, color: Color) {.moddable.} =
   ## Spawn an expanding ring that marks the exact edge of an AoE blast.
   rings.add(ShockwaveRing(
     pos:         pos,
@@ -58,7 +58,7 @@ proc spawnShockwaveRingInto*(rings: var seq[ShockwaveRing], pos: Vector2f,
     color:       color
   ))
 
-proc updateShockwaveRings*(rings: var seq[ShockwaveRing], dt: float32) =
+proc updateShockwaveRings*(rings: var seq[ShockwaveRing], dt: float32) {.moddable.} =
   var i = 0
   while i < rings.len:
     rings[i].lifetime -= dt
@@ -67,7 +67,7 @@ proc updateShockwaveRings*(rings: var seq[ShockwaveRing], dt: float32) =
     else:
       inc i
 
-proc drawShockwaveRings*(rings: seq[ShockwaveRing]) =
+proc drawShockwaveRings*(rings: seq[ShockwaveRing]) {.moddable.} =
   for ring in rings:
     let frac     = ring.lifetime / ring.maxLifetime   # 1.0 -> 0.0 over life
     let progress = 1.0'f32 - frac                       # 0.0 -> 1.0
@@ -82,7 +82,7 @@ proc drawShockwaveRings*(rings: seq[ShockwaveRing]) =
 
     # Interior wash: a faint filled disc conveys the *area*, not just the edge.
     let fillA = uint8(clamp(frac * 55.0, 0.0, 55.0))
-    drawDisc(Vector2(x: ring.pos.x, y: ring.pos.y), r,
+    drawDisc(ring.pos, r,
                withAlpha(ring.color, fillA))
 
     # Bold boundary: three concentric outlines give a thick, unmistakable edge.
@@ -119,9 +119,9 @@ const
   BlastGlyphs = "01<>+#$%&=?*"
   BlastGridCell = 34.0'f32               # lattice pitch of the freed region
 
-proc spawnBossDeathBlastInto*(blasts: var seq[BossDeathBlast], pos: Vector2f,
+proc spawnBossDeathBlastInto*(blasts: var seq[BossDeathBlast], pos: Vector2,
                               maxRadius: float32, sourceEnemyId: int,
-                              color: Color = BOSS_DEATH_BLAST_COLOR) =
+                              color: Color = BOSS_DEATH_BLAST_COLOR) {.moddable.} =
   ## Start a sweep at the corpse. It expands from nothing, so the first frame
   ## clears nothing and the erasure genuinely follows the visible edge.
   blasts.add(BossDeathBlast(
@@ -137,7 +137,7 @@ proc spawnBossDeathBlastInto*(blasts: var seq[BossDeathBlast], pos: Vector2f,
 proc blastAlpha(value, fade: float32): uint8 =
   uint8(clamp(value * fade, 0.0'f32, 255.0'f32))
 
-proc drawBossDeathBlasts*(blasts: seq[BossDeathBlast]) =
+proc drawBossDeathBlasts*(blasts: seq[BossDeathBlast]) {.moddable.} =
   for blast in blasts:
     let r = blast.radius
     if r < 1.0'f32: continue
@@ -211,7 +211,7 @@ proc drawBossDeathBlasts*(blasts: seq[BossDeathBlast]) =
                int32(cy + sin(ang) * (r + 9.0'f32)) - 5'i32,
                12, glyphCol)
 
-proc updateLightningBolts*(bolts: var seq[LightningBolt], dt: float32) =
+proc updateLightningBolts*(bolts: var seq[LightningBolt], dt: float32) {.moddable.} =
   var i = 0
   while i < bolts.len:
     bolts[i].lifetime -= dt
@@ -220,7 +220,7 @@ proc updateLightningBolts*(bolts: var seq[LightningBolt], dt: float32) =
     else:
       inc i
 
-proc drawLightningBolts*(bolts: seq[LightningBolt]) =
+proc drawLightningBolts*(bolts: seq[LightningBolt]) {.moddable.} =
   for bolt in bolts:
     let alpha = uint8(clamp(bolt.lifetime / bolt.maxLifetime * 255.0, 0.0, 255.0))
     # Bright core (white-yellow)
@@ -246,8 +246,8 @@ const
   PATH_SHOCKWAVE_DURATION* = 0.60'f32  # total seconds the corridor stays visible
   PATH_SHOCKWAVE_SWEEP*    = 0.45'f32  # fraction of life the crest takes to travel it
 
-proc spawnPathShockwaveInto*(waves: var seq[PathShockwave], points: seq[Vector2f],
-                             width: float32, color: Color) =
+proc spawnPathShockwaveInto*(waves: var seq[PathShockwave], points: seq[Vector2],
+                             width: float32, color: Color) {.moddable.} =
   ## Spawn a shockwave that sweeps along `points`. The caller passes the path in
   ## chronological order (oldest first); the crest travels from the newest end
   ## backwards, matching how Aftershock resolves its damage.
@@ -260,7 +260,7 @@ proc spawnPathShockwaveInto*(waves: var seq[PathShockwave], points: seq[Vector2f
     color:       color
   ))
 
-proc updatePathShockwaves*(waves: var seq[PathShockwave], dt: float32) =
+proc updatePathShockwaves*(waves: var seq[PathShockwave], dt: float32) {.moddable.} =
   var i = 0
   while i < waves.len:
     waves[i].lifetime -= dt
@@ -269,7 +269,7 @@ proc updatePathShockwaves*(waves: var seq[PathShockwave], dt: float32) =
     else:
       inc i
 
-proc drawPathShockwaves*(waves: seq[PathShockwave]) =
+proc drawPathShockwaves*(waves: seq[PathShockwave]) {.moddable.} =
   for wave in waves:
     if wave.points.len < 2: continue
     let frac     = wave.lifetime / wave.maxLifetime   # 1.0 -> 0.0 over life
@@ -359,7 +359,7 @@ proc drawPathShockwaves*(waves: seq[PathShockwave]) =
         let segLen = segLens[idx - 1]
         if remaining <= segLen or idx == 1:
           let t = if segLen > 0.001: clamp(remaining / segLen, 0.0'f32, 1.0'f32) else: 0.0'f32
-          crest = newVector2f(
+          crest = vec2(
             wave.points[idx].x + (wave.points[idx - 1].x - wave.points[idx].x) * t,
             wave.points[idx].y + (wave.points[idx - 1].y - wave.points[idx].y) * t
           )
@@ -380,6 +380,6 @@ proc drawPathShockwaves*(waves: seq[PathShockwave]) =
       let barB = Vector2(x: crest.x - px * wave.width, y: crest.y - py * wave.width)
       drawStroke(barA, barB, 5.0'f32, withAlpha(wave.color, crestA))
       drawStroke(barA, barB, 2.0'f32, hot)
-      drawDisc(Vector2(x: crest.x, y: crest.y), wave.width * 0.45'f32,
+      drawDisc(crest, wave.width * 0.45'f32,
                  withAlpha(wave.color, uint8(crestA.int * 3 div 4)))
-      drawDisc(Vector2(x: crest.x, y: crest.y), wave.width * 0.18'f32, hot)
+      drawDisc(crest, wave.width * 0.18'f32, hot)

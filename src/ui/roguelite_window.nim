@@ -5,9 +5,10 @@
 ## and Heat N+1 unlocks by winning a run at Heat N.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../roguelite, ../types, ../localization, ../render_context, os_roguelite, icon_drawing, ../sound, ../utils
-import ui_theme
+import ui_theme, ui_helpers
 
 const HeatUnlockCelebrationDuration = 1.35'f32
 
@@ -22,13 +23,13 @@ type
     celebrationHeat*: int
     knownHeat: int      ## Highest Heat this window has shown (-1 = not yet seen)
 
-proc newRogueliteWindow*(screenWidth, screenHeight: int, profile: RogueliteProfile = nil): RogueliteWindow =
+proc newRogueliteWindow*(screenWidth, screenHeight: int, profile: RogueliteProfile = nil): RogueliteWindow {.moddable.} =
   let windowWidth = RoguelitePanelW + 20
   let windowHeight = TITLE_BAR_HEIGHT + RoguelitePanelH + 20
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
   let osWin = newOSWindow(t("roguelite_setup_title"), windowX, windowY, windowWidth, windowHeight,
-                          Color(r: 0, g: 220, b: 255, a: 255), owtSettings, resizable = false)
+                          Color(r: 0, g: 220, b: 255, a: 255), resizable = false)
   osWin.visible = false
   result = RogueliteWindow(window: osWin, celebrationTimer: 0.0,
                            celebrationHeat: RogueliteMinHeat, knownHeat: -1)
@@ -83,9 +84,7 @@ proc drawHeatUnlockCelebration(rw: RogueliteWindow, panelX, panelY: int32) =
                      2.5'f32, withAlpha(gold, alpha))
   drawCurrencyIcon(bannerX + 32, bannerY + bannerH div 2, 34, ciHeat, alpha)
   let label = t("roguelite_heat") & " " & $rw.celebrationHeat & " " & t("roguelite_heat_now_open")
-  var labelFont: int32 = 20
-  while labelFont > 12 and measureText(label, labelFont) > bannerW - 76:
-    dec labelFont
+  let labelFont = bestFitFontSize(label, bannerW - 76, 20, 12)
   drawText(label, bannerX + 58, bannerY + (bannerH - labelFont) div 2, labelFont, withAlpha(gold, alpha))
 
 proc buttonRects(panelX, panelY: int32): tuple[start, back: Rectangle] =
@@ -111,7 +110,7 @@ proc stepHeat(game: Game, profile: RogueliteProfile, target: int) =
     game.rogueliteHeatPulseDirection = if next > prev: 1 else: -1
 
 proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openArray[OSWindow],
-                            screenWidth, screenHeight: int, game: Game): RogueliteWindowResult =
+                            screenWidth, screenHeight: int, game: Game): RogueliteWindowResult {.moddable.} =
   ## Update roguelite window. Returns result indicating close and/or game launch.
   result = RogueliteWindowResult(shouldClose: false, launchGame: false)
   if rw.isNil or rw.window.isNil:
@@ -236,7 +235,7 @@ proc updateRogueliteWindow*(rw: RogueliteWindow, dt: float32, allWindows: openAr
       result.shouldClose = true
       return
 
-proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) =
+proc drawRogueliteWindow*(rw: RogueliteWindow, game: Game) {.moddable.} =
   if rw.isNil or rw.window.isNil:
     return
   if not rw.window.visible:

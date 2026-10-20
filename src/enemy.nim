@@ -1,10 +1,11 @@
 ﻿import raylib, types, random, math, wall, boss_definitions, run_statistics, enemy_config, enemy_helpers, boss_weakpoints, effects
+import modding/mod_patch_core
 import draw_prims
 import particle_types, utils, mode_enemies, mode_visuals
 import modding/[mod_state, mod_hooks, mod_assets]
 export mode_enemies
 
-proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy =
+proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: Game): Enemy {.moddable.} =
   # Get enemy configuration
   let config = getEnemyConfig(enemyType)
 
@@ -17,8 +18,8 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   # Create base enemy with config values
   result = Enemy(
     id: game.nextEnemyId,
-    pos: newVector2f(x, y),
-    vel: newVector2f(0, 0),
+    pos: vec2(x, y),
+    vel: vec2(0, 0),
     radius: stats.radius,
     collisionRadius: stats.radius * 0.4,  # 40% of visual size for enemy collision
     hp: finalHp,
@@ -100,7 +101,7 @@ proc newEnemy*(x, y: float32, difficulty: float32, enemyType: EnemyType, game: G
   if modsActive:
     modEnemySpawn(result)
 
-proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool =
+proc updateEnemy*(enemy: var Enemy, playerPos: Vector2, dt: float32, walls: seq[Wall], currentTime: float32, game: var Game): bool {.moddable.} =
   # Mods: a script can take over an enemy's AI (its own `update`, or the
   # enemyUpdate hook returning true); it stays alive while it has HP.
   if modsActive and modEnemyUpdate(enemy, dt):
@@ -163,7 +164,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       if canMove:
         enemy.pos = enemy.pos + enemy.vel * dt
       else:
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+        discard applyEnemyInertia(enemy, vec2(0, 0), dt)
 
   else:
     # Regular enemy updates. A mod enemy (MODS.EXE) runs the branch of the
@@ -194,7 +195,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       if canMove:
         enemy.pos = enemy.pos + enemy.vel * dt
       else:
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+        discard applyEnemyInertia(enemy, vec2(0, 0), dt)
 
     of etCube, etOctagon, etPentagon:
       # Identical movement + ranged-fire loop for all three. What makes them play
@@ -209,7 +210,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       checkScreenEntry(enemy, game)
 
       # Determine next position
-      var nextPos: Vector2f
+      var nextPos: Vector2
       if not enemy.hasEnteredScreen:
         # Force entry toward screen center
         nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
@@ -226,7 +227,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       if not hitWall and not hitBoundary:
         enemy.pos = nextPos
       else:
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+        discard applyEnemyInertia(enemy, vec2(0, 0), dt)
 
       # Execute ranged attack (uses config values)
       executeRangedAttack(enemy, playerPos, game)
@@ -258,14 +259,14 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           let dir = (playerPos - enemy.pos).normalize()
           let distToPlayer = distance(enemy.pos, playerPos)
           let zigzagAngle = sin(currentTime * 7.0 + enemy.pos.x * 0.05) * 0.5
-          let zigzagDir = newVector2f(
+          let zigzagDir = vec2(
             dir.x * cos(zigzagAngle) - dir.y * sin(zigzagAngle),
             dir.x * sin(zigzagAngle) + dir.y * cos(zigzagAngle)
           )
           if distToPlayer > 120:
             discard applyEnemyInertia(enemy, zigzagDir * effectiveSpeed * 0.9, dt)
           else:
-            let tangent = newVector2f(-dir.y, dir.x)
+            let tangent = vec2(-dir.y, dir.x)
             let weaveIntensity = sin(currentTime * 10.0 + enemy.pos.y * 0.05) * 0.5
             let circleDir = (zigzagDir * (0.5 + weaveIntensity * 0.2) + tangent * (0.5 - weaveIntensity * 0.2)).normalize()
             discard applyEnemyInertia(enemy, circleDir * effectiveSpeed * 0.95, dt)
@@ -333,7 +334,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         # Execute the teleport to the pre-calculated destination
         enemy.pos.x = enemy.targetPos.x
         enemy.pos.y = enemy.targetPos.y
-        enemy.vel = newVector2f(0, 0)
+        enemy.vel = vec2(0, 0)
         enemy.hexTeleportTimer = 2.5 + rand(1.0)
         enemy.attackPhase = 0  # Reset: next cycle will show a fresh warning
       elif enemy.hexTeleportTimer <= hexWarningTime and enemy.attackPhase == 0:
@@ -343,7 +344,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         let margin = enemy.radius + 10.0
         let newX = clamp(playerPos.x + cos(angle) * teleportDist, margin, game.screenWidth.float32 - margin)
         let newY = clamp(playerPos.y + sin(angle) * teleportDist, margin, game.screenHeight.float32 - margin)
-        enemy.targetPos = newVector2f(newX, newY)
+        enemy.targetPos = vec2(newX, newY)
         # Warn the player at the destination
         game.attackWarnings.add(newAttackWarning(newX, newY, awtHexTeleport, hexWarningTime))
         enemy.attackPhase = 1  # Warning shown; don't add it again this cycle
@@ -353,7 +354,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         if not hitWall:
           enemy.pos = nextPos
         else:
-          discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+          discard applyEnemyInertia(enemy, vec2(0, 0), dt)
       else:
         # Chase player while waiting to teleport
         var nextPos = chasePlayer(enemy, playerPos, dt, effectiveSpeed)
@@ -362,7 +363,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         if not hitWall:
           enemy.pos = nextPos
         else:
-          discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+          discard applyEnemyInertia(enemy, vec2(0, 0), dt)
 
       # Chaotic shooting (uses config for fire rate, bullet count, speed)
       executeRangedAttack(enemy, playerPos, game)
@@ -381,7 +382,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         if canMove:
           enemy.pos = nextPos
         else:
-          discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+          discard applyEnemyInertia(enemy, vec2(0, 0), dt)
 
         enemy.attackWarningTimer += dt
         if enemy.attackWarningTimer >= 3.0:
@@ -392,7 +393,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
       of 1:  # Warning phase - stop moving, prepare for dash
         enemy.attackWarningTimer -= dt
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+        discard applyEnemyInertia(enemy, vec2(0, 0), dt)
         if enemy.attackWarningTimer <= 0:
           enemy.attackPhase = 2
           enemy.attackExecuteTimer = 0.5  # Dash duration
@@ -457,7 +458,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           enemy.attackPhase = 0
           enemy.attackWarningTimer = 0
           enemy.attackExecuteTimer = 0
-          enemy.vel = newVector2f(0, 0)
+          enemy.vel = vec2(0, 0)
           enemy.rotation = 0.0  # Reset rotation
           # Let the beam expire naturally (lifetime already covers the dash) and
           # drop our reference so the next dash starts a fresh laser + hit gate.
@@ -499,7 +500,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Periodic random shooting only when not dashing
       if enemy.dashTimer <= 0 and enemy.shootTimer > config.attack.fireRate:
         let angle = rand(1.0) * PI * 2.0
-        let tempDir = newVector2f(cos(angle), sin(angle))
+        let tempDir = vec2(cos(angle), sin(angle))
         let tempPlayerPos = enemy.pos + tempDir * 100.0  # Fake target
         executeRangedAttack(enemy, tempPlayerPos, game)
 
@@ -532,7 +533,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           # Pre-calculate REAL destination (~90° away from the fake) and store it
           let realAngle = fakeAngle + PI * (0.5 + rand(1.0))
           let realDist = 120.0 + rand(80.0)
-          enemy.targetPos = newVector2f(
+          enemy.targetPos = vec2(
             clamp(playerPos.x + cos(realAngle) * realDist, margin, game.screenWidth.float32 - margin),
             clamp(playerPos.y + sin(realAngle) * realDist, margin, game.screenHeight.float32 - margin)
           )
@@ -549,7 +550,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
           enemy.pos = enemy.targetPos
-          enemy.vel = newVector2f(0, 0)
+          enemy.vel = vec2(0, 0)
           # Shoot 6-way burst from the real position
           executeRangedAttack(enemy, playerPos, game)
           # Reset cycle
@@ -563,7 +564,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       if not hitWall:
         enemy.pos = nextPos
       else:
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+        discard applyEnemyInertia(enemy, vec2(0, 0), dt)
 
     of etPhantom:
       # Get config for this enemy type
@@ -585,7 +586,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           # Pre-calculate real teleport destination
           let teleAngle = rand(1.0) * PI * 2.0
           let teleDist  = 140.0 + rand(90.0)
-          enemy.targetPos = newVector2f(
+          enemy.targetPos = vec2(
             clamp(playerPos.x + cos(teleAngle) * teleDist, margin, game.screenWidth.float32 - margin),
             clamp(playerPos.y + sin(teleAngle) * teleDist, margin, game.screenHeight.float32 - margin)
           )
@@ -596,7 +597,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
           for i in 0..<3:
             let angle = cloneBaseAngle + i.float32 * PI * 2.0 / 3.0
             let dist  = 100.0 + rand(50.0)
-            enemy.clonePositions.add(newVector2f(
+            enemy.clonePositions.add(vec2(
               clamp(playerPos.x + cos(angle) * dist, margin, game.screenWidth.float32 - margin),
               clamp(playerPos.y + sin(angle) * dist, margin, game.screenHeight.float32 - margin)
             ))
@@ -618,7 +619,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.attackWarningTimer -= dt
         if enemy.attackWarningTimer <= 0:
           enemy.pos = enemy.targetPos
-          enemy.vel = newVector2f(0, 0)
+          enemy.vel = vec2(0, 0)
 
           # Shoot once from the real landed position on arrival
           enemy.shootTimer = config.attack.fireRate + 1.0
@@ -656,7 +657,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       # Erratic wobbling movement during all phases
       let dir = (playerPos - enemy.pos).normalize()
       let wobble = sin(currentTime * 5.0) * 0.7
-      let wobbleDir = newVector2f(
+      let wobbleDir = vec2(
         dir.x * cos(wobble) - dir.y * sin(wobble),
         dir.x * sin(wobble) + dir.y * cos(wobble)
       )
@@ -665,7 +666,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       if not hitWall:
         enemy.pos = nextPos
       else:
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+        discard applyEnemyInertia(enemy, vec2(0, 0), dt)
 
     of etSniper:
       # Sniper enemy - charges a powerful one-shot attack with warning
@@ -692,7 +693,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         if canMove:
           enemy.pos = nextPos
         else:
-          discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+          discard applyEnemyInertia(enemy, vec2(0, 0), dt)
 
         # When close enough, start charging
         if distToPlayer < triggerRange:
@@ -704,7 +705,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
       of 1:  # Charging phase - stands still, glows brighter
         enemy.attackWarningTimer += dt
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+        discard applyEnemyInertia(enemy, vec2(0, 0), dt)
         # Visual charging: change color intensity
         let chargeAmount = enemy.attackWarningTimer / enemy.attackExecuteTimer
         let intensity = uint8(150 + chargeAmount * 105)
@@ -719,7 +720,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
 
       of 2:  # Cooldown phase - recover before hunting again
         enemy.attackExecuteTimer -= dt
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+        discard applyEnemyInertia(enemy, vec2(0, 0), dt)
         if enemy.attackExecuteTimer <= 0:
           enemy.attackPhase = 0
       else:
@@ -782,7 +783,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
         enemy.spawnTimer = 0
 
       # Movement: use helper functions for consistent behavior
-      var nextPos: Vector2f
+      var nextPos: Vector2
       if not enemy.hasEnteredScreen:
         nextPos = forceScreenEntry(enemy, playerPos, dt, effectiveSpeed, game)
       else:
@@ -812,7 +813,7 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
       if canMove:
         enemy.pos = nextPos
       else:
-        discard applyEnemyInertia(enemy, newVector2f(0, 0), dt)
+        discard applyEnemyInertia(enemy, vec2(0, 0), dt)
 
   # Update chain lightning cooldown
   if enemy.chainLightningCooldown > 0:
@@ -832,7 +833,13 @@ proc updateEnemy*(enemy: var Enemy, playerPos: Vector2f, dt: float32, walls: seq
   # They die when hit again (hp becomes <= 0)
   return enemy.hp >= EnemyMinAliveHp
 
-proc drawCustomBoss*(enemy: Enemy) =
+proc hueCol(h: float32, alpha: uint8): Color =
+  ## A colour that sweeps the rainbow as h runs 0..1 (the rainbow boss effects).
+  Color(r: clampByteF(abs(sin(h*PI*2.0))*255.0),
+        g: clampByteF(abs(sin((h+0.33)*PI*2.0))*255.0),
+        b: clampByteF(abs(sin((h+0.66)*PI*2.0))*255.0), a: alpha)
+
+proc drawCustomBoss(enemy: Enemy) {.moddable.} =
   ## Redesigned boss visuals
   let time    = getTime()
   let pulse   = sin(time * 2.5) * 0.5 + 0.5    # fast pulse  0..1
@@ -864,11 +871,6 @@ proc drawCustomBoss*(enemy: Enemy) =
 
   proc glow(radius: float32, col: Color) =
     drawDisc(Vector2(x: cx, y: cy), radius, col)
-
-  proc hueCol(h: float32, alpha: uint8): Color =
-    Color(r: uint8(clamp(abs(sin(h*PI*2.0))*255.0, 0.0'f32, 255.0'f32)),
-          g: uint8(clamp(abs(sin((h+0.33)*PI*2.0))*255.0, 0.0'f32, 255.0'f32)),
-          b: uint8(clamp(abs(sin((h+0.66)*PI*2.0))*255.0, 0.0'f32, 255.0'f32)), a: alpha)
 
   case canonicalBossId(enemy.bossDefinitionID)
 
@@ -990,7 +992,7 @@ proc drawCustomBoss*(enemy: Enemy) =
       drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 4, enemy.color)
 
     # Central projection point
-    drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.2,
+    drawDisc(enemy.pos, enemy.radius * 0.2,
                Color(r: 100, g: 255, b: 255, a: 255))
 
   of 5:  # THE VOID DANCER
@@ -1036,7 +1038,7 @@ proc drawCustomBoss*(enemy: Enemy) =
     proc nz(x: float32): float32 =
       ## Deterministic hash in -1..1 (fract-of-sin); cosmetic flicker only.
       let s = sin(x * 127.1'f32 + 311.7'f32) * 43758.5453'f32
-      (s - floor(s)) * 2.0'f32 - 1.0'f32
+      fract01(s) * 2.0'f32 - 1.0'f32
     proc bolt(ax, ay, bx, by, amp, seed: float32, core, halo: Color) =
       ## Jagged lightning arc (ax,ay)->(bx,by), regenerated fresh each frame.
       let dx = bx - ax
@@ -1212,7 +1214,7 @@ proc drawCustomBoss*(enemy: Enemy) =
       drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 4, enemy.color)
 
     # Bright light center
-    drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
+    drawDisc(enemy.pos, enemy.radius * 0.3,
                Color(r: 255, g: 255, b: 255, a: 255))
 
   of 10:  # THE TIMEKEEPER
@@ -1262,7 +1264,7 @@ proc drawCustomBoss*(enemy: Enemy) =
       let dist = enemy.radius * (0.7 + sin(time * 3.0 + i.float32 * 0.5) * 0.3)
       let x = enemy.pos.x + cos(angle) * dist
       let y = enemy.pos.y + sin(angle) * dist
-      drawStroke(Vector2(x: enemy.pos.x, y: enemy.pos.y),
+      drawStroke(enemy.pos,
               Vector2(x: x, y: y), 2,
               Color(r: 200, g: 0, b: 200, a: 150))
       drawDisc(Vector2(x: x, y: y), 3,
@@ -1270,12 +1272,12 @@ proc drawCustomBoss*(enemy: Enemy) =
 
     # Unstable core
     let coreSize = enemy.radius * (0.6 + sin(time * 7.0) * 0.2)
-    drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), coreSize, enemy.color)
+    drawDisc(enemy.pos, coreSize, enemy.color)
     drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, coreSize,
                    Color(r: 255, g: 40, b: 220, a: 255))
 
     # Chaotic center
-    drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
+    drawDisc(enemy.pos, enemy.radius * 0.3,
                Color(r: 255, g: 0, b: 255, a: 255))
 
   of 12:  # Boss 12: The Omega Entity (Color-shifting ultimate)
@@ -1302,10 +1304,10 @@ proc drawCustomBoss*(enemy: Enemy) =
                 Color(r: shiftR, g: shiftG, b: shiftB, a: 200))
 
     # Supreme core with all colors
-    drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.4,
+    drawDisc(enemy.pos, enemy.radius * 0.4,
                Color(r: shiftR, g: shiftG, b: shiftB, a: 255))
     drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius * 0.4, White)
-    drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.2,
+    drawDisc(enemy.pos, enemy.radius * 0.2,
                Color(r: 255, g: 255, b: 255, a: 255))
 
   of 13, 14, 15, 17..22:
@@ -1478,7 +1480,7 @@ proc drawCustomBoss*(enemy: Enemy) =
 
     else: discard
 
-proc drawBossPhaseTransition*(enemy: Enemy) =
+proc drawBossPhaseTransition(enemy: Enemy) {.moddable.} =
   ## Epic per-boss phase-change animation. Plays while a boss is invulnerable
   ## during a phase transition (driven entirely by `invulnerabilityTimer`, which
   ## is only ever set by `transitionBossToPhase`). The boss is frozen for this
@@ -1501,15 +1503,10 @@ proc drawBossPhaseTransition*(enemy: Enemy) =
 
   proc a(x: float32): uint8 = uint8(clamp(x, 0.0'f32, 255.0'f32))
 
-  proc hueCol(h: float32, alpha: uint8): Color =
-    Color(r: a(abs(sin(h*PI*2.0))*255),
-          g: a(abs(sin((h+0.33)*PI*2.0))*255),
-          b: a(abs(sin((h+0.66)*PI*2.0))*255), a: alpha)
-
   proc nz(seed: float32): float32 =
     ## Cheap deterministic 0..1 hash (no global RNG: safe to call from drawing).
     let v = sin(seed*127.1 + 13.7) * 43758.5453
-    v - floor(v)
+    fract01(v)
 
   proc ringT(radius, thick: float32, col: Color) =
     for k in 0 ..< max(1, thick.int):
@@ -1603,7 +1600,7 @@ proc drawBossPhaseTransition*(enemy: Enemy) =
       drawStroke(Vector2(x: cx+cos(a0)*r*0.7, y: cy+sin(a0)*r*0.7),
                Vector2(x: cx+cos(a1)*r*0.7, y: cy+sin(a1)*r*0.7), 2.0, cyan)
     let sweep = time*1.5
-    let scanY = cy - half + 2.0*half*(sweep - floor(sweep))
+    let scanY = cy - half + 2.0*half*fract01(sweep)
     drawStroke(Vector2(x: cx-half, y: scanY), Vector2(x: cx+half, y: scanY), 1.5,
              Color(r: 120, g: 255, b: 255, a: a(160.0*gather)))
     shock(150.0, 3.0, Color(r: 0, g: 220, b: 255, a: 220))
@@ -1615,7 +1612,7 @@ proc drawBossPhaseTransition*(enemy: Enemy) =
   of 5:  # Void Dancer: collapsing black hole then reality tear
     for k in 0 ..< 4:
       let fr = gather + k.float32*0.25
-      let frac = fr - floor(fr)
+      let frac = fract01(fr)
       let rad = (r+120.0)*(1.0 - frac) + r*0.2
       drawCircleOutline(cx.int32, cy.int32, rad, Color(r: 120, g: 20, b: 160, a: a(180.0*(1.0-frac)*max(gather, 0.2))))
     drawDisc(Vector2(x: cx, y: cy), r*0.5*(1.0'f32-burst), Color(r: 10, g: 0, b: 20, a: a(220.0*gather)))
@@ -1846,7 +1843,7 @@ proc drawThreatAura(enemy: Enemy) =
       drawRectangle(px.int32, pipY.int32, 5, 5, withAlpha(color, 230))
       drawRectOutline(px.int32, pipY.int32, 5, 5, Color(r: 255, g: 255, b: 255, a: 150))
 
-proc drawOmegaGlyph*(cx, cy, r, thick: float32, col: Color) =
+proc drawOmegaGlyph(cx, cy, r, thick: float32, col: Color) {.moddable.} =
   ## A programmatic Ω: a ring open at the bottom (raylib ring angles: 0 deg =
   ## +x, clockwise on screen, so the 45..135 gap faces down) plus two
   ## outward-running feet at the arc ends. Used by the Omega Entity's warning
@@ -1892,7 +1889,7 @@ proc drawOmegaFinalFormHalo(enemy: Enemy) =
                        y: enemy.pos.y + sin(ang) * (outer - 9.0'f32)),
                2.0, Color(r: 255'u8, g: 240'u8, b: 255'u8, a: uint8(220.0'f32 * (1.0'f32 - rush))))
 
-proc drawEnemy*(enemy: Enemy) =
+proc drawEnemy*(enemy: Enemy) {.moddable.} =
   ## Draws an enemy based on its type. Bosses are forwarded to drawCustomBoss.
   # Spawn ring: expanding coloured circle that fades out as the enemy materialises
   if enemy.spawnRingTimer > 0:
@@ -1909,7 +1906,7 @@ proc drawEnemy*(enemy: Enemy) =
     # Burning: hot body glow + flickering flame wedges licking off the top,
     # deliberately louder and faster than poison so the two DoTs read apart
     let p = float32(sin(st * 8.0) * 0.5 + 0.5)
-    drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius,
+    drawDisc(enemy.pos, enemy.radius,
                Color(r: 255, g: 120, b: 0, a: uint8(35.0'f32 + p * 20.0'f32)))
     let seed = float32(enemy.id mod 7)
     for i in 0..3:
@@ -1933,7 +1930,7 @@ proc drawEnemy*(enemy: Enemy) =
     # calm and drippy in contrast to fire's rapid flicker. Tint and bubble
     # count intensify as poison stacks ramp toward the cap.
     let stackFrac = clamp(enemy.poisonStacks / poisonStackCap(enemy), 0.0'f32, 1.0'f32)
-    drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius,
+    drawDisc(enemy.pos, enemy.radius,
                Color(r: 60, g: 220, b: 60, a: uint8(50.0'f32 + stackFrac * 45.0'f32)))
     let pseed = float32(enemy.id mod 11)
     let bubbleCount = 2 + int(stackFrac * 3.0'f32)
@@ -1965,7 +1962,7 @@ proc drawEnemy*(enemy: Enemy) =
   # Hit flash: additive white fill that decays over 0.10 s
   if enemy.hitFlashTimer > 0:
     let flashA = uint8(clamp(enemy.hitFlashTimer / 0.10'f32 * 210.0'f32, 0.0'f32, 210.0'f32))
-    drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius,
+    drawDisc(enemy.pos, enemy.radius,
                Color(r: 255, g: 255, b: 255, a: flashA))
 
   if enemy.cursed:
@@ -2124,8 +2121,8 @@ proc drawEnemy*(enemy: Enemy) =
         let velLenSq = enemy.vel.x * enemy.vel.x + enemy.vel.y * enemy.vel.y
         if velLenSq > 0.01:
           let velLen = sqrt(velLenSq)
-          let dashDir = newVector2f(-enemy.vel.x / velLen, -enemy.vel.y / velLen)
-          let perpDir = newVector2f(-dashDir.y, dashDir.x)
+          let dashDir = vec2(-enemy.vel.x / velLen, -enemy.vel.y / velLen)
+          let perpDir = vec2(-dashDir.y, dashDir.x)
           for i in 0..4:
             let perp = sin(i.float32 * 1.2566) * enemy.radius * 0.6
             let lineX = enemy.pos.x + perpDir.x * perp
@@ -2139,7 +2136,7 @@ proc drawEnemy*(enemy: Enemy) =
         let chargePercent = 1.0 - (enemy.dashTimer / 1.0)
         let glowAlpha = uint8(chargePercent * 210)
         let glowRadius = enemy.radius + 4.0 + chargePercent * 8.0
-        drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), glowRadius,
+        drawDisc(enemy.pos, glowRadius,
                   Color(r: 255'u8, g: 80'u8, b: 255'u8, a: glowAlpha))
         # Crackle lines from body when very close to dashing
         if enemy.dashTimer < 0.8:
@@ -2376,8 +2373,8 @@ proc drawEnemy*(enemy: Enemy) =
         drawDisc(tip, enemy.radius * 0.13'f32, tipColor)
 
       # Draw central core - slightly larger
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.5, enemy.color)
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius * 0.3,
+      drawDisc(enemy.pos, enemy.radius * 0.5, enemy.color)
+      drawDisc(enemy.pos, enemy.radius * 0.3,
                 Color(r: 255, g: 150, b: 0, a: 255))
 
       # Warning glow with pulsing effect
@@ -2604,15 +2601,15 @@ proc drawEnemy*(enemy: Enemy) =
       let baseGlowRadius = enemy.radius + 8 + baseGlowPulse * 4
 
       # Multiple glow layers for strong glowing effect
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), baseGlowRadius,
+      drawDisc(enemy.pos, baseGlowRadius,
                 Color(r: 255, g: 50, b: 50, a: uint8(60 * baseGlowPulse)))
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), baseGlowRadius - 4,
+      drawDisc(enemy.pos, baseGlowRadius - 4,
                 Color(r: 255, g: 80, b: 80, a: uint8(90 * baseGlowPulse)))
       drawCircleOutline(enemy.pos.x.int32, enemy.pos.y.int32, enemy.radius + 12,
                      Color(r: 255, g: 100, b: 100, a: uint8(120 * baseGlowPulse)))
 
       # Main body - circular with crosshair
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), enemy.radius, enemy.color)
+      drawDisc(enemy.pos, enemy.radius, enemy.color)
 
       # Crosshair: rotates slowly when idle, freezes red on lock-on
       let cr = if enemy.attackPhase == 1: 0.0'f32 else: float32(sin(getTime() * 0.9) * 0.35)
@@ -2643,7 +2640,7 @@ proc drawEnemy*(enemy: Enemy) =
             2, Color(r: 255, g: 0, b: 0, a: 180))
 
       # Center dot
-      drawDisc(Vector2(x: enemy.pos.x, y: enemy.pos.y), 3.0, Red)
+      drawDisc(enemy.pos, 3.0, Red)
 
       # Charging effect - expanding rings when charging (ADDITIONAL glow on top of base glow)
       if enemy.attackPhase == 1:
@@ -2691,7 +2688,7 @@ proc drawEnemy*(enemy: Enemy) =
       # Draw fake clones, blue-shifted so sharp players can eventually distinguish them
       for clonePos in enemy.clonePositions:
         let cloneAlpha = uint8((sin(t * 5.0) * 0.5 + 0.5) * 100)
-        drawDisc(Vector2(x: clonePos.x, y: clonePos.y), r * 0.7,
+        drawDisc(clonePos, r * 0.7,
                   Color(r: uint8(max(0, enemy.color.r.int - 20)),
                         g: enemy.color.g,
                         b: uint8(min(255, enemy.color.b.int + 60)),
@@ -2881,9 +2878,9 @@ proc rampAlpha(warning: AttackWarning, base, span: float32,
   ## reticles, tesla strikes, arc beams, the ricochet telegraph).
   uint8(clamp(base + warningProgress(warning) * span, 0.0'f32, maxA))
 
-proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
+proc drawMeteorWarning*(impact, source: Vector2, radius: float32,
                         baseCol: Color, progress: float32,
-                        blastRadius: float32 = 0.0'f32) =
+                        blastRadius: float32 = 0.0'f32) {.moddable.} =
   ## The single, shared incoming-meteorite telegraph used by EVERY meteor: the
   ## boss bapMeteor warning columns AND the real Meteorite rocks (etMage and the
   ## boss signature modes). `source` is the off-screen entry point, so the streak
@@ -2899,9 +2896,9 @@ proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
 
   # Travel direction: from where the rock enters toward where it lands.
   var dir = (impact - source).normalize()
-  if dir.x == 0 and dir.y == 0: dir = newVector2f(0, 1)   # default: straight down
-  let perp = newVector2f(-dir.y, dir.x)
-  let fromDir = newVector2f(-dir.x, -dir.y)
+  if dir.x == 0 and dir.y == 0: dir = vec2(0, 1)   # default: straight down
+  let perp = vec2(-dir.y, dir.x)
+  let fromDir = vec2(-dir.x, -dir.y)
 
   let urgency = uint8(clamp(60.0'f32 + progress * 165.0'f32, 0.0'f32, 225.0'f32))
   let ringR = max(radius, 9.0'f32)
@@ -2930,11 +2927,11 @@ proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
   # 2) Arrowhead at the impact pointing the way the rock travels (scales w/ size).
   let headLen = 12.0'f32 + radius * 0.45'f32
   let wing = headLen * 0.6'f32
-  drawStroke(Vector2(x: impact.x, y: impact.y),
+  drawStroke(impact,
            Vector2(x: impact.x - dir.x * headLen + perp.x * wing,
                    y: impact.y - dir.y * headLen + perp.y * wing),
            2.5'f32, Color(r: 255, g: 225, b: 170, a: urgency))
-  drawStroke(Vector2(x: impact.x, y: impact.y),
+  drawStroke(impact,
            Vector2(x: impact.x - dir.x * headLen - perp.x * wing,
                    y: impact.y - dir.y * headLen - perp.y * wing),
            2.5'f32, Color(r: 255, g: 225, b: 170, a: urgency))
@@ -2949,7 +2946,7 @@ proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
   let impactR = ringR + pulse * 0.35'f32
   drawCircleOutline(impact.x.int32, impact.y.int32, impactR,
                  withAlpha(baseCol, urgency))
-  drawDisc(Vector2(x: impact.x, y: impact.y), 3.0'f32 + pulse * 0.22'f32,
+  drawDisc(impact, 3.0'f32 + pulse * 0.22'f32,
             Color(r: 255, g: 190, b: 90, a: urgency))
 
   # 5) EXPLOSIVE rocks: telegraph the ground blast AoE so it reads as clearly
@@ -2958,7 +2955,7 @@ proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
   if blastRadius > 0.0'f32:
     let hotA = uint8(clamp(70.0'f32 + progress * 150.0'f32, 0.0'f32, 220.0'f32))
     let br = blastRadius * (1.0'f32 + sin(t * 6.0'f32) * 0.03'f32)   # subtle breathe
-    drawDisc(Vector2(x: impact.x, y: impact.y), br,
+    drawDisc(impact, br,
                Color(r: 255, g: 40, b: 0, a: uint8(hotA.float32 * 0.12'f32)))
     const dashes = 22
     let spin = t * 0.6'f32
@@ -2976,7 +2973,7 @@ proc drawMeteorWarning*(impact, source: Vector2f, radius: float32,
                        y: impact.y + sin(a) * (br - 9.0'f32)),
                2.0'f32, Color(r: 255, g: 130, b: 50, a: hotA))
 
-proc drawAttackWarning*(warning: AttackWarning) =
+proc drawAttackWarning*(warning: AttackWarning) {.moddable.} =
   let alpha = fadeAlpha(warning)
   let pulse = warningPulse()
   # Sampled once: getTime() is an FFI call and several branches used it inside
@@ -3007,25 +3004,12 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # along the rock's true travel direction. Falls back to "straight above" for
     # any meteor warning that didn't record an explicit spawn (targetPos unset).
     let spawn = if warning.targetPos.x == 0 and warning.targetPos.y == 0:
-                  newVector2f(warning.pos.x, 0.0'f32)
+                  vec2(warning.pos.x, 0.0'f32)
                 else: warning.targetPos
     let baseCol = if warning.overrideColor.a > 0: warning.overrideColor
                   else: Color(r: 255, g: 130, b: 30, a: 255)
     drawMeteorWarning(warning.pos, spawn, warning.bulletRadius, baseCol,
                       warningProgress(warning))
-
-  of awtBurst:
-    # Draw circular burst warning (generic / unused fallback, kept for safety)
-    drawCircleOutline(warning.pos.x.int32, warning.pos.y.int32, 50.0 + pulse,
-                   Color(r: 255, g: 100, b: 0, a: alpha))
-    drawCircleOutline(warning.pos.x.int32, warning.pos.y.int32, 70.0 + pulse,
-                   Color(r: 255, g: 100, b: 0, a: (alpha div 2)))
-  of awtFake:
-    # Generic fallback fake, kept for safety
-    drawCircleOutline(warning.pos.x.int32, warning.pos.y.int32, 40.0 + pulse,
-                   Color(r: 255, g: 255, b: 0, a: alpha))
-    drawText("!", (warning.pos.x - 8).int32, (warning.pos.y - 12).int32, 24,
-            Color(r: 255, g: 255, b: 0, a: alpha))
 
   # Triangle
   of awtTriangleDash:
@@ -3265,7 +3249,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # Draw warning line from satellite through target
     let warningThickness = 10 + pulse * 0.5
     drawStroke(
-      Vector2(x: warning.pos.x, y: warning.pos.y),
+      warning.pos,
       Vector2(x: endX, y: endY),
       warningThickness,
       Color(r: 255, g: 100, b: 0, a: alpha)
@@ -3273,7 +3257,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
 
     # Draw inner glow line
     drawStroke(
-      Vector2(x: warning.pos.x, y: warning.pos.y),
+      warning.pos,
       Vector2(x: endX, y: endY),
       3,
       Color(r: 255, g: 200, b: 50, a: (alpha div 2))
@@ -3344,7 +3328,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       # fills in as arrival nears, plus four rays collapsing onto it.
       let bossR = max(30.0'f32, warning.laserLength)
       let arrive = warningProgress(warning)     # 0 -> 1 as the boss lands
-      drawDisc(Vector2(x: warning.pos.x, y: warning.pos.y), bossR,
+      drawDisc(warning.pos, bossR,
                  Color(r: 180'u8, g: 90'u8, b: 255'u8, a: uint8(20.0 + arrive * 70.0)))
       drawCircleOutline(warning.pos.x.int32, warning.pos.y.int32, bossR + 4.0 + pulse * 2.0,
                       Color(r: 220'u8, g: 140'u8, b: 255'u8, a: alpha))
@@ -3477,7 +3461,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
 
     # Center danger indicator
     let centerPulse = sin(nowT * 15.0) * 0.3 + 0.7
-    drawDisc(Vector2(x: warning.pos.x, y: warning.pos.y), 8.0 + pulse * centerPulse,
+    drawDisc(warning.pos, 8.0 + pulse * centerPulse,
               Color(r: 255, g: 100, b: 200, a: uint8(alpha.float32 * centerPulse)))
 
   of awtSniperCharge, awtLaserPointer:
@@ -3640,11 +3624,11 @@ proc drawAttackWarning*(warning: AttackWarning) =
     let rot = nowT * 2.0
     for i in 0..<4:
       let a = rot + i.float32 * PI / 2.0
-      let mid = newVector2f(cx + cos(a) * (20.0 + pulse), cy + sin(a) * (20.0 + pulse))
-      let tip = newVector2f(cx + cos(a + 0.35) * (38.0 + pulse), cy + sin(a + 0.35) * (38.0 + pulse))
-      drawStroke(Vector2(x: cx, y: cy), Vector2(x: mid.x, y: mid.y),
+      let mid = vec2(cx + cos(a) * (20.0 + pulse), cy + sin(a) * (20.0 + pulse))
+      let tip = vec2(cx + cos(a + 0.35) * (38.0 + pulse), cy + sin(a + 0.35) * (38.0 + pulse))
+      drawStroke(Vector2(x: cx, y: cy), mid,
                2, Color(r: 255'u8, g: 255'u8, b: 100'u8, a: alpha))
-      drawStroke(Vector2(x: mid.x, y: mid.y), Vector2(x: tip.x, y: tip.y),
+      drawStroke(mid, tip,
                2, Color(r: 255'u8, g: 255'u8, b: 100'u8, a: alpha))
     drawCircleOutline(cx.int32, cy.int32, 14.0 + pulse * 0.4,
                    Color(r: 255'u8, g: 255'u8, b: 150'u8, a: alpha))
@@ -3719,8 +3703,8 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # Chain Reactor lightning wall segment. Dim full-width preview marks the kill
     # zone; a bright thin core line + endpoint nodes make the path unambiguous.
     let half = warning.laserLength
-    let a = Vector2(x: warning.pos.x, y: warning.pos.y)
-    let b = Vector2(x: warning.targetPos.x, y: warning.targetPos.y)
+    let a = warning.pos
+    let b = warning.targetPos
     if warning.lifetime <= ArcBeamActive:
       let fade = clamp(warning.lifetime / ArcBeamActive, 0.35'f32, 1.0'f32)
       # Triple-layer wall with a live bolt zigzagging inside the kill band.
@@ -3775,8 +3759,8 @@ proc drawAttackWarning*(warning: AttackWarning) =
       for s in 0 ..< warning.ricochetPath.len - 1:
         let p0 = warning.ricochetPath[s]
         let p1 = warning.ricochetPath[s + 1]
-        let a0 = Vector2(x: p0.x, y: p0.y)
-        let b0 = Vector2(x: p1.x, y: p1.y)
+        let a0 = p0
+        let b0 = p1
         # Wide danger band marking the kill width, then the bright core line.
         drawStroke(a0, b0, halfW * 2.0, Color(r: 0'u8, g: 190'u8, b: 255'u8, a: bandA))
         drawStroke(a0, b0, coreThick, core)
@@ -3792,13 +3776,13 @@ proc drawAttackWarning*(warning: AttackWarning) =
           let head = ricochetSweptPath(warning.ricochetPath, d)
           if head.len >= 1:
             let hp = head[^1]
-            drawDisc(Vector2(x: hp.x, y: hp.y), 2.5 + progress * 1.5,
+            drawDisc(hp, 2.5 + progress * 1.5,
                        Color(r: 235'u8, g: 250'u8, b: 255'u8, a: dashA))
           d += DASH_SPACING
 
       # Bounce nodes pulse so the ricochet corners read clearly.
       for v in warning.ricochetPath:
-        drawDisc(Vector2(x: v.x, y: v.y), 4.0 + pulse * 2.0,
+        drawDisc(v, 4.0 + pulse * 2.0,
                    Color(r: 180'u8, g: 240'u8, b: 255'u8, a: a2))
       # Charging ring at the muzzle, tightening as the shot nears.
       let muzzle = warning.ricochetPath[0]
@@ -3850,9 +3834,9 @@ proc drawAttackWarning*(warning: AttackWarning) =
       let rot = nowT * 1.5
       for k in 0..<6:
         let ang = rot + k.float32 * PI / 3.0
-        let inner = newVector2f(cx + cos(ang) * collapseR * 0.4, cy + sin(ang) * collapseR * 0.4)
-        let outer = newVector2f(cx + cos(ang + 0.25) * r, cy + sin(ang + 0.25) * r)
-        drawStroke(Vector2(x: inner.x, y: inner.y), Vector2(x: outer.x, y: outer.y),
+        let inner = vec2(cx + cos(ang) * collapseR * 0.4, cy + sin(ang) * collapseR * 0.4)
+        let outer = vec2(cx + cos(ang + 0.25) * r, cy + sin(ang + 0.25) * r)
+        drawStroke(inner, outer,
                  1.5, Color(r: 200'u8, g: 120'u8, b: 255'u8, a: a2))
       drawDisc(Vector2(x: cx, y: cy), 5.0 + (1.0 - progress) * 4.0,
                  Color(r: 30'u8, g: 0'u8, b: 50'u8, a: a2))
@@ -3867,7 +3851,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
       let sw = getScreenWidth().float32
       let sh = getScreenHeight().float32
       let ang = warning.bulletSpreadAngle
-      let u = newVector2f(-sin(ang), cos(ang))   # along the wall
+      let u = vec2(-sin(ang), cos(ang))   # along the wall
       let gapHalf = warning.bulletRadius
       let urgency = clamp(1.0'f32 - (warning.lifetime - OrbitalSweepActive) /
                           OrbitalSweepTelegraph, 0.0'f32, 1.0'f32)
@@ -3900,15 +3884,15 @@ proc drawAttackWarning*(warning: AttackWarning) =
         drawStroke(Vector2(x: hi, y: 0), Vector2(x: hi, y: sh), 2.0, rim)
       # Satellite parked at the entry edge: body + solar panels,
       # blinking harder as the scan approaches.
-      let dirV = newVector2f(cos(ang), sin(ang))
+      let dirV = vec2(cos(ang), sin(ang))
       let sat = warning.pos + dirV * 26.0'f32
       let satA = uint8(clamp(120.0 + urgency * 135.0 * pulse, 0.0, 255.0))
-      drawDisc(Vector2(x: sat.x, y: sat.y), 9.0,
+      drawDisc(sat, 9.0,
                  Color(r: 200'u8, g: 170'u8, b: 255'u8, a: satA))
       for side in [-1.0'f32, 1.0'f32]:
         let p0 = sat + u * (side * 10.0'f32)
         let p1 = sat + u * (side * 24.0'f32)
-        drawStroke(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y), 6.0,
+        drawStroke(p0, p1, 6.0,
                  Color(r: 120'u8, g: 140'u8, b: 255'u8, a: satA))
       # Travel-direction chevrons: rows of arrows spread along the WHOLE entry
       # edge, marching in the sweep direction, so which way the wall will move
@@ -3927,7 +3911,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
             let tip = base + dirV * 12.0'f32
             for side in [-1.0'f32, 1.0'f32]:
               let tail = base - dirV * 2.0'f32 + u * (side * 10.0'f32)
-              drawStroke(Vector2(x: tail.x, y: tail.y), Vector2(x: tip.x, y: tip.y),
+              drawStroke(tail, tip,
                        3.0, chev)
         s += 120.0'f32
 
@@ -4001,7 +3985,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
           drawStroke(Vector2(x: origin.x - px, y: origin.y - py),
                    Vector2(x: focus.x - px, y: focus.y - py),
                    halfW * 0.7, Color(r: 60'u8, g: 90'u8, b: 255'u8, a: (a2 div 4).uint8))
-          drawStroke(Vector2(x: origin.x, y: origin.y), Vector2(x: focus.x, y: focus.y),
+          drawStroke(origin, focus,
                    halfW, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: (a2 div 3).uint8))
           let pulseT = (nowT * 1.6) mod 1.0
           drawDisc(Vector2(x: origin.x + (focus.x - origin.x) * pulseT,
@@ -4025,9 +4009,9 @@ proc drawAttackWarning*(warning: AttackWarning) =
             r: uint8(128.0 + 127.0 * sin(hue)),
             g: uint8(128.0 + 127.0 * sin(hue + 2.094)),
             b: uint8(128.0 + 127.0 * sin(hue + 4.188)), a: a2)
-          drawStroke(Vector2(x: focus.x, y: focus.y), ep,
+          drawStroke(focus, ep,
                    halfW * 2.0 * (0.4 + progress * 0.6), withAlpha(col, (a2 div 4).uint8))
-          drawStroke(Vector2(x: focus.x, y: focus.y), ep, 1.5, col)
+          drawStroke(focus, ep, 1.5, col)
         # Charge rings converging on the prism: they shrink into the focus and
         # brighten as they arrive, selling "light being gathered".
         let t = nowT
@@ -4118,7 +4102,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
         let ringR = 26.0'f32 - urgency * 16.0'f32
         drawCircleOutline(warning.pos.x.int32, warning.pos.y.int32, ringR,
                         Color(r: 255'u8, g: 120'u8, b: 255'u8, a: a2))
-        drawDisc(Vector2(x: warning.pos.x, y: warning.pos.y),
+        drawDisc(warning.pos,
                    4.0 + pulse * 2.5,
                    Color(r: 255'u8, g: 170'u8, b: 255'u8, a: a2))
         # Rotating cross of thread stubs - reads as the two strands knotted.
@@ -4137,10 +4121,10 @@ proc drawAttackWarning*(warning: AttackWarning) =
         for s in 0 ..< warning.ricochetPath.len - 1:
           let p0 = warning.ricochetPath[s]
           let p1 = warning.ricochetPath[s + 1]
-          drawStroke(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+          drawStroke(p0, p1,
                    1.0, Color(r: 200'u8, g: 80'u8, b: 220'u8, a: 45'u8))
         for pin in [warning.ricochetPath[0], warning.ricochetPath[^1]]:
-          drawDisc(Vector2(x: pin.x, y: pin.y), 4.0,
+          drawDisc(pin, 4.0,
                      Color(r: 255'u8, g: 140'u8, b: 255'u8, a: 120'u8))
         if toSnap <= ChaosWeaveTautPause + ChaosWeaveNeedleTime:
           # Needle phase: the laid portion of the thread grows behind the
@@ -4165,27 +4149,27 @@ proc drawAttackWarning*(warning: AttackWarning) =
               if taut:
                 # Drawn taut: the strand blanches white-hot and thickens.
                 col = Color(r: 255'u8, g: 220'u8, b: 255'u8, a: a2)
-              drawStroke(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+              drawStroke(p0, p1,
                        warning.laserLength * 2.0,
                        withAlpha(col, (a2 div 5).uint8))
-              drawStroke(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+              drawStroke(p0, p1,
                        (if taut: 3.0'f32 else: 1.8'f32), col)
           if not taut and laid.len >= 1:
             # The needle head: a hot white bead with a short spark fan.
             let head = laid[^1]
-            drawDisc(Vector2(x: head.x, y: head.y), 10.0,
+            drawDisc(head, 10.0,
                        Color(r: 255'u8, g: 160'u8, b: 255'u8, a: 70'u8))
-            drawDisc(Vector2(x: head.x, y: head.y), 4.5,
+            drawDisc(head, 4.5,
                        Color(r: 255'u8, g: 250'u8, b: 255'u8, a: 255'u8))
             for k in 0 ..< 3:
               let ang = nowT.float32 * 9.0'f32 + k.float32 * (PI * 2.0 / 3.0)
-              drawStroke(Vector2(x: head.x, y: head.y),
+              drawStroke(head,
                        Vector2(x: head.x + cos(ang) * 12.0, y: head.y + sin(ang) * 12.0),
                        1.5, Color(r: 255'u8, g: 200'u8, b: 255'u8, a: 180'u8))
           if taut:
             # Kink pins flare while the thread strains against them.
             for v in warning.ricochetPath:
-              drawDisc(Vector2(x: v.x, y: v.y), 3.5,
+              drawDisc(v, 3.5,
                          Color(r: 255'u8, g: 240'u8, b: 255'u8, a: a2))
 
   of awtOmegaQuadrant:
@@ -4258,7 +4242,7 @@ proc drawAttackWarning*(warning: AttackWarning) =
     # decision about its visual at compile time.
     discard
 
-proc drawRicochetLaserBeam*(warning: AttackWarning) =
+proc drawRicochetLaserBeam*(warning: AttackWarning) {.moddable.} =
   ## Live lethal pass for the ricochet beam, drawn ungated (independent of the
   ## showHints telegraph gate) so the active beam is always visible like a Laser.
   ## The beam-front races along the path (RicochetLaserSweep) for an "advancing
@@ -4280,23 +4264,23 @@ proc drawRicochetLaserBeam*(warning: AttackWarning) =
   let coreA = uint8(clamp(255.0'f32 * tailFade, 0.0'f32, 255.0'f32))
 
   for s in 0 ..< swept.len - 1:
-    let a0 = Vector2(x: swept[s].x, y: swept[s].y)
+    let a0 = swept[s]
     let b0 = Vector2(x: swept[s + 1].x, y: swept[s + 1].y)
     drawStroke(a0, b0, halfW * 2.0, Color(r: 120'u8, g: 230'u8, b: 255'u8, a: glowA))
     drawStroke(a0, b0, 3.5, Color(r: 235'u8, g: 255'u8, b: 255'u8, a: coreA))
   # Bounce nodes the beam has already reached.
   for v in swept:
-    drawDisc(Vector2(x: v.x, y: v.y), 5.0, Color(r: 200'u8, g: 245'u8, b: 255'u8, a: coreA))
+    drawDisc(v, 5.0, Color(r: 200'u8, g: 245'u8, b: 255'u8, a: coreA))
   # Bright travelling head at the beam-front while it is still racing.
   if sweepFrac < 1.0'f32:
     let head = swept[^1]
     let hp = (sin(getTime() * 30.0) * 0.5 + 0.5).float32
-    drawDisc(Vector2(x: head.x, y: head.y), halfW + 6.0 + hp * 4.0,
+    drawDisc(head, halfW + 6.0 + hp * 4.0,
                Color(r: 200'u8, g: 245'u8, b: 255'u8, a: 130'u8))
-    drawDisc(Vector2(x: head.x, y: head.y), halfW * 0.6 + 3.0,
+    drawDisc(head, halfW * 0.6 + 3.0,
                Color(r: 255'u8, g: 255'u8, b: 255'u8, a: 255'u8))
 
-proc drawChargeWindup*(enemy: Enemy) =
+proc drawChargeWindup*(enemy: Enemy) {.moddable.} =
   ## Juggernaut charge wind-up, drawn UNGATED by showHints. The locked lane is
   ## the hint; but a charge too fast to walk away from must always announce
   ## its direction and its moment, or hints-off turns it into a blind hit.
@@ -4310,7 +4294,7 @@ proc drawChargeWindup*(enemy: Enemy) =
   if len < 0.01'f32:
     return
   let d = line * (1.0'f32 / len)
-  let perp = newVector2f(-d.y, d.x)
+  let perp = vec2(-d.y, d.x)
   let total = if enemy.chargeState == ccWindup: JuggernautChargeWindup
               else: JuggernautChargeReaim
   let tracking = max(total - JuggernautChargeCommit, 0.01'f32)
@@ -4332,15 +4316,15 @@ proc drawChargeWindup*(enemy: Enemy) =
     let wingR = c - d * 8.0'f32 - perp * 15.0'f32
     for (w, wide, stroke) in [(wingL, 9.0'f32, backing), (wingR, 9.0'f32, backing),
                               (wingL, 5.0'f32, col), (wingR, 5.0'f32, col)]:
-      drawStroke(Vector2(x: w.x, y: w.y), tip, wide, stroke)
+      drawStroke(w, tip, wide, stroke)
 
 const RoyalGuardGold* = Color(r: 240, g: 190, b: 50, a: 255)
 
-proc isLivingRoyalGuard*(e: Enemy): bool {.inline.} =
+proc isLivingRoyalGuard*(e: Enemy): bool {.inline, moddable.} =
   ## A Summoner King Royal Guard still standing (see game/bosses.nim).
   e.royalGuard and e.spawnedByBoss and e.hp > 0
 
-proc drawRoyalGuardRegalia*(enemy: Enemy) =
+proc drawRoyalGuardRegalia*(enemy: Enemy) {.moddable.} =
   ## Marks a Royal Guard out of the legion around it, drawn ungated like the
   ## elite overlay: it is the enemy's identity, not a hint. A gold rim, a
   ## crown over the head, and a health bar once it is hurt, because a guard
@@ -4383,7 +4367,7 @@ proc drawRoyalGuardRegalia*(enemy: Enemy) =
     drawRectangle(barX.int32, barY.int32, (barW * frac).int32, 4, gold)
     drawRectOutline(barX.int32, barY.int32, barW.int32, 4, backing)
 
-proc drawLegionTethers*(boss: Enemy, enemies: seq[Enemy]) =
+proc drawLegionTethers*(boss: Enemy, enemies: seq[Enemy]) {.moddable.} =
   ## Gold chains from a sealed Summoner King to each Royal Guard holding the
   ## seal, links flowing outward from the King. Ungated: in a crowd of
   ## legionnaires and wave enemies the chains are what says WHICH bodies break
@@ -4412,11 +4396,11 @@ proc drawLegionTethers*(boss: Enemy, enemies: seq[Enemy]) =
       if b > a:
         let pa = start + d * a
         let pb = start + d * b
-        drawStroke(Vector2(x: pa.x, y: pa.y), Vector2(x: pb.x, y: pb.y), 2.5'f32,
+        drawStroke(pa, pb, 2.5'f32,
                  withAlpha(RoyalGuardGold, alpha))
       s += Link + Gap
 
-proc drawSignatureAttackActive*(warning: AttackWarning) =
+proc drawSignatureAttackActive*(warning: AttackWarning) {.moddable.} =
   ## Live lethal pass for the bosses 7-12 signature attacks, drawn ungated
   ## (independent of the showHints telegraph gate) so the kill moment is always
   ## visible - with hints off the wind-up telegraph is hidden, but the actual
@@ -4426,12 +4410,12 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
     if warning.lifetime <= OrbitalSweepActive:
       let c = orbitalSweepCenter(warning)
       let ang = warning.bulletSpreadAngle
-      let u = newVector2f(-sin(ang), cos(ang))
+      let u = vec2(-sin(ang), cos(ang))
       let halfSpan = warning.bulletSpeed
       let gapHalf = warning.bulletRadius
       let gapOffset = if warning.laserAngles.len > 0: warning.laserAngles[0] else: 0.0'f32
       let halfThick = warning.laserLength
-      let dirV = newVector2f(cos(ang), sin(ang))  # travel direction
+      let dirV = vec2(cos(ang), sin(ang))  # travel direction
       # The wall in two lethal segments with the safe gap between them, each
       # drawn in three layers with an ion afterglow trailing behind the sweep.
       let segs = [(-halfSpan, gapOffset - gapHalf), (gapOffset + gapHalf, halfSpan)]
@@ -4442,14 +4426,14 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
         for ghost in 1..3:
           let ga = a0 - dirV * (ghost.float32 * 10.0'f32)
           let gb = b0 - dirV * (ghost.float32 * 10.0'f32)
-          drawStroke(Vector2(x: ga.x, y: ga.y), Vector2(x: gb.x, y: gb.y),
+          drawStroke(ga, gb,
                    halfThick * 2.0,
                    Color(r: 160'u8, g: 100'u8, b: 255'u8, a: uint8(70 - ghost * 18)))
-        drawStroke(Vector2(x: a0.x, y: a0.y), Vector2(x: b0.x, y: b0.y),
+        drawStroke(a0, b0,
                  halfThick * 3.2, Color(r: 160'u8, g: 100'u8, b: 255'u8, a: 70'u8))
-        drawStroke(Vector2(x: a0.x, y: a0.y), Vector2(x: b0.x, y: b0.y),
+        drawStroke(a0, b0,
                  halfThick * 2.0, Color(r: 160'u8, g: 100'u8, b: 255'u8, a: 140'u8))
-        drawStroke(Vector2(x: a0.x, y: a0.y), Vector2(x: b0.x, y: b0.y),
+        drawStroke(a0, b0,
                  4.0, Color(r: 240'u8, g: 225'u8, b: 255'u8, a: 255'u8))
       # Leading-edge crackle: sparks flickering just ahead of the beam face.
       let t = getTime() * 20.0
@@ -4459,7 +4443,7 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
           let jitter = sin(t + s * 0.13).float32
           let p0 = c + u * s + dirV * halfThick
           let p1 = c + u * (s + jitter * 6.0'f32) + dirV * (halfThick + 8.0'f32 + jitter.abs * 6.0'f32)
-          drawStroke(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y), 1.5,
+          drawStroke(p0, p1, 1.5,
                    Color(r: 230'u8, g: 210'u8, b: 255'u8, a: uint8(150.0 + jitter * 80.0)))
         s += 46.0'f32
       # Red end-caps on the lethal segments keep the gap crisp while the wall
@@ -4467,19 +4451,19 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
       let capPulse = (sin(getTime() * 10.0) * 0.5 + 0.5).float32
       for edge in [gapOffset - gapHalf, gapOffset + gapHalf]:
         let p = c + u * edge
-        drawDisc(Vector2(x: p.x, y: p.y), 6.0 + capPulse * 2.5,
+        drawDisc(p, 6.0 + capPulse * 2.5,
                    Color(r: 255'u8, g: 85'u8, b: 60'u8, a: 255'u8))
       # The kill-satellite rides the wall centre-line ahead of the beam:
       # body, blinking beacon, and solar panels spread along the wall axis.
       let sat = c + dirV * 18.0'f32
-      drawDisc(Vector2(x: sat.x, y: sat.y), 8.0,
+      drawDisc(sat, 8.0,
                  Color(r: 220'u8, g: 200'u8, b: 255'u8, a: 255'u8))
-      drawDisc(Vector2(x: sat.x, y: sat.y), 3.0 + capPulse * 2.0,
+      drawDisc(sat, 3.0 + capPulse * 2.0,
                  Color(r: 255'u8, g: 90'u8, b: 90'u8, a: 255'u8))
       for side in [-1.0'f32, 1.0'f32]:
         let p0 = sat + u * (side * 10.0'f32)
         let p1 = sat + u * (side * 22.0'f32)
-        drawStroke(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y), 5.0,
+        drawStroke(p0, p1, 5.0,
                  Color(r: 120'u8, g: 140'u8, b: 255'u8, a: 230'u8))
   of awtFissure:
     if warning.lifetime <= FissureActive:
@@ -4526,9 +4510,9 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
         # Only the primary's feed beam is lethal; a mini's feed vertex is
         # cosmetic and drawing it hot would make the safe wake look deadly.
         let origin = warning.ricochetPath[0]
-        drawStroke(Vector2(x: origin.x, y: origin.y), Vector2(x: focus.x, y: focus.y),
+        drawStroke(origin, focus,
                  halfW * 3.5, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: (glowA div 2).uint8))
-        drawStroke(Vector2(x: origin.x, y: origin.y), Vector2(x: focus.x, y: focus.y),
+        drawStroke(origin, focus,
                  halfW * 2.0, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: glowA))
       # Rays in three layers: wide rainbow halo, tight rainbow body, white-hot
       # core, plus a glint burning at each ray tip.
@@ -4539,13 +4523,13 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
           r: uint8(128.0 + 127.0 * sin(hue)),
           g: uint8(128.0 + 127.0 * sin(hue + 2.094)),
           b: uint8(128.0 + 127.0 * sin(hue + 4.188)), a: glowA)
-        drawStroke(Vector2(x: focus.x, y: focus.y), Vector2(x: e.x, y: e.y),
+        drawStroke(focus, e,
                  halfW * 4.0, withAlpha(col, (glowA div 3).uint8))
-        drawStroke(Vector2(x: focus.x, y: focus.y), Vector2(x: e.x, y: e.y),
+        drawStroke(focus, e,
                  halfW * 2.0, col)
-        drawStroke(Vector2(x: focus.x, y: focus.y), Vector2(x: e.x, y: e.y),
+        drawStroke(focus, e,
                  3.0, Color(r: 255'u8, g: 255'u8, b: 255'u8, a: coreA))
-        drawDisc(Vector2(x: e.x, y: e.y), 4.0 + 3.0 * fade,
+        drawDisc(e, 4.0 + 3.0 * fade,
                    Color(r: 255'u8, g: 255'u8, b: 255'u8, a: coreA))
       # Shockwave rings racing out from the focus as the light discharges.
       let waveMax = if isMini: 70.0'f32 else: 150.0'f32
@@ -4562,7 +4546,7 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
         let next = Vector2(x: focus.x + cos(ang) * shardR, y: focus.y + sin(ang) * shardR)
         drawStroke(prev, next, 2.5, Color(r: 255'u8, g: 240'u8, b: 255'u8, a: coreA))
         prev = next
-      drawDisc(Vector2(x: focus.x, y: focus.y), (if isMini: 9.0 else: 14.0) * fade + 4.0,
+      drawDisc(focus, (if isMini: 9.0 else: 14.0) * fade + 4.0,
                  Color(r: 255'u8, g: 255'u8, b: 255'u8, a: coreA))
   of awtClockSweep:
     if warning.lifetime <= ClockSweepActive:
@@ -4695,10 +4679,10 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
           # Alternate segment hues so the weave reads as braided strands.
           let hot = if s mod 2 == 0: Color(r: 255'u8, g: 70'u8, b: 255'u8, a: glowA)
                     else: Color(r: 170'u8, g: 60'u8, b: 255'u8, a: glowA)
-          drawStroke(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+          drawStroke(p0, p1,
                    warning.laserLength * 3.4,
                    withAlpha(hot, (glowA div 2).uint8))
-          drawStroke(Vector2(x: p0.x, y: p0.y), Vector2(x: p1.x, y: p1.y),
+          drawStroke(p0, p1,
                    warning.laserLength * 2.0, hot)
           # Bowed white core: midpoint displaced perpendicular to the segment.
           let seg = p1 - p0
@@ -4708,19 +4692,19 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
           let bow = sin(vibT + s.float32 * 2.3).float32 * vibAmp
           let mid = Vector2(x: (p0.x + p1.x) * 0.5'f32 + nx * bow,
                             y: (p0.y + p1.y) * 0.5'f32 + ny * bow)
-          drawStroke(Vector2(x: p0.x, y: p0.y), mid, 2.5,
+          drawStroke(p0, mid, 2.5,
                    Color(r: 255'u8, g: 230'u8, b: 255'u8, a: coreA))
-          drawStroke(mid, Vector2(x: p1.x, y: p1.y), 2.5,
+          drawStroke(mid, p1, 2.5,
                    Color(r: 255'u8, g: 230'u8, b: 255'u8, a: coreA))
         # Vertex nodes flare and throw sparks where the thread kinks.
         for i, v in warning.ricochetPath:
-          drawDisc(Vector2(x: v.x, y: v.y), 3.5 + 4.0 * fade,
+          drawDisc(v, 3.5 + 4.0 * fade,
                      Color(r: 255'u8, g: 240'u8, b: 255'u8, a: coreA))
           for k in 0..<3:
             let ang = i.float32 * 2.1 + k.float32 * (PI * 2.0) / 3.0
             let sp = Vector2(x: v.x + cos(ang) * (6.0 + burst * 16.0),
                              y: v.y + sin(ang) * (6.0 + burst * 16.0))
-            drawStroke(Vector2(x: v.x, y: v.y), sp, 1.5,
+            drawStroke(v, sp, 1.5,
                      Color(r: 255'u8, g: 150'u8, b: 255'u8, a: uint8(180.0 * fade)))
   of awtOmegaQuadrant:
     if warning.laserPattern != "shelter" and warning.lifetime <= OmegaQuadActive:
@@ -4748,7 +4732,7 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
                3.0, Color(r: 255'u8, g: 200'u8, b: 215'u8, a: crossA))
       drawStroke(Vector2(x: x0f + w2f, y: y0f), Vector2(x: x0f, y: y0f + h2f),
                3.0, Color(r: 255'u8, g: 200'u8, b: 215'u8, a: crossA))
-      drawDisc(Vector2(x: warning.pos.x, y: warning.pos.y),
+      drawDisc(warning.pos,
                  16.0'f32 * fade + burst * 14.0'f32,
                  Color(r: 255'u8, g: 255'u8, b: 255'u8, a: uint8(210.0'f32 * fade)))
       # The Entity's mark, branded outward by the blast: an expanding Omega.
@@ -4777,7 +4761,7 @@ proc drawSignatureAttackActive*(warning: AttackWarning) =
     # hints off.
     discard
 
-proc drawLaser*(laser: Laser) =
+proc drawLaser*(laser: Laser) {.moddable.} =
   # Calculate alpha based on lifetime with accelerated fade
   let fadePercent = laser.lifetime / laser.maxLifetime
 
@@ -4925,7 +4909,7 @@ proc drawLaser*(laser: Laser) =
       )
 
     # Draw single beam along rotation angle - RADIAL (from center outward only)
-    let beamStart = Vector2(x: laser.pos.x, y: laser.pos.y)  # Start at boss center
+    let beamStart = laser.pos  # Start at boss center
     let beamEnd = getRotatedEnd(laser.pos.x, laser.pos.y, laser.length, laser.rotation)  # Extend outward
 
     # Draw multiple parallel lines to simulate thickness with glow
@@ -4957,7 +4941,7 @@ proc drawLaser*(laser: Laser) =
   else:
     discard
 
-proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: int): Enemy =
+proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: int): Enemy {.moddable.} =
   ## Builds boss `bossId` (1..MaxBossId) with the stats of `scalingWave` on the
   ## boss curve (getScaledBossHP & co.). Never nil. The mode rosters spawn at
   ## their authored slot (bossAuthoredSlotWave) and are then rescaled by
@@ -5029,8 +5013,8 @@ proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: 
       1.0
 
     result = Enemy(
-      pos: newVector2f(startX, startY),
-      vel: newVector2f(0, 0),
+      pos: vec2(startX, startY),
+      vel: vec2(0, 0),
       radius: bossDef.baseRadius,
       collisionRadius: bossDef.baseRadius * 0.4,
       hp: firstPhaseHp,
@@ -5048,7 +5032,7 @@ proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: 
       bossPhaseBreakFlashTimer: 0.0,
       attackTimers: initialAttackTimers,
       attackWarningFired: initialAttackWarningFired,
-      startPos: newVector2f(startX, startY),
+      startPos: vec2(startX, startY),
       shootTimer: 0,
       spawnTimer: 0,
       dashTimer: 0,
@@ -5061,7 +5045,7 @@ proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: 
       burstTimer: 0.5,
       lastWallDamageTime: 0,
       entranceTimer: 2.0,
-      targetPos: newVector2f(targetX, targetY),
+      targetPos: vec2(targetX, targetY),
       attackWarningTimer: 0,
       attackExecuteTimer: 0,
       attackPhase: 0,
@@ -5069,29 +5053,27 @@ proc spawnBossById*(screenWidth, screenHeight: int32, bossId: int, scalingWave: 
       debuffResistance: 0.5,  # Bosses have 50% stun/slow resistance
       # Boss dash state initialization
       isDashing: false,
-      dashVelocity: newVector2f(0, 0),
+      dashVelocity: vec2(0, 0),
       dashDuration: 0,
-      dashMaxDuration: 0,
-      dashTargetPos: newVector2f(0, 0),
+      dashTargetPos: vec2(0, 0),
       pendingDashLocked: false,
-      pendingDashStart: newVector2f(0, 0),
-      pendingDashTarget: newVector2f(0, 0),
+      pendingDashStart: vec2(0, 0),
+      pendingDashTarget: vec2(0, 0),
       weakPoint: initBossWeakPointState(bossDef.weakPoint, bossDef.bossID),
       activeEffects: default(array[ElementType, ActiveEffect])
     )
 
-proc spawnBoss*(screenWidth, screenHeight: int32, difficulty: float32, bossCount: int, waveNumber: int): Enemy =
+proc spawnBoss*(screenWidth, screenHeight: int32, waveNumber: int): Enemy {.moddable.} =
   ## The wave campaign's boss for `waveNumber` (bosses 1-12 on every
   ## BossWaveInterval-th wave, boss 12 repeating past the campaign), or nil
-  ## when `waveNumber` is not a boss wave. `difficulty`/`bossCount` are unused
-  ## (stats come from the wave slot) and kept for the existing callers.
+  ## when `waveNumber` is not a boss wave. Its stats come from the wave slot.
   if not isBossWave(waveNumber):
     return nil
   spawnBossById(screenWidth, screenHeight, getCustomBossNumber(waveNumber), waveNumber)
 
 proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
                 chanceScale: float32 = 1.0'f32, force: bool = false,
-                forcedEffects: int = 0) =
+                forcedEffects: int = 0) {.moddable.} =
   ## Converts a regular enemy into an elite with enhanced stats and special abilities
   ## Elite chance increases with wave number, but the midgame ramp is kept gentler.
   ## Dual-modifier elites are delayed so waves 20-35 do not suddenly feel boss-like.
@@ -5199,9 +5181,6 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
           availableTypes.delete(j)
           break
 
-  # For backward compatibility, set primary eliteType to first in list
-  enemy.eliteType = if enemy.eliteTypes.len > 0: enemy.eliteTypes[0] else: etNone
-
   # Multiplier for multiple effects (diminishing returns)
   # 1 effect = 100%, 2 effects = 70% effectiveness to prevent stacking exponentially
   let effectMultiplier = if enemy.eliteTypes.len >= 2: 0.7 else: 1.0
@@ -5294,7 +5273,7 @@ proc makeElite*(enemy: Enemy, waveNumber: int = 0, scalingWave: int = -1,
     enemy.radius *= 1.15
     enemy.collisionRadius *= 1.15
 
-proc getEliteAuraColor*(eliteType: EliteType): Color =
+proc getEliteAuraColor(eliteType: EliteType): Color {.moddable.} =
   ## Returns the aura color for each elite type
   case eliteType
   of etNone: White  # Should never be called
@@ -5305,7 +5284,7 @@ proc getEliteAuraColor*(eliteType: EliteType): Color =
   of etRegenerative: Color(r: 255, g: 100, b: 255, a: 255)  # Magenta
   of etShielded: Color(r: 100, g: 200, b: 255, a: 255)  # Cyan
 
-proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
+proc drawEliteAura*(enemy: Enemy, gameTime: float32) {.moddable.} =
   ## Draws the visual aura around elite enemies
   ## For multi-elite enemies (wave 25+), draws layered auras with different colors
   if not enemy.isElite or enemy.eliteTypes.len == 0:
@@ -5413,7 +5392,7 @@ proc drawEliteAura*(enemy: Enemy, gameTime: float32) =
       Color(r: 150, g: 220, b: 255, a: 255)
     )
 
-proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) =
+proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) {.moddable.} =
   ## Drawn AFTER drawEnemy, places colored outline and orbit crown on top of the body
   if not enemy.isElite or enemy.eliteTypes.len == 0:
     return
@@ -5489,7 +5468,7 @@ proc drawEliteOverlay*(enemy: Enemy, gameTime: float32) =
     of etNone:
       discard
 
-proc updateEliteEffects*(enemy: Enemy, dt: float32) =
+proc updateEliteEffects*(enemy: Enemy, dt: float32) {.moddable.} =
   ## Updates elite-specific effects like regeneration
   ## Handles multiple elite types (wave 25+)
   if not enemy.isElite:

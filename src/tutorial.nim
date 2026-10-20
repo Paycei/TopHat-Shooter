@@ -17,6 +17,7 @@
 ## their write choke points. Drawing lives in ui/tutorial_overlay.nim.
 
 import raylib, math, random, sequtils
+import modding/mod_patch_core
 import types, particle_types, enemy, sound, run_statistics, d_systems, d_enhancements
 import input_intent
 
@@ -47,7 +48,7 @@ type
     doneTimer*: float32   ## > 0 while an action step's "DONE" beat plays
     skipHold*: float32    ## seconds the skip key has been held
     targetIds*: seq[int]  ## enemy ids of the practice targets
-    lastPlayerPos: Vector2f
+    lastPlayerPos: Vector2
     moved: float32
     fireTime: float32
     wasDashing: bool
@@ -73,29 +74,29 @@ const
 
 var state: TutorialState
 
-proc tutorialState*(): TutorialState =
+proc tutorialState*(): TutorialState {.moddable.} =
   ## Read-only copy for the overlay renderer.
   state
 
-proc isTutorialActive*(game: Game): bool =
+proc isTutorialActive*(game: Game): bool {.moddable.} =
   state.active and not game.isNil and game == state.game
 
-proc tutorialHoldsWaves*(game: Game): bool =
+proc tutorialHoldsWaves*(game: Game): bool {.moddable.} =
   ## True while the tutorial owns the arena: wave 1 must not start until the
   ## last card is dismissed (or the tutorial is skipped).
   isTutorialActive(game)
 
-proc isTutorialPractice*(game: Game): bool =
+proc isTutorialPractice*(game: Game): bool {.moddable.} =
   not game.isNil and game == state.game and state.practice
 
-proc tutorialSuppressesSaves*(game: Game): bool =
+proc tutorialSuppressesSaves*(game: Game): bool {.moddable.} =
   ## True when `game` must never be checkpointed. A practice session has to
   ## leave the player's real saved run untouched for its whole life, and a first
   ## run quit before wave 1 has nothing worth resuming (the next fresh run
   ## replays the tutorial instead). Checked by saveRunState and suspendGame.
   not game.isNil and game == state.game and (state.practice or state.active)
 
-proc isRead*(step: TutorialStep): bool =
+proc isRead*(step: TutorialStep): bool {.moddable.} =
   ## Read-only cards wait for Enter / A instead of an action. They never time
   ## out: a slow reader must not lose the text mid-sentence.
   step in {tsStatus, tsSettings, tsReady}
@@ -191,7 +192,7 @@ proc enterStep(game: Game, step: TutorialStep) =
   of tsStatus, tsSettings, tsReady:
     discard
 
-proc startTutorial*(game: Game, practice: bool) =
+proc startTutorial*(game: Game, practice: bool) {.moddable.} =
   ## Call on a freshly started run, before anything has touched the player.
   var fresh = Player()
   fresh[] = game.player[]
@@ -204,11 +205,11 @@ proc finishTutorial(game: Game) =
   state.freshPlayer = nil
   state.active = false
 
-proc endTutorialSession*() =
+proc endTutorialSession*() {.moddable.} =
   ## Forget the session once its run has been torn down (drops the Game ref).
   state = TutorialState()
 
-proc updateTutorial*(game: Game, dt: float32): TutorialEvent =
+proc updateTutorial*(game: Game, dt: float32): TutorialEvent {.moddable.} =
   ## Advance the current step from what the player just did. Call once per
   ## gsPlaying frame, BEFORE updateGame, so the safety net below runs ahead of
   ## this frame's damage.

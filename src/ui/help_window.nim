@@ -1,10 +1,12 @@
 ﻿## OS-Themed Help System
 ## Terminal-style documentation viewer
 
-import raylib, strutils, math
+import raylib, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../localization, ../powerup_data, ../gamemode_definitions, ../enemy_config, ../boss_definitions, ../types, ../settings, icon_drawing
-import ui_theme
+import ui_theme, text_field
+from ../network/tls import BearSSLLicense
 import ../gamepad_input, ../patches
 import ../modding/mod_registry
 from ../dungeon import rewardFolderName, rewardLabel
@@ -20,14 +22,12 @@ type
 
   HelpWindow* = ref object
     window*: OSWindow
-    commandHistory*: seq[string]
-    currentInput*: string
+    prompt*: TextField  ## the command line (Up / Down: the commands run before)
     outputLines*: seq[tuple[text: string, color: Color, icon: int, indent: int]]
     scrollOffset*: int
-    cursorBlink*: float32
     pendingIconExecution*: int  # -1 = none, 0-6 = icon to execute (6 = sandbox)
 
-proc getHelpCommands*(): seq[HelpCommand] =
+proc getHelpCommands(): seq[HelpCommand] {.moddable.} =
   ## Returns help commands with translated descriptions
   @[
     ("help", t(tkHelpCmdHelp)),
@@ -47,7 +47,7 @@ proc getHelpCommands*(): seq[HelpCommand] =
     (t(tkHelpLaunchTopics), t(tkHelpCmdLaunchIcons))
   ]
 
-proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
+proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow {.moddable.} =
   let windowWidth = 700
   let windowHeight = 500
   let windowX = (screenWidth - windowWidth) div 2
@@ -58,17 +58,22 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 100, g: 255, b: 150, a: 255),  # Green
-    owtHelp,
     resizable = false
   )
 
+  # The terminal's block cursor: translucent, so the letter under it shows.
+  var promptStyle = fieldStyle(16, Color(r: 0, g: 220, b: 220, a: 255),
+                               Color(r: 0, g: 200, b: 200, a: 255), padX = 0)
+  promptStyle.caretWidth = 8
+  promptStyle.caretInk = Color(r: 0, g: 255, b: 255, a: 150)
+  let prompt = newTextField(promptStyle, maxChars = 100, allowed = {' ' .. '~'},
+                            keepHistory = true)
+  prompt.focused = true   # (the window's only field)
   result = HelpWindow(
     window: osWin,
-    commandHistory: @[],
-    currentInput: "",
+    prompt: prompt,
     outputLines: @[],
     scrollOffset: 0,
-    cursorBlink: 0,
     pendingIconExecution: -1
   )
 
@@ -76,7 +81,7 @@ proc newHelpWindow*(screenWidth, screenHeight: int): HelpWindow =
   result.outputLines.add(("Type 'help' for commands or a topic name to learn more.", White, -1, 0))
   result.outputLines.add(("", White, -1, 0))
 
-proc addOutput*(help: HelpWindow, text: string, color: Color = White, icon: int = -1, indent: int = 0) =
+proc addOutput(help: HelpWindow, text: string, color: Color = White, icon: int = -1, indent: int = 0) {.moddable.} =
   help.outputLines.add((text, color, icon, indent))
 
 proc wrapTextToWidth(text: string, maxWidth: int32, fontSize: int32): seq[string] =
@@ -115,9 +120,7 @@ proc wrapTextToWidth(text: string, maxWidth: int32, fontSize: int32): seq[string
 proc iconStatusText(actionKey, iconKey: TranslationKey): string =
   t(actionKey).replace("$1", t(iconKey))
 
-proc executeCommand*(help: HelpWindow, cmd: string) =
-  help.commandHistory.add(cmd)
-
+proc executeCommand(help: HelpWindow, cmd: string) {.moddable.} =
   # Echo the command
   help.addOutput("$ " & cmd, Color(r: 0, g: 220, b: 220, a: 255))
 
@@ -416,7 +419,9 @@ proc executeCommand*(help: HelpWindow, cmd: string) =
         (tkHelpLicensesRaylib, staticRead("../../vendor/naylib/LICENSE-RAYLIB")),
         (tkHelpLicensesNaylib, staticRead("../../vendor/naylib/LICENSE")),
         (tkHelpLicensesIntro, staticRead("../../vendor/lua/LICENSE")),
-        (tkHelpLicensesPlMpeg, staticRead("../../vendor/pl_mpeg/LICENSE"))]
+        (tkHelpLicensesPlMpeg, staticRead("../../vendor/pl_mpeg/LICENSE")),
+        (tkHelpLicensesBearSSL, BearSSLLicense),
+        (tkHelpLicensesCaCerts, "")]   # (a notice, no license text to print)
       let noticeColor = Color(r: 190, g: 200, b: 215, a: 255)
       for (intro, license) in Notices:
         help.addOutput("", White)
@@ -465,7 +470,7 @@ proc entryVisualLines(help: HelpWindow, idx: int): int =
     availableW = availableW - int32(HELP_ICON_SIZE + HELP_ICON_PADDING)
   max(1, wrapTextToWidth(line.text, max(availableW, 20'i32), 14'i32).len)
 
-proc bottomScrollOffset*(help: HelpWindow): int =
+proc bottomScrollOffset(help: HelpWindow): int {.moddable.} =
   ## First entry to draw so the LAST entry is on screen. Scrolling counts entries
   ## but long entries wrap onto several lines, so a fixed `len - 15` left the tail
   ## of paragraph output (the lore archive, long boss dossiers) unreachable.
@@ -482,11 +487,25 @@ proc bottomScrollOffset*(help: HelpWindow): int =
     dec start
   min(start, max(0, help.outputLines.len - 1))
 
-proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): int =
+proc promptBox(help: HelpWindow): Rectangle =
+  ## The command line's text box, past its "$ " (shared by the update and the draw).
+  let contentX = help.window.x + WINDOW_PADDING
+  let contentY = help.window.y + TITLE_BAR_HEIGHT + WINDOW_PADDING
+  let contentW = help.window.width - WINDOW_PADDING * 2
+  let contentH = help.window.height - TITLE_BAR_HEIGHT - WINDOW_PADDING * 2
+  let promptW = measureText("$ a", 16) - measureText("a", 16)
+  Rectangle(x: float32(contentX + 10 + promptW), y: float32(contentY + contentH - 30),
+            width: float32(contentW - 20 - promptW), height: 30)
+
+proc wantsTextInput*(help: HelpWindow): bool {.moddable.} =
+  ## The terminal is a typed-command line: the window itself is the field, so
+  ## it owns the keyboard whenever it is the window in front.
+  not help.isNil and typingIn(help.window, help.prompt)
+
+proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): int {.moddable.} =
   ## Returns icon to execute: -1 = none, 0-6 = desktop icon index (6 = sandbox)
   ## Window closing is handled by setting help.window.visible = false
   updateOSWindow(help.window, dt)
-  help.cursorBlink += dt
 
   if not help.window.visible:
     return -1
@@ -504,40 +523,12 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
     help.window.visible = false
     return -1
 
-  # The terminal is a typed-command REPL with no focusable field of its own, so
-  # the window itself is the field -- and only while it is the one you are
-  # looking at. Ungated, a backgrounded or minimized terminal still consumed
-  # every keystroke (the poll procs pop from a shared queue), starving the
-  # focused window's text field, e.g. the shop's search box; on mobile it also
-  # held the on-screen keyboard open for that other window's field.
-  if help.window.focused and not help.window.minimized:
-    setTextInputActive(true, tikText)
-    # The prompt sits at the bottom of the window, under the keyboard panel on a
-    # phone, so echo it in the strip above the panel.
-    setTextInputPreview("$ " & help.currentInput)
-
-    # Handle text input with safety checks. Drained in a loop: raylib queues
-    # several characters per frame when typing fast, and one call per frame
-    # silently dropped the rest.
-    var key = pollCharPressed()
-    while key > 0:
-      if key < 256:  # Valid ASCII range
-        let ch = char(key)
-        # Only accept printable ASCII characters and limit input length
-        if ch >= ' ' and ch <= '~' and help.currentInput.len < 100:
-          help.currentInput.add(ch)
-      key = pollCharPressed()
-
-    # Handle backspace
-    if pollBackspacePressed() and help.currentInput.len > 0:
-      help.currentInput.setLen(help.currentInput.len - 1)
-
-    # Handle enter - execute command
-    if pollEnterPressed():
-      if help.currentInput.len > 0:
-        executeCommand(help, help.currentInput)
-        help.currentInput = ""
-      help.scrollOffset = bottomScrollOffset(help)  # Scroll to bottom
+  # Only while it is the window in front: a backgrounded or minimized terminal
+  # must not take the keystrokes of the focused window's field.
+  if updateTextField(help.prompt, help.promptBox(), dt, hasKeyboard(help.window)).submitted:
+    if help.prompt.text.len > 0:
+      executeCommand(help, help.prompt.submitLine())
+    help.scrollOffset = bottomScrollOffset(help)  # Scroll to bottom
 
   # Handle scrolling with mouse wheel
   let wheel = getPointerWheelMove()
@@ -547,7 +538,7 @@ proc updateHelpWindow*(help: HelpWindow, dt: float32, screenWidth, screenHeight:
 
   return -1  # No icon to execute
 
-proc drawHelpWindow*(help: HelpWindow) =
+proc drawHelpWindow*(help: HelpWindow) {.moddable.} =
   if not help.window.visible:
     return
 
@@ -617,15 +608,8 @@ proc drawHelpWindow*(help: HelpWindow) =
   drawRectangle(contentX.int32, promptY.int32, contentW.int32, 30,
                uiSurface(10, 10, 15))
 
-  let promptText = "$ " & help.currentInput
-  drawText(promptText, (contentX + 10).int32, (promptY + 7).int32, 16,
-          uiInk(0, 220, 220))
-
-  # Draw blinking cursor
-  if (help.cursorBlink mod 1.0) < 0.5:
-    let cursorX = contentX + 10 + measureText(promptText, 16)
-    drawRectangle((cursorX + 2).int32, (promptY + 7).int32, 8, 16,
-                 uiSurface(0, 255, 255))
+  drawText("$ ", (contentX + 10).int32, (promptY + 7).int32, 16, uiInk(0, 220, 220))
+  drawTextField(help.prompt, help.promptBox(), hasKeyboard(help.window))
 
   # Draw scroll indicator if needed
   if help.outputLines.len > visibleLines:

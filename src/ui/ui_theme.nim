@@ -1,7 +1,10 @@
 ## Interface themes: how the OS layer looks. That is the desktop, the taskbar,
-## every window and what it shows, the dialogs and the toasts, but not a run
-## (the HUD and the in-run screens) and not the story cinematics, which stage
-## TopHat-ShooterOS itself (withTheme(stockTheme())).
+## every window and what it shows, the dialogs and the toasts, and a run's
+## interface too: the HUD, the in-run screens (pause, shop, power-up install,
+## crash and victory screens) and the cards and banners over the arena. Not the
+## story cinematics, which stage TopHat-ShooterOS itself
+## (withTheme(stockTheme())), and not the game world (enemies, bullets,
+## damage numbers, vignettes).
 ##
 ## A theme is data (UiTheme): five anchor colours and the shell it wears. The
 ## shell (ShellStyle) is the set of hand-drawn pieces: window chrome, default
@@ -17,16 +20,19 @@
 ##   uiLine(c)     a border, divider or outline
 ##   uiInk(c)      text, and glyphs drawn like text
 ##   uiGlow(c)     translucent light: halos, hover glows, sheens
+##   uiOverlay(c)  ink drawn straight over the arena, with no surface behind it
 ## The stock theme hands `c` back untouched, so TopHat-ShooterOS draws exactly
 ## as it was written. Any other theme maps it onto its anchors in OKLab:
 ## lightness by role (a surface's elevation between the theme's surface and
 ## raised colours, text between its muted and text colours), the stock cyan
 ## accent onto the theme's accent, and every other hue kept, so red still
-## reads as danger, green as OK and gold as currency. Whatever is not passed
+## reads as danger, green as OK and gold as currency (an overlay keeps its own
+## lightness too, so it still reads over the dark world). Whatever is not passed
 ## through a role keeps its own colours: shadows and scrims, and every picture
 ## (skins, icons, wallpapers, mod images).
 
 import std/[math, tables]
+import ../modding/mod_patch_core
 import raylib, rlgl
 import ../draw_prims, ../localization, ../save_system, ../settings, ../utils
 import ../modding/mod_hooks
@@ -53,7 +59,7 @@ type
     ssCkn = "ckn"         ## paper frames, CKN Dawn, the arrow pointer
 
   UiRole = enum
-    urSurface, urLine, urInk, urGlow
+    urSurface, urLine, urInk, urGlow, urOverlay
 
   Lab = tuple[L, a, b: float32]
 
@@ -71,10 +77,9 @@ type
     chroma: float32       ## accent chroma over the stock accent's
     cache: Table[uint64, Color]
 
-proc themeName*(th: UiTheme): string =
+proc themeName*(th: UiTheme): string {.moddable.} =
   if th.owner < 0: t(th.nameKey)
-  elif getLanguage() == Spanish and th.modNameEs.len > 0: th.modNameEs
-  else: th.modName
+  else: pickText(th.modName, th.modNameEs)
 
 # ---------------------------------------------------------------------------
 # OKLab
@@ -133,10 +138,6 @@ proc turn(a, b: float32): float32 =
   ## Signed shortest turn from angle b to angle a, in radians.
   floorMod(a - b + PI.float32, 2.0'f32 * PI.float32) - PI.float32
 
-proc smooth(e0, e1, x: float32): float32 =
-  let t = clamp((x - e0) / (e1 - e0), 0.0'f32, 1.0'f32)
-  t * t * (3.0'f32 - 2.0'f32 * t)
-
 let
   stockS = labOf(StockSurface)
   stockR = labOf(StockRaised)
@@ -157,7 +158,7 @@ proc prepare(th: UiTheme) =
   th.cache.clear()
 
 proc newTheme*(id: string, shell: ShellStyle, surface, raised, text, muted, accent: Color,
-               owner = -1, name = "", nameEs = "", wallpaper = 0): UiTheme =
+               owner = -1, name = "", nameEs = "", wallpaper = 0): UiTheme {.moddable.} =
   ## A theme from its anchors. Register it with addTheme.
   result = UiTheme(id: id, shell: shell, surface: surface, raised: raised, text: text,
                    muted: muted, accent: accent, owner: owner, modName: name, modNameEs: nameEs,
@@ -180,21 +181,18 @@ const BuiltinThemes = 2
 
 proc stockTheme*(): UiTheme = themes[0]
 
-proc findTheme*(id: string): UiTheme =
+proc findTheme*(id: string): UiTheme {.moddable.} =
   for th in themes:
     if th.id == id: return th
   nil
 
-proc addTheme*(th: UiTheme): bool =
+proc addTheme*(th: UiTheme): bool {.moddable.} =
   ## Register a mod's theme; false if its id is taken.
   if not findTheme(th.id).isNil: return false
   themes.add(th)
   true
 
-proc allThemes*(): seq[UiTheme] = themes
-  ## Every registered theme, locked ones included.
-
-proc themeUnlocked*(th: UiTheme): bool =
+proc themeUnlocked*(th: UiTheme): bool {.moddable.} =
   ## CKN OS is what gets installed over TopHat-ShooterOS at the end of Act IV
   ## (UPTIME, the last story recording), so watching that ending unlocks it:
   ## the same flag that unlocks its replay, which also covers saves that saw
@@ -204,11 +202,11 @@ proc themeUnlocked*(th: UiTheme): bool =
   elif th.id == "ckn": not globalSettings.isNil and globalSettings.hasSeenSurvivalEnding
   else: true
 
-proc unlockedThemes*(): seq[UiTheme] =
+proc unlockedThemes*(): seq[UiTheme] {.moddable.} =
   for th in themes:
     if themeUnlocked(th): result.add(th)
 
-proc chosenTheme*(): UiTheme =
+proc chosenTheme*(): UiTheme {.moddable.} =
   ## The player's theme: the saved choice while it exists and is unlocked (a
   ## mod that is not loaded right now, or a relocked CKN OS, falls back to the
   ## stock one; the choice itself is kept).
@@ -216,7 +214,7 @@ proc chosenTheme*(): UiTheme =
   let th = findTheme(globalSettings.interfaceTheme)
   if themeUnlocked(th): th else: themes[0]
 
-proc chooseTheme*(id: string): bool =
+proc chooseTheme*(id: string): bool {.moddable.} =
   ## Make `id` the player's theme. False if there is no such theme or it is
   ## still locked. The caller saves the settings.
   let th = findTheme(id)
@@ -226,12 +224,12 @@ proc chooseTheme*(id: string): bool =
 
 var forced: seq[UiTheme]
 
-proc activeTheme*(): UiTheme =
+proc activeTheme*(): UiTheme {.moddable.} =
   ## The theme being drawn in: the player's, or one a caller forced.
   if forced.len > 0: forced[^1] else: chosenTheme()
 
-proc forceTheme*(th: UiTheme) = forced.add(th)
-proc unforceTheme*() =
+proc forceTheme(th: UiTheme) = forced.add(th)
+proc unforceTheme() {.moddable.} =
   if forced.len > 0: forced.setLen(forced.len - 1)
 
 template withTheme*(th: UiTheme, body: untyped) =
@@ -257,19 +255,19 @@ addModTeardown(resetModThemes, dropModThemes)
 # ---------------------------------------------------------------------------
 # Roles
 
-proc hueFor(th: UiTheme, h: float32): float32 =
+proc hueFor(th: UiTheme, h: float32, onPaper: bool): float32 =
   ## A chromatic colour's hue: the stock cyan band turns to the theme's
-  ## accent; on a light theme yellows lean amber, since pure yellow turns olive
-  ## at the lightness paper needs.
+  ## accent; on a light theme's paper yellows lean amber, since pure yellow
+  ## turns olive at the lightness paper needs.
   result = h + turn(hueOf(th.ac), hueOf(stockA)) *
-               (1.0'f32 - smooth(0.5236'f32, 1.2217'f32, abs(turn(h, hueOf(stockA)))))
-  if th.light:
-    result -= 0.314159'f32 * (1.0'f32 - smooth(0.20944'f32, 0.610865'f32, abs(turn(h, 1.658063'f32))))
+               (1.0'f32 - smoothstep(0.5236'f32, 1.2217'f32, abs(turn(h, hueOf(stockA)))))
+  if onPaper and th.light:
+    result -= 0.314159'f32 * (1.0'f32 - smoothstep(0.20944'f32, 0.610865'f32, abs(turn(h, 1.658063'f32))))
 
 proc mapColor(th: UiTheme, c: Color, role: UiRole): Color =
   let x = labOf(c)
   let C = chromaOf(x)
-  let neutral = 1.0'f32 - smooth(0.02'f32, 0.06'f32, C)
+  let neutral = 1.0'f32 - smoothstep(0.02'f32, 0.06'f32, C)
   var L: float32
   var tint: tuple[a, b: float32]
   case role
@@ -285,10 +283,15 @@ proc mapColor(th: UiTheme, c: Color, role: UiRole): Color =
     let e = (x.L - stockM.L) / (1.0'f32 - stockM.L)
     let neutralL = th.m.L + e * (th.t.L - th.m.L)
     let vividL = th.ac.L + (x.L - stockA.L) / (1.0'f32 - stockM.L) * (th.t.L - th.m.L) * 0.5'f32
-    L = neutralL + (vividL - neutralL) * smooth(0.05'f32, 0.13'f32, C)
+    L = neutralL + (vividL - neutralL) * smoothstep(0.05'f32, 0.13'f32, C)
     let k = clamp(e, 0.0'f32, 1.0'f32)
     tint = (th.m.a + (th.t.a - th.m.a) * k, th.m.b + (th.t.b - th.m.b) * k)
-  let h = if C > 0.00001'f32: th.hueFor(hueOf(x)) else: 0.0'f32
+  of urOverlay:
+    # Over the world, not paper: the colour keeps its lightness (and a neutral
+    # its own tint), only the accent's hue and the theme's chroma change.
+    L = x.L
+    tint = (x.a, x.b)
+  let h = if C > 0.00001'f32: th.hueFor(hueOf(x), role != urOverlay) else: 0.0'f32
   let a = (C * th.chroma * cos(h)) * (1.0'f32 - neutral) + tint.a * neutral
   let b = (C * th.chroma * sin(h)) * (1.0'f32 - neutral) + tint.b * neutral
   var alpha = c.a
@@ -315,19 +318,22 @@ proc uiInk*(c: Color): Color = themed(c, urInk)
   ## Text, and glyphs drawn like text.
 proc uiGlow*(c: Color): Color = themed(c, urGlow)
   ## Translucent light: halos, hover glows, sheens.
-
-proc rgba(r, g, b, a: int): Color {.inline.} =
-  Color(r: uint8(r), g: uint8(g), b: uint8(b), a: uint8(a))
+proc uiOverlay*(c: Color): Color = themed(c, urOverlay)
+  ## Ink drawn straight over the arena, with no surface behind it (a banner,
+  ## the combo counter, the countdown): it keeps its lightness, so it still
+  ## reads over the dark world on a light theme, and only its hue follows the
+  ## theme's accent.
 
 proc uiSurface*(r, g, b: int, a = 255): Color = uiSurface(rgba(r, g, b, a))
 proc uiLine*(r, g, b: int, a = 255): Color = uiLine(rgba(r, g, b, a))
 proc uiInk*(r, g, b: int, a = 255): Color = uiInk(rgba(r, g, b, a))
 proc uiGlow*(r, g, b: int, a = 255): Color = uiGlow(rgba(r, g, b, a))
+proc uiOverlay*(r, g, b: int, a = 255): Color = uiOverlay(rgba(r, g, b, a))
 
-proc mixColor*(a, b: Color, t: float32): Color =
-  ## Straight sRGB blend, `t` of the way from a to b (alpha too).
-  template ch(x, y: uint8): uint8 = uint8(x.float32 + (y.float32 - x.float32) * clamp(t, 0.0'f32, 1.0'f32) + 0.5'f32)
-  Color(r: ch(a.r, b.r), g: ch(a.g, b.g), b: ch(a.b, b.b), a: ch(a.a, b.a))
+proc themeIsLight*(): bool {.moddable.} =
+  ## The active theme draws on a light surface: what is drawn on it adapts
+  ## (dark drop shadows under text turn to mud on paper, so they are left out).
+  activeTheme().light
 
 # ---------------------------------------------------------------------------
 # The frame's alpha
@@ -340,25 +346,25 @@ proc mixColor*(a, b: Color, t: float32): Color =
 
 var keepAlphaDepth = 0
 
-proc beginKeepAlpha*() =
+proc beginKeepAlpha*() {.moddable.} =
   inc keepAlphaDepth
   if keepAlphaDepth == 1:
     setBlendFactorsSeparate(SrcAlpha, OneMinusSrcAlpha, One, OneMinusSrcAlpha, FuncAdd, FuncAdd)
     beginBlendMode(BlendMode.CustomSeparate)
 
-proc endKeepAlpha*() =
+proc endKeepAlpha*() {.moddable.} =
   if keepAlphaDepth == 0: return
   dec keepAlphaDepth
   if keepAlphaDepth == 0:
     endBlendMode()
 
-proc beginThemeLayer*(): bool =
+proc beginThemeLayer*(): bool {.moddable.} =
   ## Open a theme layer by hand (for one that closes in a `defer`); pass the
   ## result to endThemeLayer.
   result = not activeTheme().stock
   if result: beginKeepAlpha()
 
-proc endThemeLayer*(began: bool) =
+proc endThemeLayer*(began: bool) {.moddable.} =
   if began: endKeepAlpha()
 
 template themeLayer*(body: untyped) =
@@ -373,13 +379,13 @@ template themeLayer*(body: untyped) =
 # ---------------------------------------------------------------------------
 # Hand-drawn pieces
 
-proc cornerRoundness*(w, h, radius: float32): float32 =
+proc cornerRoundness*(w, h, radius: float32): float32 {.moddable.} =
   ## raylib's roundness for `radius`-pixel corners on a w x h rectangle
   ## (raylib measures it against the shorter side).
   clamp(2.0'f32 * radius / max(1.0'f32, min(w, h)), 0.0'f32, 1.0'f32)
 
 proc drawCknPanel*(rect: Rectangle, radius: float32, fill: Color, border: Color,
-                   shadowAlpha = 0.0'f32) =
+                   shadowAlpha = 0.0'f32) {.moddable.} =
   ## A rounded CKN surface: a soft two-layer drop shadow (when shadowAlpha >
   ## 0, 0..255), the fill and a hairline border drawn just outside it.
   let r = cornerRoundness(rect.width, rect.height, radius)
@@ -396,7 +402,7 @@ proc drawCknPanel*(rect: Rectangle, radius: float32, fill: Color, border: Color,
     # never eats into the fill or the text laid out against it.
     drawRectangleRoundedLines(rect, r, 10, -1.0'f32, border)
 
-proc drawCknLogo*(cx, cy, size: float32, alpha = 1.0'f32, arc = CknBlue) =
+proc drawCknLogo*(cx, cy, size: float32, alpha = 1.0'f32, arc = CknBlue) {.moddable.} =
   ## A rising sun over a line: pleasant, generic, nothing like a hat. `arc`
   ## colours the ring and the line (a CKN-based theme passes its accent).
   drawRing(Vector2(x: cx, y: cy), size * 0.55'f32, size * 0.72'f32, 180.0'f32, 360.0'f32, 32,

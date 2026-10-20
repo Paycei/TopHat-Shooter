@@ -1,9 +1,0 @@
-{
-  "id": "hello_hud",
-  "name": "Hello HUD",
-  "version": "1.2.0",
-  "author": "Paycei",
-  "description": "The smallest useful mod: a HUD readout of kills and run time, and a ring around the player that a rebindable key (F6) toggles. Read main.lua to see how hooks, drawing, run.data and mod keybinds work.",
-  "main": "main.lua",
-  "disableAchievements": false
-}

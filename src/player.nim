@@ -1,4 +1,5 @@
 import raylib, math, random, std/deques
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, utils, input_intent
 import modding/[mod_hooks, mod_assets]
@@ -34,7 +35,7 @@ const
   PlayerBraking = 1.8'f32
   PlayerInertiaReferenceRadius = 14.0'f32
 
-proc approachVelocity(current, target: Vector2f, acceleration, dt: float32): Vector2f =
+proc approachVelocity(current, target: Vector2, acceleration, dt: float32): Vector2 =
   ## Framerate-independent velocity easing for movement inertia.
   let blend = 1.0'f32 - pow(0.001'f32, acceleration * dt)
   current + (target - current) * clamp(blend, 0.0'f32, 1.0'f32)
@@ -43,7 +44,7 @@ proc playerInertiaSizeScale(player: Player): float32 =
   let safeRadius = max(player.radius, 1.0'f32)
   clamp(sqrt(safeRadius / PlayerInertiaReferenceRadius), 0.75'f32, 1.85'f32)
 
-proc dataHarvestRangeMult*(player: Player): float32 =
+proc dataHarvestRangeMult(player: Player): float32 {.moddable.} =
   ## DATA_HARVEST.dll widens the pickup/collection aura: +25% / +50% / +100%
   ## at levels 1 / 2 / 3 (mirrors its XP multiplier in xp_orb.nim).
   case getPowerUpLevel(player, puDataHarvest)
@@ -80,22 +81,22 @@ proc orbCoreColor(elementType: ElementType, base: Color): Color =
   of etBlood: Color(r: 255, g: 150, b: 150, a: 255)
   else: brighten(base, 45)
 
-proc dashBurstOf*(p: Player): float32 {.inline.} =
+proc dashBurstOf*(p: Player): float32 {.inline, moddable.} =
   ## The dash's tunables (Player.dashBurstMult / dashTime / dashRecharge, which
   ## scripts may change); 0 reads as the default (a Player not made by newPlayer).
   if p.dashBurstMult > 0: p.dashBurstMult else: DashSpeedMult
-proc dashTimeOf*(p: Player): float32 {.inline.} =
+proc dashTimeOf(p: Player): float32 {.inline, moddable.} =
   if p.dashTime > 0: p.dashTime else: DashDuration
-proc dashRechargeOf*(p: Player): float32 {.inline.} =
+proc dashRechargeOf*(p: Player): float32 {.inline, moddable.} =
   if p.dashRecharge > 0: p.dashRecharge else: DashCooldownTime
 
-proc newPlayer*(x, y: float32): Player =
+proc newPlayer*(x, y: float32): Player {.moddable.} =
   result = Player(
     dashBurstMult: DashSpeedMult,
     dashTime: DashDuration,
     dashRecharge: DashCooldownTime,
-    pos: newVector2f(x, y),
-    vel: newVector2f(0, 0),
+    pos: vec2(x, y),
+    vel: vec2(0, 0),
     radius: 14,
     baseRadius: 14,
     hp: 9,
@@ -154,7 +155,7 @@ proc newPlayer*(x, y: float32): Player =
     phaseShiftCooldown: 0,
     phaseShiftInvulnTimer: 0,
     teamId: ptNone,  # Default to no team
-    lastPhaseShiftPos: newVector2f(x, y),
+    lastPhaseShiftPos: vec2(x, y),
     rotatingOrbs: @[],
     orbRotationAngle: 0,
     hasFireMastery: false,
@@ -181,7 +182,7 @@ proc newPlayer*(x, y: float32): Player =
     bloodPactCooldown: 0.0,
     conduitCooldown: 0.0,
     aftershockCooldown: 0.0,
-    aftershockPosHistory: initDeque[Vector2f](),
+    aftershockPosHistory: initDeque[Vector2](),
     aftershockSampleTimer: 0.0,
     novaCooldown: 0.0,
     novaActive: false,
@@ -189,14 +190,14 @@ proc newPlayer*(x, y: float32): Player =
     healPowerMult: 1.0,
   )
 
-proc hasAnyOrbPowerUp*(player: Player): bool =
+proc hasAnyOrbPowerUp*(player: Player): bool {.moddable.} =
   ## Check if player has any orb power-up equipped (rotating legendary + all elemental orbs)
   if hasPowerUp(player, puRotatingOrbs): return true
   for orbType in elementalOrbTypes:
     if hasPowerUp(player, orbType): return true
   return false
 
-proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) =
+proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) {.moddable.} =
   # Update powerup timers
   if player.speedBoostTimer > 0:
     player.speedBoostTimer -= dt
@@ -343,7 +344,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
       if d.length() < 0.01'f32:
         # Standing still: dash along current travel, else straight up.
         d = if player.vel.length() > 1.0'f32: player.vel.normalize()
-            else: newVector2f(0, -1)
+            else: vec2(0, -1)
       else:
         d = d.normalize()
       player.dashDir     = d
@@ -395,7 +396,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # (Per-axis resolution alone freezes on rotated faces, where both the X-only
   # and Y-only probes penetrate the slab.) A per-axis fallback handles inside
   # corners where the tangential slide still ends inside a wall.
-  proc hitsAnyWall(p: Vector2f): bool =
+  proc hitsAnyWall(p: Vector2): bool =
     for w in walls:
       if checkPlayerWallCollision(p, player.radius, w):
         return true
@@ -407,7 +408,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     # times so multi-wall contacts settle.
     for _ in 0 ..< 3:
       let target = player.pos + move
-      var n = newVector2f(0, 0)
+      var n = vec2(0, 0)
       var hit = false
       for w in walls:
         if checkPlayerWallCollision(target, player.radius, w):
@@ -428,11 +429,11 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
     player.pos = player.pos + move
   else:
     # Inside corner: let whichever single axis is free still pass.
-    if not hitsAnyWall(newVector2f(player.pos.x + move.x, player.pos.y)):
+    if not hitsAnyWall(vec2(player.pos.x + move.x, player.pos.y)):
       player.pos.x = player.pos.x + move.x
     else:
       player.vel.x = 0
-    if not hitsAnyWall(newVector2f(player.pos.x, player.pos.y + move.y)):
+    if not hitsAnyWall(vec2(player.pos.x, player.pos.y + move.y)):
       player.pos.y = player.pos.y + move.y
     else:
       player.vel.y = 0
@@ -521,7 +522,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if not hasAnyOrbPowerUp(player) and player.rotatingOrbs.len > 0:
     player.rotatingOrbs = @[]
 
-proc drawPlayer*(player: Player) =
+proc drawPlayer*(player: Player) {.moddable.} =
   # Mods (playerDraw): a script-drawn body replaces the built-in one.
   if hookActive(hkPlayerDraw) and modPlayerDraw(player):
     return
@@ -537,7 +538,7 @@ proc drawPlayer*(player: Player) =
     let shieldPulse = 1.0 + 0.1 * sin(getTime() * 8.0)
     let shieldAlpha = 80 + (sin(getTime() * 4.0) * 40).int
     let shieldRadius = player.radius * 1.4 * shieldPulse
-    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
+    drawDisc(player.pos, shieldRadius,
               withAlpha(Cyan, shieldAlpha.uint8))
     drawCircleOutline(player.pos.x.int32, player.pos.y.int32, shieldRadius, Cyan)
     # Draw shield hit counter
@@ -551,7 +552,7 @@ proc drawPlayer*(player: Player) =
     let shieldRadius = player.radius * 2.4
     let fillAlpha = uint8(40 + (shieldFrac * 160).int)
     let lineAlpha = uint8(90 + (shieldFrac * 140).int)
-    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), shieldRadius,
+    drawDisc(player.pos, shieldRadius,
                Color(r: 170, g: 110, b: 255, a: fillAlpha))
     drawCircleOutline(player.pos.x.int32, player.pos.y.int32, shieldRadius,
                     Color(r: 170, g: 110, b: 255, a: lineAlpha))
@@ -565,7 +566,7 @@ proc drawPlayer*(player: Player) =
     let veilColor   = Color(r: 200, g: 200, b: 255, a: veilAlpha)
     let veilLine    = Color(r: 220, g: 220, b: 255, a: veilLineA)
     # Soft filled halo
-    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), veilRadius, veilColor)
+    drawDisc(player.pos, veilRadius, veilColor)
     # Sharp outer ring
     drawCircleOutline(player.pos.x.int32, player.pos.y.int32, veilRadius, veilLine)
     # Thin inner accent ring
@@ -589,7 +590,7 @@ proc drawPlayer*(player: Player) =
   # persistently-drawn ring on the body; the optional legendary halos it can
   # brush (veil, shield) are differently coloured and conditional.
   let dashRingRadius = player.radius + 8.5'f32
-  let dashCenter = Vector2(x: player.pos.x, y: player.pos.y)
+  let dashCenter = player.pos
   if player.dashTimer > 0:
     # Spending the charge: a bright ring blown outward over the burst.
     let burst = clamp(1.0'f32 - player.dashTimer / dashTimeOf(player), 0.0'f32, 1.0'f32)
@@ -659,7 +660,7 @@ proc drawPlayer*(player: Player) =
     baseColor = Color(r: 0, g: 255, b: 255, a: 255)  # Bright cyan
     glowIntensity = 0.8 + pulse * 0.2
     # Extra glow layers
-    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
+    drawDisc(player.pos, player.radius + 8,
               withAlpha(Cyan, phaseAlpha.uint8))
     drawText(t(tkPlayerPhase), (player.pos.x - 30).int32, (player.pos.y - 40).int32, 14, Cyan)
   # Parry active visual effect - white/silver shield
@@ -668,7 +669,7 @@ proc drawPlayer*(player: Player) =
     baseColor = Color(r: 255, g: 255, b: 255, a: 255)  # White
     coreColor = Color(r: 220, g: 220, b: 255, a: 255)  # Light blue
     glowIntensity = 1.0
-    drawDisc(Vector2(x: player.pos.x, y: player.pos.y), player.radius + 8,
+    drawDisc(player.pos, player.radius + 8,
               Color(r: 255, g: 255, b: 255, a: parryAlpha.uint8))
     drawText(t(tkPlayerParry), (player.pos.x - 25).int32, (player.pos.y - 40).int32, 16, White)
   # Invincibility visual effect
@@ -724,18 +725,14 @@ proc drawPlayer*(player: Player) =
   # now orbits the player. Colored by the equipped desktop-cube skin.
   if player.hasOrbitalCube:
     let cubeSkin = CubeSkinType(clamp(player.cubeSkinType, 0, ord(high(CubeSkinType))))
-    let cubeData = getCubeSkinData(cubeSkin)
     let orbitAngle = time * 1.3
     let orbitDist = player.radius * 2.5 + sin(time * 2.1) * 3.0
     let cubeCenter = Vector2(
       x: player.pos.x + cos(orbitAngle) * orbitDist,
       y: player.pos.y + sin(orbitAngle) * orbitDist * 0.72 + sin(time * 3.1) * 2.0)
-    let cubeHeart = if cubeSkin == cskCompanion: Color(r: 244, g: 116, b: 150, a: 255)
-                    else: Color(r: 0, g: 0, b: 0, a: 0)
     # A mod's cube model replaces the desktop cube, so it is what orbits here too.
     if not drawCubeModModel(cubeCenter.x, cubeCenter.y, 8.0'f32, time * 0.9'f32, time * 1.4'f32, 0):
-      drawMiniCube(cubeCenter, 8.0'f32, time, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
-                  isD20 = cubeSkin == cskD20, skin = cubeSkin, secretStyle = true)
+      drawMiniCube(cubeCenter, 8.0'f32, time, skin = cubeSkin)
 
   # Roguelite class emblem: a run-scoped cosmetic marking the chosen starter
   # kit. Body/side-mounted (and an inner orbit for the Arcanist), so it never
@@ -922,7 +919,7 @@ proc drawPlayer*(player: Player) =
       let levelScale = 1.0'f32 + min(3, max(0, orb.orbLevel - 1)).float32 * 0.08'f32
       let orbSize = (13.5'f32 + playerOrbSizeBonus) * levelScale
 
-      drawStroke(Vector2(x: player.pos.x, y: player.pos.y),
+      drawStroke(player.pos,
                Vector2(x: orbX, y: orbY), 1.0,
                withAlpha(color, 16 + min(12, orb.orbLevel * 3)))
 
@@ -1197,7 +1194,7 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   # Return true if HP reached 0 or below (death condition)
   return player.hp <= 0
 
-proc takeDamage*(player: Player, damage: float32): bool =
+proc takeDamage*(player: Player, damage: float32): bool {.moddable.} =
   ## Single intake point for all PvE damage to the player. The profile
   ## difficulty scales here so every source (contact, bullets, lasers,
   ## meteors, explosions) is covered without touching each call site.
@@ -1213,7 +1210,7 @@ proc takeDamage*(player: Player, damage: float32): bool =
       return false
   takeDamageRaw(player, dealt)
 
-proc heal*(player: Player, amount: float32): float32 {.discardable.} =
+proc heal*(player: Player, amount: float32): float32 {.discardable, moddable.} =
   ## Applies the player's heal-power multiplier and clamps to max HP, returning
   ## the HP that was ACTUALLY restored. Healing statistics track the return value
   ## rather than the amount requested, so a heal that lands at full HP is worth
@@ -1223,15 +1220,3 @@ proc heal*(player: Player, amount: float32): float32 {.discardable.} =
   player.hp += amount * player.healPowerMult
   if player.hp > player.maxHp: player.hp = player.maxHp
   player.hp - before
-
-proc activateSpeedBoost*(player: Player) =
-  player.speedBoostTimer = 5.0
-
-proc activateInvincibility*(player: Player) =
-  player.invincibilityTimer = 3.0
-
-proc activateFireRateBoost*(player: Player) =
-  player.fireRateBoostTimer = 8.0
-
-proc activateMagnet*(player: Player) =
-  player.magnetTimer = 10.0

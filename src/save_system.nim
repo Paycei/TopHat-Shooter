@@ -1,4 +1,5 @@
 import json, os, std/tables, strutils, raylib
+import modding/mod_patch_core
 import particle_types, run_statistics, types, utils, powerup_data, enemy_config
 
 # Settings type definition (moved from settings_types.nim)
@@ -41,8 +42,6 @@ type
     fpsLimit*: int32
     volume*: float32
     musicVolume*: float32
-    inputBuffer*: string
-    editingFPS*: bool
     fullscreen*: bool
     renderResolutionMode*: RenderResolutionMode
     postFxLevel*: PostFxLevel  # Built-in post-processing (bloom, vignette, grade)
@@ -155,31 +154,31 @@ proc unlockStoryFlag(settings: Settings, cine: StoryCinematic) =
   of scSandboxIntro: settings.hasSeenSandboxIntro = true
   of scPvPIntro: settings.hasSeenPvPIntro = true
 
-proc storyOutdated*(settings: Settings, cine: StoryCinematic): bool =
+proc storyOutdated*(settings: Settings, cine: StoryCinematic): bool {.moddable.} =
   ## Unlocked, but last watched before the current version of the story: the
   ## Cinematics tab marks it NEW.
   not settings.isNil and settings.storyFlag(cine) and settings.storySeen[cine] < StoryVersion
 
-proc storyPending*(settings: Settings, cine: StoryCinematic): bool =
+proc storyPending*(settings: Settings, cine: StoryCinematic): bool {.moddable.} =
   ## Should this cinematic play at its usual trigger? Never seen, or seen only
   ## in an older version.
   not settings.isNil and (not settings.storyFlag(cine) or settings.storySeen[cine] < StoryVersion)
 
-proc markStorySeen*(settings: Settings, cine: StoryCinematic) =
+proc markStorySeen*(settings: Settings, cine: StoryCinematic) {.moddable.} =
   ## Unlocks it (the hasSeen* flag) and records that this version was watched.
   if settings.isNil:
     return
   settings.unlockStoryFlag(cine)
   settings.storySeen[cine] = StoryVersion
 
-proc uiScalePresetIndex*(scale: float32): int =
+proc uiScalePresetIndex*(scale: float32): int {.moddable.} =
   ## Index of the UIScalePresets entry nearest `scale`.
   result = 0
   for i in 1 .. UIScalePresets.high:
     if abs(UIScalePresets[i] - scale) < abs(UIScalePresets[result] - scale):
       result = i
 
-proc snapUIScale*(scale: float32): float32 =
+proc snapUIScale(scale: float32): float32 {.moddable.} =
   UIScalePresets[uiScalePresetIndex(scale)]
 
 when defined(android):
@@ -202,7 +201,7 @@ const MaxProfileSlots* = 4  # one per GameDifficulty, so every difficulty fits
 
 var activeProfileSlot* = 1  # 1..MaxProfileSlots; all get*Path procs point here
 
-proc getRootDataPath*(): string =
+proc getRootDataPath*(): string {.moddable.} =
   ## Base save directory shared by all profiles (and holder of the last-used
   ## slot marker). Per-profile data must go through getAppDataPath instead.
   when defined(android):
@@ -240,11 +239,11 @@ proc getRootDataPath*(): string =
     except:
       echo "Warning: Could not create save directory: ", result
 
-proc getProfileDir*(slot: int): string =
+proc getProfileDir*(slot: int): string {.moddable.} =
   getRootDataPath() / "profiles" / $slot
 
 # Get the active profile's data directory (all save files live here)
-proc getAppDataPath*(): string =
+proc getAppDataPath*(): string {.moddable.} =
   result = getProfileDir(activeProfileSlot)
 
   # Create directory if it doesn't exist
@@ -261,10 +260,10 @@ proc getProfileMetaPath(slot: int): string =
 proc getLastUsedSlotPath(): string =
   getRootDataPath() / "profiles.json"
 
-proc profileExists*(slot: int): bool =
+proc profileExists*(slot: int): bool {.moddable.} =
   fileExists(getProfileMetaPath(slot))
 
-proc loadProfileDifficulty*(slot: int): GameDifficulty =
+proc loadProfileDifficulty*(slot: int): GameDifficulty {.moddable.} =
   ## Difficulty recorded in the slot's profile.json; medium (the legacy
   ## balance) when the file is missing or unreadable.
   result = gdMedium
@@ -272,12 +271,12 @@ proc loadProfileDifficulty*(slot: int): GameDifficulty =
     let path = getProfileMetaPath(slot)
     if fileExists(path):
       let meta = parseJson(readFile(path))
-      if meta.hasKey("difficulty"):
+      if meta.kind == JObject and meta.hasKey("difficulty"):
         result = parseEnumOr(meta["difficulty"].getStr(), gdMedium)
   except CatchableError:
     echo "Warning: could not read profile meta for slot ", slot
 
-proc createProfile*(slot: int, difficulty: GameDifficulty): bool =
+proc createProfile*(slot: int, difficulty: GameDifficulty): bool {.moddable.} =
   ## Creates the slot folder and its profile.json meta. Safe to call on an
   ## existing slot (rewrites the meta only).
   try:
@@ -290,7 +289,7 @@ proc createProfile*(slot: int, difficulty: GameDifficulty): bool =
     echo "Error: could not create profile ", slot
     false
 
-proc deleteProfile*(slot: int): bool =
+proc deleteProfile*(slot: int): bool {.moddable.} =
   ## Removes the whole slot folder (all of that profile's save data).
   try:
     if dirExists(getProfileDir(slot)):
@@ -301,7 +300,7 @@ proc deleteProfile*(slot: int): bool =
     echo "Error: could not delete profile ", slot
     false
 
-proc getLastUsedProfileSlot*(): int =
+proc getLastUsedProfileSlot*(): int {.moddable.} =
   ## Slot the player used last session (for preloading settings at boot and
   ## highlighting on the profile-select screen). Defaults to 1.
   result = 1
@@ -309,18 +308,18 @@ proc getLastUsedProfileSlot*(): int =
     let path = getLastUsedSlotPath()
     if fileExists(path):
       let data = parseJson(readFile(path))
-      if data.hasKey("lastUsedSlot"):
+      if data.kind == JObject and data.hasKey("lastUsedSlot"):
         result = clamp(data["lastUsedSlot"].getInt(1), 1, MaxProfileSlots)
   except CatchableError:
     echo "Warning: could not read last-used profile slot"
 
-proc setLastUsedProfileSlot*(slot: int) =
+proc setLastUsedProfileSlot*(slot: int) {.moddable.} =
   try:
     writeFile(getLastUsedSlotPath(), pretty(%* {"lastUsedSlot": slot}))
   except CatchableError:
     echo "Warning: could not persist last-used profile slot"
 
-proc migrateLegacySaveFiles*() =
+proc migrateLegacySaveFiles*() {.moddable.} =
   ## One-time conversion from the pre-profile layout: save files that sit
   ## directly in the root data dir are moved into profile 1, which is stamped
   ## with medium difficulty (the balance those saves were played on).
@@ -354,16 +353,16 @@ proc migrateLegacySaveFiles*() =
     echo "Warning: legacy save migration failed: ", e.msg
 
 # Path to the save files
-proc getSettingsPath*(): string =
+proc getSettingsPath(): string {.moddable.} =
   getAppDataPath() / "settings.json"
 
-proc getStatsPath*(): string =
+proc getStatsPath*(): string {.moddable.} =
   getAppDataPath() / "stats.json"
 
-proc getLastRunStatsPath*(): string =
+proc getLastRunStatsPath(): string {.moddable.} =
   getAppDataPath() / "last_run.json"
 
-proc deleteLastRunStats*(): bool =
+proc deleteLastRunStats*(): bool {.moddable.} =
   try:
     let savePath = getLastRunStatsPath()
     if fileExists(savePath):
@@ -378,7 +377,7 @@ proc deleteLastRunStats*(): bool =
     return false
 
 # Convert Settings to JSON
-proc settingsToJson*(settings: Settings): JsonNode =
+proc settingsToJson(settings: Settings): JsonNode {.moddable.} =
   result = %* {
     "fpsLimit": settings.fpsLimit,
     "volume": settings.volume,
@@ -450,8 +449,30 @@ proc settingsToJson*(settings: Settings): JsonNode =
     storyObj[$cine] = %settings.storySeen[cine]
   result["storySeen"] = storyObj
 
+# Reading saves. json's `[]`, hasKey, items and pairs only assert the node's
+# kind, and -d:danger compiles that out: a hand-edited save holding the wrong
+# shape (a list where an object belongs, say) crashed the load instead of
+# failing it. Loaders check each object with needObject before indexing it
+# and iterate through jsonItems / jsonPairs.
+
+proc needObject*(j: JsonNode) =
+  ## A JSON object, or the load fails (JsonKindError, which loaders catch).
+  if j.isNil or j.kind != JObject:
+    raise newException(JsonKindError, "a JSON object was expected")
+
+iterator jsonItems*(j: JsonNode): JsonNode =
+  ## A JSON array's items; none for anything else.
+  if not j.isNil and j.kind == JArray:
+    for x in j.elems: yield x
+
+iterator jsonPairs*(j: JsonNode): (string, JsonNode) =
+  ## A JSON object's entries; none for anything else.
+  if not j.isNil and j.kind == JObject:
+    for k, v in j.pairs: yield (k, v)
+
 # Load Settings from JSON
-proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
+proc jsonToSettings(jsonNode: JsonNode, settings: Settings) {.moddable.} =
+  needObject(jsonNode)
   if jsonNode.hasKey("fpsLimit"):
     settings.fpsLimit = jsonNode["fpsLimit"].getInt().int32
 
@@ -623,22 +644,22 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
 
   if jsonNode.hasKey("discoveredPowerUps"):
     settings.discoveredPowerUps = @[]
-    for item in jsonNode["discoveredPowerUps"]:
+    for item in jsonItems(jsonNode["discoveredPowerUps"]):
       settings.discoveredPowerUps.add(item.getStr())
 
   if jsonNode.hasKey("enabledMods"):
     settings.enabledMods = @[]
-    for item in jsonNode["enabledMods"]:
+    for item in jsonItems(jsonNode["enabledMods"]):
       settings.enabledMods.add(item.getStr())
 
   if jsonNode.hasKey("modCosmetics"):
     settings.modCosmetics = @[]
-    for item in jsonNode["modCosmetics"]:
+    for item in jsonItems(jsonNode["modCosmetics"]):
       settings.modCosmetics.add(item.getStr())
 
   if jsonNode.hasKey("modKeybinds"):
     settings.modKeybinds = @[]
-    for item in jsonNode["modKeybinds"]:
+    for item in jsonItems(jsonNode["modKeybinds"]):
       settings.modKeybinds.add(item.getStr())
 
   # Missing (any save from before story versioning) leaves every entry at 0,
@@ -648,7 +669,7 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
       if jsonNode["storySeen"].hasKey($cine):
         settings.storySeen[cine] = jsonNode["storySeen"][$cine].getInt()
 
-  if jsonNode.hasKey("keybinds"):
+  if jsonNode.hasKey("keybinds") and jsonNode["keybinds"].kind == JObject:
     let binds = jsonNode["keybinds"]
     for action in KeyAction:
       let key = $action
@@ -658,7 +679,7 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
         except ValueError:
           discard
 
-  if jsonNode.hasKey("gamepadBinds"):
+  if jsonNode.hasKey("gamepadBinds") and jsonNode["gamepadBinds"].kind == JObject:
     let binds = jsonNode["gamepadBinds"]
     for action in KeyAction:
       let key = $action
@@ -675,7 +696,7 @@ proc jsonToSettings*(jsonNode: JsonNode, settings: Settings) =
     settings.aimAssistEnabled = jsonNode["aimAssistEnabled"].getBool()
 
 # Save Settings to file
-proc saveSettings*(settings: Settings): bool =
+proc saveSettings*(settings: Settings): bool {.moddable.} =
   let savePath = getSettingsPath()
   try:
     writeFile(savePath, settingsToJson(settings).pretty())
@@ -686,7 +707,7 @@ proc saveSettings*(settings: Settings): bool =
     return false
 
 # Load Settings from file
-proc loadSettings*(settings: Settings): bool =
+proc loadSettings*(settings: Settings): bool {.moddable.} =
   let savePath = getSettingsPath()
   if not fileExists(savePath):
     echo "No save file found at ", savePath, ", using default settings"
@@ -905,7 +926,7 @@ proc comparisonStatsToJson(stats: ComparisonStats): JsonNode =
   }
 
 # Convert RunStatistics to JSON
-proc runStatisticsToJson*(runStats: RunStatistics): JsonNode =
+proc runStatisticsToJson(runStats: RunStatistics): JsonNode {.moddable.} =
   if runStats.isNil:
     return newJNull()
 
@@ -951,7 +972,7 @@ proc runStatisticsToJson*(runStats: RunStatistics): JsonNode =
   }
 
 # Save last run statistics to file
-proc saveLastRunStats*(runStats: RunStatistics): bool =
+proc saveLastRunStats*(runStats: RunStatistics): bool {.moddable.} =
   try:
     if runStats.isNil:
       echo "No run stats to save"
@@ -982,12 +1003,14 @@ proc parseGameEventType(s: string): GameEventType = parseEnumOr(s, geKill)
 
 # Convert JSON to GameEvent
 proc jsonToGameEvent(j: JsonNode): GameEvent =
+  needObject(j)
+  needObject(j["position"])
   result = GameEvent(
     timestamp: j["timestamp"].getFloat().float32,
     eventType: parseGameEventType(j["eventType"].getStr()),
     value: j["value"].getFloat().float32,
     details: j["details"].getStr(),
-    position: newVector2f(
+    position: vec2(
       j["position"]["x"].getFloat().float32,
       j["position"]["y"].getFloat().float32
     )
@@ -995,6 +1018,7 @@ proc jsonToGameEvent(j: JsonNode): GameEvent =
 
 # Convert JSON to PowerUp
 proc jsonToPowerUp(j: JsonNode): PowerUp =
+  needObject(j)
   result = PowerUp(
     powerType: parsePowerUpType(j["powerType"].getStr()),
     level: j["level"].getInt(),
@@ -1003,6 +1027,7 @@ proc jsonToPowerUp(j: JsonNode): PowerUp =
 
 # Convert JSON to CombatStats
 proc jsonToCombatStats(j: JsonNode): CombatStats =
+  needObject(j)
   result = initCombatStats()
   result.shotsFired = j["shotsFired"].getInt()
   result.shotsHit = j["shotsHit"].getInt()
@@ -1014,13 +1039,13 @@ proc jsonToCombatStats(j: JsonNode): CombatStats =
 
   # Parse tables
   var et: EnemyType
-  for key, val in j["damageTakenByType"]:
+  for key, val in jsonPairs(j["damageTakenByType"]):
     if parseEnemySaveName(key, et):  # a mod's enemy whose mod is gone is skipped
       result.damageTakenByType[et] = val.getFloat().float32
 
   result.totalKills = j["totalKills"].getInt()
 
-  for key, val in j["killsByType"]:
+  for key, val in jsonPairs(j["killsByType"]):
     if parseEnemySaveName(key, et):
       result.killsByType[et] = val.getInt()
 
@@ -1044,13 +1069,15 @@ proc jsonToCombatStats(j: JsonNode): CombatStats =
 
 # Convert JSON to MovementStats
 proc jsonToMovementStats(j: JsonNode): MovementStats =
+  needObject(j)
   result = initMovementStats()
   result.totalDistanceTraveled = j["totalDistanceTraveled"].getFloat().float32
   result.averageSpeed = j["averageSpeed"].getFloat().float32
 
   # Parse position heatmap
-  for pos in j["positionHeatmap"]:
-    result.positionHeatmap.add(newVector2f(
+  for pos in jsonItems(j["positionHeatmap"]):
+    needObject(pos)
+    result.positionHeatmap.add(vec2(
       pos["x"].getFloat().float32,
       pos["y"].getFloat().float32
     ))
@@ -1073,6 +1100,7 @@ proc jsonToMovementStats(j: JsonNode): MovementStats =
 
 # Convert JSON to ResourceStats
 proc jsonToResourceStats(j: JsonNode): ResourceStats =
+  needObject(j)
   result = initResourceStats()
   result.coinsEarned = j["coinsEarned"].getInt()
   result.coinsSpent = j["coinsSpent"].getInt()
@@ -1085,13 +1113,14 @@ proc jsonToResourceStats(j: JsonNode): ResourceStats =
   result.consumablesCollected = j["consumablesCollected"].getInt()
 
   # Parse consumables table
-  for key, val in j["consumablesByType"]:
+  for key, val in jsonPairs(j["consumablesByType"]):
     result.consumablesByType[parseConsumableType(key)] = val.getInt()
 
   result.healthConsumablesUsed = j["healthConsumablesUsed"].getInt()
 
   # Parse shop purchases
-  for purchase in j["shopPurchases"]:
+  for purchase in jsonItems(j["shopPurchases"]):
+    needObject(purchase)
     result.shopPurchases.add((
       purchase["timestamp"].getFloat().float32,
       purchase["item"].getStr()
@@ -1102,10 +1131,12 @@ proc jsonToResourceStats(j: JsonNode): ResourceStats =
 
 # Convert JSON to PowerUpStats
 proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
+  needObject(j)
   result = initPowerUpStats()
 
   # Parse power-ups chosen
-  for choice in j["powerUpsChosen"]:
+  for choice in jsonItems(j["powerUpsChosen"]):
+    needObject(choice)
     result.powerUpsChosen.add((
       choice["timestamp"].getFloat().float32,
       jsonToPowerUp(choice["powerUp"])
@@ -1116,7 +1147,7 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
   result.legendaryPowerUps = j["legendaryPowerUps"].getInt()
 
   # Parse damage contribution table
-  for key, val in j["damageContribution"]:
+  for key, val in jsonPairs(j["damageContribution"]):
     (var pt: PowerUpType; if parsePowerUpSaveName(key, pt): result.damageContribution[pt] = val.getFloat().float32)
 
   # "killContribution" is written by older saves only: it was never populated
@@ -1124,7 +1155,7 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
 
   # Parse healing contribution table
   if j.hasKey("healingContribution"):
-    for key, val in j["healingContribution"]:
+    for key, val in jsonPairs(j["healingContribution"]):
       (var pt: PowerUpType; if parsePowerUpSaveName(key, pt): result.healingContribution[pt] = val.getFloat().float32)
   if j.hasKey("totalHealingFromPowerUps"):
     result.totalHealingFromPowerUps = j["totalHealingFromPowerUps"].getFloat().float32
@@ -1132,7 +1163,7 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
   result.healingFromLevelUps = j.getOrDefault("healingFromLevelUps").getFloat(0.0).float32
   # Overheal was added later; older saves simply show none.
   if j.hasKey("overhealContribution"):
-    for key, val in j["overhealContribution"]:
+    for key, val in jsonPairs(j["overhealContribution"]):
       (var pt: PowerUpType; if parsePowerUpSaveName(key, pt): result.overhealContribution[pt] = val.getFloat().float32)
   result.overhealFromConsumables = j.getOrDefault("overhealFromConsumables").getFloat(0.0).float32
   result.overhealFromLevelUps = j.getOrDefault("overhealFromLevelUps").getFloat(0.0).float32
@@ -1142,7 +1173,7 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
   result.synergyScore = j["synergyScore"].getFloat().float32
 
   # Parse elemental combo
-  for element in j["elementalCombo"]:
+  for element in jsonItems(j["elementalCombo"]):
     result.elementalCombo.add(parsePowerUpType(element.getStr()))
 
   result.hasSynergy = j["hasSynergy"].getBool()
@@ -1152,10 +1183,11 @@ proc jsonToPowerUpStats(j: JsonNode): PowerUpStats =
 
 # Convert JSON to PerformanceStats
 proc jsonToPerformanceStats(j: JsonNode): PerformanceStats =
+  needObject(j)
   result = initPerformanceStats()
 
   # Parse wave times
-  for time in j["waveTimes"]:
+  for time in jsonItems(j["waveTimes"]):
     result.waveTimes.add(time.getFloat().float32)
 
   result.averageWaveTime = j["averageWaveTime"].getFloat()
@@ -1165,7 +1197,8 @@ proc jsonToPerformanceStats(j: JsonNode): PerformanceStats =
   result.averageDPS = j["averageDPS"].getFloat()
 
   # Parse DPS history
-  for entry in j["dpsHistory"]:
+  for entry in jsonItems(j["dpsHistory"]):
+    needObject(entry)
     result.dpsHistory.add((
       entry["timestamp"].getFloat().float32,
       entry["dps"].getFloat().float32
@@ -1178,7 +1211,8 @@ proc jsonToPerformanceStats(j: JsonNode): PerformanceStats =
   result.currentKillStreak = j["currentKillStreak"].getInt()
 
   # Parse kill streak history
-  for entry in j["killStreakHistory"]:
+  for entry in jsonItems(j["killStreakHistory"]):
+    needObject(entry)
     result.killStreakHistory.add((
       entry["timestamp"].getFloat().float32,
       entry["streak"].getInt()
@@ -1186,6 +1220,7 @@ proc jsonToPerformanceStats(j: JsonNode): PerformanceStats =
 
 # Convert JSON to ComparisonStats
 proc jsonToComparisonStats(j: JsonNode): ComparisonStats =
+  needObject(j)
   result = initComparisonStats()
   result.accuracyVsOptimal = j["accuracyVsOptimal"].getFloat()
   result.dpsVsOptimal = j["dpsVsOptimal"].getFloat()
@@ -1199,6 +1234,7 @@ proc jsonToComparisonStats(j: JsonNode): ComparisonStats =
 
 # Convert JSON to RunStatistics
 proc jsonToRunStatistics(j: JsonNode): RunStatistics =
+  needObject(j)
   result = RunStatistics(
     gameMode: parseGameMode(j["gameMode"].getStr()),
     startTime: j["startTime"].getStr(),
@@ -1236,19 +1272,19 @@ proc jsonToRunStatistics(j: JsonNode): RunStatistics =
   result.resources.coinsAtEnd = result.finalCoins
 
   # Parse events
-  for event in j["events"]:
+  for event in jsonItems(j["events"]):
     result.events.add(jsonToGameEvent(event))
 
   # Parse final power-ups
-  for powerUp in j["finalPowerUps"]:
+  for powerUp in jsonItems(j["finalPowerUps"]):
     result.finalPowerUps.add(jsonToPowerUp(powerUp))
 
   if j.hasKey("rogueliteRelics"):
-    for relicName in j["rogueliteRelics"]:
+    for relicName in jsonItems(j["rogueliteRelics"]):
       result.rogueliteRelics.add(relicName.getStr())
 
 # Load last run statistics from file
-proc loadLastRunStats*(): RunStatistics =
+proc loadLastRunStats*(): RunStatistics {.moddable.} =
   try:
     let savePath = getLastRunStatsPath()
     if not fileExists(savePath):

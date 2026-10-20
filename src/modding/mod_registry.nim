@@ -64,7 +64,7 @@ var
   wrapThingImpl*: proc (t: ModThing): ScriptValue {.nimcall.}
     ## Filled by mod_world2d; nil (no wrapper) until then.
 
-proc isFn*(v: ScriptValue): bool {.inline.} = v.kind in {vkFunction, vkNative}
+proc isFn*(v: ScriptValue): bool {.inline.} = v.kind == vkFunction
 
 proc wrapThing*(t: ModThing): ScriptValue =
   if t.isNil or wrapThingImpl.isNil: NilValue else: wrapThingImpl(t)
@@ -102,20 +102,16 @@ proc thingCall*(t: ModThing, which: proc (k: ThingKind): ScriptValue {.nimcall.}
   let k = thingKinds[i]
   callKind(k.owner, which(k), args, r)
 
-proc thingHas*(t: ModThing, which: proc (k: ThingKind): ScriptValue {.nimcall.}): bool =
-  let i = findThingKind(t.kind)
-  i >= 0 and which(thingKinds[i]).isFn and kindAlive(thingKinds[i].owner)
-
 proc numResult*(r: RetVals, fallback: float32): float32 =
   ## A callback's number result (NaN and non-numbers keep `fallback`).
   if r.count > 0 and r.first.kind == vkNumber and r.first.n == r.first.n: r.first.n.float32
   else: fallback
 
 # ---------------------------------------------------- projectile routes ----
-proc projectileOf*(b: Bullet): int {.inline.} =
+proc projectileOf(b: Bullet): int {.inline.} =
   if b.modKind.len == 0 or projectileKinds.len == 0: -1 else: findProjectileKind(b.modKind)
 
-proc steerToward(b: Bullet, target: Vector2f, rate, dt: float32) =
+proc steerToward(b: Bullet, target: Vector2, rate, dt: float32) =
   let speed = sqrt(b.vel.x * b.vel.x + b.vel.y * b.vel.y)
   let dx = target.x - b.pos.x
   let dy = target.y - b.pos.y
@@ -128,9 +124,9 @@ proc steerToward(b: Bullet, target: Vector2f, rate, dt: float32) =
   if n <= 0.0001: return
   nx /= n
   ny /= n
-  b.vel = Vector2f(x: nx * speed, y: ny * speed)
+  b.vel = Vector2(x: nx * speed, y: ny * speed)
 
-proc modProjectileUpdate*(b: Bullet, dt: float32): bool =
+proc modProjectileUpdate(b: Bullet, dt: float32): bool =
   ## True: the kind moved the bullet itself this frame. A homing kind steers
   ## first (toward the nearest enemy, or the player for an enemy's shot).
   let i = projectileOf(b)
@@ -156,7 +152,7 @@ proc modProjectileUpdate*(b: Bullet, dt: float32): bool =
   callKind(k.owner, k.update, [wrapBullet(b), vnum(dt.float64), wrapGame(modCtx.game)], r) and
     r.count > 0 and r.first.kind == vkBool and r.first.b
 
-proc modProjectileDraw*(b: Bullet): bool =
+proc modProjectileDraw(b: Bullet): bool =
   ## True: the kind drew the bullet.
   let i = projectileOf(b)
   if i < 0 or modCtx.inPvP or not projectileKinds[i].draw.isFn: return false
@@ -167,7 +163,7 @@ proc modProjectileDraw*(b: Bullet): bool =
   discard callKind(projectileKinds[i].owner, projectileKinds[i].draw, [wrapBullet(b)], r)
   true
 
-proc modProjectileHit*(b: Bullet, e: Enemy, damage: float32): float32 =
+proc modProjectileHit(b: Bullet, e: Enemy, damage: float32): float32 =
   ## The kind's onHit(bullet, enemy, damage) -> damage.
   result = damage
   let i = projectileOf(b)
@@ -177,7 +173,7 @@ proc modProjectileHit*(b: Bullet, e: Enemy, damage: float32): float32 =
               [wrapBullet(b), wrapEnemy(e), vnum(damage.float64)], r):
     result = max(0'f32, numResult(r, damage))
 
-proc modProjectileHitPlayer*(b: Bullet, damage: float32): float32 =
+proc modProjectileHitPlayer(b: Bullet, damage: float32): float32 =
   ## The kind's onHitPlayer(bullet, player, damage) -> damage.
   result = damage
   let i = projectileOf(b)
@@ -187,7 +183,7 @@ proc modProjectileHitPlayer*(b: Bullet, damage: float32): float32 =
               [wrapBullet(b), wrapPlayer(modCtx.game.player), vnum(damage.float64)], r):
     result = max(0'f32, numResult(r, damage))
 
-proc modProjectileExpire*(b: Bullet) =
+proc modProjectileExpire(b: Bullet) =
   let i = projectileOf(b)
   if i < 0 or modCtx.inPvP: return
   var r: RetVals
@@ -249,10 +245,10 @@ proc recomputeStatuses(list: seq[ModStatusInst], speed, taken, dealt: var float3
     taken += statusDefs[i].damageTaken * k
     dealt += statusDefs[i].damageDealt * k
 
-proc refreshStatuses*(e: Enemy) =
+proc refreshStatuses(e: Enemy) =
   recomputeStatuses(e.modStatuses, e.statusSpeed, e.statusDamageTaken, e.statusDamageDealt)
 
-proc refreshStatuses*(p: Player) =
+proc refreshStatuses(p: Player) =
   recomputeStatuses(p.modStatuses, p.statusSpeed, p.statusDamageTaken, p.statusDamageDealt)
 
 proc statusAt(list: seq[ModStatusInst], key: string): int =
@@ -333,7 +329,7 @@ template statusOps(T: typedesc, wrap: untyped) =
 statusOps(Enemy, wrapEnemy)
 statusOps(Player, wrapPlayer)
 
-proc drawStatusPips*(pos: Vector2f, radius: float32, list: seq[ModStatusInst], wrapped: ScriptValue) =
+proc drawStatusPips*(pos: Vector2, radius: float32, list: seq[ModStatusInst], wrapped: ScriptValue) =
   ## Small pips over an enemy (or the player): one per status, or the
   ## status's own `draw(target, x, y)` when it has one.
   if list.len == 0 or modCtx.inPvP: return
@@ -363,9 +359,9 @@ proc enemyDamageDealtMult*(e: Enemy): float32 {.inline.} =
   if e.isNil or e.modStatuses.len == 0: 1'f32 else: max(0'f32, 1 + e.statusDamageDealt)
 
 # ------------------------------------------------------------- languages ----
-proc pickText*(en, es: string): string {.inline.} =
-  ## A mod's {en, es} text in the game's language (English when no Spanish).
-  if getLanguage() == Spanish and es.len > 0: es else: en
+# (pickText, a mod's {en, es, <mod language>} text in the language in use, is
+# localization's; the registry's users get it from here.)
+export localization.pickText
 
 # ------------------------------------------------------ the `stats` DSL ----
 # Declarative stat changes for data-only content: {damage = "+10%",
@@ -379,7 +375,7 @@ type
     op*: StatOp
     value*: float32
 
-proc statFieldOk*(field: string): bool =
+proc statFieldOk(field: string): bool =
   ## A numeric field of the player.
   var found = false
   let v = reflectGet(Player(), field, found)
@@ -736,7 +732,7 @@ proc modEventTable(game: Game, i: int): ScriptValue =
                                                entityKey(EdEvent, game.survival.eventsStarted))))
   vtable(t)
 
-proc modEventCall*(game: Game, which: proc (d: SurvivalEventDef): ScriptValue {.nimcall.},
+proc modEventCall(game: Game, which: proc (d: SurvivalEventDef): ScriptValue {.nimcall.},
                    extra: openArray[ScriptValue], r: var RetVals): bool =
   ## One of the running mod event's callbacks, with (ev, game, extra...).
   let i = findSurvivalEvent(game.survival.event.modKey)
@@ -910,7 +906,7 @@ proc runModCommand*(name: string, args: seq[string], lines: var seq[string]): bo
 # ======================================================== camera and time ====
 proc modWorldTimeScale*(game: Game): float32 {.inline.} =
   ## time.scale: the whole world's clock (1 when no mod set it).
-  if game.modWorld.timeScale > 0: clamp(game.modWorld.timeScale, 0.1'f32, 2'f32) else: 1'f32
+  if game.modWorld.timeScale > 0: max(game.modWorld.timeScale, 0.01'f32) else: 1'f32
 
 proc updateModCamera*(game: Game, dt: float32) =
   ## camera.follow and the easing toward the camera's target (real time).
@@ -1062,19 +1058,19 @@ proc drawModUi*(layer: ModalLayer, w, h: int32, mx, my: float32) =
     let bw = max(measureText(modBanner.title, 26), measureText(modBanner.subtitle, 14)) + 60
     let bx = (w - bw) div 2
     let by = h div 4
-    drawRectangle(bx, by, bw, 70, Color(r: 6, g: 10, b: 18, a: uint8(210 * a)))
-    drawRectangle(bx, by, bw, 3, withAlpha(modBanner.color, int(255 * a)))
-    drawRectangle(bx, by + 67, bw, 3, withAlpha(modBanner.color, int(255 * a)))
+    drawRectangle(bx, by, bw, 70, hudSurface(Color(r: 6, g: 10, b: 18, a: uint8(210 * a))))
+    drawRectangle(bx, by, bw, 3, withAlpha(uiInk(modBanner.color), int(255 * a)))
+    drawRectangle(bx, by + 67, bw, 3, withAlpha(uiInk(modBanner.color), int(255 * a)))
     drawText(modBanner.title, (w - measureText(modBanner.title, 26)) div 2, by + 12, 26,
-             withAlpha(modBanner.color, int(255 * a)))
+             withAlpha(uiInk(modBanner.color), int(255 * a)))
     if modBanner.subtitle.len > 0:
       drawText(modBanner.subtitle, (w - measureText(modBanner.subtitle, 14)) div 2, by + 44, 14,
-               Color(r: 220, g: 230, b: 240, a: uint8(255 * a)))
+               uiInk(Color(r: 220, g: 230, b: 240, a: uint8(255 * a))))
   modCtx.drawing = prevDraw
   modCtx.hudArena = prevArena
 
 # ---- HUD cards
-proc liveHudCards*(): seq[int] =
+proc liveHudCards(): seq[int] =
   for i, c in hudCardDefs:
     if liveOwner(c.owner): result.add(i)
 
@@ -1085,7 +1081,7 @@ proc hudCardHeight(i, w: int): int =
     var r: RetVals
     if callKind(c.owner, c.measure, [vnum(w)], r) and r.count > 0 and r.first.kind == vkNumber and
        r.first.n == r.first.n:
-      result = clamp(int(r.first.n), 0, 600)
+      result = clamp(int(r.first.n), 0, 100_000)   # (int conversion range)
 
 proc drawModHudCards*(x, y, w: int32, classic: bool, mx, my: float32): int32 =
   ## register.hudCard cards stacked from (x, y), `w` wide; the y below the
@@ -1128,6 +1124,145 @@ proc runPauseAction*(i: int) =
 
 proc pauseActionName*(i: int): string = pickText(pauseActionDefs[i].nameEn, pauseActionDefs[i].nameEs)
 
+# =========================================================== mod screens ====
+# register.screen: a screen of the game's own (the gsModScreen state), opened
+# with screens.go and left with screens.back. The screens opened on top of each
+# other form a stack over one state of the game (the desktop, a run...), which
+# comes back once the last is left. Over a run, the run holds still underneath
+# and stays the run on screen for scripts (screenOverRun).
+type
+  ModScreenDef* = object
+    id*: string               ## "<mod id>:<name>"
+    owner*: int
+    enter*, update*, draw*, leave*, back*: ScriptValue
+    cursor*: bool             ## the game's pointer over the screen
+  ScreenStep = tuple[state: GameState, screen: string]
+    ## what screens.back() returns to: the game's state, or (gsModScreen) a screen
+  ScreenRequest = enum srNone, srGo, srBack, srClose
+
+var
+  modScreenDefs*: seq[ModScreenDef]
+  activeScreen*: string           ## the screen gsModScreen shows ("": none)
+  screenStack: seq[ScreenStep]
+  screenRequest: ScreenRequest
+  requestedScreen: string
+  requestedArgs: seq[ScriptValue]
+
+proc screenIndex*(id: string): int =
+  for i, d in modScreenDefs:
+    if d.id == id: return i
+  -1
+
+proc screenBaseState*(): GameState =
+  ## The game's own state under the open mod screens (gsMenu if none is open).
+  if screenStack.len > 0: screenStack[0].state else: gsMenu
+
+proc screenDepth*(): int =
+  ## Mod screens open (the one showing included).
+  (if activeScreen.len > 0: 1 else: 0) + max(screenStack.len - 1, 0)
+
+proc requestScreen*(id: string, args: openArray[ScriptValue]) =
+  ## screens.go: open `id` at the next frame's top (a safe point).
+  screenRequest = srGo
+  requestedScreen = id
+  requestedArgs = @args
+
+proc requestScreenBack*() =
+  screenRequest = srBack
+
+proc requestScreensClose*() =
+  screenRequest = srClose
+
+proc screenCall(i: int, fn: ScriptValue, args: openArray[ScriptValue], r: var RetVals,
+                safe = false): bool =
+  let owner = modScreenDefs[i].owner
+  if not fn.isFn or not kindAlive(owner): return false
+  callAs(owner, fn, args, r, safe = safe)
+
+proc leaveScreen(to: string) =
+  let i = screenIndex(activeScreen)
+  if i >= 0:
+    var r: RetVals
+    discard screenCall(i, modScreenDefs[i].leave, [vstr(to)], r, safe = true)
+  activeScreen = ""
+
+proc restoreBase(game: Game) =
+  ## Leave every mod screen: back to the game's state under them.
+  let base = screenBaseState()
+  if activeScreen.len > 0: leaveScreen($base)
+  screenStack.setLen(0)
+  if game.state == gsModScreen: game.state = base
+
+proc popScreen(game: Game) =
+  ## screens.back(): the screen (or the game's state) below this one.
+  while screenStack.len > 0:
+    let step = screenStack.pop()
+    if step.state != gsModScreen:
+      if activeScreen.len > 0: leaveScreen($step.state)
+      game.state = step.state
+      return
+    if screenIndex(step.screen) >= 0:   # (a screen whose mod went away is skipped)
+      if activeScreen.len > 0: leaveScreen(step.screen)
+      activeScreen = step.screen
+      return
+  restoreBase(game)
+
+proc applyScreenRequests*(game: Game) =
+  ## main.nim, at the top of every frame (a safe point): carry out screens.go /
+  ## back / closeAll, and notice the screens being left some other way (the
+  ## state was set elsewhere, a mod went away).
+  if game.isNil: return
+  if activeScreen.len > 0 and game.state != gsModScreen:
+    leaveScreen($game.state)   # the game (or a script) moved on by itself
+    screenStack.setLen(0)
+  let req = screenRequest
+  screenRequest = srNone
+  case req
+  of srNone: discard
+  of srGo:
+    let i = screenIndex(requestedScreen)
+    if i >= 0:
+      let source = if activeScreen.len > 0: activeScreen else: $game.state
+      if activeScreen.len > 0:
+        screenStack.add((gsModScreen, activeScreen))
+        leaveScreen(requestedScreen)
+      else:
+        screenStack.add((game.state, ""))
+      activeScreen = requestedScreen
+      game.state = gsModScreen
+      var r: RetVals
+      discard screenCall(i, modScreenDefs[i].enter, @[vstr(source)] & requestedArgs, r, safe = true)
+  of srBack: popScreen(game)
+  of srClose: restoreBase(game)
+  requestedArgs.setLen(0)
+  if game.state == gsModScreen and screenIndex(activeScreen) < 0:
+    if screenStack.len > 0: popScreen(game)   # its mod went away (or none was ever open)
+    else: game.state = gsMenu
+  screenOverRun = game.state == gsModScreen and isActiveRunState(screenBaseState())
+
+proc tickModScreen*(dt: float32) =
+  ## The gsModScreen frame's update: Esc / gamepad B runs the screen's back
+  ## (true keeps it open), else goes back; then its update(dt), a safe point.
+  let i = screenIndex(activeScreen)
+  if i < 0: return
+  var r: RetVals
+  if isBackPressed():
+    let handled = screenCall(i, modScreenDefs[i].back, [], r, safe = true) and
+                  r.count > 0 and r.first.kind == vkBool and r.first.b
+    if not handled: requestScreenBack()
+  discard screenCall(i, modScreenDefs[i].update, [vnum(dt.float64)], r, safe = true)
+
+proc drawModScreen*(w, h: int32): bool =
+  ## Its draw(w, h) in virtual screen coordinates. True: draw the game's pointer.
+  let i = screenIndex(activeScreen)
+  if i < 0: return true
+  modCtx.drawing = dtHud
+  modCtx.hudArena = (0.0, 0.0, w.float64, h.float64)
+  var r: RetVals
+  discard screenCall(i, modScreenDefs[i].draw, [vnum(w.int), vnum(h.int)], r)
+  modCtx.drawing = dtNone
+  modScreenDefs[i].cursor
+
 # -------------------------------------------------------------- teardown ----
 proc resetRegistry() {.nimcall.} =
   thingKinds.setLen(0)
@@ -1153,6 +1288,7 @@ proc resetRegistry() {.nimcall.} =
   hudCardDefs.setLen(0)
   pauseActionDefs.setLen(0)
   commandDefs.setLen(0)
+  modScreenDefs.setLen(0)   # (an open one is left at the next frame's top)
 
 proc dropRegistryOf(owner: int) {.nimcall.} =
   var keptT: seq[ThingKind]
@@ -1202,6 +1338,10 @@ proc dropRegistryOf(owner: int) {.nimcall.} =
   for m in modModals:
     if m.owner != owner: keptModals.add(m)
   modModals = keptModals
+  var keptScreens: seq[ModScreenDef]
+  for s in modScreenDefs:
+    if s.owner != owner: keptScreens.add(s)
+  modScreenDefs = keptScreens
 
 addModTeardown(resetRegistry, dropRegistryOf)
 onNewRun.add(clearModModals)   # a new run starts with no mod screens open

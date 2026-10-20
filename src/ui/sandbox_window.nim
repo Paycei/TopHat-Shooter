@@ -4,6 +4,7 @@
 ## build for any wave, then launch the sandbox.
 
 import raylib, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, os_shop, ../types, ../player, ../localization, ../render_context
 import ui_theme
@@ -37,12 +38,12 @@ type
 
 # --- Config helpers -------------------------------------------------------
 
-proc playerToSandboxConfig*(p: Player): SandboxConfig =
+proc playerToSandboxConfig(p: Player): SandboxConfig {.moddable.} =
   SandboxConfig(maxHp: p.maxHp, damage: p.damage, fireRate: p.fireRate,
                 speed: p.speed, bulletSpeed: p.bulletSpeed, walls: p.walls,
                 coins: p.coins, startWave: 1)
 
-proc baseSandboxConfig*(): SandboxConfig =
+proc baseSandboxConfig(): SandboxConfig {.moddable.} =
   ## Wave-1 baseline, read straight from a fresh Player so it never drifts
   ## out of sync with newPlayer's defaults.
   playerToSandboxConfig(newPlayer(0, 0))
@@ -125,7 +126,7 @@ proc holdStepMultiplier(repeats: int): float32 =
   let tier = repeats div 5
   result = float32(1 shl min(tier, 5))
 
-proc applySandboxConfig*(game: Game) =
+proc applySandboxConfig*(game: Game) {.moddable.} =
   ## Writes the chosen loadout through to the live player and starting wave.
   let c = game.sandboxConfig
   let p = game.player
@@ -142,21 +143,21 @@ proc applySandboxConfig*(game: Game) =
 
 # --- Window lifecycle -----------------------------------------------------
 
-proc newSandboxWindow*(screenWidth, screenHeight: int): SandboxWindow =
+proc newSandboxWindow*(screenWidth, screenHeight: int): SandboxWindow {.moddable.} =
   const windowWidth = 640
   const windowHeight = TITLE_BAR_HEIGHT + 540
   let windowX = (screenWidth - windowWidth) div 2
   let windowY = (screenHeight - windowHeight) div 2
   let osWin = newOSWindow(t(tkSandboxSetupTitle), windowX, windowY,
                           windowWidth, windowHeight,
-                          Color(r: 255, g: 210, b: 60, a: 255), owtSettings,
+                          Color(r: 255, g: 210, b: 60, a: 255),
                           resizable = false)
   osWin.visible = false
   result = SandboxWindow(window: osWin, config: baseSandboxConfig(),
                          selectedPreset: 0, holdStat: -1, holdDir: 0,
                          holdTimer: 0, holdRepeats: 0)
 
-proc resetSandboxWindow*(sw: SandboxWindow) =
+proc resetSandboxWindow*(sw: SandboxWindow) {.moddable.} =
   sw.config = baseSandboxConfig()
   sw.selectedPreset = 0
   sw.holdStat = -1
@@ -232,7 +233,7 @@ proc updateHold(sw: SandboxWindow, dt: float32) =
 
 proc updateSandboxWindow*(sw: SandboxWindow, dt: float32,
                           allWindows: openArray[OSWindow],
-                          screenWidth, screenHeight: int): SandboxWindowResult =
+                          screenWidth, screenHeight: int): SandboxWindowResult {.moddable.} =
   result = SandboxWindowResult(shouldClose: false, launchGame: false)
   if sw.isNil or sw.window.isNil or not sw.window.visible:
     result.shouldClose = true
@@ -309,7 +310,7 @@ proc drawSetupButton(r: Rectangle, label: string, fill, border, text: Color,
   drawText(label, r.x.int32 + (r.width.int32 - tw) div 2,
            r.y.int32 + (r.height.int32 - fontSize) div 2, fontSize, uiInk(text))
 
-proc drawSandboxWindowContent*(sw: SandboxWindow, cx, cy, cw, ch: int32) =
+proc drawSandboxWindowContent(sw: SandboxWindow, cx, cy, cw, ch: int32) {.moddable.} =
   let lay = computeLayout(cx, cy, cw, ch)
   let mp = getVirtualMousePosition()
 
@@ -362,7 +363,7 @@ proc drawSandboxWindowContent*(sw: SandboxWindow, cx, cy, cw, ch: int32) =
   drawSetupButton(lay.startBtn, t(tkSandboxStartRun), Color(r: 40, g: 130, b: 70, a: 255),
                   Color(r: 90, g: 220, b: 130, a: 255), White, 20, inRect(mp, lay.startBtn))
 
-proc drawSandboxWindow*(sw: SandboxWindow) =
+proc drawSandboxWindow*(sw: SandboxWindow) {.moddable.} =
   if sw.isNil or sw.window.isNil or not sw.window.visible:
     return
   drawWindowChrome(sw.window)

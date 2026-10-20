@@ -2,6 +2,7 @@
 ## Defines available OS desktop background colour themes
 
 import raylib
+import modding/mod_patch_core
 import localization
 
 type
@@ -28,7 +29,7 @@ type
 
 var desktopBgDatabase*: array[DesktopBgType, DesktopBgData]
 
-proc initializeDesktopBgSkins*() =
+proc initializeDesktopBgSkins*() {.moddable.} =
   desktopBgDatabase[dbgDefault] = DesktopBgData(
     name: t("dbg_default"), description: t("dbg_default_desc"),
     primaryColor: Color(r: 0,   g: 184, b: 225, a: 255),
@@ -113,5 +114,5 @@ proc initializeDesktopBgSkins*() =
     accentColor:  Color(r: 200, g: 40,  b: 20,  a: 255),
     bgColor:      Color(r: 6,   g: 4,   b: 5,   a: 255))
 
-proc getDesktopBgData*(bgType: DesktopBgType): DesktopBgData =
+proc getDesktopBgData*(bgType: DesktopBgType): DesktopBgData {.moddable.} =
   desktopBgDatabase[bgType]

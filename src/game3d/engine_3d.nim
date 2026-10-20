@@ -2,45 +2,10 @@
 ## Handles camera, physics, rendering, and arena generation
 
 import raylib, math
+import ../modding/mod_patch_core
 import types_3d
 
-proc vec3*(x, y, z: float32): Vector3f =
-  Vector3f(x: x, y: y, z: z)
-
-proc `+`*(a, b: Vector3f): Vector3f =
-  vec3(a.x + b.x, a.y + b.y, a.z + b.z)
-
-proc `-`*(a, b: Vector3f): Vector3f =
-  vec3(a.x - b.x, a.y - b.y, a.z - b.z)
-
-proc `*`*(v: Vector3f, s: float32): Vector3f =
-  vec3(v.x * s, v.y * s, v.z * s)
-
-proc `/`*(v: Vector3f, s: float32): Vector3f =
-  vec3(v.x / s, v.y / s, v.z / s)
-
-proc length*(v: Vector3f): float32 =
-  sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
-
-proc normalize*(v: Vector3f): Vector3f =
-  let len = v.length()
-  if len > 0: vec3(v.x / len, v.y / len, v.z / len)
-  else: vec3(0, 0, 0)
-
-proc distance*(a, b: Vector3f): float32 =
-  (b - a).length()
-
-proc dot*(a, b: Vector3f): float32 =
-  a.x * b.x + a.y * b.y + a.z * b.z
-
-proc cross*(a, b: Vector3f): Vector3f =
-  vec3(
-    a.y * b.z - a.z * b.y,
-    a.z * b.x - a.x * b.z,
-    a.x * b.y - a.y * b.x
-  )
-
-proc initCamera3D*(pos: Vector3f): FPSCamera =
+proc initCamera3D*(pos: Vector3): FPSCamera {.moddable.} =
   FPSCamera(
     position: pos,
     target: pos + vec3(0, 0, -1),
@@ -52,7 +17,7 @@ proc initCamera3D*(pos: Vector3f): FPSCamera =
     shakeTime: 0.0
   )
 
-proc updateCamera*(cam: var FPSCamera, mouseDelta: Vector2, sensitivity: float32) =
+proc updateCamera*(cam: var FPSCamera, mouseDelta: Vector2, sensitivity: float32) {.moddable.} =
   # Update yaw (horizontal) - unlimited rotation
   cam.yaw += mouseDelta.x * sensitivity
 
@@ -74,7 +39,7 @@ proc updateCamera*(cam: var FPSCamera, mouseDelta: Vector2, sensitivity: float32
   else:
     cam.shake = 0
 
-proc getForward*(cam: FPSCamera): Vector3f =
+proc getForward*(cam: FPSCamera): Vector3 {.moddable.} =
   # Convert to radians
   let yawRad = degToRad(cam.yaw)
   let pitchRad = degToRad(cam.pitch)
@@ -84,7 +49,7 @@ proc getForward*(cam: FPSCamera): Vector3f =
   result.y = sin(pitchRad)
   result.z = sin(yawRad) * cos(pitchRad)
 
-proc getRight*(cam: FPSCamera): Vector3f =
+proc getRight*(cam: FPSCamera): Vector3 {.moddable.} =
   # Convert to radians
   let yawRad = degToRad(cam.yaw)
 
@@ -93,12 +58,12 @@ proc getRight*(cam: FPSCamera): Vector3f =
   result.y = 0.0
   result.z = cos(yawRad)
 
-proc addShake*(cam: var FPSCamera, intensity: float32) =
+proc addShake*(cam: var FPSCamera, intensity: float32) {.moddable.} =
   cam.shakeTime = intensity
 
 const GRAVITY* = -20.0
 
-proc checkCollision*(pos: Vector3f, radius: float32, platforms: seq[Platform3D]): (bool, Platform3D) =
+proc checkCollision*(pos: Vector3, radius: float32, platforms: seq[Platform3D]): (bool, Platform3D) {.moddable.} =
   for platform in platforms:
     let dx = abs(pos.x - platform.pos.x)
     let dz = abs(pos.z - platform.pos.z)
@@ -109,7 +74,7 @@ proc checkCollision*(pos: Vector3f, radius: float32, platforms: seq[Platform3D])
       return (true, platform)
   (false, Platform3D())
 
-proc generateArena*(theme: string, radius: float32): Arena3D =
+proc generateArena*(theme: string, radius: float32): Arena3D {.moddable.} =
   result.radius = radius
   result.platforms = @[]
 
@@ -205,7 +170,6 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
         currentRotation: 0.0
       ))
 
-  result.environmentIntensity = 0.0
   result.gravity = GRAVITY
   result.boundsRadius = 450.0
   result.deathPlaneY = -50.0
@@ -216,7 +180,7 @@ proc generateArena*(theme: string, radius: float32): Arena3D =
   result.floorY = -9.5
   result.solidFloor = (theme == "empty")
 
-proc updatePlatforms*(platforms: var seq[Platform3D], dt: float32) =
+proc updatePlatforms*(platforms: var seq[Platform3D], dt: float32) {.moddable.} =
   for platform in platforms.mitems:
     if platform.moving:
       # Simple circular orbit
@@ -236,7 +200,7 @@ proc updatePlatforms*(platforms: var seq[Platform3D], dt: float32) =
 
 # RENDERING
 
-proc drawArena*(arena: Arena3D) =
+proc drawArena*(arena: Arena3D) {.moddable.} =
   # Draw sky
   clearBackground(arena.skyColor)
 
@@ -252,7 +216,7 @@ proc drawArena*(arena: Arena3D) =
                      arena.radius, arena.radius, 100.0, 32,
                      arena.wallColor)
 
-proc drawPlatform*(platform: Platform3D) =
+proc drawPlatform*(platform: Platform3D) {.moddable.} =
   drawCube(Vector3(x: platform.pos.x, y: platform.pos.y, z: platform.pos.z),
           platform.size.x * 2, platform.size.y * 2, platform.size.z * 2,
           platform.color)
@@ -272,11 +236,11 @@ proc drawPlatform*(platform: Platform3D) =
 
 const DefaultProjectileRadius* = 1.5'f32
 
-proc effectiveRadius*(proj: Projectile3D): float32 =
+proc effectiveRadius*(proj: Projectile3D): float32 {.moddable.} =
   ## The size a projectile hits and is drawn at (radius 0 = the default).
   if proj.radius > 0: proj.radius else: DefaultProjectileRadius
 
-proc drawProjectile*(proj: Projectile3D) =
+proc drawProjectile*(proj: Projectile3D) {.moddable.} =
   let color = if proj.color.a > 0: proj.color
               elif proj.fromPlayer: Yellow
               else: Red

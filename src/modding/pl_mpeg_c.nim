@@ -17,7 +17,6 @@ type
     count*: cuint
     interleaved*: array[PlmAudioSamplesPerFrame * 2, cfloat]
   PlmVideoCallback* = proc (plm: Plm, frame: PlmFrame, user: pointer) {.cdecl.}
-  PlmAudioCallback* = proc (plm: Plm, samples: ptr PlmSamples, user: pointer) {.cdecl.}
 
 {.push importc, cdecl.}
 proc plm_create_with_filename*(filename: cstring): Plm
@@ -30,15 +29,10 @@ proc plm_get_height*(self: Plm): cint
 proc plm_get_framerate*(self: Plm): cdouble
 proc plm_get_samplerate*(self: Plm): cint
 proc plm_set_audio_enabled*(self: Plm, enabled: cint)
-proc plm_set_audio_lead_time*(self: Plm, leadTime: cdouble)
-proc plm_get_time*(self: Plm): cdouble
 proc plm_get_duration*(self: Plm): cdouble
 proc plm_rewind*(self: Plm)
 proc plm_set_loop*(self: Plm, loop: cint)
-proc plm_has_ended*(self: Plm): cint
 proc plm_set_video_decode_callback*(self: Plm, fp: PlmVideoCallback, user: pointer)
-proc plm_set_audio_decode_callback*(self: Plm, fp: PlmAudioCallback, user: pointer)
-proc plm_decode*(self: Plm, seconds: cdouble)
 proc plm_decode_video*(self: Plm): PlmFrame
 proc plm_decode_audio*(self: Plm): ptr PlmSamples
 proc plm_seek*(self: Plm, time: cdouble, seekExact: cint): cint

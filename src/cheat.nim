@@ -1,6 +1,7 @@
 import raylib, math
+import modding/mod_patch_core
 import draw_prims
-import types, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types, enemy_config, modding/mod_state
+import types, utils, sound, gamemode_definitions, powerup, powerup_data, patches, localization, render_context, ui/os_shop, roguelite, settings, save_system, survival, particle_types, enemy_config, modding/mod_state
 
 # ENABLE/DISABLE CHEATS
 # Release-build toggle: flip to `false` to ship a build with no cheat menu.
@@ -44,7 +45,7 @@ const ALTERNATIVE_PLUS = KeyboardKey.Equal  # For keyboards without numpad
 
 var globalCheatMenu*: CheatMenu
 
-proc initCheatMenu*(): CheatMenu =
+proc initCheatMenu*(): CheatMenu {.moddable.} =
   result = CheatMenu(
     active: false,
     currentTab: cmtWaves,
@@ -78,7 +79,7 @@ proc tabLabel(tab: CheatMenuTab, index: int): string =
   of cmtRoguelite: $n & ". Rogue"
   of cmtSurvival: $n & ". Surv"
 
-proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) =
+proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) {.moddable.} =
   if not CHEATS_ENABLED: return
 
   if not canUseCheats(game.mode): return
@@ -161,7 +162,7 @@ proc checkCheatSequence*(menu: CheatMenu, game: var Game, currentTime: float32) 
         menu.keySequence.setLen(0)
     c = getCharPressed()
 
-proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
+proc updateCheatMenu*(menu: CheatMenu, game: var Game) {.moddable.} =
   if not menu.active or not CHEATS_ENABLED:
     return
 
@@ -206,7 +207,7 @@ proc updateCheatMenu*(menu: CheatMenu, game: var Game) =
     elif wheelMove > 0:
       menu.scrollOffset = max(0, menu.scrollOffset - 1)
 
-proc applyWaveCheat*(game: var Game, action: string) =
+proc applyWaveCheat(game: var Game, action: string) {.moddable.} =
   case action
   of "skip":
     game.enemies.setLen(0)
@@ -225,12 +226,12 @@ proc applyWaveCheat*(game: var Game, action: string) =
   else:
     discard
 
-proc applyPermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType, level: int) =
+proc applyPermanentPowerUpCheat(game: var Game, powerUpType: PowerUpType, level: int) {.moddable.} =
   # ApplyPowerUp owns both the stat change and the owned-power-up list update.
   applyPowerUp(game.player, PowerUp(powerType: powerUpType, level: level, rarity: prCommon))
   playSound(stPowerUp)
 
-proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
+proc removePermanentPowerUpCheat(game: var Game, powerUpType: PowerUpType) {.moddable.} =
   # Capture the live speed BEFORE the rebuild below. The rebuild reconstructs speed
   # from base + shop + remaining power-ups only, so it would discard any manual speed
   # set via the cheat menu (applyStatCheat). No power-up currently applies a speed
@@ -278,7 +279,7 @@ proc removePermanentPowerUpCheat*(game: var Game, powerUpType: PowerUpType) =
 
   playSound(stMenuSelect)
 
-proc applyStatCheat*(game: var Game, stat: string, value: float32) =
+proc applyStatCheat(game: var Game, stat: string, value: float32) {.moddable.} =
   case stat
   of "health":
     game.player.hp = min(value, game.player.maxHp)
@@ -296,7 +297,7 @@ proc applyStatCheat*(game: var Game, stat: string, value: float32) =
     discard
   playSound(stMenuSelect)
 
-proc discoverAllPowerUpsCheat*(game: var Game) =
+proc discoverAllPowerUpsCheat(game: var Game) {.moddable.} =
   ## Fill the persistent discovery codex with every PowerUpType, keyed the same
   ## way death.nim records a first install (`$powerUp.powerType`), then save so
   ## the "NEW" badge on the selection screen clears for all power-ups.
@@ -309,7 +310,7 @@ proc discoverAllPowerUpsCheat*(game: var Game) =
   discard saveSettings(globalSettings)
   playSound(stMenuSelect)
 
-proc undiscoverAllPowerUpsCheat*(game: var Game) =
+proc undiscoverAllPowerUpsCheat(game: var Game) {.moddable.} =
   ## Clear the discovery codex so every power-up reads as undiscovered again
   ## (useful for re-testing the first-discovery toast and the "NEW" badge).
   if globalSettings.isNil: return
@@ -317,7 +318,7 @@ proc undiscoverAllPowerUpsCheat*(game: var Game) =
   discard saveSettings(globalSettings)
   playSound(stMenuNav)
 
-proc setGameModesUnlockedCheat*(unlocked: bool) =
+proc setGameModesUnlockedCheat(unlocked: bool) {.moddable.} =
   ## Flip every progression-gated mode (Time Survival, Roguelite) at once and
   ## save, so the desktop launchers reflect it without a restart. Debug builds
   ## only, both ways: unlocking is a permanent reward a cheated run must not
@@ -328,7 +329,7 @@ proc setGameModesUnlockedCheat*(unlocked: bool) =
   discard saveSettings(globalSettings)
   playSound(if unlocked: stMenuSelect else: stMenuNav)
 
-proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) =
+proc applyRogueliteCurrencyCheat(game: var Game, shards: int, cores: int) {.moddable.} =
   ## Adjust the persisted meta currencies (data shards / cores) used to buy
   ## roguelite unlocks, and immediately save so the roguelite window reflects it.
   ## Debug builds only: the currency is permanent, so a player-facing cheat
@@ -342,7 +343,7 @@ proc applyRogueliteCurrencyCheat*(game: var Game, shards: int, cores: int) =
 var cheatPatchPick = succ(rrtNone)
   ## Patch the roguelite tab's picker currently shows.
 
-proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelic): bool =
+proc applyRoguelitePatchCheat(game: var Game, patch: RogueliteRelic): bool {.moddable.} =
   ## Apply a patch (a mod's too) to the live run. Marks the run cheated in release builds.
   if game.rogueliteRun.isNil: return false
   if ANTICHEAT_ENABLED:
@@ -350,10 +351,10 @@ proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelic): bool =
   result = installPatch(game, patch)
   playSound(if result: stPowerUp else: stMenuNav)
 
-proc applyRoguelitePatchCheat*(game: var Game, patch: RogueliteRelicType): bool =
+proc applyRoguelitePatchCheat(game: var Game, patch: RogueliteRelicType): bool {.moddable.} =
   applyRoguelitePatchCheat(game, makeRelic(patch))
 
-proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
+proc applySurvivalTimeCheat(game: var Game, deltaSeconds: float32) {.moddable.} =
   ## Fast-forward (or rewind) the survival clock. In time-survival mode difficulty
   ## is recomputed from game.survivalTime every frame (game.difficulty =
   ## survivalTime/SurvivalDifficultyRamp * scale, see updateGame), so this clock is
@@ -371,7 +372,7 @@ proc applySurvivalTimeCheat*(game: var Game, deltaSeconds: float32) =
     game.cheatsUsed = true
   playSound(stMenuSelect)
 
-proc applySurvivalBossCheat*(game: var Game) =
+proc applySurvivalBossCheat(game: var Game) {.moddable.} =
   ## Force the next survival boss to spawn now instead of at its scheduled time
   ## on the survival clock. The spawn still goes through
   ## bossWaveManager.canSpawnBoss(), so this won't stack a boss on top of one
@@ -379,7 +380,7 @@ proc applySurvivalBossCheat*(game: var Game) =
   game.survival.cheatForceBoss = true
   playSound(stBossSpawn)
 
-proc applySurvivalEventCheat*(game: var Game, kind: SurvivalEventKind) =
+proc applySurvivalEventCheat(game: var Game, kind: SurvivalEventKind) {.moddable.} =
   ## Start a System Event right now (replacing any running one). The scheduler
   ## picks the request up on the next live frame, outside a boss fight.
   if ANTICHEAT_ENABLED:
@@ -387,13 +388,13 @@ proc applySurvivalEventCheat*(game: var Game, kind: SurvivalEventKind) =
   game.survival.cheatEventKind = kind
   playSound(stMenuSelect)
 
-proc applySurvivalCacheCheat*(game: var Game, tier: SurvivalCacheTier) =
+proc applySurvivalCacheCheat(game: var Game, tier: SurvivalCacheTier) {.moddable.} =
   ## Drop a Data Cache of `tier` next to the player.
   if ANTICHEAT_ENABLED:
     game.cheatsUsed = true
   let x = clamp(game.player.pos.x + 80.0'f32, 50.0'f32, game.screenWidth.float32 - 50.0'f32)
   let y = clamp(game.player.pos.y, 50.0'f32, game.screenHeight.float32 - 50.0'f32)
-  game.survival.chests.add(SurvivalChest(pos: newVector2f(x, y), tier: tier, age: 1.0'f32))
+  game.survival.chests.add(SurvivalChest(pos: vec2(x, y), tier: tier, age: 1.0'f32))
   playSound(stCoinPickup)
 
 proc syncSurvivalCheatClock(game: var Game, clock: float32) =
@@ -404,7 +405,7 @@ proc syncSurvivalCheatClock(game: var Game, clock: float32) =
   if ANTICHEAT_ENABLED:
     game.cheatsUsed = true
 
-proc applySurvivalSkipPhaseCheat*(game: var Game) =
+proc applySurvivalSkipPhaseCheat(game: var Game) {.moddable.} =
   ## Jump the clock to 5 s before the next boss (its warning fires at once).
   if game.bossWaveManager.active:
     playSound(stMenuNav)
@@ -412,7 +413,7 @@ proc applySurvivalSkipPhaseCheat*(game: var Game) =
   syncSurvivalCheatClock(game, survivalNextBossTime(game) - 5.0'f32)
   playSound(stMenuSelect)
 
-proc applySurvivalJumpToFinalCheat*(game: var Game) =
+proc applySurvivalJumpToFinalCheat(game: var Game) {.moddable.} =
   ## Skip to 19:55, 5 s before the final boss, with the first three phase
   ## bosses counted as beaten.
   if game.bossWaveManager.active or game.survival.victoryAchieved:
@@ -430,7 +431,7 @@ proc drawEnemiesTab(x, y, width, height: int32, game: var Game)
 proc drawRogueliteTab(x, y, width, height: int32, game: var Game)
 proc drawSurvivalTab(x, y, width, height: int32, game: var Game)
 
-proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: int32) =
+proc drawCheatMenu*(menu: CheatMenu, game: var Game, screenWidth, screenHeight: int32) {.moddable.} =
   if not menu.active or not CHEATS_ENABLED:
     return
 
@@ -1178,17 +1179,11 @@ proc drawRogueliteTab(x, y, width, height: int32, game: var Game) =
   let run = game.rogueliteRun
   let profile = game.rogueliteProfile
 
-  # Lighten a button colour on hover using int math so we never overflow uint8.
-  proc lighten(c: Color): Color =
-    Color(r: uint8(min(255, c.r.int + 40)),
-          g: uint8(min(255, c.g.int + 40)),
-          b: uint8(min(255, c.b.int + 40)), a: 255)
-
   # Local button helper: draws a labelled button, returns true when clicked.
   proc btn(bx, by, bw, bh: int32, label: string, base, border: Color): bool =
     let rect = Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
-    drawRectangle(bx, by, bw, bh, if hovered: lighten(base) else: base)
+    drawRectangle(bx, by, bw, bh, if hovered: brighten(base, 40) else: base)
     drawRectOutline(bx, by, bw, bh, border)
     let tw = measureText(label, 12)
     drawText(label, bx + (bw - tw) div 2, by + (bh - 12) div 2, 12, White)
@@ -1288,17 +1283,11 @@ proc drawSurvivalTab(x, y, width, height: int32, game: var Game) =
   ## tab's button helpers and hardcoded-English convention (no localization keys).
   var currentY = y + 8
 
-  # Lighten a button colour on hover using int math so we never overflow uint8.
-  proc lighten(c: Color): Color =
-    Color(r: uint8(min(255, c.r.int + 40)),
-          g: uint8(min(255, c.g.int + 40)),
-          b: uint8(min(255, c.b.int + 40)), a: 255)
-
   # Local button helper: draws a labelled button, returns true when clicked.
   proc btn(bx, by, bw, bh: int32, label: string, base, border: Color): bool =
     let rect = Rectangle(x: bx.float32, y: by.float32, width: bw.float32, height: bh.float32)
     let hovered = checkCollisionPointRec(getVirtualMousePosition(), rect)
-    drawRectangle(bx, by, bw, bh, if hovered: lighten(base) else: base)
+    drawRectangle(bx, by, bw, bh, if hovered: brighten(base, 40) else: base)
     drawRectOutline(bx, by, bw, bh, border)
     let tw = measureText(label, 12)
     drawText(label, bx + (bw - tw) div 2, by + (bh - 12) div 2, 12, White)

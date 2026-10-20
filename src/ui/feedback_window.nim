@@ -5,31 +5,24 @@
 ## copy it, or save it to a file. The report building and delivery live in
 ## src/feedback.nim; this module is only the form.
 ##
-## Text entry is deliberately simple: the caret always sits at the end of the
-## active field (append, backspace, paste). While a field is active the window
-## claims the keyboard through `wantsTextInput`, so typing "e" or pressing
-## Enter can never also drive the desktop's icon navigation behind it.
+## Both fields are text_field.nim's (caret, selection, clipboard, undo; the
+## details are multi-line). While one is focused the window claims the keyboard
+## through `wantsTextInput`, so typing "e" or pressing Enter can never also
+## drive the desktop's icon navigation behind it.
 
-import raylib, std/[unicode, strutils, math]
+import raylib, std/[unicode, strutils]
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../feedback
-import ui_theme, ../utils
+import ui_theme, ../utils, text_field
 
 type
-  FeedbackField = enum
-    ffNone
-    ffTitle
-    ffDetails
-
   FeedbackWindow* = ref object
     window*: OSWindow
     kind: FeedbackKind
-    title: string
-    details: string
+    title: TextField
+    details: TextField     ## multi-line
     includeInfo: bool
-    active: FeedbackField
-    caretBlink: float32
-    backspaceHeld: float32
     status: string
     statusOk: bool
     statusTimer: float32
@@ -51,7 +44,7 @@ const
   FEEDBACK_WINDOW_WIDTH = 580
   FEEDBACK_WINDOW_HEIGHT = 548
   FIELD_FONT = 15'i32
-  DETAILS_LINE_HEIGHT = 18
+  DETAILS_LINE_HEIGHT = 18'i32
   STATUS_SECONDS = 6.0'f32
 
   # Hover ids: 0..2 are the kind pills (FeedbackKind ordinals).
@@ -89,33 +82,38 @@ proc kindHint(kind: FeedbackKind): string =
   of fkIdea: t(tkFeedbackHintIdea)
   of fkOther: t(tkFeedbackHintOther)
 
-proc newFeedbackWindow*(screenWidth, screenHeight: int): FeedbackWindow =
+proc newFeedbackWindow*(screenWidth, screenHeight: int): FeedbackWindow {.moddable.} =
   let osWin = newOSWindow(
     t(tkFeedbackWindowTitle),
     (screenWidth - FEEDBACK_WINDOW_WIDTH) div 2,
     (screenHeight - FEEDBACK_WINDOW_HEIGHT) div 2,
     FEEDBACK_WINDOW_WIDTH, FEEDBACK_WINDOW_HEIGHT,
     ColAccent,
-    owtHelp,
     resizable = false
   )
-  FeedbackWindow(window: osWin, kind: fkBug, includeInfo: true,
-                 active: ffTitle, hover: -1)
+  let field = fieldStyle(FIELD_FONT, Color(r: 235, g: 245, b: 255, a: 255),
+                         Color(r: 255, g: 130, b: 90, a: 255))
+  var lines = field
+  lines.padY = 8
+  lines.lineHeight = DETAILS_LINE_HEIGHT
+  result = FeedbackWindow(window: osWin, kind: fkBug, includeInfo: true, hover: -1,
+                          title: newTextField(field, maxChars = FeedbackTitleMaxLen),
+                          details: newTextField(lines, maxChars = FeedbackBodyMaxLen,
+                                                multiline = true))
+  result.title.focused = true
 
-proc resetFeedbackView*(fw: FeedbackWindow) =
+proc resetFeedbackView*(fw: FeedbackWindow) {.moddable.} =
   ## Called on every open. The draft survives closing the window (Esc must not
   ## eat a half-written report); only focus and the stale status reset. The
   ## title is re-read so a language switch since startup shows up here too.
   fw.window.title = t(tkFeedbackWindowTitle)
-  fw.active = if fw.title.len == 0: ffTitle else: ffDetails
+  focusField(if fw.title.text.len == 0: fw.title else: fw.details, [fw.title, fw.details])
   fw.status = ""
   fw.statusTimer = 0
-  fw.backspaceHeld = 0
 
-proc wantsTextInput*(fw: FeedbackWindow): bool =
+proc wantsTextInput*(fw: FeedbackWindow): bool {.moddable.} =
   ## True while keystrokes belong to one of this window's fields.
-  fw.window.visible and fw.window.focused and not fw.window.minimized and
-    fw.active != ffNone
+  typingIn(fw.window, fw.title) or typingIn(fw.window, fw.details)
 
 proc layout(fw: FeedbackWindow): FeedbackLayout =
   ## The single source of the form's geometry, for hit-testing and drawing.
@@ -155,107 +153,6 @@ proc layout(fw: FeedbackWindow): FeedbackLayout =
   result.note = Rectangle(x: x, y: y, width: w, height: 30)
 
 # ---------------------------------------------------------------------------
-# Text editing
-# ---------------------------------------------------------------------------
-
-proc fieldText(fw: FeedbackWindow): string =
-  if fw.active == ffTitle: fw.title else: fw.details
-
-proc setFieldText(fw: FeedbackWindow, s: string) =
-  if fw.active == ffTitle: fw.title = s
-  elif fw.active == ffDetails: fw.details = s
-
-proc fieldCap(field: FeedbackField): int =
-  if field == ffTitle: FeedbackTitleMaxLen else: FeedbackBodyMaxLen
-
-proc acceptRune(r: Rune, field: FeedbackField): string =
-  ## What `r` becomes in `field`, or "" to drop it. The UI font stops at U+00FF,
-  ## so anything past Latin-1 would render as boxes and is refused up front.
-  let c = r.int
-  if c == '\n'.ord:
-    return if field == ffDetails: "\n" else: " "
-  if c == '\t'.ord:
-    return " "
-  if c < 32 or c == 127 or c > 0xFF:
-    return ""
-  r.toUTF8
-
-proc insertText(fw: FeedbackWindow, text: string) =
-  if fw.active == ffNone:
-    return
-  let cap = fieldCap(fw.active)
-  var s = fw.fieldText
-  var count = s.runeLen
-  for r in text.runes:
-    if count >= cap:
-      break
-    if r.int == '\r'.ord:
-      continue
-    let piece = acceptRune(r, fw.active)
-    if piece.len > 0:
-      s.add(piece)
-      inc count
-  fw.setFieldText(s)
-
-proc deleteLastRune(s: var string) =
-  if s.len > 0:
-    var i = s.high
-    while i > 0 and (s[i].uint8 and 0xC0) == 0x80:  # step back over continuation bytes
-      dec i
-    s.setLen(i)
-
-proc deleteLastWord(s: var string) =
-  ## Ctrl+Backspace: trailing whitespace, then the word before it.
-  while s.len > 0 and s[^1] in Whitespace:
-    s.setLen(s.len - 1)
-  while s.len > 0 and s[^1] notin Whitespace:
-    deleteLastRune(s)
-
-proc handleTyping(fw: FeedbackWindow, dt: float32) =
-  let ctrl = isKeyDown(LeftControl) or isKeyDown(RightControl) or
-             isKeyDown(LeftSuper) or isKeyDown(RightSuper)
-
-  if isKeyPressed(Tab):
-    fw.active = if fw.active == ffTitle: ffDetails else: ffTitle
-    # getCharPressed does not queue Tab, so nothing to drain here.
-    return
-
-  if ctrl and isKeyPressed(V):
-    try:
-      fw.insertText($getClipboardText())
-    except CatchableError:
-      discard
-
-  var key = getCharPressed()
-  while key > 0:
-    if not ctrl:
-      fw.insertText(Rune(key).toUTF8)
-    key = getCharPressed()
-
-  if isKeyPressed(Enter) or isKeyPressed(KpEnter):
-    if fw.active == ffTitle:
-      fw.active = ffDetails
-    else:
-      fw.insertText("\n")
-
-  # Backspace: one on press, then auto-repeat after a short hold.
-  var deletes = 0
-  if isKeyPressed(Backspace):
-    deletes = 1
-    fw.backspaceHeld = 0
-  elif isKeyDown(Backspace):
-    fw.backspaceHeld += dt
-    if fw.backspaceHeld >= 0.4'f32:
-      deletes = 1
-      fw.backspaceHeld -= 0.035'f32
-  else:
-    fw.backspaceHeld = 0
-  if deletes > 0:
-    var s = fw.fieldText
-    if ctrl: deleteLastWord(s) else: deleteLastRune(s)
-    fw.setFieldText(s)
-
-# ---------------------------------------------------------------------------
 # Update
 # ---------------------------------------------------------------------------
 
@@ -265,20 +162,22 @@ proc setStatus(fw: FeedbackWindow, text: string, ok: bool) =
   fw.statusTimer = STATUS_SECONDS
 
 proc runAction(fw: FeedbackWindow, id: int) =
-  if not hasContent(fw.title, fw.details):
+  let title = fw.title.text
+  let details = fw.details.text
+  if not hasContent(title, details):
     fw.setStatus(t(tkFeedbackStatusEmpty), false)
-    fw.active = if fw.title.strip().len == 0: ffTitle else: ffDetails
+    focusField(if title.strip().len == 0: fw.title else: fw.details, [fw.title, fw.details])
     return
   case id
   of HoverSend:
-    case sendToGitHub(fw.kind, fw.title, fw.details, fw.includeInfo)
+    case sendToGitHub(fw.kind, title, details, fw.includeInfo)
     of srOpened: fw.setStatus(t(tkFeedbackStatusOpened), true)
     of srTruncated: fw.setStatus(t(tkFeedbackStatusTruncated), false)
   of HoverCopy:
-    copyReport(fw.kind, fw.title, fw.details, fw.includeInfo)
+    copyReport(fw.kind, title, details, fw.includeInfo)
     fw.setStatus(t(tkFeedbackStatusCopied), true)
   of HoverSave:
-    let path = saveReport(fw.kind, fw.title, fw.details, fw.includeInfo)
+    let path = saveReport(fw.kind, title, details, fw.includeInfo)
     if path.len > 0:
       fw.setStatus(t(tkFeedbackStatusSaved).replace("$1", path), true)
     else:
@@ -287,7 +186,7 @@ proc runAction(fw: FeedbackWindow, id: int) =
 
 proc updateFeedbackWindow*(fw: FeedbackWindow, dt: float32,
                            screenWidth, screenHeight: int,
-                           allWindows: openArray[OSWindow]) =
+                           allWindows: openArray[OSWindow]) {.moddable.} =
   updateOSWindow(fw.window, dt)
   if not fw.window.visible:
     return
@@ -296,7 +195,6 @@ proc updateFeedbackWindow*(fw: FeedbackWindow, dt: float32,
     fw.window.visible = false
     return
 
-  fw.caretBlink += dt
   if fw.statusTimer > 0:
     fw.statusTimer -= dt
 
@@ -313,14 +211,13 @@ proc updateFeedbackWindow*(fw: FeedbackWindow, dt: float32,
   if checkCollisionPointRec(mp, lo.copy): fw.hover = HoverCopy
   if checkCollisionPointRec(mp, lo.save): fw.hover = HoverSave
 
-  if isPointerPressed() and not fw.window.dragging:
-    if checkCollisionPointRec(mp, lo.titleField):
-      fw.active = ffTitle
-      fw.caretBlink = 0
-    elif checkCollisionPointRec(mp, lo.detailsField):
-      fw.active = ffDetails
-      fw.caretBlink = 0
-    elif fw.hover in 0 .. FeedbackKind.high.ord:
+  let fields = [fw.title, fw.details]
+  let typed = updateTextFields(fields, [lo.titleField, lo.detailsField], dt, true)
+  if typed.submitted:   # Enter in the title goes on to the details
+    focusField(fw.details, fields)
+
+  if isPointerPressed() and not fw.window.dragging and not typed.clicked:
+    if fw.hover in 0 .. FeedbackKind.high.ord:
       fw.kind = FeedbackKind(fw.hover)
     elif fw.hover == HoverCheckbox:
       fw.includeInfo = not fw.includeInfo
@@ -333,40 +230,11 @@ proc updateFeedbackWindow*(fw: FeedbackWindow, dt: float32,
                            width: fw.window.width.float32,
                            height: (fw.window.height - TITLE_BAR_HEIGHT).float32)
       if checkCollisionPointRec(mp, body):
-        fw.active = ffNone
-
-  if fw.active != ffNone:
-    fw.handleTyping(dt)
+        for f in fields: f.focused = false
 
 # ---------------------------------------------------------------------------
 # Draw
 # ---------------------------------------------------------------------------
-
-proc textW(s: string, size: int32): int32 =
-  ## Width of `s` including trailing spaces, which measureText drops in this
-  ## font -- the caret has to move when you type a space.
-  if s.len == 0: 0'i32
-  else: measureText(s & "a", size) - measureText("a", size)
-
-proc wrapField(text: string, maxWidth, size: int32): seq[string] =
-  ## Wrap typed text for display: hard newlines kept, soft breaks after the last
-  ## space that fits, and a single over-long word broken wherever it overflows.
-  ## Spaces are preserved so the caret lands where the next character will.
-  for para in text.split('\n'):
-    var line = ""
-    for r in para.runes:
-      let next = line & r.toUTF8
-      if line.len > 0 and textW(next, size) > maxWidth:
-        let cut = line.rfind(' ')
-        if cut >= 0 and cut < line.high:
-          result.add(line[0 .. cut])
-          line = line[cut + 1 .. ^1] & r.toUTF8
-        else:
-          result.add(line)
-          line = r.toUTF8
-      else:
-        line = next
-    result.add(line)
 
 proc drawField(r: Rectangle, active: bool, accent: Color) =
   drawRectangle(r.x.int32, r.y.int32, r.width.int32, r.height.int32, ColFieldBg)
@@ -385,7 +253,7 @@ proc drawButton(r: Rectangle, label: string, fill: Color, hovered: bool) =
   drawCenteredTextFit(label, r.x.int32 + 5, r.y.int32 + (r.height.int32 - 15) div 2,
                       r.width.int32 - 10, 15, uiInk(White))
 
-proc drawFeedbackWindow*(fw: FeedbackWindow) =
+proc drawFeedbackWindow*(fw: FeedbackWindow) {.moddable.} =
   if not fw.window.visible:
     return
 
@@ -403,7 +271,7 @@ proc drawFeedbackWindow*(fw: FeedbackWindow) =
                      1, withAlpha(ColAccent, 200))
 
   let lo = layout(fw)
-  let caretOn = fw.window.focused and (fw.caretBlink mod 1.0'f32) < 0.55'f32
+  let typing = hasKeyboard(fw.window)
   let accent = uiInk(kindColor(fw.kind))
 
   # --- Intro ---
@@ -431,47 +299,25 @@ proc drawFeedbackWindow*(fw: FeedbackWindow) =
   # --- Title field ---
   drawText(t(tkFeedbackTitleLabel), lo.titleField.x.int32, lo.titleLabelY.int32, 14, accent)
   let tf = lo.titleField
-  drawField(tf, fw.active == ffTitle, accent)
-  let innerW = tf.width.int32 - 16
-  if fw.title.len == 0:
+  drawField(tf, fw.title.focused, accent)
+  if fw.title.text.len == 0:
     # Hint sits past the caret slot so the two never overlap.
-    drawTextFit(t(tkFeedbackTitleHint), tf.x.int32 + 16, tf.y.int32 + 8, innerW - 8,
+    drawTextFit(t(tkFeedbackTitleHint), tf.x.int32 + 16, tf.y.int32 + 8, tf.width.int32 - 24,
                 FIELD_FONT, ColHint)
-  # Show the tail when the title outgrows the box; the caret is always there.
-  var shown = fw.title
-  while shown.len > 0 and textW(shown, FIELD_FONT) > innerW - 4:
-    shown = shown.runeSubStr(1)
-  drawText(shown, tf.x.int32 + 8, tf.y.int32 + 8, FIELD_FONT, ColTitle)
-  if fw.active == ffTitle and caretOn:
-    let caretX = tf.x.int32 + 8 + textW(shown, FIELD_FONT) + 1
-    drawRectangle(caretX, tf.y.int32 + 6, 2, 18, ColTitle)
+  drawTextField(fw.title, tf, typing)
 
   # --- Details field ---
   drawText(t(tkFeedbackDetailsLabel), lo.detailsField.x.int32, lo.detailsLabelY.int32,
            14, accent)
   let df = lo.detailsField
-  drawField(df, fw.active == ffDetails, accent)
-  let dInnerW = df.width.int32 - 16
-  let counter = $fw.details.runeLen & "/" & $FeedbackBodyMaxLen
+  drawField(df, fw.details.focused, accent)
+  let counter = $fw.details.text.runeLen & "/" & $FeedbackBodyMaxLen
   drawText(counter, df.x.int32 + df.width.int32 - measureText(counter, 11) - 6,
            df.y.int32 + df.height.int32 - 15, 11, ColHint)
-  if fw.details.len == 0:
-    for i, line in wrapTextLines(kindHint(fw.kind), dInnerW - 10, 14):
+  if fw.details.text.len == 0:
+    for i, line in wrapTextLines(kindHint(fw.kind), df.width.int32 - 26, 14):
       drawText(line, df.x.int32 + 16, df.y.int32 + 8 + (i * 18).int32, 14, ColHint)
-    if fw.active == ffDetails and caretOn:
-      drawRectangle(df.x.int32 + 8, df.y.int32 + 6, 2, 18, ColTitle)
-  else:
-    # The caret lives at the end, so keep the newest lines in view.
-    let lines = wrapField(fw.details, dInnerW, FIELD_FONT)
-    let maxVisible = (df.height.int - 24) div DETAILS_LINE_HEIGHT
-    let first = max(0, lines.len - maxVisible)
-    var yy = df.y.int32 + 8
-    for i in first ..< lines.len:
-      drawText(lines[i], df.x.int32 + 8, yy, FIELD_FONT, ColTitle)
-      if i == lines.high and fw.active == ffDetails and caretOn:
-        drawRectangle(df.x.int32 + 8 + textW(lines[i], FIELD_FONT) + 1, yy - 2, 2, 18,
-                      ColTitle)
-      yy += DETAILS_LINE_HEIGHT
+  drawTextField(fw.details, df, typing)
 
   # --- System info checkbox ---
   let cb = lo.checkbox

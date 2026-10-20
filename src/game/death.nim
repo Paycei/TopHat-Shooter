@@ -1,6 +1,7 @@
 import raylib, rlgl, random, math
+import ../modding/mod_patch_core
 import draw_prims
-import types, settings, save_system, run_save, suspend, enemy, bullet, consumable, coin, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite, game/bullets, ui/icon_drawing, utils
+import types, settings, save_system, run_save, suspend, enemy, bullet, consumable, coin, pickup, wall, boss_definitions, particle, particle_pool, particle_types, powerup, powerup_data, sound, d_systems, gamemode_definitions, run_statistics, enemy_config, localization, roguelite, game/bullets, ui/icon_drawing, utils
 import modding/mod_hooks
 export utils
 
@@ -15,7 +16,6 @@ const DEATH_FAST_SCALE = 1.35'f32
 ## A 15-minute stand is the threshold below which the run just rolls to game-over.
 const SURVIVAL_ENDING_MIN_TIME* = 900.0'f32
 
-
 proc getDeathSequenceTimeScale(timer: float32): float32 =
   if timer < DEATH_SLOW_DURATION:
     return DEATH_SLOW_SCALE
@@ -27,7 +27,7 @@ proc getDeathSequenceTimeScale(timer: float32): float32 =
 
   DEATH_FAST_SCALE
 
-proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) =
+proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) {.moddable.} =
   ## Centralized install feedback so every selected power-up feels like an event.
   ## `quiet` skips the per-install card, shake and sound: a survival Data Cache
   ## installs several at once and shows them on its own reveal overlay.
@@ -82,7 +82,7 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) =
                        accent, if powerUp.rarity == prLegendary: 72 else: 46)
   playSound(stPowerUp, if powerUp.rarity == prLegendary: 1.0 else: 0.85)
 
-proc drawRecentPowerUpInstall*(game: Game) =
+proc drawRecentPowerUpInstall*(game: Game) {.moddable.} =
   if game.recentPowerUpTimer <= 0.0 or game.recentPowerUpMaxTimer <= 0.0:
     return
 
@@ -219,7 +219,7 @@ proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
   return ("", false)
 
 proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
-                               source: Enemy = nil, sourceType: EnemyType = etEnvironment) =
+                               source: Enemy = nil, sourceType: EnemyType = etEnvironment) {.moddable.} =
   ## Starts the delayed singleplayer death playback before the game-over screen.
   if game.state == gsDeathSequence or game.state == gsGameOver:
     return
@@ -258,13 +258,13 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   game.deathSequenceTimeScale = DEATH_SLOW_SCALE
   game.selectedGameOverButton = 0
   game.player.hp = 0
-  game.player.vel = newVector2f(0, 0)
+  game.player.vel = vec2(0, 0)
   game.player.timeWarpActive = false
   game.player.timeWarpDuration = 0
   spawnPlayerDeathExplosion(game)
   addShake(game.dopamine.screenShake, siMassive)
 
-proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
+proc updateDeathSequencePlayback*(game: var Game, dt: float32) {.moddable.} =
   game.deathSequenceTimer += dt
   game.deathSequenceTimeScale = getDeathSequenceTimeScale(game.deathSequenceTimer)
   let worldDt = dt * game.deathSequenceTimeScale
@@ -324,19 +324,8 @@ proc updateDeathSequencePlayback*(game: var Game, dt: float32) =
         continue
     inc i
 
-  i = 0
-  while i < game.coins.len:
-    if not updateCoin(game.coins[i], worldDt, game.coins.len):
-      game.coins.delete(i)
-    else:
-      inc i
-
-  i = 0
-  while i < game.consumables.len:
-    if not updateConsumable(game.consumables[i], worldDt):
-      game.consumables.delete(i)
-    else:
-      inc i
+  expirePickups(game, game.coins, worldDt)
+  expirePickups(game, game.consumables, worldDt)
 
   i = 0
   while i < game.walls.len:

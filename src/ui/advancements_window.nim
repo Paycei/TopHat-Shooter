@@ -1,6 +1,7 @@
 ## OS-themed advancement tracker window.
 
 import raylib, strutils, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../advancement, ../render_context, ../localization, ../types, ../roguelite, ../utils, ui_helpers
 import ui_theme
@@ -67,7 +68,7 @@ proc rowForDef(rows: seq[AdvRow], defIndex: int): AdvRow =
       return row
   AdvRow(kind: arkCard, defIndex: -1, y: 0, h: 0)
 
-proc tierColor*(tier: AdvancementTier): Color =
+proc tierColor*(tier: AdvancementTier): Color {.moddable.} =
   case tier
   of atBronze:
     Color(r: 190, g: 120, b: 70, a: 255)
@@ -121,19 +122,6 @@ proc statusLabel(entry: AdvancementEntry): string =
     "Unlocked"
   else:
     "In Progress"
-
-proc drawWrappedText(text: string, x, y, maxWidth: int, fontSize: int32,
-                     stockColor: Color, maxLines: int = 6, lineGap: int = 6,
-                     minSize: int32 = 9): int =
-  let color = uiInk(stockColor)
-  var lineY = y
-  let wrappedFontSize = bestWrapFontSize(text, maxWidth.int32, fontSize, maxLines, minSize)
-  let lines = wrapTextLines(text, maxWidth.int32, wrappedFontSize)
-  let linesToDraw = min(lines.len, maxLines)
-  for idx in 0..<linesToDraw:
-    drawText(lines[idx], x.int32, lineY.int32, wrappedFontSize, color)
-    lineY += wrappedFontSize.int + lineGap
-  result = lineY
 
 proc drawProgressBar(x, y, width, height: int, ratio: float32, color: Color,
                      complete: bool = false, pulse: float32 = 0.0'f32) =
@@ -203,7 +191,7 @@ proc hoverEnabled(advWin: AdvancementsWindow, mousePos: Vector2): bool =
   not advWin.isNil and not advWin.window.isNil and advWin.window.focused and
     isPointInWindow(advWin.window, mousePos.x, mousePos.y)
 
-proc payoutText*(def: AdvancementDefinition): string =
+proc payoutText(def: AdvancementDefinition): string {.moddable.} =
   ## Human-readable claim payout, e.g. "+90 Shards" or "+200 Shards, +1 Cores".
   result = "+" & $def.rewardShards & " " & t("roguelite_shards_short")
   if def.rewardCores > 0:
@@ -216,7 +204,7 @@ proc saveClaimedProfiles(advWin: AdvancementsWindow) =
 
 proc newAdvancementsWindow*(screenWidth, screenHeight: int,
                             profile: AdvancementProfile,
-                            rogueliteProfile: RogueliteProfile): AdvancementsWindow =
+                            rogueliteProfile: RogueliteProfile): AdvancementsWindow {.moddable.} =
   let windowWidth = 940
   let windowHeight = 660
   let windowX = (screenWidth - windowWidth) div 2
@@ -227,7 +215,6 @@ proc newAdvancementsWindow*(screenWidth, screenHeight: int,
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 90, g: 220, b: 255, a: 255),
-    owtStatistics,
     resizable = false
   )
 
@@ -259,7 +246,7 @@ proc ensureSelection(advWin: AdvancementsWindow) =
 
 proc updateAdvancementsWindow*(advWin: AdvancementsWindow, dt: float32,
                                screenWidth, screenHeight: int,
-                               allWindows: openArray[OSWindow]): bool =
+                               allWindows: openArray[OSWindow]): bool {.moddable.} =
   if advWin.isNil or advWin.window.isNil:
     return false
 
@@ -493,7 +480,7 @@ proc drawAdvancementCard(advWin: AdvancementsWindow, def: AdvancementDefinition,
     let pct = $int(ratio * 100.0'f32) & "%"
     drawText(pct, (x + width - 58).int32, (barY - 3).int32, 12, uiInk(statusColor(entry)))
 
-proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
+proc drawAdvancementsWindow*(advWin: AdvancementsWindow) {.moddable.} =
   if advWin.isNil or advWin.window.isNil or not advWin.window.visible:
     return
 
@@ -611,7 +598,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
   drawPanel(listX, listY, ListWidth, bodyH, categoryName(advWin.currentCategory))
   let listDescEnd = drawWrappedText(categoryDescription(advWin.currentCategory),
                                     listX + 9, listY + 31, ListWidth - 18, 12,
-                                    Color(r: 160, g: 175, b: 195, a: 255), 2)
+                                    Color(r: 160, g: 175, b: 195, a: 255), 2, 6)
 
   let defs = definitionsForCategory(advWin.currentCategory)
   let cardStartY = max(listY + 52, listDescEnd + 10)
@@ -669,7 +656,7 @@ proc drawAdvancementsWindow*(advWin: AdvancementsWindow) =
     discard drawTextFit(selectedDef.name, (detailX + 14).int32, (bodyY + 55).int32, (detailW - 28).int32, 22, uiInk(White), 12)
     let descEnd = drawWrappedText(selectedDef.description, detailX + 14, bodyY + 90,
                                   detailW - 28, 14,
-                                  Color(r: 180, g: 192, b: 210, a: 255), 4)
+                                  Color(r: 180, g: 192, b: 210, a: 255), 4, 6)
 
     let progressY = descEnd + 20
     drawText(t(tkAdvProgress), (detailX + 14).int32, progressY.int32, 13, uiInk(LightGray))

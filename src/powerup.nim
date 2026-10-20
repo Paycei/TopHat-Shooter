@@ -1,14 +1,15 @@
 import raylib, random, math, tables
+import modding/mod_patch_core
 import types, powerup_data, patches, ui/os_powerup_installer, d_visuals
 import modding/[mod_hooks, lua_bridge]
 
-proc hasPowerUp*(player: Player, powerType: PowerUpType): bool =
+proc hasPowerUp*(player: Player, powerType: PowerUpType): bool {.moddable.} =
   for p in player.powerUps:
     if p.powerType == powerType:
       return true
   return false
 
-proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int =
+proc getPowerUpLevel*(player: Player, powerType: PowerUpType): int {.moddable.} =
   for p in player.powerUps:
     if p.powerType == powerType:
       return p.level
@@ -32,23 +33,23 @@ const
   JuggernautSpeedCost*   = 0.40'f32  ## Move speed lost per point of damage bonus (up to -18%)
   JuggernautPlatingHp*   = 3.0'f32   ## Max HP the plating itself bolts on (counts as invested)
 
-proc juggernautInvestedHp*(player: Player): float32 {.inline.} =
+proc juggernautInvestedHp(player: Player): float32 {.inline, moddable.} =
   ## Max HP the build actually bought/earned, with automatic growth excluded.
   max(0.0'f32, player.maxHp - player.baselineMaxHp)
 
-proc juggernautDamageBonus*(player: Player): float32 =
+proc juggernautDamageBonus*(player: Player): float32 {.moddable.} =
   ## Fractional damage bonus from Juggernaut (0 when the power-up isn't owned).
   if not hasPowerUp(player, puMaxHealth):
     return 0.0'f32
   min(juggernautInvestedHp(player) * JuggernautDamagePerHp, JuggernautDamageCap)
 
-proc juggernautSpeedMult*(player: Player): float32 =
+proc juggernautSpeedMult*(player: Player): float32 {.moddable.} =
   ## Movement multiplier paid for the bonus above. 1.0 without the power-up.
   1.0'f32 - juggernautDamageBonus(player) * JuggernautSpeedCost
 
 # --- Bulwark (puBulwark) -----------------------------------------------------
 
-proc bulwarkMaxBonus*(level: int): float32 {.inline.} =
+proc bulwarkMaxBonus(level: int): float32 {.inline, moddable.} =
   ## Damage bonus at completely intact plating (full HP), by level.
   case level
   of 0: 0.0'f32
@@ -56,7 +57,7 @@ proc bulwarkMaxBonus*(level: int): float32 {.inline.} =
   of 2: 0.18'f32
   else: 0.25'f32
 
-proc bulwarkDamageBonus*(player: Player): float32 =
+proc bulwarkDamageBonus*(player: Player): float32 {.moddable.} =
   ## Bulwark scales with the *fraction* of HP still intact, not the raw pool, so
   ## it can't ride the automatic max-HP inflation the way old Juggernaut did.
   ## Full HP pays in full; every hit strips plating, healing welds it back on.
@@ -68,7 +69,7 @@ proc bulwarkDamageBonus*(player: Player): float32 =
 
 proc isOfferable*(player: Player, pt: PowerUpType,
                   allowed: set[RoguelitePowerFamily],
-                  mode: GameMode): bool {.inline.} =
+                  mode: GameMode): bool {.inline, moddable.} =
   let def = powerUpDef(pt)
   (def.allowedModes == {} or mode in def.allowedModes) and
     def.family in allowed and
@@ -76,7 +77,7 @@ proc isOfferable*(player: Player, pt: PowerUpType,
 
 proc isPowerUpPoolExhausted*(player: Player, isLegendary: bool,
                               allowedPowerFamilies: set[RoguelitePowerFamily],
-                              mode: GameMode): bool =
+                              mode: GameMode): bool {.moddable.} =
   ## Returns true when no power-up in the relevant pool can be offered.
   let pool = if isLegendary: legendaryPool else: normalPool
   for pt in pool:
@@ -105,7 +106,7 @@ proc modPowerUpChoices(player: Player, choices: var array[3, PowerUp]) =
 
 proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
                              allowedPowerFamilies: set[RoguelitePowerFamily] = {rpfCore..rpfBlood},
-                             mode: GameMode): array[3, PowerUp] =
+                             mode: GameMode): array[3, PowerUp] {.moddable.} =
   # Generate 3 random power-up options with COMPLETELY SEPARATE pools
   var availablePowerUps: seq[PowerUp] = @[]
 
@@ -213,13 +214,13 @@ proc generatePowerUpChoices*(player: Player, isLegendary: bool = false,
 const ORB_ORBIT_RADIUS_BASE = 42.0
 const ORB_ORBIT_RING_GAP    = 34.0
 
-proc getOrbRingRadius*(player: Player, level: int): float32 =
+proc getOrbRingRadius(player: Player, level: int): float32 {.moddable.} =
   ## Level 1 -> ring 1, level 2 -> ring 2, level 3 -> ring 3, level 4 (legendary) -> ring 4.
   ## All orbs of the same level share exactly one ring, different levels never touch.
   result = player.radius * 4.5 + ORB_ORBIT_RADIUS_BASE +
            float32(level - 1) * ORB_ORBIT_RING_GAP
 
-proc redistributeAllOrbs*(player: Player) =
+proc redistributeAllOrbs*(player: Player) {.moddable.} =
   ## For each level tier: collect orbs, interleave by element type
   ## (1,2,3,1,2,3...), then assign evenly-spaced angles on that ring.
   for lv in 1..4:
@@ -264,7 +265,7 @@ proc redistributeAllOrbs*(player: Player) =
       player.rotatingOrbs[idx].radius = r
       player.rotatingOrbs[idx].angle  = float32(j) * PI * 2.0 / float32(totalOrbs)
 
-proc createRotatingOrbs*(player: Player, level: int) =
+proc createRotatingOrbs(player: Player, level: int) {.moddable.} =
   ## Legendary: adds 1 orb of each of the 7 elements on ring 4 (outermost).
   ## Clears existing level-4 orbs first so reapply never duplicates them.
   var i = 0
@@ -283,7 +284,7 @@ proc createRotatingOrbs*(player: Player, level: int) =
     ))
   redistributeAllOrbs(player)
 
-proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) =
+proc createElementalOrbs(player: Player, elementType: ElementType, level: int) {.moddable.} =
   ## Replace all orbs of this element, tagged with the new level.
   ## Level 1 -> 4 orbs on ring 1, level 2 -> 8 orbs on ring 2, level 3 -> 12 orbs on ring 3.
   ## All other elements' orbs are untouched, redistributeAllOrbs re-spaces every ring.
@@ -310,12 +311,12 @@ proc createElementalOrbs*(player: Player, elementType: ElementType, level: int) 
 
   redistributeAllOrbs(player)
 
-proc getElementColor*(elementType: ElementType): Color =
+proc getElementColor*(elementType: ElementType): Color {.moddable.} =
   ## Visual color for each element type. Delegates to the canonical
   ## `elementColor` table in types.nim (kept as an alias for existing callers).
   elementColor(elementType)
 
-proc getElementDamage*(level: int): float32 =
+proc getElementDamage*(level: int): float32 {.moddable.} =
   ## Get base damage per hit based on power-up level
   ## Compensated with reduced damage multiplier in game logic
   case level
@@ -323,14 +324,14 @@ proc getElementDamage*(level: int): float32 =
   of 2: 2.5
   else: 3.5
 
-proc getHeavyRoundsSizeMultiplier*(level: int): float32 =
+proc getHeavyRoundsSizeMultiplier*(level: int): float32 {.moddable.} =
   case level
   of 0: 1.0
   of 1: 1.1
   of 2: 1.2
   else: 1.25
 
-proc rotatingShieldHealth*(level: int): float32 =
+proc rotatingShieldHealth(level: int): float32 {.moddable.} =
   ## Health of each Rotating Shield segment (100/250/400 displayed HP, as the
   ## tooltips say). Single table for both the first pickup and upgrades, which
   ## used to disagree (upgrades applied 4.0/5.0).
@@ -339,14 +340,14 @@ proc rotatingShieldHealth*(level: int): float32 =
   of 2: 2.5
   else: 4.0
 
-proc rotatingShieldRegenDelay*(level: int): float32 =
+proc rotatingShieldRegenDelay(level: int): float32 {.moddable.} =
   ## Seconds before a broken segment re-forms (6s / 5s / 3s).
   case level
   of 1: 6.0
   of 2: 5.0
   else: 3.0
 
-proc getFortifiedMaxHpBonus*(level: int): float32 =
+proc getFortifiedMaxHpBonus(level: int): float32 {.moddable.} =
   ## TOTAL max-HP granted by Fortified at the given level (250/500/750 displayed).
   ## Cumulative, not per-level: an upgrade must apply the difference between two
   ## calls, never the whole value again.
@@ -356,7 +357,7 @@ proc getFortifiedMaxHpBonus*(level: int): float32 =
   of 2: 5.0   # +500 HP
   else: 7.5   # +750 HP
 
-proc applyPowerUp*(player: Player, powerUp: PowerUp) =
+proc applyPowerUp*(player: Player, powerUp: PowerUp) {.moddable.} =
   # A mod may take over a power-up's pickup effect (powerUpApply hook).
   if modPowerUpApply(player, powerUpScriptName(powerUp.powerType), powerUp.level):
     return
@@ -625,10 +626,10 @@ proc applyPowerUp*(player: Player, powerUp: PowerUp) =
   if isModPowerUp(powerUp.powerType) and not modPowerUpApplied.isNil:
     modPowerUpApplied(player, powerUp.powerType, powerUp.level)
 
-proc drawPowerUpSelection*(game: Game) =
+proc drawPowerUpSelection*(game: Game) {.moddable.} =
   drawOSPowerUpInstaller(game)
 
-proc drawPowerUpSelectionExhausted*(game: Game) =
+proc drawPowerUpSelectionExhausted*(game: Game) {.moddable.} =
   drawPowerUpInstallerExhausted(game)
 
   # Draw combo notification in BOTTOM RIGHT corner during power-up screen
@@ -661,7 +662,7 @@ proc generateRandomPowerUpExcluding(mode: GameMode, allowed: set[RoguelitePowerF
 
   PowerUp(powerType: availableTypes[rand(availableTypes.high)], level: 1, rarity: rarity)
 
-proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
+proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) {.moddable.} =
   ## Update the slot machine roll animation.
   ##
   ## Three phases per slot:
@@ -727,7 +728,7 @@ proc updatePowerUpRollAnimation*(game: Game, deltaTime: float32) =
     game.rollAnimationActive = false
     game.canSelectPowerUp    = true
 
-proc skipPowerUpRollAnimation*(game: Game) =
+proc skipPowerUpRollAnimation*(game: Game) {.moddable.} =
   ## Snap all three reels to their results and unlock selection immediately.
   ##
   ## The reel is a lovely flourish the first time and a toll booth the twentieth.
@@ -741,7 +742,7 @@ proc skipPowerUpRollAnimation*(game: Game) =
   game.rollAnimationActive = false
   game.canSelectPowerUp    = true
 
-proc initPowerUpRollAnimation*(game: Game) =
+proc initPowerUpRollAnimation*(game: Game) {.moddable.} =
   ## Initialize the slot machine roll animation.
   ##
   ## List-length guide (cardHeight=380, sharedSpeed=1400, brakeDuration=0.45):
@@ -795,7 +796,7 @@ proc initPowerUpRollAnimation*(game: Game) =
     # Final entry is always this slot's actual result
     game.rollPowerUpList[i].add(game.powerUpChoices[i])
 
-proc attemptRerollPowerUps*(game: Game): bool =
+proc attemptRerollPowerUps*(game: Game): bool {.moddable.} =
   ## Try to reroll the power-up options
   ## Returns true if successful, false if insufficient coins
 
@@ -827,7 +828,7 @@ proc attemptRerollPowerUps*(game: Game): bool =
 
   return true
 
-proc initializeRerollCost*(game: Game) =
+proc initializeRerollCost*(game: Game) {.moddable.} =
   ## Initialize the reroll cost at the start of a power-up selection.
   ## Base cost 25 credits, +25 per reroll. Patches: Discount Protocol takes
   ## 20% off every reroll; Draft Cache makes each installer's first one free.

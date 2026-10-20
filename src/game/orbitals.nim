@@ -1,11 +1,12 @@
 import raylib, rlgl, math, tables
+import ../modding/mod_patch_core
 import types, player, particle_pool, particle_types, powerup, game/combat, game/bullets
 from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, trackHealing
 
 # ORBITAL WEAPONS SYSTEM
 
 proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
-                    baseDamage: float32, orbPos: Vector2f,
+                    baseDamage: float32, orbPos: Vector2,
                     stats: CombatStats) =
   ## Apply damage from orb to enemy (the caller owns the hit cooldown)
 
@@ -74,7 +75,7 @@ proc applyOrbDamage(game: var Game, orb: RotatingOrb, enemy: Enemy,
                   isCritical = damageWithCrit > actualBaseDamage, damageType = dtDefault)
 
 proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
-                     baseDamage: float32, orbPos: Vector2f, dt: float32,
+                     baseDamage: float32, orbPos: Vector2, dt: float32,
                      stats: CombatStats, shielded: bool) =
   ## Apply element-specific effects from orb to enemy. `shielded` = a Port
   ## Guard's shield took the orb: its burns and lifesteal ride on damage that
@@ -255,7 +256,7 @@ proc applyOrbEffects(game: var Game, orb: RotatingOrb, enemy: Enemy,
   of etNone:
     discard
 
-proc updateOrbitalWeapons*(game: var Game, dt: float32) =
+proc updateOrbitalWeapons*(game: var Game, dt: float32) {.moddable.} =
   ## Update all rotating orbs and handle collisions with enemies
 
   # Check if player has any orb power-ups
@@ -298,7 +299,7 @@ proc updateOrbitalWeapons*(game: var Game, dt: float32) =
     let angle = orbRotDir * game.player.orbRotationAngle + orb.angle
     let orbX = game.player.pos.x + cos(angle) * orb.radius
     let orbY = game.player.pos.y + sin(angle) * orb.radius
-    let orbPos = newVector2f(orbX, orbY)
+    let orbPos = vec2(orbX, orbY)
 
     # Check collisions with enemies
     for enemy in game.enemies:

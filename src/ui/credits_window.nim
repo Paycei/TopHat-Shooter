@@ -7,6 +7,7 @@
 ## the buttons cannot be clicked. The credits above it are unaffected.
 
 import raylib
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ui_helpers, ../localization, ../render_context, ../feedback
 import ui_theme
@@ -53,7 +54,7 @@ proc creditsWindowHeight(): int =
   if supportPanelVisible():
     result += SUPPORT_PANEL_HEIGHT
 
-proc newCreditsWindow*(screenWidth, screenHeight: int): CreditsWindow =
+proc newCreditsWindow*(screenWidth, screenHeight: int): CreditsWindow {.moddable.} =
   let windowWidth = CREDITS_WINDOW_WIDTH
   let windowHeight = creditsWindowHeight()
   let windowX = (screenWidth - windowWidth) div 2
@@ -64,7 +65,6 @@ proc newCreditsWindow*(screenWidth, screenHeight: int): CreditsWindow =
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 110, b: 160, a: 255),  # pink
-    owtHelp,
     resizable = false
   )
 
@@ -104,7 +104,7 @@ proc supportButtonRects(cw: CreditsWindow): seq[Rectangle] =
 
 proc updateCreditsWindow*(cw: CreditsWindow, dt: float32,
                           screenWidth, screenHeight: int,
-                          allWindows: openArray[OSWindow]) =
+                          allWindows: openArray[OSWindow]) {.moddable.} =
   ## Update window chrome and handle support-button clicks. Closing is signalled
   ## by setting cw.window.visible = false (handled here), like the help window.
   updateOSWindow(cw.window, dt)
@@ -139,16 +139,14 @@ proc drawSupportButton(r: Rectangle, link: SupportLink, hovered: bool) =
   drawRectOutline(r, (if hovered: 2.0 else: 1.5),
                      uiLine(Color(r: 255, g: 255, b: 255, a: if hovered: 220 else: 120)))
   # Shrink the caption until it fits so brand names never spill out of the pill.
-  var fontSize = 15'i32
-  while fontSize > 9 and measureText(link.label, fontSize) > r.width.int32 - 12:
-    dec fontSize
+  let fontSize = bestFitFontSize(link.label, r.width.int32 - 12, 15)
   let tw = measureText(link.label, fontSize)
   drawText(link.label,
            r.x.int32 + (r.width.int32 - tw) div 2,
            r.y.int32 + (r.height.int32 - fontSize) div 2,
            fontSize, link.text)
 
-proc drawCreditsWindow*(cw: CreditsWindow) =
+proc drawCreditsWindow*(cw: CreditsWindow) {.moddable.} =
   if not cw.window.visible:
     return
 

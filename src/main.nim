@@ -1,8 +1,12 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import draw_prims, post_fx
 import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, input_intent, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
-import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_examples, mod_registry], ui/mods_window
-import ui/ui_theme
+import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_registry, mod_deep, mod_market], ui/mods_window
+import ui/ui_theme, ui/text_field
+import modding/mod_mixin_game   # last: binds every {.moddable.} proc imported above
+import modding/[mod_engine_game, mod_engine_ui]   # engine.call for the rest of the game's procs
+when defined(debug):
+  import modding/[mod_apidoc, mod_docs]   # nimble modapi (--dump-mod-api) and its staleness check
 
 when defined(mobile):
   import mobile_controls  # updateMobileControls / drawMobileControls hooks
@@ -475,6 +479,8 @@ proc updateRenderScale() =
                              screenWidth.int32, screenHeight.int32)
   updateWorldView()
 
+var frameState = gsSplash   ## the state this frame runs (mods' drawOverlay hook)
+
 proc beginGameDrawing() =
   ## Begin drawing to the virtual render target
   beginTextureMode(renderTarget)
@@ -486,6 +492,7 @@ proc beginGameDrawing() =
 
 proc endGameDrawing() =
   ## End drawing to render target and blit to screen with letterboxing
+  modDrawOverlay(frameState, screenWidth, screenHeight)   # mods: over everything, any state
   popMatrix()
   endTextureMode()
 
@@ -542,7 +549,7 @@ proc applyWindowMode(fullscreen: bool) =
                      (monitorHeight - screenHeight) div 2)
   updateRenderScale()
 
-proc hasMouseMoved*(game: Game): bool =
+proc hasMouseMoved(game: Game): bool =
   ## Detects if mouse has actually moved (not just hovering)
   let currentPos = getVirtualMousePosition()
   let dx = abs(currentPos.x - game.lastMousePos.x)
@@ -608,7 +615,7 @@ proc draftGameplayInputHeld(): bool =
       return true
   false
 
-proc updateMouseTracking*(game: Game) =
+proc updateMouseTracking(game: Game) =
   ## Updates mouse position tracking and resets keyboard flag if mouse moved
   let currentPos = getVirtualMousePosition()
   if hasMouseMoved(game):
@@ -618,14 +625,14 @@ proc updateMouseTracking*(game: Game) =
   if isPointerPressed() or isMouseButtonPressed(Right) or isMouseButtonPressed(Middle):
     game.mouseMovedRecently = true
     game.keyboardUsedRecently = false
-  game.lastMousePos = newVector2f(currentPos.x, currentPos.y)
+  game.lastMousePos = vec2(currentPos.x, currentPos.y)
 
-proc markKeyboardUsed*(game: Game) =
+proc markKeyboardUsed(game: Game) =
   ## Marks that keyboard was just used, disabling mouse selection temporarily
   game.keyboardUsedRecently = true
   game.mouseMovedRecently = false
 
-proc drawCustomCursor*(time: float32) =
+proc drawCustomCursor(time: float32) =
   ## Draw custom crosshair cursor (only when system cursor is hidden)
   when defined(mobile):
     # There is no pointer to draw on touch: the emulated cursor never leaves the
@@ -657,7 +664,7 @@ proc drawCustomCursor*(time: float32) =
           Vector2(x: mousePos.x, y: mousePos.y + 8), 2, White)
 
   # Center dot
-  drawDisc(Vector2(x: mousePos.x, y: mousePos.y), 2, Red)
+  drawDisc(mousePos, 2, Red)
 
 proc drawCknPointer(pos: Vector2) =
   ## CKN OS's pointer: a plain white arrow with an ink rim, tip on the spot.
@@ -678,7 +685,9 @@ proc drawCknPointer(pos: Vector2) =
     drawStroke(at(i), at((i + 1) mod outline.len), 1.4'f32, CknInk)
 
 proc drawDesktopCursor(time: float32) =
-  ## The pointer over the desktop and its windows, in the interface theme.
+  ## The pointer over the desktop, its windows and a run's menu screens (pause,
+  ## shop, installer, endings), in the interface theme. Live play keeps the
+  ## crosshair: there it is the aim, not a pointer.
   case activeTheme().shell
   of ssTopHat: drawCustomCursor(time)
   of ssCkn: drawCknPointer(getVirtualMousePosition())
@@ -791,13 +800,63 @@ proc initializeAllCosmetics() =
   initializeDesktopBgSkins()
   initializeCubeSkins()
 
+proc reloadModsShowingProgress(enabled, equippedCosmetics: seq[string]) =
+  ## reloadMods, drawing a loading screen while the mods run (startup, a
+  ## profile switch, MODS.EXE's Apply & Reload). A mod's main script still
+  ## runs in one piece, but the window is redrawn and the music fed between
+  ## mods, so a heavy set no longer freezes the game. A set that is done
+  ## within ShowAfter never shows the screen.
+  const
+    ShowAfter = 0.15          # seconds: don't flash the screen for a light set
+    StepBudget = 1.0 / 60.0   # light mods run back to back within this much of a frame
+    CompleteHold = 0.3'f32    # let the filled bar be seen before it closes
+  let reload = beginModReload(enabled, equippedCosmetics)
+  let started = getTime()
+  var screen: LoadingScreen = nil
+  var done = false
+  var completeHold = 0.0'f32
+  while true:
+    if not done:
+      let stepStart = getTime()
+      while not done and getTime() - stepStart < StepBudget:
+        done = stepModReload(reload)
+    if screen.isNil:
+      if done: break
+      if getTime() - started < ShowAfter: continue
+      screen = newLoadingScreen()
+      screen.kind = lkMods
+    if windowShouldClose():
+      # Closing: finish without drawing, the frame loop then sees the close.
+      while not stepModReload(reload): discard
+      break
+
+    let dt = getFrameTime()
+    updateMusic()
+    updateModMedia(false)
+    screen.update(dt)
+    screen.setAssetCounts(modReloadDone(reload), modReloadTotal(reload))
+    if done:
+      screen.setProgress(1.0, t(tkLoadingModsComplete))
+      completeHold += dt
+      if completeHold >= CompleteHold:
+        break
+    else:
+      # (no next mod: only the set's publishing is left, the label stays)
+      let next = modReloadNextName(reload)
+      screen.setProgress(float32(modReloadDone(reload) / max(modReloadTotal(reload), 1)),
+                         if next.len > 0: t(tkLoadingLoadingMod).replace("$1", next) else: "")
+
+    beginGameDrawing()
+    screen.draw(screenWidth, screenHeight)
+    endGameDrawing()
+
 proc main() =
   randomize()
 
   when defined(debug):
     # Wiring the compiler cannot see: untranslated keys and boss IDs whose
     # per-ID tables (weak point, process name, definition) were missed.
-    for problem in missingTranslations() & bossRosterProblems():
+    for problem in missingTranslations() & bossRosterProblems() & unboundModdables():
       echo "[self-check] ", problem
 
   # Save-profile bootstrap: convert pre-profile saves into profile 1, then
@@ -828,6 +887,7 @@ proc main() =
     setConfigFlags(flags(WindowResizable))
 
   initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v6.4 Edition")
+  useMonotonicScriptClock()   # the mod watchdog times scripts on raylib's clock
   setTargetFPS(targetFPS)
   setExitKey(Null)
   when defined(android):
@@ -914,13 +974,23 @@ proc main() =
 
   # Mods (MODS.EXE): this profile's enabled mods load once the window, sounds
   # and cosmetics exist. Mod strings can rename cosmetics, so the databases are
-  # rebuilt after a set that loaded anything.
-  reloadMods(settings.enabledMods, settings.modCosmetics)
+  # rebuilt after a set that loaded anything. Safe mode: if the last session
+  # went down with mods loaded, this one starts without them (the profile
+  # keeps its list; MODS.EXE's Apply & Reload brings them back).
+  # The marketplace first: downloads finished last session are swapped in by
+  # the reload. `--mod-registry <folder|url>` points it at another registry
+  # (a checkout, to try an entry before its pull request).
+  block:
+    let args = commandLineParams()
+    let at = args.find("--mod-registry")
+    initMarketplace(if at >= 0 and at + 1 < args.len: args[at + 1] else: "")
+  if modSessionCrashed():
+    reloadMods(@[], settings.modCosmetics)
+    modNotices.add(t(tkModsSafeMode))
+  else:
+    reloadModsShowingProgress(settings.enabledMods, settings.modCosmetics)
   if modsActive:
     initializeAllCosmetics()
-  # Installed example mods this build ships newer versions of: toasted once,
-  # on the first desktop visit (MODS.EXE tags them and says how to update).
-  var exampleUpdateCount = exampleUpdates().len
 
   let cheatMenu = initCheatMenu()
 
@@ -1029,6 +1099,26 @@ proc main() =
 
   # Initialize window manager with all windows
   globalWindowManager = newWindowManager(screenWidth, screenHeight, settings, stats, advancementProfile, rogueliteProfile)
+  # Mods: main()'s long-lived state, reachable from engine.globals (these
+  # locals live as long as the game does; a new run or profile is seen as is).
+  registerModGlobal("game", addr currentGame)
+  registerModGlobal("desktop", addr osDesktop)
+  registerModGlobal("windows", addr globalWindowManager)
+  registerModGlobal("advancements", addr advancementProfile)
+  when defined(debug):
+    # The mod API reference must match this build: `nimble modapi` runs this
+    # exe with --dump-mod-api <dir>, which writes it from a VM with no mods
+    # (here: once every engine global is registered).
+    let cliArgs = commandLineParams()
+    let dumpAt = cliArgs.find("--dump-mod-api")
+    if dumpAt >= 0:
+      reloadMods(@[])
+      let dir = if dumpAt + 1 < cliArgs.len: cliArgs[dumpAt + 1] else: "mods-sdk"
+      let written = dumpModApi(dir)
+      echo(if written: "mod API written to " & dir else: "could not write the mod API to " & dir)
+      quit(if written: 0 else: 1)
+    if not modsActive and buildModApi().md != embeddedModApi():
+      echo "[self-check] mods-sdk/API.md is out of date: run `nimble modapi`"
   # MODS.EXE Game Modes rows: every mod game mode, and whether its own save
   # slots hold a run to continue.
   modeRowsBuilder = proc (): seq[ModModeRow] =
@@ -1042,15 +1132,15 @@ proc main() =
       for r in mods:
         if r.index == m.owner: modName = r.name
       result.add(ModModeRow(
-        name: (if spanish and m.nameEs.len > 0: m.nameEs else: m.nameEn),
-        description: (if spanish and m.descEs.len > 0: m.descEs else: m.descEn),
+        name: pickText(m.nameEn, if spanish: m.nameEs else: ""),
+        description: pickText(m.descEn, if spanish: m.descEs else: ""),
         modName: modName, baseName: baseName,
         # A mode a mod made unresumable offers no saved run, only a restore point.
         canContinue: (m.resumable and (hasSuspendSnapshot(m.base, m.key) or hasSavedRun(m.base, m.key))) or
                      hasBlockCheckpoint(m.base, m.key)))
   refreshModsWindow(globalWindowManager.mods)
   # Pre-load saved nickname into pvp window and host network manager
-  globalWindowManager.pvp.inputNickname = settings.pvpNickname
+  globalWindowManager.pvp.nicknameField.setText(settings.pvpNickname)
   globalWindowManager.pvp.networkManager.hostNickname = settings.pvpNickname
 
   proc setActiveRogueliteProfile(profile: RogueliteProfile) =
@@ -1093,8 +1183,8 @@ proc main() =
     reloadSettingsFromDisk(settings)
     applySettings(settings)
     applyWindowMode(settings.fullscreen)
-    # Each profile keeps its own enabled mods.
-    reloadMods(settings.enabledMods, settings.modCosmetics)
+    # Each profile keeps its own enabled mods (a loading screen while they run).
+    reloadModsShowingProgress(settings.enabledMods, settings.modCosmetics)
     initializeAllCosmetics()
     if not globalWindowManager.isNil and not globalWindowManager.mods.isNil:
       refreshModsWindow(globalWindowManager.mods)
@@ -1121,7 +1211,7 @@ proc main() =
       if not globalWindowManager.advancements.isNil:
         globalWindowManager.advancements.profile = advancementProfile
       if not globalWindowManager.pvp.isNil:
-        globalWindowManager.pvp.inputNickname = settings.pvpNickname
+        globalWindowManager.pvp.nicknameField.setText(settings.pvpNickname)
         globalWindowManager.pvp.networkManager.hostNickname = settings.pvpNickname
 
   proc refreshAdvancementProfile() =
@@ -1302,9 +1392,18 @@ proc main() =
   var windowCloseRequested = false  # True once the OS close button is clicked
 
   while not windowCloseRequested:
-    # Mods: a mod that keeps blowing its per-frame script budget (in a run, on
-    # the desktop, in an app) is switched off; last frame's times are judged here.
-    modFrameCheck()
+    # Mods: last frame's script time goes into MODS.EXE's ms/frame, and the
+    # watchdog's per-frame total starts again. os.exit closes the game the
+    # normal way (saving the run like the window's close button).
+    modFrameTick()
+    runDeferredCalls()   # a safe point: no list of the game is being walked
+    releaseScriptResources()   # what scripts let go of last frame, now that it is drawn
+    if modQuitWanted():
+      windowCloseRequested = true
+      break
+    modFrame(currentGame.state, getFrameTime())
+    applyScreenRequests(currentGame)   # screens.go / back (mod screens, gsModScreen)
+    frameState = currentGame.state
     # Mod achievements unlocked last frame: a toast over the run, or on the desktop.
     if advancementToasts.len > 0:
       for msg in advancementToasts:
@@ -1317,7 +1416,8 @@ proc main() =
     if windowShouldClose():
       let isInGame = currentGame.state in {gsPlaying, gsPaused, gsShop, gsCountdown,
                                            gsWaveCleared, gsPowerUpSelect, gsDeathSequence,
-                                           gsRogueliteFloorSelect, gsPvPPlaying, gs3DBoss}
+                                           gsRogueliteFloorSelect, gsPvPPlaying, gs3DBoss} or
+                     (currentGame.state == gsModScreen and screenOverRun)
       # Show the quit-confirm popup when an active game session is running (full
       # anti-accident cooldown to protect the in-progress run). The main menu, the
       # game-over/victory screens (and the run-stats screen reached from them), and
@@ -1436,7 +1536,8 @@ proc main() =
 
     # Mods' 2D camera (camera.zoom): only over a PvE run on the arena; the
     # identity camera everywhere else (desktop, PvP, 3D worlds).
-    if not currentGame.isNil and currentGame.mode != gmPvP and currentGame.state != gs3DBoss and
+    if not currentGame.isNil and currentGame.mode != gmPvP and
+       currentGame.state notin {gs3DBoss, gsModScreen} and
        isActiveRunState(currentGame.state) and currentGame.modWorld.camZoom > 1.0'f32:
       setWorldCamera(currentGame.modWorld.camZoom, currentGame.modWorld.camCurX,
                      currentGame.modWorld.camCurY, currentGame.screenWidth.float32,
@@ -1514,8 +1615,10 @@ proc main() =
 
     # A 3D world belongs to the game that entered it: a replaced game (profile
     # switch, new mode) or a state that left gs3DBoss must not leave it dangling.
+    # (A mod screen opened over the world keeps it: it comes back on screens.back.)
+    let worldState = if currentGame.state == gsModScreen: screenBaseState() else: currentGame.state
     if activeWorld3D != nil and (currentGame.game3D != cast[pointer](activeWorld3D) or
-                                 currentGame.state != gs3DBoss):
+                                 worldState != gs3DBoss):
       activeWorld3D = nil
       currentGame.game3D = nil
 
@@ -1524,7 +1627,17 @@ proc main() =
     if not isActiveRunState(currentGame.state):
       modOutsideRun(currentGame.state == gsPvPPlaying)
     modWatchState(currentGame)
-    postShaderInRun = isActiveRunState(currentGame.state)
+    postShaderInRun = isActiveRunState(currentGame.state) and currentGame.state != gsModScreen
+
+    # Mods: a screenUpdate handler returning true takes this frame over (the
+    # state's own update and drawing are skipped; screenDraw paints it).
+    frameState = currentGame.state
+    if modScreenUpdate(currentGame.state, dt):
+      beginGameDrawing()
+      modScreenDraw(frameState, screenWidth, screenHeight)
+      drawDesktopCursor(getTime().float32)
+      endGameDrawing()
+      continue
 
     case currentGame.state
     of gsSplash:
@@ -1608,22 +1721,28 @@ proc main() =
 
       let mousePos = getVirtualMousePosition()
       let rects = languageOptionRects(screenWidth.int32, screenHeight.int32)
+      var modLanguageNames: seq[string]   # register.language: under the two cards
+      for l in modLanguages: modLanguageNames.add(l.name)
+      let modRects = modLanguageOptionRects(screenWidth.int32, screenHeight.int32, modLanguageNames.len)
 
       # Pick by clicking a card or pressing 1 / 2.
-      var chosen = -1
+      var chosen = ""
       if languageSelectGuard <= 0:
         if isPointerPressed():
           for i, r in rects:
             if checkCollisionPointRec(mousePos, r):
-              chosen = i
+              chosen = if i == LangSpanish: $Spanish else: $English
               break
-        if isKeyPressed(KeyboardKey.One): chosen = LangEnglish
-        elif isKeyPressed(KeyboardKey.Two): chosen = LangSpanish
+          for i, r in modRects:
+            if checkCollisionPointRec(mousePos, r):
+              chosen = modLanguages[i].id
+              break
+        if isKeyPressed(KeyboardKey.One): chosen = $English
+        elif isKeyPressed(KeyboardKey.Two): chosen = $Spanish
 
-      if chosen >= 0:
-        let lang = if chosen == LangSpanish: Spanish else: English
-        setLanguage(lang)
-        settings.language = $lang
+      if chosen.len > 0:
+        discard useLanguage(chosen)
+        settings.language = chosen
         discard saveSettings(settings)
         playSound(stMenuSelect)
         # Rebuild now: the startup instance resolved its tape labels and title
@@ -1633,7 +1752,8 @@ proc main() =
         currentGame.state = gsLoreIntro
 
       beginGameDrawing()
-      drawLanguageSelect(screenWidth.int32, screenHeight.int32, currentGame.time, mousePos)
+      drawLanguageSelect(screenWidth.int32, screenHeight.int32, currentGame.time, mousePos,
+                         modLanguageNames)
       drawCustomCursor(currentGame.time)
       endGameDrawing()
 
@@ -1746,8 +1866,6 @@ proc main() =
           case cutsceneContinuation
           of cscMenu:
             currentGame.state = gsMenu
-          of cscVictory:
-            currentGame.state = gsVictory
           of cscLaunchGame:
             # Mode-intro finished: start the loading animation and hand off to gsMenu.
             # Mark the intro as seen + save happens in the mode-launch helper (Stage 3).
@@ -2018,9 +2136,12 @@ proc main() =
       # hit-tested in its own scale layer (they no longer share one), so the
       # window manager resolves the pointer per window rather than taking one.
       # (Skip when the confirm dialog is open so nothing behind it is clickable.)
+      # A press on the desktop itself takes the keyboard back from the windows.
       if not globalConfirmActive:
-        discard globalWindowManager.handleWindowClick(desktopUIScale(),
-                                                     screenWidth.int, screenHeight.int)
+        if not globalWindowManager.handleWindowClick(desktopUIScale(),
+                                                    screenWidth.int, screenHeight.int) and
+           isPointerPressed():
+          globalWindowManager.unfocusAllWindows()
       let mouseOverWindow = globalWindowManager.isMouseOverAnyWindow(
         desktopUIScale(), screenWidth.int, screenHeight.int)
 
@@ -2063,11 +2184,15 @@ proc main() =
           showDesktopToast(osDesktop, t(tkDesktopAdvancementUnlocked) & ": " &
                            unlockedDef.name)
 
+      # Marketplace downloads that finished (installs swap in here, on the
+      # desktop); with MODS.EXE closed, what they say becomes toasts.
+      for line in pollMarketplace(globalWindowManager.mods):
+        modNotices.add(line)
       # MODS.EXE asked for a reload (Apply & Reload): done here, on the desktop,
       # so a run always sees one fixed mod set.
       if modReloadRequested and not globalConfirmActive:
         modReloadRequested = false
-        reloadMods(settings.enabledMods, settings.modCosmetics)
+        reloadModsShowingProgress(settings.enabledMods, settings.modCosmetics)
         initializeAllCosmetics()
         refreshModsWindow(globalWindowManager.mods)
         showDesktopToast(osDesktop, t(tkModsReloadedToast) & ": " & summaryText())
@@ -2084,11 +2209,6 @@ proc main() =
           .replace("$1", $pendingProfileRefund.shards)
           .replace("$2", $pendingProfileRefund.cores))
         pendingProfileRefund = (0, 0)
-
-      if exampleUpdateCount > 0 and osDesktop.toasts.len < MAX_DESKTOP_TOASTS and
-         not globalConfirmActive:
-        showDesktopToast(osDesktop, t(tkModsUpdatesToast).replace("$1", $exampleUpdateCount))
-        exampleUpdateCount = 0
 
       # Handle OS desktop input and get action (only if no windows are blocking and confirm is not open)
       var action = if not mouseOverWindow and not globalConfirmActive and not resumePromptActive and
@@ -2209,7 +2329,7 @@ proc main() =
             bulletSkinType: globalSettings.bulletSkin,
             shapeType: globalSettings.playerShape,
             particleSkinType: globalSettings.particleEffect,
-            nickname: globalWindowManager.pvp.inputNickname
+            nickname: globalWindowManager.pvp.nicknameField.text
           ))
 
           # Add all connected clients with their nicknames
@@ -2283,18 +2403,18 @@ proc main() =
         of 3:  # Back/Cancel
           resetPvPWindow(globalWindowManager.pvp)
         of 4:  # Connect
-          if globalWindowManager.pvp.inputIP.len > 0:
+          if globalWindowManager.pvp.ipField.text.len > 0:
             var port = pvp_window.DEFAULT_PORT
             try:
-              port = parseInt(globalWindowManager.pvp.inputPort)
+              port = parseInt(globalWindowManager.pvp.portField.text)
             except ValueError:
               port = pvp_window.DEFAULT_PORT
             # Save and apply nickname before connecting
-            let chosenNick = if globalWindowManager.pvp.inputNickname.len > 0:
-              globalWindowManager.pvp.inputNickname else: "Player"
+            let chosenNick = if globalWindowManager.pvp.nicknameField.text.len > 0:
+              globalWindowManager.pvp.nicknameField.text else: "Player"
             settings.pvpNickname = chosenNick
             discard saveSettings(settings)
-            connectToGame(globalWindowManager.pvp, globalWindowManager.pvp.inputIP, port,
+            connectToGame(globalWindowManager.pvp, globalWindowManager.pvp.ipField.text, port,
                          settings.playerSkin, settings.bulletSkin,
                          settings.playerShape, settings.particleEffect,
                          chosenNick)
@@ -2303,7 +2423,7 @@ proc main() =
           var gameConnectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]] = @[]
 
           # Add host (player 0) with their nickname
-          let hostNickname = globalWindowManager.pvp.inputNickname
+          let hostNickname = globalWindowManager.pvp.nicknameField.text
           gameConnectedPlayers.add((
             index: 0,
             skinType: globalSettings.playerSkin,
@@ -2330,8 +2450,8 @@ proc main() =
           echo "[MAIN] Host sent game start signal with ", gameConnectedPlayers.len, " players"
         of 6:  # Start Hosting
           # Save and apply host nickname
-          let hostNick = if globalWindowManager.pvp.inputNickname.len > 0:
-            globalWindowManager.pvp.inputNickname else: "Player"
+          let hostNick = if globalWindowManager.pvp.nicknameField.text.len > 0:
+            globalWindowManager.pvp.nicknameField.text else: "Player"
           settings.pvpNickname = hostNick
           discard saveSettings(settings)
           globalWindowManager.pvp.networkManager.hostNickname = hostNick
@@ -2575,7 +2695,6 @@ proc main() =
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
         try:
-          runCallbacks(currentGame.discordClient)
           updateDiscordForMenu(currentGame.discordClient)
         except Exception as e:
           echo "Discord error in menu: ", e.msg
@@ -2679,7 +2798,6 @@ proc main() =
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil and not cheatMenu.active:
         try:
-          runCallbacks(currentGame.discordClient)
           updateDiscordForPlaying(currentGame.discordClient, currentGame)
         except Exception as e:
           echo "Discord error during gameplay: ", e.msg
@@ -2815,7 +2933,7 @@ proc main() =
             var landing = shiftStart
             for step in countdown(10, 1):
               let reach = dashDistance.float32 * step.float32 / 10.0'f32
-              let candidate = newVector2f(
+              let candidate = vec2(
                 clamp(shiftStart.x + dashDir.x * reach, currentGame.player.radius,
                       currentGame.screenWidth.float32 - currentGame.player.radius),
                 clamp(shiftStart.y + dashDir.y * reach, currentGame.player.radius,
@@ -3034,7 +3152,7 @@ proc main() =
             # run a wide loop just sees enemies fly away from nothing. Feed the
             # sampled path (oldest first) to a swept shockwave; the crest then
             # retraces the route backwards exactly like the damage resolution.
-            var pathPoints: seq[Vector2f] = @[]
+            var pathPoints: seq[Vector2] = @[]
             for p in history:
               pathPoints.add(p)
             spawnPathShockwave(currentGame, pathPoints, shockwaveWidth, AftershockColor)
@@ -3195,7 +3313,8 @@ proc main() =
 
       # Normal 2D rendering
       drawGame(currentGame)
-      drawTutorialOverlay(currentGame, hudInterfaceScale())
+      themeLayer:
+        drawTutorialOverlay(currentGame, hudInterfaceScale())
 
       # Touch joysticks + action buttons, on top of the game/HUD (mobile only).
       # Drawn before the interface layer below opens: the buttons are laid out
@@ -3209,7 +3328,8 @@ proc main() =
       beginUIScaleMode(hudInterfaceScale())
       # Draw sandbox UI if in sandbox mode (it hit-tests inside its own draw)
       if isSandboxMode(currentGame.mode):
-        drawSandboxSidebar(currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
+        themeLayer:
+          drawSandboxSidebar(currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
 
       # Draw cheat menu overlay if active
       drawCheatMenu(cheatMenu, currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
@@ -3228,7 +3348,7 @@ proc main() =
           let text = t(tkGame3DEntering)
           let textWidth = measureText(text, 30)
           drawText(text, screenWidth div 2 - textWidth div 2,
-                  screenHeight div 2, 30, White)
+                  screenHeight div 2, 30, uiOverlay(White))
 
       # Desktop toasts overlay (advancement unlocks etc.)
       tickDesktopToasts(osDesktop, dt)
@@ -3305,8 +3425,10 @@ proc main() =
         currentGame.confirmQuitFrameGuard = max(0.0'f32, currentGame.confirmQuitFrameGuard - dt)
 
       # Only handle pause menu controls if no window is blocking interaction
-      # and neither confirm dialog is active
-      if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending:
+      # (by the pointer, or a text field taking the keys) and neither confirm
+      # dialog is active
+      if not mouseOverWindow and not globalConfirmActive and not currentGame.confirmQuitPending and
+         not globalWindowManager.wantsTextInput():
         # Pause menu navigation - Tab switching (Left/Right, A/D or the D-pad),
         # cycling through whichever tabs this mode shows.
         let keyLeft = isKeyPressed(Left) or isKeyPressed(A)
@@ -3365,7 +3487,6 @@ proc main() =
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
         try:
-          runCallbacks(currentGame.discordClient)
           updateDiscordForPaused(currentGame.discordClient, currentGame)
         except Exception as e:
           echo "Discord error while paused: ", e.msg
@@ -3387,7 +3508,9 @@ proc main() =
       # Draw OS-style Task Manager pause menu and handle mouse interactions. It
       # hit-tests inside its own draw, so one scale layer covers both halves.
       beginUIScaleMode(overlayUIScaleFor(TaskManagerPanelW, TaskManagerPanelH))
+      let pauseThemed = beginThemeLayer()
       let menuResult = drawOSTaskManager(currentGame, currentGame.pauseMenuTab)
+      endThemeLayer(pauseThemed)
       endUIScaleMode()
 
       # Handle tab changes from mouse (only if no windows are blocking and no confirm is open)
@@ -3427,7 +3550,6 @@ proc main() =
       globalWindowManager.drawAllWindows(currentGame, desktopUIScale(),
                                          screenWidth.int, screenHeight.int)
 
-
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
       # (separate from the in-game quit-to-menu confirm dialog)
       if globalConfirmActive:
@@ -3436,7 +3558,9 @@ proc main() =
 
       # Draw quit-confirmation dialog on top of everything if pending
       if currentGame.confirmQuitPending:
+        let quitThemed = beginThemeLayer()
         let confirmDlg = drawQuitConfirmDialog(currentGame, not modRunResumable(currentGame))
+        endThemeLayer(quitThemed)
         if confirmDlg.confirmed:
           currentGame.confirmQuitPending = false
           # Perform the actual quit-to-menu
@@ -3456,7 +3580,7 @@ proc main() =
           currentGame.pauseMenuExitCooldown = 2.0  # prevent immediate re-trigger
 
       # Draw custom cursor on top of everything (including the confirm dialog)
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -3558,7 +3682,7 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
-      withTheme(stockTheme()):   # a run's screen, not the desktop's
+      themeLayer:
         drawRogueliteFloorSelect(currentGame)
       endUIScaleMode()
 
@@ -3571,7 +3695,7 @@ proc main() =
           if globalConfirmContext == cdcQuitToDesktop: windowCloseRequested = true
           else: closeRogueliteFloorSelect()
 
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
       endGameDrawing()
 
     of gsShop:
@@ -3656,7 +3780,8 @@ proc main() =
       beginGameDrawing()
       drawGame(currentGame)
       beginUIScaleMode(overlayUIScaleFor(ShopPanelW, ShopPanelH))
-      drawShop(currentGame)
+      themeLayer:
+        drawShop(currentGame)
       endUIScaleMode()
 
       # Draw quit-confirmation dialog on top of everything if triggered by OS close button
@@ -3665,7 +3790,7 @@ proc main() =
         if r == 1: windowCloseRequested = true
 
       # Draw custom cursor
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -3690,6 +3815,7 @@ proc main() =
       # subtitle are UI over the live arena, so they take the HUD scale and
       # measure against that layer's viewport.
       beginUIScaleMode(hudInterfaceScale())
+      let countdownThemed = beginThemeLayer()
       let screenWidth = getVirtualScreenWidth()
       let screenHeight = getVirtualScreenHeight()
 
@@ -3724,7 +3850,7 @@ proc main() =
                   (screenWidth div 2 - glowWidth div 2).int32,
                   (screenHeight div 2 - glowSize div 2).int32,
                   glowSize.int32,
-                  Color(r: 255, g: 200, b: 0, a: glowAlpha))
+                  uiOverlay(Color(r: 255, g: 200, b: 0, a: glowAlpha)))
 
         # Main text
         let textColor = if countdownValue > 0.5:
@@ -3736,7 +3862,7 @@ proc main() =
                 screenWidth div 2 - textWidth div 2,
                 screenHeight div 2 - textSize div 2,
                 textSize,
-                textColor)
+                uiOverlay(textColor))
 
         # Subtitle
         let subtitle = "READY?"
@@ -3745,8 +3871,9 @@ proc main() =
                 screenWidth div 2 - subWidth div 2,
                 screenHeight div 2 + 80,
                 40,
-                Color(r: 255, g: 255, b: 100, a: alpha))
+                uiOverlay(Color(r: 255, g: 255, b: 100, a: alpha)))
 
+      endThemeLayer(countdownThemed)
       endUIScaleMode()
 
       # Draw OS-close confirmation dialog on top of everything if triggered by close button
@@ -3770,7 +3897,7 @@ proc main() =
       updatePlayer(currentGame.player, dt, currentGame.screenWidth, currentGame.screenHeight, currentGame.walls)
 
       # Update coins and handle collection
-      updateCoinsWaveCleared(currentGame, dt)
+      discard updateGameCoins(currentGame, dt)
 
       # Update particles and remove dead ones
 
@@ -3827,8 +3954,7 @@ proc main() =
               Color(r: 0, g: 0, b: 0, a: 100))
 
       # Main text
-      drawText(waveText, textX, textY, waveTextSize,
-              Color(r: 150, g: 255, b: 150, a: 255))
+      drawText(waveText, textX, textY, waveTextSize, uiOverlay(150, 255, 150))
 
       endUIScaleMode()
 
@@ -3931,13 +4057,14 @@ proc main() =
 
         beginGameDrawing()
         beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
-        drawPowerUpSelectionExhausted(currentGame)
+        themeLayer:
+          drawPowerUpSelectionExhausted(currentGame)
         endUIScaleMode()
         if globalConfirmActive:
           let r = drawGlobalConfirmDialog()
           if r == 1: windowCloseRequested = true
         drawInGameToasts(osDesktop)
-        drawCustomCursor(currentGame.time)
+        drawDesktopCursor(currentGame.time)
         endGameDrawing()
 
       else:
@@ -4061,7 +4188,8 @@ proc main() =
 
         beginGameDrawing()
         beginUIScaleMode(overlayUIScaleFor(InstallerPanelW, InstallerPanelH))
-        drawPowerUpSelection(currentGame)
+        themeLayer:
+          drawPowerUpSelection(currentGame)
         endUIScaleMode()
 
         # Draw quit-confirmation dialog on top of everything if triggered by OS close button
@@ -4070,7 +4198,7 @@ proc main() =
           if r == 1: windowCloseRequested = true
 
         drawInGameToasts(osDesktop)
-        drawCustomCursor(currentGame.time)
+        drawDesktopCursor(currentGame.time)
         endGameDrawing()
 
     of gsGameOver:
@@ -4296,7 +4424,8 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
-      drawGameOver(currentGame)
+      themeLayer:
+        drawGameOver(currentGame)
       endUIScaleMode()
 
       # Confirmation dialog: OS close button (quit contexts) or the
@@ -4311,7 +4440,7 @@ proc main() =
         # r == -1: cancelled, dialog already dismissed
 
       # Draw custom cursor on game over screen
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
 
       endGameDrawing()
 
@@ -4399,13 +4528,13 @@ proc main() =
 
       beginGameDrawing()
       # Dark OS backdrop with subtle scan lines behind the floating window
-      clearBackground(Color(r: 20, g: 20, b: 30, a: 255))
+      clearBackground(uiSurface(20, 20, 30))
       for i in 0..<(screenHeight div 3):
         let lineY = i * 3 + int(currentGame.time * 50.0) mod 3
         let alpha = uint8(3 + sin(currentGame.time + i.float32) * 3.0)
         drawStroke(Vector2(x: 0, y: lineY.float32),
                 Vector2(x: screenWidth.float32, y: lineY.float32),
-                1, Color(r: 40, g: 60, b: 80, a: alpha))
+                1, uiLine(Color(r: 40, g: 60, b: 80, a: alpha)))
 
       if statsWin.window.visible:
         beginUIScaleMode(statsVp.scale)
@@ -4417,18 +4546,17 @@ proc main() =
         let footerText = t(tkStatsControlsFooter)
         let footerWidth = measureText(footerText, 14)
         drawText(footerText, (getVirtualScreenWidth() - footerWidth) div 2,
-                getVirtualScreenHeight() - 26, 14,
-                Color(r: 0, g: 180, b: 255, a: 255))
+                getVirtualScreenHeight() - 26, 14, uiInk(0, 180, 255))
         endUIScaleMode()
       elif currentGame.state == gsRunStats:
         # Fallback if no stats available (skipped on the one frame where the
         # window was just dismissed and we are about to leave this state)
         beginUIScaleMode(overlayUIScale())
         drawText(t(tkSystemNoStatistics),
-                getVirtualScreenWidth() div 2 - 150, getVirtualScreenHeight() div 2, 24, Red)
+                getVirtualScreenWidth() div 2 - 150, getVirtualScreenHeight() div 2, 24, uiInk(Red))
         drawText(t(tkSystemPressESCToReturn),
                 getVirtualScreenWidth() div 2 - 120, getVirtualScreenHeight() div 2 + 40,
-                18, LightGray)
+                18, uiInk(LightGray))
         endUIScaleMode()
 
       if globalConfirmActive:
@@ -4438,7 +4566,7 @@ proc main() =
           of cdcPostGameExit: doReturnToMenuFromStats()
           else: windowCloseRequested = true
 
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
       endGameDrawing()
 
     of gsVictory:
@@ -4549,7 +4677,8 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(SystemScreenPanelW, SystemScreenPanelH))
-      drawVictory(currentGame)
+      themeLayer:
+        drawVictory(currentGame)
       endUIScaleMode()
       if globalConfirmActive:
         let r = drawGlobalConfirmDialog()
@@ -4557,7 +4686,7 @@ proc main() =
           case globalConfirmContext
           of cdcPostGameExit: doReturnToMenuFromVictory()
           else: windowCloseRequested = true
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
       endGameDrawing()
 
     of gsRogueliteVictory:
@@ -4631,10 +4760,10 @@ proc main() =
 
       beginGameDrawing()
       beginUIScaleMode(overlayUIScaleFor(RoguelitePanelW, RoguelitePanelH))
-      withTheme(stockTheme()):   # a run's screen, not the desktop's
+      themeLayer:
         drawRogueliteVictory(currentGame)
       endUIScaleMode()
-      drawCustomCursor(currentGame.time)
+      drawDesktopCursor(currentGame.time)
       endGameDrawing()
 
     of gs3DBoss:
@@ -4736,7 +4865,6 @@ proc main() =
       # Update Discord Rich Presence (throttled internally to prevent lag)
       if not currentGame.discordClient.isNil:
         try:
-          runCallbacks(currentGame.discordClient)
           updateDiscordForPvP(currentGame.discordClient, currentPvPGame)
         except Exception as e:
           echo "Discord error during PvP: ", e.msg
@@ -4776,6 +4904,22 @@ proc main() =
         drawMobileControls()
       drawCustomCursor(currentPvPGame.gameTime)
       endGameDrawing()
+
+    of gsModScreen:
+      # A mod's own screen (register.screen, opened with screens.go). Over a
+      # run, the run holds still underneath until screens.back.
+      tickModScreen(dt)
+      beginGameDrawing()
+      let screenThemed = beginThemeLayer()
+      let screenDrawn = drawModScreen(screenWidth, screenHeight)
+      endThemeLayer(screenThemed)
+      if screenDrawn:
+        drawDesktopCursor(getTime().float32)
+      endGameDrawing()
+
+  # A run under a mod screen is saved as the state it holds still in.
+  if not currentGame.isNil and currentGame.state == gsModScreen:
+    currentGame.state = screenBaseState()
 
   # A run that has ended but was not persisted yet -- the window was closed on
   # an ending screen or during the death playback -- is recorded now, since
@@ -4828,13 +4972,20 @@ proc main() =
       # Ignore Discord disconnect errors during shutdown
       discard
 
-  # Cleanup. Mod textures and sounds are GPU/audio resources: they go before
-  # the device and the window do.
+  # Cleanup. The script VM closes first (its finalizers may still touch mod
+  # assets), then mod textures and sounds, which are GPU/audio resources and
+  # go before the device and the window do.
+  shutdownMarketplace()
   saveAllModStorage()
+  closeModScripts()
+  releaseScriptResources()
   unloadModAssets()
+  endModSession()
   stopMusic()
   closeSoundSystem(globalSoundSystem)
   closeWindow()
+  if modQuitWanted() and modQuitExitCode() != 0:
+    quit(modQuitExitCode())
 
 when defined(android):
   # Android entry point. The app is built as a shared library (--app:lib), whose

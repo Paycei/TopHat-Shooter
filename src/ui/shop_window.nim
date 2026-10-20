@@ -2,8 +2,9 @@
 ## OS-themed window for player and bullet customization with tabs
 
 import raylib, rlgl, math, strformat, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
-import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../cube_render, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets, ui_theme
+import particle_types, os_window, os_desktop, background_fx, desktop_bg_fx, icon_drawing, ui_helpers, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../desktop_bg_skins, ../cube_skins, ../cube_render, ../types, ../settings, ../save_system, ../localization, ../render_context, ../roguelite, ../sound, ../utils, ../modding/mod_assets, ui_theme, text_field
 from ../modding/mod_hooks import mods
 
 type
@@ -33,13 +34,10 @@ type
     hoveredSkin*: int  # -1 for none
     scrollOffset*: float32
     scrollVelocity*: float32
-    searchQuery*: string
-    searchFocused*: bool
+    search*: TextField  ## the cosmetic search (Ctrl+F); focused while it is being typed in
     searchVisible*: bool
     focusIndex*: int    # Focused index within the filtered list (0..n-1)
     previewOpen*: bool
-    previewKind*: CosmeticKind
-    previewIndex*: int
     animationTime*: float32
     statusMessage*: string
     statusTimer*: float32
@@ -81,7 +79,7 @@ const
   MOD_CARD_PAD = 15
   MOD_SECTION_H = 24
 
-proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow =
+proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType, currentBulletSkin: BulletSkinType, currentShape: ShapeType, currentParticle: ParticleSkinType, currentBulletShape: BulletShapeType = bshCircle, rogueliteProfile: RogueliteProfile = nil): ShopWindow {.moddable.} =
   let windowWidth = 820
   let windowHeight = 560
   let windowX = (screenWidth - windowWidth) div 2
@@ -92,7 +90,6 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 150, b: 50, a: 255),  # Orange accent for shop
-    owtSettings,
     resizable = false
   )
 
@@ -112,13 +109,11 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     hoveredSkin: -1,
     scrollOffset: 0.0,
     scrollVelocity: 0.0,
-    searchQuery: "",
-    searchFocused: false,
+    search: newTextField(fieldStyle(12, White, Color(r: 255, g: 150, b: 50, a: 255)),
+                         maxChars = 60),
     searchVisible: false,
     focusIndex: 0,
     previewOpen: false,
-    previewKind: ckPlayerSkin,
-    previewIndex: -1,
     animationTime: 0,
     statusMessage: "",
     statusTimer: 0.0,
@@ -132,7 +127,7 @@ proc newShopWindow*(screenWidth, screenHeight: int, currentPlayerSkin: SkinType,
     maxScrollOffset: 0.0
   )
 
-proc saveSkinSelectionImmediately*(shop: ShopWindow) =
+proc saveSkinSelectionImmediately(shop: ShopWindow) {.moddable.} =
   ## Save skin selection to settings file immediately
   if shop.playerSkinChanged:
     globalSettings.playerSkin = shop.selectedPlayerSkin.int
@@ -241,62 +236,18 @@ proc drawLockGlyph(x, y: int32, color: Color) =
   drawRectOutline(x + 2, y + 8, 16, 14, color)
   drawDisc(Vector2(x: (x + 10).float32, y: (y + 15).float32), 2, color)
 
-proc fitTextSize(text: string, maxWidth: int32, startSize: int32, minSize: int32 = 7): int32 =
-  result = startSize
-  while result > minSize and measureText(text, result) > maxWidth:
-    dec result
+proc wrapTwoLines(text: string, maxWidth: int32, fontSize: int32 = 10): tuple[line1: string, line2: string] {.moddable.} =
+  let lines = wrapTextLines(text, maxWidth, fontSize)
+  (line1: if lines.len > 0: lines[0] else: "",
+   line2: if lines.len > 1: lines[1] else: "")
 
-proc wrapTwoLines*(text: string, maxWidth: int32, fontSize: int32 = 10): tuple[line1: string, line2: string] =
-  var line1 = ""
-  var line2 = ""
-  var words = text.split(' ')
-  var currentLine = ""
-  for w in words:
-    let testLine = if currentLine.len > 0: currentLine & " " & w else: w
-    if measureText(testLine, fontSize) <= maxWidth:
-      currentLine = testLine
-    else:
-      if line1.len == 0:
-        line1 = currentLine
-        currentLine = w
-      else:
-        line2 = currentLine
-        break
-  if line1.len == 0:
-    line1 = currentLine
-  elif line2.len == 0 and currentLine.len > 0:
-    line2 = currentLine
-  return (line1: line1, line2: line2)
-
-proc wrapIntoLines(text: string, maxWidth: int32, fontSize: int32, maxLines: int): seq[string] =
-  result = @[]
-  var cur = ""
-  for w in text.split(' '):
-    let test = if cur.len > 0: cur & " " & w else: w
-    if measureText(test, fontSize) <= maxWidth:
-      cur = test
-    else:
-      if result.len < maxLines - 1:
-        if cur.len > 0: result.add(cur)
-        cur = w
-      else:
-        break
-  if cur.len > 0 and result.len < maxLines:
-    result.add(cur)
-
-proc wrapDescAutoSize*(text: string, maxWidth: int32, startSize: int32 = 11, minSize: int32 = 8): tuple[line1, line2, line3: string, fontSize: int32] =
-  for size in countdown(startSize, minSize):
-    let lines = wrapIntoLines(text, maxWidth, size, 3)
-    if lines.join(" ").strip() == text.strip():
-      return (line1: if lines.len > 0: lines[0] else: "",
-              line2: if lines.len > 1: lines[1] else: "",
-              line3: if lines.len > 2: lines[2] else: "",
-              fontSize: size)
-  let lines = wrapIntoLines(text, maxWidth, minSize, 3)
-  return (line1: if lines.len > 0: lines[0] else: "",
-          line2: if lines.len > 1: lines[1] else: "",
-          line3: if lines.len > 2: lines[2] else: "",
-          fontSize: minSize)
+proc wrapDescAutoSize(text: string, maxWidth: int32, startSize: int32 = 11, minSize: int32 = 8): tuple[line1, line2, line3: string, fontSize: int32] {.moddable.} =
+  let size = bestWrapFontSize(text, maxWidth, startSize, 3, minSize)
+  let lines = wrapTextLines(text, maxWidth, size)
+  (line1: if lines.len > 0: lines[0] else: "",
+   line2: if lines.len > 1: lines[1] else: "",
+   line3: if lines.len > 2: lines[2] else: "",
+   fontSize: size)
 
 proc themeOwnsDefaultBg(): bool =
   ## The free default background is the interface theme's own wallpaper
@@ -313,7 +264,17 @@ proc desktopBgText(bg: DesktopBgType): tuple[name, desc: string] =
   else:
     (getDesktopBgData(bg).name, getDesktopBgData(bg).description)
 
-proc visibleCosmeticIndices*(kind: CosmeticKind, query: string): seq[int] =
+proc shopSearchBox(contentX, contentWidth, headerY: int): Rectangle =
+  ## The search box, top-centre of the grid tabs' header (update and draw alike).
+  let w = min(200, contentWidth - 120)
+  Rectangle(x: float32(contentX + (contentWidth - w) div 2), y: float32(headerY + 8),
+            width: w.float32, height: 28)
+
+proc wantsTextInput*(shop: ShopWindow): bool {.moddable.} =
+  ## True while the search box takes the keystrokes.
+  not shop.isNil and shop.searchVisible and typingIn(shop.window, shop.search)
+
+proc visibleCosmeticIndices(kind: CosmeticKind, query: string): seq[int] {.moddable.} =
   var q = query.toLowerAscii()
   result = @[]
   for i in 0..<cosmeticCount(kind):
@@ -371,7 +332,7 @@ proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cos
     parts.add((icon: ciDataShards, amount: cost.dataShards))
 
   if parts.len == 0:
-    let fontSize = fitTextSize(statusText, pillW - 8, 10, 6)
+    let fontSize = bestFitFontSize(statusText, pillW - 8, 10, 6)
     let statusWidth = measureText(statusText, fontSize)
     drawText(statusText, (x + (SKIN_BOX_WIDTH - statusWidth) div 2).int32, (y + 121).int32, fontSize, statusColor)
     return
@@ -385,7 +346,7 @@ proc drawCosmeticCardStatus(x, y: int, isSelected, isUnlocked, canBuy: bool, cos
     let txtW = int32(measureText($p.amount, 11))
     iconAreaWidth += iconSize + paddingBetween + txtW + interPartGap
 
-  let fontSize = fitTextSize(statusText, pillW - iconAreaWidth - 8, 10, 6)
+  let fontSize = bestFitFontSize(statusText, pillW - iconAreaWidth - 8, 10, 6)
   let statusWidth = measureText(statusText, fontSize)
   let statusX = x + (SKIN_BOX_WIDTH - statusWidth - iconAreaWidth) div 2
   drawText(statusText, statusX.int32, (y + 121).int32, fontSize, statusColor)
@@ -468,7 +429,7 @@ template cardPreview(x, y: int, body: untyped) =
   cosmeticPreview(x + 10, y + 12, SKIN_BOX_WIDTH - 20, 66):
     body
 
-proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawPlayerSkinPreview(x, y: int, skinType: SkinType, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a player skin with shop icon style
   let (primaryColor, secondaryColor, coreColor) = getSkinColors(skinType, time)
 
@@ -504,7 +465,7 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
   # Draw player using the shape system
   cardPreview(x, y):
     drawPlayerShape(
-      Vector2f(x: centerX, y: centerY),
+      Vector2(x: centerX, y: centerY),
       playerRadius,
       shapeType,
       primaryColor,
@@ -542,7 +503,7 @@ proc drawPlayerSkinPreview*(x, y: int, skinType: SkinType, shapeType: ShapeType,
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawBulletSkinPreview(x, y: int, skinType: BulletSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a bullet skin
   let (primaryColor, glowColor, trailColor) = getBulletSkinColors(skinType, time)
 
@@ -623,7 +584,7 @@ proc drawBulletSkinPreview*(x, y: int, skinType: BulletSkinType, time: float32, 
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawBulletShapePreview(x, y: int, shapeType: BulletShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a player bullet shape
   let bgColor = if isSelected: uiSurface(0, 60, 80)
                 elif isHovered: uiSurface(60, 60, 70)
@@ -648,7 +609,7 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
   let glowColor   = Color(r: 0, g: 255, b: 255, a: 80)
   let travelAngle = 0.0  # flying right, arrow uses this for orientation
   cardPreview(x, y):
-    drawPlayerBulletShape(Vector2f(x: cx, y: cy), rScaled, shapeType, travelAngle, previewColor, glowColor)
+    drawPlayerBulletShape(Vector2(x: cx, y: cy), rScaled, shapeType, travelAngle, previewColor, glowColor)
 
     # Trail dots to give motion feel
     for i in 1..3:
@@ -679,7 +640,7 @@ proc drawBulletShapePreview*(x, y: int, shapeType: BulletShapeType, time: float3
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawShapePreview(x, y: int, shapeType: ShapeType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a player shape
   # Background box
   let bgColor = if isSelected:
@@ -721,7 +682,7 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
 
   # Draw shape using the same rendering as in-game
   cardPreview(x, y):
-    drawPlayerShape(newVector2f(centerX, centerY), shapeRadiusScaled, shapeType,
+    drawPlayerShape(vec2(centerX, centerY), shapeRadiusScaled, shapeType,
                    baseColor, secondaryColor, coreColor, time, rotation, pulse, glowIntensity)
 
   # Shape name
@@ -750,7 +711,7 @@ proc drawShapePreview*(x, y: int, shapeType: ShapeType, time: float32, isSelecte
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawParticlePreview*(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") =
+proc drawParticlePreview(x, y: int, particleType: ParticleSkinType, time: float32, isSelected: bool, isHovered: bool, isUnlocked: bool = true, canBuy: bool = false, cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a preview of a particle effect
   let (primaryColor, secondaryColor) = getParticleSkinColors(particleType, time)
 
@@ -851,10 +812,10 @@ proc endPreviewClip(clip: PreviewClip) =
   else:
     endVirtualScissorMode()
 
-proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
+proc drawDesktopBgPreview(x, y: int, bgType: DesktopBgType, time: float32,
                             isSelected: bool, isHovered: bool,
                             isUnlocked: bool = true, canBuy: bool = false,
-                            cost: CosmeticCost, costText: string = "") =
+                            cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a card preview for a desktop background skin
   let (bgName, bgDesc) = desktopBgText(bgType)
 
@@ -947,10 +908,10 @@ proc drawDesktopBgPreview*(x, y: int, bgType: DesktopBgType, time: float32,
 
   drawCosmeticCardStatus(x, y, isSelected, isUnlocked, canBuy, cost, costText)
 
-proc drawCubeSkinPreview*(x, y: int, skinType: CubeSkinType, time: float32,
+proc drawCubeSkinPreview(x, y: int, skinType: CubeSkinType, time: float32,
                            isSelected: bool, isHovered: bool,
                            isUnlocked: bool = true, canBuy: bool = false,
-                           cost: CosmeticCost, costText: string = "") =
+                           cost: CosmeticCost, costText: string = "") {.moddable.} =
   ## Draw a card preview for a cube skin using simple 2-D isometric-style cube
   let skinData = getCubeSkinData(skinType)
 
@@ -1239,7 +1200,7 @@ proc drawModCosmeticPreview(shop: ShopWindow, c: ModCosmetic, x, y, border: int)
   elif c.hasPalette:
     case c.kind
     of mckPlayer:
-      drawPlayerShape(Vector2f(x: cx, y: cy), 15.0'f32, shop.selectedShape, c.c1, c.c2, c.c3,
+      drawPlayerShape(Vector2(x: cx, y: cy), 15.0'f32, shop.selectedShape, c.c1, c.c2, c.c3,
                       shop.animationTime, shop.animationTime * 0.5'f32, 0.5'f32, 1.0'f32)
     of mckBullet:
       # A glowing dot with a fading trail behind it.
@@ -1298,7 +1259,7 @@ proc drawModCard(shop: ShopWindow, idx, x, y: int) =
   drawRectOutline(Rectangle(x: pillX.float32, y: pillY.float32, width: pillW.float32, height: 20.0'f32),
                      1.0'f32, pillColor)
   let label = if equipped: t("shop_equipped") else: t(tkModsEquip)
-  let fs = fitTextSize(label, pillW - 8, 11, 6)
+  let fs = bestFitFontSize(label, pillW - 8, 11, 6)
   drawText(label, (x + (MOD_CARD_W - measureText(label, fs)) div 2).int32, (pillY + 4).int32, fs, pillColor)
 
   # Border last, so nothing drawn inside the card can cover it.
@@ -1346,7 +1307,7 @@ proc drawModsTabContent(shop: ShopWindow, contentX, contentY, contentWidth, cont
     let thumbY = gridTop.float32 + (shop.scrollOffset / shop.maxScrollOffset) * (gridHeight.float32 - thumbH)
     drawRectangle(sbX.int32, thumbY.int32, 10, thumbH.int32, uiSurface(120, 220, 160, 200))
 
-proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
+proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool {.moddable.} =
   ## Update shop window. Returns true if window should close
   if shop.isNil or shop.window.isNil:
     return true
@@ -1551,7 +1512,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
                 elif shop.currentTab == stCubeSkins: ckCubeSkin
                 else: ckParticle
 
-  var visible = visibleCosmeticIndices(curKind, shop.searchQuery)
+  var visible = visibleCosmeticIndices(curKind, shop.search.text)
   let items = visible.len
 
   let cardTotalW = SKIN_BOX_WIDTH + SKIN_BOX_PADDING
@@ -1559,47 +1520,22 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
   let totalRows = if items == 0: 0 else: (items + columns - 1) div columns
   let totalContentHeight = totalRows * (SKIN_BOX_HEIGHT + SKIN_BOX_PADDING) + 10
   shop.maxScrollOffset = max(0.0, totalContentHeight.float32 - gridHeight.float32)
-  # Simple search box hit area in header (top-center)
-  let searchW = min(200, contentWidth - 120)
-  let searchX = contentX + (contentWidth - searchW) div 2
-  let searchY = headerY + 8
-  let searchH = 28
+  let searchBox = shopSearchBox(contentX, contentWidth, headerY)
 
   # Toggle search visibility with Ctrl+F (topmost only)
   let ctrlPressed = isKeyDown(LeftControl) or isKeyDown(RightControl)
   if isTopmost and ctrlPressed and isKeyPressed(F):
     shop.searchVisible = not shop.searchVisible
-    if shop.searchVisible:
-      shop.searchFocused = true
-    else:
-      shop.searchFocused = false
+    shop.search.focused = shop.searchVisible
 
-  # Click handling only when search is visible
-  if shop.searchVisible and isTopmost and shop.window.handledClickThisFrame:
-    if mouseX >= searchX and mouseX < searchX + searchW and mouseY >= searchY and mouseY < searchY + searchH:
-      shop.searchFocused = true
-    else:
-      # clicking outside search closes focus (unless clicking inside grid)
-      if not (mouseX >= contentX and mouseX < contentX + contentWidth and mouseY >= gridY and mouseY < gridY + gridHeight):
-        shop.searchFocused = false
-
-  # Handle text input when search is focused
-  if shop.searchFocused and isTopmost:
-    setTextInputActive(true, tikText)
-    setTextInputPreview(shop.searchQuery)
-    # Drained in a loop -- one poll per frame dropped everything raylib had
-    # already queued behind the first character.
-    var key = pollCharPressed()
-    while key > 0:
-      if key < 256:
-        let ch = char(key)
-        if ch >= ' ' and ch <= '~' and shop.searchQuery.len < 60:
-          shop.searchQuery.add(ch)
-      key = pollCharPressed()
-    if pollBackspacePressed() and shop.searchQuery.len > 0:
-      shop.searchQuery.setLen(shop.searchQuery.len - 1)
-    if pollEnterPressed():
-      shop.searchFocused = false
+  if shop.searchVisible:
+    # A press elsewhere lets go of the search (one in the grid keeps it).
+    if hasKeyboard(shop.window) and isPointerPressed() and
+       not checkCollisionPointRec(mousePos, searchBox) and
+       not (mouseX >= contentX and mouseX < contentX + contentWidth and mouseY >= gridY and mouseY < gridY + gridHeight):
+      shop.search.focused = false
+    if updateTextField(shop.search, searchBox, dt, hasKeyboard(shop.window)).submitted:
+      shop.search.focused = false
 
   # Check if mouse is in grid area for wheel and hover
   let inGridArea = mouseX >= contentX and mouseX < contentX + contentWidth and
@@ -1627,7 +1563,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
   let scrollInt = int(round(shop.scrollOffset))
 
   # Keyboard navigation & focus (only when topmost and not typing)
-  if isTopmost and not shop.searchFocused and items > 0 and not shop.window.dragging:
+  if isTopmost and not shop.search.focused and items > 0 and not shop.window.dragging:
     if shop.focusIndex >= items: shop.focusIndex = items - 1
     if shop.focusIndex < 0: shop.focusIndex = 0
     if isKeyPressed(Left):
@@ -1648,10 +1584,7 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
       let actual = visible[shop.focusIndex]
       handleCosmeticClick(shop, curKind, actual)
     if isKeyPressed(Space):
-      let actual = visible[shop.focusIndex]
       shop.previewOpen = true
-      shop.previewKind = curKind
-      shop.previewIndex = actual
 
   # Reset hover state, keyboard focus will set hoveredSkin below
   shop.hoveredSkin = -1
@@ -1693,8 +1626,8 @@ proc updateShopWindow*(shop: ShopWindow, dt: float32, screenWidth, screenHeight:
       shop.previewOpen = false
   elif isTopmost and isKeyPressed(Escape):
     # If search is focused, close search first; otherwise close the shop
-    if shop.searchFocused:
-      shop.searchFocused = false
+    if shop.search.focused:
+      shop.search.focused = false
     else:
       shop.window.visible = false
       return true
@@ -1720,7 +1653,7 @@ template secretPreview(cardX, cardY: int, body: untyped) =
     body
 
 proc drawSecretCardLabels(cardX, cardY: int, equipped: bool, name: string) =
-  let nameSize = fitTextSize(name, (SECRET_CARD_W - 16).int32, 16, 10)
+  let nameSize = bestFitFontSize(name, (SECRET_CARD_W - 16).int32, 16, 10)
   let nameW = measureText(name, nameSize)
   drawText(name, (cardX + (SECRET_CARD_W - nameW) div 2).int32,
            (cardY + 158 + (16 - nameSize) div 2).int32, nameSize, uiInk(White))
@@ -1811,33 +1744,28 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
       # On the player's current skin and shape.
       let previewY = (cardY + 110).float32
       secretPreview(cardX, cardY):
-        drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
+        drawPlayerShape(vec2(centerX, previewY), 30.0'f32, shop.selectedShape,
                         primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
-        drawTopHat(newVector2f(centerX, previewY), 30.0'f32, time, 1.0'f32, primary)
+        drawTopHat(vec2(centerX, previewY), 30.0'f32, time, 1.0'f32, primary)
     of siOrbitalCube:
       # The player's shape with the mini desktop cube (in the equipped cube
       # skin's colors) circling it live.
       let previewY = (cardY + 105).float32
-      let cubeData = getCubeSkinData(shop.selectedCubeSkin)
       let orbitAngle = time * 1.3'f32
       let orbitDist = 24.0'f32 * 2.1'f32 + sin(time * 2.1'f32) * 3.0'f32
-      let cubeHeart = if shop.selectedCubeSkin == cskCompanion: Color(r: 244, g: 116, b: 150, a: 255)
-                      else: Color(r: 0, g: 0, b: 0, a: 0)
       secretPreview(cardX, cardY):
-        drawPlayerShape(newVector2f(centerX, previewY), 24.0'f32, shop.selectedShape,
+        drawPlayerShape(vec2(centerX, previewY), 24.0'f32, shop.selectedShape,
                         primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
         drawMiniCube(Vector2(x: centerX + cos(orbitAngle) * orbitDist,
                              y: previewY + sin(orbitAngle) * orbitDist * 0.72'f32),
-                     8.0'f32, time, cubeData.edgeColor, cubeData.glowColor, cubeHeart,
-                     isD20 = shop.selectedCubeSkin == cskD20, skin = shop.selectedCubeSkin,
-                     secretStyle = true)
+                     8.0'f32, time, skin = shop.selectedCubeSkin)
     of siCheaterHat:
       # The shamefully pristine pointy hat.
       let previewY = (cardY + 110).float32
       secretPreview(cardX, cardY):
-        drawPlayerShape(newVector2f(centerX, previewY), 30.0'f32, shop.selectedShape,
+        drawPlayerShape(vec2(centerX, previewY), 30.0'f32, shop.selectedShape,
                         primary, secondary, core, time, time * 0.5'f32, pulse, 0.4'f32 + pulse * 0.2'f32)
-        drawCheaterHat(newVector2f(centerX, previewY), 30.0'f32, time)
+        drawCheaterHat(vec2(centerX, previewY), 30.0'f32, time)
     of siCknTheme:
       drawCknThemePreview(cardX, cardY, time)
     drawSecretCardLabels(cardX, cardY, secretEquipped(item), secretName(item))
@@ -1858,7 +1786,7 @@ proc drawSecretTabContent(shop: ShopWindow, contentX, contentY, contentWidth, co
   else:
     drawText(secretLockedHint(info), (contentX + 10).int32, (infoPanelY + 18).int32, 13, uiInk(Gray))
 
-proc drawShopWindow*(shop: ShopWindow) =
+proc drawShopWindow*(shop: ShopWindow) {.moddable.} =
   ## Draw the shop window
   if shop.isNil or shop.window.isNil:
     return
@@ -1897,7 +1825,7 @@ proc drawShopWindow*(shop: ShopWindow) =
     if active:
       drawRectangle(tabX.int32, (tabY + TAB_HEIGHT - 3).int32, tabWidth.int32, 3, uiSurface(td.underline))
     let label = t(td.labelKey)
-    let fs = fitTextSize(label, labelMaxW, 12, 8)
+    let fs = bestFitFontSize(label, labelMaxW, 12, 8)
     let labelX = tabX + (tabWidth - measureText(label, fs)) div 2
     drawText(label, labelX.int32, (tabY + 13 + (12 - fs) div 2).int32, fs, if active: uiInk(White) else: uiInk(Gray))
 
@@ -1964,7 +1892,7 @@ proc drawShopWindow*(shop: ShopWindow) =
                 elif shop.currentTab == stCubeSkins: ckCubeSkin
                 else: ckParticle
 
-  var visible = visibleCosmeticIndices(curKind, shop.searchQuery)
+  var visible = visibleCosmeticIndices(curKind, shop.search.text)
   let items = visible.len
 
   let cardTotalW = SKIN_BOX_WIDTH + SKIN_BOX_PADDING
@@ -1985,17 +1913,15 @@ proc drawShopWindow*(shop: ShopWindow) =
   shop.maxScrollOffset = max(0.0, totalContentHeight.float32 - gridHeight.float32)
 
   # Draw search box in header (top-center) only when visible
-  let searchW = min(200, contentWidth - 120)
-  let searchX = contentX + (contentWidth - searchW) div 2
-  let searchY = headerY + 8
-  let searchH = 28
   if shop.searchVisible:
-    let searchBg = if shop.searchFocused: uiSurface(45, 45, 55) else: uiSurface(35, 35, 45)
-    drawRectangle(searchX.int32, searchY.int32, searchW.int32, searchH.int32, searchBg)
-    drawRectOutline(Rectangle(x: searchX.float32, y: searchY.float32, width: searchW.float32, height: searchH.float32),
-                       if shop.searchFocused: 2.0'f32 else: 1.0'f32, if shop.searchFocused: uiLine(255, 150, 50) else: uiLine(60, 60, 70))
-    let searchLabel = if shop.searchQuery.len == 0: "Search..." else: shop.searchQuery
-    drawText(searchLabel, (searchX + 8).int32, (searchY + 6).int32, 12, if shop.searchQuery.len == 0: uiInk(120, 120, 130) else: uiInk(White))
+    let searchBox = shopSearchBox(contentX, contentWidth, headerY)
+    let focused = shop.search.focused
+    drawRectangle(searchBox, if focused: uiSurface(45, 45, 55) else: uiSurface(35, 35, 45))
+    drawRectOutline(searchBox, if focused: 2.0'f32 else: 1.0'f32,
+                    if focused: uiLine(255, 150, 50) else: uiLine(60, 60, 70))
+    if shop.search.text.len == 0:
+      drawText("Search...", searchBox.x.int32 + 12, searchBox.y.int32 + 8, 12, uiInk(120, 120, 130))
+    drawTextField(shop.search, searchBox, hasKeyboard(shop.window))
 
   # Draw grid inside a single scissor region
   beginVirtualScissorMode(contentX.int32, gridY.int32, contentWidth.int32, gridHeight.int32)

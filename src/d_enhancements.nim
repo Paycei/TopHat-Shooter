@@ -1,10 +1,11 @@
 import raylib, strutils
+import modding/mod_patch_core
 import draw_prims
 from std/unicode import runeLen, runeSubStr
-import types, boss_definitions, localization, utils
+import types, boss_definitions, localization, utils, ui/ui_helpers, ui/hud_dock
 
 # WAVE CELEBRATION SYSTEM
-proc newWaveCelebration*(): WaveCelebration =
+proc newWaveCelebration*(): WaveCelebration {.moddable.} =
   result = WaveCelebration(
     active: false,
     animationTimer: 0,
@@ -14,7 +15,7 @@ proc newWaveCelebration*(): WaveCelebration =
     statsRevealTimer: 0
   )
 
-proc startCelebration*(celebration: var WaveCelebration, waveNum: int, stats: WaveStats) =
+proc startCelebration*(celebration: var WaveCelebration, waveNum: int, stats: WaveStats) {.moddable.} =
   celebration.active = true
   celebration.animationTimer = 0
   celebration.waveNumber = waveNum
@@ -22,7 +23,7 @@ proc startCelebration*(celebration: var WaveCelebration, waveNum: int, stats: Wa
   celebration.showStats = false
   celebration.statsRevealTimer = 0
 
-proc updateCelebration*(celebration: var WaveCelebration, dt: float32): bool =
+proc updateCelebration*(celebration: var WaveCelebration, dt: float32): bool {.moddable.} =
   ## Update celebration, returns true if still active
   if not celebration.active:
     return false
@@ -41,7 +42,7 @@ proc updateCelebration*(celebration: var WaveCelebration, dt: float32): bool =
   return true
 
 proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeight: int32,
-                          originX: int32 = 0) =
+                          originX: int32 = 0) {.moddable.} =
   ## Fullscreen celebration overlay. `originX`/`screenWidth` describe the column it
   ## fills: classic passes the whole screen, widescreen passes the 1024-wide world
   ## column so the overlay keeps its 4:3 proportions instead of stretching over the
@@ -70,10 +71,10 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
     for offsetY in [-2, 0, 2]:
       if offsetX != 0 or offsetY != 0:
         drawText(waveText, int32(textX + offsetX), int32(textY + offsetY), 48.int32,
-          Color(r: 255, g: 215, b: 0, a: 50))
+          uiOverlay(Color(r: 255, g: 215, b: 0, a: 50)))
 
   drawText(waveText, textX, textY, 48.int32,
-    Color(r: 255, g: 215, b: 0, a: 255))
+    uiOverlay(Color(r: 255, g: 215, b: 0, a: 255)))
 
   # Draw stats if revealed
   if celebration.showStats:
@@ -87,9 +88,9 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
     let boxX = centerX - (boxWidth div 2)
 
     drawRectangle(int32(boxX), statsY, int32(boxWidth), int32(boxHeight),
-      Color(r: 20, g: 20, b: 40, a: uint8(min(statsAlpha, 200))))
+      hudSurface(Color(r: 20, g: 20, b: 40, a: uint8(min(statsAlpha, 200)))))
     drawRectOutline(int32(boxX), statsY, int32(boxWidth), int32(boxHeight),
-      Color(r: 255, g: 215, b: 0, a: statsAlpha))
+      uiLine(Color(r: 255, g: 215, b: 0, a: statsAlpha)))
 
     # Draw stats
     var lineY = statsY + 20
@@ -99,10 +100,10 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
       let labelText = label & ":"
       let valueText = value
       drawText(labelText, int32(boxX + 20), y, 18.int32,
-        Color(r: 200, g: 200, b: 200, a: alpha))
+        uiInk(Color(r: 200, g: 200, b: 200, a: alpha)))
       let valueWidth = measureText(valueText, 18.int32)
       drawText(valueText, int32(boxX + boxWidth - valueWidth - 20), y, 18.int32,
-        Color(r: 255, g: 255, b: 255, a: alpha))
+        uiInk(Color(r: 255, g: 255, b: 255, a: alpha)))
 
     drawStat(t(tkWaveCelebKills), $celebration.stats.kills, lineY, statsAlpha)
     lineY += lineHeight
@@ -117,37 +118,21 @@ proc drawWaveCelebration*(celebration: WaveCelebration, screenWidth, screenHeigh
       drawStat(t(tkWaveCelebMaxCombo), $(celebration.stats.maxCombo) & "x", lineY, statsAlpha)
 
 # TEXT WRAPPING (shared by the fullscreen boss card and the gutter cards)
-proc wrapTextToWidth(text: string, fontSize, maxWidth: int32): seq[string] =
-  ## Greedy word-wrap so a label fits inside a card of the given width.
-  result = @[]
-  var current = ""
-  for word in text.split(' '):
-    if word.len == 0:
-      continue
-    let candidate = if current.len == 0: word else: current & " " & word
-    if measureText(candidate, fontSize) <= maxWidth or current.len == 0:
-      current = candidate
-    else:
-      result.add(current)
-      current = word
-  if current.len > 0:
-    result.add(current)
-
 proc balancedWrap(text: string, fontSize, maxWidth: int32): seq[string] =
   ## Fewest lines that fit maxWidth, then the narrowest width that keeps that
   ## count, so a two-line description splits evenly instead of leaving a
   ## one-word orphan on its last line. Greedy line count only grows as the
   ## width shrinks, so a binary search finds that width.
-  result = wrapTextToWidth(text, fontSize, maxWidth)
+  result = wrapTextLines(text, maxWidth, fontSize)
   if result.len <= 1:
     return
   var lo = maxWidth div 3
   var hi = maxWidth
   while hi - lo > 4:
     let mid = (lo + hi) div 2
-    if wrapTextToWidth(text, fontSize, mid).len <= result.len: hi = mid
+    if wrapTextLines(text, mid, fontSize).len <= result.len: hi = mid
     else: lo = mid
-  result = wrapTextToWidth(text, fontSize, hi)
+  result = wrapTextLines(text, hi, fontSize)
 
 # BOSS INTRODUCTION SYSTEM
 # The card names the boss and, in the lore layer, the TOPHAT service the Root
@@ -159,7 +144,7 @@ const
   BossIntroFade = 0.25'f32      # text fade-in and fade-out length
   BossIntroTagCps = 70.0'f32    # service tag types out at this many chars/s
 
-proc newBossIntroduction*(): BossIntroduction =
+proc newBossIntroduction*(): BossIntroduction {.moddable.} =
   result = BossIntroduction(
     active: false,
     timer: 0,
@@ -168,12 +153,11 @@ proc newBossIntroduction*(): BossIntroduction =
     bossTitle: "",
     bossTag: "",
     isRoot: false,
-    bossHp: 0,
     phase: 0
   )
 
-proc startIntroduction*(intro: var BossIntroduction, name: string, title: string, hp: float32,
-                        tag: string = "", isRoot: bool = false) =
+proc startIntroduction*(intro: var BossIntroduction, name: string, title: string,
+                        tag: string = "", isRoot: bool = false) {.moddable.} =
   intro.active = true
   intro.timer = 0
   intro.maxTime = BossIntroDuration
@@ -181,7 +165,6 @@ proc startIntroduction*(intro: var BossIntroduction, name: string, title: string
   intro.bossTitle = title
   intro.bossTag = tag
   intro.isRoot = isRoot
-  intro.bossHp = hp
   intro.phase = 0
 
 proc bossIntroTextAlpha(intro: BossIntroduction): float32 =
@@ -204,7 +187,7 @@ proc bossIntroPalette(intro: BossIntroduction): tuple[name, tag: Color] =
   else:
     (Color(r: 255, g: 100, b: 100, a: 255), Color(r: 255, g: 175, b: 70, a: 255))
 
-proc updateIntroduction*(intro: var BossIntroduction, dt: float32): bool =
+proc updateIntroduction*(intro: var BossIntroduction, dt: float32): bool {.moddable.} =
   ## Update introduction, returns true if still active
   if not intro.active:
     return false
@@ -223,7 +206,7 @@ proc updateIntroduction*(intro: var BossIntroduction, dt: float32): bool =
 
   return true
 
-proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: int32) =
+proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: int32) {.moddable.} =
   if not intro.active:
     return
 
@@ -247,17 +230,17 @@ proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: i
     let fullW = measureText(intro.bossTag, tagSize)
     let tagX = cx - fullW div 2
     let typed = bossIntroTypedTag(intro)
-    drawText(typed, tagX, tagY, tagSize, withAlpha(tagColor, clampByteF(a * 235.0'f32)))
+    drawText(typed, tagX, tagY, tagSize, uiOverlay(withAlpha(tagColor, clampByteF(a * 235.0'f32))))
     let ruleA = clampByteF(a * 150.0'f32)
-    drawRectangle(tagX - 44, tagY + tagSize div 2 - 1, 32, 2, withAlpha(tagColor, ruleA))
-    drawRectangle(tagX + fullW + 12, tagY + tagSize div 2 - 1, 32, 2, withAlpha(tagColor, ruleA))
+    drawRectangle(tagX - 44, tagY + tagSize div 2 - 1, 32, 2, uiOverlay(withAlpha(tagColor, ruleA)))
+    drawRectangle(tagX + fullW + 12, tagY + tagSize div 2 - 1, 32, 2, uiOverlay(withAlpha(tagColor, ruleA)))
 
   # Boss name with a drop shadow.
   let nameW = measureText(intro.bossName, 48'i32)
   let nameX = cx - nameW div 2
   drawText(intro.bossName, nameX + 2, centerY - 38, 48'i32,
     Color(r: 0, g: 0, b: 0, a: clampByteF(a * 128.0'f32)))
-  drawText(intro.bossName, nameX, centerY - 40, 48'i32, withAlpha(nameColor, clampByteF(a * 255.0'f32)))
+  drawText(intro.bossName, nameX, centerY - 40, 48'i32, uiOverlay(withAlpha(nameColor, clampByteF(a * 255.0'f32))))
 
   # Lore description, wrapped so the longer dossier lines stay on screen.
   const descSize = 20'i32
@@ -265,7 +248,7 @@ proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: i
   var dy = centerY + 20
   for ln in descLines:
     let w = measureText(ln, descSize)
-    drawText(ln, cx - w div 2, dy, descSize, Color(r: 190, g: 190, b: 195, a: clampByteF(a * 255.0'f32)))
+    drawText(ln, cx - w div 2, dy, descSize, uiOverlay(Color(r: 190, g: 190, b: 195, a: clampByteF(a * 255.0'f32))))
     dy += descSize + 4
 
 # WIDESCREEN GUTTER VARIANTS
@@ -273,7 +256,7 @@ proc drawBossIntroduction*(intro: BossIntroduction, screenWidth, screenHeight: i
 # alpha animation logic of the fullscreen versions but drop the fullscreen
 # darken (which would cover the centered gameplay world) and wrap their text.
 proc drawWaveCelebrationGutter*(celebration: WaveCelebration,
-                                gutterX, gutterW, topY: int32): int32 =
+                                gutterX, gutterW, topY: int32): int32 {.moddable.} =
   ## Right-gutter card. Returns the next stack Y (== topY when nothing is drawn).
   if not celebration.active:
     return topY
@@ -291,7 +274,7 @@ proc drawWaveCelebrationGutter*(celebration: WaveCelebration,
   else:
     t(tkWaveClearedText) & " " & $celebration.waveNumber & " CLEARED"
   let titleFont: int32 = 15
-  let titleLines = wrapTextToWidth(waveText, titleFont, cardW - 10)
+  let titleLines = wrapTextLines(waveText, cardW - 10, titleFont)
 
   # Stat rows (only when revealed).
   var statRows: seq[(string, string)] = @[]
@@ -308,30 +291,30 @@ proc drawWaveCelebrationGutter*(celebration: WaveCelebration,
   let cardH = 10'i32 + titleH + statH
   let statsAlpha = uint8(min(celebration.statsRevealTimer * 255.0, 255.0))
 
-  drawRectangle(cardX, cardY, cardW, cardH, Color(r: 20, g: 20, b: 40, a: uint8(min(titleAlpha, 210))))
-  drawRectangle(cardX, cardY, 2, cardH, Color(r: 255, g: 215, b: 0, a: titleAlpha))
-  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, Color(r: 255, g: 215, b: 0, a: titleAlpha))
+  drawRectangle(cardX, cardY, cardW, cardH, hudSurface(Color(r: 20, g: 20, b: 40, a: uint8(min(titleAlpha, 210)))))
+  drawRectangle(cardX, cardY, 2, cardH, uiInk(Color(r: 255, g: 215, b: 0, a: titleAlpha)))
+  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, uiInk(Color(r: 255, g: 215, b: 0, a: titleAlpha)))
 
   var ty = cardY + 5
   for ln in titleLines:
     let tw = measureText(ln, titleFont)
     drawText(ln, cardX + (cardW - tw) div 2, ty, titleFont,
-      Color(r: 255, g: 215, b: 0, a: titleAlpha))
+      uiInk(Color(r: 255, g: 215, b: 0, a: titleAlpha)))
     ty += titleFont + 3
 
   if statRows.len > 0:
     ty += 4
     for row in statRows:
       drawText(row[0], cardX + 8, ty, 12,
-        Color(r: 200, g: 200, b: 200, a: statsAlpha))
+        uiInk(Color(r: 200, g: 200, b: 200, a: statsAlpha)))
       let vw = measureText(row[1], 12)
       drawText(row[1], cardX + cardW - 8 - vw, ty, 12,
-        Color(r: 255, g: 255, b: 255, a: statsAlpha))
+        uiInk(Color(r: 255, g: 255, b: 255, a: statsAlpha)))
       ty += 16
   return cardY + cardH + 6
 
 proc drawBossIntroductionGutter*(intro: BossIntroduction,
-                                 gutterX, gutterW, topY: int32): int32 =
+                                 gutterX, gutterW, topY: int32): int32 {.moddable.} =
   ## Right-gutter card. Returns the next stack Y (== topY when nothing is drawn).
   if not intro.active:
     return topY
@@ -354,11 +337,11 @@ proc drawBossIntroductionGutter*(intro: BossIntroduction,
     if intro.bossTag.len == 0: newSeq[string]()
     elif measureText(intro.bossTag, tagFont) <= cardW - 10: @[intro.bossTag]
     elif tagCut > 0: @[intro.bossTag[0 .. tagCut], intro.bossTag[tagCut + 2 .. ^1]]
-    else: wrapTextToWidth(intro.bossTag, tagFont, cardW - 10)
+    else: wrapTextLines(intro.bossTag, cardW - 10, tagFont)
   let nameFont: int32 = 22
-  let nameLines = wrapTextToWidth(intro.bossName, nameFont, cardW - 10)
+  let nameLines = wrapTextLines(intro.bossName, cardW - 10, nameFont)
   let titleFont: int32 = 13
-  let titleLines = wrapTextToWidth(intro.bossTitle, titleFont, cardW - 10)
+  let titleLines = wrapTextLines(intro.bossTitle, cardW - 10, titleFont)
 
   let tagH = if tagLines.len > 0: tagLines.len.int32 * (tagFont + 2) + 4'i32 else: 0'i32
   let nameH = nameLines.len.int32 * (nameFont + 3)
@@ -366,9 +349,9 @@ proc drawBossIntroductionGutter*(intro: BossIntroduction,
   let cardH = 12'i32 + tagH + nameH + 6'i32 + titleH
 
   let bg = if intro.isRoot: Color(r: 28, g: 6, b: 24, a: 255) else: Color(r: 25, g: 8, b: 8, a: 255)
-  drawRectangle(cardX, cardY, cardW, cardH, withAlpha(bg, clampByteF(a * 200.0'f32)))
-  drawRectangle(cardX, cardY, 2, cardH, withAlpha(nameColor, nameAlpha))
-  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, withAlpha(nameColor, nameAlpha))
+  drawRectangle(cardX, cardY, cardW, cardH, hudSurface(withAlpha(bg, clampByteF(a * 200.0'f32))))
+  drawRectangle(cardX, cardY, 2, cardH, uiInk(withAlpha(nameColor, nameAlpha)))
+  drawRectangle(cardX + cardW - 2, cardY, 2, cardH, uiInk(withAlpha(nameColor, nameAlpha)))
 
   var ty = cardY + 6
   if tagLines.len > 0:
@@ -380,39 +363,35 @@ proc drawBossIntroductionGutter*(intro: BossIntroduction,
       remaining -= lnLen + 1   # +1 for the space the line break consumed
       let tw = measureText(ln, tagFont)
       drawText(shown, cardX + (cardW - tw) div 2, ty, tagFont,
-        withAlpha(tagColor, clampByteF(a * 235.0'f32)))
+        uiInk(withAlpha(tagColor, clampByteF(a * 235.0'f32))))
       ty += tagFont + 2
     ty += 4
   for ln in nameLines:
     let tw = measureText(ln, nameFont)
     let tx = cardX + (cardW - tw) div 2
-    drawText(ln, tx + 1, ty + 1, nameFont, Color(r: 0, g: 0, b: 0, a: uint8(nameAlpha div 2)))
-    drawText(ln, tx, ty, nameFont, withAlpha(nameColor, nameAlpha))
+    drawText(ln, tx + 1, ty + 1, nameFont, textShadow(uint8(nameAlpha div 2)))
+    drawText(ln, tx, ty, nameFont, uiInk(withAlpha(nameColor, nameAlpha)))
     ty += nameFont + 3
   ty += 6
   for ln in titleLines:
     let tw = measureText(ln, titleFont)
     drawText(ln, cardX + (cardW - tw) div 2, ty, titleFont,
-      Color(r: 180, g: 180, b: 180, a: nameAlpha))
+      uiInk(Color(r: 180, g: 180, b: 180, a: nameAlpha)))
     ty += titleFont + 2
   return cardY + cardH + 6
 
 # REAL-TIME STATS HUD
-proc newRealTimeStats*(): RealTimeStats =
+proc newRealTimeStats*(): RealTimeStats {.moddable.} =
   result = RealTimeStats(
     dps: 0,
     damageDealt: 0,
-    lastDamageTime: 0,
-    kills: 0,
     coinsPerMinute: 0,
-    totalCoins: 0,
-    lastCoinTime: 0,
-    powerLevel: 100
+    totalCoins: 0
   )
   # Initialize damage history for rolling window
   result.damageHistory = @[]
 
-proc recordDamage*(stats: var RealTimeStats, damage: float32, currentTime: float32) =
+proc recordDamage*(stats: var RealTimeStats, damage: float32, currentTime: float32) {.moddable.} =
   stats.damageDealt += damage
 
   # Add damage event to history with timestamp
@@ -435,23 +414,7 @@ proc recordDamage*(stats: var RealTimeStats, damage: float32, currentTime: float
     1.0
 
   stats.dps = windowDamage / max(windowDuration, 1.0)
-  stats.lastDamageTime = currentTime
 
-proc recordKill*(stats: var RealTimeStats) =
-  stats.kills += 1
+# totalCoins / coinsPerMinute are written by run_statistics.gainCredits, the
+# one door every credit the player earns goes through.
 
-proc recordCoin*(stats: var RealTimeStats, currentTime: float32) =
-  stats.totalCoins += 1
-  stats.lastCoinTime = currentTime
-
-  # Calculate coins per minute
-  if currentTime > 0:
-    stats.coinsPerMinute = (stats.totalCoins.float32 / currentTime) * 60.0
-
-proc calculatePowerLevel*(stats: var RealTimeStats, player: Player) =
-  ## Calculate overall power level based on stats and upgrades
-  var power = 100
-  power += player.powerUps.len * 50
-  power += int(player.damage * 10.0)
-  power += int(player.maxHp * 5.0)
-  stats.powerLevel = power

@@ -14,7 +14,8 @@
 ## Serialization: flatty (toFlatty/fromFlatty over the whole Game ref graph)
 ## wrapped in supersnappy compression, exactly like the PvP packet path in
 ## src/network. A small hand-written header (magic + format version + a
-## compile-time type-layout fingerprint + mode) precedes the compressed payload.
+## compile-time type-layout fingerprint + mode + a checksum of the payload)
+## precedes the compressed payload.
 ##
 ## This module must NEVER import game.nim (that would form an import cycle).
 ##
@@ -39,7 +40,8 @@
 ## RNG: the std/random global generator state is intentionally NOT captured;
 ## games tolerate re-seeded randomness after a resume.
 
-import os, deques, strutils, tables
+import os, deques, strutils, tables, std/macros
+import modding/mod_patch_core
 import types, save_system, run_statistics, tutorial
 import modding/[mod_state, mod_hooks]
 import discord_presence  # DiscordClient (no-op flatty overload)
@@ -86,9 +88,9 @@ proc fromFlatty*(s: string, i: var int, x: var ParticlePool) = x = nil
 
 # flatty's array copy indexes x[0.N], which an array keyed by the mod
 # power-up slots (puMod000..puMod255, ordinal 88+) can't take: walk it instead.
-proc toFlatty*(s: var string, x: array[FirstModPowerUp..LastModPowerUp, float32]) =
+proc toFlatty*(s: var string, x: array[FirstModPowerUp..LastModPowerUp, float32]) {.moddable.} =
   for e in x: s.toFlatty(e)
-proc fromFlatty*(s: string, i: var int, x: var array[FirstModPowerUp..LastModPowerUp, float32]) =
+proc fromFlatty*(s: string, i: var int, x: var array[FirstModPowerUp..LastModPowerUp, float32]) {.moddable.} =
   for e in x.mitems: s.fromFlatty(i, e)
 
 proc toFlatty*(s: var string, x: RogueliteProfile) = discard
@@ -121,55 +123,113 @@ type
 
 const
   SnapMagic = "THSSNAP1"          # 8 bytes
-  SnapFormatVersion = 16'u32  # bumped: mod consumables/patches/events/shop rows/[Q] (15: statuses; 14: things)
-  HeaderLen = 20                  # magic(8) + version(4) + fingerprint(4) + mode(4)
+  SnapFormatVersion = 18'u32  # bumped: payload checksum, whole-graph layout fingerprint (17: unread fields removed; 16: mod consumables/patches/events/shop rows/[Q])
+  HeaderLen = 28                  # magic(8) + version(4) + fingerprint(4) + mode(4) + payload checksum(8)
+
+# ---- layout fingerprint ----
+# flatty writes the graph positionally, with no field names, and trusts every
+# length it reads back: a snapshot read under another layout is garbage, and
+# -d:danger builds crash on garbage lengths instead of raising. So the
+# fingerprint is the whole serialized type graph, worked out at compile time:
+# every field's name and type down to the leaves, and every enum's values.
+# Any change to a snapshotted type, however deep (a field on Laser, a value
+# appended to an enum), retires older snapshots, and the run_save checkpoint
+# takes over. SnapFormatVersion is only for changes the types don't show.
+
+proc layoutOf(t: NimNode, seen: var seq[string], skip: seq[string]): string {.compileTime.} =
+  ## The serialized shape of type `t`. A named type met again is named, not
+  ## expanded (refs can be recursive); a type in `skip` is only named.
+  case t.kind
+  of nnkSym:
+    let name = $t
+    case t.typeKind
+    of ntyBool, ntyChar, ntyString, ntyCString, ntyPointer, ntyInt, ntyInt8, ntyInt16,
+       ntyInt32, ntyInt64, ntyFloat, ntyFloat32, ntyFloat64, ntyUInt, ntyUInt8,
+       ntyUInt16, ntyUInt32, ntyUInt64:
+      return name
+    else: discard
+    if name in skip: return "~" & name
+    let id = t.signatureHash
+    if id in seen: return "@" & name
+    seen.add id
+    let impl = t.getTypeImpl
+    if impl.kind == nnkSym and impl == t: return name
+    result = name & "=" & layoutOf(impl, seen, skip)
+  of nnkObjectTy:
+    result = "object"
+    if t[1].kind == nnkOfInherit:
+      result.add " of " & layoutOf(t[1][0], seen, skip)
+    result.add "{" & layoutOf(t[2], seen, skip) & "}"
+  of nnkRecList:
+    for f in t: result.add layoutOf(f, seen, skip) & ";"
+  of nnkIdentDefs:
+    let typ = layoutOf(t[^2], seen, skip)
+    for i in 0 ..< t.len - 2: result.add $t[i] & ":" & typ & ","
+  of nnkRecCase:
+    result = "case " & layoutOf(t[0], seen, skip)
+    for i in 1 ..< t.len: result.add layoutOf(t[i], seen, skip)
+  of nnkOfBranch:
+    result = "of "
+    for i in 0 ..< t.len - 1: result.add t[i].repr & ","
+    result.add "{" & layoutOf(t[^1], seen, skip) & "}"
+  of nnkElse:
+    result = "else{" & layoutOf(t[0], seen, skip) & "}"
+  of nnkNilLit, nnkEmpty:
+    result = ""
+  of nnkEnumTy:
+    result = "enum("
+    for i in 1 ..< t.len: result.add t[i].repr & ","
+    result.add ")"
+  of nnkRefTy: result = "ref " & layoutOf(t[0], seen, skip)
+  of nnkPtrTy: result = "ptr " & layoutOf(t[0], seen, skip)
+  of nnkDistinctTy: result = "distinct " & layoutOf(t[0], seen, skip)
+  of nnkTupleTy:
+    result = "tuple["
+    for f in t: result.add layoutOf(f, seen, skip)
+    result.add "]"
+  of nnkTupleConstr, nnkPar:
+    result = "("
+    for f in t: result.add layoutOf(f, seen, skip) & ","
+    result.add ")"
+  of nnkBracketExpr:
+    # seq[T], array[R, T], set[T], a generic instance (Table[K, V], Deque[T]):
+    # the container by name, its arguments expanded.
+    result = $t[0] & "["
+    for i in 1 ..< t.len:
+      result.add (if t[i].kind in {nnkSym, nnkBracketExpr, nnkTupleConstr, nnkPar}:
+                    layoutOf(t[i], seen, skip) else: t[i].repr) & ","
+    result.add "]"
+  else:
+    result = t.repr
+
+macro layoutSignature(T: typedesc, skip: varargs[string]): string =
+  var skipNames: seq[string]
+  for s in skip: skipNames.add s.strVal
+  var seen: seq[string]
+  newLit(layoutOf(T.getTypeInst[1], seen, skipNames))   # (T arrives as typedesc[X])
+
+proc fnv32(s: string, h = 2166136261'u32): uint32 =
+  result = h
+  for c in s: result = (result xor uint32(ord(c))) * 16777619'u32
+
+const SnapLayoutHash = fnv32(layoutSignature(Snapshot,
+  # (the runtime state with the no-op flatty overloads above: never written)
+  "DiscordClient", "ParticlePool", "RogueliteProfile", "OSBackgroundState", "DopamineState"))
 
 proc layoutFingerprint(): uint32 =
-  ## Compile-time-derived digest of the serialized type layout. Combines the
-  ## `high` ordinal of the big enums (so appending an enum value invalidates old
-  ## snapshots) with the byte size of the core ref-object bodies (so most field
-  ## reorderings / additions invalidate them too). A mismatch makes restoreGame
-  ## fail cleanly and the caller falls back to the run_save checkpoint.
-  var h = 2166136261'u32
-  template mix(v: int) =
-    h = (h xor uint32(v and 0xFFFFFFFF)) * 16777619'u32
-  mix(ord(high(PowerUpType)))
-  mix(ord(high(EnemyType)))
-  mix(ord(high(GameState)))
-  mix(ord(high(GameMode)))
-  mix(ord(high(AttackWarningType)))
-  mix(ord(high(ElementType)))
-  mix(ord(high(DungeonFloorTheme)))
-  mix(ord(high(RogueliteStarterKit)))
-  mix(ord(high(RogueliteRelicType)))
-  mix(ord(high(RoomReward)))
-  mix(ord(high(DungeonPickupKind)))
-  # The roguelite run graph (sector, rooms, pickups) is snapshotted too.
-  mix(sizeof(typeof(default(RogueliteRun)[])))
-  mix(sizeof(typeof(default(DungeonFloor)[])))
-  mix(sizeof(typeof(default(DungeonRoom)[])))
-  mix(sizeof(typeof(default(DungeonPickup)[])))
-  mix(sizeof(typeof(default(Game)[])))
-  mix(sizeof(typeof(default(Player)[])))
-  mix(sizeof(typeof(default(Enemy)[])))
-  mix(sizeof(typeof(default(Bullet)[])))
-  mix(sizeof(typeof(default(ModThing)[])))   # lives in a seq: Game's own size never sees it
-  mix(sizeof(ModWorldState))
-  mix(sizeof(ModStatusInst))                  # in seqs on Enemy and Player
-  mix(ord(high(DeathCause)))
-  mix(ord(high(ConsumableType)))
-  mix(ord(high(SurvivalEventKind)))
-  mix(sizeof(typeof(default(Consumable)[])))
-  mix(sizeof(RogueliteRelic))
-  # The run statistics ride in the same positional flatty stream, so a field
-  # added there shifts every byte after it exactly like a Game field would.
-  mix(sizeof(typeof(default(RunStatistics)[])))
-  # The loaded mod set: mod power-up/enemy slots are bound per set, so a
-  # snapshot's raw slot ordinals only mean the same thing under the same set.
-  # (The file name already pins it; this is belt and braces.)
-  for c in modFingerprintHex:
-    mix(ord(c))
-  h
+  ## The snapshot's type graph, and the loaded mod set: mod power-up/enemy
+  ## slots are bound per set, so a snapshot's raw slot ordinals only mean the
+  ## same thing under the same set. (The file name already pins the set; this
+  ## is belt and braces.) A mismatch makes restoreGame fail cleanly and the
+  ## caller falls back to the run_save checkpoint.
+  fnv32(modFingerprintHex, SnapLayoutHash)
+
+proc payloadChecksum(s: string, start: int): uint64 =
+  ## FNV-1a over the compressed payload. snappy notices a file cut short but
+  ## not a damaged byte, and flatty would read a damaged length as it is.
+  result = 14695981039346656037'u64
+  for i in start ..< s.len:
+    result = (result xor uint64(ord(s[i]))) * 1099511628211'u64
 
 # ---- little-endian uint32 header helpers ----
 proc putU32(s: var string, v: uint32) =
@@ -184,7 +244,7 @@ proc getU32(s: string, off: int): uint32 =
 
 const LegacySuspendFile = "suspend.snap"
 
-proc getSuspendPath*(mode: GameMode, modMode: string = ""): string =
+proc getSuspendPath(mode: GameMode, modMode: string = ""): string {.moddable.} =
   ## One snapshot per mode, so starting or quitting a run in one mode can never
   ## discard another mode's suspended run. saveSlotTag keeps modded sessions
   ## on their own files (see run_save.runSaveFileFor).
@@ -212,7 +272,7 @@ proc migrateLegacySuspendSnapshot() =
   except CatchableError:
     echo "Warning: could not migrate legacy suspend snapshot"
 
-proc deleteSuspendSnapshot*(mode: GameMode, modMode: string = "") =
+proc deleteSuspendSnapshot*(mode: GameMode, modMode: string = "") {.moddable.} =
   ## Remove this mode's exact snapshot for the current profile, if any.
   migrateLegacySuspendSnapshot()
   try:
@@ -222,7 +282,7 @@ proc deleteSuspendSnapshot*(mode: GameMode, modMode: string = "") =
   except CatchableError:
     echo "Warning: could not delete suspend snapshot"
 
-proc hasSuspendSnapshot*(mode: GameMode, modMode: string = ""): bool =
+proc hasSuspendSnapshot*(mode: GameMode, modMode: string = ""): bool {.moddable.} =
   ## Cheap existence check. Full validity (magic/version/fingerprint) is only
   ## confirmed by restoreGame; callers fall back to run_save when restore fails.
   migrateLegacySuspendSnapshot()
@@ -237,7 +297,7 @@ proc isSupportedSuspendMode(mode: GameMode): bool =
 const ResumableStates = {gsPlaying, gsPaused, gsShop, gsCountdown, gsWaveCleared,
                          gsPowerUpSelect, gsRogueliteFloorSelect}
 
-proc suspendGame*(game: Game) =
+proc suspendGame*(game: Game) {.moddable.} =
   ## Write an exact snapshot of the live simulation to this mode's snapshot file.
   ## Mirrors run_save's guards: no-op for unsupported modes / non-resumable
   ## states, and DELETES any stale snapshot for a finished/failed run. Because
@@ -274,6 +334,9 @@ proc suspendGame*(game: Game) =
     outp.putU32(SnapFormatVersion)
     outp.putU32(layoutFingerprint())
     outp.putU32(uint32(ord(game.mode)))
+    let sum = payloadChecksum(payload, 0)
+    outp.putU32(uint32(sum and 0xFFFFFFFF'u64))
+    outp.putU32(uint32(sum shr 32))
     outp.add payload
     writeFile(getSuspendPath(game.mode, game.modMode), outp)
   except CatchableError:
@@ -288,7 +351,7 @@ proc suspendGame*(game: Game) =
 # retireSatelliteHazards can no longer find it. The copies are field-for-field
 # identical to their list entry, so each is swapped back for that entry.
 
-proc samePos(a, b: Vector2f): bool {.inline.} =
+proc samePos(a, b: Vector2): bool {.inline.} =
   a.x == b.x and a.y == b.y
 
 proc listTwin(lasers: seq[Laser], copy: Laser): Laser =
@@ -321,7 +384,7 @@ proc relinkSharedRefs(g: Game) =
       if not s.activeWarning.isNil:
         s.activeWarning = listTwin(g.attackWarnings, s.activeWarning)
 
-proc restoreGame*(target: var Game): bool =
+proc restoreGame*(target: var Game): bool {.moddable.} =
   ## Rebuild the exact simulation onto `target` (which the caller has already
   ## constructed via newGame + setGameMode(savedMode) and assigned the live
   ## discordClient / rogueliteProfile). On success `target` is REPLACED by the
@@ -340,6 +403,9 @@ proc restoreGame*(target: var Game): bool =
     if getU32(raw, 8) != SnapFormatVersion:
       return false
     if getU32(raw, 12) != layoutFingerprint():
+      return false
+    let sum = uint64(getU32(raw, 20)) or (uint64(getU32(raw, 24)) shl 32)
+    if sum != payloadChecksum(raw, HeaderLen):
       return false
 
     let payload = supersnappy.uncompress(raw[HeaderLen ..< raw.len])

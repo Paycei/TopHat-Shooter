@@ -1,4 +1,5 @@
 import raylib, rlgl, math
+import ../modding/mod_patch_core
 import draw_prims
 import types, particle_types
 
@@ -34,7 +35,7 @@ const
     ## afterglow. The renderer splits a single 1->0 timer back into those phases,
     ## so no extra per-slot state is needed on the player.
 
-proc getAuraRadius*(level: int): float32 =
+proc getAuraRadius(level: int): float32 {.moddable.} =
   ## Standard aura radius band based on level (before the per-aura share below).
   ## Chosen so that even the tightest aura's share beats the old flat
   ## 187.5/250/312.5 radii - every aura gained range, none lost it.
@@ -43,7 +44,7 @@ proc getAuraRadius*(level: int): float32 =
   of 2: 325.0
   else: 400.0
 
-proc auraSlotOf*(auraType: PowerUpType): AuraSlot =
+proc auraSlotOf*(auraType: PowerUpType): AuraSlot {.moddable.} =
   ## Maps an aura power-up to its pulse-timer slot on the player
   case auraType
   of puFireAura: asFire
@@ -54,7 +55,7 @@ proc auraSlotOf*(auraType: PowerUpType): AuraSlot =
   of puBloodAura: asBlood
   else: asSlow
 
-proc auraWaveEase*(travel: float32): float32 =
+proc auraWaveEase(travel: float32): float32 {.moddable.} =
   ## Shape of the wavefront's outward run: fast off the player, settling into
   ## the border. Shared by the hit test and the renderer, so what sweeps an
   ## enemy is exactly the ring the player saw arrive - same contract as
@@ -62,21 +63,21 @@ proc auraWaveEase*(travel: float32): float32 =
   let t = clamp(travel, 0.0'f32, 1.0'f32)
   1.0'f32 - pow(1.0'f32 - t, 1.8'f32)
 
-proc auraWaveFrontRadius*(elapsed, maxRadius: float32): float32 =
+proc auraWaveFrontRadius*(elapsed, maxRadius: float32): float32 {.moddable.} =
   ## Where this pulse's wavefront is, `elapsed` seconds after it launched.
   maxRadius * auraWaveEase(elapsed / AuraWaveTravelTime)
 
-proc auraWaveAlreadyHit*(player: Player, enemy: Enemy, slot: AuraSlot): bool =
+proc auraWaveAlreadyHit*(player: Player, enemy: Enemy, slot: AuraSlot): bool {.moddable.} =
   ## Whether the current pulse of `slot` has already spent itself on this enemy
   enemy.auraWaveHitSeq[slot] == player.auraPulseSeq[slot]
 
-proc markAuraWaveHit*(player: Player, enemy: Enemy, slot: AuraSlot) =
+proc markAuraWaveHit*(player: Player, enemy: Enemy, slot: AuraSlot) {.moddable.} =
   ## Consume this enemy for the current pulse of `slot` so nothing else in the
   ## same wave can hit it again (chain lightning uses this on its chain targets).
   enemy.auraWaveHitSeq[slot] = player.auraPulseSeq[slot]
 
 proc auraWaveCatches*(player: Player, enemy: Enemy, slot: AuraSlot,
-                      frontRadius: float32): bool =
+                      frontRadius: float32): bool {.moddable.} =
   ## True the first frame this pulse's wavefront has reached `enemy`, and never
   ## again for the same pulse. The per-enemy mark is what makes that guarantee
   ## hold even when the enemy moves: the front is only ~35 px/s as it settles
@@ -89,7 +90,7 @@ proc auraWaveCatches*(player: Player, enemy: Enemy, slot: AuraSlot,
   enemy.auraWaveHitSeq[slot] = player.auraPulseSeq[slot]
   true
 
-proc getAuraRangeMult*(auraType: PowerUpType): float32 =
+proc getAuraRangeMult(auraType: PowerUpType): float32 {.moddable.} =
   ## Each aura takes a different share of the radius band so a player running
   ## several auras sees distinct concentric rings instead of one thick blob.
   ## Ordering is by role: control auras reach furthest, burst damage least.
@@ -103,12 +104,12 @@ proc getAuraRangeMult*(auraType: PowerUpType): float32 =
   of puArcaneAura: 0.80
   else: 1.0
 
-proc getAuraRadiusFor*(auraType: PowerUpType, level: int): float32 =
+proc getAuraRadiusFor*(auraType: PowerUpType, level: int): float32 {.moddable.} =
   ## The single radius used by BOTH the gameplay hit test and the drawn border,
   ## so the ring the player sees is exactly the ring that hits.
   getAuraRadius(level) * getAuraRangeMult(auraType)
 
-proc getAuraPulseInterval*(auraType: PowerUpType, level: int, hasMastery: bool): float32 =
+proc getAuraPulseInterval*(auraType: PowerUpType, level: int, hasMastery: bool): float32 {.moddable.} =
   ## Seconds between pulses. Base values are deliberately spread (not multiples
   ## of each other) so stacked auras drift apart instead of re-syncing.
   var base = case auraType
@@ -128,13 +129,13 @@ proc getAuraPulseInterval*(auraType: PowerUpType, level: int, hasMastery: bool):
     base *= 0.75  # mastery makes the aura beat faster, not just hit harder
   result = base
 
-proc auraPhaseOffset*(slot: AuraSlot): float32 =
+proc auraPhaseOffset*(slot: AuraSlot): float32 {.moddable.} =
   ## Fraction of the first cycle an aura waits before its very first pulse.
   ## Without this, picking up three auras in one shop visit would leave them
   ## firing on the same frame forever.
   (ord(slot).float32 + 0.5) / (ord(AuraSlot.high).float32 + 1.5)
 
-proc getAuraPulseColor*(auraType: PowerUpType): Color =
+proc getAuraPulseColor*(auraType: PowerUpType): Color {.moddable.} =
   ## Ring/particle color for an aura's pulse (AuraConfig fields stay private)
   case auraType
   of puSlowField: Color(r: 140, g: 190, b: 255, a: 255)
@@ -147,7 +148,7 @@ proc getAuraPulseColor*(auraType: PowerUpType): Color =
   else: White
 
 # Aura configurations for each power-up type
-proc getAuraConfig*(auraType: PowerUpType, level: int): AuraConfig =
+proc getAuraConfig*(auraType: PowerUpType, level: int): AuraConfig {.moddable.} =
   let radius = getAuraRadiusFor(auraType, level)
 
   case auraType
@@ -225,7 +226,7 @@ proc getAuraConfig*(auraType: PowerUpType, level: int): AuraConfig =
       visualStyle: avsFlames
     )
 
-proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: float32) =
+proc drawAuraWave(pos: Vector2, config: AuraConfig, time: float32, travel: float32) =
   ## One outbound pulse: a wavefront that leaves the player and expands until it
   ## lands exactly on the aura border at travel == 1. `travel` is normalized
   ## progress, eased out so the wave launches fast and settles into the rim.
@@ -249,7 +250,7 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
   # Trailing wash between the wave and the ground it already covered. This is
   # what makes it read as a wave sweeping the field rather than a growing circle.
   let innerTrail = max(0.0'f32, r - 26.0'f32 - config.radius * 0.06'f32)
-  drawRing(Vector2(x: pos.x, y: pos.y), innerTrail, r, 0.0, 360.0, 64,
+  drawRing(pos, innerTrail, r, 0.0, 360.0, 64,
            edgeColor(46.0'f32 * (1.0'f32 - travel * 0.5'f32)))
 
   # Core of the wavefront: three tight rings so the leading edge has weight.
@@ -350,8 +351,8 @@ proc drawAuraWave(pos: Vector2f, config: AuraConfig, time: float32, travel: floa
       drawDisc(Vector2(x: dx - cos(angle) * size, y: dy - sin(angle) * size), size * 0.55,
                  Color(r: 150, g: 25, b: 25, a: uint8(180.0 * (1.0 - travel * 0.35))))
 
-proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
-                     charge: float32 = 1.0, flash: float32 = 0.0) =
+proc drawAuraEffect*(pos: Vector2, config: AuraConfig, time: float32,
+                     charge: float32 = 1.0, flash: float32 = 0.0) {.moddable.} =
   ## Unified aura drawing function that handles all visual styles.
   ## `charge` is progress toward the next pulse (0..1), drawn as a sweep along
   ## the border; `flash` (1 -> 0) is the single timer covering one whole pulse.
@@ -383,13 +384,13 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
   # Kept faint: several stacked auras fill on top of each other.
   let bodyAlpha = uint8(clamp(config.coreColor.a.float32 * 0.55 * (0.85 + 0.15 * pulse),
                               0.0'f32, 255.0'f32))
-  drawDisc(Vector2(x: pos.x, y: pos.y), config.radius,
+  drawDisc(pos, config.radius,
              Color(r: config.ringColor.r, g: config.ringColor.g,
                    b: config.ringColor.b, a: bodyAlpha))
 
   # Draw core glow (common to all auras); firing briefly kicks it
   let coreAlpha = uint8(min(255.0'f32, config.coreColor.a.float32 * (1.0 + burst * 2.0)))
-  drawDisc(Vector2(x: pos.x, y: pos.y),
+  drawDisc(pos,
              config.radius * 0.3 * pulse * (1.0 + burst * 0.35),
              Color(r: config.coreColor.r, g: config.coreColor.g,
                    b: config.coreColor.b, a: coreAlpha))
@@ -572,7 +573,7 @@ proc drawAuraEffect*(pos: Vector2f, config: AuraConfig, time: float32,
   # each ring is at its own radius and fills at its own rate.
   let clamped = clamp(charge, 0.0'f32, 1.0'f32)
   if clamped > 0.001:
-    drawRing(Vector2(x: pos.x, y: pos.y), config.radius - 6.0, config.radius - 1.5,
+    drawRing(pos, config.radius - 6.0, config.radius - 1.5,
              -90.0, -90.0 + 360.0 * clamped, 48,
              Color(r: br, g: bg, b: bb, a: uint8(90 + 70.0 * clamped)))
 

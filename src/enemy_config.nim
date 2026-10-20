@@ -16,6 +16,7 @@
 ## dungeon tuning wave, cheat menu, in-world label).
 
 import raylib, math, random, strutils
+import modding/mod_patch_core
 import types, localization
 
 type
@@ -68,7 +69,6 @@ type
     attack*: EnemyAttackConfig
 
     # Special behaviors
-    hasSpecialBehavior*: bool
     specialBehaviorType*: string  # "dash", "teleport", "clone", "warning_attack", etc.
     specialCooldown*: float32
     specialData*: string          # JSON-like data for special mechanics
@@ -125,19 +125,19 @@ var modEnemies*: array[ModEnemySlot, ModEnemyInfo]
 
 proc isModEnemy*(et: EnemyType): bool {.inline.} = et in FirstModEnemy..LastModEnemy
 
-proc isEnemyLive*(et: EnemyType): bool {.inline.} =
+proc isEnemyLive*(et: EnemyType): bool {.inline, moddable.} =
   ## Built-in (not the environment sentinel), or a slot a loaded mod uses.
   et != etEnvironment and (not isModEnemy(et) or modEnemies[et].bound)
 
-proc enemyAiType*(et: EnemyType): EnemyType {.inline.} =
+proc enemyAiType*(et: EnemyType): EnemyType {.inline, moddable.} =
   ## The type whose update/draw branch runs: a mod enemy borrows its base's.
   if isModEnemy(et): modEnemies[et].base else: et
 
-proc enemySaveName*(et: EnemyType): string =
+proc enemySaveName*(et: EnemyType): string {.moddable.} =
   ## What saves store: the enum name, or "mod:<mod id>:<name>" for a mod slot.
   if isModEnemy(et): "mod:" & modEnemies[et].key else: $et
 
-proc parseEnemySaveName*(s: string, et: var EnemyType): bool =
+proc parseEnemySaveName*(s: string, et: var EnemyType): bool {.moddable.} =
   if s.startsWith("mod:"):
     let key = s[4 .. ^1]
     for slot in ModEnemySlot:
@@ -151,15 +151,15 @@ proc parseEnemySaveName*(s: string, et: var EnemyType): bool =
   except ValueError:
     false
 
-proc enemyScriptName*(et: EnemyType): string =
+proc enemyScriptName*(et: EnemyType): string {.moddable.} =
   ## The name scripts use: "etCube", or "<mod id>:<name>" for a mod's.
   if isModEnemy(et): modEnemies[et].key else: $et
 
-proc resolveEnemyScriptName*(s: string, et: var EnemyType): bool =
+proc resolveEnemyScriptName*(s: string, et: var EnemyType): bool {.moddable.} =
   if ':' in s: parseEnemySaveName("mod:" & s, et)
   else: parseEnemySaveName(s, et) and et != etEnvironment
 
-proc resetModEnemies*() =
+proc resetModEnemies*() {.moddable.} =
   for et in ModEnemySlot:
     modEnemies[et] = ModEnemyInfo(base: etCircle)
 
@@ -194,7 +194,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
       ),
 
       hasRangedAttack: false,
-      hasSpecialBehavior: false,
       requiresScreenEntry: false,
       usesHitCount: false,
       speedScaling: 10.0
@@ -240,7 +239,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 10.0      # Large pentagon bullet
       ),
 
-      hasSpecialBehavior: false,
       requiresScreenEntry: true,
       usesHitCount: false,
       speedScaling: 3.0
@@ -270,7 +268,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
 
       hasRangedAttack: false,
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "erratic_dash",
       specialCooldown: 3.0,  # Random 2-3 seconds
       specialData: "zigzag_pattern|dash_range:150|dash_multiplier:3.0",
@@ -304,7 +301,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
 
       hasRangedAttack: false,
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "proximity_dash",
       specialCooldown: 2.0,
       specialData: "dash_range:150",
@@ -355,7 +351,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: false,
       requiresScreenEntry: true,  # Must enter screen before attacking
       usesHitCount: false,
       speedScaling: 3.0
@@ -401,7 +396,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "teleport_chaos",
       specialCooldown: 3.5,   # Randomized 2.5-3.5
       specialData: "chaotic_shooting",
@@ -435,7 +429,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
 
       hasRangedAttack: false,  # Uses laser during dash, not bullets
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "warning_laser_dash",
       specialCooldown: 3.0,    # Time between attack cycles
       specialData: "warning_duration:1.2|dash_duration:0.5|laser_length:120|rotation_speed:12.5",
@@ -485,7 +478,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "dash_shooting",
       specialCooldown: 3.5,   # Randomized
       specialData: "shoots_on_dash|shoots_periodically",
@@ -540,7 +532,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletLifetime: 3.0
       ),
 
-      hasSpecialBehavior: false,
       requiresScreenEntry: true,
       usesHitCount: false,
       speedScaling: 3.0
@@ -586,7 +577,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "fake_warning_teleport",
       specialCooldown: 4.0,   # Randomized 3-5
       specialData: "fake_warning:1.0|teleport_shoot",
@@ -636,7 +626,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 0.0
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "clone_teleport",
       specialCooldown: 3.0,   # Randomized 2-3.5
       specialData: "clone_count:3|shoot_from_clones:60%",
@@ -686,7 +675,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 12.0  # Massive bullet
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "charge_shot",
       specialCooldown: 2.0,   # Cooldown after firing
       specialData: "charge_time:3.0|trigger_range:500|cooldown:2.0|color_shift",  # Trigger range increased to 500 (was 300)
@@ -736,7 +724,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
         bulletRadius: 8.0  # Larger magic bullets
       ),
 
-      hasSpecialBehavior: true,
       specialBehaviorType: "summon_meteorites",
       specialCooldown: 4.0,   # Meteorite summon cooldown
       specialData: "meteorite_count:2|meteorite_count_random:1|warning_time:1.5|damage:3",
@@ -774,7 +761,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
   of etInterrupt:
     result = modeMelee(etInterrupt, t(tkEnemyInterruptName), t(tkEnemyInterruptDesc),
                        1.4, 10.0, 2.0, Color(r: 255, g: 150, b: 40, a: 255), 92.0, 6.0)
-    result.hasSpecialBehavior = true
     result.specialBehaviorType = "kamikaze"
 
   # ---- Roguelite rooms (legacy processes) ---------------------------------
@@ -837,7 +823,6 @@ proc buildEnemyConfig(enemyType: EnemyType): EnemyConfig =
       ),
 
       hasRangedAttack: false,
-      hasSpecialBehavior: false,
       requiresScreenEntry: false,
       usesHitCount: false,
       speedScaling: 0.0
@@ -853,11 +838,11 @@ var
   enemyConfigFilled: array[EnemyType, bool]
   enemyConfigCacheLang: Language
 
-proc invalidateEnemyConfigCache*() =
+proc invalidateEnemyConfigCache*() {.moddable.} =
   for et in EnemyType:
     enemyConfigFilled[et] = false
 
-proc vanillaEnemyConfig*(enemyType: EnemyType): EnemyConfig =
+proc vanillaEnemyConfig*(enemyType: EnemyType): EnemyConfig {.moddable.} =
   ## The built-in config, ignoring mods.
   buildEnemyConfig(enemyType)
 
@@ -875,7 +860,7 @@ proc getEnemyConfig*(enemyType: EnemyType): lent EnemyConfig =
 
 # HELPER FUNCTIONS
 
-proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] =
+proc getScaledEnemyStats*(config: EnemyConfig, difficulty: float32): tuple[hp: float32, radius: float32, speed: float32, requiredHits: int] {.moddable.} =
   ## Calculate scaled stats based on difficulty (wave number).
   ## Speed scaling is driven by config.speedScaling, set it in getEnemyConfig.
   # Wave-mode midgame was spiking too hard, so regular HP now ramps more gently.

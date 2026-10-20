@@ -2,15 +2,16 @@
 ## Handles multiplayer player vs player combat with optional team support
 
 import raylib, rlgl, math, times, strutils, sequtils, algorithm, random
+import modding/mod_patch_core
 import draw_prims
 from std/unicode import nil   # toUpper for accented team names, without its split/strip overloads
 import types, player, bullet, wall, particle, particle_pool, particle_types, sound, network/network_types, network/network, settings, save_system, localization, render_context, input_intent, ui/background_fx, d_systems, modding/mod_assets
 import modding/mod_hooks   # pvp* hooks; the script API itself is mod_pvp (high layer)
 from ui/os_background import drawArenaFloor
 from ui/ui_helpers import wrapTextLines
+import ui/hud_dock   # hudSurface / textShadow, and the interface theme (ui_theme)
 
 const
-  PVP_KILL_LIMIT* = 5  # Default kill limit (actual value comes from PvPConfig at runtime)
   WALL_PLACEMENT_RANGE* = 250.0  # Max distance from player at which a wall can be placed
 
   # Game feel. Everything below is presentation or host-decided scoring; none of
@@ -94,30 +95,30 @@ const
   PowerPackages*   = [pkOverclock, pkFork]
   UtilityPackages* = [pkChkdsk, pkFirewall, pkTurbo]
 
-proc packageFromInt*(value: int): PvPPackageKind =
+proc packageFromInt(value: int): PvPPackageKind {.moddable.} =
   ## Kind from a raw ordinal off the wire. A plain PvPPackageKind(value) is
   ## unchecked in release builds, so a bad value would become an invalid enum.
   if value < ord(low(PvPPackageKind)) or value > ord(high(PvPPackageKind)): pkChkdsk
   else: PvPPackageKind(value)
 
-proc rollPackage*(isPower: bool): PvPPackageKind =
+proc rollPackage(isPower: bool): PvPPackageKind {.moddable.} =
   ## Host only: the kind a port will drop next (clients learn it from snapshots).
   if isPower: PowerPackages[rand(PowerPackages.high)]
   else: UtilityPackages[rand(UtilityPackages.high)]
 
-proc portLayout*(arenaW, arenaH: float32): seq[tuple[pos: Vector2f, isPower: bool]] =
+proc portLayout(arenaW, arenaH: float32): seq[tuple[pos: Vector2, isPower: bool]] {.moddable.} =
   ## Centre power port plus four quadrant utility ports. Symmetric left/right
   ## and top/bottom, so neither the 1v1 spawns (x = 25% / 75%) nor the team
   ## spawns (left / right edges) start closer to anything than their rival.
   @[
-    (pos: newVector2f(arenaW * 0.5'f32,  arenaH * 0.5'f32),  isPower: true),
-    (pos: newVector2f(arenaW * 0.25'f32, arenaH * 0.25'f32), isPower: false),
-    (pos: newVector2f(arenaW * 0.75'f32, arenaH * 0.25'f32), isPower: false),
-    (pos: newVector2f(arenaW * 0.25'f32, arenaH * 0.75'f32), isPower: false),
-    (pos: newVector2f(arenaW * 0.75'f32, arenaH * 0.75'f32), isPower: false)
+    (pos: vec2(arenaW * 0.5'f32,  arenaH * 0.5'f32),  isPower: true),
+    (pos: vec2(arenaW * 0.25'f32, arenaH * 0.25'f32), isPower: false),
+    (pos: vec2(arenaW * 0.75'f32, arenaH * 0.25'f32), isPower: false),
+    (pos: vec2(arenaW * 0.25'f32, arenaH * 0.75'f32), isPower: false),
+    (pos: vec2(arenaW * 0.75'f32, arenaH * 0.75'f32), isPower: false)
   ]
 
-proc packageDuration*(kind: PvPPackageKind): float32 =
+proc packageDuration(kind: PvPPackageKind): float32 {.moddable.} =
   ## Timed buff length, 0 for instant / until-consumed packages.
   case kind
   of pkChkdsk, pkFirewall: 0.0'f32
@@ -125,7 +126,7 @@ proc packageDuration*(kind: PvPPackageKind): float32 =
   of pkOverclock: OverclockDuration
   of pkFork: ForkDuration
 
-proc packageName*(kind: PvPPackageKind): string =
+proc packageName(kind: PvPPackageKind): string {.moddable.} =
   case kind
   of pkChkdsk: t(tkPvPPkgChkdsk)
   of pkFirewall: t(tkPvPPkgFirewall)
@@ -133,7 +134,7 @@ proc packageName*(kind: PvPPackageKind): string =
   of pkOverclock: t(tkPvPPkgOverclock)
   of pkFork: t(tkPvPPkgFork)
 
-proc packageBlurb*(kind: PvPPackageKind): string =
+proc packageBlurb(kind: PvPPackageKind): string {.moddable.} =
   case kind
   of pkChkdsk: t(tkPvPPkgChkdskBlurb)
   of pkFirewall: t(tkPvPPkgFirewallBlurb)
@@ -141,7 +142,7 @@ proc packageBlurb*(kind: PvPPackageKind): string =
   of pkOverclock: t(tkPvPPkgOverclockBlurb)
   of pkFork: t(tkPvPPkgForkBlurb)
 
-proc packageColor*(kind: PvPPackageKind): Color =
+proc packageColor(kind: PvPPackageKind): Color {.moddable.} =
   ## Firewall and Turbo match the player-body effects they switch on (the cyan
   ## shield bubble and the green-cyan speed trail in drawPlayer), so the pickup
   ## and its effect read as the same thing.
@@ -152,7 +153,7 @@ proc packageColor*(kind: PvPPackageKind): Color =
   of pkOverclock: Color(r: 255, g: 185, b: 40, a: 255)
   of pkFork: Color(r: 255, g: 95, b: 205, a: 255)
 
-proc drawPackageIcon*(kind: PvPPackageKind, cx, cy, size: float32, color: Color) =
+proc drawPackageIcon(kind: PvPPackageKind, cx, cy, size: float32, color: Color) {.moddable.} =
   ## Programmatic glyph centred on (cx, cy); `size` is the half-extent. Shapes
   ## are chunky on purpose: the icon has to read at ~10 px on a HUD pill.
   let s = size
@@ -204,10 +205,9 @@ type
 
   # Interpolation state for remote players
   PlayerInterpState = object
-    prevPos*: Vector2f
-    targetPos*: Vector2f
-    prevVel*: Vector2f
-    targetVel*: Vector2f
+    prevPos*: Vector2
+    targetPos*: Vector2
+    targetVel*: Vector2
     prevTime*: float32
     targetTime*: float32
     hasData*: bool
@@ -238,7 +238,7 @@ type
     multiCount*: int
 
   PvPPort* = object
-    pos*: Vector2f
+    pos*: Vector2
     isPower*: bool
     kind*: PvPPackageKind    ## what is on it, or what drops next while inactive
     active*: bool
@@ -256,7 +256,7 @@ type
     age: float32
 
   HitMarker = object
-    pos: Vector2f
+    pos: Vector2
     age: float32
     isKill: bool
 
@@ -281,7 +281,7 @@ type
     # Unacknowledged inputs for client-side replay. `vel` is the velocity the
     # input ACTUALLY moved the player with locally (dash / TURBO included), so the
     # replay reproduces the same path instead of re-deriving it from moveDir.
-    pendingInputs*: seq[tuple[capturedAt: float32, input: PlayerInput, vel: Vector2f]]
+    pendingInputs*: seq[tuple[capturedAt: float32, input: PlayerInput, vel: Vector2]]
     screenWidth*: int32
     screenHeight*: int32
     bulletIdCounter*: int  # Local bullet ID counter
@@ -301,7 +301,7 @@ type
     interpDelay*: float32  # Render delay for interpolation (in seconds)
     interpolationEnabled*: bool  # Whether interpolation is enabled
     recentlyDestroyedBullets*: seq[int]  # Recently destroyed bullet IDs (to prevent snapshot resurrection)
-    localPosCorrection*: Vector2f  # Accumulated position error, blended per-frame toward zero
+    localPosCorrection*: Vector2  # Accumulated position error, blended per-frame toward zero
     config*: PvPConfig                  # Host-configurable game settings
     wallPlacementMode*: bool            # Whether the local player is in wall-placement mode (toggled by E)
     # Rematch generation, stamped on every packet (see Packet.matchId)
@@ -313,7 +313,7 @@ type
     # Dash sync
     lastDashSeq*: seq[int]              # last dashSeq applied per player (both roles)
     localDashSeq*: int                  # local player's cumulative dash presses this match
-    pendingDashDir*: Vector2f           # direction locked at the latest press, repeated in every input
+    pendingDashDir*: Vector2           # direction locked at the latest press, repeated in every input
     lastSentDashSeq: int                # client: newest dashSeq already pushed out immediately
     keepAliveTimer: float32             # pings on the result screen (gameTime is frozen there)
     lastRemoteShotSound: float32        # client: throttles other players' shot sounds
@@ -351,7 +351,7 @@ type
     shake: ScreenShake
     hurtFlash: float32
 
-proc getTeamName*(team: PvPTeam): string =
+proc getTeamName*(team: PvPTeam): string {.moddable.} =
   ## Get the display name for a team
   case team
   of ptRed:
@@ -369,7 +369,7 @@ proc getTeamName*(team: PvPTeam): string =
   of ptNone:
     return t(tkPvPTeamNone)
 
-proc getTeamColor*(team: PvPTeam): Color =
+proc getTeamColor*(team: PvPTeam): Color {.moddable.} =
   ## Get the display color for a team
   case team
   of ptRed:
@@ -387,7 +387,7 @@ proc getTeamColor*(team: PvPTeam): Color =
   of ptNone:
     return White
 
-proc assignPlayerToTeam*(playerIndex: int, maxPlayers: int, teamsEnabled: bool): PvPTeam =
+proc assignPlayerToTeam(playerIndex: int, maxPlayers: int, teamsEnabled: bool): PvPTeam {.moddable.} =
   ## Assign a player to a team based on their index
   if not teamsEnabled:
     return ptNone
@@ -418,7 +418,7 @@ proc assignPlayerToTeam*(playerIndex: int, maxPlayers: int, teamsEnabled: bool):
     of 2: return ptGreen
     else: return ptYellow
 
-proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, screenWidth, screenHeight: float32): Vector2f =
+proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, screenWidth, screenHeight: float32): Vector2 =
   ## Calculate spawn position for a player based on their team
   ## Teams spawn grouped together in different quadrants
 
@@ -430,7 +430,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
   of ptNone:
     # Free-for-all: distribute evenly around circle
     let angle = (playerIndex.float / totalPlayers.float) * 2.0 * PI
-    return newVector2f(
+    return vec2(
       centerX + cos(angle) * spawnRadius,
       centerY + sin(angle) * spawnRadius
     )
@@ -438,7 +438,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
   of ptRed:
     # Left side
     let teamOffset = (playerIndex div 2).float * 80.0  # Vertical spacing between teammates
-    return newVector2f(
+    return vec2(
       screenWidth * 0.15,
       centerY + teamOffset - 80.0
     )
@@ -446,7 +446,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
   of ptBlue:
     # Right side
     let teamOffset = (playerIndex div 2).float * 80.0
-    return newVector2f(
+    return vec2(
       screenWidth * 0.85,
       centerY + teamOffset - 80.0
     )
@@ -454,7 +454,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
   of ptGreen:
     # Top side
     let teamOffset = (playerIndex div 3).float * 80.0
-    return newVector2f(
+    return vec2(
       centerX + teamOffset - 80.0,
       screenHeight * 0.15
     )
@@ -462,7 +462,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
   of ptYellow:
     # Bottom side
     let teamOffset = (playerIndex div 4).float * 80.0
-    return newVector2f(
+    return vec2(
       centerX + teamOffset - 80.0,
       screenHeight * 0.85
     )
@@ -470,7 +470,7 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
   of ptOrange:
     # Top-left side
     let teamOffset = (playerIndex div 5).float * 80.0
-    return newVector2f(
+    return vec2(
       screenWidth * 0.25,
       screenHeight * 0.15 + teamOffset
     )
@@ -478,27 +478,27 @@ proc getTeamSpawnPosition(playerIndex: int, team: PvPTeam, totalPlayers: int, sc
   of ptPurple:
     # Top-right side
     let teamOffset = (playerIndex div 6).float * 80.0
-    return newVector2f(
+    return vec2(
       screenWidth * 0.75,
       screenHeight * 0.15 + teamOffset
     )
 
-proc getSpawnPosition(playerIndex, totalPlayers: int, screenWidth, screenHeight: float32): Vector2f =
+proc getSpawnPosition(playerIndex, totalPlayers: int, screenWidth, screenHeight: float32): Vector2 =
   ## Calculate spawn position for a player based on their index (free-for-all)
   ## Distributes players evenly around the screen
   if totalPlayers == 2:
     # 1v1 positioning
     if playerIndex == 0:
-      return newVector2f(screenWidth * 0.25, screenHeight * 0.5)
+      return vec2(screenWidth * 0.25, screenHeight * 0.5)
     else:
-      return newVector2f(screenWidth * 0.75, screenHeight * 0.5)
+      return vec2(screenWidth * 0.75, screenHeight * 0.5)
   else:
     # Distribute players in a circle
     let angle = (playerIndex.float / totalPlayers.float) * 2.0 * PI
     let radius = min(screenWidth, screenHeight) * 0.35
     let centerX = screenWidth * 0.5
     let centerY = screenHeight * 0.5
-    return newVector2f(
+    return vec2(
       centerX + cos(angle) * radius,
       centerY + sin(angle) * radius
     )
@@ -506,7 +506,7 @@ proc getSpawnPosition(playerIndex, totalPlayers: int, screenWidth, screenHeight:
 proc isHostSide(pvp: PvPGameState): bool {.inline.} =
   not pvp.networkManager.isNil and pvp.networkManager.isHost()
 
-proc spawnPositionFor(pvp: PvPGameState, playerIndex: int): Vector2f =
+proc spawnPositionFor(pvp: PvPGameState, playerIndex: int): Vector2 =
   ## Team-aware spawn point, the same on host and clients. On the host a mod
   ## (pvpSpawnPoint) may move it; clients get the result with the game-start and
   ## respawn packets.
@@ -563,7 +563,7 @@ proc pvpPacket(pvp: PvPGameState, kind: PacketType): Packet {.inline.} =
   result = newPacket(kind, pvp.serverTick)
   result.matchId = pvp.matchId
 
-proc playerIndexOf*(pvp: PvPGameState, p: Player): int =
+proc playerIndexOf*(pvp: PvPGameState, p: Player): int {.moddable.} =
   ## The slot of `p` in this match, -1 if it is not one of its players.
   for i, x in pvp.players:
     if x == p: return i
@@ -611,7 +611,7 @@ proc outboxPrefix(outbox: seq[ModNetMsg]): seq[ModNetMsg] =
     if result.len > 0 and bytes > ModMsgPacketBudget: break
     result.add(msg)
 
-proc modRequest*(pvp: PvPGameState, name, data: string): bool =
+proc modRequest*(pvp: PvPGameState, name, data: string): bool {.moddable.} =
   ## match:request. False when too many are still waiting for the host.
   if pvp.isHostSide:
     # The host's own player asks itself: no network involved.
@@ -624,7 +624,7 @@ proc modRequest*(pvp: PvPGameState, name, data: string): bool =
   pvp.modUrgent = true
   true
 
-proc modBroadcast*(pvp: PvPGameState, name, data: string): bool =
+proc modBroadcast*(pvp: PvPGameState, name, data: string): bool {.moddable.} =
   ## match:broadcast (host). The host hears its own too, at the next safe
   ## point of the frame. False when a client has stopped acknowledging.
   if pvp.modOutbox.len >= MaxModOutbox:
@@ -696,7 +696,7 @@ proc deliverModMessages(pvp: PvPGameState) =
     for b in broadcasts:
       modPvPBroadcast(pvp, b.name, b.data)
 
-proc playerName*(pvp: PvPGameState, playerIndex: int): string =
+proc playerName*(pvp: PvPGameState, playerIndex: int): string {.moddable.} =
   if playerIndex >= 0 and playerIndex < pvp.playerNicknames.len and
      pvp.playerNicknames[playerIndex].len > 0:
     pvp.playerNicknames[playerIndex]
@@ -715,15 +715,15 @@ proc playerColor(pvp: PvPGameState, playerIndex: int): Color =
   else:
     Color(r: 255, g: 200, b: 100, a: 255)
 
-proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]], teamsEnabled: bool = false, playerTeamAssignments: seq[int] = @[], interpolationEnabled: bool = true, config: PvPConfig = defaultPvPConfig()): PvPGameState =
+proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers: int, connectedPlayers: seq[tuple[index: int, skinType, bulletSkinType, shapeType, particleSkinType: int, nickname: string]], teamsEnabled: bool = false, playerTeamAssignments: seq[int] = @[], interpolationEnabled: bool = true, config: PvPConfig = defaultPvPConfig()): PvPGameState {.moddable.} =
   let emptyInput = PlayerInput(
     tick: 0,
     playerIndex: 0,
-    moveDir: newVector2f(0, 0),
+    moveDir: vec2(0, 0),
     shooting: false,
-    mousePos: newVector2f(0, 0),
+    mousePos: vec2(0, 0),
     placingWall: false,
-    wallPos: newVector2f(0, 0),
+    wallPos: vec2(0, 0),
     timestamp: 0
   )
 
@@ -762,7 +762,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     interpDelay: 0.033,  # 33ms interpolation delay
     interpolationEnabled: interpolationEnabled,
     recentlyDestroyedBullets: @[],  # Track bullets destroyed to prevent snapshot resurrection
-    localPosCorrection: newVector2f(0, 0),
+    localPosCorrection: vec2(0, 0),
     config: config
   )
 
@@ -835,8 +835,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
     result.playerInterpStates.add(PlayerInterpState(
       prevPos: player.pos,
       targetPos: player.pos,
-      prevVel: newVector2f(0, 0),
-      targetVel: newVector2f(0, 0),
+      targetVel: vec2(0, 0),
       prevTime: 0,
       targetTime: 0,
       hasData: false
@@ -850,7 +849,7 @@ proc newPvPGameState*(screenWidth, screenHeight: int32, isHost: bool, maxPlayers
   result.toastAge = ToastTime
   resetPorts(result)
 
-proc resetMatchState*(pvp: PvPGameState) =
+proc resetMatchState(pvp: PvPGameState) {.moddable.} =
   ## Put the arena back to the opening state of a match, keeping the roster
   ## (nicknames, cosmetics, teams, who is still connected). Shared by the host's
   ## rematch and by clients adopting it, so both sides start from identical state.
@@ -861,7 +860,7 @@ proc resetMatchState*(pvp: PvPGameState) =
     p.hp = if connected: pvp.config.startHp else: 0.0
     p.maxHp = pvp.config.startHp
     p.pos = spawnPositionFor(pvp, i)
-    p.vel = newVector2f(0, 0)
+    p.vel = vec2(0, 0)
     p.kills = 0
     p.walls = pvp.config.startWalls
     # Far in the past, so the first trigger pull of the new match always fires
@@ -876,7 +875,7 @@ proc resetMatchState*(pvp: PvPGameState) =
     pvp.lastInputs[i].tick = -1  # stale input from the last match must not be replayed
     pvp.lastInputs[i].shooting = false
     pvp.lastInputs[i].placingWall = false
-    pvp.lastInputs[i].moveDir = newVector2f(0, 0)
+    pvp.lastInputs[i].moveDir = vec2(0, 0)
     pvp.lastInputs[i].dashSeq = 0
     pvp.warps[i] = 0
     pvp.modSeqIn[i] = 0
@@ -892,12 +891,12 @@ proc resetMatchState*(pvp: PvPGameState) =
   pvp.recentlyDestroyedBullets = @[]
   pvp.damageNumbers = @[]
   pvp.pendingInputs = @[]
-  pvp.localPosCorrection = newVector2f(0, 0)
+  pvp.localPosCorrection = vec2(0, 0)
   pvp.localDashSeq = 0
   pvp.localIdleTime = 0
   pvp.lastSentDashSeq = 0
   pvp.keepAliveTimer = 0
-  pvp.pendingDashDir = newVector2f(0, -1)
+  pvp.pendingDashDir = vec2(0, -1)
   pvp.dashCorrectionGrace = 0
   pvp.wallPlacementMode = false
   pvp.firstBloodDone = false
@@ -986,7 +985,7 @@ proc sendGameStartPacket(pvp: PvPGameState) =
   packet.modData = modDataPayload(pvp, force = true)
   pvp.networkManager.sendPacket(packet)
 
-proc startCountdown*(pvp: PvPGameState) =
+proc startCountdown*(pvp: PvPGameState) {.moddable.} =
   ## A match's countdown. Mods hear pvpStart first; then the host places
   ## everyone at their spawn points (which a mod may have moved) and rolls the
   ## ports, before the start signal carries both to the clients.
@@ -1006,7 +1005,7 @@ proc startCountdown*(pvp: PvPGameState) =
   if pvp.networkManager.isHost():
     sendGameStartPacket(pvp)
 
-proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
+proc capturePlayerInput(pvp: PvPGameState, dt: float32): PlayerInput {.moddable.} =
   ## Everything here goes through `input_intent`, the same seam single-player
   ## uses, so PvP is playable on touch without a mobile-specific control path.
   let localPos = pvp.players[pvp.localPlayerIndex].pos
@@ -1066,23 +1065,23 @@ proc capturePlayerInput*(pvp: PvPGameState, dt: float32): PlayerInput =
     pvp.pendingDashDir =
       if moveDir.length() >= 0.01'f32: moveDir.normalize()
       elif localPlayer.vel.length() > 1.0'f32: localPlayer.vel.normalize()
-      else: newVector2f(0, -1)
+      else: vec2(0, -1)
 
   result = PlayerInput(
     tick: pvp.serverTick,
     playerIndex: pvp.localPlayerIndex,
     moveDir: moveDir,
     shooting: shooting,
-    mousePos: newVector2f(mousePos.x, mousePos.y),
+    mousePos: vec2(mousePos.x, mousePos.y),
     placingWall: placingWall,
-    wallPos: newVector2f(mousePos.x, mousePos.y),
+    wallPos: vec2(mousePos.x, mousePos.y),
     timestamp: epochTime(),
     dt: dt,
     dashSeq: pvp.localDashSeq,
     dashDir: pvp.pendingDashDir
   )
 
-proc areTeammates*(pvp: PvPGameState, playerIdx1, playerIdx2: int): bool =
+proc areTeammates(pvp: PvPGameState, playerIdx1, playerIdx2: int): bool {.moddable.} =
   ## Check if two players are on the same team
   if not pvp.teamsEnabled:
     return false
@@ -1103,7 +1102,7 @@ proc effectiveFireInterval(player: Player): float32 =
   ## OVERCLOCK.SYS-aware seconds between shots.
   if player.fireRateBoostTimer > 0: player.fireRate * OverclockFireMult else: player.fireRate
 
-proc movePlayerBy(pvp: PvPGameState, player: Player, delta: Vector2f) =
+proc movePlayerBy(pvp: PvPGameState, player: Player, delta: Vector2) =
   ## One movement step with wall blocking and arena clamping. Shared by live
   ## input and reconcile replay so both resolve collisions identically.
   let nextPos = player.pos + delta
@@ -1117,7 +1116,7 @@ proc movePlayerBy(pvp: PvPGameState, player: Player, delta: Vector2f) =
   player.pos.x = clamp(player.pos.x, player.radius, pvp.screenWidth.float32 - player.radius)
   player.pos.y = clamp(player.pos.y, player.radius, pvp.screenHeight.float32 - player.radius)
 
-proc replayMovementInput(pvp: PvPGameState, playerIndex: int, vel: Vector2f, dt: float32) =
+proc replayMovementInput(pvp: PvPGameState, playerIndex: int, vel: Vector2, dt: float32) =
   ## Replay only the movement component of a past input during reconciliation.
   ## Side-effects (shooting, wall placement, starting a dash) are deliberately
   ## skipped to avoid duplicates. `vel` is what that input really moved the
@@ -1128,10 +1127,10 @@ proc replayMovementInput(pvp: PvPGameState, playerIndex: int, vel: Vector2f, dt:
   if vel.x != 0 or vel.y != 0:
     movePlayerBy(pvp, player, vel * dt)
 
-proc rotated(v: Vector2f, angle: float32): Vector2f =
+proc rotated(v: Vector2, angle: float32): Vector2 =
   let c = cos(angle)
   let s = sin(angle)
-  newVector2f(v.x * c - v.y * s, v.x * s + v.y * c)
+  vec2(v.x * c - v.y * s, v.x * s + v.y * c)
 
 # Presentation. These only touch the presentation fields (feed, markers,
 # banners, sounds, particles, shake). The host calls each one where it decides
@@ -1252,7 +1251,7 @@ proc fxRespawn(pvp: PvPGameState, idx: int) =
     playSound(stTeleport, 0.7'f32)
   modPvPRespawn(pvp, pvp.players[idx])
 
-proc localResult*(pvp: PvPGameState): int =
+proc localResult(pvp: PvPGameState): int {.moddable.} =
   ## 1 = the local player (or their team) won, -1 = lost, 0 = draw / no winner.
   if pvp.teamsEnabled:
     if pvp.winnerTeam == ptNone: return 0
@@ -1541,7 +1540,7 @@ proc joinBullet(pvp: PvPGameState, b: Bullet) =
   packet.bullet = bulletNet(b)
   pvp.networkManager.sendPacket(packet)
 
-proc spawnPvPBullet(pvp: PvPGameState, owner: int, dir: Vector2f, damage: float32) =
+proc spawnPvPBullet(pvp: PvPGameState, owner: int, dir: Vector2, damage: float32) =
   ## Host only: create one bullet and broadcast it.
   let player = pvp.players[owner]
   let newBullet = Bullet(
@@ -1561,9 +1560,9 @@ proc spawnPvPBullet(pvp: PvPGameState, owner: int, dir: Vector2f, damage: float3
   inc pvp.stats[owner].shotsFired
   joinBullet(pvp, newBullet)
 
-proc modSpawnBullet*(pvp: PvPGameState, owner: int, pos, vel: Vector2f,
+proc modSpawnBullet*(pvp: PvPGameState, owner: int, pos, vel: Vector2,
                      damage, radius, life: float32, color: Color, kind: string,
-                     pierce: int): Bullet =
+                     pierce: int): Bullet {.moddable.} =
   ## match:spawnBullet (host). Made now so the script gets it back at once, but
   ## it joins the match at the next safe point of the frame: hooks fire inside
   ## the bullet loop. nil when the arena is full.
@@ -1587,17 +1586,17 @@ proc flushModBullets(pvp: PvPGameState) =
   for b in pending:
     if b.lifetime > 0: joinBullet(pvp, b)
 
-proc pvpBulletAlive*(pvp: PvPGameState, b: Bullet): bool =
+proc pvpBulletAlive*(pvp: PvPGameState, b: Bullet): bool {.moddable.} =
   ## bullet:valid() in PvP: still flying (or about to join).
   b.lifetime > 0 and (b in pvp.bullets or b in pvp.modBullets)
 
-proc fireShot(pvp: PvPGameState, owner: int, aimPos: Vector2f) =
+proc fireShot(pvp: PvPGameState, owner: int, aimPos: Vector2) =
   ## Host only: one trigger pull, three bullets under FORK.EXE, or whatever a
   ## mod fires instead (pvpShoot).
   let player = pvp.players[owner]
   var dir = (aimPos - player.pos).normalize()
   if dir.x == 0 and dir.y == 0:
-    dir = newVector2f(0, -1)  # aiming at your own centre: don't spawn a frozen bullet
+    dir = vec2(0, -1)  # aiming at your own centre: don't spawn a frozen bullet
   if not modPvPShoot(pvp, player, dir, aimPos):
     spawnPvPBullet(pvp, owner, dir, player.damage)
     if pvp.spreadTimers[owner] > 0:
@@ -1606,8 +1605,8 @@ proc fireShot(pvp: PvPGameState, owner: int, aimPos: Vector2f) =
       spawnPvPBullet(pvp, owner, rotated(dir, spread), player.damage * ForkSideDamageMult)
   playSound(stShoot, if owner == pvp.localPlayerIndex: 1.0'f32 else: 0.35'f32)
 
-proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput,
-                       dt: float32): Vector2f {.discardable.} =
+proc applyPlayerInput(pvp: PvPGameState, playerIndex: int, input: PlayerInput,
+                       dt: float32): Vector2 {.discardable, moddable.} =
   ## Apply input to a player (used by both client and server). Returns the
   ## velocity the player actually moved with, which the client records for
   ## reconcile replay.
@@ -1631,7 +1630,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput,
 
   if newDash and player.dashTimer <= 0 and player.dashCooldown <= DashAcceptGrace:
     player.dashDir = if input.dashDir.length() >= 0.01'f32: input.dashDir.normalize()
-                     else: newVector2f(0, -1)
+                     else: vec2(0, -1)
     player.dashTimer = DashDuration
     player.dashCooldown = DashCooldownTime
     player.dashReadyFlash = 0
@@ -1647,7 +1646,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput,
   elif input.moveDir.length() > 0:
     player.vel = input.moveDir * speed
   else:
-    player.vel = newVector2f(0, 0)
+    player.vel = vec2(0, 0)
   if player.vel.x != 0 or player.vel.y != 0:
     movePlayerBy(pvp, player, player.vel * dt)
   result = player.vel
@@ -1711,7 +1710,7 @@ proc applyPlayerInput*(pvp: PvPGameState, playerIndex: int, input: PlayerInput,
         # ptWallPlace arrives from the host (typically within one RTT).
         playSound(stPowerUp)
 
-proc updateBullets*(pvp: PvPGameState, dt: float32) =
+proc updateBullets(pvp: PvPGameState, dt: float32) {.moddable.} =
   ## Update bullets (server-side authoritative)
   var i = 0
   while i < pvp.bullets.len:
@@ -1835,7 +1834,7 @@ proc respawnPlayer(pvp: PvPGameState, idx: int) =
   let p = pvp.players[idx]
   p.hp = pvp.config.startHp
   p.pos = spawnPositionFor(pvp, idx)
-  p.vel = newVector2f(0, 0)
+  p.vel = vec2(0, 0)
   p.walls = pvp.config.startWalls
   p.invincibilityTimer = RespawnInvulnTime
   clearCombatBuffs(pvp, idx)
@@ -1848,37 +1847,37 @@ proc respawnPlayer(pvp: PvPGameState, idx: int) =
 # What the match object of mod_pvp does. The host-only ones are refused there
 # on clients; these assume they run on the host.
 
-proc modDamage*(pvp: PvPGameState, victim, attacker: int, amount: float32) =
+proc modDamage*(pvp: PvPGameState, victim, attacker: int, amount: float32) {.moddable.} =
   ## match:damage: through the same door as a bullet (FIREWALL.SYS, the
   ## pvpPlayerDamaged filter, the kill credit), but not counted as a shot.
   if victim < 0 or victim >= pvp.players.len or pvp.gameOver: return
   applyHit(pvp, victim, attacker, amount, fromBullet = false)
 
-proc modKill*(pvp: PvPGameState, victim, killer: int) =
+proc modKill*(pvp: PvPGameState, victim, killer: int) {.moddable.} =
   ## match:kill: down at once, crediting `killer` (-1 = nobody).
   if victim < 0 or victim >= pvp.players.len or pvp.gameOver: return
   if pvp.players[victim].hp <= 0: return
   pvp.players[victim].hp = 0
   registerKill(pvp, killer, victim)
 
-proc modHeal*(pvp: PvPGameState, idx: int, amount: float32) =
+proc modHeal*(pvp: PvPGameState, idx: int, amount: float32) {.moddable.} =
   if idx < 0 or idx >= pvp.players.len: return
   let p = pvp.players[idx]
   if p.hp > 0:
     p.hp = min(p.maxHp, p.hp + max(0'f32, amount))
 
-proc modTeleport*(pvp: PvPGameState, idx: int, pos: Vector2f) =
+proc modTeleport*(pvp: PvPGameState, idx: int, pos: Vector2) {.moddable.} =
   ## match:teleport (and a script setting a PvP player's x / y on the host):
   ## the next snapshot tells every machine to snap there.
   if idx < 0 or idx >= pvp.players.len: return
   let p = pvp.players[idx]
-  p.pos = newVector2f(clamp(pos.x, p.radius, pvp.screenWidth.float32 - p.radius),
+  p.pos = vec2(clamp(pos.x, p.radius, pvp.screenWidth.float32 - p.radius),
                       clamp(pos.y, p.radius, pvp.screenHeight.float32 - p.radius))
   inc pvp.warps[idx]
   if idx == pvp.localPlayerIndex:
-    pvp.localPosCorrection = newVector2f(0, 0)
+    pvp.localPosCorrection = vec2(0, 0)
 
-proc modFinish*(pvp: PvPGameState, winnerIdx: int, team: PvPTeam, text: string) =
+proc modFinish*(pvp: PvPGameState, winnerIdx: int, team: PvPTeam, text: string) {.moddable.} =
   ## match:finish: the match ends now, by the mode's rules. A winning player in
   ## team mode wins for their team.
   if pvp.gameOver: return
@@ -1887,17 +1886,17 @@ proc modFinish*(pvp: PvPGameState, winnerIdx: int, team: PvPTeam, text: string) 
     t = pvp.players[winnerIdx].teamId
   endMatch(pvp, winnerIdx, t, erScripted, text)
 
-proc modToast*(pvp: PvPGameState, text: string, color: Color) =
+proc modToast*(pvp: PvPGameState, text: string, color: Color) {.moddable.} =
   ## match:toast: this machine only (broadcast it to show it everywhere).
   pvp.showToast(text, color)
 
-proc modBanner*(pvp: PvPGameState, text, sub: string, color: Color) =
+proc modBanner*(pvp: PvPGameState, text, sub: string, color: Color) {.moddable.} =
   pvp.showBanner(text, sub, color)
 
-proc modParticles*(pvp: PvPGameState, x, y: float32, color: Color, count: int) =
+proc modParticles*(pvp: PvPGameState, x, y: float32, color: Color, count: int) {.moddable.} =
   spawnExplosionPooled(pvp.particlePool, x, y, color, clamp(count, 1, 200).int32)
 
-proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
+proc updatePvPServer(pvp: PvPGameState, dt: float32) {.moddable.} =
   ## Server-side update (host only)
   pvp.serverTick += 1
   pvp.gameTime += dt
@@ -2062,9 +2061,9 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
     packet.modData = modDataPayload(pvp, force = false)
     pvp.networkManager.sendPacket(packet)
 
-    # Host should also reconcile their own state for fairness
-    # This ensures host experiences same prediction+reconciliation as client
-    # Apply server state to host (inline reconciliation for simplicity)
+    # The host's players ARE the snapshot it just built, so there is nothing
+    # to copy back (or to reconcile: its own position matches by definition).
+    # Only the remote players' interpolation targets move, as on a client.
     let localIdx = pvp.localPlayerIndex
 
     # Update interpolation states for all remote players (clients)
@@ -2075,12 +2074,10 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         # Move current target to previous
         if interpState.hasData:
           interpState.prevPos = interpState.targetPos
-          interpState.prevVel = interpState.targetVel
           interpState.prevTime = interpState.targetTime
         else:
           # First snapshot - initialize with current position
           interpState.prevPos = gameState.players[i].pos
-          interpState.prevVel = gameState.players[i].vel
           interpState.prevTime = gameState.timestamp
 
         # Set new target from game state
@@ -2089,58 +2086,7 @@ proc updatePvPServer*(pvp: PvPGameState, dt: float32) =
         interpState.targetTime = gameState.timestamp
         interpState.hasData = true
 
-        # Update non-positional data immediately
-        pvp.players[i].vel = gameState.players[i].vel
-        pvp.players[i].hp = gameState.players[i].hp
-        pvp.players[i].maxHp = gameState.players[i].maxHp
-        pvp.players[i].coins = gameState.players[i].coins
-        pvp.players[i].kills = gameState.players[i].kills
-        pvp.players[i].walls = gameState.players[i].walls
-        pvp.players[i].damage = gameState.players[i].damage
-        pvp.players[i].speed = gameState.players[i].speed
-        pvp.players[i].fireRate = gameState.players[i].fireRate
-        pvp.players[i].bulletSpeed = gameState.players[i].bulletSpeed
-        pvp.players[i].invincibilityTimer = gameState.players[i].invincibilityTimer
-
-    # Reconcile host's own player - TRUST CLIENT PREDICTION
-    # Even the host should trust their local prediction to maintain consistency.
-    # Thresholds scale with player speed so fast-moving players don't trigger
-    # constant correction from normal prediction drift.
-    if localIdx >= 0 and localIdx < gameState.players.len:
-      let serverPos = gameState.players[localIdx].pos
-      let clientPos = pvp.players[localIdx].pos
-      let posDiff = sqrt((serverPos.x - clientPos.x) * (serverPos.x - clientPos.x) +
-                         (serverPos.y - clientPos.y) * (serverPos.y - clientPos.y))
-
-      # Scale thresholds proportionally to speed (baseline 200 px/s)
-      let speedFactor = max(1.0, pvp.players[localIdx].speed / 200.0)
-      let snapThreshold = 150.0 * speedFactor
-      let corrThreshold = 50.0 * speedFactor
-
-      if posDiff > snapThreshold:
-        # LARGE desync - snap immediately
-        pvp.players[localIdx].pos = serverPos
-        pvp.localPosCorrection = newVector2f(0, 0)
-      elif posDiff > corrThreshold:
-        # MEDIUM desync: accumulate for per-frame blending (replaces old one-shot lerp)
-        pvp.localPosCorrection.x = serverPos.x - pvp.players[localIdx].pos.x
-        pvp.localPosCorrection.y = serverPos.y - pvp.players[localIdx].pos.y
-      # else: SMALL desync - trust prediction completely
-
-      # Always update other host data from server
-      pvp.players[localIdx].vel = gameState.players[localIdx].vel
-      pvp.players[localIdx].hp = gameState.players[localIdx].hp
-      pvp.players[localIdx].maxHp = gameState.players[localIdx].maxHp
-      pvp.players[localIdx].coins = gameState.players[localIdx].coins
-      pvp.players[localIdx].kills = gameState.players[localIdx].kills
-      pvp.players[localIdx].walls = gameState.players[localIdx].walls
-      pvp.players[localIdx].damage = gameState.players[localIdx].damage
-      pvp.players[localIdx].speed = gameState.players[localIdx].speed
-      pvp.players[localIdx].fireRate = gameState.players[localIdx].fireRate
-      pvp.players[localIdx].bulletSpeed = gameState.players[localIdx].bulletSpeed
-      pvp.players[localIdx].invincibilityTimer = gameState.players[localIdx].invincibilityTimer
-
-proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
+proc updatePvPClient(pvp: PvPGameState, dt: float32) {.moddable.} =
   ## Client-side update (prediction + reconciliation)
   ## Input is now applied immediately in main updatePvP for responsive feel
   ## This function handles additional client-only updates
@@ -2271,7 +2217,51 @@ proc updatePvPClient*(pvp: PvPGameState, dt: float32) =
   # Update particles locally
   updateParticlePool(pvp.particlePool, dt)
 
-proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
+proc applyPlayerNet(pvp: PvPGameState, i: int, s: PlayerStateNet, remote: bool) {.moddable.} =
+  ## Copy the host's snapshot of player `i` onto ours, all but the position
+  ## (a remote player interpolates toward it, the local one reconciles). The
+  ## local player keeps its own dash timers -- the dash is predicted, and a
+  ## snapshot taken before the host saw the press would reset the cooldown and
+  ## let the player "dash" twice -- and its own cosmetics and nickname.
+  let p = pvp.players[i]
+  p.radius = s.radius
+  p.vel = s.vel
+  p.hp = s.hp
+  p.maxHp = s.maxHp
+  p.coins = s.coins
+  p.kills = s.kills
+  p.walls = s.walls
+  p.damage = s.damage
+  p.speed = s.speed
+  p.fireRate = s.fireRate
+  p.bulletSpeed = s.bulletSpeed
+  p.invincibilityTimer = s.invincibilityTimer
+  p.teamId = teamFromInt(s.teamId)
+  # Buffs are the host's call.
+  p.shieldHits = s.shieldHits
+  p.speedBoostTimer = s.speedBoostTimer
+  p.fireRateBoostTimer = s.fireRateBoostTimer
+  pvp.spreadTimers[i] = s.spreadTimer
+  pvp.stats[i].deaths = s.deaths
+  pvp.stats[i].streak = s.streak
+  if not remote:
+    return
+  p.dashTimer = s.dashTimer
+  p.dashCooldown = s.dashCooldown
+  p.skinType = s.skinType
+  p.bulletSkinType = s.bulletSkinType
+  p.shapeType = s.shapeType
+  p.particleSkinType = s.particleSkinType
+  p.modSkin = s.modSkin
+  p.modBulletSkin = s.modBulletSkin
+  # Sync nickname if server provides it and we don't have it yet
+  if s.nickname.len > 0:
+    while pvp.playerNicknames.len <= i:
+      pvp.playerNicknames.add("P" & $(pvp.playerNicknames.len + 1))
+    if pvp.playerNicknames[i].len == 0 or pvp.playerNicknames[i] == "P" & $(i + 1):
+      pvp.playerNicknames[i] = s.nickname
+
+proc reconcileState(pvp: PvPGameState, serverState: NetworkGameState) {.moddable.} =
   ## Reconcile client state with authoritative server state
   ## Server is ALWAYS authoritative - client just renders smoothly
 
@@ -2297,12 +2287,10 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
         # Move current target to previous
         if interpState.hasData:
           interpState.prevPos = interpState.targetPos
-          interpState.prevVel = interpState.targetVel
           interpState.prevTime = interpState.targetTime
         else:
           # First snapshot - initialize with current position
           interpState.prevPos = serverState.players[i].pos
-          interpState.prevVel = serverState.players[i].vel
           interpState.prevTime = serverState.timestamp
 
         # Set new target from server
@@ -2319,39 +2307,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       pvp.warps[i] = max(pvp.warps[i], serverState.players[i].warp)
 
       # Update non-positional data immediately (no interpolation needed)
-      pvp.players[i].radius = serverState.players[i].radius
-      pvp.players[i].vel = serverState.players[i].vel
-      pvp.players[i].hp = serverState.players[i].hp
-      pvp.players[i].maxHp = serverState.players[i].maxHp
-      pvp.players[i].coins = serverState.players[i].coins
-      pvp.players[i].kills = serverState.players[i].kills
-      pvp.players[i].walls = serverState.players[i].walls
-      pvp.players[i].damage = serverState.players[i].damage
-      pvp.players[i].speed = serverState.players[i].speed
-      pvp.players[i].fireRate = serverState.players[i].fireRate
-      pvp.players[i].bulletSpeed = serverState.players[i].bulletSpeed
-      pvp.players[i].invincibilityTimer = serverState.players[i].invincibilityTimer
-      pvp.players[i].skinType = serverState.players[i].skinType
-      pvp.players[i].bulletSkinType = serverState.players[i].bulletSkinType
-      pvp.players[i].shapeType = serverState.players[i].shapeType
-      pvp.players[i].particleSkinType = serverState.players[i].particleSkinType
-      pvp.players[i].modSkin = serverState.players[i].modSkin
-      pvp.players[i].modBulletSkin = serverState.players[i].modBulletSkin
-      pvp.players[i].teamId = teamFromInt(serverState.players[i].teamId)  # Sync team
-      pvp.players[i].dashTimer = serverState.players[i].dashTimer
-      pvp.players[i].dashCooldown = serverState.players[i].dashCooldown
-      pvp.players[i].shieldHits = serverState.players[i].shieldHits
-      pvp.players[i].speedBoostTimer = serverState.players[i].speedBoostTimer
-      pvp.players[i].fireRateBoostTimer = serverState.players[i].fireRateBoostTimer
-      pvp.spreadTimers[i] = serverState.players[i].spreadTimer
-      pvp.stats[i].deaths = serverState.players[i].deaths
-      pvp.stats[i].streak = serverState.players[i].streak
-      # Sync nickname if server provides it and we don't have it yet
-      if serverState.players[i].nickname.len > 0:
-        while pvp.playerNicknames.len <= i:
-          pvp.playerNicknames.add("P" & $(pvp.playerNicknames.len + 1))
-        if pvp.playerNicknames[i].len == 0 or pvp.playerNicknames[i] == "P" & $(i + 1):
-          pvp.playerNicknames[i] = serverState.players[i].nickname
+      applyPlayerNet(pvp, i, serverState.players[i], remote = true)
 
   # Local player - TRUST CLIENT PREDICTION, only reconcile on large desyncs.
   # After applying the server's authoritative position we re-apply any inputs
@@ -2375,7 +2331,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   if posDiff > snapThreshold or warped:
     # LARGE desync - snap immediately to fix severe issues, clear pending correction
     pvp.players[localIdx].pos = serverPos
-    pvp.localPosCorrection = newVector2f(0, 0)
+    pvp.localPosCorrection = vec2(0, 0)
   elif posDiff > corrThreshold and pvp.dashCorrectionGrace <= 0:
     # MEDIUM desync: accumulate the full error into localPosCorrection so that
     # updatePvPClient can bleed it out smoothly every frame instead of jumping.
@@ -2405,28 +2361,7 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
   pvp.pendingInputs = pvp.pendingInputs.filterIt(it.capturedAt > serverState.timestamp)
 
   # Always update all other data from server
-  pvp.players[localIdx].radius = serverState.players[localIdx].radius
-  pvp.players[localIdx].vel = serverState.players[localIdx].vel
-  pvp.players[localIdx].hp = serverState.players[localIdx].hp
-  pvp.players[localIdx].maxHp = serverState.players[localIdx].maxHp
-  pvp.players[localIdx].coins = serverState.players[localIdx].coins
-  pvp.players[localIdx].kills = serverState.players[localIdx].kills
-  pvp.players[localIdx].walls = serverState.players[localIdx].walls
-  pvp.players[localIdx].damage = serverState.players[localIdx].damage
-  pvp.players[localIdx].speed = serverState.players[localIdx].speed
-  pvp.players[localIdx].fireRate = serverState.players[localIdx].fireRate
-  pvp.players[localIdx].bulletSpeed = serverState.players[localIdx].bulletSpeed
-  pvp.players[localIdx].invincibilityTimer = serverState.players[localIdx].invincibilityTimer
-  pvp.players[localIdx].teamId = teamFromInt(serverState.players[localIdx].teamId)
-  # Buffs are the host's call; the dash timers are NOT copied. Like position,
-  # the local dash is predicted, and a snapshot taken before the host saw the
-  # press would reset the cooldown and let the player "dash" twice.
-  pvp.players[localIdx].shieldHits = serverState.players[localIdx].shieldHits
-  pvp.players[localIdx].speedBoostTimer = serverState.players[localIdx].speedBoostTimer
-  pvp.players[localIdx].fireRateBoostTimer = serverState.players[localIdx].fireRateBoostTimer
-  pvp.spreadTimers[localIdx] = serverState.players[localIdx].spreadTimer
-  pvp.stats[localIdx].deaths = serverState.players[localIdx].deaths
-  pvp.stats[localIdx].streak = serverState.players[localIdx].streak
+  applyPlayerNet(pvp, localIdx, serverState.players[localIdx], remote = false)
 
   # Ports. A length mismatch means the rules disagree (packages toggled), so
   # rebuild from the layout and adopt the host's view.
@@ -2505,13 +2440,13 @@ proc reconcileState*(pvp: PvPGameState, serverState: NetworkGameState) =
       if team != ptNone:
         pvp.teamScores[team].kills += pvp.players[i].kills
 
-proc connectedPlayerCount*(pvp: PvPGameState): int =
+proc connectedPlayerCount(pvp: PvPGameState): int {.moddable.} =
   ## Count how many players are still connected (not disconnected)
   for i in 0..<pvp.players.len:
     if i < pvp.playerConnected.len and pvp.playerConnected[i]:
       result += 1
 
-proc connectedTeams*(pvp: PvPGameState): seq[PvPTeam] =
+proc connectedTeams(pvp: PvPGameState): seq[PvPTeam] {.moddable.} =
   ## Return list of teams that still have at least one connected player
   for i in 0..<pvp.players.len:
     if i < pvp.playerConnected.len and pvp.playerConnected[i]:
@@ -2519,7 +2454,7 @@ proc connectedTeams*(pvp: PvPGameState): seq[PvPTeam] =
       if team != ptNone and team notin result:
         result.add(team)
 
-proc disconnectPlayer*(pvp: PvPGameState, playerIndex: int) =
+proc disconnectPlayer(pvp: PvPGameState, playerIndex: int) {.moddable.} =
   ## Remove a player from active play without ending the game.
   if playerIndex < 0 or playerIndex >= pvp.players.len: return
   pvp.playerConnected[playerIndex] = false
@@ -2527,7 +2462,7 @@ proc disconnectPlayer*(pvp: PvPGameState, playerIndex: int) =
   pvp.respawnTimers[playerIndex] = 0  # Stop any pending respawn
   echo "[PVP] Player ", playerIndex, " removed from active play"
 
-proc checkLastSideStanding*(pvp: PvPGameState): bool =
+proc checkLastSideStanding(pvp: PvPGameState): bool {.moddable.} =
   ## Returns true if the game should end because only one side remains.
   if pvp.teamsEnabled:
     return pvp.connectedTeams().len <= 1
@@ -2541,11 +2476,11 @@ proc markLeft(pvp: PvPGameState, playerIndex: int) =
     pvp.pushFeed(KillFeedEntry(kind: kfLeft, actor: playerIndex, target: -1, age: 0))
   pvp.disconnectPlayer(playerIndex)
 
-proc canRematch*(pvp: PvPGameState): bool =
+proc canRematch(pvp: PvPGameState): bool {.moddable.} =
   ## Host: a rematch needs someone left to play against.
   pvp.networkManager.isHost() and pvp.gameOver and not pvp.checkLastSideStanding()
 
-proc restartMatch*(pvp: PvPGameState) =
+proc restartMatch(pvp: PvPGameState) {.moddable.} =
   ## Host: next match, same lobby. Clients follow the moment any packet with
   ## the new matchId reaches them, normally the ptGameStart sent right here.
   if not canRematch(pvp): return
@@ -2563,7 +2498,7 @@ proc adoptMatch(pvp: PvPGameState, newMatchId: int) =
   beginMatchScripts(pvp)   # pvpStart for the new match (the host's came with restartMatch)
   echo "[PVP] Joining rematch ", newMatchId
 
-proc handleDisconnect*(pvp: PvPGameState, disconnectedIndex: int, reason: string) =
+proc handleDisconnect(pvp: PvPGameState, disconnectedIndex: int, reason: string) {.moddable.} =
   ## Handle a player disconnecting - either end the game (2-player) or
   ## remove them and continue (3+ player).
   let wasTimeout = reason == "Connection timeout"
@@ -2610,7 +2545,7 @@ proc endReasonFromInt(value: int): PvPEndReason =
   if value < ord(low(PvPEndReason)) or value > ord(high(PvPEndReason)): erNone
   else: PvPEndReason(value)
 
-proc handleNetworkEvents*(pvp: PvPGameState) =
+proc handleNetworkEvents(pvp: PvPGameState) {.moddable.} =
   ## Process all network events
   # Create callback to provide host's cosmetics when accepting connections
   proc getHostCosmetics(): tuple[skinType, bulletSkinType, shapeType, particleSkinType: int] =
@@ -2778,7 +2713,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
         let p = pvp.players[playerIdx]
         p.hp = pvp.config.startHp
         p.pos = packet.respawnPos
-        p.vel = newVector2f(0, 0)
+        p.vel = vec2(0, 0)
         p.walls = pvp.config.startWalls
         p.invincibilityTimer = RespawnInvulnTime
         clearCombatBuffs(pvp, playerIdx)
@@ -2790,7 +2725,7 @@ proc handleNetworkEvents*(pvp: PvPGameState) =
           pvp.playerInterpStates[playerIdx].targetPos = p.pos
         if playerIdx == pvp.localPlayerIndex:
           pvp.pendingInputs = @[]
-          pvp.localPosCorrection = newVector2f(0, 0)
+          pvp.localPosCorrection = vec2(0, 0)
         fxRespawn(pvp, playerIdx)
 
       of ptPickupTaken:
@@ -2897,7 +2832,7 @@ proc updatePresentation(pvp: PvPGameState, dt: float32) =
     pvp.hurtFlash = max(0.0'f32, pvp.hurtFlash - dt)
   updateShake(pvp.shake, dt)
 
-proc tickPvP*(pvp: PvPGameState, input: PlayerInput, dt: float32, rematchPressed = false) =
+proc tickPvP(pvp: PvPGameState, input: PlayerInput, dt: float32, rematchPressed = false) {.moddable.} =
   ## One frame of the match given an already-captured local input. Split out of
   ## updatePvP so a headless harness can drive the real netcode with scripted
   ## input (updatePvP only adds the keyboard / pad capture on top).
@@ -3010,7 +2945,7 @@ proc tickPvP*(pvp: PvPGameState, input: PlayerInput, dt: float32, rematchPressed
     pvp.lastPingTime = pvp.gameTime
     pvp.networkManager.sendPing(pvp.serverTick)
 
-proc updatePvP*(pvp: PvPGameState, dt: float32) =
+proc updatePvP*(pvp: PvPGameState, dt: float32) {.moddable.} =
   ## Main PvP update function: capture the local input, then run the frame.
   if pvp.localPlayerIndex < 0 or pvp.localPlayerIndex >= pvp.players.len:
     echo "[PVP ERROR] Invalid local player index: ", pvp.localPlayerIndex, " (max: ", pvp.players.len - 1, ")"
@@ -3056,7 +2991,7 @@ proc drawPorts(pvp: PvPGameState) =
   ## Floor sockets, the package on each, and the INCOMING hologram before a drop.
   let time = raylib.getTime().float32  # wall clock: the client's gameTime jumps at snapshots
   for port in pvp.ports:
-    let c = Vector2(x: port.pos.x, y: port.pos.y)
+    let c = port.pos
     let r = if port.isPower: PortRadius * 1.2'f32 else: PortRadius
     let socketCol = if port.isPower: Color(r: 255, g: 200, b: 80, a: 170)
                     else: Color(r: 120, g: 150, b: 200, a: 130)
@@ -3153,32 +3088,32 @@ proc drawKillFeed(pvp: PvPGameState, rightX, topY: int32) =
     let x0 = rightX - total - pad * 2
     let involvesLocal = e.actor == local or (e.kind == kfKill and e.target == local)
     drawRectangle(x0, y, total + pad * 2, rowH - 2,
-                  if involvesLocal: Color(r: 20, g: 50, b: 70, a: uint8(a * 0.75'f32))
-                  else: Color(r: 0, g: 0, b: 0, a: uint8(a * 0.55'f32)))
+                  hudSurface(if involvesLocal: Color(r: 20, g: 50, b: 70, a: uint8(a * 0.75'f32))
+                  else: Color(r: 0, g: 0, b: 0, a: uint8(a * 0.55'f32))))
     if involvesLocal:
       drawRectOutline(Rectangle(x: x0.float32, y: y.float32, width: (total + pad * 2).float32,
                                    height: (rowH - 2).float32), 1,
-                         Color(r: 0, g: 200, b: 255, a: uint8(a * 0.6'f32)))
+                         uiLine(Color(r: 0, g: 200, b: 255, a: uint8(a * 0.6'f32))))
     var x = x0 + pad
     let ty = y + (rowH - 2 - size) div 2
     if wL > 0:
-      drawText(leftText, x, ty, size, withAlpha(leftCol, a))
+      drawText(leftText, x, ty, size, uiInk(withAlpha(leftCol, a)))
       x += wL + gap
     if glyphW > 0:
       let gy = (y + (rowH - 2) div 2).float32
       if e.kind == kfKill:
         # A bullet with a short trail
         drawStroke(Vector2(x: x.float32, y: gy), Vector2(x: (x + glyphW - 6).float32, y: gy), 2,
-                 Color(r: 255, g: 220, b: 150, a: uint8(a * 0.6'f32)))
-        drawDisc(Vector2(x: (x + glyphW - 4).float32, y: gy), 3.5, Color(r: 255, g: 240, b: 200, a: uint8(a)))
+                 uiLine(Color(r: 255, g: 220, b: 150, a: uint8(a * 0.6'f32))))
+        drawDisc(Vector2(x: (x + glyphW - 4).float32, y: gy), 3.5, uiInk(Color(r: 255, g: 240, b: 200, a: uint8(a))))
       else:
         drawPackageIcon(e.pkg, (x + glyphW div 2).float32, gy, 6.5, withAlpha(packageColor(e.pkg), a))
       x += glyphW + gap
-    drawText(rightText, x, ty, size, withAlpha(rightCol, a))
+    drawText(rightText, x, ty, size, uiInk(withAlpha(rightCol, a)))
     x += wR
     if wT > 0:
       x += gap * 2
-      drawText(e.tag, x, y + (rowH - 2 - 14) div 2, 14, withAlpha(Gold, a))
+      drawText(e.tag, x, y + (rowH - 2 - 14) div 2, 14, uiInk(withAlpha(Gold, a)))
     y += rowH
 
 proc drawBanner(pvp: PvPGameState, viewW, viewH: int32) =
@@ -3194,9 +3129,9 @@ proc drawBanner(pvp: PvPGameState, viewW, viewH: int32) =
   let y = int32(viewH.float32 * 0.2'f32) - size div 2
   let bandW = max(w, if hasSub: measureText(pvp.bannerSub, 18) else: 0'i32) + 60
   drawRectangle(viewW div 2 - bandW div 2, y - 10, bandW, size + 20 + (if hasSub: 24'i32 else: 0'i32),
-                Color(r: 0, g: 0, b: 0, a: uint8(a * 0.5'f32)))
-  drawText(pvp.bannerText, viewW div 2 - w div 2 + 2, y + 2, size, Color(r: 0, g: 0, b: 0, a: uint8(a * 0.7'f32)))
-  drawText(pvp.bannerText, viewW div 2 - w div 2, y, size, withAlpha(pvp.bannerColor, a))
+                hudSurface(Color(r: 0, g: 0, b: 0, a: uint8(a * 0.5'f32))))
+  drawText(pvp.bannerText, viewW div 2 - w div 2 + 2, y + 2, size, textShadow(uint8(a * 0.7'f32)))
+  drawText(pvp.bannerText, viewW div 2 - w div 2, y, size, uiInk(withAlpha(pvp.bannerColor, a)))
   if hasSub:
     drawTextCentered(pvp.bannerSub, viewW div 2, y + size + 6, 18,
                      withAlpha(Color(r: 255, g: 235, b: 170, a: 255), a))
@@ -3210,10 +3145,10 @@ proc drawToast(pvp: PvPGameState, viewW, viewH: int32) =
   let w = measureText(pvp.toastText, size)
   let x = viewW div 2 - w div 2
   let y = viewH - 104
-  drawRectangle(x - 12, y - 6, w + 24, size + 12, Color(r: 0, g: 0, b: 0, a: uint8(a * 0.65'f32)))
+  drawRectangle(x - 12, y - 6, w + 24, size + 12, hudSurface(Color(r: 0, g: 0, b: 0, a: uint8(a * 0.65'f32))))
   drawRectOutline(Rectangle(x: (x - 12).float32, y: (y - 6).float32, width: (w + 24).float32,
-                               height: (size + 12).float32), 1, withAlpha(pvp.toastColor, a))
-  drawText(pvp.toastText, x, y, size, withAlpha(pvp.toastColor, a))
+                               height: (size + 12).float32), 1, uiLine(withAlpha(pvp.toastColor, a)))
+  drawText(pvp.toastText, x, y, size, uiInk(withAlpha(pvp.toastColor, a)))
 
 proc drawBuffPills(pvp: PvPGameState, x, bottomY: int32) =
   ## Active package effects on the local player, stacked upward from bottomY,
@@ -3236,14 +3171,14 @@ proc drawBuffPills(pvp: PvPGameState, x, bottomY: int32) =
     let label = if total > 0: packageName(b.kind) & "  " & formatFloat(b.remaining, ffDecimal, 1) & "s"
                 else: packageName(b.kind)
     let w = 28 + measureText(label, size) + 10
-    drawRectangle(x, y, w, h, Color(r: 0, g: 0, b: 0, a: 160))
+    drawRectangle(x, y, w, h, hudSurface(Color(r: 0, g: 0, b: 0, a: 160)))
     drawRectOutline(Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32), 1,
-                       withAlpha(col, 170))
+                       uiLine(withAlpha(col, 170)))
     drawPackageIcon(b.kind, (x + 14).float32, (y + h div 2).float32, 7.0, col)
-    drawText(label, x + 28, y + (h - size) div 2, size, col)
+    drawText(label, x + 28, y + (h - size) div 2, size, uiInk(col))
     if total > 0:
       let frac = clamp(b.remaining / total, 0.0'f32, 1.0'f32)
-      drawRectangle(x + 2, y + h - 4, int32((w - 4).float32 * frac), 2, col)
+      drawRectangle(x + 2, y + h - 4, int32((w - 4).float32 * frac), 2, uiInk(col))
 
 proc boardOrder(pvp: PvPGameState): seq[int] =
   ## Kills descending, then fewest deaths, then slot order.
@@ -3308,23 +3243,23 @@ proc drawScoreBoard(pvp: PvPGameState, centerX, top: int32, final: bool): int32 
   let x0 = centerX - tableW div 2
   let panelH = 24 + rows.len.int32 * rowH + 8
 
-  drawRectangle(x0 - 12, top - 10, tableW + 24, panelH + 16, Color(r: 10, g: 14, b: 24, a: 225))
+  drawRectangle(x0 - 12, top - 10, tableW + 24, panelH + 16, hudSurface(Color(r: 10, g: 14, b: 24, a: 225)))
   drawRectOutline(Rectangle(x: (x0 - 12).float32, y: (top - 10).float32,
                                width: (tableW + 24).float32, height: (panelH + 16).float32),
-                     1, Color(r: 70, g: 100, b: 150, a: 210))
+                     1, uiLine(Color(r: 70, g: 100, b: 150, a: 210)))
 
   let headerCol = Color(r: 150, g: 160, b: 185, a: 255)
-  drawText("#", x0 + 10, top, headerSize, headerCol)
-  drawText(t(tkPvPBoardPlayer), x0 + rankW, top, headerSize, headerCol)
+  drawText("#", x0 + 10, top, headerSize, uiInk(headerCol))
+  drawText(t(tkPvPBoardPlayer), x0 + rankW, top, headerSize, uiInk(headerCol))
   var cx = x0 + rankW + nameW
   for k, h in headers:
-    drawText(h, cx + colWs[k] - 10 - measureText(h, headerSize), top, headerSize, headerCol)
+    drawText(h, cx + colWs[k] - 10 - measureText(h, headerSize), top, headerSize, uiInk(headerCol))
     cx += colWs[k]
 
   template cell(k: int, text: string, col: Color) =
     var colX = x0 + rankW + nameW
     for j in 0..<k: colX += colWs[j]
-    drawText(text, colX + colWs[k] - 10 - measureText(text, valueSize), textY, valueSize, col)
+    drawText(text, colX + colWs[k] - 10 - measureText(text, valueSize), textY, valueSize, uiInk(col))
 
   var y = top + 24
   var rank = 0
@@ -3332,8 +3267,8 @@ proc drawScoreBoard(pvp: PvPGameState, centerX, top: int32, final: bool): int32 
     let textY = y + (rowH - 2 - valueSize) div 2
     if row.isTeam:
       let col = getTeamColor(row.team)
-      drawRectangle(x0 - 6, y, tableW + 12, rowH - 2, withAlpha(col, 38))
-      drawText(getTeamName(row.team), x0 + 10, textY, valueSize, col)
+      drawRectangle(x0 - 6, y, tableW + 12, rowH - 2, uiGlow(withAlpha(col, 38)))
+      drawText(getTeamName(row.team), x0 + 10, textY, valueSize, uiInk(col))
       cell(0, $pvp.teamScores[row.team].kills, col)
       rank = 0
       y += rowH
@@ -3343,10 +3278,10 @@ proc drawScoreBoard(pvp: PvPGameState, centerX, top: int32, final: bool): int32 
     let connected = i >= pvp.playerConnected.len or pvp.playerConnected[i]
     let rowAlpha = if connected: 255 else: 110
     if i == local:
-      drawRectangle(x0 - 6, y, tableW + 12, rowH - 2, Color(r: 0, g: 200, b: 255, a: 34))
+      drawRectangle(x0 - 6, y, tableW + 12, rowH - 2, uiGlow(Color(r: 0, g: 200, b: 255, a: 34)))
     let valueCol = withAlpha(Color(r: 235, g: 240, b: 250, a: 255), rowAlpha)
-    drawText($rank, x0 + 10, textY, valueSize, withAlpha(headerCol, rowAlpha))
-    drawText(pvp.playerName(i), x0 + rankW, textY, valueSize, withAlpha(pvp.playerColor(i), rowAlpha))
+    drawText($rank, x0 + 10, textY, valueSize, uiInk(withAlpha(headerCol, rowAlpha)))
+    drawText(pvp.playerName(i), x0 + rankW, textY, valueSize, uiInk(withAlpha(pvp.playerColor(i), rowAlpha)))
     let s = pvp.stats[i]
     cell(0, $pvp.players[i].kills, valueCol)
     cell(1, $s.deaths, valueCol)
@@ -3395,13 +3330,13 @@ proc drawAwards(pvp: PvPGameState, viewW, top: int32) =
   let cardW = min(210'i32, (viewW - 40 - gap * (n - 1)) div n)
   var x = viewW div 2 - (cardW * n + gap * (n - 1)) div 2
   for a in awards:
-    drawRectangle(x, top, cardW, AwardCardH, Color(r: 14, g: 18, b: 30, a: 230))
+    drawRectangle(x, top, cardW, AwardCardH, hudSurface(Color(r: 14, g: 18, b: 30, a: 230)))
     drawRectOutline(Rectangle(x: x.float32, y: top.float32, width: cardW.float32,
-                                 height: AwardCardH.float32), 1, Color(r: 255, g: 203, b: 0, a: 150))
+                                 height: AwardCardH.float32), 1, uiLine(Color(r: 255, g: 203, b: 0, a: 150)))
     let cx = x + cardW div 2
-    drawTextCentered(a.title, cx, top + 6, 14, Gold)
-    drawTextCentered(pvp.playerName(a.player), cx, top + 23, 16, pvp.playerColor(a.player))
-    drawTextCentered(a.desc, cx, top + 42, 12, Color(r: 160, g: 165, b: 185, a: 255))
+    drawTextCentered(a.title, cx, top + 6, 14, uiInk(Gold))
+    drawTextCentered(pvp.playerName(a.player), cx, top + 23, 16, uiInk(pvp.playerColor(a.player)))
+    drawTextCentered(a.desc, cx, top + 42, 12, uiInk(Color(r: 160, g: 165, b: 185, a: 255)))
     x += cardW + gap
 
 proc keyPromptWidth(key, label: string): int32 =
@@ -3412,11 +3347,11 @@ proc drawKeyPrompt(x, y: int32, key, label: string, enabled = true) =
   let kw = measureText(key, 16) + 14
   let a = if enabled: 255 else: 110
   drawRectangleRounded(Rectangle(x: x.float32, y: y.float32, width: kw.float32, height: 24), 0.25, 4,
-                       Color(r: 40, g: 46, b: 62, a: uint8(a)))
+                       uiSurface(Color(r: 40, g: 46, b: 62, a: uint8(a))))
   drawRectangleRoundedLines(Rectangle(x: x.float32, y: y.float32, width: kw.float32, height: 24), 0.25, 4,
-                            -1, withAlpha(Color(r: 150, g: 170, b: 210, a: 255), a))
-  drawText(key, x + 7, y + 4, 16, withAlpha(White, a))
-  drawText(label, x + kw + 8, y + 3, 18, withAlpha(White, a))
+                            -1, uiLine(withAlpha(Color(r: 150, g: 170, b: 210, a: 255), a)))
+  drawText(key, x + 7, y + 4, 16, uiInk(withAlpha(White, a)))
+  drawText(label, x + kw + 8, y + 3, 18, uiOverlay(withAlpha(White, a)))
 
 proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
   drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 200))
@@ -3441,7 +3376,7 @@ proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
       else: Yellow
   var headSize = 50'i32
   if measureText(headline, headSize) > viewW - 40: headSize = 34
-  drawTextCentered(headline, viewW div 2, 40, headSize, headCol)
+  drawTextCentered(headline, viewW div 2, 40, headSize, uiOverlay(headCol))
 
   let reasonText = case pvp.endReason
     of erTimeLimit: t(tkPvPEndTimeLimit)
@@ -3455,7 +3390,7 @@ proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
     of erNone, erKillLimit, erHostLeft: ""
   if reasonText.len > 0:
     let reasonSize = if measureText(reasonText, 20) > viewW - 40: 14'i32 else: 20'i32  # a mod's line may run long
-    drawTextCentered(reasonText, viewW div 2, 40 + headSize + 8, reasonSize, Color(r: 200, g: 200, b: 200, a: 255))
+    drawTextCentered(reasonText, viewW div 2, 40 + headSize + 8, reasonSize, uiOverlay(Color(r: 200, g: 200, b: 200, a: 255)))
 
   let tableBottom = drawScoreBoard(pvp, viewW div 2, 138, final = true)
 
@@ -3477,7 +3412,7 @@ proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
       noteY = promptY
     else:
       drawTextCentered(t(tkPvPRematchNeedsPlayers), viewW div 2, noteY, 18,
-                       Color(r: 170, g: 170, b: 185, a: 255))
+                       uiOverlay(Color(r: 170, g: 170, b: 185, a: 255)))
       drawKeyPrompt(viewW div 2 - keyPromptWidth(leaveKey, t(tkPvPPromptLeave)) div 2, promptY,
                     leaveKey, t(tkPvPPromptLeave))
   else:
@@ -3488,7 +3423,7 @@ proc drawResultScreen(pvp: PvPGameState, viewW, viewH: int32) =
       # Pulse so it reads as "working", not frozen
       let pulse = 0.6'f32 + 0.4'f32 * sin(raylib.getTime().float32 * 3.0'f32)
       drawTextCentered(note, viewW div 2, noteY, 18,
-                       withAlpha(Color(r: 170, g: 190, b: 220, a: 255), 255.0'f32 * pulse))
+                       uiOverlay(withAlpha(Color(r: 170, g: 190, b: 220, a: 255), 255.0'f32 * pulse)))
     drawKeyPrompt(viewW div 2 - keyPromptWidth(leaveKey, t(tkPvPPromptLeave)) div 2, promptY,
                   leaveKey, t(tkPvPPromptLeave))
 
@@ -3519,7 +3454,7 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
         scoreText &= "  |  "
       scoreText &= getTeamName(team) & ": " & $pvp.teamScores[team].kills
 
-    drawTextCentered(scoreText, viewW div 2, 10, 20, White)
+    drawTextCentered(scoreText, viewW div 2, 10, 20, uiOverlay(White))
   else:
     # Free-for-all: individual scores. Big lobbies used to run this line off
     # both screen edges, so past 4 players it shows the top 3 plus you (the
@@ -3539,7 +3474,7 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
       scoreText &= pvp.playerName(i) & ": " & $pvp.players[i].kills &
                    (if disconnected: " (x)" else: "")
 
-    drawTextCentered(scoreText, viewW div 2, 10, 20, White)
+    drawTextCentered(scoreText, viewW div 2, 10, 20, uiOverlay(White))
 
   # Time, use only ASCII so raylib's default bitmap font can render it
   let timeText = if pvp.config.timeLimit <= 0:
@@ -3554,15 +3489,15 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
   let timeY = 35
   # Background pill for readability on any background
   drawRectangle((timeX - 6).int32, (timeY - 3).int32, (timeTextW + 12).int32, 26,
-                Color(r: 0, g: 0, b: 0, a: 140))
-  drawText(timeText, timeX.int32, timeY.int32, 20, White)
+                hudSurface(Color(r: 0, g: 0, b: 0, a: 140)))
+  drawText(timeText, timeX.int32, timeY.int32, 20, uiInk(White))
 
   # Latency
   if pvp.networkManager.isClient():
     # Clamp latency to prevent int overflow (float32 -> int conversion can overflow)
     let pingValue = min(pvp.networkManager.getLatency(), 9999.0).int
     let latencyText = "Ping: " & $pingValue & "ms"
-    drawText(latencyText, 10, 10, 20, Yellow)
+    drawText(latencyText, 10, 10, 20, uiOverlay(Yellow))
 
   # Kill feed (top-right, under the score line's height)
   drawKillFeed(pvp, viewW - 10, 66)
@@ -3576,14 +3511,14 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
   let wallLabelW = measureText(wallLabel, 20)
   let pillColor = if modeActive: Color(r: 0, g: 60, b: 20, a: 200)
                   else: Color(r: 0, g: 0, b: 0, a: 140)
-  drawRectangle(8, viewH - 38, wallLabelW + 14, 28, pillColor)
+  drawRectangle(8, viewH - 38, wallLabelW + 14, 28, hudSurface(pillColor))
   if modeActive:
     drawRectOutline(Rectangle(x: 8, y: (viewH - 38).float32,
                                  width: (wallLabelW + 14).float32, height: 28), 1,
-                       Color(r: 80, g: 255, b: 80, a: 200))
+                       uiLine(Color(r: 80, g: 255, b: 80, a: 200)))
   drawText(wallLabel, 15, viewH - 32, 20,
-           if wallCount > 0: Color(r: 100, g: 220, b: 100, a: 255)
-           else: Color(r: 180, g: 180, b: 180, a: 160))
+           uiInk(if wallCount > 0: Color(r: 100, g: 220, b: 100, a: 255)
+           else: Color(r: 180, g: 180, b: 180, a: 160)))
 
   # Active package effects, stacked above the walls pill
   drawBuffPills(pvp, 8, viewH - 38)
@@ -3599,19 +3534,18 @@ proc drawMatchHud(pvp: PvPGameState, viewW, viewH: int32) =
       let gap = spaceWidth(28)
       let w = measureText(lead, 28) + gap + measureText(name, 28)
       let x = viewW div 2 - w div 2
-      drawText(lead, x, y, 28, Color(r: 255, g: 90, b: 90, a: 255))
-      drawText(name, x + measureText(lead, 28) + gap, y, 28, pvp.playerColor(killer))
+      drawText(lead, x, y, 28, uiOverlay(Color(r: 255, g: 90, b: 90, a: 255)))
+      drawText(name, x + measureText(lead, 28) + gap, y, 28, uiOverlay(pvp.playerColor(killer)))
       y += 38
     drawTextCentered(t(tkPvPRespawningIn) & " " & $(pvp.respawnTimers[localIdx].int + 1) & "...",
-                     viewW div 2, y, 20, Color(r: 100, g: 200, b: 255, a: 255))
+                     viewW div 2, y, 20, uiOverlay(Color(r: 100, g: 200, b: 255, a: 255)))
 
   # Callout banner and package toast
   if not hudHidden(hpBanners):
     drawBanner(pvp, viewW, viewH)
     drawToast(pvp, viewW, viewH)
 
-
-proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
+proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) {.moddable.} =
   # The local player's mod bullet skin must not dress everyone's shots here.
   pvpDrawing = true
   defer: pvpDrawing = false
@@ -3682,7 +3616,7 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
       b: 50,
       a: 255
     )
-    drawDisc(Vector2(x: wall.pos.x, y: wall.pos.y), wall.radius, wallColor)
+    drawDisc(wall.pos, wall.radius, wallColor)
     drawCircleOutline(wall.pos.x.int32, wall.pos.y.int32, wall.radius, Brown)
     # Wall health bar, drawn above the wall
     let wallHealthPercent = wall.hp / wall.maxHp
@@ -3713,7 +3647,7 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
       Color(r: 80, g: 200, b: 80, a: 100)
     else:
       Color(r: 200, g: 60, b: 60, a: 100)
-    drawDisc(Vector2(x: cursorPos.x, y: cursorPos.y), 25, ghostColor)
+    drawDisc(cursorPos, 25, ghostColor)
     drawCircleOutline(cursorPos.x.int32, cursorPos.y.int32, 25,
                     if inRange and validPos: Color(r: 80, g: 255, b: 80, a: 200)
                     else: Color(r: 255, g: 60, b: 60, a: 200))
@@ -3814,6 +3748,9 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
   # viewport.
   let hudScale = max(uiScale, 0.0001'f32)
   beginUIScaleMode(hudScale)
+  # The HUD wears the interface theme (ui_theme.themeLayer), to the end of the proc.
+  let hudThemed = beginThemeLayer()
+  defer: endThemeLayer(hudThemed)
   let viewW = getVirtualScreenWidth()
   let viewH = getVirtualScreenHeight()
 
@@ -3836,17 +3773,17 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
     let noticeA = uint8(clamp(hudNoticeTimer, 0.0'f32, 1.0'f32) * 235)
     let noticeW = measureText(hudNotice, 12) + 20
     let noticeX = (viewW - noticeW) div 2
-    drawRectangle(noticeX, 62, noticeW, 22, Color(r: 38, g: 14, b: 12, a: noticeA))
+    drawRectangle(noticeX, 62, noticeW, 22, hudSurface(Color(r: 38, g: 14, b: 12, a: noticeA)))
     drawRectOutline(Rectangle(x: noticeX.float32, y: 62, width: noticeW.float32, height: 22), 1.0,
-                    Color(r: 255, g: 105, b: 95, a: noticeA))
-    drawText(hudNotice, noticeX + 10, 67, 12, Color(r: 255, g: 180, b: 170, a: noticeA))
+                    uiLine(Color(r: 255, g: 105, b: 95, a: noticeA)))
+    drawText(hudNotice, noticeX + 10, 67, 12, uiInk(Color(r: 255, g: 180, b: 170, a: noticeA)))
 
   # Live process table while Tab (pad: Select) is held
   let boardHeld = isKeyDown(KeyboardKey.Tab) or
                   (isGamepadActive() and isGamepadButtonDown(activeGamepad(), GamepadButton.MiddleLeft))
   if boardHeld and not pvp.gameOver:
     drawRectangle(0, 0, viewW, viewH, Color(r: 0, g: 0, b: 0, a: 110))
-    drawTextCentered(t(tkPvPBoardTitle), viewW div 2, 92, 22, Color(r: 0, g: 200, b: 255, a: 255))
+    drawTextCentered(t(tkPvPBoardTitle), viewW div 2, 92, 22, uiOverlay(0, 200, 255))
     discard drawScoreBoard(pvp, viewW div 2, 130, final = false)
 
   # Countdown overlay (don't show if game is over)
@@ -3860,18 +3797,18 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
     drawText(countdownText,
             viewW div 2 - textWidth div 2,
             viewH div 2 - 40,
-            80, Yellow)
+            80, uiOverlay(Yellow))
 
     # A mod's PvP mode: what this match is about, before it starts
     if pvp.config.modMode.len > 0:
       let spanish = getLanguage() == Spanish
       let title = unicode.toUpper(pvpModeName(pvp.config.modMode, spanish))
       let titleSize = if measureText(title, 30) > viewW - 40: 22'i32 else: 30'i32
-      drawTextCentered(title, viewW div 2, viewH div 2 - 150, titleSize, Color(r: 0, g: 200, b: 255, a: 255))
+      drawTextCentered(title, viewW div 2, viewH div 2 - 150, titleSize, uiOverlay(0, 200, 255))
       var lineY = viewH div 2 - 112
       for line in wrapTextLines(pvpModeDescription(pvp.config.modMode, spanish), viewW - 120, 16):
         if lineY > viewH div 2 - 62: break   # three lines at most, clear of the number
-        drawTextCentered(line, viewW div 2, lineY, 16, Color(r: 210, g: 220, b: 235, a: 255))
+        drawTextCentered(line, viewW div 2, lineY, 16, uiOverlay(210, 220, 235))
         lineY += 22
 
     # Controls reminder: the dash and the scoreboard are easy to miss otherwise.
@@ -3883,7 +3820,7 @@ proc drawPvP*(pvp: PvPGameState, uiScale: float32 = 1.0'f32) =
     let boardKey = if pad: gamepadBindLabel(GamepadButton.MiddleLeft) else: "Tab"
     let hint = "[" & dashKey & "] " & t("keybind_dash") & "      [" & wallKey & "] " &
                t(tkPvPHintWall) & "      [" & boardKey & "] " & t(tkPvPHintScores)
-    drawTextCentered(hint, viewW div 2, viewH div 2 + 70, 18, Color(r: 190, g: 200, b: 220, a: 255))
+    drawTextCentered(hint, viewW div 2, viewH div 2 + 70, 18, uiOverlay(190, 200, 220))
 
     # Draw arrow pointing to local player with "YOU" label. The arrow anchors to
     # a WORLD entity (player position) but is drawn in the HUD pass, so shift its

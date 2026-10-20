@@ -15,7 +15,7 @@
 import std/[tables, math, strutils, os]
 from std/unicode import runes
 import raylib, rlgl
-import ../types, ../sound
+import ../types, ../sound, ../utils
 import mod_media
 
 type
@@ -174,15 +174,15 @@ proc loadModTexture*(path: string, err: var string): int =
   try:
     if ext == ".gif":
       let data = readFile(path)
-      var count = [0'i32]
+      var count: int32
       let img = loadImageAnimFromMemory(".gif", data.toOpenArrayByte(0, data.high), count)
-      if count[0] <= 1:
+      if count <= 1:
         t.frames.add(loadTextureFromImage(img))
       else:
         # The frames come as one RGBA buffer, one whole image after another.
         let px = cast[ptr UncheckedArray[Color]](img.data)
         let n = img.width.int * img.height.int
-        for f in 0 ..< count[0].int:
+        for f in 0 ..< count.int:
           t.frames.add(loadTextureFromData(toOpenArray(px, f * n, f * n + n - 1),
                                            img.width, img.height))
         let delays = gifFrameDelays(data)
@@ -432,7 +432,7 @@ proc loadModShader*(path: string, err: var string, vertexPath = ""): int =
               "the shader did not compile for this device's OpenGL ES " &
                 "(see Shaders in MODDING.md for what phones support)"
             else:
-              "the shader did not compile (GLSL 330 expected; the Log tab has the reason)"
+              "the shader did not compile (GLSL 330 expected; the Console has the reason)"
       return 0
     let t = getShaderLocation(s, "time")
     let r = getShaderLocation(s, "resolution")
@@ -925,8 +925,7 @@ proc poseSkeletonBlend(m: var ModModel, animA: int, frameA: float32,
 proc fadeWeight(t: AnimTrack, now: float): float32 =
   ## How much of t.anim is on screen (1 = the fade is over), eased in and out.
   if t.fade <= 0: return 1
-  let x = clamp((now - t.start) / t.fade, 0.0, 1.0).float32
-  x * x * (3 - 2 * x)
+  smoothstep(((now - t.start) / t.fade).float32)
 
 proc crossfade(id: int, key: AnimKey, anim: int, frame, fade: float32):
                tuple[fromAnim: int, fromFrame, weight: float32] =

@@ -1,18 +1,24 @@
 ## Raw bindings to the vendored Lua 5.5 (vendor/lua, see its LICENSE).
 ##
 ## The C sources are compiled straight into the executable (no DLL), so every
-## build target (MSVC, the WSL Linux build, the Android NDK) gets the same Lua.
+## build target (MSVC, the WSL Linux build, the Android NDK) gets the same Lua:
+## the core and every standard library, the package library without native
+## modules (lua_loadlib_nodl.c), and the io, os, auxiliary and package
+## libraries' file calls routed through the mod file sandbox (lua_files.h).
 ## Only what lua_bridge.nim uses is declared here; the macros of lua.h are
 ## re-expressed as templates. Everything else in the mod system goes through
 ## lua_bridge, never through these directly.
 
 # Lua's number semantics (NaN keys are errors, exact integer/float
 # conversions) need IEEE math: the release tasks' /fp:fast and -ffast-math are
-# undone for these files only.
+# undone for these files only. Off Windows every file is built in Lua's POSIX
+# mode (io.popen, mkstemp for os.tmpname, _longjmp), which changes no type.
 when defined(vcc) or defined(clang_cl):  # clang-cl ignores -fno-fast-math
   const LuaCFlags = "/fp:precise"
-else:
+elif defined(windows):
   const LuaCFlags = "-fno-fast-math"
+else:
+  const LuaCFlags = "-fno-fast-math -DLUA_USE_POSIX"
 
 {.compile("../../vendor/lua/lapi.c", LuaCFlags).}
 {.compile("../../vendor/lua/lcode.c", LuaCFlags).}
@@ -34,13 +40,17 @@ else:
 {.compile("../../vendor/lua/lundump.c", LuaCFlags).}
 {.compile("../../vendor/lua/lvm.c", LuaCFlags).}
 {.compile("../../vendor/lua/lzio.c", LuaCFlags).}
-{.compile("../../vendor/lua/lauxlib.c", LuaCFlags).}
+{.compile("lua_auxlib.c", LuaCFlags).}        # lauxlib.c, loadfile inside the mod file sandbox
 {.compile("../../vendor/lua/lbaselib.c", LuaCFlags).}
 {.compile("../../vendor/lua/lcorolib.c", LuaCFlags).}
 {.compile("../../vendor/lua/lmathlib.c", LuaCFlags).}
 {.compile("../../vendor/lua/lstrlib.c", LuaCFlags).}
 {.compile("../../vendor/lua/ltablib.c", LuaCFlags).}
 {.compile("../../vendor/lua/lutf8lib.c", LuaCFlags).}
+{.compile("lua_iolib.c", LuaCFlags).}         # liolib.c, inside the mod file sandbox
+{.compile("../../vendor/lua/ldblib.c", LuaCFlags).}
+{.compile("lua_oslib.c", LuaCFlags).}        # loslib.c, same os.date formats everywhere, sandboxed
+{.compile("lua_loadlib_nodl.c", LuaCFlags).} # loadlib.c, no native modules
 
 type
   LuaState* = distinct pointer
@@ -49,6 +59,7 @@ type
   LuaCFunction* = proc (L: LuaState): cint {.cdecl.}
   LuaHook* = proc (L: LuaState, ar: pointer) {.cdecl.}
   LuaAlloc* = proc (ud, p: pointer, osize, nsize: csize_t): pointer {.cdecl.}
+  LuaWarnFunction* = proc (ud: pointer, msg: cstring, tocont: cint) {.cdecl.}
 
 const
   LUA_OK* = 0.cint
@@ -58,22 +69,15 @@ const
   LUA_TNONE* = -1.cint
   LUA_TNIL* = 0.cint
   LUA_TBOOLEAN* = 1.cint
-  LUA_TLIGHTUSERDATA* = 2.cint
   LUA_TNUMBER* = 3.cint
   LUA_TSTRING* = 4.cint
   LUA_TTABLE* = 5.cint
   LUA_TFUNCTION* = 6.cint
   LUA_TUSERDATA* = 7.cint
-  LUA_TTHREAD* = 8.cint
 
   LUA_RIDX_GLOBALS* = 2
-  LUA_NOREF* = -2.cint
-  LUA_REFNIL* = -1.cint
 
   LUA_MASKCOUNT* = cint(1 shl 3)
-
-  LUA_GCCOLLECT* = 2.cint
-  LUA_GCCOUNT* = 3.cint
 
 {.push importc, cdecl.}
 proc lua_newstate*(f: LuaAlloc, ud: pointer, seed: cuint): LuaState
@@ -95,7 +99,6 @@ proc lua_toboolean*(L: LuaState, idx: cint): cint
 proc lua_tolstring*(L: LuaState, idx: cint, len: ptr csize_t): cstring
 proc lua_rawlen*(L: LuaState, idx: cint): uint64
 proc lua_touserdata*(L: LuaState, idx: cint): pointer
-proc lua_topointer*(L: LuaState, idx: cint): pointer
 proc lua_rawequal*(L: LuaState, idx1, idx2: cint): cint
 
 proc lua_pushnil*(L: LuaState)
@@ -105,7 +108,6 @@ proc lua_pushlstring*(L: LuaState, s: cstring, len: csize_t): cstring
 proc lua_pushstring*(L: LuaState, s: cstring): cstring
 proc lua_pushcclosure*(L: LuaState, fn: LuaCFunction, n: cint)
 proc lua_pushboolean*(L: LuaState, b: cint)
-proc lua_pushlightuserdata*(L: LuaState, p: pointer)
 
 proc lua_rawget*(L: LuaState, idx: cint): cint
 proc lua_rawgeti*(L: LuaState, idx: cint, n: LuaInteger): cint
@@ -119,12 +121,13 @@ proc lua_rawseti*(L: LuaState, idx: cint, n: LuaInteger)
 proc lua_rawsetp*(L: LuaState, idx: cint, p: pointer)
 proc lua_setmetatable*(L: LuaState, objindex: cint): cint
 
-proc lua_pcallk*(L: LuaState, nargs, nresults, errfunc: cint, ctx: int, k: pointer): cint
-proc lua_callk*(L: LuaState, nargs, nresults: cint, ctx: int, k: pointer)
+proc lua_pcallk(L: LuaState, nargs, nresults, errfunc: cint, ctx: int, k: pointer): cint
 proc lua_error*(L: LuaState): cint
 proc lua_next*(L: LuaState, idx: cint): cint
-proc lua_gc*(L: LuaState, what: cint): cint {.varargs.}
 proc lua_sethook*(L: LuaState, fn: LuaHook, mask, count: cint)
+proc lua_gethook*(L: LuaState): LuaHook
+proc lua_gethookcount*(L: LuaState): cint
+proc lua_setwarnf*(L: LuaState, f: LuaWarnFunction, ud: pointer)
 proc lua_setupvalue*(L: LuaState, funcindex, n: cint): cstring
 
 proc luaL_ref*(L: LuaState, t: cint): cint
@@ -140,6 +143,10 @@ proc luaopen_table*(L: LuaState): cint
 proc luaopen_string*(L: LuaState): cint
 proc luaopen_math*(L: LuaState): cint
 proc luaopen_utf8*(L: LuaState): cint
+proc luaopen_io*(L: LuaState): cint
+proc luaopen_os*(L: LuaState): cint
+proc luaopen_package*(L: LuaState): cint
+proc luaopen_debug*(L: LuaState): cint
 {.pop.}
 
 proc isNil*(L: LuaState): bool {.inline.} = pointer(L).isNil
@@ -148,5 +155,3 @@ template lua_upvalueindex*(i: int): cint = LUA_REGISTRYINDEX - cint(i)
 template lua_pop*(L: LuaState, n: int) = lua_settop(L, cint(-n - 1))
 template lua_pcall*(L: LuaState, nargs, nresults, errfunc: cint): cint =
   lua_pcallk(L, nargs, nresults, errfunc, 0, nil)
-template lua_insert*(L: LuaState, idx: cint) = lua_rotate(L, idx, 1)
-template lua_newtable*(L: LuaState) = lua_createtable(L, 0, 0)

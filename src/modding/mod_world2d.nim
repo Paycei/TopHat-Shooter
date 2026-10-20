@@ -52,11 +52,6 @@ const
   ShootKeys = ["speed", "damage", "kind", "radius", "lifetime", "color", "count", "spread", "pierce"]
 
 # ------------------------------------------------------------- helpers ----
-proc finite(vm: VM, v: ScriptValue, what: string): float32 =
-  if v.kind == vkNumber and abs(v.n) < 1.0e9: return v.n.float32
-  if v.kind == vkNumber: vm.runtimeError(what & " must be a finite number")
-  vm.runtimeError(what & " must be a number, got " & typeName(v))
-
 proc enumField[E: enum](vm: VM, v: ScriptValue, what: string): E =
   if v.kind != vkString: vm.runtimeError(what & " must be a name")
   for e in E:
@@ -77,7 +72,7 @@ proc flagOf(name: string): ThingFlag =
 
 proc fnField(vm: VM, t: ScriptTable, key, what: string): ScriptValue =
   result = rawGetStr(t, key)
-  if result.kind notin {vkNil, vkFunction, vkNative}:
+  if result.kind notin {vkNil, vkFunction}:
     vm.runtimeError(what & "." & key & " must be a function")
 
 proc applyThingFields(vm: VM, th: ModThing, t: ScriptTable, what: string) =
@@ -135,7 +130,7 @@ proc wrapThingFor(t: ModThing): ScriptValue {.nimcall.} =
   if thingClass.isNil: NilValue
   else: vud(Userdata(cls: thingClass, box: ThingBox(t: t, g: modCtx.game), key: cast[pointer](t)))
 
-proc unwrapThing*(v: ScriptValue): ModThing =
+proc unwrapThing(v: ScriptValue): ModThing =
   if v.kind == vkUserdata and v.ud.cls == thingClass: ThingBox(v.ud.box).t else: nil
 
 proc selfThing(vm: VM, args: openArray[ScriptValue], fname: string): ModThing =
@@ -186,17 +181,13 @@ proc buildThing(vm: VM, kind: int, g: Game, x, y: float32): ModThing =
   result = if kind >= 0: copyThing(thingKinds[kind].proto) else: defaultThing()
   result.kind = if kind >= 0: thingKinds[kind].key else: HazardKind
   result.id = newThingId(g)
-  result.pos = newVector2f(x, y)
+  result.pos = vec2(x, y)
   if result.maxHp <= 0 and result.hp > 0: result.maxHp = result.hp
   result.flags.excl({tfDead, tfRemoved})
   if kind >= 0 and thingKinds[kind].weapon.enabled:
     result.weaponTimer = thingKinds[kind].weapon.interval * 0.5'f32
 
 proc queueThing(vm: VM, th: ModThing, owner: int, cb: ScriptValue, fname: string) =
-  if modActionsFull(): vm.runtimeError(fname & ": too many spawns queued this frame")
-  let g = modCtx.game
-  if g.modThings.len + modPendingThings.len >= MaxModThings:
-    vm.runtimeError(fname & ": the arena already holds " & $MaxModThings & " things")
   modPendingThings.add(th)
   queueModAction(ModAction(kind: makJoinThing, owner: owner, thing: th, callback: cb))
 
@@ -213,7 +204,7 @@ proc readWeapon(vm: VM, v: ScriptValue, what: string): ThingWeapon =
         vm.runtimeError(what & ".kind: no projectile kind '" & x.str.s & "' (register.projectile it first)")
       result.kind = x.str.s
     of "color": result.color = parseColor(vm, x, what & ".color")
-    of "count": result.count = clamp(int(vm.finite(x, what & ".count")), 1, 32)
+    of "count": result.count = clamp(int(vm.finite(x, what & ".count")), 1, 10_000)   # (a loop in Nim)
     of "interval": result.interval = max(0.05'f32, vm.finite(x, what & ".interval"))
     of "range": result.range = max(0'f32, vm.finite(x, what & ".range"))
     of "speed": result.speed = vm.finite(x, what & ".speed")
@@ -242,7 +233,7 @@ proc scriptBullet(vm: VM, owner: int, x, y, angleDeg: float32, opts: ScriptTable
       of "radius": radius = max(0'f32, vm.finite(v, what & ".radius"))
       of "lifetime": lifetime = max(0'f32, vm.finite(v, what & ".lifetime"))
       of "spread": spread = vm.finite(v, what & ".spread")
-      of "count": count = clamp(int(vm.finite(v, what & ".count")), 1, 32)
+      of "count": count = clamp(int(vm.finite(v, what & ".count")), 1, 10_000)
       of "color": color = parseColor(vm, v, what & ".color")
       of "pierce": pierce = max(0, int(vm.finite(v, what & ".pierce")))
       of "kind":
@@ -251,9 +242,8 @@ proc scriptBullet(vm: VM, owner: int, x, y, angleDeg: float32, opts: ScriptTable
         kind = v.str.s
       else: discard
   for i in 0 ..< count:
-    if modActionsFull(): vm.runtimeError(what & ": too many spawns queued this frame")
     let a = degToRad(angleDeg + spread * (i.float32 - (count - 1).float32 * 0.5'f32))
-    let b = newBullet(x, y, newVector2f(cos(a), sin(a)), speed, damage, fromPlayer = fromPlayer)
+    let b = newBullet(x, y, vec2(cos(a), sin(a)), speed, damage, fromPlayer = fromPlayer)
     if radius > 0: b.radius = radius
     if lifetime > 0: b.lifetime = lifetime
     if color.a > 0: b.colorOverride = color
@@ -265,10 +255,10 @@ proc scriptBullet(vm: VM, owner: int, x, y, angleDeg: float32, opts: ScriptTable
     if i == 0: result = wrapBullet(b)
 
 # ------------------------------------------------------------- explode ----
-proc explodeAt*(game: Game, x, y, r, dmg: float32, hurtPlayer, hurtEnemies: bool, color: Color,
+proc explodeAt(game: Game, x, y, r, dmg: float32, hurtPlayer, hurtEnemies: bool, color: Color,
                 shake: string) =
   ## game:explode: hurts what is inside the circle now (no list changes).
-  let c = newVector2f(x, y)
+  let c = vec2(x, y)
   if hurtEnemies:
     for e in game.enemies:
       if e.hp <= 0: continue
@@ -276,6 +266,7 @@ proc explodeAt*(game: Game, x, y, r, dmg: float32, hurtPlayer, hurtEnemies: bool
       let dy = e.pos.y - y
       let rr = r + e.radius
       if dx * dx + dy * dy <= rr * rr:
+        if shieldBlocksHit(game, e, c): continue   # a Port Guard facing the blast
         let dealt = damageEnemy(e, dmg, consumesDiamondShield = false)
         if dealt > 0: showDamage(game, e.pos, dealt, true)
   for t in game.modThings:
@@ -356,7 +347,7 @@ proc installWorld2D*(base: ScriptTable) =
     let dy = y - t.pos.y
     let d = sqrt(dx * dx + dy * dy)
     if d <= step or d < 0.001:
-      t.pos = newVector2f(x, y)
+      t.pos = vec2(x, y)
       ret.setRet(TrueValue)
     else:
       t.pos.x += dx / d * step
@@ -485,7 +476,7 @@ proc installWorld2D*(base: ScriptTable) =
                           ("onHitPlayer", addr k.onHitPlayer), ("onExpire", addr k.onExpire)]:
       dest[] = vm.fnField(t, field, "register.projectile")
     let p = rawGetStr(t, "pierce")
-    if p.kind != vkNil: k.pierce = clamp(int(vm.finite(p, "register.projectile.pierce")), 0, 1000).int32
+    if p.kind != vkNil: k.pierce = clamp(int(vm.finite(p, "register.projectile.pierce")), 0, int32.high).int32
     let h = rawGetStr(t, "homing")
     if h.kind != vkNil: k.homing = max(0'f32, vm.finite(h, "register.projectile.homing"))
     addProjectileKind(k)
@@ -519,9 +510,7 @@ proc installWorld2D*(base: ScriptTable) =
     let g = vm.requireRunGame()
     let t = vm.checkTable(args, 0, "spawn.hazard")
     vm.checkKeys(t, HazardKeys, "spawn.hazard")
-    proc num(key: string, def: float32): float32 =
-      let v = rawGetStr(t, key)
-      if v.kind == vkNil: def else: vm.finite(v, "spawn.hazard." & key)
+    proc num(key: string, def: float32): float32 = vm.numField(t, key, "spawn.hazard", def)
     let th = vm.buildThing(-1, g, num("x", 0), num("y", 0))
     th.motion = tmStatic
     th.color = Color(r: 255, g: 60, b: 60, a: 255)
@@ -555,16 +544,16 @@ proc installWorld2D*(base: ScriptTable) =
     vm.queueThing(th, owner, NilValue, "spawn.hazard")
     ret.setRet(wrapThing(th))
 
-  # spawn.bullet: kind, pierce and homing on top of mod_api's own fields
-  # (explosive and bounce stay out on purpose: the game's own read the player's
-  # power-up levels; game:explode and a kind's onHit cover them).
+  # spawn.bullet: kind, pierce, homing, explosive and bounces on top of
+  # mod_api's own fields (explosive and bouncing shots work like the player's,
+  # sized by the player's own power-up levels).
   spawnT.reg("bullet") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
     ## spawn.bullet{x, y, vx, vy, damage, radius, lifetime, fromPlayer, color,
-    ##              kind = projectile kind, pierce = n, homing = true}
+    ##              kind = projectile kind, pierce = n, homing = true,
+    ##              explosive = true, bounces = n}
     let owner = vm.requireOwner("spawn.bullet")
     discard vm.requireRunGame()
     let t = vm.checkTable(args, 0, "bullet")
-    if modActionsFull(): vm.runtimeError("spawn.bullet: too many spawns queued this frame")
     let b = vm.buildScriptBullet(t)
     let k = rawGetStr(t, "kind")
     if k.kind == vkString:
@@ -574,10 +563,15 @@ proc installWorld2D*(base: ScriptTable) =
       b.modPierce = projectileKinds[ki].pierce
     elif k.kind != vkNil: vm.runtimeError("spawn.bullet.kind must be a projectile kind")
     let p = rawGetStr(t, "pierce")
-    if p.kind == vkNumber: b.modPierce = clamp(int(p.n), 0, 1000).int32
+    if p.kind == vkNumber and abs(p.n) < 1.0e9: b.modPierce = max(int(p.n), 0).int32
     elif p.kind != vkNil: vm.runtimeError("spawn.bullet.pierce must be a number")
     let h = rawGetStr(t, "homing")
     if h.kind != vkNil: b.isHoming = truthy(h)
+    let ex = rawGetStr(t, "explosive")
+    if ex.kind != vkNil: b.isExplosive = truthy(ex)
+    let bo = rawGetStr(t, "bounces")
+    if bo.kind == vkNumber: b.bounceCount = max(0, int(bo.n))
+    elif bo.kind != vkNil: vm.runtimeError("spawn.bullet.bounces must be a number")
     modPendingBullets.add(b)
     queueModAction(ModAction(kind: makJoinBullet, owner: owner, bullet: b))
     ret.setRet(wrapBullet(b))

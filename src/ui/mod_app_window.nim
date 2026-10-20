@@ -8,6 +8,7 @@
 ## window is open and not minimized.
 
 import raylib, rlgl
+import ../modding/mod_patch_core
 import os_window, ../localization, ../render_context, ../gamepad_input
 import ../modding/mod_hooks
 
@@ -24,7 +25,7 @@ proc appTitle(key: string): string =
   let i = findModApp(key)
   if i < 0: key else: modAppName(i, getLanguage() == Spanish)
 
-proc newModAppWindow*(key: string, screenWidth, screenHeight: int): ModAppWindow =
+proc newModAppWindow*(key: string, screenWidth, screenHeight: int): ModAppWindow {.moddable.} =
   ## Sized to the app's canvas plus the chrome and centred. Resizable windows
   ## are never opened smaller than the framework's minimum, or the first drag
   ## would snap them up to it.
@@ -43,7 +44,7 @@ proc newModAppWindow*(key: string, screenWidth, screenHeight: int): ModAppWindow
     w = max(w, MIN_WINDOW_WIDTH)
     h = max(h, MIN_WINDOW_HEIGHT)
   let osWin = newOSWindow(appTitle(key), (screenWidth - w) div 2,
-                          max(0, (screenHeight - h) div 2), w, h, color, owtSettings,
+                          max(0, (screenHeight - h) div 2), w, h, color,
                           resizable = resizable)
   result = ModAppWindow(window: osWin, key: key, draggingCanvas: false)
 
@@ -54,7 +55,7 @@ proc canvasRect(mw: ModAppWindow): Rectangle =
             height: (mw.window.height - TITLE_BAR_HEIGHT - WINDOW_BORDER).float32)
 
 proc updateModAppWindow*(mw: ModAppWindow, dt: float32, screenWidth, screenHeight: int,
-                         allWindows: openArray[OSWindow]) =
+                         allWindows: openArray[OSWindow]) {.moddable.} =
   ## Closing (the X, Escape, or the app disappearing in a reload) sets
   ## window.visible = false; the window manager prunes it afterwards.
   let w = mw.window
@@ -89,7 +90,7 @@ proc updateModAppWindow*(mw: ModAppWindow, dt: float32, screenWidth, screenHeigh
       mw.draggingCanvas = false
   modAppUpdate(idx, dt)
 
-proc drawModAppWindow*(mw: ModAppWindow, allWindows: openArray[OSWindow]) =
+proc drawModAppWindow*(mw: ModAppWindow, allWindows: openArray[OSWindow]) {.moddable.} =
   let w = mw.window
   if not w.visible: return
   drawWindowChrome(w)

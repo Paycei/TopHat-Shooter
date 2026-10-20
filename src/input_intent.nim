@@ -19,7 +19,7 @@
 ## plays like the desktop build with a pad.
 
 import raylib
-import particle_types      # Vector2f + ops
+import particle_types      # Vector2 + ops
 import types               # KeyAction (kaMoveUp .. kaLegendary)
 import settings            # globalSettings
 import render_context      # getWorldMousePosition + re-exported gamepad_input
@@ -27,12 +27,12 @@ import render_context      # getWorldMousePosition + re-exported gamepad_input
 when defined(mobile):
   import mobile_controls
 
-proc keyMoveVector(): Vector2f =
+proc keyMoveVector(): Vector2 =
   ## Raw keyboard + gamepad movement sum (un-normalized; callers clamp). The
   ## analog stick is added rather than snapped so partial deflection keeps its
   ## magnitude and the player can walk slowly.
   let kb = globalSettings.keybinds
-  var d = newVector2f(0, 0)
+  var d = vec2(0, 0)
   if isKeyDown(kb[kaMoveUp]): d.y -= 1
   if isKeyDown(kb[kaMoveDown]): d.y += 1
   if isKeyDown(kb[kaMoveLeft]): d.x -= 1
@@ -48,19 +48,19 @@ proc keyMoveVector(): Vector2f =
     if isGamepadBindDown(gb, kaMoveRight): d.x += 1
   d
 
-proc getMoveVector*(): Vector2f =
+proc getMoveVector*(): Vector2 =
   ## Desired movement direction (magnitude 0..~1). player.nim normalizes it.
   when defined(mobile):
     mobileMoveVector() + keyMoveVector()  # the caller clamps the sum
   else:
     keyMoveVector()
 
-proc abilityDirection*(): Vector2f =
+proc abilityDirection*(): Vector2 =
   ## Direction for directional abilities (Phase Shift dash). Mirrors movement
   ## input on both platforms.
   getMoveVector()
 
-proc getAimTarget*(playerPos: Vector2f): Vector2f =
+proc getAimTarget*(playerPos: Vector2): Vector2 =
   ## WORLD-space point the player is aiming at; shootDir = target - playerPos.
   ## World, not virtual: in the widescreen HUD layout the gameplay world is
   ## offset inside the wider virtual canvas, so a virtual point would be skewed
@@ -78,11 +78,11 @@ proc getAimTarget*(playerPos: Vector2f): Vector2f =
     if isGamepadActive() and not mobileIsAiming() and not mobileWallHeld():
       # A pad is driving: the stick aim point game.nim/pvp_game.nim publish.
       let m = getWorldMousePosition()
-      return newVector2f(m.x, m.y)
+      return vec2(m.x, m.y)
     playerPos + mobileAimTargetDir() * MobileAimReach
   else:
     let m = getWorldMousePosition()
-    newVector2f(m.x, m.y)
+    vec2(m.x, m.y)
 
 proc isFiring*(wallPlacementMode: bool): bool =
   ## Whether the player is shooting this frame. Desktop: left-mouse or the shoot

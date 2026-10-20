@@ -1,4 +1,5 @@
 import raylib, math
+import modding/mod_patch_core
 import draw_prims
 import particle_types, types, bullet_skins, bullet_shapes, utils
 import modding/[mod_assets, mod_hooks]
@@ -32,7 +33,7 @@ const bossBulletShapeTable = [
   4,  # 23: Omega (roguelite) -> cross
 ]
 
-proc bossBulletShapeFor*(bossId: int): int =
+proc bossBulletShapeFor*(bossId: int): int {.moddable.} =
   if bossId in 1..MaxBossId: bossBulletShapeTable[bossId] else: 0
 
 ## Bullets ease their alpha down over the final `BulletFadeOutTime` seconds of
@@ -41,14 +42,6 @@ proc bossBulletShapeFor*(bossId: int): int =
 const
   BulletFadeOutTime* = 0.25'f32
   BulletFadeFloor* = 0.18'f32
-
-proc shiftColor(color: Color, delta: int, alpha: int = -1): Color =
-  Color(
-    r: clampByte(color.r.int + delta),
-    g: clampByte(color.g.int + delta),
-    b: clampByte(color.b.int + delta),
-    a: if alpha >= 0: clampByte(alpha) else: color.a
-  )
 
 proc drawNgon(cx, cy, r: float32, n: int, rotation: float32, color: Color) =
   ## Draw a filled regular n-gon.
@@ -95,8 +88,8 @@ proc drawBossBulletTrail(bullet: Bullet, trailColor: Color) =
 
   let dir = bullet.vel.normalize()
   let lineStart = bullet.pos - dir * (bullet.radius + 11.0)
-  drawStroke(Vector2(x: lineStart.x, y: lineStart.y),
-           Vector2(x: bullet.pos.x, y: bullet.pos.y), 3,
+  drawStroke(lineStart,
+           bullet.pos, 3,
            withAlpha(trailColor, max(60, trailColor.a.int div 2)))
 
   for i in 0..2:
@@ -104,10 +97,10 @@ proc drawBossBulletTrail(bullet: Bullet, trailColor: Color) =
     let trailPos = bullet.pos - dir * trailOffset
     let trailRadius = max(1.6'f32, bullet.radius * (0.95 - i.float32 * 0.18))
     let trailAlpha = max(38, trailColor.a.int - i * 58)
-    drawDisc(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
+    drawDisc(trailPos, trailRadius,
                withAlpha(trailColor, trailAlpha))
 
-proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32) =
+proc drawBossBulletShape(bullet: Bullet, baseColor: Color, glowColor: Color, gameTime: float32) {.moddable.} =
   ## Draw a boss bullet using its assigned shape, with rotation and glow.
   let cx = bullet.pos.x
   let cy = bullet.pos.y
@@ -116,8 +109,8 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
   let spin = gameTime * 3.0
   let pulse = sin(gameTime * 9.0 + bullet.radius * 0.35) * 0.5 + 0.5
   let silhouetteColor = Color(r: 12, g: 5, b: 20, a: 220)
-  let coreColor = shiftColor(baseColor, 80, 240)
-  let rimColor = shiftColor(glowColor, 60, 230)
+  let coreColor = brighten(baseColor, 80, 240)
+  let rimColor = brighten(glowColor, 60, 230)
   let haloColor = withAlpha(glowColor, 100 + int(pulse * 40.0))
   let highlight = Color(r: 255, g: 255, b: 255, a: 220)
 
@@ -197,7 +190,7 @@ proc drawBossBulletShape*(bullet: Bullet, baseColor: Color, glowColor: Color, ga
 
 const BASE_PLAYER_BULLET_RADIUS* = 5.0
 
-proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, fromPlayer: bool = true,
+proc newBullet*(x, y: float32, direction: Vector2, speed, damage: float32, fromPlayer: bool = true,
                 isHoming: bool = false, isPiercing: bool = false, isExplosive: bool = false,
                 hasBounce: bool = false, canSplit: bool = false, slowAmount: float32 = 0,
                 poisonDuration: float32 = 0, fireDuration: float32 = 0, windPushForce: float32 = 0,
@@ -212,12 +205,12 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
                 colorOverride: Color = Color(r: 0, g: 0, b: 0, a: 0),
                 bulletSkin: int = 0, bulletId: int = 0, parentBulletId: int = -1,
                 ownerPlayerIndex: int = -1, bossBulletShape: int = 0,
-                bulletRadius: float32 = 0.0, bulletShape: int = 0): Bullet =
+                bulletRadius: float32 = 0.0, bulletShape: int = 0): Bullet {.moddable.} =
   # Faster projectiles across the board
   let finalSpeed = if fromPlayer: speed else: speed * 1.25  # Enemy bullets even faster
 
   result = Bullet(
-    pos: newVector2f(x, y),
+    pos: vec2(x, y),
     vel: direction.normalize() * finalSpeed,
     radius: if fromPlayer: BASE_PLAYER_BULLET_RADIUS else: 6,
     damage: damage,
@@ -236,7 +229,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     isPentagon: isPentagon,
     hitEnemies: @[],  # Initialize empty sequence
     sourceEnemyId: sourceEnemyId,  # Track which enemy shot this bullet
-    sourceEnemyPos: newVector2f(x, y),  # Store the position where bullet was shot from
+    sourceEnemyPos: vec2(x, y),  # Store the position where bullet was shot from
     sourceEnemyType: sourceEnemyType,  # Track enemy type for visual effects
     travelDistance: 0.0,  # Track distance for Overcharge
     isEcho: isEcho,  # Whether this is an echo trail bullet
@@ -265,7 +258,7 @@ proc newBullet*(x, y: float32, direction: Vector2f, speed, damage: float32, from
     result.radius = bulletRadius
   modBulletSpawn(result)   # mods may reshape any bullet before it flies
 
-proc updateBullet*(bullet: Bullet, dt: float32): bool =
+proc updateBullet*(bullet: Bullet, dt: float32): bool {.moddable.} =
   # Track distance traveled for Overcharge power-up
   let movement = bullet.vel * dt
   bullet.travelDistance += movement.length()
@@ -274,12 +267,12 @@ proc updateBullet*(bullet: Bullet, dt: float32): bool =
   bullet.lifetime -= dt
   return bullet.lifetime > 0
 
-proc assignBulletId*(game: Game, bullet: Bullet) =
+proc assignBulletId*(game: Game, bullet: Bullet) {.moddable.} =
   ## Assign a unique ID to a bullet for parent-child tracking
   game.bulletIdCounter += 1
   bullet.bulletId = game.bulletIdCounter
 
-proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false, gameTime: float32 = 0.0) =
+proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: bool = false, gameTime: float32 = 0.0) {.moddable.} =
   if modBulletDraw(bullet): return   # a mod drew it (bulletDraw hook)
   # Get base color from bullet skin for player bullets
   var color: Color
@@ -343,8 +336,8 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     if bullet.isBossBullet:
       if bullet.colorOverride.a > 0:
         color = bullet.colorOverride
-        glowColor = shiftColor(bullet.colorOverride, 55, 220)
-        trailColor = withAlpha(shiftColor(bullet.colorOverride, 20), 235)
+        glowColor = brighten(bullet.colorOverride, 55, 220)
+        trailColor = brighten(bullet.colorOverride, 20, 235)
       else:
         color = Color(r: 255, g: 72, b: 190, a: 255)
         glowColor = Color(r: 255, g: 225, b: 245, a: 220)
@@ -354,18 +347,16 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
   # BulletFadeOutTime seconds. Scaling the three derived colors here makes the
   # body, trail, shaped draws and player glow rings (which read glowColor.a) all
   # fade together; the remaining hardcoded accents are wrapped in faded() below.
-  let fadeT = clamp(bullet.lifetime / BulletFadeOutTime, 0.0'f32, 1.0'f32)
-  let fadeEase = fadeT * fadeT * (3.0'f32 - 2.0'f32 * fadeT)  # smoothstep
+  let fadeEase = smoothstep(bullet.lifetime / BulletFadeOutTime)
   let fadeMul = fadeEase * (1.0'f32 - BulletFadeFloor) + BulletFadeFloor
-  template faded(c: Color): Color =
-    withAlpha(c, uint8(float32(c.a) * fadeMul))
+  template faded(c: Color): Color = scaleAlpha(c, fadeMul)
   color = faded(color)
   glowColor = faded(glowColor)
   trailColor = faded(trailColor)
 
   if bullet.isBossBullet:
     let warningPulse = sin(gameTime * 10.0 + bullet.radius * 0.25) * 0.5 + 0.5
-    drawDisc(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius + 6.5 + warningPulse * 1.4,
+    drawDisc(bullet.pos, bullet.radius + 6.5 + warningPulse * 1.4,
                faded(Color(r: 10, g: 4, b: 22, a: 110)))
     drawBossBulletTrail(bullet, trailColor)
 
@@ -378,7 +369,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let trailPos = bullet.pos - bullet.vel.normalize() * trailOffset
       let trailRadius = bullet.radius * (1.0 - i.float32 * 0.15)
       let trailAlpha = uint8((1.0 - i.float32 * 0.25) * float32(trailColor.a))
-      drawDisc(Vector2(x: trailPos.x, y: trailPos.y), trailRadius,
+      drawDisc(trailPos, trailRadius,
                 withAlpha(trailColor, trailAlpha))
 
   # Draw pentagon shape for pentagon bullets (a mod texture replaces any body)
@@ -396,7 +387,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
       let y2 = bullet.pos.y + sin(nextAngle) * bullet.radius
       drawStroke(Vector2(x: x1, y: y1), Vector2(x: x2, y: y2), 3, color)
     # Fill center
-    drawDisc(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius * 0.5, color)
+    drawDisc(bullet.pos, bullet.radius * 0.5, color)
   elif bullet.isBossBullet and bullet.bossBulletShape > 0:
     # Boss bullets with a unique shape shape + glow already handled together
     drawBossBulletShape(bullet, color, glowColor, gameTime)
@@ -408,7 +399,7 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
                           color, glowColor)
   else:
     # Normal circle bullet
-    drawDisc(Vector2(x: bullet.pos.x, y: bullet.pos.y), bullet.radius, color)
+    drawDisc(bullet.pos, bullet.radius, color)
 
   # Blood bullets: Add dripping blood effect
   if hasBloodBullets and usesPlayerLook:
@@ -433,9 +424,8 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     # breathing at the bullet is the whole warning that this one bites back.
     for i in 0..1:
       let glowRadius = bullet.radius + 2.0 + i.float32 * 2.0
-      let glowAlpha = uint8(float32(glowColor.a) * (1.0 - i.float32 * 0.4))
       drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
-                     withAlpha(glowColor, glowAlpha))
+                     scaleAlpha(glowColor, 1.0'f32 - i.float32 * 0.4'f32))
     let pulse = sin(gameTime * 9.0 + bullet.pos.x * 0.05) * 0.5 + 0.5
     let ringA = uint8(clamp(140.0 + pulse * 115.0, 0.0, 255.0))
     drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32,
@@ -483,9 +473,8 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
     # Draw multiple glow rings
     for i in 0..1:
       let glowRadius = bullet.radius + 2.0 + i.float32 * 2.0
-      let glowAlpha = uint8(float32(glowColor.a) * (1.0 - i.float32 * 0.4))
       drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, glowRadius,
-                     withAlpha(glowColor, glowAlpha))
+                     scaleAlpha(glowColor, 1.0'f32 - i.float32 * 0.4'f32))
 
     # Add highlight to bullet
     drawDisc(Vector2(x: bullet.pos.x - 1.5, y: bullet.pos.y - 1.5), bullet.radius * 0.3,
@@ -569,27 +558,27 @@ proc drawBullet*(bullet: Bullet, hasOvercharge: bool = false, hasBloodBullets: b
         drawCircleOutline(bullet.pos.x.int32, bullet.pos.y.int32, outerRadius,
                        faded(withAlpha(outerGlow, outerGlow.a div 2)))
 
-proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool =
+proc isOffScreen*(bullet: Bullet, screenWidth, screenHeight: int32): bool {.moddable.} =
   bullet.pos.x < -50 or bullet.pos.x > screenWidth.float32 + 50 or
   bullet.pos.y < -50 or bullet.pos.y > screenHeight.float32 + 50
 
-proc checkBulletEnemyCollision*(bullet: Bullet, enemy: Enemy): bool =
+proc checkBulletEnemyCollision*(bullet: Bullet, enemy: Enemy): bool {.moddable.} =
   if not bullet.fromPlayer: return false
   distance(bullet.pos, enemy.pos) < bullet.radius + enemy.radius
 
-proc checkBulletPlayerCollision*(bullet: Bullet, player: Player): bool =
+proc checkBulletPlayerCollision*(bullet: Bullet, player: Player): bool {.moddable.} =
   if bullet.fromPlayer: return false
   distance(bullet.pos, player.pos) < bullet.radius + player.radius
 
-proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool =
+proc checkBulletWallCollision*(bullet: Bullet, wall: Wall): bool {.moddable.} =
   if bullet.fromPlayer: return false # Player bullets pass through walls
   wallOverlapsCircle(wall, bullet.pos, bullet.radius)
 
 ## Utility functions for bullet synergies and cloning
 
-proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
+proc cloneBullet(original: Bullet, newPos: Vector2, newVel: Vector2,
                   damageMultiplier: float32 = 1.0, speedMultiplier: float32 = 1.0,
-                  radiusMultiplier: float32 = 1.0, preventSplit: bool = false): Bullet =
+                  radiusMultiplier: float32 = 1.0, preventSplit: bool = false): Bullet {.moddable.} =
   ## Clone a bullet preserving ALL its properties for perfect synergy
   ## This ensures Split Shot, Echo, and other effects inherit all bullet modifiers
   result = newBullet(
@@ -651,7 +640,7 @@ proc cloneBullet*(original: Bullet, newPos: Vector2f, newVel: Vector2f,
     result.echoHitEnemies.add(enemyIdx)
 
 proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
-                        damageMultiplier: float32 = 0.5, speedMultiplier: float32 = 0.7) =
+                        damageMultiplier: float32 = 0.5, speedMultiplier: float32 = 0.7) {.moddable.} =
   ## Create damage-only split fragments.
   ## Split Shot creates extra hits, but child bullets should not become full
   ## carriers for piercing, ricochet, explosive, elemental, or other on-hit
@@ -681,7 +670,7 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
       (split.float32 - halfCount) * (spreadAngle * 2.0 / (splitCount - 1).float32)
 
     let finalAngle = baseAngle + offsetAngle
-    let dir = newVector2f(cos(finalAngle), sin(finalAngle))
+    let dir = vec2(cos(finalAngle), sin(finalAngle))
     let vel = dir * sourceBullet.vel.length() * speedMultiplier
 
     let splitBullet = cloneBullet(
@@ -711,7 +700,7 @@ proc createSplitBullets*(game: Game, sourceBullet: Bullet, splitCount: int,
 
 proc createEchoBullet*(game: Game, sourceBullet: Bullet,
                       damageMultiplier: float32 = 0.4, speedMultiplier: float32 = 0.5,
-                      lifetime: float32 = 0.35) =
+                      lifetime: float32 = 0.35) {.moddable.} =
   ## Create a damage-only echo trail bullet.
   ## Echoes inherit the source's current damage and visuals, but not recursive
   ## shot modifiers or on-hit effects.

@@ -11,7 +11,7 @@
 
 import std/[strutils, times, os]
 import raylib
-import save_system, settings, types, localization
+import save_system, settings, types, localization, utils
 
 # ---------------------------------------------------------------------------
 # External links: project support / donation buttons and the browser opener.
@@ -107,19 +107,6 @@ const
   # longer is handed over through the clipboard instead.
   MaxIssueUrlLen = 6000
 
-proc readNimbleVersion(): string {.compileTime.} =
-  ## The .nimble file is the single source of the version (tools/ship.ps1 reads
-  ## it too), so the report can never be stamped with a stale number.
-  for line in staticRead("../TopHatShooter.nimble").splitLines():
-    let l = line.strip()
-    if l.startsWith("version"):
-      let parts = l.split('"')
-      if parts.len >= 2:
-        return parts[1]
-  "unknown"
-
-const GameVersion* = readNimbleVersion()
-
 proc kindTag(kind: FeedbackKind): string =
   case kind
   of fkBug: "Bug"
@@ -134,7 +121,7 @@ proc kindLabel(kind: FeedbackKind): string =
   of fkIdea: "enhancement"
   of fkOther: ""
 
-proc systemInfoLines*(): seq[string] =
+proc systemInfoLines(): seq[string] =
   ## What the developer needs to reproduce a report, and nothing identifying:
   ## no paths, user names, profile names or hardware serials.
   let build = when defined(debug): "debug" else: "release"
@@ -161,7 +148,7 @@ proc issueTitle(kind: FeedbackKind, title, body: string): string =
       t = t[0 ..< 60] & "..."
   "[" & kindTag(kind) & "] " & t
 
-proc composeReport*(kind: FeedbackKind, title, body: string,
+proc composeReport(kind: FeedbackKind, title, body: string,
                     includeInfo: bool): string =
   ## The Markdown body of the issue (and of the copied / saved report).
   result = "### " & kindTag(kind) & "\n\n"

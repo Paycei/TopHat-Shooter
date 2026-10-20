@@ -29,7 +29,7 @@
 ##   drawEllipseLines  -> drawEllipseOutline
 
 import raylib, rlgl, math
-import render_context
+import render_context, utils
 
 type
   ShapesTextureView {.importc: "Texture", header: "raylib.h", completeStruct, bycopy.} = object
@@ -65,7 +65,7 @@ proc segmentsAt(radius, scale: float32): int32 =
   n += n and 1
   clamp(n, 6'i32, 64'i32)
 
-proc circleSegments*(radius: float32): int32 =
+proc circleSegments(radius: float32): int32 =
   ## Segment count drawDisc and drawCircleOutline use for `radius` right now.
   segmentsAt(radius, drawScale())
 
@@ -95,17 +95,10 @@ type
     reSmooth  ## smoothstep: a lit dome that rolls off toward the rim
     reGlow    ## light: a bright core, a long soft tail, gone exactly at the rim
 
-proc lerpRgba(a, b: Color, t: float32): Color {.inline.} =
-  template ch(x, y: uint8): uint8 =
-    uint8(clamp(x.float32 + (y.float32 - x.float32) * t + 0.5'f32, 0.0'f32, 255.0'f32))
-  Color(r: ch(a.r, b.r), g: ch(a.g, b.g), b: ch(a.b, b.b), a: ch(a.a, b.a))
-
-proc clearOf(c: Color): Color {.inline.} = Color(r: c.r, g: c.g, b: c.b, a: 0)
-
 proc easeAt(ease: RadialEase, t: float32): float32 {.inline.} =
   case ease
   of reLinear: t
-  of reSmooth: t * t * (3.0'f32 - 2.0'f32 * t)
+  of reSmooth: smoothstep(t)
   of reGlow:
     # One minus a Gaussian, rescaled so the light reaches exactly 0 at the rim.
     const K = 3.6'f32
@@ -211,7 +204,7 @@ proc drawRadialGradient*(center: Vector2, radiusX, radiusY: float32,
     var c0 = inner
     for k in 1 .. bands:
       let t1 = k.float32 / bands.float32
-      let c1 = lerpRgba(inner, outer, easeAt(ease, t1))
+      let c1 = colorLerp(inner, outer, easeAt(ease, t1))
       for i in 0 ..< segs:
         # drawRing's corner order (outer, inner, inner next, outer next): front-facing.
         quadVtx(center.x + cs[i] * radiusX * t1, center.y + sn[i] * radiusY * t1, c1)

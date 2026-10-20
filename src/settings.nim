@@ -3,12 +3,13 @@
 
 from save_system import Settings, mbmWhileShooting, rrmEnabled, rrmFullscreenOnly, pfxSubtle, HudLayout, hlClassic, hlWidescreen, HudStyle, hsModern, hsLegacy, saveSettings, loadSettings, MinUIScale, MaxUIScale, DefaultUIScale, MinDamageNumberScale, MaxDamageNumberScale, MinScreenShakeScale, MaxScreenShakeScale
 from types import KeyAction, KeyBindings, kaMoveUp, kaMoveDown, kaMoveLeft, kaMoveRight, kaShoot, kaPlaceWall, kaLegendary, kaDash, PowerUpType, GamepadBindings, defaultKeybinds, defaultGamepadBinds, FirstModPowerUp
-import raylib, strutils
+import raylib
+import modding/mod_patch_core
 import sound, localization, powerup_data
 
 var globalSettings*: Settings
 
-proc isPowerUpDiscovered*(pt: PowerUpType): bool =
+proc isPowerUpDiscovered*(pt: PowerUpType): bool {.moddable.} =
   ## True if `pt` is in the persistent discovery codex. The codex stores the enum
   ## symbol (`$pt`), matching how death.nim records a power-up's first install.
   ## When settings aren't loaded yet (nil), treat everything as discovered so the
@@ -18,7 +19,7 @@ proc isPowerUpDiscovered*(pt: PowerUpType): bool =
   if pt >= FirstModPowerUp: return isPowerUpLive(pt)
   $pt in globalSettings.discoveredPowerUps
 
-proc newDefaultSettings*(): Settings =
+proc newDefaultSettings(): Settings {.moddable.} =
   ## Fresh Settings object holding only the built-in defaults (no disk access,
   ## no global registration). Used both at first boot and to wipe leftover
   ## state before loading a different profile's settings file.
@@ -27,8 +28,6 @@ proc newDefaultSettings*(): Settings =
     vsyncEnabled: true,
     volume: 0.5,
     musicVolume: 0.5,
-    inputBuffer: "60",
-    editingFPS: false,
     fullscreen: true,
     renderResolutionMode: rrmEnabled,
     postFxLevel: pfxSubtle,
@@ -69,7 +68,7 @@ proc newDefaultSettings*(): Settings =
     modKeybinds: @[]
   )
 
-proc reloadSettingsFromDisk*(settings: Settings) =
+proc reloadSettingsFromDisk*(settings: Settings) {.moddable.} =
   ## Reset `settings` to defaults in place, then load the active profile's
   ## settings file over them and apply its language. In-place so every holder
   ## of the ref (globalSettings, the window manager, ...) sees the new values.
@@ -78,43 +77,41 @@ proc reloadSettingsFromDisk*(settings: Settings) =
   ## previously loaded profile.
   settings[] = newDefaultSettings()[]
   discard loadSettings(settings)
-  try:
-    setLanguage(parseEnum[Language](settings.language))
-  except:
-    setLanguage(English)
-    settings.language = "english"
+  # A mod language (its id) shows English until its mod loads, when
+  # reloadMods puts it back: the setting is kept for that.
+  discard useLanguage(settings.language)
 
-proc initSettings*(): Settings =
+proc initSettings*(): Settings {.moddable.} =
   ## Initialize settings with default values and load from save file
   result = newDefaultSettings()
   globalSettings = result
   reloadSettingsFromDisk(result)
 
-proc uiScaleOf*(settings: Settings): float32 =
+proc uiScaleOf*(settings: Settings): float32 {.moddable.} =
   ## The interface scale to draw with, tolerant of a nil/never-loaded Settings
   ## (early boot, tests) and of a value from before the field existed, where the
   ## JSON key is absent and the float defaults to 0.
   if settings.isNil or settings.uiScale <= 0.0'f32: DefaultUIScale
   else: clamp(settings.uiScale, MinUIScale, MaxUIScale)
 
-proc showDamageNumbersOf*(settings: Settings): bool =
+proc showDamageNumbersOf*(settings: Settings): bool {.moddable.} =
   ## Whether floating damage text is drawn. Defaults to on when settings aren't
   ## loaded yet, so nothing silently disappears during early init.
   settings.isNil or settings.showDamageNumbers
 
-proc damageNumberScaleOf*(settings: Settings): float32 =
+proc damageNumberScaleOf*(settings: Settings): float32 {.moddable.} =
   ## Size multiplier for floating damage text. Like uiScaleOf, a non-positive
   ## value means "never set" rather than "invisible".
   if settings.isNil or settings.damageNumberScale <= 0.0'f32: 1.0'f32
   else: clamp(settings.damageNumberScale, MinDamageNumberScale, MaxDamageNumberScale)
 
-proc screenShakeScaleOf*(settings: Settings): float32 =
+proc screenShakeScaleOf*(settings: Settings): float32 {.moddable.} =
   ## Multiplier on all screen shake. Unlike the scales above, 0 is a real choice
   ## here (shake fully off), so it is passed through rather than treated as unset.
   if settings.isNil: 1.0'f32
   else: clamp(settings.screenShakeScale, MinScreenShakeScale, MaxScreenShakeScale)
 
-proc applySettings*(settings: Settings) =
+proc applySettings*(settings: Settings) {.moddable.} =
   ## Apply settings to the game engine and systems
   setTargetFPS(settings.fpsLimit)
   setGameVolume(settings.volume)

@@ -20,6 +20,7 @@
 ## enterRoom, which do not depend on game.nim.
 
 import json, os, strutils
+import modding/mod_patch_core
 import particle_types, types, save_system, utils, roguelite, dungeon, powerup, tutorial
 import modding/[mod_state, mod_hooks, mod_registry], powerup_data
 
@@ -36,7 +37,7 @@ const BlockCheckpointFile = "run_checkpoint.json"
 ## while mods are loaded, so a modded session reads and deletes only its own
 ## files and each mod set (and mod game mode) gets separate slots.
 
-proc runSaveFileFor*(mode: GameMode, modMode: string = ""): string =
+proc runSaveFileFor(mode: GameMode, modMode: string = ""): string {.moddable.} =
   "run_save_" & $mode & saveSlotTag(modMode) & ".json"
 
 proc blockCheckpointFileFor(mode: GameMode, modMode: string = ""): string =
@@ -54,7 +55,7 @@ proc isBlockCheckpointFile(file: string): bool =
   # Every checkpoint name (any mode, any mod slot) shares this stem.
   file.startsWith("run_checkpoint")
 
-proc getRunSavePath*(file: string): string =
+proc getRunSavePath(file: string): string {.moddable.} =
   getAppDataPath() / file
 
 # Block-checkpoint presence cache. The game-over screen asks "is there a
@@ -73,11 +74,11 @@ type BlockCheckpointCache = object
 
 var bcCache: array[GameMode, BlockCheckpointCache]
 
-proc invalidateBlockCheckpointCache*() =
+proc invalidateBlockCheckpointCache*() {.moddable.} =
   for mode in GameMode:
     bcCache[mode].path = ""
 
-proc deleteRunSave*(file: string) =
+proc deleteRunSave*(file: string) {.moddable.} =
   ## Remove one of the current profile's run save files, if present.
   if isBlockCheckpointFile(file):
     invalidateBlockCheckpointCache()
@@ -88,7 +89,7 @@ proc deleteRunSave*(file: string) =
   except CatchableError:
     echo "Warning: could not delete run save"
 
-proc deleteRunSave*(mode: GameMode, modMode: string = "") =
+proc deleteRunSave*(mode: GameMode, modMode: string = "") {.moddable.} =
   ## Remove this mode's run save for the current profile, if any.
   deleteRunSave(runSaveFileFor(mode, modMode))
 
@@ -211,33 +212,34 @@ proc applyPlayerJson(p: Player, j: JsonNode) =
 
   if j.hasKey("powerUps"):
     p.powerUps = @[]
-    for pu in j["powerUps"]:
+    for pu in jsonItems(j["powerUps"]):
       # A mod power-up whose mod is gone is dropped, never turned into another.
+      # ({} access: an entry of the wrong shape is skipped, not a crash.)
       var pt: PowerUpType
-      if not parsePowerUpSaveName(pu["t"].getStr(), pt):
+      if not parsePowerUpSaveName(pu{"t"}.getStr(), pt):
         continue
       p.powerUps.add(PowerUp(
         powerType: pt,
-        level: pu["l"].getInt(),
+        level: pu{"l"}.getInt(1),
         rarity: parseRarity(pu.getOrDefault("r").getStr("prCommon"))))
 
   if j.hasKey("rotatingOrbs"):
     p.rotatingOrbs = @[]
-    for o in j["rotatingOrbs"]:
+    for o in jsonItems(j["rotatingOrbs"]):
       p.rotatingOrbs.add(RotatingOrb(
-        angle: o["angle"].getFloat().float32,
-        radius: o["radius"].getFloat().float32,
-        elementType: parseElement(o["element"].getStr()),
-        orbLevel: o["level"].getInt(1),
+        angle: o{"angle"}.getFloat().float32,
+        radius: o{"radius"}.getFloat().float32,
+        elementType: parseElement(o{"element"}.getStr()),
+        orbLevel: o{"level"}.getInt(1),
         hitEnemies: @[]))
   f("orbRotationAngle", p.orbRotationAngle)
 
   if j.hasKey("shieldHealths"):
     p.shieldHealths = @[]
-    for s in j["shieldHealths"]: p.shieldHealths.add(s.getFloat().float32)
+    for s in jsonItems(j["shieldHealths"]): p.shieldHealths.add(s.getFloat().float32)
   if j.hasKey("shieldRegenTimers"):
     p.shieldRegenTimers = @[]
-    for s in j["shieldRegenTimers"]: p.shieldRegenTimers.add(s.getFloat().float32)
+    for s in jsonItems(j["shieldRegenTimers"]): p.shieldRegenTimers.add(s.getFloat().float32)
   f("shieldMaxHealth", p.shieldMaxHealth); f("shieldRegenDelay", p.shieldRegenDelay)
   f("singularityShield", p.singularityShield)
   f("singularityShieldMaxPct", p.singularityShieldMaxPct)
@@ -296,7 +298,7 @@ proc jsonToPickup(j: JsonNode): DungeonPickup =
   let relic = parseRelicSave(j.getOrDefault("patch").getStr("rrtNone"))
   DungeonPickup(
     kind: parsePickupKind(j.getOrDefault("kind").getStr()),
-    pos: newVector2f(j.getOrDefault("x").getFloat().float32, j.getOrDefault("y").getFloat().float32),
+    pos: vec2(j.getOrDefault("x").getFloat().float32, j.getOrDefault("y").getFloat().float32),
     taken: j.getOrDefault("taken").getBool(false),
     patch: relic.relicType,
     modPatch: relic.modKey,
@@ -362,7 +364,7 @@ proc isSupportedRunMode(mode: GameMode): bool =
   mode in {gmWaveBased, gmTimeSurvival, gmRoguelite}
 
 proc saveRunState*(game: Game, file: string = "",
-                   bypassStateGate: bool = false) =
+                   bypassStateGate: bool = false) {.moddable.} =
   ## Serialize durable run state for the current mode. No-op for unsupported
   ## modes (PvP / sandbox / 3D boss) or when there is nothing to resume.
   ## `file` defaults to this mode's own run save.
@@ -546,12 +548,12 @@ proc migrateLegacyRunSave() =
   except CatchableError:
     echo "Warning: could not migrate legacy run save"
 
-proc hasSavedRun*(mode: GameMode, modMode: string = ""): bool =
+proc hasSavedRun*(mode: GameMode, modMode: string = ""): bool {.moddable.} =
   ## True when `mode` has a valid saved run on the current profile.
   migrateLegacyRunSave()
   loadRunSaveJson(runSaveFileFor(mode, modMode)) != nil
 
-proc applySavedRun*(game: Game, file: string = ""): bool =
+proc applySavedRun*(game: Game, file: string = ""): bool {.moddable.} =
   ## Restore saved state onto a freshly constructed Game that has already had
   ## newGame + setGameMode(savedMode) applied. Returns false on parse failure or
   ## version/mode mismatch; the caller then deletes the file and starts fresh.
@@ -587,7 +589,7 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
     game.metaCoresEarned = max(0, j.getOrDefault("metaCoresEarned").getInt(0))
     game.time = j.getOrDefault("time").getFloat(0.0).float32
     game.pendingLevelDrafts = max(0, j.getOrDefault("pendingLevelDrafts").getInt(0))
-    if j.hasKey("player"):
+    if j.hasKey("player") and j["player"].kind == JObject:
       applyPlayerJson(game.player, j["player"])
 
     # Restore the shop price/gain curves. Counters only: the purchases they paid
@@ -671,7 +673,7 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
       for c in j.getOrDefault("survivalChests").getElems():
         s.chests.add(SurvivalChest(
           tier: parseEnumOr(c.getOrDefault("t").getStr(""), sctMinor),
-          pos: newVector2f(c.getOrDefault("x").getFloat(0.0).float32,
+          pos: vec2(c.getOrDefault("x").getFloat(0.0).float32,
                            c.getOrDefault("y").getFloat(0.0).float32),
           age: 1.0'f32))
       game.survival = s
@@ -834,7 +836,7 @@ proc applySavedRun*(game: Game, file: string = ""): bool =
 proc patchBlockCheckpoint(mode: GameMode, modMode: string, patch: proc (j: JsonNode))
 proc blockCheckpointExists*(mode: GameMode, modMode: string = ""): bool
 
-proc saveBlockCheckpoint*(game: Game, scripted = false, labelEn = "", labelEs = ""): bool {.discardable.} =
+proc saveBlockCheckpoint*(game: Game, scripted = false, labelEn = "", labelEs = ""): bool {.discardable, moddable.} =
   ## Persist the current run as a death-surviving checkpoint. Uses the
   ## state-gate bypass so it can fire outside the resumable states.
   ## A mode or profile with no lives budget never writes one -- see
@@ -879,7 +881,7 @@ proc refreshBlockCheckpointCache(mode: GameMode, modMode: string) =
   bcCache[mode].labelEs = if label.isNil: "" else: label.getOrDefault("es").getStr("")
   bcCache[mode].path = path
 
-proc blockCheckpointExists*(mode: GameMode, modMode: string = ""): bool =
+proc blockCheckpointExists*(mode: GameMode, modMode: string = ""): bool {.moddable.} =
   ## Raw file presence, ignoring the difficulty and lives gates. Used by the
   ## game-over screen to decide WHOSE lives to show: a checkpoint on disk is the
   ## run that Continue would resume, so its counter is the one at stake even
@@ -887,13 +889,13 @@ proc blockCheckpointExists*(mode: GameMode, modMode: string = ""): bool =
   refreshBlockCheckpointCache(mode, modMode)
   bcCache[mode].exists
 
-proc blockCheckpointLivesUsed*(mode: GameMode, modMode: string = ""): int =
+proc blockCheckpointLivesUsed*(mode: GameMode, modMode: string = ""): int {.moddable.} =
   ## Continues already spent by the run held in the block checkpoint. 0 when
   ## there is no checkpoint (a run that has not continued has spent nothing).
   refreshBlockCheckpointCache(mode, modMode)
   if bcCache[mode].exists: bcCache[mode].livesUsed else: 0
 
-proc hasBlockCheckpoint*(mode: GameMode, modMode: string = ""): bool =
+proc hasBlockCheckpoint*(mode: GameMode, modMode: string = ""): bool {.moddable.} =
   ## A profile with no budget for `mode` (Nightmare, and Hard in the roguelite
   ## and survival) answers "no" even if a file somehow exists (e.g. a checkpoint
   ## left behind by an older build), so the Continue option can never come
@@ -907,21 +909,21 @@ proc hasBlockCheckpoint*(mode: GameMode, modMode: string = ""): bool =
     return false
   livesRemaining(bcCache[mode].livesUsed, mode, modMode) != 0
 
-proc canContinueRun*(game: Game): bool =
+proc canContinueRun*(game: Game): bool {.moddable.} =
   ## Whether the run that just died can be picked up again with a restore
   ## point: the crash screen's Continue, and anything that must defer to it.
   ## The offline check is belt and braces for a run past its win: the win
   ## already deleted its checkpoint and nothing writes a new one.
   hasBlockCheckpoint(game.mode, game.modMode) and not restorePointsOffline(game)
 
-proc blockCheckpointResumePoint*(mode: GameMode, modMode: string = ""): int =
+proc blockCheckpointResumePoint*(mode: GameMode, modMode: string = ""): int {.moddable.} =
   ## Where Continue picks the run up: the wave (wave mode), sector (roguelite)
   ## or whole second on the survival clock (Time Survival) the block checkpoint
   ## resumes at, or 1 if there is no valid checkpoint.
   refreshBlockCheckpointCache(mode, modMode)
   bcCache[mode].resumePoint
 
-proc blockCheckpointLabel*(mode: GameMode, modMode: string = ""): tuple[en, es: string] =
+proc blockCheckpointLabel*(mode: GameMode, modMode: string = ""): tuple[en, es: string] {.moddable.} =
   ## The spot a script named for Continue (run.restorePoints.save("ROUND 3")),
   ## or "" for the mode's own wording (wave, sector or clock).
   refreshBlockCheckpointCache(mode, modMode)
@@ -944,7 +946,7 @@ proc patchBlockCheckpoint(mode: GameMode, modMode: string, patch: proc (j: JsonN
   except CatchableError:
     echo "Warning: could not write run save"
 
-proc markCheckpointCurrencyBanked*(game: Game) =
+proc markCheckpointCurrencyBanked*(game: Game) {.moddable.} =
   ## The roguelite banks a run's Data Shards and Cores when it ends, and a death
   ## has just done that (commitRogueliteRunProgress). The checkpoint still lists
   ## what was unbanked when it was written, so a Continue would restore those
@@ -963,7 +965,7 @@ proc markCheckpointCurrencyBanked*(game: Game) =
     rj["totalShardsBanked"] = %run.totalShardsBanked
     rj["totalCoresBanked"] = %run.totalCoresBanked)
 
-proc consumeContinueLife*(game: Game) =
+proc consumeContinueLife*(game: Game) {.moddable.} =
   ## Spend one life on a run that has just resumed its block checkpoint, and
   ## patch the new count straight back into the checkpoint file.
   ##
@@ -993,7 +995,7 @@ proc consumeContinueLife*(game: Game) =
     j["livesUsed"] = %livesUsed)
   modRestorePointSpent()
 
-proc setRestorePointsUsed*(game: Game, used: int) =
+proc setRestorePointsUsed*(game: Game, used: int) {.moddable.} =
   ## run.restorePoints.used = n: the run's spent count, written through to its
   ## checkpoint too, so the crash screen's meter and Continue agree with it.
   game.livesUsed = max(0, used)
@@ -1001,7 +1003,7 @@ proc setRestorePointsUsed*(game: Game, used: int) =
   patchBlockCheckpoint(game.mode, game.modMode, proc (j: JsonNode) =
     j["livesUsed"] = %livesUsed)
 
-proc applyBlockCheckpoint*(game: Game): bool =
+proc applyBlockCheckpoint*(game: Game): bool {.moddable.} =
   ## Restore the block checkpoint onto a freshly constructed Game that has
   ## already had newGame + setGameMode applied (and, for the roguelite, its
   ## live rogueliteProfile). False when `game.mode` has no checkpoint, or its
@@ -1011,7 +1013,7 @@ proc applyBlockCheckpoint*(game: Game): bool =
   hasBlockCheckpoint(game.mode, game.modMode) and
     applySavedRun(game, blockCheckpointFileFor(game.mode, game.modMode))
 
-proc deleteBlockCheckpoint*(mode: GameMode, modMode: string = "") =
+proc deleteBlockCheckpoint*(mode: GameMode, modMode: string = "") {.moddable.} =
   ## Drop `mode`'s death-surviving checkpoint (a no-op for a mode without one),
   ## e.g. when its run is won or explicitly abandoned.
   let file = blockCheckpointFileFor(mode, modMode)

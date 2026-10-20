@@ -14,8 +14,9 @@
 ## translucent light adds to what is under it instead of darkening it.
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
-import ../desktop_bg_skins, ../utils
+import ../desktop_bg_skins, ../utils, ../vec
 from ui_theme import beginKeepAlpha, endKeepAlpha
 
 const
@@ -25,39 +26,6 @@ const
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-proc fract01(value: float32): float32 = value - floor(value)
-
-proc hash01(seed: float32): float32 =
-  ## Deterministic pseudo-random in [0,1), same trick as the backdrop stars.
-  fract01(sin(seed * 12.9898'f32) * 43758.5453'f32)
-
-proc wrapF(value, limit: float32): float32 =
-  if limit <= 0.0'f32:
-    return 0.0'f32
-  value - floor(value / limit) * limit
-
-proc alphaU8(value: float32): uint8 = clampByteF(value)  # delegate to utils.clampByteF
-
-func v2(x, y: float32): Vector2 {.inline.} = Vector2(x: x, y: y)
-
-func smoothstep(e0, e1, x: float32): float32 =
-  let t = clamp((x - e0) / (e1 - e0), 0.0'f32, 1.0'f32)
-  t * t * (3.0'f32 - 2.0'f32 * t)
-
-func rgba(r, g, b: int, a = 255): Color {.inline.} =
-  Color(r: clampByte(r), g: clampByte(g), b: clampByte(b), a: clampByte(a))
-
-proc mixCol(a, b: Color, t: float32): Color =
-  ## Linear blend between two colours; t is clamped to [0,1].
-  let k = clamp(t, 0.0'f32, 1.0'f32)
-  Color(r: uint8(a.r.float32 + (b.r.float32 - a.r.float32) * k),
-        g: uint8(a.g.float32 + (b.g.float32 - a.g.float32) * k),
-        b: uint8(a.b.float32 + (b.b.float32 - a.b.float32) * k),
-        a: uint8(a.a.float32 + (b.a.float32 - a.a.float32) * k))
-
-proc fade(c: Color, k: float32): Color {.inline.} =
-  withAlpha(c, c.a.float32 * clamp(k, 0.0'f32, 1.0'f32))
 
 proc unitOf(w, h: float32): float32 {.inline.} =
   ## One pixel of the full-size desktop (768 tall), with a floor so hairlines
@@ -75,10 +43,10 @@ proc fillRect(x, y, w, h: float32, col: Color) {.inline.} =
   drawRectangle(Rectangle(x: x, y: y, width: w, height: h), col)
 
 proc vGrad(x, y, w, h: float32, top, bottom: Color) =
-  drawGradientQuad(v2(x, y), v2(x, y + h), v2(x + w, y + h), v2(x + w, y), top, bottom, bottom, top)
+  drawGradientQuad(vec2(x, y), vec2(x, y + h), vec2(x + w, y + h), vec2(x + w, y), top, bottom, bottom, top)
 
 proc hGrad(x, y, w, h: float32, left, right: Color) =
-  drawGradientQuad(v2(x, y), v2(x, y + h), v2(x + w, y + h), v2(x + w, y), left, left, right, right)
+  drawGradientQuad(vec2(x, y), vec2(x, y + h), vec2(x + w, y + h), vec2(x + w, y), left, left, right, right)
 
 proc skyStops(w: float32, stops: openArray[(float32, Color)]) =
   ## A vertical gradient through several (y, colour) stops.
@@ -111,14 +79,14 @@ proc drawLightCone(apex: Vector2, baseY, halfW: float32, col: Color, edge = 0.0'
   ## (`reach` is how much is left there). Starting from a width rather than a
   ## point is what keeps the sides soft all the way up.
   let clear = withAlpha(col, 0'u8)
-  let axis = withAlpha(col, col.a.float32 * reach)
-  let side = withAlpha(col, col.a.float32 * edge)
+  let axis = scaleAlpha(col, reach)
+  let side = scaleAlpha(col, edge)
   let top = if topHalf > 0.0'f32: clear else: col
   # Both halves split along apex -> outer base corner, mirror images of each
   # other: a quad's colour depends on its diagonal, and unmatched halves seam.
-  drawGradientQuad(apex, v2(apex.x, baseY), v2(apex.x - halfW, baseY), v2(apex.x - topHalf, apex.y),
+  drawGradientQuad(apex, vec2(apex.x, baseY), vec2(apex.x - halfW, baseY), vec2(apex.x - topHalf, apex.y),
                    col, axis, side, top)
-  drawGradientQuad(apex, v2(apex.x + topHalf, apex.y), v2(apex.x + halfW, baseY), v2(apex.x, baseY),
+  drawGradientQuad(apex, vec2(apex.x + topHalf, apex.y), vec2(apex.x + halfW, baseY), vec2(apex.x, baseY),
                    col, top, side, axis)
 
 proc starCount(w, h, density: float32): int =
@@ -141,17 +109,17 @@ proc drawStarField(w, h, time: float32, count: int, seed, yMax, alphaK, brightSh
     let big = hash01(sd + 5.9'f32)
     let r = max(0.35'f32, (0.45'f32 + big * big * 1.15'f32) * u)
     let a = (60.0'f32 + 170.0'f32 * tw * (0.4'f32 + 0.6'f32 * big)) * alphaK
-    drawDisc(v2(x, y), r, withAlpha(col, a))
+    drawDisc(vec2(x, y), r, withAlpha(col, a))
     if big > 1.0'f32 - brightShare:
-      let p = v2(x, y)
+      let p = vec2(x, y)
       drawGlow(p, r * 6.0'f32, withAlpha(col, a * 0.35'f32))
       let arm = (5.0'f32 + 9.0'f32 * tw) * u
       let clear = withAlpha(col, 0'u8)
       let sw = max(0.5'f32, 0.9'f32 * u)
-      drawTaperedLine(v2(x - arm, y), p, 0.0'f32, sw, clear, withAlpha(col, a * 0.8'f32))
-      drawTaperedLine(p, v2(x + arm, y), sw, 0.0'f32, withAlpha(col, a * 0.8'f32), clear)
-      drawTaperedLine(v2(x, y - arm), p, 0.0'f32, sw, clear, withAlpha(col, a * 0.8'f32))
-      drawTaperedLine(p, v2(x, y + arm), sw, 0.0'f32, withAlpha(col, a * 0.8'f32), clear)
+      drawTaperedLine(vec2(x - arm, y), p, 0.0'f32, sw, clear, withAlpha(col, a * 0.8'f32))
+      drawTaperedLine(p, vec2(x + arm, y), sw, 0.0'f32, withAlpha(col, a * 0.8'f32), clear)
+      drawTaperedLine(vec2(x, y - arm), p, 0.0'f32, sw, clear, withAlpha(col, a * 0.8'f32))
+      drawTaperedLine(p, vec2(x, y + arm), sw, 0.0'f32, withAlpha(col, a * 0.8'f32), clear)
 
 proc drawSoftLine(a, b: Vector2, u: float32, glow, core: Color, glowW = 7.0'f32, coreW = 1.2'f32) =
   ## A neon line: a soft halo and a crisp core.
@@ -185,7 +153,7 @@ proc drawRainGlyph(x, y, cw, ch: float32, glyph: int, mirror: bool, width: float
     if seg[0] == seg[2] and seg[1] == seg[3]: continue
     let x0 = if mirror: 1.0'f32 - seg[0] else: seg[0]
     let x1 = if mirror: 1.0'f32 - seg[2] else: seg[2]
-    drawStroke(v2(x + x0 * cw, y + seg[1] * ch), v2(x + x1 * cw, y + seg[3] * ch), width, col)
+    drawStroke(vec2(x + x0 * cw, y + seg[1] * ch), vec2(x + x1 * cw, y + seg[3] * ch), width, col)
 
 # ---------------------------------------------------------------------------
 # Neon City
@@ -200,10 +168,10 @@ proc drawNeonSign(x, y, sw, sh, time, seed, u: float32, col: Color) =
                else: 1.0'f32
   let k = flick * broken
   let glow = withAlpha(col, 120.0'f32 * k)
-  let core = withAlpha(mixCol(col, rgba(255, 255, 255), 0.55'f32), 235.0'f32 * k)
-  drawGlow(v2(x + sw * 0.5'f32, y + sh * 0.5'f32), max(sw, sh) * 0.9'f32, withAlpha(col, 50.0'f32 * k))
+  let core = withAlpha(colorLerp(col, rgba(255, 255, 255), 0.55'f32), 235.0'f32 * k)
+  drawGlow(vec2(x + sw * 0.5'f32, y + sh * 0.5'f32), max(sw, sh) * 0.9'f32, withAlpha(col, 50.0'f32 * k))
   fillRect(x, y, sw, sh, rgba(10, 4, 18, 220))
-  let pts = [v2(x, y), v2(x + sw, y), v2(x + sw, y + sh), v2(x, y + sh)]
+  let pts = [vec2(x, y), vec2(x + sw, y), vec2(x + sw, y + sh), vec2(x, y + sh)]
   for i in 0 .. 3:
     drawSoftLine(pts[i], pts[(i + 1) mod 4], u, glow, core, 5.0'f32, 0.9'f32)
   let glyphs = clamp(int(sh / max(sw, 1.0'f32)), 2, 5)
@@ -227,15 +195,15 @@ proc drawNeonCityFx(w, h, time: float32) =
   drawStarField(w, h, time, starCount(w, h, 0.25'f32), 3.0'f32, horizon * 0.42'f32, 0.45'f32, 0.0'f32)
 
   # Light pollution pooling over the towers, and slow smog drifting through it.
-  drawGlow(v2(w * 0.5'f32, horizon), w * 0.8'f32, h * 0.45'f32, rgba(255, 40, 170, 90))
-  drawGlow(v2(w * 0.16'f32, horizon), w * 0.32'f32, h * 0.3'f32, rgba(130, 50, 255, 80))
-  drawGlow(v2(w * 0.84'f32, horizon), w * 0.32'f32, h * 0.26'f32, rgba(60, 150, 255, 60))
+  drawGlow(vec2(w * 0.5'f32, horizon), w * 0.8'f32, h * 0.45'f32, rgba(255, 40, 170, 90))
+  drawGlow(vec2(w * 0.16'f32, horizon), w * 0.32'f32, h * 0.3'f32, rgba(130, 50, 255, 80))
+  drawGlow(vec2(w * 0.84'f32, horizon), w * 0.32'f32, h * 0.26'f32, rgba(60, 150, 255, 60))
   for b in 0 ..< 4:
     let seed = b.float32 * 13.1'f32
-    let bx = wrapF(hash01(seed) * w * 1.6'f32 + time * w * (0.004'f32 + hash01(seed + 1.0'f32) * 0.006'f32),
-                   w * 1.6'f32) - w * 0.3'f32
+    let bx = wrapCoord(hash01(seed) * w * 1.6'f32 + time * w * (0.004'f32 + hash01(seed + 1.0'f32) * 0.006'f32),
+                       w * 1.6'f32) - w * 0.3'f32
     let by = horizon * (0.55'f32 + hash01(seed + 2.0'f32) * 0.35'f32)
-    drawGlow(v2(bx, by), w * 0.28'f32, h * 0.05'f32, rgba(255, 110, 220, 26))
+    drawGlow(vec2(bx, by), w * 0.28'f32, h * 0.05'f32, rgba(255, 110, 220, 26))
 
   # Skyline, far to near. Towers stand on the horizon; the street goes on after.
   const LayerW = [0.034'f32, 0.05'f32, 0.078'f32]
@@ -263,17 +231,17 @@ proc drawNeonCityFx(w, h, time: float32) =
       of 2:   # antenna mast with a warning light
         let mx = x + bodyW * 0.5'f32
         let mastTop = top - bh * 0.16'f32
-        drawStroke(v2(mx, top), v2(mx, mastTop), max(0.5'f32, 1.0'f32 * u), bodies[layer])
+        drawStroke(vec2(mx, top), vec2(mx, mastTop), max(0.5'f32, 1.0'f32 * u), bodies[layer])
         if layer > 0:
           let blink = sin(time * 2.2'f32 + seed) * 0.5'f32 + 0.5'f32
-          drawGlow(v2(mx, mastTop), 7.0'f32 * u, rgba(255, 50, 90, int(60.0'f32 + 120.0'f32 * blink)))
-          drawDisc(v2(mx, mastTop), max(0.4'f32, 1.3'f32 * u), rgba(255, 90, 120, int(120.0'f32 + 130.0'f32 * blink)))
+          drawGlow(vec2(mx, mastTop), 7.0'f32 * u, rgba(255, 50, 90, int(60.0'f32 + 120.0'f32 * blink)))
+          drawDisc(vec2(mx, mastTop), max(0.4'f32, 1.3'f32 * u), rgba(255, 90, 120, int(120.0'f32 + 130.0'f32 * blink)))
       of 3:   # slanted roof
-        drawTri2(v2(x, top), v2(x + bodyW, top), v2(x + bodyW, top - bh * 0.08'f32), bodies[layer])
+        drawTri2(vec2(x, top), vec2(x + bodyW, top), vec2(x + bodyW, top - bh * 0.08'f32), bodies[layer])
       else: discard
       # Rim light down the lit edge and along the roof line.
-      drawStroke(v2(x + 0.5'f32 * u, top), v2(x + 0.5'f32 * u, horizon), max(0.5'f32, 1.0'f32 * u), rims[layer])
-      drawStroke(v2(x, top), v2(x + bodyW, top), max(0.5'f32, 0.8'f32 * u), fade(rims[layer], 0.7'f32))
+      drawStroke(vec2(x + 0.5'f32 * u, top), vec2(x + 0.5'f32 * u, horizon), max(0.5'f32, 1.0'f32 * u), rims[layer])
+      drawStroke(vec2(x, top), vec2(x + bodyW, top), max(0.5'f32, 0.8'f32 * u), scaleAlpha(rims[layer], 0.7'f32))
       # Windows: a grid, sparsely lit, a few flickering.
       let ww = max(0.5'f32, (1.6'f32 + layer.float32 * 0.6'f32) * u)
       let wh = max(0.6'f32, (2.2'f32 + layer.float32 * 0.8'f32) * u)
@@ -309,24 +277,24 @@ proc drawNeonCityFx(w, h, time: float32) =
     let len = (h - horizon) * (0.35'f32 + hash01(seed + 2.0'f32) * 0.55'f32)
     let rw = (1.5'f32 + hash01(seed + 3.0'f32) * 4.0'f32) * u
     let ra = 50.0'f32 + hash01(seed + 4.0'f32) * 70.0'f32
-    var prev = v2(rx, horizon)
+    var prev = vec2(rx, horizon)
     for s in 1 .. 4:
       let yy = horizon + len * s.float32 / 4.0'f32
-      let cur = v2(rx + sin(time * 2.4'f32 + yy * 0.08'f32 / u + seed) * 1.6'f32 * u, yy)
+      let cur = vec2(rx + sin(time * 2.4'f32 + yy * 0.08'f32 / u + seed) * 1.6'f32 * u, yy)
       drawTaperedLine(prev, cur, rw, rw * 0.8'f32, withAlpha(col, ra * (1.0'f32 - (s - 1).float32 / 4.0'f32)),
                       withAlpha(col, ra * (1.0'f32 - s.float32 / 4.0'f32)))
       prev = cur
-  drawSoftLine(v2(0.0'f32, horizon), v2(w, horizon), u, rgba(255, 60, 200, 150), rgba(255, 180, 240, 210), 12.0'f32, 1.2'f32)
+  drawSoftLine(vec2(0.0'f32, horizon), vec2(w, horizon), u, rgba(255, 60, 200, 150), rgba(255, 180, 240, 210), 12.0'f32, 1.2'f32)
 
   # Rain, slanting through the light.
   for r in 0 ..< counted(80, detailOf(w, h)):
     let seed = r.float32 * 3.17'f32
     let speed = h * (0.9'f32 + hash01(seed) * 0.6'f32)
-    let ry = wrapF(hash01(seed + 1.0'f32) * h * 1.2'f32 + time * speed, h * 1.2'f32) - h * 0.1'f32
-    let rx = wrapF(hash01(seed + 2.0'f32) * w + ry * 0.18'f32, w)
+    let ry = wrapCoord(hash01(seed + 1.0'f32) * h * 1.2'f32 + time * speed, h * 1.2'f32) - h * 0.1'f32
+    let rx = wrapCoord(hash01(seed + 2.0'f32) * w + ry * 0.18'f32, w)
     let len = (10.0'f32 + hash01(seed + 3.0'f32) * 14.0'f32) * u
     let a = 22.0'f32 + hash01(seed + 4.0'f32) * 36.0'f32
-    drawTaperedLine(v2(rx - len * 0.18'f32, ry - len), v2(rx, ry), 0.0'f32, max(0.5'f32, 0.9'f32 * u),
+    drawTaperedLine(vec2(rx - len * 0.18'f32, ry - len), vec2(rx, ry), 0.0'f32, max(0.5'f32, 0.9'f32 * u),
                     rgba(200, 170, 255, 0), rgba(210, 190, 255, int(a)))
 
 # ---------------------------------------------------------------------------
@@ -339,8 +307,8 @@ proc drawDataRainFx(w, h, time: float32) =
   ## down and faint scanlines over it all.
   let s = min(w, h)
   vGrad(0.0'f32, 0.0'f32, w, h, rgba(0, 10, 3), rgba(0, 4, 1))
-  drawGlow(v2(w * 0.5'f32, h * 1.05'f32), w * 0.75'f32, h * 0.5'f32, rgba(0, 160, 50, 60))
-  drawGlow(v2(w * CubeAnchorX, h * CubeAnchorY), s * 0.55'f32, rgba(0, 120, 40, 40))
+  drawGlow(vec2(w * 0.5'f32, h * 1.05'f32), w * 0.75'f32, h * 0.5'f32, rgba(0, 160, 50, 60))
+  drawGlow(vec2(w * CubeAnchorX, h * CubeAnchorY), s * 0.55'f32, rgba(0, 120, 40, 40))
   const Scale = [0.55'f32, 0.8'f32, 1.15'f32]
   const Bright = [0.35'f32, 0.62'f32, 1.0'f32]
   const Share = [0.55'f32, 0.45'f32, 0.36'f32]
@@ -355,7 +323,7 @@ proc drawDataRainFx(w, h, time: float32) =
       let speed = h * (0.12'f32 + hash01(seed + 3.1'f32) * 0.4'f32) * Scale[layer]
       let trail = 6 + int(hash01(seed + 6.7'f32) * 12.0'f32)
       let span = h + cell * (trail.float32 + 2.0'f32)
-      let headY = wrapF(hash01(seed + 9.2'f32) * span + time * speed, span) - cell * 2.0'f32
+      let headY = wrapCoord(hash01(seed + 9.2'f32) * span + time * speed, span) - cell * 2.0'f32
       for k in 0 .. trail:
         let gy = headY - k.float32 * cell
         if gy < -cell or gy > h: continue
@@ -369,7 +337,7 @@ proc drawDataRainFx(w, h, time: float32) =
                   else: rgba(0, 210, 70, int(a))
         drawRainGlyph(colX, gy, cell * 0.62'f32, cell * 0.82'f32, gi, (gi and 1) == 1, strokeW, col)
         if k == 0:
-          drawGlow(v2(colX + cell * 0.3'f32, gy + cell * 0.4'f32), cell * 1.6'f32,
+          drawGlow(vec2(colX + cell * 0.3'f32, gy + cell * 0.4'f32), cell * 1.6'f32,
                    rgba(80, 255, 130, int(90.0'f32 * Bright[layer])))
   var y = 0.0'f32
   let step = max(2.0'f32, 3.0'f32 * unitOf(w, h))
@@ -404,20 +372,20 @@ proc drawDeepVoidFx(w, h, time: float32) =
     let r = s * (0.12'f32 + hash01(seed + 4.1'f32) * 0.2'f32)
     let breathe = 0.85'f32 + 0.15'f32 * sin(time * 0.3'f32 + seed)
     let col = nebula[int(hash01(seed + 6.0'f32) * 4.0'f32) mod 4]
-    drawGlow(v2(bx, by), r * 1.5'f32 * breathe, r * breathe, withAlpha(col, 52.0'f32 + hash01(seed + 7.0'f32) * 40.0'f32))
+    drawGlow(vec2(bx, by), r * 1.5'f32 * breathe, r * breathe, withAlpha(col, 52.0'f32 + hash01(seed + 7.0'f32) * 40.0'f32))
   for d in 0 ..< 6:
     let seed = d.float32 * 17.3'f32 + 5.0'f32
     let t = 0.1'f32 + d.float32 / 6.0'f32
-    drawGlow(v2(w * t + (hash01(seed) - 0.5'f32) * w * 0.08'f32, h * (0.86'f32 - t * 0.76'f32) + s * 0.04'f32),
+    drawGlow(vec2(w * t + (hash01(seed) - 0.5'f32) * w * 0.08'f32, h * (0.86'f32 - t * 0.76'f32) + s * 0.04'f32),
              s * (0.16'f32 + hash01(seed + 1.0'f32) * 0.1'f32), s * 0.05'f32, rgba(3, 1, 8, 120))
   for c in 0 ..< 3:
     let t = 0.25'f32 + c.float32 * 0.25'f32
-    drawGlow(v2(w * t, h * (0.9'f32 - t * 0.78'f32)), s * 0.07'f32, rgba(235, 200, 255, 46))
+    drawGlow(vec2(w * t, h * (0.9'f32 - t * 0.78'f32)), s * 0.07'f32, rgba(235, 200, 255, 46))
   # The nearest stars, bright and flaring, over the clouds.
   drawStarField(w, h, time, starCount(w, h, 0.12'f32), 77.0'f32, h, 1.0'f32, 0.35'f32)
 
   # A dark planet rising at the bottom-left, its atmosphere lit along the limb.
-  let pc = v2(w * 0.2'f32, h * 1.5'f32)
+  let pc = vec2(w * 0.2'f32, h * 1.5'f32)
   let pr = h * 0.68'f32
   drawGlow(pc, pr * 1.18'f32, rgba(90, 110, 255, 90))
   fillEllipse(pc, pr, pr, rgba(6, 5, 16))
@@ -439,8 +407,8 @@ proc drawDeepVoidFx(w, h, time: float32) =
       let mvLen = sqrt(dirX * dirX * w * w * 0.2025'f32 + h * h * 0.1225'f32)
       let tailLen = s * 0.24'f32
       let fadeK = sin(prog * PI)
-      let head = v2(px, py)
-      let tail = v2(px - dirX * w * 0.45'f32 / mvLen * tailLen, py - h * 0.35'f32 / mvLen * tailLen)
+      let head = vec2(px, py)
+      let tail = vec2(px - dirX * w * 0.45'f32 / mvLen * tailLen, py - h * 0.35'f32 / mvLen * tailLen)
       drawTaperedLine(tail, head, 0.0'f32, max(0.6'f32, 2.2'f32 * u), rgba(200, 200, 255, 0),
                       rgba(240, 236, 255, int(230.0'f32 * fadeK)))
       drawGlow(head, 10.0'f32 * u, rgba(220, 220, 255, int(150.0'f32 * fadeK)))
@@ -451,8 +419,8 @@ proc drawDeepVoidFx(w, h, time: float32) =
 
 proc sunColorAt(t: float32): Color =
   ## The synthwave sun's banding, t = 0 at its crown to 1 at the horizon.
-  if t < 0.5'f32: mixCol(rgba(255, 238, 130), rgba(255, 150, 60), t / 0.5'f32)
-  else: mixCol(rgba(255, 150, 60), rgba(245, 50, 125), (t - 0.5'f32) / 0.5'f32)
+  if t < 0.5'f32: colorLerp(rgba(255, 238, 130), rgba(255, 150, 60), t / 0.5'f32)
+  else: colorLerp(rgba(255, 150, 60), rgba(245, 50, 125), (t - 0.5'f32) / 0.5'f32)
 
 proc drawSunriseFx(w, h, time: float32) =
   ## Synthwave dusk: a banded sun sliced by scrolling slits, neon mountains
@@ -468,8 +436,8 @@ proc drawSunriseFx(w, h, time: float32) =
 
   # The sun: a halo, then horizontal slabs graded crown to base, with the
   # classic slits widening toward the horizon and scrolling down.
-  drawGlow(v2(sunX, horizon - sunR * 0.3'f32), sunR * 2.4'f32, rgba(255, 100, 70, 110))
-  drawGlow(v2(sunX, horizon - sunR * 0.4'f32), sunR * 1.35'f32, rgba(255, 190, 100, 90))
+  drawGlow(vec2(sunX, horizon - sunR * 0.3'f32), sunR * 2.4'f32, rgba(255, 100, 70, 110))
+  drawGlow(vec2(sunX, horizon - sunR * 0.4'f32), sunR * 1.35'f32, rgba(255, 190, 100, 90))
   let top = horizon - sunR
   const Slabs = 56
   for i in 0 ..< Slabs:
@@ -487,7 +455,7 @@ proc drawSunriseFx(w, h, time: float32) =
     let h1 = sqrt(max(0.0'f32, sunR * sunR - d1 * d1))
     let c0 = sunColorAt(i.float32 / Slabs.float32)
     let c1 = sunColorAt((i + 1).float32 / Slabs.float32)
-    drawGradientQuad(v2(sunX - h0, y0), v2(sunX - h1, y1), v2(sunX + h1, y1), v2(sunX + h0, y0),
+    drawGradientQuad(vec2(sunX - h0, y0), vec2(sunX - h1, y1), vec2(sunX + h1, y1), vec2(sunX + h0, y0),
                      c0, c1, c1, c0)
 
   # Neon mountains either side, lower toward the sun so they frame it.
@@ -495,39 +463,39 @@ proc drawSunriseFx(w, h, time: float32) =
     let body = if ridge == 0: rgba(52, 14, 74) else: rgba(22, 6, 36)
     let ridgeCol = if ridge == 0: rgba(255, 90, 200, 110) else: rgba(255, 70, 190, 200)
     const Peaks = 22
-    var prev = v2(0.0'f32, horizon)
+    var prev = vec2(0.0'f32, horizon)
     for p in 0 .. Peaks:
       let x = w * p.float32 / Peaks.float32
       let seed = p.float32 * 7.3'f32 + ridge.float32 * 31.0'f32
       let clearSun = smoothstep(sunR * 0.6'f32, sunR * 1.6'f32, abs(x - sunX))
       let peakH = h * (0.03'f32 + hash01(seed) * (if ridge == 0: 0.12'f32 else: 0.08'f32)) *
                   clearSun * (if (p and 1) == 0: 1.0'f32 else: 0.55'f32)
-      let cur = v2(x, horizon - peakH)
+      let cur = vec2(x, horizon - peakH)
       if p > 0:
-        drawGradientQuad(prev, v2(prev.x, horizon), v2(cur.x, horizon), cur, body, body, body, body)
-        drawSoftLine(prev, cur, u, fade(ridgeCol, 0.6'f32), ridgeCol, 6.0'f32, 1.0'f32)
+        drawGradientQuad(prev, vec2(prev.x, horizon), vec2(cur.x, horizon), cur, body, body, body, body)
+        drawSoftLine(prev, cur, u, scaleAlpha(ridgeCol, 0.6'f32), ridgeCol, 6.0'f32, 1.0'f32)
       prev = cur
 
   # Ground, the horizon's glow, and the sun's smeared reflection.
   vGrad(0.0'f32, horizon, w, h - horizon, rgba(36, 6, 46), rgba(8, 2, 14))
-  drawGlow(v2(sunX, horizon), sunR * 2.0'f32, sunR * 0.5'f32, rgba(255, 120, 80, 120))
+  drawGlow(vec2(sunX, horizon), sunR * 2.0'f32, sunR * 0.5'f32, rgba(255, 120, 80, 120))
   for i in 0 ..< 6:
     let ry = horizon + (h - horizon) * (0.06'f32 + i.float32 * 0.07'f32)
     let half = sunR * (0.8'f32 - i.float32 * 0.1'f32) * (0.85'f32 + 0.15'f32 * sin(time * 1.7'f32 + i.float32))
-    drawGlowLine(v2(sunX - half, ry), v2(sunX + half, ry), 4.0'f32 * u, rgba(255, 140, 90, 120 - i * 16))
+    drawGlowLine(vec2(sunX - half, ry), vec2(sunX + half, ry), 4.0'f32 * u, rgba(255, 140, 90, 120 - i * 16))
 
   # The grid: rays fading out toward the horizon, rungs racing forward.
   for i in -9 .. 9:
-    let bottom = v2(sunX + i.float32 * w * 0.11'f32, h)
-    let mid = v2(sunX + (bottom.x - sunX) * 0.08'f32, horizon + (h - horizon) * 0.08'f32)
+    let bottom = vec2(sunX + i.float32 * w * 0.11'f32, h)
+    let mid = vec2(sunX + (bottom.x - sunX) * 0.08'f32, horizon + (h - horizon) * 0.08'f32)
     drawTaperedLine(mid, bottom, max(0.5'f32, 0.6'f32 * u), max(0.6'f32, 2.2'f32 * u),
                     rgba(255, 70, 190, 0), rgba(255, 90, 200, 190))
   for i in 0 ..< 10:
     let t = fract01(time * 0.14'f32 + i.float32 / 10.0'f32)
     let gy = horizon + t * t * (h - horizon)
-    drawSoftLine(v2(0.0'f32, gy), v2(w, gy), u, rgba(255, 60, 190, int(20.0'f32 + t * 90.0'f32)),
+    drawSoftLine(vec2(0.0'f32, gy), vec2(w, gy), u, rgba(255, 60, 190, int(20.0'f32 + t * 90.0'f32)),
                  rgba(255, 110, 210, int(30.0'f32 + t * 170.0'f32)), 3.0'f32 + t * 6.0'f32, 0.6'f32 + t * 1.2'f32)
-  drawSoftLine(v2(0.0'f32, horizon), v2(w, horizon), u, rgba(255, 160, 90, 170), rgba(255, 220, 160, 240), 12.0'f32, 1.4'f32)
+  drawSoftLine(vec2(0.0'f32, horizon), vec2(w, horizon), u, rgba(255, 160, 90, 170), rgba(255, 220, 160, 240), 12.0'f32, 1.4'f32)
 
 # ---------------------------------------------------------------------------
 # Neural Network
@@ -545,7 +513,7 @@ proc drawNeuralNetFx(w, h, time: float32) =
     let bx = hash01(seed) * w + sin(time * 0.06'f32 + seed) * s * 0.03'f32
     let by = hash01(seed + 1.0'f32) * h + cos(time * 0.05'f32 + seed) * s * 0.03'f32
     let col = if b mod 2 == 0: rgba(0, 150, 220) else: rgba(0, 200, 180)
-    drawGlow(v2(bx, by), s * (0.06'f32 + hash01(seed + 2.0'f32) * 0.12'f32), withAlpha(col, 26.0'f32 + hash01(seed + 3.0'f32) * 20.0'f32))
+    drawGlow(vec2(bx, by), s * (0.06'f32 + hash01(seed + 2.0'f32) * 0.12'f32), withAlpha(col, 26.0'f32 + hash01(seed + 3.0'f32) * 20.0'f32))
 
   # The far mesh.
   const FarCount = 24
@@ -560,9 +528,9 @@ proc drawNeuralNetFx(w, h, time: float32) =
     for j in (i + 1) ..< farShown:
       let d = sqrt((fx[i] - fx[j]) * (fx[i] - fx[j]) + (fy[i] - fy[j]) * (fy[i] - fy[j]))
       if d < farDist:
-        drawStroke(v2(fx[i], fy[i]), v2(fx[j], fy[j]), max(0.4'f32, 0.7'f32 * u),
+        drawStroke(vec2(fx[i], fy[i]), vec2(fx[j], fy[j]), max(0.4'f32, 0.7'f32 * u),
                    rgba(0, 120, 200, int(10.0'f32 + (1.0'f32 - d / farDist) * 40.0'f32)))
-    drawDisc(v2(fx[i], fy[i]), max(0.4'f32, 1.3'f32 * u), rgba(60, 170, 230, 110))
+    drawDisc(vec2(fx[i], fy[i]), max(0.4'f32, 1.3'f32 * u), rgba(60, 170, 230, 110))
 
   # The near neurons.
   const NodeCount = 22
@@ -587,16 +555,16 @@ proc drawNeuralNetFx(w, h, time: float32) =
       if d < maxDist and d > 1.0'f32:
         let closeness = 1.0'f32 - d / maxDist
         let lit = max(firing[i], firing[j])
-        let a = v2(px[i], py[i])
-        let b = v2(px[j], py[j])
+        let a = vec2(px[i], py[i])
+        let b = vec2(px[j], py[j])
         drawGlowLine(a, b, (3.0'f32 + lit * 5.0'f32) * u, rgba(0, 170, 255, int((10.0'f32 + closeness * 30.0'f32) * (1.0'f32 + lit * 2.0'f32))))
         drawStroke(a, b, max(0.4'f32, 0.9'f32 * u), rgba(60, 190, 255, int(20.0'f32 + closeness * 80.0'f32 + lit * 100.0'f32)))
         if (i * 7 + j * 13) mod 3 == 0:
           let tt = fract01(time * (0.25'f32 + hash01((i * 31 + j).float32) * 0.5'f32) +
                            hash01((i * 17 + j * 3).float32))
-          let p = v2(a.x + (b.x - a.x) * tt, a.y + (b.y - a.y) * tt)
+          let p = vec2(a.x + (b.x - a.x) * tt, a.y + (b.y - a.y) * tt)
           let back = max(0.0'f32, tt - 0.12'f32)
-          let q = v2(a.x + (b.x - a.x) * back, a.y + (b.y - a.y) * back)
+          let q = vec2(a.x + (b.x - a.x) * back, a.y + (b.y - a.y) * back)
           drawTaperedLine(q, p, 0.0'f32, max(0.6'f32, 2.0'f32 * u), rgba(120, 255, 230, 0),
                           rgba(160, 255, 235, int(140.0'f32 + closeness * 100.0'f32)))
           drawGlow(p, 6.0'f32 * u, rgba(120, 255, 230, 150))
@@ -604,12 +572,12 @@ proc drawNeuralNetFx(w, h, time: float32) =
     let seed = i.float32 * 12.93'f32
     let pulse = sin(time * (0.8'f32 + hash01(seed + 9.0'f32)) + seed) * 0.5'f32 + 0.5'f32
     let r = (2.2'f32 + hash01(seed + 3.3'f32) * 2.6'f32 + pulse * 0.8'f32) * u
-    let c = v2(px[i], py[i])
+    let c = vec2(px[i], py[i])
     for dd in 0 ..< (if detailOf(w, h) < 0.6'f32: 0 else: 3):
       let ang = hash01(seed + dd.float32 * 4.0'f32) * PI * 2.0'f32
       let len = r * (3.0'f32 + hash01(seed + dd.float32 * 5.0'f32) * 4.0'f32)
-      let mid = v2(c.x + cos(ang) * len * 0.55'f32, c.y + sin(ang) * len * 0.55'f32)
-      let tip = v2(mid.x + cos(ang + 0.6'f32) * len * 0.45'f32, mid.y + sin(ang + 0.6'f32) * len * 0.45'f32)
+      let mid = vec2(c.x + cos(ang) * len * 0.55'f32, c.y + sin(ang) * len * 0.55'f32)
+      let tip = vec2(mid.x + cos(ang + 0.6'f32) * len * 0.45'f32, mid.y + sin(ang + 0.6'f32) * len * 0.45'f32)
       drawTaperedLine(c, mid, r * 0.6'f32, r * 0.25'f32, rgba(0, 190, 255, 90), rgba(0, 190, 255, 50))
       drawTaperedLine(mid, tip, r * 0.25'f32, 0.0'f32, rgba(0, 190, 255, 50), rgba(0, 190, 255, 0))
     let f = firing[i]
@@ -630,24 +598,24 @@ proc drawInfernoFx(w, h, time: float32) =
   let u = unitOf(w, h)
   skyStops(w, [(0.0'f32, rgba(8, 2, 2)), (h * 0.45'f32, rgba(34, 6, 3)), (h, rgba(120, 24, 2))])
   let surge = sin(time * 1.7'f32) * 0.5'f32 + 0.5'f32
-  drawGlow(v2(w * 0.5'f32, h * 1.02'f32), w * 0.85'f32, h * 0.55'f32, rgba(255, 80, 0, int(110.0'f32 + surge * 40.0'f32)))
-  drawGlow(v2(w * 0.2'f32, h * 0.95'f32), w * 0.3'f32, h * 0.25'f32, rgba(255, 130, 20, 70))
-  drawGlow(v2(w * 0.82'f32, h * 0.97'f32), w * 0.3'f32, h * 0.25'f32, rgba(255, 60, 10, 80))
-  drawGlow(v2(w * CubeAnchorX, h * CubeAnchorY), s * 0.4'f32, rgba(255, 110, 30, 46))
+  drawGlow(vec2(w * 0.5'f32, h * 1.02'f32), w * 0.85'f32, h * 0.55'f32, rgba(255, 80, 0, int(110.0'f32 + surge * 40.0'f32)))
+  drawGlow(vec2(w * 0.2'f32, h * 0.95'f32), w * 0.3'f32, h * 0.25'f32, rgba(255, 130, 20, 70))
+  drawGlow(vec2(w * 0.82'f32, h * 0.97'f32), w * 0.3'f32, h * 0.25'f32, rgba(255, 60, 10, 80))
+  drawGlow(vec2(w * CubeAnchorX, h * CubeAnchorY), s * 0.4'f32, rgba(255, 110, 30, 46))
 
   # Smoke rolling across the upper dark.
   for m in 0 ..< 9:
     let seed = m.float32 * 21.7'f32
-    let mx = wrapF(hash01(seed) * w * 1.5'f32 + time * w * (0.006'f32 + hash01(seed + 1.0'f32) * 0.01'f32),
-                   w * 1.5'f32) - w * 0.25'f32
+    let mx = wrapCoord(hash01(seed) * w * 1.5'f32 + time * w * (0.006'f32 + hash01(seed + 1.0'f32) * 0.01'f32),
+                       w * 1.5'f32) - w * 0.25'f32
     let my = h * (0.08'f32 + hash01(seed + 2.0'f32) * 0.45'f32) + sin(time * 0.2'f32 + seed) * h * 0.02'f32
     let mr = s * (0.14'f32 + hash01(seed + 3.0'f32) * 0.16'f32)
-    drawGlow(v2(mx, my), mr * 1.6'f32, mr, rgba(14, 6, 5, int(90.0'f32 + hash01(seed + 4.0'f32) * 60.0'f32)))
+    drawGlow(vec2(mx, my), mr * 1.6'f32, mr, rgba(14, 6, 5, int(90.0'f32 + hash01(seed + 4.0'f32) * 60.0'f32)))
 
   # Heat shimmer: faint wavering bands of light low over the rock.
   for b in 0 ..< 4:
     let by = h * (0.62'f32 + b.float32 * 0.05'f32) + sin(time * 0.9'f32 + b.float32 * 2.0'f32) * h * 0.01'f32
-    drawGlow(v2(w * (0.3'f32 + 0.4'f32 * hash01(b.float32 + 7.0'f32)) + sin(time * 0.4'f32 + b.float32) * w * 0.05'f32, by),
+    drawGlow(vec2(w * (0.3'f32 + 0.4'f32 * hash01(b.float32 + 7.0'f32)) + sin(time * 0.4'f32 + b.float32) * w * 0.05'f32, by),
              w * 0.4'f32, h * 0.02'f32, rgba(255, 140, 50, 22))
 
   # The ridge: black rock with a lava rim along its top and veins glowing in it.
@@ -657,11 +625,11 @@ proc drawInfernoFx(w, h, time: float32) =
     let x = w * p.float32 / Peaks.float32
     let seed = p.float32 * 5.9'f32
     let base = h * (0.84'f32 - 0.05'f32 * sin(p.float32 * 0.55'f32 + 1.0'f32))
-    ridge[p] = v2(x, base - h * hash01(seed) * (if (p and 1) == 0: 0.07'f32 else: 0.03'f32))
+    ridge[p] = vec2(x, base - h * hash01(seed) * (if (p and 1) == 0: 0.07'f32 else: 0.03'f32))
   for p in 0 ..< Peaks:
     let a = ridge[p]
     let b = ridge[p + 1]
-    drawGradientQuad(a, v2(a.x, h), v2(b.x, h), b, rgba(16, 5, 3), rgba(6, 2, 2), rgba(6, 2, 2), rgba(16, 5, 3))
+    drawGradientQuad(a, vec2(a.x, h), vec2(b.x, h), b, rgba(16, 5, 3), rgba(6, 2, 2), rgba(6, 2, 2), rgba(16, 5, 3))
     drawSoftLine(a, b, u, rgba(255, 90, 10, 130), rgba(255, 170, 70, 200), 9.0'f32, 1.3'f32)
   let glowK = 0.6'f32 + 0.4'f32 * surge
   for c in 0 ..< 9:
@@ -670,7 +638,7 @@ proc drawInfernoFx(w, h, time: float32) =
     var p = ridge[start]
     let pulse = 0.5'f32 + 0.5'f32 * sin(time * (1.2'f32 + hash01(seed + 8.0'f32)) + seed)
     for st in 0 ..< (3 + int(hash01(seed + 2.2'f32) * 3.0'f32)):
-      let n = v2(p.x + (hash01(seed + st.float32 * 3.3'f32) - 0.5'f32) * w * 0.04'f32,
+      let n = vec2(p.x + (hash01(seed + st.float32 * 3.3'f32) - 0.5'f32) * w * 0.04'f32,
                  p.y + h * (0.012'f32 + hash01(seed + st.float32 * 5.9'f32) * 0.03'f32))
       drawSoftLine(p, n, u, rgba(255, 90, 0, int(110.0'f32 * pulse * glowK)),
                    rgba(255, 190, 90, int(200.0'f32 * pulse * glowK)), 6.0'f32, 1.1'f32)
@@ -682,7 +650,7 @@ proc drawInfernoFx(w, h, time: float32) =
     let seed = e.float32 * 7.91'f32
     let speed = h * (0.06'f32 + hash01(seed + 2.0'f32) * 0.16'f32)
     let cycleSpan = h * 1.15'f32
-    let yPos = h * 1.02'f32 - wrapF(hash01(seed + 4.0'f32) * cycleSpan + time * speed, cycleSpan)
+    let yPos = h * 1.02'f32 - wrapCoord(hash01(seed + 4.0'f32) * cycleSpan + time * speed, cycleSpan)
     let swayF = 0.8'f32 + hash01(seed + 6.0'f32) * 1.4'f32
     let xPos = hash01(seed) * w + sin(time * swayF + seed) * w * 0.015'f32
     let lift = 1.0'f32 - clamp(yPos / h, 0.0'f32, 1.0'f32)
@@ -692,9 +660,9 @@ proc drawInfernoFx(w, h, time: float32) =
     let heat = hash01(seed + 11.0'f32)
     let col = if heat > 0.7'f32: rgba(255, 232, 140) elif heat > 0.35'f32: rgba(255, 150, 40) else: rgba(255, 80, 20)
     let a = 220.0'f32 * fadeK * flicker
-    let p = v2(xPos, yPos)
+    let p = vec2(xPos, yPos)
     let vx = cos(time * swayF + seed) * w * 0.015'f32 * swayF
-    let tail = v2(p.x - vx * 0.05'f32, p.y + speed * 0.05'f32)
+    let tail = vec2(p.x - vx * 0.05'f32, p.y + speed * 0.05'f32)
     drawTaperedLine(tail, p, 0.0'f32, size * 1.6'f32, withAlpha(col, 0'u8), withAlpha(col, a * 0.6'f32))
     if (e mod 3) == 0:
       drawGlow(p, size * 5.0'f32, withAlpha(col, a * 0.35'f32))
@@ -708,31 +676,31 @@ proc drawAperturePortal(cx, cy, rx, ry, time: float32, rim, core: Color, spin, u
   ## One oval portal: light thrown onto the wall, a dark event horizon that
   ## brightens toward its edge, swirling bands of light inside, a white-hot
   ## rim, and sparks spitting off it.
-  drawGlow(v2(cx, cy), rx * 4.2'f32, ry * 2.1'f32, withAlpha(rim, 110'u8))
-  drawGlow(v2(cx, cy), rx * 2.0'f32, ry * 1.35'f32, withAlpha(rim, 120'u8))
-  let deep = mixCol(rgba(8, 10, 16), rim, 0.25'f32)
-  drawRadialGradient(v2(cx, cy), rx, ry, deep, mixCol(rim, core, 0.2'f32), reSmooth)
+  drawGlow(vec2(cx, cy), rx * 4.2'f32, ry * 2.1'f32, withAlpha(rim, 110'u8))
+  drawGlow(vec2(cx, cy), rx * 2.0'f32, ry * 1.35'f32, withAlpha(rim, 120'u8))
+  let deep = colorLerp(rgba(8, 10, 16), rim, 0.25'f32)
+  drawRadialGradient(vec2(cx, cy), rx, ry, deep, colorLerp(rim, core, 0.2'f32), reSmooth)
   # Swirl: three arcs of light at different radii, turning at different rates.
   for k in 0 .. 2:
     let rr = 0.35'f32 + k.float32 * 0.2'f32
     let start = time * spin * (0.6'f32 + k.float32 * 0.25'f32) + k.float32 * 2.1'f32
     const Steps = 14
-    var prev = v2(cx + cos(start) * rx * rr, cy + sin(start) * ry * rr)
+    var prev = vec2(cx + cos(start) * rx * rr, cy + sin(start) * ry * rr)
     for st in 1 .. Steps:
       let a = start + st.float32 / Steps.float32 * PI * 1.1'f32
-      let cur = v2(cx + cos(a) * rx * rr, cy + sin(a) * ry * rr)
+      let cur = vec2(cx + cos(a) * rx * rr, cy + sin(a) * ry * rr)
       let t = st.float32 / Steps.float32
       drawStroke(prev, cur, max(0.5'f32, (1.0'f32 + 1.4'f32 * (1.0'f32 - t)) * u),
-                 withAlpha(mixCol(rim, core, 0.5'f32), 150.0'f32 * sin(t * PI)))
+                 withAlpha(colorLerp(rim, core, 0.5'f32), 150.0'f32 * sin(t * PI)))
       prev = cur
-  drawGradientRing(v2(cx, cy), rx * 0.8'f32, ry * 0.86'f32, rx, ry, withAlpha(rim, 0'u8), withAlpha(core, 255'u8))
-  drawGradientRing(v2(cx, cy), rx, ry, rx + 9.0'f32 * u, ry + 9.0'f32 * u, withAlpha(core, 255'u8), withAlpha(rim, 0'u8))
+  drawGradientRing(vec2(cx, cy), rx * 0.8'f32, ry * 0.86'f32, rx, ry, withAlpha(rim, 0'u8), withAlpha(core, 255'u8))
+  drawGradientRing(vec2(cx, cy), rx, ry, rx + 9.0'f32 * u, ry + 9.0'f32 * u, withAlpha(core, 255'u8), withAlpha(rim, 0'u8))
   for sp in 0 ..< 10:
     let seed = sp.float32 * 7.7'f32 + spin
     let life = fract01(time * (0.5'f32 + hash01(seed) * 0.6'f32) + hash01(seed + 1.0'f32))
     let a = hash01(seed + 2.0'f32 + floor(time * (0.5'f32 + hash01(seed) * 0.6'f32) + hash01(seed + 1.0'f32))) * PI * 2.0'f32
     let reach = 1.0'f32 + life * 0.35'f32
-    let p = v2(cx + cos(a) * rx * reach, cy + sin(a) * ry * reach)
+    let p = vec2(cx + cos(a) * rx * reach, cy + sin(a) * ry * reach)
     drawDisc(p, max(0.4'f32, 1.4'f32 * u * (1.0'f32 - life)), withAlpha(core, 230.0'f32 * (1.0'f32 - life)))
 
 proc drawWallPanel(px, py, size, gap, base: float32, recessed: bool,
@@ -742,8 +710,8 @@ proc drawWallPanel(px, py, size, gap, base: float32, recessed: bool,
   ## bottom-right; reversed when recessed) and a colour bleed from a portal.
   let b = if recessed: base * 0.62'f32 else: base
   let plain = rgba(int(b * 0.95'f32), int(b * 0.98'f32), int(b * 1.06'f32))
-  let topC = mixCol(brighten(plain, 10.0'f32), tint, tintAmt)
-  let botC = mixCol(brighten(plain, -14.0'f32), tint, tintAmt)
+  let topC = colorLerp(brighten(plain, 10.0'f32), tint, tintAmt)
+  let botC = colorLerp(brighten(plain, -14.0'f32), tint, tintAmt)
   let x0 = px + gap
   let y0 = py + gap
   let s = size - gap * 2.0'f32
@@ -754,10 +722,10 @@ proc drawWallPanel(px, py, size, gap, base: float32, recessed: bool,
   let sh = rgba(0, 0, 0, if recessed: 80 else: 60)
   let topLeft = if recessed: sh else: hi
   let botRight = if recessed: hi else: sh
-  drawStroke(v2(x0, y0), v2(x0 + s, y0), bw, topLeft)
-  drawStroke(v2(x0, y0), v2(x0, y0 + s), bw, topLeft)
-  drawStroke(v2(x0, y0 + s), v2(x0 + s, y0 + s), bw, botRight)
-  drawStroke(v2(x0 + s, y0), v2(x0 + s, y0 + s), bw, botRight)
+  drawStroke(vec2(x0, y0), vec2(x0 + s, y0), bw, topLeft)
+  drawStroke(vec2(x0, y0), vec2(x0, y0 + s), bw, topLeft)
+  drawStroke(vec2(x0, y0 + s), vec2(x0 + s, y0 + s), bw, botRight)
+  drawStroke(vec2(x0 + s, y0), vec2(x0 + s, y0 + s), bw, botRight)
 
 proc drawPortalFx(w, h, time: float32) =
   ## An Aperture-style test chamber: a panelled wall lit from above, two
@@ -814,10 +782,10 @@ proc drawPortalFx(w, h, time: float32) =
     let q = 1.0'f32 - tt
     let px = q * q * bx + 2.0'f32 * q * tt * cxp + tt * tt * ox
     let py = q * q * by + 2.0'f32 * q * tt * (by + bow) + tt * tt * oy
-    let col = mixCol(coreBlue, coreOrange, tt)
+    let col = colorLerp(coreBlue, coreOrange, tt)
     let edgeFade = sin(tt * PI)
-    drawGlow(v2(px, py), 8.0'f32 * u, withAlpha(col, 110.0'f32 * edgeFade))
-    drawDisc(v2(px, py), max(0.5'f32, 1.8'f32 * u), withAlpha(col, 230.0'f32 * edgeFade))
+    drawGlow(vec2(px, py), 8.0'f32 * u, withAlpha(col, 110.0'f32 * edgeFade))
+    drawDisc(vec2(px, py), max(0.5'f32, 1.8'f32 * u), withAlpha(col, 230.0'f32 * edgeFade))
 
 # ---------------------------------------------------------------------------
 # Kernel Panic (horror)
@@ -841,7 +809,7 @@ proc drawHorrorFx(w, h, time: float32) =
     let gx = hash01(seed) * w
     let len = h * (0.15'f32 + hash01(seed + 1.0'f32) * 0.5'f32)
     let gy = hash01(seed + 2.0'f32) * h * 0.3'f32
-    drawTaperedLine(v2(gx, gy), v2(gx + (hash01(seed + 3.0'f32) - 0.5'f32) * 6.0'f32 * u, gy + len),
+    drawTaperedLine(vec2(gx, gy), vec2(gx + (hash01(seed + 3.0'f32) - 0.5'f32) * 6.0'f32 * u, gy + len),
                     (2.0'f32 + hash01(seed + 4.0'f32) * 5.0'f32) * u, 0.0'f32, rgba(40, 6, 8, 60), rgba(30, 4, 6, 0))
 
   # The bulb: its flicker drives the light, and the dark beyond it.
@@ -851,15 +819,15 @@ proc drawHorrorFx(w, h, time: float32) =
   let stutter = hash01(floor(time * 18.0'f32)) > 0.9'f32
   let light = (if dropout: 0.08'f32 elif stutter: 0.45'f32 else: 1.0'f32) *
               (0.9'f32 + 0.1'f32 * sin(time * 9.0'f32))
-  drawStroke(v2(w * CubeAnchorX, 0.0'f32), v2(bx, by), max(0.5'f32, 1.0'f32 * u), rgba(20, 16, 16))
+  drawStroke(vec2(w * CubeAnchorX, 0.0'f32), vec2(bx, by), max(0.5'f32, 1.0'f32 * u), rgba(20, 16, 16))
   let floorY = h * 0.86'f32
   let coneW = s * 0.36'f32
-  drawLightCone(v2(bx, by), floorY, coneW, rgba(220, 200, 140, int(90.0'f32 * light)), 0.25'f32,
+  drawLightCone(vec2(bx, by), floorY, coneW, rgba(220, 200, 140, int(90.0'f32 * light)), 0.25'f32,
                 topHalf = s * 0.012'f32)
-  drawGlow(v2(bx, floorY), coneW * 1.1'f32, s * 0.06'f32, rgba(210, 190, 130, int(60.0'f32 * light)))
-  drawGlow(v2(bx, by), s * 0.25'f32, rgba(230, 210, 150, int(60.0'f32 * light)))
-  drawGlow(v2(bx, by), s * 0.04'f32, rgba(255, 240, 190, int(200.0'f32 * light)))
-  drawDisc(v2(bx, by + s * 0.004'f32), max(0.6'f32, s * 0.011'f32), rgba(255, 245, 210, int(80.0'f32 + 175.0'f32 * light)))
+  drawGlow(vec2(bx, floorY), coneW * 1.1'f32, s * 0.06'f32, rgba(210, 190, 130, int(60.0'f32 * light)))
+  drawGlow(vec2(bx, by), s * 0.25'f32, rgba(230, 210, 150, int(60.0'f32 * light)))
+  drawGlow(vec2(bx, by), s * 0.04'f32, rgba(255, 240, 190, int(200.0'f32 * light)))
+  drawDisc(vec2(bx, by + s * 0.004'f32), max(0.6'f32, s * 0.011'f32), rgba(255, 245, 210, int(80.0'f32 + 175.0'f32 * light)))
   # Dust turning in the cone.
   for d in 0 ..< counted(26, detailOf(w, h)):
     let seed = d.float32 * 4.7'f32
@@ -867,7 +835,7 @@ proc drawHorrorFx(w, h, time: float32) =
     let dy = by + (floorY - by) * t
     let spread = (dy - by) / (floorY - by) * coneW
     let dx = bx + (hash01(seed + 2.0'f32) - 0.5'f32) * 2.0'f32 * spread * 0.85'f32 + sin(time * 0.5'f32 + seed) * 4.0'f32 * u
-    drawDisc(v2(dx, dy), max(0.35'f32, 0.9'f32 * u), rgba(240, 220, 170, int(90.0'f32 * light * sin(t * PI))))
+    drawDisc(vec2(dx, dy), max(0.35'f32, 0.9'f32 * u), rgba(240, 220, 170, int(90.0'f32 * light * sin(t * PI))))
 
   # The panic log, scrawled faint across the dark.
   let fs = int32(clamp(s * 0.018'f32, 0.0'f32, 14.0'f32))
@@ -891,11 +859,11 @@ proc drawHorrorFx(w, h, time: float32) =
   # Blood mist creeping along the floor.
   for m in 0 ..< 6:
     let seed = m.float32 * 27.3'f32
-    let mx = wrapF(hash01(seed) * w + time * (8.0'f32 + hash01(seed + 1.0'f32) * 14.0'f32) * u, w * 1.4'f32) - w * 0.2'f32
+    let mx = wrapCoord(hash01(seed) * w + time * (8.0'f32 + hash01(seed + 1.0'f32) * 14.0'f32) * u, w * 1.4'f32) - w * 0.2'f32
     let my = (0.6'f32 + hash01(seed + 2.0'f32) * 0.35'f32) * h + sin(time * 0.3'f32 + seed) * h * 0.03'f32
     let mr = s * (0.14'f32 + hash01(seed + 3.0'f32) * 0.14'f32)
     let ma = 40.0'f32 + 26.0'f32 * (sin(time * 0.5'f32 + seed) * 0.5'f32 + 0.5'f32)
-    drawGlow(v2(mx, my), mr * 1.6'f32, mr * 0.7'f32, rgba(130, 8, 12, int(ma)))
+    drawGlow(vec2(mx, my), mr * 1.6'f32, mr * 0.7'f32, rgba(130, 8, 12, int(ma)))
 
   # Eyes in the dark, bolder when the bulb fails, never inside its cone.
   let dark = 1.25'f32 - light * 0.45'f32
@@ -917,19 +885,19 @@ proc drawHorrorFx(w, h, time: float32) =
     let col = if hash01(seed + 5.0'f32) > 0.6'f32: rgba(255, 40, 24) else: rgba(225, 215, 110)
     let a = 235.0'f32 * vis * min(1.0'f32, dark)
     for side in [-1.0'f32, 1.0'f32]:
-      let p = v2(ex + side * gap + look, ey)
+      let p = vec2(ex + side * gap + look, ey)
       drawGlow(p, er * 7.0'f32, withAlpha(col, a * 0.35'f32))
       drawRadialGradient(p, er * 1.5'f32, max(0.3'f32, er * 0.75'f32 * blink),
-                         withAlpha(mixCol(col, rgba(255, 255, 255), 0.4'f32), a), withAlpha(col, a * 0.8'f32), reSmooth)
-      fillEllipse(v2(p.x + look * 0.3'f32, p.y), er * 0.3'f32, max(0.3'f32, er * 0.65'f32 * blink), rgba(10, 2, 2, int(a)))
+                         withAlpha(colorLerp(col, rgba(255, 255, 255), 0.4'f32), a), withAlpha(col, a * 0.8'f32), reSmooth)
+      fillEllipse(vec2(p.x + look * 0.3'f32, p.y), er * 0.3'f32, max(0.3'f32, er * 0.65'f32 * blink), rgba(10, 2, 2, int(a)))
 
   # Ash drifting down through everything.
   let span = h + 40.0'f32
   for d in 0 ..< counted(40, detailOf(w, h)):
     let seed = d.float32 * 6.1'f32
-    let dy = wrapF(hash01(seed) * span + time * (h * (0.03'f32 + hash01(seed + 1.0'f32) * 0.06'f32)), span)
+    let dy = wrapCoord(hash01(seed) * span + time * (h * (0.03'f32 + hash01(seed + 1.0'f32) * 0.06'f32)), span)
     let dx = hash01(seed + 2.0'f32) * w + sin(time * 0.4'f32 + seed) * w * 0.01'f32
-    drawDisc(v2(dx, dy), max(0.35'f32, (0.8'f32 + hash01(seed + 3.0'f32)) * u), rgba(90, 80, 80, 70))
+    drawDisc(vec2(dx, dy), max(0.35'f32, (0.8'f32 + hash01(seed + 3.0'f32)) * u), rgba(90, 80, 80, 70))
 
 # ---------------------------------------------------------------------------
 # Cyberspace
@@ -945,8 +913,8 @@ proc drawCyberFx(w, h, time: float32) =
   let s = min(w, h)
   let u = unitOf(w, h)
   vGrad(0.0'f32, 0.0'f32, w, h, rgba(2, 12, 22), rgba(6, 4, 18))
-  drawGlow(v2(w * 0.3'f32, h * 0.3'f32), s * 0.6'f32, rgba(0, 120, 160, 50))
-  drawGlow(v2(w * 0.75'f32, h * 0.75'f32), s * 0.6'f32, rgba(140, 0, 120, 46))
+  drawGlow(vec2(w * 0.3'f32, h * 0.3'f32), s * 0.6'f32, rgba(0, 120, 160, 50))
+  drawGlow(vec2(w * 0.75'f32, h * 0.75'f32), s * 0.6'f32, rgba(140, 0, 120, 46))
 
   # Hex lattice, brightest around the cube.
   let hr = max(3.0'f32, s * 0.05'f32 / detailOf(w, h))
@@ -960,7 +928,7 @@ proc drawCyberFx(w, h, time: float32) =
       let dy = (hy - h * CubeAnchorY) / s
       let near = clamp(1.0'f32 - sqrt(dx * dx + dy * dy) * 1.3'f32, 0.0'f32, 1.0'f32)
       let a = 8.0'f32 + near * 26.0'f32
-      drawPolyOutline(v2(hx, hy), 6, hr * 0.96'f32, 0.0'f32, rgba(60, 200, 255, int(a)))
+      drawPolyOutline(vec2(hx, hy), 6, hr * 0.96'f32, 0.0'f32, rgba(60, 200, 255, int(a)))
 
   # Circuit traces: orthogonal polylines with node pads and a data pulse.
   let pad = max(1.2'f32, s * 0.007'f32)
@@ -972,18 +940,18 @@ proc drawCyberFx(w, h, time: float32) =
     let edge = int(hash01(seed + 1.0'f32) * 4.0'f32) mod 4
     var horiz: bool
     case edge
-    of 0: pts[0] = v2(0.0'f32, hash01(seed + 2.0'f32) * h); horiz = true
-    of 1: pts[0] = v2(hash01(seed + 2.0'f32) * w, 0.0'f32); horiz = false
-    of 2: pts[0] = v2(w, hash01(seed + 2.0'f32) * h); horiz = true
-    else: pts[0] = v2(hash01(seed + 2.0'f32) * w, h); horiz = false
+    of 0: pts[0] = vec2(0.0'f32, hash01(seed + 2.0'f32) * h); horiz = true
+    of 1: pts[0] = vec2(hash01(seed + 2.0'f32) * w, 0.0'f32); horiz = false
+    of 2: pts[0] = vec2(w, hash01(seed + 2.0'f32) * h); horiz = true
+    else: pts[0] = vec2(hash01(seed + 2.0'f32) * w, h); horiz = false
     for k in 1 ..< np:
       let prev = pts[k - 1]
       let stepLen = 0.12'f32 + hash01(seed + k.float32 * 3.3'f32) * 0.26'f32
       let dir = if hash01(seed + k.float32 * 3.3'f32 + 1.5'f32) > 0.5'f32: 1.0'f32 else: -1.0'f32
       if horiz:
-        pts[k] = v2(clamp(prev.x + dir * stepLen * w, 0.0'f32, w), prev.y)
+        pts[k] = vec2(clamp(prev.x + dir * stepLen * w, 0.0'f32, w), prev.y)
       else:
-        pts[k] = v2(prev.x, clamp(prev.y + dir * stepLen * h, 0.0'f32, h))
+        pts[k] = vec2(prev.x, clamp(prev.y + dir * stepLen * h, 0.0'f32, h))
       horiz = not horiz
     for k in 0 ..< (np - 1):
       drawSoftLine(pts[k], pts[k + 1], u, withAlpha(tint, 60'u8), withAlpha(tint, 170'u8), 8.0'f32, 1.3'f32)
@@ -997,9 +965,9 @@ proc drawCyberFx(w, h, time: float32) =
     let lf = tt - si.float32
     let a = pts[si]
     let b = pts[si + 1]
-    let pp = v2(a.x + (b.x - a.x) * lf, a.y + (b.y - a.y) * lf)
+    let pp = vec2(a.x + (b.x - a.x) * lf, a.y + (b.y - a.y) * lf)
     let tl = max(0.0'f32, lf - 0.3'f32)
-    let tq = v2(a.x + (b.x - a.x) * tl, a.y + (b.y - a.y) * tl)
+    let tq = vec2(a.x + (b.x - a.x) * tl, a.y + (b.y - a.y) * tl)
     drawTaperedLine(tq, pp, 0.0'f32, max(0.8'f32, 3.0'f32 * u), withAlpha(tint, 0'u8), rgba(255, 255, 255, 230))
     drawGlow(pp, s * 0.03'f32, withAlpha(tint, 170'u8))
     drawDisc(pp, max(0.8'f32, s * 0.004'f32), rgba(255, 255, 255, 240))
@@ -1022,30 +990,30 @@ proc drawCyberFx(w, h, time: float32) =
         let cyp = py + cy2 * ph
         let sx = if cx2 < 0.5'f32: 1.0'f32 else: -1.0'f32
         let sy = if cy2 < 0.5'f32: 1.0'f32 else: -1.0'f32
-        drawStroke(v2(cxp, cyp), v2(cxp + sx * bl, cyp), max(0.6'f32, 1.6'f32 * u), withAlpha(tint, 230.0'f32 * flick))
-        drawStroke(v2(cxp, cyp), v2(cxp, cyp + sy * bl), max(0.6'f32, 1.6'f32 * u), withAlpha(tint, 230.0'f32 * flick))
+        drawStroke(vec2(cxp, cyp), vec2(cxp + sx * bl, cyp), max(0.6'f32, 1.6'f32 * u), withAlpha(tint, 230.0'f32 * flick))
+        drawStroke(vec2(cxp, cyp), vec2(cxp, cyp + sy * bl), max(0.6'f32, 1.6'f32 * u), withAlpha(tint, 230.0'f32 * flick))
     for r in 0 ..< 3:
       let byy = py + ph * (0.3'f32 + r.float32 * 0.17'f32)
       let frac = 0.3'f32 + 0.6'f32 * (sin(time * 1.5'f32 + seed + r.float32 * 1.3'f32) * 0.5'f32 + 0.5'f32)
       let barH = max(0.6'f32, ph * 0.07'f32)
       fillRect(px + pw * 0.1'f32, byy, pw * 0.5'f32, barH, withAlpha(tint, 40.0'f32 * flick))
       fillRect(px + pw * 0.1'f32, byy, pw * 0.5'f32 * frac, barH, withAlpha(tint, 170.0'f32 * flick))
-    var prev = v2(px + pw * 0.66'f32, py + ph * 0.75'f32)
+    var prev = vec2(px + pw * 0.66'f32, py + ph * 0.75'f32)
     for k in 1 .. 8:
       let gx = px + pw * (0.66'f32 + k.float32 / 8.0'f32 * 0.28'f32)
       let gy = py + ph * (0.75'f32 - 0.4'f32 * (sin(time * 2.0'f32 + k.float32 * 0.9'f32 + seed) * 0.5'f32 + 0.5'f32))
-      drawStroke(prev, v2(gx, gy), max(0.5'f32, 1.0'f32 * u), withAlpha(tint, 200.0'f32 * flick))
-      prev = v2(gx, gy)
+      drawStroke(prev, vec2(gx, gy), max(0.5'f32, 1.0'f32 * u), withAlpha(tint, 200.0'f32 * flick))
+      prev = vec2(gx, gy)
 
   # Rain streaks, slanting slightly.
   for r in 0 ..< counted(50, detailOf(w, h)):
     let seed = r.float32 * 3.91'f32
     let speed = h * (0.5'f32 + hash01(seed) * 0.5'f32)
-    let ry = wrapF(hash01(seed + 1.0'f32) * h * 1.2'f32 + time * speed, h * 1.2'f32) - h * 0.1'f32
-    let rx = wrapF(hash01(seed + 2.0'f32) * w + ry * 0.08'f32, w)
+    let ry = wrapCoord(hash01(seed + 1.0'f32) * h * 1.2'f32 + time * speed, h * 1.2'f32) - h * 0.1'f32
+    let rx = wrapCoord(hash01(seed + 2.0'f32) * w + ry * 0.08'f32, w)
     let len = (12.0'f32 + hash01(seed + 3.0'f32) * 16.0'f32) * u
     let col = if r mod 3 == 0: mag else: cyan
-    drawTaperedLine(v2(rx - len * 0.08'f32, ry - len), v2(rx, ry), 0.0'f32, max(0.5'f32, 0.9'f32 * u),
+    drawTaperedLine(vec2(rx - len * 0.08'f32, ry - len), vec2(rx, ry), 0.0'f32, max(0.5'f32, 0.9'f32 * u),
                     withAlpha(col, 0'u8), withAlpha(col, 60'u8))
 
   # Rare chromatic-aberration glitch slice.
@@ -1071,41 +1039,41 @@ proc drawCyberFx(w, h, time: float32) =
 # ---------------------------------------------------------------------------
 
 proc drawHeartSuit(cx, cy, r: float32, col: Color) =
-  let cen = v2(cx, cy)
+  let cen = vec2(cx, cy)
   var prev = cen
   for i in 0 .. 26:
     let t = i.float32 / 26.0'f32 * PI * 2.0'f32
     let hx = 16.0'f32 * pow(sin(t), 3.0'f32)
     let hy = 13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) - 2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)
-    let p = v2(cx + hx / 17.0'f32 * r, cy - hy / 17.0'f32 * r)
+    let p = vec2(cx + hx / 17.0'f32 * r, cy - hy / 17.0'f32 * r)
     if i > 0: drawTri2(cen, prev, p, col)
     prev = p
 
 proc drawSpadeSuit(cx, cy, r: float32, col: Color) =
   # An inverted heart (point up) with a small stem.
-  let cen = v2(cx, cy)
+  let cen = vec2(cx, cy)
   var prev = cen
   for i in 0 .. 26:
     let t = i.float32 / 26.0'f32 * PI * 2.0'f32
     let hx = 16.0'f32 * pow(sin(t), 3.0'f32)
     let hy = 13.0'f32 * cos(t) - 5.0'f32 * cos(2.0'f32 * t) - 2.0'f32 * cos(3.0'f32 * t) - cos(4.0'f32 * t)
-    let p = v2(cx + hx / 17.0'f32 * r, cy + hy / 17.0'f32 * r)
+    let p = vec2(cx + hx / 17.0'f32 * r, cy + hy / 17.0'f32 * r)
     if i > 0: drawTri2(cen, prev, p, col)
     prev = p
-  drawTri2(v2(cx, cy + r * 0.15'f32), v2(cx - r * 0.32'f32, cy + r * 0.66'f32),
-           v2(cx + r * 0.32'f32, cy + r * 0.66'f32), col)
+  drawTri2(vec2(cx, cy + r * 0.15'f32), vec2(cx - r * 0.32'f32, cy + r * 0.66'f32),
+           vec2(cx + r * 0.32'f32, cy + r * 0.66'f32), col)
 
 proc drawDiamondSuit(cx, cy, r: float32, col: Color) =
-  drawTri2(v2(cx, cy - r), v2(cx - r * 0.72'f32, cy), v2(cx + r * 0.72'f32, cy), col)
-  drawTri2(v2(cx, cy + r), v2(cx - r * 0.72'f32, cy), v2(cx + r * 0.72'f32, cy), col)
+  drawTri2(vec2(cx, cy - r), vec2(cx - r * 0.72'f32, cy), vec2(cx + r * 0.72'f32, cy), col)
+  drawTri2(vec2(cx, cy + r), vec2(cx - r * 0.72'f32, cy), vec2(cx + r * 0.72'f32, cy), col)
 
 proc drawClubSuit(cx, cy, r: float32, col: Color) =
   let cr = r * 0.44'f32
-  drawDisc(v2(cx, cy - r * 0.34'f32), cr, col)
-  drawDisc(v2(cx - r * 0.42'f32, cy + r * 0.14'f32), cr, col)
-  drawDisc(v2(cx + r * 0.42'f32, cy + r * 0.14'f32), cr, col)
-  drawTri2(v2(cx, cy + r * 0.02'f32), v2(cx - r * 0.30'f32, cy + r * 0.70'f32),
-           v2(cx + r * 0.30'f32, cy + r * 0.70'f32), col)
+  drawDisc(vec2(cx, cy - r * 0.34'f32), cr, col)
+  drawDisc(vec2(cx - r * 0.42'f32, cy + r * 0.14'f32), cr, col)
+  drawDisc(vec2(cx + r * 0.42'f32, cy + r * 0.14'f32), cr, col)
+  drawTri2(vec2(cx, cy + r * 0.02'f32), vec2(cx - r * 0.30'f32, cy + r * 0.70'f32),
+           vec2(cx + r * 0.30'f32, cy + r * 0.70'f32), col)
 
 proc drawSuitAt(kind: int, cx, cy, r: float32, col: Color) =
   ## One of the four card suits by index (0 heart, 1 diamond, 2 spade, 3 club).
@@ -1121,21 +1089,21 @@ proc drawChipStack(cx, cyBase, r: float32, count: int, base: Color, time, seed: 
   let rv = r * 0.42'f32
   let chipH = rv * 0.78'f32
   let bob = sin(time * 1.1'f32 + seed) * r * 0.06'f32
-  let edgeLo = mixCol(base, rgba(0, 0, 0, base.a.int), 0.5'f32)
-  let band = mixCol(base, rgba(245, 245, 248, base.a.int), 0.28'f32)
+  let edgeLo = colorLerp(base, rgba(0, 0, 0, base.a.int), 0.5'f32)
+  let band = colorLerp(base, rgba(245, 245, 248, base.a.int), 0.28'f32)
   let white = rgba(240, 240, 244, base.a.int)
-  fillEllipse(v2(cx, cyBase + bob + chipH * 0.9'f32), r * 1.15'f32, rv * 1.2'f32, rgba(0, 0, 0, 90))
+  fillEllipse(vec2(cx, cyBase + bob + chipH * 0.9'f32), r * 1.15'f32, rv * 1.2'f32, rgba(0, 0, 0, 90))
   for k in 0 ..< count:
     let cy = cyBase + bob - k.float32 * chipH
-    fillEllipse(v2(cx, cy + chipH * 0.55'f32), r, rv, edgeLo)
-    fillEllipse(v2(cx, cy), r, rv, (if (k and 1) == 0: base else: band))
+    fillEllipse(vec2(cx, cy + chipH * 0.55'f32), r, rv, edgeLo)
+    fillEllipse(vec2(cx, cy), r, rv, (if (k and 1) == 0: base else: band))
   let topY = cyBase + bob - count.float32 * chipH
-  drawRadialGradient(v2(cx, topY), r, rv, brighten(base, 30.0'f32), base, reSmooth)
-  fillEllipse(v2(cx, topY), r * 0.62'f32, rv * 0.62'f32, withAlpha(white, alphaU8(0.42'f32 * base.a.float32)))
-  fillEllipse(v2(cx, topY), r * 0.5'f32, rv * 0.5'f32, base)
+  drawRadialGradient(vec2(cx, topY), r, rv, brighten(base, 30.0'f32), base, reSmooth)
+  fillEllipse(vec2(cx, topY), r * 0.62'f32, rv * 0.62'f32, withAlpha(white, clampByteF(0.42'f32 * base.a.float32)))
+  fillEllipse(vec2(cx, topY), r * 0.5'f32, rv * 0.5'f32, base)
   for kk in 0 ..< 6:
     let a = kk.float32 / 6.0'f32 * PI * 2.0'f32 + time * 0.2'f32 + seed
-    drawDisc(v2(cx + cos(a) * r * 0.8'f32, topY + sin(a) * rv * 0.8'f32), r * 0.12'f32, white)
+    drawDisc(vec2(cx + cos(a) * r * 0.8'f32, topY + sin(a) * rv * 0.8'f32), r * 0.12'f32, white)
 
 proc drawPlayingCard(cx, cy, cw, ch: float32, suit: int, suitRed: bool) =
   ## An upright playing card: a soft shadow, a cream face lit from above, a
@@ -1143,7 +1111,7 @@ proc drawPlayingCard(cx, cy, cw, ch: float32, suit: int, suitRed: bool) =
   let sc = if suitRed: rgba(200, 36, 48) else: rgba(24, 24, 30)
   let x = cx - cw * 0.5'f32
   let y = cy - ch * 0.5'f32
-  drawGlow(v2(cx + cw * 0.08'f32, cy + ch * 0.1'f32), cw * 0.9'f32, ch * 0.75'f32, rgba(0, 0, 0, 110))
+  drawGlow(vec2(cx + cw * 0.08'f32, cy + ch * 0.1'f32), cw * 0.9'f32, ch * 0.75'f32, rgba(0, 0, 0, 110))
   fillRect(x - 1.0'f32, y - 1.0'f32, cw + 2.0'f32, ch + 2.0'f32, rgba(206, 200, 188))
   vGrad(x, y, cw, ch, rgba(250, 248, 242), rgba(226, 222, 212))
   drawSuitAt(suit, cx, cy, min(cw, ch) * 0.32'f32, sc)
@@ -1163,11 +1131,11 @@ proc drawCasinoFx(w, h, time: float32) =
   let tcy = h * CubeAnchorY
   let trh = s * 0.55'f32
   let trv = s * 0.42'f32
-  let c = v2(tcx, tcy)
+  let c = vec2(tcx, tcy)
 
   vGrad(0.0'f32, 0.0'f32, w, h, rgba(14, 22, 17), rgba(3, 6, 5))
-  drawGlow(v2(tcx, tcy - trv * 0.3'f32), trh * 1.5'f32, trv * 1.4'f32, rgba(255, 220, 150, 40))
-  drawGlow(v2(tcx, tcy + trv * 0.18'f32), trh * 1.25'f32, trv * 1.3'f32, rgba(0, 0, 0, 170))
+  drawGlow(vec2(tcx, tcy - trv * 0.3'f32), trh * 1.5'f32, trv * 1.4'f32, rgba(255, 220, 150, 40))
+  drawGlow(vec2(tcx, tcy + trv * 0.18'f32), trh * 1.25'f32, trv * 1.3'f32, rgba(0, 0, 0, 170))
 
   # The rail: a cushion shaded dark-lit-dark across its width, and the lamp's
   # highlight along its far side.
@@ -1176,19 +1144,19 @@ proc drawCasinoFx(w, h, time: float32) =
   let railMid = (railIn + railOut) * 0.5'f32
   drawGradientRing(c, trh + railIn, trv + railIn, trh + railMid, trv + railMid, rgba(26, 14, 7), rgba(92, 56, 30))
   drawGradientRing(c, trh + railMid, trv + railMid, trh + railOut, trv + railOut, rgba(92, 56, 30), rgba(34, 18, 9))
-  drawGlow(v2(tcx, tcy - trv - railMid), trh * 0.7'f32, s * 0.02'f32, rgba(255, 220, 170, 70))
+  drawGlow(vec2(tcx, tcy - trv - railMid), trh * 0.7'f32, s * 0.02'f32, rgba(255, 220, 170, 70))
   fillEllipse(c, trh + railIn, trv + railIn, rgba(20, 11, 6))
   drawEllipseOutline(c, trh + railIn, trv + railIn, max(0.6'f32, 1.6'f32 * u), withAlpha(gold, 150'u8))
 
   # The felt, lit from the lamp above centre.
   fillEllipse(c, trh, trv, rgba(12, 58, 34))
-  drawRadialGradient(v2(tcx, tcy - trv * 0.1'f32), trh * 0.92'f32, trv * 0.88'f32,
+  drawRadialGradient(vec2(tcx, tcy - trv * 0.1'f32), trh * 0.92'f32, trv * 0.88'f32,
                      rgba(42, 122, 76), rgba(12, 58, 34), reSmooth)
   for sp in 0 ..< counted(90, detailOf(w, h)):
     let seed = sp.float32 * 3.3'f32 + 50.0'f32
     let a = hash01(seed) * PI * 2.0'f32
     let rr = sqrt(hash01(seed + 1.0'f32)) * 0.95'f32
-    drawDisc(v2(tcx + cos(a) * trh * rr, tcy + sin(a) * trv * rr), max(0.35'f32, 0.7'f32 * u),
+    drawDisc(vec2(tcx + cos(a) * trh * rr, tcy + sin(a) * trv * rr), max(0.35'f32, 0.7'f32 * u),
              (if (sp and 1) == 0: rgba(0, 0, 0, 22) else: rgba(120, 200, 150, 18)))
 
   # Gold betting arcs and inlaid suits.
@@ -1204,25 +1172,25 @@ proc drawCasinoFx(w, h, time: float32) =
   let lampY = s * 0.04'f32
   let shadeW = s * 0.16'f32
   let shadeH = s * 0.05'f32
-  drawStroke(v2(tcx, 0.0'f32), v2(tcx, lampY), max(0.5'f32, 1.2'f32 * u), rgba(30, 30, 30))
-  drawLightCone(v2(tcx, lampY + shadeH), tcy + trv * 0.5'f32, shadeW * 3.6'f32, rgba(255, 230, 160, 60),
+  drawStroke(vec2(tcx, 0.0'f32), vec2(tcx, lampY), max(0.5'f32, 1.2'f32 * u), rgba(30, 30, 30))
+  drawLightCone(vec2(tcx, lampY + shadeH), tcy + trv * 0.5'f32, shadeW * 3.6'f32, rgba(255, 230, 160, 60),
                 0.0'f32, 0.0'f32, shadeW * 0.5'f32)
-  drawGradientQuad(v2(tcx - shadeW * 0.3'f32, lampY), v2(tcx - shadeW * 0.5'f32, lampY + shadeH),
-                   v2(tcx + shadeW * 0.5'f32, lampY + shadeH), v2(tcx + shadeW * 0.3'f32, lampY),
+  drawGradientQuad(vec2(tcx - shadeW * 0.3'f32, lampY), vec2(tcx - shadeW * 0.5'f32, lampY + shadeH),
+                   vec2(tcx + shadeW * 0.5'f32, lampY + shadeH), vec2(tcx + shadeW * 0.3'f32, lampY),
                    rgba(30, 90, 50), rgba(12, 50, 26), rgba(12, 50, 26), rgba(30, 90, 50))
-  drawStroke(v2(tcx - shadeW * 0.5'f32, lampY + shadeH), v2(tcx + shadeW * 0.5'f32, lampY + shadeH),
+  drawStroke(vec2(tcx - shadeW * 0.5'f32, lampY + shadeH), vec2(tcx + shadeW * 0.5'f32, lampY + shadeH),
              max(0.6'f32, 1.6'f32 * u), withAlpha(gold, 200'u8))
-  drawGlow(v2(tcx, lampY + shadeH), shadeW * 0.7'f32, s * 0.02'f32, rgba(255, 236, 180, 200))
+  drawGlow(vec2(tcx, lampY + shadeH), shadeW * 0.7'f32, s * 0.02'f32, rgba(255, 236, 180, 200))
 
   # Lucky suits drifting up and swaying, fading as they rise.
   for i in 0 ..< 11:
     let seed = i.float32 * 12.3'f32
     let span = h + 60.0'f32
-    let yy = h + 30.0'f32 - wrapF(hash01(seed) * span + time * (h * (0.02'f32 + hash01(seed + 1.0'f32) * 0.045'f32)), span)
+    let yy = h + 30.0'f32 - wrapCoord(hash01(seed) * span + time * (h * (0.02'f32 + hash01(seed + 1.0'f32) * 0.045'f32)), span)
     let xx = hash01(seed + 2.0'f32) * w + sin(time * 0.4'f32 + seed) * w * 0.02'f32
     let sr = s * (0.015'f32 + hash01(seed + 3.0'f32) * 0.013'f32)
     let fadeK = clamp(yy / h * 1.15'f32, 0.0'f32, 1.0'f32)
-    let a = alphaU8(26.0'f32 + 80.0'f32 * fadeK)
+    let a = clampByteF(26.0'f32 + 80.0'f32 * fadeK)
     case i mod 4
     of 0: drawHeartSuit(xx, yy, sr, withAlpha(red, a))
     of 1: drawDiamondSuit(xx, yy, sr, withAlpha(red, a))
@@ -1244,7 +1212,7 @@ proc drawCasinoFx(w, h, time: float32) =
   # Gold dust twinkling in the lamplight.
   for sp in 0 ..< counted(24, detailOf(w, h)):
     let seed = sp.float32 * 8.7'f32 + 2.0'f32
-    let p = v2(hash01(seed) * w, hash01(seed + 1.0'f32) * h)
+    let p = vec2(hash01(seed) * w, hash01(seed + 1.0'f32) * h)
     let tw = sin(time * (1.5'f32 + hash01(seed + 2.0'f32) * 2.5'f32) + seed) * 0.5'f32 + 0.5'f32
     let r = max(0.35'f32, (0.6'f32 + hash01(seed + 3.0'f32) * 1.2'f32) * (0.5'f32 + tw) * u)
     drawGlow(p, r * 5.0'f32, rgba(255, 215, 110, int(tw * 60.0'f32)))
@@ -1258,59 +1226,59 @@ proc drawCasinoFx(w, h, time: float32) =
 proc drawRune(cx, cy, r: float32, col: Color) =
   ## A simple angular ward-glyph: a diamond outline crossed by a vertical
   ## tick, built from line primitives so it survives the small shop preview.
-  let top = v2(cx, cy - r)
-  let right = v2(cx + r * 0.7'f32, cy)
-  let bot = v2(cx, cy + r)
-  let left = v2(cx - r * 0.7'f32, cy)
+  let top = vec2(cx, cy - r)
+  let right = vec2(cx + r * 0.7'f32, cy)
+  let bot = vec2(cx, cy + r)
+  let left = vec2(cx - r * 0.7'f32, cy)
   drawStroke(top, right, 1.4'f32, col)
   drawStroke(right, bot, 1.4'f32, col)
   drawStroke(bot, left, 1.4'f32, col)
   drawStroke(left, top, 1.4'f32, col)
-  drawStroke(v2(cx, cy - r * 1.35'f32), v2(cx, cy + r * 1.35'f32), 1.2'f32, col)
+  drawStroke(vec2(cx, cy - r * 1.35'f32), vec2(cx, cy + r * 1.35'f32), 1.2'f32, col)
 
 proc drawDragonGameCard(cx, cy, cw, ch: float32, accent, ink: Color) =
   ## A fantasy ability card resting on the table. Axis-aligned, because the
   ## scene also renders in the small shop card where rotated rects get muddy.
   let edge = rgba(84, 48, 24, 245)
-  drawGlow(v2(cx + cw * 0.1'f32, cy + ch * 0.1'f32), cw * 0.85'f32, ch * 0.7'f32, rgba(0, 0, 0, 120))
+  drawGlow(vec2(cx + cw * 0.1'f32, cy + ch * 0.1'f32), cw * 0.85'f32, ch * 0.7'f32, rgba(0, 0, 0, 120))
   fillRect(cx - cw * 0.5'f32 - 1.0'f32, cy - ch * 0.5'f32 - 1.0'f32, cw + 2.0'f32, ch + 2.0'f32, edge)
   vGrad(cx - cw * 0.5'f32, cy - ch * 0.5'f32, cw, ch, rgba(238, 214, 158, 248), rgba(214, 186, 128, 248))
   drawRectOutline(int32(cx - cw * 0.41'f32), int32(cy - ch * 0.39'f32),
                   int32(cw * 0.82'f32), int32(ch * 0.78'f32), withAlpha(edge, 150'u8))
   drawRune(cx, cy - ch * 0.12'f32, min(cw, ch) * 0.18'f32, accent)
-  drawStroke(v2(cx - cw * 0.28'f32, cy + ch * 0.18'f32), v2(cx + cw * 0.28'f32, cy + ch * 0.18'f32), 1.0'f32, ink)
-  drawStroke(v2(cx - cw * 0.22'f32, cy + ch * 0.28'f32), v2(cx + cw * 0.22'f32, cy + ch * 0.28'f32), 1.0'f32,
+  drawStroke(vec2(cx - cw * 0.28'f32, cy + ch * 0.18'f32), vec2(cx + cw * 0.28'f32, cy + ch * 0.18'f32), 1.0'f32, ink)
+  drawStroke(vec2(cx - cw * 0.22'f32, cy + ch * 0.28'f32), vec2(cx + cw * 0.22'f32, cy + ch * 0.28'f32), 1.0'f32,
              withAlpha(ink, 150'u8))
 
 proc drawDragonToken(cx, cy, r, time, seed: float32, base, rim: Color) =
   ## A chunky wooden token, top-lit and stamped with a tiny rune.
   let bob = sin(time * 0.7'f32 + seed) * r * 0.05'f32
-  fillEllipse(v2(cx, cy + bob + r * 0.22'f32), r * 1.02'f32, r * 0.34'f32, rgba(0, 0, 0, 85))
-  drawRadialGradient(v2(cx - r * 0.2'f32, cy + bob - r * 0.2'f32), r * 1.15'f32, r * 1.15'f32,
+  fillEllipse(vec2(cx, cy + bob + r * 0.22'f32), r * 1.02'f32, r * 0.34'f32, rgba(0, 0, 0, 85))
+  drawRadialGradient(vec2(cx - r * 0.2'f32, cy + bob - r * 0.2'f32), r * 1.15'f32, r * 1.15'f32,
                      brighten(base, 40.0'f32), base, reSmooth)
-  fillEllipse(v2(cx, cy + bob), r, r, base)
-  drawRadialGradient(v2(cx - r * 0.2'f32, cy + bob - r * 0.22'f32), r * 0.75'f32, r * 0.75'f32,
+  fillEllipse(vec2(cx, cy + bob), r, r, base)
+  drawRadialGradient(vec2(cx - r * 0.2'f32, cy + bob - r * 0.22'f32), r * 0.75'f32, r * 0.75'f32,
                      brighten(base, 45.0'f32), withAlpha(base, 0'u8), reSmooth)
-  drawCircleOutline(v2(cx, cy + bob), r, rim)
+  drawCircleOutline(vec2(cx, cy + bob), r, rim)
   drawRune(cx, cy + bob, r * 0.36'f32, withAlpha(rim, 170'u8))
 
 proc drawDragonMini(cx, cy, s: float32, body, rim, ember: Color) =
   ## A tiny dragon miniature silhouette for the board.
-  fillEllipse(v2(cx, cy + s * 0.34'f32), s * 0.42'f32, s * 0.16'f32, rgba(0, 0, 0, 80))
-  drawDisc(v2(cx, cy), s * 0.32'f32, body)
-  drawDisc(v2(cx + s * 0.34'f32, cy - s * 0.12'f32), s * 0.18'f32, body)
-  drawTri2(v2(cx - s * 0.08'f32, cy - s * 0.12'f32), v2(cx - s * 0.58'f32, cy - s * 0.42'f32),
-           v2(cx - s * 0.28'f32, cy + s * 0.04'f32), withAlpha(body, 230'u8))
-  drawTri2(v2(cx + s * 0.08'f32, cy - s * 0.12'f32), v2(cx + s * 0.48'f32, cy - s * 0.48'f32),
-           v2(cx + s * 0.36'f32, cy + s * 0.02'f32), withAlpha(body, 230'u8))
-  drawTri2(v2(cx + s * 0.42'f32, cy - s * 0.24'f32), v2(cx + s * 0.62'f32, cy - s * 0.34'f32),
-           v2(cx + s * 0.50'f32, cy - s * 0.12'f32), rim)
-  drawDisc(v2(cx + s * 0.40'f32, cy - s * 0.16'f32), max(0.8'f32, s * 0.035'f32), ember)
+  fillEllipse(vec2(cx, cy + s * 0.34'f32), s * 0.42'f32, s * 0.16'f32, rgba(0, 0, 0, 80))
+  drawDisc(vec2(cx, cy), s * 0.32'f32, body)
+  drawDisc(vec2(cx + s * 0.34'f32, cy - s * 0.12'f32), s * 0.18'f32, body)
+  drawTri2(vec2(cx - s * 0.08'f32, cy - s * 0.12'f32), vec2(cx - s * 0.58'f32, cy - s * 0.42'f32),
+           vec2(cx - s * 0.28'f32, cy + s * 0.04'f32), withAlpha(body, 230'u8))
+  drawTri2(vec2(cx + s * 0.08'f32, cy - s * 0.12'f32), vec2(cx + s * 0.48'f32, cy - s * 0.48'f32),
+           vec2(cx + s * 0.36'f32, cy + s * 0.02'f32), withAlpha(body, 230'u8))
+  drawTri2(vec2(cx + s * 0.42'f32, cy - s * 0.24'f32), vec2(cx + s * 0.62'f32, cy - s * 0.34'f32),
+           vec2(cx + s * 0.50'f32, cy - s * 0.12'f32), rim)
+  drawDisc(vec2(cx + s * 0.40'f32, cy - s * 0.16'f32), max(0.8'f32, s * 0.035'f32), ember)
 
 proc drawHexMapCell(cx, cy, r: float32, fill, line: Color) =
   if fill.a > 0'u8:
-    drawPoly(v2(cx, cy), 6, r, 30.0'f32, fill)
-  drawPolyOutline(v2(cx, cy), 6, r, 30.0'f32, line)
+    drawPoly(vec2(cx, cy), 6, r, 30.0'f32, fill)
+  drawPolyOutline(vec2(cx, cy), 6, r, 30.0'f32, line)
 
 proc edgeX(localX, w, side: float32): float32 =
   ## Folds a coordinate measured inward from a screen edge to actual screen x:
@@ -1330,23 +1298,23 @@ proc drawDragonWing(shoulderX, shoulderY, s, time, side, seed: float32,
   const Struts = 5
   let inward = if side < 0.0'f32: 1.0'f32 else: -1.0'f32
   let flex = 1.0'f32 + 0.05'f32 * sin(time * 0.35'f32 + seed)
-  let shoulder = v2(shoulderX, shoulderY)
+  let shoulder = vec2(shoulderX, shoulderY)
   var tip: array[Struts, Vector2]
   for i in 0 ..< Struts:
     let f = i.float32 / (Struts - 1).float32
     let ang = 2.4'f32 + f * 1.98'f32
     let len = s * (0.12'f32 + f * 0.095'f32) * flex
-    tip[i] = v2(shoulderX + cos(ang) * len * inward, shoulderY + sin(ang) * len)
+    tip[i] = vec2(shoulderX + cos(ang) * len * inward, shoulderY + sin(ang) * len)
 
   proc dipOf(i: int): Vector2 =
-    let mid = v2((tip[i].x + tip[i + 1].x) * 0.5'f32, (tip[i].y + tip[i + 1].y) * 0.5'f32)
-    v2(mid.x + (shoulderX - mid.x) * 0.20'f32, mid.y + (shoulderY - mid.y) * 0.20'f32)
+    let mid = vec2((tip[i].x + tip[i + 1].x) * 0.5'f32, (tip[i].y + tip[i + 1].y) * 0.5'f32)
+    vec2(mid.x + (shoulderX - mid.x) * 0.20'f32, mid.y + (shoulderY - mid.y) * 0.20'f32)
 
-  drawGlow(v2((shoulderX + tip[Struts div 2].x) * 0.5'f32, (shoulderY + tip[Struts div 2].y) * 0.5'f32),
+  drawGlow(vec2((shoulderX + tip[Struts div 2].x) * 0.5'f32, (shoulderY + tip[Struts div 2].y) * 0.5'f32),
            s * 0.12'f32, withAlpha(ember, 40'u8))
   for i in 0 ..< (Struts - 1):
     let f = (i.float32 + 0.5'f32) / (Struts - 1).float32
-    let lit = mixCol(membrane, rim, 0.09'f32 + f * 0.05'f32)
+    let lit = colorLerp(membrane, rim, 0.09'f32 + f * 0.05'f32)
     let dip = dipOf(i)
     drawGradientTriangle(shoulder, tip[i], dip, membrane, lit, membrane)
     drawGradientTriangle(shoulder, dip, tip[i + 1], membrane, membrane, lit)
@@ -1358,8 +1326,8 @@ proc drawDragonWing(shoulderX, shoulderY, s, time, side, seed: float32,
     drawStroke(tip[i], dip, 1.3'f32, withAlpha(rim, 150'u8))
     drawStroke(dip, tip[i + 1], 1.3'f32, withAlpha(rim, 150'u8))
   let lead = tip[Struts - 1]
-  drawTri2(lead, v2(lead.x + inward * s * 0.012'f32, lead.y - s * 0.004'f32),
-           v2(lead.x + inward * s * 0.028'f32, lead.y - s * 0.032'f32), rim)
+  drawTri2(lead, vec2(lead.x + inward * s * 0.012'f32, lead.y - s * 0.004'f32),
+           vec2(lead.x + inward * s * 0.028'f32, lead.y - s * 0.032'f32), rim)
 
 proc drawDragonForeleg(hipX, hipY, s, time, side, seed: float32, body, rim: Color) =
   ## A short two-jointed foreleg dropping inward from the shoulder so a clawed
@@ -1368,21 +1336,21 @@ proc drawDragonForeleg(hipX, hipY, s, time, side, seed: float32, body, rim: Colo
   let twitch = sin(time * 0.5'f32 + seed) * s * 0.006'f32
   let upperLen = s * 0.075'f32
   let lowerLen = s * 0.060'f32
-  let hip = v2(hipX, hipY)
-  let elbow = v2(hipX + inward * upperLen * 0.75'f32, hipY + upperLen * 0.55'f32)
-  let wrist = v2(elbow.x + inward * lowerLen * 0.55'f32 + twitch, elbow.y + lowerLen * 0.80'f32)
+  let hip = vec2(hipX, hipY)
+  let elbow = vec2(hipX + inward * upperLen * 0.75'f32, hipY + upperLen * 0.55'f32)
+  let wrist = vec2(elbow.x + inward * lowerLen * 0.55'f32 + twitch, elbow.y + lowerLen * 0.80'f32)
   let uW = s * 0.026'f32
   let lW = s * 0.019'f32
-  drawTri2(v2(hip.x - uW, hip.y), v2(hip.x + uW, hip.y), v2(elbow.x + inward * lW, elbow.y), body)
-  drawTri2(v2(hip.x + uW, hip.y), v2(elbow.x + inward * lW, elbow.y), v2(elbow.x - inward * lW, elbow.y), body)
+  drawTri2(vec2(hip.x - uW, hip.y), vec2(hip.x + uW, hip.y), vec2(elbow.x + inward * lW, elbow.y), body)
+  drawTri2(vec2(hip.x + uW, hip.y), vec2(elbow.x + inward * lW, elbow.y), vec2(elbow.x - inward * lW, elbow.y), body)
   drawDisc(elbow, lW, body)
-  drawTri2(v2(elbow.x - inward * lW, elbow.y), v2(elbow.x + inward * lW, elbow.y), wrist, body)
+  drawTri2(vec2(elbow.x - inward * lW, elbow.y), vec2(elbow.x + inward * lW, elbow.y), wrist, body)
   for ck in 0 ..< 3:
     let spread = ck.float32 - 1.0'f32
     let clen = s * (0.030'f32 - abs(spread) * 0.004'f32)
-    let ctip = v2(wrist.x + inward * (0.15'f32 + spread * 0.35'f32) * clen, wrist.y + clen)
+    let ctip = vec2(wrist.x + inward * (0.15'f32 + spread * 0.35'f32) * clen, wrist.y + clen)
     let cw = s * 0.006'f32
-    drawTri2(v2(wrist.x - cw, wrist.y), v2(wrist.x + cw, wrist.y), ctip, body)
+    drawTri2(vec2(wrist.x - cw, wrist.y), vec2(wrist.x + cw, wrist.y), ctip, body)
     drawDisc(ctip, max(0.7'f32, s * 0.005'f32), rim)
 
 proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
@@ -1421,52 +1389,52 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
     dx /= dl; dy /= dl
     lx[i] = bx[i] - dy * br[i]; ly[i] = by[i] + dx * br[i]
     rx[i] = bx[i] + dy * br[i]; ry[i] = by[i] - dx * br[i]
-  let litBody = mixCol(body, rim, 0.12'f32)
+  let litBody = colorLerp(body, rim, 0.12'f32)
   # Which rim side faces inward (toward the desktop) decides where the light is.
   let leftLit = (lx[Segs div 2] - bx[Segs div 2]) * inward > 0.0'f32
   let cL = if leftLit: litBody else: body
   let cR = if leftLit: body else: litBody
   for i in 0 ..< (Segs - 1):
-    drawGradientQuad(v2(lx[i], ly[i]), v2(rx[i], ry[i]), v2(rx[i + 1], ry[i + 1]), v2(lx[i + 1], ly[i + 1]),
+    drawGradientQuad(vec2(lx[i], ly[i]), vec2(rx[i], ry[i]), vec2(rx[i + 1], ry[i + 1]), vec2(lx[i + 1], ly[i + 1]),
                      cL, cR, cR, cL)
   for i in 0 ..< Segs:
-    drawRadialGradient(v2(bx[i], by[i]), br[i] * 0.98'f32, br[i] * 0.98'f32, mixCol(cL, cR, 0.5'f32),
-                       mixCol(cL, cR, 0.5'f32), reLinear, 1)
+    drawRadialGradient(vec2(bx[i], by[i]), br[i] * 0.98'f32, br[i] * 0.98'f32, colorLerp(cL, cR, 0.5'f32),
+                       colorLerp(cL, cR, 0.5'f32), reLinear, 1)
 
   # Warm rim on the inward contour, brightest near the head.
   for i in 1 ..< Segs:
     let t = i.float32 / (Segs - 1).float32
-    let lit = mixCol(body, rim, 0.15'f32 + t * 0.45'f32)
+    let lit = colorLerp(body, rim, 0.15'f32 + t * 0.45'f32)
     let ex = bx[i] + inward * br[i] * 0.92'f32
     let pex = bx[i - 1] + inward * br[i - 1] * 0.92'f32
-    drawStroke(v2(pex, by[i - 1]), v2(ex, by[i]), max(1.2'f32, br[i] * 0.30'f32), lit)
+    drawStroke(vec2(pex, by[i - 1]), vec2(ex, by[i]), max(1.2'f32, br[i] * 0.30'f32), lit)
   for i in 0 ..< Segs:
     let t = i.float32 / (Segs - 1).float32
-    drawCircleOutline(v2(bx[i], by[i]), br[i], withAlpha(rim, alphaU8(18.0'f32 + t * 42.0'f32)))
+    drawCircleOutline(vec2(bx[i], by[i]), br[i], withAlpha(rim, clampByteF(18.0'f32 + t * 42.0'f32)))
 
   # Spine spikes on alternating segments, angled outward and up.
   for i in 0 ..< Segs:
     if i mod 2 == 1 and i < Segs - 1:
       let spike = br[i] * 1.7'f32
       let outX = -inward * spike * 0.5'f32
-      drawGradientTriangle(v2(bx[i] - outX * 0.3'f32, by[i] + br[i] * 0.3'f32),
-                           v2(bx[i] + outX * 0.3'f32, by[i] - br[i] * 0.3'f32),
-                           v2(bx[i] + outX, by[i] - spike * 0.95'f32),
-                           mixCol(body, rim, 0.5'f32), mixCol(body, rim, 0.5'f32), rim)
+      drawGradientTriangle(vec2(bx[i] - outX * 0.3'f32, by[i] + br[i] * 0.3'f32),
+                           vec2(bx[i] + outX * 0.3'f32, by[i] - br[i] * 0.3'f32),
+                           vec2(bx[i] + outX, by[i] - spike * 0.95'f32),
+                           colorLerp(body, rim, 0.5'f32), colorLerp(body, rim, 0.5'f32), rim)
 
   drawDragonForeleg(bx[shIdx], by[shIdx] + br[shIdx] * 0.6'f32, s, time, side,
                     side * 5.0'f32 + 1.0'f32, body, rim)
 
   # Tail fin: a barbed arrowhead swaying at the tip.
   let tailSway = sin(time * 0.6'f32) * s * 0.01'f32
-  let t0 = v2(bx[0], by[0])
+  let t0 = vec2(bx[0], by[0])
   let tdx = -inward * s * 0.055'f32 + tailSway
   let tdy = s * 0.05'f32
-  let tailTip = v2(t0.x + tdx, t0.y + tdy)
-  let tailMid = v2(t0.x + tdx * 0.62'f32, t0.y + tdy * 0.62'f32)
-  drawTri2(v2(t0.x, t0.y - br[0]), v2(t0.x, t0.y + br[0]), tailTip, body)
-  drawTri2(tailTip, tailMid, v2(tailTip.x - inward * s * 0.024'f32, tailTip.y - s * 0.026'f32), body)
-  drawTri2(tailTip, tailMid, v2(tailTip.x + inward * s * 0.010'f32, tailTip.y + s * 0.022'f32), body)
+  let tailTip = vec2(t0.x + tdx, t0.y + tdy)
+  let tailMid = vec2(t0.x + tdx * 0.62'f32, t0.y + tdy * 0.62'f32)
+  drawTri2(vec2(t0.x, t0.y - br[0]), vec2(t0.x, t0.y + br[0]), tailTip, body)
+  drawTri2(tailTip, tailMid, vec2(tailTip.x - inward * s * 0.024'f32, tailTip.y - s * 0.026'f32), body)
+  drawTri2(tailTip, tailMid, vec2(tailTip.x + inward * s * 0.010'f32, tailTip.y + s * 0.022'f32), body)
   drawStroke(t0, tailTip, 1.3'f32, withAlpha(rim, 90'u8))
 
   # Head: cranium and snout with a brow ridge, a hinged jaw breathing open a
@@ -1476,11 +1444,11 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
   let headLen = s * 0.11'f32
   let headW = s * 0.060'f32
   let gape = (sin(time * 0.9'f32 + side) * 0.5'f32 + 0.5'f32) * headW * 0.16'f32
-  let hinge = v2(hx, hy + headW * 0.10'f32)
-  let brow = v2(hx - inward * headW * 0.10'f32, hy - headW * 0.62'f32)
-  let snoutTop = v2(hx + inward * headLen * 0.86'f32, hy - headW * 0.28'f32)
-  let snout = v2(hx + inward * headLen, hy - headLen * 0.02'f32)
-  let jawTip = v2(hx + inward * headLen * 0.72'f32, hy + headW * 0.30'f32 + gape)
+  let hinge = vec2(hx, hy + headW * 0.10'f32)
+  let brow = vec2(hx - inward * headW * 0.10'f32, hy - headW * 0.62'f32)
+  let snoutTop = vec2(hx + inward * headLen * 0.86'f32, hy - headW * 0.28'f32)
+  let snout = vec2(hx + inward * headLen, hy - headLen * 0.02'f32)
+  let jawTip = vec2(hx + inward * headLen * 0.72'f32, hy + headW * 0.30'f32 + gape)
   drawGradientTriangle(hinge, brow, snoutTop, body, litBody, litBody)
   drawGradientTriangle(hinge, snoutTop, snout, body, litBody, litBody)
   drawTri2(hinge, snout, jawTip, body)
@@ -1488,8 +1456,8 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
     let tf = 0.24'f32 + tk.float32 * 0.26'f32
     let mx = snout.x + (hinge.x - snout.x) * tf
     let my = snout.y + (hinge.y - snout.y) * tf
-    drawTri2(v2(mx - inward * headW * 0.022'f32, my), v2(mx + inward * headW * 0.022'f32, my),
-             v2(mx - inward * headW * 0.02'f32, my + headW * 0.17'f32 + gape * 0.4'f32), withAlpha(rim, 205'u8))
+    drawTri2(vec2(mx - inward * headW * 0.022'f32, my), vec2(mx + inward * headW * 0.022'f32, my),
+             vec2(mx - inward * headW * 0.02'f32, my + headW * 0.17'f32 + gape * 0.4'f32), withAlpha(rim, 205'u8))
   drawStroke(hinge, brow, 1.5'f32, rim)
   drawStroke(brow, snoutTop, 1.5'f32, rim)
   drawStroke(snoutTop, snout, 1.5'f32, rim)
@@ -1497,28 +1465,28 @@ proc drawDragonSilhouette(w, h, time, side: float32, body, rim, ember: Color) =
   drawStroke(jawTip, hinge, 1.3'f32, withAlpha(rim, 120'u8))
   for hk in 0 ..< 2:
     let hf = hk.float32
-    drawGradientTriangle(v2(hx - inward * headW * (0.05'f32 + hf * 0.12'f32), hy - headW * (0.5'f32 + hf * 0.1'f32)),
-                         v2(hx + inward * headW * 0.08'f32, hy - headW * (0.35'f32 + hf * 0.1'f32)),
-                         v2(hx - inward * headLen * (0.45'f32 + hf * 0.25'f32), hy - headLen * (0.85'f32 + hf * 0.35'f32)),
-                         mixCol(body, rim, 0.4'f32), mixCol(body, rim, 0.4'f32), rim)
-  let chBase = v2(hx + inward * headW * 0.02'f32, hy + headW * 0.16'f32)
-  drawTri2(chBase, v2(chBase.x + inward * headW * 0.12'f32, chBase.y + headW * 0.04'f32),
-           v2(chBase.x - inward * headLen * 0.26'f32, chBase.y + headLen * 0.16'f32), rim)
+    drawGradientTriangle(vec2(hx - inward * headW * (0.05'f32 + hf * 0.12'f32), hy - headW * (0.5'f32 + hf * 0.1'f32)),
+                         vec2(hx + inward * headW * 0.08'f32, hy - headW * (0.35'f32 + hf * 0.1'f32)),
+                         vec2(hx - inward * headLen * (0.45'f32 + hf * 0.25'f32), hy - headLen * (0.85'f32 + hf * 0.35'f32)),
+                         colorLerp(body, rim, 0.4'f32), colorLerp(body, rim, 0.4'f32), rim)
+  let chBase = vec2(hx + inward * headW * 0.02'f32, hy + headW * 0.16'f32)
+  drawTri2(chBase, vec2(chBase.x + inward * headW * 0.12'f32, chBase.y + headW * 0.04'f32),
+           vec2(chBase.x - inward * headLen * 0.26'f32, chBase.y + headLen * 0.16'f32), rim)
 
   # Ember eye under the brow, pulsing, with a soft bleed onto the hide.
   let eyePulse = sin(time * 1.4'f32 + side * 3.0'f32) * 0.5'f32 + 0.5'f32
-  let eyePos = v2(hx + inward * headLen * 0.34'f32, hy - headW * 0.34'f32)
-  drawGlow(eyePos, headW * 0.9'f32, withAlpha(ember, alphaU8(70.0'f32 + eyePulse * 60.0'f32)))
-  drawDisc(eyePos, headW * 0.1'f32, withAlpha(mixCol(ember, rgba(255, 200, 120), 0.4'f32), alphaU8(200.0'f32 + eyePulse * 55.0'f32)))
+  let eyePos = vec2(hx + inward * headLen * 0.34'f32, hy - headW * 0.34'f32)
+  drawGlow(eyePos, headW * 0.9'f32, withAlpha(ember, clampByteF(70.0'f32 + eyePulse * 60.0'f32)))
+  drawDisc(eyePos, headW * 0.1'f32, withAlpha(colorLerp(ember, rgba(255, 200, 120), 0.4'f32), clampByteF(200.0'f32 + eyePulse * 55.0'f32)))
 
   # Smouldering breath: a nostril glow with a few embers drifting up.
   drawGlow(snout, headW * 0.6'f32, withAlpha(ember, 90'u8))
   for ek in 0 ..< 3:
     let eseed = side * 7.0'f32 + ek.float32 * 5.3'f32
     let ePhase = fract01(time * 0.18'f32 + hash01(eseed))
-    let ePos = v2(snout.x + inward * ePhase * headLen * 0.6'f32, snout.y - ePhase * headLen * 1.4'f32)
+    let ePos = vec2(snout.x + inward * ePhase * headLen * 0.6'f32, snout.y - ePhase * headLen * 1.4'f32)
     drawDisc(ePos, max(0.6'f32, headW * 0.05'f32 * (1.0'f32 - ePhase)),
-             withAlpha(ember, alphaU8(160.0'f32 * (1.0'f32 - ePhase))))
+             withAlpha(ember, clampByteF(160.0'f32 * (1.0'f32 - ePhase))))
 
 proc drawCandle(x, baseY, s, time, seed: float32) =
   ## A stubby tavern candle: lit wax, a drip, a flickering teardrop flame and
@@ -1527,21 +1495,21 @@ proc drawCandle(x, baseY, s, time, seed: float32) =
   let ch = s * 0.06'f32
   let flick = 0.85'f32 + 0.15'f32 * sin(time * 9.0'f32 + seed) + 0.06'f32 * sin(time * 23.0'f32 + seed * 2.0'f32)
   let sway = sin(time * 2.3'f32 + seed) * cw * 0.12'f32
-  let flame = v2(x + sway, baseY - ch - cw * 0.9'f32)
-  drawGlow(v2(x, baseY - ch * 0.5'f32), s * 0.3'f32, rgba(255, 170, 80, int(70.0'f32 * flick)))
+  let flame = vec2(x + sway, baseY - ch - cw * 0.9'f32)
+  drawGlow(vec2(x, baseY - ch * 0.5'f32), s * 0.3'f32, rgba(255, 170, 80, int(70.0'f32 * flick)))
   drawGlow(flame, s * 0.08'f32, rgba(255, 210, 130, int(120.0'f32 * flick)))
-  fillEllipse(v2(x, baseY), cw * 1.1'f32, cw * 0.35'f32, rgba(0, 0, 0, 100))
+  fillEllipse(vec2(x, baseY), cw * 1.1'f32, cw * 0.35'f32, rgba(0, 0, 0, 100))
   hGrad(x - cw * 0.5'f32, baseY - ch, cw, ch, rgba(255, 238, 200), rgba(196, 170, 128))
-  fillEllipse(v2(x, baseY - ch), cw * 0.5'f32, cw * 0.16'f32, rgba(255, 246, 220))
-  drawTaperedLine(v2(x + cw * 0.3'f32, baseY - ch), v2(x + cw * 0.32'f32, baseY - ch * 0.62'f32),
+  fillEllipse(vec2(x, baseY - ch), cw * 0.5'f32, cw * 0.16'f32, rgba(255, 246, 220))
+  drawTaperedLine(vec2(x + cw * 0.3'f32, baseY - ch), vec2(x + cw * 0.32'f32, baseY - ch * 0.62'f32),
                   cw * 0.22'f32, cw * 0.12'f32, rgba(255, 244, 214), rgba(240, 226, 190))
-  drawStroke(v2(x, baseY - ch), v2(x + sway * 0.4'f32, baseY - ch - cw * 0.35'f32), max(0.5'f32, cw * 0.08'f32), rgba(30, 20, 14))
+  drawStroke(vec2(x, baseY - ch), vec2(x + sway * 0.4'f32, baseY - ch - cw * 0.35'f32), max(0.5'f32, cw * 0.08'f32), rgba(30, 20, 14))
   let fh = cw * (1.3'f32 + 0.25'f32 * flick)
-  drawGradientTriangle(v2(flame.x + sway, flame.y - fh), v2(flame.x - cw * 0.3'f32, flame.y + cw * 0.15'f32),
-                       v2(flame.x + cw * 0.3'f32, flame.y + cw * 0.15'f32),
+  drawGradientTriangle(vec2(flame.x + sway, flame.y - fh), vec2(flame.x - cw * 0.3'f32, flame.y + cw * 0.15'f32),
+                       vec2(flame.x + cw * 0.3'f32, flame.y + cw * 0.15'f32),
                        rgba(255, 220, 120, 0), rgba(255, 150, 40, 230), rgba(255, 150, 40, 230))
-  drawDisc(v2(flame.x, flame.y + cw * 0.1'f32), cw * 0.3'f32, rgba(255, 236, 170, 240))
-  drawDisc(v2(flame.x, flame.y + cw * 0.18'f32), cw * 0.14'f32, rgba(120, 160, 255, 160))
+  drawDisc(vec2(flame.x, flame.y + cw * 0.1'f32), cw * 0.3'f32, rgba(255, 236, 170, 240))
+  drawDisc(vec2(flame.x, flame.y + cw * 0.18'f32), cw * 0.14'f32, rgba(120, 160, 255, 160))
 
 proc drawDragonFx(w, h, time: float32) =
   ## Dragon's Lair: a fantasy tabletop game in a tavern. A plank table, a
@@ -1569,35 +1537,35 @@ proc drawDragonFx(w, h, time: float32) =
   var plankIndex = 0
   while plankY < h + plankH:
     let f = if (plankIndex and 1) == 0: 0.0'f32 else: 1.0'f32
-    let plankCol = mixCol(wood, woodHi, 0.18'f32 + f * 0.12'f32)
+    let plankCol = colorLerp(wood, woodHi, 0.18'f32 + f * 0.12'f32)
     vGrad(0.0'f32, plankY, w, plankH + 1.0'f32, brighten(plankCol, 8.0'f32), brighten(plankCol, -10.0'f32))
-    drawStroke(v2(0.0'f32, plankY), v2(w, plankY), max(0.5'f32, 1.2'f32 * u), rgba(24, 12, 7, 170))
+    drawStroke(vec2(0.0'f32, plankY), vec2(w, plankY), max(0.5'f32, 1.2'f32 * u), rgba(24, 12, 7, 170))
     for g in 0 ..< (if detailOf(w, h) < 0.6'f32: 0 else: 4):
       let seed = plankIndex.float32 * 9.7'f32 + g.float32 * 3.1'f32
       let gy = plankY + plankH * (0.15'f32 + hash01(seed) * 0.7'f32)
-      var prev = v2(0.0'f32, gy)
+      var prev = vec2(0.0'f32, gy)
       for k in 1 .. 8:
         let gx = w * k.float32 / 8.0'f32
-        let cur = v2(gx, gy + sin(k.float32 * 1.3'f32 + seed) * plankH * 0.06'f32)
+        let cur = vec2(gx, gy + sin(k.float32 * 1.3'f32 + seed) * plankH * 0.06'f32)
         drawStroke(prev, cur, max(0.4'f32, 0.8'f32 * u), rgba(30, 15, 8, 50))
         prev = cur
     for knot in 0 ..< 3:
       let seed = plankIndex.float32 * 9.7'f32 + knot.float32 * 18.1'f32
-      fillEllipse(v2(hash01(seed) * w, plankY + plankH * (0.25'f32 + hash01(seed + 1.0'f32) * 0.5'f32)),
+      fillEllipse(vec2(hash01(seed) * w, plankY + plankH * (0.25'f32 + hash01(seed + 1.0'f32) * 0.5'f32)),
                   s * 0.014'f32, s * 0.005'f32, rgba(28, 14, 8, 110))
     plankY += plankH
     plankIndex += 1
 
   # Tavern dark around a warm pool of light over the board.
-  drawGlow(v2(tcx, tcy), mapW * 0.95'f32, mapH * 1.1'f32, rgba(255, 196, 110, 50))
+  drawGlow(vec2(tcx, tcy), mapW * 0.95'f32, mapH * 1.1'f32, rgba(255, 196, 110, 50))
   edgeVignette(w, h, 0.3'f32, rgba(5, 3, 3, 170))
 
   # Parchment battle map: stained, folded at two corners, darker at its edges.
-  drawGlow(v2(tcx + s * 0.02'f32, tcy + s * 0.03'f32), mapW * 0.62'f32, mapH * 0.66'f32, rgba(0, 0, 0, 140))
+  drawGlow(vec2(tcx + s * 0.02'f32, tcy + s * 0.03'f32), mapW * 0.62'f32, mapH * 0.66'f32, rgba(0, 0, 0, 140))
   vGrad(mapX, mapY, mapW, mapH, rgba(232, 205, 142, 250), rgba(190, 156, 94, 250))
   for st in 0 ..< 7:
     let seed = st.float32 * 13.7'f32 + 2.0'f32
-    drawGlow(v2(mapX + mapW * hash01(seed), mapY + mapH * hash01(seed + 1.0'f32)),
+    drawGlow(vec2(mapX + mapW * hash01(seed), mapY + mapH * hash01(seed + 1.0'f32)),
              s * (0.05'f32 + hash01(seed + 2.0'f32) * 0.08'f32), rgba(120, 80, 30, 40))
   let burn = s * 0.04'f32
   vGrad(mapX, mapY, mapW, burn, rgba(110, 70, 30, 120), rgba(110, 70, 30, 0))
@@ -1608,10 +1576,10 @@ proc drawDragonFx(w, h, time: float32) =
   drawRectOutline(int32(mapX + s * 0.014'f32), int32(mapY + s * 0.014'f32),
                   int32(mapW - s * 0.028'f32), int32(mapH - s * 0.028'f32), rgba(115, 74, 33, 125))
   let fold = s * 0.055'f32
-  drawGradientTriangle(v2(mapX, mapY), v2(mapX + fold, mapY), v2(mapX, mapY + fold),
+  drawGradientTriangle(vec2(mapX, mapY), vec2(mapX + fold, mapY), vec2(mapX, mapY + fold),
                        rgba(150, 116, 68, 235), rgba(186, 150, 96, 235), rgba(186, 150, 96, 235))
-  drawGradientTriangle(v2(mapX + mapW, mapY + mapH), v2(mapX + mapW - fold, mapY + mapH),
-                       v2(mapX + mapW, mapY + mapH - fold),
+  drawGradientTriangle(vec2(mapX + mapW, mapY + mapH), vec2(mapX + mapW - fold, mapY + mapH),
+                       vec2(mapX + mapW, mapY + mapH - fold),
                        rgba(150, 112, 64, 225), rgba(184, 146, 92, 225), rgba(184, 146, 92, 225))
 
   # Hex grid and dungeon-room strokes around a readable centre.
@@ -1626,8 +1594,8 @@ proc drawDragonFx(w, h, time: float32) =
   let roomCol = rgba(73, 43, 23, 150)
   drawRectOutline(int32(tcx - s * 0.31'f32), int32(tcy - s * 0.18'f32), int32(s * 0.22'f32), int32(s * 0.16'f32), roomCol)
   drawRectOutline(int32(tcx + s * 0.12'f32), int32(tcy + s * 0.03'f32), int32(s * 0.26'f32), int32(s * 0.18'f32), roomCol)
-  drawStroke(v2(tcx - s * 0.09'f32, tcy - s * 0.10'f32), v2(tcx + s * 0.12'f32, tcy + s * 0.09'f32), 1.2'f32, roomCol)
-  drawStroke(v2(tcx - s * 0.02'f32, tcy + s * 0.15'f32), v2(tcx + s * 0.25'f32, tcy + s * 0.15'f32), 1.2'f32, roomCol)
+  drawStroke(vec2(tcx - s * 0.09'f32, tcy - s * 0.10'f32), vec2(tcx + s * 0.12'f32, tcy + s * 0.09'f32), 1.2'f32, roomCol)
+  drawStroke(vec2(tcx - s * 0.02'f32, tcy + s * 0.15'f32), vec2(tcx + s * 0.25'f32, tcy + s * 0.15'f32), 1.2'f32, roomCol)
   drawRune(tcx - mapW * 0.36'f32, tcy - mapH * 0.29'f32, s * 0.021'f32, withAlpha(ember, 140'u8))
   drawRune(tcx + mapW * 0.35'f32, tcy + mapH * 0.27'f32, s * 0.018'f32, withAlpha(gold, 130'u8))
 
@@ -1642,12 +1610,12 @@ proc drawDragonFx(w, h, time: float32) =
                      withAlpha(gold, 210'u8), rgba(65, 36, 20, 170))
   let sheetX = mapX + mapW * 0.73'f32
   let sheetY = mapY + mapH * 0.70'f32
-  drawGlow(v2(sheetX + s * 0.1'f32, sheetY + s * 0.07'f32), s * 0.12'f32, s * 0.08'f32, rgba(0, 0, 0, 90))
+  drawGlow(vec2(sheetX + s * 0.1'f32, sheetY + s * 0.07'f32), s * 0.12'f32, s * 0.08'f32, rgba(0, 0, 0, 90))
   vGrad(sheetX, sheetY, s * 0.18'f32, s * 0.12'f32, rgba(238, 214, 160, 235), rgba(216, 190, 136, 235))
   drawRectOutline(int32(sheetX), int32(sheetY), int32(s * 0.18'f32), int32(s * 0.12'f32), withAlpha(ink, 170'u8))
   for line in 0 ..< 4:
     let ly = mapY + mapH * 0.73'f32 + line.float32 * s * 0.022'f32
-    drawStroke(v2(mapX + mapW * 0.75'f32, ly), v2(mapX + mapW * 0.88'f32, ly), 1.0'f32, withAlpha(ink, 115'u8))
+    drawStroke(vec2(mapX + mapW * 0.75'f32, ly), vec2(mapX + mapW * 0.88'f32, ly), 1.0'f32, withAlpha(ink, 115'u8))
   for tok in 0 ..< 5:
     let seed = tok.float32 * 12.7'f32 + 4.0'f32
     let base = if tok mod 2 == 0: rgba(112, 25, 22, 245) else: rgba(40, 52, 42, 245)
@@ -1666,9 +1634,9 @@ proc drawDragonFx(w, h, time: float32) =
     if vis <= 0.03'f32: continue
     let ang = hash01(seed + 1.0'f32) * PI * 2.0'f32
     let rr = 0.18'f32 + hash01(seed + 2.0'f32) * 0.46'f32
-    let p = v2(tcx + cos(ang) * mapW * rr, tcy + sin(ang) * mapH * rr)
-    drawGlow(p, s * 0.03'f32, withAlpha(gold, alphaU8(60.0'f32 * vis)))
-    drawRune(p.x, p.y, s * 0.013'f32, withAlpha(gold, alphaU8(140.0'f32 * vis)))
+    let p = vec2(tcx + cos(ang) * mapW * rr, tcy + sin(ang) * mapH * rr)
+    drawGlow(p, s * 0.03'f32, withAlpha(gold, clampByteF(60.0'f32 * vis)))
+    drawRune(p.x, p.y, s * 0.013'f32, withAlpha(gold, clampByteF(140.0'f32 * vis)))
 
   # Candles on the table, then the lair's embers drifting up.
   drawCandle(mapX - s * 0.07'f32, mapY + mapH * 0.34'f32, s, time, 1.0'f32)
@@ -1676,12 +1644,12 @@ proc drawDragonFx(w, h, time: float32) =
   for e in 0 ..< 16:
     let seed = e.float32 * 9.1'f32
     let span = h * 1.1'f32
-    let ey = h * 1.05'f32 - wrapF(hash01(seed) * span + time * (h * (0.025'f32 + hash01(seed + 1.0'f32) * 0.05'f32)), span)
+    let ey = h * 1.05'f32 - wrapCoord(hash01(seed) * span + time * (h * (0.025'f32 + hash01(seed + 1.0'f32) * 0.05'f32)), span)
     let ex = hash01(seed + 2.0'f32) * w + sin(time * 0.3'f32 + seed) * w * 0.015'f32
     let fadeK = clamp(1.0'f32 - (h - ey) / h * 0.3'f32, 0.0'f32, 1.0'f32)
-    let p = v2(ex, ey)
-    drawGlow(p, s * 0.01'f32, withAlpha(ember, alphaU8(60.0'f32 * fadeK)))
-    drawDisc(p, s * (0.0025'f32 + hash01(seed + 3.0'f32) * 0.003'f32), withAlpha(rgba(255, 120, 50), alphaU8(150.0'f32 * fadeK)))
+    let p = vec2(ex, ey)
+    drawGlow(p, s * 0.01'f32, withAlpha(ember, clampByteF(60.0'f32 * fadeK)))
+    drawDisc(p, s * (0.0025'f32 + hash01(seed + 3.0'f32) * 0.003'f32), withAlpha(rgba(255, 120, 50), clampByteF(150.0'f32 * fadeK)))
 
   drawDragonSilhouette(w, h, time, -1.0'f32, hide, gold, ember)
   drawDragonSilhouette(w, h, time, 1.0'f32, hide, gold, ember)
@@ -1695,7 +1663,7 @@ proc drawCubeOrbit(w, h, time: float32, ringCol, nodeCol: Color, strength: float
   ## running round each, and a glowing node riding it.
   let s = min(w, h)
   let u = unitOf(w, h)
-  let c = v2(w * CubeAnchorX, h * CubeAnchorY)
+  let c = vec2(w * CubeAnchorX, h * CubeAnchorY)
   for i in 0 .. 3:
     let r = s * (0.18'f32 + i.float32 * 0.055'f32)
     drawCircleOutline(c, r, withAlpha(ringCol, (22.0'f32 + i.float32 * 8.0'f32) * strength))
@@ -1703,11 +1671,11 @@ proc drawCubeOrbit(w, h, time: float32, ringCol, nodeCol: Color, strength: float
     let arcStart = spin * 180.0'f32 / PI
     drawRing(c, r - max(0.4'f32, 0.8'f32 * u), r + max(0.4'f32, 0.8'f32 * u), arcStart, arcStart + 40.0'f32,
              16, withAlpha(ringCol, 70.0'f32 * strength))
-    let node = v2(c.x + cos(spin) * r, c.y + sin(spin) * r)
+    let node = vec2(c.x + cos(spin) * r, c.y + sin(spin) * r)
     drawGlow(node, 9.0'f32 * u, withAlpha(nodeCol, 110.0'f32 * strength))
-    drawDisc(node, max(0.6'f32, (2.2'f32 + i.float32 * 0.3'f32) * u), withAlpha(mixCol(nodeCol, rgba(255, 255, 255), 0.4'f32), 220.0'f32 * strength))
+    drawDisc(node, max(0.6'f32, (2.2'f32 + i.float32 * 0.3'f32) * u), withAlpha(colorLerp(nodeCol, rgba(255, 255, 255), 0.4'f32), 220.0'f32 * strength))
 
-proc drawDesktopBgScene*(bgType: DesktopBgType, screenWidth, screenHeight: int32, time: float32) =
+proc drawDesktopBgScene*(bgType: DesktopBgType, screenWidth, screenHeight: int32, time: float32) {.moddable.} =
   ## A purchasable background, whole: its scene, the cube's orbit rings and a
   ## shade behind the icon column. The desktop and the shop's preview card
   ## both draw this; the caller draws the cube on top. dbgDefault is the

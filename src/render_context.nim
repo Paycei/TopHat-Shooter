@@ -200,8 +200,6 @@ proc clearWorldCamera*() =
   worldCamActive = false
   worldCamZoom = 1.0'f32
 
-proc worldCameraActive*(): bool = worldCamActive
-
 proc getWorldCamScale*(): float32 =
   ## World units to virtual pixels: the view's scale times the camera zoom.
   if worldCamActive: currentWorldViewScale * worldCamZoom else: currentWorldViewScale

@@ -15,9 +15,10 @@
 ## Like the other game/ modules it never imports game.
 
 import std/[math, sets, tables]
+import ../modding/mod_patch_core
 import raylib
 import ../draw_prims
-import ../types, ../particle_types, ../player, ../bullet, ../enemy_helpers, ../run_statistics, ../particle_pool
+import ../types, ../utils, ../particle_types, ../player, ../bullet, ../enemy_helpers, ../run_statistics, ../particle_pool
 import combat, death
 import ../modding/[lua_bridge, mod_hooks, mod_registry, mod_assets]
 
@@ -32,14 +33,14 @@ var
   thingGridMaxR: float32
 
 # ---------------------------------------------------------------- helpers ----
-proc alive*(t: ModThing): bool {.inline.} =
+proc alive*(t: ModThing): bool {.inline, moddable.} =
   tfDead notin t.flags and tfRemoved notin t.flags
 
 proc extentRadius(t: ModThing): float32 {.inline.} =
   ## The radius of a circle that contains the thing (for grid queries).
   if t.shape == tsRect: 0.5'f32 * sqrt(t.w * t.w + t.h * t.h) else: t.radius
 
-proc overlapsCircle*(t: ModThing, p: Vector2f, r: float32): bool =
+proc overlapsCircle*(t: ModThing, p: Vector2, r: float32): bool {.moddable.} =
   ## Does the thing's body touch the circle (p, r)?
   if t.shape == tsRect:
     let hw = t.w * 0.5'f32
@@ -55,7 +56,7 @@ proc overlapsCircle*(t: ModThing, p: Vector2f, r: float32): bool =
     let rr = r + t.radius
     dx * dx + dy * dy <= rr * rr
 
-proc pushOut(t: ModThing, p: var Vector2f, r: float32) =
+proc pushOut(t: ModThing, p: var Vector2, r: float32) =
   ## Move the circle (p, r) out of a solid thing.
   if t.shape == tsRect:
     let hw = t.w * 0.5'f32
@@ -94,7 +95,7 @@ proc pushOut(t: ModThing, p: var Vector2f, r: float32) =
     else:
       p.x = t.pos.x + rr
 
-proc hazardHits*(t: ModThing, p: Vector2f, r: float32): bool =
+proc hazardHits(t: ModThing, p: Vector2, r: float32): bool {.moddable.} =
   ## Is the circle (p, r) inside the hazard's area?
   let hz = t.hazard
   case hz.shape
@@ -130,7 +131,7 @@ proc hurtsPlayer(t: ModThing): bool {.inline.} = t.team != ttPlayer
 proc hurtsEnemies(t: ModThing): bool {.inline.} = t.team != ttEnemy
 
 # ------------------------------------------------------- damage and death ----
-proc killThing*(game: Game, t: ModThing) =
+proc killThing*(game: Game, t: ModThing) {.moddable.} =
   ## Its HP ran out (or a script killed it): onDeath, the thingDeath hook, gone.
   if not t.alive: return
   t.flags.incl(tfDead)
@@ -141,7 +142,7 @@ proc killThing*(game: Game, t: ModThing) =
   modThingDeath(t)
   spawnExplosionPooled(game.particlePool, t.pos.x, t.pos.y, t.color, 10)
 
-proc damageThing*(game: Game, t: ModThing, amount: float32, source: string = "script"): float32 =
+proc damageThing*(game: Game, t: ModThing, amount: float32, source: string = "script"): float32 {.moddable.} =
   ## Damage actually dealt (its kind's onDamaged may change it). `source`:
   ## "bullet", "enemy", "explosion" or "script".
   if not t.alive or amount <= 0 or tfInvulnerable in t.flags or t.maxHp <= 0:
@@ -157,14 +158,14 @@ proc damageThing*(game: Game, t: ModThing, amount: float32, source: string = "sc
   t.hitFlash = 0.12
   if t.hp <= 0: killThing(game, t)
 
-proc removeThing*(t: ModThing) =
+proc removeThing*(t: ModThing) {.moddable.} =
   ## Gone at the end of the frame: no death, no onDeath.
   t.flags.incl(tfRemoved)
 
 # ----------------------------------------------------------------- turret ----
 proc fireWeapon(game: Game, t: ModThing, w: ThingWeapon): bool =
   ## False: nothing in range (the turret stays ready).
-  var target: Vector2f
+  var target: Vector2
   var found = false
   var bestD = w.range * w.range
   if t.team == ttEnemy:
@@ -194,7 +195,7 @@ proc fireWeapon(game: Game, t: ModThing, w: ThingWeapon): bool =
   for i in 0 ..< n:
     let off = degToRad(w.spread) * (i.float32 - (n - 1).float32 * 0.5'f32)
     let a = base + off
-    let b = newBullet(t.pos.x, t.pos.y, newVector2f(cos(a), sin(a)), w.speed, w.damage,
+    let b = newBullet(t.pos.x, t.pos.y, vec2(cos(a), sin(a)), w.speed, w.damage,
                       fromPlayer = t.team != ttEnemy)
     if w.radius > 0: b.radius = w.radius
     if w.lifetime > 0: b.lifetime = w.lifetime
@@ -219,6 +220,7 @@ proc applyHazard(game: Game, t: ModThing, grid: SpatialGrid, maxEnemyR: float32)
       if idx >= game.enemies.len: continue
       let e = game.enemies[idx]
       if e.hp <= 0 or not hazardHits(t, e.pos, e.radius): continue
+      if shieldBlocksHit(game, e, t.pos): continue   # a Port Guard facing the hazard
       let dealt = damageEnemy(e, hz.damage, consumesDiamondShield = false)
       if dealt > 0: showDamage(game, e.pos, dealt, true)
 
@@ -247,7 +249,7 @@ proc tickHazard(game: Game, t: ModThing, dt: float32, grid: SpatialGrid, maxEnem
     removeThing(t)
 
 # ------------------------------------------------------------------ update ----
-proc nearestEnemy(game: Game, p: Vector2f): Enemy =
+proc nearestEnemy(game: Game, p: Vector2): Enemy =
   var bestD = 1.0e12'f32
   for e in game.enemies:
     if e.hp <= 0: continue
@@ -280,7 +282,7 @@ proc moveThing(game: Game, t: ModThing, dt: float32) =
     if t.motion == tmChaseEnemy:
       let e = nearestEnemy(game, t.pos)
       if e.isNil:
-        t.vel = newVector2f(0, 0)
+        t.vel = vec2(0, 0)
         return
       target = e.pos
       stopAt = e.radius * 0.5'f32
@@ -289,19 +291,19 @@ proc moveThing(game: Game, t: ModThing, dt: float32) =
     let d = sqrt(dx * dx + dy * dy)
     if d > stopAt and d > 0.001:
       let step = min(t.speed * dt, d - stopAt)
-      t.vel = newVector2f(dx / d * t.speed, dy / d * t.speed)
+      t.vel = vec2(dx / d * t.speed, dy / d * t.speed)
       t.pos.x += dx / d * step
       t.pos.y += dy / d * step
     else:
-      t.vel = newVector2f(0, 0)
+      t.vel = vec2(0, 0)
   of tmOrbitPlayer:
     t.orbitAngle += t.speed * dt   # degrees per second
     let a = degToRad(t.orbitAngle)
-    t.pos = newVector2f(game.player.pos.x + cos(a) * t.orbitRadius,
+    t.pos = vec2(game.player.pos.x + cos(a) * t.orbitRadius,
                         game.player.pos.y + sin(a) * t.orbitRadius)
   t.angle += t.spin * dt
 
-proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, maxEnemyR: float32) =
+proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, maxEnemyR: float32) {.moddable.} =
   ## One frame of every thing (see the module comment for the order). `grid`
   ## holds game.enemies as of this frame; nothing here adds or deletes enemies.
   if game.modThings.len == 0: return
@@ -370,7 +372,9 @@ proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, m
           var r: RetVals
           discard callKind(thingKinds[ki].owner, thingKinds[ki].onTouchEnemy,
                            [wrapThing(t), wrapEnemy(e), wrapGame(game)], r)
-        if t.contactDamage > 0:
+        # (a blocked touch still counts: contactTimer keeps the spark from
+        # firing every frame)
+        if t.contactDamage > 0 and not shieldBlocksHit(game, e, t.pos):
           let dealt = damageEnemy(e, t.contactDamage, consumesDiamondShield = false)
           if dealt > 0: showDamage(game, e.pos, dealt, true)
         if not t.alive: break
@@ -417,7 +421,7 @@ proc updateThings*(game: Game, simDt, effectiveDt: float32, grid: SpatialGrid, m
         discard callKind(thingKinds[ki].owner, thingKinds[ki].update,
                          [wrapThing(t), vnum(step.float64), wrapGame(game)], r)
 
-proc sweepThings*(game: Game) =
+proc sweepThings*(game: Game) {.moddable.} =
   ## Drop dead and removed things (and what was kept about them).
   if game.modThings.len == 0: return
   var gone = false
@@ -444,7 +448,7 @@ proc hitBy(t: ModThing, b: Bullet): bool {.inline.} =
   tfHitByBullets in t.flags and
     (t.team == ttNeutral or (t.team == ttPlayer) != b.fromPlayer)
 
-proc collideThingBullets*(game: Game) =
+proc collideThingBullets*(game: Game) {.moddable.} =
   ## Bullets against things, outside the bullet loop: build a grid over the
   ## things, walk the bullets once, mark the ones that hit, compact once.
   if game.modThings.len == 0 or game.bullets.len == 0: return
@@ -494,14 +498,14 @@ proc drawHazard(t: ModThing, time: float32) =
   let pulse = 0.5'f32 + 0.5'f32 * sin(time * 12)
   let fillA = if hz.phase == 0: uint8(40 + 50 * pulse) else: 170'u8
   let lineA = if hz.phase == 0: 230'u8 else: 255'u8
-  let fill = Color(r: c.r, g: c.g, b: c.b, a: fillA)
+  let fill = withAlpha(c, fillA)
   c.a = lineA
   # how far the warning has run, as a growing inner shape
   let progress = if hz.phase == 0 and hz.warn > 0: clamp(hz.timer / hz.warn, 0'f32, 1'f32) else: 1'f32
   case hz.shape
   of hzNone: discard
   of hzCircle:
-    drawDisc(Vector2(x: t.pos.x, y: t.pos.y), t.radius * (if hz.phase == 0: progress else: 1), fill)
+    drawDisc(t.pos, t.radius * (if hz.phase == 0: progress else: 1), fill)
     drawCircleOutline(t.pos.x.int32, t.pos.y.int32, t.radius, c)
   of hzRect:
     let r = Rectangle(x: t.pos.x - t.w * 0.5'f32, y: t.pos.y - t.h * 0.5'f32, width: t.w, height: t.h)
@@ -512,11 +516,11 @@ proc drawHazard(t: ModThing, time: float32) =
   of hzLine:
     let a = degToRad(t.angle)
     let e = Vector2(x: t.pos.x + cos(a) * hz.length, y: t.pos.y + sin(a) * hz.length)
-    let s = Vector2(x: t.pos.x, y: t.pos.y)
+    let s = t.pos
     drawLine(s, e, max(1'f32, t.radius * 2 * (if hz.phase == 0: progress else: 1)), fill)
     drawStroke(s, e, 1, c)
   of hzRing:
-    drawRing(Vector2(x: t.pos.x, y: t.pos.y), hz.inner, t.radius, 0, 360, 48, fill)
+    drawRing(t.pos, hz.inner, t.radius, 0, 360, 48, fill)
     drawCircleOutline(t.pos.x.int32, t.pos.y.int32, t.radius, c)
     drawCircleOutline(t.pos.x.int32, t.pos.y.int32, max(1'f32, hz.inner), c)
 
@@ -535,12 +539,12 @@ proc drawThingBody(t: ModThing, k: int) =
     drawRectangle(Rectangle(x: t.pos.x, y: t.pos.y, width: w, height: h),
                   Vector2(x: w * 0.5'f32, y: h * 0.5'f32), t.angle, tint)
   else:
-    drawDisc(Vector2(x: t.pos.x, y: t.pos.y), t.radius * scale, tint)
+    drawDisc(t.pos, t.radius * scale, tint)
     let rim = Color(r: uint8(min(255, t.color.r.int + 60)), g: uint8(min(255, t.color.g.int + 60)),
                     b: uint8(min(255, t.color.b.int + 60)), a: t.color.a)
     drawCircleOutline(t.pos.x.int32, t.pos.y.int32, t.radius * scale, rim)
 
-proc drawThings*(game: Game, layer: ThingLayer) =
+proc drawThings*(game: Game, layer: ThingLayer) {.moddable.} =
   ## World coordinates. Hazards always draw their telegraph, whatever their
   ## kind or a script does: hazards must be fair.
   if game.modThings.len == 0: return
@@ -567,12 +571,11 @@ proc drawThings*(game: Game, layer: ThingLayer) =
                               width: w * clamp(t.hp / t.maxHp, 0'f32, 1'f32), height: 3), t.color)
 
 # ---------------------------------------------------------------- joining ----
-proc joinThing*(game: Game, t: ModThing, callback: ScriptValue, owner: int): bool =
-  ## processModActions: a built thing joins the arena (false: the cap is full).
+proc joinThing*(game: Game, t: ModThing, callback: ScriptValue, owner: int): bool {.moddable.} =
+  ## processModActions: a built thing joins the arena (false: it died first).
   let p = modPendingThings.find(t)
   if p >= 0: modPendingThings.delete(p)
   if not t.alive: return false
-  if game.modThings.len >= MaxModThings: return false
   game.modThings.add(t)
   var r: RetVals
   discard thingCall(t, proc (k: ThingKind): ScriptValue {.nimcall.} = k.onSpawn,
@@ -580,14 +583,3 @@ proc joinThing*(game: Game, t: ModThing, callback: ScriptValue, owner: int): boo
   if callback.isFn: discard callKind(owner, callback, [wrapThing(t)], r)
   modThingSpawn(t)
   true
-
-proc keepPersistentThings*(game: Game) =
-  ## A roguelite room change: only `persistent` things follow the player.
-  if game.modThings.len == 0: return
-  var kept: seq[ModThing]
-  for t in game.modThings:
-    if tfPersistent in t.flags and t.alive: kept.add(t)
-    else:
-      dropEntityData(entityKey(EdThing, t.id))
-      hazardTriggers.del(t.id)
-  game.modThings = kept

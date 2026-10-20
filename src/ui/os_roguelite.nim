@@ -1,4 +1,5 @@
 import raylib, math, strutils
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, ../roguelite, ../patches, ../powerup_data, ../dungeon, ../localization, ../render_context, ../utils, icon_drawing, ui_helpers
 from ../boss_definitions import bossName
@@ -40,11 +41,7 @@ proc drawSoftFill(x, y, w, h: int32, topColor, bottomColor: Color) =
     let t = if bands <= 1: 0.0'f32 else: i.float32 / (bands - 1).float32
     let by = y + i * bandH
     let bh = if i == bands - 1: h - bandH * i else: bandH
-    let color = Color(
-      r: uint8(topColor.r.float32 * (1.0'f32 - t) + bottomColor.r.float32 * t),
-      g: uint8(topColor.g.float32 * (1.0'f32 - t) + bottomColor.g.float32 * t),
-      b: uint8(topColor.b.float32 * (1.0'f32 - t) + bottomColor.b.float32 * t),
-      a: uint8(topColor.a.float32 * (1.0'f32 - t) + bottomColor.a.float32 * t))
+    let color = colorLerp(topColor, bottomColor, t)
     drawRectangle(x, by, w, bh, color)
 
 proc drawCornerBrackets(x, y, w, h, length, thickness: int32, color: Color) =
@@ -70,14 +67,14 @@ proc drawScanlines(x, y, w, h: int32, color: Color) =
   for yy in countup(y + 6, y + h - 4, 10):
     drawStroke(x + 1, yy.int32, x + w - 2, yy.int32, color)
 
-proc roguelitePanelRect*(screenWidth, screenHeight: int32): Rectangle =
+proc roguelitePanelRect(screenWidth, screenHeight: int32): Rectangle {.moddable.} =
   Rectangle(
     x: ((screenWidth - PanelW) div 2).float32,
     y: ((screenHeight - PanelH) div 2).float32,
     width: PanelW.float32,
     height: PanelH.float32)
 
-proc rogueliteCloseButtonRect*(screenWidth, screenHeight: int32): Rectangle =
+proc rogueliteCloseButtonRect*(screenWidth, screenHeight: int32): Rectangle {.moddable.} =
   let panel = roguelitePanelRect(screenWidth, screenHeight)
   Rectangle(
     x: panel.x + PanelW.float32 - CloseButtonSize.float32 - 10,
@@ -189,21 +186,6 @@ proc drawMeter(x, y, w, h: int32, value: float32, stockColor: Color) =
   drawRectangle(x, y, int32(w.float32 * clamp(value, 0.0'f32, 1.0'f32)), h, withAlpha(color, 210))
   drawRectOutline(x, y, w, h, withAlpha(color, 210))
 
-proc drawWrappedText(text: string, x, y, maxWidth, fontSize: int32,
-                     stockColor: Color, maxLines: int32 = 3, lineGap: int32 = 5,
-                     minSize: int32 = 9): int32 =
-  let color = uiInk(stockColor)
-  result = y
-  if maxLines <= 0:
-    return
-
-  let wrappedFontSize = bestWrapFontSize(text, maxWidth, fontSize, maxLines, minSize)
-  let lines = wrapTextLines(text, maxWidth, wrappedFontSize)
-  let linesToDraw = min(lines.len, maxLines.int)
-  for idx in 0..<linesToDraw:
-    drawText(lines[idx], x, result, wrappedFontSize, color)
-    result += wrappedFontSize + lineGap
-
 proc rectAt(x, y, w, h: int32): Rectangle =
   Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32)
 
@@ -222,7 +204,7 @@ proc drawCloseButton(x, y: int32, stockColor: Color, hovered: bool = false) =
   drawStroke(x + CloseButtonSize - 8, y + 8, x + 8, y + CloseButtonSize - 8, lineColor)
 
 proc drawStatChip*(x, y, w, h: int32, label, value: string, stockColor: Color,
-                  icon: CurrencyIconType = ciNone) =
+                  icon: CurrencyIconType = ciNone) {.moddable.} =
   let color = uiInk(stockColor)
   drawRectangle(x + 3, y + 3, w, h, Color(r: 0, g: 0, b: 0, a: 90))
   drawSoftFill(x, y, w, h, uiSurface(26, 36, 54, 244),
@@ -263,7 +245,7 @@ proc drawHeatStepButton(rect: Rectangle, label: string, enabled, hovered: bool, 
   discard drawCenteredTextFit(label, x + 4, y + 6, w - 8, 20,
                               if enabled: color else: uiInk(110, 118, 132), 12)
 
-proc drawHeatPanel*(game: Game, x, y, w, h: int32) =
+proc drawHeatPanel*(game: Game, x, y, w, h: int32) {.moddable.} =
   let profile = game.rogueliteProfile
   let maxHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
   let selectedHeat = clamp(game.selectedRogueliteHeat, RogueliteMinHeat, maxHeat)
@@ -388,22 +370,22 @@ proc drawProgressRail(run: RogueliteRun, x, y, w: int32) =
   ## Floor progression: 4 themed floors, each capped by its boss.
   let totalNodes = RogueliteFloorsToWin
   let step = w div (totalNodes - 1).int32
-  drawText(t("roguelite_run_flow"), x, y - 24, 15, Color(r: 150, g: 220, b: 255, a: 255))
+  drawText(t("roguelite_run_flow"), x, y - 24, 15, uiInk(150, 220, 255))
   for i in 0..<totalNodes:
     let px = x + i.int32 * step
     if i < totalNodes - 1:
-      drawStroke(px, y, px + step, y, Color(r: 70, g: 95, b: 120, a: 255))
+      drawStroke(px, y, px + step, y, uiLine(70, 95, 120))
     let completed = run.floorNumber > i + 1
     let current = run.floorNumber == i + 1
     let color = if completed: Color(r: 0, g: 240, b: 160, a: 255)
                 elif current: Color(r: 0, g: 220, b: 255, a: 255)
                 else: Color(r: 90, g: 105, b: 125, a: 255)
-    drawDisc(Vector2(x: px.float32, y: y.float32), if current: 10 else: 7, color)
+    drawDisc(Vector2(x: px.float32, y: y.float32), if current: 10 else: 7, uiInk(color))
     let label = t("roguelite_floor") & " " & $(i + 1)
-    discard drawCenteredTextFit(label, px - (step div 2), y + 14, step, 11, LightGray, 8)
+    discard drawCenteredTextFit(label, px - (step div 2), y + 14, step, 11, uiInk(LightGray), 8)
 
 proc drawPanel*(x, y, w, h: int32, title: string, stockColor: Color, closeHovered: bool = false,
-               omitTitleBar: bool = false) =
+               omitTitleBar: bool = false) {.moddable.} =
   let color = uiInk(stockColor)
   drawRectangle(x + 7, y + 7, w, h, Color(r: 0, g: 0, b: 0, a: 115))
   drawSoftFill(x, y, w, h, uiSurface(17, 24, 38, 250),
@@ -445,7 +427,7 @@ proc drawBossGlyph(cx, cy: int32, stockColor: Color) =
                     Vector2(x: (cx - 10).float32, y: (cy + 10).float32),
                     Vector2(x: (cx + 10).float32, y: (cy + 10).float32), color)
 
-proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, stockColor: Color, hovered: bool = false) =
+proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, stockColor: Color, hovered: bool = false) {.moddable.} =
   let color = uiInk(stockColor)
   let bgTop = if active: uiSurface(36, 86, 92)
               elif hovered: uiSurface(48, 61, 82)
@@ -465,7 +447,7 @@ proc drawSmallButton*(x, y, w, h: int32, label: string, active: bool, stockColor
   discard drawCenteredTextFit(label, x + 7, y + (h - fontSize) div 2, w - 14, 15,
                               if active or hovered: color else: uiInk(LightGray), 9)
 
-proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected: bool, hovered: bool = false) =
+proc drawKitCard*(game: Game, kit: RogueliteStarterKit, x, y: int32, selected: bool, hovered: bool = false) {.moddable.} =
   ## A boot profile. All three are always available: the roguelite no longer
   ## sells them ("earn, don't buy").
   let stockColor = if selected: Color(r: 0, g: 220, b: 255, a: 255)
@@ -525,29 +507,29 @@ proc drawThemeCard(theme: DungeonFloorTheme, x, y: int32, selected: bool, floorB
   if hovered:
     drawRectangle(x + 4, y + 4, CardW, CardH, Color(r: 0, g: 0, b: 0, a: 115))
   drawRectangle(x, y, CardW, CardH,
-                if hovered: Color(r: 28, g: 38, b: 56, a: 255) else: Color(r: 22, g: 28, b: 42, a: 255))
-  drawRectangle(x, y, CardW, 76, withAlpha(accent, 34))
-  drawRectOutline(rectAt(x, y, CardW, CardH), if selected: 3 elif hovered: 2 else: 1, color)
-  drawDisc(Vector2(x: (x + CardW - 42).float32, y: (y + 40).float32), 18, withAlpha(accent, 36))
+                if hovered: uiSurface(28, 38, 56) else: uiSurface(22, 28, 42))
+  drawRectangle(x, y, CardW, 76, withAlpha(uiGlow(accent), 34))
+  drawRectOutline(rectAt(x, y, CardW, CardH), if selected: 3 elif hovered: 2 else: 1, uiLine(color))
+  drawDisc(Vector2(x: (x + CardW - 42).float32, y: (y + 40).float32), 18, withAlpha(uiGlow(accent), 36))
   drawThemeGlyph(x + CardW - 42, y + 40, theme, accent)
-  drawTextFit(themeName(theme), x + 16, y + 16, CardW - 82, 21, White)
+  drawTextFit(themeName(theme), x + 16, y + 16, CardW - 82, 21, uiInk(White))
   drawPill(x + 16, y + 47, 92, 22, t("roguelite_floor"), accent, false)
 
   # Floor boss preview
   drawBossGlyph(x + 33, y + 98, Color(r: 255, g: 120, b: 95, a: 255))
-  drawTextFit(t("dungeon_floor_boss"), x + 58, y + 90, CardW - 74, 13, Color(r: 255, g: 150, b: 120, a: 255))
-  drawTextFit(bossName(floorBossNumber), x + 58, y + 107, CardW - 74, 14, Gold)
+  drawTextFit(t("dungeon_floor_boss"), x + 58, y + 90, CardW - 74, 13, uiInk(255, 150, 120))
+  drawTextFit(bossName(floorBossNumber), x + 58, y + 107, CardW - 74, 14, uiInk(Gold))
 
-  drawTextFit(t("roguelite_pressure") & ": " & $(int(def.pressureMod * 100)) & "%", x + 16, y + 139, 116, 13, LightGray)
+  drawTextFit(t("roguelite_pressure") & ": " & $(int(def.pressureMod * 100)) & "%", x + 16, y + 139, 116, 13, uiInk(LightGray))
   drawMeter(x + 136, y + 143, 104, 8, (def.pressureMod - 0.9) / 0.5, accent)
-  drawTextFit(t("roguelite_elite") & ": +" & $def.eliteBonus, x + 16, y + 163, 116, 13, LightGray)
+  drawTextFit(t("roguelite_elite") & ": +" & $def.eliteBonus, x + 16, y + 163, 116, 13, uiInk(LightGray))
   drawMeter(x + 136, y + 167, 104, 8, def.eliteBonus.float32 / 10.0'f32, Color(r: 255, g: 130, b: 80, a: 255))
-  drawTextFit(t("roguelite_shards") & ": x" & $round(def.shardMod * 100).int & "%", x + 16, y + 187, 116, 13, Gold)
+  drawTextFit(t("roguelite_shards") & ": x" & $round(def.shardMod * 100).int & "%", x + 16, y + 187, 116, 13, uiInk(Gold))
   drawMeter(x + 136, y + 191, 104, 8, (def.shardMod - 0.9) / 0.6, Gold)
   discard drawWrappedText(themeDescription(theme), x + 16, y + 215, CardW - 32, 13,
                           Color(r: 180, g: 192, b: 210, a: 255), 2, 4)
 
-proc finalBossCardRect*(screenWidth, screenHeight: int32): Rectangle =
+proc finalBossCardRect*(screenWidth, screenHeight: int32): Rectangle {.moddable.} =
   ## Geometry of the single special final-boss card. Shared by the renderer and
   ## the floor-select input handler so the hit-test matches what is drawn.
   let panelX = (screenWidth - PanelW) div 2
@@ -575,16 +557,16 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
 
   # Shadow + dark crimson body with a brighter header band and top accent rule.
   drawRectangle(x + 6, y + 9, w, h, Color(r: 0, g: 0, b: 0, a: 160))
-  drawRectangle(x, y, w, h, Color(r: 26, g: 8, b: 14, a: if hovered: 255 else: 248))
-  drawRectangle(x, y, w, 96, withAlpha(crimson, if hovered: 44 else: 32))
-  drawRectangle(x, y, w, 4, crimson)
+  drawRectangle(x, y, w, h, uiSurface(Color(r: 26, g: 8, b: 14, a: if hovered: 255 else: 248)))
+  drawRectangle(x, y, w, 96, withAlpha(uiGlow(crimson), if hovered: 44 else: 32))
+  drawRectangle(x, y, w, 4, uiInk(crimson))
 
   # Pulsing crimson border, inner gold trim, and corner brackets.
   drawRectOutline(rectAt(x, y, w, h), 3,
-                     withAlpha(crimson, borderA))
-  drawRectOutline(rectAt(x + 4, y + 4, w - 8, h - 8), 1, withAlpha(gold, 110))
+                     withAlpha(uiLine(crimson), borderA))
+  drawRectOutline(rectAt(x + 4, y + 4, w - 8, h - 8), 1, withAlpha(uiLine(gold), 110))
   drawCornerBrackets(x + 10, y + 10, w - 20, h - 20, 28, 2,
-                     withAlpha(gold, uint8(120.0'f32 + pulse * 110.0'f32)))
+                     withAlpha(uiInk(gold), uint8(120.0'f32 + pulse * 110.0'f32)))
 
   # FINAL BOSS pill.
   drawPill(x + 22, y + 24, 158, 32, t("dungeon_final_floor_label"), crimson, true)
@@ -593,13 +575,12 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
   let glyphX = x + w - 74
   let glyphY = y + 62
   drawDisc(Vector2(x: glyphX.float32, y: glyphY.float32), 30.0'f32 + pulse * 6.0'f32,
-             withAlpha(crimson, 34))
+             withAlpha(uiGlow(crimson), 34))
   drawThemeGlyph(glyphX, glyphY, FinalFloorTheme, accent)
 
   # Boss label + name.
-  drawTextFit(t("dungeon_floor_boss"), x + 24, y + 66, w - 150, 15,
-              Color(r: 255, g: 150, b: 120, a: 255))
-  drawTextFit(bossName(23), x + 24, y + 86, w - 150, 30, gold)
+  drawTextFit(t("dungeon_floor_boss"), x + 24, y + 66, w - 150, 15, uiInk(255, 150, 120))
+  drawTextFit(bossName(23), x + 24, y + 86, w - 150, 30, uiInk(gold))
 
   # Flavor description.
   discard drawWrappedText(t("dungeon_final_floor_desc"), x + 24, y + 140, w - 48, 16,
@@ -607,10 +588,9 @@ proc drawFinalBossCard(game: Game, rect: Rectangle, hovered: bool) =
 
   # Pulsing warning line near the bottom.
   drawCenteredTextFit(t("dungeon_final_floor_warning"), x + 20, y + h - 42, w - 40, 17,
-                      Color(r: crimson.r, g: crimson.g, b: crimson.b,
-                            a: uint8(170.0'f32 + pulse * 80.0'f32)))
+                      withAlpha(uiInk(crimson), uint8(170.0'f32 + pulse * 80.0'f32)))
 
-proc drawRogueliteFloorSelect*(game: Game) =
+proc drawRogueliteFloorSelect*(game: Game) {.moddable.} =
   let x = (getVirtualScreenWidth() - PanelW) div 2
   let y = (getVirtualScreenHeight() - PanelH) div 2
   let canHover = mouseHoverEnabled(game)
@@ -620,7 +600,7 @@ proc drawRogueliteFloorSelect*(game: Game) =
   drawPanel(x, y, PanelW, PanelH, t("dungeon_floor_select_title"), Color(r: 0, g: 220, b: 255, a: 255), closeHovered)
 
   if game.rogueliteRun.isNil:
-    drawText(t("roguelite_no_run"), x + 40, y + 90, 22, Red)
+    drawText(t("roguelite_no_run"), x + 40, y + 90, 22, uiInk(Red))
     return
 
   let run = game.rogueliteRun
@@ -668,10 +648,10 @@ proc drawRogueliteFloorSelect*(game: Game) =
   if not isFinalDungeonFloor(run):
     # The themed-roll tip is meaningless on the single-card final floor; the card's
     # own warning line carries the stakes there.
-    drawCenteredTextFit(t("dungeon_floor_select_tip"), x + 60, y + PanelH - 63, PanelW - 120, 14, Color(r: 255, g: 210, b: 110, a: 255))
-  drawCenteredTextFit(t("roguelite_sector_controls"), x + 60, y + PanelH - 35, PanelW - 120, 15, LightGray)
+    drawCenteredTextFit(t("dungeon_floor_select_tip"), x + 60, y + PanelH - 63, PanelW - 120, 14, uiInk(255, 210, 110))
+  drawCenteredTextFit(t("roguelite_sector_controls"), x + 60, y + PanelH - 35, PanelW - 120, 15, uiInk(LightGray))
 
-proc rogueliteVictoryButtonRects*(screenWidth, screenHeight: int32): tuple[continueBtn, cashOut: Rectangle] =
+proc rogueliteVictoryButtonRects*(screenWidth, screenHeight: int32): tuple[continueBtn, cashOut: Rectangle] {.moddable.} =
   ## Shared geometry so the ending screen's click hit-tests (main.nim) match the draw.
   let panel = roguelitePanelRect(screenWidth, screenHeight)
   const BtnW = 300'i32
@@ -696,9 +676,9 @@ proc drawRogueliteEndButton(rect: Rectangle, label: string, stockColor: Color, h
   drawRectOutline(rectAt(x, y, w, h), 2, withAlpha(color, if highlighted: 255 else: 150))
   let fs = bestFitFontSize(label, w - 24, 20, 12)
   discard drawCenteredTextFit(label, x + 12, y + (h - fs) div 2, w - 24, fs,
-    (if highlighted: Color(r: 255, g: 255, b: 255, a: 255) else: color))
+    (if highlighted: uiInk(White) else: color))
 
-proc drawRogueliteVictory*(game: Game) =
+proc drawRogueliteVictory*(game: Game) {.moddable.} =
   ## The roguelite ending screen: shown the moment the final floor boss falls
   ## (and on every subsequent endless-loop completion). Celebrates the win, recaps
   ## the run, and offers the cash-out / push-deeper decision.
@@ -714,7 +694,7 @@ proc drawRogueliteVictory*(game: Game) =
 
   discard drawCenteredTextFit(
     (if isFirstWin: t("roguelite_victory_subtitle") else: t("roguelite_loop_cleared_subtitle")),
-    x + 60, y + 70, PanelW - 120, 18, Color(r: 180, g: 230, b: 205, a: 255))
+    x + 60, y + 70, PanelW - 120, 18, uiInk(180, 230, 205))
 
   # Run recap chips
   let chipY = y + 120
@@ -752,11 +732,9 @@ proc drawRogueliteVictory*(game: Game) =
 
   # Patches applied during the run
   let relicY = curY + 78
-  drawText(t("roguelite_relics_carried"), x + 40, relicY, 16,
-           Color(r: 156, g: 172, b: 196, a: 255))
+  drawText(t("roguelite_relics_carried"), x + 40, relicY, 16, uiInk(156, 172, 196))
   if run.relics.len == 0:
-    drawText(t("roguelite_relics_none"), x + 40, relicY + 26, 14,
-             Color(r: 120, g: 130, b: 150, a: 255))
+    drawText(t("roguelite_relics_none"), x + 40, relicY + 26, 14, uiInk(120, 130, 150))
   else:
     var px = x + 40
     var py = relicY + 26
@@ -771,7 +749,7 @@ proc drawRogueliteVictory*(game: Game) =
       let accent = patchAccent(relic)
       drawPill(px, py, pillW, 30, "", accent)
       drawPatchIcon(px + 4, py + 3, 24, relic, accent)
-      drawText(name, px + 32, py + 9, 13, accent)
+      drawText(name, px + 32, py + 9, 13, uiInk(accent))
       px += pillW + 10
 
   # Decision buttons
@@ -786,4 +764,4 @@ proc drawRogueliteVictory*(game: Game) =
                          Color(r: 255, g: 210, b: 110, a: 255), cashHi)
 
   drawCenteredTextFit(t("roguelite_victory_controls"), x + 60, y + PanelH - 34,
-                      PanelW - 120, 14, LightGray)
+                      PanelW - 120, 14, uiInk(LightGray))

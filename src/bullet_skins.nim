@@ -2,6 +2,7 @@
 ## Defines available bullet skins and rendering functions
 
 import raylib, math
+import modding/mod_patch_core
 import localization
 
 type
@@ -28,12 +29,11 @@ type
     glowColor*: Color
     trailColor*: Color
     isAnimated*: bool
-    isUnlocked*: bool
 
 # Global bullet skin database
 var bulletSkinDatabase*: array[BulletSkinType, BulletSkinData]
 
-proc initializeBulletSkins*() =
+proc initializeBulletSkins*() {.moddable.} =
   ## Initialize all available bullet skins with their data
   bulletSkinDatabase[bskDefault] = BulletSkinData(
     name: t("bullet_default"),
@@ -41,8 +41,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 0, g: 200, b: 200, a: 255),
     glowColor: Color(r: 0, g: 255, b: 255, a: 100),
     trailColor: Color(r: 0, g: 150, b: 150, a: 150),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   bulletSkinDatabase[bskNeonPink] = BulletSkinData(
@@ -51,8 +50,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 255, g: 0, b: 180, a: 255),
     glowColor: Color(r: 255, g: 100, b: 200, a: 100),
     trailColor: Color(r: 200, g: 0, b: 150, a: 150),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   bulletSkinDatabase[bskEmerald] = BulletSkinData(
@@ -61,8 +59,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 0, g: 255, b: 100, a: 255),
     glowColor: Color(r: 100, g: 255, b: 150, a: 100),
     trailColor: Color(r: 0, g: 200, b: 80, a: 150),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   bulletSkinDatabase[bskSunset] = BulletSkinData(
@@ -71,8 +68,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 255, g: 100, b: 0, a: 255),
     glowColor: Color(r: 255, g: 150, b: 50, a: 100),
     trailColor: Color(r: 255, g: 50, b: 0, a: 150),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   bulletSkinDatabase[bskAmethyst] = BulletSkinData(
@@ -81,8 +77,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 150, g: 0, b: 255, a: 255),
     glowColor: Color(r: 200, g: 100, b: 255, a: 100),
     trailColor: Color(r: 120, g: 0, b: 200, a: 150),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   bulletSkinDatabase[bskGold] = BulletSkinData(
@@ -91,8 +86,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 255, g: 215, b: 0, a: 255),
     glowColor: Color(r: 255, g: 235, b: 100, a: 100),
     trailColor: Color(r: 255, g: 180, b: 0, a: 150),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   bulletSkinDatabase[bskIce] = BulletSkinData(
@@ -101,8 +95,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 150, g: 220, b: 255, a: 255),
     glowColor: Color(r: 200, g: 240, b: 255, a: 100),
     trailColor: Color(r: 100, g: 180, b: 255, a: 150),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   bulletSkinDatabase[bskShadow] = BulletSkinData(
@@ -111,8 +104,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 60, g: 60, b: 80, a: 255),
     glowColor: Color(r: 100, g: 100, b: 120, a: 100),
     trailColor: Color(r: 40, g: 40, b: 60, a: 150),
-    isAnimated: false,
-    isUnlocked: true
+    isAnimated: false
   )
 
   bulletSkinDatabase[bskRainbow] = BulletSkinData(
@@ -121,8 +113,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 255, g: 0, b: 0, a: 255),
     glowColor: Color(r: 255, g: 255, b: 255, a: 100),
     trailColor: Color(r: 200, g: 0, b: 200, a: 150),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   bulletSkinDatabase[bskMatrix] = BulletSkinData(
@@ -131,8 +122,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 0, g: 255, b: 0, a: 255),
     glowColor: Color(r: 100, g: 255, b: 100, a: 100),
     trailColor: Color(r: 0, g: 180, b: 0, a: 150),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   bulletSkinDatabase[bskVoid] = BulletSkinData(
@@ -141,8 +131,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 80, g: 0, b: 120, a: 255),
     glowColor: Color(r: 150, g: 50, b: 200, a: 100),
     trailColor: Color(r: 50, g: 0, b: 80, a: 150),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   bulletSkinDatabase[bskPlasma] = BulletSkinData(
@@ -151,8 +140,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 100, g: 100, b: 255, a: 255),
     glowColor: Color(r: 150, g: 150, b: 255, a: 100),
     trailColor: Color(r: 150, g: 50, b: 255, a: 150),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   bulletSkinDatabase[bskStars] = BulletSkinData(
@@ -161,8 +149,7 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 255, g: 240, b: 140, a: 255),
     glowColor: Color(r: 255, g: 255, b: 200, a: 100),
     trailColor: Color(r: 220, g: 190, b: 90, a: 150),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
   bulletSkinDatabase[bskLightning] = BulletSkinData(
@@ -171,11 +158,10 @@ proc initializeBulletSkins*() =
     primaryColor: Color(r: 120, g: 190, b: 255, a: 255),
     glowColor: Color(r: 200, g: 230, b: 255, a: 100),
     trailColor: Color(r: 90, g: 140, b: 255, a: 150),
-    isAnimated: true,
-    isUnlocked: true
+    isAnimated: true
   )
 
-proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primary, glow, trail: Color] =
+proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primary, glow, trail: Color] {.moddable.} =
   ## Get the colors for a bullet skin, applying animations if needed
   let skin = bulletSkinDatabase[skinType]
 
@@ -242,6 +228,6 @@ proc getBulletSkinColors*(skinType: BulletSkinType, time: float32): tuple[primar
   else:
     return (skin.primaryColor, skin.glowColor, skin.trailColor)
 
-proc getBulletSkinData*(skinType: BulletSkinType): BulletSkinData =
+proc getBulletSkinData*(skinType: BulletSkinType): BulletSkinData {.moddable.} =
   ## Get the data for a specific bullet skin
   return bulletSkinDatabase[skinType]

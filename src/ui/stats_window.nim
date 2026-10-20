@@ -2,9 +2,10 @@
 ## Full-featured stats display with graphs, analytics, and power-up breakdown
 
 import raylib, strutils, std/tables, algorithm
+import ../modding/mod_patch_core
 import ../draw_prims
 import os_window, ../statistics, ../run_statistics, ../types, ../powerup_data, ../localization, ../render_context, ../utils
-import ui_theme
+import ui_theme, ui_helpers
 
 type
   StatsTab* = enum
@@ -30,7 +31,7 @@ type
   PowerUpListGeom* = object
     panelX*, panelY*, panelW*, panelH*: int
     listY*, listH*: int      # inner viewport, below the pinned column header
-    footerY*, footerH*: int  # pinned total row at the panel bottom (0 = none)
+    footerY*: int            # pinned total row at the panel bottom
 
   ## One row of the healing panel. `overheal` is the part of the source's output
   ## that landed on a full HP bar -- shown so a source that heals constantly but
@@ -66,10 +67,10 @@ const
   OverhealColor = Color(r: 150, g: 160, b: 170, a: 255)
 
 # HELPER PROCS (FORMATTING)
-proc formatPercent*(value: float32): string =
+proc formatPercent(value: float32): string {.moddable.} =
   result = value.formatFloat(ffDecimal, 1) & "%"
 
-proc formatLargeNumber*(value: float32): string =
+proc formatLargeNumber(value: float32): string {.moddable.} =
   if value >= 1_000_000:
     result = (value / 1_000_000).formatFloat(ffDecimal, 1) & "M"
   elif value >= 1_000:
@@ -77,12 +78,12 @@ proc formatLargeNumber*(value: float32): string =
   else:
     result = value.formatFloat(ffDecimal, 1)
 
-proc formatDuration*(seconds: float32): string =
+proc formatDuration(seconds: float32): string {.moddable.} =
   let mins = int(seconds) div 60
   let secs = int(seconds) mod 60
   result = align($mins, 2, '0') & ":" & align($secs, 2, '0')
 
-proc getQualityColor*(value: float32, threshold: float32 = 50.0): Color =
+proc getQualityColor(value: float32, threshold: float32 = 50.0): Color {.moddable.} =
   if value >= threshold:
     return Color(r: 80, g: 255, b: 80, a: 255)
   elif value >= threshold * 0.5:
@@ -97,7 +98,7 @@ proc getQualityColor*(value: float32, threshold: float32 = 50.0): Color =
 # drift apart -- a scrollbar that clamps against a different row count than the
 # one being drawn is the classic way these lists end up unreachable at the end.
 
-proc buildDamageRanking*(runStats: RunStatistics): seq[(PowerUpType, float32)] =
+proc buildDamageRanking(runStats: RunStatistics): seq[(PowerUpType, float32)] {.moddable.} =
   ## Power-ups that dealt damage this run, highest first.
   result = @[]
   for ptype, damage in runStats.powerUps.damageContribution:
@@ -106,7 +107,7 @@ proc buildDamageRanking*(runStats: RunStatistics): seq[(PowerUpType, float32)] =
   if result.len > 1:
     result.sort(proc (a, b: (PowerUpType, float32)): int = cmp(b[1], a[1]))
 
-proc buildHealingSources*(runStats: RunStatistics): seq[HealingSourceRow] =
+proc buildHealingSources(runStats: RunStatistics): seq[HealingSourceRow] {.moddable.} =
   ## Every source that healed this run, most HP restored first. All of it is
   ## measured at the point the HP actually went in (see trackHealing /
   ## trackConsumableHealing), so no row is reconstructed here. The old estimate
@@ -134,7 +135,7 @@ proc buildHealingSources*(runStats: RunStatistics): seq[HealingSourceRow] =
       result = cmp(b.restored, a.restored)
       if result == 0: result = cmp(b.overheal, a.overheal))
 
-proc powerUpListGeometry*(window: OSWindow): array[3, PowerUpListGeom] =
+proc powerUpListGeometry(window: OSWindow): array[3, PowerUpListGeom] {.moddable.} =
   ## Three equal columns -- timeline, damage ranking, healing sources -- filling
   ## the tab body below the title/summary header block.
   let contentX = window.x + WINDOW_PADDING
@@ -168,10 +169,9 @@ proc powerUpListGeometry*(window: OSWindow): array[3, PowerUpListGeom] =
       listH: listH,
       # Derived from the list bottom, not the panel bottom, so the footer's
       # divider rule can never be drawn over the last visible row.
-      footerY: listY + listH + 6,
-      footerH: footerH)
+      footerY: listY + listH + 6)
 
-proc powerUpRowCounts*(runStats: RunStatistics): array[3, int] =
+proc powerUpRowCounts(runStats: RunStatistics): array[3, int] {.moddable.} =
   ## Row count of each list, used to derive the maximum scroll offset.
   if runStats.isNil:
     return [0, 0, 0]
@@ -179,8 +179,8 @@ proc powerUpRowCounts*(runStats: RunStatistics): array[3, int] =
    buildDamageRanking(runStats).len,
    buildHealingSources(runStats).len]
 
-proc rankingColumns*(g: PowerUpListGeom):
-    tuple[rankX, nameX, nameMax, valueRight, percentRight, scrollbarX: int] =
+proc rankingColumns(g: PowerUpListGeom):
+    tuple[rankX, nameX, nameMax, valueRight, percentRight, scrollbarX: int] {.moddable.} =
   ## Column x-positions shared by the damage and healing ranking panels. Both
   ## panels are the same table shape, so the offsets live here once -- and the
   ## layout can be checked without rendering a frame.
@@ -192,8 +192,8 @@ proc rankingColumns*(g: PowerUpListGeom):
    percentRight: g.panelX + g.panelW - PercentColRight,
    scrollbarX: g.panelX + g.panelW - ScrollbarInset)
 
-proc timelineColumns*(g: PowerUpListGeom):
-    tuple[timeX, nameX, nameMax, levelRight, scrollbarX: int] =
+proc timelineColumns(g: PowerUpListGeom):
+    tuple[timeX, nameX, nameMax, levelRight, scrollbarX: int] {.moddable.} =
   ## Column x-positions for the pick-timeline panel.
   let levelRight = g.panelX + g.panelW - PercentColRight
   (timeX: g.panelX + 10,
@@ -202,7 +202,7 @@ proc timelineColumns*(g: PowerUpListGeom):
    levelRight: levelRight,
    scrollbarX: g.panelX + g.panelW - ScrollbarInset)
 
-proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWindow =
+proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWindow {.moddable.} =
   let windowWidth = 1000
   let windowHeight = 700
   let windowX = (screenWidth - windowWidth) div 2
@@ -213,7 +213,6 @@ proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWi
     windowX, windowY,
     windowWidth, windowHeight,
     Color(r: 255, g: 200, b: 50, a: 255),
-    owtStatistics,
     resizable = false
   )
 
@@ -225,7 +224,7 @@ proc newStatsWindow*(screenWidth, screenHeight: int, stats: Statistics): StatsWi
     powerUpScroll: [0, 0, 0]
   )
 
-proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
+proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool {.moddable.} =
   updateOSWindow(statsWin.window, dt)
   statsWin.animTime += dt
 
@@ -291,8 +290,8 @@ proc updateStatsWindow*(statsWin: StatsWindow, dt: float32, screenWidth, screenH
 
 # VISUAL HELPER PROCEDURES
 
-proc drawMetricCard*(x, y, width, height: int, title: string, value: string,
-                    icon: char, color: Color) =
+proc drawMetricCard(x, y, width, height: int, title: string, value: string,
+                    icon: char, color: Color) {.moddable.} =
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                uiSurface(25, 25, 35))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
@@ -307,7 +306,7 @@ proc drawMetricCard*(x, y, width, height: int, title: string, value: string,
   drawText(title, (x + 40).int32, (y + 10).int32, 14, uiInk(LightGray))
   drawText(value, (x + 40).int32, (y + 30).int32, 20, uiInk(White))
 
-proc drawStatPanel*(x, y, width, height: int, title: string) =
+proc drawStatPanel(x, y, width, height: int, title: string) {.moddable.} =
   ## Draw a panel background with title
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                uiSurface(25, 25, 35))
@@ -319,29 +318,7 @@ proc drawStatPanel*(x, y, width, height: int, title: string) =
                uiSurface(35, 35, 45))
   drawText(title, (x + 8).int32, (y + 6).int32, 14, uiInk(0, 180, 255))
 
-proc fitText*(text: string, maxWidth: int, fontSize: int32 = 13): string =
-  ## Text truncated with ".." until it fits maxWidth. Guards the name columns:
-  ## a long power-up name (or a wider Spanish translation of a future one) must
-  ## never smear across the right-aligned figures next to it. ASCII ".." rather
-  ## than a single ellipsis character because the raylib default font stops at
-  ## U+00FF and has no ellipsis glyph.
-  if maxWidth <= 0:
-    return ""
-  if measureText(text, fontSize) <= maxWidth.int32:
-    return text
-  var cut = text.len
-  while cut > 0:
-    dec cut
-    # Never cut inside a multi-byte UTF-8 sequence -- the Spanish tables carry
-    # accented characters and half a codepoint renders as garbage.
-    while cut > 0 and (text[cut].uint8 and 0xC0'u8) == 0x80'u8:
-      dec cut
-    let candidate = text[0 ..< cut] & ".."
-    if measureText(candidate, fontSize) <= maxWidth.int32:
-      return candidate
-  result = ""
-
-proc drawListScrollbar*(x, y, height: int, scrollOffset, contentHeight, viewportHeight: int) =
+proc drawListScrollbar(x, y, height: int, scrollOffset, contentHeight, viewportHeight: int) {.moddable.} =
   ## Thin track + proportional thumb along a list's right edge. Nothing is drawn
   ## when everything already fits, so short lists stay visually clean.
   if contentHeight <= viewportHeight or height <= 0:
@@ -390,15 +367,15 @@ proc drawHealingTooltip(row: HealingSourceRow, anchor: Vector2, bounds: OSWindow
   for i in 0 ..< lines.len:
     drawText(lines[i][0], (x + Pad).int32, (y + Pad + i * LineH).int32, FontSize, lines[i][1])
 
-proc drawStatLine*(x, y: int, label: string, value: string, valueColor: Color = White) =
+proc drawStatLine(x, y: int, label: string, value: string, valueColor: Color = White) {.moddable.} =
   ## Draw a single stat line
   drawText(label, x.int32, y.int32, 14, uiInk(180, 190, 200))
   let valueWidth = measureText(value, 14)
   drawText(value, (x + 260 - valueWidth).int32, y.int32, 14, uiInk(valueColor))
 
-proc drawMiniGraph*(x, y, width, height: int, title: string,
+proc drawMiniGraph(x, y, width, height: int, title: string,
                    dataPoints: seq[(float32, float32)], maxValue: float32,
-                   color: Color, animTime: float32) =
+                   color: Color, animTime: float32) {.moddable.} =
   ## Draw a time-series line graph
   drawRectangle(x.int32, y.int32, width.int32, height.int32,
                uiSurface(20, 20, 30))
@@ -452,7 +429,7 @@ proc drawMiniGraph*(x, y, width, height: int, title: string,
   drawText("0", (x + 2).int32, (graphY + graphHeight - 12).int32, 10, uiInk(Gray))
   drawText(formatLargeNumber(safeMaxValue), (x + 2).int32, graphY.int32, 10, uiInk(Gray))
 
-proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
+proc drawStatsWindow*(statsWin: StatsWindow, game: Game) {.moddable.} =
   if not statsWin.window.visible:
     return
 
@@ -852,7 +829,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
           let powerup = choice[1]
           let rarityColor = if powerup.rarity == prLegendary: uiInk(Gold) else: uiInk(White)
           drawText(formatDuration(choice[0]), col.timeX.int32, rowY.int32, 13, uiInk(LightGray))
-          drawText(fitText(getPowerUpName(powerup.powerType), col.nameMax),
+          drawText(fitWithEllipsis(getPowerUpName(powerup.powerType), col.nameMax.int32, 13),
                   col.nameX.int32, rowY.int32, 13, rarityColor)
           let levelText = t(tkStatsLevelPrefix) & $powerup.level
           drawText(levelText, (col.levelRight - measureText(levelText, 13)).int32,
@@ -873,7 +850,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         let col = rankingColumns(g)
         let headerY = g.panelY + 36
         drawText("#", col.rankX.int32, headerY.int32, 12, headerColor)
-        drawText(fitText(t(tkStatsPowerUp), col.nameMax, 12), col.nameX.int32, headerY.int32, 12, headerColor)
+        drawText(fitWithEllipsis(t(tkStatsPowerUp), col.nameMax.int32, 12), col.nameX.int32, headerY.int32, 12, headerColor)
         let dmgHeader = t(tkStatsDamageColumnLabel)
         drawText(dmgHeader, (col.valueRight - measureText(dmgHeader, 12)).int32,
                 headerY.int32, 12, headerColor)
@@ -900,7 +877,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
             else: White
 
           drawText($rank & ".", col.rankX.int32, rowY.int32, 13, uiInk(medalColor))
-          drawText(fitText(getPowerUpName(entry[0]), col.nameMax), col.nameX.int32, rowY.int32, 13, uiInk(White))
+          drawText(fitWithEllipsis(getPowerUpName(entry[0]), col.nameMax.int32, 13), col.nameX.int32, rowY.int32, 13, uiInk(White))
           # Damage is stored in internal units; BALANCE_MULTIPLIER scales it to
           # the same numbers the floating damage text shows in-game.
           let valueText = formatLargeNumber(entry[1] * BALANCE_MULTIPLIER)
@@ -932,7 +909,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
         let col = rankingColumns(g)
         let headerY = g.panelY + 36
         drawText("#", col.rankX.int32, headerY.int32, 12, healColor)
-        drawText(fitText(t(tkStatsSourceColumnLabel), col.nameMax, 12), col.nameX.int32, headerY.int32, 12, healColor)
+        drawText(fitWithEllipsis(t(tkStatsSourceColumnLabel), col.nameMax.int32, 12), col.nameX.int32, headerY.int32, 12, healColor)
         let healHeader = t(tkStatsHealingColumnLabel)
         drawText(healHeader, (col.valueRight - measureText(healHeader, 12)).int32,
                 headerY.int32, 12, healColor)
@@ -981,7 +958,7 @@ proc drawStatsWindow*(statsWin: StatsWindow, game: Game) =
                             withAlpha(uiInk(OverhealColor), 40))
 
           drawText($rank & ".", col.rankX.int32, rowY.int32, 13, uiInk(medalColor))
-          drawText(fitText(entry.name, col.nameMax), col.nameX.int32, rowY.int32, 13, uiInk(White))
+          drawText(fitWithEllipsis(entry.name, col.nameMax.int32, 13), col.nameX.int32, rowY.int32, 13, uiInk(White))
           let valueText = formatLargeNumber(entry.restored * BALANCE_MULTIPLIER)
           drawText(valueText, (col.valueRight - measureText(valueText, 13)).int32,
                   rowY.int32, 13, healColor)

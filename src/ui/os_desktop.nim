@@ -2,9 +2,10 @@
 ## Main menu as an operating system desktop
 
 import raylib, rlgl, math, strutils, strformat, times, tables
+import ../modding/mod_patch_core
 import ../draw_prims
 from std/unicode import runeAt, toUpper, `$`
-import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../cube_render, ../utils
+import ../types, ../localization, ../render_context, background_fx, ../desktop_bg_skins, desktop_bg_fx, ../settings, ../save_system, ../cube_skins, ../cube_render, ../utils, ../vec, ui_helpers
 import ../modding/[mod_assets, mod_hooks]
 import ui_theme
 
@@ -36,13 +37,6 @@ type
     iconColor*: Color
     modKey*: string   ## diModApp / diModMode only: the app's or mode's key ("<mod id>:<id>")
 
-  WindowState* = ref object
-    opened*: bool
-    x*, y*: int
-    width*, height*: int
-    title*: string
-    minimized*: bool
-
   DesktopToast* = object
     text*: string
     timer*: float32
@@ -51,7 +45,6 @@ type
     icons*: seq[DesktopIcon]
     selectedIcon*: int
     time*: float32
-    windows*: seq[WindowState]
     mousePos*: Vector2
     loadingActive*: bool
     loadingProgress*: float32
@@ -152,16 +145,8 @@ proc getIconName(iconType: DesktopIconType): string =
   of diMods: t(tkDesktopIconMods)
   of diModApp, diModMode: ""  # named per entry (modAppName / modModeName), see updateOSDesktop
 
-proc bestDesktopLabelFontSize(text: string, maxWidth, preferredSize: int32,
-                              minSize: int32 = ICON_LABEL_MIN_SIZE): int32 =
-  result = preferredSize
-  if maxWidth <= 0:
-    return
-  while result > minSize and measureText(text, result) > maxWidth:
-    dec result
-
 proc drawDesktopLabel(text: string, x, y: int32, selected: bool) =
-  let fontSize = bestDesktopLabelFontSize(text, ICON_LABEL_WIDTH, ICON_LABEL_FONT_SIZE)
+  let fontSize = bestFitFontSize(text, ICON_LABEL_WIDTH, ICON_LABEL_FONT_SIZE, ICON_LABEL_MIN_SIZE)
   let labelX = x - ((ICON_LABEL_WIDTH - ICON_SIZE) div 2)
   let lineWidth = measureText(text, fontSize)
   let drawX = labelX + max(0'i32, (ICON_LABEL_WIDTH - lineWidth) div 2)
@@ -265,7 +250,7 @@ proc desktopGridRows(screenHeight: int): int =
                DESKTOP_GRID_START_Y - ICON_HOVER_BOTTOM
   clamp(usable div ICON_SPACING + 1, 1, DESKTOP_GRID_ROWS)
 
-proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
+proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) {.moddable.} =
   ## Re-flow the desktop icons for the current logical viewport. The grid is
   ## column-major and fills top-to-bottom, so a shorter viewport simply starts a
   ## new column sooner rather than running off the bottom. The corner icons
@@ -327,7 +312,7 @@ proc layoutDesktopIcons*(desktop: OSDesktop, screenWidth, screenHeight: int) =
       icon.y = max(cornerY - above * ICON_SPACING, DESKTOP_GRID_START_Y)
       inc cornerSlot
 
-proc newOSDesktop*(): OSDesktop =
+proc newOSDesktop*(): OSDesktop {.moddable.} =
   result = OSDesktop(
     icons: @[
       DesktopIcon(iconType: diPlay, x: DESKTOP_GRID_START_X, y: DESKTOP_GRID_START_Y,
@@ -384,7 +369,6 @@ proc newOSDesktop*(): OSDesktop =
     gridRows: DESKTOP_GRID_ROWS,
     selectedIcon: 0,
     time: 0,
-    windows: @[],
     loadingActive: false,
     loadingProgress: 0.0,
     loadingText: "",
@@ -549,7 +533,7 @@ proc nlerpToward(qw, qx, qy, qz: var float32, tw, tx, ty, tz, t: float32) =
     qw = rw / l; qx = rx / l; qy = ry / l; qz = rz / l
 
 proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = false,
-                      screenWidth: int, screenHeight: int) =
+                      screenWidth: int, screenHeight: int) {.moddable.} =
   desktop.time += dt
 
   # Mod apps come and go with reloads; then keep corner-anchored icons glued to
@@ -771,7 +755,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
       elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime + CubeEscapeReturnTime:
         # Smoothstep back to orbit from exit portal
         let p = (tEsc - CubeEscapeFlyTime - CubeEscapeHoldTime) / CubeEscapeReturnTime
-        let eased = 1.0'f32 - p * p * (3.0'f32 - 2.0'f32 * p)
+        let eased = 1.0'f32 - smoothstep(p)
         desktop.cubeOffsetX = exitOffX * eased
         desktop.cubeOffsetY = exitOffY * eased
       else:
@@ -794,7 +778,7 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
       elif tEsc < CubeEscapeFlyTime + CubeEscapeHoldTime + CubeEscapeReturnTime:
         # Smoothstep back into orbit
         let p = (tEsc - CubeEscapeFlyTime - CubeEscapeHoldTime) / CubeEscapeReturnTime
-        let eased = 1.0'f32 - p * p * (3.0'f32 - 2.0'f32 * p)
+        let eased = 1.0'f32 - smoothstep(p)
         desktop.cubeOffsetX = desktop.cubeEscapeDirX * flyDist * eased
         desktop.cubeOffsetY = desktop.cubeEscapeDirY * flyDist * eased
       else:
@@ -944,8 +928,6 @@ proc updateOSDesktop*(desktop: OSDesktop, dt: float32, mouseOverWindow: bool = f
       desktop.icons[i].name = getIconName(desktop.icons[i].iconType)
     desktop.icons[i].selected = (i == desktop.selectedIcon)
 
-proc v2(x, y: float32): Vector2 {.inline.} = Vector2(x: x, y: y)
-
 proc drawHexBadge(cx, cy: int32, radius: float32, fill, edge: Color, rotation: float32 = PI / 6.0) =
   ## A hexagon plate lit from its centre, with a fine rim.
   var points: array[6, Vector2]
@@ -988,40 +970,40 @@ proc drawIconTile(icon: DesktopIcon, time: float32, selected: bool) =
   if selected:
     drawGlow(mid, 84.0'f32, withAlpha(accent, 175))
 
-  drawGradientQuad(v2(x, y), v2(x, y + size), v2(x + size, y + size), v2(x + size, y),
+  drawGradientQuad(vec2(x, y), vec2(x, y + size), vec2(x + size, y + size), vec2(x + size, y),
                    topFill, bottomFill, bottomFill, topFill)
   # The app's colour rising from the bottom edge, like light under glass.
-  drawGradientQuad(v2(x, y + size * 0.45'f32), v2(x, y + size), v2(x + size, y + size), v2(x + size, y + size * 0.45'f32),
+  drawGradientQuad(vec2(x, y + size * 0.45'f32), vec2(x, y + size), vec2(x + size, y + size), vec2(x + size, y + size * 0.45'f32),
                    withAlpha(accent, 0), withAlpha(accent, if selected: 56 else: 32),
                    withAlpha(accent, if selected: 56 else: 32), withAlpha(accent, 0))
 
   # Chamfered, glassy corners keep the OS look without needing image assets.
   let cut = max(7.0'f32, size / 8.0'f32)
   let darkCorner = Color(r: 7, g: 10, b: 18, a: 230)
-  drawGradientTriangle(v2(x, y), v2(x + cut, y), v2(x, y + cut), darkCorner, darkCorner, darkCorner)
-  drawGradientTriangle(v2(x + size, y + size), v2(x + size - cut, y + size), v2(x + size, y + size - cut),
+  drawGradientTriangle(vec2(x, y), vec2(x + cut, y), vec2(x, y + cut), darkCorner, darkCorner, darkCorner)
+  drawGradientTriangle(vec2(x + size, y + size), vec2(x + size - cut, y + size), vec2(x + size, y + size - cut),
                        darkCorner, darkCorner, darkCorner)
-  drawStroke(v2(x + cut, y), v2(x, y + cut), 1.4, withAlpha(edge, 140))
-  drawStroke(v2(x + size - cut, y + size), v2(x + size, y + size - cut), 1.4, withAlpha(edge, 140))
+  drawStroke(vec2(x + cut, y), vec2(x, y + cut), 1.4, withAlpha(edge, 140))
+  drawStroke(vec2(x + size - cut, y + size), vec2(x + size, y + size - cut), 1.4, withAlpha(edge, 140))
 
   # Rim: the chosen tile's has a soft glow round it.
   if selected:
-    for (a, b) in [(v2(x + cut, y), v2(x + size, y)), (v2(x + size, y), v2(x + size, y + size - cut)),
-                   (v2(x + size - cut, y + size), v2(x, y + size)), (v2(x, y + size), v2(x, y + cut))]:
+    for (a, b) in [(vec2(x + cut, y), vec2(x + size, y)), (vec2(x + size, y), vec2(x + size, y + size - cut)),
+                   (vec2(x + size - cut, y + size), vec2(x, y + size)), (vec2(x, y + size), vec2(x, y + cut))]:
       drawGlowLine(a, b, 9.0'f32, withAlpha(accent, 90))
-  drawStroke(v2(x + cut, y + 1), v2(x + size, y + 1), 2, edge)
-  drawStroke(v2(x + size - 1, y), v2(x + size - 1, y + size - cut), 2, edge)
-  drawStroke(v2(x + size - cut, y + size - 1), v2(x, y + size - 1), 2, edge)
-  drawStroke(v2(x + 1, y + size), v2(x + 1, y + cut), 2, edge)
+  drawStroke(vec2(x + cut, y + 1), vec2(x + size, y + 1), 2, edge)
+  drawStroke(vec2(x + size - 1, y), vec2(x + size - 1, y + size - cut), 2, edge)
+  drawStroke(vec2(x + size - cut, y + size - 1), vec2(x, y + size - 1), 2, edge)
+  drawStroke(vec2(x + 1, y + size), vec2(x + 1, y + cut), 2, edge)
   # A fine catch-light along the top, and the accent along the bottom.
-  drawTaperedLine(v2(x + cut + 2, y + 4), v2(x + size - 6, y + 4), 1.4, 1.4,
+  drawTaperedLine(vec2(x + cut + 2, y + 4), vec2(x + size - 6, y + 4), 1.4, 1.4,
                   Color(r: 205, g: 245, b: 255, a: if selected: 170 else: 90), Color(r: 205, g: 245, b: 255, a: 0))
-  drawTaperedLine(v2(x + 5, y + size - 6), v2(x + size - cut - 2, y + size - 6), 1.2, 1.2,
+  drawTaperedLine(vec2(x + 5, y + size - 6), vec2(x + size - cut - 2, y + size - 6), 1.2, 1.2,
                   withAlpha(accent, 0), withAlpha(accent, if selected: 190 else: 105))
 
   let scanY = y + 12.0'f32 + (sin(time * 2.4 + icon.iconType.int.float32) * 0.5 + 0.5) * (size - 24.0'f32)
-  drawGlowLine(v2(x + 8, scanY), v2(x + size - 8, scanY), 6.0'f32, withAlpha(accent, if selected: 70 else: 30))
-  drawStroke(v2(x + 8, scanY), v2(x + size - 8, scanY), 1.0'f32, withAlpha(accent, if selected: 110 else: 46))
+  drawGlowLine(vec2(x + 8, scanY), vec2(x + size - 8, scanY), 6.0'f32, withAlpha(accent, if selected: 70 else: 30))
+  drawStroke(vec2(x + 8, scanY), vec2(x + size - 8, scanY), 1.0'f32, withAlpha(accent, if selected: 110 else: 46))
 
 proc drawIconGloss(icon: DesktopIcon, time: float32, selected: bool) =
   ## Glass over the glyph: a sheen across the top of the tile, cut on a
@@ -1032,10 +1014,9 @@ proc drawIconGloss(icon: DesktopIcon, time: float32, selected: bool) =
   let size = r.width - 4.0'f32
   let shine = Color(r: 255, g: 255, b: 255, a: if selected: 52 else: 36)
   let clear = Color(r: 255, g: 255, b: 255, a: 0)
-  drawGradientQuad(v2(x + 6, y), v2(x, y + 6), v2(x, y + size * 0.44'f32), v2(x + size, y + size * 0.2'f32),
+  drawGradientQuad(vec2(x + 6, y), vec2(x, y + 6), vec2(x, y + size * 0.44'f32), vec2(x + size, y + size * 0.2'f32),
                    shine, shine, clear, clear)
-  drawGradientTriangle(v2(x + 6, y), v2(x + size, y + size * 0.2'f32), v2(x + size, y), shine, clear, shine)
-
+  drawGradientTriangle(vec2(x + 6, y), vec2(x + size, y + size * 0.2'f32), vec2(x + size, y), shine, clear, shine)
 
 proc drawIconTri(a, b, c: Vector2, col: Color) =
   ## Winding-safe triangle. raylib culls back faces, so a triangle whose points
@@ -1049,10 +1030,10 @@ proc drawIconDisc(cx, cy, r: float32, fill, edge: Color, thick: float32 = 2.0) =
   ## Filled disc with a rim. Every icon glyph sits on the busy animated
   ## wallpaper, so shapes need their own dark backing plus a bright edge to
   ## hold their silhouette.
-  drawDisc(v2(cx, cy), r, fill)
-  drawRing(v2(cx, cy), r - thick, r, 0.0, 360.0, 32, edge)
+  drawDisc(vec2(cx, cy), r, fill)
+  drawRing(vec2(cx, cy), r - thick, r, 0.0, 360.0, 32, edge)
 
-proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
+proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) {.moddable.} =
   ## Tile, glyph and label. Exported so cutscenes can stage the real desktop
   ## (the lore intro's flood shot corrupts these very icons). The tile and
   ## glyph are the app's picture, the same in every theme; the label is the
@@ -1081,12 +1062,12 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
       let phase = (time * 1.5'f32 + i.float32 * 0.31'f32) mod 1.0'f32
       let sx = pcx - 11.0'f32 - phase * 11.0'f32
       let sy = pcy - 7.0'f32 + i.float32 * 7.0'f32
-      drawStroke(v2(sx, sy), v2(sx + 7.0'f32, sy), 2,
+      drawStroke(vec2(sx, sy), vec2(sx + 7.0'f32, sy), 2,
                withAlpha(bright, uint8(165.0'f32 * (1.0'f32 - phase))))
-    drawIconTri(v2(pcx - 11, pcy - 16), v2(pcx - 11, pcy + 16), v2(pcx + 18, pcy),
+    drawIconTri(vec2(pcx - 11, pcy - 16), vec2(pcx - 11, pcy + 16), vec2(pcx + 18, pcy),
                 Color(r: 8, g: 12, b: 20, a: 235))
-    drawIconTri(v2(pcx - 9, pcy - 13), v2(pcx - 9, pcy + 13), v2(pcx + 15, pcy), accent)
-    drawIconTri(v2(pcx - 5, pcy - 7), v2(pcx - 5, pcy + 7), v2(pcx + 7, pcy), bright)
+    drawIconTri(vec2(pcx - 9, pcy - 13), vec2(pcx - 9, pcy + 13), vec2(pcx + 15, pcy), accent)
+    drawIconTri(vec2(pcx - 5, pcy - 7), vec2(pcx - 5, pcy + 7), vec2(pcx + 7, pcy), bright)
 
   of diSurvival:
     # Stopwatch: survival is "how long did you last", and the crown + sweeping
@@ -1095,27 +1076,27 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let scy = centerY.float32 + 2.0'f32
     # Crown and side button on top of the case.
     drawRectangle((centerX - 4).int32, (scy - 22.0'f32).int32, 8, 5, bright)
-    drawStroke(v2(scx + 12, scy - 17), v2(scx + 17, scy - 22), 4, dim)
+    drawStroke(vec2(scx + 12, scy - 17), vec2(scx + 17, scy - 22), 4, dim)
     drawIconDisc(scx, scy, 17.0, Color(r: 10, g: 16, b: 26, a: 245), bright, 2.5)
     # Quarter ticks.
     for i in 0..3:
       let a = i.float32 * (PI / 2.0'f32)
       let ca = cos(a)
       let sa = sin(a)
-      drawStroke(v2(scx + ca * 10.0, scy + sa * 10.0),
-               v2(scx + ca * 13.5, scy + sa * 13.5), 2, withAlpha(accent, 210))
+      drawStroke(vec2(scx + ca * 10.0, scy + sa * 10.0),
+               vec2(scx + ca * 13.5, scy + sa * 13.5), 2, withAlpha(accent, 210))
     # Fixed minute hand plus a hand that actually sweeps.
-    drawStroke(v2(scx, scy), v2(scx, scy - 11), 3, White)
+    drawStroke(vec2(scx, scy), vec2(scx, scy - 11), 3, White)
     let sweep = time * 1.25'f32 - PI / 2.0'f32
-    drawStroke(v2(scx, scy), v2(scx + cos(sweep) * 13.0, scy + sin(sweep) * 13.0), 2, accent)
-    drawDisc(v2(scx, scy), 2.4, bright)
+    drawStroke(vec2(scx, scy), vec2(scx + cos(sweep) * 13.0, scy + sin(sweep) * 13.0), 2, accent)
+    drawDisc(vec2(scx, scy), 2.4, bright)
 
   of diStatistics:
     # Analytics bars on a real axis, with the trend line ending in a marker.
     let bx = centerX.float32
     let by = centerY.float32
-    drawStroke(v2(bx - 19, by + 19), v2(bx + 19, by + 19), 2, withAlpha(bright, 200))
-    drawStroke(v2(bx - 19, by - 19), v2(bx - 19, by + 19), 2, withAlpha(bright, 120))
+    drawStroke(vec2(bx - 19, by + 19), vec2(bx + 19, by + 19), 2, withAlpha(bright, 200))
+    drawStroke(vec2(bx - 19, by - 19), vec2(bx - 19, by + 19), 2, withAlpha(bright, 120))
     let heights = [13'i32, 20'i32, 28'i32]
     let barCols = [dim, accent, bright]
     for i in 0..2:
@@ -1125,9 +1106,9 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
       drawRectOutline(Rectangle(x: x.float32, y: (centerY + 18 - h).float32,
                                    width: 8.0, height: h.float32), 1,
                          Color(r: 8, g: 12, b: 20, a: 190))
-    drawStroke(v2(bx - 12, by + 2), v2(bx - 1, by - 6), 2, White)
-    drawStroke(v2(bx - 1, by - 6), v2(bx + 11, by - 14), 2, White)
-    drawDisc(v2(bx + 11, by - 14), 3.0, White)
+    drawStroke(vec2(bx - 12, by + 2), vec2(bx - 1, by - 6), 2, White)
+    drawStroke(vec2(bx - 1, by - 6), vec2(bx + 11, by - 14), 2, White)
+    drawDisc(vec2(bx + 11, by - 14), 3.0, White)
 
   of diSettings:
     # Slowly turning cog. The old three-slider glyph read as an audio mixer;
@@ -1156,12 +1137,12 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let sx = centerX.float32
     let sy = centerY.float32
     # Handle first so the bag body overlaps its feet.
-    drawRing(v2(sx, sy - 8.0), 6.0, 9.0, 180.0, 360.0, 20, bright)
+    drawRing(vec2(sx, sy - 8.0), 6.0, 9.0, 180.0, 360.0, 20, bright)
     # Body: slightly tapered, dark backing then accent face.
-    drawIconTri(v2(sx - 16, sy - 7), v2(sx - 13, sy + 18), v2(sx + 13, sy + 18), accent)
-    drawIconTri(v2(sx - 16, sy - 7), v2(sx + 13, sy + 18), v2(sx + 16, sy - 7), accent)
-    drawStroke(v2(sx - 16, sy - 7), v2(sx + 16, sy - 7), 3, dim)
-    drawStroke(v2(sx - 13, sy + 18), v2(sx + 13, sy + 18), 2, dim)
+    drawIconTri(vec2(sx - 16, sy - 7), vec2(sx - 13, sy + 18), vec2(sx + 13, sy + 18), accent)
+    drawIconTri(vec2(sx - 16, sy - 7), vec2(sx + 13, sy + 18), vec2(sx + 16, sy - 7), accent)
+    drawStroke(vec2(sx - 16, sy - 7), vec2(sx + 16, sy - 7), 3, dim)
+    drawStroke(vec2(sx - 13, sy + 18), vec2(sx + 13, sy + 18), 2, dim)
     let colors = [
       Color(r: 255, g: 100, b: 180, a: 255),
       Color(r: 0, g: 255, b: 100, a: 255),
@@ -1169,8 +1150,8 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     ]
     for i in 0..<3:
       let px = sx - 8.0'f32 + i.float32 * 8.0'f32
-      drawDisc(v2(px, sy + 6.0), 4.2, Color(r: 8, g: 12, b: 20, a: 220))
-      drawDisc(v2(px, sy + 6.0), 3.2, colors[i])
+      drawDisc(vec2(px, sy + 6.0), 4.2, Color(r: 8, g: 12, b: 20, a: 220))
+      drawDisc(vec2(px, sy + 6.0), 3.2, colors[i])
 
   of diHelp:
     # Manual: a book rather than a sheet, so it never reads as the changelog
@@ -1182,16 +1163,16 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     drawRectOutline(Rectangle(x: hx - 15, y: hy - 17, width: 30.0, height: 34.0), 2,
                        Color(r: 8, g: 12, b: 20, a: 220))
     # Page edge highlight on the open side.
-    drawStroke(v2(hx + 13, hy - 15), v2(hx + 13, hy + 15), 2, withAlpha(bright, 200))
+    drawStroke(vec2(hx + 13, hy - 15), vec2(hx + 13, hy + 15), 2, withAlpha(bright, 200))
     drawText("?", (centerX - 4).int32, (centerY - 13).int32, 27, White)
 
   of diQuit:
     # True power glyph: a broken ring with the stem sitting in the gap.
     let qx = centerX.float32
     let qy = centerY.float32
-    drawDisc(v2(qx, qy), 18.0, Color(r: 8, g: 12, b: 20, a: 210))
-    drawRing(v2(qx, qy), 12.0, 17.0, 250.0, 650.0, 40, dim)
-    drawRing(v2(qx, qy), 13.5, 16.0, 250.0, 650.0, 40, bright)
+    drawDisc(vec2(qx, qy), 18.0, Color(r: 8, g: 12, b: 20, a: 210))
+    drawRing(vec2(qx, qy), 12.0, 17.0, 250.0, 650.0, 40, dim)
+    drawRing(vec2(qx, qy), 13.5, 16.0, 250.0, 650.0, 40, bright)
     drawRectangle((centerX - 3).int32, (centerY - 21).int32, 6, 18,
                   Color(r: 8, g: 12, b: 20, a: 235))
     drawRectangle((centerX - 2).int32, (centerY - 20).int32, 4, 16, bright)
@@ -1206,20 +1187,20 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     # Neck, rim and body.
     drawRectangle(centerX - topWidth div 2, flaskTop, topWidth, 9, accent)
     drawRectangle(centerX - topWidth div 2 - 2, flaskTop - 3, topWidth + 4, 4, bright)
-    drawIconTri(v2((centerX - topWidth div 2).float32, (flaskTop + 9).float32),
-                v2((centerX - baseWidth div 2).float32, flaskBottom.float32),
-                v2((centerX + baseWidth div 2).float32, flaskBottom.float32), accent)
-    drawIconTri(v2((centerX - topWidth div 2).float32, (flaskTop + 9).float32),
-                v2((centerX + baseWidth div 2).float32, flaskBottom.float32),
-                v2((centerX + topWidth div 2).float32, (flaskTop + 9).float32), accent)
+    drawIconTri(vec2((centerX - topWidth div 2).float32, (flaskTop + 9).float32),
+                vec2((centerX - baseWidth div 2).float32, flaskBottom.float32),
+                vec2((centerX + baseWidth div 2).float32, flaskBottom.float32), accent)
+    drawIconTri(vec2((centerX - topWidth div 2).float32, (flaskTop + 9).float32),
+                vec2((centerX + baseWidth div 2).float32, flaskBottom.float32),
+                vec2((centerX + topWidth div 2).float32, (flaskTop + 9).float32), accent)
     drawRectangle(centerX - baseWidth div 2 + 4, flaskBottom - 9, baseWidth - 8, 8, liquidColor)
-    drawIconTri(v2((centerX - 7).float32, (flaskBottom - 9).float32),
-                v2((centerX - baseWidth div 2 + 4).float32, (flaskBottom - 1).float32),
-                v2((centerX + baseWidth div 2 - 4).float32, (flaskBottom - 1).float32), liquidColor)
+    drawIconTri(vec2((centerX - 7).float32, (flaskBottom - 9).float32),
+                vec2((centerX - baseWidth div 2 + 4).float32, (flaskBottom - 1).float32),
+                vec2((centerX + baseWidth div 2 - 4).float32, (flaskBottom - 1).float32), liquidColor)
     for i in 0..2:
       let phase = (time * 0.8'f32 + i.float32 * 0.37'f32) mod 1.0'f32
       let by = flaskBottom.float32 - 8.0'f32 - phase * 16.0'f32
-      drawDisc(v2(centerX.float32 - 4.0'f32 + i.float32 * 4.0'f32, by),
+      drawDisc(vec2(centerX.float32 - 4.0'f32 + i.float32 * 4.0'f32, by),
                  1.8'f32 - phase * 0.6'f32,
                  Color(r: 255, g: 255, b: 255, a: uint8(210.0'f32 * (1.0'f32 - phase))))
 
@@ -1234,8 +1215,8 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
       # Blade runs from a lower corner to the opposite top corner. Everything
       # else is derived from that direction so the hilt parts stay square to
       # the blade instead of being eyeballed per side.
-      let hilt = v2(px - flip * 15.0'f32, py + 16.0'f32)
-      let tip = v2(px + flip * 15.0'f32, py - 17.0'f32)
+      let hilt = vec2(px - flip * 15.0'f32, py + 16.0'f32)
+      let tip = vec2(px + flip * 15.0'f32, py - 17.0'f32)
       let dx = tip.x - hilt.x
       let dy = tip.y - hilt.y
       let len = sqrt(dx * dx + dy * dy)
@@ -1245,21 +1226,21 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
       let perpY = ux
       # Blade: dark backing stroke, then the bright edge, stopping short so the
       # tip triangle forms the point.
-      let bladeEnd = v2(tip.x - ux * 7.0'f32, tip.y - uy * 7.0'f32)
+      let bladeEnd = vec2(tip.x - ux * 7.0'f32, tip.y - uy * 7.0'f32)
       drawStroke(hilt, tip, 6, Color(r: 8, g: 12, b: 20, a: 230))
-      drawStroke(v2(hilt.x + ux * 8.0'f32, hilt.y + uy * 8.0'f32), bladeEnd, 3, col)
+      drawStroke(vec2(hilt.x + ux * 8.0'f32, hilt.y + uy * 8.0'f32), bladeEnd, 3, col)
       drawIconTri(tip,
-                  v2(bladeEnd.x + perpX * 3.2'f32, bladeEnd.y + perpY * 3.2'f32),
-                  v2(bladeEnd.x - perpX * 3.2'f32, bladeEnd.y - perpY * 3.2'f32), col)
+                  vec2(bladeEnd.x + perpX * 3.2'f32, bladeEnd.y + perpY * 3.2'f32),
+                  vec2(bladeEnd.x - perpX * 3.2'f32, bladeEnd.y - perpY * 3.2'f32), col)
       # Crossguard: square to the blade, a fixed step up from the grip.
-      let guard = v2(hilt.x + ux * 9.0'f32, hilt.y + uy * 9.0'f32)
-      drawStroke(v2(guard.x + perpX * 6.5'f32, guard.y + perpY * 6.5'f32),
-               v2(guard.x - perpX * 6.5'f32, guard.y - perpY * 6.5'f32), 3, dim)
+      let guard = vec2(hilt.x + ux * 9.0'f32, hilt.y + uy * 9.0'f32)
+      drawStroke(vec2(guard.x + perpX * 6.5'f32, guard.y + perpY * 6.5'f32),
+               vec2(guard.x - perpX * 6.5'f32, guard.y - perpY * 6.5'f32), 3, dim)
       # Grip and pommel.
       drawStroke(hilt, guard, 3, dim)
       drawDisc(hilt, 3.2, bright)
-    drawDisc(v2(px, py), 5.5, Color(r: 255, g: 255, b: 255, a: 215))
-    drawDisc(v2(px, py), 2.6, accent)
+    drawDisc(vec2(px, py), 5.5, Color(r: 255, g: 255, b: 255, a: 215))
+    drawDisc(vec2(px, py), 2.6, accent)
 
   of diRoguelite:
     # Route map read bottom-to-top: you start at the base node, the path forks,
@@ -1267,10 +1248,10 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     # direction to it.
     let mx = centerX.float32
     let my = centerY.float32
-    let start = v2(mx, my + 17)
-    let forkL = v2(mx - 14, my + 3)
-    let forkR = v2(mx + 14, my + 3)
-    let boss  = v2(mx, my - 15)
+    let start = vec2(mx, my + 17)
+    let forkL = vec2(mx - 14, my + 3)
+    let forkR = vec2(mx + 14, my + 3)
+    let boss  = vec2(mx, my - 15)
     let pathCol = Color(r: 120, g: 255, b: 220, a: 210)
     for (a, b) in [(start, forkL), (start, forkR), (forkL, boss), (forkR, boss)]:
       drawStroke(a, b, 4, Color(r: 8, g: 12, b: 20, a: 200))
@@ -1281,9 +1262,9 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     drawIconDisc(forkR.x, forkR.y, 5.5, Color(r: 8, g: 12, b: 20, a: 245), accent, 2.0)
     # Boss node as a diamond, the one shape the others do not use.
     let bossCol = Color(r: 255, g: 110, b: 90, a: 255)
-    drawIconTri(v2(boss.x, boss.y - 8), v2(boss.x - 8, boss.y), v2(boss.x, boss.y + 8), bossCol)
-    drawIconTri(v2(boss.x, boss.y - 8), v2(boss.x, boss.y + 8), v2(boss.x + 8, boss.y), bossCol)
-    drawDisc(v2(boss.x, boss.y), 2.6, Color(r: 255, g: 240, b: 220, a: 240))
+    drawIconTri(vec2(boss.x, boss.y - 8), vec2(boss.x - 8, boss.y), vec2(boss.x, boss.y + 8), bossCol)
+    drawIconTri(vec2(boss.x, boss.y - 8), vec2(boss.x, boss.y + 8), vec2(boss.x + 8, boss.y), bossCol)
+    drawDisc(vec2(boss.x, boss.y), 2.6, Color(r: 255, g: 240, b: 220, a: 240))
 
   of diAdvancements:
     # Trophy. The old ledger-of-rows glyph collided with the help and changelog
@@ -1291,12 +1272,12 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let tx = centerX.float32
     let ty = centerY.float32
     # Side handles, drawn before the cup so the cup laps over their roots.
-    drawRing(v2(tx - 11.0, ty - 8.0), 4.5, 7.0, 90.0, 270.0, 18, dim)
-    drawRing(v2(tx + 11.0, ty - 8.0), 4.5, 7.0, 270.0, 450.0, 18, dim)
+    drawRing(vec2(tx - 11.0, ty - 8.0), 4.5, 7.0, 90.0, 270.0, 18, dim)
+    drawRing(vec2(tx + 11.0, ty - 8.0), 4.5, 7.0, 270.0, 450.0, 18, dim)
     # Cup bowl, tapering to the stem.
-    drawIconTri(v2(tx - 12, ty - 17), v2(tx - 9, ty + 2), v2(tx + 9, ty + 2), Gold)
-    drawIconTri(v2(tx - 12, ty - 17), v2(tx + 9, ty + 2), v2(tx + 12, ty - 17), Gold)
-    drawStroke(v2(tx - 12, ty - 17), v2(tx + 12, ty - 17), 3, bright)
+    drawIconTri(vec2(tx - 12, ty - 17), vec2(tx - 9, ty + 2), vec2(tx + 9, ty + 2), Gold)
+    drawIconTri(vec2(tx - 12, ty - 17), vec2(tx + 9, ty + 2), vec2(tx + 12, ty - 17), Gold)
+    drawStroke(vec2(tx - 12, ty - 17), vec2(tx + 12, ty - 17), 3, bright)
     # Stem and base.
     drawRectangle((centerX - 3).int32, (centerY + 2).int32, 6, 7, dim)
     drawRectangle((centerX - 10).int32, (centerY + 9).int32, 20, 5, Gold)
@@ -1310,9 +1291,9 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
       let b = a + (PI / 5.0'f32)
       let ra = if i mod 2 == 0: 7.0'f32 else: 3.1'f32
       let rb = if i mod 2 == 0: 3.1'f32 else: 7.0'f32
-      drawIconTri(v2(tx, starY),
-                  v2(tx + cos(a) * ra, starY + sin(a) * ra),
-                  v2(tx + cos(b) * rb, starY + sin(b) * rb), starCol)
+      drawIconTri(vec2(tx, starY),
+                  vec2(tx + cos(a) * ra, starY + sin(a) * ra),
+                  vec2(tx + cos(b) * rb, starY + sin(b) * rb), starCol)
 
   of diChangelog:
     # Patch-notes document with a folded corner, text lines, and a "new" star
@@ -1329,7 +1310,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     for i in 0..<4:
       let lineY = docY + 8 + i * 6
       let lineW = if i == 3: 9 else: 14 - (i mod 2) * 4
-      drawDisc(v2((docX + 5).float32, (lineY + 1).float32), 1.4,
+      drawDisc(vec2((docX + 5).float32, (lineY + 1).float32), 1.4,
                  Color(r: 90, g: 130, b: 175, a: 235))
       drawRectangle((docX + 9).int32, lineY.int32, lineW.int32, 3,
                     Color(r: 70, g: 90, b: 120, a: 235))
@@ -1371,7 +1352,7 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let bx = centerX.float32
     let by = centerY.float32 - 2.0'f32
     let bubble = Rectangle(x: bx - 18, y: by - 14, width: 36, height: 26)
-    drawIconTri(v2(bx - 11, by + 10), v2(bx - 3, by + 10), v2(bx - 13, by + 19),
+    drawIconTri(vec2(bx - 11, by + 10), vec2(bx - 3, by + 10), vec2(bx - 13, by + 19),
                 accent)
     drawRectangleRounded(bubble, 0.35, 6, Color(r: 14, g: 18, b: 30, a: 255))
     drawRectangleRoundedLines(bubble, 0.35, 6, -2.0, accent)
@@ -1381,17 +1362,17 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     for i in 0..2:
       let ly = by - 4.0'f32 + i.float32 * 4.0'f32
       let tw = if i == 1: -twitch else: twitch
-      drawStroke(v2(bx - 3, ly), v2(bx - 10, ly - 1.5'f32 + tw), 1.6, legCol)
-      drawStroke(v2(bx + 3, ly), v2(bx + 10, ly - 1.5'f32 - tw), 1.6, legCol)
+      drawStroke(vec2(bx - 3, ly), vec2(bx - 10, ly - 1.5'f32 + tw), 1.6, legCol)
+      drawStroke(vec2(bx + 3, ly), vec2(bx + 10, ly - 1.5'f32 - tw), 1.6, legCol)
     # Antennae.
-    drawStroke(v2(bx - 1.5'f32, by - 8), v2(bx - 5, by - 12), 1.4, legCol)
-    drawStroke(v2(bx + 1.5'f32, by - 8), v2(bx + 5, by - 12), 1.4, legCol)
+    drawStroke(vec2(bx - 1.5'f32, by - 8), vec2(bx - 5, by - 12), 1.4, legCol)
+    drawStroke(vec2(bx + 1.5'f32, by - 8), vec2(bx + 5, by - 12), 1.4, legCol)
     # Head and split shell.
-    drawDisc(v2(bx, by - 7), 2.8, dim)
+    drawDisc(vec2(bx, by - 7), 2.8, dim)
     drawEllipse(bx.int32, (by + 1).int32, 5.5, 7.0, accent)
-    drawStroke(v2(bx, by - 5), v2(bx, by + 8), 1.4, Color(r: 14, g: 18, b: 30, a: 255))
-    drawDisc(v2(bx - 2.4'f32, by - 1), 1.1, bright)
-    drawDisc(v2(bx + 2.4'f32, by + 3), 1.1, bright)
+    drawStroke(vec2(bx, by - 5), vec2(bx, by + 8), 1.4, Color(r: 14, g: 18, b: 30, a: 255))
+    drawDisc(vec2(bx - 2.4'f32, by - 1), 1.1, bright)
+    drawDisc(vec2(bx + 2.4'f32, by + 3), 1.1, bright)
 
   of diMods:
     # A puzzle piece easing into its socket: add-ons plugged into the system.
@@ -1405,11 +1386,11 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
     let py = centerY.float32 + 2.0'f32
     let s = 16.0'f32
     drawRectangleRounded(Rectangle(x: px - s / 2, y: py - s / 2, width: s, height: s), 0.2, 4, accent)
-    drawDisc(v2(px, py - s / 2 - 1.5'f32), 3.8, accent)          # top tab
-    drawDisc(v2(px + s / 2 + 1.5'f32, py), 3.8, accent)          # right tab
-    drawDisc(v2(px - s / 2 + 0.5'f32, py), 3.4, panelCol)        # left slot
-    drawDisc(v2(px, py + s / 2 - 0.5'f32), 3.4, panelCol)        # bottom slot
-    drawDisc(v2(px - 3.5'f32, py - 3.5'f32), 1.6, bright)        # glint
+    drawDisc(vec2(px, py - s / 2 - 1.5'f32), 3.8, accent)          # top tab
+    drawDisc(vec2(px + s / 2 + 1.5'f32, py), 3.8, accent)          # right tab
+    drawDisc(vec2(px - s / 2 + 0.5'f32, py), 3.4, panelCol)        # left slot
+    drawDisc(vec2(px, py + s / 2 - 0.5'f32), 3.4, panelCol)        # bottom slot
+    drawDisc(vec2(px - 3.5'f32, py - 3.5'f32), 1.6, bright)        # glint
   of diModApp:
     # A mod app: its own texture or model when it gave one, else a little window
     # showing the first letter of its name. The MOD tag marks it as not built in.
@@ -1455,8 +1436,8 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
       drawRectangleRoundedLines(frame, 0.15, 4, -2.0, accent)
       let pulse = 1.0'f32 + sin(time * 3.0'f32) * 0.06'f32
       let h = 9.0'f32 * pulse
-      drawTriangle(v2(cx - h * 0.6'f32, cy - h), v2(cx - h * 0.6'f32, cy + h),
-                   v2(cx + h, cy), bright)
+      drawTriangle(vec2(cx - h * 0.6'f32, cy - h), vec2(cx - h * 0.6'f32, cy + h),
+                   vec2(cx + h, cy), bright)
     let tagX = icon.x.int32 + ICON_SIZE - 26
     let tagY = icon.y.int32 + ICON_SIZE - 12
     drawRectangle(tagX, tagY, 24, 10, Color(r: 8, g: 14, b: 24, a: 215))
@@ -1501,12 +1482,12 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) =
 proc drawCknStartButton(x, y, w, h: int, th: UiTheme) =
   ## The CKN shell's start button: a pill with the logo and a polite "Start".
   let rect = Rectangle(x: x.float32, y: y.float32, width: w.float32, height: h.float32)
-  drawCknPanel(rect, h.float32 * 0.5'f32, mixColor(th.surface, White, 0.5'f32),
-               mixColor(th.surface, th.raised, 0.75'f32))
+  drawCknPanel(rect, h.float32 * 0.5'f32, colorLerp(th.surface, White, 0.5'f32),
+               colorLerp(th.surface, th.raised, 0.75'f32))
   drawCknLogo((x + 22).float32, (y + h div 2 + 2).float32, 11.0'f32, arc = th.accent)
   let label = t(tkOSCknStartButton)
   drawText(label, (x + 40).int32, (y + (h - 16) div 2).int32,
-           bestDesktopLabelFontSize(label, (w - 48).int32, 16), th.text)
+           bestFitFontSize(label, (w - 48).int32, 16, ICON_LABEL_MIN_SIZE), th.text)
 
 proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
   ## Every theme draws the stock taskbar in its colours; the start button is
@@ -1616,7 +1597,7 @@ proc drawTaskbar(screenWidth, screenHeight: int, time: float32) =
 proc drawDesktopWallpaper*(screenWidth, screenHeight: int, time,
                           cubeRotX, cubeRotY, cubeRotZ: float32,
                           cubeOffsetX: float32 = 0.0, cubeOffsetY: float32 = 0.0,
-                          modCube = false) =
+                          modCube = false) {.moddable.} =
   ## `modCube`: the live desktop, where a mod's cube model stands in for the
   ## cube (the shop's preview cards keep showing the built-in one).
   # Translucent light adds up instead of darkening the frame (see ui_theme).
@@ -1874,10 +1855,10 @@ proc drawToastStack(desktop: OSDesktop, screenWidth, bottom: int32) =
       drawCknPanel(Rectangle(x: toastX.float32, y: toastY.float32,
                              width: toastW.float32, height: toastH.float32), 10.0'f32,
                    withAlpha(th.surface, 250.0'f32 * fade),
-                   withAlpha(mixColor(th.surface, th.raised, 0.75'f32), alpha),
+                   withAlpha(colorLerp(th.surface, th.raised, 0.75'f32), alpha),
                    shadowAlpha = 70.0'f32 * fade)
       drawDisc(Vector2(x: (toastX + 26).float32, y: (toastY + toastH div 2).float32), 15.0'f32,
-               withAlpha(mixColor(th.surface, th.accent, 0.14'f32), alpha))
+               withAlpha(colorLerp(th.surface, th.accent, 0.14'f32), alpha))
       drawCknLogo((toastX + 26).float32, (toastY + toastH div 2 + 2).float32, 10.0'f32, fade,
                   arc = th.accent)
       drawText(toast.text, toastX + 48, textY, 16, withAlpha(th.text, alpha))
@@ -1962,8 +1943,6 @@ proc drawSystemMonitor(desktop: OSDesktop, screenWidth: int) =
            panelX + 9, panelY + panelH - 18, 12,
            uiInk(170, 190, 210, 200))
 
-proc fract(x: float32): float32 {.inline.} = x - floor(x)
-
 proc drawDawnGlow(cx, cy, radius: float32, color: Color) =
   ## Light that fades to nothing at its rim, `color.a` opaque at the centre.
   ## drawSoftGlow's six discs band visibly at a sun's size.
@@ -1973,7 +1952,7 @@ proc drawDawnGlow(cx, cy, radius: float32, color: Color) =
     drawDisc(Vector2(x: cx, y: cy), radius * i.float32 / Layers.float32,
              withAlpha(color, perLayer * 255.0'f32))
 
-proc drawCknWallpaper*(w, h, t: float32, desktop: OSDesktop = nil) =
+proc drawCknWallpaper*(w, h, t: float32, desktop: OSDesktop = nil) {.moddable.} =
   ## CKN OS's own wallpaper, its logo as a landscape: a dawn sky, the sun
   ## half-risen on the horizon right under the cube, the logo's blue arcs
   ## around it. Below the line lies the old floor, a faint grid running to the
@@ -1993,8 +1972,8 @@ proc drawCknWallpaper*(w, h, t: float32, desktop: OSDesktop = nil) =
                          Color(r: 20, g: 36, b: 76, a: 255), Color(r: 86, g: 134, b: 206, a: 255))
   # The last stars, fading out toward the light.
   for i in 0..<36:
-    let sx = fract(sin(i.float32 * 12.9898'f32) * 43758.547'f32) * w
-    let sy = fract(sin(i.float32 * 78.233'f32) * 23421.631'f32) * horizon * 0.55'f32
+    let sx = hash01(i.float32) * w
+    let sy = fract01(sin(i.float32 * 78.233'f32) * 23421.631'f32) * horizon * 0.55'f32
     let fadeDown = 1.0'f32 - sy / (horizon * 0.55'f32)
     let twinkle = 0.55'f32 + 0.45'f32 * sin(t * (0.6'f32 + (i mod 5).float32 * 0.23'f32) + i.float32)
     drawDisc(Vector2(x: sx, y: sy), 1.1'f32 + (i mod 3).float32 * 0.35'f32,
@@ -2015,7 +1994,7 @@ proc drawCknWallpaper*(w, h, t: float32, desktop: OSDesktop = nil) =
   # Clouds drifting across the light.
   for i in 0..<5:
     let span = w + 400.0'f32
-    let cx = fract((i.float32 * 0.37'f32) + t * (0.004'f32 + i.float32 * 0.0015'f32)) * span - 200.0'f32
+    let cx = fract01((i.float32 * 0.37'f32) + t * (0.004'f32 + i.float32 * 0.0015'f32)) * span - 200.0'f32
     let cy = horizon * (0.22'f32 + (i mod 3).float32 * 0.17'f32)
     let rx = 120.0'f32 + (i mod 2).float32 * 70.0'f32
     for k in 0..2:
@@ -2050,7 +2029,7 @@ proc drawCknWallpaper*(w, h, t: float32, desktop: OSDesktop = nil) =
   if not desktop.isNil:
     drawDesktopCube(desktop, w, h)
 
-proc drawThemeWallpaper*(th: UiTheme, w, h, time: float32, desktop: OSDesktop = nil) =
+proc drawThemeWallpaper*(th: UiTheme, w, h, time: float32, desktop: OSDesktop = nil) {.moddable.} =
   ## The free default background in theme `th`: a mod theme's own image (the
   ## cube floating over it), else its shell's wallpaper. `desktop` supplies the
   ## live cube; without one (a shop thumbnail) the stock wallpaper shows an
@@ -2074,7 +2053,7 @@ proc drawThemeWallpaper*(th: UiTheme, w, h, time: float32, desktop: OSDesktop = 
 
 proc drawOSDesktopLayer(desktop: OSDesktop, screenWidth, screenHeight: int)
 
-proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) =
+proc drawOSDesktop*(desktop: OSDesktop, screenWidth, screenHeight: int) {.moddable.} =
   ## Draw the active desktop background. If the player has selected a desktop
   ## background from settings/shop use that otherwise fall back to the
   ## interface theme's own wallpaper. The lore intro films this desktop as
@@ -2154,14 +2133,14 @@ proc drawOSDesktopLayer(desktop: OSDesktop, screenWidth, screenHeight: int) =
   # Transient OS-style toasts above the taskbar (bottom-right), stacked
   drawToastStack(desktop, screenWidth.int32, (screenHeight - TASKBAR_HEIGHT).int32)
 
-proc showDesktopToast*(desktop: OSDesktop, text: string) =
+proc showDesktopToast*(desktop: OSDesktop, text: string) {.moddable.} =
   if desktop.isNil: return
   # Keep the sequence bounded to the max visible stack
   if desktop.toasts.len >= MAX_DESKTOP_TOASTS:
     desktop.toasts.delete(0)
   desktop.toasts.add(DesktopToast(text: text, timer: 5.0'f32))
 
-proc tickDesktopToasts*(desktop: OSDesktop, dt: float32) =
+proc tickDesktopToasts*(desktop: OSDesktop, dt: float32) {.moddable.} =
   ## Tick toast timers outside the full desktop update (e.g. during gameplay).
   if desktop.isNil or desktop.toasts.len == 0: return
   var newToasts: seq[DesktopToast] = @[]
@@ -2172,7 +2151,7 @@ proc tickDesktopToasts*(desktop: OSDesktop, dt: float32) =
       newToasts.add(nt)
   desktop.toasts = newToasts
 
-proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int32) =
+proc drawDesktopToastsOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int32) {.moddable.} =
   ## Draw the toast stack in the bottom-right corner without the full desktop frame.
   if desktop.isNil or desktop.toasts.len == 0: return
   themeLayer:
@@ -2225,7 +2204,7 @@ proc iconGridIndex(desktop: OSDesktop, col, row: int): int =
     result += desktopColLen(desktop, i)
   result += clamp(row, 0, desktopColLen(desktop, c) - 1)
 
-proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
+proc handleDesktopInput*(desktop: OSDesktop, game: Game): int {.moddable.} =
   ## Returns selected menu option: 0=Play, 1=Survival, 2=Stats, 3=Settings, 4=Shop, 5=Help, 6=Quit, 7=Sandbox, 9=Roguelite, 10=Advancements, 11=Changelog, 12=Credits, 13=Feedback, 14=Mods, 15=a mod app / 16=a mod game mode (desktop.launchModKey)
   ## Returns -1 if no action
   ## Note: Window occlusion should be handled by the calling code
@@ -2315,7 +2294,7 @@ proc handleDesktopInput*(desktop: OSDesktop, game: Game): int =
 
   return -1
 
-proc startLoadingAnimation*(desktop: OSDesktop, text: string) =
+proc startLoadingAnimation*(desktop: OSDesktop, text: string) {.moddable.} =
   ## Start a loading animation with the given text
   desktop.loadingActive = true
   desktop.loadingProgress = 0.0
@@ -2329,13 +2308,13 @@ proc drawCknLoadingOverlay(desktop: OSDesktop, screenWidth, screenHeight: int, t
   let ph = 190.0'f32
   let px = ((screenWidth.float32 - pw) * 0.5'f32).floor
   let py = ((screenHeight.float32 - ph) * 0.5'f32).floor
-  let track = mixColor(th.surface, th.raised, 0.75'f32)
+  let track = colorLerp(th.surface, th.raised, 0.75'f32)
   drawCknPanel(Rectangle(x: px, y: py, width: pw, height: ph), 12.0'f32, th.surface, track,
                shadowAlpha = 90.0'f32)
   drawCknLogo(px + 46.0'f32, py + 46.0'f32, 22.0'f32, arc = th.accent)
   drawText(t("os_loading"), px.int32 + 84, py.int32 + 30, 22, th.text)
   drawText(desktop.loadingText, px.int32 + 30, py.int32 + 84,
-           bestDesktopLabelFontSize(desktop.loadingText, (pw - 60.0'f32).int32, 18), th.text)
+           bestFitFontSize(desktop.loadingText, (pw - 60.0'f32).int32, 18, ICON_LABEL_MIN_SIZE), th.text)
   let frac = clamp(desktop.loadingProgress, 0.0'f32, 1.0'f32)
   let bar = Rectangle(x: px + 30.0'f32, y: py + 120.0'f32, width: pw - 60.0'f32, height: 12.0'f32)
   drawRectangleRounded(bar, 1.0'f32, 8, track)
@@ -2347,7 +2326,7 @@ proc drawCknLoadingOverlay(desktop: OSDesktop, screenWidth, screenHeight: int, t
 
 proc drawLoadingOverlayLayer(desktop: OSDesktop, screenWidth, screenHeight: int)
 
-proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) =
+proc drawLoadingOverlay*(desktop: OSDesktop, screenWidth, screenHeight: int) {.moddable.} =
   ## Draw the loading animation overlay if active
   if not desktop.loadingActive:
     return

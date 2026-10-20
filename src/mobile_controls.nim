@@ -35,7 +35,7 @@
 ##
 ## This module must never import game/player (input_intent imports it, and
 ## player/game import input_intent) -- it depends on raylib, the shared
-## Vector2f, the render transform and the (leaf) string tables only.
+## Vector2, the render transform and the (leaf) string tables only.
 
 import raylib, math
 import particle_types
@@ -140,12 +140,12 @@ var
   wallIsHeld = false
   wallOwnerId: int32 = -1
   wallPressScreen = Vector2(x: 0, y: 0)
-  wallDragDir = newVector2f(0, 0)
+  wallDragDir = vec2(0, 0)
     ## Direction the wall touch is dragged in (zero while it isn't). Survives the
     ## release frame, because that is the frame the wall is placed on.
   pauseHeldSince: float32 = -1   ## clock at the pause touch-down, -1 when not held
-  lastAimDir = newVector2f(0, 0)
-  lastMoveDir = newVector2f(0, 0)
+  lastAimDir = vec2(0, 0)
+  lastMoveDir = vec2(0, 0)
   # Feedback timers.
   abilityFlash: float32 = 0
   pauseFlash: float32 = 0
@@ -259,7 +259,7 @@ proc pressTrack(id: int32, screen: Vector2): TouchTrack =
       wallOwnerId = id
       wallIsHeld = true
       wallPressScreen = screen
-      wallDragDir = newVector2f(0, 0)
+      wallDragDir = vec2(0, 0)
   elif dashAvailable and hitCircle(v, dashCenter(), DashBtnD):
     # The touch is consumed either way, so a tap on a cooling dash never falls
     # through and spawns an aim joystick under the thumb.
@@ -314,15 +314,15 @@ proc followStick(j: var VJoystick) =
     j.baseScreen.x += dx * k
     j.baseScreen.y += dy * k
 
-proc stickVector(j: VJoystick): Vector2f =
+proc stickVector(j: VJoystick): Vector2 =
   ## Screen-space offset normalized to [-1,1] per axis by the joystick radius,
   ## with a deadzone. Direction is preserved through the letterbox (uniform
   ## scale), so screen-space is fine for a direction.
-  if not j.active: return newVector2f(0, 0)
+  if not j.active: return vec2(0, 0)
   let r = joyRadius()
-  var off = newVector2f(j.curScreen.x - j.baseScreen.x, j.curScreen.y - j.baseScreen.y)
+  var off = vec2(j.curScreen.x - j.baseScreen.x, j.curScreen.y - j.baseScreen.y)
   let mag = off.length()
-  if mag < r * Deadzone: return newVector2f(0, 0)
+  if mag < r * Deadzone: return vec2(0, 0)
   off.normalize() * (min(mag, r) / r)
 
 proc updateMobileControls*(dt: float32) =
@@ -335,7 +335,7 @@ proc updateMobileControls*(dt: float32) =
   dashJustPressed = false
   tapJustPressed = false
   if not wallIsHeld:
-    wallDragDir = newVector2f(0, 0)
+    wallDragDir = vec2(0, 0)
   abilityFlash = max(0.0'f32, abilityFlash - dt)
   pauseFlash = max(0.0'f32, pauseFlash - dt)
   dashFlash = max(0.0'f32, dashFlash - dt)
@@ -368,9 +368,9 @@ proc updateMobileControls*(dt: float32) =
   if wallIsHeld and wallOwnerId >= 0:
     var p: Vector2
     if screenPosOf(wallOwnerId, p):
-      let off = newVector2f(p.x - wallPressScreen.x, p.y - wallPressScreen.y)
+      let off = vec2(p.x - wallPressScreen.x, p.y - wallPressScreen.y)
       wallDragDir = if off.length() > joyRadius() * WallDragDeadzone: off.normalize()
-                    else: newVector2f(0, 0)
+                    else: vec2(0, 0)
 
   let mv = stickVector(moveStick)
   if mv.length() > 0.0'f32:
@@ -392,7 +392,7 @@ proc resetMobileControls*() =
   aimStick.active = false
   wallOwnerId = -1
   wallIsHeld = false
-  wallDragDir = newVector2f(0, 0)
+  wallDragDir = vec2(0, 0)
   pauseHeldSince = -1
   abilityJustPressed = false
   pauseJustPressed = false
@@ -405,8 +405,8 @@ proc resetMobileControls*() =
 
 # --- Queries used by input_intent ---------------------------------------------
 
-proc mobileMoveVector*(): Vector2f = stickVector(moveStick)
-proc mobileAimVector*(): Vector2f = stickVector(aimStick)
+proc mobileMoveVector*(): Vector2 = stickVector(moveStick)
+proc mobileAimVector*(): Vector2 = stickVector(aimStick)
 proc mobileIsAiming*(): bool = aimStick.active and stickVector(aimStick).length() > 0.0'f32
 proc mobileAbilityPressed*(): bool = abilityJustPressed
 proc mobilePausePressed*(): bool = pauseJustPressed
@@ -420,7 +420,7 @@ proc mobileTapPressed*(): bool =
   ## point, so it still registers while the other thumb is holding a stick.
   tapJustPressed
 
-proc mobileAimTargetDir*(): Vector2f =
+proc mobileAimTargetDir*(): Vector2 =
   ## Direction for aim-projected targeting (wall placement), normalized: the
   ## wall button's own drag while it has one, else the live aim stick, else the
   ## last way the player aimed, else the last way they moved, else up.
@@ -429,7 +429,7 @@ proc mobileAimTargetDir*(): Vector2f =
   if a.length() > 0.0'f32: a.normalize()
   elif lastAimDir.length() > 0.0'f32: lastAimDir
   elif lastMoveDir.length() > 0.0'f32: lastMoveDir
-  else: newVector2f(0, -1)
+  else: vec2(0, -1)
 
 # --- State pushed in by main.nim ----------------------------------------------
 
@@ -543,7 +543,7 @@ proc drawInstallArrow(c: Vector2, s: float32, col: Color) =
   drawLine(Vector2(x: c.x + 8 * s, y: c.y - 4 * s), Vector2(x: c.x, y: c.y + 5 * s), 4.0'f32 * s, col)
   drawRectangle(Rectangle(x: c.x - 13 * s, y: c.y + 10 * s, width: 26 * s, height: 3.5'f32 * s), col)
 
-proc dirAngle(d: Vector2f): float32 =
+proc dirAngle(d: Vector2): float32 =
   ## raylib's ring angles: degrees, clockwise from +x in the y-down canvas.
   arctan2(d.y, d.x) * 180.0'f32 / PI.float32
 

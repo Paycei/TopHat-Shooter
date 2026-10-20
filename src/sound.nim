@@ -1,4 +1,5 @@
 import raylib, math, random, os, streams
+import modding/mod_patch_core
 import std/cpuinfo
 import std/atomics
 import localization
@@ -13,7 +14,7 @@ const MAX_SOUND_VOICES = 8
 type
   SoundType* = enum
     stShoot, stEnemyHit, stEnemyDeath, stPlayerHit, stCoinPickup, stPowerUp,
-    stBossSpawn, stExplosion, stWallPlace, stTeleport, stMenuNav, stMenuSelect,
+    stBossSpawn, stExplosion, stTeleport, stMenuNav, stMenuSelect,
     stWaveComplete, stShield, stGameOver, stBuy,
     # Restore-point animation cues (see ui/ui_helpers.drawLifeLostOverlay)
     stRestoreAccess, stRestoreSpinDown, stRestoreShatter
@@ -163,23 +164,23 @@ const
   UptimeMachineAt* = 5.8'f32       ## shot 4: "THIS IS MY MACHINE."
   UptimeMachineDur* = 1.6'f32
 
-proc shotStart*(shots: openArray[float32], index: int): float32 =
+proc shotStart(shots: openArray[float32], index: int): float32 {.moddable.} =
   ## Cutscene time at which shot `index` begins.
   for i in 0..<min(index, shots.len):
     result += shots[i]
 
-proc totalLength*(shots: openArray[float32]): float32 =
+proc totalLength(shots: openArray[float32]): float32 {.moddable.} =
   shotStart(shots, shots.len)
 
-proc scoreTime*(shots: openArray[float32], index: int, local: float32): float32 =
+proc scoreTime(shots: openArray[float32], index: int, local: float32): float32 {.moddable.} =
   ## Real-time position in the score of `local` cutscene seconds into shot `index`.
   (shotStart(shots, index) + local) / StoryPlaybackSpeed
 
-proc scoreLength*(shots: openArray[float32]): float32 =
+proc scoreLength(shots: openArray[float32]): float32 {.moddable.} =
   ## Length of a cinematic's score in real seconds, tail included.
   totalLength(shots) / StoryPlaybackSpeed + ScoreTail
 
-proc isScoreTrack*(track: MusicTrack): bool =
+proc isScoreTrack*(track: MusicTrack): bool {.moddable.} =
   ## A cinematic's score: starts from the top on cue and does not loop.
   track >= mtStoryIntro
 
@@ -265,7 +266,6 @@ proc getSoundCacheFile(soundType: SoundType): string =
     of stPowerUp: "powerup"
     of stBossSpawn: "boss"
     of stExplosion: "explosion"
-    of stWallPlace: "wall"
     of stTeleport: "teleport"
     of stMenuNav: "menunav"
     of stMenuSelect: "menuselect"
@@ -2254,39 +2254,6 @@ proc createExplosion(filename: string) =
 
   writeWavFile(filename, samples, sampleRate)
 
-proc createWallPlace(filename: string) =
-  # Solid, satisfying placement sound
-  let sampleRate: uint32 = 44100
-  let duration = 0.2
-  let frameCount = int(sampleRate.float32 * duration)
-  var samples = newSeq[int16](frameCount)
-
-  for i in 0..<frameCount:
-    let t = i.float32 / sampleRate.float32
-    let progress = t / duration
-
-    # Low thud with quick pitch drop
-    let thudFreq = 140.0 * exp(-progress * 12.0)
-    let thud = sin(2.0 * PI * thudFreq * t) * 0.5
-
-    # Click for definition
-    let click = if progress < 0.04:
-      sin(2.0 * PI * 800.0 * t) * (1.0 - progress / 0.04) * 0.3
-    else:
-      0.0
-
-    # Short noise burst
-    let noise = if progress < 0.06:
-      rand(-1.0..1.0) * (1.0 - progress / 0.06) * 0.15
-    else:
-      0.0
-
-    let envelope = exp(-progress * 15.0)
-    let value = (thud + click + noise) * envelope
-    samples[i] = int16(value * 32767.0 * 0.5)
-
-  writeWavFile(filename, samples, sampleRate)
-
 proc createTeleport(filename: string) =
   # Advanced sci-fi teleportation effect
   let sampleRate: uint32 = 44100
@@ -2730,7 +2697,6 @@ proc generateSoundFile(soundType: SoundType) =
   of stPowerUp: createPowerUp(cacheFile)
   of stBossSpawn: createBossSpawn(cacheFile)
   of stExplosion: createExplosion(cacheFile)
-  of stWallPlace: createWallPlace(cacheFile)
   of stTeleport: createTeleport(cacheFile)
   of stMenuNav: createMenuNav(cacheFile)
   of stMenuSelect: createMenuSelect(cacheFile)
@@ -2850,7 +2816,7 @@ proc assetGenWorker() {.thread.} =
     discard
   genDone.store(true)
 
-proc startAssetGeneration*(): int =
+proc startAssetGeneration*(): int {.moddable.} =
   ## Begin synthesising any missing WAVs on a worker thread and return how many
   ## assets need generating (0 = everything was cached, no thread spawned).
   cleanStaleCacheFiles()
@@ -2886,12 +2852,12 @@ proc assetGenBusy*(): bool = genThreadActive and not genDone.load()
 proc assetGenCompleted*(): int = genCompleted.load()
 proc assetGenOnMusic*(): bool = genCurrentIsMusic.load()
 
-proc assetGenProgress*(): float32 =
+proc assetGenProgress*(): float32 {.moddable.} =
   ## 0..1 across the assets that actually needed generating.
   if genPending <= 0: 1.0'f32
   else: clamp(genCompleted.load().float32 / genPending.float32, 0.0, 1.0)
 
-proc assetGenLabel*(): string =
+proc assetGenLabel*(): string {.moddable.} =
   ## Localized description of the asset currently being synthesised. Main
   ## thread only: it reads the shared string tables via t().
   let ord = genCurrentOrd.load()
@@ -2902,7 +2868,7 @@ proc assetGenLabel*(): string =
     let soundType = SoundType(clamp(ord, 0, SoundType.high.ord))
     t(tkLoadingGeneratingSound) & ": " & extractFilename(getSoundCacheFile(soundType))
 
-proc finishAssetGeneration*() =
+proc finishAssetGeneration*() {.moddable.} =
   ## Block until BOTH phases are done. Never call this during startup -- that
   ## would reintroduce the music stall this whole system exists to avoid. It is
   ## for shutdown only, so the worker can't outlive the process' file handles.
@@ -2921,14 +2887,14 @@ proc abortAssetGeneration() =
 # INCREMENTAL LOAD INTO THE AUDIO DEVICE
 var soundLoadCursor = 0
 
-proc soundLoadProgress*(): float32 =
+proc soundLoadProgress*(): float32 {.moddable.} =
   clamp(soundLoadCursor.float32 / (SoundType.high.ord + 1).float32, 0.0, 1.0)
 
-proc soundLoadLabel*(): string =
+proc soundLoadLabel*(): string {.moddable.} =
   let idx = clamp(soundLoadCursor, 0, SoundType.high.ord)
   t(tkLoadingLoadingSounds) & ": " & extractFilename(getSoundCacheFile(SoundType(idx)))
 
-proc loadSoundsStep*(sys: SoundSystem, budget: int = 2): bool =
+proc loadSoundsStep*(sys: SoundSystem, budget: int = 2): bool {.moddable.} =
   ## Load up to `budget` sounds (plus their voice aliases) into the audio
   ## device and report whether every sound is loaded. Splitting this across
   ## frames keeps the loading screen animating instead of stalling on the
@@ -2957,7 +2923,7 @@ proc loadSoundsStep*(sys: SoundSystem, budget: int = 2): bool =
   false
 
 # SYSTEM INITIALIZATION AND MANAGEMENT
-proc initSoundSystem*(): SoundSystem =
+proc initSoundSystem*(): SoundSystem {.moddable.} =
   ## Opens the audio device only. Asset generation and sound loading are driven
   ## by the caller (see startAssetGeneration / loadSoundsStep) so the loading
   ## screen stays interactive.
@@ -2983,7 +2949,6 @@ proc initSoundSystem*(): SoundSystem =
     echo "ERROR initializing sound system: ", e.msg
     return SoundSystem(enabled: false, masterVolume: 0.5, musicVolume: 0.5, initialized: false)
 
-
 # PLAYBACK FUNCTIONS
 proc pitchVariation(soundType: SoundType): float32 =
   ## Max random pitch deviation per play. Constantly repeated combat sounds
@@ -2994,7 +2959,6 @@ proc pitchVariation(soundType: SoundType): float32 =
   of stShoot: 0.10
   of stEnemyDeath: 0.09
   of stExplosion: 0.08
-  of stWallPlace: 0.07
   of stShield: 0.05
   of stCoinPickup, stTeleport, stPlayerHit: 0.04
   of stMenuNav: 0.02
@@ -3008,7 +2972,7 @@ proc panSpread(soundType: SoundType): float32 =
   ## Random stereo offset for battlefield sounds; UI and jingles stay centered.
   ## Pan is in raylib's [-1, 1] range where 0 is center (NOT the older 0.5).
   case soundType
-  of stShoot, stEnemyHit, stEnemyDeath, stExplosion, stCoinPickup, stWallPlace: 0.12
+  of stShoot, stEnemyHit, stEnemyDeath, stExplosion, stCoinPickup: 0.12
   else: 0.0
 
 proc minReplayInterval(soundType: SoundType): float64 =
@@ -3282,7 +3246,7 @@ proc resetStream(sys: SoundSystem, track: MusicTrack) =
   if sys.currentTrack == track:
     sys.trackPlaying = false
 
-proc holdGameMusic*(held: bool) =
+proc holdGameMusic*(held: bool) {.moddable.} =
   ## mod_media, every frame: whether mod music or video sound is playing.
   ## Holding ends a fade-out at once and pauses the current track; it carries
   ## on from there once released (updateMusic skips everything while held).
@@ -3302,7 +3266,7 @@ proc holdGameMusic*(held: bool) =
     of msIdle:
       discard
 
-proc setModSound*(st: SoundType, path: string): bool =
+proc setModSound*(st: SoundType, path: string): bool {.moddable.} =
   ## Replace one of the game's sounds with a WAV/OGG/MP3/FLAC/QOA file. False if it
   ## could not be loaded (the built-in sound stays).
   try:
@@ -3317,7 +3281,7 @@ proc setModSound*(st: SoundType, path: string): bool =
   except CatchableError:
     false
 
-proc setModMusic*(track: MusicTrack, path: string): bool =
+proc setModMusic*(track: MusicTrack, path: string): bool {.moddable.} =
   ## Replace one music track with a file (OGG/MP3/WAV/FLAC/QOA/XM/MOD). False on failure.
   let sys = globalSoundSystem
   if sys == nil:
@@ -3337,7 +3301,7 @@ proc setModMusic*(track: MusicTrack, path: string): bool =
   modMusicActive[track] = true
   true
 
-proc restoreVanillaSounds*() =
+proc restoreVanillaSounds*() {.moddable.} =
   for st in SoundType:
     modSoundVoices[st].setLen(0)
     reset(modSoundSource[st])
@@ -3351,7 +3315,7 @@ proc restoreVanillaSounds*() =
     modMusicActive[track] = false
 
 proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0,
-                pitch: float32 = 1.0) =
+                pitch: float32 = 1.0) {.moddable.} =
   let sys = globalSoundSystem
   if sys == nil or not sys.enabled or not sys.soundsGenerated:
     return
@@ -3390,7 +3354,7 @@ proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0,
   if modded: play(Sound(modSoundVoices[soundType][voiceIdx]))
   else: play(Sound(sys.soundVoices[soundType][voiceIdx]))
 
-proc setGameVolume*(volume: float32) =
+proc setGameVolume*(volume: float32) {.moddable.} =
   if globalSoundSystem != nil:
     globalSoundSystem.masterVolume = clamp(volume, 0.0, 1.0)
 
@@ -3442,7 +3406,7 @@ proc enterTrack(sys: SoundSystem, track: MusicTrack, tier: int) =
   sys.currentTrack = track
   sys.trackPlaying = true
 
-proc playMusic*(track: MusicTrack, tier = 0) =
+proc playMusic*(track: MusicTrack, tier = 0) {.moddable.} =
   ## Called every frame with the music the screen wants. A new track takes
   ## over from its top while the old one fades out under it; the track that
   ## is already playing only moves to `tier`, the arrangement of a run theme
@@ -3462,12 +3426,12 @@ proc playMusic*(track: MusicTrack, tier = 0) =
     sys.leaveTrack(sys.currentTrack)
   sys.enterTrack(track, tier)
 
-proc setMusicMuffled*(muffled: bool) =
+proc setMusicMuffled*(muffled: bool) {.moddable.} =
   ## main.nim, every frame: whether the player's health is critical. The
   ## built-in loops muffle until it is not (see fillTierBlock).
   musicMuffled = muffled
 
-proc updateMusic*() =
+proc updateMusic*() {.moddable.} =
   ## Every frame: feed the playing streams and move their fades along.
   let sys = globalSoundSystem
   if sys == nil or not sys.enabled:
@@ -3490,7 +3454,7 @@ proc updateMusic*() =
     of msIdle:
       discard
 
-proc startScore*(track: MusicTrack): bool =
+proc startScore*(track: MusicTrack): bool {.moddable.} =
   ## Play a story score from the top at normal speed, whatever was playing
   ## (including this same score, on a replay). A score cuts in: its opening
   ## is composed, and its cues have to land on their frames; whatever it
@@ -3509,7 +3473,7 @@ proc startScore*(track: MusicTrack): bool =
   setMusicPitch(sys.cachedMusic[track], 1.0)
   true
 
-proc syncScore*(track: MusicTrack, position, rate: float32) =
+proc syncScore*(track: MusicTrack, position, rate: float32) {.moddable.} =
   ## Keep a playing score on its cinematic's clock. `rate` is the playback
   ## multiplier (2 while the cutscene fast-forwards): raylib's pitch resamples
   ## the stream, so speed and pitch rise together like a tape. Drift past a
@@ -3527,7 +3491,7 @@ proc syncScore*(track: MusicTrack, position, rate: float32) =
   except CatchableError:
     discard
 
-proc stopMusic*() =
+proc stopMusic*() {.moddable.} =
   ## Cut the music dead: game over keeps its abrupt stop.
   let sys = globalSoundSystem
   if sys == nil:
@@ -3537,7 +3501,7 @@ proc stopMusic*() =
       sys.resetStream(track)
   sys.trackPlaying = false
 
-proc setMusicVolume*(volume: float32) =
+proc setMusicVolume*(volume: float32) {.moddable.} =
   let sys = globalSoundSystem
   if sys == nil:
     return
@@ -3546,7 +3510,7 @@ proc setMusicVolume*(volume: float32) =
     if sys.streamState[track] in {msIn, msOut}:
       sys.applyFadeVolume(track)
 
-proc closeSoundSystem*(sys: SoundSystem) =
+proc closeSoundSystem*(sys: SoundSystem) {.moddable.} =
   # The generator thread writes into the temp cache; never tear the process
   # down underneath it.
   abortAssetGeneration()

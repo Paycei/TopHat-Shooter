@@ -2,6 +2,7 @@
 ## Progress is derived from lifetime stats, last-run analytics, and roguelite profile data.
 
 import json, os, times, strutils, math
+import modding/mod_patch_core
 import types, statistics, run_statistics, save_system
 
 type
@@ -49,10 +50,10 @@ const
 
 proc saveAdvancements*(profile: AdvancementProfile): bool
 
-proc allAdvancementCategories*(): array[5, AdvancementCategory] =
+proc allAdvancementCategories*(): array[5, AdvancementCategory] {.moddable.} =
   [acCombat, acSurvival, acResources, acMastery, acRoguelite]
 
-proc categoryName*(category: AdvancementCategory): string =
+proc categoryName*(category: AdvancementCategory): string {.moddable.} =
   case category
   of acCombat: "Combat"
   of acSurvival: "Survival"
@@ -60,7 +61,7 @@ proc categoryName*(category: AdvancementCategory): string =
   of acMastery: "Mastery"
   of acRoguelite: "Roguelite"
 
-proc categoryDescription*(category: AdvancementCategory): string =
+proc categoryDescription*(category: AdvancementCategory): string {.moddable.} =
   case category
   of acCombat: "Eliminations, bosses, accuracy, and combo pressure."
   of acSurvival: "Waves, endurance, no-damage windows, and clutch play."
@@ -68,7 +69,7 @@ proc categoryDescription*(category: AdvancementCategory): string =
   of acMastery: "Power-up drafting, legendary installs, and build depth."
   of acRoguelite: "Sector clears, banked shards, Heat earned by winning, and full-run wins."
 
-proc tierName*(tier: AdvancementTier): string =
+proc tierName*(tier: AdvancementTier): string {.moddable.} =
   case tier
   of atBronze: "Bronze"
   of atSilver: "Silver"
@@ -76,10 +77,10 @@ proc tierName*(tier: AdvancementTier): string =
   of atLegendary: "Legendary"
   of atMythic: "Mythic"
 
-proc allAdvancementTiers*(): array[5, AdvancementTier] =
+proc allAdvancementTiers*(): array[5, AdvancementTier] {.moddable.} =
   [atBronze, atSilver, atGold, atLegendary, atMythic]
 
-proc rewardShards*(tier: AdvancementTier): int =
+proc rewardShards*(tier: AdvancementTier): int {.moddable.} =
   ## Data Shard payout for claiming an unlocked advancement.
   ## Calibrated against the roguelite unlock shop (45-280 shards per unlock).
   case tier
@@ -89,7 +90,7 @@ proc rewardShards*(tier: AdvancementTier): int =
   of atLegendary: 200
   of atMythic: 400
 
-proc rewardCores*(tier: AdvancementTier): int =
+proc rewardCores*(tier: AdvancementTier): int {.moddable.} =
   ## Rare-currency payout; only Legendary and Mythic advancements pay Cores so
   ## the Heat 2+ core economy isn't trivialized.
   case tier
@@ -419,13 +420,13 @@ const AllAdvancementDefs: seq[AdvancementDefinition] = @[
     )
   ]
 
-proc getAdvancementDefinitions*(): seq[AdvancementDefinition] =
+proc getAdvancementDefinitions*(): seq[AdvancementDefinition] {.moddable.} =
   AllAdvancementDefs
 
-proc getAdvancementsPath*(): string =
+proc getAdvancementsPath(): string {.moddable.} =
   getAppDataPath() / "advancements.json"
 
-proc newAdvancementProfile*(): AdvancementProfile =
+proc newAdvancementProfile(): AdvancementProfile {.moddable.} =
   result = AdvancementProfile(
     version: AdvancementProfileVersion,
     entries: @[],
@@ -436,7 +437,7 @@ proc newAdvancementProfile*(): AdvancementProfile =
     result.entries.add(AdvancementEntry(id: def.id, progress: 0.0, unlocked: false,
                                         claimed: false, unlockedAt: ""))
 
-proc findEntryIndex*(profile: AdvancementProfile, id: string): int =
+proc findEntryIndex(profile: AdvancementProfile, id: string): int {.moddable.} =
   if profile.isNil:
     return -1
   for i in 0..<profile.entries.len:
@@ -450,7 +451,7 @@ proc hasDefinition(id: string): bool =
       return true
   false
 
-proc loadAdvancementCompletionForSlot*(slot: int): float32 =
+proc loadAdvancementCompletionForSlot*(slot: int): float32 {.moddable.} =
   ## Fraction [0,1] of defined advancements marked unlocked in the given save
   ## profile slot. Reads that slot's file directly so the profile-select
   ## screen can show every slot's completion without switching the active
@@ -464,8 +465,8 @@ proc loadAdvancementCompletionForSlot*(slot: int): float32 =
     if not fileExists(path):
       return 0.0
     let node = parseJson(readFile(path))
-    if node.hasKey("entries"):
-      for item in node["entries"]:
+    if node.kind == JObject and node.hasKey("entries"):
+      for item in jsonItems(node["entries"]):
         # Stale ids from removed advancements must not inflate the ratio.
         if item.getOrDefault("unlocked").getBool(false) and
            hasDefinition(item.getOrDefault("id").getStr("")):
@@ -474,7 +475,7 @@ proc loadAdvancementCompletionForSlot*(slot: int): float32 =
     return 0.0
   min(1.0'f32, unlocked.float32 / total.float32)
 
-proc ensureAdvancementEntries*(profile: AdvancementProfile) =
+proc ensureAdvancementEntries(profile: AdvancementProfile) {.moddable.} =
   if profile.isNil:
     return
   if profile.version < AdvancementProfileVersion:
@@ -496,19 +497,19 @@ proc ensureAdvancementEntries*(profile: AdvancementProfile) =
     else:
       inc i
 
-proc getAdvancementDefinition*(id: string): AdvancementDefinition =
+proc getAdvancementDefinition*(id: string): AdvancementDefinition {.moddable.} =
   for def in getAdvancementDefinitions():
     if def.id == id:
       return def
   AdvancementDefinition()
 
-proc getAdvancementEntry*(profile: AdvancementProfile, id: string): AdvancementEntry =
+proc getAdvancementEntry*(profile: AdvancementProfile, id: string): AdvancementEntry {.moddable.} =
   let idx = profile.findEntryIndex(id)
   if idx >= 0:
     return profile.entries[idx]
   AdvancementEntry(id: id, progress: 0.0, unlocked: false, claimed: false, unlockedAt: "")
 
-proc definitionsForCategory*(category: AdvancementCategory): seq[AdvancementDefinition] =
+proc definitionsForCategory*(category: AdvancementCategory): seq[AdvancementDefinition] {.moddable.} =
   ## Ordered by rarity (Bronze -> Legendary); within a tier the registry order
   ## is preserved, so the difficulty ramp inside each tier still reads left to
   ## right as authored. Bucketing keeps the sort stable without an extra import.
@@ -518,12 +519,12 @@ proc definitionsForCategory*(category: AdvancementCategory): seq[AdvancementDefi
       if def.category == category and def.tier == tier:
         result.add(def)
 
-proc advancementPercent*(entry: AdvancementEntry, def: AdvancementDefinition): float32 =
+proc advancementPercent*(entry: AdvancementEntry, def: AdvancementDefinition): float32 {.moddable.} =
   if def.target <= 0:
     return 1.0'f32
   clamp(entry.progress / def.target, 0.0'f32, 1.0'f32)
 
-proc formatAdvancementProgress*(entry: AdvancementEntry, def: AdvancementDefinition): string =
+proc formatAdvancementProgress*(entry: AdvancementEntry, def: AdvancementDefinition): string {.moddable.} =
   let shown = min(entry.progress, def.target)
   if def.target >= 100.0'f32:
     $shown.int & " / " & $def.target.int
@@ -532,19 +533,19 @@ proc formatAdvancementProgress*(entry: AdvancementEntry, def: AdvancementDefinit
   else:
     shown.formatFloat(ffDecimal, 1) & " / " & def.target.formatFloat(ffDecimal, 1)
 
-proc totalUnlocked*(profile: AdvancementProfile): int =
+proc totalUnlocked*(profile: AdvancementProfile): int {.moddable.} =
   if profile.isNil: return 0
   for entry in profile.entries:
     if entry.unlocked:
       inc result
 
-proc totalClaimed*(profile: AdvancementProfile): int =
+proc totalClaimed*(profile: AdvancementProfile): int {.moddable.} =
   if profile.isNil: return 0
   for entry in profile.entries:
     if entry.claimed:
       inc result
 
-proc unclaimedShards*(profile: AdvancementProfile): int =
+proc unclaimedShards*(profile: AdvancementProfile): int {.moddable.} =
   if profile.isNil: return 0
   for def in AllAdvancementDefs:
     let entry = profile.getAdvancementEntry(def.id)
@@ -552,7 +553,7 @@ proc unclaimedShards*(profile: AdvancementProfile): int =
       result += def.rewardShards
 
 proc categoryTotals*(profile: AdvancementProfile,
-                     category: AdvancementCategory): tuple[unlocked, total, unclaimed: int] =
+                     category: AdvancementCategory): tuple[unlocked, total, unclaimed: int] {.moddable.} =
   for def in getAdvancementDefinitions():
     if def.category != category:
       continue
@@ -565,7 +566,7 @@ proc categoryTotals*(profile: AdvancementProfile,
 
 proc categoryTierTotals*(profile: AdvancementProfile,
                          category: AdvancementCategory,
-                         tier: AdvancementTier): tuple[unlocked, total, unclaimed: int] =
+                         tier: AdvancementTier): tuple[unlocked, total, unclaimed: int] {.moddable.} =
   ## Per-tier rollup inside one category, for the grouped list headers.
   for def in getAdvancementDefinitions():
     if def.category != category or def.tier != tier:
@@ -578,7 +579,7 @@ proc categoryTierTotals*(profile: AdvancementProfile,
         inc result.unclaimed
 
 proc tierTotals*(profile: AdvancementProfile,
-                 tier: AdvancementTier): tuple[unlocked, total, unclaimed: int] =
+                 tier: AdvancementTier): tuple[unlocked, total, unclaimed: int] {.moddable.} =
   ## Rollup of one rarity tier across every category, for the sidebar legend.
   for def in getAdvancementDefinitions():
     if def.tier != tier:
@@ -723,7 +724,7 @@ proc measuredProgress(def: AdvancementDefinition, stats: Statistics,
 proc syncAdvancements*(profile: AdvancementProfile, stats: Statistics,
                        lastRun: RunStatistics = nil,
                        rogueliteProfile: RogueliteProfile = nil,
-                       liveRun: bool = false): seq[AdvancementDefinition] =
+                       liveRun: bool = false): seq[AdvancementDefinition] {.moddable.} =
   ## Pass liveRun=true with the in-progress run stats to sync mid-run
   ## (current-run contributions get added on top of saved lifetime stats).
   if profile.isNil:
@@ -750,11 +751,11 @@ proc syncAdvancements*(profile: AdvancementProfile, stats: Statistics,
       profile.dirty = true
       result.add(def)
 
-proc isAdvancementUnlocked*(profile: AdvancementProfile, id: string): bool =
+proc isAdvancementUnlocked*(profile: AdvancementProfile, id: string): bool {.moddable.} =
   let idx = profile.findEntryIndex(id)
   idx >= 0 and profile.entries[idx].unlocked
 
-proc unlockAdvancementDirectly*(profile: AdvancementProfile, id: string): bool =
+proc unlockAdvancementDirectly*(profile: AdvancementProfile, id: string): bool {.moddable.} =
   ## Unlock an event-driven advancement that has no stat backing it.
   ## Returns true only the first time it unlocks.
   if profile.isNil:
@@ -771,7 +772,7 @@ proc unlockAdvancementDirectly*(profile: AdvancementProfile, id: string): bool =
   true
 
 proc claimAdvancement*(profile: AdvancementProfile, id: string,
-                       wallet: RogueliteProfile): tuple[claimed: bool, shards, cores: int] =
+                       wallet: RogueliteProfile): tuple[claimed: bool, shards, cores: int] {.moddable.} =
   ## Claim an unlocked advancement and credit its payout to the persistent
   ## wallet (the roguelite profile, which backs the unlock and cosmetic shops).
   ## Caller is responsible for saving both profiles.
@@ -788,7 +789,7 @@ proc claimAdvancement*(profile: AdvancementProfile, id: string,
       wallet.cores += result.cores
 
 proc claimAllAdvancements*(profile: AdvancementProfile,
-                           wallet: RogueliteProfile): tuple[count, shards, cores: int] =
+                           wallet: RogueliteProfile): tuple[count, shards, cores: int] {.moddable.} =
   ## Claim every unlocked-but-unclaimed advancement at once. Payouts are
   ## credited to the wallet; caller saves both profiles.
   if profile.isNil:
@@ -805,7 +806,7 @@ proc claimAllAdvancements*(profile: AdvancementProfile,
     wallet.dataShards += result.shards
     wallet.cores += result.cores
 
-proc resetAdvancements*(profile: AdvancementProfile): bool =
+proc resetAdvancements*(profile: AdvancementProfile): bool {.moddable.} =
   ## Reset an existing advancement profile in place so open windows keep their reference.
   if profile.isNil:
     return false
@@ -818,7 +819,7 @@ proc resetAdvancements*(profile: AdvancementProfile): bool =
   saveAdvancements(profile)
 
 proc resetAdvancementCategory*(profile: AdvancementProfile,
-                               category: AdvancementCategory): bool =
+                               category: AdvancementCategory): bool {.moddable.} =
   ## Clear one advancement category without replacing the profile object.
   if profile.isNil:
     return false
@@ -850,7 +851,7 @@ proc advancementEntryToJson(entry: AdvancementEntry): JsonNode =
     "unlockedAt": entry.unlockedAt
   }
 
-proc advancementProfileToJson*(profile: AdvancementProfile): JsonNode =
+proc advancementProfileToJson(profile: AdvancementProfile): JsonNode {.moddable.} =
   var entries = newJArray()
   if not profile.isNil:
     for entry in profile.entries:
@@ -867,7 +868,8 @@ proc advancementProfileToJson*(profile: AdvancementProfile): JsonNode =
     "recentUnlocks": recent
   }
 
-proc jsonToAdvancementProfile*(node: JsonNode): AdvancementProfile =
+proc jsonToAdvancementProfile(node: JsonNode): AdvancementProfile {.moddable.} =
+  needObject(node)
   result = AdvancementProfile(
     version: node.getOrDefault("version").getInt(AdvancementProfileVersion),
     entries: @[],
@@ -876,7 +878,7 @@ proc jsonToAdvancementProfile*(node: JsonNode): AdvancementProfile =
   )
 
   if node.hasKey("entries"):
-    for item in node["entries"]:
+    for item in jsonItems(node["entries"]):
       var entry = AdvancementEntry(
         id: item.getOrDefault("id").getStr(""),
         progress: item.getOrDefault("progress").getFloat(0.0).float32,
@@ -888,7 +890,7 @@ proc jsonToAdvancementProfile*(node: JsonNode): AdvancementProfile =
         result.entries.add(entry)
 
   if node.hasKey("recentUnlocks"):
-    for item in node["recentUnlocks"]:
+    for item in jsonItems(node["recentUnlocks"]):
       result.recentUnlocks.add(item.getStr())
   # Saves from before the menu toast queue existed accumulated unlocks here
   # without ever consuming them; keep only the latest few to avoid toast spam.
@@ -897,7 +899,7 @@ proc jsonToAdvancementProfile*(node: JsonNode): AdvancementProfile =
 
   result.ensureAdvancementEntries()
 
-proc saveAdvancements*(profile: AdvancementProfile): bool =
+proc saveAdvancements*(profile: AdvancementProfile): bool {.moddable.} =
   try:
     if profile.isNil:
       return false
@@ -913,7 +915,7 @@ proc saveAdvancements*(profile: AdvancementProfile): bool =
     echo "Unexpected error saving advancements: ", e.msg
     false
 
-proc loadAdvancements*(): AdvancementProfile =
+proc loadAdvancements*(): AdvancementProfile {.moddable.} =
   try:
     let path = getAdvancementsPath()
     if not fileExists(path):

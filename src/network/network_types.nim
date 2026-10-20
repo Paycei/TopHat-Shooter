@@ -33,22 +33,22 @@ type
   PlayerInput* = object
     tick*: int
     playerIndex*: int
-    moveDir*: Vector2f
+    moveDir*: Vector2
     shooting*: bool
-    mousePos*: Vector2f
+    mousePos*: Vector2
     placingWall*: bool
-    wallPos*: Vector2f
+    wallPos*: Vector2
     timestamp*: float32
     dt*: float32   ## Frame delta-time when this input was captured, needed for accurate replay
     dashSeq*: int      ## Cumulative dash presses this match. A count, not a pressed flag:
                        ## every later input carries it, so one lost datagram can't drop a dash.
-    dashDir*: Vector2f ## Direction locked in when the latest dash was pressed
+    dashDir*: Vector2  ## Direction locked in when the latest dash was pressed
 
   PlayerStateNet* = object
     playerIndex*: int
     isActive*: bool
-    pos*: Vector2f
-    vel*: Vector2f
+    pos*: Vector2
+    vel*: Vector2
     hp*: float32
     maxHp*: float32
     coins*: int
@@ -98,8 +98,8 @@ type
 
   BulletStateNet* = object
     id*: int
-    pos*: Vector2f
-    vel*: Vector2f
+    pos*: Vector2
+    vel*: Vector2
     radius*: float32
     damage*: float32
     fromPlayerIndex*: int
@@ -121,7 +121,7 @@ type
     data*: string     ## JSON (plain data only)
 
   WallStateNet* = object
-    pos*: Vector2f
+    pos*: Vector2
     radius*: float32
     hp*: float32
     maxHp*: float32
@@ -173,7 +173,6 @@ type
     of ptConnectionAccept, ptConnectionDenied:
       connectionReason*: string
       assignedPlayerIndex*: int
-      maxPlayersInRoom*: int
       connectedPlayers*: seq[ConnectedPlayerInfo]
     of ptPlayerListUpdate:
       updatedPlayers*: seq[ConnectedPlayerInfo]
@@ -183,7 +182,7 @@ type
       teamAssignments*: seq[int]
       gameConnectedPlayers*: seq[ConnectedPlayerInfo]
       pvpConfig*: PvPConfig    ## Host game-settings broadcast to all clients
-      spawnPositions*: seq[Vector2f]  ## Where each player starts (a mod may move spawns)
+      spawnPositions*: seq[Vector2]  ## Where each player starts (a mod may move spawns)
     of ptPlayerInput:
       input*: PlayerInput
       modMsgs*: seq[ModNetMsg]  ## This client's requests the host has not acknowledged
@@ -225,7 +224,7 @@ type
       sendTime*: float32
     of ptPlayerRespawn:
       respawnIndex*: int
-      respawnPos*: Vector2f
+      respawnPos*: Vector2
     of ptPickupTaken:
       pickupPort*: int
       pickupKind*: int      ## PvPPackageKind ordinal

@@ -9,7 +9,7 @@
 ## depend on that).
 
 import std/[os, json, strutils, algorithm]
-import ../save_system
+import ../save_system, ../utils
 import mod_state
 
 type
@@ -27,6 +27,7 @@ type
     dir*: string
     enabled*: bool
     disableAchievements*: bool   ## mod.json "disableAchievements" (default true)
+    game*: string                ## mod.json "game": the oldest game version it is made for
     status*: ModStatus
     message*: string   ## why it is not loaded (error text with traceback)
 
@@ -47,6 +48,35 @@ proc modSearchDirs*(): seq[string] =
   if dirExists(portable) and normalizedPath(portable) != normalizedPath(result[0]):
     result.add(portable)
 
+when defined(windows):
+  proc removeDirectoryW(path: WideCString): int32 {.stdcall, dynlib: "kernel32",
+                                                   importc: "RemoveDirectoryW".}
+
+proc unlinkDir(path: string) =
+  ## Remove a folder link itself (a symbolic link or a junction), never what
+  ## it points at. On Windows a link to a folder is a folder (removeFile is
+  ## refused); elsewhere it is a file.
+  when defined(windows):
+    if removeDirectoryW(newWideCString(path)) == 0:
+      raiseOSError(osLastError(), path)
+  else:
+    removeFile(path)
+
+proc removeModFolder*(dir: string) =
+  ## removeDir that never follows a link. A modder often links a checkout
+  ## into the mods folder, and removeDir lists a link's target before
+  ## removing the link: it emptied the checkout, .git included. A link (the
+  ## folder itself or one inside it) is unlinked instead. Raises OSError.
+  if symlinkExists(dir):
+    unlinkDir(dir)
+    return
+  for kind, path in walkDir(dir):
+    case kind
+    of pcLinkToDir: unlinkDir(path)
+    of pcDir: removeModFolder(path)
+    of pcFile, pcLinkToFile: removeFile(path)
+  removeDir(dir)   # (empty now)
+
 proc validId(id: string): bool =
   if id.len == 0 or id.len > 40: return false
   for c in id:
@@ -58,6 +88,10 @@ proc strList(j: JsonNode, key: string): seq[string] =
   if not n.isNil and n.kind == JArray:
     for x in n:
       if x.kind == JString: result.add(x.getStr)
+
+proc modMainPath*(m: ModInfo): string =
+  ## The main script: relative to the mod folder, or any absolute path.
+  if m.main.isAbsolute: m.main else: m.dir / m.main
 
 proc readManifest(dir: string): ModInfo =
   result.dir = dir
@@ -89,15 +123,18 @@ proc readManifest(dir: string): ModInfo =
     result.message = "\"id\" must be 1-40 characters of a-z, 0-9 and _ (got \"" & result.id & "\")"
     if result.id.len == 0: result.id = lastPathPart(dir)
     return
-  if result.main.isAbsolute or ".." in result.main:
-    result.message = "\"main\" must be a file inside the mod folder"
-    return
-  if not fileExists(dir / result.main):
+  if not fileExists(modMainPath(result)):
     if not j.hasKey("main") and dirExists(dir / "content"):
       result.main = ""   # a content-only mod: its content/*.json is all it has
     else:
       result.message = "main script not found: " & result.main
       return
+  let gv = j.getOrDefault("game")
+  if not gv.isNil:
+    if gv.kind != JString or gv.getStr.len == 0 or gv.getStr[0] notin Digits:
+      result.message = "\"game\" must be a version, like \"" & GameVersion & "\""
+      return
+    result.game = gv.getStr
   let da = j.getOrDefault("disableAchievements")
   if not da.isNil:
     if da.kind != JBool:
@@ -105,6 +142,11 @@ proc readManifest(dir: string): ModInfo =
       return
     result.disableAchievements = da.getBool
   result.status = msDisabled
+
+proc needsNewerGame*(m: ModInfo): bool =
+  ## Made for a newer game than this one (mod.json "game"): it still loads,
+  ## but what it uses may not be here yet.
+  m.game.len > 0 and not versionAtLeast(GameVersion, m.game)
 
 proc scanMods*(enabled: seq[string]): seq[ModInfo] =
   ## Every installed mod, sorted by id; `enabled` marks the ones to load.
@@ -203,7 +245,7 @@ proc loadOrder*(catalog: var seq[ModInfo]): seq[int] =
     placed.add(catalog[pick].id)
     remaining.delete(remaining.find(pick))
 
-proc modFiles*(dir: string): seq[string] =
+proc modFiles(dir: string): seq[string] =
   ## Every file of a mod, as sorted relative paths.
   try:
     for path in walkDirRec(dir, relative = true):
@@ -212,23 +254,29 @@ proc modFiles*(dir: string): seq[string] =
     discard
   result.sort()
 
-proc computeFingerprint*(infos: seq[ModInfo]): string =
-  ## FNV-1a over the loaded mods' ids, versions and every file byte, as 8 hex
-  ## digits. Same mods, same files: same fingerprint on every machine.
-  var h = 2166136261'u32
+const FingerprintStart* = 2166136261'u32
+
+proc fingerprintMix*(h: uint32, m: ModInfo): uint32 =
+  ## Fold one mod (id, version, every file's path and bytes) into an FNV-1a
+  ## state. The loader folds each mod in just before it runs, so files a mod
+  ## writes into its own folder never change the fingerprint of this session.
+  result = h
   template mixStr(s: string) =
     for c in s:
-      h = (h xor uint32(ord(c))) * 16777619'u32
-    h = (h xor 0xFF'u32) * 16777619'u32
-  for m in infos:
-    mixStr(m.id)
-    mixStr(m.version)
-    for rel in modFiles(m.dir):
-      mixStr(rel)
-      try:
-        mixStr(readFile(m.dir / rel))
-      except IOError:
-        mixStr("<unreadable>")
+      result = (result xor uint32(ord(c))) * 16777619'u32
+    result = (result xor 0xFF'u32) * 16777619'u32
+  mixStr(m.id)
+  mixStr(m.version)
+  for rel in modFiles(m.dir):
+    mixStr(rel)
+    try:
+      mixStr(readFile(m.dir / rel))
+    except IOError:
+      mixStr("<unreadable>")
+
+proc fingerprintHex*(h: uint32): string =
+  ## The loaded set's fingerprint as 8 hex digits: same mods, same files, same
+  ## fingerprint on every machine (save slots and PvP lobbies match on it).
   toHex(h, 8).toLowerAscii
 
 proc statusLog*(m: ModInfo) =

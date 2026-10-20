@@ -3,8 +3,11 @@
 # The roll animation system is handled in powerup.nim
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../types, icon_drawing, ../localization, ../powerup_data, ../render_context, ../settings, ui_helpers, ../utils
+import ui_theme
+from hud_dock import textShadow
 
 const
   INSTALLER_BASE_WIDTH: int32 = 1000   # classic (4:3) width -- do not change
@@ -42,7 +45,7 @@ type
     rerollX*, rerollY*, rerollW*, rerollH*: int32
     continueX*, continueY*, continueW*, continueH*: int32
 
-proc installerLayout*(): InstallerLayout =
+proc installerLayout*(): InstallerLayout {.moddable.} =
   ## Widescreen (16:9) hands the panel ~260 extra pixels. Rather than banking it
   ## as margin, it is split between the three cards (~73px each) and the gaps
   ## between them (+20px), so descriptions wrap into fewer lines and the icon /
@@ -79,23 +82,23 @@ proc installerLayout*(): InstallerLayout =
   result.continueX = result.winX + (result.winW - result.continueW) div 2
   result.continueY = result.winY + result.winH - 100
 
-proc cardX*(l: InstallerLayout, i: int): int32 =
+proc cardX*(l: InstallerLayout, i: int): int32 {.moddable.} =
   ## Left edge of card `i` (0..2).
   l.cardsX + int32(i) * (l.cardW + l.cardSpacing)
 
-proc cardRect*(l: InstallerLayout, i: int): Rectangle =
+proc cardRect*(l: InstallerLayout, i: int): Rectangle {.moddable.} =
   Rectangle(x: l.cardX(i).float32, y: l.cardsY.float32,
             width: l.cardW.float32, height: l.cardH.float32)
 
-proc closeRect*(l: InstallerLayout): Rectangle =
+proc closeRect*(l: InstallerLayout): Rectangle {.moddable.} =
   Rectangle(x: l.closeX.float32, y: l.closeY.float32,
             width: l.closeSize.float32, height: l.closeSize.float32)
 
-proc rerollRect*(l: InstallerLayout): Rectangle =
+proc rerollRect*(l: InstallerLayout): Rectangle {.moddable.} =
   Rectangle(x: l.rerollX.float32, y: l.rerollY.float32,
             width: l.rerollW.float32, height: l.rerollH.float32)
 
-proc continueRect*(l: InstallerLayout): Rectangle =
+proc continueRect*(l: InstallerLayout): Rectangle {.moddable.} =
   Rectangle(x: l.continueX.float32, y: l.continueY.float32,
             width: l.continueW.float32, height: l.continueH.float32)
 
@@ -112,10 +115,10 @@ proc drawModernButton(x, y, width, height: int32, text: string,
   if enabled:
     drawRectangle(x + 2, y + 2, width, height, Color(r: 0, g: 0, b: 0, a: 80))
 
-  drawRectangle(x, y, width, height, bgColor)
+  drawRectangle(x, y, width, height, uiSurface(bgColor))
 
   if enabled:
-    drawRectangle(x, y, width, 2, Color(r: 255, g: 255, b: 255, a: 30))
+    drawRectangle(x, y, width, 2, uiGlow(Color(r: 255, g: 255, b: 255, a: 30)))
 
   let borderColor = if not enabled:
     Color(r: 70, g: 80, b: 90, a: 255)
@@ -128,11 +131,11 @@ proc drawModernButton(x, y, width, height: int32, text: string,
   let borderWidth = if highlight: 2.5 else: 2.0
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
-                    borderWidth, borderColor)
+                    borderWidth, uiLine(borderColor))
 
   let textColor = if not enabled: Color(r: 100, g: 100, b: 110, a: 255) else: White
   let textWidth = measureText(text, 15)
-  drawText(text, x + (width - textWidth) div 2, y + (height - 15) div 2, 15, textColor)
+  drawText(text, x + (width - textWidth) div 2, y + (height - 15) div 2, 15, uiInk(textColor))
 
 proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
                     selected: bool, time: float32, playerDamage: float32,
@@ -151,12 +154,12 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   # Background
   let bgColor = if selected: Color(r: 35, g: 48, b: 65, a: 255)
                 else:        Color(r: 22, g: 28, b: 40, a: 255)
-  drawRectangle(x, y, width, height, bgColor)
+  drawRectangle(x, y, width, height, uiSurface(bgColor))
 
   # Top accent bar
   let accentColor = if powerUp.rarity == prLegendary: Color(r: 255, g: 215, b: 0, a: 255)
                     else:                              Color(r: 0, g: 180, b: 255, a: 255)
-  drawRectangle(x, y, width, 4, accentColor)
+  drawRectangle(x, y, width, 4, uiInk(accentColor))
 
   # Selection glow rings
   if selected and a > 0.7:
@@ -166,14 +169,14 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
       drawRectOutline(
         Rectangle(x: float32(x - off), y: float32(y - off),
                   width: float32(width + off * 2), height: float32(height + off * 2)),
-        1.0, Color(r: 0, g: 200, b: 255, a: uint8(float32(180 div int32(i * 2)) * pulse * a)))
+        1.0, uiLine(Color(r: 0, g: 200, b: 255, a: uint8(float32(180 div int32(i * 2)) * pulse * a))))
 
   # Border
   let borderColor = if selected: Color(r: 0, g: 220, b: 255, a: 255)
                     else:        Color(r: 60, g: 75, b: 95, a: 255)
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                 width: width.float32, height: height.float32),
-                    if selected: 3.0 else: 2.0, borderColor)
+                    if selected: 3.0 else: 2.0, uiLine(borderColor))
 
   # "NEW" badge: a simple indicator for power-ups the player has never installed.
   # It reads the same codex (globalSettings.discoveredPowerUps, keyed by the enum
@@ -196,16 +199,16 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
       drawRectOutline(
         Rectangle(x: float32(nbX - go), y: float32(nbY - go),
                   width: float32(nbW + go * 2), height: float32(nbH + go * 2)),
-        1.0, Color(r: 70, g: 240, b: 130, a: uint8(float32(90 div gi) * pulse * a)))
+        1.0, uiLine(Color(r: 70, g: 240, b: 130, a: uint8(float32(90 div gi) * pulse * a))))
     drawRectangle(nbX + 1, nbY + 1, nbW, nbH, Color(r: 0, g: 0, b: 0, a: uint8(90.0 * a)))
-    drawRectangle(nbX, nbY, nbW, nbH, Color(r: 22, g: 64, b: 38, a: uint8(255.0 * a)))
-    drawRectangle(nbX, nbY, nbW, 2, Color(r: 120, g: 255, b: 170, a: uint8(160.0 * a)))
+    drawRectangle(nbX, nbY, nbW, nbH, uiSurface(Color(r: 22, g: 64, b: 38, a: uint8(255.0 * a))))
+    drawRectangle(nbX, nbY, nbW, 2, uiSurface(Color(r: 120, g: 255, b: 170, a: uint8(160.0 * a))))
     drawRectOutline(Rectangle(x: nbX.float32, y: nbY.float32,
                                   width: nbW.float32, height: nbH.float32),
-                      2.0, Color(r: 80, g: 240, b: 130, a: uint8(255.0 * a * pulse)))
+                      2.0, uiLine(Color(r: 80, g: 240, b: 130, a: uint8(255.0 * a * pulse))))
     let ntx = nbX + (nbW - newTextW) div 2
-    drawText(newText, ntx + 1, nbY + 5, newFont, Color(r: 0, g: 0, b: 0, a: uint8(150.0 * a)))
-    drawText(newText, ntx, nbY + 4, newFont, Color(r: 190, g: 255, b: 210, a: uint8(255.0 * a)))
+    drawText(newText, ntx + 1, nbY + 5, newFont, textShadow(uint8(150.0 * a)))
+    drawText(newText, ntx, nbY + 4, newFont, uiInk(Color(r: 190, g: 255, b: 210, a: uint8(255.0 * a))))
 
   var yOff = y + 20
 
@@ -213,13 +216,13 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   let iconSize: int32 = 60
   let iconX = x + (width - iconSize) div 2
   drawRectangle(iconX + 2, yOff + 2, iconSize, iconSize, Color(r: 0, g: 0, b: 0, a: 80))
-  drawRectangle(iconX, yOff, iconSize, iconSize, Color(r: 30, g: 38, b: 52, a: 255))
-  drawRectangle(iconX + 3, yOff + 3, iconSize - 6, iconSize - 6, Color(r: 40, g: 50, b: 65, a: 255))
+  drawRectangle(iconX, yOff, iconSize, iconSize, uiSurface(Color(r: 30, g: 38, b: 52, a: 255)))
+  drawRectangle(iconX + 3, yOff + 3, iconSize - 6, iconSize - 6, uiSurface(Color(r: 40, g: 50, b: 65, a: 255)))
   drawRectOutline(Rectangle(x: iconX.float32, y: yOff.float32,
-                                width: iconSize.float32, height: iconSize.float32), 2.0, accentColor)
+                                width: iconSize.float32, height: iconSize.float32), 2.0, uiLine(accentColor))
   drawRectOutline(Rectangle(x: float32(iconX + 2), y: float32(yOff + 2),
                                 width: float32(iconSize - 4), height: float32(iconSize - 4)),
-                    1.0, withAlpha(accentColor, 120))
+                    1.0, uiLine(withAlpha(accentColor, 120)))
 
   # Legendary corner decorations
   if powerUp.rarity == prLegendary and a > 0.6:
@@ -228,17 +231,17 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
     let cs: int32 = 6
     let gold = Color(r: 255, g: 215, b: 0, a: cA)
     # top-left
-    drawRectangle(iconX - 2, yOff - 2, cs, 2, gold)
-    drawRectangle(iconX - 2, yOff - 2, 2, cs, gold)
+    drawRectangle(iconX - 2, yOff - 2, cs, 2, uiInk(gold))
+    drawRectangle(iconX - 2, yOff - 2, 2, cs, uiInk(gold))
     # top-right
-    drawRectangle(iconX + iconSize - cs + 2, yOff - 2, cs, 2, gold)
-    drawRectangle(iconX + iconSize, yOff - 2, 2, cs, gold)
+    drawRectangle(iconX + iconSize - cs + 2, yOff - 2, cs, 2, uiInk(gold))
+    drawRectangle(iconX + iconSize, yOff - 2, 2, cs, uiInk(gold))
     # bottom-left
-    drawRectangle(iconX - 2, yOff + iconSize, cs, 2, gold)
-    drawRectangle(iconX - 2, yOff + iconSize - cs + 2, 2, cs, gold)
+    drawRectangle(iconX - 2, yOff + iconSize, cs, 2, uiInk(gold))
+    drawRectangle(iconX - 2, yOff + iconSize - cs + 2, 2, cs, uiInk(gold))
     # bottom-right
-    drawRectangle(iconX + iconSize - cs + 2, yOff + iconSize, cs, 2, gold)
-    drawRectangle(iconX + iconSize, yOff + iconSize - cs + 2, 2, cs, gold)
+    drawRectangle(iconX + iconSize - cs + 2, yOff + iconSize, cs, 2, uiInk(gold))
+    drawRectangle(iconX + iconSize, yOff + iconSize - cs + 2, 2, cs, uiInk(gold))
 
   drawPowerUpIcon(iconX + 5, yOff + 5, iconSize - 10, powerUp.powerType, accentColor)
   yOff += iconSize + 18
@@ -247,7 +250,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   let processName = getPowerUpName(powerUp.powerType)
   let nameWidth = measureText(processName, 20)
   drawText(processName, x + (width - nameWidth) div 2, yOff, 20,
-          if powerUp.rarity == prLegendary: Gold else: Color(r: 100, g: 200, b: 255, a: 255))
+          uiInk(if powerUp.rarity == prLegendary: Gold else: Color(r: 100, g: 200, b: 255, a: 255)))
   yOff += 30
 
   # Version + Rarity badges
@@ -270,20 +273,20 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
     of 2: Color(r: 45, g: 70, b: 55, a: 255)
     else: Color(r: 70, g: 50, b: 45, a: 255)
   drawRectangle(versionX + 1, yOff + 1, versionBadgeWidth, badgeHeight, Color(r: 0, g: 0, b: 0, a: 80))
-  drawRectangle(versionX, yOff, versionBadgeWidth, badgeHeight, vBg)
+  drawRectangle(versionX, yOff, versionBadgeWidth, badgeHeight, uiSurface(vBg))
   drawRectangle(versionX, yOff, versionBadgeWidth, 2,
-               Color(r: min(vBg.r + 60, 255), g: min(vBg.g + 60, 255), b: min(vBg.b + 60, 255), a: 255))
+               uiSurface(Color(r: min(vBg.r + 60, 255), g: min(vBg.g + 60, 255), b: min(vBg.b + 60, 255), a: 255)))
   let vBorderColor = case powerUp.level
     of 1: Color(r: 80, g: 120, b: 180, a: 255)
     of 2: Color(r: 80, g: 180, b: 120, a: 255)
     else: Color(r: 180, g: 120, b: 80, a: 255)
   drawRectOutline(Rectangle(x: versionX.float32, y: yOff.float32,
                                 width: versionBadgeWidth.float32, height: badgeHeight.float32),
-                    2.0, vBorderColor)
+                    2.0, uiLine(vBorderColor))
   let vTX = versionX + (versionBadgeWidth - versionWidth) div 2
   let vTY = yOff + (badgeHeight - 14) div 2
-  drawText(versionText, vTX + 1, vTY + 1, 14, Color(r: 0, g: 0, b: 0, a: 150))
-  drawText(versionText, vTX, vTY, 14, Color(r: 200, g: 210, b: 220, a: 255))
+  drawText(versionText, vTX + 1, vTY + 1, 14, textShadow(150))
+  drawText(versionText, vTX, vTY, 14, uiInk(Color(r: 200, g: 210, b: 220, a: 255)))
 
   # Rarity badge
   let rarityColor = if powerUp.rarity == prLegendary: Color(r: 255, g: 215, b: 0, a: 255)
@@ -294,7 +297,7 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
       let gs: int32 = int32(i * 3)
       drawRectangle(badgeX - gs, yOff - gs,
                    rarityWidth + 28 + gs * 2, badgeHeight + gs * 2,
-                   Color(r: 255, g: 215, b: 0, a: uint8((60.0 - i.float32 * 12.0) * gp * a)))
+                   uiGlow(Color(r: 255, g: 215, b: 0, a: uint8((60.0 - i.float32 * 12.0) * gp * a))))
     for i in 0..5:
       let sA = time * 4.0 + i.float32 * 1.047
       let sD = 25.0 + sin(time * 5.0 + i.float32) * 5.0
@@ -302,33 +305,33 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
       let sY = yOff + badgeHeight div 2 + int32(sin(sA) * sD * 0.6)
       let sS = 2.0'f32 + sin(time * 6.0 + i.float32 * 0.5) * 1.5'f32
       drawDisc(Vector2(x: sX.float32, y: sY.float32), max(1.0'f32, sS),
-                Color(r: 255, g: 240, b: 150, a: uint8(200.0 * gp)))
+                uiInk(Color(r: 255, g: 240, b: 150, a: uint8(200.0 * gp))))
   drawRectangle(badgeX + 2, yOff + 2, rarityWidth + 28, badgeHeight, Color(r: 0, g: 0, b: 0, a: 100))
-  drawRectangle(badgeX, yOff, rarityWidth + 28, badgeHeight, Color(r: 35, g: 40, b: 50, a: 255))
+  drawRectangle(badgeX, yOff, rarityWidth + 28, badgeHeight, uiSurface(Color(r: 35, g: 40, b: 50, a: 255)))
   if powerUp.rarity == prLegendary:
-    drawRectangle(badgeX, yOff, rarityWidth + 28, badgeHeight div 2, Color(r: 80, g: 70, b: 20, a: 100))
+    drawRectangle(badgeX, yOff, rarityWidth + 28, badgeHeight div 2, uiSurface(Color(r: 80, g: 70, b: 20, a: 100)))
   drawRectOutline(Rectangle(x: badgeX.float32, y: yOff.float32,
                                 width: float32(rarityWidth + 28), height: badgeHeight.float32),
-                    2.0, rarityColor)
+                    2.0, uiLine(rarityColor))
   if powerUp.rarity == prLegendary:
     drawRectOutline(Rectangle(x: float32(badgeX + 3), y: float32(yOff + 3),
                                   width: float32(rarityWidth + 22), height: float32(badgeHeight - 6)),
-                      1.0, Color(r: 255, g: 235, b: 100, a: 180))
-  drawText(rarityText, badgeX + 15, yOff + 8, 14, Color(r: 0, g: 0, b: 0, a: 180))
-  drawText(rarityText, badgeX + 14, yOff + 7, 14, rarityColor)
+                      1.0, uiLine(Color(r: 255, g: 235, b: 100, a: 180)))
+  drawText(rarityText, badgeX + 15, yOff + 8, 14, textShadow(180))
+  drawText(rarityText, badgeX + 14, yOff + 7, 14, uiInk(rarityColor))
   yOff += 48
 
   # Tier progress bar
   let maxTiers = if powerUp.rarity == prLegendary: 1 else: 3
-  drawText(t(tkPowerUpUpgradeTier), x + 12, yOff, 12, Color(r: 140, g: 160, b: 180, a: 255))
+  drawText(t(tkPowerUpUpgradeTier), x + 12, yOff, 12, uiInk(Color(r: 140, g: 160, b: 180, a: 255)))
   yOff += 18
   let barWidth = width - 24
   drawRectangle(x + 14, yOff + 2, barWidth, PROGRESS_BAR_HEIGHT, Color(r: 0, g: 0, b: 0, a: 80))
-  drawRectangle(x + 12, yOff, barWidth, PROGRESS_BAR_HEIGHT, Color(r: 28, g: 32, b: 42, a: 255))
+  drawRectangle(x + 12, yOff, barWidth, PROGRESS_BAR_HEIGHT, uiSurface(Color(r: 28, g: 32, b: 42, a: 255)))
   if maxTiers > 1:
     for i in 1..(maxTiers - 1):
       let segX: int32 = x + 12 + barWidth * int32(i) div int32(maxTiers)
-      drawStroke(segX, yOff, segX, yOff + PROGRESS_BAR_HEIGHT, Color(r: 50, g: 60, b: 75, a: 255))
+      drawStroke(segX, yOff, segX, yOff + PROGRESS_BAR_HEIGHT, uiLine(Color(r: 50, g: 60, b: 75, a: 255)))
   for level in 1..powerUp.level:
     let sStart: int32 = x + 12 + barWidth * int32(level - 1) div int32(maxTiers)
     let sEnd:   int32 = x + 12 + barWidth * int32(level) div int32(maxTiers)
@@ -337,30 +340,30 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
       of 1: Color(r: 80, g: 150, b: 255, a: 255)
       of 2: Color(r: 80, g: 255, b: 150, a: 255)
       else: Color(r: 255, g: 140, b: 80, a: 255)
-    drawRectangle(sStart, yOff, sW, PROGRESS_BAR_HEIGHT, lc)
+    drawRectangle(sStart, yOff, sW, PROGRESS_BAR_HEIGHT, uiInk(lc))
     drawRectangle(sStart, yOff, sW, 3,
-                 Color(r: min(lc.r + 100, 255), g: min(lc.g + 100, 255), b: min(lc.b + 100, 255), a: 180))
+                 uiInk(Color(r: min(lc.r + 100, 255), g: min(lc.g + 100, 255), b: min(lc.b + 100, 255), a: 180)))
     if level == powerUp.level and a > 0.7:
       let pulse = sin(time * 4.0) * 0.3 + 0.7
       drawRectangle(sStart, yOff, sW, PROGRESS_BAR_HEIGHT,
-                   Color(r: 255, g: 255, b: 255, a: uint8(40.0 * pulse)))
+                   uiGlow(Color(r: 255, g: 255, b: 255, a: uint8(40.0 * pulse))))
   drawRectOutline(Rectangle(x: float32(x + 12), y: yOff.float32,
                                 width: barWidth.float32, height: PROGRESS_BAR_HEIGHT.float32),
-                    2.0, Color(r: 80, g: 95, b: 115, a: 255))
+                    2.0, uiLine(Color(r: 80, g: 95, b: 115, a: 255)))
   let levelText = "TIER " & $powerUp.level & " / " & $maxTiers
   let levelWidth = measureText(levelText, 12)
   let textBgX = x + 12 + (barWidth - levelWidth - 8) div 2
-  drawRectangle(textBgX, yOff + 3, levelWidth + 8, 16, Color(r: 20, g: 25, b: 35, a: 220))
-  drawText(levelText, textBgX + 4, yOff + 5, 12, White)
+  drawRectangle(textBgX, yOff + 3, levelWidth + 8, 16, uiSurface(Color(r: 20, g: 25, b: 35, a: 220)))
+  drawText(levelText, textBgX + 4, yOff + 5, 12, uiInk(White))
   yOff += PROGRESS_BAR_HEIGHT + 18
 
   # Description box
   let descBoxHeight: int32 = 105
-  drawRectangle(x + 10, yOff, width - 20, descBoxHeight, Color(r: 18, g: 22, b: 32, a: 255))
-  drawRectangle(x + 10, yOff, width - 20, 2, Color(r: 0, g: 140, b: 200, a: 80))
+  drawRectangle(x + 10, yOff, width - 20, descBoxHeight, uiSurface(Color(r: 18, g: 22, b: 32, a: 255)))
+  drawRectangle(x + 10, yOff, width - 20, 2, uiLine(Color(r: 0, g: 140, b: 200, a: 80)))
   drawRectOutline(Rectangle(x: float32(x + 10), y: yOff.float32,
                                 width: float32(width - 20), height: descBoxHeight.float32),
-                    2.0, Color(r: 60, g: 80, b: 100, a: 255))
+                    2.0, uiLine(Color(r: 60, g: 80, b: 100, a: 255)))
   let desc = getPowerUpDescription(powerUp.powerType, powerUp.level, playerDamage)
   let maxLineWidth = width - 44
   let availTextHeight = descBoxHeight - 20   # 12px top pad + ~8px bottom pad
@@ -382,15 +385,15 @@ proc drawProcessCard(x, y, width, height: int32, powerUp: PowerUp,
   for i, line in descLines:
     if int32(i) >= maxLines: break
     drawText(line, x + 22, textTop + int32(i) * lineH, descFont,
-             Color(r: 220, g: 230, b: 240, a: 255))
+             uiInk(Color(r: 220, g: 230, b: 240, a: 255)))
   yOff += descBoxHeight + 8
 
   # Footer
-  drawText("[P]", x + 10, yOff, 14, Color(r: 100, g: 110, b: 120, a: 255))
-  drawText(".exe", x + 30, yOff + 2, 12, Color(r: 120, g: 130, b: 140, a: 255))
+  drawText("[P]", x + 10, yOff, 14, uiInk(Color(r: 100, g: 110, b: 120, a: 255)))
+  drawText(".exe", x + 30, yOff + 2, 12, uiInk(Color(r: 120, g: 130, b: 140, a: 255)))
   let sizeText = $(128 + powerUp.level * 64) & " KB"
   let sizeWidth = measureText(sizeText, 11)
-  drawText(sizeText, x + width - sizeWidth - 10, yOff + 2, 11, Color(r: 110, g: 120, b: 130, a: 255))
+  drawText(sizeText, x + width - sizeWidth - 10, yOff + 2, 11, uiInk(Color(r: 110, g: 120, b: 130, a: 255)))
 
 # Rolling effects
 
@@ -417,7 +420,7 @@ proc drawSlotLockEffect(cardX, cardY, cardW, cardH: int32,
                 width: float32(cardW) + expansion * 2.0,
                 height: float32(cardH) + expansion * 2.0),
       max(1.0, 4.0 * (1.0 - ringProgress)),
-      withAlpha(ac, ringA))
+      uiLine(withAlpha(ac, ringA)))
 
   # 3. Particle burst (16 particles radiating outward)
   let pFade = 1.0'f32 - clamp(tSinceLock * 1.8'f32, 0.0'f32, 1.0'f32)
@@ -431,7 +434,7 @@ proc drawSlotLockEffect(cardX, cardY, cardW, cardH: int32,
       let py = cy + sin(angle) * dist * 0.55  # flatten ellipse
       let pSize = max(1.5, 5.5 * pFade)
       let pA = uint8(240.0 * pFade * pFade)
-      drawDisc(Vector2(x: px, y: py), pSize, withAlpha(ac, pA))
+      drawDisc(Vector2(x: px, y: py), pSize, uiInk(withAlpha(ac, pA)))
 
   # 4. Rising name text (floats upward and fades)
   let textFade = 1.0'f32 - clamp(tSinceLock * 1.4'f32, 0.0'f32, 1.0'f32)
@@ -441,10 +444,10 @@ proc drawSlotLockEffect(cardX, cardY, cardW, cardH: int32,
     let nameW = measureText(powerUpName, 18)
     let nx = cardX + (cardW - nameW) div 2
     let ny = int32(float32(cardY) + cardH.float32 * 0.42 - rise)
-    drawText(powerUpName, nx + 2, ny + 2, 18, Color(r: 0, g: 0, b: 0, a: tA))
-    drawText(powerUpName, nx, ny, 18, withAlpha(ac, tA))
+    drawText(powerUpName, nx + 2, ny + 2, 18, textShadow(tA))
+    drawText(powerUpName, nx, ny, 18, uiInk(withAlpha(ac, tA)))
 
-proc drawOSPowerUpInstaller*(game: Game) =
+proc drawOSPowerUpInstaller*(game: Game) {.moddable.} =
   ## Draw the power-up selection screen with slot machine roll animation.
   let screenWidth  = getVirtualScreenWidth()
   let screenHeight = getVirtualScreenHeight()
@@ -485,11 +488,11 @@ proc drawOSPowerUpInstaller*(game: Game) =
                  Color(r: 0, g: 0, b: 0, a: uint8(50 - i * 8)))
 
   # Body
-  drawRectangle(winX, winY, winW, winH, Color(r: 26, g: 32, b: 44, a: 255))
+  drawRectangle(winX, winY, winW, winH, uiSurface(Color(r: 26, g: 32, b: 44, a: 255)))
 
   # Subtle grid lines
   for i in 0..<(winH div 40):
-    drawRectangle(winX, winY + int32(i * 40), winW, 1, Color(r: 30, g: 36, b: 48, a: 255))
+    drawRectangle(winX, winY + int32(i * 40), winW, 1, uiLine(Color(r: 30, g: 36, b: 48, a: 255)))
 
   # Border: pulses chromatically while rolling
   if speedFrac > 0.02:
@@ -502,36 +505,36 @@ proc drawOSPowerUpInstaller*(game: Game) =
       drawRectOutline(
         Rectangle(x: float32(winX - go), y: float32(winY - go),
                   width: float32(winW + go * 2), height: float32(winH + go * 2)),
-        1.0, Color(r: r8, g: g8, b: b8, a: uint8(int(50 * speedFrac) div gi)))
+        1.0, uiLine(Color(r: r8, g: g8, b: b8, a: uint8(int(50 * speedFrac) div gi))))
     drawRectOutline(Rectangle(x: winX.float32, y: winY.float32,
                                   width: winW.float32, height: winH.float32),
-                      4.0, Color(r: r8, g: g8, b: b8, a: 255))
+                      4.0, uiLine(Color(r: r8, g: g8, b: b8, a: 255)))
   else:
     drawRectOutline(Rectangle(x: winX.float32, y: winY.float32,
                                   width: winW.float32, height: winH.float32),
-                      4.0, Color(r: 0, g: 180, b: 255, a: 255))
+                      4.0, uiLine(Color(r: 0, g: 180, b: 255, a: 255)))
   drawRectOutline(Rectangle(x: float32(winX + 2), y: float32(winY + 2),
                                 width: float32(winW - 4), height: float32(winH - 4)),
-                    1.0, Color(r: 60, g: 75, b: 95, a: 255))
+                    1.0, uiLine(Color(r: 60, g: 75, b: 95, a: 255)))
 
   # Title bar
-  drawRectangle(winX, winY, winW, TITLE_BAR_HEIGHT, Color(r: 40, g: 52, b: 70, a: 255))
-  drawRectangle(winX, winY, winW, 2, Color(r: 80, g: 100, b: 130, a: 255))
-  drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, winW, 1, Color(r: 0, g: 140, b: 200, a: 255))
+  drawRectangle(winX, winY, winW, TITLE_BAR_HEIGHT, uiSurface(Color(r: 40, g: 52, b: 70, a: 255)))
+  drawRectangle(winX, winY, winW, 2, uiLine(Color(r: 80, g: 100, b: 130, a: 255)))
+  drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, winW, 1, uiLine(Color(r: 0, g: 140, b: 200, a: 255)))
 
   let titleText = "[*] " & (if isLegendary: t(tkPowerUpInstallerTitle) else: t(tkPowerUpInstallerTitleGeneric))
   let titleColor = if isLegendary: Gold else: Color(r: 100, g: 200, b: 255, a: 255)
-  drawText(titleText, winX + 17, winY + 13, 22, Color(r: 0, g: 0, b: 0, a: 120))
-  drawText(titleText, winX + 15, winY + 11, 22, titleColor)
+  drawText(titleText, winX + 17, winY + 13, 22, textShadow(120))
+  drawText(titleText, winX + 15, winY + 11, 22, uiInk(titleColor))
 
   let btnSz = L.closeSize
   let closeY = L.closeY
   let closeX = L.closeX
-  drawRectangle(closeX, closeY, btnSz, btnSz, Color(r: 220, g: 50, b: 50, a: 255))
+  drawRectangle(closeX, closeY, btnSz, btnSz, uiSurface(Color(r: 220, g: 50, b: 50, a: 255)))
   drawRectOutline(Rectangle(x: closeX.float32, y: closeY.float32,
                                 width: btnSz.float32, height: btnSz.float32),
-                    1.0, Color(r: 180, g: 30, b: 30, a: 255))
-  drawText("X", closeX + 8, closeY + 5, 18, White)
+                    1.0, uiLine(Color(r: 180, g: 30, b: 30, a: 255)))
+  drawText("X", closeX + 8, closeY + 5, 18, uiInk(White))
 
   # Instruction header
   var yPos = winY + TITLE_BAR_HEIGHT + 20
@@ -548,7 +551,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
     else:
       Color(r: 200, g: 220, b: 240, a: 255)
   let headerW = measureText(headerText, 20)
-  drawText(headerText, winX + (winW - headerW) div 2, yPos, 20, hColor)
+  drawText(headerText, winX + (winW - headerW) div 2, yPos, 20, uiInk(hColor))
 
   # Card area
   yPos = L.cardsY
@@ -595,8 +598,8 @@ proc drawOSPowerUpInstaller*(game: Game) =
           let streakA = uint8(70.0 * speedFrac * (1.0 - float32(s) / 5.0))
           let sc = if isLegendary: Color(r: 255, g: 215, b: 0, a: streakA)
                    else:           Color(r: 0, g: 180, b: 255, a: streakA)
-          drawRectangle(cardX, cardY + streakOffset, 3, cardHi div 5, sc)
-          drawRectangle(cardX + cardW - 3, cardY + streakOffset, 3, cardHi div 5, sc)
+          drawRectangle(cardX, cardY + streakOffset, 3, cardHi div 5, uiInk(sc))
+          drawRectangle(cardX + cardW - 3, cardY + streakOffset, 3, cardHi div 5, uiInk(sc))
 
   # SETTLED MODE
   else:
@@ -610,7 +613,7 @@ proc drawOSPowerUpInstaller*(game: Game) =
       let gA = uint8(float32(55 - gl * 8) * gp)
       let gc = if isLegendary: Color(r: 255, g: 215, b: 0, a: gA)
                else:           Color(r: 0, g: 180, b: 255, a: gA)
-      drawDisc(Vector2(x: glowCX, y: glowCY), gR, gc)
+      drawDisc(Vector2(x: glowCX, y: glowCY), gR, uiGlow(gc))
 
     for i in 0..2:
       drawProcessCard(L.cardX(i), yPos, cardW, cardHi,
@@ -625,26 +628,26 @@ proc drawOSPowerUpInstaller*(game: Game) =
 
   # Bottom panel
   let bottomY = L.bottomY
-  drawRectangle(winX, bottomY - 15, winW, 120, Color(r: 30, g: 38, b: 52, a: 255))
-  drawRectangle(winX, bottomY - 15, winW, 2, Color(r: 0, g: 140, b: 200, a: 255))
+  drawRectangle(winX, bottomY - 15, winW, 120, uiSurface(Color(r: 30, g: 38, b: 52, a: 255)))
+  drawRectangle(winX, bottomY - 15, winW, 2, uiLine(Color(r: 0, g: 140, b: 200, a: 255)))
 
   # Coin counter
   let coinBoxX: int32 = winX + 50
   let coinBoxY: int32 = bottomY + 15
   let coinBoxW: int32 = 200
   let coinBoxH: int32 = 50
-  drawRectangle(coinBoxX, coinBoxY, coinBoxW, coinBoxH, Color(r: 40, g: 50, b: 30, a: 255))
-  drawRectangle(coinBoxX, coinBoxY, coinBoxW, 2, Color(r: 255, g: 220, b: 0, a: 60))
+  drawRectangle(coinBoxX, coinBoxY, coinBoxW, coinBoxH, uiSurface(Color(r: 40, g: 50, b: 30, a: 255)))
+  drawRectangle(coinBoxX, coinBoxY, coinBoxW, 2, uiGlow(Color(r: 255, g: 220, b: 0, a: 60)))
   drawRectOutline(Rectangle(x: coinBoxX.float32, y: coinBoxY.float32,
                                 width: coinBoxW.float32, height: coinBoxH.float32),
-                    2.0, Color(r: 255, g: 215, b: 0, a: 200))
+                    2.0, uiLine(Color(r: 255, g: 215, b: 0, a: 200)))
   let cIX = coinBoxX + 15
   let cIY = coinBoxY + 25
   drawCurrencyIcon(cIX, cIY, 26, ciCredits)
   let coinText = $game.player.coins & " credits"
-  drawText(coinText, coinBoxX + 40, coinBoxY + 10, 18, Color(r: 0, g: 0, b: 0, a: 120))
-  drawText(coinText, coinBoxX + 38, coinBoxY + 8, 18, Color(r: 255, g: 240, b: 100, a: 255))
-  drawText(t("shop_available_balance"), coinBoxX + 40, coinBoxY + 30, 10, Color(r: 180, g: 180, b: 150, a: 255))
+  drawText(coinText, coinBoxX + 40, coinBoxY + 10, 18, textShadow(120))
+  drawText(coinText, coinBoxX + 38, coinBoxY + 8, 18, uiInk(Color(r: 255, g: 240, b: 100, a: 255)))
+  drawText(t("shop_available_balance"), coinBoxX + 40, coinBoxY + 30, 10, uiInk(Color(r: 180, g: 180, b: 150, a: 255)))
 
   # Reroll button
   let buttonY    = L.rerollY
@@ -661,10 +664,10 @@ proc drawOSPowerUpInstaller*(game: Game) =
                   else: $game.rerollCost & " " & t("reroll_credits_unit")
   let costW     = measureText(costText, 12)
   drawText(costText, rerollX + (rerollW - costW) div 2, buttonY + buttonH + 8, 12,
-          if canAfford: Color(r: 255, g: 215, b: 0, a: 255) else: Color(r: 120, g: 120, b: 130, a: 255))
-  drawText("[R]", rerollX + rerollW + 10, buttonY + 13, 14, Color(r: 200, g: 200, b: 200, a: 255))
+          uiInk(if canAfford: Color(r: 255, g: 215, b: 0, a: 255) else: Color(r: 120, g: 120, b: 130, a: 255)))
+  drawText("[R]", rerollX + rerollW + 10, buttonY + 13, 14, uiInk(Color(r: 200, g: 200, b: 200, a: 255)))
 
-proc drawPowerUpInstallerExhausted*(game: Game) =
+proc drawPowerUpInstallerExhausted*(game: Game) {.moddable.} =
   ## Shown in place of the normal installer when every power-up in the pool is
   ## already at its maximum level. Displays a completion badge and a Continue button.
   let screenWidth  = getVirtualScreenWidth()
@@ -685,40 +688,40 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
                  Color(r: 0, g: 0, b: 0, a: uint8(50 - i * 8)))
 
   # Body
-  drawRectangle(winX, winY, winW, winH, Color(r: 26, g: 32, b: 44, a: 255))
+  drawRectangle(winX, winY, winW, winH, uiSurface(Color(r: 26, g: 32, b: 44, a: 255)))
 
   # Subtle grid lines
   for i in 0..<(winH div 40):
-    drawRectangle(winX, winY + int32(i * 40), winW, 1, Color(r: 30, g: 36, b: 48, a: 255))
+    drawRectangle(winX, winY + int32(i * 40), winW, 1, uiLine(Color(r: 30, g: 36, b: 48, a: 255)))
 
   # Border, green pulse to signal completion
   let borderPulse = 0.7'f32 + 0.3'f32 * sin(game.time * 2.0)
   drawRectOutline(Rectangle(x: winX.float32, y: winY.float32,
                                 width: winW.float32, height: winH.float32),
-                    4.0, Color(r: 50, g: 220, b: 120, a: uint8(255.0 * borderPulse)))
+                    4.0, uiLine(Color(r: 50, g: 220, b: 120, a: uint8(255.0 * borderPulse))))
   drawRectOutline(Rectangle(x: float32(winX + 2), y: float32(winY + 2),
                                 width: float32(winW - 4), height: float32(winH - 4)),
-                    1.0, Color(r: 60, g: 75, b: 95, a: 255))
+                    1.0, uiLine(Color(r: 60, g: 75, b: 95, a: 255)))
 
   # Title bar
-  drawRectangle(winX, winY, winW, TITLE_BAR_HEIGHT, Color(r: 40, g: 52, b: 70, a: 255))
-  drawRectangle(winX, winY, winW, 2, Color(r: 80, g: 100, b: 130, a: 255))
-  drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, winW, 1, Color(r: 50, g: 220, b: 120, a: 255))
+  drawRectangle(winX, winY, winW, TITLE_BAR_HEIGHT, uiSurface(Color(r: 40, g: 52, b: 70, a: 255)))
+  drawRectangle(winX, winY, winW, 2, uiLine(Color(r: 80, g: 100, b: 130, a: 255)))
+  drawRectangle(winX, winY + TITLE_BAR_HEIGHT - 1, winW, 1, uiLine(Color(r: 50, g: 220, b: 120, a: 255)))
 
   let titleText = "[OK] " & t(tkPowerUpAllInstalled)
   let titleColor = Color(r: 80, g: 220, b: 140, a: 255)
-  drawText(titleText, winX + 17, winY + 13, 22, Color(r: 0, g: 0, b: 0, a: 120))
-  drawText(titleText, winX + 15, winY + 11, 22, titleColor)
+  drawText(titleText, winX + 17, winY + 13, 22, textShadow(120))
+  drawText(titleText, winX + 15, winY + 11, 22, uiInk(titleColor))
 
   # Close (X) button
   let btnSz = L.closeSize
   let closeY = L.closeY
   let closeX = L.closeX
-  drawRectangle(closeX, closeY, btnSz, btnSz, Color(r: 220, g: 50, b: 50, a: 255))
+  drawRectangle(closeX, closeY, btnSz, btnSz, uiSurface(Color(r: 220, g: 50, b: 50, a: 255)))
   drawRectOutline(Rectangle(x: closeX.float32, y: closeY.float32,
                                 width: btnSz.float32, height: btnSz.float32),
-                    1.0, Color(r: 180, g: 30, b: 30, a: 255))
-  drawText("X", closeX + 8, closeY + 5, 18, White)
+                    1.0, uiLine(Color(r: 180, g: 30, b: 30, a: 255)))
+  drawText("X", closeX + 8, closeY + 5, 18, uiInk(White))
 
   # --- Completion badge (large circle with a geometric checkmark) ---
   let badgeR  = 70.0'f32
@@ -731,13 +734,13 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
     let gr = badgeR + float32(i * 14)
     let ga = uint8(float32(35 - i * 6) * pulse)
     drawDisc(Vector2(x: badgeCX, y: badgeCY), gr,
-              Color(r: 50, g: 220, b: 120, a: ga))
+              uiGlow(Color(r: 50, g: 220, b: 120, a: ga)))
 
   # Badge fill
   drawDisc(Vector2(x: badgeCX, y: badgeCY), badgeR,
-            Color(r: 20, g: 45, b: 30, a: 255))
+            uiSurface(Color(r: 20, g: 45, b: 30, a: 255)))
   drawDisc(Vector2(x: badgeCX, y: badgeCY), badgeR,
-            Color(r: 50, g: 220, b: 120, a: uint8(35.0 * pulse)))
+            uiGlow(Color(r: 50, g: 220, b: 120, a: uint8(35.0 * pulse))))
 
   # Checkmark: two line segments with thickness
   let ck = Color(r: 80, g: 240, b: 150, a: 255)
@@ -746,26 +749,26 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
   drawStroke(
     Vector2(x: badgeCX - badgeR * 0.50, y: badgeCY + badgeR * 0.00),
     Vector2(x: ckMidX,                  y: ckMidY),
-    4.0, ck)
+    4.0, uiInk(ck))
   drawStroke(
     Vector2(x: ckMidX,                  y: ckMidY),
     Vector2(x: badgeCX + badgeR * 0.48, y: badgeCY - badgeR * 0.42),
-    4.0, ck)
+    4.0, uiInk(ck))
 
   # Badge outline
   let outlinePulseA = uint8(200.0 * pulse)
   for di in [-1'i32, 0'i32, 1'i32]:
     drawDisc(Vector2(x: badgeCX, y: badgeCY), badgeR + float32(di) * 1.5,
-              Color(r: 80, g: 220, b: 140, a: if di == 0: outlinePulseA else: 60))
+              uiGlow(Color(r: 80, g: 220, b: 140, a: if di == 0: outlinePulseA else: 60)))
 
   # --- Heading ---
   let headY = int32(badgeCY + badgeR + 28.0)
   let headText = t(tkPowerUpAllInstalled)
   let headW = measureText(headText, 26)
   drawText(headText, winX + (winW - headW) div 2 + 1, headY + 1, 26,
-           Color(r: 0, g: 0, b: 0, a: 150))
+           textShadow(150))
   drawText(headText, winX + (winW - headW) div 2, headY, 26,
-           Color(r: 80, g: 240, b: 150, a: 255))
+           uiInk(Color(r: 80, g: 240, b: 150, a: 255)))
 
   # --- Message text ---
   let msgY = headY + 40
@@ -774,7 +777,7 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
   for i, line in msgLines:
     let lineW = measureText(line, 14)
     drawText(line, winX + (winW - lineW) div 2, msgY + int32(i) * 22, 14,
-             Color(r: 160, g: 190, b: 210, a: 255))
+             uiInk(Color(r: 160, g: 190, b: 210, a: 255)))
 
   # --- Continue button ---
   let continueBtnX = L.continueX
@@ -784,5 +787,5 @@ proc drawPowerUpInstallerExhausted*(game: Game) =
   drawModernButton(continueBtnX, continueBtnY, L.continueW, L.continueH,
                   t(tkPowerUpContinue), true, btnHovered, game.time)
   drawText("[ENTER]", continueBtnX + L.continueW + 12, continueBtnY + 17, 14,
-           Color(r: 180, g: 180, b: 180, a: 255))
+           uiInk(Color(r: 180, g: 180, b: 180, a: 255)))
 

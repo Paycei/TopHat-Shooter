@@ -2,22 +2,17 @@
 ## Base system for all OS-style windows (Settings, Stats, Help)
 
 import raylib, math
+import ../modding/mod_patch_core
 import ../draw_prims
 import ../render_context
 import ui_theme, ../utils
 
 type
-  OSWindowType* = enum
-    owtSettings
-    owtStatistics
-    owtHelp
-
   OSWindow* = ref object
     x*, y*: int
     width*, height*: int
     title*: string
     iconColor*: Color
-    windowType*: OSWindowType
     visible*: bool
     minimized*: bool
     focused*: bool
@@ -80,14 +75,14 @@ proc chromeBtnHitRect(winX, winY, inset: int): Rectangle =
   Rectangle(x: (winX - inset - pad).float32, y: winY.float32,
             width: CHROME_BTN_HIT_W.float32, height: CHROME_BTN_HIT_H.float32)
 
-proc uiScaleOfWindow*(window: OSWindow): float32 =
+proc uiScaleOfWindow*(window: OSWindow): float32 {.moddable.} =
   ## `window.uiScale`, guarded against a window the manager has not touched yet
   ## (and against a 0 that would make the conversions below divide by zero).
   if window.isNil or window.uiScale <= 0.0'f32: 1.0'f32
   else: window.uiScale
 
 proc newOSWindow*(title: string, x, y, width, height: int,
-                 iconColor: Color, windowType: OSWindowType, resizable: bool = true): OSWindow =
+                 iconColor: Color, resizable: bool = true): OSWindow {.moddable.} =
   result = OSWindow(
     x: x,
     y: y,
@@ -95,7 +90,6 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     height: height,
     title: title,
     iconColor: iconColor,
-    windowType: windowType,
     visible: false,
     minimized: false,
     focused: true,
@@ -111,17 +105,17 @@ proc newOSWindow*(title: string, x, y, width, height: int,
     uiScale: 1.0'f32
   )
 
-proc startMinimizeAnimation*(window: OSWindow) =
+proc startMinimizeAnimation(window: OSWindow) {.moddable.} =
   ## Instantly minimize - no animation
   window.minimized = true
   window.savedWidth = window.width
   window.savedHeight = window.height
 
-proc startRestoreAnimation*(window: OSWindow) =
+proc startRestoreAnimation(window: OSWindow) {.moddable.} =
   ## Instantly restore - no animation
   window.minimized = false
 
-proc bringWindowToFront*(window: OSWindow, allWindows: openArray[OSWindow]) =
+proc bringWindowToFront(window: OSWindow, allWindows: openArray[OSWindow]) {.moddable.} =
   ## Bring this window to the front of all other windows
   ## Updates z-order so this window is drawn on top
   if window.isNil or not window.visible:
@@ -146,10 +140,14 @@ proc bringWindowToFront*(window: OSWindow, allWindows: openArray[OSWindow]) =
     if not w.isNil and w != window:
       w.focused = false
 
-proc updateOSWindow*(window: OSWindow, dt: float32) =
+proc hasKeyboard*(window: OSWindow): bool {.moddable.} =
+  ## Keystrokes go to the focused window, while it is open and not minimized.
+  not window.isNil and window.visible and not window.minimized and window.focused
+
+proc updateOSWindow*(window: OSWindow, dt: float32) {.moddable.} =
   window.time += dt
 
-proc isPointInTitleBar*(window: OSWindow, mouseX, mouseY: float32): bool =
+proc isPointInTitleBar(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
   if not window.visible:
     return false
 
@@ -165,7 +163,7 @@ proc isPointInTitleBar*(window: OSWindow, mouseX, mouseY: float32): bool =
              mouseY >= window.y.float32 and
              mouseY <= (window.y + TITLE_BAR_HEIGHT).float32
 
-proc isPointInWindow*(window: OSWindow, mouseX, mouseY: float32): bool =
+proc isPointInWindow*(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
   if not window.visible or window.minimized:
     return false
 
@@ -183,7 +181,7 @@ proc toWindowSpace(src, dst: OSWindow, x, y: float32): Vector2 =
   let k = uiScaleOfWindow(src) / uiScaleOfWindow(dst)
   Vector2(x: x * k, y: y * k)
 
-proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindows: openArray[OSWindow]): bool =
+proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindows: openArray[OSWindow]): bool {.moddable.} =
   ## Check if this window is the topmost window at the given point, which is in
   ## `window`'s own coordinates (what getVirtualMousePosition returns while that
   ## window's scale layer is active).
@@ -220,13 +218,13 @@ proc isWindowTopmostAtPoint*(window: OSWindow, mouseX, mouseY: float32, allWindo
 
   return true
 
-proc isPointInCloseButton*(window: OSWindow, mouseX, mouseY: float32): bool =
+proc isPointInCloseButton(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
   if not window.visible or window.minimized:
     return false
   checkCollisionPointRec(Vector2(x: mouseX, y: mouseY),
     chromeBtnHitRect(window.x + window.width, window.y, CLOSE_BTN_INSET))
 
-proc isPointInMinimizeButton*(window: OSWindow, mouseX, mouseY: float32): bool =
+proc isPointInMinimizeButton(window: OSWindow, mouseX, mouseY: float32): bool {.moddable.} =
   if not window.visible:
     return false
   # When minimized this is the restore button, which sits in the full-width
@@ -237,7 +235,7 @@ proc isPointInMinimizeButton*(window: OSWindow, mouseX, mouseY: float32): bool =
   checkCollisionPointRec(Vector2(x: mouseX, y: mouseY),
     chromeBtnHitRect(rightEdge, window.y, inset))
 
-proc getResizeEdge*(window: OSWindow, mouseX, mouseY: float32): int =
+proc getResizeEdge(window: OSWindow, mouseX, mouseY: float32): int {.moddable.} =
   ## Returns which edge is being hovered for resizing
   ## 0=none, 1=right, 2=bottom, 3=corner
   if not window.visible or window.minimized or not window.resizable:
@@ -259,7 +257,7 @@ proc getResizeEdge*(window: OSWindow, mouseX, mouseY: float32): int =
   else:
     return 0  # No edge
 
-proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool =
+proc handleOSWindowInput*(window: OSWindow, screenWidth, screenHeight: int, allWindows: openArray[OSWindow]): bool {.moddable.} =
   ## Returns true if window should close
   if not window.visible:
     return false
@@ -404,9 +402,9 @@ proc drawCknWindowChrome(window: OSWindow, th: UiTheme) =
   let h = if window.minimized: TITLE_BAR_HEIGHT else: window.height
   let x = window.x.float32
   let y = window.y.float32
-  let hairline = mixColor(th.surface, th.raised, 0.75'f32)
-  let titleFill = if window.focused: mixColor(th.surface, th.accent, 0.12'f32)
-                  else: mixColor(th.surface, th.raised, 0.25'f32)
+  let hairline = colorLerp(th.surface, th.raised, 0.75'f32)
+  let titleFill = if window.focused: colorLerp(th.surface, th.accent, 0.12'f32)
+                  else: colorLerp(th.surface, th.raised, 0.25'f32)
   let border = if window.focused: withAlpha(th.accent, 190) else: hairline
   drawCknPanel(Rectangle(x: x, y: y, width: w.float32, height: h.float32), Radius,
                if window.minimized: titleFill else: th.surface, border,
@@ -425,16 +423,16 @@ proc drawCknWindowChrome(window: OSWindow, th: UiTheme) =
 
   let mousePos = getVirtualMousePosition()
   let buttonY = window.y + 5
-  let hoverFill = mixColor(th.surface, th.raised, 0.5'f32)
+  let hoverFill = colorLerp(th.surface, th.raised, 0.5'f32)
   if window.minimized:
-    let restoreX = window.x + window.savedWidth - 25
+    let restoreX = window.x + window.savedWidth - CLOSE_BTN_INSET
     let hoverRestore = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
     drawCknCaptionButton(restoreX, buttonY, hoverRestore, hoverFill)
     drawRectOutline(Rectangle(x: (restoreX + 5).float32, y: (buttonY + 5).float32,
                               width: 10, height: 10), 2, glyph)
     return
 
-  let closeX = window.x + window.width - 25
+  let closeX = window.x + window.width - CLOSE_BTN_INSET
   let hoverClose = isPointInCloseButton(window, mousePos.x, mousePos.y)
   drawCknCaptionButton(closeX, buttonY, hoverClose, Color(r: 226, g: 72, b: 72, a: 255))
   let cross = if hoverClose: White else: glyph
@@ -443,12 +441,12 @@ proc drawCknWindowChrome(window: OSWindow, th: UiTheme) =
   drawStroke(Vector2(x: cx - 4.5'f32, y: cy - 4.5'f32), Vector2(x: cx + 4.5'f32, y: cy + 4.5'f32), 2, cross)
   drawStroke(Vector2(x: cx + 4.5'f32, y: cy - 4.5'f32), Vector2(x: cx - 4.5'f32, y: cy + 4.5'f32), 2, cross)
 
-  let minX = window.x + window.width - 50
+  let minX = window.x + window.width - MIN_BTN_INSET
   let hoverMin = isPointInMinimizeButton(window, mousePos.x, mousePos.y)
   drawCknCaptionButton(minX, buttonY, hoverMin, hoverFill)
   drawRectangle((minX + 5).int32, (buttonY + 13).int32, 10, 2, glyph)
 
-proc drawWindowChrome*(window: OSWindow) =
+proc drawWindowChrome*(window: OSWindow) {.moddable.} =
   if not window.visible:
     return
 
@@ -582,7 +580,7 @@ proc drawWindowChrome*(window: OSWindow) =
   drawRectangle((minX + buttonSize div 4).int32, (buttonY + buttonSize - 6).int32,
                (buttonSize div 2).int32, 2, uiInk(White))
 
-proc drawResizeIndicator*(window: OSWindow) =
+proc drawResizeIndicator*(window: OSWindow) {.moddable.} =
   ## Draw resize indicators on edges
   if not window.visible or window.minimized:
     return

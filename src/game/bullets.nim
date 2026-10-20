@@ -1,4 +1,5 @@
 import raylib, rlgl, random, math
+import ../modding/mod_patch_core
 import types, player, particle_pool, particle_types, effects, powerup, fx, game/combat
 from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, trackHealing
 
@@ -35,7 +36,7 @@ const BloodMasteryLifestealMult* = 2.0'f32
   ## The lifesteal half of that budget. Every blood heal reads it, and so does the
   ## statistics split that credits Blood Mastery its share of the healing.
 
-proc windBulletFlatBonus*(player: Player): float32 =
+proc windBulletFlatBonus*(player: Player): float32 {.moddable.} =
   ## Wind Bullets' own flat damage contribution to a bullet, mastery included.
   ## The mastery scales this small flat number and nothing else - wind's payoff
   ## is the push and the slow, not the bullet damage.
@@ -56,35 +57,35 @@ const
 # COMMON HELPER FUNCTIONS FOR POWER-UP CALCULATIONS
 
 # Lightning visuals moved to src/fx.nim (forwarding stubs kept)
-proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2f,
-                         color: Color = fx.DEFAULT_BOLT_COLOR) =
+proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2,
+                         color: Color = fx.DEFAULT_BOLT_COLOR) {.moddable.} =
   fx.spawnLightningBoltInto(game.lightningBolts, fromPos, toPos, color)
 
-proc updateLightningBolts*(game: var Game, dt: float32) =
+proc updateLightningBolts*(game: var Game, dt: float32) {.moddable.} =
   fx.updateLightningBolts(game.lightningBolts, dt)
 
-proc drawLightningBolts*(game: Game) =
+proc drawLightningBolts*(game: Game) {.moddable.} =
   fx.drawLightningBolts(game.lightningBolts)
 
 # AoE-blast boundary rings (Star death explosion, etc.), forwarding stubs
-proc spawnShockwaveRing*(game: var Game, pos: Vector2f, maxRadius: float32, color: Color) =
+proc spawnShockwaveRing*(game: var Game, pos: Vector2, maxRadius: float32, color: Color) {.moddable.} =
   fx.spawnShockwaveRingInto(game.shockwaveRings, pos, maxRadius, color)
 
-proc updateShockwaveRings*(game: var Game, dt: float32) =
+proc updateShockwaveRings*(game: var Game, dt: float32) {.moddable.} =
   fx.updateShockwaveRings(game.shockwaveRings, dt)
 
-proc drawShockwaveRings*(game: Game) =
+proc drawShockwaveRings*(game: Game) {.moddable.} =
   fx.drawShockwaveRings(game.shockwaveRings)
 
 # Path-swept blast corridors (Aftershock), forwarding stubs
-proc spawnPathShockwave*(game: var Game, points: seq[Vector2f], width: float32,
-                         color: Color) =
+proc spawnPathShockwave*(game: var Game, points: seq[Vector2], width: float32,
+                         color: Color) {.moddable.} =
   fx.spawnPathShockwaveInto(game.pathShockwaves, points, width, color)
 
-proc updatePathShockwaves*(game: var Game, dt: float32) =
+proc updatePathShockwaves*(game: var Game, dt: float32) {.moddable.} =
   fx.updatePathShockwaves(game.pathShockwaves, dt)
 
-proc drawPathShockwaves*(game: Game) =
+proc drawPathShockwaves*(game: Game) {.moddable.} =
   fx.drawPathShockwaves(game.pathShockwaves)
 
 # Boss death blast (deallocation sweep), forwarding stubs.
@@ -92,15 +93,15 @@ proc drawPathShockwaves*(game: Game) =
 # corpse can be tinted to match the wave it launches.
 export BOSS_DEATH_BLAST_COLOR
 
-proc spawnBossDeathBlast*(game: var Game, pos: Vector2f, maxRadius: float32,
+proc spawnBossDeathBlast*(game: var Game, pos: Vector2, maxRadius: float32,
                           sourceEnemyId: int,
-                          color: Color = fx.BOSS_DEATH_BLAST_COLOR) =
+                          color: Color = fx.BOSS_DEATH_BLAST_COLOR) {.moddable.} =
   fx.spawnBossDeathBlastInto(game.bossDeathBlasts, pos, maxRadius, sourceEnemyId, color)
 
-proc drawBossDeathBlasts*(game: Game) =
+proc drawBossDeathBlasts*(game: Game) {.moddable.} =
   fx.drawBossDeathBlasts(game.bossDeathBlasts)
 
-proc blastFreeFizzle(game: var Game, pos: Vector2f, color: Color) =
+proc blastFreeFizzle(game: var Game, pos: Vector2, color: Color) =
   ## The little puff left where the sweep freed one hazard. Angular shards
   ## rather than a soft puff, so an erased projectile reads as data being
   ## dropped rather than as something burning up.
@@ -117,7 +118,7 @@ proc blastFreeFizzle(game: var Game, pos: Vector2f, color: Color) =
       rotation = angle * 180.0'f32 / PI.float32,
       spin = (-420.0 + rand(840.0)).float32)
 
-proc bossHazardDefused*(game: Game, sourceEnemyId: int): bool =
+proc bossHazardDefused*(game: Game, sourceEnemyId: int): bool {.moddable.} =
   ## True once a boss-death sweep owns this hazard's firer, which is the moment
   ## that boss died.
   ##
@@ -154,10 +155,10 @@ proc blastFreeBeam(game: var Game, laser: Laser, color: Color) =
             laser.rotation + Quarter, laser.rotation - Quarter]
     else: @[laser.rotation]
   for a in arms:
-    blastFreeFizzle(game, newVector2f(laser.pos.x + cos(a) * laser.length,
+    blastFreeFizzle(game, vec2(laser.pos.x + cos(a) * laser.length,
                                       laser.pos.y + sin(a) * laser.length), color)
 
-proc blastHasReached(blast: BossDeathBlast, pos: Vector2f,
+proc blastHasReached(blast: BossDeathBlast, pos: Vector2,
                      extra: float32 = 0.0'f32): bool =
   ## Has the sweep's edge covered this hazard yet? `extra` is the hazard's own
   ## reach past that point, which is what makes a beam wait until the wave has
@@ -171,7 +172,7 @@ proc blastHasReached(blast: BossDeathBlast, pos: Vector2f,
   distance(pos, blast.pos) + extra <= blast.radius or
     blast.radius >= blast.maxRadius
 
-proc updateBossDeathBlasts*(game: var Game, dt: float32) =
+proc updateBossDeathBlasts*(game: var Game, dt: float32) {.moddable.} =
   ## Advance every boss-death sweep and erase the hazards its edge has reached.
   ##
   ## The wave only ever DELETES. It never calls takeDamage, damageEnemy or any
@@ -266,18 +267,18 @@ const
     ## gust. Without it Wind Mastery + Heavy Rounds reached 2100 px/s (~500 px per
     ## bullet) and pinned whole waves against the arena edge.
 
-proc windHitLaunch*(force: float32): float32 =
+proc windHitLaunch*(force: float32): float32 {.moddable.} =
   ## Launch speed for one wind hit of the given push force (before boss resistance).
   min(force * WindHitLaunchScale, WindHitMaxLaunch)
 
-proc getExplosionRadius*(level: int): float32 =
+proc getExplosionRadius*(level: int): float32 {.moddable.} =
   ## Standard explosion radius for explosive bullets
   case level
   of 1: 50.0
   of 2: 75.0
   else: 100.0
 
-proc getBulletDamageType*(bullet: Bullet): DamageType =
+proc getBulletDamageType*(bullet: Bullet): DamageType {.moddable.} =
   ## Determine the damage-number color for a bullet's DIRECT hit.
   ## Fire/poison riders deliberately do NOT tint the direct hit: element colors
   ## are reserved for the DoT ticks themselves, so the player can tell their
@@ -391,7 +392,7 @@ proc applyMasteryDoT*(enemy: Enemy, elemType: ElementType,
                      hasMastery: bool,
                      masteryDmgMult, masteryDurMult: float32,
                      masterySlowAmount: float32,
-                     source: string) =
+                     source: string) {.moddable.} =
   ## Applies a DoT effect with optional mastery bonus and mastery-gated slow.
   ## Slow threshold and multipliers are explicit parameters so each element
   ## can still be tuned independently.
@@ -557,7 +558,7 @@ proc applyBulletEffect(game: var Game, effect: BulletEffect, enemy: Enemy,
       showDamage(game, game.player.pos, restored, true, false, dtHeal)
 
 proc applyBulletEffects*(game: var Game, bullet: Bullet, enemy: Enemy, dt: float32,
-                         shielded = false) =
+                         shielded = false) {.moddable.} =
   ## Apply all bullet effects to an enemy - unified entry point
   let effects = getBulletEffects(game, bullet)
 

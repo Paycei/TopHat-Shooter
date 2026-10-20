@@ -2,23 +2,22 @@
 ## Contains all 3D-specific type definitions for the 3D engine
 
 import raylib
+import ../vec
+export vec
 
 type
-  Vector3f* = object
-    x*, y*, z*: float32
-
   FPSCamera* = object
-    position*: Vector3f
-    target*: Vector3f
-    up*: Vector3f
+    position*: Vector3
+    target*: Vector3
+    up*: Vector3
     fovy*: float32
     yaw*, pitch*: float32
     shake*: float32
     shakeTime*: float32
 
   Platform3D* = object
-    pos*: Vector3f
-    size*: Vector3f
+    pos*: Vector3
+    size*: Vector3
     color*: Color
     moving*: bool
     moveSpeed*: float32
@@ -28,8 +27,8 @@ type
     currentRotation*: float32
 
   Projectile3D* = ref object
-    pos*: Vector3f
-    vel*: Vector3f
+    pos*: Vector3
+    vel*: Vector3
     damage*: float32
     lifetime*: float32
     fromPlayer*: bool
@@ -51,7 +50,6 @@ type
     skyColor*: Color
     floorColor*: Color
     wallColor*: Color
-    environmentIntensity*: float32  # For phase transitions
     gravity*: float32               # world units/s^2 (negative pulls down)
     boundsRadius*: float32          # the player is kept inside this radius
     deathPlaneY*: float32           # falling below this kills the player
@@ -60,14 +58,14 @@ type
     floorY*: float32
 
   GravityWell* = object
-    pos*: Vector3f
+    pos*: Vector3
     strength*: float32
     radius*: float32
     lifetime*: float32
     active*: bool
 
   BossSatellite* = object
-    pos*: Vector3f
+    pos*: Vector3
     angle*: float32
     distance*: float32
     health*: float32
@@ -75,13 +73,8 @@ type
     active*: bool
     orbitSpeed*: float32  # Variable orbit speed per satellite
 
-  BossClone* = object
-    pos*: Vector3f
-    lifetime*: float32
-    alpha*: float32
-
   Boss3D* = object
-    pos*: Vector3f
+    pos*: Vector3
     health*: float32
     maxHealth*: float32
     phase*: int
@@ -90,15 +83,12 @@ type
     moveTimer*: float32
     phaseTransitionTimer*: float32  # Brief invulnerability during phase changes
     attackPattern*: int  # Current attack pattern index
-    patternTimer*: float32  # Timer for pattern rotation
-    shieldHealth*: float32
     teleportTimer*: float32
     gravityWells*: seq[GravityWell]
-    berserkModeActive*: bool  # Phase 5 final stand
 
   DamageNumber3D* = object
-    pos*: Vector3f
-    vel*: Vector3f
+    pos*: Vector3
+    vel*: Vector3
     damage*: float32
     lifetime*: float32
     maxLifetime*: float32
@@ -117,13 +107,13 @@ type
     ## only: scripts keep their own state in tables keyed by `id`.
     id*: int
     tag*: string           # mod-chosen kind
-    pos*, vel*: Vector3f
+    pos*, vel*: Vector3
     yaw*: float32          # degrees, about the up axis
     hp*, maxHp*: float32
     radius*: float32       # hit and contact radius
     color*: Color
     shape*: EntityShape3D
-    size*: Vector3f        # esCube: full extents; esCylinder: y = height
+    size*: Vector3        # esCube: full extents; esCylinder: y = height
     modelId*: int          # mod_assets model id (esModel); -1 none
     modelScale*: float32
     modelAnim*: int        # animation index + 1; 0 = the rest pose
@@ -145,13 +135,13 @@ type
     invulnerable*: bool    # takes hits without losing hp
     alive*: bool
     age*: float32
-    wanderDir*: Vector3f   # aiWander heading
+    wanderDir*: Vector3   # aiWander heading
     wanderTimer*: float32
     removed*: bool         # swept out of the world (or removed before it joined): gone for scripts
 
   Pickup3D* = ref object
     id*: int
-    pos*: Vector3f
+    pos*: Vector3
     kind*: string          # "health", "ammo" or a mod-chosen tag
     value*: float32
     radius*: float32
@@ -177,8 +167,8 @@ type
     infiniteAmmo*: bool
 
   Player3D* = object
-    pos*: Vector3f
-    vel*: Vector3f
+    pos*: Vector3
+    vel*: Vector3
     health*: float32
     maxHealth*: float32
     speed*: float32
@@ -234,11 +224,55 @@ type
     resumed*: bool
     carryHp*: bool
     startFired*: bool           # world3dStart has fired
-    spawnPos*: Vector3f
+    spawnPos*: Vector3
     timeElapsed*: float32
     paused*: bool
     score*, kills*, wave*: int  # counters scripts may use
     nextId*: int
+
+# Like types.nim's Enemy/Bullet list iterators: yield copies, re-check the
+# length, so a script growing or shrinking a world's lists mid-walk is safe.
+iterator items*(a: seq[Entity3D]): Entity3D {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield a[i]
+    inc i
+
+iterator pairs*(a: seq[Entity3D]): tuple[key: int, val: Entity3D] {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield (i, a[i])
+    inc i
+
+iterator items*(a: seq[Projectile3D]): Projectile3D {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield a[i]
+    inc i
+
+iterator pairs*(a: seq[Projectile3D]): tuple[key: int, val: Projectile3D] {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield (i, a[i])
+    inc i
+
+iterator items*(a: seq[Pickup3D]): Pickup3D {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield a[i]
+    inc i
+
+iterator pairs*(a: seq[Pickup3D]): tuple[key: int, val: Pickup3D] {.inline.} =
+  let n = a.len
+  var i = 0
+  while i < n and i < a.len:
+    yield (i, a[i])
+    inc i
 
 var activeWorld3D*: Game3D
   ## The 3D world in play (nil outside one). Game.game3D only marks that a
@@ -249,8 +283,5 @@ var pendingWorld3D*: World3DOptions
   ## completes; set by whoever starts the fade (sandbox.nim's button, beginEnter3D).
 
 const
-  MaxEntities3D* = 4000      ## script-made content is capped: a runaway loop must not eat the heap
-  MaxProjectiles3D* = 20000
-  MaxPickups3D* = 2000
-  MaxDamageNumbers3D* = 300
-  MaxPellets3D* = 100
+  MaxDamageNumbers3D* = 300  ## floating numbers on screen at once (the oldest go first)
+  MaxPellets3D* = 1000       ## shots per trigger pull: a script's weapon.pellets = 1e9 must not hang the frame

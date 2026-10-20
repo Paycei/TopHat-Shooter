@@ -1,9 +1,10 @@
 import raylib, math
+import ../modding/mod_patch_core
 import types, bullet, particle_skins, particle_types, powerup, patches, sound, run_statistics, fx, game/combat, game/bullets
 import modding/mod_hooks
 
-proc rotateVec(v: Vector2f, angle: float32): Vector2f =
-  newVector2f(v.x * cos(angle) - v.y * sin(angle), v.x * sin(angle) + v.y * cos(angle))
+proc rotateVec(v: Vector2, angle: float32): Vector2 =
+  vec2(v.x * cos(angle) - v.y * sin(angle), v.x * sin(angle) + v.y * cos(angle))
 
 proc calcBulletEffects(player: Player): BulletEffects =
   ## Computes the elemental/knockback values that every player bullet carries.
@@ -67,7 +68,7 @@ const
   TracerHalfWidth  = 14.0'f32    # px; aim-assist forgiveness either side of the line
   TracerDamageMult = 0.50'f32    # fraction of the shot's damage delivered instantly
 
-proc fireLightspeedTracer(game: Game, origin, dir: Vector2f, stats: combat.CombatStats) =
+proc fireLightspeedTracer(game: Game, origin, dir: Vector2, stats: combat.CombatStats) =
   ## Bullet Speed (Legendary) "Lightspeed Tracer": casts an instant hitscan beam
   ## down the firing line and deals guaranteed damage to the FIRST enemy it
   ## crosses, before the physical bullet has even travelled. Single-target with
@@ -111,7 +112,7 @@ proc fireLightspeedTracer(game: Game, origin, dir: Vector2f, stats: combat.Comba
   # Instant beam visual from the muzzle to the struck enemy.
   spawnLightningBoltInto(game.lightningBolts, origin, bestEnemy.pos)
 
-proc shootBullet*(game: Game, direction: Vector2f) =
+proc shootBullet*(game: Game, direction: Vector2) {.moddable.} =
   # Calculate all combat stats once at the start
   var stats = calculateCombatStats(game.player)
   applyBossArenaCombatBonus(game, stats)
@@ -124,7 +125,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       return
     # Increment bullet counter for special rounds power-up
     game.player.bulletCounter += 1
-
 
     # Check for power-ups that modify shooting
     let hasHoming: bool = hasPowerUp(game.player, puMagicalBullets)
@@ -160,7 +160,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
       bulletRadius *= getHeavyRoundsSizeMultiplier(heavyLevel)
 
     # Apply critical hit chance using pre-calculated stats and capture if it was a crit
-    let baseDamagePreCrit = damage  # Store pre-crit value for puCriticalHit tracking
     let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(stats, damage)
     damage = damageWithCrit
 
@@ -236,7 +235,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           bulletShape = game.player.bulletShapeType
         )
         bullet.radius = bulletRadius
-        bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
         bullet.roomEchoMultiplier = roomEchoMultiplier
         assignBulletId(game, bullet)
@@ -274,7 +272,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
-      bullet.baseDamagePreCrit = baseDamagePreCrit
       bullet.rageMultiplier = rageMultiplier
       bullet.roomEchoMultiplier = roomEchoMultiplier
       assignBulletId(game, bullet)
@@ -315,7 +312,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
           bulletShape = game.player.bulletShapeType
         )
         bullet.radius = bulletRadius
-        bullet.baseDamagePreCrit = baseDamagePreCrit
         bullet.rageMultiplier = rageMultiplier
         bullet.roomEchoMultiplier = roomEchoMultiplier
         assignBulletId(game, bullet)
@@ -346,7 +342,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
-      bullet.baseDamagePreCrit = baseDamagePreCrit
       bullet.rageMultiplier = rageMultiplier
       bullet.roomEchoMultiplier = roomEchoMultiplier
       assignBulletId(game, bullet)
@@ -384,7 +379,6 @@ proc shootBullet*(game: Game, direction: Vector2f) =
         bulletShape = game.player.bulletShapeType
       )
       mirror.radius = bulletRadius
-      mirror.baseDamagePreCrit = baseDamagePreCrit
       mirror.rageMultiplier = rageMultiplier
       assignBulletId(game, mirror)
       game.bullets.add(mirror)
@@ -406,7 +400,7 @@ proc shootBullet*(game: Game, direction: Vector2f) =
     spawnShootingParticles(game.particlePool, game.player.pos.x, game.player.pos.y, direction, skinType, game.time)
 
 # Helper to fire delayed double-shot bursts
-proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
+proc fireDoubleShotBurst*(game: Game, direction: Vector2, hasMultiShot: bool) {.moddable.} =
   # Calculate combat stats once for the burst
   var burstStats = calculateCombatStats(game.player)
   applyBossArenaCombatBonus(game, burstStats)
@@ -434,7 +428,6 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
     damage *= 0.7
 
   # Roll for critical hit
-  let burstBaseDamagePreCrit = damage  # Store pre-crit value for puCriticalHit tracking
   let (damageWithCrit, wasCrit) = applyCriticalHitWithFlag(burstStats, damage)
   damage = damageWithCrit
 
@@ -483,7 +476,6 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
         bulletShape = game.player.bulletShapeType
       )
       bullet.radius = bulletRadius
-      bullet.baseDamagePreCrit = burstBaseDamagePreCrit
       bullet.rageMultiplier = burstRageMultiplier
       assignBulletId(game, bullet)
       game.bullets.add(bullet)
@@ -516,7 +508,6 @@ proc fireDoubleShotBurst*(game: Game, direction: Vector2f, hasMultiShot: bool) =
       bulletShape = game.player.bulletShapeType
     )
     bullet.radius = bulletRadius
-    bullet.baseDamagePreCrit = burstBaseDamagePreCrit
     bullet.rageMultiplier = burstRageMultiplier
     assignBulletId(game, bullet)
     game.bullets.add(bullet)

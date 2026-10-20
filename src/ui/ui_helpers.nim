@@ -3,14 +3,16 @@
 ## which knows anything about ui/, so it is safe to use from any ui/ module.
 
 import raylib, strutils, math
+import ../modding/mod_patch_core
 import ../draw_prims
-import ../localization, ../types
+import ../localization, ../types, ../utils
+import ui_theme
 
 type TextAlign* = enum
   taLeft, taCenter, taRight
 
 proc bestFitFontSize*(text: string, maxWidth, preferredSize: int32,
-                      minSize: int32 = 9): int32 =
+                      minSize: int32 = 9): int32 {.moddable.} =
   ## Shrink from preferredSize until `text` fits in `maxWidth` (or minSize).
   result = preferredSize
   if maxWidth <= 0:
@@ -19,7 +21,7 @@ proc bestFitFontSize*(text: string, maxWidth, preferredSize: int32,
     dec result
 
 proc drawTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: Color,
-                  minSize: int32 = 9, align: TextAlign = taLeft): int32 {.discardable.} =
+                  minSize: int32 = 9, align: TextAlign = taLeft): int32 {.discardable, moddable.} =
   ## Draw `text` at the largest size that fits `maxWidth`; returns the size used.
   result = bestFitFontSize(text, maxWidth, fontSize, minSize)
   let textW = measureText(text, result)
@@ -30,12 +32,13 @@ proc drawTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: Color,
   drawText(text, drawX, y, result, color)
 
 proc drawCenteredTextFit*(text: string, x, y, maxWidth, fontSize: int32, color: Color,
-                          minSize: int32 = 9): int32 {.discardable.} =
+                          minSize: int32 = 9): int32 {.discardable, moddable.} =
   drawTextFit(text, x, y, maxWidth, fontSize, color, minSize, taCenter)
 
-proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string =
+proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string {.moddable.} =
   ## `text` cut down (with a trailing "..") until it is at most maxWidth wide.
-  ## Trims whole UTF-8 characters, so an accented letter is never split.
+  ## Trims whole UTF-8 characters, so an accented letter is never split. Two
+  ## ASCII dots, not an ellipsis: raylib's default font stops at U+00FF.
   result = text
   if measureText(result, fontSize) <= maxWidth:
     return
@@ -46,26 +49,60 @@ proc fitWithEllipsis*(text: string, maxWidth, fontSize: int32): string =
     result.setLen(n)
   result = result.strip(leading = false) & ".."
 
-proc wrapTextLines*(text: string, maxWidth, fontSize: int32): seq[string] =
-  ## Greedy word-wrap to lines no wider than `maxWidth` at `fontSize`.
-  let words = text.splitWhitespace()
-  if words.len == 0:
-    return @[]
+proc fitTextAndSize*(text: string, maxWidth, preferredSize: int32,
+                     minSize: int32 = 9): tuple[text: string, size: int32] {.moddable.} =
+  ## Shrink first (bestFitFontSize); what still does not fit at minSize is cut
+  ## with fitWithEllipsis.
+  result.size = bestFitFontSize(text, maxWidth, preferredSize, minSize)
+  result.text = fitWithEllipsis(text, maxWidth, result.size)
 
+proc fitPathTail*(path: string, maxWidth, fontSize: int32, sep = '\\'): string {.moddable.} =
+  ## A path trimmed from the LEFT ("..\b\c"), so the folder you are in stays
+  ## visible. Drops whole leading folders, never half a name.
+  if measureText(path, fontSize) <= maxWidth:
+    return path
+  var tail = path
+  while measureText(".." & tail, fontSize) > maxWidth:
+    let cut = tail.find(sep, 1)
+    if cut < 0: break
+    tail = tail[cut .. ^1]
+  ".." & tail
+
+proc wrapTextLines*(text: string, maxWidth, fontSize: int32,
+                    breakLongWords = false): seq[string] {.moddable.} =
+  ## Greedy word-wrap to lines no wider than `maxWidth` at `fontSize`. A word
+  ## wider than a line gets a line of its own, or with `breakLongWords` is cut
+  ## into pieces that fit.
   var currentLine = ""
-  for word in words:
+  for word in text.splitWhitespace():
     let candidate = if currentLine.len == 0: word else: currentLine & " " & word
-    if currentLine.len == 0 or measureText(candidate, fontSize) <= maxWidth:
+    if (currentLine.len == 0 and not breakLongWords) or measureText(candidate, fontSize) <= maxWidth:
       currentLine = candidate
-    else:
+      continue
+    if currentLine.len > 0:
       result.add(currentLine)
-      currentLine = word
+    currentLine = word
+    if breakLongWords and measureText(word, fontSize) > maxWidth:
+      var chunk = ""
+      var i = 0
+      while i < word.len:
+        # One character: a byte and its UTF-8 continuation bytes, so a cut
+        # never splits an accented letter (half of one draws as '?').
+        var j = i + 1
+        while j < word.len and (ord(word[j]) and 0xC0) == 0x80: inc j
+        let ch = word[i ..< j]
+        if chunk.len > 0 and measureText(chunk & ch, fontSize) > maxWidth:
+          result.add(chunk)
+          chunk = ""
+        chunk.add(ch)
+        i = j
+      currentLine = chunk
 
   if currentLine.len > 0:
     result.add(currentLine)
 
 proc bestWrapFontSize*(text: string, maxWidth, preferredSize: int32,
-                       maxLines: int, minSize: int32 = 9): int32 =
+                       maxLines: int, minSize: int32 = 9): int32 {.moddable.} =
   ## Largest size at which the wrapped text needs at most `maxLines` lines.
   result = preferredSize
   if maxWidth <= 0:
@@ -74,6 +111,20 @@ proc bestWrapFontSize*(text: string, maxWidth, preferredSize: int32,
     if wrapTextLines(text, maxWidth, result).len <= maxLines:
       return
     dec result
+
+proc drawWrappedText*(text: string, x, y, maxWidth: int, fontSize: int32, stockColor: Color,
+                      maxLines: int = 3, lineGap: int = 5, minSize: int32 = 9): int {.moddable.} =
+  ## `text` word-wrapped into at most `maxLines` lines, shrunk toward `minSize`
+  ## until it fits, in the theme's ink. Returns the y below the last line.
+  result = y
+  if maxLines <= 0:
+    return
+  let size = bestWrapFontSize(text, maxWidth.int32, fontSize, maxLines, minSize)
+  let lines = wrapTextLines(text, maxWidth.int32, size)
+  let color = uiInk(stockColor)
+  for idx in 0 ..< min(lines.len, maxLines):
+    drawText(lines[idx], x.int32, result.int32, size, color)
+    result += size.int + lineGap
 
 # ---------------------------------------------------------------------------
 # Restore-point glyph.
@@ -109,8 +160,8 @@ proc shade(c: Color, f: float32): Color =
         g: uint8(clamp(c.g.float32 * f, 0.0, 255.0)),
         b: uint8(clamp(c.b.float32 * f, 0.0, 255.0)), a: c.a)
 
-proc drawRestorePointIcon*(cx, cy, size: float32, body, accent, led: Color,
-                           spin: float32 = 0.0) =
+proc drawRestorePointIcon(cx, cy, size: float32, body, accent, led: Color,
+                           spin: float32 = 0.0) {.moddable.} =
   ## One restore point. `size` is the radius, so the glyph spans 2*size.
   ## `spin` rotates the rim ticks: static in the meters, spinning down to a stop
   ## in the loss animation, which is what makes a dying platter read as dying.
@@ -183,7 +234,7 @@ proc livesStatusText(used, maxLives, unlimitedSentinel: int): string =
     else: ""
 
 proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
-                     time: float32, height: int32 = LivesPanelHeight) =
+                     time: float32, height: int32 = LivesPanelHeight) {.moddable.} =
   ## Framed restore-point meter. Contents are centered as one group so the panel
   ## reads the same at any width.
   let remaining = if maxLives == unlimitedSentinel: unlimitedSentinel
@@ -200,13 +251,13 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
       Color(r: uint8(255.0 * pulse), g: uint8(70.0 * pulse), b: uint8(80.0 * pulse), a: 255)
     else:
       Color(r: 70, g: 115, b: 175, a: 255)
-  drawRectangle(x, y, width, height, bg)
+  drawRectangle(x, y, width, height, uiSurface(bg))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
-                     2.0, border)
+                     2.0, uiLine(border))
   # Left accent bar, so the strip is identifiable from the corner of the eye.
   drawRectangle(x, y, 4'i32, height,
-                if critical: Color(r: 190, g: 40, b: 55, a: 255) else: RpAccent)
+                uiInk(if critical: Color(r: 190, g: 40, b: 55, a: 255) else: RpAccent))
 
   # Centered group: RESTORE POINTS  <glyphs>  [status]
   let label = t(tkRestorePointsLabel)
@@ -224,7 +275,7 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
   var cursor = x + (width - groupW) div 2
   let cy = y.float32 + height.float32 * 0.5
   drawText(label, cursor, int32(cy) - PanelFontSize div 2, PanelFontSize,
-           Color(r: 190, g: 202, b: 216, a: 255))
+           uiInk(190, 202, 216))
   cursor += labelW + IconLabelGap
 
   if maxLives == unlimitedSentinel:
@@ -249,11 +300,11 @@ proc drawLivesPanel*(x, y, width: int32, used, maxLives, unlimitedSentinel: int,
   if statusW > 0:
     cursor += IconLabelGap
     drawText(status, cursor, int32(cy) - PanelFontSize div 2, PanelFontSize,
-             if critical or low: Color(r: 255, g: 120, b: 120, a: 255)
-             else: Color(r: 120, g: 235, b: 160, a: 255))
+             uiInk(if critical or low: Color(r: 255, g: 120, b: 120, a: 255)
+                   else: Color(r: 120, g: 235, b: 160, a: 255)))
 
 proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
-                              height: int32 = LivesPanelHeight) =
+                              height: int32 = LivesPanelHeight) {.moddable.} =
   ## Stand-in for the meter once a run has been won and plays on past it (see
   ## restorePointsOffline in types.nim): wave mode's endless waves, the
   ## roguelite's endless loops, survival's Overtime. The win deleted the block
@@ -263,11 +314,11 @@ proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
   ## screens keep their layout; one dead platter plus a warning replaces the
   ## glyph row. `mode` only picks the wording (survival says Overtime).
   let pulse = sin(time * 3.0) * 0.2 + 0.8
-  drawRectangle(x, y, width, height, Color(r: 46, g: 16, b: 20, a: 255))
+  drawRectangle(x, y, width, height, uiSurface(46, 16, 20))
   drawRectOutline(Rectangle(x: x.float32, y: y.float32,
                                width: width.float32, height: height.float32),
-                     2.0, Color(r: uint8(220.0 * pulse), g: 60, b: 70, a: 255))
-  drawRectangle(x, y, 4'i32, height, Color(r: 190, g: 40, b: 55, a: 255))
+                     2.0, uiLine(Color(r: uint8(220.0 * pulse), g: 60, b: 70, a: 255)))
+  drawRectangle(x, y, 4'i32, height, uiInk(190, 40, 55))
 
   # Centered group: RESTORE POINTS  <dead platter>  OFFLINE: ...
   # The warning shrinks to fit: it runs long in Spanish and the pause window's
@@ -285,13 +336,12 @@ proc drawEndlessRestorePanel*(x, y, width: int32, mode: GameMode, time: float32,
   var cursor = x + (width - groupW) div 2
   let cy = y.float32 + height.float32 * 0.5
   drawText(label, cursor, int32(cy) - PanelFontSize div 2, PanelFontSize,
-           Color(r: 190, g: 202, b: 216, a: 255))
+           uiInk(190, 202, 216))
   cursor += labelW + IconLabelGap
   drawRestorePointIcon(cursor.float32 + PanelIconSize, cy, PanelIconSize,
                        RpDeadBody, RpDeadAccent, RpDeadLed)
   cursor += glyphW + IconLabelGap
-  drawText(status, cursor, int32(cy) - statusSize div 2, statusSize,
-           Color(r: 255, g: 120, b: 120, a: 255))
+  drawText(status, cursor, int32(cy) - statusSize div 2, statusSize, uiInk(255, 120, 120))
 
 # ---------------------------------------------------------------------------
 # "Restore point spent" animation.
@@ -313,9 +363,6 @@ const
   FragmentCount = 16
   SpinRate = 7.0'f32      ## radians/unit-progress while the platter is alive
   FocusZoom = 1.7'f32     ## how much closer the camera holds before pulling back
-
-proc withAlphaF(c: Color, mult: float32): Color =
-  Color(r: c.r, g: c.g, b: c.b, a: uint8(clamp(c.a.float32 * mult, 0.0, 255.0)))
 
 proc easeOutBack(t: float32): float32 =
   ## Overshoot-and-settle, used for the entrance slam and the unlimited re-form.
@@ -365,13 +412,8 @@ proc drawFracture(cx, cy, size, reveal, jitter, alpha: float32) =
              Color(r: 8, g: 12, b: 18, a: uint8(235.0 * alpha)))
     drawStroke(Vector2(x: ax, y: ay - 1.0), Vector2(x: bx, y: by - 1.0), 1.0,
              Color(r: 200, g: 245, b: 255, a: uint8(160.0 * alpha)))
-proc smoothStep(t: float32): float32 =
-  ## Ease in and out, for the camera pull-back.
-  let u = clamp(t, 0.0'f32, 1.0'f32)
-  u * u * (3.0 - 2.0 * u)
-
 proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
-                          unlimitedSentinel: int, progress: float32) =
+                          unlimitedSentinel: int, progress: float32) {.moddable.} =
   ## Full-screen "you just spent a restore point" sequence. `used` is the count
   ## AFTER the spend, so the platter that dies is the one at index `remaining`.
   ##
@@ -402,7 +444,7 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
              else: 1.0 + (1.0 - easeOutBack(entrance)) * 0.55
 
   # Camera pull-back. 0 = held on the dead platter, 1 = the full row of slots.
-  let reveal = smoothStep(phaseT(p, LifeLostSettleStart, LifeLostRevealEnd))
+  let reveal = smoothstep(phaseT(p, LifeLostSettleStart, LifeLostRevealEnd))
   let zoom = (FocusZoom + (1.0 - FocusZoom) * reveal) * slam
   let size = BigIconSize * zoom
 
@@ -427,7 +469,7 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
   let titleW = measureText(title, titleSize)
   let titleY = cy - (128.0 + 46.0 * (1.0 - reveal)) * slam
   drawText(title, int32(cx) - titleW div 2, int32(titleY), titleSize,
-           Color(r: 255, g: 120, b: 110, a: uint8(255.0 * alpha)))
+           uiOverlay(Color(r: 255, g: 120, b: 110, a: uint8(255.0 * alpha))))
 
   # --- siblings (drawn first, so shards from the break pass over them) ---
   if siblingAlpha > 0.0:
@@ -436,9 +478,9 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
       let gx = targetX + (i - target).float32 * advance
       let live = i < remaining
       drawRestorePointIcon(gx, cy, size,
-                           withAlphaF(if live: RpBody else: RpDeadBody, siblingAlpha),
-                           withAlphaF(if live: RpAccent else: RpDeadAccent, siblingAlpha),
-                           withAlphaF(if live: RpLed else: RpDeadLed, siblingAlpha),
+                           scaleAlpha(if live: RpBody else: RpDeadBody, siblingAlpha),
+                           scaleAlpha(if live: RpAccent else: RpDeadAccent, siblingAlpha),
+                           scaleAlpha(if live: RpLed else: RpDeadLed, siblingAlpha),
                            if live: p * SpinRate else: 0.0)
 
   # --- the restore point being consumed ---
@@ -449,17 +491,17 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
     let shudder = sin(p * 120.0) * 3.0 * crackT
     let ledFlicker = if crackT > 0.35: abs(sin(p * 45.0)) * (1.0 - crackT) else: 1.0
     drawRestorePointIcon(targetX + shudder, cy, size,
-                         withAlphaF(shade(RpBody, 1.0 - 0.55 * crackT), alpha),
-                         withAlphaF(shade(RpAccent, 1.0 - 0.5 * crackT), alpha),
-                         withAlphaF(RpLed, alpha * ledFlicker * (1.0 - crackT)),
+                         scaleAlpha(shade(RpBody, 1.0 - 0.55 * crackT), alpha),
+                         scaleAlpha(shade(RpAccent, 1.0 - 0.5 * crackT), alpha),
+                         scaleAlpha(RpLed, alpha * ledFlicker * (1.0 - crackT)),
                          p * SpinRate * decel)
     if crackT > 0.0:
       drawFracture(targetX, cy, size, crackT, shudder, alpha)
   else:
     # Gone: the dead socket stays put, and rides the pull-back into its slot.
-    drawRestorePointIcon(targetX, cy, size, withAlphaF(RpDeadBody, alpha),
-                         withAlphaF(RpDeadAccent, alpha),
-                         withAlphaF(RpDeadLed, alpha))
+    drawRestorePointIcon(targetX, cy, size, scaleAlpha(RpDeadBody, alpha),
+                         scaleAlpha(RpDeadAccent, alpha),
+                         scaleAlpha(RpDeadLed, alpha))
 
     if shatterT < 1.0:
       # Read-failure ring: marks the instant the platter gave way. Capped just
@@ -468,7 +510,7 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
       if shatterT < 0.55:
         let rt = shatterT / 0.55
         drawCircleOutline(int32(targetX), int32(cy), size * (0.6 + rt * 1.9),
-                        withAlphaF(RpAccent, alpha * (1.0 - rt)))
+                        scaleAlpha(RpAccent, alpha * (1.0 - rt)))
       # The save scatters. Alpha falls off quadratically so the shards stay
       # solid through most of the arc and only thin out at the very end.
       for f in 0 ..< FragmentCount:
@@ -479,14 +521,14 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
         let fy = cy + sin(ang) * dist + 260.0 * shatterT * shatterT * zoom
         drawShard(fx, fy, size * 0.28 * (1.0 - shatterT * 0.45),
                   ang + shatterT * 7.0,
-                  withAlphaF(RpAccent, alpha * (1.0 - shatterT * shatterT)))
+                  scaleAlpha(RpAccent, alpha * (1.0 - shatterT * shatterT)))
 
     # Unlimited never really spends one: the save rebuilds itself.
     if unlimited and reformT > 0.0:
       drawRestorePointIcon(targetX, cy, size * clamp(easeOutBack(reformT), 0.0'f32, 1.4'f32),
-                           withAlphaF(RpBody, alpha * reformT),
-                           withAlphaF(RpAccent, alpha * reformT),
-                           withAlphaF(RpLed, alpha * reformT),
+                           scaleAlpha(RpBody, alpha * reformT),
+                           scaleAlpha(RpAccent, alpha * reformT),
+                           scaleAlpha(RpLed, alpha * reformT),
                            reformT * SpinRate)
 
   # Impact flash on the break.
@@ -504,4 +546,4 @@ proc drawLifeLostOverlay*(screenW, screenH: int32, used, maxLives,
       let sa = alpha * phaseT(p, LifeLostRevealEnd, LifeLostRevealEnd + 0.06)
       let col = if unlimited: Color(r: 120, g: 235, b: 160, a: uint8(255.0 * sa))
                 else: Color(r: 255, g: 120, b: 120, a: uint8(255.0 * sa))
-      drawText(status, int32(cx) - statusW div 2, int32(cy + 112.0), 30, col)
+      drawText(status, int32(cx) - statusW div 2, int32(cy + 112.0), 30, uiOverlay(col))

@@ -2,7 +2,7 @@
 ## Communicates with Discord via named pipes (IPC)
 ## Thread-safe implementation to prevent blocking the main game loop
 
-import json, times, os, locks
+import json, times, os, locks, atomics
 when defined(windows):
   proc getCurrentProcessId(): uint32 {.stdcall, dynlib: "kernel32", importc: "GetCurrentProcessId".}
 else:
@@ -33,7 +33,6 @@ type
     pipe: File
     connected: bool
     nonce: int
-    lastHeartbeat: float
     lastUpdateTime: float
     # Threading support
     thread: Thread[DiscordClient]
@@ -41,7 +40,8 @@ type
     pendingPresence: DiscordRichPresence
     hasUpdate: bool
     updateLock: Lock
-    shouldStop: bool
+    shouldStop: Atomic[bool]
+    finished: Atomic[bool]  ## the worker has returned (joining it cannot block)
 
 const
   OPCODES = (
@@ -65,11 +65,9 @@ proc newDiscordClient*(clientId: string): DiscordClient =
     clientId: clientId,
     connected: false,
     nonce: 0,
-    lastHeartbeat: 0.0,
     lastUpdateTime: 0.0,
     threadRunning: false,
-    hasUpdate: false,
-    shouldStop: false
+    hasUpdate: false
   )
   initLock(result.updateLock)
 
@@ -168,7 +166,6 @@ proc connectSync(client: DiscordClient): bool =
     if response.opcode == OPCODES.FRAME:
       let json = parseJson(response.data)
       if json.hasKey("cmd") and json["cmd"].getStr() == "DISPATCH":
-        client.lastHeartbeat = epochTime()
         return true
   except:
     discard
@@ -264,7 +261,7 @@ proc discordWorkerThread(client: DiscordClient) {.thread.} =
   discard client.connectSync()
 
   # Main loop - check for updates every 100ms
-  while not client.shouldStop:
+  while not client.shouldStop.load:
     sleep(100)
 
     # Check if there's a pending update
@@ -291,6 +288,11 @@ proc discordWorkerThread(client: DiscordClient) {.thread.} =
         except:
           # Connection lost
           client.connected = false
+  client.finished.store(true)
+
+var abandonedClients: seq[DiscordClient]
+  ## Clients whose worker never returned (see disconnect): kept alive, since
+  ## the worker still uses its client.
 
 proc connect*(client: DiscordClient): bool =
   ## Start the background Discord thread (non-blocking)
@@ -308,11 +310,20 @@ proc disconnect*(client: DiscordClient) =
     return
 
   if client.threadRunning:
-    # Signal thread to stop
-    client.shouldStop = true
-    # Wait for thread to finish (with timeout protection)
-    joinThread(client.thread)
+    # Signal thread to stop. It notices within 100 ms, unless Discord stopped
+    # answering mid-handshake: a pipe read has no timeout, and joining the
+    # worker then hung the game on exit. After a second it is left to the OS
+    # (process exit ends it), with its client, pipe and lock untouched.
+    client.shouldStop.store(true)
+    var waited = 0
+    while not client.finished.load and waited < 1000:
+      sleep(10)
+      waited += 10
     client.threadRunning = false
+    if not client.finished.load:
+      abandonedClients.add(client)
+      return
+    joinThread(client.thread)
 
   # Close the connection
   if client.connected and not client.pipe.isNil:
@@ -342,10 +353,6 @@ proc updatePresence*(client: DiscordClient, presence: DiscordRichPresence) =
   client.pendingPresence = presence
   client.hasUpdate = true
   release(client.updateLock)
-
-proc runCallbacks*(client: DiscordClient) =
-  ## No-op for compatibility - thread handles everything
-  discard
 
 proc isConnected*(client: DiscordClient): bool =
   ## Check if the Discord client is connected

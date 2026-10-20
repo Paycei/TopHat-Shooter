@@ -10,11 +10,13 @@
 ## damageEntity3D, to the boss through takeBossDamage / damageBoss3D.
 
 import std/tables
+import ../modding/mod_patch_core
 import raylib, math, random
 from rlgl import getShaderIdDefault
 import ../draw_prims
-import types_3d, engine_3d, player_3d, boss_3d, ../types, ../localization, ../settings
+import types_3d, engine_3d, player_3d, boss_3d, ../types, ../utils, ../localization, ../settings
 import ../modding/[mod_hooks, mod_assets]
+import ../ui/hud_dock   # hudSurface, and the interface theme (ui_theme)
 
 export types_3d
 
@@ -23,12 +25,12 @@ const
 
 # CONSTRUCTION
 
-proc allocId3D*(world: Game3D): int =
+proc allocId3D(world: Game3D): int {.moddable.} =
   ## Ids are never reused within a world; 0 means "none".
   result = world.nextId
   inc world.nextId
 
-proc newEntity3D*(world: Game3D, tag = ""): Entity3D =
+proc newEntity3D*(world: Game3D, tag = ""): Entity3D {.moddable.} =
   ## A live entity with sane defaults, its id assigned. It joins the world when
   ## addEntity3D (or a queued wkSpawnEntity) adds it.
   Entity3D(
@@ -42,13 +44,13 @@ proc newEntity3D*(world: Game3D, tag = ""): Entity3D =
     projectileSpeed: 150.0, projectileDamage: 10.0,
     alive: true)
 
-proc newPickup3D*(world: Game3D, pos: Vector3f, kind: string, value: float32): Pickup3D =
+proc newPickup3D*(world: Game3D, pos: Vector3, kind: string, value: float32): Pickup3D {.moddable.} =
   Pickup3D(id: allocId3D(world), pos: pos, kind: kind, value: value, radius: 4.0, alive: true)
 
-proc newProjectile3D*(pos, vel: Vector3f, damage: float32, fromPlayer: bool): Projectile3D =
+proc newProjectile3D*(pos, vel: Vector3, damage: float32, fromPlayer: bool): Projectile3D {.moddable.} =
   Projectile3D(pos: pos, vel: vel, damage: damage, lifetime: 6.0, fromPlayer: fromPlayer, active: true)
 
-proc initGame3D*(opts: World3DOptions, player2D: Player): Game3D =
+proc initGame3D*(opts: World3DOptions, player2D: Player): Game3D {.moddable.} =
   ## The Orbital Commander arena (opts.bossEnabled) or an empty one for a mod
   ## world: the script builds it in world3dStart.
   let arena = if opts.bossEnabled: generateArena("space", 500.0) else: generateArena("empty", 500.0)
@@ -73,8 +75,8 @@ proc initGame3D*(opts: World3DOptions, player2D: Player): Game3D =
 
 # DAMAGE NUMBERS
 
-proc spawnDamageNumber3D*(damageNumbers: var seq[DamageNumber3D], pos: Vector3f, damage: float32,
-                          color = Color()) =
+proc spawnDamageNumber3D*(damageNumbers: var seq[DamageNumber3D], pos: Vector3, damage: float32,
+                          color = Color()) {.moddable.} =
   ## Create a new damage number at the given position (color alpha 0 = yellow)
   let horizontalSpread = vec3(
     (rand(1.0) - 0.5) * 20.0,
@@ -121,7 +123,7 @@ proc updateDamageNumbers(damageNumbers: var seq[DamageNumber3D], dt: float32) =
     else:
       i += 1
 
-proc raylibCamera*(camera: FPSCamera): Camera =
+proc raylibCamera*(camera: FPSCamera): Camera {.moddable.} =
   Camera(
     position: Vector3(x: camera.position.x, y: camera.position.y, z: camera.position.z),
     target: Vector3(x: camera.target.x, y: camera.target.y, z: camera.target.z),
@@ -130,11 +132,11 @@ proc raylibCamera*(camera: FPSCamera): Camera =
     projection: CameraProjection.Perspective
   )
 
-proc worldToScreen3D*(camera: FPSCamera, pos: Vector3f): tuple[x, y: float32, visible: bool] =
+proc worldToScreen3D*(camera: FPSCamera, pos: Vector3): tuple[x, y: float32, visible: bool] {.moddable.} =
   ## Where a world point lands on the screen; `visible` = in front of the
   ## camera and inside the window.
   let s = getWorldToScreen(Vector3(x: pos.x, y: pos.y, z: pos.z), raylibCamera(camera))
-  let ahead = dot(pos - camera.position, camera.target - camera.position) > 0
+  let ahead = dotProduct(pos - camera.position, camera.target - camera.position) > 0
   (s.x, s.y, ahead and s.x >= 0 and s.x <= getScreenWidth().float32 and
              s.y >= 0 and s.y <= getScreenHeight().float32)
 
@@ -155,7 +157,7 @@ proc drawDamageNumbers(damageNumbers: seq[DamageNumber3D], camera: FPSCamera) =
       let damageText = $int(dmg.damage)
       let fontSize = max(8'i32, int32(24.0'f32 * damageNumberScaleOf(globalSettings)))
       let base = if dmg.color.a > 0: dmg.color else: Color(r: 255, g: 255, b: 100, a: 255)
-      let color = Color(r: base.r, g: base.g, b: base.b, a: alpha.uint8)
+      let color = withAlpha(base, alpha.uint8)
 
       # Draw with shadow for better visibility
       drawText(damageText, int32(screenPos.x) - 1, int32(screenPos.y) - 1, fontSize, Black)
@@ -163,7 +165,7 @@ proc drawDamageNumbers(damageNumbers: seq[DamageNumber3D], camera: FPSCamera) =
 
 # DAMAGE RULES
 
-proc finishWorld3D*(world: Game3D, result: World3DResult) =
+proc finishWorld3D*(world: Game3D, result: World3DResult) {.moddable.} =
   ## Ends the world now (once): `result` is what game.nim acts on. Scripts
   ## request an ending with requestFinish3D instead, which lands at the end of
   ## the frame.
@@ -172,11 +174,11 @@ proc finishWorld3D*(world: Game3D, result: World3DResult) =
   world.result = result
   modWorld3DEnd(world, result)
 
-proc requestFinish3D*(world: Game3D, result: World3DResult) =
+proc requestFinish3D*(world: Game3D, result: World3DResult) {.moddable.} =
   if world.pendingResult == w3None: world.pendingResult = result
 
 proc damagePlayer3D*(world: Game3D, amount: float32, source = "script",
-                     entity: Entity3D = nil): float32 =
+                     entity: Entity3D = nil): float32 {.moddable.} =
   ## The one door for damage to the player: the world3dPlayerDamaged filter,
   ## the profile difficulty, the invulnerability window, and the lethal check.
   ## Returns the damage taken.
@@ -189,7 +191,7 @@ proc damagePlayer3D*(world: Game3D, amount: float32, source = "script",
   if world.player.health <= 0 and modWorld3DPlayerLethal():
     if world.player.health <= 0: world.player.health = 1
 
-proc healPlayer3D*(world: Game3D, amount: float32) =
+proc healPlayer3D*(world: Game3D, amount: float32) {.moddable.} =
   world.player.health = min(world.player.maxHealth, world.player.health + amount)
 
 proc killPlayerFall(world: Game3D) =
@@ -201,7 +203,7 @@ proc killPlayerFall(world: Game3D) =
     world.player.pos = world.spawnPos
     world.player.vel = vec3(0, 0, 0)
 
-proc killEntity3D*(world: Game3D, e: Entity3D, credit = true) =
+proc killEntity3D*(world: Game3D, e: Entity3D, credit = true) {.moddable.} =
   ## Death: hook, score and kill count (credit). The entity leaves the list
   ## when the frame's sweep runs.
   if not e.alive: return
@@ -212,7 +214,7 @@ proc killEntity3D*(world: Game3D, e: Entity3D, credit = true) =
     world.score += e.scoreValue
   modWorld3DEntityDeath(e)
 
-proc damageEntity3D*(world: Game3D, e: Entity3D, amount: float32): float32 =
+proc damageEntity3D*(world: Game3D, e: Entity3D, amount: float32): float32 {.moddable.} =
   ## Returns the damage dealt (0 for an invulnerable or dead entity).
   if not e.alive or e.invulnerable or amount <= 0: return 0
   result = min(amount, e.hp)
@@ -220,7 +222,7 @@ proc damageEntity3D*(world: Game3D, e: Entity3D, amount: float32): float32 =
   if e.hp <= 0:
     killEntity3D(world, e)
 
-proc damageBoss3D*(world: Game3D, amount: float32) =
+proc damageBoss3D*(world: Game3D, amount: float32) {.moddable.} =
   ## Scripted damage straight to the boss core (no shield or phase rules).
   if not world.bossEnabled or world.boss.health <= 0 or amount <= 0: return
   let dealt = min(amount, world.boss.health)
@@ -229,7 +231,7 @@ proc damageBoss3D*(world: Game3D, amount: float32) =
 
 # CONTENT
 
-proc addEntity3D*(world: Game3D, e: Entity3D) =
+proc addEntity3D(world: Game3D, e: Entity3D) {.moddable.} =
   ## An entity joins the world: profile difficulty scales its HP once, here.
   if e.id == 0: e.id = allocId3D(world)
   e.hp *= difficultyEnemyHpMult()
@@ -239,7 +241,7 @@ proc addEntity3D*(world: Game3D, e: Entity3D) =
   world.entities.add(e)
   modWorld3DEntitySpawn(e)
 
-proc processWorld3DActions*(world: Game3D) =
+proc processWorld3DActions*(world: Game3D) {.moddable.} =
   ## Applies what scripts queued (spawns, finish requests); called between the
   ## frame's stages, outside every loop.
   if world3dActions.len == 0: return
@@ -251,7 +253,7 @@ proc processWorld3DActions*(world: Game3D) =
       # (a script may have removed or killed it again before it joined; it then
       # never joins, and is gone for good)
       if not a.entity.isNil:
-        if a.entity.alive and not a.entity.removed and world.entities.len < MaxEntities3D:
+        if a.entity.alive and not a.entity.removed:
           addEntity3D(world, a.entity)
           world3DActionDone(a)
         else:
@@ -259,22 +261,19 @@ proc processWorld3DActions*(world: Game3D) =
           a.entity.removed = true
     of wkSpawnProjectile:
       if not a.projectile.isNil:
-        if a.projectile.active and not a.projectile.removed and
-           world.projectiles.len < MaxProjectiles3D:
+        if a.projectile.active and not a.projectile.removed:
           world.projectiles.add(a.projectile)
         else:
           a.projectile.active = false
           a.projectile.removed = true
     of wkSpawnPickup:
       if not a.pickup.isNil:
-        if a.pickup.alive and not a.pickup.removed and world.pickups.len < MaxPickups3D:
+        if a.pickup.alive and not a.pickup.removed:
           if a.pickup.id == 0: a.pickup.id = allocId3D(world)
           world.pickups.add(a.pickup)
         else:
           a.pickup.alive = false
           a.pickup.removed = true
-    of wkFinish:
-      requestFinish3D(world, a.result)
 
 # RAYCAST
 
@@ -282,15 +281,15 @@ type
   RayHit3D* = object
     kind*: string        ## "none", "platform", "floor", "entity", "boss" or "satellite"
     dist*: float32
-    pos*: Vector3f
+    pos*: Vector3
     entity*: Entity3D    ## the entity hit, when kind == "entity"
     platform*: int       ## index into arena.platforms, when kind == "platform"
 
-proc raySphere(origin, dir, center: Vector3f, radius: float32): float32 =
+proc raySphere(origin, dir, center: Vector3, radius: float32): float32 =
   ## Distance along a unit ray to a sphere, -1 for a miss.
   let oc = origin - center
-  let b = dot(oc, dir)
-  let c = dot(oc, oc) - radius * radius
+  let b = dotProduct(oc, dir)
+  let c = dotProduct(oc, oc) - radius * radius
   let disc = b * b - c
   if disc < 0: return -1
   let t = -b - sqrt(disc)
@@ -298,7 +297,7 @@ proc raySphere(origin, dir, center: Vector3f, radius: float32): float32 =
   elif -b + sqrt(disc) >= 0: 0.0'f32   # started inside
   else: -1
 
-proc rayBox(origin, dir, center, half: Vector3f): float32 =
+proc rayBox(origin, dir, center, half: Vector3): float32 =
   ## Slab test against an axis-aligned box, -1 for a miss.
   var tMin = 0.0'f32
   var tMax = 1.0e30'f32
@@ -318,7 +317,7 @@ proc rayBox(origin, dir, center, half: Vector3f): float32 =
       if tMin > tMax: return -1
   tMin
 
-proc raycast3D*(world: Game3D, origin, dir: Vector3f, maxDist: float32): RayHit3D =
+proc raycast3D*(world: Game3D, origin, dir: Vector3, maxDist: float32): RayHit3D {.moddable.} =
   ## The nearest platform, live entity, boss core or satellite along a ray.
   let d = dir.normalize()
   result = RayHit3D(kind: "none", dist: maxDist)
@@ -361,7 +360,7 @@ proc raycast3D*(world: Game3D, origin, dir: Vector3f, maxDist: float32): RayHit3
 
 # FRAME STAGES
 
-proc landOnPlatform(e: Entity3D, nextPos: var Vector3f, arena: Arena3D) =
+proc landOnPlatform(e: Entity3D, nextPos: var Vector3, arena: Arena3D) =
   ## A falling entity comes to rest on a platform's top or the arena's solid floor.
   if e.vel.y > 0: return
   let footBefore = e.pos.y - e.radius
@@ -422,11 +421,15 @@ proc steerEntity(world: Game3D, e: Entity3D, dt: float32) =
       var shot = newProjectile3D(e.pos, dir * e.projectileSpeed, e.projectileDamage, false)
       shot.ownerId = e.id
       shot.tag = e.tag
-      if world.projectiles.len < MaxProjectiles3D: world.projectiles.add(shot)
+      world.projectiles.add(shot)
 
 proc updateEntities(world: Game3D, dt: float32) =
-  # By index and never resizing the list: hooks fired in here only queue new entities.
-  for i in 0 ..< world.entities.len:
+  # By index, re-checking the length each step: hooks fired in here normally
+  # only queue new entities, but a script may change the list outright.
+  let count = world.entities.len
+  var i = -1
+  while i + 1 < count and i + 1 < world.entities.len:
+    inc i
     let e = world.entities[i]
     if not e.alive: continue
     e.age += dt
@@ -462,7 +465,7 @@ proc updateEntities(world: Game3D, dt: float32) =
           world.player.pos.x += push.x * overlap
           world.player.pos.z += push.z * overlap
 
-proc homingTarget(world: Game3D, pos: Vector3f): tuple[found: bool, pos: Vector3f] =
+proc homingTarget(world: Game3D, pos: Vector3): tuple[found: bool, pos: Vector3] =
   ## The nearest thing a player's homing shot can chase.
   var best = 1.0e30'f32
   for e in world.entities:
@@ -484,7 +487,7 @@ proc updateProjectiles(world: Game3D, dt: float32, holdEnemyHoming = false) =
   # player, the player's chase the nearest entity or the boss.
   for proj in world.projectiles:
     if proj.isHoming and proj.active and not (holdEnemyHoming and not proj.fromPlayer):
-      var aim: Vector3f
+      var aim: Vector3
       var chase = true
       if proj.fromPlayer:
         let target = homingTarget(world, proj.pos)
@@ -546,7 +549,7 @@ proc updatePickups(world: Game3D, dt: float32) =
         else: discard
       p.alive = false
 
-proc sweepDead*(world: Game3D) =
+proc sweepDead*(world: Game3D) {.moddable.} =
   ## Drops what died this frame from the lists; what leaves is `removed` for good
   ## (a script still holding it reads "no longer exists").
   var i = 0
@@ -574,7 +577,7 @@ proc sweepDead*(world: Game3D) =
       p.removed = true
   world.projectiles.setLen(i)
 
-proc updateGame3D*(world: Game3D, dt: float32) =
+proc updateGame3D*(world: Game3D, dt: float32) {.moddable.} =
   # Handle pause toggle
   if isKeyPressed(KeyboardKey.Escape):
     world.paused = not world.paused
@@ -756,7 +759,7 @@ proc beginCutout(): bool =
   beginShaderMode(cutout)
   true
 
-proc renderGame3D*(world: Game3D) =
+proc renderGame3D*(world: Game3D) {.moddable.} =
   # 3D rendering
   let cam = renderCamera(world)
   beginMode3D(cam)
@@ -821,23 +824,23 @@ proc renderGame3D*(world: Game3D) =
   if showDamageNumbersOf(globalSettings) and not hudHidden(hpDamageNumbers):
     drawDamageNumbers(world.damageNumbers, world.camera)
 
-  # 2D HUD
+  # 2D HUD, in the interface theme
   if showBoss or showPlayer:
-    drawRectangle(10, 10, 320, if showBoss: 150 else: 60, fade(Black, 0.7))
+    drawRectangle(10, 10, 320, if showBoss: 150 else: 60, hudSurface(fade(Black, 0.7)))
   if showPlayer:
-    drawText(t(tkGame3DHp) & ": " & $int(world.player.health), 20, 20, 20, Red)
+    drawText(t(tkGame3DHp) & ": " & $int(world.player.health), 20, 20, 20, uiInk(Red))
     let ammoText = if world.player.weapon.reloadTimer > 0: t(tkGame3DReloading)
                    elif world.player.weapon.infiniteAmmo: t(tkGame3DAmmo) & ": --"
                    else: t(tkGame3DAmmo) & ": " & $world.player.weapon.ammo & "/" & $world.player.weapon.maxAmmo
-    drawText(ammoText, 20, 45, 20, Yellow)
+    drawText(ammoText, 20, 45, 20, uiInk(Yellow))
 
   if showBoss:
     # Boss health bar
     let bossHpPercent = world.boss.health / world.boss.maxHealth
-    drawText(t(tkGame3DBossHp) & ":", 20, 70, 18, White)
-    drawRectangle(20, 92, 280, 20, Color(r: 50, g: 0, b: 0, a: 200))
-    drawRectangle(20, 92, int32(280.0 * bossHpPercent), 20, Color(r: 255, g: 50, b: 50, a: 255))
-    drawRectOutline(20, 92, 280, 20, White)
+    drawText(t(tkGame3DBossHp) & ":", 20, 70, 18, uiInk(White))
+    drawRectangle(20, 92, 280, 20, uiSurface(50, 0, 0, 200))
+    drawRectangle(20, 92, int32(280.0 * bossHpPercent), 20, uiInk(255, 50, 50))
+    drawRectOutline(20, 92, 280, 20, uiLine(White))
 
     # Phase indicator with color
     let phaseColor = case world.boss.phase
@@ -847,7 +850,7 @@ proc renderGame3D*(world: Game3D) =
       else: White
 
     let phaseText = t(tkGame3DPhase) & " " & $world.boss.phase & "/3"
-    drawText(phaseText, 20, 120, 20, phaseColor)
+    drawText(phaseText, 20, 120, 20, uiInk(phaseColor))
 
     # Satellite count (Phase 1 only)
     if world.boss.phase == 1:
@@ -857,7 +860,7 @@ proc renderGame3D*(world: Game3D) =
           activeSats += 1
 
       if activeSats > 0:
-        drawText(t(tkGame3DSatellites) & ": " & $activeSats & " (" & t(tkGame3DDestroyAll) & ")", 20, 145, 16, Color(r: 255, g: 200, b: 50, a: 255))
+        drawText(t(tkGame3DSatellites) & ": " & $activeSats & " (" & t(tkGame3DDestroyAll) & ")", 20, 145, 16, uiInk(255, 200, 50))
 
     # Phase transition warning
     if world.boss.phaseTransitionTimer > 0:
@@ -865,7 +868,7 @@ proc renderGame3D*(world: Game3D) =
       let textWidth = measureText(warningText, 40)
       let flashAlpha = (sin(world.boss.phaseTransitionTimer * 10.0) * 0.5 + 0.5) * 255.0
       drawText(warningText, (getScreenWidth() - textWidth) div 2, 100, 40,
-               fade(Color(r: 255, g: 255, b: 0, a: 255), flashAlpha / 255.0))
+               uiOverlay(fade(Color(r: 255, g: 255, b: 0, a: 255), flashAlpha / 255.0)))
 
   # Crosshair
   let centerX = getScreenWidth() div 2
@@ -889,6 +892,6 @@ proc renderGame3D*(world: Game3D) =
     # Dark overlay
     drawRectangle(0, 0, getScreenWidth(), getScreenHeight(), fade(Black, 0.5))
 
-    drawText(pauseText, centerX - textWidth1 div 2, centerY - 30, 40, White)
-    drawText(resumeText, centerX - textWidth2 div 2, centerY + 20, 20, LightGray)
-    drawText(quitText, centerX - textWidth3 div 2, centerY + 50, 20, LightGray)
+    drawText(pauseText, centerX - textWidth1 div 2, centerY - 30, 40, uiOverlay(White))
+    drawText(resumeText, centerX - textWidth2 div 2, centerY + 20, 20, uiOverlay(LightGray))
+    drawText(quitText, centerX - textWidth3 div 2, centerY + 50, 20, uiOverlay(LightGray))
