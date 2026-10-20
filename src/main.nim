@@ -701,6 +701,56 @@ proc initializeAllCosmetics() =
   initializeDesktopBgSkins()
   initializeCubeSkins()
 
+proc reloadModsShowingProgress(enabled, equippedCosmetics: seq[string]) =
+  ## reloadMods, drawing a loading screen while the mods run (startup, a
+  ## profile switch, MODS.EXE's Apply & Reload). A mod's main script still
+  ## runs in one piece, but the window is redrawn and the music fed between
+  ## mods, so a heavy set no longer freezes the game. A set that is done
+  ## within ShowAfter never shows the screen.
+  const
+    ShowAfter = 0.15          # seconds: don't flash the screen for a light set
+    StepBudget = 1.0 / 60.0   # light mods run back to back within this much of a frame
+    CompleteHold = 0.3'f32    # let the filled bar be seen before it closes
+  let reload = beginModReload(enabled, equippedCosmetics)
+  let started = getTime()
+  var screen: LoadingScreen = nil
+  var done = false
+  var completeHold = 0.0'f32
+  while true:
+    if not done:
+      let stepStart = getTime()
+      while not done and getTime() - stepStart < StepBudget:
+        done = stepModReload(reload)
+    if screen.isNil:
+      if done: break
+      if getTime() - started < ShowAfter: continue
+      screen = newLoadingScreen()
+      screen.kind = lkMods
+    if windowShouldClose():
+      # Closing: finish without drawing, the frame loop then sees the close.
+      while not stepModReload(reload): discard
+      break
+
+    let dt = getFrameTime()
+    updateMusic()
+    updateModMedia(false)
+    screen.update(dt)
+    screen.setAssetCounts(modReloadDone(reload), modReloadTotal(reload))
+    if done:
+      screen.setProgress(1.0, t(tkLoadingModsComplete))
+      completeHold += dt
+      if completeHold >= CompleteHold:
+        break
+    else:
+      # (no next mod: only the set's publishing is left, the label stays)
+      let next = modReloadNextName(reload)
+      screen.setProgress(float32(modReloadDone(reload) / max(modReloadTotal(reload), 1)),
+                         if next.len > 0: t(tkLoadingLoadingMod).replace("$1", next) else: "")
+
+    beginGameDrawing()
+    screen.draw(screenWidth, screenHeight)
+    endGameDrawing()
+
 proc main() =
   randomize()
 
@@ -835,7 +885,7 @@ proc main() =
     reloadMods(@[], settings.modCosmetics)
     modNotices.add(t(tkModsSafeMode))
   else:
-    reloadMods(settings.enabledMods, settings.modCosmetics)
+    reloadModsShowingProgress(settings.enabledMods, settings.modCosmetics)
   if modsActive:
     initializeAllCosmetics()
 
@@ -1019,8 +1069,8 @@ proc main() =
     reloadSettingsFromDisk(settings)
     applySettings(settings)
     applyWindowMode(settings.fullscreen)
-    # Each profile keeps its own enabled mods.
-    reloadMods(settings.enabledMods, settings.modCosmetics)
+    # Each profile keeps its own enabled mods (a loading screen while they run).
+    reloadModsShowingProgress(settings.enabledMods, settings.modCosmetics)
     initializeAllCosmetics()
     if not globalWindowManager.isNil and not globalWindowManager.mods.isNil:
       refreshModsWindow(globalWindowManager.mods)
@@ -1958,7 +2008,7 @@ proc main() =
       # so a run always sees one fixed mod set.
       if modReloadRequested and not globalConfirmActive:
         modReloadRequested = false
-        reloadMods(settings.enabledMods, settings.modCosmetics)
+        reloadModsShowingProgress(settings.enabledMods, settings.modCosmetics)
         initializeAllCosmetics()
         refreshModsWindow(globalWindowManager.mods)
         showDesktopToast(osDesktop, t(tkModsReloadedToast) & ": " & summaryText())

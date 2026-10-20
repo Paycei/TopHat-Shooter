@@ -1099,6 +1099,12 @@ type
     tkLoadingStageMemory = "loading_stage_memory"
     tkLoadingAssets = "loading_assets"
     tkLoadingCacheNote = "loading_cache_note"
+    tkLoadingStageMods = "loading_stage_mods"
+    tkLoadingModsUnit = "loading_mods_unit"
+    tkLoadingLoadingMod = "loading_loading_mod"
+    tkLoadingModsComplete = "loading_mods_complete"
+    tkLoadingModsNote = "loading_mods_note"
+    tkLoadingModsHint = "loading_mods_hint"
 
     # Cheat Menu Buttons
     tkCheatCloseInstruction = "cheat_close_instruction"
@@ -2633,6 +2639,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "loading_stage_memory": "MEMORY",
     "loading_assets": "assets",
     "loading_cache_note": "First run only - generated audio is cached for next time",
+    "loading_stage_mods": "MODS",
+    "loading_mods_unit": "mods",
+    "loading_loading_mod": "Loading $1",
+    "loading_mods_complete": "Mods loaded!",
+    "loading_mods_note": "Each mod runs its scripts and loads its assets now",
+    "loading_mods_hint": "Loading this profile's mods",
 
     # Cheat Menu Buttons
     "cheat_close_instruction": "Press ESC or click X to close",
@@ -5506,6 +5518,12 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "loading_stage_memory": "MEMORIA",
     "loading_assets": "recursos",
     "loading_cache_note": "Solo la primera vez - el audio generado se guarda en caché",
+    "loading_stage_mods": "MODS",
+    "loading_mods_unit": "mods",
+    "loading_loading_mod": "Cargando $1",
+    "loading_mods_complete": "¡Mods cargados!",
+    "loading_mods_note": "Cada mod ejecuta sus scripts y carga sus recursos ahora",
+    "loading_mods_hint": "Cargando los mods de este perfil",
 
     # Cheat Menu Buttons
     "cheat_close_instruction": "Presiona ESC o haz clic en X para cerrar",

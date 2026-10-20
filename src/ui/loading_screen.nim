@@ -13,7 +13,12 @@ type
     lsMusic,   # synthesising music tracks
     lsMemory   # handing the finished WAVs to the audio device
 
+  LoadingKind* = enum
+    lkAudio,   # the startup audio synthesis (the stages above)
+    lkMods     # a profile's mods running their main scripts (one stage)
+
   LoadingScreen* = ref object
+    kind*: LoadingKind
     progress*: float32        # real progress reported by the loader (0..1)
     displayProgress: float32  # smoothed value actually drawn
     message*: string
@@ -144,7 +149,8 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) {.moddable.}
   drawRectOutline(panelX, panelY, panelW, panelH, Color(r: 70, g: 105, b: 150, a: 255))
   drawRectangle(panelX, panelY, panelW, titleBarH, Color(r: 26, g: 40, b: 66, a: 255))
   drawRectangle(panelX, panelY + titleBarH - 1, panelW, 1, Color(r: 70, g: 105, b: 150, a: 255))
-  drawText("audio_setup.exe", panelX + 10, panelY + 6, 14,
+  let modsKind = screen.kind == lkMods
+  drawText(if modsKind: "mod_loader.exe" else: "audio_setup.exe", panelX + 10, panelY + 6, 14,
            Color(r: 190, g: 220, b: 250, a: 255))
 
   # Decorative (inert) window buttons
@@ -160,14 +166,19 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) {.moddable.}
 
   # Stage pills + asset counter
   var pillX = contentX
-  let stageOrd = screen.stage.ord
-  for i, label in [t(tkLoadingStageSfx), t(tkLoadingStageMusic),
-                   t(tkLoadingStageMemory)]:
-    let state = if i < stageOrd: 2 elif i == stageOrd: 1 else: 0
-    pillX += drawStagePill(pillX, y, label, state, screen.animTime) + 8
+  if modsKind:
+    let state = if screen.progress >= 1.0'f32: 2 else: 1
+    discard drawStagePill(pillX, y, t(tkLoadingStageMods), state, screen.animTime)
+  else:
+    let stageOrd = screen.stage.ord
+    for i, label in [t(tkLoadingStageSfx), t(tkLoadingStageMusic),
+                     t(tkLoadingStageMemory)]:
+      let state = if i < stageOrd: 2 elif i == stageOrd: 1 else: 0
+      pillX += drawStagePill(pillX, y, label, state, screen.animTime) + 8
 
   if screen.assetsTotal > 0:
-    let counter = $screen.assetsDone & " / " & $screen.assetsTotal & " " & t(tkLoadingAssets)
+    let counter = $screen.assetsDone & " / " & $screen.assetsTotal & " " &
+                  t(if modsKind: tkLoadingModsUnit else: tkLoadingAssets)
     let counterW = measureText(counter, 14)
     drawText(counter, contentX + contentW - counterW, y + 4, 14,
              Color(r: 130, g: 160, b: 190, a: 255))
@@ -245,13 +256,14 @@ proc draw*(screen: LoadingScreen, screenWidth, screenHeight: int32) {.moddable.}
   drawRectOutline(barX, y, barWidth, stripH, Color(r: 50, g: 74, b: 105, a: 255))
   y += stripH + 12
 
-  # Cache note: explains why the first launch is the slow one.
-  let note = t(tkLoadingCacheNote)
+  # Cache note: explains why the first launch is the slow one (for mods: why
+  # this takes a moment at all).
+  let note = t(if modsKind: tkLoadingModsNote else: tkLoadingCacheNote)
   drawText(note, contentX, y, 14, Color(r: 120, g: 150, b: 180, a: 220))
 
   # Bottom hint text - animated
   let alpha = uint8((sin(screen.animTime * 2.0) * 0.3 + 0.7) * 255.0)
-  let hintText = t(tkLoadingHint)
+  let hintText = t(if modsKind: tkLoadingModsHint else: tkLoadingHint)
   const hintSize: int32 = 14
   let hintWidth = measureText(hintText, hintSize)
   drawText(hintText, centerX - hintWidth div 2, screenHeight - 60, hintSize,

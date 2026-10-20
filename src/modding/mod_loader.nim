@@ -109,7 +109,25 @@ proc endModSession*() =
   except IOError, OSError:
     discard
 
-proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
+type
+  ModReload* = ref object
+    ## A reload in progress (beginModReload). The mods run one stepModReload
+    ## at a time, so main.nim can draw a loading screen between them instead
+    ## of freezing the window for a heavy set.
+    vm: VM
+    base: ScriptTable
+    libraries: seq[string]
+    order: seq[int]             # installedMods indices, in load order
+    next: int                   # into `order`
+    loadedIds: seq[string]
+    loadedInfos: seq[ModInfo]
+    fingerprint: uint32
+    equippedCosmetics: seq[string]
+    finished: bool
+
+proc beginModReload*(enabled: seq[string], equippedCosmetics: seq[string] = @[]): ModReload =
+  ## Tear the previous set down and scan the new one; no mod runs yet.
+  result = ModReload(equippedCosmetics: equippedCosmetics, fingerprint: FingerprintStart)
   # 1. Tear the previous set down (keeping what the old set stored).
   saveAllModStorage()
   unloadModAssets()
@@ -124,6 +142,8 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
 
   # 2. A fresh VM and API.
   let (vm, base) = newScriptVM()
+  result.vm = vm
+  result.base = base
   initModHooksVM(vm, base)
   installModApi(base)
   installMod3D(base)
@@ -136,77 +156,85 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
   installModMixin(base)   # (after mod_api: it fills the engine table)
   installModRl(base)      # (after mod_mixin: rl is engine.raylib)
   resetModContent()
-  let libraries = tableKeysOf(base)   # each mod gets its own copy of every game library
+  result.libraries = tableKeysOf(base)   # each mod gets its own copy of every game library
 
-  # 3. Discover and run. Marketplace downloads of mods that were loaded wait
-  # for this point: the old copies' files (streams, script handles) are closed.
+  # 3. Discover. Marketplace downloads of mods that were loaded wait for this
+  # point: the old copies' files (streams, script handles) are closed.
   applyStagedMarketInstalls()
   installedMods = scanMods(enabled)
-  let order = loadOrder(installedMods)
-  var loadedIds: seq[string]
-  var loadedInfos: seq[ModInfo]
-  var fingerprint = FingerprintStart
-  for ci in order:
-    var failedDep = ""
-    for d in installedMods[ci].dependencies:
-      if d notin loadedIds:
-        failedDep = d
-        break
-    if failedDep.len > 0:
-      installedMods[ci].status = msMissingDep
-      installedMods[ci].message = "requires \"" & failedDep & "\", which failed to load"
-      statusLog(installedMods[ci])
-      continue
-    let info = installedMods[ci]
-    let withThis = fingerprintMix(fingerprint, info)   # its files as they were before it ran
-    let m = ModRuntime(id: info.id, name: info.name, version: info.version,
-                       author: info.author, dir: info.dir, index: mods.len,
-                       runData: newScriptTable())
-    m.env = newModEnv(base, libraries)
-    mods.add(m)
-    installModEnv(m)
-    var err = ""
-    try:
-      beginModLoad(m.index)
-      if info.main.len > 0:   # (a content-only mod has no script)
-        let src = readFile(modMainPath(info))
-        let cl = vm.loadChunk(src, info.id & "/" & info.main, m.env)
-        var r: RetVals
-        err = protectedCall(vm, vfunc(cl), [], r, LoadLimit)
-      if err.len == 0:
-        err = loadContentPacks(vm, m)
-    except ScriptError as e:
-      err = e.msg
-    except IOError, OSError:
-      err = "cannot read " & info.main
-    endModLoad()
-    if err.len > 0:
-      installedMods[ci].status = msError
-      installedMods[ci].message = err
-      m.disabled = true
-      dropHandlersOf(m.index)
-      dropModKeybinds(m.index)
-      dropModText(m.index)
-      dropModContent(m.index)
-    else:
-      installedMods[ci].status = msLoaded
-      loadedIds.add(info.id)
-      loadedInfos.add(info)
-      fingerprint = withThis
-      if needsNewerGame(info):
-        modLogAdd(mlWarn, info.id, "made for game version " & info.game & " or newer (this is " &
-                  GameVersion & "): parts of it may not work")
-    statusLog(installedMods[ci])
+  result.order = loadOrder(installedMods)
 
+proc modReloadTotal*(r: ModReload): int = r.order.len
+proc modReloadDone*(r: ModReload): int = r.next
+
+proc modReloadNextName*(r: ModReload): string =
+  ## The mod the next step runs ("" once they all ran).
+  if r.next < r.order.len: installedMods[r.order[r.next]].name else: ""
+
+proc runNextMod(r: ModReload) =
+  let ci = r.order[r.next]
+  inc r.next
+  var failedDep = ""
+  for d in installedMods[ci].dependencies:
+    if d notin r.loadedIds:
+      failedDep = d
+      break
+  if failedDep.len > 0:
+    installedMods[ci].status = msMissingDep
+    installedMods[ci].message = "requires \"" & failedDep & "\", which failed to load"
+    statusLog(installedMods[ci])
+    return
+  let info = installedMods[ci]
+  let withThis = fingerprintMix(r.fingerprint, info)   # its files as they were before it ran
+  let m = ModRuntime(id: info.id, name: info.name, version: info.version,
+                     author: info.author, dir: info.dir, index: mods.len,
+                     runData: newScriptTable())
+  m.env = newModEnv(r.base, r.libraries)
+  mods.add(m)
+  installModEnv(m)
+  var err = ""
+  try:
+    beginModLoad(m.index)
+    if info.main.len > 0:   # (a content-only mod has no script)
+      let src = readFile(modMainPath(info))
+      let cl = r.vm.loadChunk(src, info.id & "/" & info.main, m.env)
+      var ret: RetVals
+      err = protectedCall(r.vm, vfunc(cl), [], ret, LoadLimit)
+    if err.len == 0:
+      err = loadContentPacks(r.vm, m)
+  except ScriptError as e:
+    err = e.msg
+  except IOError, OSError:
+    err = "cannot read " & info.main
+  endModLoad()
+  if err.len > 0:
+    installedMods[ci].status = msError
+    installedMods[ci].message = err
+    m.disabled = true
+    dropHandlersOf(m.index)
+    dropModKeybinds(m.index)
+    dropModText(m.index)
+    dropModContent(m.index)
+  else:
+    installedMods[ci].status = msLoaded
+    r.loadedIds.add(info.id)
+    r.loadedInfos.add(info)
+    r.fingerprint = withThis
+    if needsNewerGame(info):
+      modLogAdd(mlWarn, info.id, "made for game version " & info.game & " or newer (this is " &
+                GameVersion & "): parts of it may not work")
+  statusLog(installedMods[ci])
+
+proc publishModSet(r: ModReload) =
   # 4. Publish the new set.
-  loadedModIds = loadedIds
-  modsActive = loadedIds.len > 0
-  for info in loadedInfos:
+  loadedModIds = r.loadedIds
+  modsActive = r.loadedIds.len > 0
+  for info in r.loadedInfos:
     if info.disableAchievements: modsDisableAchievements = true
-  modFingerprintHex = if modsActive: fingerprintHex(fingerprint) else: ""
+  modFingerprintHex = if modsActive: fingerprintHex(r.fingerprint) else: ""
   if modsActive:
     captureModRunData = captureRunData
-  applyEquippedCosmetics(equippedCosmetics)
+  applyEquippedCosmetics(r.equippedCosmetics)
   # A mod's language is in the settings by id: in use again now that its mod
   # registered it (English while it is not loaded), and every cached string
   # (skin names...) is redone with the new set's text.
@@ -218,3 +246,26 @@ proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
             (if not modsActive: ""
              elif modsDisableAchievements: "; runs with this set count as cheated (no rewards)"
              else: "; runs with this set keep their rewards"))
+
+proc stepModReload*(r: ModReload): bool =
+  ## Run the next mod; once none is left, publish the set. True when the
+  ## reload is complete (and on every later call). Each step is a frame of its
+  ## own to the watchdog: a set may take longer than FrameLimit in total, each
+  ## mod still has LoadLimit.
+  if r.finished: return true
+  resetWatchdogFrame()
+  if r.next < r.order.len:
+    runNextMod(r)
+    return false
+  publishModSet(r)
+  r.finished = true
+  r.base = nil   # (the mods' envs keep what they use)
+  r.vm = nil
+  true
+
+proc reloadMods*(enabled: seq[string], equippedCosmetics: seq[string] = @[]) =
+  ## The whole reload at once (main.nim's reloadModsShowingProgress draws a
+  ## loading screen between the steps instead).
+  let r = beginModReload(enabled, equippedCosmetics)
+  while not stepModReload(r):
+    discard
