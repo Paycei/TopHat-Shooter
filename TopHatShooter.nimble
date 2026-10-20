@@ -32,7 +32,7 @@ task modapi, "Regenerate the mod API reference (mods-sdk/API.md, tophat.d.lua) f
   exec "nim c --mm:orc -d:debug -o:TopHatShooterOS-debug.exe src/main.nim"
   exec "\"" & thisDir() & "/TopHatShooterOS-debug.exe\" --dump-mod-api \"" & thisDir() & "/mods-sdk\""
 
-task submodules, "Check out git submodules (vendor/naylib) at the commits the game records":
+task submodules, "Check out git submodules (vendor/naylib, vendor/niminst) at the commits the game records":
   exec "git submodule update --init --recursive"
   exec "git submodule status"
 

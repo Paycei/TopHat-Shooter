@@ -14,7 +14,7 @@ nimble WinReleaseClangCl # optimized clang-cl build, full LTO -> TopHatShooterOS
 nimble WinReleaseMin  # release optimized for size -> TopHat-ShooterOS-Min.exe
 nimble LinuxRelease   # optimized Linux build
 nimble ship           # all three release artifacts -> ship/ (see tools/ship.ps1)
-nimble submodules     # check out vendor/naylib at the commit the game records (after a pull moves it)
+nimble submodules     # check out vendor/naylib + vendor/niminst at the commits the game records (after a pull moves them)
 nimble modapi         # regenerate mods-sdk/API.md, tophat.d.lua, strings_en.json from a debug build
 ```
 
@@ -24,8 +24,13 @@ nimble modapi         # regenerate mods-sdk/API.md, tophat.d.lua, strings_en.jso
 (LinuxRelease, built inside WSL) and `SHA256SUMS.txt`. It never duplicates compiler flags —
 the `.nimble` tasks stay the single source of truth — and it takes the version from
 `TopHatShooter.nimble`, syncing `TopHatShooter.ini` so the installer can't be stamped stale.
-Everything (MSVC, niminst, Inno Setup, a WSL distro with Nim, `nim check`) is verified before
-the first compile. The script takes no arguments.
+Everything (MSVC, Inno Setup, a WSL distro with Nim, both submodules, `nim check`) is verified before
+the first compile. The script takes no arguments. niminst is the submodule `vendor/niminst`
+([Paycei/niminst](https://github.com/Paycei/niminst), the user's installer fork): `ship.ps1` builds
+`niminst.exe` and `uninstaller.exe` there with its own nimble tasks (both gitignored), and the
+.ini's `[Windows] Files` takes the uninstaller from there. Its tasks pass `--skipParentCfg:on`;
+without that, Nim reads the game's `config.nims` (whose `nimble.paths` sets `--noNimblePath`)
+and niminst can't find its `checksums` dependency.
 
 **raylib and naylib come from a git submodule**, not from Nimble: `vendor/naylib/` is
 [Paycei/naylib](https://github.com/Paycei/naylib), the user's maintained fork of the archived

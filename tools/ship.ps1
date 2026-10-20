@@ -3,7 +3,7 @@
   Builds the three TopHat-ShooterOS release artifacts into ship/:
 
     TopHatShooterOS-PORTABLE.zip          nimble WinRelease
-    TopHatShooterOS-Installer_<ver>.exe   the same exe + niminst/Inno
+    TopHatShooterOS-Installer_<ver>.exe   the same exe + niminst/Inno (vendor/niminst)
     TopHatShooterOS-linux-x86_64.tar.gz   nimble LinuxRelease, inside WSL
     SHA256SUMS.txt
 
@@ -25,6 +25,7 @@ $PortableName = 'TopHatShooterOS-PORTABLE.zip'
 $LinuxTarName = 'TopHatShooterOS-linux-x86_64.tar.gz'
 $LinuxBinName = 'TopHatShooterOS-linux-x86_64'
 $WinExeName   = 'TopHatShooterOS.exe'
+$NiminstDir   = Join-Path $RepoRoot 'vendor/niminst'
 
 function Run([string] $exe, [string[]] $argv, [string] $what) {
     & $exe @argv
@@ -51,16 +52,21 @@ function Use-Msvc {
     if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) { throw 'Imported the MSVC env but cl.exe is still missing.' }
 }
 
-function Find-Niminst {
-    # niminst's Inno template resolves its icon as getAppDir()/setup.ico, and
-    # `nimble install` copies only the binary into <pkg>/bin -- so the copy on
-    # PATH is usually the broken one. Take whichever has setup.ico beside it.
-    $onPath = (Get-Command niminst -ErrorAction SilentlyContinue).Source
-    if (-not $onPath) { throw "'niminst' is not on PATH (needed to generate the Inno Setup script)." }
-    foreach ($c in @($onPath, (Join-Path (Split-Path (Split-Path $onPath)) 'niminst.exe'))) {
-        if ((Test-Path $c) -and (Test-Path (Join-Path (Split-Path $c) 'setup.ico'))) { return $c }
+function Build-Niminst {
+    # niminst and the uninstaller the installer ships come from the vendor/niminst
+    # submodule, rebuilt every time so they always match the recorded commit.
+    # niminst.exe lands in the submodule root, next to the setup.ico its Inno
+    # template resolves as getAppDir()/setup.ico. Both exes are gitignored there.
+    Push-Location $NiminstDir
+    try {
+        Run 'nimble' @('--accept', 'install', '-d') 'niminst dependencies'
+        Run 'nimble' @('release') 'niminst build'
+        Run 'nimble' @('uninstaller') 'uninstaller build'
     }
-    throw "Found niminst at $onPath but no setup.ico beside it, nor beside the package-root copy."
+    finally { Pop-Location }
+    foreach ($f in 'niminst.exe', 'uninstaller.exe') {
+        if (-not (Test-Path (Join-Path $NiminstDir $f))) { throw "vendor/niminst build finished but $f is missing." }
+    }
 }
 
 function Find-Distro {
@@ -80,18 +86,19 @@ function Get-WslPath([string] $distro, [string] $path) {
     ($p | Select-Object -First 1).Trim()
 }
 
-function Assert-Naylib {
-    # vendor/naylib is a git submodule. Ship only what the game commit records:
-    # a stray checkout or a local edit would make binaries no commit can rebuild.
-    $line = @(git -C $RepoRoot submodule status -- vendor/naylib 2>$null)[0]
-    if ($LASTEXITCODE -ne 0 -or -not $line) { throw 'vendor/naylib is not registered as a submodule.' }
+function Assert-Submodule([string] $path) {
+    # vendor/naylib and vendor/niminst are git submodules. Ship only what the game
+    # commit records: a stray checkout or a local edit would make binaries no
+    # commit can rebuild.
+    $line = @(git -C $RepoRoot submodule status -- $path 2>$null)[0]
+    if ($LASTEXITCODE -ne 0 -or -not $line) { throw "$path is not registered as a submodule." }
     switch ($line.Substring(0, 1)) {
-        '-' { throw 'vendor/naylib is empty: run git submodule update --init.' }
-        '+' { throw 'vendor/naylib is at a different commit than the game records: run nimble submodules, or commit the new pointer.' }
-        'U' { throw 'vendor/naylib has merge conflicts.' }
+        '-' { throw "$path is empty: run nimble submodules." }
+        '+' { throw "$path is at a different commit than the game records: run nimble submodules, or commit the new pointer." }
+        'U' { throw "$path has merge conflicts." }
     }
-    if (git -C (Join-Path $RepoRoot 'vendor/naylib') status --porcelain --untracked-files=no) {
-        throw 'vendor/naylib has uncommitted changes: commit them in the submodule (and the new pointer here) first.'
+    if (git -C (Join-Path $RepoRoot $path) status --porcelain --untracked-files=no) {
+        throw "$path has uncommitted changes: commit them in the submodule (and the new pointer here) first."
     }
 }
 
@@ -105,7 +112,7 @@ function Build-Windows {
     Compress-Archive -Path $exe -DestinationPath (Join-Path $ShipDir $PortableName) -CompressionLevel Optimal -Force
 
     Push-Location $RepoRoot     # niminst resolves the .ini's paths from the CWD
-    try { Run (Find-Niminst) @('inno', 'TopHatShooter.ini') 'niminst inno' }
+    try { Run (Join-Path $NiminstDir 'niminst.exe') @('inno', 'TopHatShooter.ini') 'niminst inno' }
     finally { Pop-Location }
 
     $built = Join-Path $RepoRoot "build\TopHatShooterOS-Installer_$Version.exe"
@@ -148,15 +155,14 @@ try {
         if (-not (Get-Command $t -ErrorAction SilentlyContinue)) { throw "'$t' is not on PATH." }
     }
     Use-Msvc
-    $uninstaller = Join-Path (Split-Path $RepoRoot) 'niminst\uninstaller.exe'   # the .ini's ..\niminst\uninstaller.exe
-    if (-not (Test-Path $uninstaller)) { throw "TopHatShooter.ini references $uninstaller but it does not exist." }
     if ($iniText -match '(?m)^\s*path\s*=\s*r?"([^"]+)"') {
         $iscc = $Matches[1]
         if (-not (Test-Path $iscc)) { throw "Inno Setup compiler not found at '$iscc' ([InnoSetup] path in TopHatShooter.ini)." }
     }
-    Find-Niminst | Out-Null
-    Find-Distro  | Out-Null
-    Assert-Naylib
+    Find-Distro | Out-Null
+    Assert-Submodule 'vendor/naylib'
+    Assert-Submodule 'vendor/niminst'
+    Build-Niminst      # seconds; the .ini's vendor\niminst\uninstaller.exe must exist before Inno runs
 
     Push-Location $RepoRoot
     try { Run 'nim' @('check', '--mm:orc', 'src/main.nim') 'nim check' }

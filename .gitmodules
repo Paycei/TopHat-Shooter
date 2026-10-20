@@ -1,3 +1,6 @@
 [submodule "vendor/naylib"]
 	path = vendor/naylib
 	url = https://github.com/Paycei/naylib.git
+[submodule "vendor/niminst"]
+	path = vendor/niminst
+	url = https://github.com/Paycei/niminst.git
