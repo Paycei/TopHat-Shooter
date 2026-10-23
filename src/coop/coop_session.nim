@@ -19,8 +19,8 @@
 import std/[tables, json]
 import ../modding/mod_patch_core
 import ../network/[network, network_types]
-import ../types, ../save_system
-import coop_context, coop_codec, coop_wire
+import ../types, ../save_system, ../run_statistics
+import coop_context, coop_codec, coop_wire, coop_smooth
 
 const
   CoopDefaultPort* = 7778        ## (DUELINK uses 7777)
@@ -90,6 +90,8 @@ type
     profileLog: array[MaxCoopPlayers, seq[ProfileEvent]]
     bytesSent: int
     bytesPerSecond*: int           ## snapshot bytes sent over the last second
+    fxNextId: uint32               ## ids for the effects the snapshots carry
+    fxPrev: seq[CoopFx]            ## the last snapshot's effects (sent once more)
     bytesClock: float32
     # client
     joinHost: string
@@ -104,6 +106,7 @@ type
     pendingActions: seq[CoopAction]
     intentSeqOut: int32
     profileApplied: int32
+    fxLast: uint32                 ## the newest effect id taken from a snapshot
 
 var
   activeCoop*: CoopSession
@@ -132,6 +135,10 @@ proc readyToStart*(s: CoopSession): bool {.moddable.} =
 
 proc running*(s: CoopSession): bool {.inline.} =
   not s.isNil and s.phase == cpRunning
+
+proc nextIntentSeq*(s: CoopSession): int32 {.inline.} =
+  ## Client: the input packet that will carry this frame's intent.
+  s.intentSeqOut + 1
 
 # ------------------------------------------------------------- opening ----
 
@@ -260,6 +267,8 @@ proc startCoopRun*(s: CoopSession) {.moddable.} =
     s.intentSeqIn[k] = 0
     s.profileFirst[k] = 1
     s.profileLog[k].setLen(0)
+  s.fxPrev.setLen(0)
+  coopFxLog.setLen(0)
   s.startResendTimer = StartResend   # (sent on the first poll)
   s.nm.matchStarted = true   # seats are frozen: no one joins a run under way
 
@@ -402,6 +411,16 @@ proc hostSnapshots(s: CoopSession, game: Game, dt: float32) =
     if coopProfileOutbox[slot].len > 0:
       s.profileLog[slot].add coopProfileOutbox[slot]
       coopProfileOutbox[slot].setLen(0)
+  # The effects since the last snapshot, with that one's again: a lost
+  # snapshot loses none, and a client shows each id once.
+  var fresh = coopFxLog
+  coopFxLog.setLen(0)
+  if fresh.len > MaxFxBatch: fresh = fresh[^MaxFxBatch .. ^1]
+  for ev in fresh.mitems:
+    inc s.fxNextId
+    ev.id = s.fxNextId
+  let fx = s.fxPrev & fresh
+  s.fxPrev = fresh
   inc s.snapSeq
   let frame = captureFrame(game, s.snapSeq)
   s.hostRing.put(frame)
@@ -409,8 +428,9 @@ proc hostSnapshots(s: CoopSession, game: Game, dt: float32) =
     let slot = m.slot
     if slot == 0 or not m.connected: continue
     let base = s.hostRing.find(s.clientAck[slot])
-    let extras = SnapExtras(actionAck: s.actionApplied[slot], profileFirst: s.profileFirst[slot],
-                            profileEvents: s.profileLog[slot])
+    let extras = SnapExtras(actionAck: s.actionApplied[slot], intentAck: s.intentSeqIn[slot],
+                            profileFirst: s.profileFirst[slot],
+                            profileEvents: s.profileLog[slot], fx: fx)
     let packed = encodeSnapshot(frame, base, extras)
     let count = (packed.len + FragmentPayload - 1) div FragmentPayload
     if count > MaxFragments: continue   # (never at any real size; the client would refuse it)
@@ -450,7 +470,9 @@ proc applyComplete(s: CoopSession, packed: string, game: Game) =
   try:
     var extras: SnapExtras
     let frame = readSnapshot(packed, s.clientRing, extras)
+    beforeSnapshot(game)
     applySnapshot(frame, game)
+    afterSnapshot(game, extras.intentAck)
     s.clientRing.put(frame)
     s.lastApplied = frame.seq
     s.snapshotAge = 0
@@ -465,6 +487,15 @@ proc applyComplete(s: CoopSession, packed: string, game: Game) =
       if evSeq == s.profileApplied + 1:
         coopProfileInbox.add ev
         s.profileApplied = evSeq
+    # The host's effects, each once (coop_present shows them).
+    if coopFxInboxSnaps >= 8:
+      coopFxInbox.setLen(0)    # not shown for a while: too late to be
+      coopFxInboxSnaps = 0
+    for ev in extras.fx:
+      if ev.id > s.fxLast:
+        coopFxInbox.add ev
+        s.fxLast = ev.id
+    inc coopFxInboxSnaps
   except CoopWireError:
     discard   # malformed, or its base is gone: the next is based on what we confirmed
 
@@ -530,6 +561,8 @@ proc clientReceive(s: CoopSession, packet: Packet) =
       s.ended = false
       s.lastApplied = 0
       s.profileApplied = 0
+      s.fxLast = 0
+      coopFxInbox.setLen(0)
       s.snapshotAge = 0
       s.clientRing.clear()
       s.frags.clear()
@@ -639,3 +672,12 @@ proc pollCoopSession*(s: CoopSession, game: Game, dt: float32) {.moddable.} =
         s.clientSendInput(game)
     else:
       s.nm.rawInbox.setLen(0)
+
+proc endStatistics*(s: CoopSession): RunStatistics {.moddable.} =
+  ## Client: this player's statistics for the run that just ended (nil when
+  ## the host sent none, or left before it could).
+  if s.isNil or s.endStats.len == 0: return nil
+  try:
+    jsonToRunStatistics(parseJson(s.endStats))
+  except CatchableError:
+    nil

@@ -28,6 +28,7 @@ type
     diMods          # Mod manager (MODS.exe) - 14
     diModApp        # A register.app program (one icon per app, see syncModIcons) - 15
     diModMode       # A register.gamemode game mode (one icon per mode, see syncModIcons) - 16
+    diCoop          # Co-op lobby (CO-OP.exe) - 17
 
   DesktopIcon* = object
     iconType*: DesktopIconType
@@ -143,6 +144,7 @@ proc getIconName(iconType: DesktopIconType): string =
   of diCredits: t(tkDesktopIconCredits)
   of diFeedback: t(tkDesktopIconFeedback)
   of diMods: t(tkDesktopIconMods)
+  of diCoop: t(tkDesktopIconCoop)
   of diModApp, diModMode: ""  # named per entry (modAppName / modModeName), see updateOSDesktop
 
 proc drawDesktopLabel(text: string, x, y: int32, selected: bool) =
@@ -342,6 +344,9 @@ proc newOSDesktop*(): OSDesktop {.moddable.} =
       DesktopIcon(iconType: diPvP, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 2,
                   selected: false, name: getIconName(diPvP),
                   iconColor: Color(r: 255, g: 50, b: 150, a: 255)),
+      DesktopIcon(iconType: diCoop, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3,
+                  selected: false, name: getIconName(diCoop),
+                  iconColor: Color(r: 120, g: 235, b: 120, a: 255)),
       DesktopIcon(iconType: diAdvancements, x: DESKTOP_GRID_START_X + ICON_SPACING, y: DESKTOP_GRID_START_Y + ICON_SPACING * 3,
                   selected: false, name: getIconName(diAdvancements),
                   iconColor: Color(r: 90, g: 220, b: 255, a: 255)),
@@ -1239,6 +1244,22 @@ proc drawDesktopIcon*(icon: DesktopIcon, time: float32, selected: bool) {.moddab
       drawDisc(hilt, 3.2, bright)
     drawDisc(vec2(px, py), 5.5, Color(r: 255, g: 255, b: 255, a: 215))
     drawDisc(vec2(px, py), 2.6, accent)
+
+  of diCoop:
+    # Two players side by side, shoulder to shoulder: the team. The one in
+    # front bobs gently so it reads as people, not a chart.
+    let cx = centerX.float32
+    let cy = centerY.float32
+    let backing = Color(r: 8, g: 12, b: 20, a: 230)
+    for s in 0..1:
+      let ox = if s == 0: -9.0'f32 else: 9.0'f32
+      let oy = if s == 0: -2.0'f32 else: sin(time * 2.4'f32) * 1.2'f32 + 1.0'f32
+      let col = if s == 0: dim else: bright
+      let body = Rectangle(x: cx + ox - 10, y: cy + 3 + oy, width: 20, height: 14)
+      drawRectangleRounded(body, 0.7, 6, backing)
+      drawRectangleRounded(Rectangle(x: body.x + 2, y: body.y + 2, width: 16, height: 11), 0.7, 6, col)
+      drawIconDisc(cx + ox, cy - 6 + oy, 7.0, col, backing, 1.6)
+    drawDisc(vec2(cx, cy + 12), 2.4, Color(r: 255, g: 255, b: 255, a: 215))
 
   of diRoguelite:
     # Route map read bottom-to-top: you start at the base node, the path forks,

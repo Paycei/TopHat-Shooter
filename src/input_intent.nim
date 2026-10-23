@@ -84,3 +84,13 @@ proc captureLocalIntent*(p: Player) {.moddable.} =
   if isKeyPressed(kb[kaPlaceWall]) or isKeyPressed(Enter) or isGamepadBindPressed(gb, kaPlaceWall):
     pressEdge(it, ieInteract)
   p.intent = it
+
+proc idleIntent*(p: Player) {.moddable.} =
+  ## No input this frame (a menu is up over a co-op run, which goes on): the
+  ## player stands still and holds fire; presses not yet used are dropped.
+  if p.isNil: return
+  beginIntentFrame(p.intent)
+  p.intent.move = Vector2(x: 0, y: 0)
+  p.intent.fireHeld = false
+  p.intent.fireKey = false
+  p.intent.wallHeld = false

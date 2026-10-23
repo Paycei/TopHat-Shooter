@@ -3,6 +3,7 @@ import modding/mod_patch_core
 import draw_prims
 import particle_types, types, particle_pool, pickup, sound, powerup, particle, enemy_config
 import modding/mod_hooks
+import coop/coop_fx
 
 ## Experience orbs for the run-leveling modes (wave, roguelite + time-survival).
 ## XP orbs drop on enemy death, reach the player like every ground pickup
@@ -207,6 +208,8 @@ proc collectPickup*(game: Game, orb: XpOrb): bool {.moddable.} =
   spawnExplosionPooled(game.particlePool, orb.pos.x, orb.pos.y,
                        Color(r: 90, g: 255, b: 170, a: 255), 5)
   # Floating "+N" pickup indicator, mirroring the coin pickup feedback.
+  recordFx(CoopFx(kind: fxCurrency, x: orb.pos.x, y: orb.pos.y, a: int32(orb.value),
+                  b: int32(ord(cikXp))))
   game.currencyIndicators.add(newCurrencyIndicator(
     orb.pos.x, orb.pos.y, orb.value, cikXp))
 
@@ -227,6 +230,8 @@ proc collectAllXpOrbs*(game: Game) {.moddable.} =
     for p in game.players:   # (shared, as for a single orb)
       if not p.eliminated: p.xp += total
     playSound(stCoinPickup, 0.4, 1.4)
+    recordFx(CoopFx(kind: fxCurrency, x: game.player.pos.x + 18, y: game.player.pos.y - 8,
+                    a: int32(total), b: int32(ord(cikXp))))
     game.currencyIndicators.add(newCurrencyIndicator(
       game.player.pos.x + 18, game.player.pos.y - 8, total, cikXp))
 

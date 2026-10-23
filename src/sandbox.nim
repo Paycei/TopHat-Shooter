@@ -662,10 +662,11 @@ proc handleSandboxInput*(game: Game, screenWidth, screenHeight: int32) {.moddabl
       discard
 
 proc updateSandboxMode*(game: Game, dt: float32) {.moddable.} =
-  # Apply god mode
+  # Apply god mode (to the whole team in co-op)
   if game.sandboxGodMode:
-    game.player.hp = game.player.maxHp
-    game.player.invincibilityTimer = 1.0  # Keep invulnerable
+    for p in game.players:
+      p.hp = p.maxHp
+      p.invincibilityTimer = 1.0  # Keep invulnerable
 
   # Freeze enemies if enabled
   if game.sandboxFreezeEnemies:

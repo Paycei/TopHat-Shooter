@@ -3,6 +3,7 @@
 
 import raylib, math, fx_rand
 import particle_pool, particle_types, localization
+import coop/coop_fx
 
 type
   ParticleSkinType* = enum
@@ -324,6 +325,7 @@ proc shootingParticleGlow(skinType: ParticleSkinType): float32 =
 proc spawnShootingParticles*(pool: ParticlePool, x, y: float32, direction: Vector2,
                              skinType: ParticleSkinType, time: float32) =
   ## Spawn particles when player shoots, using the selected particle skin
+  recordFx(CoopFx(kind: fxShotParticles, x: x, y: y, z: direction.x, w: direction.y, a: int32(ord(skinType))))
   let skin = particleSkinDatabase[skinType]
   let (primaryColor, secondaryColor) = getParticleSkinColors(skinType, time)
   let shootDir =

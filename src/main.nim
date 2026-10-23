@@ -3,7 +3,10 @@ import draw_prims, post_fx
 import particle_types, game/death, types, settings, game, player, coin, bullet_skins, bullet_shapes, shapes, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay, input_intent, game/abilities
 import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_registry, mod_deep, mod_market], ui/mods_window
 import ui/ui_theme, ui/text_field
-import coop/[coop_context, coop_bot], ui/coop_overlay
+import coop/[coop_context, coop_bot, coop_session, coop_profile, coop_present, coop_smooth], ui/coop_overlay, network/network_types
+from survival import updateSurvivalCacheReveal
+from particle_pool import updateParticlePool
+from d_systems import updateShake
 import modding/mod_mixin_game   # last: binds every {.moddable.} proc imported above
 import modding/[mod_engine_game, mod_engine_ui]   # engine.call for the rest of the game's procs
 when defined(debug):
@@ -260,6 +263,31 @@ var globalWindowManager: WindowManager = nil
 # survival and sandbox runs, to play the multi-player simulation on one machine.
 let coopBotEnabled = defined(debug) and "--coop-bot" in commandLineParams()
 
+proc debugArg(name: string): string =
+  ## A debug build's `name <value>` argument ("" when absent).
+  when defined(debug):
+    let a = commandLineParams()
+    let i = a.find(name)
+    if i >= 0 and i + 1 < a.len: return a[i + 1]
+  ""
+
+# Debug builds: an unattended co-op session, the whole stack end to end with
+# two processes. `--coop-auto host:<mode>` (wave, survival, roguelite, sandbox)
+# or `--coop-auto join:<address>` opens a hidden, muted window, picks profile 1,
+# hosts or joins on the default port, readies, starts, and plays its own player
+# as a bot (team modals included). `--coop-end-after <s>`: the host ends each
+# run that long after it starts, then starts the next (two in all).
+# `--quit-after <s>` closes the game. Progress is printed as [coop-auto] lines.
+# `--shot-every <s>` saves the frame (shot_<host|client>_<n>.png, in the
+# working folder) that often, to see what a hidden window drew.
+let coopAutoArg = debugArg("--coop-auto")
+let coopAuto = coopAutoArg.len > 0
+let coopAutoHost = coopAutoArg.startsWith("host")
+let coopAutoEndAfter = (try: parseFloat(debugArg("--coop-end-after")) except ValueError: 0.0)
+let quitAfterSeconds = (try: parseFloat(debugArg("--quit-after")) except ValueError: 0.0)
+let shotEvery = (try: parseFloat(debugArg("--shot-every")) except ValueError: 0.0)
+var shotPath = ""   ## endGameDrawing saves the frame it finishes here, then clears it
+
 proc desktopUIScale(): float32 =
   ## Interface scale for the desktop chrome (wallpaper, icons, taskbar). That
   ## chrome is laid out against whatever viewport it is handed, so it honours
@@ -417,6 +445,12 @@ proc endGameDrawing() =
   modDrawOverlay(frameState, screenWidth, screenHeight)   # mods: over everything, any state
   popMatrix()
   endTextureMode()
+  when defined(debug):
+    if shotPath.len > 0:
+      var shot = loadImageFromTexture(renderTarget.texture)
+      imageFlipVertical(shot)
+      discard exportImage(shot, shotPath)
+      shotPath = ""
 
   # Built-in post-processing (post_fx.nim): the glow is built off-screen first.
   # A mod's post shader still runs last, over the composited frame.
@@ -794,6 +828,8 @@ proc main() =
   else:
     setConfigFlags(flags(WindowResizable))
 
+  if coopAuto:
+    setConfigFlags(flags(WindowHidden))   # --coop-auto: no one is watching
   initWindow(screenWidth, screenHeight, "TopHat-ShooterOS: v6.4 Edition")
   useMonotonicScriptClock()   # the mod watchdog times scripts on raylib's clock
   setTargetFPS(targetFPS)
@@ -813,6 +849,7 @@ proc main() =
   # to the audio device (loadSoundsStep) stays here on the main thread.
   # Every sound and every music track is finished before the game starts.
   let soundSystem = initSoundSystem()
+  if coopAuto: setMasterVolume(0)
   let pendingAssets = startAssetGeneration()
   let totalSounds = SoundType.high.ord + 1
 
@@ -1134,7 +1171,8 @@ proc main() =
       if not currentRunStats.isNil:
         discard saveLastRunStats(currentRunStats)  # Save to disk
 
-    if game.mode == gmRoguelite and game.rogueliteRun != nil:
+    # (A co-op client's run banks through the host's profile events instead.)
+    if game.mode == gmRoguelite and game.rogueliteRun != nil and not coopClient():
       # Cashing out from the ending screen is a banked win, not a death; anything
       # else reaching here (real game-over, or dying in a later endless loop) is a
       # death. awaitingVictoryScreen is only set while parked on the ending screen.
@@ -1268,6 +1306,382 @@ proc main() =
       saveLastCompletedRun()
     globalWindowManager.openWindow(widStats)
     globalWindowManager.stats.currentTab = stLastRun
+
+  # ------------------------------------------------------------------ co-op --
+  # CO-OP.EXE (src/coop/): the session lives on across its lobby and its runs.
+  # The host's run is an ordinary Game with every player seated, simulated
+  # here as any run is. A client's is a mirror the host's snapshots fill: this
+  # machine draws it and sends its input (coopClientFrame), and never
+  # simulates it. Co-op runs are never saved, resumed or deleted from disk.
+  var coopRunGame: Game = nil      # the co-op run: the host's, or a client's mirror
+  var coopPauseOpen = false        # this machine's pause menu, over a run that goes on
+  var coopPauseFresh = false       # (the press that opened it is not also an answer)
+  var coopResultsShown = false     # client: the run-over panel is up
+  var coopResultsReason = cerEnded
+  var coopResultsKills = 0
+  var coopRevealSeen = 0'i32       # client: the Data Cache reveal (CoopState.modalSeq) shown
+  var coopAutoFrame = 0            # --coop-auto: frames since start (see coopAutoStep)
+
+  proc isCoopRun(game: Game): bool =
+    not coopRunGame.isNil and game == coopRunGame
+
+  proc coopKit(k: int32): RogueliteStarterKit =
+    [rskOperator, rskBulwark, rskArcanist][clamp(k.int, 0, 2)]
+
+  proc buildCoopRun(s: CoopSession): Game =
+    ## The run a co-op session starts. Host: the whole run with every member
+    ## seated (each with their own kit), on the profile's difficulty and
+    ## unlocks; no save is read, written or deleted. Client: the mirror,
+    ## seated alike, for the host's snapshots to fill.
+    let cfg = s.config
+    let base = GameMode(clamp(cfg.mode, 0, ord(high(GameMode))))
+    let h = s.members[0]
+    result = newGame(WorldWidth, WorldHeight, h.skinType.int, h.bulletSkinType.int,
+                     h.shapeType.int, h.particleSkinType.int, h.bulletShape.int)
+    result.discordClient = globalDiscordClient
+    resetCoopContext()
+    resetCoopSmoothing()
+    coopRole = if s.isHost: crHost else: crClient
+    localSlot = s.mySlot
+    setGameMode(result, base)
+    result.modMode = cfg.modMode
+    if base == gmRoguelite:
+      setActiveRogueliteProfile(loadRogueliteProfile())
+      result.rogueliteProfile = rogueliteProfile
+    initializeRunTracking(result)
+    if s.isHost:
+      if base == gmRoguelite:
+        beginRogueliteRun(result, rogueliteProfile, coopKit(h.starterKit),
+                          clampedRogueliteHeatSelection(cfg.heat.int, rogueliteProfile))
+      elif base == gmSandbox:
+        result.sandboxConfig = globalWindowManager.sandbox.config
+    for m in s.members:
+      if m.slot != 0:
+        discard addCoopPlayer(result, m.nickname, m.skinType.int, m.bulletSkinType.int,
+                              m.shapeType.int, m.particleSkinType.int, m.bulletShape.int)
+    if s.isHost:
+      case base
+      of gmRoguelite:
+        # Every teammate starts on their own kit and the Heat's coins (their
+        # banked Recursion lives in their own profile, on their machine).
+        let rank = heatChallengeRank(result.rogueliteRun.heat)
+        for p in result.players:
+          if p.slot == 0: continue
+          var kit = 0'i32
+          for m in s.members:
+            if m.slot == p.slot: kit = m.starterKit
+          withPlayer(result, p):
+            equipRogueliteStarter(result, coopKit(kit), rank, nil)
+        generateThemeChoices(result.rogueliteRun)
+        result.selectedRogueliteTheme = 0
+        result.state = gsRogueliteFloorSelect
+      of gmSandbox:
+        for p in result.players:
+          withPlayer(result, p):
+            applySandboxConfig(result)
+        result.state = gsPlaying
+      else:
+        result.state = gsPlaying
+      beginCoopRun(result)
+      result.coop.nicknames[0] = h.nickname
+    else:
+      if result.coop.isNil: result.coop = CoopState()
+      coopPlayerCount = result.players.len
+      result.player = result.players[clamp(localSlot.int, 0, result.players.high)]
+      result.state = gsPlaying
+    statsSavedThisGame = false
+
+  proc coopBackToLobby() =
+    ## Off the co-op run (its results seen, or left): the desktop, the
+    ## session's lobby (or none, if it is over) and CO-OP.EXE.
+    let s = activeCoop
+    if not coopRunGame.isNil and coopRunGame != currentGame:
+      cleanupGame(coopRunGame)
+    if isCoopRun(currentGame) or isActiveRunState(currentGame.state):
+      cleanupGame(currentGame)
+      currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+      currentGame.discordClient = globalDiscordClient
+      currentGame.state = gsMenu
+    coopRunGame = nil
+    coopResultsShown = false
+    coopPauseOpen = false
+    statsSavedThisGame = false
+    if not s.isNil:
+      if s.phase == cpError: s.closeCoop()   # the host left: no lobby to go back to
+      else: s.backToLobby()
+    resetCoopContext()
+    globalWindowManager.openWindow(widCoop)
+    globalWindowManager.coop.highestHeat =
+      if rogueliteProfile.isNil: RogueliteMinHeat else: rogueliteProfile.highestHeat
+
+  proc coopShowResults(reason: CoopEndReason) =
+    ## Client: the run is over. This player's own statistics (the host kept
+    ## them) are recorded here as a solo run's are; then the run-over panel.
+    let s = activeCoop
+    coopResultsShown = true
+    coopResultsReason = reason
+    coopPauseOpen = false
+    coopResultsKills = currentGame.player.kills
+    let stats = s.endStatistics()
+    if not stats.isNil:
+      currentRunStats = stats
+      freezeRunTime(currentGame)
+      persistRunResults(currentGame, died = reason == cerWiped)
+
+  proc coopLeaveRun() =
+    ## This machine leaves the co-op run under way. The host ends it for
+    ## everyone (recorded as a quit, never a loss); a client drops out (its
+    ## player leaves the host's run) and goes back to its desktop.
+    let s = activeCoop
+    if s.isNil or not isCoopRun(currentGame):
+      return
+    if s.isHost:
+      if not statsSavedThisGame:
+        freezeRunTime(currentGame)
+        persistRunResults(currentGame, died = false)
+      s.endCoopRun(cerEnded)
+      # Off to the desktop; the clients get their results once the last of
+      # their progress is confirmed (coopFrame), then the lobby opens.
+      currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+      currentGame.discordClient = globalDiscordClient
+      currentGame.state = gsMenu
+      coopPauseOpen = false
+    else:
+      s.closeCoop()
+      coopBackToLobby()
+
+  proc coopFrame(dt: float32) =
+    ## Every frame with a session, whatever is on screen: the network, the
+    ## run's start, its profile progress and its end.
+    let s = activeCoop
+    pollCoopSession(s, coopRunGame, dt)
+    if activeCoop.isNil: return
+    if s.startRequested:
+      # A solo run in progress keeps: it is checkpointed as if left for the menu.
+      if isActiveRunState(currentGame.state) and not isCoopRun(currentGame) and
+         currentGame.mode != gmPvP:
+        checkpointLiveRun(currentGame)
+      globalWindowManager.closeAllWindows()
+      if not coopRunGame.isNil and coopRunGame != currentGame:
+        cleanupGame(coopRunGame)
+      currentGame = buildCoopRun(s)
+      coopRunGame = currentGame
+      s.startRequested = false
+      coopPauseOpen = false
+      coopResultsShown = false
+      coopRevealSeen = 0
+      return
+    # Progress the host sent for this machine's own profile.
+    if coopProfileInbox.len > 0:
+      for ev in coopProfileInbox:
+        let msg = applyProfileEvent(ev, advancementProfile)
+        if msg.len > 0: showDesktopToast(osDesktop, msg)
+      coopProfileInbox.setLen(0)
+    if s.isHost:
+      if s.phase == cpRunning and not coopRunGame.isNil:
+        if isCoopRun(currentGame) and currentGame.state == gsGameOver:
+          # The whole team is out. gsGameOver banks the rewards this frame;
+          # each client's end waits for its share of them (endCoopRun).
+          s.endCoopRun(cerWiped)
+        elif not isCoopRun(currentGame) or currentGame.state == gsMenu:
+          # The host left the run some other way (a victory screen's exit...).
+          if not statsSavedThisGame and not coopRunGame.cheatsUsed:
+            freezeRunTime(coopRunGame)
+            persistRunResults(coopRunGame, died = false)
+          s.endCoopRun(cerEnded)
+      elif s.phase == cpEnded and not coopRunGame.isNil and not isCoopRun(currentGame):
+        coopBackToLobby()   # every client has its results: the lobby again
+    elif isCoopRun(currentGame) and not coopResultsShown:
+      if s.phase == cpError and s.ended:
+        coopShowResults(cerHostLeft)
+      elif s.phase == cpEnded and s.ended:
+        coopShowResults(s.endReason)
+
+  proc coopClientFrame(dt: float32): bool =
+    ## A client's frame of the co-op run: its input goes to the host (the
+    ## session sends it) and the host's run is drawn. The team modals (a
+    ## draft, the shop, floor select) run their own branches instead. True:
+    ## the window's close was confirmed.
+    var g = currentGame
+    let s = activeCoop
+    let me = g.players[clamp(localSlot.int, 0, g.players.high)]
+    g.player = me
+    let live = g.state in {gsPlaying, gsCountdown, gsWaveCleared, gsDeathSequence}
+    playMusic(runMusic(g), runMusicTier(g))
+    updateMouseTracking(g)
+    if live and not coopPauseOpen and not coopResultsShown and not globalConfirmActive:
+      if coopAuto: botIntent(g, me, coopAutoFrame)
+      else: captureLocalIntent(me)
+    else:
+      idleIntent(me)
+    # This player moves at once; everything else carries on from the last
+    # snapshot (coop_smooth).
+    predictLocal(g, dt, s.nextIntentSeq)
+    smoothFrame(g, dt, s.snapshotAge)
+    coopPauseFresh = false
+    if not coopResultsShown and not coopPauseOpen and not globalConfirmActive and
+       (isBackPressed() or isGamepadStartPressed()):
+      coopPauseOpen = true
+      coopPauseFresh = true
+      resetCoopPauseMenu()
+    # A Data Cache: this player's own reveal, then done.
+    if not g.coop.isNil and g.coop.modal == cmkCache:
+      if not g.coop.seats[localSlot].ready and coopRevealSeen != g.coop.modalSeq:
+        coopRevealSeen = g.coop.modalSeq
+        g.survival.reveal = g.coop.seats[localSlot].reveal
+        g.survival.reveal.active = true
+        g.survival.reveal.timer = 0
+      if g.survival.reveal.active and updateSurvivalCacheReveal(g, dt):
+        submitCoopAction(g, cakDone)
+    elif g.survival.reveal.active:
+      g.survival.reveal.active = false
+    # The host's effects (coop_fx), then what this machine animates itself:
+    # particles, the floating text, the effect visuals and the screen shake.
+    replayCoopFx(g)
+    updateParticlePool(g.particlePool, dt)
+    updatePresentationLists(g, dt)
+    updateFloatingText(g, dt)
+    updateShake(g.dopamine.screenShake, dt)
+    tickDesktopToasts(osDesktop, dt)
+
+    var backToLobby, leave = false
+    beginGameDrawing()
+    drawGame(g)
+    if g.state == gsDeathSequence:
+      drawDeathSequenceOverlay(g)
+    beginUIScaleMode(hudInterfaceScale())
+    themeLayer:
+      if s.lastApplied == 0:
+        drawCoopBanner(t(tkCoopSyncing))
+      elif not live and not coopResultsShown:
+        drawCoopBanner(t(tkCoopWaitingForTeam))
+      if coopResultsShown:
+        let reason = case coopResultsReason
+          of cerWiped: t(tkCoopTeamWiped)
+          of cerEnded: t(tkCoopHostEnded)
+          of cerHostLeft: t(tkCoopHostLeft)
+        backToLobby = coopResultsPanel(g, reason, coopResultsKills)
+      elif coopPauseOpen:
+        let pick = coopPauseMenu(host = false)
+        if not coopPauseFresh:
+          if pick == 0: coopPauseOpen = false
+          elif pick == 1: leave = true
+    endUIScaleMode()
+    if globalConfirmActive:
+      if drawGlobalConfirmDialog() == 1: result = true
+    drawInGameToasts(osDesktop)
+    if live and not coopPauseOpen and not coopResultsShown:
+      drawCustomCursor(g.time)
+    else:
+      drawDesktopCursor(g.time)
+    endGameDrawing()
+    if backToLobby: coopBackToLobby()
+    elif leave: coopLeaveRun()
+
+  # --coop-auto (debug builds): the human parts of a co-op session, played by
+  # themselves -- see coopAutoArg.
+  var coopAutoBooted = false
+  var coopAutoOpened = false       # the session is opened once (not again after it closes)
+  var coopAutoRuns = 0
+  var coopAutoRunStart = 0.0
+  var coopAutoWaitFrom = 0.0
+  var coopAutoLastPhase = cpIdle
+
+  proc coopAutoLog(msg: string) =
+    echo "[coop-auto] ", (if coopAutoHost: "host" else: "client"), " t=",
+         formatFloat(getTime(), ffDecimal, 1), " ", msg
+
+  proc coopAutoRunLine(): string =
+    let g = currentGame
+    result = "state=" & $g.state & " wave=" & $g.currentWave & " players=" & $g.players.len &
+             " enemies=" & $g.enemies.len
+    if not activeCoop.isNil:
+      result.add " snap=" & $activeCoop.lastApplied & " out/s=" & $activeCoop.bytesPerSecond
+    for p in g.players:
+      result.add " | p" & $p.slot & " hp=" & $int(p.hp) & " kills=" & $p.kills &
+                 " pu=" & $p.powerUps.len & (if p.eliminated: " out" else: "")
+
+  var coopAutoShots = 0
+  proc coopAutoStep() =
+    setMasterVolume(0)
+    inc coopAutoFrame
+    if shotEvery > 0 and getTime() >= shotEvery * float(coopAutoShots + 1):
+      inc coopAutoShots
+      shotPath = "shot_" & (if coopAutoHost: "host" else: "client") & "_" & $coopAutoShots & ".png"
+    if not coopAutoBooted:
+      if currentGame.state == gsSplash:
+        coopAutoBooted = true
+        switchToProfile(1)
+        settings.hasSeenIntro = true
+        currentGame.state = gsMenu
+      return
+    let s = activeCoop
+    if s.isNil:
+      if currentGame.state == gsMenu and not coopAutoOpened:
+        coopAutoOpened = true
+        let me = CoopMemberNet(nickname: if coopAutoHost: "auto-host" else: "auto-client")
+        if coopAutoHost:
+          let mode = case coopAutoArg.substr(5)
+            of "survival": gmTimeSurvival
+            of "roguelite": gmRoguelite
+            of "sandbox": gmSandbox
+            else: gmWaveBased
+          discard hostCoop(CoopDefaultPort, 2, me,
+                           CoopRunConfigNet(mode: int32(ord(mode)), heat: 1,
+                                            difficulty: int32(ord(currentDifficulty))))
+        else:
+          discard joinCoop(coopAutoArg.substr(5), CoopDefaultPort, me)
+        coopAutoLog("session opened")
+      return
+    if s.phase != coopAutoLastPhase:
+      coopAutoLastPhase = s.phase
+      coopAutoLog("phase " & $s.phase & (if s.errorText.len > 0: " (" & s.errorText & ")" else: ""))
+    if s.isHost:
+      if s.phase == cpHostLobby and s.readyToStart and coopAutoRuns < 2:
+        inc coopAutoRuns
+        s.startCoopRun()
+        coopAutoRunStart = getTime()
+        coopAutoLog("starting run " & $coopAutoRuns)
+      elif s.running and isCoopRun(currentGame):
+        if coopAutoFrame mod 600 == 0: coopAutoLog(coopAutoRunLine())
+        if coopAutoEndAfter > 0 and getTime() - coopAutoRunStart >= coopAutoEndAfter:
+          coopAutoLog("ending run: " & coopAutoRunLine())
+          coopLeaveRun()
+      elif isCoopRun(currentGame) and currentGame.state == gsGameOver:
+        # The team is out: leave the game-over screen as a player would.
+        if coopAutoWaitFrom == 0: coopAutoWaitFrom = getTime()
+        elif getTime() - coopAutoWaitFrom > 2.0:
+          coopAutoWaitFrom = 0
+          coopAutoLog("game over: " & coopAutoRunLine())
+          cleanupGame(currentGame)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame.state = gsMenu
+    else:
+      if s.phase == cpClientLobby:
+        for m in s.members:
+          if m.slot == s.mySlot and not m.ready:
+            s.setReady(true, 0)
+            coopAutoLog("ready")
+      if isCoopRun(currentGame):
+        if coopResultsShown:
+          if coopAutoWaitFrom == 0:
+            coopAutoWaitFrom = getTime()
+            coopAutoLog("results: " & $coopResultsReason & " kills=" & $coopResultsKills &
+                        " recorded=" & $(not currentRunStats.isNil))
+          elif getTime() - coopAutoWaitFrom > 2.0:
+            coopAutoWaitFrom = 0
+            coopBackToLobby()
+            coopAutoLog("back in the lobby")
+        else:
+          if coopAutoFrame mod 600 == 0: coopAutoLog(coopAutoRunLine())
+          let c = currentGame.coop
+          if not c.isNil and c.modal != cmkNone and not c.seats[localSlot].ready and
+             coopAutoFrame mod 30 == 0:
+            case c.modal
+            of cmkDraft: pickDraftCard(currentGame, 0)
+            of cmkShop: leaveShop(currentGame)
+            of cmkFloorVote: chooseFloor(currentGame, 0)
+            of cmkCache, cmkNone: discard   # (the reveal closes by itself)
 
   # Track pending game mode launch during loading animation
   var pendingGameMode = -1  # -1 = none, 0 = Wave-Based, 1 = Time Survival, 6 = Sandbox, 9 = Roguelite
@@ -1452,10 +1866,28 @@ proc main() =
     modWatchState(currentGame)
     postShaderInRun = isActiveRunState(currentGame.state) and currentGame.state != gsModScreen
 
+    # CO-OP.EXE's session: the lobby, the run's start, its snapshots or input,
+    # its end. A client's run frame is its own: it draws the host's run.
+    if not activeCoop.isNil:
+      coopFrame(dt)
+    if coopAuto:
+      coopAutoStep()
+    if quitAfterSeconds > 0 and getTime() >= quitAfterSeconds:
+      if coopAuto: coopAutoLog("quitting: " & coopAutoRunLine())
+      windowCloseRequested = true
+    if coopClient() and isCoopRun(currentGame) and
+       (coopResultsShown or
+        currentGame.state notin {gsPowerUpSelect, gsShop, gsRogueliteFloorSelect}):
+      if coopClientFrame(dt):
+        windowCloseRequested = true
+      continue
+
     # Co-op host: the team modals (drafts, the shop, Data Caches, floor votes)
     # gather every player's choices here, whichever screen this frame runs.
     if coopHost():
-      if coopBotEnabled: queueBotModalActions(currentGame, currentGame.frameCount)
+      if coopBotEnabled or coopAuto:
+        queueBotModalActions(currentGame, currentGame.frameCount,
+                             includeLocal = coopAuto, onlyLocal = coopAuto)
       updateCoopModal(currentGame, dt)
 
     # Mods: a screenUpdate handler returning true takes this frame over (the
@@ -2405,6 +2837,10 @@ proc main() =
           globalWindowManager.openWindow(widFeedback)
         of 14: # MODS.exe - Open the Mod Manager
           globalWindowManager.openWindow(widMods)
+        of ord(diCoop): # CO-OP.exe - Open the co-op lobby
+          globalWindowManager.openWindow(widCoop)
+          globalWindowManager.coop.highestHeat =
+            if rogueliteProfile.isNil: RogueliteMinHeat else: rogueliteProfile.highestHeat
         of ord(diModApp): # A mod app's icon - open its window
           globalWindowManager.openModApp(osDesktop.launchModKey, desktopUIScale(),
                                          screenWidth.int, screenHeight.int)
@@ -2623,6 +3059,10 @@ proc main() =
     of gsPlaying:
       # This frame's input, read once: the simulation reads only the intent.
       captureLocalIntent(currentGame.playerOfSlot(localSlot))
+      if coopAuto: botIntent(currentGame, currentGame.playerOfSlot(localSlot), currentGame.frameCount)
+      # Co-op: the pause menu is this player's alone; the run goes on behind it.
+      coopPauseFresh = false
+      if coopPauseOpen: idleIntent(currentGame.playerOfSlot(localSlot))
       if coopBotEnabled:
         for p in currentGame.players:
           if not p.isLocalPlayer: botIntent(currentGame, p, currentGame.frameCount)
@@ -2697,7 +3137,13 @@ proc main() =
       if isBackPressed() and not globalConfirmActive and modUiBack():
         discard   # Esc / B closed the top mod screen instead
       elif (isBackPressed() or isGamepadStartPressed()) and not globalConfirmActive:
-        currentGame.state = gsPaused
+        if isCoopRun(currentGame):
+          if not coopPauseOpen:
+            coopPauseOpen = true
+            coopPauseFresh = true
+            resetCoopPauseMenu()
+        else:
+          currentGame.state = gsPaused
 
       # ORIENTATION.EXE: advance the tutorial from what the player just did.
       # Runs before updateGame so its safety net lands ahead of this frame's
@@ -2723,14 +3169,10 @@ proc main() =
           if not currentGame.sandboxFreezeEnemies:
             updateGame(currentGame, dt)
           else:
-            # Still update player, bullets, particles, but not enemies
-            updatePlayer(
-              currentGame.player,
-              dt,
-              int32(currentGame.screenWidth),
-              int32(currentGame.screenHeight),
-              currentGame.walls
-            )
+            # Still update the players, bullets, particles, but not enemies
+            for p in currentGame.livingPlayers:
+              updatePlayer(p, dt, int32(currentGame.screenWidth),
+                           int32(currentGame.screenHeight), currentGame.walls)
             for bullet in currentGame.bullets:
               bullet.pos.x += bullet.vel.x * dt
               bullet.pos.y += bullet.vel.y * dt
@@ -2813,6 +3255,15 @@ proc main() =
       # Draw cheat menu overlay if active
       drawCheatMenu(cheatMenu, currentGame, getVirtualScreenWidth(), getVirtualScreenHeight())
 
+      # Co-op: this player's pause menu (the run goes on).
+      var coopLeave = false
+      if coopPauseOpen and isCoopRun(currentGame):
+        themeLayer:
+          let pick = coopPauseMenu(host = coopHost())
+          if not coopPauseFresh:
+            if pick == 0: coopPauseOpen = false
+            elif pick == 1: coopLeave = true
+
       endUIScaleMode()
       # Draw window-close confirmation if triggered via OS close button
       if globalConfirmActive:
@@ -2837,6 +3288,8 @@ proc main() =
       drawCustomCursor(currentGame.time)
 
       endGameDrawing()
+      if coopLeave:
+        coopLeaveRun()
 
       # A practice session ends on the desktop. No checkpointLiveRun: there is
       # nothing to keep, and the player's real saved run must stay untouched.
@@ -3079,6 +3532,9 @@ proc main() =
           markKeyboardUsed(currentGame)
 
       proc closeRogueliteFloorSelect() =
+        if isCoopRun(currentGame):
+          coopLeaveRun()   # co-op: the host ends the run, a client drops out
+          return
         let preservedHeat = currentGame.selectedRogueliteHeat
         if currentGame.rogueliteRun != nil and
            (currentGame.rogueliteRun.totalRoomsCleared > 0 or
@@ -3357,6 +3813,7 @@ proc main() =
 
       # Continue coin collection during this phase
       captureLocalIntent(currentGame.playerOfSlot(localSlot))
+      if coopAuto: botIntent(currentGame, currentGame.playerOfSlot(localSlot), currentGame.frameCount)
       for p in currentGame.livingPlayers:
         if coopBotEnabled and not p.isLocalPlayer: botIntent(currentGame, p, currentGame.frameCount)
         withPlayer(currentGame, p):
@@ -3697,6 +4154,15 @@ proc main() =
         statsSavedThisGame = false
 
       proc doRestart() =
+        if isCoopRun(currentGame):
+          # Co-op: a new run starts from the lobby (coopFrame opens it).
+          cleanupGame(currentGame)
+          currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+          currentGame.discordClient = globalDiscordClient
+          currentGame.state = gsMenu
+          playSound(stMenuSelect)
+          statsSavedThisGame = false
+          return
         let previousMode = currentGame.mode
         let previousModMode = currentGame.modMode
         let preservedRogueliteHeat =
@@ -4310,6 +4776,24 @@ proc main() =
   # A run under a mod screen is saved as the state it holds still in.
   if not currentGame.isNil and currentGame.state == gsModScreen:
     currentGame.state = screenBaseState()
+
+  # Co-op: closing the game leaves the session. The host's run ends for
+  # everyone, recorded as a quit, and each client gets its own statistics at
+  # once (no time left to wait for confirmations). A client's run is the
+  # host's to record: it just leaves. Neither is ever saved to resume.
+  if not activeCoop.isNil:
+    let s = activeCoop
+    if s.isHost and s.running and isCoopRun(currentGame):
+      if not statsSavedThisGame and currentGame.state notin {gsGameOver, gsRunStats}:
+        freezeRunTime(currentGame)
+        persistRunResults(currentGame, died = false)
+      s.endCoopRun(cerHostLeft)
+    if s.isHost and s.phase == cpEnding:
+      s.backToLobby()   # (sends every end still owed)
+    s.closeCoop(if s.isHost: "The host closed the game" else: "Left the game")
+    if isCoopRun(currentGame):
+      currentGame = newGame(WorldWidth, WorldHeight, settings.playerSkin, settings.bulletSkin, settings.playerShape, settings.particleEffect, settings.bulletShape)
+      currentGame.state = gsMenu   # nothing below records or checkpoints it
 
   # A run that has ended but was not persisted yet -- the window was closed on
   # an ending screen or during the death playback -- is recorded now, since

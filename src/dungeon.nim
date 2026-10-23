@@ -1539,6 +1539,37 @@ proc updateDungeon*(game: Game, dt: float32): DungeonFrame {.moddable.} =
           result.pauseSim = true
           return
 
+type
+  RoomGoalKind* = enum
+    rgNone       ## nothing to head for: fight, or wait for the folder to fill
+    rgWalk       ## walk to `pos` (an open door, the exit portal)
+    rgInteract   ## walk to `pos` and press [E] (a patch pedestal)
+  RoomGoal* = object
+    kind*: RoomGoalKind
+    pos*: Vector2
+
+proc roomGoal*(game: Game): RoomGoal {.moddable.} =
+  ## Where a player heads to move the sector on once the room is quiet: the
+  ## exit portal, a pedestal still to choose from, then an open door (a bot
+  ## teammate's errand: coop_bot).
+  let run = game.rogueliteRun
+  if run.isNil or run.floor.isNil or game.roomTransitionActive: return
+  let room = currentDungeonRoom(run)
+  if room.isNil: return
+  if game.bossPortalActive and room.kind == drkBoss:
+    if game.bossPortalTimer >= ExitPortalSpawnDuration:
+      return RoomGoal(kind: rgWalk, pos: exitPortalPos(game))
+    return
+  if game.enemies.len > 0: return
+  for pickup in room.pickups:
+    if not pickup.taken and pickup.kind == dpkPatchPedestal and pickup.spawnTimer >= PickupSpawnTime:
+      return RoomGoal(kind: rgInteract, pos: pickup.pos)
+  if exitsOpen(room):
+    let exits = exitsOf(run.floor, room)
+    if exits.len > 0:
+      let r = doorRect(game, exits[run.floor.rooms.len mod exits.len].dir)
+      return RoomGoal(kind: rgWalk, pos: vec2(r.x + r.width / 2, r.y + r.height / 2))
+
 # ---------------------------------------------------------------------------
 # HUD helpers
 

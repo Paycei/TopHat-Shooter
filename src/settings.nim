@@ -54,7 +54,9 @@ proc newDefaultSettings*(): Settings {.moddable.} =
     particleEffect: 0,  # Default to first particle effect (pskDefault)
     desktopBg: 0,        # Default to first desktop background (dbgDefault)
     cubeSkin: 0,         # Default to first cube skin (cskDefault)
-    pvpNickname: "shooter.exe",  # Default nickname for PvP
+    pvpNickname: "shooter.exe",  # Default nickname for PvP and co-op
+    coopLastHost: "",
+    coopPort: 7778,  # CoopDefaultPort (DUELINK keeps 7777)
     exitConfirmEnabled: true,  # Exit confirm dialogs enabled by default
     keybinds: defaultKeybinds,
     gamepadBinds: defaultGamepadBinds,

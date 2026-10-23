@@ -12,7 +12,7 @@ const
   # bullet, and a busy match with FORK.EXE triple shots can pass 8 KB; a smaller
   # buffer silently truncated those datagrams and they failed to deserialize.
   MAX_PACKET_SIZE = 65507
-  NETWORK_VERSION* = "3.0.1"   # 3.0.1: co-op actions name their modal; 3.0.0: co-op packets, lobby kind and layout hash
+  NETWORK_VERSION* = "3.0.2"   # 3.0.2: co-op snapshots carry effects; 3.0.1: co-op actions name their modal; 3.0.0: co-op packets, lobby kind and layout hash
   DISCONNECT_TIMEOUT* = 2.5
   MAX_PACKETS_PER_POLL = 512   # a co-op snapshot arrives as many fragments
   PACKET_MAGIC = "THS1"

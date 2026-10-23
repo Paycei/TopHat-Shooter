@@ -3,7 +3,7 @@
 
 import raylib, algorithm, sequtils, math
 import ../modding/mod_patch_core
-import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, mods_window, mod_app_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
+import os_window, settings_window, help_window, stats_window, shop_window, pvp_window, sandbox_window, advancements_window, roguelite_window, changelog_window, credits_window, feedback_window, mods_window, mod_app_window, coop_window, ../types, ../settings, ../save_system, ../statistics, ../skins, ../bullet_skins, ../bullet_shapes, ../shapes, ../particle_skins, ../advancement
 import ../gamepad_input, ../render_context
 import ../modding/mod_hooks
 import ui_theme
@@ -22,6 +22,7 @@ type
     widCredits
     widFeedback
     widMods
+    widCoop
 
   WindowManager* = ref object
     settings*: SettingsWindow
@@ -36,6 +37,7 @@ type
     credits*: CreditsWindow
     feedback*: FeedbackWindow
     mods*: ModsWindow
+    coop*: CoopWindow
     modApps*: seq[ModAppWindow]  ## open register.app windows, one per app key
     nextZOrder: int
 
@@ -66,6 +68,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
     credits: newCreditsWindow(screenWidth, screenHeight),
     feedback: newFeedbackWindow(screenWidth, screenHeight),
     mods: newModsWindow(screenWidth, screenHeight, gameSettings),
+    coop: newCoopWindow(screenWidth, screenHeight),
     nextZOrder: 1
   )
 
@@ -82,6 +85,7 @@ proc newWindowManager*(screenWidth, screenHeight: int,
   result.credits.window.visible = false
   result.feedback.window.visible = false
   result.mods.window.visible = false
+  result.coop.window.visible = false
 
 proc getAllWindows(wm: WindowManager): seq[OSWindow] {.moddable.} =
   ## Get all windows in a single sequence
@@ -97,7 +101,8 @@ proc getAllWindows(wm: WindowManager): seq[OSWindow] {.moddable.} =
     wm.changelog.window,
     wm.credits.window,
     wm.feedback.window,
-    wm.mods.window
+    wm.mods.window,
+    wm.coop.window
   ]
   for app in wm.modApps:
     result.add(app.window)
@@ -148,6 +153,9 @@ proc openWindow*(wm: WindowManager, id: WindowID) {.moddable.} =
   of widMods:
     window = wm.mods.window
     resetModsWindow(wm.mods)  # Picks up mod folders added since the last reload
+  of widCoop:
+    window = wm.coop.window
+    resetCoopView(wm.coop)  # The saved name, port and address
 
   wm.bringToFront(window)
 
@@ -166,6 +174,7 @@ proc closeWindow*(wm: WindowManager, id: WindowID) {.moddable.} =
   of widCredits: wm.credits.window.visible = false
   of widFeedback: wm.feedback.window.visible = false
   of widMods: wm.mods.window.visible = false
+  of widCoop: wm.coop.window.visible = false
 
 proc closeAllWindows*(wm: WindowManager) {.moddable.} =
   ## Close all open desktop windows (e.g. when starting a game)
@@ -181,6 +190,7 @@ proc closeAllWindows*(wm: WindowManager) {.moddable.} =
   wm.credits.window.visible = false
   wm.feedback.window.visible = false
   wm.mods.window.visible = false
+  wm.coop.window.visible = false
   wm.modApps.setLen(0)
 
 proc windowUIScale(window: OSWindow, requested: float32,
@@ -362,7 +372,7 @@ proc wantsTextInput*(wm: WindowManager): bool {.moddable.} =
   ## launch an icon.
   wm.feedback.wantsTextInput() or wm.mods.wantsTextInput() or   # (the MODS.EXE Console)
     wm.help.wantsTextInput() or wm.shop.wantsTextInput() or wm.pvp.wantsTextInput() or
-    wm.settings.wantsTextInput()
+    wm.settings.wantsTextInput() or wm.coop.wantsTextInput()
 
 proc unfocusAllWindows*(wm: WindowManager) {.moddable.} =
   ## A press on the desktop itself: no window has the keyboard any more, so
@@ -523,6 +533,9 @@ proc updateAllWindows*(wm: WindowManager, dt: float32, uiScale: float32,
     elif window == wm.credits.window:
       updateCreditsWindow(wm.credits, dt, screenWidth, screenHeight, visibleWindows)
 
+    elif window == wm.coop.window:
+      updateCoopWindow(wm.coop, dt, screenWidth, screenHeight, visibleWindows)
+
     elif window == wm.feedback.window:
       updateFeedbackWindow(wm.feedback, dt, screenWidth, screenHeight, visibleWindows)
 
@@ -579,6 +592,8 @@ proc drawWindow(wm: WindowManager, window: OSWindow, game: Game,
     drawChangelogWindow(wm.changelog)
   elif window == wm.credits.window:
     drawCreditsWindow(wm.credits)
+  elif window == wm.coop.window:
+    drawCoopWindow(wm.coop)
   elif window == wm.feedback.window:
     drawFeedbackWindow(wm.feedback)
   elif window == wm.mods.window:

@@ -1,6 +1,7 @@
 import raylib, math, fx_rand
 import modding/mod_patch_core
 import particle_types, types
+import coop/coop_fx
 
 type
   ShakeIntensity* = enum
@@ -32,6 +33,14 @@ proc addShake*(shake: var ScreenShake, intensity: ShakeIntensity,
   ## which puts a regular kill at ~3 px (felt, not distracting) and a boss kill
   ## at ~12 px (unmistakable). Durations are stretched slightly to match, since
   ## a 0.08 s shake is only ~5 frames and reads as a single jolt.
+  ##
+  ## Co-op: the shake goes to the player whose context raised it (their hit,
+  ## their kill), on whichever machine is theirs.
+  if intensity == siNone:
+    return
+  recordFx(CoopFx(kind: fxShake, a: int32(ord(intensity)), color: tint))
+  if teammateContext():
+    return
   case intensity
   of siNone:
     return

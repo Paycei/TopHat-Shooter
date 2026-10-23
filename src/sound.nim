@@ -3,6 +3,7 @@ import modding/mod_patch_core
 import std/cpuinfo
 import std/atomics
 import localization
+import coop/coop_fx
 
 # Raylib's playSound restarts a Sound that is already playing, cutting its
 # tail. Each sound gets a pool of aliases (shared sample data): a new play
@@ -3295,14 +3296,19 @@ proc restoreVanillaSounds*() {.moddable.} =
 proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0,
                 pitch: float32 = 1.0) {.moddable.} =
   let sys = globalSoundSystem
-  if sys == nil or not sys.enabled or not sys.soundsGenerated:
-    return
   let minInterval = minReplayInterval(soundType)
-  if minInterval > 0.0:
+  if sys != nil and minInterval > 0.0:
     let now = getTime()
     if now - sys.lastPlayTime[soundType] < minInterval:
       return
     sys.lastPlayTime[soundType] = now
+  # Co-op: the clients hear it too (whatever this machine's own sound
+  # settings), and a teammate's own sounds play quieter.
+  recordFx(CoopFx(kind: fxSound, a: int32(ord(soundType)), x: volumeMultiplier, y: pitch))
+  if sys == nil or not sys.enabled or not sys.soundsGenerated:
+    return
+  let volume = if teammateContext(): volumeMultiplier * TeammateSoundVolume
+               else: volumeMultiplier
 
   # A mod that replaced this sound plays its own pool, by the same rules.
   let modded = modSoundVoices[soundType].len == MAX_SOUND_VOICES
@@ -3325,7 +3331,7 @@ proc playSound*(soundType: SoundType, volumeMultiplier: float32 = 1.0,
   # Every setting is applied on every play: voices are reused and keep
   # whatever the previous play left on them.
   template play(voice: Sound) =
-    setSoundVolume(voice, sys.masterVolume * volumeMultiplier)
+    setSoundVolume(voice, sys.masterVolume * volume)
     setSoundPitch(voice, finalPitch)
     setSoundPan(voice, pan)
     raylib.playSound(voice)

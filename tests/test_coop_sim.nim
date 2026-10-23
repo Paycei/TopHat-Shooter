@@ -1,8 +1,9 @@
 # Co-op simulation smoke test: two or three bot players (coop/coop_bot.nim)
-# share one headless wave or survival run, driven the way main.nim drives a
-# co-op host. Checks that every player fights (kills of their own), gets hurt,
-# levels with the team and shops their own wallet, and that nothing in the
-# multi-player simulation crashes.
+# share one headless wave, survival or roguelite run, driven the way main.nim
+# drives a co-op host. Checks that every player fights (kills of their own),
+# gets hurt, levels with the team and shops their own wallet, that a roguelite
+# team votes its sector and moves on through its folders, and that nothing in
+# the multi-player simulation crashes.
 #   nim r --mm:orc tests/test_coop_sim.nim
 #   nim r --mm:orc -d:danger tests/test_coop_sim.nim
 
@@ -38,6 +39,7 @@ type Tally = object
 type Seen = object
   draftsDone, shopsDone, cachesDone, votesDone: int
   boughtSomething: bool
+  roomsEntered: int
 
 proc frameStep(g: var Game, frame: int, seen: var Seen) =
   # The host's team modals, as main.nim runs them every frame: every bot
@@ -121,7 +123,12 @@ proc runCoop(name: string, mode: GameMode, players, frames: int): Seen =
     if g.state in {gsGameOver, gsVictory, gsSurvivalEndCinematic, gsRunStats}:
       ended = $g.state
       break
+    let roomsBefore = if g.rogueliteRun.isNil or g.rogueliteRun.floor.isNil: 0
+                      else: g.rogueliteRun.floor.rooms.len
     frameStep(g, f, seen)
+    if not g.rogueliteRun.isNil and not g.rogueliteRun.floor.isNil and
+       g.rogueliteRun.floor.rooms.len > roomsBefore and roomsBefore > 0:
+      inc seen.roomsEntered
     for p in g.players:
       if p.hp < t.lastHp[p.slot] - 0.001: t.hurt[p.slot] = true
       t.lastHp[p.slot] = p.hp
@@ -129,13 +136,14 @@ proc runCoop(name: string, mode: GameMode, players, frames: int): Seen =
   var line = name & ": wave=" & $g.currentWave & " state=" & $g.state & (if ended.len > 0: " ended" else: "") &
              " drafts=" & $seen.draftsDone & " shops=" & $seen.shopsDone &
              " caches=" & $seen.cachesDone & " votes=" & $seen.votesDone &
+             " rooms=" & $seen.roomsEntered &
              " lives=" & $g.coop.teamLives
   for p in g.players:
     line.add " | p" & $p.slot & " kills=" & $p.kills & " lvl=" & $p.rogueliteLevel &
              " coins=" & $p.coins & " hp=" & formatFloat(p.hp, ffDecimal, 1) &
              " pu=" & $p.powerUps.len & " shop=" & $p.shopBought[0]
   echo line
-  if mode != gmRoguelite:
+  block:
     for p in g.players:
       check(p.kills > 0, name & ": player " & $p.slot & " scored kills of their own")
       check(p.rogueliteLevel == g.players[0].rogueliteLevel,
@@ -146,7 +154,7 @@ proc runCoop(name: string, mode: GameMode, players, frames: int): Seen =
     check(teamHurt, name & ": the enemies hurt the team")
     check(seen.draftsDone > 0, name & ": the team went through a draft together")
   result = seen
-  if mode != gmRoguelite:
+  block:
     check(coopProfileOutbox[1].len > 0, name & ": the second player's own progress went to their outbox")
     var discovered = false
     for ev in coopProfileOutbox[1]:
@@ -161,8 +169,10 @@ let wave = runCoop("wave x2", gmWaveBased, 2, 7200)
 check(wave.shopsDone > 0, "wave: the team shopped between waves")
 check(wave.boughtSomething, "wave: a player bought from their own wallet")
 let surv = runCoop("survival x3", gmTimeSurvival, 3, 7200)
-let rogue = runCoop("roguelite x2", gmRoguelite, 2, 1800)
+let rogue = runCoop("roguelite x2", gmRoguelite, 2, 5400)
 check(rogue.votesDone > 0, "roguelite: the team voted for its first sector")
+check(rogue.roomsEntered >= 2, "roguelite: the team went through its folders' doors (" &
+      $rogue.roomsEntered & " rooms)")
 
 # A co-op run never writes a save of any kind.
 var saves: seq[string]

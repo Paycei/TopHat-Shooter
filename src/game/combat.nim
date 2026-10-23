@@ -2,6 +2,7 @@ import raylib, rlgl, random
 import ../modding/mod_patch_core
 import types, particle, particle_pool, particle_types, powerup, patches, run_statistics, boss_weakpoints, ui/os_background, player, mode_hazards
 import modding/mod_hooks
+import coop/coop_fx
 
 const GATE_DAMAGE_LEAK* = 0.04'f32  # fraction of body damage that still lands while a boss gate (adds/shield) is up
 
@@ -341,6 +342,7 @@ proc applyCriticalHitFromStats*(stats: CombatStats, baseDamage: float32): float3
 proc showDamage*(game: Game, pos: Vector2, damage: float32, fromPlayer: bool,
                 isCritical: bool = false, damageType: DamageType = dtDefault) {.moddable.} =
   ## Centralized helper to create and display damage numbers
+  recordFx(CoopFx(kind: fxDamage, x: pos.x, y: pos.y, z: damage, a: int32(ord(fromPlayer)) + 2 * int32(ord(isCritical)), b: int32(ord(damageType))))
   game.damageNumbers.add(newDamageNumber(pos.x, pos.y, damage, fromPlayer, isCritical, damageType))
 
 proc showPlayerDamageTaken*(game: Game, damageType: DamageType = dtDefault) {.moddable.} =
@@ -356,6 +358,7 @@ proc showPlayerDamageTaken*(game: Game, damageType: DamageType = dtDefault) {.mo
 proc showCurrency*(game: Game, pos: Vector2, amount: int,
                    kind: CurrencyIndicatorKind = cikCredits) {.moddable.} =
   ## Centralized helper for floating currency pickup indicators.
+  recordFx(CoopFx(kind: fxCurrency, x: pos.x, y: pos.y, a: int32(amount), b: int32(ord(kind))))
   if amount == 0:
     return
   game.currencyIndicators.add(newCurrencyIndicator(pos.x, pos.y, amount, kind))
@@ -380,6 +383,7 @@ proc densityHealScale*(game: Game): float32 {.moddable.} =
 proc showPerk*(game: Game, pos: Vector2, text: string, color: Color) {.moddable.} =
   ## Centralized helper for floating "+SHIELD" / "+SPEED" style consumable
   ## pickup indicators.
+  recordFx(CoopFx(kind: fxPerk, x: pos.x, y: pos.y, text: text, color: color))
   game.perkIndicators.add(newPerkIndicator(pos.x, pos.y, text, color))
 
 const DAMAGE_NUMBER_INTERVAL = 0.5'f32

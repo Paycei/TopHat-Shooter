@@ -253,6 +253,8 @@ proc collectAllCoins*(game: Game) {.moddable.} =
   let totalValue = gainCoinCredits(game, values)
   if totalValue > 0:
     playSound(stCoinPickup, 0.6)
+    recordFx(CoopFx(kind: fxCurrency, x: game.player.pos.x, y: game.player.pos.y - 18,
+                    a: int32(totalValue), b: int32(ord(cikCredits))))
     game.currencyIndicators.add(newCurrencyIndicator(
       game.player.pos.x, game.player.pos.y - 18, totalValue, cikCredits))
 

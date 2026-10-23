@@ -547,6 +547,9 @@ proc updateCoopModal*(game: var Game, dt: float32) {.moddable.} =
   if coop.isNil or not coopHost():
     coopActionQueue.setLen(0)
     return
+  let fxWas = coopFxRecording
+  coopFxRecording = true    # (a teammate's install, purchase... shows on every screen)
+  defer: coopFxRecording = fxWas
   let want = case game.state
     of gsPowerUpSelect: cmkDraft
     of gsShop: cmkShop
@@ -5837,6 +5840,10 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   let perfStart = getTime()
   defer: game.perfUpdateMs = game.perfUpdateMs * 0.9'f32 +
                              float32((getTime() - perfStart) * 1000.0) * 0.1'f32
+  # Co-op host: what the simulation shows is logged for the clients (coop_fx).
+  let fxWas = coopFxRecording
+  coopFxRecording = coopHost()
+  defer: coopFxRecording = fxWas
   # Backstop for markRunModded: a Game swapped in by a snapshot restore or
   # built by a path that skipped setGameMode is still marked before it can
   # earn anything.

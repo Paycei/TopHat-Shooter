@@ -2035,6 +2035,54 @@ type
     tkCoopDown = "coop_down"
     tkCoopRespawnIn = "coop_respawn_in"
     tkCoopEliminated = "coop_eliminated"
+    tkDesktopIconCoop = "desktop_icon_coop"
+    tkCoopWindowTitle = "coop_window_title"
+    tkCoopIntro = "coop_intro"
+    tkCoopNickname = "coop_nickname"
+    tkCoopPort = "coop_port"
+    tkCoopHostTitle = "coop_host_title"
+    tkCoopJoinTitle = "coop_join_title"
+    tkCoopPlayers = "coop_players"
+    tkCoopYourAddress = "coop_your_address"
+    tkCoopHostButton = "coop_host_button"
+    tkCoopAddress = "coop_address"
+    tkCoopJoinButton = "coop_join_button"
+    tkCoopHostingOn = "coop_hosting_on"
+    tkCoopConnectedTo = "coop_connected_to"
+    tkCoopConnecting = "coop_connecting"
+    tkCoopError = "coop_error"
+    tkCoopBack = "coop_back"
+    tkCoopLeaveButton = "coop_leave_button"
+    tkCoopSyncing = "coop_syncing"
+    tkCoopEmptySeat = "coop_empty_seat"
+    tkCoopHostTag = "coop_host_tag"
+    tkCoopYouTag = "coop_you_tag"
+    tkCoopNotReady = "coop_not_ready"
+    tkCoopRunTitle = "coop_run_title"
+    tkCoopMode = "coop_mode"
+    tkCoopKit = "coop_kit"
+    tkCoopDifficultyNote = "coop_difficulty_note"
+    tkCoopStartButton = "coop_start_button"
+    tkCoopWaitingPlayers = "coop_waiting_players"
+    tkCoopWaitingReady = "coop_waiting_ready"
+    tkCoopReadyButton = "coop_ready_button"
+    tkCoopNotReadyButton = "coop_not_ready_button"
+    tkCoopWaitingHost = "coop_waiting_host"
+    tkCoopNote = "coop_note"
+    tkCoopBadPort = "coop_bad_port"
+    tkCoopNoAddress = "coop_no_address"
+    tkCoopHostFailed = "coop_host_failed"
+    tkCoopRunOver = "coop_run_over"
+    tkCoopTeamWiped = "coop_team_wiped"
+    tkCoopHostEnded = "coop_host_ended"
+    tkCoopHostLeft = "coop_host_left"
+    tkCoopPlayerLeft = "coop_player_left"
+    tkCoopPausedNote = "coop_paused_note"
+    tkCoopResume = "coop_resume"
+    tkCoopLeaveRun = "coop_leave_run"
+    tkCoopEndRun = "coop_end_run"
+    tkCoopBackToLobby = "coop_back_to_lobby"
+    tkCoopResultsKills = "coop_results_kills"
 
 # Translation tables
 var translations: Table[localization.Language, Table[system.string, system.string]] = {
@@ -4339,7 +4387,55 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "coop_team_lives": "TEAM LIVES",
     "coop_down": "DOWN",
     "coop_respawn_in": "back in $1s",
-    "coop_eliminated": "ELIMINATED - spectating your team"
+    "coop_eliminated": "ELIMINATED - spectating your team",
+    "desktop_icon_coop": "CO-OP.exe",
+    "coop_window_title": "CO-OP.EXE - Play Together",
+    "coop_intro": "Play any mode as a team on your local network. One player hosts, the others join with the host's address. Everyone's rewards go to their own profile.",
+    "coop_nickname": "Your name",
+    "coop_port": "Port",
+    "coop_host_title": "HOST A GAME",
+    "coop_join_title": "JOIN A GAME",
+    "coop_players": "Players",
+    "coop_your_address": "Your address: $1",
+    "coop_host_button": "Host",
+    "coop_address": "Host's address",
+    "coop_join_button": "Join",
+    "coop_hosting_on": "Hosting on $1 - share this address with your team",
+    "coop_connected_to": "In $1's game",
+    "coop_connecting": "Connecting to $1...",
+    "coop_error": "Couldn't join: $1",
+    "coop_back": "Back",
+    "coop_leave_button": "Leave",
+    "coop_syncing": "Syncing with the host...",
+    "coop_empty_seat": "open seat",
+    "coop_host_tag": "HOST",
+    "coop_you_tag": "you",
+    "coop_not_ready": "not ready",
+    "coop_run_title": "THE RUN",
+    "coop_mode": "Mode",
+    "coop_kit": "Your kit",
+    "coop_difficulty_note": "Played at the host's difficulty. Enemies get tougher and come faster for every player.",
+    "coop_start_button": "Start the run",
+    "coop_waiting_players": "Waiting for players to join...",
+    "coop_waiting_ready": "Waiting for everyone to be ready",
+    "coop_ready_button": "Ready",
+    "coop_not_ready_button": "Not ready",
+    "coop_waiting_host": "Waiting for the host to start the run",
+    "coop_note": "Co-op runs are never saved, so they can't be resumed. Pausing doesn't stop the game for your team.",
+    "coop_bad_port": "The port must be a number from 1 to 65535",
+    "coop_no_address": "Type the host's address first",
+    "coop_host_failed": "Couldn't open port $1 (is another program using it?)",
+    "coop_run_over": "RUN OVER",
+    "coop_team_wiped": "The whole team is down",
+    "coop_host_ended": "The host ended the run",
+    "coop_host_left": "The host left the game",
+    "coop_player_left": "$1 left the game",
+    "coop_paused_note": "PAUSED - the run goes on for your team",
+    "coop_resume": "Resume",
+    "coop_leave_run": "Leave the run",
+    "coop_end_run": "End the run for everyone",
+    "coop_back_to_lobby": "Back to the lobby",
+    "coop_results_kills": "$1 kills"
   }.toTable,
 
   Spanish: {
@@ -6641,7 +6737,55 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "coop_team_lives": "VIDAS DEL EQUIPO",
     "coop_down": "CAÍDO",
     "coop_respawn_in": "vuelve en $1 s",
-    "coop_eliminated": "ELIMINADO - mirando a tu equipo"
+    "coop_eliminated": "ELIMINADO - mirando a tu equipo",
+    "desktop_icon_coop": "COOP.exe",
+    "coop_window_title": "COOP.EXE - Jugar juntos",
+    "coop_intro": "Juega cualquier modo en equipo en tu red local. Un jugador crea la partida y los demás se unen con su dirección. Las recompensas de cada uno van a su propio perfil.",
+    "coop_nickname": "Tu nombre",
+    "coop_port": "Puerto",
+    "coop_host_title": "CREAR PARTIDA",
+    "coop_join_title": "UNIRSE A UNA PARTIDA",
+    "coop_players": "Jugadores",
+    "coop_your_address": "Tu dirección: $1",
+    "coop_host_button": "Crear",
+    "coop_address": "Dirección del anfitrión",
+    "coop_join_button": "Unirse",
+    "coop_hosting_on": "Partida en $1: comparte esta dirección con tu equipo",
+    "coop_connected_to": "En la partida de $1",
+    "coop_connecting": "Conectando con $1...",
+    "coop_error": "No se pudo unir: $1",
+    "coop_back": "Volver",
+    "coop_leave_button": "Salir",
+    "coop_syncing": "Sincronizando con el anfitrión...",
+    "coop_empty_seat": "plaza libre",
+    "coop_host_tag": "ANFITRIÓN",
+    "coop_you_tag": "tú",
+    "coop_not_ready": "no listo",
+    "coop_run_title": "LA PARTIDA",
+    "coop_mode": "Modo",
+    "coop_kit": "Tu kit",
+    "coop_difficulty_note": "Se juega con la dificultad del anfitrión. Los enemigos son más duros y llegan más rápido por cada jugador.",
+    "coop_start_button": "Empezar la partida",
+    "coop_waiting_players": "Esperando a que se unan jugadores...",
+    "coop_waiting_ready": "Esperando a que todos estén listos",
+    "coop_ready_button": "Listo",
+    "coop_not_ready_button": "No estoy listo",
+    "coop_waiting_host": "Esperando a que el anfitrión empiece",
+    "coop_note": "Las partidas cooperativas no se guardan, así que no se pueden reanudar. Pausar no detiene el juego para tu equipo.",
+    "coop_bad_port": "El puerto debe ser un número del 1 al 65535",
+    "coop_no_address": "Escribe primero la dirección del anfitrión",
+    "coop_host_failed": "No se pudo abrir el puerto $1 (¿lo usa otro programa?)",
+    "coop_run_over": "PARTIDA TERMINADA",
+    "coop_team_wiped": "Todo el equipo ha caído",
+    "coop_host_ended": "El anfitrión terminó la partida",
+    "coop_host_left": "El anfitrión abandonó la partida",
+    "coop_player_left": "$1 abandonó la partida",
+    "coop_paused_note": "PAUSA - la partida sigue para tu equipo",
+    "coop_resume": "Continuar",
+    "coop_leave_run": "Abandonar la partida",
+    "coop_end_run": "Terminar la partida para todos",
+    "coop_back_to_lobby": "Volver a la sala",
+    "coop_results_kills": "$1 bajas"
   }.toTable
 }.toTable
 

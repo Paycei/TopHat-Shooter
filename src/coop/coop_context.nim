@@ -16,7 +16,8 @@
 
 import std/math
 import raylib
-import types, run_statistics
+import types, run_statistics, coop_fx
+export coop_fx
 
 type CoopRole* = enum
   crNone    ## single player
@@ -25,7 +26,7 @@ type CoopRole* = enum
 
 var
   coopRole*: CoopRole     ## this machine's part in the run on screen
-  localSlot*: int32       ## the slot this machine's keyboard/pad drives
+                          ## (its slot, `localSlot`, lives in coop_fx)
   slotRunStats*: array[MaxCoopPlayers, RunStatistics]
     ## Host: each slot's run statistics. withPlayer makes the active slot's the
     ## `currentRunStats` the track* calls write to; all nil in single player.
@@ -73,6 +74,10 @@ proc resetCoopContext*() =
   coopRole = crNone
   localSlot = 0
   activeSlot = 0
+  coopFxSlot = -1
+  coopFxRecording = false
+  coopFxLog.setLen(0)
+  coopFxInbox.setLen(0)
   coopPlayerCount = 1
   for s in slotRunStats.mitems: s = nil
   coopActionQueue.setLen(0)
@@ -134,10 +139,12 @@ template withPlayer*(game: Game, p: Player, body: untyped) =
   ## statistics), then restore the previous one, even if `body` raises.
   let ctxSavedPlayer = game.player
   let ctxSavedSlot = activeSlot
+  let ctxSavedFxSlot = coopFxSlot
   let ctxSavedStats = currentRunStats
   let ctxPlayer = p
   game.player = ctxPlayer
   activeSlot = ctxPlayer.slot
+  coopFxSlot = ctxPlayer.slot
   if not slotRunStats[ctxPlayer.slot].isNil:
     currentRunStats = slotRunStats[ctxPlayer.slot]
   try:
@@ -145,6 +152,7 @@ template withPlayer*(game: Game, p: Player, body: untyped) =
   finally:
     game.player = ctxSavedPlayer
     activeSlot = ctxSavedSlot
+    coopFxSlot = ctxSavedFxSlot
     currentRunStats = ctxSavedStats
 
 iterator livingPlayers*(game: Game): Player =

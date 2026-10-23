@@ -1,6 +1,7 @@
 import raylib, rlgl, random, math
 import ../modding/mod_patch_core
 import types, player, particle_pool, particle_types, effects, powerup, fx, game/combat
+import coop/coop_fx
 from run_statistics import trackPowerUpDamage, trackPowerUpDamageWithMastery, trackHealing
 
 type BulletEffects* = tuple[
@@ -59,6 +60,7 @@ const
 # Lightning visuals moved to src/fx.nim (forwarding stubs kept)
 proc spawnLightningBolt*(game: var Game, fromPos, toPos: Vector2,
                          color: Color = fx.DEFAULT_BOLT_COLOR) {.moddable.} =
+  recordFx(CoopFx(kind: fxLightning, x: fromPos.x, y: fromPos.y, z: toPos.x, w: toPos.y, color: color))
   fx.spawnLightningBoltInto(game.lightningBolts, fromPos, toPos, color)
 
 proc updateLightningBolts*(game: var Game, dt: float32) {.moddable.} =
@@ -69,6 +71,7 @@ proc drawLightningBolts*(game: Game) {.moddable.} =
 
 # AoE-blast boundary rings (Star death explosion, etc.), forwarding stubs
 proc spawnShockwaveRing*(game: var Game, pos: Vector2, maxRadius: float32, color: Color) {.moddable.} =
+  recordFx(CoopFx(kind: fxBlastRing, x: pos.x, y: pos.y, z: maxRadius, color: color))
   fx.spawnShockwaveRingInto(game.shockwaveRings, pos, maxRadius, color)
 
 proc updateShockwaveRings*(game: var Game, dt: float32) {.moddable.} =
@@ -80,6 +83,7 @@ proc drawShockwaveRings*(game: Game) {.moddable.} =
 # Path-swept blast corridors (Aftershock), forwarding stubs
 proc spawnPathShockwave*(game: var Game, points: seq[Vector2], width: float32,
                          color: Color) {.moddable.} =
+  recordFx(CoopFx(kind: fxPathBlast, points: points, z: width, color: color))
   fx.spawnPathShockwaveInto(game.pathShockwaves, points, width, color)
 
 proc updatePathShockwaves*(game: var Game, dt: float32) {.moddable.} =
@@ -101,10 +105,11 @@ proc spawnBossDeathBlast*(game: var Game, pos: Vector2, maxRadius: float32,
 proc drawBossDeathBlasts*(game: Game) {.moddable.} =
   fx.drawBossDeathBlasts(game.bossDeathBlasts)
 
-proc blastFreeFizzle(game: var Game, pos: Vector2, color: Color) =
+proc blastFreeFizzle*(game: var Game, pos: Vector2, color: Color) {.moddable.} =
   ## The little puff left where the sweep freed one hazard. Angular shards
   ## rather than a soft puff, so an erased projectile reads as data being
   ## dropped rather than as something burning up.
+  recordFx(CoopFx(kind: fxFizzle, x: pos.x, y: pos.y, color: color))
   for i in 0 ..< 5:
     let angle = rand(TAU).float32
     let speed = 50.0'f32 + rand(110.0).float32

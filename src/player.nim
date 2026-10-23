@@ -3,6 +3,7 @@ import modding/mod_patch_core
 import draw_prims
 import particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, utils, input_intent
 import modding/[mod_hooks, mod_assets]
+import coop/coop_fx
 
 const
   # BASE DASH tuning. A burst of speed, not a teleport and not an i-frame
@@ -198,6 +199,125 @@ proc hasAnyOrbPowerUp*(player: Player): bool {.moddable.} =
     if hasPowerUp(player, orbType): return true
   return false
 
+proc steerPlayer*(player: Player, dt: float32, dashNow: bool) {.moddable.} =
+  ## This frame's velocity: the player's speed with its boosts and burdens, a
+  ## dash starting (`dashNow`: it is ready and its press was taken), then the
+  ## dash burst or the acceleration toward where they steer. Apart from
+  ## updatePlayer so a co-op client can predict its own player's movement
+  ## between the host's snapshots (coop_smooth).
+  # Calculate current speed with boost
+  var currentSpeed = player.speed
+  if player.speedBoostTimer > 0:
+    currentSpeed *= 1.4  # 40% speed boost
+  if player.outOfCombatSpeedBoost:
+    currentSpeed *= 1.25  # Roguelite out-of-combat bonus
+  # Juggernaut plating weighs the player down in proportion to the damage it is
+  # granting. Deliberately applied to the movement speed only, not baseSpeed, so
+  # Momentum's vel/baseSpeed ratio can no longer reach 1.0 while wearing it.
+  currentSpeed *= juggernautSpeedMult(player)
+  # Mod statuses (register.status speed modifiers)
+  if player.modStatuses.len > 0:
+    currentSpeed *= max(0.0'f32, 1.0'f32 + player.statusSpeed)
+
+  # Already clamped to length 1 (input_intent.nim).
+  let moveDir = player.intent.move
+
+  # ---- BASE DASH ----
+  # Fires on a held-direction if there is one, otherwise on the last facing, so
+  # a standing dash still goes somewhere sensible. The direction is locked at
+  # the start of the burst: mid-dash steering would turn it into a speed boost
+  # and lose the committed, readable arc that makes a dash feel like a dash.
+  if dashNow:
+    var d = moveDir
+    if d.length() < 0.01'f32:
+      # Standing still: dash along current travel, else straight up.
+      d = if player.vel.length() > 1.0'f32: player.vel.normalize()
+          else: vec2(0, -1)
+    else:
+      d = d.normalize()
+    player.dashDir     = d
+    player.dashTimer   = dashTimeOf(player)
+    player.dashCooldown = dashRechargeOf(player)
+    player.dashReadyFlash = 0  # a dash fired on the same frame it recharged must not keep flashing
+
+  let inertiaScale = playerInertiaSizeScale(player)
+  if player.dashTimer > 0:
+    # During the burst, drive velocity directly. Bypassing the acceleration
+    # curve is the point: the dash must feel instant, and the heavier the
+    # player's build the more it should stand out from their normal handling.
+    player.vel = player.dashDir * (currentSpeed * dashBurstOf(player))
+  else:
+    let targetVel = moveDir * currentSpeed
+    let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
+    player.vel = approachVelocity(player.vel, targetVel, acceleration, dt)
+
+proc advancePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32,
+                    walls: seq[Wall]) {.moddable.} =
+  ## Move the player by their velocity, sliding along walls, kept on the screen.
+  # Calculate next position
+  let nextPos = player.pos + player.vel * dt
+
+  # Wall collision with sliding. The move is redirected along the contacted
+  # wall's surface normal so the player glides along faces hit at an angle.
+  # (Per-axis resolution alone freezes on rotated faces, where both the X-only
+  # and Y-only probes penetrate the slab.) A per-axis fallback handles inside
+  # corners where the tangential slide still ends inside a wall.
+  proc hitsAnyWall(p: Vector2): bool =
+    for w in walls:
+      if checkPlayerWallCollision(p, player.radius, w):
+        return true
+    false
+
+  var move = nextPos - player.pos
+  if hitsAnyWall(player.pos + move):
+    # Subtract the component pushing into each contacted wall; iterate a few
+    # times so multi-wall contacts settle.
+    for _ in 0 ..< 3:
+      let target = player.pos + move
+      var n = vec2(0, 0)
+      var hit = false
+      for w in walls:
+        if checkPlayerWallCollision(target, player.radius, w):
+          n = n + wallContactNormal(w, target)
+          hit = true
+      if not hit: break
+      let nl = n.length()
+      if nl < 0.0001'f32: break
+      n = n * (1.0'f32 / nl)
+      let moveInto = move.x * n.x + move.y * n.y
+      if moveInto < 0:
+        move = move - n * moveInto        # project the move onto the wall tangent
+      let velInto = player.vel.x * n.x + player.vel.y * n.y
+      if velInto < 0:
+        player.vel = player.vel - n * velInto
+
+  if not hitsAnyWall(player.pos + move):
+    player.pos = player.pos + move
+  else:
+    # Inside corner: let whichever single axis is free still pass.
+    if not hitsAnyWall(vec2(player.pos.x + move.x, player.pos.y)):
+      player.pos.x = player.pos.x + move.x
+    else:
+      player.vel.x = 0
+    if not hitsAnyWall(vec2(player.pos.x, player.pos.y + move.y)):
+      player.pos.y = player.pos.y + move.y
+    else:
+      player.vel.y = 0
+
+  # Clamp to screen
+  if player.pos.x < player.radius:
+    player.pos.x = player.radius
+    if player.vel.x < 0: player.vel.x = 0
+  if player.pos.x > screenWidth.float32 - player.radius:
+    player.pos.x = screenWidth.float32 - player.radius
+    if player.vel.x > 0: player.vel.x = 0
+  if player.pos.y < player.radius:
+    player.pos.y = player.radius
+    if player.vel.y < 0: player.vel.y = 0
+  if player.pos.y > screenHeight.float32 - player.radius:
+    player.pos.y = screenHeight.float32 - player.radius
+    if player.vel.y > 0: player.vel.y = 0
+
 proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32, walls: seq[Wall]) {.moddable.} =
   # Update powerup timers
   if player.speedBoostTimer > 0:
@@ -308,52 +428,11 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.rotatingOrbs.len > 0 and abs(player.radius - oldRadius) > 0.001'f32:
     redistributeAllOrbs(player)
 
-  # Calculate current speed with boost
-  var currentSpeed = player.speed
-  if player.speedBoostTimer > 0:
-    currentSpeed *= 1.4  # 40% speed boost
-  if player.outOfCombatSpeedBoost:
-    currentSpeed *= 1.25  # Roguelite out-of-combat bonus
-  # Juggernaut plating weighs the player down in proportion to the damage it is
-  # granting. Deliberately applied to the movement speed only, not baseSpeed, so
-  # Momentum's vel/baseSpeed ratio can no longer reach 1.0 while wearing it.
-  currentSpeed *= juggernautSpeedMult(player)
-  # Mod statuses (register.status speed modifiers)
-  if player.modStatuses.len > 0:
-    currentSpeed *= max(0.0'f32, 1.0'f32 + player.statusSpeed)
-
-  # Already clamped to length 1 (input_intent.nim).
-  let moveDir = player.intent.move
-
-  # ---- BASE DASH ----
-  # Fires on a held-direction if there is one, otherwise on the last facing, so
-  # a standing dash still goes somewhere sensible. The direction is locked at
-  # the start of the burst: mid-dash steering would turn it into a speed boost
-  # and lose the committed, readable arc that makes a dash feel like a dash.
-  if player.dashCooldown <= 0 and player.dashTimer <= 0:
-    if consumeEdge(player, ieDash) and not modDash(player):
-      var d = moveDir
-      if d.length() < 0.01'f32:
-        # Standing still: dash along current travel, else straight up.
-        d = if player.vel.length() > 1.0'f32: player.vel.normalize()
-            else: vec2(0, -1)
-      else:
-        d = d.normalize()
-      player.dashDir     = d
-      player.dashTimer   = dashTimeOf(player)
-      player.dashCooldown = dashRechargeOf(player)
-      player.dashReadyFlash = 0  # a dash fired on the same frame it recharged must not keep flashing
-
-  let inertiaScale = playerInertiaSizeScale(player)
-  if player.dashTimer > 0:
-    # During the burst, drive velocity directly. Bypassing the acceleration
-    # curve is the point: the dash must feel instant, and the heavier the
-    # player's build the more it should stand out from their normal handling.
-    player.vel = player.dashDir * (currentSpeed * dashBurstOf(player))
-  else:
-    let targetVel = moveDir * currentSpeed
-    let acceleration = (if moveDir.length() > 0: PlayerAcceleration else: PlayerBraking) / inertiaScale
-    player.vel = approachVelocity(player.vel, targetVel, acceleration, dt)
+  # The dash fires once it is ready and its press is taken (a press made
+  # during the cooldown waits for it).
+  let dashNow = player.dashCooldown <= 0 and player.dashTimer <= 0 and
+                consumeEdge(player, ieDash) and not modDash(player)
+  steerPlayer(player, dt, dashNow)
 
   # Momentum (Legendary) - build a stack every MomentumStackTime seconds spent
   # above the speed threshold; below it, wait out the grace period and then
@@ -380,69 +459,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
           player.momentumStacks = 0
           player.momentumDecayTimer = 0
 
-  # Calculate next position
-  let nextPos = player.pos + player.vel * dt
-
-  # Wall collision with sliding. The move is redirected along the contacted
-  # wall's surface normal so the player glides along faces hit at an angle.
-  # (Per-axis resolution alone freezes on rotated faces, where both the X-only
-  # and Y-only probes penetrate the slab.) A per-axis fallback handles inside
-  # corners where the tangential slide still ends inside a wall.
-  proc hitsAnyWall(p: Vector2): bool =
-    for w in walls:
-      if checkPlayerWallCollision(p, player.radius, w):
-        return true
-    false
-
-  var move = nextPos - player.pos
-  if hitsAnyWall(player.pos + move):
-    # Subtract the component pushing into each contacted wall; iterate a few
-    # times so multi-wall contacts settle.
-    for _ in 0 ..< 3:
-      let target = player.pos + move
-      var n = vec2(0, 0)
-      var hit = false
-      for w in walls:
-        if checkPlayerWallCollision(target, player.radius, w):
-          n = n + wallContactNormal(w, target)
-          hit = true
-      if not hit: break
-      let nl = n.length()
-      if nl < 0.0001'f32: break
-      n = n * (1.0'f32 / nl)
-      let moveInto = move.x * n.x + move.y * n.y
-      if moveInto < 0:
-        move = move - n * moveInto        # project the move onto the wall tangent
-      let velInto = player.vel.x * n.x + player.vel.y * n.y
-      if velInto < 0:
-        player.vel = player.vel - n * velInto
-
-  if not hitsAnyWall(player.pos + move):
-    player.pos = player.pos + move
-  else:
-    # Inside corner: let whichever single axis is free still pass.
-    if not hitsAnyWall(vec2(player.pos.x + move.x, player.pos.y)):
-      player.pos.x = player.pos.x + move.x
-    else:
-      player.vel.x = 0
-    if not hitsAnyWall(vec2(player.pos.x, player.pos.y + move.y)):
-      player.pos.y = player.pos.y + move.y
-    else:
-      player.vel.y = 0
-
-  # Clamp to screen
-  if player.pos.x < player.radius:
-    player.pos.x = player.radius
-    if player.vel.x < 0: player.vel.x = 0
-  if player.pos.x > screenWidth.float32 - player.radius:
-    player.pos.x = screenWidth.float32 - player.radius
-    if player.vel.x > 0: player.vel.x = 0
-  if player.pos.y < player.radius:
-    player.pos.y = player.radius
-    if player.vel.y < 0: player.vel.y = 0
-  if player.pos.y > screenHeight.float32 - player.radius:
-    player.pos.y = screenHeight.float32 - player.radius
-    if player.vel.y > 0: player.vel.y = 0
+  advancePlayer(player, dt, screenWidth, screenHeight, walls)
 
   # Update shield angle for rotating shield power-up
   player.shieldAngle += dt * 1.0  # Reduced from 2.0 to 1.0 (50% slower)
@@ -1040,6 +1057,13 @@ proc drawPlayer*(player: Player) {.moddable.} =
       else:
         discard  # etNone or other unknown types
 
+proc signalDamageEvent(player: Player, ev: DamageEvent) =
+  ## A hit's one-frame signal for drawPlayer / drawGame (dodged, absorbed,
+  ## landed...). Co-op: each machine shows its own copy, so it goes to the
+  ## clients as an effect, never in the snapshots (coop_wire skips it).
+  player.lastDamageEvent = ev
+  recordFx(CoopFx(kind: fxPlayerSignal, a: int32(ord(ev)), b: player.slot))
+
 proc takeDamageRaw(player: Player, damage: float32): bool =
   ## Returns true if player died (HP reached 0 or below), false otherwise.
   ## Also publishes lastDamageAvoided / lastDamageTaken for the frame: exactly one
@@ -1073,7 +1097,7 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   if player.patchBlockCharges > 0:
     player.patchBlockCharges -= 1
     player.lastDamageAvoided = damage
-    player.lastDamageEvent = dePatchBlocked
+    signalDamageEvent(player, dePatchBlocked)
     return false
 
   # Shield boost absorbs the first hits that would actually land
@@ -1087,7 +1111,7 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
   if player.celestialVeilCharges > 0 and hasPowerUp(player, puCelestialVeil):
     player.celestialVeilCharges = player.celestialVeilCharges - 1
     player.lastDamageAvoided = damage
-    player.lastDamageEvent = deCelestialVeil  # Signal "veil blocked"
+    signalDamageEvent(player, deCelestialVeil)  # Signal "veil blocked"
     return false
 
   # Dodge chance power-up
@@ -1100,7 +1124,7 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
       if rand(99) < dodgeChance:
         # Dodged! Visual feedback
         player.lastDamageAvoided = damage
-        player.lastDamageEvent = deDodged
+        signalDamageEvent(player, deDodged)
         return false
 
   # Apply Fortified damage reduction
@@ -1126,7 +1150,7 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
       # Reset regen timer on damage
       player.singularityShieldRegenTimer = 0.0
       # Mark recent damage for UI/feedback
-      player.lastDamageEvent = deDamage
+      signalDamageEvent(player, deDamage)
     if finalDamage <= 0.0:
       return false
 
@@ -1138,7 +1162,7 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     player.hp = 0
   player.lastDamageTaken = hpBefore - player.hp
 
-  player.lastDamageEvent = deDamage
+  signalDamageEvent(player, deDamage)
   # Reset singularity shield regen timer on any player damage
   player.singularityShieldRegenTimer = 0.0
 
@@ -1168,7 +1192,7 @@ proc takeDamageRaw(player: Player, damage: float32): bool =
     player.rollbackArmed = false
     player.hp = max(1.0'f32, player.maxHp * RollbackRestore)
     player.invincibilityTimer = max(player.invincibilityTimer, RollbackInvulnTime)
-    player.lastDamageEvent = deRollback
+    signalDamageEvent(player, deRollback)
     return false
 
   # Mods (playerLethal): a script may keep the player alive; it can set the

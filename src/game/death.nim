@@ -28,6 +28,12 @@ proc getDeathSequenceTimeScale(timer: float32): float32 =
 
   DEATH_FAST_SCALE
 
+proc showInstallCard*(game: Game, powerUp: PowerUp) {.moddable.} =
+  ## Raise the "installed" card over this machine's player.
+  game.recentPowerUp = powerUp
+  game.recentPowerUpMaxTimer = if powerUp.rarity == prLegendary: 5.0'f32 else: 4.0'f32
+  game.recentPowerUpTimer = game.recentPowerUpMaxTimer
+
 proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) {.moddable.} =
   ## Centralized install feedback so every selected power-up feels like an event.
   ## `quiet` skips the per-install card, shake and sound: a survival Data Cache
@@ -82,9 +88,12 @@ proc installPowerUp*(game: var Game, powerUp: PowerUp, quiet: bool = false) {.mo
     game.pendingToasts.add(t(tkNewProcessInstalled) & ": " & powerUpName)
   if quiet:
     return
-  game.recentPowerUp = powerUp
-  game.recentPowerUpMaxTimer = if powerUp.rarity == prLegendary: 5.0'f32 else: 4.0'f32
-  game.recentPowerUpTimer = game.recentPowerUpMaxTimer
+  # The install card: on the installing player's own screen only (co-op: a
+  # client gets its own as an effect, coop_present).
+  recordFx(CoopFx(kind: fxInstallCard, a: int32(ord(powerUp.powerType)), b: int32(powerUp.level),
+                  c: int32(ord(powerUp.rarity)), d: game.player.slot))
+  if ownProfile:
+    showInstallCard(game, powerUp)
   addShake(game.dopamine.screenShake, siPowerUp, accent)
   spawnExplosionPooled(game.particlePool, game.player.pos.x, game.player.pos.y,
                        accent, if powerUp.rarity == prLegendary: 72 else: 46)
@@ -142,8 +151,7 @@ proc drawRecentPowerUpInstall*(game: Game) {.moddable.} =
   let levelText = if powerUp.rarity == prLegendary: "ONE-SHOT MODULE" else: "LEVEL " & $powerUp.level
   drawText(levelText, cardX + 61, cardY + 45, 9, Color(r: 165, g: 190, b: 210, a: clampByte(alpha)))
 
-proc spawnPlayerDeathExplosion(game: Game) =
-  let deathPos = game.player.pos
+proc spawnPlayerDeathBurst(game: Game, deathPos: Vector2) =
   spawnExplosionPooled(game.particlePool, deathPos.x, deathPos.y,
                       Color(r: 255, g: 45, b: 45, a: 255), 95)
   spawnExplosionPooled(game.particlePool, deathPos.x, deathPos.y,
@@ -201,6 +209,12 @@ proc spawnPlayerDeathExplosion(game: Game) =
   spawnShockwavePooled(game.particlePool, deathPos.x, deathPos.y, 190.0)
   playSound(stExplosion, 0.9)
 
+proc spawnPlayerDeathExplosion*(game: Game, deathPos: Vector2) {.moddable.} =
+  ## The burst a player goes out in (also a co-op client's copy of the host's).
+  recordFx(CoopFx(kind: fxPlayerDeath, x: deathPos.x, y: deathPos.y))
+  unrecorded:
+    spawnPlayerDeathBurst(game, deathPos)
+
 proc resolveKillerName(game: Game, cause: DeathCause, source: Enemy,
                        sourceType: EnemyType): tuple[name: string, wasBoss: bool] =
   ## Best-effort human-readable name for whatever killed the player.
@@ -254,7 +268,7 @@ proc coopPlayerDown(game: Game) =
   else:
     p.eliminated = true
   game.runHadDeath = true
-  spawnPlayerDeathExplosion(game)
+  spawnPlayerDeathExplosion(game, game.player.pos)
   addShake(game.dopamine.screenShake, siLarge)
   playSound(stPlayerHit, 0.9, 0.7)
 
@@ -338,7 +352,7 @@ proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
   game.player.vel = vec2(0, 0)
   game.player.timeWarpActive = false
   game.player.timeWarpDuration = 0
-  spawnPlayerDeathExplosion(game)
+  spawnPlayerDeathExplosion(game, game.player.pos)
   addShake(game.dopamine.screenShake, siMassive)
 
 proc updateDeathSequencePlayback*(game: var Game, dt: float32) {.moddable.} =

@@ -4,6 +4,7 @@
 import raylib, math, fx_rand
 import draw_prims
 import particle_types, utils
+import coop/coop_fx
 
 const
   DEFAULT_POOL_SIZE* = 2000
@@ -293,6 +294,7 @@ proc drawParticlePoolLayer*(pool: ParticlePool, layer: ParticleLayer) =
 
 proc spawnExplosionPooled*(pool: ParticlePool, x, y: float32, color: Color, count: int = 20) =
   ## Spawn a richer mixed explosion burst using the pool
+  recordFx(CoopFx(kind: fxExplosion, x: x, y: y, color: color, a: int32(count)))
   let adjustedCount = scaledParticleBurstCount(pool, count)
   for _ in 0..<adjustedCount:
     let angle = rand(1.0) * PI * 2.0
@@ -352,6 +354,7 @@ proc spawnExplosionPooled*(pool: ParticlePool, x, y: float32, color: Color, coun
 
 proc spawnTrailParticlePooled*(pool: ParticlePool, x, y: float32, color: Color, count: int) =
   ## Spawn short-lived trail particles optimized for bullet trails
+  recordFx(CoopFx(kind: fxTrail, x: x, y: y, color: color, a: int32(count)))
   let adjustedCount = scaledParticleBurstCount(pool, count)
   for i in 0..<adjustedCount:
     let angle = rand(1.0) * PI * 2.0
@@ -385,6 +388,7 @@ proc spawnTimedParticlesAroundPooled*(pool: ParticlePool, centerX, centerY: floa
 
 proc spawnShockwavePooled*(pool: ParticlePool, x, y: float32, radius: float32) =
   ## Spawn an outward ring of bright sparks
+  recordFx(CoopFx(kind: fxSparkRing, x: x, y: y, z: radius))
   let particleCount = scaledParticleBurstCount(pool, max(6, (radius * 0.18'f32).int))
   let shockColor = Color(r: 255, g: 220, b: 140, a: 255)
   for i in 0..<particleCount:
@@ -406,6 +410,7 @@ proc spawnShockwavePooled*(pool: ParticlePool, x, y: float32, radius: float32) =
 proc spawnExplosiveRingPooled*(pool: ParticlePool, x, y: float32, radius: float32,
                                ringCount: int, color: Color) =
   ## Spawn concentric rings of particles for explosive bullets
+  recordFx(CoopFx(kind: fxExplosiveRing, x: x, y: y, z: radius, a: int32(ringCount), color: color))
   for ring in 1..ringCount:
     let ringRadius = radius * (ring.float32 / ringCount.float32)
     let particlesInRing = scaledParticleBurstCount(pool, max(4, (ringRadius * 0.16'f32).int))
@@ -429,6 +434,7 @@ proc spawnExplosiveRingPooled*(pool: ParticlePool, x, y: float32, radius: float3
 proc spawnSpiralExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float32,
                                  armCount: int, color: Color) =
   ## Spawn particles in a spiral pattern radiating outward
+  recordFx(CoopFx(kind: fxSpiral, x: x, y: y, z: radius, a: int32(armCount), color: color))
   let particlesPerArm = scaledParticleBurstCount(pool, max(3, (radius * 0.05'f32).int))
 
   for arm in 0..<armCount:
@@ -457,6 +463,7 @@ proc spawnSpiralExplosionPooled*(pool: ParticlePool, x, y: float32, radius: floa
 proc spawnNovaExplosionPooled*(pool: ParticlePool, x, y: float32, radius: float32,
                                primaryColor, secondaryColor: Color) =
   ## Spawn a multi-layered nova explosion with core flash, shell, and shock ring
+  recordFx(CoopFx(kind: fxNova, x: x, y: y, z: radius, color: primaryColor, color2: secondaryColor))
   let coreParticles = scaledParticleBurstCount(pool, 4)
   for _ in 0..<coreParticles:
     let angle = rand(1.0) * PI * 2.0
@@ -519,6 +526,7 @@ proc spawnEnemyDeathBurst*(pool: ParticlePool, x, y: float32,
                            enemyColor: Color, enemyRadius: float32,
                            isBoss: bool = false) =
   ## Rich multi-layer death burst: colored shrapnel + white sparks + shockwave ring.
+  recordFx(CoopFx(kind: fxDeathBurst, x: x, y: y, z: enemyRadius, color: enemyColor, a: int32(ord(isBoss))))
   let baseCount = scaledParticleBurstCount(pool, if isBoss: 20 else: 10)
   let sparkCount = scaledParticleBurstCount(pool, if isBoss: 10 else: 4)
   let ringParticles = scaledParticleBurstCount(pool, if isBoss: 12 else: 6)

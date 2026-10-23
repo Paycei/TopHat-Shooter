@@ -73,6 +73,13 @@ const
     "Game.lightningBolts", "Game.shockwaveRings", "Game.pathShockwaves",
     # A player's input: a client keeps its own (its movement is predicted).
     "Player.intent",
+    # A hit's one-frame signal, consumed by whichever machine draws it: it
+    # travels as an effect (coop_fx), or a host that never draws as a
+    # teammate would keep sending theirs.
+    "Player.lastDamageEvent",
+    # The power-up install card shows over each machine's own player, for its
+    # own installs (an effect too).
+    "Game.recentPowerUp", "Game.recentPowerUpTimer", "Game.recentPowerUpMaxTimer",
   ]
 
 proc coopSkipsField*(owner, name: string): bool {.compileTime.} =

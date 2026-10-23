@@ -68,7 +68,9 @@ type
     particleEffect*: int  # Current particle effect (stored as int)
     desktopBg*: int        # Current desktop background skin (stored as int)
     cubeSkin*: int         # Current cube skin (stored as int)
-    pvpNickname*: string  # Player nickname shown in PvP lobbies
+    pvpNickname*: string  # Player nickname shown in PvP and co-op lobbies
+    coopLastHost*: string # CO-OP.EXE: the address last joined
+    coopPort*: int        # CO-OP.EXE: the port hosted on and joined
     hasSeenIntro*: bool   # True after the lore cinematic has been seen once
     hasSeenEnding*: bool  # True after the endgame cinematic has been seen once
     hasSeenRogueliteEnding*: bool  # True after the roguelite ending cinematic has been seen once
@@ -381,6 +383,8 @@ proc settingsToJson(settings: Settings): JsonNode {.moddable.} =
     "desktopBg": settings.desktopBg,
     "cubeSkin": settings.cubeSkin,
     "pvpNickname": settings.pvpNickname,
+    "coopLastHost": settings.coopLastHost,
+    "coopPort": settings.coopPort,
     "hasSeenIntro": settings.hasSeenIntro,
     "hasSeenEnding": settings.hasSeenEnding,
     "hasSeenRogueliteEnding": settings.hasSeenRogueliteEnding,
@@ -545,6 +549,11 @@ proc jsonToSettings(jsonNode: JsonNode, settings: Settings) {.moddable.} =
 
   if jsonNode.hasKey("cubeSkin"):
     settings.cubeSkin = jsonNode["cubeSkin"].getInt()
+
+  if jsonNode.hasKey("coopLastHost"):
+    settings.coopLastHost = jsonNode["coopLastHost"].getStr()
+  if jsonNode.hasKey("coopPort"):
+    settings.coopPort = jsonNode["coopPort"].getInt()
 
   if jsonNode.hasKey("pvpNickname"):
     settings.pvpNickname = jsonNode["pvpNickname"].getStr()

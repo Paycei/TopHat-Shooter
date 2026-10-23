@@ -2,6 +2,7 @@ import raylib, math
 import ../modding/mod_patch_core
 import types, bullet, particle_skins, particle_types, powerup, patches, sound, run_statistics, fx, game/combat, game/bullets
 import modding/mod_hooks
+import coop/coop_fx
 
 proc rotateVec(v: Vector2, angle: float32): Vector2 =
   vec2(v.x * cos(angle) - v.y * sin(angle), v.x * sin(angle) + v.y * cos(angle))
@@ -110,6 +111,8 @@ proc fireLightspeedTracer(game: Game, origin, dir: Vector2, stats: combat.Combat
                isCritical = wasCrit, damageType = dtDefault)
 
   # Instant beam visual from the muzzle to the struck enemy.
+  recordFx(CoopFx(kind: fxLightning, x: origin.x, y: origin.y, z: bestEnemy.pos.x,
+                  w: bestEnemy.pos.y, color: DEFAULT_BOLT_COLOR))
   spawnLightningBoltInto(game.lightningBolts, origin, bestEnemy.pos)
 
 proc shootBullet*(game: Game, direction: Vector2) {.moddable.} =

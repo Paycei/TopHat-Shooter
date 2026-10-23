@@ -437,6 +437,10 @@ proc executeCommand(help: HelpWindow, cmd: string) {.moddable.} =
       help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconMods), Color(r: 120, g: 220, b: 160, a: 255))
       help.pendingIconExecution = 14  # diMods = 14
 
+    of "coop", "co-op", "co-op.exe", "coop.exe", "multiplayer", "together":
+      help.addOutput(iconStatusText(tkHelpOpeningIcon, tkDesktopIconCoop), Color(r: 120, g: 235, b: 120, a: 255))
+      help.pendingIconExecution = 17  # diCoop = 17
+
     of "sandbox", "sandbox.exe":
       help.addOutput(iconStatusText(tkHelpLaunchingIcon, tkDesktopIconSandbox), Color(r: 255, g: 165, b: 0, a: 255))
       help.pendingIconExecution = 7  # diSandbox = 7

@@ -52,8 +52,11 @@ type
   SnapExtras* = object
     ## The per-client part of a snapshot.
     actionAck*: int32                 ## the newest of this client's actions the host applied
+    intentAck*: int32                 ## the newest of its input packets the host took
     profileFirst*: int32              ## the seq of profileEvents[0]
     profileEvents*: seq[ProfileEvent] ## its profile progress not confirmed yet
+    fx*: seq[CoopFx]                  ## the effects since the last snapshot, and
+                                      ## the last snapshot's again (coop_fx)
 
   FrameRing* = object
     frames: array[SnapBaseRing, WireFrame]

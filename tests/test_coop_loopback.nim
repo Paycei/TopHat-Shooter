@@ -14,7 +14,10 @@ import ../src/[game, types, settings, run_statistics, input_intent, player, coin
 import ../src/game/abilities
 import ../src/modding/mod_hooks
 import ../src/network/network_types
-import ../src/coop/[coop_context, coop_bot, coop_codec, coop_session]
+import ../src/coop/[coop_context, coop_bot, coop_codec, coop_session, coop_present, coop_smooth]
+import std/[math, tables, strutils]
+import raylib
+import ../src/vec
 from ../src/fx_rand import seedFxRand
 
 let sandboxDir = getTempDir() / ("tophat_loopback_" & $getCurrentProcessId())
@@ -187,10 +190,24 @@ var modalOpenedAt = -1
 var modalSlowest = 0
 var modalsDone = 0
 var profileSent = 0
+var fxKinds: set[CoopFxKind]
+var fxShown = 0
+var fxLastId = 0'u32
+var fxInOrder = true
+var mirrorNumbers, mirrorParticles = 0
 for f in 0 ..< 3600:
   on(clientSide):
     clientFrame(mirror, f)
     pollCoopSession(cs, mirror, Dt)
+    # The host's effects: each once, in order, then shown on the mirror.
+    for ev in coopFxInbox:
+      if ev.id <= fxLastId: fxInOrder = false
+      fxLastId = ev.id
+      fxKinds.incl ev.kind
+      inc fxShown
+    replayCoopFx(mirror)
+    mirrorNumbers = max(mirrorNumbers, mirror.damageNumbers.len)
+    mirrorParticles = max(mirrorParticles, mirror.particlePool.activeCount)
   on(hostSide):
     pollCoopSession(hs, host, Dt)
     let before = if host.coop.isNil: cmkNone else: host.coop.modal
@@ -214,6 +231,12 @@ check(p1Moved, "the client's input moves its player on the host")
 check(host.players[1].kills > 0, "the client's player scores kills on the host")
 check(modalsDone > 0, "team modals open and close")
 check(modalSlowest < 10 * 60, "every team modal closed on both players' choices, not the timeout")
+echo "effects shown on the client: ", fxShown, " ", fxKinds
+check(fxShown > 0 and fxInOrder, "the host's effects reach the client, each once and in order")
+check(fxSound in fxKinds and fxDamage in fxKinds and fxExplosion in fxKinds,
+      "sounds, damage numbers and bursts among them")
+check(mirrorNumbers > 0 and mirrorParticles > 0,
+      "the client shows them: damage numbers and particles of its own")
 
 # Quiet: the mirror catches up and holds exactly the host's run.
 for _ in 0 ..< 30: pump(host, mirror, wait = true)
@@ -263,6 +286,48 @@ on(hostSide):
 check(pumpUntil(host, mirror, proc (): bool = cs.startRequested), "the second run starts")
 on(clientSide): mirror = buildMirror(cs)
 check(pumpUntil(host, mirror, proc (): bool = cs.lastApplied > 0), "and is mirrored")
+
+# Played as main.nim plays a client: its own player predicted, the rest
+# carried on between snapshots. What it shows should stay close to the host's
+# run, and its player should answer its input on the frame it is given.
+on(clientSide): resetCoopSmoothing()
+var localErr, localErrMax, enemyErr = 0.0
+var localSamples, enemySamples, stuckFrames, movingFrames = 0
+for f in 0 ..< 900:
+  on(clientSide):
+    pollCoopSession(cs, mirror, Dt)
+    clientFrame(mirror, f)
+    let me = mirror.players[localSlot]
+    let before = me.pos
+    predictLocal(mirror, Dt, cs.nextIntentSeq)
+    smoothFrame(mirror, Dt, cs.snapshotAge)
+    if mirror.state == gsPlaying and length(me.intent.move) > 0.5 and length(me.vel) > 50:
+      inc movingFrames
+      if before == me.pos: inc stuckFrames
+  on(hostSide):
+    pollCoopSession(hs, host, Dt)
+    hostFrame(host, f)
+  if f >= 60 and host.state == gsPlaying and mirror.state == gsPlaying:
+    let d = length(mirror.players[1].pos - host.players[1].pos)
+    localErr += d
+    localErrMax = max(localErrMax, d)
+    inc localSamples
+    var hostById = initTable[int, Vector2]()
+    for e in host.enemies: hostById[e.id] = e.pos
+    for e in mirror.enemies:
+      if e.id in hostById:
+        enemyErr += length(e.pos - hostById[e.id])
+        inc enemySamples
+  if host.state in {gsGameOver, gsVictory}: break
+let avgLocal = localErr / max(1, localSamples).float
+let avgEnemy = enemyErr / max(1, enemySamples).float
+echo "prediction: own player off the host by ", formatFloat(avgLocal, ffDecimal, 1),
+     " px on average (", formatFloat(localErrMax, ffDecimal, 1), " at most); enemies ",
+     formatFloat(avgEnemy, ffDecimal, 1), " px; stuck ", stuckFrames, "/", movingFrames
+check(localSamples > 300, "the predicted run was measured")
+check(avgLocal < 12.0 and localErrMax < 120.0, "the client's own player stays with the host's")
+check(movingFrames > 100 and stuckFrames == 0, "and moves on the frame its input is given")
+check(enemySamples > 0 and avgEnemy < 20.0, "the enemies it draws stay with the host's")
 on(clientSide):
   cs.closeCoop()
   clientSide.session = nil
