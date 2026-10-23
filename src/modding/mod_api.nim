@@ -166,12 +166,15 @@ proc bulletDataId(vm: VM, b: Bullet): int =
 # ----------------------------------------------------------- classes ----
 const
   GameReadOnly = ["mode", "modMode", "modded", "cheatsUsed", "modFingerprint", "modRunData",
+                  "players", "coop",
                   "screenWidth", "screenHeight"]
     ## Mods are trusted; these stay read-only because something keys on them:
     ## mode / modMode name the run's save slots, modded / cheatsUsed /
     ## modFingerprint are the reward rule (a run with mods is cheated unless
     ## every mod opts out), modRunData is rebuilt from run.data on save, and
-    ## the screen size is recomputed every frame. game.state is writable: the
+    ## the screen size is recomputed every frame, players and coop are a co-op
+    ## run's seats (game.players is a list of player objects to read and
+    ## change, not to add to). game.state is writable: the
     ## change happens at the next safe point.
   PvPPlayerExtras* = ["index", "name", "deaths", "streak", "connected", "alive", "isLocal"]
     ## What a PvP player shows besides its fields (mod_pvp's pvpPlayerField)
@@ -208,6 +211,11 @@ proc makeClasses() =
     if g.isNil: vm.runtimeError("no run in progress ('game' only exists while a run is played)")
     let name = keyName(key)
     if name == "player": return wrapPlayer(g.player)
+    if name == "players":
+      # A fresh list of the run's players: read and change them, never add one.
+      let t = newScriptTable(g.players.len)
+      for p in g.players: t.add(wrapPlayer(p))
+      return vtable(t)
     var found = false
     result = deepGet(g, name, "game", found)
     if not found: vm.runtimeError("game has no field '" & name & "'")

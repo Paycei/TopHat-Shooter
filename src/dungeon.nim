@@ -22,9 +22,9 @@
 import raylib, random, math, tables, strutils
 import modding/mod_patch_core
 import draw_prims
-import gamepad_input, particle_types, types, roguelite, powerup, powerup_data, patches, player,
-       particle_pool, sound, localization, boss_definitions, settings, coin, xp_orb, utils, run_statistics,
-       game/combat, ui/icon_drawing, ui/ui_helpers
+import particle_types, types, roguelite, powerup, powerup_data, patches, player,
+       particle_pool, sound, localization, boss_definitions, coin, xp_orb, utils, run_statistics,
+       game/combat, ui/icon_drawing, ui/ui_helpers, input_intent
 import modding/[mod_hooks, mod_registry], enemy_config
 
 # ---------------------------------------------------------------------------
@@ -1393,10 +1393,6 @@ proc claimDungeonPickup(game: Game, index: int): DungeonFrame {.moddable.} =
 # ---------------------------------------------------------------------------
 # Per-frame update: transitions, pulses, pickups, doors
 
-proc interactPressed(): bool =
-  isKeyPressed(globalSettings.keybinds[kaPlaceWall]) or isKeyPressed(Enter) or
-    isGamepadBindPressed(globalSettings.gamepadBinds, kaPlaceWall)
-
 proc updateDungeon*(game: Game, dt: float32): DungeonFrame {.moddable.} =
   ## One frame of sector logic. `pauseSim` means gameplay should skip the rest
   ## of this frame (a room transition is running, or a modal just opened).
@@ -1473,7 +1469,7 @@ proc updateDungeon*(game: Game, dt: float32): DungeonFrame {.moddable.} =
   focusedPickup = nearest
   if nearest >= 0:
     game.dungeonInteractFocus = true
-    if canClaim and interactPressed():
+    if canClaim and consumeEdge(game.player, ieInteract):
       game.interactKeyLatch = true
       let r = claimDungeonPickup(game, nearest)
       result.install = r.install

@@ -1,7 +1,7 @@
 ## Particle Effects System for Player Shooting
 ## Defines customizable particle effects that appear when the player shoots
 
-import raylib, math, random
+import raylib, math, fx_rand
 import particle_pool, particle_types, localization
 
 type

@@ -1,4 +1,4 @@
-import raylib, math, random
+import raylib, math, fx_rand
 import modding/mod_patch_core
 import particle_types, types
 

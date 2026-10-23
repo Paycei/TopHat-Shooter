@@ -340,6 +340,8 @@ proc newGame*(screenWidth, screenHeight: int32, playerSkin: int = 0, bulletSkin:
   )
 
   initEnhancedDopamine(result.dopamine)
+  # The run's only player until co-op seats more (coop/coop_context.nim).
+  result.players = @[result.player]
 
   # Apply gamemode-specific starting values
   result.player.coins = modeDef.playerStartCoins
@@ -395,6 +397,28 @@ proc setGameMode*(game: Game, mode: GameMode) {.moddable.} =
     game.waveInProgress = false
     game.waveEnemiesRemaining = 0
     game.wavesUntilBoss = BossWaveInterval - 1
+
+proc addCoopPlayer*(game: Game, nickname: string, skin = 0, bulletSkin = 0, shape = 0,
+                    particleSkin = 0, bulletShape = 0): Player {.moddable.} =
+  ## Seat one more player in this run (co-op), in the next slot, on the mode's
+  ## starting terms (setGameMode's per-player part). Called after the mode is
+  ## set up; slot 0 is always the run's own player.
+  let slot = game.players.len
+  let spread = (slot.float32 - (MaxCoopPlayers - 1).float32 * 0.5'f32) * 56.0'f32
+  result = newPlayer(game.screenWidth.float32 / 2 + spread, game.screenHeight.float32 / 2)
+  result.slot = int32(slot)
+  result.skinType = skin
+  result.bulletSkinType = bulletSkin
+  result.shapeType = shape
+  result.particleSkinType = particleSkin
+  result.bulletShapeType = bulletShape
+  result.coins = getGameModeDefinition(game.mode).playerStartCoins
+  if isTimeSurvivalMode(game.mode):
+    result.xpToNextLevel = xpRequiredForLevel(result.rogueliteLevel, game.mode)
+  game.players.add result
+  if game.coop.isNil:
+    game.coop = CoopState()
+  game.coop.nicknames[slot] = nickname
 
 # Waves
 proc startWave*(game: Game) {.moddable.} =
@@ -2304,21 +2328,21 @@ proc updatePulseArmor(game: var Game) =
 
 proc updatePlayerFiring(game: var Game, dt: float32) =
   # Check shooting
-  let pointerPos = getWorldMousePosition()
-  var mousePos = vec2(pointerPos.x, pointerPos.y)
-  if isGamepadActive():
+  let intent = game.player.intent
+  var mousePos = intent.aim
+  if intent.aimByDir:
     # Twin-stick aim: the right stick gives a direction, not a position, so
     # project an aim point at a fixed radius from the player. With aim assist
     # on, snap onto the best enemy within a narrow cone of that direction
     # (angular offset scored with a small distance tiebreak) so the crosshair
     # visibly locks on.
-    let dir = aimDir()
+    let dir = intent.aimDir
     const AimPointRadius = 240.0'f32
     const AssistMaxRange = 600.0'f32
     const AssistConeHalfAngle = PI.float32 / 10.0'f32  # 18 degrees
     mousePos = vec2(game.player.pos.x + dir.x * AimPointRadius,
                            game.player.pos.y + dir.y * AimPointRadius)
-    if globalSettings.aimAssistEnabled:
+    if intent.aimAssist:
       var bestScore = float32.high
       for enemy in game.enemies:
         let toEnemy = vec2(enemy.pos.x - game.player.pos.x,
@@ -2352,10 +2376,7 @@ proc updatePlayerFiring(game: var Game, dt: float32) =
       game.player.doubleShotDelay = 0  # Reset to 0
 
   let isFiring = not modUiHoldsInput() and   # a mod screen has the pointer
-                 ((isMouseButtonDown(Left) and not game.wallPlacementMode) or
-                  isKeyDown(globalSettings.keybinds[kaShoot]) or
-                  (not game.wallPlacementMode and
-                   gamepadFireDown(globalSettings.gamepadBinds)))
+                 ((intent.fireHeld and not game.player.placingWall) or intent.fireKey)
 
   # Rapid Fire (Legendary) spin-up: holding fire ramps the meter to full in ~1.5s;
   # releasing decays it in ~0.8s. calculateCombatStats reads it for the bonus rate.
@@ -6011,11 +6032,11 @@ proc drawLegacyHud(game: Game, hudLayout: HudLayout, hudScale: float32, vw, vh: 
 
   # Instructions only for non-legendary keys, hidden when the shop overlay is active
   if game.state != gsShop:
-    let instrText = if game.wallPlacementMode and game.player.walls > 0:
+    let instrText = if game.player.placingWall and game.player.walls > 0:
       t(tkGameWallPlace) & "  (" & $game.player.walls & " " & t(tkGameWallPlaceRemaining) & ")"
     else:
       t(tkGameInstructionsWall)
-    let instrColor = if game.wallPlacementMode and game.player.walls > 0:
+    let instrColor = if game.player.placingWall and game.player.walls > 0:
       Color(r: 180, g: 230, b: 180, a: 255)
     else:
       LightGray
@@ -6029,7 +6050,7 @@ proc drawLegacyHud(game: Game, hudLayout: HudLayout, hudScale: float32, vw, vh: 
       let cardH: int32 = 8 + iLines.len.int32 * lineH
       let cardX: int32 = 4
       let cardY: int32 = vh - 6 - cardH
-      let accent = if game.wallPlacementMode and game.player.walls > 0:
+      let accent = if game.player.placingWall and game.player.walls > 0:
         Color(r: 120, g: 220, b: 140, a: 200)
       else:
         Color(r: 0, g: 220, b: 255, a: 200)
@@ -6043,7 +6064,7 @@ proc drawLegacyHud(game: Game, hudLayout: HudLayout, hudScale: float32, vw, vh: 
         drawText(ln, cardX + 8, iy, 14, instrColor)
         iy += lineH
     else:
-      if game.wallPlacementMode and game.player.walls > 0:
+      if game.player.placingWall and game.player.walls > 0:
         let hintW = measureText(instrText, 16)
         drawText(instrText, vw div 2 - hintW div 2, vh - 25, 16, instrColor)
       else:
@@ -6796,7 +6817,7 @@ proc drawGame*(game: Game) {.moddable.} =
           break
 
   # Wall-placement range ring + ghost preview (world-anchored at the cursor).
-  if game.state != gsShop and game.wallPlacementMode and game.player.walls > 0:
+  if game.state != gsShop and game.player.placingWall and game.player.walls > 0:
     const WallPlaceRange = 250.0'f32
     let mousePos = getWorldMousePosition()
     let cursorPos = vec2(mousePos.x, mousePos.y)

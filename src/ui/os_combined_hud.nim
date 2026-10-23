@@ -764,7 +764,7 @@ proc drawControlsDockCard*(game: Game, x, bottom: int32): int32 {.moddable.} =
   ## card's top y.
   let cx = x + DockPad
   let cw = DockContentW
-  if game.wallPlacementMode and game.player.walls > 0:
+  if game.player.placingWall and game.player.walls > 0:
     let lines = wrapTextLines(wallPlacementText(game), cw, 10)
     let h = 8 + lines.len.int32 * 13 + 4
     let y = bottom - h
@@ -805,7 +805,7 @@ proc drawControlsDockCard*(game: Game, x, bottom: int32): int32 {.moddable.} =
 proc drawControlsStrip*(game: Game, centerX, y: int32) {.moddable.} =
   ## Classic layout: the same live key hints as the dock card, as one row
   ## centred on `centerX`, or the wall-placement prompt while placing.
-  if game.wallPlacementMode and game.player.walls > 0:
+  if game.player.placingWall and game.player.walls > 0:
     let text = wallPlacementText(game)
     let w = measureText(text, 20)
     drawOverlayText(text, centerX - w div 2, y - 3, 20, Color(r: 180, g: 235, b: 185, a: 255))

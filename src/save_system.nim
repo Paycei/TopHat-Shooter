@@ -898,7 +898,7 @@ proc comparisonStatsToJson(stats: ComparisonStats): JsonNode =
   }
 
 # Convert RunStatistics to JSON
-proc runStatisticsToJson(runStats: RunStatistics): JsonNode {.moddable.} =
+proc runStatisticsToJson*(runStats: RunStatistics): JsonNode {.moddable.} =
   if runStats.isNil:
     return newJNull()
 
@@ -1205,7 +1205,7 @@ proc jsonToComparisonStats(j: JsonNode): ComparisonStats =
   result.cautionRating = j["cautionRating"].getFloat()
 
 # Convert JSON to RunStatistics
-proc jsonToRunStatistics(j: JsonNode): RunStatistics =
+proc jsonToRunStatistics*(j: JsonNode): RunStatistics =
   needObject(j)
   result = RunStatistics(
     gameMode: parseGameMode(j["gameMode"].getStr()),

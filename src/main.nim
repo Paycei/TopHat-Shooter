@@ -1,8 +1,9 @@
 import raylib, rlgl, random, math, strutils, os, std/deques
 import draw_prims, post_fx
-import particle_types, game/combat, game/death, game/bullets, d_systems, types, settings, effects, game, player, wall, coin, bullet_skins, bullet_shapes, shapes, particle_pool, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay
+import particle_types, game/death, types, settings, game, player, coin, bullet_skins, bullet_shapes, shapes, particle_skins, powerup, sound, cheat, statistics, run_statistics, save_system, run_save, suspend, sandbox, skins, desktop_bg_skins, cube_skins, boss_definitions, localization, gamemode_definitions, render_context, roguelite, dungeon, advancement, pvp_game, discord_helpers, discord_presence, network/network, game3d/game_3d, ui/os_shop, ui/os_powerup_installer, ui/os_splash, ui/os_desktop, ui/os_window, ui/os_task_manager, ui/os_system_screens, ui/os_roguelite, ui/stats_window, ui/lore_cinematic, ui/endgame_cinematic, ui/roguelite_end_cinematic, ui/survival_end_cinematic, ui/language_select, ui/profile_select, ui/pvp_window, ui/sandbox_window, ui/loading_screen, ui/window_manager, ui/cutscene, ui/mode_intros, ui/ui_helpers, tutorial, ui/tutorial_overlay, input_intent, game/abilities
 import modding/[mod_state, mod_hooks, mod_loader, mod_assets, mod_media, mod_api, mod_registry, mod_deep, mod_market], ui/mods_window
 import ui/ui_theme, ui/text_field
+import coop/[coop_context, coop_bot]
 import modding/mod_mixin_game   # last: binds every {.moddable.} proc imported above
 import modding/[mod_engine_game, mod_engine_ui]   # engine.call for the rest of the game's procs
 when defined(debug):
@@ -254,6 +255,10 @@ var globalDiscordClient: DiscordClient = nil
 
 # Global window manager
 var globalWindowManager: WindowManager = nil
+
+# Debug builds: `--coop-bot` seats a bot teammate (coop/coop_bot.nim) in wave,
+# survival and sandbox runs, to play the multi-player simulation on one machine.
+let coopBotEnabled = defined(debug) and "--coop-bot" in commandLineParams()
 
 proc desktopUIScale(): float32 =
   ## Interface scale for the desktop chrome (wallpaper, icons, taskbar). That
@@ -1948,6 +1953,15 @@ proc main() =
           pendingModMode = -1
         else: discard
         pendingGameMode = -1  # Reset pending mode
+        # Debug: a bot teammate to play the multi-player simulation (--coop-bot).
+        coopRole = crNone
+        localSlot = 0
+        if coopBotEnabled and currentGame.players.len == 1 and
+           currentGame.mode in {gmWaveBased, gmTimeSurvival, gmSandbox} and
+           currentGame.state in {gsPlaying, gsCountdown}:
+          coopRole = crHost
+          discard addCoopPlayer(currentGame, "BOT", settings.playerSkin, settings.bulletSkin,
+                                settings.playerShape, settings.particleEffect, settings.bulletShape)
         pendingResume = false
 
       # Handle window clicks and check if desktop is blocked. Each window is
@@ -2601,6 +2615,11 @@ proc main() =
       endGameDrawing()
 
     of gsPlaying:
+      # This frame's input, read once: the simulation reads only the intent.
+      captureLocalIntent(currentGame.playerOfSlot(localSlot))
+      if coopBotEnabled:
+        for p in currentGame.players:
+          if not p.isLocalPlayer: botIntent(currentGame, p, currentGame.frameCount)
       # Dynamic music based on game state
       playMusic(runMusic(currentGame), runMusicTier(currentGame))
 
@@ -2653,374 +2672,18 @@ proc main() =
       if not cheatMenu.active and not globalConfirmActive and not survivalRevealOpen:
         # Shop removed from gameplay - only accessible during power-up selection
 
-        # Wall placement mode: hold E to preview range, release E to place.
-        const WALL_PLACEMENT_RANGE_SP = 250.0
-        let wallKey = globalSettings.keybinds[kaPlaceWall]
-        let wallBindHeld = isKeyDown(wallKey) or
-                           isGamepadBindDown(globalSettings.gamepadBinds, kaPlaceWall)
-        # Roguelite: the wall key is also the pedestal/stall key. While one is in
-        # range, or after a press was spent on one (until that key is let go), it
-        # is not a wall key -- placement fires on RELEASE, so without this every
-        # purchase would also drop a wall at the cursor.
-        let interactOwnsKey = currentGame.mode == gmRoguelite and
-          (currentGame.dungeonInteractFocus or currentGame.interactKeyLatch)
-        let eHeld = wallBindHeld and currentGame.player.walls > 0 and not interactOwnsKey
-        currentGame.wallPlacementMode = eHeld
+        # Wall placement mode: hold the wall key to preview, release it to place.
+        for p in currentGame.livingPlayers:
+          withPlayer(currentGame, p):
+            updateWallPlacement(currentGame)
 
-        # Release wall key places the wall at the current cursor position
-        if (isKeyReleased(wallKey) or
-            isGamepadBindReleased(globalSettings.gamepadBinds, kaPlaceWall)) and
-           currentGame.player.walls > 0 and not interactOwnsKey:
-          # WORLD coords: the wall lives in the 1024-wide world, which is
-          # centered inside the wider virtual screen in widescreen mode. Using
-          # the virtual pointer here would skew placement by the gutter width
-          # and disagree with the ghost preview in drawGame (also world coords).
-          let mousePos = getWorldMousePosition()
-          let wallPos = vec2(mousePos.x, mousePos.y)
-          let inRange = distance(wallPos, currentGame.player.pos) <= WALL_PLACEMENT_RANGE_SP
-          if inRange and isValidWallPlacement(wallPos, currentGame.player.pos, currentGame.walls,
-                                              currentGame.enemies, 25,
-                                              currentGame.screenWidth, currentGame.screenHeight) and
-             not modPlaceWall(currentGame, wallPos.x, wallPos.y):
-            currentGame.walls.add(newWall(mousePos.x, mousePos.y, currentGame.player))
-            currentGame.player.walls -= 1
-            spawnExplosionPooled(currentGame.particlePool, mousePos.x, mousePos.y, Brown, 15)
-            trackWallPlacement(currentGame, wallPos)
-        # The spent [E] press stops owning the key once it is let go (cleared
-        # after the release check above, so that release never places).
-        if currentGame.interactKeyLatch and not wallBindHeld:
-          currentGame.interactKeyLatch = false
-
-      # Activate ALL legendary power-ups with the legendary key (simultaneous activation).
-      # Not while the cheat menu is open: it pauses the game, and abilities fired
-      # then dealt their damage and teleports into a frozen world.
-      if (isKeyPressed(globalSettings.keybinds[kaLegendary]) or isGamepadBindPressed(globalSettings.gamepadBinds, kaLegendary)) and
-         not globalConfirmActive and not cheatMenu.active and not survivalRevealOpen and
-         not modAbility(currentGame):
-        var anyActivated = false
-
-        # Time Warp - slow down time
-        if hasPowerUp(currentGame.player, puTimeWarp) and currentGame.player.timeWarpCooldown <= 0:
-          # Check if uses available for this wave
-          if currentGame.player.timeWarpUsesThisWave < currentGame.player.timeWarpMaxUsesPerWave:
-            let duration = 3.5
-            let cooldown = 10.0  # 10 second cooldown between uses
-
-            currentGame.player.timeWarpActive = true
-            currentGame.player.timeWarpDuration = duration
-            currentGame.player.timeWarpCooldown = cooldown
-            currentGame.player.timeWarpUsesThisWave += 1  # Increment uses
-            trackTimeWarp(currentGame, duration)
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
-                          Color(r: 138, g: 43, b: 226, a: 255), 30)
-            anyActivated = true
-
-        # Phase Shift - teleport dash (SINGLE LEVEL - scales with speed)
-        if hasPowerUp(currentGame.player, puPhaseShift) and currentGame.player.phaseShiftCooldown <= 0:
-          # Distance scales with player movement speed (base 140, scales up with speed)
-          let baseDistance = 140.0
-          let speedRatio = currentGame.player.speed / currentGame.player.baseSpeed
-          let dashDistance = baseDistance * speedRatio
-
-          let cooldown = 5.0  # 5 second cooldown
-          let invulnDuration = 0.5  # 0.5 second invulnerability after dash
-
-          # Calculate dash direction - PRIORITIZE movement keys
-          var dashDir = vec2(0, 0)
-          let kb = globalSettings.keybinds
-          if isKeyDown(kb[kaMoveUp]): dashDir.y -= 1
-          if isKeyDown(kb[kaMoveDown]): dashDir.y += 1
-          if isKeyDown(kb[kaMoveLeft]): dashDir.x -= 1
-          if isKeyDown(kb[kaMoveRight]): dashDir.x += 1
-
-          # Always activate cooldown and invulnerability
-          currentGame.player.phaseShiftCooldown = cooldown
-          currentGame.player.phaseShiftInvulnTimer = invulnDuration
-
-          if dashDir.length() > 0:
-            # Dash in movement direction
-            dashDir = dashDir.normalize()
-            let shiftStart = currentGame.player.pos
-            currentGame.player.lastPhaseShiftPos = shiftStart
-
-            # Land on the farthest point along the dash (in tenths) that is in
-            # bounds and clear of every wall. Teleporting blindly could drop the
-            # player inside a dungeon obstacle, where movement can never leave it.
-            var landing = shiftStart
-            for step in countdown(10, 1):
-              let reach = dashDistance.float32 * step.float32 / 10.0'f32
-              let candidate = vec2(
-                clamp(shiftStart.x + dashDir.x * reach, currentGame.player.radius,
-                      currentGame.screenWidth.float32 - currentGame.player.radius),
-                clamp(shiftStart.y + dashDir.y * reach, currentGame.player.radius,
-                      currentGame.screenHeight.float32 - currentGame.player.radius))
-              var blocked = false
-              for w in currentGame.walls:
-                if checkPlayerWallCollision(candidate, currentGame.player.radius, w):
-                  blocked = true
-                  break
-              if not blocked:
-                landing = candidate
-                break
-            currentGame.player.pos = landing
-
-            # Record actual distance traveled (post-clamp) for stats
-            let actualDashDist = distance(currentGame.player.lastPhaseShiftPos, currentGame.player.pos)
-            trackPhaseShift(currentGame, actualDashDist)
-
-            # Visual effects at start and end position
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.lastPhaseShiftPos.x,
-                          currentGame.player.lastPhaseShiftPos.y, SkyBlue, 25)
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x,
-                          currentGame.player.pos.y, SkyBlue, 25)
-          else:
-            # Dash in place - just visual effect (zero distance, still counts as a use)
-            trackPhaseShift(currentGame, 0.0)
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x,
-                          currentGame.player.pos.y, SkyBlue, 30)
-
-          anyActivated = true
-
-        # Parry - active defense ability (SINGLE LEVEL - invincible + bounce bullets)
-        if hasPowerUp(currentGame.player, puParry) and currentGame.player.parryCooldown <= 0:
-          let duration = 0.5  # 0.5 second parry window
-          let cooldown = 5.0  # 5 second cooldown
-
-          currentGame.player.parryActive = true
-          currentGame.player.parryDuration = duration
-          currentGame.player.parryCooldown = cooldown
-
-          spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x, currentGame.player.pos.y,
-                        Color(r: 255, g: 255, b: 255, a: 255), 35)
-          anyActivated = true
-
-        # Blood Pact - sacrifice 25% current HP to unleash an amplified blood
-        # nova. Every enemy is hit for a big share of its OWN max HP (so it stays
-        # devastating at any wave) plus bonus damage from the blood spent. The
-        # damage is NO LONGER split across targets. Bosses resist the nova and
-        # are spared while invulnerable during a phase-change transition.
-        if hasPowerUp(currentGame.player, puBloodPact) and currentGame.player.bloodPactCooldown <= 0:
-          if currentGame.player.hp > 1.0 and currentGame.enemies.len > 0:
-            const
-              BLOOD_PACT_ENEMY_FRAC = 0.20'f32   # share of a normal enemy's CURRENT HP per cast
-              BLOOD_PACT_BOSS_FRAC  = 0.03'f32   # bosses only take a small share
-              BLOOD_PACT_BONUS_MULT = 1.0'f32    # bonus damage per point of HP sacrificed
-            const
-              BloodBright = Color(r: 235, g: 40, b: 40, a: 255)
-              BloodDeep   = Color(r: 130, g: 0, b: 25, a: 255)
-              BloodPactMaxTethers = 12  # a packed wave would otherwise be a red mesh
-            let sacrifice = currentGame.player.hp * 0.25
-            currentGame.player.hp = max(0.1, currentGame.player.hp - sacrifice)
-            let bonus = sacrifice * BLOOD_PACT_BONUS_MULT
-
-            var tethersDrawn = 0
-            for enemy in currentGame.enemies:
-              if enemy.isBoss and enemy.invulnerabilityTimer > 0:
-                continue  # respect phase-transition invulnerability
-              if shieldBlocksHit(currentGame, enemy, currentGame.player.pos):
-                continue  # a Port Guard facing the caster takes it on the shield
-              let intended = if enemy.isBoss: enemy.maxHp * BLOOD_PACT_BOSS_FRAC + bonus * 0.4
-                             else: enemy.hp * BLOOD_PACT_ENEMY_FRAC + bonus
-              # Bosses resist it like every other non-bullet damage path: phase
-              # defense, the weak-point multiplier and the adds/shield gate.
-              let dealt = applyEnemyHpDamage(enemy, intended * bossPassiveDamageTaken(enemy))
-              trackPowerUpDamage(currentGame, puBloodPact, dealt)
-              if dealt > 0:
-                showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
-
-              # The pact reaches every enemy at once, so the hit has to be shown
-              # ON each enemy - a burst at the player alone reads as "nothing
-              # happened" when the victims are across the arena.
-              spawnExplosionPooled(currentGame.particlePool, enemy.pos.x, enemy.pos.y,
-                                   BloodBright, if enemy.isBoss: 26 else: 14)
-              if tethersDrawn < BloodPactMaxTethers:
-                spawnLightningBolt(currentGame, currentGame.player.pos, enemy.pos, BloodBright)
-                inc tethersDrawn
-
-            currentGame.player.bloodPactCooldown = 3.0
-            # Self-inflicted detonation at the caster: a deep core plus two rings
-            # so the sacrifice reads as an outward pulse, not a puff of smoke.
-            spawnNovaExplosionPooled(currentGame.particlePool,
-                                     currentGame.player.pos.x, currentGame.player.pos.y,
-                                     95.0'f32, BloodBright, BloodDeep)
-            spawnExplosionPooled(currentGame.particlePool, currentGame.player.pos.x,
-                                 currentGame.player.pos.y, BloodDeep, 40)
-            spawnShockwaveRing(currentGame, currentGame.player.pos, 150.0'f32, BloodBright)
-            spawnShockwaveRing(currentGame, currentGame.player.pos, 275.0'f32, BloodDeep)
-            addShake(currentGame.dopamine.screenShake, siLarge, BloodDeep)
-            anyActivated = true
-
-        # Conduit - detonate all active DoTs for 3x remaining tick damage
-        if hasPowerUp(currentGame.player, puConduit) and currentGame.player.conduitCooldown <= 0:
-          const ConduitMaxArcs = 14  # cap the tethers, not the damage
-          var totalDetonated = 0.0
-          var arcsDrawn = 0
-          for enemy in currentGame.enemies:
-            var elementsToDetonate: seq[ElementType] = @[]
-            for et, ae in enemy.activeEffects.pairs:
-              if ae.primary.isActive and ae.primary.remainingDuration > 0:
-                elementsToDetonate.add(et)
-            var enemyBurst = 0.0'f32
-            for et in elementsToDetonate:
-              var ae = enemy.activeEffects[et]
-              var burstDmg = ae.primary.remainingDuration * ae.primary.damagePerSec * 3.0
-              if et == etPoison:
-                # Detonating a ramped poison honors the stacks, then consumes them
-                burstDmg *= poisonStackMultiplier(enemy)
-                enemy.poisonStacks = 0
-              # The ticks being detonated were boss-mitigated; the burst must be too,
-              # or a 3x payout ignores every boss resistance and gate.
-              burstDmg *= bossPassiveDamageTaken(enemy)
-              let dealt = applyEnemyHpDamage(enemy, burstDmg)
-              trackPowerUpDamage(currentGame, puConduit, dealt)
-              # Color the number by the element that actually detonated, so a
-              # multi-element stack reads as several distinct payloads popping.
-              if dealt > 0:
-                showDamage(currentGame, enemy.pos, dealt, true, false, elementDamageType(et))
-              totalDetonated += dealt
-              enemyBurst += dealt
-
-              # One burst per detonated element, tinted to that element: this is
-              # what makes "your DoTs just exploded" legible at a glance.
-              let ec = elementColor(et)
-              spawnExplosionPooled(currentGame.particlePool, enemy.pos.x, enemy.pos.y, ec, 16)
-              spawnExplosiveRingPooled(currentGame.particlePool, enemy.pos.x, enemy.pos.y,
-                                       enemy.radius + 26.0'f32, 2, ec)
-
-              ae.primary.isActive = false
-              ae.primary.remainingDuration = 0
-              ae.primary.damagePerSec = 0
-              ae.fallback.remainingDuration = 0
-              enemy.activeEffects[et] = ae
-
-            if enemyBurst > 0:
-              # Ring size scales with how much this target had banked, so the
-              # juicy targets visibly pop harder than the near-expired ones.
-              let ringR = clamp(enemy.radius + 30.0'f32 + enemyBurst * 0.35'f32,
-                                40.0'f32, 150.0'f32)
-              spawnShockwaveRing(currentGame, enemy.pos, ringR,
-                                 Color(r: 160, g: 120, b: 255, a: 255))
-              if arcsDrawn < ConduitMaxArcs:
-                # The player is the conduit; the arc shows the discharge path.
-                spawnLightningBolt(currentGame, currentGame.player.pos, enemy.pos,
-                                   Color(r: 180, g: 150, b: 255, a: 255))
-                inc arcsDrawn
-
-          if totalDetonated > 0:
-            currentGame.player.conduitCooldown = 15.0
-            spawnNovaExplosionPooled(currentGame.particlePool,
-                                     currentGame.player.pos.x, currentGame.player.pos.y,
-                                     70.0'f32,
-                                     Color(r: 160, g: 120, b: 255, a: 255),
-                                     Color(r: 235, g: 225, b: 255, a: 255))
-            addShake(currentGame.dopamine.screenShake,
-                     if arcsDrawn >= 4: siLarge else: siMedium,
-                     Color(r: 160, g: 120, b: 255, a: 255))
-            anyActivated = true
-
-        # Aftershock - shockwave traces backward along last 2s of movement path
-        if hasPowerUp(currentGame.player, puAftershock) and currentGame.player.aftershockCooldown <= 0:
-          let history = currentGame.player.aftershockPosHistory
-          if history.len >= 2:
-            const shockwaveWidth = 50.0
-            let baseDamage = currentGame.player.damage * 2.0
-            const knockbackForce = 200.0
-            const AftershockColor = Color(r: 120, g: 195, b: 255, a: 255)
-            var hitEnemyIds: seq[int] = @[]
-
-            # Trace backward through path segments
-            var segIdx = history.len - 1
-            while segIdx >= 1:
-              let segEnd = history[segIdx]
-              let segStart = history[segIdx - 1]
-              let segVec = segEnd - segStart
-              let segLen = segVec.length()
-              if segLen > 0.01:
-                let segNorm = segVec.normalize()
-                for enemy in currentGame.enemies:
-                  if enemy.id notin hitEnemyIds:
-                    let toEnemy = enemy.pos - segStart
-                    let t = clamp(toEnemy.x * segNorm.x + toEnemy.y * segNorm.y, 0.0, segLen)
-                    let closest = segStart + segNorm * t
-                    let dist = distance(closest, enemy.pos)
-                    if dist <= shockwaveWidth + enemy.radius:
-                      hitEnemyIds.add(enemy.id)
-                      let dealt =
-                        if shieldBlocksHit(currentGame, enemy, closest): 0.0'f32
-                        else: applyEnemyHpDamage(enemy, baseDamage * bossPassiveDamageTaken(enemy))
-                      trackPowerUpDamage(currentGame, puAftershock, dealt)
-                      if dealt > 0:
-                        showDamage(currentGame, enemy.pos, dealt, true, false, dtDefault)
-                      # Knockback away from path
-                      let awayFromPath = if dist > 0.1: (enemy.pos - closest).normalize()
-                                         else: segNorm * -1.0
-                      enemy.vel.x += awayFromPath.x * knockbackForce
-                      enemy.vel.y += awayFromPath.y * knockbackForce
-                      # Burst at the point on the path that actually caught them,
-                      # plus a ring on the enemy, so the knockback has a cause.
-                      spawnExplosionPooled(currentGame.particlePool, closest.x, closest.y,
-                                           AftershockColor, 10)
-                      spawnShockwaveRing(currentGame, enemy.pos,
-                                         enemy.radius + 34.0'f32, AftershockColor)
-              segIdx -= 1
-
-            # The corridor IS the ability - without drawing it, a player who has
-            # run a wide loop just sees enemies fly away from nothing. Feed the
-            # sampled path (oldest first) to a swept shockwave; the crest then
-            # retraces the route backwards exactly like the damage resolution.
-            var pathPoints: seq[Vector2] = @[]
-            for p in history:
-              pathPoints.add(p)
-            spawnPathShockwave(currentGame, pathPoints, shockwaveWidth, AftershockColor)
-
-            # Sparks seeded along the corridor give the swath texture and keep it
-            # alive after the crest has passed. Every other sample keeps the cost
-            # bounded (the history holds at most 40 points).
-            for idx in countup(0, pathPoints.len - 1, 2):
-              spawnTrailParticlePooled(currentGame.particlePool,
-                                       pathPoints[idx].x, pathPoints[idx].y,
-                                       AftershockColor, 4)
-
-            currentGame.player.aftershockCooldown = 14.0
-            currentGame.player.aftershockPosHistory.clear()
-            spawnNovaExplosionPooled(currentGame.particlePool,
-                                     currentGame.player.pos.x, currentGame.player.pos.y,
-                                     shockwaveWidth + 20.0'f32, AftershockColor,
-                                     Color(r: 240, g: 250, b: 255, a: 255))
-            addShake(currentGame.dopamine.screenShake, siLarge, AftershockColor)
-            anyActivated = true
-
-        # Nova - freeze all player bullets for 2 seconds, release at 1.5x speed
-        if hasPowerUp(currentGame.player, puNova) and currentGame.player.novaCooldown <= 0 and not currentGame.player.novaActive:
-          const NovaColor = Color(r: 200, g: 200, b: 255, a: 255)
-          currentGame.player.novaActive = true
-          currentGame.player.novaFreezeTimer = 2.0
-          currentGame.player.novaCooldown = 16.0
-          # Freeze all currently-in-flight player bullets
-          for bullet in currentGame.bullets:
-            if bullet.fromPlayer:
-              bullet.isFrozenByNova = true
-              # Mark the moment of capture on each bullet, otherwise the freeze
-              # is a state change with no on-screen event at all.
-              spawnExplosionPooled(currentGame.particlePool, bullet.pos.x, bullet.pos.y,
-                                   NovaColor, 4)
-          spawnNovaExplosionPooled(currentGame.particlePool,
-                                   currentGame.player.pos.x, currentGame.player.pos.y,
-                                   80.0'f32, NovaColor,
-                                   Color(r: 255, g: 255, b: 255, a: 255))
-          # A wide, slow ring reads as the freeze field sweeping outward.
-          spawnShockwaveRing(currentGame, currentGame.player.pos, 320.0'f32, NovaColor)
-          addShake(currentGame.dopamine.screenShake, siMedium, NovaColor)
-          anyActivated = true
-
-        # Mod power-ups with an active ability (register.powerup active)
-        if modActivateAbilities(currentGame):
-          anyActivated = true
-
-        # Play sound if any ability was activated
-        if anyActivated:
-          playSound(stPowerUp)
-        modAbilityUsed(currentGame)   # mods: [Q] was pressed (after the built-in abilities)
+        # Activate ALL legendary power-ups with the legendary key (simultaneous
+        # activation). Not while the cheat menu is open: it pauses the game, and
+        # abilities fired then dealt their damage and teleports into a frozen world.
+        for p in currentGame.livingPlayers:
+          withPlayer(currentGame, p):
+            if consumeEdge(currentGame.player, ieAbility) and not modAbility(currentGame):
+              activateLegendaries(currentGame)
 
       # Pause (don't actually pause in PvP mode to avoid desync)
       # Also skip if the confirm dialog is open (it acts as a hard pause)
@@ -3704,7 +3367,11 @@ proc main() =
       currentGame.waveClearedTimer -= dt
 
       # Continue coin collection during this phase
-      updatePlayer(currentGame.player, dt, currentGame.screenWidth, currentGame.screenHeight, currentGame.walls)
+      captureLocalIntent(currentGame.playerOfSlot(localSlot))
+      for p in currentGame.livingPlayers:
+        if coopBotEnabled and not p.isLocalPlayer: botIntent(currentGame, p, currentGame.frameCount)
+        withPlayer(currentGame, p):
+          updatePlayer(currentGame.player, dt, currentGame.screenWidth, currentGame.screenHeight, currentGame.walls)
 
       # Update coins and handle collection
       discard updateGameCoins(currentGame, dt)

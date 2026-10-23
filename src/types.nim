@@ -1,6 +1,8 @@
 ﻿import raylib, std/tables, std/deques, discord_presence, particle_types, math
 import modding/mod_patch_core
 
+const MaxCoopPlayers* = 4  ## players a co-op run seats (src/coop/)
+
 type
   KeyAction* = enum
     kaMoveUp
@@ -760,7 +762,32 @@ type
     magnitude*: float32      ## scales the status's modifiers (1 = as registered)
     sourceId*: int           ## who applied it (an enemy id, 0 = none)
 
+  IntentEdge* = enum
+    ## One-shot presses a player's intent carries (input_intent.nim).
+    ieDash         ## base dash
+    ieAbility      ## [Q]: every legendary active at once
+    ieWallRelease  ## the wall key let go: place the wall at the aim point
+    ieInteract     ## roguelite pedestal / stall
+
+  PlayerIntent* = object
+    ## What one player asks their character to do this frame, apart from where
+    ## it came from: the local keyboard/pad/mouse (captureLocalIntent), or a
+    ## co-op client's input packet. The simulation reads this, never the input
+    ## devices, so every player in a run is driven the same way.
+    move*: Vector2       ## movement, each axis -1..1, length <= 1
+    aim*: Vector2        ## the pointer in world coords (also where walls go)
+    aimByDir*: bool      ## a pad aims: fire along aimDir from the player instead of at `aim`
+    aimDir*: Vector2     ## the right stick's direction (unit) while aimByDir
+    aimAssist*: bool     ## this player's aim assist setting (pad aim only)
+    fireHeld*: bool      ## mouse button or pad trigger: suppressed while placing a wall
+    fireKey*: bool       ## the shoot key: fires even while placing a wall
+    wallHeld*: bool      ## the wall key is down: show the placement preview
+    edges*: array[IntentEdge, int32]  ## press counts. A count, not a flag: a later
+                                      ## input still carries a press a lost one had.
+    seen*: array[IntentEdge, int32]   ## the counts already acted on (consumeEdge)
+
   Player* = ref object
+    intent*: PlayerIntent  ## this frame's input (input_intent.nim): the sim reads only this
     pos*: Vector2
     vel*: Vector2
     radius*: float32
@@ -880,6 +907,13 @@ type
     auraPulsePrimed*: set[AuraSlot]  # Slots whose first pulse has been phase-offset already
     auraPulseSeq*: array[AuraSlot, int32]  # Bumped on every pulse; enemies store the last one that swept them
     teamId*: PvPTeam  # Team assignment for PvP mode (ptNone for free-for-all)
+    # Co-op (src/coop/). A single-player run is one player in slot 0 who is
+    # never down or eliminated, so none of these ever change there.
+    slot*: int32          ## seat in a co-op run (0 = the host); index into game.players
+    downTimer*: float32   ## > 0: down (it spent a team life), seconds until it respawns
+    eliminated*: bool     ## out of the run (no team life was left): spectating
+    warp*: int32          ## teleports so far: a rise tells a co-op client to snap, not smooth
+    placingWall*: bool    ## holding the wall key: placement preview shown, mouse/pad fire held back
     skinType*: int  # Current equipped skinHost
     bulletSkinType*: int  # Current equipped bullet skin
     modSkin*: int16       # MODS.EXE: equipped mod player cosmetic (index + 1, 0 = none)
@@ -1873,10 +1907,19 @@ type
     cheatForceBoss*: bool          # cheat: spawn the next boss now
     cheatEventKind*: SurvivalEventKind  # cheat: start this event now
 
+  CoopState* = ref object
+    ## A co-op run's shared state (src/coop/); nil in single player. It lives
+    ## on Game, so the host's copy reaches every client in the snapshot.
+    teamLives*: int       ## team life pool left (UnlimitedLives = no limit)
+    nicknames*: array[MaxCoopPlayers, string]
+
   Game* = ref object
     state*: GameState
     mode*: GameMode
-    player*: Player
+    player*: Player   ## the player being simulated or drawn right now: one of `players`
+                      ## (in single player, the only one). See coop/coop_context.nim.
+    players*: seq[Player]  ## every player of the run, indexed by Player.slot
+    coop*: CoopState       ## co-op run state, nil in single player
     enemies*: seq[Enemy]
     bullets*: seq[Bullet]
     bulletIdCounter*: int  # Counter for generating unique bullet IDs
@@ -2040,7 +2083,6 @@ type
     confirmQuitPending*: bool  # True while the quit-confirmation dialog is open
     pauseMenuExitCooldown*: float32  # Countdown before Exit button/key becomes active (prevents accidental exit)
     confirmQuitFrameGuard*: float32  # Short guard so Q-open and Q-confirm can't fire on the same frame
-    wallPlacementMode*: bool   # Whether the player is in wall-placement mode (E toggles, RMB/walls=0 exits)
 
 # Entity lists that scripts can change while the game walks them. The
 # stdlib's seq iterators hand out a reference into the list's buffer and only

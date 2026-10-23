@@ -865,7 +865,9 @@ proc captureRunData*(game: Game, entities: bool) =
       if ed.len > 0: root["@e:" & m.id] = ed   # mod ids cannot contain '@'
   game.modRunData = if root.len > 0: $root else: ""
 
-proc restoreRunData(game: Game) =
+proc restoreRunData*(game: Game) =
+  ## Rebuild every mod's run.data (and per-entity data) from game.modRunData:
+  ## a resumed run, and a co-op client after the host's copy of it arrives.
   for m in mods:
     m.runData = newScriptTable()
     m.entityData.clear()

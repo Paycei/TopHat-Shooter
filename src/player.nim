@@ -1,7 +1,7 @@
 import raylib, math, random, std/deques
 import modding/mod_patch_core
 import draw_prims
-import gamepad_input, particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, settings, utils
+import particle_types, types, wall, powerup, powerup_data, patches, localization, skins, shapes, cube_skins, utils, input_intent
 import modding/[mod_hooks, mod_assets]
 
 const
@@ -321,29 +321,8 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   if player.modStatuses.len > 0:
     currentSpeed *= max(0.0'f32, 1.0'f32 + player.statusSpeed)
 
-  var moveDir = vec2(0, 0)
-
-  let kb = globalSettings.keybinds
-  if isKeyDown(kb[kaMoveUp]): moveDir.y -= 1
-  if isKeyDown(kb[kaMoveDown]): moveDir.y += 1
-  if isKeyDown(kb[kaMoveLeft]): moveDir.x -= 1
-  if isKeyDown(kb[kaMoveRight]): moveDir.x += 1
-
-  if isGamepadActive():
-    let ls = leftStick()
-    moveDir.x += ls.x
-    moveDir.y += ls.y
-    let gb = globalSettings.gamepadBinds
-    if isGamepadBindDown(gb, kaMoveUp): moveDir.y -= 1
-    if isGamepadBindDown(gb, kaMoveDown): moveDir.y += 1
-    if isGamepadBindDown(gb, kaMoveLeft): moveDir.x -= 1
-    if isGamepadBindDown(gb, kaMoveRight): moveDir.x += 1
-
-  # Clamp instead of always normalizing: keyboard input still normalizes the
-  # diagonal, while partial analog stick deflection keeps its magnitude so the
-  # player can walk slowly.
-  if moveDir.length() > 1:
-    moveDir = moveDir.normalize()
+  # Already clamped to length 1 (input_intent.nim).
+  let moveDir = player.intent.move
 
   # ---- BASE DASH ----
   # Fires on a held-direction if there is one, otherwise on the last facing, so
@@ -351,10 +330,7 @@ proc updatePlayer*(player: Player, dt: float32, screenWidth, screenHeight: int32
   # the start of the burst: mid-dash steering would turn it into a speed boost
   # and lose the committed, readable arc that makes a dash feel like a dash.
   if player.dashCooldown <= 0 and player.dashTimer <= 0:
-    let dashPressed =
-      isKeyPressed(globalSettings.keybinds[kaDash]) or
-      (isGamepadActive() and isGamepadBindPressed(globalSettings.gamepadBinds, kaDash))
-    if dashPressed and not modDash(player):
+    if consumeEdge(player, ieDash) and not modDash(player):
       var d = moveDir
       if d.length() < 0.01'f32:
         # Standing still: dash along current travel, else straight up.

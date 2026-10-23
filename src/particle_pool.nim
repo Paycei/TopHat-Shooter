@@ -1,7 +1,7 @@
 ## PARTICLE POOLING SYSTEM FOR PERFORMANCE
 ## Instead of constantly creating and destroying particles, we reuse them from a pool.
 
-import raylib, random, math
+import raylib, math, fx_rand
 import draw_prims
 import particle_types, utils
 

@@ -9,6 +9,7 @@ import mod_mixin_bind
 bindModdablesIn(currentSourcePath(), [
   "../game.nim",
   "../player.nim",
+  "../input_intent.nim",
   "../enemy.nim",
   "../enemy_config.nim",
   "../enemy_helpers.nim",
