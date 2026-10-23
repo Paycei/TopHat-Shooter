@@ -1300,6 +1300,8 @@ proc enterWorld3D*(game: Game, opts: World3DOptions) {.moddable.} =
   game.transitioning = false
   game.fadeAlpha = 0.0
   let world = initGame3D(opts, game.player)
+  if not game.coop.isNil and game.players.len > 1:
+    seatPlayers3D(world, game.players, game.coop)   # co-op: everyone comes along
   world3dActions.setLen(0)
   activeWorld3D = world
   game.game3D = cast[pointer](world)
@@ -1322,7 +1324,22 @@ proc leaveWorld3D(game: Game) =
   game.game3D = nil
   world3dActions.setLen(0)
   enableCursor()
-  if world.carryHp and res != w3Lost:
+  let coopWorld = not world.coop.isNil
+  if coopWorld:
+    # Each player back to their own 2D self: their health, or down or out.
+    for p3 in world.players:
+      for p in game.players:
+        if p.slot != p3.slot: continue
+        if p3.eliminated:
+          p.eliminated = true
+          p.hp = 0
+          p.downTimer = 0
+        elif p3.downTimer > 0:
+          p.hp = 0
+          p.downTimer = p3.downTimer
+        elif world.carryHp:
+          p.hp = max(1.0'f32, min(p3.health, p.maxHp))
+  elif world.carryHp and res != w3Lost:
     # Boss defeated / left alive: transfer health back
     game.player.hp = max(1.0'f32, min(world.player.health, game.player.maxHp))
   case res
@@ -1344,7 +1361,14 @@ proc leaveWorld3D(game: Game) =
     else:
       game.state = gsPlaying
   of w3Lost:
-    # Player died in 3D
+    # Player died in 3D. A co-op world is lost with nobody left: the run ends
+    # as a wipe does (the active player falls last, with no life to spend).
+    if coopWorld:
+      for p in game.players:
+        if p != game.player: p.eliminated = true
+      game.player.eliminated = false
+      game.player.downTimer = 0
+      game.coop.teamLives = 0
     beginPlayerDeathSequence(game, if world.bossEnabled: dcBossContact else: dcUnknown)
   of w3Exit, w3None:
     # A mod mode has no 2D run to go back to: leaving its world quits the run.
@@ -5912,8 +5936,18 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   if game.state == gs3DBoss:
     let world = activeWorld3D
     if not world.isNil:
-      let live = world.active and not world.paused
+      let live = world.active and (not world.paused or not world.coop.isNil)
       if live: modPreUpdate(game, dt)
+      if live and coopHost():
+        # The clients' input reached their 2D players (coop_session): hand it
+        # to their 3D selves, whose press counts this world keeps.
+        for p3 in world.players:
+          if p3.slot == localSlot: continue
+          for p in game.players:
+            if p.slot == p3.slot:
+              var it = p.intent
+              it.seen = p3.intent.seen
+              p3.intent = it
       updateGame3D(world, dt)
       if live:
         if world.modeKey.len > 0:

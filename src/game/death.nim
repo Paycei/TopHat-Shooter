@@ -271,6 +271,7 @@ proc coopPlayerDown(game: Game) =
   spawnPlayerDeathExplosion(game, game.player.pos)
   addShake(game.dopamine.screenShake, siLarge)
   playSound(stPlayerHit, 0.9, 0.7)
+  modPlayerDown(p, p.eliminated)
 
 proc updateDownedPlayers*(game: var Game, dt: float32) {.moddable.} =
   ## Co-op: count down the downed players and stand each back up next to a
@@ -298,6 +299,8 @@ proc updateDownedPlayers*(game: var Game, dt: float32) {.moddable.} =
     spawnShockwaveRing(game, p.pos, 90.0'f32, Color(r: 120, g: 255, b: 210, a: 255))
     spawnExplosionPooled(game.particlePool, p.pos.x, p.pos.y, Color(r: 160, g: 255, b: 220, a: 255), 24)
     playSound(stPowerUp, 0.7, 1.2)
+    withPlayer(game, p):
+      modPlayerRespawn(p)
 
 proc beginPlayerDeathSequence*(game: Game, cause: DeathCause = dcUnknown,
                                source: Enemy = nil, sourceType: EnemyType = etEnvironment) {.moddable.} =

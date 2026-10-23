@@ -67,6 +67,8 @@ type
     hkPlaceWall = "placeWall"        ## cancel (x, y, game): true places nothing
     hkAbility = "ability"            ## cancel (game): true skips the vanilla [Q] abilities
     hkCombatStats = "combatStats"    ## (player, stats) stats fields can be edited
+    hkPlayerDown = "playerDown"      ## (player, out)       co-op: a player went down (out: no team life was left)
+    hkPlayerRespawn = "playerRespawn"  ## (player)          co-op: a downed player is back in the fight
     # bullets
     hkBulletSpawn = "bulletSpawn"    ## (bullet)            any new bullet, before it flies
     hkBulletUpdate = "bulletUpdate"  ## cancel (bullet, dt): true skips vanilla movement
@@ -215,6 +217,7 @@ type
     hudArena*: tuple[x, y, w, h: float64]  ## the arena in drawHud coordinates
     drawing*: DrawTarget
     inPvP*: bool
+    coopClient*: bool    ## a co-op client is drawing the host's run: nothing here changes it
     match*: ScriptedMatch  ## the PvP match on screen (pvp* hooks, the global `match`)
     lastState: GameState ## stateChange fires when the run state differs from this
     source*: PowerUpType ## the power-up a script is acting for (hasSource)
@@ -908,6 +911,7 @@ type ModModeDef* = object
   threeD*: bool        ## base = "3d": the run lives in a 3D world (game3d/), never on the 2D arena
   restore*: ModRestoreRule  ## restorePoints / restoreGlyphs (types.difficultyMaxLives reads it)
   resumable*: bool     ## false: quitting ends the run; it is never saved to resume (see modRunResumable)
+  coop*: bool          ## false: CO-OP.EXE does not offer it (register.gamemode{coop = false})
 
 var modModes*: seq[ModModeDef]
 
@@ -1093,7 +1097,17 @@ proc modOutsideRun*(pvp: bool) =
   ## fire from pvp_game).
   modCtx.game = nil
   modCtx.inPvP = pvp
+  modCtx.coopClient = false
   if not pvp: modCtx.match = nil
+
+proc modCoopClientFrame*(game: Game) =
+  ## main.nim, every frame of a co-op client's run: scripts see the run it
+  ## draws (the host's, as its snapshots fill it in), to read and draw from.
+  ## The host simulates it, so the gameplay hooks fire there and never here;
+  ## whatever a script here queues to spawn or remove is dropped.
+  modCtx.game = game
+  modCtx.inPvP = false
+  modCtx.coopClient = true
 
 proc modWatchState*(game: Game) =
   ## main.nim, once per frame before the state machine: `stateChange` for any
@@ -1118,6 +1132,7 @@ proc modBeginFrame*(game: Game) =
     return
   modCtx.game = game
   modCtx.inPvP = game.mode == gmPvP
+  modCtx.coopClient = false
   if modCtx.inPvP:
     return  # no gameplay scripting in PvP (matched lobbies only share content)
   if game != modCtx.lastGame and isActiveRunState(game.state):
@@ -1367,6 +1382,7 @@ proc resetRunQueues() =
   modPendingBullets.setLen(0)
 
 proc queueModAction*(a: ModAction) =
+  if modCtx.coopClient: return   # (a co-op client never changes the run: the host does)
   modActions.add(a)
 
 proc modActionDone*(a: ModAction, spawned: Enemy) =
@@ -1751,6 +1767,16 @@ proc modCombatStats*(p: Player, damage, fireRate: var float32, critChance: var i
   fireRate = max(0.01'f32, fireRate)
   critChance = max(critChance, 0)
 
+proc modPlayerDown*(p: Player, outOfRun: bool) =
+  ## Co-op: `p` went down (out of the run when no team life was left).
+  if hookActive(hkPlayerDown):
+    fire(hkPlayerDown, [wrapPlayer(p), vbool(outOfRun)])
+
+proc modPlayerRespawn*(p: Player) =
+  ## Co-op: `p` is back in the fight.
+  if hookActive(hkPlayerRespawn):
+    fire(hkPlayerRespawn, [wrapPlayer(p)])
+
 proc modPowerUpPicked*(game: Game, name: string, level: int) =
   if hookActive(hkPowerUpPicked):
     fire(hkPowerUpPicked, [vstr(name), vnum(level), wrapGame(game)])
@@ -1837,6 +1863,7 @@ type World3DLabel* = object
 var world3dLabels*: seq[World3DLabel]
 
 proc queueWorld3DAction*(a: World3DAction) =
+  if modCtx.coopClient: return   # (the host's world is the one that changes)
   world3dActions.add(a)
 
 proc world3DActionDone*(a: World3DAction) =

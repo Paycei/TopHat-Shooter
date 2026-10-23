@@ -51,6 +51,22 @@ color = {}
 function color.hex(...) end
 function color.rgb(...) end
 
+coop = {}
+---coop.active() -> boolean: a co-op run is on screen (CO-OP.EXE)
+function coop.active(...) end
+---coop.isClient() -> boolean: this machine draws the host's run; only drawing hooks fire, and what scripts spawn or remove here is dropped
+function coop.isClient(...) end
+---coop.isHost() -> boolean: this machine simulates the co-op run (gameplay hooks fire here)
+function coop.isHost(...) end
+---coop.localSlot() -> number: this machine's seat (0 is the host's, 0 in single player)
+function coop.localSlot(...) end
+---coop.name(slot) -> string | nil: the nickname at that seat
+function coop.name(...) end
+---coop.players() -> {player...}: every player of the run, by seat (just the player in single player); player.slot is each one's seat
+function coop.players(...) end
+---coop.teamLives() -> number | nil: the team's lives left (math.huge when unlimited); nil outside a co-op run
+function coop.teamLives(...) end
+
 difficulty = {}
 ---difficulty.get() -> {profile = "gdHard", enemyHp = .., ...} (the scale in force)
 function difficulty.get(...) end
@@ -247,7 +263,7 @@ function register.consumable(...) end
 function register.cosmetic(...) end
 ---local name = register.enemy{id = "bouncer", base = "etCube", hp = 3, ...}
 function register.enemy(...) end
----register.gamemode{id = "glass", name = "Glass Cannon", description = "...", base = "wave" | "survival" | "roguelite" | "3d", spawning = true, onStart = function(game, resumed) ... end, icon = texture | model | "file", color = "#64c8ff", desktop = true}
+---register.gamemode{id = "glass", name = "Glass Cannon", description = "...", base = "wave" | "survival" | "roguelite" | "3d", spawning = true, onStart = function(game, resumed) ... end, icon = texture | model | "file", color = "#64c8ff", desktop = true, coop = true}   -- coop = false: CO-OP.EXE does not offer it
 function register.gamemode(...) end
 ---register.hudCard{id = "souls", title = "SOULS", color = "#a040ff", height = 40 | measure = fn(w) -> height, draw = fn(x, y, w, h), classic = true}
 function register.hudCard(...) end
@@ -458,6 +474,8 @@ function world3d.toScreen(...) end
 ---| "placeWall" # cancel (x, y, game): true places nothing
 ---| "ability" # cancel (game): true skips the vanilla [Q] abilities
 ---| "combatStats" # (player, stats) stats fields can be edited
+---| "playerDown" # (player, out) co-op: a player went down (out: no team life was left)
+---| "playerRespawn" # (player) co-op: a downed player is back in the fight
 ---| "bulletSpawn" # (bullet) any new bullet, before it flies
 ---| "bulletUpdate" # cancel (bullet, dt): true skips vanilla movement
 ---| "bulletDraw" # cancel (bullet): true skips the vanilla body
@@ -527,6 +545,12 @@ function world3d.toScreen(...) end
 ---| "screenDraw" # (state, w, h) the frame a screenUpdate took: screen coordinates
 ---| "drawOverlay" # (state, w, h) every frame, over everything the state drew
 
+
+engine.abilities = {}
+---activateLegendaries(game: var Game)
+function engine.abilities.activateLegendaries(game) end
+---updateWallPlacement(game: var Game)
+function engine.abilities.updateWallPlacement(game) end
 
 engine.advancement = {}
 ---advancementPercent(entry: AdvancementEntry, def: AdvancementDefinition): float32
@@ -642,9 +666,11 @@ function engine.boss_3d.drawGravityWells(boss) end
 function engine.boss_3d.drawSatelliteHealthbars(boss, camera) end
 ---getBoss3D(bossId: int): Boss3D
 function engine.boss_3d.getBoss3D(bossId) end
+---pullIntoWells(boss: Boss3D, player: Player3D, dt: float32)
+function engine.boss_3d.pullIntoWells(boss, player, dt) end
 ---takeBossDamage(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3]
 function engine.boss_3d.takeBossDamage(boss, projectile) end
----updateBoss(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D], arena: var Arena3D, dt: float32)
+---updateBoss(boss: var Boss3D, player: Player3D, projectiles: var seq[Projectile3D], arena: var Arena3D, dt: float32)
 function engine.boss_3d.updateBoss(boss, player, projectiles, arena, dt) end
 
 engine.boss_definitions = {}
@@ -782,6 +808,8 @@ engine.bullets = {}
 function engine.bullets.applyBulletEffects(game, bullet, enemy, dt, shielded) end
 ---applyMasteryDoT(enemy: Enemy, elemType: ElementType, baseDmg: float32, baseDur: float32, hasMastery: bool, masteryDmgMult: float32, masteryDurMult: float32, masterySlowAmount: float32, source: string)
 function engine.bullets.applyMasteryDoT(enemy, elemType, baseDmg, baseDur, hasMastery, masteryDmgMult, masteryDurMult, masterySlowAmount, source) end
+---blastFreeFizzle(game: var Game, pos: Vector2, color: Color)
+function engine.bullets.blastFreeFizzle(game, pos, color) end
 ---bossHazardDefused(game: Game, sourceEnemyId: int): bool
 function engine.bullets.bossHazardDefused(game, sourceEnemyId) end
 ---drawBossDeathBlasts(game: Game)
@@ -977,6 +1005,94 @@ function engine.consumable.pickupTrail(consumable) end
 ---startConsumableBuff(player: Player, ct: ConsumableType)
 function engine.consumable.startConsumableBuff(player, ct) end
 
+engine.coop_codec = {}
+---applySnapshot(frame: WireFrame, game: Game)
+function engine.coop_codec.applySnapshot(frame, game) end
+---captureFrame(game: Game, seq: int32): WireFrame
+function engine.coop_codec.captureFrame(game, seq) end
+---encodeSnapshot(cur: WireFrame, base: WireFrame, extras: SnapExtras): string
+function engine.coop_codec.encodeSnapshot(cur, base, extras) end
+---readSnapshot(packed: string, ring: FrameRing, extras: var SnapExtras): WireFrame
+function engine.coop_codec.readSnapshot(packed, ring, extras) end
+
+engine.coop_overlay = {}
+---coopName(game: Game, slot: int): string
+function engine.coop_overlay.coopName(game, slot) end
+---coopPauseMenu(host: bool): int
+function engine.coop_overlay.coopPauseMenu(host) end
+---coopResultsPanel(game: Game, reason: string, kills: int): bool
+function engine.coop_overlay.coopResultsPanel(game, reason, kills) end
+---drawCoopBanner(text: string)
+function engine.coop_overlay.drawCoopBanner(text) end
+---drawCoopLocalDown(game: Game)
+function engine.coop_overlay.drawCoopLocalDown(game) end
+---drawCoopModalStatus(game: Game)
+function engine.coop_overlay.drawCoopModalStatus(game) end
+---drawCoopTeamStrip(game: Game, x: int32, y: int32, w: int32): int32
+function engine.coop_overlay.drawCoopTeamStrip(game, x, y, w) end
+
+engine.coop_present = {}
+---replayCoopFx(game: var Game)
+function engine.coop_present.replayCoopFx(game) end
+
+engine.coop_profile = {}
+---applyProfileEvent(ev: ProfileEvent, advProfile: AdvancementProfile): string
+function engine.coop_profile.applyProfileEvent(ev, advProfile) end
+
+engine.coop_session = {}
+---backToLobby(s: CoopSession)
+function engine.coop_session.backToLobby(s) end
+---broadcastLobby(s: CoopSession)
+function engine.coop_session.broadcastLobby(s) end
+---closeCoop(s: CoopSession, reason: string)
+function engine.coop_session.closeCoop(s, reason) end
+---endCoopRun(s: CoopSession, reason: CoopEndReason)
+function engine.coop_session.endCoopRun(s, reason) end
+---endStatistics(s: CoopSession): RunStatistics
+function engine.coop_session.endStatistics(s) end
+---hostCoop(port: int, maxPlayers: int, me: CoopMemberNet, config: CoopRunConfigNet): CoopSession
+function engine.coop_session.hostCoop(port, maxPlayers, me, config) end
+---joinCoop(host: string, port: int, me: CoopMemberNet): CoopSession
+function engine.coop_session.joinCoop(host, port, me) end
+---pollCoopSession(s: CoopSession, game: Game, dt: float32)
+function engine.coop_session.pollCoopSession(s, game, dt) end
+---readyToStart(s: CoopSession): bool
+function engine.coop_session.readyToStart(s) end
+---setLobbyConfig(s: CoopSession, config: CoopRunConfigNet)
+function engine.coop_session.setLobbyConfig(s, config) end
+---setReady(s: CoopSession, ready: bool, kit: int32)
+function engine.coop_session.setReady(s, ready, kit) end
+---startCoopRun(s: CoopSession)
+function engine.coop_session.startCoopRun(s) end
+
+engine.coop_smooth = {}
+---afterSnapshot(game: Game, intentAck: int32)
+function engine.coop_smooth.afterSnapshot(game, intentAck) end
+---beforeSnapshot(game: Game)
+function engine.coop_smooth.beforeSnapshot(game) end
+---predictLocal3D(game: Game, dt: float32, seq: int32)
+function engine.coop_smooth.predictLocal3D(game, dt, seq) end
+---predictLocal(game: Game, dt: float32, seq: int32)
+function engine.coop_smooth.predictLocal(game, dt, seq) end
+---smoothFrame3D(game: Game, dt: float32, age: float32)
+function engine.coop_smooth.smoothFrame3D(game, dt, age) end
+---smoothFrame(game: Game, dt: float32, age: float32)
+function engine.coop_smooth.smoothFrame(game, dt, age) end
+
+engine.coop_window = {}
+---drawCoopWindow(cw: CoopWindow)
+function engine.coop_window.drawCoopWindow(cw) end
+---modeChoices(): seq[ModeChoice]
+function engine.coop_window.modeChoices() end
+---newCoopWindow(screenWidth: int, screenHeight: int): CoopWindow
+function engine.coop_window.newCoopWindow(screenWidth, screenHeight) end
+---resetCoopView(cw: CoopWindow)
+function engine.coop_window.resetCoopView(cw) end
+---updateCoopWindow(cw: CoopWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow])
+function engine.coop_window.updateCoopWindow(cw, dt, screenWidth, screenHeight, allWindows) end
+---wantsTextInput(cw: CoopWindow): bool
+function engine.coop_window.wantsTextInput(cw) end
+
 engine.credits_window = {}
 ---drawCreditsWindow(cw: CreditsWindow)
 function engine.credits_window.drawCreditsWindow(cw) end
@@ -1096,12 +1212,20 @@ function engine.d_visuals.drawWaveStartBanner(waveNumber, waveAge, screenWidth, 
 engine.death = {}
 ---beginPlayerDeathSequence(game: Game, cause: DeathCause, source: Enemy, sourceType: EnemyType)
 function engine.death.beginPlayerDeathSequence(game, cause, source, sourceType) end
+---coopTeamWiped(game: Game): bool
+function engine.death.coopTeamWiped(game) end
 ---drawRecentPowerUpInstall(game: Game)
 function engine.death.drawRecentPowerUpInstall(game) end
 ---installPowerUp(game: var Game, powerUp: PowerUp, quiet: bool)
 function engine.death.installPowerUp(game, powerUp, quiet) end
+---showInstallCard(game: Game, powerUp: PowerUp)
+function engine.death.showInstallCard(game, powerUp) end
+---spawnPlayerDeathExplosion(game: Game, deathPos: Vector2)
+function engine.death.spawnPlayerDeathExplosion(game, deathPos) end
 ---updateDeathSequencePlayback(game: var Game, dt: float32)
 function engine.death.updateDeathSequencePlayback(game, dt) end
+---updateDownedPlayers(game: var Game, dt: float32)
+function engine.death.updateDownedPlayers(game, dt) end
 
 engine.desktop_bg_fx = {}
 ---drawDesktopBgScene(bgType: DesktopBgType, screenWidth: int32, screenHeight: int32, time: float32)
@@ -1206,6 +1330,8 @@ function engine.dungeon.rewardFolderName(reward) end
 function engine.dungeon.rewardLabel(reward) end
 ---rollEncounterEnemyType(run: RogueliteRun, room: DungeonRoom): EnemyType
 function engine.dungeon.rollEncounterEnemyType(run, room) end
+---roomGoal(game: Game): RoomGoal
+function engine.dungeon.roomGoal(game) end
 ---sectorPath(floor: DungeonFloor): string
 function engine.dungeon.sectorPath(floor) end
 ---sectorRewardLayers(floor: DungeonFloor): int
@@ -1422,20 +1548,36 @@ function engine.fx.updatePathShockwaves(waves, dt) end
 function engine.fx.updateShockwaveRings(rings, dt) end
 
 engine.game = {}
+---addCoopPlayer(game: Game, nickname: string, skin: int, bulletSkin: int, shape: int, particleSkin: int, bulletShape: int): Player
+function engine.game.addCoopPlayer(game, nickname, skin, bulletSkin, shape, particleSkin, bulletShape) end
+---applyCoopAction(game: var Game, slot: int32, a: CoopAction)
+function engine.game.applyCoopAction(game, slot, a) end
+---beginCoopRun(game: Game)
+function engine.game.beginCoopRun(game) end
 ---beginDraftResume(game: var Game)
 function engine.game.beginDraftResume(game) end
+---buyFromShop(game: var Game, row: int)
+function engine.game.buyFromShop(game, row) end
 ---cheatCompleteRogueliteFloor(game: var Game)
 function engine.game.cheatCompleteRogueliteFloor(game) end
+---chooseFloor(game: var Game, card: int)
+function engine.game.chooseFloor(game, card) end
 ---cleanupGame(game: Game)
 function engine.game.cleanupGame(game) end
+---closeShop(game: var Game)
+function engine.game.closeShop(game) end
 ---collectPickup(game: Game, c: Consumable): bool
 function engine.game.collectPickup(game, c) end
+---continueAfterDraft(game: var Game, legendaryRound: bool)
+function engine.game.continueAfterDraft(game, legendaryRound) end
 ---drawDeathSequenceOverlay(game: Game)
 function engine.game.drawDeathSequenceOverlay(game) end
 ---drawGameOver(game: Game)
 function engine.game.drawGameOver(game) end
 ---drawGame(game: Game)
 function engine.game.drawGame(game) end
+---drawPlayerActor(game: Game, playerVisible: bool)
+function engine.game.drawPlayerActor(game, playerVisible) end
 ---drawVictory(game: Game)
 function engine.game.drawVictory(game) end
 ---enterWorld3D(game: Game, opts: World3DOptions)
@@ -1446,14 +1588,32 @@ function engine.game.hudInterfaceScale() end
 function engine.game.isBossActive(manager) end
 ---isBossCoinActive(manager: BossWaveManager): bool
 function engine.game.isBossCoinActive(manager) end
+---leaveShop(game: var Game)
+function engine.game.leaveShop(game) end
+---loadShopCounts(game: Game, p: Player)
+function engine.game.loadShopCounts(game, p) end
 ---newGame(screenWidth: int32, screenHeight: int32, playerSkin: int, bulletSkin: int, playerShape: int, particleSkin: int, bulletShape: int): Game
 function engine.game.newGame(screenWidth, screenHeight, playerSkin, bulletSkin, playerShape, particleSkin, bulletShape) end
+---pickDraftCard(game: var Game, index: int)
+function engine.game.pickDraftCard(game, index) end
+---rerollDraft(game: var Game): bool
+function engine.game.rerollDraft(game) end
 ---setGameMode(game: Game, mode: GameMode)
 function engine.game.setGameMode(game, mode) end
+---startSelectedTheme(game: var Game)
+function engine.game.startSelectedTheme(game) end
 ---startWave(game: Game)
 function engine.game.startWave(game) end
+---syncLocalDraftView(game: var Game)
+function engine.game.syncLocalDraftView(game) end
+---updateCoopModal(game: var Game, dt: float32)
+function engine.game.updateCoopModal(game, dt) end
+---updateFloatingText(game: var Game, dt: float32)
+function engine.game.updateFloatingText(game, dt) end
 ---updateGame(game: var Game, dt: float32)
 function engine.game.updateGame(game, dt) end
+---updatePresentationLists(game: var Game, dt: float32)
+function engine.game.updatePresentationLists(game, dt) end
 
 engine.game_3d = {}
 ---damageBoss3D(world: Game3D, amount: float32)
@@ -1464,12 +1624,22 @@ function engine.game_3d.damageEntity3D(world, e, amount) end
 function engine.game_3d.damagePlayer3D(world, amount, source, entity) end
 ---finishWorld3D(world: Game3D, result: World3DResult)
 function engine.game_3d.finishWorld3D(world, result) end
+---followCamera3D(world: Game3D)
+function engine.game_3d.followCamera3D(world) end
 ---healPlayer3D(world: Game3D, amount: float32)
 function engine.game_3d.healPlayer3D(world, amount) end
 ---initGame3D(opts: World3DOptions, player2D: Player): Game3D
 function engine.game_3d.initGame3D(opts, player2D) end
+---isUp3D(p: Player3D): bool
+function engine.game_3d.isUp3D(p) end
 ---killEntity3D(world: Game3D, e: Entity3D, credit: bool)
 function engine.game_3d.killEntity3D(world, e, credit) end
+---local3DInput(world: Game3D)
+function engine.game_3d.local3DInput(world) end
+---localPlayer3D(world: Game3D): Player3D
+function engine.game_3d.localPlayer3D(world) end
+---nearestPlayer3D(world: Game3D, pos: Vector3): Player3D
+function engine.game_3d.nearestPlayer3D(world, pos) end
 ---newEntity3D(world: Game3D, tag: string): Entity3D
 function engine.game_3d.newEntity3D(world, tag) end
 ---newPickup3D(world: Game3D, pos: Vector3, kind: string, value: float32): Pickup3D
@@ -1486,12 +1656,20 @@ function engine.game_3d.raylibCamera(camera) end
 function engine.game_3d.renderGame3D(world) end
 ---requestFinish3D(world: Game3D, result: World3DResult)
 function engine.game_3d.requestFinish3D(world, result) end
+---seatPlayers3D(world: Game3D, players2D: seq[Player], coop: CoopState)
+function engine.game_3d.seatPlayers3D(world, players2D, coop) end
 ---spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3, damage: float32, color: Color)
 function engine.game_3d.spawnDamageNumber3D(damageNumbers, pos, damage, color) end
 ---sweepDead(world: Game3D)
 function engine.game_3d.sweepDead(world) end
+---teamOut3D(world: Game3D): bool
+function engine.game_3d.teamOut3D(world) end
+---tickDamageNumbers3D(world: Game3D, dt: float32)
+function engine.game_3d.tickDamageNumbers3D(world, dt) end
 ---updateGame3D(world: Game3D, dt: float32)
 function engine.game_3d.updateGame3D(world, dt) end
+---viewTarget3D(world: Game3D): Player3D
+function engine.game_3d.viewTarget3D(world) end
 ---worldToScreen3D(camera: FPSCamera, pos: Vector3): tuple[x: float32, y: float32, visible: bool]
 function engine.game_3d.worldToScreen3D(camera, pos) end
 
@@ -1631,6 +1809,20 @@ function engine.icon_drawing.drawServiceIcon(x, y, size, color) end
 function engine.icon_drawing.drawShopIconTile(x, y, size, itemIndex, enabled, selected) end
 ---drawShopIcon(x: int32, y: int32, size: int32, itemIndex: int, color: Color)
 function engine.icon_drawing.drawShopIcon(x, y, size, itemIndex, color) end
+
+engine.input_intent = {}
+---beginIntentFrame(it: var PlayerIntent)
+function engine.input_intent.beginIntentFrame(it) end
+---captureLocalIntent(p: Player)
+function engine.input_intent.captureLocalIntent(p) end
+---consumeEdge(p: Player, e: IntentEdge): bool
+function engine.input_intent.consumeEdge(p, e) end
+---edgePending(p: Player, e: IntentEdge): bool
+function engine.input_intent.edgePending(p, e) end
+---idleIntent(p: Player)
+function engine.input_intent.idleIntent(p) end
+---pressEdge(it: var PlayerIntent, e: IntentEdge)
+function engine.input_intent.pressEdge(it, e) end
 
 engine.language_select = {}
 ---drawLanguageSelect(screenWidth: int32, screenHeight: int32, time: float32, mousePos: Vector2, modLanguageNames: seq[string])
@@ -1816,16 +2008,24 @@ engine.orbitals = {}
 function engine.orbitals.updateOrbitalWeapons(game, dt) end
 
 engine.os_background = {}
+---arenaField(bg: OSBackgroundState): BossArenaField
+function engine.os_background.arenaField(bg) end
 ---drawArenaFloor(screenWidth: int32, screenHeight: int32, time: float32, accent: Color, tinted: bool, alert: float32)
 function engine.os_background.drawArenaFloor(screenWidth, screenHeight, time, accent, tinted, alert) end
 ---drawOSBackground(bg: OSBackgroundState, screenWidth: int32, screenHeight: int32, showArenaVignette: bool, accentOverride: Color)
 function engine.os_background.drawOSBackground(bg, screenWidth, screenHeight, showArenaVignette, accentOverride) end
 ---getBossArenaCombatBonus(bg: OSBackgroundState): tuple[damageMult: float32, fireRateMult: float32]
 function engine.os_background.getBossArenaCombatBonus(bg) end
+---loadArenaField(bg: var OSBackgroundState, field: BossArenaField)
+function engine.os_background.loadArenaField(bg, field) end
+---loadArenaSeat(bg: var OSBackgroundState, seat: BossArenaSeat)
+function engine.os_background.loadArenaSeat(bg, seat) end
 ---newOSBackground(): OSBackgroundState
 function engine.os_background.newOSBackground() end
 ---spawnWavePulse(bg: var OSBackgroundState, cx: float32, cy: float32, color: Color)
 function engine.os_background.spawnWavePulse(bg, cx, cy, color) end
+---storeArenaSeat(bg: OSBackgroundState, seat: var BossArenaSeat)
+function engine.os_background.storeArenaSeat(bg, seat) end
 ---updateBossArenaField(bg: var OSBackgroundState, dt: float32, playerPos: Vector2, playerRadius: float32, screenWidth: int32, screenHeight: int32, bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32]
 function engine.os_background.updateBossArenaField(bg, dt, playerPos, playerRadius, screenWidth, screenHeight, bossActive, currentWave) end
 ---updateOSBackground(bg: var OSBackgroundState, dt: float32, playerHP: float32, maxHP: float32, bossActive: bool, screenWidth: int32, screenHeight: int32)
@@ -2115,6 +2315,8 @@ function engine.pickup.magnetPullsAll(player) end
 function engine.pickup.pullTowardPlayer(pos, playerPos, dt) end
 
 engine.player = {}
+---advancePlayer(player: Player, dt: float32, screenWidth: int32, screenHeight: int32, walls: seq[Wall])
+function engine.player.advancePlayer(player, dt, screenWidth, screenHeight, walls) end
 ---dashBurstOf(p: Player): float32
 function engine.player.dashBurstOf(p) end
 ---dashRechargeOf(p: Player): float32
@@ -2127,22 +2329,32 @@ function engine.player.hasAnyOrbPowerUp(player) end
 function engine.player.heal(player, amount) end
 ---newPlayer(x: float32, y: float32): Player
 function engine.player.newPlayer(x, y) end
+---steerPlayer(player: Player, dt: float32, dashNow: bool)
+function engine.player.steerPlayer(player, dt, dashNow) end
 ---takeDamage(player: Player, damage: float32): bool
 function engine.player.takeDamage(player, damage) end
 ---updatePlayer(player: Player, dt: float32, screenWidth: int32, screenHeight: int32, walls: seq[Wall])
 function engine.player.updatePlayer(player, dt, screenWidth, screenHeight, walls) end
 
 engine.player_3d = {}
----fireWeapon(player: var Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool
+---applyAim3D(p: Player3D)
+function engine.player_3d.applyAim3D(p) end
+---capture3DIntent(p: Player3D, cam: var FPSCamera, sensitivity: float32)
+function engine.player_3d.capture3DIntent(p, cam, sensitivity) end
+---fireWeapon(player: Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool
 function engine.player_3d.fireWeapon(player, camera, projectiles) end
----newPlayer3D(startPos: Vector3, health2D: float32): Player3D
-function engine.player_3d.newPlayer3D(startPos, health2D) end
----reload(player: var Player3D)
+---newPlayer3D(startPos: Vector3, health2D: float32, slot: int32): Player3D
+function engine.player_3d.newPlayer3D(startPos, health2D, slot) end
+---reload(player: Player3D)
 function engine.player_3d.reload(player) end
----updatePlayer(player: var Player3D, camera: FPSCamera, arena: Arena3D, dt: float32): bool
-function engine.player_3d.updatePlayer(player, camera, arena, dt) end
----updateWeapon(player: var Player3D, dt: float32)
+---take3D(p: Player3D, e: IntentEdge): bool
+function engine.player_3d.take3D(p, e) end
+---updatePlayer(player: Player3D, arena: Arena3D, dt: float32): bool
+function engine.player_3d.updatePlayer(player, arena, dt) end
+---updateWeapon(player: Player3D, dt: float32)
 function engine.player_3d.updateWeapon(player, dt) end
+---viewOf(p: Player3D): FPSCamera
+function engine.player_3d.viewOf(p) end
 ---weaponReady(player: Player3D): bool
 function engine.player_3d.weaponReady(player) end
 
@@ -2167,6 +2379,8 @@ function engine.powerup.bulwarkDamageBonus(player) end
 function engine.powerup.drawPowerUpSelectionExhausted(game) end
 ---drawPowerUpSelection(game: Game)
 function engine.powerup.drawPowerUpSelection(game) end
+---firstRerollCost(player: Player): int
+function engine.powerup.firstRerollCost(player) end
 ---generatePowerUpChoices(player: Player, isLegendary: bool, allowedPowerFamilies: set[RoguelitePowerFamily], mode: GameMode): array[0 .. 2, PowerUp]
 function engine.powerup.generatePowerUpChoices(player, isLegendary, allowedPowerFamilies, mode) end
 ---getElementColor(elementType: ElementType): Color
@@ -2193,6 +2407,8 @@ function engine.powerup.juggernautDamageBonus(player) end
 function engine.powerup.juggernautSpeedMult(player) end
 ---redistributeAllOrbs(player: Player)
 function engine.powerup.redistributeAllOrbs(player) end
+---rerollCostAfter(player: Player, cost: int): int
+function engine.powerup.rerollCostAfter(player, cost) end
 ---skipPowerUpRollAnimation(game: Game)
 function engine.powerup.skipPowerUpRollAnimation(game) end
 ---updatePowerUpRollAnimation(game: Game, deltaTime: float32)
@@ -2406,6 +2622,8 @@ function engine.roguelite.cosmeticCost(kind, index) end
 function engine.roguelite.cosmeticCount(kind) end
 ---cosmeticIsUnlocked(profile: RogueliteProfile, kind: CosmeticKind, index: int): bool
 function engine.roguelite.cosmeticIsUnlocked(profile, kind, index) end
+---equipRogueliteStarter(game: Game, starterKit: RogueliteStarterKit, heatRank: int, profile: RogueliteProfile)
+function engine.roguelite.equipRogueliteStarter(game, starterKit, heatRank, profile) end
 ---hasRelic(run: RogueliteRun, relic: RogueliteRelic): bool
 function engine.roguelite.hasRelic(run, relic) end
 ---@overload fun(run, relicType)
@@ -2513,6 +2731,8 @@ function engine.run_save.saveRunState(game, file, bypassStateGate) end
 function engine.run_save.setRestorePointsUsed(game, used) end
 
 engine.run_statistics = {}
+---bookCredits(game: Game, amount: int)
+function engine.run_statistics.bookCredits(game, amount) end
 ---calculateDerivedMetrics()
 function engine.run_statistics.calculateDerivedMetrics() end
 ---clearLastCompletedRun()
@@ -2543,6 +2763,8 @@ function engine.run_statistics.initResourceStats() end
 function engine.run_statistics.initializeRunTracking(game) end
 ---loadLastCompletedRun(loadedStats: RunStatistics)
 function engine.run_statistics.loadLastCompletedRun(loadedStats) end
+---newRunStatisticsFor(gameMode: GameMode): RunStatistics
+function engine.run_statistics.newRunStatisticsFor(gameMode) end
 ---recordDamageDealt(damage: float32)
 function engine.run_statistics.recordDamageDealt(damage) end
 ---recordKill(enemyType: EnemyType, isElite: bool, isBoss: bool, gameTime: float32, pos: Vector2)
@@ -2639,6 +2861,8 @@ function engine.save_system.getProfileDir(slot) end
 function engine.save_system.getRootDataPath() end
 ---getStatsPath(): string
 function engine.save_system.getStatsPath() end
+---jsonToRunStatistics(j: JsonNode): RunStatistics
+function engine.save_system.jsonToRunStatistics(j) end
 ---loadLastRunStats(): RunStatistics
 function engine.save_system.loadLastRunStats() end
 ---loadProfileDifficulty(slot: int): GameDifficulty
@@ -2653,6 +2877,8 @@ function engine.save_system.migrateLegacySaveFiles() end
 function engine.save_system.needObject(j) end
 ---profileExists(slot: int): bool
 function engine.save_system.profileExists(slot) end
+---runStatisticsToJson(runStats: RunStatistics): JsonNode
+function engine.save_system.runStatisticsToJson(runStats) end
 ---saveLastRunStats(runStats: RunStatistics): bool
 function engine.save_system.saveLastRunStats(runStats) end
 ---saveSettings(settings: Settings): bool
@@ -2675,6 +2901,8 @@ function engine.settings.damageNumberScaleOf(settings) end
 function engine.settings.initSettings() end
 ---isPowerUpDiscovered(pt: PowerUpType): bool
 function engine.settings.isPowerUpDiscovered(pt) end
+---newDefaultSettings(): Settings
+function engine.settings.newDefaultSettings() end
 ---reloadSettingsFromDisk(settings: Settings)
 function engine.settings.reloadSettingsFromDisk(settings) end
 ---screenShakeScaleOf(settings: Settings): float32
@@ -2888,6 +3116,8 @@ function engine.suspend.fromFlatty(s, i, x) end
 ---@overload fun(s, i, x)
 ---hasSuspendSnapshot(mode: GameMode, modMode: string): bool
 function engine.suspend.hasSuspendSnapshot(mode, modMode) end
+---relinkSharedRefs(g: Game)
+function engine.suspend.relinkSharedRefs(g) end
 ---restoreGame(target: var Game): bool
 function engine.suspend.restoreGame(target) end
 ---suspendGame(game: Game)
@@ -2993,6 +3223,8 @@ function engine.types.calculateWaveEnemyCount(waveNumber) end
 function engine.types.canonicalBossId(id) end
 ---clockSweepHandAngle(warning: AttackWarning, hand: int, lifetimeOffset: float32): float32
 function engine.types.clockSweepHandAngle(warning, hand, lifetimeOffset) end
+---coopScale(perExtraPlayer: float32): float32
+function engine.types.coopScale(perExtraPlayer) end
 ---defaultPvPConfig(): PvPConfig
 function engine.types.defaultPvPConfig() end
 ---densityRebate(game: Game): float32
@@ -3225,8 +3457,8 @@ function engine.wall.drawWall(wall, player) end
 function engine.wall.isValidWallPlacement(pos, playerPos, walls, enemies, radius, worldWidth, worldHeight) end
 ---newWall(x: float32, y: float32, player: Player): Wall
 function engine.wall.newWall(x, y, player) end
----processPendingWallRespawns(pending: var seq[PendingWallRespawn], walls: var seq[Wall], enemies: seq[Enemy], player: Player, particlePool: ParticlePool, dt: float32)
-function engine.wall.processPendingWallRespawns(pending, walls, enemies, player, particlePool, dt) end
+---processPendingWallRespawns(pending: var seq[PendingWallRespawn], walls: var seq[Wall], enemies: seq[Enemy], players: seq[Player], particlePool: ParticlePool, dt: float32)
+function engine.wall.processPendingWallRespawns(pending, walls, enemies, players, particlePool, dt) end
 ---processWallTurret(wall: var Wall, enemies: seq[Enemy], bullets: var seq[Bullet], player: Player, particlePool: ParticlePool, dt: float32, screenWidth: int32, screenHeight: int32)
 function engine.wall.processWallTurret(wall, enemies, bullets, player, particlePool, dt, screenWidth, screenHeight) end
 ---takeDamage(wall: Wall, damage: float32)
@@ -3307,6 +3539,8 @@ function engine.xp_orb.updateGameXpOrbs(game, dt) end
 function engine.xp_orb.xpRequiredForLevel(level, mode) end
 
 ---@alias ModdableName
+---| "abilities.activateLegendaries"
+---| "abilities.updateWallPlacement"
 ---| "advancement.advancementPercent"
 ---| "advancement.advancementProfileToJson"
 ---| "advancement.allAdvancementCategories"
@@ -3367,6 +3601,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "boss_3d.drawGravityWells"
 ---| "boss_3d.drawSatelliteHealthbars"
 ---| "boss_3d.getBoss3D"
+---| "boss_3d.pullIntoWells"
 ---| "boss_3d.takeBossDamage"
 ---| "boss_3d.updateBoss"
 ---| "boss_definitions.bossAuthoredSlotWave"
@@ -3444,6 +3679,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "bullet_skins.initializeBulletSkins"
 ---| "bullets.applyBulletEffects"
 ---| "bullets.applyMasteryDoT"
+---| "bullets.blastFreeFizzle"
 ---| "bullets.bossHazardDefused"
 ---| "bullets.drawBossDeathBlasts"
 ---| "bullets.drawLightningBolts"
@@ -3563,6 +3799,43 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "consumable.pickupAlive"
 ---| "consumable.pickupTrail"
 ---| "consumable.startConsumableBuff"
+---| "coop_codec.applySnapshot"
+---| "coop_codec.captureFrame"
+---| "coop_codec.encodeSnapshot"
+---| "coop_codec.readSnapshot"
+---| "coop_overlay.coopName"
+---| "coop_overlay.coopPauseMenu"
+---| "coop_overlay.coopResultsPanel"
+---| "coop_overlay.drawCoopBanner"
+---| "coop_overlay.drawCoopLocalDown"
+---| "coop_overlay.drawCoopModalStatus"
+---| "coop_overlay.drawCoopTeamStrip"
+---| "coop_present.replayCoopFx"
+---| "coop_profile.applyProfileEvent"
+---| "coop_session.backToLobby"
+---| "coop_session.broadcastLobby"
+---| "coop_session.closeCoop"
+---| "coop_session.endCoopRun"
+---| "coop_session.endStatistics"
+---| "coop_session.hostCoop"
+---| "coop_session.joinCoop"
+---| "coop_session.pollCoopSession"
+---| "coop_session.readyToStart"
+---| "coop_session.setLobbyConfig"
+---| "coop_session.setReady"
+---| "coop_session.startCoopRun"
+---| "coop_smooth.afterSnapshot"
+---| "coop_smooth.beforeSnapshot"
+---| "coop_smooth.predictLocal3D"
+---| "coop_smooth.predictLocal"
+---| "coop_smooth.smoothFrame3D"
+---| "coop_smooth.smoothFrame"
+---| "coop_window.drawCoopWindow"
+---| "coop_window.modeChoices"
+---| "coop_window.newCoopWindow"
+---| "coop_window.resetCoopView"
+---| "coop_window.updateCoopWindow"
+---| "coop_window.wantsTextInput"
 ---| "credits_window.drawCreditsWindow"
 ---| "credits_window.newCreditsWindow"
 ---| "credits_window.updateCreditsWindow"
@@ -3624,9 +3897,13 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "d_visuals.drawWaveStartBannerGutter"
 ---| "d_visuals.drawWaveStartBanner"
 ---| "death.beginPlayerDeathSequence"
+---| "death.coopTeamWiped"
 ---| "death.drawRecentPowerUpInstall"
 ---| "death.installPowerUp"
+---| "death.showInstallCard"
+---| "death.spawnPlayerDeathExplosion"
 ---| "death.updateDeathSequencePlayback"
+---| "death.updateDownedPlayers"
 ---| "desktop_bg_fx.drawDesktopBgScene"
 ---| "desktop_bg_skins.getDesktopBgData"
 ---| "desktop_bg_skins.initializeDesktopBgSkins"
@@ -3663,6 +3940,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "dungeon.rewardFolderName"
 ---| "dungeon.rewardLabel"
 ---| "dungeon.rollEncounterEnemyType"
+---| "dungeon.roomGoal"
 ---| "dungeon.sectorPath"
 ---| "dungeon.sectorRewardLayers"
 ---| "dungeon.selectFloorTheme"
@@ -3764,43 +4042,63 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "fx.updateLightningBolts"
 ---| "fx.updatePathShockwaves"
 ---| "fx.updateShockwaveRings"
+---| "game.addCoopPlayer"
+---| "game.applyCoopAction"
 ---| "game.applyLevelUpStatBoost"
 ---| "game.bankRunLevelUps"
+---| "game.beginCoopRun"
 ---| "game.beginDraftResume"
 ---| "game.beginEnter3D"
 ---| "game.bossDefeated"
+---| "game.buyFromShop"
 ---| "game.canSpawnBoss"
 ---| "game.canStartNewWave"
 ---| "game.cheatCompleteRogueliteFloor"
 ---| "game.checkPendingLevelDraft"
+---| "game.chooseFloor"
 ---| "game.cleanupGame"
 ---| "game.clearBossWave"
+---| "game.closeShop"
 ---| "game.collectPickup"
 ---| "game.completeBossWave"
+---| "game.continueAfterDraft"
 ---| "game.drawDeathSequenceOverlay"
 ---| "game.drawGameOver"
 ---| "game.drawGame"
+---| "game.drawPlayerActor"
 ---| "game.drawVictory"
 ---| "game.enterWorld3D"
 ---| "game.fireConfiguredEnemyShot"
 ---| "game.hudInterfaceScale"
+---| "game.leaveShop"
+---| "game.loadShopCounts"
 ---| "game.newGame"
+---| "game.pickDraftCard"
+---| "game.rerollDraft"
 ---| "game.resolveBulletEnemyHit"
 ---| "game.setGameMode"
 ---| "game.spawnConfiguredBoss"
 ---| "game.spawnWaveEnemies"
+---| "game.startSelectedTheme"
 ---| "game.startWave"
+---| "game.syncLocalDraftView"
 ---| "game.tickBossAttacks"
+---| "game.updateCoopModal"
+---| "game.updateFloatingText"
 ---| "game.updateGame"
+---| "game.updatePresentationLists"
 ---| "game_3d.addEntity3D"
 ---| "game_3d.allocId3D"
 ---| "game_3d.damageBoss3D"
 ---| "game_3d.damageEntity3D"
 ---| "game_3d.damagePlayer3D"
 ---| "game_3d.finishWorld3D"
+---| "game_3d.followCamera3D"
 ---| "game_3d.healPlayer3D"
 ---| "game_3d.initGame3D"
 ---| "game_3d.killEntity3D"
+---| "game_3d.local3DInput"
+---| "game_3d.nearestPlayer3D"
 ---| "game_3d.newEntity3D"
 ---| "game_3d.newPickup3D"
 ---| "game_3d.newProjectile3D"
@@ -3809,8 +4107,11 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "game_3d.raylibCamera"
 ---| "game_3d.renderGame3D"
 ---| "game_3d.requestFinish3D"
+---| "game_3d.seatPlayers3D"
 ---| "game_3d.spawnDamageNumber3D"
 ---| "game_3d.sweepDead"
+---| "game_3d.teamOut3D"
+---| "game_3d.tickDamageNumbers3D"
 ---| "game_3d.updateGame3D"
 ---| "game_3d.worldToScreen3D"
 ---| "gamemode_definitions.canUseCheats"
@@ -3848,6 +4149,8 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "icon_drawing.drawShopIconTile"
 ---| "icon_drawing.drawShopIcon"
 ---| "icon_drawing.shopIconAccent"
+---| "input_intent.captureLocalIntent"
+---| "input_intent.idleIntent"
 ---| "language_select.drawLanguageSelect"
 ---| "language_select.languageOptionRects"
 ---| "language_select.modLanguageOptionRects"
@@ -4055,6 +4358,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "pickup.clampLootPosition"
 ---| "pickup.magnetPullsAll"
 ---| "pickup.pullTowardPlayer"
+---| "player.advancePlayer"
 ---| "player.dashBurstOf"
 ---| "player.dashRechargeOf"
 ---| "player.dashTimeOf"
@@ -4063,8 +4367,10 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "player.hasAnyOrbPowerUp"
 ---| "player.heal"
 ---| "player.newPlayer"
+---| "player.steerPlayer"
 ---| "player.takeDamage"
 ---| "player.updatePlayer"
+---| "player_3d.capture3DIntent"
 ---| "player_3d.fireWeapon"
 ---| "player_3d.newPlayer3D"
 ---| "player_3d.newWeapon3D"
@@ -4083,6 +4389,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "powerup.createRotatingOrbs"
 ---| "powerup.drawPowerUpSelectionExhausted"
 ---| "powerup.drawPowerUpSelection"
+---| "powerup.firstRerollCost"
 ---| "powerup.generatePowerUpChoices"
 ---| "powerup.getElementColor"
 ---| "powerup.getElementDamage"
@@ -4099,6 +4406,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "powerup.juggernautInvestedHp"
 ---| "powerup.juggernautSpeedMult"
 ---| "powerup.redistributeAllOrbs"
+---| "powerup.rerollCostAfter"
 ---| "powerup.rotatingShieldHealth"
 ---| "powerup.rotatingShieldRegenDelay"
 ---| "powerup.skipPowerUpRollAnimation"
@@ -4196,6 +4504,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "roguelite.cosmeticId"
 ---| "roguelite.cosmeticIsUnlocked"
 ---| "roguelite.ensureBaseCosmeticUnlocks"
+---| "roguelite.equipRogueliteStarter"
 ---| "roguelite.getRogueliteProfilePath"
 ---| "roguelite.hasModRelic"
 ---| "roguelite.hasRelic"
@@ -4255,6 +4564,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "run_save.saveBlockCheckpoint"
 ---| "run_save.saveRunState"
 ---| "run_save.setRestorePointsUsed"
+---| "run_statistics.bookCredits"
 ---| "run_statistics.calculateDerivedMetrics"
 ---| "run_statistics.calculatePlayStyle"
 ---| "run_statistics.clearLastCompletedRun"
@@ -4274,6 +4584,7 @@ function engine.xp_orb.xpRequiredForLevel(level, mode) end
 ---| "run_statistics.initRunStatistics"
 ---| "run_statistics.initializeRunTracking"
 ---| "run_statistics.loadLastCompletedRun"
+---| "run_statistics.newRunStatisticsFor"
 ---| "run_statistics.recordCoinEarned"
 ---| "run_statistics.recordCoinSpent"
 ---| "run_statistics.recordConsumable"

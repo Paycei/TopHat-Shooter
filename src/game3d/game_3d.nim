@@ -9,14 +9,16 @@
 ## All damage to the player goes through damagePlayer3D, to entities through
 ## damageEntity3D, to the boss through takeBossDamage / damageBoss3D.
 
-import std/tables
+import std/[tables, strutils]
 import ../modding/mod_patch_core
 import raylib, math, random
 from rlgl import getShaderIdDefault
 import ../draw_prims
 import types_3d, engine_3d, player_3d, boss_3d, ../types, ../utils, ../localization, ../settings
+import ../input_intent
 import ../modding/[mod_hooks, mod_assets]
 import ../ui/hud_dock   # hudSurface, and the interface theme (ui_theme)
+import ../coop/coop_fx
 
 export types_3d
 
@@ -67,11 +69,117 @@ proc initGame3D*(opts: World3DOptions, player2D: Player): Game3D {.moddable.} =
     spawnPos: startPos, nextId: 1)
   # The 2D player's HP comes along when asked; a fresh world starts at full HP.
   result.player = newPlayer3D(startPos, if opts.carryHp: player2D.hp else: player2D.maxHp)
+  result.players = @[result.player]
   if opts.bossEnabled:
     result.boss = getBoss3D(opts.bossId)
     # Profile difficulty scales the 3D boss pool like its 2D counterparts
     result.boss.health *= difficultyEnemyHpMult()
     result.boss.maxHealth *= difficultyEnemyHpMult()
+
+# PLAYERS
+# A co-op world holds a player per seat (seatPlayers3D). The world processes
+# one at a time, as `world.player` (withPlayer3D): each moves, shoots and is
+# hurt in their own turn, so the hooks and the mod API see the one concerned.
+# Between frames `world.player` is this machine's own (the camera, the HUD).
+
+const
+  Respawn3DDelay* = 4.0'f32     ## seconds a downed co-op player waits to come back
+  Respawn3DHpFrac = 0.6'f32     ## of their max health
+  Respawn3DInvuln = 2.5'f32
+
+template withPlayer3D*(world: Game3D, p: Player3D, body: untyped) =
+  ## Run `body` with `p` as the world's active player, then put it back.
+  let w3SavedPlayer = world.player
+  let w3SavedFxSlot = coopFxSlot
+  world.player = p
+  coopFxSlot = p.slot
+  try:
+    body
+  finally:
+    world.player = w3SavedPlayer
+    coopFxSlot = w3SavedFxSlot
+
+proc isUp3D*(p: Player3D): bool {.inline.} =
+  ## In the fight: not waiting out a respawn, not out of the world.
+  not p.isNil and not p.eliminated and p.downTimer <= 0
+
+proc localPlayer3D*(world: Game3D): Player3D =
+  ## This machine's player (the one the camera and the HUD follow).
+  for p in world.players:
+    if p.slot == localSlot: return p
+  world.player
+
+proc viewTarget3D*(world: Game3D): Player3D =
+  ## Whom this machine's camera follows: its own player, or while they are down
+  ## or out, a teammate still in the fight.
+  result = world.localPlayer3D()
+  if not result.isUp3D:
+    for p in world.players:
+      if p.isUp3D: return p
+
+proc followCamera3D*(world: Game3D) {.moddable.} =
+  ## This machine's camera onto whom it follows (viewTarget3D).
+  let eye = world.viewTarget3D()
+  if eye.isNil: return
+  world.camera.position = eye.pos + vec3(0, 2, 0)
+  world.camera.target = world.camera.position + world.camera.getForward()
+
+proc nearestPlayer3D*(world: Game3D, pos: Vector3): Player3D {.moddable.} =
+  ## The nearest player in the fight (what enemies and the boss go after); nil
+  ## while nobody is.
+  var best = 1.0e30'f32
+  for p in world.players:
+    if p.isUp3D:
+      let d = distance(pos, p.pos)
+      if d < best:
+        best = d
+        result = p
+
+proc seatPlayers3D*(world: Game3D, players2D: seq[Player], coop: CoopState) {.moddable.} =
+  ## A co-op world: a player for every seat of the 2D run, side by side at the
+  ## spawn, each with their own health carried in (when the world carries HP).
+  ## Out of the run stays out; down comes back here after their timer.
+  world.coop = coop
+  world.players.setLen(0)
+  for p2 in players2D:
+    let side = float32(p2.slot) - float32(players2D.len - 1) / 2
+    let hp = if world.carryHp: p2.hp else: p2.maxHp
+    let p = newPlayer3D(world.spawnPos + vec3(side * 8.0'f32, 0, 0),
+                        if hp > 0: hp else: p2.maxHp, p2.slot)
+    p.maxHealth = max(p.maxHealth, p2.maxHp)
+    p.eliminated = p2.eliminated
+    p.downTimer = if p2.eliminated: 0'f32 else: p2.downTimer
+    if p.downTimer > 0: p.health = 0
+    world.players.add p
+  world.player = world.localPlayer3D()
+
+proc downPlayer3D(world: Game3D, p: Player3D) =
+  ## A co-op player's death in the world: down until a team life brings them
+  ## back, or out of the world for good with none left.
+  p.health = 0
+  p.vel = vec3(0, 0, 0)
+  let coop = world.coop
+  if coop.teamLives == UnlimitedLives or coop.teamLives > 0:
+    if coop.teamLives > 0: dec coop.teamLives
+    p.downTimer = Respawn3DDelay
+  else:
+    p.eliminated = true
+
+proc tickDown3D(world: Game3D, p: Player3D, dt: float32) =
+  p.downTimer -= dt
+  if p.downTimer > 0: return
+  p.downTimer = 0
+  let side = float32(p.slot) - float32(world.players.len - 1) / 2
+  p.pos = world.spawnPos + vec3(side * 8.0'f32, 0, 0)
+  p.vel = vec3(0, 0, 0)
+  p.health = max(1.0'f32, p.maxHealth * Respawn3DHpFrac)
+  p.invulnTimer = max(p.invulnTimer, Respawn3DInvuln)
+
+proc teamOut3D*(world: Game3D): bool {.moddable.} =
+  ## Every player of a co-op world is out of it for good: the world is lost.
+  for p in world.players:
+    if not p.eliminated: return false
+  true
 
 # DAMAGE NUMBERS
 
@@ -85,6 +193,7 @@ proc spawnDamageNumber3D*(damageNumbers: var seq[DamageNumber3D], pos: Vector3, 
   )
 
   if damageNumbers.len >= MaxDamageNumbers3D: return
+  recordFx(CoopFx(kind: fxDamage3D, x: pos.x, y: pos.y, z: pos.z, w: damage, color: color))
   damageNumbers.add(DamageNumber3D(
     pos: pos,
     vel: vec3(horizontalSpread.x, 50.0, horizontalSpread.z),  # Float upward
@@ -122,6 +231,10 @@ proc updateDamageNumbers(damageNumbers: var seq[DamageNumber3D], dt: float32) =
       damageNumbers.delete(i)
     else:
       i += 1
+
+proc tickDamageNumbers3D*(world: Game3D, dt: float32) {.moddable.} =
+  ## The floating numbers rise and fade (a co-op client ticks its own).
+  updateDamageNumbers(world.damageNumbers, dt)
 
 proc raylibCamera*(camera: FPSCamera): Camera {.moddable.} =
   Camera(
@@ -182,7 +295,8 @@ proc damagePlayer3D*(world: Game3D, amount: float32, source = "script",
   ## The one door for damage to the player: the world3dPlayerDamaged filter,
   ## the profile difficulty, the invulnerability window, and the lethal check.
   ## Returns the damage taken.
-  if not world.active or amount <= 0 or world.player.invulnTimer > 0: return 0
+  if not world.active or amount <= 0 or world.player.invulnTimer > 0 or
+     not world.player.isUp3D: return 0
   let filtered = modWorld3DPlayerDamaged(amount, source, entity)
   if filtered <= 0: return 0
   result = filtered * difficultyEnemyDamageMult()
@@ -190,6 +304,8 @@ proc damagePlayer3D*(world: Game3D, amount: float32, source = "script",
   world.player.invulnTimer = world.player.hitInvuln
   if world.player.health <= 0 and modWorld3DPlayerLethal():
     if world.player.health <= 0: world.player.health = 1
+  if world.player.health <= 0 and not world.coop.isNil:
+    downPlayer3D(world, world.player)   # co-op: a team life, not the world
 
 proc healPlayer3D*(world: Game3D, amount: float32) {.moddable.} =
   world.player.health = min(world.player.maxHealth, world.player.health + amount)
@@ -202,6 +318,8 @@ proc killPlayerFall(world: Game3D) =
     world.player.health = max(world.player.health, 1.0'f32)
     world.player.pos = world.spawnPos
     world.player.vel = vec3(0, 0, 0)
+  elif not world.coop.isNil:
+    downPlayer3D(world, world.player)
 
 proc killEntity3D*(world: Game3D, e: Entity3D, credit = true) {.moddable.} =
   ## Death: hook, score and kill count (credit). The entity leaves the list
@@ -378,8 +496,10 @@ proc landOnPlatform(e: Entity3D, nextPos: var Vector3, arena: Arena3D) =
     e.vel.y = 0
 
 proc steerEntity(world: Game3D, e: Entity3D, dt: float32) =
-  ## The built-in AI: sets the heading and velocity, and shoots.
-  let toPlayer = world.player.pos - e.pos
+  ## The built-in AI: sets the heading and velocity, and shoots, at the
+  ## nearest player in the fight.
+  let target = world.nearestPlayer3D(e.pos)
+  let toPlayer = if target.isNil: vec3(0, 0, 0) else: target.pos - e.pos
   let flat = vec3(toPlayer.x, 0, toPlayer.z)
   case e.ai
   of aiNone:
@@ -415,7 +535,7 @@ proc steerEntity(world: Game3D, e: Entity3D, dt: float32) =
   # Shooting (any AI with a fire interval)
   if e.fireInterval > 0:
     e.fireTimer -= dt
-    if e.fireTimer <= 0 and (e.range <= 0 or toPlayer.length() <= e.range):
+    if e.fireTimer <= 0 and not target.isNil and (e.range <= 0 or toPlayer.length() <= e.range):
       e.fireTimer = e.fireInterval
       let dir = toPlayer.normalize()
       var shot = newProjectile3D(e.pos, dir * e.projectileSpeed, e.projectileDamage, false)
@@ -450,20 +570,23 @@ proc updateEntities(world: Game3D, dt: float32) =
     if e.pos.y < world.arena.deathPlaneY:
       killEntity3D(world, e, credit = false)
       continue
-    # Touching the player
-    let toPlayer = world.player.pos - e.pos
-    let reach = e.radius + world.player.radius
-    if toPlayer.length() < reach:
-      if e.contactDamage > 0 and e.contactTimer <= 0:
-        discard damagePlayer3D(world, e.contactDamage, "contact", e)
-        e.contactTimer = 1.0
-      if e.solid:
-        let push = vec3(toPlayer.x, 0, toPlayer.z).normalize()
-        let flatGap = sqrt(toPlayer.x * toPlayer.x + toPlayer.z * toPlayer.z)
-        let overlap = reach - flatGap
-        if overlap > 0:
-          world.player.pos.x += push.x * overlap
-          world.player.pos.z += push.z * overlap
+    # Touching a player
+    for p in world.players:
+      if not p.isUp3D: continue
+      let toPlayer = p.pos - e.pos
+      let reach = e.radius + p.radius
+      if toPlayer.length() < reach:
+        if e.contactDamage > 0 and e.contactTimer <= 0:
+          withPlayer3D(world, p):
+            discard damagePlayer3D(world, e.contactDamage, "contact", e)
+          e.contactTimer = 1.0
+        if e.solid:
+          let push = vec3(toPlayer.x, 0, toPlayer.z).normalize()
+          let flatGap = sqrt(toPlayer.x * toPlayer.x + toPlayer.z * toPlayer.z)
+          let overlap = reach - flatGap
+          if overlap > 0:
+            p.pos.x += push.x * overlap
+            p.pos.z += push.z * overlap
 
 proc homingTarget(world: Game3D, pos: Vector3): tuple[found: bool, pos: Vector3] =
   ## The nearest thing a player's homing shot can chase.
@@ -494,7 +617,9 @@ proc updateProjectiles(world: Game3D, dt: float32, holdEnemyHoming = false) =
         chase = target.found
         aim = target.pos
       else:
-        aim = world.player.pos
+        let target = world.nearestPlayer3D(proj.pos)
+        chase = not target.isNil
+        if chase: aim = target.pos
       if chase:
         let homingForce = (aim - proj.pos).normalize() * proj.homingStrength
         proj.vel = (proj.vel + homingForce * dt).normalize() * proj.vel.length()
@@ -531,22 +656,31 @@ proc updateProjectiles(world: Game3D, dt: float32, holdEnemyHoming = false) =
                 proj.active = false
                 break
       else:
-        if distance(proj.pos, world.player.pos) < world.player.radius + proj.effectiveRadius():
-          discard damagePlayer3D(world, proj.damage, "projectile")
-          proj.active = false
+        for p in world.players:
+          if p.isUp3D and distance(proj.pos, p.pos) < p.radius + proj.effectiveRadius():
+            withPlayer3D(world, p):
+              discard damagePlayer3D(world, proj.damage, "projectile")
+            proj.active = false
+            break
 
 proc updatePickups(world: Game3D, dt: float32) =
   for p in world.pickups:
     if not p.alive: continue
     p.age += dt
-    if distance(p.pos, world.player.pos) < p.radius + world.player.radius:
-      if not modWorld3DPickup(p):
-        case p.kind
-        of "health": healPlayer3D(world, p.value)
-        of "ammo":
-          world.player.weapon.ammo = min(world.player.weapon.maxAmmo,
-                                         world.player.weapon.ammo + int(p.value))
-        else: discard
+    var taker: Player3D = nil
+    for pl in world.players:
+      if pl.isUp3D and distance(p.pos, pl.pos) < p.radius + pl.radius:
+        taker = pl
+        break
+    if not taker.isNil:
+      withPlayer3D(world, taker):
+        if not modWorld3DPickup(p):
+          case p.kind
+          of "health": healPlayer3D(world, p.value)
+          of "ammo":
+            world.player.weapon.ammo = min(world.player.weapon.maxAmmo,
+                                           world.player.weapon.ammo + int(p.value))
+          else: discard
       p.alive = false
 
 proc sweepDead*(world: Game3D) {.moddable.} =
@@ -577,8 +711,11 @@ proc sweepDead*(world: Game3D) {.moddable.} =
       p.removed = true
   world.projectiles.setLen(i)
 
-proc updateGame3D*(world: Game3D, dt: float32) {.moddable.} =
-  # Handle pause toggle
+proc local3DInput*(world: Game3D) {.moddable.} =
+  ## This machine's keyboard and mouse, before the world's frame: Esc opens and
+  ## closes the pause overlay (Q there quits), and otherwise its player's
+  ## intent is captured (capture3DIntent). A co-op world never pauses: the
+  ## overlay only stops this player's input.
   if isKeyPressed(KeyboardKey.Escape):
     world.paused = not world.paused
     if world.paused:
@@ -587,8 +724,40 @@ proc updateGame3D*(world: Game3D, dt: float32) {.moddable.} =
       disableCursor()
   if world.paused and isKeyPressed(QuitKey):
     world.quitRequested = true   # main.nim leaves for the desktop
+  let me = world.localPlayer3D()
+  if me.isNil: return
+  if world.paused or not world.active or not me.isUp3D:
+    var it = me.intent
+    beginIntentFrame(it)
+    it.move = Vector2()
+    it.fireHeld = false
+    it.wallHeld = false
+    me.intent = it
+  else:
+    capture3DIntent(me, world.camera, world.rules.mouseSensitivity)
 
-  if not world.active or world.paused:
+proc stepPlayer3D(world: Game3D, p: Player3D, dt: float32) =
+  ## One player's turn (their context): look, move, the weapon, the trigger.
+  applyAim3D(p)
+  let fell = updatePlayer(p, world.arena, dt)
+  updateWeapon(p, dt)
+  if fell: killPlayerFall(world)
+  if not p.isUp3D: return
+  let trigger = world.rules.autoFire or
+                (if p.weapon.automatic: p.intent.fireHeld else: p.take3D(Edge3DTrigger))
+  if trigger and weaponReady(p):
+    if modWorld3DShoot(world):
+      p.weapon.fireTimer = p.weapon.fireRate   # a script fired instead
+    else:
+      discard fireWeapon(p, p.viewOf(), world.projectiles)
+  if world.rules.allowReload and p.take3D(Edge3DReload):
+    reload(p)
+
+proc updateGame3D*(world: Game3D, dt: float32) {.moddable.} =
+  ## One frame of the world. Input arrives as each player's intent (this
+  ## machine's from local3DInput, a co-op client's over the network).
+  let coopWorld = not world.coop.isNil
+  if not world.active or (world.paused and not coopWorld):
     return
 
   if not world.startFired:
@@ -598,43 +767,31 @@ proc updateGame3D*(world: Game3D, dt: float32) {.moddable.} =
 
   world.timeElapsed += dt
 
-  # Update camera
-  let mouseDelta = getMouseDelta()
-  updateCamera(world.camera, mouseDelta, world.rules.mouseSensitivity)
-
-  # Keep mouse centered to prevent hitting screen edges
-  let centerX = getScreenWidth() div 2
-  let centerY = getScreenHeight() div 2
-  setMousePosition(centerX, centerY)
-
   modWorld3DPreUpdate(world, dt)
   processWorld3DActions(world)
 
-  # Update player
-  let fell = updatePlayer(world.player, world.camera, world.arena, dt)
-  updateWeapon(world.player, dt)
-  if fell: killPlayerFall(world)
-
-  # Shooting
-  let trigger = world.rules.autoFire or
-                (if world.player.weapon.automatic: isMouseButtonDown(MouseButton.Left)
-                 else: isMouseButtonPressed(MouseButton.Left))
-  if trigger and weaponReady(world.player):
-    if modWorld3DShoot(world):
-      world.player.weapon.fireTimer = world.player.weapon.fireRate   # a script fired instead
-    else:
-      discard fireWeapon(world.player, world.camera, world.projectiles)
-
-  if world.rules.allowReload and isKeyPressed(KeyboardKey.R):
-    reload(world.player)
+  # The players, each in their turn (a downed one waits out their respawn)
+  for p in world.players:
+    if p.eliminated: continue
+    if p.downTimer > 0:
+      tickDown3D(world, p, dt)
+      continue
+    withPlayer3D(world, p):
+      stepPlayer3D(world, p, dt)
 
   # Update platforms
   updatePlatforms(world.arena.platforms, dt)
 
-  # Update boss (with arena for environment changes)
+  # Update boss (with arena for environment changes): it goes after the
+  # nearest player, and its wells pull everyone
   let bossFrozen = world.bossEnabled and world.boss.phaseTransitionTimer > 0
   if world.bossEnabled:
-    updateBoss(world.boss, world.player, world.projectiles, world.arena, dt)
+    let target = world.nearestPlayer3D(world.boss.pos)
+    if not target.isNil:
+      withPlayer3D(world, target):
+        updateBoss(world.boss, target, world.projectiles, world.arena, dt)
+      for p in world.players:
+        if p != target and p.isUp3D: pullIntoWells(world.boss, p, dt)
 
   updateEntities(world, dt)
   processWorld3DActions(world)
@@ -646,9 +803,8 @@ proc updateGame3D*(world: Game3D, dt: float32) {.moddable.} =
   # Update damage numbers
   updateDamageNumbers(world.damageNumbers, dt)
 
-  # Update camera position to follow player
-  world.camera.position = world.player.pos + vec3(0, 2, 0)
-  world.camera.target = world.camera.position + world.camera.getForward()
+  # The camera follows this machine's player
+  followCamera3D(world)
 
   modWorld3DUpdate(world, dt)
   processWorld3DActions(world)
@@ -656,7 +812,9 @@ proc updateGame3D*(world: Game3D, dt: float32) {.moddable.} =
   # Check win/loss
   if world.pendingResult != w3None:
     finishWorld3D(world, world.pendingResult)
-  elif world.player.health <= 0 and world.rules.exitOnPlayerDeath:
+  elif coopWorld and world.teamOut3D():
+    finishWorld3D(world, w3Lost)   # a co-op world is lost once nobody is left
+  elif not coopWorld and world.player.health <= 0 and world.rules.exitOnPlayerDeath:
     finishWorld3D(world, w3Lost)
   elif world.bossEnabled and world.boss.health <= 0 and world.rules.exitOnBossDeath:
     finishWorld3D(world, w3Won)
@@ -664,6 +822,14 @@ proc updateGame3D*(world: Game3D, dt: float32) {.moddable.} =
     finishWorld3D(world, if world.rules.timeLimitWins: w3Won else: w3Lost)
 
 # RENDERING
+
+const Teammate3DColors = [Color(r: 90, g: 220, b: 255, a: 255), Color(r: 255, g: 160, b: 70, a: 255),
+                          Color(r: 160, g: 255, b: 120, a: 255), Color(r: 230, g: 120, b: 255, a: 255)]
+
+proc coopName3D(world: Game3D, slot: int32): string =
+  if not world.coop.isNil and slot >= 0 and slot < MaxCoopPlayers and
+     world.coop.nicknames[slot].len > 0: world.coop.nicknames[slot]
+  else: t(tkCoopPlayerN).replace("$1", $(slot + 1))
 
 proc renderCamera(world: Game3D): Camera =
   ## The camera the scene is drawn with: the world's, shaken (world3d.shake).
@@ -784,6 +950,15 @@ proc renderGame3D*(world: Game3D) {.moddable.} =
     if p.alive:
       drawPickup3D(p, cam)
 
+  # Co-op: the teammates (this machine's player is the camera)
+  for p in world.players:
+    if p != world.player and p.isUp3D:
+      let col = Teammate3DColors[p.slot.int mod Teammate3DColors.len]
+      let feet = Vector3(x: p.pos.x, y: p.pos.y - 0.6'f32, z: p.pos.z)
+      let head = Vector3(x: p.pos.x, y: p.pos.y + 3.2'f32, z: p.pos.z)
+      drawCapsule(feet, head, 1.6'f32, 10, 6, col)
+      drawCapsuleWires(feet, head, 1.6'f32, 10, 6, fade(White, 0.35))
+
   for proj in world.projectiles:
     if proj.active:
       let look = projectile3dTex[proj.fromPlayer]
@@ -812,6 +987,18 @@ proc renderGame3D*(world: Game3D) {.moddable.} =
         drawText(label.text, int32(sp.x) - w div 2 + 1, int32(sp.y) + 1, label.size, fade(Black, 0.7))
         drawText(label.text, int32(sp.x) - w div 2, int32(sp.y), label.size, label.color)
     world3dLabels.setLen(0)
+
+  # Co-op: each teammate's name over their head
+  if not world.coop.isNil and not hudHidden(hpTeam):
+    for p in world.players:
+      if p != world.player and p.isUp3D:
+        let sp = worldToScreen3D(world.camera, p.pos + vec3(0, 5.5, 0))
+        if sp.visible:
+          let name = coopName3D(world, p.slot)
+          let w = measureText(name, 18)
+          drawText(name, int32(sp.x) - w div 2 + 1, int32(sp.y) + 1, 18, fade(Black, 0.7))
+          drawText(name, int32(sp.x) - w div 2, int32(sp.y), 18,
+                   uiOverlay(Teammate3DColors[p.slot.int mod Teammate3DColors.len]))
 
   let showPlayer = not hudHidden(hpPlayer)
   let showBoss = world.bossEnabled and not hudHidden(hpBoss)
@@ -870,9 +1057,35 @@ proc renderGame3D*(world: Game3D) {.moddable.} =
       drawText(warningText, (getScreenWidth() - textWidth) div 2, 100, 40,
                uiOverlay(fade(Color(r: 255, g: 255, b: 0, a: 255), flashAlpha / 255.0)))
 
+  # Co-op: the team's lives and each teammate's health, under the HUD box
+  if not world.coop.isNil and not hudHidden(hpTeam):
+    var y = (if showBoss: 170'i32 elif showPlayer: 80'i32 else: 10'i32)
+    let rows = int32(world.players.len - 1)
+    drawRectangle(10, y, 320, 34 + rows * 22, hudSurface(fade(Black, 0.7)))
+    let lives = if world.coop.teamLives == UnlimitedLives: "--" else: $world.coop.teamLives
+    drawText(t(tkCoopTeamLives) & " " & lives, 20, y + 8, 18, uiInk(Color(r: 120, g: 235, b: 120, a: 255)))
+    y += 32
+    for p in world.players:
+      if p == world.player: continue
+      drawText(coopName3D(world, p.slot), 20, y, 16, uiInk(White))
+      let state = if p.eliminated: t(tkCoopOut)
+                  elif p.downTimer > 0: t(tkCoopRespawnIn).replace("$1", $int(ceil(p.downTimer)))
+                  else: $int(max(0'f32, p.health))
+      drawText(state, 200, y, 16, uiInk(LightGray))
+      y += 22
+
   # Crosshair
   let centerX = getScreenWidth() div 2
   let centerY = getScreenHeight() div 2
+
+  # Co-op: this player is down (back soon) or out (watching the team)
+  if not world.coop.isNil and not world.player.isUp3D:
+    let msg = if world.player.eliminated: t(tkCoopEliminated)
+              else: t(tkCoopDown) & "  -  " &
+                    t(tkCoopRespawnIn).replace("$1", $int(ceil(world.player.downTimer)))
+    let mw = measureText(msg, 30)
+    drawText(msg, centerX - mw div 2 + 2, centerY + 62, 30, fade(Black, 0.7))
+    drawText(msg, centerX - mw div 2, centerY + 60, 30, uiOverlay(Color(r: 255, g: 190, b: 80, a: 255)))
   if not hudHidden(hpCrosshair):
     drawCircleOutline(centerX, centerY, 10, White)
     drawStroke(centerX - 15, centerY, centerX + 15, centerY, White)

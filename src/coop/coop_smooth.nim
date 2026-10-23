@@ -18,6 +18,11 @@
 ##   difference is bled out, or jumped when the host moved them (Player.warp)
 ##   or it is too large.
 ##
+## A 3D world (gs3DBoss) is treated alike: this player's movement runs the
+## world's own player_3d.updatePlayer, their teammates and the world's
+## entities carry on at their velocity, and shots fly on from where the last
+## snapshot saw them.
+##
 ## Positions are only drawn from: a client never simulates, and the snapshots
 ## are decoded from bytes, never from these objects, so writing them is safe.
 ## The state here is keyed by object identity, which the decoder keeps for an
@@ -27,6 +32,7 @@ import std/[tables, math]
 import raylib
 import ../modding/mod_patch_core
 import ../types, ../vec, ../player, ../input_intent
+import ../game3d/[types_3d, player_3d, game_3d]
 import coop_context
 
 const
@@ -50,6 +56,16 @@ type
     move: Vector2
     dashNow: bool
 
+  LocalStep3D = object
+    seq: int32
+    dt: float32
+    move, aim: Vector2
+    sprint, jump: bool
+
+  Track3D = object
+    auth: Vector3    ## where the last snapshot put it
+    offset: Vector3  ## on screen minus `auth`, bled out
+
 var
   tracks: Table[pointer, Track]
   shown: Table[pointer, Vector2]   # positions on screen as a snapshot lands
@@ -58,6 +74,20 @@ var
   shownLocal: Vector2
   shownWarp: int32
   correction: Vector2
+  # 3D
+  history3D: seq[LocalStep3D]
+  predicting3D: bool
+  shown3D: Vector3
+  correction3D: Vector3
+  shownEntities3D: Table[int, Vector3]     # by entity id
+  shownTeam3D: array[MaxCoopPlayers, tuple[seen: bool, pos: Vector3]]
+  entityTracks3D: seq[Track3D]             # by index into world.entities
+  teamTracks3D: array[MaxCoopPlayers, Track3D]
+  shotAuth3D: seq[Vector3]                 # by index into world.projectiles
+
+const
+  JumpDistance3D = 40'f32   ## a 3D move longer than this between snapshots is a jump
+  LocalJump3D = 30'f32      ## this player's 3D prediction this far off: jumped
 
 proc resetCoopSmoothing*() =
   ## A new run (or none): nothing carried over.
@@ -66,6 +96,17 @@ proc resetCoopSmoothing*() =
   history.setLen(0)
   predicting = false
   correction = Vector2()
+  history3D.setLen(0)
+  predicting3D = false
+  correction3D = Vector3()
+  shownEntities3D.clear()
+  entityTracks3D.setLen(0)
+  shotAuth3D.setLen(0)
+
+proc ownWorld(game: Game): Game3D =
+  ## The 3D world this run is in on this machine (nil when none).
+  if not activeWorld3D.isNil and game.game3D == cast[pointer](activeWorld3D): activeWorld3D
+  else: nil
 
 proc key[T: ref](x: T): pointer {.inline.} = cast[pointer](x)
 
@@ -102,6 +143,15 @@ proc beforeSnapshot*(game: Game) {.moddable.} =
   if not me.isNil:
     shownLocal = me.pos
     shownWarp = me.warp
+  let world = game.ownWorld
+  if not world.isNil:
+    shownEntities3D.clear()
+    for e in world.entities: shownEntities3D[e.id] = e.pos
+    for x in shownTeam3D.mitems: x.seen = false
+    for p in world.players:
+      if p.slot >= 0 and p.slot < MaxCoopPlayers: shownTeam3D[p.slot] = (true, p.pos)
+    let me3 = world.localPlayer3D()
+    if not me3.isNil: shown3D = me3.pos
 
 proc stepLocal(me: Player, st: LocalStep, w, h: int32, walls: seq[Wall]) =
   ## One frame of this player's movement, as updatePlayer runs it.
@@ -112,6 +162,95 @@ proc stepLocal(me: Player, st: LocalStep, w, h: int32, walls: seq[Wall]) =
   steerPlayer(me, st.dt, st.dashNow)
   advancePlayer(me, st.dt, w, h, walls)
   me.intent.move = held
+
+proc stepLocal3D(world: Game3D, me: Player3D, st: LocalStep3D) =
+  ## One frame of this player's 3D movement, as the world's frame runs it.
+  let held = me.intent
+  me.intent.move = st.move
+  me.intent.aim = st.aim
+  me.intent.wallHeld = st.sprint
+  if st.jump: me.intent.edges[Edge3DJump] = me.intent.seen[Edge3DJump] + 1
+  applyAim3D(me)
+  discard updatePlayer(me, world.arena, st.dt)
+  me.intent = held
+
+proc afterSnapshot3D(world: Game3D, intentAck: int32) =
+  ## A snapshot's world just decoded: the tracks from here, and this player
+  ## put back ahead of the host.
+  entityTracks3D.setLen(world.entities.len)
+  for k, e in world.entities:
+    var t = Track3D(auth: e.pos)
+    if shownEntities3D.hasKey(e.id):
+      let off = shownEntities3D[e.id] - e.pos
+      if length(off) < JumpDistance3D: t.offset = off
+    entityTracks3D[k] = t
+  for p in world.players:
+    if p.slot < 0 or p.slot >= MaxCoopPlayers: continue
+    var t = Track3D(auth: p.pos)
+    let was = shownTeam3D[p.slot]
+    if was.seen and length(was.pos - p.pos) < JumpDistance3D: t.offset = was.pos - p.pos
+    teamTracks3D[p.slot] = t
+  shotAuth3D.setLen(world.projectiles.len)
+  for k, s in world.projectiles: shotAuth3D[k] = s.pos
+
+  let me = world.localPlayer3D()
+  if me.isNil or not predicting3D or not me.isUp3D or not world.active:
+    history3D.setLen(0)
+    predicting3D = false
+    correction3D = Vector3()
+    return
+  var keep: seq[LocalStep3D]
+  for st in history3D:
+    if st.seq > intentAck: keep.add st
+  history3D = keep
+  for st in history3D: stepLocal3D(world, me, st)
+  let off = me.pos - shown3D
+  if length(off) > LocalJump3D:
+    correction3D = Vector3()
+  else:
+    me.pos = shown3D
+    correction3D = off
+
+proc predictLocal3D*(game: Game, dt: float32, seq: int32) {.moddable.} =
+  ## Client, every frame in a 3D world: move this player at once on their own
+  ## intent (just captured; `seq` is the input packet that will carry it).
+  let world = game.ownWorld
+  let me = if world.isNil: nil else: world.localPlayer3D()
+  if me.isNil or not me.isUp3D or not world.active or dt <= 0:
+    history3D.setLen(0)
+    predicting3D = false
+    correction3D = Vector3()
+    return
+  let st = LocalStep3D(seq: seq, dt: min(dt, 0.05'f32), move: me.intent.move, aim: me.intent.aim,
+                       sprint: me.intent.wallHeld, jump: me.take3D(Edge3DJump))
+  stepLocal3D(world, me, st)
+  history3D.add st
+  if history3D.len > MaxHistory: history3D.delete(0)
+  predicting3D = true
+  let bleed = correction3D * (1'f32 - exp(-BleedRate * dt))
+  me.pos = me.pos + bleed
+  correction3D = correction3D - bleed
+
+proc smoothFrame3D*(game: Game, dt, age: float32) {.moddable.} =
+  ## Client, every frame in a 3D world: where its teammates, entities and
+  ## shots are drawn, `age` seconds after the last snapshot.
+  let world = game.ownWorld
+  if world.isNil: return
+  let carry = clamp(age, 0'f32, MaxCarry)
+  let keepShare = exp(-BleedRate * max(dt, 0'f32))
+  if entityTracks3D.len == world.entities.len:
+    for k, e in world.entities:
+      let t = addr entityTracks3D[k]
+      t.offset = t.offset * keepShare
+      e.pos = t.auth + e.vel * carry + t.offset
+  for p in world.players:
+    if p.slot == localSlot or p.slot < 0 or p.slot >= MaxCoopPlayers: continue
+    let t = addr teamTracks3D[p.slot]
+    t.offset = t.offset * keepShare
+    p.pos = t.auth + vec3(p.vel.x, 0, p.vel.z) * carry + t.offset
+  if shotAuth3D.len == world.projectiles.len:
+    for k, s in world.projectiles:
+      s.pos = shotAuth3D[k] + s.vel * carry
 
 proc afterSnapshot*(game: Game, intentAck: int32) {.moddable.} =
   ## Client, a snapshot just applied (the mirror holds the host's run): track
@@ -139,6 +278,8 @@ proc afterSnapshot*(game: Game, intentAck: int32) {.moddable.} =
     next[k] = t
   tracks = next
   shown.clear()
+  let world = game.ownWorld
+  if not world.isNil: afterSnapshot3D(world, intentAck)
 
   # This player: the host's position, then the inputs it has not seen yet.
   let me = game.localPlayer

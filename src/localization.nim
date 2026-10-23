@@ -2030,6 +2030,7 @@ type
     tkCoopReady = "coop_ready"
     tkCoopChoosing = "coop_choosing"
     tkCoopOut = "coop_out"
+    tkCoopLeftTag = "coop_left_tag"
     tkCoopPlayerN = "coop_player_n"
     tkCoopTeamLives = "coop_team_lives"
     tkCoopDown = "coop_down"
@@ -2077,6 +2078,7 @@ type
     tkCoopHostEnded = "coop_host_ended"
     tkCoopHostLeft = "coop_host_left"
     tkCoopPlayerLeft = "coop_player_left"
+    tkCoopVictory = "coop_victory"
     tkCoopPausedNote = "coop_paused_note"
     tkCoopResume = "coop_resume"
     tkCoopLeaveRun = "coop_leave_run"
@@ -4383,6 +4385,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "coop_ready": "READY",
     "coop_choosing": "choosing...",
     "coop_out": "OUT",
+    "coop_left_tag": "LEFT",
     "coop_player_n": "PLAYER $1",
     "coop_team_lives": "TEAM LIVES",
     "coop_down": "DOWN",
@@ -4430,6 +4433,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "coop_host_ended": "The host ended the run",
     "coop_host_left": "The host left the game",
     "coop_player_left": "$1 left the game",
+    "coop_victory": "The team won the run",
     "coop_paused_note": "PAUSED - the run goes on for your team",
     "coop_resume": "Resume",
     "coop_leave_run": "Leave the run",
@@ -6733,6 +6737,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "coop_ready": "LISTO",
     "coop_choosing": "eligiendo...",
     "coop_out": "FUERA",
+    "coop_left_tag": "SE FUE",
     "coop_player_n": "JUGADOR $1",
     "coop_team_lives": "VIDAS DEL EQUIPO",
     "coop_down": "CAÍDO",
@@ -6780,6 +6785,7 @@ var translations: Table[localization.Language, Table[system.string, system.strin
     "coop_host_ended": "El anfitrión terminó la partida",
     "coop_host_left": "El anfitrión abandonó la partida",
     "coop_player_left": "$1 abandonó la partida",
+    "coop_victory": "El equipo ganó la partida",
     "coop_paused_note": "PAUSA - la partida sigue para tu equipo",
     "coop_resume": "Continuar",
     "coop_leave_run": "Abandonar la partida",

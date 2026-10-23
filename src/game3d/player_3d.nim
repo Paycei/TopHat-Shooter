@@ -1,9 +1,63 @@
 ## 3D Player Module
 ## Handles 3D player movement, shooting, and weapon systems
+##
+## A player is driven by their intent (Player3D.intent), never the devices, so
+## a co-op world moves every player alike. In 3D the 2D intent's fields mean:
+## `move` = (strafe right, forward), `aim` = (yaw, pitch) in degrees,
+## `fireHeld` = the trigger held, `wallHeld` = sprint, and the press counts
+## ieDash = jump, ieAbility = a trigger pull (semi-automatic weapons),
+## ieInteract = reload. capture3DIntent fills it from this machine's devices.
 
 import raylib, math, random
 import ../modding/mod_patch_core
+import ../types, ../input_intent
 import types_3d, engine_3d
+
+const
+  Edge3DJump* = ieDash
+  Edge3DTrigger* = ieAbility
+  Edge3DReload* = ieInteract
+
+proc take3D*(p: Player3D, e: IntentEdge): bool =
+  ## True once per press of `e` (its count is then used up).
+  if p.intent.edges[e] != p.intent.seen[e]:
+    p.intent.seen[e] = p.intent.edges[e]
+    true
+  else:
+    false
+
+proc viewOf*(p: Player3D): FPSCamera =
+  ## A camera on the player's own view: where they move and shoot toward.
+  FPSCamera(position: p.pos + vec3(0, 2, 0), up: vec3(0, 1, 0), fovy: 60.0,
+            yaw: p.yaw, pitch: p.pitch)
+
+proc capture3DIntent*(p: Player3D, cam: var FPSCamera, sensitivity: float32) {.moddable.} =
+  ## This machine's keyboard and mouse into its player's intent: the mouse
+  ## turns `cam` (this machine's view), and the view's angles are the aim.
+  var it = p.intent
+  beginIntentFrame(it)
+  updateCamera(cam, getMouseDelta(), sensitivity)
+  # Keep the mouse centred so it never hits the window's edge.
+  setMousePosition(getScreenWidth() div 2, getScreenHeight() div 2)
+  var move = Vector2()
+  if isKeyDown(KeyboardKey.W): move.y += 1
+  if isKeyDown(KeyboardKey.S): move.y -= 1
+  if isKeyDown(KeyboardKey.D): move.x += 1
+  if isKeyDown(KeyboardKey.A): move.x -= 1
+  let len = sqrt(move.x * move.x + move.y * move.y)
+  it.move = if len > 0: Vector2(x: move.x / len, y: move.y / len) else: move
+  it.aim = Vector2(x: cam.yaw, y: cam.pitch)
+  it.wallHeld = isKeyDown(KeyboardKey.LeftShift)
+  it.fireHeld = isMouseButtonDown(MouseButton.Left)
+  if isMouseButtonPressed(MouseButton.Left): pressEdge(it, Edge3DTrigger)
+  if isKeyPressed(KeyboardKey.Space): pressEdge(it, Edge3DJump)
+  if isKeyPressed(KeyboardKey.R): pressEdge(it, Edge3DReload)
+  p.intent = it
+
+proc applyAim3D*(p: Player3D) =
+  ## The player looks where their intent aims (pitch kept off the poles).
+  p.yaw = p.intent.aim.x
+  p.pitch = clamp(p.intent.aim.y, -89.9'f32, 89.9'f32)
 
 proc newWeapon3D(): Weapon3D {.moddable.} =
   Weapon3D(
@@ -17,7 +71,7 @@ proc newWeapon3D(): Weapon3D {.moddable.} =
     pellets: 1
   )
 
-proc updateWeapon*(player: var Player3D, dt: float32) {.moddable.} =
+proc updateWeapon*(player: Player3D, dt: float32) {.moddable.} =
   if player.weapon.fireTimer > 0:
     player.weapon.fireTimer -= dt
   if player.weapon.reloadTimer > 0:
@@ -31,7 +85,7 @@ proc weaponReady*(player: Player3D): bool {.moddable.} =
   (player.weapon.ammo > 0 or player.weapon.infiniteAmmo) and
     player.weapon.fireTimer <= 0 and player.weapon.reloadTimer <= 0
 
-proc fireWeapon*(player: var Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool {.moddable.} =
+proc fireWeapon*(player: Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool {.moddable.} =
   if weaponReady(player):
     if not player.weapon.infiniteAmmo:
       player.weapon.ammo -= 1
@@ -61,14 +115,15 @@ proc fireWeapon*(player: var Player3D, camera: FPSCamera, projectiles: var seq[P
     return true
   false
 
-proc reload*(player: var Player3D) {.moddable.} =
+proc reload*(player: Player3D) {.moddable.} =
   if player.weapon.reloadTime <= 0:
     player.weapon.ammo = player.weapon.maxAmmo
   elif player.weapon.reloadTimer <= 0 and player.weapon.ammo < player.weapon.maxAmmo:
     player.weapon.reloadTimer = player.weapon.reloadTime
 
-proc newPlayer3D*(startPos: Vector3, health2D: float32): Player3D {.moddable.} =
+proc newPlayer3D*(startPos: Vector3, health2D: float32, slot: int32 = 0): Player3D {.moddable.} =
   Player3D(
+    slot: slot,
     pos: startPos,
     vel: vec3(0, 0, 0),
     health: health2D,    # Carry over health from 2D phase
@@ -85,34 +140,28 @@ proc newPlayer3D*(startPos: Vector3, health2D: float32): Player3D {.moddable.} =
     gravityScale: 1.0
   )
 
-proc updatePlayer*(player: var Player3D, camera: FPSCamera, arena: Arena3D, dt: float32): bool {.moddable.} =
-  ## Movement, gravity, platform landings and the arena bounds. True when the
-  ## player fell through the death plane (the caller decides what that means).
+proc updatePlayer*(player: Player3D, arena: Arena3D, dt: float32): bool {.moddable.} =
+  ## Movement (their intent, along where they look), gravity, platform
+  ## landings and the arena bounds. True when the player fell through the
+  ## death plane (the caller decides what that means).
   if player.invulnTimer > 0:
     player.invulnTimer -= dt
 
   # Movement input
-  var moveDir = vec3(0, 0, 0)
-  let forward = camera.getForward()
-  let right = camera.getRight()
+  let view = player.viewOf()
+  let forward = view.getForward()
+  let right = view.getRight()
 
   # Flatten movement to XZ plane
   let flatForward = vec3(forward.x, 0, forward.z).normalize()
   let flatRight = vec3(right.x, 0, right.z).normalize()
 
-  if isKeyDown(KeyboardKey.W):
-    moveDir = moveDir + flatForward
-  if isKeyDown(KeyboardKey.S):
-    moveDir = moveDir - flatForward
-  if isKeyDown(KeyboardKey.D):
-    moveDir = moveDir + flatRight
-  if isKeyDown(KeyboardKey.A):
-    moveDir = moveDir - flatRight
+  var moveDir = flatRight * player.intent.move.x + flatForward * player.intent.move.y
 
   # Normalize and apply speed
   if moveDir.length() > 0:
     moveDir = moveDir.normalize()
-    let speed = if isKeyDown(KeyboardKey.LeftShift):
+    let speed = if player.intent.wallHeld:
                   player.speed * player.sprintMultiplier
                 else:
                   player.speed
@@ -126,7 +175,7 @@ proc updatePlayer*(player: var Player3D, camera: FPSCamera, arena: Arena3D, dt: 
   player.vel.y += arena.gravity * player.gravityScale * dt
 
   # Jumping
-  if player.canJump and isKeyPressed(KeyboardKey.Space) and player.jumpsRemaining > 0:
+  if player.canJump and player.take3D(Edge3DJump) and player.jumpsRemaining > 0:
     player.vel.y = player.jumpForce
     player.jumpsRemaining -= 1
 

@@ -44,6 +44,7 @@ type
                      ## the DamageEvent, `b` the player's slot
     fxInstallCard    ## a power-up installed: `a` its type, `b` level, `c` rarity,
                      ## `d` the player's slot (whose screen shows the card)
+    fxDamage3D       ## a 3D world's floating number: (`x`, `y`, `z`), `w` the amount
 
   CoopFx* = object
     id*: uint32       ## the host's running count (a client shows each id once)

@@ -2431,13 +2431,14 @@ proc installAssetLibraries(base: ScriptTable) =
     ## register.gamemode{id = "glass", name = "Glass Cannon", description = "...",
     ##   base = "wave" | "survival" | "roguelite" | "3d", spawning = true,
     ##   onStart = function(game, resumed) ... end,
-    ##   icon = texture | model | "file", color = "#64c8ff", desktop = true}
+    ##   icon = texture | model | "file", color = "#64c8ff", desktop = true,
+    ##   coop = true}   -- coop = false: CO-OP.EXE does not offer it
     let owner = vm.requireLoading("register.gamemode")
     let t = vm.checkTable(args, 0, "gamemode")
     let key = mods[owner].id & ":" & vm.checkName(t, "register.gamemode")
     if findModMode(key) >= 0: vm.runtimeError("register.gamemode: '" & key & "' is already registered")
     var m = ModModeDef(key: key, owner: owner, spawning: true, desktop: true, base: gmWaveBased,
-                       resumable: true)
+                       resumable: true, coop: true)
     let b = rawGetStr(t, "base")
     if b.kind == vkString:
       if b.str.s == "3d":
@@ -2461,6 +2462,11 @@ proc installAssetLibraries(base: ScriptTable) =
     of vkBool: m.resumable = rs.b
     else: vm.runtimeError("register.gamemode: resumable must be true or false")
     m.onStart = rawGetStr(t, "onStart")
+    let co = rawGetStr(t, "coop")
+    case co.kind
+    of vkNil: discard
+    of vkBool: m.coop = co.b
+    else: vm.runtimeError("register.gamemode: coop must be true or false")
     vm.readDesktopEntry(t, "register.gamemode", m.icon, m.color, m.desktop)  # color a = 0: base mode's
     modModes.add(m)
     ret.setRet(vstr(key))
@@ -2540,11 +2546,52 @@ proc installAssetLibraries(base: ScriptTable) =
     modCosmetics.add(c)
     ret.setRet(vstr(key))
 
+proc installCoopLibrary(base: ScriptTable) =
+  ## The global `coop`: the co-op run on screen, read live.
+  let t = newScriptTable()
+  t.reg("active") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## coop.active() -> boolean: a co-op run is on screen (CO-OP.EXE)
+    ret.setRet(vbool(coopActive() and not modCtx.game.isNil))
+  t.reg("isHost") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## coop.isHost() -> boolean: this machine simulates the co-op run (gameplay hooks fire here)
+    ret.setRet(vbool(coopHost()))
+  t.reg("isClient") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## coop.isClient() -> boolean: this machine draws the host's run; only drawing
+    ## hooks fire, and what scripts spawn or remove here is dropped
+    ret.setRet(vbool(coopClient()))
+  t.reg("localSlot") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## coop.localSlot() -> number: this machine's seat (0 is the host's, 0 in single player)
+    ret.setRet(vnum(localSlot.float64))
+  t.reg("players") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## coop.players() -> {player...}: every player of the run, by seat (just the
+    ## player in single player); player.slot is each one's seat
+    let list = newScriptTable()
+    let g = modCtx.game
+    if not g.isNil and not modCtx.inPvP:
+      for k, p in g.players:
+        rawSet(list, vnum(float64(k + 1)), wrapPlayer(p))
+    ret.setRet(vtable(list))
+  t.reg("teamLives") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## coop.teamLives() -> number | nil: the team's lives left (math.huge when
+    ## unlimited); nil outside a co-op run
+    let g = modCtx.game
+    if g.isNil or g.coop.isNil: ret.setRet(NilValue)
+    elif g.coop.teamLives == UnlimitedLives: ret.setRet(vnum(Inf))
+    else: ret.setRet(vnum(g.coop.teamLives.float64))
+  t.reg("name") do (vm: VM, args: openArray[ScriptValue], ret: var RetVals):
+    ## coop.name(slot) -> string | nil: the nickname at that seat
+    let slot = int(vm.checkNum(args, 0, "name"))
+    let g = modCtx.game
+    if g.isNil or g.coop.isNil or slot < 0 or slot >= MaxCoopPlayers: ret.setRet(NilValue)
+    else: ret.setRet(vstr(g.coop.nicknames[slot]))
+  rawSet(base, vstr("coop"), vtable(t))
+
 proc installModApi*(base: ScriptTable) =
   ## Build the classes and the shared library tables (once per reload).
   textEntries.setLen(0)
   languageDefs.setLen(0)
   makeClasses()
+  installCoopLibrary(base)
   installMethods()
   installLibraries(base)
   installContentLibraries(base)

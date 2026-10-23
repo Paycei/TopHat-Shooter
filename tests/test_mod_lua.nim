@@ -114,7 +114,9 @@ proc tempHome(name: string): string =
   activeProfileSlot = 1
 
 proc newRun(): Game =
-  Game(player: newPlayer(500, 500), screenWidth: 1024, screenHeight: 768, nextEnemyId: 1,
+  ## A bare run, seated as newGame seats one (`players` holds its player).
+  let p = newPlayer(500, 500)
+  Game(player: p, players: @[p], screenWidth: 1024, screenHeight: 768, nextEnemyId: 1,
        difficulty: 1.0, state: gsPlaying, mode: gmWaveBased, particlePool: newParticlePool())
 
 # ------------------------------------------------------------- language ----
@@ -567,7 +569,7 @@ block solidFloor3d:
 
   # The player stands on it (no keys pressed: only gravity acts)
   for i in 0 ..< 240:
-    discard updatePlayer(ew.player, ew.camera, ew.arena, 1.0'f32 / 60)
+    discard updatePlayer(ew.player, ew.arena, 1.0'f32 / 60)
   check(abs(ew.player.pos.y - (ew.arena.floorY + 1.0'f32)) < 0.001 and ew.player.grounded and ew.player.vel.y == 0,
         "the player stands on the solid floor after 4 s")
   # ... and does not without it
@@ -576,7 +578,7 @@ block solidFloor3d:
   var pl = newPlayer3D(vec3(0, 0, 0), 100)
   var fell = false
   for i in 0 ..< 240:
-    if updatePlayer(pl, ew.camera, hole, 1.0'f32 / 60): fell = true
+    if updatePlayer(pl, hole, 1.0'f32 / 60): fell = true
   check(fell, "without a solid floor the player falls through the death plane")
 
   activeWorld3D = ew

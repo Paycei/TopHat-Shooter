@@ -7,11 +7,13 @@
 ## run's state is on the client's screen with no code of its own.
 ##
 ## To keep that small, a snapshot is the CHANGE since a snapshot the client
-## has confirmed (its `base`): the run is cut into sections -- the core (every
-## Game field but the players and the busy lists), one per player, one per
-## entity, keyed by its id -- and a section that did not change costs one
+## has confirmed (its `base`): the run is cut into sections -- each field of the
+## Game (but the players and the busy lists), each field of each player, one
+## per entity, keyed by its id -- and a section that did not change costs one
 ## byte; one that did is XORed against its base copy (an unchanged field turns
-## into zeros) and its zero runs are counted instead of sent. A client that
+## into zeros) and its zero runs are counted instead of sent. A field is a
+## section of its own so a list that grows or shrinks costs only itself: the
+## rest of the run still goes as a change. A client that
 ## confirmed nothing recent gets the full sections. The host keeps the last
 ## SnapBaseRing frames as bases; a client keeps the frames it rebuilt.
 ##
@@ -23,6 +25,7 @@ import std/tables
 import supersnappy
 import ../modding/mod_patch_core
 import ../types, ../layout_fp, ../suspend
+import ../game3d/[types_3d, engine_3d]
 import coop_wire, coop_context
 
 const
@@ -30,9 +33,10 @@ const
   MaxSnapshotBytes = 16 * 1024 * 1024 ## largest decompressed snapshot accepted
   CoreLists = ["player", "players", "enemies", "bullets", "coins", "xpOrbs"]
     ## Game fields sent as their own sections, not in the core
+  NoSkip: array[0, string] = []
 
   CoopLayoutHash* = fnv32(layoutSignature(Game,
-    "DiscordClient", "ParticlePool", "RogueliteProfile"))
+    "DiscordClient", "ParticlePool", "RogueliteProfile") & layoutSignature(Game3D))
     ## The run state's whole type layout: two builds that disagree on it can't
     ## read each other's snapshots, so the lobby refuses the pairing.
 
@@ -44,8 +48,9 @@ type
     ## One snapshot's sections as bytes: what later snapshots are deltas
     ## against (the host's as sent, a client's as rebuilt).
     seq*: int32
-    core*: string
-    players*: seq[string]
+    core*: seq[string]            ## the Game's fields, one section each
+    players*: seq[seq[string]]    ## each player's fields, one section each
+    world3d*: string     ## the 3D world the run is in ("" when none)
     ents*: array[EntityList, seq[tuple[id: int32, bytes: string]]]
     index: array[EntityList, Table[int32, int]]
 
@@ -90,17 +95,50 @@ proc entityBytes(f: WireFrame, kind: EntityList, id: int32): ptr string =
 
 # ------------------------------------------------------------- the core ----
 
-proc putCore(s: var string, g: Game) =
-  for name, f in g[].fieldPairs:
-    when not coopSkipsField("Game", name) and name notin CoreLists:
-      putW(s, f)
+template sentFieldsOf(obj, owner, skip, body: untyped) {.dirty.} =
+  ## `body` for each field of `obj` the snapshots carry (`f` the field).
+  for name, f in obj.fieldPairs:
+    when not coopSkipsField(owner, name) and name notin skip:
+      body
 
-proc getCore(s: string, g: Game) =
-  var i = 0
-  for name, f in g[].fieldPairs:
-    when not coopSkipsField("Game", name) and name notin CoreLists:
-      getW(s, i, f)
-  if i != s.len: wireFail()
+proc fieldSections(g: Game): seq[string] =
+  sentFieldsOf(g[], "Game", CoreLists):
+    result.add toWire(f)
+
+proc fieldSections(p: Player): seq[string] =
+  sentFieldsOf(p[], "Player", NoSkip):
+    result.add toWire(f)
+
+proc applyFields(sections: seq[string], g: Game) =
+  var n = 0
+  sentFieldsOf(g[], "Game", CoreLists):
+    inc n
+  if sections.len != n: wireFail()
+  var k = 0
+  sentFieldsOf(g[], "Game", CoreLists):
+    fromWire(sections[k], f)
+    inc k
+
+proc applyFields(sections: seq[string], p: Player) =
+  var n = 0
+  sentFieldsOf(p[], "Player", NoSkip):
+    inc n
+  if sections.len != n: wireFail()
+  var k = 0
+  sentFieldsOf(p[], "Player", NoSkip):
+    fromWire(sections[k], f)
+    inc k
+
+proc fieldCounts(): tuple[game, player: int] =
+  ## How many sections a Game and a Player are (what a snapshot must carry).
+  let g = Game()
+  sentFieldsOf(g[], "Game", CoreLists):
+    inc result.game
+  let p = Player()
+  sentFieldsOf(p[], "Player", NoSkip):
+    inc result.player
+
+let sentFieldCounts = fieldCounts()
 
 # ----------------------------------------------------------- the frames ----
 
@@ -122,9 +160,9 @@ template keyed(list, kind, idExpr: untyped) =
 proc captureFrame*(game: Game, seq: int32): WireFrame {.moddable.} =
   ## Host: this frame of the run, as sections.
   result = WireFrame(seq: seq)
-  putCore(result.core, game)
+  result.core = fieldSections(game)
   for p in game.players:
-    result.players.add toWire(p)
+    result.players.add fieldSections(p)
   for e in game.enemies:
     # An enemy's id is the game's own (scripts and links key on it), so a
     # duplicate goes under a key of its own instead.
@@ -134,6 +172,9 @@ proc captureFrame*(game: Game, seq: int32): WireFrame {.moddable.} =
   keyed(game.bullets, elBullets, x.netId)
   keyed(game.coins, elCoins, x.netId)
   keyed(game.xpOrbs, elXpOrbs, x.netId)
+  if game.state == gs3DBoss and not activeWorld3D.isNil and
+     game.game3D == cast[pointer](activeWorld3D):
+    result.world3d = toWire(activeWorld3D)
 
 # ------------------------------------------------------ section deltas ----
 
@@ -220,6 +261,18 @@ proc getSection(s: string, i: var int, base: ptr string): string =
   else:
     wireFail()
 
+proc putSections(s: var string, cur: seq[string], base: ptr seq[string], stats: var SnapStats) =
+  putW(s, int32(cur.len))
+  for j, x in cur:
+    putSection(s, x, (if base.isNil or j >= base[].len: nil else: addr base[][j]), stats)
+
+proc getSections(s: string, i: var int, base: ptr seq[string], expected: int): seq[string] =
+  var n: int32
+  getW(s, i, n)
+  if n != expected: wireFail()   # (another layout, or a malformed snapshot)
+  for j in 0 ..< n.int:
+    result.add getSection(s, i, (if base.isNil or j >= base[].len: nil else: addr base[][j]))
+
 # ------------------------------------------------------------ encoding ----
 
 proc encodeSnapshot*(cur, base: WireFrame, extras: SnapExtras): string {.moddable.} =
@@ -230,11 +283,12 @@ proc encodeSnapshot*(cur, base: WireFrame, extras: SnapExtras): string {.moddabl
   putW(s, cur.seq)
   putW(s, if base.isNil: 0'i32 else: base.seq)
   putW(s, extras)
-  putSection(s, cur.core, (if base.isNil: nil else: addr base.core), stats)
+  putSections(s, cur.core, (if base.isNil: nil else: addr base.core), stats)
   putW(s, int32(cur.players.len))
   for k, p in cur.players:
     let b = if base.isNil or k >= base.players.len: nil else: addr base.players[k]
-    putSection(s, p, b, stats)
+    putSections(s, p, b, stats)
+  putSection(s, cur.world3d, (if base.isNil: nil else: addr base.world3d), stats)
   for kind in EntityList:
     putW(s, int32(cur.ents[kind].len))
     for e in cur.ents[kind]:
@@ -273,13 +327,14 @@ proc readSnapshot*(packed: string, ring: FrameRing,
   if baseSeq != 0 and base.isNil: wireFail("snapshot base no longer kept")
   getW(s, i, extras)
   result = WireFrame(seq: seq)
-  result.core = getSection(s, i, (if base.isNil: nil else: addr base.core))
+  result.core = getSections(s, i, (if base.isNil: nil else: addr base.core), sentFieldCounts.game)
   var nPlayers: int32
   getW(s, i, nPlayers)
   if nPlayers < 0 or nPlayers > MaxCoopPlayers: wireFail()
   for k in 0 ..< nPlayers.int:
     let b = if base.isNil or k >= base.players.len: nil else: addr base.players[k]
-    result.players.add getSection(s, i, b)
+    result.players.add getSections(s, i, b, sentFieldCounts.player)
+  result.world3d = getSection(s, i, (if base.isNil: nil else: addr base.world3d))
   for kind in EntityList:
     var n: int32
     getW(s, i, n)
@@ -300,7 +355,22 @@ proc decodeList[T](frame: WireFrame, kind: EntityList, old: seq[T],
   for e in frame.ents[kind]:
     var x = byId.getOrDefault(e.id)
     fromWire(e.bytes, x)
+    if x.isNil: wireFail()   # (an empty entry: the run's loops would trip on it)
     result.add x
+
+proc isWhole(world: Game3D): bool =
+  ## A decoded world this machine can run its frames on: someone in it, and no
+  ## empty entry in its lists.
+  if world.isNil or world.players.len == 0: return false
+  for p in world.players:
+    if p.isNil: return false
+  for e in world.entities:
+    if e.isNil: return false
+  for p in world.projectiles:
+    if p.isNil: return false
+  for p in world.pickups:
+    if p.isNil: return false
+  true
 
 proc applySnapshot*(frame: WireFrame, game: Game) {.moddable.} =
   ## Client: make the mirror the host's run of `frame` (already read whole).
@@ -309,7 +379,8 @@ proc applySnapshot*(frame: WireFrame, game: Game) {.moddable.} =
   var players = game.players
   players.setLen(frame.players.len)
   for k in 0 ..< frame.players.len:
-    fromWire(frame.players[k], players[k])
+    if players[k].isNil: players[k] = Player()
+    applyFields(frame.players[k], players[k])
   # Lists first (decodeList reads the old ones), then the core and the players.
   let enemies = decodeList(frame, elEnemies, game.enemies,
                            proc (e: Enemy): int32 {.nimcall.} = int32(e.id))
@@ -319,7 +390,7 @@ proc applySnapshot*(frame: WireFrame, game: Game) {.moddable.} =
                          proc (c: Coin): int32 {.nimcall.} = c.netId)
   let orbs = decodeList(frame, elXpOrbs, game.xpOrbs,
                         proc (o: XpOrb): int32 {.nimcall.} = o.netId)
-  getCore(frame.core, game)
+  applyFields(frame.core, game)
   game.players = players
   game.enemies = enemies
   game.bullets = bullets
@@ -331,3 +402,29 @@ proc applySnapshot*(frame: WireFrame, game: Game) {.moddable.} =
   # This machine's player is the active one between frames.
   if localSlot >= 0 and localSlot < game.players.len:
     game.player = game.players[localSlot]
+  # The 3D world the run is in, decoded into this machine's copy (made on the
+  # way in, dropped on the way out); its camera stays this machine's own.
+  let ours = not activeWorld3D.isNil and game.game3D == cast[pointer](activeWorld3D)
+  if frame.world3d.len > 0:
+    var world = if ours: activeWorld3D else: nil
+    let fresh = world.isNil
+    fromWire(frame.world3d, world)
+    if not world.isWhole:
+      # (nobody in it, or a hole in a list: nothing this machine could draw)
+      if ours:
+        activeWorld3D = nil
+        game.game3D = nil
+      return
+    world.coop = game.coop
+    world.player = world.players[0]
+    for p in world.players:
+      if p.slot == localSlot: world.player = p
+    if fresh:
+      world.camera = initCamera3D(world.player.pos + vec3(0, 2, 0))
+      world.camera.yaw = world.player.yaw
+      world.camera.pitch = world.player.pitch
+      activeWorld3D = world
+      game.game3D = cast[pointer](world)
+  elif ours:
+    activeWorld3D = nil
+    game.game3D = nil

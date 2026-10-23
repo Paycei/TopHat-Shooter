@@ -9,6 +9,7 @@
 import std/math
 import raylib
 import ../types, ../input_intent, ../dungeon, coop_context
+import ../game3d/[types_3d, player_3d]
 
 proc queueBotModalActions*(game: Game, frame: int, includeLocal = false, onlyLocal = false) =
   ## The bots' choices in the open team modal, after a short think: a card,
@@ -73,4 +74,44 @@ proc botIntent*(game: Game, p: Player, frame: int) =
   let beat = frame + int(p.slot) * 37
   if beat mod 97 == 0: pressEdge(it, ieDash)
   if beat mod 300 == 150: pressEdge(it, ieAbility)
+  p.intent = it
+
+proc botIntent3D*(world: Game3D, p: Player3D, frame: int) =
+  ## A bot's intent in a 3D world: keep to the middle of the arena (the boss
+  ## world's jump pad), aim at the boss -- its nearest satellite while any
+  ## shield it -- or the nearest entity, pull the trigger, jump now and then.
+  if world.isNil or p.isNil: return
+  var it = p.intent
+  beginIntentFrame(it)
+  var target: Vector3
+  var best = 1.0e30'f32
+  if world.bossEnabled and world.boss.health > 0:
+    target = world.boss.pos
+    best = 0
+    var satBest = 1.0e30'f32
+    for sat in world.boss.satellites:
+      if sat.active and distance(p.pos, sat.pos) < satBest:
+        satBest = distance(p.pos, sat.pos)
+        target = sat.pos
+  for e in world.entities:
+    if e.alive and distance(p.pos, e.pos) < best:
+      best = distance(p.pos, e.pos)
+      target = e.pos
+  let has = best < 1.0e30'f32
+  if has:
+    let d = target - (p.pos + vec3(0, 2, 0))
+    let flat = sqrt(d.x * d.x + d.z * d.z)
+    it.aim = Vector2(x: radToDeg(arctan2(d.z, d.x)), y: radToDeg(arctan2(d.y, max(flat, 0.001'f32))))
+  let side = if (frame div 150 + int(p.slot)) mod 2 == 0: 1'f32 else: -1'f32
+  # Strafe a little, and head back to the middle when off it (facing it).
+  let reach = sqrt(p.pos.x * p.pos.x + p.pos.z * p.pos.z)
+  if reach > 12:
+    it.move = Vector2(x: 0, y: 1)
+    it.aim.x = radToDeg(arctan2(-p.pos.z, -p.pos.x))
+  else:
+    it.move = Vector2(x: side * 0.5'f32, y: 0)
+  it.fireHeld = has
+  it.wallHeld = false
+  if has and frame mod 9 == 0: pressEdge(it, Edge3DTrigger)
+  if (frame + int(p.slot) * 37) mod 240 == 0: pressEdge(it, Edge3DJump)
   p.intent = it

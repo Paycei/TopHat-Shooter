@@ -154,6 +154,8 @@ type
     skinType*, bulletSkinType*, shapeType*, particleSkinType*, bulletShape*: int32
     modSkin*, modBulletSkin*: int16
     starterKit*: int32     ## roguelite: this player's own starter kit (RogueliteStarterKit ord)
+    recursionBonus*: float32  ## roguelite: the damage their own profile banked from Recursion
+    recursionLevel*: int32    ## roguelite: their place on Recursion's ladder
 
   CoopRunConfigNet* = object
     ## What the host picked for the run. Everyone plays at the host's
@@ -266,6 +268,8 @@ type
       readySlot*: int32     ## the sender's seat (the host sets it from the address)
       readyFlag*: bool
       readyKit*: int32      ## RogueliteStarterKit ord
+      readyRecursion*: float32       ## their profile's banked Recursion damage
+      readyRecursionLevel*: int32    ## and its ladder level
     of ptCoopStart:
       startMembers*: seq[CoopMemberNet]
       startConfig*: CoopRunConfigNet

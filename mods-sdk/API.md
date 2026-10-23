@@ -49,6 +49,16 @@ The Lua 5.5 standard library is all there too (`io`, `os`, `debug`, `package`, `
 - `color.hex`
 - `color.rgb`
 
+### `coop`
+
+- `coop.active`: coop.active() -> boolean: a co-op run is on screen (CO-OP.EXE)
+- `coop.isClient`: coop.isClient() -> boolean: this machine draws the host's run; only drawing hooks fire, and what scripts spawn or remove here is dropped
+- `coop.isHost`: coop.isHost() -> boolean: this machine simulates the co-op run (gameplay hooks fire here)
+- `coop.localSlot`: coop.localSlot() -> number: this machine's seat (0 is the host's, 0 in single player)
+- `coop.name`: coop.name(slot) -> string | nil: the nickname at that seat
+- `coop.players`: coop.players() -> {player...}: every player of the run, by seat (just the player in single player); player.slot is each one's seat
+- `coop.teamLives`: coop.teamLives() -> number | nil: the team's lives left (math.huge when unlimited); nil outside a co-op run
+
 ### `difficulty`
 
 - `difficulty.get`: difficulty.get() -> {profile = "gdHard", enemyHp = .., ...} (the scale in force)
@@ -188,7 +198,7 @@ The Lua 5.5 standard library is all there too (`io`, `os`, `debug`, `package`, `
 - `register.consumable`: local MANA = register.consumable{id = "mana", name = "Mana", color = "#4080ff", weight = 6, modes = {"wave"}, stats = {damage = "+5%"}, onPickup = fn(player, game, x, y)}
 - `register.cosmetic`: register.cosmetic{kind = "player" | "bullet" | "desktop", id = "neon", name = "Neon", colors = {"#ff00ff", "#00ffff", "#ffffff"}, texture = "skins/neon.png", model = "skins/neon.glb", scale = 1.2, rotate = true, plus override.model's pose options (tilt, spin, animation, ...)} desktop only: the texture is the wallpaper (cube = true keeps the desktop cube over it) and the model stands in for the desktop cube
 - `register.enemy`: local name = register.enemy{id = "bouncer", base = "etCube", hp = 3, ...}
-- `register.gamemode`: register.gamemode{id = "glass", name = "Glass Cannon", description = "...", base = "wave" | "survival" | "roguelite" | "3d", spawning = true, onStart = function(game, resumed) ... end, icon = texture | model | "file", color = "#64c8ff", desktop = true}
+- `register.gamemode`: register.gamemode{id = "glass", name = "Glass Cannon", description = "...", base = "wave" | "survival" | "roguelite" | "3d", spawning = true, onStart = function(game, resumed) ... end, icon = texture | model | "file", color = "#64c8ff", desktop = true, coop = true}   -- coop = false: CO-OP.EXE does not offer it
 - `register.hudCard`: register.hudCard{id = "souls", title = "SOULS", color = "#a040ff", height = 40 | measure = fn(w) -> height, draw = fn(x, y, w, h), classic = true}
 - `register.keybind`
 - `register.language`: register.language{id = "fr", name = "Francais", base = "en" | "es", strings = {key = "text", ...}} -> "fr": a language of the game, listed in Settings and the first-run picker. Its gaps show the base language. Registering the same id again (another mod, a translation pack) adds strings; lang.set("fr", key, text) does too.
@@ -397,6 +407,8 @@ The Lua 5.5 standard library is all there too (`io`, `os`, `debug`, `package`, `
 | `placeWall` | cancel (x, y, game): true places nothing |
 | `ability` | cancel (game): true skips the vanilla [Q] abilities |
 | `combatStats` | (player, stats) stats fields can be edited |
+| `playerDown` | (player, out) co-op: a player went down (out: no team life was left) |
+| `playerRespawn` | (player) co-op: a downed player is back in the fight |
 
 **bullets**
 
@@ -521,6 +533,11 @@ The Lua 5.5 standard library is all there too (`io`, `os`, `debug`, `package`, `
 Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.call("<module>.<proc>", ...)`); overloads are tried in order. The **moddable** ones can also be wrapped: `mixin.wrap("<module>.<proc>", function(orig, ...) end)`, `before`, `after`, `replace`.
 
 
+### `abilities`
+
+- **moddable** `activateLegendaries(game: var Game)`
+- **moddable** `updateWallPlacement(game: var Game)`
+
 ### `advancement`
 
 - **moddable** `advancementPercent(entry: AdvancementEntry, def: AdvancementDefinition): float32`
@@ -600,8 +617,9 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawGravityWells(boss: Boss3D)`
 - **moddable** `drawSatelliteHealthbars(boss: Boss3D, camera: FPSCamera)`
 - **moddable** `getBoss3D(bossId: int): Boss3D`
+- **moddable** `pullIntoWells(boss: Boss3D, player: Player3D, dt: float32)`
 - **moddable** `takeBossDamage(boss: var Boss3D, projectile: Projectile3D): tuple[hit: bool, damageDealt: float32, isSatellite: bool, hitPos: Vector3]`
-- **moddable** `updateBoss(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D], arena: var Arena3D, dt: float32)`
+- **moddable** `updateBoss(boss: var Boss3D, player: Player3D, projectiles: var seq[Projectile3D], arena: var Arena3D, dt: float32)`
 
 ### `boss_definitions`
 
@@ -700,6 +718,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 - **moddable** `applyBulletEffects(game: var Game, bullet: Bullet, enemy: Enemy, dt: float32, shielded: bool)`
 - **moddable** `applyMasteryDoT(enemy: Enemy, elemType: ElementType, baseDmg: float32, baseDur: float32, hasMastery: bool, masteryDmgMult: float32, masteryDurMult: float32, masterySlowAmount: float32, source: string)`
+- **moddable** `blastFreeFizzle(game: var Game, pos: Vector2, color: Color)`
 - **moddable** `bossHazardDefused(game: Game, sourceEnemyId: int): bool`
 - **moddable** `drawBossDeathBlasts(game: Game)`
 - **moddable** `drawLightningBolts(game: Game)`
@@ -839,6 +858,64 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `pickupTrail(consumable: Consumable): Color`
 - **moddable** `startConsumableBuff(player: Player, ct: ConsumableType)`
 
+### `coop_codec`
+
+- **moddable** `applySnapshot(frame: WireFrame, game: Game)`
+- **moddable** `captureFrame(game: Game, seq: int32): WireFrame`
+- **moddable** `encodeSnapshot(cur: WireFrame, base: WireFrame, extras: SnapExtras): string`
+- **moddable** `readSnapshot(packed: string, ring: FrameRing, extras: var SnapExtras): WireFrame`
+
+### `coop_overlay`
+
+- **moddable** `coopName(game: Game, slot: int): string`
+- **moddable** `coopPauseMenu(host: bool): int`
+- **moddable** `coopResultsPanel(game: Game, reason: string, kills: int): bool`
+- **moddable** `drawCoopBanner(text: string)`
+- **moddable** `drawCoopLocalDown(game: Game)`
+- **moddable** `drawCoopModalStatus(game: Game)`
+- **moddable** `drawCoopTeamStrip(game: Game, x: int32, y: int32, w: int32): int32`
+
+### `coop_present`
+
+- **moddable** `replayCoopFx(game: var Game)`
+
+### `coop_profile`
+
+- **moddable** `applyProfileEvent(ev: ProfileEvent, advProfile: AdvancementProfile): string`
+
+### `coop_session`
+
+- **moddable** `backToLobby(s: CoopSession)`
+- **moddable** `broadcastLobby(s: CoopSession)`
+- **moddable** `closeCoop(s: CoopSession, reason: string)`
+- **moddable** `endCoopRun(s: CoopSession, reason: CoopEndReason)`
+- **moddable** `endStatistics(s: CoopSession): RunStatistics`
+- **moddable** `hostCoop(port: int, maxPlayers: int, me: CoopMemberNet, config: CoopRunConfigNet): CoopSession`
+- **moddable** `joinCoop(host: string, port: int, me: CoopMemberNet): CoopSession`
+- **moddable** `pollCoopSession(s: CoopSession, game: Game, dt: float32)`
+- **moddable** `readyToStart(s: CoopSession): bool`
+- **moddable** `setLobbyConfig(s: CoopSession, config: CoopRunConfigNet)`
+- **moddable** `setReady(s: CoopSession, ready: bool, kit: int32)`
+- **moddable** `startCoopRun(s: CoopSession)`
+
+### `coop_smooth`
+
+- **moddable** `afterSnapshot(game: Game, intentAck: int32)`
+- **moddable** `beforeSnapshot(game: Game)`
+- **moddable** `predictLocal3D(game: Game, dt: float32, seq: int32)`
+- **moddable** `predictLocal(game: Game, dt: float32, seq: int32)`
+- **moddable** `smoothFrame3D(game: Game, dt: float32, age: float32)`
+- **moddable** `smoothFrame(game: Game, dt: float32, age: float32)`
+
+### `coop_window`
+
+- **moddable** `drawCoopWindow(cw: CoopWindow)`
+- **moddable** `modeChoices(): seq[ModeChoice]`
+- **moddable** `newCoopWindow(screenWidth: int, screenHeight: int): CoopWindow`
+- **moddable** `resetCoopView(cw: CoopWindow)`
+- **moddable** `updateCoopWindow(cw: CoopWindow, dt: float32, screenWidth: int, screenHeight: int, allWindows: openArray[OSWindow])`
+- **moddable** `wantsTextInput(cw: CoopWindow): bool`
+
 ### `credits_window`
 
 - **moddable** `drawCreditsWindow(cw: CreditsWindow)`
@@ -924,9 +1001,13 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 ### `death`
 
 - **moddable** `beginPlayerDeathSequence(game: Game, cause: DeathCause, source: Enemy, sourceType: EnemyType)`
+- **moddable** `coopTeamWiped(game: Game): bool`
 - **moddable** `drawRecentPowerUpInstall(game: Game)`
 - **moddable** `installPowerUp(game: var Game, powerUp: PowerUp, quiet: bool)`
+- **moddable** `showInstallCard(game: Game, powerUp: PowerUp)`
+- **moddable** `spawnPlayerDeathExplosion(game: Game, deathPos: Vector2)`
 - **moddable** `updateDeathSequencePlayback(game: var Game, dt: float32)`
+- **moddable** `updateDownedPlayers(game: var Game, dt: float32)`
 
 ### `desktop_bg_fx`
 
@@ -1005,6 +1086,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `rewardFolderName(reward: RoomReward): string`
 - **moddable** `rewardLabel(reward: RoomReward): string`
 - **moddable** `rollEncounterEnemyType(run: RogueliteRun, room: DungeonRoom): EnemyType`
+- **moddable** `roomGoal(game: Game): RoomGoal`
 - **moddable** `sectorPath(floor: DungeonFloor): string`
 - **moddable** `sectorRewardLayers(floor: DungeonFloor): int`
 - **moddable** `selectFloorTheme(game: Game, choiceIndex: int)`
@@ -1144,36 +1226,53 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `game`
 
+- **moddable** `addCoopPlayer(game: Game, nickname: string, skin: int, bulletSkin: int, shape: int, particleSkin: int, bulletShape: int): Player`
+- **moddable** `applyCoopAction(game: var Game, slot: int32, a: CoopAction)`
 - **moddable** `applyLevelUpStatBoost(game: Game)` (wrap only: scripts cannot call it)
 - **moddable** `bankRunLevelUps(game: Game)` (wrap only: scripts cannot call it)
+- **moddable** `beginCoopRun(game: Game)`
 - **moddable** `beginDraftResume(game: var Game)`
 - **moddable** `beginEnter3D(game: Game, opts: World3DOptions)` (wrap only: scripts cannot call it)
 - **moddable** `bossDefeated(manager: var BossWaveManager)` (wrap only: scripts cannot call it)
+- **moddable** `buyFromShop(game: var Game, row: int)`
 - **moddable** `canSpawnBoss(manager: BossWaveManager): bool` (wrap only: scripts cannot call it)
 - **moddable** `canStartNewWave(manager: BossWaveManager): bool` (wrap only: scripts cannot call it)
 - **moddable** `cheatCompleteRogueliteFloor(game: var Game)`
 - **moddable** `checkPendingLevelDraft(game: Game)` (wrap only: scripts cannot call it)
+- **moddable** `chooseFloor(game: var Game, card: int)`
 - **moddable** `cleanupGame(game: Game)`
 - **moddable** `clearBossWave(manager: var BossWaveManager)` (wrap only: scripts cannot call it)
+- **moddable** `closeShop(game: var Game)`
 - **moddable** `collectPickup(game: Game, c: Consumable): bool`
 - **moddable** `completeBossWave(game: Game)` (wrap only: scripts cannot call it)
+- **moddable** `continueAfterDraft(game: var Game, legendaryRound: bool)`
 - **moddable** `drawDeathSequenceOverlay(game: Game)`
 - **moddable** `drawGameOver(game: Game)`
 - **moddable** `drawGame(game: Game)`
+- **moddable** `drawPlayerActor(game: Game, playerVisible: bool)`
 - **moddable** `drawVictory(game: Game)`
 - **moddable** `enterWorld3D(game: Game, opts: World3DOptions)`
 - **moddable** `fireConfiguredEnemyShot(game: var Game, enemy: Enemy)` (wrap only: scripts cannot call it)
 - **moddable** `hudInterfaceScale(): float32`
 - `isBossActive(manager: BossWaveManager): bool`
 - `isBossCoinActive(manager: BossWaveManager): bool`
+- **moddable** `leaveShop(game: var Game)`
+- **moddable** `loadShopCounts(game: Game, p: Player)`
 - **moddable** `newGame(screenWidth: int32, screenHeight: int32, playerSkin: int, bulletSkin: int, playerShape: int, particleSkin: int, bulletShape: int): Game`
+- **moddable** `pickDraftCard(game: var Game, index: int)`
+- **moddable** `rerollDraft(game: var Game): bool`
 - **moddable** `resolveBulletEnemyHit(game: var Game, bullet: Bullet, target: Enemy, echoParent: Bullet, dt: float32): bool` (wrap only: scripts cannot call it)
 - **moddable** `setGameMode(game: Game, mode: GameMode)`
 - **moddable** `spawnConfiguredBoss(game: Game, bossBlockWave: int, bossId: int)` (wrap only: scripts cannot call it)
 - **moddable** `spawnWaveEnemies(game: Game, count: int)` (wrap only: scripts cannot call it)
+- **moddable** `startSelectedTheme(game: var Game)`
 - **moddable** `startWave(game: Game)`
+- **moddable** `syncLocalDraftView(game: var Game)`
 - **moddable** `tickBossAttacks(game: var Game, enemy: Enemy, bossDef: BossDefinition, dt: float32)` (wrap only: scripts cannot call it)
+- **moddable** `updateCoopModal(game: var Game, dt: float32)`
+- **moddable** `updateFloatingText(game: var Game, dt: float32)`
 - **moddable** `updateGame(game: var Game, dt: float32)`
+- **moddable** `updatePresentationLists(game: var Game, dt: float32)`
 
 ### `game_3d`
 
@@ -1183,9 +1282,14 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `damageEntity3D(world: Game3D, e: Entity3D, amount: float32): float32`
 - **moddable** `damagePlayer3D(world: Game3D, amount: float32, source: string, entity: Entity3D): float32`
 - **moddable** `finishWorld3D(world: Game3D, result: World3DResult)`
+- **moddable** `followCamera3D(world: Game3D)`
 - **moddable** `healPlayer3D(world: Game3D, amount: float32)`
 - **moddable** `initGame3D(opts: World3DOptions, player2D: Player): Game3D`
+- `isUp3D(p: Player3D): bool`
 - **moddable** `killEntity3D(world: Game3D, e: Entity3D, credit: bool)`
+- **moddable** `local3DInput(world: Game3D)`
+- `localPlayer3D(world: Game3D): Player3D`
+- **moddable** `nearestPlayer3D(world: Game3D, pos: Vector3): Player3D`
 - **moddable** `newEntity3D(world: Game3D, tag: string): Entity3D`
 - **moddable** `newPickup3D(world: Game3D, pos: Vector3, kind: string, value: float32): Pickup3D`
 - **moddable** `newProjectile3D(pos: Vector3, vel: Vector3, damage: float32, fromPlayer: bool): Projectile3D`
@@ -1194,9 +1298,13 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `raylibCamera(camera: FPSCamera): Camera`
 - **moddable** `renderGame3D(world: Game3D)`
 - **moddable** `requestFinish3D(world: Game3D, result: World3DResult)`
+- **moddable** `seatPlayers3D(world: Game3D, players2D: seq[Player], coop: CoopState)`
 - **moddable** `spawnDamageNumber3D(damageNumbers: var seq[DamageNumber3D], pos: Vector3, damage: float32, color: Color)`
 - **moddable** `sweepDead(world: Game3D)`
+- **moddable** `teamOut3D(world: Game3D): bool`
+- **moddable** `tickDamageNumbers3D(world: Game3D, dt: float32)`
 - **moddable** `updateGame3D(world: Game3D, dt: float32)`
+- `viewTarget3D(world: Game3D): Player3D`
 - **moddable** `worldToScreen3D(camera: FPSCamera, pos: Vector3): tuple[x: float32, y: float32, visible: bool]`
 
 ### `gamemode_definitions`
@@ -1285,6 +1393,15 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawShopIconTile(x: int32, y: int32, size: int32, itemIndex: int, enabled: bool, selected: bool)`
 - **moddable** `drawShopIcon(x: int32, y: int32, size: int32, itemIndex: int, color: Color)`
 - **moddable** `shopIconAccent(itemIndex: int): Color` (wrap only: scripts cannot call it)
+
+### `input_intent`
+
+- `beginIntentFrame(it: var PlayerIntent)`
+- **moddable** `captureLocalIntent(p: Player)`
+- `consumeEdge(p: Player, e: IntentEdge): bool`
+- `edgePending(p: Player, e: IntentEdge): bool`
+- **moddable** `idleIntent(p: Player)`
+- `pressEdge(it: var PlayerIntent, e: IntentEdge)`
 
 ### `language_select`
 
@@ -1410,11 +1527,15 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `os_background`
 
+- `arenaField(bg: OSBackgroundState): BossArenaField`
 - **moddable** `drawArenaFloor(screenWidth: int32, screenHeight: int32, time: float32, accent: Color, tinted: bool, alert: float32)`
 - **moddable** `drawOSBackground(bg: OSBackgroundState, screenWidth: int32, screenHeight: int32, showArenaVignette: bool, accentOverride: Color)`
 - **moddable** `getBossArenaCombatBonus(bg: OSBackgroundState): tuple[damageMult: float32, fireRateMult: float32]`
+- `loadArenaField(bg: var OSBackgroundState, field: BossArenaField)`
+- `loadArenaSeat(bg: var OSBackgroundState, seat: BossArenaSeat)`
 - **moddable** `newOSBackground(): OSBackgroundState`
 - **moddable** `spawnWavePulse(bg: var OSBackgroundState, cx: float32, cy: float32, color: Color)`
+- `storeArenaSeat(bg: OSBackgroundState, seat: var BossArenaSeat)`
 - **moddable** `updateBossArenaField(bg: var OSBackgroundState, dt: float32, playerPos: Vector2, playerRadius: float32, screenWidth: int32, screenHeight: int32, bossActive: bool, currentWave: int): tuple[damageTriggered: bool, damage: float32]`
 - **moddable** `updateOSBackground(bg: var OSBackgroundState, dt: float32, playerHP: float32, maxHP: float32, bossActive: bool, screenWidth: int32, screenHeight: int32)`
 
@@ -1615,6 +1736,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `player`
 
+- **moddable** `advancePlayer(player: Player, dt: float32, screenWidth: int32, screenHeight: int32, walls: seq[Wall])`
 - **moddable** `dashBurstOf(p: Player): float32`
 - **moddable** `dashRechargeOf(p: Player): float32`
 - **moddable** `dashTimeOf(p: Player): float32` (wrap only: scripts cannot call it)
@@ -1623,17 +1745,22 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `hasAnyOrbPowerUp(player: Player): bool`
 - **moddable** `heal(player: Player, amount: float32): float32`
 - **moddable** `newPlayer(x: float32, y: float32): Player`
+- **moddable** `steerPlayer(player: Player, dt: float32, dashNow: bool)`
 - **moddable** `takeDamage(player: Player, damage: float32): bool`
 - **moddable** `updatePlayer(player: Player, dt: float32, screenWidth: int32, screenHeight: int32, walls: seq[Wall])`
 
 ### `player_3d`
 
-- **moddable** `fireWeapon(player: var Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool`
-- **moddable** `newPlayer3D(startPos: Vector3, health2D: float32): Player3D`
+- `applyAim3D(p: Player3D)`
+- **moddable** `capture3DIntent(p: Player3D, cam: var FPSCamera, sensitivity: float32)`
+- **moddable** `fireWeapon(player: Player3D, camera: FPSCamera, projectiles: var seq[Projectile3D]): bool`
+- **moddable** `newPlayer3D(startPos: Vector3, health2D: float32, slot: int32): Player3D`
 - **moddable** `newWeapon3D(): Weapon3D` (wrap only: scripts cannot call it)
-- **moddable** `reload(player: var Player3D)`
-- **moddable** `updatePlayer(player: var Player3D, camera: FPSCamera, arena: Arena3D, dt: float32): bool`
-- **moddable** `updateWeapon(player: var Player3D, dt: float32)`
+- **moddable** `reload(player: Player3D)`
+- `take3D(p: Player3D, e: IntentEdge): bool`
+- **moddable** `updatePlayer(player: Player3D, arena: Arena3D, dt: float32): bool`
+- **moddable** `updateWeapon(player: Player3D, dt: float32)`
+- `viewOf(p: Player3D): FPSCamera`
 - **moddable** `weaponReady(player: Player3D): bool`
 
 ### `post_fx`
@@ -1653,6 +1780,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `createRotatingOrbs(player: Player, level: int)` (wrap only: scripts cannot call it)
 - **moddable** `drawPowerUpSelectionExhausted(game: Game)`
 - **moddable** `drawPowerUpSelection(game: Game)`
+- **moddable** `firstRerollCost(player: Player): int`
 - **moddable** `generatePowerUpChoices(player: Player, isLegendary: bool, allowedPowerFamilies: set[RoguelitePowerFamily], mode: GameMode): array[0 .. 2, PowerUp]`
 - **moddable** `getElementColor(elementType: ElementType): Color`
 - **moddable** `getElementDamage(level: int): float32`
@@ -1669,6 +1797,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `juggernautInvestedHp(player: Player): float32` (wrap only: scripts cannot call it)
 - **moddable** `juggernautSpeedMult(player: Player): float32`
 - **moddable** `redistributeAllOrbs(player: Player)`
+- **moddable** `rerollCostAfter(player: Player, cost: int): int`
 - **moddable** `rotatingShieldHealth(level: int): float32` (wrap only: scripts cannot call it)
 - **moddable** `rotatingShieldRegenDelay(level: int): float32` (wrap only: scripts cannot call it)
 - **moddable** `skipPowerUpRollAnimation(game: Game)`
@@ -1826,6 +1955,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `cosmeticId(kind: CosmeticKind, index: int): string` (wrap only: scripts cannot call it)
 - **moddable** `cosmeticIsUnlocked(profile: RogueliteProfile, kind: CosmeticKind, index: int): bool`
 - **moddable** `ensureBaseCosmeticUnlocks(profile: RogueliteProfile)` (wrap only: scripts cannot call it)
+- **moddable** `equipRogueliteStarter(game: Game, starterKit: RogueliteStarterKit, heatRank: int, profile: RogueliteProfile)`
 - **moddable** `getRogueliteProfilePath(): string` (wrap only: scripts cannot call it)
 - **moddable** `hasModRelic(run: RogueliteRun, modKey: string): bool` (wrap only: scripts cannot call it)
 - **moddable** `hasRelic(run: RogueliteRun, relic: RogueliteRelic): bool`
@@ -1903,6 +2033,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 
 ### `run_statistics`
 
+- **moddable** `bookCredits(game: Game, amount: int)`
 - **moddable** `calculateDerivedMetrics()`
 - **moddable** `calculatePlayStyle()` (wrap only: scripts cannot call it)
 - **moddable** `clearLastCompletedRun()`
@@ -1922,6 +2053,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `initRunStatistics(): RunStatistics` (wrap only: scripts cannot call it)
 - **moddable** `initializeRunTracking(game: Game)`
 - **moddable** `loadLastCompletedRun(loadedStats: RunStatistics)`
+- **moddable** `newRunStatisticsFor(gameMode: GameMode): RunStatistics`
 - **moddable** `recordCoinEarned(amount: int)` (wrap only: scripts cannot call it)
 - **moddable** `recordCoinSpent(amount: int, itemName: string, gameTime: float32)` (wrap only: scripts cannot call it)
 - **moddable** `recordConsumable(consumType: ConsumableType)` (wrap only: scripts cannot call it)
@@ -2003,6 +2135,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `getRootDataPath(): string`
 - **moddable** `getSettingsPath(): string` (wrap only: scripts cannot call it)
 - **moddable** `getStatsPath(): string`
+- `jsonToRunStatistics(j: JsonNode): RunStatistics`
 - **moddable** `jsonToSettings(jsonNode: JsonNode, settings: Settings)` (wrap only: scripts cannot call it)
 - **moddable** `loadLastRunStats(): RunStatistics`
 - **moddable** `loadProfileDifficulty(slot: int): GameDifficulty`
@@ -2011,7 +2144,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `migrateLegacySaveFiles()`
 - `needObject(j: JsonNode)`
 - **moddable** `profileExists(slot: int): bool`
-- **moddable** `runStatisticsToJson(runStats: RunStatistics): JsonNode` (wrap only: scripts cannot call it)
+- **moddable** `runStatisticsToJson(runStats: RunStatistics): JsonNode`
 - **moddable** `saveLastRunStats(runStats: RunStatistics): bool`
 - **moddable** `saveSettings(settings: Settings): bool`
 - **moddable** `setLastUsedProfileSlot(slot: int)`
@@ -2027,7 +2160,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `damageNumberScaleOf(settings: Settings): float32`
 - **moddable** `initSettings(): Settings`
 - **moddable** `isPowerUpDiscovered(pt: PowerUpType): bool`
-- **moddable** `newDefaultSettings(): Settings` (wrap only: scripts cannot call it)
+- **moddable** `newDefaultSettings(): Settings`
 - **moddable** `reloadSettingsFromDisk(settings: Settings)`
 - **moddable** `screenShakeScaleOf(settings: Settings): float32`
 - **moddable** `showDamageNumbersOf(settings: Settings): bool`
@@ -2239,6 +2372,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `fromFlatty(s: string, i: var int, x: var pointer)` (parameter x is a pointer)
 - **moddable** `getSuspendPath(mode: GameMode, modMode: string): string` (wrap only: scripts cannot call it)
 - **moddable** `hasSuspendSnapshot(mode: GameMode, modMode: string): bool`
+- `relinkSharedRefs(g: Game)`
 - **moddable** `restoreGame(target: var Game): bool`
 - **moddable** `suspendGame(game: Game)`
 - `toFlatty(s: var string, x: DiscordClient)`
@@ -2306,6 +2440,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - `calculateWaveEnemyCount(waveNumber: int): int`
 - `canonicalBossId(id: int): int`
 - `clockSweepHandAngle(warning: AttackWarning, hand: int, lifetimeOffset: float32): float32`
+- `coopScale(perExtraPlayer: float32): float32`
 - `defaultPvPConfig(): PvPConfig`
 - `densityRebate(game: Game): float32`
 - `densityWave(game: Game): int`
@@ -2439,7 +2574,7 @@ Every proc here is called from Lua as `engine.<module>.<proc>(...)` (or `engine.
 - **moddable** `drawWall(wall: Wall, player: Player)`
 - **moddable** `isValidWallPlacement(pos: Vector2, playerPos: Vector2, walls: seq[Wall], enemies: seq[Enemy], radius: float32, worldWidth: int32, worldHeight: int32): bool`
 - **moddable** `newWall(x: float32, y: float32, player: Player): Wall`
-- **moddable** `processPendingWallRespawns(pending: var seq[PendingWallRespawn], walls: var seq[Wall], enemies: seq[Enemy], player: Player, particlePool: ParticlePool, dt: float32)`
+- **moddable** `processPendingWallRespawns(pending: var seq[PendingWallRespawn], walls: var seq[Wall], enemies: seq[Enemy], players: seq[Player], particlePool: ParticlePool, dt: float32)`
 - **moddable** `processWallTurret(wall: var Wall, enemies: seq[Enemy], bullets: var seq[Bullet], player: Player, particlePool: ParticlePool, dt: float32, screenWidth: int32, screenHeight: int32)`
 - **moddable** `takeDamage(wall: Wall, damage: float32)`
 - **moddable** `updateWall(wall: Wall, dt: float32): bool`

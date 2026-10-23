@@ -258,7 +258,17 @@ proc executePhase3Attacks(boss: var Boss3D, player: Player3D, projectiles: var s
 
     boss.attackPattern += 1
 
-proc updateBoss*(boss: var Boss3D, player: var Player3D, projectiles: var seq[Projectile3D],
+proc pullIntoWells*(boss: Boss3D, player: Player3D, dt: float32) {.moddable.} =
+  ## The gravity wells draw a player in (each player of a co-op world).
+  for well in boss.gravityWells:
+    let toPlayer = player.pos - well.pos
+    let dist = toPlayer.length()
+    if dist < well.radius:
+      let pullDir = (well.pos - player.pos).normalize()
+      let pullStrength = well.strength * (1.0 - dist / well.radius)
+      player.vel = player.vel + pullDir * pullStrength * dt
+
+proc updateBoss*(boss: var Boss3D, player: Player3D, projectiles: var seq[Projectile3D],
                  arena: var Arena3D, dt: float32) {.moddable.} =
 
   boss.moveTimer += dt

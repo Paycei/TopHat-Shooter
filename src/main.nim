@@ -7,6 +7,7 @@ import coop/[coop_context, coop_bot, coop_session, coop_profile, coop_present, c
 from survival import updateSurvivalCacheReveal
 from particle_pool import updateParticlePool
 from d_systems import updateShake
+from powerup_data import getPowerUpMaxLevel
 import modding/mod_mixin_game   # last: binds every {.moddable.} proc imported above
 import modding/[mod_engine_game, mod_engine_ui]   # engine.call for the rest of the game's procs
 when defined(debug):
@@ -1320,6 +1321,11 @@ proc main() =
   var coopResultsReason = cerEnded
   var coopResultsKills = 0
   var coopRevealSeen = 0'i32       # client: the Data Cache reveal (CoopState.modalSeq) shown
+  var coopLeftToasted: array[MaxCoopPlayers, bool]   # teammates whose leaving was announced
+  var coopRunWon = false           # host: the run reached a victory screen
+  var coopClientIn3D = false       # client: in the host's 3D world (the mouse is captured)
+  const CoopVictoryStates = {gsVictory, gsEndgameCinematic, gsRogueliteVictory,
+                             gsRogueliteEndCinematic, gsSurvivalEndCinematic}
   var coopAutoFrame = 0            # --coop-auto: frames since start (see coopAutoStep)
 
   proc isCoopRun(game: Game): bool =
@@ -1368,10 +1374,17 @@ proc main() =
         for p in result.players:
           if p.slot == 0: continue
           var kit = 0'i32
+          var banked: RogueliteProfile = nil
           for m in s.members:
-            if m.slot == p.slot: kit = m.starterKit
+            if m.slot == p.slot:
+              kit = m.starterKit
+              if m.recursionBonus > 0 or m.recursionLevel > 0:
+                # Their own profile's Recursion (sent with their ready; kept sane).
+                banked = RogueliteProfile(
+                  recursionDamageBonus: clamp(m.recursionBonus, 0'f32, 5'f32),
+                  recursionLevel: clamp(m.recursionLevel.int, 0, getPowerUpMaxLevel(puRecursion)))
           withPlayer(result, p):
-            equipRogueliteStarter(result, coopKit(kit), rank, nil)
+            equipRogueliteStarter(result, coopKit(kit), rank, banked)
         generateThemeChoices(result.rogueliteRun)
         result.selectedRogueliteTheme = 0
         result.state = gsRogueliteFloorSelect
@@ -1391,6 +1404,15 @@ proc main() =
       result.state = gsPlaying
     statsSavedThisGame = false
 
+  proc openCoopWindow() =
+    ## CO-OP.EXE, with what this profile brings to a run: the Heat it reached
+    ## and the Recursion it banked (a roguelite run starts this player with it).
+    globalWindowManager.openWindow(widCoop)
+    let w = globalWindowManager.coop
+    w.highestHeat = if rogueliteProfile.isNil: RogueliteMinHeat else: rogueliteProfile.highestHeat
+    w.recursionBonus = if rogueliteProfile.isNil: 0'f32 else: rogueliteProfile.recursionDamageBonus
+    w.recursionLevel = if rogueliteProfile.isNil: 0'i32 else: int32(rogueliteProfile.recursionLevel)
+
   proc coopBackToLobby() =
     ## Off the co-op run (its results seen, or left): the desktop, the
     ## session's lobby (or none, if it is over) and CO-OP.EXE.
@@ -1406,13 +1428,14 @@ proc main() =
     coopResultsShown = false
     coopPauseOpen = false
     statsSavedThisGame = false
+    if coopClientIn3D:
+      coopClientIn3D = false
+      enableCursor()
     if not s.isNil:
       if s.phase == cpError: s.closeCoop()   # the host left: no lobby to go back to
       else: s.backToLobby()
     resetCoopContext()
-    globalWindowManager.openWindow(widCoop)
-    globalWindowManager.coop.highestHeat =
-      if rogueliteProfile.isNil: RogueliteMinHeat else: rogueliteProfile.highestHeat
+    openCoopWindow()
 
   proc coopShowResults(reason: CoopEndReason) =
     ## Client: the run is over. This player's own statistics (the host kept
@@ -1470,7 +1493,15 @@ proc main() =
       coopPauseOpen = false
       coopResultsShown = false
       coopRevealSeen = 0
+      for x in coopLeftToasted.mitems: x = false
+      coopRunWon = false
       return
+    # A teammate who left the run under way: said once, on every screen.
+    if not coopRunGame.isNil and not coopRunGame.coop.isNil:
+      for slot in 0 ..< MaxCoopPlayers:
+        if coopRunGame.coop.left[slot] and not coopLeftToasted[slot]:
+          coopLeftToasted[slot] = true
+          showDesktopToast(osDesktop, t(tkCoopPlayerLeft).replace("$1", coopName(coopRunGame, slot)))
     # Progress the host sent for this machine's own profile.
     if coopProfileInbox.len > 0:
       for ev in coopProfileInbox:
@@ -1479,6 +1510,8 @@ proc main() =
       coopProfileInbox.setLen(0)
     if s.isHost:
       if s.phase == cpRunning and not coopRunGame.isNil:
+        if isCoopRun(currentGame) and currentGame.state in CoopVictoryStates:
+          coopRunWon = true
         if isCoopRun(currentGame) and currentGame.state == gsGameOver:
           # The whole team is out. gsGameOver banks the rewards this frame;
           # each client's end waits for its share of them (endCoopRun).
@@ -1488,7 +1521,7 @@ proc main() =
           if not statsSavedThisGame and not coopRunGame.cheatsUsed:
             freezeRunTime(coopRunGame)
             persistRunResults(coopRunGame, died = false)
-          s.endCoopRun(cerEnded)
+          s.endCoopRun(if coopRunWon: cerVictory else: cerEnded)
       elif s.phase == cpEnded and not coopRunGame.isNil and not isCoopRun(currentGame):
         coopBackToLobby()   # every client has its results: the lobby again
     elif isCoopRun(currentGame) and not coopResultsShown:
@@ -1497,6 +1530,46 @@ proc main() =
       elif s.phase == cpEnded and s.ended:
         coopShowResults(s.endReason)
 
+  proc coopClient3DFrame(dt: float32) =
+    ## A client's frame while the host's run is in a 3D world: its own view and
+    ## input (local3DInput: mouse look, Esc's overlay, Q there leaves the run),
+    ## its own movement at once, the world drawn through its own camera.
+    var g = currentGame
+    let s = activeCoop
+    let world = activeWorld3D
+    if not coopClientIn3D:
+      coopClientIn3D = true
+      world.paused = false
+      disableCursor()
+    playMusic(mtBoss,
+              if not world.bossEnabled: 0
+              else: bossMusicTier(world.boss.phase - 1, 3,
+                                  world.boss.health / max(world.boss.maxHealth, 1.0'f32)))
+    let me3 = world.localPlayer3D()
+    if coopAuto: botIntent3D(world, me3, coopAutoFrame)
+    else: local3DInput(world)
+    if world.quitRequested:
+      world.quitRequested = false
+      coopLeaveRun()
+      return
+    # What the session sends the host: this player's 3D intent.
+    g.players[clamp(localSlot.int, 0, g.players.high)].intent = me3.intent
+    predictLocal3D(g, dt, s.nextIntentSeq)
+    smoothFrame3D(g, dt, s.snapshotAge)
+    replayCoopFx(g)
+    tickDamageNumbers3D(world, dt)
+    followCamera3D(world)
+    tickDesktopToasts(osDesktop, dt)
+    beginDrawing()
+    clearBackground(Black)
+    renderGame3D(world)
+    when defined(debug):
+      if shotPath.len > 0:
+        rlgl.drawRenderBatchActive()   # (the HUD is still in the batch)
+        takeScreenshot(shotPath)   # (the 3D view draws straight to the window)
+        shotPath = ""
+    endDrawing()
+
   proc coopClientFrame(dt: float32): bool =
     ## A client's frame of the co-op run: its input goes to the host (the
     ## session sends it) and the host's run is drawn. The team modals (a
@@ -1504,6 +1577,14 @@ proc main() =
     ## the window's close was confirmed.
     var g = currentGame
     let s = activeCoop
+    modCoopClientFrame(g)   # scripts read and draw this run; the host's run the hooks
+    if g.state == gs3DBoss and not activeWorld3D.isNil and
+       g.game3D == cast[pointer](activeWorld3D) and not coopResultsShown:
+      coopClient3DFrame(dt)
+      return
+    if coopClientIn3D:
+      coopClientIn3D = false
+      enableCursor()
     let me = g.players[clamp(localSlot.int, 0, g.players.high)]
     g.player = me
     let live = g.state in {gsPlaying, gsCountdown, gsWaveCleared, gsDeathSequence}
@@ -1554,12 +1635,14 @@ proc main() =
       if s.lastApplied == 0:
         drawCoopBanner(t(tkCoopSyncing))
       elif not live and not coopResultsShown:
-        drawCoopBanner(t(tkCoopWaitingForTeam))
+        drawCoopBanner(if g.state in CoopVictoryStates: t(tkCoopVictory)
+                       else: t(tkCoopWaitingForTeam))
       if coopResultsShown:
         let reason = case coopResultsReason
           of cerWiped: t(tkCoopTeamWiped)
           of cerEnded: t(tkCoopHostEnded)
           of cerHostLeft: t(tkCoopHostLeft)
+          of cerVictory: t(tkCoopVictory)
         backToLobby = coopResultsPanel(g, reason, coopResultsKills)
       elif coopPauseOpen:
         let pick = coopPauseMenu(host = false)
@@ -1600,6 +1683,15 @@ proc main() =
     for p in g.players:
       result.add " | p" & $p.slot & " hp=" & $int(p.hp) & " kills=" & $p.kills &
                  " pu=" & $p.powerUps.len & (if p.eliminated: " out" else: "")
+    let w = activeWorld3D
+    if g.state == gs3DBoss and not w.isNil:
+      result.add " || 3D boss=" & $int(w.boss.health) & "/" & $int(w.boss.maxHealth) &
+                 " phase=" & $w.boss.phase & " shots=" & $w.projectiles.len
+      if not w.coop.isNil: result.add " lives=" & $w.coop.teamLives
+      for p in w.players:
+        result.add " | 3p" & $p.slot & " hp=" & $int(p.health) & " at=" & $int(p.pos.x) & "," &
+                   $int(p.pos.y) & "," & $int(p.pos.z) &
+                   (if p.eliminated: " out" elif p.downTimer > 0: " down" else: "")
 
   var coopAutoShots = 0
   proc coopAutoStep() =
@@ -1624,7 +1716,7 @@ proc main() =
           let mode = case coopAutoArg.substr(5)
             of "survival": gmTimeSurvival
             of "roguelite": gmRoguelite
-            of "sandbox": gmSandbox
+            of "sandbox", "sandbox3d": gmSandbox
             else: gmWaveBased
           discard hostCoop(CoopDefaultPort, 2, me,
                            CoopRunConfigNet(mode: int32(ord(mode)), heat: 1,
@@ -1644,6 +1736,14 @@ proc main() =
         coopAutoLog("starting run " & $coopAutoRuns)
       elif s.running and isCoopRun(currentGame):
         if coopAutoFrame mod 600 == 0: coopAutoLog(coopAutoRunLine())
+        if coopAutoArg == "host:sandbox3d" and currentGame.state == gsPlaying and
+           not currentGame.transitioning and activeWorld3D.isNil and
+           getTime() - coopAutoRunStart > 3.0:
+          # Into the Orbital Commander's world, as the lab's button does.
+          coopAutoLog("entering the 3D world")
+          pendingWorld3D = World3DOptions(bossEnabled: true, bossId: 7, carryHp: true)
+          currentGame.transitioning = true
+          currentGame.fadeAlpha = 0.0
         if coopAutoEndAfter > 0 and getTime() - coopAutoRunStart >= coopAutoEndAfter:
           coopAutoLog("ending run: " & coopAutoRunLine())
           coopLeaveRun()
@@ -1660,7 +1760,9 @@ proc main() =
       if s.phase == cpClientLobby:
         for m in s.members:
           if m.slot == s.mySlot and not m.ready:
-            s.setReady(true, 0)
+            s.setReady(true, 0,
+                       if rogueliteProfile.isNil: 0'f32 else: rogueliteProfile.recursionDamageBonus,
+                       if rogueliteProfile.isNil: 0'i32 else: int32(rogueliteProfile.recursionLevel))
             coopAutoLog("ready")
       if isCoopRun(currentGame):
         if coopResultsShown:
@@ -2838,9 +2940,7 @@ proc main() =
         of 14: # MODS.exe - Open the Mod Manager
           globalWindowManager.openWindow(widMods)
         of ord(diCoop): # CO-OP.exe - Open the co-op lobby
-          globalWindowManager.openWindow(widCoop)
-          globalWindowManager.coop.highestHeat =
-            if rogueliteProfile.isNil: RogueliteMinHeat else: rogueliteProfile.highestHeat
+          openCoopWindow()
         of ord(diModApp): # A mod app's icon - open its window
           globalWindowManager.openModApp(osDesktop.launchModKey, desktopUIScale(),
                                          screenWidth.int, screenHeight.int)
@@ -4657,6 +4757,9 @@ proc main() =
       if currentGame.lifeLostTimer > 0:
         tickLifeLost(currentGame, dt)
       elif not cheatMenu.active:
+        if not activeWorld3D.isNil:
+          if coopAuto: botIntent3D(activeWorld3D, activeWorld3D.localPlayer3D(), coopAutoFrame)
+          else: local3DInput(activeWorld3D)   # this machine's keyboard and mouse
         updateGame(currentGame, dt)
 
       proc quitWorldRun() =
@@ -4692,10 +4795,21 @@ proc main() =
 
         # Draw cheat menu overlay if active
         drawCheatMenu(cheatMenu, currentGame, screenWidth, screenHeight)
+        when defined(debug):
+          if shotPath.len > 0:
+            rlgl.drawRenderBatchActive()   # (the HUD is still in the batch)
+            takeScreenshot(shotPath)   # (the 3D view draws straight to the window)
+            shotPath = ""
 
         endDrawing()
 
-        if world.quitRequested:
+        if world.quitRequested and isCoopRun(currentGame):
+          # Co-op: the host ends the run for everyone (as from the pause menu).
+          world.quitRequested = false
+          enableCursor()
+          coopLeaveRun()
+          continue
+        elif world.quitRequested:
           # The 3D pause overlay's "quit to desktop".
           finishWorld3D(world, w3Exit)
           quitWorldRun()

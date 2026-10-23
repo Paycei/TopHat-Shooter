@@ -2,7 +2,7 @@
 ## Contains all 3D-specific type definitions for the 3D engine
 
 import raylib
-import ../vec
+import ../vec, ../types
 export vec
 
 type
@@ -166,7 +166,15 @@ type
     reloadTimer*: float32       # > 0 while reloading
     infiniteAmmo*: bool
 
-  Player3D* = object
+  Player3D* = ref object
+    ## One player in a world. A co-op world holds one per seat (Game3D.players,
+    ## by slot); `Game3D.player` is the one the world is processing right now
+    ## (withPlayer3D), like the 2D Game.player.
+    slot*: int32                ## co-op seat (0 in single player)
+    yaw*, pitch*: float32       ## where they look, degrees (their own camera's)
+    intent*: PlayerIntent       ## their input: see player_3d's capture3DIntent
+    downTimer*: float32         ## co-op: > 0 while down, waiting to respawn
+    eliminated*: bool           ## co-op: out of the world for good (no team lives left)
     pos*: Vector3
     vel*: Vector3
     health*: float32
@@ -210,8 +218,10 @@ type
     pendingResult*: World3DResult  # a finish requested by a script; applied at the end of the frame
     quitRequested*: bool        # the pause overlay's "quit to desktop"
     arena*: Arena3D
-    camera*: FPSCamera
-    player*: Player3D
+    camera*: FPSCamera          ## this machine's view (its own player's)
+    player*: Player3D           ## the player being processed now: one of `players`
+    players*: seq[Player3D]     ## every player, by slot (just `player` in single player)
+    coop*: CoopState            ## the 2D run's co-op state (team lives, names); nil solo
     boss*: Boss3D
     bossEnabled*: bool          # the vanilla Orbital Commander fight
     bossId*: int

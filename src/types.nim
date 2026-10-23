@@ -1992,6 +1992,7 @@ type
     modalLegendary*: bool     ## the open draft is a legendary one
     modalSeq*: int32          ## counts the team modals opened (CoopAction.modal)
     seats*: array[MaxCoopPlayers, CoopSeat]
+    left*: array[MaxCoopPlayers, bool]  ## seats whose player left the run under way
 
   Game* = ref object
     state*: GameState

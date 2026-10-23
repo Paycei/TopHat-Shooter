@@ -11,6 +11,7 @@ import raylib
 import ../modding/mod_patch_core
 import ../types, ../particle_pool, ../particle_skins, ../sound, ../d_systems
 import ../game/[combat, bullets, death]
+import ../game3d/game_3d
 import coop_context
 
 const
@@ -71,6 +72,10 @@ proc replayCoopFx*(game: var Game) {.moddable.} =
       if ev.d == localSlot and enumOk(ev.a, PowerUpType) and enumOk(ev.c, PowerUpRarity):
         showInstallCard(game, PowerUp(powerType: PowerUpType(ev.a), level: int(ev.b),
                                       rarity: PowerUpRarity(ev.c)))
+    of fxDamage3D:
+      if not activeWorld3D.isNil:
+        spawnDamageNumber3D(activeWorld3D.damageNumbers, Vector3(x: ev.x, y: ev.y, z: ev.z),
+                            clamp(ev.w, 0'f32, 1.0e9'f32), ev.color)
     of fxPlayerSignal:
       if enumOk(ev.a, DamageEvent) and ev.b >= 0 and ev.b < game.players.len:
         game.players[ev.b].lastDamageEvent = DamageEvent(ev.a)

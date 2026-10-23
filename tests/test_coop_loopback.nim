@@ -165,10 +165,12 @@ check(pumpUntil(host, mirror, proc (): bool = cs.phase == cpClientLobby and hs.m
 check(cs.mySlot == 1, "the client has seat 1")
 check(pumpUntil(host, mirror, proc (): bool = cs.members.len == 2),
       "the client sees the lobby: both seats")
-on(clientSide): cs.setReady(true, 2)
+on(clientSide): cs.setReady(true, 2, 0.12, 2)
 check(pumpUntil(host, mirror, proc (): bool = hs.readyToStart),
       "the host sees the client ready")
 check(hs.members[1].starterKit == 2, "the client's starter kit reached the host")
+check(abs(hs.members[1].recursionBonus - 0.12) < 1e-6 and hs.members[1].recursionLevel == 2,
+      "and the Recursion its own profile banked")
 
 # --------------------------------------------------------- the first run --
 
@@ -334,6 +336,7 @@ on(clientSide):
 check(pumpUntil(host, mirror, proc (): bool = host.players[1].eliminated),
       "a client leaving takes its player out of the run")
 check(not hs.members[1].connected, "its seat shows it left")
+check(host.coop.left[1], "and the run says so on every screen (CoopState.left)")
 
 on(hostSide): hs.closeCoop()
 removeDir(sandboxDir)

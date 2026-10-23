@@ -70,7 +70,7 @@ proc drawCoopTeamStrip*(game: Game, x, y, w: int32): int32 {.discardable, moddab
     let barX = x + DockPad + 92
     let barW = w - DockPad * 2 - 92
     if p.eliminated:
-      drawShadowText(t(tkCoopOut), barX, cy, 11, DockDim)
+      drawShadowText(if coop.left[p.slot]: t(tkCoopLeftTag) else: t(tkCoopOut), barX, cy, 11, DockDim)
     elif p.downTimer > 0:
       drawShadowText(t(tkCoopRespawnIn).replace("$1", $int(ceil(p.downTimer))), barX, cy, 11, TeamAmber)
     else:

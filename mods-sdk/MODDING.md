@@ -12,7 +12,7 @@ mixins), raylib itself, the screens of the game (add its own) and its
 languages (add new ones). On top of that it gets a friendly layer: hooks at
 the moments that matter (movement, dash, shooting, bullets, pickups, the shop,
 level-ups, enemy AI, boss attacks...), its own HUD, first-person 3D worlds,
-PvP modes, textures, videos and 3D models, music, fonts, shaders, and apps of
+co-op runs, PvP modes, textures, videos and 3D models, music, fonts, shaders, and apps of
 its own on the desktop.
 
 > **Mods are trusted.** A mod runs with full access to the game, like any
@@ -1285,6 +1285,7 @@ local MODE = register.gamemode{
   base = "wave",          -- "wave", "survival", "roguelite" or "3d": the rules it starts from
   spawning = true,        -- false: the base mode spawns nothing by itself
   resumable = true,       -- false: quitting ends a run instead of saving it to resume
+  coop = true,            -- false: CO-OP.EXE does not offer it
   icon = "icon.png",      -- optional desktop icon; color and desktop work the same way
   onStart = function(game, resumed) end,
 }
@@ -1321,6 +1322,9 @@ end)
   `world3d.finish(true)` wins the run. Example: `arena_3d`.
 * To change an **existing** mode instead, write the same hooks without a mode:
   check `game:isMode("survival")` and so on (see the `chaos_engine` example).
+* Every mode can be played in [co-op](#co-op) from CO-OP.EXE, 3D ones
+  included. `coop = false` leaves a mode out of its list (for one whose rules
+  only make sense for one player).
 
 ### Restore points
 
@@ -2210,6 +2214,76 @@ changes in a renamed copy:
 | `arena_3d` | 3D worlds, both ways: Cube Siege, a complete 3D game mode (waves of entities with built-in AI, pickups, a shotgun tune, a custom HUD, `draw3d` and a `run.data` to continue from), and changes to the game's own 3D boss fight (extra drones, a phase message and a hit filter) |
 | `mixins` | the open side: wraps the game's damage and power-up offer procs (`mixin.wrap`, `mixin.after`), calls a game proc (`engine.player.heal`), draws a minimap into a raylib render texture in the `frame` hook, keeps a file in `mod.dataDir()` with `io`, loads a module of its own with `require`, and opens a screen of its own with F7 (`register.screen`) |
 | `critical_section` | a PvP mode, Critical Section (king of the hill): lobby presets, scores and a moving zone in `match.data`, privileged rounds through `pvpShoot` and `match:spawnBullet` drawn by `pvpBulletDraw`, a blink on a mod keybind sent with `match:request` and shown everywhere with `match:broadcast`, the end decided by `pvpEnding` and `match:finish`, and its own HUD (`disableAchievements: false`) |
+
+## Co-op
+
+CO-OP.EXE plays any run with 2-4 players on a LAN: wave, survival, roguelite,
+the sandbox, the 3D boss world and mod game modes. Your mods keep working, but
+it helps to know who runs what.
+
+**The host runs the game, the clients draw it.** One machine (the host)
+simulates the run with every player in it, and sends it to the others
+several times a second. So:
+
+* On the host, every hook fires as in a solo run, once per player where a
+  player is concerned: `shoot`, `playerDamaged`, `dash`, `playerUpdate`,
+  `combatStats` and the others run with that player as `player`. A hook that
+  fires for the world (`update`, `waveStart`, `enemyDeath`...) fires once.
+* On a client, the gameplay hooks never fire (not even `runStart`). The drawing
+  ones do (`drawWorld`, `drawHud`, `playerDraw`, `enemyDraw`, `world3dDraw`,
+  `frame`...), with `game` and `player` reading the run the client draws: the
+  host's, as it last arrived. Anything a client's script spawns or removes is
+  dropped, and a field it changes is overwritten by the next update: the
+  host's scripts are the ones that change the run.
+* Everyone must have the same mods loaded: the host refuses anyone else.
+
+Your data travels with the run: `run.data` and an entity's `e.data` are on
+the host, where the hooks that use them run.
+
+### The `coop` table
+
+| Function | Returns |
+|---|---|
+| `coop.active()` | a co-op run is on screen |
+| `coop.isHost()` | this machine simulates it (gameplay hooks fire here) |
+| `coop.isClient()` | this machine draws the host's run |
+| `coop.localSlot()` | this machine's seat: 0 is the host's (and 0 in a solo run) |
+| `coop.players()` | every player of the run, in seat order (`player.slot` is each one's seat) |
+| `coop.teamLives()` | the team's lives left, `math.huge` when unlimited, `nil` outside co-op |
+| `coop.name(slot)` | the nickname at that seat |
+
+```lua
+-- Each new wave patches up the whole team, not only the host's player
+hooks.on("waveStart", function(game, wave)
+  for _, p in ipairs(coop.players()) do p:heal(2) end
+end)
+
+-- A name tag over each teammate (drawing hooks run on every machine)
+hooks.on("drawWorld", function(game)
+  if not coop.active() then return end
+  for _, p in ipairs(coop.players()) do
+    if p.slot ~= coop.localSlot() then
+      draw.text(coop.name(p.slot), p.x - 20, p.y - 40, 12, "#ffffff")
+    end
+  end
+end)
+```
+
+### Downs and respawns
+
+A co-op team shares a pool of lives (the mode's restore points, plus one per
+extra player). A player whose HP runs out goes **down**: a life brings them
+back next to a teammate a few seconds later. With none left they are **out**
+until the run ends, which happens when the whole team is out.
+`playerLethal` still runs first, so a script can keep a player up.
+
+| Hook | Arguments |
+|---|---|
+| `playerDown` | `(player, out)`: `out` is true when no life was left |
+| `playerRespawn` | `(player)`: back in the fight |
+
+In a 3D world, every player is in the world too; a down there spends a team
+life the same way, and the world is lost only when everyone is out of it.
 
 ## PvP
 

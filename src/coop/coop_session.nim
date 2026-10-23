@@ -53,6 +53,7 @@ type
     cerWiped       ## the whole team is out
     cerEnded       ## the host ended the run (won, left it for the desktop, a mod)
     cerHostLeft    ## the host closed the session
+    cerVictory     ## the team won (and the host left the victory for the desktop)
 
   FragBuf = object
     count: int
@@ -78,7 +79,7 @@ type
     endWait: float32
     endSent: array[MaxCoopPlayers, bool]
     # host
-    readyByAddr: Table[string, tuple[ready: bool, kit: int32]]
+    readyByAddr: Table[string, tuple[ready: bool, kit: int32, recursion: float32, recursionLevel: int32]]
       ## each client's ready flag and kit by its address: the network layer
       ## renumbers the seats when someone leaves the lobby
     snapSeq: int32
@@ -218,6 +219,8 @@ proc rebuildMembers(s: CoopSession) =
     let r = s.readyByAddr.getOrDefault(c.addrKey)
     m.ready = r.ready
     m.starterKit = r.kit
+    m.recursionBonus = r.recursion
+    m.recursionLevel = r.recursionLevel
     seats.add m
   # By slot, so seat k is the run's player k.
   for i in 1 ..< seats.len:
@@ -233,8 +236,10 @@ proc setLobbyConfig*(s: CoopSession, config: CoopRunConfigNet) {.moddable.} =
   s.config = config
   s.broadcastLobby()
 
-proc setReady*(s: CoopSession, ready: bool, kit: int32) {.moddable.} =
-  ## This player is (not) ready, with their roguelite starter kit.
+proc setReady*(s: CoopSession, ready: bool, kit: int32, recursion = 0'f32,
+               recursionLevel = 0'i32) {.moddable.} =
+  ## This player is (not) ready, with their roguelite starter kit and the
+  ## Recursion their own profile banked (a roguelite run starts them with it).
   if s.isNil: return
   if s.isHost:
     if s.members.len > 0:
@@ -248,6 +253,8 @@ proc setReady*(s: CoopSession, ready: bool, kit: int32) {.moddable.} =
     var p = newPacket(ptCoopReady)
     p.readyFlag = ready
     p.readyKit = kit
+    p.readyRecursion = recursion
+    p.readyRecursionLevel = recursionLevel
     s.nm.sendPacket(p)
 
 proc startCoopRun*(s: CoopSession) {.moddable.} =
@@ -364,6 +371,7 @@ proc playerLeft(s: CoopSession, game: Game, slot: int32) =
   p.downTimer = 0
   if not game.coop.isNil:
     game.coop.seats[slot].ready = true
+    game.coop.left[slot] = true   # (every screen says so: main.nim)
 
 proc hostReceive(s: CoopSession, game: Game, packet: Packet) =
   case packet.kind
@@ -372,9 +380,12 @@ proc hostReceive(s: CoopSession, game: Game, packet: Packet) =
     if i >= 0 and s.phase in {cpHostLobby, cpEnded}:
       s.members[i].ready = packet.readyFlag
       s.members[i].starterKit = packet.readyKit
+      s.members[i].recursionBonus = packet.readyRecursion
+      s.members[i].recursionLevel = packet.readyRecursionLevel
       for c in s.nm.clients:
         if c.playerIndex == packet.readySlot:
-          s.readyByAddr[c.addrKey] = (packet.readyFlag, packet.readyKit)
+          s.readyByAddr[c.addrKey] = (packet.readyFlag, packet.readyKit, packet.readyRecursion,
+                                      packet.readyRecursionLevel)
       s.broadcastLobby()
   of ptCoopInput:
     let slot = packet.inputSlot

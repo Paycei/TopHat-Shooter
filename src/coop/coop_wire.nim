@@ -77,9 +77,18 @@ const
     # travels as an effect (coop_fx), or a host that never draws as a
     # teammate would keep sending theirs.
     "Player.lastDamageEvent",
+    # What only the host's own reckoning reads: the DPS window behind
+    # RealTimeStats.dps (sent), and the trail Aftershock sweeps along.
+    "RealTimeStats.damageHistory", "Player.aftershockPosHistory",
     # The power-up install card shows over each machine's own player, for its
     # own installs (an effect too).
     "Game.recentPowerUp", "Game.recentPowerUpTimer", "Game.recentPowerUpMaxTimer",
+    # A 3D world (its own snapshot section): each machine looks through its own
+    # camera and pauses its own overlay; `player` is an alias into `players`;
+    # the co-op state travels with the Game; the floating numbers are effects.
+    "Game3D.camera", "Game3D.paused", "Game3D.quitRequested", "Game3D.player",
+    "Game3D.coop", "Game3D.damageNumbers",
+    "Player3D.intent",
   ]
 
 proc coopSkipsField*(owner, name: string): bool {.compileTime.} =

@@ -38,6 +38,8 @@ type
     kit: int
     ready: bool
     highestHeat*: int  ## the roguelite Heat this profile reached (main.nim sets it)
+    recursionBonus*: float32  ## this profile's banked Recursion (main.nim sets it; sent when ready)
+    recursionLevel*: int32
     localIp: string
     status: string
     statusTimer: float32
@@ -106,8 +108,8 @@ proc localAddress(): string =
 proc spanish(): bool = not globalSettings.isNil and globalSettings.language == "spanish"
 
 proc modeChoices*(): seq[ModeChoice] {.moddable.} =
-  ## What a co-op run can be: the PvE modes, then the mod game modes on them
-  ## (not the 3D ones yet). Locked as on the desktop.
+  ## What a co-op run can be: the PvE modes, then the mod game modes (but those
+  ## registered with coop = false). Locked as on the desktop.
   let s = globalSettings
   let survivalOpen = not s.isNil and s.survivalUnlocked
   let rogueliteOpen = not s.isNil and s.rogueliteUnlocked
@@ -116,7 +118,7 @@ proc modeChoices*(): seq[ModeChoice] {.moddable.} =
   result.add ModeChoice(mode: gmRoguelite, label: t("gamemode_roguelite_name"), locked: not rogueliteOpen)
   result.add ModeChoice(mode: gmSandbox, label: t(tkGameModeSandbox))
   for m in modModes:
-    if m.threeD or m.base notin {gmWaveBased, gmTimeSurvival, gmRoguelite}: continue
+    if not m.coop or m.base notin {gmWaveBased, gmTimeSurvival, gmRoguelite}: continue
     let locked = (m.base == gmTimeSurvival and not survivalOpen) or
                  (m.base == gmRoguelite and not rogueliteOpen)
     result.add ModeChoice(mode: m.base, modKey: m.key, label: modModeName(m.key, spanish()),
@@ -361,7 +363,7 @@ proc updateCoopWindow*(cw: CoopWindow, dt: float32, screenWidth, screenHeight: i
     s.setLobbyConfig(cw.currentConfig)
   of HoverKits .. HoverKits + 2:
     cw.kit = cw.hover - HoverKits
-    s.setReady(cw.ready or s.isHost, int32(cw.kit))
+    s.setReady(cw.ready or s.isHost, int32(cw.kit), cw.recursionBonus, cw.recursionLevel)
   of HoverPrimary:
     if s.isHost:
       if s.phase == cpHostLobby and s.readyToStart:
@@ -370,7 +372,7 @@ proc updateCoopWindow*(cw: CoopWindow, dt: float32, screenWidth, screenHeight: i
         cw.window.visible = false
     elif s.phase == cpClientLobby:
       cw.ready = not cw.ready
-      s.setReady(cw.ready, int32(cw.kit))
+      s.setReady(cw.ready, int32(cw.kit), cw.recursionBonus, cw.recursionLevel)
   of HoverLeave:
     cw.leaveSession()
   else: discard
