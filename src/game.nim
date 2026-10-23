@@ -360,7 +360,7 @@ proc startSelectedTheme*(game: var Game) {.moddable.} =
 proc pickDraftCard*(game: var Game, index: int) {.moddable.} =
   ## Take card `index` of the draft (-1: continue without one).
   if not game.coop.isNil:
-    submitCoopAction(cakPick, index.int32)
+    submitCoopAction(game, cakPick, index.int32)
     return
   let legendary = game.powerUpChoices[0].rarity == prLegendary
   if index in 0..2:
@@ -372,7 +372,7 @@ proc rerollDraft*(game: var Game): bool {.discardable, moddable.} =
   ## co-op, the reroll went to the host, whose new roll arrives shortly).
   if not game.coop.isNil:
     if game.player.coins >= game.localSeat.rerollCost:
-      submitCoopAction(cakReroll)
+      submitCoopAction(game, cakReroll)
     return false
   let coinsPreReroll = game.player.coins
   result = attemptRerollPowerUps(game)
@@ -382,21 +382,21 @@ proc rerollDraft*(game: var Game): bool {.discardable, moddable.} =
 proc buyFromShop*(game: var Game, row: int) {.moddable.} =
   ## Buy shop row `row` with this machine's player's credits.
   if not game.coop.isNil:
-    submitCoopAction(cakBuy, row.int32)
+    submitCoopAction(game, cakBuy, row.int32)
     return
   buyShopItem(game, row)
 
 proc leaveShop*(game: var Game) {.moddable.} =
   ## Done shopping.
   if not game.coop.isNil:
-    submitCoopAction(cakDone)
+    submitCoopAction(game, cakDone)
     return
   closeShop(game)
 
 proc chooseFloor*(game: var Game, card: int) {.moddable.} =
   ## Roguelite floor select: go into card `card`'s sector (co-op: vote for it).
   if not game.coop.isNil:
-    submitCoopAction(cakVote, card.int32)
+    submitCoopAction(game, cakVote, card.int32)
     return
   game.selectedRogueliteTheme = card
   startSelectedTheme(game)
@@ -437,6 +437,7 @@ proc openTeamModal(game: var Game, kind: CoopModalKind) =
   let coop = game.coop
   coop.modal = kind
   coop.modalTimer = CoopModalTimeout
+  inc coop.modalSeq
   for p in game.players:
     let seat = addr coop.seats[p.slot]
     seat.ready = p.eliminated   # an eliminated player has nothing to decide
@@ -468,7 +469,7 @@ proc applyCoopAction*(game: var Game, slot: int32, a: CoopAction) {.moddable.} =
   if coop.isNil or slot < 0 or slot >= game.players.len: return
   let p = game.players[slot]
   let seat = addr coop.seats[slot]
-  if seat.ready: return
+  if seat.ready or a.modal != coop.modalSeq: return   # done, or meant for an earlier modal
   case a.kind
   of cakPick:
     if coop.modal != cmkDraft: return
@@ -506,9 +507,9 @@ proc decideForUndecided(game: var Game) =
   for p in game.players:
     if game.coop.seats[p.slot].ready: continue
     let action = case game.coop.modal
-      of cmkDraft: CoopAction(kind: cakPick, value: 0)
-      of cmkShop, cmkCache: CoopAction(kind: cakDone)
-      of cmkFloorVote: CoopAction(kind: cakVote, value: 0)
+      of cmkDraft: CoopAction(kind: cakPick, value: 0, modal: game.coop.modalSeq)
+      of cmkShop, cmkCache: CoopAction(kind: cakDone, modal: game.coop.modalSeq)
+      of cmkFloorVote: CoopAction(kind: cakVote, value: 0, modal: game.coop.modalSeq)
       of cmkNone: continue
     applyCoopAction(game, p.slot, action)
 
@@ -5885,7 +5886,7 @@ proc updateGame*(game: var Game, dt: float32) {.moddable.} =
   if isTimeSurvivalMode(game.mode) and (game.survival.reveal.active or teamReveal):
     if game.survival.reveal.active and updateSurvivalCacheReveal(game, dt):
       if game.coop.isNil: beginDraftResume(game)
-      else: submitCoopAction(cakDone)
+      else: submitCoopAction(game, cakDone)
     updateParticlePool(game.particlePool, dt)
     game.time += dt
     game.frameCount += 1

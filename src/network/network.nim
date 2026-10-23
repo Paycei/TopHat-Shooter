@@ -12,10 +12,12 @@ const
   # bullet, and a busy match with FORK.EXE triple shots can pass 8 KB; a smaller
   # buffer silently truncated those datagrams and they failed to deserialize.
   MAX_PACKET_SIZE = 65507
-  NETWORK_VERSION* = "2.7.0"
+  NETWORK_VERSION* = "3.0.1"   # 3.0.1: co-op actions name their modal; 3.0.0: co-op packets, lobby kind and layout hash
   DISCONNECT_TIMEOUT* = 2.5
-  MAX_PACKETS_PER_POLL = 100
+  MAX_PACKETS_PER_POLL = 512   # a co-op snapshot arrives as many fragments
   PACKET_MAGIC = "THS1"
+  RAW_MAGIC* = "THC1"   ## a co-op snapshot fragment (coop_session): passed through, not decoded here
+  SocketBufferBytes = 4 * 1024 * 1024   ## room for a burst of snapshot fragments
   MaxPacketPayload = 2 * 1024 * 1024
     ## Largest decompressed packet accepted. A full datagram decompresses to
     ## ~1.4 MB at most (snappy's best ratio is ~21:1), and supersnappy
@@ -217,6 +219,9 @@ type
     hostIp: IpAddress     ## Client: hostAddress parsed. Packets go here once
     hostIpKnown: bool     ## connected: sendTo(string) looks a hostname up on
                           ## every call, on the frame.
+    lobbyKind*: int32     ## Host: LobbyPvP or LobbyCoop; a request of the other kind is refused
+    layoutHash*: uint32   ## Host (co-op): a client whose run state's layout differs is refused
+    rawInbox*: seq[string]  ## Client: co-op snapshot fragments from the host, for coop_session
 
 # Construction
 
@@ -238,27 +243,49 @@ proc newNetworkManager*(): NetworkManager =
     hostPort: Port(0)
   )
 
-proc initHost*(nm: NetworkManager, port: int = DEFAULT_PORT, maxPlayers: int = 2) =
+when defined(linux):
+  const SoSndBuf = 7.cint
+  const SoRcvBuf = 8.cint
+else:   # Windows, macOS and the BSDs
+  const SoSndBuf = 0x1001.cint
+  const SoRcvBuf = 0x1002.cint
+
+proc widenBuffers(s: Socket) =
+  ## Bigger kernel buffers: a co-op snapshot is a burst of fragments, and a
+  ## full default buffer drops the tail of it. Best effort.
+  try:
+    setSockOptInt(s.getFd(), SOL_SOCKET.cint, SoRcvBuf, SocketBufferBytes)
+    setSockOptInt(s.getFd(), SOL_SOCKET.cint, SoSndBuf, SocketBufferBytes)
+  except OSError:
+    discard
+
+proc initHost*(nm: NetworkManager, port: int = DEFAULT_PORT, maxPlayers: int = 2,
+               lobbyKind = LobbyPvP, layoutHash = 0'u32) =
   nm.role = nrHost
   nm.maxPlayers = maxPlayers
   nm.clients = @[]
+  nm.lobbyKind = lobbyKind
+  nm.layoutHash = layoutHash
   nm.socket = newSocket(Domain.AF_INET, SockType.SOCK_DGRAM, Protocol.IPPROTO_UDP, buffered = false)
   nm.socket.setSockOpt(OptReuseAddr, true)
   nm.socket.getFd().setBlocking(false)
+  widenBuffers(nm.socket)
   nm.socket.bindAddr(Port(port))
   echo "[NETWORK] Host initialized on port ", port, " for ", maxPlayers, " players"
 
 proc initClient*(nm: NetworkManager) =
   nm.role = nrClient
+  nm.rawInbox = @[]
   nm.socket = newSocket(Domain.AF_INET, SockType.SOCK_DGRAM, Protocol.IPPROTO_UDP, buffered = false)
   nm.socket.setSockOpt(OptReuseAddr, true)
   nm.socket.getFd().setBlocking(false)
+  widenBuffers(nm.socket)
   echo "[NETWORK] Client initialized"
 
 proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
                    skinType: int = 0, bulletSkinType: int = 0,
                    shapeType: int = 0, particleSkinType: int = 0,
-                   nickname: string = "Player") =
+                   nickname: string = "Player", lobbyKind = LobbyPvP, layoutHash = 0'u32) =
   nm.remoteAddr = host
   nm.remotePort = Port(port)
   nm.hostIpKnown = false
@@ -273,6 +300,8 @@ proc connectToHost*(nm: NetworkManager, host: string, port: int = DEFAULT_PORT,
   packet.modList = loadedModIds.join(", ")
   packet.requestModSkin = int16(equippedCosmetic[mckPlayer])
   packet.requestModBulletSkin = int16(equippedCosmetic[mckBullet])
+  packet.lobbyKind = lobbyKind
+  packet.layoutHash = layoutHash
   try:
     nm.socket.sendTo(host, Port(port), serialize(packet))
     echo "[NETWORK] Connection request sent to ", host, ":", port
@@ -292,6 +321,25 @@ proc sendPacket*(nm: NetworkManager, packet: Packet) =
       if nm.hostIpKnown: nm.socket.sendTo(nm.hostIp, nm.hostPort, data)
       else: nm.socket.sendTo(nm.remoteAddr, nm.remotePort, data)
     except: echo "[NETWORK] Failed to send packet: ", getCurrentExceptionMsg()
+
+proc clientOfSlot(nm: NetworkManager, slot: int): int =
+  for i, c in nm.clients:
+    if c.playerIndex == slot: return i
+  -1
+
+proc sendPacketToSlot*(nm: NetworkManager, slot: int, packet: Packet) =
+  ## Host: one packet to one player (a co-op client's own statistics).
+  let i = nm.clientOfSlot(slot)
+  if nm.role != nrHost or i < 0: return
+  try: nm.socket.sendTo(nm.clients[i].address, nm.clients[i].port, serialize(packet))
+  except CatchableError: echo "[NETWORK] Failed to send to player ", slot
+
+proc sendRawToSlot*(nm: NetworkManager, slot: int, data: string) =
+  ## Host: a raw datagram (RAW_MAGIC first: a co-op snapshot fragment) to one player.
+  let i = nm.clientOfSlot(slot)
+  if nm.role != nrHost or i < 0: return
+  try: nm.socket.sendTo(nm.clients[i].address, nm.clients[i].port, data)
+  except CatchableError: discard   # a dropped fragment is the snapshot's loss, not an error
 
 proc sendTo(nm: NetworkManager, address: string, port: Port, packet: Packet) =
   ## One packet to one address (pollEvents' replies): a failed send is logged,
@@ -415,6 +463,12 @@ proc announceRosterAfterLeave(nm: NetworkManager, getCosmeticsCallback: HostCosm
       except:
         echo "[NETWORK] Failed to send player list update to ", client.address, ":", client.port.int
 
+proc renumberSeats*(nm: NetworkManager) =
+  ## Host, between matches: the clients' indices back to 1..n, each told its
+  ## own (a co-op client that left mid-run left a gap).
+  if nm.role == nrHost and not nm.matchStarted:
+    nm.announceRosterAfterLeave(nil)
+
 # Poll
 
 proc pollEvents*(nm: NetworkManager,
@@ -469,6 +523,15 @@ proc pollEvents*(nm: NetworkManager,
     if nm.role == nrHost:
       nm.lastReceiveTime = epochTime()
 
+    # A co-op snapshot fragment: only a client takes them, only from its host,
+    # and coop_session reads them (bounds-checked there).
+    if data.startsWith(RAW_MAGIC):
+      if nm.role == nrClient and nm.isConnected and address == nm.hostAddress and
+         port == nm.hostPort:
+        nm.lastReceiveTime = epochTime()
+        nm.rawInbox.add data
+      continue
+
     var packet: Packet
     try:
       packet = deserialize(data)
@@ -491,6 +554,23 @@ proc pollEvents*(nm: NetworkManager,
         deny.connectedPlayers = @[]
         nm.sendTo(address, port, deny)
         echo "[NETWORK] Connection denied (version mismatch): host=", NETWORK_VERSION, " client=", packet.version
+        continue
+
+      # A DUELINK match and a CO-OP.EXE run never mix.
+      if packet.lobbyKind != nm.lobbyKind:
+        var deny = newPacket(ptConnectionDenied)
+        deny.connectionReason = if nm.lobbyKind == LobbyCoop: "That host is running a co-op game"
+                                else: "That host is running a PvP match"
+        deny.assignedPlayerIndex = -1
+        nm.sendTo(address, port, deny)
+        continue
+
+      # Co-op sends the run state itself: both builds must lay it out alike.
+      if nm.lobbyKind == LobbyCoop and packet.layoutHash != nm.layoutHash:
+        var deny = newPacket(ptConnectionDenied)
+        deny.connectionReason = "Game versions don't match (a different build)"
+        deny.assignedPlayerIndex = -1
+        nm.sendTo(address, port, deny)
         continue
 
       # Matched mod lobbies: both sides must run the exact same mod set, or
@@ -616,11 +696,14 @@ proc pollEvents*(nm: NetworkManager,
           break
       if senderIdx < 0:
         continue
-      if packet.kind notin {ptPlayerInput, ptDisconnect, ptPing, ptPong}:
+      if packet.kind notin {ptPlayerInput, ptDisconnect, ptPing, ptPong, ptCoopInput, ptCoopReady}:
         continue
-      if packet.kind == ptPlayerInput:
-        # A client drives its own player only, whatever index it claims.
-        packet.input.playerIndex = nm.clients[senderIdx].playerIndex
+      # A client drives its own player only, whatever index it claims.
+      case packet.kind
+      of ptPlayerInput: packet.input.playerIndex = nm.clients[senderIdx].playerIndex
+      of ptCoopInput: packet.inputSlot = int32(nm.clients[senderIdx].playerIndex)
+      of ptCoopReady: packet.readySlot = int32(nm.clients[senderIdx].playerIndex)
+      else: discard
     elif nm.role == nrClient:
       # Only the host speaks to a client. Anyone else's datagram -- a forged
       # ptGameOver, ptPlayerDamage or ptDisconnect -- is dropped.

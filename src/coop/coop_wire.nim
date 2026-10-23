@@ -60,7 +60,24 @@ const
     # One-shot flags main.nim consumes on the machine that raised them.
     "Game.pendingToasts", "Game.tophatJustUnlocked", "Game.cheaterHatJustEarned",
     "Game.cheatRogueliteSkipFloor", "Game.cheatRogueliteDirectFloorSelect",
+    # Each machine's own view of a team modal: its player's roll, prices and
+    # cache reveal come from CoopState.seats and Player.shopBought.
+    "Game.powerUpChoices", "Game.rerollCost", "Game.shopItems", "Game.modShopBought",
+    "SurvivalState.reveal",
+    # Presentation each machine animates itself: the desktop-style backdrop
+    # (the boss-arena field travels in Game.bossArena and Player.arena), the
+    # screen shake and the floating rewards, and the effect lists (the host's
+    # effects arrive as events instead).
+    "Game.osBackground", "DopamineState.screenShake", "DopamineState.microRewards",
+    "Game.damageNumbers", "Game.currencyIndicators", "Game.perkIndicators",
+    "Game.lightningBolts", "Game.shockwaveRings", "Game.pathShockwaves",
+    # A player's input: a client keeps its own (its movement is predicted).
+    "Player.intent",
   ]
+
+proc coopSkipsField*(owner, name: string): bool {.compileTime.} =
+  ## Whether `owner.name` is never sent (see CoopSkipFields).
+  (owner & "." & name) in CoopSkipFields
 
 proc skippedField(owner, name: string): bool {.compileTime.} =
   (owner & "." & name) in CoopSkipFields
@@ -169,13 +186,13 @@ proc putW*[T](s: var string, x: set[T]) =
 
 proc putW*[K, V](s: var string, x: Table[K, V]) =
   putLen(s, x.len)
-  for k, v in x.pairs:
+  for k, v in tables.pairs(x):
     putW(s, k)
     putW(s, v)
 
 proc putW*[T](s: var string, x: Deque[T]) =
   putLen(s, x.len)
-  for e in x: putW(s, e)
+  for k in 0 ..< x.len: putW(s, x[k])   # (deques.items is not visible at every instantiation)
 
 proc putW*[T: tuple](s: var string, x: T) =
   for f in x.fields: putW(s, f)

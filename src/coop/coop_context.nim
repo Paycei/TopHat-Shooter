@@ -83,10 +83,11 @@ proc coopActive*(): bool {.inline.} = coopRole != crNone
 proc coopHost*(): bool {.inline.} = coopRole == crHost
 proc coopClient*(): bool {.inline.} = coopRole == crClient
 
-proc submitCoopAction*(kind: CoopActionKind, value: int32 = 0) =
+proc submitCoopAction*(game: Game, kind: CoopActionKind, value: int32 = 0) =
   ## This machine's player acted in a team modal. The host applies it with
   ## everyone else's (updateCoopModal); a client sends it to the host.
-  let a = CoopAction(kind: kind, value: value)
+  let a = CoopAction(kind: kind, value: value,
+                     modal: (if game.coop.isNil: 0'i32 else: game.coop.modalSeq))
   if coopClient():
     if not coopSendAction.isNil: coopSendAction(a)
   else:
@@ -105,9 +106,9 @@ proc pushTeamProfileEvent*(game: Game, ev: ProfileEvent) =
     if p.slot != localSlot:
       pushProfileEvent(p.slot, ev)
 
-proc queueBotAction*(slot: int32, kind: CoopActionKind, value: int32 = 0) =
+proc queueBotAction*(game: Game, slot: int32, kind: CoopActionKind, value: int32 = 0) =
   ## A bot teammate's action (coop_bot), applied like a player's.
-  coopActionQueue.add((slot, CoopAction(kind: kind, value: value)))
+  coopActionQueue.add((slot, CoopAction(kind: kind, value: value, modal: game.coop.modalSeq)))
 
 proc localSeat*(game: Game): CoopSeat =
   ## This machine's player's part in the team modal (default when none).

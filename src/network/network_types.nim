@@ -26,6 +26,13 @@ type
     ptPong                # Both: Latency response
     ptPlayerRespawn       # Server -> Client: Player respawned at a spawn point
     ptPickupTaken         # Server -> Client: A package was grabbed from a port
+    # Co-op (src/coop/). The run itself travels as raw snapshot fragments
+    # ("THC1", coop_codec / coop_session), not as packets.
+    ptCoopLobby           # Server -> Client: the co-op lobby: who is in, the run's settings
+    ptCoopReady           # Client -> Server: this player's ready flag and kit in the lobby
+    ptCoopStart           # Server -> Client: the co-op run starts (its settings, every seat)
+    ptCoopInput           # Client -> Server: co-op input, team-modal actions and acks
+    ptCoopEnd             # Server -> Client: the co-op run is over (this player's statistics)
 
   NetworkRole* = enum
     nrNone, nrHost, nrClient
@@ -138,6 +145,25 @@ type
     modMsgs*: seq[ModNetMsg]   ## Host broadcasts some client has not acknowledged yet
     modAcks*: seq[int32]       ## Per player: the newest request seq the host has handled
 
+  CoopMemberNet* = object
+    ## One seat of a co-op lobby / run.
+    slot*: int32
+    nickname*: string
+    ready*: bool
+    connected*: bool
+    skinType*, bulletSkinType*, shapeType*, particleSkinType*, bulletShape*: int32
+    modSkin*, modBulletSkin*: int16
+    starterKit*: int32     ## roguelite: this player's own starter kit (RogueliteStarterKit ord)
+
+  CoopRunConfigNet* = object
+    ## What the host picked for the run. Everyone plays at the host's
+    ## difficulty; rewards go to each player's own profile.
+    mode*: int32           ## GameMode ord
+    modMode*: string       ## a mod game mode's key, "" = the vanilla mode
+    difficulty*: int32     ## the host profile's GameDifficulty ord
+    heat*: int32           ## roguelite Heat
+    sandbox*: SandboxConfig  ## the LAB loadout
+
   ConnectedPlayerInfo* = tuple[
     index: int,
     skinType: int,
@@ -170,6 +196,8 @@ type
       modList*: string
       requestModSkin*: int16       ## equipped mod cosmetics (see PlayerStateNet)
       requestModBulletSkin*: int16
+      lobbyKind*: int32            ## LobbyPvP or LobbyCoop: a host refuses the other kind
+      layoutHash*: uint32          ## co-op: the run state's type layout (coop_codec)
     of ptConnectionAccept, ptConnectionDenied:
       connectionReason*: string
       assignedPlayerIndex*: int
@@ -230,6 +258,34 @@ type
       pickupKind*: int      ## PvPPackageKind ordinal
       pickupTaker*: int
       pickupApplied*: bool  ## false: a mod took it in place of its effect (pvpPickup)
+    of ptCoopLobby:
+      lobbyMembers*: seq[CoopMemberNet]
+      lobbyConfig*: CoopRunConfigNet
+      lobbyMaxPlayers*: int32
+    of ptCoopReady:
+      readySlot*: int32     ## the sender's seat (the host sets it from the address)
+      readyFlag*: bool
+      readyKit*: int32      ## RogueliteStarterKit ord
+    of ptCoopStart:
+      startMembers*: seq[CoopMemberNet]
+      startConfig*: CoopRunConfigNet
+      startRun*: int32      ## the session's run number: packets of an older run are dropped
+    of ptCoopInput:
+      inputSlot*: int32     ## the sender's seat (the host sets it from the address)
+      inputRun*: int32      ## the run it belongs to (ptCoopStart.startRun)
+      intents*: seq[PlayerIntent]  ## the newest first, then the two before it (one loss is harmless)
+      intentSeq*: int32     ## counts the client's intents (the newest's)
+      actions*: seq[CoopAction]    ## team-modal actions the host has not confirmed yet
+      snapAck*: int32       ## the newest snapshot this client has fully applied
+      profileAck*: int32    ## the newest profile event it has applied
+    of ptCoopEnd:
+      endRun*: int32
+      coopEndReason*: int32 ## CoopEndReason ord (coop_session)
+      endStats*: string     ## this player's run statistics (JSON)
+
+const
+  LobbyPvP* = 0'i32    ## a DUELINK match (ptConnectionRequest.lobbyKind)
+  LobbyCoop* = 1'i32   ## a CO-OP.EXE run
 
 proc newPacket*(kind: PacketType, tick: int = 0): Packet {.inline.} =
   ## Create a Packet with the given kind, tick, and current timestamp.

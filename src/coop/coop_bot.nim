@@ -20,12 +20,12 @@ proc queueBotModalActions*(game: Game, frame: int, includeLocal = false) =
     if p.isLocalPlayer and not includeLocal: continue
     if coop.seats[p.slot].ready: continue
     case coop.modal
-    of cmkDraft: queueBotAction(p.slot, cakPick, int32((frame + p.slot.int) mod 3))
+    of cmkDraft: queueBotAction(game, p.slot, cakPick, int32((frame + p.slot.int) mod 3))
     of cmkShop:
-      queueBotAction(p.slot, cakBuy, 0)
-      queueBotAction(p.slot, cakDone)
-    of cmkCache: queueBotAction(p.slot, cakDone)
-    of cmkFloorVote: queueBotAction(p.slot, cakVote, 0)
+      queueBotAction(game, p.slot, cakBuy, 0)
+      queueBotAction(game, p.slot, cakDone)
+    of cmkCache: queueBotAction(game, p.slot, cakDone)
+    of cmkFloorVote: queueBotAction(game, p.slot, cakVote, 0)
     of cmkNone: discard
 
 proc botIntent*(game: Game, p: Player, frame: int) =

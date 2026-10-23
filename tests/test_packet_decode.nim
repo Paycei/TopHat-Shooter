@@ -143,6 +143,15 @@ proc bulletNet(i: int): BulletStateNet =
 proc wallNet(i: int): WallStateNet =
   WallStateNet(pos: vec2(i.float32, 5), radius: 20, hp: 3, maxHp: 4, ownerIndex: i mod 2)
 
+proc coopMember(slot: int32): CoopMemberNet =
+  CoopMemberNet(slot: slot, nickname: "p" & $slot, ready: slot mod 2 == 0, connected: true,
+                skinType: slot, bulletShape: 2, modSkin: -1, starterKit: slot mod 3)
+
+proc coopConfig(): CoopRunConfigNet =
+  CoopRunConfigNet(mode: ord(gmRoguelite).int32, modMode: "mymod:raid", difficulty: 2, heat: 4,
+                   sandbox: SandboxConfig(maxHp: 30, damage: 2, fireRate: 0.2, speed: 220,
+                                          bulletSpeed: 600, walls: 5, coins: 100, startWave: 10))
+
 proc sample(kind: PacketType): Packet =
   result = newPacket(kind, 42)
   result.matchId = 3
@@ -227,6 +236,35 @@ proc sample(kind: PacketType): Packet =
     result.pickupKind = 1
     result.pickupTaker = 1
     result.pickupApplied = true
+  of ptCoopLobby:
+    result.lobbyMembers = @[coopMember(0), coopMember(1)]
+    result.lobbyConfig = coopConfig()
+    result.lobbyMaxPlayers = 4
+  of ptCoopReady:
+    result.readySlot = 1
+    result.readyFlag = true
+    result.readyKit = 2
+  of ptCoopStart:
+    result.startMembers = @[coopMember(0), coopMember(1), coopMember(2)]
+    result.startConfig = coopConfig()
+    result.startRun = 3
+  of ptCoopInput:
+    result.inputSlot = 1
+    result.inputRun = 3
+    var it = PlayerIntent(move: vec2(0.6, -0.8), aim: vec2(300, 200), fireHeld: true,
+                          wallHeld: true, aimByDir: true, aimDir: vec2(1, 0))
+    it.edges[ieDash] = 4
+    it.seen[ieAbility] = 2
+    result.intents = @[it, it]
+    result.intentSeq = 12
+    result.actions = @[CoopAction(kind: cakPick, value: 1, seq: 5),
+                       CoopAction(kind: cakVote, value: 0, seq: 6)]
+    result.snapAck = 40
+    result.profileAck = 3
+  of ptCoopEnd:
+    result.endRun = 3
+    result.coopEndReason = 1
+    result.endStats = """{"kills":12}"""
 
 proc received(events: seq[NetworkEvent], kind: PacketType): seq[Packet] =
   for e in events:
@@ -269,6 +307,63 @@ block:
   pump(4)
   check(received(hostEvents, ptGameOver).len == 0, "client -> host: a forged game over is dropped")
   clearEvents()
+
+# Client to host: co-op input and ready (the host stamps the sender's seat).
+block:
+  var ci = sample(ptCoopInput)
+  ci.inputSlot = 3
+  client.sendPacket(ci)
+  var cr = sample(ptCoopReady)
+  cr.readySlot = 2
+  client.sendPacket(cr)
+  pump(4)
+  let gotIn = received(hostEvents, ptCoopInput)
+  var expIn = ci
+  expIn.inputSlot = 1
+  check(gotIn.len == 1 and gotIn[0].toFlatty() == expIn.toFlatty(), "client -> host: a co-op input")
+  let gotReady = received(hostEvents, ptCoopReady)
+  check(gotReady.len == 1 and gotReady[0].readySlot == 1, "client -> host: a co-op ready")
+  clearEvents()
+
+# A co-op snapshot fragment reaches the client as raw bytes, from the host only.
+block:
+  let frag = RAW_MAGIC & "\x01\x02\x03payload"
+  host.sendRawToSlot(1, frag)
+  pump(4)
+  check(client.rawInbox.len == 1 and client.rawInbox[0] == frag, "host -> client: a raw co-op fragment")
+  client.rawInbox.setLen(0)
+  evil.sendTo("127.0.0.1", clientPort, frag)
+  pump(4)
+  check(client.rawInbox.len == 0, "a raw fragment from a stranger is dropped")
+
+# A co-op host refuses a DUELINK client (and the other way round).
+block:
+  let coopHost = newNetworkManager()
+  coopHost.initHost(HostPort + 1, 4, LobbyCoop, 1234)
+  let pvpClient = newNetworkManager()
+  pvpClient.initClient()
+  pvpClient.connectToHost("127.0.0.1", HostPort + 1, nickname = "pvp")
+  var refused = false
+  for _ in 0 ..< 20:
+    discard coopHost.pollEvents()
+    for e in pvpClient.pollEvents():
+      if e.kind == neDisconnect and "co-op" in e.reason: refused = true
+    sleep(5)
+  check(refused and not pvpClient.isConnected, "a co-op host refuses a PvP client")
+  let badBuild = newNetworkManager()
+  badBuild.initClient()
+  badBuild.connectToHost("127.0.0.1", HostPort + 1, nickname = "old", lobbyKind = LobbyCoop,
+                         layoutHash = 999)
+  var refusedBuild = false
+  for _ in 0 ..< 20:
+    discard coopHost.pollEvents()
+    for e in badBuild.pollEvents():
+      if e.kind == neDisconnect and "build" in e.reason: refusedBuild = true
+    sleep(5)
+  check(refusedBuild, "a co-op host refuses a client whose run layout differs")
+  coopHost.cleanup()
+  pvpClient.cleanup()
+  badBuild.cleanup()
 
 # Last: the host leaves.
 host.sendPacket(sample(ptDisconnect))

@@ -1323,6 +1323,7 @@ type
                               # bullet hits several enemies but is still one shot, so accuracy needs this.
     modKind*: string          # A mod projectile kind ("<mod id>:<id>", register.projectile); "" = none
     modPierce*: int32         # Enemies a mod bullet still passes through before the vanilla pierce rules
+    netId*: int32             # co-op: its id in snapshots (coop_codec; 0 = not sent yet)
 
   # ---- Mod things (src/game/things.nim, register.thing / spawn.thing) ----
   # One generic arena entity for everything a mod adds to the 2D arena: allies,
@@ -1406,6 +1407,7 @@ type
     value*: int
     lifetime*: float32
     isBossCoin*: bool  # Special coin from boss that must be collected to end wave
+    netId*: int32  # co-op: its id in snapshots (coop_codec; 0 = not sent yet)
 
   XpOrb* = ref object
     ## Roguelite-only experience particle. Mirrors Coin: drops on enemy death,
@@ -1415,6 +1417,7 @@ type
     radius*: float32
     value*: int
     lifetime*: float32
+    netId*: int32  # co-op: its id in snapshots (coop_codec; 0 = not sent yet)
 
   Consumable* = ref object
     pos*: Vector2
@@ -1977,6 +1980,7 @@ type
     kind*: CoopActionKind
     value*: int32
     seq*: int32   ## the sender's running count (delivery is reliable: see coop_session)
+    modal*: int32 ## the team modal it was made in (CoopState.modalSeq): a late one is dropped
 
   CoopState* = ref object
     ## A co-op run's shared state (src/coop/); nil in single player. It lives
@@ -1986,6 +1990,7 @@ type
     modal*: CoopModalKind     ## the team modal open, cmkNone while the run is live
     modalTimer*: float32      ## seconds before the ones still deciding are decided for
     modalLegendary*: bool     ## the open draft is a legendary one
+    modalSeq*: int32          ## counts the team modals opened (CoopAction.modal)
     seats*: array[MaxCoopPlayers, CoopSeat]
 
   Game* = ref object

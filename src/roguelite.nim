@@ -341,38 +341,11 @@ proc resetRogueliteProfile*(profile: RogueliteProfile): bool {.moddable.} =
 # ---------------------------------------------------------------------------
 # Runs
 
-proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
-                         starterKit: RogueliteStarterKit, heat: int) {.moddable.} =
-  normalizeRogueliteProfile(profile)
-  let maxUnlockedHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
-  let clampedHeat = clamp(heat, RogueliteMinHeat, maxUnlockedHeat)
-  let heatRank = heatChallengeRank(clampedHeat)
-  game.rogueliteProfile = profile
-  game.rogueliteRun = RogueliteRun(
-    seed: rand(1_000_000_000),
-    starterKit: starterKit,
-    heat: clampedHeat,
-    floorNumber: 1,
-    floor: nil,
-    totalRoomsCleared: 0,
-    usedThemes: {},
-    pendingFloorSelect: true,
-    relics: @[],
-    shardsEarned: 0,
-    coresEarned: 0,
-    totalShardsBanked: 0,
-    totalCoresBanked: 0,
-    heatUnlocked: 0,
-    endlessLoop: 0,
-    completed: false,
-    died: false,
-    awaitingVictoryScreen: false
-  )
-
-  game.currentWave = 1
-  game.wavesUntilBoss = 999
-  game.waveInProgress = false
-  game.waveEnemiesRemaining = 0
+proc equipRogueliteStarter*(game: Game, starterKit: RogueliteStarterKit, heatRank: int,
+                            profile: RogueliteProfile) {.moddable.} =
+  ## The active player's start in a roguelite run: their kit, the Heat's coins
+  ## and the banked Recursion of `profile` (nil: none, a co-op teammate's
+  ## profile lives on their machine).
   game.player.coins = 0
   game.player.patches = {}
   game.player.patchBlockCharges = 0
@@ -413,6 +386,40 @@ proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
   if not profile.isNil and profile.recursionLevel > 0:
     game.player.powerUps.add(
       PowerUp(powerType: puRecursion, level: profile.recursionLevel, rarity: prCommon))
+
+proc beginRogueliteRun*(game: Game, profile: RogueliteProfile,
+                         starterKit: RogueliteStarterKit, heat: int) {.moddable.} =
+  normalizeRogueliteProfile(profile)
+  let maxUnlockedHeat = if profile.isNil: RogueliteMinHeat else: profile.highestHeat
+  let clampedHeat = clamp(heat, RogueliteMinHeat, maxUnlockedHeat)
+  let heatRank = heatChallengeRank(clampedHeat)
+  game.rogueliteProfile = profile
+  game.rogueliteRun = RogueliteRun(
+    seed: rand(1_000_000_000),
+    starterKit: starterKit,
+    heat: clampedHeat,
+    floorNumber: 1,
+    floor: nil,
+    totalRoomsCleared: 0,
+    usedThemes: {},
+    pendingFloorSelect: true,
+    relics: @[],
+    shardsEarned: 0,
+    coresEarned: 0,
+    totalShardsBanked: 0,
+    totalCoresBanked: 0,
+    heatUnlocked: 0,
+    endlessLoop: 0,
+    completed: false,
+    died: false,
+    awaitingVictoryScreen: false
+  )
+
+  game.currentWave = 1
+  game.wavesUntilBoss = 999
+  game.waveInProgress = false
+  game.waveEnemiesRemaining = 0
+  equipRogueliteStarter(game, starterKit, heatRank, profile)
 
 # ---------------------------------------------------------------------------
 # Patches

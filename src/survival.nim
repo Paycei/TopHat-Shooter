@@ -727,6 +727,7 @@ proc openSurvivalCache(game: var Game, tier: SurvivalCacheTier, at: Vector2): bo
     reveal.shards = shards
     game.coop.modal = cmkCache
     game.coop.modalTimer = CoopModalTimeout
+    inc game.coop.modalSeq
     for p in game.players:
       game.coop.seats[p.slot].ready = p.eliminated
   if reveal.shards > 0:
